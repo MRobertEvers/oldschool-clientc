@@ -22,6 +22,8 @@ struct Platform2_OSX_SDL2_Renderer_Metal
     void* mtl_pipeline_state; // id<MTLRenderPipelineState>
     void* mtl_depth_stencil;  // id<MTLDepthStencilState>
     void* mtl_uniform_buffer; // id<MTLBuffer>
+    void* mtl_sampler_state;  // id<MTLSamplerState> — texture sampling (clamp U, repeat V)
+    void* mtl_dummy_texture;  // id<MTLTexture> 1×1 white — bound when texBlend == 0
 
     SDL_MetalView metal_view; // SDL_MetalView is itself a void*
 
@@ -38,6 +40,10 @@ struct Platform2_OSX_SDL2_Renderer_Metal
 
     // Per-texture cached Metal texture (void* = id<MTLTexture>)
     std::unordered_map<int, void*> texture_by_id;
+
+    // Match pix3dgl_load_texture: signed anim (U+ / V−) and opaque flag per texture id
+    std::unordered_map<int, float> texture_anim_speed_by_id;
+    std::unordered_map<int, bool>  texture_opaque_by_id;
 
     // Index assignment used to map model keys to a stable integer slot
     std::unordered_map<uintptr_t, int>  model_index_by_key;

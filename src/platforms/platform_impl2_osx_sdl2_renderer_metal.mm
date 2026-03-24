@@ -19,6 +19,8 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+#include "graphics/uv_pnm.h"
+
 extern "C" {
 #include "graphics/dash.h"
 #include "graphics/shared_tables.h"
@@ -119,12 +121,17 @@ metal_remap_projection_opengl_to_metal_z(float* proj_colmajor)
 }
 
 // ---------------------------------------------------------------------------
-// Vertex layout that matches Shaders.metal
+// Vertex layout that matches Shaders.metal (stride 64, 16-byte aligned)
 // ---------------------------------------------------------------------------
 struct MetalVertex
 {
-    float position[3]; // x, y, z
+    float position[4]; // xyz + unused w (1.0)
     float color[4];    // r, g, b, a
+    float texcoord[2];
+    float texBlend;           // 1.0 = sample texture * color (Pix3DGL), 0.0 = color only
+    float textureOpaque;      // 1.0 = opaque tex; 0.0 = alpha-tested like GL path
+    float textureAnimSpeed;   // signed, same encoding as pix3dgl_load_texture
+    float _pad_vertex;
 };
 
 // ---------------------------------------------------------------------------
@@ -134,6 +141,8 @@ struct MetalUniforms
 {
     float modelViewMatrix[16];
     float projectionMatrix[16];
+    float uClock;
+    float _pad_uniform[3];
 };
 
 // ---------------------------------------------------------------------------
@@ -248,102 +257,161 @@ model_gpu_cache_key(const struct DashModel* model)
     return key;
 }
 
-// ---------------------------------------------------------------------------
-// Build a flat (positions + colors) vertex array for a model, in face order.
-// Vertices are transformed from model-local space to world space using the
-// draw position offset and yaw rotation.
-//
-// face_order[0..face_count) maps draw order → model face index.
-// If face_order is nullptr, faces are drawn in their natural order.
-// Returns the number of vertices written.
-// ---------------------------------------------------------------------------
-static int
-build_ordered_vertices(
+// Same encoding as pix3dgl_load_texture (direction → sign, speed scale).
+static float
+metal_texture_animation_signed(int animation_direction, int animation_speed)
+{
+    if( animation_direction == 0 )
+        return 0.0f;
+    float speed = ((float)animation_speed) / (128.0f / 50.0f);
+    if( animation_direction == 2 || animation_direction == 4 )
+        return speed;
+    return -speed;
+}
+
+// Append one face (3 vertices) in model draw order. Skips invisible / invalid faces.
+// effective_tex_id is -1 for untextured, or a loaded texture id (caller drops missing atlas slots).
+static void
+append_model_face_vertices(
     const struct DashModel* model,
-    const int* face_order,
-    int face_count,
+    int f,
     float world_x, float world_y, float world_z,
-    float yaw_rad,
+    float cos_yaw, float sin_yaw,
+    int effective_tex_id,
+    float texture_anim_speed,
+    bool texture_opaque,
     std::vector<MetalVertex>& out)
 {
-    out.clear();
-    if( !model || face_count <= 0 )
-        return 0;
+    if( model->face_infos && model->face_infos[f] == 2 )
+        return;
+    if( model->lighting && model->lighting->face_colors_hsl_c &&
+        model->lighting->face_colors_hsl_c[f] == -2 )
+        return;
 
-    const float cos_yaw = cosf(yaw_rad);
-    const float sin_yaw = sinf(yaw_rad);
+    const int ia = model->face_indices_a[f];
+    const int ib = model->face_indices_b[f];
+    const int ic = model->face_indices_c[f];
+    if( ia < 0 || ia >= model->vertex_count || ib < 0 || ib >= model->vertex_count || ic < 0 ||
+        ic >= model->vertex_count )
+        return;
 
-    out.reserve(face_count * 3);
-    for( int fi = 0; fi < face_count; ++fi )
+    if( !model->lighting || !model->lighting->face_colors_hsl_a ||
+        !model->lighting->face_colors_hsl_b || !model->lighting->face_colors_hsl_c )
+        return;
+
+    int hsl_a = model->lighting->face_colors_hsl_a[f];
+    int hsl_b = model->lighting->face_colors_hsl_b[f];
+    int hsl_c = model->lighting->face_colors_hsl_c[f];
+    int rgb_a, rgb_b, rgb_c;
+    if( hsl_c == -1 )
+        rgb_a = rgb_b = rgb_c = g_hsl16_to_rgb_table[hsl_a & 65535];
+    else
     {
-        const int f = face_order ? face_order[fi] : fi;
-        if( f < 0 || f >= model->face_count )
-            continue;
+        rgb_a = g_hsl16_to_rgb_table[hsl_a & 65535];
+        rgb_b = g_hsl16_to_rgb_table[hsl_b & 65535];
+        rgb_c = g_hsl16_to_rgb_table[hsl_c & 65535];
+    }
 
-        if( model->lighting && model->lighting->face_colors_hsl_c &&
-            model->lighting->face_colors_hsl_c[f] == -2 )
-            continue;
-
-        const int ia = model->face_indices_a[f];
-        const int ib = model->face_indices_b[f];
-        const int ic = model->face_indices_c[f];
-
-        if( ia < 0 || ia >= model->vertex_count ||
-            ib < 0 || ib >= model->vertex_count ||
-            ic < 0 || ic >= model->vertex_count )
-            continue;
-
-        // Per-face color (use lighting if available)
-        float r = 0.5f, g = 0.5f, b = 0.5f, a = 1.0f;
-        if( model->lighting && model->lighting->face_colors_hsl_a )
+    float face_alpha = 1.0f;
+    if( model->face_alphas )
+    {
+        int alpha_raw = model->face_alphas[f];
+        if( alpha_raw >= 0 )
         {
-            int hsl = model->lighting->face_colors_hsl_a[f];
-            if( hsl >= 0 && hsl < 65536 )
-            {
-                int rgb = g_hsl16_to_rgb_table[hsl];
-                r = ((rgb >> 16) & 0xFF) / 255.0f;
-                g = ((rgb >>  8) & 0xFF) / 255.0f;
-                b = ( rgb        & 0xFF) / 255.0f;
-            }
-        }
-
-        // Match pix3dgl_model_load: textured vs untextured use different alpha encoding
-        if( model->face_alphas )
-        {
-            int alpha_raw = model->face_alphas[f];
-            if( alpha_raw >= 0 )
-            {
-                const int ab = alpha_raw & 0xFF;
-                const bool textured =
-                    model->face_textures && model->face_textures[f] != -1;
-                if( textured )
-                    a = (float)ab / 255.0f;
-                else
-                    a = (float)(0xFF - ab) / 255.0f;
-            }
-        }
-
-        const int verts[3] = { ia, ib, ic };
-        for( int v = 0; v < 3; ++v )
-        {
-            // Model-local position
-            float lx = (float)model->vertices_x[verts[v]];
-            float ly = (float)model->vertices_y[verts[v]];
-            float lz = (float)model->vertices_z[verts[v]];
-
-            // Rotate by yaw around the Y axis, then translate to world space
-            MetalVertex mv;
-            mv.position[0] = cos_yaw * lx + sin_yaw * lz + world_x;
-            mv.position[1] = ly + world_y;
-            mv.position[2] = -sin_yaw * lx + cos_yaw * lz + world_z;
-            mv.color[0] = r;
-            mv.color[1] = g;
-            mv.color[2] = b;
-            mv.color[3] = a;
-            out.push_back(mv);
+            const int ab = alpha_raw & 0xFF;
+            const bool textured =
+                model->face_textures && model->face_textures[f] != -1 && effective_tex_id >= 0;
+            if( textured )
+                face_alpha = (float)ab / 255.0f;
+            else
+                face_alpha = (float)(0xFF - ab) / 255.0f;
         }
     }
-    return (int)out.size();
+
+    float u_corner[3] = { 0.0f, 0.0f, 0.0f };
+    float v_corner[3] = { 0.0f, 0.0f, 0.0f };
+
+    if( effective_tex_id >= 0 )
+    {
+        int texture_face_idx = f;
+        int tp = 0, tm = 0, tn = 0;
+        if( model->face_texture_coords && model->face_texture_coords[f] != -1 &&
+            model->textured_p_coordinate && model->textured_m_coordinate &&
+            model->textured_n_coordinate )
+        {
+            texture_face_idx = model->face_texture_coords[f];
+            tp = model->textured_p_coordinate[texture_face_idx];
+            tm = model->textured_m_coordinate[texture_face_idx];
+            tn = model->textured_n_coordinate[texture_face_idx];
+        }
+        else
+        {
+            tp = model->face_indices_a[texture_face_idx];
+            tm = model->face_indices_b[texture_face_idx];
+            tn = model->face_indices_c[texture_face_idx];
+        }
+
+        struct UVFaceCoords uv;
+        uv_pnm_compute(
+            &uv,
+            (float)model->vertices_x[tp],
+            (float)model->vertices_y[tp],
+            (float)model->vertices_z[tp],
+            (float)model->vertices_x[tm],
+            (float)model->vertices_y[tm],
+            (float)model->vertices_z[tm],
+            (float)model->vertices_x[tn],
+            (float)model->vertices_y[tn],
+            (float)model->vertices_z[tn],
+            (float)model->vertices_x[ia],
+            (float)model->vertices_y[ia],
+            (float)model->vertices_z[ia],
+            (float)model->vertices_x[ib],
+            (float)model->vertices_y[ib],
+            (float)model->vertices_z[ib],
+            (float)model->vertices_x[ic],
+            (float)model->vertices_y[ic],
+            (float)model->vertices_z[ic]);
+        u_corner[0] = uv.u1;
+        u_corner[1] = uv.u2;
+        u_corner[2] = uv.u3;
+        v_corner[0] = uv.v1;
+        v_corner[1] = uv.v2;
+        v_corner[2] = uv.v3;
+    }
+
+    const float texBlend = effective_tex_id >= 0 ? 1.0f : 0.0f;
+    const float opaque_f = texture_opaque ? 1.0f : 0.0f;
+
+    const int verts[3] = { ia, ib, ic };
+    const int rgbs[3] = { rgb_a, rgb_b, rgb_c };
+    for( int vi = 0; vi < 3; ++vi )
+    {
+        const int vi_idx = verts[vi];
+        float lx = (float)model->vertices_x[vi_idx];
+        float ly = (float)model->vertices_y[vi_idx];
+        float lz = (float)model->vertices_z[vi_idx];
+
+        MetalVertex mv;
+        mv.position[0] = cos_yaw * lx + sin_yaw * lz + world_x;
+        mv.position[1] = ly + world_y;
+        mv.position[2] = -sin_yaw * lx + cos_yaw * lz + world_z;
+        mv.position[3] = 1.0f;
+
+        int rgb = rgbs[vi];
+        mv.color[0] = ((rgb >> 16) & 0xFF) / 255.0f;
+        mv.color[1] = ((rgb >> 8) & 0xFF) / 255.0f;
+        mv.color[2] = (rgb & 0xFF) / 255.0f;
+        mv.color[3] = face_alpha;
+
+        mv.texcoord[0] = u_corner[vi];
+        mv.texcoord[1] = v_corner[vi];
+        mv.texBlend = texBlend;
+        mv.textureOpaque = opaque_f;
+        mv.textureAnimSpeed = texture_anim_speed;
+        mv._pad_vertex = 0.0f;
+        out.push_back(mv);
+    }
 }
 
 // Pre-cache placeholder (we still track load keys, but actual vertex buffers
@@ -443,6 +511,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_New(int width, int height)
     renderer->mtl_pipeline_state = nil;
     renderer->mtl_depth_stencil  = nil;
     renderer->mtl_uniform_buffer = nil;
+    renderer->mtl_sampler_state  = nil;
+    renderer->mtl_dummy_texture  = nil;
     renderer->metal_view         = nullptr;
     renderer->platform           = nullptr;
     renderer->width              = width;
@@ -471,6 +541,19 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(
     ImGui::DestroyContext();
 
     // ARC manages the Metal objects; clear pointers so the bridged refs release
+    renderer->texture_anim_speed_by_id.clear();
+    renderer->texture_opaque_by_id.clear();
+
+    if( renderer->mtl_dummy_texture )
+    {
+        CFRelease(renderer->mtl_dummy_texture);
+        renderer->mtl_dummy_texture = nullptr;
+    }
+    if( renderer->mtl_sampler_state )
+    {
+        CFRelease(renderer->mtl_sampler_state);
+        renderer->mtl_sampler_state = nullptr;
+    }
     if( renderer->mtl_uniform_buffer )
     {
         CFRelease(renderer->mtl_uniform_buffer);
@@ -592,14 +675,26 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
         return false;
     }
 
-    // Vertex descriptor matching MetalVertex layout
+    // Vertex descriptor matching MetalVertex layout (see Shaders.metal struct Vertex)
     MTLVertexDescriptor* vtxDesc = [[MTLVertexDescriptor alloc] init];
-    vtxDesc.attributes[0].format      = MTLVertexFormatFloat3;
+    vtxDesc.attributes[0].format      = MTLVertexFormatFloat4;
     vtxDesc.attributes[0].offset      = offsetof(MetalVertex, position);
     vtxDesc.attributes[0].bufferIndex = 0;
     vtxDesc.attributes[1].format      = MTLVertexFormatFloat4;
     vtxDesc.attributes[1].offset      = offsetof(MetalVertex, color);
     vtxDesc.attributes[1].bufferIndex = 0;
+    vtxDesc.attributes[2].format      = MTLVertexFormatFloat2;
+    vtxDesc.attributes[2].offset      = offsetof(MetalVertex, texcoord);
+    vtxDesc.attributes[2].bufferIndex = 0;
+    vtxDesc.attributes[3].format      = MTLVertexFormatFloat;
+    vtxDesc.attributes[3].offset      = offsetof(MetalVertex, texBlend);
+    vtxDesc.attributes[3].bufferIndex = 0;
+    vtxDesc.attributes[4].format      = MTLVertexFormatFloat;
+    vtxDesc.attributes[4].offset      = offsetof(MetalVertex, textureOpaque);
+    vtxDesc.attributes[4].bufferIndex = 0;
+    vtxDesc.attributes[5].format      = MTLVertexFormatFloat;
+    vtxDesc.attributes[5].offset      = offsetof(MetalVertex, textureAnimSpeed);
+    vtxDesc.attributes[5].bufferIndex = 0;
     vtxDesc.layouts[0].stride         = sizeof(MetalVertex);
     vtxDesc.layouts[0].stepFunction   = MTLVertexStepFunctionPerVertex;
 
@@ -639,6 +734,29 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
     id<MTLBuffer> unifBuf = [device newBufferWithLength:sizeof(MetalUniforms)
                                                 options:MTLResourceStorageModeShared];
     renderer->mtl_uniform_buffer = (__bridge_retained void*)unifBuf;
+
+    MTLSamplerDescriptor* sampDesc = [[MTLSamplerDescriptor alloc] init];
+    sampDesc.minFilter              = MTLSamplerMinMagFilterLinear;
+    sampDesc.magFilter              = MTLSamplerMinMagFilterLinear;
+    sampDesc.sAddressMode           = MTLSamplerAddressModeClampToEdge;
+    sampDesc.tAddressMode           = MTLSamplerAddressModeRepeat;
+    id<MTLSamplerState> sampState   = [device newSamplerStateWithDescriptor:sampDesc];
+    renderer->mtl_sampler_state     = (__bridge_retained void*)sampState;
+
+    MTLTextureDescriptor* dumDesc =
+        [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                           width:1
+                                                          height:1
+                                                       mipmapped:NO];
+    dumDesc.usage       = MTLTextureUsageShaderRead;
+    dumDesc.storageMode = MTLStorageModeShared;
+    id<MTLTexture> dumTex = [device newTextureWithDescriptor:dumDesc];
+    const uint8_t whiteRgba[4] = { 255, 255, 255, 255 };
+    [dumTex replaceRegion:MTLRegionMake2D(0, 0, 1, 1)
+              mipmapLevel:0
+                withBytes:whiteRgba
+              bytesPerRow:4];
+    renderer->mtl_dummy_texture = (__bridge_retained void*)dumTex;
 
     // Sync initial drawable size
     sync_drawable_size(renderer);
@@ -740,6 +858,10 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
         projection_width,
         projection_height);
     metal_remap_projection_opengl_to_metal_z(uniforms.projectionMatrix);
+    uniforms.uClock = (float)(SDL_GetTicks64() / 1000.0);
+    uniforms._pad_uniform[0] = 0.0f;
+    uniforms._pad_uniform[1] = 0.0f;
+    uniforms._pad_uniform[2] = 0.0f;
     memcpy(unifBuf.contents, &uniforms, sizeof(uniforms));
 
     // -----------------------------------------------------------------------
@@ -799,22 +921,34 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
         if( renderer->texture_by_id.count(tex_id) && renderer->texture_by_id[tex_id] )
             CFRelease(renderer->texture_by_id[tex_id]);
 
+        renderer->texture_anim_speed_by_id[tex_id] =
+            metal_texture_animation_signed(tex->animation_direction, tex->animation_speed);
+        renderer->texture_opaque_by_id[tex_id] = tex->opaque;
+
+        const int w = tex->width;
+        const int h = tex->height;
+        std::vector<uint8_t> rgba((size_t)w * (size_t)h * 4u);
+        for( int p = 0; p < w * h; ++p )
+        {
+            int pix = tex->texels[p];
+            rgba[(size_t)p * 4u + 0] = (uint8_t)((pix >> 16) & 0xFF);
+            rgba[(size_t)p * 4u + 1] = (uint8_t)((pix >> 8) & 0xFF);
+            rgba[(size_t)p * 4u + 2] = (uint8_t)(pix & 0xFF);
+            rgba[(size_t)p * 4u + 3] = (uint8_t)((pix >> 24) & 0xFF);
+        }
+
         MTLTextureDescriptor* texDesc =
-            [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatBGRA8Unorm
-                                                               width:(NSUInteger)tex->width
-                                                              height:(NSUInteger)tex->height
+            [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                               width:(NSUInteger)w
+                                                              height:(NSUInteger)h
                                                            mipmapped:NO];
-        texDesc.usage = MTLTextureUsageShaderRead;
-#if TARGET_OS_OSX || TARGET_OS_MACCATALYST
-        texDesc.storageMode = MTLStorageModeManaged;
-#else
+        texDesc.usage       = MTLTextureUsageShaderRead;
         texDesc.storageMode = MTLStorageModeShared;
-#endif
         id<MTLTexture> mtlTex = [device newTextureWithDescriptor:texDesc];
-        [mtlTex replaceRegion:MTLRegionMake2D(0, 0, tex->width, tex->height)
+        [mtlTex replaceRegion:MTLRegionMake2D(0, 0, w, h)
                   mipmapLevel:0
-                    withBytes:tex->texels
-                  bytesPerRow:(NSUInteger)tex->width * 4];
+                    withBytes:rgba.data()
+                  bytesPerRow:(NSUInteger)w * 4];
         renderer->texture_by_id[tex_id] = (__bridge_retained void*)mtlTex;
     }
 
@@ -834,8 +968,44 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
         preload_model_key(renderer, model);
     }
 
-    // Pass 3: model draws
-    static std::vector<MetalVertex> frame_verts;
+    // Pass 3: model draws — batch by texture id so each draw has one bound texture (like atlas).
+    static std::vector<MetalVertex> batch_verts;
+    batch_verts.clear();
+    int batch_tex_id = -0x7fffffff; // sentinel: force first flush path
+
+    id<MTLTexture> dummyTex = (__bridge id<MTLTexture>)renderer->mtl_dummy_texture;
+    id<MTLSamplerState> samp = (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
+
+    auto flush_batch = [&]() {
+        if( batch_verts.empty() )
+            return;
+        id<MTLTexture> bindTex = dummyTex;
+        if( batch_tex_id >= 0 )
+        {
+            auto it = renderer->texture_by_id.find(batch_tex_id);
+            if( it == renderer->texture_by_id.end() || !it->second )
+            {
+                batch_verts.clear();
+                return;
+            }
+            bindTex = (__bridge id<MTLTexture>)it->second;
+        }
+        [encoder setFragmentTexture:bindTex atIndex:0];
+        [encoder setFragmentSamplerState:samp atIndex:0];
+        id<MTLBuffer> drawBuf =
+            [device newBufferWithBytes:batch_verts.data()
+                                 length:(NSUInteger)(batch_verts.size() * sizeof(MetalVertex))
+                                options:MTLResourceStorageModeShared];
+        [encoder setVertexBuffer:drawBuf offset:0 atIndex:0];
+        [encoder setVertexBuffer:unifBuf offset:0 atIndex:1];
+        [encoder setFragmentBuffer:unifBuf offset:0 atIndex:1];
+        [encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                    vertexStart:0
+                    vertexCount:(NSUInteger)batch_verts.size()];
+        renderer->debug_triangles += (unsigned int)(batch_verts.size() / 3);
+        batch_verts.clear();
+    };
+
     for( int i = 0; i < total_commands; ++i )
     {
         const ToriRSRenderCommand* cmd = &commands[i];
@@ -860,31 +1030,57 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
             game->sys_dash, model, &draw_position, game->view_port, game->camera);
         const int* face_order = dash3d_projected_face_order(game->sys_dash, &face_order_count);
 
-        // Build ordered vertex data in world space for this draw call
-        // Per-instance yaw: same convention as pix3dgl_model_draw_ordered (radians).
-        const int nVerts = build_ordered_vertices(
-            model, face_order, face_order_count,
-            (float)draw_position.x,
-            (float)draw_position.y,
-            (float)draw_position.z,
-            (draw_position.yaw * 2.0f * (float)M_PI) / 2048.0f,
-            frame_verts);
-        if( nVerts <= 0 )
-            continue;
+        const float yaw_rad = (draw_position.yaw * 2.0f * (float)M_PI) / 2048.0f;
+        const float cos_yaw = cosf(yaw_rad);
+        const float sin_yaw = sinf(yaw_rad);
 
-        id<MTLBuffer> drawBuf =
-            [device newBufferWithBytes:frame_verts.data()
-                                 length:(NSUInteger)(nVerts * sizeof(MetalVertex))
-                                options:MTLResourceStorageModeShared];
-
-        [encoder setVertexBuffer:drawBuf offset:0 atIndex:0];
-        [encoder setVertexBuffer:unifBuf offset:0 atIndex:1];
-        [encoder drawPrimitives:MTLPrimitiveTypeTriangle
-                    vertexStart:0
-                    vertexCount:(NSUInteger)nVerts];
         renderer->debug_model_draws++;
-        renderer->debug_triangles += (unsigned int)(nVerts / 3);
+        for( int fi = 0; fi < face_order_count; ++fi )
+        {
+            const int f = face_order ? face_order[fi] : fi;
+            if( f < 0 || f >= model->face_count )
+                continue;
+
+            int raw_tex = model->face_textures ? model->face_textures[f] : -1;
+            int eff_tex = raw_tex;
+            if( eff_tex >= 0 && renderer->texture_by_id.find(eff_tex) == renderer->texture_by_id.end() )
+                eff_tex = -1;
+
+            float anim_spd = 0.0f;
+            bool tex_opaque = true;
+            if( eff_tex >= 0 )
+            {
+                auto as_it = renderer->texture_anim_speed_by_id.find(eff_tex);
+                if( as_it != renderer->texture_anim_speed_by_id.end() )
+                    anim_spd = as_it->second;
+                auto op_it = renderer->texture_opaque_by_id.find(eff_tex);
+                if( op_it != renderer->texture_opaque_by_id.end() )
+                    tex_opaque = op_it->second;
+            }
+
+            const int batch_key = eff_tex;
+            if( !batch_verts.empty() && batch_key != batch_tex_id )
+                flush_batch();
+            batch_tex_id = batch_key;
+
+            const size_t before = batch_verts.size();
+            append_model_face_vertices(
+                model,
+                f,
+                (float)draw_position.x,
+                (float)draw_position.y,
+                (float)draw_position.z,
+                cos_yaw,
+                sin_yaw,
+                eff_tex,
+                anim_spd,
+                tex_opaque,
+                batch_verts);
+            if( batch_verts.size() == before )
+                continue;
+        }
     }
+    flush_batch();
 
     // -----------------------------------------------------------------------
     // Finish scene pass, render ImGui overlay in the same render encoder
