@@ -214,7 +214,6 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
         {
         case TORIRS_GFX_MODEL_LOAD:
         case TORIRS_GFX_TEXTURE_LOAD:
-        case TORIRS_GFX_SCENE_ELEMENT_LOAD:
             break;
         case TORIRS_GFX_MODEL_DRAW:
             dash3d_raster_projected_model(
