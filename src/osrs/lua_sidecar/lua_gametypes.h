@@ -19,6 +19,7 @@ struct LuaGameTypeIntArray
 {
     int* values;
     int count;
+    int capacity;
 };
 
 struct LuaGameTypeBool
@@ -103,9 +104,12 @@ struct LuaGameType*
 LuaGameType_NewUserDataArraySpread(int count);
 
 struct LuaGameType*
-LuaGameType_NewIntArray(
-    int* values,
-    int count);
+LuaGameType_NewIntArray(int count);
+
+void
+LuaGameType_IntArrayPush(
+    struct LuaGameType* int_array,
+    int value);
 
 struct LuaGameType*
 LuaGameType_NewVarTypeArray(int hint);

@@ -3,7 +3,10 @@
 #include "lua_gametypes.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
+#include "osrs/datatypes/appearances.h"
+#include "osrs/datatypes/player_appearance.h"
 #include "osrs/game.h"
+#include "osrs/packets/pkt_player_info.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -196,11 +199,11 @@ LuaBuildCacheDat_get_all_scenery_locs(
         row[0] = loc_ids[i];
         row[1] = chunk_x[i];
         row[2] = chunk_z[i];
-        struct LuaGameType* elem = LuaGameType_NewIntArray(row, 3);
-        if( elem )
-            LuaGameType_VarTypeArrayPush(result, elem);
-        else
-            free(row);
+        struct LuaGameType* elem = LuaGameType_NewIntArray(3);
+        for( int j = 0; j < 3; j++ )
+            LuaGameType_IntArrayPush(elem, row[j]);
+        LuaGameType_VarTypeArrayPush(result, elem);
+        free(row);
     }
 
     free(loc_ids);
@@ -220,9 +223,10 @@ LuaBuildCacheDat_get_scenery_model_ids(
     int* model_ids = NULL;
     int count = buildcachedat_loader_get_scenery_model_ids(buildcachedat, loc_id, &model_ids);
 
-    struct LuaGameType* result = LuaGameType_NewIntArray(model_ids, count);
-    if( !result && model_ids )
-        free(model_ids);
+    struct LuaGameType* result = LuaGameType_NewIntArray(count);
+    for( int i = 0; i < count; i++ )
+        LuaGameType_IntArrayPush(result, model_ids[i]);
+    free(model_ids);
     return result;
 }
 
@@ -235,13 +239,12 @@ LuaBuildCacheDat_get_npc_model_ids(
 
     struct CacheDatConfigNpc* npc = buildcachedat_get_npc(buildcachedat, npc_id);
     if( !npc || !npc->models )
-        return LuaGameType_NewIntArray(NULL, 0);
+        return LuaGameType_NewIntArray(0);
 
-    int* model_ids = malloc((size_t)npc->models_count * sizeof(int));
-    if( !model_ids )
-        return NULL;
-    memcpy(model_ids, npc->models, (size_t)npc->models_count * sizeof(int));
-    return LuaGameType_NewIntArray(model_ids, npc->models_count);
+    struct LuaGameType* result = LuaGameType_NewIntArray(npc->models_count);
+    for( int i = 0; i < npc->models_count; i++ )
+        LuaGameType_IntArrayPush(result, npc->models[i]);
+    return result;
 }
 
 struct LuaGameType*
@@ -253,7 +256,7 @@ LuaBuildCacheDat_get_npc_head_model_ids(
 
     struct CacheDatConfigNpc* npc = buildcachedat_get_npc(buildcachedat, npc_id);
     if( !npc || !npc->heads )
-        return LuaGameType_NewIntArray(NULL, 0);
+        return LuaGameType_NewIntArray(0);
 
     int idx = 0;
     int* head_ids = malloc((size_t)npc->heads_count * sizeof(int));
@@ -264,9 +267,10 @@ LuaBuildCacheDat_get_npc_head_model_ids(
         if( npc->heads[i] != -1 )
             head_ids[idx++] = npc->heads[i];
     }
-    struct LuaGameType* result = LuaGameType_NewIntArray(head_ids, idx);
-    if( !result )
-        free(head_ids);
+    struct LuaGameType* result = LuaGameType_NewIntArray(idx);
+    for( int i = 0; i < idx; i++ )
+        LuaGameType_IntArrayPush(result, head_ids[i]);
+    free(head_ids);
     return result;
 }
 
@@ -279,13 +283,12 @@ LuaBuildCacheDat_get_idk_model_ids(
 
     struct CacheDatConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
     if( !idk || !idk->models )
-        return LuaGameType_NewIntArray(NULL, 0);
+        return LuaGameType_NewIntArray(0);
 
-    int* model_ids = malloc((size_t)idk->models_count * sizeof(int));
-    if( !model_ids )
-        return NULL;
-    memcpy(model_ids, idk->models, (size_t)idk->models_count * sizeof(int));
-    return LuaGameType_NewIntArray(model_ids, idk->models_count);
+    struct LuaGameType* result = LuaGameType_NewIntArray(idk->models_count);
+    for( int i = 0; i < idk->models_count; i++ )
+        LuaGameType_IntArrayPush(result, idk->models[i]);
+    return result;
 }
 
 struct LuaGameType*
@@ -297,20 +300,12 @@ LuaBuildCacheDat_get_idk_head_model_ids(
 
     struct CacheDatConfigIdk* idk = buildcachedat_get_idk(buildcachedat, idk_id);
     if( !idk )
-        return LuaGameType_NewIntArray(NULL, 0);
+        return LuaGameType_NewIntArray(0);
 
-    int* head_ids = malloc(10 * sizeof(int));
-    if( !head_ids )
-        return NULL;
-    int idx = 0;
+    struct LuaGameType* result = LuaGameType_NewIntArray(10);
     for( int i = 0; i < 10; i++ )
-    {
         if( idk->heads[i] != -1 && idk->heads[i] != 0 )
-            head_ids[idx++] = idk->heads[i];
-    }
-    struct LuaGameType* result = LuaGameType_NewIntArray(head_ids, idx);
-    if( !result )
-        free(head_ids);
+            LuaGameType_IntArrayPush(result, idk->heads[i]);
     return result;
 }
 
@@ -323,23 +318,17 @@ LuaBuildCacheDat_get_obj_model_ids(
 
     struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
     if( !obj )
-        return LuaGameType_NewIntArray(NULL, 0);
+        return LuaGameType_NewIntArray(0);
 
-    int* model_ids = malloc(4 * sizeof(int));
-    if( !model_ids )
-        return NULL;
-    int idx = 0;
+    struct LuaGameType* result = LuaGameType_NewIntArray(4);
     if( obj->model != -1 )
-        model_ids[idx++] = obj->model;
+        LuaGameType_IntArrayPush(result, obj->model);
     if( obj->manwear != -1 )
-        model_ids[idx++] = obj->manwear;
+        LuaGameType_IntArrayPush(result, obj->manwear);
     if( obj->manwear2 != -1 )
-        model_ids[idx++] = obj->manwear2;
+        LuaGameType_IntArrayPush(result, obj->manwear2);
     if( obj->manwear3 != -1 )
-        model_ids[idx++] = obj->manwear3;
-    struct LuaGameType* result = LuaGameType_NewIntArray(model_ids, idx);
-    if( !result )
-        free(model_ids);
+        LuaGameType_IntArrayPush(result, obj->manwear3);
     return result;
 }
 
@@ -349,26 +338,20 @@ LuaBuildCacheDat_get_obj_head_model_ids(
     struct LuaGameType* args)
 {
     int obj_id = arg_int(args, 0);
-    int gender = LuaGameType_GetVarTypeArrayCount(args) > 1 ? arg_int(args, 1) : 0;
 
     struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
     if( !obj )
-        return LuaGameType_NewIntArray(NULL, 0);
+        return LuaGameType_NewIntArray(0);
 
-    int head1 = (gender == 1) ? obj->womanhead : obj->manhead;
-    int head2 = (gender == 1) ? obj->womanhead2 : obj->manhead2;
-
-    int* head_ids = malloc(2 * sizeof(int));
-    if( !head_ids )
-        return NULL;
-    int idx = 0;
-    if( head1 != -1 )
-        head_ids[idx++] = head1;
-    if( head2 != -1 )
-        head_ids[idx++] = head2;
-    struct LuaGameType* result = LuaGameType_NewIntArray(head_ids, idx);
-    if( !result )
-        free(head_ids);
+    struct LuaGameType* result = LuaGameType_NewIntArray(4);
+    if( obj->manhead != -1 )
+        LuaGameType_IntArrayPush(result, obj->manhead);
+    if( obj->manhead2 != -1 )
+        LuaGameType_IntArrayPush(result, obj->manhead2);
+    if( obj->womanhead != -1 )
+        LuaGameType_IntArrayPush(result, obj->womanhead);
+    if( obj->womanhead2 != -1 )
+        LuaGameType_IntArrayPush(result, obj->womanhead2);
     return result;
 }
 
@@ -402,6 +385,59 @@ LuaBuildCacheDat_get_obj(
     LuaGameType_VarTypeArrayPush(result, LuaGameType_NewInt(obj->manwear2));
     LuaGameType_VarTypeArrayPush(result, LuaGameType_NewInt(obj->manwear3));
 
+    return result;
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_get_player_appearance_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    void* data = arg_userdata(args, 0);
+    int length = arg_int(args, 1);
+
+    struct LuaGameType* idk_ids = LuaGameType_NewIntArray(10);
+    struct LuaGameType* obj_ids = LuaGameType_NewIntArray(10);
+
+    static struct PktPlayerInfoReader reader;
+    reader.extended_count = 0;
+    reader.current_op = 0;
+    reader.max_ops = 2048;
+    struct PktPlayerInfoOp ops[2048];
+
+    struct PktPlayerInfo pkt;
+    pkt.data = data;
+    pkt.length = length;
+    int count = pkt_player_info_reader_read(&reader, &pkt, ops, 2048);
+
+    int idk_idx = 0;
+    int obj_idx = 0;
+
+    for( int i = 0; i < count; i++ )
+    {
+        if( ops[i].kind != PKT_PLAYER_INFO_OP_APPEARANCE )
+            continue;
+        struct PlayerAppearance appearance;
+        player_appearance_decode(
+            &appearance, ops[i]._appearance.appearance, ops[i]._appearance.len);
+        struct AppearanceOp op;
+        for( int slot = 0; slot < 12; slot++ )
+        {
+            appearances_decode(&op, appearance.appearance, slot);
+            if( op.kind == APPEARANCE_KIND_IDK )
+            {
+                LuaGameType_IntArrayPush(idk_ids, op.id);
+            }
+            else if( op.kind == APPEARANCE_KIND_OBJ )
+            {
+                LuaGameType_IntArrayPush(obj_ids, op.id);
+            }
+        }
+    }
+
+    struct LuaGameType* result = LuaGameType_NewVarTypeArraySpread(2);
+    LuaGameType_VarTypeArrayPush(result, idk_ids);
+    LuaGameType_VarTypeArrayPush(result, obj_ids);
     return result;
 }
 
@@ -591,6 +627,7 @@ LuaBuildCacheDat_DispatchCommand(
     else DISPATCH_COMMAND(command, get_obj_model_ids)
     else DISPATCH_COMMAND(command, get_obj_head_model_ids)
     else DISPATCH_COMMAND(command, get_obj)
+    else DISPATCH_COMMAND(command, get_player_appearance_ids)
     else DISPATCH_COMMAND(command, cache_model)
     else DISPATCH_COMMAND(command, load_interfaces)
     else DISPATCH_COMMAND(command, load_component_sprites_from_media)

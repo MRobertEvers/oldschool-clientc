@@ -123,6 +123,11 @@ LuaBuildCacheDat_get_obj(
     struct LuaGameType* args);
 
 struct LuaGameType*
+LuaBuildCacheDat_get_player_appearance_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
 LuaBuildCacheDat_cache_model(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);

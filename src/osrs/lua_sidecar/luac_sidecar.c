@@ -27,7 +27,7 @@ c_wasm_dispatcher(lua_State* L)
     if( !callback )
     {
         printf("C Dispatch: Calling '%s' on context %p (no callback)\n", func_name, ctx);
-        return 1;
+        return 0;
     }
 
     /* Build args as VarTypeArray [func_name_string, arg1, arg2, ...] */
@@ -57,9 +57,9 @@ c_wasm_dispatcher(lua_State* L)
 
     if( result )
     {
-        LuacGameType_PushToLua(L, result);
+        int nres = LuacGameType_PushToLua(L, result);
         LuacGameType_Free(result);
-        return 1;
+        return nres;
     }
     return 0;
 }

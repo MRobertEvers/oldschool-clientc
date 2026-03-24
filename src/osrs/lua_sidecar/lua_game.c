@@ -83,7 +83,9 @@ LuaGame_DispatchCommand(
 
     if( strcmp(command, "build_scene") == 0 )
         return LuaGame_build_scene(game, args);
-    if( strcmp(command, "build_scene_centerzone") == 0 )
+    else if( strcmp(command, "build_scene_centerzone") == 0 )
         return LuaGame_build_scene_centerzone(game, args);
+    else if( strcmp(command, "exec_pkt_player_info") == 0 )
+        return LuaGame_exec_pkt_player_info(game, args);
     return NULL;
 }

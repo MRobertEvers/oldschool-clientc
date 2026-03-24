@@ -45,7 +45,7 @@ script_convert_to_lua(
         break;
     case SCRIPT_PKT_PLAYER_INFO:
         set_name(out, "rev245_2/pkt_player_info.lua");
-        out->args = LuaGameType_NewVarTypeArraySpread(1);
+        out->args = LuaGameType_NewVarTypeArraySpread(2);
         LuaGameType_VarTypeArrayPush(
             out->args, LuaGameType_NewUserData(item->args.u.player_info.data));
         LuaGameType_VarTypeArrayPush(

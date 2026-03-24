@@ -46,18 +46,32 @@ LuaGameType_NewUserDataArraySpread(int count)
 }
 
 struct LuaGameType*
-LuaGameType_NewIntArray(
-    int* values,
-    int count)
+LuaGameType_NewIntArray(int count)
 {
     struct LuaGameType* game_type = malloc(sizeof(struct LuaGameType));
     if( !game_type )
         return NULL;
     memset(game_type, 0, sizeof(*game_type));
     game_type->kind = LUAGAMETYPE_INT_ARRAY;
-    game_type->_int_array.values = values;
-    game_type->_int_array.count = count;
+    game_type->_int_array.values = malloc(sizeof(int) * count);
+    game_type->_int_array.count = 0;
+    game_type->_int_array.capacity = count;
     return game_type;
+}
+
+void
+LuaGameType_IntArrayPush(
+    struct LuaGameType* int_array,
+    int value)
+{
+    if( int_array->_int_array.count >= int_array->_int_array.capacity )
+    {
+        int_array->_int_array.capacity *= 2;
+        int_array->_int_array.values =
+            realloc(int_array->_int_array.values, sizeof(int) * int_array->_int_array.capacity);
+    }
+    int_array->_int_array.values[int_array->_int_array.count] = value;
+    int_array->_int_array.count++;
 }
 
 struct LuaGameType*

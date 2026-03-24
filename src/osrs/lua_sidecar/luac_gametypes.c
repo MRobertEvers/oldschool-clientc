@@ -75,9 +75,10 @@ LuacGameType_FromLua(
                 vals[i - 1] = (int)lua_tointeger(L, -1);
                 lua_pop(L, 1);
             }
-            struct LuaGameType* gt = LuaGameType_NewIntArray(vals, (int)n);
-            if( !gt )
-                free(vals);
+            struct LuaGameType* gt = LuaGameType_NewIntArray((int)n);
+            for( int i = 0; i < n; i++ )
+                LuaGameType_IntArrayPush(gt, vals[i]);
+            free(vals);
             return gt;
         }
 
