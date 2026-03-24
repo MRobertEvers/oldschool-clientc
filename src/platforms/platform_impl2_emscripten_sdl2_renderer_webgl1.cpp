@@ -162,7 +162,7 @@ render_imgui_overlay(
     ImGui::NewFrame();
 
     ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(320, 170), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(320, 220), ImGuiCond_FirstUseEver);
     ImGui::Begin("WebGL1 Debug");
     ImGui::Text(
         "Application average %.3f ms/frame (%.1f FPS)",
@@ -171,6 +171,22 @@ render_imgui_overlay(
     ImGui::Text(
         "Camera: %d %d %d", game->camera_world_x, game->camera_world_y, game->camera_world_z);
     ImGui::Text("Mouse: %d %d", game->mouse_x, game->mouse_y);
+    if( game->view_port )
+    {
+        ImGui::Separator();
+        int w = game->view_port->width;
+        int h = game->view_port->height;
+        bool changed = ImGui::InputInt("World viewport W", &w);
+        changed |= ImGui::InputInt("World viewport H", &h);
+        if( changed )
+        {
+            if( w > 4096 )
+                w = 4096;
+            if( h > 4096 )
+                h = 4096;
+            LibToriRS_GameSetWorldViewportSize(game, w, h);
+        }
+    }
     ImGui::Text("Loaded model keys: %zu", renderer->loaded_model_keys.size());
     ImGui::Text("Loaded scene keys: %zu", renderer->loaded_scene_element_keys.size());
     ImGui::Text("Loaded textures: %zu", renderer->loaded_texture_ids.size());

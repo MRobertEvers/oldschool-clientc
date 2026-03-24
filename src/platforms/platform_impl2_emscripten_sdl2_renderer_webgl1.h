@@ -21,6 +21,8 @@ struct Platform2_Emscripten_SDL2_Renderer_WebGL1
     struct Platform2_Emscripten_SDL2* platform;
     int width;
     int height;
+    int max_width;
+    int max_height;
     bool webgl_context_ready;
     struct Pix3DGL* pix3dgl;
     int next_model_index;
@@ -33,7 +35,9 @@ struct Platform2_Emscripten_SDL2_Renderer_WebGL1
 struct Platform2_Emscripten_SDL2_Renderer_WebGL1*
 PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_New(
     int width,
-    int height);
+    int height,
+    int max_width,
+    int max_height);
 
 void
 PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Free(

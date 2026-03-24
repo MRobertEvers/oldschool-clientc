@@ -69,6 +69,9 @@ LibToriRS_GameNew(
     int graphics3d_height);
 
 void
+LibToriRS_GameSetWorldViewportSize(struct GGame* game, int width, int height);
+
+void
 LibToriRS_GameProcessInput(
     struct GGame* game,
     struct GInput* input);

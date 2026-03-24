@@ -8,6 +8,7 @@
 
 extern "C" {
 #include "osrs/game.h"
+#include "tori_rs.h"
 }
 
 extern int g_trap_command;
@@ -26,7 +27,7 @@ render_imgui(
     ImGui::NewFrame();
 
     ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(300, 260), ImGuiCond_FirstUseEver);
 
     ImGui::Begin("Info");
     ImGui::Text(
@@ -46,6 +47,23 @@ render_imgui(
 
     ImGui::InputInt("Trap X", &g_trap_x);
     ImGui::InputInt("Trap Z", &g_trap_z);
+
+    if( game->view_port )
+    {
+        ImGui::Separator();
+        int w = game->view_port->width;
+        int h = game->view_port->height;
+        bool changed = ImGui::InputInt("World viewport W", &w);
+        changed |= ImGui::InputInt("World viewport H", &h);
+        if( changed )
+        {
+            if( w > renderer->max_width )
+                w = renderer->max_width;
+            if( h > renderer->max_height )
+                h = renderer->max_height;
+            LibToriRS_GameSetWorldViewportSize(game, w, h);
+        }
+    }
 
     ImGui::Text("Mouse (game x, y): %d, %d", game->mouse_x, game->mouse_y);
 

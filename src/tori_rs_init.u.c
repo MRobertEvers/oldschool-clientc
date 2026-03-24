@@ -252,4 +252,21 @@ LibToriRS_GameNew(
     return game;
 }
 
+void
+LibToriRS_GameSetWorldViewportSize(struct GGame* game, int width, int height)
+{
+    if( !game || !game->view_port )
+        return;
+    if( width < 1 )
+        width = 1;
+    if( height < 1 )
+        height = 1;
+
+    game->view_port->width = width;
+    game->view_port->height = height;
+    game->view_port->stride = width;
+    game->view_port->x_center = width / 2;
+    game->view_port->y_center = height / 2;
+}
+
 #endif
