@@ -480,6 +480,10 @@ struct Pix3DGL
 
     // Static scene buffer for efficient rendering of static geometry
     StaticScene* static_scene;
+
+    // Runtime render state configuration.
+    bool z_buffer_enabled;
+    bool backface_cull_enabled;
 };
 
 // CPU-side matrix computation functions for performance
@@ -631,7 +635,9 @@ create_shader_program(
 }
 
 extern "C" struct Pix3DGL*
-pix3dgl_new()
+pix3dgl_new(
+    bool z_buffer_enabled,
+    bool backface_cull_enabled)
 {
     struct Pix3DGL* pix3dgl = new Pix3DGL();
 
@@ -648,6 +654,8 @@ pix3dgl_new()
 
     // Initialize animation clock
     pix3dgl->animation_clock = 0.0f;
+    pix3dgl->z_buffer_enabled = z_buffer_enabled;
+    pix3dgl->backface_cull_enabled = backface_cull_enabled;
 
     pix3dgl->program_es2 = create_shader_program(g_vertex_shader_es2, g_fragment_shader_es2);
 
@@ -1063,9 +1071,22 @@ pix3dgl_begin_frame(
     // Use our shader program
     glUseProgram(pix3dgl->program_es2);
 
-    // Enable depth testing so geometry is correctly occluded regardless of draw order.
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LEQUAL);
+    // Depth testing is optional and disabled by default to match painter's-order rendering.
+    if( pix3dgl->z_buffer_enabled )
+    {
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_LEQUAL);
+        glDepthMask(GL_TRUE);
+    }
+    else
+    {
+        glDisable(GL_DEPTH_TEST);
+        glDepthMask(GL_FALSE);
+    }
+
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
 
     // Enable alpha blending for transparent faces.
     glEnable(GL_BLEND);
@@ -1425,62 +1446,33 @@ pix3dgl_model_draw(
                               0.0f,       0.0f,       sin_yaw,    0.0f, cos_yaw, 0.0f,
                               position_x, position_y, position_z, 1.0f };
 
-    // OPTIMIZATION: Use scene-level batching - accumulate draw calls instead of rendering
-    // immediately Group faces by texture and store them for later rendering in pix3dgl_end_frame()
+    // Preserve strict face order so non-Z-buffer rendering matches software painter behavior.
+    SceneDrawBatch scene_batch;
+    scene_batch.model_idx = model_idx;
+    scene_batch.vao = model.VAO;
+    scene_batch.texture_id = -1;
+    memcpy(scene_batch.model_matrix, modelMatrix, sizeof(modelMatrix));
 
-    // Clear reusable batches for this model
-    pix3dgl->reusable_batches.clear();
-
-    // Build batches per texture for this model
     for( int face = 0; face < model.face_count; face++ )
     {
         if( !model.face_visible[face] )
             continue;
 
-        int face_texture_id = model.face_textures[face];
-
-        // Check if texture exists (if textured)
-        if( face_texture_id != -1 )
-        {
-            auto tex_it = pix3dgl->texture_ids.find(face_texture_id);
-            if( tex_it == pix3dgl->texture_ids.end() )
-            {
-                // Texture not loaded, treat as untextured
-                face_texture_id = -1;
-            }
-        }
-
-        // Add face to batch for this texture
-        DrawBatch& batch = pix3dgl->reusable_batches[face_texture_id];
-        batch.texture_id = face_texture_id;
         int start = face * 3;
-        // Merge adjacent faces into a single draw range to cut draw calls.
-        if( !batch.face_starts.empty() &&
-            batch.face_starts.back() + batch.face_counts.back() == start )
+        if( !scene_batch.face_starts.empty() &&
+            scene_batch.face_starts.back() + scene_batch.face_counts.back() == start )
         {
-            batch.face_counts.back() += 3;
+            scene_batch.face_counts.back() += 3;
         }
         else
         {
-            batch.face_starts.push_back(start);
-            batch.face_counts.push_back(3);
+            scene_batch.face_starts.push_back(start);
+            scene_batch.face_counts.push_back(3);
         }
     }
 
-    // Now create scene batches from the per-texture batches
-    for( auto& [texture_id, batch] : pix3dgl->reusable_batches )
+    if( !scene_batch.face_starts.empty() )
     {
-        if( batch.face_starts.empty() )
-            continue;
-
-        SceneDrawBatch scene_batch;
-        scene_batch.model_idx = model_idx;
-        scene_batch.vao = model.VAO;
-        scene_batch.texture_id = texture_id;
-        memcpy(scene_batch.model_matrix, modelMatrix, sizeof(modelMatrix));
-        scene_batch.face_starts = std::move(batch.face_starts);
-        scene_batch.face_counts = std::move(batch.face_counts);
-
         pix3dgl->scene_batches.push_back(std::move(scene_batch));
     }
 
@@ -1714,49 +1706,32 @@ pix3dgl_tile_draw(
     float modelMatrix[16] = { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
                               0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
 
-    // Clear reusable batches for this tile
-    pix3dgl->reusable_batches.clear();
+    SceneDrawBatch scene_batch;
+    scene_batch.model_idx = tile_idx;
+    scene_batch.vao = tile.VAO;
+    scene_batch.texture_id = -1;
+    memcpy(scene_batch.model_matrix, modelMatrix, sizeof(modelMatrix));
 
-    // Build batches per texture for this tile
     for( int face = 0; face < tile.face_count; face++ )
     {
         if( !tile.face_visible[face] )
             continue;
 
-        int texture_id = tile.face_textures[face];
-
-        // Check if texture exists (if textured)
-        if( texture_id != -1 )
+        int start = face * 3;
+        if( !scene_batch.face_starts.empty() &&
+            scene_batch.face_starts.back() + scene_batch.face_counts.back() == start )
         {
-            auto tex_it = pix3dgl->texture_ids.find(texture_id);
-            if( tex_it == pix3dgl->texture_ids.end() )
-            {
-                // Texture not loaded, treat as untextured
-                texture_id = -1;
-            }
+            scene_batch.face_counts.back() += 3;
         }
-
-        // Add face to batch for this texture
-        DrawBatch& batch = pix3dgl->reusable_batches[texture_id];
-        batch.texture_id = texture_id;
-        batch.face_starts.push_back(face * 3);
-        batch.face_counts.push_back(3);
+        else
+        {
+            scene_batch.face_starts.push_back(start);
+            scene_batch.face_counts.push_back(3);
+        }
     }
 
-    // Now create scene batches from the per-texture batches
-    for( auto& [texture_id, batch] : pix3dgl->reusable_batches )
+    if( !scene_batch.face_starts.empty() )
     {
-        if( batch.face_starts.empty() )
-            continue;
-
-        SceneDrawBatch scene_batch;
-        scene_batch.model_idx = tile_idx;
-        scene_batch.vao = tile.VAO;
-        scene_batch.texture_id = texture_id;
-        memcpy(scene_batch.model_matrix, modelMatrix, sizeof(modelMatrix));
-        scene_batch.face_starts = std::move(batch.face_starts);
-        scene_batch.face_counts = std::move(batch.face_counts);
-
         pix3dgl->scene_batches.push_back(std::move(scene_batch));
     }
 }

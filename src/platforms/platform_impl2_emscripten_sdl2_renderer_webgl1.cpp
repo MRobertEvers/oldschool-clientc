@@ -270,7 +270,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Init(
     renderer->webgl_context_ready = true;
     emscripten_set_canvas_element_size("#canvas", renderer->width, renderer->height);
     glViewport(0, 0, renderer->width, renderer->height);
-    renderer->pix3dgl = pix3dgl_new();
+    renderer->pix3dgl = pix3dgl_new(false, true);
     if( !renderer->pix3dgl )
     {
         printf("WebGL1 init failed: Pix3DGL setup failed\n");

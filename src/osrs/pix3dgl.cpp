@@ -342,6 +342,10 @@ struct Pix3DGL
 
     // Core buffers for the new unified loading system
     Pix3DGLCoreBuffers* core_buffers;
+
+    // Runtime render state configuration.
+    bool z_buffer_enabled;
+    bool backface_cull_enabled;
 };
 
 // Note: Matrix computation functions moved to pix3dglcore.u.cpp for code reuse
@@ -404,7 +408,9 @@ create_shader_program(
 }
 
 extern "C" struct Pix3DGL*
-pix3dgl_new()
+pix3dgl_new(
+    bool z_buffer_enabled,
+    bool backface_cull_enabled)
 {
     struct Pix3DGL* pix3dgl = new Pix3DGL();
 
@@ -428,6 +434,8 @@ pix3dgl_new()
 
     // Initialize animation clock
     pix3dgl->animation_clock = 0.0f;
+    pix3dgl->z_buffer_enabled = z_buffer_enabled;
+    pix3dgl->backface_cull_enabled = backface_cull_enabled;
 
     pix3dgl->program_es2 = create_shader_program(g_vertex_shader_core, g_fragment_shader_core);
 
@@ -665,9 +673,22 @@ pix3dgl_begin_frame(
     // Set viewport
     glViewport(0, 0, (GLsizei)screen_width, (GLsizei)screen_height);
 
-    // Depth testing ensures correct occlusion regardless of draw order.
+    // Depth testing is optional and disabled by default to match painter's-order rendering.
     glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LEQUAL);
+    if( pix3dgl->z_buffer_enabled )
+    {
+        glDepthFunc(GL_LEQUAL);
+        glDepthMask(GL_TRUE);
+    }
+    else
+    {
+        glDepthFunc(GL_ALWAYS); // Always pass the depth test
+        glDepthMask(GL_FALSE);  // Never write to the depth buffer
+    }
+
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1072,48 +1093,33 @@ pix3dgl_model_draw(
                               0.0f,       0.0f,       sin_yaw,    0.0f, cos_yaw, 0.0f,
                               position_x, position_y, position_z, 1.0f };
 
-    pix3dgl->reusable_batches.clear();
+    // Preserve strict face order so non-Z-buffer rendering matches software painter behavior.
+    SceneDrawBatch scene_batch;
+    scene_batch.model_idx = model_idx;
+    scene_batch.vao = model.VAO;
+    scene_batch.texture_id = -1;
+    memcpy(scene_batch.model_matrix, modelMatrix, sizeof(modelMatrix));
 
     for( int face = 0; face < model.face_count; face++ )
     {
         if( !model.face_visible[face] )
             continue;
 
-        int face_texture_id = model.face_textures[face];
-        if( face_texture_id != -1 )
-        {
-            if( pix3dgl->texture_ids.find(face_texture_id) == pix3dgl->texture_ids.end() )
-                face_texture_id = -1;
-        }
-
-        DrawBatch& batch = pix3dgl->reusable_batches[face_texture_id];
-        batch.texture_id = face_texture_id;
         int start = face * 3;
-        if( !batch.face_starts.empty() &&
-            batch.face_starts.back() + batch.face_counts.back() == start )
+        if( !scene_batch.face_starts.empty() &&
+            scene_batch.face_starts.back() + scene_batch.face_counts.back() == start )
         {
-            batch.face_counts.back() += 3;
+            scene_batch.face_counts.back() += 3;
         }
         else
         {
-            batch.face_starts.push_back(start);
-            batch.face_counts.push_back(3);
+            scene_batch.face_starts.push_back(start);
+            scene_batch.face_counts.push_back(3);
         }
     }
 
-    for( auto& [texture_id, batch] : pix3dgl->reusable_batches )
+    if( !scene_batch.face_starts.empty() )
     {
-        if( batch.face_starts.empty() )
-            continue;
-
-        SceneDrawBatch scene_batch;
-        scene_batch.model_idx = model_idx;
-        scene_batch.vao = model.VAO;
-        scene_batch.texture_id = texture_id;
-        memcpy(scene_batch.model_matrix, modelMatrix, sizeof(modelMatrix));
-        scene_batch.face_starts = std::move(batch.face_starts);
-        scene_batch.face_counts = std::move(batch.face_counts);
-
         pix3dgl->scene_batches.push_back(std::move(scene_batch));
     }
 }

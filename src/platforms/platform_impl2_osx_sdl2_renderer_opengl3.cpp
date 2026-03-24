@@ -73,7 +73,8 @@ compute_world_viewport_rect(
     const LogicalViewportRect& logical_rect)
 {
     GLViewportRect rect = { 0, 0, framebuffer_width, framebuffer_height };
-    if( framebuffer_width <= 0 || framebuffer_height <= 0 || window_width <= 0 || window_height <= 0 )
+    if( framebuffer_width <= 0 || framebuffer_height <= 0 || window_width <= 0 ||
+        window_height <= 0 )
         return rect;
 
     const double scale_x =
@@ -258,7 +259,7 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Init(
     SDL_GL_SetSwapInterval(0);
     renderer->gl_context_ready = true;
     sync_drawable_size(renderer);
-    renderer->pix3dgl = pix3dgl_new();
+    renderer->pix3dgl = pix3dgl_new(false, true);
     if( !renderer->pix3dgl )
     {
         printf("OpenGL3 init failed: Pix3DGL setup failed\n");

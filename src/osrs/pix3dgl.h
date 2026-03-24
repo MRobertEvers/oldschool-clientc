@@ -8,7 +8,9 @@ extern "C" {
 struct Pix3DGL;
 struct Pix3DGLCoreBuffers;
 
-struct Pix3DGL* pix3dgl_new();
+struct Pix3DGL* pix3dgl_new(
+    bool z_buffer_enabled,
+    bool backface_cull_enabled);
 void pix3dgl_load_texture(
     struct Pix3DGL* pix3dgl,
     int texture_id,
