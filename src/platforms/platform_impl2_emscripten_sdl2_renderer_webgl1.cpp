@@ -197,6 +197,7 @@ render_imgui_overlay(
     ImGui::Render();
     glDisable(GL_DEPTH_TEST);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    pix3dgl_restore_gl_state_after_imgui(renderer->pix3dgl);
 }
 
 static void
