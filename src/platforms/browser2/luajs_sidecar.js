@@ -57,9 +57,9 @@ function wasmDispatcher(L) {
   if (result) {
     const decoded = gt.read(result);
 
-    pushToLua(L, decoded);
+    const nres = pushToLua(L, decoded);
     gt.free(result);
-    return 1;
+    return nres;
   }
   return 0;
 }
