@@ -2,6 +2,8 @@
 
 #include "graphics/dash.h"
 
+#define BUILDCACHEDAT_EVENTBUFFER_DEFAULT_CAPACITY 1024
+
 struct ContainerEntry
 {
     char name[64]; // Key must be first field and fixed size for DashMap
@@ -137,6 +139,27 @@ struct ComponentSpriteEntry
     char sprite_name[64]; // Key must be first field and fixed size for DashMap
     struct DashSprite* sprite;
 };
+
+static void
+buildcachedat_eventbuffer_push(
+    struct BuildCacheDat* buildcachedat,
+    struct BuildCacheDatEvent event)
+{
+    if( !buildcachedat || !buildcachedat->eventbuffer || buildcachedat->eventbuffer_capacity <= 0 )
+        return;
+
+    if( buildcachedat->eventbuffer_count == buildcachedat->eventbuffer_capacity )
+    {
+        buildcachedat->eventbuffer_head =
+            (buildcachedat->eventbuffer_head + 1) % buildcachedat->eventbuffer_capacity;
+        buildcachedat->eventbuffer_count--;
+    }
+
+    buildcachedat->eventbuffer[buildcachedat->eventbuffer_tail] = event;
+    buildcachedat->eventbuffer_tail =
+        (buildcachedat->eventbuffer_tail + 1) % buildcachedat->eventbuffer_capacity;
+    buildcachedat->eventbuffer_count++;
+}
 
 struct BuildCacheDat*
 buildcachedat_new(void)
@@ -302,6 +325,12 @@ buildcachedat_new(void)
         .entry_size = sizeof(struct ContainerEntry),
     };
     buildcachedat->containers_hmap = dashmap_new(&config, 0);
+    buildcachedat->eventbuffer_capacity = BUILDCACHEDAT_EVENTBUFFER_DEFAULT_CAPACITY;
+    buildcachedat->eventbuffer = calloc(
+        (size_t)buildcachedat->eventbuffer_capacity, sizeof(struct BuildCacheDatEvent));
+    buildcachedat->eventbuffer_head = 0;
+    buildcachedat->eventbuffer_tail = 0;
+    buildcachedat->eventbuffer_count = 0;
 
     return buildcachedat;
 }
@@ -318,6 +347,7 @@ buildcachedat_free(struct BuildCacheDat* buildcachedat)
     dashmap_free(buildcachedat->animframes_hmap);
     dashmap_free(buildcachedat->animbaseframes_hmap);
     dashmap_free(buildcachedat->sequences_hmap);
+    free(buildcachedat->eventbuffer);
     free(buildcachedat);
 }
 
@@ -554,6 +584,12 @@ buildcachedat_add_texture(
     assert(texture_entry && "Texture must be inserted into hmap");
     texture_entry->id = texture_id;
     texture_entry->texture = texture;
+    buildcachedat_eventbuffer_push(
+        buildcachedat,
+        (struct BuildCacheDatEvent){
+            .type = BUILDCACHEDAT_EVENT_TEXTURE_ADDED,
+            .texture_id = texture_id,
+        });
 }
 
 struct DashTexture*
@@ -593,6 +629,38 @@ buildcachedat_iter_next_texture_id(
         return NULL;
     *out_id = texture_entry->id;
     return texture_entry->texture;
+}
+
+bool
+buildcachedat_eventbuffer_is_empty(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat )
+        return true;
+    return buildcachedat->eventbuffer_count <= 0;
+}
+
+bool
+buildcachedat_eventbuffer_pop(
+    struct BuildCacheDat* buildcachedat,
+    struct BuildCacheDatEvent* out_event)
+{
+    if( !buildcachedat || !out_event || buildcachedat->eventbuffer_count <= 0 )
+        return false;
+    *out_event = buildcachedat->eventbuffer[buildcachedat->eventbuffer_head];
+    buildcachedat->eventbuffer_head =
+        (buildcachedat->eventbuffer_head + 1) % buildcachedat->eventbuffer_capacity;
+    buildcachedat->eventbuffer_count--;
+    return true;
+}
+
+void
+buildcachedat_eventbuffer_clear(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat )
+        return;
+    buildcachedat->eventbuffer_head = 0;
+    buildcachedat->eventbuffer_tail = 0;
+    buildcachedat->eventbuffer_count = 0;
 }
 
 void

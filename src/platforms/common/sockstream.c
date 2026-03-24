@@ -252,12 +252,6 @@ sockstream_send(
         return -1;
     }
 
-    printf("[DEBUG] Socket send: %d bytes\n", size);
-    for( int i = 0; i < size; i++ )
-    {
-        printf("%d,", ((uint8_t*)buffer)[i]);
-    }
-    printf("\n");
     int sent = send(stream->sockfd, (const char*)buffer, size, 0);
     if( sent < 0 )
     {
@@ -277,7 +271,6 @@ sockstream_send(
 #endif
     }
 
-    printf("[DEBUG] Socket sent: %d\n", sent);
     return sent;
 }
 
@@ -297,13 +290,6 @@ sockstream_recv(
     int received = recv(stream->sockfd, (char*)buffer, size, MSG_DONTWAIT);
     if( received > 0 )
     {
-        printf("[DEBUG] Socket received: %d bytes\n", received);
-
-        for( int i = 0; i < received; i++ )
-        {
-            printf("%d,", ((uint8_t*)buffer)[i]);
-        }
-        printf("\n");
         return received;
     }
     else if( received == 0 )

@@ -16,123 +16,38 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-struct FrameRenderLoadKeyInt
-{
-    int key;
-};
-
 struct FrameRenderLoadKeyPtr
 {
     uintptr_t key;
 };
 
-static struct DashMap*
-new_frame_render_load_map(
-    size_t key_size,
-    size_t entry_size,
-    int capacity)
-{
-    struct DashMapConfig config = {
-        .buffer = malloc((size_t)capacity * entry_size),
-        .buffer_size = (size_t)capacity * entry_size,
-        .key_size = key_size,
-        .entry_size = entry_size,
-    };
-    return dashmap_new(&config, 0);
-}
-
-static bool
-mark_model_load_seen(
-    struct GGame* game,
-    uintptr_t model_key)
-{
-    if( model_key == 0 )
-        return false;
-    if( !game->render_loaded_model_keys )
-        game->render_loaded_model_keys = new_frame_render_load_map(
-            sizeof(uintptr_t), sizeof(struct FrameRenderLoadKeyPtr), 8192);
-    if( dashmap_search(game->render_loaded_model_keys, &model_key, DASHMAP_FIND) )
-        return false;
-    struct FrameRenderLoadKeyPtr* entry =
-        dashmap_search(game->render_loaded_model_keys, &model_key, DASHMAP_INSERT);
-    if( !entry )
-        return false;
-    entry->key = model_key;
-    return true;
-}
-
-static bool
-mark_texture_load_seen(
-    struct GGame* game,
-    int texture_id)
-{
-    if( texture_id < 0 )
-        return false;
-    if( !game->render_loaded_texture_ids )
-        game->render_loaded_texture_ids =
-            new_frame_render_load_map(sizeof(int), sizeof(struct FrameRenderLoadKeyInt), 1024);
-    if( dashmap_search(game->render_loaded_texture_ids, &texture_id, DASHMAP_FIND) )
-        return false;
-    struct FrameRenderLoadKeyInt* entry =
-        dashmap_search(game->render_loaded_texture_ids, &texture_id, DASHMAP_INSERT);
-    if( !entry )
-        return false;
-    entry->key = texture_id;
-    return true;
-}
-
-static bool
-mark_scene_element_load_seen(
-    struct GGame* game,
-    uintptr_t element_key)
-{
-    if( element_key == 0 )
-        return false;
-    if( !game->render_loaded_scene_element_keys )
-        game->render_loaded_scene_element_keys = new_frame_render_load_map(
-            sizeof(uintptr_t), sizeof(struct FrameRenderLoadKeyPtr), 8192);
-    if( dashmap_search(game->render_loaded_scene_element_keys, &element_key, DASHMAP_FIND) )
-        return false;
-    struct FrameRenderLoadKeyPtr* entry =
-        dashmap_search(game->render_loaded_scene_element_keys, &element_key, DASHMAP_INSERT);
-    if( !entry )
-        return false;
-    entry->key = element_key;
-    return true;
-}
-
-static bool
-queue_model_load_if_needed(
+static void
+queue_scene_element_load_from_event(
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer,
-    struct DashModel* model,
-    int model_id)
+    struct Scene2Element* element)
 {
-    uintptr_t model_key = (uintptr_t)model;
-    if( !mark_model_load_seen(game, model_key) )
-        return false;
+    (void)game;
+    uintptr_t element_key = (uintptr_t)element;
+    uintptr_t model_key = (uintptr_t)element->dash_model;
     LibToriRS_RenderCommandBufferAddCommand(
         render_command_buffer,
         (struct ToriRSRenderCommand){
             .kind = TORIRS_GFX_MODEL_LOAD,
             ._model_load = {
-                .model = model,
+                .model = element->dash_model,
                 .model_key = model_key,
-                .model_id = model_id,
+                .model_id = -1,
             },
         });
-    return true;
 }
 
-static bool
-queue_texture_load_if_needed(
-    struct GGame* game,
+static void
+queue_texture_load_from_event(
     struct ToriRSRenderCommandBuffer* render_command_buffer,
     int texture_id,
     struct DashTexture* texture_nullable)
 {
-    if( !mark_texture_load_seen(game, texture_id) )
-        return false;
     LibToriRS_RenderCommandBufferAddCommand(
         render_command_buffer,
         (struct ToriRSRenderCommand){
@@ -142,31 +57,6 @@ queue_texture_load_if_needed(
                 .texture_nullable = texture_nullable,
             },
         });
-    return true;
-}
-
-static bool
-queue_scene_element_load_if_needed(
-    struct GGame* game,
-    struct ToriRSRenderCommandBuffer* render_command_buffer,
-    struct Scene2Element* element)
-{
-    uintptr_t element_key = (uintptr_t)element;
-    if( !mark_scene_element_load_seen(game, element_key) )
-        return false;
-    queue_model_load_if_needed(game, render_command_buffer, element->dash_model, -1);
-    LibToriRS_RenderCommandBufferAddCommand(
-        render_command_buffer,
-        (struct ToriRSRenderCommand){
-            .kind = TORIRS_GFX_SCENE_ELEMENT_LOAD,
-            ._scene_element_load = {
-                .scene_element_id = element->id,
-                .parent_entity_id = element->parent_entity_id,
-                .scene_element_key = element_key,
-                .model = element->dash_model,
-            },
-        });
-    return true;
 }
 
 static void
@@ -177,42 +67,44 @@ queue_static_load_commands(
     if( !game->buildcachedat || !game->world )
         return;
 
-    if( game->render_load_generation_emitted == game->render_load_generation )
+    struct Scene2* scene2 = game->world->scene2;
+
+    bool has_scene_events = scene2 && !scene2_eventbuffer_is_empty(scene2);
+    if( !has_scene_events )
         return;
 
-    uintptr_t world_key = (uintptr_t)game->world;
-    if( game->render_load_world_key != world_key )
+    struct BuildCacheDatEvent cache_event = { 0 };
+    while( buildcachedat_eventbuffer_pop(game->buildcachedat, &cache_event) )
     {
-        if( game->render_loaded_model_keys )
-            dashmap_free(game->render_loaded_model_keys);
-        if( game->render_loaded_scene_element_keys )
-            dashmap_free(game->render_loaded_scene_element_keys);
-        game->render_loaded_model_keys = new_frame_render_load_map(
-            sizeof(uintptr_t), sizeof(struct FrameRenderLoadKeyPtr), 8192);
-        game->render_loaded_scene_element_keys = new_frame_render_load_map(
-            sizeof(uintptr_t), sizeof(struct FrameRenderLoadKeyPtr), 8192);
-        game->render_load_world_key = world_key;
+        if( cache_event.type != BUILDCACHEDAT_EVENT_TEXTURE_ADDED )
+            continue;
+        struct DashTexture* texture =
+            buildcachedat_get_texture(game->buildcachedat, cache_event.texture_id);
+        if( !texture )
+            continue;
+        queue_texture_load_from_event(render_command_buffer, cache_event.texture_id, texture);
     }
 
-    struct DashMapIter* texture_iter = buildcachedat_iter_new_textures(game->buildcachedat);
-    int texture_id = -1;
-    struct DashTexture* texture = NULL;
-    while( (texture = buildcachedat_iter_next_texture_id(texture_iter, &texture_id)) != NULL )
-        queue_texture_load_if_needed(game, render_command_buffer, texture_id, texture);
-    dashmap_iter_free(texture_iter);
-
-    if( game->world->scene2 )
+    if( scene2 )
     {
-        struct Scene2Element* element = game->world->scene2->active_list;
-        while( element )
+        struct Scene2Event scene_event = { 0 };
+        while( scene2_eventbuffer_pop(scene2, &scene_event) )
         {
-            if( element->active && element->dash_model )
-                queue_scene_element_load_if_needed(game, render_command_buffer, element);
-            element = element->next;
+            if( scene_event.element_id < 0 || scene_event.element_id >= scene2->elements_count )
+                continue;
+            if( scene_event.type != SCENE2_EVENT_ELEMENT_ACQUIRED &&
+                scene_event.type != SCENE2_EVENT_MODEL_CHANGED )
+            {
+                continue;
+            }
+            struct Scene2Element* element = scene2_element_at(scene2, scene_event.element_id);
+            if( !element->active || !element->dash_model )
+                continue;
+            if( element->parent_entity_id != scene_event.parent_entity_id )
+                continue;
+            queue_scene_element_load_from_event(game, render_command_buffer, element);
         }
     }
-
-    game->render_load_generation_emitted = game->render_load_generation;
 }
 
 void
@@ -496,8 +388,6 @@ LibToriRS_FrameNextCommand(
             element = scene2_element_at(game->world->scene2, cmd->_entity._bf_entity);
             if( !element || !element->dash_model )
                 continue;
-            bool queued_load =
-                queue_scene_element_load_if_needed(game, render_command_buffer, element);
             memcpy(&position, element->dash_position, sizeof(struct DashPosition));
 
             position.x = position.x - game->camera_world_x;
@@ -552,9 +442,6 @@ LibToriRS_FrameNextCommand(
             if( cull != DASHCULL_VISIBLE )
                 break;
 
-            if( queued_load )
-                break;
-
             entity_animate(game->world, element->parent_entity_id);
 
             // if( entity_interactable(game->world, element->parent_entity_id) )
@@ -607,8 +494,6 @@ LibToriRS_FrameNextCommand(
             element = scene2_element_at(game->world->scene2, tile_entity->scene_element.element_id);
             if( !element || !element->dash_model )
                 break;
-            bool queued_load =
-                queue_scene_element_load_if_needed(game, render_command_buffer, element);
 
             memcpy(&position, element->dash_position, sizeof(struct DashPosition));
 
@@ -619,9 +504,6 @@ LibToriRS_FrameNextCommand(
             int cull = dash3d_project_model(
                 game->sys_dash, element->dash_model, &position, game->view_port, game->camera);
             if( cull != DASHCULL_VISIBLE )
-                break;
-
-            if( queued_load )
                 break;
 
             /* If tile was clicked this frame, record it (last hit wins). */

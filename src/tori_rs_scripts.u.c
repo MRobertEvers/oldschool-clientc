@@ -43,6 +43,14 @@ script_convert_to_lua(
         LuaGameType_VarTypeArrayPush(
             out->args, LuaGameType_NewInt(item->args.u.rebuild_normal.zonez));
         break;
+    case SCRIPT_PKT_PLAYER_INFO:
+        set_name(out, "rev245_2/pkt_player_info.lua");
+        out->args = LuaGameType_NewVarTypeArraySpread(1);
+        LuaGameType_VarTypeArrayPush(
+            out->args, LuaGameType_NewUserData(item->args.u.player_info.data));
+        LuaGameType_VarTypeArrayPush(
+            out->args, LuaGameType_NewInt(item->args.u.player_info.length));
+        break;
     default:
         assert(false && "Unknown script kind");
         break;

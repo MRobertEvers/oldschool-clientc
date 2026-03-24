@@ -205,15 +205,6 @@ LibToriRS_GameNew(
 
     game->buildcachedat = buildcachedat_new();
     game->buildcache = buildcache_new();
-    game->render_loaded_model_keys =
-        new_render_load_map(sizeof(uintptr_t), sizeof(struct RenderLoadKeyPtr), 8192);
-    game->render_loaded_texture_ids =
-        new_render_load_map(sizeof(int), sizeof(struct RenderLoadKeyInt), 1024);
-    game->render_loaded_scene_element_keys =
-        new_render_load_map(sizeof(uintptr_t), sizeof(struct RenderLoadKeyPtr), 8192);
-    game->render_load_world_key = 0;
-    game->render_load_generation = 1;
-    game->render_load_generation_emitted = 0;
 
     player_stats_init();
     varp_varbit_init(&game->varp_varbit);

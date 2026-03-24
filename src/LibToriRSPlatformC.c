@@ -124,7 +124,6 @@ LibToriRSPlatformC_NetPoll(
 
         if( bytes_received > 0 )
         {
-            printf("First Byte: %d\n", payload[0]);
             LibToriRS_NetPush(
                 &sb->platform_to_game,
                 TORI_RS_NET_MSG_RECV_DATA,

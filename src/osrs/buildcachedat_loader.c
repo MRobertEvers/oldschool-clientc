@@ -869,7 +869,6 @@ buildcachedat_loader_finalize_scene(
      */
     game->scene_base_tile_x = map_sw_x * 64;
     game->scene_base_tile_z = map_sw_z * 64;
-    game->render_load_generation++;
 
     // Build the final scene from cached data
     // game->scene = scenebuilder_load_from_buildcachedat(
@@ -897,5 +896,4 @@ buildcachedat_loader_finalize_scene_centerzone(
     game->world = world_new(buildcachedat);
 
     world_buildcachedat_rebuild_centerzone(game->world, zonex, zonez, size);
-    game->render_load_generation++;
 }

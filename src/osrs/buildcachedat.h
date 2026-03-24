@@ -21,6 +21,18 @@
 #include "osrs/rscache/tables_dat/pix8.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
 
+enum BuildCacheDatEventType
+{
+    BUILDCACHEDAT_EVENT_NONE = 0,
+    BUILDCACHEDAT_EVENT_TEXTURE_ADDED = 1,
+};
+
+struct BuildCacheDatEvent
+{
+    enum BuildCacheDatEventType type;
+    int texture_id;
+};
+
 struct BuildCacheDat
 {
     struct FileListDat* cfg_config_jagfile;
@@ -50,6 +62,12 @@ struct BuildCacheDat
     struct DashMap* npc_hmap;
     struct DashMap* component_hmap;
     struct DashMap* component_sprites_hmap;
+
+    struct BuildCacheDatEvent* eventbuffer;
+    int eventbuffer_capacity;
+    int eventbuffer_head;
+    int eventbuffer_tail;
+    int eventbuffer_count;
 };
 
 struct BuildCacheDat*
@@ -181,6 +199,17 @@ struct DashTexture*
 buildcachedat_iter_next_texture_id(
     struct DashMapIter* iter,
     int* out_id);
+
+bool
+buildcachedat_eventbuffer_is_empty(struct BuildCacheDat* buildcachedat);
+
+bool
+buildcachedat_eventbuffer_pop(
+    struct BuildCacheDat* buildcachedat,
+    struct BuildCacheDatEvent* out_event);
+
+void
+buildcachedat_eventbuffer_clear(struct BuildCacheDat* buildcachedat);
 
 void
 buildcachedat_add_scenery(

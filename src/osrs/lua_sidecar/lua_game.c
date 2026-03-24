@@ -2,6 +2,7 @@
 
 #include "osrs/buildcachedat_loader.h"
 #include "osrs/game.h"
+#include "osrs/gameproto_exec.h"
 
 /* Helper: get int at args[i]. args must be VarTypeArray. */
 static int
@@ -11,6 +12,15 @@ arg_int(
 {
     struct LuaGameType* elem = LuaGameType_GetVarTypeArrayAt(args, i);
     return LuaGameType_GetInt(elem);
+}
+
+static void*
+arg_userdata(
+    struct LuaGameType* args,
+    int i)
+{
+    struct LuaGameType* elem = LuaGameType_GetVarTypeArrayAt(args, i);
+    return LuaGameType_GetUserData(elem);
 }
 
 struct LuaGameType*
@@ -37,6 +47,17 @@ LuaGame_build_scene_centerzone(
 
     buildcachedat_loader_finalize_scene_centerzone(game->buildcachedat, game, zonex, zonez, size);
 
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaGame_exec_pkt_player_info(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    void* data = arg_userdata(args, 0);
+    int length = arg_int(args, 1);
+    gameproto_exec_player_info_raw(game, data, length);
     return LuaGameType_NewVoid();
 }
 

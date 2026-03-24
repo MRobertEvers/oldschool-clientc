@@ -11,11 +11,27 @@ struct Scene2Frames
     int capacity;
 };
 
+enum Scene2EventType
+{
+    SCENE2_EVENT_NONE = 0,
+    SCENE2_EVENT_ELEMENT_ACQUIRED = 1,
+    SCENE2_EVENT_ELEMENT_RELEASED = 2,
+    SCENE2_EVENT_MODEL_CHANGED = 3,
+};
+
+struct Scene2Event
+{
+    enum Scene2EventType type;
+    int element_id;
+    int parent_entity_id;
+};
+
 struct Scene2Element
 {
     int id;
     bool active;
     int parent_entity_id;
+    struct Scene2* owner_scene2;
     struct Scene2Element* next;
     struct Scene2Element* prev;
 
@@ -38,6 +54,12 @@ struct Scene2
     int active_len;
     struct Scene2Element* free_list;
     int free_len;
+
+    struct Scene2Event* eventbuffer;
+    int eventbuffer_capacity;
+    int eventbuffer_head;
+    int eventbuffer_tail;
+    int eventbuffer_count;
 };
 
 struct Scene2*
@@ -90,5 +112,16 @@ struct Scene2Element*
 scene2_element_at(
     struct Scene2* scene2,
     int element_id);
+
+bool
+scene2_eventbuffer_is_empty(struct Scene2* scene2);
+
+bool
+scene2_eventbuffer_pop(
+    struct Scene2* scene2,
+    struct Scene2Event* out_event);
+
+void
+scene2_eventbuffer_clear(struct Scene2* scene2);
 
 #endif

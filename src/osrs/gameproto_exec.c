@@ -516,6 +516,19 @@ gameproto_exec_rebuild_normal_world(
 }
 
 void
+gameproto_exec_player_info_raw(
+    struct GGame* game,
+    void* data,
+    int length)
+{
+    struct RevPacket_LC245_2 packet = { 0 };
+    packet.packet_type = PKTIN_LC245_2_PLAYER_INFO;
+    packet._player_info.data = data;
+    packet._player_info.length = length;
+    add_player_info(game, &packet);
+}
+
+void
 gameproto_exec_player_info(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)

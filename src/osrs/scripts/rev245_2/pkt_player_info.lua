@@ -12,13 +12,13 @@ local function queue_unique(seen, list, model_id)
     table.insert(list, model_id)
 end
 
-local item = ...
+local data, length = ...
 
 -- Needed to turn appearance IDs into model IDs.
 Game.buildcachedat_init_idkits_from_config_jagfile()
 Game.buildcachedat_init_objects_from_config_jagfile()
 
-local idk_ids, obj_ids = GameProto.get_player_appearance_ids(item)
+local idk_ids, obj_ids = Game.get_player_appearance_ids(data, length)
 
 local seen = {}
 local queued_model_ids = {}

@@ -31,6 +31,14 @@ gameproto_process(struct GGame* game)
             };
             script_queue_push(&game->script_queue, &args);
             break;
+        case PKTIN_LC245_2_PLAYER_INFO:
+            args = (struct ScriptArgs){
+                .tag = SCRIPT_PKT_PLAYER_INFO,
+                .u.player_info = { .data = item->packet._player_info.data,
+                                  .length = item->packet._player_info.length },
+            };
+            script_queue_push(&game->script_queue, &args);
+            break;
         default:
             break;
         }

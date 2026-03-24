@@ -4,6 +4,27 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define SCENE2_EVENTBUFFER_DEFAULT_CAPACITY 4096
+
+static void
+scene2_eventbuffer_push(
+    struct Scene2* scene2,
+    struct Scene2Event event)
+{
+    if( !scene2 || !scene2->eventbuffer || scene2->eventbuffer_capacity <= 0 )
+        return;
+
+    if( scene2->eventbuffer_count == scene2->eventbuffer_capacity )
+    {
+        scene2->eventbuffer_head = (scene2->eventbuffer_head + 1) % scene2->eventbuffer_capacity;
+        scene2->eventbuffer_count--;
+    }
+
+    scene2->eventbuffer[scene2->eventbuffer_tail] = event;
+    scene2->eventbuffer_tail = (scene2->eventbuffer_tail + 1) % scene2->eventbuffer_capacity;
+    scene2->eventbuffer_count++;
+}
+
 struct Scene2*
 scene2_new(int size)
 {
@@ -24,6 +45,7 @@ scene2_new(int size)
         scene2->elements[i].id = i;
         scene2->elements[i].parent_entity_id = -1;
         scene2->elements[i].active = false;
+        scene2->elements[i].owner_scene2 = scene2;
     }
 
     scene2->active_list = NULL;
@@ -31,6 +53,11 @@ scene2_new(int size)
 
     scene2->active_len = 0;
     scene2->free_len = size;
+    scene2->eventbuffer_capacity = SCENE2_EVENTBUFFER_DEFAULT_CAPACITY;
+    scene2->eventbuffer = calloc((size_t)scene2->eventbuffer_capacity, sizeof(struct Scene2Event));
+    scene2->eventbuffer_head = 0;
+    scene2->eventbuffer_tail = 0;
+    scene2->eventbuffer_count = 0;
 
     return scene2;
 }
@@ -45,6 +72,7 @@ scene2_free(struct Scene2* scene2)
             scene2_element_release(scene2, i);
     }
     free(scene2->elements);
+    free(scene2->eventbuffer);
     free(scene2);
 }
 
@@ -73,6 +101,13 @@ scene2_element_acquire(
 
     scene2->active_len++;
     scene2->free_len--;
+    scene2_eventbuffer_push(
+        scene2,
+        (struct Scene2Event){
+            .type = SCENE2_EVENT_ELEMENT_ACQUIRED,
+            .element_id = element_id,
+            .parent_entity_id = parent_entity_id,
+        });
 
     return element_id;
 }
@@ -120,9 +155,22 @@ scene2_element_set_dash_model(
     struct Scene2Element* element,
     struct DashModel* dash_model)
 {
+    assert(element && "scene2_element_set_dash_model element is NULL");
+    struct Scene2* scene2 = element->owner_scene2;
+    bool model_changed = element->dash_model != dash_model;
     if( element->dash_model )
         dashmodel_free(element->dash_model);
     element->dash_model = dash_model;
+    if( model_changed )
+    {
+        scene2_eventbuffer_push(
+            scene2,
+            (struct Scene2Event){
+                .type = SCENE2_EVENT_MODEL_CHANGED,
+                .element_id = element->id,
+                .parent_entity_id = element->parent_entity_id,
+            });
+    }
 }
 
 static void
@@ -183,6 +231,7 @@ scene2_element_release(
 
     struct Scene2Element* element = scene2_element_at(scene2, element_id);
     assert(element->active && "Element must be active");
+    int parent_entity_id = element->parent_entity_id;
 
     dashmodel_free(element->dash_model);
     element->dash_model = NULL;
@@ -210,6 +259,13 @@ scene2_element_release(
 
     scene2->active_len--;
     scene2->free_len++;
+    scene2_eventbuffer_push(
+        scene2,
+        (struct Scene2Event){
+            .type = SCENE2_EVENT_ELEMENT_RELEASED,
+            .element_id = element_id,
+            .parent_entity_id = parent_entity_id,
+        });
 }
 
 struct Scene2Element*
@@ -219,4 +275,35 @@ scene2_element_at(
 {
     assert(element_id >= 0 && element_id < scene2->elements_count && "Element id out of bounds");
     return &scene2->elements[element_id];
+}
+
+bool
+scene2_eventbuffer_is_empty(struct Scene2* scene2)
+{
+    if( !scene2 )
+        return true;
+    return scene2->eventbuffer_count <= 0;
+}
+
+bool
+scene2_eventbuffer_pop(
+    struct Scene2* scene2,
+    struct Scene2Event* out_event)
+{
+    if( !scene2 || !out_event || scene2->eventbuffer_count <= 0 )
+        return false;
+    *out_event = scene2->eventbuffer[scene2->eventbuffer_head];
+    scene2->eventbuffer_head = (scene2->eventbuffer_head + 1) % scene2->eventbuffer_capacity;
+    scene2->eventbuffer_count--;
+    return true;
+}
+
+void
+scene2_eventbuffer_clear(struct Scene2* scene2)
+{
+    if( !scene2 )
+        return;
+    scene2->eventbuffer_head = 0;
+    scene2->eventbuffer_tail = 0;
+    scene2->eventbuffer_count = 0;
 }

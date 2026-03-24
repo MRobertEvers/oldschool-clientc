@@ -311,47 +311,6 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
                     model->face_alphas);
             }
         }
-        else if( cmd->kind == TORIRS_GFX_SCENE_ELEMENT_LOAD )
-        {
-            uintptr_t scene_key = cmd->_scene_element_load.scene_element_key;
-            renderer->loaded_scene_element_keys.insert(scene_key);
-
-            struct DashModel* model = cmd->_scene_element_load.model;
-            if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
-                !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
-                !model->face_indices_c || model->face_count <= 0 )
-            {
-                continue;
-            }
-
-            uintptr_t model_key = model_gpu_cache_key(model);
-            renderer->loaded_model_keys.insert(model_key);
-            if( renderer->model_index_by_key.find(model_key) == renderer->model_index_by_key.end() )
-            {
-                int model_idx = renderer->next_model_index++;
-                renderer->model_index_by_key[model_key] = model_idx;
-                pix3dgl_model_load(
-                    renderer->pix3dgl,
-                    model_idx,
-                    model->vertices_x,
-                    model->vertices_y,
-                    model->vertices_z,
-                    model->face_indices_a,
-                    model->face_indices_b,
-                    model->face_indices_c,
-                    model->face_count,
-                    model->face_textures,
-                    model->face_texture_coords,
-                    model->textured_p_coordinate,
-                    model->textured_m_coordinate,
-                    model->textured_n_coordinate,
-                    model->lighting->face_colors_hsl_a,
-                    model->lighting->face_colors_hsl_b,
-                    model->lighting->face_colors_hsl_c,
-                    model->face_infos,
-                    model->face_alphas);
-            }
-        }
     }
 
     int model_draw_count = 0;

@@ -631,6 +631,7 @@ return;
 sudo ../profile.d -c ./scene_tile_test > out.stacks
 
 sudo ../profile.d -c ./main_client > out.stacks
+sudo ../profile.d -c ./osx > out.stacks
 ```
 
 Then using flamegraph

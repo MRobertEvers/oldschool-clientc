@@ -149,9 +149,6 @@
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
-            "environment": [{
-                "TORIRS_RENDERER": "gl3"
-            }],
             "externalConsole": false,
             "MIMode": "lldb",
             "setupCommands": [
