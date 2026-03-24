@@ -4,7 +4,6 @@
 #include "datastruct/vec.h"
 #include "osrs/game.h"
 #include "osrs/ginput.h"
-#include "osrs/gio.h"
 #include "osrs/lua_sidecar/lua_platform.h"
 #include "osrs/painters.h"
 #include "tori_rs_render.h"
@@ -69,7 +68,10 @@ LibToriRS_GameNew(
     int graphics3d_height);
 
 void
-LibToriRS_GameSetWorldViewportSize(struct GGame* game, int width, int height);
+LibToriRS_GameSetWorldViewportSize(
+    struct GGame* game,
+    int width,
+    int height);
 
 void
 LibToriRS_GameProcessInput(

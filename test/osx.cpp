@@ -3,7 +3,6 @@
 extern "C" {
 #include "LibToriRSPlatformC.h"
 #include "osrs/ginput.h"
-#include "osrs/gio.h"
 #include "platforms/common/sockstream.h"
 #include "tori_rs.h"
 }
@@ -35,7 +34,9 @@ enum RendererKind
 };
 
 static RendererKind
-select_renderer(int argc, char* argv[])
+select_renderer(
+    int argc,
+    char* argv[])
 {
     const char* env_renderer = getenv("TORIRS_RENDERER");
     if( env_renderer )
@@ -103,9 +104,9 @@ main(
         return 1;
     }
 
-    struct Platform2_OSX_SDL2_Renderer_Soft3D*  renderer_soft3d  = NULL;
+    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer_soft3d = NULL;
     struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer_opengl3 = NULL;
-    struct Platform2_OSX_SDL2_Renderer_Metal*   renderer_metal   = NULL;
+    struct Platform2_OSX_SDL2_Renderer_Metal* renderer_metal = NULL;
 
     if( renderer_kind == RENDERER_OPENGL3 )
     {
@@ -151,13 +152,14 @@ main(
         }
     }
 
-    const int initial_width  = platform->window_width  > 0 ? platform->window_width  : SCREEN_WIDTH;
-    const int initial_height = platform->window_height > 0 ? platform->window_height : SCREEN_HEIGHT;
-    game->iface_view_port->width    = initial_width;
-    game->iface_view_port->height   = initial_height;
-    game->iface_view_port->x_center = initial_width  / 2;
+    const int initial_width = platform->window_width > 0 ? platform->window_width : SCREEN_WIDTH;
+    const int initial_height =
+        platform->window_height > 0 ? platform->window_height : SCREEN_HEIGHT;
+    game->iface_view_port->width = initial_width;
+    game->iface_view_port->height = initial_height;
+    game->iface_view_port->x_center = initial_width / 2;
     game->iface_view_port->y_center = initial_height / 2;
-    game->iface_view_port->stride   = initial_width;
+    game->iface_view_port->stride = initial_width;
 
     /* Keep viewport config identical across renderer backends. */
     game->viewport_offset_x = 4;

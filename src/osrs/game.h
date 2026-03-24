@@ -10,7 +10,6 @@
 #include "osrs/buildcache.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/ginput.h"
-#include "osrs/gio.h"
 #include "osrs/packetbuffer.h"
 #include "osrs/packets/revpacket_lc245_2.h"
 #include "osrs/painters.h"

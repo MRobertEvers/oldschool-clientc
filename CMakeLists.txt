@@ -61,9 +61,6 @@ set(COMMON_SOURCES
     src/osrs/world_options.c
     src/osrs/rscache/filelist.c
     src/osrs/rscache/archive.c
-    src/osrs/gio.c
-    src/osrs/gio_assets.c
-    src/osrs/gio_cache.c
     src/osrs/revconfig/revconfig.c
     src/osrs/revconfig/revconfig_load.c
     src/osrs/revconfig/static_ui.c

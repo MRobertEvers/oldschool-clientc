@@ -6,7 +6,6 @@ extern "C" {
 #include "osrs/buildcachedat_loader.h"
 #include "osrs/filepack.h"
 #include "osrs/game.h"
-#include "osrs/gio.h"
 #include "osrs/gio_cache_dat.h"
 #include "osrs/lua_sidecar/lua_buildcachedat.h"
 #include "osrs/lua_sidecar/lua_dash.h"

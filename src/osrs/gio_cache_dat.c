@@ -1,7 +1,6 @@
 #include "gio_cache_dat.h"
 
 #include "filepack.h"
-#include "gio_assets.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/xtea_config.h"
 #include "rscache/filelist.h"
@@ -286,86 +285,4 @@ gioqb_cache_dat_config_sound_effects_new_load(struct CacheDat* cache_dat)
     }
 
     return config_archive;
-}
-
-void
-gioqb_cache_dat_fullfill(
-    struct GIOQueue* io,
-    struct CacheDat* cache_dat,
-    struct GIOMessage* message)
-{
-    struct CacheDatArchive* archive = NULL;
-    void* data = NULL;
-    int data_size = 0;
-    bool null_ok = false;
-    int out_param_a = 0;
-    int out_param_b = 0;
-
-    switch( message->command )
-    {
-    case ASSET_DAT_MAP_TERRAIN:
-        archive =
-            gioqb_cache_dat_map_terrain_new_load(cache_dat, message->param_a, message->param_b);
-        out_param_b = (message->param_a << 16) | message->param_b;
-        break;
-    case ASSET_DAT_MAP_SCENERY:
-        archive =
-            gioqb_cache_dat_map_scenery_new_load(cache_dat, message->param_a, message->param_b);
-        out_param_b = (message->param_a << 16) | message->param_b;
-        break;
-    case ASSET_DAT_MODELS:
-        archive = gioqb_cache_dat_models_new_load(cache_dat, message->param_a);
-        out_param_b = message->param_a;
-        break;
-    case ASSET_DAT_ANIMBASEFRAMES:
-        archive = gioqb_cache_dat_animbaseframes_new_load(cache_dat, message->param_a);
-        out_param_b = message->param_a;
-        null_ok = true;
-        break;
-    case ASSET_DAT_SOUND:
-        assert(false && "ASSET_DAT_SOUND not implemented");
-        break;
-    case ASSET_DAT_CONFIG_TITLE_AND_FONTS:
-        archive = gioqb_cache_dat_config_title_new_load(cache_dat);
-        break;
-    case ASSET_DAT_CONFIG_CONFIGS:
-        archive = gioqb_cache_dat_config_configs_new_load(cache_dat);
-        break;
-    case ASSET_DAT_CONFIG_INTERFACES:
-        archive = gioqb_cache_dat_config_interfaces_new_load(cache_dat);
-        break;
-    case ASSET_DAT_CONFIG_MEDIA_2D_GRAPHICS:
-        archive = gioqb_cache_dat_config_media_2d_graphics_new_load(cache_dat);
-        break;
-    case ASSET_DAT_CONFIG_VERSION_LIST:
-        archive = gioqb_cache_dat_config_version_list_new_load(cache_dat);
-        break;
-    case ASSET_DAT_CONFIG_TEXTURES:
-        archive = gioqb_cache_dat_config_textures_new_load(cache_dat);
-        break;
-    case ASSET_DAT_CONFIG_CHAT_SYSTEM:
-        archive = gioqb_cache_dat_config_chat_system_new_load(cache_dat);
-        break;
-    case ASSET_DAT_CONFIG_SOUND_EFFECTS:
-        assert(false && "ASSET_DAT_CONFIG_SOUND_EFFECTS not implemented");
-        break;
-    }
-
-    if( archive )
-    {
-        data = archive->data;
-        data_size = archive->data_size;
-
-        archive->data = NULL;
-        archive->data_size = 0;
-        cache_dat_archive_free(archive);
-        archive = NULL;
-    }
-    else if( !null_ok )
-    {
-        assert(false && "Failed to load archive");
-    }
-
-    gioqb_mark_done(
-        io, message->message_id, message->command, out_param_a, out_param_b, data, data_size);
 }

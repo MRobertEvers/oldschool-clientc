@@ -249,7 +249,6 @@ LibToriRS_GameStep(
     struct ToriRSRenderCommandBuffer* render_command_buffer)
 {
     struct GameTask* task = NULL;
-    struct GIOMessage message = { 0 };
 
     if( input->quit )
     {

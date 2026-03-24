@@ -17,7 +17,6 @@ extern "C" {
 #include "osrs/colors.h"
 #include "osrs/dash_utils.h"
 #include "osrs/game_entity.h"
-#include "osrs/gio.h"
 #include "osrs/gio_cache_dat.h"
 #include "osrs/interface.h"
 #include "osrs/minimap.h"
@@ -619,39 +618,6 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 renderer->dash_buffer,
                 false);
             break;
-        // case TORIRS_GFX_MODEL_DRAW_HIGHLIGHT:
-        // {
-        //     struct DashModel* model = command._model_draw.model;
-        //     struct DashPosition* position = &command._model_draw.position;
-        //     if( game->sys_dash && model && model->vertex_count >= 3 && game->view_port &&
-        //         game->camera )
-        //     {
-        //         static const int DASH_MAX_VERTICES = 4096;
-        //         static float hull_in_x[DASH_MAX_VERTICES];
-        //         static float hull_in_y[DASH_MAX_VERTICES];
-        //         static float hull_out_x[DASH_MAX_VERTICES];
-        //         static float hull_out_y[DASH_MAX_VERTICES];
-        //         int n = model->vertex_count;
-        //         if( n > DASH_MAX_VERTICES )
-        //             n = DASH_MAX_VERTICES;
-        //         dash3d_copy_screen_vertices_float(game->sys_dash, hull_in_x, hull_in_y, n);
-        //         size_t hull_n =
-        //             compute_convex_hull(hull_in_x, hull_in_y, (size_t)n, hull_out_x, hull_out_y);
-        //         if( hull_n >= 3 && hull_n <= (size_t)PLATFORM_SOFT3D_HIGHLIGHT_POLY_MAX )
-        //         {
-        //             int cx = game->view_port->x_center;
-        //             int cy = game->view_port->y_center;
-        //             for( size_t i = 0; i < hull_n; i++ )
-        //             {
-        //                 renderer->highlight_poly_x[i] = (int)hull_out_x[i] + cx;
-        //                 renderer->highlight_poly_y[i] = (int)hull_out_y[i] + cy;
-        //             }
-        //             renderer->highlight_poly_n = (int)hull_n;
-        //             renderer->highlight_poly_valid = 1;
-        //         }
-        //     }
-        //     break;
-        // }
         default:
             break;
         }

@@ -1,7 +1,6 @@
 #ifndef GIO_CACHE_DAT_H
 #define GIO_CACHE_DAT_H
 
-#include "osrs/gio.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/tables/model.h"
 
