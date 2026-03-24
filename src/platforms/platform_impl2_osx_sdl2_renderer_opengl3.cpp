@@ -306,14 +306,10 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    int window_width = 0;
-    int window_height = 0;
-    SDL_GetWindowSize(renderer->platform->window, &window_width, &window_height);
+    int window_width = renderer->platform->game_screen_width;
+    int window_height = renderer->platform->game_screen_height;
     if( window_width <= 0 || window_height <= 0 )
-    {
-        window_width = renderer->platform->game_screen_width;
-        window_height = renderer->platform->game_screen_height;
-    }
+        SDL_GetWindowSize(renderer->platform->window, &window_width, &window_height);
     const LogicalViewportRect logical_viewport =
         compute_logical_viewport_rect(window_width, window_height, game);
     const GLViewportRect world_viewport = compute_world_viewport_rect(

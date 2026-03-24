@@ -273,27 +273,29 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
 
     int dst_w = 0;
     int dst_h = 0;
-    SDL_GetRendererOutputSize(renderer->renderer, &dst_w, &dst_h);
+    if( renderer->platform && renderer->platform->window )
+        SDL_GetWindowSize(renderer->platform->window, &dst_w, &dst_h);
+    if( dst_w <= 0 || dst_h <= 0 )
+        SDL_GetRendererOutputSize(renderer->renderer, &dst_w, &dst_h);
 
-    float src_aspect = (float)renderer->width / (float)renderer->height;
-    float dst_aspect = (dst_h != 0) ? ((float)dst_w / (float)dst_h) : 1.0f;
+    SDL_Rect dst_rect = { 0, 0, dst_w, dst_h };
+    if( game && game->view_port )
+    {
+        int x = game->viewport_offset_x;
+        int y = game->viewport_offset_y;
+        int w = game->view_port->width;
+        int h = game->view_port->height;
 
-    SDL_Rect dst_rect;
-    if( dst_aspect > src_aspect )
-    {
-        // Destination is wider than source: fit by height, letterbox left/right
-        dst_rect.h = dst_h;
-        dst_rect.w = (int)(dst_h * src_aspect);
-        dst_rect.x = (dst_w - dst_rect.w) / 2;
-        dst_rect.y = 0;
-    }
-    else
-    {
-        // Destination is taller than source: fit by width, letterbox top/bottom
-        dst_rect.w = dst_w;
-        dst_rect.h = (int)(dst_w / src_aspect);
-        dst_rect.x = 0;
-        dst_rect.y = (dst_h - dst_rect.h) / 2;
+        if( x < 0 )
+            x = 0;
+        if( y < 0 )
+            y = 0;
+        if( x + w > dst_w )
+            w = dst_w - x;
+        if( y + h > dst_h )
+            h = dst_h - y;
+        if( w > 0 && h > 0 )
+            dst_rect = { x, y, w, h };
     }
 
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0"); // Nearest

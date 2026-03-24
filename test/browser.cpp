@@ -303,20 +303,17 @@ main(
         printf("Soft3D renderer init succeeded\n");
     }
 
-    const int initial_width = g_use_webgl1 ? renderer_webgl1->width : renderer->width;
-    const int initial_height = g_use_webgl1 ? renderer_webgl1->height : renderer->height;
+    const int initial_width = platform->window_width > 0 ? platform->window_width : 1024;
+    const int initial_height = platform->window_height > 0 ? platform->window_height : 768;
     game->iface_view_port->width = initial_width;
     game->iface_view_port->height = initial_height;
     game->iface_view_port->x_center = initial_width / 2;
     game->iface_view_port->y_center = initial_height / 2;
     game->iface_view_port->stride = initial_width;
 
-    /* Match osx.cpp soft3d viewport configuration (inset 3D viewport). */
-    if( !g_use_webgl1 )
-    {
-        game->viewport_offset_x = 4;
-        game->viewport_offset_y = 4;
-    }
+    /* Keep viewport config identical across renderer backends (same as osx.cpp). */
+    game->viewport_offset_x = 4;
+    game->viewport_offset_y = 4;
 
     luajs_sidecar_set_callback(luajs_sidecar_callback, platform);
 

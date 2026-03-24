@@ -63,6 +63,12 @@ Platform2_Emscripten_SDL2_InitForSoft3D(
         return false;
     }
 
+    platform->window_width = canvas_width;
+    platform->window_height = canvas_height;
+    platform->drawable_width = canvas_width;
+    platform->drawable_height = canvas_height;
+    platform->game_screen_width = canvas_width;
+    platform->game_screen_height = canvas_height;
     platform->last_frame_time_ticks = SDL_GetTicks64();
 
     return true;
@@ -99,6 +105,12 @@ Platform2_Emscripten_SDL2_InitForWebGL1(
         return false;
     }
 
+    platform->window_width = canvas_width;
+    platform->window_height = canvas_height;
+    platform->drawable_width = canvas_width;
+    platform->drawable_height = canvas_height;
+    platform->game_screen_width = canvas_width;
+    platform->game_screen_height = canvas_height;
     platform->last_frame_time_ticks = SDL_GetTicks64();
 
     return true;
