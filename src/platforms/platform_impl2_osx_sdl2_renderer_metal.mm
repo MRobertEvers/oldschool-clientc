@@ -12,12 +12,110 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <vector>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 extern "C" {
 #include "graphics/dash.h"
 #include "graphics/shared_tables.h"
 #include "osrs/game.h"
+}
+
+// Must match src/osrs/pix3dglcore.u.cpp (used by Pix3DGL / OpenGL3 renderer).
+static void
+metal_compute_view_matrix(
+    float* out_matrix,
+    float camera_x,
+    float camera_y,
+    float camera_z,
+    float pitch,
+    float yaw)
+{
+    float cosPitch = cosf(-pitch);
+    float sinPitch = sinf(-pitch);
+    float cosYaw   = cosf(-yaw);
+    float sinYaw   = sinf(-yaw);
+
+    out_matrix[0]  = cosYaw;
+    out_matrix[1]  = sinYaw * sinPitch;
+    out_matrix[2]  = sinYaw * cosPitch;
+    out_matrix[3]  = 0.0f;
+
+    out_matrix[4]  = 0.0f;
+    out_matrix[5]  = cosPitch;
+    out_matrix[6]  = -sinPitch;
+    out_matrix[7]  = 0.0f;
+
+    out_matrix[8]  = -sinYaw;
+    out_matrix[9]  = cosYaw * sinPitch;
+    out_matrix[10] = cosYaw * cosPitch;
+    out_matrix[11] = 0.0f;
+
+    out_matrix[12] = -camera_x * cosYaw + camera_z * sinYaw;
+    out_matrix[13] =
+        -camera_x * sinYaw * sinPitch - camera_y * cosPitch - camera_z * cosYaw * sinPitch;
+    out_matrix[14] =
+        -camera_x * sinYaw * cosPitch + camera_y * sinPitch - camera_z * cosYaw * cosPitch;
+    out_matrix[15] = 1.0f;
+}
+
+static void
+metal_compute_projection_matrix(float* out_matrix, float fov, float screen_width, float screen_height)
+{
+    float y = 1.0f / tanf(fov * 0.5f);
+    float x = y;
+
+    out_matrix[0]  = x * 512.0f / (screen_width / 2.0f);
+    out_matrix[1]  = 0.0f;
+    out_matrix[2]  = 0.0f;
+    out_matrix[3]  = 0.0f;
+
+    out_matrix[4]  = 0.0f;
+    out_matrix[5]  = -y * 512.0f / (screen_height / 2.0f);
+    out_matrix[6]  = 0.0f;
+    out_matrix[7]  = 0.0f;
+
+    out_matrix[8]  = 0.0f;
+    out_matrix[9]  = 0.0f;
+    out_matrix[10] = 0.0f;
+    out_matrix[11] = 1.0f;
+
+    out_matrix[12] = 0.0f;
+    out_matrix[13] = 0.0f;
+    out_matrix[14] = -1.0f;
+    out_matrix[15] = 0.0f;
+}
+
+// Column-major 4x4 multiply: out = a * b
+static void
+mat4_mul_colmajor(const float* a, const float* b, float* out)
+{
+    for( int c = 0; c < 4; ++c )
+        for( int r = 0; r < 4; ++r )
+        {
+            float s = 0.0f;
+            for( int k = 0; k < 4; ++k )
+                s += a[k * 4 + r] * b[c * 4 + k];
+            out[c * 4 + r] = s;
+        }
+}
+
+// OpenGL NDC z is in [-1, 1]; Metal requires z/w in [0, 1] after divide.
+// clip_out.z = 0.5 * clip_in.z + 0.5 * clip_in.w; clip_out.w unchanged.
+static void
+metal_remap_projection_opengl_to_metal_z(float* proj_colmajor)
+{
+    static const float k_clip_z[16] = {
+        1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.5f, 0.0f, 0.0f, 0.0f, 0.5f, 1.0f,
+    };
+    float tmp[16];
+    mat4_mul_colmajor(k_clip_z, proj_colmajor, tmp);
+    memcpy(proj_colmajor, tmp, sizeof(tmp));
 }
 
 // ---------------------------------------------------------------------------
@@ -78,8 +176,10 @@ compute_logical_viewport_rect(int window_width, int window_height, const struct 
     return rect;
 }
 
+// Same as platform_impl2_osx_sdl2_renderer_opengl3.cpp: rect.y is OpenGL
+// bottom-left Y (not top-left).
 static MTLViewportRect
-compute_world_viewport_rect(
+compute_gl_world_viewport_rect(
     int fb_width, int fb_height,
     int win_width, int win_height,
     const LogicalViewportRect& lr)
@@ -91,27 +191,30 @@ compute_world_viewport_rect(
     const double sx = (double)fb_width  / (double)win_width;
     const double sy = (double)fb_height / (double)win_height;
 
-    int x  = (int)lround(lr.x      * sx);
-    int ty = (int)lround(lr.y      * sy);
-    int w  = (int)lround(lr.width  * sx);
-    int h  = (int)lround(lr.height * sy);
+    int scaled_x     = (int)lround((double)lr.x * sx);
+    int scaled_top_y = (int)lround((double)lr.y * sy);
+    int scaled_w     = (int)lround((double)lr.width * sx);
+    int scaled_h     = (int)lround((double)lr.height * sy);
 
-    if( x  < 0 ) x  = 0;
-    if( ty < 0 ) ty = 0;
-    if( x  >= fb_width  || ty >= fb_height ) return rect;
-    if( x  + w > fb_width  ) w = fb_width  - x;
-    if( ty + h > fb_height ) h = fb_height - ty;
-    if( w <= 0 || h <= 0 ) return rect;
+    int clamped_x = scaled_x < 0 ? 0 : scaled_x;
+    int clamped_top_y = scaled_top_y < 0 ? 0 : scaled_top_y;
+    if( clamped_x >= fb_width || clamped_top_y >= fb_height )
+        return rect;
 
-    // Metal viewport origin is top-left (unlike OpenGL bottom-left)
-    rect.x = x; rect.y = ty; rect.width = w; rect.height = h;
+    int clamped_w = scaled_w;
+    int clamped_h = scaled_h;
+    if( clamped_x + clamped_w > fb_width )
+        clamped_w = fb_width - clamped_x;
+    if( clamped_top_y + clamped_h > fb_height )
+        clamped_h = fb_height - clamped_top_y;
+    if( clamped_w <= 0 || clamped_h <= 0 )
+        return rect;
+
+    rect.x      = clamped_x;
+    rect.y      = fb_height - (clamped_top_y + clamped_h); // OpenGL bottom-left Y
+    rect.width  = clamped_w;
+    rect.height = clamped_h;
     return rect;
-}
-
-static float
-yaw_to_radians(int yaw_r2pi2048)
-{
-    return (yaw_r2pi2048 * 2.0f * 3.14159265358979323846f) / 2048.0f;
 }
 
 static uintptr_t
@@ -177,6 +280,10 @@ build_ordered_vertices(
         if( f < 0 || f >= model->face_count )
             continue;
 
+        if( model->lighting && model->lighting->face_colors_hsl_c &&
+            model->lighting->face_colors_hsl_c[f] == -2 )
+            continue;
+
         const int ia = model->face_indices_a[f];
         const int ib = model->face_indices_b[f];
         const int ic = model->face_indices_c[f];
@@ -200,11 +307,20 @@ build_ordered_vertices(
             }
         }
 
+        // Match pix3dgl_model_load: textured vs untextured use different alpha encoding
         if( model->face_alphas )
         {
             int alpha_raw = model->face_alphas[f];
             if( alpha_raw >= 0 )
-                a = (255 - (alpha_raw & 0xFF)) / 255.0f;
+            {
+                const int ab = alpha_raw & 0xFF;
+                const bool textured =
+                    model->face_textures && model->face_textures[f] != -1;
+                if( textured )
+                    a = (float)ab / 255.0f;
+                else
+                    a = (float)(0xFF - ab) / 255.0f;
+            }
         }
 
         const int verts[3] = { ia, ib, ic };
@@ -243,85 +359,6 @@ preload_model_key(
     renderer->loaded_model_keys.insert(key);
     if( renderer->model_index_by_key.find(key) == renderer->model_index_by_key.end() )
         renderer->model_index_by_key[key] = renderer->next_model_index++;
-}
-
-// ---------------------------------------------------------------------------
-// Build column-major 4x4 identity
-// ---------------------------------------------------------------------------
-static void
-mat4_identity(float m[16])
-{
-    for( int i = 0; i < 16; ++i ) m[i] = 0.0f;
-    m[0] = m[5] = m[10] = m[15] = 1.0f;
-}
-
-// Construct view-only matrix from camera world position + pitch/yaw.
-// OSRS coordinate system: X/Z are the ground plane, Y is up.
-// pitch_rad and yaw_rad are already in radians (convert before calling).
-static void
-build_camera_modelview(
-    float camera_x, float camera_y, float camera_z,
-    float pitch_rad, float yaw_rad,
-    float out[16])
-{
-    // Translation
-    float T[16]; mat4_identity(T);
-    T[12] = -camera_x;
-    T[13] = -camera_y;
-    T[14] = -camera_z;
-
-    float cosYaw   = cosf(-yaw_rad);
-    float sinYaw   = sinf(-yaw_rad);
-    float cosPitch = cosf(-pitch_rad);
-    float sinPitch = sinf(-pitch_rad);
-
-    // Yaw rotation around Y axis (column-major)
-    float Y[16]; mat4_identity(Y);
-    Y[0]  =  cosYaw;  Y[8]  = sinYaw;
-    Y[2]  = -sinYaw;  Y[10] = cosYaw;
-
-    // Pitch rotation around X axis
-    float P[16]; mat4_identity(P);
-    P[5]  =  cosPitch; P[9]  = -sinPitch;
-    P[6]  =  sinPitch; P[10] =  cosPitch;
-
-    // Combined: P * Y * T  (column-major multiply)
-    // First: YT = Y * T
-    float YT[16];
-    for( int col = 0; col < 4; ++col )
-        for( int row = 0; row < 4; ++row )
-        {
-            float v = 0.0f;
-            for( int k = 0; k < 4; ++k )
-                v += Y[k*4+row] * T[col*4+k];
-            YT[col*4+row] = v;
-        }
-    // Then: out = P * YT
-    for( int col = 0; col < 4; ++col )
-        for( int row = 0; row < 4; ++row )
-        {
-            float v = 0.0f;
-            for( int k = 0; k < 4; ++k )
-                v += P[k*4+row] * YT[col*4+k];
-            out[col*4+row] = v;
-        }
-}
-
-// Projection matrix matching the game's 512 focal length convention
-// (same as metal_main.mm matrix4x4_perspective).
-static void
-build_projection(float proj_width, float proj_height, float out[16])
-{
-    for( int i = 0; i < 16; ++i ) out[i] = 0.0f;
-    // x scale: 512 / (proj_width/2)
-    out[0]  =  512.0f / (proj_width  * 0.5f);
-    // y scale: -512 / (proj_height/2), negated for Metal (y-down NDC → y-up)
-    out[5]  = -512.0f / (proj_height * 0.5f);
-    // depth: no far plane, near = 50
-    out[10] = 1.0f;
-    out[14] = -50.0f;
-    // w = z
-    out[11] = 1.0f;
 }
 
 // ---------------------------------------------------------------------------
@@ -366,6 +403,9 @@ render_imgui_overlay(
     ImGui::Text("Loaded model keys: %zu",   renderer->loaded_model_keys.size());
     ImGui::Text("Loaded scene keys: %zu",   renderer->loaded_scene_element_keys.size());
     ImGui::Text("Loaded textures: %zu",     renderer->loaded_texture_ids.size());
+    ImGui::Separator();
+    ImGui::Text("Frame model draws: %u",    renderer->debug_model_draws);
+    ImGui::Text("Frame triangles: %u",      renderer->debug_triangles);
     ImGui::End();
 
     ImGui::Render();
@@ -408,6 +448,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_New(int width, int height)
     renderer->width              = width;
     renderer->height             = height;
     renderer->metal_ready        = false;
+    renderer->debug_model_draws  = 0;
+    renderer->debug_triangles    = 0;
     renderer->next_model_index   = 1;
     return renderer;
 }
@@ -586,10 +628,10 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
     }
     renderer->mtl_pipeline_state = (__bridge_retained void*)pipeState;
 
-    // Depth stencil
+    // Match pix3dgl_new(false, true): z-buffer off → GL_ALWAYS / no depth write
     MTLDepthStencilDescriptor* dsDesc = [[MTLDepthStencilDescriptor alloc] init];
-    dsDesc.depthCompareFunction = MTLCompareFunctionLess;
-    dsDesc.depthWriteEnabled    = YES;
+    dsDesc.depthCompareFunction = MTLCompareFunctionAlways;
+    dsDesc.depthWriteEnabled    = NO;
     id<MTLDepthStencilState> dsState = [device newDepthStencilStateWithDescriptor:dsDesc];
     renderer->mtl_depth_stencil = (__bridge_retained void*)dsState;
 
@@ -643,6 +685,9 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
     if( !drawable )
         return;
 
+    renderer->debug_model_draws = 0;
+    renderer->debug_triangles   = 0;
+
     // -----------------------------------------------------------------------
     // Build render pass descriptor with depth attachment
     // -----------------------------------------------------------------------
@@ -675,25 +720,26 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
 
     const LogicalViewportRect logical_vp =
         compute_logical_viewport_rect(win_width, win_height, game);
-    const MTLViewportRect world_vp = compute_world_viewport_rect(
+    const MTLViewportRect gl_vp = compute_gl_world_viewport_rect(
         renderer->width, renderer->height, win_width, win_height, logical_vp);
 
     const float projection_width  = (float)logical_vp.width;
     const float projection_height = (float)logical_vp.height;
 
-    // -----------------------------------------------------------------------
-    // Update uniforms: camera view matrix (world→camera) + projection
-    // camera_pitch and camera_yaw are in OSRS units (0-2048 = 2*pi)
-    // -----------------------------------------------------------------------
+    // Same as pix3dgl_begin_frame(..., 0,0,0, camera_pitch, camera_yaw, ...):
+    // game angles are OSRS units (2048 = 2*pi); camera position stays at origin.
     MetalUniforms uniforms;
-    build_camera_modelview(
-        (float)game->camera_world_x,
-        (float)game->camera_world_y,
-        (float)game->camera_world_z,
-        yaw_to_radians(game->camera_pitch),
-        yaw_to_radians(game->camera_yaw),
-        uniforms.modelViewMatrix);
-    build_projection(projection_width, projection_height, uniforms.projectionMatrix);
+    const float pitch_rad =
+        ((float)game->camera_pitch * 2.0f * (float)M_PI) / 2048.0f;
+    const float yaw_rad =
+        ((float)game->camera_yaw * 2.0f * (float)M_PI) / 2048.0f;
+    metal_compute_view_matrix(uniforms.modelViewMatrix, 0.0f, 0.0f, 0.0f, pitch_rad, yaw_rad);
+    metal_compute_projection_matrix(
+        uniforms.projectionMatrix,
+        (90.0f * (float)M_PI) / 180.0f,
+        projection_width,
+        projection_height);
+    metal_remap_projection_opengl_to_metal_z(uniforms.projectionMatrix);
     memcpy(unifBuf.contents, &uniforms, sizeof(uniforms));
 
     // -----------------------------------------------------------------------
@@ -705,15 +751,17 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
 
     [encoder setRenderPipelineState:pipeState];
     [encoder setDepthStencilState:dsState];
-    [encoder setCullMode:MTLCullModeBack];
-    [encoder setFrontFacingWinding:MTLWindingCounterClockwise];
+    // Metal viewport Y vs GL + column-major clip can invert winding; match painter order like z-off GL.
+    [encoder setCullMode:MTLCullModeNone];
 
-    // Set world viewport (Metal origin is top-left)
+    // Metal viewport: top-left origin. gl_vp.y is OpenGL bottom-left Y.
+    const double metal_origin_y =
+        (double)renderer->height - (double)gl_vp.y - (double)gl_vp.height;
     MTLViewport metalVp = {
-        .originX = (double)world_vp.x,
-        .originY = (double)world_vp.y,
-        .width   = (double)world_vp.width,
-        .height  = (double)world_vp.height,
+        .originX = (double)gl_vp.x,
+        .originY = metal_origin_y,
+        .width   = (double)gl_vp.width,
+        .height  = (double)gl_vp.height,
         .znear   = 0.0,
         .zfar    = 1.0
     };
@@ -813,12 +861,13 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
         const int* face_order = dash3d_projected_face_order(game->sys_dash, &face_order_count);
 
         // Build ordered vertex data in world space for this draw call
+        // Per-instance yaw: same convention as pix3dgl_model_draw_ordered (radians).
         const int nVerts = build_ordered_vertices(
             model, face_order, face_order_count,
             (float)draw_position.x,
             (float)draw_position.y,
             (float)draw_position.z,
-            yaw_to_radians(draw_position.yaw),
+            (draw_position.yaw * 2.0f * (float)M_PI) / 2048.0f,
             frame_verts);
         if( nVerts <= 0 )
             continue;
@@ -833,6 +882,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
         [encoder drawPrimitives:MTLPrimitiveTypeTriangle
                     vertexStart:0
                     vertexCount:(NSUInteger)nVerts];
+        renderer->debug_model_draws++;
+        renderer->debug_triangles += (unsigned int)(nVerts / 3);
     }
 
     // -----------------------------------------------------------------------

@@ -30,6 +30,10 @@ struct Platform2_OSX_SDL2_Renderer_Metal
     int height;
     bool metal_ready;
 
+    /** Filled each Render() for the ImGui debug panel */
+    unsigned int debug_model_draws;
+    unsigned int debug_triangles;
+
     int next_model_index;
 
     // Per-texture cached Metal texture (void* = id<MTLTexture>)
