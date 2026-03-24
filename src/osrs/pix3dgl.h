@@ -8,10 +8,12 @@ extern "C" {
 struct Pix3DGL;
 struct Pix3DGLCoreBuffers;
 
-struct Pix3DGL* pix3dgl_new(
+struct Pix3DGL*
+pix3dgl_new(
     bool z_buffer_enabled,
     bool backface_cull_enabled);
-void pix3dgl_load_texture(
+void
+pix3dgl_load_texture(
     struct Pix3DGL* pix3dgl,
     int texture_id,
     const int* texels_argb,
@@ -21,7 +23,8 @@ void pix3dgl_load_texture(
     int animation_speed,
     bool opaque);
 
-void pix3dgl_render_with_camera(
+void
+pix3dgl_render_with_camera(
     struct Pix3DGL* pix3dgl,
     float camera_x,
     float camera_y,
@@ -31,7 +34,8 @@ void pix3dgl_render_with_camera(
     float screen_width,
     float screen_height);
 
-void pix3dgl_begin_frame(
+void
+pix3dgl_begin_frame(
     struct Pix3DGL* pix3dgl,
     float camera_x,
     float camera_y,
@@ -40,8 +44,10 @@ void pix3dgl_begin_frame(
     float camera_yaw,
     float screen_width,
     float screen_height);
-void pix3dgl_end_frame(struct Pix3DGL* pix3dgl);
-void pix3dgl_model_load(
+void
+pix3dgl_end_frame(struct Pix3DGL* pix3dgl);
+void
+pix3dgl_model_load(
     struct Pix3DGL* pix3dgl,
     int model_idx,
     int* vertices_x,
@@ -61,7 +67,8 @@ void pix3dgl_model_load(
     int* face_colors_hsl_c,
     int* face_infos_nullable,
     int* face_alphas_nullable);
-void pix3dgl_model_draw(
+void
+pix3dgl_model_draw(
     struct Pix3DGL* pix3dgl,
     int model_idx,
     float position_x,
@@ -69,9 +76,24 @@ void pix3dgl_model_draw(
     float position_z,
     float yaw);
 
-void pix3dgl_set_animation_clock(struct Pix3DGL* pix3dgl, float clock_value);
+void
+pix3dgl_model_draw_ordered(
+    struct Pix3DGL* pix3dgl,
+    int model_idx,
+    float position_x,
+    float position_y,
+    float position_z,
+    float yaw,
+    const int* face_order,
+    int face_order_count);
 
-void pix3dgl_cleanup(struct Pix3DGL* pix3dgl);
+void
+pix3dgl_set_animation_clock(
+    struct Pix3DGL* pix3dgl,
+    float clock_value);
+
+void
+pix3dgl_cleanup(struct Pix3DGL* pix3dgl);
 
 #ifdef __cplusplus
 }

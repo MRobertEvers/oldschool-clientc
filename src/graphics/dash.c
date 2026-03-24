@@ -46,6 +46,7 @@ struct DashGraphics
     int tmp_flex_prio12_face_to_depth[512];
     // Used to be 1024, but now we need to support larger models.
     int tmp_face_order[4096];
+    int tmp_face_order_count;
 
     struct DashMap* textures_hmap;
 };
@@ -1136,7 +1137,7 @@ sort_face_draw_order(
 }
 
 static inline void
-dash3d_raster(
+dash3d_sort_face_draw_order(
     struct DashGraphics* dash,
     struct DashModel* model,
     struct DashViewPort* view_port,
@@ -1167,6 +1168,7 @@ dash3d_raster(
 
     if( !model->face_priorities )
     {
+        int order_index = 0;
         for( int depth = model_max_depth; depth < 1500 && depth >= model_min_depth; depth-- )
         {
             int bucket_count = dash->tmp_depth_face_count[depth];
@@ -1177,43 +1179,11 @@ dash3d_raster(
             for( int j = 0; j < bucket_count; j++ )
             {
                 int face = faces[j];
-                dash3d_raster_model_face(
-                    pixel_buffer,
-                    face,
-                    model->face_infos,
-                    model->face_indices_a,
-                    model->face_indices_b,
-                    model->face_indices_c,
-                    model->face_count,
-                    dash->screen_vertices_x,
-                    dash->screen_vertices_y,
-                    dash->screen_vertices_z,
-                    dash->orthographic_vertices_x,
-                    dash->orthographic_vertices_y,
-                    dash->orthographic_vertices_z,
-                    model->vertex_count,
-                    model->face_textures,
-                    model->face_texture_coords,
-                    model->textured_face_count,
-                    model->textured_p_coordinate,
-                    model->textured_m_coordinate,
-                    model->textured_n_coordinate,
-                    model->textured_face_count,
-                    model->lighting->face_colors_hsl_a,
-                    model->lighting->face_colors_hsl_b,
-                    model->lighting->face_colors_hsl_c,
-                    model->face_alphas,
-                    view_port->width >> 1,
-                    view_port->height >> 1,
-                    camera->near_plane_z,
-                    view_port->width,
-                    view_port->height,
-                    view_port->stride,
-                    camera->fov_rpi2048,
-                    dash->textures_hmap,
-                    smooth);
+                dash->tmp_face_order[order_index++] = face;
             }
         }
+
+        dash->tmp_face_order_count = order_index;
     }
     else
     {
@@ -1244,46 +1214,133 @@ dash3d_raster(
             model_min_depth,
             model_max_depth);
 
-        for( int i = 0; i < valid_faces; i++ )
-        {
-            int face = dash->tmp_face_order[i];
-            dash3d_raster_model_face(
-                pixel_buffer,
-                face,
-                model->face_infos,
-                model->face_indices_a,
-                model->face_indices_b,
-                model->face_indices_c,
-                model->face_count,
-                dash->screen_vertices_x,
-                dash->screen_vertices_y,
-                dash->screen_vertices_z,
-                dash->orthographic_vertices_x,
-                dash->orthographic_vertices_y,
-                dash->orthographic_vertices_z,
-                model->vertex_count,
-                model->face_textures,
-                model->face_texture_coords,
-                model->textured_face_count,
-                model->textured_p_coordinate,
-                model->textured_m_coordinate,
-                model->textured_n_coordinate,
-                model->textured_face_count,
-                model->lighting->face_colors_hsl_a,
-                model->lighting->face_colors_hsl_b,
-                model->lighting->face_colors_hsl_c,
-                model->face_alphas,
-                view_port->width >> 1,
-                view_port->height >> 1,
-                camera->near_plane_z,
-                view_port->width,
-                view_port->height,
-                view_port->stride,
-                camera->fov_rpi2048,
-                dash->textures_hmap,
-                smooth);
-        }
+        dash->tmp_face_order_count = valid_faces;
     }
+}
+
+static inline void
+dash3d_raster(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera,
+    int* pixel_buffer,
+    bool smooth)
+{
+    dash3d_sort_face_draw_order(dash, model, view_port, camera, pixel_buffer, smooth);
+
+    for( int i = 0; i < dash->tmp_face_order_count; i++ )
+    {
+        int face = dash->tmp_face_order[i];
+        dash3d_raster_model_face(
+            pixel_buffer,
+            face,
+            model->face_infos,
+            model->face_indices_a,
+            model->face_indices_b,
+            model->face_indices_c,
+            model->face_count,
+            dash->screen_vertices_x,
+            dash->screen_vertices_y,
+            dash->screen_vertices_z,
+            dash->orthographic_vertices_x,
+            dash->orthographic_vertices_y,
+            dash->orthographic_vertices_z,
+            model->vertex_count,
+            model->face_textures,
+            model->face_texture_coords,
+            model->textured_face_count,
+            model->textured_p_coordinate,
+            model->textured_m_coordinate,
+            model->textured_n_coordinate,
+            model->textured_face_count,
+            model->lighting->face_colors_hsl_a,
+            model->lighting->face_colors_hsl_b,
+            model->lighting->face_colors_hsl_c,
+            model->face_alphas,
+            view_port->width >> 1,
+            view_port->height >> 1,
+            camera->near_plane_z,
+            view_port->width,
+            view_port->height,
+            view_port->stride,
+            camera->fov_rpi2048,
+            dash->textures_hmap,
+            smooth);
+    }
+}
+
+static inline void
+dash3d_compute_projected_face_order(
+    struct DashGraphics* dash,
+    struct DashModel* model)
+{
+    int model_min_depth = model->bounds_cylinder->min_z_depth_any_rotation;
+    memset(
+        dash->tmp_depth_face_count,
+        0,
+        (model_min_depth * 2 + 1) * sizeof(dash->tmp_depth_face_count[0]));
+
+    int bounds = bucket_sort_by_average_depth(
+        dash->tmp_depth_faces,
+        dash->tmp_depth_face_count,
+        model_min_depth,
+        model->face_count,
+        dash->screen_vertices_x,
+        dash->screen_vertices_y,
+        dash->screen_vertices_z,
+        model->face_indices_a,
+        model->face_indices_b,
+        model->face_indices_c);
+
+    model_min_depth = bounds & 0xFFFF;
+    int model_max_depth = bounds >> 16;
+
+    if( !model->face_priorities )
+    {
+        int order_index = 0;
+        for( int depth = model_max_depth; depth < 1500 && depth >= model_min_depth; depth-- )
+        {
+            int bucket_count = dash->tmp_depth_face_count[depth];
+            if( bucket_count == 0 )
+                continue;
+
+            short* faces = &dash->tmp_depth_faces[depth << 9];
+            for( int j = 0; j < bucket_count; j++ )
+            {
+                dash->tmp_face_order[order_index++] = faces[j];
+            }
+        }
+        dash->tmp_face_order_count = order_index;
+        return;
+    }
+
+    memset(dash->tmp_priority_depth_sum, 0, sizeof(dash->tmp_priority_depth_sum));
+    memset(dash->tmp_priority_face_count, 0, sizeof(dash->tmp_priority_face_count));
+
+    parition_faces_by_priority(
+        dash->tmp_priority_faces,
+        dash->tmp_priority_face_count,
+        dash->tmp_depth_faces,
+        dash->tmp_depth_face_count,
+        model->face_count,
+        model->face_priorities,
+        model_min_depth,
+        model_max_depth);
+
+    dash->tmp_face_order_count = sort_face_draw_order(
+        dash->tmp_priority_depth_sum,
+        dash->tmp_flex_prio11_face_to_depth,
+        dash->tmp_flex_prio12_face_to_depth,
+        dash->tmp_face_order,
+        dash->tmp_depth_faces,
+        dash->tmp_depth_face_count,
+        dash->tmp_priority_faces,
+        dash->tmp_priority_face_count,
+        model->face_count,
+        model->face_priorities,
+        model_min_depth,
+        model_max_depth);
 }
 
 static inline int
@@ -1298,18 +1355,24 @@ dash3d_project(
     int cull = DASHCULL_VISIBLE;
 
     if( model == NULL || model->vertex_count == 0 || model->face_count == 0 )
+    {
         return DASHCULL_ERROR;
+    }
 
     cull = dash3d_fast_cull(
         &dash->cylinder_fast_aabb, view_port, model, position, camera, &center_projection);
     if( cull != DASHCULL_VISIBLE )
+    {
         return cull;
+    }
 
     dash3d_calculate_cylinder_aabb_8point(&dash->aabb, model, position, view_port, camera);
 
     cull = dash3d_aabb_cull(&dash->aabb, view_port, camera);
     if( cull != DASHCULL_VISIBLE )
+    {
         return cull;
+    }
 
     project_vertices_array(
         dash->orthographic_vertices_x,
@@ -1357,6 +1420,30 @@ dash3d_project_model(
 {
     int cull = dash3d_project(dash, model, position, view_port, camera);
     return cull;
+}
+
+int
+dash3d_prepare_projected_face_order(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashPosition* position,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera)
+{
+    dash3d_compute_projected_face_order(dash, model);
+    return dash->tmp_face_order_count;
+}
+
+const int*
+dash3d_projected_face_order(
+    struct DashGraphics* dash,
+    int* out_face_count)
+{
+    if( out_face_count )
+        *out_face_count = dash ? dash->tmp_face_order_count : 0;
+    if( !dash || dash->tmp_face_order_count <= 0 )
+        return NULL;
+    return dash->tmp_face_order;
 }
 
 int

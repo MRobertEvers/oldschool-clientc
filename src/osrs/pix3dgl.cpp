@@ -1077,6 +1077,21 @@ pix3dgl_model_draw(
     float position_z,
     float yaw)
 {
+    pix3dgl_model_draw_ordered(
+        pix3dgl, model_idx, position_x, position_y, position_z, yaw, NULL, 0);
+}
+
+extern "C" void
+pix3dgl_model_draw_ordered(
+    struct Pix3DGL* pix3dgl,
+    int model_idx,
+    float position_x,
+    float position_y,
+    float position_z,
+    float yaw,
+    const int* face_order,
+    int face_order_count)
+{
     if( !pix3dgl || !pix3dgl->program_es2 )
         return;
 
@@ -1100,21 +1115,45 @@ pix3dgl_model_draw(
     scene_batch.texture_id = -1;
     memcpy(scene_batch.model_matrix, modelMatrix, sizeof(modelMatrix));
 
-    for( int face = 0; face < model.face_count; face++ )
+    if( face_order && face_order_count > 0 )
     {
-        if( !model.face_visible[face] )
-            continue;
+        for( int i = 0; i < face_order_count; i++ )
+        {
+            int face = face_order[i];
+            if( face < 0 || face >= model.face_count || !model.face_visible[face] )
+                continue;
 
-        int start = face * 3;
-        if( !scene_batch.face_starts.empty() &&
-            scene_batch.face_starts.back() + scene_batch.face_counts.back() == start )
-        {
-            scene_batch.face_counts.back() += 3;
+            int start = face * 3;
+            if( !scene_batch.face_starts.empty() &&
+                scene_batch.face_starts.back() + scene_batch.face_counts.back() == start )
+            {
+                scene_batch.face_counts.back() += 3;
+            }
+            else
+            {
+                scene_batch.face_starts.push_back(start);
+                scene_batch.face_counts.push_back(3);
+            }
         }
-        else
+    }
+    else
+    {
+        for( int face = 0; face < model.face_count; face++ )
         {
-            scene_batch.face_starts.push_back(start);
-            scene_batch.face_counts.push_back(3);
+            if( !model.face_visible[face] )
+                continue;
+
+            int start = face * 3;
+            if( !scene_batch.face_starts.empty() &&
+                scene_batch.face_starts.back() + scene_batch.face_counts.back() == start )
+            {
+                scene_batch.face_counts.back() += 3;
+            }
+            else
+            {
+                scene_batch.face_starts.push_back(start);
+                scene_batch.face_counts.push_back(3);
+            }
         }
     }
 

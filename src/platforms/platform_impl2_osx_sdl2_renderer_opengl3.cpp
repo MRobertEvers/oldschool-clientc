@@ -456,13 +456,25 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
             it = renderer->model_index_by_key.find(model_key);
         }
 
-        pix3dgl_model_draw(
+        struct DashPosition draw_position = cmd->_model_draw.position;
+        const int cull = dash3d_project_model(
+            game->sys_dash, model, &draw_position, game->view_port, game->camera);
+        if( cull != DASHCULL_VISIBLE )
+            continue;
+
+        int face_order_count = dash3d_prepare_projected_face_order(
+            game->sys_dash, model, &draw_position, game->view_port, game->camera);
+
+        const int* face_order = dash3d_projected_face_order(game->sys_dash, &face_order_count);
+        pix3dgl_model_draw_ordered(
             renderer->pix3dgl,
             it->second,
-            (float)cmd->_model_draw.position.x,
-            (float)cmd->_model_draw.position.y,
-            (float)cmd->_model_draw.position.z,
-            yaw_to_radians(cmd->_model_draw.position.yaw));
+            (float)draw_position.x,
+            (float)draw_position.y,
+            (float)draw_position.z,
+            yaw_to_radians(draw_position.yaw),
+            face_order,
+            face_order_count);
     }
 
     // Re-assert world viewport right before draw submission in case any state changed.

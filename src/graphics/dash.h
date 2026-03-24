@@ -350,6 +350,19 @@ dash3d_project_model(
     struct DashCamera* camera);
 
 int
+dash3d_prepare_projected_face_order(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashPosition* position,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera);
+
+const int*
+dash3d_projected_face_order(
+    struct DashGraphics* dash,
+    int* out_face_count);
+
+int
 dash3d_project_model6(
     struct DashGraphics* dash,
     struct DashModel* model,
