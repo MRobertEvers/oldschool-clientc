@@ -60,6 +60,12 @@ Platform2_Emscripten_SDL2_Shutdown(struct Platform2_Emscripten_SDL2* platform);
 void
 Platform2_Emscripten_SDL2_PollEvents(struct Platform2_Emscripten_SDL2* platform);
 
+/** Match SDL window + canvas backing store to #canvas CSS size (Emscripten only). */
+void
+Platform2_Emscripten_SDL2_SyncCanvasCssSize(
+    struct Platform2_Emscripten_SDL2* platform,
+    struct GGame* game_nullable);
+
 void
 Platform2_Emscripten_SDL2_RunLuaScripts(struct Platform2_Emscripten_SDL2* platform);
 

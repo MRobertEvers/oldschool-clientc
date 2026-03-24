@@ -184,22 +184,22 @@ render_imgui_overlay(
 static void
 sync_canvas_size(struct Platform2_Emscripten_SDL2_Renderer_WebGL1* renderer)
 {
-    double css_width = 0.0;
-    double css_height = 0.0;
-    emscripten_get_element_css_size("#canvas", &css_width, &css_height);
-    int new_width = (int)css_width;
-    int new_height = (int)css_height;
-    if( new_width <= 0 || new_height <= 0 )
+    if( !renderer->platform )
         return;
 
-    if( new_width != renderer->width || new_height != renderer->height )
+    Platform2_Emscripten_SDL2_SyncCanvasCssSize(
+        renderer->platform, renderer->platform->current_game);
+
+    int new_w = renderer->platform->drawable_width;
+    int new_h = renderer->platform->drawable_height;
+    if( new_w <= 0 || new_h <= 0 )
+        return;
+
+    if( new_w != renderer->width || new_h != renderer->height )
     {
-        renderer->width = new_width;
-        renderer->height = new_height;
-        emscripten_set_canvas_element_size("#canvas", renderer->width, renderer->height);
+        renderer->width = new_w;
+        renderer->height = new_h;
         glViewport(0, 0, renderer->width, renderer->height);
-        if( renderer->platform && renderer->platform->window )
-            SDL_SetWindowSize(renderer->platform->window, renderer->width, renderer->height);
     }
 }
 
@@ -313,10 +313,9 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    int window_width = 0;
-    int window_height = 0;
-    if( renderer->platform && renderer->platform->window )
-        SDL_GetWindowSize(renderer->platform->window, &window_width, &window_height);
+    /* Use drawable size (synced from #canvas CSS); SDL_GetWindowSize can lag on Emscripten. */
+    int window_width = renderer->width;
+    int window_height = renderer->height;
     const LogicalViewportRect logical_viewport =
         compute_logical_viewport_rect(window_width, window_height, game);
     const GLViewportRect world_viewport = compute_world_viewport_rect(

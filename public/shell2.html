@@ -31,9 +31,56 @@
         margin-top: 10px;
         font-size: 14px;
       }
+
+      .shell-controls {
+        position: fixed;
+        top: 8px;
+        right: 8px;
+        z-index: 100;
+      }
+
+      .shell-controls button {
+        font: inherit;
+        padding: 6px 12px;
+        cursor: pointer;
+        background: #444;
+        color: #fff;
+        border: 1px solid #666;
+        border-radius: 4px;
+      }
+
+      .shell-controls button:hover {
+        background: #555;
+      }
+
+      canvas.emscripten.fill-viewport {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 1;
+      }
+
+      body.canvas-fill-viewport .status {
+        position: fixed;
+        bottom: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 2;
+        margin-top: 0;
+      }
+
+      body.canvas-fill-viewport .shell-controls {
+        z-index: 3;
+      }
     </style>
   </head>
   <body>
+
+    <div class="shell-controls">
+      <button type="button" id="btn-fill-viewport">Fill viewport</button>
+    </div>
 
     <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
     
@@ -41,6 +88,20 @@
 
     <script type='text/javascript'>
       var statusElement = document.getElementById('status');
+
+      (function () {
+        var canvas = document.getElementById('canvas');
+        var btn = document.getElementById('btn-fill-viewport');
+        if (canvas && btn) {
+          var full = false;
+          btn.addEventListener('click', function () {
+            full = !full;
+            document.body.classList.toggle('canvas-fill-viewport', full);
+            canvas.classList.toggle('fill-viewport', full);
+            btn.textContent = full ? 'Default canvas size' : 'Fill viewport';
+          });
+        }
+      })();
 
       var Module = {
         preRun: [],
