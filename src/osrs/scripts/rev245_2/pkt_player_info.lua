@@ -18,9 +18,7 @@ local function queue_unique(seen, list, model_id)
     table.insert(list, model_id)
 end
 
-print("pkt_player_info")
 local data, length = ...
-print("pkt_player_info", data, length)
 
 -- Needed to turn appearance IDs into model IDs.
 Game.buildcachedat_init_idkits_from_config_jagfile()
@@ -29,8 +27,6 @@ Game.buildcachedat_init_objects_from_config_jagfile()
 
 
 local idk_ids, obj_ids = Game.buildcachedat_get_player_appearance_ids_from_packet(data, length)
-print_table(idk_ids)
-print_table(obj_ids)
 
 local seen = {}
 local queued_model_ids = {}
