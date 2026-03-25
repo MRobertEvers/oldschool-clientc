@@ -14,12 +14,15 @@
 //   - Requires OES extensions for VAO and 32-bit indices
 // ============================================================================
 
+#include "graphics/dash.h"
 #include "graphics/shared_tables.h"
 #include "graphics/uv_pnm.h"
 #include "pix3dgl.h"
 
 #include <algorithm>
+#include <cmath>
 #include <string.h>
+#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -1862,6 +1865,196 @@ pix3dgl_end_frame(struct Pix3DGL* pix3dgl)
     {
         BIND_VERTEX_ARRAY(0);
     }
+}
+
+static GLuint
+compile_ui_es2_shader(GLenum type, const char* src)
+{
+    GLuint sh = glCreateShader(type);
+    glShaderSource(sh, 1, &src, NULL);
+    glCompileShader(sh);
+    GLint ok = 0;
+    glGetShaderiv(sh, GL_COMPILE_STATUS, &ok);
+    if( !ok )
+    {
+        glDeleteShader(sh);
+        return 0;
+    }
+    return sh;
+}
+
+extern "C" void
+pix3dgl_ui_sprite_draw(
+    struct Pix3DGL* pix3dgl_unused,
+    struct DashSprite* sprite,
+    int dst_x,
+    int dst_y,
+    int framebuffer_width,
+    int framebuffer_height,
+    int rotation_r2pi2048)
+{
+    (void)pix3dgl_unused;
+    if( !sprite || !sprite->pixels_argb || framebuffer_width <= 0 || framebuffer_height <= 0 ||
+        sprite->width <= 0 || sprite->height <= 0 )
+        return;
+
+    static GLuint s_prog = 0;
+    static GLuint s_vao = 0;
+    static GLuint s_vbo = 0;
+    static GLuint s_tex = 0;
+    static bool s_vao_inited = false;
+
+    if( !s_prog )
+    {
+        const char* vs_src =
+            "attribute vec2 aClip;\n"
+            "attribute vec2 aUv;\n"
+            "varying vec2 vUv;\n"
+            "void main() {\n"
+            "  vUv = aUv;\n"
+            "  gl_Position = vec4(aClip, 0.0, 1.0);\n"
+            "}\n";
+        const char* fs_src =
+            "precision mediump float;\n"
+            "varying vec2 vUv;\n"
+            "uniform sampler2D uTex;\n"
+            "void main() {\n"
+            "  vec4 c = texture2D(uTex, vec2(vUv.x, 1.0 - vUv.y));\n"
+            "  if (c.a < 0.01) discard;\n"
+            "  gl_FragColor = c;\n"
+            "}\n";
+        GLuint vs = compile_ui_es2_shader(GL_VERTEX_SHADER, vs_src);
+        GLuint fs = compile_ui_es2_shader(GL_FRAGMENT_SHADER, fs_src);
+        if( !vs || !fs )
+            return;
+        s_prog = glCreateProgram();
+        glAttachShader(s_prog, vs);
+        glAttachShader(s_prog, fs);
+        glBindAttribLocation(s_prog, 0, "aClip");
+        glBindAttribLocation(s_prog, 1, "aUv");
+        glLinkProgram(s_prog);
+        glDeleteShader(vs);
+        glDeleteShader(fs);
+        GLint linked = 0;
+        glGetProgramiv(s_prog, GL_LINK_STATUS, &linked);
+        if( !linked )
+        {
+            glDeleteProgram(s_prog);
+            s_prog = 0;
+            return;
+        }
+        glGenBuffers(1, &s_vbo);
+        glGenTextures(1, &s_tex);
+        GEN_VERTEX_ARRAYS(1, &s_vao);
+        s_vao_inited = g_has_vao_extension && s_vao != 0;
+    }
+
+    dst_x += sprite->crop_x;
+    dst_y += sprite->crop_y;
+    const float w = (float)sprite->width;
+    const float h = (float)sprite->height;
+    const float x0 = (float)dst_x;
+    const float y0 = (float)dst_y;
+    const float x1 = x0 + w;
+    const float y1 = y0 + h;
+    const float cx = 0.5f * (x0 + x1);
+    const float cy = 0.5f * (y0 + y1);
+    const float angle = (float)(rotation_r2pi2048 * (2.0 * M_PI) / 2048.0);
+    const float ca = cosf(angle);
+    const float sa = sinf(angle);
+    const float hw = 0.5f * w;
+    const float hh = 0.5f * h;
+
+    auto rot_local = [&](float lx, float ly, float* ox, float* oy) {
+        *ox = cx + ca * lx - sa * ly;
+        *oy = cy + sa * lx + ca * ly;
+    };
+
+    float px[4];
+    float py[4];
+    rot_local(-hw, -hh, &px[0], &py[0]);
+    rot_local(hw, -hh, &px[1], &py[1]);
+    rot_local(hw, hh, &px[2], &py[2]);
+    rot_local(-hw, hh, &px[3], &py[3]);
+
+    auto to_clip = [&](float pxp, float pyp, float* cxo, float* cyo) {
+        *cxo = 2.0f * pxp / (float)framebuffer_width - 1.0f;
+        *cyo = 1.0f - 2.0f * pyp / (float)framebuffer_height;
+    };
+
+    float c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y;
+    to_clip(px[0], py[0], &c0x, &c0y);
+    to_clip(px[1], py[1], &c1x, &c1y);
+    to_clip(px[2], py[2], &c2x, &c2y);
+    to_clip(px[3], py[3], &c3x, &c3y);
+
+    float verts[6 * 4] = {
+        c0x, c0y, 0.0f, 0.0f, c1x, c1y, 1.0f, 0.0f, c2x, c2y, 1.0f, 1.0f,
+        c0x, c0y, 0.0f, 0.0f, c2x, c2y, 1.0f, 1.0f, c3x, c3y, 0.0f, 1.0f,
+    };
+
+    GLboolean depth_was = glIsEnabled(GL_DEPTH_TEST);
+    GLboolean blend_was = glIsEnabled(GL_BLEND);
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    const int tw = sprite->width;
+    const int th = sprite->height;
+    std::vector<uint8_t> rgba((size_t)tw * (size_t)th * 4u);
+    for( int i = 0; i < tw * th; i++ )
+    {
+        uint32_t p = sprite->pixels_argb[i];
+        rgba[(size_t)i * 4u + 0u] = (uint8_t)((p >> 16) & 0xFFu);
+        rgba[(size_t)i * 4u + 1u] = (uint8_t)((p >> 8) & 0xFFu);
+        rgba[(size_t)i * 4u + 2u] = (uint8_t)(p & 0xFFu);
+        rgba[(size_t)i * 4u + 3u] = (uint8_t)((p >> 24) & 0xFFu);
+    }
+
+    glBindTexture(GL_TEXTURE_2D, s_tex);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGBA,
+        tw,
+        th,
+        0,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        rgba.data());
+
+    glUseProgram(s_prog);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, s_tex);
+    GLint loc = glGetUniformLocation(s_prog, "uTex");
+    if( loc >= 0 )
+        glUniform1i(loc, 0);
+
+    if( s_vao_inited )
+        BIND_VERTEX_ARRAY(s_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STREAM_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    if( s_vao_inited )
+        BIND_VERTEX_ARRAY(0);
+    glUseProgram(0);
+
+    if( depth_was )
+        glEnable(GL_DEPTH_TEST);
+    else
+        glDisable(GL_DEPTH_TEST);
+    if( !blend_was )
+        glDisable(GL_BLEND);
 }
 
 extern "C" void

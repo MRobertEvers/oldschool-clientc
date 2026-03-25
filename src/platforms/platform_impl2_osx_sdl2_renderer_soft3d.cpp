@@ -22,8 +22,6 @@ extern "C" {
 #include "osrs/minimap.h"
 #include "osrs/minimenu.h"
 #include "osrs/model_transforms.h"
-#include "osrs/revconfig/static_ui.h"
-#include "osrs/revconfig/uiscene.h"
 #include "osrs/rscache/rsbuf.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/model.h"
@@ -32,6 +30,7 @@ extern "C" {
 #include "server/prot.h"
 #include "server/server.h"
 #include "tori_rs.h"
+#include "tori_rs_render.h"
 }
 
 #define LUA_SCRIPTS_DIR "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/scripts"
@@ -353,121 +352,6 @@ blit_rotated_buffer(
     int dst_anchor_y,
     int angle_r2pi2048);
 
-/* Callbacks for static UI buffer execute (C-compatible). */
-static void
-static_ui_blit_sprite_cb(
-    void* userdata,
-    struct GGame* game,
-    struct DashSprite* sprite,
-    int x,
-    int y)
-{
-    auto* r = (struct Platform2_OSX_SDL2_Renderer_Soft3D*)userdata;
-    if( game->sys_dash && sprite && r->pixel_buffer )
-        dash2d_blit_sprite(game->sys_dash, sprite, game->iface_view_port, x, y, r->pixel_buffer);
-}
-
-static void
-static_ui_blit_rotated_cb(
-    void* userdata,
-    struct GGame* game,
-    struct DashSprite* sprite,
-    int x,
-    int y,
-    int dest_w,
-    int dest_h,
-    int dest_anchor_x,
-    int dest_anchor_y,
-    int rotation_cw)
-{
-    (void)game;
-    auto* r = (struct Platform2_OSX_SDL2_Renderer_Soft3D*)userdata;
-    if( !sprite || !r->pixel_buffer )
-        return;
-    blit_rotated_buffer(
-        (int*)sprite->pixels_argb,
-        sprite->width,
-        sprite->height,
-        sprite->width >> 1,
-        sprite->height >> 1,
-        r->pixel_buffer,
-        r->width,
-        x,
-        y,
-        dest_w,
-        dest_h,
-        dest_anchor_x,
-        dest_anchor_y,
-        rotation_cw);
-}
-
-static void
-render_revconfig_static_ui(
-    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
-    struct GGame* game)
-{
-    if( !renderer || !game || !game->static_ui || !game->ui_scene || !game->iface_view_port ||
-        !renderer->pixel_buffer || !game->sys_dash )
-        return;
-
-    for( uint32_t i = 0; i < game->static_ui->component_count; i++ )
-    {
-        struct StaticUIComponent* c = &game->static_ui->components[i];
-        if( c->type != UIELEM_SPRITE )
-            continue;
-
-        struct UISceneElement* elem = uiscene_element_at(game->ui_scene, c->scene_id);
-        if( !elem || !elem->dash_sprites || c->atlas_index < 0 ||
-            c->atlas_index >= elem->dash_sprites_count )
-            continue;
-        struct DashSprite* sprite = elem->dash_sprites[c->atlas_index];
-        if( !sprite )
-            continue;
-
-        int x = 0;
-        int y = 0;
-        if( c->position.kind == UIPOS_XY )
-        {
-            x = c->position.x;
-            y = c->position.y;
-        }
-        else if( c->position.kind == UIPOS_RELATIVE )
-        {
-            int w = game->iface_view_port->width;
-            int h = game->iface_view_port->height;
-            if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_LEFT) != 0 )
-                x = c->position.left;
-            else if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_RIGHT) != 0 )
-                x = w - c->position.right - sprite->width;
-
-            if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_TOP) != 0 )
-                y = c->position.top;
-            else if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_BOTTOM) != 0 )
-                y = h - c->position.bottom - sprite->height;
-        }
-
-        if( c->type == UIELEM_COMPASS )
-        {
-            static_ui_blit_rotated_cb(
-                renderer,
-                game,
-                sprite,
-                x,
-                y,
-                sprite->width,
-                sprite->height,
-                sprite->width / 2,
-                sprite->height / 2,
-                game->camera_yaw);
-        }
-        else
-        {
-            dash2d_blit_sprite(
-                game->sys_dash, sprite, game->iface_view_port, x, y, renderer->pixel_buffer);
-        }
-    }
-}
-
 static void
 blit_rotated_buffer(
     int* src_buffer,
@@ -687,6 +571,44 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 renderer->dash_buffer,
                 false);
             break;
+        case TORIRS_GFX_SPRITE_DRAW:
+        {
+            struct DashSprite* sp = command._sprite_draw.sprite;
+            if( !sp || !game->sys_dash || !game->iface_view_port || !renderer->pixel_buffer )
+                break;
+            int x = command._sprite_draw.x;
+            int y = command._sprite_draw.y;
+            int rot = command._sprite_draw.rotation_r2pi2048;
+            if( rot != 0 )
+            {
+                blit_rotated_buffer(
+                    (int*)sp->pixels_argb,
+                    sp->width,
+                    sp->height,
+                    sp->width >> 1,
+                    sp->height >> 1,
+                    renderer->pixel_buffer,
+                    renderer->width,
+                    x + sp->crop_x,
+                    y + sp->crop_y,
+                    sp->width,
+                    sp->height,
+                    sp->width / 2,
+                    sp->height / 2,
+                    rot);
+            }
+            else
+            {
+                dash2d_blit_sprite(
+                    game->sys_dash,
+                    sp,
+                    game->iface_view_port,
+                    x,
+                    y,
+                    renderer->pixel_buffer);
+            }
+        }
+        break;
         default:
             break;
         }
@@ -858,9 +780,6 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 }
         }
     }
-
-    // Render 2D UI (revconfig-built) on top of 3D.
-    render_revconfig_static_ui(renderer, game);
 
     /* Client.ts drawTooltip: draw hovered loc/NPC/player text at (4, 15) in top left. */
     if( renderer->dash_buffer && game->pixfont_b12 && game->option_set.option_count > 0 )

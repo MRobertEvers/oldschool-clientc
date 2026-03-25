@@ -218,6 +218,7 @@ LibToriRS_GameNew(
 
     game->ui_scene = uiscene_new(512);
     game->static_ui = static_ui_buffer_new(512);
+    game->ui_render_command_buffer = LibToriRS_RenderCommandBufferNew(2048);
 
     // struct CacheDatConfigComponentList* config_interface_list =
     //     cache_dat_config_component_list_new_decode(file_data, file_data_size);

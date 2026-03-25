@@ -7,17 +7,72 @@
 #include "imgui_impl_sdlrenderer2.h"
 
 extern "C" {
+#include "graphics/dash.h"
 #include "osrs/game.h"
-#include "osrs/revconfig/static_ui.h"
-#include "osrs/revconfig/uiscene.h"
 #include "tori_rs.h"
 }
+
+#include <assert.h>
+
+#include "tori_rs_render.h"
 
 extern int g_trap_command;
 extern int g_trap_x;
 extern int g_trap_z;
 
 static bool g_show_collision_map = false;
+
+static void
+blit_rotated_buffer(
+    int* src_buffer,
+    int src_width,
+    int src_height,
+    int src_anchor_x,
+    int src_anchor_y,
+    int* dst_buffer,
+    int dst_stride,
+    int dst_x,
+    int dst_y,
+    int dst_width,
+    int dst_height,
+    int dst_anchor_x,
+    int dst_anchor_y,
+    int angle_r2pi2048)
+{
+    assert(dst_width + dst_x <= dst_stride);
+    int sin = dash_sin(angle_r2pi2048);
+    int cos = dash_cos(angle_r2pi2048);
+
+    int min_x = dst_x;
+    int min_y = dst_y;
+    int max_x = dst_x + dst_width;
+    int max_y = dst_y + dst_height;
+
+    if( max_x > dst_stride )
+        max_x = dst_stride;
+
+    for( int dst_y_abs = min_y; dst_y_abs < max_y; dst_y_abs++ )
+    {
+        for( int dst_x_abs = min_x; dst_x_abs < max_x; dst_x_abs++ )
+        {
+            int rel_x = dst_x_abs - dst_x - dst_anchor_x;
+            int rel_y = dst_y_abs - dst_y - dst_anchor_y;
+
+            int src_rel_x = ((rel_x * cos + rel_y * sin) >> 16);
+            int src_rel_y = ((-rel_x * sin + rel_y * cos) >> 16);
+
+            int src_x = src_anchor_x + src_rel_x;
+            int src_y = src_anchor_y + src_rel_y;
+
+            if( src_x >= 0 && src_x < src_width && src_y >= 0 && src_y < src_height )
+            {
+                int src_pixel = src_buffer[src_y * src_width + src_x];
+                if( src_pixel != 0 )
+                    dst_buffer[dst_y_abs * dst_stride + dst_x_abs] = src_pixel;
+            }
+        }
+    }
+}
 
 static void
 render_imgui(
@@ -259,54 +314,50 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
                 renderer->pixel_buffer,
                 false);
             break;
+        case TORIRS_GFX_SPRITE_DRAW:
+        {
+            struct DashSprite* sp = command._sprite_draw.sprite;
+            if( !sp || !game->sys_dash || !game->iface_view_port || !renderer->pixel_buffer )
+                break;
+            int stride = game->iface_view_port->stride;
+            int x = command._sprite_draw.x;
+            int y = command._sprite_draw.y;
+            int rot = command._sprite_draw.rotation_r2pi2048;
+            if( rot != 0 )
+            {
+                blit_rotated_buffer(
+                    (int*)sp->pixels_argb,
+                    sp->width,
+                    sp->height,
+                    sp->width >> 1,
+                    sp->height >> 1,
+                    renderer->pixel_buffer,
+                    stride,
+                    x + sp->crop_x,
+                    y + sp->crop_y,
+                    sp->width,
+                    sp->height,
+                    sp->width / 2,
+                    sp->height / 2,
+                    rot);
+            }
+            else
+            {
+                dash2d_blit_sprite(
+                    game->sys_dash,
+                    sp,
+                    game->iface_view_port,
+                    x,
+                    y,
+                    renderer->pixel_buffer);
+            }
+        }
+        break;
         default:
             break;
         }
     }
     LibToriRS_FrameEnd(game);
-
-    // Render 2D UI (revconfig-built) on top of 3D. (No rotation support here yet.)
-    if( game && game->static_ui && game->ui_scene && game->iface_view_port && game->sys_dash )
-    {
-        for( uint32_t i = 0; i < game->static_ui->component_count; i++ )
-        {
-            struct StaticUIComponent* c = &game->static_ui->components[i];
-            if( c->type != UIELEM_SPRITE && c->type != UIELEM_COMPASS )
-                continue;
-            struct UISceneElement* elem = uiscene_element_at(game->ui_scene, c->scene_id);
-            if( !elem || !elem->dash_sprites || c->atlas_index < 0 ||
-                c->atlas_index >= elem->dash_sprites_count )
-                continue;
-            struct DashSprite* sprite = elem->dash_sprites[c->atlas_index];
-            if( !sprite )
-                continue;
-
-            int x = 0;
-            int y = 0;
-            if( c->position.kind == UIPOS_XY )
-            {
-                x = c->position.x;
-                y = c->position.y;
-            }
-            else if( c->position.kind == UIPOS_RELATIVE )
-            {
-                int w = game->iface_view_port->width;
-                int h = game->iface_view_port->height;
-                if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_LEFT) != 0 )
-                    x = c->position.left;
-                else if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_RIGHT) != 0 )
-                    x = w - c->position.right - sprite->width;
-
-                if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_TOP) != 0 )
-                    y = c->position.top;
-                else if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_BOTTOM) != 0 )
-                    y = h - c->position.bottom - sprite->height;
-            }
-
-            dash2d_blit_sprite(
-                game->sys_dash, sprite, game->iface_view_port, x, y, renderer->pixel_buffer);
-        }
-    }
 
     // Render minimap to buffer starting at (0,0)
     // Calculate the center of the minimap content for rotation anchor

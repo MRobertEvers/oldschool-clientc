@@ -19,8 +19,9 @@ struct Platform2_OSX_SDL2_Renderer_Metal
     // Metal API objects (void* to keep header C++-clean; cast in .mm)
     void* mtl_device;         // id<MTLDevice>
     void* mtl_command_queue;  // id<MTLCommandQueue>
-    void* mtl_pipeline_state; // id<MTLRenderPipelineState>
-    void* mtl_depth_stencil;  // id<MTLDepthStencilState>
+    void* mtl_pipeline_state;     // id<MTLRenderPipelineState>
+    void* mtl_ui_sprite_pipeline; // id<MTLRenderPipelineState> — TORIRS_GFX_SPRITE_DRAW
+    void* mtl_depth_stencil;      // id<MTLDepthStencilState>
     void* mtl_uniform_buffer; // id<MTLBuffer>
     void* mtl_sampler_state;  // id<MTLSamplerState> — texture sampling (clamp U, repeat V)
     void* mtl_dummy_texture;  // id<MTLTexture> 1×1 white — bound when texBlend == 0

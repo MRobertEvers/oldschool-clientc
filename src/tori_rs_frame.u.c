@@ -8,6 +8,8 @@
 #include "osrs/isaac.h"
 #include "osrs/minimenu.h"
 #include "osrs/packetout.h"
+#include "osrs/revconfig/static_ui.h"
+#include "osrs/revconfig/uiscene.h"
 #include "osrs/world_options.h"
 #include "tori_rs.h"
 #include "tori_rs_render.h"
@@ -107,6 +109,67 @@ queue_static_load_commands(
     }
 }
 
+static void
+queue_static_ui_draw_commands(struct GGame* game)
+{
+    if( !game->ui_render_command_buffer || !game->static_ui || !game->ui_scene ||
+        !game->iface_view_port )
+        return;
+
+    LibToriRS_RenderCommandBufferReset(game->ui_render_command_buffer);
+
+    for( uint32_t i = 0; i < game->static_ui->component_count; i++ )
+    {
+        struct StaticUIComponent* c = &game->static_ui->components[i];
+        if( c->type != UIELEM_SPRITE )
+            continue;
+
+        struct UISceneElement* elem = uiscene_element_at(game->ui_scene, c->scene_id);
+        if( !elem || !elem->dash_sprites || c->atlas_index < 0 ||
+            c->atlas_index >= elem->dash_sprites_count )
+            continue;
+        struct DashSprite* sprite = elem->dash_sprites[c->atlas_index];
+        if( !sprite )
+            continue;
+
+        int x = 0;
+        int y = 0;
+        if( c->position.kind == UIPOS_XY )
+        {
+            x = c->position.x;
+            y = c->position.y;
+        }
+        else if( c->position.kind == UIPOS_RELATIVE )
+        {
+            int w = game->iface_view_port->width;
+            int h = game->iface_view_port->height;
+            if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_LEFT) != 0 )
+                x = c->position.left;
+            else if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_RIGHT) != 0 )
+                x = w - c->position.right - sprite->width;
+
+            if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_TOP) != 0 )
+                y = c->position.top;
+            else if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_BOTTOM) != 0 )
+                y = h - c->position.bottom - sprite->height;
+        }
+
+        int rotation = (c->type == UIELEM_COMPASS) ? game->camera_yaw : 0;
+
+        LibToriRS_RenderCommandBufferAddCommand(
+            game->ui_render_command_buffer,
+            (struct ToriRSRenderCommand){
+                .kind = TORIRS_GFX_SPRITE_DRAW,
+                ._sprite_draw = {
+                    .sprite = sprite,
+                    .x = x,
+                    .y = y,
+                    .rotation_r2pi2048 = rotation,
+                },
+            });
+    }
+}
+
 void
 LibToriRS_FrameBegin(
     struct GGame* game,
@@ -114,6 +177,7 @@ LibToriRS_FrameBegin(
 {
     game->at_painters_command_index = 0;
     game->at_render_command_index = 0;
+    game->at_ui_render_command_index = 0;
 
     game->tile_clicked_x = -1;
     game->tile_clicked_z = -1;
@@ -127,6 +191,7 @@ LibToriRS_FrameBegin(
 
     LibToriRS_RenderCommandBufferReset(render_command_buffer);
     queue_static_load_commands(game, render_command_buffer);
+    queue_static_ui_draw_commands(game);
 
     if( game->world && game->world->painter && game->sys_painter_buffer )
     {
@@ -540,6 +605,15 @@ LibToriRS_FrameNextCommand(
         default:
             break;
         }
+    }
+
+    if( command->kind == TORIRS_GFX_NONE && game->ui_render_command_buffer &&
+        game->at_ui_render_command_index <
+            LibToriRS_RenderCommandBufferCount(game->ui_render_command_buffer) )
+    {
+        *command = *LibToriRS_RenderCommandBufferAt(
+            game->ui_render_command_buffer, game->at_ui_render_command_index);
+        game->at_ui_render_command_index++;
     }
 
     /* Copy recorded tile click to clicked_tile for FrameEnd (tryMove / MOVE_OPCLICK). */

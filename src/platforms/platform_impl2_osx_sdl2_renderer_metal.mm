@@ -25,6 +25,7 @@ extern "C" {
 #include "graphics/dash.h"
 #include "graphics/shared_tables.h"
 #include "osrs/game.h"
+#include "tori_rs_render.h"
 }
 
 // Must match src/osrs/pix3dglcore.u.cpp (used by Pix3DGL / OpenGL3 renderer).
@@ -508,8 +509,9 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_New(int width, int height)
     auto* renderer = new Platform2_OSX_SDL2_Renderer_Metal();
     renderer->mtl_device         = nil;
     renderer->mtl_command_queue  = nil;
-    renderer->mtl_pipeline_state = nil;
-    renderer->mtl_depth_stencil  = nil;
+    renderer->mtl_pipeline_state      = nil;
+    renderer->mtl_ui_sprite_pipeline  = nil;
+    renderer->mtl_depth_stencil       = nil;
     renderer->mtl_uniform_buffer = nil;
     renderer->mtl_sampler_state  = nil;
     renderer->mtl_dummy_texture  = nil;
@@ -563,6 +565,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(
     {
         CFRelease(renderer->mtl_depth_stencil);
         renderer->mtl_depth_stencil = nullptr;
+    }
+    if( renderer->mtl_ui_sprite_pipeline )
+    {
+        CFRelease(renderer->mtl_ui_sprite_pipeline);
+        renderer->mtl_ui_sprite_pipeline = nullptr;
     }
     if( renderer->mtl_pipeline_state )
     {
@@ -722,6 +729,45 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
         return false;
     }
     renderer->mtl_pipeline_state = (__bridge_retained void*)pipeState;
+
+    id<MTLFunction> uiVertFn = [shaderLibrary newFunctionWithName:@"uiSpriteVert"];
+    id<MTLFunction> uiFragFn = [shaderLibrary newFunctionWithName:@"uiSpriteFrag"];
+    if( uiVertFn && uiFragFn )
+    {
+        MTLVertexDescriptor* uiVtx = [[MTLVertexDescriptor alloc] init];
+        uiVtx.attributes[0].format      = MTLVertexFormatFloat2;
+        uiVtx.attributes[0].offset      = 0;
+        uiVtx.attributes[0].bufferIndex = 0;
+        uiVtx.attributes[1].format      = MTLVertexFormatFloat2;
+        uiVtx.attributes[1].offset      = 8;
+        uiVtx.attributes[1].bufferIndex = 0;
+        uiVtx.layouts[0].stride         = 16;
+        uiVtx.layouts[0].stepFunction   = MTLVertexStepFunctionPerVertex;
+
+        MTLRenderPipelineDescriptor* uiPipeDesc = [[MTLRenderPipelineDescriptor alloc] init];
+        uiPipeDesc.vertexFunction                 = uiVertFn;
+        uiPipeDesc.fragmentFunction               = uiFragFn;
+        uiPipeDesc.vertexDescriptor               = uiVtx;
+        uiPipeDesc.colorAttachments[0].pixelFormat = layer.pixelFormat;
+        uiPipeDesc.colorAttachments[0].blendingEnabled             = YES;
+        uiPipeDesc.colorAttachments[0].rgbBlendOperation           = MTLBlendOperationAdd;
+        uiPipeDesc.colorAttachments[0].sourceRGBBlendFactor        = MTLBlendFactorSourceAlpha;
+        uiPipeDesc.colorAttachments[0].destinationRGBBlendFactor   = MTLBlendFactorOneMinusSourceAlpha;
+        uiPipeDesc.colorAttachments[0].alphaBlendOperation         = MTLBlendOperationAdd;
+        uiPipeDesc.colorAttachments[0].sourceAlphaBlendFactor      = MTLBlendFactorOne;
+        uiPipeDesc.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+        uiPipeDesc.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
+
+        NSError* uiErr  = nil;
+        id<MTLRenderPipelineState> uiPipe =
+            [device newRenderPipelineStateWithDescriptor:uiPipeDesc error:&uiErr];
+        if( uiPipe )
+            renderer->mtl_ui_sprite_pipeline = (__bridge_retained void*)uiPipe;
+        else
+            printf(
+                "Metal: UI sprite pipeline creation failed: %s\n",
+                uiErr ? uiErr.localizedDescription.UTF8String : "unknown");
+    }
 
     // Match pix3dgl_new(false, true): z-buffer off → GL_ALWAYS / no depth write
     MTLDepthStencilDescriptor* dsDesc = [[MTLDepthStencilDescriptor alloc] init];
@@ -1081,6 +1127,119 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
         }
     }
     flush_batch();
+
+    id<MTLRenderPipelineState> uiPipeState =
+        renderer->mtl_ui_sprite_pipeline
+            ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_ui_sprite_pipeline
+            : nil;
+    id<MTLSamplerState> uiSampler = (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
+    if( uiPipeState )
+    {
+        MTLViewport spriteVp = {
+            .originX = 0.0,
+            .originY = 0.0,
+            .width   = (double)renderer->width,
+            .height  = (double)renderer->height,
+            .znear   = 0.0,
+            .zfar    = 1.0
+        };
+        [encoder setViewport:spriteVp];
+        [encoder setRenderPipelineState:uiPipeState];
+        [encoder setDepthStencilState:dsState];
+        [encoder setCullMode:MTLCullModeNone];
+
+        for( int i = 0; i < total_commands; ++i )
+        {
+            const ToriRSRenderCommand* cmd = &commands[i];
+            if( cmd->kind != TORIRS_GFX_SPRITE_DRAW )
+                continue;
+            struct DashSprite* sp = cmd->_sprite_draw.sprite;
+            if( !sp || !sp->pixels_argb || sp->width <= 0 || sp->height <= 0 )
+                continue;
+
+            const int tw = sp->width;
+            const int th = sp->height;
+            std::vector<uint8_t> rgba((size_t)tw * (size_t)th * 4u);
+            for( int p = 0; p < tw * th; ++p )
+            {
+                uint32_t pix = sp->pixels_argb[p];
+                rgba[(size_t)p * 4u + 0u] = (uint8_t)((pix >> 16) & 0xFFu);
+                rgba[(size_t)p * 4u + 1u] = (uint8_t)((pix >> 8) & 0xFFu);
+                rgba[(size_t)p * 4u + 2u] = (uint8_t)(pix & 0xFFu);
+                rgba[(size_t)p * 4u + 3u] = (uint8_t)((pix >> 24) & 0xFFu);
+            }
+
+            MTLTextureDescriptor* td =
+                [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                   width:(NSUInteger)tw
+                                                                  height:(NSUInteger)th
+                                                               mipmapped:NO];
+            td.usage       = MTLTextureUsageShaderRead;
+            td.storageMode = MTLStorageModeShared;
+            id<MTLTexture> spriteTex = [device newTextureWithDescriptor:td];
+            [spriteTex replaceRegion:MTLRegionMake2D(0, 0, tw, th)
+                         mipmapLevel:0
+                           withBytes:rgba.data()
+                         bytesPerRow:(NSUInteger)tw * 4u];
+
+            const int dst_x = cmd->_sprite_draw.x + sp->crop_x;
+            const int dst_y = cmd->_sprite_draw.y + sp->crop_y;
+            const float w   = (float)tw;
+            const float h   = (float)th;
+            const float x0  = (float)dst_x;
+            const float y0  = (float)dst_y;
+            const float x1  = x0 + w;
+            const float y1  = y0 + h;
+            const float cx  = 0.5f * (x0 + x1);
+            const float cy  = 0.5f * (y0 + y1);
+            const float angle =
+                (float)(cmd->_sprite_draw.rotation_r2pi2048 * (2.0 * M_PI) / 2048.0);
+            const float ca = cosf(angle);
+            const float sa = sinf(angle);
+            const float hw = 0.5f * w;
+            const float hh = 0.5f * h;
+
+            float px[4];
+            float py[4];
+            auto rot_local = [&](float lx, float ly, int k) {
+                px[k] = cx + ca * lx - sa * ly;
+                py[k] = cy + sa * lx + ca * ly;
+            };
+            rot_local(-hw, -hh, 0);
+            rot_local(hw, -hh, 1);
+            rot_local(hw, hh, 2);
+            rot_local(-hw, hh, 3);
+
+            const float fbw = (float)renderer->width;
+            const float fbh = (float)renderer->height;
+            auto to_clip = [&](float xp, float yp, float* ocx, float* ocy) {
+                *ocx = 2.0f * xp / fbw - 1.0f;
+                *ocy = 1.0f - 2.0f * yp / fbh;
+            };
+
+            float c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y;
+            to_clip(px[0], py[0], &c0x, &c0y);
+            to_clip(px[1], py[1], &c1x, &c1y);
+            to_clip(px[2], py[2], &c2x, &c2y);
+            to_clip(px[3], py[3], &c3x, &c3y);
+
+            float verts[6 * 4] = {
+                c0x, c0y, 0.0f, 0.0f, c1x, c1y, 1.0f, 0.0f, c2x, c2y, 1.0f, 1.0f,
+                c0x, c0y, 0.0f, 0.0f, c2x, c2y, 1.0f, 1.0f, c3x, c3y, 0.0f, 1.0f,
+            };
+
+            id<MTLBuffer> vb =
+                [device newBufferWithBytes:verts
+                                    length:sizeof(verts)
+                                   options:MTLResourceStorageModeShared];
+            [encoder setVertexBuffer:vb offset:0 atIndex:0];
+            [encoder setFragmentTexture:spriteTex atIndex:0];
+            [encoder setFragmentSamplerState:uiSampler atIndex:0];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                        vertexStart:0
+                        vertexCount:6];
+        }
+    }
 
     // -----------------------------------------------------------------------
     // Finish scene pass, render ImGui overlay in the same render encoder

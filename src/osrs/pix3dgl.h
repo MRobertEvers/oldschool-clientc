@@ -7,6 +7,7 @@ extern "C" {
 
 struct Pix3DGL;
 struct Pix3DGLCoreBuffers;
+struct DashSprite;
 
 struct Pix3DGL*
 pix3dgl_new(
@@ -97,6 +98,18 @@ pix3dgl_set_animation_clock(
 
 void
 pix3dgl_cleanup(struct Pix3DGL* pix3dgl);
+
+/** Top-left pixel origin; `framebuffer_*` are drawable size (e.g. glViewport after swap chain).
+ * Applies sprite crop_x/crop_y like dash2d_blit_sprite. */
+void
+pix3dgl_ui_sprite_draw(
+    struct Pix3DGL* pix3dgl,
+    struct DashSprite* sprite,
+    int dst_x,
+    int dst_y,
+    int framebuffer_width,
+    int framebuffer_height,
+    int rotation_r2pi2048);
 
 #ifdef __cplusplus
 }

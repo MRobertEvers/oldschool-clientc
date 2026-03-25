@@ -73,3 +73,35 @@ fragment float4 fragmentShader(
 
     return float4(finalColor, finalAlpha);
 }
+
+// ---------------------------------------------------------------------------
+// Simple textured quad for UI sprites (full-framebuffer clip space, no atlas)
+// ---------------------------------------------------------------------------
+struct UIVertIn {
+    float2 p [[attribute(0)]];
+    float2 uv [[attribute(1)]];
+};
+
+struct UIVertOut {
+    float4 position [[position]];
+    float2 uv;
+};
+
+vertex UIVertOut uiSpriteVert(UIVertIn in [[stage_in]])
+{
+    UIVertOut o;
+    o.position = float4(in.p, 0.0, 1.0);
+    o.uv       = in.uv;
+    return o;
+}
+
+fragment float4 uiSpriteFrag(
+    UIVertOut in [[stage_in]],
+    texture2d<float> tex [[texture(0)]],
+    sampler samp [[sampler(0)]])
+{
+    float4 c = tex.sample(samp, float2(in.uv.x, 1.0 - in.uv.y));
+    if( c.a < 0.01 )
+        discard_fragment();
+    return c;
+}

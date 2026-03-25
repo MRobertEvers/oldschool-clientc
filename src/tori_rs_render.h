@@ -11,8 +11,9 @@ enum ToriRSRenderCommandKind
     TORIRS_GFX_NONE,
     TORIRS_GFX_MODEL_LOAD,
     TORIRS_GFX_TEXTURE_LOAD,
+    TORIRS_GFX_SPRITE_LOAD,
     TORIRS_GFX_MODEL_DRAW,
-    TORIRS_GFX_MINIMAP_DRAW,
+    TORIRS_GFX_SPRITE_DRAW,
 };
 
 struct ToriRSRenderCommand
@@ -43,6 +44,13 @@ struct ToriRSRenderCommand
             struct DashModel* model;
             struct DashPosition position;
         } _model_draw;
+        struct
+        {
+            struct DashSprite* sprite;
+            int x;
+            int y;
+            int rotation_r2pi2048;
+        } _sprite_draw;
     };
 };
 

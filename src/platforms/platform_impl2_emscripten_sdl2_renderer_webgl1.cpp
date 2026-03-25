@@ -1,5 +1,8 @@
 #include "platform_impl2_emscripten_sdl2_renderer_webgl1.h"
 
+#include "graphics/dash.h"
+#include "tori_rs_render.h"
+
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl2.h"
@@ -522,6 +525,25 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
             yaw_to_radians(draw_position.yaw),
             face_order,
             face_order_count);
+    }
+
+    glViewport(0, 0, renderer->width, renderer->height);
+    for( int i = 0; i < total_commands; i++ )
+    {
+        const ToriRSRenderCommand* cmd = &commands[i];
+        if( cmd->kind != TORIRS_GFX_SPRITE_DRAW )
+            continue;
+        struct DashSprite* sp = cmd->_sprite_draw.sprite;
+        if( !sp )
+            continue;
+        pix3dgl_ui_sprite_draw(
+            renderer->pix3dgl,
+            sp,
+            cmd->_sprite_draw.x,
+            cmd->_sprite_draw.y,
+            renderer->width,
+            renderer->height,
+            cmd->_sprite_draw.rotation_r2pi2048);
     }
 
     LibToriRS_FrameEnd(game);

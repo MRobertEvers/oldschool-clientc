@@ -30,6 +30,7 @@
 #include <stdint.h>
 
 struct FileListDat;
+struct ToriRSRenderCommandBuffer;
 
 #define MAX_PLAYERS 2048
 #define MAX_NPCS 8192
@@ -57,7 +58,10 @@ struct GGame
     bool running;
     int at_render_command_index;
     int at_painters_command_index;
+    int at_ui_render_command_index;
     int rebuilt;
+
+    struct ToriRSRenderCommandBuffer* ui_render_command_buffer;
 
     int tile_clicked_x;
     int tile_clicked_z;
