@@ -100,7 +100,7 @@ fragment float4 uiSpriteFrag(
     texture2d<float> tex [[texture(0)]],
     sampler samp [[sampler(0)]])
 {
-    float4 c = tex.sample(samp, float2(in.uv.x, 1.0 - in.uv.y));
+    float4 c = tex.sample(samp, in.uv);
     if( c.a < 0.01 )
         discard_fragment();
     return c;

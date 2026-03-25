@@ -890,7 +890,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
     const float projection_width  = (float)logical_vp.width;
     const float projection_height = (float)logical_vp.height;
 
-    // Same as pix3dgl_begin_frame(..., 0,0,0, camera_pitch, camera_yaw, ...):
+    // Same as pix3dgl_begin_3dframe(..., 0,0,0, camera_pitch, camera_yaw, ...):
     // game angles are OSRS units (2048 = 2*pi); camera position stays at origin.
     MetalUniforms uniforms;
     const float pitch_rad =
@@ -1162,11 +1162,13 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
             std::vector<uint8_t> rgba((size_t)tw * (size_t)th * 4u);
             for( int p = 0; p < tw * th; ++p )
             {
+                // Sprite pixels are 0x00RRGGBB; pixel == 0 is the transparent color key.
+                // Synthesize alpha so the uiSpriteFrag discard (c.a < 0.01) works correctly.
                 uint32_t pix = sp->pixels_argb[p];
                 rgba[(size_t)p * 4u + 0u] = (uint8_t)((pix >> 16) & 0xFFu);
                 rgba[(size_t)p * 4u + 1u] = (uint8_t)((pix >> 8) & 0xFFu);
                 rgba[(size_t)p * 4u + 2u] = (uint8_t)(pix & 0xFFu);
-                rgba[(size_t)p * 4u + 3u] = (uint8_t)((pix >> 24) & 0xFFu);
+                rgba[(size_t)p * 4u + 3u] = (pix != 0u) ? 0xFFu : 0x00u;
             }
 
             MTLTextureDescriptor* td =
@@ -1210,8 +1212,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
             rot_local(hw, hh, 2);
             rot_local(-hw, hh, 3);
 
-            const float fbw = (float)renderer->width;
-            const float fbh = (float)renderer->height;
+            const float fbw = (float)(win_width  > 0 ? win_width  : renderer->width);
+            const float fbh = (float)(win_height > 0 ? win_height : renderer->height);
             auto to_clip = [&](float xp, float yp, float* ocx, float* ocy) {
                 *ocx = 2.0f * xp / fbw - 1.0f;
                 *ocy = 1.0f - 2.0f * yp / fbh;

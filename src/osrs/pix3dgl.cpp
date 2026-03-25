@@ -153,6 +153,32 @@ void main() {
 }
 )";
 
+static const char* g_ui_vertex_shader_gl3 = R"(
+#version 330 core
+layout(location = 0) in vec2 aClip;
+layout(location = 1) in vec2 aUv;
+out vec2 vUv;
+void main()
+{
+    vUv = aUv;
+    gl_Position = vec4(aClip, 0.0, 1.0);
+}
+)";
+
+static const char* g_ui_fragment_shader_gl3 = R"(
+#version 330 core
+in vec2 vUv;
+uniform sampler2D uTex;
+out vec4 FragColor;
+void main()
+{
+    vec4 c = texture(uTex, vec2(vUv.x, 1.0 - vUv.y));
+    if( c.a < 0.01 )
+        discard;
+    FragColor = c;
+}
+)";
+
 enum FaceShadingType
 {
     SHADING_TEXTURED = 0, // Face uses texture mapping
@@ -347,6 +373,12 @@ struct Pix3DGL
     // Runtime render state configuration.
     bool z_buffer_enabled;
     bool backface_cull_enabled;
+
+    GLuint program_ui;
+    GLint uniform_ui_tex;
+    GLuint ui_vao;
+    GLuint ui_vbo;
+    GLuint ui_sprite_texture;
 };
 
 // Note: Matrix computation functions moved to pix3dglcore.u.cpp for code reuse
@@ -408,12 +440,43 @@ create_shader_program(
     return program;
 }
 
+static bool
+pix3dgl_init_ui_gl(struct Pix3DGL* pix3dgl)
+{
+    pix3dgl->program_ui = 0;
+    pix3dgl->uniform_ui_tex = -1;
+    pix3dgl->ui_vao = 0;
+    pix3dgl->ui_vbo = 0;
+    pix3dgl->ui_sprite_texture = 0;
+
+    GLuint prog = create_shader_program(g_ui_vertex_shader_gl3, g_ui_fragment_shader_gl3);
+    if( !prog )
+    {
+        printf("Pix3DGL: failed to create UI sprite shader program\n");
+        return false;
+    }
+    pix3dgl->program_ui = prog;
+    pix3dgl->uniform_ui_tex = glGetUniformLocation(prog, "uTex");
+
+    glGenVertexArrays(1, &pix3dgl->ui_vao);
+    glGenBuffers(1, &pix3dgl->ui_vbo);
+    glGenTextures(1, &pix3dgl->ui_sprite_texture);
+    printf("Pix3DGL: UI sprite program %u (uTex loc %d)\n", prog, pix3dgl->uniform_ui_tex);
+    return true;
+}
+
 extern "C" struct Pix3DGL*
 pix3dgl_new(
     bool z_buffer_enabled,
     bool backface_cull_enabled)
 {
     struct Pix3DGL* pix3dgl = new Pix3DGL();
+
+    pix3dgl->program_ui = 0;
+    pix3dgl->uniform_ui_tex = -1;
+    pix3dgl->ui_vao = 0;
+    pix3dgl->ui_vbo = 0;
+    pix3dgl->ui_sprite_texture = 0;
 
     // Initialize current model tracking
     pix3dgl->current_model = nullptr;
@@ -531,6 +594,12 @@ pix3dgl_new(
     }
 
     printf("Pix3DGL initialized successfully with shader program ID: %d\n", pix3dgl->program_es2);
+
+    if( !pix3dgl_init_ui_gl(pix3dgl) )
+    {
+        printf("Pix3DGL: continuing without UI sprite program\n");
+    }
+
     return pix3dgl;
 }
 
@@ -652,7 +721,7 @@ pix3dgl_load_texture(
 }
 
 extern "C" void
-pix3dgl_begin_frame(
+pix3dgl_begin_3dframe(
     struct Pix3DGL* pix3dgl,
     float camera_x,
     float camera_y,
@@ -751,6 +820,49 @@ pix3dgl_begin_frame(
 }
 
 extern "C" void
+pix3dgl_begin_frame(
+    struct Pix3DGL* pix3dgl,
+    float camera_x,
+    float camera_y,
+    float camera_z,
+    float camera_pitch,
+    float camera_yaw,
+    float screen_width,
+    float screen_height)
+{
+    pix3dgl_begin_3dframe(
+        pix3dgl,
+        camera_x,
+        camera_y,
+        camera_z,
+        camera_pitch,
+        camera_yaw,
+        screen_width,
+        screen_height);
+}
+
+extern "C" void
+pix3dgl_begin_2dframe(struct Pix3DGL* pix3dgl)
+{
+    if( !pix3dgl || !pix3dgl->program_ui )
+        return;
+    glUseProgram(pix3dgl->program_ui);
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+}
+
+extern "C" void
+pix3dgl_end_2dframe(struct Pix3DGL* pix3dgl)
+{
+    (void)pix3dgl;
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glUseProgram(0);
+}
+
+extern "C" void
 pix3dgl_restore_gl_state_after_imgui(struct Pix3DGL* pix3dgl)
 {
     if( !pix3dgl || !pix3dgl->program_es2 )
@@ -791,7 +903,7 @@ pix3dgl_restore_gl_state_after_imgui(struct Pix3DGL* pix3dgl)
 }
 
 extern "C" void
-pix3dgl_end_frame(struct Pix3DGL* pix3dgl)
+pix3dgl_end_3dframe(struct Pix3DGL* pix3dgl)
 {
     if( !pix3dgl || !pix3dgl->program_es2 )
         return;
@@ -802,34 +914,9 @@ pix3dgl_end_frame(struct Pix3DGL* pix3dgl)
     if( pix3dgl->scene_batches.empty() )
         return;
 
-    /* UI sprite pass may have bound a different program (or program 0). Restore 3D state. */
     glUseProgram(pix3dgl->program_es2);
-    glEnable(GL_DEPTH_TEST);
-    if( pix3dgl->z_buffer_enabled )
-    {
-        glDepthFunc(GL_LEQUAL);
-        glDepthMask(GL_TRUE);
-    }
-    else
-    {
-        glDepthFunc(GL_ALWAYS);
-        glDepthMask(GL_FALSE);
-    }
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-    glFrontFace(GL_CCW);
-    glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, pix3dgl->texture_atlas);
-    if( pix3dgl->uniform_texture_atlas >= 0 )
-    {
-        glUniform1i(pix3dgl->uniform_texture_atlas, 0);
-    }
-    pix3dgl->currently_bound_texture = pix3dgl->texture_atlas;
 
-    // The texture atlas is bound once per frame in pix3dgl_begin_frame.
+    // The texture atlas is bound once per frame in pix3dgl_begin_3dframe.
     // All textures live inside it; the per-vertex aTextureId/vAtlasSlot attributes
     // tell the fragment shader which tile to sample — no CPU-side texture switching needed.
     // Preserve insertion order (painter's order from the game engine) — do NOT sort by
@@ -864,6 +951,12 @@ pix3dgl_end_frame(struct Pix3DGL* pix3dgl)
     {
         glBindVertexArray(0);
     }
+}
+
+extern "C" void
+pix3dgl_end_frame(struct Pix3DGL* pix3dgl)
+{
+    pix3dgl_end_3dframe(pix3dgl);
 }
 
 extern "C" void
@@ -1233,25 +1326,42 @@ pix3dgl_model_draw_ordered(
     }
 }
 
-static GLuint
-compile_ui_gl_shader(GLenum type, const char* src)
+extern "C" void
+pix3dgl_sprite_load(
+    struct Pix3DGL* pix3dgl,
+    struct DashSprite* sprite)
 {
-    GLuint sh = glCreateShader(type);
-    glShaderSource(sh, 1, &src, NULL);
-    glCompileShader(sh);
-    GLint ok = 0;
-    glGetShaderiv(sh, GL_COMPILE_STATUS, &ok);
-    if( !ok )
+    if( !pix3dgl || !pix3dgl->ui_sprite_texture )
+        return;
+    if( !sprite || !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
+        return;
+
+    /* Pixels are 0x00RRGGBB; 0 is the color-key. Synthesize alpha for the UI shader discard. */
+    const int tw = sprite->width;
+    const int th = sprite->height;
+    std::vector<uint8_t> rgba_buf((size_t)tw * (size_t)th * 4u);
+    for( int i = 0; i < tw * th; ++i )
     {
-        glDeleteShader(sh);
-        return 0;
+        uint32_t p = sprite->pixels_argb[i];
+        rgba_buf[(size_t)i * 4u + 0u] = (uint8_t)((p >> 16) & 0xFFu);
+        rgba_buf[(size_t)i * 4u + 1u] = (uint8_t)((p >> 8) & 0xFFu);
+        rgba_buf[(size_t)i * 4u + 2u] = (uint8_t)(p & 0xFFu);
+        rgba_buf[(size_t)i * 4u + 3u] = (p != 0u) ? 0xFFu : 0x00u;
     }
-    return sh;
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, pix3dgl->ui_sprite_texture);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, tw, th, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba_buf.data());
 }
 
 extern "C" void
-pix3dgl_ui_sprite_draw(
-    struct Pix3DGL* pix3dgl_unused,
+pix3dgl_sprite_draw(
+    struct Pix3DGL* pix3dgl,
     struct DashSprite* sprite,
     int dst_x,
     int dst_y,
@@ -1259,64 +1369,12 @@ pix3dgl_ui_sprite_draw(
     int framebuffer_height,
     int rotation_r2pi2048)
 {
-    (void)pix3dgl_unused;
+    if( !pix3dgl || !pix3dgl->program_ui || !pix3dgl->ui_sprite_texture || !pix3dgl->ui_vao ||
+        !pix3dgl->ui_vbo )
+        return;
     if( !sprite || !sprite->pixels_argb || framebuffer_width <= 0 || framebuffer_height <= 0 ||
         sprite->width <= 0 || sprite->height <= 0 )
         return;
-
-    static GLuint s_prog = 0;
-    static GLuint s_vao = 0;
-    static GLuint s_vbo = 0;
-    static GLuint s_tex = 0;
-
-    if( !s_prog )
-    {
-        const char* vs_src = R"(
-#version 330 core
-layout(location = 0) in vec2 aClip;
-layout(location = 1) in vec2 aUv;
-out vec2 vUv;
-void main()
-{
-    vUv = aUv;
-    gl_Position = vec4(aClip, 0.0, 1.0);
-}
-)";
-        const char* fs_src = R"(
-#version 330 core
-in vec2 vUv;
-uniform sampler2D uTex;
-out vec4 FragColor;
-void main()
-{
-    vec4 c = texture(uTex, vec2(vUv.x, 1.0 - vUv.y));
-    if( c.a < 0.01 )
-        discard;
-    FragColor = c;
-}
-)";
-        GLuint vs = compile_ui_gl_shader(GL_VERTEX_SHADER, vs_src);
-        GLuint fs = compile_ui_gl_shader(GL_FRAGMENT_SHADER, fs_src);
-        if( !vs || !fs )
-            return;
-        s_prog = glCreateProgram();
-        glAttachShader(s_prog, vs);
-        glAttachShader(s_prog, fs);
-        glLinkProgram(s_prog);
-        glDeleteShader(vs);
-        glDeleteShader(fs);
-        GLint linked = 0;
-        glGetProgramiv(s_prog, GL_LINK_STATUS, &linked);
-        if( !linked )
-        {
-            glDeleteProgram(s_prog);
-            s_prog = 0;
-            return;
-        }
-        glGenVertexArrays(1, &s_vao);
-        glGenBuffers(1, &s_vbo);
-        glGenTextures(1, &s_tex);
-    }
 
     dst_x += sprite->crop_x;
     dst_y += sprite->crop_y;
@@ -1362,53 +1420,21 @@ void main()
         c0x, c0y, 0.0f, 0.0f, c2x, c2y, 1.0f, 1.0f, c3x, c3y, 0.0f, 1.0f,
     };
 
-    GLboolean depth_was = glIsEnabled(GL_DEPTH_TEST);
-    GLboolean blend_was = glIsEnabled(GL_BLEND);
-    glDisable(GL_DEPTH_TEST);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    glBindTexture(GL_TEXTURE_2D, s_tex);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(
-        GL_TEXTURE_2D,
-        0,
-        GL_RGBA8,
-        sprite->width,
-        sprite->height,
-        0,
-        GL_BGRA,
-        GL_UNSIGNED_INT_8_8_8_8_REV,
-        sprite->pixels_argb);
-
-    glUseProgram(s_prog);
+    glUseProgram(pix3dgl->program_ui);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, s_tex);
-    GLint loc = glGetUniformLocation(s_prog, "uTex");
-    if( loc >= 0 )
-        glUniform1i(loc, 0);
+    glBindTexture(GL_TEXTURE_2D, pix3dgl->ui_sprite_texture);
 
-    glBindVertexArray(s_vao);
-    glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
+    if( pix3dgl->uniform_ui_tex >= 0 )
+        glUniform1i(pix3dgl->uniform_ui_tex, 0);
+
+    glBindVertexArray(pix3dgl->ui_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, pix3dgl->ui_vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STREAM_DRAW);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
     glDrawArrays(GL_TRIANGLES, 0, 6);
-    glBindVertexArray(0);
-    glUseProgram(0);
-
-    if( depth_was )
-        glEnable(GL_DEPTH_TEST);
-    else
-        glDisable(GL_DEPTH_TEST);
-    if( !blend_was )
-        glDisable(GL_BLEND);
 }
 
 extern "C" void
@@ -1457,6 +1483,23 @@ pix3dgl_cleanup(struct Pix3DGL* pix3dgl)
         if( pix3dgl->program_es2 )
         {
             glDeleteProgram(pix3dgl->program_es2);
+        }
+
+        if( pix3dgl->ui_vao )
+        {
+            glDeleteVertexArrays(1, &pix3dgl->ui_vao);
+        }
+        if( pix3dgl->ui_vbo )
+        {
+            glDeleteBuffers(1, &pix3dgl->ui_vbo);
+        }
+        if( pix3dgl->ui_sprite_texture )
+        {
+            glDeleteTextures(1, &pix3dgl->ui_sprite_texture);
+        }
+        if( pix3dgl->program_ui )
+        {
+            glDeleteProgram(pix3dgl->program_ui);
         }
 
         // Clean up core buffers

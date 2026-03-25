@@ -146,6 +146,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/osx",
             "args": [
+                "--renderer=opengl3"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",

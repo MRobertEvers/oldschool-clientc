@@ -108,9 +108,9 @@ queue_static_load_commands(
 
     struct Scene2* scene2 = game->world->scene2;
 
-    bool has_scene_events = scene2 && !scene2_eventbuffer_is_empty(scene2);
-    if( !has_scene_events )
-        return;
+    /* Do not gate this whole function on scene2 events: static UI sprite draws must be
+     * repopulated every frame, and buildcache/ui event buffers are independent of scene2.
+     * When buffers are empty the pop loops are no-ops. */
 
     struct BuildCacheDatEvent cache_event = { 0 };
     while( buildcachedat_eventbuffer_pop(game->buildcachedat, &cache_event) )
@@ -176,6 +176,8 @@ queue_static_load_commands(
                 struct DashSprite* sprite = element->dash_sprites[component->atlas_index];
                 if( !sprite )
                     continue;
+                queue_sprite_load_from_event(
+                    game->ui_render_command_buffer, component->scene_id, sprite);
                 queue_sprite_draw_from_event(
                     game->ui_render_command_buffer,
                     component->scene_id,

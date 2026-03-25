@@ -1,12 +1,9 @@
 #ifndef DASH_MATH_H
 #define DASH_MATH_H
 
+#include "shared_tables.h"
 #include <assert.h>
 #include <stdint.h>
-
-extern int g_cos_table[2048];
-extern int g_sin_table[2048];
-extern int g_reciprocal16[4096];
 
 static inline int
 dash_cos(int angle_r2pi2048)

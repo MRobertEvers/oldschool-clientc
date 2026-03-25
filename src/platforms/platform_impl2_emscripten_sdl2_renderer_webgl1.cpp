@@ -352,7 +352,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     const float projection_height = (float)logical_viewport.height;
 
     pix3dgl_set_animation_clock(renderer->pix3dgl, (float)(emscripten_get_now() / 1000.0));
-    pix3dgl_begin_frame(
+    pix3dgl_begin_3dframe(
         renderer->pix3dgl,
         (float)0,
         (float)0,
@@ -528,18 +528,26 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     }
 
     glViewport(world_viewport.x, world_viewport.y, world_viewport.width, world_viewport.height);
-    pix3dgl_end_frame(renderer->pix3dgl);
+    pix3dgl_end_3dframe(renderer->pix3dgl);
 
     glViewport(0, 0, renderer->width, renderer->height);
+    pix3dgl_begin_2dframe(renderer->pix3dgl);
     for( int i = 0; i < total_commands; i++ )
     {
         const ToriRSRenderCommand* cmd = &commands[i];
+        if( cmd->kind == TORIRS_GFX_SPRITE_LOAD )
+        {
+            struct DashSprite* sp = cmd->_sprite_load.sprite;
+            if( sp )
+                pix3dgl_sprite_load(renderer->pix3dgl, sp);
+            continue;
+        }
         if( cmd->kind != TORIRS_GFX_SPRITE_DRAW )
             continue;
         struct DashSprite* sp = cmd->_sprite_draw.sprite;
         if( !sp )
             continue;
-        pix3dgl_ui_sprite_draw(
+        pix3dgl_sprite_draw(
             renderer->pix3dgl,
             sp,
             cmd->_sprite_draw.x,
@@ -548,6 +556,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
             renderer->height,
             cmd->_sprite_draw.rotation_r2pi2048);
     }
+    pix3dgl_end_2dframe(renderer->pix3dgl);
 
     LibToriRS_FrameEnd(game);
 

@@ -36,6 +36,30 @@ pix3dgl_render_with_camera(
     float screen_height);
 
 void
+pix3dgl_begin_3dframe(
+    struct Pix3DGL* pix3dgl,
+    float camera_x,
+    float camera_y,
+    float camera_z,
+    float camera_pitch,
+    float camera_yaw,
+    float screen_width,
+    float screen_height);
+void
+pix3dgl_end_3dframe(struct Pix3DGL* pix3dgl);
+/** Call before `pix3dgl_sprite_draw`; binds 2D shader and blend state (depth off). */
+void
+pix3dgl_begin_2dframe(struct Pix3DGL* pix3dgl);
+/** Call after the last `pix3dgl_sprite_draw` for the pass. */
+void
+pix3dgl_end_2dframe(struct Pix3DGL* pix3dgl);
+
+/** Upload sprite pixel data to the UI sprite texture (call from TORIRS_GFX_SPRITE_LOAD). */
+void
+pix3dgl_sprite_load(struct Pix3DGL* pix3dgl, struct DashSprite* sprite);
+
+/** Legacy alias for pix3dgl_begin_3dframe. */
+void
 pix3dgl_begin_frame(
     struct Pix3DGL* pix3dgl,
     float camera_x,
@@ -45,6 +69,7 @@ pix3dgl_begin_frame(
     float camera_yaw,
     float screen_width,
     float screen_height);
+/** Legacy alias for pix3dgl_end_3dframe. */
 void
 pix3dgl_end_frame(struct Pix3DGL* pix3dgl);
 /** Reapply Pix3DGL fixed-function GL state after ImGui_ImplOpenGL3_RenderDrawData (no glGet). */
@@ -99,10 +124,8 @@ pix3dgl_set_animation_clock(
 void
 pix3dgl_cleanup(struct Pix3DGL* pix3dgl);
 
-/** Top-left pixel origin; `framebuffer_*` are drawable size (e.g. glViewport after swap chain).
- * Applies sprite crop_x/crop_y like dash2d_blit_sprite. */
 void
-pix3dgl_ui_sprite_draw(
+pix3dgl_sprite_draw(
     struct Pix3DGL* pix3dgl,
     struct DashSprite* sprite,
     int dst_x,

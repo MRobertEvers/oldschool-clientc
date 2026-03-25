@@ -133,7 +133,6 @@ set(COMMON_SOURCES
     src/osrs/lua_sidecar/luac_gametypes.c
     src/osrs/lua_sidecar/luac_sidecar.c
     src/osrs/lua_sidecar/lua_platform.c
-  
     src/imgui/imgui.cpp
     src/imgui/imgui_draw.cpp
     src/imgui/imgui_tables.cpp
@@ -299,7 +298,7 @@ if(EMSCRIPTEN)
         -sUSE_SDL=2
         -sWASM=1
         -sALLOW_MEMORY_GROWTH=1
-        -sSTACK_SIZE=128kb
+        -sSTACK_SIZE=512kb
         -sNO_EXIT_RUNTIME=1
         -sASSERTions=1
         --shell-file ${EM_SHELL_FILE}

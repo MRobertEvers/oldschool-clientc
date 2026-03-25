@@ -1,6 +1,8 @@
 #include "platform_impl2_emscripten_sdl2.h"
 
+extern "C" {
 #include "common/tori_rs_sdl2_gameinput.h"
+}
 
 // #include "osrs/rscache/cache_dat.h"
 // #include "tori_rs.h"
@@ -238,12 +240,10 @@ Platform2_Emscripten_SDL2_PollEvents(struct Platform2_Emscripten_SDL2* platform)
         int mx = 0;
         int my = 0;
         SDL_GetMouseState(&mx, &my);
-        transform_mouse_coordinates(mx, my, &input->mouse_x, &input->mouse_y, platform);
+        // transform_mouse_coordinates(mx, my, &input->mouse_x, &input->mouse_y, platform);
     }
     else
     {
-        input->mouse_x = -1;
-        input->mouse_y = -1;
     }
 }
 
