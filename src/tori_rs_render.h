@@ -12,6 +12,7 @@ enum ToriRSRenderCommandKind
     TORIRS_GFX_MODEL_LOAD,
     TORIRS_GFX_TEXTURE_LOAD,
     TORIRS_GFX_MODEL_DRAW,
+    TORIRS_GFX_MINIMAP_DRAW,
 };
 
 struct ToriRSRenderCommand

@@ -127,7 +127,7 @@ push_keydown_event(
     struct GInput* input,
     SDL_Keycode key)
 {
-    assert(input->in_event_count < 128);
+    assert(input->in_event_count < GAME_INPUT_MAX_EVENTS);
     input->in_events[input->in_event_count].type = TORIRSEV_KEY_DOWN;
     input->in_events[input->in_event_count].key_down.key =
         ToriRSLibPlatform_SDL2_GameInput_SDLKeyCodeToKeyCode(key);
@@ -139,7 +139,7 @@ push_keyup_event(
     struct GInput* input,
     SDL_Keycode key)
 {
-    assert(input->in_event_count < 128);
+    assert(input->in_event_count < GAME_INPUT_MAX_EVENTS);
     input->in_events[input->in_event_count].type = TORIRSEV_KEY_UP;
     input->in_events[input->in_event_count].key_up.key =
         ToriRSLibPlatform_SDL2_GameInput_SDLKeyCodeToKeyCode(key);
@@ -151,7 +151,7 @@ push_mouse_move_event(
     struct GInput* input,
     SDL_MouseMotionEvent* event)
 {
-    assert(input->in_event_count < 128);
+    assert(input->in_event_count < GAME_INPUT_MAX_EVENTS);
     input->in_events[input->in_event_count].type = TORIRSEV_MOUSE_MOVE;
     struct GameInputEvent_MouseMove* mouse_move =
         &input->in_events[input->in_event_count].mouse_move;
@@ -167,7 +167,7 @@ push_mouse_down_event(
     struct GInput* input,
     SDL_MouseButtonEvent* event)
 {
-    assert(input->in_event_count < 128);
+    assert(input->in_event_count < GAME_INPUT_MAX_EVENTS);
     input->in_events[input->in_event_count].type = TORIRSEV_MOUSE_DOWN;
     struct GameInputEvent_MouseDown* mouse_down =
         &input->in_events[input->in_event_count].mouse_down;
@@ -182,7 +182,7 @@ push_mouse_up_event(
     struct GInput* input,
     SDL_MouseButtonEvent* event)
 {
-    assert(input->in_event_count < 128);
+    assert(input->in_event_count < GAME_INPUT_MAX_EVENTS);
     input->in_events[input->in_event_count].type = TORIRSEV_MOUSE_UP;
     struct GameInputEvent_MouseUp* mouse_up = &input->in_events[input->in_event_count].mouse_up;
     mouse_up->mouse_x = event->x;
@@ -196,7 +196,7 @@ push_mouse_wheel_event(
     struct GInput* input,
     SDL_MouseWheelEvent* event)
 {
-    assert(input->in_event_count < 128);
+    assert(input->in_event_count < GAME_INPUT_MAX_EVENTS);
     input->in_events[input->in_event_count].type = TORIRSEV_MOUSE_WHEEL;
     struct GameInputEvent_MouseWheel* mouse_wheel =
         &input->in_events[input->in_event_count].mouse_wheel;

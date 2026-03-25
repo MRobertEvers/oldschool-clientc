@@ -157,6 +157,11 @@ LibToriRS_GameProcessInput(
             break;
         }
     }
+
+    if( time_quanta > 0 )
+    {
+        game_input_frame_reset(input);
+    }
 }
 
 #endif

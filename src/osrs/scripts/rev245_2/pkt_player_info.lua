@@ -59,7 +59,6 @@ end
 
 local model_requests = {}
 local models_needed = {}
-print("player info models_needed", #models_needed)
 for _, model_id in ipairs(queued_model_ids) do
     if not Game.buildcachedat_has_model(model_id) then
         table.insert(
@@ -77,5 +76,4 @@ if #model_requests > 0 then
     end
 end
 
-print("player info exec")
 Game.game_exec_pkt_player_info(data, length)

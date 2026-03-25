@@ -2,15 +2,13 @@
 
 #include <assert.h>
 
-#define MAX_EVENTS 155
-
 static void
 push_event(
     struct GInput* input,
     struct GameInputEvent* event,
     enum GameInputEventType type)
 {
-    assert(input->event_count < MAX_EVENTS);
+    assert(input->event_count < GAME_INPUT_MAX_EVENTS);
     input->events[input->event_count] = *event;
     input->event_count++;
 }
@@ -129,8 +127,6 @@ game_input_process_events(struct GInput* input)
             break;
         }
     }
-
-    input->in_event_count = 0;
 }
 
 bool
@@ -143,4 +139,10 @@ game_input_keydown_or_pressed(
     if( input->key_states[key].pressed )
         return true;
     return false;
+}
+
+void
+game_input_frame_reset(struct GInput* input)
+{
+    input->in_event_count = 0;
 }

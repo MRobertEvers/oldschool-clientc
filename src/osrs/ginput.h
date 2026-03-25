@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define GAME_INPUT_MAX_EVENTS 4096
+
 enum GameInputEventType
 {
     TORIRSEV_KEY_DOWN,
@@ -175,10 +177,10 @@ struct GInput
 {
     int quit;
 
-    struct GameInputEvent in_events[128];
+    struct GameInputEvent in_events[GAME_INPUT_MAX_EVENTS];
     int in_event_count;
 
-    struct GameInputEvent events[155];
+    struct GameInputEvent events[GAME_INPUT_MAX_EVENTS];
     int event_count;
 
     double time_delta_accumulator_seconds;
@@ -196,5 +198,8 @@ bool
 game_input_keydown_or_pressed(
     struct GInput* input,
     enum GameInputKeyCode key);
+
+void
+game_input_frame_reset(struct GInput* input);
 
 #endif
