@@ -23,6 +23,8 @@ M.ConfigDatKind = {
 M.Func = {
     LOAD_ARCHIVE = 1,
     LOAD_ARCHIVES = 2,
+    LOAD_CONFIG_FILE = 3,
+    LOAD_CONFIG_FILES = 4,
 }
 
 M.ArchiveIdFlags = {
@@ -45,6 +47,19 @@ end
 
 function M.load_archive(table_id, archive_id, flags)
     return coroutine.yield(M.Func.LOAD_ARCHIVE, table_id, archive_id, flags or 0)
+end
+
+function M.load_config_file(path)
+    return coroutine.yield(M.Func.LOAD_CONFIG_FILE, path)
+end
+
+function M.load_config_files(paths)
+    local args = {}
+    for i = 1, #paths do
+        args[#args + 1] = paths[i]
+    end
+    local files = { coroutine.yield(M.Func.LOAD_CONFIG_FILES, table.unpack(args)) }
+    return files
 end
 
 return M

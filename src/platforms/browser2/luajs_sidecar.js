@@ -487,6 +487,45 @@ export class LuaJSSidecar {
 
         return archives;
       }
+      case LuaCacheFunctionNo.FUNC_LOAD_CONFIG_FILE: {
+        const path = args[0];
+        const content = await this.fetchOrCached(path);
+        const bytes =
+          typeof content === "string"
+            ? new TextEncoder().encode(content)
+            : new Uint8Array(content);
+
+        const deserialize = this.wasm._luajs_ConfigFile_deserialize;
+        const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
+        const ptr = this.wasm._malloc(bytes.length);
+        heapu8.set(bytes, ptr);
+        const cf = deserialize(ptr, bytes.length);
+        this.wasm._free(ptr);
+        return cf ? [cf] : [];
+      }
+      case LuaCacheFunctionNo.FUNC_LOAD_CONFIG_FILES: {
+        const results = [];
+        for (let i = 0; i < args.length; i++) {
+          const path = args[i];
+          try {
+            const content = await this.fetchOrCached(path);
+            const bytes =
+              typeof content === "string"
+                ? new TextEncoder().encode(content)
+                : new Uint8Array(content);
+            const deserialize = this.wasm._luajs_ConfigFile_deserialize;
+            const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
+            const ptr = this.wasm._malloc(bytes.length);
+            heapu8.set(bytes, ptr);
+            const cf = deserialize(ptr, bytes.length);
+            this.wasm._free(ptr);
+            if (cf) results.push(cf);
+          } catch (e) {
+            // ignore missing file
+          }
+        }
+        return results;
+      }
       default: {
         console.error(`Unknown command: ${cmd}`);
         return [];

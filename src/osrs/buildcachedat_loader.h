@@ -5,6 +5,12 @@
 #include "osrs/buildcachedat.h"
 
 void
+buildcachedat_loader_set_2d_media_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    int data_size,
+    void* data);
+
+void
 buildcachedat_loader_set_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     int data_size,

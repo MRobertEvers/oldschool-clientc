@@ -8,6 +8,8 @@
 
 extern "C" {
 #include "osrs/game.h"
+#include "osrs/revconfig/static_ui.h"
+#include "osrs/revconfig/uiscene.h"
 #include "tori_rs.h"
 }
 
@@ -262,6 +264,49 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
         }
     }
     LibToriRS_FrameEnd(game);
+
+    // Render 2D UI (revconfig-built) on top of 3D. (No rotation support here yet.)
+    if( game && game->static_ui && game->ui_scene && game->iface_view_port && game->sys_dash )
+    {
+        for( uint32_t i = 0; i < game->static_ui->component_count; i++ )
+        {
+            struct StaticUIComponent* c = &game->static_ui->components[i];
+            if( c->type != UIELEM_SPRITE && c->type != UIELEM_COMPASS )
+                continue;
+            struct UISceneElement* elem = uiscene_element_at(game->ui_scene, c->scene_id);
+            if( !elem || !elem->dash_sprites || c->atlas_index < 0 ||
+                c->atlas_index >= elem->dash_sprites_count )
+                continue;
+            struct DashSprite* sprite = elem->dash_sprites[c->atlas_index];
+            if( !sprite )
+                continue;
+
+            int x = 0;
+            int y = 0;
+            if( c->position.kind == UIPOS_XY )
+            {
+                x = c->position.x;
+                y = c->position.y;
+            }
+            else if( c->position.kind == UIPOS_RELATIVE )
+            {
+                int w = game->iface_view_port->width;
+                int h = game->iface_view_port->height;
+                if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_LEFT) != 0 )
+                    x = c->position.left;
+                else if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_RIGHT) != 0 )
+                    x = w - c->position.right - sprite->width;
+
+                if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_TOP) != 0 )
+                    y = c->position.top;
+                else if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_BOTTOM) != 0 )
+                    y = h - c->position.bottom - sprite->height;
+            }
+
+            dash2d_blit_sprite(
+                game->sys_dash, sprite, game->iface_view_port, x, y, renderer->pixel_buffer);
+        }
+    }
 
     // Render minimap to buffer starting at (0,0)
     // Calculate the center of the minimap content for rotation anchor

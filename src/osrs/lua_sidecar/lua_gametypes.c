@@ -227,7 +227,7 @@ LuaGameType_GetVarTypeArrayCount(struct LuaGameType* game_type)
     case LUAGAMETYPE_VARTYPE_ARRAY_SPREAD:
         return game_type->_var_type_array_spread.count;
     case LUAGAMETYPE_VARTYPE_ARRAY_VIEW:
-        return LuaGameType_GetVarTypeArrayCount(LuaGameType_GetVarTypeArrayAt(game_type, 0)) -
+        return LuaGameType_GetVarTypeArrayCount(game_type->_var_type_array_view.var_types) -
                game_type->_var_type_array_view.offset;
     default:
         assert(false);

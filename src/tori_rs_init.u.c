@@ -206,9 +206,6 @@ LibToriRS_GameNew(
     game->buildcachedat = buildcachedat_new();
     game->buildcache = buildcache_new();
 
-    player_stats_init();
-    varp_varbit_init(&game->varp_varbit);
-
     game->random_in = isaac_new(NULL, 0);
     game->random_out = isaac_new(NULL, 0);
     init_rsa(game);
@@ -235,6 +232,11 @@ LibToriRS_GameNew(
         };
         script_queue_push(&game->script_queue, &args);
 
+        args = (struct ScriptArgs){
+            .tag = SCRIPT_INIT_UI,
+        };
+        script_queue_push(&game->script_queue, &args);
+
         args  = (struct ScriptArgs){
             .tag = SCRIPT_LOAD_SCENE_DAT,
             .u.load_scene_dat = {
@@ -253,7 +255,10 @@ LibToriRS_GameNew(
 }
 
 void
-LibToriRS_GameSetWorldViewportSize(struct GGame* game, int width, int height)
+LibToriRS_GameSetWorldViewportSize(
+    struct GGame* game,
+    int width,
+    int height)
 {
     if( !game || !game->view_port )
         return;

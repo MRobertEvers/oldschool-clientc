@@ -9,12 +9,15 @@ extern "C" {
 #include "osrs/game.h"
 #include "osrs/gio_cache_dat.h"
 #include "osrs/lua_sidecar/lua_buildcachedat.h"
+#include "osrs/lua_sidecar/lua_configfile.h"
 #include "osrs/lua_sidecar/lua_dash.h"
 #include "osrs/lua_sidecar/lua_game.h"
 #include "osrs/lua_sidecar/lua_gametypes.h"
+#include "osrs/lua_sidecar/lua_ui.h"
 #include "osrs/lua_sidecar/luac_gametypes.h"
 #include "osrs/lua_sidecar/luac_sidecar.h"
 #include "osrs/lua_sidecar/luac_sidecar_cachedat.h"
+#include "osrs/lua_sidecar/luac_sidecar_config.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/filelist.h"
 #include "osrs/rscache/tables/config_locs.h"
@@ -71,6 +74,10 @@ game_callback(
     else if( LuaGame_CommandHasPrefix((char*)command) )
     {
         result = LuaGame_DispatchCommand(platform->current_game, (char*)command, args_view);
+    }
+    else if( LuaUI_CommandHasPrefix((char*)command) )
+    {
+        result = LuaUI_DispatchCommand(platform->current_game, bcd, (char*)command, args_view);
     }
 
     LuaGameType_Free(args_view);
@@ -316,6 +323,10 @@ on_lua_async_call(
         return LuaCSidecar_CachedatLoadArchive(cache_dat, args);
     case FUNC_LOAD_ARCHIVES:
         return LuaCSidecar_CachedatLoadArchives(cache_dat, args);
+    case FUNC_LOAD_CONFIG_FILE:
+        return LuaCSidecar_Config_LoadConfig(args);
+    case FUNC_LOAD_CONFIG_FILES:
+        return LuaCSidecar_Config_LoadConfigs(args);
     default:
         assert(false && "Unknown cachedat function");
         return NULL;

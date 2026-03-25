@@ -31,6 +31,16 @@
 #include <string.h>
 
 void
+buildcachedat_loader_set_2d_media_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    int data_size,
+    void* data)
+{
+    struct FileListDat* jagfile = filelist_dat_new_from_decode(data, data_size);
+    buildcachedat_set_2d_media_jagfile(buildcachedat, jagfile);
+}
+
+void
 buildcachedat_loader_set_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     int data_size,

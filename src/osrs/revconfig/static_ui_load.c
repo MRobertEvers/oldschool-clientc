@@ -363,6 +363,11 @@ load_component(
         {
             sprite_entry = dashmap_search(sprite_hmap, load->sprite, DASHMAP_FIND);
         }
+        if( !sprite_entry )
+        {
+            printf("Sprite for component not found in hmap: %s\n", load->sprite);
+            return;
+        }
         assert(sprite_entry && "Sprite for component not found in hmap");
         printf(
             "Loading sprite component '%s' with sprite '%s' and atlas index %d\n",

@@ -128,6 +128,7 @@ set(COMMON_SOURCES
     src/osrs/lua_sidecar/lua_buildcachedat.c
     src/osrs/lua_sidecar/lua_dash.c
     src/osrs/lua_sidecar/lua_game.c
+    src/osrs/lua_sidecar/lua_ui.c
     src/osrs/lua_sidecar/lua_gametypes.c
     src/osrs/lua_sidecar/luac_gametypes.c
     src/osrs/lua_sidecar/luac_sidecar.c
@@ -152,6 +153,7 @@ if(NOT EMSCRIPTEN)
         src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp
         src/platforms/platform_impl2_osx_sdl2_renderer_opengl3.cpp
         src/osrs/pix3dgl.cpp
+        src/osrs/lua_sidecar/luac_sidecar_config.c
         src/imgui/imgui_impl_sdl2.cpp
         src/imgui/imgui_impl_opengl3.cpp
         src/imgui/imgui_impl_sdlrenderer2.cpp
@@ -259,6 +261,8 @@ if(EMSCRIPTEN)
         "_luajs_CacheDatArchive_serialized_size"
         "_luajs_CacheDatArchive_serialize_to_buffer"
         "_luajs_CacheDatArchive_free"
+        "_luajs_ConfigFile_deserialize"
+        "_luajs_ConfigFile_free"
     )
 
     set(EXPORTED_METHODS_LIST
@@ -282,6 +286,7 @@ if(EMSCRIPTEN)
         src/platforms/browser2/luajs_sidecar.c
         src/platforms/browser2/luajs_gametypes.c
         src/platforms/browser2/luajs_archives.c
+        src/platforms/browser2/luajs_configfiles.c
         src/platforms/browser2/netjs.c
         src/imgui/imgui_impl_sdl2.cpp
         src/imgui/imgui_impl_sdlrenderer2.cpp

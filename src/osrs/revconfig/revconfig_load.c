@@ -92,6 +92,39 @@ push_field_from_ini_kv(
 }
 
 void
+revconfig_load_fields_from_ini_bytes(
+    const uint8_t* data,
+    uint32_t size,
+    struct RevConfigBuffer* revconfig_buffer)
+{
+    if( !data || size == 0 || !revconfig_buffer )
+        return;
+
+    struct INIReader reader = { 0 };
+    ini_reader_init(&reader);
+
+    struct INIElement element = { 0 };
+    while( ini_reader_next(&reader, (uint8_t*)data, size, &element) == 1 )
+    {
+        switch( element.kind )
+        {
+        case INI_ELEMENT_SECTION:
+            push_element_from_ini_header(revconfig_buffer, element._section.name);
+            break;
+        case INI_ELEMENT_SECTION_END:
+            push_field(revconfig_buffer, RCFIELD_ITEMDONE, "");
+            break;
+        case INI_ELEMENT_KEYVAL:
+            push_field_from_ini_kv(revconfig_buffer, element._keyval.name, element._keyval.value);
+            break;
+        }
+    }
+
+    push_field(revconfig_buffer, RCFIELD_ITEMDONE, "");
+    assert(reader.state == INI_READER_STATE_DONE);
+}
+
+void
 revconfig_load_fields_from_ini(
     const char* filename,
     struct RevConfigBuffer* revconfig_buffer)
@@ -125,28 +158,6 @@ revconfig_load_fields_from_ini(
 
     fclose(f);
 
-    struct INIReader reader = { 0 };
-    ini_reader_init(&reader);
-
-    struct INIElement element = { 0 };
-    while( ini_reader_next(&reader, (uint8_t*)file_data, (uint32_t)file_size, &element) == 1 )
-    {
-        switch( element.kind )
-        {
-        case INI_ELEMENT_SECTION:
-            push_element_from_ini_header(revconfig_buffer, element._section.name);
-            break;
-        case INI_ELEMENT_SECTION_END:
-            push_field(revconfig_buffer, RCFIELD_ITEMDONE, "");
-            break;
-        case INI_ELEMENT_KEYVAL:
-            push_field_from_ini_kv(revconfig_buffer, element._keyval.name, element._keyval.value);
-            break;
-        }
-    }
-
-    push_field(revconfig_buffer, RCFIELD_ITEMDONE, "");
-
-    assert(reader.state == INI_READER_STATE_DONE);
+    revconfig_load_fields_from_ini_bytes((const uint8_t*)file_data, (uint32_t)file_size, revconfig_buffer);
     free(file_data);
 }

@@ -22,6 +22,8 @@ extern "C" {
 #include "osrs/minimap.h"
 #include "osrs/minimenu.h"
 #include "osrs/model_transforms.h"
+#include "osrs/revconfig/static_ui.h"
+#include "osrs/revconfig/uiscene.h"
 #include "osrs/rscache/rsbuf.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/model.h"
@@ -397,6 +399,73 @@ static_ui_blit_rotated_cb(
         dest_anchor_x,
         dest_anchor_y,
         rotation_cw);
+}
+
+static void
+render_revconfig_static_ui(
+    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
+    struct GGame* game)
+{
+    if( !renderer || !game || !game->static_ui || !game->ui_scene || !game->iface_view_port ||
+        !renderer->pixel_buffer || !game->sys_dash )
+        return;
+
+    for( uint32_t i = 0; i < game->static_ui->component_count; i++ )
+    {
+        struct StaticUIComponent* c = &game->static_ui->components[i];
+        if( c->type != UIELEM_SPRITE )
+            continue;
+
+        struct UISceneElement* elem = uiscene_element_at(game->ui_scene, c->scene_id);
+        if( !elem || !elem->dash_sprites || c->atlas_index < 0 ||
+            c->atlas_index >= elem->dash_sprites_count )
+            continue;
+        struct DashSprite* sprite = elem->dash_sprites[c->atlas_index];
+        if( !sprite )
+            continue;
+
+        int x = 0;
+        int y = 0;
+        if( c->position.kind == UIPOS_XY )
+        {
+            x = c->position.x;
+            y = c->position.y;
+        }
+        else if( c->position.kind == UIPOS_RELATIVE )
+        {
+            int w = game->iface_view_port->width;
+            int h = game->iface_view_port->height;
+            if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_LEFT) != 0 )
+                x = c->position.left;
+            else if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_RIGHT) != 0 )
+                x = w - c->position.right - sprite->width;
+
+            if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_TOP) != 0 )
+                y = c->position.top;
+            else if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_BOTTOM) != 0 )
+                y = h - c->position.bottom - sprite->height;
+        }
+
+        if( c->type == UIELEM_COMPASS )
+        {
+            static_ui_blit_rotated_cb(
+                renderer,
+                game,
+                sprite,
+                x,
+                y,
+                sprite->width,
+                sprite->height,
+                sprite->width / 2,
+                sprite->height / 2,
+                game->camera_yaw);
+        }
+        else
+        {
+            dash2d_blit_sprite(
+                game->sys_dash, sprite, game->iface_view_port, x, y, renderer->pixel_buffer);
+        }
+    }
 }
 
 static void
@@ -789,6 +858,9 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 }
         }
     }
+
+    // Render 2D UI (revconfig-built) on top of 3D.
+    render_revconfig_static_ui(renderer, game);
 
     /* Client.ts drawTooltip: draw hovered loc/NPC/player text at (4, 15) in top left. */
     if( renderer->dash_buffer && game->pixfont_b12 && game->option_set.option_count > 0 )

@@ -10,15 +10,16 @@
 int
 main()
 {
-    const char* filename = "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/revconfig/"
-                           "configs/rev_254_2/rev_245_2_cache.ini";
+    const char* filename_cache =
+        "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/revconfig/"
+        "configs/rev_245_2/rev_245_2_cache.ini";
     char const* filename_ui = "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/revconfig/"
-                              "configs/rev_254_2/rev_245_2_ui.ini";
+                              "configs/rev_245_2/rev_245_2_ui.ini";
 
     struct RevConfigBuffer* buffer = revconfig_buffer_new(16);
     uint32_t field_count = 0;
 
-    revconfig_load_fields_from_ini(filename, buffer);
+    revconfig_load_fields_from_ini(filename_cache, buffer);
     revconfig_load_fields_from_ini(filename_ui, buffer);
 
     struct BuildCacheDat* buildcachedat = buildcachedat_new();

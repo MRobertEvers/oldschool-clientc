@@ -54,6 +54,16 @@ LuaBuildCacheDat_cache_map_scenery(
 }
 
 struct LuaGameType*
+LuaBuildCacheDat_set_2d_media_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    struct CacheDatArchive* archive = arg_userdata(args, 0);
+    buildcachedat_loader_set_2d_media_jagfile(buildcachedat, archive->data_size, archive->data);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
 LuaBuildCacheDat_set_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
@@ -671,6 +681,7 @@ LuaBuildCacheDat_DispatchCommand(
     else DISPATCH_COMMAND(command, cache_title)
     else DISPATCH_COMMAND(command, init_idkits_from_config_jagfile)
     else DISPATCH_COMMAND(command, init_objects_from_config_jagfile)
+    else DISPATCH_COMMAND(command, set_2d_media_jagfile)
     else DISPATCH_COMMAND(command, finalize_scene)
     else 
     {

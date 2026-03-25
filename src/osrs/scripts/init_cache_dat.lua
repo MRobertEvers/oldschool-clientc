@@ -31,12 +31,14 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     local start = os.time()
 
     local config_requests = {
-        { table_id = CacheDat.Tables.CACHE_DAT_CONFIGS, archive_id = CacheDat.ConfigDatKind.CONFIG_DAT_CONFIGS,      flags = 0 },
-        { table_id = CacheDat.Tables.CACHE_DAT_CONFIGS, archive_id = CacheDat.ConfigDatKind.CONFIG_DAT_VERSION_LIST, flags = 0 },
+        { table_id = CacheDat.Tables.CACHE_DAT_CONFIGS, archive_id = CacheDat.ConfigDatKind.CONFIG_DAT_CONFIGS,           flags = 0 },
+        { table_id = CacheDat.Tables.CACHE_DAT_CONFIGS, archive_id = CacheDat.ConfigDatKind.CONFIG_DAT_VERSION_LIST,      flags = 0 },
+        { table_id = CacheDat.Tables.CACHE_DAT_CONFIGS, archive_id = CacheDat.ConfigDatKind.CONFIG_DAT_MEDIA_2D_GRAPHICS, flags = 0 },
     }
     local config_archives = CacheDat.load_archives(config_requests)
     Game.buildcachedat_set_config_jagfile(config_archives[1])
     Game.buildcachedat_set_versionlist_jagfile(config_archives[2])
+    Game.buildcachedat_set_2d_media_jagfile(config_archives[3])
 
     print("=== Loading Map Data ===")
     local chunks, map_sw_x, map_sw_z, map_ne_x, map_ne_z = world_to_map_chunks(wx_sw, wz_sw, wx_ne, wz_ne)

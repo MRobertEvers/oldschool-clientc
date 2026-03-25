@@ -23,6 +23,10 @@ script_convert_to_lua(
         set_name(out, "empty.lua");
         out->args = LuaGameType_NewVoid();
         break;
+    case SCRIPT_INIT_UI:
+        set_name(out, "rev245_2/init_ui.lua");
+        out->args = LuaGameType_NewVoid();
+        break;
     case SCRIPT_LOAD_SCENE_DAT:
         set_name(out, "init_cache_dat.lua");
         out->args = LuaGameType_NewVarTypeArraySpread(4);
