@@ -12,9 +12,9 @@ extern "C" {
 #include "tori_rs.h"
 }
 
-#include <assert.h>
-
 #include "tori_rs_render.h"
+
+#include <assert.h>
 
 extern int g_trap_command;
 extern int g_trap_x;
@@ -344,12 +344,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
             else
             {
                 dash2d_blit_sprite(
-                    game->sys_dash,
-                    sp,
-                    game->iface_view_port,
-                    x,
-                    y,
-                    renderer->pixel_buffer);
+                    game->sys_dash, sp, game->iface_view_port, x, y, renderer->pixel_buffer);
             }
         }
         break;

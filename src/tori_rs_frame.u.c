@@ -62,6 +62,43 @@ queue_texture_load_from_event(
 }
 
 static void
+queue_sprite_load_from_event(
+    struct ToriRSRenderCommandBuffer* render_command_buffer,
+    int element_id,
+    struct DashSprite* sprite)
+{
+    LibToriRS_RenderCommandBufferAddCommand(
+        render_command_buffer,
+        (struct ToriRSRenderCommand){
+            .kind = TORIRS_GFX_SPRITE_LOAD,
+            ._sprite_load = {
+                .element_id = element_id,
+                .sprite = sprite,
+            },
+        });
+}
+
+static void
+queue_sprite_draw_from_event(
+    struct ToriRSRenderCommandBuffer* render_command_buffer,
+    int element_id,
+    struct DashSprite* sprite,
+    int x,
+    int y,
+    int rotation_r2pi2048)
+{
+    struct ToriRSRenderCommand command = {
+        .kind = TORIRS_GFX_SPRITE_DRAW,
+        ._sprite_draw = {
+            .sprite = sprite,
+            .x = x,
+            .y = y,
+            .rotation_r2pi2048 = rotation_r2pi2048,
+        },
+    };
+    LibToriRS_RenderCommandBufferAddCommand(render_command_buffer, command);
+}
+static void
 queue_static_load_commands(
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
@@ -107,66 +144,47 @@ queue_static_load_commands(
             queue_scene_element_load_from_event(game, render_command_buffer, element);
         }
     }
-}
 
-static void
-queue_static_ui_draw_commands(struct GGame* game)
-{
-    if( !game->ui_render_command_buffer || !game->static_ui || !game->ui_scene ||
-        !game->iface_view_port )
-        return;
-
-    LibToriRS_RenderCommandBufferReset(game->ui_render_command_buffer);
-
-    for( uint32_t i = 0; i < game->static_ui->component_count; i++ )
+    if( game->ui_scene )
     {
-        struct StaticUIComponent* c = &game->static_ui->components[i];
-        if( c->type != UIELEM_SPRITE )
-            continue;
-
-        struct UISceneElement* elem = uiscene_element_at(game->ui_scene, c->scene_id);
-        if( !elem || !elem->dash_sprites || c->atlas_index < 0 ||
-            c->atlas_index >= elem->dash_sprites_count )
-            continue;
-        struct DashSprite* sprite = elem->dash_sprites[c->atlas_index];
-        if( !sprite )
-            continue;
-
-        int x = 0;
-        int y = 0;
-        if( c->position.kind == UIPOS_XY )
+        struct UISceneEvent ui_event = { 0 };
+        while( uiscene_eventbuffer_pop(game->ui_scene, &ui_event) )
         {
-            x = c->position.x;
-            y = c->position.y;
-        }
-        else if( c->position.kind == UIPOS_RELATIVE )
-        {
-            int w = game->iface_view_port->width;
-            int h = game->iface_view_port->height;
-            if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_LEFT) != 0 )
-                x = c->position.left;
-            else if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_RIGHT) != 0 )
-                x = w - c->position.right - sprite->width;
-
-            if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_TOP) != 0 )
-                y = c->position.top;
-            else if( (c->position.relative_flags & STATIC_UI_RELATIVE_FLAG_BOTTOM) != 0 )
-                y = h - c->position.bottom - sprite->height;
+            if( ui_event.type != UISCENE_EVENT_ELEMENT_ACQUIRED )
+                continue;
+            struct UISceneElement* element =
+                uiscene_element_at(game->ui_scene, ui_event.element_id);
+            if( !element || !element->dash_sprites )
+                continue;
+            for( int i = 0; i < element->dash_sprites_count; i++ )
+            {
+                queue_sprite_load_from_event(
+                    render_command_buffer, ui_event.element_id, element->dash_sprites[i]);
+            }
         }
 
-        int rotation = (c->type == UIELEM_COMPASS) ? game->camera_yaw : 0;
-
-        LibToriRS_RenderCommandBufferAddCommand(
-            game->ui_render_command_buffer,
-            (struct ToriRSRenderCommand){
-                .kind = TORIRS_GFX_SPRITE_DRAW,
-                ._sprite_draw = {
-                    .sprite = sprite,
-                    .x = x,
-                    .y = y,
-                    .rotation_r2pi2048 = rotation,
-                },
-            });
+        LibToriRS_RenderCommandBufferReset(game->ui_render_command_buffer);
+        for( int i = 0; i < game->static_ui->component_count; i++ )
+        {
+            struct StaticUIComponent* component = &game->static_ui->components[i];
+            if( component->type == UIELEM_SPRITE )
+            {
+                struct UISceneElement* element =
+                    uiscene_element_at(game->ui_scene, component->scene_id);
+                if( !element || !element->dash_sprites )
+                    continue;
+                struct DashSprite* sprite = element->dash_sprites[component->atlas_index];
+                if( !sprite )
+                    continue;
+                queue_sprite_draw_from_event(
+                    game->ui_render_command_buffer,
+                    component->scene_id,
+                    sprite,
+                    component->position.x,
+                    component->position.y,
+                    0);
+            }
+        }
     }
 }
 
@@ -191,7 +209,6 @@ LibToriRS_FrameBegin(
 
     LibToriRS_RenderCommandBufferReset(render_command_buffer);
     queue_static_load_commands(game, render_command_buffer);
-    queue_static_ui_draw_commands(game);
 
     if( game->world && game->world->painter && game->sys_painter_buffer )
     {
@@ -516,7 +533,8 @@ LibToriRS_FrameNextCommand(
             //     /* Hover: add to pickset when cursor is over model (tooltip + options). */
             //     int cursor_vp_x = game->mouse_x - vp_ox;
             //     int cursor_vp_y = game->mouse_y - vp_oy;
-            //     if( cursor_vp_x >= 0 && cursor_vp_y >= 0 && cursor_vp_x < game->view_port->width
+            //     if( cursor_vp_x >= 0 && cursor_vp_y >= 0 && cursor_vp_x <
+            //     game->view_port->width
             //     &&
             //         cursor_vp_y < game->view_port->height &&
             //         dash3d_projected_model_contains(
@@ -526,8 +544,8 @@ LibToriRS_FrameNextCommand(
             //             cursor_vp_x,
             //             cursor_vp_y) )
             //     {
-            //         entity_coords_from_element(game->world, element->parent_entity_id, &coords);
-            //         world_pickset_add(
+            //         entity_coords_from_element(game->world, element->parent_entity_id,
+            //         &coords); world_pickset_add(
             //             &game->pickset,
             //             coords.x,
             //             coords.z,
@@ -578,7 +596,8 @@ LibToriRS_FrameNextCommand(
             //     int vp_oy = game->viewport_offset_y;
             //     int click_vp_x = game->mouse_clicked_x - vp_ox;
             //     int click_vp_y = game->mouse_clicked_y - vp_oy;
-            //     if( click_vp_x >= 0 && click_vp_x < game->view_port->width && click_vp_y >= 0 &&
+            //     if( click_vp_x >= 0 && click_vp_x < game->view_port->width && click_vp_y >= 0
+            //     &&
             //         click_vp_y < game->view_port->height &&
             //         dash3d_projected_model_contains(
             //             game->sys_dash,

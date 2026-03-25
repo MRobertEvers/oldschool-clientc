@@ -34,11 +34,10 @@ struct ToriRSRenderCommand
         } _texture_load;
         struct
         {
-            int scene_element_id;
-            int parent_entity_id;
-            uintptr_t scene_element_key;
-            struct DashModel* model;
-        } _scene_element_load;
+            int element_id;
+            struct DashSprite* sprite;
+        } _sprite_load;
+
         struct
         {
             struct DashModel* model;
