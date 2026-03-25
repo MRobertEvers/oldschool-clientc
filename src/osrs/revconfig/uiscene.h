@@ -6,6 +6,20 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+enum UISceneEventType
+{
+    UISCENE_EVENT_NONE = 0,
+    UISCENE_EVENT_ELEMENT_ACQUIRED = 1,
+    UISCENE_EVENT_ELEMENT_RELEASED = 2,
+};
+
+struct UISceneEvent
+{
+    enum UISceneEventType type;
+    int element_id;
+    int parent_entity_id;
+};
+
 struct UISceneElement
 {
     int id;
@@ -29,6 +43,12 @@ struct UIScene
     int active_len;
     struct UISceneElement* free_list;
     int free_len;
+
+    struct UISceneEvent* eventbuffer;
+    int eventbuffer_capacity;
+    int eventbuffer_head;
+    int eventbuffer_tail;
+    int eventbuffer_count;
 };
 
 struct UIScene*
@@ -51,5 +71,16 @@ struct UISceneElement*
 uiscene_element_at(
     struct UIScene* uiscene,
     int element_id);
+
+bool
+uiscene_eventbuffer_is_empty(struct UIScene* uiscene);
+
+bool
+uiscene_eventbuffer_pop(
+    struct UIScene* uiscene,
+    struct UISceneEvent* out_event);
+
+void
+uiscene_eventbuffer_clear(struct UIScene* uiscene);
 
 #endif
