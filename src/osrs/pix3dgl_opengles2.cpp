@@ -1820,11 +1820,40 @@ pix3dgl_tile_draw(
 extern "C" void
 pix3dgl_end_frame(struct Pix3DGL* pix3dgl)
 {
+    if( !pix3dgl || !pix3dgl->program_es2 )
+        return;
+
     // OPTIMIZATION: Render all accumulated scene batches
     // This reduces state changes by sorting batches by texture
 
     if( pix3dgl->scene_batches.empty() )
         return;
+
+    /* UI sprite pass may have bound a different program (or program 0). Restore 3D state. */
+    glUseProgram(pix3dgl->program_es2);
+    if( pix3dgl->z_buffer_enabled )
+    {
+        glEnable(GL_DEPTH_TEST);
+        glDepthFunc(GL_LEQUAL);
+        glDepthMask(GL_TRUE);
+    }
+    else
+    {
+        glDisable(GL_DEPTH_TEST);
+        glDepthMask(GL_FALSE);
+    }
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, pix3dgl->texture_atlas);
+    if( pix3dgl->uniform_texture_atlas >= 0 )
+    {
+        glUniform1i(pix3dgl->uniform_texture_atlas, 0);
+    }
+    pix3dgl->currently_bound_texture = pix3dgl->texture_atlas;
 
     // The texture atlas is bound once per frame in pix3dgl_begin_frame.
     // All textures live inside it; the per-vertex aTextureId/vAtlasSlot attributes

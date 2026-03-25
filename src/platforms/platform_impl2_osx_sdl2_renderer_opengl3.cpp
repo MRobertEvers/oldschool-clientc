@@ -497,6 +497,9 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
             face_order_count);
     }
 
+    glViewport(world_viewport.x, world_viewport.y, world_viewport.width, world_viewport.height);
+    pix3dgl_end_frame(renderer->pix3dgl);
+
     glViewport(0, 0, renderer->width, renderer->height);
     for( int i = 0; i < total_commands; i++ )
     {
@@ -516,10 +519,7 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
             cmd->_sprite_draw.rotation_r2pi2048);
     }
 
-    // Re-assert world viewport right before draw submission in case any state changed.
-    glViewport(world_viewport.x, world_viewport.y, world_viewport.width, world_viewport.height);
     LibToriRS_FrameEnd(game);
-    pix3dgl_end_frame(renderer->pix3dgl);
     glViewport(0, 0, renderer->width, renderer->height);
     render_imgui_overlay(renderer, game);
     SDL_GL_SwapWindow(renderer->platform->window);

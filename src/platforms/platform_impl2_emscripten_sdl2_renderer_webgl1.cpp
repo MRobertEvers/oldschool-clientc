@@ -527,6 +527,9 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
             face_order_count);
     }
 
+    glViewport(world_viewport.x, world_viewport.y, world_viewport.width, world_viewport.height);
+    pix3dgl_end_frame(renderer->pix3dgl);
+
     glViewport(0, 0, renderer->width, renderer->height);
     for( int i = 0; i < total_commands; i++ )
     {
@@ -547,8 +550,6 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     }
 
     LibToriRS_FrameEnd(game);
-
-    pix3dgl_end_frame(renderer->pix3dgl);
 
     glViewport(0, 0, renderer->width, renderer->height);
     render_imgui_overlay(renderer, game);
