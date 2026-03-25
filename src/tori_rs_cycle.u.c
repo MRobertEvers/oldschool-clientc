@@ -262,60 +262,60 @@ LibToriRS_GameStep(
      * send. */
     if( game->chat_interface_id == -1 && GAME_NET_STATE_GAME == game->net_state )
     {
-        if( input->chat_key_return )
-        {
-            if( !game->chat_input_focused )
-                game->chat_input_focused = 1;
-            else if( !game->chat_typed[0] )
-                game->chat_input_focused = 0;
-        }
+        // if( input->chat_key_return )
+        // {
+        //     if( !game->chat_input_focused )
+        //         game->chat_input_focused = 1;
+        //     else if( !game->chat_typed[0] )
+        //         game->chat_input_focused = 0;
+        // }
         if( game->chat_input_focused )
         {
-            if( input->chat_key_backspace )
-            {
-                size_t len = strlen(game->chat_typed);
-                if( len > 0 )
-                    game->chat_typed[len - 1] = '\0';
-            }
-            if( input->chat_key_char &&
-                strlen(game->chat_typed) < (size_t)(GAME_CHAT_TYPED_LEN - 1) )
-            {
-                char c = (char)input->chat_key_char;
-                if( (c >= 32 && c <= 122) || (c >= 48 && c <= 57) )
-                {
-                    size_t len = strlen(game->chat_typed);
-                    game->chat_typed[len] = c;
-                    game->chat_typed[len + 1] = '\0';
-                }
-            }
-            if( input->chat_key_return && game->chat_typed[0] )
-            {
-                int color = 0;
-                int effect = 0;
-                uint8_t temp_buf[256];
-                struct RSBuffer buf;
-                rsbuf_init(&buf, (int8_t*)temp_buf, sizeof(temp_buf));
-                wordpack_pack(&buf, game->chat_typed);
-                int wordpack_len = buf.position;
-                int payload_len = 2 + wordpack_len;
-                if( 2 + payload_len <= 268 && GAME_NET_STATE_GAME == game->net_state )
-                {
-                    uint8_t pkt[268];
-                    uint32_t op =
-                        (PKTOUT_LC245_2_MESSAGE_PUBLIC + isaac_next(game->random_out)) & 0xff;
-                    int sz = 0;
-                    pkt[sz++] = (uint8_t)op;
-                    pkt[sz++] = (uint8_t)payload_len;
-                    pkt[sz++] = (uint8_t)color;
-                    pkt[sz++] = (uint8_t)effect;
-                    memcpy(pkt + sz, temp_buf, (size_t)wordpack_len);
-                    sz += wordpack_len;
-                    LibToriRS_NetSend(game, pkt, sz);
-                    game_add_message(game, 2, game->chat_typed, "Player");
-                    game->chat_typed[0] = '\0';
-                    game->chat_input_focused = 0;
-                }
-            }
+            // if( input->chat_key_backspace )
+            // {
+            //     size_t len = strlen(game->chat_typed);
+            //     if( len > 0 )
+            //         game->chat_typed[len - 1] = '\0';
+            // }
+            // if( input->chat_key_char &&
+            //     strlen(game->chat_typed) < (size_t)(GAME_CHAT_TYPED_LEN - 1) )
+            // {
+            //     char c = (char)input->chat_key_char;
+            //     if( (c >= 32 && c <= 122) || (c >= 48 && c <= 57) )
+            //     {
+            //         size_t len = strlen(game->chat_typed);
+            //         game->chat_typed[len] = c;
+            //         game->chat_typed[len + 1] = '\0';
+            //     }
+            // }
+            // if( input->chat_key_return && game->chat_typed[0] )
+            // {
+            //     int color = 0;
+            //     int effect = 0;
+            //     uint8_t temp_buf[256];
+            //     struct RSBuffer buf;
+            //     rsbuf_init(&buf, (int8_t*)temp_buf, sizeof(temp_buf));
+            //     wordpack_pack(&buf, game->chat_typed);
+            //     int wordpack_len = buf.position;
+            //     int payload_len = 2 + wordpack_len;
+            //     if( 2 + payload_len <= 268 && GAME_NET_STATE_GAME == game->net_state )
+            //     {
+            //         uint8_t pkt[268];
+            //         uint32_t op =
+            //             (PKTOUT_LC245_2_MESSAGE_PUBLIC + isaac_next(game->random_out)) & 0xff;
+            //         int sz = 0;
+            //         pkt[sz++] = (uint8_t)op;
+            //         pkt[sz++] = (uint8_t)payload_len;
+            //         pkt[sz++] = (uint8_t)color;
+            //         pkt[sz++] = (uint8_t)effect;
+            //         memcpy(pkt + sz, temp_buf, (size_t)wordpack_len);
+            //         sz += wordpack_len;
+            //         LibToriRS_NetSend(game, pkt, sz);
+            //         game_add_message(game, 2, game->chat_typed, "Player");
+            //         game->chat_typed[0] = '\0';
+            //         game->chat_input_focused = 0;
+            //     }
+            // }
         }
     }
 

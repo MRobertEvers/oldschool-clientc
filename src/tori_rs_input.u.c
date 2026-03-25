@@ -22,9 +22,7 @@ LibToriRS_GameProcessInput(
             game->cc++;
     }
 
-    game->mouse_x = input->mouse_x;
-    game->mouse_y = input->mouse_y;
-    game->mouse_button_down = input->mouse_button_down;
+    game_input_process_events(input);
 
     for( int i = 0; i < time_quanta; i++ )
     {
@@ -35,7 +33,7 @@ LibToriRS_GameProcessInput(
                 game->mouse_cycle = -1;
         }
 
-        if( input->w_pressed )
+        if( game_input_keydown_or_pressed(input, TORIRSK_W) )
         {
             game->camera_world_x -=
                 (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
@@ -43,7 +41,7 @@ LibToriRS_GameProcessInput(
                 (dash_cos(game->camera_yaw) * game->camera_movement_speed) >> 16;
         }
 
-        if( input->s_pressed )
+        if( game_input_keydown_or_pressed(input, TORIRSK_S) )
         {
             game->camera_world_x +=
                 (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
@@ -51,7 +49,7 @@ LibToriRS_GameProcessInput(
                 (dash_cos(game->camera_yaw) * game->camera_movement_speed) >> 16;
         }
 
-        if( input->a_pressed )
+        if( game_input_keydown_or_pressed(input, TORIRSK_A) )
         {
             game->camera_world_x -=
                 (dash_cos(game->camera_yaw) * game->camera_movement_speed) >> 16;
@@ -59,7 +57,7 @@ LibToriRS_GameProcessInput(
                 (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
         }
 
-        if( input->d_pressed )
+        if( game_input_keydown_or_pressed(input, TORIRSK_D) )
         {
             game->camera_world_x +=
                 (dash_cos(game->camera_yaw) * game->camera_movement_speed) >> 16;
@@ -67,84 +65,97 @@ LibToriRS_GameProcessInput(
                 (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
         }
 
-        if( input->r_pressed )
+        if( game_input_keydown_or_pressed(input, TORIRSK_R) )
         {
             game->camera_world_y -= game->camera_movement_speed;
         }
-        if( input->f_pressed )
+        if( game_input_keydown_or_pressed(input, TORIRSK_F) )
         {
             game->camera_world_y += game->camera_movement_speed;
         }
 
-        if( input->up_pressed )
+        if( game_input_keydown_or_pressed(input, TORIRSK_UP) )
         {
             game->camera_pitch = (game->camera_pitch + game->camera_rotation_speed) % 2048;
         }
-        if( input->down_pressed )
+        if( game_input_keydown_or_pressed(input, TORIRSK_DOWN) )
         {
             game->camera_pitch = (game->camera_pitch - game->camera_rotation_speed + 2048) % 2048;
         }
 
-        if( input->left_pressed )
+        if( game_input_keydown_or_pressed(input, TORIRSK_LEFT) )
         {
             game->camera_yaw = (game->camera_yaw + game->camera_rotation_speed) % 2048;
         }
-        if( input->right_pressed )
+        if( game_input_keydown_or_pressed(input, TORIRSK_RIGHT) )
         {
             game->camera_yaw = (game->camera_yaw - game->camera_rotation_speed + 2048) % 2048;
         }
 
-        if( input->quit )
+        if( input->quit || game_input_keydown_or_pressed(input, TORIRSK_ESCAPE) )
         {
             game->running = false;
         }
 
-        if( input->space_pressed )
+        if( game_input_keydown_or_pressed(input, TORIRSK_SPACE) )
         {
             game->cc = 0;
         }
 
-        if( input->i_pressed )
+        if( game_input_keydown_or_pressed(input, TORIRSK_I) )
         {
             game->latched = !game->latched;
         }
 
-        if( input->j_pressed )
+        if( game_input_keydown_or_pressed(input, TORIRSK_J) )
         {
             game->cc += 1;
         }
 
-        if( input->k_pressed )
+        if( game_input_keydown_or_pressed(input, TORIRSK_K) )
         {
             game->cc -= 1;
         }
 
-        if( input->l_pressed )
+        if( game_input_keydown_or_pressed(input, TORIRSK_L) )
         {
             game->cc += 100;
         }
 
-        if( input->comma_pressed )
+        if( game_input_keydown_or_pressed(input, TORIRSK_COMMA) )
         {
             game->cc -= 100;
         }
     }
 
     game->mouse_clicked = false;
-    if( input->mouse_clicked )
-    {
-        game->mouse_clicked = true;
-        game->mouse_cycle = 0;
-        game->mouse_clicked_x = input->mouse_clicked_x;
-        game->mouse_clicked_y = input->mouse_clicked_y;
-    }
-
     game->mouse_clicked_right = false;
-    if( input->mouse_clicked_right )
+    game->mouse_clicked = false;
+    for( int i = 0; i < input->event_count; i++ )
     {
-        game->mouse_clicked_right = true;
-        game->mouse_clicked_right_x = input->mouse_clicked_right_x;
-        game->mouse_clicked_right_y = input->mouse_clicked_right_y;
+        switch( input->events[i].type )
+        {
+        case TORIRSEV2_CLICK:
+        {
+            if( input->events[i].click.button == TORIRSM_LEFT )
+            {
+                game->mouse_clicked = true;
+                game->mouse_cycle = 0;
+                game->mouse_clicked_x = input->events[i].click.start_mouse_x;
+                game->mouse_clicked_y = input->events[i].click.start_mouse_y;
+            }
+            else if( input->events[i].click.button == TORIRSM_RIGHT )
+            {
+                game->mouse_clicked_right = true;
+                game->mouse_cycle = 0;
+                game->mouse_clicked_right_x = input->events[i].click.start_mouse_x;
+                game->mouse_clicked_right_y = input->events[i].click.start_mouse_y;
+            }
+        }
+        break;
+        default:
+            break;
+        }
     }
 }
 

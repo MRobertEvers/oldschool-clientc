@@ -15,16 +15,23 @@ set(COMMON_SOURCES
     src/jbase37.c
     src/tori_rs.c
     src/bmp.c
+    src/tori_rs_render.c
+    src/LibToriRSPlatformC.c
     src/server/server.c
+    src/server/prot.c
+    src/graphics/dash.c
+    src/graphics/dashmap.c
+    src/datastruct/list.c
+    src/datastruct/vec.c
+    src/datastruct/ringbuf.c
+    src/platforms/common/sockstream.c
+    src/platforms/common/tori_rs_sdl2_gameinput.c
+    src/osrs/ginput.c
     src/osrs/buildcachedat.c
     src/osrs/isaac.c
     src/osrs/buildcachedat_loader.c
     src/osrs/buildcache.c
     src/osrs/buildcache_loader.c
-    src/server/prot.c
-    src/datastruct/list.c
-    src/datastruct/vec.c
-    src/datastruct/ringbuf.c
     src/graphics/shared_tables.c
     src/graphics/lighting.c
     src/osrs/rscache/tables/model.c
@@ -52,9 +59,6 @@ set(COMMON_SOURCES
     src/osrs/minimap.c
     src/osrs/minimenu.c
     src/osrs/model_transforms.c
-    src/tori_rs_render.c
-    src/graphics/dash.c
-    src/graphics/dashmap.c
     src/osrs/texture.c
     src/osrs/collision_map.c
     src/osrs/world_pickset.c
@@ -111,10 +115,6 @@ set(COMMON_SOURCES
     src/osrs/rscache/disk.c
     src/osrs/rscache/reference_table.c
     src/osrs/rscache/xtea_config.c
-    src/3rd/bzip/bzip.c
-    src/3rd/miniz/miniz.c
-    src/3rd/tommath/mpi.c
-    src/3rd/ini/ini.c
     src/osrs/rsa.c
     src/osrs/rscache/rsbuf.c
     src/osrs/rscache/bitbuffer.c
@@ -124,8 +124,6 @@ set(COMMON_SOURCES
     src/osrs/rscache/xtea.c
     src/osrs/revs/revpacket_lc245_2_query.c
     src/osrs/entity_scenebuild.c
-    src/platforms/common/sockstream.c
-    src/LibToriRSPlatformC.c
     src/osrs/lua_sidecar/luac_sidecar_cachedat.c
     src/osrs/lua_sidecar/lua_buildcachedat.c
     src/osrs/lua_sidecar/lua_dash.c
@@ -134,10 +132,15 @@ set(COMMON_SOURCES
     src/osrs/lua_sidecar/luac_gametypes.c
     src/osrs/lua_sidecar/luac_sidecar.c
     src/osrs/lua_sidecar/lua_platform.c
+  
     src/imgui/imgui.cpp
     src/imgui/imgui_draw.cpp
     src/imgui/imgui_tables.cpp
     src/imgui/imgui_widgets.cpp
+    src/3rd/bzip/bzip.c
+    src/3rd/miniz/miniz.c
+    src/3rd/tommath/mpi.c
+    src/3rd/ini/ini.c
 )
 
 # --- Native (OSX/Windows) Target ---
