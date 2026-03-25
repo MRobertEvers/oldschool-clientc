@@ -499,8 +499,7 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
     glViewport(world_viewport.x, world_viewport.y, world_viewport.width, world_viewport.height);
     pix3dgl_end_3dframe(renderer->pix3dgl);
 
-    glViewport(0, 0, renderer->width, renderer->height);
-    pix3dgl_begin_2dframe(renderer->pix3dgl);
+    /* Process sprite loads and unloads (update GPU texture cache). */
     for( int i = 0; i < total_commands; i++ )
     {
         const ToriRSRenderCommand* cmd = &commands[i];
@@ -509,20 +508,35 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
             struct DashSprite* sp = cmd->_sprite_load.sprite;
             if( sp )
                 pix3dgl_sprite_load(renderer->pix3dgl, sp);
-            continue;
         }
+        else if( cmd->kind == TORIRS_GFX_SPRITE_UNLOAD )
+        {
+            struct DashSprite* sp = cmd->_sprite_load.sprite;
+            if( sp )
+                pix3dgl_sprite_unload(renderer->pix3dgl, sp);
+        }
+    }
+
+    glViewport(0, 0, renderer->width, renderer->height);
+    pix3dgl_begin_2dframe(renderer->pix3dgl);
+    for( int i = 0; i < total_commands; i++ )
+    {
+        const ToriRSRenderCommand* cmd = &commands[i];
         if( cmd->kind != TORIRS_GFX_SPRITE_DRAW )
             continue;
         struct DashSprite* sp = cmd->_sprite_draw.sprite;
         if( !sp )
             continue;
+        /* Sprite coordinates are authored in logical screen space (e.g. points), but the GL
+         * viewport is in drawable space (e.g. device pixels). Pass logical dimensions so the
+         * orthographic projection accounts for any DPI scaling. */
         pix3dgl_sprite_draw(
             renderer->pix3dgl,
             sp,
             cmd->_sprite_draw.x,
             cmd->_sprite_draw.y,
-            renderer->width,
-            renderer->height,
+            window_width,
+            window_height,
             cmd->_sprite_draw.rotation_r2pi2048);
     }
     pix3dgl_end_2dframe(renderer->pix3dgl);

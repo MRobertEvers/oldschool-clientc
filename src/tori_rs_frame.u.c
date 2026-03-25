@@ -79,6 +79,23 @@ queue_sprite_load_from_event(
 }
 
 static void
+queue_sprite_unload_from_event(
+    struct ToriRSRenderCommandBuffer* render_command_buffer,
+    int element_id,
+    struct DashSprite* sprite)
+{
+    LibToriRS_RenderCommandBufferAddCommand(
+        render_command_buffer,
+        (struct ToriRSRenderCommand){
+            .kind = TORIRS_GFX_SPRITE_UNLOAD,
+            ._sprite_load = {
+                .element_id = element_id,
+                .sprite = sprite,
+            },
+        });
+}
+
+static void
 queue_sprite_draw_from_event(
     struct ToriRSRenderCommandBuffer* render_command_buffer,
     int element_id,
@@ -150,16 +167,29 @@ queue_static_load_commands(
         struct UISceneEvent ui_event = { 0 };
         while( uiscene_eventbuffer_pop(game->ui_scene, &ui_event) )
         {
-            if( ui_event.type != UISCENE_EVENT_ELEMENT_ACQUIRED )
-                continue;
-            struct UISceneElement* element =
-                uiscene_element_at(game->ui_scene, ui_event.element_id);
-            if( !element || !element->dash_sprites )
-                continue;
-            for( int i = 0; i < element->dash_sprites_count; i++ )
+            if( ui_event.type == UISCENE_EVENT_ELEMENT_ACQUIRED )
             {
-                queue_sprite_load_from_event(
-                    render_command_buffer, ui_event.element_id, element->dash_sprites[i]);
+                struct UISceneElement* element =
+                    uiscene_element_at(game->ui_scene, ui_event.element_id);
+                if( !element || !element->dash_sprites )
+                    continue;
+                for( int i = 0; i < element->dash_sprites_count; i++ )
+                {
+                    queue_sprite_load_from_event(
+                        render_command_buffer, ui_event.element_id, element->dash_sprites[i]);
+                }
+            }
+            else if( ui_event.type == UISCENE_EVENT_ELEMENT_RELEASED )
+            {
+                struct UISceneElement* element =
+                    uiscene_element_at(game->ui_scene, ui_event.element_id);
+                if( !element || !element->dash_sprites )
+                    continue;
+                for( int i = 0; i < element->dash_sprites_count; i++ )
+                {
+                    queue_sprite_unload_from_event(
+                        render_command_buffer, ui_event.element_id, element->dash_sprites[i]);
+                }
             }
         }
 
@@ -176,8 +206,8 @@ queue_static_load_commands(
                 struct DashSprite* sprite = element->dash_sprites[component->atlas_index];
                 if( !sprite )
                     continue;
-                queue_sprite_load_from_event(
-                    game->ui_render_command_buffer, component->scene_id, sprite);
+                /* Only emit SPRITE_DRAW; SPRITE_LOAD is handled once via ELEMENT_ACQUIRED.
+                 * The renderer does a lazy upload on cache miss as a fallback. */
                 queue_sprite_draw_from_event(
                     game->ui_render_command_buffer,
                     component->scene_id,

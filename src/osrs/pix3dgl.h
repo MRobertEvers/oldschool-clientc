@@ -54,9 +54,14 @@ pix3dgl_begin_2dframe(struct Pix3DGL* pix3dgl);
 void
 pix3dgl_end_2dframe(struct Pix3DGL* pix3dgl);
 
-/** Upload sprite pixel data to the UI sprite texture (call from TORIRS_GFX_SPRITE_LOAD). */
+/** Upload sprite pixel data into the per-sprite GPU texture cache (TORIRS_GFX_SPRITE_LOAD).
+ *  No-op if the sprite is already cached. */
 void
 pix3dgl_sprite_load(struct Pix3DGL* pix3dgl, struct DashSprite* sprite);
+
+/** Evict a sprite from the GPU texture cache and free its GL texture (TORIRS_GFX_SPRITE_UNLOAD). */
+void
+pix3dgl_sprite_unload(struct Pix3DGL* pix3dgl, struct DashSprite* sprite);
 
 /** Legacy alias for pix3dgl_begin_3dframe. */
 void

@@ -286,12 +286,13 @@ void main() {
 )";
 
 static const char* g_ui_vertex_shader_es2 = R"(#version 100
-attribute vec2 aClip;
+attribute vec2 aPos;
 attribute vec2 aUv;
+uniform mat4 uProjection;
 varying vec2 vUv;
 void main() {
   vUv = aUv;
-  gl_Position = vec4(aClip, 0.0, 1.0);
+  gl_Position = uProjection * vec4(aPos, 0.0, 1.0);
 }
 )";
 
@@ -300,7 +301,7 @@ precision mediump float;
 varying vec2 vUv;
 uniform sampler2D uTex;
 void main() {
-  vec4 c = texture2D(uTex, vec2(vUv.x, 1.0 - vUv.y));
+  vec4 c = texture2D(uTex, vUv);
   if (c.a < 0.01) discard;
   gl_FragColor = c;
 }
@@ -511,6 +512,7 @@ struct Pix3DGL
 
     GLuint program_ui;
     GLint uniform_ui_tex;
+    GLint uniform_ui_projection;
     GLuint ui_vao;
     GLuint ui_vbo;
     GLuint ui_sprite_texture;
@@ -676,7 +678,7 @@ create_ui_program_es2(void)
     GLuint program = glCreateProgram();
     glAttachShader(program, vertex_shader);
     glAttachShader(program, fragment_shader);
-    glBindAttribLocation(program, 0, "aClip");
+    glBindAttribLocation(program, 0, "aPos");
     glBindAttribLocation(program, 1, "aUv");
     glLinkProgram(program);
 
@@ -700,6 +702,7 @@ pix3dgl_init_ui_es2(struct Pix3DGL* pix3dgl)
 {
     pix3dgl->program_ui = 0;
     pix3dgl->uniform_ui_tex = -1;
+    pix3dgl->uniform_ui_projection = -1;
     pix3dgl->ui_vao = 0;
     pix3dgl->ui_vbo = 0;
     pix3dgl->ui_sprite_texture = 0;
@@ -713,6 +716,7 @@ pix3dgl_init_ui_es2(struct Pix3DGL* pix3dgl)
     }
     pix3dgl->program_ui = prog;
     pix3dgl->uniform_ui_tex = glGetUniformLocation(prog, "uTex");
+    pix3dgl->uniform_ui_projection = glGetUniformLocation(prog, "uProjection");
 
     glGenBuffers(1, &pix3dgl->ui_vbo);
     glGenTextures(1, &pix3dgl->ui_sprite_texture);
@@ -736,6 +740,7 @@ pix3dgl_new(
 
     pix3dgl->program_ui = 0;
     pix3dgl->uniform_ui_tex = -1;
+    pix3dgl->uniform_ui_projection = -1;
     pix3dgl->ui_vao = 0;
     pix3dgl->ui_vbo = 0;
     pix3dgl->ui_sprite_texture = 0;
@@ -2063,6 +2068,14 @@ pix3dgl_sprite_load(struct Pix3DGL* pix3dgl, struct DashSprite* sprite)
 }
 
 extern "C" void
+pix3dgl_sprite_unload(struct Pix3DGL* pix3dgl, struct DashSprite* sprite)
+{
+    /* WebGL1/GLES2 path: single shared ui_sprite_texture — nothing to evict. */
+    (void)pix3dgl;
+    (void)sprite;
+}
+
+extern "C" void
 pix3dgl_sprite_draw(
     struct Pix3DGL* pix3dgl,
     struct DashSprite* sprite,
@@ -2106,20 +2119,9 @@ pix3dgl_sprite_draw(
     rot_local(hw, hh, &px[2], &py[2]);
     rot_local(-hw, hh, &px[3], &py[3]);
 
-    auto to_clip = [&](float pxp, float pyp, float* cxo, float* cyo) {
-        *cxo = 2.0f * pxp / (float)framebuffer_width - 1.0f;
-        *cyo = 1.0f - 2.0f * pyp / (float)framebuffer_height;
-    };
-
-    float c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y;
-    to_clip(px[0], py[0], &c0x, &c0y);
-    to_clip(px[1], py[1], &c1x, &c1y);
-    to_clip(px[2], py[2], &c2x, &c2y);
-    to_clip(px[3], py[3], &c3x, &c3y);
-
     float verts[6 * 4] = {
-        c0x, c0y, 0.0f, 0.0f, c1x, c1y, 1.0f, 0.0f, c2x, c2y, 1.0f, 1.0f,
-        c0x, c0y, 0.0f, 0.0f, c2x, c2y, 1.0f, 1.0f, c3x, c3y, 0.0f, 1.0f,
+        px[0], py[0], 0.0f, 0.0f, px[1], py[1], 1.0f, 0.0f, px[2], py[2], 1.0f, 1.0f,
+        px[0], py[0], 0.0f, 0.0f, px[2], py[2], 1.0f, 1.0f, px[3], py[3], 0.0f, 1.0f,
     };
 
     glUseProgram(pix3dgl->program_ui);
@@ -2128,6 +2130,25 @@ pix3dgl_sprite_draw(
 
     if( pix3dgl->uniform_ui_tex >= 0 )
         glUniform1i(pix3dgl->uniform_ui_tex, 0);
+
+    /* Ortho projection in screen pixels (top-left origin). */
+    if( pix3dgl->uniform_ui_projection >= 0 )
+    {
+        float ortho[16];
+        memset(ortho, 0, sizeof(ortho));
+        const float w = (float)framebuffer_width;
+        const float h = (float)framebuffer_height;
+        if( w > 0.0f && h > 0.0f )
+        {
+            ortho[0] = 2.0f / w;
+            ortho[5] = 2.0f / (0.0f - h); /* = -2/h */
+            ortho[10] = -1.0f;
+            ortho[12] = -1.0f; /* -(w+0)/w */
+            ortho[13] = 1.0f; /* -(0+h)/(0-h) */
+            ortho[15] = 1.0f;
+            glUniformMatrix4fv(pix3dgl->uniform_ui_projection, 1, GL_FALSE, ortho);
+        }
+    }
 
     if( pix3dgl->ui_vao_inited )
         BIND_VERTEX_ARRAY(pix3dgl->ui_vao);

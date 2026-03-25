@@ -155,13 +155,14 @@ void main() {
 
 static const char* g_ui_vertex_shader_gl3 = R"(
 #version 330 core
-layout(location = 0) in vec2 aClip;
+layout(location = 0) in vec2 aPos;
 layout(location = 1) in vec2 aUv;
+uniform mat4 uProjection;
 out vec2 vUv;
 void main()
 {
     vUv = aUv;
-    gl_Position = vec4(aClip, 0.0, 1.0);
+    gl_Position = uProjection * vec4(aPos, 0.0, 1.0);
 }
 )";
 
@@ -172,7 +173,8 @@ uniform sampler2D uTex;
 out vec4 FragColor;
 void main()
 {
-    vec4 c = texture(uTex, vec2(vUv.x, 1.0 - vUv.y));
+    /* Ortho projection matches top-left screen space; sample UVs directly (no V flip). */
+    vec4 c = texture(uTex, vUv);
     if( c.a < 0.01 )
         discard;
     FragColor = c;
@@ -376,10 +378,55 @@ struct Pix3DGL
 
     GLuint program_ui;
     GLint uniform_ui_tex;
+    GLint uniform_ui_projection;
     GLuint ui_vao;
     GLuint ui_vbo;
-    GLuint ui_sprite_texture;
+    /* Per-sprite GPU texture cache.  Key = (uintptr_t)DashSprite*.
+     * Replaces the old single ui_sprite_texture. */
+    std::unordered_map<uintptr_t, GLuint> sprite_texture_cache;
+
+    /* Pending 2D sprite draws accumulated during a frame.
+     * Flushed in a single glBufferData call by pix3dgl_end_2dframe. */
+    struct SpritePendingDraw
+    {
+        GLuint tex;
+        float verts[6 * 4]; /* 6 vertices × (screen_x, screen_y, u, v) */
+    };
+    std::vector<SpritePendingDraw> pending_sprite_draws;
+    int sprite_batch_fb_width;
+    int sprite_batch_fb_height;
 };
+
+static void
+create_ortho_matrix(
+    float* out_matrix,
+    float left,
+    float right,
+    float bottom,
+    float top)
+{
+    /* Column-major order for OpenGL. Maps (left..right, bottom..top) to clip space.
+     * For top-left origin, use top=0 and bottom=height. */
+    out_matrix[0] = 2.0f / (right - left);
+    out_matrix[1] = 0.0f;
+    out_matrix[2] = 0.0f;
+    out_matrix[3] = 0.0f;
+
+    out_matrix[4] = 0.0f;
+    out_matrix[5] = 2.0f / (top - bottom);
+    out_matrix[6] = 0.0f;
+    out_matrix[7] = 0.0f;
+
+    out_matrix[8] = 0.0f;
+    out_matrix[9] = 0.0f;
+    out_matrix[10] = -1.0f;
+    out_matrix[11] = 0.0f;
+
+    out_matrix[12] = -(right + left) / (right - left);
+    out_matrix[13] = -(top + bottom) / (top - bottom);
+    out_matrix[14] = 0.0f;
+    out_matrix[15] = 1.0f;
+}
 
 // Note: Matrix computation functions moved to pix3dglcore.u.cpp for code reuse
 
@@ -445,9 +492,9 @@ pix3dgl_init_ui_gl(struct Pix3DGL* pix3dgl)
 {
     pix3dgl->program_ui = 0;
     pix3dgl->uniform_ui_tex = -1;
+    pix3dgl->uniform_ui_projection = -1;
     pix3dgl->ui_vao = 0;
     pix3dgl->ui_vbo = 0;
-    pix3dgl->ui_sprite_texture = 0;
 
     GLuint prog = create_shader_program(g_ui_vertex_shader_gl3, g_ui_fragment_shader_gl3);
     if( !prog )
@@ -457,10 +504,10 @@ pix3dgl_init_ui_gl(struct Pix3DGL* pix3dgl)
     }
     pix3dgl->program_ui = prog;
     pix3dgl->uniform_ui_tex = glGetUniformLocation(prog, "uTex");
+    pix3dgl->uniform_ui_projection = glGetUniformLocation(prog, "uProjection");
 
     glGenVertexArrays(1, &pix3dgl->ui_vao);
     glGenBuffers(1, &pix3dgl->ui_vbo);
-    glGenTextures(1, &pix3dgl->ui_sprite_texture);
     printf("Pix3DGL: UI sprite program %u (uTex loc %d)\n", prog, pix3dgl->uniform_ui_tex);
     return true;
 }
@@ -474,9 +521,11 @@ pix3dgl_new(
 
     pix3dgl->program_ui = 0;
     pix3dgl->uniform_ui_tex = -1;
+    pix3dgl->uniform_ui_projection = -1;
     pix3dgl->ui_vao = 0;
     pix3dgl->ui_vbo = 0;
-    pix3dgl->ui_sprite_texture = 0;
+    pix3dgl->sprite_batch_fb_width = 0;
+    pix3dgl->sprite_batch_fb_height = 0;
 
     // Initialize current model tracking
     pix3dgl->current_model = nullptr;
@@ -846,17 +895,86 @@ pix3dgl_begin_2dframe(struct Pix3DGL* pix3dgl)
 {
     if( !pix3dgl || !pix3dgl->program_ui )
         return;
+    pix3dgl->pending_sprite_draws.clear();
+    pix3dgl->sprite_batch_fb_width = 0;
+    pix3dgl->sprite_batch_fb_height = 0;
     glUseProgram(pix3dgl->program_ui);
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_FALSE);   // Ensure we aren't writing to depth
+    glDisable(GL_CULL_FACE); // Sprites shouldn't be culled
 }
 
 extern "C" void
 pix3dgl_end_2dframe(struct Pix3DGL* pix3dgl)
 {
-    (void)pix3dgl;
+    if( !pix3dgl )
+        return;
+
+    const auto& draws = pix3dgl->pending_sprite_draws;
+    if( !draws.empty() && pix3dgl->ui_vao && pix3dgl->ui_vbo )
+    {
+        const int n = (int)draws.size();
+
+        /* Upload all sprite quads in one buffer upload. */
+        std::vector<float> all_verts((size_t)n * 6 * 4);
+        for( int i = 0; i < n; ++i )
+            memcpy(&all_verts[(size_t)i * 6 * 4], draws[i].verts, 6 * 4 * sizeof(float));
+
+        glUseProgram(pix3dgl->program_ui);
+        glBindVertexArray(pix3dgl->ui_vao);
+        glBindBuffer(GL_ARRAY_BUFFER, pix3dgl->ui_vbo);
+
+        /* Orthographic projection in screen pixel space (top-left origin). */
+        if( pix3dgl->uniform_ui_projection >= 0 && pix3dgl->sprite_batch_fb_width > 0 &&
+            pix3dgl->sprite_batch_fb_height > 0 )
+        {
+            float ortho[16];
+            const float left = 0.0f;
+            const float right = (float)pix3dgl->sprite_batch_fb_width;
+            /* Our authored sprite coordinates use a top-left origin (y grows downward).
+             * OpenGL's ortho assumes y grows upward, so we invert by swapping bottom/top. */
+            const float bottom = (float)pix3dgl->sprite_batch_fb_height;
+            const float top = 0.0f;
+            create_ortho_matrix(ortho, left, right, bottom, top);
+            glUniformMatrix4fv(
+                pix3dgl->uniform_ui_projection, 1, GL_FALSE, ortho);
+        }
+
+        glBufferData(
+            GL_ARRAY_BUFFER,
+            (GLsizeiptr)(all_verts.size() * sizeof(float)),
+            all_verts.data(),
+            GL_STREAM_DRAW);
+
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(
+            1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+
+        if( pix3dgl->uniform_ui_tex >= 0 )
+            glUniform1i(pix3dgl->uniform_ui_tex, 0);
+        glActiveTexture(GL_TEXTURE0);
+
+        /* Draw consecutive same-texture sprites as one glDrawArrays call. */
+        int group_start = 0;
+        while( group_start < n )
+        {
+            GLuint group_tex = draws[group_start].tex;
+            int group_end = group_start + 1;
+            while( group_end < n && draws[group_end].tex == group_tex )
+                ++group_end;
+
+            glBindTexture(GL_TEXTURE_2D, group_tex);
+            glDrawArrays(GL_TRIANGLES, group_start * 6, (group_end - group_start) * 6);
+
+            group_start = group_end;
+        }
+    }
+
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glUseProgram(0);
@@ -1331,9 +1449,18 @@ pix3dgl_sprite_load(
     struct Pix3DGL* pix3dgl,
     struct DashSprite* sprite)
 {
-    if( !pix3dgl || !pix3dgl->ui_sprite_texture )
+    if( !pix3dgl )
         return;
     if( !sprite || !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
+        return;
+
+    uintptr_t key = (uintptr_t)sprite;
+    if( pix3dgl->sprite_texture_cache.count(key) )
+        return; /* Already uploaded — nothing to do. */
+
+    GLuint tex = 0;
+    glGenTextures(1, &tex);
+    if( !tex )
         return;
 
     /* Pixels are 0x00RRGGBB; 0 is the color-key. Synthesize alpha for the UI shader discard. */
@@ -1350,13 +1477,30 @@ pix3dgl_sprite_load(
     }
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, pix3dgl->ui_sprite_texture);
+    glBindTexture(GL_TEXTURE_2D, tex);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, tw, th, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba_buf.data());
+
+    pix3dgl->sprite_texture_cache[key] = tex;
+}
+
+extern "C" void
+pix3dgl_sprite_unload(
+    struct Pix3DGL* pix3dgl,
+    struct DashSprite* sprite)
+{
+    if( !pix3dgl || !sprite )
+        return;
+    uintptr_t key = (uintptr_t)sprite;
+    auto it = pix3dgl->sprite_texture_cache.find(key);
+    if( it == pix3dgl->sprite_texture_cache.end() )
+        return;
+    glDeleteTextures(1, &it->second);
+    pix3dgl->sprite_texture_cache.erase(it);
 }
 
 extern "C" void
@@ -1369,12 +1513,22 @@ pix3dgl_sprite_draw(
     int framebuffer_height,
     int rotation_r2pi2048)
 {
-    if( !pix3dgl || !pix3dgl->program_ui || !pix3dgl->ui_sprite_texture || !pix3dgl->ui_vao ||
-        !pix3dgl->ui_vbo )
+    if( !pix3dgl || !pix3dgl->program_ui || !pix3dgl->ui_vao || !pix3dgl->ui_vbo )
         return;
     if( !sprite || !sprite->pixels_argb || framebuffer_width <= 0 || framebuffer_height <= 0 ||
         sprite->width <= 0 || sprite->height <= 0 )
         return;
+
+    /* Lazy-upload fallback: if the sprite was never explicitly loaded (e.g. first frame
+     * after a renderer restart), upload it now and cache it. */
+    uintptr_t key = (uintptr_t)sprite;
+    if( !pix3dgl->sprite_texture_cache.count(key) )
+        pix3dgl_sprite_load(pix3dgl, sprite);
+
+    auto it = pix3dgl->sprite_texture_cache.find(key);
+    if( it == pix3dgl->sprite_texture_cache.end() )
+        return; /* Upload failed. */
+    GLuint tex = it->second;
 
     dst_x += sprite->crop_x;
     dst_y += sprite->crop_y;
@@ -1404,37 +1558,22 @@ pix3dgl_sprite_draw(
     rot_local(hw, hh, &px[2], &py[2]);
     rot_local(-hw, hh, &px[3], &py[3]);
 
-    auto to_clip = [&](float pxp, float pyp, float* cxo, float* cyo) {
-        *cxo = 2.0f * pxp / (float)framebuffer_width - 1.0f;
-        *cyo = 1.0f - 2.0f * pyp / (float)framebuffer_height;
-    };
+    /* Capture framebuffer dimensions for projection (used in pix3dgl_end_2dframe). */
+    if( pix3dgl->sprite_batch_fb_width <= 0 )
+    {
+        pix3dgl->sprite_batch_fb_width = framebuffer_width;
+        pix3dgl->sprite_batch_fb_height = framebuffer_height;
+    }
 
-    float c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y;
-    to_clip(px[0], py[0], &c0x, &c0y);
-    to_clip(px[1], py[1], &c1x, &c1y);
-    to_clip(px[2], py[2], &c2x, &c2y);
-    to_clip(px[3], py[3], &c3x, &c3y);
-
+    /* Enqueue into the frame batch; pix3dgl_end_2dframe will issue the GL calls. */
+    Pix3DGL::SpritePendingDraw draw;
+    draw.tex = tex;
     float verts[6 * 4] = {
-        c0x, c0y, 0.0f, 0.0f, c1x, c1y, 1.0f, 0.0f, c2x, c2y, 1.0f, 1.0f,
-        c0x, c0y, 0.0f, 0.0f, c2x, c2y, 1.0f, 1.0f, c3x, c3y, 0.0f, 1.0f,
+        px[0], py[0], 0.0f, 0.0f, px[1], py[1], 1.0f, 0.0f, px[2], py[2], 1.0f, 1.0f,
+        px[0], py[0], 0.0f, 0.0f, px[2], py[2], 1.0f, 1.0f, px[3], py[3], 0.0f, 1.0f,
     };
-
-    glUseProgram(pix3dgl->program_ui);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, pix3dgl->ui_sprite_texture);
-
-    if( pix3dgl->uniform_ui_tex >= 0 )
-        glUniform1i(pix3dgl->uniform_ui_tex, 0);
-
-    glBindVertexArray(pix3dgl->ui_vao);
-    glBindBuffer(GL_ARRAY_BUFFER, pix3dgl->ui_vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STREAM_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    memcpy(draw.verts, verts, sizeof(verts));
+    pix3dgl->pending_sprite_draws.push_back(draw);
 }
 
 extern "C" void
@@ -1493,10 +1632,11 @@ pix3dgl_cleanup(struct Pix3DGL* pix3dgl)
         {
             glDeleteBuffers(1, &pix3dgl->ui_vbo);
         }
-        if( pix3dgl->ui_sprite_texture )
+        for( auto& pair : pix3dgl->sprite_texture_cache )
         {
-            glDeleteTextures(1, &pix3dgl->ui_sprite_texture);
+            glDeleteTextures(1, &pair.second);
         }
+        pix3dgl->sprite_texture_cache.clear();
         if( pix3dgl->program_ui )
         {
             glDeleteProgram(pix3dgl->program_ui);

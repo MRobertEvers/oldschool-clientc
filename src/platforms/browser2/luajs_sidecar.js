@@ -9,6 +9,72 @@ function luaString(str) {
   return str;
 }
 
+function indexOfBytes(haystack, needle, from) {
+  for (let i = from; i <= haystack.length - needle.length; i++) {
+    let j = 0;
+    while (j < needle.length && haystack[i + j] === needle[j]) j++;
+    if (j === needle.length) return i;
+  }
+  return -1;
+}
+
+const MULTIPART_CRLF = new Uint8Array([0x0d, 0x0a]);
+const MULTIPART_HEADER_SEP = new Uint8Array([0x0d, 0x0a, 0x0d, 0x0a]);
+
+/**
+ * Parse a multipart body (e.g. multipart/form-data) into each part's header block and body bytes.
+ * @param {ArrayBuffer|Uint8Array} raw
+ * @param {string} contentTypeHeader - full Content-Type header (must include boundary=...)
+ * @returns {{ headers: string, body: Uint8Array }[]}
+ */
+function parseMultipartPartsWithHeaders(raw, contentTypeHeader) {
+  const boundaryMatch = (contentTypeHeader || "").match(
+    /boundary=([^;,\s]+)/i,
+  );
+  if (!boundaryMatch) {
+    return [];
+  }
+  let boundary = boundaryMatch[1].trim();
+  if (boundary.startsWith('"') && boundary.endsWith('"')) {
+    boundary = boundary.slice(1, -1);
+  }
+
+  const bytes = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+  const enc = new TextEncoder();
+  const boundaryBytes = enc.encode(`--${boundary}`);
+
+  const parts = [];
+  let pos = indexOfBytes(bytes, boundaryBytes, 0);
+  if (pos === -1) return [];
+
+  const headerDecoder = new TextDecoder();
+
+  while (true) {
+    const lineEnd = indexOfBytes(bytes, MULTIPART_CRLF, pos);
+    if (lineEnd === -1) break;
+    const afterBoundary = lineEnd + MULTIPART_CRLF.length;
+    const headerEnd = indexOfBytes(bytes, MULTIPART_HEADER_SEP, afterBoundary);
+    if (headerEnd === -1) break;
+    const bodyStart = headerEnd + MULTIPART_HEADER_SEP.length;
+    const nextBoundary = indexOfBytes(bytes, boundaryBytes, bodyStart);
+    if (nextBoundary === -1) break;
+    const bodyEnd =
+      nextBoundary >= 2 &&
+      bytes[nextBoundary - 2] === 0x0d &&
+      bytes[nextBoundary - 1] === 0x0a
+        ? nextBoundary - 2
+        : nextBoundary;
+
+    parts.push({
+      headers: headerDecoder.decode(bytes.subarray(afterBoundary, headerEnd)),
+      body: bytes.subarray(bodyStart, bodyEnd),
+    });
+    pos = nextBoundary;
+  }
+
+  return parts;
+}
+
 // function stringToWasm(instance, str) {
 //   const { memory, malloc } = instance.exports;
 
@@ -390,12 +456,13 @@ export class LuaJSSidecar {
         const data = await response.arrayBuffer();
 
         // Copy the ArrayBuffer to WASM memory and then deserialize
-        const deserialize = this.wasm._luajs_CacheDatArchive_deserialize;
+        const deserializeCacheDatArchive =
+          this.wasm._luajs_CacheDatArchive_deserialize;
         const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
         const dataView = new Uint8Array(data);
         const ptr = this.wasm._malloc(dataView.length);
         heapu8.set(dataView, ptr);
-        const archive = deserialize(ptr, dataView.length);
+        const archive = deserializeCacheDatArchive(ptr, dataView.length);
         this.wasm._free(ptr);
 
         return [archive];
@@ -425,105 +492,64 @@ export class LuaJSSidecar {
           return [];
         }
 
+        const raw = await response.arrayBuffer();
         const contentTypeRaw = response.headers.get("Content-Type") || "";
-        const boundaryMatch = contentTypeRaw.match(/boundary=([^;,\s]+)/i);
-        if (!boundaryMatch) {
+        const multipartParts = parseMultipartPartsWithHeaders(
+          raw,
+          contentTypeRaw,
+        );
+        if (multipartParts.length === 0) {
           return [];
         }
-        let boundary = boundaryMatch[1].trim();
-        if (boundary.startsWith('"') && boundary.endsWith('"')) {
-          boundary = boundary.slice(1, -1);
-        }
 
-        const raw = await response.arrayBuffer();
-        const bytes = new Uint8Array(raw);
-
-        const enc = new TextEncoder();
-        const boundaryBytes = enc.encode(`--${boundary}`);
-        const crlf = new Uint8Array([0x0d, 0x0a]);
-        const headerSep = new Uint8Array([0x0d, 0x0a, 0x0d, 0x0a]);
-
-        function indexOfBytes(haystack, needle, from) {
-          for (let i = from; i <= haystack.length - needle.length; i++) {
-            let j = 0;
-            while (j < needle.length && haystack[i + j] === needle[j]) j++;
-            if (j === needle.length) return i;
-          }
-          return -1;
-        }
-
+        const deserialize = this.wasm._luajs_CacheDatArchive_deserialize;
+        const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
         const archives = [];
-        let pos = indexOfBytes(bytes, boundaryBytes, 0);
-        if (pos === -1) return [];
-
-        while (true) {
-          let lineEnd = indexOfBytes(bytes, crlf, pos);
-          if (lineEnd === -1) break;
-          const afterBoundary = lineEnd + crlf.length;
-          const headerEnd = indexOfBytes(bytes, headerSep, afterBoundary);
-          if (headerEnd === -1) break;
-          const bodyStart = headerEnd + headerSep.length;
-          const nextBoundary = indexOfBytes(bytes, boundaryBytes, bodyStart);
-          if (nextBoundary === -1) break;
-          /* Body ends at CRLF before next boundary; strip those 2 bytes */
-          const bodyEnd =
-            nextBoundary >= 2 &&
-            bytes[nextBoundary - 2] === 0x0d &&
-            bytes[nextBoundary - 1] === 0x0a
-              ? nextBoundary - 2
-              : nextBoundary;
-          if (bodyEnd > bodyStart) {
-            const bodyLen = bodyEnd - bodyStart;
-            const deserialize = this.wasm._luajs_CacheDatArchive_deserialize;
-            const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
-            const ptr = this.wasm._malloc(bodyLen);
-            heapu8.set(bytes.subarray(bodyStart, bodyEnd), ptr);
-            const archive = deserialize(ptr, bodyLen);
-            this.wasm._free(ptr);
-            if (archive) archives.push(archive);
-          }
-          pos = nextBoundary;
+        for (const { body } of multipartParts) {
+          if (body.length === 0) continue;
+          const ptr = this.wasm._malloc(body.length);
+          heapu8.set(body, ptr);
+          const archive = deserialize(ptr, body.length);
+          this.wasm._free(ptr);
+          if (archive) archives.push(archive);
         }
 
         return archives;
       }
       case LuaCacheFunctionNo.FUNC_LOAD_CONFIG_FILE: {
-        const path = args[0];
-        const content = await this.fetchOrCached(path);
-        const bytes =
-          typeof content === "string"
-            ? new TextEncoder().encode(content)
-            : new Uint8Array(content);
+        const searchParams = new URLSearchParams();
+        searchParams.append("path", args[0]);
+        const response = await fetch(
+          `http://localhost:8096/api/load_config?${searchParams.toString()}`,
+        );
+        if (!response.ok) {
+          return [];
+        }
 
-        const deserialize = this.wasm._luajs_ConfigFile_deserialize;
+        const data = await response.arrayBuffer();
+        const deserializeConfigFile = this.wasm._luajs_ConfigFile_deserialize;
         const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
-        const ptr = this.wasm._malloc(bytes.length);
-        heapu8.set(bytes, ptr);
-        const cf = deserialize(ptr, bytes.length);
+        const ptr = this.wasm._malloc(data.length);
+        heapu8.set(new Uint8Array(data), ptr);
+        const configFile = deserializeConfigFile(ptr, data.length);
         this.wasm._free(ptr);
-        return cf ? [cf] : [];
+        return [configFile];
       }
       case LuaCacheFunctionNo.FUNC_LOAD_CONFIG_FILES: {
-        const results = [];
-        for (let i = 0; i < args.length; i++) {
-          const path = args[i];
-          try {
-            const content = await this.fetchOrCached(path);
-            const bytes =
-              typeof content === "string"
-                ? new TextEncoder().encode(content)
-                : new Uint8Array(content);
-            const deserialize = this.wasm._luajs_ConfigFile_deserialize;
-            const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
-            const ptr = this.wasm._malloc(bytes.length);
-            heapu8.set(bytes, ptr);
-            const cf = deserialize(ptr, bytes.length);
-            this.wasm._free(ptr);
-            if (cf) results.push(cf);
-          } catch (e) {
-            // ignore missing file
-          }
+        const requests = [];
+        for (let i = 0; i + 1 < args.length; i += 2) {
+          requests.push({
+            path: args[i],
+          });
         }
+
+        const response = await fetch("http://localhost:8096/api/load_configs", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requests),
+        });
         return results;
       }
       default: {

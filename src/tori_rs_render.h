@@ -12,6 +12,9 @@ enum ToriRSRenderCommandKind
     TORIRS_GFX_MODEL_LOAD,
     TORIRS_GFX_TEXTURE_LOAD,
     TORIRS_GFX_SPRITE_LOAD,
+    /* Evict a previously loaded sprite from the GPU texture cache.
+     * Reuses the _sprite_load union payload (element_id + sprite*). */
+    TORIRS_GFX_SPRITE_UNLOAD,
     TORIRS_GFX_MODEL_DRAW,
     TORIRS_GFX_SPRITE_DRAW,
 };
