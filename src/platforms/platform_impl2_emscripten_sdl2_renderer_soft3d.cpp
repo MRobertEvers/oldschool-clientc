@@ -15,6 +15,7 @@ extern "C" {
 #include "tori_rs_render.h"
 
 #include <assert.h>
+#include <vector>
 
 extern int g_trap_command;
 extern int g_trap_x;
@@ -328,6 +329,9 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
         0,
         (size_t)renderer->max_width * (size_t)renderer->max_height * sizeof(int));
 
+    static std::vector<ToriRSRenderCommand> deferred_font_draws;
+    deferred_font_draws.clear();
+
     struct ToriRSRenderCommand command;
     LibToriRS_FrameBegin(game, render_command_buffer);
     assert(game && render_command_buffer && renderer);
@@ -335,8 +339,12 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
     {
         switch( command.kind )
         {
+        case TORIRS_GFX_FONT_LOAD:
         case TORIRS_GFX_MODEL_LOAD:
         case TORIRS_GFX_TEXTURE_LOAD:
+            break;
+        case TORIRS_GFX_FONT_DRAW:
+            deferred_font_draws.push_back(command);
             break;
         case TORIRS_GFX_MODEL_DRAW:
             if( renderer->dash_buffer )
@@ -414,6 +422,21 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
                     pix[dst_y * pix_stride + dst_x] = dash_buf[y * dash_w + x];
             }
         }
+    }
+
+    /* Draw deferred font commands on top of the blitted 3D scene. */
+    for( const auto& fc : deferred_font_draws )
+    {
+        struct DashPixFont* f = fc._font_draw.font;
+        if( f && fc._font_draw.text && renderer->pixel_buffer && game->iface_view_port )
+            dashfont_draw_text_ex(
+                f,
+                (uint8_t*)fc._font_draw.text,
+                fc._font_draw.x,
+                fc._font_draw.y,
+                fc._font_draw.color_rgb,
+                renderer->pixel_buffer,
+                game->iface_view_port->stride);
     }
 
     int upload_w = renderer->width;

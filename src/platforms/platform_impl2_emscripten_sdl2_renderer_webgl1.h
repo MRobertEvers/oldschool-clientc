@@ -15,6 +15,11 @@ extern "C" {
 #include "tori_rs.h"
 }
 
+struct GLFontAtlasEntryES2
+{
+    GLuint texture;
+};
+
 struct Platform2_Emscripten_SDL2_Renderer_WebGL1
 {
     SDL_GLContext gl_context;
@@ -30,6 +35,15 @@ struct Platform2_Emscripten_SDL2_Renderer_WebGL1
     std::unordered_set<uintptr_t> loaded_model_keys;
     std::unordered_set<uintptr_t> loaded_scene_element_keys;
     std::unordered_set<int> loaded_texture_ids;
+
+    std::unordered_map<struct DashPixFont*, GLFontAtlasEntryES2> font_atlas_cache;
+    GLuint font_program;
+    GLuint font_vbo;
+    GLint font_attrib_pos;
+    GLint font_attrib_uv;
+    GLint font_attrib_color;
+    GLint font_uniform_projection;
+    GLint font_uniform_tex;
 };
 
 struct Platform2_Emscripten_SDL2_Renderer_WebGL1*

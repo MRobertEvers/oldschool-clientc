@@ -14,6 +14,151 @@
 #include <cstring>
 #include <emscripten.h>
 
+static const char* g_font_vertex_shader_es2 = R"(#version 100
+attribute vec2 aPos;
+attribute vec2 aUv;
+attribute vec4 aColor;
+uniform mat4 uProjection;
+varying vec2 vUv;
+varying vec4 vColor;
+void main()
+{
+    vUv = aUv;
+    vColor = aColor;
+    gl_Position = uProjection * vec4(aPos, 0.0, 1.0);
+}
+)";
+
+static const char* g_font_fragment_shader_es2 = R"(#version 100
+precision mediump float;
+varying vec2 vUv;
+varying vec4 vColor;
+uniform sampler2D uTex;
+void main()
+{
+    float a = texture2D(uTex, vUv).a;
+    if( a < 0.01 )
+        discard;
+    gl_FragColor = vec4(vColor.rgb, a * vColor.a);
+}
+)";
+
+static GLuint
+compile_shader_es2(GLenum type, const char* source)
+{
+    GLuint shader = glCreateShader(type);
+    glShaderSource(shader, 1, &source, NULL);
+    glCompileShader(shader);
+    GLint ok = 0;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
+    if( !ok )
+    {
+        char log[512];
+        glGetShaderInfoLog(shader, sizeof(log), NULL, log);
+        printf("Font shader compile error (ES2): %s\n", log);
+        glDeleteShader(shader);
+        return 0;
+    }
+    return shader;
+}
+
+static GLuint
+link_program_es2(GLuint vert, GLuint frag)
+{
+    GLuint prog = glCreateProgram();
+    glAttachShader(prog, vert);
+    glAttachShader(prog, frag);
+    glBindAttribLocation(prog, 0, "aPos");
+    glBindAttribLocation(prog, 1, "aUv");
+    glBindAttribLocation(prog, 2, "aColor");
+    glLinkProgram(prog);
+    GLint ok = 0;
+    glGetProgramiv(prog, GL_LINK_STATUS, &ok);
+    if( !ok )
+    {
+        char log[512];
+        glGetProgramInfoLog(prog, sizeof(log), NULL, log);
+        printf("Font program link error (ES2): %s\n", log);
+        glDeleteProgram(prog);
+        return 0;
+    }
+    return prog;
+}
+
+static bool
+webgl1_ensure_font_program(struct Platform2_Emscripten_SDL2_Renderer_WebGL1* renderer)
+{
+    if( renderer->font_program )
+        return true;
+
+    GLuint vs = compile_shader_es2(GL_VERTEX_SHADER, g_font_vertex_shader_es2);
+    GLuint fs = compile_shader_es2(GL_FRAGMENT_SHADER, g_font_fragment_shader_es2);
+    if( !vs || !fs )
+    {
+        if( vs )
+            glDeleteShader(vs);
+        if( fs )
+            glDeleteShader(fs);
+        return false;
+    }
+    renderer->font_program = link_program_es2(vs, fs);
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+    if( !renderer->font_program )
+        return false;
+
+    renderer->font_attrib_pos = glGetAttribLocation(renderer->font_program, "aPos");
+    renderer->font_attrib_uv = glGetAttribLocation(renderer->font_program, "aUv");
+    renderer->font_attrib_color = glGetAttribLocation(renderer->font_program, "aColor");
+    renderer->font_uniform_projection =
+        glGetUniformLocation(renderer->font_program, "uProjection");
+    renderer->font_uniform_tex = glGetUniformLocation(renderer->font_program, "uTex");
+
+    glGenBuffers(1, &renderer->font_vbo);
+    return true;
+}
+
+static void
+webgl1_font_load(
+    struct Platform2_Emscripten_SDL2_Renderer_WebGL1* renderer,
+    struct DashPixFont* font)
+{
+    if( !font || !font->atlas )
+        return;
+    if( renderer->font_atlas_cache.count(font) )
+        return;
+    if( !webgl1_ensure_font_program(renderer) )
+        return;
+
+    struct DashFontAtlas* atlas = font->atlas;
+    GLuint tex = 0;
+    glGenTextures(1, &tex);
+    if( !tex )
+        return;
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGBA,
+        atlas->atlas_width,
+        atlas->atlas_height,
+        0,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        atlas->rgba_pixels);
+
+    GLFontAtlasEntryES2 entry;
+    entry.texture = tex;
+    renderer->font_atlas_cache[font] = entry;
+}
+
 struct GLViewportRect
 {
     int x;
@@ -274,6 +419,13 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_New(
     renderer->webgl_context_ready = false;
     renderer->pix3dgl = NULL;
     renderer->next_model_index = 1;
+    renderer->font_program = 0;
+    renderer->font_vbo = 0;
+    renderer->font_attrib_pos = -1;
+    renderer->font_attrib_uv = -1;
+    renderer->font_attrib_color = -1;
+    renderer->font_uniform_projection = -1;
+    renderer->font_uniform_tex = -1;
     return renderer;
 }
 
@@ -283,6 +435,18 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Free(
 {
     if( !renderer )
         return;
+
+    for( auto& kv : renderer->font_atlas_cache )
+    {
+        if( kv.second.texture )
+            glDeleteTextures(1, &kv.second.texture);
+    }
+    renderer->font_atlas_cache.clear();
+    if( renderer->font_vbo )
+        glDeleteBuffers(1, &renderer->font_vbo);
+    if( renderer->font_program )
+        glDeleteProgram(renderer->font_program);
+
     if( renderer->pix3dgl )
     {
         pix3dgl_cleanup(renderer->pix3dgl);
@@ -433,6 +597,14 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
         {
             switch( cmd.kind )
             {
+            case TORIRS_GFX_FONT_LOAD:
+                webgl1_font_load(renderer, cmd._font_load.font);
+                break;
+
+            case TORIRS_GFX_FONT_DRAW:
+                sprite_cmds.push_back(cmd);
+                break;
+
             case TORIRS_GFX_TEXTURE_LOAD:
             {
                 renderer->loaded_texture_ids.insert(cmd._texture_load.texture_id);
@@ -605,6 +777,193 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
             sc._sprite_draw.rotation_r2pi2048);
     }
     pix3dgl_end_2dframe(renderer->pix3dgl);
+
+    /* Font draws: emit per-glyph quads from the pre-built atlas textures. */
+    if( renderer->font_program && renderer->font_vbo )
+    {
+        static std::vector<float> font_verts;
+        font_verts.clear();
+
+        GLuint current_font_tex = 0;
+        struct DashPixFont* current_font_ptr = NULL;
+
+        auto flush_font_batch = [&]() {
+            if( font_verts.empty() || !current_font_tex )
+                return;
+            int vert_count = (int)(font_verts.size() / 8);
+
+            glUseProgram(renderer->font_program);
+            glDisable(GL_DEPTH_TEST);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            glDepthMask(GL_FALSE);
+            glDisable(GL_CULL_FACE);
+
+            if( renderer->font_uniform_projection >= 0 && window_width > 0 && window_height > 0 )
+            {
+                float left = 0.0f;
+                float right = (float)window_width;
+                float bottom = (float)window_height;
+                float top = 0.0f;
+                float ortho[16] = { 0 };
+                ortho[0] = 2.0f / (right - left);
+                ortho[5] = 2.0f / (top - bottom);
+                ortho[10] = -1.0f;
+                ortho[12] = -(right + left) / (right - left);
+                ortho[13] = -(top + bottom) / (top - bottom);
+                ortho[15] = 1.0f;
+                glUniformMatrix4fv(renderer->font_uniform_projection, 1, GL_FALSE, ortho);
+            }
+            if( renderer->font_uniform_tex >= 0 )
+                glUniform1i(renderer->font_uniform_tex, 0);
+
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, current_font_tex);
+
+            glBindBuffer(GL_ARRAY_BUFFER, renderer->font_vbo);
+            glBufferData(
+                GL_ARRAY_BUFFER,
+                (GLsizeiptr)(font_verts.size() * sizeof(float)),
+                font_verts.data(),
+                GL_STREAM_DRAW);
+
+            const GLsizei stride = 8 * sizeof(float);
+            if( renderer->font_attrib_pos >= 0 )
+            {
+                glEnableVertexAttribArray(renderer->font_attrib_pos);
+                glVertexAttribPointer(
+                    renderer->font_attrib_pos, 2, GL_FLOAT, GL_FALSE, stride, (void*)0);
+            }
+            if( renderer->font_attrib_uv >= 0 )
+            {
+                glEnableVertexAttribArray(renderer->font_attrib_uv);
+                glVertexAttribPointer(
+                    renderer->font_attrib_uv,
+                    2,
+                    GL_FLOAT,
+                    GL_FALSE,
+                    stride,
+                    (void*)(2 * sizeof(float)));
+            }
+            if( renderer->font_attrib_color >= 0 )
+            {
+                glEnableVertexAttribArray(renderer->font_attrib_color);
+                glVertexAttribPointer(
+                    renderer->font_attrib_color,
+                    4,
+                    GL_FLOAT,
+                    GL_FALSE,
+                    stride,
+                    (void*)(4 * sizeof(float)));
+            }
+
+            glDrawArrays(GL_TRIANGLES, 0, vert_count);
+
+            if( renderer->font_attrib_pos >= 0 )
+                glDisableVertexAttribArray(renderer->font_attrib_pos);
+            if( renderer->font_attrib_uv >= 0 )
+                glDisableVertexAttribArray(renderer->font_attrib_uv);
+            if( renderer->font_attrib_color >= 0 )
+                glDisableVertexAttribArray(renderer->font_attrib_color);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+            glUseProgram(0);
+
+            font_verts.clear();
+        };
+
+        for( const auto& sc : sprite_cmds )
+        {
+            if( sc.kind != TORIRS_GFX_FONT_DRAW )
+                continue;
+            struct DashPixFont* f = sc._font_draw.font;
+            if( !f || !f->atlas || !sc._font_draw.text || f->height2d <= 0 )
+                continue;
+
+            auto it = renderer->font_atlas_cache.find(f);
+            if( it == renderer->font_atlas_cache.end() )
+            {
+                webgl1_font_load(renderer, f);
+                it = renderer->font_atlas_cache.find(f);
+                if( it == renderer->font_atlas_cache.end() )
+                    continue;
+            }
+
+            if( current_font_ptr != f )
+            {
+                flush_font_batch();
+                current_font_ptr = f;
+                current_font_tex = it->second.texture;
+            }
+
+            struct DashFontAtlas* atlas = f->atlas;
+            const float inv_aw = 1.0f / (float)atlas->atlas_width;
+            const float inv_ah = 1.0f / (float)atlas->atlas_height;
+
+            const uint8_t* text = sc._font_draw.text;
+            int length = (int)strlen((const char*)text);
+            int color_rgb = sc._font_draw.color_rgb;
+            float cr = (float)((color_rgb >> 16) & 0xFF) / 255.0f;
+            float cg = (float)((color_rgb >> 8) & 0xFF) / 255.0f;
+            float cb = (float)(color_rgb & 0xFF) / 255.0f;
+            float ca = 1.0f;
+            int pen_x = sc._font_draw.x;
+            int base_y = sc._font_draw.y;
+
+            for( int i = 0; i < length; i++ )
+            {
+                if( text[i] == '@' && i + 5 <= length && text[i + 4] == '@' )
+                {
+                    int new_color = dashfont_evaluate_color_tag((const char*)&text[i + 1]);
+                    if( new_color >= 0 )
+                    {
+                        color_rgb = new_color;
+                        cr = (float)((color_rgb >> 16) & 0xFF) / 255.0f;
+                        cg = (float)((color_rgb >> 8) & 0xFF) / 255.0f;
+                        cb = (float)(color_rgb & 0xFF) / 255.0f;
+                    }
+                    if( i + 6 <= length && text[i + 5] == ' ' )
+                        i += 5;
+                    else
+                        i += 4;
+                    continue;
+                }
+
+                int c = dashfont_charcode_to_glyph(text[i]);
+                if( c < DASH_FONT_CHAR_COUNT )
+                {
+                    int gw = atlas->glyph_w[c];
+                    int gh = atlas->glyph_h[c];
+                    if( gw > 0 && gh > 0 )
+                    {
+                        float x0 = (float)(pen_x + f->char_offset_x[c]);
+                        float y0 = (float)(base_y + f->char_offset_y[c]);
+                        float x1 = x0 + (float)gw;
+                        float y1 = y0 + (float)gh;
+
+                        float u0 = (float)atlas->glyph_x[c] * inv_aw;
+                        float v0 = (float)atlas->glyph_y[c] * inv_ah;
+                        float u1 = (float)(atlas->glyph_x[c] + gw) * inv_aw;
+                        float v1 = (float)(atlas->glyph_y[c] + gh) * inv_ah;
+
+                        float v[6 * 8] = {
+                            x0, y0, u0, v0, cr, cg, cb, ca,
+                            x1, y0, u1, v0, cr, cg, cb, ca,
+                            x1, y1, u1, v1, cr, cg, cb, ca,
+                            x0, y0, u0, v0, cr, cg, cb, ca,
+                            x1, y1, u1, v1, cr, cg, cb, ca,
+                            x0, y1, u0, v1, cr, cg, cb, ca,
+                        };
+                        font_verts.insert(font_verts.end(), v, v + 48);
+                    }
+                }
+                int adv = f->char_advance[c];
+                if( adv <= 0 )
+                    adv = 4;
+                pen_x += adv;
+            }
+        }
+        flush_font_batch();
+    }
 
     LibToriRS_FrameEnd(game);
 
