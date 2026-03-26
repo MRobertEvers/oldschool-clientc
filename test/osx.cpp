@@ -59,7 +59,7 @@ select_renderer(
             return RENDERER_METAL;
     }
 
-    return RENDERER_METAL;
+    return RENDERER_SOFT3D;
 }
 
 int

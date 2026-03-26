@@ -697,7 +697,7 @@ pix3dgl_load_texture(
         // Use actual animation speed from texture definition (increase multiplier for faster
         // animation)
         // 128 is the size of the texture.
-        float speed = ((float)animation_speed) / (128.0f / 50.0f);
+        float speed = ((float)animation_speed) / 128.0f;
 
         // Encode direction: U directions use positive, V directions use negative
         if( animation_direction == 2 || animation_direction == 4 )

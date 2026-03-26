@@ -339,7 +339,7 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
     const float projection_width = (float)logical_viewport.width;
     const float projection_height = (float)logical_viewport.height;
 
-    pix3dgl_set_animation_clock(renderer->pix3dgl, (float)(SDL_GetTicks64() / 1000.0));
+    pix3dgl_set_animation_clock(renderer->pix3dgl, (float)(SDL_GetTicks64() / 20));
     pix3dgl_begin_3dframe(
         renderer->pix3dgl,
         (float)0,

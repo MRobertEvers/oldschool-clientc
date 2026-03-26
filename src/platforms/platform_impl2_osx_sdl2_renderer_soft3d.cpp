@@ -435,6 +435,9 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         game->iface_view_port->y_center = new_height / 2;
         game->iface_view_port->width = new_width;
         game->iface_view_port->height = new_height;
+        /* stride must match the physical row width of pixel_buffer so that
+         * dash2d_blit_sprite writes at the same offsets we later read back. */
+        game->iface_view_port->stride = renderer->width;
 
         game->iface_view_port->clip_bottom = new_height;
         game->iface_view_port->clip_right = new_width;
@@ -861,7 +864,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
 
     for( int src_y = 0; src_y < (renderer->height); src_y++ )
     {
-        int* row = &pix_write[(src_y * renderer->width)];
+        int* row = &pix_write[(src_y * texture_w)];
         for( int x = 0; x < renderer->width; x++ )
         {
             int pixel = src_pixels[src_y * renderer->width + x];
@@ -870,7 +873,6 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 row[x] = pixel;
             }
         }
-        // memcpy(row, &src_pixels[(src_y - 0) * renderer->width], row_size);
     }
 
     // Unlock the texture so that it may be used elsewhere

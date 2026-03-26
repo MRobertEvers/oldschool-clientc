@@ -1,14 +1,13 @@
 // System ObjC/Metal headers must come before any game headers to avoid
 // the rsbuf.h #define pwrite macro colliding with unistd.h's declaration.
-#import <Foundation/Foundation.h>
-#import <Metal/Metal.h>
-#import <QuartzCore/CAMetalLayer.h>
-
 #include "platform_impl2_osx_sdl2_renderer_metal.h"
 
 #include "imgui.h"
 #include "imgui_impl_metal.h"
 #include "imgui_impl_sdl2.h"
+#import <Foundation/Foundation.h>
+#import <Metal/Metal.h>
+#import <QuartzCore/CAMetalLayer.h>
 
 #include <cmath>
 #include <cstdio>
@@ -40,21 +39,21 @@ metal_compute_view_matrix(
 {
     float cosPitch = cosf(-pitch);
     float sinPitch = sinf(-pitch);
-    float cosYaw   = cosf(-yaw);
-    float sinYaw   = sinf(-yaw);
+    float cosYaw = cosf(-yaw);
+    float sinYaw = sinf(-yaw);
 
-    out_matrix[0]  = cosYaw;
-    out_matrix[1]  = sinYaw * sinPitch;
-    out_matrix[2]  = sinYaw * cosPitch;
-    out_matrix[3]  = 0.0f;
+    out_matrix[0] = cosYaw;
+    out_matrix[1] = sinYaw * sinPitch;
+    out_matrix[2] = sinYaw * cosPitch;
+    out_matrix[3] = 0.0f;
 
-    out_matrix[4]  = 0.0f;
-    out_matrix[5]  = cosPitch;
-    out_matrix[6]  = -sinPitch;
-    out_matrix[7]  = 0.0f;
+    out_matrix[4] = 0.0f;
+    out_matrix[5] = cosPitch;
+    out_matrix[6] = -sinPitch;
+    out_matrix[7] = 0.0f;
 
-    out_matrix[8]  = -sinYaw;
-    out_matrix[9]  = cosYaw * sinPitch;
+    out_matrix[8] = -sinYaw;
+    out_matrix[9] = cosYaw * sinPitch;
     out_matrix[10] = cosYaw * cosPitch;
     out_matrix[11] = 0.0f;
 
@@ -67,23 +66,27 @@ metal_compute_view_matrix(
 }
 
 static void
-metal_compute_projection_matrix(float* out_matrix, float fov, float screen_width, float screen_height)
+metal_compute_projection_matrix(
+    float* out_matrix,
+    float fov,
+    float screen_width,
+    float screen_height)
 {
     float y = 1.0f / tanf(fov * 0.5f);
     float x = y;
 
-    out_matrix[0]  = x * 512.0f / (screen_width / 2.0f);
-    out_matrix[1]  = 0.0f;
-    out_matrix[2]  = 0.0f;
-    out_matrix[3]  = 0.0f;
+    out_matrix[0] = x * 512.0f / (screen_width / 2.0f);
+    out_matrix[1] = 0.0f;
+    out_matrix[2] = 0.0f;
+    out_matrix[3] = 0.0f;
 
-    out_matrix[4]  = 0.0f;
-    out_matrix[5]  = -y * 512.0f / (screen_height / 2.0f);
-    out_matrix[6]  = 0.0f;
-    out_matrix[7]  = 0.0f;
+    out_matrix[4] = 0.0f;
+    out_matrix[5] = -y * 512.0f / (screen_height / 2.0f);
+    out_matrix[6] = 0.0f;
+    out_matrix[7] = 0.0f;
 
-    out_matrix[8]  = 0.0f;
-    out_matrix[9]  = 0.0f;
+    out_matrix[8] = 0.0f;
+    out_matrix[9] = 0.0f;
     out_matrix[10] = 0.0f;
     out_matrix[11] = 1.0f;
 
@@ -95,7 +98,10 @@ metal_compute_projection_matrix(float* out_matrix, float fov, float screen_width
 
 // Column-major 4x4 multiply: out = a * b
 static void
-mat4_mul_colmajor(const float* a, const float* b, float* out)
+mat4_mul_colmajor(
+    const float* a,
+    const float* b,
+    float* out)
 {
     for( int c = 0; c < 4; ++c )
         for( int r = 0; r < 4; ++r )
@@ -129,9 +135,9 @@ struct MetalVertex
     float position[4]; // xyz + unused w (1.0)
     float color[4];    // r, g, b, a
     float texcoord[2];
-    float texBlend;           // 1.0 = sample texture * color (Pix3DGL), 0.0 = color only
-    float textureOpaque;      // 1.0 = opaque tex; 0.0 = alpha-tested like GL path
-    float textureAnimSpeed;   // signed, same encoding as pix3dgl_load_texture
+    float texBlend;         // 1.0 = sample texture * color (Pix3DGL), 0.0 = color only
+    float textureOpaque;    // 1.0 = opaque tex; 0.0 = alpha-tested like GL path
+    float textureAnimSpeed; // signed, same encoding as pix3dgl_load_texture
     float _pad_vertex;
 };
 
@@ -160,7 +166,10 @@ struct LogicalViewportRect
 };
 
 static LogicalViewportRect
-compute_logical_viewport_rect(int window_width, int window_height, const struct GGame* game)
+compute_logical_viewport_rect(
+    int window_width,
+    int window_height,
+    const struct GGame* game)
 {
     LogicalViewportRect rect = { 0, 0, window_width, window_height };
     if( window_width <= 0 || window_height <= 0 || !game || !game->view_port )
@@ -173,16 +182,23 @@ compute_logical_viewport_rect(int window_width, int window_height, const struct 
     if( w <= 0 || h <= 0 )
         return rect;
 
-    if( x < 0 ) x = 0;
-    if( y < 0 ) y = 0;
+    if( x < 0 )
+        x = 0;
+    if( y < 0 )
+        y = 0;
     if( x >= window_width || y >= window_height )
         return rect;
-    if( x + w > window_width )  w = window_width  - x;
-    if( y + h > window_height ) h = window_height - y;
+    if( x + w > window_width )
+        w = window_width - x;
+    if( y + h > window_height )
+        h = window_height - y;
     if( w <= 0 || h <= 0 )
         return rect;
 
-    rect.x = x; rect.y = y; rect.width = w; rect.height = h;
+    rect.x = x;
+    rect.y = y;
+    rect.width = w;
+    rect.height = h;
     return rect;
 }
 
@@ -190,21 +206,23 @@ compute_logical_viewport_rect(int window_width, int window_height, const struct 
 // bottom-left Y (not top-left).
 static MTLViewportRect
 compute_gl_world_viewport_rect(
-    int fb_width, int fb_height,
-    int win_width, int win_height,
+    int fb_width,
+    int fb_height,
+    int win_width,
+    int win_height,
     const LogicalViewportRect& lr)
 {
     MTLViewportRect rect = { 0, 0, fb_width, fb_height };
     if( fb_width <= 0 || fb_height <= 0 || win_width <= 0 || win_height <= 0 )
         return rect;
 
-    const double sx = (double)fb_width  / (double)win_width;
+    const double sx = (double)fb_width / (double)win_width;
     const double sy = (double)fb_height / (double)win_height;
 
-    int scaled_x     = (int)lround((double)lr.x * sx);
+    int scaled_x = (int)lround((double)lr.x * sx);
     int scaled_top_y = (int)lround((double)lr.y * sy);
-    int scaled_w     = (int)lround((double)lr.width * sx);
-    int scaled_h     = (int)lround((double)lr.height * sy);
+    int scaled_w = (int)lround((double)lr.width * sx);
+    int scaled_h = (int)lround((double)lr.height * sy);
 
     int clamped_x = scaled_x < 0 ? 0 : scaled_x;
     int clamped_top_y = scaled_top_y < 0 ? 0 : scaled_top_y;
@@ -220,9 +238,9 @@ compute_gl_world_viewport_rect(
     if( clamped_w <= 0 || clamped_h <= 0 )
         return rect;
 
-    rect.x      = clamped_x;
-    rect.y      = fb_height - (clamped_top_y + clamped_h); // OpenGL bottom-left Y
-    rect.width  = clamped_w;
+    rect.x = clamped_x;
+    rect.y = fb_height - (clamped_top_y + clamped_h); // OpenGL bottom-left Y
+    rect.width = clamped_w;
     rect.height = clamped_h;
     return rect;
 }
@@ -238,7 +256,10 @@ model_gpu_cache_key(const struct DashModel* model)
     uintptr_t key = 1469598103934665603ull;
 #endif
     const uintptr_t fnv_prime = (uintptr_t)16777619u;
-    auto mix_word = [&](uintptr_t word) { key ^= word; key *= fnv_prime; };
+    auto mix_word = [&](uintptr_t word) {
+        key ^= word;
+        key *= fnv_prime;
+    };
 
     mix_word((uintptr_t)model->vertices_x);
     mix_word((uintptr_t)model->face_indices_a);
@@ -260,11 +281,13 @@ model_gpu_cache_key(const struct DashModel* model)
 
 // Same encoding as pix3dgl_load_texture (direction → sign, speed scale).
 static float
-metal_texture_animation_signed(int animation_direction, int animation_speed)
+metal_texture_animation_signed(
+    int animation_direction,
+    int animation_speed)
 {
     if( animation_direction == 0 )
         return 0.0f;
-    float speed = ((float)animation_speed) / (128.0f / 50.0f);
+    float speed = ((float)animation_speed) / 128.0f;
     if( animation_direction == 2 || animation_direction == 4 )
         return speed;
     return -speed;
@@ -276,8 +299,11 @@ static void
 append_model_face_vertices(
     const struct DashModel* model,
     int f,
-    float world_x, float world_y, float world_z,
-    float cos_yaw, float sin_yaw,
+    float world_x,
+    float world_y,
+    float world_z,
+    float cos_yaw,
+    float sin_yaw,
     int effective_tex_id,
     float texture_anim_speed,
     bool texture_opaque,
@@ -464,17 +490,19 @@ render_imgui_overlay(
         changed |= ImGui::InputInt("World viewport H", &h);
         if( changed )
         {
-            if( w > 4096 ) w = 4096;
-            if( h > 4096 ) h = 4096;
+            if( w > 4096 )
+                w = 4096;
+            if( h > 4096 )
+                h = 4096;
             LibToriRS_GameSetWorldViewportSize(game, w, h);
         }
     }
-    ImGui::Text("Loaded model keys: %zu",   renderer->loaded_model_keys.size());
-    ImGui::Text("Loaded scene keys: %zu",   renderer->loaded_scene_element_keys.size());
-    ImGui::Text("Loaded textures: %zu",     renderer->loaded_texture_ids.size());
+    ImGui::Text("Loaded model keys: %zu", renderer->loaded_model_keys.size());
+    ImGui::Text("Loaded scene keys: %zu", renderer->loaded_scene_element_keys.size());
+    ImGui::Text("Loaded textures: %zu", renderer->loaded_texture_ids.size());
     ImGui::Separator();
-    ImGui::Text("Frame model draws: %u",    renderer->debug_model_draws);
-    ImGui::Text("Frame triangles: %u",      renderer->debug_triangles);
+    ImGui::Text("Frame model draws: %u", renderer->debug_model_draws);
+    ImGui::Text("Frame triangles: %u", renderer->debug_triangles);
     ImGui::End();
 
     ImGui::Render();
@@ -495,8 +523,10 @@ sync_drawable_size(struct Platform2_OSX_SDL2_Renderer_Metal* renderer)
         return;
 
     CGSize sz = layer.drawableSize;
-    if( sz.width > 0  ) renderer->width  = (int)sz.width;
-    if( sz.height > 0 ) renderer->height = (int)sz.height;
+    if( sz.width > 0 )
+        renderer->width = (int)sz.width;
+    if( sz.height > 0 )
+        renderer->height = (int)sz.height;
 }
 
 // ---------------------------------------------------------------------------
@@ -504,35 +534,36 @@ sync_drawable_size(struct Platform2_OSX_SDL2_Renderer_Metal* renderer)
 // ---------------------------------------------------------------------------
 
 struct Platform2_OSX_SDL2_Renderer_Metal*
-PlatformImpl2_OSX_SDL2_Renderer_Metal_New(int width, int height)
+PlatformImpl2_OSX_SDL2_Renderer_Metal_New(
+    int width,
+    int height)
 {
     auto* renderer = new Platform2_OSX_SDL2_Renderer_Metal();
-    renderer->mtl_device         = nil;
-    renderer->mtl_command_queue  = nil;
-    renderer->mtl_pipeline_state      = nil;
-    renderer->mtl_ui_sprite_pipeline  = nil;
-    renderer->mtl_depth_stencil       = nil;
+    renderer->mtl_device = nil;
+    renderer->mtl_command_queue = nil;
+    renderer->mtl_pipeline_state = nil;
+    renderer->mtl_ui_sprite_pipeline = nil;
+    renderer->mtl_depth_stencil = nil;
     renderer->mtl_uniform_buffer = nil;
-    renderer->mtl_sampler_state  = nil;
-    renderer->mtl_dummy_texture  = nil;
-    renderer->metal_view           = nullptr;
-    renderer->platform             = nullptr;
-    renderer->width                = width;
-    renderer->height               = height;
-    renderer->metal_ready          = false;
-    renderer->debug_model_draws    = 0;
-    renderer->debug_triangles      = 0;
-    renderer->next_model_index     = 1;
-    renderer->mtl_depth_texture    = nullptr;
-    renderer->depth_texture_width  = 0;
+    renderer->mtl_sampler_state = nil;
+    renderer->mtl_dummy_texture = nil;
+    renderer->metal_view = nullptr;
+    renderer->platform = nullptr;
+    renderer->width = width;
+    renderer->height = height;
+    renderer->metal_ready = false;
+    renderer->debug_model_draws = 0;
+    renderer->debug_triangles = 0;
+    renderer->next_model_index = 1;
+    renderer->mtl_depth_texture = nullptr;
+    renderer->depth_texture_width = 0;
     renderer->depth_texture_height = 0;
-    renderer->mtl_sprite_quad_buf  = nullptr;
+    renderer->mtl_sprite_quad_buf = nullptr;
     return renderer;
 }
 
 void
-PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(
-    struct Platform2_OSX_SDL2_Renderer_Metal* renderer)
+PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(struct Platform2_OSX_SDL2_Renderer_Metal* renderer)
 {
     if( !renderer )
         return;
@@ -624,7 +655,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
     if( !renderer || !platform || !platform->window )
         return false;
 
-    renderer->platform   = platform;
+    renderer->platform = platform;
     renderer->metal_view = SDL_Metal_CreateView(platform->window);
     if( !renderer->metal_view )
     {
@@ -681,21 +712,23 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
     id<MTLLibrary> shaderLibrary = nil;
     for( NSString* path in candidatePaths )
     {
-        if( path.length == 0 ) continue;
+        if( path.length == 0 )
+            continue;
         NSData* data = [NSData dataWithContentsOfFile:path];
-        if( !data ) continue;
+        if( !data )
+            continue;
         dispatch_data_t dd = dispatch_data_create(
-            data.bytes, data.length,
-            dispatch_get_main_queue(),
-            DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+            data.bytes, data.length, dispatch_get_main_queue(), DISPATCH_DATA_DESTRUCTOR_DEFAULT);
         shaderLibrary = [device newLibraryWithData:dd error:&error];
-        if( shaderLibrary ) break;
+        if( shaderLibrary )
+            break;
     }
 
     if( !shaderLibrary )
     {
-        printf("Metal init failed: could not load Shaders.metallib: %s\n",
-               error ? error.localizedDescription.UTF8String : "unknown");
+        printf(
+            "Metal init failed: could not load Shaders.metallib: %s\n",
+            error ? error.localizedDescription.UTF8String : "unknown");
         return false;
     }
 
@@ -709,48 +742,50 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
 
     // Vertex descriptor matching MetalVertex layout (see Shaders.metal struct Vertex)
     MTLVertexDescriptor* vtxDesc = [[MTLVertexDescriptor alloc] init];
-    vtxDesc.attributes[0].format      = MTLVertexFormatFloat4;
-    vtxDesc.attributes[0].offset      = offsetof(MetalVertex, position);
+    vtxDesc.attributes[0].format = MTLVertexFormatFloat4;
+    vtxDesc.attributes[0].offset = offsetof(MetalVertex, position);
     vtxDesc.attributes[0].bufferIndex = 0;
-    vtxDesc.attributes[1].format      = MTLVertexFormatFloat4;
-    vtxDesc.attributes[1].offset      = offsetof(MetalVertex, color);
+    vtxDesc.attributes[1].format = MTLVertexFormatFloat4;
+    vtxDesc.attributes[1].offset = offsetof(MetalVertex, color);
     vtxDesc.attributes[1].bufferIndex = 0;
-    vtxDesc.attributes[2].format      = MTLVertexFormatFloat2;
-    vtxDesc.attributes[2].offset      = offsetof(MetalVertex, texcoord);
+    vtxDesc.attributes[2].format = MTLVertexFormatFloat2;
+    vtxDesc.attributes[2].offset = offsetof(MetalVertex, texcoord);
     vtxDesc.attributes[2].bufferIndex = 0;
-    vtxDesc.attributes[3].format      = MTLVertexFormatFloat;
-    vtxDesc.attributes[3].offset      = offsetof(MetalVertex, texBlend);
+    vtxDesc.attributes[3].format = MTLVertexFormatFloat;
+    vtxDesc.attributes[3].offset = offsetof(MetalVertex, texBlend);
     vtxDesc.attributes[3].bufferIndex = 0;
-    vtxDesc.attributes[4].format      = MTLVertexFormatFloat;
-    vtxDesc.attributes[4].offset      = offsetof(MetalVertex, textureOpaque);
+    vtxDesc.attributes[4].format = MTLVertexFormatFloat;
+    vtxDesc.attributes[4].offset = offsetof(MetalVertex, textureOpaque);
     vtxDesc.attributes[4].bufferIndex = 0;
-    vtxDesc.attributes[5].format      = MTLVertexFormatFloat;
-    vtxDesc.attributes[5].offset      = offsetof(MetalVertex, textureAnimSpeed);
+    vtxDesc.attributes[5].format = MTLVertexFormatFloat;
+    vtxDesc.attributes[5].offset = offsetof(MetalVertex, textureAnimSpeed);
     vtxDesc.attributes[5].bufferIndex = 0;
-    vtxDesc.layouts[0].stride         = sizeof(MetalVertex);
-    vtxDesc.layouts[0].stepFunction   = MTLVertexStepFunctionPerVertex;
+    vtxDesc.layouts[0].stride = sizeof(MetalVertex);
+    vtxDesc.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
 
     MTLRenderPipelineDescriptor* pipeDesc = [[MTLRenderPipelineDescriptor alloc] init];
-    pipeDesc.vertexFunction   = vertFn;
+    pipeDesc.vertexFunction = vertFn;
     pipeDesc.fragmentFunction = fragFn;
     pipeDesc.vertexDescriptor = vtxDesc;
     pipeDesc.colorAttachments[0].pixelFormat = layer.pixelFormat;
 
     // Enable alpha blending for transparent faces
-    pipeDesc.colorAttachments[0].blendingEnabled             = YES;
-    pipeDesc.colorAttachments[0].rgbBlendOperation           = MTLBlendOperationAdd;
-    pipeDesc.colorAttachments[0].sourceRGBBlendFactor        = MTLBlendFactorSourceAlpha;
-    pipeDesc.colorAttachments[0].destinationRGBBlendFactor   = MTLBlendFactorOneMinusSourceAlpha;
-    pipeDesc.colorAttachments[0].alphaBlendOperation         = MTLBlendOperationAdd;
-    pipeDesc.colorAttachments[0].sourceAlphaBlendFactor      = MTLBlendFactorOne;
+    pipeDesc.colorAttachments[0].blendingEnabled = YES;
+    pipeDesc.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
+    pipeDesc.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+    pipeDesc.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+    pipeDesc.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
+    pipeDesc.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
     pipeDesc.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
     pipeDesc.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
 
-    id<MTLRenderPipelineState> pipeState = [device newRenderPipelineStateWithDescriptor:pipeDesc error:&error];
+    id<MTLRenderPipelineState> pipeState = [device newRenderPipelineStateWithDescriptor:pipeDesc
+                                                                                  error:&error];
     if( !pipeState )
     {
-        printf("Metal init failed: could not create pipeline state: %s\n",
-               error ? error.localizedDescription.UTF8String : "unknown");
+        printf(
+            "Metal init failed: could not create pipeline state: %s\n",
+            error ? error.localizedDescription.UTF8String : "unknown");
         return false;
     }
     renderer->mtl_pipeline_state = (__bridge_retained void*)pipeState;
@@ -760,32 +795,34 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
     if( uiVertFn && uiFragFn )
     {
         MTLVertexDescriptor* uiVtx = [[MTLVertexDescriptor alloc] init];
-        uiVtx.attributes[0].format      = MTLVertexFormatFloat2;
-        uiVtx.attributes[0].offset      = 0;
+        uiVtx.attributes[0].format = MTLVertexFormatFloat2;
+        uiVtx.attributes[0].offset = 0;
         uiVtx.attributes[0].bufferIndex = 0;
-        uiVtx.attributes[1].format      = MTLVertexFormatFloat2;
-        uiVtx.attributes[1].offset      = 8;
+        uiVtx.attributes[1].format = MTLVertexFormatFloat2;
+        uiVtx.attributes[1].offset = 8;
         uiVtx.attributes[1].bufferIndex = 0;
-        uiVtx.layouts[0].stride         = 16;
-        uiVtx.layouts[0].stepFunction   = MTLVertexStepFunctionPerVertex;
+        uiVtx.layouts[0].stride = 16;
+        uiVtx.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
 
         MTLRenderPipelineDescriptor* uiPipeDesc = [[MTLRenderPipelineDescriptor alloc] init];
-        uiPipeDesc.vertexFunction                 = uiVertFn;
-        uiPipeDesc.fragmentFunction               = uiFragFn;
-        uiPipeDesc.vertexDescriptor               = uiVtx;
+        uiPipeDesc.vertexFunction = uiVertFn;
+        uiPipeDesc.fragmentFunction = uiFragFn;
+        uiPipeDesc.vertexDescriptor = uiVtx;
         uiPipeDesc.colorAttachments[0].pixelFormat = layer.pixelFormat;
-        uiPipeDesc.colorAttachments[0].blendingEnabled             = YES;
-        uiPipeDesc.colorAttachments[0].rgbBlendOperation           = MTLBlendOperationAdd;
-        uiPipeDesc.colorAttachments[0].sourceRGBBlendFactor        = MTLBlendFactorSourceAlpha;
-        uiPipeDesc.colorAttachments[0].destinationRGBBlendFactor   = MTLBlendFactorOneMinusSourceAlpha;
-        uiPipeDesc.colorAttachments[0].alphaBlendOperation         = MTLBlendOperationAdd;
-        uiPipeDesc.colorAttachments[0].sourceAlphaBlendFactor      = MTLBlendFactorOne;
-        uiPipeDesc.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+        uiPipeDesc.colorAttachments[0].blendingEnabled = YES;
+        uiPipeDesc.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
+        uiPipeDesc.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+        uiPipeDesc.colorAttachments[0].destinationRGBBlendFactor =
+            MTLBlendFactorOneMinusSourceAlpha;
+        uiPipeDesc.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
+        uiPipeDesc.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
+        uiPipeDesc.colorAttachments[0].destinationAlphaBlendFactor =
+            MTLBlendFactorOneMinusSourceAlpha;
         uiPipeDesc.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
 
-        NSError* uiErr  = nil;
-        id<MTLRenderPipelineState> uiPipe =
-            [device newRenderPipelineStateWithDescriptor:uiPipeDesc error:&uiErr];
+        NSError* uiErr = nil;
+        id<MTLRenderPipelineState> uiPipe = [device newRenderPipelineStateWithDescriptor:uiPipeDesc
+                                                                                   error:&uiErr];
         if( uiPipe )
             renderer->mtl_ui_sprite_pipeline = (__bridge_retained void*)uiPipe;
         else
@@ -797,7 +834,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
     // Match pix3dgl_new(false, true): z-buffer off → GL_ALWAYS / no depth write
     MTLDepthStencilDescriptor* dsDesc = [[MTLDepthStencilDescriptor alloc] init];
     dsDesc.depthCompareFunction = MTLCompareFunctionAlways;
-    dsDesc.depthWriteEnabled    = NO;
+    dsDesc.depthWriteEnabled = NO;
     id<MTLDepthStencilState> dsState = [device newDepthStencilStateWithDescriptor:dsDesc];
     renderer->mtl_depth_stencil = (__bridge_retained void*)dsState;
 
@@ -807,19 +844,19 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
     renderer->mtl_uniform_buffer = (__bridge_retained void*)unifBuf;
 
     MTLSamplerDescriptor* sampDesc = [[MTLSamplerDescriptor alloc] init];
-    sampDesc.minFilter              = MTLSamplerMinMagFilterLinear;
-    sampDesc.magFilter              = MTLSamplerMinMagFilterLinear;
-    sampDesc.sAddressMode           = MTLSamplerAddressModeClampToEdge;
-    sampDesc.tAddressMode           = MTLSamplerAddressModeRepeat;
-    id<MTLSamplerState> sampState   = [device newSamplerStateWithDescriptor:sampDesc];
-    renderer->mtl_sampler_state     = (__bridge_retained void*)sampState;
+    sampDesc.minFilter = MTLSamplerMinMagFilterLinear;
+    sampDesc.magFilter = MTLSamplerMinMagFilterLinear;
+    sampDesc.sAddressMode = MTLSamplerAddressModeClampToEdge;
+    sampDesc.tAddressMode = MTLSamplerAddressModeRepeat;
+    id<MTLSamplerState> sampState = [device newSamplerStateWithDescriptor:sampDesc];
+    renderer->mtl_sampler_state = (__bridge_retained void*)sampState;
 
     MTLTextureDescriptor* dumDesc =
         [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
                                                            width:1
                                                           height:1
                                                        mipmapped:NO];
-    dumDesc.usage       = MTLTextureUsageShaderRead;
+    dumDesc.usage = MTLTextureUsageShaderRead;
     dumDesc.storageMode = MTLStorageModeShared;
     id<MTLTexture> dumTex = [device newTextureWithDescriptor:dumDesc];
     const uint8_t whiteRgba[4] = { 255, 255, 255, 255 };
@@ -862,11 +899,13 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
         !renderer->platform || !renderer->platform->window )
         return;
 
-    id<MTLDevice>             device    = (__bridge id<MTLDevice>)renderer->mtl_device;
-    id<MTLCommandQueue>       queue     = (__bridge id<MTLCommandQueue>)renderer->mtl_command_queue;
-    id<MTLRenderPipelineState> pipeState = (__bridge id<MTLRenderPipelineState>)renderer->mtl_pipeline_state;
-    id<MTLDepthStencilState>  dsState   = (__bridge id<MTLDepthStencilState>)renderer->mtl_depth_stencil;
-    id<MTLBuffer>             unifBuf   = (__bridge id<MTLBuffer>)renderer->mtl_uniform_buffer;
+    id<MTLDevice> device = (__bridge id<MTLDevice>)renderer->mtl_device;
+    id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)renderer->mtl_command_queue;
+    id<MTLRenderPipelineState> pipeState =
+        (__bridge id<MTLRenderPipelineState>)renderer->mtl_pipeline_state;
+    id<MTLDepthStencilState> dsState =
+        (__bridge id<MTLDepthStencilState>)renderer->mtl_depth_stencil;
+    id<MTLBuffer> unifBuf = (__bridge id<MTLBuffer>)renderer->mtl_uniform_buffer;
 
     CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_Metal_GetLayer(renderer->metal_view);
     if( !layer )
@@ -882,14 +921,13 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
         return;
 
     renderer->debug_model_draws = 0;
-    renderer->debug_triangles   = 0;
+    renderer->debug_triangles = 0;
 
     // -----------------------------------------------------------------------
     // Build render pass descriptor with depth attachment
     // Depth texture is cached and only reallocated when drawable dimensions change.
     // -----------------------------------------------------------------------
-    if( !renderer->mtl_depth_texture ||
-        renderer->depth_texture_width  != renderer->width ||
+    if( !renderer->mtl_depth_texture || renderer->depth_texture_width != renderer->width ||
         renderer->depth_texture_height != renderer->height )
     {
         if( renderer->mtl_depth_texture )
@@ -903,28 +941,28 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
                                                               height:(NSUInteger)renderer->height
                                                            mipmapped:NO];
         depthTexDesc.storageMode = MTLStorageModePrivate;
-        depthTexDesc.usage       = MTLTextureUsageRenderTarget;
-        id<MTLTexture> newDepth  = [device newTextureWithDescriptor:depthTexDesc];
-        renderer->mtl_depth_texture    = (__bridge_retained void*)newDepth;
-        renderer->depth_texture_width  = renderer->width;
+        depthTexDesc.usage = MTLTextureUsageRenderTarget;
+        id<MTLTexture> newDepth = [device newTextureWithDescriptor:depthTexDesc];
+        renderer->mtl_depth_texture = (__bridge_retained void*)newDepth;
+        renderer->depth_texture_width = renderer->width;
         renderer->depth_texture_height = renderer->height;
     }
     id<MTLTexture> depthTex = (__bridge id<MTLTexture>)renderer->mtl_depth_texture;
 
     MTLRenderPassDescriptor* rpDesc = [MTLRenderPassDescriptor renderPassDescriptor];
-    rpDesc.colorAttachments[0].texture     = drawable.texture;
-    rpDesc.colorAttachments[0].loadAction  = MTLLoadActionClear;
+    rpDesc.colorAttachments[0].texture = drawable.texture;
+    rpDesc.colorAttachments[0].loadAction = MTLLoadActionClear;
     rpDesc.colorAttachments[0].storeAction = MTLStoreActionStore;
-    rpDesc.colorAttachments[0].clearColor  = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
-    rpDesc.depthAttachment.texture         = depthTex;
-    rpDesc.depthAttachment.loadAction      = MTLLoadActionClear;
-    rpDesc.depthAttachment.storeAction     = MTLStoreActionDontCare;
-    rpDesc.depthAttachment.clearDepth      = 1.0;
+    rpDesc.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
+    rpDesc.depthAttachment.texture = depthTex;
+    rpDesc.depthAttachment.loadAction = MTLLoadActionClear;
+    rpDesc.depthAttachment.storeAction = MTLStoreActionDontCare;
+    rpDesc.depthAttachment.clearDepth = 1.0;
 
     // -----------------------------------------------------------------------
     // Compute viewport rects
     // -----------------------------------------------------------------------
-    int win_width  = renderer->platform->game_screen_width;
+    int win_width = renderer->platform->game_screen_width;
     int win_height = renderer->platform->game_screen_height;
     if( win_width <= 0 || win_height <= 0 )
         SDL_GetWindowSize(renderer->platform->window, &win_width, &win_height);
@@ -934,16 +972,14 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
     const MTLViewportRect gl_vp = compute_gl_world_viewport_rect(
         renderer->width, renderer->height, win_width, win_height, logical_vp);
 
-    const float projection_width  = (float)logical_vp.width;
+    const float projection_width = (float)logical_vp.width;
     const float projection_height = (float)logical_vp.height;
 
     // Same as pix3dgl_begin_3dframe(..., 0,0,0, camera_pitch, camera_yaw, ...):
     // game angles are OSRS units (2048 = 2*pi); camera position stays at origin.
     MetalUniforms uniforms;
-    const float pitch_rad =
-        ((float)game->camera_pitch * 2.0f * (float)M_PI) / 2048.0f;
-    const float yaw_rad =
-        ((float)game->camera_yaw * 2.0f * (float)M_PI) / 2048.0f;
+    const float pitch_rad = ((float)game->camera_pitch * 2.0f * (float)M_PI) / 2048.0f;
+    const float yaw_rad = ((float)game->camera_yaw * 2.0f * (float)M_PI) / 2048.0f;
     metal_compute_view_matrix(uniforms.modelViewMatrix, 0.0f, 0.0f, 0.0f, pitch_rad, yaw_rad);
     metal_compute_projection_matrix(
         uniforms.projectionMatrix,
@@ -951,7 +987,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
         projection_width,
         projection_height);
     metal_remap_projection_opengl_to_metal_z(uniforms.projectionMatrix);
-    uniforms.uClock = (float)(SDL_GetTicks64() / 1000.0);
+    uniforms.uClock = (float)(SDL_GetTicks64() / 20);
     uniforms._pad_uniform[0] = 0.0f;
     uniforms._pad_uniform[1] = 0.0f;
     uniforms._pad_uniform[2] = 0.0f;
@@ -961,25 +997,22 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
     // Command buffer + render encoder
     // -----------------------------------------------------------------------
     id<MTLCommandBuffer> cmdBuf = [queue commandBuffer];
-    id<MTLRenderCommandEncoder> encoder =
-        [cmdBuf renderCommandEncoderWithDescriptor:rpDesc];
+    id<MTLRenderCommandEncoder> encoder = [cmdBuf renderCommandEncoderWithDescriptor:rpDesc];
 
     [encoder setRenderPipelineState:pipeState];
     [encoder setDepthStencilState:dsState];
-    // Metal viewport Y vs GL + column-major clip can invert winding; match painter order like z-off GL.
+    // Metal viewport Y vs GL + column-major clip can invert winding; match painter order like z-off
+    // GL.
     [encoder setCullMode:MTLCullModeNone];
 
     // Metal viewport: top-left origin. gl_vp.y is OpenGL bottom-left Y.
-    const double metal_origin_y =
-        (double)renderer->height - (double)gl_vp.y - (double)gl_vp.height;
-    MTLViewport metalVp = {
-        .originX = (double)gl_vp.x,
-        .originY = metal_origin_y,
-        .width   = (double)gl_vp.width,
-        .height  = (double)gl_vp.height,
-        .znear   = 0.0,
-        .zfar    = 1.0
-    };
+    const double metal_origin_y = (double)renderer->height - (double)gl_vp.y - (double)gl_vp.height;
+    MTLViewport metalVp = { .originX = (double)gl_vp.x,
+                            .originY = metal_origin_y,
+                            .width = (double)gl_vp.width,
+                            .height = (double)gl_vp.height,
+                            .znear = 0.0,
+                            .zfar = 1.0 };
     [encoder setViewport:metalVp];
 
     // -----------------------------------------------------------------------
@@ -1020,8 +1053,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
         [encoder setFragmentSamplerState:samp atIndex:0];
         id<MTLBuffer> drawBuf =
             [device newBufferWithBytes:batch_verts.data()
-                                 length:(NSUInteger)(batch_verts.size() * sizeof(MetalVertex))
-                                options:MTLResourceStorageModeShared];
+                                length:(NSUInteger)(batch_verts.size() * sizeof(MetalVertex))
+                               options:MTLResourceStorageModeShared];
         [encoder setVertexBuffer:drawBuf offset:0 atIndex:0];
         [encoder setVertexBuffer:unifBuf offset:0 atIndex:1];
         [encoder setFragmentBuffer:unifBuf offset:0 atIndex:1];
@@ -1065,12 +1098,12 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
                     rgba[(size_t)p * 4u + 3] = (uint8_t)((pix >> 24) & 0xFF);
                 }
 
-                MTLTextureDescriptor* texDesc =
-                    [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
-                                                                       width:(NSUInteger)w
-                                                                      height:(NSUInteger)h
-                                                                   mipmapped:NO];
-                texDesc.usage       = MTLTextureUsageShaderRead;
+                MTLTextureDescriptor* texDesc = [MTLTextureDescriptor
+                    texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                 width:(NSUInteger)w
+                                                height:(NSUInteger)h
+                                             mipmapped:NO];
+                texDesc.usage = MTLTextureUsageShaderRead;
                 texDesc.storageMode = MTLStorageModeShared;
                 id<MTLTexture> mtlTex = [device newTextureWithDescriptor:texDesc];
                 [mtlTex replaceRegion:MTLRegionMake2D(0, 0, w, h)
@@ -1187,16 +1220,16 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
                 {
                     uint32_t pix = sp->pixels_argb[p];
                     rgba[(size_t)p * 4u + 0u] = (uint8_t)((pix >> 16) & 0xFFu);
-                    rgba[(size_t)p * 4u + 1u] = (uint8_t)((pix >> 8)  & 0xFFu);
+                    rgba[(size_t)p * 4u + 1u] = (uint8_t)((pix >> 8) & 0xFFu);
                     rgba[(size_t)p * 4u + 2u] = (uint8_t)(pix & 0xFFu);
                     rgba[(size_t)p * 4u + 3u] = (pix != 0u) ? 0xFFu : 0x00u;
                 }
-                MTLTextureDescriptor* td =
-                    [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
-                                                                       width:(NSUInteger)sw
-                                                                      height:(NSUInteger)sh
-                                                                   mipmapped:NO];
-                td.usage       = MTLTextureUsageShaderRead;
+                MTLTextureDescriptor* td = [MTLTextureDescriptor
+                    texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                 width:(NSUInteger)sw
+                                                height:(NSUInteger)sh
+                                             mipmapped:NO];
+                td.usage = MTLTextureUsageShaderRead;
                 td.storageMode = MTLStorageModeShared;
                 id<MTLTexture> spTex = [device newTextureWithDescriptor:td];
                 [spTex replaceRegion:MTLRegionMake2D(0, 0, sw, sh)
@@ -1238,14 +1271,12 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
     id<MTLSamplerState> uiSampler = (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
     if( uiPipeState )
     {
-        MTLViewport spriteVp = {
-            .originX = 0.0,
-            .originY = 0.0,
-            .width   = (double)renderer->width,
-            .height  = (double)renderer->height,
-            .znear   = 0.0,
-            .zfar    = 1.0
-        };
+        MTLViewport spriteVp = { .originX = 0.0,
+                                 .originY = 0.0,
+                                 .width = (double)renderer->width,
+                                 .height = (double)renderer->height,
+                                 .znear = 0.0,
+                                 .zfar = 1.0 };
         [encoder setViewport:spriteVp];
         [encoder setRenderPipelineState:uiPipeState];
         [encoder setDepthStencilState:dsState];
@@ -1272,16 +1303,15 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
 
             const int dst_x = sc._sprite_draw.x + sp->crop_x;
             const int dst_y = sc._sprite_draw.y + sp->crop_y;
-            const float w   = (float)sp->width;
-            const float h   = (float)sp->height;
-            const float x0  = (float)dst_x;
-            const float y0  = (float)dst_y;
-            const float x1  = x0 + w;
-            const float y1  = y0 + h;
-            const float cx  = 0.5f * (x0 + x1);
-            const float cy  = 0.5f * (y0 + y1);
-            const float angle =
-                (float)(sc._sprite_draw.rotation_r2pi2048 * (2.0 * M_PI) / 2048.0);
+            const float w = (float)sp->width;
+            const float h = (float)sp->height;
+            const float x0 = (float)dst_x;
+            const float y0 = (float)dst_y;
+            const float x1 = x0 + w;
+            const float y1 = y0 + h;
+            const float cx = 0.5f * (x0 + x1);
+            const float cy = 0.5f * (y0 + y1);
+            const float angle = (float)(sc._sprite_draw.rotation_r2pi2048 * (2.0 * M_PI) / 2048.0);
             const float ca = cosf(angle);
             const float sa = sinf(angle);
             const float hw = 0.5f * w;
@@ -1298,7 +1328,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
             rot_local(hw, hh, 2);
             rot_local(-hw, hh, 3);
 
-            const float fbw = (float)(win_width  > 0 ? win_width  : renderer->width);
+            const float fbw = (float)(win_width > 0 ? win_width : renderer->width);
             const float fbh = (float)(win_height > 0 ? win_height : renderer->height);
             auto to_clip = [&](float xp, float yp, float* ocx, float* ocy) {
                 *ocx = 2.0f * xp / fbw - 1.0f;
@@ -1321,9 +1351,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
             [encoder setVertexBuffer:spriteQuadBuf offset:slotOffset atIndex:0];
             [encoder setFragmentTexture:spriteTex atIndex:0];
             [encoder setFragmentSamplerState:uiSampler atIndex:0];
-            [encoder drawPrimitives:MTLPrimitiveTypeTriangle
-                        vertexStart:0
-                        vertexCount:6];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
             ++spriteSlot;
         }
     }
@@ -1332,12 +1360,12 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
     // Finish scene pass, render ImGui overlay in the same render encoder
     // -----------------------------------------------------------------------
     // Reset viewport to full drawable for ImGui
-    MTLViewport fullVp = {
-        .originX = 0.0, .originY = 0.0,
-        .width   = (double)renderer->width,
-        .height  = (double)renderer->height,
-        .znear   = 0.0, .zfar = 1.0
-    };
+    MTLViewport fullVp = { .originX = 0.0,
+                           .originY = 0.0,
+                           .width = (double)renderer->width,
+                           .height = (double)renderer->height,
+                           .znear = 0.0,
+                           .zfar = 1.0 };
     [encoder setViewport:fullVp];
 
     render_imgui_overlay(renderer, game, cmdBuf, encoder, rpDesc);

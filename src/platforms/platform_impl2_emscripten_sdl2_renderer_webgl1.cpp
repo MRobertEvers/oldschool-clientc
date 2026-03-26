@@ -407,7 +407,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     const float projection_width = (float)logical_viewport.width;
     const float projection_height = (float)logical_viewport.height;
 
-    pix3dgl_set_animation_clock(renderer->pix3dgl, (float)(emscripten_get_now() / 1000.0));
+    pix3dgl_set_animation_clock(renderer->pix3dgl, (float)((uint64_t)emscripten_get_now() / 20));
     pix3dgl_begin_3dframe(
         renderer->pix3dgl,
         (float)0,
