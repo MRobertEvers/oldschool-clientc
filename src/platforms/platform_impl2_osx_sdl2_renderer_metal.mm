@@ -345,8 +345,6 @@ append_model_face_vertices(
         if( alpha_raw >= 0 )
         {
             const int ab = alpha_raw & 0xFF;
-            // Match pix3dgl_model_load / face_alpha(): inverse byte for all faces; textured CPU
-            // raster ignores face_alphas so raw ab/255 was wrong for default alpha 0.
             face_alpha = (float)(0xFF - ab) / 255.0f;
         }
     }

@@ -21,7 +21,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdlib>
 #include <string.h>
 #include <vector>
 
@@ -269,8 +268,6 @@ void main() {
         // vTextureOpaque == 0.0  →  texture has transparent regions (black = transparent).
         // vTextureOpaque == 1.0  →  texture is fully opaque (no transparent pixels).
         if (vTextureOpaque < 0.5) {
-            // Cutout path: texel alpha from upload (pix3dgl_load_texture); DashTexture::opaque
-            // must match or discard disagrees with software raster.
             if (texColor.a < 0.5) {
                 discard;
             }
@@ -1480,9 +1477,6 @@ pix3dgl_model_load(
     texture_opaques.reserve((size_t)face_count * 3u);
     texture_anim_speeds.reserve((size_t)face_count * 3u);
 
-    int dbg_textured_faces_alpha0 = 0;
-    int dbg_faces_missing_atlas = 0;
-
     for( int face = 0; face < face_count; ++face )
     {
         bool visible = true;
@@ -1525,11 +1519,7 @@ pix3dgl_model_load(
         if( face_alphas_nullable )
         {
             int alpha_byte = face_alphas_nullable[face] & 0xFF;
-            // Same encoding as face_alpha() / non-textured CPU raster (inverse byte).
-            // Textured CPU raster ignores face_alphas; raw byte/255 made alpha_byte==0 invisible in GL.
             face_alpha = (0xFF - alpha_byte) / 255.0f;
-            if( face_textures_nullable && face_textures_nullable[face] != -1 && alpha_byte == 0 )
-                dbg_textured_faces_alpha0++;
         }
 
         int rgbs[3] = { rgb_a, rgb_b, rgb_c };
@@ -1555,7 +1545,6 @@ pix3dgl_model_load(
             }
             else
             {
-                dbg_faces_missing_atlas++;
                 texture_id = -1;
             }
         }
@@ -1642,25 +1631,6 @@ pix3dgl_model_load(
             texture_opaques.push_back(is_opaque);
             texture_anim_speeds.push_back(anim_speed);
         }
-    }
-
-    if( const char* dbg = std::getenv("PIX3DGL_DEBUG_FACE_ALPHA"); dbg && dbg[0] != '\0' &&
-        dbg[0] != '0' )
-    {
-        printf(
-            "Pix3DGL ES2 model_load idx=%d: textured_faces_with_stored_alpha0=%d; "
-            "faces_missing_atlas=%d\n",
-            model_idx,
-            dbg_textured_faces_alpha0,
-            dbg_faces_missing_atlas);
-    }
-    if( dbg_faces_missing_atlas > 0 )
-    {
-        printf(
-            "Pix3DGL ES2 model_load idx=%d: %d textured faces had no atlas entry (texture load "
-            "after model load?).\n",
-            model_idx,
-            dbg_faces_missing_atlas);
     }
 
     GEN_VERTEX_ARRAYS(1, &model.VAO);
