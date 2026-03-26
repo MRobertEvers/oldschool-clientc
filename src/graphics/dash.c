@@ -2472,6 +2472,8 @@ dashsprite_flip_vertical(struct DashSprite* sprite)
 void
 dashsprite_free(struct DashSprite* sprite)
 {
+    if (!sprite)
+        return;
     free(sprite->pixels_argb);
     free(sprite);
 }
