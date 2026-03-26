@@ -305,13 +305,7 @@ dash3d_calculate_cylinder_aabb_8point(
     int sc_x[8] = { 0 };
     int sc_y[8] = { 0 };
     int sc_z[8] = { 0 };
-    int o_x[8] = { 0 };
-    int o_y[8] = { 0 };
-    int o_z[8] = { 0 };
-    project_vertices_array(
-        o_x,
-        o_y,
-        o_z,
+    project_vertices_array_notex(
         sc_x,
         sc_y,
         sc_z,
@@ -1374,26 +1368,49 @@ dash3d_project(
         return cull;
     }
 
-    project_vertices_array(
-        dash->orthographic_vertices_x,
-        dash->orthographic_vertices_y,
-        dash->orthographic_vertices_z,
-        dash->screen_vertices_x,
-        dash->screen_vertices_y,
-        dash->screen_vertices_z,
-        model->vertices_x,
-        model->vertices_y,
-        model->vertices_z,
-        model->vertex_count,
-        position->yaw,
-        center_projection.z,
-        position->x,
-        position->y,
-        position->z,
-        camera->near_plane_z,
-        camera->fov_rpi2048,
-        camera->pitch,
-        camera->yaw);
+    if( model->has_textures )
+    {
+        project_vertices_array(
+            dash->orthographic_vertices_x,
+            dash->orthographic_vertices_y,
+            dash->orthographic_vertices_z,
+            dash->screen_vertices_x,
+            dash->screen_vertices_y,
+            dash->screen_vertices_z,
+            model->vertices_x,
+            model->vertices_y,
+            model->vertices_z,
+            model->vertex_count,
+            position->yaw,
+            center_projection.z,
+            position->x,
+            position->y,
+            position->z,
+            camera->near_plane_z,
+            camera->fov_rpi2048,
+            camera->pitch,
+            camera->yaw);
+    }
+    else
+    {
+        project_vertices_array_notex(
+            dash->screen_vertices_x,
+            dash->screen_vertices_y,
+            dash->screen_vertices_z,
+            model->vertices_x,
+            model->vertices_y,
+            model->vertices_z,
+            model->vertex_count,
+            position->yaw,
+            center_projection.z,
+            position->x,
+            position->y,
+            position->z,
+            camera->near_plane_z,
+            camera->fov_rpi2048,
+            camera->pitch,
+            camera->yaw);
+    }
 
     return DASHCULL_VISIBLE;
 }
@@ -1501,26 +1518,49 @@ dash3d_project_raw(
         camera->pitch,
         camera->yaw);
 
-    project_vertices_array(
-        dash->orthographic_vertices_x,
-        dash->orthographic_vertices_y,
-        dash->orthographic_vertices_z,
-        dash->screen_vertices_x,
-        dash->screen_vertices_y,
-        dash->screen_vertices_z,
-        model->vertices_x,
-        model->vertices_y,
-        model->vertices_z,
-        model->vertex_count,
-        position->yaw,
-        center_projection.z,
-        position->x,
-        position->y,
-        position->z,
-        camera->near_plane_z,
-        camera->fov_rpi2048,
-        camera->pitch,
-        camera->yaw);
+    if( model->has_textures )
+    {
+        project_vertices_array(
+            dash->orthographic_vertices_x,
+            dash->orthographic_vertices_y,
+            dash->orthographic_vertices_z,
+            dash->screen_vertices_x,
+            dash->screen_vertices_y,
+            dash->screen_vertices_z,
+            model->vertices_x,
+            model->vertices_y,
+            model->vertices_z,
+            model->vertex_count,
+            position->yaw,
+            center_projection.z,
+            position->x,
+            position->y,
+            position->z,
+            camera->near_plane_z,
+            camera->fov_rpi2048,
+            camera->pitch,
+            camera->yaw);
+    }
+    else
+    {
+        project_vertices_array_notex(
+            dash->screen_vertices_x,
+            dash->screen_vertices_y,
+            dash->screen_vertices_z,
+            model->vertices_x,
+            model->vertices_y,
+            model->vertices_z,
+            model->vertex_count,
+            position->yaw,
+            center_projection.z,
+            position->x,
+            position->y,
+            position->z,
+            camera->near_plane_z,
+            camera->fov_rpi2048,
+            camera->pitch,
+            camera->yaw);
+    }
 
     return DASHCULL_VISIBLE;
 }
@@ -1615,29 +1655,55 @@ dash3d_project6(
     if( cull != DASHCULL_VISIBLE )
         return cull;
 
-    project_vertices_array6(
-        dash->orthographic_vertices_x,
-        dash->orthographic_vertices_y,
-        dash->orthographic_vertices_z,
-        dash->screen_vertices_x,
-        dash->screen_vertices_y,
-        dash->screen_vertices_z,
-        model->vertices_x,
-        model->vertices_y,
-        model->vertices_z,
-        model->vertex_count,
-        position->pitch,
-        position->yaw,
-        position->roll,
-        center_projection.z,
-        position->x,
-        position->y,
-        position->z,
-        camera->near_plane_z,
-        camera->fov_rpi2048,
-        camera->pitch,
-        camera->yaw,
-        camera->roll);
+    if( model->has_textures )
+    {
+        project_vertices_array6(
+            dash->orthographic_vertices_x,
+            dash->orthographic_vertices_y,
+            dash->orthographic_vertices_z,
+            dash->screen_vertices_x,
+            dash->screen_vertices_y,
+            dash->screen_vertices_z,
+            model->vertices_x,
+            model->vertices_y,
+            model->vertices_z,
+            model->vertex_count,
+            position->pitch,
+            position->yaw,
+            position->roll,
+            center_projection.z,
+            position->x,
+            position->y,
+            position->z,
+            camera->near_plane_z,
+            camera->fov_rpi2048,
+            camera->pitch,
+            camera->yaw,
+            camera->roll);
+    }
+    else
+    {
+        project_vertices_array6_notex(
+            dash->screen_vertices_x,
+            dash->screen_vertices_y,
+            dash->screen_vertices_z,
+            model->vertices_x,
+            model->vertices_y,
+            model->vertices_z,
+            model->vertex_count,
+            position->pitch,
+            position->yaw,
+            position->roll,
+            center_projection.z,
+            position->x,
+            position->y,
+            position->z,
+            camera->near_plane_z,
+            camera->fov_rpi2048,
+            camera->pitch,
+            camera->yaw,
+            camera->roll);
+    }
 
     return DASHCULL_VISIBLE;
 }

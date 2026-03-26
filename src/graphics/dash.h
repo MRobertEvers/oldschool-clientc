@@ -111,6 +111,7 @@ struct DashModelBones
 struct DashModel
 {
     bool loaded;
+    bool has_textures;
     int _dbg_ids[10];
     int vertex_count;
     int* vertices_x;
