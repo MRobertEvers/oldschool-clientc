@@ -64,6 +64,7 @@ fragment float4 fragmentShader(
 
     if( in.texBlend > 0.5 )
     {
+        // Cutout: texel alpha from atlas upload; textureOpaque must match DashTexture::opaque.
         if( in.textureOpaque < 0.5 )
         {
             if( texColor.a < 0.5 )

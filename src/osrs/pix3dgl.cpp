@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <string.h>
 
 #ifndef M_PI
@@ -136,9 +137,8 @@ void main() {
         // vTextureOpaque == 0.0  →  texture has transparent regions (black = transparent).
         // vTextureOpaque == 1.0  →  texture is fully opaque (no transparent pixels).
         if (vTextureOpaque < 0.5) {
-            // Transparent texture: discard pixels whose alpha was set to 0 at upload time.
-            // Using the alpha channel directly is exact; luminance thresholds can discard
-            // valid dark-but-non-transparent pixels.
+            // Cutout path: texel alpha comes from cache upload (see pix3dgl_load_texture);
+            // DashTexture::opaque must agree or we discard too much / too little vs software.
             if (texColor.a < 0.5) {
                 discard;
             }
@@ -1139,6 +1139,9 @@ pix3dgl_model_load(
     texture_opaques.reserve((size_t)face_count * 3u);
     texture_anim_speeds.reserve((size_t)face_count * 3u);
 
+    int dbg_textured_faces_alpha0 = 0;
+    int dbg_faces_missing_atlas = 0;
+
     for( int face = 0; face < face_count; ++face )
     {
         bool visible = true;
@@ -1181,10 +1184,12 @@ pix3dgl_model_load(
         if( face_alphas_nullable )
         {
             int alpha_byte = face_alphas_nullable[face] & 0xFF;
-            if( face_textures_nullable && face_textures_nullable[face] != -1 )
-                face_alpha = alpha_byte / 255.0f;
-            else
-                face_alpha = (0xFF - alpha_byte) / 255.0f;
+            // Same encoding as face_alpha() / non-textured CPU raster (inverse byte).
+            // Textured CPU raster ignores face_alphas; raw byte/255 made alpha_byte==0 fully
+            // transparent in GL while software still drew the texture.
+            face_alpha = (0xFF - alpha_byte) / 255.0f;
+            if( face_textures_nullable && face_textures_nullable[face] != -1 && alpha_byte == 0 )
+                dbg_textured_faces_alpha0++;
         }
 
         int rgbs[3] = { rgb_a, rgb_b, rgb_c };
@@ -1210,6 +1215,7 @@ pix3dgl_model_load(
             }
             else
             {
+                dbg_faces_missing_atlas++;
                 texture_id = -1;
             }
         }
@@ -1295,6 +1301,25 @@ pix3dgl_model_load(
             texture_opaques.push_back(is_opaque);
             texture_anim_speeds.push_back(anim_speed);
         }
+    }
+
+    if( const char* dbg = std::getenv("PIX3DGL_DEBUG_FACE_ALPHA"); dbg && dbg[0] != '\0' &&
+        dbg[0] != '0' )
+    {
+        printf(
+            "Pix3DGL model_load idx=%d: textured_faces_with_stored_alpha0=%d (now opaque via "
+            "inverse encoding); faces_missing_atlas=%d\n",
+            model_idx,
+            dbg_textured_faces_alpha0,
+            dbg_faces_missing_atlas);
+    }
+    if( dbg_faces_missing_atlas > 0 )
+    {
+        printf(
+            "Pix3DGL model_load idx=%d: %d textured faces had no atlas entry (texture load after "
+            "model load, or missing TORIRS_GFX_TEXTURE_LOAD?).\n",
+            model_idx,
+            dbg_faces_missing_atlas);
     }
 
     glGenVertexArrays(1, &model.VAO);
