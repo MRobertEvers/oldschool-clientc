@@ -294,18 +294,32 @@ if(EMSCRIPTEN)
     )
 
     # Emscripten-specific Compile/Link flags
-    target_compile_options(web_client PUBLIC -sUSE_SDL=2)
+    target_compile_options(web_client PUBLIC 
+    -sUSE_SDL=2
+    "-mno-bulk-memory"
+    "-mno-reference-types"
+    "-mno-mutable-globals"
+    "-mno-sign-ext"
+    )
     target_link_options(web_client PRIVATE
         -sUSE_SDL=2
         -sWASM=1
         -sALLOW_MEMORY_GROWTH=1
+        -sALLOW_TABLE_GROWTH=1
+        -sINITIAL_TABLE=65536
         -sSTACK_SIZE=512kb
+        -sMODULARIZE=0
         -sNO_EXIT_RUNTIME=1
         -sASSERTions=1
+        -sEXPORT_ES6=0 
         --shell-file ${EM_SHELL_FILE}
         -sEXPORTED_FUNCTIONS=${EXPORTED_FUNC_STR}
         -sEXPORTED_RUNTIME_METHODS=${EXPORTED_METHODS_STR}
         --bind
+        "-mno-bulk-memory"
+    "-mno-reference-types"
+    "-mno-mutable-globals"
+    "-mno-sign-ext"
     )
 
     set(BROWSER_ASSETS

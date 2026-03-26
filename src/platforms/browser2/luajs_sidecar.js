@@ -445,7 +445,7 @@ export class LuaJSSidecar {
         searchParams.append("archive_id", args[1]);
         searchParams.append("flags", args[2]);
         const response = await fetch(
-          `http://localhost:8096/api/load_archive?${searchParams.toString()}`,
+          `http://${window.location.hostname}:8096/api/load_archive?${searchParams.toString()}`,
         );
         if (!response.ok) {
           return [];
@@ -488,7 +488,7 @@ export class LuaJSSidecar {
         }
 
         const response = await fetch(
-          "http://localhost:8096/api/load_archives",
+          `http://${window.location.hostname}:8096/api/load_archives`,
           {
             method: "POST",
             headers: {
@@ -541,7 +541,7 @@ export class LuaJSSidecar {
         const searchParams = new URLSearchParams();
         searchParams.append("path", args[0]);
         const response = await fetch(
-          `http://localhost:8096/api/load_config?${searchParams.toString()}`,
+          `http://${window.location.hostname}:8096/api/load_config?${searchParams.toString()}`,
         );
         if (!response.ok) {
           return [];
@@ -565,13 +565,16 @@ export class LuaJSSidecar {
           });
         }
 
-        const response = await fetch("http://localhost:8096/api/load_configs", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+        const response = await fetch(
+          `http://${window.location.hostname}:8096/api/load_configs`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(requests),
           },
-          body: JSON.stringify(requests),
-        });
+        );
 
         if (!response.ok) {
           return [];

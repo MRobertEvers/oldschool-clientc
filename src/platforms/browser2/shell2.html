@@ -4,6 +4,57 @@
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>RSClient Web</title>
+    <script>
+     (function() {
+    'use strict';
+
+    // Core logic for relative indexing
+    function at(index) {
+        // 1. Convert index to an integer
+        index = Math.trunc(index) || 0;
+        // 2. Handle negative indexing
+        if (index < 0) index += this.length;
+        // 3. Return undefined if out of bounds
+        if (index < 0 || index >= this.length) return undefined;
+        // 4. Return the element
+        return this[index];
+    }
+
+    // 1. Patch Array.prototype
+    if (!Array.prototype.at) {
+        Object.defineProperty(Array.prototype, 'at', {
+            value: at,
+            configurable: true,
+            writable: true
+        });
+        console.log("Polyfilled Array.prototype.at");
+    }
+
+    // 2. Patch String.prototype
+    if (!String.prototype.at) {
+        Object.defineProperty(String.prototype, 'at', {
+            value: at,
+            configurable: true,
+            writable: true
+        });
+        console.log("Polyfilled Array.prototype.at");
+    }
+
+    // 3. Patch TypedArray prototypes (Uint8Array, Float32Array, etc.)
+    // We get the hidden "TypedArray" base class by looking at Uint8Array's prototype
+    if (typeof window.Uint8Array !== 'undefined') {
+        var TypedArray = Object.getPrototypeOf(Uint8Array.prototype);
+        if (TypedArray && !TypedArray.at) {
+            Object.defineProperty(TypedArray, 'at', {
+                value: at,
+                configurable: true,
+                writable: true
+            });
+            console.log("Polyfilled TypedArray.prototype.at");
+        }
+    }
+})();
+    </script>
     <style>
       body {
         font-family: Tahoma, Geneva, sans-serif;
@@ -106,11 +157,7 @@
 
       var Module = {
         preRun: [],
-        postRun: [
-          function() {
-            window.ev
-          }
-        ],
+        postRun: [],
         print: (function() {
           return function(text) {
             if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
@@ -164,7 +211,7 @@
 
         function getWsUrl() {
           const params = new URLSearchParams(window.location.search);
-          return params.get('ws') || 'ws://localhost:43594';
+          return params.get('ws') || `ws://${window.location.hostname}:43594`;
         }
 
         function onRSClientReady(event) {
@@ -176,7 +223,7 @@
           netSidecar = new LibToriRSPlatformJS(Module, window.gamePtr);
           // When a script is not in IndexedDB, load it from this URL (e.g. node serve-lua-scripts.js)
           const luaSidecar = new LuaJSSidecar(Module, {
-            scriptBaseUrl: 'http://localhost:8081/'
+            scriptBaseUrl: `http://${window.location.hostname}:8081/`
           });
 
           // write a test.lua script to indexedDB for testing
