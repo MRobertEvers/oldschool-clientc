@@ -543,6 +543,133 @@ project_fast(
         near_clip);
 }
 
+static inline void
+project_fast_notex(
+    struct ProjectedVertex* projected_vertex,
+    int x,
+    int y,
+    int z,
+    int yaw_r2pi2048,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch_r2pi2048,
+    int camera_yaw_r2pi2048,
+    int fov_r2pi2048,
+    int near_clip,
+    int screen_width,
+    int screen_height)
+{
+    int cos_camera_pitch = g_cos_table[camera_pitch_r2pi2048];
+    int sin_camera_pitch = g_sin_table[camera_pitch_r2pi2048];
+    int cos_camera_yaw = g_cos_table[camera_yaw_r2pi2048];
+    int sin_camera_yaw = g_sin_table[camera_yaw_r2pi2048];
+
+    int x_rotated = x;
+    int z_rotated = z;
+    if( yaw_r2pi2048 != 0 )
+    {
+        int sin_yaw = g_sin_table[yaw_r2pi2048];
+        int cos_yaw = g_cos_table[yaw_r2pi2048];
+        x_rotated = x * cos_yaw + z * sin_yaw;
+        x_rotated >>= 16;
+        z_rotated = z * cos_yaw - x * sin_yaw;
+        z_rotated >>= 16;
+    }
+
+    x_rotated += scene_x;
+    int y_rotated = y + scene_y;
+    z_rotated += scene_z;
+
+    int x_scene = x_rotated * cos_camera_yaw + z_rotated * sin_camera_yaw;
+    x_scene >>= 16;
+    int z_scene = z_rotated * cos_camera_yaw - x_rotated * sin_camera_yaw;
+    z_scene >>= 16;
+
+    int y_scene = y_rotated * cos_camera_pitch - z_scene * sin_camera_pitch;
+    y_scene >>= 16;
+    int z_final_scene = y_rotated * sin_camera_pitch + z_scene * cos_camera_pitch;
+    z_final_scene >>= 16;
+
+    project_perspective_fast(
+        projected_vertex,
+        x_scene,
+        y_scene,
+        z_final_scene,
+        fov_r2pi2048,
+        near_clip);
+}
+
+static inline struct ProjectedVertex
+project_notex(
+    int x,
+    int y,
+    int z,
+    int pitch,
+    int yaw,
+    int roll,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll,
+    int fov,
+    int near_clip,
+    int screen_width,
+    int screen_height)
+{
+    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int sin_camera_pitch = g_sin_table[camera_pitch];
+    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int sin_camera_yaw = g_sin_table[camera_yaw];
+    int cos_camera_roll = g_cos_table[camera_roll];
+    int sin_camera_roll = g_sin_table[camera_roll];
+
+    int sin_pitch = g_sin_table[pitch];
+    int cos_pitch = g_cos_table[pitch];
+    int sin_yaw = g_sin_table[yaw];
+    int cos_yaw = g_cos_table[yaw];
+    int sin_roll = g_sin_table[roll];
+    int cos_roll = g_cos_table[roll];
+
+    int x_rotated = x * cos_yaw + z * sin_yaw;
+    x_rotated >>= 16;
+    int z_rotated = z * cos_yaw - x * sin_yaw;
+    z_rotated >>= 16;
+
+    int y_rotated = y * cos_pitch - z_rotated * sin_pitch;
+    y_rotated >>= 16;
+    int z_rotated2 = y * sin_pitch + z_rotated * cos_pitch;
+    z_rotated2 >>= 16;
+
+    int x_final = x_rotated * cos_roll + y_rotated * sin_roll;
+    x_final >>= 16;
+    int y_final = y_rotated * cos_roll - x_rotated * sin_roll;
+    y_final >>= 16;
+
+    x_final += scene_x;
+    y_final += scene_y;
+    z_rotated2 += scene_z;
+
+    int x_scene = x_final * cos_camera_yaw + z_rotated2 * sin_camera_yaw;
+    x_scene >>= 16;
+    int z_scene = z_rotated2 * cos_camera_yaw - x_final * sin_camera_yaw;
+    z_scene >>= 16;
+
+    int y_scene = y_final * cos_camera_pitch - z_scene * sin_camera_pitch;
+    y_scene >>= 16;
+    int z_final_scene = y_final * sin_camera_pitch + z_scene * cos_camera_pitch;
+    z_final_scene >>= 16;
+
+    int x_final_scene = x_scene * cos_camera_roll + y_scene * sin_camera_roll;
+    x_final_scene >>= 16;
+    int y_final_scene = y_scene * cos_camera_roll - x_scene * sin_camera_roll;
+    y_final_scene >>= 16;
+
+    return project_perspective(x_final_scene, y_final_scene, z_final_scene, fov, near_clip);
+}
+
 // #include <arm_neon.h>
 // /**
 //  * I checked this on 09/15/2025, the normal code does get vectorized on Mac, using arm neon.
