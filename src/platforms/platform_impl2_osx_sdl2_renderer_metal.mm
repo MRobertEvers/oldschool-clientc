@@ -832,8 +832,10 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
     // Sync initial drawable size
     sync_drawable_size(renderer);
 
-    // Pre-allocate the reusable sprite quad vertex buffer (6 verts × (float2 pos + float2 uv)).
-    id<MTLBuffer> sqb = [device newBufferWithLength:(NSUInteger)(6 * 4 * sizeof(float))
+    // Pre-allocate a sprite quad vertex buffer large enough for 4096 sprites per frame.
+    // Each sprite occupies one slot: 6 verts × (float2 pos + float2 uv) = 96 bytes.
+    // Using per-slot offsets avoids overwriting data before the GPU executes.
+    id<MTLBuffer> sqb = [device newBufferWithLength:(NSUInteger)(4096 * 6 * 4 * sizeof(float))
                                             options:MTLResourceStorageModeShared];
     renderer->mtl_sprite_quad_buf = (__bridge_retained void*)sqb;
 
@@ -1250,6 +1252,9 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
         [encoder setCullMode:MTLCullModeNone];
 
         id<MTLBuffer> spriteQuadBuf = (__bridge id<MTLBuffer>)renderer->mtl_sprite_quad_buf;
+        // Each sprite occupies a unique slot so the GPU sees distinct data per draw call.
+        static const NSUInteger kSpriteSlotBytes = 6 * 4 * sizeof(float); // 96 bytes
+        NSUInteger spriteSlot = 0;
 
         for( const auto& sc : sprite_cmds )
         {
@@ -1311,13 +1316,15 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
                 c0x, c0y, 0.0f, 0.0f, c2x, c2y, 1.0f, 1.0f, c3x, c3y, 0.0f, 1.0f,
             };
 
-            memcpy(spriteQuadBuf.contents, verts, sizeof(verts));
-            [encoder setVertexBuffer:spriteQuadBuf offset:0 atIndex:0];
+            NSUInteger slotOffset = spriteSlot * kSpriteSlotBytes;
+            memcpy((char*)spriteQuadBuf.contents + slotOffset, verts, sizeof(verts));
+            [encoder setVertexBuffer:spriteQuadBuf offset:slotOffset atIndex:0];
             [encoder setFragmentTexture:spriteTex atIndex:0];
             [encoder setFragmentSamplerState:uiSampler atIndex:0];
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle
                         vertexStart:0
                         vertexCount:6];
+            ++spriteSlot;
         }
     }
 
