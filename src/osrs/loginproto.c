@@ -200,7 +200,7 @@ loginproto_poll(struct LoginProto* loginproto)
         for( int i = 0; i < 9; i++ )
             p4(&out, loginproto->jag_checksum[i]);
 
-        pwrite(&out, out_encrypted.data, encrypted_len);
+        pbuf(&out, out_encrypted.data, encrypted_len);
 
         ringbuf_write(loginproto->out, loginproto->tempout, out.position);
 

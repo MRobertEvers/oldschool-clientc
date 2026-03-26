@@ -1,5 +1,4 @@
-// System ObjC/Metal headers must come before any game headers to avoid
-// the rsbuf.h #define pwrite macro colliding with unistd.h's declaration.
+// System ObjC/Metal headers must come before any game headers.
 #include "platform_impl2_osx_sdl2_renderer_metal.h"
 
 #include "imgui.h"

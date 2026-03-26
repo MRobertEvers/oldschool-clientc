@@ -122,6 +122,6 @@ rsbuf_pwrite(
 
 #define gparams(buffer, params) rsbuf_read_params(buffer, params)
 #define greadto(buffer, out, out_size, len) rsbuf_readto(buffer, out, out_size, len)
-#define pwrite(buffer, data, data_size) rsbuf_pwrite(buffer, data, data_size)
+#define pbuf(buffer, data, data_size) rsbuf_pwrite(buffer, data, data_size)
 
 #endif
