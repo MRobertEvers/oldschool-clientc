@@ -170,7 +170,7 @@ attribute float aTextureAnimSpeed;
 uniform mat4 uViewMatrix;       // Precomputed on CPU
 uniform mat4 uProjectionMatrix; // Precomputed on CPU
 uniform mat4 uModelMatrix;      // Per-model transformation
-uniform mediump float uClock;   // Animation clock
+uniform highp float uClock;   // Animation clock
 
 varying vec4 vColor;
 varying highp vec2 vTexCoord;
@@ -1343,12 +1343,12 @@ pix3dgl_end_2dframe(struct Pix3DGL* pix3dgl)
             memset(ortho, 0, sizeof(ortho));
             const float w = (float)pix3dgl->sprite_batch_fb_width;
             const float h = (float)pix3dgl->sprite_batch_fb_height;
-            ortho[0]  =  2.0f / w;
-            ortho[5]  = -2.0f / h;
+            ortho[0] = 2.0f / w;
+            ortho[5] = -2.0f / h;
             ortho[10] = -1.0f;
             ortho[12] = -1.0f;
-            ortho[13] =  1.0f;
-            ortho[15] =  1.0f;
+            ortho[13] = 1.0f;
+            ortho[15] = 1.0f;
             glUniformMatrix4fv(pix3dgl->uniform_ui_projection, 1, GL_FALSE, ortho);
         }
 
