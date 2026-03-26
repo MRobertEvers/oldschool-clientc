@@ -936,85 +936,18 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
     [encoder setViewport:metalVp];
 
     // -----------------------------------------------------------------------
-    // Drain the render command buffer (three-pass, same as OpenGL3 renderer)
+    // Drain the render command buffer inline (streaming, no pre-cache).
+    // FrameNextCommand projects each model (project_models=true); the resulting
+    // sys_dash state is consumed immediately by dash3d_prepare_projected_face_order
+    // so no second projection is needed.  Sprite draws require a different Metal
+    // pipeline state and must come after all model draws, so they are deferred.
     // -----------------------------------------------------------------------
     LibToriRS_FrameBegin(game, render_command_buffer);
 
-    static std::vector<ToriRSRenderCommand> commands;
-    commands.clear();
-    {
-        struct ToriRSRenderCommand cmd = { 0 };
-        while( LibToriRS_FrameNextCommand(game, render_command_buffer, &cmd, false) )
-            commands.push_back(cmd);
-    }
+    static std::vector<ToriRSRenderCommand> sprite_cmds;
+    sprite_cmds.clear();
 
-    const int total_commands = (int)commands.size();
-
-    // Pass 1: texture loads
-    for( int i = 0; i < total_commands; ++i )
-    {
-        const ToriRSRenderCommand* cmd = &commands[i];
-        if( cmd->kind != TORIRS_GFX_TEXTURE_LOAD )
-            continue;
-
-        const int tex_id = cmd->_texture_load.texture_id;
-        renderer->loaded_texture_ids.insert(tex_id);
-        struct DashTexture* tex = cmd->_texture_load.texture_nullable;
-        if( !tex || !tex->texels )
-            continue;
-
-        // Create/replace Metal texture
-        if( renderer->texture_by_id.count(tex_id) && renderer->texture_by_id[tex_id] )
-            CFRelease(renderer->texture_by_id[tex_id]);
-
-        renderer->texture_anim_speed_by_id[tex_id] =
-            metal_texture_animation_signed(tex->animation_direction, tex->animation_speed);
-        renderer->texture_opaque_by_id[tex_id] = tex->opaque;
-
-        const int w = tex->width;
-        const int h = tex->height;
-        std::vector<uint8_t> rgba((size_t)w * (size_t)h * 4u);
-        for( int p = 0; p < w * h; ++p )
-        {
-            int pix = tex->texels[p];
-            rgba[(size_t)p * 4u + 0] = (uint8_t)((pix >> 16) & 0xFF);
-            rgba[(size_t)p * 4u + 1] = (uint8_t)((pix >> 8) & 0xFF);
-            rgba[(size_t)p * 4u + 2] = (uint8_t)(pix & 0xFF);
-            rgba[(size_t)p * 4u + 3] = (uint8_t)((pix >> 24) & 0xFF);
-        }
-
-        MTLTextureDescriptor* texDesc =
-            [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
-                                                               width:(NSUInteger)w
-                                                              height:(NSUInteger)h
-                                                           mipmapped:NO];
-        texDesc.usage       = MTLTextureUsageShaderRead;
-        texDesc.storageMode = MTLStorageModeShared;
-        id<MTLTexture> mtlTex = [device newTextureWithDescriptor:texDesc];
-        [mtlTex replaceRegion:MTLRegionMake2D(0, 0, w, h)
-                  mipmapLevel:0
-                    withBytes:rgba.data()
-                  bytesPerRow:(NSUInteger)w * 4];
-        renderer->texture_by_id[tex_id] = (__bridge_retained void*)mtlTex;
-    }
-
-    // Pass 2: model loads — record cache keys (vertex buffers are built per-draw)
-    for( int i = 0; i < total_commands; ++i )
-    {
-        const ToriRSRenderCommand* cmd = &commands[i];
-        if( cmd->kind != TORIRS_GFX_MODEL_LOAD )
-            continue;
-
-        struct DashModel* model = cmd->_model_load.model;
-        if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
-            !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
-            !model->face_indices_c || model->face_count <= 0 )
-            continue;
-
-        preload_model_key(renderer, model);
-    }
-
-    // Pass 3: model draws — batch by texture id so each draw has one bound texture (like atlas).
+    // Pass 1 + 2 + 3 collapsed into a single streaming loop.
     static std::vector<MetalVertex> batch_verts;
     batch_verts.clear();
     int batch_tex_id = -0x7fffffff; // sentinel: force first flush path
@@ -1052,78 +985,144 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
         batch_verts.clear();
     };
 
-    for( int i = 0; i < total_commands; ++i )
     {
-        const ToriRSRenderCommand* cmd = &commands[i];
-        if( cmd->kind != TORIRS_GFX_MODEL_DRAW )
-            continue;
-
-        struct DashModel* model = cmd->_model_draw.model;
-        if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
-            !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
-            !model->face_indices_c || model->face_count <= 0 )
-            continue;
-
-        preload_model_key(renderer, model);
-
-        struct DashPosition draw_position = cmd->_model_draw.position;
-        const int cull = dash3d_project_model(
-            game->sys_dash, model, &draw_position, game->view_port, game->camera);
-        if( cull != DASHCULL_VISIBLE )
-            continue;
-
-        int face_order_count = dash3d_prepare_projected_face_order(
-            game->sys_dash, model, &draw_position, game->view_port, game->camera);
-        const int* face_order = dash3d_projected_face_order(game->sys_dash, &face_order_count);
-
-        const float yaw_rad = (draw_position.yaw * 2.0f * (float)M_PI) / 2048.0f;
-        const float cos_yaw = cosf(yaw_rad);
-        const float sin_yaw = sinf(yaw_rad);
-
-        renderer->debug_model_draws++;
-        for( int fi = 0; fi < face_order_count; ++fi )
+        struct ToriRSRenderCommand cmd = { 0 };
+        while( LibToriRS_FrameNextCommand(game, render_command_buffer, &cmd, true) )
         {
-            const int f = face_order ? face_order[fi] : fi;
-            if( f < 0 || f >= model->face_count )
-                continue;
-
-            int raw_tex = model->face_textures ? model->face_textures[f] : -1;
-            int eff_tex = raw_tex;
-            if( eff_tex >= 0 && renderer->texture_by_id.find(eff_tex) == renderer->texture_by_id.end() )
-                eff_tex = -1;
-
-            float anim_spd = 0.0f;
-            bool tex_opaque = true;
-            if( eff_tex >= 0 )
+            switch( cmd.kind )
             {
-                auto as_it = renderer->texture_anim_speed_by_id.find(eff_tex);
-                if( as_it != renderer->texture_anim_speed_by_id.end() )
-                    anim_spd = as_it->second;
-                auto op_it = renderer->texture_opaque_by_id.find(eff_tex);
-                if( op_it != renderer->texture_opaque_by_id.end() )
-                    tex_opaque = op_it->second;
+            case TORIRS_GFX_TEXTURE_LOAD:
+            {
+                const int tex_id = cmd._texture_load.texture_id;
+                renderer->loaded_texture_ids.insert(tex_id);
+                struct DashTexture* tex = cmd._texture_load.texture_nullable;
+                if( !tex || !tex->texels )
+                    break;
+
+                if( renderer->texture_by_id.count(tex_id) && renderer->texture_by_id[tex_id] )
+                    CFRelease(renderer->texture_by_id[tex_id]);
+
+                renderer->texture_anim_speed_by_id[tex_id] =
+                    metal_texture_animation_signed(tex->animation_direction, tex->animation_speed);
+                renderer->texture_opaque_by_id[tex_id] = tex->opaque;
+
+                const int w = tex->width;
+                const int h = tex->height;
+                std::vector<uint8_t> rgba((size_t)w * (size_t)h * 4u);
+                for( int p = 0; p < w * h; ++p )
+                {
+                    int pix = tex->texels[p];
+                    rgba[(size_t)p * 4u + 0] = (uint8_t)((pix >> 16) & 0xFF);
+                    rgba[(size_t)p * 4u + 1] = (uint8_t)((pix >> 8) & 0xFF);
+                    rgba[(size_t)p * 4u + 2] = (uint8_t)(pix & 0xFF);
+                    rgba[(size_t)p * 4u + 3] = (uint8_t)((pix >> 24) & 0xFF);
+                }
+
+                MTLTextureDescriptor* texDesc =
+                    [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                       width:(NSUInteger)w
+                                                                      height:(NSUInteger)h
+                                                                   mipmapped:NO];
+                texDesc.usage       = MTLTextureUsageShaderRead;
+                texDesc.storageMode = MTLStorageModeShared;
+                id<MTLTexture> mtlTex = [device newTextureWithDescriptor:texDesc];
+                [mtlTex replaceRegion:MTLRegionMake2D(0, 0, w, h)
+                          mipmapLevel:0
+                            withBytes:rgba.data()
+                          bytesPerRow:(NSUInteger)w * 4];
+                renderer->texture_by_id[tex_id] = (__bridge_retained void*)mtlTex;
+                break;
             }
 
-            const int batch_key = eff_tex;
-            if( !batch_verts.empty() && batch_key != batch_tex_id )
-                flush_batch();
-            batch_tex_id = batch_key;
+            case TORIRS_GFX_MODEL_LOAD:
+            {
+                struct DashModel* model = cmd._model_load.model;
+                if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
+                    !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
+                    !model->face_indices_c || model->face_count <= 0 )
+                    break;
+                preload_model_key(renderer, model);
+                break;
+            }
 
-            const size_t before = batch_verts.size();
-            append_model_face_vertices(
-                model,
-                f,
-                (float)draw_position.x,
-                (float)draw_position.y,
-                (float)draw_position.z,
-                cos_yaw,
-                sin_yaw,
-                eff_tex,
-                anim_spd,
-                tex_opaque,
-                batch_verts);
-            if( batch_verts.size() == before )
-                continue;
+            case TORIRS_GFX_MODEL_DRAW:
+            {
+                struct DashModel* model = cmd._model_draw.model;
+                if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
+                    !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
+                    !model->face_indices_c || model->face_count <= 0 )
+                    break;
+
+                preload_model_key(renderer, model);
+
+                /* FrameNextCommand already projected this model (project_models=true).
+                 * The sys_dash projection state is still valid — use it directly. */
+                struct DashPosition draw_position = cmd._model_draw.position;
+                int face_order_count = dash3d_prepare_projected_face_order(
+                    game->sys_dash, model, &draw_position, game->view_port, game->camera);
+                const int* face_order =
+                    dash3d_projected_face_order(game->sys_dash, &face_order_count);
+
+                const float yaw_rad = (draw_position.yaw * 2.0f * (float)M_PI) / 2048.0f;
+                const float cos_yaw = cosf(yaw_rad);
+                const float sin_yaw = sinf(yaw_rad);
+
+                renderer->debug_model_draws++;
+                for( int fi = 0; fi < face_order_count; ++fi )
+                {
+                    const int f = face_order ? face_order[fi] : fi;
+                    if( f < 0 || f >= model->face_count )
+                        continue;
+
+                    int raw_tex = model->face_textures ? model->face_textures[f] : -1;
+                    int eff_tex = raw_tex;
+                    if( eff_tex >= 0 &&
+                        renderer->texture_by_id.find(eff_tex) == renderer->texture_by_id.end() )
+                        eff_tex = -1;
+
+                    float anim_spd = 0.0f;
+                    bool tex_opaque = true;
+                    if( eff_tex >= 0 )
+                    {
+                        auto as_it = renderer->texture_anim_speed_by_id.find(eff_tex);
+                        if( as_it != renderer->texture_anim_speed_by_id.end() )
+                            anim_spd = as_it->second;
+                        auto op_it = renderer->texture_opaque_by_id.find(eff_tex);
+                        if( op_it != renderer->texture_opaque_by_id.end() )
+                            tex_opaque = op_it->second;
+                    }
+
+                    const int batch_key = eff_tex;
+                    if( !batch_verts.empty() && batch_key != batch_tex_id )
+                        flush_batch();
+                    batch_tex_id = batch_key;
+
+                    const size_t before = batch_verts.size();
+                    append_model_face_vertices(
+                        model,
+                        f,
+                        (float)draw_position.x,
+                        (float)draw_position.y,
+                        (float)draw_position.z,
+                        cos_yaw,
+                        sin_yaw,
+                        eff_tex,
+                        anim_spd,
+                        tex_opaque,
+                        batch_verts);
+                    if( batch_verts.size() == before )
+                        continue;
+                }
+                break;
+            }
+
+            case TORIRS_GFX_SPRITE_DRAW:
+                sprite_cmds.push_back(cmd);
+                break;
+
+            default:
+                break;
+            }
         }
     }
     flush_batch();
@@ -1148,12 +1147,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
         [encoder setDepthStencilState:dsState];
         [encoder setCullMode:MTLCullModeNone];
 
-        for( int i = 0; i < total_commands; ++i )
+        for( const auto& sc : sprite_cmds )
         {
-            const ToriRSRenderCommand* cmd = &commands[i];
-            if( cmd->kind != TORIRS_GFX_SPRITE_DRAW )
+            if( sc.kind != TORIRS_GFX_SPRITE_DRAW )
                 continue;
-            struct DashSprite* sp = cmd->_sprite_draw.sprite;
+            struct DashSprite* sp = sc._sprite_draw.sprite;
             if( !sp || !sp->pixels_argb || sp->width <= 0 || sp->height <= 0 )
                 continue;
 
@@ -1184,8 +1182,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
                            withBytes:rgba.data()
                          bytesPerRow:(NSUInteger)tw * 4u];
 
-            const int dst_x = cmd->_sprite_draw.x + sp->crop_x;
-            const int dst_y = cmd->_sprite_draw.y + sp->crop_y;
+            const int dst_x = sc._sprite_draw.x + sp->crop_x;
+            const int dst_y = sc._sprite_draw.y + sp->crop_y;
             const float w   = (float)tw;
             const float h   = (float)th;
             const float x0  = (float)dst_x;
@@ -1195,7 +1193,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
             const float cx  = 0.5f * (x0 + x1);
             const float cy  = 0.5f * (y0 + y1);
             const float angle =
-                (float)(cmd->_sprite_draw.rotation_r2pi2048 * (2.0 * M_PI) / 2048.0);
+                (float)(sc._sprite_draw.rotation_r2pi2048 * (2.0 * M_PI) / 2048.0);
             const float ca = cosf(angle);
             const float sa = sinf(angle);
             const float hw = 0.5f * w;

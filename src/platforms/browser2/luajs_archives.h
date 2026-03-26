@@ -1,7 +1,6 @@
 #ifndef LUAJS_ARCHIVES_H
 #define LUAJS_ARCHIVES_H
 
-#include "osrs/lua_sidecar/lua_configfile.h"
 #include "osrs/rscache/cache_dat.h"
 
 #ifdef __cplusplus

@@ -285,7 +285,7 @@ if(EMSCRIPTEN)
         src/platforms/browser2/luajs_sidecar.c
         src/platforms/browser2/luajs_gametypes.c
         src/platforms/browser2/luajs_archives.c
-        src/platforms/browser2/luajs_configfiles.c
+        src/platforms/browser2/luajs_configs.c
         src/platforms/browser2/netjs.c
         src/imgui/imgui_impl_sdl2.cpp
         src/imgui/imgui_impl_sdlrenderer2.cpp

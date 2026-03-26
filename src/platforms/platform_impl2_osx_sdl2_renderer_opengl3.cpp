@@ -352,166 +352,164 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
 
     LibToriRS_FrameBegin(game, render_command_buffer);
 
-    static std::vector<ToriRSRenderCommand> commands;
-    commands.clear();
+    /* Sprite commands must be deferred until after pix3dgl_end_3dframe. Everything else
+     * (texture loads, model loads, model draws) is processed inline so that the projection
+     * result written into sys_dash by FrameNextCommand (project_models=true) can be consumed
+     * immediately by dash3d_prepare_projected_face_order without a second project call. */
+    static std::vector<ToriRSRenderCommand> sprite_cmds;
+    sprite_cmds.clear();
+
     {
         struct ToriRSRenderCommand cmd = { 0 };
-        while( LibToriRS_FrameNextCommand(game, render_command_buffer, &cmd, false) )
+        while( LibToriRS_FrameNextCommand(game, render_command_buffer, &cmd, true) )
         {
-            commands.push_back(cmd);
-        }
-    }
-
-    int total_commands = (int)commands.size();
-
-    for( int i = 0; i < total_commands; i++ )
-    {
-        const ToriRSRenderCommand* cmd = &commands[i];
-        if( cmd->kind != TORIRS_GFX_TEXTURE_LOAD )
-            continue;
-
-        renderer->loaded_texture_ids.insert(cmd->_texture_load.texture_id);
-        struct DashTexture* texture = cmd->_texture_load.texture_nullable;
-        if( texture && texture->texels )
-        {
-            pix3dgl_load_texture(
-                renderer->pix3dgl,
-                cmd->_texture_load.texture_id,
-                texture->texels,
-                texture->width,
-                texture->height,
-                texture->animation_direction,
-                texture->animation_speed,
-                texture->opaque);
-        }
-    }
-
-    for( int i = 0; i < total_commands; i++ )
-    {
-        const ToriRSRenderCommand* cmd = &commands[i];
-        if( cmd->kind == TORIRS_GFX_MODEL_LOAD )
-        {
-            struct DashModel* model = cmd->_model_load.model;
-            if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
-                !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
-                !model->face_indices_c || model->face_count <= 0 )
+            switch( cmd.kind )
             {
-                continue;
+            case TORIRS_GFX_TEXTURE_LOAD:
+            {
+                renderer->loaded_texture_ids.insert(cmd._texture_load.texture_id);
+                struct DashTexture* texture = cmd._texture_load.texture_nullable;
+                if( texture && texture->texels )
+                {
+                    pix3dgl_load_texture(
+                        renderer->pix3dgl,
+                        cmd._texture_load.texture_id,
+                        texture->texels,
+                        texture->width,
+                        texture->height,
+                        texture->animation_direction,
+                        texture->animation_speed,
+                        texture->opaque);
+                }
+                break;
             }
 
-            uintptr_t model_key = model_gpu_cache_key(model);
-            renderer->loaded_model_keys.insert(model_key);
-            if( renderer->model_index_by_key.find(model_key) == renderer->model_index_by_key.end() )
+            case TORIRS_GFX_MODEL_LOAD:
             {
-                int model_idx = renderer->next_model_index++;
-                renderer->model_index_by_key[model_key] = model_idx;
-                pix3dgl_model_load(
+                struct DashModel* model = cmd._model_load.model;
+                if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
+                    !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
+                    !model->face_indices_c || model->face_count <= 0 )
+                {
+                    break;
+                }
+                uintptr_t model_key = model_gpu_cache_key(model);
+                renderer->loaded_model_keys.insert(model_key);
+                if( renderer->model_index_by_key.find(model_key) ==
+                    renderer->model_index_by_key.end() )
+                {
+                    int model_idx = renderer->next_model_index++;
+                    renderer->model_index_by_key[model_key] = model_idx;
+                    pix3dgl_model_load(
+                        renderer->pix3dgl,
+                        model_idx,
+                        model->vertices_x,
+                        model->vertices_y,
+                        model->vertices_z,
+                        model->face_indices_a,
+                        model->face_indices_b,
+                        model->face_indices_c,
+                        model->face_count,
+                        model->face_textures,
+                        model->face_texture_coords,
+                        model->textured_p_coordinate,
+                        model->textured_m_coordinate,
+                        model->textured_n_coordinate,
+                        model->lighting->face_colors_hsl_a,
+                        model->lighting->face_colors_hsl_b,
+                        model->lighting->face_colors_hsl_c,
+                        model->face_infos,
+                        model->face_alphas);
+                }
+                break;
+            }
+
+            case TORIRS_GFX_MODEL_DRAW:
+            {
+                struct DashModel* model = cmd._model_draw.model;
+                if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
+                    !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
+                    !model->face_indices_c || model->face_count <= 0 )
+                {
+                    break;
+                }
+
+                uintptr_t model_key = model_gpu_cache_key(model);
+                auto it = renderer->model_index_by_key.find(model_key);
+                if( it == renderer->model_index_by_key.end() )
+                {
+                    int model_idx = renderer->next_model_index++;
+                    renderer->model_index_by_key[model_key] = model_idx;
+                    renderer->loaded_model_keys.insert(model_key);
+                    pix3dgl_model_load(
+                        renderer->pix3dgl,
+                        model_idx,
+                        model->vertices_x,
+                        model->vertices_y,
+                        model->vertices_z,
+                        model->face_indices_a,
+                        model->face_indices_b,
+                        model->face_indices_c,
+                        model->face_count,
+                        model->face_textures,
+                        model->face_texture_coords,
+                        model->textured_p_coordinate,
+                        model->textured_m_coordinate,
+                        model->textured_n_coordinate,
+                        model->lighting->face_colors_hsl_a,
+                        model->lighting->face_colors_hsl_b,
+                        model->lighting->face_colors_hsl_c,
+                        model->face_infos,
+                        model->face_alphas);
+                    it = renderer->model_index_by_key.find(model_key);
+                }
+
+                /* FrameNextCommand already projected this model (project_models=true).
+                 * The sys_dash projection state is still valid — use it directly. */
+                struct DashPosition draw_position = cmd._model_draw.position;
+                int face_order_count = dash3d_prepare_projected_face_order(
+                    game->sys_dash, model, &draw_position, game->view_port, game->camera);
+                const int* face_order =
+                    dash3d_projected_face_order(game->sys_dash, &face_order_count);
+                pix3dgl_model_draw_ordered(
                     renderer->pix3dgl,
-                    model_idx,
-                    model->vertices_x,
-                    model->vertices_y,
-                    model->vertices_z,
-                    model->face_indices_a,
-                    model->face_indices_b,
-                    model->face_indices_c,
-                    model->face_count,
-                    model->face_textures,
-                    model->face_texture_coords,
-                    model->textured_p_coordinate,
-                    model->textured_m_coordinate,
-                    model->textured_n_coordinate,
-                    model->lighting->face_colors_hsl_a,
-                    model->lighting->face_colors_hsl_b,
-                    model->lighting->face_colors_hsl_c,
-                    model->face_infos,
-                    model->face_alphas);
+                    it->second,
+                    (float)draw_position.x,
+                    (float)draw_position.y,
+                    (float)draw_position.z,
+                    yaw_to_radians(draw_position.yaw),
+                    face_order,
+                    face_order_count);
+                break;
+            }
+
+            case TORIRS_GFX_SPRITE_LOAD:
+            case TORIRS_GFX_SPRITE_UNLOAD:
+            case TORIRS_GFX_SPRITE_DRAW:
+                sprite_cmds.push_back(cmd);
+                break;
+
+            default:
+                break;
             }
         }
-    }
-
-    int model_draw_count = 0;
-    for( int i = 0; i < total_commands; i++ )
-    {
-        const ToriRSRenderCommand* cmd = &commands[i];
-        if( cmd->kind != TORIRS_GFX_MODEL_DRAW )
-            continue;
-
-        model_draw_count++;
-        struct DashModel* model = cmd->_model_draw.model;
-        if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
-            !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
-            !model->face_indices_c || model->face_count <= 0 )
-        {
-            continue;
-        }
-
-        uintptr_t model_key = model_gpu_cache_key(model);
-        auto it = renderer->model_index_by_key.find(model_key);
-        if( it == renderer->model_index_by_key.end() )
-        {
-            int model_idx = renderer->next_model_index++;
-            renderer->model_index_by_key[model_key] = model_idx;
-            renderer->loaded_model_keys.insert(model_key);
-            pix3dgl_model_load(
-                renderer->pix3dgl,
-                model_idx,
-                model->vertices_x,
-                model->vertices_y,
-                model->vertices_z,
-                model->face_indices_a,
-                model->face_indices_b,
-                model->face_indices_c,
-                model->face_count,
-                model->face_textures,
-                model->face_texture_coords,
-                model->textured_p_coordinate,
-                model->textured_m_coordinate,
-                model->textured_n_coordinate,
-                model->lighting->face_colors_hsl_a,
-                model->lighting->face_colors_hsl_b,
-                model->lighting->face_colors_hsl_c,
-                model->face_infos,
-                model->face_alphas);
-            it = renderer->model_index_by_key.find(model_key);
-        }
-
-        struct DashPosition draw_position = cmd->_model_draw.position;
-        const int cull = dash3d_project_model(
-            game->sys_dash, model, &draw_position, game->view_port, game->camera);
-        if( cull != DASHCULL_VISIBLE )
-            continue;
-
-        int face_order_count = dash3d_prepare_projected_face_order(
-            game->sys_dash, model, &draw_position, game->view_port, game->camera);
-
-        const int* face_order = dash3d_projected_face_order(game->sys_dash, &face_order_count);
-        pix3dgl_model_draw_ordered(
-            renderer->pix3dgl,
-            it->second,
-            (float)draw_position.x,
-            (float)draw_position.y,
-            (float)draw_position.z,
-            yaw_to_radians(draw_position.yaw),
-            face_order,
-            face_order_count);
     }
 
     glViewport(world_viewport.x, world_viewport.y, world_viewport.width, world_viewport.height);
     pix3dgl_end_3dframe(renderer->pix3dgl);
 
     /* Process sprite loads and unloads (update GPU texture cache). */
-    for( int i = 0; i < total_commands; i++ )
+    for( const auto& sc : sprite_cmds )
     {
-        const ToriRSRenderCommand* cmd = &commands[i];
-        if( cmd->kind == TORIRS_GFX_SPRITE_LOAD )
+        if( sc.kind == TORIRS_GFX_SPRITE_LOAD )
         {
-            struct DashSprite* sp = cmd->_sprite_load.sprite;
+            struct DashSprite* sp = sc._sprite_load.sprite;
             if( sp )
                 pix3dgl_sprite_load(renderer->pix3dgl, sp);
         }
-        else if( cmd->kind == TORIRS_GFX_SPRITE_UNLOAD )
+        else if( sc.kind == TORIRS_GFX_SPRITE_UNLOAD )
         {
-            struct DashSprite* sp = cmd->_sprite_load.sprite;
+            struct DashSprite* sp = sc._sprite_load.sprite;
             if( sp )
                 pix3dgl_sprite_unload(renderer->pix3dgl, sp);
         }
@@ -519,12 +517,11 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
 
     glViewport(0, 0, renderer->width, renderer->height);
     pix3dgl_begin_2dframe(renderer->pix3dgl);
-    for( int i = 0; i < total_commands; i++ )
+    for( const auto& sc : sprite_cmds )
     {
-        const ToriRSRenderCommand* cmd = &commands[i];
-        if( cmd->kind != TORIRS_GFX_SPRITE_DRAW )
+        if( sc.kind != TORIRS_GFX_SPRITE_DRAW )
             continue;
-        struct DashSprite* sp = cmd->_sprite_draw.sprite;
+        struct DashSprite* sp = sc._sprite_draw.sprite;
         if( !sp )
             continue;
         /* Sprite coordinates are authored in logical screen space (e.g. points), but the GL
@@ -533,11 +530,11 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
         pix3dgl_sprite_draw(
             renderer->pix3dgl,
             sp,
-            cmd->_sprite_draw.x,
-            cmd->_sprite_draw.y,
+            sc._sprite_draw.x,
+            sc._sprite_draw.y,
             window_width,
             window_height,
-            cmd->_sprite_draw.rotation_r2pi2048);
+            sc._sprite_draw.rotation_r2pi2048);
     }
     pix3dgl_end_2dframe(renderer->pix3dgl);
 

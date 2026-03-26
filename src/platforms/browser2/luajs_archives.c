@@ -1,6 +1,5 @@
 #include "luajs_archives.h"
-
-#include <emscripten.h>
+#include "luajs_emscripten_compat.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>

@@ -14,6 +14,8 @@ CFLAGS = -Wall -Wextra -g -I$(PROJECT_ROOT) -I.
 
 # 3. List Sources with absolute/relative paths
 SRCS = datserver.c \
+	   $(PROJECT_ROOT)/platforms/browser2/luajs_archives.c \
+	   $(PROJECT_ROOT)/platforms/browser2/luajs_configs.c \
 	   $(PROJECT_ROOT)/bmp.c \
 	   $(PROJECT_ROOT)/graphics/dash.c \
        $(PROJECT_ROOT)/graphics/dashmap.c \
@@ -27,7 +29,6 @@ SRCS = datserver.c \
        $(PROJECT_ROOT)/osrs/palette.c \
        $(PROJECT_ROOT)/osrs/dash_utils.c \
        $(PROJECT_ROOT)/osrs/gio_cache_dat.c \
-       $(PROJECT_ROOT)/osrs/gio.c \
        $(PROJECT_ROOT)/osrs/rscache/disk.c \
        $(PROJECT_ROOT)/osrs/rscache/cache.c \
        $(PROJECT_ROOT)/osrs/rscache/archive.c \

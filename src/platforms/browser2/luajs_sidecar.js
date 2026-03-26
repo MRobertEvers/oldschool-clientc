@@ -28,9 +28,7 @@ const MULTIPART_HEADER_SEP = new Uint8Array([0x0d, 0x0a, 0x0d, 0x0a]);
  * @returns {{ headers: string, body: Uint8Array }[]}
  */
 function parseMultipartPartsWithHeaders(raw, contentTypeHeader) {
-  const boundaryMatch = (contentTypeHeader || "").match(
-    /boundary=([^;,\s]+)/i,
-  );
+  const boundaryMatch = (contentTypeHeader || "").match(/boundary=([^;,\s]+)/i);
   if (!boundaryMatch) {
     return [];
   }
@@ -461,11 +459,23 @@ export class LuaJSSidecar {
         const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
         const dataView = new Uint8Array(data);
         const ptr = this.wasm._malloc(dataView.length);
-        heapu8.set(dataView, ptr);
-        const archive = deserializeCacheDatArchive(ptr, dataView.length);
-        this.wasm._free(ptr);
+        try {
+          heapu8.set(dataView, ptr);
+          const archive = deserializeCacheDatArchive(ptr, dataView.length);
+          this.wasm._free(ptr);
 
-        return [archive];
+          return [archive];
+        } catch (error) {
+          console.error(
+            "Error deserializing cache dat archive:",
+            error,
+            heapu8,
+            ptr,
+            dataView,
+            data,
+          );
+          return [];
+        }
       }
       case LuaCacheFunctionNo.FUNC_LOAD_ARCHIVES: {
         const requests = [];
@@ -527,17 +537,18 @@ export class LuaJSSidecar {
         }
 
         const data = await response.arrayBuffer();
+        const dataView = new Uint8Array(data);
         const deserializeConfigFile = this.wasm._luajs_ConfigFile_deserialize;
         const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
-        const ptr = this.wasm._malloc(data.length);
-        heapu8.set(new Uint8Array(data), ptr);
-        const configFile = deserializeConfigFile(ptr, data.length);
+        const ptr = this.wasm._malloc(dataView.length);
+        heapu8.set(dataView, ptr);
+        const configFile = deserializeConfigFile(ptr, dataView.length);
         this.wasm._free(ptr);
         return [configFile];
       }
       case LuaCacheFunctionNo.FUNC_LOAD_CONFIG_FILES: {
         const requests = [];
-        for (let i = 0; i + 1 < args.length; i += 2) {
+        for (let i = 0; i < args.length; i++) {
           requests.push({
             path: args[i],
           });
@@ -550,7 +561,34 @@ export class LuaJSSidecar {
           },
           body: JSON.stringify(requests),
         });
-        return results;
+
+        if (!response.ok) {
+          return [];
+        }
+
+        const raw = await response.arrayBuffer();
+        const contentTypeRaw = response.headers.get("Content-Type") || "";
+        const multipartParts = parseMultipartPartsWithHeaders(
+          raw,
+          contentTypeRaw,
+        );
+        if (multipartParts.length === 0) {
+          return [];
+        }
+
+        const deserialize = this.wasm._luajs_ConfigFile_deserialize;
+        const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
+        const files = [];
+        for (const { body } of multipartParts) {
+          if (body.length === 0) continue;
+          const ptr = this.wasm._malloc(body.length);
+          heapu8.set(body, ptr);
+          const cf = deserialize(ptr, body.length);
+          this.wasm._free(ptr);
+          if (cf) files.push(cf);
+        }
+
+        return files;
       }
       default: {
         console.error(`Unknown command: ${cmd}`);
