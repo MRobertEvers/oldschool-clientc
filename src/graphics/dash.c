@@ -2116,8 +2116,22 @@ dashmodel_free(struct DashModel* model)
         free(model->lighting);
         model->lighting = NULL;
     }
-    free(model->vertex_bones);
-    free(model->face_bones);
+    if( model->vertex_bones )
+    {
+        for( int i = 0; i < model->vertex_bones->bones_count; i++ )
+            free(model->vertex_bones->bones[i]);
+        free(model->vertex_bones->bones);
+        free(model->vertex_bones->bones_sizes);
+        free(model->vertex_bones);
+    }
+    if( model->face_bones )
+    {
+        for( int i = 0; i < model->face_bones->bones_count; i++ )
+            free(model->face_bones->bones[i]);
+        free(model->face_bones->bones);
+        free(model->face_bones->bones_sizes);
+        free(model->face_bones);
+    }
     free(model->bounds_cylinder);
     free(model);
     model = NULL;

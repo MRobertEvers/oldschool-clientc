@@ -313,6 +313,7 @@ dashmodel_bones_new(
     bones->bones_count = model_bones->bones_count;
     bones->bones = model_bones->bones;
     bones->bones_sizes = model_bones->bones_sizes;
+    free(model_bones);
 
     return bones;
 }

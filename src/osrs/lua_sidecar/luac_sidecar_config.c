@@ -82,11 +82,6 @@ LuaCSidecar_Config_LoadConfigs(struct LuaGameType* args)
     if( count <= 0 )
         return LuaGameType_NewVoid();
 
-    struct LuaConfigFile* lua_files = malloc(sizeof(struct LuaConfigFile) * count);
-    if( !lua_files )
-        return LuaGameType_NewVoid();
-    memset(lua_files, 0, sizeof(struct LuaConfigFile) * count);
-
     struct LuaGameType* files = LuaGameType_NewUserDataArraySpread(count);
     for( int i = 0; i < count; i++ )
     {

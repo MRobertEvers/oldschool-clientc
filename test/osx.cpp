@@ -232,7 +232,7 @@ main(
 
     if( login_stream )
     {
-        sockstream_close(login_stream);
+        sockstream_free(login_stream);
         login_stream = NULL;
     }
 

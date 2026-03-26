@@ -207,6 +207,7 @@ buildcachedat_loader_init_scenery_configs_from_config_jagfile(struct BuildCacheD
         }
     }
     dashmap_iter_free(iter);
+    filelist_dat_indexed_free(filelist_indexed);
 }
 
 int
@@ -726,6 +727,8 @@ buildcachedat_loader_init_idkits_from_config_jagfile(struct BuildCacheDat* build
     {
         buildcachedat_add_idk(buildcachedat, i, idk_list->idks[i]);
     }
+    free(idk_list->idks);
+    free(idk_list);
 
     data_file_idx = filelist_dat_find_file_by_name(filelist, "npc.dat");
     int index_file_idx = filelist_dat_find_file_by_name(filelist, "npc.idx");
@@ -742,6 +745,8 @@ buildcachedat_loader_init_idkits_from_config_jagfile(struct BuildCacheDat* build
     {
         buildcachedat_add_npc(buildcachedat, i, npc_list->npcs[i]);
     }
+    free(npc_list->npcs);
+    free(npc_list);
 }
 
 void
@@ -764,6 +769,8 @@ buildcachedat_loader_init_objects_from_config_jagfile(struct BuildCacheDat* buil
     {
         buildcachedat_add_obj(buildcachedat, i, obj_list->objs[i]);
     }
+    free(obj_list->objs);
+    free(obj_list);
 }
 
 void

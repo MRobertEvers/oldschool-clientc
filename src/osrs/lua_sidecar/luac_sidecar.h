@@ -41,4 +41,10 @@ LuaCSidecar_ResumeScript(
     struct LuaGameType* args,
     struct LuaCYield* yield);
 
+struct LuaConfigFile;
+void
+LuaCSidecar_TrackConfigFile(
+    struct LuaCSidecar* sidecar,
+    struct LuaConfigFile* file);
+
 #endif

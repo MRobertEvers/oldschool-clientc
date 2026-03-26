@@ -92,7 +92,10 @@ cache_dat_pix32_new(
     int palette_count = g1(&indexbuf);
     int* palette = malloc(palette_count * sizeof(int));
     if( !palette )
+    {
+        free(pix32);
         return NULL;
+    }
     memset(palette, 0, palette_count * sizeof(int));
     for( int i = 0; i < palette_count - 1; i++ )
     {
@@ -110,7 +113,11 @@ cache_dat_pix32_new(
     }
 
     if( databuf.position > databuf.size || indexbuf.position > indexbuf.size )
+    {
+        free(palette);
+        free(pix32);
         return NULL;
+    }
 
     int crop_x = g1(&indexbuf);
     int crop_y = g1(&indexbuf);
@@ -121,13 +128,22 @@ cache_dat_pix32_new(
 
     int* pixels = malloc(pixel_count * sizeof(int));
     if( !pixels )
+    {
+        free(palette);
+        free(pix32);
         return NULL;
+    }
     memset(pixels, 0, pixel_count * sizeof(int));
 
     if( pixel_order == 0 )
     {
         if( databuf.position + pixel_count > databuf.size )
+        {
+            free(palette);
+            free(pixels);
+            free(pix32);
             return NULL;
+        }
         for( int i = 0; i < pixel_count; i++ )
         {
             int pixel_index = g1(&databuf);
@@ -146,6 +162,8 @@ cache_dat_pix32_new(
             }
         }
     }
+
+    free(palette);
 
     pix32->pixels = pixels;
     pix32->draw_width = draw_width;

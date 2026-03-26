@@ -112,6 +112,9 @@ sockstream_get_fd(struct SockStream* stream);
 void
 sockstream_close(struct SockStream* stream);
 
+void
+sockstream_free(struct SockStream* stream);
+
 #ifdef __cplusplus
 }
 #endif

@@ -330,6 +330,8 @@ cache_dat_config_npc_list_new_decode(
         npc_list->npcs[i] = npc;
     }
 
+    filelist_dat_indexed_free(filelist_indexed);
+
     return npc_list;
 }
 

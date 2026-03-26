@@ -5,6 +5,7 @@
 #include "3rd/lua/lualib.h"
 #include "osrs/game.h"
 #include "osrs/lua_scripts.h"
+#include "osrs/lua_sidecar/lua_configfile.h"
 #include "osrs/lua_sidecar/lua_gametypes.h"
 #include "osrs/lua_sidecar/lua_platform.h"
 #include "osrs/lua_sidecar/luac_gametypes.h"
@@ -150,12 +151,16 @@ lua_resume_compat(
 #define lua_resume_compat lua_resume
 #endif
 
+#define LUACSIDECAR_MAX_CONFIG_FILES 16
+
 struct LuaCSidecar
 {
     lua_State* L;
     lua_State* L_coro;
     void* ctx;
     LuaCSidecar_GameCallback callback;
+    struct LuaConfigFile* config_files[LUACSIDECAR_MAX_CONFIG_FILES];
+    int config_files_count;
 };
 
 /* ── _lua_log(instance_id, msg) ──────────────────────────────────────────── */
@@ -328,6 +333,11 @@ LuaCSidecar_Free(struct LuaCSidecar* sidecar)
 {
     if( sidecar )
     {
+        for( int i = 0; i < sidecar->config_files_count; i++ )
+        {
+            free(sidecar->config_files[i]->data);
+            free(sidecar->config_files[i]);
+        }
         if( sidecar->L )
             lua_close(sidecar->L);
         free(sidecar);
@@ -386,4 +396,15 @@ LuaCSidecar_ResumeScript(
     lua_pop(sidecar->L, 1);
     sidecar->L_coro = NULL;
     return LUACSIDECAR_DONE;
+}
+
+void
+LuaCSidecar_TrackConfigFile(
+    struct LuaCSidecar* sidecar,
+    struct LuaConfigFile* file)
+{
+    if( !sidecar || !file )
+        return;
+    if( sidecar->config_files_count < LUACSIDECAR_MAX_CONFIG_FILES )
+        sidecar->config_files[sidecar->config_files_count++] = file;
 }

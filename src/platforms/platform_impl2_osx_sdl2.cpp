@@ -326,7 +326,18 @@ on_lua_async_call(
     case FUNC_LOAD_CONFIG_FILE:
         return LuaCSidecar_Config_LoadConfig(args);
     case FUNC_LOAD_CONFIG_FILES:
-        return LuaCSidecar_Config_LoadConfigs(args);
+    {
+        struct LuaGameType* result = LuaCSidecar_Config_LoadConfigs(args);
+        int n = LuaGameType_GetUserDataArrayCount(result);
+        for( int i = 0; i < n; i++ )
+        {
+            void* file = LuaGameType_GetUserDataArrayAt(result, i);
+            if( file )
+                LuaCSidecar_TrackConfigFile(
+                    platform->lua_sidecar, (struct LuaConfigFile*)file);
+        }
+        return result;
+    }
     default:
         assert(false && "Unknown cachedat function");
         return NULL;
@@ -363,6 +374,8 @@ Platform2_OSX_SDL2_RunLuaScripts(
 
         struct LuaCYield yield = { 0 };
         int script_status = LuaCSidecar_RunScript(platform->lua_sidecar, &script, &yield);
+        LuaGameType_Free(script.args);
+        script.args = NULL;
 
         while( script_status == LUACSIDECAR_YIELDED )
         {

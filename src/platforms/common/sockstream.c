@@ -442,3 +442,12 @@ sockstream_close(struct SockStream* stream)
 
     stream->status = SOCKSTREAM_STATUS_IDLE;
 }
+
+void
+sockstream_free(struct SockStream* stream)
+{
+    if( !stream )
+        return;
+    sockstream_close(stream);
+    free(stream);
+}

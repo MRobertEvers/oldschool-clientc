@@ -702,7 +702,8 @@ static_ui_from_revconfig_buildcachedat(
         }
     }
 
-    // The buffers for the hashmaps should be freed to prevent memory leaks.
+    dashmap_free(sprite_hmap);
+    dashmap_free(component_hmap);
     free(sprite_config.buffer);
     free(component_config.buffer);
 }
