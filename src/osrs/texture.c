@@ -398,3 +398,12 @@ texture_new_from_texture_sprite(
 
     return dash_texture;
 }
+
+void
+texture_free(struct DashTexture* texture)
+{
+    if( !texture )
+        return;
+    free(texture->texels);
+    free(texture);
+}

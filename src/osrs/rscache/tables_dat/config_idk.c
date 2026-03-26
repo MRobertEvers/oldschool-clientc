@@ -115,3 +115,12 @@ cache_dat_config_idk_list_new_decode(
 
     return idk_list;
 }
+
+void
+cache_dat_config_idk_free(struct CacheDatConfigIdk* idk)
+{
+    if( !idk )
+        return;
+    free(idk->models);
+    free(idk);
+}

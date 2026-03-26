@@ -853,6 +853,9 @@ buildcachedat_loader_finalize_scene(
 {
     /* varp/varbit loaded in init_varp_varbit (called right after config in load_scene_dat) */
 
+    if( game->world )
+        world_free(game->world);
+
     game->world = world_new(buildcachedat);
 
     world_buildcachedat_rebuild_centerzone(game->world, map_sw_x * 8 + 12, map_sw_z * 8 + 12, 104);

@@ -48,4 +48,7 @@ cache_dat_config_npc_list_new_decode(
     char* data,
     int data_size);
 
+void
+cache_dat_config_npc_free(struct CacheDatConfigNpc* npc);
+
 #endif

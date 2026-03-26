@@ -98,6 +98,9 @@ config_dat_sequence_decode_inplace(
     int buffer_size);
 
 void
+config_dat_sequence_free(struct CacheDatSequence* seq);
+
+void
 config_sequence_free(struct CacheConfigSequence* sequence);
 void
 config_sequence_free_inplace(struct CacheConfigSequence* sequence);

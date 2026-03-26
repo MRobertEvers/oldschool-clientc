@@ -329,17 +329,32 @@ LuaGameType_Free(struct LuaGameType* game_type)
 {
     if( !game_type )
         return;
-    if( game_type->kind == LUAGAMETYPE_VARTYPE_ARRAY )
+    switch( game_type->kind )
     {
+    case LUAGAMETYPE_STRING:
+        free(game_type->_string.value);
+        break;
+    case LUAGAMETYPE_INT_ARRAY:
+        free(game_type->_int_array.values);
+        break;
+    case LUAGAMETYPE_USERDATA_ARRAY:
+        free(game_type->_userdata_array.userdata);
+        break;
+    case LUAGAMETYPE_USERDATA_ARRAY_SPREAD:
+        free(game_type->_userdata_array_spread.userdata);
+        break;
+    case LUAGAMETYPE_VARTYPE_ARRAY:
         for( int i = 0; i < game_type->_var_type_array.count; i++ )
             LuaGameType_Free(game_type->_var_type_array.var_types[i]);
         free(game_type->_var_type_array.var_types);
-    }
-    else if( game_type->kind == LUAGAMETYPE_VARTYPE_ARRAY_SPREAD )
-    {
+        break;
+    case LUAGAMETYPE_VARTYPE_ARRAY_SPREAD:
         for( int i = 0; i < game_type->_var_type_array_spread.count; i++ )
             LuaGameType_Free(game_type->_var_type_array_spread.var_types[i]);
         free(game_type->_var_type_array_spread.var_types);
+        break;
+    default:
+        break;
     }
     free(game_type);
 }

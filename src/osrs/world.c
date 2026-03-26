@@ -109,7 +109,8 @@ world_new(struct BuildCacheDat* buildcachedat)
 void
 world_free(struct World* world)
 {
-    // Free the entities
+    if( !world )
+        return;
 
     painter_free(world->painter);
     collision_map_free(world->collision_map);
@@ -117,6 +118,12 @@ world_free(struct World* world)
     minimap_free(world->minimap);
     scene2_free(world->scene2);
     decor_buildmap_free(world->decor_buildmap);
+    lightmap_free(world->lightmap);
+    shademap2_free(world->shademap);
+    overlaymap_free(world->overlaymap);
+    sharelight_map_free(world->sharelight_map);
+    blendmap_free(world->blendmap);
+    terrain_shape_map_free(world->terrain_shapemap);
     free(world);
 }
 

@@ -61,4 +61,7 @@ cache_dat_config_obj_list_new_decode(
     char* data,
     int data_size);
 
+void
+cache_dat_config_obj_free(struct CacheDatConfigObj* obj);
+
 #endif

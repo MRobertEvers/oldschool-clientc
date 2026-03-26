@@ -53,12 +53,12 @@ c_wasm_dispatcher(lua_State* L)
     }
 
     struct LuaGameType* result = callback(ctx, args);
-    LuacGameType_Free(args);
+    LuaGameType_Free(args);
 
     if( result )
     {
         int nres = LuacGameType_PushToLua(L, result);
-        LuacGameType_Free(result);
+        LuaGameType_Free(result);
         return nres;
     }
     return 0;

@@ -1089,3 +1089,15 @@ config_dat_sequence_decode_inplace(
 
     return buffer.position;
 }
+
+void
+config_dat_sequence_free(struct CacheDatSequence* seq)
+{
+    if( !seq )
+        return;
+    free(seq->frames);
+    free(seq->iframes);
+    free(seq->delay);
+    free(seq->walkmerge);
+    free(seq);
+}

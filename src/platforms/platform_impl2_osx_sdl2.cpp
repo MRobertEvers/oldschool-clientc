@@ -367,6 +367,8 @@ Platform2_OSX_SDL2_RunLuaScripts(
         while( script_status == LUACSIDECAR_YIELDED )
         {
             struct LuaGameType* result = on_lua_async_call(platform, yield.command, yield.args);
+            LuaGameType_Free(yield.args);
+            yield.args = NULL;
 
             script_status = LuaCSidecar_ResumeScript(platform->lua_sidecar, result, &yield);
             LuaGameType_Free(result);

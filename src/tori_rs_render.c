@@ -17,6 +17,15 @@ LibToriRS_RenderCommandBufferNew(int capacity)
 }
 
 void
+LibToriRS_RenderCommandBufferFree(struct ToriRSRenderCommandBuffer* buffer)
+{
+    if( !buffer )
+        return;
+    free(buffer->commands);
+    free(buffer);
+}
+
+void
 LibToriRS_RenderCommandBufferAddCommand(
     struct ToriRSRenderCommandBuffer* buffer,
     struct ToriRSRenderCommand command)

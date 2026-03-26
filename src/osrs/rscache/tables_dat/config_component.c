@@ -213,7 +213,10 @@ decode_component(
         {
             component->iop[i] = gstringnewline(inb);
             if( component->iop[i] != NULL && strlen(component->iop[i]) == 0 )
+            {
+                free(component->iop[i]);
                 component->iop[i] = NULL;
+            }
         }
     }
 
@@ -321,7 +324,10 @@ decode_component(
         {
             component->iop[i] = gstringnewline(inb);
             if( component->iop[i] != NULL && strlen(component->iop[i]) == 0 )
+            {
+                free(component->iop[i]);
                 component->iop[i] = NULL;
+            }
         }
     }
 
@@ -342,21 +348,22 @@ decode_component(
 
         if( component->option != NULL && strlen(component->option) == 0 )
         {
+            free((void*)component->option);
             if( component->buttonType == COMPONENT_BUTTON_TYPE_OK )
             {
-                component->option = "Ok";
+                component->option = strdup("Ok");
             }
             else if( component->buttonType == COMPONENT_BUTTON_TYPE_TOGGLE )
             {
-                component->option = "Select";
+                component->option = strdup("Select");
             }
             else if( component->buttonType == COMPONENT_BUTTON_TYPE_SELECT )
             {
-                component->option = "Select";
+                component->option = strdup("Select");
             }
             else if( component->buttonType == COMPONENT_BUTTON_TYPE_CONTINUE )
             {
-                component->option = "Continue";
+                component->option = strdup("Continue");
             }
         }
     }
@@ -402,4 +409,56 @@ cache_dat_config_component_list_new_decode(
     }
 
     return component_list;
+}
+
+void
+cache_dat_config_component_free(struct CacheDatConfigComponent* c)
+{
+    if( !c )
+        return;
+
+    free(c->scriptComparator);
+    free(c->scriptOperand);
+
+    if( c->scripts )
+    {
+        for( int i = 0; i < c->scripts_count; i++ )
+            free(c->scripts[i]);
+        free(c->scripts);
+    }
+    free(c->scripts_lengths);
+
+    free(c->invSlotObjId);
+    free(c->invSlotObjCount);
+
+    free(c->children);
+    free(c->childX);
+    free(c->childY);
+
+    free(c->invSlotOffsetX);
+    free(c->invSlotOffsetY);
+
+    if( c->invSlotGraphic )
+    {
+        for( int i = 0; i < 20; i++ )
+            free(c->invSlotGraphic[i]);
+        free(c->invSlotGraphic);
+    }
+
+    if( c->iop )
+    {
+        for( int i = 0; i < 5; i++ )
+            free(c->iop[i]);
+        free(c->iop);
+    }
+
+    free(c->targetVerb);
+    free(c->targetText);
+    free((void*)c->option);
+    free(c->text);
+    free(c->activeText);
+    free(c->graphic);
+    free(c->activeGraphic);
+
+    free(c);
 }

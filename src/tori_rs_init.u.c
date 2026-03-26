@@ -17,9 +17,11 @@
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/filelist.h"
+#include "osrs/rsa.h"
 #include "osrs/rscache/tables_dat/configs_dat.h"
 #include "osrs/script_queue.h"
 #include "osrs/varp_varbit_manager.h"
+#include "osrs/zone_state.h"
 #include "tori_rs.h"
 
 #include <assert.h>
@@ -273,6 +275,144 @@ LibToriRS_GameSetWorldViewportSize(
     game->view_port->stride = width;
     game->view_port->x_center = width / 2;
     game->view_port->y_center = height / 2;
+}
+
+void
+LibToriRS_GameFree(struct GGame* game)
+{
+    if( !game )
+        return;
+
+    if( game->world )
+        world_free(game->world);
+
+    if( game->buildcachedat )
+        buildcachedat_free(game->buildcachedat);
+    if( game->buildcache )
+        buildcache_free(game->buildcache);
+
+    if( game->sys_dash )
+        dash_free(game->sys_dash);
+    if( game->sys_painter )
+        painter_free(game->sys_painter);
+    if( game->sys_painter_buffer )
+    {
+        free(game->sys_painter_buffer->commands);
+        free(game->sys_painter_buffer);
+    }
+    if( game->sys_minimap )
+        minimap_free(game->sys_minimap);
+
+    free(game->position);
+    free(game->view_port);
+    free(game->iface_view_port);
+    free(game->camera);
+
+    if( game->random_in )
+        isaac_free(game->random_in);
+    if( game->random_out )
+        isaac_free(game->random_out);
+
+    mp_clear(&game->rsa.exponent);
+    mp_clear(&game->rsa.modulus);
+
+    if( game->packet_buffer )
+    {
+        free(game->packet_buffer->data);
+        free(game->packet_buffer);
+    }
+    if( game->loginproto )
+        loginproto_free(game->loginproto);
+
+    if( game->ui_scene )
+        uiscene_free(game->ui_scene);
+    if( game->static_ui )
+        static_ui_buffer_free(game->static_ui);
+    if( game->ui_render_command_buffer )
+        LibToriRS_RenderCommandBufferFree(game->ui_render_command_buffer);
+
+    lua_buildcache_free_init_configmaps(game);
+
+    script_queue_clear(&game->script_queue);
+
+    dashsprite_free(game->sprite_invback);
+    dashsprite_free(game->sprite_chatback);
+    dashsprite_free(game->sprite_mapback);
+    dashsprite_free(game->sprite_backbase1);
+    dashsprite_free(game->sprite_backbase2);
+    dashsprite_free(game->sprite_backhmid1);
+    for( int i = 0; i < 13; i++ )
+        dashsprite_free(game->sprite_sideicons[i]);
+    dashsprite_free(game->sprite_compass);
+    dashsprite_free(game->sprite_mapedge);
+    for( int i = 0; i < 50; i++ )
+        dashsprite_free(game->sprite_mapscene[i]);
+    for( int i = 0; i < 50; i++ )
+        dashsprite_free(game->sprite_mapfunction[i]);
+    for( int i = 0; i < 20; i++ )
+        dashsprite_free(game->sprite_hitmarks[i]);
+    for( int i = 0; i < 20; i++ )
+        dashsprite_free(game->sprite_headicons[i]);
+    dashsprite_free(game->sprite_mapmarker0);
+    dashsprite_free(game->sprite_mapmarker1);
+    for( int i = 0; i < 8; i++ )
+        dashsprite_free(game->sprite_cross[i]);
+    dashsprite_free(game->sprite_mapdot0);
+    dashsprite_free(game->sprite_mapdot1);
+    dashsprite_free(game->sprite_mapdot2);
+    dashsprite_free(game->sprite_mapdot3);
+    dashsprite_free(game->sprite_scrollbar0);
+    dashsprite_free(game->sprite_scrollbar1);
+    dashsprite_free(game->sprite_redstone1);
+    dashsprite_free(game->sprite_redstone2);
+    dashsprite_free(game->sprite_redstone3);
+    dashsprite_free(game->sprite_redstone1h);
+    dashsprite_free(game->sprite_redstone2h);
+    dashsprite_free(game->sprite_redstone1v);
+    dashsprite_free(game->sprite_redstone2v);
+    dashsprite_free(game->sprite_redstone3v);
+    dashsprite_free(game->sprite_redstone1hv);
+    dashsprite_free(game->sprite_redstone2hv);
+    for( int i = 0; i < 2; i++ )
+        dashsprite_free(game->sprite_modicons[i]);
+    dashsprite_free(game->sprite_backleft1);
+    dashsprite_free(game->sprite_backleft2);
+    dashsprite_free(game->sprite_backright1);
+    dashsprite_free(game->sprite_backright2);
+    dashsprite_free(game->sprite_backtop1);
+    dashsprite_free(game->sprite_backvmid1);
+    dashsprite_free(game->sprite_backvmid2);
+    dashsprite_free(game->sprite_backvmid3);
+    dashsprite_free(game->sprite_backhmid2);
+
+    for( int level = 0; level < ZONE_LEVELS; level++ )
+    {
+        for( int x = 0; x < ZONE_SCENE_SIZE; x++ )
+        {
+            for( int z = 0; z < ZONE_SCENE_SIZE; z++ )
+            {
+                struct ObjStackEntry* entry = game->obj_stacks[level][x][z];
+                while( entry )
+                {
+                    struct ObjStackEntry* next = entry->next;
+                    free(entry);
+                    entry = next;
+                }
+            }
+        }
+    }
+
+    {
+        struct LocChangeEntry* entry = game->loc_changes_head;
+        while( entry )
+        {
+            struct LocChangeEntry* next = entry->next;
+            free(entry);
+            entry = next;
+        }
+    }
+
+    free(game);
 }
 
 #endif

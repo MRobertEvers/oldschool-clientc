@@ -164,4 +164,7 @@ cache_dat_config_component_list_new_decode(
     void* data,
     int size);
 
+void
+cache_dat_config_component_free(struct CacheDatConfigComponent* component);
+
 #endif

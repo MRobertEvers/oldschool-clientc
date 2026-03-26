@@ -1,6 +1,7 @@
 #include "buildcachedat.h"
 
 #include "graphics/dash.h"
+#include "texture.h"
 
 #define BUILDCACHEDAT_EVENTBUFFER_DEFAULT_CAPACITY 1024
 
@@ -349,19 +350,147 @@ buildcachedat_new(void)
     return buildcachedat;
 }
 
+static void
+dashmap_free_entries(struct DashMap* map, void (*entry_free_fn)(void*))
+{
+    if( !map )
+        return;
+    if( entry_free_fn )
+    {
+        struct DashMapIter* iter = dashmap_iter_new(map);
+        void* entry;
+        while( (entry = dashmap_iter_next(iter)) )
+            entry_free_fn(entry);
+        dashmap_iter_free(iter);
+    }
+    free(dashmap_buffer_ptr(map));
+    dashmap_free(map);
+}
+
+static void free_texture_entry(void* e)
+{
+    texture_free(((struct TextureEntry*)e)->texture);
+}
+static void free_font_entry(void* e)
+{
+    dashpixfont_free(((struct FontEntry*)e)->font);
+}
+static void free_flotype_entry(void* e)
+{
+    config_floortype_overlay_free(((struct FlotypeEntry*)e)->flotype);
+}
+static void free_scenery_entry(void* e)
+{
+    map_locs_free(((struct SceneryEntry*)e)->locs);
+}
+static void free_model_entry(void* e)
+{
+    model_free(((struct ModelEntry*)e)->model);
+}
+static void free_config_loc_entry(void* e)
+{
+    config_locs_free(((struct ConfigLocEntry*)e)->config_loc);
+}
+static void free_animbaseframes_entry(void* e)
+{
+    cache_dat_animbaseframes_free(((struct AnimbaseframesEntry*)e)->animbaseframes);
+}
+static void free_sequence_entry(void* e)
+{
+    config_dat_sequence_free(((struct SequenceEntry*)e)->sequence);
+}
+static void free_idk_entry(void* e)
+{
+    cache_dat_config_idk_free(((struct IdkEntry*)e)->idk);
+}
+static void free_obj_entry(void* e)
+{
+    cache_dat_config_obj_free(((struct ObjEntry*)e)->obj);
+}
+static void free_idk_model_entry(void* e)
+{
+    model_free(((struct IdkModelEntry*)e)->model);
+}
+static void free_obj_model_entry(void* e)
+{
+    model_free(((struct ObjModelEntry*)e)->model);
+}
+static void free_map_terrain_entry(void* e)
+{
+    map_terrain_free(((struct MapTerrainEntry*)e)->map_terrain);
+}
+static void free_npc_entry(void* e)
+{
+    cache_dat_config_npc_free(((struct NpcEntry*)e)->npc);
+}
+static void free_npc_model_entry(void* e)
+{
+    model_free(((struct NpcModelEntry*)e)->model);
+}
+static void free_component_entry(void* e)
+{
+    cache_dat_config_component_free(((struct ComponentEntry*)e)->component);
+}
+static void free_component_sprite_entry(void* e)
+{
+    dashsprite_free(((struct ComponentSpriteEntry*)e)->sprite);
+}
+static void free_sprite_entry(void* e)
+{
+    dashsprite_free(((struct SpriteEntry*)e)->sprite);
+}
+static void free_container_entry(void* e)
+{
+    struct ContainerEntry* entry = (struct ContainerEntry*)e;
+    switch( entry->kind )
+    {
+    case BuildCacheContainerKind_Jagfile:
+        filelist_dat_free(entry->_filelist);
+        break;
+    case BuildCacheContainerKind_JagfilePack:
+        free(entry->_jagfilepack.data);
+        break;
+    case BuildCacheContainerKind_JagfilePackIndexed:
+        free(entry->_jagfilepack_indexed.data);
+        free(entry->_jagfilepack_indexed.index_data);
+        break;
+    }
+}
+
 void
 buildcachedat_free(struct BuildCacheDat* buildcachedat)
 {
-    // TODO: Free the files.
-    dashmap_free(buildcachedat->textures_hmap);
-    dashmap_free(buildcachedat->fonts_hmap);
-    dashmap_free(buildcachedat->flotype_hmap);
-    dashmap_free(buildcachedat->scenery_hmap);
-    dashmap_free(buildcachedat->models_hmap);
-    dashmap_free(buildcachedat->config_loc_hmap);
-    dashmap_free(buildcachedat->animframes_hmap);
-    dashmap_free(buildcachedat->animbaseframes_hmap);
-    dashmap_free(buildcachedat->sequences_hmap);
+    if( !buildcachedat )
+        return;
+
+    dashmap_free_entries(buildcachedat->textures_hmap, free_texture_entry);
+    dashmap_free_entries(buildcachedat->fonts_hmap, free_font_entry);
+    dashmap_free_entries(buildcachedat->flotype_hmap, free_flotype_entry);
+    dashmap_free_entries(buildcachedat->scenery_hmap, free_scenery_entry);
+    dashmap_free_entries(buildcachedat->models_hmap, free_model_entry);
+    dashmap_free_entries(buildcachedat->config_loc_hmap, free_config_loc_entry);
+
+    /* animframes_hmap entries are borrowed pointers into animbaseframes -- only free the map */
+    dashmap_free_entries(buildcachedat->animframes_hmap, NULL);
+    dashmap_free_entries(buildcachedat->animbaseframes_hmap, free_animbaseframes_entry);
+
+    dashmap_free_entries(buildcachedat->sequences_hmap, free_sequence_entry);
+    dashmap_free_entries(buildcachedat->idk_hmap, free_idk_entry);
+    dashmap_free_entries(buildcachedat->obj_hmap, free_obj_entry);
+    dashmap_free_entries(buildcachedat->idk_models_hmap, free_idk_model_entry);
+    dashmap_free_entries(buildcachedat->obj_models_hmap, free_obj_model_entry);
+    dashmap_free_entries(buildcachedat->map_terrains_hmap, free_map_terrain_entry);
+    dashmap_free_entries(buildcachedat->npc_hmap, free_npc_entry);
+    dashmap_free_entries(buildcachedat->npc_models_hmap, free_npc_model_entry);
+    dashmap_free_entries(buildcachedat->component_hmap, free_component_entry);
+    dashmap_free_entries(buildcachedat->component_sprites_hmap, free_component_sprite_entry);
+    dashmap_free_entries(buildcachedat->sprites, free_sprite_entry);
+    dashmap_free_entries(buildcachedat->containers_hmap, free_container_entry);
+
+    filelist_dat_free(buildcachedat->cfg_config_jagfile);
+    filelist_dat_free(buildcachedat->cfg_versionlist_jagfile);
+    filelist_dat_free(buildcachedat->cfg_media_jagfile);
+
     free(buildcachedat->eventbuffer);
     free(buildcachedat);
 }

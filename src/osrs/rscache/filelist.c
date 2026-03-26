@@ -211,6 +211,7 @@ filelist_dat_free(struct FileListDat* filelist)
     {
         free(filelist->files[i]);
     }
+    free(filelist->files);
     free(filelist->file_sizes);
     free(filelist->file_name_hashes);
     free(filelist);

@@ -156,6 +156,7 @@ config_floortype_overlay_free(struct CacheConfigOverlay* overlay)
     if( !overlay )
         return;
 
+    config_floortype_overlay_free_inplace(overlay);
     free(overlay);
 }
 
@@ -164,6 +165,7 @@ config_floortype_overlay_free_inplace(struct CacheConfigOverlay* overlay)
 {
     if( !overlay )
         return;
+    free(overlay->flotype_name);
 }
 
 struct CacheConfigUnderlay*

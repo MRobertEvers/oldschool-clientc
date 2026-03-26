@@ -332,3 +332,19 @@ cache_dat_config_npc_list_new_decode(
 
     return npc_list;
 }
+
+void
+cache_dat_config_npc_free(struct CacheDatConfigNpc* npc)
+{
+    if( !npc )
+        return;
+    free(npc->name);
+    free(npc->desc);
+    free(npc->models);
+    free(npc->heads);
+    free(npc->recol_s);
+    free(npc->recol_d);
+    for( int i = 0; i < 5; i++ )
+        free(npc->op[i]);
+    free(npc);
+}

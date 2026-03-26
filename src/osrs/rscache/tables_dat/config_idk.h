@@ -30,4 +30,7 @@ cache_dat_config_idk_list_new_decode(
     void* jagfile_idkdat_data,
     int jagfile_idkdat_data_size);
 
+void
+cache_dat_config_idk_free(struct CacheDatConfigIdk* idk);
+
 #endif

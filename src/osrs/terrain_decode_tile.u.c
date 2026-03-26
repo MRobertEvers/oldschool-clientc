@@ -613,6 +613,7 @@ decode_tile(
     free(face_colors_hsl_b);
     free(face_colors_hsl_c);
     free(face_texture_ids);
+    free(valid_faces);
 
     return dash_model;
     // error:;

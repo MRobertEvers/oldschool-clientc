@@ -64,6 +64,10 @@ minimap_new(
 void
 minimap_free(struct Minimap* minimap)
 {
+    if( !minimap )
+        return;
+    free(minimap->tiles);
+    free(minimap->locs);
     free(minimap);
 }
 

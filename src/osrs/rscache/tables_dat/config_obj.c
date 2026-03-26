@@ -304,3 +304,22 @@ cache_dat_config_obj_list_new_decode(
 
     return obj_list;
 }
+
+void
+cache_dat_config_obj_free(struct CacheDatConfigObj* obj)
+{
+    if( !obj )
+        return;
+    free(obj->name);
+    free(obj->desc);
+    free(obj->recol_s);
+    free(obj->recol_d);
+    free(obj->countobj);
+    free(obj->countco);
+    for( int i = 0; i < 5; i++ )
+    {
+        free(obj->op[i]);
+        free(obj->iop[i]);
+    }
+    free(obj);
+}

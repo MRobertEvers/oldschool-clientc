@@ -45,4 +45,10 @@ cache_dat_animbase_new_decode(
 void
 cache_dat_animframe_free(struct CacheAnimframe* animframe);
 
+void
+cache_dat_animframe_free_inplace(struct CacheAnimframe* frame);
+
+void
+cache_dat_animbaseframes_free(struct CacheDatAnimBaseFrames* abf);
+
 #endif // TABLES_DAT_ANIMFRAME_H

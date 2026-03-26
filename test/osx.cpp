@@ -245,5 +245,10 @@ main(
 #endif
     if( renderer_soft3d )
         PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Free(renderer_soft3d);
+
+    LibToriRS_GameFree(game);
+    Platform2_OSX_SDL2_Free(platform);
+    LibToriRS_RenderCommandBufferFree(render_command_buffer);
+    LibToriRS_NetFreeBuffer(net_shared);
     return 0;
 }

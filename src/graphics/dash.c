@@ -119,6 +119,13 @@ dash_new()
 void //
 dash_free(struct DashGraphics* dash)
 {
+    if( !dash )
+        return;
+    if( dash->textures_hmap )
+    {
+        free(dashmap_buffer_ptr(dash->textures_hmap));
+        dashmap_free(dash->textures_hmap);
+    }
     free(dash);
 }
 
@@ -2093,6 +2100,13 @@ dashmodel_free(struct DashModel* model)
         free(model->normals);
         model->normals = NULL;
     }
+    if( model->merged_normals )
+    {
+        free(model->merged_normals->lighting_vertex_normals);
+        free(model->merged_normals->lighting_face_normals);
+        free(model->merged_normals);
+        model->merged_normals = NULL;
+    }
 
     if( model->lighting )
     {
@@ -2799,6 +2813,18 @@ dashfont_free_atlas(struct DashFontAtlas* atlas)
         return;
     free(atlas->rgba_pixels);
     free(atlas);
+}
+
+void
+dashpixfont_free(struct DashPixFont* font)
+{
+    if( !font )
+        return;
+    for( int i = 0; i < DASH_FONT_CHAR_COUNT; i++ )
+        free(font->char_mask[i]);
+    dashfont_free_atlas(font->atlas);
+    free(font->charcode_set);
+    free(font);
 }
 
 /* Evaluate @XXX@ color tag. Returns new color or -1 if not a color tag. */

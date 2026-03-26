@@ -51,12 +51,11 @@ config_locs_free_inplace(struct CacheConfigLocation* loc)
     if( !loc )
         return;
 
-    for( int i = 0; i < 5; i++ )
+    for( int i = 0; i < 10; i++ )
         free(loc->actions[i]);
     free(loc->name);
     free(loc->desc);
 
-    // Free allocated arrays
     free(loc->shapes);
     if( loc->models )
     {
@@ -78,8 +77,15 @@ config_locs_free_inplace(struct CacheConfigLocation* loc)
     free(loc->random_seq_ids);
     free(loc->random_seq_delays);
     free(loc->campaign_ids);
-    // free(loc->param_keys);
-    // free(loc->param_values);
+
+    if( loc->param_values.values )
+    {
+        for( int i = 0; i < loc->param_values.count; i++ )
+            free(loc->param_values.values[i]);
+        free(loc->param_values.values);
+    }
+    free(loc->param_values.keys);
+    free(loc->param_values.is_string);
 }
 
 void

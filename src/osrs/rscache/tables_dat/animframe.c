@@ -318,3 +318,45 @@ cache_dat_animbase_new_decode(
     }
     return animbase;
 }
+
+static void
+cache_dat_animbase_free(struct CacheAnimBase* base)
+{
+    if( !base )
+        return;
+    if( base->labels )
+    {
+        for( int i = 0; i < base->length; i++ )
+            free(base->labels[i]);
+        free(base->labels);
+    }
+    free(base->label_counts);
+    free(base->types);
+    free(base);
+}
+
+void
+cache_dat_animframe_free_inplace(struct CacheAnimframe* frame)
+{
+    if( !frame )
+        return;
+    free(frame->groups);
+    free(frame->x);
+    free(frame->y);
+    free(frame->z);
+}
+
+void
+cache_dat_animbaseframes_free(struct CacheDatAnimBaseFrames* abf)
+{
+    if( !abf )
+        return;
+    if( abf->frames )
+    {
+        for( int i = 0; i < abf->frame_count; i++ )
+            cache_dat_animframe_free_inplace(&abf->frames[i]);
+        free(abf->frames);
+    }
+    cache_dat_animbase_free(abf->base);
+    free(abf);
+}

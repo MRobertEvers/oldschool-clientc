@@ -104,8 +104,9 @@ LuacGameType_FromLua(
             struct LuaGameType* gt = LuaGameType_NewUserDataArray((int)n);
             for( int i = 0; i < n; i++ )
                 LuaGameType_UserDataArrayPush(gt, ptrs[i]);
+            free(ptrs);
             if( !gt )
-                free(ptrs);
+                return NULL;
             return gt;
         }
 
@@ -236,34 +237,3 @@ LuacGameType_PushToLua(
     }
 }
 
-void
-LuacGameType_Free(struct LuaGameType* gt)
-{
-    if( !gt )
-        return;
-    if( LuaGameType_GetKind(gt) == LUAGAMETYPE_STRING )
-    {
-        char* s = LuaGameType_GetString(gt);
-        free(s);
-    }
-    else if( LuaGameType_GetKind(gt) == LUAGAMETYPE_INT_ARRAY )
-    {
-        int* vals = LuaGameType_GetIntArray(gt);
-        free(vals);
-    }
-    else if( LuaGameType_GetKind(gt) == LUAGAMETYPE_USERDATA_ARRAY )
-    {
-        void* data = LuaGameType_GetUserDataArray(gt);
-        free(data);
-    }
-    else if( LuaGameType_GetKind(gt) == LUAGAMETYPE_VARTYPE_ARRAY )
-    {
-        int n = LuaGameType_GetVarTypeArrayCount(gt);
-        for( int i = 0; i < n; i++ )
-            LuacGameType_Free(LuaGameType_GetVarTypeArrayAt(gt, i));
-        free(gt->_var_type_array.var_types);
-        free(gt);
-        return;
-    }
-    LuaGameType_Free(gt);
-}

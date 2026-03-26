@@ -227,7 +227,14 @@ painter_new(
 void
 painter_free(struct Painter* painter)
 {
+    if( !painter )
+        return;
     free(painter->tiles);
+    free(painter->tile_paints);
+    free(painter->elements);
+    free(painter->element_paints);
+    int_queue_free(&painter->queue);
+    int_queue_free(&painter->catchup_queue);
     free(painter);
 }
 

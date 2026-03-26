@@ -599,6 +599,9 @@ dashfont_build_atlas(struct DashPixFont* pixfont);
 void
 dashfont_free_atlas(struct DashFontAtlas* atlas);
 
+void
+dashpixfont_free(struct DashPixFont* font);
+
 int
 dashfont_charcode_to_glyph(uint8_t code_point);
 

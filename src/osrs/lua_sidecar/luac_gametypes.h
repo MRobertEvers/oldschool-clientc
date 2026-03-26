@@ -16,8 +16,4 @@ LuacGameType_PushToLua(
     struct lua_State* L,
     struct LuaGameType* gt);
 
-/** Free LuaGameType from LuacGameType_FromLua (frees owned string if STRING kind). */
-void
-LuacGameType_Free(struct LuaGameType* gt);
-
 #endif
