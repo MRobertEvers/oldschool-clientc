@@ -190,6 +190,8 @@ Platform2_Emscripten_SDL2_SyncCanvasCssSize(
     platform->window_height = new_h;
     platform->drawable_width = new_w;
     platform->drawable_height = new_h;
+    platform->game_screen_width = new_w;
+    platform->game_screen_height = new_h;
 
     if( platform->window )
         SDL_SetWindowSize(platform->window, new_w, new_h);

@@ -2029,7 +2029,9 @@ pix3dgl_end_frame(struct Pix3DGL* pix3dgl)
 }
 
 extern "C" void
-pix3dgl_sprite_load(struct Pix3DGL* pix3dgl, struct DashSprite* sprite)
+pix3dgl_sprite_load(
+    struct Pix3DGL* pix3dgl,
+    struct DashSprite* sprite)
 {
     if( !pix3dgl || !pix3dgl->ui_sprite_texture )
         return;
@@ -2055,20 +2057,13 @@ pix3dgl_sprite_load(struct Pix3DGL* pix3dgl, struct DashSprite* sprite)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(
-        GL_TEXTURE_2D,
-        0,
-        GL_RGBA,
-        tw,
-        th,
-        0,
-        GL_RGBA,
-        GL_UNSIGNED_BYTE,
-        rgba.data());
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tw, th, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
 }
 
 extern "C" void
-pix3dgl_sprite_unload(struct Pix3DGL* pix3dgl, struct DashSprite* sprite)
+pix3dgl_sprite_unload(
+    struct Pix3DGL* pix3dgl,
+    struct DashSprite* sprite)
 {
     /* WebGL1/GLES2 path: single shared ui_sprite_texture — nothing to evict. */
     (void)pix3dgl;
@@ -2144,7 +2139,7 @@ pix3dgl_sprite_draw(
             ortho[5] = 2.0f / (0.0f - h); /* = -2/h */
             ortho[10] = -1.0f;
             ortho[12] = -1.0f; /* -(w+0)/w */
-            ortho[13] = 1.0f; /* -(0+h)/(0-h) */
+            ortho[13] = 1.0f;  /* -(0+h)/(0-h) */
             ortho[15] = 1.0f;
             glUniformMatrix4fv(pix3dgl->uniform_ui_projection, 1, GL_FALSE, ortho);
         }

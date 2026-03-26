@@ -513,15 +513,26 @@ export class LuaJSSidecar {
         }
 
         const deserialize = this.wasm._luajs_CacheDatArchive_deserialize;
-        const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
         const archives = [];
         for (const { body } of multipartParts) {
           if (body.length === 0) continue;
           const ptr = this.wasm._malloc(body.length);
-          heapu8.set(body, ptr);
-          const archive = deserialize(ptr, body.length);
-          this.wasm._free(ptr);
-          if (archive) archives.push(archive);
+          try {
+            const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
+            heapu8.set(body, ptr);
+            const archive = deserialize(ptr, body.length);
+            this.wasm._free(ptr);
+            if (archive) archives.push(archive);
+          } catch (error) {
+            console.error(
+              "Error deserializing cache dat archive:",
+              error,
+              heapu8,
+              ptr,
+              body,
+            );
+            return [];
+          }
         }
 
         return archives;
@@ -577,15 +588,26 @@ export class LuaJSSidecar {
         }
 
         const deserialize = this.wasm._luajs_ConfigFile_deserialize;
-        const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
         const files = [];
         for (const { body } of multipartParts) {
           if (body.length === 0) continue;
           const ptr = this.wasm._malloc(body.length);
-          heapu8.set(body, ptr);
-          const cf = deserialize(ptr, body.length);
-          this.wasm._free(ptr);
-          if (cf) files.push(cf);
+          try {
+            const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
+            heapu8.set(body, ptr);
+            const cf = deserialize(ptr, body.length);
+            this.wasm._free(ptr);
+            if (cf) files.push(cf);
+          } catch (error) {
+            console.error(
+              "Error deserializing cache dat archive:",
+              error,
+              heapu8,
+              ptr,
+              body,
+            );
+            return [];
+          }
         }
 
         return files;

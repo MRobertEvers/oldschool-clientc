@@ -13,6 +13,11 @@ struct Platform2_Emscripten_SDL2_Renderer_Soft3D
     int height;
     int max_width;
     int max_height;
+
+    /* 3D world raster (view_port sized), like OSX soft3d dash_buffer — separate from UI buffer. */
+    int* dash_buffer;
+    int dash_buffer_width;
+    int dash_buffer_height;
 };
 
 struct Platform2_Emscripten_SDL2_Renderer_Soft3D*

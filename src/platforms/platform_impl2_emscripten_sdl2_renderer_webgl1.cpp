@@ -339,9 +339,21 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    /* Use drawable size (synced from #canvas CSS); SDL_GetWindowSize can lag on Emscripten. */
-    int window_width = renderer->width;
-    int window_height = renderer->height;
+    /* Logical window size — same source as OpenGL3 (platform game_screen + SDL fallback).
+     * Use for compute_logical_viewport_rect, compute_world_viewport_rect scaling, and
+     * pix3dgl_sprite_draw. Drawable size stays renderer->width/height (framebuffer). */
+    int window_width = renderer->platform ? renderer->platform->game_screen_width : 0;
+    int window_height = renderer->platform ? renderer->platform->game_screen_height : 0;
+    if( window_width <= 0 || window_height <= 0 )
+    {
+        if( renderer->platform && renderer->platform->window )
+            SDL_GetWindowSize(renderer->platform->window, &window_width, &window_height);
+    }
+    if( window_width <= 0 || window_height <= 0 )
+    {
+        window_width = renderer->width;
+        window_height = renderer->height;
+    }
     const LogicalViewportRect logical_viewport =
         compute_logical_viewport_rect(window_width, window_height, game);
     const GLViewportRect world_viewport = compute_world_viewport_rect(
@@ -372,6 +384,8 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     // The render command buffer is populated lazily by FrameNextCommand — RenderCommandBufferAt
     // and RenderCommandBufferCount only reflect what has already been iterated.  We therefore
     // drain the buffer into a local vector first, then do the three passes over that vector.
+    // project_models=true matches OpenGL3 (dash projection during iteration); pass 3 still calls
+    // dash3d_project_model before GPU draw.
 
     double frame_begin_start_ms = emscripten_get_now();
     LibToriRS_FrameBegin(game, render_command_buffer);
@@ -380,7 +394,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     commands.clear();
     {
         struct ToriRSRenderCommand cmd = { 0 };
-        while( LibToriRS_FrameNextCommand(game, render_command_buffer, &cmd, false) )
+        while( LibToriRS_FrameNextCommand(game, render_command_buffer, &cmd, true) )
         {
             commands.push_back(cmd);
         }
@@ -388,6 +402,18 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     double frame_begin_ms = emscripten_get_now() - frame_begin_start_ms;
 
     int total_commands = (int)commands.size();
+
+    static std::vector<ToriRSRenderCommand> sprite_cmds;
+    sprite_cmds.clear();
+    for( int i = 0; i < total_commands; i++ )
+    {
+        const ToriRSRenderCommand* cmd = &commands[i];
+        if( cmd->kind == TORIRS_GFX_SPRITE_LOAD || cmd->kind == TORIRS_GFX_SPRITE_UNLOAD ||
+            cmd->kind == TORIRS_GFX_SPRITE_DRAW )
+        {
+            sprite_cmds.push_back(*cmd);
+        }
+    }
 
     // ── Pass 1: upload textures ───────────────────────────────────────────────────────────
     for( int i = 0; i < total_commands; i++ )
@@ -531,30 +557,40 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     pix3dgl_end_3dframe(renderer->pix3dgl);
 
     glViewport(0, 0, renderer->width, renderer->height);
-    pix3dgl_begin_2dframe(renderer->pix3dgl);
-    for( int i = 0; i < total_commands; i++ )
+
+    for( const auto& sc : sprite_cmds )
     {
-        const ToriRSRenderCommand* cmd = &commands[i];
-        if( cmd->kind == TORIRS_GFX_SPRITE_LOAD )
+        if( sc.kind == TORIRS_GFX_SPRITE_LOAD )
         {
-            struct DashSprite* sp = cmd->_sprite_load.sprite;
+            struct DashSprite* sp = sc._sprite_load.sprite;
             if( sp )
                 pix3dgl_sprite_load(renderer->pix3dgl, sp);
-            continue;
         }
-        if( cmd->kind != TORIRS_GFX_SPRITE_DRAW )
+        else if( sc.kind == TORIRS_GFX_SPRITE_UNLOAD )
+        {
+            struct DashSprite* sp = sc._sprite_load.sprite;
+            if( sp )
+                pix3dgl_sprite_unload(renderer->pix3dgl, sp);
+        }
+    }
+
+    pix3dgl_begin_2dframe(renderer->pix3dgl);
+    for( const auto& sc : sprite_cmds )
+    {
+        if( sc.kind != TORIRS_GFX_SPRITE_DRAW )
             continue;
-        struct DashSprite* sp = cmd->_sprite_draw.sprite;
+        struct DashSprite* sp = sc._sprite_draw.sprite;
         if( !sp )
             continue;
+        /* Sprite coordinates are authored in logical screen space; match OpenGL3 renderer. */
         pix3dgl_sprite_draw(
             renderer->pix3dgl,
             sp,
-            cmd->_sprite_draw.x,
-            cmd->_sprite_draw.y,
-            renderer->width,
-            renderer->height,
-            cmd->_sprite_draw.rotation_r2pi2048);
+            sc._sprite_draw.x,
+            sc._sprite_draw.y,
+            window_width,
+            window_height,
+            sc._sprite_draw.rotation_r2pi2048);
     }
     pix3dgl_end_2dframe(renderer->pix3dgl);
 

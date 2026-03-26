@@ -218,6 +218,7 @@ void
 PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Free(
     struct Platform2_Emscripten_SDL2_Renderer_Soft3D* renderer)
 {
+    free(renderer->dash_buffer);
     free(renderer->pixel_buffer);
     free(renderer);
 }
@@ -277,16 +278,49 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
 {
-    int vw = renderer->width;
-    int vh = renderer->height;
+    /* Match OSX soft3d: 3D rasterizes to dash_buffer (world viewport size); 2D UI uses
+     * iface_view_port + pixel_buffer (full window stride). Composite 3D into pixel_buffer at
+     * viewport_offset_* so UI coordinates stay in window space without shear. */
     if( game && game->view_port )
     {
-        vw = game->view_port->width;
-        vh = game->view_port->height;
-        if( vw > renderer->max_width )
-            vw = renderer->max_width;
-        if( vh > renderer->max_height )
-            vh = renderer->max_height;
+        game->view_port->x_center = game->view_port->width / 2;
+        game->view_port->y_center = game->view_port->height / 2;
+
+        if( !renderer->dash_buffer || renderer->dash_buffer_width != game->view_port->width ||
+            renderer->dash_buffer_height != game->view_port->height )
+        {
+            free(renderer->dash_buffer);
+            renderer->dash_buffer_width = game->view_port->width;
+            renderer->dash_buffer_height = game->view_port->height;
+            if( renderer->dash_buffer_width > renderer->max_width ||
+                renderer->dash_buffer_height > renderer->max_height )
+            {
+                renderer->dash_buffer = NULL;
+            }
+            else
+            {
+                renderer->dash_buffer = (int*)malloc(
+                    (size_t)renderer->dash_buffer_width * (size_t)renderer->dash_buffer_height *
+                    sizeof(int));
+            }
+            if( !renderer->dash_buffer )
+            {
+                printf("Failed to allocate dash buffer\n");
+            }
+            else
+            {
+                game->view_port->stride = renderer->dash_buffer_width;
+            }
+        }
+    }
+
+    if( renderer->dash_buffer )
+    {
+        for( int y = 0; y < renderer->dash_buffer_height; y++ )
+            memset(
+                &renderer->dash_buffer[y * renderer->dash_buffer_width],
+                0,
+                (size_t)renderer->dash_buffer_width * sizeof(int));
     }
 
     memset(
@@ -305,21 +339,24 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
         case TORIRS_GFX_TEXTURE_LOAD:
             break;
         case TORIRS_GFX_MODEL_DRAW:
-            dash3d_raster_projected_model(
-                game->sys_dash,
-                command._model_draw.model,
-                &command._model_draw.position,
-                game->view_port,
-                game->camera,
-                renderer->pixel_buffer,
-                false);
+            if( renderer->dash_buffer )
+            {
+                dash3d_raster_projected_model(
+                    game->sys_dash,
+                    command._model_draw.model,
+                    &command._model_draw.position,
+                    game->view_port,
+                    game->camera,
+                    renderer->dash_buffer,
+                    false);
+            }
             break;
         case TORIRS_GFX_SPRITE_DRAW:
         {
             struct DashSprite* sp = command._sprite_draw.sprite;
             if( !sp || !game->sys_dash || !game->iface_view_port || !renderer->pixel_buffer )
                 break;
-            int stride = game->iface_view_port->stride;
+            int iface_stride = game->iface_view_port->stride;
             int x = command._sprite_draw.x;
             int y = command._sprite_draw.y;
             int rot = command._sprite_draw.rotation_r2pi2048;
@@ -332,7 +369,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
                     sp->width >> 1,
                     sp->height >> 1,
                     renderer->pixel_buffer,
-                    stride,
+                    iface_stride,
                     x + sp->crop_x,
                     y + sp->crop_y,
                     sp->width,
@@ -354,14 +391,44 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
     }
     LibToriRS_FrameEnd(game);
 
-    // Render minimap to buffer starting at (0,0)
-    // Calculate the center of the minimap content for rotation anchor
+    if( renderer->dash_buffer && game->iface_view_port )
+    {
+        int* dash_buf = renderer->dash_buffer;
+        int dash_w = renderer->dash_buffer_width;
+        int dash_h = renderer->dash_buffer_height;
+        int off_x = game->viewport_offset_x;
+        int off_y = game->viewport_offset_y;
+        int* pix = renderer->pixel_buffer;
+        int pix_stride = game->iface_view_port->stride;
+        int clip_w = game->iface_view_port->width;
+        int clip_h = game->iface_view_port->height;
+        for( int y = 0; y < dash_h; y++ )
+        {
+            int dst_y = y + off_y;
+            if( dst_y < 0 || dst_y >= clip_h )
+                continue;
+            for( int x = 0; x < dash_w; x++ )
+            {
+                int dst_x = x + off_x;
+                if( dst_x >= 0 && dst_x < clip_w )
+                    pix[dst_y * pix_stride + dst_x] = dash_buf[y * dash_w + x];
+            }
+        }
+    }
 
-    const int src_pitch_px = game && game->view_port ? game->view_port->stride : vw;
+    int upload_w = renderer->width;
+    int upload_h = renderer->height;
+    if( game && game->iface_view_port )
+    {
+        upload_w = game->iface_view_port->width;
+        upload_h = game->iface_view_port->height;
+    }
+    const int src_pitch_px =
+        game && game->iface_view_port ? game->iface_view_port->stride : renderer->width;
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         renderer->pixel_buffer,
-        vw,
-        vh,
+        upload_w,
+        upload_h,
         32,
         src_pitch_px * (int)sizeof(int),
         0x00FF0000,
@@ -381,11 +448,11 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
     int texture_w = texture_pitch / sizeof(int); // Convert pitch (bytes) to pixels
     int* src_pixels = (int*)surface->pixels;
 
-    for( int src_y = 0; src_y < vh; src_y++ )
+    for( int src_y = 0; src_y < upload_h; src_y++ )
     {
         int* dst_row = &pix_write[src_y * texture_w];
         int* src_row = &src_pixels[src_y * src_pitch_px];
-        memcpy(dst_row, src_row, (size_t)vw * sizeof(int));
+        memcpy(dst_row, src_row, (size_t)upload_w * sizeof(int));
     }
 
     // Unlock the texture so that it may be used elsewhere
@@ -423,7 +490,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
     }
 
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0"); // Nearest
-    SDL_Rect src_rect = { 0, 0, vw, vh };
+    SDL_Rect src_rect = { 0, 0, upload_w, upload_h };
     SDL_RenderCopy(renderer->renderer, renderer->texture, &src_rect, &dst_rect);
     SDL_FreeSurface(surface);
 
