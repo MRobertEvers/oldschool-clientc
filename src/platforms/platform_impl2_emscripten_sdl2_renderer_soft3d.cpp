@@ -458,7 +458,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
     // Unlock the texture so that it may be used elsewhere
     SDL_UnlockTexture(renderer->texture);
 
-    // Clear renderer and draw the texture with aspect-ratio–preserving scaling
+    // Clear renderer and draw the output scaled to the canvas with aspect-ratio preservation.
     SDL_SetRenderDrawColor(renderer->renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer->renderer);
 
@@ -469,24 +469,30 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
     if( dst_w <= 0 || dst_h <= 0 )
         SDL_GetRendererOutputSize(renderer->renderer, &dst_w, &dst_h);
 
+    /* Letterbox: fit the fixed output (upload_w × upload_h, in output space) into the
+     * canvas (dst_w × dst_h) while preserving the output's aspect ratio.
+     * All viewport values are in output space, so this scales everything together. */
     SDL_Rect dst_rect = { 0, 0, dst_w, dst_h };
-    if( game && game->view_port )
+    if( upload_w > 0 && upload_h > 0 && dst_w > 0 && dst_h > 0 )
     {
-        int x = game->viewport_offset_x;
-        int y = game->viewport_offset_y;
-        int w = game->view_port->width;
-        int h = game->view_port->height;
-
-        if( x < 0 )
-            x = 0;
-        if( y < 0 )
-            y = 0;
-        if( x + w > dst_w )
-            w = dst_w - x;
-        if( y + h > dst_h )
-            h = dst_h - y;
-        if( w > 0 && h > 0 )
-            dst_rect = { x, y, w, h };
+        const float ca = (float)dst_w / (float)dst_h;
+        const float ga = (float)upload_w / (float)upload_h;
+        int lx, ly, lw, lh;
+        if( ga > ca )
+        {
+            lw = dst_w;
+            lh = (int)((float)dst_w / ga);
+            lx = 0;
+            ly = (dst_h - lh) / 2;
+        }
+        else
+        {
+            lh = dst_h;
+            lw = (int)((float)dst_h * ga);
+            ly = 0;
+            lx = (dst_w - lw) / 2;
+        }
+        dst_rect = { lx, ly, lw, lh };
     }
 
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0"); // Nearest

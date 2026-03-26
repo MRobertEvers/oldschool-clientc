@@ -26,6 +26,7 @@ set(COMMON_SOURCES
     src/datastruct/ringbuf.c
     src/platforms/common/sockstream.c
     src/platforms/common/tori_rs_sdl2_gameinput.c
+    src/platforms/common/tori_rs_sdl2_gameinput_imgui.cpp
     src/osrs/ginput.c
     src/osrs/buildcachedat.c
     src/osrs/isaac.c

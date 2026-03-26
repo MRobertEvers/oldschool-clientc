@@ -254,6 +254,10 @@ main(
     // These dimensions define the internal 3D render resolution used by the game/viewport.
     const int graphics3d_width = 513;
     const int graphics3d_height = 335;
+    /* Fixed game output size — iface_view_port and game_screen are locked to this.
+     * All renderers letterbox this to the actual canvas/window size. */
+    const int game_width = 765;
+    const int game_height = 503;
     /* Upper bound for world viewport / soft pixel buffer (ImGui can raise view_port up to this). */
     const int render_max_width = 1600;
     const int render_max_height = 900;
@@ -278,14 +282,14 @@ main(
     g_use_webgl1 = read_use_webgl1_from_window();
     if( g_use_webgl1 )
     {
-        if( !Platform2_Emscripten_SDL2_InitForWebGL1(platform, 1024, 768) )
+        if( !Platform2_Emscripten_SDL2_InitForWebGL1(platform, game_width, game_height) )
         {
             printf("Failed to initialize SDL window for WebGL1\n");
             return 1;
         }
 
         renderer_webgl1 = PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_New(
-            1024, 768, render_max_width, render_max_height);
+            game_width, game_height, render_max_width, render_max_height);
         printf("renderer_webgl1: %p\n", renderer_webgl1);
         if( !renderer_webgl1 ||
             !PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Init(renderer_webgl1, platform) )
@@ -297,7 +301,7 @@ main(
     }
     else
     {
-        if( !Platform2_Emscripten_SDL2_InitForSoft3D(platform, 1024, 768) )
+        if( !Platform2_Emscripten_SDL2_InitForSoft3D(platform, game_width, game_height) )
         {
             printf("Failed to initialize SDL window for Soft3D\n");
             return 1;
@@ -313,13 +317,15 @@ main(
         printf("Soft3D renderer init succeeded\n");
     }
 
-    const int initial_width = platform->window_width > 0 ? platform->window_width : 1024;
-    const int initial_height = platform->window_height > 0 ? platform->window_height : 768;
-    game->iface_view_port->width = initial_width;
-    game->iface_view_port->height = initial_height;
-    game->iface_view_port->x_center = initial_width / 2;
-    game->iface_view_port->y_center = initial_height / 2;
-    game->iface_view_port->stride = initial_width;
+    game->iface_view_port->width    = game_width;
+    game->iface_view_port->height   = game_height;
+    game->iface_view_port->x_center = game_width / 2;
+    game->iface_view_port->y_center = game_height / 2;
+    game->iface_view_port->stride   = game_width;
+    game->iface_view_port->clip_left   = 0;
+    game->iface_view_port->clip_top    = 0;
+    game->iface_view_port->clip_right  = game_width;
+    game->iface_view_port->clip_bottom = game_height;
 
     /* Keep viewport config identical across renderer backends (same as osx.cpp). */
     game->viewport_offset_x = 4;

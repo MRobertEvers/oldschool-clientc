@@ -152,14 +152,19 @@ main(
         }
     }
 
-    const int initial_width = platform->window_width > 0 ? platform->window_width : SCREEN_WIDTH;
-    const int initial_height =
-        platform->window_height > 0 ? platform->window_height : SCREEN_HEIGHT;
-    game->iface_view_port->width = initial_width;
-    game->iface_view_port->height = initial_height;
-    game->iface_view_port->x_center = initial_width / 2;
-    game->iface_view_port->y_center = initial_height / 2;
-    game->iface_view_port->stride = initial_width;
+    /* Fixed game output size — iface_view_port is locked to this so letterboxing
+     * scales a consistent 765×503 frame to the window size. */
+    const int game_width  = 765;
+    const int game_height = 503;
+    game->iface_view_port->width    = game_width;
+    game->iface_view_port->height   = game_height;
+    game->iface_view_port->x_center = game_width / 2;
+    game->iface_view_port->y_center = game_height / 2;
+    game->iface_view_port->stride   = game_width;
+    game->iface_view_port->clip_left   = 0;
+    game->iface_view_port->clip_top    = 0;
+    game->iface_view_port->clip_right  = game_width;
+    game->iface_view_port->clip_bottom = game_height;
 
     /* Keep viewport config identical across renderer backends. */
     game->viewport_offset_x = 4;

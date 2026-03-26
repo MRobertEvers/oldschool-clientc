@@ -1,4 +1,5 @@
 #include "tori_rs_sdl2_gameinput.h"
+#include "tori_rs_sdl2_gameinput_imgui.h"
 
 #include <SDL.h>
 #include <assert.h>
@@ -217,28 +218,40 @@ ToriRSLibPlatform_SDL2_GameInput_PollEvents(
     SDL_Event event;
     while( SDL_PollEvent(&event) )
     {
+        ToriRSLibPlatform_SDL2_GameInput_ImGui_ProcessEvent(&event);
+        bool imgui_wants_keyboard =
+            ToriRSLibPlatform_SDL2_GameInput_ImGui_WantCaptureKeyboard();
+        bool imgui_wants_mouse =
+            ToriRSLibPlatform_SDL2_GameInput_ImGui_WantCaptureMouse();
+
         switch( event.type )
         {
         case SDL_QUIT:
             input->quit = 1;
             break;
         case SDL_KEYDOWN:
-            push_keydown_event(input, event.key.keysym.sym);
+            if( !imgui_wants_keyboard )
+                push_keydown_event(input, event.key.keysym.sym);
             break;
         case SDL_KEYUP:
-            push_keyup_event(input, event.key.keysym.sym);
+            if( !imgui_wants_keyboard )
+                push_keyup_event(input, event.key.keysym.sym);
             break;
         case SDL_MOUSEMOTION:
-            push_mouse_move_event(input, &event.motion);
+            if( !imgui_wants_mouse )
+                push_mouse_move_event(input, &event.motion);
             break;
         case SDL_MOUSEBUTTONDOWN:
-            push_mouse_down_event(input, &event.button);
+            if( !imgui_wants_mouse )
+                push_mouse_down_event(input, &event.button);
             break;
         case SDL_MOUSEBUTTONUP:
-            push_mouse_up_event(input, &event.button);
+            if( !imgui_wants_mouse )
+                push_mouse_up_event(input, &event.button);
             break;
         case SDL_MOUSEWHEEL:
-            push_mouse_wheel_event(input, &event.wheel);
+            if( !imgui_wants_mouse )
+                push_mouse_wheel_event(input, &event.wheel);
             break;
         }
     }

@@ -183,6 +183,21 @@ Platform2_Emscripten_SDL2_SyncCanvasCssSize(
     if( new_w <= 0 || new_h <= 0 )
         return;
 
+    /* One-time initialisation: set iface_view_port clip bounds to the fixed output size.
+     * LibToriRS_GameNew leaves clip_right = 0; browser.cpp sets width/height/stride but
+     * not the clip fields.  We must do this before the size-change guard so it runs even
+     * when the canvas is already the same size as the initial SDL window. */
+    if( game_nullable && game_nullable->iface_view_port &&
+        game_nullable->iface_view_port->clip_right <= 0 &&
+        platform->game_screen_width > 0 )
+    {
+        struct DashViewPort* ivp = game_nullable->iface_view_port;
+        ivp->clip_left = 0;
+        ivp->clip_top = 0;
+        ivp->clip_right = platform->game_screen_width;
+        ivp->clip_bottom = platform->game_screen_height;
+    }
+
     if( new_w == platform->window_width && new_h == platform->window_height )
         return;
 
@@ -190,8 +205,10 @@ Platform2_Emscripten_SDL2_SyncCanvasCssSize(
     platform->window_height = new_h;
     platform->drawable_width = new_w;
     platform->drawable_height = new_h;
-    platform->game_screen_width = new_w;
-    platform->game_screen_height = new_h;
+    /* game_screen_width/height and iface_view_port width/height/stride are fixed at
+     * output resolution and are intentionally NOT updated here — all viewport values
+     * are in output space, not canvas/window space.  The renderers letterbox the
+     * output into the canvas. */
 
     if( platform->window )
         SDL_SetWindowSize(platform->window, new_w, new_h);
@@ -200,20 +217,6 @@ Platform2_Emscripten_SDL2_SyncCanvasCssSize(
 
     if( ImGui::GetCurrentContext() != nullptr )
         ImGui::GetIO().DisplaySize = ImVec2((float)new_w, (float)new_h);
-
-    if( game_nullable && game_nullable->iface_view_port )
-    {
-        struct DashViewPort* ivp = game_nullable->iface_view_port;
-        ivp->x_center = new_w / 2;
-        ivp->y_center = new_h / 2;
-        ivp->width = new_w;
-        ivp->height = new_h;
-        ivp->stride = new_w;
-        ivp->clip_left = 0;
-        ivp->clip_top = 0;
-        ivp->clip_right = new_w;
-        ivp->clip_bottom = new_h;
-    }
 }
 
 void
@@ -242,7 +245,7 @@ Platform2_Emscripten_SDL2_PollEvents(struct Platform2_Emscripten_SDL2* platform)
         int mx = 0;
         int my = 0;
         SDL_GetMouseState(&mx, &my);
-        // transform_mouse_coordinates(mx, my, &input->mouse_x, &input->mouse_y, platform);
+        transform_mouse_coordinates(mx, my, &input->mouse_state.x, &input->mouse_state.y, platform);
     }
     else
     {
