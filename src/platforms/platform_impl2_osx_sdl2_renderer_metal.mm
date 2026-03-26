@@ -23,6 +23,7 @@ extern "C" {
 #include "graphics/dash.h"
 #include "graphics/shared_tables.h"
 #include "osrs/game.h"
+#include "platforms/common/platform_memory.h"
 #include "tori_rs_render.h"
 }
 
@@ -472,6 +473,22 @@ render_imgui_overlay(
         "Application average %.3f ms/frame (%.1f FPS)",
         1000.0f / ImGui::GetIO().Framerate,
         ImGui::GetIO().Framerate);
+
+    {
+        struct PlatformMemoryInfo mem = {};
+        if( platform_get_memory_info(&mem) )
+        {
+            float used_mb = mem.heap_used / (1024.0f * 1024.0f);
+            float total_mb = mem.heap_total / (1024.0f * 1024.0f);
+            ImGui::Text("Heap: %.1f / %.1f MB", used_mb, total_mb);
+            if( mem.heap_total > 0 )
+                ImGui::ProgressBar(
+                    (float)mem.heap_used / (float)mem.heap_total, ImVec2(-1, 0), nullptr);
+            if( mem.heap_peak > 0 )
+                ImGui::Text("Peak: %.1f MB", mem.heap_peak / (1024.0f * 1024.0f));
+        }
+    }
+
     ImGui::Text(
         "Camera: %d %d %d", game->camera_world_x, game->camera_world_y, game->camera_world_z);
     ImGui::Text("Mouse: %d %d", game->mouse_x, game->mouse_y);

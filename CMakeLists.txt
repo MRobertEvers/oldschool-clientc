@@ -25,6 +25,7 @@ set(COMMON_SOURCES
     src/datastruct/vec.c
     src/datastruct/ringbuf.c
     src/platforms/common/sockstream.c
+    src/platforms/common/platform_memory.c
     src/platforms/common/tori_rs_sdl2_gameinput.c
     src/platforms/common/tori_rs_sdl2_gameinput_imgui.cpp
     src/osrs/ginput.c
@@ -203,7 +204,7 @@ if(NOT EMSCRIPTEN)
     endif()
 
     if(WIN32)
-        target_link_libraries(osx ws2_32)
+        target_link_libraries(osx ws2_32 psapi)
         target_link_options(osx PRIVATE -Wl,-subsystem,console)
     endif()
 

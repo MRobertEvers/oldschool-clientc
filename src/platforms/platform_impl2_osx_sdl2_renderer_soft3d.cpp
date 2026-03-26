@@ -5,6 +5,7 @@
 #include "imgui_impl_sdlrenderer2.h"
 
 extern "C" {
+#include "platforms/common/platform_memory.h"
 #include "3rd/lua/lauxlib.h"
 #include "3rd/lua/lua.h"
 #include "3rd/lua/lualib.h"
@@ -66,6 +67,22 @@ render_imgui(
         "Application average %.3f ms/frame (%.1f FPS)",
         1000.0f / ImGui::GetIO().Framerate,
         ImGui::GetIO().Framerate);
+
+    {
+        struct PlatformMemoryInfo mem = {};
+        if( platform_get_memory_info(&mem) )
+        {
+            float used_mb = mem.heap_used / (1024.0f * 1024.0f);
+            float total_mb = mem.heap_total / (1024.0f * 1024.0f);
+            ImGui::Text("Heap: %.1f / %.1f MB", used_mb, total_mb);
+            if( mem.heap_total > 0 )
+                ImGui::ProgressBar(
+                    (float)mem.heap_used / (float)mem.heap_total, ImVec2(-1, 0), nullptr);
+            if( mem.heap_peak > 0 )
+                ImGui::Text("Peak: %.1f MB", mem.heap_peak / (1024.0f * 1024.0f));
+        }
+    }
+
     Uint64 frequency = SDL_GetPerformanceFrequency();
 
     ImGui::Text("Max paint command: %d", game->cc);
