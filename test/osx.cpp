@@ -12,7 +12,9 @@ extern "C" {
 #include "3rd/lua/lualib.h"
 }
 #include "platforms/platform_impl2_osx_sdl2.h"
+#if defined(__APPLE__)
 #include "platforms/platform_impl2_osx_sdl2_renderer_metal.h"
+#endif
 #include "platforms/platform_impl2_osx_sdl2_renderer_opengl3.h"
 #include "platforms/platform_impl2_osx_sdl2_renderer_soft3d.h"
 
@@ -30,7 +32,9 @@ enum RendererKind
 {
     RENDERER_SOFT3D,
     RENDERER_OPENGL3,
+#if defined(__APPLE__)
     RENDERER_METAL,
+#endif
 };
 
 static RendererKind
@@ -45,8 +49,10 @@ select_renderer(
             return RENDERER_OPENGL3;
         if( strcmp(env_renderer, "soft3d") == 0 || strcmp(env_renderer, "soft") == 0 )
             return RENDERER_SOFT3D;
+#if defined(__APPLE__)
         if( strcmp(env_renderer, "metal") == 0 )
             return RENDERER_METAL;
+#endif
     }
 
     for( int i = 1; i < argc; i++ )
@@ -55,8 +61,10 @@ select_renderer(
             return RENDERER_OPENGL3;
         if( strcmp(argv[i], "--renderer=soft3d") == 0 || strcmp(argv[i], "--soft3d") == 0 )
             return RENDERER_SOFT3D;
+#if defined(__APPLE__)
         if( strcmp(argv[i], "--renderer=metal") == 0 || strcmp(argv[i], "--metal") == 0 )
             return RENDERER_METAL;
+#endif
     }
 
     return RENDERER_SOFT3D;
@@ -90,6 +98,7 @@ main(
             return 1;
         }
     }
+#if defined(__APPLE__)
     else if( renderer_kind == RENDERER_METAL )
     {
         if( !Platform2_OSX_SDL2_InitForMetal(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
@@ -98,6 +107,7 @@ main(
             return 1;
         }
     }
+#endif
     else if( !Platform2_OSX_SDL2_InitForSoft3D(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
     {
         printf("Failed to initialize platform\n");
@@ -106,7 +116,9 @@ main(
 
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer_soft3d = NULL;
     struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer_opengl3 = NULL;
+#if defined(__APPLE__)
     struct Platform2_OSX_SDL2_Renderer_Metal* renderer_metal = NULL;
+#endif
 
     if( renderer_kind == RENDERER_OPENGL3 )
     {
@@ -122,6 +134,7 @@ main(
             return 1;
         }
     }
+#if defined(__APPLE__)
     else if( renderer_kind == RENDERER_METAL )
     {
         renderer_metal = PlatformImpl2_OSX_SDL2_Renderer_Metal_New(SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -136,6 +149,7 @@ main(
             return 1;
         }
     }
+#endif
     else
     {
         renderer_soft3d =
@@ -206,9 +220,11 @@ main(
         if( renderer_opengl3 )
             PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
                 renderer_opengl3, game, render_command_buffer);
+#if defined(__APPLE__)
         else if( renderer_metal )
             PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
                 renderer_metal, game, render_command_buffer);
+#endif
         else
             PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 renderer_soft3d, game, render_command_buffer);
@@ -223,8 +239,10 @@ main(
     sockstream_cleanup();
     if( renderer_opengl3 )
         PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Free(renderer_opengl3);
+#if defined(__APPLE__)
     if( renderer_metal )
         PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(renderer_metal);
+#endif
     if( renderer_soft3d )
         PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Free(renderer_soft3d);
     return 0;

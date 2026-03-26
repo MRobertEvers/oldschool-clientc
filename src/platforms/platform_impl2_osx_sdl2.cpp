@@ -45,7 +45,7 @@ extern "C" {
 #include <string.h>
 
 #define CACHE_PATH "../cache254"
-#define LUA_SCRIPTS_DIR "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/scripts"
+#define LUA_SCRIPTS_DIR "../src/osrs/scripts"
 
 static struct LuaGameType*
 game_callback(

@@ -33,7 +33,7 @@ extern "C" {
 #include "tori_rs_render.h"
 }
 
-#define LUA_SCRIPTS_DIR "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/scripts"
+#define LUA_SCRIPTS_DIR "../src/osrs/scripts"
 
 #include <SDL.h>
 #include <cmath>

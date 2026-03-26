@@ -16,11 +16,12 @@
 //
 
 #if defined(__APPLE__)
-// Use regular OpenGL headers on macOS/iOS for development
 #include <OpenGL/gl.h>
 #include <OpenGL/gl3.h>
 #define GL_GLEXT_PROTOTYPES
-
+#else
+#define GL_GLEXT_PROTOTYPES
+#include <GL/glcorearb.h>
 #endif
 
 #include <unordered_map>

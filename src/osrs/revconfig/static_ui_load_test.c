@@ -11,9 +11,9 @@ int
 main()
 {
     const char* filename_cache =
-        "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/revconfig/"
+        "../src/osrs/revconfig/"
         "configs/rev_245_2/rev_245_2_cache.ini";
-    char const* filename_ui = "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/revconfig/"
+    char const* filename_ui = "../src/osrs/revconfig/"
                               "configs/rev_245_2/rev_245_2_ui.ini";
 
     struct RevConfigBuffer* buffer = revconfig_buffer_new(16);
@@ -24,7 +24,7 @@ main()
 
     struct BuildCacheDat* buildcachedat = buildcachedat_new();
     struct CacheDat* cache_dat =
-        cache_dat_new_from_directory("/Users/matthewevers/Documents/git_repos/3draster/cache254");
+        cache_dat_new_from_directory("../cache254");
 
     struct CacheDatArchive* archive =
         cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_MEDIA_2D_GRAPHICS);

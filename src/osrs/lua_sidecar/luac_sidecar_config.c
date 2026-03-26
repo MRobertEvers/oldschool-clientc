@@ -7,8 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define CONFIG_DIRECTORY                                                                           \
-    "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/revconfig/configs"
+#define CONFIG_DIRECTORY "../src/osrs/revconfig/configs"
 
 static void*
 arg_userdata(

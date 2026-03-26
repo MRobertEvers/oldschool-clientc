@@ -29,7 +29,7 @@
 
 #define CACHE_PATH "../cache"
 #define CACHE_DAT_PATH "../cache254"
-#define LUA_SCRIPTS_DIR "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/scripts"
+#define LUA_SCRIPTS_DIR "../src/osrs/scripts"
 
 /** Return the module table stored as upvalue (so require("hostio_utils") works). */
 static int

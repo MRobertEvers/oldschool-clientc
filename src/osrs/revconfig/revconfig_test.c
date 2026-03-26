@@ -6,7 +6,7 @@
 int
 main()
 {
-    const char* filename = "/Users/matthewevers/Documents/git_repos/3draster/src/osrs/revconfig/"
+    const char* filename = "../src/osrs/revconfig/"
                            "configs/rev_254_2/rev_245_2_cache.ini";
 
     struct RevConfigBuffer* buffer = revconfig_buffer_new(16);

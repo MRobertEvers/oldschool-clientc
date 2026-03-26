@@ -9,6 +9,10 @@
 
 #if defined(__APPLE__)
 #include <OpenGL/gl3.h>
+#else
+/* Must match .cpp: glcorearb only exposes prototypes when this is set. */
+#define GL_GLEXT_PROTOTYPES
+#include <GL/glcorearb.h>
 #endif
 
 extern "C" {
