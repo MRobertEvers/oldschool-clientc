@@ -572,6 +572,7 @@ decode_tile(
     {
         dash_model->face_textures = malloc(face_count * sizeof(int));
         memcpy(dash_model->face_textures, face_texture_ids, face_count * sizeof(int));
+        dash_model->has_textures = true;
     }
 
     // Hide faces with color_c == -2.
