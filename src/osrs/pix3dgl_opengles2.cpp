@@ -1289,6 +1289,9 @@ pix3dgl_begin_2dframe(struct Pix3DGL* pix3dgl)
         return;
     glUseProgram(pix3dgl->program_ui);
     glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glDisable(GL_CULL_FACE); /* begin_3dframe enables GL_CULL_FACE; sprite quads must not be culled */
+    glDisable(GL_SCISSOR_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
@@ -2085,6 +2088,10 @@ pix3dgl_sprite_draw(
     if( !sprite || !sprite->pixels_argb || framebuffer_width <= 0 || framebuffer_height <= 0 ||
         sprite->width <= 0 || sprite->height <= 0 )
         return;
+
+    /* Single shared ui_sprite_texture; desktop pix3dgl.cpp lazy-uploads here — static UI often
+     * emits SPRITE_DRAW without a preceding SPRITE_LOAD in the same command stream. */
+    pix3dgl_sprite_load(pix3dgl, sprite);
 
     dst_x += sprite->crop_x;
     dst_y += sprite->crop_y;
