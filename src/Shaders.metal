@@ -105,3 +105,38 @@ fragment float4 uiSpriteFrag(
         discard_fragment();
     return c;
 }
+
+// ---------------------------------------------------------------------------
+// Font atlas rendering: per-vertex color tinted by atlas alpha
+// ---------------------------------------------------------------------------
+struct UIFontVertIn {
+    float2 p [[attribute(0)]];
+    float2 uv [[attribute(1)]];
+    float4 color [[attribute(2)]];
+};
+
+struct UIFontVertOut {
+    float4 position [[position]];
+    float2 uv;
+    float4 color;
+};
+
+vertex UIFontVertOut uiFontVert(UIFontVertIn in [[stage_in]])
+{
+    UIFontVertOut o;
+    o.position = float4(in.p, 0.0, 1.0);
+    o.uv       = in.uv;
+    o.color    = in.color;
+    return o;
+}
+
+fragment float4 uiFontFrag(
+    UIFontVertOut in [[stage_in]],
+    texture2d<float> tex [[texture(0)]],
+    sampler samp [[sampler(0)]])
+{
+    float a = tex.sample(samp, in.uv).a;
+    if( a < 0.01 )
+        discard_fragment();
+    return float4(in.color.rgb, a * in.color.a);
+}

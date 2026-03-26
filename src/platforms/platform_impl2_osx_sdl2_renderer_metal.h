@@ -66,6 +66,10 @@ struct Platform2_OSX_SDL2_Renderer_Metal
 
     // Reusable 96-byte MTLBuffer (6 verts × 4 floats) for sprite quad draws.
     void* mtl_sprite_quad_buf;  // id<MTLBuffer>
+
+    void* mtl_font_pipeline;    // id<MTLRenderPipelineState> for font atlas rendering
+    void* mtl_font_vbo;         // id<MTLBuffer> for font vertex data
+    std::unordered_map<struct DashPixFont*, void*> font_atlas_textures; // DashPixFont* -> id<MTLTexture>
 };
 
 struct Platform2_OSX_SDL2_Renderer_Metal*

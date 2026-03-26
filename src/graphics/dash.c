@@ -2655,6 +2655,86 @@ dashfont_text_width(
     return width;
 }
 
+int
+dashfont_charcode_to_glyph(uint8_t code_point)
+{
+    return DASH_FONT_CHARCODESET[code_point];
+}
+
+struct DashFontAtlas*
+dashfont_build_atlas(struct DashPixFont* pixfont)
+{
+    if( !pixfont )
+        return NULL;
+
+    int total_w = 0;
+    int max_h = 0;
+    for( int i = 0; i < DASH_FONT_CHAR_COUNT; i++ )
+    {
+        int w = pixfont->char_mask_width[i];
+        int h = pixfont->char_mask_height[i];
+        if( w > 0 )
+            total_w += w + 1;
+        if( h > max_h )
+            max_h = h;
+    }
+    if( total_w <= 0 || max_h <= 0 )
+        return NULL;
+
+    struct DashFontAtlas* atlas =
+        (struct DashFontAtlas*)malloc(sizeof(struct DashFontAtlas));
+    memset(atlas, 0, sizeof(struct DashFontAtlas));
+    atlas->atlas_width = total_w;
+    atlas->atlas_height = max_h;
+    atlas->rgba_pixels = (uint8_t*)calloc((size_t)total_w * (size_t)max_h * 4u, 1);
+
+    int cursor_x = 0;
+    for( int i = 0; i < DASH_FONT_CHAR_COUNT; i++ )
+    {
+        int gw = pixfont->char_mask_width[i];
+        int gh = pixfont->char_mask_height[i];
+        atlas->glyph_x[i] = cursor_x;
+        atlas->glyph_y[i] = 0;
+        atlas->glyph_w[i] = gw;
+        atlas->glyph_h[i] = gh;
+
+        int* mask = pixfont->char_mask[i];
+        if( mask && gw > 0 && gh > 0 )
+        {
+            for( int row = 0; row < gh; row++ )
+            {
+                for( int col = 0; col < gw; col++ )
+                {
+                    int src_idx = row * gw + col;
+                    size_t dst_idx =
+                        ((size_t)row * (size_t)total_w + (size_t)(cursor_x + col)) * 4u;
+                    if( mask[src_idx] != 0 )
+                    {
+                        atlas->rgba_pixels[dst_idx + 0] = 0xFF;
+                        atlas->rgba_pixels[dst_idx + 1] = 0xFF;
+                        atlas->rgba_pixels[dst_idx + 2] = 0xFF;
+                        atlas->rgba_pixels[dst_idx + 3] = 0xFF;
+                    }
+                }
+            }
+        }
+
+        if( gw > 0 )
+            cursor_x += gw + 1;
+    }
+
+    return atlas;
+}
+
+void
+dashfont_free_atlas(struct DashFontAtlas* atlas)
+{
+    if( !atlas )
+        return;
+    free(atlas->rgba_pixels);
+    free(atlas);
+}
+
 /* Evaluate @XXX@ color tag. Returns new color or -1 if not a color tag. */
 static int
 dashfont_evaluate_tag(const char* tag)
@@ -2686,6 +2766,12 @@ dashfont_evaluate_tag(const char* tag)
     if( tag[0] == 'g' && tag[1] == 'r' && tag[2] == '3' )
         return GREEN3;
     return -1;
+}
+
+int
+dashfont_evaluate_color_tag(const char* tag)
+{
+    return dashfont_evaluate_tag(tag);
 }
 
 void

@@ -7,11 +7,20 @@
 #include <unordered_set>
 #include <vector>
 
+#if defined(__APPLE__)
+#include <OpenGL/gl3.h>
+#endif
+
 extern "C" {
 #include "osrs/game.h"
 #include "osrs/pix3dgl.h"
 #include "tori_rs.h"
 }
+
+struct GLFontAtlasEntry
+{
+    GLuint texture;
+};
 
 struct Platform2_OSX_SDL2_Renderer_OpenGL3
 {
@@ -26,6 +35,13 @@ struct Platform2_OSX_SDL2_Renderer_OpenGL3
     std::unordered_set<uintptr_t> loaded_model_keys;
     std::unordered_set<uintptr_t> loaded_scene_element_keys;
     std::unordered_set<int> loaded_texture_ids;
+
+    std::unordered_map<struct DashPixFont*, GLFontAtlasEntry> font_atlas_cache;
+    GLuint font_program;
+    GLuint font_vao;
+    GLuint font_vbo;
+    GLint font_uniform_projection;
+    GLint font_uniform_tex;
 };
 
 struct Platform2_OSX_SDL2_Renderer_OpenGL3*

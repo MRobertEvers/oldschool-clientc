@@ -274,6 +274,17 @@ static const uint16_t DASH_FONT_CHARSET[] = {
 // #define CHAR_COUNT (sizeof(CHARSET) - 1)
 #define DASH_FONT_CHAR_COUNT 94
 
+struct DashFontAtlas
+{
+    uint8_t* rgba_pixels;
+    int atlas_width;
+    int atlas_height;
+    int glyph_x[DASH_FONT_CHAR_COUNT];
+    int glyph_y[DASH_FONT_CHAR_COUNT];
+    int glyph_w[DASH_FONT_CHAR_COUNT];
+    int glyph_h[DASH_FONT_CHAR_COUNT];
+};
+
 struct DashPixFont
 {
     int* charcode_set;
@@ -287,6 +298,7 @@ struct DashPixFont
     int char_advance[DASH_FONT_CHAR_COUNT + 1];
     int draw_width[256];
     int height2d;
+    struct DashFontAtlas* atlas;
 };
 
 void
@@ -579,6 +591,18 @@ dashfont_draw_text_clipped_taggable(
     int clip_right,
     int clip_bottom,
     bool shadowed);
+
+struct DashFontAtlas*
+dashfont_build_atlas(struct DashPixFont* pixfont);
+
+void
+dashfont_free_atlas(struct DashFontAtlas* atlas);
+
+int
+dashfont_charcode_to_glyph(uint8_t code_point);
+
+int
+dashfont_evaluate_color_tag(const char* tag);
 
 void
 dash2d_fill_rect(

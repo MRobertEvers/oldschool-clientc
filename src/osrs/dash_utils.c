@@ -206,6 +206,8 @@ dashpixfont_new_from_cache_dat_pixfont_move(struct CacheDatPixfont* pixfont)
         }
     }
 
+    dashpixfont->atlas = dashfont_build_atlas(dashpixfont);
+
     // Moved out of.
     memset(pixfont, 0x00, sizeof(struct CacheDatPixfont));
     return dashpixfont;

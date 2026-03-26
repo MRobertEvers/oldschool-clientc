@@ -8,6 +8,40 @@
 #include <stdlib.h>
 #include <string.h>
 
+// face_texture_coords/face_textures must be NULL, or have at least one
+// non-(-1) entry, to avoid false-positives in the has_textures check.
+static void
+model_assert_texture_invariant(const struct CacheModel* model)
+{
+    if( model->face_texture_coords != NULL )
+    {
+        bool found = false;
+        for( int i = 0; i < model->face_count; i++ )
+        {
+            if( model->face_texture_coords[i] != -1 )
+            {
+                found = true;
+                break;
+            }
+        }
+        assert(found);
+    }
+
+    if( model->face_textures != NULL )
+    {
+        bool found = false;
+        for( int i = 0; i < model->face_count; i++ )
+        {
+            if( model->face_textures[i] != -1 )
+            {
+                found = true;
+                break;
+            }
+        }
+        assert(found);
+    }
+}
+
 // Helper function to read a byte from the buffer
 static uint8_t
 read_byte(
@@ -502,8 +536,11 @@ decode_ob2(
     {
         free(model->face_textures);
         model->face_textures = NULL;
+        free(model->face_texture_coords);
+        model->face_texture_coords = NULL;
     }
 
+    model_assert_texture_invariant(model);
     return model;
 }
 
@@ -1604,19 +1641,19 @@ decode_version2__osrs_extended(
             }
         }
 
-        // if( !var47 )
-        // {
-        //     free(def->face_texture_coords);
-        //     def->face_texture_coords = NULL;
-        // }
+        if( !var47 )
+        {
+            free(def->face_texture_coords);
+            def->face_texture_coords = NULL;
+        }
     }
 
     // Clean up unused arrays
-    // if( !var3 )
-    // {
-    //     free(def->face_textures);
-    //     def->face_textures = NULL;
-    // }
+    if( !var3 )
+    {
+        free(def->face_textures);
+        def->face_textures = NULL;
+    }
 
     // if( !var2 )
     // {
@@ -1624,6 +1661,7 @@ decode_version2__osrs_extended(
     //     def->face_infos = NULL;
     // }
 
+    model_assert_texture_invariant(def);
     return def;
 }
 
@@ -2360,6 +2398,7 @@ decode_version3__osrs_material(
         read_int(var1, &var2_offset);
     }
 
+    model_assert_texture_invariant(def);
     return def;
 }
 
@@ -2933,6 +2972,7 @@ model_new_merge(
 
     model->_flags &= ~CMODEL_FLAG_SHARED;
 
+    model_assert_texture_invariant(model);
     return model;
 }
 

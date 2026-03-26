@@ -40,6 +40,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <vector>
 
 extern int g_trap_command;
 extern int g_trap_x;
@@ -586,6 +587,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
 
     renderer->highlight_poly_valid = 0;
 
+    /* Font draws must happen after the dash_buffer blit so they appear on top of 3D geometry.
+     * Collect them here and replay below. */
+    static std::vector<ToriRSRenderCommand> deferred_font_draws;
+    deferred_font_draws.clear();
+
     LibToriRS_FrameBegin(game, render_command_buffer);
     while( LibToriRS_FrameNextCommand(game, render_command_buffer, &command, true) )
     {
@@ -596,19 +602,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         case TORIRS_GFX_TEXTURE_LOAD:
             break;
         case TORIRS_GFX_FONT_DRAW:
-        {
-            struct DashPixFont* f = command._font_draw.font;
-            if( f && command._font_draw.text && renderer->pixel_buffer )
-                dashfont_draw_text_ex(
-                    f,
-                    (uint8_t*)command._font_draw.text,
-                    command._font_draw.x,
-                    command._font_draw.y,
-                    command._font_draw.color_rgb,
-                    renderer->pixel_buffer,
-                    renderer->width);
+            deferred_font_draws.push_back(command);
             break;
-        }
         case TORIRS_GFX_MODEL_DRAW:
             dash3d_raster_projected_model(
                 game->sys_dash,
@@ -822,6 +817,21 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                         pix[dst_y * pix_stride + dst_x] = dash_buf[y * dash_w + x];
                 }
         }
+    }
+
+    /* Draw deferred font commands on top of the blitted 3D scene. */
+    for( const auto& fc : deferred_font_draws )
+    {
+        struct DashPixFont* f = fc._font_draw.font;
+        if( f && fc._font_draw.text && renderer->pixel_buffer )
+            dashfont_draw_text_ex(
+                f,
+                (uint8_t*)fc._font_draw.text,
+                fc._font_draw.x,
+                fc._font_draw.y,
+                fc._font_draw.color_rgb,
+                renderer->pixel_buffer,
+                renderer->width);
     }
 
     /* Client.ts drawTooltip: draw hovered loc/NPC/player text at (4, 15) in top left. */

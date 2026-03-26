@@ -558,6 +558,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_New(
     renderer->depth_texture_width = 0;
     renderer->depth_texture_height = 0;
     renderer->mtl_sprite_quad_buf = nullptr;
+    renderer->mtl_font_pipeline = nullptr;
+    renderer->mtl_font_vbo = nullptr;
     return renderer;
 }
 
@@ -577,6 +579,23 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(struct Platform2_OSX_SDL2_Renderer_Me
         if( kv.second )
             CFRelease(kv.second);
     renderer->sprite_texture_by_ptr.clear();
+
+    // Release cached font atlas textures
+    for( auto& kv : renderer->font_atlas_textures )
+        if( kv.second )
+            CFRelease(kv.second);
+    renderer->font_atlas_textures.clear();
+
+    if( renderer->mtl_font_vbo )
+    {
+        CFRelease(renderer->mtl_font_vbo);
+        renderer->mtl_font_vbo = nullptr;
+    }
+    if( renderer->mtl_font_pipeline )
+    {
+        CFRelease(renderer->mtl_font_pipeline);
+        renderer->mtl_font_pipeline = nullptr;
+    }
 
     ImGui_ImplMetal_Shutdown();
     ImGui_ImplSDL2_Shutdown();
@@ -830,6 +849,50 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
                 uiErr ? uiErr.localizedDescription.UTF8String : "unknown");
     }
 
+    id<MTLFunction> fontVertFn = [shaderLibrary newFunctionWithName:@"uiFontVert"];
+    id<MTLFunction> fontFragFn = [shaderLibrary newFunctionWithName:@"uiFontFrag"];
+    if( fontVertFn && fontFragFn )
+    {
+        MTLVertexDescriptor* fontVtx = [[MTLVertexDescriptor alloc] init];
+        fontVtx.attributes[0].format = MTLVertexFormatFloat2;
+        fontVtx.attributes[0].offset = 0;
+        fontVtx.attributes[0].bufferIndex = 0;
+        fontVtx.attributes[1].format = MTLVertexFormatFloat2;
+        fontVtx.attributes[1].offset = 8;
+        fontVtx.attributes[1].bufferIndex = 0;
+        fontVtx.attributes[2].format = MTLVertexFormatFloat4;
+        fontVtx.attributes[2].offset = 16;
+        fontVtx.attributes[2].bufferIndex = 0;
+        fontVtx.layouts[0].stride = 32;
+        fontVtx.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
+
+        MTLRenderPipelineDescriptor* fontPipeDesc = [[MTLRenderPipelineDescriptor alloc] init];
+        fontPipeDesc.vertexFunction = fontVertFn;
+        fontPipeDesc.fragmentFunction = fontFragFn;
+        fontPipeDesc.vertexDescriptor = fontVtx;
+        fontPipeDesc.colorAttachments[0].pixelFormat = layer.pixelFormat;
+        fontPipeDesc.colorAttachments[0].blendingEnabled = YES;
+        fontPipeDesc.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
+        fontPipeDesc.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+        fontPipeDesc.colorAttachments[0].destinationRGBBlendFactor =
+            MTLBlendFactorOneMinusSourceAlpha;
+        fontPipeDesc.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
+        fontPipeDesc.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
+        fontPipeDesc.colorAttachments[0].destinationAlphaBlendFactor =
+            MTLBlendFactorOneMinusSourceAlpha;
+        fontPipeDesc.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
+
+        NSError* fontErr = nil;
+        id<MTLRenderPipelineState> fontPipe =
+            [device newRenderPipelineStateWithDescriptor:fontPipeDesc error:&fontErr];
+        if( fontPipe )
+            renderer->mtl_font_pipeline = (__bridge_retained void*)fontPipe;
+        else
+            printf(
+                "Metal: font pipeline creation failed: %s\n",
+                fontErr ? fontErr.localizedDescription.UTF8String : "unknown");
+    }
+
     // Match pix3dgl_new(false, true): z-buffer off → GL_ALWAYS / no depth write
     MTLDepthStencilDescriptor* dsDesc = [[MTLDepthStencilDescriptor alloc] init];
     dsDesc.depthCompareFunction = MTLCompareFunctionAlways;
@@ -874,6 +937,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
     id<MTLBuffer> sqb = [device newBufferWithLength:(NSUInteger)(4096 * 6 * 4 * sizeof(float))
                                             options:MTLResourceStorageModeShared];
     renderer->mtl_sprite_quad_buf = (__bridge_retained void*)sqb;
+
+    // Font vertex buffer: 4096 glyphs × 6 verts × 8 floats (pos2 + uv2 + color4) × 4 bytes
+    id<MTLBuffer> fontVbo = [device newBufferWithLength:(NSUInteger)(4096 * 6 * 8 * sizeof(float))
+                                                options:MTLResourceStorageModeShared];
+    renderer->mtl_font_vbo = (__bridge_retained void*)fontVbo;
 
     // -----------------------------------------------------------------------
     // ImGui
@@ -1257,7 +1325,32 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
                 break;
 
             case TORIRS_GFX_FONT_LOAD:
+            {
+                struct DashPixFont* font = cmd._font_load.font;
+                if( font && font->atlas &&
+                    renderer->font_atlas_textures.find(font) ==
+                        renderer->font_atlas_textures.end() )
+                {
+                    struct DashFontAtlas* atlas = font->atlas;
+                    MTLTextureDescriptor* td = [MTLTextureDescriptor
+                        texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                     width:(NSUInteger)atlas->atlas_width
+                                                    height:(NSUInteger)atlas->atlas_height
+                                                 mipmapped:NO];
+                    td.usage = MTLTextureUsageShaderRead;
+                    td.storageMode = MTLStorageModeShared;
+                    id<MTLTexture> atlasTex = [device newTextureWithDescriptor:td];
+                    [atlasTex
+                        replaceRegion:MTLRegionMake2D(
+                                          0, 0, (NSUInteger)atlas->atlas_width,
+                                          (NSUInteger)atlas->atlas_height)
+                          mipmapLevel:0
+                            withBytes:atlas->rgba_pixels
+                          bytesPerRow:(NSUInteger)atlas->atlas_width * 4u];
+                    renderer->font_atlas_textures[font] = (__bridge_retained void*)atlasTex;
+                }
                 break;
+            }
 
             case TORIRS_GFX_FONT_DRAW:
                 sprite_cmds.push_back(cmd);
@@ -1360,89 +1453,148 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
             ++spriteSlot;
             }
-            else if( sc.kind == TORIRS_GFX_FONT_DRAW )
-            {
+        }
+    }
+
+    /* Font draws: emit per-glyph quads from atlas textures using the font pipeline. */
+    id<MTLRenderPipelineState> fontPipeState =
+        renderer->mtl_font_pipeline
+            ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_font_pipeline
+            : nil;
+    if( fontPipeState && renderer->mtl_font_vbo )
+    {
+        id<MTLBuffer> fontVbo = (__bridge id<MTLBuffer>)renderer->mtl_font_vbo;
+        id<MTLSamplerState> fontSampler = (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
+
+        [encoder setRenderPipelineState:fontPipeState];
+        [encoder setDepthStencilState:dsState];
+        [encoder setCullMode:MTLCullModeNone];
+        MTLViewport fontVp = { .originX = 0.0,
+                               .originY = 0.0,
+                               .width = (double)renderer->width,
+                               .height = (double)renderer->height,
+                               .znear = 0.0,
+                               .zfar = 1.0 };
+        [encoder setViewport:fontVp];
+
+        static std::vector<float> font_verts;
+        font_verts.clear();
+
+        struct DashPixFont* current_font_ptr = NULL;
+        id<MTLTexture> current_atlas_tex = nil;
+
+        const float fbw = (float)(win_width > 0 ? win_width : renderer->width);
+        const float fbh = (float)(win_height > 0 ? win_height : renderer->height);
+
+        auto flush_font_batch = [&]() {
+            if( font_verts.empty() || !current_atlas_tex )
+                return;
+            int vert_count = (int)(font_verts.size() / 8);
+            NSUInteger byte_count = font_verts.size() * sizeof(float);
+            if( byte_count > fontVbo.length )
+                return;
+            memcpy(fontVbo.contents, font_verts.data(), byte_count);
+            [encoder setVertexBuffer:fontVbo offset:0 atIndex:0];
+            [encoder setFragmentTexture:current_atlas_tex atIndex:0];
+            [encoder setFragmentSamplerState:fontSampler atIndex:0];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                        vertexStart:0
+                        vertexCount:(NSUInteger)vert_count];
+            font_verts.clear();
+        };
+
+        for( const auto& sc : sprite_cmds )
+        {
+            if( sc.kind != TORIRS_GFX_FONT_DRAW )
+                continue;
             struct DashPixFont* f = sc._font_draw.font;
-            if( !f || !sc._font_draw.text || f->height2d <= 0 )
-                continue;
-            const int text_w = dashfont_text_width(f, (uint8_t*)sc._font_draw.text);
-            const int text_h = f->height2d;
-            if( text_w <= 0 )
+            if( !f || !f->atlas || !sc._font_draw.text || f->height2d <= 0 )
                 continue;
 
-            /* Render text into a temporary ARGB pixel buffer. */
-            std::vector<int> argb_pixels((size_t)text_w * (size_t)text_h, 0);
-            dashfont_draw_text_ex(
-                f,
-                (uint8_t*)sc._font_draw.text,
-                0,
-                text_h - 1,
-                sc._font_draw.color_rgb,
-                argb_pixels.data(),
-                text_w);
+            auto texIt = renderer->font_atlas_textures.find(f);
+            if( texIt == renderer->font_atlas_textures.end() || !texIt->second )
+                continue;
 
-            /* Convert ARGB → RGBA; pixel == 0 is transparent (color-key). */
-            std::vector<uint8_t> rgba((size_t)text_w * (size_t)text_h * 4u);
-            for( int p = 0; p < text_w * text_h; ++p )
+            if( current_font_ptr != f )
             {
-                int pix = argb_pixels[(size_t)p];
-                rgba[(size_t)p * 4u + 0u] = (uint8_t)((pix >> 16) & 0xFF);
-                rgba[(size_t)p * 4u + 1u] = (uint8_t)((pix >> 8) & 0xFF);
-                rgba[(size_t)p * 4u + 2u] = (uint8_t)(pix & 0xFF);
-                rgba[(size_t)p * 4u + 3u] = (pix != 0) ? 0xFFu : 0x00u;
+                flush_font_batch();
+                current_font_ptr = f;
+                current_atlas_tex = (__bridge id<MTLTexture>)texIt->second;
             }
 
-            /* Upload to a temporary MTLTexture (Metal retains it once set on the encoder). */
-            MTLTextureDescriptor* td = [MTLTextureDescriptor
-                texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
-                                             width:(NSUInteger)text_w
-                                            height:(NSUInteger)text_h
-                                         mipmapped:NO];
-            td.usage = MTLTextureUsageShaderRead;
-            td.storageMode = MTLStorageModeShared;
-            id<MTLTexture> fontTex = [device newTextureWithDescriptor:td];
-            [fontTex replaceRegion:MTLRegionMake2D(0, 0, (NSUInteger)text_w, (NSUInteger)text_h)
-                       mipmapLevel:0
-                         withBytes:rgba.data()
-                       bytesPerRow:(NSUInteger)text_w * 4u];
+            struct DashFontAtlas* atlas = f->atlas;
+            const float inv_aw = 1.0f / (float)atlas->atlas_width;
+            const float inv_ah = 1.0f / (float)atlas->atlas_height;
 
-            /* Top-left corner: x stays, y shifts up by (text_h - 1) to convert baseline → top. */
-            const float dst_x = (float)sc._font_draw.x;
-            const float dst_y = (float)(sc._font_draw.y - (text_h - 1));
-            const float w = (float)text_w;
-            const float h = (float)text_h;
-            const float x0 = dst_x;
-            const float y0 = dst_y;
-            const float x1 = x0 + w;
-            const float y1 = y0 + h;
+            const uint8_t* text = sc._font_draw.text;
+            int length = (int)strlen((const char*)text);
+            int color_rgb = sc._font_draw.color_rgb;
+            float cr = (float)((color_rgb >> 16) & 0xFF) / 255.0f;
+            float cg = (float)((color_rgb >> 8) & 0xFF) / 255.0f;
+            float cb = (float)(color_rgb & 0xFF) / 255.0f;
+            float ca = 1.0f;
+            int pen_x = sc._font_draw.x;
+            int base_y = sc._font_draw.y;
 
-            const float fbw = (float)(win_width > 0 ? win_width : renderer->width);
-            const float fbh = (float)(win_height > 0 ? win_height : renderer->height);
-            auto font_to_clip = [&](float xp, float yp, float* ocx, float* ocy) {
-                *ocx = 2.0f * xp / fbw - 1.0f;
-                *ocy = 1.0f - 2.0f * yp / fbh;
-            };
+            for( int i = 0; i < length; i++ )
+            {
+                if( text[i] == '@' && i + 5 <= length && text[i + 4] == '@' )
+                {
+                    int new_color = dashfont_evaluate_color_tag((const char*)&text[i + 1]);
+                    if( new_color >= 0 )
+                    {
+                        color_rgb = new_color;
+                        cr = (float)((color_rgb >> 16) & 0xFF) / 255.0f;
+                        cg = (float)((color_rgb >> 8) & 0xFF) / 255.0f;
+                        cb = (float)(color_rgb & 0xFF) / 255.0f;
+                    }
+                    if( i + 6 <= length && text[i + 5] == ' ' )
+                        i += 5;
+                    else
+                        i += 4;
+                    continue;
+                }
 
-            float c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y;
-            font_to_clip(x0, y0, &c0x, &c0y);
-            font_to_clip(x1, y0, &c1x, &c1y);
-            font_to_clip(x1, y1, &c2x, &c2y);
-            font_to_clip(x0, y1, &c3x, &c3y);
+                int c = dashfont_charcode_to_glyph(text[i]);
+                if( c < DASH_FONT_CHAR_COUNT )
+                {
+                    int gw = atlas->glyph_w[c];
+                    int gh = atlas->glyph_h[c];
+                    if( gw > 0 && gh > 0 )
+                    {
+                        float sx0 = (float)(pen_x + f->char_offset_x[c]);
+                        float sy0 = (float)(base_y + f->char_offset_y[c]);
+                        float sx1 = sx0 + (float)gw;
+                        float sy1 = sy0 + (float)gh;
 
-            float verts[6 * 4] = {
-                c0x, c0y, 0.0f, 0.0f, c1x, c1y, 1.0f, 0.0f, c2x, c2y, 1.0f, 1.0f,
-                c0x, c0y, 0.0f, 0.0f, c2x, c2y, 1.0f, 1.0f, c3x, c3y, 0.0f, 1.0f,
-            };
+                        float u0 = (float)atlas->glyph_x[c] * inv_aw;
+                        float v0 = (float)atlas->glyph_y[c] * inv_ah;
+                        float u1 = (float)(atlas->glyph_x[c] + gw) * inv_aw;
+                        float v1 = (float)(atlas->glyph_y[c] + gh) * inv_ah;
 
-            NSUInteger slotOffset = spriteSlot * kSpriteSlotBytes;
-            memcpy((char*)spriteQuadBuf.contents + slotOffset, verts, sizeof(verts));
-            [encoder setVertexBuffer:spriteQuadBuf offset:slotOffset atIndex:0];
-            [encoder setFragmentTexture:fontTex atIndex:0];
-            [encoder setFragmentSamplerState:uiSampler atIndex:0];
-            [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
-            ++spriteSlot;
+                        float cx0 = 2.0f * sx0 / fbw - 1.0f;
+                        float cy0 = 1.0f - 2.0f * sy0 / fbh;
+                        float cx1 = 2.0f * sx1 / fbw - 1.0f;
+                        float cy1 = 1.0f - 2.0f * sy1 / fbh;
+
+                        float v[6 * 8] = {
+                            cx0, cy0, u0, v0, cr, cg, cb, ca,
+                            cx1, cy0, u1, v0, cr, cg, cb, ca,
+                            cx1, cy1, u1, v1, cr, cg, cb, ca,
+                            cx0, cy0, u0, v0, cr, cg, cb, ca,
+                            cx1, cy1, u1, v1, cr, cg, cb, ca,
+                            cx0, cy1, u0, v1, cr, cg, cb, ca,
+                        };
+                        font_verts.insert(font_verts.end(), v, v + 48);
+                    }
+                }
+                int adv = f->char_advance[c];
+                if( adv <= 0 )
+                    adv = 4;
+                pen_x += adv;
             }
         }
+        flush_font_batch();
     }
 
     // -----------------------------------------------------------------------
