@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #import <MetalKit/MetalKit.h>
+#import <QuartzCore/CAMetalLayer.h>
 
 extern "C" {
 #include "graphics/render.h"
@@ -327,6 +328,13 @@ typedef struct
         metalView.device = _device;
         metalView.delegate = self;
         metalView.clearColor = MTLClearColorMake(0.1, 0.1, 0.1, 1.0);
+
+        // Disable vsync (display sync) at the CAMetalLayer level.
+        // Guard for SDK availability (property is macOS-only / newer SDKs).
+        CAMetalLayer* layer = (CAMetalLayer*)metalView.layer;
+        if( [layer isKindOfClass:[CAMetalLayer class]] &&
+            [layer respondsToSelector:@selector(setDisplaySyncEnabled:)] )
+            layer.displaySyncEnabled = NO;
 
         NSLog(@"Metal device: %@", _device.name);
 

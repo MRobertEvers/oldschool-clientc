@@ -515,14 +515,18 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_New(int width, int height)
     renderer->mtl_uniform_buffer = nil;
     renderer->mtl_sampler_state  = nil;
     renderer->mtl_dummy_texture  = nil;
-    renderer->metal_view         = nullptr;
-    renderer->platform           = nullptr;
-    renderer->width              = width;
-    renderer->height             = height;
-    renderer->metal_ready        = false;
-    renderer->debug_model_draws  = 0;
-    renderer->debug_triangles    = 0;
-    renderer->next_model_index   = 1;
+    renderer->metal_view           = nullptr;
+    renderer->platform             = nullptr;
+    renderer->width                = width;
+    renderer->height               = height;
+    renderer->metal_ready          = false;
+    renderer->debug_model_draws    = 0;
+    renderer->debug_triangles      = 0;
+    renderer->next_model_index     = 1;
+    renderer->mtl_depth_texture    = nullptr;
+    renderer->depth_texture_width  = 0;
+    renderer->depth_texture_height = 0;
+    renderer->mtl_sprite_quad_buf  = nullptr;
     return renderer;
 }
 
@@ -533,10 +537,16 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(
     if( !renderer )
         return;
 
-    // Release cached textures
+    // Release cached world textures
     for( auto& kv : renderer->texture_by_id )
         if( kv.second )
             CFRelease(kv.second);
+
+    // Release cached sprite textures
+    for( auto& kv : renderer->sprite_texture_by_ptr )
+        if( kv.second )
+            CFRelease(kv.second);
+    renderer->sprite_texture_by_ptr.clear();
 
     ImGui_ImplMetal_Shutdown();
     ImGui_ImplSDL2_Shutdown();
@@ -546,6 +556,16 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(
     renderer->texture_anim_speed_by_id.clear();
     renderer->texture_opaque_by_id.clear();
 
+    if( renderer->mtl_sprite_quad_buf )
+    {
+        CFRelease(renderer->mtl_sprite_quad_buf);
+        renderer->mtl_sprite_quad_buf = nullptr;
+    }
+    if( renderer->mtl_depth_texture )
+    {
+        CFRelease(renderer->mtl_depth_texture);
+        renderer->mtl_depth_texture = nullptr;
+    }
     if( renderer->mtl_dummy_texture )
     {
         CFRelease(renderer->mtl_dummy_texture);
@@ -618,6 +638,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
         printf("Metal init failed: could not obtain CAMetalLayer\n");
         return false;
     }
+
+    // Disable vsync (display sync) so presents don't wait for vblank.
+    // `displaySyncEnabled` is macOS-only and not available on all SDKs, so guard it.
+    if( [layer respondsToSelector:@selector(setDisplaySyncEnabled:)] )
+        layer.displaySyncEnabled = NO;
 
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
     if( !device )
@@ -807,6 +832,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
     // Sync initial drawable size
     sync_drawable_size(renderer);
 
+    // Pre-allocate the reusable sprite quad vertex buffer (6 verts × (float2 pos + float2 uv)).
+    id<MTLBuffer> sqb = [device newBufferWithLength:(NSUInteger)(6 * 4 * sizeof(float))
+                                            options:MTLResourceStorageModeShared];
+    renderer->mtl_sprite_quad_buf = (__bridge_retained void*)sqb;
+
     // -----------------------------------------------------------------------
     // ImGui
     // -----------------------------------------------------------------------
@@ -854,15 +884,30 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
 
     // -----------------------------------------------------------------------
     // Build render pass descriptor with depth attachment
+    // Depth texture is cached and only reallocated when drawable dimensions change.
     // -----------------------------------------------------------------------
-    MTLTextureDescriptor* depthTexDesc =
-        [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float
-                                                           width:(NSUInteger)renderer->width
-                                                          height:(NSUInteger)renderer->height
-                                                       mipmapped:NO];
-    depthTexDesc.storageMode = MTLStorageModePrivate;
-    depthTexDesc.usage       = MTLTextureUsageRenderTarget;
-    id<MTLTexture> depthTex  = [device newTextureWithDescriptor:depthTexDesc];
+    if( !renderer->mtl_depth_texture ||
+        renderer->depth_texture_width  != renderer->width ||
+        renderer->depth_texture_height != renderer->height )
+    {
+        if( renderer->mtl_depth_texture )
+        {
+            CFRelease(renderer->mtl_depth_texture);
+            renderer->mtl_depth_texture = nullptr;
+        }
+        MTLTextureDescriptor* depthTexDesc =
+            [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float
+                                                               width:(NSUInteger)renderer->width
+                                                              height:(NSUInteger)renderer->height
+                                                           mipmapped:NO];
+        depthTexDesc.storageMode = MTLStorageModePrivate;
+        depthTexDesc.usage       = MTLTextureUsageRenderTarget;
+        id<MTLTexture> newDepth  = [device newTextureWithDescriptor:depthTexDesc];
+        renderer->mtl_depth_texture    = (__bridge_retained void*)newDepth;
+        renderer->depth_texture_width  = renderer->width;
+        renderer->depth_texture_height = renderer->height;
+    }
+    id<MTLTexture> depthTex = (__bridge id<MTLTexture>)renderer->mtl_depth_texture;
 
     MTLRenderPassDescriptor* rpDesc = [MTLRenderPassDescriptor renderPassDescriptor];
     rpDesc.colorAttachments[0].texture     = drawable.texture;
@@ -1116,6 +1161,63 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
                 break;
             }
 
+            case TORIRS_GFX_SPRITE_LOAD:
+            {
+                struct DashSprite* sp = cmd._sprite_load.sprite;
+                if( !sp || !sp->pixels_argb || sp->width <= 0 || sp->height <= 0 )
+                    break;
+
+                // Release any stale cached texture for this pointer
+                {
+                    auto it = renderer->sprite_texture_by_ptr.find(sp);
+                    if( it != renderer->sprite_texture_by_ptr.end() && it->second )
+                    {
+                        CFRelease(it->second);
+                        renderer->sprite_texture_by_ptr.erase(it);
+                    }
+                }
+
+                const int sw = sp->width;
+                const int sh = sp->height;
+                // Pixel data is 0x00RRGGBB; pixel == 0 is the transparent color key.
+                std::vector<uint8_t> rgba((size_t)sw * (size_t)sh * 4u);
+                for( int p = 0; p < sw * sh; ++p )
+                {
+                    uint32_t pix = sp->pixels_argb[p];
+                    rgba[(size_t)p * 4u + 0u] = (uint8_t)((pix >> 16) & 0xFFu);
+                    rgba[(size_t)p * 4u + 1u] = (uint8_t)((pix >> 8)  & 0xFFu);
+                    rgba[(size_t)p * 4u + 2u] = (uint8_t)(pix & 0xFFu);
+                    rgba[(size_t)p * 4u + 3u] = (pix != 0u) ? 0xFFu : 0x00u;
+                }
+                MTLTextureDescriptor* td =
+                    [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                       width:(NSUInteger)sw
+                                                                      height:(NSUInteger)sh
+                                                                   mipmapped:NO];
+                td.usage       = MTLTextureUsageShaderRead;
+                td.storageMode = MTLStorageModeShared;
+                id<MTLTexture> spTex = [device newTextureWithDescriptor:td];
+                [spTex replaceRegion:MTLRegionMake2D(0, 0, sw, sh)
+                         mipmapLevel:0
+                           withBytes:rgba.data()
+                         bytesPerRow:(NSUInteger)sw * 4u];
+                renderer->sprite_texture_by_ptr[sp] = (__bridge_retained void*)spTex;
+                break;
+            }
+
+            case TORIRS_GFX_SPRITE_UNLOAD:
+            {
+                struct DashSprite* sp = cmd._sprite_load.sprite;
+                auto it = renderer->sprite_texture_by_ptr.find(sp);
+                if( it != renderer->sprite_texture_by_ptr.end() )
+                {
+                    if( it->second )
+                        CFRelease(it->second);
+                    renderer->sprite_texture_by_ptr.erase(it);
+                }
+                break;
+            }
+
             case TORIRS_GFX_SPRITE_DRAW:
                 sprite_cmds.push_back(cmd);
                 break;
@@ -1147,45 +1249,26 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
         [encoder setDepthStencilState:dsState];
         [encoder setCullMode:MTLCullModeNone];
 
+        id<MTLBuffer> spriteQuadBuf = (__bridge id<MTLBuffer>)renderer->mtl_sprite_quad_buf;
+
         for( const auto& sc : sprite_cmds )
         {
             if( sc.kind != TORIRS_GFX_SPRITE_DRAW )
                 continue;
             struct DashSprite* sp = sc._sprite_draw.sprite;
-            if( !sp || !sp->pixels_argb || sp->width <= 0 || sp->height <= 0 )
+            if( !sp || sp->width <= 0 || sp->height <= 0 )
                 continue;
 
-            const int tw = sp->width;
-            const int th = sp->height;
-            std::vector<uint8_t> rgba((size_t)tw * (size_t)th * 4u);
-            for( int p = 0; p < tw * th; ++p )
-            {
-                // Sprite pixels are 0x00RRGGBB; pixel == 0 is the transparent color key.
-                // Synthesize alpha so the uiSpriteFrag discard (c.a < 0.01) works correctly.
-                uint32_t pix = sp->pixels_argb[p];
-                rgba[(size_t)p * 4u + 0u] = (uint8_t)((pix >> 16) & 0xFFu);
-                rgba[(size_t)p * 4u + 1u] = (uint8_t)((pix >> 8) & 0xFFu);
-                rgba[(size_t)p * 4u + 2u] = (uint8_t)(pix & 0xFFu);
-                rgba[(size_t)p * 4u + 3u] = (pix != 0u) ? 0xFFu : 0x00u;
-            }
-
-            MTLTextureDescriptor* td =
-                [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
-                                                                   width:(NSUInteger)tw
-                                                                  height:(NSUInteger)th
-                                                               mipmapped:NO];
-            td.usage       = MTLTextureUsageShaderRead;
-            td.storageMode = MTLStorageModeShared;
-            id<MTLTexture> spriteTex = [device newTextureWithDescriptor:td];
-            [spriteTex replaceRegion:MTLRegionMake2D(0, 0, tw, th)
-                         mipmapLevel:0
-                           withBytes:rgba.data()
-                         bytesPerRow:(NSUInteger)tw * 4u];
+            // Look up the pre-uploaded texture — no allocation or pixel conversion.
+            auto texIt = renderer->sprite_texture_by_ptr.find(sp);
+            if( texIt == renderer->sprite_texture_by_ptr.end() || !texIt->second )
+                continue;
+            id<MTLTexture> spriteTex = (__bridge id<MTLTexture>)texIt->second;
 
             const int dst_x = sc._sprite_draw.x + sp->crop_x;
             const int dst_y = sc._sprite_draw.y + sp->crop_y;
-            const float w   = (float)tw;
-            const float h   = (float)th;
+            const float w   = (float)sp->width;
+            const float h   = (float)sp->height;
             const float x0  = (float)dst_x;
             const float y0  = (float)dst_y;
             const float x1  = x0 + w;
@@ -1228,11 +1311,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
                 c0x, c0y, 0.0f, 0.0f, c2x, c2y, 1.0f, 1.0f, c3x, c3y, 0.0f, 1.0f,
             };
 
-            id<MTLBuffer> vb =
-                [device newBufferWithBytes:verts
-                                    length:sizeof(verts)
-                                   options:MTLResourceStorageModeShared];
-            [encoder setVertexBuffer:vb offset:0 atIndex:0];
+            memcpy(spriteQuadBuf.contents, verts, sizeof(verts));
+            [encoder setVertexBuffer:spriteQuadBuf offset:0 atIndex:0];
             [encoder setFragmentTexture:spriteTex atIndex:0];
             [encoder setFragmentSamplerState:uiSampler atIndex:0];
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle

@@ -53,6 +53,19 @@ struct Platform2_OSX_SDL2_Renderer_Metal
     std::unordered_set<uintptr_t> loaded_model_keys;
     std::unordered_set<uintptr_t> loaded_scene_element_keys;
     std::unordered_set<int>       loaded_texture_ids;
+
+    // Sprite GPU texture cache keyed by DashSprite* (stable pointer per sprite).
+    // Value is id<MTLTexture> stored as void* to keep header ObjC-free.
+    // Populated by TORIRS_GFX_SPRITE_LOAD, evicted by TORIRS_GFX_SPRITE_UNLOAD.
+    std::unordered_map<void*, void*> sprite_texture_by_ptr;
+
+    // Cached depth texture; only reallocated when drawable dimensions change.
+    void* mtl_depth_texture;    // id<MTLTexture>
+    int   depth_texture_width;
+    int   depth_texture_height;
+
+    // Reusable 96-byte MTLBuffer (6 verts × 4 floats) for sprite quad draws.
+    void* mtl_sprite_quad_buf;  // id<MTLBuffer>
 };
 
 struct Platform2_OSX_SDL2_Renderer_Metal*
