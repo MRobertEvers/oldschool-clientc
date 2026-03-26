@@ -51,6 +51,21 @@ struct Platform2_OSX_SDL2_Renderer_Soft3D
     int client_target_tile_x;
     int client_target_tile_z;
     uint64_t last_move_time_ms;
+
+    /* Immutable initial render dimensions — set in New, never updated. */
+    int initial_width;
+    int initial_height;
+
+    /* Initial 3D viewport dims — captured from game->view_port on first frame. */
+    int initial_view_port_width;
+    int initial_view_port_height;
+
+    /* When true, pixel buffer grows with window (aspect preserved) up to max. */
+    bool pixel_size_dynamic;
+
+    /* Fired when the 3D view_port dimensions change (dynamic mode only). */
+    void (*on_viewport_changed)(struct GGame* game, int new_width, int new_height, void* userdata);
+    void* on_viewport_changed_userdata;
 };
 
 struct Platform2_OSX_SDL2_Renderer_Soft3D*
@@ -95,5 +110,16 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(
     struct Server* server,
     struct GGame* game,
     uint64_t timestamp_ms);
+
+void
+PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDynamicPixelSize(
+    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
+    bool dynamic);
+
+void
+PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetViewportChangedCallback(
+    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
+    void (*callback)(struct GGame* game, int new_width, int new_height, void* userdata),
+    void* userdata);
 
 #endif

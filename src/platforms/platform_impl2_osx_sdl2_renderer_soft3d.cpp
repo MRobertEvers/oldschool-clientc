@@ -80,9 +80,14 @@ render_imgui(
     ImGui::InputInt("Trap X", &g_trap_x);
     ImGui::InputInt("Trap Z", &g_trap_z);
 
+    ImGui::Separator();
+    ImGui::Checkbox("Dynamic pixel size", &renderer->pixel_size_dynamic);
+    ImGui::Text("Render size: %d x %d", renderer->width, renderer->height);
+
     if( game->view_port )
     {
         ImGui::Separator();
+        ImGui::BeginDisabled(renderer->pixel_size_dynamic);
         int w = game->view_port->width;
         int h = game->view_port->height;
         bool changed = ImGui::InputInt("World viewport W", &w);
@@ -95,6 +100,7 @@ render_imgui(
                 h = renderer->max_height;
             LibToriRS_GameSetWorldViewportSize(game, w, h);
         }
+        ImGui::EndDisabled();
     }
 
     // ImGui::Text(
@@ -220,6 +226,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_New(
 
     renderer->width = width;
     renderer->height = height;
+    renderer->initial_width = width;
+    renderer->initial_height = height;
     renderer->max_width = max_width;
     renderer->max_height = max_height;
 
@@ -429,20 +437,74 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     int new_width = window_width > renderer->max_width ? renderer->max_width : window_width;
     int new_height = window_height > renderer->max_height ? renderer->max_height : window_height;
 
+    // Capture initial 3D viewport dims on first frame (used for proportional scaling).
+    if( renderer->initial_view_port_width == 0 && game->view_port && game->view_port->width > 0 )
+    {
+        renderer->initial_view_port_width = game->view_port->width;
+        renderer->initial_view_port_height = game->view_port->height;
+    }
+
+    // 2D interface always maps to the fixed pixel buffer (renderer->width × renderer->height).
+    // renderer->width never changes at runtime — it equals initial_width — so iface_view_port->stride
+    // is stable across frames.  Changing stride mid-flight would corrupt sprite positions because
+    // GameStep runs *before* Render and writes sprites using the previous frame's stride.
     if( game->iface_view_port )
     {
-        game->iface_view_port->x_center = new_width / 2;
-        game->iface_view_port->y_center = new_height / 2;
-        game->iface_view_port->width = new_width;
-        game->iface_view_port->height = new_height;
-        /* stride must match the physical row width of pixel_buffer so that
-         * dash2d_blit_sprite writes at the same offsets we later read back. */
+        game->iface_view_port->width = renderer->width;
+        game->iface_view_port->height = renderer->height;
+        game->iface_view_port->x_center = renderer->width / 2;
+        game->iface_view_port->y_center = renderer->height / 2;
         game->iface_view_port->stride = renderer->width;
-
-        game->iface_view_port->clip_bottom = new_height;
-        game->iface_view_port->clip_right = new_width;
         game->iface_view_port->clip_left = 0;
         game->iface_view_port->clip_top = 0;
+        game->iface_view_port->clip_right = renderer->width;
+        game->iface_view_port->clip_bottom = renderer->height;
+    }
+
+    // Dynamic mode: scale only game->view_port (3D) proportionally to the window.
+    // renderer->width/height are intentionally NOT changed — that would cause a one-frame stride
+    // desync between GameStep (sprites written with old stride) and Render (clearing/uploading with
+    // new stride), corrupting 2D element positions.
+    if( game->view_port && renderer->initial_view_port_width > 0 && renderer->initial_width > 0 )
+    {
+        if( renderer->pixel_size_dynamic )
+        {
+            float scale_x = (float)new_width / (float)renderer->initial_width;
+            float scale_y = (float)new_height / (float)renderer->initial_height;
+            float scale = scale_x < scale_y ? scale_x : scale_y;
+            int new_vp_w = (int)(renderer->initial_view_port_width * scale);
+            int new_vp_h = (int)(renderer->initial_view_port_height * scale);
+            if( new_vp_w < 1 )
+                new_vp_w = 1;
+            if( new_vp_h < 1 )
+                new_vp_h = 1;
+            if( new_vp_w > renderer->max_width )
+                new_vp_w = renderer->max_width;
+            if( new_vp_h > renderer->max_height )
+                new_vp_h = renderer->max_height;
+
+            if( new_vp_w != game->view_port->width || new_vp_h != game->view_port->height )
+            {
+                LibToriRS_GameSetWorldViewportSize(game, new_vp_w, new_vp_h);
+                if( renderer->on_viewport_changed )
+                {
+                    renderer->on_viewport_changed(
+                        game, new_vp_w, new_vp_h, renderer->on_viewport_changed_userdata);
+                }
+            }
+        }
+        else
+        {
+            // Fixed mode: restore 3D viewport to initial size in case dynamic mode enlarged it.
+            if( game->view_port->width != renderer->initial_view_port_width ||
+                game->view_port->height != renderer->initial_view_port_height )
+            {
+                LibToriRS_GameSetWorldViewportSize(
+                    game,
+                    renderer->initial_view_port_width,
+                    renderer->initial_view_port_height);
+            }
+        }
     }
 
     // Allocate/update dash buffer if viewport exists
@@ -474,37 +536,6 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
 
             // Set stride to dash buffer width for dash rendering
             game->view_port->stride = renderer->dash_buffer_width;
-        }
-    }
-
-    // Only update if size changed
-    if( new_width != renderer->width || new_height != renderer->height )
-    {
-        // renderer->width = new_width;
-        // renderer->height = new_height;
-
-        // Recreate texture with new dimensions
-        if( renderer->texture )
-        {
-            SDL_DestroyTexture(renderer->texture);
-        }
-
-        renderer->texture = SDL_CreateTexture(
-            renderer->renderer,
-            SDL_PIXELFORMAT_ARGB8888,
-            SDL_TEXTUREACCESS_STREAMING,
-            renderer->width,
-            renderer->height);
-
-        if( !renderer->texture )
-        {
-            printf(
-                "Failed to recreate texture for new size %dx%d\n",
-                renderer->width,
-                renderer->height);
-        }
-        else
-        {
         }
     }
 
@@ -969,4 +1000,22 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_ProcessServer(
         renderer->clicked_tile_z = -1;
         renderer->clicked_tile_level = -1;
     }
+}
+
+void
+PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDynamicPixelSize(
+    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
+    bool dynamic)
+{
+    renderer->pixel_size_dynamic = dynamic;
+}
+
+void
+PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetViewportChangedCallback(
+    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
+    void (*callback)(struct GGame* game, int new_width, int new_height, void* userdata),
+    void* userdata)
+{
+    renderer->on_viewport_changed = callback;
+    renderer->on_viewport_changed_userdata = userdata;
 }
