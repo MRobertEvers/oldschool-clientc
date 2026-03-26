@@ -274,6 +274,11 @@ struct GGame
     /* Hovered dash model (Scene2Element) for debug AABB drawing. Last hit in draw order. */
     struct Scene2Element* hovered_scene2_element;
 
+    /* Entity UID of the hovered interactible model for the current frame (-1 = none). */
+    int hovered_interactible_entity_uid;
+    /* Guards the single FONT_DRAW emitted at end of FrameNextCommand. */
+    bool frame_hover_font_draw_done;
+
     /* Viewport offset in screen coords (Client.ts menuArea 0: mouseX-=4, mouseY-=4). */
     int viewport_offset_x;
     int viewport_offset_y;

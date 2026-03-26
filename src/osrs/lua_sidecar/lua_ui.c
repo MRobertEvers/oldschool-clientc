@@ -1,5 +1,6 @@
 #include "lua_ui.h"
 
+#include "osrs/buildcachedat.h"
 #include "osrs/game.h"
 #include "osrs/lua_sidecar/lua_configfile.h"
 #include "osrs/revconfig/revconfig.h"
@@ -28,7 +29,7 @@ LuaUI_CommandHasPrefix(const char* command)
     return strncmp(command, g_prefix, sizeof(g_prefix) - 1) == 0;
 }
 
-static struct LuaGameType*
+struct LuaGameType*
 LuaUI_load_revconfig(
     struct GGame* game,
     struct BuildCacheDat* buildcachedat,
@@ -67,6 +68,24 @@ LuaUI_load_revconfig(
 }
 
 struct LuaGameType*
+LuaUI_load_fonts(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    struct DashMapIter* iter = buildcachedat_iter_new_fonts(buildcachedat);
+    char name_buf[BUILDCACHEDAT_FONT_NAME_MAX + 1];
+    struct DashPixFont* font = NULL;
+    while( (font = buildcachedat_iter_next_font_name(
+                iter, name_buf, (int)sizeof(name_buf))) != NULL )
+        uiscene_font_add(game->ui_scene, name_buf, font);
+    dashmap_iter_free(iter);
+
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
 LuaUI_DispatchCommand(
     struct GGame* game,
     struct BuildCacheDat* buildcachedat,
@@ -81,6 +100,8 @@ LuaUI_DispatchCommand(
 
     if( strcmp(command, "load_revconfig") == 0 )
         return LuaUI_load_revconfig(game, buildcachedat, args);
+    else if( strcmp(command, "load_fonts") == 0 )
+        return LuaUI_load_fonts(game, buildcachedat, args);
 
     printf("Unknown ui command: %s\n", command);
     assert(false);

@@ -365,6 +365,13 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
         {
             switch( cmd.kind )
             {
+            case TORIRS_GFX_FONT_LOAD:
+                break;
+
+            case TORIRS_GFX_FONT_DRAW:
+                sprite_cmds.push_back(cmd);
+                break;
+
             case TORIRS_GFX_TEXTURE_LOAD:
             {
                 renderer->loaded_texture_ids.insert(cmd._texture_load.texture_id);
@@ -517,26 +524,83 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
 
     glViewport(0, 0, renderer->width, renderer->height);
     pix3dgl_begin_2dframe(renderer->pix3dgl);
+
+    /* Temporary storage for font-draw textures; pre-reserved to keep pixels_argb pointers stable
+     * after each push_back (no reallocation). */
+    struct FontSpriteEntry
+    {
+        std::vector<int> pixels;
+        DashSprite sprite;
+    };
+    static std::vector<FontSpriteEntry> tmp_font_sprites;
+    tmp_font_sprites.clear();
+    {
+        int font_draw_count = 0;
+        for( const auto& sc : sprite_cmds )
+            if( sc.kind == TORIRS_GFX_FONT_DRAW )
+                ++font_draw_count;
+        tmp_font_sprites.reserve((size_t)font_draw_count);
+    }
+
     for( const auto& sc : sprite_cmds )
     {
-        if( sc.kind != TORIRS_GFX_SPRITE_DRAW )
-            continue;
-        struct DashSprite* sp = sc._sprite_draw.sprite;
-        if( !sp )
-            continue;
-        /* Sprite coordinates are authored in logical screen space (e.g. points), but the GL
-         * viewport is in drawable space (e.g. device pixels). Pass logical dimensions so the
-         * orthographic projection accounts for any DPI scaling. */
-        pix3dgl_sprite_draw(
-            renderer->pix3dgl,
-            sp,
-            sc._sprite_draw.x,
-            sc._sprite_draw.y,
-            window_width,
-            window_height,
-            sc._sprite_draw.rotation_r2pi2048);
+        if( sc.kind == TORIRS_GFX_SPRITE_DRAW )
+        {
+            struct DashSprite* sp = sc._sprite_draw.sprite;
+            if( !sp )
+                continue;
+            /* Sprite coordinates are authored in logical screen space (e.g. points), but the GL
+             * viewport is in drawable space (e.g. device pixels). Pass logical dimensions so the
+             * orthographic projection accounts for any DPI scaling. */
+            pix3dgl_sprite_draw(
+                renderer->pix3dgl,
+                sp,
+                sc._sprite_draw.x,
+                sc._sprite_draw.y,
+                window_width,
+                window_height,
+                sc._sprite_draw.rotation_r2pi2048);
+        }
+        else if( sc.kind == TORIRS_GFX_FONT_DRAW )
+        {
+            struct DashPixFont* f = sc._font_draw.font;
+            if( !f || !sc._font_draw.text || f->height2d <= 0 )
+                continue;
+            const int text_w = dashfont_text_width(f, (uint8_t*)sc._font_draw.text);
+            const int text_h = f->height2d;
+            if( text_w <= 0 )
+                continue;
+            tmp_font_sprites.push_back(FontSpriteEntry());
+            FontSpriteEntry& fe = tmp_font_sprites.back();
+            fe.pixels.assign((size_t)text_w * (size_t)text_h, 0);
+            dashfont_draw_text_ex(
+                f,
+                (uint8_t*)sc._font_draw.text,
+                0,
+                text_h - 1,
+                sc._font_draw.color_rgb,
+                fe.pixels.data(),
+                text_w);
+            fe.sprite.pixels_argb = (uint32_t*)fe.pixels.data();
+            fe.sprite.width = text_w;
+            fe.sprite.height = text_h;
+            fe.sprite.crop_x = 0;
+            fe.sprite.crop_y = 0;
+            pix3dgl_sprite_draw(
+                renderer->pix3dgl,
+                &fe.sprite,
+                sc._font_draw.x,
+                sc._font_draw.y - (text_h - 1),
+                window_width,
+                window_height,
+                0);
+        }
     }
     pix3dgl_end_2dframe(renderer->pix3dgl);
+
+    /* Release temporary GL textures created for font draws. */
+    for( auto& fe : tmp_font_sprites )
+        pix3dgl_sprite_unload(renderer->pix3dgl, &fe.sprite);
 
     LibToriRS_FrameEnd(game);
     glViewport(0, 0, renderer->width, renderer->height);

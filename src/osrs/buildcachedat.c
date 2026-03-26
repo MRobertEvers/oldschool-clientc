@@ -86,6 +86,12 @@ struct TextureEntry
     struct DashTexture* texture;
 };
 
+struct FontEntry
+{
+    char name[BUILDCACHEDAT_FONT_NAME_MAX]; // Key must be first field; zero-padded
+    struct DashPixFont* font;
+};
+
 struct SequenceEntry
 {
     int id;
@@ -177,6 +183,14 @@ buildcachedat_new(void)
         .entry_size = sizeof(struct TextureEntry),
     };
     buildcachedat->textures_hmap = dashmap_new(&config, 0);
+
+    config = (struct DashMapConfig){
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = BUILDCACHEDAT_FONT_NAME_MAX,
+        .entry_size = sizeof(struct FontEntry),
+    };
+    buildcachedat->fonts_hmap = dashmap_new(&config, 0);
 
     config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
@@ -326,8 +340,8 @@ buildcachedat_new(void)
     };
     buildcachedat->containers_hmap = dashmap_new(&config, 0);
     buildcachedat->eventbuffer_capacity = BUILDCACHEDAT_EVENTBUFFER_DEFAULT_CAPACITY;
-    buildcachedat->eventbuffer = calloc(
-        (size_t)buildcachedat->eventbuffer_capacity, sizeof(struct BuildCacheDatEvent));
+    buildcachedat->eventbuffer =
+        calloc((size_t)buildcachedat->eventbuffer_capacity, sizeof(struct BuildCacheDatEvent));
     buildcachedat->eventbuffer_head = 0;
     buildcachedat->eventbuffer_tail = 0;
     buildcachedat->eventbuffer_count = 0;
@@ -340,6 +354,7 @@ buildcachedat_free(struct BuildCacheDat* buildcachedat)
 {
     // TODO: Free the files.
     dashmap_free(buildcachedat->textures_hmap);
+    dashmap_free(buildcachedat->fonts_hmap);
     dashmap_free(buildcachedat->flotype_hmap);
     dashmap_free(buildcachedat->scenery_hmap);
     dashmap_free(buildcachedat->models_hmap);
@@ -629,6 +644,78 @@ buildcachedat_iter_next_texture_id(
         return NULL;
     *out_id = texture_entry->id;
     return texture_entry->texture;
+}
+
+void
+buildcachedat_add_font(
+    struct BuildCacheDat* buildcachedat,
+    const char* font_name,
+    struct DashPixFont* font)
+{
+    char buffer[BUILDCACHEDAT_FONT_NAME_MAX] = { 0 };
+    strncpy(buffer, font_name, BUILDCACHEDAT_FONT_NAME_MAX);
+    struct FontEntry* font_entry =
+        (struct FontEntry*)dashmap_search(buildcachedat->fonts_hmap, buffer, DASHMAP_INSERT);
+    assert(font_entry && "Font must be inserted into hmap");
+    memset(font_entry->name, 0, sizeof(font_entry->name));
+    strncpy(font_entry->name, font_name, BUILDCACHEDAT_FONT_NAME_MAX);
+    font_entry->font = font;
+}
+
+struct DashPixFont*
+buildcachedat_get_font(
+    struct BuildCacheDat* buildcachedat,
+    const char* font_name)
+{
+    char buffer[BUILDCACHEDAT_FONT_NAME_MAX] = { 0 };
+    strncpy(buffer, font_name, BUILDCACHEDAT_FONT_NAME_MAX);
+    struct FontEntry* font_entry =
+        (struct FontEntry*)dashmap_search(buildcachedat->fonts_hmap, buffer, DASHMAP_FIND);
+    if( !font_entry )
+        return NULL;
+    return font_entry->font;
+}
+
+struct DashMapIter*
+buildcachedat_iter_new_fonts(struct BuildCacheDat* buildcachedat)
+{
+    return dashmap_iter_new(buildcachedat->fonts_hmap);
+}
+
+struct DashPixFont*
+buildcachedat_iter_next_font(struct DashMapIter* iter)
+{
+    struct FontEntry* font_entry = (struct FontEntry*)dashmap_iter_next(iter);
+    if( !font_entry )
+        return NULL;
+    return font_entry->font;
+}
+
+struct DashPixFont*
+buildcachedat_iter_next_font_name(
+    struct DashMapIter* iter,
+    char* out_name,
+    int out_name_cap)
+{
+    struct FontEntry* font_entry = (struct FontEntry*)dashmap_iter_next(iter);
+    if( !font_entry )
+        return NULL;
+    if( out_name && out_name_cap > 0 )
+    {
+        int i = 0;
+        int lim = (int)sizeof(font_entry->name);
+        if( lim > out_name_cap - 1 )
+            lim = out_name_cap - 1;
+        for( ; i < lim; i++ )
+        {
+            char c = font_entry->name[i];
+            out_name[i] = c;
+            if( c == '\0' )
+                break;
+        }
+        out_name[i] = '\0';
+    }
+    return font_entry->font;
 }
 
 bool

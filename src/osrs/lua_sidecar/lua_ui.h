@@ -6,6 +6,18 @@
 struct BuildCacheDat;
 struct GGame;
 
+struct LuaGameType*
+LuaUI_load_revconfig(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaUI_load_fonts(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
 bool
 LuaUI_CommandHasPrefix(const char* command);
 
@@ -17,4 +29,3 @@ LuaUI_DispatchCommand(
     struct LuaGameType* args);
 
 #endif
-

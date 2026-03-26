@@ -654,10 +654,10 @@ buildcachedat_loader_load_component_sprites_from_media(
 void
 buildcachedat_loader_cache_title(
     struct BuildCacheDat* buildcachedat,
-    struct GGame* game,
     int data_size,
     void* data)
 {
+    struct DashPixFont* font = NULL;
     struct FileListDat* filelist = filelist_dat_new_from_decode(data, data_size);
 
     int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
@@ -670,7 +670,9 @@ buildcachedat_loader_cache_title(
         filelist->file_sizes[data_file_idx],
         filelist->files[index_file_idx],
         filelist->file_sizes[index_file_idx]);
-    game->pixfont_b12 = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
+
+    font = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
+    buildcachedat_add_font(buildcachedat, "b12", font);
     cache_dat_pixfont_free(pixfont);
 
     data_file_idx = filelist_dat_find_file_by_name(filelist, "p12.dat");
@@ -680,7 +682,8 @@ buildcachedat_loader_cache_title(
         filelist->file_sizes[data_file_idx],
         filelist->files[index_file_idx],
         filelist->file_sizes[index_file_idx]);
-    game->pixfont_p12 = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
+    font = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
+    buildcachedat_add_font(buildcachedat, "p12", font);
     cache_dat_pixfont_free(pixfont);
 
     data_file_idx = filelist_dat_find_file_by_name(filelist, "p11.dat");
@@ -690,7 +693,8 @@ buildcachedat_loader_cache_title(
         filelist->file_sizes[data_file_idx],
         filelist->files[index_file_idx],
         filelist->file_sizes[index_file_idx]);
-    game->pixfont_p11 = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
+    font = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
+    buildcachedat_add_font(buildcachedat, "p11", font);
     cache_dat_pixfont_free(pixfont);
 
     data_file_idx = filelist_dat_find_file_by_name(filelist, "q8.dat");
@@ -700,7 +704,8 @@ buildcachedat_loader_cache_title(
         filelist->file_sizes[data_file_idx],
         filelist->files[index_file_idx],
         filelist->file_sizes[index_file_idx]);
-    game->pixfont_q8 = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
+    font = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
+    buildcachedat_add_font(buildcachedat, "q8", font);
     cache_dat_pixfont_free(pixfont);
 
     filelist_dat_free(filelist);

@@ -3,6 +3,12 @@
 
 #include "graphics/dash.h"
 
+struct Scene2TextureEntry
+{
+    int id;
+    struct DashTexture* texture;
+};
+
 struct Scene2Frames
 {
     struct DashFrame** frames;
@@ -17,6 +23,7 @@ enum Scene2EventType
     SCENE2_EVENT_ELEMENT_ACQUIRED = 1,
     SCENE2_EVENT_ELEMENT_RELEASED = 2,
     SCENE2_EVENT_MODEL_CHANGED = 3,
+    SCENE2_EVENT_TEXTURE_LOADED = 4,
 };
 
 struct Scene2Event
@@ -24,6 +31,7 @@ struct Scene2Event
     enum Scene2EventType type;
     int element_id;
     int parent_entity_id;
+    int texture_id;
 };
 
 struct Scene2Element
@@ -54,6 +62,10 @@ struct Scene2
     int active_len;
     struct Scene2Element* free_list;
     int free_len;
+
+    struct Scene2TextureEntry* textures;
+    int textures_count;
+    int textures_capacity;
 
     struct Scene2Event* eventbuffer;
     int eventbuffer_capacity;
@@ -123,5 +135,16 @@ scene2_eventbuffer_pop(
 
 void
 scene2_eventbuffer_clear(struct Scene2* scene2);
+
+void
+scene2_texture_add(
+    struct Scene2* scene2,
+    int texture_id,
+    struct DashTexture* texture);
+
+struct DashTexture*
+scene2_texture_get(
+    struct Scene2* scene2,
+    int texture_id);
 
 #endif

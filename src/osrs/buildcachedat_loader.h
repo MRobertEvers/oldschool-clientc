@@ -115,7 +115,6 @@ buildcachedat_loader_cache_media(
 void
 buildcachedat_loader_cache_title(
     struct BuildCacheDat* buildcachedat,
-    struct GGame* game,
     int data_size,
     void* data);
 

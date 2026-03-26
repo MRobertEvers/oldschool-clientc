@@ -60,7 +60,8 @@ uiscene_new(int size)
     uiscene->free_len = size;
 
     uiscene->eventbuffer_capacity = UISCENE_EVENTBUFFER_DEFAULT_CAPACITY;
-    uiscene->eventbuffer = calloc((size_t)uiscene->eventbuffer_capacity, sizeof(struct UISceneEvent));
+    uiscene->eventbuffer =
+        calloc((size_t)uiscene->eventbuffer_capacity, sizeof(struct UISceneEvent));
     if( !uiscene->eventbuffer )
     {
         free(uiscene->elements);
@@ -196,4 +197,64 @@ uiscene_eventbuffer_clear(struct UIScene* uiscene)
     uiscene->eventbuffer_head = 0;
     uiscene->eventbuffer_tail = 0;
     uiscene->eventbuffer_count = 0;
+}
+
+int
+uiscene_font_add(
+    struct UIScene* uiscene,
+    const char* name,
+    struct DashPixFont* font)
+{
+    if( !uiscene || !name || !name[0] || !font )
+        return -1;
+
+    for( int i = 0; i < uiscene->font_count; i++ )
+    {
+        if( strcmp(uiscene->fonts[i].name, name) == 0 )
+        {
+            uiscene->fonts[i].font = font;
+            return i;
+        }
+    }
+
+    if( uiscene->font_count >= UISCENE_FONT_MAX )
+        return -1;
+
+    int id = uiscene->font_count++;
+    strncpy(uiscene->fonts[id].name, name, UISCENE_FONT_NAME_MAX - 1);
+    uiscene->fonts[id].name[UISCENE_FONT_NAME_MAX - 1] = '\0';
+    uiscene->fonts[id].font = font;
+
+    uiscene_eventbuffer_push(
+        uiscene,
+        (struct UISceneEvent){
+            .type = UISCENE_EVENT_FONT_ADDED,
+            .font_id = id,
+        });
+    return id;
+}
+
+struct DashPixFont*
+uiscene_font_get(
+    struct UIScene* uiscene,
+    int font_id)
+{
+    if( !uiscene || font_id < 0 || font_id >= uiscene->font_count )
+        return NULL;
+    return uiscene->fonts[font_id].font;
+}
+
+int
+uiscene_font_find_id(
+    struct UIScene* uiscene,
+    const char* name)
+{
+    if( !uiscene || !name || !name[0] )
+        return -1;
+    for( int i = 0; i < uiscene->font_count; i++ )
+    {
+        if( strcmp(uiscene->fonts[i].name, name) == 0 )
+            return i;
+    }
+    return -1;
 }

@@ -577,11 +577,9 @@ LuaBuildCacheDat_cache_title(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
-    struct GGame* game = arg_game(args);
-    int data_size = arg_int(args, 1);
-    void* data = arg_userdata(args, 2);
+    struct CacheDatArchive* archive = arg_userdata(args, 0);
 
-    buildcachedat_loader_cache_title(buildcachedat, game, data_size, data);
+    buildcachedat_loader_cache_title(buildcachedat, archive->data_size, archive->data);
     return LuaGameType_NewVoid();
 }
 

@@ -2,6 +2,10 @@
 #define BUILD_CACHE_DAT_H
 
 #include "graphics/dash.h"
+
+/** Max font name length stored in BuildCacheDat (bytes; zero-padded key, no trailing NUL if 24
+ * chars). */
+#define BUILDCACHEDAT_FONT_NAME_MAX 24
 #include "osrs/rscache/tables/config_floortype.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/config_sequence.h"
@@ -46,6 +50,7 @@ struct BuildCacheDat
     struct DashMap* map_terrains_hmap;
     struct DashMap* flotype_hmap;
     struct DashMap* textures_hmap;
+    struct DashMap* fonts_hmap;
     struct DashMap* scenery_hmap;
     struct DashMap* models_hmap;
 
@@ -199,6 +204,29 @@ struct DashTexture*
 buildcachedat_iter_next_texture_id(
     struct DashMapIter* iter,
     int* out_id);
+
+void
+buildcachedat_add_font(
+    struct BuildCacheDat* buildcachedat,
+    const char* font_name,
+    struct DashPixFont* font);
+
+struct DashPixFont*
+buildcachedat_get_font(
+    struct BuildCacheDat* buildcachedat,
+    const char* font_name);
+
+struct DashMapIter*
+buildcachedat_iter_new_fonts(struct BuildCacheDat* buildcachedat);
+
+struct DashPixFont*
+buildcachedat_iter_next_font(struct DashMapIter* iter);
+
+struct DashPixFont*
+buildcachedat_iter_next_font_name(
+    struct DashMapIter* iter,
+    char* out_name,
+    int out_name_cap);
 
 bool
 buildcachedat_eventbuffer_is_empty(struct BuildCacheDat* buildcachedat);

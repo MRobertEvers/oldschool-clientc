@@ -1256,6 +1256,13 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
                 sprite_cmds.push_back(cmd);
                 break;
 
+            case TORIRS_GFX_FONT_LOAD:
+                break;
+
+            case TORIRS_GFX_FONT_DRAW:
+                sprite_cmds.push_back(cmd);
+                break;
+
             default:
                 break;
             }
@@ -1288,8 +1295,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
 
         for( const auto& sc : sprite_cmds )
         {
-            if( sc.kind != TORIRS_GFX_SPRITE_DRAW )
-                continue;
+            if( sc.kind == TORIRS_GFX_SPRITE_DRAW )
+            {
             struct DashSprite* sp = sc._sprite_draw.sprite;
             if( !sp || sp->width <= 0 || sp->height <= 0 )
                 continue;
@@ -1352,6 +1359,89 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
             [encoder setFragmentSamplerState:uiSampler atIndex:0];
             [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
             ++spriteSlot;
+            }
+            else if( sc.kind == TORIRS_GFX_FONT_DRAW )
+            {
+            struct DashPixFont* f = sc._font_draw.font;
+            if( !f || !sc._font_draw.text || f->height2d <= 0 )
+                continue;
+            const int text_w = dashfont_text_width(f, (uint8_t*)sc._font_draw.text);
+            const int text_h = f->height2d;
+            if( text_w <= 0 )
+                continue;
+
+            /* Render text into a temporary ARGB pixel buffer. */
+            std::vector<int> argb_pixels((size_t)text_w * (size_t)text_h, 0);
+            dashfont_draw_text_ex(
+                f,
+                (uint8_t*)sc._font_draw.text,
+                0,
+                text_h - 1,
+                sc._font_draw.color_rgb,
+                argb_pixels.data(),
+                text_w);
+
+            /* Convert ARGB → RGBA; pixel == 0 is transparent (color-key). */
+            std::vector<uint8_t> rgba((size_t)text_w * (size_t)text_h * 4u);
+            for( int p = 0; p < text_w * text_h; ++p )
+            {
+                int pix = argb_pixels[(size_t)p];
+                rgba[(size_t)p * 4u + 0u] = (uint8_t)((pix >> 16) & 0xFF);
+                rgba[(size_t)p * 4u + 1u] = (uint8_t)((pix >> 8) & 0xFF);
+                rgba[(size_t)p * 4u + 2u] = (uint8_t)(pix & 0xFF);
+                rgba[(size_t)p * 4u + 3u] = (pix != 0) ? 0xFFu : 0x00u;
+            }
+
+            /* Upload to a temporary MTLTexture (Metal retains it once set on the encoder). */
+            MTLTextureDescriptor* td = [MTLTextureDescriptor
+                texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                             width:(NSUInteger)text_w
+                                            height:(NSUInteger)text_h
+                                         mipmapped:NO];
+            td.usage = MTLTextureUsageShaderRead;
+            td.storageMode = MTLStorageModeShared;
+            id<MTLTexture> fontTex = [device newTextureWithDescriptor:td];
+            [fontTex replaceRegion:MTLRegionMake2D(0, 0, (NSUInteger)text_w, (NSUInteger)text_h)
+                       mipmapLevel:0
+                         withBytes:rgba.data()
+                       bytesPerRow:(NSUInteger)text_w * 4u];
+
+            /* Top-left corner: x stays, y shifts up by (text_h - 1) to convert baseline → top. */
+            const float dst_x = (float)sc._font_draw.x;
+            const float dst_y = (float)(sc._font_draw.y - (text_h - 1));
+            const float w = (float)text_w;
+            const float h = (float)text_h;
+            const float x0 = dst_x;
+            const float y0 = dst_y;
+            const float x1 = x0 + w;
+            const float y1 = y0 + h;
+
+            const float fbw = (float)(win_width > 0 ? win_width : renderer->width);
+            const float fbh = (float)(win_height > 0 ? win_height : renderer->height);
+            auto font_to_clip = [&](float xp, float yp, float* ocx, float* ocy) {
+                *ocx = 2.0f * xp / fbw - 1.0f;
+                *ocy = 1.0f - 2.0f * yp / fbh;
+            };
+
+            float c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y;
+            font_to_clip(x0, y0, &c0x, &c0y);
+            font_to_clip(x1, y0, &c1x, &c1y);
+            font_to_clip(x1, y1, &c2x, &c2y);
+            font_to_clip(x0, y1, &c3x, &c3y);
+
+            float verts[6 * 4] = {
+                c0x, c0y, 0.0f, 0.0f, c1x, c1y, 1.0f, 0.0f, c2x, c2y, 1.0f, 1.0f,
+                c0x, c0y, 0.0f, 0.0f, c2x, c2y, 1.0f, 1.0f, c3x, c3y, 0.0f, 1.0f,
+            };
+
+            NSUInteger slotOffset = spriteSlot * kSpriteSlotBytes;
+            memcpy((char*)spriteQuadBuf.contents + slotOffset, verts, sizeof(verts));
+            [encoder setVertexBuffer:spriteQuadBuf offset:slotOffset atIndex:0];
+            [encoder setFragmentTexture:fontTex atIndex:0];
+            [encoder setFragmentSamplerState:uiSampler atIndex:0];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+            ++spriteSlot;
+            }
         }
     }
 

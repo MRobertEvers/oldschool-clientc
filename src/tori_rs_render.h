@@ -9,10 +9,11 @@
 enum ToriRSRenderCommandKind
 {
     TORIRS_GFX_NONE,
-    TORIRS_GFX_3DBEGIN,
-    TORIRS_GFX_3DEND,
-    TORIRS_GFX_2DBEGIN,
-    TORIRS_GFX_2DEND,
+    // TORIRS_GFX_3DBEGIN,
+    // TORIRS_GFX_3DEND,
+    // TORIRS_GFX_2DBEGIN,
+    // TORIRS_GFX_2DEND,
+    TORIRS_GFX_FONT_LOAD,
     TORIRS_GFX_MODEL_LOAD,
     TORIRS_GFX_TEXTURE_LOAD,
     TORIRS_GFX_SPRITE_LOAD,
@@ -21,6 +22,7 @@ enum ToriRSRenderCommandKind
     TORIRS_GFX_SPRITE_UNLOAD,
     TORIRS_GFX_MODEL_DRAW,
     TORIRS_GFX_SPRITE_DRAW,
+    TORIRS_GFX_FONT_DRAW,
 };
 
 struct ToriRSRenderCommand
@@ -44,6 +46,20 @@ struct ToriRSRenderCommand
             int element_id;
             struct DashSprite* sprite;
         } _sprite_load;
+
+        struct
+        {
+            int font_id;
+            struct DashPixFont* font;
+        } _font_load;
+        struct
+        {
+            struct DashPixFont* font;
+            const uint8_t* text; /* null-terminated; caller guarantees lifetime for the frame */
+            int x;
+            int y;               /* baseline row, same convention as dashfont_draw_text_ex */
+            int color_rgb;
+        } _font_draw;
 
         struct
         {

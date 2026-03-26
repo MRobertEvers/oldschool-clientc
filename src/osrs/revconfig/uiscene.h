@@ -11,6 +11,7 @@ enum UISceneEventType
     UISCENE_EVENT_NONE = 0,
     UISCENE_EVENT_ELEMENT_ACQUIRED = 1,
     UISCENE_EVENT_ELEMENT_RELEASED = 2,
+    UISCENE_EVENT_FONT_ADDED = 3,
 };
 
 struct UISceneEvent
@@ -18,6 +19,7 @@ struct UISceneEvent
     enum UISceneEventType type;
     int element_id;
     int parent_entity_id;
+    int font_id;
 };
 
 struct UISceneElement
@@ -31,6 +33,15 @@ struct UISceneElement
     char name[64];
     struct DashSprite** dash_sprites;
     int dash_sprites_count;
+};
+
+#define UISCENE_FONT_MAX 16
+#define UISCENE_FONT_NAME_MAX 64
+
+struct UISceneFontSlot
+{
+    char name[UISCENE_FONT_NAME_MAX];
+    struct DashPixFont* font;
 };
 
 struct UIScene
@@ -49,6 +60,9 @@ struct UIScene
     int eventbuffer_head;
     int eventbuffer_tail;
     int eventbuffer_count;
+
+    struct UISceneFontSlot fonts[UISCENE_FONT_MAX];
+    int font_count;
 };
 
 struct UIScene*
@@ -82,5 +96,20 @@ uiscene_eventbuffer_pop(
 
 void
 uiscene_eventbuffer_clear(struct UIScene* uiscene);
+
+/** Register a font under `name`. Returns dense id in [0, font_count), or -1 on error.
+ * Duplicate name updates the pointer and returns the existing id (no second FONT_ADDED event). */
+int
+uiscene_font_add(
+    struct UIScene* uiscene,
+    const char* name,
+    struct DashPixFont* font);
+
+struct DashPixFont*
+uiscene_font_get(struct UIScene* uiscene, int font_id);
+
+/** Returns font id or -1 if not found. */
+int
+uiscene_font_find_id(struct UIScene* uiscene, const char* name);
 
 #endif

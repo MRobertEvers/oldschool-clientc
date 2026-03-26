@@ -96,6 +96,23 @@ queue_sprite_unload_from_event(
 }
 
 static void
+queue_font_load_from_event(
+    struct ToriRSRenderCommandBuffer* render_command_buffer,
+    int font_id,
+    struct DashPixFont* font)
+{
+    LibToriRS_RenderCommandBufferAddCommand(
+        render_command_buffer,
+        (struct ToriRSRenderCommand){
+            .kind = TORIRS_GFX_FONT_LOAD,
+            ._font_load = {
+                .font_id = font_id,
+                .font = font,
+            },
+        });
+}
+
+static void
 queue_sprite_draw_from_event(
     struct ToriRSRenderCommandBuffer* render_command_buffer,
     int element_id,
@@ -138,7 +155,10 @@ queue_static_load_commands(
             buildcachedat_get_texture(game->buildcachedat, cache_event.texture_id);
         if( !texture )
             continue;
-        queue_texture_load_from_event(render_command_buffer, cache_event.texture_id, texture);
+        if( scene2 )
+            scene2_texture_add(scene2, cache_event.texture_id, texture);
+        else
+            queue_texture_load_from_event(render_command_buffer, cache_event.texture_id, texture);
     }
 
     if( scene2 )
@@ -146,6 +166,13 @@ queue_static_load_commands(
         struct Scene2Event scene_event = { 0 };
         while( scene2_eventbuffer_pop(scene2, &scene_event) )
         {
+            if( scene_event.type == SCENE2_EVENT_TEXTURE_LOADED )
+            {
+                struct DashTexture* texture = scene2_texture_get(scene2, scene_event.texture_id);
+                queue_texture_load_from_event(
+                    render_command_buffer, scene_event.texture_id, texture);
+                continue;
+            }
             if( scene_event.element_id < 0 || scene_event.element_id >= scene2->elements_count )
                 continue;
             if( scene_event.type != SCENE2_EVENT_ELEMENT_ACQUIRED &&
@@ -191,6 +218,12 @@ queue_static_load_commands(
                         render_command_buffer, ui_event.element_id, element->dash_sprites[i]);
                 }
             }
+            else if( ui_event.type == UISCENE_EVENT_FONT_ADDED )
+            {
+                struct DashPixFont* font = uiscene_font_get(game->ui_scene, ui_event.font_id);
+                if( font )
+                    queue_font_load_from_event(render_command_buffer, ui_event.font_id, font);
+            }
         }
 
         LibToriRS_RenderCommandBufferReset(game->ui_render_command_buffer);
@@ -232,6 +265,9 @@ LibToriRS_FrameBegin(
     game->tile_clicked_x = -1;
     game->tile_clicked_z = -1;
     game->tile_clicked_level = -1;
+
+    game->hovered_interactible_entity_uid = -1;
+    game->frame_hover_font_draw_done = false;
 
     game->camera->pitch = game->camera_pitch;
     game->camera->yaw = game->camera_yaw;
@@ -513,6 +549,25 @@ LibToriRS_FrameNextCommand(
             {
                 cull = dash3d_project_model(
                     game->sys_dash, element->dash_model, &position, game->view_port, game->camera);
+                if( cull == DASHCULL_VISIBLE &&
+                    entity_interactable(game->world, element->parent_entity_id) && game->view_port )
+                {
+                    int cvx = game->mouse_x - game->viewport_offset_x;
+                    int cvy = game->mouse_y - game->viewport_offset_y;
+                    if( cvx >= 0 && cvy >= 0 && cvx < game->view_port->width &&
+                        cvy < game->view_port->height )
+                    {
+                        struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
+
+                        if( cvx >= aabb->min_screen_x && cvx <= aabb->max_screen_x &&
+                            cvy >= aabb->min_screen_y && cvy <= aabb->max_screen_y &&
+                            dash3d_projected_model_contains(
+                                game->sys_dash, element->dash_model, game->view_port, cvx, cvy) )
+                        {
+                            game->hovered_interactible_entity_uid = element->parent_entity_id;
+                        }
+                    }
+                }
             }
             else
             {
@@ -525,7 +580,8 @@ LibToriRS_FrameNextCommand(
                         &position,
                         game->view_port,
                         game->camera);
-                if( cull == DASHCULL_VISIBLE && game->view_port )
+                if( cull == DASHCULL_VISIBLE && game->view_port &&
+                    entity_interactable(game->world, element->parent_entity_id) )
                 {
                     int cursor_vp_x = game->mouse_x - game->viewport_offset_x;
                     int cursor_vp_y = game->mouse_y - game->viewport_offset_y;
@@ -544,12 +600,15 @@ LibToriRS_FrameNextCommand(
                             &position,
                             game->view_port,
                             game->camera);
-                        (void)dash3d_projected_model_contains(
-                            game->sys_dash,
-                            element->dash_model,
-                            game->view_port,
-                            cursor_vp_x,
-                            cursor_vp_y);
+                        if( dash3d_projected_model_contains(
+                                game->sys_dash,
+                                element->dash_model,
+                                game->view_port,
+                                cursor_vp_x,
+                                cursor_vp_y) )
+                        {
+                            game->hovered_interactible_entity_uid = element->parent_entity_id;
+                        }
                     }
                 }
             }
@@ -674,6 +733,39 @@ LibToriRS_FrameNextCommand(
         game->clicked_tile_x = game->tile_clicked_x;
         game->clicked_tile_z = game->tile_clicked_z;
         game->clicked_tile_valid = 1;
+    }
+
+    /* Emit a placeholder FONT_DRAW when a hovered interactible entity was detected this frame.
+     * This is the last command yielded before returning false. */
+    if( command->kind == TORIRS_GFX_NONE && game->hovered_interactible_entity_uid != -1 &&
+        !game->frame_hover_font_draw_done )
+    {
+        game->frame_hover_font_draw_done = true;
+        struct DashPixFont* font = NULL;
+        if( game->ui_scene )
+        {
+            int b12_id = uiscene_font_find_id(game->ui_scene, "b12");
+            if( b12_id >= 0 )
+                font = uiscene_font_get(game->ui_scene, b12_id);
+            if( !font && game->ui_scene->font_count > 0 )
+                font = uiscene_font_get(game->ui_scene, 0);
+        }
+        if( !font )
+            font = game->pixfont_b12;
+        if( font )
+        {
+            *command = (struct ToriRSRenderCommand){
+                .kind = TORIRS_GFX_FONT_DRAW,
+                ._font_draw = {
+                    .font = font,
+                    .text = (const uint8_t*)"Hello what is this?",
+                    .x = game->mouse_x,
+                    .y = game->mouse_y,
+                    .color_rgb = 0xFFFFFF,
+                },
+            };
+            return true;
+        }
     }
 
     return command->kind != TORIRS_GFX_NONE;

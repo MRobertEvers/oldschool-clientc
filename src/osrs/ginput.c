@@ -57,8 +57,8 @@ on_mousemove(
     struct GameInputEvent_MouseMove* event)
 {
     push_event(input, &event, TORIRSEV_MOUSE_MOVE);
-    input->mouse_button_states[TORIRSM_LEFT].x = event->x;
-    input->mouse_button_states[TORIRSM_LEFT].y = event->y;
+    input->mouse_state.x = event->x;
+    input->mouse_state.y = event->y;
 }
 
 static void
@@ -67,8 +67,6 @@ on_mousewheel(
     struct GameInputEvent_MouseWheel* event)
 {
     push_event(input, &event, TORIRSEV_MOUSE_WHEEL);
-    input->mouse_state.x = event->mouse_x;
-    input->mouse_state.y = event->mouse_y;
 }
 
 static void

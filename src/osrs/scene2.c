@@ -72,6 +72,7 @@ scene2_free(struct Scene2* scene2)
             scene2_element_release(scene2, i);
     }
     free(scene2->elements);
+    free(scene2->textures);
     free(scene2->eventbuffer);
     free(scene2);
 }
@@ -306,4 +307,48 @@ scene2_eventbuffer_clear(struct Scene2* scene2)
     scene2->eventbuffer_head = 0;
     scene2->eventbuffer_tail = 0;
     scene2->eventbuffer_count = 0;
+}
+
+void
+scene2_texture_add(
+    struct Scene2* scene2,
+    int texture_id,
+    struct DashTexture* texture)
+{
+    if( !scene2 )
+        return;
+
+    if( scene2->textures_count >= scene2->textures_capacity )
+    {
+        int new_capacity = scene2->textures_capacity == 0 ? 8 : scene2->textures_capacity * 2;
+        scene2->textures =
+            realloc(scene2->textures, (size_t)new_capacity * sizeof(struct Scene2TextureEntry));
+        scene2->textures_capacity = new_capacity;
+    }
+
+    scene2->textures[scene2->textures_count].id = texture_id;
+    scene2->textures[scene2->textures_count].texture = texture;
+    scene2->textures_count++;
+
+    scene2_eventbuffer_push(
+        scene2,
+        (struct Scene2Event){
+            .type = SCENE2_EVENT_TEXTURE_LOADED,
+            .texture_id = texture_id,
+        });
+}
+
+struct DashTexture*
+scene2_texture_get(
+    struct Scene2* scene2,
+    int texture_id)
+{
+    if( !scene2 )
+        return NULL;
+    for( int i = 0; i < scene2->textures_count; i++ )
+    {
+        if( scene2->textures[i].id == texture_id )
+            return scene2->textures[i].texture;
+    }
+    return NULL;
 }

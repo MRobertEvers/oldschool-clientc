@@ -445,9 +445,10 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     }
 
     // 2D interface always maps to the fixed pixel buffer (renderer->width × renderer->height).
-    // renderer->width never changes at runtime — it equals initial_width — so iface_view_port->stride
-    // is stable across frames.  Changing stride mid-flight would corrupt sprite positions because
-    // GameStep runs *before* Render and writes sprites using the previous frame's stride.
+    // renderer->width never changes at runtime — it equals initial_width — so
+    // iface_view_port->stride is stable across frames.  Changing stride mid-flight would corrupt
+    // sprite positions because GameStep runs *before* Render and writes sprites using the previous
+    // frame's stride.
     if( game->iface_view_port )
     {
         game->iface_view_port->width = renderer->width;
@@ -500,9 +501,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 game->view_port->height != renderer->initial_view_port_height )
             {
                 LibToriRS_GameSetWorldViewportSize(
-                    game,
-                    renderer->initial_view_port_width,
-                    renderer->initial_view_port_height);
+                    game, renderer->initial_view_port_width, renderer->initial_view_port_height);
             }
         }
     }
@@ -592,9 +591,24 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     {
         switch( command.kind )
         {
+        case TORIRS_GFX_FONT_LOAD:
         case TORIRS_GFX_MODEL_LOAD:
         case TORIRS_GFX_TEXTURE_LOAD:
             break;
+        case TORIRS_GFX_FONT_DRAW:
+        {
+            struct DashPixFont* f = command._font_draw.font;
+            if( f && command._font_draw.text && renderer->pixel_buffer )
+                dashfont_draw_text_ex(
+                    f,
+                    (uint8_t*)command._font_draw.text,
+                    command._font_draw.x,
+                    command._font_draw.y,
+                    command._font_draw.color_rgb,
+                    renderer->pixel_buffer,
+                    renderer->width);
+            break;
+        }
         case TORIRS_GFX_MODEL_DRAW:
             dash3d_raster_projected_model(
                 game->sys_dash,
@@ -634,12 +648,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             else
             {
                 dash2d_blit_sprite(
-                    game->sys_dash,
-                    sp,
-                    game->iface_view_port,
-                    x,
-                    y,
-                    renderer->pixel_buffer);
+                    game->sys_dash, sp, game->iface_view_port, x, y, renderer->pixel_buffer);
             }
         }
         break;
@@ -1013,7 +1022,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDynamicPixelSize(
 void
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetViewportChangedCallback(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
-    void (*callback)(struct GGame* game, int new_width, int new_height, void* userdata),
+    void (*callback)(
+        struct GGame* game,
+        int new_width,
+        int new_height,
+        void* userdata),
     void* userdata)
 {
     renderer->on_viewport_changed = callback;
