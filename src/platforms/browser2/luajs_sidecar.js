@@ -456,10 +456,10 @@ export class LuaJSSidecar {
         // Copy the ArrayBuffer to WASM memory and then deserialize
         const deserializeCacheDatArchive =
           this.wasm._luajs_CacheDatArchive_deserialize;
-        const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
         const dataView = new Uint8Array(data);
         const ptr = this.wasm._malloc(dataView.length);
         try {
+          const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
           heapu8.set(dataView, ptr);
           const archive = deserializeCacheDatArchive(ptr, dataView.length);
           this.wasm._free(ptr);
@@ -550,8 +550,8 @@ export class LuaJSSidecar {
         const data = await response.arrayBuffer();
         const dataView = new Uint8Array(data);
         const deserializeConfigFile = this.wasm._luajs_ConfigFile_deserialize;
-        const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
         const ptr = this.wasm._malloc(dataView.length);
+        const heapu8 = new Uint8Array(this.wasm.HEAPU8.buffer);
         heapu8.set(dataView, ptr);
         const configFile = deserializeConfigFile(ptr, dataView.length);
         this.wasm._free(ptr);

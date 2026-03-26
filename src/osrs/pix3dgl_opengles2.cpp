@@ -515,8 +515,21 @@ struct Pix3DGL
     GLint uniform_ui_projection;
     GLuint ui_vao;
     GLuint ui_vbo;
-    GLuint ui_sprite_texture;
     bool ui_vao_inited;
+
+    /* Per-sprite GPU texture cache.  Key = (uintptr_t)DashSprite*. */
+    std::unordered_map<uintptr_t, GLuint> sprite_texture_cache;
+
+    /* Pending 2D sprite draws accumulated during a frame.
+     * Flushed in a single glBufferData call by pix3dgl_end_2dframe. */
+    struct SpritePendingDraw
+    {
+        GLuint tex;
+        float verts[6 * 4]; /* 6 vertices × (screen_x, screen_y, u, v) */
+    };
+    std::vector<SpritePendingDraw> pending_sprite_draws;
+    int sprite_batch_fb_width;
+    int sprite_batch_fb_height;
 };
 
 // CPU-side matrix computation functions for performance
@@ -705,8 +718,9 @@ pix3dgl_init_ui_es2(struct Pix3DGL* pix3dgl)
     pix3dgl->uniform_ui_projection = -1;
     pix3dgl->ui_vao = 0;
     pix3dgl->ui_vbo = 0;
-    pix3dgl->ui_sprite_texture = 0;
     pix3dgl->ui_vao_inited = false;
+    pix3dgl->sprite_batch_fb_width = 0;
+    pix3dgl->sprite_batch_fb_height = 0;
 
     GLuint prog = create_ui_program_es2();
     if( !prog )
@@ -719,7 +733,6 @@ pix3dgl_init_ui_es2(struct Pix3DGL* pix3dgl)
     pix3dgl->uniform_ui_projection = glGetUniformLocation(prog, "uProjection");
 
     glGenBuffers(1, &pix3dgl->ui_vbo);
-    glGenTextures(1, &pix3dgl->ui_sprite_texture);
     GEN_VERTEX_ARRAYS(1, &pix3dgl->ui_vao);
     pix3dgl->ui_vao_inited = g_has_vao_extension && pix3dgl->ui_vao != 0;
 
@@ -743,8 +756,9 @@ pix3dgl_new(
     pix3dgl->uniform_ui_projection = -1;
     pix3dgl->ui_vao = 0;
     pix3dgl->ui_vbo = 0;
-    pix3dgl->ui_sprite_texture = 0;
     pix3dgl->ui_vao_inited = false;
+    pix3dgl->sprite_batch_fb_width = 0;
+    pix3dgl->sprite_batch_fb_height = 0;
 
     // Initialize current model tracking
     pix3dgl->current_model = nullptr;
@@ -1287,19 +1301,89 @@ pix3dgl_begin_2dframe(struct Pix3DGL* pix3dgl)
 {
     if( !pix3dgl || !pix3dgl->program_ui )
         return;
+    pix3dgl->pending_sprite_draws.clear();
+    pix3dgl->sprite_batch_fb_width = 0;
+    pix3dgl->sprite_batch_fb_height = 0;
     glUseProgram(pix3dgl->program_ui);
     glDisable(GL_DEPTH_TEST);
     glDepthMask(GL_FALSE);
-    glDisable(GL_CULL_FACE); /* begin_3dframe enables GL_CULL_FACE; sprite quads must not be culled */
+    glDisable(
+        GL_CULL_FACE); /* begin_3dframe enables GL_CULL_FACE; sprite quads must not be culled */
     glDisable(GL_SCISSOR_TEST);
     glEnable(GL_BLEND);
+    glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 extern "C" void
 pix3dgl_end_2dframe(struct Pix3DGL* pix3dgl)
 {
-    (void)pix3dgl;
+    if( !pix3dgl )
+        return;
+
+    const auto& draws = pix3dgl->pending_sprite_draws;
+    if( !draws.empty() && pix3dgl->ui_vbo )
+    {
+        const int n = (int)draws.size();
+
+        std::vector<float> all_verts((size_t)n * 6 * 4);
+        for( int i = 0; i < n; ++i )
+            memcpy(&all_verts[(size_t)i * 6 * 4], draws[i].verts, 6 * 4 * sizeof(float));
+
+        glUseProgram(pix3dgl->program_ui);
+        if( pix3dgl->ui_vao_inited )
+            BIND_VERTEX_ARRAY(pix3dgl->ui_vao);
+        glBindBuffer(GL_ARRAY_BUFFER, pix3dgl->ui_vbo);
+
+        /* Orthographic projection: top-left origin, y grows downward. */
+        if( pix3dgl->uniform_ui_projection >= 0 && pix3dgl->sprite_batch_fb_width > 0 &&
+            pix3dgl->sprite_batch_fb_height > 0 )
+        {
+            float ortho[16];
+            memset(ortho, 0, sizeof(ortho));
+            const float w = (float)pix3dgl->sprite_batch_fb_width;
+            const float h = (float)pix3dgl->sprite_batch_fb_height;
+            ortho[0]  =  2.0f / w;
+            ortho[5]  = -2.0f / h;
+            ortho[10] = -1.0f;
+            ortho[12] = -1.0f;
+            ortho[13] =  1.0f;
+            ortho[15] =  1.0f;
+            glUniformMatrix4fv(pix3dgl->uniform_ui_projection, 1, GL_FALSE, ortho);
+        }
+
+        glBufferData(
+            GL_ARRAY_BUFFER,
+            (GLsizeiptr)(all_verts.size() * sizeof(float)),
+            all_verts.data(),
+            GL_STREAM_DRAW);
+
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(
+            1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+
+        if( pix3dgl->uniform_ui_tex >= 0 )
+            glUniform1i(pix3dgl->uniform_ui_tex, 0);
+        glActiveTexture(GL_TEXTURE0);
+
+        /* Draw consecutive same-texture sprites as one glDrawArrays call. */
+        int group_start = 0;
+        while( group_start < n )
+        {
+            GLuint group_tex = draws[group_start].tex;
+            int group_end = group_start + 1;
+            while( group_end < n && draws[group_end].tex == group_tex )
+                ++group_end;
+
+            glBindTexture(GL_TEXTURE_2D, group_tex);
+            glDrawArrays(GL_TRIANGLES, group_start * 6, (group_end - group_start) * 6);
+
+            group_start = group_end;
+        }
+    }
+
     BIND_VERTEX_ARRAY(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glUseProgram(0);
@@ -2036,15 +2120,24 @@ pix3dgl_sprite_load(
     struct Pix3DGL* pix3dgl,
     struct DashSprite* sprite)
 {
-    if( !pix3dgl || !pix3dgl->ui_sprite_texture )
+    if( !pix3dgl )
         return;
     if( !sprite || !sprite->pixels_argb || sprite->width <= 0 || sprite->height <= 0 )
+        return;
+
+    uintptr_t key = (uintptr_t)sprite;
+    if( pix3dgl->sprite_texture_cache.count(key) )
+        return; /* Already uploaded — nothing to do. */
+
+    GLuint tex = 0;
+    glGenTextures(1, &tex);
+    if( !tex )
         return;
 
     const int tw = sprite->width;
     const int th = sprite->height;
     std::vector<uint8_t> rgba((size_t)tw * (size_t)th * 4u);
-    for( int i = 0; i < tw * th; i++ )
+    for( int i = 0; i < tw * th; ++i )
     {
         uint32_t p = sprite->pixels_argb[i];
         rgba[(size_t)i * 4u + 0u] = (uint8_t)((p >> 16) & 0xFFu);
@@ -2054,13 +2147,15 @@ pix3dgl_sprite_load(
     }
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, pix3dgl->ui_sprite_texture);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tw, th, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
+
+    pix3dgl->sprite_texture_cache[key] = tex;
 }
 
 extern "C" void
@@ -2068,9 +2163,14 @@ pix3dgl_sprite_unload(
     struct Pix3DGL* pix3dgl,
     struct DashSprite* sprite)
 {
-    /* WebGL1/GLES2 path: single shared ui_sprite_texture — nothing to evict. */
-    (void)pix3dgl;
-    (void)sprite;
+    if( !pix3dgl || !sprite )
+        return;
+    uintptr_t key = (uintptr_t)sprite;
+    auto it = pix3dgl->sprite_texture_cache.find(key);
+    if( it == pix3dgl->sprite_texture_cache.end() )
+        return;
+    glDeleteTextures(1, &it->second);
+    pix3dgl->sprite_texture_cache.erase(it);
 }
 
 extern "C" void
@@ -2083,15 +2183,21 @@ pix3dgl_sprite_draw(
     int framebuffer_height,
     int rotation_r2pi2048)
 {
-    if( !pix3dgl || !pix3dgl->program_ui || !pix3dgl->ui_sprite_texture || !pix3dgl->ui_vbo )
+    if( !pix3dgl || !pix3dgl->program_ui || !pix3dgl->ui_vbo )
         return;
     if( !sprite || !sprite->pixels_argb || framebuffer_width <= 0 || framebuffer_height <= 0 ||
         sprite->width <= 0 || sprite->height <= 0 )
         return;
 
-    /* Single shared ui_sprite_texture; desktop pix3dgl.cpp lazy-uploads here — static UI often
-     * emits SPRITE_DRAW without a preceding SPRITE_LOAD in the same command stream. */
-    pix3dgl_sprite_load(pix3dgl, sprite);
+    /* Lazy-upload fallback: if the sprite was never explicitly loaded, upload it now. */
+    uintptr_t key = (uintptr_t)sprite;
+    if( !pix3dgl->sprite_texture_cache.count(key) )
+        pix3dgl_sprite_load(pix3dgl, sprite);
+
+    auto it = pix3dgl->sprite_texture_cache.find(key);
+    if( it == pix3dgl->sprite_texture_cache.end() )
+        return; /* Upload failed. */
+    GLuint tex = it->second;
 
     dst_x += sprite->crop_x;
     dst_y += sprite->crop_y;
@@ -2121,47 +2227,22 @@ pix3dgl_sprite_draw(
     rot_local(hw, hh, &px[2], &py[2]);
     rot_local(-hw, hh, &px[3], &py[3]);
 
+    /* Capture framebuffer dimensions for projection (used in pix3dgl_end_2dframe). */
+    if( pix3dgl->sprite_batch_fb_width <= 0 )
+    {
+        pix3dgl->sprite_batch_fb_width = framebuffer_width;
+        pix3dgl->sprite_batch_fb_height = framebuffer_height;
+    }
+
+    /* Enqueue into the frame batch; pix3dgl_end_2dframe will issue the GL calls. */
+    Pix3DGL::SpritePendingDraw draw;
+    draw.tex = tex;
     float verts[6 * 4] = {
         px[0], py[0], 0.0f, 0.0f, px[1], py[1], 1.0f, 0.0f, px[2], py[2], 1.0f, 1.0f,
         px[0], py[0], 0.0f, 0.0f, px[2], py[2], 1.0f, 1.0f, px[3], py[3], 0.0f, 1.0f,
     };
-
-    glUseProgram(pix3dgl->program_ui);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, pix3dgl->ui_sprite_texture);
-
-    if( pix3dgl->uniform_ui_tex >= 0 )
-        glUniform1i(pix3dgl->uniform_ui_tex, 0);
-
-    /* Ortho projection in screen pixels (top-left origin). */
-    if( pix3dgl->uniform_ui_projection >= 0 )
-    {
-        float ortho[16];
-        memset(ortho, 0, sizeof(ortho));
-        const float w = (float)framebuffer_width;
-        const float h = (float)framebuffer_height;
-        if( w > 0.0f && h > 0.0f )
-        {
-            ortho[0] = 2.0f / w;
-            ortho[5] = 2.0f / (0.0f - h); /* = -2/h */
-            ortho[10] = -1.0f;
-            ortho[12] = -1.0f; /* -(w+0)/w */
-            ortho[13] = 1.0f;  /* -(0+h)/(0-h) */
-            ortho[15] = 1.0f;
-            glUniformMatrix4fv(pix3dgl->uniform_ui_projection, 1, GL_FALSE, ortho);
-        }
-    }
-
-    if( pix3dgl->ui_vao_inited )
-        BIND_VERTEX_ARRAY(pix3dgl->ui_vao);
-    glBindBuffer(GL_ARRAY_BUFFER, pix3dgl->ui_vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STREAM_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    memcpy(draw.verts, verts, sizeof(verts));
+    pix3dgl->pending_sprite_draws.push_back(draw);
 }
 
 extern "C" void
@@ -2220,10 +2301,11 @@ pix3dgl_cleanup(struct Pix3DGL* pix3dgl)
         {
             glDeleteBuffers(1, &pix3dgl->ui_vbo);
         }
-        if( pix3dgl->ui_sprite_texture )
+        for( auto& pair : pix3dgl->sprite_texture_cache )
         {
-            glDeleteTextures(1, &pix3dgl->ui_sprite_texture);
+            glDeleteTextures(1, &pair.second);
         }
+        pix3dgl->sprite_texture_cache.clear();
         if( pix3dgl->program_ui )
         {
             glDeleteProgram(pix3dgl->program_ui);
