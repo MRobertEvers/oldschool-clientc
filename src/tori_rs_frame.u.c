@@ -20,8 +20,43 @@
 
 struct FrameRenderLoadKeyPtr
 {
-    uintptr_t key;
+    uint64_t key;
 };
+
+/* FNV-1a 64-bit hash of the fields that uniquely identify a GPU mesh.
+ * For animated models (original_vertices_* are non-NULL) the current vertex
+ * positions are also hashed so each animation keyframe gets a distinct key. */
+static uint64_t
+model_cache_key_u64(const struct DashModel* model)
+{
+    if( !model )
+        return 0;
+    uint64_t key = 14695981039346656037ULL;
+    const uint64_t prime = 1099511628211ULL;
+#define MIX(word)                                                                                  \
+    do                                                                                             \
+    {                                                                                              \
+        key ^= (uint64_t)(uintptr_t)(word);                                                        \
+        key *= prime;                                                                              \
+    } while( 0 )
+    MIX(model->vertices_x);
+    MIX(model->face_indices_a);
+    MIX(model->face_indices_b);
+    MIX(model->face_indices_c);
+    MIX((uintptr_t)model->face_count);
+    if( model->original_vertices_x && model->original_vertices_y &&
+        model->original_vertices_z && model->vertex_count > 0 )
+    {
+        for( int _i = 0; _i < model->vertex_count; _i++ )
+        {
+            MIX((uint32_t)model->vertices_x[_i]);
+            MIX((uint32_t)model->vertices_y[_i]);
+            MIX((uint32_t)model->vertices_z[_i]);
+        }
+    }
+#undef MIX
+    return key;
+}
 
 static void
 queue_scene_element_load_from_event(
@@ -30,8 +65,7 @@ queue_scene_element_load_from_event(
     struct Scene2Element* element)
 {
     (void)game;
-    uintptr_t element_key = (uintptr_t)element;
-    uintptr_t model_key = (uintptr_t)element->dash_model;
+    uint64_t model_key = model_cache_key_u64(element->dash_model);
     LibToriRS_RenderCommandBufferAddCommand(
         render_command_buffer,
         (struct ToriRSRenderCommand){
@@ -649,6 +683,8 @@ LibToriRS_FrameNextCommand(
                     .kind = TORIRS_GFX_MODEL_DRAW,
                     ._model_draw = {
                         .model = element->dash_model,
+                        .model_key = model_cache_key_u64(element->dash_model),
+                        .model_id = -1,
                     },
                 };
             memcpy(&command->_model_draw.position, &position, sizeof(struct DashPosition));
@@ -708,6 +744,8 @@ LibToriRS_FrameNextCommand(
                     ._model_draw = {
                         .model = element->dash_model,
                         .position = position,
+                        .model_key = model_cache_key_u64(element->dash_model),
+                        .model_id = -1,
                     },
                 };
         }

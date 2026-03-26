@@ -262,27 +262,23 @@ yaw_to_radians(int yaw_r2pi2048)
     return (yaw_r2pi2048 * 2.0f * 3.14159265358979323846f) / 2048.0f;
 }
 
-static uintptr_t
+static uint64_t
 model_gpu_cache_key(const struct DashModel* model)
 {
     if( !model )
         return 0;
-#if UINTPTR_MAX == 0xffffffffu
-    uintptr_t key = 2166136261u;
-#else
-    uintptr_t key = 1469598103934665603ull;
-#endif
-    const uintptr_t fnv_prime = (uintptr_t)16777619u;
-    auto mix_word = [&](uintptr_t word) {
+    uint64_t key = 14695981039346656037ULL;
+    const uint64_t fnv_prime = 1099511628211ULL;
+    auto mix_word = [&](uint64_t word) {
         key ^= word;
         key *= fnv_prime;
     };
 
-    mix_word((uintptr_t)model->vertices_x);
-    mix_word((uintptr_t)model->face_indices_a);
-    mix_word((uintptr_t)model->face_indices_b);
-    mix_word((uintptr_t)model->face_indices_c);
-    mix_word((uintptr_t)model->face_count);
+    mix_word((uint64_t)(uintptr_t)model->vertices_x);
+    mix_word((uint64_t)(uintptr_t)model->face_indices_a);
+    mix_word((uint64_t)(uintptr_t)model->face_indices_b);
+    mix_word((uint64_t)(uintptr_t)model->face_indices_c);
+    mix_word((uint64_t)model->face_count);
 
     // Animated models are deformed in-place, so pointer-based keys are not enough:
     // hash current vertex contents to get a distinct GPU mesh per keyframe pose.
@@ -292,9 +288,9 @@ model_gpu_cache_key(const struct DashModel* model)
     {
         for( int i = 0; i < model->vertex_count; ++i )
         {
-            mix_word((uintptr_t)(uint32_t)model->vertices_x[i]);
-            mix_word((uintptr_t)(uint32_t)model->vertices_y[i]);
-            mix_word((uintptr_t)(uint32_t)model->vertices_z[i]);
+            mix_word((uint64_t)(uint32_t)model->vertices_x[i]);
+            mix_word((uint64_t)(uint32_t)model->vertices_y[i]);
+            mix_word((uint64_t)(uint32_t)model->vertices_z[i]);
         }
     }
     return key;
@@ -633,13 +629,12 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
                 {
                     break;
                 }
-                uintptr_t model_key = model_gpu_cache_key(model);
-                renderer->loaded_model_keys.insert(model_key);
-                if( renderer->model_index_by_key.find(model_key) ==
+                renderer->loaded_model_keys.insert(cmd._model_load.model_key);
+                if( renderer->model_index_by_key.find(cmd._model_load.model_key) ==
                     renderer->model_index_by_key.end() )
                 {
                     int model_idx = renderer->next_model_index++;
-                    renderer->model_index_by_key[model_key] = model_idx;
+                    renderer->model_index_by_key[cmd._model_load.model_key] = model_idx;
                     pix3dgl_model_load(
                         renderer->pix3dgl,
                         model_idx,
@@ -674,7 +669,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
                     break;
                 }
 
-                uintptr_t model_key = model_gpu_cache_key(model);
+                uint64_t model_key = cmd._model_draw.model_key;
                 auto it = renderer->model_index_by_key.find(model_key);
                 if( it == renderer->model_index_by_key.end() )
                 {

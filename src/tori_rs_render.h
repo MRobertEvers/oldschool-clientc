@@ -33,7 +33,7 @@ struct ToriRSRenderCommand
         struct
         {
             struct DashModel* model;
-            uintptr_t model_key;
+            uint64_t model_key;
             int model_id;
         } _model_load;
         struct
@@ -65,6 +65,8 @@ struct ToriRSRenderCommand
         {
             struct DashModel* model;
             struct DashPosition position;
+            uint64_t model_key;
+            int model_id;
         } _model_draw;
         struct
         {

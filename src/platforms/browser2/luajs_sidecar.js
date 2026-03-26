@@ -393,12 +393,10 @@ export class LuaJSSidecar {
     let iters = 0;
     while (q.length > 0) {
       iters++;
-      console.log("Iterations", iters);
       let element = q.shift();
       co = element[0];
       nres = element[1];
 
-      console.log("nres", nres);
       const status = lua.lua_resume(co, this.L, nres);
 
       if (status === lua.LUA_YIELD) {
