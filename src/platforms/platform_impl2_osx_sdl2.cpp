@@ -217,6 +217,16 @@ Platform2_OSX_SDL2_InitForSoft3D(
     int screen_width,
     int screen_height)
 {
+#ifdef __APPLE__
+    if( SDL_Init(SDL_INIT_VIDEO) < 0 )
+    {
+        printf("SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    platform->display_scale = 1;
+
+#else
     SDL_SetHint(SDL_HINT_VIDEO_HIGHDPI_DISABLED, "0");
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
@@ -225,6 +235,8 @@ Platform2_OSX_SDL2_InitForSoft3D(
     }
 
     platform->display_scale = detect_display_scale();
+#endif
+
     int scaled_w = (int)(screen_width * platform->display_scale);
     int scaled_h = (int)(screen_height * platform->display_scale);
 
@@ -234,7 +246,7 @@ Platform2_OSX_SDL2_InitForSoft3D(
         SDL_WINDOWPOS_UNDEFINED,
         scaled_w,
         scaled_h,
-        SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+        SDL_WINDOW_RESIZABLE);
     if( !platform->window )
     {
         printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
@@ -389,8 +401,7 @@ on_lua_async_call(
         {
             void* file = LuaGameType_GetUserDataArrayAt(result, i);
             if( file )
-                LuaCSidecar_TrackConfigFile(
-                    platform->lua_sidecar, (struct LuaConfigFile*)file);
+                LuaCSidecar_TrackConfigFile(platform->lua_sidecar, (struct LuaConfigFile*)file);
         }
         return result;
     }
