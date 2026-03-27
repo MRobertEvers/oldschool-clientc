@@ -34,22 +34,22 @@ enum PaintersTileFlags
 #define MAX_SCENERY_COUNT 10
 struct PaintersTile
 {
-    // These are only used for normal locs
-    int32_t scenery[MAX_SCENERY_COUNT];
-    uint16_t scenery_count;
-
-    int32_t wall_a;
-    int32_t wall_b;
-    int32_t wall_decor_a;
-    int32_t wall_decor_b;
-
-    int32_t ground_decor;
-
     int32_t bridge_tile;
 
-    int32_t ground_object_bottom;
-    int32_t ground_object_middle;
-    int32_t ground_object_top;
+    // These are only used for normal locs
+    int16_t scenery[MAX_SCENERY_COUNT];
+    uint16_t scenery_count;
+
+    int16_t wall_a;
+    int16_t wall_b;
+    int16_t wall_decor_a;
+    int16_t wall_decor_b;
+
+    int16_t ground_decor;
+
+    int16_t ground_object_bottom;
+    int16_t ground_object_middle;
+    int16_t ground_object_top;
 
     // Contains directions for which tiles are waiting for us to draw.
     // This is determined by locs that are larger than 1x1.

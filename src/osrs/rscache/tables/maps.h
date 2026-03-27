@@ -6,6 +6,7 @@
 #include "../rsbuf.h"
 
 #include <assert.h>
+#include <stdint.h>
 
 #define MAP_TERRAIN_X 64
 #define MAP_TERRAIN_Z 64
@@ -153,15 +154,15 @@ enum FloorShape
 
 struct CacheMapFloor
 {
-    int height;
-    int attr_opcode;
+    uint16_t overlay_id;
+    uint8_t underlay_id;
+    uint8_t height;
+    uint8_t attr_opcode;
     // enum FloorFlags
-    int settings;
-    int overlay_id;
+    uint8_t settings;
     // enum FloorShape
-    int shape;
-    int rotation;
-    int underlay_id;
+    uint8_t shape;
+    uint8_t rotation;
 };
 
 struct CacheMapTerrain

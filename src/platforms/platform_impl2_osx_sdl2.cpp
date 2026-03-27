@@ -204,7 +204,7 @@ Platform2_OSX_SDL2_InitForSoft3D(
         SDL_WINDOWPOS_UNDEFINED,
         screen_width,
         screen_height,
-        SDL_WINDOW_RESIZABLE);
+        SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
     if( !platform->window )
     {
         printf("SDL_CreateWindow failed: %s\n", SDL_GetError());

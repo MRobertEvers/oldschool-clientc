@@ -240,14 +240,14 @@ cache_dat_animbaseframes_new_decode(
         }
 
         animframe->length = current;
-        animframe->groups = malloc(current * sizeof(int));
-        animframe->x = malloc(current * sizeof(int));
-        animframe->y = malloc(current * sizeof(int));
-        animframe->z = malloc(current * sizeof(int));
-        memset(animframe->groups, 0, current * sizeof(int));
-        memset(animframe->x, 0, current * sizeof(int));
-        memset(animframe->y, 0, current * sizeof(int));
-        memset(animframe->z, 0, current * sizeof(int));
+        animframe->groups = malloc(current * sizeof(int16_t));
+        animframe->x = malloc(current * sizeof(int16_t));
+        animframe->y = malloc(current * sizeof(int16_t));
+        animframe->z = malloc(current * sizeof(int16_t));
+        memset(animframe->groups, 0, current * sizeof(int16_t));
+        memset(animframe->x, 0, current * sizeof(int16_t));
+        memset(animframe->y, 0, current * sizeof(int16_t));
+        memset(animframe->z, 0, current * sizeof(int16_t));
 
         for( int j = 0; j < current; j++ )
         {

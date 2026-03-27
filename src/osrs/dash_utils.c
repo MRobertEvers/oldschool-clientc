@@ -37,27 +37,27 @@ dashframe_new_from_cache_frame(struct CacheFrame* frame)
     dashframe->framemap_id = frame->framemap_id;
     dashframe->translator_count = frame->translator_count;
 
-    dashframe->index_frame_ids = malloc(frame->translator_count * sizeof(int));
+    dashframe->index_frame_ids = malloc(frame->translator_count * sizeof(int16_t));
     memcpy(
-        dashframe->index_frame_ids, frame->index_frame_ids, frame->translator_count * sizeof(int));
+        dashframe->index_frame_ids, frame->index_frame_ids, frame->translator_count * sizeof(int16_t));
 
-    dashframe->translator_arg_x = malloc(frame->translator_count * sizeof(int));
+    dashframe->translator_arg_x = malloc(frame->translator_count * sizeof(int16_t));
     memcpy(
         dashframe->translator_arg_x,
         frame->translator_arg_x,
-        frame->translator_count * sizeof(int));
+        frame->translator_count * sizeof(int16_t));
 
-    dashframe->translator_arg_y = malloc(frame->translator_count * sizeof(int));
+    dashframe->translator_arg_y = malloc(frame->translator_count * sizeof(int16_t));
     memcpy(
         dashframe->translator_arg_y,
         frame->translator_arg_y,
-        frame->translator_count * sizeof(int));
+        frame->translator_count * sizeof(int16_t));
 
-    dashframe->translator_arg_z = malloc(frame->translator_count * sizeof(int));
+    dashframe->translator_arg_z = malloc(frame->translator_count * sizeof(int16_t));
     memcpy(
         dashframe->translator_arg_z,
         frame->translator_arg_z,
-        frame->translator_count * sizeof(int));
+        frame->translator_count * sizeof(int16_t));
 
     dashframe->showing = frame->showing;
     return dashframe;
@@ -72,17 +72,17 @@ dashframe_new_from_animframe(struct CacheAnimframe* animframe)
     dashframe->framemap_id = -1;
     dashframe->translator_count = animframe->length;
 
-    dashframe->index_frame_ids = malloc(animframe->length * sizeof(int));
-    memcpy(dashframe->index_frame_ids, animframe->groups, animframe->length * sizeof(int));
+    dashframe->index_frame_ids = malloc(animframe->length * sizeof(int16_t));
+    memcpy(dashframe->index_frame_ids, animframe->groups, animframe->length * sizeof(int16_t));
 
-    dashframe->translator_arg_x = malloc(animframe->length * sizeof(int));
-    memcpy(dashframe->translator_arg_x, animframe->x, animframe->length * sizeof(int));
+    dashframe->translator_arg_x = malloc(animframe->length * sizeof(int16_t));
+    memcpy(dashframe->translator_arg_x, animframe->x, animframe->length * sizeof(int16_t));
 
-    dashframe->translator_arg_y = malloc(animframe->length * sizeof(int));
-    memcpy(dashframe->translator_arg_y, animframe->y, animframe->length * sizeof(int));
+    dashframe->translator_arg_y = malloc(animframe->length * sizeof(int16_t));
+    memcpy(dashframe->translator_arg_y, animframe->y, animframe->length * sizeof(int16_t));
 
-    dashframe->translator_arg_z = malloc(animframe->length * sizeof(int));
-    memcpy(dashframe->translator_arg_z, animframe->z, animframe->length * sizeof(int));
+    dashframe->translator_arg_z = malloc(animframe->length * sizeof(int16_t));
+    memcpy(dashframe->translator_arg_z, animframe->z, animframe->length * sizeof(int16_t));
 
     dashframe->showing = true;
     return dashframe;

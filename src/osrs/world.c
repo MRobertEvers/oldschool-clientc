@@ -112,6 +112,9 @@ world_free(struct World* world)
     if( !world )
         return;
 
+    for( int i = 0; i < MAX_MAP_BUILD_LOC_ENTITIES; i++ )
+        free(world->map_build_loc_entities[i].actions);
+
     painter_free(world->painter);
     collision_map_free(world->collision_map);
     heightmap_free(world->heightmap);
@@ -957,10 +960,9 @@ world_cleanup_map_build_loc_entity(
     entity->scene_element.element_id = -1;
     entity->scene_element_two.element_id = -1;
     memset(&entity->scene_coord, 0, sizeof(struct EntitySceneCoord));
-    memset(
-        &entity->actions,
-        0,
-        sizeof(struct EntityAction) * (sizeof(entity->actions) / sizeof(struct EntityAction)));
+    free(entity->actions);
+    entity->actions = NULL;
+    entity->action_count = 0;
 }
 
 void
@@ -1439,6 +1441,8 @@ world_map_build_loc_entity_push_action(
 {
     struct MapBuildLocEntity* entity = &world->map_build_loc_entities[map_build_loc_entity_id];
     assert(entity->action_count < 10);
+    if( !entity->actions )
+        entity->actions = (struct EntityAction*)calloc(10, sizeof(struct EntityAction));
     entity->actions[entity->action_count].code = code;
     strncpy(
         entity->actions[entity->action_count].name,

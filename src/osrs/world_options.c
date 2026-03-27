@@ -25,7 +25,7 @@ options_add_loc(
 
     for( int i = 4; i >= 0; i-- )
     {
-        if( map_build_loc_entity->actions[i].code != 0 )
+        if( map_build_loc_entity->actions && map_build_loc_entity->actions[i].code != 0 )
         {
             option = &option_set->options[option_set->option_count];
             memset(option, 0, sizeof(*option));
@@ -35,7 +35,7 @@ options_add_loc(
                 sizeof(text),
                 "%s @cya@ %s",
                 map_build_loc_entity->actions[i].name,
-                map_build_loc_entity->name.name);
+                map_build_loc_entity->name);
 
             strncpy(option->text, text, sizeof(option->text));
             option->param_a = entity_id;
@@ -71,7 +71,7 @@ options_add_loc(
     option = &option_set->options[option_set->option_count];
     memset(option, 0, sizeof(*option));
 
-    snprintf(text, sizeof(text), "Examine @cya@ %s", map_build_loc_entity->name.name);
+    snprintf(text, sizeof(text), "Examine @cya@ %s", map_build_loc_entity->name);
     strncpy(option->text, text, sizeof(option->text));
     option->action = MINIMENU_ACTION_OPLOC6;
     option->param_a = entity_id;

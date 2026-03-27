@@ -1,13 +1,15 @@
 #ifndef LIGHTING_H
 #define LIGHTING_H
 
+#include <stdint.h>
+
 struct LightingNormal
 {
     int x;
     int y;
     int z;
-    int face_count;
-    int merged;
+    uint16_t face_count;
+    uint8_t merged;
 };
 
 void calculate_vertex_normals(

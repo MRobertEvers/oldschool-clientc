@@ -24,14 +24,13 @@ enum MinimapWallFlag
 
 struct MinimapTile
 {
-    uint16_t wall;
     uint32_t background_rgb;
     uint32_t foreground_rgb;
-    int shape;
-    int rotation;
-
+    uint16_t wall;
     uint16_t locs[8];
-    int locs_count;
+    uint8_t shape;
+    uint8_t rotation;
+    uint8_t locs_count;
 };
 
 enum MinimapLocType

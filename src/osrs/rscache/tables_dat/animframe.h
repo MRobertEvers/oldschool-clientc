@@ -1,6 +1,8 @@
 #ifndef TABLES_DAT_ANIMFRAME_H
 #define TABLES_DAT_ANIMFRAME_H
 
+#include <stdint.h>
+
 struct CacheAnimBase
 {
     int length;
@@ -14,10 +16,10 @@ struct CacheAnimframe
     int id;
     struct CacheAnimBase* base;
     int length;
-    int* groups;
-    int* x;
-    int* y;
-    int* z;
+    int16_t* groups;
+    int16_t* x;
+    int16_t* y;
+    int16_t* z;
     int delay;
 };
 

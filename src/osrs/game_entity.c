@@ -2,8 +2,8 @@
 
 void
 entity_add_hitmark(
-    int* damage_values,
-    int* damage_types,
+    uint8_t* damage_values,
+    uint8_t* damage_types,
     int* damage_cycles,
     int loop_cycle,
     int damage_type,

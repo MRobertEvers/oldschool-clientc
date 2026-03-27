@@ -5,7 +5,7 @@
 
 struct SharelightMapElement
 {
-    int element_idx;
+    int16_t element_idx;
     uint8_t size_x;
     uint8_t size_z;
 
@@ -16,7 +16,7 @@ struct SharelightMapElement
 struct SharelightMapTile
 {
     struct SharelightMapElement elements[10];
-    int elements_count;
+    uint8_t elements_count;
 };
 
 struct SharelightMap

@@ -42,7 +42,6 @@ struct DashAABB
 
 struct DashModelLighting
 {
-    // TODO: These can be shorts (hsl16)
     int* face_colors_hsl_a;
 
     // null if mode is LIGHTING_FLAT

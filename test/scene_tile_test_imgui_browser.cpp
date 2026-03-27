@@ -1942,9 +1942,9 @@ main(int argc, char* argv[])
 
             scene_model->normals = normals;
 
-            struct ModelLighting* lighting =
-                (struct ModelLighting*)malloc(sizeof(struct ModelLighting));
-            memset(lighting, 0, sizeof(struct ModelLighting));
+            struct DashModelLighting* lighting =
+                (struct DashModelLighting*)malloc(sizeof(struct DashModelLighting));
+            memset(lighting, 0, sizeof(struct DashModelLighting));
             lighting->face_colors_hsl_a =
                 (int*)malloc(sizeof(int) * scene_model->model->face_count);
             memset(lighting->face_colors_hsl_a, 0, sizeof(int) * scene_model->model->face_count);

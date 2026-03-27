@@ -155,8 +155,8 @@ struct PlayerEntity
     struct EntityName name;
 
     /* Client.ts: damage/health for hitsplat and health bar */
-    int damage_values[ENTITY_DAMAGE_SLOTS];
-    int damage_types[ENTITY_DAMAGE_SLOTS];
+    uint8_t damage_values[ENTITY_DAMAGE_SLOTS];
+    uint8_t damage_types[ENTITY_DAMAGE_SLOTS];
     int damage_cycles[ENTITY_DAMAGE_SLOTS];
     int combat_cycle;
     int health;
@@ -171,9 +171,9 @@ struct MapBuildLocEntity
     struct EntityAnimation animation;
     struct EntityAnimation animation_two;
     struct EntitySceneCoord scene_coord;
-    struct EntityAction actions[10];
-    struct EntityName name;
-    struct EntityDescription description;
+    struct EntityAction* actions;
+    char name[32];
+    char description[64];
     uint8_t action_count;
     bool interactable;
 };
@@ -229,8 +229,8 @@ struct IFaceInventoryTabsEntity
 
 void
 entity_add_hitmark(
-    int* damage_values,
-    int* damage_types,
+    uint8_t* damage_values,
+    uint8_t* damage_types,
     int* damage_cycles,
     int loop_cycle,
     int damage_type,

@@ -290,13 +290,10 @@ scenery_init_from_config_loc(
     entity->interactable = config_loc->is_interactive;
 
     if( config_loc->name )
-        strncpy(entity->name.name, config_loc->name, sizeof(entity->name.name));
+        strncpy(entity->name, config_loc->name, sizeof(entity->name));
 
     if( config_loc->desc )
-        strncpy(
-            entity->description.description,
-            config_loc->desc,
-            sizeof(entity->description.description));
+        strncpy(entity->description, config_loc->desc, sizeof(entity->description));
 
     for( int i = 0; i < 10; i++ )
     {
