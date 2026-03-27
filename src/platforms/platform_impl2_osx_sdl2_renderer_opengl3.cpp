@@ -364,9 +364,6 @@ render_imgui_overlay(
             LibToriRS_GameSetWorldViewportSize(game, w, h);
         }
     }
-    ImGui::Text("Loaded model keys: %zu", renderer->loaded_model_keys.size());
-    ImGui::Text("Loaded scene keys: %zu", renderer->loaded_scene_element_keys.size());
-    ImGui::Text("Loaded textures: %zu", renderer->loaded_texture_ids.size());
     ImGui::End();
 
     ImGui::Render();
@@ -604,7 +601,6 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
 
             case TORIRS_GFX_TEXTURE_LOAD:
             {
-                renderer->loaded_texture_ids.insert(cmd._texture_load.texture_id);
                 struct DashTexture* texture = cmd._texture_load.texture_nullable;
                 if( texture && texture->texels )
                 {
@@ -630,7 +626,6 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
                 {
                     break;
                 }
-                renderer->loaded_model_keys.insert(cmd._model_load.model_key);
                 if( renderer->model_index_by_key.find(cmd._model_load.model_key) ==
                     renderer->model_index_by_key.end() )
                 {
@@ -676,7 +671,6 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
                 {
                     int model_idx = renderer->next_model_index++;
                     renderer->model_index_by_key[model_key] = model_idx;
-                    renderer->loaded_model_keys.insert(model_key);
                     pix3dgl_model_load(
                         renderer->pix3dgl,
                         model_idx,

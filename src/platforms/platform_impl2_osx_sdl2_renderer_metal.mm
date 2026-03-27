@@ -446,7 +446,6 @@ preload_model_key(
     if( !model )
         return;
     uintptr_t key = model_gpu_cache_key(model);
-    renderer->loaded_model_keys.insert(key);
     if( renderer->model_index_by_key.find(key) == renderer->model_index_by_key.end() )
         renderer->model_index_by_key[key] = renderer->next_model_index++;
 }
@@ -508,10 +507,6 @@ render_imgui_overlay(
             LibToriRS_GameSetWorldViewportSize(game, w, h);
         }
     }
-    ImGui::Text("Loaded model keys: %zu", renderer->loaded_model_keys.size());
-    ImGui::Text("Loaded scene keys: %zu", renderer->loaded_scene_element_keys.size());
-    ImGui::Text("Loaded textures: %zu", renderer->loaded_texture_ids.size());
-    ImGui::Separator();
     ImGui::Text("Frame model draws: %u", renderer->debug_model_draws);
     ImGui::Text("Frame triangles: %u", renderer->debug_triangles);
     ImGui::End();
@@ -569,6 +564,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_New(
     renderer->mtl_depth_texture = nullptr;
     renderer->depth_texture_width = 0;
     renderer->depth_texture_height = 0;
+    renderer->mtl_model_vertex_buf = nullptr;
+    renderer->mtl_model_vertex_buf_size = 0;
     renderer->mtl_sprite_quad_buf = nullptr;
     renderer->mtl_font_pipeline = nullptr;
     renderer->mtl_font_vbo = nullptr;
@@ -620,6 +617,12 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(struct Platform2_OSX_SDL2_Renderer_Me
     renderer->texture_anim_speed_by_id.clear();
     renderer->texture_opaque_by_id.clear();
 
+    if( renderer->mtl_model_vertex_buf )
+    {
+        CFRelease(renderer->mtl_model_vertex_buf);
+        renderer->mtl_model_vertex_buf = nullptr;
+        renderer->mtl_model_vertex_buf_size = 0;
+    }
     if( renderer->mtl_sprite_quad_buf )
     {
         CFRelease(renderer->mtl_sprite_quad_buf);
@@ -946,6 +949,15 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
     // Sync initial drawable size
     sync_drawable_size(renderer);
 
+    // Model vertex buffer: reusable staging for flush_batch(); grown on demand.
+    {
+        const size_t initial_bytes = 4u * 1024u * 1024u; // 4 MB
+        id<MTLBuffer> mvb = [device newBufferWithLength:(NSUInteger)initial_bytes
+                                                options:MTLResourceStorageModeShared];
+        renderer->mtl_model_vertex_buf = (__bridge_retained void*)mvb;
+        renderer->mtl_model_vertex_buf_size = initial_bytes;
+    }
+
     // Pre-allocate a sprite quad vertex buffer large enough for 4096 sprites per frame.
     // Each sprite occupies one slot: 6 verts × (float2 pos + float2 uv) = 96 bytes.
     // Using per-slot offsets avoids overwriting data before the GPU executes.
@@ -980,6 +992,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
     if( !renderer || !renderer->metal_ready || !game || !render_command_buffer ||
         !renderer->platform || !renderer->platform->window )
         return;
+
+    @autoreleasepool {
 
     id<MTLDevice> device = (__bridge id<MTLDevice>)renderer->mtl_device;
     id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)renderer->mtl_command_queue;
@@ -1117,6 +1131,9 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
     id<MTLTexture> dummyTex = (__bridge id<MTLTexture>)renderer->mtl_dummy_texture;
     id<MTLSamplerState> samp = (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
 
+    id<MTLBuffer> modelBuf = (__bridge id<MTLBuffer>)renderer->mtl_model_vertex_buf;
+    NSUInteger modelBufOffset = 0;
+
     auto flush_batch = [&]() {
         if( batch_verts.empty() )
             return;
@@ -1131,18 +1148,35 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
             }
             bindTex = (__bridge id<MTLTexture>)it->second;
         }
+        NSUInteger batchBytes = (NSUInteger)(batch_verts.size() * sizeof(MetalVertex));
+
+        // Grow the reusable buffer if the accumulated frame data won't fit.
+        if( modelBufOffset + batchBytes > renderer->mtl_model_vertex_buf_size )
+        {
+            size_t needed = (size_t)(modelBufOffset + batchBytes);
+            size_t newSize = renderer->mtl_model_vertex_buf_size;
+            while( newSize < needed )
+                newSize *= 2;
+            if( renderer->mtl_model_vertex_buf )
+                CFRelease(renderer->mtl_model_vertex_buf);
+            id<MTLBuffer> grown = [device newBufferWithLength:(NSUInteger)newSize
+                                                      options:MTLResourceStorageModeShared];
+            renderer->mtl_model_vertex_buf = (__bridge_retained void*)grown;
+            renderer->mtl_model_vertex_buf_size = newSize;
+            modelBuf = grown;
+        }
+
+        memcpy((char*)modelBuf.contents + modelBufOffset, batch_verts.data(), batchBytes);
+
         [encoder setFragmentTexture:bindTex atIndex:0];
         [encoder setFragmentSamplerState:samp atIndex:0];
-        id<MTLBuffer> drawBuf =
-            [device newBufferWithBytes:batch_verts.data()
-                                length:(NSUInteger)(batch_verts.size() * sizeof(MetalVertex))
-                               options:MTLResourceStorageModeShared];
-        [encoder setVertexBuffer:drawBuf offset:0 atIndex:0];
+        [encoder setVertexBuffer:modelBuf offset:modelBufOffset atIndex:0];
         [encoder setVertexBuffer:unifBuf offset:0 atIndex:1];
         [encoder setFragmentBuffer:unifBuf offset:0 atIndex:1];
         [encoder drawPrimitives:MTLPrimitiveTypeTriangle
                     vertexStart:0
                     vertexCount:(NSUInteger)batch_verts.size()];
+        modelBufOffset += batchBytes;
         renderer->debug_triangles += (unsigned int)(batch_verts.size() / 3);
         batch_verts.clear();
     };
@@ -1156,7 +1190,6 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
             case TORIRS_GFX_TEXTURE_LOAD:
             {
                 const int tex_id = cmd._texture_load.texture_id;
-                renderer->loaded_texture_ids.insert(tex_id);
                 struct DashTexture* tex = cmd._texture_load.texture_nullable;
                 if( !tex || !tex->texels )
                     break;
@@ -1631,4 +1664,6 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
     [encoder endEncoding];
     [cmdBuf presentDrawable:drawable];
     [cmdBuf commit];
+
+    } // @autoreleasepool
 }

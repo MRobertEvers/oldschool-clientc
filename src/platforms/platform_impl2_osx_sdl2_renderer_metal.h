@@ -4,7 +4,6 @@
 #include "platform_impl2_osx_sdl2.h"
 #include <SDL.h>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 extern "C" {
@@ -49,11 +48,6 @@ struct Platform2_OSX_SDL2_Renderer_Metal
     // Index assignment used to map model keys to a stable integer slot
     std::unordered_map<uintptr_t, int>  model_index_by_key;
 
-    // Stats / debug sets (mirrors the OpenGL3 renderer)
-    std::unordered_set<uintptr_t> loaded_model_keys;
-    std::unordered_set<uintptr_t> loaded_scene_element_keys;
-    std::unordered_set<int>       loaded_texture_ids;
-
     // Sprite GPU texture cache keyed by DashSprite* (stable pointer per sprite).
     // Value is id<MTLTexture> stored as void* to keep header ObjC-free.
     // Populated by TORIRS_GFX_SPRITE_LOAD, evicted by TORIRS_GFX_SPRITE_UNLOAD.
@@ -63,6 +57,10 @@ struct Platform2_OSX_SDL2_Renderer_Metal
     void* mtl_depth_texture;    // id<MTLTexture>
     int   depth_texture_width;
     int   depth_texture_height;
+
+    // Reusable MTLBuffer for model vertex batches (replaces per-batch newBufferWithBytes).
+    void* mtl_model_vertex_buf;          // id<MTLBuffer>
+    size_t mtl_model_vertex_buf_size;    // current allocation size in bytes
 
     // Reusable 96-byte MTLBuffer (6 verts × 4 floats) for sprite quad draws.
     void* mtl_sprite_quad_buf;  // id<MTLBuffer>
