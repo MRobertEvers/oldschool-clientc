@@ -24,6 +24,12 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(__APPLE__)
+#include <mach/mach.h>
+#include <mach/task_info.h>
+#include <malloc/malloc.h>
+#endif
+
 #define SCREEN_WIDTH 800
 #define SCREEN_HEIGHT 500
 #define LOGIN_PORT 43594
@@ -86,6 +92,39 @@ osx_abort_startup(
     if( net )
         LibToriRS_NetFreeBuffer(net);
 }
+#if defined(__APPLE__)
+static void
+osx_print_heap_at_exit(void)
+{
+    malloc_statistics_t mz = { 0 };
+    malloc_zone_statistics(malloc_default_zone(), &mz);
+
+    task_vm_info_data_t vm = { 0 };
+    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+    if( task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&vm, &count) != KERN_SUCCESS )
+    {
+        printf(
+            "At exit: malloc default zone in use ~%zu bytes (%.2f MiB), allocated %zu bytes "
+            "(%.2f MiB)\n",
+            mz.size_in_use,
+            mz.size_in_use / (1024.0 * 1024.0),
+            mz.size_allocated,
+            mz.size_allocated / (1024.0 * 1024.0));
+        return;
+    }
+
+    printf(
+        "At exit: malloc default zone in use ~%zu bytes (%.2f MiB), allocated %zu bytes (%.2f "
+        "MiB); "
+        "task phys_footprint ~%llu bytes (%.2f MiB)\n",
+        mz.size_in_use,
+        mz.size_in_use / (1024.0 * 1024.0),
+        mz.size_allocated,
+        mz.size_allocated / (1024.0 * 1024.0),
+        (unsigned long long)vm.phys_footprint,
+        vm.phys_footprint / (1024.0 * 1024.0));
+}
+#endif
 
 int
 main(
@@ -280,5 +319,8 @@ main(
     Platform2_OSX_SDL2_Free(platform);
     LibToriRS_RenderCommandBufferFree(render_command_buffer);
     LibToriRS_NetFreeBuffer(net_shared);
+#if defined(__APPLE__)
+    osx_print_heap_at_exit();
+#endif
     return 0;
 }
