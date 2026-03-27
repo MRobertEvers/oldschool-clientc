@@ -3,10 +3,7 @@
 #include <assert.h>
 
 static void
-push_event(
-    struct GInput* input,
-    struct GameInputEvent* event,
-    enum GameInputEventType type)
+push_event(struct GInput* input, struct GameInputEvent* event)
 {
     assert(input->event_count < GAME_INPUT_MAX_EVENTS);
     input->events[input->event_count] = *event;
@@ -14,11 +11,10 @@ push_event(
 }
 
 static void
-on_mousedown(
-    struct GInput* input,
-    struct GameInputEvent_MouseDown* event)
+on_mousedown(struct GInput* input, struct GameInputEvent* ev)
 {
-    push_event(input, &event, TORIRSEV_MOUSE_DOWN);
+    push_event(input, ev);
+    struct GameInputEvent_MouseDown* event = &ev->mouse_down;
     input->mouse_button_states[event->button].pressed = true;
     input->mouse_button_states[event->button].down_timestamp = input->time;
     input->mouse_button_states[event->button].down = true;
@@ -27,11 +23,10 @@ on_mousedown(
 }
 
 static void
-on_mouseup(
-    struct GInput* input,
-    struct GameInputEvent_MouseUp* event)
+on_mouseup(struct GInput* input, struct GameInputEvent* ev)
 {
-    push_event(input, &event, TORIRSEV_MOUSE_UP);
+    push_event(input, ev);
+    struct GameInputEvent_MouseUp* event = &ev->mouse_up;
 
     struct GameInputEvent synthetic_event;
     if( input->mouse_button_states[event->button].down )
@@ -42,7 +37,7 @@ on_mouseup(
         synthetic_event.click.start_mouse_y = input->mouse_button_states[event->button].y;
         synthetic_event.click.end_mouse_x = event->mouse_x;
         synthetic_event.click.end_mouse_y = event->mouse_y;
-        push_event(input, &synthetic_event, TORIRSEV2_CLICK);
+        push_event(input, &synthetic_event);
     }
 
     input->mouse_button_states[event->button].down = false;
@@ -52,40 +47,35 @@ on_mouseup(
 }
 
 static void
-on_mousemove(
-    struct GInput* input,
-    struct GameInputEvent_MouseMove* event)
+on_mousemove(struct GInput* input, struct GameInputEvent* ev)
 {
-    push_event(input, &event, TORIRSEV_MOUSE_MOVE);
+    push_event(input, ev);
+    struct GameInputEvent_MouseMove* event = &ev->mouse_move;
     input->mouse_state.x = event->x;
     input->mouse_state.y = event->y;
 }
 
 static void
-on_mousewheel(
-    struct GInput* input,
-    struct GameInputEvent_MouseWheel* event)
+on_mousewheel(struct GInput* input, struct GameInputEvent* ev)
 {
-    push_event(input, &event, TORIRSEV_MOUSE_WHEEL);
+    push_event(input, ev);
 }
 
 static void
-on_keydown(
-    struct GInput* input,
-    struct GameInputEvent_KeyDown* event)
+on_keydown(struct GInput* input, struct GameInputEvent* ev)
 {
-    push_event(input, &event, TORIRSEV_KEY_DOWN);
+    push_event(input, ev);
+    struct GameInputEvent_KeyDown* event = &ev->key_down;
     input->key_states[event->key].pressed = true;
     input->key_states[event->key].down = true;
     input->key_states[event->key].down_timestamp = input->time;
 }
 
 static void
-on_keyup(
-    struct GInput* input,
-    struct GameInputEvent_KeyUp* event)
+on_keyup(struct GInput* input, struct GameInputEvent* ev)
 {
-    push_event(input, &event, TORIRSEV_KEY_UP);
+    push_event(input, ev);
+    struct GameInputEvent_KeyUp* event = &ev->key_up;
     input->key_states[event->key].pressed = false;
     input->key_states[event->key].down = false;
     input->key_states[event->key].down_timestamp = 0.0f;
@@ -104,22 +94,22 @@ game_input_process_events(struct GInput* input)
         switch( input->in_events[i].type )
         {
         case TORIRSEV_KEY_DOWN:
-            on_keydown(input, &input->in_events[i].key_down);
+            on_keydown(input, &input->in_events[i]);
             break;
         case TORIRSEV_KEY_UP:
-            on_keyup(input, &input->in_events[i].key_up);
+            on_keyup(input, &input->in_events[i]);
             break;
         case TORIRSEV_MOUSE_DOWN:
-            on_mousedown(input, &input->in_events[i].mouse_down);
+            on_mousedown(input, &input->in_events[i]);
             break;
         case TORIRSEV_MOUSE_UP:
-            on_mouseup(input, &input->in_events[i].mouse_up);
+            on_mouseup(input, &input->in_events[i]);
             break;
         case TORIRSEV_MOUSE_MOVE:
-            on_mousemove(input, &input->in_events[i].mouse_move);
+            on_mousemove(input, &input->in_events[i]);
             break;
         case TORIRSEV_MOUSE_WHEEL:
-            on_mousewheel(input, &input->in_events[i].mouse_wheel);
+            on_mousewheel(input, &input->in_events[i]);
             break;
         default:
             break;

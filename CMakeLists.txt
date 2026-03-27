@@ -208,8 +208,13 @@ if(NOT EMSCRIPTEN)
         target_link_options(osx PRIVATE -Wl,-subsystem,console)
     endif()
 
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         target_compile_options(osx PRIVATE -fpermissive)
+        target_compile_options(osx PRIVATE
+            $<$<CONFIG:Debug>:-fsanitize=address>
+            $<$<CONFIG:Debug>:-fno-omit-frame-pointer>
+        )
+        target_link_options(osx PRIVATE $<$<CONFIG:Debug>:-fsanitize=address>)
     endif()
 endif()
 
