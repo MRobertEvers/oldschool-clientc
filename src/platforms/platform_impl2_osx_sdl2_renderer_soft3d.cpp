@@ -253,6 +253,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_New(
     if( !renderer->pixel_buffer )
     {
         printf("Failed to allocate pixel buffer\n");
+        free(renderer);
         return NULL;
     }
     memset(renderer->pixel_buffer, 0, width * height * sizeof(int));
@@ -284,17 +285,40 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_New(
 }
 
 void
+PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Shutdown(
+    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer)
+{
+    if( !renderer )
+        return;
+    if( ImGui::GetCurrentContext() )
+    {
+        ImGui_ImplSDLRenderer2_Shutdown();
+        ImGui_ImplSDL2_Shutdown();
+        ImGui::DestroyContext();
+    }
+    if( renderer->texture )
+    {
+        SDL_DestroyTexture(renderer->texture);
+        renderer->texture = NULL;
+    }
+    if( renderer->renderer )
+    {
+        SDL_DestroyRenderer(renderer->renderer);
+        renderer->renderer = NULL;
+    }
+}
+
+void
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Free(struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer)
 {
+    if( !renderer )
+        return;
+    PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Shutdown(renderer);
     if( renderer->dash_buffer )
-    {
         free(renderer->dash_buffer);
-    }
     if( renderer->minimap_buffer )
-    {
         free(renderer->minimap_buffer);
-    }
-
+    free(renderer->pixel_buffer);
     free(renderer);
 }
 
@@ -321,6 +345,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Init(
     if( !renderer->texture )
     {
         printf("Failed to create texture\n");
+        SDL_DestroyRenderer(renderer->renderer);
+        renderer->renderer = NULL;
         return false;
     }
 
@@ -333,20 +359,27 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Init(
     if( !ImGui_ImplSDL2_InitForSDLRenderer(platform->window, renderer->renderer) )
     {
         printf("ImGui SDL2 init failed\n");
+        ImGui::DestroyContext();
+        SDL_DestroyTexture(renderer->texture);
+        renderer->texture = NULL;
+        SDL_DestroyRenderer(renderer->renderer);
+        renderer->renderer = NULL;
         return false;
     }
     if( !ImGui_ImplSDLRenderer2_Init(renderer->renderer) )
     {
         printf("ImGui Renderer init failed\n");
+        ImGui_ImplSDL2_Shutdown();
+        ImGui::DestroyContext();
+        SDL_DestroyTexture(renderer->texture);
+        renderer->texture = NULL;
+        SDL_DestroyRenderer(renderer->renderer);
+        renderer->renderer = NULL;
         return false;
     }
 
     return true;
 }
-
-void
-PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Shutdown(
-    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer);
 
 void
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(

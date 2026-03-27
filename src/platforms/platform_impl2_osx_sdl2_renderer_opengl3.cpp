@@ -418,6 +418,9 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Free(struct Platform2_OSX_SDL2_Renderer_
     if( !renderer )
         return;
 
+    if( renderer->platform && renderer->platform->window && renderer->gl_context )
+        SDL_GL_MakeCurrent(renderer->platform->window, renderer->gl_context);
+
     for( auto& kv : renderer->font_atlas_cache )
     {
         if( kv.second.texture )
@@ -437,9 +440,12 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Free(struct Platform2_OSX_SDL2_Renderer_
         renderer->pix3dgl = NULL;
     }
 
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
-    ImGui::DestroyContext();
+    if( ImGui::GetCurrentContext() )
+    {
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplSDL2_Shutdown();
+        ImGui::DestroyContext();
+    }
 
     if( renderer->gl_context )
     {
@@ -467,6 +473,8 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Init(
     if( SDL_GL_MakeCurrent(platform->window, renderer->gl_context) != 0 )
     {
         printf("OpenGL3 init failed: could not make context current: %s\n", SDL_GetError());
+        SDL_GL_DeleteContext(renderer->gl_context);
+        renderer->gl_context = NULL;
         return false;
     }
 
@@ -477,6 +485,9 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Init(
     if( !renderer->pix3dgl )
     {
         printf("OpenGL3 init failed: Pix3DGL setup failed\n");
+        SDL_GL_DeleteContext(renderer->gl_context);
+        renderer->gl_context = NULL;
+        renderer->gl_context_ready = false;
         return false;
     }
 
@@ -486,6 +497,12 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Init(
     if( !ImGui_ImplSDL2_InitForOpenGL(platform->window, renderer->gl_context) )
     {
         printf("ImGui SDL2 init failed for OpenGL3\n");
+        ImGui::DestroyContext();
+        pix3dgl_cleanup(renderer->pix3dgl);
+        renderer->pix3dgl = NULL;
+        SDL_GL_DeleteContext(renderer->gl_context);
+        renderer->gl_context = NULL;
+        renderer->gl_context_ready = false;
         return false;
     }
 #if defined(__APPLE__)
@@ -495,6 +512,13 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Init(
 #endif
     {
         printf("ImGui OpenGL3 init failed for OpenGL3 renderer\n");
+        ImGui_ImplSDL2_Shutdown();
+        ImGui::DestroyContext();
+        pix3dgl_cleanup(renderer->pix3dgl);
+        renderer->pix3dgl = NULL;
+        SDL_GL_DeleteContext(renderer->gl_context);
+        renderer->gl_context = NULL;
+        renderer->gl_context_ready = false;
         return false;
     }
 

@@ -161,6 +161,27 @@
             ]
         },
         {
+            "name": "(gdb) Launch OSX",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/osx",
+            "args": [
+                "--renderer=opengl3"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Stop on debug traps (SIGTRAP)",
+                    "text": "process handle SIGTRAP -n false -p true -s false",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
             "name": "(lldb) Launch Harness",
             "type": "cppdbg",
             "request": "launch",

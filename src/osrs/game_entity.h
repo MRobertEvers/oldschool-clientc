@@ -11,16 +11,16 @@ struct EntitySprite
 
 struct EntitySize
 {
-    int x;
-    int z;
+    uint8_t x;
+    uint8_t z;
 };
 
 struct EntityPathing
 {
-    int route_length;
-    int route_x[10];
-    int route_z[10];
-    int route_run[10];
+    uint8_t route_length;
+    uint8_t route_x[10];
+    uint8_t route_z[10];
+    uint8_t route_run[10];
 };
 
 struct EntityDrawPosition
@@ -30,16 +30,10 @@ struct EntityDrawPosition
     int height;
 };
 
-struct EntityPosition
-{
-    int x;
-    int z;
-    int height;
-};
 
 struct EntityAction
 {
-    int code;
+    uint16_t code;
     char name[32];
 };
 
@@ -60,9 +54,9 @@ struct EntityMinimapElement
 
 struct EntitySceneCoord
 {
-    int sx;
-    int sz;
-    int slevel;
+    uint16_t sx;
+    uint16_t sz;
+    uint8_t slevel;
 };
 
 struct EntityDebugKey
@@ -75,8 +69,8 @@ struct EntityDebugKey
 
 struct EntityOrientation
 {
-    int yaw;
-    int dst_yaw;
+    uint16_t yaw;
+    uint16_t dst_yaw;
 };
 
 struct EntityName
@@ -90,21 +84,21 @@ struct EntityDescription
 };
 struct EntityAnimationStep
 {
-    int anim_id;
-    int frame;
-    int cycle;
-    int delay;
-    int loop;
+    uint16_t anim_id;
+    uint8_t frame;
+    uint8_t cycle;
+    uint8_t delay;
+    uint8_t loop;
 };
 struct EntityAnimation
 {
-    int readyanim;
-    int walkanim;
-    int turnanim;
-    int runanim;
-    int walkanim_b;
-    int walkanim_r;
-    int walkanim_l;
+    int16_t readyanim;
+    int16_t walkanim;
+    int16_t turnanim;
+    int16_t runanim;
+int16_t walkanim_b;
+    int16_t walkanim_r;
+    int16_t walkanim_l;
 
     struct EntityAnimationStep primary_anim;
     struct EntityAnimationStep secondary_anim;
@@ -134,9 +128,9 @@ struct NPCEntity
     int action_count;
 
     /* Client.ts: damage/health for hitsplat and health bar */
-    int damage_values[ENTITY_DAMAGE_SLOTS];
-    int damage_types[ENTITY_DAMAGE_SLOTS];
-    int damage_cycles[ENTITY_DAMAGE_SLOTS];
+    uint8_t damage_values[ENTITY_DAMAGE_SLOTS];
+    uint8_t damage_types[ENTITY_DAMAGE_SLOTS];
+    uint8_t damage_cycles[ENTITY_DAMAGE_SLOTS];
     int combat_cycle;
     int health;
     int total_health;
@@ -180,7 +174,7 @@ struct MapBuildLocEntity
     struct EntityAction actions[10];
     struct EntityName name;
     struct EntityDescription description;
-    int action_count;
+    uint8_t action_count;
     bool interactable;
 };
 

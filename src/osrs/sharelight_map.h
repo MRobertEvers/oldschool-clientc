@@ -1,14 +1,16 @@
 #ifndef SHARELIGHT_MAP_H
 #define SHARELIGHT_MAP_H
 
+#include <stdint.h>
+
 struct SharelightMapElement
 {
     int element_idx;
-    int size_x;
-    int size_z;
+    uint8_t size_x;
+    uint8_t size_z;
 
-    int light_ambient;
-    int light_attenuation;
+    uint8_t light_ambient;
+    uint8_t light_attenuation;
 };
 
 struct SharelightMapTile

@@ -3,6 +3,7 @@
 #include "lua_gametypes.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
+#include "osrs/rscache/cache_dat.h"
 #include "osrs/datatypes/appearances.h"
 #include "osrs/datatypes/player_appearance.h"
 #include "osrs/game.h"
@@ -50,6 +51,7 @@ LuaBuildCacheDat_cache_map_scenery(
 
     buildcachedat_loader_cache_map_scenery_mapid(
         buildcachedat, map_id, archive->data_size, archive->data);
+    cache_dat_archive_free(archive);
     return LuaGameType_NewVoid();
 }
 
@@ -60,6 +62,7 @@ LuaBuildCacheDat_set_2d_media_jagfile(
 {
     struct CacheDatArchive* archive = arg_userdata(args, 0);
     buildcachedat_loader_set_2d_media_jagfile(buildcachedat, archive->data_size, archive->data);
+    cache_dat_archive_free(archive);
     return LuaGameType_NewVoid();
 }
 
@@ -71,6 +74,7 @@ LuaBuildCacheDat_set_config_jagfile(
     struct CacheDatArchive* archive = arg_userdata(args, 0);
 
     buildcachedat_loader_set_config_jagfile(buildcachedat, archive->data_size, archive->data);
+    cache_dat_archive_free(archive);
     return LuaGameType_NewVoid();
 }
 
@@ -92,6 +96,7 @@ LuaBuildCacheDat_set_versionlist_jagfile(
     struct CacheDatArchive* archive = arg_userdata(args, 0);
 
     buildcachedat_loader_set_versionlist_jagfile(buildcachedat, archive->data_size, archive->data);
+    cache_dat_archive_free(archive);
     return LuaGameType_NewVoid();
 }
 
@@ -105,7 +110,7 @@ LuaBuildCacheDat_cache_map_terrain(
 
     buildcachedat_loader_cache_map_terrain_mapid(
         buildcachedat, map_id, archive->data_size, archive->data);
-
+    cache_dat_archive_free(archive);
     return LuaGameType_NewVoid();
 }
 
@@ -491,6 +496,7 @@ LuaBuildCacheDat_cache_model(
     int model_id = archive->archive_id;
 
     buildcachedat_loader_cache_model(buildcachedat, model_id, archive->data_size, archive->data);
+    cache_dat_archive_free(archive);
     return LuaGameType_NewVoid();
 }
 
@@ -523,6 +529,7 @@ LuaBuildCacheDat_cache_textures(
 {
     struct CacheDatArchive* archive = arg_userdata(args, 0);
     buildcachedat_loader_cache_textures(buildcachedat, archive->data_size, archive->data);
+    cache_dat_archive_free(archive);
     return LuaGameType_NewVoid();
 }
 
@@ -556,6 +563,7 @@ LuaBuildCacheDat_cache_animbaseframes(
     int animbaseframes_id = arg_int(args, 1);
     buildcachedat_loader_cache_animbaseframes(
         buildcachedat, animbaseframes_id, archive->data_size, archive->data);
+    cache_dat_archive_free(archive);
     return LuaGameType_NewVoid();
 }
 
@@ -580,6 +588,7 @@ LuaBuildCacheDat_cache_title(
     struct CacheDatArchive* archive = arg_userdata(args, 0);
 
     buildcachedat_loader_cache_title(buildcachedat, archive->data_size, archive->data);
+    cache_dat_archive_free(archive);
     return LuaGameType_NewVoid();
 }
 

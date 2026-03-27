@@ -187,12 +187,16 @@ buildcachedat_loader_init_scenery_configs_from_config_jagfile(struct BuildCacheD
     {
         for( int i = 0; i < locs->locs_count; i++ )
         {
-            struct CacheConfigLocation* config_loc = malloc(sizeof(struct CacheConfigLocation));
-            memset(config_loc, 0, sizeof(struct CacheConfigLocation));
-
             struct CacheMapLoc* loc = &locs->locs[i];
             assert(loc->loc_id != -1 && "Loc id must be valid");
             assert(loc->loc_id < filelist_indexed->offset_count && "Loc id must be within range");
+
+            if( buildcachedat_get_config_loc(buildcachedat, loc->loc_id) )
+                continue;
+
+            struct CacheConfigLocation* config_loc = malloc(sizeof(struct CacheConfigLocation));
+            memset(config_loc, 0, sizeof(struct CacheConfigLocation));
+
             int offset = filelist_indexed->offsets[loc->loc_id];
 
             config_locs_decode_inplace(
@@ -342,6 +346,7 @@ buildcachedat_loader_cache_textures(
         assert(dash_texture != NULL);
 
         buildcachedat_add_texture(buildcachedat, i, dash_texture);
+        cache_dat_texture_free(texture);
     }
 
     filelist_dat_free(filelist);

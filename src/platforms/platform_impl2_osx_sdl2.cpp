@@ -160,8 +160,25 @@ Platform2_OSX_SDL2_New(void)
 }
 
 void
+Platform2_OSX_SDL2_Shutdown(struct Platform2_OSX_SDL2* platform)
+{
+    if( !platform )
+        return;
+    if( platform->window )
+    {
+        SDL_DestroyWindow(platform->window);
+        platform->window = NULL;
+    }
+    if( SDL_WasInit(SDL_INIT_VIDEO) )
+        SDL_Quit();
+}
+
+void
 Platform2_OSX_SDL2_Free(struct Platform2_OSX_SDL2* platform)
 {
+    if( !platform )
+        return;
+    Platform2_OSX_SDL2_Shutdown(platform);
     if( platform->lua_sidecar )
         LuaCSidecar_Free(platform->lua_sidecar);
     if( platform->cache_dat )
@@ -191,6 +208,7 @@ Platform2_OSX_SDL2_InitForSoft3D(
     if( !platform->window )
     {
         printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
+        SDL_Quit();
         return false;
     }
 
@@ -246,6 +264,7 @@ Platform2_OSX_SDL2_InitForOpenGL3(
     if( !platform->window )
     {
         printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
+        SDL_Quit();
         return false;
     }
 
@@ -284,6 +303,7 @@ Platform2_OSX_SDL2_InitForMetal(
     if( !platform->window )
     {
         printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
+        SDL_Quit();
         return false;
     }
 

@@ -124,6 +124,7 @@ cache_dat_texture_free(struct CacheDatTexture* texture)
 {
     if( !texture )
         return;
+    free(texture->palette);
     free(texture->pixels);
     free(texture);
 }

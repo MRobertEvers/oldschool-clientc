@@ -38,6 +38,7 @@ uiscene_new(int size)
         free(uiscene);
         return NULL;
     }
+    memset(uiscene->elements, 0, (size_t)size * sizeof(struct UISceneElement));
 
     for( int i = 0; i < size; i++ )
     {
@@ -80,6 +81,16 @@ uiscene_free(struct UIScene* uiscene)
 {
     if( !uiscene )
         return;
+    for( int i = 0; i < uiscene->elements_count; i++ )
+    {
+        struct UISceneElement* elem = &uiscene->elements[i];
+        if( elem->dash_sprites )
+        {
+            for( int j = 0; j < elem->dash_sprites_count; j++ )
+                dashsprite_free(elem->dash_sprites[j]);
+            free(elem->dash_sprites);
+        }
+    }
     free(uiscene->eventbuffer);
     free(uiscene->elements);
     free(uiscene);

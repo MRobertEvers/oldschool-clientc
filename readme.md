@@ -815,6 +815,7 @@ On linux
 valgrind --leak-check=full ./scene_tile_test
 
 valgrind --leak-check=full ./scene_tile_test > log.txt 2>&1
+valgrind --leak-check=full ./osx > log.txt 2>&1
 
 # Callgrind must be built without ASan
 valgrind --tool=callgrind  ./model_viewer > log.txt 2>&1

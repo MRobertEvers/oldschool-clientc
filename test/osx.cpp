@@ -70,6 +70,23 @@ select_renderer(
     return RENDERER_SOFT3D;
 }
 
+static void
+osx_abort_startup(
+    struct GGame* game,
+    struct Platform2_OSX_SDL2* platform,
+    struct ToriRSRenderCommandBuffer* rcb,
+    struct ToriRSNetSharedBuffer* net)
+{
+    if( game )
+        LibToriRS_GameFree(game);
+    if( platform )
+        Platform2_OSX_SDL2_Free(platform);
+    if( rcb )
+        LibToriRS_RenderCommandBufferFree(rcb);
+    if( net )
+        LibToriRS_NetFreeBuffer(net);
+}
+
 int
 main(
     int argc,
@@ -83,18 +100,20 @@ main(
     struct ToriRSRenderCommandBuffer* render_command_buffer =
         LibToriRS_RenderCommandBufferNew(1024);
     struct Platform2_OSX_SDL2* platform = Platform2_OSX_SDL2_New();
-    platform->current_game = game;
     if( !platform )
     {
         printf("Failed to create platform\n");
+        osx_abort_startup(game, NULL, render_command_buffer, net_shared);
         return 1;
     }
+    platform->current_game = game;
 
     if( renderer_kind == RENDERER_OPENGL3 )
     {
         if( !Platform2_OSX_SDL2_InitForOpenGL3(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
         {
             printf("Failed to initialize platform for OpenGL3\n");
+            osx_abort_startup(game, platform, render_command_buffer, net_shared);
             return 1;
         }
     }
@@ -104,6 +123,7 @@ main(
         if( !Platform2_OSX_SDL2_InitForMetal(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
         {
             printf("Failed to initialize platform for Metal\n");
+            osx_abort_startup(game, platform, render_command_buffer, net_shared);
             return 1;
         }
     }
@@ -111,6 +131,7 @@ main(
     else if( !Platform2_OSX_SDL2_InitForSoft3D(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
     {
         printf("Failed to initialize platform\n");
+        osx_abort_startup(game, platform, render_command_buffer, net_shared);
         return 1;
     }
 
@@ -126,11 +147,14 @@ main(
         if( !renderer_opengl3 )
         {
             printf("Failed to create OpenGL3 renderer\n");
+            osx_abort_startup(game, platform, render_command_buffer, net_shared);
             return 1;
         }
         if( !PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Init(renderer_opengl3, platform) )
         {
             printf("Failed to initialize OpenGL3 renderer\n");
+            PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Free(renderer_opengl3);
+            osx_abort_startup(game, platform, render_command_buffer, net_shared);
             return 1;
         }
     }
@@ -141,11 +165,14 @@ main(
         if( !renderer_metal )
         {
             printf("Failed to create Metal renderer\n");
+            osx_abort_startup(game, platform, render_command_buffer, net_shared);
             return 1;
         }
         if( !PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(renderer_metal, platform) )
         {
             printf("Failed to initialize Metal renderer\n");
+            PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(renderer_metal);
+            osx_abort_startup(game, platform, render_command_buffer, net_shared);
             return 1;
         }
     }
@@ -157,11 +184,14 @@ main(
         if( !renderer_soft3d )
         {
             printf("Failed to create Soft3D renderer\n");
+            osx_abort_startup(game, platform, render_command_buffer, net_shared);
             return 1;
         }
         if( !PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Init(renderer_soft3d, platform) )
         {
             printf("Failed to initialize Soft3D renderer\n");
+            PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Free(renderer_soft3d);
+            osx_abort_startup(game, platform, render_command_buffer, net_shared);
             return 1;
         }
     }

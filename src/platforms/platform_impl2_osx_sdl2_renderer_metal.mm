@@ -609,9 +609,12 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(struct Platform2_OSX_SDL2_Renderer_Me
         renderer->mtl_font_pipeline = nullptr;
     }
 
-    ImGui_ImplMetal_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
-    ImGui::DestroyContext();
+    if( ImGui::GetCurrentContext() )
+    {
+        ImGui_ImplMetal_Shutdown();
+        ImGui_ImplSDL2_Shutdown();
+        ImGui::DestroyContext();
+    }
 
     // ARC manages the Metal objects; clear pointers so the bridged refs release
     renderer->texture_anim_speed_by_id.clear();

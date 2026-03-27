@@ -35,15 +35,13 @@ normalize_pixel_buffer(
     int new_width,
     int new_height)
 {
+    int* normalized_pixels = (int*)malloc((size_t)new_width * new_height * sizeof(int));
+    if( !normalized_pixels )
+        return NULL;
+    memset(normalized_pixels, 0, (size_t)new_width * new_height * sizeof(int));
+
     if( current_width != new_width || current_height != new_height )
     {
-        int* normalized_pixels = (int*)malloc(new_width * new_height * sizeof(int));
-        if( !normalized_pixels )
-            return NULL;
-        memset(normalized_pixels, 0, new_width * new_height * sizeof(int));
-
-        int index = 0;
-
         for( int y = 0; y < current_height; y++ )
         {
             for( int x = 0; x < current_width; x++ )
@@ -51,10 +49,16 @@ normalize_pixel_buffer(
                 normalized_pixels[x + y * new_width] = pixels[x + y * current_width];
             }
         }
-        return normalized_pixels;
     }
     else
-        return pixels;
+    {
+        memcpy(
+            normalized_pixels,
+            pixels,
+            (size_t)current_width * current_height * sizeof(int));
+    }
+
+    return normalized_pixels;
 }
 
 struct DashTexture*
@@ -393,8 +397,7 @@ texture_new_from_texture_sprite(
     dash_texture->animation_direction = animation_direction;
     dash_texture->animation_speed = animation_speed;
 
-    if( normalized_pixels != pixels )
-        free(normalized_pixels);
+    free(normalized_pixels);
 
     return dash_texture;
 }

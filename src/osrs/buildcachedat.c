@@ -500,6 +500,8 @@ buildcachedat_set_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct FileListDat* config_jagfile)
 {
+    if( buildcachedat->cfg_config_jagfile )
+        filelist_dat_free(buildcachedat->cfg_config_jagfile);
     buildcachedat->cfg_config_jagfile = config_jagfile;
 }
 
@@ -514,6 +516,8 @@ buildcachedat_set_versionlist_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct FileListDat* versionlist_jagfile)
 {
+    if( buildcachedat->cfg_versionlist_jagfile )
+        filelist_dat_free(buildcachedat->cfg_versionlist_jagfile);
     buildcachedat->cfg_versionlist_jagfile = versionlist_jagfile;
 }
 
@@ -689,6 +693,8 @@ buildcachedat_set_2d_media_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct FileListDat* media_jagile)
 {
+    if( buildcachedat->cfg_media_jagfile )
+        filelist_dat_free(buildcachedat->cfg_media_jagfile);
     buildcachedat->cfg_media_jagfile = media_jagile;
 }
 
