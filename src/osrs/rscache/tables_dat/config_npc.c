@@ -131,11 +131,13 @@ decode_npc(struct RSBuffer* buffer)
         }
         case 2:
         {
+            free(npc->name);
             npc->name = gstringnewline(buffer);
             break;
         }
         case 3:
         {
+            free(npc->desc);
             npc->desc = gstringnewline(buffer);
             break;
         }
@@ -170,9 +172,14 @@ decode_npc(struct RSBuffer* buffer)
         case 30 ... 39:
         {
             char* action = gstringnewline(buffer);
+            int op_idx = opcode - 30;
+            if( op_idx >= 5 )
+            {
+                free(action);
+                break;
+            }
             if( action != NULL )
             {
-                // Check if action is "hidden" (case-insensitive)
                 char* hidden_str = "hidden";
                 int is_hidden = 1;
                 int len = strlen(action);
@@ -195,16 +202,19 @@ decode_npc(struct RSBuffer* buffer)
                 if( is_hidden )
                 {
                     free(action);
-                    npc->op[opcode - 30] = NULL;
+                    free(npc->op[op_idx]);
+                    npc->op[op_idx] = NULL;
                 }
                 else
                 {
-                    npc->op[opcode - 30] = action;
+                    free(npc->op[op_idx]);
+                    npc->op[op_idx] = action;
                 }
             }
             else
             {
-                npc->op[opcode - 30] = NULL;
+                free(npc->op[op_idx]);
+                npc->op[op_idx] = NULL;
             }
             break;
         }

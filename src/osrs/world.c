@@ -68,7 +68,7 @@ world_new(struct BuildCacheDat* buildcachedat)
     struct World* world = malloc(sizeof(struct World));
     memset(world, 0, sizeof(struct World));
 
-    world->scene2 = scene2_new(65535);
+    world->scene2 = scene2_new(22000);
     world->painter = painter_new(104, 104, MAP_TERRAIN_LEVELS);
     world->collision_map = collision_map_new(104, 104);
     world->heightmap = heightmap_new(104, 104, MAP_TERRAIN_LEVELS);

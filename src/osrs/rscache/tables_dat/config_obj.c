@@ -87,9 +87,11 @@ decode_obj(
             obj->model = g2(&buffer);
             break;
         case 2:
+            free(obj->name);
             obj->name = gstringnewline(&buffer);
             break;
         case 3:
+            free(obj->desc);
             obj->desc = gstringnewline(&buffer);
             break;
         case 4:
@@ -176,10 +178,12 @@ decode_obj(
                 if( is_hidden )
                 {
                     free(action);
+                    free(obj->op[opcode - 30]);
                     obj->op[opcode - 30] = NULL;
                 }
                 else
                 {
+                    free(obj->op[opcode - 30]);
                     obj->op[opcode - 30] = action;
                 }
             }
@@ -191,6 +195,7 @@ decode_obj(
         }
         case 35 ... 39:
         {
+            free(obj->iop[opcode - 35]);
             obj->iop[opcode - 35] = gstringnewline(&buffer);
             break;
         }
