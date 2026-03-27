@@ -354,16 +354,39 @@ sockstream_poll_connect(struct SockStream* stream)
     timeout.tv_usec = 0;
 
 #ifdef _WIN32
-    int result = select(0, NULL, &write_fds, NULL, &timeout);
+    // On Windows, a failed connect signals exceptfds rather than writefds
+    fd_set except_fds;
+    FD_ZERO(&except_fds);
+    FD_SET((SOCKET)stream->sockfd, &except_fds);
+    int result = select(0, NULL, &write_fds, &except_fds, &timeout);
 #else
     int result = select(stream->sockfd + 1, NULL, &write_fds, NULL, &timeout);
 #endif
 
-    if( result <= 0 )
+    if( result < 0 )
     {
-        // Still connecting or error
+        // select() itself failed
+        stream->status = SOCKSTREAM_STATUS_ERROR;
+        return SOCKSTREAM_CONNECT_FAILED;
+    }
+
+    if( result == 0 )
+    {
         return SOCKSTREAM_CONNECT_INFLIGHT;
     }
+
+#ifdef _WIN32
+    // A failed connect on Windows raises the exception fd, not the write fd
+    if( FD_ISSET((SOCKET)stream->sockfd, &except_fds) )
+    {
+        int error = 0;
+        int len = sizeof(error);
+        getsockopt(stream->sockfd, SOL_SOCKET, SO_ERROR, (char*)&error, &len);
+        printf("Connection failed with error: %d\n", error);
+        stream->status = SOCKSTREAM_STATUS_ERROR;
+        return SOCKSTREAM_CONNECT_FAILED;
+    }
+#endif
 
     // Socket is writable, check if connection succeeded
     if( !FD_ISSET(stream->sockfd, &write_fds) )
