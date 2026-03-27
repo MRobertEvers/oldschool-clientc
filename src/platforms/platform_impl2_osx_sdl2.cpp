@@ -47,6 +47,31 @@ extern "C" {
 #define CACHE_PATH "../cache254"
 #define LUA_SCRIPTS_DIR "../src/osrs/scripts"
 
+// Detect the HiDPI scale factor for the primary display.
+// Must be called after SDL_Init(SDL_INIT_VIDEO).
+static float
+detect_display_scale()
+{
+    // Try SDL DPI first (works on native Wayland with SDL2 >= 2.0.18)
+    float ddpi = 0.0f;
+    if( SDL_GetDisplayDPI(0, &ddpi, NULL, NULL) == 0 && ddpi > 0.0f )
+    {
+        float scale = ddpi / 96.0f;
+        if( scale >= 1.25f )
+            return scale;
+    }
+    // Fallback: GDK_SCALE is injected by GNOME into every process's environment
+    // (integer value, e.g. "2" for 200% HiDPI scaling on Wayland/XWayland).
+    const char* gdk = getenv("GDK_SCALE");
+    if( gdk )
+    {
+        float s = (float)atof(gdk);
+        if( s >= 1.0f )
+            return s;
+    }
+    return 1.0f;
+}
+
 static struct LuaGameType*
 game_callback(
     void* ctx,
@@ -192,18 +217,23 @@ Platform2_OSX_SDL2_InitForSoft3D(
     int screen_width,
     int screen_height)
 {
+    SDL_SetHint(SDL_HINT_VIDEO_HIGHDPI_DISABLED, "0");
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
         printf("SDL_Init failed: %s\n", SDL_GetError());
         return false;
     }
 
+    platform->display_scale = detect_display_scale();
+    int scaled_w = (int)(screen_width * platform->display_scale);
+    int scaled_h = (int)(screen_height * platform->display_scale);
+
     platform->window = SDL_CreateWindow(
         "Game",
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
-        screen_width,
-        screen_height,
+        scaled_w,
+        scaled_h,
         SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
     if( !platform->window )
     {
@@ -212,12 +242,12 @@ Platform2_OSX_SDL2_InitForSoft3D(
         return false;
     }
 
-    platform->window_width = screen_width;
-    platform->window_height = screen_height;
+    platform->window_width = scaled_w;
+    platform->window_height = scaled_h;
     // Store game screen dimensions in drawable_width/drawable_height
     // (these represent the game's logical screen size, not the actual drawable size)
-    platform->drawable_width = screen_width;
-    platform->drawable_height = screen_height;
+    platform->drawable_width = scaled_w;
+    platform->drawable_height = scaled_h;
 
     // Store fixed game screen dimensions for mouse coordinate transformation
     platform->game_screen_width = screen_width;
@@ -234,11 +264,16 @@ Platform2_OSX_SDL2_InitForOpenGL3(
     int screen_width,
     int screen_height)
 {
+    SDL_SetHint(SDL_HINT_VIDEO_HIGHDPI_DISABLED, "0");
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
         printf("SDL_Init failed: %s\n", SDL_GetError());
         return false;
     }
+
+    platform->display_scale = detect_display_scale();
+    int scaled_w = (int)(screen_width * platform->display_scale);
+    int scaled_h = (int)(screen_height * platform->display_scale);
 
 #if defined(__APPLE__)
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
@@ -258,8 +293,8 @@ Platform2_OSX_SDL2_InitForOpenGL3(
         "Game",
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
-        screen_width,
-        screen_height,
+        scaled_w,
+        scaled_h,
         SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
     if( !platform->window )
     {
@@ -268,10 +303,10 @@ Platform2_OSX_SDL2_InitForOpenGL3(
         return false;
     }
 
-    platform->window_width = screen_width;
-    platform->window_height = screen_height;
-    platform->drawable_width = screen_width;
-    platform->drawable_height = screen_height;
+    platform->window_width = scaled_w;
+    platform->window_height = scaled_h;
+    platform->drawable_width = scaled_w;
+    platform->drawable_height = scaled_h;
     SDL_GL_GetDrawableSize(platform->window, &platform->drawable_width, &platform->drawable_height);
 
     platform->game_screen_width = screen_width;
@@ -314,6 +349,7 @@ Platform2_OSX_SDL2_InitForMetal(
 
     platform->game_screen_width = screen_width;
     platform->game_screen_height = screen_height;
+    platform->display_scale = 1.0f; // Metal on macOS handles DPI natively via ALLOW_HIGHDPI
     platform->last_frame_time_ticks = SDL_GetTicks64();
 
     return true;

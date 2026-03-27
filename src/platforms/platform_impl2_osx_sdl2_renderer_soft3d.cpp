@@ -355,6 +355,14 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Init(
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
 
+    // Scale ImGui for HiDPI displays
+    float scale = platform->display_scale;
+    if( scale > 1.0f )
+    {
+        ImGui::GetStyle().ScaleAllSizes(scale);
+        ImGui::GetIO().FontGlobalScale = scale;
+    }
+
     // Setup Platform/Renderer backends
     if( !ImGui_ImplSDL2_InitForSDLRenderer(platform->window, renderer->renderer) )
     {

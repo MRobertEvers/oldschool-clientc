@@ -30,6 +30,9 @@ struct Platform2_OSX_SDL2
     int game_screen_width;
     int game_screen_height;
 
+    // HiDPI scale factor detected at startup (1.0 on non-HiDPI, 2.0 on typical HiDPI, etc.)
+    float display_scale;
+
     uint64_t last_frame_time_ticks;
 
     struct Cache* cache;
