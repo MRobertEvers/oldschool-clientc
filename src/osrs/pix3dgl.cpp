@@ -1110,10 +1110,14 @@ pix3dgl_model_load(
     if( !pix3dgl || face_count <= 0 || !vertices_x || !vertices_y || !vertices_z ||
         !face_indices_a || !face_indices_b || !face_indices_c || !face_colors_hsl_a ||
         !face_colors_hsl_b || !face_colors_hsl_c )
+    {
         return;
+    }
 
     if( pix3dgl->models.find(model_idx) != pix3dgl->models.end() )
-        return;
+    {
+            return;
+    }
 
     GLModel model = {};
     model.idx = model_idx;
@@ -1136,6 +1140,7 @@ pix3dgl_model_load(
     texture_ids.reserve((size_t)face_count * 3u);
     texture_opaques.reserve((size_t)face_count * 3u);
     texture_anim_speeds.reserve((size_t)face_count * 3u);
+
 
     for( int face = 0; face < face_count; ++face )
     {
@@ -1165,6 +1170,11 @@ pix3dgl_model_load(
         if( hsl_c == -1 )
         {
             rgb_a = rgb_b = rgb_c = g_hsl16_to_rgb_table[hsl_a];
+            model.face_shading[(size_t)face] = SHADING_FLAT;
+        }
+        else if( hsl_c == -2 )
+        {
+            rgb_a = rgb_b = rgb_c = 0;
             model.face_shading[(size_t)face] = SHADING_FLAT;
         }
         else
