@@ -73,15 +73,6 @@ world_new(struct BuildCacheDat* buildcachedat)
     world->collision_map = collision_map_new(104, 104);
     world->heightmap = heightmap_new(104, 104, MAP_TERRAIN_LEVELS);
     world->minimap = minimap_new(104, 104, MAP_TERRAIN_LEVELS);
-    world->lightmap = lightmap_new(104, 104, MAP_TERRAIN_LEVELS);
-    world->shademap = shademap2_new(104, 104, MAP_TERRAIN_LEVELS);
-    world->overlaymap = overlaymap_new(104, 104, MAP_TERRAIN_LEVELS);
-    world->sharelight_map = sharelight_map_new(104, 104, MAP_TERRAIN_LEVELS);
-
-    world->blendmap = blendmap_new(104, 104, MAP_TERRAIN_LEVELS);
-    world->decor_buildmap = decor_buildmap_new(104, 104, MAP_TERRAIN_LEVELS);
-    world->terrain_shapemap = terrain_shape_map_new(104, 104, MAP_TERRAIN_LEVELS);
-
     world->buildcachedat = buildcachedat;
 
     for( int i = 0; i < MAX_MAP_BUILD_LOC_ENTITIES; i++ )
@@ -120,13 +111,20 @@ world_free(struct World* world)
     heightmap_free(world->heightmap);
     minimap_free(world->minimap);
     scene2_free(world->scene2);
-    decor_buildmap_free(world->decor_buildmap);
-    lightmap_free(world->lightmap);
-    shademap2_free(world->shademap);
-    overlaymap_free(world->overlaymap);
-    sharelight_map_free(world->sharelight_map);
-    blendmap_free(world->blendmap);
-    terrain_shape_map_free(world->terrain_shapemap);
+    if( world->decor_buildmap )
+        decor_buildmap_free(world->decor_buildmap);
+    if( world->lightmap )
+        lightmap_free(world->lightmap);
+    if( world->shademap )
+        shademap2_free(world->shademap);
+    if( world->overlaymap )
+        overlaymap_free(world->overlaymap);
+    if( world->sharelight_map )
+        sharelight_map_free(world->sharelight_map);
+    if( world->blendmap )
+        blendmap_free(world->blendmap);
+    if( world->terrain_shapemap )
+        terrain_shape_map_free(world->terrain_shapemap);
     free(world);
 }
 
@@ -283,6 +281,21 @@ world_buildcachedat_rebuild_centerzone(
     if( world->minimap )
         minimap_free(world->minimap);
 
+    if( world->lightmap )
+        lightmap_free(world->lightmap);
+    if( world->shademap )
+        shademap2_free(world->shademap);
+    if( world->blendmap )
+        blendmap_free(world->blendmap);
+    if( world->overlaymap )
+        overlaymap_free(world->overlaymap);
+    if( world->terrain_shapemap )
+        terrain_shape_map_free(world->terrain_shapemap);
+    if( world->decor_buildmap )
+        decor_buildmap_free(world->decor_buildmap);
+    if( world->sharelight_map )
+        sharelight_map_free(world->sharelight_map);
+
     for( int i = 0; i < MAX_MAP_BUILD_TILE_ENTITIES; i++ )
     {
         world_cleanup_map_build_tile_entity(world, i);
@@ -297,6 +310,14 @@ world_buildcachedat_rebuild_centerzone(
     world->collision_map = collision_map_new(scene_size, scene_size);
     world->heightmap = heightmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
     world->minimap = minimap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+
+    world->lightmap = lightmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    world->shademap = shademap2_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    world->blendmap = blendmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    world->overlaymap = overlaymap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    world->terrain_shapemap = terrain_shape_map_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    world->decor_buildmap = decor_buildmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    world->sharelight_map = sharelight_map_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
 
     int chunk_sw_x = zone_sw_x / 8;
     int chunk_sw_z = zone_sw_z / 8;
@@ -946,6 +967,21 @@ world_buildcachedat_rebuild_centerzone(
     build_scene_terrain(world);
 
     sharelight_build(world);
+
+    lightmap_free(world->lightmap);
+    world->lightmap = NULL;
+    shademap2_free(world->shademap);
+    world->shademap = NULL;
+    blendmap_free(world->blendmap);
+    world->blendmap = NULL;
+    overlaymap_free(world->overlaymap);
+    world->overlaymap = NULL;
+    terrain_shape_map_free(world->terrain_shapemap);
+    world->terrain_shapemap = NULL;
+    decor_buildmap_free(world->decor_buildmap);
+    world->decor_buildmap = NULL;
+    sharelight_map_free(world->sharelight_map);
+    world->sharelight_map = NULL;
 }
 
 void
