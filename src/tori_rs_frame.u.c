@@ -333,28 +333,12 @@ queue_static_load_commands(
                     uiscene_element_at(game->ui_scene, ui_event.element_id);
                 if( !element || !element->dash_sprites )
                     continue;
-                for( int i = 0; i < element->dash_sprites_count; i++ )
-                {
-                    queue_sprite_load_from_event(
-                        render_command_buffer, ui_event.element_id, element->dash_sprites[i]);
-                }
+                queue_sprite_load_from_event(
+                    render_command_buffer, ui_event.element_id, element->dash_sprites);
             }
             else if( ui_event.type == UISCENE_EVENT_ELEMENT_RELEASED )
             {
-                struct UISceneElement* element =
-                    uiscene_element_at(game->ui_scene, ui_event.element_id);
-                if( !element || !element->dash_sprites )
-                    continue;
-                for( int i = 0; i < element->dash_sprites_count; i++ )
-                {
-                    queue_sprite_unload_from_event(
-                        render_command_buffer, ui_event.element_id, element->dash_sprites[i]);
-                }
-                for( int i = 0; i < element->dash_sprites_count; i++ )
-                    dashsprite_free(element->dash_sprites[i]);
-                free(element->dash_sprites);
-                element->dash_sprites = NULL;
-                element->dash_sprites_count = 0;
+                queue_sprite_unload_from_event(render_command_buffer, ui_event.element_id, NULL);
             }
             else if( ui_event.type == UISCENE_EVENT_FONT_ADDED )
             {

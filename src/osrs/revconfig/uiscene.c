@@ -131,6 +131,17 @@ uiscene_element_acquire(
     return element->id;
 }
 
+static void
+uiscene_element_clear_dash_sprites(struct UISceneElement* element)
+{
+    if( !element || !element->dash_sprites )
+        return;
+    for( int i = 0; i < element->dash_sprites_count; i++ )
+        dashsprite_free(element->dash_sprites[i]);
+    free(element->dash_sprites);
+    element->dash_sprites = NULL;
+}
+
 void
 uiscene_element_release(
     struct UIScene* uiscene,
@@ -142,6 +153,8 @@ uiscene_element_release(
     struct UISceneElement* element = uiscene_element_at(uiscene, element_id);
     assert(element->active && "Element must be active");
     int parent_entity_id = element->parent_entity_id;
+
+    uiscene_element_clear_dash_sprites(element);
 
     element->active = false;
     element->parent_entity_id = -1;
