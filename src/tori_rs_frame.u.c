@@ -23,39 +23,14 @@ struct FrameRenderLoadKeyPtr
     uint64_t key;
 };
 
-/* FNV-1a 64-bit hash of the fields that uniquely identify a GPU mesh.
- * For animated models (original_vertices_* are non-NULL) the current vertex
- * positions are also hashed so each animation keyframe gets a distinct key. */
 static uint64_t
-model_cache_key_u64(const struct DashModel* model)
+model_cache_key_u64(const struct Scene2Element* element)
 {
-    if( !model )
+    if( !element )
         return 0;
-    uint64_t key = 14695981039346656037ULL;
-    const uint64_t prime = 1099511628211ULL;
-#define MIX(word)                                                                                  \
-    do                                                                                             \
-    {                                                                                              \
-        key ^= (uint64_t)(uintptr_t)(word);                                                        \
-        key *= prime;                                                                              \
-    } while( 0 )
-    MIX(model->vertices_x);
-    MIX(model->face_indices_a);
-    MIX(model->face_indices_b);
-    MIX(model->face_indices_c);
-    MIX((uintptr_t)model->face_count);
-    if( model->original_vertices_x && model->original_vertices_y &&
-        model->original_vertices_z && model->vertex_count > 0 )
-    {
-        for( int _i = 0; _i < model->vertex_count; _i++ )
-        {
-            MIX((uint32_t)model->vertices_x[_i]);
-            MIX((uint32_t)model->vertices_y[_i]);
-            MIX((uint32_t)model->vertices_z[_i]);
-        }
-    }
-#undef MIX
-    return key;
+    return ((uint64_t)(uint32_t)element->id << 24) |
+           ((uint64_t)element->active_anim_id << 8) |
+           (uint64_t)element->active_frame;
 }
 
 static void
@@ -65,7 +40,7 @@ queue_scene_element_load_from_event(
     struct Scene2Element* element)
 {
     (void)game;
-    uint64_t model_key = model_cache_key_u64(element->dash_model);
+    uint64_t model_key = model_cache_key_u64(element);
     LibToriRS_RenderCommandBufferAddCommand(
         render_command_buffer,
         (struct ToriRSRenderCommand){
@@ -338,6 +313,8 @@ entity_player_animate(
     if( animation->primary_anim.anim_id != -1 && scene_element->primary_frames.count > 0 )
     {
         int frame = animation->primary_anim.frame;
+        scene_element->active_anim_id = animation->primary_anim.anim_id;
+        scene_element->active_frame = (uint8_t)frame;
         if( frame >= 0 && frame < scene_element->primary_frames.count )
         {
             dashmodel_animate(
@@ -349,6 +326,8 @@ entity_player_animate(
     else if( animation->secondary_anim.anim_id != -1 && scene_element->secondary_frames.count > 0 )
     {
         int frame = animation->secondary_anim.frame;
+        scene_element->active_anim_id = animation->secondary_anim.anim_id;
+        scene_element->active_frame = (uint8_t)frame;
         if( frame >= 0 && frame < scene_element->secondary_frames.count )
         {
             dashmodel_animate(
@@ -356,6 +335,11 @@ entity_player_animate(
                 scene_element->secondary_frames.frames[frame],
                 scene_element->dash_framemap);
         }
+    }
+    else
+    {
+        scene_element->active_anim_id = 0;
+        scene_element->active_frame = 0;
     }
 }
 
@@ -374,6 +358,8 @@ entity_npc_animate(
     if( animation->primary_anim.anim_id != -1 && scene_element->primary_frames.count > 0 )
     {
         int frame = animation->primary_anim.frame;
+        scene_element->active_anim_id = animation->primary_anim.anim_id;
+        scene_element->active_frame = (uint8_t)frame;
         if( frame >= 0 && frame < scene_element->primary_frames.count )
         {
             dashmodel_animate(
@@ -385,6 +371,8 @@ entity_npc_animate(
     else if( animation->secondary_anim.anim_id != -1 && scene_element->secondary_frames.count > 0 )
     {
         int frame = animation->secondary_anim.frame;
+        scene_element->active_anim_id = animation->secondary_anim.anim_id;
+        scene_element->active_frame = (uint8_t)frame;
         if( frame >= 0 && frame < scene_element->secondary_frames.count )
         {
             dashmodel_animate(
@@ -392,6 +380,11 @@ entity_npc_animate(
                 scene_element->secondary_frames.frames[frame],
                 scene_element->dash_framemap);
         }
+    }
+    else
+    {
+        scene_element->active_anim_id = 0;
+        scene_element->active_frame = 0;
     }
 }
 
@@ -415,6 +408,8 @@ entity_map_build_loc_entity_animate(
         if( animation->primary_anim.anim_id != -1 && scene_element->primary_frames.count > 0 )
         {
             int frame = animation->primary_anim.frame;
+            scene_element->active_anim_id = animation->primary_anim.anim_id;
+            scene_element->active_frame = (uint8_t)frame;
             if( frame >= 0 && frame < scene_element->primary_frames.count )
             {
                 dashmodel_animate(
@@ -422,6 +417,11 @@ entity_map_build_loc_entity_animate(
                     scene_element->primary_frames.frames[frame],
                     scene_element->dash_framemap);
             }
+        }
+        else
+        {
+            scene_element->active_anim_id = 0;
+            scene_element->active_frame = 0;
         }
     }
 
@@ -434,6 +434,8 @@ entity_map_build_loc_entity_animate(
         if( animation->primary_anim.anim_id != -1 && scene_element->primary_frames.count > 0 )
         {
             int frame = animation->primary_anim.frame;
+            scene_element->active_anim_id = animation->primary_anim.anim_id;
+            scene_element->active_frame = (uint8_t)frame;
             if( frame >= 0 && frame < scene_element->primary_frames.count )
             {
                 dashmodel_animate(
@@ -441,6 +443,11 @@ entity_map_build_loc_entity_animate(
                     scene_element->primary_frames.frames[frame],
                     scene_element->dash_framemap);
             }
+        }
+        else
+        {
+            scene_element->active_anim_id = 0;
+            scene_element->active_frame = 0;
         }
     }
 }
@@ -683,7 +690,7 @@ LibToriRS_FrameNextCommand(
                     .kind = TORIRS_GFX_MODEL_DRAW,
                     ._model_draw = {
                         .model = element->dash_model,
-                        .model_key = model_cache_key_u64(element->dash_model),
+                        .model_key = model_cache_key_u64(element),
                         .model_id = -1,
                     },
                 };
@@ -744,7 +751,7 @@ LibToriRS_FrameNextCommand(
                     ._model_draw = {
                         .model = element->dash_model,
                         .position = position,
-                        .model_key = model_cache_key_u64(element->dash_model),
+                        .model_key = model_cache_key_u64(element),
                         .model_id = -1,
                     },
                 };

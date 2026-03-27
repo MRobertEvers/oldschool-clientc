@@ -48,6 +48,9 @@ struct Scene2Element
 
     struct DashFramemap* dash_framemap;
 
+    uint16_t active_anim_id;
+    uint8_t  active_frame;
+
     struct Scene2Frames primary_frames;
     struct Scene2Frames secondary_frames;
 };
