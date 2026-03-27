@@ -46,7 +46,7 @@ gameproto_exec_npc_info(
     npc_info_reader.current_op = 0;
     npc_info_reader.max_ops = 2048;
     struct PktNpcInfoOp ops[2048];
-    int count = pkt_npc_info_reader_read(&npc_info_reader, &packet->_npc_info, ops, 2048);
+    int count = pkt_npc_info_reader_read(&npc_info_reader, (struct PktNpcInfo*)&packet->_npc_info, ops, 2048);
 
     struct PlayerEntity* player = &game->world->players[ACTIVE_PLAYER_SLOT];
     if( !player->alive )
@@ -202,7 +202,7 @@ add_player_info(
     struct SceneElement* scene_element = NULL;
     struct PlayerEntity* active_player = &game->world->players[ACTIVE_PLAYER_SLOT];
 
-    int count = pkt_player_info_reader_read(&player_info_reader, &packet->_player_info, ops, 2048);
+    int count = pkt_player_info_reader_read(&player_info_reader, (struct PktPlayerInfo*)&packet->_player_info, ops, 2048);
     int player_id = -1;
 
     struct PlayerEntity* player = NULL;

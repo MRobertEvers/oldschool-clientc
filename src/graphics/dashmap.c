@@ -138,7 +138,7 @@ hmap_slot_entry_ptr(
 /* key pointer inside an entry */
 static inline void*
 hmap_entry_key_ptr(
-    const struct HMap* m,
+    const struct DashMap* m,
     void* entry)
 {
     return (unsigned char*)entry;

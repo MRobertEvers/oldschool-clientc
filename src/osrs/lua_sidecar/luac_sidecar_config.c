@@ -51,12 +51,12 @@ load_lua_userdata_from_file(const char* name)
     if( file_data.size <= 0 )
     {
         fprintf(stderr, "Failed to load file: %s\n", name);
-        return LuaGameType_NewVoid();
+        return (struct LuaConfigFile*)LuaGameType_NewVoid();
     }
 
     struct LuaConfigFile* lua_file = malloc(sizeof(struct LuaConfigFile));
     if( !lua_file )
-        return LuaGameType_NewVoid();
+        return (struct LuaConfigFile*)LuaGameType_NewVoid();
     memset(lua_file, 0, sizeof(struct LuaConfigFile));
 
     strcpy(lua_file->name, name);
@@ -72,7 +72,7 @@ LuaCSidecar_Config_LoadConfig(struct LuaGameType* args)
     if( !config_file )
         return LuaGameType_NewVoid();
 
-    return load_lua_userdata_from_file(config_file);
+    return (struct LuaGameType*)load_lua_userdata_from_file(config_file);
 }
 
 struct LuaGameType*

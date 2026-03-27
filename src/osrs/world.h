@@ -62,7 +62,7 @@ struct World
     // Shapemap
     struct TerrainShapeMap* terrain_shapemap;
     // Walloffsetmap
-    struct DecorOnWallBuildMap* decor_buildmap;
+    struct DecorBuildMap* decor_buildmap;
     // Sharelight Element Map
     struct SharelightMap* sharelight_map;
 

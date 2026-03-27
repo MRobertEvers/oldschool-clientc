@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <string.h>
 
+#if !defined(_WIN32)
 int
 strcasecmp(
     const char* s1,
@@ -66,6 +67,7 @@ strncasecmp(
         return 0;
     return tolower((unsigned char)*s1) - tolower((unsigned char)*s2);
 }
+#endif
 
 void
 str_ascii_toupper(

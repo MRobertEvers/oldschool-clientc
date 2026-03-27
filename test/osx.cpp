@@ -15,7 +15,9 @@ extern "C" {
 #if defined(__APPLE__)
 #include "platforms/platform_impl2_osx_sdl2_renderer_metal.h"
 #endif
+#if !defined(_WIN32)
 #include "platforms/platform_impl2_osx_sdl2_renderer_opengl3.h"
+#endif
 #include "platforms/platform_impl2_osx_sdl2_renderer_soft3d.h"
 
 #include <SDL.h>
@@ -37,7 +39,9 @@ extern "C" {
 enum RendererKind
 {
     RENDERER_SOFT3D,
+#if !defined(_WIN32)
     RENDERER_OPENGL3,
+#endif
 #if defined(__APPLE__)
     RENDERER_METAL,
 #endif
@@ -51,8 +55,10 @@ select_renderer(
     const char* env_renderer = getenv("TORIRS_RENDERER");
     if( env_renderer )
     {
+#if !defined(_WIN32)
         if( strcmp(env_renderer, "opengl3") == 0 || strcmp(env_renderer, "gl3") == 0 )
             return RENDERER_OPENGL3;
+#endif
         if( strcmp(env_renderer, "soft3d") == 0 || strcmp(env_renderer, "soft") == 0 )
             return RENDERER_SOFT3D;
 #if defined(__APPLE__)
@@ -63,8 +69,10 @@ select_renderer(
 
     for( int i = 1; i < argc; i++ )
     {
+#if !defined(_WIN32)
         if( strcmp(argv[i], "--renderer=opengl3") == 0 || strcmp(argv[i], "--opengl3") == 0 )
             return RENDERER_OPENGL3;
+#endif
         if( strcmp(argv[i], "--renderer=soft3d") == 0 || strcmp(argv[i], "--soft3d") == 0 )
             return RENDERER_SOFT3D;
 #if defined(__APPLE__)
@@ -147,6 +155,7 @@ main(
     }
     platform->current_game = game;
 
+#if !defined(_WIN32)
     if( renderer_kind == RENDERER_OPENGL3 )
     {
         if( !Platform2_OSX_SDL2_InitForOpenGL3(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
@@ -156,8 +165,10 @@ main(
             return 1;
         }
     }
+    else
+#endif
 #if defined(__APPLE__)
-    else if( renderer_kind == RENDERER_METAL )
+    if( renderer_kind == RENDERER_METAL )
     {
         if( !Platform2_OSX_SDL2_InitForMetal(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
         {
@@ -166,8 +177,9 @@ main(
             return 1;
         }
     }
+    else
 #endif
-    else if( !Platform2_OSX_SDL2_InitForSoft3D(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
+    if( !Platform2_OSX_SDL2_InitForSoft3D(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
     {
         printf("Failed to initialize platform\n");
         osx_abort_startup(game, platform, render_command_buffer, net_shared);
@@ -175,11 +187,14 @@ main(
     }
 
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer_soft3d = NULL;
+#if !defined(_WIN32)
     struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer_opengl3 = NULL;
+#endif
 #if defined(__APPLE__)
     struct Platform2_OSX_SDL2_Renderer_Metal* renderer_metal = NULL;
 #endif
 
+#if !defined(_WIN32)
     if( renderer_kind == RENDERER_OPENGL3 )
     {
         renderer_opengl3 = PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_New(SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -197,8 +212,10 @@ main(
             return 1;
         }
     }
+    else
+#endif
 #if defined(__APPLE__)
-    else if( renderer_kind == RENDERER_METAL )
+    if( renderer_kind == RENDERER_METAL )
     {
         renderer_metal = PlatformImpl2_OSX_SDL2_Renderer_Metal_New(SCREEN_WIDTH, SCREEN_HEIGHT);
         if( !renderer_metal )
@@ -215,8 +232,8 @@ main(
             return 1;
         }
     }
-#endif
     else
+#endif
     {
         renderer_soft3d =
             PlatformImpl2_OSX_SDL2_Renderer_Soft3D_New(SCREEN_WIDTH, SCREEN_HEIGHT, 1600, 900);
@@ -286,15 +303,18 @@ main(
 
         LibToriRS_GameStep(game, &input, render_command_buffer);
 
+#if !defined(_WIN32)
         if( renderer_opengl3 )
             PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
                 renderer_opengl3, game, render_command_buffer);
+        else
+#endif
 #if defined(__APPLE__)
-        else if( renderer_metal )
+        if( renderer_metal )
             PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
                 renderer_metal, game, render_command_buffer);
-#endif
         else
+#endif
             PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 renderer_soft3d, game, render_command_buffer);
     }
@@ -306,8 +326,10 @@ main(
     }
 
     sockstream_cleanup();
+#if !defined(_WIN32)
     if( renderer_opengl3 )
         PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Free(renderer_opengl3);
+#endif
 #if defined(__APPLE__)
     if( renderer_metal )
         PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(renderer_metal);

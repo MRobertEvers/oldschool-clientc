@@ -1,6 +1,8 @@
 #ifndef OSRS_SCRIPT_QUEUE_H
 #define OSRS_SCRIPT_QUEUE_H
 
+#include <stdint.h>
+
 /* Script kind; one entry per runnable script. */
 enum ScriptKind
 {
@@ -44,13 +46,13 @@ struct ScriptArgsRebuildNormal
 struct ScriptArgsPlayerInfo
 {
     int length;
-    int* data;
+    uint8_t* data;
 };
 
 struct ScriptArgsNpcInfo
 {
     int length;
-    int* data;
+    uint8_t* data;
 };
 
 /* Tagged union of all script argument structs (one member per runnable script). */

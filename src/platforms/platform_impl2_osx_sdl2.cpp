@@ -35,7 +35,9 @@ extern "C" {
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui.h"
+#if !defined(_WIN32)
 #include "imgui_impl_opengl3.h"
+#endif
 #include "imgui_impl_sdl2.h"
 
 #include <SDL.h>
@@ -270,6 +272,7 @@ Platform2_OSX_SDL2_InitForSoft3D(
     return true;
 }
 
+#if !defined(_WIN32)
 bool
 Platform2_OSX_SDL2_InitForOpenGL3(
     struct Platform2_OSX_SDL2* platform,
@@ -348,6 +351,7 @@ Platform2_OSX_SDL2_InitForOpenGL3(
 
     return true;
 }
+#endif
 
 bool
 Platform2_OSX_SDL2_InitForMetal(

@@ -33,7 +33,7 @@ hash_djb2(char* name)
 static int
 hash_rolling_polynomial_uppercase(char* name)
 {
-    int c = 0;
+    char c = 0;
     int hash = 0;
     for( int i = 0; name[i] != '\0'; i++ )
     {

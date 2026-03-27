@@ -152,13 +152,18 @@ if(NOT EMSCRIPTEN)
         test/osx.cpp
         src/platforms/platform_impl2_osx_sdl2.cpp
         src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp
-        src/platforms/platform_impl2_osx_sdl2_renderer_opengl3.cpp
-        src/osrs/pix3dgl.cpp
         src/osrs/lua_sidecar/luac_sidecar_config.c
         src/imgui/imgui_impl_sdl2.cpp
-        src/imgui/imgui_impl_opengl3.cpp
         src/imgui/imgui_impl_sdlrenderer2.cpp
     )
+
+    if(NOT WIN32)
+        list(APPEND OSX_SOURCES
+            src/platforms/platform_impl2_osx_sdl2_renderer_opengl3.cpp
+            src/osrs/pix3dgl.cpp
+            src/imgui/imgui_impl_opengl3.cpp
+        )
+    endif()
 
     if(APPLE)
         list(APPEND OSX_SOURCES
@@ -170,8 +175,12 @@ if(NOT EMSCRIPTEN)
     add_executable(osx ${OSX_SOURCES})
 
     find_package(SDL2 REQUIRED)
-    find_package(OpenGL REQUIRED)
-    target_link_libraries(osx SDL2::SDL2 OpenGL::GL)
+    target_link_libraries(osx SDL2::SDL2)
+
+    if(NOT WIN32)
+        find_package(OpenGL REQUIRED)
+        target_link_libraries(osx OpenGL::GL)
+    endif()
 
     if(APPLE)
         target_link_libraries(osx
@@ -208,14 +217,14 @@ if(NOT EMSCRIPTEN)
         target_link_options(osx PRIVATE -Wl,-subsystem,console)
     endif()
 
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        target_compile_options(osx PRIVATE -fpermissive)
-        target_compile_options(osx PRIVATE
-            $<$<CONFIG:Debug>:-fsanitize=address>
-            $<$<CONFIG:Debug>:-fno-omit-frame-pointer>
-        )
-        target_link_options(osx PRIVATE $<$<CONFIG:Debug>:-fsanitize=address>)
-    endif()
+    # if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    #     target_compile_options(osx PRIVATE -fpermissive)
+    #     target_compile_options(osx PRIVATE
+    #         $<$<CONFIG:Debug>:-fsanitize=address>
+    #         $<$<CONFIG:Debug>:-fno-omit-frame-pointer>
+    #     )
+    #     target_link_options(osx PRIVATE $<$<CONFIG:Debug>:-fsanitize=address>)
+    # endif()
 endif()
 
 # --- Emscripten Target ---

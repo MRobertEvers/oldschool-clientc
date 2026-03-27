@@ -14,6 +14,7 @@ extern "C" {
  *   0   if s1 == s2
  *   > 0 if s1 > s2
  */
+#if !defined(_WIN32)
 int
 strcasecmp(
     const char* s1,
@@ -31,6 +32,7 @@ strncasecmp(
     const char* s1,
     const char* s2,
     size_t n);
+#endif
 
 void
 str_ascii_toupper(

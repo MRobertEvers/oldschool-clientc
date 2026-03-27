@@ -1820,7 +1820,7 @@ dash3d_projected_model_contains(
 {
     assert(view_port->x_center != 0);
     assert(view_port->y_center != 0);
-    if( !dash3d_projected_model_contains_aabb(&dash->aabb, screen_x, screen_y) )
+    if( !dash3d_projected_model_contains_aabb(dash, screen_x, screen_y) )
         return false;
 
     return projected_model_contains(dash, model, view_port, screen_x, screen_y);

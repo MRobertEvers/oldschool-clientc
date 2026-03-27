@@ -52,7 +52,7 @@ LibToriRSPlatformC_NetPoll(
     uint8_t payload[4096] = { 0 };
 
     // --- 1. Process Game -> Platform (Outgoing Commands) ---
-    while( LibToriRS_NetPop(sb, &header, payload) )
+    while( LibToriRS_NetPop(&sb->game_to_platform, &header, payload) )
     {
         if( header.type == TORI_RS_NET_MSG_CONNECT )
         {

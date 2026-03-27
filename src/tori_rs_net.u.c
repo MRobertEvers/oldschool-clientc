@@ -29,7 +29,7 @@ LibToriRS_NetSend(
     assert(game->net_shared);
     assert(data);
     assert(size > 0);
-    LibToriRS_NetPush(game->net_shared, TORI_RS_NET_MSG_SEND_DATA, data, size);
+    LibToriRS_NetPush(&game->net_shared->game_to_platform, TORI_RS_NET_MSG_SEND_DATA, data, size);
 }
 
 void
