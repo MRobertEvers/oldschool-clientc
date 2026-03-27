@@ -256,6 +256,9 @@ struct DashSprite
     /* Pix8 crop offset: draw(x,y) blits at (x+crop_x, y+crop_y) per Client.ts Pix8.draw */
     int crop_x;
     int crop_y;
+    /** Rotation pivot in full sprite pixels; (0,0) means "use width/2,height/2" in soft3d draw path. */
+    int anchor_x;
+    int anchor_y;
 };
 
 // We have to use UTF16 here because '£' is gets compiled to 0x00A3, which is 2 bytes wide, even in

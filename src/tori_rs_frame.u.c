@@ -142,6 +142,8 @@ queue_sprite_draw_from_event(
             .sprite = sprite,
             .x = x,
             .y = y,
+            .anchor_x = sprite->anchor_x,
+            .anchor_y = sprite->anchor_y,
             .rotation_r2pi2048 = rotation_r2pi2048,
             .src_x = 0,
             .src_y = 0,
@@ -199,6 +201,15 @@ queue_static_ui_minimap_draws(
     if( src_w <= 0 || src_h <= 0 )
         return;
 
+    int anchor_x = 0;
+    int anchor_y = 0;
+
+    camera_tile_x = game->camera_world_x / 128;
+    camera_tile_z = game->camera_world_z / 128;
+
+    anchor_x = camera_tile_x * (static_sprite->width / 104);
+    anchor_y = static_sprite->height - camera_tile_z * (static_sprite->height / 104);
+
     LibToriRS_RenderCommandBufferAddCommand(
         game->ui_render_command_buffer,
         (struct ToriRSRenderCommand){
@@ -207,7 +218,9 @@ queue_static_ui_minimap_draws(
                 .sprite = static_sprite,
                 .x = component->position.x,
                 .y = component->position.y,
-                .rotation_r2pi2048 = game->camera_yaw,
+                .anchor_x = anchor_x,
+                .anchor_y = anchor_y,
+                .rotation_r2pi2048 = (( game->camera_yaw)& 0x7ff),
                 .src_x = src_x,
                 .src_y = src_y,
                 .src_w = src_w,
@@ -375,6 +388,9 @@ queue_static_load_commands(
             else if( component->type == UIELEM_MINIMAP )
             {
                 queue_static_ui_minimap_draws(game, component);
+            }
+            else if( component->type == UIELEM_COMPASS )
+            {
             }
         }
     }

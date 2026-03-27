@@ -63,7 +63,7 @@ struct ToriRSRenderCommand
             struct DashPixFont* font;
             const uint8_t* text; /* null-terminated; caller guarantees lifetime for the frame */
             int x;
-            int y;               /* baseline row, same convention as dashfont_draw_text_ex */
+            int y; /* baseline row, same convention as dashfont_draw_text_ex */
             int color_rgb;
         } _font_draw;
 
@@ -85,6 +85,8 @@ struct ToriRSRenderCommand
             int src_w; /* 0 = full sprite width */
             int src_h; /* 0 = full sprite height */
             uint8_t blit_dest;
+            int anchor_x;
+            int anchor_y;
         } _sprite_draw;
     };
 };

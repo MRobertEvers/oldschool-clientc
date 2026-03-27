@@ -699,16 +699,16 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                     (int*)sp->pixels_argb,
                     sp->width,
                     sp->height,
-                    sp->width >> 1,
-                    sp->height >> 1,
+                    command._sprite_draw.anchor_x,
+                    command._sprite_draw.anchor_y,
                     renderer->pixel_buffer,
                     renderer->width,
+                    0,
+                    0,
+                    renderer->width,
+                    renderer->height,
                     x + sp->crop_x,
                     y + sp->crop_y,
-                    sp->width,
-                    sp->height,
-                    sp->width / 2,
-                    sp->height / 2,
                     rot);
             }
             else

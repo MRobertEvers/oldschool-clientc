@@ -53,6 +53,9 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
         return;
     }
 
+    sp->anchor_x = pw / 2;
+    sp->anchor_y = ph / 2;
+
     int id = uiscene_element_acquire(game->ui_scene, -1);
     if( id < 0 )
     {
