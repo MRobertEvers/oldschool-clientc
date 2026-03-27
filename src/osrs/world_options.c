@@ -1,5 +1,6 @@
 #include "world_options.h"
 
+#include "game.h"
 #include "game_entity.h"
 #include "minimenu_action.h"
 #include "rscache/tables/string_utils.h"

@@ -511,6 +511,10 @@ dashsprite_new_from_pix8(
 struct DashSprite*
 dashsprite_new_from_pix32(struct DashPix32* pix32);
 
+/** Takes ownership of pixels_argb (heap ARGB, row-major). */
+struct DashSprite*
+dashsprite_new_from_argb_owned(uint32_t* pixels_argb, int width, int height);
+
 void
 dashpix8_free(struct DashPix8* pix8);
 void

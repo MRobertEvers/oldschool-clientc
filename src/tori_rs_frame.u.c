@@ -6,6 +6,7 @@
 #include "osrs/collision_map.h"
 #include "osrs/dash_utils.h"
 #include "osrs/isaac.h"
+#include "osrs/minimap.h"
 #include "osrs/minimenu.h"
 #include "osrs/packetout.h"
 #include "osrs/revconfig/static_ui.h"
@@ -137,8 +138,14 @@ queue_sprite_draw_from_event(
             .x = x,
             .y = y,
             .rotation_r2pi2048 = rotation_r2pi2048,
+            .src_x = 0,
+            .src_y = 0,
+            .src_w = 0,
+            .src_h = 0,
+            .blit_dest = TORIRS_SPRITE_BLIT_FRAME,
         },
     };
+    (void)element_id;
     LibToriRS_RenderCommandBufferAddCommand(render_command_buffer, command);
 }
 static void
@@ -226,6 +233,11 @@ queue_static_load_commands(
                     queue_sprite_unload_from_event(
                         render_command_buffer, ui_event.element_id, element->dash_sprites[i]);
                 }
+                for( int i = 0; i < element->dash_sprites_count; i++ )
+                    dashsprite_free(element->dash_sprites[i]);
+                free(element->dash_sprites);
+                element->dash_sprites = NULL;
+                element->dash_sprites_count = 0;
             }
             else if( ui_event.type == UISCENE_EVENT_FONT_ADDED )
             {
@@ -257,6 +269,114 @@ queue_static_load_commands(
                     component->position.x,
                     component->position.y,
                     0);
+            }
+            else if( component->type == UIELEM_MINIMAP )
+            {
+                struct Minimap* mm = NULL;
+                if( game->world && game->world->minimap )
+                    mm = game->world->minimap;
+                else if( game->sys_minimap )
+                    mm = game->sys_minimap;
+                if( !mm )
+                    continue;
+
+                int elem_id = game->minimap_static_uiscene_element_id;
+                if( elem_id < 0 )
+                    continue;
+                struct UISceneElement* element = uiscene_element_at(game->ui_scene, elem_id);
+                if( !element || !element->dash_sprites || !element->dash_sprites[0] )
+                    continue;
+
+                struct DashSprite* static_sprite = element->dash_sprites[0];
+
+                int camera_tile_x = game->camera_world_x / 128;
+                int camera_tile_z = game->camera_world_z / 128;
+                int radius = 25;
+                int sw_x = camera_tile_x - radius;
+                int sw_z = camera_tile_z - radius;
+                int ne_x = camera_tile_x + radius;
+                int ne_z = camera_tile_z + radius;
+                if( sw_x < 0 )
+                    sw_x = 0;
+                if( sw_z < 0 )
+                    sw_z = 0;
+                if( ne_x > mm->width )
+                    ne_x = mm->width;
+                if( ne_z > mm->height )
+                    ne_z = mm->height;
+
+                int src_x = sw_x * 4;
+                int src_y = (mm->height - ne_z + 1) * 4;
+                int src_w = (ne_x - sw_x) * 4;
+                int src_h = (ne_z - sw_z) * 4;
+                if( src_w <= 0 || src_h <= 0 )
+                    continue;
+
+                LibToriRS_RenderCommandBufferAddCommand(
+                    game->ui_render_command_buffer,
+                    (struct ToriRSRenderCommand){
+                        .kind = TORIRS_GFX_SPRITE_DRAW,
+                        ._sprite_draw = {
+                            .sprite = static_sprite,
+                            .x = component->position.x,
+                            .y = component->position.y,
+                            .rotation_r2pi2048 = game->camera_yaw,
+                            .src_x = src_x,
+                            .src_y = src_y,
+                            .src_w = src_w,
+                            .src_h = src_h,
+                            .blit_dest = TORIRS_SPRITE_BLIT_MINIMAP_WINDOW,
+                        },
+                    });
+
+                struct MinimapRenderCommandBuffer* dyn = minimap_commands_new(512);
+                if( !dyn )
+                    continue;
+                minimap_render_dynamic(mm, sw_x, sw_z, ne_x, ne_z, 0, dyn);
+                for( int j = 0; j < dyn->count; j++ )
+                {
+                    if( dyn->commands[j].kind != MINIMAP_RENDER_COMMAND_LOC )
+                        continue;
+                    int li = dyn->commands[j]._loc.loc_idx;
+                    struct DashSprite* dot = NULL;
+                    switch( minimap_loc_type(mm, li) )
+                    {
+                    case MINIMAP_LOC_TYPE_PLAYER:
+                        dot = game->sprite_mapdot0;
+                        break;
+                    case MINIMAP_LOC_TYPE_NPC:
+                        dot = game->sprite_mapdot1;
+                        break;
+                    case MINIMAP_LOC_TYPE_OBJECT:
+                        dot = game->sprite_mapdot2;
+                        break;
+                    default:
+                        break;
+                    }
+                    if( !dot )
+                        continue;
+                    int lx = mm->locs[li].tile_sx;
+                    int lz = mm->locs[li].tile_sz;
+                    int dot_x = (lx - sw_x) * 4 + 2 - (dot->width >> 1);
+                    int dot_y = (ne_z - lz) * 4 + 2 - (dot->height >> 1);
+                    LibToriRS_RenderCommandBufferAddCommand(
+                        game->ui_render_command_buffer,
+                        (struct ToriRSRenderCommand){
+                            .kind = TORIRS_GFX_SPRITE_DRAW,
+                            ._sprite_draw = {
+                                .sprite = dot,
+                                .x = dot_x,
+                                .y = dot_y,
+                                .rotation_r2pi2048 = 0,
+                                .src_x = 0,
+                                .src_y = 0,
+                                .src_w = 0,
+                                .src_h = 0,
+                                .blit_dest = TORIRS_SPRITE_BLIT_MINIMAP_WINDOW,
+                            },
+                        });
+                }
+                minimap_commands_free(dyn);
             }
         }
     }

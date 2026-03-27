@@ -2176,12 +2176,23 @@ pix3dgl_sprite_draw(
     int dst_y,
     int framebuffer_width,
     int framebuffer_height,
-    int rotation_r2pi2048)
+    int rotation_r2pi2048,
+    int src_x,
+    int src_y,
+    int src_w,
+    int src_h)
 {
     if( !pix3dgl || !pix3dgl->program_ui || !pix3dgl->ui_vbo )
         return;
     if( !sprite || !sprite->pixels_argb || framebuffer_width <= 0 || framebuffer_height <= 0 ||
         sprite->width <= 0 || sprite->height <= 0 )
+        return;
+
+    const int iw = src_w > 0 ? src_w : sprite->width;
+    const int ih = src_h > 0 ? src_h : sprite->height;
+    const int ix = src_x;
+    const int iy = src_y;
+    if( ix < 0 || iy < 0 || ix + iw > sprite->width || iy + ih > sprite->height )
         return;
 
     /* Lazy-upload fallback: if the sprite was never explicitly loaded, upload it now. */
@@ -2196,8 +2207,10 @@ pix3dgl_sprite_draw(
 
     dst_x += sprite->crop_x;
     dst_y += sprite->crop_y;
-    const float w = (float)sprite->width;
-    const float h = (float)sprite->height;
+    const float tw = (float)sprite->width;
+    const float th = (float)sprite->height;
+    const float w = (float)iw;
+    const float h = (float)ih;
     const float x0 = (float)dst_x;
     const float y0 = (float)dst_y;
     const float x1 = x0 + w;
@@ -2222,6 +2235,11 @@ pix3dgl_sprite_draw(
     rot_local(hw, hh, &px[2], &py[2]);
     rot_local(-hw, hh, &px[3], &py[3]);
 
+    const float u0 = (float)ix / tw;
+    const float v0 = (float)iy / th;
+    const float u1 = (float)(ix + iw) / tw;
+    const float v1 = (float)(iy + ih) / th;
+
     /* Capture framebuffer dimensions for projection (used in pix3dgl_end_2dframe). */
     if( pix3dgl->sprite_batch_fb_width <= 0 )
     {
@@ -2233,8 +2251,8 @@ pix3dgl_sprite_draw(
     Pix3DGL::SpritePendingDraw draw;
     draw.tex = tex;
     float verts[6 * 4] = {
-        px[0], py[0], 0.0f, 0.0f, px[1], py[1], 1.0f, 0.0f, px[2], py[2], 1.0f, 1.0f,
-        px[0], py[0], 0.0f, 0.0f, px[2], py[2], 1.0f, 1.0f, px[3], py[3], 0.0f, 1.0f,
+        px[0], py[0], u0, v0, px[1], py[1], u1, v0, px[2], py[2], u1, v1,
+        px[0], py[0], u0, v0, px[2], py[2], u1, v1, px[3], py[3], u0, v1,
     };
     memcpy(draw.verts, verts, sizeof(verts));
     pix3dgl->pending_sprite_draws.push_back(draw);

@@ -62,6 +62,8 @@ struct GGame
     int rebuilt;
 
     struct ToriRSRenderCommandBuffer* ui_render_command_buffer;
+    /** UIScene element holding baked level-0 minimap tiles; -1 if none. */
+    int minimap_static_uiscene_element_id;
 
     int tile_clicked_x;
     int tile_clicked_z;

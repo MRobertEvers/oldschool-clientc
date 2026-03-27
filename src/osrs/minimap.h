@@ -1,9 +1,9 @@
 #ifndef MINIMAP_H
 #define MINIMAP_H
 
-#include "osrs/game.h"
-
 #include <stdint.h>
+
+struct Minimap;
 
 enum MinimapWallFlag
 {
@@ -110,12 +110,6 @@ minimap_commands_new(int hint);
 void
 minimap_commands_free(struct MinimapRenderCommandBuffer* command_buffer);
 
-struct Minimap*
-minimap_new(
-    int width,
-    int height,
-    int levels);
-
 void
 minimap_free(struct Minimap* minimap);
 
@@ -192,6 +186,26 @@ minimap_set_tile_shape(
 
 void
 minimap_render(
+    struct Minimap* minimap,
+    int sw_x,
+    int sw_z,
+    int ne_x,
+    int ne_z,
+    int level,
+    struct MinimapRenderCommandBuffer* command_buffer);
+
+void
+minimap_render_static_tiles(
+    struct Minimap* minimap,
+    int sw_x,
+    int sw_z,
+    int ne_x,
+    int ne_z,
+    int level,
+    struct MinimapRenderCommandBuffer* command_buffer);
+
+void
+minimap_render_dynamic(
     struct Minimap* minimap,
     int sw_x,
     int sw_z,

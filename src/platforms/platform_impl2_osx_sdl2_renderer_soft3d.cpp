@@ -675,11 +675,52 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
         case TORIRS_GFX_SPRITE_DRAW:
         {
             struct DashSprite* sp = command._sprite_draw.sprite;
-            if( !sp || !game->sys_dash || !game->iface_view_port || !renderer->pixel_buffer )
+            if( !sp || !sp->pixels_argb )
                 break;
             int x = command._sprite_draw.x;
             int y = command._sprite_draw.y;
             int rot = command._sprite_draw.rotation_r2pi2048;
+            int srx = command._sprite_draw.src_x;
+            int sry = command._sprite_draw.src_y;
+            int srw = command._sprite_draw.src_w;
+            int srh = command._sprite_draw.src_h;
+            if( srw <= 0 )
+                srw = sp->width;
+            if( srh <= 0 )
+                srh = sp->height;
+            if( command._sprite_draw.blit_dest == TORIRS_SPRITE_BLIT_MINIMAP_WINDOW )
+            {
+                if( !renderer->minimap_buffer )
+                    break;
+                if( srx < 0 || sry < 0 || srx + srw > sp->width || sry + srh > sp->height )
+                    break;
+                int dw = renderer->minimap_buffer_width;
+                int dh = renderer->minimap_buffer_height;
+                x += sp->crop_x;
+                y += sp->crop_y;
+                uint32_t* srcp = sp->pixels_argb;
+                int sw = sp->width;
+                for( int yy = 0; yy < srh; yy++ )
+                {
+                    int dy = y + yy;
+                    if( dy < 0 || dy >= dh )
+                        continue;
+                    for( int xx = 0; xx < srw; xx++ )
+                    {
+                        int dx = x + xx;
+                        if( dx < 0 || dx >= dw )
+                            continue;
+                        uint32_t pix =
+                            srcp[(size_t)(sry + yy) * (size_t)sw + (size_t)(srx + xx)];
+                        if( pix == 0u )
+                            continue;
+                        renderer->minimap_buffer[dy * dw + dx] = (int)pix;
+                    }
+                }
+                break;
+            }
+            if( !game->sys_dash || !game->iface_view_port || !renderer->pixel_buffer )
+                break;
             if( rot != 0 )
             {
                 blit_rotated_buffer(
@@ -711,98 +752,6 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     }
     LibToriRS_FrameEnd(game);
 
-    int camera_tile_x = game->camera_world_x / 128;
-    int camera_tile_z = game->camera_world_z / 128;
-
-    int radius = 25;
-    int sw_x = camera_tile_x - radius;
-    int sw_z = camera_tile_z - radius;
-    int ne_x = camera_tile_x + radius;
-    int ne_z = camera_tile_z + radius;
-
-    struct MinimapRenderCommandBuffer* minimap_command_buffer = minimap_commands_new(1024);
-    if( game->sys_minimap )
-        minimap_render(game->sys_minimap, sw_x, sw_z, ne_x, ne_z, 0, minimap_command_buffer);
-
-    int rgb_foreground;
-    int rgb_background;
-    int shape;
-    int angle;
-    for( int i = 0; i < minimap_command_buffer->count; i++ )
-    {
-        struct MinimapRenderCommand* command = &minimap_command_buffer->commands[i];
-        switch( command->kind )
-        {
-        case MINIMAP_RENDER_COMMAND_LOC:
-        {
-            break;
-        }
-        case MINIMAP_RENDER_COMMAND_TILE:
-        {
-            shape = minimap_tile_shape(
-                game->sys_minimap, command->_tile.tile_sx, command->_tile.tile_sz, 0);
-
-            angle = minimap_tile_rotation(
-                game->sys_minimap, command->_tile.tile_sx, command->_tile.tile_sz, 0);
-            rgb_background = minimap_tile_rgb(
-                game->sys_minimap,
-                command->_tile.tile_sx,
-                command->_tile.tile_sz,
-                0,
-                MINIMAP_BACKGROUND);
-            rgb_foreground = minimap_tile_rgb(
-                game->sys_minimap,
-                command->_tile.tile_sx,
-                command->_tile.tile_sz,
-                0,
-                MINIMAP_FOREGROUND);
-            if( rgb_foreground == 0 && rgb_background == 0 )
-                break;
-
-            // Write minimap starting at (0,0) in the buffer
-            // X: tile_sx increases from sw_x to ne_x, map to 0 to (ne_x - sw_x) * 4
-            int tile_x = (command->_tile.tile_sx - sw_x) * 4;
-            // Y: tile_sz increases from sw_z to ne_z, but we want ne_z at top (y=0) and sw_z at
-            // bottom Original: minimap_center_y - (tile_sz + 1 - sw_z) * 4 For (0,0) start: (ne_z -
-            // tile_sz) * 4
-            int tile_y = (ne_z - command->_tile.tile_sz) * 4;
-            dash2d_fill_minimap_tile(
-                renderer->minimap_buffer,
-                renderer->minimap_buffer_width,
-                tile_x,
-                tile_y,
-                rgb_background,
-                rgb_foreground,
-                angle,
-                shape,
-                renderer->minimap_buffer_width,
-                renderer->minimap_buffer_height);
-
-            {
-                int wall = minimap_tile_wall(
-                    game->sys_minimap, command->_tile.tile_sx, command->_tile.tile_sz, 0);
-                if( wall != 0 )
-                {
-                    int tx = tile_x;
-                    int ty = tile_y;
-                    dash2d_draw_minimap_wall(
-                        renderer->minimap_buffer,
-                        renderer->minimap_buffer_width,
-                        tx,
-                        ty,
-                        wall,
-                        renderer->minimap_buffer_width,
-                        renderer->minimap_buffer_height);
-                }
-            }
-        }
-
-        break;
-        }
-    }
-    minimap_commands_free(minimap_command_buffer);
-
-    int mm_side = 800 - (512 + 10);
     blit_rotated_buffer(
         renderer->minimap_buffer,
         renderer->minimap_buffer_width,

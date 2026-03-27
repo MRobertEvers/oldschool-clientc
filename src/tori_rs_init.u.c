@@ -221,6 +221,7 @@ LibToriRS_GameNew(
     game->ui_scene = uiscene_new(512);
     game->static_ui = static_ui_buffer_new(512);
     game->ui_render_command_buffer = LibToriRS_RenderCommandBufferNew(2048);
+    game->minimap_static_uiscene_element_id = -1;
 
     // struct CacheDatConfigComponentList* config_interface_list =
     //     cache_dat_config_component_list_new_decode(file_data, file_data_size);
@@ -282,6 +283,9 @@ LibToriRS_GameFree(struct GGame* game)
 {
     if( !game )
         return;
+
+    if( game->world && game->sys_minimap == game->world->minimap )
+        game->sys_minimap = NULL;
 
     if( game->world )
         world_free(game->world);

@@ -137,7 +137,11 @@ pix3dgl_sprite_draw(
     int dst_y,
     int framebuffer_width,
     int framebuffer_height,
-    int rotation_r2pi2048);
+    int rotation_r2pi2048,
+    int src_x,
+    int src_y,
+    int src_w,
+    int src_h);
 
 #ifdef __cplusplus
 }

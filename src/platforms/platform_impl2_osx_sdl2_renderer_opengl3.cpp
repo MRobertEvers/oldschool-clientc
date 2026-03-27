@@ -762,7 +762,11 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
                 sc._sprite_draw.y,
                 window_width,
                 window_height,
-                sc._sprite_draw.rotation_r2pi2048);
+                sc._sprite_draw.rotation_r2pi2048,
+                sc._sprite_draw.src_x,
+                sc._sprite_draw.src_y,
+                sc._sprite_draw.src_w,
+                sc._sprite_draw.src_h);
         }
     }
     pix3dgl_end_2dframe(renderer->pix3dgl);

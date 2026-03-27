@@ -27,6 +27,9 @@
 #include "osrs/world.h"
 
 #include <assert.h>
+
+void
+LibToriRS_WorldMinimapStaticRebuild(struct GGame* game);
 #include <stdlib.h>
 #include <string.h>
 
@@ -900,6 +903,8 @@ buildcachedat_loader_finalize_scene(
     game->scene_base_tile_x = map_sw_x * 64;
     game->scene_base_tile_z = map_sw_z * 64;
 
+    LibToriRS_WorldMinimapStaticRebuild(game);
+
     // Build the final scene from cached data
     // game->scene = scenebuilder_load_from_buildcachedat(
     //     game->scenebuilder,
@@ -926,4 +931,6 @@ buildcachedat_loader_finalize_scene_centerzone(
     game->world = world_new(buildcachedat);
 
     world_buildcachedat_rebuild_centerzone(game->world, zonex, zonez, size);
+
+    LibToriRS_WorldMinimapStaticRebuild(game);
 }

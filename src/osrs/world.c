@@ -1,5 +1,6 @@
 #include "world.h"
 
+#include "game.h"
 #include "blendmap.h"
 #include "datatypes/appearances.h"
 #include "heightmap.h"

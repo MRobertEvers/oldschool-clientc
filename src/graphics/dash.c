@@ -2375,6 +2375,21 @@ dashsprite_new_from_pix32(struct DashPix32* pix32)
     return sprite;
 }
 
+struct DashSprite*
+dashsprite_new_from_argb_owned(uint32_t* pixels_argb, int width, int height)
+{
+    if( !pixels_argb || width <= 0 || height <= 0 )
+        return NULL;
+    struct DashSprite* sprite = (struct DashSprite*)malloc(sizeof(struct DashSprite));
+    if( !sprite )
+        return NULL;
+    memset(sprite, 0, sizeof(struct DashSprite));
+    sprite->pixels_argb = pixels_argb;
+    sprite->width = width;
+    sprite->height = height;
+    return sprite;
+}
+
 void
 dashpix8_free(struct DashPix8* pix8)
 {

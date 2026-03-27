@@ -1450,8 +1450,16 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
 
             const int dst_x = sc._sprite_draw.x + sp->crop_x;
             const int dst_y = sc._sprite_draw.y + sp->crop_y;
-            const float w = (float)sp->width;
-            const float h = (float)sp->height;
+            const int iw = sc._sprite_draw.src_w > 0 ? sc._sprite_draw.src_w : sp->width;
+            const int ih = sc._sprite_draw.src_h > 0 ? sc._sprite_draw.src_h : sp->height;
+            const int ix = sc._sprite_draw.src_x;
+            const int iy = sc._sprite_draw.src_y;
+            if( ix < 0 || iy < 0 || ix + iw > sp->width || iy + ih > sp->height )
+                continue;
+            const float tw = (float)sp->width;
+            const float th = (float)sp->height;
+            const float w = (float)iw;
+            const float h = (float)ih;
             const float x0 = (float)dst_x;
             const float y0 = (float)dst_y;
             const float x1 = x0 + w;
@@ -1488,9 +1496,14 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
             to_clip(px[2], py[2], &c2x, &c2y);
             to_clip(px[3], py[3], &c3x, &c3y);
 
+            const float u0 = (float)ix / tw;
+            const float v0 = (float)iy / th;
+            const float u1 = (float)(ix + iw) / tw;
+            const float v1 = (float)(iy + ih) / th;
+
             float verts[6 * 4] = {
-                c0x, c0y, 0.0f, 0.0f, c1x, c1y, 1.0f, 0.0f, c2x, c2y, 1.0f, 1.0f,
-                c0x, c0y, 0.0f, 0.0f, c2x, c2y, 1.0f, 1.0f, c3x, c3y, 0.0f, 1.0f,
+                c0x, c0y, u0, v0, c1x, c1y, u1, v0, c2x, c2y, u1, v1,
+                c0x, c0y, u0, v0, c2x, c2y, u1, v1, c3x, c3y, u0, v1,
             };
 
             NSUInteger slotOffset = spriteSlot * kSpriteSlotBytes;

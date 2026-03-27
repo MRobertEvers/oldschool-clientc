@@ -1,5 +1,6 @@
 #include "minimap.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -210,7 +211,36 @@ push_loc_command(
 }
 
 void
-minimap_render(
+minimap_render_static_tiles(
+    struct Minimap* minimap,
+    int sw_x,
+    int sw_z,
+    int ne_x,
+    int ne_z,
+    int level,
+    struct MinimapRenderCommandBuffer* command_buffer)
+{
+    (void)level;
+    if( sw_x < 0 )
+        sw_x = 0;
+    if( sw_z < 0 )
+        sw_z = 0;
+    if( ne_x > minimap->width )
+        ne_x = minimap->width;
+    if( ne_z > minimap->height )
+        ne_z = minimap->height;
+
+    for( int sx = sw_x; sx < ne_x; sx++ )
+    {
+        for( int sz = sw_z; sz < ne_z; sz++ )
+        {
+            push_tile_command(command_buffer, sx, sz);
+        }
+    }
+}
+
+void
+minimap_render_dynamic(
     struct Minimap* minimap,
     int sw_x,
     int sw_z,
@@ -228,19 +258,30 @@ minimap_render(
     if( ne_z > minimap->height )
         ne_z = minimap->height;
 
-    for( int sx = sw_x; sx < ne_x; sx++ )
-    {
-        for( int sz = sw_z; sz < ne_z; sz++ )
-        {
-            push_tile_command(command_buffer, sx, sz);
-        }
-    }
-
     for( int i = 0; i < minimap->locs_count; i++ )
     {
         if( minimap->locs[i].level != level )
-            push_loc_command(command_buffer, i);
+            continue;
+        int lx = minimap->locs[i].tile_sx;
+        int lz = minimap->locs[i].tile_sz;
+        if( lx < sw_x || lx >= ne_x || lz < sw_z || lz >= ne_z )
+            continue;
+        push_loc_command(command_buffer, i);
     }
+}
+
+void
+minimap_render(
+    struct Minimap* minimap,
+    int sw_x,
+    int sw_z,
+    int ne_x,
+    int ne_z,
+    int level,
+    struct MinimapRenderCommandBuffer* command_buffer)
+{
+    minimap_render_static_tiles(minimap, sw_x, sw_z, ne_x, ne_z, level, command_buffer);
+    minimap_render_dynamic(minimap, sw_x, sw_z, ne_x, ne_z, level, command_buffer);
 }
 
 int

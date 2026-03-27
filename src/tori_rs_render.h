@@ -25,6 +25,12 @@ enum ToriRSRenderCommandKind
     TORIRS_GFX_FONT_DRAW,
 };
 
+/** `TORIRS_GFX_SPRITE_DRAW._sprite_draw.blit_dest`: normal UI framebuffer blit. */
+#define TORIRS_SPRITE_BLIT_FRAME 0
+/** Minimap window: soft3d copies subrect into staging buffer; GL/Metal draw rotated subrect to
+ * screen. */
+#define TORIRS_SPRITE_BLIT_MINIMAP_WINDOW 1
+
 struct ToriRSRenderCommand
 {
     uint8_t kind;
@@ -74,6 +80,11 @@ struct ToriRSRenderCommand
             int x;
             int y;
             int rotation_r2pi2048;
+            int src_x;
+            int src_y;
+            int src_w; /* 0 = full sprite width */
+            int src_h; /* 0 = full sprite height */
+            uint8_t blit_dest;
         } _sprite_draw;
     };
 };

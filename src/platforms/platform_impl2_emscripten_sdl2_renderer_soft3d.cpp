@@ -16,6 +16,7 @@ extern "C" {
 #include "tori_rs_render.h"
 
 #include <assert.h>
+#include <cstdint>
 #include <vector>
 
 extern int g_trap_command;
@@ -236,6 +237,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Free(
     struct Platform2_Emscripten_SDL2_Renderer_Soft3D* renderer)
 {
     free(renderer->dash_buffer);
+    free(renderer->minimap_buffer);
     free(renderer->pixel_buffer);
     free(renderer);
 }
@@ -345,6 +347,25 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
         0,
         (size_t)renderer->max_width * (size_t)renderer->max_height * sizeof(int));
 
+    int minimap_size = 220;
+    if( !renderer->minimap_buffer || renderer->minimap_buffer_width != minimap_size ||
+        renderer->minimap_buffer_height != minimap_size )
+    {
+        free(renderer->minimap_buffer);
+        renderer->minimap_buffer_width = minimap_size;
+        renderer->minimap_buffer_height = minimap_size;
+        renderer->minimap_buffer = (int*)malloc(
+            (size_t)minimap_size * (size_t)minimap_size * sizeof(int));
+    }
+    if( renderer->minimap_buffer )
+    {
+        for( int y = 0; y < renderer->minimap_buffer_height; y++ )
+            memset(
+                &renderer->minimap_buffer[y * renderer->minimap_buffer_width],
+                0,
+                (size_t)renderer->minimap_buffer_width * sizeof(int));
+    }
+
     static std::vector<ToriRSRenderCommand> deferred_font_draws;
     deferred_font_draws.clear();
 
@@ -378,12 +399,54 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
         case TORIRS_GFX_SPRITE_DRAW:
         {
             struct DashSprite* sp = command._sprite_draw.sprite;
-            if( !sp || !game->sys_dash || !game->iface_view_port || !renderer->pixel_buffer )
+            if( !sp || !sp->pixels_argb )
                 break;
-            int iface_stride = game->iface_view_port->stride;
+            int iface_stride =
+                game->iface_view_port ? game->iface_view_port->stride : renderer->width;
             int x = command._sprite_draw.x;
             int y = command._sprite_draw.y;
             int rot = command._sprite_draw.rotation_r2pi2048;
+            int srx = command._sprite_draw.src_x;
+            int sry = command._sprite_draw.src_y;
+            int srw = command._sprite_draw.src_w;
+            int srh = command._sprite_draw.src_h;
+            if( srw <= 0 )
+                srw = sp->width;
+            if( srh <= 0 )
+                srh = sp->height;
+            if( command._sprite_draw.blit_dest == TORIRS_SPRITE_BLIT_MINIMAP_WINDOW )
+            {
+                if( !renderer->minimap_buffer )
+                    break;
+                if( srx < 0 || sry < 0 || srx + srw > sp->width || sry + srh > sp->height )
+                    break;
+                int dw = renderer->minimap_buffer_width;
+                int dh = renderer->minimap_buffer_height;
+                x += sp->crop_x;
+                y += sp->crop_y;
+                uint32_t* srcp = sp->pixels_argb;
+                int sw = sp->width;
+                for( int yy = 0; yy < srh; yy++ )
+                {
+                    int dy = y + yy;
+                    if( dy < 0 || dy >= dh )
+                        continue;
+                    for( int xx = 0; xx < srw; xx++ )
+                    {
+                        int dx = x + xx;
+                        if( dx < 0 || dx >= dw )
+                            continue;
+                        uint32_t pix =
+                            srcp[(size_t)(sry + yy) * (size_t)sw + (size_t)(srx + xx)];
+                        if( pix == 0u )
+                            continue;
+                        renderer->minimap_buffer[dy * dw + dx] = (int)pix;
+                    }
+                }
+                break;
+            }
+            if( !game->sys_dash || !game->iface_view_port || !renderer->pixel_buffer )
+                break;
             if( rot != 0 )
             {
                 blit_rotated_buffer(
@@ -414,6 +477,25 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
         }
     }
     LibToriRS_FrameEnd(game);
+
+    if( renderer->minimap_buffer && game )
+    {
+        blit_rotated_buffer(
+            renderer->minimap_buffer,
+            renderer->minimap_buffer_width,
+            renderer->minimap_buffer_height,
+            renderer->minimap_buffer_width >> 1,
+            renderer->minimap_buffer_height >> 1,
+            renderer->pixel_buffer,
+            game->iface_view_port ? game->iface_view_port->stride : renderer->width,
+            550 + 25,
+            4 + 5,
+            146,
+            151,
+            73,
+            75,
+            game->camera_yaw);
+    }
 
     if( renderer->dash_buffer && game->iface_view_port )
     {

@@ -14,6 +14,7 @@
 #include "tori_rs_net.u.c"
 #include "tori_rs_cycle.u.c"
 #include "tori_rs_init.u.c"
+#include "tori_rs_minimap.u.c"
 #include "tori_rs_frame.u.c"
 #include "tori_rs_scripts.u.c"
 // clang-format on

@@ -18,6 +18,10 @@ struct Platform2_Emscripten_SDL2_Renderer_Soft3D
     int* dash_buffer;
     int dash_buffer_width;
     int dash_buffer_height;
+
+    int* minimap_buffer;
+    int minimap_buffer_width;
+    int minimap_buffer_height;
 };
 
 struct Platform2_Emscripten_SDL2_Renderer_Soft3D*

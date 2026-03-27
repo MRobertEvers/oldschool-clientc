@@ -140,6 +140,10 @@ LibToriRS_NetPump(struct GGame* game);
 void
 LibToriRS_GameFree(struct GGame* game);
 
+/** Bake level-0 minimap tiles into a UIScene sprite; call after world terrain rebuild. */
+void
+LibToriRS_WorldMinimapStaticRebuild(struct GGame* game);
+
 void
 LibToriRS_GameStep(
     struct GGame* game,
