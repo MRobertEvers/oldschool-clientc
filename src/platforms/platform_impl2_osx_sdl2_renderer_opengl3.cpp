@@ -494,6 +494,16 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Init(
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
+#if !defined(__APPLE__)
+    // Linux/Windows OpenGL windows omit ALLOW_HIGHDPI (see InitForOpenGL3); scale UI
+    // to match platform->display_scale the same way as the Soft3D renderer.
+    float imgui_scale = platform->display_scale;
+    if( imgui_scale > 1.0f )
+    {
+        ImGui::GetStyle().ScaleAllSizes(imgui_scale);
+        ImGui::GetIO().FontGlobalScale = imgui_scale;
+    }
+#endif
     if( !ImGui_ImplSDL2_InitForOpenGL(platform->window, renderer->gl_context) )
     {
         printf("ImGui SDL2 init failed for OpenGL3\n");

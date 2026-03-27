@@ -301,13 +301,22 @@ Platform2_OSX_SDL2_InitForOpenGL3(
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 
+    // Retina: macOS reports logical vs drawable sizes correctly for ImGui.
+    // Linux + ALLOW_HIGHDPI often leaves io.DisplayFramebufferScale at 1 while the
+    // framebuffer is high-DPI, so ImGui text renders too small; use manual
+    // display_scale + window pixel size instead (see OpenGL3 ImGui init).
+    Uint32 gl_window_flags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
+#if defined(__APPLE__)
+    gl_window_flags |= SDL_WINDOW_ALLOW_HIGHDPI;
+#endif
+
     platform->window = SDL_CreateWindow(
         "Game",
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
         scaled_w,
         scaled_h,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+        gl_window_flags);
     if( !platform->window )
     {
         printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
