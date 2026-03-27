@@ -168,6 +168,32 @@ buildcachedat_eventbuffer_push(
     buildcachedat->eventbuffer_count++;
 }
 
+static struct DashMap*
+buildcachedat_new_scenery_hmap(void)
+{
+    int buffer_size = 1024 * sizeof(struct TextureEntry) * 4;
+    struct DashMapConfig config = {
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct SceneryEntry),
+    };
+    return dashmap_new(&config, 0);
+}
+
+static struct DashMap*
+buildcachedat_new_map_terrains_hmap(void)
+{
+    int buffer_size = 4096 * 8 * sizeof(struct ObjEntry);
+    struct DashMapConfig config = {
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct MapTerrainEntry),
+    };
+    return dashmap_new(&config, 0);
+}
+
 struct BuildCacheDat*
 buildcachedat_new(void)
 {
@@ -201,13 +227,7 @@ buildcachedat_new(void)
     };
     buildcachedat->flotype_hmap = dashmap_new(&config, 0);
 
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct SceneryEntry),
-    };
-    buildcachedat->scenery_hmap = dashmap_new(&config, 0);
+    buildcachedat->scenery_hmap = buildcachedat_new_scenery_hmap();
 
     config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
@@ -284,13 +304,7 @@ buildcachedat_new(void)
     };
     buildcachedat->obj_models_hmap = dashmap_new(&config, 0);
 
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct MapTerrainEntry),
-    };
-    buildcachedat->map_terrains_hmap = dashmap_new(&config, 0);
+    buildcachedat->map_terrains_hmap = buildcachedat_new_map_terrains_hmap();
 
     config = (struct DashMapConfig){
         .buffer = malloc(buffer_size),
@@ -493,6 +507,18 @@ buildcachedat_free(struct BuildCacheDat* buildcachedat)
 
     free(buildcachedat->eventbuffer);
     free(buildcachedat);
+}
+
+void
+buildcachedat_clear_map_chunks(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat )
+        return;
+
+    dashmap_free_entries(buildcachedat->map_terrains_hmap, free_map_terrain_entry);
+    dashmap_free_entries(buildcachedat->scenery_hmap, free_scenery_entry);
+    buildcachedat->map_terrains_hmap = buildcachedat_new_map_terrains_hmap();
+    buildcachedat->scenery_hmap = buildcachedat_new_scenery_hmap();
 }
 
 void

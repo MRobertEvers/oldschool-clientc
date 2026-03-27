@@ -156,7 +156,7 @@ struct CacheMapFloor
 {
     uint16_t overlay_id;
     uint8_t underlay_id;
-    uint8_t height;
+    int16_t height;
     uint8_t attr_opcode;
     // enum FloorFlags
     uint8_t settings;

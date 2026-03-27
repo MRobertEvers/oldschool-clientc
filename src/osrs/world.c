@@ -982,6 +982,9 @@ world_buildcachedat_rebuild_centerzone(
     world->decor_buildmap = NULL;
     sharelight_map_free(world->sharelight_map);
     world->sharelight_map = NULL;
+
+    if( buildcachedat )
+        buildcachedat_clear_map_chunks(buildcachedat);
 }
 
 void

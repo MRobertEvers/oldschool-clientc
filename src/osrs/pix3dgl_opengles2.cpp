@@ -1482,6 +1482,7 @@ pix3dgl_model_load(
         bool visible = true;
         if( face_infos_nullable && face_infos_nullable[face] == 2 )
             visible = false;
+        
         if( face_colors_hsl_c[face] == -2 )
             visible = false;
         model.face_visible[(size_t)face] = visible;

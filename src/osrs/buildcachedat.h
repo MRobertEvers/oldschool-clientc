@@ -81,6 +81,10 @@ buildcachedat_new(void);
 void
 buildcachedat_free(struct BuildCacheDat* buildcachedat);
 
+/** Free map terrain and map scenery chunk entries; maps are recreated empty. Other tables unchanged. */
+void
+buildcachedat_clear_map_chunks(struct BuildCacheDat* buildcachedat);
+
 void
 buildcachedat_set_config_jagfile(
     struct BuildCacheDat* buildcachedat,

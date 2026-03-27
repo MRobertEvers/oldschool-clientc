@@ -93,10 +93,11 @@ LuaUI_DispatchCommand(
     struct LuaGameType* args)
 {
     assert(memcmp(full_command, g_prefix, sizeof(g_prefix) - 1) == 0);
-    char command[strlen(full_command) - sizeof(g_prefix) + 1];
-    strncpy(
-        command, full_command + sizeof(g_prefix) - 1, strlen(full_command) - sizeof(g_prefix) + 1);
-    command[strlen(full_command) - sizeof(g_prefix) + 1] = '\0';
+    char command[256];
+    size_t suffix_len = strlen(full_command) - sizeof(g_prefix) + 1;
+    assert(suffix_len < sizeof(command));
+    memcpy(command, full_command + sizeof(g_prefix) - 1, suffix_len);
+    command[suffix_len] = '\0';
 
     if( strcmp(command, "load_revconfig") == 0 )
         return LuaUI_load_revconfig(game, buildcachedat, args);
