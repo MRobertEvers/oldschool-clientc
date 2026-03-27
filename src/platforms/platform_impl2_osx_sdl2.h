@@ -64,6 +64,13 @@ Platform2_OSX_SDL2_InitForMetal(
     struct Platform2_OSX_SDL2* platform,
     int screen_width,
     int screen_height);
+#if defined(_WIN32)
+bool
+Platform2_OSX_SDL2_InitForD3D11(
+    struct Platform2_OSX_SDL2* platform,
+    int screen_width,
+    int screen_height);
+#endif
 void
 Platform2_OSX_SDL2_Shutdown(struct Platform2_OSX_SDL2* platform);
 

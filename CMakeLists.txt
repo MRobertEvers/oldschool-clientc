@@ -172,6 +172,13 @@ if(NOT EMSCRIPTEN)
         )
     endif()
 
+    if(WIN32)
+        list(APPEND OSX_SOURCES
+            src/platforms/platform_impl2_osx_sdl2_renderer_d3d11.cpp
+            src/imgui/imgui_impl_dx11.cpp
+        )
+    endif()
+
     add_executable(osx ${OSX_SOURCES})
 
     find_package(SDL2 REQUIRED)
@@ -213,7 +220,7 @@ if(NOT EMSCRIPTEN)
     endif()
 
     if(WIN32)
-        target_link_libraries(osx ws2_32 psapi)
+        target_link_libraries(osx ws2_32 psapi d3d11 dxgi d3dcompiler)
         target_link_options(osx PRIVATE -Wl,-subsystem,console)
     endif()
 

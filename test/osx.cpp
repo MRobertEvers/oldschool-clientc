@@ -18,6 +18,9 @@ extern "C" {
 #if !defined(_WIN32)
 #include "platforms/platform_impl2_osx_sdl2_renderer_opengl3.h"
 #endif
+#if defined(_WIN32)
+#include "platforms/platform_impl2_osx_sdl2_renderer_d3d11.h"
+#endif
 #include "platforms/platform_impl2_osx_sdl2_renderer_soft3d.h"
 
 #include <SDL.h>
@@ -45,6 +48,9 @@ enum RendererKind
 #if defined(__APPLE__)
     RENDERER_METAL,
 #endif
+#if defined(_WIN32)
+    RENDERER_D3D11,
+#endif
 };
 
 static RendererKind
@@ -65,6 +71,10 @@ select_renderer(
         if( strcmp(env_renderer, "metal") == 0 )
             return RENDERER_METAL;
 #endif
+#if defined(_WIN32)
+        if( strcmp(env_renderer, "d3d11") == 0 || strcmp(env_renderer, "dx11") == 0 )
+            return RENDERER_D3D11;
+#endif
     }
 
     for( int i = 1; i < argc; i++ )
@@ -78,6 +88,11 @@ select_renderer(
 #if defined(__APPLE__)
         if( strcmp(argv[i], "--renderer=metal") == 0 || strcmp(argv[i], "--metal") == 0 )
             return RENDERER_METAL;
+#endif
+#if defined(_WIN32)
+        if( strcmp(argv[i], "--renderer=d3d11") == 0 || strcmp(argv[i], "--d3d11") == 0 ||
+            strcmp(argv[i], "--renderer=dx11") == 0 || strcmp(argv[i], "--dx11") == 0 )
+            return RENDERER_D3D11;
 #endif
     }
 
@@ -179,6 +194,18 @@ main(
     }
     else
 #endif
+#if defined(_WIN32)
+    if( renderer_kind == RENDERER_D3D11 )
+    {
+        if( !Platform2_OSX_SDL2_InitForD3D11(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
+        {
+            printf("Failed to initialize platform for D3D11\n");
+            osx_abort_startup(game, platform, render_command_buffer, net_shared);
+            return 1;
+        }
+    }
+    else
+#endif
     if( !Platform2_OSX_SDL2_InitForSoft3D(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
     {
         printf("Failed to initialize platform\n");
@@ -192,6 +219,9 @@ main(
 #endif
 #if defined(__APPLE__)
     struct Platform2_OSX_SDL2_Renderer_Metal* renderer_metal = NULL;
+#endif
+#if defined(_WIN32)
+    struct Platform2_OSX_SDL2_Renderer_D3D11* renderer_d3d11 = NULL;
 #endif
 
 #if !defined(_WIN32)
@@ -228,6 +258,26 @@ main(
         {
             printf("Failed to initialize Metal renderer\n");
             PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(renderer_metal);
+            osx_abort_startup(game, platform, render_command_buffer, net_shared);
+            return 1;
+        }
+    }
+    else
+#endif
+#if defined(_WIN32)
+    if( renderer_kind == RENDERER_D3D11 )
+    {
+        renderer_d3d11 = PlatformImpl2_OSX_SDL2_Renderer_D3D11_New(SCREEN_WIDTH, SCREEN_HEIGHT);
+        if( !renderer_d3d11 )
+        {
+            printf("Failed to create D3D11 renderer\n");
+            osx_abort_startup(game, platform, render_command_buffer, net_shared);
+            return 1;
+        }
+        if( !PlatformImpl2_OSX_SDL2_Renderer_D3D11_Init(renderer_d3d11, platform) )
+        {
+            printf("Failed to initialize D3D11 renderer\n");
+            PlatformImpl2_OSX_SDL2_Renderer_D3D11_Free(renderer_d3d11);
             osx_abort_startup(game, platform, render_command_buffer, net_shared);
             return 1;
         }
@@ -315,6 +365,12 @@ main(
                 renderer_metal, game, render_command_buffer);
         else
 #endif
+#if defined(_WIN32)
+        if( renderer_d3d11 )
+            PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
+                renderer_d3d11, game, render_command_buffer);
+        else
+#endif
             PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 renderer_soft3d, game, render_command_buffer);
     }
@@ -333,6 +389,10 @@ main(
 #if defined(__APPLE__)
     if( renderer_metal )
         PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(renderer_metal);
+#endif
+#if defined(_WIN32)
+    if( renderer_d3d11 )
+        PlatformImpl2_OSX_SDL2_Renderer_D3D11_Free(renderer_d3d11);
 #endif
     if( renderer_soft3d )
         PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Free(renderer_soft3d);
