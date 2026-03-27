@@ -39,6 +39,13 @@ minimap_commands_free(struct MinimapRenderCommandBuffer* command_buffer)
     free(command_buffer);
 }
 
+void
+minimap_commands_reset(struct MinimapRenderCommandBuffer* command_buffer)
+{
+    if( command_buffer )
+        command_buffer->count = 0;
+}
+
 struct Minimap*
 minimap_new(
     int width,

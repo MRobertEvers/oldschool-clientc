@@ -30,6 +30,7 @@
 #include <stdint.h>
 
 struct FileListDat;
+struct MinimapRenderCommandBuffer;
 struct ToriRSRenderCommandBuffer;
 
 #define MAX_PLAYERS 2048
@@ -64,6 +65,8 @@ struct GGame
     struct ToriRSRenderCommandBuffer* ui_render_command_buffer;
     /** UIScene element holding baked level-0 minimap tiles; -1 if none. */
     int minimap_static_uiscene_element_id;
+    /** Reused each frame for minimap dynamic loc commands; reset in LibToriRS_FrameBegin. */
+    struct MinimapRenderCommandBuffer* minimap_dynamic_commands;
 
     int tile_clicked_x;
     int tile_clicked_z;

@@ -29,8 +29,7 @@ model_cache_key_u64(const struct Scene2Element* element)
 {
     if( !element )
         return 0;
-    return ((uint64_t)(uint32_t)element->id << 24) |
-           ((uint64_t)element->active_anim_id << 8) |
+    return ((uint64_t)(uint32_t)element->id << 24) | ((uint64_t)element->active_anim_id << 8) |
            (uint64_t)element->active_frame;
 }
 
@@ -211,7 +210,7 @@ queue_static_ui_minimap_draws(
             },
         });
 
-    struct MinimapRenderCommandBuffer* dyn = minimap_commands_new(512);
+    struct MinimapRenderCommandBuffer* dyn = game->minimap_dynamic_commands;
     if( !dyn )
         return;
     minimap_render_dynamic(mm, sw_x, sw_z, ne_x, ne_z, 0, dyn);
@@ -258,7 +257,6 @@ queue_static_ui_minimap_draws(
                 },
             });
     }
-    minimap_commands_free(dyn);
 }
 
 static void
@@ -364,6 +362,7 @@ queue_static_load_commands(
         for( int i = 0; i < game->static_ui->component_count; i++ )
         {
             struct StaticUIComponent* component = &game->static_ui->components[i];
+            // printf("component->type: %s\n", static_ui_component_type_str(component->type));
             if( component->type == UIELEM_SPRITE )
             {
                 struct UISceneElement* element =
@@ -384,7 +383,9 @@ queue_static_load_commands(
                     0);
             }
             else if( component->type == UIELEM_MINIMAP )
+            {
                 queue_static_ui_minimap_draws(game, component);
+            }
         }
     }
 }
@@ -412,6 +413,8 @@ LibToriRS_FrameBegin(
     world_pickset_reset(&game->pickset);
 
     LibToriRS_RenderCommandBufferReset(render_command_buffer);
+    if( game->minimap_dynamic_commands )
+        minimap_commands_reset(game->minimap_dynamic_commands);
     queue_static_load_commands(game, render_command_buffer);
 
     if( game->world && game->world->painter && game->sys_painter_buffer )

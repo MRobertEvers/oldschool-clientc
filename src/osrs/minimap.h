@@ -111,6 +111,9 @@ void
 minimap_commands_free(struct MinimapRenderCommandBuffer* command_buffer);
 
 void
+minimap_commands_reset(struct MinimapRenderCommandBuffer* command_buffer);
+
+void
 minimap_free(struct Minimap* minimap);
 
 void

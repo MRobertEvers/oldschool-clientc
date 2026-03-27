@@ -25,6 +25,29 @@ push_element(struct StaticUIBuffer* buffer)
     return component;
 }
 
+char const*
+static_ui_component_type_str(enum StaticUIComponentType type)
+{
+    switch( type )
+    {
+    case UIELEM_COMPASS:
+        return "compass";
+    case UIELEM_MINIMAP:
+        return "minimap";
+    case UIELEM_WORLD:
+        return "world";
+    case UIELEM_BUILTIN_SIDEBAR:
+        return "builtin_sidebar";
+    case UIELEM_BUILTIN_CHAT:
+        return "builtin_chat";
+    case UIELEM_BUILTIN_VIEWPORT:
+        return "builtin_viewport";
+    case UIELEM_SPRITE:
+        return "sprite";
+    }
+    return "unknown";
+}
+
 struct StaticUIBuffer*
 static_ui_buffer_new(uint32_t hint)
 {

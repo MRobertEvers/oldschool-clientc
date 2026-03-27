@@ -62,6 +62,9 @@ struct StaticUIBuffer
     uint32_t component_capacity;
 };
 
+char const*
+static_ui_component_type_str(enum StaticUIComponentType type);
+
 struct StaticUIBuffer*
 static_ui_buffer_new(uint32_t hint);
 

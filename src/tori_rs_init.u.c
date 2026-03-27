@@ -10,6 +10,7 @@
 #include "osrs/gameproto_process.h"
 #include "osrs/loginproto.h"
 #include "osrs/lua_scripts.h"
+#include "osrs/minimap.h"
 #include "osrs/player_stats.h"
 #include "osrs/revconfig/revconfig_load.h"
 #include "osrs/revconfig/static_ui.h"
@@ -222,6 +223,7 @@ LibToriRS_GameNew(
     game->static_ui = static_ui_buffer_new(512);
     game->ui_render_command_buffer = LibToriRS_RenderCommandBufferNew(2048);
     game->minimap_static_uiscene_element_id = -1;
+    game->minimap_dynamic_commands = minimap_commands_new(2048);
 
     // struct CacheDatConfigComponentList* config_interface_list =
     //     cache_dat_config_component_list_new_decode(file_data, file_data_size);
@@ -334,6 +336,8 @@ LibToriRS_GameFree(struct GGame* game)
         static_ui_buffer_free(game->static_ui);
     if( game->ui_render_command_buffer )
         LibToriRS_RenderCommandBufferFree(game->ui_render_command_buffer);
+    if( game->minimap_dynamic_commands )
+        minimap_commands_free(game->minimap_dynamic_commands);
 
     lua_buildcache_free_init_configmaps(game);
 
