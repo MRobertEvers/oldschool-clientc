@@ -4,7 +4,6 @@
 #include "platform_impl2_osx_sdl2.h"
 #include <SDL.h>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #if defined(__APPLE__)
@@ -36,9 +35,6 @@ struct Platform2_OSX_SDL2_Renderer_OpenGL3
     struct Pix3DGL* pix3dgl;
     int next_model_index;
     std::unordered_map<uint64_t, int> model_index_by_key;
-    std::unordered_set<uint64_t> loaded_model_keys;
-    std::unordered_set<uint64_t> loaded_scene_element_keys;
-    std::unordered_set<int> loaded_texture_ids;
 
     std::unordered_map<struct DashPixFont*, GLFontAtlasEntry> font_atlas_cache;
     GLuint font_program;
