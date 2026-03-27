@@ -217,7 +217,7 @@ Platform2_OSX_SDL2_InitForSoft3D(
     int screen_width,
     int screen_height)
 {
-#ifdef __APPLE__
+#if defined(__APPLE__)
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
         printf("SDL_Init failed: %s\n", SDL_GetError());
@@ -276,6 +276,16 @@ Platform2_OSX_SDL2_InitForOpenGL3(
     int screen_width,
     int screen_height)
 {
+#if defined(__APPLE__)
+    if( SDL_Init(SDL_INIT_VIDEO) < 0 )
+    {
+        printf("SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    platform->display_scale = 1;
+
+#else
     SDL_SetHint(SDL_HINT_VIDEO_HIGHDPI_DISABLED, "0");
     if( SDL_Init(SDL_INIT_VIDEO) < 0 )
     {
@@ -284,6 +294,8 @@ Platform2_OSX_SDL2_InitForOpenGL3(
     }
 
     platform->display_scale = detect_display_scale();
+#endif
+
     int scaled_w = (int)(screen_width * platform->display_scale);
     int scaled_h = (int)(screen_height * platform->display_scale);
 
@@ -307,7 +319,7 @@ Platform2_OSX_SDL2_InitForOpenGL3(
     // display_scale + window pixel size instead (see OpenGL3 ImGui init).
     Uint32 gl_window_flags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
 #if defined(__APPLE__)
-    gl_window_flags |= SDL_WINDOW_ALLOW_HIGHDPI;
+    // gl_window_flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 #endif
 
     platform->window = SDL_CreateWindow(
