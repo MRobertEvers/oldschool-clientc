@@ -23,6 +23,9 @@
 #include <assert.h>
 #include <stdlib.h>
 
+void
+LibToriRS_WorldMinimapStaticRebuild(struct GGame* game);
+
 static struct PktNpcInfoReader npc_info_reader = { 0 };
 
 void
@@ -398,6 +401,8 @@ gameproto_exec_rebuild_normal(
      */
     game->scene_base_tile_x = new_base_x;
     game->scene_base_tile_z = new_base_z;
+
+    LibToriRS_WorldMinimapStaticRebuild(game);
 
     // /* Clear dynamic zone state on rebuild (Client.ts clears objStacks and locChanges) */
     // for( int level = 0; level < ZONE_LEVELS; level++ )

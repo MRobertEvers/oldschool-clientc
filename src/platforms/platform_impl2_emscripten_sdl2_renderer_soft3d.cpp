@@ -42,7 +42,6 @@ blit_rotated_buffer(
     int dst_anchor_y,
     int angle_r2pi2048)
 {
-    assert(dst_width + dst_x <= dst_stride);
     int sin = dash_sin(angle_r2pi2048);
     int cos = dash_cos(angle_r2pi2048);
 
@@ -51,8 +50,12 @@ blit_rotated_buffer(
     int max_x = dst_x + dst_width;
     int max_y = dst_y + dst_height;
 
+    if( min_x < 0 )
+        min_x = 0;
     if( max_x > dst_stride )
         max_x = dst_stride;
+    if( min_x >= max_x )
+        return;
 
     for( int dst_y_abs = min_y; dst_y_abs < max_y; dst_y_abs++ )
     {

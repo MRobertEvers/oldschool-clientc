@@ -10,6 +10,7 @@
 
 #include <assert.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -374,10 +375,10 @@ build_scene_terrain(struct World* world)
                 // The height is built into the model.
                 scene_element->dash_position->y = 0;
 
-                // Minimap
-                if( overlay_tile->minimap_rgb_color > 0 )
+                /* Explicit overlay minimap color from flo config; UINT32_MAX = unset (init_tile). */
+                if( overlay_tile->minimap_rgb_color != UINT32_MAX )
                 {
-                    minimap_foreground_rgb = overlay_tile->minimap_rgb_color;
+                    minimap_foreground_rgb = (int)(overlay_tile->minimap_rgb_color & 0x00FFFFFFu);
                 }
                 else if( overlay_hsl > 0 )
                 {

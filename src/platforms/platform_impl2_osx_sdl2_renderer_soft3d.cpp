@@ -5,7 +5,6 @@
 #include "imgui_impl_sdlrenderer2.h"
 
 extern "C" {
-#include "platforms/common/platform_memory.h"
 #include "3rd/lua/lauxlib.h"
 #include "3rd/lua/lua.h"
 #include "3rd/lua/lualib.h"
@@ -28,6 +27,7 @@ extern "C" {
 #include "osrs/rscache/tables/model.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/script_queue.h"
+#include "platforms/common/platform_memory.h"
 #include "server/prot.h"
 #include "server/server.h"
 #include "tori_rs.h"
@@ -285,8 +285,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_New(
 }
 
 void
-PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Shutdown(
-    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer)
+PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Shutdown(struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer)
 {
     if( !renderer )
         return;
@@ -436,7 +435,6 @@ blit_rotated_buffer(
     int dst_anchor_y,
     int angle_r2pi2048)
 {
-    assert(dst_width + dst_x <= dst_stride);
     int sin = dash_sin(angle_r2pi2048);
     int cos = dash_cos(angle_r2pi2048);
 
@@ -445,8 +443,12 @@ blit_rotated_buffer(
     int max_x = dst_x + dst_width;
     int max_y = dst_y + dst_height;
 
+    if( min_x < 0 )
+        min_x = 0;
     if( max_x > dst_stride )
         max_x = dst_stride;
+    if( min_x >= max_x )
+        return;
     // if (max_y > dst_height)
     //     max_y = dst_height;
 
@@ -688,37 +690,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                 srw = sp->width;
             if( srh <= 0 )
                 srh = sp->height;
-            if( command._sprite_draw.blit_dest == TORIRS_SPRITE_BLIT_MINIMAP_WINDOW )
-            {
-                if( !renderer->minimap_buffer )
-                    break;
-                if( srx < 0 || sry < 0 || srx + srw > sp->width || sry + srh > sp->height )
-                    break;
-                int dw = renderer->minimap_buffer_width;
-                int dh = renderer->minimap_buffer_height;
-                x += sp->crop_x;
-                y += sp->crop_y;
-                uint32_t* srcp = sp->pixels_argb;
-                int sw = sp->width;
-                for( int yy = 0; yy < srh; yy++ )
-                {
-                    int dy = y + yy;
-                    if( dy < 0 || dy >= dh )
-                        continue;
-                    for( int xx = 0; xx < srw; xx++ )
-                    {
-                        int dx = x + xx;
-                        if( dx < 0 || dx >= dw )
-                            continue;
-                        uint32_t pix =
-                            srcp[(size_t)(sry + yy) * (size_t)sw + (size_t)(srx + xx)];
-                        if( pix == 0u )
-                            continue;
-                        renderer->minimap_buffer[dy * dw + dx] = (int)pix;
-                    }
-                }
-                break;
-            }
+
             if( !game->sys_dash || !game->iface_view_port || !renderer->pixel_buffer )
                 break;
             if( rot != 0 )

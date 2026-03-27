@@ -15,6 +15,12 @@
 #include "tori_rs.h"
 #include "tori_rs_render.h"
 
+#ifdef TORI_DEBUG_MINIMAP_FRAME
+#include "graphics/dash_minimap.h"
+
+#include <stdint.h>
+#endif
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>

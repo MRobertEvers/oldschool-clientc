@@ -1,12 +1,11 @@
 #ifndef TORI_RS_MINIMAP_U_C
 #define TORI_RS_MINIMAP_U_C
 
-#include "tori_rs.h"
-
 #include "graphics/dash.h"
 #include "graphics/dash_minimap.h"
 #include "osrs/minimap.h"
 #include "osrs/revconfig/uiscene.h"
+#include "tori_rs.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -26,7 +25,8 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
     }
 
     struct Minimap* mm = game->world->minimap;
-    struct MinimapRenderCommandBuffer* tile_cmds = minimap_commands_new(mm->width * mm->height + 64);
+    struct MinimapRenderCommandBuffer* tile_cmds =
+        minimap_commands_new(mm->width * mm->height + 64);
     if( !tile_cmds )
         return;
 
@@ -43,21 +43,10 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
     memset(pixels, 0, (size_t)pw * (size_t)ph * sizeof(int));
 
     dash_minimap_raster_tile_commands(
-        mm,
-        0,
-        tile_cmds,
-        0,
-        0,
-        mm->width,
-        mm->height,
-        pixels,
-        pw,
-        pw,
-        ph);
+        mm, 0, tile_cmds, 0, 0, mm->width, mm->height, pixels, pw, pw, ph);
     minimap_commands_free(tile_cmds);
 
-    struct DashSprite* sp =
-        dashsprite_new_from_argb_owned((uint32_t*)pixels, pw, ph);
+    struct DashSprite* sp = dashsprite_new_from_argb_owned((uint32_t*)pixels, pw, ph);
     if( !sp )
     {
         free(pixels);
