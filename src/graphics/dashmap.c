@@ -582,20 +582,18 @@ dashmap_iter_next(struct DashMapIter* it)
 {
     if( !it || !it->m || !it->m->entries )
         return NULL;
-    if( it->idx >= it->m->capacity )
-        return NULL;
 
-    it->idx++;
     while( it->idx < it->m->capacity )
     {
-        HMapSlotHeader* h = hmap_slot_header_at(it->m, it->idx);
+        size_t cur = it->idx;
+        it->idx++;
+        HMapSlotHeader* h = hmap_slot_header_at(it->m, cur);
         if( h->state == DASHMAP_SLOT_FULL )
         {
-            void* entry = hmap_slot_entry_ptr(it->m, it->idx);
+            void* entry = hmap_slot_entry_ptr(it->m, cur);
             if( !it->m->iterable_fn || it->m->iterable_fn(entry, it->m->arg) != 0 )
                 return entry;
         }
-        it->idx++;
     }
     return NULL;
 }

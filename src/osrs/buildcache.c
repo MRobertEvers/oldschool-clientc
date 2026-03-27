@@ -194,17 +194,29 @@ buildcache_new(void)
 void
 buildcache_free(struct BuildCache* buildcache)
 {
+    free(dashmap_buffer_ptr(buildcache->map_terrain_hmap));
     dashmap_free(buildcache->map_terrain_hmap);
+    free(dashmap_buffer_ptr(buildcache->map_scenery_hmap));
     dashmap_free(buildcache->map_scenery_hmap);
+    free(dashmap_buffer_ptr(buildcache->config_overlay_hmap));
     dashmap_free(buildcache->config_overlay_hmap);
+    free(dashmap_buffer_ptr(buildcache->config_underlay_hmap));
     dashmap_free(buildcache->config_underlay_hmap);
+    free(dashmap_buffer_ptr(buildcache->config_sequence_hmap));
     dashmap_free(buildcache->config_sequence_hmap);
+    free(dashmap_buffer_ptr(buildcache->config_location_hmap));
     dashmap_free(buildcache->config_location_hmap);
+    free(dashmap_buffer_ptr(buildcache->models_hmap));
     dashmap_free(buildcache->models_hmap);
+    free(dashmap_buffer_ptr(buildcache->spritepacks_hmap));
     dashmap_free(buildcache->spritepacks_hmap);
+    free(dashmap_buffer_ptr(buildcache->textures_hmap));
     dashmap_free(buildcache->textures_hmap);
+    free(dashmap_buffer_ptr(buildcache->frame_blob_hmap));
     dashmap_free(buildcache->frame_blob_hmap);
+    free(dashmap_buffer_ptr(buildcache->frame_anim_hmap));
     dashmap_free(buildcache->frame_anim_hmap);
+    free(dashmap_buffer_ptr(buildcache->framemaps_hmap));
     dashmap_free(buildcache->framemaps_hmap);
     free(buildcache);
 }

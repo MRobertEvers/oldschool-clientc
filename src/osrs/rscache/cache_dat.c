@@ -120,6 +120,9 @@ cache_dat_new_from_directory(char const* directory)
     //     archive = NULL;
     // }
 
+    filelist_dat_free(filelist);
+    cache_dat_archive_free(archive);
+
     return cache_dat;
 }
 
@@ -130,6 +133,7 @@ cache_dat_free(struct CacheDat* cache_dat)
         return;
     if( cache_dat->_dat_file )
         fclose(cache_dat->_dat_file);
+    cache_map_squares_free(cache_dat->map_squares);
     free(cache_dat->directory);
     free(cache_dat);
 }
