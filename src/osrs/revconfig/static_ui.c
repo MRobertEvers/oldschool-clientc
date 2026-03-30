@@ -146,8 +146,13 @@ void
 static_ui_buffer_push_compass(
     struct StaticUIBuffer* buffer,
     int sprite_id,
+    int atlas_index,
     int x,
-    int y)
+    int y,
+    int width,
+    int height,
+    int anchor_x,
+    int anchor_y)
 {
     struct StaticUIComponent* component = push_element(buffer);
     if( !component )
@@ -158,8 +163,13 @@ static_ui_buffer_push_compass(
     component->type = UIELEM_COMPASS;
     component->position.kind = UIPOS_XY;
     component->scene_id = sprite_id;
+    component->atlas_index = atlas_index;
     component->position.x = x;
     component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    component->position.anchor_x = anchor_x;
+    component->position.anchor_y = anchor_y;
 }
 
 void

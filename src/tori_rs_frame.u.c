@@ -136,19 +136,38 @@ queue_sprite_draw_from_event(
     int y,
     int rotation_r2pi2048)
 {
+    int src_bb_x = 0;
+    int src_bb_y = 0;
+    int src_bb_w = 0;
+    int src_bb_h = 0;
+    int src_anchor_x = sprite->crop_width >> 1;
+    int src_anchor_y = sprite->crop_height >> 1;
+    if( sprite->crop_width > 0 && sprite->crop_height > 0 )
+    {
+        src_bb_x = sprite->crop_x;
+        src_bb_y = sprite->crop_y;
+        src_bb_w = sprite->crop_width;
+        src_bb_h = sprite->crop_height;
+        if( !src_anchor_x && !src_anchor_y )
+        {
+            src_anchor_x = sprite->crop_x + (sprite->crop_width >> 1);
+            src_anchor_y = sprite->crop_y + (sprite->crop_height >> 1);
+        }
+    }
+
     struct ToriRSRenderCommand command = {
         .kind = TORIRS_GFX_SPRITE_DRAW,
         ._sprite_draw = {
             .sprite = sprite,
             .dst_bb_x = x,
             .dst_bb_y = y,
-            .src_anchor_x = sprite->anchor_x,
-            .src_anchor_y = sprite->anchor_y,
+            .src_anchor_x = src_anchor_x,
+            .src_anchor_y = src_anchor_y,
             .rotation_r2pi2048 = rotation_r2pi2048,
-            .src_bb_x = 0,
-            .src_bb_y = 0,
-            .src_bb_w = 0,
-            .src_bb_h = 0,
+            .src_bb_x = src_bb_x,
+            .src_bb_y = src_bb_y,
+            .src_bb_w = src_bb_w,
+            .src_bb_h = src_bb_h,
         },
     };
     (void)element_id;
@@ -221,11 +240,12 @@ queue_static_ui_minimap_draws(
                 .dst_bb_y = component->position.y,
                 .dst_bb_w = component->position.width,
                 .dst_bb_h = component->position.height,
+                .rotated = true,
                 .rotation_r2pi2048 = (( game->camera_yaw)& 0x7ff),
-                .src_bb_x = src_x,
-                .src_bb_y = src_y,
-                .src_bb_w = src_w,
-                .src_bb_h = src_h,
+                .src_bb_x = 0,
+                .src_bb_y = 0,
+                .src_bb_w = static_sprite->crop_width,
+                .src_bb_h = static_sprite->crop_height,
                 .src_anchor_x = anchor_x,
                 .src_anchor_y = anchor_y,
             },
@@ -898,13 +918,36 @@ uielem_compass_step(
     struct UIStep* step)
 {
     assert(component->type == UIELEM_COMPASS);
-    step->done = true;
-
-    return;
 
     struct UISceneElement* element = uiscene_element_at(game->ui_scene, component->scene_id);
     if( !element )
         return;
+
+    struct DashSprite* sprite = element->dash_sprites[component->atlas_index];
+    if( !sprite )
+        return;
+
+    struct ToriRSRenderCommand command;
+    command.kind = TORIRS_GFX_SPRITE_DRAW;
+    command._sprite_draw.rotated = true;
+    command._sprite_draw.sprite = sprite;
+    command._sprite_draw.dst_bb_x = component->position.x;
+    command._sprite_draw.dst_bb_y = component->position.y;
+    command._sprite_draw.dst_bb_w = component->position.width;
+    command._sprite_draw.dst_bb_h = component->position.height;
+    command._sprite_draw.dst_anchor_x = component->position.anchor_x;
+    command._sprite_draw.dst_anchor_y = component->position.anchor_y;
+    command._sprite_draw.src_bb_x = sprite->crop_x;
+    command._sprite_draw.src_bb_y = sprite->crop_y;
+    command._sprite_draw.src_bb_w = sprite->crop_width;
+    command._sprite_draw.src_bb_h = sprite->crop_height;
+    command._sprite_draw.src_anchor_x = sprite->crop_width >> 1;
+    command._sprite_draw.src_anchor_y = sprite->crop_height >> 1;
+    command._sprite_draw.rotation_r2pi2048 = ((game->camera_yaw) & 0x7ff);
+
+    LibToriRS_RenderCommandBufferAddCommand(game->uiscene_queued_commands, command);
+
+    step->done = true;
 }
 
 bool

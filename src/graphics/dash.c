@@ -2416,6 +2416,28 @@ dash2d_blit_sprite(
 {
     if( !sprite )
         return;
+    dash2d_blit_sprite_subrect(
+        dash, sprite, view_port, x_offset, y_offset, 0, 0, sprite->width, sprite->height, pixel_buffer);
+}
+
+void
+dash2d_blit_sprite_subrect(
+    struct DashGraphics* dash,
+    struct DashSprite* sprite,
+    struct DashViewPort* view_port,
+    int x_offset,
+    int y_offset,
+    int src_x,
+    int src_y,
+    int src_w,
+    int src_h,
+    int* pixel_buffer)
+{
+    (void)dash;
+    if( !sprite || !sprite->pixels_argb || src_w <= 0 || src_h <= 0 )
+        return;
+    if( src_x < 0 || src_y < 0 || src_x + src_w > sprite->width || src_y + src_h > sprite->height )
+        return;
     /* Client.ts Pix8.draw(x,y): destination is (x + cropX, y + cropY) */
     x_offset += sprite->crop_x;
     y_offset += sprite->crop_y;
@@ -2425,20 +2447,23 @@ dash2d_blit_sprite(
     int cr = view_port->clip_right;
     int cb = view_port->clip_bottom;
     int stride = view_port->stride;
+    int sw = sprite->width;
 
-    for( int y = 0; y < sprite->height; y++ )
+    for( int y = 0; y < src_h; y++ )
     {
         int dst_y = y + y_offset;
         if( dst_y < ct || dst_y >= cb )
             continue;
-        for( int x = 0; x < sprite->width; x++ )
+        for( int x = 0; x < src_w; x++ )
         {
             int dst_x = x + x_offset;
             if( dst_x < cl || dst_x >= cr )
                 continue;
 
             int pixel_buffer_index = dst_y * stride + dst_x;
-            int pixel = sprite->pixels_argb[x + y * sprite->width];
+            int sx = src_x + x;
+            int sy = src_y + y;
+            int pixel = sprite->pixels_argb[sx + sy * sw];
             if( pixel == 0 )
                 continue;
 

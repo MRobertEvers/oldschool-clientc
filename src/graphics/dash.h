@@ -256,9 +256,8 @@ struct DashSprite
     /* Pix8 crop offset: draw(x,y) blits at (x+crop_x, y+crop_y) per Client.ts Pix8.draw */
     int crop_x;
     int crop_y;
-    /** Rotation pivot in full sprite pixels; (0,0) means "use width/2,height/2" in soft3d draw path. */
-    int anchor_x;
-    int anchor_y;
+    int crop_width;
+    int crop_height;
 };
 
 // We have to use UTF16 here because '£' is gets compiled to 0x00A3, which is 2 bytes wide, even in
@@ -516,7 +515,10 @@ dashsprite_new_from_pix32(struct DashPix32* pix32);
 
 /** Takes ownership of pixels_argb (heap ARGB, row-major). */
 struct DashSprite*
-dashsprite_new_from_argb_owned(uint32_t* pixels_argb, int width, int height);
+dashsprite_new_from_argb_owned(
+    uint32_t* pixels_argb,
+    int width,
+    int height);
 
 void
 dashpix8_free(struct DashPix8* pix8);
@@ -530,6 +532,21 @@ dash2d_blit_sprite(
     struct DashViewPort* view_port,
     int x,
     int y,
+    int* pixel_buffer);
+
+/** Blit sprite sub-rectangle [src_x,src_y)+[src_w,src_h) to (x,y); still applies sprite
+ * crop_x/crop_y to dst. */
+void
+dash2d_blit_sprite_subrect(
+    struct DashGraphics* dash,
+    struct DashSprite* sprite,
+    struct DashViewPort* view_port,
+    int x,
+    int y,
+    int src_x,
+    int src_y,
+    int src_w,
+    int src_h,
     int* pixel_buffer);
 
 void
@@ -752,6 +769,69 @@ dash2d_draw_minimap_wall(
     int wall,
     int clip_width,
     int clip_height);
+
+/** Inverse-map blit: for each destination pixel, sample source with rotation.
+ *  `src_width`/`src_height` are the rotated sub-rectangle in source space; that region starts at
+ *  (`src_crop_x`, `src_crop_y`) in the buffer. Row pitch is `src_stride` (full bitmap width). */
+static inline void
+dash2d_blit_rotated_ex(
+    int* src_buffer,
+    int src_stride,
+    int src_crop_x,
+    int src_crop_y,
+    int src_width,
+    int src_height,
+    int src_anchor_x,
+    int src_anchor_y,
+    int* dst_buffer,
+    int dst_stride,
+    int dst_x,
+    int dst_y,
+    int dst_width,
+    int dst_height,
+    int dst_anchor_x,
+    int dst_anchor_y,
+    int angle_r2pi2048)
+{
+    int sin = dash_sin(angle_r2pi2048);
+    int cos = dash_cos(angle_r2pi2048);
+
+    int min_x = dst_x;
+    int min_y = dst_y;
+    int max_x = dst_x + dst_width;
+    int max_y = dst_y + dst_height;
+
+    if( min_x < 0 )
+        min_x = 0;
+    if( max_x > dst_stride )
+        max_x = dst_stride;
+    if( min_x >= max_x )
+        return;
+
+    for( int dst_y_abs = min_y; dst_y_abs < max_y; dst_y_abs++ )
+    {
+        for( int dst_x_abs = min_x; dst_x_abs < max_x; dst_x_abs++ )
+        {
+            int rel_x = dst_x_abs - dst_x - dst_anchor_x;
+            int rel_y = dst_y_abs - dst_y - dst_anchor_y;
+
+            int src_rel_x = ((rel_x * cos + rel_y * sin) >> 16);
+            int src_rel_y = ((-rel_x * sin + rel_y * cos) >> 16);
+
+            int src_x = src_anchor_x + src_rel_x;
+            int src_y = src_anchor_y + src_rel_y;
+
+            if( src_x >= 0 && src_x < src_width && src_y >= 0 && src_y < src_height )
+            {
+                int bx = src_crop_x + src_x;
+                int by = src_crop_y + src_y;
+                int src_pixel = src_buffer[by * src_stride + bx];
+                if( src_pixel != 0 )
+                    dst_buffer[dst_y_abs * dst_stride + dst_x_abs] = src_pixel;
+            }
+        }
+    }
+}
 
 void
 dash2d_blit_rotated(

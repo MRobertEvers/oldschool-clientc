@@ -401,83 +401,6 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(
     }
 }
 
-static void
-blit_rotated_buffer(
-    int* src_buffer,
-    int src_width,
-    int src_height,
-    int src_anchor_x,
-    int src_anchor_y,
-    int* dst_buffer,
-    int dst_stride,
-    int dst_x,
-    int dst_y,
-    int dst_width,
-    int dst_height,
-    int dst_anchor_x,
-    int dst_anchor_y,
-    int angle_r2pi2048);
-
-static void
-blit_rotated_buffer(
-    int* src_buffer,
-    int src_width,
-    int src_height,
-    int src_anchor_x,
-    int src_anchor_y,
-    int* dst_buffer,
-    int dst_stride,
-    int dst_x,
-    int dst_y,
-    int dst_width,
-    int dst_height,
-    int dst_anchor_x,
-    int dst_anchor_y,
-    int angle_r2pi2048)
-{
-    int sin = dash_sin(angle_r2pi2048);
-    int cos = dash_cos(angle_r2pi2048);
-
-    int min_x = dst_x;
-    int min_y = dst_y;
-    int max_x = dst_x + dst_width;
-    int max_y = dst_y + dst_height;
-
-    if( min_x < 0 )
-        min_x = 0;
-    if( max_x > dst_stride )
-        max_x = dst_stride;
-    if( min_x >= max_x )
-        return;
-    // if (max_y > dst_height)
-    //     max_y = dst_height;
-
-    for( int dst_y_abs = min_y; dst_y_abs < max_y; dst_y_abs++ )
-    {
-        for( int dst_x_abs = min_x; dst_x_abs < max_x; dst_x_abs++ )
-        {
-            int rel_x = dst_x_abs - dst_x - dst_anchor_x;
-            int rel_y = dst_y_abs - dst_y - dst_anchor_y;
-
-            int src_rel_x = ((rel_x * cos + rel_y * sin) >> 16);
-            int src_rel_y = ((-rel_x * sin + rel_y * cos) >> 16);
-
-            int src_x = src_anchor_x + src_rel_x;
-            int src_y = src_anchor_y + src_rel_y;
-
-            // Check bounds
-            if( src_x >= 0 && src_x < src_width && src_y >= 0 && src_y < src_height )
-            {
-                int src_pixel = src_buffer[src_y * src_width + src_x];
-                if( src_pixel != 0 )
-                {
-                    dst_buffer[dst_y_abs * dst_stride + dst_x_abs] = src_pixel;
-                }
-            }
-        }
-    }
-}
-
 void
 PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer,
@@ -689,12 +612,15 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
 
             if( !game->sys_dash || !game->iface_view_port || !renderer->pixel_buffer )
                 break;
-            if( rot != 0 )
+            if( command._sprite_draw.rotated )
             {
-                blit_rotated_buffer(
+                dash2d_blit_rotated_ex(
                     (int*)sp->pixels_argb,
                     sp->width,
-                    sp->height,
+                    command._sprite_draw.src_bb_x,
+                    command._sprite_draw.src_bb_y,
+                    srw,
+                    srh,
                     command._sprite_draw.src_anchor_x,
                     command._sprite_draw.src_anchor_y,
                     renderer->pixel_buffer,
@@ -725,8 +651,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     }
     LibToriRS_FrameEnd(game);
 
-    blit_rotated_buffer(
+    dash2d_blit_rotated_ex(
         renderer->minimap_buffer,
+        renderer->minimap_buffer_width,
+        0,
+        0,
         renderer->minimap_buffer_width,
         renderer->minimap_buffer_height,
         renderer->minimap_buffer_width >> 1,

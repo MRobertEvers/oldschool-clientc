@@ -50,6 +50,11 @@ struct SpriteLoad
 
     char transforms[5][32];
     int transform_count;
+
+    int crop_x;
+    int crop_y;
+    int crop_width;
+    int crop_height;
 };
 
 struct ComponentLoad
@@ -152,6 +157,36 @@ load_sprite_pix32(
 }
 
 static void
+sprite_apply_ini_crop(
+    struct DashSprite* sp,
+    int crop_x,
+    int crop_y,
+    int crop_w,
+    int crop_h)
+{
+    if( !sp || crop_w <= 0 || crop_h <= 0 )
+        return;
+    if( sp->width <= 0 || sp->height <= 0 )
+        return;
+    int ox = crop_x < 0 ? 0 : crop_x;
+    int oy = crop_y < 0 ? 0 : crop_y;
+    if( ox >= sp->width || oy >= sp->height )
+        return;
+    int w = crop_w;
+    int h = crop_h;
+    if( ox + w > sp->width )
+        w = sp->width - ox;
+    if( oy + h > sp->height )
+        h = sp->height - oy;
+    if( w <= 0 || h <= 0 )
+        return;
+    sp->crop_x = ox;
+    sp->crop_y = oy;
+    sp->crop_width = w;
+    sp->crop_height = h;
+}
+
+static void
 load_sprite(
     struct SpriteLoad* load,
     struct DashMap* sprite_hmap,
@@ -242,6 +277,16 @@ load_sprite(
             }
         }
 
+        if( load->crop_width > 0 && load->crop_height > 0 )
+        {
+            sprite_apply_ini_crop(
+                sprites[atlas_index],
+                load->crop_x,
+                load->crop_y,
+                load->crop_width,
+                load->crop_height);
+        }
+
         char filename[128] = { 0 };
         snprintf(filename, sizeof(filename), "build/%s%d.bmp", load->name, atlas_index);
         bmp_write_file(
@@ -305,6 +350,56 @@ component_type_from_string(const char* str)
     return 0;
 }
 
+/* 0 = bound; 1 = empty sprite string (caller breaks); 2 = missing in hmap (caller returns). */
+static int
+component_bind_sprite_from_load(
+    struct ComponentLoad* load,
+    struct DashMap* sprite_hmap,
+    struct ComponentEntry* component_entry,
+    char const* component_kind_for_log)
+{
+    struct SpriteEntry* sprite_entry = NULL;
+
+    if( load->sprite[0] == '\0' )
+        return 1;
+
+    char* open_bracket = strchr(load->sprite, '[');
+    char* close_bracket = strchr(load->sprite, ']');
+    int sprite_index = 0;
+    if( open_bracket != NULL && close_bracket != NULL )
+    {
+        *open_bracket = '\0';
+        *close_bracket = '\0';
+        sprite_index = atoi(open_bracket + 1);
+
+        char search_name[64] = { 0 };
+        strncpy(search_name, load->sprite, sizeof(search_name) - 1);
+
+        sprite_entry = dashmap_search(sprite_hmap, search_name, DASHMAP_FIND);
+        *open_bracket = '[';
+        *close_bracket = ']';
+    }
+    else
+    {
+        sprite_entry = dashmap_search(sprite_hmap, load->sprite, DASHMAP_FIND);
+    }
+    if( !sprite_entry )
+    {
+        printf("Sprite for component not found in hmap: %s\n", load->sprite);
+        return 2;
+    }
+    printf(
+        "Loading %s component '%s' with sprite '%s' and atlas index %d\n",
+        component_kind_for_log,
+        load->name,
+        load->sprite,
+        sprite_index);
+
+    component_entry->sprite_id = sprite_entry->id;
+    component_entry->sprite_index = sprite_index;
+    return 0;
+}
+
 static void
 load_component(
     struct ComponentLoad* load,
@@ -320,7 +415,6 @@ load_component(
     component_entry = dashmap_search(component_hmap, load->name, DASHMAP_INSERT);
     printf("Loading component: name='%s', type='%s' (kind=%d)\n", load->name, load->type, type);
     memset(component_entry, 0, sizeof(struct ComponentEntry));
-    struct SpriteEntry* sprite_entry = NULL;
 
     assert(component_entry && "Component must be inserted into hmap");
     component_entry->type = type;
@@ -333,6 +427,9 @@ load_component(
     {
     case UIELEM_COMPASS:
     {
+        int bind = component_bind_sprite_from_load(load, sprite_hmap, component_entry, "compass");
+        if( bind == 2 )
+            return;
     }
     break;
     case UIELEM_MINIMAP:
@@ -343,44 +440,9 @@ load_component(
         break;
     case UIELEM_SPRITE:
     {
-        if( load->sprite[0] == '\0' )
-        {
-            break;
-        }
-        char* open_bracket = strchr(load->sprite, '[');
-        char* close_bracket = strchr(load->sprite, ']');
-        int sprite_index = 0;
-        if( open_bracket != NULL && close_bracket != NULL )
-        {
-            *open_bracket = '\0';
-            *close_bracket = '\0';
-            sprite_index = atoi(open_bracket + 1);
-
-            char search_name[64] = { 0 };
-            strncpy(search_name, load->sprite, sizeof(search_name) - 1);
-
-            sprite_entry = dashmap_search(sprite_hmap, search_name, DASHMAP_FIND);
-            *open_bracket = '[';
-            *close_bracket = ']';
-        }
-        else
-        {
-            sprite_entry = dashmap_search(sprite_hmap, load->sprite, DASHMAP_FIND);
-        }
-        if( !sprite_entry )
-        {
-            printf("Sprite for component not found in hmap: %s\n", load->sprite);
+        int bind = component_bind_sprite_from_load(load, sprite_hmap, component_entry, "sprite");
+        if( bind == 2 )
             return;
-        }
-        assert(sprite_entry && "Sprite for component not found in hmap");
-        printf(
-            "Loading sprite component '%s' with sprite '%s' and atlas index %d\n",
-            load->name,
-            load->sprite,
-            sprite_index);
-
-        component_entry->sprite_id = sprite_entry->id;
-        component_entry->sprite_index = sprite_index;
     }
     break;
     case UIELEM_TAB_REDSTONES:
@@ -408,7 +470,15 @@ load_layout(
         case UIELEM_COMPASS:
         {
             static_ui_buffer_push_compass(
-                ui, component_entry->sprite_id, layout_entry->x, layout_entry->y);
+                ui,
+                component_entry->sprite_id,
+                component_entry->sprite_index,
+                layout_entry->x,
+                layout_entry->y,
+                layout_entry->width,
+                layout_entry->height,
+                layout_entry->anchor_x,
+                layout_entry->anchor_y);
         }
         break;
         case UIELEM_MINIMAP:
@@ -613,6 +683,36 @@ static_ui_from_revconfig_buildcachedat(
                 assert(0 && "Too many transforms specified for sprite");
             }
             break;
+        case RCFIELD_CACHE_CROP_X:
+        {
+            assert(
+                load.kind == LOAD_KIND_SPRITE && "CACHE_CROP_X field must be within a sprite item");
+            load._sprite.crop_x = atoi(field->value);
+        }
+        break;
+        case RCFIELD_CACHE_CROP_Y:
+        {
+            assert(
+                load.kind == LOAD_KIND_SPRITE && "CACHE_CROP_Y field must be within a sprite item");
+            load._sprite.crop_y = atoi(field->value);
+        }
+        break;
+        case RCFIELD_CACHE_CROP_WIDTH:
+        {
+            assert(
+                load.kind == LOAD_KIND_SPRITE &&
+                "CACHE_CROP_WIDTH field must be within a sprite item");
+            load._sprite.crop_width = atoi(field->value);
+        }
+        break;
+        case RCFIELD_CACHE_CROP_HEIGHT:
+        {
+            assert(
+                load.kind == LOAD_KIND_SPRITE &&
+                "CACHE_CROP_HEIGHT field must be within a sprite item");
+            load._sprite.crop_height = atoi(field->value);
+        }
+        break;
         case RCFIELD_UICOMPONENT_TYPE:
         {
             assert(

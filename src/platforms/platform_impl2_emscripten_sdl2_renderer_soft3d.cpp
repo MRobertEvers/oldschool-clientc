@@ -26,61 +26,6 @@ extern int g_trap_z;
 static bool g_show_collision_map = false;
 
 static void
-blit_rotated_buffer(
-    int* src_buffer,
-    int src_width,
-    int src_height,
-    int src_anchor_x,
-    int src_anchor_y,
-    int* dst_buffer,
-    int dst_stride,
-    int dst_x,
-    int dst_y,
-    int dst_width,
-    int dst_height,
-    int dst_anchor_x,
-    int dst_anchor_y,
-    int angle_r2pi2048)
-{
-    int sin = dash_sin(angle_r2pi2048);
-    int cos = dash_cos(angle_r2pi2048);
-
-    int min_x = dst_x;
-    int min_y = dst_y;
-    int max_x = dst_x + dst_width;
-    int max_y = dst_y + dst_height;
-
-    if( min_x < 0 )
-        min_x = 0;
-    if( max_x > dst_stride )
-        max_x = dst_stride;
-    if( min_x >= max_x )
-        return;
-
-    for( int dst_y_abs = min_y; dst_y_abs < max_y; dst_y_abs++ )
-    {
-        for( int dst_x_abs = min_x; dst_x_abs < max_x; dst_x_abs++ )
-        {
-            int rel_x = dst_x_abs - dst_x - dst_anchor_x;
-            int rel_y = dst_y_abs - dst_y - dst_anchor_y;
-
-            int src_rel_x = ((rel_x * cos + rel_y * sin) >> 16);
-            int src_rel_y = ((-rel_x * sin + rel_y * cos) >> 16);
-
-            int src_x = src_anchor_x + src_rel_x;
-            int src_y = src_anchor_y + src_rel_y;
-
-            if( src_x >= 0 && src_x < src_width && src_y >= 0 && src_y < src_height )
-            {
-                int src_pixel = src_buffer[src_y * src_width + src_x];
-                if( src_pixel != 0 )
-                    dst_buffer[dst_y_abs * dst_stride + dst_x_abs] = src_pixel;
-            }
-        }
-    }
-}
-
-static void
 render_imgui(
     struct Platform2_Emscripten_SDL2_Renderer_Soft3D* renderer,
     struct GGame* game)
@@ -357,8 +302,8 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
         free(renderer->minimap_buffer);
         renderer->minimap_buffer_width = minimap_size;
         renderer->minimap_buffer_height = minimap_size;
-        renderer->minimap_buffer = (int*)malloc(
-            (size_t)minimap_size * (size_t)minimap_size * sizeof(int));
+        renderer->minimap_buffer =
+            (int*)malloc((size_t)minimap_size * (size_t)minimap_size * sizeof(int));
     }
     if( renderer->minimap_buffer )
     {
@@ -406,18 +351,18 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
                 break;
             int iface_stride =
                 game->iface_view_port ? game->iface_view_port->stride : renderer->width;
-            int x = command._sprite_draw.x;
-            int y = command._sprite_draw.y;
+            int x = command._sprite_draw.dst_bb_x;
+            int y = command._sprite_draw.dst_bb_y;
             int rot = command._sprite_draw.rotation_r2pi2048;
-            int srx = command._sprite_draw.src_x;
-            int sry = command._sprite_draw.src_y;
-            int srw = command._sprite_draw.src_w;
-            int srh = command._sprite_draw.src_h;
+            int srx = command._sprite_draw.src_bb_x;
+            int sry = command._sprite_draw.src_bb_y;
+            int srw = command._sprite_draw.src_bb_w;
+            int srh = command._sprite_draw.src_bb_h;
             if( srw <= 0 )
                 srw = sp->width;
             if( srh <= 0 )
                 srh = sp->height;
-            if( command._sprite_draw.blit_dest == TORIRS_SPRITE_BLIT_MINIMAP_WINDOW )
+            if( command._sprite_draw.dst_bb_w == TORIRS_SPRITE_BLIT_MINIMAP_WINDOW )
             {
                 if( !renderer->minimap_buffer )
                     break;
@@ -439,8 +384,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
                         int dx = x + xx;
                         if( dx < 0 || dx >= dw )
                             continue;
-                        uint32_t pix =
-                            srcp[(size_t)(sry + yy) * (size_t)sw + (size_t)(srx + xx)];
+                        uint32_t pix = srcp[(size_t)(sry + yy) * (size_t)sw + (size_t)(srx + xx)];
                         if( pix == 0u )
                             continue;
                         renderer->minimap_buffer[dy * dw + dx] = (int)pix;
@@ -452,8 +396,11 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
                 break;
             if( rot != 0 )
             {
-                blit_rotated_buffer(
+                dash2d_blit_rotated_ex(
                     (int*)sp->pixels_argb,
+                    sp->width,
+                    0,
+                    0,
                     sp->width,
                     sp->height,
                     sp->width >> 1,
@@ -483,8 +430,11 @@ PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
 
     if( renderer->minimap_buffer && game )
     {
-        blit_rotated_buffer(
+        dash2d_blit_rotated_ex(
             renderer->minimap_buffer,
+            renderer->minimap_buffer_width,
+            0,
+            0,
             renderer->minimap_buffer_width,
             renderer->minimap_buffer_height,
             renderer->minimap_buffer_width >> 1,

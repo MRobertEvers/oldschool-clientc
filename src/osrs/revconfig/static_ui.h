@@ -109,8 +109,13 @@ void
 static_ui_buffer_push_compass(
     struct StaticUIBuffer* buffer,
     int sprite_id,
+    int atlas_index,
     int x,
-    int y);
+    int y,
+    int width,
+    int height,
+    int anchor_x,
+    int anchor_y);
 
 void
 static_ui_buffer_push_minimap(

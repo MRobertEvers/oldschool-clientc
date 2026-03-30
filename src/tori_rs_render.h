@@ -81,6 +81,7 @@ struct ToriRSRenderCommand
             int dst_bb_y;
             int dst_bb_w;
             int dst_bb_h;
+            bool rotated;
             int rotation_r2pi2048;
             int src_bb_x;
             int src_bb_y;

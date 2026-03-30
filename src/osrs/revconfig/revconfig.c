@@ -37,6 +37,14 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CACHE_ATLAS_COUNT";
     case RCFIELD_CACHE_TRANSFORM:
         return "RCFIELD_CACHE_TRANSFORM";
+    case RCFIELD_CACHE_CROP_X:
+        return "RCFIELD_CACHE_CROP_X";
+    case RCFIELD_CACHE_CROP_Y:
+        return "RCFIELD_CACHE_CROP_Y";
+    case RCFIELD_CACHE_CROP_WIDTH:
+        return "RCFIELD_CACHE_CROP_WIDTH";
+    case RCFIELD_CACHE_CROP_HEIGHT:
+        return "RCFIELD_CACHE_CROP_HEIGHT";
     case RCFIELD_UICOMPONENT_TYPE:
         return "RCFIELD_UICOMPONENT_TYPE";
     case RCFIELD_UICOMPONENT_SPRITE:

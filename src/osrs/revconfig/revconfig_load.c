@@ -90,6 +90,14 @@ push_field_from_ini_kv(
         kind = RCFIELD_CACHE_ATLAS_INDEX;
     else if( strcmp(key, "atlas_count") == 0 )
         kind = RCFIELD_CACHE_ATLAS_COUNT;
+    else if( strcmp(key, "crop_x") == 0 )
+        kind = RCFIELD_CACHE_CROP_X;
+    else if( strcmp(key, "crop_y") == 0 )
+        kind = RCFIELD_CACHE_CROP_Y;
+    else if( strcmp(key, "crop_width") == 0 )
+        kind = RCFIELD_CACHE_CROP_WIDTH;
+    else if( strcmp(key, "crop_height") == 0 )
+        kind = RCFIELD_CACHE_CROP_HEIGHT;
     else if(
         strcmp(key, "transform1") == 0 || strcmp(key, "transform2") == 0 ||
         strcmp(key, "transform3") == 0 || strcmp(key, "transform4") == 0 )
