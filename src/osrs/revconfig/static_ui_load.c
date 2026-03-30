@@ -71,6 +71,10 @@ struct LayoutItem
     int right;
     int bottom;
     int left;
+    int width;
+    int height;
+    int anchor_x;
+    int anchor_y;
 };
 
 struct LayoutLoad
@@ -409,7 +413,14 @@ load_layout(
         break;
         case UIELEM_MINIMAP:
         {
-            static_ui_buffer_push_minimap(ui, layout_entry->x, layout_entry->y);
+            static_ui_buffer_push_minimap(
+                ui,
+                layout_entry->x,
+                layout_entry->y,
+                layout_entry->width,
+                layout_entry->height,
+                layout_entry->anchor_x,
+                layout_entry->anchor_y);
         }
         break;
         case UIELEM_WORLD:
@@ -648,6 +659,50 @@ static_ui_from_revconfig_buildcachedat(
             assert(
                 load.kind == LOAD_KIND_LAYOUT && "UILAYOUT_Y field must be within a layout item");
             load._layout.entries[load._layout.entry_count - 1].y = atoi(field->value);
+        }
+        break;
+        case RCFIELD_UILAYOUT_WIDTH:
+        {
+            assert(
+                load._layout.entry_count > 0 &&
+                "UILAYOUT_WIDTH field must come after a UILAYOUT_COMPONENT field");
+            assert(
+                load.kind == LOAD_KIND_LAYOUT &&
+                "UILAYOUT_WIDTH field must be within a layout item");
+            load._layout.entries[load._layout.entry_count - 1].width = atoi(field->value);
+        }
+        break;
+        case RCFIELD_UILAYOUT_HEIGHT:
+        {
+            assert(
+                load._layout.entry_count > 0 &&
+                "UILAYOUT_HEIGHT field must come after a UILAYOUT_COMPONENT field");
+            assert(
+                load.kind == LOAD_KIND_LAYOUT &&
+                "UILAYOUT_HEIGHT field must be within a layout item");
+            load._layout.entries[load._layout.entry_count - 1].height = atoi(field->value);
+        }
+        break;
+        case RCFIELD_UILAYOUT_ANCHOR_X:
+        {
+            assert(
+                load._layout.entry_count > 0 &&
+                "UILAYOUT_ANCHOR_X field must come after a UILAYOUT_COMPONENT field");
+            assert(
+                load.kind == LOAD_KIND_LAYOUT &&
+                "UILAYOUT_ANCHOR_X field must be within a layout item");
+            load._layout.entries[load._layout.entry_count - 1].anchor_x = atoi(field->value);
+        }
+        break;
+        case RCFIELD_UILAYOUT_ANCHOR_Y:
+        {
+            assert(
+                load._layout.entry_count > 0 &&
+                "UILAYOUT_ANCHOR_Y field must come after a UILAYOUT_COMPONENT field");
+            assert(
+                load.kind == LOAD_KIND_LAYOUT &&
+                "UILAYOUT_ANCHOR_Y field must be within a layout item");
+            load._layout.entries[load._layout.entry_count - 1].anchor_y = atoi(field->value);
         }
         break;
         case RCFIELD_UILAYOUT_TOP:

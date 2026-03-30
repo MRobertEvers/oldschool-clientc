@@ -993,690 +993,693 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
         !renderer->platform || !renderer->platform->window )
         return;
 
-    @autoreleasepool {
-
-    id<MTLDevice> device = (__bridge id<MTLDevice>)renderer->mtl_device;
-    id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)renderer->mtl_command_queue;
-    id<MTLRenderPipelineState> pipeState =
-        (__bridge id<MTLRenderPipelineState>)renderer->mtl_pipeline_state;
-    id<MTLDepthStencilState> dsState =
-        (__bridge id<MTLDepthStencilState>)renderer->mtl_depth_stencil;
-    id<MTLBuffer> unifBuf = (__bridge id<MTLBuffer>)renderer->mtl_uniform_buffer;
-
-    CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_Metal_GetLayer(renderer->metal_view);
-    if( !layer )
-        return;
-
-    sync_drawable_size(renderer);
-
-    // Resize the depth texture if the drawable size changed
-    layer.drawableSize = CGSizeMake(renderer->width, renderer->height);
-
-    id<CAMetalDrawable> drawable = [layer nextDrawable];
-    if( !drawable )
-        return;
-
-    renderer->debug_model_draws = 0;
-    renderer->debug_triangles = 0;
-
-    // -----------------------------------------------------------------------
-    // Build render pass descriptor with depth attachment
-    // Depth texture is cached and only reallocated when drawable dimensions change.
-    // -----------------------------------------------------------------------
-    if( !renderer->mtl_depth_texture || renderer->depth_texture_width != renderer->width ||
-        renderer->depth_texture_height != renderer->height )
+    @autoreleasepool
     {
-        if( renderer->mtl_depth_texture )
-        {
-            CFRelease(renderer->mtl_depth_texture);
-            renderer->mtl_depth_texture = nullptr;
-        }
-        MTLTextureDescriptor* depthTexDesc =
-            [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float
-                                                               width:(NSUInteger)renderer->width
-                                                              height:(NSUInteger)renderer->height
-                                                           mipmapped:NO];
-        depthTexDesc.storageMode = MTLStorageModePrivate;
-        depthTexDesc.usage = MTLTextureUsageRenderTarget;
-        id<MTLTexture> newDepth = [device newTextureWithDescriptor:depthTexDesc];
-        renderer->mtl_depth_texture = (__bridge_retained void*)newDepth;
-        renderer->depth_texture_width = renderer->width;
-        renderer->depth_texture_height = renderer->height;
-    }
-    id<MTLTexture> depthTex = (__bridge id<MTLTexture>)renderer->mtl_depth_texture;
+        id<MTLDevice> device = (__bridge id<MTLDevice>)renderer->mtl_device;
+        id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)renderer->mtl_command_queue;
+        id<MTLRenderPipelineState> pipeState =
+            (__bridge id<MTLRenderPipelineState>)renderer->mtl_pipeline_state;
+        id<MTLDepthStencilState> dsState =
+            (__bridge id<MTLDepthStencilState>)renderer->mtl_depth_stencil;
+        id<MTLBuffer> unifBuf = (__bridge id<MTLBuffer>)renderer->mtl_uniform_buffer;
 
-    MTLRenderPassDescriptor* rpDesc = [MTLRenderPassDescriptor renderPassDescriptor];
-    rpDesc.colorAttachments[0].texture = drawable.texture;
-    rpDesc.colorAttachments[0].loadAction = MTLLoadActionClear;
-    rpDesc.colorAttachments[0].storeAction = MTLStoreActionStore;
-    rpDesc.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
-    rpDesc.depthAttachment.texture = depthTex;
-    rpDesc.depthAttachment.loadAction = MTLLoadActionClear;
-    rpDesc.depthAttachment.storeAction = MTLStoreActionDontCare;
-    rpDesc.depthAttachment.clearDepth = 1.0;
-
-    // -----------------------------------------------------------------------
-    // Compute viewport rects
-    // -----------------------------------------------------------------------
-    int win_width = renderer->platform->game_screen_width;
-    int win_height = renderer->platform->game_screen_height;
-    if( win_width <= 0 || win_height <= 0 )
-        SDL_GetWindowSize(renderer->platform->window, &win_width, &win_height);
-
-    const LogicalViewportRect logical_vp =
-        compute_logical_viewport_rect(win_width, win_height, game);
-    const MTLViewportRect gl_vp = compute_gl_world_viewport_rect(
-        renderer->width, renderer->height, win_width, win_height, logical_vp);
-
-    const float projection_width = (float)logical_vp.width;
-    const float projection_height = (float)logical_vp.height;
-
-    // Same as pix3dgl_begin_3dframe(..., 0,0,0, camera_pitch, camera_yaw, ...):
-    // game angles are OSRS units (2048 = 2*pi); camera position stays at origin.
-    MetalUniforms uniforms;
-    const float pitch_rad = ((float)game->camera_pitch * 2.0f * (float)M_PI) / 2048.0f;
-    const float yaw_rad = ((float)game->camera_yaw * 2.0f * (float)M_PI) / 2048.0f;
-    metal_compute_view_matrix(uniforms.modelViewMatrix, 0.0f, 0.0f, 0.0f, pitch_rad, yaw_rad);
-    metal_compute_projection_matrix(
-        uniforms.projectionMatrix,
-        (90.0f * (float)M_PI) / 180.0f,
-        projection_width,
-        projection_height);
-    metal_remap_projection_opengl_to_metal_z(uniforms.projectionMatrix);
-    uniforms.uClock = (float)(SDL_GetTicks64() / 20);
-    uniforms._pad_uniform[0] = 0.0f;
-    uniforms._pad_uniform[1] = 0.0f;
-    uniforms._pad_uniform[2] = 0.0f;
-    memcpy(unifBuf.contents, &uniforms, sizeof(uniforms));
-
-    // -----------------------------------------------------------------------
-    // Command buffer + render encoder
-    // -----------------------------------------------------------------------
-    id<MTLCommandBuffer> cmdBuf = [queue commandBuffer];
-    id<MTLRenderCommandEncoder> encoder = [cmdBuf renderCommandEncoderWithDescriptor:rpDesc];
-
-    [encoder setRenderPipelineState:pipeState];
-    [encoder setDepthStencilState:dsState];
-    // Metal viewport Y vs GL + column-major clip can invert winding; match painter order like z-off
-    // GL.
-    [encoder setCullMode:MTLCullModeNone];
-
-    // Metal viewport: top-left origin. gl_vp.y is OpenGL bottom-left Y.
-    const double metal_origin_y = (double)renderer->height - (double)gl_vp.y - (double)gl_vp.height;
-    MTLViewport metalVp = { .originX = (double)gl_vp.x,
-                            .originY = metal_origin_y,
-                            .width = (double)gl_vp.width,
-                            .height = (double)gl_vp.height,
-                            .znear = 0.0,
-                            .zfar = 1.0 };
-    [encoder setViewport:metalVp];
-
-    // -----------------------------------------------------------------------
-    // Drain the render command buffer inline (streaming, no pre-cache).
-    // FrameNextCommand projects each model (project_models=true); the resulting
-    // sys_dash state is consumed immediately by dash3d_prepare_projected_face_order
-    // so no second projection is needed.  Sprite draws require a different Metal
-    // pipeline state and must come after all model draws, so they are deferred.
-    // -----------------------------------------------------------------------
-    LibToriRS_FrameBegin(game, render_command_buffer);
-
-    static std::vector<ToriRSRenderCommand> sprite_cmds;
-    sprite_cmds.clear();
-
-    // Pass 1 + 2 + 3 collapsed into a single streaming loop.
-    static std::vector<MetalVertex> batch_verts;
-    batch_verts.clear();
-    int batch_tex_id = -0x7fffffff; // sentinel: force first flush path
-
-    id<MTLTexture> dummyTex = (__bridge id<MTLTexture>)renderer->mtl_dummy_texture;
-    id<MTLSamplerState> samp = (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
-
-    id<MTLBuffer> modelBuf = (__bridge id<MTLBuffer>)renderer->mtl_model_vertex_buf;
-    NSUInteger modelBufOffset = 0;
-
-    auto flush_batch = [&]() {
-        if( batch_verts.empty() )
+        CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_Metal_GetLayer(renderer->metal_view);
+        if( !layer )
             return;
-        id<MTLTexture> bindTex = dummyTex;
-        if( batch_tex_id >= 0 )
+
+        sync_drawable_size(renderer);
+
+        // Resize the depth texture if the drawable size changed
+        layer.drawableSize = CGSizeMake(renderer->width, renderer->height);
+
+        id<CAMetalDrawable> drawable = [layer nextDrawable];
+        if( !drawable )
+            return;
+
+        renderer->debug_model_draws = 0;
+        renderer->debug_triangles = 0;
+
+        // -----------------------------------------------------------------------
+        // Build render pass descriptor with depth attachment
+        // Depth texture is cached and only reallocated when drawable dimensions change.
+        // -----------------------------------------------------------------------
+        if( !renderer->mtl_depth_texture || renderer->depth_texture_width != renderer->width ||
+            renderer->depth_texture_height != renderer->height )
         {
-            auto it = renderer->texture_by_id.find(batch_tex_id);
-            if( it == renderer->texture_by_id.end() || !it->second )
+            if( renderer->mtl_depth_texture )
             {
-                batch_verts.clear();
-                return;
+                CFRelease(renderer->mtl_depth_texture);
+                renderer->mtl_depth_texture = nullptr;
             }
-            bindTex = (__bridge id<MTLTexture>)it->second;
+            MTLTextureDescriptor* depthTexDesc = [MTLTextureDescriptor
+                texture2DDescriptorWithPixelFormat:MTLPixelFormatDepth32Float
+                                             width:(NSUInteger)renderer->width
+                                            height:(NSUInteger)renderer->height
+                                         mipmapped:NO];
+            depthTexDesc.storageMode = MTLStorageModePrivate;
+            depthTexDesc.usage = MTLTextureUsageRenderTarget;
+            id<MTLTexture> newDepth = [device newTextureWithDescriptor:depthTexDesc];
+            renderer->mtl_depth_texture = (__bridge_retained void*)newDepth;
+            renderer->depth_texture_width = renderer->width;
+            renderer->depth_texture_height = renderer->height;
         }
-        NSUInteger batchBytes = (NSUInteger)(batch_verts.size() * sizeof(MetalVertex));
+        id<MTLTexture> depthTex = (__bridge id<MTLTexture>)renderer->mtl_depth_texture;
 
-        // Grow the reusable buffer if the accumulated frame data won't fit.
-        if( modelBufOffset + batchBytes > renderer->mtl_model_vertex_buf_size )
-        {
-            size_t needed = (size_t)(modelBufOffset + batchBytes);
-            size_t newSize = renderer->mtl_model_vertex_buf_size;
-            while( newSize < needed )
-                newSize *= 2;
-            if( renderer->mtl_model_vertex_buf )
-                CFRelease(renderer->mtl_model_vertex_buf);
-            id<MTLBuffer> grown = [device newBufferWithLength:(NSUInteger)newSize
-                                                      options:MTLResourceStorageModeShared];
-            renderer->mtl_model_vertex_buf = (__bridge_retained void*)grown;
-            renderer->mtl_model_vertex_buf_size = newSize;
-            modelBuf = grown;
-        }
+        MTLRenderPassDescriptor* rpDesc = [MTLRenderPassDescriptor renderPassDescriptor];
+        rpDesc.colorAttachments[0].texture = drawable.texture;
+        rpDesc.colorAttachments[0].loadAction = MTLLoadActionClear;
+        rpDesc.colorAttachments[0].storeAction = MTLStoreActionStore;
+        rpDesc.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
+        rpDesc.depthAttachment.texture = depthTex;
+        rpDesc.depthAttachment.loadAction = MTLLoadActionClear;
+        rpDesc.depthAttachment.storeAction = MTLStoreActionDontCare;
+        rpDesc.depthAttachment.clearDepth = 1.0;
 
-        memcpy((char*)modelBuf.contents + modelBufOffset, batch_verts.data(), batchBytes);
+        // -----------------------------------------------------------------------
+        // Compute viewport rects
+        // -----------------------------------------------------------------------
+        int win_width = renderer->platform->game_screen_width;
+        int win_height = renderer->platform->game_screen_height;
+        if( win_width <= 0 || win_height <= 0 )
+            SDL_GetWindowSize(renderer->platform->window, &win_width, &win_height);
 
-        [encoder setFragmentTexture:bindTex atIndex:0];
-        [encoder setFragmentSamplerState:samp atIndex:0];
-        [encoder setVertexBuffer:modelBuf offset:modelBufOffset atIndex:0];
-        [encoder setVertexBuffer:unifBuf offset:0 atIndex:1];
-        [encoder setFragmentBuffer:unifBuf offset:0 atIndex:1];
-        [encoder drawPrimitives:MTLPrimitiveTypeTriangle
-                    vertexStart:0
-                    vertexCount:(NSUInteger)batch_verts.size()];
-        modelBufOffset += batchBytes;
-        renderer->debug_triangles += (unsigned int)(batch_verts.size() / 3);
+        const LogicalViewportRect logical_vp =
+            compute_logical_viewport_rect(win_width, win_height, game);
+        const MTLViewportRect gl_vp = compute_gl_world_viewport_rect(
+            renderer->width, renderer->height, win_width, win_height, logical_vp);
+
+        const float projection_width = (float)logical_vp.width;
+        const float projection_height = (float)logical_vp.height;
+
+        // Same as pix3dgl_begin_3dframe(..., 0,0,0, camera_pitch, camera_yaw, ...):
+        // game angles are OSRS units (2048 = 2*pi); camera position stays at origin.
+        MetalUniforms uniforms;
+        const float pitch_rad = ((float)game->camera_pitch * 2.0f * (float)M_PI) / 2048.0f;
+        const float yaw_rad = ((float)game->camera_yaw * 2.0f * (float)M_PI) / 2048.0f;
+        metal_compute_view_matrix(uniforms.modelViewMatrix, 0.0f, 0.0f, 0.0f, pitch_rad, yaw_rad);
+        metal_compute_projection_matrix(
+            uniforms.projectionMatrix,
+            (90.0f * (float)M_PI) / 180.0f,
+            projection_width,
+            projection_height);
+        metal_remap_projection_opengl_to_metal_z(uniforms.projectionMatrix);
+        uniforms.uClock = (float)(SDL_GetTicks64() / 20);
+        uniforms._pad_uniform[0] = 0.0f;
+        uniforms._pad_uniform[1] = 0.0f;
+        uniforms._pad_uniform[2] = 0.0f;
+        memcpy(unifBuf.contents, &uniforms, sizeof(uniforms));
+
+        // -----------------------------------------------------------------------
+        // Command buffer + render encoder
+        // -----------------------------------------------------------------------
+        id<MTLCommandBuffer> cmdBuf = [queue commandBuffer];
+        id<MTLRenderCommandEncoder> encoder = [cmdBuf renderCommandEncoderWithDescriptor:rpDesc];
+
+        [encoder setRenderPipelineState:pipeState];
+        [encoder setDepthStencilState:dsState];
+        // Metal viewport Y vs GL + column-major clip can invert winding; match painter order like
+        // z-off GL.
+        [encoder setCullMode:MTLCullModeNone];
+
+        // Metal viewport: top-left origin. gl_vp.y is OpenGL bottom-left Y.
+        const double metal_origin_y =
+            (double)renderer->height - (double)gl_vp.y - (double)gl_vp.height;
+        MTLViewport metalVp = { .originX = (double)gl_vp.x,
+                                .originY = metal_origin_y,
+                                .width = (double)gl_vp.width,
+                                .height = (double)gl_vp.height,
+                                .znear = 0.0,
+                                .zfar = 1.0 };
+        [encoder setViewport:metalVp];
+
+        // -----------------------------------------------------------------------
+        // Drain the render command buffer inline (streaming, no pre-cache).
+        // FrameNextCommand projects each model (project_models=true); the resulting
+        // sys_dash state is consumed immediately by dash3d_prepare_projected_face_order
+        // so no second projection is needed.  Sprite draws require a different Metal
+        // pipeline state and must come after all model draws, so they are deferred.
+        // -----------------------------------------------------------------------
+        LibToriRS_FrameBegin(game, render_command_buffer);
+
+        static std::vector<ToriRSRenderCommand> sprite_cmds;
+        sprite_cmds.clear();
+
+        // Pass 1 + 2 + 3 collapsed into a single streaming loop.
+        static std::vector<MetalVertex> batch_verts;
         batch_verts.clear();
-    };
+        int batch_tex_id = -0x7fffffff; // sentinel: force first flush path
 
-    {
-        struct ToriRSRenderCommand cmd = { 0 };
-        while( LibToriRS_FrameNextCommand(game, render_command_buffer, &cmd, true) )
+        id<MTLTexture> dummyTex = (__bridge id<MTLTexture>)renderer->mtl_dummy_texture;
+        id<MTLSamplerState> samp = (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
+
+        id<MTLBuffer> modelBuf = (__bridge id<MTLBuffer>)renderer->mtl_model_vertex_buf;
+        NSUInteger modelBufOffset = 0;
+
+        auto flush_batch = [&]() {
+            if( batch_verts.empty() )
+                return;
+            id<MTLTexture> bindTex = dummyTex;
+            if( batch_tex_id >= 0 )
+            {
+                auto it = renderer->texture_by_id.find(batch_tex_id);
+                if( it == renderer->texture_by_id.end() || !it->second )
+                {
+                    batch_verts.clear();
+                    return;
+                }
+                bindTex = (__bridge id<MTLTexture>)it->second;
+            }
+            NSUInteger batchBytes = (NSUInteger)(batch_verts.size() * sizeof(MetalVertex));
+
+            // Grow the reusable buffer if the accumulated frame data won't fit.
+            if( modelBufOffset + batchBytes > renderer->mtl_model_vertex_buf_size )
+            {
+                size_t needed = (size_t)(modelBufOffset + batchBytes);
+                size_t newSize = renderer->mtl_model_vertex_buf_size;
+                while( newSize < needed )
+                    newSize *= 2;
+                if( renderer->mtl_model_vertex_buf )
+                    CFRelease(renderer->mtl_model_vertex_buf);
+                id<MTLBuffer> grown = [device newBufferWithLength:(NSUInteger)newSize
+                                                          options:MTLResourceStorageModeShared];
+                renderer->mtl_model_vertex_buf = (__bridge_retained void*)grown;
+                renderer->mtl_model_vertex_buf_size = newSize;
+                modelBuf = grown;
+            }
+
+            memcpy((char*)modelBuf.contents + modelBufOffset, batch_verts.data(), batchBytes);
+
+            [encoder setFragmentTexture:bindTex atIndex:0];
+            [encoder setFragmentSamplerState:samp atIndex:0];
+            [encoder setVertexBuffer:modelBuf offset:modelBufOffset atIndex:0];
+            [encoder setVertexBuffer:unifBuf offset:0 atIndex:1];
+            [encoder setFragmentBuffer:unifBuf offset:0 atIndex:1];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                        vertexStart:0
+                        vertexCount:(NSUInteger)batch_verts.size()];
+            modelBufOffset += batchBytes;
+            renderer->debug_triangles += (unsigned int)(batch_verts.size() / 3);
+            batch_verts.clear();
+        };
+
         {
-            switch( cmd.kind )
+            struct ToriRSRenderCommand cmd = { 0 };
+            while( LibToriRS_FrameNextCommand(game, render_command_buffer, &cmd, true) )
             {
-            case TORIRS_GFX_TEXTURE_LOAD:
-            {
-                const int tex_id = cmd._texture_load.texture_id;
-                struct DashTexture* tex = cmd._texture_load.texture_nullable;
-                if( !tex || !tex->texels )
-                    break;
-
-                if( renderer->texture_by_id.count(tex_id) && renderer->texture_by_id[tex_id] )
-                    CFRelease(renderer->texture_by_id[tex_id]);
-
-                renderer->texture_anim_speed_by_id[tex_id] =
-                    metal_texture_animation_signed(tex->animation_direction, tex->animation_speed);
-                renderer->texture_opaque_by_id[tex_id] = tex->opaque;
-
-                const int w = tex->width;
-                const int h = tex->height;
-                std::vector<uint8_t> rgba((size_t)w * (size_t)h * 4u);
-                for( int p = 0; p < w * h; ++p )
+                switch( cmd.kind )
                 {
-                    int pix = tex->texels[p];
-                    rgba[(size_t)p * 4u + 0] = (uint8_t)((pix >> 16) & 0xFF);
-                    rgba[(size_t)p * 4u + 1] = (uint8_t)((pix >> 8) & 0xFF);
-                    rgba[(size_t)p * 4u + 2] = (uint8_t)(pix & 0xFF);
-                    rgba[(size_t)p * 4u + 3] = (uint8_t)((pix >> 24) & 0xFF);
-                }
-
-                MTLTextureDescriptor* texDesc = [MTLTextureDescriptor
-                    texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
-                                                 width:(NSUInteger)w
-                                                height:(NSUInteger)h
-                                             mipmapped:NO];
-                texDesc.usage = MTLTextureUsageShaderRead;
-                texDesc.storageMode = MTLStorageModeShared;
-                id<MTLTexture> mtlTex = [device newTextureWithDescriptor:texDesc];
-                [mtlTex replaceRegion:MTLRegionMake2D(0, 0, w, h)
-                          mipmapLevel:0
-                            withBytes:rgba.data()
-                          bytesPerRow:(NSUInteger)w * 4];
-                renderer->texture_by_id[tex_id] = (__bridge_retained void*)mtlTex;
-                break;
-            }
-
-            case TORIRS_GFX_MODEL_LOAD:
-            {
-                struct DashModel* model = cmd._model_load.model;
-                if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
-                    !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
-                    !model->face_indices_c || model->face_count <= 0 )
-                    break;
-                preload_model_key(renderer, model);
-                break;
-            }
-
-            case TORIRS_GFX_MODEL_DRAW:
-            {
-                struct DashModel* model = cmd._model_draw.model;
-                if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
-                    !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
-                    !model->face_indices_c || model->face_count <= 0 )
-                    break;
-
-                preload_model_key(renderer, model);
-
-                /* FrameNextCommand already projected this model (project_models=true).
-                 * The sys_dash projection state is still valid — use it directly. */
-                struct DashPosition draw_position = cmd._model_draw.position;
-                int face_order_count = dash3d_prepare_projected_face_order(
-                    game->sys_dash, model, &draw_position, game->view_port, game->camera);
-                const int* face_order =
-                    dash3d_projected_face_order(game->sys_dash, &face_order_count);
-
-                const float yaw_rad = (draw_position.yaw * 2.0f * (float)M_PI) / 2048.0f;
-                const float cos_yaw = cosf(yaw_rad);
-                const float sin_yaw = sinf(yaw_rad);
-
-                renderer->debug_model_draws++;
-                for( int fi = 0; fi < face_order_count; ++fi )
+                case TORIRS_GFX_TEXTURE_LOAD:
                 {
-                    const int f = face_order ? face_order[fi] : fi;
-                    if( f < 0 || f >= model->face_count )
-                        continue;
+                    const int tex_id = cmd._texture_load.texture_id;
+                    struct DashTexture* tex = cmd._texture_load.texture_nullable;
+                    if( !tex || !tex->texels )
+                        break;
 
-                    int raw_tex = model->face_textures ? model->face_textures[f] : -1;
-                    int eff_tex = raw_tex;
-                    if( eff_tex >= 0 &&
-                        renderer->texture_by_id.find(eff_tex) == renderer->texture_by_id.end() )
-                        eff_tex = -1;
+                    if( renderer->texture_by_id.count(tex_id) && renderer->texture_by_id[tex_id] )
+                        CFRelease(renderer->texture_by_id[tex_id]);
 
-                    float anim_spd = 0.0f;
-                    bool tex_opaque = true;
-                    if( eff_tex >= 0 )
+                    renderer->texture_anim_speed_by_id[tex_id] = metal_texture_animation_signed(
+                        tex->animation_direction, tex->animation_speed);
+                    renderer->texture_opaque_by_id[tex_id] = tex->opaque;
+
+                    const int w = tex->width;
+                    const int h = tex->height;
+                    std::vector<uint8_t> rgba((size_t)w * (size_t)h * 4u);
+                    for( int p = 0; p < w * h; ++p )
                     {
-                        auto as_it = renderer->texture_anim_speed_by_id.find(eff_tex);
-                        if( as_it != renderer->texture_anim_speed_by_id.end() )
-                            anim_spd = as_it->second;
-                        auto op_it = renderer->texture_opaque_by_id.find(eff_tex);
-                        if( op_it != renderer->texture_opaque_by_id.end() )
-                            tex_opaque = op_it->second;
+                        int pix = tex->texels[p];
+                        rgba[(size_t)p * 4u + 0] = (uint8_t)((pix >> 16) & 0xFF);
+                        rgba[(size_t)p * 4u + 1] = (uint8_t)((pix >> 8) & 0xFF);
+                        rgba[(size_t)p * 4u + 2] = (uint8_t)(pix & 0xFF);
+                        rgba[(size_t)p * 4u + 3] = (uint8_t)((pix >> 24) & 0xFF);
                     }
 
-                    const int batch_key = eff_tex;
-                    if( !batch_verts.empty() && batch_key != batch_tex_id )
-                        flush_batch();
-                    batch_tex_id = batch_key;
-
-                    const size_t before = batch_verts.size();
-                    append_model_face_vertices(
-                        model,
-                        f,
-                        (float)draw_position.x,
-                        (float)draw_position.y,
-                        (float)draw_position.z,
-                        cos_yaw,
-                        sin_yaw,
-                        eff_tex,
-                        anim_spd,
-                        tex_opaque,
-                        batch_verts);
-                    if( batch_verts.size() == before )
-                        continue;
-                }
-                break;
-            }
-
-            case TORIRS_GFX_SPRITE_LOAD:
-            {
-                struct DashSprite* sp = cmd._sprite_load.sprite;
-                if( !sp || !sp->pixels_argb || sp->width <= 0 || sp->height <= 0 )
+                    MTLTextureDescriptor* texDesc = [MTLTextureDescriptor
+                        texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                     width:(NSUInteger)w
+                                                    height:(NSUInteger)h
+                                                 mipmapped:NO];
+                    texDesc.usage = MTLTextureUsageShaderRead;
+                    texDesc.storageMode = MTLStorageModeShared;
+                    id<MTLTexture> mtlTex = [device newTextureWithDescriptor:texDesc];
+                    [mtlTex replaceRegion:MTLRegionMake2D(0, 0, w, h)
+                              mipmapLevel:0
+                                withBytes:rgba.data()
+                              bytesPerRow:(NSUInteger)w * 4];
+                    renderer->texture_by_id[tex_id] = (__bridge_retained void*)mtlTex;
                     break;
+                }
 
-                // Release any stale cached texture for this pointer
+                case TORIRS_GFX_MODEL_LOAD:
                 {
-                    auto it = renderer->sprite_texture_by_ptr.find(sp);
-                    if( it != renderer->sprite_texture_by_ptr.end() && it->second )
+                    struct DashModel* model = cmd._model_load.model;
+                    if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
+                        !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
+                        !model->face_indices_c || model->face_count <= 0 )
+                        break;
+                    preload_model_key(renderer, model);
+                    break;
+                }
+
+                case TORIRS_GFX_MODEL_DRAW:
+                {
+                    struct DashModel* model = cmd._model_draw.model;
+                    if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
+                        !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
+                        !model->face_indices_c || model->face_count <= 0 )
+                        break;
+
+                    preload_model_key(renderer, model);
+
+                    /* FrameNextCommand already projected this model (project_models=true).
+                     * The sys_dash projection state is still valid — use it directly. */
+                    struct DashPosition draw_position = cmd._model_draw.position;
+                    int face_order_count = dash3d_prepare_projected_face_order(
+                        game->sys_dash, model, &draw_position, game->view_port, game->camera);
+                    const int* face_order =
+                        dash3d_projected_face_order(game->sys_dash, &face_order_count);
+
+                    const float yaw_rad = (draw_position.yaw * 2.0f * (float)M_PI) / 2048.0f;
+                    const float cos_yaw = cosf(yaw_rad);
+                    const float sin_yaw = sinf(yaw_rad);
+
+                    renderer->debug_model_draws++;
+                    for( int fi = 0; fi < face_order_count; ++fi )
                     {
-                        CFRelease(it->second);
-                        renderer->sprite_texture_by_ptr.erase(it);
+                        const int f = face_order ? face_order[fi] : fi;
+                        if( f < 0 || f >= model->face_count )
+                            continue;
+
+                        int raw_tex = model->face_textures ? model->face_textures[f] : -1;
+                        int eff_tex = raw_tex;
+                        if( eff_tex >= 0 &&
+                            renderer->texture_by_id.find(eff_tex) == renderer->texture_by_id.end() )
+                            eff_tex = -1;
+
+                        float anim_spd = 0.0f;
+                        bool tex_opaque = true;
+                        if( eff_tex >= 0 )
+                        {
+                            auto as_it = renderer->texture_anim_speed_by_id.find(eff_tex);
+                            if( as_it != renderer->texture_anim_speed_by_id.end() )
+                                anim_spd = as_it->second;
+                            auto op_it = renderer->texture_opaque_by_id.find(eff_tex);
+                            if( op_it != renderer->texture_opaque_by_id.end() )
+                                tex_opaque = op_it->second;
+                        }
+
+                        const int batch_key = eff_tex;
+                        if( !batch_verts.empty() && batch_key != batch_tex_id )
+                            flush_batch();
+                        batch_tex_id = batch_key;
+
+                        const size_t before = batch_verts.size();
+                        append_model_face_vertices(
+                            model,
+                            f,
+                            (float)draw_position.x,
+                            (float)draw_position.y,
+                            (float)draw_position.z,
+                            cos_yaw,
+                            sin_yaw,
+                            eff_tex,
+                            anim_spd,
+                            tex_opaque,
+                            batch_verts);
+                        if( batch_verts.size() == before )
+                            continue;
                     }
+                    break;
                 }
 
-                const int sw = sp->width;
-                const int sh = sp->height;
-                // Pixel data is 0x00RRGGBB; pixel == 0 is the transparent color key.
-                std::vector<uint8_t> rgba((size_t)sw * (size_t)sh * 4u);
-                for( int p = 0; p < sw * sh; ++p )
+                case TORIRS_GFX_SPRITE_LOAD:
                 {
-                    uint32_t pix = sp->pixels_argb[p];
-                    rgba[(size_t)p * 4u + 0u] = (uint8_t)((pix >> 16) & 0xFFu);
-                    rgba[(size_t)p * 4u + 1u] = (uint8_t)((pix >> 8) & 0xFFu);
-                    rgba[(size_t)p * 4u + 2u] = (uint8_t)(pix & 0xFFu);
-                    rgba[(size_t)p * 4u + 3u] = (pix != 0u) ? 0xFFu : 0x00u;
-                }
-                MTLTextureDescriptor* td = [MTLTextureDescriptor
-                    texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
-                                                 width:(NSUInteger)sw
-                                                height:(NSUInteger)sh
-                                             mipmapped:NO];
-                td.usage = MTLTextureUsageShaderRead;
-                td.storageMode = MTLStorageModeShared;
-                id<MTLTexture> spTex = [device newTextureWithDescriptor:td];
-                [spTex replaceRegion:MTLRegionMake2D(0, 0, sw, sh)
-                         mipmapLevel:0
-                           withBytes:rgba.data()
-                         bytesPerRow:(NSUInteger)sw * 4u];
-                renderer->sprite_texture_by_ptr[sp] = (__bridge_retained void*)spTex;
-                break;
-            }
+                    struct DashSprite* sp = cmd._sprite_load.sprite;
+                    if( !sp || !sp->pixels_argb || sp->width <= 0 || sp->height <= 0 )
+                        break;
 
-            case TORIRS_GFX_SPRITE_UNLOAD:
-            {
-                struct DashSprite* sp = cmd._sprite_load.sprite;
-                auto it = renderer->sprite_texture_by_ptr.find(sp);
-                if( it != renderer->sprite_texture_by_ptr.end() )
-                {
-                    if( it->second )
-                        CFRelease(it->second);
-                    renderer->sprite_texture_by_ptr.erase(it);
-                }
-                break;
-            }
+                    // Release any stale cached texture for this pointer
+                    {
+                        auto it = renderer->sprite_texture_by_ptr.find(sp);
+                        if( it != renderer->sprite_texture_by_ptr.end() && it->second )
+                        {
+                            CFRelease(it->second);
+                            renderer->sprite_texture_by_ptr.erase(it);
+                        }
+                    }
 
-            case TORIRS_GFX_SPRITE_DRAW:
-                sprite_cmds.push_back(cmd);
-                break;
-
-            case TORIRS_GFX_FONT_LOAD:
-            {
-                struct DashPixFont* font = cmd._font_load.font;
-                if( font && font->atlas &&
-                    renderer->font_atlas_textures.find(font) ==
-                        renderer->font_atlas_textures.end() )
-                {
-                    struct DashFontAtlas* atlas = font->atlas;
+                    const int sw = sp->width;
+                    const int sh = sp->height;
+                    // Pixel data is 0x00RRGGBB; pixel == 0 is the transparent color key.
+                    std::vector<uint8_t> rgba((size_t)sw * (size_t)sh * 4u);
+                    for( int p = 0; p < sw * sh; ++p )
+                    {
+                        uint32_t pix = sp->pixels_argb[p];
+                        rgba[(size_t)p * 4u + 0u] = (uint8_t)((pix >> 16) & 0xFFu);
+                        rgba[(size_t)p * 4u + 1u] = (uint8_t)((pix >> 8) & 0xFFu);
+                        rgba[(size_t)p * 4u + 2u] = (uint8_t)(pix & 0xFFu);
+                        rgba[(size_t)p * 4u + 3u] = (pix != 0u) ? 0xFFu : 0x00u;
+                    }
                     MTLTextureDescriptor* td = [MTLTextureDescriptor
                         texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
-                                                     width:(NSUInteger)atlas->atlas_width
-                                                    height:(NSUInteger)atlas->atlas_height
+                                                     width:(NSUInteger)sw
+                                                    height:(NSUInteger)sh
                                                  mipmapped:NO];
                     td.usage = MTLTextureUsageShaderRead;
                     td.storageMode = MTLStorageModeShared;
-                    id<MTLTexture> atlasTex = [device newTextureWithDescriptor:td];
-                    [atlasTex
-                        replaceRegion:MTLRegionMake2D(
-                                          0, 0, (NSUInteger)atlas->atlas_width,
-                                          (NSUInteger)atlas->atlas_height)
-                          mipmapLevel:0
-                            withBytes:atlas->rgba_pixels
-                          bytesPerRow:(NSUInteger)atlas->atlas_width * 4u];
-                    renderer->font_atlas_textures[font] = (__bridge_retained void*)atlasTex;
+                    id<MTLTexture> spTex = [device newTextureWithDescriptor:td];
+                    [spTex replaceRegion:MTLRegionMake2D(0, 0, sw, sh)
+                             mipmapLevel:0
+                               withBytes:rgba.data()
+                             bytesPerRow:(NSUInteger)sw * 4u];
+                    renderer->sprite_texture_by_ptr[sp] = (__bridge_retained void*)spTex;
+                    break;
                 }
-                break;
-            }
 
-            case TORIRS_GFX_FONT_DRAW:
-                sprite_cmds.push_back(cmd);
-                break;
+                case TORIRS_GFX_SPRITE_UNLOAD:
+                {
+                    struct DashSprite* sp = cmd._sprite_load.sprite;
+                    auto it = renderer->sprite_texture_by_ptr.find(sp);
+                    if( it != renderer->sprite_texture_by_ptr.end() )
+                    {
+                        if( it->second )
+                            CFRelease(it->second);
+                        renderer->sprite_texture_by_ptr.erase(it);
+                    }
+                    break;
+                }
 
-            default:
-                break;
+                case TORIRS_GFX_SPRITE_DRAW:
+                    sprite_cmds.push_back(cmd);
+                    break;
+
+                case TORIRS_GFX_FONT_LOAD:
+                {
+                    struct DashPixFont* font = cmd._font_load.font;
+                    if( font && font->atlas &&
+                        renderer->font_atlas_textures.find(font) ==
+                            renderer->font_atlas_textures.end() )
+                    {
+                        struct DashFontAtlas* atlas = font->atlas;
+                        MTLTextureDescriptor* td = [MTLTextureDescriptor
+                            texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                         width:(NSUInteger)atlas->atlas_width
+                                                        height:(NSUInteger)atlas->atlas_height
+                                                     mipmapped:NO];
+                        td.usage = MTLTextureUsageShaderRead;
+                        td.storageMode = MTLStorageModeShared;
+                        id<MTLTexture> atlasTex = [device newTextureWithDescriptor:td];
+                        [atlasTex replaceRegion:MTLRegionMake2D(
+                                                    0,
+                                                    0,
+                                                    (NSUInteger)atlas->atlas_width,
+                                                    (NSUInteger)atlas->atlas_height)
+                                    mipmapLevel:0
+                                      withBytes:atlas->rgba_pixels
+                                    bytesPerRow:(NSUInteger)atlas->atlas_width * 4u];
+                        renderer->font_atlas_textures[font] = (__bridge_retained void*)atlasTex;
+                    }
+                    break;
+                }
+
+                case TORIRS_GFX_FONT_DRAW:
+                    sprite_cmds.push_back(cmd);
+                    break;
+
+                default:
+                    break;
+                }
             }
         }
-    }
-    flush_batch();
+        flush_batch();
 
-    id<MTLRenderPipelineState> uiPipeState =
-        renderer->mtl_ui_sprite_pipeline
-            ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_ui_sprite_pipeline
-            : nil;
-    id<MTLSamplerState> uiSampler = (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
-    if( uiPipeState )
-    {
-        MTLViewport spriteVp = { .originX = 0.0,
-                                 .originY = 0.0,
-                                 .width = (double)renderer->width,
-                                 .height = (double)renderer->height,
-                                 .znear = 0.0,
-                                 .zfar = 1.0 };
-        [encoder setViewport:spriteVp];
-        [encoder setRenderPipelineState:uiPipeState];
-        [encoder setDepthStencilState:dsState];
-        [encoder setCullMode:MTLCullModeNone];
-
-        id<MTLBuffer> spriteQuadBuf = (__bridge id<MTLBuffer>)renderer->mtl_sprite_quad_buf;
-        // Each sprite occupies a unique slot so the GPU sees distinct data per draw call.
-        static const NSUInteger kSpriteSlotBytes = 6 * 4 * sizeof(float); // 96 bytes
-        NSUInteger spriteSlot = 0;
-
-        for( const auto& sc : sprite_cmds )
+        id<MTLRenderPipelineState> uiPipeState =
+            renderer->mtl_ui_sprite_pipeline
+                ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_ui_sprite_pipeline
+                : nil;
+        id<MTLSamplerState> uiSampler = (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
+        if( uiPipeState )
         {
-            if( sc.kind == TORIRS_GFX_SPRITE_DRAW )
+            MTLViewport spriteVp = { .originX = 0.0,
+                                     .originY = 0.0,
+                                     .width = (double)renderer->width,
+                                     .height = (double)renderer->height,
+                                     .znear = 0.0,
+                                     .zfar = 1.0 };
+            [encoder setViewport:spriteVp];
+            [encoder setRenderPipelineState:uiPipeState];
+            [encoder setDepthStencilState:dsState];
+            [encoder setCullMode:MTLCullModeNone];
+
+            id<MTLBuffer> spriteQuadBuf = (__bridge id<MTLBuffer>)renderer->mtl_sprite_quad_buf;
+            // Each sprite occupies a unique slot so the GPU sees distinct data per draw call.
+            static const NSUInteger kSpriteSlotBytes = 6 * 4 * sizeof(float); // 96 bytes
+            NSUInteger spriteSlot = 0;
+
+            for( const auto& sc : sprite_cmds )
             {
-            struct DashSprite* sp = sc._sprite_draw.sprite;
-            if( !sp || sp->width <= 0 || sp->height <= 0 )
-                continue;
+                if( sc.kind == TORIRS_GFX_SPRITE_DRAW )
+                {
+                    struct DashSprite* sp = sc._sprite_draw.sprite;
+                    if( !sp || sp->width <= 0 || sp->height <= 0 )
+                        continue;
 
-            // Look up the pre-uploaded texture — no allocation or pixel conversion.
-            auto texIt = renderer->sprite_texture_by_ptr.find(sp);
-            if( texIt == renderer->sprite_texture_by_ptr.end() || !texIt->second )
-                continue;
-            id<MTLTexture> spriteTex = (__bridge id<MTLTexture>)texIt->second;
+                    // Look up the pre-uploaded texture — no allocation or pixel conversion.
+                    auto texIt = renderer->sprite_texture_by_ptr.find(sp);
+                    if( texIt == renderer->sprite_texture_by_ptr.end() || !texIt->second )
+                        continue;
+                    id<MTLTexture> spriteTex = (__bridge id<MTLTexture>)texIt->second;
 
-            const int dst_x = sc._sprite_draw.x + sp->crop_x;
-            const int dst_y = sc._sprite_draw.y + sp->crop_y;
-            const int iw = sc._sprite_draw.src_w > 0 ? sc._sprite_draw.src_w : sp->width;
-            const int ih = sc._sprite_draw.src_h > 0 ? sc._sprite_draw.src_h : sp->height;
-            const int ix = sc._sprite_draw.src_x;
-            const int iy = sc._sprite_draw.src_y;
-            if( ix < 0 || iy < 0 || ix + iw > sp->width || iy + ih > sp->height )
-                continue;
-            const float tw = (float)sp->width;
-            const float th = (float)sp->height;
-            const float w = (float)iw;
-            const float h = (float)ih;
-            const float x0 = (float)dst_x;
-            const float y0 = (float)dst_y;
-            const float x1 = x0 + w;
-            const float y1 = y0 + h;
-            const float cx = 0.5f * (x0 + x1);
-            const float cy = 0.5f * (y0 + y1);
-            const float angle = (float)(sc._sprite_draw.rotation_r2pi2048 * (2.0 * M_PI) / 2048.0);
-            const float ca = cosf(angle);
-            const float sa = sinf(angle);
-            const float hw = 0.5f * w;
-            const float hh = 0.5f * h;
+                    const int dst_x = sc._sprite_draw.dst_bb_x + sp->crop_x;
+                    const int dst_y = sc._sprite_draw.dst_bb_y + sp->crop_y;
+                    const int iw =
+                        sc._sprite_draw.src_bb_w > 0 ? sc._sprite_draw.src_bb_w : sp->width;
+                    const int ih =
+                        sc._sprite_draw.src_bb_h > 0 ? sc._sprite_draw.src_bb_h : sp->height;
+                    const int ix = sc._sprite_draw.src_bb_x;
+                    const int iy = sc._sprite_draw.src_bb_y;
+                    if( ix < 0 || iy < 0 || ix + iw > sp->width || iy + ih > sp->height )
+                        continue;
+                    const float tw = (float)sp->width;
+                    const float th = (float)sp->height;
+                    const float w = (float)iw;
+                    const float h = (float)ih;
+                    const float x0 = (float)dst_x;
+                    const float y0 = (float)dst_y;
+                    const float x1 = x0 + w;
+                    const float y1 = y0 + h;
+                    const float cx = 0.5f * (x0 + x1);
+                    const float cy = 0.5f * (y0 + y1);
+                    const float angle =
+                        (float)(sc._sprite_draw.rotation_r2pi2048 * (2.0 * M_PI) / 2048.0);
+                    const float ca = cosf(angle);
+                    const float sa = sinf(angle);
+                    const float hw = 0.5f * w;
+                    const float hh = 0.5f * h;
 
-            float px[4];
-            float py[4];
-            auto rot_local = [&](float lx, float ly, int k) {
-                px[k] = cx + ca * lx - sa * ly;
-                py[k] = cy + sa * lx + ca * ly;
-            };
-            rot_local(-hw, -hh, 0);
-            rot_local(hw, -hh, 1);
-            rot_local(hw, hh, 2);
-            rot_local(-hw, hh, 3);
+                    float px[4];
+                    float py[4];
+                    auto rot_local = [&](float lx, float ly, int k) {
+                        px[k] = cx + ca * lx - sa * ly;
+                        py[k] = cy + sa * lx + ca * ly;
+                    };
+                    rot_local(-hw, -hh, 0);
+                    rot_local(hw, -hh, 1);
+                    rot_local(hw, hh, 2);
+                    rot_local(-hw, hh, 3);
+
+                    const float fbw = (float)(win_width > 0 ? win_width : renderer->width);
+                    const float fbh = (float)(win_height > 0 ? win_height : renderer->height);
+                    auto to_clip = [&](float xp, float yp, float* ocx, float* ocy) {
+                        *ocx = 2.0f * xp / fbw - 1.0f;
+                        *ocy = 1.0f - 2.0f * yp / fbh;
+                    };
+
+                    float c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y;
+                    to_clip(px[0], py[0], &c0x, &c0y);
+                    to_clip(px[1], py[1], &c1x, &c1y);
+                    to_clip(px[2], py[2], &c2x, &c2y);
+                    to_clip(px[3], py[3], &c3x, &c3y);
+
+                    const float u0 = (float)ix / tw;
+                    const float v0 = (float)iy / th;
+                    const float u1 = (float)(ix + iw) / tw;
+                    const float v1 = (float)(iy + ih) / th;
+
+                    float verts[6 * 4] = {
+                        c0x, c0y, u0, v0, c1x, c1y, u1, v0, c2x, c2y, u1, v1,
+                        c0x, c0y, u0, v0, c2x, c2y, u1, v1, c3x, c3y, u0, v1,
+                    };
+
+                    NSUInteger slotOffset = spriteSlot * kSpriteSlotBytes;
+                    memcpy((char*)spriteQuadBuf.contents + slotOffset, verts, sizeof(verts));
+                    [encoder setVertexBuffer:spriteQuadBuf offset:slotOffset atIndex:0];
+                    [encoder setFragmentTexture:spriteTex atIndex:0];
+                    [encoder setFragmentSamplerState:uiSampler atIndex:0];
+                    [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+                    ++spriteSlot;
+                }
+            }
+        }
+
+        /* Font draws: emit per-glyph quads from atlas textures using the font pipeline. */
+        id<MTLRenderPipelineState> fontPipeState =
+            renderer->mtl_font_pipeline
+                ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_font_pipeline
+                : nil;
+        if( fontPipeState && renderer->mtl_font_vbo )
+        {
+            id<MTLBuffer> fontVbo = (__bridge id<MTLBuffer>)renderer->mtl_font_vbo;
+            id<MTLSamplerState> fontSampler =
+                (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
+
+            [encoder setRenderPipelineState:fontPipeState];
+            [encoder setDepthStencilState:dsState];
+            [encoder setCullMode:MTLCullModeNone];
+            MTLViewport fontVp = { .originX = 0.0,
+                                   .originY = 0.0,
+                                   .width = (double)renderer->width,
+                                   .height = (double)renderer->height,
+                                   .znear = 0.0,
+                                   .zfar = 1.0 };
+            [encoder setViewport:fontVp];
+
+            static std::vector<float> font_verts;
+            font_verts.clear();
+
+            struct DashPixFont* current_font_ptr = NULL;
+            id<MTLTexture> current_atlas_tex = nil;
 
             const float fbw = (float)(win_width > 0 ? win_width : renderer->width);
             const float fbh = (float)(win_height > 0 ? win_height : renderer->height);
-            auto to_clip = [&](float xp, float yp, float* ocx, float* ocy) {
-                *ocx = 2.0f * xp / fbw - 1.0f;
-                *ocy = 1.0f - 2.0f * yp / fbh;
+
+            auto flush_font_batch = [&]() {
+                if( font_verts.empty() || !current_atlas_tex )
+                    return;
+                int vert_count = (int)(font_verts.size() / 8);
+                NSUInteger byte_count = font_verts.size() * sizeof(float);
+                if( byte_count > fontVbo.length )
+                    return;
+                memcpy(fontVbo.contents, font_verts.data(), byte_count);
+                [encoder setVertexBuffer:fontVbo offset:0 atIndex:0];
+                [encoder setFragmentTexture:current_atlas_tex atIndex:0];
+                [encoder setFragmentSamplerState:fontSampler atIndex:0];
+                [encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                            vertexStart:0
+                            vertexCount:(NSUInteger)vert_count];
+                font_verts.clear();
             };
 
-            float c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y;
-            to_clip(px[0], py[0], &c0x, &c0y);
-            to_clip(px[1], py[1], &c1x, &c1y);
-            to_clip(px[2], py[2], &c2x, &c2y);
-            to_clip(px[3], py[3], &c3x, &c3y);
+            for( const auto& sc : sprite_cmds )
+            {
+                if( sc.kind != TORIRS_GFX_FONT_DRAW )
+                    continue;
+                struct DashPixFont* f = sc._font_draw.font;
+                if( !f || !f->atlas || !sc._font_draw.text || f->height2d <= 0 )
+                    continue;
 
-            const float u0 = (float)ix / tw;
-            const float v0 = (float)iy / th;
-            const float u1 = (float)(ix + iw) / tw;
-            const float v1 = (float)(iy + ih) / th;
+                auto texIt = renderer->font_atlas_textures.find(f);
+                if( texIt == renderer->font_atlas_textures.end() || !texIt->second )
+                    continue;
 
-            float verts[6 * 4] = {
-                c0x, c0y, u0, v0, c1x, c1y, u1, v0, c2x, c2y, u1, v1,
-                c0x, c0y, u0, v0, c2x, c2y, u1, v1, c3x, c3y, u0, v1,
-            };
+                if( current_font_ptr != f )
+                {
+                    flush_font_batch();
+                    current_font_ptr = f;
+                    current_atlas_tex = (__bridge id<MTLTexture>)texIt->second;
+                }
 
-            NSUInteger slotOffset = spriteSlot * kSpriteSlotBytes;
-            memcpy((char*)spriteQuadBuf.contents + slotOffset, verts, sizeof(verts));
-            [encoder setVertexBuffer:spriteQuadBuf offset:slotOffset atIndex:0];
-            [encoder setFragmentTexture:spriteTex atIndex:0];
-            [encoder setFragmentSamplerState:uiSampler atIndex:0];
-            [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
-            ++spriteSlot;
+                struct DashFontAtlas* atlas = f->atlas;
+                const float inv_aw = 1.0f / (float)atlas->atlas_width;
+                const float inv_ah = 1.0f / (float)atlas->atlas_height;
+
+                const uint8_t* text = sc._font_draw.text;
+                int length = (int)strlen((const char*)text);
+                int color_rgb = sc._font_draw.color_rgb;
+                float cr = (float)((color_rgb >> 16) & 0xFF) / 255.0f;
+                float cg = (float)((color_rgb >> 8) & 0xFF) / 255.0f;
+                float cb = (float)(color_rgb & 0xFF) / 255.0f;
+                float ca = 1.0f;
+                int pen_x = sc._font_draw.x;
+                int base_y = sc._font_draw.y;
+
+                for( int i = 0; i < length; i++ )
+                {
+                    if( text[i] == '@' && i + 5 <= length && text[i + 4] == '@' )
+                    {
+                        int new_color = dashfont_evaluate_color_tag((const char*)&text[i + 1]);
+                        if( new_color >= 0 )
+                        {
+                            color_rgb = new_color;
+                            cr = (float)((color_rgb >> 16) & 0xFF) / 255.0f;
+                            cg = (float)((color_rgb >> 8) & 0xFF) / 255.0f;
+                            cb = (float)(color_rgb & 0xFF) / 255.0f;
+                        }
+                        if( i + 6 <= length && text[i + 5] == ' ' )
+                            i += 5;
+                        else
+                            i += 4;
+                        continue;
+                    }
+
+                    int c = dashfont_charcode_to_glyph(text[i]);
+                    if( c < DASH_FONT_CHAR_COUNT )
+                    {
+                        int gw = atlas->glyph_w[c];
+                        int gh = atlas->glyph_h[c];
+                        if( gw > 0 && gh > 0 )
+                        {
+                            float sx0 = (float)(pen_x + f->char_offset_x[c]);
+                            float sy0 = (float)(base_y + f->char_offset_y[c]);
+                            float sx1 = sx0 + (float)gw;
+                            float sy1 = sy0 + (float)gh;
+
+                            float u0 = (float)atlas->glyph_x[c] * inv_aw;
+                            float v0 = (float)atlas->glyph_y[c] * inv_ah;
+                            float u1 = (float)(atlas->glyph_x[c] + gw) * inv_aw;
+                            float v1 = (float)(atlas->glyph_y[c] + gh) * inv_ah;
+
+                            float cx0 = 2.0f * sx0 / fbw - 1.0f;
+                            float cy0 = 1.0f - 2.0f * sy0 / fbh;
+                            float cx1 = 2.0f * sx1 / fbw - 1.0f;
+                            float cy1 = 1.0f - 2.0f * sy1 / fbh;
+
+                            float v[6 * 8] = {
+                                cx0, cy0, u0, v0, cr, cg, cb, ca, cx1, cy0, u1, v0, cr, cg, cb, ca,
+                                cx1, cy1, u1, v1, cr, cg, cb, ca, cx0, cy0, u0, v0, cr, cg, cb, ca,
+                                cx1, cy1, u1, v1, cr, cg, cb, ca, cx0, cy1, u0, v1, cr, cg, cb, ca,
+                            };
+                            font_verts.insert(font_verts.end(), v, v + 48);
+                        }
+                    }
+                    int adv = f->char_advance[c];
+                    if( adv <= 0 )
+                        adv = 4;
+                    pen_x += adv;
+                }
             }
+            flush_font_batch();
         }
-    }
 
-    /* Font draws: emit per-glyph quads from atlas textures using the font pipeline. */
-    id<MTLRenderPipelineState> fontPipeState =
-        renderer->mtl_font_pipeline
-            ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_font_pipeline
-            : nil;
-    if( fontPipeState && renderer->mtl_font_vbo )
-    {
-        id<MTLBuffer> fontVbo = (__bridge id<MTLBuffer>)renderer->mtl_font_vbo;
-        id<MTLSamplerState> fontSampler = (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
-
-        [encoder setRenderPipelineState:fontPipeState];
-        [encoder setDepthStencilState:dsState];
-        [encoder setCullMode:MTLCullModeNone];
-        MTLViewport fontVp = { .originX = 0.0,
+        // -----------------------------------------------------------------------
+        // Finish scene pass, render ImGui overlay in the same render encoder
+        // -----------------------------------------------------------------------
+        // Reset viewport to full drawable for ImGui
+        MTLViewport fullVp = { .originX = 0.0,
                                .originY = 0.0,
                                .width = (double)renderer->width,
                                .height = (double)renderer->height,
                                .znear = 0.0,
                                .zfar = 1.0 };
-        [encoder setViewport:fontVp];
+        [encoder setViewport:fullVp];
 
-        static std::vector<float> font_verts;
-        font_verts.clear();
+        render_imgui_overlay(renderer, game, cmdBuf, encoder, rpDesc);
 
-        struct DashPixFont* current_font_ptr = NULL;
-        id<MTLTexture> current_atlas_tex = nil;
+        LibToriRS_FrameEnd(game);
 
-        const float fbw = (float)(win_width > 0 ? win_width : renderer->width);
-        const float fbh = (float)(win_height > 0 ? win_height : renderer->height);
-
-        auto flush_font_batch = [&]() {
-            if( font_verts.empty() || !current_atlas_tex )
-                return;
-            int vert_count = (int)(font_verts.size() / 8);
-            NSUInteger byte_count = font_verts.size() * sizeof(float);
-            if( byte_count > fontVbo.length )
-                return;
-            memcpy(fontVbo.contents, font_verts.data(), byte_count);
-            [encoder setVertexBuffer:fontVbo offset:0 atIndex:0];
-            [encoder setFragmentTexture:current_atlas_tex atIndex:0];
-            [encoder setFragmentSamplerState:fontSampler atIndex:0];
-            [encoder drawPrimitives:MTLPrimitiveTypeTriangle
-                        vertexStart:0
-                        vertexCount:(NSUInteger)vert_count];
-            font_verts.clear();
-        };
-
-        for( const auto& sc : sprite_cmds )
-        {
-            if( sc.kind != TORIRS_GFX_FONT_DRAW )
-                continue;
-            struct DashPixFont* f = sc._font_draw.font;
-            if( !f || !f->atlas || !sc._font_draw.text || f->height2d <= 0 )
-                continue;
-
-            auto texIt = renderer->font_atlas_textures.find(f);
-            if( texIt == renderer->font_atlas_textures.end() || !texIt->second )
-                continue;
-
-            if( current_font_ptr != f )
-            {
-                flush_font_batch();
-                current_font_ptr = f;
-                current_atlas_tex = (__bridge id<MTLTexture>)texIt->second;
-            }
-
-            struct DashFontAtlas* atlas = f->atlas;
-            const float inv_aw = 1.0f / (float)atlas->atlas_width;
-            const float inv_ah = 1.0f / (float)atlas->atlas_height;
-
-            const uint8_t* text = sc._font_draw.text;
-            int length = (int)strlen((const char*)text);
-            int color_rgb = sc._font_draw.color_rgb;
-            float cr = (float)((color_rgb >> 16) & 0xFF) / 255.0f;
-            float cg = (float)((color_rgb >> 8) & 0xFF) / 255.0f;
-            float cb = (float)(color_rgb & 0xFF) / 255.0f;
-            float ca = 1.0f;
-            int pen_x = sc._font_draw.x;
-            int base_y = sc._font_draw.y;
-
-            for( int i = 0; i < length; i++ )
-            {
-                if( text[i] == '@' && i + 5 <= length && text[i + 4] == '@' )
-                {
-                    int new_color = dashfont_evaluate_color_tag((const char*)&text[i + 1]);
-                    if( new_color >= 0 )
-                    {
-                        color_rgb = new_color;
-                        cr = (float)((color_rgb >> 16) & 0xFF) / 255.0f;
-                        cg = (float)((color_rgb >> 8) & 0xFF) / 255.0f;
-                        cb = (float)(color_rgb & 0xFF) / 255.0f;
-                    }
-                    if( i + 6 <= length && text[i + 5] == ' ' )
-                        i += 5;
-                    else
-                        i += 4;
-                    continue;
-                }
-
-                int c = dashfont_charcode_to_glyph(text[i]);
-                if( c < DASH_FONT_CHAR_COUNT )
-                {
-                    int gw = atlas->glyph_w[c];
-                    int gh = atlas->glyph_h[c];
-                    if( gw > 0 && gh > 0 )
-                    {
-                        float sx0 = (float)(pen_x + f->char_offset_x[c]);
-                        float sy0 = (float)(base_y + f->char_offset_y[c]);
-                        float sx1 = sx0 + (float)gw;
-                        float sy1 = sy0 + (float)gh;
-
-                        float u0 = (float)atlas->glyph_x[c] * inv_aw;
-                        float v0 = (float)atlas->glyph_y[c] * inv_ah;
-                        float u1 = (float)(atlas->glyph_x[c] + gw) * inv_aw;
-                        float v1 = (float)(atlas->glyph_y[c] + gh) * inv_ah;
-
-                        float cx0 = 2.0f * sx0 / fbw - 1.0f;
-                        float cy0 = 1.0f - 2.0f * sy0 / fbh;
-                        float cx1 = 2.0f * sx1 / fbw - 1.0f;
-                        float cy1 = 1.0f - 2.0f * sy1 / fbh;
-
-                        float v[6 * 8] = {
-                            cx0, cy0, u0, v0, cr, cg, cb, ca,
-                            cx1, cy0, u1, v0, cr, cg, cb, ca,
-                            cx1, cy1, u1, v1, cr, cg, cb, ca,
-                            cx0, cy0, u0, v0, cr, cg, cb, ca,
-                            cx1, cy1, u1, v1, cr, cg, cb, ca,
-                            cx0, cy1, u0, v1, cr, cg, cb, ca,
-                        };
-                        font_verts.insert(font_verts.end(), v, v + 48);
-                    }
-                }
-                int adv = f->char_advance[c];
-                if( adv <= 0 )
-                    adv = 4;
-                pen_x += adv;
-            }
-        }
-        flush_font_batch();
-    }
-
-    // -----------------------------------------------------------------------
-    // Finish scene pass, render ImGui overlay in the same render encoder
-    // -----------------------------------------------------------------------
-    // Reset viewport to full drawable for ImGui
-    MTLViewport fullVp = { .originX = 0.0,
-                           .originY = 0.0,
-                           .width = (double)renderer->width,
-                           .height = (double)renderer->height,
-                           .znear = 0.0,
-                           .zfar = 1.0 };
-    [encoder setViewport:fullVp];
-
-    render_imgui_overlay(renderer, game, cmdBuf, encoder, rpDesc);
-
-    LibToriRS_FrameEnd(game);
-
-    [encoder endEncoding];
-    [cmdBuf presentDrawable:drawable];
-    [cmdBuf commit];
+        [encoder endEncoding];
+        [cmdBuf presentDrawable:drawable];
+        [cmdBuf commit];
 
     } // @autoreleasepool
 }

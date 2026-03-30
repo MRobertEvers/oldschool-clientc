@@ -77,16 +77,19 @@ struct ToriRSRenderCommand
         struct
         {
             struct DashSprite* sprite;
-            int x;
-            int y;
+            int dst_bb_x;
+            int dst_bb_y;
+            int dst_bb_w;
+            int dst_bb_h;
             int rotation_r2pi2048;
-            int src_x;
-            int src_y;
-            int src_w; /* 0 = full sprite width */
-            int src_h; /* 0 = full sprite height */
-            uint8_t blit_dest;
-            int anchor_x;
-            int anchor_y;
+            int src_bb_x;
+            int src_bb_y;
+            int src_bb_w; /* 0 = full sprite width */
+            int src_bb_h; /* 0 = full sprite height */
+            int dst_anchor_x;
+            int dst_anchor_y;
+            int src_anchor_x;
+            int src_anchor_y;
         } _sprite_draw;
     };
 };

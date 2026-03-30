@@ -53,7 +53,9 @@ void main()
 )";
 
 static GLuint
-compile_shader(GLenum type, const char* source)
+compile_shader(
+    GLenum type,
+    const char* source)
 {
     GLuint shader = glCreateShader(type);
     glShaderSource(shader, 1, &source, NULL);
@@ -72,7 +74,9 @@ compile_shader(GLenum type, const char* source)
 }
 
 static GLuint
-link_program(GLuint vert, GLuint frag)
+link_program(
+    GLuint vert,
+    GLuint frag)
 {
     GLuint prog = glCreateProgram();
     glAttachShader(prog, vert);
@@ -113,10 +117,8 @@ gl3_ensure_font_program(struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer)
     if( !renderer->font_program )
         return false;
 
-    renderer->font_uniform_projection =
-        glGetUniformLocation(renderer->font_program, "uProjection");
-    renderer->font_uniform_tex =
-        glGetUniformLocation(renderer->font_program, "uTex");
+    renderer->font_uniform_projection = glGetUniformLocation(renderer->font_program, "uProjection");
+    renderer->font_uniform_tex = glGetUniformLocation(renderer->font_program, "uTex");
 
     glGenVertexArrays(1, &renderer->font_vao);
     glGenBuffers(1, &renderer->font_vbo);
@@ -126,11 +128,9 @@ gl3_ensure_font_program(struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer)
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(
-        1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(2 * sizeof(float)));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(2 * sizeof(float)));
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(
-        2, 4, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(4 * sizeof(float)));
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(4 * sizeof(float)));
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -758,15 +758,15 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
             pix3dgl_sprite_draw(
                 renderer->pix3dgl,
                 sp,
-                sc._sprite_draw.x,
-                sc._sprite_draw.y,
+                sc._sprite_draw.dst_bb_x,
+                sc._sprite_draw.dst_bb_y,
                 window_width,
                 window_height,
                 sc._sprite_draw.rotation_r2pi2048,
-                sc._sprite_draw.src_x,
-                sc._sprite_draw.src_y,
-                sc._sprite_draw.src_w,
-                sc._sprite_draw.src_h);
+                sc._sprite_draw.src_bb_x,
+                sc._sprite_draw.src_bb_y,
+                sc._sprite_draw.src_bb_w,
+                sc._sprite_draw.src_bb_h);
         }
     }
     pix3dgl_end_2dframe(renderer->pix3dgl);
@@ -913,12 +913,9 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
                         float v1 = (float)(atlas->glyph_y[c] + gh) * inv_ah;
 
                         float v[6 * 8] = {
-                            x0, y0, u0, v0, cr, cg, cb, ca,
-                            x1, y0, u1, v0, cr, cg, cb, ca,
-                            x1, y1, u1, v1, cr, cg, cb, ca,
-                            x0, y0, u0, v0, cr, cg, cb, ca,
-                            x1, y1, u1, v1, cr, cg, cb, ca,
-                            x0, y1, u0, v1, cr, cg, cb, ca,
+                            x0, y0, u0, v0, cr, cg, cb, ca, x1, y0, u1, v0, cr, cg, cb, ca,
+                            x1, y1, u1, v1, cr, cg, cb, ca, x0, y0, u0, v0, cr, cg, cb, ca,
+                            x1, y1, u1, v1, cr, cg, cb, ca, x0, y1, u0, v1, cr, cg, cb, ca,
                         };
                         font_verts.insert(font_verts.end(), v, v + 48);
                     }

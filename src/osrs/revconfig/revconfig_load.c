@@ -58,6 +58,14 @@ push_field_from_ini_kv(
         kind = RCFIELD_UILAYOUT_X;
     else if( strcmp(key, "y") == 0 )
         kind = RCFIELD_UILAYOUT_Y;
+    else if( strcmp(key, "w") == 0 )
+        kind = RCFIELD_UILAYOUT_WIDTH;
+    else if( strcmp(key, "h") == 0 )
+        kind = RCFIELD_UILAYOUT_HEIGHT;
+    else if( strcmp(key, "anchor_x") == 0 )
+        kind = RCFIELD_UILAYOUT_ANCHOR_X;
+    else if( strcmp(key, "anchor_y") == 0 )
+        kind = RCFIELD_UILAYOUT_ANCHOR_Y;
     else if( strcmp(key, "left") == 0 )
         kind = RCFIELD_UILAYOUT_LEFT;
     else if( strcmp(key, "top") == 0 )
@@ -158,6 +166,7 @@ revconfig_load_fields_from_ini(
 
     fclose(f);
 
-    revconfig_load_fields_from_ini_bytes((const uint8_t*)file_data, (uint32_t)file_size, revconfig_buffer);
+    revconfig_load_fields_from_ini_bytes(
+        (const uint8_t*)file_data, (uint32_t)file_size, revconfig_buffer);
     free(file_data);
 }

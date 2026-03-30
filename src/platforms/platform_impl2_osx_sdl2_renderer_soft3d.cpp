@@ -679,13 +679,9 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
             struct DashSprite* sp = command._sprite_draw.sprite;
             if( !sp || !sp->pixels_argb )
                 break;
-            int x = command._sprite_draw.x;
-            int y = command._sprite_draw.y;
             int rot = command._sprite_draw.rotation_r2pi2048;
-            int srx = command._sprite_draw.src_x;
-            int sry = command._sprite_draw.src_y;
-            int srw = command._sprite_draw.src_w;
-            int srh = command._sprite_draw.src_h;
+            int srw = command._sprite_draw.src_bb_w;
+            int srh = command._sprite_draw.src_bb_h;
             if( srw <= 0 )
                 srw = sp->width;
             if( srh <= 0 )
@@ -699,22 +695,27 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
                     (int*)sp->pixels_argb,
                     sp->width,
                     sp->height,
-                    command._sprite_draw.anchor_x,
-                    command._sprite_draw.anchor_y,
+                    command._sprite_draw.src_anchor_x,
+                    command._sprite_draw.src_anchor_y,
                     renderer->pixel_buffer,
                     renderer->width,
-                    0,
-                    0,
-                    renderer->width,
-                    renderer->height,
-                    x + sp->crop_x,
-                    y + sp->crop_y,
+                    command._sprite_draw.dst_bb_x,
+                    command._sprite_draw.dst_bb_y,
+                    command._sprite_draw.dst_bb_w,
+                    command._sprite_draw.dst_bb_h,
+                    command._sprite_draw.dst_anchor_x,
+                    command._sprite_draw.dst_anchor_y,
                     rot);
             }
             else
             {
                 dash2d_blit_sprite(
-                    game->sys_dash, sp, game->iface_view_port, x, y, renderer->pixel_buffer);
+                    game->sys_dash,
+                    sp,
+                    game->iface_view_port,
+                    command._sprite_draw.dst_bb_x,
+                    command._sprite_draw.dst_bb_y,
+                    renderer->pixel_buffer);
             }
         }
         break;

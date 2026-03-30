@@ -41,10 +41,14 @@ struct StaticUIElemPosition
     int y;
 
     int relative_flags;
+    int anchor_x;
+    int anchor_y;
     int left;
     int top;
     int right;
     int bottom;
+    int width;
+    int height;
 };
 
 struct StaticUIComponent
@@ -112,6 +116,10 @@ void
 static_ui_buffer_push_minimap(
     struct StaticUIBuffer* buffer,
     int x,
-    int y);
+    int y,
+    int width,
+    int height,
+    int anchor_x,
+    int anchor_y);
 
 #endif
