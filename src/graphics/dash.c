@@ -1356,9 +1356,7 @@ dash3d_project(
     int cull = DASHCULL_VISIBLE;
 
     if( model == NULL || model->vertex_count == 0 || model->face_count == 0 )
-    {
         return DASHCULL_ERROR;
-    }
 
     cull = dash3d_fast_cull(
         &dash->cylinder_fast_aabb, view_port, model, position, camera, &center_projection);
@@ -2376,7 +2374,10 @@ dashsprite_new_from_pix32(struct DashPix32* pix32)
 }
 
 struct DashSprite*
-dashsprite_new_from_argb_owned(uint32_t* pixels_argb, int width, int height)
+dashsprite_new_from_argb_owned(
+    uint32_t* pixels_argb,
+    int width,
+    int height)
 {
     if( !pixels_argb || width <= 0 || height <= 0 )
         return NULL;
@@ -2487,7 +2488,7 @@ dashsprite_flip_vertical(struct DashSprite* sprite)
 void
 dashsprite_free(struct DashSprite* sprite)
 {
-    if (!sprite)
+    if( !sprite )
         return;
     free(sprite->pixels_argb);
     free(sprite);
@@ -2792,8 +2793,7 @@ dashfont_build_atlas(struct DashPixFont* pixfont)
     if( total_w <= 0 || max_h <= 0 )
         return NULL;
 
-    struct DashFontAtlas* atlas =
-        (struct DashFontAtlas*)malloc(sizeof(struct DashFontAtlas));
+    struct DashFontAtlas* atlas = (struct DashFontAtlas*)malloc(sizeof(struct DashFontAtlas));
     memset(atlas, 0, sizeof(struct DashFontAtlas));
     atlas->atlas_width = total_w;
     atlas->atlas_height = max_h;
