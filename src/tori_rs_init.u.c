@@ -16,9 +16,9 @@
 #include "osrs/revconfig/static_ui.h"
 #include "osrs/revconfig/static_ui_load.h"
 #include "osrs/revconfig/uiscene.h"
+#include "osrs/rsa.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/filelist.h"
-#include "osrs/rsa.h"
 #include "osrs/rscache/tables_dat/configs_dat.h"
 #include "osrs/script_queue.h"
 #include "osrs/varp_varbit_manager.h"
@@ -220,8 +220,9 @@ LibToriRS_GameNew(
     game->loginproto = NULL; /* created by LibToriRS_NetConnectLogin */
 
     game->ui_scene = uiscene_new(512);
-    game->static_ui = static_ui_buffer_new(512);
-    game->ui_render_command_buffer = LibToriRS_RenderCommandBufferNew(2048);
+    game->ui_scene_buffer = static_ui_buffer_new(512);
+    game->ui_render_command_buffer = LibToriRS_RenderCommandBufferNew(64);
+    game->uiscene_queued_commands = LibToriRS_RenderCommandBufferNew(64);
     game->minimap_static_uiscene_element_id = -1;
     game->minimap_dynamic_commands = minimap_commands_new(2048);
 
@@ -332,8 +333,8 @@ LibToriRS_GameFree(struct GGame* game)
 
     if( game->ui_scene )
         uiscene_free(game->ui_scene);
-    if( game->static_ui )
-        static_ui_buffer_free(game->static_ui);
+    if( game->ui_scene_buffer )
+        static_ui_buffer_free(game->ui_scene_buffer);
     if( game->ui_render_command_buffer )
         LibToriRS_RenderCommandBufferFree(game->ui_render_command_buffer);
     if( game->minimap_dynamic_commands )

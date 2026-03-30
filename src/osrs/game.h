@@ -4,6 +4,7 @@
 #include "3rd/lua/lauxlib.h"
 #include "3rd/lua/lua.h"
 #include "3rd/lua/lualib.h"
+#include "command_buffer.h"
 #include "datastruct/ringbuf.h"
 #include "game_entity.h"
 #include "graphics/dash.h"
@@ -62,6 +63,7 @@ struct GGame
     int at_ui_render_command_index;
     int rebuilt;
 
+    struct ToriRSRenderCommandBuffer* uiscene_queued_commands;
     struct ToriRSRenderCommandBuffer* ui_render_command_buffer;
     /** UIScene element holding baked level-0 minimap tiles; -1 if none. */
     int minimap_static_uiscene_element_id;
@@ -72,7 +74,8 @@ struct GGame
     int tile_clicked_z;
     int tile_clicked_level;
 
-    int awaiting_models;
+    bool step_done;
+
     int build_player;
     int cc;
     bool latched;
@@ -91,11 +94,16 @@ struct GGame
     struct rsa rsa;
 
     struct UIScene* ui_scene;
-    struct StaticUIBuffer* static_ui;
+    struct StaticUIBuffer* ui_scene_buffer;
+
+    int uiscene_idx;
+    int uiscene_command_idx;
 
     int cycles_elapsed;
     int cycle;
     int next_notimeout_cycle;
+
+    // Old
 
     int next_rebuild;
 

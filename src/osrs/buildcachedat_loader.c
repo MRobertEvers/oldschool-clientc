@@ -579,10 +579,7 @@ buildcachedat_loader_cache_media(
     game->sprite_backvmid3 = load_sprite_pix8(filelist, "backvmid3.dat", index_file_idx, 0);
     game->sprite_backhmid2 = load_sprite_pix8(filelist, "backhmid2.dat", index_file_idx, 0);
 
-    /* Keep filelist so we can load component sprites when interfaces are loaded */
-    if( game->media_filelist )
-        filelist_dat_free(game->media_filelist);
-    game->media_filelist = filelist;
+    // game->media_filelist = filelist;
 }
 
 /** Try to load a single component sprite by name (e.g. "miscgraphics,0") from media filelist.
@@ -627,7 +624,7 @@ buildcachedat_loader_load_component_sprites_from_media(
     struct BuildCacheDat* buildcachedat,
     struct GGame* game)
 {
-    struct FileListDat* filelist = game->media_filelist;
+    struct FileListDat* filelist = NULL;
     if( !filelist )
         return;
     int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");

@@ -211,7 +211,7 @@ queue_static_ui_minimap_draws(
     anchor_y = static_sprite->height - camera_tile_z * (static_sprite->height / 104);
 
     LibToriRS_RenderCommandBufferAddCommand(
-        game->ui_render_command_buffer,
+        game->uiscene_queued_commands,
         (struct ToriRSRenderCommand){
             .kind = TORIRS_GFX_SPRITE_DRAW,
             ._sprite_draw = {
@@ -260,7 +260,7 @@ queue_static_ui_minimap_draws(
         int dot_x = (lx - sw_x) * 4 + 2 - (dot->width >> 1);
         int dot_y = (ne_z - lz) * 4 + 2 - (dot->height >> 1);
         LibToriRS_RenderCommandBufferAddCommand(
-            game->ui_render_command_buffer,
+            game->uiscene_queued_commands,
             (struct ToriRSRenderCommand){
                 .kind = TORIRS_GFX_SPRITE_DRAW,
                 ._sprite_draw = {
@@ -361,38 +361,38 @@ queue_static_load_commands(
             }
         }
 
-        LibToriRS_RenderCommandBufferReset(game->ui_render_command_buffer);
-        for( int i = 0; i < game->static_ui->component_count; i++ )
-        {
-            struct StaticUIComponent* component = &game->static_ui->components[i];
-            // printf("component->type: %s\n", static_ui_component_type_str(component->type));
-            if( component->type == UIELEM_SPRITE )
-            {
-                struct UISceneElement* element =
-                    uiscene_element_at(game->ui_scene, component->scene_id);
-                if( !element || !element->dash_sprites )
-                    continue;
-                struct DashSprite* sprite = element->dash_sprites[component->atlas_index];
-                if( !sprite )
-                    continue;
-                /* Only emit SPRITE_DRAW; SPRITE_LOAD is handled once via ELEMENT_ACQUIRED.
-                 * The renderer does a lazy upload on cache miss as a fallback. */
-                queue_sprite_draw_from_event(
-                    game->ui_render_command_buffer,
-                    component->scene_id,
-                    sprite,
-                    component->position.x,
-                    component->position.y,
-                    0);
-            }
-            else if( component->type == UIELEM_MINIMAP )
-            {
-                queue_static_ui_minimap_draws(game, component);
-            }
-            else if( component->type == UIELEM_COMPASS )
-            {
-            }
-        }
+        // LibToriRS_RenderCommandBufferReset(game->ui_render_command_buffer);
+        // for( int i = 0; i < game->ui_scene_buffer->component_count; i++ )
+        // {
+        //     struct StaticUIComponent* component = &game->ui_scene_buffer->components[i];
+        //     // printf("component->type: %s\n", static_ui_component_type_str(component->type));
+        //     if( component->type == UIELEM_SPRITE )
+        //     {
+        //         struct UISceneElement* element =
+        //             uiscene_element_at(game->ui_scene, component->scene_id);
+        //         if( !element || !element->dash_sprites )
+        //             continue;
+        //         struct DashSprite* sprite = element->dash_sprites[component->atlas_index];
+        //         if( !sprite )
+        //             continue;
+        //         /* Only emit SPRITE_DRAW; SPRITE_LOAD is handled once via ELEMENT_ACQUIRED.
+        //          * The renderer does a lazy upload on cache miss as a fallback. */
+        //         queue_sprite_draw_from_event(
+        //             game->ui_render_command_buffer,
+        //             component->scene_id,
+        //             sprite,
+        //             component->position.x,
+        //             component->position.y,
+        //             0);
+        //     }
+        //     else if( component->type == UIELEM_MINIMAP )
+        //     {
+        //         queue_static_ui_minimap_draws(game, component);
+        //     }
+        //     else if( component->type == UIELEM_COMPASS )
+        //     {
+        //     }
+        // }
     }
 }
 
@@ -415,6 +415,8 @@ LibToriRS_FrameBegin(
     game->camera->pitch = game->camera_pitch;
     game->camera->yaw = game->camera_yaw;
     game->camera->roll = game->camera_roll;
+
+    game->uiscene_idx = 0;
 
     world_pickset_reset(&game->pickset);
 
@@ -671,6 +673,293 @@ entity_coords_from_element(
     }
 }
 
+struct UIStep
+{
+    bool done;
+};
+
+static void
+uielem_sprite_step(
+    struct GGame* game,
+    struct StaticUIComponent* component,
+    struct UIStep* step)
+{
+    assert(component->type == UIELEM_SPRITE);
+
+    struct UISceneElement* element = uiscene_element_at(game->ui_scene, component->scene_id);
+    if( !element )
+        return;
+
+    struct DashSprite* sprite = element->dash_sprites[component->atlas_index];
+    if( !sprite )
+        return;
+
+    queue_sprite_draw_from_event(
+        game->uiscene_queued_commands,
+        component->scene_id,
+        sprite,
+        component->position.x,
+        component->position.y,
+        0);
+
+    step->done = true;
+}
+
+static void
+uielem_world_step(
+    struct GGame* game,
+    struct StaticUIComponent* component,
+    struct UIStep* step,
+    bool project_models)
+{
+    assert(component->type == UIELEM_WORLD);
+
+    struct DashPosition position = { 0 };
+    struct ToriRSRenderCommand command = { 0 };
+    struct Scene2Element* scene_element = NULL;
+    struct UISceneElement* element = uiscene_element_at(game->ui_scene, component->scene_id);
+    if( !element )
+        return;
+
+    if( game->at_painters_command_index >= game->sys_painter_buffer->command_count )
+    {
+        step->done = true;
+        return;
+    }
+
+    step->done = false;
+
+    struct PaintersElementCommand* cmd =
+        &game->sys_painter_buffer->commands[game->at_painters_command_index];
+
+    game->at_painters_command_index++;
+
+    switch( cmd->_bf_kind )
+    {
+    case PNTR_CMD_ELEMENT:
+    {
+        scene_element = scene2_element_at(game->world->scene2, cmd->_entity._bf_entity);
+        if( !scene_element || !scene_element->dash_model )
+            return;
+        memcpy(&position, scene_element->dash_position, sizeof(struct DashPosition));
+
+        position.x = position.x - game->camera_world_x;
+        position.y = position.y - game->camera_world_y;
+        position.z = position.z - game->camera_world_z;
+
+        int cull = DASHCULL_VISIBLE;
+        if( project_models )
+        {
+            cull = dash3d_project_model(
+                game->sys_dash,
+                scene_element->dash_model,
+                &position,
+                game->view_port,
+                game->camera);
+            if( cull == DASHCULL_VISIBLE &&
+                entity_interactable(game->world, scene_element->parent_entity_id) &&
+                game->view_port )
+            {
+                int cvx = game->mouse_x - game->viewport_offset_x;
+                int cvy = game->mouse_y - game->viewport_offset_y;
+                if( cvx >= 0 && cvy >= 0 && cvx < game->view_port->width &&
+                    cvy < game->view_port->height )
+                {
+                    struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
+
+                    if( cvx >= aabb->min_screen_x && cvx <= aabb->max_screen_x &&
+                        cvy >= aabb->min_screen_y && cvy <= aabb->max_screen_y &&
+                        dash3d_projected_model_contains(
+                            game->sys_dash, scene_element->dash_model, game->view_port, cvx, cvy) )
+                    {
+                        game->hovered_interactible_entity_uid = scene_element->parent_entity_id;
+                    }
+                }
+            }
+        }
+        else
+        {
+            cull = dash3d_cull_fast(
+                game->sys_dash,
+                scene_element->dash_model,
+                &position,
+                game->view_port,
+                game->camera);
+            if( cull == DASHCULL_VISIBLE )
+                cull = dash3d_cull_aabb(
+                    game->sys_dash,
+                    scene_element->dash_model,
+                    &position,
+                    game->view_port,
+                    game->camera);
+            if( cull == DASHCULL_VISIBLE && game->view_port &&
+                entity_interactable(game->world, scene_element->parent_entity_id) )
+            {
+                int cursor_vp_x = game->mouse_x - game->viewport_offset_x;
+                int cursor_vp_y = game->mouse_y - game->viewport_offset_y;
+                bool cursor_in_viewport = cursor_vp_x >= 0 && cursor_vp_y >= 0 &&
+                                          cursor_vp_x < game->view_port->width &&
+                                          cursor_vp_y < game->view_port->height;
+                struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
+                bool cursor_in_aabb =
+                    cursor_vp_x >= aabb->min_screen_x && cursor_vp_x <= aabb->max_screen_x &&
+                    cursor_vp_y >= aabb->min_screen_y && cursor_vp_y <= aabb->max_screen_y;
+                if( cursor_in_viewport && cursor_in_aabb )
+                {
+                    dash3d_project_raw(
+                        game->sys_dash,
+                        scene_element->dash_model,
+                        &position,
+                        game->view_port,
+                        game->camera);
+                    if( dash3d_projected_model_contains(
+                            game->sys_dash,
+                            scene_element->dash_model,
+                            game->view_port,
+                            cursor_vp_x,
+                            cursor_vp_y) )
+                    {
+                        game->hovered_interactible_entity_uid = scene_element->parent_entity_id;
+                    }
+                }
+            }
+        }
+        if( cull != DASHCULL_VISIBLE )
+            break;
+
+        entity_animate(game->world, scene_element->parent_entity_id);
+
+        // if( entity_interactable(game->world, element->parent_entity_id) )
+        // {
+        //     int vp_ox = game->viewport_offset_x;
+        //     int vp_oy = game->viewport_offset_y;
+        //     /* Hover: add to pickset when cursor is over model (tooltip + options). */
+        //     int cursor_vp_x = game->mouse_x - vp_ox;
+        //     int cursor_vp_y = game->mouse_y - vp_oy;
+        //     if( cursor_vp_x >= 0 && cursor_vp_y >= 0 && cursor_vp_x <
+        //     game->view_port->width
+        //     &&
+        //         cursor_vp_y < game->view_port->height &&
+        //         dash3d_projected_model_contains(
+        //             game->sys_dash,
+        //             element->dash_model,
+        //             game->view_port,
+        //             cursor_vp_x,
+        //             cursor_vp_y) )
+        //     {
+        //         entity_coords_from_element(game->world, element->parent_entity_id,
+        //         &coords); world_pickset_add(
+        //             &game->pickset,
+        //             coords.x,
+        //             coords.z,
+        //             entity_kind_from_uid(element->parent_entity_id),
+        //             entity_id_from_uid(element->parent_entity_id));
+        //     }
+        // }
+
+        command.kind = TORIRS_GFX_MODEL_DRAW;
+        command._model_draw.model = scene_element->dash_model;
+        command._model_draw.model_key = model_cache_key_u64(scene_element);
+        command._model_draw.model_id = -1;
+        memcpy(&command._model_draw.position, &position, sizeof(struct DashPosition));
+        LibToriRS_RenderCommandBufferAddCommand(game->uiscene_queued_commands, command);
+    }
+    break;
+    case PNTR_CMD_TERRAIN:
+    {
+        int sx = cmd->_terrain._bf_terrain_x;
+        int sz = cmd->_terrain._bf_terrain_z;
+        int slevel = cmd->_terrain._bf_terrain_y;
+
+        struct MapBuildTileEntity* tile_entity = NULL;
+        tile_entity = world_tile_entity_at(game->world, sx, sz, slevel);
+        if( !tile_entity || tile_entity->scene_element.element_id == -1 )
+            break;
+
+        scene_element =
+            scene2_element_at(game->world->scene2, tile_entity->scene_element.element_id);
+        if( !scene_element || !scene_element->dash_model )
+            break;
+
+        memcpy(&position, scene_element->dash_position, sizeof(struct DashPosition));
+
+        position.x = position.x - game->camera_world_x;
+        position.y = position.y - game->camera_world_y;
+        position.z = position.z - game->camera_world_z;
+
+        int cull = dash3d_project_model(
+            game->sys_dash, scene_element->dash_model, &position, game->view_port, game->camera);
+        if( cull != DASHCULL_VISIBLE )
+            break;
+
+        /* If tile was clicked this frame, record it (last hit wins). */
+        // if( game->mouse_clicked && game->view_port )
+        // {
+        //     int vp_ox = game->viewport_offset_x;
+        //     int vp_oy = game->viewport_offset_y;
+        //     int click_vp_x = game->mouse_clicked_x - vp_ox;
+        //     int click_vp_y = game->mouse_clicked_y - vp_oy;
+        //     if( click_vp_x >= 0 && click_vp_x < game->view_port->width && click_vp_y >= 0
+        //     &&
+        //         click_vp_y < game->view_port->height &&
+        //         dash3d_projected_model_contains(
+        //             game->sys_dash,
+        //             element->dash_model,
+        //             game->view_port,
+        //             click_vp_x,
+        //             click_vp_y) )
+        //     {
+        //         game->tile_clicked_x = sx;
+        //         game->tile_clicked_z = sz;
+        //         game->tile_clicked_level = slevel;
+        //     }
+        // }
+
+        command.kind = TORIRS_GFX_MODEL_DRAW;
+        command._model_draw.model = scene_element->dash_model;
+        command._model_draw.model_key = model_cache_key_u64(scene_element);
+        command._model_draw.model_id = -1;
+        memcpy(&command._model_draw.position, &position, sizeof(struct DashPosition));
+        LibToriRS_RenderCommandBufferAddCommand(game->uiscene_queued_commands, command);
+    }
+    break;
+    default:
+        break;
+    }
+}
+
+static void
+uielem_minimap_step(
+    struct GGame* game,
+    struct StaticUIComponent* component,
+    struct UIStep* step)
+{
+    assert(component->type == UIELEM_MINIMAP);
+
+    struct UISceneElement* element = uiscene_element_at(game->ui_scene, component->scene_id);
+    if( !element )
+        return;
+
+    queue_static_ui_minimap_draws(game, component);
+    step->done = true;
+}
+
+static void
+uielem_compass_step(
+    struct GGame* game,
+    struct StaticUIComponent* component,
+    struct UIStep* step)
+{
+    assert(component->type == UIELEM_COMPASS);
+    step->done = true;
+
+    return;
+
+    struct UISceneElement* element = uiscene_element_at(game->ui_scene, component->scene_id);
+    if( !element )
+        return;
+}
+
 bool
 LibToriRS_FrameNextCommand(
     struct GGame* game,
@@ -678,278 +967,340 @@ LibToriRS_FrameNextCommand(
     struct ToriRSRenderCommand* command,
     bool project_models)
 {
-    assert(game && render_command_buffer && command);
-    memset(command, 0, sizeof(*command));
-    if( !game->sys_painter_buffer || !game->sys_painter )
-        return false;
-
-    if( game->at_render_command_index < LibToriRS_RenderCommandBufferCount(render_command_buffer) )
+    struct StaticUIComponent* component = NULL;
+    struct ToriRSRenderCommand* cmd = NULL;
+    struct UIStep step = { 0 };
+    while( true )
     {
-        *command =
-            *LibToriRS_RenderCommandBufferAt(render_command_buffer, game->at_render_command_index);
-        game->at_render_command_index++;
-        return true;
-    }
+        if( game->uiscene_idx >= game->ui_scene_buffer->component_count )
+            return false;
 
-    struct DashPosition position = { 0 };
-    struct EntityCoords coords = { 0 };
-    struct Scene2Element* element = NULL;
-
-    while( command->kind == TORIRS_GFX_NONE )
-    {
-        if( game->at_painters_command_index >= game->sys_painter_buffer->command_count ||
-            game->at_painters_command_index >= game->cc )
+        if( game->uiscene_command_idx < game->uiscene_queued_commands->command_count )
         {
+            cmd = LibToriRS_RenderCommandBufferAt(
+                game->uiscene_queued_commands, game->uiscene_command_idx);
+            memcpy(command, cmd, sizeof(struct ToriRSRenderCommand));
+            game->uiscene_command_idx++;
+
+            return true;
+        }
+        else if( game->step_done )
+        {
+            game->uiscene_idx++;
+            memset(&step, 0, sizeof(step));
+
+            LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
+            game->uiscene_command_idx = 0;
+            game->step_done = false;
+            continue;
+        }
+
+        step.done = true;
+
+        component = &game->ui_scene_buffer->components[game->uiscene_idx];
+
+        int component_command_count = 0;
+        switch( component->type )
+        {
+        case UIELEM_SPRITE:
+            uielem_sprite_step(game, component, &step);
             break;
-        }
-
-        struct PaintersElementCommand* cmd =
-            &game->sys_painter_buffer->commands[game->at_painters_command_index];
-        memset(&position, 0, sizeof(struct DashPosition));
-
-        game->at_painters_command_index++;
-        switch( cmd->_bf_kind )
-        {
-        case PNTR_CMD_ELEMENT:
-        {
-            element = scene2_element_at(game->world->scene2, cmd->_entity._bf_entity);
-            if( !element || !element->dash_model )
-                continue;
-            memcpy(&position, element->dash_position, sizeof(struct DashPosition));
-
-            position.x = position.x - game->camera_world_x;
-            position.y = position.y - game->camera_world_y;
-            position.z = position.z - game->camera_world_z;
-
-            int cull = DASHCULL_VISIBLE;
-            if( project_models )
-            {
-                cull = dash3d_project_model(
-                    game->sys_dash, element->dash_model, &position, game->view_port, game->camera);
-                if( cull == DASHCULL_VISIBLE &&
-                    entity_interactable(game->world, element->parent_entity_id) && game->view_port )
-                {
-                    int cvx = game->mouse_x - game->viewport_offset_x;
-                    int cvy = game->mouse_y - game->viewport_offset_y;
-                    if( cvx >= 0 && cvy >= 0 && cvx < game->view_port->width &&
-                        cvy < game->view_port->height )
-                    {
-                        struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
-
-                        if( cvx >= aabb->min_screen_x && cvx <= aabb->max_screen_x &&
-                            cvy >= aabb->min_screen_y && cvy <= aabb->max_screen_y &&
-                            dash3d_projected_model_contains(
-                                game->sys_dash, element->dash_model, game->view_port, cvx, cvy) )
-                        {
-                            game->hovered_interactible_entity_uid = element->parent_entity_id;
-                        }
-                    }
-                }
-            }
-            else
-            {
-                cull = dash3d_cull_fast(
-                    game->sys_dash, element->dash_model, &position, game->view_port, game->camera);
-                if( cull == DASHCULL_VISIBLE )
-                    cull = dash3d_cull_aabb(
-                        game->sys_dash,
-                        element->dash_model,
-                        &position,
-                        game->view_port,
-                        game->camera);
-                if( cull == DASHCULL_VISIBLE && game->view_port &&
-                    entity_interactable(game->world, element->parent_entity_id) )
-                {
-                    int cursor_vp_x = game->mouse_x - game->viewport_offset_x;
-                    int cursor_vp_y = game->mouse_y - game->viewport_offset_y;
-                    bool cursor_in_viewport = cursor_vp_x >= 0 && cursor_vp_y >= 0 &&
-                                              cursor_vp_x < game->view_port->width &&
-                                              cursor_vp_y < game->view_port->height;
-                    struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
-                    bool cursor_in_aabb =
-                        cursor_vp_x >= aabb->min_screen_x && cursor_vp_x <= aabb->max_screen_x &&
-                        cursor_vp_y >= aabb->min_screen_y && cursor_vp_y <= aabb->max_screen_y;
-                    if( cursor_in_viewport && cursor_in_aabb )
-                    {
-                        dash3d_project_raw(
-                            game->sys_dash,
-                            element->dash_model,
-                            &position,
-                            game->view_port,
-                            game->camera);
-                        if( dash3d_projected_model_contains(
-                                game->sys_dash,
-                                element->dash_model,
-                                game->view_port,
-                                cursor_vp_x,
-                                cursor_vp_y) )
-                        {
-                            game->hovered_interactible_entity_uid = element->parent_entity_id;
-                        }
-                    }
-                }
-            }
-            if( cull != DASHCULL_VISIBLE )
-                break;
-
-            entity_animate(game->world, element->parent_entity_id);
-
-            // if( entity_interactable(game->world, element->parent_entity_id) )
-            // {
-            //     int vp_ox = game->viewport_offset_x;
-            //     int vp_oy = game->viewport_offset_y;
-            //     /* Hover: add to pickset when cursor is over model (tooltip + options). */
-            //     int cursor_vp_x = game->mouse_x - vp_ox;
-            //     int cursor_vp_y = game->mouse_y - vp_oy;
-            //     if( cursor_vp_x >= 0 && cursor_vp_y >= 0 && cursor_vp_x <
-            //     game->view_port->width
-            //     &&
-            //         cursor_vp_y < game->view_port->height &&
-            //         dash3d_projected_model_contains(
-            //             game->sys_dash,
-            //             element->dash_model,
-            //             game->view_port,
-            //             cursor_vp_x,
-            //             cursor_vp_y) )
-            //     {
-            //         entity_coords_from_element(game->world, element->parent_entity_id,
-            //         &coords); world_pickset_add(
-            //             &game->pickset,
-            //             coords.x,
-            //             coords.z,
-            //             entity_kind_from_uid(element->parent_entity_id),
-            //             entity_id_from_uid(element->parent_entity_id));
-            //     }
-            // }
-
-            *command = (struct ToriRSRenderCommand) {
-                    .kind = TORIRS_GFX_MODEL_DRAW,
-                    ._model_draw = {
-                        .model = element->dash_model,
-                        .model_key = model_cache_key_u64(element),
-                        .model_id = -1,
-                    },
-                };
-            memcpy(&command->_model_draw.position, &position, sizeof(struct DashPosition));
-        }
-        break;
-        case PNTR_CMD_TERRAIN:
-        {
-            int sx = cmd->_terrain._bf_terrain_x;
-            int sz = cmd->_terrain._bf_terrain_z;
-            int slevel = cmd->_terrain._bf_terrain_y;
-
-            struct MapBuildTileEntity* tile_entity = NULL;
-            tile_entity = world_tile_entity_at(game->world, sx, sz, slevel);
-            if( !tile_entity || tile_entity->scene_element.element_id == -1 )
-                break;
-
-            element = scene2_element_at(game->world->scene2, tile_entity->scene_element.element_id);
-            if( !element || !element->dash_model )
-                break;
-
-            memcpy(&position, element->dash_position, sizeof(struct DashPosition));
-
-            position.x = position.x - game->camera_world_x;
-            position.y = position.y - game->camera_world_y;
-            position.z = position.z - game->camera_world_z;
-
-            int cull = dash3d_project_model(
-                game->sys_dash, element->dash_model, &position, game->view_port, game->camera);
-            if( cull != DASHCULL_VISIBLE )
-                break;
-
-            /* If tile was clicked this frame, record it (last hit wins). */
-            // if( game->mouse_clicked && game->view_port )
-            // {
-            //     int vp_ox = game->viewport_offset_x;
-            //     int vp_oy = game->viewport_offset_y;
-            //     int click_vp_x = game->mouse_clicked_x - vp_ox;
-            //     int click_vp_y = game->mouse_clicked_y - vp_oy;
-            //     if( click_vp_x >= 0 && click_vp_x < game->view_port->width && click_vp_y >= 0
-            //     &&
-            //         click_vp_y < game->view_port->height &&
-            //         dash3d_projected_model_contains(
-            //             game->sys_dash,
-            //             element->dash_model,
-            //             game->view_port,
-            //             click_vp_x,
-            //             click_vp_y) )
-            //     {
-            //         game->tile_clicked_x = sx;
-            //         game->tile_clicked_z = sz;
-            //         game->tile_clicked_level = slevel;
-            //     }
-            // }
-
-            *command = (struct ToriRSRenderCommand) {
-                    .kind = TORIRS_GFX_MODEL_DRAW,
-                    ._model_draw = {
-                        .model = element->dash_model,
-                        .position = position,
-                        .model_key = model_cache_key_u64(element),
-                        .model_id = -1,
-                    },
-                };
-        }
-        break;
+        case UIELEM_WORLD:
+            uielem_world_step(game, component, &step, project_models);
+            break;
+        case UIELEM_MINIMAP:
+            uielem_minimap_step(game, component, &step);
+            break;
+        case UIELEM_COMPASS:
+            uielem_compass_step(game, component, &step);
+            break;
         default:
             break;
         }
+
+        game->step_done = step.done;
     }
 
-    if( command->kind == TORIRS_GFX_NONE && game->ui_render_command_buffer &&
-        game->at_ui_render_command_index <
-            LibToriRS_RenderCommandBufferCount(game->ui_render_command_buffer) )
-    {
-        *command = *LibToriRS_RenderCommandBufferAt(
-            game->ui_render_command_buffer, game->at_ui_render_command_index);
-        game->at_ui_render_command_index++;
-    }
+    return false;
 
-    /* Copy recorded tile click to clicked_tile for FrameEnd (tryMove / MOVE_OPCLICK). */
-    if( command->kind == TORIRS_GFX_NONE && game->tile_clicked_x != -1 &&
-        game->tile_clicked_z != -1 && game->mouse_clicked && !game->interface_consumed_click )
-    {
-        game->clicked_tile_x = game->tile_clicked_x;
-        game->clicked_tile_z = game->tile_clicked_z;
-        game->clicked_tile_valid = 1;
-    }
+    // return false;
+    // assert(game && render_command_buffer && command);
+    // memset(command, 0, sizeof(*command));
+    // if( !game->sys_painter_buffer || !game->sys_painter )
+    //     return false;
 
-    /* Emit a placeholder FONT_DRAW when a hovered interactible entity was detected this frame.
-     * This is the last command yielded before returning false. */
-    if( command->kind == TORIRS_GFX_NONE && game->hovered_interactible_entity_uid != -1 &&
-        !game->frame_hover_font_draw_done )
-    {
-        game->frame_hover_font_draw_done = true;
-        struct DashPixFont* font = NULL;
-        if( game->ui_scene )
-        {
-            int b12_id = uiscene_font_find_id(game->ui_scene, "b12");
-            if( b12_id >= 0 )
-                font = uiscene_font_get(game->ui_scene, b12_id);
-            if( !font && game->ui_scene->font_count > 0 )
-                font = uiscene_font_get(game->ui_scene, 0);
-        }
-        if( !font )
-            font = game->pixfont_b12;
-        if( font )
-        {
-            *command = (struct ToriRSRenderCommand){
-                .kind = TORIRS_GFX_FONT_DRAW,
-                ._font_draw = {
-                    .font = font,
-                    .text = (const uint8_t*)"Hello what is this?",
-                    .x = game->mouse_x,
-                    .y = game->mouse_y,
-                    .color_rgb = 0xFFFFFF,
-                },
-            };
-            return true;
-        }
-    }
+    // if( game->at_render_command_index < LibToriRS_RenderCommandBufferCount(render_command_buffer)
+    // )
+    // {
+    //     *command =
+    //         *LibToriRS_RenderCommandBufferAt(render_command_buffer,
+    //         game->at_render_command_index);
+    //     game->at_render_command_index++;
+    //     return true;
+    // }
 
-    return command->kind != TORIRS_GFX_NONE;
+    // struct DashPosition position = { 0 };
+    // struct EntityCoords coords = { 0 };
+    // struct Scene2Element* element = NULL;
+
+    // while( command->kind == TORIRS_GFX_NONE )
+    // {
+    //     if( game->at_painters_command_index >= game->sys_painter_buffer->command_count ||
+    //         game->at_painters_command_index >= game->cc )
+    //     {
+    //         break;
+    //     }
+
+    //     struct PaintersElementCommand* cmd =
+    //         &game->sys_painter_buffer->commands[game->at_painters_command_index];
+    //     memset(&position, 0, sizeof(struct DashPosition));
+
+    //     game->at_painters_command_index++;
+    //     switch( cmd->_bf_kind )
+    //     {
+    //     case PNTR_CMD_ELEMENT:
+    //     {
+    //         element = scene2_element_at(game->world->scene2, cmd->_entity._bf_entity);
+    //         if( !element || !element->dash_model )
+    //             continue;
+    //         memcpy(&position, element->dash_position, sizeof(struct DashPosition));
+
+    //         position.x = position.x - game->camera_world_x;
+    //         position.y = position.y - game->camera_world_y;
+    //         position.z = position.z - game->camera_world_z;
+
+    //         int cull = DASHCULL_VISIBLE;
+    //         if( project_models )
+    //         {
+    //             cull = dash3d_project_model(
+    //                 game->sys_dash, element->dash_model, &position, game->view_port,
+    //                 game->camera);
+    //             if( cull == DASHCULL_VISIBLE &&
+    //                 entity_interactable(game->world, element->parent_entity_id) &&
+    //                 game->view_port )
+    //             {
+    //                 int cvx = game->mouse_x - game->viewport_offset_x;
+    //                 int cvy = game->mouse_y - game->viewport_offset_y;
+    //                 if( cvx >= 0 && cvy >= 0 && cvx < game->view_port->width &&
+    //                     cvy < game->view_port->height )
+    //                 {
+    //                     struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
+
+    //                     if( cvx >= aabb->min_screen_x && cvx <= aabb->max_screen_x &&
+    //                         cvy >= aabb->min_screen_y && cvy <= aabb->max_screen_y &&
+    //                         dash3d_projected_model_contains(
+    //                             game->sys_dash, element->dash_model, game->view_port, cvx, cvy) )
+    //                     {
+    //                         game->hovered_interactible_entity_uid = element->parent_entity_id;
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //         else
+    //         {
+    //             cull = dash3d_cull_fast(
+    //                 game->sys_dash, element->dash_model, &position, game->view_port,
+    //                 game->camera);
+    //             if( cull == DASHCULL_VISIBLE )
+    //                 cull = dash3d_cull_aabb(
+    //                     game->sys_dash,
+    //                     element->dash_model,
+    //                     &position,
+    //                     game->view_port,
+    //                     game->camera);
+    //             if( cull == DASHCULL_VISIBLE && game->view_port &&
+    //                 entity_interactable(game->world, element->parent_entity_id) )
+    //             {
+    //                 int cursor_vp_x = game->mouse_x - game->viewport_offset_x;
+    //                 int cursor_vp_y = game->mouse_y - game->viewport_offset_y;
+    //                 bool cursor_in_viewport = cursor_vp_x >= 0 && cursor_vp_y >= 0 &&
+    //                                           cursor_vp_x < game->view_port->width &&
+    //                                           cursor_vp_y < game->view_port->height;
+    //                 struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
+    //                 bool cursor_in_aabb =
+    //                     cursor_vp_x >= aabb->min_screen_x && cursor_vp_x <= aabb->max_screen_x &&
+    //                     cursor_vp_y >= aabb->min_screen_y && cursor_vp_y <= aabb->max_screen_y;
+    //                 if( cursor_in_viewport && cursor_in_aabb )
+    //                 {
+    //                     dash3d_project_raw(
+    //                         game->sys_dash,
+    //                         element->dash_model,
+    //                         &position,
+    //                         game->view_port,
+    //                         game->camera);
+    //                     if( dash3d_projected_model_contains(
+    //                             game->sys_dash,
+    //                             element->dash_model,
+    //                             game->view_port,
+    //                             cursor_vp_x,
+    //                             cursor_vp_y) )
+    //                     {
+    //                         game->hovered_interactible_entity_uid = element->parent_entity_id;
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //         if( cull != DASHCULL_VISIBLE )
+    //             break;
+
+    //         entity_animate(game->world, element->parent_entity_id);
+
+    //         // if( entity_interactable(game->world, element->parent_entity_id) )
+    //         // {
+    //         //     int vp_ox = game->viewport_offset_x;
+    //         //     int vp_oy = game->viewport_offset_y;
+    //         //     /* Hover: add to pickset when cursor is over model (tooltip + options). */
+    //         //     int cursor_vp_x = game->mouse_x - vp_ox;
+    //         //     int cursor_vp_y = game->mouse_y - vp_oy;
+    //         //     if( cursor_vp_x >= 0 && cursor_vp_y >= 0 && cursor_vp_x <
+    //         //     game->view_port->width
+    //         //     &&
+    //         //         cursor_vp_y < game->view_port->height &&
+    //         //         dash3d_projected_model_contains(
+    //         //             game->sys_dash,
+    //         //             element->dash_model,
+    //         //             game->view_port,
+    //         //             cursor_vp_x,
+    //         //             cursor_vp_y) )
+    //         //     {
+    //         //         entity_coords_from_element(game->world, element->parent_entity_id,
+    //         //         &coords); world_pickset_add(
+    //         //             &game->pickset,
+    //         //             coords.x,
+    //         //             coords.z,
+    //         //             entity_kind_from_uid(element->parent_entity_id),
+    //         //             entity_id_from_uid(element->parent_entity_id));
+    //         //     }
+    //         // }
+
+    //         *command = (struct ToriRSRenderCommand) {
+    //                 .kind = TORIRS_GFX_MODEL_DRAW,
+    //                 ._model_draw = {
+    //                     .model = element->dash_model,
+    //                     .model_key = model_cache_key_u64(element),
+    //                     .model_id = -1,
+    //                 },
+    //             };
+    //         memcpy(&command->_model_draw.position, &position, sizeof(struct DashPosition));
+    //     }
+    //     break;
+    //     case PNTR_CMD_TERRAIN:
+    //     {
+    //         int sx = cmd->_terrain._bf_terrain_x;
+    //         int sz = cmd->_terrain._bf_terrain_z;
+    //         int slevel = cmd->_terrain._bf_terrain_y;
+
+    //         struct MapBuildTileEntity* tile_entity = NULL;
+    //         tile_entity = world_tile_entity_at(game->world, sx, sz, slevel);
+    //         if( !tile_entity || tile_entity->scene_element.element_id == -1 )
+    //             break;
+
+    //         element = scene2_element_at(game->world->scene2,
+    //         tile_entity->scene_element.element_id); if( !element || !element->dash_model )
+    //             break;
+
+    //         memcpy(&position, element->dash_position, sizeof(struct DashPosition));
+
+    //         position.x = position.x - game->camera_world_x;
+    //         position.y = position.y - game->camera_world_y;
+    //         position.z = position.z - game->camera_world_z;
+
+    //         int cull = dash3d_project_model(
+    //             game->sys_dash, element->dash_model, &position, game->view_port, game->camera);
+    //         if( cull != DASHCULL_VISIBLE )
+    //             break;
+
+    //         /* If tile was clicked this frame, record it (last hit wins). */
+    //         // if( game->mouse_clicked && game->view_port )
+    //         // {
+    //         //     int vp_ox = game->viewport_offset_x;
+    //         //     int vp_oy = game->viewport_offset_y;
+    //         //     int click_vp_x = game->mouse_clicked_x - vp_ox;
+    //         //     int click_vp_y = game->mouse_clicked_y - vp_oy;
+    //         //     if( click_vp_x >= 0 && click_vp_x < game->view_port->width && click_vp_y >= 0
+    //         //     &&
+    //         //         click_vp_y < game->view_port->height &&
+    //         //         dash3d_projected_model_contains(
+    //         //             game->sys_dash,
+    //         //             element->dash_model,
+    //         //             game->view_port,
+    //         //             click_vp_x,
+    //         //             click_vp_y) )
+    //         //     {
+    //         //         game->tile_clicked_x = sx;
+    //         //         game->tile_clicked_z = sz;
+    //         //         game->tile_clicked_level = slevel;
+    //         //     }
+    //         // }
+
+    //         *command = (struct ToriRSRenderCommand) {
+    //                 .kind = TORIRS_GFX_MODEL_DRAW,
+    //                 ._model_draw = {
+    //                     .model = element->dash_model,
+    //                     .position = position,
+    //                     .model_key = model_cache_key_u64(element),
+    //                     .model_id = -1,
+    //                 },
+    //             };
+    //     }
+    //     break;
+    //     default:
+    //         break;
+    //     }
+    // }
+
+    // if( command->kind == TORIRS_GFX_NONE && game->ui_render_command_buffer &&
+    //     game->at_ui_render_command_index <
+    //         LibToriRS_RenderCommandBufferCount(game->ui_render_command_buffer) )
+    // {
+    //     *command = *LibToriRS_RenderCommandBufferAt(
+    //         game->ui_render_command_buffer, game->at_ui_render_command_index);
+    //     game->at_ui_render_command_index++;
+    // }
+
+    // /* Copy recorded tile click to clicked_tile for FrameEnd (tryMove / MOVE_OPCLICK). */
+    // if( command->kind == TORIRS_GFX_NONE && game->tile_clicked_x != -1 &&
+    //     game->tile_clicked_z != -1 && game->mouse_clicked && !game->interface_consumed_click )
+    // {
+    //     game->clicked_tile_x = game->tile_clicked_x;
+    //     game->clicked_tile_z = game->tile_clicked_z;
+    //     game->clicked_tile_valid = 1;
+    // }
+
+    // /* Emit a placeholder FONT_DRAW when a hovered interactible entity was detected this frame.
+    //  * This is the last command yielded before returning false. */
+    // if( command->kind == TORIRS_GFX_NONE && game->hovered_interactible_entity_uid != -1 &&
+    //     !game->frame_hover_font_draw_done )
+    // {
+    //     game->frame_hover_font_draw_done = true;
+    //     struct DashPixFont* font = NULL;
+    //     if( game->ui_scene )
+    //     {
+    //         int b12_id = uiscene_font_find_id(game->ui_scene, "b12");
+    //         if( b12_id >= 0 )
+    //             font = uiscene_font_get(game->ui_scene, b12_id);
+    //         if( !font && game->ui_scene->font_count > 0 )
+    //             font = uiscene_font_get(game->ui_scene, 0);
+    //     }
+    //     if( !font )
+    //         font = game->pixfont_b12;
+    //     if( font )
+    //     {
+    //         *command = (struct ToriRSRenderCommand){
+    //             .kind = TORIRS_GFX_FONT_DRAW,
+    //             ._font_draw = {
+    //                 .font = font,
+    //                 .text = (const uint8_t*)"Hello what is this?",
+    //                 .x = game->mouse_x,
+    //                 .y = game->mouse_y,
+    //                 .color_rgb = 0xFFFFFF,
+    //             },
+    //         };
+    //         return true;
+    //     }
+    // }
+
+    // return command->kind != TORIRS_GFX_NONE;
 }
 
 /* Client.ts ClientProt.MOVE_GAMECLICK = 182 (index 255) */
@@ -964,52 +1315,6 @@ LibToriRS_FrameEnd(struct GGame* game)
     {
         game->option_set.option_count = 0;
         world_options_add_pickset_options(game->world, &game->pickset, &game->option_set);
-    }
-
-    if( game->mouse_clicked )
-    {
-        if( game->interface_consumed_click )
-        {
-            game->mouse_cycle = -1;
-            game->cross_mode = 0;
-        }
-        else
-        {
-            game->cross_mode = game->clicked_tile_valid ? 1 : 2;
-            game->cross_x = game->mouse_clicked_x;
-            game->cross_y = game->mouse_clicked_y;
-        }
-    }
-
-    if( game->mouse_clicked && game->clicked_tile_valid && !game->interface_consumed_click &&
-        GAME_NET_STATE_GAME == game->net_state && game->world && game->world->collision_map )
-    {
-        int dest_x = game->scene_base_tile_x + game->clicked_tile_x;
-        int dest_z = game->scene_base_tile_z + game->clicked_tile_z;
-        /* Source = route head (Client.ts localPlayer.routeTileX[0], routeTileZ[0]). */
-        struct PlayerEntity* pl = &game->world->players[ACTIVE_PLAYER_SLOT];
-        int src_local_x = pl->pathing.route_x[0];
-        int src_local_z = pl->pathing.route_z[0];
-        int start_world_x = game->scene_base_tile_x + src_local_x;
-        int start_world_z = game->scene_base_tile_z + src_local_z;
-        if( start_world_x != dest_x || start_world_z != dest_z )
-        {
-            int dst_local_x = game->clicked_tile_x;
-            int dst_local_z = game->clicked_tile_z;
-            send_move_opclick_to(
-                game,
-                game->world->collision_map,
-                src_local_x,
-                src_local_z,
-                dst_local_x,
-                dst_local_z);
-        }
-        game->mouse_clicked = false;
-        game->clicked_tile_valid = 0;
-    }
-    else if( game->clicked_tile_valid )
-    {
-        game->clicked_tile_valid = 0;
     }
 }
 

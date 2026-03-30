@@ -41,8 +41,8 @@ LuaUI_load_revconfig(
     struct LuaConfigFile* cache_config = (struct LuaConfigFile*)arg_userdata(args, 1);
 
     // Reset UI state (best-effort) before reloading.
-    if( game->static_ui )
-        game->static_ui->component_count = 0;
+    if( game->ui_scene_buffer )
+        game->ui_scene_buffer->component_count = 0;
     if( game->ui_scene )
     {
         int cap = game->ui_scene->elements_count;
@@ -60,8 +60,9 @@ LuaUI_load_revconfig(
     assert(ui_config);
     revconfig_load_fields_from_ini_bytes(ui_config->data, (uint32_t)ui_config->size, buf);
 
-    if( game->static_ui && game->ui_scene )
-        static_ui_from_revconfig_buildcachedat(game->static_ui, game->ui_scene, buildcachedat, buf);
+    if( game->ui_scene_buffer && game->ui_scene )
+        static_ui_from_revconfig_buildcachedat(
+            game->ui_scene_buffer, game->ui_scene, buildcachedat, buf);
 
     revconfig_buffer_free(buf);
     return LuaGameType_NewVoid();
@@ -77,8 +78,8 @@ LuaUI_load_fonts(
     struct DashMapIter* iter = buildcachedat_iter_new_fonts(buildcachedat);
     char name_buf[BUILDCACHEDAT_FONT_NAME_MAX + 1];
     struct DashPixFont* font = NULL;
-    while( (font = buildcachedat_iter_next_font_name(
-                iter, name_buf, (int)sizeof(name_buf))) != NULL )
+    while( (font = buildcachedat_iter_next_font_name(iter, name_buf, (int)sizeof(name_buf))) !=
+           NULL )
         uiscene_font_add(game->ui_scene, name_buf, font);
     dashmap_iter_free(iter);
 
