@@ -238,7 +238,7 @@ raster_face_texture_blend_near_clip(
     int color_b;
     int color_c;
     int lerp_slope;
-    if( za >= near_plane_z )
+    if( screen_vertices_x[a] != -5000 )
     {
         g_clip_x[clipped_count] = screen_vertices_x[a];
         g_clip_y[clipped_count] = screen_vertices_y[a];
@@ -253,41 +253,45 @@ raster_face_texture_blend_near_clip(
         ya = orthographic_vertices_y[a];
         color_a = colors_a[face];
 
-        if( zc >= near_plane_z )
+        if( screen_vertices_x[c] != -5000 )
         {
-            assert(zc - za >= 0);
-            lerp_slope = slopei(near_plane_z, zc, za);
+            if( zc - za >= 0 )
+            {
+                lerp_slope = slopei(near_plane_z, zc, za);
 
-            g_clip_x[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
+                g_clip_x[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
 
-            g_clip_y[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
+                g_clip_y[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
 
-            g_clip_color[clipped_count] =
-                lerp_planei(near_plane_z, lerp_slope, colors_c[face], color_a);
+                g_clip_color[clipped_count] =
+                    lerp_planei(near_plane_z, lerp_slope, colors_c[face], color_a);
 
-            clipped_count++;
+                clipped_count++;
+            }
         }
 
-        if( zb >= near_plane_z )
+        if( screen_vertices_x[b] != -5000 )
         {
-            assert(zb - za >= 0);
-            lerp_slope = slopei(near_plane_z, zb, za);
+            if( zb - za >= 0 )
+            {
+                lerp_slope = slopei(near_plane_z, zb, za);
 
-            g_clip_x[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
+                g_clip_x[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
 
-            g_clip_y[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
+                g_clip_y[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
 
-            g_clip_color[clipped_count] =
-                lerp_planei(near_plane_z, lerp_slope, colors_b[face], color_a);
+                g_clip_color[clipped_count] =
+                    lerp_planei(near_plane_z, lerp_slope, colors_b[face], color_a);
 
-            clipped_count++;
+                clipped_count++;
+            }
         }
     }
-    if( zb >= near_plane_z )
+    if( screen_vertices_x[b] != -5000 )
     {
         g_clip_x[clipped_count] = screen_vertices_x[b];
         g_clip_y[clipped_count] = screen_vertices_y[b];
@@ -302,40 +306,45 @@ raster_face_texture_blend_near_clip(
         yb = orthographic_vertices_y[b];
         color_b = colors_b[face];
 
-        if( za >= near_plane_z )
+        if( screen_vertices_x[a] != -5000 )
         {
-            lerp_slope = slopei(near_plane_z, za, zb);
+            if( za - zb >= 0 )
+            {
+                lerp_slope = slopei(near_plane_z, za, zb);
 
-            g_clip_x[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
+                g_clip_x[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
 
-            g_clip_y[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
+                g_clip_y[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
 
-            g_clip_color[clipped_count] =
-                lerp_planei(near_plane_z, lerp_slope, colors_a[face], color_b);
+                g_clip_color[clipped_count] =
+                    lerp_planei(near_plane_z, lerp_slope, colors_a[face], color_b);
 
-            clipped_count++;
+                clipped_count++;
+            }
         }
 
-        if( zc >= near_plane_z )
+        if( screen_vertices_x[c] != -5000 )
         {
-            assert(zc - zb >= 0);
-            lerp_slope = slopei(near_plane_z, zc, zb);
+            if( zc - zb >= 0 )
+            {
+                lerp_slope = slopei(near_plane_z, zc, zb);
 
-            g_clip_x[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
+                g_clip_x[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
 
-            g_clip_y[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
+                g_clip_y[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
 
-            g_clip_color[clipped_count] =
-                lerp_planei(near_plane_z, lerp_slope, colors_c[face], color_b);
+                g_clip_color[clipped_count] =
+                    lerp_planei(near_plane_z, lerp_slope, colors_c[face], color_b);
 
-            clipped_count++;
+                clipped_count++;
+            }
         }
     }
-    if( zc >= near_plane_z )
+    if( screen_vertices_x[c] != -5000 )
     {
         g_clip_x[clipped_count] = screen_vertices_x[c];
         g_clip_y[clipped_count] = screen_vertices_y[c];
@@ -350,36 +359,40 @@ raster_face_texture_blend_near_clip(
         yc = orthographic_vertices_y[c];
         color_c = colors_c[face];
 
-        if( zb >= near_plane_z )
+        if( screen_vertices_x[b] != -5000 )
         {
-            assert(zb - zc >= 0);
-            lerp_slope = slopei(near_plane_z, zb, zc);
+            if( zb - zc >= 0 )
+            {
+                lerp_slope = slopei(near_plane_z, zb, zc);
 
-            g_clip_x[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
-            g_clip_y[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
+                g_clip_x[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
+                g_clip_y[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
 
-            g_clip_color[clipped_count] =
-                lerp_planei(near_plane_z, lerp_slope, colors_b[face], color_c);
+                g_clip_color[clipped_count] =
+                    lerp_planei(near_plane_z, lerp_slope, colors_b[face], color_c);
 
-            clipped_count++;
+                clipped_count++;
+            }
         }
 
-        if( za >= near_plane_z )
+        if( screen_vertices_x[a] != -5000 )
         {
-            assert(za - zc >= 0);
-            lerp_slope = slopei(near_plane_z, za, zc);
+            if( za - zc >= 0 )
+            {
+                lerp_slope = slopei(near_plane_z, za, zc);
 
-            g_clip_x[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
-            g_clip_y[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
+                g_clip_x[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
+                g_clip_y[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
 
-            g_clip_color[clipped_count] =
-                lerp_planei(near_plane_z, lerp_slope, colors_a[face], color_c);
+                g_clip_color[clipped_count] =
+                    lerp_planei(near_plane_z, lerp_slope, colors_a[face], color_c);
 
-            clipped_count++;
+                clipped_count++;
+            }
         }
     }
     if( clipped_count < 3 )
@@ -779,7 +792,7 @@ raster_face_texture_flat_near_clip(
     int color = colors[face];
     int lerp_slope;
 
-    if( za >= near_plane_z )
+    if( screen_vertices_x[a] != -5000 )
     {
         g_clip_x[clipped_count] = screen_vertices_x[a];
         g_clip_y[clipped_count] = screen_vertices_y[a];
@@ -792,35 +805,39 @@ raster_face_texture_flat_near_clip(
         xa = orthographic_vertices_x[a];
         ya = orthographic_vertices_y[a];
 
-        if( zc >= near_plane_z )
+        if( screen_vertices_x[c] != -5000 )
         {
-            assert(zc - za >= 0);
-            lerp_slope = slopei(near_plane_z, zc, za);
+            if( zc - za >= 0 )
+            {
+                lerp_slope = slopei(near_plane_z, zc, za);
 
-            g_clip_x[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
+                g_clip_x[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
 
-            g_clip_y[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
+                g_clip_y[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
 
-            clipped_count++;
+                clipped_count++;
+            }
         }
 
-        if( zb >= near_plane_z )
+        if( screen_vertices_x[b] != -5000 )
         {
-            assert(zb - za >= 0);
-            lerp_slope = slopei(near_plane_z, zb, za);
+            if( zb - za >= 0 )
+            {
+                lerp_slope = slopei(near_plane_z, zb, za);
 
-            g_clip_x[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
+                g_clip_x[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
 
-            g_clip_y[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
+                g_clip_y[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
 
-            clipped_count++;
+                clipped_count++;
+            }
         }
     }
-    if( zb >= near_plane_z )
+    if( screen_vertices_x[b] != -5000 )
     {
         g_clip_x[clipped_count] = screen_vertices_x[b];
         g_clip_y[clipped_count] = screen_vertices_y[b];
@@ -833,34 +850,39 @@ raster_face_texture_flat_near_clip(
         xb = orthographic_vertices_x[b];
         yb = orthographic_vertices_y[b];
 
-        if( za >= near_plane_z )
+        if( screen_vertices_x[a] != -5000 )
         {
-            lerp_slope = slopei(near_plane_z, za, zb);
+            if( za - zb >= 0 )
+            {
+                lerp_slope = slopei(near_plane_z, za, zb);
 
-            g_clip_x[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
+                g_clip_x[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
 
-            g_clip_y[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
+                g_clip_y[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
 
-            clipped_count++;
+                clipped_count++;
+            }
         }
 
-        if( zc >= near_plane_z )
+        if( screen_vertices_x[c] != -5000 )
         {
-            assert(zc - zb >= 0);
-            lerp_slope = slopei(near_plane_z, zc, zb);
+            if( zc - zb >= 0 )
+            {
+                lerp_slope = slopei(near_plane_z, zc, zb);
 
-            g_clip_x[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
+                g_clip_x[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
 
-            g_clip_y[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
+                g_clip_y[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
 
-            clipped_count++;
+                clipped_count++;
+            }
         }
     }
-    if( zc >= near_plane_z )
+    if( screen_vertices_x[c] != -5000 )
     {
         g_clip_x[clipped_count] = screen_vertices_x[c];
         g_clip_y[clipped_count] = screen_vertices_y[c];
@@ -873,30 +895,34 @@ raster_face_texture_flat_near_clip(
         xc = orthographic_vertices_x[c];
         yc = orthographic_vertices_y[c];
 
-        if( zb >= near_plane_z )
+        if( screen_vertices_x[b] != -5000 )
         {
-            assert(zb - zc >= 0);
-            lerp_slope = slopei(near_plane_z, zb, zc);
+            if( zb - zc >= 0 )
+            {
+                lerp_slope = slopei(near_plane_z, zb, zc);
 
-            g_clip_x[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
-            g_clip_y[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
+                g_clip_x[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
+                g_clip_y[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
 
-            clipped_count++;
+                clipped_count++;
+            }
         }
 
-        if( za >= near_plane_z )
+        if( screen_vertices_x[a] != -5000 )
         {
-            assert(za - zc >= 0);
-            lerp_slope = slopei(near_plane_z, za, zc);
+            if( za - zc >= 0 )
+            {
+                lerp_slope = slopei(near_plane_z, za, zc);
 
-            g_clip_x[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
-            g_clip_y[clipped_count] =
-                lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
+                g_clip_x[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
+                g_clip_y[clipped_count] =
+                    lerp_plane_projecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
 
-            clipped_count++;
+                clipped_count++;
+            }
         }
     }
     if( clipped_count < 3 )

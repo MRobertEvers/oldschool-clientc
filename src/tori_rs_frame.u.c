@@ -834,7 +834,6 @@ uielem_world_step(
     break;
     case PNTR_CMD_TERRAIN:
     {
-        break;
         int sx = cmd->_terrain._bf_terrain_x;
         int sz = cmd->_terrain._bf_terrain_z;
         int slevel = cmd->_terrain._bf_terrain_y;
