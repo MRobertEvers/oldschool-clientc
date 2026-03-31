@@ -853,7 +853,8 @@ buildcachedat_loader_load_interfaces(
     free(component_list);
     filelist_dat_free(filelist);
 }
-
+// Update all the dash loading and API's to use DashVertexInt* instead of int* for vertices of
+// models. Loading from the cache
 void
 buildcachedat_loader_finalize_scene(
     struct BuildCacheDat* buildcachedat,
@@ -871,46 +872,14 @@ buildcachedat_loader_finalize_scene(
 
     world_buildcachedat_rebuild_centerzone(game->world, map_sw_x * 8 + 12, map_sw_z * 8 + 12, 104);
 
-    // Initialize painter and minimap if not already done
-    // if( !game->sys_painter )
-    // {
-    //     game->sys_painter = painter_new(104, 104, MAP_TERRAIN_LEVELS);
-    // }
-
-    // if( !game->sys_minimap )
-    // {
-    //     game->sys_minimap = minimap_new(
-    //         map_sw_x * 64,
-    //         map_sw_z * 64,
-    //         (map_ne_x + 1) * 64,
-    //         (map_ne_z + 1) * 64,
-    //         MAP_TERRAIN_LEVELS);
-    // }
-
-    // // Initialize scene builder if not already done
-    // if( !game->scenebuilder )
-    // {
-    //     game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
-    // }
-
-    /* World tile SW: CHUNK = WORLD_TILE / 64, so WORLD_TILE = chunk * 64
-     * (pkt_rebuild_normal.lua)
-     */
     game->scene_base_tile_x = map_sw_x * 64;
     game->scene_base_tile_z = map_sw_z * 64;
 
     LibToriRS_WorldMinimapStaticRebuild(game);
 
-    // Build the final scene from cached data
-    // game->scene = scenebuilder_load_from_buildcachedat(
-    //     game->scenebuilder,
-    //     map_sw_x * 64,
-    //     map_sw_z * 64,
-    //     map_ne_x * 64,
-    //     map_ne_z * 64,
-    //     104,
-    //     104,
-    //     buildcachedat);
+    buildcachedat_clear_models_and_animation_caches(buildcachedat);
+    if( buildcachedat_config_jagfile(buildcachedat) )
+        buildcachedat_loader_init_sequences_from_config_jagfile(buildcachedat);
 }
 
 void
@@ -929,4 +898,8 @@ buildcachedat_loader_finalize_scene_centerzone(
     world_buildcachedat_rebuild_centerzone(game->world, zonex, zonez, size);
 
     LibToriRS_WorldMinimapStaticRebuild(game);
+
+    buildcachedat_clear_models_and_animation_caches(buildcachedat);
+    if( buildcachedat_config_jagfile(buildcachedat) )
+        buildcachedat_loader_init_sequences_from_config_jagfile(buildcachedat);
 }

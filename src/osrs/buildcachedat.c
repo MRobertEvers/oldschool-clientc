@@ -522,6 +522,85 @@ buildcachedat_clear_map_chunks(struct BuildCacheDat* buildcachedat)
 }
 
 void
+buildcachedat_clear_models_and_animation_caches(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat )
+        return;
+
+    struct DashMapConfig config = { 0 };
+
+    int buffer_size = 1024 * (int)sizeof(struct TextureEntry) * 4;
+    int buffer_models = 4096 * 8 * (int)sizeof(struct ObjEntry);
+
+    dashmap_free_entries(buildcachedat->models_hmap, free_model_entry);
+    config = (struct DashMapConfig){
+        .buffer = malloc((size_t)buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct ModelEntry),
+    };
+    buildcachedat->models_hmap = dashmap_new(&config, 0);
+
+    dashmap_free_entries(buildcachedat->idk_models_hmap, free_idk_model_entry);
+    dashmap_free_entries(buildcachedat->obj_models_hmap, free_obj_model_entry);
+    dashmap_free_entries(buildcachedat->npc_models_hmap, free_npc_model_entry);
+
+    config = (struct DashMapConfig){
+        .buffer = malloc((size_t)buffer_models),
+        .buffer_size = buffer_models,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct IdkModelEntry),
+    };
+    buildcachedat->idk_models_hmap = dashmap_new(&config, 0);
+
+    config = (struct DashMapConfig){
+        .buffer = malloc((size_t)buffer_models),
+        .buffer_size = buffer_models,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct ObjModelEntry),
+    };
+    buildcachedat->obj_models_hmap = dashmap_new(&config, 0);
+
+    config = (struct DashMapConfig){
+        .buffer = malloc((size_t)buffer_models),
+        .buffer_size = buffer_models,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct NpcModelEntry),
+    };
+    buildcachedat->npc_models_hmap = dashmap_new(&config, 0);
+
+    /* animframe pointers are into animbaseframes blobs — free animframes map first (no per-entry free). */
+    dashmap_free_entries(buildcachedat->animframes_hmap, NULL);
+    dashmap_free_entries(buildcachedat->animbaseframes_hmap, free_animbaseframes_entry);
+    dashmap_free_entries(buildcachedat->sequences_hmap, free_sequence_entry);
+
+    config = (struct DashMapConfig){
+        .buffer = malloc((size_t)buffer_size * 8u),
+        .buffer_size = buffer_size * 8,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct AnimframeEntry),
+    };
+    buildcachedat->animframes_hmap = dashmap_new(&config, 0);
+
+    config = (struct DashMapConfig){
+        .buffer = malloc((size_t)buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct AnimbaseframesEntry),
+    };
+    buildcachedat->animbaseframes_hmap = dashmap_new(&config, 0);
+
+    buffer_size = 10000 * (int)sizeof(struct SequenceEntry);
+    config = (struct DashMapConfig){
+        .buffer = malloc((size_t)buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct SequenceEntry),
+    };
+    buildcachedat->sequences_hmap = dashmap_new(&config, 0);
+}
+
+void
 buildcachedat_set_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct FileListDat* config_jagfile)

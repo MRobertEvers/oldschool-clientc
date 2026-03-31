@@ -9,6 +9,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+typedef uint16_t DashVertexInt;
+typedef uint16_t DashFaceInt;
+typedef uint16_t DashHSL16;
+
 struct DashBoundsCylinder
 {
     int center_to_top_edge;
