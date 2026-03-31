@@ -6,7 +6,12 @@
  * WidgetSizeMode / WidgetPositionMode, 16384ths scaling). IF1 uses absolute
  * baseX/baseY as in the cache. Hidden components are skipped.
  *
- * Usage: interface161_test <cache_directory> [--iface N] [--sprites] [out.bmp]
+ * Fixed-mode IF3 layout uses a 765x503 root (not the output BMP size) so 16384ths
+ * and center/right modes match the OSRS engine. Use --mount childFile:iface to
+ * draw another interface archive into a component's resolved bounds (sub-IF).
+ *
+ * Usage: interface161_test <cache_directory> [--iface N] [--sprites]
+ *          [--mount childFileIndex:ifaceId] ... [out.bmp]
  */
 
 #include "bmp.h"
@@ -24,7 +29,21 @@
 enum
 {
     CANVAS_W = 1024,
-    CANVAS_H = 768
+    CANVAS_H = 768,
+    /** OSRS fixed-mode viewport; IF3 roots resolve against this, not CANVAS_*. */
+    FIXED_MODE_ROOT_W = 765,
+    FIXED_MODE_ROOT_H = 503
+};
+
+enum
+{
+    MAX_MOUNTS = 32
+};
+
+struct MountSpec
+{
+    int child_file_index;
+    int iface_id;
 };
 
 static void
@@ -228,11 +247,18 @@ axis_from_position_mode(
 /**
  * IF3 components store coordinates relative to their parent; IF1 uses absolute
  * coordinates. Resolve bounds into *out_* (parallel to comps[], length n).
+ * Root IF3 nodes (no parent in this archive) use (root_x,root_y) and
+ * (root_w,root_h) as the virtual parent — fixed mode uses 765x503 for the HUD
+ * shell; mounted sub-interfaces use the mount slot's resolved rect.
  */
 static void
 resolve_interface_layout(
     Component* comps,
     int n,
+    int root_x,
+    int root_y,
+    int root_w,
+    int root_h,
     int* out_x,
     int* out_y,
     int* out_w,
@@ -312,10 +338,10 @@ resolve_interface_layout(
             continue;
         }
 
-        int px = 0;
-        int py = 0;
-        int pw = CANVAS_W;
-        int ph = CANVAS_H;
+        int px = root_x;
+        int py = root_y;
+        int pw = root_w;
+        int ph = root_h;
         if( parent_idx[i] >= 0 )
         {
             int p = parent_idx[i];
@@ -346,11 +372,198 @@ resolve_interface_layout(
 }
 
 static void
+draw_interface_components(
+    struct Cache* cache,
+    Component* comps,
+    int n,
+    const int* lay_x,
+    const int* lay_y,
+    const int* lay_w,
+    const int* lay_h,
+    int* pixels,
+    int want_sprites)
+{
+    for( int fi = 0; fi < n; fi++ )
+    {
+        Component* comp = &comps[fi];
+        if( comp->type < 0 )
+            continue;
+
+        int px = lay_x[fi];
+        int py = lay_y[fi];
+        int lw = lay_w[fi];
+        int lh = lay_h[fi];
+
+        if( comp->hidden )
+            continue;
+
+        if( comp->type == 3 && comp->fill )
+        {
+            int argb = 0xFF000000 | (comp->color & 0xFFFFFF);
+            fill_rect(
+                pixels,
+                CANVAS_W,
+                px,
+                py,
+                px + lw,
+                py + lh,
+                argb);
+        }
+
+        if( want_sprites && comp->type == 5 && comp->graphic >= 0 )
+        {
+            struct CacheSpritePack* pack =
+                sprite_pack_new_from_cache(cache, comp->graphic);
+            if( pack && pack->count > 0 && pack->palette )
+            {
+                int* spr_px = sprite_get_pixels(&pack->sprites[0], pack->palette, 0);
+                if( spr_px )
+                {
+                    int ox = px + pack->sprites[0].offset_x;
+                    int oy = py + pack->sprites[0].offset_y;
+                    int sw = pack->sprites[0].width;
+                    int sh = pack->sprites[0].height;
+                    if( comp->tiled )
+                        blit_rgba_sprite_tiled(
+                            pixels,
+                            CANVAS_W,
+                            px,
+                            py,
+                            lw,
+                            lh,
+                            spr_px,
+                            sw,
+                            sh,
+                            ox,
+                            oy);
+                    else
+                        blit_rgba_sprite(
+                            pixels, CANVAS_W, ox, oy, spr_px, sw, sh);
+                    free(spr_px);
+                }
+                sprite_pack_free(pack);
+            }
+            else if( pack )
+                sprite_pack_free(pack);
+        }
+    }
+}
+
+/**
+ * Load another interface archive and draw it with IF3 roots resolved inside
+ * [root_x,root_y,+root_w,+root_h] (e.g. a slot on the HUD shell).
+ */
+static int
+render_mounted_interface(
+    struct Cache* cache,
+    int iface_id,
+    int root_x,
+    int root_y,
+    int root_w,
+    int root_h,
+    int* pixels,
+    int want_sprites)
+{
+    if( root_w <= 0 || root_h <= 0 )
+        return 0;
+
+    struct CacheArchive* arch =
+        cache_archive_new_load(cache, CACHE_INTERFACES, iface_id);
+    if( !arch )
+    {
+        fprintf(
+            stderr,
+            "mount: failed to load CACHE_INTERFACES archive %d\n",
+            iface_id);
+        return -1;
+    }
+
+    cache_archive_init_metadata(cache, arch);
+    struct FileList* fl = filelist_new_from_cache_archive(arch);
+    if( !fl )
+    {
+        fprintf(
+            stderr,
+            "mount: failed to unpack interface archive %d\n",
+            iface_id);
+        cache_archive_free(arch);
+        return -1;
+    }
+
+    int n = fl->file_count;
+    Component* comps = calloc((size_t)n, sizeof(Component));
+    int* lay_x = calloc((size_t)n, sizeof(int));
+    int* lay_y = calloc((size_t)n, sizeof(int));
+    int* lay_w = calloc((size_t)n, sizeof(int));
+    int* lay_h = calloc((size_t)n, sizeof(int));
+    if( !comps || !lay_x || !lay_y || !lay_w || !lay_h )
+    {
+        free(comps);
+        free(lay_x);
+        free(lay_y);
+        free(lay_w);
+        free(lay_h);
+        filelist_free(fl);
+        cache_archive_free(arch);
+        return -1;
+    }
+
+    for( int fi = 0; fi < n; fi++ )
+    {
+        if( decode_component_from_bytes(
+                &comps[fi],
+                fl->files[fi],
+                fl->file_sizes[fi],
+                iface_id,
+                fi) != 0 )
+        {
+            Component_init(&comps[fi]);
+            continue;
+        }
+    }
+
+    resolve_interface_layout(
+        comps,
+        n,
+        root_x,
+        root_y,
+        root_w,
+        root_h,
+        lay_x,
+        lay_y,
+        lay_w,
+        lay_h);
+
+    draw_interface_components(
+        cache,
+        comps,
+        n,
+        lay_x,
+        lay_y,
+        lay_w,
+        lay_h,
+        pixels,
+        want_sprites);
+
+    for( int fi = 0; fi < n; fi++ )
+        Component_free(&comps[fi]);
+    free(comps);
+    free(lay_x);
+    free(lay_y);
+    free(lay_w);
+    free(lay_h);
+    filelist_free(fl);
+    cache_archive_free(arch);
+    return 0;
+}
+
+static void
 usage(void)
 {
     fprintf(
         stderr,
-        "usage: interface161_test <cache_directory> [--iface N] [--sprites] [out.bmp]\n");
+        "usage: interface161_test <cache_directory> [--iface N] [--sprites]\n"
+        "          [--mount childFileIndex:ifaceId] ... [out.bmp]\n");
 }
 
 int
@@ -362,6 +575,8 @@ main(
     const char* out_path = "interface161_out.bmp";
     int iface = 161;
     int want_sprites = 0;
+    int mount_count = 0;
+    struct MountSpec mounts[MAX_MOUNTS];
 
     for( int i = 1; i < argc; i++ )
     {
@@ -372,6 +587,17 @@ main(
         else if( strcmp(argv[i], "--sprites") == 0 )
         {
             want_sprites = 1;
+        }
+        else if( strcmp(argv[i], "--mount") == 0 && i + 1 < argc )
+        {
+            const char* s = argv[++i];
+            char* colon = strchr(s, ':');
+            if( colon && mount_count < MAX_MOUNTS )
+            {
+                mounts[mount_count].child_file_index = atoi(s);
+                mounts[mount_count].iface_id = atoi(colon + 1);
+                mount_count++;
+            }
         }
         else if( !cache_dir )
         {
@@ -464,71 +690,49 @@ main(
             in_group++;
     }
 
-    resolve_interface_layout(comps, n, lay_x, lay_y, lay_w, lay_h);
+    resolve_interface_layout(
+        comps,
+        n,
+        0,
+        0,
+        FIXED_MODE_ROOT_W,
+        FIXED_MODE_ROOT_H,
+        lay_x,
+        lay_y,
+        lay_w,
+        lay_h);
 
-    for( int fi = 0; fi < n; fi++ )
+    draw_interface_components(
+        cache,
+        comps,
+        n,
+        lay_x,
+        lay_y,
+        lay_w,
+        lay_h,
+        pixels,
+        want_sprites);
+
+    for( int mi = 0; mi < mount_count; mi++ )
     {
-        Component* comp = &comps[fi];
-        if( comp->type < 0 )
-            continue;
-
-        int px = lay_x[fi];
-        int py = lay_y[fi];
-        int lw = lay_w[fi];
-        int lh = lay_h[fi];
-
-        if( comp->hidden )
-            continue;
-
-        if( comp->type == 3 && comp->fill )
+        int cf = mounts[mi].child_file_index;
+        if( cf < 0 || cf >= n )
         {
-            int argb = 0xFF000000 | (comp->color & 0xFFFFFF);
-            fill_rect(
-                pixels,
-                CANVAS_W,
-                px,
-                py,
-                px + lw,
-                py + lh,
-                argb);
+            fprintf(
+                stderr,
+                "mount: skip out-of-range child file index %d\n",
+                cf);
+            continue;
         }
-
-        if( want_sprites && comp->type == 5 && comp->graphic >= 0 )
-        {
-            struct CacheSpritePack* pack =
-                sprite_pack_new_from_cache(cache, comp->graphic);
-            if( pack && pack->count > 0 && pack->palette )
-            {
-                int* spr_px = sprite_get_pixels(&pack->sprites[0], pack->palette, 0);
-                if( spr_px )
-                {
-                    int ox = px + pack->sprites[0].offset_x;
-                    int oy = py + pack->sprites[0].offset_y;
-                    int sw = pack->sprites[0].width;
-                    int sh = pack->sprites[0].height;
-                    if( comp->tiled )
-                        blit_rgba_sprite_tiled(
-                            pixels,
-                            CANVAS_W,
-                            px,
-                            py,
-                            lw,
-                            lh,
-                            spr_px,
-                            sw,
-                            sh,
-                            ox,
-                            oy);
-                    else
-                        blit_rgba_sprite(
-                            pixels, CANVAS_W, ox, oy, spr_px, sw, sh);
-                    free(spr_px);
-                }
-                sprite_pack_free(pack);
-            }
-            else if( pack )
-                sprite_pack_free(pack);
-        }
+        render_mounted_interface(
+            cache,
+            mounts[mi].iface_id,
+            lay_x[cf],
+            lay_y[cf],
+            lay_w[cf],
+            lay_h[cf],
+            pixels,
+            want_sprites);
     }
 
     for( int fi = 0; fi < n; fi++ )

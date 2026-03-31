@@ -444,7 +444,8 @@ Component_decodeIf1(
         int32_t local808 = g2(buf) & 0x3F;
         self->clickMask |= local808 << 11;
     }
-    if( self->buttonType == 1 || self->buttonType == 4 || self->buttonType == 5 || self->buttonType == 6 )
+    if( self->buttonType == 1 || self->buttonType == 4 || self->buttonType == 5 ||
+        self->buttonType == 6 )
     {
         free(self->option);
         self->option = read_jstring(buf);
@@ -487,17 +488,22 @@ Component_decodeIf3(
     struct RSBuffer* buf)
 {
     self->if3 = true;
-    g1(buf);
+    g1(buf); // Skips the 255 marker
 
     self->type = g1(buf);
     self->clientCode = g2(buf);
     self->baseX = g2b(buf);
     self->baseY = g2b(buf);
-    self->baseWidth = g2(buf);
     if( self->type == 9 )
+    {
+        self->baseWidth = g2b(buf);
         self->baseHeight = g2b(buf);
+    }
     else
+    {
+        self->baseWidth = g2(buf);
         self->baseHeight = g2(buf);
+    }
 
     self->widthMode = g1b(buf);
     self->heightMode = g1b(buf);
