@@ -18,28 +18,24 @@ platform_get_memory_info(struct PlatformMemoryInfo* info)
 
 #elif defined(__APPLE__)
 
-#include <mach/mach.h>
-#include <sys/resource.h>
+#include <malloc/malloc.h>
 
 bool
 platform_get_memory_info(struct PlatformMemoryInfo* info)
 {
     memset(info, 0, sizeof(*info));
 
-    mach_task_basic_info_data_t task_info_data;
-    mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
-    kern_return_t kr =
-        task_info(mach_task_self(), MACH_TASK_BASIC_INFO, (task_info_t)&task_info_data, &count);
-    if( kr != KERN_SUCCESS )
-        return false;
-
-    info->heap_used = (size_t)task_info_data.resident_size;
-    info->heap_total = (size_t)task_info_data.virtual_size;
-
-    struct rusage ru;
-    if( getrusage(RUSAGE_SELF, &ru) == 0 )
-        info->heap_peak = (size_t)ru.ru_maxrss;
-
+    /*
+     * Do not use mach_task_basic_info resident vs virtual here: virtual_size is
+     * process address space (often huge due to mmap), so used/total looked empty.
+     * malloc_zone_statistics (NULL aggregates all zones) matches Linux mallinfo
+     * / Emscripten heap semantics for the ImGui bar.
+     */
+    malloc_statistics_t stats;
+    malloc_zone_statistics(NULL, &stats);
+    info->heap_used = (size_t)stats.size_in_use;
+    info->heap_total = (size_t)stats.size_allocated;
+    info->heap_peak = (size_t)stats.max_size_in_use;
     return true;
 }
 

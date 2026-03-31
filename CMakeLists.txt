@@ -5,6 +5,12 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
+# # Enable ASAN
+# cmake -DENABLE_ASAN=ON ..
+# # Disable ASAN (default)
+# cmake -DENABLE_ASAN=OFF ..
+option(ENABLE_ASAN "Enable AddressSanitizer (ASAN)" OFF)
+
 file(GLOB LUA_SOURCES "src/3rd/lua/*.c")
 list(REMOVE_ITEM LUA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/lua.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/luac.c")
 
@@ -226,14 +232,10 @@ if(NOT EMSCRIPTEN)
         target_link_options(osx PRIVATE -Wl,-subsystem,console)
     endif()
 
-    # if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    #     target_compile_options(osx PRIVATE -fpermissive)
-    #     target_compile_options(osx PRIVATE
-    #         $<$<CONFIG:Debug>:-fsanitize=address>
-    #         $<$<CONFIG:Debug>:-fno-omit-frame-pointer>
-    #     )
-    #     target_link_options(osx PRIVATE $<$<CONFIG:Debug>:-fsanitize=address>)
-    # endif()
+    if(ENABLE_ASAN)
+        target_compile_options(osx PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+        target_link_options(osx PRIVATE -fsanitize=address)
+    endif()
     add_executable(interface161_test
         tools/interface161_test/main.c
         src/osrs/rscache/tables/component.c

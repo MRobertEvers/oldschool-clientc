@@ -526,6 +526,7 @@ usage(void)
         "  is revision-specific; try --mount 21:162 (chatbox), not 19 (minimap).\n");
 }
 
+// ./interface161_test ../cache --iface 548 --sprites --mount 10:162 out.bmp
 int
 main(
     int argc,
@@ -648,6 +649,25 @@ main(
 
     resolve_interface_layout(
         comps, n, 0, 0, FIXED_MODE_ROOT_W, FIXED_MODE_ROOT_H, lay_x, lay_y, lay_w, lay_h);
+
+    printf(
+        "main iface %d: component positions (resolved, fixed root %dx%d)\n",
+        iface,
+        FIXED_MODE_ROOT_W,
+        FIXED_MODE_ROOT_H);
+    for( int fi = 0; fi < n; fi++ )
+    {
+        printf(
+            "  file %d: id=%d x=%d y=%d w=%d h=%d type=%d%s\n",
+            fi,
+            comps[fi].id,
+            lay_x[fi],
+            lay_y[fi],
+            lay_w[fi],
+            lay_h[fi],
+            comps[fi].type,
+            comps[fi].hidden ? " hidden" : "");
+    }
 
     draw_interface_components(cache, comps, n, lay_x, lay_y, lay_w, lay_h, pixels, want_sprites);
 
