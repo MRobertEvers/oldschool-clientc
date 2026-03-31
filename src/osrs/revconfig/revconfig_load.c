@@ -8,6 +8,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Current [type:name] `type` for keyval dispatch (w/h/anchor vs layout vs component). */
+static char s_ini_item_type[64];
+
 static int
 push_field(
     struct RevConfigBuffer* revconfig_buffer,
@@ -37,6 +40,9 @@ push_element_from_ini_header(
 
     printf("Parsed section header: type='%s', name='%s'\n", item_type, item_name);
 
+    strncpy(s_ini_item_type, item_type, sizeof(s_ini_item_type) - 1);
+    s_ini_item_type[sizeof(s_ini_item_type) - 1] = '\0';
+
     push_field(revconfig_buffer, RCFIELD_ITEMTYPE, item_type);
     push_field(revconfig_buffer, RCFIELD_ITEMNAME, item_name);
 }
@@ -59,13 +65,41 @@ push_field_from_ini_kv(
     else if( strcmp(key, "y") == 0 )
         kind = RCFIELD_UILAYOUT_Y;
     else if( strcmp(key, "w") == 0 )
-        kind = RCFIELD_UILAYOUT_WIDTH;
+    {
+        if( strcmp(s_ini_item_type, "component") == 0 )
+            kind = RCFIELD_UICOMPONENT_WIDTH;
+        else if( strcmp(s_ini_item_type, "layout") == 0 )
+            kind = RCFIELD_UILAYOUT_WIDTH;
+    }
     else if( strcmp(key, "h") == 0 )
-        kind = RCFIELD_UILAYOUT_HEIGHT;
+    {
+        if( strcmp(s_ini_item_type, "component") == 0 )
+            kind = RCFIELD_UICOMPONENT_HEIGHT;
+        else if( strcmp(s_ini_item_type, "layout") == 0 )
+            kind = RCFIELD_UILAYOUT_HEIGHT;
+    }
     else if( strcmp(key, "anchor_x") == 0 )
-        kind = RCFIELD_UILAYOUT_ANCHOR_X;
+    {
+        if( strcmp(s_ini_item_type, "component") == 0 )
+            kind = RCFIELD_UICOMPONENT_ANCHOR_X;
+        else if( strcmp(s_ini_item_type, "layout") == 0 )
+            kind = RCFIELD_UILAYOUT_ANCHOR_X;
+    }
     else if( strcmp(key, "anchor_y") == 0 )
-        kind = RCFIELD_UILAYOUT_ANCHOR_Y;
+    {
+        if( strcmp(s_ini_item_type, "component") == 0 )
+            kind = RCFIELD_UICOMPONENT_ANCHOR_Y;
+        else if( strcmp(s_ini_item_type, "layout") == 0 )
+            kind = RCFIELD_UILAYOUT_ANCHOR_Y;
+    }
+    else if( strcmp(key, "hitbox_x") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_HITBOX_X;
+    else if( strcmp(key, "hitbox_y") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_HITBOX_Y;
+    else if( strcmp(key, "hitbox_w") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_HITBOX_W;
+    else if( strcmp(key, "hitbox_h") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_HITBOX_H;
     else if( strcmp(key, "left") == 0 )
         kind = RCFIELD_UILAYOUT_LEFT;
     else if( strcmp(key, "top") == 0 )
@@ -115,6 +149,8 @@ revconfig_load_fields_from_ini_bytes(
 {
     if( !data || size == 0 || !revconfig_buffer )
         return;
+
+    s_ini_item_type[0] = '\0';
 
     struct INIReader reader = { 0 };
     ini_reader_init(&reader);

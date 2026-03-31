@@ -120,6 +120,7 @@ set(COMMON_SOURCES
     src/osrs/rscache/xtea_config.c
     src/osrs/rsa.c
     src/osrs/rscache/rsbuf.c
+    src/osrs/rscache/tables/component.c
     src/osrs/rscache/bitbuffer.c
     src/osrs/rscache/xtea.c
     src/osrs/revs/revpacket_lc245_2_query.c
@@ -233,6 +234,29 @@ if(NOT EMSCRIPTEN)
     #     )
     #     target_link_options(osx PRIVATE $<$<CONFIG:Debug>:-fsanitize=address>)
     # endif()
+    add_executable(interface161_test
+        tools/interface161_test/main.c
+        src/osrs/rscache/tables/component.c
+        src/osrs/rscache/rsbuf.c
+        src/bmp.c
+        src/osrs/rscache/cache.c
+        src/osrs/rscache/disk.c
+        src/osrs/rscache/reference_table.c
+        src/osrs/rscache/archive_decompress.c
+        src/osrs/rscache/compression.c
+        src/osrs/rscache/archive.c
+        src/osrs/rscache/xtea.c
+        src/osrs/rscache/xtea_config.c
+        src/osrs/rscache/filelist.c
+        src/osrs/rscache/bitbuffer.c
+        src/osrs/rscache/tables/string_utils.c
+        src/osrs/rscache/tables/sprites.c
+        src/3rd/bzip/bzip.c
+        src/3rd/miniz/miniz.c
+    )
+    target_include_directories(interface161_test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
 endif()
 
 # --- Emscripten Target ---

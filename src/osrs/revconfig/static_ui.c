@@ -152,7 +152,11 @@ static_ui_buffer_push_compass(
     int width,
     int height,
     int anchor_x,
-    int anchor_y)
+    int anchor_y,
+    int hitbox_x,
+    int hitbox_y,
+    int hitbox_w,
+    int hitbox_h)
 {
     struct StaticUIComponent* component = push_element(buffer);
     if( !component )
@@ -170,6 +174,10 @@ static_ui_buffer_push_compass(
     component->position.height = height;
     component->position.anchor_x = anchor_x;
     component->position.anchor_y = anchor_y;
+    component->hitbox_x = hitbox_x;
+    component->hitbox_y = hitbox_y;
+    component->hitbox_w = hitbox_w;
+    component->hitbox_h = hitbox_h;
 }
 
 void
@@ -180,7 +188,11 @@ static_ui_buffer_push_minimap(
     int width,
     int height,
     int anchor_x,
-    int anchor_y)
+    int anchor_y,
+    int hitbox_x,
+    int hitbox_y,
+    int hitbox_w,
+    int hitbox_h)
 {
     struct StaticUIComponent* component = push_element(buffer);
     if( !component )
@@ -196,4 +208,8 @@ static_ui_buffer_push_minimap(
     component->position.height = height;
     component->position.anchor_x = anchor_x;
     component->position.anchor_y = anchor_y;
+    component->hitbox_x = hitbox_x;
+    component->hitbox_y = hitbox_y;
+    component->hitbox_w = hitbox_w;
+    component->hitbox_h = hitbox_h;
 }

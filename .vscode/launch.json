@@ -141,6 +141,30 @@
             "MIMode": "lldb"
         },
         {
+            "name": "(lldb) Launch interface161_test",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/interface161_test",
+            "args": [
+                "${workspaceFolder}/cache",
+                "--iface",
+                "161",
+                "--sprites",
+                "${workspaceFolder}/build/interface161_test.bmp"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build",
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "setupCommands": [
+                {
+                    "description": "Stop on debug traps (SIGTRAP)",
+                    "text": "process handle SIGTRAP -n false -p true -s false",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
             "name": "(lldb) Launch OSX",
             "type": "cppdbg",
             "request": "launch",

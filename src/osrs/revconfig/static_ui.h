@@ -57,6 +57,11 @@ struct StaticUIComponent
     struct StaticUIElemPosition position;
     int scene_id;
     int atlas_index;
+    /* Relative to position.x/y in fixed UI space; (0,0,0,0) = unset (use draw dst box). */
+    int hitbox_x;
+    int hitbox_y;
+    int hitbox_w;
+    int hitbox_h;
 };
 
 struct StaticUIBuffer
@@ -115,7 +120,11 @@ static_ui_buffer_push_compass(
     int width,
     int height,
     int anchor_x,
-    int anchor_y);
+    int anchor_y,
+    int hitbox_x,
+    int hitbox_y,
+    int hitbox_w,
+    int hitbox_h);
 
 void
 static_ui_buffer_push_minimap(
@@ -125,6 +134,10 @@ static_ui_buffer_push_minimap(
     int width,
     int height,
     int anchor_x,
-    int anchor_y);
+    int anchor_y,
+    int hitbox_x,
+    int hitbox_y,
+    int hitbox_w,
+    int hitbox_h);
 
 #endif

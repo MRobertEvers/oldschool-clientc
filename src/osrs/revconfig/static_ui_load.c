@@ -26,6 +26,14 @@ struct ComponentEntry
     int sprite_id;
     int sprite_index;
     int id;
+    int width;
+    int height;
+    int anchor_x;
+    int anchor_y;
+    int hitbox_x;
+    int hitbox_y;
+    int hitbox_w;
+    int hitbox_h;
 };
 
 enum SpriteLoad_AtlasMode
@@ -62,6 +70,14 @@ struct ComponentLoad
     char name[64];
     char type[64];
     char sprite[64];
+    int width;
+    int height;
+    int anchor_x;
+    int anchor_y;
+    int hitbox_x;
+    int hitbox_y;
+    int hitbox_w;
+    int hitbox_h;
 };
 
 #define MAX_LAYOUT_ENTRIES 64
@@ -430,10 +446,26 @@ load_component(
         int bind = component_bind_sprite_from_load(load, sprite_hmap, component_entry, "compass");
         if( bind == 2 )
             return;
+        component_entry->width = load->width;
+        component_entry->height = load->height;
+        component_entry->anchor_x = load->anchor_x;
+        component_entry->anchor_y = load->anchor_y;
+        component_entry->hitbox_x = load->hitbox_x;
+        component_entry->hitbox_y = load->hitbox_y;
+        component_entry->hitbox_w = load->hitbox_w;
+        component_entry->hitbox_h = load->hitbox_h;
     }
     break;
     case UIELEM_MINIMAP:
     {
+        component_entry->width = load->width;
+        component_entry->height = load->height;
+        component_entry->anchor_x = load->anchor_x;
+        component_entry->anchor_y = load->anchor_y;
+        component_entry->hitbox_x = load->hitbox_x;
+        component_entry->hitbox_y = load->hitbox_y;
+        component_entry->hitbox_w = load->hitbox_w;
+        component_entry->hitbox_h = load->hitbox_h;
     }
     break;
     case UIELEM_WORLD:
@@ -446,6 +478,9 @@ load_component(
     }
     break;
     case UIELEM_TAB_REDSTONES:
+        break;
+    default:
+        break;
     }
 }
 
@@ -475,10 +510,14 @@ load_layout(
                 component_entry->sprite_index,
                 layout_entry->x,
                 layout_entry->y,
-                layout_entry->width,
-                layout_entry->height,
-                layout_entry->anchor_x,
-                layout_entry->anchor_y);
+                component_entry->width,
+                component_entry->height,
+                component_entry->anchor_x,
+                component_entry->anchor_y,
+                component_entry->hitbox_x,
+                component_entry->hitbox_y,
+                component_entry->hitbox_w,
+                component_entry->hitbox_h);
         }
         break;
         case UIELEM_MINIMAP:
@@ -487,10 +526,14 @@ load_layout(
                 ui,
                 layout_entry->x,
                 layout_entry->y,
-                layout_entry->width,
-                layout_entry->height,
-                layout_entry->anchor_x,
-                layout_entry->anchor_y);
+                component_entry->width,
+                component_entry->height,
+                component_entry->anchor_x,
+                component_entry->anchor_y,
+                component_entry->hitbox_x,
+                component_entry->hitbox_y,
+                component_entry->hitbox_w,
+                component_entry->hitbox_h);
         }
         break;
         case UIELEM_WORLD:
@@ -727,6 +770,70 @@ static_ui_from_revconfig_buildcachedat(
                 load.kind == LOAD_KIND_COMPONENT &&
                 "UICOMPONENT_SPRITE field must be within a component item");
             strncpy(load._component.sprite, field->value, sizeof(load._component.sprite) - 1);
+        }
+        break;
+        case RCFIELD_UICOMPONENT_WIDTH:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "UICOMPONENT_WIDTH field must be within a component item");
+            load._component.width = atoi(field->value);
+        }
+        break;
+        case RCFIELD_UICOMPONENT_HEIGHT:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "UICOMPONENT_HEIGHT field must be within a component item");
+            load._component.height = atoi(field->value);
+        }
+        break;
+        case RCFIELD_UICOMPONENT_ANCHOR_X:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "UICOMPONENT_ANCHOR_X field must be within a component item");
+            load._component.anchor_x = atoi(field->value);
+        }
+        break;
+        case RCFIELD_UICOMPONENT_ANCHOR_Y:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "UICOMPONENT_ANCHOR_Y field must be within a component item");
+            load._component.anchor_y = atoi(field->value);
+        }
+        break;
+        case RCFIELD_UICOMPONENT_HITBOX_X:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "UICOMPONENT_HITBOX_X field must be within a component item");
+            load._component.hitbox_x = atoi(field->value);
+        }
+        break;
+        case RCFIELD_UICOMPONENT_HITBOX_Y:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "UICOMPONENT_HITBOX_Y field must be within a component item");
+            load._component.hitbox_y = atoi(field->value);
+        }
+        break;
+        case RCFIELD_UICOMPONENT_HITBOX_W:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "UICOMPONENT_HITBOX_W field must be within a component item");
+            load._component.hitbox_w = atoi(field->value);
+        }
+        break;
+        case RCFIELD_UICOMPONENT_HITBOX_H:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "UICOMPONENT_HITBOX_H field must be within a component item");
+            load._component.hitbox_h = atoi(field->value);
         }
         break;
         case RCFIELD_UILAYOUT_COMPONENT:
