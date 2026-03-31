@@ -682,15 +682,6 @@ l_buildcache_ensure(lua_State* L)
     if( !game->buildcache )
         game->buildcache = buildcache_new();
 
-    if( !game->sys_painter )
-    {
-        game->sys_painter = painter_new(size_x, size_z, MAP_TERRAIN_LEVELS);
-        game->sys_painter_buffer = painter_buffer_new();
-    }
-    if( !game->sys_minimap )
-    {
-        game->sys_minimap = minimap_new(104, 104, MAP_TERRAIN_LEVELS);
-    }
     // if( !game->scenebuilder )
     //     game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
 
@@ -1284,7 +1275,8 @@ l_gameproto_get_npc_ids_from_packet(lua_State* L)
     reader.current_op = 0;
     reader.max_ops = 2048;
     struct PktNpcInfoOp ops[2048];
-    int count = pkt_npc_info_reader_read(&reader, (struct PktNpcInfo*)&item->packet._npc_info, ops, 2048);
+    int count =
+        pkt_npc_info_reader_read(&reader, (struct PktNpcInfo*)&item->packet._npc_info, ops, 2048);
 
     lua_newtable(L);
     int idx = 0;
@@ -1341,7 +1333,8 @@ l_gameproto_get_player_appearance_ids(lua_State* L)
     reader.max_ops = 2048;
     struct PktPlayerInfoOp ops[2048];
 
-    int count = pkt_player_info_reader_read(&reader, (struct PktPlayerInfo*)&item->packet._player_info, ops, 2048);
+    int count = pkt_player_info_reader_read(
+        &reader, (struct PktPlayerInfo*)&item->packet._player_info, ops, 2048);
 
     lua_newtable(L); /* idk_ids */
     lua_newtable(L); /* obj_ids */

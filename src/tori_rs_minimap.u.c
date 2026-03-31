@@ -74,7 +74,6 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
     el->name[sizeof(el->name) - 1] = '\0';
 
     game->minimap_static_uiscene_element_id = id;
-    game->sys_minimap = mm;
 }
 
 #endif

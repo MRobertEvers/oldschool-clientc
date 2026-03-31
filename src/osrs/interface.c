@@ -477,204 +477,203 @@ interface_draw_component(
     if( !component )
         return;
 
-    /* Client.ts drawInterface (9396): skip entire subtree if hide && not hovered */
-    if( component->hide && component->id != game->current_hovered_interface_id )
-        return;
+    return;
 
-    // Handle non-layer components directly
-    if( component->type != COMPONENT_TYPE_LAYER )
-    {
-        switch( component->type )
-        {
-        case COMPONENT_TYPE_RECT:
-            interface_draw_component_rect(game, component, x, y, pixel_buffer, stride);
-            break;
-        case COMPONENT_TYPE_TEXT:
-            interface_draw_component_text(game, component, x, y, pixel_buffer, stride);
-            break;
-        case COMPONENT_TYPE_GRAPHIC:
-            interface_draw_component_graphic(game, component, x, y, pixel_buffer, stride);
-            break;
-        case COMPONENT_TYPE_INV:
-            interface_draw_component_inv(game, component, x, y, pixel_buffer, stride);
-            break;
-        case COMPONENT_TYPE_MODEL:
-            interface_draw_component_model(game, component, x, y, pixel_buffer, stride);
-            break;
-        }
-        return;
-    }
+    //     // Handle non-layer components directly
+    //     if( component->type != COMPONENT_TYPE_LAYER )
+    //     {
+    //         switch( component->type )
+    //         {
+    //         case COMPONENT_TYPE_RECT:
+    //             interface_draw_component_rect(game, component, x, y, pixel_buffer, stride);
+    //             break;
+    //         case COMPONENT_TYPE_TEXT:
+    //             interface_draw_component_text(game, component, x, y, pixel_buffer, stride);
+    //             break;
+    //         case COMPONENT_TYPE_GRAPHIC:
+    //             interface_draw_component_graphic(game, component, x, y, pixel_buffer, stride);
+    //             break;
+    //         case COMPONENT_TYPE_INV:
+    //             interface_draw_component_inv(game, component, x, y, pixel_buffer, stride);
+    //             break;
+    //         case COMPONENT_TYPE_MODEL:
+    //             interface_draw_component_model(game, component, x, y, pixel_buffer, stride);
+    //             break;
+    //         }
+    //         return;
+    //     }
 
-    // Only process layer components that have children
-    if( !component->children )
-        return;
+    //     // Only process layer components that have children
+    //     if( !component->children )
+    //         return;
 
-    // Save current bounds
-    struct DashViewPort* view_port = game->iface_view_port;
-    int saved_left = view_port->clip_left;
-    int saved_top = view_port->clip_top;
-    int saved_right = view_port->clip_right;
-    int saved_bottom = view_port->clip_bottom;
+    //     // Save current bounds
+    //     struct DashViewPort* view_port = game->iface_view_port;
+    //     int saved_left = view_port->clip_left;
+    //     int saved_top = view_port->clip_top;
+    //     int saved_right = view_port->clip_right;
+    //     int saved_bottom = view_port->clip_bottom;
 
-    // Set bounds for this component
-    dash2d_set_bounds(view_port, x, y, x + component->width, y + component->height);
+    //     // Set bounds for this component
+    //     dash2d_set_bounds(view_port, x, y, x + component->width, y + component->height);
 
-    // Iterate through children
-    for( int i = 0; i < component->children_count; i++ )
-    {
-        if( !component->childX || !component->childY )
-            continue;
+    //     // Iterate through children
+    //     for( int i = 0; i < component->children_count; i++ )
+    //     {
+    //         if( !component->childX || !component->childY )
+    //             continue;
 
-        int child_id = component->children[i];
-        int childX = component->childX[i] + x;
-        int childY = component->childY[i] + y - scroll_y;
+    //         int child_id = component->children[i];
+    //         int childX = component->childX[i] + x;
+    //         int childY = component->childY[i] + y - scroll_y;
 
-        struct CacheDatConfigComponent* child =
-            buildcachedat_get_component(game->buildcachedat, child_id);
+    //         struct CacheDatConfigComponent* child =
+    //             buildcachedat_get_component(game->buildcachedat, child_id);
 
-        if( !child )
-            continue;
+    //         if( !child )
+    //             continue;
 
-        childX += child->x;
-        childY += child->y;
+    //         childX += child->x;
+    //         childY += child->y;
 
-        // Render based on child type
-        switch( child->type )
-        {
-        case COMPONENT_TYPE_LAYER:
-        {
-            /* Use scroll position (Client.ts scrollPosition), not total scroll height */
-            int scroll_pos = 0;
-            if( child_id >= 0 && child_id < MAX_COMPONENT_SCROLL_IDS )
-                scroll_pos = game->component_scroll_position[child_id];
-            int max_scroll = child->scroll - child->height;
-            if( max_scroll < 0 )
-                max_scroll = 0;
-            if( scroll_pos > max_scroll )
-                scroll_pos = max_scroll;
-            if( scroll_pos < 0 )
-                scroll_pos = 0;
+    //         // Render based on child type
+    //         switch( child->type )
+    //         {
+    //         case COMPONENT_TYPE_LAYER:
+    //         {
+    //             /* Use scroll position (Client.ts scrollPosition), not total scroll height */
+    //             int scroll_pos = 0;
+    //             if( child_id >= 0 && child_id < MAX_COMPONENT_SCROLL_IDS )
+    //                 scroll_pos = game->component_scroll_position[child_id];
+    //             int max_scroll = child->scroll - child->height;
+    //             if( max_scroll < 0 )
+    //                 max_scroll = 0;
+    //             if( scroll_pos > max_scroll )
+    //                 scroll_pos = max_scroll;
+    //             if( scroll_pos < 0 )
+    //                 scroll_pos = 0;
 
-            /* Match Client.ts drawInterface: set bounds to layer rect and draw directly
-             * onto main buffer (no subsprite). This draws black (0) and all colours
-             * correctly; subsprite+blit had to treat 0 as transparent. */
-            int saved_left = view_port->clip_left;
-            int saved_top = view_port->clip_top;
-            int saved_right = view_port->clip_right;
-            int saved_bottom = view_port->clip_bottom;
-            dash2d_set_bounds(
-                view_port, childX, childY, childX + child->width, childY + child->height);
-            interface_draw_component(game, child, childX, childY, scroll_pos, pixel_buffer, stride);
-            dash2d_set_bounds(view_port, saved_left, saved_top, saved_right, saved_bottom);
+    //             /* Match Client.ts drawInterface: set bounds to layer rect and draw directly
+    //              * onto main buffer (no subsprite). This draws black (0) and all colours
+    //              * correctly; subsprite+blit had to treat 0 as transparent. */
+    //             int saved_left = view_port->clip_left;
+    //             int saved_top = view_port->clip_top;
+    //             int saved_right = view_port->clip_right;
+    //             int saved_bottom = view_port->clip_bottom;
+    //             dash2d_set_bounds(
+    //                 view_port, childX, childY, childX + child->width, childY + child->height);
+    //             interface_draw_component(game, child, childX, childY, scroll_pos, pixel_buffer,
+    //             stride); dash2d_set_bounds(view_port, saved_left, saved_top, saved_right,
+    //             saved_bottom);
 
-            if( child->scroll > child->height )
-            {
-                int sb_right = childX + child->width + 16;
-                int saved_right_sb = view_port->clip_right;
-                if( sb_right > saved_right_sb )
-                    view_port->clip_right = sb_right;
-                interface_draw_scrollbar(
-                    game,
-                    childX + child->width,
-                    childY,
-                    scroll_pos,
-                    child->scroll,
-                    child->height,
-                    pixel_buffer,
-                    stride);
-                view_port->clip_right = saved_right_sb;
-            }
-            break;
-        }
-        case COMPONENT_TYPE_RECT:
-            interface_draw_component_rect(game, child, childX, childY, pixel_buffer, stride);
-            break;
-        case COMPONENT_TYPE_TEXT:
-            interface_draw_component_text(game, child, childX, childY, pixel_buffer, stride);
-            break;
-        case COMPONENT_TYPE_GRAPHIC:
-            interface_draw_component_graphic(game, child, childX, childY, pixel_buffer, stride);
-            break;
-        case COMPONENT_TYPE_INV:
-            interface_draw_component_inv(game, child, childX, childY, pixel_buffer, stride);
-            break;
-        case COMPONENT_TYPE_MODEL:
-            interface_draw_component_model(game, child, childX, childY, pixel_buffer, stride);
-            break;
-        }
-    }
+    //             if( child->scroll > child->height )
+    //             {
+    //                 int sb_right = childX + child->width + 16;
+    //                 int saved_right_sb = view_port->clip_right;
+    //                 if( sb_right > saved_right_sb )
+    //                     view_port->clip_right = sb_right;
+    //                 interface_draw_scrollbar(
+    //                     game,
+    //                     childX + child->width,
+    //                     childY,
+    //                     scroll_pos,
+    //                     child->scroll,
+    //                     child->height,
+    //                     pixel_buffer,
+    //                     stride);
+    //                 view_port->clip_right = saved_right_sb;
+    //             }
+    //             break;
+    //         }
+    //         case COMPONENT_TYPE_RECT:
+    //             interface_draw_component_rect(game, child, childX, childY, pixel_buffer, stride);
+    //             break;
+    //         case COMPONENT_TYPE_TEXT:
+    //             interface_draw_component_text(game, child, childX, childY, pixel_buffer, stride);
+    //             break;
+    //         case COMPONENT_TYPE_GRAPHIC:
+    //             interface_draw_component_graphic(game, child, childX, childY, pixel_buffer,
+    //             stride); break;
+    //         case COMPONENT_TYPE_INV:
+    //             interface_draw_component_inv(game, child, childX, childY, pixel_buffer, stride);
+    //             break;
+    //         case COMPONENT_TYPE_MODEL:
+    //             interface_draw_component_model(game, child, childX, childY, pixel_buffer,
+    //             stride); break;
+    //         }
+    //     }
 
-    // Restore bounds
-    dash2d_set_bounds(view_port, saved_left, saved_top, saved_right, saved_bottom);
-}
+    //     // Restore bounds
+    //     dash2d_set_bounds(view_port, saved_left, saved_top, saved_right, saved_bottom);
+    // }
 
-void
-interface_draw_component_layer(
-    struct GGame* game,
-    struct CacheDatConfigComponent* component,
-    int x,
-    int y,
-    int scroll_y,
-    int* pixel_buffer,
-    int stride)
-{
-    // Recursive call to draw this layer and its children
-    interface_draw_component(game, component, x, y, scroll_y, pixel_buffer, stride);
-}
+    // void
+    // interface_draw_component_layer(
+    //     struct GGame* game,
+    //     struct CacheDatConfigComponent* component,
+    //     int x,
+    //     int y,
+    //     int scroll_y,
+    //     int* pixel_buffer,
+    //     int stride)
+    // {
+    //     // Recursive call to draw this layer and its children
+    //     interface_draw_component(game, component, x, y, scroll_y, pixel_buffer, stride);
+    // }
 
-/* Recursive hit-test for hover; mirrors Client.ts handleInterfaceInput (10004-10009).
- * Updates *out_hovered_id when a child has (overlayer >= 0 || overColour != 0) and contains
- * (mouse_x, mouse_y). Last hit in draw order wins (topmost). */
-static void
-find_hovered_interface_id_recursive(
-    struct GGame* game,
-    struct CacheDatConfigComponent* component,
-    int x,
-    int y,
-    int scroll_y,
-    int mouse_x,
-    int mouse_y,
-    int* out_hovered_id)
-{
-    if( !component->children || !component->childX || !component->childY )
-        return;
-    for( int i = 0; i < component->children_count; i++ )
-    {
-        int child_id = component->children[i];
-        int childX = component->childX[i] + x;
-        int childY = component->childY[i] + y - scroll_y;
+    // /* Recursive hit-test for hover; mirrors Client.ts handleInterfaceInput (10004-10009).
+    //  * Updates *out_hovered_id when a child has (overlayer >= 0 || overColour != 0) and contains
+    //  * (mouse_x, mouse_y). Last hit in draw order wins (topmost). */
+    // static void
+    // find_hovered_interface_id_recursive(
+    //     struct GGame* game,
+    //     struct CacheDatConfigComponent* component,
+    //     int x,
+    //     int y,
+    //     int scroll_y,
+    //     int mouse_x,
+    //     int mouse_y,
+    //     int* out_hovered_id)
+    // {
+    //     if( !component->children || !component->childX || !component->childY )
+    //         return;
+    //     for( int i = 0; i < component->children_count; i++ )
+    //     {
+    //         int child_id = component->children[i];
+    //         int childX = component->childX[i] + x;
+    //         int childY = component->childY[i] + y - scroll_y;
 
-        struct CacheDatConfigComponent* child =
-            buildcachedat_get_component(game->buildcachedat, child_id);
-        if( !child )
-            continue;
+    //         struct CacheDatConfigComponent* child =
+    //             buildcachedat_get_component(game->buildcachedat, child_id);
+    //         if( !child )
+    //             continue;
 
-        childX += child->x;
-        childY += child->y;
+    //         childX += child->x;
+    //         childY += child->y;
 
-        if( (child->overlayer >= 0 || child->overColour != 0) && mouse_x >= childX &&
-            mouse_y >= childY && mouse_x < childX + child->width &&
-            mouse_y < childY + child->height )
-        {
-            *out_hovered_id = (child->overlayer >= 0) ? child->overlayer : child->id;
-        }
+    //         if( (child->overlayer >= 0 || child->overColour != 0) && mouse_x >= childX &&
+    //             mouse_y >= childY && mouse_x < childX + child->width &&
+    //             mouse_y < childY + child->height )
+    //         {
+    //             *out_hovered_id = (child->overlayer >= 0) ? child->overlayer : child->id;
+    //         }
 
-        if( child->type == COMPONENT_TYPE_LAYER )
-        {
-            int scroll_pos = 0;
-            if( child_id >= 0 && child_id < MAX_COMPONENT_SCROLL_IDS )
-                scroll_pos = game->component_scroll_position[child_id];
-            int max_scroll = child->scroll - child->height;
-            if( max_scroll < 0 )
-                max_scroll = 0;
-            if( scroll_pos > max_scroll )
-                scroll_pos = max_scroll;
-            if( scroll_pos < 0 )
-                scroll_pos = 0;
-            find_hovered_interface_id_recursive(
-                game, child, childX, childY, scroll_pos, mouse_x, mouse_y, out_hovered_id);
-        }
-    }
+    //         if( child->type == COMPONENT_TYPE_LAYER )
+    //         {
+    //             int scroll_pos = 0;
+    //             if( child_id >= 0 && child_id < MAX_COMPONENT_SCROLL_IDS )
+    //                 scroll_pos = game->component_scroll_position[child_id];
+    //             int max_scroll = child->scroll - child->height;
+    //             if( max_scroll < 0 )
+    //                 max_scroll = 0;
+    //             if( scroll_pos > max_scroll )
+    //                 scroll_pos = max_scroll;
+    //             if( scroll_pos < 0 )
+    //                 scroll_pos = 0;
+    //             find_hovered_interface_id_recursive(
+    //                 game, child, childX, childY, scroll_pos, mouse_x, mouse_y, out_hovered_id);
+    //         }
+    //     }
 }
 
 /* Return the hovered component id for the given root and area (root_x, root_y).
@@ -691,7 +690,7 @@ interface_find_hovered_interface_id(
     if( !root || root->type != COMPONENT_TYPE_LAYER )
         return -1;
     int id = -1;
-    find_hovered_interface_id_recursive(game, root, root_x, root_y, 0, mouse_x, mouse_y, &id);
+    // find_hovered_interface_id_recursive(game, root, root_x, root_y, 0, mouse_x, mouse_y, &id);
     return id;
 }
 
@@ -711,65 +710,65 @@ find_scrollbar_at_recursive(
     int* out_height,
     int* out_scroll_height)
 {
-    if( component->children && component->childX && component->childY )
-    {
-        for( int i = 0; i < component->children_count; i++ )
-        {
-            int child_id = component->children[i];
-            int childX = component->childX[i] + x;
-            int childY = component->childY[i] + y - scroll_y;
+    // if( component->children && component->childX && component->childY )
+    // {
+    //     for( int i = 0; i < component->children_count; i++ )
+    //     {
+    //         int child_id = component->children[i];
+    //         int childX = component->childX[i] + x;
+    //         int childY = component->childY[i] + y - scroll_y;
 
-            struct CacheDatConfigComponent* child =
-                buildcachedat_get_component(game->buildcachedat, child_id);
-            if( !child )
-                continue;
+    //         struct CacheDatConfigComponent* child =
+    //             buildcachedat_get_component(game->buildcachedat, child_id);
+    //         if( !child )
+    //             continue;
 
-            childX += child->x;
-            childY += child->y;
+    //         childX += child->x;
+    //         childY += child->y;
 
-            if( child->type == COMPONENT_TYPE_LAYER )
-            {
-                int scroll_pos = 0;
-                if( child_id >= 0 && child_id < MAX_COMPONENT_SCROLL_IDS )
-                    scroll_pos = game->component_scroll_position[child_id];
-                int max_scroll = child->scroll - child->height;
-                if( max_scroll < 0 )
-                    max_scroll = 0;
-                if( scroll_pos > max_scroll )
-                    scroll_pos = max_scroll;
-                if( scroll_pos < 0 )
-                    scroll_pos = 0;
+    //         if( child->type == COMPONENT_TYPE_LAYER )
+    //         {
+    //             int scroll_pos = 0;
+    //             if( child_id >= 0 && child_id < MAX_COMPONENT_SCROLL_IDS )
+    //                 scroll_pos = game->component_scroll_position[child_id];
+    //             int max_scroll = child->scroll - child->height;
+    //             if( max_scroll < 0 )
+    //                 max_scroll = 0;
+    //             if( scroll_pos > max_scroll )
+    //                 scroll_pos = max_scroll;
+    //             if( scroll_pos < 0 )
+    //                 scroll_pos = 0;
 
-                int hit = find_scrollbar_at_recursive(
-                    game,
-                    child,
-                    childX,
-                    childY,
-                    scroll_pos,
-                    mouse_x,
-                    mouse_y,
-                    out_scrollbar_y,
-                    out_height,
-                    out_scroll_height);
-                if( hit >= 0 )
-                    return hit;
-            }
-        }
-    }
+    //             int hit = find_scrollbar_at_recursive(
+    //                 game,
+    //                 child,
+    //                 childX,
+    //                 childY,
+    //                 scroll_pos,
+    //                 mouse_x,
+    //                 mouse_y,
+    //                 out_scrollbar_y,
+    //                 out_height,
+    //                 out_scroll_height);
+    //             if( hit >= 0 )
+    //                 return hit;
+    //         }
+    //     }
+    // }
 
-    if( component->type == COMPONENT_TYPE_LAYER && component->scroll > component->height )
-    {
-        int sb_x = x + component->width;
-        if( mouse_x >= sb_x && mouse_x < sb_x + 16 && mouse_y >= y &&
-            mouse_y < y + component->height )
-        {
-            *out_scrollbar_y = y;
-            *out_height = component->height;
-            *out_scroll_height = component->scroll;
-            return component->id;
-        }
-    }
-    return -1;
+    // if( component->type == COMPONENT_TYPE_LAYER && component->scroll > component->height )
+    // {
+    //     int sb_x = x + component->width;
+    //     if( mouse_x >= sb_x && mouse_x < sb_x + 16 && mouse_y >= y &&
+    //         mouse_y < y + component->height )
+    //     {
+    //         *out_scrollbar_y = y;
+    //         *out_height = component->height;
+    //         *out_scroll_height = component->scroll;
+    //         return component->id;
+    //     }
+    // }
+    // return -1;
 }
 
 int
@@ -837,82 +836,82 @@ find_button_click_at_recursive(
     int* out_menu_param_b,
     int* out_menu_param_c)
 {
-    int found = 0;
-    if( !component->children || !component->childX || !component->childY )
-        return 0;
-    for( int i = 0; i < component->children_count; i++ )
-    {
-        int child_id = component->children[i];
-        int childX = component->childX[i] + x;
-        int childY = component->childY[i] + y - scroll_y;
+    // int found = 0;
+    // if( !component->children || !component->childX || !component->childY )
+    //     return 0;
+    // for( int i = 0; i < component->children_count; i++ )
+    // {
+    //     int child_id = component->children[i];
+    //     int childX = component->childX[i] + x;
+    //     int childY = component->childY[i] + y - scroll_y;
 
-        struct CacheDatConfigComponent* child =
-            buildcachedat_get_component(game->buildcachedat, child_id);
-        if( !child )
-            continue;
+    //     struct CacheDatConfigComponent* child =
+    //         buildcachedat_get_component(game->buildcachedat, child_id);
+    //     if( !child )
+    //         continue;
 
-        childX += child->x;
-        childY += child->y;
+    //     childX += child->x;
+    //     childY += child->y;
 
-        if( mouse_x >= childX && mouse_y >= childY && mouse_x < childX + child->width &&
-            mouse_y < childY + child->height )
-        {
-            if( child->type == COMPONENT_TYPE_LAYER )
-            {
-                int scroll_pos = 0;
-                if( child_id >= 0 && child_id < MAX_COMPONENT_SCROLL_IDS )
-                    scroll_pos = game->component_scroll_position[child_id];
-                int max_scroll = child->scroll - child->height;
-                if( max_scroll < 0 )
-                    max_scroll = 0;
-                if( scroll_pos > max_scroll )
-                    scroll_pos = max_scroll;
-                if( scroll_pos < 0 )
-                    scroll_pos = 0;
-                if( find_button_click_at_recursive(
-                        game,
-                        child,
-                        childX,
-                        childY,
-                        scroll_pos,
-                        mouse_x,
-                        mouse_y,
-                        out_component_id,
-                        out_client_code,
-                        out_button_action,
-                        out_menu_param_a,
-                        out_menu_param_b,
-                        out_menu_param_c) )
-                {
-                    found = 1;
-                }
-            }
-            else if( is_clickable_button(child) )
-            {
-                *out_component_id = child_id;
-                *out_client_code = child->clientCode;
-                /* Client.ts: CLOSE_BUTTON -> closeModal (CLOSE_MODAL), PAUSE_BUTTON ->
-                 * RESUME_PAUSEBUTTON */
-                if( out_button_action )
-                {
-                    if( child->buttonType == COMPONENT_BUTTON_TYPE_CLOSE )
-                        *out_button_action = IF_BUTTON_ACTION_CLOSE_MODAL;
-                    else if( child->buttonType == COMPONENT_BUTTON_TYPE_CONTINUE )
-                        *out_button_action = IF_BUTTON_ACTION_RESUME_PAUSEBUTTON;
-                    else
-                        *out_button_action = IF_BUTTON_ACTION_IF_BUTTON;
-                }
-                if( out_menu_param_a )
-                    *out_menu_param_a = 0;
-                if( out_menu_param_b )
-                    *out_menu_param_b = 0;
-                if( out_menu_param_c )
-                    *out_menu_param_c = child_id;
-                found = 1;
-            }
-        }
-    }
-    return found;
+    //     if( mouse_x >= childX && mouse_y >= childY && mouse_x < childX + child->width &&
+    //         mouse_y < childY + child->height )
+    //     {
+    //         if( child->type == COMPONENT_TYPE_LAYER )
+    //         {
+    //             int scroll_pos = 0;
+    //             if( child_id >= 0 && child_id < MAX_COMPONENT_SCROLL_IDS )
+    //                 scroll_pos = game->component_scroll_position[child_id];
+    //             int max_scroll = child->scroll - child->height;
+    //             if( max_scroll < 0 )
+    //                 max_scroll = 0;
+    //             if( scroll_pos > max_scroll )
+    //                 scroll_pos = max_scroll;
+    //             if( scroll_pos < 0 )
+    //                 scroll_pos = 0;
+    //             if( find_button_click_at_recursive(
+    //                     game,
+    //                     child,
+    //                     childX,
+    //                     childY,
+    //                     scroll_pos,
+    //                     mouse_x,
+    //                     mouse_y,
+    //                     out_component_id,
+    //                     out_client_code,
+    //                     out_button_action,
+    //                     out_menu_param_a,
+    //                     out_menu_param_b,
+    //                     out_menu_param_c) )
+    //             {
+    //                 found = 1;
+    //             }
+    //         }
+    //         else if( is_clickable_button(child) )
+    //         {
+    //             *out_component_id = child_id;
+    //             *out_client_code = child->clientCode;
+    //             /* Client.ts: CLOSE_BUTTON -> closeModal (CLOSE_MODAL), PAUSE_BUTTON ->
+    //              * RESUME_PAUSEBUTTON */
+    //             if( out_button_action )
+    //             {
+    //                 if( child->buttonType == COMPONENT_BUTTON_TYPE_CLOSE )
+    //                     *out_button_action = IF_BUTTON_ACTION_CLOSE_MODAL;
+    //                 else if( child->buttonType == COMPONENT_BUTTON_TYPE_CONTINUE )
+    //                     *out_button_action = IF_BUTTON_ACTION_RESUME_PAUSEBUTTON;
+    //                 else
+    //                     *out_button_action = IF_BUTTON_ACTION_IF_BUTTON;
+    //             }
+    //             if( out_menu_param_a )
+    //                 *out_menu_param_a = 0;
+    //             if( out_menu_param_b )
+    //                 *out_menu_param_b = 0;
+    //             if( out_menu_param_c )
+    //                 *out_menu_param_c = child_id;
+    //             found = 1;
+    //         }
+    //     }
+    // }
+    // return found;
 }
 
 int
@@ -1046,64 +1045,64 @@ interface_handle_scrollbar_arrow_step(
     int up_not_down,
     int step)
 {
-    if( component_id < 0 || component_id >= MAX_COMPONENT_SCROLL_IDS || step <= 0 )
-        return;
-    int pos = game->component_scroll_position[component_id];
-    if( up_not_down )
-    {
-        pos -= step;
-        if( pos < 0 )
-            pos = 0;
-    }
-    else
-    {
-        pos += step;
-        if( max_scroll > 0 && pos > max_scroll )
-            pos = max_scroll;
-    }
-    game->component_scroll_position[component_id] = pos;
-}
+    //     if( component_id < 0 || component_id >= MAX_COMPONENT_SCROLL_IDS || step <= 0 )
+    //         return;
+    //     int pos = game->component_scroll_position[component_id];
+    //     if( up_not_down )
+    //     {
+    //         pos -= step;
+    //         if( pos < 0 )
+    //             pos = 0;
+    //     }
+    //     else
+    //     {
+    //         pos += step;
+    //         if( max_scroll > 0 && pos > max_scroll )
+    //             pos = max_scroll;
+    //     }
+    //     game->component_scroll_position[component_id] = pos;
+    // }
 
-void
-interface_handle_scrollbar_arrow(
-    struct GGame* game,
-    int component_id,
-    int max_scroll,
-    int up_not_down)
-{
-    interface_handle_scrollbar_arrow_step(
-        game, component_id, max_scroll, up_not_down, SCROLLBAR_ARROW_DELTA);
-}
+    // void
+    // interface_handle_scrollbar_arrow(
+    //     struct GGame* game,
+    //     int component_id,
+    //     int max_scroll,
+    //     int up_not_down)
+    // {
+    //     interface_handle_scrollbar_arrow_step(
+    //         game, component_id, max_scroll, up_not_down, SCROLLBAR_ARROW_DELTA);
+    // }
 
-void
-interface_handle_scrollbar_click(
-    struct GGame* game,
-    int component_id,
-    int scrollbar_y,
-    int height,
-    int scroll_height,
-    int click_y)
-{
-    int track_h = height - 32;
-    if( track_h <= 0 )
-        return;
-    int max_scroll = scroll_height - height;
-    if( max_scroll <= 0 )
-        return;
-    /* Map click Y (screen) to position along track: track goes from scrollbar_y+16 to
-     * scrollbar_y+height-16 */
-    int local_y = click_y - (scrollbar_y + 16);
-    if( local_y < 0 )
-        local_y = 0;
-    if( local_y > track_h )
-        local_y = track_h;
-    int new_pos = (int)((long)max_scroll * (long)local_y / (long)track_h);
-    if( new_pos < 0 )
-        new_pos = 0;
-    if( new_pos > max_scroll )
-        new_pos = max_scroll;
-    if( component_id >= 0 && component_id < MAX_COMPONENT_SCROLL_IDS )
-        game->component_scroll_position[component_id] = new_pos;
+    // void
+    // interface_handle_scrollbar_click(
+    //     struct GGame* game,
+    //     int component_id,
+    //     int scrollbar_y,
+    //     int height,
+    //     int scroll_height,
+    //     int click_y)
+    // {
+    //     int track_h = height - 32;
+    //     if( track_h <= 0 )
+    //         return;
+    //     int max_scroll = scroll_height - height;
+    //     if( max_scroll <= 0 )
+    //         return;
+    //     /* Map click Y (screen) to position along track: track goes from scrollbar_y+16 to
+    //      * scrollbar_y+height-16 */
+    //     int local_y = click_y - (scrollbar_y + 16);
+    //     if( local_y < 0 )
+    //         local_y = 0;
+    //     if( local_y > track_h )
+    //         local_y = track_h;
+    //     int new_pos = (int)((long)max_scroll * (long)local_y / (long)track_h);
+    //     if( new_pos < 0 )
+    //         new_pos = 0;
+    //     if( new_pos > max_scroll )
+    //         new_pos = max_scroll;
+    //     if( component_id >= 0 && component_id < MAX_COMPONENT_SCROLL_IDS )
+    //         game->component_scroll_position[component_id] = new_pos;
 }
 
 void
@@ -1118,40 +1117,41 @@ interface_draw_component_rect(
     /* Client.ts 10278-10290: getIfActive -> colour2/activeColour, else colour.
      * When hovered: use colour2Over/activeOverColour (active) or colourOver/overColour (inactive).
      */
-    int colour = component->colour;
-    bool active = component->scriptComparator && interface_get_if_active(game, component);
-    if( active )
-        colour = component->activeColour;
-    bool hovered = (component->id == game->current_hovered_interface_id);
-    if( hovered )
-    {
-        if( active && component->activeOverColour != 0 )
-            colour = component->activeOverColour;
-        else if( !active && component->overColour != 0 )
-            colour = component->overColour;
-    }
+    // int colour = component->colour;
+    // bool active = component->scriptComparator && interface_get_if_active(game, component);
+    // if( active )
+    //     colour = component->activeColour;
+    // bool hovered = (component->id == game->current_hovered_interface_id);
+    // if( hovered )
+    // {
+    //     if( active && component->activeOverColour != 0 )
+    //         colour = component->activeOverColour;
+    //     else if( !active && component->overColour != 0 )
+    //         colour = component->overColour;
+    // }
 
-    struct DashViewPort* vp = game->iface_view_port;
+    // struct DashViewPort* vp = game->iface_view_port;
 
-    if( component->alpha == 0 )
-    {
-        if( component->fill )
-            fill_rect_clipped(
-                vp, pixel_buffer, stride, x, y, component->width, component->height, colour);
-        else
-            draw_rect_clipped(
-                vp, pixel_buffer, stride, x, y, component->width, component->height, colour);
-    }
-    else
-    {
-        int alpha = 256 - (component->alpha & 0xFF);
-        if( component->fill )
-            fill_rect_alpha_clipped(
-                vp, pixel_buffer, stride, x, y, component->width, component->height, colour, alpha);
-        else
-            draw_rect_clipped(
-                vp, pixel_buffer, stride, x, y, component->width, component->height, colour);
-    }
+    // if( component->alpha == 0 )
+    // {
+    //     if( component->fill )
+    //         fill_rect_clipped(
+    //             vp, pixel_buffer, stride, x, y, component->width, component->height, colour);
+    //     else
+    //         draw_rect_clipped(
+    //             vp, pixel_buffer, stride, x, y, component->width, component->height, colour);
+    // }
+    // else
+    // {
+    //     int alpha = 256 - (component->alpha & 0xFF);
+    //     if( component->fill )
+    //         fill_rect_alpha_clipped(
+    //             vp, pixel_buffer, stride, x, y, component->width, component->height, colour,
+    //             alpha);
+    //     else
+    //         draw_rect_clipped(
+    //             vp, pixel_buffer, stride, x, y, component->width, component->height, colour);
+    // }
 }
 
 void
@@ -1163,160 +1163,162 @@ interface_draw_component_text(
     int* pixel_buffer,
     int stride)
 {
-    struct DashPixFont* font = NULL;
-    switch( component->font )
-    {
-    case 0:
-        font = game->pixfont_p11;
-        break;
-    case 1:
-        font = game->pixfont_p12;
-        break;
-    case 2:
-        font = game->pixfont_b12;
-        break;
-    case 3:
-        font = game->pixfont_q8;
-        break;
-    default:
-        font = game->pixfont_p12;
-        break;
-    }
+    // struct DashPixFont* font = NULL;
+    // switch( component->font )
+    // {
+    // case 0:
+    //     font = game->pixfont_p11;
+    //     break;
+    // case 1:
+    //     font = game->pixfont_p12;
+    //     break;
+    // case 2:
+    //     font = game->pixfont_b12;
+    //     break;
+    // case 3:
+    //     font = game->pixfont_q8;
+    //     break;
+    // default:
+    //     font = game->pixfont_p12;
+    //     break;
+    // }
 
-    if( !font )
-        return;
+    // if( !font )
+    //     return;
 
-    /* Client.ts 10315-10330: getIfActive -> colour2/activeColour + text2/activeText, else colour.
-     * When hovered: use colour2Over/activeOverColour (active) or colourOver/overColour (inactive).
-     */
-    int colour = component->colour;
-    const char* text_src = component->text;
-    bool active = component->scriptComparator && interface_get_if_active(game, component);
-    if( active )
-    {
-        colour = component->activeColour;
-        if( component->activeText && component->activeText[0] != '\0' )
-            text_src = component->activeText;
-    }
-    bool hovered = (component->id == game->current_hovered_interface_id);
-    if( hovered )
-    {
-        if( active && component->activeOverColour != 0 )
-            colour = component->activeOverColour;
-        else if( !active && component->overColour != 0 )
-            colour = component->overColour;
-    }
+    // /* Client.ts 10315-10330: getIfActive -> colour2/activeColour + text2/activeText, else
+    // colour.
+    //  * When hovered: use colour2Over/activeOverColour (active) or colourOver/overColour
+    //  (inactive).
+    //  */
+    // int colour = component->colour;
+    // const char* text_src = component->text;
+    // bool active = component->scriptComparator && interface_get_if_active(game, component);
+    // if( active )
+    // {
+    //     colour = component->activeColour;
+    //     if( component->activeText && component->activeText[0] != '\0' )
+    //         text_src = component->activeText;
+    // }
+    // bool hovered = (component->id == game->current_hovered_interface_id);
+    // if( hovered )
+    // {
+    //     if( active && component->activeOverColour != 0 )
+    //         colour = component->activeOverColour;
+    //     else if( !active && component->overColour != 0 )
+    //         colour = component->overColour;
+    // }
 
-    if( !text_src )
-        return;
+    // if( !text_src )
+    //     return;
 
-    /* Client.ts 9614-9681: first line at childY + font.height2d, then lineY += font.height2d per
-     * line */
-    int line_y = y + font->height2d;
-    const char* rest = text_src;
-    char line_buf[512];
-    int line_buf_size = (int)sizeof(line_buf);
+    // /* Client.ts 9614-9681: first line at childY + font.height2d, then lineY += font.height2d per
+    //  * line */
+    // int line_y = y + font->height2d;
+    // const char* rest = text_src;
+    // char line_buf[512];
+    // int line_buf_size = (int)sizeof(line_buf);
 
-    struct DashViewPort* vp = game->iface_view_port;
-    int cl = vp->clip_left;
-    int ct = vp->clip_top;
-    int cr = vp->clip_right;
-    int cb = vp->clip_bottom;
+    // struct DashViewPort* vp = game->iface_view_port;
+    // int cl = vp->clip_left;
+    // int ct = vp->clip_top;
+    // int cr = vp->clip_right;
+    // int cb = vp->clip_bottom;
 
-    while( rest[0] != '\0' )
-    {
-        /* Find end of line: Client.ts uses indexOf('\\n') -> backslash then 'n' */
-        const char* line_end = rest;
-        while( line_end[0] != '\0' && !(line_end[0] == '\\' && line_end[1] == 'n') )
-            line_end++;
-        int line_len = (int)(line_end - rest);
-        if( line_len >= line_buf_size )
-            line_len = line_buf_size - 1;
-        if( line_len > 0 )
-        {
-            memcpy(line_buf, rest, (size_t)line_len);
-            line_buf[line_len] = '\0';
+    // while( rest[0] != '\0' )
+    // {
+    //     /* Find end of line: Client.ts uses indexOf('\\n') -> backslash then 'n' */
+    //     const char* line_end = rest;
+    //     while( line_end[0] != '\0' && !(line_end[0] == '\\' && line_end[1] == 'n') )
+    //         line_end++;
+    //     int line_len = (int)(line_end - rest);
+    //     if( line_len >= line_buf_size )
+    //         line_len = line_buf_size - 1;
+    //     if( line_len > 0 )
+    //     {
+    //         memcpy(line_buf, rest, (size_t)line_len);
+    //         line_buf[line_len] = '\0';
 
-            /* Client.ts 10356-10395: substitute %1 .. %5 with getIfVar(component, 0..4) */
-            char expanded_buf[512];
-            int exp_len = 0;
-            for( int i = 0; i < line_len && exp_len < 511; i++ )
-            {
-                if( line_buf[i] == '%' && i + 1 < line_len )
-                {
-                    int script_idx = line_buf[i + 1] - '1';
-                    if( script_idx >= 0 && script_idx <= 4 )
-                    {
-                        int val = interface_get_if_var(game, component, script_idx);
-                        char val_buf[16];
-                        int n;
-                        if( val >= 999999999 )
-                        {
-                            val_buf[0] = '*';
-                            val_buf[1] = '\0';
-                            n = 1;
-                        }
-                        else
-                        {
-                            n = snprintf(val_buf, sizeof(val_buf), "%d", val);
-                        }
-                        for( int j = 0; j < n && val_buf[j] && exp_len < 511; j++ )
-                            expanded_buf[exp_len++] = val_buf[j];
-                        i++;
-                        continue;
-                    }
-                }
-                expanded_buf[exp_len++] = line_buf[i];
-            }
-            expanded_buf[exp_len] = '\0';
+    //         /* Client.ts 10356-10395: substitute %1 .. %5 with getIfVar(component, 0..4) */
+    //         char expanded_buf[512];
+    //         int exp_len = 0;
+    //         for( int i = 0; i < line_len && exp_len < 511; i++ )
+    //         {
+    //             if( line_buf[i] == '%' && i + 1 < line_len )
+    //             {
+    //                 int script_idx = line_buf[i + 1] - '1';
+    //                 if( script_idx >= 0 && script_idx <= 4 )
+    //                 {
+    //                     int val = interface_get_if_var(game, component, script_idx);
+    //                     char val_buf[16];
+    //                     int n;
+    //                     if( val >= 999999999 )
+    //                     {
+    //                         val_buf[0] = '*';
+    //                         val_buf[1] = '\0';
+    //                         n = 1;
+    //                     }
+    //                     else
+    //                     {
+    //                         n = snprintf(val_buf, sizeof(val_buf), "%d", val);
+    //                     }
+    //                     for( int j = 0; j < n && val_buf[j] && exp_len < 511; j++ )
+    //                         expanded_buf[exp_len++] = val_buf[j];
+    //                     i++;
+    //                     continue;
+    //                 }
+    //             }
+    //             expanded_buf[exp_len++] = line_buf[i];
+    //         }
+    //         expanded_buf[exp_len] = '\0';
 
-            int draw_x;
-            if( component->center )
-            {
-                int text_w = dashfont_text_width(font, (uint8_t*)expanded_buf);
-                draw_x = x + (component->width / 2) - (text_w / 2);
-            }
-            else
-            {
-                draw_x = x;
-            }
+    //         int draw_x;
+    //         if( component->center )
+    //         {
+    //             int text_w = dashfont_text_width(font, (uint8_t*)expanded_buf);
+    //             draw_x = x + (component->width / 2) - (text_w / 2);
+    //         }
+    //         else
+    //         {
+    //             draw_x = x;
+    //         }
 
-            /* Client.ts PixFont.drawStringTaggable does y -= this.height2d before drawing (line
-             * 150) */
-            int draw_y = line_y - font->height2d;
-            if( component->shadowed )
-            {
-                dashfont_draw_text_clipped(
-                    font,
-                    (uint8_t*)expanded_buf,
-                    draw_x + 1,
-                    draw_y + 1,
-                    0x000000,
-                    pixel_buffer,
-                    stride,
-                    cl,
-                    ct,
-                    cr,
-                    cb);
-            }
-            dashfont_draw_text_clipped(
-                font,
-                (uint8_t*)expanded_buf,
-                draw_x,
-                draw_y,
-                colour,
-                pixel_buffer,
-                stride,
-                cl,
-                ct,
-                cr,
-                cb);
-        }
-        line_y += font->height2d;
-        rest = (line_end[0] == '\\' && line_end[1] == 'n') ? line_end + 2 : line_end;
-        if( rest[0] == '\0' )
-            break;
-    }
+    //         /* Client.ts PixFont.drawStringTaggable does y -= this.height2d before drawing (line
+    //          * 150) */
+    //         int draw_y = line_y - font->height2d;
+    //         if( component->shadowed )
+    //         {
+    //             dashfont_draw_text_clipped(
+    //                 font,
+    //                 (uint8_t*)expanded_buf,
+    //                 draw_x + 1,
+    //                 draw_y + 1,
+    //                 0x000000,
+    //                 pixel_buffer,
+    //                 stride,
+    //                 cl,
+    //                 ct,
+    //                 cr,
+    //                 cb);
+    //         }
+    //         dashfont_draw_text_clipped(
+    //             font,
+    //             (uint8_t*)expanded_buf,
+    //             draw_x,
+    //             draw_y,
+    //             colour,
+    //             pixel_buffer,
+    //             stride,
+    //             cl,
+    //             ct,
+    //             cr,
+    //             cb);
+    //     }
+    //     line_y += font->height2d;
+    //     rest = (line_end[0] == '\\' && line_end[1] == 'n') ? line_end + 2 : line_end;
+    //     if( rest[0] == '\0' )
+    //         break;
+    // }
 }
 
 void
@@ -1354,13 +1356,13 @@ interface_draw_scrollbar(
     int cr = vp->clip_right;
     int cb = vp->clip_bottom;
 
-    /* Arrows: clientts/src/client/Client.ts drawScrollbar (9767-9769) imageScrollbar0 at (x,y),
-     * imageScrollbar1 at (x, y+height-16); loaded from scrollbar archive 0/1 (811-812) */
-    if( game->sprite_scrollbar0 )
-        dash2d_blit_sprite(game->sys_dash, game->sprite_scrollbar0, vp, x, y, pixel_buffer);
-    if( game->sprite_scrollbar1 )
-        dash2d_blit_sprite(
-            game->sys_dash, game->sprite_scrollbar1, vp, x, y + height - 16, pixel_buffer);
+    // /* Arrows: clientts/src/client/Client.ts drawScrollbar (9767-9769) imageScrollbar0 at (x,y),
+    //  * imageScrollbar1 at (x, y+height-16); loaded from scrollbar archive 0/1 (811-812) */
+    // if( game->sprite_scrollbar0 )
+    //     dash2d_blit_sprite(game->sys_dash, game->sprite_scrollbar0, vp, x, y, pixel_buffer);
+    // if( game->sprite_scrollbar1 )
+    //     dash2d_blit_sprite(
+    //         game->sys_dash, game->sprite_scrollbar1, vp, x, y + height - 16, pixel_buffer);
 
     /* Draw track (y+16, track_h) clipped to viewport */
     int track_y = y + 16;
@@ -1422,165 +1424,167 @@ interface_draw_component_inv(
     int* pixel_buffer,
     int stride)
 {
-    // Inventory components render items in a grid
-    // Based on Client.ts lines 9438-9534
+    // // Inventory components render items in a grid
+    // // Based on Client.ts lines 9438-9534
 
-    if( !component->invSlotObjId || !component->invSlotObjCount )
-    {
-        // printf(
-        //     "DEBUG INV: No slot data (invSlotObjId=%p, invSlotObjCount=%p)\n",
-        //     (void*)component->invSlotObjId,
-        //     (void*)component->invSlotObjCount);
-        return;
-    }
+    // if( !component->invSlotObjId || !component->invSlotObjCount )
+    // {
+    //     // printf(
+    //     //     "DEBUG INV: No slot data (invSlotObjId=%p, invSlotObjCount=%p)\n",
+    //     //     (void*)component->invSlotObjId,
+    //     //     (void*)component->invSlotObjCount);
+    //     return;
+    // }
 
-    // printf(
-    //     "DEBUG INV: Drawing inventory at (%d, %d), size=%dx%d, marginX=%d, marginY=%d\n",
-    //     x,
-    //     y,
-    //     component->width,
-    //     component->height,
-    //     component->marginX,
-    //     component->marginY);
+    // // printf(
+    // //     "DEBUG INV: Drawing inventory at (%d, %d), size=%dx%d, marginX=%d, marginY=%d\n",
+    // //     x,
+    // //     y,
+    // //     component->width,
+    // //     component->height,
+    // //     component->marginX,
+    // //     component->marginY);
 
-    int slot = 0;
-    int items_drawn = 0;
+    // int slot = 0;
+    // int items_drawn = 0;
 
-    // Iterate through grid: rows x cols
-    for( int row = 0; row < component->height; row++ )
-    {
-        for( int col = 0; col < component->width; col++ )
-        {
-            // Calculate slot position
-            // Each slot is 32x32 with margins
-            int slotX = x + col * (component->marginX + 32);
-            int slotY = y + row * (component->marginY + 32);
+    // // Iterate through grid: rows x cols
+    // for( int row = 0; row < component->height; row++ )
+    // {
+    //     for( int col = 0; col < component->width; col++ )
+    //     {
+    //         // Calculate slot position
+    //         // Each slot is 32x32 with margins
+    //         int slotX = x + col * (component->marginX + 32);
+    //         int slotY = y + row * (component->marginY + 32);
 
-            // Apply slot-specific offsets (for first 20 slots)
-            if( slot < 20 && component->invSlotOffsetX && component->invSlotOffsetY )
-            {
-                slotX += component->invSlotOffsetX[slot];
-                slotY += component->invSlotOffsetY[slot];
-            }
+    //         // Apply slot-specific offsets (for first 20 slots)
+    //         if( slot < 20 && component->invSlotOffsetX && component->invSlotOffsetY )
+    //         {
+    //             slotX += component->invSlotOffsetX[slot];
+    //             slotY += component->invSlotOffsetY[slot];
+    //         }
 
-            // Draw item if present
-            if( component->invSlotObjId[slot] > 0 )
-            {
-                // Item IDs are stored as 1-indexed in invSlotObjId, subtract 1 for actual obj
-                // lookup (matching Client.ts line 9458: const id: number = child.invSlotObjId[slot]
-                // - 1;)
-                int item_id = component->invSlotObjId[slot] - 1;
-                int item_count = component->invSlotObjCount[slot];
+    //         // Draw item if present
+    //         if( component->invSlotObjId[slot] > 0 )
+    //         {
+    //             // Item IDs are stored as 1-indexed in invSlotObjId, subtract 1 for actual obj
+    //             // lookup (matching Client.ts line 9458: const id: number =
+    //             child.invSlotObjId[slot]
+    //             // - 1;)
+    //             int item_id = component->invSlotObjId[slot] - 1;
+    //             int item_count = component->invSlotObjCount[slot];
 
-                // printf(
-                //     "DEBUG INV: Slot %d: item_id=%d (stored as %d), item_count=%d at (%d, %d)\n",
-                //     slot,
-                //     item_id,
-                //     component->invSlotObjId[slot],
-                //     item_count,
-                //     slotX,
-                //     slotY);
+    //             // printf(
+    //             //     "DEBUG INV: Slot %d: item_id=%d (stored as %d), item_count=%d at (%d,
+    //             %d)\n",
+    //             //     slot,
+    //             //     item_id,
+    //             //     component->invSlotObjId[slot],
+    //             //     item_count,
+    //             //     slotX,
+    //             //     slotY);
 
-                // Get or generate the item icon sprite
-                struct DashSprite* icon = obj_icon_get(game, item_id, item_count);
+    //             // Get or generate the item icon sprite
+    //             struct DashSprite* icon = obj_icon_get(game, item_id, item_count);
 
-                if( icon )
-                {
-                    items_drawn++;
+    //             if( icon )
+    //             {
+    //                 items_drawn++;
 
-                    // Check if this item is selected (dim it) - Client.ts line 9514-9515
-                    bool is_selected =
-                        (game->selected_area != 0 && game->selected_item == slot &&
-                         game->selected_interface == component->id);
+    //                 // Check if this item is selected (dim it) - Client.ts line 9514-9515
+    //                 bool is_selected =
+    //                     (game->selected_area != 0 && game->selected_item == slot &&
+    //                      game->selected_interface == component->id);
 
-                    if( is_selected )
-                    {
-                        // Draw with alpha (dimmed) - drawAlpha(128, ...)
-                        dash2d_blit_sprite_alpha(
-                            game->sys_dash,
-                            icon,
-                            game->iface_view_port,
-                            slotX,
-                            slotY,
-                            128,
-                            pixel_buffer);
-                    }
-                    else
-                    {
-                        // Draw normally
-                        dash2d_blit_sprite(
-                            game->sys_dash,
-                            icon,
-                            game->iface_view_port,
-                            slotX,
-                            slotY,
-                            pixel_buffer);
-                    }
+    //                 if( is_selected )
+    //                 {
+    //                     // Draw with alpha (dimmed) - drawAlpha(128, ...)
+    //                     dash2d_blit_sprite_alpha(
+    //                         game->sys_dash,
+    //                         icon,
+    //                         game->iface_view_port,
+    //                         slotX,
+    //                         slotY,
+    //                         128,
+    //                         pixel_buffer);
+    //                 }
+    //                 else
+    //                 {
+    //                     // Draw normally
+    //                     dash2d_blit_sprite(
+    //                         game->sys_dash,
+    //                         icon,
+    //                         game->iface_view_port,
+    //                         slotX,
+    //                         slotY,
+    //                         pixel_buffer);
+    //                 }
 
-                    // Draw item count if > 1
-                    if( item_count > 1 && game->pixfont_p11 )
-                    {
-                        char count_str[32];
+    //                 // Draw item count if > 1
+    //                 if( item_count > 1 && game->pixfont_p11 )
+    //                 {
+    //                     char count_str[32];
 
-                        // Format count with K/M suffixes for large numbers
-                        if( item_count >= 1000000 )
-                        {
-                            snprintf(count_str, sizeof(count_str), "%dM", item_count / 1000000);
-                        }
-                        else if( item_count >= 1000 )
-                        {
-                            snprintf(count_str, sizeof(count_str), "%dK", item_count / 1000);
-                        }
-                        else
-                        {
-                            snprintf(count_str, sizeof(count_str), "%d", item_count);
-                        }
+    //                     // Format count with K/M suffixes for large numbers
+    //                     if( item_count >= 1000000 )
+    //                     {
+    //                         snprintf(count_str, sizeof(count_str), "%dM", item_count / 1000000);
+    //                     }
+    //                     else if( item_count >= 1000 )
+    //                     {
+    //                         snprintf(count_str, sizeof(count_str), "%dK", item_count / 1000);
+    //                     }
+    //                     else
+    //                     {
+    //                         snprintf(count_str, sizeof(count_str), "%d", item_count);
+    //                     }
 
-                        // Draw count text with shadow (black then yellow)
-                        dashfont_draw_text(
-                            game->pixfont_p11,
-                            (uint8_t*)count_str,
-                            slotX + 1,
-                            slotY + 10,
-                            0x000000,
-                            pixel_buffer,
-                            stride);
-                        dashfont_draw_text(
-                            game->pixfont_p11,
-                            (uint8_t*)count_str,
-                            slotX,
-                            slotY + 9,
-                            0xFFFF00,
-                            pixel_buffer,
-                            stride);
-                    }
-                }
-            }
-            else if( component->invSlotGraphic && slot < 20 && component->invSlotGraphic[slot] )
-            {
-                // Draw empty slot graphic if specified
-                const char* graphic_name = component->invSlotGraphic[slot];
-                // Validate the string pointer is not corrupted
-                if( graphic_name )
-                {
-                    struct DashSprite* sprite =
-                        buildcachedat_get_component_sprite(game->buildcachedat, graphic_name);
-                    if( sprite )
-                    {
-                        dash2d_blit_sprite(
-                            game->sys_dash,
-                            sprite,
-                            game->iface_view_port,
-                            slotX,
-                            slotY,
-                            pixel_buffer);
-                    }
-                }
-            }
+    //                     // Draw count text with shadow (black then yellow)
+    //                     dashfont_draw_text(
+    //                         game->pixfont_p11,
+    //                         (uint8_t*)count_str,
+    //                         slotX + 1,
+    //                         slotY + 10,
+    //                         0x000000,
+    //                         pixel_buffer,
+    //                         stride);
+    //                     dashfont_draw_text(
+    //                         game->pixfont_p11,
+    //                         (uint8_t*)count_str,
+    //                         slotX,
+    //                         slotY + 9,
+    //                         0xFFFF00,
+    //                         pixel_buffer,
+    //                         stride);
+    //                 }
+    //             }
+    //         }
+    //         else if( component->invSlotGraphic && slot < 20 && component->invSlotGraphic[slot] )
+    //         {
+    //             // Draw empty slot graphic if specified
+    //             const char* graphic_name = component->invSlotGraphic[slot];
+    //             // Validate the string pointer is not corrupted
+    //             if( graphic_name )
+    //             {
+    //                 struct DashSprite* sprite =
+    //                     buildcachedat_get_component_sprite(game->buildcachedat, graphic_name);
+    //                 if( sprite )
+    //                 {
+    //                     dash2d_blit_sprite(
+    //                         game->sys_dash,
+    //                         sprite,
+    //                         game->iface_view_port,
+    //                         slotX,
+    //                         slotY,
+    //                         pixel_buffer);
+    //                 }
+    //             }
+    //         }
 
-            slot++;
-        }
-    }
+    //         slot++;
+    //     }
+    // }
 
     // printf("DEBUG INV: Total items drawn: %d\n", items_drawn);
 }
@@ -1866,10 +1870,10 @@ interface_handle_inv_button(
     // game->outbound_buffer[game->outbound_size++] = component_id & 0xFF;
 
     // Update selection state (Client.ts lines 9055-9066)
-    game->selected_cycle = 0;
-    game->selected_interface = component_id;
-    game->selected_item = slot;
-    game->selected_area = 2; // Sidebar area
+    // game->selected_cycle = 0;
+    // game->selected_interface = component_id;
+    // game->selected_item = slot;
+    // game->selected_area = 2; // Sidebar area
 
     // Check if this component belongs to viewport or chat (would change area)
     // For now we assume it's in sidebar (area 2)

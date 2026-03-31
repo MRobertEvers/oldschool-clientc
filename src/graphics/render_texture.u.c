@@ -673,8 +673,6 @@ raster_face_texture_blend(
 
     //     return;
 
-
-
     // assert(shade_a >= 0 && shade_a < 128);
     // assert(shade_b >= 0 && shade_b < 128);
     // assert(shade_c >= 0 && shade_c < 128);
@@ -701,7 +699,7 @@ raster_face_texture_blend(
     //     orthographic_uvorigin_z0,
     //     orthographic_uend_z1,
     //     orthographic_vend_z2,
-        
+
     //     shade_a,
     //     shade_b,
     //     shade_c,
@@ -710,7 +708,6 @@ raster_face_texture_blend(
 
     // return;
 
-    
     raster_texture_blend(
         pixel_buffer,
         stride,

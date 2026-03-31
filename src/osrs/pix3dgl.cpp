@@ -937,8 +937,7 @@ pix3dgl_end_2dframe(struct Pix3DGL* pix3dgl)
             const float bottom = (float)pix3dgl->sprite_batch_fb_height;
             const float top = 0.0f;
             create_ortho_matrix(ortho, left, right, bottom, top);
-            glUniformMatrix4fv(
-                pix3dgl->uniform_ui_projection, 1, GL_FALSE, ortho);
+            glUniformMatrix4fv(pix3dgl->uniform_ui_projection, 1, GL_FALSE, ortho);
         }
 
         glBufferData(
@@ -1116,7 +1115,7 @@ pix3dgl_model_load(
 
     if( pix3dgl->models.find(model_idx) != pix3dgl->models.end() )
     {
-            return;
+        return;
     }
 
     GLModel model = {};
@@ -1140,7 +1139,6 @@ pix3dgl_model_load(
     texture_ids.reserve((size_t)face_count * 3u);
     texture_opaques.reserve((size_t)face_count * 3u);
     texture_anim_speeds.reserve((size_t)face_count * 3u);
-
 
     for( int face = 0; face < face_count; ++face )
     {

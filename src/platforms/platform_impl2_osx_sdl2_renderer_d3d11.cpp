@@ -3,15 +3,14 @@
 #include "imgui.h"
 #include "imgui_impl_dx11.h"
 #include "imgui_impl_sdl2.h"
-
-#include <d3d11.h>
-#include <d3dcompiler.h>
-#include <dxgi.h>
 #include <SDL_syswm.h>
 
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <d3d11.h>
+#include <d3dcompiler.h>
+#include <dxgi.h>
 #include <vector>
 
 #ifndef M_PI
@@ -720,7 +719,8 @@ d3d11_resize_buffers(struct Platform2_OSX_SDL2_Renderer_D3D11* renderer)
     if( FAILED(hr) || !back_buffer )
         return false;
 
-    hr = renderer->device->CreateRenderTargetView(back_buffer, nullptr, &renderer->render_target_view);
+    hr = renderer->device->CreateRenderTargetView(
+        back_buffer, nullptr, &renderer->render_target_view);
     back_buffer->Release();
     if( FAILED(hr) )
         return false;
@@ -979,7 +979,8 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Init(
 #endif
 
     D3D_FEATURE_LEVEL feature_level;
-    D3D_FEATURE_LEVEL feature_levels[] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1,
+    D3D_FEATURE_LEVEL feature_levels[] = { D3D_FEATURE_LEVEL_11_0,
+                                           D3D_FEATURE_LEVEL_10_1,
                                            D3D_FEATURE_LEVEL_10_0 };
     HRESULT hr = D3D11CreateDeviceAndSwapChain(
         nullptr,
@@ -1091,18 +1092,30 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Init(
             ps_blob->GetBufferPointer(), ps_blob->GetBufferSize(), nullptr, &renderer->world_ps);
 
         D3D11_INPUT_ELEMENT_DESC world_layout[] = {
-            { "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(D3D11Vertex, position),
-              D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(D3D11Vertex, color),
-              D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, offsetof(D3D11Vertex, texcoord),
-              D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "TEXCOORD", 1, DXGI_FORMAT_R32_FLOAT, 0, offsetof(D3D11Vertex, texBlend),
-              D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "TEXCOORD", 2, DXGI_FORMAT_R32_FLOAT, 0, offsetof(D3D11Vertex, textureOpaque),
-              D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "TEXCOORD", 3, DXGI_FORMAT_R32_FLOAT, 0, offsetof(D3D11Vertex, textureAnimSpeed),
-              D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "POSITION",
+             0, DXGI_FORMAT_R32G32B32A32_FLOAT,
+             0, offsetof(D3D11Vertex, position),
+             D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "COLOR",
+             0, DXGI_FORMAT_R32G32B32A32_FLOAT,
+             0, offsetof(D3D11Vertex, color),
+             D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD",
+             0, DXGI_FORMAT_R32G32_FLOAT,
+             0, offsetof(D3D11Vertex, texcoord),
+             D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD",
+             1, DXGI_FORMAT_R32_FLOAT,
+             0, offsetof(D3D11Vertex, texBlend),
+             D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD",
+             2, DXGI_FORMAT_R32_FLOAT,
+             0, offsetof(D3D11Vertex, textureOpaque),
+             D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD",
+             3, DXGI_FORMAT_R32_FLOAT,
+             0, offsetof(D3D11Vertex, textureAnimSpeed),
+             D3D11_INPUT_PER_VERTEX_DATA, 0 },
         };
         renderer->device->CreateInputLayout(
             world_layout,
@@ -1161,9 +1174,9 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Init(
             ps_blob->GetBufferPointer(), ps_blob->GetBufferSize(), nullptr, &renderer->font_ps);
 
         D3D11_INPUT_ELEMENT_DESC font_layout[] = {
-            { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 0,  D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 8,  D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         };
         renderer->device->CreateInputLayout(
             font_layout,
@@ -1456,8 +1469,7 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
                 const int* face_order =
                     dash3d_projected_face_order(game->sys_dash, &face_order_count);
 
-                const float draw_yaw_rad =
-                    (draw_position.yaw * 2.0f * (float)M_PI) / 2048.0f;
+                const float draw_yaw_rad = (draw_position.yaw * 2.0f * (float)M_PI) / 2048.0f;
                 const float cos_yaw = cosf(draw_yaw_rad);
                 const float sin_yaw = sinf(draw_yaw_rad);
 
@@ -1470,9 +1482,8 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
 
                     int raw_tex = model->face_textures ? model->face_textures[f] : -1;
                     int eff_tex = raw_tex;
-                    if( eff_tex >= 0 &&
-                        renderer->texture_srv_by_id.find(eff_tex) ==
-                            renderer->texture_srv_by_id.end() )
+                    if( eff_tex >= 0 && renderer->texture_srv_by_id.find(eff_tex) ==
+                                            renderer->texture_srv_by_id.end() )
                         eff_tex = -1;
 
                     float anim_spd = 0.0f;
@@ -1678,8 +1689,7 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
             const float y1 = y0 + h;
             const float cx = 0.5f * (x0 + x1);
             const float cy = 0.5f * (y0 + y1);
-            const float angle =
-                (float)(sc._sprite_draw.rotation_r2pi2048 * (2.0 * M_PI) / 2048.0);
+            const float angle = (float)(sc._sprite_draw.rotation_r2pi2048 * (2.0 * M_PI) / 2048.0);
             const float ca = cosf(angle);
             const float sa = sinf(angle);
             const float hw = 0.5f * w;
@@ -1848,12 +1858,10 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
                         float cy1 = 1.0f - 2.0f * sy1 / fbh;
 
                         float v[6 * 8] = {
-                            cx0, cy0, u0, v0, cr, cg, cb, color_a,
-                            cx1, cy0, u1, v0, cr, cg, cb, color_a,
-                            cx1, cy1, u1, v1, cr, cg, cb, color_a,
-                            cx0, cy0, u0, v0, cr, cg, cb, color_a,
-                            cx1, cy1, u1, v1, cr, cg, cb, color_a,
-                            cx0, cy1, u0, v1, cr, cg, cb, color_a,
+                            cx0, cy0, u0, v0,      cr,  cg,  cb, color_a, cx1, cy0, u1, v0,
+                            cr,  cg,  cb, color_a, cx1, cy1, u1, v1,      cr,  cg,  cb, color_a,
+                            cx0, cy0, u0, v0,      cr,  cg,  cb, color_a, cx1, cy1, u1, v1,
+                            cr,  cg,  cb, color_a, cx0, cy1, u0, v1,      cr,  cg,  cb, color_a,
                         };
                         font_verts.insert(font_verts.end(), v, v + 48);
                     }

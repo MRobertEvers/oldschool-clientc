@@ -183,7 +183,7 @@ main(
     else
 #endif
 #if defined(__APPLE__)
-    if( renderer_kind == RENDERER_METAL )
+        if( renderer_kind == RENDERER_METAL )
     {
         if( !Platform2_OSX_SDL2_InitForMetal(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
         {
@@ -195,7 +195,7 @@ main(
     else
 #endif
 #if defined(_WIN32)
-    if( renderer_kind == RENDERER_D3D11 )
+        if( renderer_kind == RENDERER_D3D11 )
     {
         if( !Platform2_OSX_SDL2_InitForD3D11(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
         {
@@ -206,7 +206,7 @@ main(
     }
     else
 #endif
-    if( !Platform2_OSX_SDL2_InitForSoft3D(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
+        if( !Platform2_OSX_SDL2_InitForSoft3D(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
     {
         printf("Failed to initialize platform\n");
         osx_abort_startup(game, platform, render_command_buffer, net_shared);
@@ -245,7 +245,7 @@ main(
     else
 #endif
 #if defined(__APPLE__)
-    if( renderer_kind == RENDERER_METAL )
+        if( renderer_kind == RENDERER_METAL )
     {
         renderer_metal = PlatformImpl2_OSX_SDL2_Renderer_Metal_New(SCREEN_WIDTH, SCREEN_HEIGHT);
         if( !renderer_metal )
@@ -265,7 +265,7 @@ main(
     else
 #endif
 #if defined(_WIN32)
-    if( renderer_kind == RENDERER_D3D11 )
+        if( renderer_kind == RENDERER_D3D11 )
     {
         renderer_d3d11 = PlatformImpl2_OSX_SDL2_Renderer_D3D11_New(SCREEN_WIDTH, SCREEN_HEIGHT);
         if( !renderer_d3d11 )
@@ -346,8 +346,7 @@ main(
 
         uint64_t timestamp_ms = SDL_GetTicks64();
 
-        Platform2_OSX_SDL2_PollEvents(
-            platform, &input, (game->chat_interface_id == -1 && game->chat_input_focused) ? 1 : 0);
+        Platform2_OSX_SDL2_PollEvents(platform, &input, 0);
 
         game->tick_ms = timestamp_ms;
 
@@ -360,13 +359,13 @@ main(
         else
 #endif
 #if defined(__APPLE__)
-        if( renderer_metal )
+            if( renderer_metal )
             PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
                 renderer_metal, game, render_command_buffer);
         else
 #endif
 #if defined(_WIN32)
-        if( renderer_d3d11 )
+            if( renderer_d3d11 )
             PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
                 renderer_d3d11, game, render_command_buffer);
         else

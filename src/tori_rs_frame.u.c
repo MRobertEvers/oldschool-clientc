@@ -182,8 +182,6 @@ queue_static_ui_minimap_draws(
     struct Minimap* mm = NULL;
     if( game->world && game->world->minimap )
         mm = game->world->minimap;
-    else if( game->sys_minimap )
-        mm = game->sys_minimap;
     if( !mm )
         return;
 
@@ -264,13 +262,13 @@ queue_static_ui_minimap_draws(
         switch( minimap_loc_type(mm, li) )
         {
         case MINIMAP_LOC_TYPE_PLAYER:
-            dot = game->sprite_mapdot0;
+            // dot = game->sprite_mapdot0;
             break;
         case MINIMAP_LOC_TYPE_NPC:
-            dot = game->sprite_mapdot1;
+            // dot = game->sprite_mapdot1;
             break;
         case MINIMAP_LOC_TYPE_OBJECT:
-            dot = game->sprite_mapdot2;
+            // dot = game->sprite_mapdot2;
             break;
         default:
             break;
@@ -399,9 +397,6 @@ LibToriRS_FrameBegin(
     game->tile_clicked_z = -1;
     game->tile_clicked_level = -1;
 
-    game->hovered_interactible_entity_uid = -1;
-    game->frame_hover_font_draw_done = false;
-
     game->camera->pitch = game->camera_pitch;
     game->camera->yaw = game->camera_yaw;
     game->camera->roll = game->camera_roll;
@@ -411,8 +406,6 @@ LibToriRS_FrameBegin(
     world_pickset_reset(&game->pickset);
 
     LibToriRS_RenderCommandBufferReset(render_command_buffer);
-    if( game->minimap_dynamic_commands )
-        minimap_commands_reset(game->minimap_dynamic_commands);
     queue_static_load_commands(game, render_command_buffer);
 
     if( game->world && game->world->painter && game->sys_painter_buffer )
@@ -757,7 +750,6 @@ uielem_world_step(
                     dash3d_projected_model_contains(
                         game->sys_dash, scene_element->dash_model, game->view_port, cvx, cvy) )
                 {
-                    game->hovered_interactible_entity_uid = scene_element->parent_entity_id;
                 }
             }
         }

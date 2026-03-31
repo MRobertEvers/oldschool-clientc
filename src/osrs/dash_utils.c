@@ -39,7 +39,9 @@ dashframe_new_from_cache_frame(struct CacheFrame* frame)
 
     dashframe->index_frame_ids = malloc(frame->translator_count * sizeof(int16_t));
     memcpy(
-        dashframe->index_frame_ids, frame->index_frame_ids, frame->translator_count * sizeof(int16_t));
+        dashframe->index_frame_ids,
+        frame->index_frame_ids,
+        frame->translator_count * sizeof(int16_t));
 
     dashframe->translator_arg_x = malloc(frame->translator_count * sizeof(int16_t));
     memcpy(
@@ -268,8 +270,8 @@ dashmodel_move_from_cache_model(
     model->face_textures = NULL;
     model->face_texture_coords = NULL;
 
-    dash_model->has_textures = (model->textured_face_count > 0 ||
-                                 dash_model->face_texture_coords != NULL);
+    dash_model->has_textures =
+        (model->textured_face_count > 0 || dash_model->face_texture_coords != NULL);
 
     dash_model->normals = dashmodel_normals_new(model->vertex_count, model->face_count);
     dash_model->lighting = dashmodel_lighting_new(model->face_count);

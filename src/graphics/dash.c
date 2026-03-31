@@ -2417,7 +2417,16 @@ dash2d_blit_sprite(
     if( !sprite )
         return;
     dash2d_blit_sprite_subrect(
-        dash, sprite, view_port, x_offset, y_offset, 0, 0, sprite->width, sprite->height, pixel_buffer);
+        dash,
+        sprite,
+        view_port,
+        x_offset,
+        y_offset,
+        0,
+        0,
+        sprite->width,
+        sprite->height,
+        pixel_buffer);
 }
 
 void

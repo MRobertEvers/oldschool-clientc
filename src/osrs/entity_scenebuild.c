@@ -150,7 +150,7 @@ entity_scenebuild_obj_stack_update_tile(
     int sx,
     int sz)
 {
-    struct ObjStackEntry* head = game->obj_stacks[level][sx][sz];
+    // struct ObjStackEntry* head = game->obj_stacks[level][sx][sz];
 }
 
 static void

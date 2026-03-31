@@ -12,7 +12,8 @@ struct LightingNormal
     uint8_t merged;
 };
 
-void calculate_vertex_normals(
+void
+calculate_vertex_normals(
     struct LightingNormal* vertex_normals,
     struct LightingNormal* face_normals,
     int vertex_count,
@@ -24,7 +25,8 @@ void calculate_vertex_normals(
     int* vertex_z,
     int num_faces);
 
-void apply_lighting(
+void
+apply_lighting(
     int* face_colors_a_hsl16,
     int* face_colors_b_hsl16,
     int* face_colors_c_hsl16,

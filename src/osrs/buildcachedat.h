@@ -85,10 +85,11 @@ buildcachedat_free(struct BuildCacheDat* buildcachedat);
 void
 buildcachedat_clear_map_chunks(struct BuildCacheDat* buildcachedat);
 
-/** Free CacheModel-backed maps and animation staging (sequences, animbaseframes, animframe index).
- *  Textures, sprites, fonts, and config tables unchanged. DashModel meshes live on Scene2, not here. */
+/** Free every BuildCacheDat cache (all hash maps, config/versionlist/media jagfiles, containers) and
+ *  reinitialize empty maps and event buffer. The struct remains valid for reuse. DashModel meshes
+ *  live on Scene2, not in BuildCacheDat. */
 void
-buildcachedat_clear_models_and_animation_caches(struct BuildCacheDat* buildcachedat);
+buildcachedat_clear(struct BuildCacheDat* buildcachedat);
 
 void
 buildcachedat_set_config_jagfile(

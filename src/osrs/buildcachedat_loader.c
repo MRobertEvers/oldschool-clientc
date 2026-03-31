@@ -479,105 +479,108 @@ buildcachedat_loader_cache_media(
     int data_size,
     void* data)
 {
-    struct FileListDat* filelist = filelist_dat_new_from_decode(data, data_size);
+    // struct FileListDat* filelist = filelist_dat_new_from_decode(data, data_size);
 
-    int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
-    assert(index_file_idx != -1 && "Failed to find index.dat in filelist");
+    // int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
+    // assert(index_file_idx != -1 && "Failed to find index.dat in filelist");
 
-    game->sprite_invback = load_sprite_pix8(filelist, "invback.dat", index_file_idx, 0);
-    game->sprite_chatback = load_sprite_pix8(filelist, "chatback.dat", index_file_idx, 0);
-    game->sprite_mapback = load_sprite_pix8(filelist, "mapback.dat", index_file_idx, 0);
-    game->sprite_backbase1 = load_sprite_pix8(filelist, "backbase1.dat", index_file_idx, 0);
-    game->sprite_backbase2 = load_sprite_pix8(filelist, "backbase2.dat", index_file_idx, 0);
-    game->sprite_backhmid1 = load_sprite_pix8(filelist, "backhmid1.dat", index_file_idx, 0);
+    // game->sprite_invback = load_sprite_pix8(filelist, "invback.dat", index_file_idx, 0);
+    // game->sprite_chatback = load_sprite_pix8(filelist, "chatback.dat", index_file_idx, 0);
+    // game->sprite_mapback = load_sprite_pix8(filelist, "mapback.dat", index_file_idx, 0);
+    // game->sprite_backbase1 = load_sprite_pix8(filelist, "backbase1.dat", index_file_idx, 0);
+    // game->sprite_backbase2 = load_sprite_pix8(filelist, "backbase2.dat", index_file_idx, 0);
+    // game->sprite_backhmid1 = load_sprite_pix8(filelist, "backhmid1.dat", index_file_idx, 0);
 
-    for( int i = 0; i < 13; i++ )
-    {
-        game->sprite_sideicons[i] = load_sprite_pix8(filelist, "sideicons.dat", index_file_idx, i);
-    }
+    // for( int i = 0; i < 13; i++ )
+    // {
+    //     game->sprite_sideicons[i] = load_sprite_pix8(filelist, "sideicons.dat", index_file_idx,
+    //     i);
+    // }
 
-    game->sprite_compass = load_sprite_pix32(filelist, "compass.dat", index_file_idx, 0);
-    game->sprite_mapedge = load_sprite_pix32(filelist, "mapedge.dat", index_file_idx, 0);
+    // game->sprite_compass = load_sprite_pix32(filelist, "compass.dat", index_file_idx, 0);
+    // game->sprite_mapedge = load_sprite_pix32(filelist, "mapedge.dat", index_file_idx, 0);
 
-    for( int i = 0; i < 50; i++ )
-    {
-        game->sprite_mapscene[i] = load_sprite_pix8(filelist, "mapscene.dat", index_file_idx, i);
-    }
+    // for( int i = 0; i < 50; i++ )
+    // {
+    //     game->sprite_mapscene[i] = load_sprite_pix8(filelist, "mapscene.dat", index_file_idx, i);
+    // }
 
-    for( int i = 0; i < 50; i++ )
-    {
-        game->sprite_mapfunction[i] =
-            load_sprite_pix32(filelist, "mapfunction.dat", index_file_idx, i);
-    }
+    // for( int i = 0; i < 50; i++ )
+    // {
+    //     game->sprite_mapfunction[i] =
+    //         load_sprite_pix32(filelist, "mapfunction.dat", index_file_idx, i);
+    // }
 
-    for( int i = 0; i < 20; i++ )
-    {
-        game->sprite_hitmarks[i] = load_sprite_pix32(filelist, "hitmarks.dat", index_file_idx, i);
-        game->sprite_headicons[i] = load_sprite_pix32(filelist, "headicons.dat", index_file_idx, i);
-    }
+    // for( int i = 0; i < 20; i++ )
+    // {
+    //     game->sprite_hitmarks[i] = load_sprite_pix32(filelist, "hitmarks.dat", index_file_idx,
+    //     i); game->sprite_headicons[i] = load_sprite_pix32(filelist, "headicons.dat",
+    //     index_file_idx, i);
+    // }
 
-    game->sprite_mapmarker0 = load_sprite_pix32(filelist, "mapmarker.dat", index_file_idx, 0);
-    game->sprite_mapmarker1 = load_sprite_pix32(filelist, "mapmarker.dat", index_file_idx, 1);
+    // game->sprite_mapmarker0 = load_sprite_pix32(filelist, "mapmarker.dat", index_file_idx, 0);
+    // game->sprite_mapmarker1 = load_sprite_pix32(filelist, "mapmarker.dat", index_file_idx, 1);
 
-    for( int i = 0; i < 8; i++ )
-    {
-        game->sprite_cross[i] = load_sprite_pix32(filelist, "cross.dat", index_file_idx, i);
-    }
+    // for( int i = 0; i < 8; i++ )
+    // {
+    //     game->sprite_cross[i] = load_sprite_pix32(filelist, "cross.dat", index_file_idx, i);
+    // }
 
-    game->sprite_mapdot0 = load_sprite_pix32(filelist, "mapdots.dat", index_file_idx, 0);
-    game->sprite_mapdot1 = load_sprite_pix32(filelist, "mapdots.dat", index_file_idx, 1);
-    game->sprite_mapdot2 = load_sprite_pix32(filelist, "mapdots.dat", index_file_idx, 2);
-    game->sprite_mapdot3 = load_sprite_pix32(filelist, "mapdots.dat", index_file_idx, 3);
+    // game->sprite_mapdot0 = load_sprite_pix32(filelist, "mapdots.dat", index_file_idx, 0);
+    // game->sprite_mapdot1 = load_sprite_pix32(filelist, "mapdots.dat", index_file_idx, 1);
+    // game->sprite_mapdot2 = load_sprite_pix32(filelist, "mapdots.dat", index_file_idx, 2);
+    // game->sprite_mapdot3 = load_sprite_pix32(filelist, "mapdots.dat", index_file_idx, 3);
 
-    game->sprite_scrollbar0 = load_sprite_pix8(filelist, "scrollbar.dat", index_file_idx, 0);
-    game->sprite_scrollbar1 = load_sprite_pix8(filelist, "scrollbar.dat", index_file_idx, 1);
+    // game->sprite_scrollbar0 = load_sprite_pix8(filelist, "scrollbar.dat", index_file_idx, 0);
+    // game->sprite_scrollbar1 = load_sprite_pix8(filelist, "scrollbar.dat", index_file_idx, 1);
 
-    game->sprite_redstone1 = load_sprite_pix8(filelist, "redstone1.dat", index_file_idx, 0);
-    game->sprite_redstone2 = load_sprite_pix8(filelist, "redstone2.dat", index_file_idx, 0);
-    game->sprite_redstone3 = load_sprite_pix8(filelist, "redstone3.dat", index_file_idx, 0);
-    game->sprite_redstone1h = load_sprite_pix8(filelist, "redstone1.dat", index_file_idx, 0);
-    game->sprite_redstone2h = load_sprite_pix8(filelist, "redstone2.dat", index_file_idx, 0);
-    game->sprite_redstone1v = load_sprite_pix8(filelist, "redstone1.dat", index_file_idx, 0);
-    game->sprite_redstone2v = load_sprite_pix8(filelist, "redstone2.dat", index_file_idx, 0);
-    game->sprite_redstone3v = load_sprite_pix8(filelist, "redstone3.dat", index_file_idx, 0);
-    game->sprite_redstone1hv = load_sprite_pix8(filelist, "redstone1.dat", index_file_idx, 0);
-    game->sprite_redstone2hv = load_sprite_pix8(filelist, "redstone2.dat", index_file_idx, 0);
-    /* Client.ts: h = flipHorizontally, v = flipVertically, hv = both */
-    if( game->sprite_redstone1h )
-        dashsprite_flip_horizontal(game->sprite_redstone1h);
-    if( game->sprite_redstone2h )
-        dashsprite_flip_horizontal(game->sprite_redstone2h);
-    if( game->sprite_redstone1v )
-        dashsprite_flip_vertical(game->sprite_redstone1v);
-    if( game->sprite_redstone2v )
-        dashsprite_flip_vertical(game->sprite_redstone2v);
-    if( game->sprite_redstone3v )
-        dashsprite_flip_vertical(game->sprite_redstone3v);
-    if( game->sprite_redstone1hv )
-    {
-        dashsprite_flip_horizontal(game->sprite_redstone1hv);
-        dashsprite_flip_vertical(game->sprite_redstone1hv);
-    }
-    if( game->sprite_redstone2hv )
-    {
-        dashsprite_flip_horizontal(game->sprite_redstone2hv);
-        dashsprite_flip_vertical(game->sprite_redstone2hv);
-    }
+    // game->sprite_redstone1 = load_sprite_pix8(filelist, "redstone1.dat", index_file_idx, 0);
+    // game->sprite_redstone2 = load_sprite_pix8(filelist, "redstone2.dat", index_file_idx, 0);
+    // game->sprite_redstone3 = load_sprite_pix8(filelist, "redstone3.dat", index_file_idx, 0);
+    // game->sprite_redstone1h = load_sprite_pix8(filelist, "redstone1.dat", index_file_idx, 0);
+    // game->sprite_redstone2h = load_sprite_pix8(filelist, "redstone2.dat", index_file_idx, 0);
+    // game->sprite_redstone1v = load_sprite_pix8(filelist, "redstone1.dat", index_file_idx, 0);
+    // game->sprite_redstone2v = load_sprite_pix8(filelist, "redstone2.dat", index_file_idx, 0);
+    // game->sprite_redstone3v = load_sprite_pix8(filelist, "redstone3.dat", index_file_idx, 0);
+    // game->sprite_redstone1hv = load_sprite_pix8(filelist, "redstone1.dat", index_file_idx, 0);
+    // game->sprite_redstone2hv = load_sprite_pix8(filelist, "redstone2.dat", index_file_idx, 0);
+    // /* Client.ts: h = flipHorizontally, v = flipVertically, hv = both */
+    // if( game->sprite_redstone1h )
+    //     dashsprite_flip_horizontal(game->sprite_redstone1h);
+    // if( game->sprite_redstone2h )
+    //     dashsprite_flip_horizontal(game->sprite_redstone2h);
+    // if( game->sprite_redstone1v )
+    //     dashsprite_flip_vertical(game->sprite_redstone1v);
+    // if( game->sprite_redstone2v )
+    //     dashsprite_flip_vertical(game->sprite_redstone2v);
+    // if( game->sprite_redstone3v )
+    //     dashsprite_flip_vertical(game->sprite_redstone3v);
+    // if( game->sprite_redstone1hv )
+    // {
+    //     dashsprite_flip_horizontal(game->sprite_redstone1hv);
+    //     dashsprite_flip_vertical(game->sprite_redstone1hv);
+    // }
+    // if( game->sprite_redstone2hv )
+    // {
+    //     dashsprite_flip_horizontal(game->sprite_redstone2hv);
+    //     dashsprite_flip_vertical(game->sprite_redstone2hv);
+    // }
 
-    for( int i = 0; i < 2; i++ )
-    {
-        game->sprite_modicons[i] = load_sprite_pix8(filelist, "mod_icons.dat", index_file_idx, i);
-    }
+    // for( int i = 0; i < 2; i++ )
+    // {
+    //     game->sprite_modicons[i] = load_sprite_pix8(filelist, "mod_icons.dat", index_file_idx,
+    //     i);
+    // }
 
-    game->sprite_backleft1 = load_sprite_pix32(filelist, "backleft1.dat", index_file_idx, 0);
-    game->sprite_backleft2 = load_sprite_pix8(filelist, "backleft2.dat", index_file_idx, 0);
-    game->sprite_backright1 = load_sprite_pix8(filelist, "backright1.dat", index_file_idx, 0);
-    game->sprite_backright2 = load_sprite_pix8(filelist, "backright2.dat", index_file_idx, 0);
-    game->sprite_backtop1 = load_sprite_pix8(filelist, "backtop1.dat", index_file_idx, 0);
-    game->sprite_backvmid1 = load_sprite_pix8(filelist, "backvmid1.dat", index_file_idx, 0);
-    game->sprite_backvmid2 = load_sprite_pix8(filelist, "backvmid2.dat", index_file_idx, 0);
-    game->sprite_backvmid3 = load_sprite_pix8(filelist, "backvmid3.dat", index_file_idx, 0);
-    game->sprite_backhmid2 = load_sprite_pix8(filelist, "backhmid2.dat", index_file_idx, 0);
+    // game->sprite_backleft1 = load_sprite_pix32(filelist, "backleft1.dat", index_file_idx, 0);
+    // game->sprite_backleft2 = load_sprite_pix8(filelist, "backleft2.dat", index_file_idx, 0);
+    // game->sprite_backright1 = load_sprite_pix8(filelist, "backright1.dat", index_file_idx, 0);
+    // game->sprite_backright2 = load_sprite_pix8(filelist, "backright2.dat", index_file_idx, 0);
+    // game->sprite_backtop1 = load_sprite_pix8(filelist, "backtop1.dat", index_file_idx, 0);
+    // game->sprite_backvmid1 = load_sprite_pix8(filelist, "backvmid1.dat", index_file_idx, 0);
+    // game->sprite_backvmid2 = load_sprite_pix8(filelist, "backvmid2.dat", index_file_idx, 0);
+    // game->sprite_backvmid3 = load_sprite_pix8(filelist, "backvmid3.dat", index_file_idx, 0);
+    // game->sprite_backhmid2 = load_sprite_pix8(filelist, "backhmid2.dat", index_file_idx, 0);
 
     // game->media_filelist = filelist;
 }
@@ -872,14 +875,12 @@ buildcachedat_loader_finalize_scene(
 
     world_buildcachedat_rebuild_centerzone(game->world, map_sw_x * 8 + 12, map_sw_z * 8 + 12, 104);
 
-    game->scene_base_tile_x = map_sw_x * 64;
-    game->scene_base_tile_z = map_sw_z * 64;
+    // game->scene_base_tile_x = map_sw_x * 64;
+    // game->scene_base_tile_z = map_sw_z * 64;
 
     LibToriRS_WorldMinimapStaticRebuild(game);
 
-    buildcachedat_clear_models_and_animation_caches(buildcachedat);
-    if( buildcachedat_config_jagfile(buildcachedat) )
-        buildcachedat_loader_init_sequences_from_config_jagfile(buildcachedat);
+    buildcachedat_clear(buildcachedat);
 }
 
 void
@@ -899,7 +900,5 @@ buildcachedat_loader_finalize_scene_centerzone(
 
     LibToriRS_WorldMinimapStaticRebuild(game);
 
-    buildcachedat_clear_models_and_animation_caches(buildcachedat);
-    if( buildcachedat_config_jagfile(buildcachedat) )
-        buildcachedat_loader_init_sequences_from_config_jagfile(buildcachedat);
+    buildcachedat_clear(buildcachedat);
 }

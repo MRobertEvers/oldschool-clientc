@@ -199,16 +199,16 @@ render_imgui(
 
     ImGui::Separator();
     ImGui::Text("Interface System:");
-    ImGui::Text("Current viewport ID: %d", game->viewport_interface_id);
-    ImGui::Text("Current sidebar ID: %d", game->sidebar_interface_id);
-    ImGui::Text("Selected tab: %d", game->selected_tab);
-    if( game->selected_tab >= 0 && game->selected_tab < 14 )
-    {
-        ImGui::Text(
-            "Tab %d interface ID: %d",
-            game->selected_tab,
-            game->tab_interface_id[game->selected_tab]);
-    }
+    // ImGui::Text("Current viewport ID: %d", game->viewport_interface_id);
+    // ImGui::Text("Current sidebar ID: %d", game->sidebar_interface_id);
+    // ImGui::Text("Selected tab: %d", game->selected_tab);
+    // if( game->selected_tab >= 0 && game->selected_tab < 14 )
+    // {
+    //     ImGui::Text(
+    //         "Tab %d interface ID: %d",
+    //         game->selected_tab,
+    //         game->tab_interface_id[game->selected_tab]);
+    // }
 
     ImGui::End();
 

@@ -314,7 +314,8 @@ anim_frame_apply(
 }
 
 /* Client.ts Model.maskAnimate: blend primary and secondary frames using walkmerge mask.
- * Primary provides bones where base !== maskBase (or type 0). Secondary provides bones where base === maskBase (or type 0). */
+ * Primary provides bones where base !== maskBase (or type 0). Secondary provides bones where base
+ * === maskBase (or type 0). */
 static inline void
 anim_frame_apply_mask(
     struct DashFrame* primary_frame,

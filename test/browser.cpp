@@ -251,7 +251,17 @@ main(
     int argc,
     char* argv[])
 {
+    struct PlatformMemoryInfo platform_memory_info = { 0 };
+
     printf("World size: %d\n", sizeof(struct World));
+    platform_get_memory_info(&platform_memory_info);
+
+    printf(
+        "Pre-SDL2_New: Platform memory info: %zu / %zu / %zu\n",
+        platform_memory_info.heap_used,
+        platform_memory_info.heap_total,
+        platform_memory_info.heap_peak);
+
     struct Platform2_Emscripten_SDL2* platform = Platform2_Emscripten_SDL2_New();
     // These dimensions define the internal 3D render resolution used by the game/viewport.
     const int graphics3d_width = 513;
@@ -264,7 +274,24 @@ main(
     const int render_max_width = game_width;
     const int render_max_height = game_height;
 
+    platform_get_memory_info(&platform_memory_info);
+
+    printf(
+        "Pre-NetNewBuffer: Platform memory info: %zu / %zu / %zu\n",
+        platform_memory_info.heap_used,
+        platform_memory_info.heap_total,
+        platform_memory_info.heap_peak);
+
     struct ToriRSNetSharedBuffer* net_shared = LibToriRS_NetNewBuffer();
+
+    platform_get_memory_info(&platform_memory_info);
+
+    printf(
+        "Pre-GameNew: Platform memory info: %zu / %zu / %zu\n",
+        platform_memory_info.heap_used,
+        platform_memory_info.heap_total,
+        platform_memory_info.heap_peak);
+
     struct GGame* game = LibToriRS_GameNew(net_shared, graphics3d_width, graphics3d_height);
     set_game_ptr(game);
 
@@ -302,11 +329,26 @@ main(
     }
     else
     {
+        platform_get_memory_info(&platform_memory_info);
+
+        printf(
+            "Pre-InitForSoft3D: Platform memory info: %zu / %zu / %zu\n",
+            platform_memory_info.heap_used,
+            platform_memory_info.heap_total,
+            platform_memory_info.heap_peak);
         if( !Platform2_Emscripten_SDL2_InitForSoft3D(platform, game_width, game_height) )
         {
             printf("Failed to initialize SDL window for Soft3D\n");
             return 1;
         }
+
+        platform_get_memory_info(&platform_memory_info);
+
+        printf(
+            "Pre-Renderer_Soft3D_New: Platform memory info: %zu / %zu / %zu\n",
+            platform_memory_info.heap_used,
+            platform_memory_info.heap_total,
+            platform_memory_info.heap_peak);
 
         renderer = PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_New(
             game_width, game_height, render_max_width, render_max_height);
@@ -328,7 +370,6 @@ main(
     game->iface_view_port->clip_right = game_width;
     game->iface_view_port->clip_bottom = game_height;
 
-    struct PlatformMemoryInfo platform_memory_info = { 0 };
     platform_get_memory_info(&platform_memory_info);
 
     printf(
