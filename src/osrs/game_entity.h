@@ -30,7 +30,6 @@ struct EntityDrawPosition
     int height;
 };
 
-
 struct EntityAction
 {
     uint16_t code;
@@ -54,9 +53,15 @@ struct EntityMinimapElement
 
 struct EntitySceneCoord
 {
-    uint16_t sx;
-    uint16_t sz;
-    uint8_t slevel;
+    // uint32_t _bf_terrain_x : 9;
+    // uint32_t _bf_terrain_z : 9;
+    // uint32_t _bf_terrain_y : 4;
+    // uint32_t sx;
+    // uint32_t sz;
+    // uint32_t slevel;
+    uint32_t sx : 9;
+    uint32_t sz : 9;
+    uint32_t slevel : 4;
 };
 
 struct EntityDebugKey
@@ -96,7 +101,7 @@ struct EntityAnimation
     int16_t walkanim;
     int16_t turnanim;
     int16_t runanim;
-int16_t walkanim_b;
+    int16_t walkanim_b;
     int16_t walkanim_r;
     int16_t walkanim_l;
 
@@ -172,9 +177,9 @@ struct MapBuildLocEntity
     struct EntityAnimation animation_two;
     struct EntitySceneCoord scene_coord;
     struct EntityAction* actions;
+    uint8_t action_count;
     char name[32];
     char description[64];
-    uint8_t action_count;
     bool interactable;
 };
 

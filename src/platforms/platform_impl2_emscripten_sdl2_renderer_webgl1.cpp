@@ -785,15 +785,15 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
         pix3dgl_sprite_draw(
             renderer->pix3dgl,
             sp,
-            sc._sprite_draw.x,
-            sc._sprite_draw.y,
+            sc._sprite_draw.dst_bb_x,
+            sc._sprite_draw.dst_bb_y,
             window_width,
             window_height,
             sc._sprite_draw.rotation_r2pi2048,
-            sc._sprite_draw.src_x,
-            sc._sprite_draw.src_y,
-            sc._sprite_draw.src_w,
-            sc._sprite_draw.src_h);
+            sc._sprite_draw.src_bb_x,
+            sc._sprite_draw.src_bb_y,
+            sc._sprite_draw.src_bb_w,
+            sc._sprite_draw.src_bb_h);
     }
     pix3dgl_end_2dframe(renderer->pix3dgl);
 

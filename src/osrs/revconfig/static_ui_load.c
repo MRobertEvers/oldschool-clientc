@@ -246,16 +246,6 @@ load_sprite(
         return;
     }
 
-    printf(
-        "Loading sprite: name='%s', format='%s', data_file='%s', index_file='%s', atlas_index=%d, "
-        "atlas_count=%d\n",
-        load->name,
-        load->format,
-        load->data_filename,
-        load->index_filename,
-        load->atlas_index,
-        load->atlas_count);
-
     for( int i = 0; i < count; i++ )
     {
         int atlas_index = start_atlas_index + i;
@@ -325,11 +315,6 @@ load_sprite(
     sprite_entry->id = element_id;
     sprite_entry->count = count;
     strncpy(sprite_entry->name, load->name, sizeof(sprite_entry->name) - 1);
-    printf(
-        "Loaded sprite '%s' with element id %d and atlas count %d\n",
-        load->name,
-        element_id,
-        count);
 };
 
 static enum StaticUIComponentType
@@ -404,12 +389,6 @@ component_bind_sprite_from_load(
         printf("Sprite for component not found in hmap: %s\n", load->sprite);
         return 2;
     }
-    printf(
-        "Loading %s component '%s' with sprite '%s' and atlas index %d\n",
-        component_kind_for_log,
-        load->name,
-        load->sprite,
-        sprite_index);
 
     component_entry->sprite_id = sprite_entry->id;
     component_entry->sprite_index = sprite_index;
@@ -429,7 +408,6 @@ load_component(
     struct ComponentEntry* component_entry = NULL;
 
     component_entry = dashmap_search(component_hmap, load->name, DASHMAP_INSERT);
-    printf("Loading component: name='%s', type='%s' (kind=%d)\n", load->name, load->type, type);
     memset(component_entry, 0, sizeof(struct ComponentEntry));
 
     assert(component_entry && "Component must be inserted into hmap");
@@ -669,12 +647,10 @@ static_ui_from_revconfig_buildcachedat(
     for( uint32_t i = 0; i < revconfig_buffer->field_count; i++ )
     {
         struct RevConfigField* field = &revconfig_buffer->fields[i];
-        printf("Processing field: kind=%d, value='%s'\n", field->kind, field->value);
         switch( field->kind )
         {
         case RCFIELD_ITEMTYPE:
             load.kind = load_kind(field->value);
-            printf("Loading item of kind: %s\n", field->value);
             break;
         case RCFIELD_ITEMNAME:
             on_itemname(&load, field->value);

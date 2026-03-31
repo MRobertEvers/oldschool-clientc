@@ -159,6 +159,7 @@ if(NOT EMSCRIPTEN)
         ${COMMON_SOURCES}
         test/osx.cpp
         src/platforms/platform_impl2_osx_sdl2.cpp
+        src/platforms/platform_impl2_sdl2_renderer_soft3d_shared.cpp
         src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp
         src/osrs/lua_sidecar/luac_sidecar_config.c
         src/imgui/imgui_impl_sdl2.cpp
@@ -329,6 +330,7 @@ if(EMSCRIPTEN)
         ${COMMON_SOURCES}
         test/browser.cpp
         src/platforms/platform_impl2_emscripten_sdl2.cpp
+        src/platforms/platform_impl2_sdl2_renderer_soft3d_shared.cpp
         src/platforms/platform_impl2_emscripten_sdl2_renderer_soft3d.cpp
         src/platforms/platform_impl2_emscripten_sdl2_renderer_webgl1.cpp
         src/osrs/pix3dgl_opengles2.cpp

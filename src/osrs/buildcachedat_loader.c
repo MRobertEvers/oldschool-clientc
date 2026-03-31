@@ -864,7 +864,6 @@ buildcachedat_loader_finalize_scene(
     int map_ne_z)
 {
     /* varp/varbit loaded in init_varp_varbit (called right after config in load_scene_dat) */
-
     if( game->world )
         world_free(game->world);
 

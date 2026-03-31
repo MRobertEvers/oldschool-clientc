@@ -10,7 +10,7 @@ PROJECT_ROOT_FOLDER := $(shell while [ "$$PWD" != "/" ]; do \
 PROJECT_ROOT = $(abspath $(PROJECT_ROOT_FOLDER))/src
 
 # 2. Setup Flags
-CFLAGS = -Wall -Wextra -g -I$(PROJECT_ROOT) -I.
+CFLAGS = -Wall -Wextra -g -I$(PROJECT_ROOT) -I$(PROJECT_ROOT)/imgui -I.
 
 # 3. List Sources with absolute/relative paths
 SRCS = datserver.c \
@@ -42,10 +42,23 @@ SRCS = datserver.c \
        $(PROJECT_ROOT)/osrs/rscache/cache_dat.c \
 	   $(PROJECT_ROOT)/osrs/rscache/tables/model.c \
 	   $(PROJECT_ROOT)/osrs/rscache/tables/string_utils.c \
+	   $(PROJECT_ROOT)/osrs/rscache/tables/maps.c \
+	   $(PROJECT_ROOT)/osrs/rscache/tables/config_locs.c \
+	   $(PROJECT_ROOT)/osrs/rscache/tables/config_floortype.c \
+	   $(PROJECT_ROOT)/osrs/rscache/tables/config_sequence.c \
+	   $(PROJECT_ROOT)/osrs/rscache/tables/noise.c \
        $(PROJECT_ROOT)/osrs/rscache/tables_dat/pix8.c \
        $(PROJECT_ROOT)/osrs/rscache/tables_dat/pix32.c \
 	   $(PROJECT_ROOT)/osrs/rscache/tables_dat/config_obj.c \
-	   $(PROJECT_ROOT)/osrs/rscache/tables_dat/config_versionlist_mapsquare.c
+	   $(PROJECT_ROOT)/osrs/rscache/tables_dat/config_versionlist_mapsquare.c \
+	   $(PROJECT_ROOT)/osrs/rscache/tables_dat/animframe.c \
+	   $(PROJECT_ROOT)/osrs/rscache/tables_dat/config_component.c \
+	   $(PROJECT_ROOT)/osrs/rscache/tables_dat/config_idk.c \
+	   $(PROJECT_ROOT)/osrs/rscache/tables_dat/config_npc.c \
+	   $(PROJECT_ROOT)/osrs/rscache/tables_dat/config_textures.c \
+	   $(PROJECT_ROOT)/osrs/rscache/tables/sprites.c \
+	   $(PROJECT_ROOT)/osrs/rscache/tables/textures.c \
+	   $(PROJECT_ROOT)/osrs/texture.c
 
 # 4. Create the Object list (Flat in build/)
 OBJS = $(addprefix $(OBJ_DIR)/, $(notdir $(SRCS:.c=.o)))

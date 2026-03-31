@@ -213,7 +213,7 @@ main(
         return 1;
     }
 
-    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer_soft3d = NULL;
+    Platform2_OSX_SDL2_Renderer_Soft3D* renderer_soft3d = NULL;
 #if !defined(_WIN32)
     struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer_opengl3 = NULL;
 #endif

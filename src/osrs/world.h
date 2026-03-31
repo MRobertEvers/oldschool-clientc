@@ -18,10 +18,10 @@
 #include "osrs/terrain_shapemap.h"
 
 #define MAX_PLAYERS 2048
-#define MAX_NPCS 8192
+#define MAX_NPCS (8192)
 
-#define MAX_MAP_BUILD_LOC_ENTITIES 16384
-#define MAX_MAP_BUILD_TILE_ENTITIES 65535
+#define MAX_MAP_BUILD_LOC_ENTITIES (16384 >> 2)
+#define MAX_MAP_BUILD_TILE_ENTITIES (65535)
 
 struct World
 {

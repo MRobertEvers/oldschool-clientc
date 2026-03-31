@@ -833,6 +833,35 @@ dash2d_blit_rotated_ex(
     }
 }
 
+/** Copy `src_w`×`src_h` from `src_buffer` (row-major, pitch `src_stride`) into `dst_buffer` at
+ *  (`dst_x`, `dst_y`), pitch `dst_stride`. Clips to [0, `dst_clip_w`) × [0, `dst_clip_h`). */
+static inline void
+dash2d_copy_argb_buffer(
+    const int* src_buffer,
+    int src_w,
+    int src_h,
+    int src_stride,
+    int* dst_buffer,
+    int dst_stride,
+    int dst_x,
+    int dst_y,
+    int dst_clip_w,
+    int dst_clip_h)
+{
+    for( int y = 0; y < src_h; y++ )
+    {
+        int dy = y + dst_y;
+        if( dy < 0 || dy >= dst_clip_h )
+            continue;
+        for( int x = 0; x < src_w; x++ )
+        {
+            int dx = x + dst_x;
+            if( dx >= 0 && dx < dst_clip_w )
+                dst_buffer[dy * dst_stride + dx] = src_buffer[y * src_stride + x];
+        }
+    }
+}
+
 void
 dash2d_blit_rotated(
     struct DashSprite* sprite,

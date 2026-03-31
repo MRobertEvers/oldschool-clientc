@@ -1,8 +1,8 @@
 #include "world.h"
 
-#include "game.h"
 #include "blendmap.h"
 #include "datatypes/appearances.h"
+#include "game.h"
 #include "heightmap.h"
 #include "terrain_shapemap.h"
 #include "world_scenebuild.h"

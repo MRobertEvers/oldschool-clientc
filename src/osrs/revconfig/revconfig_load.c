@@ -38,8 +38,6 @@ push_element_from_ini_header(
     strncpy(item_name, space + 1, sizeof(item_name) - 1);
     item_name[sizeof(item_name) - 1] = '\0';
 
-    printf("Parsed section header: type='%s', name='%s'\n", item_type, item_name);
-
     strncpy(s_ini_item_type, item_type, sizeof(s_ini_item_type) - 1);
     s_ini_item_type[sizeof(s_ini_item_type) - 1] = '\0';
 
