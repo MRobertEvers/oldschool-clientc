@@ -2,16 +2,23 @@
  * Load interface archive N from dat2 cache (table CACHE_INTERFACES), decode each
  * file as IF1/IF3 Component, optionally blit type-3/type-5 widgets to a BMP.
  *
- * IF3 widgets use parent-relative coordinates and size/position modes (RuneLite
- * WidgetSizeMode / WidgetPositionMode, 16384ths scaling). IF1 uses absolute
- * baseX/baseY as in the cache. Hidden components are skipped.
+ * IF3: parent-relative coords + width/height/x/y modes (RuneLite
+ * WidgetSizeMode / WidgetPositionMode, 16384ths scaling).
  *
- * Fixed-mode IF3 layout uses a 765x503 root (not the output BMP size) so 16384ths
- * and center/right modes match the OSRS engine. Use --mount childFile:iface to
- * draw another interface archive into a component's resolved bounds (sub-IF).
+ * IF1: baseX/baseY are parent-relative (same as the client). Resolved as
+ * px+baseX, py+baseY where (px,py) is the parent or virtual root (765x503 shell or
+ * a --mount slot). Hidden components are skipped.
+ *
+ * Fixed-mode IF3 roots use a 765x503 virtual parent. --mount childFile:iface
+ * loads another archive into that slot's resolved rect. File indices for
+ * interface 548 vary by revision: e.g. 21 is often the main chatbox container,
+ * 23 on older caches; 19 may be minimap (so 162 there draws top-right). Try
+ * --mount 13:165 for a common game-viewport / welcome background slot.
  *
  * Usage: interface161_test <cache_directory> [--iface N] [--sprites]
  *          [--mount childFileIndex:ifaceId] ... [out.bmp]
+ *
+ * Example: interface161_test <cache> --iface 548 --sprites --mount 21:162 out.bmp
  */
 
 #include "bmp.h"
@@ -245,8 +252,8 @@ axis_from_position_mode(
 }
 
 /**
- * IF3 components store coordinates relative to their parent; IF1 uses absolute
- * coordinates. Resolve bounds into *out_* (parallel to comps[], length n).
+ * IF3: coordinates relative to parent + modes. IF1: baseX/baseY relative to
+ * parent (or root_x/root_y for roots). Resolve bounds into *out_*.
  * Root IF3 nodes (no parent in this archive) use (root_x,root_y) and
  * (root_w,root_h) as the virtual parent — fixed mode uses 765x503 for the HUD
  * shell; mounted sub-interfaces use the mount slot's resolved rect.
@@ -274,8 +281,8 @@ resolve_interface_layout(
         free(order);
         for( int i = 0; i < n; i++ )
         {
-            out_x[i] = comps[i].baseX;
-            out_y[i] = comps[i].baseY;
+            out_x[i] = root_x + comps[i].baseX;
+            out_y[i] = root_y + comps[i].baseY;
             out_w[i] = comps[i].baseWidth;
             out_h[i] = comps[i].baseHeight;
         }
@@ -329,14 +336,6 @@ resolve_interface_layout(
     for( int k = 0; k < n; k++ )
     {
         int i = order[k];
-        if( !comps[i].if3 )
-        {
-            out_x[i] = comps[i].baseX;
-            out_y[i] = comps[i].baseY;
-            out_w[i] = comps[i].baseWidth;
-            out_h[i] = comps[i].baseHeight;
-            continue;
-        }
 
         int px = root_x;
         int py = root_y;
@@ -351,6 +350,16 @@ resolve_interface_layout(
             ph = out_h[p];
         }
 
+        if( !comps[i].if3 )
+        {
+            /* IF1: baseX/baseY are relative to parent (or root / mount origin). */
+            out_x[i] = px + comps[i].baseX;
+            out_y[i] = py + comps[i].baseY;
+            out_w[i] = comps[i].baseWidth;
+            out_h[i] = comps[i].baseHeight;
+            continue;
+        }
+
         int w = dim_from_parent_mode(comps[i].widthMode, comps[i].baseWidth, pw);
         int h = dim_from_parent_mode(comps[i].heightMode, comps[i].baseHeight, ph);
         if( w < 0 )
@@ -360,10 +369,8 @@ resolve_interface_layout(
 
         out_w[i] = w;
         out_h[i] = h;
-        out_x[i] = axis_from_position_mode(
-            comps[i].xMode, comps[i].baseX, px, pw, w);
-        out_y[i] = axis_from_position_mode(
-            comps[i].yMode, comps[i].baseY, py, ph, h);
+        out_x[i] = axis_from_position_mode(comps[i].xMode, comps[i].baseX, px, pw, w);
+        out_y[i] = axis_from_position_mode(comps[i].yMode, comps[i].baseY, py, ph, h);
     }
 
     free(parent_idx);
@@ -400,20 +407,12 @@ draw_interface_components(
         if( comp->type == 3 && comp->fill )
         {
             int argb = 0xFF000000 | (comp->color & 0xFFFFFF);
-            fill_rect(
-                pixels,
-                CANVAS_W,
-                px,
-                py,
-                px + lw,
-                py + lh,
-                argb);
+            fill_rect(pixels, CANVAS_W, px, py, px + lw, py + lh, argb);
         }
 
         if( want_sprites && comp->type == 5 && comp->graphic >= 0 )
         {
-            struct CacheSpritePack* pack =
-                sprite_pack_new_from_cache(cache, comp->graphic);
+            struct CacheSpritePack* pack = sprite_pack_new_from_cache(cache, comp->graphic);
             if( pack && pack->count > 0 && pack->palette )
             {
                 int* spr_px = sprite_get_pixels(&pack->sprites[0], pack->palette, 0);
@@ -425,20 +424,9 @@ draw_interface_components(
                     int sh = pack->sprites[0].height;
                     if( comp->tiled )
                         blit_rgba_sprite_tiled(
-                            pixels,
-                            CANVAS_W,
-                            px,
-                            py,
-                            lw,
-                            lh,
-                            spr_px,
-                            sw,
-                            sh,
-                            ox,
-                            oy);
+                            pixels, CANVAS_W, px, py, lw, lh, spr_px, sw, sh, ox, oy);
                     else
-                        blit_rgba_sprite(
-                            pixels, CANVAS_W, ox, oy, spr_px, sw, sh);
+                        blit_rgba_sprite(pixels, CANVAS_W, ox, oy, spr_px, sw, sh);
                     free(spr_px);
                 }
                 sprite_pack_free(pack);
@@ -467,14 +455,10 @@ render_mounted_interface(
     if( root_w <= 0 || root_h <= 0 )
         return 0;
 
-    struct CacheArchive* arch =
-        cache_archive_new_load(cache, CACHE_INTERFACES, iface_id);
+    struct CacheArchive* arch = cache_archive_new_load(cache, CACHE_INTERFACES, iface_id);
     if( !arch )
     {
-        fprintf(
-            stderr,
-            "mount: failed to load CACHE_INTERFACES archive %d\n",
-            iface_id);
+        fprintf(stderr, "mount: failed to load CACHE_INTERFACES archive %d\n", iface_id);
         return -1;
     }
 
@@ -482,10 +466,7 @@ render_mounted_interface(
     struct FileList* fl = filelist_new_from_cache_archive(arch);
     if( !fl )
     {
-        fprintf(
-            stderr,
-            "mount: failed to unpack interface archive %d\n",
-            iface_id);
+        fprintf(stderr, "mount: failed to unpack interface archive %d\n", iface_id);
         cache_archive_free(arch);
         return -1;
     }
@@ -511,39 +492,16 @@ render_mounted_interface(
     for( int fi = 0; fi < n; fi++ )
     {
         if( decode_component_from_bytes(
-                &comps[fi],
-                fl->files[fi],
-                fl->file_sizes[fi],
-                iface_id,
-                fi) != 0 )
+                &comps[fi], fl->files[fi], fl->file_sizes[fi], iface_id, fi) != 0 )
         {
             Component_init(&comps[fi]);
             continue;
         }
     }
 
-    resolve_interface_layout(
-        comps,
-        n,
-        root_x,
-        root_y,
-        root_w,
-        root_h,
-        lay_x,
-        lay_y,
-        lay_w,
-        lay_h);
+    resolve_interface_layout(comps, n, root_x, root_y, root_w, root_h, lay_x, lay_y, lay_w, lay_h);
 
-    draw_interface_components(
-        cache,
-        comps,
-        n,
-        lay_x,
-        lay_y,
-        lay_w,
-        lay_h,
-        pixels,
-        want_sprites);
+    draw_interface_components(cache, comps, n, lay_x, lay_y, lay_w, lay_h, pixels, want_sprites);
 
     for( int fi = 0; fi < n; fi++ )
         Component_free(&comps[fi]);
@@ -563,7 +521,9 @@ usage(void)
     fprintf(
         stderr,
         "usage: interface161_test <cache_directory> [--iface N] [--sprites]\n"
-        "          [--mount childFileIndex:ifaceId] ... [out.bmp]\n");
+        "          [--mount childFileIndex:ifaceId] ... [out.bmp]\n"
+        "  IF1 positions are parent-relative (px+baseX). For IF 548, mount index\n"
+        "  is revision-specific; try --mount 21:162 (chatbox), not 19 (minimap).\n");
 }
 
 int
@@ -675,12 +635,8 @@ main(
 
     for( int fi = 0; fi < n; fi++ )
     {
-        if( decode_component_from_bytes(
-                &comps[fi],
-                fl->files[fi],
-                fl->file_sizes[fi],
-                iface,
-                fi) != 0 )
+        if( decode_component_from_bytes(&comps[fi], fl->files[fi], fl->file_sizes[fi], iface, fi) !=
+            0 )
         {
             Component_init(&comps[fi]);
             continue;
@@ -691,37 +647,16 @@ main(
     }
 
     resolve_interface_layout(
-        comps,
-        n,
-        0,
-        0,
-        FIXED_MODE_ROOT_W,
-        FIXED_MODE_ROOT_H,
-        lay_x,
-        lay_y,
-        lay_w,
-        lay_h);
+        comps, n, 0, 0, FIXED_MODE_ROOT_W, FIXED_MODE_ROOT_H, lay_x, lay_y, lay_w, lay_h);
 
-    draw_interface_components(
-        cache,
-        comps,
-        n,
-        lay_x,
-        lay_y,
-        lay_w,
-        lay_h,
-        pixels,
-        want_sprites);
+    draw_interface_components(cache, comps, n, lay_x, lay_y, lay_w, lay_h, pixels, want_sprites);
 
     for( int mi = 0; mi < mount_count; mi++ )
     {
         int cf = mounts[mi].child_file_index;
         if( cf < 0 || cf >= n )
         {
-            fprintf(
-                stderr,
-                "mount: skip out-of-range child file index %d\n",
-                cf);
+            fprintf(stderr, "mount: skip out-of-range child file index %d\n", cf);
             continue;
         }
         render_mounted_interface(
