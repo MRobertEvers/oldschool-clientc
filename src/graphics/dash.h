@@ -12,6 +12,7 @@
 typedef uint16_t DashVertexInt;
 typedef uint16_t DashFaceInt;
 
+#include "dash_alpha.h"
 #include "dash_hsl16.h"
 #include "dash_vertexint.h"
 #include "lighting.h"
@@ -135,8 +136,8 @@ struct DashModel
     int* face_indices_a;
     int* face_indices_b;
     int* face_indices_c;
-    int* face_alphas;
-    int* original_face_alphas;
+    alphaint_t* face_alphas;
+    alphaint_t* original_face_alphas;
     int* face_infos;
     int* face_priorities;
     hsl16_t* face_colors;

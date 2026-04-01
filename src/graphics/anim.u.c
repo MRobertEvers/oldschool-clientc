@@ -40,7 +40,7 @@ animate(
     vertexint_t* vertices_x,
     vertexint_t* vertices_y,
     vertexint_t* vertices_z,
-    int* face_alphas)
+    alphaint_t* face_alphas)
 {
     // src/rs/model/seq/SeqTransformType.ts
     // export enum SeqTransformType {
@@ -245,8 +245,7 @@ animate(
             {
                 int face_index = bone[j];
 
-                // This mask is important because the alpha expects to wrap.
-                int alpha = face_alphas[face_index] & 0xFF;
+                int alpha = face_alphas[face_index];
                 alpha += arg_x * 8;
                 if( alpha < 0 )
                     alpha = 0;
@@ -269,7 +268,7 @@ anim_frame_apply(
     vertexint_t* vertices_x,
     vertexint_t* vertices_y,
     vertexint_t* vertices_z,
-    int* face_alphas,
+    alphaint_t* face_alphas,
     // These are the bones of the model. They are defined with the model.
     int vertex_bones_count,
     int** vertex_bones,
@@ -325,7 +324,7 @@ anim_frame_apply_mask(
     vertexint_t* vertices_x,
     vertexint_t* vertices_y,
     vertexint_t* vertices_z,
-    int* face_alphas,
+    alphaint_t* face_alphas,
     int vertex_bones_count,
     int** vertex_bones,
     int* vertex_bones_sizes,

@@ -559,12 +559,7 @@ append_model_face_vertices(
     float face_alpha = 1.0f;
     if( model->face_alphas )
     {
-        int alpha_raw = model->face_alphas[f];
-        if( alpha_raw >= 0 )
-        {
-            const int ab = alpha_raw & 0xFF;
-            face_alpha = (float)(0xFF - ab) / 255.0f;
-        }
+        face_alpha = (float)(0xFF - model->face_alphas[f]) / 255.0f;
     }
 
     float u_corner[3] = { 0.0f, 0.0f, 0.0f };

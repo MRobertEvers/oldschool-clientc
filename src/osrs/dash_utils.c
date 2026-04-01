@@ -279,10 +279,19 @@ dashmodel_move_from_cache_model(
     else
         dash_model->face_colors = NULL;
 
-    dash_model->face_alphas = model->face_alphas;
+    if( model->face_alphas )
+    {
+        dash_model->face_alphas = malloc(sizeof(alphaint_t) * dash_model->face_count);
+        for( int i = 0; i < dash_model->face_count; i++ )
+            dash_model->face_alphas[i] = (alphaint_t)(model->face_alphas[i] & 0xFF);
+        free(model->face_alphas);
+        model->face_alphas = NULL;
+    }
+    else
+        dash_model->face_alphas = NULL;
+
     dash_model->face_infos = model->face_infos;
     dash_model->face_priorities = model->face_priorities;
-    model->face_alphas = NULL;
     model->face_infos = NULL;
     model->face_priorities = NULL;
 
@@ -399,6 +408,14 @@ dashmodel_lighting_new_default(
         flat_hsl = flat_hsl_owned;
     }
 
+    alphaint_t* alphas = NULL;
+    if( model->face_alphas )
+    {
+        alphas = malloc(sizeof(alphaint_t) * model->face_count);
+        for( int i = 0; i < model->face_count; i++ )
+            alphas[i] = (alphaint_t)(model->face_alphas[i] & 0xFF);
+    }
+
     apply_lighting(
         lighting->face_colors_hsl_a,
         lighting->face_colors_hsl_b,
@@ -410,7 +427,7 @@ dashmodel_lighting_new_default(
         model->face_indices_c,
         model->face_count,
         flat_hsl,
-        model->face_alphas,
+        alphas,
         model->face_textures,
         model->face_infos,
         light_ambient,
@@ -419,6 +436,7 @@ dashmodel_lighting_new_default(
         lightsrc_y,
         lightsrc_z);
 
+    free(alphas);
     free(flat_hsl_owned);
     return lighting;
 }

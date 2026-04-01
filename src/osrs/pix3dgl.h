@@ -1,6 +1,7 @@
 #ifndef OSRS_PIX3D_H
 #define OSRS_PIX3D_H
 
+#include "graphics/dash_alpha.h"
 #include "graphics/dash_hsl16.h"
 #include "graphics/dash_vertexint.h"
 
@@ -107,7 +108,7 @@ pix3dgl_model_load(
     hsl16_t* face_colors_hsl_b,
     hsl16_t* face_colors_hsl_c,
     int* face_infos_nullable,
-    int* face_alphas_nullable);
+    alphaint_t* face_alphas_nullable);
 void
 pix3dgl_model_draw(
     struct Pix3DGL* pix3dgl,

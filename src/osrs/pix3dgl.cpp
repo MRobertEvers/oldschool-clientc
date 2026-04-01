@@ -1104,7 +1104,7 @@ pix3dgl_model_load(
     hsl16_t* face_colors_hsl_b,
     hsl16_t* face_colors_hsl_c,
     int* face_infos_nullable,
-    int* face_alphas_nullable)
+    alphaint_t* face_alphas_nullable)
 {
     if( !pix3dgl || face_count <= 0 || !vertices_x || !vertices_y || !vertices_z ||
         !face_indices_a || !face_indices_b || !face_indices_c || !face_colors_hsl_a ||
@@ -1186,8 +1186,7 @@ pix3dgl_model_load(
         float face_alpha = 1.0f;
         if( face_alphas_nullable )
         {
-            int alpha_byte = face_alphas_nullable[face] & 0xFF;
-            face_alpha = (0xFF - alpha_byte) / 255.0f;
+            face_alpha = (0xFF - face_alphas_nullable[face]) / 255.0f;
         }
 
         int rgbs[3] = { rgb_a, rgb_b, rgb_c };

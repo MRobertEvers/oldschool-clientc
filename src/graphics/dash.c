@@ -396,7 +396,7 @@ dash3d_raster_model_face(
     hsl16_t* colors_a,
     hsl16_t* colors_b,
     hsl16_t* colors_c,
-    int* face_alphas_nullable,
+    alphaint_t* face_alphas_nullable,
     int offset_x,
     int offset_y,
     int near_plane_z,
@@ -500,7 +500,7 @@ dash3d_raster_model_face(
         // faces, we treat it as unsigned.
         // DASHHSL16_FLAT / DASHHSL16_HIDDEN are reserved. See lighting code.
         if( face_alphas_nullable )
-            alpha = 0xFF - (alpha & 0xff);
+            alpha = 0xFF - alpha;
 
         if( color_c == DASHHSL16_FLAT )
         {
@@ -2235,9 +2235,9 @@ dashmodel_heap_bytes(const struct DashModel* model)
         if( model->face_indices_c )
             total += (size_t)fc * sizeof(int);
         if( model->face_alphas )
-            total += (size_t)fc * sizeof(int);
+            total += (size_t)fc * sizeof(alphaint_t);
         if( model->original_face_alphas )
-            total += (size_t)fc * sizeof(int);
+            total += (size_t)fc * sizeof(alphaint_t);
         if( model->face_infos )
             total += (size_t)fc * sizeof(int);
         if( model->face_priorities )
@@ -2413,8 +2413,8 @@ reset_original_values(struct DashModel* model)
 
     if( model->face_alphas && model->original_face_alphas == NULL )
     {
-        model->original_face_alphas = malloc(sizeof(int) * model->face_count);
-        memcpy(model->original_face_alphas, model->face_alphas, sizeof(int) * model->face_count);
+        model->original_face_alphas = malloc(sizeof(alphaint_t) * model->face_count);
+        memcpy(model->original_face_alphas, model->face_alphas, sizeof(alphaint_t) * model->face_count);
     }
 
     memcpy(
@@ -2431,7 +2431,7 @@ reset_original_values(struct DashModel* model)
         sizeof(vertexint_t) * model->vertex_count);
     if( model->face_alphas && model->original_face_alphas )
     {
-        memcpy(model->face_alphas, model->original_face_alphas, sizeof(int) * model->face_count);
+        memcpy(model->face_alphas, model->original_face_alphas, sizeof(alphaint_t) * model->face_count);
     }
 }
 
