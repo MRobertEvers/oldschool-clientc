@@ -100,6 +100,8 @@ new_render_load_map(
     return dashmap_new(&config, 0);
 }
 
+#include "platforms/common/platform_memory.h"
+
 struct GGame*
 LibToriRS_GameNew(
     struct ToriRSNetSharedBuffer* net_shared,
@@ -108,6 +110,10 @@ LibToriRS_GameNew(
 {
     struct GGame* game = malloc(sizeof(struct GGame));
     memset(game, 0, sizeof(struct GGame));
+
+    struct PlatformMemoryInfo mem = { 0 };
+    platform_get_memory_info(&mem);
+    printf("GameNew: Memory info: %zu / %zu / %zu\n", mem.heap_used, mem.heap_total, mem.heap_peak);
 
     dash_init();
 
@@ -151,8 +157,22 @@ LibToriRS_GameNew(
     game->latched = false;
 
     game->sys_dash = dash_new();
+
+    platform_get_memory_info(&mem);
+    printf(
+        "GameNew: Memory info after dash_new: %zu / %zu / %zu\n",
+        mem.heap_used,
+        mem.heap_total,
+        mem.heap_peak);
+
     game->sys_painter_buffer = painter_buffer_new();
 
+    platform_get_memory_info(&mem);
+    printf(
+        "GameNew: Memory info after painter_buffer_new: %zu / %zu / %zu\n",
+        mem.heap_used,
+        mem.heap_total,
+        mem.heap_peak);
     game->position = malloc(sizeof(struct DashPosition));
     memset(game->position, 0, sizeof(struct DashPosition));
     game->view_port = malloc(sizeof(struct DashViewPort));
@@ -172,7 +192,14 @@ LibToriRS_GameNew(
     game->camera->near_plane_z = 50;
 
     game->buildcachedat = buildcachedat_new();
-    game->buildcache = buildcache_new();
+    game->buildcache = NULL;
+
+    platform_get_memory_info(&mem);
+    printf(
+        "GameNew: Memory info after painter_buffer_new: %zu / %zu / %zu\n",
+        mem.heap_used,
+        mem.heap_total,
+        mem.heap_peak);
 
     game->random_in = isaac_new(NULL, 0);
     game->random_out = isaac_new(NULL, 0);
@@ -184,10 +211,24 @@ LibToriRS_GameNew(
 
     game->loginproto = NULL; /* created by LibToriRS_NetConnectLogin */
 
+    platform_get_memory_info(&mem);
+    printf(
+        "GameNew: Memory info pre uiscene_new: %zu / %zu / %zu\n",
+        mem.heap_used,
+        mem.heap_total,
+        mem.heap_peak);
+
     game->ui_scene = uiscene_new(64);
     game->ui_scene_buffer = static_ui_buffer_new(64);
     game->uiscene_queued_commands = LibToriRS_RenderCommandBufferNew(64);
     game->minimap_dynamic_commands = minimap_commands_new(64);
+
+    platform_get_memory_info(&mem);
+    printf(
+        "GameNew: Memory info after uiscene_new: %zu / %zu / %zu\n",
+        mem.heap_used,
+        mem.heap_total,
+        mem.heap_peak);
 
     // struct CacheDatConfigComponentList* config_interface_list =
     //     cache_dat_config_component_list_new_decode(file_data, file_data_size);

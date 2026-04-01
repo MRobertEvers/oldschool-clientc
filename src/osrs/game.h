@@ -130,12 +130,6 @@ struct GGame
 
     struct VarPVarBitManager varp_varbit;
 
-    /* Local player stats (UPDATE_STAT, UPDATE_RUNENERGY) */
-    int player_stat_xp[PLAYER_STAT_COUNT];
-    int player_stat_effective_level[PLAYER_STAT_COUNT];
-    int player_stat_base_level[PLAYER_STAT_COUNT];
-    int player_run_energy;
-
     /* Media filelist kept after cache_media so we can load component sprites when interfaces load
      */
     struct FileListDat*

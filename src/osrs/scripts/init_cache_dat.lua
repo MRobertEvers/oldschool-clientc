@@ -1,5 +1,4 @@
 local CacheDat = require("cachedat")
-
 local function print_table(tbl)
     for k, v in pairs(tbl) do
         print(k, v)

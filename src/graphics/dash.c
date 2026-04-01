@@ -37,11 +37,11 @@ struct DashGraphics
     int orthographic_vertices_y[4096];
     int orthographic_vertices_z[4096];
 
-    short tmp_depth_face_count[1500];
-    short tmp_depth_faces[1500 * 512];
-    short tmp_priority_face_count[12];
-    short tmp_priority_depth_sum[12];
-    short tmp_priority_faces[12 * 2000];
+    int16_t tmp_depth_face_count[1500];
+    int16_t tmp_depth_faces[1500 * 512];
+    int16_t tmp_priority_face_count[12];
+    int16_t tmp_priority_depth_sum[12];
+    int16_t tmp_priority_faces[12 * 2000];
     int tmp_flex_prio11_face_to_depth[1024];
     int tmp_flex_prio12_face_to_depth[512];
     // Used to be 1024, but now we need to support larger models.
@@ -104,6 +104,8 @@ dash_new()
     if( dash == NULL )
         return NULL;
     memset(dash, 0, sizeof(struct DashGraphics));
+
+    printf("Sizeof(struct DashGraphics): %zu\n", sizeof(struct DashGraphics));
 
     struct DashMapConfig config = {
         .buffer = malloc(4096),

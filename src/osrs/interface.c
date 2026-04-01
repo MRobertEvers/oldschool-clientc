@@ -55,26 +55,26 @@ interface_get_if_var(
             /* stat_level {skill} */
             {
                 int skill = script[pc++];
-                register_val = (skill >= 0 && skill < PLAYER_STAT_COUNT)
-                                   ? game->player_stat_effective_level[skill]
-                                   : 0;
+                // register_val = (skill >= 0 && skill < PLAYER_STAT_COUNT)
+                //                    ? game->player_stat_effective_level[skill]
+                //                    : 0;
                 break;
             }
         case 2:
             /* stat_base_level {skill} */
             {
                 int skill = script[pc++];
-                register_val = (skill >= 0 && skill < PLAYER_STAT_COUNT)
-                                   ? game->player_stat_base_level[skill]
-                                   : 0;
+                // register_val = (skill >= 0 && skill < PLAYER_STAT_COUNT)
+                //                    ? game->player_stat_base_level[skill]
+                //                    : 0;
                 break;
             }
         case 3:
             /* stat_xp {skill} */
             {
                 int skill = script[pc++];
-                register_val =
-                    (skill >= 0 && skill < PLAYER_STAT_COUNT) ? game->player_stat_xp[skill] : 0;
+                // register_val =
+                //     (skill >= 0 && skill < PLAYER_STAT_COUNT) ? game->player_stat_xp[skill] : 0;
                 break;
             }
         case 5:
@@ -85,14 +85,14 @@ interface_get_if_var(
         case 6:
             /* stat_xp_remaining {skill} - xp required for next level */
             {
-                int skill = script[pc++];
-                int base_level = (skill >= 0 && skill < PLAYER_STAT_COUNT)
-                                     ? game->player_stat_base_level[skill]
-                                     : 1;
-                if( base_level >= PLAYER_LEVEL_MAX )
-                    register_val = 0;
-                else
-                    register_val = g_player_level_experience[base_level - 1];
+                // int skill = script[pc++];
+                // int base_level = (skill >= 0 && skill < PLAYER_STAT_COUNT)
+                //                      ? game->player_stat_base_level[skill]
+                //                      : 1;
+                // if( base_level >= PLAYER_LEVEL_MAX )
+                //     register_val = 0;
+                // else
+                //     register_val = g_player_level_experience[base_level - 1];
                 break;
             }
         case 7:
@@ -121,17 +121,17 @@ interface_get_if_var(
             /* total_level - sum of base levels (0-18, 20; skip 19 runecraft) */
             {
                 register_val = 0;
-                for( int i = 0; i < PLAYER_STAT_COUNT; i++ )
-                {
-                    if( i == 19 )
-                        continue;
-                    register_val += game->player_stat_base_level[i];
-                }
+                // for( int i = 0; i < PLAYER_STAT_COUNT; i++ )
+                // {
+                //     if( i == 19 )
+                //         continue;
+                //     register_val += game->player_stat_base_level[i];
+                // }
                 break;
             }
         case 11:
             /* runenergy */
-            register_val = game->player_run_energy;
+            // register_val = game->player_run_energy;
             break;
         case 12:
             /* runweight - not from packet yet */

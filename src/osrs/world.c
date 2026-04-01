@@ -272,20 +272,20 @@ world_print_scene2_dashmodel_heap_stats(struct World* world)
         total_vertices += m->vertex_count;
         total_faces += m->face_count;
         count++;
-        printf(
-            "  element %d: %zu bytes, vertices %d, faces %d\n",
-            i,
-            bytes,
-            m->vertex_count,
-            m->face_count);
+        // printf(
+        //     "  element %d: %zu bytes, vertices %d, faces %d\n",
+        //     i,
+        //     bytes,
+        //     m->vertex_count,
+        //     m->face_count);
     }
-    printf(
-        "world_buildcachedat_rebuild_centerzone: %d DashModels, total heap %zu bytes, "
-        "vertices %lld, faces %lld\n",
-        count,
-        total,
-        total_vertices,
-        total_faces);
+    // printf(
+    //     "world_buildcachedat_rebuild_centerzone: %d DashModels, total heap %zu bytes, "
+    //     "vertices %lld, faces %lld\n",
+    //     count,
+    //     total,
+    //     total_vertices,
+    //     total_faces);
 }
 
 void

@@ -102,5 +102,17 @@ uint32_t
 dashmap_count(struct DashMap* h);
 uint32_t
 dashmap_capacity(struct DashMap* h);
+size_t
+dashmap_entry_size(struct DashMap* h);
+
+/**
+ * Compute the minimum buffer size (bytes) needed to hold `count` slots
+ * of entries that are `entry_size` bytes each, accounting for internal
+ * header and alignment overhead.
+ */
+size_t
+dashmap_buffer_size_for(
+    size_t entry_size,
+    size_t count);
 
 #endif

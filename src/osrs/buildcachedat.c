@@ -4,6 +4,7 @@
 #include "texture.h"
 
 #define BUILDCACHEDAT_EVENTBUFFER_DEFAULT_CAPACITY 1024
+#define BUILDCACHEDAT_HMAP_INITIAL_CAPACITY 64
 
 struct ContainerEntry
 {
@@ -147,6 +148,41 @@ struct ComponentSpriteEntry
     struct DashSprite* sprite;
 };
 
+static struct DashMap*
+buildcachedat_create_hmap(
+    size_t key_size,
+    size_t entry_size,
+    size_t initial_capacity)
+{
+    size_t buffer_size = dashmap_buffer_size_for(entry_size, initial_capacity);
+    struct DashMapConfig config = {
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = key_size,
+        .entry_size = entry_size,
+    };
+    return dashmap_new(&config, 0);
+}
+
+static void
+buildcachedat_maybe_grow_hmap(struct DashMap* map)
+{
+    uint32_t count = dashmap_count(map);
+    uint32_t capacity = dashmap_capacity(map);
+    if( count * 4 <= capacity * 3 )
+        return;
+
+    size_t new_capacity = (size_t)capacity * 2;
+    size_t esize = dashmap_entry_size(map);
+    size_t new_buffer_size = dashmap_buffer_size_for(esize, new_capacity);
+    void* new_buffer = malloc(new_buffer_size);
+    void* old_buffer = NULL;
+    int rc = dashmap_resize(map, new_buffer, new_buffer_size, new_capacity, &old_buffer);
+    assert(rc == DASHMAP_OK);
+    (void)rc;
+    free(old_buffer);
+}
+
 static void
 buildcachedat_eventbuffer_push(
     struct BuildCacheDat* buildcachedat,
@@ -171,186 +207,61 @@ buildcachedat_eventbuffer_push(
 static struct DashMap*
 buildcachedat_new_scenery_hmap(void)
 {
-    int buffer_size = 1024 * sizeof(struct TextureEntry) * 4;
-    struct DashMapConfig config = {
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct SceneryEntry),
-    };
-    return dashmap_new(&config, 0);
+    return buildcachedat_create_hmap(
+        sizeof(int), sizeof(struct SceneryEntry), BUILDCACHEDAT_HMAP_INITIAL_CAPACITY);
 }
 
 static struct DashMap*
 buildcachedat_new_map_terrains_hmap(void)
 {
-    int buffer_size = 4096 * 8 * sizeof(struct ObjEntry);
-    struct DashMapConfig config = {
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct MapTerrainEntry),
-    };
-    return dashmap_new(&config, 0);
+    return buildcachedat_create_hmap(
+        sizeof(int), sizeof(struct MapTerrainEntry), BUILDCACHEDAT_HMAP_INITIAL_CAPACITY);
 }
 
 static void
 buildcachedat_init_maps_and_eventbuffer(struct BuildCacheDat* buildcachedat)
 {
-    struct DashMapConfig config = { 0 };
+    size_t cap = BUILDCACHEDAT_HMAP_INITIAL_CAPACITY;
 
-    int buffer_size = 1024 * sizeof(struct TextureEntry) * 4;
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct TextureEntry),
-    };
-    buildcachedat->textures_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = BUILDCACHEDAT_FONT_NAME_MAX,
-        .entry_size = sizeof(struct FontEntry),
-    };
-    buildcachedat->fonts_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct FlotypeEntry),
-    };
-    buildcachedat->flotype_hmap = dashmap_new(&config, 0);
-
+    buildcachedat->textures_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct TextureEntry), cap);
+    buildcachedat->fonts_hmap =
+        buildcachedat_create_hmap(BUILDCACHEDAT_FONT_NAME_MAX, sizeof(struct FontEntry), cap);
+    buildcachedat->flotype_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct FlotypeEntry), cap);
     buildcachedat->scenery_hmap = buildcachedat_new_scenery_hmap();
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct ModelEntry),
-    };
-    buildcachedat->models_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct ConfigLocEntry),
-    };
-    buildcachedat->config_loc_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size * 8),
-        .buffer_size = buffer_size * 8,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct AnimframeEntry),
-    };
-    buildcachedat->animframes_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct AnimbaseframesEntry),
-    };
-    buildcachedat->animbaseframes_hmap = dashmap_new(&config, 0);
-
-    buffer_size = 10000 * sizeof(struct SequenceEntry);
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct SequenceEntry),
-    };
-    buildcachedat->sequences_hmap = dashmap_new(&config, 0);
-
-    buffer_size = 4096 * sizeof(struct IdkEntry);
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct IdkEntry),
-    };
-    buildcachedat->idk_hmap = dashmap_new(&config, 0);
-
-    buffer_size = 4096 * 8 * sizeof(struct ObjEntry);
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct ObjEntry),
-    };
-    buildcachedat->obj_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct IdkModelEntry),
-    };
-    buildcachedat->idk_models_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct ObjModelEntry),
-    };
-    buildcachedat->obj_models_hmap = dashmap_new(&config, 0);
-
+    buildcachedat->models_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct ModelEntry), cap);
+    buildcachedat->config_loc_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct ConfigLocEntry), cap);
+    buildcachedat->animframes_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct AnimframeEntry), cap);
+    buildcachedat->animbaseframes_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct AnimbaseframesEntry), cap);
+    buildcachedat->sequences_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct SequenceEntry), cap);
+    buildcachedat->idk_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct IdkEntry), cap);
+    buildcachedat->obj_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct ObjEntry), cap);
+    buildcachedat->idk_models_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct IdkModelEntry), cap);
+    buildcachedat->obj_models_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct ObjModelEntry), cap);
     buildcachedat->map_terrains_hmap = buildcachedat_new_map_terrains_hmap();
+    buildcachedat->npc_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct NpcEntry), cap);
+    buildcachedat->npc_models_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct NpcModelEntry), cap);
+    buildcachedat->component_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct ComponentEntry), cap);
+    buildcachedat->component_sprites_hmap =
+        buildcachedat_create_hmap(64, sizeof(struct ComponentSpriteEntry), cap);
+    buildcachedat->sprites =
+        buildcachedat_create_hmap(64, sizeof(struct SpriteEntry), cap);
+    buildcachedat->containers_hmap =
+        buildcachedat_create_hmap(64, sizeof(struct ContainerEntry), cap);
 
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct NpcEntry),
-    };
-    buildcachedat->npc_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct NpcModelEntry),
-    };
-    buildcachedat->npc_models_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct ComponentEntry),
-    };
-    buildcachedat->component_hmap = dashmap_new(&config, 0);
-
-    buffer_size = 1024 * sizeof(struct ComponentSpriteEntry) * 4;
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = 64, // Max sprite name length
-        .entry_size = sizeof(struct ComponentSpriteEntry),
-    };
-    buildcachedat->component_sprites_hmap = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = 64, // Max sprite name length
-        .entry_size = sizeof(struct SpriteEntry),
-    };
-    buildcachedat->sprites = dashmap_new(&config, 0);
-
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = 64, // Max container name length
-        .entry_size = sizeof(struct ContainerEntry),
-    };
-    buildcachedat->containers_hmap = dashmap_new(&config, 0);
     buildcachedat->eventbuffer_capacity = BUILDCACHEDAT_EVENTBUFFER_DEFAULT_CAPACITY;
     buildcachedat->eventbuffer =
         calloc((size_t)buildcachedat->eventbuffer_capacity, sizeof(struct BuildCacheDatEvent));
@@ -648,6 +559,7 @@ buildcachedat_set_named_jagfile(
     strncpy(container_entry->name, name, sizeof(container_entry->name) - 1);
     container_entry->kind = BuildCacheContainerKind_Jagfile;
     container_entry->_filelist = jagfile;
+    buildcachedat_maybe_grow_hmap(buildcachedat->containers_hmap);
 }
 
 struct FileListDat*
@@ -668,8 +580,10 @@ buildcachedat_named_jagfile(
     struct ContainerEntry* container_entry = (struct ContainerEntry*)dashmap_search(
         buildcachedat->containers_hmap, name, DASHMAP_INSERT);
     assert(container_entry && "Container must be inserted into hmap");
+    struct FileListDat* result = container_entry->_filelist;
+    buildcachedat_maybe_grow_hmap(buildcachedat->containers_hmap);
 
-    return container_entry->_filelist;
+    return result;
 }
 
 void
@@ -686,6 +600,7 @@ buildcachedat_add_jagfilepack(
     container_entry->kind = BuildCacheContainerKind_JagfilePack;
     container_entry->_jagfilepack.data = data;
     container_entry->_jagfilepack.data_size = size;
+    buildcachedat_maybe_grow_hmap(buildcachedat->containers_hmap);
 }
 
 void
@@ -706,6 +621,7 @@ buildcachedat_add_jagfilepack_indexed(
     container_entry->_jagfilepack_indexed.data_size = data_size;
     container_entry->_jagfilepack_indexed.index_data = index_data;
     container_entry->_jagfilepack_indexed.index_data_size = index_data_size;
+    buildcachedat_maybe_grow_hmap(buildcachedat->containers_hmap);
 }
 
 struct JagfilePack*
@@ -802,6 +718,7 @@ buildcachedat_add_flotype(
     assert(flotype_entry && "Flotype must be inserted into hmap");
     flotype_entry->id = flotype_id;
     flotype_entry->flotype = flotype;
+    buildcachedat_maybe_grow_hmap(buildcachedat->flotype_hmap);
 }
 
 struct CacheConfigOverlay*
@@ -827,6 +744,7 @@ buildcachedat_add_texture(
     assert(texture_entry && "Texture must be inserted into hmap");
     texture_entry->id = texture_id;
     texture_entry->texture = texture;
+    buildcachedat_maybe_grow_hmap(buildcachedat->textures_hmap);
     buildcachedat_eventbuffer_push(
         buildcachedat,
         (struct BuildCacheDatEvent){
@@ -888,6 +806,7 @@ buildcachedat_add_font(
     memset(font_entry->name, 0, sizeof(font_entry->name));
     strncpy(font_entry->name, font_name, BUILDCACHEDAT_FONT_NAME_MAX);
     font_entry->font = font;
+    buildcachedat_maybe_grow_hmap(buildcachedat->fonts_hmap);
 }
 
 struct DashPixFont*
@@ -993,6 +912,7 @@ buildcachedat_add_scenery(
     scenery_entry->mapx = mapx;
     scenery_entry->mapz = mapz;
     scenery_entry->locs = locs;
+    buildcachedat_maybe_grow_hmap(buildcachedat->scenery_hmap);
 }
 
 struct CacheMapLocs*
@@ -1035,6 +955,7 @@ buildcachedat_add_model(
     assert(model_entry && "Model must be inserted into hmap");
     model_entry->id = model_id;
     model_entry->model = model;
+    buildcachedat_maybe_grow_hmap(buildcachedat->models_hmap);
 }
 
 struct CacheModel*
@@ -1060,6 +981,7 @@ buildcachedat_add_idk_model(
     assert(idk_entry && "Idk must be inserted into hmap");
     idk_entry->id = idk_id;
     idk_entry->model = model;
+    buildcachedat_maybe_grow_hmap(buildcachedat->idk_models_hmap);
 }
 
 struct CacheModel*
@@ -1085,6 +1007,7 @@ buildcachedat_add_obj_model(
     assert(obj_entry && "Obj must be inserted into hmap");
     obj_entry->id = obj_id;
     obj_entry->model = model;
+    buildcachedat_maybe_grow_hmap(buildcachedat->obj_models_hmap);
 }
 
 struct CacheModel*
@@ -1110,6 +1033,7 @@ buildcachedat_add_npc(
     assert(npc_entry && "Npc must be inserted into hmap");
     npc_entry->id = npc_id;
     npc_entry->npc = npc;
+    buildcachedat_maybe_grow_hmap(buildcachedat->npc_hmap);
 }
 
 struct CacheDatConfigNpc*
@@ -1150,6 +1074,7 @@ buildcachedat_add_npc_model(
     assert(npc_model_entry && "Npc model must be inserted into hmap");
     npc_model_entry->id = npc_id;
     npc_model_entry->model = model;
+    buildcachedat_maybe_grow_hmap(buildcachedat->npc_models_hmap);
 }
 
 struct CacheModel*
@@ -1176,6 +1101,7 @@ buildcachedat_add_config_loc(
     assert(config_loc_entry && "Config loc must be inserted into hmap");
     config_loc_entry->id = config_loc_id;
     config_loc_entry->config_loc = config_loc;
+    buildcachedat_maybe_grow_hmap(buildcachedat->config_loc_hmap);
 }
 
 struct CacheConfigLocation*
@@ -1216,6 +1142,7 @@ buildcachedat_add_animframe(
     assert(animframe_entry && "Animframe must be inserted into hmap");
     animframe_entry->id = animframe_id;
     animframe_entry->animframe = animframe;
+    buildcachedat_maybe_grow_hmap(buildcachedat->animframes_hmap);
 }
 
 struct CacheAnimframe*
@@ -1241,6 +1168,7 @@ buildcachedat_add_animbaseframes(
     assert(animbaseframes_entry && "Animbaseframes must be inserted into hmap");
     animbaseframes_entry->id = animbaseframes_id;
     animbaseframes_entry->animbaseframes = animbaseframes;
+    buildcachedat_maybe_grow_hmap(buildcachedat->animbaseframes_hmap);
 }
 
 struct CacheDatAnimBaseFrames*
@@ -1262,12 +1190,11 @@ buildcachedat_add_sequence(
     struct CacheDatSequence* sequence)
 {
     struct SequenceEntry* sequence_entry = (struct SequenceEntry*)
-
         dashmap_search(buildcachedat->sequences_hmap, &sequence_id, DASHMAP_INSERT);
-
     assert(sequence_entry && "Sequence must be inserted into hmap");
     sequence_entry->id = sequence_id;
     sequence_entry->sequence = sequence;
+    buildcachedat_maybe_grow_hmap(buildcachedat->sequences_hmap);
 }
 
 struct CacheDatSequence*
@@ -1293,6 +1220,7 @@ buildcachedat_add_idk(
     assert(idk_entry && "Idk must be inserted into hmap");
     idk_entry->id = idk_id;
     idk_entry->idk = idk;
+    buildcachedat_maybe_grow_hmap(buildcachedat->idk_hmap);
 }
 
 struct CacheDatConfigIdk*
@@ -1333,6 +1261,7 @@ buildcachedat_add_obj(
     assert(obj_entry && "Obj must be inserted into hmap");
     obj_entry->id = obj_id;
     obj_entry->obj = obj;
+    buildcachedat_maybe_grow_hmap(buildcachedat->obj_hmap);
 }
 
 struct CacheDatConfigObj*
@@ -1377,6 +1306,7 @@ buildcachedat_add_map_terrain(
     map_terrain_entry->mapx = mapx;
     map_terrain_entry->mapz = mapz;
     map_terrain_entry->map_terrain = map_terrain;
+    buildcachedat_maybe_grow_hmap(buildcachedat->map_terrains_hmap);
 }
 
 struct CacheMapTerrain*
@@ -1404,6 +1334,7 @@ buildcachedat_add_component(
     assert(component_entry && "Component must be inserted into hmap");
     component_entry->id = component_id;
     component_entry->component = component;
+    buildcachedat_maybe_grow_hmap(buildcachedat->component_hmap);
 }
 
 struct CacheDatConfigComponent*
@@ -1451,6 +1382,7 @@ buildcachedat_add_component_sprite(
     strncpy(sprite_entry->sprite_name, sprite_name, 63);
     sprite_entry->sprite_name[63] = '\0'; // Ensure null termination
     sprite_entry->sprite = sprite;
+    buildcachedat_maybe_grow_hmap(buildcachedat->component_sprites_hmap);
 }
 
 struct DashSprite*

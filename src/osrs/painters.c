@@ -739,8 +739,8 @@ painter_buffer_new()
 
     memset(buffer, 0x00, sizeof(struct PaintersBuffer));
 
-    buffer->command_capacity = 512;
-    buffer->commands = malloc(sizeof(struct PaintersElementCommand) * 512);
+    buffer->command_capacity = 128;
+    buffer->commands = malloc(sizeof(struct PaintersElementCommand) * buffer->command_capacity);
     return buffer;
 }
 
