@@ -234,9 +234,9 @@ decode_tile(
     int* vertex_indices = g_tile_shape_vertex_types[shape];
     int vertex_count = g_tile_shape_vertex_types_lengths[shape];
 
-    int* vertices_x = (int*)malloc(vertex_count * sizeof(int));
-    int* vertices_y = (int*)malloc(vertex_count * sizeof(int));
-    int* vertices_z = (int*)malloc(vertex_count * sizeof(int));
+    vertexint_t* vertices_x = (vertexint_t*)malloc((size_t)vertex_count * sizeof(vertexint_t));
+    vertexint_t* vertices_y = (vertexint_t*)malloc((size_t)vertex_count * sizeof(vertexint_t));
+    vertexint_t* vertices_z = (vertexint_t*)malloc((size_t)vertex_count * sizeof(vertexint_t));
 
     int* underlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));
     int* overlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));

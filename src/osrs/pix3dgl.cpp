@@ -1088,9 +1088,9 @@ extern "C" void
 pix3dgl_model_load(
     struct Pix3DGL* pix3dgl,
     int model_idx,
-    int* vertices_x,
-    int* vertices_y,
-    int* vertices_z,
+    vertexint_t* vertices_x,
+    vertexint_t* vertices_y,
+    vertexint_t* vertices_z,
     int* face_indices_a,
     int* face_indices_b,
     int* face_indices_c,

@@ -234,12 +234,31 @@ dashmodel_move_from_cache_model(
     }
 
     dash_model->vertex_count = model->vertex_count;
-    dash_model->vertices_x = model->vertices_x;
-    dash_model->vertices_y = model->vertices_y;
-    dash_model->vertices_z = model->vertices_z;
-    model->vertices_x = NULL;
-    model->vertices_y = NULL;
-    model->vertices_z = NULL;
+    if( model->vertex_count > 0 && model->vertices_x && model->vertices_y && model->vertices_z )
+    {
+        int vc = model->vertex_count;
+        dash_model->vertices_x = (vertexint_t*)malloc((size_t)vc * sizeof(vertexint_t));
+        dash_model->vertices_y = (vertexint_t*)malloc((size_t)vc * sizeof(vertexint_t));
+        dash_model->vertices_z = (vertexint_t*)malloc((size_t)vc * sizeof(vertexint_t));
+        for( int i = 0; i < vc; i++ )
+        {
+            dash_model->vertices_x[i] = (vertexint_t)model->vertices_x[i];
+            dash_model->vertices_y[i] = (vertexint_t)model->vertices_y[i];
+            dash_model->vertices_z[i] = (vertexint_t)model->vertices_z[i];
+        }
+        free(model->vertices_x);
+        free(model->vertices_y);
+        free(model->vertices_z);
+        model->vertices_x = NULL;
+        model->vertices_y = NULL;
+        model->vertices_z = NULL;
+    }
+    else
+    {
+        dash_model->vertices_x = NULL;
+        dash_model->vertices_y = NULL;
+        dash_model->vertices_z = NULL;
+    }
 
     dash_model->face_count = model->face_count;
     dash_model->face_indices_a = model->face_indices_a;

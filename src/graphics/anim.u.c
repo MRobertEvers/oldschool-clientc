@@ -37,9 +37,9 @@ animate(
     int face_bones_count,
     int** face_bones,
     int* face_bones_sizes,
-    int* vertices_x,
-    int* vertices_y,
-    int* vertices_z,
+    vertexint_t* vertices_x,
+    vertexint_t* vertices_y,
+    vertexint_t* vertices_z,
     int* face_alphas)
 {
     // src/rs/model/seq/SeqTransformType.ts
@@ -266,9 +266,9 @@ static inline void
 anim_frame_apply(
     struct DashFrame* frame,
     struct DashFramemap* framemap,
-    int* vertices_x,
-    int* vertices_y,
-    int* vertices_z,
+    vertexint_t* vertices_x,
+    vertexint_t* vertices_y,
+    vertexint_t* vertices_z,
     int* face_alphas,
     // These are the bones of the model. They are defined with the model.
     int vertex_bones_count,
@@ -322,9 +322,9 @@ anim_frame_apply_mask(
     struct DashFrame* secondary_frame,
     struct DashFramemap* framemap,
     int* walkmerge,
-    int* vertices_x,
-    int* vertices_y,
-    int* vertices_z,
+    vertexint_t* vertices_x,
+    vertexint_t* vertices_y,
+    vertexint_t* vertices_z,
     int* face_alphas,
     int vertex_bones_count,
     int** vertex_bones,

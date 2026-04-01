@@ -14,8 +14,12 @@
 #include "render_gouraud.u.c"
 #include "render_flat.u.c"
 #include "render_texture.u.c"
+#if VERTEXINT_BITS == 16
+#include "projection16_simd.u.c"
+#else
 #include "projection.u.c"
 #include "projection_simd.u.c"
+#endif
 #include "anim.u.c"
 // clang-format on
 
@@ -277,9 +281,9 @@ dash3d_calculate_cylinder_aabb_8point(
     int camera_yaw = camera->yaw;
     int camera_fov = camera->fov_rpi2048;
 
-    int bb_x[8];
-    int bb_y[8];
-    int bb_z[8];
+    vertexint_t bb_x[8];
+    vertexint_t bb_y[8];
+    vertexint_t bb_z[8];
 
     int mz = 0;
     int my = 0;
@@ -1855,9 +1859,9 @@ void
 dash3d_calculate_bounds_cylinder(
     struct DashBoundsCylinder* bounds_cylinder,
     int num_vertices,
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z)
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z)
 {
     memset(bounds_cylinder, 0, sizeof(struct DashBoundsCylinder));
 
@@ -1867,9 +1871,9 @@ dash3d_calculate_bounds_cylinder(
 
     for( int i = 0; i < num_vertices; i++ )
     {
-        int x = vertex_x[i];
-        int y = vertex_y[i];
-        int z = vertex_z[i];
+        int x = (int)vertex_x[i];
+        int y = (int)vertex_y[i];
+        int z = (int)vertex_z[i];
         if( y < min_y )
             min_y = y;
         if( y > max_y )
@@ -1903,9 +1907,9 @@ dash3d_calculate_vertex_normals(
     int* face_indices_b,
     int* face_indices_c,
     int vertex_count,
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z)
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z)
 {
     calculate_vertex_normals(
         normals->lighting_vertex_normals,
@@ -2209,17 +2213,17 @@ dashmodel_heap_bytes(const struct DashModel* model)
     if( vc > 0 )
     {
         if( model->vertices_x )
-            total += (size_t)vc * sizeof(int);
+            total += (size_t)vc * sizeof(vertexint_t);
         if( model->vertices_y )
-            total += (size_t)vc * sizeof(int);
+            total += (size_t)vc * sizeof(vertexint_t);
         if( model->vertices_z )
-            total += (size_t)vc * sizeof(int);
+            total += (size_t)vc * sizeof(vertexint_t);
         if( model->original_vertices_x )
-            total += (size_t)vc * sizeof(int);
+            total += (size_t)vc * sizeof(vertexint_t);
         if( model->original_vertices_y )
-            total += (size_t)vc * sizeof(int);
+            total += (size_t)vc * sizeof(vertexint_t);
         if( model->original_vertices_z )
-            total += (size_t)vc * sizeof(int);
+            total += (size_t)vc * sizeof(vertexint_t);
     }
 
     if( fc > 0 )
@@ -2390,12 +2394,21 @@ reset_original_values(struct DashModel* model)
 {
     if( model->original_vertices_x == NULL )
     {
-        model->original_vertices_x = malloc(sizeof(int) * model->vertex_count);
-        model->original_vertices_y = malloc(sizeof(int) * model->vertex_count);
-        model->original_vertices_z = malloc(sizeof(int) * model->vertex_count);
-        memcpy(model->original_vertices_x, model->vertices_x, sizeof(int) * model->vertex_count);
-        memcpy(model->original_vertices_y, model->vertices_y, sizeof(int) * model->vertex_count);
-        memcpy(model->original_vertices_z, model->vertices_z, sizeof(int) * model->vertex_count);
+        model->original_vertices_x = malloc(sizeof(vertexint_t) * model->vertex_count);
+        model->original_vertices_y = malloc(sizeof(vertexint_t) * model->vertex_count);
+        model->original_vertices_z = malloc(sizeof(vertexint_t) * model->vertex_count);
+        memcpy(
+            model->original_vertices_x,
+            model->vertices_x,
+            sizeof(vertexint_t) * model->vertex_count);
+        memcpy(
+            model->original_vertices_y,
+            model->vertices_y,
+            sizeof(vertexint_t) * model->vertex_count);
+        memcpy(
+            model->original_vertices_z,
+            model->vertices_z,
+            sizeof(vertexint_t) * model->vertex_count);
     }
 
     if( model->face_alphas && model->original_face_alphas == NULL )
@@ -2404,9 +2417,18 @@ reset_original_values(struct DashModel* model)
         memcpy(model->original_face_alphas, model->face_alphas, sizeof(int) * model->face_count);
     }
 
-    memcpy(model->vertices_x, model->original_vertices_x, sizeof(int) * model->vertex_count);
-    memcpy(model->vertices_y, model->original_vertices_y, sizeof(int) * model->vertex_count);
-    memcpy(model->vertices_z, model->original_vertices_z, sizeof(int) * model->vertex_count);
+    memcpy(
+        model->vertices_x,
+        model->original_vertices_x,
+        sizeof(vertexint_t) * model->vertex_count);
+    memcpy(
+        model->vertices_y,
+        model->original_vertices_y,
+        sizeof(vertexint_t) * model->vertex_count);
+    memcpy(
+        model->vertices_z,
+        model->original_vertices_z,
+        sizeof(vertexint_t) * model->vertex_count);
     if( model->face_alphas && model->original_face_alphas )
     {
         memcpy(model->face_alphas, model->original_face_alphas, sizeof(int) * model->face_count);

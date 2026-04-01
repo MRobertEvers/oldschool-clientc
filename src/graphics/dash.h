@@ -13,6 +13,7 @@ typedef uint16_t DashVertexInt;
 typedef uint16_t DashFaceInt;
 
 #include "dash_hsl16.h"
+#include "dash_vertexint.h"
 #include "lighting.h"
 
 struct DashBoundsCylinder
@@ -119,16 +120,16 @@ struct DashModel
     bool has_textures;
     int _dbg_ids[10];
     int vertex_count;
-    int* vertices_x;
-    int* vertices_y;
-    int* vertices_z;
+    vertexint_t* vertices_x;
+    vertexint_t* vertices_y;
+    vertexint_t* vertices_z;
 
     /**
      * Only used if animated.
      */
-    int* original_vertices_x;
-    int* original_vertices_y;
-    int* original_vertices_z;
+    vertexint_t* original_vertices_x;
+    vertexint_t* original_vertices_y;
+    vertexint_t* original_vertices_z;
 
     int face_count;
     int* face_indices_a;
@@ -443,7 +444,7 @@ dash3d_projected_model_contains(
 void //
 dash3d_calculate_bounds_cylinder( //
     struct DashBoundsCylinder* bounds_cylinder,
-    int num_vertices, int* vertex_x, int* vertex_y, int* vertex_z);
+    int num_vertices, vertexint_t* vertex_x, vertexint_t* vertex_y, vertexint_t* vertex_z);
 
 void //
 dashmodel_calculate_vertex_normals(struct DashModel* model);

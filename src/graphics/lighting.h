@@ -2,6 +2,7 @@
 #define LIGHTING_H
 
 #include "dash_hsl16.h"
+#include "dash_vertexint.h"
 
 #include <stdint.h>
 
@@ -22,9 +23,9 @@ calculate_vertex_normals(
     int* face_indices_a,
     int* face_indices_b,
     int* face_indices_c,
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
     int num_faces);
 
 void
