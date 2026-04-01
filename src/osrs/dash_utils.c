@@ -251,9 +251,9 @@ dashmodel_move_from_cache_model(
 
     if( model->face_colors )
     {
-        dash_model->face_colors = malloc(sizeof(DashHSL16) * dash_model->face_count);
+        dash_model->face_colors = malloc(sizeof(hsl16_t) * dash_model->face_count);
         for( int i = 0; i < dash_model->face_count; i++ )
-            dash_model->face_colors[i] = (DashHSL16)(unsigned)(model->face_colors[i] & 0xffff);
+            dash_model->face_colors[i] = (hsl16_t)(unsigned)(model->face_colors[i] & 0xffff);
         free(model->face_colors);
         model->face_colors = NULL;
     }
@@ -336,14 +336,14 @@ model_lighting_new(int face_count)
     struct DashModelLighting* lighting = malloc(sizeof(struct DashModelLighting));
     memset(lighting, 0, sizeof(struct DashModelLighting));
 
-    lighting->face_colors_hsl_a = malloc(sizeof(DashHSL16) * face_count);
-    memset(lighting->face_colors_hsl_a, 0, sizeof(DashHSL16) * face_count);
+    lighting->face_colors_hsl_a = malloc(sizeof(hsl16_t) * face_count);
+    memset(lighting->face_colors_hsl_a, 0, sizeof(hsl16_t) * face_count);
 
-    lighting->face_colors_hsl_b = malloc(sizeof(DashHSL16) * face_count);
-    memset(lighting->face_colors_hsl_b, 0, sizeof(DashHSL16) * face_count);
+    lighting->face_colors_hsl_b = malloc(sizeof(hsl16_t) * face_count);
+    memset(lighting->face_colors_hsl_b, 0, sizeof(hsl16_t) * face_count);
 
-    lighting->face_colors_hsl_c = malloc(sizeof(DashHSL16) * face_count);
-    memset(lighting->face_colors_hsl_c, 0, sizeof(DashHSL16) * face_count);
+    lighting->face_colors_hsl_c = malloc(sizeof(hsl16_t) * face_count);
+    memset(lighting->face_colors_hsl_c, 0, sizeof(hsl16_t) * face_count);
 
     return lighting;
 }
@@ -370,13 +370,13 @@ dashmodel_lighting_new_default(
         (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
     int attenuation = (light_attenuation * light_magnitude) >> 8;
 
-    const DashHSL16* flat_hsl = NULL;
-    DashHSL16* flat_hsl_owned = NULL;
+    const hsl16_t* flat_hsl = NULL;
+    hsl16_t* flat_hsl_owned = NULL;
     if( model->face_colors )
     {
-        flat_hsl_owned = malloc(sizeof(DashHSL16) * model->face_count);
+        flat_hsl_owned = malloc(sizeof(hsl16_t) * model->face_count);
         for( int i = 0; i < model->face_count; i++ )
-            flat_hsl_owned[i] = (DashHSL16)(unsigned)(model->face_colors[i] & 0xffff);
+            flat_hsl_owned[i] = (hsl16_t)(unsigned)(model->face_colors[i] & 0xffff);
         flat_hsl = flat_hsl_owned;
     }
 

@@ -1100,9 +1100,9 @@ pix3dgl_model_load(
     int* textured_p_coordinate_nullable,
     int* textured_m_coordinate_nullable,
     int* textured_n_coordinate_nullable,
-    DashHSL16* face_colors_hsl_a,
-    DashHSL16* face_colors_hsl_b,
-    DashHSL16* face_colors_hsl_c,
+    hsl16_t* face_colors_hsl_a,
+    hsl16_t* face_colors_hsl_b,
+    hsl16_t* face_colors_hsl_c,
     int* face_infos_nullable,
     int* face_alphas_nullable)
 {

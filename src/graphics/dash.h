@@ -48,13 +48,13 @@ struct DashAABB
 
 struct DashModelLighting
 {
-    DashHSL16* face_colors_hsl_a;
+    hsl16_t* face_colors_hsl_a;
 
     // null if mode is LIGHTING_FLAT
-    DashHSL16* face_colors_hsl_b;
+    hsl16_t* face_colors_hsl_b;
 
     // null if mode is LIGHTING_FLAT
-    DashHSL16* face_colors_hsl_c;
+    hsl16_t* face_colors_hsl_c;
 };
 
 /**
@@ -138,7 +138,7 @@ struct DashModel
     int* original_face_alphas;
     int* face_infos;
     int* face_priorities;
-    DashHSL16* face_colors;
+    hsl16_t* face_colors;
 
     int textured_face_count;
 

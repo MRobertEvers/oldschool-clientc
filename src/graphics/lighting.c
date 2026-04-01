@@ -186,16 +186,16 @@ lightness_clamped(int lightness)
 
 void
 apply_lighting(
-    DashHSL16* face_colors_a_hsl16,
-    DashHSL16* face_colors_b_hsl16,
-    DashHSL16* face_colors_c_hsl16,
+    hsl16_t* face_colors_a_hsl16,
+    hsl16_t* face_colors_b_hsl16,
+    hsl16_t* face_colors_c_hsl16,
     struct LightingNormal* vertex_normals,
     struct LightingNormal* face_normals,
     int* face_indices_a,
     int* face_indices_b,
     int* face_indices_c,
     int num_faces,
-    const DashHSL16* face_colors_hsl16, // The flat color.
+    const hsl16_t* face_colors_hsl16, // The flat color.
     int* face_alphas,
     int* face_textures,
     int* face_infos,
@@ -270,7 +270,7 @@ apply_lighting(
                                         (light_attenuation * n->face_count);
 
                 face_colors_a_hsl16[i] =
-                    (DashHSL16)lighting_multiply_hsl16(color_flat_hsl16, lightness);
+                    (hsl16_t)lighting_multiply_hsl16(color_flat_hsl16, lightness);
 
                 n = &vertex_normals[b];
                 lightness =
@@ -278,7 +278,7 @@ apply_lighting(
                                         (light_attenuation * n->face_count);
 
                 face_colors_b_hsl16[i] =
-                    (DashHSL16)lighting_multiply_hsl16(color_flat_hsl16, lightness);
+                    (hsl16_t)lighting_multiply_hsl16(color_flat_hsl16, lightness);
 
                 n = &vertex_normals[c];
                 lightness =
@@ -286,7 +286,7 @@ apply_lighting(
                                         (light_attenuation * n->face_count);
 
                 face_colors_c_hsl16[i] =
-                    (DashHSL16)lighting_multiply_hsl16(color_flat_hsl16, lightness);
+                    (hsl16_t)lighting_multiply_hsl16(color_flat_hsl16, lightness);
             }
             else if( type == 1 )
             {
@@ -297,7 +297,7 @@ apply_lighting(
                                         (light_attenuation + (light_attenuation >> 1));
 
                 face_colors_a_hsl16[i] =
-                    (DashHSL16)lighting_multiply_hsl16(color_flat_hsl16, lightness);
+                    (hsl16_t)lighting_multiply_hsl16(color_flat_hsl16, lightness);
                 face_colors_c_hsl16[i] = DASHHSL16_FLAT;
             }
             else if( type == 2 )
@@ -307,7 +307,7 @@ apply_lighting(
             else if( type == 3 )
             {
                 // 128 is black in the pallette.
-                face_colors_a_hsl16[i] = (DashHSL16)128;
+                face_colors_a_hsl16[i] = (hsl16_t)128;
                 face_colors_c_hsl16[i] = DASHHSL16_HIDDEN;
             }
         }
@@ -324,19 +324,19 @@ apply_lighting(
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
 
-                face_colors_a_hsl16[i] = (DashHSL16)lightness_clamped(lightness);
+                face_colors_a_hsl16[i] = (hsl16_t)lightness_clamped(lightness);
 
                 n = &vertex_normals[b];
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
-                face_colors_b_hsl16[i] = (DashHSL16)lightness_clamped(lightness);
+                face_colors_b_hsl16[i] = (hsl16_t)lightness_clamped(lightness);
 
                 n = &vertex_normals[c];
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
-                face_colors_c_hsl16[i] = (DashHSL16)lightness_clamped(lightness);
+                face_colors_c_hsl16[i] = (hsl16_t)lightness_clamped(lightness);
             }
             else if( type == 1 )
             {
@@ -346,7 +346,7 @@ apply_lighting(
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation + (light_attenuation >> 1));
 
-                face_colors_a_hsl16[i] = (DashHSL16)lightness_clamped(lightness);
+                face_colors_a_hsl16[i] = (hsl16_t)lightness_clamped(lightness);
                 face_colors_c_hsl16[i] = DASHHSL16_FLAT;
             }
             else if( type == 2 )

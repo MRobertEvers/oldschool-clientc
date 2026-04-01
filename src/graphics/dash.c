@@ -389,9 +389,9 @@ dash3d_raster_model_face(
     int* face_m_coordinate_nullable,
     int* face_n_coordinate_nullable,
     int num_textured_faces,
-    DashHSL16* colors_a,
-    DashHSL16* colors_b,
-    DashHSL16* colors_c,
+    hsl16_t* colors_a,
+    hsl16_t* colors_b,
+    hsl16_t* colors_c,
     int* face_alphas_nullable,
     int offset_x,
     int offset_y,
@@ -2239,7 +2239,7 @@ dashmodel_heap_bytes(const struct DashModel* model)
         if( model->face_priorities )
             total += (size_t)fc * sizeof(int);
         if( model->face_colors )
-            total += (size_t)fc * sizeof(DashHSL16);
+            total += (size_t)fc * sizeof(hsl16_t);
         if( model->face_textures )
             total += (size_t)fc * sizeof(int);
         if( model->face_texture_coords )
@@ -2263,11 +2263,11 @@ dashmodel_heap_bytes(const struct DashModel* model)
     {
         total += sizeof(struct DashModelLighting);
         if( model->lighting->face_colors_hsl_a && fc > 0 )
-            total += (size_t)fc * sizeof(DashHSL16);
+            total += (size_t)fc * sizeof(hsl16_t);
         if( model->lighting->face_colors_hsl_b && fc > 0 )
-            total += (size_t)fc * sizeof(DashHSL16);
+            total += (size_t)fc * sizeof(hsl16_t);
         if( model->lighting->face_colors_hsl_c && fc > 0 )
-            total += (size_t)fc * sizeof(DashHSL16);
+            total += (size_t)fc * sizeof(hsl16_t);
     }
 
     total += dashmodel_bones_heap_bytes(model->vertex_bones);
@@ -2351,14 +2351,14 @@ dashmodel_lighting_new(int face_count)
     struct DashModelLighting* lighting =
         (struct DashModelLighting*)malloc(sizeof(struct DashModelLighting));
     memset(lighting, 0, sizeof(struct DashModelLighting));
-    lighting->face_colors_hsl_a = malloc(sizeof(DashHSL16) * face_count);
-    memset(lighting->face_colors_hsl_a, 0, sizeof(DashHSL16) * face_count);
+    lighting->face_colors_hsl_a = malloc(sizeof(hsl16_t) * face_count);
+    memset(lighting->face_colors_hsl_a, 0, sizeof(hsl16_t) * face_count);
 
-    lighting->face_colors_hsl_b = malloc(sizeof(DashHSL16) * face_count);
-    memset(lighting->face_colors_hsl_b, 0, sizeof(DashHSL16) * face_count);
+    lighting->face_colors_hsl_b = malloc(sizeof(hsl16_t) * face_count);
+    memset(lighting->face_colors_hsl_b, 0, sizeof(hsl16_t) * face_count);
 
-    lighting->face_colors_hsl_c = malloc(sizeof(DashHSL16) * face_count);
-    memset(lighting->face_colors_hsl_c, 0, sizeof(DashHSL16) * face_count);
+    lighting->face_colors_hsl_c = malloc(sizeof(hsl16_t) * face_count);
+    memset(lighting->face_colors_hsl_c, 0, sizeof(hsl16_t) * face_count);
 
     return lighting;
 }

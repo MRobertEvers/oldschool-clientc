@@ -29,16 +29,16 @@ calculate_vertex_normals(
 
 void
 apply_lighting(
-    DashHSL16* face_colors_a_hsl16,
-    DashHSL16* face_colors_b_hsl16,
-    DashHSL16* face_colors_c_hsl16,
+    hsl16_t* face_colors_a_hsl16,
+    hsl16_t* face_colors_b_hsl16,
+    hsl16_t* face_colors_c_hsl16,
     struct LightingNormal* vertex_normals,
     struct LightingNormal* face_normals,
     int* face_indices_a,
     int* face_indices_b,
     int* face_indices_c,
     int num_faces,
-    const DashHSL16* face_colors_hsl16, // The flat color.
+    const hsl16_t* face_colors_hsl16, // The flat color.
     int* face_alphas,
     int* face_textures,
     int* face_infos,
