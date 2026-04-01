@@ -265,8 +265,6 @@ world_load_scenery_model(
     dash_model = dashmodel_new_from_cache_model(model);
     model_free(model);
 
-    // _light_model_default(dash_model, config_loc->contrast, config_loc->ambient);
-
     scene_element = scene2_element_at(world->scene2, entity_scene_element->element_id);
 
     scene_element->dash_model = dash_model;

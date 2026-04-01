@@ -445,16 +445,7 @@ dash3d_calculate_bounds_cylinder( //
     int num_vertices, int* vertex_x, int* vertex_y, int* vertex_z);
 
 void //
-dash3d_calculate_vertex_normals(
-    struct DashModelNormals* normals,
-    int face_count,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
-    int vertex_count,
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z);
+dashmodel_calculate_vertex_normals(struct DashModel* model);
 
 void //
 dash3d_add_texture(

@@ -374,8 +374,8 @@ defaultlight_build(struct World* world)
 
                     _light_model_default(
                         scene_element->dash_model,
-                        map_element->light_attenuation,
-                        map_element->light_ambient);
+                        map_element->light_ambient,
+                        map_element->light_attenuation);
                 }
             }
         }
@@ -386,33 +386,18 @@ static void
 world_build_lighting(struct World* world)
 {
     // Alloc normals
-    for( int i = 0; i < world->scene2->elements_count; i++ )
+    struct Scene2Element* scene_element = NULL;
+
+    scene_element = world->scene2->active_list;
+    while( scene_element != NULL )
     {
-        struct Scene2Element* scene_element = &world->scene2->elements[i];
-        if( !scene_element->dash_model )
-            continue;
-        dashmodel_alloc_normals(scene_element->dash_model);
+        if( scene_element->dash_model )
+        {
+            dashmodel_alloc_normals(scene_element->dash_model);
 
-        calculate_vertex_normals(
-            scene_element->dash_model->normals->lighting_vertex_normals,
-            scene_element->dash_model->normals->lighting_face_normals,
-            scene_element->dash_model->vertex_count,
-            scene_element->dash_model->face_indices_a,
-            scene_element->dash_model->face_indices_b,
-            scene_element->dash_model->face_indices_c,
-            scene_element->dash_model->vertices_x,
-            scene_element->dash_model->vertices_y,
-            scene_element->dash_model->vertices_z,
-            scene_element->dash_model->face_count);
-
-        memcpy(
-            scene_element->dash_model->merged_normals->lighting_vertex_normals,
-            scene_element->dash_model->normals->lighting_vertex_normals,
-            sizeof(struct LightingNormal) * scene_element->dash_model->vertex_count);
-        memcpy(
-            scene_element->dash_model->merged_normals->lighting_face_normals,
-            scene_element->dash_model->normals->lighting_face_normals,
-            sizeof(struct LightingNormal) * scene_element->dash_model->face_count);
+            dashmodel_calculate_vertex_normals(scene_element->dash_model);
+        }
+        scene_element = scene_element->next;
     }
 
     sharelight_build(world);
@@ -420,13 +405,15 @@ world_build_lighting(struct World* world)
     defaultlight_build(world);
 
     // Free normals
-    for( int i = 0; i < world->scene2->elements_count; i++ )
+    scene_element = world->scene2->active_list;
+    while( scene_element != NULL )
     {
-        struct Scene2Element* scene_element = &world->scene2->elements[i];
         if( scene_element->dash_model )
         {
             dashmodel_free_normals(scene_element->dash_model);
         }
+
+        scene_element = scene_element->next;
     }
 }
 

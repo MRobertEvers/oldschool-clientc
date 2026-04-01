@@ -1893,7 +1893,7 @@ dash3d_calculate_bounds_cylinder(
         center_to_top_edge > center_to_bottom_edge ? center_to_top_edge : center_to_bottom_edge;
 }
 
-void
+static void
 dash3d_calculate_vertex_normals(
     struct DashModelNormals* normals,
     int face_count,
@@ -1919,6 +1919,30 @@ dash3d_calculate_vertex_normals(
 
     normals->lighting_vertex_normals_count = vertex_count;
     normals->lighting_face_normals_count = face_count;
+}
+
+void //
+dashmodel_calculate_vertex_normals(struct DashModel* model)
+{
+    dash3d_calculate_vertex_normals(
+        model->normals,
+        model->face_count,
+        model->face_indices_a,
+        model->face_indices_b,
+        model->face_indices_c,
+        model->vertex_count,
+        model->vertices_x,
+        model->vertices_y,
+        model->vertices_z);
+
+    memcpy(
+        model->merged_normals->lighting_vertex_normals,
+        model->normals->lighting_vertex_normals,
+        sizeof(struct LightingNormal) * model->vertex_count);
+    memcpy(
+        model->merged_normals->lighting_face_normals,
+        model->normals->lighting_face_normals,
+        sizeof(struct LightingNormal) * model->face_count);
 }
 
 void //
