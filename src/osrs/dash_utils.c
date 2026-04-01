@@ -273,7 +273,8 @@ dashmodel_move_from_cache_model(
     dash_model->has_textures =
         (model->textured_face_count > 0 || dash_model->face_texture_coords != NULL);
 
-    dash_model->normals = dashmodel_normals_new(model->vertex_count, model->face_count);
+    // dash_model->normals = dashmodel_normals_new(model->vertex_count, model->face_count);
+    dash_model->normals = NULL;
     dash_model->lighting = dashmodel_lighting_new(model->face_count);
     if( model->vertex_bone_map )
         dash_model->vertex_bones = dashmodel_bones_new(model->vertex_bone_map, model->vertex_count);

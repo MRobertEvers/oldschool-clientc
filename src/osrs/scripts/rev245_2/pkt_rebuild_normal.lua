@@ -1,6 +1,5 @@
 -- pkt_rebuild_normal: load terrain, scenery, and models for rebuild zone via CacheDat /
 -- Game.buildcachedat_* APIs, then run gameproto_exec rebuild
-
 local CacheDat = require("cachedat")
 
 local SCENE_WIDTH = 104

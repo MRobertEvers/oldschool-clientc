@@ -7,6 +7,7 @@
 #include "lighting.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 typedef uint16_t DashVertexInt;
@@ -478,10 +479,23 @@ dashmodel_new(void);
 void
 dashmodel_free(struct DashModel* model);
 
+/** Sum of heap bytes owned by the model (struct, arrays, normals, lighting, bones, bounds). */
+size_t
+dashmodel_heap_bytes(const struct DashModel* model);
+
+void
+dashmodel_alloc_normals(struct DashModel* model);
+
+void
+dashmodel_free_normals(struct DashModel* model);
+
 struct DashModelNormals* //
 dashmodel_normals_new(
     int vertex_count,
     int face_count);
+
+void
+dashmodel_normals_free(struct DashModelNormals* normals);
 
 struct DashModelNormals* //
 dashmodel_normals_new_copy(struct DashModelNormals* normals);

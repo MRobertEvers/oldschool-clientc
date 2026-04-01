@@ -369,7 +369,9 @@ buildcachedat_new(void)
 }
 
 static void
-dashmap_free_entries(struct DashMap* map, void (*entry_free_fn)(void*))
+dashmap_free_entries(
+    struct DashMap* map,
+    void (*entry_free_fn)(void*))
 {
     if( !map )
         return;
@@ -385,79 +387,98 @@ dashmap_free_entries(struct DashMap* map, void (*entry_free_fn)(void*))
     dashmap_free(map);
 }
 
-static void free_texture_entry(void* e)
+static void
+free_texture_entry(void* e)
 {
     texture_free(((struct TextureEntry*)e)->texture);
 }
-static void free_font_entry(void* e)
+static void
+free_font_entry(void* e)
 {
     dashpixfont_free(((struct FontEntry*)e)->font);
 }
-static void free_flotype_entry(void* e)
+static void
+free_flotype_entry(void* e)
 {
     config_floortype_overlay_free(((struct FlotypeEntry*)e)->flotype);
 }
-static void free_scenery_entry(void* e)
+static void
+free_scenery_entry(void* e)
 {
     map_locs_free(((struct SceneryEntry*)e)->locs);
 }
-static void free_model_entry(void* e)
+static void
+free_model_entry(void* e)
 {
     model_free(((struct ModelEntry*)e)->model);
 }
-static void free_config_loc_entry(void* e)
+static void
+free_config_loc_entry(void* e)
 {
     config_locs_free(((struct ConfigLocEntry*)e)->config_loc);
 }
-static void free_animbaseframes_entry(void* e)
+static void
+free_animbaseframes_entry(void* e)
 {
     cache_dat_animbaseframes_free(((struct AnimbaseframesEntry*)e)->animbaseframes);
 }
-static void free_sequence_entry(void* e)
+static void
+free_sequence_entry(void* e)
 {
     config_dat_sequence_free(((struct SequenceEntry*)e)->sequence);
 }
-static void free_idk_entry(void* e)
+static void
+free_idk_entry(void* e)
 {
     cache_dat_config_idk_free(((struct IdkEntry*)e)->idk);
 }
-static void free_obj_entry(void* e)
+static void
+free_obj_entry(void* e)
 {
     cache_dat_config_obj_free(((struct ObjEntry*)e)->obj);
 }
-static void free_idk_model_entry(void* e)
+static void
+free_idk_model_entry(void* e)
 {
     model_free(((struct IdkModelEntry*)e)->model);
 }
-static void free_obj_model_entry(void* e)
+static void
+free_obj_model_entry(void* e)
 {
     model_free(((struct ObjModelEntry*)e)->model);
 }
-static void free_map_terrain_entry(void* e)
+static void
+free_map_terrain_entry(void* e)
 {
     map_terrain_free(((struct MapTerrainEntry*)e)->map_terrain);
 }
-static void free_npc_entry(void* e)
+static void
+free_npc_entry(void* e)
 {
     cache_dat_config_npc_free(((struct NpcEntry*)e)->npc);
 }
-static void free_npc_model_entry(void* e)
+static void
+free_npc_model_entry(void* e)
 {
     model_free(((struct NpcModelEntry*)e)->model);
 }
-static void free_component_entry(void* e)
+static void
+free_component_entry(void* e)
 {
     cache_dat_config_component_free(((struct ComponentEntry*)e)->component);
 }
-static void free_component_sprite_entry(void* e)
+static void
+free_component_sprite_entry(void* e)
 {
     dashsprite_free(((struct ComponentSpriteEntry*)e)->sprite);
 }
-static void free_sprite_entry(void* e)
+static void
+free_sprite_entry(void* e)
 {
     dashsprite_free(((struct SpriteEntry*)e)->sprite);
 }
-static void free_container_entry(void* e)
+static void
+free_container_entry(void* e)
 {
     struct ContainerEntry* entry = (struct ContainerEntry*)e;
     switch( entry->kind )
@@ -519,7 +540,7 @@ buildcachedat_clear(struct BuildCacheDat* buildcachedat)
     if( !buildcachedat )
         return;
 
-    dashmap_free_entries(buildcachedat->textures_hmap, free_texture_entry);
+    // dashmap_free_entries(buildcachedat->textures_hmap, free_texture_entry);
     dashmap_free_entries(buildcachedat->fonts_hmap, free_font_entry);
     dashmap_free_entries(buildcachedat->flotype_hmap, free_flotype_entry);
     dashmap_free_entries(buildcachedat->scenery_hmap, free_scenery_entry);

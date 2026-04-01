@@ -7,6 +7,7 @@
 #include "terrain_shapemap.h"
 #include "world_scenebuild.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -69,11 +70,11 @@ world_new(struct BuildCacheDat* buildcachedat)
     struct World* world = malloc(sizeof(struct World));
     memset(world, 0, sizeof(struct World));
 
-    world->scene2 = scene2_new(22000);
-    world->painter = painter_new(104, 104, MAP_TERRAIN_LEVELS);
-    world->collision_map = collision_map_new(104, 104);
-    world->heightmap = heightmap_new(104, 104, MAP_TERRAIN_LEVELS);
-    world->minimap = minimap_new(104, 104, MAP_TERRAIN_LEVELS);
+    world->scene2 = scene2_new(16000);
+    world->painter = NULL;
+    world->collision_map = NULL;
+    world->heightmap = NULL;
+    world->minimap = NULL;
     world->buildcachedat = buildcachedat;
 
     for( int i = 0; i < MAX_MAP_BUILD_LOC_ENTITIES; i++ )
@@ -246,6 +247,47 @@ flag_map_set(
     flag_map->flags[flag_map_index(flag_map, x, z, level)] = flag;
 }
 
+#include "platforms/common/platform_memory.h"
+
+static void
+world_print_scene2_dashmodel_heap_stats(struct World* world)
+{
+    struct Scene2* scene2 = world->scene2;
+    if( !scene2 )
+        return;
+
+    printf("world_buildcachedat_rebuild_centerzone: DashModel heap per scene2 element:\n");
+    size_t total = 0;
+    long long total_vertices = 0;
+    long long total_faces = 0;
+    int count = 0;
+    for( int i = 0; i < scene2->elements_count; i++ )
+    {
+        struct Scene2Element* el = &scene2->elements[i];
+        if( !el->dash_model )
+            continue;
+        struct DashModel* m = el->dash_model;
+        size_t bytes = dashmodel_heap_bytes(m);
+        total += bytes;
+        total_vertices += m->vertex_count;
+        total_faces += m->face_count;
+        count++;
+        printf(
+            "  element %d: %zu bytes, vertices %d, faces %d\n",
+            i,
+            bytes,
+            m->vertex_count,
+            m->face_count);
+    }
+    printf(
+        "world_buildcachedat_rebuild_centerzone: %d DashModels, total heap %zu bytes, "
+        "vertices %lld, faces %lld\n",
+        count,
+        total,
+        total_vertices,
+        total_faces);
+}
+
 void
 world_buildcachedat_rebuild_centerzone(
     struct World* world,
@@ -307,6 +349,11 @@ world_buildcachedat_rebuild_centerzone(
     }
     world->active_loc_entity_count = 0;
 
+    struct PlatformMemoryInfo mem = { 0 };
+    platform_get_memory_info(&mem);
+    printf(
+        "Pre-Alloc: Memory info: %zu / %zu / %zu\n", mem.heap_used, mem.heap_total, mem.heap_peak);
+
     world->painter = painter_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
     world->collision_map = collision_map_new(scene_size, scene_size);
     world->heightmap = heightmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
@@ -319,6 +366,14 @@ world_buildcachedat_rebuild_centerzone(
     world->terrain_shapemap = terrain_shape_map_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
     world->decor_buildmap = decor_buildmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
     world->sharelight_map = sharelight_map_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+
+    struct PlatformMemoryInfo mem2 = { 0 };
+    platform_get_memory_info(&mem2);
+    printf(
+        "Post-Alloc: Memory info: %zu / %zu / %zu\n",
+        mem2.heap_used,
+        mem2.heap_total,
+        mem2.heap_peak);
 
     int chunk_sw_x = zone_sw_x / 8;
     int chunk_sw_z = zone_sw_z / 8;
@@ -967,8 +1022,9 @@ world_buildcachedat_rebuild_centerzone(
 
     build_scene_terrain(world);
 
-    sharelight_build(world);
+    world_build_lighting(world);
 
+done:
     lightmap_free(world->lightmap);
     world->lightmap = NULL;
     shademap2_free(world->shademap);
@@ -983,6 +1039,8 @@ world_buildcachedat_rebuild_centerzone(
     world->decor_buildmap = NULL;
     sharelight_map_free(world->sharelight_map);
     world->sharelight_map = NULL;
+
+    world_print_scene2_dashmodel_heap_stats(world);
 
     if( buildcachedat )
         buildcachedat_clear_map_chunks(buildcachedat);

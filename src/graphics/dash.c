@@ -2135,6 +2135,146 @@ dashmodel_free(struct DashModel* model)
     model = NULL;
 }
 
+static size_t
+dashmodel_normals_heap_bytes(const struct DashModelNormals* nm)
+{
+    if( !nm )
+        return 0;
+    size_t n = sizeof(struct DashModelNormals);
+    if( nm->lighting_vertex_normals && nm->lighting_vertex_normals_count > 0 )
+        n += (size_t)nm->lighting_vertex_normals_count * sizeof(struct LightingNormal);
+    if( nm->lighting_face_normals && nm->lighting_face_normals_count > 0 )
+        n += (size_t)nm->lighting_face_normals_count * sizeof(struct LightingNormal);
+    return n;
+}
+
+static size_t
+dashmodel_bones_heap_bytes(const struct DashModelBones* bones)
+{
+    if( !bones )
+        return 0;
+    size_t n = sizeof(struct DashModelBones);
+    if( bones->bones_count > 0 && bones->bones )
+        n += (size_t)bones->bones_count * sizeof(int*);
+    if( bones->bones_count > 0 && bones->bones_sizes )
+        n += (size_t)bones->bones_count * sizeof(int);
+    if( bones->bones && bones->bones_sizes )
+    {
+        for( int i = 0; i < bones->bones_count; i++ )
+        {
+            if( bones->bones[i] && bones->bones_sizes[i] > 0 )
+                n += (size_t)bones->bones_sizes[i] * sizeof(int);
+        }
+    }
+    return n;
+}
+
+size_t
+dashmodel_heap_bytes(const struct DashModel* model)
+{
+    if( !model )
+        return 0;
+
+    size_t total = sizeof(struct DashModel);
+    int vc = model->vertex_count;
+    int fc = model->face_count;
+    int tfc = model->textured_face_count;
+
+    if( vc > 0 )
+    {
+        if( model->vertices_x )
+            total += (size_t)vc * sizeof(int);
+        if( model->vertices_y )
+            total += (size_t)vc * sizeof(int);
+        if( model->vertices_z )
+            total += (size_t)vc * sizeof(int);
+        if( model->original_vertices_x )
+            total += (size_t)vc * sizeof(int);
+        if( model->original_vertices_y )
+            total += (size_t)vc * sizeof(int);
+        if( model->original_vertices_z )
+            total += (size_t)vc * sizeof(int);
+    }
+
+    if( fc > 0 )
+    {
+        if( model->face_indices_a )
+            total += (size_t)fc * sizeof(int);
+        if( model->face_indices_b )
+            total += (size_t)fc * sizeof(int);
+        if( model->face_indices_c )
+            total += (size_t)fc * sizeof(int);
+        if( model->face_alphas )
+            total += (size_t)fc * sizeof(int);
+        if( model->original_face_alphas )
+            total += (size_t)fc * sizeof(int);
+        if( model->face_infos )
+            total += (size_t)fc * sizeof(int);
+        if( model->face_priorities )
+            total += (size_t)fc * sizeof(int);
+        if( model->face_colors )
+            total += (size_t)fc * sizeof(int);
+        if( model->face_textures )
+            total += (size_t)fc * sizeof(int);
+        if( model->face_texture_coords )
+            total += (size_t)fc * sizeof(int);
+    }
+
+    if( tfc > 0 )
+    {
+        if( model->textured_p_coordinate )
+            total += (size_t)tfc * sizeof(int);
+        if( model->textured_m_coordinate )
+            total += (size_t)tfc * sizeof(int);
+        if( model->textured_n_coordinate )
+            total += (size_t)tfc * sizeof(int);
+    }
+
+    total += dashmodel_normals_heap_bytes(model->normals);
+    total += dashmodel_normals_heap_bytes(model->merged_normals);
+
+    if( model->lighting )
+    {
+        total += sizeof(struct DashModelLighting);
+        if( model->lighting->face_colors_hsl_a && fc > 0 )
+            total += (size_t)fc * sizeof(int);
+        if( model->lighting->face_colors_hsl_b && fc > 0 )
+            total += (size_t)fc * sizeof(int);
+        if( model->lighting->face_colors_hsl_c && fc > 0 )
+            total += (size_t)fc * sizeof(int);
+    }
+
+    total += dashmodel_bones_heap_bytes(model->vertex_bones);
+    total += dashmodel_bones_heap_bytes(model->face_bones);
+
+    if( model->bounds_cylinder )
+        total += sizeof(struct DashBoundsCylinder);
+
+    return total;
+}
+
+void
+dashmodel_alloc_normals(struct DashModel* model)
+{
+    if( model->normals )
+        return;
+    model->normals = dashmodel_normals_new(model->vertex_count, model->face_count);
+    model->merged_normals = dashmodel_normals_new(model->vertex_count, model->face_count);
+}
+
+void
+dashmodel_free_normals(struct DashModel* model)
+{
+    if( !model->normals )
+        return;
+    dashmodel_normals_free(model->normals);
+    dashmodel_normals_free(model->merged_normals);
+    model->normals = NULL;
+    model->merged_normals = NULL;
+    model->normals = NULL;
+    model->merged_normals = NULL;
+}
+
 struct DashModelNormals*
 dashmodel_normals_new(
     int vertex_count,
@@ -2150,6 +2290,17 @@ dashmodel_normals_new(
     normals->lighting_vertex_normals_count = vertex_count;
     normals->lighting_face_normals_count = face_count;
     return normals;
+}
+
+void
+dashmodel_normals_free(struct DashModelNormals* normals)
+{
+    if( !normals )
+        return;
+    free(normals->lighting_vertex_normals);
+    free(normals->lighting_face_normals);
+    free(normals);
+    normals = NULL;
 }
 
 struct DashModelNormals* //

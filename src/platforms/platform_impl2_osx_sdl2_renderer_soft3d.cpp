@@ -44,7 +44,6 @@ PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
 {
-    return;
     PlatformImpl2_SDL2_Renderer_Soft3D_Render(
         (struct Platform2_SDL2_Renderer_Soft3D*)renderer, game, render_command_buffer);
 }

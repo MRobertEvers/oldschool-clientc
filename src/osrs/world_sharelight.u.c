@@ -187,17 +187,6 @@ merge_normals(
     }
 }
 
-static void
-alloc_merged_normals(struct Scene2Element* scene_element)
-{
-    if( !scene_element || !scene_element->dash_model || !scene_element->dash_model->normals ||
-        scene_element->dash_model->merged_normals )
-        return;
-
-    scene_element->dash_model->merged_normals =
-        dashmodel_normals_new_copy(scene_element->dash_model->normals);
-}
-
 #define ADJACENT_TILES_COUNT 48
 
 static void
@@ -221,9 +210,9 @@ sharelight_build(struct World* world)
                 map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
                 assert(map_tile && "Sharelight map tile must be valid");
 
-                for( int i = 0; i < map_tile->elements_count; i++ )
+                for( int i = 0; i < map_tile->sharelight_count; i++ )
                 {
-                    map_element = &map_tile->elements[i];
+                    map_element = &map_tile->sharelight[i];
 
                     scene_element = scene2_element_at(world->scene2, map_element->element_idx);
                     if( !scene_element->dash_model )
@@ -248,9 +237,9 @@ sharelight_build(struct World* world)
                             adjacent_tile_coord.x,
                             adjacent_tile_coord.z,
                             adjacent_tile_coord.level);
-                        for( int k = 0; k < adjacent_map_tile->elements_count; k++ )
+                        for( int k = 0; k < adjacent_map_tile->sharelight_count; k++ )
                         {
-                            adjacent_map_element = &adjacent_map_tile->elements[k];
+                            adjacent_map_element = &adjacent_map_tile->sharelight[k];
                             if( adjacent_map_element->element_idx == map_element->element_idx )
                                 continue;
 
@@ -282,8 +271,6 @@ sharelight_build(struct World* world)
                             assert(
                                 scene_element->dash_model->normals &&
                                 "Scene element must have normals");
-                            alloc_merged_normals(scene_element);
-                            alloc_merged_normals(adjacent_scene_element);
 
                             merge_normals(
                                 scene_element->dash_model,
@@ -312,9 +299,9 @@ sharelight_build(struct World* world)
             {
                 map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
 
-                for( int i = 0; i < map_tile->elements_count; i++ )
+                for( int i = 0; i < map_tile->sharelight_count; i++ )
                 {
-                    map_element = &map_tile->elements[i];
+                    map_element = &map_tile->sharelight[i];
 
                     scene_element = scene2_element_at(world->scene2, map_element->element_idx);
                     if( !scene_element->dash_model )
@@ -333,10 +320,6 @@ sharelight_build(struct World* world)
                         lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y +
                         lightsrc_z * lightsrc_z);
                     int attenuation = (light_attenuation * light_magnitude) >> 8;
-
-                    alloc_merged_normals(scene_element);
-                    if( !scene_element->dash_model->merged_normals )
-                        continue;
 
                     apply_lighting(
                         scene_element->dash_model->lighting->face_colors_hsl_a,
@@ -359,6 +342,90 @@ sharelight_build(struct World* world)
                         lightsrc_z);
                 }
             }
+        }
+    }
+}
+
+static void
+defaultlight_build(struct World* world)
+{
+    struct Scene2Element* scene_element = NULL;
+    struct Scene2Element* adjacent_scene_element = NULL;
+    struct SharelightMapTile* map_tile = NULL;
+    struct SharelightMapElement* map_element = NULL;
+
+    for( int sx = 0; sx < world->sharelight_map->width; sx++ )
+    {
+        for( int sz = 0; sz < world->sharelight_map->height; sz++ )
+        {
+            for( int slevel = 0; slevel < MAP_TERRAIN_LEVELS; slevel++ )
+            {
+                map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
+                assert(map_tile && "Sharelight map tile must be valid");
+
+                for( int i = 0; i < map_tile->default_lit_count; i++ )
+                {
+                    map_element = &map_tile->defaultlight[i];
+
+                    scene_element = scene2_element_at(world->scene2, map_element->element_idx);
+
+                    if( !scene_element->dash_model )
+                        continue;
+
+                    _light_model_default(
+                        scene_element->dash_model,
+                        map_element->light_attenuation,
+                        map_element->light_ambient);
+                }
+            }
+        }
+    }
+}
+
+static void
+world_build_lighting(struct World* world)
+{
+    // Alloc normals
+    for( int i = 0; i < world->scene2->elements_count; i++ )
+    {
+        struct Scene2Element* scene_element = &world->scene2->elements[i];
+        if( !scene_element->dash_model )
+            continue;
+        dashmodel_alloc_normals(scene_element->dash_model);
+
+        calculate_vertex_normals(
+            scene_element->dash_model->normals->lighting_vertex_normals,
+            scene_element->dash_model->normals->lighting_face_normals,
+            scene_element->dash_model->vertex_count,
+            scene_element->dash_model->face_indices_a,
+            scene_element->dash_model->face_indices_b,
+            scene_element->dash_model->face_indices_c,
+            scene_element->dash_model->vertices_x,
+            scene_element->dash_model->vertices_y,
+            scene_element->dash_model->vertices_z,
+            scene_element->dash_model->face_count);
+
+        memcpy(
+            scene_element->dash_model->merged_normals->lighting_vertex_normals,
+            scene_element->dash_model->normals->lighting_vertex_normals,
+            sizeof(struct LightingNormal) * scene_element->dash_model->vertex_count);
+        memcpy(
+            scene_element->dash_model->merged_normals->lighting_face_normals,
+            scene_element->dash_model->normals->lighting_face_normals,
+            sizeof(struct LightingNormal) * scene_element->dash_model->face_count);
+    }
+
+    sharelight_build(world);
+
+    defaultlight_build(world);
+
+    // Free normals
+    for( int i = 0; i < world->scene2->elements_count; i++ )
+    {
+        struct Scene2Element* scene_element = &world->scene2->elements[i];
+        if( scene_element->dash_model )
+        {
+            dashmodel_free_normals(scene_element->dash_model);
         }
     }
 }

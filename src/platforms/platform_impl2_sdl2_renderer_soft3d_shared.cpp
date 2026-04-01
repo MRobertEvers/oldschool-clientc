@@ -576,17 +576,13 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Render(
     int* src_pixels = (int*)surface->pixels;
     int texture_w = texture_pitch / sizeof(int);
 
+    /* Streaming texture must be cleared: soft buffer uses 0 for transparent/empty. */
+    memset(pix_write, 0, (size_t)texture_pitch * (size_t)renderer->height);
+
     for( int src_y = 0; src_y < (renderer->height); src_y++ )
     {
         int* row = &pix_write[(src_y * texture_w)];
-        for( int x = 0; x < renderer->width; x++ )
-        {
-            int pixel = src_pixels[src_y * renderer->width + x];
-            if( pixel != 0 )
-            {
-                row[x] = pixel;
-            }
-        }
+        memcpy(row, &src_pixels[src_y * renderer->width], (size_t)renderer->width * sizeof(int));
     }
 
     SDL_UnlockTexture(renderer->texture);
