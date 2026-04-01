@@ -9,10 +9,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef uint16_t DashVertexInt;
-typedef uint16_t DashFaceInt;
-
 #include "dash_alpha.h"
+#include "dash_faceint.h"
 #include "dash_hsl16.h"
 #include "dash_vertexint.h"
 #include "lighting.h"
@@ -133,9 +131,9 @@ struct DashModel
     vertexint_t* original_vertices_z;
 
     int face_count;
-    int* face_indices_a;
-    int* face_indices_b;
-    int* face_indices_c;
+    faceint_t* face_indices_a;
+    faceint_t* face_indices_b;
+    faceint_t* face_indices_c;
     alphaint_t* face_alphas;
     alphaint_t* original_face_alphas;
     int* face_infos;

@@ -438,9 +438,9 @@ decode_tile(
     int* face_indices = g_tile_shape_faces[shape];
     int face_count = g_tile_shape_face_counts[shape] / 4;
 
-    int* faces_a = (int*)malloc(face_count * sizeof(int));
-    int* faces_b = (int*)malloc(face_count * sizeof(int));
-    int* faces_c = (int*)malloc(face_count * sizeof(int));
+    faceint_t* faces_a = (faceint_t*)malloc(face_count * sizeof(faceint_t));
+    faceint_t* faces_b = (faceint_t*)malloc(face_count * sizeof(faceint_t));
+    faceint_t* faces_c = (faceint_t*)malloc(face_count * sizeof(faceint_t));
 
     int* valid_faces = (int*)malloc(face_count * sizeof(int));
 

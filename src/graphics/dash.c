@@ -41,11 +41,11 @@ struct DashGraphics
     int orthographic_vertices_y[4096];
     int orthographic_vertices_z[4096];
 
-    int16_t tmp_depth_face_count[1500];
-    int16_t tmp_depth_faces[1500 * 512];
-    int16_t tmp_priority_face_count[12];
-    int16_t tmp_priority_depth_sum[12];
-    int16_t tmp_priority_faces[12 * 2000];
+    faceint_t tmp_depth_face_count[1500];
+    faceint_t tmp_depth_faces[1500 * 512];
+    faceint_t tmp_priority_face_count[12];
+    faceint_t tmp_priority_depth_sum[12];
+    faceint_t tmp_priority_faces[12 * 2000];
     int tmp_flex_prio11_face_to_depth[1024];
     int tmp_flex_prio12_face_to_depth[512];
     // Used to be 1024, but now we need to support larger models.
@@ -375,9 +375,9 @@ dash3d_raster_model_face(
     int* pixel_buffer,
     int face,
     int* face_infos,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
+    faceint_t* face_indices_a,
+    faceint_t* face_indices_b,
+    faceint_t* face_indices_c,
     int num_faces,
     int* vertex_x,
     int* vertex_y,
@@ -878,16 +878,16 @@ div3_fast(int x)
 
 static inline int
 bucket_sort_by_average_depth(
-    short* face_depth_buckets,
-    short* face_depth_bucket_counts,
+    faceint_t* face_depth_buckets,
+    faceint_t* face_depth_bucket_counts,
     int model_min_depth,
     int num_faces,
     int* vertex_x,
     int* vertex_y,
     int* vertex_z,
-    int* face_a,
-    int* face_b,
-    int* face_c)
+    faceint_t* face_a,
+    faceint_t* face_b,
+    faceint_t* face_c)
 {
     int min_depth = INT_MAX;
     int max_depth = INT_MIN;
@@ -961,10 +961,10 @@ bucket_sort_by_average_depth(
 
 static inline void
 parition_faces_by_priority(
-    short* face_priority_buckets,
-    short* face_priority_bucket_counts,
-    short* face_depth_buckets,
-    short* face_depth_bucket_counts,
+    faceint_t* face_priority_buckets,
+    faceint_t* face_priority_bucket_counts,
+    faceint_t* face_depth_buckets,
+    faceint_t* face_depth_bucket_counts,
     int num_faces,
     int* face_priorities,
     int depth_lower_bound,
@@ -984,7 +984,7 @@ parition_faces_by_priority(
         if( face_count == 0 )
             continue;
 
-        short* faces = &face_depth_buckets[depth << 9];
+        faceint_t* faces = &face_depth_buckets[depth << 9];
         for( int i = 0; i < face_count; i++ )
         {
             int face_idx = faces[i];
@@ -1013,14 +1013,14 @@ parition_faces_by_priority(
  */
 static inline int
 sort_face_draw_order(
-    short* priority_depths,
+    faceint_t* priority_depths,
     int* flex_prio11_face_to_depth,
     int* flex_prio12_face_to_depth,
     int* face_draw_order,
-    short* face_depth_buckets,
-    short* face_depth_bucket_counts,
-    short* face_priority_buckets,
-    short* face_priority_bucket_counts,
+    faceint_t* face_depth_buckets,
+    faceint_t* face_depth_bucket_counts,
+    faceint_t* face_priority_buckets,
+    faceint_t* face_priority_bucket_counts,
     int num_faces,
     int* face_priorities,
     int depth_lower_bound,
@@ -1033,7 +1033,7 @@ sort_face_draw_order(
         if( face_count == 0 )
             continue;
 
-        short* faces = &face_depth_buckets[depth << 9];
+        faceint_t* faces = &face_depth_buckets[depth << 9];
         for( int i = 0; i < face_count; i++ )
         {
             int face_idx = faces[i];
@@ -1182,7 +1182,7 @@ dash3d_sort_face_draw_order(
             if( bucket_count == 0 )
                 continue;
 
-            short* faces = &dash->tmp_depth_faces[depth << 9];
+            faceint_t* faces = &dash->tmp_depth_faces[depth << 9];
             for( int j = 0; j < bucket_count; j++ )
             {
                 int face = faces[j];
@@ -1312,7 +1312,7 @@ dash3d_compute_projected_face_order(
             if( bucket_count == 0 )
                 continue;
 
-            short* faces = &dash->tmp_depth_faces[depth << 9];
+            faceint_t* faces = &dash->tmp_depth_faces[depth << 9];
             for( int j = 0; j < bucket_count; j++ )
             {
                 dash->tmp_face_order[order_index++] = faces[j];
@@ -1903,9 +1903,9 @@ static void
 dash3d_calculate_vertex_normals(
     struct DashModelNormals* normals,
     int face_count,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
+    faceint_t* face_indices_a,
+    faceint_t* face_indices_b,
+    faceint_t* face_indices_c,
     int vertex_count,
     vertexint_t* vertex_x,
     vertexint_t* vertex_y,
@@ -2229,11 +2229,11 @@ dashmodel_heap_bytes(const struct DashModel* model)
     if( fc > 0 )
     {
         if( model->face_indices_a )
-            total += (size_t)fc * sizeof(int);
+            total += (size_t)fc * sizeof(faceint_t);
         if( model->face_indices_b )
-            total += (size_t)fc * sizeof(int);
+            total += (size_t)fc * sizeof(faceint_t);
         if( model->face_indices_c )
-            total += (size_t)fc * sizeof(int);
+            total += (size_t)fc * sizeof(faceint_t);
         if( model->face_alphas )
             total += (size_t)fc * sizeof(alphaint_t);
         if( model->original_face_alphas )

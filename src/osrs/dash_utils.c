@@ -261,12 +261,32 @@ dashmodel_move_from_cache_model(
     }
 
     dash_model->face_count = model->face_count;
-    dash_model->face_indices_a = model->face_indices_a;
-    dash_model->face_indices_b = model->face_indices_b;
-    dash_model->face_indices_c = model->face_indices_c;
-    model->face_indices_a = NULL;
-    model->face_indices_b = NULL;
-    model->face_indices_c = NULL;
+    if( model->face_count > 0 && model->face_indices_a && model->face_indices_b &&
+        model->face_indices_c )
+    {
+        int fc = model->face_count;
+        dash_model->face_indices_a = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
+        dash_model->face_indices_b = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
+        dash_model->face_indices_c = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
+        for( int i = 0; i < fc; i++ )
+        {
+            dash_model->face_indices_a[i] = (faceint_t)model->face_indices_a[i];
+            dash_model->face_indices_b[i] = (faceint_t)model->face_indices_b[i];
+            dash_model->face_indices_c[i] = (faceint_t)model->face_indices_c[i];
+        }
+        free(model->face_indices_a);
+        free(model->face_indices_b);
+        free(model->face_indices_c);
+        model->face_indices_a = NULL;
+        model->face_indices_b = NULL;
+        model->face_indices_c = NULL;
+    }
+    else
+    {
+        dash_model->face_indices_a = NULL;
+        dash_model->face_indices_b = NULL;
+        dash_model->face_indices_c = NULL;
+    }
 
     if( model->face_colors )
     {
@@ -416,15 +436,26 @@ dashmodel_lighting_new_default(
             alphas[i] = (alphaint_t)(model->face_alphas[i] & 0xFF);
     }
 
+    int fc = model->face_count;
+    faceint_t* fi_a = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
+    faceint_t* fi_b = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
+    faceint_t* fi_c = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
+    for( int i = 0; i < fc; i++ )
+    {
+        fi_a[i] = (faceint_t)model->face_indices_a[i];
+        fi_b[i] = (faceint_t)model->face_indices_b[i];
+        fi_c[i] = (faceint_t)model->face_indices_c[i];
+    }
+
     apply_lighting(
         lighting->face_colors_hsl_a,
         lighting->face_colors_hsl_b,
         lighting->face_colors_hsl_c,
         normals->lighting_vertex_normals,
         normals->lighting_face_normals,
-        model->face_indices_a,
-        model->face_indices_b,
-        model->face_indices_c,
+        fi_a,
+        fi_b,
+        fi_c,
         model->face_count,
         flat_hsl,
         alphas,
@@ -436,6 +467,9 @@ dashmodel_lighting_new_default(
         lightsrc_y,
         lightsrc_z);
 
+    free(fi_a);
+    free(fi_b);
+    free(fi_c);
     free(alphas);
     free(flat_hsl_owned);
     return lighting;

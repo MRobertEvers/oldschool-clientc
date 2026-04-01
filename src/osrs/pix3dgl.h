@@ -2,6 +2,7 @@
 #define OSRS_PIX3D_H
 
 #include "graphics/dash_alpha.h"
+#include "graphics/dash_faceint.h"
 #include "graphics/dash_hsl16.h"
 #include "graphics/dash_vertexint.h"
 
@@ -95,9 +96,9 @@ pix3dgl_model_load(
     vertexint_t* vertices_x,
     vertexint_t* vertices_y,
     vertexint_t* vertices_z,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
+    faceint_t* face_indices_a,
+    faceint_t* face_indices_b,
+    faceint_t* face_indices_c,
     int face_count,
     int* face_textures_nullable,
     int* face_texture_coords_nullable,

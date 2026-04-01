@@ -9,9 +9,9 @@ calc_face_normal(
     vertexint_t* vertex_x,
     vertexint_t* vertex_y,
     vertexint_t* vertex_z,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
+    faceint_t* face_indices_a,
+    faceint_t* face_indices_b,
+    faceint_t* face_indices_c,
     int face)
 {
     struct LightingNormal normal = { 0 };
@@ -66,9 +66,9 @@ calculate_vertex_normals(
     struct LightingNormal* vertex_normals,
     struct LightingNormal* face_normals,
     int vertex_count,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
+    faceint_t* face_indices_a,
+    faceint_t* face_indices_b,
+    faceint_t* face_indices_c,
     vertexint_t* vertex_x,
     vertexint_t* vertex_y,
     vertexint_t* vertex_z,
@@ -191,9 +191,9 @@ apply_lighting(
     hsl16_t* face_colors_c_hsl16,
     struct LightingNormal* vertex_normals,
     struct LightingNormal* face_normals,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
+    faceint_t* face_indices_a,
+    faceint_t* face_indices_b,
+    faceint_t* face_indices_c,
     int num_faces,
     const hsl16_t* face_colors_hsl16, // The flat color.
     alphaint_t* face_alphas,
