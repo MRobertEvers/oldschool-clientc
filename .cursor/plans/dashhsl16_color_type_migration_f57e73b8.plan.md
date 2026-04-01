@@ -4,34 +4,34 @@ overview: Change all DashModel face color and lighting color arrays from `int*` 
 todos:
   - id: sentinel-defines
     content: Add DASHHSL16_HIDDEN (0xFFFF) and DASHHSL16_FLAT (0xFF7F) defines in dash.h
-    status: pending
+    status: completed
   - id: struct-fields
     content: Change DashModelLighting and DashModel face color fields from int* to DashHSL16* in dash.h
-    status: pending
+    status: completed
   - id: lighting-api
     content: Update apply_lighting signature and sentinel writes in lighting.h and lighting.c
-    status: pending
+    status: completed
   - id: dash-raster
     content: Update dash3d_raster_model_face params and sentinel checks in dash.c, plus allocation/heap_bytes changes
-    status: pending
+    status: completed
   - id: render-gouraud-flat-texture
     content: Change int* color array params to DashHSL16* in render_gouraud.u.c, render_flat.u.c, and render_texture.u.c
-    status: pending
+    status: completed
   - id: cache-to-dash-convert
     content: Implement copy-convert in dash_utils.c (dashmodel_move_from_cache_model and dashmodel_lighting_new_default)
-    status: pending
+    status: completed
   - id: terrain-decode
     content: Update terrain_decode_tile.u.c local buffers and allocations to DashHSL16
-    status: pending
+    status: completed
   - id: gpu-upload
     content: Update pix3dgl.h, pix3dgl.cpp, pix3dgl_opengles2.cpp signatures and sentinel checks
-    status: pending
+    status: completed
   - id: platform-renderers
     content: Update sentinel checks in metal.mm and d3d11.cpp renderers
-    status: pending
+    status: completed
   - id: compile-verify
     content: Build and verify no type errors or warnings
-    status: pending
+    status: completed
 isProject: false
 ---
 

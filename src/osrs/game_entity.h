@@ -178,8 +178,8 @@ struct MapBuildLocEntity
     struct EntitySceneCoord scene_coord;
     struct EntityAction* actions;
     uint8_t action_count;
-    char name[32];
-    char description[64];
+    char name[1];
+    char description[1];
     bool interactable;
 };
 

@@ -389,9 +389,9 @@ dash3d_raster_model_face(
     int* face_m_coordinate_nullable,
     int* face_n_coordinate_nullable,
     int num_textured_faces,
-    int* colors_a,
-    int* colors_b,
-    int* colors_c,
+    DashHSL16* colors_a,
+    DashHSL16* colors_b,
+    DashHSL16* colors_c,
     int* face_alphas_nullable,
     int offset_x,
     int offset_y,
@@ -418,7 +418,7 @@ dash3d_raster_model_face(
     int color_b = colors_b[face];
     int color_c = colors_c[face];
 
-    if( color_c == -2 )
+    if( color_c == DASHHSL16_HIDDEN )
     {
         return;
     }
@@ -448,7 +448,7 @@ dash3d_raster_model_face(
     // texture PNM coordinates that do not coincide with a visible face.
     // /Users/matthewevers/Documents/git_repos/OS1/src/main/java/jagex3/dash3d/ModelUnlit.java
     // OS1 skips faces with -2.
-    if( color_c == -2 )
+    if( color_c == DASHHSL16_HIDDEN )
     {
         // TODO: How to organize this.
         // See here
@@ -485,7 +485,7 @@ dash3d_raster_model_face(
         texture_size = texture->width;
         texture_opaque = texture->opaque;
 
-        if( color_c == -1 )
+        if( color_c == DASHHSL16_FLAT )
             goto textured_flat;
         else
             goto textured;
@@ -494,11 +494,11 @@ dash3d_raster_model_face(
     {
         // Alpha is a signed byte, but for non-textured
         // faces, we treat it as unsigned.
-        // -1 and -2 are reserved. See lighting code.
+        // DASHHSL16_FLAT / DASHHSL16_HIDDEN are reserved. See lighting code.
         if( face_alphas_nullable )
             alpha = 0xFF - (alpha & 0xff);
 
-        if( color_c == -1 )
+        if( color_c == DASHHSL16_FLAT )
         {
             type = FACE_TYPE_FLAT;
         }
@@ -2239,7 +2239,7 @@ dashmodel_heap_bytes(const struct DashModel* model)
         if( model->face_priorities )
             total += (size_t)fc * sizeof(int);
         if( model->face_colors )
-            total += (size_t)fc * sizeof(int);
+            total += (size_t)fc * sizeof(DashHSL16);
         if( model->face_textures )
             total += (size_t)fc * sizeof(int);
         if( model->face_texture_coords )
@@ -2263,11 +2263,11 @@ dashmodel_heap_bytes(const struct DashModel* model)
     {
         total += sizeof(struct DashModelLighting);
         if( model->lighting->face_colors_hsl_a && fc > 0 )
-            total += (size_t)fc * sizeof(int);
+            total += (size_t)fc * sizeof(DashHSL16);
         if( model->lighting->face_colors_hsl_b && fc > 0 )
-            total += (size_t)fc * sizeof(int);
+            total += (size_t)fc * sizeof(DashHSL16);
         if( model->lighting->face_colors_hsl_c && fc > 0 )
-            total += (size_t)fc * sizeof(int);
+            total += (size_t)fc * sizeof(DashHSL16);
     }
 
     total += dashmodel_bones_heap_bytes(model->vertex_bones);
@@ -2351,14 +2351,14 @@ dashmodel_lighting_new(int face_count)
     struct DashModelLighting* lighting =
         (struct DashModelLighting*)malloc(sizeof(struct DashModelLighting));
     memset(lighting, 0, sizeof(struct DashModelLighting));
-    lighting->face_colors_hsl_a = malloc(sizeof(int) * face_count);
-    memset(lighting->face_colors_hsl_a, 0, sizeof(int) * face_count);
+    lighting->face_colors_hsl_a = malloc(sizeof(DashHSL16) * face_count);
+    memset(lighting->face_colors_hsl_a, 0, sizeof(DashHSL16) * face_count);
 
-    lighting->face_colors_hsl_b = malloc(sizeof(int) * face_count);
-    memset(lighting->face_colors_hsl_b, 0, sizeof(int) * face_count);
+    lighting->face_colors_hsl_b = malloc(sizeof(DashHSL16) * face_count);
+    memset(lighting->face_colors_hsl_b, 0, sizeof(DashHSL16) * face_count);
 
-    lighting->face_colors_hsl_c = malloc(sizeof(int) * face_count);
-    memset(lighting->face_colors_hsl_c, 0, sizeof(int) * face_count);
+    lighting->face_colors_hsl_c = malloc(sizeof(DashHSL16) * face_count);
+    memset(lighting->face_colors_hsl_c, 0, sizeof(DashHSL16) * face_count);
 
     return lighting;
 }

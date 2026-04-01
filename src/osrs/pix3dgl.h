@@ -1,6 +1,8 @@
 #ifndef OSRS_PIX3D_H
 #define OSRS_PIX3D_H
 
+#include "graphics/dash_hsl16.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -100,9 +102,9 @@ pix3dgl_model_load(
     int* textured_p_coordinate_nullable,
     int* textured_m_coordinate_nullable,
     int* textured_n_coordinate_nullable,
-    int* face_colors_hsl_a,
-    int* face_colors_hsl_b,
-    int* face_colors_hsl_c,
+    DashHSL16* face_colors_hsl_a,
+    DashHSL16* face_colors_hsl_b,
+    DashHSL16* face_colors_hsl_c,
     int* face_infos_nullable,
     int* face_alphas_nullable);
 void

@@ -312,7 +312,7 @@ append_model_face_vertices(
     if( model->face_infos && model->face_infos[f] == 2 )
         return;
     if( model->lighting && model->lighting->face_colors_hsl_c &&
-        model->lighting->face_colors_hsl_c[f] == -2 )
+        model->lighting->face_colors_hsl_c[f] == DASHHSL16_HIDDEN )
         return;
 
     const int ia = model->face_indices_a[f];
@@ -330,7 +330,7 @@ append_model_face_vertices(
     int hsl_b = model->lighting->face_colors_hsl_b[f];
     int hsl_c = model->lighting->face_colors_hsl_c[f];
     int rgb_a, rgb_b, rgb_c;
-    if( hsl_c == -1 )
+    if( hsl_c == DASHHSL16_FLAT )
         rgb_a = rgb_b = rgb_c = g_hsl16_to_rgb_table[hsl_a & 65535];
     else
     {

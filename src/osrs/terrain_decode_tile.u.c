@@ -444,9 +444,9 @@ decode_tile(
 
     int* valid_faces = (int*)malloc(face_count * sizeof(int));
 
-    int* face_colors_hsl_a = (int*)malloc(face_count * sizeof(int));
-    int* face_colors_hsl_b = (int*)malloc(face_count * sizeof(int));
-    int* face_colors_hsl_c = (int*)malloc(face_count * sizeof(int));
+    DashHSL16* face_colors_hsl_a = (DashHSL16*)malloc(face_count * sizeof(DashHSL16));
+    DashHSL16* face_colors_hsl_b = (DashHSL16*)malloc(face_count * sizeof(DashHSL16));
+    DashHSL16* face_colors_hsl_c = (DashHSL16*)malloc(face_count * sizeof(DashHSL16));
 
     int* face_texture_ids = NULL;
     // int* face_texture_u_a = NULL;
@@ -512,9 +512,9 @@ decode_tile(
                 face_texture_ids[i] = -1;
         }
 
-        face_colors_hsl_a[i] = color_a;
-        face_colors_hsl_b[i] = color_b;
-        face_colors_hsl_c[i] = color_c;
+        face_colors_hsl_a[i] = (DashHSL16)(unsigned)(color_a & 0xffff);
+        face_colors_hsl_b[i] = (DashHSL16)(unsigned)(color_b & 0xffff);
+        face_colors_hsl_c[i] = (DashHSL16)(unsigned)(color_c & 0xffff);
 
         if( color_a == INVALID_HSL_COLOR && face_texture_id == -1 )
         {
@@ -575,19 +575,19 @@ decode_tile(
         dash_model->has_textures = true;
     }
 
-    // Hide faces with color_c == -2.
+    // Hide invalid faces (channel C sentinel).
     for( int i = 0; i < face_count; i++ )
     {
         if( !valid_faces[i] )
-            face_colors_hsl_c[i] = -2;
+            face_colors_hsl_c[i] = DASHHSL16_HIDDEN;
     }
-    dash_model->face_colors = malloc(face_count * sizeof(int));
-    memcpy(dash_model->face_colors, face_colors_hsl_a, face_count * sizeof(int));
+    dash_model->face_colors = malloc(face_count * sizeof(DashHSL16));
+    memcpy(dash_model->face_colors, face_colors_hsl_a, face_count * sizeof(DashHSL16));
 
     dash_model->lighting = dashmodel_lighting_new(face_count);
-    memcpy(dash_model->lighting->face_colors_hsl_a, face_colors_hsl_a, face_count * sizeof(int));
-    memcpy(dash_model->lighting->face_colors_hsl_b, face_colors_hsl_b, face_count * sizeof(int));
-    memcpy(dash_model->lighting->face_colors_hsl_c, face_colors_hsl_c, face_count * sizeof(int));
+    memcpy(dash_model->lighting->face_colors_hsl_a, face_colors_hsl_a, face_count * sizeof(DashHSL16));
+    memcpy(dash_model->lighting->face_colors_hsl_b, face_colors_hsl_b, face_count * sizeof(DashHSL16));
+    memcpy(dash_model->lighting->face_colors_hsl_c, face_colors_hsl_c, face_count * sizeof(DashHSL16));
 
     dash_model->bounds_cylinder = dashmodel_bounds_cylinder_new();
 

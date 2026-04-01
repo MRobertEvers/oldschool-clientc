@@ -4,7 +4,6 @@
 #include "dash_anim.h"
 #include "dash_math.h"
 #include "dashmap.h"
-#include "lighting.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -12,7 +11,9 @@
 
 typedef uint16_t DashVertexInt;
 typedef uint16_t DashFaceInt;
-typedef uint16_t DashHSL16;
+
+#include "dash_hsl16.h"
+#include "lighting.h"
 
 struct DashBoundsCylinder
 {
@@ -47,13 +48,13 @@ struct DashAABB
 
 struct DashModelLighting
 {
-    int* face_colors_hsl_a;
+    DashHSL16* face_colors_hsl_a;
 
     // null if mode is LIGHTING_FLAT
-    int* face_colors_hsl_b;
+    DashHSL16* face_colors_hsl_b;
 
     // null if mode is LIGHTING_FLAT
-    int* face_colors_hsl_c;
+    DashHSL16* face_colors_hsl_c;
 };
 
 /**
@@ -137,7 +138,7 @@ struct DashModel
     int* original_face_alphas;
     int* face_infos;
     int* face_priorities;
-    int* face_colors;
+    DashHSL16* face_colors;
 
     int textured_face_count;
 

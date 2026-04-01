@@ -1441,9 +1441,9 @@ pix3dgl_model_load(
     int* textured_p_coordinate_nullable,
     int* textured_m_coordinate_nullable,
     int* textured_n_coordinate_nullable,
-    int* face_colors_hsl_a,
-    int* face_colors_hsl_b,
-    int* face_colors_hsl_c,
+    DashHSL16* face_colors_hsl_a,
+    DashHSL16* face_colors_hsl_b,
+    DashHSL16* face_colors_hsl_c,
     int* face_infos_nullable,
     int* face_alphas_nullable)
 {
@@ -1483,7 +1483,7 @@ pix3dgl_model_load(
         if( face_infos_nullable && face_infos_nullable[face] == 2 )
             visible = false;
 
-        if( face_colors_hsl_c[face] == -2 )
+        if( face_colors_hsl_c[face] == DASHHSL16_HIDDEN )
             visible = false;
         model.face_visible[(size_t)face] = visible;
 
@@ -1503,9 +1503,14 @@ pix3dgl_model_load(
         int hsl_b = face_colors_hsl_b[face];
         int hsl_c = face_colors_hsl_c[face];
         int rgb_a, rgb_b, rgb_c;
-        if( hsl_c == -1 )
+        if( hsl_c == DASHHSL16_FLAT )
         {
             rgb_a = rgb_b = rgb_c = g_hsl16_to_rgb_table[hsl_a];
+            model.face_shading[(size_t)face] = SHADING_FLAT;
+        }
+        else if( hsl_c == DASHHSL16_HIDDEN )
+        {
+            rgb_a = rgb_b = rgb_c = 0;
             model.face_shading[(size_t)face] = SHADING_FLAT;
         }
         else
