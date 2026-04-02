@@ -875,9 +875,6 @@ buildcachedat_loader_finalize_scene(
 
     world_buildcachedat_rebuild_centerzone(game->world, map_sw_x * 8 + 12, map_sw_z * 8 + 12, 104);
 
-    // game->scene_base_tile_x = map_sw_x * 64;
-    // game->scene_base_tile_z = map_sw_z * 64;
-
     LibToriRS_WorldMinimapStaticRebuild(game);
 
     buildcachedat_clear(buildcachedat);

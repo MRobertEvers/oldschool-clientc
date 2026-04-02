@@ -374,8 +374,8 @@ defaultlight_build(struct World* world)
 
                     _light_model_default(
                         scene_element->dash_model,
-                        map_element->light_ambient,
-                        map_element->light_attenuation);
+                        map_element->light_attenuation,
+                        map_element->light_ambient);
                 }
             }
         }
