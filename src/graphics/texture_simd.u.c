@@ -7,63 +7,8 @@
 #include "shade.h"
 // clang-format on
 
-// A helper struct to store the perspective-corrected coordinates for the scanline
-typedef struct
-{
-    int u[256]; // Enough for 2048px width (2048/8)
-    int v[256];
-} LerpBuffer;
-
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
 #include <arm_neon.h>
-
-// SSE2/AVX2/NEON Batch Division
-static inline void
-batch_divide_coords(
-    int* out_u,
-    int* out_v,
-    int* au_ptr,
-    int* bv_ptr,
-    int* cw_ptr,
-    int count,
-    int shift)
-{
-    int i = 0;
-    float scale = 1.0f / (float)(1 << shift);
-
-#define ARM_NEON_FLOAT_RECIP_DIV
-#ifdef ARM_NEON_FLOAT_RECIP_DIV
-    float32x4_t vscale = vdupq_n_f32(scale);
-    for( ; i <= count - 4; i += 4 )
-    {
-        int32x4_t au = vld1q_s32(&au_ptr[i]);
-        int32x4_t bv = vld1q_s32(&bv_ptr[i]);
-        int32x4_t cw = vld1q_s32(&cw_ptr[i]);
-
-        float32x4_t f_au = vcvtq_f32_s32(au);
-        float32x4_t f_bv = vcvtq_f32_s32(bv);
-        float32x4_t f_w = vmulq_f32(vcvtq_f32_s32(cw), vscale);
-
-        // Reciprocal estimate
-        float32x4_t rcp = vrecpeq_f32(f_w);
-        rcp = vmulq_f32(vrecpsq_f32(f_w, rcp), rcp); // Step 1
-        rcp = vmulq_f32(vrecpsq_f32(f_w, rcp), rcp); // Step 2 (Precision)
-
-        vst1q_s32(&out_u[i], vcvtq_s32_f32(vmulq_f32(f_au, rcp)));
-        vst1q_s32(&out_v[i], vcvtq_s32_f32(vmulq_f32(f_bv, rcp)));
-    }
-#endif
-
-    // Scalar fallback
-    for( ; i < count; i++ )
-    {
-        int w = cw_ptr[i] >> shift;
-        if( w == 0 )
-            w = 1;
-        out_u[i] = au_ptr[i] / w;
-        out_v[i] = bv_ptr[i] / w;
-    }
-}
 
 // shade_blend for 4 pixels at a time
 static inline uint32x4_t
@@ -176,97 +121,8 @@ raster_linear_opaque_blend_lerp8(
     vst1q_u32(&pixel_buffer[offset + 4], r1);
 }
 
-// Fixed-shade transparent scanline: 2D u,v with subpixel in <<3 (matches scalar
-// raster_texture_scanline_transparent_lerp8), idx = u + v * texture_width.
-static inline void
-raster_linear_transparent_lerp8_affine8(
-    uint32_t* pixel_buffer,
-    int offset,
-    const uint32_t* texels,
-    int u_scan,
-    int v_scan,
-    int step_u,
-    int step_v,
-    int texture_width,
-    int shade)
-{
-    int uw = texture_width - 1;
-    int idx[8];
-    for( int i = 0; i < 8; i++ )
-    {
-        int u = (u_scan >> 3) & uw;
-        int v = (v_scan >> 3) & uw;
-        idx[i] = u + v * texture_width;
-        u_scan += step_u;
-        v_scan += step_v;
-    }
-
-    uint32x4_t t0 = { texels[idx[0]], texels[idx[1]], texels[idx[2]], texels[idx[3]] };
-    uint32x4_t t1 = { texels[idx[4]], texels[idx[5]], texels[idx[6]], texels[idx[7]] };
-
-    uint32x4_t r0 = shade_blend4_neon(t0, shade);
-    uint32x4_t r1 = shade_blend4_neon(t1, shade);
-
-    uint32x4_t zero = vdupq_n_u32(0);
-    uint32x4_t existing0 = vld1q_u32(&pixel_buffer[offset]);
-    uint32x4_t existing1 = vld1q_u32(&pixel_buffer[offset + 4]);
-
-    uint32x4_t mask0 = vceqq_u32(t0, zero);
-    uint32x4_t mask1 = vceqq_u32(t1, zero);
-    r0 = vbslq_u32(mask0, existing0, r0);
-    r1 = vbslq_u32(mask1, existing1, r1);
-
-    vst1q_u32(&pixel_buffer[offset], r0);
-    vst1q_u32(&pixel_buffer[offset + 4], r1);
-}
-
 #elif defined(__AVX2__) && !defined(AVX2_DISABLED)
 #include <immintrin.h>
-
-// SSE2/AVX2/NEON Batch Division
-static inline void
-batch_divide_coords(
-    int* out_u,
-    int* out_v,
-    int* au_ptr,
-    int* bv_ptr,
-    int* cw_ptr,
-    int count,
-    int shift)
-{
-    int i = 0;
-    float scale = 1.0f / (float)(1 << shift);
-
-    for( ; i <= count - 8; i += 8 )
-    {
-        __m256i au = _mm256_loadu_si256((__m256i*)&au_ptr[i]);
-        __m256i bv = _mm256_loadu_si256((__m256i*)&bv_ptr[i]);
-        __m256i cw = _mm256_loadu_si256((__m256i*)&cw_ptr[i]);
-
-        __m256 f_au = _mm256_cvtepi32_ps(au);
-        __m256 f_bv = _mm256_cvtepi32_ps(bv);
-        __m256 f_cw = _mm256_cvtepi32_ps(cw);
-
-        // 1.0 / (w >> shift)
-        __m256 w = _mm256_mul_ps(f_cw, _mm256_set1_ps(scale));
-        __m256 rcp = _mm256_rcp_ps(w);
-        // Newton-Raphson refinement: rcp = rcp * (2 - w * rcp)
-        rcp = _mm256_mul_ps(rcp, _mm256_sub_ps(_mm256_set1_ps(2.0f), _mm256_mul_ps(w, rcp)));
-
-        _mm256_storeu_si256((__m256i*)&out_u[i], _mm256_cvtps_epi32(_mm256_mul_ps(f_au, rcp)));
-        _mm256_storeu_si256((__m256i*)&out_v[i], _mm256_cvtps_epi32(_mm256_mul_ps(f_bv, rcp)));
-    }
-
-    // Scalar fallback
-    for( ; i < count; i++ )
-    {
-        int w = cw_ptr[i] >> shift;
-        if( w == 0 )
-            w = 1;
-        out_u[i] = au_ptr[i] / w;
-        out_v[i] = bv_ptr[i] / w;
-    }
-}
 
 // shade_blend for 8 pixels at a time using AVX2
 static inline __m256i
@@ -386,49 +242,6 @@ raster_linear_opaque_blend_lerp8(
     // Store results directly (no transparency masking for opaque rendering)
     _mm256_storeu_si256((__m256i*)&pixel_buffer[offset], r);
 }
-
-static inline void
-raster_linear_transparent_lerp8_affine8(
-    uint32_t* pixel_buffer,
-    int offset,
-    const uint32_t* texels,
-    int u_scan,
-    int v_scan,
-    int step_u,
-    int step_v,
-    int texture_width,
-    int shade)
-{
-    int uw = texture_width - 1;
-    int idx[8];
-    for( int i = 0; i < 8; i++ )
-    {
-        int u = (u_scan >> 3) & uw;
-        int v = (v_scan >> 3) & uw;
-        idx[i] = u + v * texture_width;
-        u_scan += step_u;
-        v_scan += step_v;
-    }
-
-    __m256i t = _mm256_set_epi32(
-        texels[idx[7]],
-        texels[idx[6]],
-        texels[idx[5]],
-        texels[idx[4]],
-        texels[idx[3]],
-        texels[idx[2]],
-        texels[idx[1]],
-        texels[idx[0]]);
-
-    __m256i r = shade_blend8_avx2(t, shade);
-
-    __m256i zero = _mm256_setzero_si256();
-    __m256i existing = _mm256_loadu_si256((__m256i*)&pixel_buffer[offset]);
-    __m256i mask = _mm256_cmpeq_epi32(t, zero);
-    r = _mm256_blendv_epi8(r, existing, mask);
-
-    _mm256_storeu_si256((__m256i*)&pixel_buffer[offset], r);
-}
 #elif (defined(__SSE2__) || defined(__SSE4_1__)) && !defined(SSE2_DISABLED)
 #include <emmintrin.h>
 
@@ -544,48 +357,6 @@ raster_linear_opaque_blend_lerp8(
     _mm_storeu_si128((__m128i*)&pixel_buffer[offset], r0);
     _mm_storeu_si128((__m128i*)&pixel_buffer[offset + 4], r1);
 }
-
-static inline void
-raster_linear_transparent_lerp8_affine8(
-    uint32_t* pixel_buffer,
-    int offset,
-    const uint32_t* texels,
-    int u_scan,
-    int v_scan,
-    int step_u,
-    int step_v,
-    int texture_width,
-    int shade)
-{
-    int uw = texture_width - 1;
-    int idx[8];
-    for( int i = 0; i < 8; i++ )
-    {
-        int u = (u_scan >> 3) & uw;
-        int v = (v_scan >> 3) & uw;
-        idx[i] = u + v * texture_width;
-        u_scan += step_u;
-        v_scan += step_v;
-    }
-
-    __m128i t0 = _mm_set_epi32(texels[idx[3]], texels[idx[2]], texels[idx[1]], texels[idx[0]]);
-    __m128i t1 = _mm_set_epi32(texels[idx[7]], texels[idx[6]], texels[idx[5]], texels[idx[4]]);
-
-    __m128i r0 = shade_blend4_sse(t0, shade);
-    __m128i r1 = shade_blend4_sse(t1, shade);
-
-    __m128i zero = _mm_setzero_si128();
-    __m128i existing0 = _mm_loadu_si128((__m128i*)&pixel_buffer[offset]);
-    __m128i existing1 = _mm_loadu_si128((__m128i*)&pixel_buffer[offset + 4]);
-
-    __m128i mask0 = _mm_cmpeq_epi32(t0, zero);
-    __m128i mask1 = _mm_cmpeq_epi32(t1, zero);
-    r0 = _mm_or_si128(_mm_and_si128(mask0, existing0), _mm_andnot_si128(mask0, r0));
-    r1 = _mm_or_si128(_mm_and_si128(mask1, existing1), _mm_andnot_si128(mask1, r1));
-
-    _mm_storeu_si128((__m128i*)&pixel_buffer[offset], r0);
-    _mm_storeu_si128((__m128i*)&pixel_buffer[offset + 4], r1);
-}
 #else
 
 static inline void
@@ -641,33 +412,6 @@ raster_linear_opaque_blend_lerp8(
         u_scan += step_u;
         v_scan += step_v;
 
-        offset += 1;
-    }
-}
-
-static inline void
-raster_linear_transparent_lerp8_affine8(
-    uint32_t* pixel_buffer,
-    int offset,
-    const uint32_t* texels,
-    int u_scan,
-    int v_scan,
-    int step_u,
-    int step_v,
-    int texture_width,
-    int shade)
-{
-    int uw = texture_width - 1;
-    for( int i = 0; i < 8; i++ )
-    {
-        int u = (u_scan >> 3) & uw;
-        int v = (v_scan >> 3) & uw;
-        int texel = texels[u + v * texture_width];
-        if( texel != 0 )
-            pixel_buffer[offset] = shade_blend(texel, shade);
-
-        u_scan += step_u;
-        v_scan += step_v;
         offset += 1;
     }
 }
