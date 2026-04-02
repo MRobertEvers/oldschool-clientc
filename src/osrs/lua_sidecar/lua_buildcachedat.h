@@ -192,4 +192,14 @@ LuaBuildCacheDat_finalize_scene(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
+struct LuaGameType*
+LuaBuildCacheDat_clear(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_clear_map_chunks(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
 #endif
