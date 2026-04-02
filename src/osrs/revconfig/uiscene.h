@@ -86,6 +86,13 @@ uiscene_element_at(
     struct UIScene* uiscene,
     int element_id);
 
+/** First active element whose `name` matches; sprite at atlas_index or NULL. */
+struct DashSprite*
+uiscene_sprite_by_name(
+    struct UIScene* uiscene,
+    const char* name,
+    int atlas_index);
+
 bool
 uiscene_eventbuffer_is_empty(struct UIScene* uiscene);
 

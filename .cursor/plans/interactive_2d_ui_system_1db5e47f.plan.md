@@ -4,16 +4,16 @@ overview: Create a dedicated InterfaceState struct that owns all 2D interface in
 todos:
   - id: fix-component-sprite-loader
     content: "Fix buildcachedat_loader_load_component_sprites_from_media: replace filelist = NULL with buildcachedat->cfg_media_jagfile so it actually loads graphic/activeGraphic/invSlotGraphic sprites."
-    status: pending
+    status: completed
   - id: add-pkt-scripts
     content: Add rev245_2 packet scripts (pkt_if_settab.lua, pkt_update_inv_full.lua) that call BuildCacheDat.load_interfaces and BuildCacheDat.load_component_sprites_from_media, ported from scripts/old/.
-    status: pending
+    status: completed
   - id: add-scrollbar-sprites
     content: Add [sprite:scrollbar] entries (atlas 0 and 1) to rev_245_2_cache.ini for scrollbar arrow sprites from scrollbar.dat.
     status: pending
   - id: iface-struct
     content: "Create new interface_state.h/.c with struct InterfaceState: tab_interface_id[14], selected_tab, sidebar/viewport/chat interface IDs, component_scroll_position[], hover/selection state. Pure state only -- no font/sprite pointers."
-    status: pending
+    status: completed
   - id: game-ptr
     content: Add struct InterfaceState* iface to GGame in game.h. Initialize and free it in game lifecycle.
     status: pending
@@ -22,16 +22,16 @@ todos:
     status: pending
   - id: proto-wire
     content: Wire IF_SETTAB, IF_SETTAB_ACTIVE, IF_SETSCROLLPOS in gameproto_exec.c to write into game->iface-> fields.
-    status: pending
+    status: completed
   - id: redstone-step
     content: "Add uielem_tab_redstones_step in tori_rs_frame.u.c: draw active redstone sprite via command buffer, and handle tab icon click detection inline during frame stepping (set game->iface->selected_tab + interface_consumed_click)."
-    status: pending
+    status: completed
   - id: sidebar-step
     content: "Add uielem_builtin_sidebar_step in tori_rs_frame.u.c: render active tab component tree via command buffer, handle sidebar click/hover detection inline during frame stepping."
-    status: pending
+    status: completed
   - id: static-ui-layout
     content: Update static_ui_load.c load_layout to push redstone and sidebar builtin components into StaticUIBuffer instead of empty break
-    status: pending
+    status: completed
 isProject: false
 ---
 

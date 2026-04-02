@@ -7,6 +7,7 @@ extern "C" {
 #include "osrs/buildcachedat_loader.h"
 #include "osrs/filepack.h"
 #include "osrs/game.h"
+#include "osrs/gameproto_parse.h"
 #include "osrs/gio_cache_dat.h"
 #include "osrs/lua_sidecar/lua_buildcachedat.h"
 #include "osrs/lua_sidecar/lua_configfile.h"
@@ -523,6 +524,13 @@ Platform2_OSX_SDL2_RunLuaScripts(
 
             script_status = LuaCSidecar_ResumeScript(platform->lua_sidecar, result, &yield);
             LuaGameType_Free(result);
+        }
+
+        void* pkt_free = script.lc245_packet_item_to_free;
+        if( pkt_free )
+        {
+            gameproto_free_lc245_2_item((struct RevPacket_LC245_2_Item*)pkt_free);
+            free(pkt_free);
         }
     }
 }

@@ -140,4 +140,20 @@ static_ui_buffer_push_minimap(
     int hitbox_w,
     int hitbox_h);
 
+void
+static_ui_buffer_push_tab_redstones(
+    struct StaticUIBuffer* buffer,
+    int bind_top_x,
+    int bind_top_y,
+    int bind_bottom_x,
+    int bind_bottom_y);
+
+void
+static_ui_buffer_push_builtin_sidebar(
+    struct StaticUIBuffer* buffer,
+    int x,
+    int y,
+    int width,
+    int height);
+
 #endif

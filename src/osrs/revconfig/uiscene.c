@@ -192,6 +192,28 @@ uiscene_element_at(
     return &uiscene->elements[element_id];
 }
 
+struct DashSprite*
+uiscene_sprite_by_name(
+    struct UIScene* uiscene,
+    const char* name,
+    int atlas_index)
+{
+    if( !uiscene || !name )
+        return NULL;
+    for( int i = 0; i < uiscene->elements_count; i++ )
+    {
+        struct UISceneElement* e = &uiscene->elements[i];
+        if( !e->active )
+            continue;
+        if( strcmp(e->name, name) != 0 )
+            continue;
+        if( !e->dash_sprites || atlas_index < 0 || atlas_index >= e->dash_sprites_count )
+            return NULL;
+        return e->dash_sprites[atlas_index];
+    }
+    return NULL;
+}
+
 bool
 uiscene_eventbuffer_is_empty(struct UIScene* uiscene)
 {

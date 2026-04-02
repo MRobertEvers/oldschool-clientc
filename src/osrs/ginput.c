@@ -3,7 +3,9 @@
 #include <assert.h>
 
 static void
-push_event(struct GInput* input, struct GameInputEvent* event)
+push_event(
+    struct GInput* input,
+    struct GameInputEvent* event)
 {
     assert(input->event_count < GAME_INPUT_MAX_EVENTS);
     input->events[input->event_count] = *event;
@@ -11,7 +13,9 @@ push_event(struct GInput* input, struct GameInputEvent* event)
 }
 
 static void
-on_mousedown(struct GInput* input, struct GameInputEvent* ev)
+on_mousedown(
+    struct GInput* input,
+    struct GameInputEvent* ev)
 {
     push_event(input, ev);
     struct GameInputEvent_MouseDown* event = &ev->mouse_down;
@@ -23,7 +27,9 @@ on_mousedown(struct GInput* input, struct GameInputEvent* ev)
 }
 
 static void
-on_mouseup(struct GInput* input, struct GameInputEvent* ev)
+on_mouseup(
+    struct GInput* input,
+    struct GameInputEvent* ev)
 {
     push_event(input, ev);
     struct GameInputEvent_MouseUp* event = &ev->mouse_up;
@@ -47,7 +53,9 @@ on_mouseup(struct GInput* input, struct GameInputEvent* ev)
 }
 
 static void
-on_mousemove(struct GInput* input, struct GameInputEvent* ev)
+on_mousemove(
+    struct GInput* input,
+    struct GameInputEvent* ev)
 {
     push_event(input, ev);
     struct GameInputEvent_MouseMove* event = &ev->mouse_move;
@@ -56,13 +64,17 @@ on_mousemove(struct GInput* input, struct GameInputEvent* ev)
 }
 
 static void
-on_mousewheel(struct GInput* input, struct GameInputEvent* ev)
+on_mousewheel(
+    struct GInput* input,
+    struct GameInputEvent* ev)
 {
     push_event(input, ev);
 }
 
 static void
-on_keydown(struct GInput* input, struct GameInputEvent* ev)
+on_keydown(
+    struct GInput* input,
+    struct GameInputEvent* ev)
 {
     push_event(input, ev);
     struct GameInputEvent_KeyDown* event = &ev->key_down;
@@ -72,7 +84,9 @@ on_keydown(struct GInput* input, struct GameInputEvent* ev)
 }
 
 static void
-on_keyup(struct GInput* input, struct GameInputEvent* ev)
+on_keyup(
+    struct GInput* input,
+    struct GameInputEvent* ev)
 {
     push_event(input, ev);
     struct GameInputEvent_KeyUp* event = &ev->key_up;
@@ -132,5 +146,6 @@ game_input_keydown_or_pressed(
 void
 game_input_frame_reset(struct GInput* input)
 {
+    input->event_count = 0;
     input->in_event_count = 0;
 }

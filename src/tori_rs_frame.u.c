@@ -5,12 +5,16 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/collision_map.h"
 #include "osrs/dash_utils.h"
+#include "osrs/game.h"
+#include "osrs/interface.h"
+#include "osrs/interface_state.h"
 #include "osrs/isaac.h"
 #include "osrs/minimap.h"
 #include "osrs/minimenu.h"
 #include "osrs/packetout.h"
 #include "osrs/revconfig/static_ui.h"
 #include "osrs/revconfig/uiscene.h"
+#include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/world_options.h"
 #include "tori_rs.h"
 #include "tori_rs_render.h"
@@ -21,7 +25,9 @@
 #include <stdint.h>
 #endif
 
+#include <assert.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -393,6 +399,8 @@ LibToriRS_FrameBegin(
     game->at_render_command_index = 0;
     game->at_ui_render_command_index = 0;
 
+    game->interface_consumed_click = 0;
+
     game->tile_clicked_x = -1;
     game->tile_clicked_z = -1;
     game->tile_clicked_level = -1;
@@ -661,6 +669,259 @@ struct UIStep
     bool done;
 };
 
+static struct DashSprite*
+uiscene_redstone_sprite_for_tab(
+    struct GGame* game,
+    int tab)
+{
+    if( !game->ui_scene || tab < 0 || tab > 13 )
+        return NULL;
+    if( tab <= 6 )
+    {
+        const char* n = NULL;
+        switch( tab )
+        {
+        case 0:
+            n = "redstone1";
+            break;
+        case 1:
+            n = "redstone2";
+            break;
+        case 2:
+            n = "redstone2";
+            break;
+        case 3:
+            n = "redstone3";
+            break;
+        case 4:
+            n = "redstone2h";
+            break;
+        case 5:
+            n = "redstone2h";
+            break;
+        case 6:
+            n = "redstone1h";
+            break;
+        default:
+            break;
+        }
+        return n ? uiscene_sprite_by_name(game->ui_scene, n, 0) : NULL;
+    }
+    else
+    {
+        const char* n = NULL;
+        switch( tab )
+        {
+        case 7:
+            n = "redstone1v";
+            break;
+        case 8:
+            n = "redstone2v";
+            break;
+        case 9:
+            n = "redstone2v";
+            break;
+        case 10:
+            n = "redstone3v";
+            break;
+        case 11:
+            n = "redstone2hv";
+            break;
+        case 12:
+            n = "redstone2hv";
+            break;
+        case 13:
+            n = "redstone1hv";
+            break;
+        default:
+            break;
+        }
+        return n ? uiscene_sprite_by_name(game->ui_scene, n, 0) : NULL;
+    }
+}
+
+static void
+uielem_tab_redstones_step(
+    struct GGame* game,
+    struct StaticUIComponent* component,
+    struct UIStep* step)
+{
+    assert(component->type == UIELEM_TAB_REDSTONES);
+    step->done = true;
+    if( !game->iface || !game->ui_scene )
+        return;
+    if( game->iface->sidebar_interface_id != -1 )
+        return;
+
+    int tab = game->iface->selected_tab;
+    struct DashSprite* sp = uiscene_redstone_sprite_for_tab(game, tab);
+    if( !sp )
+        return;
+
+    int bind_top_x = component->position.x;
+    int bind_top_y = component->position.y;
+    int bind_bot_x = component->hitbox_x;
+    int bind_bot_y = component->hitbox_y;
+    int rx = 0, ry = 0;
+    if( tab >= 0 && tab <= 6 )
+    {
+        static const int ox[7] = { 22, 54, 82, 110, 153, 181, 209 };
+        static const int oy[7] = { 10, 8, 8, 8, 8, 8, 9 };
+        rx = ox[tab];
+        ry = oy[tab];
+        queue_sprite_draw_from_event(
+            game->uiscene_queued_commands, -1, sp, bind_top_x + rx, bind_top_y + ry, 0);
+    }
+    else if( tab >= 7 && tab <= 13 )
+    {
+        static const int ox[7] = { 42, 74, 102, 130, 173, 201, 229 };
+        static const int oy[7] = { 0, 0, 0, 1, 0, 0, 0 };
+        int i = tab - 7;
+        rx = ox[i];
+        ry = oy[i];
+        queue_sprite_draw_from_event(
+            game->uiscene_queued_commands, -1, sp, bind_bot_x + rx, bind_bot_y + ry, 0);
+    }
+
+    static const struct
+    {
+        int x, y, w, h;
+    } k_tab_hit[14] = {
+        { 541, 169, 26, 24 },
+        { 566, 168, 26, 24 },
+        { 594, 168, 28, 24 },
+        { 631, 172, 30, 24 },
+        { 669, 169, 26, 24 },
+        { 696, 171, 28, 24 },
+        { 724, 173, 28, 24 },
+        { 570, 468, 26, 24 },
+        { 598, 469, 28, 24 },
+        { 633, 470, 30, 24 },
+        { 670, 468, 28, 24 },
+        { 697, 468, 28, 24 },
+        { 722, 468, 28, 24 },
+        { 748, 468, 26, 24 },
+    };
+
+    if( game->mouse_clicked && !game->interface_consumed_click )
+    {
+        int cx = game->mouse_clicked_x;
+        int cy = game->mouse_clicked_y;
+        for( int i = 0; i < 14; i++ )
+        {
+            int hx = k_tab_hit[i].x;
+            int hy = k_tab_hit[i].y;
+            int hw = k_tab_hit[i].w;
+            int hh = k_tab_hit[i].h;
+            if( cx >= hx && cx < hx + hw && cy >= hy && cy < hy + hh )
+            {
+                game->iface->selected_tab = i;
+                game->interface_consumed_click = 1;
+                break;
+            }
+        }
+    }
+}
+
+static void
+uielem_builtin_sidebar_step(
+    struct GGame* game,
+    struct StaticUIComponent* component,
+    struct UIStep* step)
+{
+    assert(component->type == UIELEM_BUILTIN_SIDEBAR);
+    step->done = true;
+    if( !game->iface || !game->buildcachedat || !game->sys_dash || !game->iface_view_port )
+        return;
+    if( game->iface->sidebar_interface_id != -1 )
+        return;
+
+    int tab = game->iface->selected_tab;
+    if( tab < 0 || tab > 13 )
+        return;
+    int root_id = game->iface->tab_interface_id[tab];
+    if( root_id < 0 )
+        return;
+
+    struct CacheDatConfigComponent* root =
+        buildcachedat_get_component(game->buildcachedat, root_id);
+    if( !root || root->type != COMPONENT_TYPE_LAYER )
+        return;
+
+    int w = component->position.width;
+    int h = component->position.height;
+    if( w <= 0 )
+        w = 190;
+    if( h <= 0 )
+        h = 261;
+
+    int sbx = component->position.x;
+    int sby = component->position.y;
+
+    // if( game->iface_sidebar_sprite )
+    // {
+    //     LibToriRS_RenderCommandBufferAddCommand(
+    //         game->uiscene_queued_commands,
+    //         (struct ToriRSRenderCommand){
+    //             .kind = TORIRS_GFX_SPRITE_UNLOAD,
+    //             ._sprite_load = { .element_id = -1, .sprite = game->iface_sidebar_sprite },
+    //     });
+    // }
+
+    size_t pix_count = (size_t)w * (size_t)h;
+    uint32_t* px = (uint32_t*)malloc(pix_count * sizeof(uint32_t));
+    if( !px )
+        return;
+    memset(px, 0, pix_count * sizeof(uint32_t));
+
+    struct DashViewPort saved_vp = *game->iface_view_port;
+    dash2d_set_bounds(game->iface_view_port, 0, 0, w, h);
+    game->iface_view_port->width = w;
+    game->iface_view_port->height = h;
+    game->iface_view_port->stride = w;
+    game->iface_view_port->x_center = w / 2;
+    game->iface_view_port->y_center = h / 2;
+
+    game->iface->current_hovered_interface_id = -1;
+    // (void)interface_find_hovered_interface_id(game, root, sbx, sby, game->mouse_x,
+    // game->mouse_y);
+
+    interface_draw_component_layer(game, root, 0, 0, 0, (int*)px, w);
+
+    *game->iface_view_port = saved_vp;
+
+    // if( game->iface_sidebar_sprite )
+    //     dashsprite_free(game->iface_sidebar_sprite);
+    // game->iface_sidebar_sprite = dashsprite_new_from_argb_owned(px, w, h);
+    // if( !game->iface_sidebar_sprite )
+    //     return;
+
+    // LibToriRS_RenderCommandBufferAddCommand(
+    //     game->uiscene_queued_commands,
+    //     (struct ToriRSRenderCommand){
+    //         .kind = TORIRS_GFX_SPRITE_LOAD,
+    //         ._sprite_load = { .element_id = -1, .sprite = game->iface_sidebar_sprite },
+    // });
+
+    // LibToriRS_RenderCommandBufferAddCommand(
+    //     game->uiscene_queued_commands,
+    //     (struct ToriRSRenderCommand){
+    //         .kind = TORIRS_GFX_SPRITE_DRAW,
+    //         ._sprite_draw = {
+    //             .sprite = game->iface_sidebar_sprite,
+    //             .dst_bb_x = sbx,
+    //             .dst_bb_y = sby,
+    //             .dst_bb_w = w,
+    //             .dst_bb_h = h,
+    //             .rotation_r2pi2048 = 0,
+    //             .src_bb_x = 0,
+    //             .src_bb_y = 0,
+    //             .src_bb_w = 0,
+    //             .src_bb_h = 0,
+    //         },
+    //     });
+}
+
 static void
 uielem_sprite_step(
     struct GGame* game,
@@ -735,24 +996,25 @@ uielem_world_step(
         // {
         cull = dash3d_project_model(
             game->sys_dash, scene_element->dash_model, &position, game->view_port, game->camera);
-        if( cull == DASHCULL_VISIBLE &&
-            entity_interactable(game->world, scene_element->parent_entity_id) && game->view_port )
-        {
-            int cvx = game->mouse_x - game->viewport_offset_x;
-            int cvy = game->mouse_y - game->viewport_offset_y;
-            if( cvx >= 0 && cvy >= 0 && cvx < game->view_port->width &&
-                cvy < game->view_port->height )
-            {
-                struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
+        // if( cull == DASHCULL_VISIBLE &&
+        //     entity_interactable(game->world, scene_element->parent_entity_id) && game->view_port
+        //     )
+        // {
+        //     int cvx = game->mouse_x - game->viewport_offset_x;
+        //     int cvy = game->mouse_y - game->viewport_offset_y;
+        //     if( cvx >= 0 && cvy >= 0 && cvx < game->view_port->width &&
+        //         cvy < game->view_port->height )
+        //     {
+        //         struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
 
-                if( cvx >= aabb->min_screen_x && cvx <= aabb->max_screen_x &&
-                    cvy >= aabb->min_screen_y && cvy <= aabb->max_screen_y &&
-                    dash3d_projected_model_contains(
-                        game->sys_dash, scene_element->dash_model, game->view_port, cvx, cvy) )
-                {
-                }
-            }
-        }
+        //         if( cvx >= aabb->min_screen_x && cvx <= aabb->max_screen_x &&
+        //             cvy >= aabb->min_screen_y && cvy <= aabb->max_screen_y &&
+        //             dash3d_projected_model_contains(
+        //                 game->sys_dash, scene_element->dash_model, game->view_port, cvx, cvy) )
+        //         {
+        //         }
+        //     }
+        // }
         // }
         // else
         // {
@@ -962,6 +1224,12 @@ LibToriRS_FrameNextCommand(
             break;
         case UIELEM_COMPASS:
             uielem_compass_step(game, component, &step);
+            break;
+        case UIELEM_TAB_REDSTONES:
+            uielem_tab_redstones_step(game, component, &step);
+            break;
+        case UIELEM_BUILTIN_SIDEBAR:
+            uielem_builtin_sidebar_step(game, component, &step);
             break;
         default:
             break;

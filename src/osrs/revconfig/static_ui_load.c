@@ -456,7 +456,22 @@ load_component(
     }
     break;
     case UIELEM_TAB_REDSTONES:
-        break;
+    {
+        component_entry->anchor_x = load->anchor_x;
+        component_entry->anchor_y = load->anchor_y;
+        if( component_entry->anchor_x == 0 && component_entry->anchor_y == 0 )
+        {
+            component_entry->anchor_x = 516;
+            component_entry->anchor_y = 466;
+        }
+    }
+    break;
+    case UIELEM_BUILTIN_SIDEBAR:
+    {
+        component_entry->width = load->width > 0 ? load->width : 190;
+        component_entry->height = load->height > 0 ? load->height : 261;
+    }
+    break;
     default:
         break;
     }
@@ -520,7 +535,25 @@ load_layout(
         }
         break;
         case UIELEM_TAB_REDSTONES:
+        {
+            static_ui_buffer_push_tab_redstones(
+                ui,
+                layout_entry->x,
+                layout_entry->y,
+                component_entry->anchor_x,
+                component_entry->anchor_y);
+        }
+        break;
         case UIELEM_BUILTIN_SIDEBAR:
+        {
+            static_ui_buffer_push_builtin_sidebar(
+                ui,
+                layout_entry->x,
+                layout_entry->y,
+                component_entry->width,
+                component_entry->height);
+        }
+        break;
         case UIELEM_BUILTIN_CHAT:
         case UIELEM_BUILTIN_VIEWPORT:
         case UIELEM_BUILTIN_TAB_ICONS:

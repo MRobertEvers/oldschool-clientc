@@ -12,4 +12,8 @@ gameproto_parse_lc245_2(
     int data_size,
     struct RevPacket_LC245_2* packet);
 
+/** Free heap fields inside `item->packet` (safe after exec; IF_SETTEXT pointer nulled by exec). */
+void
+gameproto_free_lc245_2_item(struct RevPacket_LC245_2_Item* item);
+
 #endif

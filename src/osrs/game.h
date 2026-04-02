@@ -33,6 +33,7 @@
 struct FileListDat;
 struct MinimapRenderCommandBuffer;
 struct ToriRSRenderCommandBuffer;
+struct InterfaceState;
 
 #define MAX_PLAYERS 2048
 #define MAX_NPCS 8192
@@ -127,6 +128,8 @@ struct GGame
 
     struct BuildCacheDat* buildcachedat;
     struct BuildCache* buildcache;
+
+    struct InterfaceState* iface;
 
     struct VarPVarBitManager varp_varbit;
 

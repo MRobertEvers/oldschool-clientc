@@ -81,6 +81,7 @@ set(COMMON_SOURCES
     src/osrs/revconfig/uiscene.c
     src/osrs/rscache/tables_dat/config_component.c
     src/osrs/interface.c
+    src/osrs/interface_state.c
     src/osrs/obj_icon.c
     src/osrs/gio_cache_dat.c
     src/osrs/world.c

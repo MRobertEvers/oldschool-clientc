@@ -26,12 +26,12 @@ LibToriRS_GameProcessInput(
 
     for( int i = 0; i < time_quanta; i++ )
     {
-        if( game->mouse_cycle < 400 && game->mouse_cycle != -1 )
-        {
-            game->mouse_cycle += 20;
-            if( game->mouse_cycle >= 400 )
-                game->mouse_cycle = -1;
-        }
+        // if( game->mouse_cycle < 400 && game->mouse_cycle != -1 )
+        // {
+        //     game->mouse_cycle += 20;
+        //     if( game->mouse_cycle >= 400 )
+        //         game->mouse_cycle = -1;
+        // }
 
         if( game_input_keydown_or_pressed(input, TORIRSK_W) )
         {
@@ -140,14 +140,15 @@ LibToriRS_GameProcessInput(
         {
         case TORIRSEV2_CLICK:
         {
-            if( input->events[i].click.button == TORIRSM_LEFT )
+            int button = input->events[i].click.button;
+            if( button == TORIRSM_LEFT )
             {
                 game->mouse_clicked = true;
                 game->mouse_cycle = 0;
                 game->mouse_clicked_x = input->events[i].click.start_mouse_x;
                 game->mouse_clicked_y = input->events[i].click.start_mouse_y;
             }
-            else if( input->events[i].click.button == TORIRSM_RIGHT )
+            else if( button == TORIRSM_RIGHT )
             {
                 game->mouse_clicked_right = true;
                 game->mouse_cycle = 0;

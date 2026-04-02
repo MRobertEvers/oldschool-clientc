@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+struct RevPacket_LC245_2_Item;
+
 /* Script kind; one entry per runnable script. */
 enum ScriptKind
 {
@@ -13,6 +15,8 @@ enum ScriptKind
     SCRIPT_PKT_REBUILD_NORMAL,
     SCRIPT_PKT_PLAYER_INFO,
     SCRIPT_PKT_NPC_INFO,
+    SCRIPT_PKT_IF_SETTAB,
+    SCRIPT_PKT_UPDATE_INV_FULL,
     SCRIPT_COUNT
 };
 
@@ -55,6 +59,11 @@ struct ScriptArgsNpcInfo
     uint8_t* data;
 };
 
+struct ScriptArgsLc245Packet
+{
+    struct RevPacket_LC245_2_Item* item;
+};
+
 /* Tagged union of all script argument structs (one member per runnable script). */
 struct ScriptArgs
 {
@@ -66,6 +75,7 @@ struct ScriptArgs
         struct ScriptArgsRebuildNormal rebuild_normal;
         struct ScriptArgsPlayerInfo player_info;
         struct ScriptArgsNpcInfo npc_info;
+        struct ScriptArgsLc245Packet lc245_packet;
     } u;
 };
 
@@ -73,6 +83,8 @@ struct ScriptArgs
 struct ScriptQueueItem
 {
     struct ScriptArgs args;
+    /** If non-NULL, free with gameproto_free_lc245_2_item + free() after Lua script finishes. */
+    struct RevPacket_LC245_2_Item* lc245_2_packet_to_free;
     struct ScriptQueueItem* next;
 };
 

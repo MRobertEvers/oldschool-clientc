@@ -44,6 +44,16 @@ static_ui_component_type_str(enum StaticUIComponentType type)
         return "builtin_viewport";
     case UIELEM_SPRITE:
         return "sprite";
+    case UIELEM_TAB_REDSTONES:
+        return "tab_redstones";
+    case UIELEM_BUILTIN_TAB_ICONS:
+        return "builtin_tab_icons";
+    case UIELEM_CHAT_MODES:
+        return "chat_modes";
+    case UIELEM_CHAT_INPUT:
+        return "chat_input";
+    case UIELEM_CHAT_HISTORY:
+        return "chat_history";
     }
     return "unknown";
 }
@@ -212,4 +222,44 @@ static_ui_buffer_push_minimap(
     component->hitbox_y = hitbox_y;
     component->hitbox_w = hitbox_w;
     component->hitbox_h = hitbox_h;
+}
+
+void
+static_ui_buffer_push_tab_redstones(
+    struct StaticUIBuffer* buffer,
+    int bind_top_x,
+    int bind_top_y,
+    int bind_bottom_x,
+    int bind_bottom_y)
+{
+    struct StaticUIComponent* component = push_element(buffer);
+    if( !component )
+        return;
+    memset(component, 0, sizeof(struct StaticUIComponent));
+    component->type = UIELEM_TAB_REDSTONES;
+    component->position.kind = UIPOS_XY;
+    component->position.x = bind_top_x;
+    component->position.y = bind_top_y;
+    component->hitbox_x = bind_bottom_x;
+    component->hitbox_y = bind_bottom_y;
+}
+
+void
+static_ui_buffer_push_builtin_sidebar(
+    struct StaticUIBuffer* buffer,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    struct StaticUIComponent* component = push_element(buffer);
+    if( !component )
+        return;
+    memset(component, 0, sizeof(struct StaticUIComponent));
+    component->type = UIELEM_BUILTIN_SIDEBAR;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
 }

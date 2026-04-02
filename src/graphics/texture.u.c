@@ -29,6 +29,9 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
+// batch_divide sample count for vectorized scanlines (8192px max; assert in callers).
+#define RASTER_TEXTURE_LERP8_BATCH_MAX (8192 / 8 + 2)
+
 static inline void
 raster_texture_scanline_transparent_blend_lerp8(
     int* pixel_buffer,
@@ -779,6 +782,449 @@ raster_texture_scanline_opaque_lerp8(
     }
 }
 
+/* --- Vectorized Transparent Blend (Per-pixel shading) --- */
+static void
+raster_texture_scanline_transparent_blend_lerp8_vectorized(
+    int* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    int screen_x0_ish16,
+    int screen_x1_ish16,
+    int pixel_offset,
+    int au,
+    int bv,
+    int cw,
+    int step_au_dx,
+    int step_bv_dx,
+    int step_cw_dx,
+    int shade8bit_ish8,
+    int step_shade8bit_dx_ish8,
+    int* texels,
+    int texture_width)
+{
+    if( screen_x0_ish16 == screen_x1_ish16 )
+        return;
+    if( screen_x0_ish16 > screen_x1_ish16 )
+        SWAP(screen_x0_ish16, screen_x1_ish16);
+
+    int screen_x0 = MAX(0, screen_x0_ish16 >> 16);
+    int screen_x1 = MIN(screen_width - 1, screen_x1_ish16 >> 16);
+    if( screen_x0 >= screen_x1 )
+        return;
+
+    int steps = screen_x1 - screen_x0;
+    assert(steps <= 8192);
+
+    int adjust = screen_x0 - (screen_width >> 1);
+    au += step_au_dx * adjust;
+    bv += step_bv_dx * adjust;
+    cw += step_cw_dx * adjust;
+    int step8_au = step_au_dx << 3;
+    int step8_bv = step_bv_dx << 3;
+    int step8_cw = step_cw_dx << 3;
+
+    int lerp8_count = (steps >> 3);
+    int lerp8_last_steps = steps & 0x7;
+    int offset = pixel_offset + screen_x0;
+    int texture_shift = (texture_width & 0x80) ? 7 : 6;
+
+    int batch_points = lerp8_count + 1;
+    if( lerp8_last_steps > 0 )
+        batch_points = lerp8_count + 2;
+
+    int b_au[RASTER_TEXTURE_LERP8_BATCH_MAX], b_bv[RASTER_TEXTURE_LERP8_BATCH_MAX],
+        b_cw[RASTER_TEXTURE_LERP8_BATCH_MAX], res_u[RASTER_TEXTURE_LERP8_BATCH_MAX],
+        res_v[RASTER_TEXTURE_LERP8_BATCH_MAX];
+    for( int i = 0; i < batch_points; i++ )
+    {
+        b_au[i] = au;
+        b_bv[i] = bv;
+        b_cw[i] = cw;
+        au += step8_au;
+        bv += step8_bv;
+        cw += step8_cw;
+    }
+    batch_divide_coords(res_u, res_v, b_au, b_bv, b_cw, batch_points, texture_shift);
+
+    int shade = shade8bit_ish8 + (step_shade8bit_dx_ish8 * screen_x0);
+    int lerp8_shade_step = step_shade8bit_dx_ish8 << 3;
+
+    for( int i = 0; i < lerp8_count; i++ )
+    {
+        int u0 = clamp(res_u[i], 0, texture_width - 1);
+        int v0 = res_v[i];
+        int u1 = clamp(res_u[i + 1], 0, texture_width - 1);
+        int v1 = res_v[i + 1];
+
+        raster_linear_transparent_blend_lerp8(
+            (uint32_t*)pixel_buffer,
+            offset,
+            (uint32_t*)texels,
+            u0 << texture_shift,
+            v0 << texture_shift,
+            (u1 - u0) << (texture_shift - 3),
+            (v1 - v0) << (texture_shift - 3),
+            texture_shift,
+            shade >> 8);
+
+        offset += 8;
+        shade += lerp8_shade_step;
+    }
+
+    if( lerp8_last_steps > 0 )
+    {
+        int mask = (texture_shift == 7) ? 0x3f80 : 0x0fc0;
+        int curr_u = clamp(res_u[lerp8_count], 0, texture_width - 1);
+        int curr_v = res_v[lerp8_count];
+        int next_u = clamp(res_u[lerp8_count + 1], 0, texture_width - 1);
+        int next_v = res_v[lerp8_count + 1];
+        int u_scan = curr_u << texture_shift;
+        int v_scan = curr_v << texture_shift;
+        int step_u = (next_u - curr_u) << (texture_shift - 3);
+        int step_v = (next_v - curr_v) << (texture_shift - 3);
+        int s = shade >> 8;
+        for( int i = 0; i < lerp8_last_steps; i++ )
+        {
+            int texel = texels[(u_scan >> texture_shift) + (v_scan & mask)];
+            if( texel != 0 )
+                pixel_buffer[offset] = shade_blend(texel, s);
+            u_scan += step_u;
+            v_scan += step_v;
+            offset++;
+        }
+    }
+}
+
+/* --- Vectorized Opaque Blend (Per-pixel shading) --- */
+static void
+raster_texture_scanline_opaque_blend_lerp8_vectorized(
+    int* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    int screen_x0_ish16,
+    int screen_x1_ish16,
+    int pixel_offset,
+    int au,
+    int bv,
+    int cw,
+    int step_au_dx,
+    int step_bv_dx,
+    int step_cw_dx,
+    int shade8bit_ish8,
+    int step_shade8bit_dx_ish8,
+    int* texels,
+    int texture_width)
+{
+    if( screen_x0_ish16 == screen_x1_ish16 )
+        return;
+    if( screen_x0_ish16 > screen_x1_ish16 )
+        SWAP(screen_x0_ish16, screen_x1_ish16);
+
+    int screen_x0 = MAX(0, screen_x0_ish16 >> 16);
+    int screen_x1 = MIN(screen_width - 1, screen_x1_ish16 >> 16);
+    if( screen_x0 >= screen_x1 )
+        return;
+
+    int steps = screen_x1 - screen_x0;
+    assert(steps <= 8192);
+
+    int adjust = screen_x0 - (screen_width >> 1);
+    au += step_au_dx * adjust;
+    bv += step_bv_dx * adjust;
+    cw += step_cw_dx * adjust;
+    int step8_au = step_au_dx << 3;
+    int step8_bv = step_bv_dx << 3;
+    int step8_cw = step_cw_dx << 3;
+
+    int lerp8_count = (steps >> 3);
+    int lerp8_last_steps = steps & 0x7;
+    int offset = pixel_offset + screen_x0;
+    int texture_shift = (texture_width & 0x80) ? 7 : 6;
+
+    int batch_points = lerp8_count + 1;
+    if( lerp8_last_steps > 0 )
+        batch_points = lerp8_count + 2;
+
+    int b_au[RASTER_TEXTURE_LERP8_BATCH_MAX], b_bv[RASTER_TEXTURE_LERP8_BATCH_MAX],
+        b_cw[RASTER_TEXTURE_LERP8_BATCH_MAX], res_u[RASTER_TEXTURE_LERP8_BATCH_MAX],
+        res_v[RASTER_TEXTURE_LERP8_BATCH_MAX];
+    for( int i = 0; i < batch_points; i++ )
+    {
+        b_au[i] = au;
+        b_bv[i] = bv;
+        b_cw[i] = cw;
+        au += step8_au;
+        bv += step8_bv;
+        cw += step8_cw;
+    }
+    batch_divide_coords(res_u, res_v, b_au, b_bv, b_cw, batch_points, texture_shift);
+
+    int shade = shade8bit_ish8 + (step_shade8bit_dx_ish8 * screen_x0);
+    int lerp8_shade_step = step_shade8bit_dx_ish8 << 3;
+
+    for( int i = 0; i < lerp8_count; i++ )
+    {
+        int u0 = clamp(res_u[i], 0, texture_width - 1);
+        int v0 = res_v[i];
+        int u1 = clamp(res_u[i + 1], 0, texture_width - 1);
+        int v1 = res_v[i + 1];
+
+        raster_linear_opaque_blend_lerp8(
+            (uint32_t*)pixel_buffer,
+            offset,
+            (uint32_t*)texels,
+            u0 << texture_shift,
+            v0 << texture_shift,
+            (u1 - u0) << (texture_shift - 3),
+            (v1 - v0) << (texture_shift - 3),
+            texture_shift,
+            shade >> 8);
+
+        offset += 8;
+        shade += lerp8_shade_step;
+    }
+
+    if( lerp8_last_steps > 0 )
+    {
+        int mask = (texture_shift == 7) ? 0x3f80 : 0x0fc0;
+        int curr_u = clamp(res_u[lerp8_count], 0, texture_width - 1);
+        int curr_v = res_v[lerp8_count];
+        int next_u = clamp(res_u[lerp8_count + 1], 0, texture_width - 1);
+        int next_v = res_v[lerp8_count + 1];
+        int u_scan = curr_u << texture_shift;
+        int v_scan = curr_v << texture_shift;
+        int step_u = (next_u - curr_u) << (texture_shift - 3);
+        int step_v = (next_v - curr_v) << (texture_shift - 3);
+        int s = shade >> 8;
+        for( int i = 0; i < lerp8_last_steps; i++ )
+        {
+            pixel_buffer[offset] =
+                shade_blend(texels[(u_scan >> texture_shift) + (v_scan & mask)], s);
+            u_scan += step_u;
+            v_scan += step_v;
+            offset++;
+        }
+    }
+}
+
+/* --- Vectorized Transparent (Fixed shade) --- */
+static void
+raster_texture_scanline_transparent_lerp8_vectorized(
+    int* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    int screen_x0,
+    int screen_x1,
+    int pixel_offset,
+    int au,
+    int bv,
+    int cw,
+    int step_au_dx,
+    int step_bv_dx,
+    int step_cw_dx,
+    int shade8bit_ish8,
+    int* texels,
+    int texture_width)
+{
+    if( screen_x0 == screen_x1 )
+        return;
+    if( screen_x0 > screen_x1 )
+        SWAP(screen_x0, screen_x1);
+
+    screen_x0 = MAX(0, screen_x0);
+    screen_x1 = MIN(screen_width - 1, screen_x1);
+    if( screen_x0 >= screen_x1 )
+        return;
+
+    int steps = screen_x1 - screen_x0;
+    assert(steps <= 8192);
+
+    int adjust = screen_x0 - (screen_width >> 1);
+    au += step_au_dx * adjust;
+    bv += step_bv_dx * adjust;
+    cw += step_cw_dx * adjust;
+    int step8_au = step_au_dx << 3;
+    int step8_bv = step_bv_dx << 3;
+    int step8_cw = step_cw_dx << 3;
+
+    int lerp8_count = (steps >> 3);
+    int lerp8_last_steps = steps & 0x7;
+    int offset = pixel_offset + screen_x0;
+    int texture_shift = (texture_width & 0x80) ? 7 : 6;
+
+    int batch_points = lerp8_count + 1;
+    if( lerp8_last_steps > 0 )
+        batch_points = lerp8_count + 2;
+
+    int b_au[RASTER_TEXTURE_LERP8_BATCH_MAX], b_bv[RASTER_TEXTURE_LERP8_BATCH_MAX],
+        b_cw[RASTER_TEXTURE_LERP8_BATCH_MAX], res_u[RASTER_TEXTURE_LERP8_BATCH_MAX],
+        res_v[RASTER_TEXTURE_LERP8_BATCH_MAX];
+    for( int i = 0; i < batch_points; i++ )
+    {
+        b_au[i] = au;
+        b_bv[i] = bv;
+        b_cw[i] = -cw; // Matches your original snippet's negative cw logic
+        au += step8_au;
+        bv += step8_bv;
+        cw += step8_cw;
+    }
+    batch_divide_coords(res_u, res_v, b_au, b_bv, b_cw, batch_points, texture_shift);
+
+    int shade = shade8bit_ish8 >> 8;
+    for( int i = 0; i < lerp8_count; i++ )
+    {
+        int u0 = clamp(res_u[i], 0, texture_width - 1);
+        int v0 = res_v[i];
+        int u1 = clamp(res_u[i + 1], 0, texture_width - 1);
+        int v1 = res_v[i + 1];
+
+        raster_linear_transparent_lerp8_affine8(
+            (uint32_t*)pixel_buffer,
+            offset,
+            (uint32_t*)texels,
+            u0 << 3,
+            v0 << 3,
+            (u1 - u0),
+            (v1 - v0),
+            texture_width,
+            shade);
+        offset += 8;
+    }
+
+    if( lerp8_last_steps > 0 )
+    {
+        int curr_u = clamp(res_u[lerp8_count], 0, texture_width - 1);
+        int curr_v = res_v[lerp8_count];
+        int next_u = clamp(res_u[lerp8_count + 1], 0, texture_width - 1);
+        int next_v = res_v[lerp8_count + 1];
+        int u_scan = curr_u << 3;
+        int v_scan = curr_v << 3;
+        int step_u = next_u - curr_u;
+        int step_v = next_v - curr_v;
+        int uw = texture_width - 1;
+        for( int i = 0; i < lerp8_last_steps; i++ )
+        {
+            int u = (u_scan >> 3) & uw;
+            int v = (v_scan >> 3) & uw;
+            int tex = texels[u + v * texture_width];
+            if( tex != 0 )
+                pixel_buffer[offset] = shade_blend(tex, shade);
+            u_scan += step_u;
+            v_scan += step_v;
+            offset++;
+        }
+    }
+}
+
+/* --- Vectorized Opaque (Fixed shade) --- */
+static void
+raster_texture_scanline_opaque_lerp8_vectorized(
+    int* pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    int screen_x0_ish16,
+    int screen_x1_ish16,
+    int pixel_offset,
+    int au,
+    int bv,
+    int cw,
+    int step_au_dx,
+    int step_bv_dx,
+    int step_cw_dx,
+    int shade8bit,
+    int* texels,
+    int texture_width)
+{
+    if( screen_x0_ish16 == screen_x1_ish16 )
+        return;
+    if( screen_x0_ish16 > screen_x1_ish16 )
+        SWAP(screen_x0_ish16, screen_x1_ish16);
+
+    int screen_x0 = MAX(0, screen_x0_ish16 >> 16);
+    int screen_x1 = MIN(screen_width - 1, screen_x1_ish16 >> 16);
+    if( screen_x0 >= screen_x1 )
+        return;
+
+    int steps = screen_x1 - screen_x0;
+    assert(steps <= 8192);
+
+    int adjust = screen_x0 - (screen_width >> 1);
+    au += step_au_dx * adjust;
+    bv += step_bv_dx * adjust;
+    cw += step_cw_dx * adjust;
+    int step8_au = step_au_dx << 3;
+    int step8_bv = step_bv_dx << 3;
+    int step8_cw = step_cw_dx << 3;
+
+    int lerp8_count = (steps >> 3);
+    int lerp8_last_steps = steps & 0x7;
+    int offset = pixel_offset + screen_x0;
+    int texture_shift = (texture_width & 0x80) ? 7 : 6;
+
+    int batch_points = lerp8_count + 1;
+    if( lerp8_last_steps > 0 )
+        batch_points = lerp8_count + 2;
+
+    int b_au[RASTER_TEXTURE_LERP8_BATCH_MAX], b_bv[RASTER_TEXTURE_LERP8_BATCH_MAX],
+        b_cw[RASTER_TEXTURE_LERP8_BATCH_MAX], res_u[RASTER_TEXTURE_LERP8_BATCH_MAX],
+        res_v[RASTER_TEXTURE_LERP8_BATCH_MAX];
+    for( int i = 0; i < batch_points; i++ )
+    {
+        b_au[i] = au;
+        b_bv[i] = bv;
+        b_cw[i] = cw;
+        au += step8_au;
+        bv += step8_bv;
+        cw += step8_cw;
+    }
+    batch_divide_coords(res_u, res_v, b_au, b_bv, b_cw, batch_points, texture_shift);
+
+    for( int i = 0; i < lerp8_count; i++ )
+    {
+        int u0 = clamp(res_u[i], 0, texture_width - 1);
+        int v0 = res_v[i];
+        int u1 = clamp(res_u[i + 1], 0, texture_width - 1);
+        int v1 = res_v[i + 1];
+
+        raster_linear_opaque_blend_lerp8(
+            (uint32_t*)pixel_buffer,
+            offset,
+            (uint32_t*)texels,
+            u0 << texture_shift,
+            v0 << texture_shift,
+            (u1 - u0) << (texture_shift - 3),
+            (v1 - v0) << (texture_shift - 3),
+            texture_shift,
+            shade8bit);
+        offset += 8;
+    }
+
+    if( lerp8_last_steps > 0 )
+    {
+        int mask = (texture_shift == 7) ? 0x3f80 : 0x0fc0;
+        int curr_u = clamp(res_u[lerp8_count], 0, texture_width - 1);
+        int curr_v = res_v[lerp8_count];
+        int next_u = clamp(res_u[lerp8_count + 1], 0, texture_width - 1);
+        int next_v = res_v[lerp8_count + 1];
+        int u_scan = curr_u << texture_shift;
+        int v_scan = curr_v << texture_shift;
+        int step_u = (next_u - curr_u) << (texture_shift - 3);
+        int step_v = (next_v - curr_v) << (texture_shift - 3);
+        for( int i = 0; i < lerp8_last_steps; i++ )
+        {
+            pixel_buffer[offset] =
+                shade_blend(texels[(u_scan >> texture_shift) + (v_scan & mask)], shade8bit);
+            u_scan += step_u;
+            v_scan += step_v;
+            offset++;
+        }
+    }
+}
+
 static inline void
 raster_texture_transparent_blend_lerp8(
     int* pixel_buffer,
@@ -1433,7 +1879,7 @@ raster_texture_transparent_lerp8(
         int x_start = edge_x_AC_ish16 >> 16;
         int x_end = edge_x_AB_ish16 >> 16;
 
-        raster_texture_scanline_transparent_lerp8(
+        raster_texture_scanline_transparent_lerp8_vectorized(
             pixel_buffer,
             stride,
             screen_width,
@@ -1484,7 +1930,7 @@ raster_texture_transparent_lerp8(
     steps = screen_y2 - screen_y1;
     while( steps-- > 0 )
     {
-        raster_texture_scanline_transparent_lerp8(
+        raster_texture_scanline_transparent_lerp8_vectorized(
             pixel_buffer,
             stride,
             screen_width,

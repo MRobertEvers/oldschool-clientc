@@ -7,6 +7,8 @@ struct LuaGameScript
 {
     char name[64];
     struct LuaGameType* args;
+    /** Owned RevPacket_LC245_2_Item* freed after script run (see gameproto_free_lc245_2_item). */
+    void* lc245_packet_item_to_free;
 };
 
 struct LuaGameScript*

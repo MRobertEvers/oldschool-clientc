@@ -627,7 +627,7 @@ buildcachedat_loader_load_component_sprites_from_media(
     struct BuildCacheDat* buildcachedat,
     struct GGame* game)
 {
-    struct FileListDat* filelist = NULL;
+    struct FileListDat* filelist = buildcachedat->cfg_media_jagfile;
     if( !filelist )
         return;
     int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");

@@ -9,6 +9,7 @@
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
 #include "osrs/game.h"
+#include "osrs/interface_state.h"
 #include "osrs/scene2.h"
 #include "osrs/zone_state.h"
 #include "packets/pkt_npc_info.h"
@@ -626,10 +627,9 @@ gameproto_exec_if_settab(
         return;
     }
 
-    // Store the component in the tab interface array
-    if( tab_id >= 0 && tab_id < 14 )
+    if( tab_id >= 0 && tab_id < 14 && game->iface )
     {
-        // game->tab_interface_id[tab_id] = component_id;
+        game->iface->tab_interface_id[tab_id] = component_id;
         printf("IF_SETTAB: Set tab %d to component %d\n", tab_id, component_id);
     }
     else
@@ -645,9 +645,9 @@ gameproto_exec_if_settab_active(
 {
     int tab_id = packet->_if_settab_active.tab_id;
 
-    if( tab_id >= 0 && tab_id < 14 )
+    if( tab_id >= 0 && tab_id < 14 && game->iface )
     {
-        // game->selected_tab = tab_id;
+        game->iface->selected_tab = tab_id;
         printf("IF_SETTAB_ACTIVE: Set active tab to %d\n", tab_id);
     }
     else
@@ -791,6 +791,7 @@ gameproto_exec_if_settext(
 
     free(component->text);
     component->text = new_text;
+    packet->_if_settext.text = NULL;
 }
 
 void
@@ -835,10 +836,9 @@ gameproto_exec_if_setscrollpos(
 {
     int component_id = packet->_if_setscrollpos.component_id;
     int pos = packet->_if_setscrollpos.pos;
-    return;
 
-    // if( component_id < 0 || component_id >= MAX_COMPONENT_SCROLL_IDS )
-    //     return;
+    if( !game->iface || component_id < 0 || component_id >= MAX_IFACE_SCROLL_IDS )
+        return;
 
     struct CacheDatConfigComponent* component =
         buildcachedat_get_component(game->buildcachedat, component_id);
@@ -854,7 +854,7 @@ gameproto_exec_if_setscrollpos(
             pos = max_scroll;
     }
 
-    // game->component_scroll_position[component_id] = pos;
+    game->iface->component_scroll_position[component_id] = pos;
 }
 
 void
