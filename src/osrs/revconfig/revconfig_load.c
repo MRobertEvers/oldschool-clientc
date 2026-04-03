@@ -90,14 +90,10 @@ push_field_from_ini_kv(
         else if( strcmp(s_ini_item_type, "layout") == 0 )
             kind = RCFIELD_UILAYOUT_ANCHOR_Y;
     }
-    else if( strcmp(key, "hitbox_x") == 0 && strcmp(s_ini_item_type, "component") == 0 )
-        kind = RCFIELD_UICOMPONENT_HITBOX_X;
-    else if( strcmp(key, "hitbox_y") == 0 && strcmp(s_ini_item_type, "component") == 0 )
-        kind = RCFIELD_UICOMPONENT_HITBOX_Y;
-    else if( strcmp(key, "hitbox_w") == 0 && strcmp(s_ini_item_type, "component") == 0 )
-        kind = RCFIELD_UICOMPONENT_HITBOX_W;
-    else if( strcmp(key, "hitbox_h") == 0 && strcmp(s_ini_item_type, "component") == 0 )
-        kind = RCFIELD_UICOMPONENT_HITBOX_H;
+    else if( strcmp(key, "tabno") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TABNO;
+    else if( strcmp(key, "sprite_active") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_SPRITE_ACTIVE;
     else if( strcmp(key, "left") == 0 )
         kind = RCFIELD_UILAYOUT_LEFT;
     else if( strcmp(key, "top") == 0 )

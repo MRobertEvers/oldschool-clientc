@@ -112,10 +112,6 @@ LibToriRS_GameNew(
 {
     struct GGame* game = malloc(sizeof(struct GGame));
     memset(game, 0, sizeof(struct GGame));
-    /* 0 is a valid uiscene element id (first static sprite slot); -1 means no minimap raster yet.
-     * If this stayed 0, LibToriRS_WorldMinimapStaticRebuild would release element 0 and steal
-     * invback's slot. */
-    game->minimap_static_uiscene_element_id = -1;
 
     struct PlatformMemoryInfo mem = { 0 };
     platform_get_memory_info(&mem);

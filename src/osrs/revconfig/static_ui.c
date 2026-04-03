@@ -44,8 +44,8 @@ static_ui_component_type_str(enum StaticUIComponentType type)
         return "builtin_viewport";
     case UIELEM_SPRITE:
         return "sprite";
-    case UIELEM_TAB_REDSTONES:
-        return "tab_redstones";
+    case UIELEM_REDSTONE_TAB:
+        return "redstone_tab";
     case UIELEM_BUILTIN_TAB_ICONS:
         return "builtin_tab_icons";
     case UIELEM_CHAT_MODES:
@@ -83,7 +83,9 @@ static_ui_buffer_push_sprite_xy(
     int sprite_id,
     int atlas_index,
     int x,
-    int y)
+    int y,
+    int width,
+    int height)
 {
     struct StaticUIComponent* component = push_element(buffer);
     if( !component )
@@ -93,8 +95,10 @@ static_ui_buffer_push_sprite_xy(
     component->position.kind = UIPOS_XY;
     component->position.x = x;
     component->position.y = y;
-    component->scene_id = sprite_id;
-    component->atlas_index = atlas_index;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.sprite.scene_id = sprite_id;
+    component->u.sprite.atlas_index = atlas_index;
 }
 
 #define STATIC_UI_RELATIVE_FLAG_LEFT 1
@@ -111,7 +115,9 @@ static_ui_buffer_push_sprite_relative(
     int top,
     int right,
     int bottom,
-    int left)
+    int left,
+    int width,
+    int height)
 {
     struct StaticUIComponent* component = push_element(buffer);
     if( !component )
@@ -130,8 +136,10 @@ static_ui_buffer_push_sprite_relative(
         component->position.right = right;
     if( (flags & STATIC_UI_RELATIVE_FLAG_BOTTOM) != 0 )
         component->position.bottom = bottom;
-    component->scene_id = sprite_id;
-    component->atlas_index = atlas_index;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.sprite.scene_id = sprite_id;
+    component->u.sprite.atlas_index = atlas_index;
 }
 
 void
@@ -162,11 +170,7 @@ static_ui_buffer_push_compass(
     int width,
     int height,
     int anchor_x,
-    int anchor_y,
-    int hitbox_x,
-    int hitbox_y,
-    int hitbox_w,
-    int hitbox_h)
+    int anchor_y)
 {
     struct StaticUIComponent* component = push_element(buffer);
     if( !component )
@@ -176,18 +180,14 @@ static_ui_buffer_push_compass(
 
     component->type = UIELEM_COMPASS;
     component->position.kind = UIPOS_XY;
-    component->scene_id = sprite_id;
-    component->atlas_index = atlas_index;
+    component->u.sprite.scene_id = sprite_id;
+    component->u.sprite.atlas_index = atlas_index;
     component->position.x = x;
     component->position.y = y;
     component->position.width = width;
     component->position.height = height;
     component->position.anchor_x = anchor_x;
     component->position.anchor_y = anchor_y;
-    component->hitbox_x = hitbox_x;
-    component->hitbox_y = hitbox_y;
-    component->hitbox_w = hitbox_w;
-    component->hitbox_h = hitbox_h;
 }
 
 void
@@ -198,11 +198,7 @@ static_ui_buffer_push_minimap(
     int width,
     int height,
     int anchor_x,
-    int anchor_y,
-    int hitbox_x,
-    int hitbox_y,
-    int hitbox_w,
-    int hitbox_h)
+    int anchor_y)
 {
     struct StaticUIComponent* component = push_element(buffer);
     if( !component )
@@ -218,30 +214,36 @@ static_ui_buffer_push_minimap(
     component->position.height = height;
     component->position.anchor_x = anchor_x;
     component->position.anchor_y = anchor_y;
-    component->hitbox_x = hitbox_x;
-    component->hitbox_y = hitbox_y;
-    component->hitbox_w = hitbox_w;
-    component->hitbox_h = hitbox_h;
 }
 
 void
-static_ui_buffer_push_tab_redstones(
+static_ui_buffer_push_redstone_tab(
     struct StaticUIBuffer* buffer,
-    int bind_top_x,
-    int bind_top_y,
-    int bind_bottom_x,
-    int bind_bottom_y)
+    int tabno,
+    int sprite_id,
+    int atlas_index,
+    int sprite_active_id,
+    int atlas_active_index,
+    int x,
+    int y,
+    int width,
+    int height)
 {
     struct StaticUIComponent* component = push_element(buffer);
     if( !component )
         return;
     memset(component, 0, sizeof(struct StaticUIComponent));
-    component->type = UIELEM_TAB_REDSTONES;
+    component->type = UIELEM_REDSTONE_TAB;
     component->position.kind = UIPOS_XY;
-    component->position.x = bind_top_x;
-    component->position.y = bind_top_y;
-    component->hitbox_x = bind_bottom_x;
-    component->hitbox_y = bind_bottom_y;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.redstone_tab.tabno = tabno;
+    component->u.redstone_tab.scene_id = sprite_id;
+    component->u.redstone_tab.atlas_index = atlas_index;
+    component->u.redstone_tab.scene_id_active = sprite_active_id;
+    component->u.redstone_tab.atlas_index_active = atlas_active_index;
 }
 
 void

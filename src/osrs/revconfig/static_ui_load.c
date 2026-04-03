@@ -25,15 +25,14 @@ struct ComponentEntry
     enum StaticUIComponentType type;
     int sprite_id;
     int sprite_index;
+    int sprite_id_active;
+    int sprite_index_active;
     int id;
     int width;
     int height;
     int anchor_x;
     int anchor_y;
-    int hitbox_x;
-    int hitbox_y;
-    int hitbox_w;
-    int hitbox_h;
+    int tabno;
 };
 
 enum SpriteLoad_AtlasMode
@@ -70,14 +69,12 @@ struct ComponentLoad
     char name[64];
     char type[64];
     char sprite[64];
+    char sprite_active[64];
     int width;
     int height;
     int anchor_x;
     int anchor_y;
-    int hitbox_x;
-    int hitbox_y;
-    int hitbox_w;
-    int hitbox_h;
+    int tabno;
 };
 
 #define MAX_LAYOUT_ENTRIES 64
@@ -334,8 +331,6 @@ component_type_from_string(const char* str)
         return UIELEM_BUILTIN_VIEWPORT;
     else if( strcmp(str, "sprite") == 0 )
         return UIELEM_SPRITE;
-    else if( strcmp(str, "tab_redstones") == 0 )
-        return UIELEM_TAB_REDSTONES;
     else if( strcmp(str, "builtin_tab_icons") == 0 )
         return UIELEM_BUILTIN_TAB_ICONS;
     else if( strcmp(str, "chat_modes") == 0 )
@@ -344,11 +339,37 @@ component_type_from_string(const char* str)
         return UIELEM_CHAT_INPUT;
     else if( strcmp(str, "chat_history") == 0 )
         return UIELEM_CHAT_HISTORY;
-    else if( strcmp(str, "redstone") == 0 )
-        return UIELEM_TAB_REDSTONES; // For testing unknown types
+    else if( strcmp(str, "redstone_tab") == 0 )
+        return UIELEM_REDSTONE_TAB;
 
     assert(0 && "Unknown component type");
     return 0;
+}
+
+/* Parses sprite ref (e.g. name or name[3]); returns atlas index from brackets, default 0. */
+static struct SpriteEntry*
+sprite_entry_resolve_ref(
+    struct DashMap* sprite_hmap,
+    const char* sprite_ref,
+    int* atlas_index_out)
+{
+    *atlas_index_out = 0;
+    if( !sprite_ref || sprite_ref[0] == '\0' )
+        return NULL;
+
+    char buf[64];
+    strncpy(buf, sprite_ref, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+
+    char* open_bracket = strchr(buf, '[');
+    char* close_bracket = strchr(buf, ']');
+    if( open_bracket != NULL && close_bracket != NULL )
+    {
+        *open_bracket = '\0';
+        *close_bracket = '\0';
+        *atlas_index_out = atoi(open_bracket + 1);
+    }
+    return dashmap_search(sprite_hmap, buf, DASHMAP_FIND);
 }
 
 /* 0 = bound; 1 = empty sprite string (caller breaks); 2 = missing in hmap (caller returns). */
@@ -414,6 +435,8 @@ load_component(
     component_entry->type = type;
     component_entry->sprite_id = -1;
     component_entry->sprite_index = 0;
+    component_entry->sprite_id_active = -1;
+    component_entry->sprite_index_active = 0;
 
     strncpy(component_entry->name, load->name, sizeof(component_entry->name) - 1);
 
@@ -428,10 +451,6 @@ load_component(
         component_entry->height = load->height;
         component_entry->anchor_x = load->anchor_x;
         component_entry->anchor_y = load->anchor_y;
-        component_entry->hitbox_x = load->hitbox_x;
-        component_entry->hitbox_y = load->hitbox_y;
-        component_entry->hitbox_w = load->hitbox_w;
-        component_entry->hitbox_h = load->hitbox_h;
     }
     break;
     case UIELEM_MINIMAP:
@@ -440,10 +459,6 @@ load_component(
         component_entry->height = load->height;
         component_entry->anchor_x = load->anchor_x;
         component_entry->anchor_y = load->anchor_y;
-        component_entry->hitbox_x = load->hitbox_x;
-        component_entry->hitbox_y = load->hitbox_y;
-        component_entry->hitbox_w = load->hitbox_w;
-        component_entry->hitbox_h = load->hitbox_h;
     }
     break;
     case UIELEM_WORLD:
@@ -453,16 +468,70 @@ load_component(
         int bind = component_bind_sprite_from_load(load, sprite_hmap, component_entry, "sprite");
         if( bind == 2 )
             return;
+        component_entry->width = load->width;
+        component_entry->height = load->height;
+        if( bind == 0 && (component_entry->width <= 0 || component_entry->height <= 0) )
+        {
+            int ai = 0;
+            struct SpriteEntry* se = sprite_entry_resolve_ref(sprite_hmap, load->sprite, &ai);
+            (void)ai;
+            if( se && component_entry->sprite_index >= 0 &&
+                component_entry->sprite_index < se->count )
+            {
+                struct DashSprite* sp = se->sprites[component_entry->sprite_index];
+                if( sp )
+                {
+                    int sw = sp->crop_width > 0 ? sp->crop_width : sp->width;
+                    int sh = sp->crop_height > 0 ? sp->crop_height : sp->height;
+                    if( component_entry->width <= 0 )
+                        component_entry->width = sw;
+                    if( component_entry->height <= 0 )
+                        component_entry->height = sh;
+                }
+            }
+        }
     }
     break;
-    case UIELEM_TAB_REDSTONES:
+    case UIELEM_REDSTONE_TAB:
     {
-        component_entry->anchor_x = load->anchor_x;
-        component_entry->anchor_y = load->anchor_y;
-        if( component_entry->anchor_x == 0 && component_entry->anchor_y == 0 )
+        component_entry->tabno = load->tabno;
+        component_entry->width = load->width;
+        component_entry->height = load->height;
+
+        if( load->sprite[0] != '\0' )
         {
-            component_entry->anchor_x = 516;
-            component_entry->anchor_y = 466;
+            int ai = 0;
+            struct SpriteEntry* se = sprite_entry_resolve_ref(sprite_hmap, load->sprite, &ai);
+            if( se )
+            {
+                component_entry->sprite_id = se->id;
+                component_entry->sprite_index = ai;
+            }
+        }
+
+        if( load->sprite_active[0] != '\0' )
+        {
+            int ai = 0;
+            struct SpriteEntry* se =
+                sprite_entry_resolve_ref(sprite_hmap, load->sprite_active, &ai);
+            if( se )
+            {
+                component_entry->sprite_id_active = se->id;
+                component_entry->sprite_index_active = ai;
+                if( component_entry->width <= 0 || component_entry->height <= 0 )
+                {
+                    if( ai >= 0 && ai < se->count && se->sprites[ai] )
+                    {
+                        struct DashSprite* sp = se->sprites[ai];
+                        int sw = sp->crop_width > 0 ? sp->crop_width : sp->width;
+                        int sh = sp->crop_height > 0 ? sp->crop_height : sp->height;
+                        if( component_entry->width <= 0 )
+                            component_entry->width = sw;
+                        if( component_entry->height <= 0 )
+                            component_entry->height = sh;
+                    }
+                }
+            }
         }
     }
     break;
@@ -506,11 +575,7 @@ load_layout(
                 component_entry->width,
                 component_entry->height,
                 component_entry->anchor_x,
-                component_entry->anchor_y,
-                component_entry->hitbox_x,
-                component_entry->hitbox_y,
-                component_entry->hitbox_w,
-                component_entry->hitbox_h);
+                component_entry->anchor_y);
         }
         break;
         case UIELEM_MINIMAP:
@@ -522,11 +587,7 @@ load_layout(
                 component_entry->width,
                 component_entry->height,
                 component_entry->anchor_x,
-                component_entry->anchor_y,
-                component_entry->hitbox_x,
-                component_entry->hitbox_y,
-                component_entry->hitbox_w,
-                component_entry->hitbox_h);
+                component_entry->anchor_y);
         }
         break;
         case UIELEM_WORLD:
@@ -534,14 +595,19 @@ load_layout(
             static_ui_buffer_push_world(ui, layout_entry->x, layout_entry->y);
         }
         break;
-        case UIELEM_TAB_REDSTONES:
+        case UIELEM_REDSTONE_TAB:
         {
-            static_ui_buffer_push_tab_redstones(
+            static_ui_buffer_push_redstone_tab(
                 ui,
+                component_entry->tabno,
+                component_entry->sprite_id,
+                component_entry->sprite_index,
+                component_entry->sprite_id_active,
+                component_entry->sprite_index_active,
                 layout_entry->x,
                 layout_entry->y,
-                component_entry->anchor_x,
-                component_entry->anchor_y);
+                component_entry->width,
+                component_entry->height);
         }
         break;
         case UIELEM_BUILTIN_SIDEBAR:
@@ -573,7 +639,9 @@ load_layout(
                     layout_entry->top,
                     layout_entry->right,
                     layout_entry->bottom,
-                    layout_entry->left);
+                    layout_entry->left,
+                    component_entry->width,
+                    component_entry->height);
             }
             else
             {
@@ -582,7 +650,9 @@ load_layout(
                     component_entry->sprite_id,
                     component_entry->sprite_index,
                     layout_entry->x,
-                    layout_entry->y);
+                    layout_entry->y,
+                    component_entry->width,
+                    component_entry->height);
             }
         }
         break;
@@ -813,36 +883,23 @@ static_ui_from_revconfig_buildcachedat(
             load._component.anchor_y = atoi(field->value);
         }
         break;
-        case RCFIELD_UICOMPONENT_HITBOX_X:
+        case RCFIELD_UICOMPONENT_TABNO:
         {
             assert(
                 load.kind == LOAD_KIND_COMPONENT &&
-                "UICOMPONENT_HITBOX_X field must be within a component item");
-            load._component.hitbox_x = atoi(field->value);
+                "UICOMPONENT_TABNO field must be within a component item");
+            load._component.tabno = atoi(field->value);
         }
         break;
-        case RCFIELD_UICOMPONENT_HITBOX_Y:
+        case RCFIELD_UICOMPONENT_SPRITE_ACTIVE:
         {
             assert(
                 load.kind == LOAD_KIND_COMPONENT &&
-                "UICOMPONENT_HITBOX_Y field must be within a component item");
-            load._component.hitbox_y = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UICOMPONENT_HITBOX_W:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "UICOMPONENT_HITBOX_W field must be within a component item");
-            load._component.hitbox_w = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UICOMPONENT_HITBOX_H:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "UICOMPONENT_HITBOX_H field must be within a component item");
-            load._component.hitbox_h = atoi(field->value);
+                "UICOMPONENT_SPRITE_ACTIVE field must be within a component item");
+            strncpy(
+                load._component.sprite_active,
+                field->value,
+                sizeof(load._component.sprite_active) - 1);
         }
         break;
         case RCFIELD_UILAYOUT_COMPONENT:

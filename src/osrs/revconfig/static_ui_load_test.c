@@ -54,18 +54,18 @@ main()
         struct StaticUIComponent* component = &static_ui->components[i];
         if( component->type == UIELEM_SPRITE )
         {
-            assert(component->scene_id != -1 && "Sprite components must have a valid scene_id");
-            struct UISceneElement* element = uiscene_element_at(ui_scene, component->scene_id);
+            assert(component->u.sprite.scene_id != -1 && "Sprite components must have a valid scene_id");
+            struct UISceneElement* element = uiscene_element_at(ui_scene, component->u.sprite.scene_id);
             printf(
                 "Blitting component %d of type %d using scene element id %d at x=%d, y=%d\n",
                 i,
                 component->type,
-                component->scene_id,
+                component->u.sprite.scene_id,
                 component->position.x,
                 component->position.y);
             if( element )
             {
-                struct DashSprite* sprite = element->dash_sprites[component->atlas_index];
+                struct DashSprite* sprite = element->dash_sprites[component->u.sprite.atlas_index];
                 dash2d_blit_sprite(
                     dash,
                     sprite,
@@ -77,7 +77,7 @@ main()
             else
             {
                 printf(
-                    "Failed to find sprite with id %d for sprite component\n", component->scene_id);
+                    "Failed to find sprite with id %d for sprite component\n", component->u.sprite.scene_id);
             }
         }
     }

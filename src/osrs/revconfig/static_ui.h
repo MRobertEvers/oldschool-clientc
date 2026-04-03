@@ -19,7 +19,7 @@ enum StaticUIComponentType
     UIELEM_BUILTIN_VIEWPORT = 5,
     UIELEM_WORLD = 6,
     UIELEM_SPRITE = 7,
-    UIELEM_TAB_REDSTONES = 8,
+    UIELEM_REDSTONE_TAB = 8,
     // Tutorial flash
     UIELEM_BUILTIN_TAB_ICONS = 9,
     UIELEM_CHAT_MODES = 10,
@@ -55,8 +55,26 @@ struct StaticUIComponent
 {
     enum StaticUIComponentType type;
     struct StaticUIElemPosition position;
-    int scene_id;
-    int atlas_index;
+    union
+    {
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+        } sprite; /* UIELEM_SPRITE, UIELEM_COMPASS, UIELEM_MINIMAP, UIELEM_WORLD */
+        struct
+        {
+            int scene_id;        /* inactive sprite scene id; -1 if absent */
+            int atlas_index;     /* inactive sprite atlas index */
+            int scene_id_active; /* active sprite scene id; -1 if absent */
+            int atlas_index_active;
+            int tabno;  /* which selected_tab value activates this tab */
+        } redstone_tab; /* UIELEM_REDSTONE_TAB */
+        struct
+        {
+            int scene_id;
+        } minimap; /* UIELEM_BUILTIN_SIDEBAR */
+    } u;
 };
 
 struct StaticUIBuffer
@@ -81,7 +99,9 @@ static_ui_buffer_push_sprite_xy(
     int sprite_id,
     int atlas_index,
     int x,
-    int y);
+    int y,
+    int width,
+    int height);
 
 #define STATIC_UI_RELATIVE_FLAG_LEFT 1
 #define STATIC_UI_RELATIVE_FLAG_TOP 2
@@ -97,7 +117,9 @@ static_ui_buffer_push_sprite_relative(
     int top,
     int right,
     int bottom,
-    int left);
+    int left,
+    int width,
+    int height);
 
 void
 static_ui_buffer_push_world(
@@ -115,11 +137,7 @@ static_ui_buffer_push_compass(
     int width,
     int height,
     int anchor_x,
-    int anchor_y,
-    int hitbox_x,
-    int hitbox_y,
-    int hitbox_w,
-    int hitbox_h);
+    int anchor_y);
 
 void
 static_ui_buffer_push_minimap(
@@ -129,19 +147,21 @@ static_ui_buffer_push_minimap(
     int width,
     int height,
     int anchor_x,
-    int anchor_y,
-    int hitbox_x,
-    int hitbox_y,
-    int hitbox_w,
-    int hitbox_h);
+    int anchor_y);
 
+/* tabno: which selected_tab value activates this component. scene_id/-1 for absent sprite. */
 void
-static_ui_buffer_push_tab_redstones(
+static_ui_buffer_push_redstone_tab(
     struct StaticUIBuffer* buffer,
-    int bind_top_x,
-    int bind_top_y,
-    int bind_bottom_x,
-    int bind_bottom_y);
+    int tabno,
+    int sprite_id,
+    int atlas_index,
+    int sprite_active_id,
+    int atlas_active_index,
+    int x,
+    int y,
+    int width,
+    int height);
 
 void
 static_ui_buffer_push_builtin_sidebar(

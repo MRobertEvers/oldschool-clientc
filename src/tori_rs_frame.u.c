@@ -191,10 +191,8 @@ queue_static_ui_minimap_draws(
     if( !mm )
         return;
 
-    int elem_id = game->minimap_static_uiscene_element_id;
-    if( elem_id < 0 )
-        return;
-    struct UISceneElement* element = uiscene_element_at(game->ui_scene, elem_id);
+    struct UISceneElement* element =
+        uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
     if( !element || !element->dash_sprites || !element->dash_sprites[0] )
         return;
 
@@ -669,158 +667,54 @@ struct UIStep
     bool done;
 };
 
-static struct DashSprite*
-uiscene_redstone_sprite_for_tab(
-    struct GGame* game,
-    int tab)
-{
-    if( !game->ui_scene || tab < 0 || tab > 13 )
-        return NULL;
-    if( tab <= 6 )
-    {
-        const char* n = NULL;
-        switch( tab )
-        {
-        case 0:
-            n = "redstone1";
-            break;
-        case 1:
-            n = "redstone2";
-            break;
-        case 2:
-            n = "redstone2";
-            break;
-        case 3:
-            n = "redstone3";
-            break;
-        case 4:
-            n = "redstone2h";
-            break;
-        case 5:
-            n = "redstone2h";
-            break;
-        case 6:
-            n = "redstone1h";
-            break;
-        default:
-            break;
-        }
-        return n ? uiscene_sprite_by_name(game->ui_scene, n, 0) : NULL;
-    }
-    else
-    {
-        const char* n = NULL;
-        switch( tab )
-        {
-        case 7:
-            n = "redstone1v";
-            break;
-        case 8:
-            n = "redstone2v";
-            break;
-        case 9:
-            n = "redstone2v";
-            break;
-        case 10:
-            n = "redstone3v";
-            break;
-        case 11:
-            n = "redstone2hv";
-            break;
-        case 12:
-            n = "redstone2hv";
-            break;
-        case 13:
-            n = "redstone1hv";
-            break;
-        default:
-            break;
-        }
-        return n ? uiscene_sprite_by_name(game->ui_scene, n, 0) : NULL;
-    }
-}
-
 static void
-uielem_tab_redstones_step(
+uielem_redstone_tab_step(
     struct GGame* game,
     struct StaticUIComponent* component,
     struct UIStep* step)
 {
-    assert(component->type == UIELEM_TAB_REDSTONES);
+    assert(component->type == UIELEM_REDSTONE_TAB);
     step->done = true;
     if( !game->iface || !game->ui_scene )
         return;
     if( game->iface->sidebar_interface_id != -1 )
         return;
 
-    int tab = game->iface->selected_tab;
-    struct DashSprite* sp = uiscene_redstone_sprite_for_tab(game, tab);
-    if( !sp )
-        return;
-
-    int bind_top_x = component->position.x;
-    int bind_top_y = component->position.y;
-    int bind_bot_x = component->hitbox_x;
-    int bind_bot_y = component->hitbox_y;
-    int rx = 0, ry = 0;
-    if( tab >= 0 && tab <= 6 )
-    {
-        static const int ox[7] = { 22, 54, 82, 110, 153, 181, 209 };
-        static const int oy[7] = { 10, 8, 8, 8, 8, 8, 9 };
-        rx = ox[tab];
-        ry = oy[tab];
-        queue_sprite_draw_from_event(
-            game->uiscene_queued_commands, -1, sp, bind_top_x + rx, bind_top_y + ry, 0);
-    }
-    else if( tab >= 7 && tab <= 13 )
-    {
-        static const int ox[7] = { 42, 74, 102, 130, 173, 201, 229 };
-        static const int oy[7] = { 0, 0, 0, 1, 0, 0, 0 };
-        int i = tab - 7;
-        rx = ox[i];
-        ry = oy[i];
-        queue_sprite_draw_from_event(
-            game->uiscene_queued_commands, -1, sp, bind_bot_x + rx, bind_bot_y + ry, 0);
-    }
-
-    static const struct
-    {
-        int x, y, w, h;
-    } k_tab_hit[14] = {
-        { 541, 169, 26, 24 },
-        { 566, 168, 26, 24 },
-        { 594, 168, 28, 24 },
-        { 631, 172, 30, 24 },
-        { 669, 169, 26, 24 },
-        { 696, 171, 28, 24 },
-        { 724, 173, 28, 24 },
-        { 570, 468, 26, 24 },
-        { 598, 469, 28, 24 },
-        { 633, 470, 30, 24 },
-        { 670, 468, 28, 24 },
-        { 697, 468, 28, 24 },
-        { 722, 468, 28, 24 },
-        { 748, 468, 26, 24 },
-    };
+    int tabno = component->u.redstone_tab.tabno;
+    int x = component->position.x;
+    int y = component->position.y;
+    int w = component->position.width;
+    int h = component->position.height;
 
     if( game->mouse_clicked && !game->interface_consumed_click )
     {
         int cx = game->mouse_clicked_x;
         int cy = game->mouse_clicked_y;
-        for( int i = 0; i < 14; i++ )
+        if( cx >= x && cx < x + w && cy >= y && cy < y + h )
         {
-            int hx = k_tab_hit[i].x;
-            int hy = k_tab_hit[i].y;
-            int hw = k_tab_hit[i].w;
-            int hh = k_tab_hit[i].h;
-            if( cx >= hx && cx < hx + hw && cy >= hy && cy < hy + hh )
-            {
-                game->iface->selected_tab = i;
-                game->interface_consumed_click = 1;
-                break;
-            }
+            game->iface->selected_tab = tabno;
+            game->interface_consumed_click = 1;
         }
     }
+
+    bool is_active = (game->iface->selected_tab == tabno);
+    int sid =
+        is_active ? component->u.redstone_tab.scene_id_active : component->u.redstone_tab.scene_id;
+    int ai = is_active ? component->u.redstone_tab.atlas_index_active
+                       : component->u.redstone_tab.atlas_index;
+    if( sid < 0 )
+        return;
+
+    struct UISceneElement* elem = uiscene_element_at(game->ui_scene, sid);
+    if( !elem || !elem->dash_sprites )
+        return;
+    struct DashSprite* sp = elem->dash_sprites[ai];
+    if( !sp )
+        return;
+
+    int draw_x = x;
+    int draw_y = y;
+    queue_sprite_draw_from_event(game->uiscene_queued_commands, -1, sp, draw_x, draw_y, 0);
 }
 
 static void
@@ -930,17 +824,18 @@ uielem_sprite_step(
 {
     assert(component->type == UIELEM_SPRITE);
 
-    struct UISceneElement* element = uiscene_element_at(game->ui_scene, component->scene_id);
+    struct UISceneElement* element =
+        uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
     if( !element )
         return;
 
-    struct DashSprite* sprite = element->dash_sprites[component->atlas_index];
+    struct DashSprite* sprite = element->dash_sprites[component->u.sprite.atlas_index];
     if( !sprite )
         return;
 
     queue_sprite_draw_from_event(
         game->uiscene_queued_commands,
-        component->scene_id,
+        component->u.sprite.scene_id,
         sprite,
         component->position.x,
         component->position.y,
@@ -961,7 +856,8 @@ uielem_world_step(
     struct DashPosition position = { 0 };
     struct ToriRSRenderCommand command = { 0 };
     struct Scene2Element* scene_element = NULL;
-    struct UISceneElement* element = uiscene_element_at(game->ui_scene, component->scene_id);
+    struct UISceneElement* element =
+        uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
     if( !element )
         return;
 
@@ -1124,7 +1020,8 @@ uielem_minimap_step(
 {
     assert(component->type == UIELEM_MINIMAP);
 
-    struct UISceneElement* element = uiscene_element_at(game->ui_scene, component->scene_id);
+    struct UISceneElement* element =
+        uiscene_element_at(game->ui_scene, component->u.minimap.scene_id);
     if( !element )
         return;
 
@@ -1140,11 +1037,12 @@ uielem_compass_step(
 {
     assert(component->type == UIELEM_COMPASS);
 
-    struct UISceneElement* element = uiscene_element_at(game->ui_scene, component->scene_id);
+    struct UISceneElement* element =
+        uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
     if( !element )
         return;
 
-    struct DashSprite* sprite = element->dash_sprites[component->atlas_index];
+    struct DashSprite* sprite = element->dash_sprites[component->u.sprite.atlas_index];
     if( !sprite )
         return;
 
@@ -1225,8 +1123,8 @@ LibToriRS_FrameNextCommand(
         case UIELEM_COMPASS:
             uielem_compass_step(game, component, &step);
             break;
-        case UIELEM_TAB_REDSTONES:
-            uielem_tab_redstones_step(game, component, &step);
+        case UIELEM_REDSTONE_TAB:
+            uielem_redstone_tab_step(game, component, &step);
             break;
         case UIELEM_BUILTIN_SIDEBAR:
             uielem_builtin_sidebar_step(game, component, &step);

@@ -162,7 +162,6 @@ struct GGame
 
     int viewport_offset_x;
     int viewport_offset_y;
-    int minimap_static_uiscene_element_id;
 };
 
 void

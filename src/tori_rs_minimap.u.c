@@ -18,12 +18,6 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
     if( !game->world || !game->world->minimap )
         return;
 
-    if( game->minimap_static_uiscene_element_id >= 0 )
-    {
-        uiscene_element_release(game->ui_scene, game->minimap_static_uiscene_element_id);
-        game->minimap_static_uiscene_element_id = -1;
-    }
-
     struct Minimap* mm = game->world->minimap;
     struct MinimapRenderCommandBuffer* tile_cmds =
         minimap_commands_new(mm->width * mm->height + 64);
@@ -73,7 +67,19 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
     strncpy(el->name, "minimap_static", sizeof(el->name) - 1);
     el->name[sizeof(el->name) - 1] = '\0';
 
-    game->minimap_static_uiscene_element_id = id;
+    int minimap_cmd = -1;
+    for( int i = 0; i < game->ui_scene_buffer->component_count; i++ )
+    {
+        if( game->ui_scene_buffer->components[i].type == UIELEM_MINIMAP )
+        {
+            minimap_cmd = i;
+            break;
+        }
+    }
+    if( minimap_cmd >= 0 )
+    {
+        game->ui_scene_buffer->components[minimap_cmd].u.minimap.scene_id = id;
+    }
 }
 
 #endif
