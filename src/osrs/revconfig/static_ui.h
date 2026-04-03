@@ -57,11 +57,6 @@ struct StaticUIComponent
     struct StaticUIElemPosition position;
     int scene_id;
     int atlas_index;
-    /* Relative to position.x/y in fixed UI space; (0,0,0,0) = unset (use draw dst box). */
-    int hitbox_x;
-    int hitbox_y;
-    int hitbox_w;
-    int hitbox_h;
 };
 
 struct StaticUIBuffer
