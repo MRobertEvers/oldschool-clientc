@@ -620,6 +620,18 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Render(
         dst_rect.x = (window_width - dst_rect.w) / 2;
     }
 
+#ifdef __EMSCRIPTEN__
+    game->soft3d_mouse_from_window = false;
+#else
+    game->soft3d_mouse_from_window = true;
+#endif
+    game->soft3d_present_dst_x = dst_rect.x;
+    game->soft3d_present_dst_y = dst_rect.y;
+    game->soft3d_present_dst_w = dst_rect.w;
+    game->soft3d_present_dst_h = dst_rect.h;
+    game->soft3d_buffer_w = renderer->width;
+    game->soft3d_buffer_h = renderer->height;
+
     SDL_RenderCopy(renderer->renderer, renderer->texture, NULL, &dst_rect);
     SDL_FreeSurface(surface);
 

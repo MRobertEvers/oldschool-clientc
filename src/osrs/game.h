@@ -162,6 +162,16 @@ struct GGame
 
     int viewport_offset_x;
     int viewport_offset_y;
+
+    /* SDL Soft3D: map window-space mouse to soft buffer (last SDL_RenderCopy dst rect).
+     * False on Emscripten (PollEvents maps mouse before GameProcessInput). */
+    bool soft3d_mouse_from_window;
+    int soft3d_present_dst_x;
+    int soft3d_present_dst_y;
+    int soft3d_present_dst_w;
+    int soft3d_present_dst_h;
+    int soft3d_buffer_w;
+    int soft3d_buffer_h;
 };
 
 void
