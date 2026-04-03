@@ -1,6 +1,7 @@
 #ifndef WORLD_SCENERY_U_C
 #define WORLD_SCENERY_U_C
 
+#include "contour_ground.h"
 #include "dash_utils.h"
 #include "model_transforms.h"
 #include "world.h"
@@ -150,20 +151,59 @@ apply_contour_ground(
     int contour_ground_type,
     int contour_ground_param)
 {
-    if( contour_ground_type == 1 )
-    {
-        struct HeightmapHeights heights = { 0 };
-        heightmap_get_heights_sized(
-            world->heightmap,
-            entity_scene_coord->sx,
-            entity_scene_coord->sz,
-            entity_scene_coord->slevel,
-            1,
-            1,
-            &heights);
+    struct Heightmap* hm = world->heightmap;
+    int sl = (int)entity_scene_coord->slevel;
 
-        model_transform_hillskew(
-            model, heights.sw_height, heights.se_height, heights.ne_height, heights.nw_height);
+    if( (contour_ground_type == 4 || contour_ground_type == 5) && sl + 1 >= hm->levels )
+    {
+        return;
+    }
+
+    int scene_x = (int)entity_scene_coord->sx * 128;
+    int scene_z = (int)entity_scene_coord->sz * 128;
+    int scene_height = heightmap_get_center(
+        hm, (int)entity_scene_coord->sx, (int)entity_scene_coord->sz, sl);
+
+    int hm_ax = hm->size_x;
+    int hm_az = hm->size_z;
+    int above_ax = (contour_ground_type == 4 || contour_ground_type == 5) ? hm_ax : 0;
+    int above_az = (contour_ground_type == 4 || contour_ground_type == 5) ? hm_az : 0;
+
+    struct ContourGround cg;
+    if( !contour_ground_init(&cg,
+            contour_ground_type,
+            contour_ground_param,
+            hm_ax,
+            hm_az,
+            above_ax,
+            above_az,
+            model,
+            model->vertex_count,
+            scene_x,
+            scene_z,
+            scene_height,
+            sl) )
+    {
+        return;
+    }
+
+    struct ContourGroundCommand cmd;
+    while( contour_ground_next(&cg, &cmd) )
+    {
+        switch( cmd.kind )
+        {
+        case CONTOUR_CMD_FETCH_HEIGHT:
+            contour_ground_provide(
+                &cg, heightmap_get_interpolated(hm, cmd.draw_x, cmd.draw_z, cmd.slevel));
+            break;
+        case CONTOUR_CMD_FETCH_HEIGHT_ABOVE:
+            contour_ground_provide(
+                &cg, heightmap_get_interpolated(hm, cmd.draw_x, cmd.draw_z, sl + 1));
+            break;
+        case CONTOUR_CMD_SET_Y:
+            model->vertices_y[cmd.vertex_index] = cmd.contour_y;
+            break;
+        }
     }
 }
 

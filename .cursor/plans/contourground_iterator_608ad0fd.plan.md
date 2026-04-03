@@ -4,13 +4,13 @@ overview: Create `src/osrs/contour_ground.h` and `src/osrs/contour_ground.c` imp
 todos:
   - id: create-header
     content: Create src/osrs/contour_ground.h with ContourGround, ContourGroundCommand structs and function declarations
-    status: pending
+    status: completed
   - id: create-impl
     content: Create src/osrs/contour_ground.c implementing contour_ground_init (bounds checks, flat-terrain check, precompute min/max) and contour_ground_next (all 5 types)
-    status: pending
+    status: completed
   - id: update-caller
     content: Update apply_contour_ground in world_scenery.u.c to use the new iterator for all 5 types
-    status: pending
+    status: completed
 isProject: false
 ---
 

@@ -2,7 +2,6 @@
 
 #include "bmp.h"
 #include "graphics/dash.h"
-#include "osrs/buildcachedat_loader.h"
 #include "osrs/dash_utils.h"
 #include "osrs/rscache/tables_dat/pix32.h"
 #include "osrs/rscache/tables_dat/pix8.h"
@@ -552,8 +551,6 @@ load_component(
         component_entry->componentno = load->componentno;
         component_entry->width = load->width > 0 ? load->width : 190;
         component_entry->height = load->height > 0 ? load->height : 261;
-        buildcachedat_loader_load_interface_from_container(
-            buildcachedat, "interfaces", load->componentno);
     }
     break;
     default:

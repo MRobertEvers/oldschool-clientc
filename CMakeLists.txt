@@ -88,6 +88,7 @@ set(COMMON_SOURCES
     src/osrs/decor_buildmap.c
     src/osrs/scene2.c
     src/osrs/heightmap.c
+    src/osrs/contour_ground.c
     src/osrs/lightmap.c
     src/osrs/blendmap.c
     src/osrs/overlaymap.c

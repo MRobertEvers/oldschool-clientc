@@ -16,6 +16,12 @@ local function init_ui()
         CacheDat.ConfigDatKind.CONFIG_DAT_TITLE_AND_FONTS, 0)
     Game.buildcachedat_cache_title(title_jagfile)
 
+    local interfaces_archive = CacheDat.load_archive(
+        CacheDat.Tables.CACHE_DAT_CONFIGS,
+        CacheDat.ConfigDatKind.CONFIG_DAT_INTERFACES, 0)
+    Game.game_load_interfaces(interfaces_archive)
+    Game.game_load_component_sprites()
+    _G.interfaces_loaded_flag = true
 
     local ui_archives = CacheDat.load_config_files({
         "rev_245_2/rev_245_2_ui.ini",

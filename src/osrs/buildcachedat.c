@@ -240,25 +240,23 @@ buildcachedat_init_maps_and_eventbuffer(struct BuildCacheDat* buildcachedat)
         buildcachedat_create_hmap(sizeof(int), sizeof(struct AnimbaseframesEntry), cap);
     buildcachedat->sequences_hmap =
         buildcachedat_create_hmap(sizeof(int), sizeof(struct SequenceEntry), cap);
-    buildcachedat->idk_hmap =
-        buildcachedat_create_hmap(sizeof(int), sizeof(struct IdkEntry), cap);
-    buildcachedat->obj_hmap =
-        buildcachedat_create_hmap(sizeof(int), sizeof(struct ObjEntry), cap);
+    buildcachedat->idk_hmap = buildcachedat_create_hmap(sizeof(int), sizeof(struct IdkEntry), cap);
+    buildcachedat->obj_hmap = buildcachedat_create_hmap(sizeof(int), sizeof(struct ObjEntry), cap);
     buildcachedat->idk_models_hmap =
         buildcachedat_create_hmap(sizeof(int), sizeof(struct IdkModelEntry), cap);
     buildcachedat->obj_models_hmap =
         buildcachedat_create_hmap(sizeof(int), sizeof(struct ObjModelEntry), cap);
     buildcachedat->map_terrains_hmap = buildcachedat_new_map_terrains_hmap();
-    buildcachedat->npc_hmap =
-        buildcachedat_create_hmap(sizeof(int), sizeof(struct NpcEntry), cap);
+    buildcachedat->npc_hmap = buildcachedat_create_hmap(sizeof(int), sizeof(struct NpcEntry), cap);
     buildcachedat->npc_models_hmap =
         buildcachedat_create_hmap(sizeof(int), sizeof(struct NpcModelEntry), cap);
-    buildcachedat->component_hmap =
-        buildcachedat_create_hmap(sizeof(int), sizeof(struct ComponentEntry), cap);
-    buildcachedat->component_sprites_hmap =
-        buildcachedat_create_hmap(64, sizeof(struct ComponentSpriteEntry), cap);
-    buildcachedat->sprites =
-        buildcachedat_create_hmap(64, sizeof(struct SpriteEntry), cap);
+    if( !buildcachedat->component_hmap )
+        buildcachedat->component_hmap =
+            buildcachedat_create_hmap(sizeof(int), sizeof(struct ComponentEntry), cap);
+    if( !buildcachedat->component_sprites_hmap )
+        buildcachedat->component_sprites_hmap =
+            buildcachedat_create_hmap(64, sizeof(struct ComponentSpriteEntry), cap);
+    buildcachedat->sprites = buildcachedat_create_hmap(64, sizeof(struct SpriteEntry), cap);
     buildcachedat->containers_hmap =
         buildcachedat_create_hmap(64, sizeof(struct ContainerEntry), cap);
 
@@ -469,8 +467,8 @@ buildcachedat_clear(struct BuildCacheDat* buildcachedat)
     dashmap_free_entries(buildcachedat->map_terrains_hmap, free_map_terrain_entry);
     dashmap_free_entries(buildcachedat->npc_hmap, free_npc_entry);
     dashmap_free_entries(buildcachedat->npc_models_hmap, free_npc_model_entry);
-    dashmap_free_entries(buildcachedat->component_hmap, free_component_entry);
-    dashmap_free_entries(buildcachedat->component_sprites_hmap, free_component_sprite_entry);
+    // dashmap_free_entries(buildcachedat->component_hmap, free_component_entry);
+    // dashmap_free_entries(buildcachedat->component_sprites_hmap, free_component_sprite_entry);
     dashmap_free_entries(buildcachedat->sprites, free_sprite_entry);
     dashmap_free_entries(buildcachedat->containers_hmap, free_container_entry);
 
@@ -1189,8 +1187,8 @@ buildcachedat_add_sequence(
     int sequence_id,
     struct CacheDatSequence* sequence)
 {
-    struct SequenceEntry* sequence_entry = (struct SequenceEntry*)
-        dashmap_search(buildcachedat->sequences_hmap, &sequence_id, DASHMAP_INSERT);
+    struct SequenceEntry* sequence_entry = (struct SequenceEntry*)dashmap_search(
+        buildcachedat->sequences_hmap, &sequence_id, DASHMAP_INSERT);
     assert(sequence_entry && "Sequence must be inserted into hmap");
     sequence_entry->id = sequence_id;
     sequence_entry->sequence = sequence;
