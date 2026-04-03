@@ -130,6 +130,14 @@ buildcachedat_loader_load_interfaces(
     void* data,
     int data_size);
 
+/** If `container_name` is a JagfilePackIndexed on buildcachedat, extract archive at `interface_id`
+ * and call buildcachedat_loader_load_interfaces. No-op if container missing or wrong kind. */
+void
+buildcachedat_loader_load_interface_from_container(
+    struct BuildCacheDat* buildcachedat,
+    const char* container_name,
+    int interface_id);
+
 /** Load sprites for all component graphics (graphic, activeGraphic, invSlotGraphic) from
  * game->media_filelist and register them. No-op if media_filelist is NULL. */
 void

@@ -856,6 +856,59 @@ buildcachedat_loader_load_interfaces(
     free(component_list);
     filelist_dat_free(filelist);
 }
+
+void
+buildcachedat_loader_load_interface_from_container(
+    struct BuildCacheDat* buildcachedat,
+    const char* container_name,
+    int interface_id)
+{
+    if( !buildcachedat || !container_name || interface_id < 0 )
+        return;
+
+    struct BuildCacheDatContainer* c = buildcachedat_named_container(buildcachedat, container_name);
+    if( !c )
+        return;
+
+    if( c->kind != BuildCacheContainerKind_JagfilePackIndexed )
+    {
+        free(c);
+        return;
+    }
+
+    struct FileListDatIndexed* fl = filelist_dat_indexed_new_from_decode(
+        (char*)c->_jagfilepack_indexed.index_data,
+        c->_jagfilepack_indexed.index_data_size,
+        (char*)c->_jagfilepack_indexed.data,
+        c->_jagfilepack_indexed.data_size);
+    free(c);
+
+    if( !fl || !fl->offsets || fl->offset_count <= 0 )
+    {
+        if( fl )
+            filelist_dat_indexed_free(fl);
+        return;
+    }
+
+    if( interface_id >= fl->offset_count )
+    {
+        filelist_dat_indexed_free(fl);
+        return;
+    }
+
+    int start = fl->offsets[interface_id];
+    int end = (interface_id + 1 < fl->offset_count) ? fl->offsets[interface_id + 1] : fl->data_size;
+    if( start < 0 || end <= start || end > fl->data_size )
+    {
+        filelist_dat_indexed_free(fl);
+        return;
+    }
+
+    int slice_size = end - start;
+    buildcachedat_loader_load_interfaces(buildcachedat, fl->data + start, slice_size);
+    filelist_dat_indexed_free(fl);
+}
+
 // Update all the dash loading and API's to use DashVertexInt* instead of int* for vertices of
 // models. Loading from the cache
 void

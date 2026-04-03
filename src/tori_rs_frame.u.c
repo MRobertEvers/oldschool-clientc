@@ -817,6 +817,55 @@ uielem_builtin_sidebar_step(
 }
 
 static void
+uielem_sidebar_component_step(
+    struct GGame* game,
+    struct StaticUIComponent* component,
+    struct UIStep* step)
+{
+    assert(component->type == UIELEM_SIDEBAR_COMPONENT);
+    step->done = true;
+    if( !game->iface || !game->buildcachedat || !game->sys_dash || !game->iface_view_port )
+        return;
+
+    if( game->iface->selected_tab != component->u.sidebar_component.tabno )
+        return;
+
+    int root_id = component->u.sidebar_component.componentno;
+    if( root_id < 0 )
+        return;
+
+    struct CacheDatConfigComponent* root = buildcachedat_get_component(game->buildcachedat, root_id);
+    if( !root || root->type != COMPONENT_TYPE_LAYER )
+        return;
+
+    int w = component->position.width;
+    int h = component->position.height;
+    if( w <= 0 )
+        w = 190;
+    if( h <= 0 )
+        h = 261;
+
+    size_t pix_count = (size_t)w * (size_t)h;
+    uint32_t* px = (uint32_t*)malloc(pix_count * sizeof(uint32_t));
+    if( !px )
+        return;
+    memset(px, 0, pix_count * sizeof(uint32_t));
+
+    struct DashViewPort saved_vp = *game->iface_view_port;
+    dash2d_set_bounds(game->iface_view_port, 0, 0, w, h);
+    game->iface_view_port->width = w;
+    game->iface_view_port->height = h;
+    game->iface_view_port->stride = w;
+    game->iface_view_port->x_center = w / 2;
+    game->iface_view_port->y_center = h / 2;
+
+    interface_draw_component_layer(game, root, 0, 0, 0, (int*)px, w);
+
+    *game->iface_view_port = saved_vp;
+    free(px);
+}
+
+static void
 uielem_sprite_step(
     struct GGame* game,
     struct StaticUIComponent* component,
@@ -1128,6 +1177,9 @@ LibToriRS_FrameNextCommand(
             break;
         case UIELEM_BUILTIN_SIDEBAR:
             uielem_builtin_sidebar_step(game, component, &step);
+            break;
+        case UIELEM_SIDEBAR_COMPONENT:
+            uielem_sidebar_component_step(game, component, &step);
             break;
         default:
             break;

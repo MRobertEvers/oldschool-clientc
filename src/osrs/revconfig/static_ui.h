@@ -25,6 +25,7 @@ enum StaticUIComponentType
     UIELEM_CHAT_MODES = 10,
     UIELEM_CHAT_INPUT = 11,
     UIELEM_CHAT_HISTORY = 12,
+    UIELEM_SIDEBAR_COMPONENT = 13,
 
 };
 
@@ -74,6 +75,11 @@ struct StaticUIComponent
         {
             int scene_id;
         } minimap; /* UIELEM_BUILTIN_SIDEBAR */
+        struct
+        {
+            int tabno;
+            int componentno;
+        } sidebar_component; /* UIELEM_SIDEBAR_COMPONENT */
     } u;
 };
 
@@ -166,6 +172,16 @@ static_ui_buffer_push_redstone_tab(
 void
 static_ui_buffer_push_builtin_sidebar(
     struct StaticUIBuffer* buffer,
+    int x,
+    int y,
+    int width,
+    int height);
+
+void
+static_ui_buffer_push_sidebar_component(
+    struct StaticUIBuffer* buffer,
+    int tabno,
+    int componentno,
     int x,
     int y,
     int width,

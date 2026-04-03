@@ -54,6 +54,8 @@ static_ui_component_type_str(enum StaticUIComponentType type)
         return "chat_input";
     case UIELEM_CHAT_HISTORY:
         return "chat_history";
+    case UIELEM_SIDEBAR_COMPONENT:
+        return "sidebar_component";
     }
     return "unknown";
 }
@@ -264,4 +266,28 @@ static_ui_buffer_push_builtin_sidebar(
     component->position.y = y;
     component->position.width = width;
     component->position.height = height;
+}
+
+void
+static_ui_buffer_push_sidebar_component(
+    struct StaticUIBuffer* buffer,
+    int tabno,
+    int componentno,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    struct StaticUIComponent* component = push_element(buffer);
+    if( !component )
+        return;
+    memset(component, 0, sizeof(struct StaticUIComponent));
+    component->type = UIELEM_SIDEBAR_COMPONENT;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.sidebar_component.tabno = tabno;
+    component->u.sidebar_component.componentno = componentno;
 }

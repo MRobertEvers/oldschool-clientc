@@ -2,6 +2,7 @@
 
 #include "bmp.h"
 #include "graphics/dash.h"
+#include "osrs/buildcachedat_loader.h"
 #include "osrs/dash_utils.h"
 #include "osrs/rscache/tables_dat/pix32.h"
 #include "osrs/rscache/tables_dat/pix8.h"
@@ -33,6 +34,7 @@ struct ComponentEntry
     int anchor_x;
     int anchor_y;
     int tabno;
+    int componentno;
 };
 
 enum SpriteLoad_AtlasMode
@@ -75,6 +77,7 @@ struct ComponentLoad
     int anchor_x;
     int anchor_y;
     int tabno;
+    int componentno;
 };
 
 #define MAX_LAYOUT_ENTRIES 64
@@ -290,13 +293,13 @@ load_sprite(
                 load->crop_height);
         }
 
-        char filename[128] = { 0 };
-        snprintf(filename, sizeof(filename), "build/%s%d.bmp", load->name, atlas_index);
-        bmp_write_file(
-            filename,
-            sprites[atlas_index]->pixels_argb,
-            sprites[atlas_index]->width,
-            sprites[atlas_index]->height);
+        // char filename[128] = { 0 };
+        // snprintf(filename, sizeof(filename), "build/%s%d.bmp", load->name, atlas_index);
+        // bmp_write_file(
+        //     filename,
+        //     sprites[atlas_index]->pixels_argb,
+        //     sprites[atlas_index]->width,
+        //     sprites[atlas_index]->height);
     }
 
     int element_id = uiscene_element_acquire(ui_scene, -1);
@@ -341,6 +344,8 @@ component_type_from_string(const char* str)
         return UIELEM_CHAT_HISTORY;
     else if( strcmp(str, "redstone_tab") == 0 )
         return UIELEM_REDSTONE_TAB;
+    else if( strcmp(str, "sidebar_component") == 0 )
+        return UIELEM_SIDEBAR_COMPONENT;
 
     assert(0 && "Unknown component type");
     return 0;
@@ -541,6 +546,16 @@ load_component(
         component_entry->height = load->height > 0 ? load->height : 261;
     }
     break;
+    case UIELEM_SIDEBAR_COMPONENT:
+    {
+        component_entry->tabno = load->tabno;
+        component_entry->componentno = load->componentno;
+        component_entry->width = load->width > 0 ? load->width : 190;
+        component_entry->height = load->height > 0 ? load->height : 261;
+        buildcachedat_loader_load_interface_from_container(
+            buildcachedat, "interfaces", load->componentno);
+    }
+    break;
     default:
         break;
     }
@@ -614,6 +629,18 @@ load_layout(
         {
             static_ui_buffer_push_builtin_sidebar(
                 ui,
+                layout_entry->x,
+                layout_entry->y,
+                component_entry->width,
+                component_entry->height);
+        }
+        break;
+        case UIELEM_SIDEBAR_COMPONENT:
+        {
+            static_ui_buffer_push_sidebar_component(
+                ui,
+                component_entry->tabno,
+                component_entry->componentno,
                 layout_entry->x,
                 layout_entry->y,
                 component_entry->width,
@@ -695,6 +722,7 @@ load_item(
     case LOAD_KIND_LAYOUT:
         load_layout(&load->_layout, component_hmap, ui, ui_scene, buildcachedat);
         break;
+
     default:
     {
         assert(0 && "Unknown load kind");
@@ -889,6 +917,14 @@ static_ui_from_revconfig_buildcachedat(
                 load.kind == LOAD_KIND_COMPONENT &&
                 "UICOMPONENT_TABNO field must be within a component item");
             load._component.tabno = atoi(field->value);
+        }
+        break;
+        case RCFIELD_UICOMPONENT_COMPONENTNO:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "UICOMPONENT_COMPONENTNO field must be within a component item");
+            load._component.componentno = atoi(field->value);
         }
         break;
         case RCFIELD_UICOMPONENT_SPRITE_ACTIVE:
