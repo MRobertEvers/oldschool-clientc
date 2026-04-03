@@ -30,32 +30,22 @@ static_ui_component_type_str(enum StaticUIComponentType type)
 {
     switch( type )
     {
-    case UIELEM_COMPASS:
+    case UIELEM_BUILTIN_COMPASS:
         return "compass";
-    case UIELEM_MINIMAP:
+    case UIELEM_BUILTIN_MINIMAP:
         return "minimap";
-    case UIELEM_WORLD:
+    case UIELEM_BUILTIN_WORLD:
         return "world";
     case UIELEM_BUILTIN_SIDEBAR:
-        return "builtin_sidebar";
+        return "sidebar";
     case UIELEM_BUILTIN_CHAT:
-        return "builtin_chat";
-    case UIELEM_BUILTIN_VIEWPORT:
-        return "builtin_viewport";
-    case UIELEM_SPRITE:
+        return "chat";
+    case UIELEM_BUILTIN_SPRITE:
         return "sprite";
-    case UIELEM_REDSTONE_TAB:
+    case UIELEM_BUILTIN_REDSTONE_TAB:
         return "redstone_tab";
     case UIELEM_BUILTIN_TAB_ICONS:
-        return "builtin_tab_icons";
-    case UIELEM_CHAT_MODES:
-        return "chat_modes";
-    case UIELEM_CHAT_INPUT:
-        return "chat_input";
-    case UIELEM_CHAT_HISTORY:
-        return "chat_history";
-    case UIELEM_SIDEBAR_COMPONENT:
-        return "sidebar_component";
+        return "tab_icons";
     }
     return "unknown";
 }
@@ -93,7 +83,7 @@ static_ui_buffer_push_sprite_xy(
     if( !component )
         return;
 
-    component->type = UIELEM_SPRITE;
+    component->type = UIELEM_BUILTIN_SPRITE;
     component->position.kind = UIPOS_XY;
     component->position.x = x;
     component->position.y = y;
@@ -127,7 +117,7 @@ static_ui_buffer_push_sprite_relative(
 
     memset(component, 0, sizeof(struct StaticUIComponent));
 
-    component->type = UIELEM_SPRITE;
+    component->type = UIELEM_BUILTIN_SPRITE;
     component->position.kind = UIPOS_RELATIVE;
     component->position.relative_flags = flags;
     if( (flags & STATIC_UI_RELATIVE_FLAG_LEFT) != 0 )
@@ -156,7 +146,7 @@ static_ui_buffer_push_world(
 
     memset(component, 0, sizeof(struct StaticUIComponent));
 
-    component->type = UIELEM_WORLD;
+    component->type = UIELEM_BUILTIN_WORLD;
     component->position.kind = UIPOS_XY;
     component->position.x = x;
     component->position.y = y;
@@ -180,7 +170,7 @@ static_ui_buffer_push_compass(
 
     memset(component, 0, sizeof(struct StaticUIComponent));
 
-    component->type = UIELEM_COMPASS;
+    component->type = UIELEM_BUILTIN_COMPASS;
     component->position.kind = UIPOS_XY;
     component->u.sprite.scene_id = sprite_id;
     component->u.sprite.atlas_index = atlas_index;
@@ -208,7 +198,7 @@ static_ui_buffer_push_minimap(
 
     memset(component, 0, sizeof(struct StaticUIComponent));
 
-    component->type = UIELEM_MINIMAP;
+    component->type = UIELEM_BUILTIN_MINIMAP;
     component->position.kind = UIPOS_XY;
     component->position.x = x;
     component->position.y = y;
@@ -235,7 +225,7 @@ static_ui_buffer_push_redstone_tab(
     if( !component )
         return;
     memset(component, 0, sizeof(struct StaticUIComponent));
-    component->type = UIELEM_REDSTONE_TAB;
+    component->type = UIELEM_BUILTIN_REDSTONE_TAB;
     component->position.kind = UIPOS_XY;
     component->position.x = x;
     component->position.y = y;
@@ -281,13 +271,13 @@ static_ui_buffer_push_sidebar_component(
     struct StaticUIComponent* component = push_element(buffer);
     if( !component )
         return;
-    memset(component, 0, sizeof(struct StaticUIComponent));
-    component->type = UIELEM_SIDEBAR_COMPONENT;
-    component->position.kind = UIPOS_XY;
-    component->position.x = x;
-    component->position.y = y;
-    component->position.width = width;
-    component->position.height = height;
-    component->u.sidebar_component.tabno = tabno;
-    component->u.sidebar_component.componentno = componentno;
+    // memset(component, 0, sizeof(struct StaticUIComponent));
+    // component->type = UIELEM_BUILTIN_SIDEBAR_COMPONENT;
+    // component->position.kind = UIPOS_XY;
+    // component->position.x = x;
+    // component->position.y = y;
+    // component->position.width = width;
+    // component->position.height = height;
+    // component->u.sidebar_component.tabno = tabno;
+    // component->u.sidebar_component.componentno = componentno;
 }

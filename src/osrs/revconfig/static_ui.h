@@ -3,30 +3,26 @@
 
 #include <stdint.h>
 
+/**
+ * "builtin" components are historically components that would've been hardcoded into the client.
+ */
 enum StaticUIComponentType
 {
-    UIELEM_COMPASS = 1,
-    UIELEM_MINIMAP = 2,
-    // Builtin - when the server specifies a tab etc, it will update
-    // the specified builtin sidebar.
-    // IF_SETTAB, IF_OPENSIDE
+    // Historically things that were hardcoded into the client.
+    UIELEM_BUILTIN_COMPASS = 1,
+    UIELEM_BUILTIN_MINIMAP = 2,
     UIELEM_BUILTIN_SIDEBAR = 3,
-    // IF_OPENCHAT,
     UIELEM_BUILTIN_CHAT = 4,
-    // Usually coincides with "WORLD" but in resizable it's different.
-    // Bank Interfaces
-    // IF_OPENMAIN
-    UIELEM_BUILTIN_VIEWPORT = 5,
-    UIELEM_WORLD = 6,
-    UIELEM_SPRITE = 7,
-    UIELEM_REDSTONE_TAB = 8,
-    // Tutorial flash
+    UIELEM_BUILTIN_WORLD = 6,
+    UIELEM_BUILTIN_SPRITE = 7,
+    UIELEM_BUILTIN_REDSTONE_TAB = 8,
     UIELEM_BUILTIN_TAB_ICONS = 9,
-    UIELEM_CHAT_MODES = 10,
-    UIELEM_CHAT_INPUT = 11,
-    UIELEM_CHAT_HISTORY = 12,
-    UIELEM_SIDEBAR_COMPONENT = 13,
-
+    //
+    UIELEM_RS_TEXT = 14,
+    UIELEM_RS_GRAPHIC = 15,
+    UIELEM_RS_MODEL = 16,
+    UIELEM_RS_INV = 17,
+    UIELEM_RS_LAYER = 18,
 };
 
 enum StaticUIElemPositionKind

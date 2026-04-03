@@ -673,7 +673,7 @@ uielem_redstone_tab_step(
     struct StaticUIComponent* component,
     struct UIStep* step)
 {
-    assert(component->type == UIELEM_REDSTONE_TAB);
+    assert(component->type == UIELEM_BUILTIN_REDSTONE_TAB);
     step->done = true;
     if( !game->iface || !game->ui_scene )
         return;
@@ -816,54 +816,55 @@ uielem_builtin_sidebar_step(
     //     });
 }
 
-static void
-uielem_sidebar_component_step(
-    struct GGame* game,
-    struct StaticUIComponent* component,
-    struct UIStep* step)
-{
-    assert(component->type == UIELEM_SIDEBAR_COMPONENT);
-    step->done = true;
-    if( !game->iface || !game->buildcachedat || !game->sys_dash || !game->iface_view_port )
-        return;
+// static void
+// uielem_sidebar_component_step(
+//     struct GGame* game,
+//     struct StaticUIComponent* component,
+//     struct UIStep* step)
+// {
+//     assert(component->type == UIELEM_SIDEBAR_COMPONENT);
+//     step->done = true;
+//     if( !game->iface || !game->buildcachedat || !game->sys_dash || !game->iface_view_port )
+//         return;
 
-    if( game->iface->selected_tab != component->u.sidebar_component.tabno )
-        return;
+//     if( game->iface->selected_tab != component->u.sidebar_component.tabno )
+//         return;
 
-    int root_id = component->u.sidebar_component.componentno;
-    if( root_id < 0 )
-        return;
+//     int root_id = component->u.sidebar_component.componentno;
+//     if( root_id < 0 )
+//         return;
 
-    struct CacheDatConfigComponent* root = buildcachedat_get_component(game->buildcachedat, root_id);
-    if( !root || root->type != COMPONENT_TYPE_LAYER )
-        return;
+//     struct CacheDatConfigComponent* root =
+//         buildcachedat_get_component(game->buildcachedat, root_id);
+//     if( !root || root->type != COMPONENT_TYPE_LAYER )
+//         return;
 
-    int w = component->position.width;
-    int h = component->position.height;
-    if( w <= 0 )
-        w = 190;
-    if( h <= 0 )
-        h = 261;
+//     int w = component->position.width;
+//     int h = component->position.height;
+//     if( w <= 0 )
+//         w = 190;
+//     if( h <= 0 )
+//         h = 261;
 
-    size_t pix_count = (size_t)w * (size_t)h;
-    uint32_t* px = (uint32_t*)malloc(pix_count * sizeof(uint32_t));
-    if( !px )
-        return;
-    memset(px, 0, pix_count * sizeof(uint32_t));
+//     size_t pix_count = (size_t)w * (size_t)h;
+//     uint32_t* px = (uint32_t*)malloc(pix_count * sizeof(uint32_t));
+//     if( !px )
+//         return;
+//     memset(px, 0, pix_count * sizeof(uint32_t));
 
-    struct DashViewPort saved_vp = *game->iface_view_port;
-    dash2d_set_bounds(game->iface_view_port, 0, 0, w, h);
-    game->iface_view_port->width = w;
-    game->iface_view_port->height = h;
-    game->iface_view_port->stride = w;
-    game->iface_view_port->x_center = w / 2;
-    game->iface_view_port->y_center = h / 2;
+//     struct DashViewPort saved_vp = *game->iface_view_port;
+//     dash2d_set_bounds(game->iface_view_port, 0, 0, w, h);
+//     game->iface_view_port->width = w;
+//     game->iface_view_port->height = h;
+//     game->iface_view_port->stride = w;
+//     game->iface_view_port->x_center = w / 2;
+//     game->iface_view_port->y_center = h / 2;
 
-    interface_draw_component_layer(game, root, 0, 0, 0, (int*)px, w);
+//     interface_draw_component_layer(game, root, 0, 0, 0, (int*)px, w);
 
-    *game->iface_view_port = saved_vp;
-    free(px);
-}
+//     *game->iface_view_port = saved_vp;
+//     free(px);
+// }
 
 static void
 uielem_sprite_step(
@@ -871,7 +872,7 @@ uielem_sprite_step(
     struct StaticUIComponent* component,
     struct UIStep* step)
 {
-    assert(component->type == UIELEM_SPRITE);
+    assert(component->type == UIELEM_BUILTIN_SPRITE);
 
     struct UISceneElement* element =
         uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
@@ -900,7 +901,7 @@ uielem_world_step(
     struct UIStep* step,
     bool project_models)
 {
-    assert(component->type == UIELEM_WORLD);
+    assert(component->type == UIELEM_BUILTIN_WORLD);
 
     struct DashPosition position = { 0 };
     struct ToriRSRenderCommand command = { 0 };
@@ -1067,7 +1068,7 @@ uielem_minimap_step(
     struct StaticUIComponent* component,
     struct UIStep* step)
 {
-    assert(component->type == UIELEM_MINIMAP);
+    assert(component->type == UIELEM_BUILTIN_MINIMAP);
 
     struct UISceneElement* element =
         uiscene_element_at(game->ui_scene, component->u.minimap.scene_id);
@@ -1084,7 +1085,7 @@ uielem_compass_step(
     struct StaticUIComponent* component,
     struct UIStep* step)
 {
-    assert(component->type == UIELEM_COMPASS);
+    assert(component->type == UIELEM_BUILTIN_COMPASS);
 
     struct UISceneElement* element =
         uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
@@ -1160,26 +1161,25 @@ LibToriRS_FrameNextCommand(
         int component_command_count = 0;
         switch( component->type )
         {
-        case UIELEM_SPRITE:
+        case UIELEM_BUILTIN_SPRITE:
             uielem_sprite_step(game, component, &step);
             break;
-        case UIELEM_WORLD:
+        case UIELEM_BUILTIN_WORLD:
             uielem_world_step(game, component, &step, project_models);
             break;
-        case UIELEM_MINIMAP:
+        case UIELEM_BUILTIN_MINIMAP:
             uielem_minimap_step(game, component, &step);
             break;
-        case UIELEM_COMPASS:
+        case UIELEM_BUILTIN_COMPASS:
             uielem_compass_step(game, component, &step);
             break;
-        case UIELEM_REDSTONE_TAB:
+        case UIELEM_BUILTIN_REDSTONE_TAB:
             uielem_redstone_tab_step(game, component, &step);
             break;
         case UIELEM_BUILTIN_SIDEBAR:
             uielem_builtin_sidebar_step(game, component, &step);
             break;
-        case UIELEM_SIDEBAR_COMPONENT:
-            uielem_sidebar_component_step(game, component, &step);
+
             break;
         default:
             break;

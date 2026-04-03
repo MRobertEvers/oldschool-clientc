@@ -320,31 +320,21 @@ static enum StaticUIComponentType
 component_type_from_string(const char* str)
 {
     if( strcmp(str, "compass") == 0 )
-        return UIELEM_COMPASS;
+        return UIELEM_BUILTIN_COMPASS;
     else if( strcmp(str, "minimap") == 0 )
-        return UIELEM_MINIMAP;
+        return UIELEM_BUILTIN_MINIMAP;
     else if( strcmp(str, "world") == 0 )
-        return UIELEM_WORLD;
-    else if( strcmp(str, "builtin_sidebar") == 0 )
+        return UIELEM_BUILTIN_WORLD;
+    else if( strcmp(str, "sidebar") == 0 )
         return UIELEM_BUILTIN_SIDEBAR;
-    else if( strcmp(str, "builtin_chat") == 0 )
+    else if( strcmp(str, "chat") == 0 )
         return UIELEM_BUILTIN_CHAT;
-    else if( strcmp(str, "builtin_viewport") == 0 )
-        return UIELEM_BUILTIN_VIEWPORT;
     else if( strcmp(str, "sprite") == 0 )
-        return UIELEM_SPRITE;
+        return UIELEM_BUILTIN_SPRITE;
     else if( strcmp(str, "builtin_tab_icons") == 0 )
         return UIELEM_BUILTIN_TAB_ICONS;
-    else if( strcmp(str, "chat_modes") == 0 )
-        return UIELEM_CHAT_MODES;
-    else if( strcmp(str, "chat_input") == 0 )
-        return UIELEM_CHAT_INPUT;
-    else if( strcmp(str, "chat_history") == 0 )
-        return UIELEM_CHAT_HISTORY;
     else if( strcmp(str, "redstone_tab") == 0 )
-        return UIELEM_REDSTONE_TAB;
-    else if( strcmp(str, "sidebar_component") == 0 )
-        return UIELEM_SIDEBAR_COMPONENT;
+        return UIELEM_BUILTIN_REDSTONE_TAB;
 
     assert(0 && "Unknown component type");
     return 0;
@@ -446,7 +436,7 @@ load_component(
 
     switch( type )
     {
-    case UIELEM_COMPASS:
+    case UIELEM_BUILTIN_COMPASS:
     {
         int bind = component_bind_sprite_from_load(load, sprite_hmap, component_entry, "compass");
         if( bind == 2 )
@@ -457,7 +447,7 @@ load_component(
         component_entry->anchor_y = load->anchor_y;
     }
     break;
-    case UIELEM_MINIMAP:
+    case UIELEM_BUILTIN_MINIMAP:
     {
         component_entry->width = load->width;
         component_entry->height = load->height;
@@ -465,9 +455,9 @@ load_component(
         component_entry->anchor_y = load->anchor_y;
     }
     break;
-    case UIELEM_WORLD:
+    case UIELEM_BUILTIN_WORLD:
         break;
-    case UIELEM_SPRITE:
+    case UIELEM_BUILTIN_SPRITE:
     {
         int bind = component_bind_sprite_from_load(load, sprite_hmap, component_entry, "sprite");
         if( bind == 2 )
@@ -496,7 +486,7 @@ load_component(
         }
     }
     break;
-    case UIELEM_REDSTONE_TAB:
+    case UIELEM_BUILTIN_REDSTONE_TAB:
     {
         component_entry->tabno = load->tabno;
         component_entry->width = load->width;
@@ -545,14 +535,7 @@ load_component(
         component_entry->height = load->height > 0 ? load->height : 261;
     }
     break;
-    case UIELEM_SIDEBAR_COMPONENT:
-    {
-        component_entry->tabno = load->tabno;
-        component_entry->componentno = load->componentno;
-        component_entry->width = load->width > 0 ? load->width : 190;
-        component_entry->height = load->height > 0 ? load->height : 261;
-    }
-    break;
+        break;
     default:
         break;
     }
@@ -576,7 +559,7 @@ load_layout(
         assert(component_entry && "Component for layout entry not found in hmap");
         switch( component_entry->type )
         {
-        case UIELEM_COMPASS:
+        case UIELEM_BUILTIN_COMPASS:
         {
             static_ui_buffer_push_compass(
                 ui,
@@ -590,7 +573,7 @@ load_layout(
                 component_entry->anchor_y);
         }
         break;
-        case UIELEM_MINIMAP:
+        case UIELEM_BUILTIN_MINIMAP:
         {
             static_ui_buffer_push_minimap(
                 ui,
@@ -602,12 +585,12 @@ load_layout(
                 component_entry->anchor_y);
         }
         break;
-        case UIELEM_WORLD:
+        case UIELEM_BUILTIN_WORLD: // "world"
         {
             static_ui_buffer_push_world(ui, layout_entry->x, layout_entry->y);
         }
         break;
-        case UIELEM_REDSTONE_TAB:
+        case UIELEM_BUILTIN_REDSTONE_TAB:
         {
             static_ui_buffer_push_redstone_tab(
                 ui,
@@ -622,7 +605,7 @@ load_layout(
                 component_entry->height);
         }
         break;
-        case UIELEM_BUILTIN_SIDEBAR:
+        case UIELEM_BUILTIN_SIDEBAR: // "builtin_sidebar"
         {
             static_ui_buffer_push_builtin_sidebar(
                 ui,
@@ -632,26 +615,22 @@ load_layout(
                 component_entry->height);
         }
         break;
-        case UIELEM_SIDEBAR_COMPONENT:
-        {
-            static_ui_buffer_push_sidebar_component(
-                ui,
-                component_entry->tabno,
-                component_entry->componentno,
-                layout_entry->x,
-                layout_entry->y,
-                component_entry->width,
-                component_entry->height);
-        }
-        break;
-        case UIELEM_BUILTIN_CHAT:
-        case UIELEM_BUILTIN_VIEWPORT:
-        case UIELEM_BUILTIN_TAB_ICONS:
-        case UIELEM_CHAT_MODES:
-        case UIELEM_CHAT_INPUT:
-        case UIELEM_CHAT_HISTORY:
+            // case UIELEM_SIDEBAR_COMPONENT:
+            // {
+            //     static_ui_buffer_push_sidebar_component(
+            //         ui,
+            //         component_entry->tabno,
+            //         component_entry->componentno,
+            //         layout_entry->x,
+            //         layout_entry->y,
+            //         component_entry->width,
+            //         component_entry->height);
+            // }
             break;
-        case UIELEM_SPRITE:
+        case UIELEM_BUILTIN_CHAT:
+        case UIELEM_BUILTIN_TAB_ICONS: // "builtin_tab_icons"
+
+        case UIELEM_BUILTIN_SPRITE:
         {
             if( layout_entry->flags != 0 )
             {
