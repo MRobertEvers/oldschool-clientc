@@ -72,27 +72,13 @@ struct StaticUIComponent
         struct
         {
             int scene_id;
-        } minimap; /* UIELEM_BUILTIN_SIDEBAR */
+        } minimap;
         struct
         {
             int tabno;
             int componentno;
-        } sidebar_component; /* UIELEM_SIDEBAR_COMPONENT */
-        struct
-        {
-            int font_id; /* uiscene_font_find_id; -1 if unknown */
-        } rs_text;
-        struct
-        {
-            int scene_id;
-            int atlas_index; /* inactive */
-            int scene_id_active;   /* -1 if same as inactive */
-            int atlas_index_active;
-        } rs_graphic;
-        struct
-        {
-            int scene2_element_id; /* game->ui_scene2 */
-        } rs_model;
+        } sidebar; /* UIELEM_BUILTIN_SIDEBAR */
+
     } u;
 };
 
@@ -185,6 +171,8 @@ static_ui_buffer_push_redstone_tab(
 void
 static_ui_buffer_push_builtin_sidebar(
     struct StaticUIBuffer* buffer,
+    int tabno,
+    int componentno,
     int x,
     int y,
     int width,

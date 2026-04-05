@@ -3,6 +3,7 @@
 #include "../rsbuf.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -203,7 +204,14 @@ decode_component(
                 component->invSlotOffsetY[i] = g2b(inb);
 
                 char* graphic = gstringnewline(inb);
+                printf("graphic[%d] = %s\n", i, graphic);
                 component->invSlotGraphic[i] = graphic;
+                if( component->invSlotGraphic[i] != NULL &&
+                    strlen(component->invSlotGraphic[i]) == 0 )
+                {
+                    free(component->invSlotGraphic[i]);
+                    component->invSlotGraphic[i] = NULL;
+                }
             }
         }
 
@@ -211,7 +219,9 @@ decode_component(
         memset(component->iop, 0, 5 * sizeof(char*));
         for( int i = 0; i < 5; i++ )
         {
-            component->iop[i] = gstringnewline(inb);
+            char* iop = gstringnewline(inb);
+            printf("iop[%d] = %s\n", i, iop);
+            component->iop[i] = iop;
             if( component->iop[i] != NULL && strlen(component->iop[i]) == 0 )
             {
                 free(component->iop[i]);

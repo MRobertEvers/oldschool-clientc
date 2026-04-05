@@ -11,10 +11,13 @@
 #include "osrs/isaac.h"
 #include "osrs/minimap.h"
 #include "osrs/minimenu.h"
+#include "osrs/obj_icon.h"
 #include "osrs/packetout.h"
 #include "osrs/revconfig/static_ui.h"
 #include "osrs/revconfig/uiscene.h"
+#include "osrs/rs_component_state.h"
 #include "osrs/rscache/tables_dat/config_component.h"
+#include "osrs/scene2.h"
 #include "osrs/world_options.h"
 #include "tori_rs.h"
 #include "tori_rs_render.h"
@@ -30,6 +33,44 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+static void
+rs_uielem_push_iface_viewport(
+    struct GGame* game,
+    int w,
+    int h,
+    struct DashViewPort* out_saved)
+{
+    *out_saved = *game->iface_view_port;
+    dash2d_set_bounds(game->iface_view_port, 0, 0, w, h);
+    game->iface_view_port->width = w;
+    game->iface_view_port->height = h;
+    game->iface_view_port->stride = w;
+    game->iface_view_port->x_center = w / 2;
+    game->iface_view_port->y_center = h / 2;
+}
+
+static void
+rs_uielem_pop_iface_viewport(
+    struct GGame* game,
+    struct DashViewPort* saved)
+{
+    *game->iface_view_port = *saved;
+}
+
+/** Root RS layers from buildcachedat are for modal overlays only (not tab sidebars). */
+static bool
+rs_root_is_active_modal(
+    struct GGame* game,
+    int component_id)
+{
+    if( !game->iface )
+        return false;
+    return game->iface->sidebar_interface_id == component_id ||
+           game->iface->viewport_interface_id == component_id ||
+           game->iface->chat_interface_id == component_id;
+}
 
 struct FrameRenderLoadKeyPtr
 {
@@ -816,55 +857,68 @@ uielem_builtin_sidebar_step(
     //     });
 }
 
-// static void
-// uielem_sidebar_component_step(
-//     struct GGame* game,
-//     struct StaticUIComponent* component,
-//     struct UIStep* step)
-// {
-//     assert(component->type == UIELEM_SIDEBAR_COMPONENT);
-//     step->done = true;
-//     if( !game->iface || !game->buildcachedat || !game->sys_dash || !game->iface_view_port )
-//         return;
+static void
+uielem_sidebar_component_step(
+    struct GGame* game,
+    struct StaticUIComponent* component,
+    struct UIStep* step)
+{
+    return;
+    assert(component->type == UIELEM_BUILTIN_SIDEBAR);
+    step->done = true;
+    if( !game->iface || !game->buildcachedat || !game->sys_dash || !game->iface_view_port ||
+        !game->rs_component_state )
+        return;
+    if( game->iface->sidebar_interface_id != -1 )
+        return;
+    if( game->iface->selected_tab != component->u.sidebar.tabno )
+        return;
 
-//     if( game->iface->selected_tab != component->u.sidebar_component.tabno )
-//         return;
+    int root_id = component->u.sidebar.componentno;
+    if( root_id < 0 )
+        return;
 
-//     int root_id = component->u.sidebar_component.componentno;
-//     if( root_id < 0 )
-//         return;
+    struct CacheDatConfigComponent* root =
+        buildcachedat_get_component(game->buildcachedat, root_id);
+    if( !root || root->type != COMPONENT_TYPE_LAYER )
+        return;
 
-//     struct CacheDatConfigComponent* root =
-//         buildcachedat_get_component(game->buildcachedat, root_id);
-//     if( !root || root->type != COMPONENT_TYPE_LAYER )
-//         return;
+    int w = component->position.width;
+    int h = component->position.height;
+    if( w <= 0 )
+        w = 190;
+    if( h <= 0 )
+        h = 261;
 
-//     int w = component->position.width;
-//     int h = component->position.height;
-//     if( w <= 0 )
-//         w = 190;
-//     if( h <= 0 )
-//         h = 261;
+    struct RSLayerDynState* ls = rs_layer_state(game->rs_component_state, root_id);
+    int scroll_y = ls ? ls->scroll_position : 0;
 
-//     size_t pix_count = (size_t)w * (size_t)h;
-//     uint32_t* px = (uint32_t*)malloc(pix_count * sizeof(uint32_t));
-//     if( !px )
-//         return;
-//     memset(px, 0, pix_count * sizeof(uint32_t));
+    if( ls )
+        dashsprite_free(ls->cached_sprite);
+    if( ls )
+        ls->cached_sprite = NULL;
 
-//     struct DashViewPort saved_vp = *game->iface_view_port;
-//     dash2d_set_bounds(game->iface_view_port, 0, 0, w, h);
-//     game->iface_view_port->width = w;
-//     game->iface_view_port->height = h;
-//     game->iface_view_port->stride = w;
-//     game->iface_view_port->x_center = w / 2;
-//     game->iface_view_port->y_center = h / 2;
+    size_t pix_count = (size_t)w * (size_t)h;
+    uint32_t* px = (uint32_t*)malloc(pix_count * sizeof(uint32_t));
+    if( !px )
+        return;
+    memset(px, 0, pix_count * sizeof(uint32_t));
 
-//     interface_draw_component_layer(game, root, 0, 0, 0, (int*)px, w);
+    struct DashViewPort saved_vp;
+    rs_uielem_push_iface_viewport(game, w, h, &saved_vp);
+    game->iface->current_hovered_interface_id = -1;
+    interface_draw_component_layer(game, root, 0, 0, scroll_y, (int*)px, w);
+    rs_uielem_pop_iface_viewport(game, &saved_vp);
 
-//     *game->iface_view_port = saved_vp;
-//     free(px);
-// }
+    struct DashSprite* sp = dashsprite_new_from_argb_owned(px, w, h);
+    if( !sp )
+        return;
+    if( ls )
+        ls->cached_sprite = sp;
+
+    queue_sprite_draw_from_event(
+        game->uiscene_queued_commands, -1, sp, component->position.x, component->position.y, 0);
+}
 
 static void
 uielem_sprite_step(
@@ -1119,6 +1173,51 @@ uielem_compass_step(
     step->done = true;
 }
 
+static void
+uielem_rs_graphic_step(
+    struct GGame* game,
+    struct StaticUIComponent* component,
+    struct UIStep* step)
+{
+    assert(component->type == UIELEM_RS_GRAPHIC);
+}
+
+static void
+uielem_rs_text_step(
+    struct GGame* game,
+    struct StaticUIComponent* component,
+    struct UIStep* step)
+{
+    assert(component->type == UIELEM_RS_TEXT);
+}
+
+static void
+uielem_rs_inv_step(
+    struct GGame* game,
+    struct StaticUIComponent* component,
+    struct UIStep* step)
+{
+    assert(component->type == UIELEM_RS_INV);
+}
+
+static void
+uielem_rs_layer_step(
+    struct GGame* game,
+    struct StaticUIComponent* component,
+    struct UIStep* step)
+{
+    assert(component->type == UIELEM_RS_LAYER);
+}
+
+static void
+uielem_rs_model_step(
+    struct GGame* game,
+    struct StaticUIComponent* component,
+    struct UIStep* step)
+{
+    return;
+}
+
 bool
 LibToriRS_FrameNextCommand(
     struct GGame* game,
@@ -1131,7 +1230,7 @@ LibToriRS_FrameNextCommand(
     struct UIStep step = { 0 };
     while( true )
     {
-        if( game->uiscene_idx >= game->ui_scene_buffer->component_count )
+        if( game->uiscene_idx >= game->ui_root_buffer->component_count )
             return false;
 
         if( game->uiscene_command_idx < game->uiscene_queued_commands->command_count )
@@ -1156,7 +1255,7 @@ LibToriRS_FrameNextCommand(
 
         step.done = true;
 
-        component = &game->ui_scene_buffer->components[game->uiscene_idx];
+        component = &game->ui_root_buffer->components[game->uiscene_idx];
 
         int component_command_count = 0;
         switch( component->type )
@@ -1179,7 +1278,20 @@ LibToriRS_FrameNextCommand(
         case UIELEM_BUILTIN_SIDEBAR:
             uielem_builtin_sidebar_step(game, component, &step);
             break;
-
+        case UIELEM_RS_GRAPHIC:
+            uielem_rs_graphic_step(game, component, &step);
+            break;
+        case UIELEM_RS_TEXT:
+            uielem_rs_text_step(game, component, &step);
+            break;
+        case UIELEM_RS_LAYER:
+            uielem_rs_layer_step(game, component, &step);
+            break;
+        case UIELEM_RS_MODEL:
+            uielem_rs_model_step(game, component, &step);
+            break;
+        case UIELEM_RS_INV:
+            uielem_rs_inv_step(game, component, &step);
             break;
         default:
             break;

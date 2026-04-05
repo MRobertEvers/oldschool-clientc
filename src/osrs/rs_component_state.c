@@ -1,5 +1,6 @@
 #include "rs_component_state.h"
 
+#include "graphics/dash.h"
 #include "graphics/dashmap.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/rscache/tables_dat/config_component.h"
@@ -51,7 +52,8 @@ rs_component_state_pool_new(int max_component_id_exclusive)
     pool->layer = calloc(n, sizeof(struct RSLayerDynState));
     pool->model = calloc(n, sizeof(struct RSModelDynState));
     pool->text = calloc(n, sizeof(struct RSTextDynState));
-    if( !pool->layer || !pool->model || !pool->text )
+    pool->inv = calloc(n, sizeof(struct RSInvDynState));
+    if( !pool->layer || !pool->model || !pool->text || !pool->inv )
     {
         rs_component_state_pool_free(pool);
         return NULL;
@@ -64,19 +66,40 @@ rs_component_state_pool_free(struct RSComponentStatePool* pool)
 {
     if( !pool )
         return;
+    if( pool->layer )
+    {
+        for( int i = 0; i < pool->count; i++ )
+            dashsprite_free(pool->layer[i].cached_sprite);
+    }
+    if( pool->model )
+    {
+        for( int i = 0; i < pool->count; i++ )
+            dashsprite_free(pool->model[i].cached_sprite);
+    }
     if( pool->text )
     {
         for( int i = 0; i < pool->count; i++ )
+        {
             free(pool->text[i].text_override);
+            dashsprite_free(pool->text[i].cached_sprite);
+        }
+    }
+    if( pool->inv )
+    {
+        for( int i = 0; i < pool->count; i++ )
+            dashsprite_free(pool->inv[i].cached_sprite);
     }
     free(pool->layer);
     free(pool->model);
     free(pool->text);
+    free(pool->inv);
     free(pool);
 }
 
 struct RSLayerDynState*
-rs_layer_state(struct RSComponentStatePool* pool, int component_id)
+rs_layer_state(
+    struct RSComponentStatePool* pool,
+    int component_id)
 {
     if( !pool || component_id < 0 || component_id >= pool->count )
         return NULL;
@@ -84,7 +107,9 @@ rs_layer_state(struct RSComponentStatePool* pool, int component_id)
 }
 
 struct RSModelDynState*
-rs_model_state(struct RSComponentStatePool* pool, int component_id)
+rs_model_state(
+    struct RSComponentStatePool* pool,
+    int component_id)
 {
     if( !pool || component_id < 0 || component_id >= pool->count )
         return NULL;
@@ -92,9 +117,21 @@ rs_model_state(struct RSComponentStatePool* pool, int component_id)
 }
 
 struct RSTextDynState*
-rs_text_state(struct RSComponentStatePool* pool, int component_id)
+rs_text_state(
+    struct RSComponentStatePool* pool,
+    int component_id)
 {
     if( !pool || component_id < 0 || component_id >= pool->count )
         return NULL;
     return &pool->text[component_id];
+}
+
+struct RSInvDynState*
+rs_inv_state(
+    struct RSComponentStatePool* pool,
+    int component_id)
+{
+    if( !pool || component_id < 0 || component_id >= pool->count )
+        return NULL;
+    return &pool->inv[component_id];
 }

@@ -42,8 +42,8 @@ LuaUI_load_revconfig(
     struct LuaConfigFile* cache_config = (struct LuaConfigFile*)arg_userdata(args, 1);
 
     // Reset UI state (best-effort) before reloading.
-    if( game->ui_scene_buffer )
-        game->ui_scene_buffer->component_count = 0;
+    if( game->ui_root_buffer )
+        game->ui_root_buffer->component_count = 0;
     if( game->ui_scene )
     {
         int cap = game->ui_scene->elements_count;
@@ -62,9 +62,9 @@ LuaUI_load_revconfig(
     assert(ui_config);
     revconfig_load_fields_from_ini_bytes(ui_config->data, (uint32_t)ui_config->size, buf);
 
-    if( game->ui_scene_buffer && game->ui_scene )
+    if( game->ui_root_buffer && game->ui_scene )
         static_ui_from_revconfig_buildcachedat(
-            game->ui_scene_buffer, game->ui_scene, buildcachedat, buf);
+            game->ui_root_buffer, game->ui_scene, buildcachedat, buf);
 
     revconfig_buffer_free(buf);
     return LuaGameType_NewVoid();
@@ -107,7 +107,7 @@ LuaUI_load_rs_components(
     struct LuaGameType* args)
 {
     (void)args;
-    if( !game || !game->ui_scene || !game->ui_scene_buffer || !buildcachedat )
+    if( !game || !game->ui_scene || !game->ui_root_buffer || !buildcachedat )
         return LuaGameType_NewVoid();
 
     if( game->rs_component_state )
@@ -117,8 +117,6 @@ LuaUI_load_rs_components(
     }
 
     int max_id = buildcachedat_max_component_id(buildcachedat);
-    static_ui_rs_from_buildcachedat(
-        game->ui_scene_buffer, game->ui_scene, game->ui_scene2, buildcachedat);
     if( max_id >= 0 )
     {
         game->rs_component_state = rs_component_state_pool_new(max_id + 1);

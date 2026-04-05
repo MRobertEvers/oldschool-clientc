@@ -68,9 +68,9 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
     el->name[sizeof(el->name) - 1] = '\0';
 
     int minimap_cmd = -1;
-    for( int i = 0; i < game->ui_scene_buffer->component_count; i++ )
+    for( int i = 0; i < game->ui_root_buffer->component_count; i++ )
     {
-        if( game->ui_scene_buffer->components[i].type == UIELEM_BUILTIN_MINIMAP )
+        if( game->ui_root_buffer->components[i].type == UIELEM_BUILTIN_MINIMAP )
         {
             minimap_cmd = i;
             break;
@@ -78,7 +78,7 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
     }
     if( minimap_cmd >= 0 )
     {
-        game->ui_scene_buffer->components[minimap_cmd].u.minimap.scene_id = id;
+        game->ui_root_buffer->components[minimap_cmd].u.minimap.scene_id = id;
     }
 }
 

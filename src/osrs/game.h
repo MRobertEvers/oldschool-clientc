@@ -11,8 +11,6 @@
 #include "osrs/buildcache.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/clientscript_vm.h"
-#include "osrs/rs_component_state.h"
-#include "osrs/scene2.h"
 #include "osrs/ginput.h"
 #include "osrs/packetbuffer.h"
 #include "osrs/packets/revpacket_lc245_2.h"
@@ -20,9 +18,11 @@
 #include "osrs/player_stats.h"
 #include "osrs/revconfig/static_ui.h"
 #include "osrs/revconfig/uiscene.h"
+#include "osrs/rs_component_state.h"
 #include "osrs/rsa.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
+#include "osrs/scene2.h"
 #include "osrs/script_queue.h"
 #include "osrs/varp_varbit_manager.h"
 #include "osrs/world.h"
@@ -94,9 +94,8 @@ struct GGame
     struct rsa rsa;
 
     struct UIScene* ui_scene;
-    struct StaticUIBuffer* ui_scene_buffer;
-    /** Scene2 pool for interface MODEL components (type 1); separate from world Scene2. */
-    struct Scene2* ui_scene2;
+    struct StaticUIBuffer* ui_root_buffer;
+    struct StaticUIBuffer* ui_stack;
     struct ClientScriptVM* clientscript_vm;
     struct RSComponentStatePool* rs_component_state;
 

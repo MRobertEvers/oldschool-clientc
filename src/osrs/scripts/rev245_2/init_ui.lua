@@ -57,7 +57,7 @@ local function init_ui()
 
     Game.ui_load_revconfig(ui_config, ui_cache_config)
     Game.ui_load_fonts(ui_cache_config)
-    Game.ui_load_rs_components()
+    -- Game.ui_load_rs_components()
 end
 
 init_ui()
