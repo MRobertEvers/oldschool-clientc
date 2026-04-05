@@ -86,8 +86,11 @@ uiscene_free(struct UIScene* uiscene)
         struct UISceneElement* elem = &uiscene->elements[i];
         if( elem->dash_sprites )
         {
-            for( int j = 0; j < elem->dash_sprites_count; j++ )
-                dashsprite_free(elem->dash_sprites[j]);
+            if( !elem->dash_sprites_borrowed )
+            {
+                for( int j = 0; j < elem->dash_sprites_count; j++ )
+                    dashsprite_free(elem->dash_sprites[j]);
+            }
             free(elem->dash_sprites);
         }
     }
@@ -136,10 +139,14 @@ uiscene_element_clear_dash_sprites(struct UISceneElement* element)
 {
     if( !element || !element->dash_sprites )
         return;
-    for( int i = 0; i < element->dash_sprites_count; i++ )
-        dashsprite_free(element->dash_sprites[i]);
+    if( !element->dash_sprites_borrowed )
+    {
+        for( int i = 0; i < element->dash_sprites_count; i++ )
+            dashsprite_free(element->dash_sprites[i]);
+    }
     free(element->dash_sprites);
     element->dash_sprites = NULL;
+    element->dash_sprites_borrowed = false;
 }
 
 void

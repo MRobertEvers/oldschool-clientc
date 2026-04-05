@@ -33,6 +33,8 @@ struct UISceneElement
     char name[64];
     struct DashSprite** dash_sprites;
     int dash_sprites_count;
+    /** If true, dash_sprites point at BuildCacheDat (or elsewhere); do not dashsprite_free them. */
+    bool dash_sprites_borrowed;
 };
 
 #define UISCENE_FONT_MAX 16

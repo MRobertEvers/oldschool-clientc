@@ -15,9 +15,12 @@
 #include "osrs/minimap.h"
 #include "osrs/player_stats.h"
 #include "osrs/revconfig/revconfig_load.h"
+#include "osrs/clientscript_vm.h"
 #include "osrs/revconfig/static_ui.h"
 #include "osrs/revconfig/static_ui_load.h"
 #include "osrs/revconfig/uiscene.h"
+#include "osrs/rs_component_state.h"
+#include "osrs/scene2.h"
 #include "osrs/rsa.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/filelist.h"
@@ -222,8 +225,10 @@ LibToriRS_GameNew(
         mem.heap_total,
         mem.heap_peak);
 
-    game->ui_scene = uiscene_new(64);
+    game->ui_scene = uiscene_new(8192);
     game->ui_scene_buffer = static_ui_buffer_new(64);
+    game->ui_scene2 = scene2_new(4096);
+    game->clientscript_vm = clientscript_vm_new();
     game->uiscene_queued_commands = LibToriRS_RenderCommandBufferNew(64);
     game->minimap_dynamic_commands = minimap_commands_new(64);
 
@@ -339,6 +344,12 @@ LibToriRS_GameFree(struct GGame* game)
         uiscene_free(game->ui_scene);
     if( game->ui_scene_buffer )
         static_ui_buffer_free(game->ui_scene_buffer);
+    if( game->ui_scene2 )
+        scene2_free(game->ui_scene2);
+    if( game->clientscript_vm )
+        clientscript_vm_free(game->clientscript_vm);
+    if( game->rs_component_state )
+        rs_component_state_pool_free(game->rs_component_state);
 
     lua_buildcache_free_init_configmaps(game);
 

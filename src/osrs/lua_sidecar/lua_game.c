@@ -1,10 +1,15 @@
 #include "lua_game.h"
 
+#include "graphics/dashmap.h"
+#include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
 #include "osrs/game.h"
+#include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/gameproto_exec.h"
 #include "osrs/packets/revpacket_lc245_2.h"
 #include "osrs/rscache/cache_dat.h"
+
+#include <assert.h>
 
 /* Helper: get int at args[i]. args must be VarTypeArray. */
 static int
@@ -151,6 +156,58 @@ LuaGame_load_component_sprites(
     return LuaGameType_NewVoid();
 }
 
+struct LuaGameType*
+LuaGame_get_interface_model_ids(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    (void)args;
+    if( !game || !game->buildcachedat || !game->buildcachedat->component_hmap )
+        return LuaGameType_NewIntArray(0);
+
+    enum
+    {
+        kMaxIds = 16384
+    };
+    int tmp[kMaxIds];
+    int n = 0;
+
+    struct DashMapIter* it = buildcachedat_component_iter_new(game->buildcachedat);
+    if( !it )
+        return LuaGameType_NewIntArray(0);
+
+    int cid = 0;
+    struct CacheDatConfigComponent* c = NULL;
+    while( (c = buildcachedat_component_iter_next(it, &cid)) != NULL )
+    {
+        if( c->type != COMPONENT_TYPE_MODEL || c->modelType != 1 )
+            continue;
+        int mid = c->model;
+        if( mid < 0 )
+            continue;
+        int dup = 0;
+        for( int i = 0; i < n; i++ )
+        {
+            if( tmp[i] == mid )
+            {
+                dup = 1;
+                break;
+            }
+        }
+        if( dup )
+            continue;
+        if( n >= kMaxIds )
+            break;
+        tmp[n++] = mid;
+    }
+    dashmap_iter_free(it);
+
+    struct LuaGameType* arr = LuaGameType_NewIntArray(n);
+    for( int i = 0; i < n; i++ )
+        LuaGameType_IntArrayPush(arr, tmp[i]);
+    return arr;
+}
+
 static char const g_prefix[] = "game_";
 
 bool
@@ -190,6 +247,8 @@ LuaGame_DispatchCommand(
         return LuaGame_load_interfaces(game, args);
     else if( strcmp(command, "load_component_sprites") == 0 )
         return LuaGame_load_component_sprites(game, args);
+    else if( strcmp(command, "get_interface_model_ids") == 0 )
+        return LuaGame_get_interface_model_ids(game, args);
     else
     {
         printf("Unknown command: %s\n", command);

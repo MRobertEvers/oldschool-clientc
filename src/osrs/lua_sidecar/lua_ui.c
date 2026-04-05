@@ -7,6 +7,7 @@
 #include "osrs/revconfig/revconfig_load.h"
 #include "osrs/revconfig/static_ui_load.h"
 #include "osrs/revconfig/uiscene.h"
+#include "osrs/rs_component_state.h"
 
 #include <assert.h>
 #include <string.h>
@@ -46,8 +47,9 @@ LuaUI_load_revconfig(
     if( game->ui_scene )
     {
         int cap = game->ui_scene->elements_count;
+        int new_cap = cap > 8192 ? cap : 8192;
         uiscene_free(game->ui_scene);
-        game->ui_scene = uiscene_new(cap > 0 ? cap : 512);
+        game->ui_scene = uiscene_new(new_cap);
     }
 
     struct RevConfigBuffer* buf = revconfig_buffer_new(64);
@@ -83,6 +85,47 @@ LuaUI_load_fonts(
         uiscene_font_add(game->ui_scene, name_buf, font);
     dashmap_iter_free(iter);
 
+    /* Ensure default interface fonts exist in UIScene for RS text (p11/p12/b12/q8). */
+    static char const* const required_fonts[] = { "p11", "p12", "b12", "q8" };
+    for( int i = 0; i < 4; i++ )
+    {
+        char const* nm = required_fonts[i];
+        if( uiscene_font_find_id(game->ui_scene, nm) >= 0 )
+            continue;
+        struct DashPixFont* f = buildcachedat_get_font(buildcachedat, nm);
+        if( f )
+            uiscene_font_add(game->ui_scene, nm, f);
+    }
+
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaUI_load_rs_components(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    if( !game || !game->ui_scene || !game->ui_scene_buffer || !buildcachedat )
+        return LuaGameType_NewVoid();
+
+    if( game->rs_component_state )
+    {
+        rs_component_state_pool_free(game->rs_component_state);
+        game->rs_component_state = NULL;
+    }
+
+    int max_id = buildcachedat_max_component_id(buildcachedat);
+    static_ui_rs_from_buildcachedat(
+        game->ui_scene_buffer, game->ui_scene, game->ui_scene2, buildcachedat);
+    if( max_id >= 0 )
+    {
+        game->rs_component_state = rs_component_state_pool_new(max_id + 1);
+        if( game->rs_component_state )
+            rs_component_state_seed_from_buildcachedat(game->rs_component_state, buildcachedat);
+    }
+
     return LuaGameType_NewVoid();
 }
 
@@ -104,6 +147,8 @@ LuaUI_DispatchCommand(
         return LuaUI_load_revconfig(game, buildcachedat, args);
     else if( strcmp(command, "load_fonts") == 0 )
         return LuaUI_load_fonts(game, buildcachedat, args);
+    else if( strcmp(command, "load_rs_components") == 0 )
+        return LuaUI_load_rs_components(game, buildcachedat, args);
 
     printf("Unknown ui command: %s\n", command);
     assert(false);

@@ -1,5 +1,6 @@
 #include "interface.h"
 
+#include "osrs/clientscript_vm.h"
 #include "osrs/interface_state.h"
 #include "osrs/revconfig/uiscene.h"
 
@@ -21,205 +22,26 @@
 
 #define INV_MENU_MAX 24
 
-/* Run component script and return result. Mirrors Client.ts getIfVar (10625-10765).
- * Uses varp_varbit_manager for opcodes 5 (pushvar), 7 (var*100/46875), 13 (testbit), 14
- * (push_varbit). Other opcodes return 0 for now. */
+/* Run component script and return result. Delegates to ClientScriptVM. */
 int
 interface_get_if_var(
     struct GGame* game,
     struct CacheDatConfigComponent* component,
     int script_id)
 {
-    if( !component->scripts || script_id >= component->scripts_count )
+    if( !game || !game->clientscript_vm )
         return -2;
-
-    int* script = component->scripts[script_id];
-    if( !script )
-        return -1;
-
-    int acc = 0;
-    int pc = 0;
-    int arithmetic = 0;
-
-    struct VarPVarBitManager* mgr = &game->varp_varbit;
-
-    while( 1 )
-    {
-        int register_val = 0;
-        int next_arithmetic = 0;
-        int opcode = script[pc++];
-
-        if( opcode == 0 )
-            return acc;
-
-        switch( opcode )
-        {
-        case 1:
-            /* stat_level {skill} */
-            {
-                int skill = script[pc++];
-                // register_val = (skill >= 0 && skill < PLAYER_STAT_COUNT)
-                //                    ? game->player_stat_effective_level[skill]
-                //                    : 0;
-                break;
-            }
-        case 2:
-            /* stat_base_level {skill} */
-            {
-                int skill = script[pc++];
-                // register_val = (skill >= 0 && skill < PLAYER_STAT_COUNT)
-                //                    ? game->player_stat_base_level[skill]
-                //                    : 0;
-                break;
-            }
-        case 3:
-            /* stat_xp {skill} */
-            {
-                int skill = script[pc++];
-                // register_val =
-                //     (skill >= 0 && skill < PLAYER_STAT_COUNT) ? game->player_stat_xp[skill] : 0;
-                break;
-            }
-        case 5:
-            /* pushvar {id} */
-
-            register_val = varp_varbit_get_varp(mgr, script[pc++]);
-            break;
-        case 6:
-            /* stat_xp_remaining {skill} - xp required for next level */
-            {
-                // int skill = script[pc++];
-                // int base_level = (skill >= 0 && skill < PLAYER_STAT_COUNT)
-                //                      ? game->player_stat_base_level[skill]
-                //                      : 1;
-                // if( base_level >= PLAYER_LEVEL_MAX )
-                //     register_val = 0;
-                // else
-                //     register_val = g_player_level_experience[base_level - 1];
-                break;
-            }
-        case 7:
-            /* register = (var[id] * 100) / 46875 */
-            register_val = (varp_varbit_get_varp(mgr, script[pc++]) * 100) / 46875;
-            break;
-        case 13:
-        {
-            /* testbit {varp} {bit: 0..31} */
-            int varp_val = varp_varbit_get_varp(mgr, script[pc++]);
-            int lsb = script[pc++];
-            register_val = (varp_val & (1 << lsb)) ? 1 : 0;
-            break;
-        }
-        case 14:
-        {
-            /* push_varbit {varbit} */
-            register_val = varp_varbit_get_varbit(mgr, script[pc++]);
-            break;
-        }
-        case 8:
-            /* combat_level - not computed yet */
-            register_val = 0;
-            break;
-        case 9:
-            /* total_level - sum of base levels (0-18, 20; skip 19 runecraft) */
-            {
-                register_val = 0;
-                // for( int i = 0; i < PLAYER_STAT_COUNT; i++ )
-                // {
-                //     if( i == 19 )
-                //         continue;
-                //     register_val += game->player_stat_base_level[i];
-                // }
-                break;
-            }
-        case 11:
-            /* runenergy */
-            // register_val = game->player_run_energy;
-            break;
-        case 12:
-            /* runweight - not from packet yet */
-            register_val = 0;
-            break;
-        case 20:
-            /* push_constant */
-            register_val = script[pc++];
-            break;
-        default:
-            /* Other opcodes: advance pc, register_val stays 0 */
-            if( opcode == 1 || opcode == 2 || opcode == 3 || opcode == 6 )
-                pc += 1;
-            else if( opcode == 4 || opcode == 10 )
-                pc += 2;
-            else if( opcode == 15 || opcode == 16 || opcode == 17 )
-                next_arithmetic = (opcode == 15) ? 1 : (opcode == 16) ? 2 : 3;
-            /* 8,9,11,12,18,19: no operands */
-            break;
-        }
-
-        if( next_arithmetic == 0 )
-        {
-            if( arithmetic == 0 )
-                acc += register_val;
-            else if( arithmetic == 1 )
-                acc -= register_val;
-            else if( arithmetic == 2 && register_val != 0 )
-                acc = acc / register_val;
-            else if( arithmetic == 3 )
-                acc = acc * register_val;
-            arithmetic = 0;
-        }
-        else
-        {
-            arithmetic = next_arithmetic;
-        }
-    }
+    return clientscript_vm_if_var(game->clientscript_vm, game, component, script_id);
 }
 
-/* Return whether component passes script comparator check. Mirrors Client.ts getIfActive
- * (10592-10623). */
 bool
 interface_get_if_active(
     struct GGame* game,
     struct CacheDatConfigComponent* component)
 {
-    if( !component->scriptComparator || !component->scriptOperand )
+    if( !game || !game->clientscript_vm )
         return false;
-
-    /* scriptComparator count matches scripts_count (one compare per script) */
-    int count = component->scripts_count;
-    if( count <= 0 )
-        return false;
-
-    for( int i = 0; i < count; i++ )
-    {
-        if( !component->scriptOperand )
-            return false;
-
-        int value = interface_get_if_var(game, component, i);
-        int operand = component->scriptOperand[i];
-        int comp = component->scriptComparator[i];
-
-        if( comp == 2 )
-        {
-            if( value >= operand )
-                return false;
-        }
-        else if( comp == 3 )
-        {
-            if( value <= operand )
-                return false;
-        }
-        else if( comp == 4 )
-        {
-            if( value == operand )
-                return false;
-        }
-        else if( value != operand )
-        {
-            return false;
-        }
-    }
-    return true;
+    return clientscript_vm_if_active(game->clientscript_vm, game, component);
 }
 
 /* Fill rect clipped to viewport to prevent scroll layers overdrawing parent. */

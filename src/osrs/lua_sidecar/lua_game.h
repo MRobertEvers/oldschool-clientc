@@ -49,6 +49,12 @@ LuaGame_load_component_sprites(
     struct GGame* game,
     struct LuaGameType* args);
 
+/** Unique model ids for `COMPONENT_TYPE_MODEL` with `modelType == 1` (for Lua cache load). */
+struct LuaGameType*
+LuaGame_get_interface_model_ids(
+    struct GGame* game,
+    struct LuaGameType* args);
+
 bool
 LuaGame_CommandHasPrefix(const char* command);
 

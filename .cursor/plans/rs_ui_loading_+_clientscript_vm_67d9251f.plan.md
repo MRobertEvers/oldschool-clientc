@@ -4,19 +4,19 @@ overview: Extend the static UI system to support RS components loaded from Cache
 todos:
   - id: extend-static-ui-union
     content: Add component_id field and RS union members (rs_text, rs_graphic, rs_model) to StaticUIComponent in static_ui.h; add corresponding push functions in static_ui.c
-    status: pending
+    status: completed
   - id: dynamic-state-structs
     content: Create rs_component_state.h / .c with RSLayerDynState, RSModelDynState, RSTextDynState and RSComponentStatePool
-    status: pending
+    status: completed
   - id: clientscript-vm
     content: "Create clientscript_vm.h / .c: ClientScriptVM struct with int_stack, run and is_active functions extracted from interface.c"
-    status: pending
+    status: completed
   - id: rs-loading
     content: Add static_ui_rs_from_cache() in static_ui_load.c using buildcachedat accessors only; add LuaUI_load_rs_components + LuaUI_get_interface_model_ids in lua_ui.c; extend init_ui.lua to load UI model archives and call Game.ui_load_rs_components()
-    status: pending
+    status: completed
   - id: interface-vm-wiring
     content: Update interface.c to call through ClientScriptVM instead of inline interface_get_if_var / interface_get_if_active
-    status: pending
+    status: completed
 isProject: false
 ---
 

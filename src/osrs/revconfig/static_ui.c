@@ -46,6 +46,16 @@ static_ui_component_type_str(enum StaticUIComponentType type)
         return "redstone_tab";
     case UIELEM_BUILTIN_TAB_ICONS:
         return "tab_icons";
+    case UIELEM_RS_TEXT:
+        return "rs_text";
+    case UIELEM_RS_GRAPHIC:
+        return "rs_graphic";
+    case UIELEM_RS_MODEL:
+        return "rs_model";
+    case UIELEM_RS_INV:
+        return "rs_inv";
+    case UIELEM_RS_LAYER:
+        return "rs_layer";
     }
     return "unknown";
 }
@@ -83,6 +93,7 @@ static_ui_buffer_push_sprite_xy(
     if( !component )
         return;
 
+    component->component_id = -1;
     component->type = UIELEM_BUILTIN_SPRITE;
     component->position.kind = UIPOS_XY;
     component->position.x = x;
@@ -117,6 +128,7 @@ static_ui_buffer_push_sprite_relative(
 
     memset(component, 0, sizeof(struct StaticUIComponent));
 
+    component->component_id = -1;
     component->type = UIELEM_BUILTIN_SPRITE;
     component->position.kind = UIPOS_RELATIVE;
     component->position.relative_flags = flags;
@@ -146,6 +158,7 @@ static_ui_buffer_push_world(
 
     memset(component, 0, sizeof(struct StaticUIComponent));
 
+    component->component_id = -1;
     component->type = UIELEM_BUILTIN_WORLD;
     component->position.kind = UIPOS_XY;
     component->position.x = x;
@@ -170,6 +183,7 @@ static_ui_buffer_push_compass(
 
     memset(component, 0, sizeof(struct StaticUIComponent));
 
+    component->component_id = -1;
     component->type = UIELEM_BUILTIN_COMPASS;
     component->position.kind = UIPOS_XY;
     component->u.sprite.scene_id = sprite_id;
@@ -198,6 +212,7 @@ static_ui_buffer_push_minimap(
 
     memset(component, 0, sizeof(struct StaticUIComponent));
 
+    component->component_id = -1;
     component->type = UIELEM_BUILTIN_MINIMAP;
     component->position.kind = UIPOS_XY;
     component->position.x = x;
@@ -225,6 +240,7 @@ static_ui_buffer_push_redstone_tab(
     if( !component )
         return;
     memset(component, 0, sizeof(struct StaticUIComponent));
+    component->component_id = -1;
     component->type = UIELEM_BUILTIN_REDSTONE_TAB;
     component->position.kind = UIPOS_XY;
     component->position.x = x;
@@ -250,6 +266,7 @@ static_ui_buffer_push_builtin_sidebar(
     if( !component )
         return;
     memset(component, 0, sizeof(struct StaticUIComponent));
+    component->component_id = -1;
     component->type = UIELEM_BUILTIN_SIDEBAR;
     component->position.kind = UIPOS_XY;
     component->position.x = x;
@@ -280,4 +297,126 @@ static_ui_buffer_push_sidebar_component(
     // component->position.height = height;
     // component->u.sidebar_component.tabno = tabno;
     // component->u.sidebar_component.componentno = componentno;
+}
+
+void
+static_ui_buffer_push_rs_layer(
+    struct StaticUIBuffer* buffer,
+    int component_id,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    struct StaticUIComponent* c = push_element(buffer);
+    if( !c )
+        return;
+    memset(c, 0, sizeof(struct StaticUIComponent));
+    c->type = UIELEM_RS_LAYER;
+    c->component_id = component_id;
+    c->position.kind = UIPOS_XY;
+    c->position.x = x;
+    c->position.y = y;
+    c->position.width = width;
+    c->position.height = height;
+}
+
+void
+static_ui_buffer_push_rs_text(
+    struct StaticUIBuffer* buffer,
+    int component_id,
+    int font_id,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    struct StaticUIComponent* c = push_element(buffer);
+    if( !c )
+        return;
+    memset(c, 0, sizeof(struct StaticUIComponent));
+    c->type = UIELEM_RS_TEXT;
+    c->component_id = component_id;
+    c->position.kind = UIPOS_XY;
+    c->position.x = x;
+    c->position.y = y;
+    c->position.width = width;
+    c->position.height = height;
+    c->u.rs_text.font_id = font_id;
+}
+
+void
+static_ui_buffer_push_rs_graphic(
+    struct StaticUIBuffer* buffer,
+    int component_id,
+    int scene_id,
+    int atlas_index,
+    int scene_id_active,
+    int atlas_index_active,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    struct StaticUIComponent* c = push_element(buffer);
+    if( !c )
+        return;
+    memset(c, 0, sizeof(struct StaticUIComponent));
+    c->type = UIELEM_RS_GRAPHIC;
+    c->component_id = component_id;
+    c->position.kind = UIPOS_XY;
+    c->position.x = x;
+    c->position.y = y;
+    c->position.width = width;
+    c->position.height = height;
+    c->u.rs_graphic.scene_id = scene_id;
+    c->u.rs_graphic.atlas_index = atlas_index;
+    c->u.rs_graphic.scene_id_active = scene_id_active;
+    c->u.rs_graphic.atlas_index_active = atlas_index_active;
+}
+
+void
+static_ui_buffer_push_rs_model(
+    struct StaticUIBuffer* buffer,
+    int component_id,
+    int scene2_element_id,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    struct StaticUIComponent* c = push_element(buffer);
+    if( !c )
+        return;
+    memset(c, 0, sizeof(struct StaticUIComponent));
+    c->type = UIELEM_RS_MODEL;
+    c->component_id = component_id;
+    c->position.kind = UIPOS_XY;
+    c->position.x = x;
+    c->position.y = y;
+    c->position.width = width;
+    c->position.height = height;
+    c->u.rs_model.scene2_element_id = scene2_element_id;
+}
+
+void
+static_ui_buffer_push_rs_inv(
+    struct StaticUIBuffer* buffer,
+    int component_id,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    struct StaticUIComponent* c = push_element(buffer);
+    if( !c )
+        return;
+    memset(c, 0, sizeof(struct StaticUIComponent));
+    c->type = UIELEM_RS_INV;
+    c->component_id = component_id;
+    c->position.kind = UIPOS_XY;
+    c->position.x = x;
+    c->position.y = y;
+    c->position.width = width;
+    c->position.height = height;
 }

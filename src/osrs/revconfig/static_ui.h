@@ -51,6 +51,8 @@ struct StaticUIElemPosition
 struct StaticUIComponent
 {
     enum StaticUIComponentType type;
+    /** `CacheDatConfigComponent.id` for RS types; -1 for builtins. */
+    int component_id;
     struct StaticUIElemPosition position;
     union
     {
@@ -76,6 +78,21 @@ struct StaticUIComponent
             int tabno;
             int componentno;
         } sidebar_component; /* UIELEM_SIDEBAR_COMPONENT */
+        struct
+        {
+            int font_id; /* uiscene_font_find_id; -1 if unknown */
+        } rs_text;
+        struct
+        {
+            int scene_id;
+            int atlas_index; /* inactive */
+            int scene_id_active;   /* -1 if same as inactive */
+            int atlas_index_active;
+        } rs_graphic;
+        struct
+        {
+            int scene2_element_id; /* game->ui_scene2 */
+        } rs_model;
     } u;
 };
 
@@ -178,6 +195,57 @@ static_ui_buffer_push_sidebar_component(
     struct StaticUIBuffer* buffer,
     int tabno,
     int componentno,
+    int x,
+    int y,
+    int width,
+    int height);
+
+void
+static_ui_buffer_push_rs_layer(
+    struct StaticUIBuffer* buffer,
+    int component_id,
+    int x,
+    int y,
+    int width,
+    int height);
+
+void
+static_ui_buffer_push_rs_text(
+    struct StaticUIBuffer* buffer,
+    int component_id,
+    int font_id,
+    int x,
+    int y,
+    int width,
+    int height);
+
+void
+static_ui_buffer_push_rs_graphic(
+    struct StaticUIBuffer* buffer,
+    int component_id,
+    int scene_id,
+    int atlas_index,
+    int scene_id_active,
+    int atlas_index_active,
+    int x,
+    int y,
+    int width,
+    int height);
+
+void
+static_ui_buffer_push_rs_model(
+    struct StaticUIBuffer* buffer,
+    int component_id,
+    int scene2_element_id,
+    int x,
+    int y,
+    int width,
+    int height);
+
+void
+static_ui_buffer_push_rs_inv(
+    struct StaticUIBuffer* buffer,
+    int component_id,
     int x,
     int y,
     int width,

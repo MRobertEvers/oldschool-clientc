@@ -18,6 +18,12 @@ LuaUI_load_fonts(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
+struct LuaGameType*
+LuaUI_load_rs_components(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
 bool
 LuaUI_CommandHasPrefix(const char* command);
 

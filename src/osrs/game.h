@@ -10,6 +10,9 @@
 #include "graphics/dash.h"
 #include "osrs/buildcache.h"
 #include "osrs/buildcachedat.h"
+#include "osrs/clientscript_vm.h"
+#include "osrs/rs_component_state.h"
+#include "osrs/scene2.h"
 #include "osrs/ginput.h"
 #include "osrs/packetbuffer.h"
 #include "osrs/packets/revpacket_lc245_2.h"
@@ -92,6 +95,10 @@ struct GGame
 
     struct UIScene* ui_scene;
     struct StaticUIBuffer* ui_scene_buffer;
+    /** Scene2 pool for interface MODEL components (type 1); separate from world Scene2. */
+    struct Scene2* ui_scene2;
+    struct ClientScriptVM* clientscript_vm;
+    struct RSComponentStatePool* rs_component_state;
 
     int uiscene_idx;
     int uiscene_command_idx;
