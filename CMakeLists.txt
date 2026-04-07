@@ -265,6 +265,9 @@ if(NOT EMSCRIPTEN)
     target_include_directories(interface161_test PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
     )
+    if( NOT WIN32 )
+        target_link_libraries( interface161_test PRIVATE m )
+    endif()
 endif()
 
 # --- Emscripten Target ---
