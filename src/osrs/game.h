@@ -74,8 +74,6 @@ struct GGame
     int tile_clicked_z;
     int tile_clicked_level;
 
-    bool step_done;
-
     int build_player;
     int cc;
     bool latched;

@@ -703,23 +703,16 @@ entity_coords_from_element(
     }
 }
 
-struct UIStep
-{
-    bool done;
-};
-
-static void
+static bool
 uielem_redstone_tab_step(
     struct GGame* game,
-    struct StaticUIComponent* component,
-    struct UIStep* step)
+    struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_BUILTIN_REDSTONE_TAB);
-    step->done = true;
     if( !game->iface || !game->ui_scene )
-        return;
+        return true;
     if( game->iface->sidebar_interface_id != -1 )
-        return;
+        return true;
 
     int tabno = component->u.redstone_tab.tabno;
     int x = component->position.x;
@@ -744,198 +737,46 @@ uielem_redstone_tab_step(
     int ai = is_active ? component->u.redstone_tab.atlas_index_active
                        : component->u.redstone_tab.atlas_index;
     if( sid < 0 )
-        return;
+        return true;
 
     struct UISceneElement* elem = uiscene_element_at(game->ui_scene, sid);
     if( !elem || !elem->dash_sprites )
-        return;
+        return true;
     struct DashSprite* sp = elem->dash_sprites[ai];
     if( !sp )
-        return;
+        return true;
 
     int draw_x = x;
     int draw_y = y;
     queue_sprite_draw_from_event(game->uiscene_queued_commands, -1, sp, draw_x, draw_y, 0);
+
+    return true;
 }
 
-static void
+static bool
 uielem_builtin_sidebar_step(
     struct GGame* game,
-    struct StaticUIComponent* component,
-    struct UIStep* step)
+    struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_BUILTIN_SIDEBAR);
-    step->done = true;
-    if( !game->iface || !game->buildcachedat || !game->sys_dash || !game->iface_view_port )
-        return;
-    if( game->iface->sidebar_interface_id != -1 )
-        return;
-
-    int tab = game->iface->selected_tab;
-    if( tab < 0 || tab > 13 )
-        return;
-    int root_id = game->iface->tab_interface_id[tab];
-    if( root_id < 0 )
-        return;
-
-    struct CacheDatConfigComponent* root =
-        buildcachedat_get_component(game->buildcachedat, root_id);
-    if( !root || root->type != COMPONENT_TYPE_LAYER )
-        return;
-
-    int w = component->position.width;
-    int h = component->position.height;
-    if( w <= 0 )
-        w = 190;
-    if( h <= 0 )
-        h = 261;
-
-    int sbx = component->position.x;
-    int sby = component->position.y;
-
-    // if( game->iface_sidebar_sprite )
-    // {
-    //     LibToriRS_RenderCommandBufferAddCommand(
-    //         game->uiscene_queued_commands,
-    //         (struct ToriRSRenderCommand){
-    //             .kind = TORIRS_GFX_SPRITE_UNLOAD,
-    //             ._sprite_load = { .element_id = -1, .sprite = game->iface_sidebar_sprite },
-    //     });
-    // }
-
-    size_t pix_count = (size_t)w * (size_t)h;
-    uint32_t* px = (uint32_t*)malloc(pix_count * sizeof(uint32_t));
-    if( !px )
-        return;
-    memset(px, 0, pix_count * sizeof(uint32_t));
-
-    struct DashViewPort saved_vp = *game->iface_view_port;
-    dash2d_set_bounds(game->iface_view_port, 0, 0, w, h);
-    game->iface_view_port->width = w;
-    game->iface_view_port->height = h;
-    game->iface_view_port->stride = w;
-    game->iface_view_port->x_center = w / 2;
-    game->iface_view_port->y_center = h / 2;
-
-    game->iface->current_hovered_interface_id = -1;
-    // (void)interface_find_hovered_interface_id(game, root, sbx, sby, game->mouse_x,
-    // game->mouse_y);
-
-    interface_draw_component_layer(game, root, 0, 0, 0, (int*)px, w);
-
-    *game->iface_view_port = saved_vp;
-
-    // if( game->iface_sidebar_sprite )
-    //     dashsprite_free(game->iface_sidebar_sprite);
-    // game->iface_sidebar_sprite = dashsprite_new_from_argb_owned(px, w, h);
-    // if( !game->iface_sidebar_sprite )
-    //     return;
-
-    // LibToriRS_RenderCommandBufferAddCommand(
-    //     game->uiscene_queued_commands,
-    //     (struct ToriRSRenderCommand){
-    //         .kind = TORIRS_GFX_SPRITE_LOAD,
-    //         ._sprite_load = { .element_id = -1, .sprite = game->iface_sidebar_sprite },
-    // });
-
-    // LibToriRS_RenderCommandBufferAddCommand(
-    //     game->uiscene_queued_commands,
-    //     (struct ToriRSRenderCommand){
-    //         .kind = TORIRS_GFX_SPRITE_DRAW,
-    //         ._sprite_draw = {
-    //             .sprite = game->iface_sidebar_sprite,
-    //             .dst_bb_x = sbx,
-    //             .dst_bb_y = sby,
-    //             .dst_bb_w = w,
-    //             .dst_bb_h = h,
-    //             .rotation_r2pi2048 = 0,
-    //             .src_bb_x = 0,
-    //             .src_bb_y = 0,
-    //             .src_bb_w = 0,
-    //             .src_bb_h = 0,
-    //         },
-    //     });
+    return true;
 }
 
-static void
-uielem_sidebar_component_step(
-    struct GGame* game,
-    struct StaticUIComponent* component,
-    struct UIStep* step)
-{
-    return;
-    assert(component->type == UIELEM_BUILTIN_SIDEBAR);
-    step->done = true;
-    if( !game->iface || !game->buildcachedat || !game->sys_dash || !game->iface_view_port ||
-        !game->rs_component_state )
-        return;
-    if( game->iface->sidebar_interface_id != -1 )
-        return;
-    if( game->iface->selected_tab != component->u.sidebar.tabno )
-        return;
-
-    int root_id = component->u.sidebar.componentno;
-    if( root_id < 0 )
-        return;
-
-    struct CacheDatConfigComponent* root =
-        buildcachedat_get_component(game->buildcachedat, root_id);
-    if( !root || root->type != COMPONENT_TYPE_LAYER )
-        return;
-
-    int w = component->position.width;
-    int h = component->position.height;
-    if( w <= 0 )
-        w = 190;
-    if( h <= 0 )
-        h = 261;
-
-    struct RSLayerDynState* ls = rs_layer_state(game->rs_component_state, root_id);
-    int scroll_y = ls ? ls->scroll_position : 0;
-
-    if( ls )
-        dashsprite_free(ls->cached_sprite);
-    if( ls )
-        ls->cached_sprite = NULL;
-
-    size_t pix_count = (size_t)w * (size_t)h;
-    uint32_t* px = (uint32_t*)malloc(pix_count * sizeof(uint32_t));
-    if( !px )
-        return;
-    memset(px, 0, pix_count * sizeof(uint32_t));
-
-    struct DashViewPort saved_vp;
-    rs_uielem_push_iface_viewport(game, w, h, &saved_vp);
-    game->iface->current_hovered_interface_id = -1;
-    interface_draw_component_layer(game, root, 0, 0, scroll_y, (int*)px, w);
-    rs_uielem_pop_iface_viewport(game, &saved_vp);
-
-    struct DashSprite* sp = dashsprite_new_from_argb_owned(px, w, h);
-    if( !sp )
-        return;
-    if( ls )
-        ls->cached_sprite = sp;
-
-    queue_sprite_draw_from_event(
-        game->uiscene_queued_commands, -1, sp, component->position.x, component->position.y, 0);
-}
-
-static void
+static bool
 uielem_sprite_step(
     struct GGame* game,
-    struct StaticUIComponent* component,
-    struct UIStep* step)
+    struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_BUILTIN_SPRITE);
 
     struct UISceneElement* element =
         uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
     if( !element )
-        return;
+        return true;
 
     struct DashSprite* sprite = element->dash_sprites[component->u.sprite.atlas_index];
     if( !sprite )
-        return;
+        return true;
 
     queue_sprite_draw_from_event(
         game->uiscene_queued_commands,
@@ -945,15 +786,13 @@ uielem_sprite_step(
         component->position.y,
         0);
 
-    step->done = true;
+    return true;
 }
 
-static void
+static bool
 uielem_world_step(
     struct GGame* game,
-    struct StaticUIComponent* component,
-    struct UIStep* step,
-    bool project_models)
+    struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_BUILTIN_WORLD);
 
@@ -963,28 +802,26 @@ uielem_world_step(
     struct UISceneElement* element =
         uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
     if( !element )
-        return;
+        return true;
 
     if( game->at_painters_command_index >= game->sys_painter_buffer->command_count )
     {
-        step->done = true;
-        return;
+        return true;
     }
-
-    step->done = false;
 
     struct PaintersElementCommand* cmd =
         &game->sys_painter_buffer->commands[game->at_painters_command_index];
 
     game->at_painters_command_index++;
 
+next:
     switch( cmd->_bf_kind )
     {
     case PNTR_CMD_ELEMENT:
     {
         scene_element = scene2_element_at(game->world->scene2, cmd->_entity._bf_entity);
         if( !scene_element || !scene_element->dash_model )
-            return;
+            goto next;
         memcpy(&position, scene_element->dash_position, sizeof(struct DashPosition));
 
         position.x = position.x - game->camera_world_x;
@@ -992,77 +829,10 @@ uielem_world_step(
         position.z = position.z - game->camera_world_z;
 
         int cull = DASHCULL_VISIBLE;
-        // if( project_models )
-        // {
+
         cull = dash3d_project_model(
             game->sys_dash, scene_element->dash_model, &position, game->view_port, game->camera);
-        // if( cull == DASHCULL_VISIBLE &&
-        //     entity_interactable(game->world, scene_element->parent_entity_id) && game->view_port
-        //     )
-        // {
-        //     int cvx = game->mouse_x - game->viewport_offset_x;
-        //     int cvy = game->mouse_y - game->viewport_offset_y;
-        //     if( cvx >= 0 && cvy >= 0 && cvx < game->view_port->width &&
-        //         cvy < game->view_port->height )
-        //     {
-        //         struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
 
-        //         if( cvx >= aabb->min_screen_x && cvx <= aabb->max_screen_x &&
-        //             cvy >= aabb->min_screen_y && cvy <= aabb->max_screen_y &&
-        //             dash3d_projected_model_contains(
-        //                 game->sys_dash, scene_element->dash_model, game->view_port, cvx, cvy) )
-        //         {
-        //         }
-        //     }
-        // }
-        // }
-        // else
-        // {
-        //     cull = dash3d_cull_fast(
-        //         game->sys_dash,
-        //         scene_element->dash_model,
-        //         &position,
-        //         game->view_port,
-        //         game->camera);
-        //     if( cull == DASHCULL_VISIBLE )
-        //         cull = dash3d_cull_aabb(
-        //             game->sys_dash,
-        //             scene_element->dash_model,
-        //             &position,
-        //             game->view_port,
-        //             game->camera);
-        //     if( cull == DASHCULL_VISIBLE && game->view_port &&
-        //         entity_interactable(game->world, scene_element->parent_entity_id) )
-        //     {
-        //         int cursor_vp_x = game->mouse_x - game->viewport_offset_x;
-        //         int cursor_vp_y = game->mouse_y - game->viewport_offset_y;
-        //         bool cursor_in_viewport = cursor_vp_x >= 0 && cursor_vp_y >= 0 &&
-        //                                   cursor_vp_x < game->view_port->width &&
-        //                                   cursor_vp_y < game->view_port->height;
-        //         struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
-        //         bool cursor_in_aabb =
-        //             cursor_vp_x >= aabb->min_screen_x && cursor_vp_x <= aabb->max_screen_x &&
-        //             cursor_vp_y >= aabb->min_screen_y && cursor_vp_y <= aabb->max_screen_y;
-        //         if( cursor_in_viewport && cursor_in_aabb )
-        //         {
-        //             dash3d_project_raw(
-        //                 game->sys_dash,
-        //                 scene_element->dash_model,
-        //                 &position,
-        //                 game->view_port,
-        //                 game->camera);
-        //             if( dash3d_projected_model_contains(
-        //                     game->sys_dash,
-        //                     scene_element->dash_model,
-        //                     game->view_port,
-        //                     cursor_vp_x,
-        //                     cursor_vp_y) )
-        //             {
-        //                 game->hovered_interactible_entity_uid = scene_element->parent_entity_id;
-        //             }
-        //         }
-        //     }
-        // }
         if( cull != DASHCULL_VISIBLE )
             break;
 
@@ -1085,12 +855,12 @@ uielem_world_step(
         struct MapBuildTileEntity* tile_entity = NULL;
         tile_entity = world_tile_entity_at(game->world, sx, sz, slevel);
         if( !tile_entity || tile_entity->scene_element.element_id == -1 )
-            break;
+            goto next;
 
         scene_element =
             scene2_element_at(game->world->scene2, tile_entity->scene_element.element_id);
         if( !scene_element || !scene_element->dash_model )
-            break;
+            goto next;
 
         memcpy(&position, scene_element->dash_position, sizeof(struct DashPosition));
 
@@ -1114,41 +884,41 @@ uielem_world_step(
     default:
         break;
     }
+
+    return true;
 }
 
-static void
+static bool
 uielem_minimap_step(
     struct GGame* game,
-    struct StaticUIComponent* component,
-    struct UIStep* step)
+    struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_BUILTIN_MINIMAP);
 
     struct UISceneElement* element =
         uiscene_element_at(game->ui_scene, component->u.minimap.scene_id);
     if( !element )
-        return;
+        return true;
 
     queue_static_ui_minimap_draws(game, component);
-    step->done = true;
+    return true;
 }
 
-static void
+static bool
 uielem_compass_step(
     struct GGame* game,
-    struct StaticUIComponent* component,
-    struct UIStep* step)
+    struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_BUILTIN_COMPASS);
 
     struct UISceneElement* element =
         uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
     if( !element )
-        return;
+        return true;
 
     struct DashSprite* sprite = element->dash_sprites[component->u.sprite.atlas_index];
     if( !sprite )
-        return;
+        return true;
 
     struct ToriRSRenderCommand command;
     command.kind = TORIRS_GFX_SPRITE_DRAW;
@@ -1170,52 +940,51 @@ uielem_compass_step(
 
     LibToriRS_RenderCommandBufferAddCommand(game->uiscene_queued_commands, command);
 
-    step->done = true;
+    return true;
 }
 
-static void
+static bool
 uielem_rs_graphic_step(
     struct GGame* game,
-    struct StaticUIComponent* component,
-    struct UIStep* step)
+    struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_RS_GRAPHIC);
+    return true;
 }
 
-static void
+static bool
 uielem_rs_text_step(
     struct GGame* game,
-    struct StaticUIComponent* component,
-    struct UIStep* step)
+    struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_RS_TEXT);
+    return true;
 }
 
-static void
+static bool
 uielem_rs_inv_step(
     struct GGame* game,
-    struct StaticUIComponent* component,
-    struct UIStep* step)
+    struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_RS_INV);
+    return true;
 }
 
-static void
+static bool
 uielem_rs_layer_step(
     struct GGame* game,
-    struct StaticUIComponent* component,
-    struct UIStep* step)
+    struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_RS_LAYER);
+    return true;
 }
 
-static void
+static bool
 uielem_rs_model_step(
     struct GGame* game,
-    struct StaticUIComponent* component,
-    struct UIStep* step)
+    struct StaticUIComponent* component)
 {
-    return;
+    return true;
 }
 
 bool
@@ -1227,7 +996,7 @@ LibToriRS_FrameNextCommand(
 {
     struct StaticUIComponent* component = NULL;
     struct ToriRSRenderCommand* cmd = NULL;
-    struct UIStep step = { 0 };
+    bool done = false;
     while( true )
     {
         if( game->uiscene_idx >= game->ui_root_buffer->component_count )
@@ -1242,18 +1011,10 @@ LibToriRS_FrameNextCommand(
 
             return true;
         }
-        else if( game->step_done )
-        {
-            game->uiscene_idx++;
-            memset(&step, 0, sizeof(step));
 
-            LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
-            game->uiscene_command_idx = 0;
-            game->step_done = false;
-            continue;
-        }
-
-        step.done = true;
+        LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
+        game->uiscene_command_idx = 0;
+        game->uiscene_idx++;
 
         component = &game->ui_root_buffer->components[game->uiscene_idx];
 
@@ -1261,43 +1022,41 @@ LibToriRS_FrameNextCommand(
         switch( component->type )
         {
         case UIELEM_BUILTIN_SPRITE:
-            uielem_sprite_step(game, component, &step);
+            done = uielem_sprite_step(game, component);
             break;
         case UIELEM_BUILTIN_WORLD:
-            uielem_world_step(game, component, &step, project_models);
+            done = uielem_world_step(game, component);
             break;
         case UIELEM_BUILTIN_MINIMAP:
-            uielem_minimap_step(game, component, &step);
+            done = uielem_minimap_step(game, component);
             break;
         case UIELEM_BUILTIN_COMPASS:
-            uielem_compass_step(game, component, &step);
+            done = uielem_compass_step(game, component);
             break;
         case UIELEM_BUILTIN_REDSTONE_TAB:
-            uielem_redstone_tab_step(game, component, &step);
+            done = uielem_redstone_tab_step(game, component);
             break;
         case UIELEM_BUILTIN_SIDEBAR:
-            uielem_builtin_sidebar_step(game, component, &step);
+            done = uielem_builtin_sidebar_step(game, component);
             break;
         case UIELEM_RS_GRAPHIC:
-            uielem_rs_graphic_step(game, component, &step);
+            done = uielem_rs_graphic_step(game, component);
             break;
         case UIELEM_RS_TEXT:
-            uielem_rs_text_step(game, component, &step);
+            done = uielem_rs_text_step(game, component);
             break;
         case UIELEM_RS_LAYER:
-            uielem_rs_layer_step(game, component, &step);
+            done = uielem_rs_layer_step(game, component);
             break;
         case UIELEM_RS_MODEL:
-            uielem_rs_model_step(game, component, &step);
+            done = uielem_rs_model_step(game, component);
             break;
         case UIELEM_RS_INV:
-            uielem_rs_inv_step(game, component, &step);
+            done = uielem_rs_inv_step(game, component);
             break;
         default:
             break;
         }
-
-        game->step_done = step.done;
     }
 
     return false;
