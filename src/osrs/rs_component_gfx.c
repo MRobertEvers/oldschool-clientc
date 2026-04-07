@@ -82,9 +82,6 @@ rs_gfx_graphic_step(
     if( !sp )
         return true;
     queue_sprite_draw(queued_commands, sp, component->position.x, component->position.y);
-    char name[64] = { 0 };
-    snprintf(name, sizeof(name), "graphic_%d.bmp", cur);
-    bmp_write_file(name, sp->pixels_argb, sp->width, sp->height);
     return true;
 }
 
