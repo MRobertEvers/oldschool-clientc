@@ -1,5 +1,6 @@
 #include "rs_component_gfx.h"
 
+#include "bmp.h"
 #include "graphics/dash.h"
 #include "osrs/dash_utils.h"
 #include "osrs/game.h"
@@ -29,22 +30,17 @@ queue_sprite_draw(
         return;
     int src_bb_x = 0;
     int src_bb_y = 0;
-    int src_bb_w = 0;
-    int src_bb_h = 0;
-    int src_anchor_x = sprite->crop_width >> 1;
-    int src_anchor_y = sprite->crop_height >> 1;
+    int src_bb_w = sprite->width;
+    int src_bb_h = sprite->height;
     if( sprite->crop_width > 0 && sprite->crop_height > 0 )
     {
         src_bb_x = sprite->crop_x;
         src_bb_y = sprite->crop_y;
-        src_bb_w = sprite->crop_width == 0 ? sprite->width : sprite->crop_width;
-        src_bb_h = sprite->crop_height == 0 ? sprite->height : sprite->crop_height;
-        if( !src_anchor_x && !src_anchor_y )
-        {
-            src_anchor_x = sprite->crop_x + (src_bb_w >> 1);
-            src_anchor_y = sprite->crop_y + (src_bb_h >> 1);
-        }
+        src_bb_w = sprite->crop_width;
+        src_bb_h = sprite->crop_height;
     }
+    int src_anchor_x = sprite->crop_x;
+    int src_anchor_y = sprite->crop_y;
 
     LibToriRS_RenderCommandBufferAddCommand(
         buf,
@@ -208,6 +204,7 @@ rs_gfx_inv_step(
         if( !sp )
             continue;
         queue_sprite_draw(queued_commands, sp, slot_x, slot_y);
+        // bmp_write_file("scimitar.bmp", sp->pixels_argb, sp->width, sp->height);
     }
     return true;
 }

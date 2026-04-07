@@ -1086,9 +1086,6 @@ LibToriRS_FrameNextCommand(
 
     while( true )
     {
-        if( !game->ui_root_buffer || game->uitree_current < 0 )
-            return false;
-
         if( game->uiscene_command_idx < game->uiscene_queued_commands->command_count )
         {
             cmd = LibToriRS_RenderCommandBufferAt(
@@ -1098,6 +1095,9 @@ LibToriRS_FrameNextCommand(
 
             return true;
         }
+
+        if( !game->ui_root_buffer || game->uitree_current < 0 )
+            return false;
 
         LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
         game->uiscene_command_idx = 0;
