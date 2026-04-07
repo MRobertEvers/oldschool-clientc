@@ -226,6 +226,7 @@ LibToriRS_GameNew(
         mem.heap_peak);
 
     game->ui_scene = uiscene_new(512);
+    game->scene2 = scene2_new(16000);
     game->ui_root_buffer = uitree_new(64);
     game->ui_stack = uitree_new(64);
     game->inv_pool = uitree_inv_pool_new(32);
@@ -305,6 +306,12 @@ LibToriRS_GameFree(struct GGame* game)
 
     if( game->world )
         world_free(game->world);
+
+    if( game->scene2 )
+    {
+        scene2_free(game->scene2);
+        game->scene2 = NULL;
+    }
 
     interface_state_free(game->iface);
     game->iface = NULL;

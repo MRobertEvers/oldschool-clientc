@@ -3,7 +3,6 @@
 #include "graphics/dash.h"
 
 #include <stdbool.h>
-#include "texture.h"
 
 #define BUILDCACHEDAT_EVENTBUFFER_DEFAULT_CAPACITY 1024
 #define BUILDCACHEDAT_HMAP_INITIAL_CAPACITY 64
@@ -32,10 +31,10 @@ struct ContainerEntry
     };
 };
 
-struct SpriteEntry
+struct SpriteRefEntry
 {
     char name[64]; // Key must be first field and fixed size for DashMap
-    struct DashSprite* sprite;
+    int uiscene_element_id;
 };
 
 struct MapTerrainEntry
@@ -58,10 +57,11 @@ struct ConfigLocEntry
     struct CacheConfigLocation* config_loc;
 };
 
-struct AnimframeEntry
+struct AnimframeRefEntry
 {
     int id;
-    struct CacheAnimframe* animframe;
+    int animbaseframes_id;
+    int frame_index;
 };
 
 struct AnimbaseframesEntry
@@ -84,16 +84,15 @@ struct ModelEntry
     struct CacheModel* model;
 };
 
-struct TextureEntry
+struct TextureRefEntry
 {
     int id;
-    struct DashTexture* texture;
 };
 
-struct FontEntry
+struct FontRefEntry
 {
     char name[BUILDCACHEDAT_FONT_NAME_MAX]; // Key must be first field; zero-padded
-    struct DashPixFont* font;
+    int uiscene_font_id;
 };
 
 struct SequenceEntry
@@ -144,10 +143,10 @@ struct ComponentEntry
     struct CacheDatConfigComponent* component;
 };
 
-struct ComponentSpriteEntry
+struct ComponentSpriteRefEntry
 {
     char sprite_name[64]; // Key must be first field and fixed size for DashMap
-    struct DashSprite* sprite;
+    int uiscene_element_id;
 };
 
 static struct DashMap*
@@ -221,14 +220,35 @@ buildcachedat_new_map_terrains_hmap(void)
 }
 
 static void
-buildcachedat_init_maps_and_eventbuffer(struct BuildCacheDat* buildcachedat)
+buildcachedat_init_reftables_if_needed(struct BuildCacheDat* buildcachedat)
 {
     size_t cap = BUILDCACHEDAT_HMAP_INITIAL_CAPACITY;
 
-    buildcachedat->textures_hmap =
-        buildcachedat_create_hmap(sizeof(int), sizeof(struct TextureEntry), cap);
-    buildcachedat->fonts_hmap =
-        buildcachedat_create_hmap(BUILDCACHEDAT_FONT_NAME_MAX, sizeof(struct FontEntry), cap);
+    if( !buildcachedat->textures_reftable )
+        buildcachedat->textures_reftable =
+            buildcachedat_create_hmap(sizeof(int), sizeof(struct TextureRefEntry), cap);
+    if( !buildcachedat->fonts_reftable )
+        buildcachedat->fonts_reftable =
+            buildcachedat_create_hmap(BUILDCACHEDAT_FONT_NAME_MAX, sizeof(struct FontRefEntry), cap);
+    if( !buildcachedat->animframes_reftable )
+        buildcachedat->animframes_reftable =
+            buildcachedat_create_hmap(sizeof(int), sizeof(struct AnimframeRefEntry), cap);
+    if( !buildcachedat->component_sprites_reftable )
+        buildcachedat->component_sprites_reftable =
+            buildcachedat_create_hmap(64, sizeof(struct ComponentSpriteRefEntry), cap);
+    if( !buildcachedat->sprites_reftable )
+        buildcachedat->sprites_reftable =
+            buildcachedat_create_hmap(64, sizeof(struct SpriteRefEntry), cap);
+}
+
+/** Owning maps only; reftables preserved or created if NULL. */
+static void
+buildcachedat_init_owning_maps(struct BuildCacheDat* buildcachedat)
+{
+    size_t cap = BUILDCACHEDAT_HMAP_INITIAL_CAPACITY;
+
+    buildcachedat_init_reftables_if_needed(buildcachedat);
+
     buildcachedat->flotype_hmap =
         buildcachedat_create_hmap(sizeof(int), sizeof(struct FlotypeEntry), cap);
     buildcachedat->scenery_hmap = buildcachedat_new_scenery_hmap();
@@ -236,8 +256,6 @@ buildcachedat_init_maps_and_eventbuffer(struct BuildCacheDat* buildcachedat)
         buildcachedat_create_hmap(sizeof(int), sizeof(struct ModelEntry), cap);
     buildcachedat->config_loc_hmap =
         buildcachedat_create_hmap(sizeof(int), sizeof(struct ConfigLocEntry), cap);
-    buildcachedat->animframes_hmap =
-        buildcachedat_create_hmap(sizeof(int), sizeof(struct AnimframeEntry), cap);
     buildcachedat->animbaseframes_hmap =
         buildcachedat_create_hmap(sizeof(int), sizeof(struct AnimbaseframesEntry), cap);
     buildcachedat->sequences_hmap =
@@ -255,12 +273,14 @@ buildcachedat_init_maps_and_eventbuffer(struct BuildCacheDat* buildcachedat)
     if( !buildcachedat->component_hmap )
         buildcachedat->component_hmap =
             buildcachedat_create_hmap(sizeof(int), sizeof(struct ComponentEntry), cap);
-    if( !buildcachedat->component_sprites_hmap )
-        buildcachedat->component_sprites_hmap =
-            buildcachedat_create_hmap(64, sizeof(struct ComponentSpriteEntry), cap);
-    buildcachedat->sprites = buildcachedat_create_hmap(64, sizeof(struct SpriteEntry), cap);
     buildcachedat->containers_hmap =
         buildcachedat_create_hmap(64, sizeof(struct ContainerEntry), cap);
+}
+
+static void
+buildcachedat_init_maps_and_eventbuffer(struct BuildCacheDat* buildcachedat)
+{
+    buildcachedat_init_owning_maps(buildcachedat);
 
     buildcachedat->eventbuffer_capacity = BUILDCACHEDAT_EVENTBUFFER_DEFAULT_CAPACITY;
     buildcachedat->eventbuffer =
@@ -298,16 +318,6 @@ dashmap_free_entries(
     dashmap_free(map);
 }
 
-static void
-free_texture_entry(void* e)
-{
-    texture_free(((struct TextureEntry*)e)->texture);
-}
-static void
-free_font_entry(void* e)
-{
-    dashpixfont_free(((struct FontEntry*)e)->font);
-}
 static void
 free_flotype_entry(void* e)
 {
@@ -379,16 +389,6 @@ free_component_entry(void* e)
     cache_dat_config_component_free(((struct ComponentEntry*)e)->component);
 }
 static void
-free_component_sprite_entry(void* e)
-{
-    dashsprite_free(((struct ComponentSpriteEntry*)e)->sprite);
-}
-static void
-free_sprite_entry(void* e)
-{
-    dashsprite_free(((struct SpriteEntry*)e)->sprite);
-}
-static void
 free_container_entry(void* e)
 {
     struct ContainerEntry* entry = (struct ContainerEntry*)e;
@@ -413,15 +413,15 @@ buildcachedat_free(struct BuildCacheDat* buildcachedat)
     if( !buildcachedat )
         return;
 
-    dashmap_free_entries(buildcachedat->textures_hmap, free_texture_entry);
-    dashmap_free_entries(buildcachedat->fonts_hmap, free_font_entry);
+    dashmap_free_entries(buildcachedat->textures_reftable, NULL);
+    dashmap_free_entries(buildcachedat->fonts_reftable, NULL);
+    dashmap_free_entries(buildcachedat->sprites_reftable, NULL);
     dashmap_free_entries(buildcachedat->flotype_hmap, free_flotype_entry);
     dashmap_free_entries(buildcachedat->scenery_hmap, free_scenery_entry);
     dashmap_free_entries(buildcachedat->models_hmap, free_model_entry);
     dashmap_free_entries(buildcachedat->config_loc_hmap, free_config_loc_entry);
 
-    /* animframes_hmap entries are borrowed pointers into animbaseframes -- only free the map */
-    dashmap_free_entries(buildcachedat->animframes_hmap, NULL);
+    dashmap_free_entries(buildcachedat->animframes_reftable, NULL);
     dashmap_free_entries(buildcachedat->animbaseframes_hmap, free_animbaseframes_entry);
 
     dashmap_free_entries(buildcachedat->sequences_hmap, free_sequence_entry);
@@ -433,8 +433,7 @@ buildcachedat_free(struct BuildCacheDat* buildcachedat)
     dashmap_free_entries(buildcachedat->npc_hmap, free_npc_entry);
     dashmap_free_entries(buildcachedat->npc_models_hmap, free_npc_model_entry);
     dashmap_free_entries(buildcachedat->component_hmap, free_component_entry);
-    dashmap_free_entries(buildcachedat->component_sprites_hmap, free_component_sprite_entry);
-    dashmap_free_entries(buildcachedat->sprites, free_sprite_entry);
+    dashmap_free_entries(buildcachedat->component_sprites_reftable, NULL);
     dashmap_free_entries(buildcachedat->containers_hmap, free_container_entry);
 
     filelist_dat_free(buildcachedat->cfg_config_jagfile);
@@ -446,43 +445,42 @@ buildcachedat_free(struct BuildCacheDat* buildcachedat)
 }
 
 static void
-buildcachedat_clear_internal(struct BuildCacheDat* buildcachedat, bool keep_fonts)
+buildcachedat_clear_internal(struct BuildCacheDat* buildcachedat)
 {
     if( !buildcachedat )
         return;
 
-    struct DashMap* fonts_saved = NULL;
-    if( keep_fonts )
-    {
-        fonts_saved = buildcachedat->fonts_hmap;
-        buildcachedat->fonts_hmap = NULL;
-    }
-    else
-    {
-        dashmap_free_entries(buildcachedat->fonts_hmap, free_font_entry);
-    }
-
-    // dashmap_free_entries(buildcachedat->textures_hmap, free_texture_entry);
     dashmap_free_entries(buildcachedat->flotype_hmap, free_flotype_entry);
+    buildcachedat->flotype_hmap = NULL;
     dashmap_free_entries(buildcachedat->scenery_hmap, free_scenery_entry);
+    buildcachedat->scenery_hmap = NULL;
     dashmap_free_entries(buildcachedat->models_hmap, free_model_entry);
+    buildcachedat->models_hmap = NULL;
     dashmap_free_entries(buildcachedat->config_loc_hmap, free_config_loc_entry);
+    buildcachedat->config_loc_hmap = NULL;
 
-    dashmap_free_entries(buildcachedat->animframes_hmap, NULL);
     dashmap_free_entries(buildcachedat->animbaseframes_hmap, free_animbaseframes_entry);
+    buildcachedat->animbaseframes_hmap = NULL;
 
     dashmap_free_entries(buildcachedat->sequences_hmap, free_sequence_entry);
+    buildcachedat->sequences_hmap = NULL;
     dashmap_free_entries(buildcachedat->idk_hmap, free_idk_entry);
+    buildcachedat->idk_hmap = NULL;
     dashmap_free_entries(buildcachedat->obj_hmap, free_obj_entry);
+    buildcachedat->obj_hmap = NULL;
     dashmap_free_entries(buildcachedat->idk_models_hmap, free_idk_model_entry);
+    buildcachedat->idk_models_hmap = NULL;
     dashmap_free_entries(buildcachedat->obj_models_hmap, free_obj_model_entry);
+    buildcachedat->obj_models_hmap = NULL;
     dashmap_free_entries(buildcachedat->map_terrains_hmap, free_map_terrain_entry);
+    buildcachedat->map_terrains_hmap = NULL;
     dashmap_free_entries(buildcachedat->npc_hmap, free_npc_entry);
+    buildcachedat->npc_hmap = NULL;
     dashmap_free_entries(buildcachedat->npc_models_hmap, free_npc_model_entry);
-    // dashmap_free_entries(buildcachedat->component_hmap, free_component_entry);
-    // dashmap_free_entries(buildcachedat->component_sprites_hmap, free_component_sprite_entry);
-    dashmap_free_entries(buildcachedat->sprites, free_sprite_entry);
+    buildcachedat->npc_models_hmap = NULL;
+    /* component_hmap: components still needed at runtime; do not free entries or map */
     dashmap_free_entries(buildcachedat->containers_hmap, free_container_entry);
+    buildcachedat->containers_hmap = NULL;
 
     filelist_dat_free(buildcachedat->cfg_config_jagfile);
     buildcachedat->cfg_config_jagfile = NULL;
@@ -494,25 +492,34 @@ buildcachedat_clear_internal(struct BuildCacheDat* buildcachedat, bool keep_font
     free(buildcachedat->eventbuffer);
     buildcachedat->eventbuffer = NULL;
 
-    buildcachedat_init_maps_and_eventbuffer(buildcachedat);
+    buildcachedat_init_owning_maps(buildcachedat);
 
-    if( keep_fonts && fonts_saved )
-    {
-        dashmap_free_entries(buildcachedat->fonts_hmap, NULL);
-        buildcachedat->fonts_hmap = fonts_saved;
-    }
+    buildcachedat->eventbuffer_capacity = BUILDCACHEDAT_EVENTBUFFER_DEFAULT_CAPACITY;
+    buildcachedat->eventbuffer =
+        calloc((size_t)buildcachedat->eventbuffer_capacity, sizeof(struct BuildCacheDatEvent));
+    buildcachedat->eventbuffer_head = 0;
+    buildcachedat->eventbuffer_tail = 0;
+    buildcachedat->eventbuffer_count = 0;
 }
 
 void
 buildcachedat_clear(struct BuildCacheDat* buildcachedat)
 {
-    buildcachedat_clear_internal(buildcachedat, false);
+    buildcachedat_clear_internal(buildcachedat);
 }
 
 void
-buildcachedat_clear_keep_fonts(struct BuildCacheDat* buildcachedat)
+buildcachedat_reset_uiscene_linked_reftables(struct BuildCacheDat* buildcachedat)
 {
-    buildcachedat_clear_internal(buildcachedat, true);
+    if( !buildcachedat )
+        return;
+    dashmap_free_entries(buildcachedat->component_sprites_reftable, NULL);
+    buildcachedat->component_sprites_reftable = NULL;
+    dashmap_free_entries(buildcachedat->sprites_reftable, NULL);
+    buildcachedat->sprites_reftable = NULL;
+    dashmap_free_entries(buildcachedat->fonts_reftable, NULL);
+    buildcachedat->fonts_reftable = NULL;
+    buildcachedat_init_reftables_if_needed(buildcachedat);
 }
 
 void
@@ -762,119 +769,68 @@ buildcachedat_get_flotype(
 }
 
 void
-buildcachedat_add_texture(
-    struct BuildCacheDat* buildcachedat,
-    int texture_id,
-    struct DashTexture* texture)
+buildcachedat_add_texture_ref(struct BuildCacheDat* buildcachedat, int texture_id)
 {
-    struct TextureEntry* texture_entry = (struct TextureEntry*)dashmap_search(
-        buildcachedat->textures_hmap, &texture_id, DASHMAP_INSERT);
-    assert(texture_entry && "Texture must be inserted into hmap");
+    struct TextureRefEntry* texture_entry = (struct TextureRefEntry*)dashmap_search(
+        buildcachedat->textures_reftable, &texture_id, DASHMAP_INSERT);
+    assert(texture_entry && "Texture ref must be inserted into reftable");
     texture_entry->id = texture_id;
-    texture_entry->texture = texture;
-    buildcachedat_maybe_grow_hmap(buildcachedat->textures_hmap);
-    buildcachedat_eventbuffer_push(
-        buildcachedat,
-        (struct BuildCacheDatEvent){
-            .type = BUILDCACHEDAT_EVENT_TEXTURE_ADDED,
-            .texture_id = texture_id,
-        });
+    buildcachedat_maybe_grow_hmap(buildcachedat->textures_reftable);
 }
 
-struct DashTexture*
-buildcachedat_get_texture(
-    struct BuildCacheDat* buildcachedat,
-    int texture_id)
+bool
+buildcachedat_has_texture_ref(struct BuildCacheDat* buildcachedat, int texture_id)
 {
-    struct TextureEntry* texture_entry = (struct TextureEntry*)dashmap_search(
-        buildcachedat->textures_hmap, &texture_id, DASHMAP_FIND);
-    if( !texture_entry )
-        return NULL;
-    return texture_entry->texture;
-}
-
-struct DashMapIter*
-buildcachedat_iter_new_textures(struct BuildCacheDat* buildcachedat)
-{
-    return dashmap_iter_new(buildcachedat->textures_hmap);
-}
-
-struct DashTexture*
-buildcachedat_iter_next_texture(struct DashMapIter* iter)
-{
-    struct TextureEntry* texture_entry = (struct TextureEntry*)dashmap_iter_next(iter);
-    if( !texture_entry )
-        return NULL;
-    return texture_entry->texture;
-}
-
-struct DashTexture*
-buildcachedat_iter_next_texture_id(
-    struct DashMapIter* iter,
-    int* out_id)
-{
-    struct TextureEntry* texture_entry = (struct TextureEntry*)dashmap_iter_next(iter);
-    if( !texture_entry )
-        return NULL;
-    *out_id = texture_entry->id;
-    return texture_entry->texture;
+    struct TextureRefEntry* texture_entry = (struct TextureRefEntry*)dashmap_search(
+        buildcachedat->textures_reftable, &texture_id, DASHMAP_FIND);
+    return texture_entry != NULL;
 }
 
 void
-buildcachedat_add_font(
+buildcachedat_add_font_ref(
     struct BuildCacheDat* buildcachedat,
     const char* font_name,
-    struct DashPixFont* font)
+    int uiscene_font_id)
 {
     char buffer[BUILDCACHEDAT_FONT_NAME_MAX] = { 0 };
     strncpy(buffer, font_name, BUILDCACHEDAT_FONT_NAME_MAX);
-    struct FontEntry* font_entry =
-        (struct FontEntry*)dashmap_search(buildcachedat->fonts_hmap, buffer, DASHMAP_INSERT);
-    assert(font_entry && "Font must be inserted into hmap");
+    struct FontRefEntry* font_entry =
+        (struct FontRefEntry*)dashmap_search(buildcachedat->fonts_reftable, buffer, DASHMAP_INSERT);
+    assert(font_entry && "Font ref must be inserted into reftable");
     memset(font_entry->name, 0, sizeof(font_entry->name));
     strncpy(font_entry->name, font_name, BUILDCACHEDAT_FONT_NAME_MAX);
-    font_entry->font = font;
-    buildcachedat_maybe_grow_hmap(buildcachedat->fonts_hmap);
+    font_entry->uiscene_font_id = uiscene_font_id;
+    buildcachedat_maybe_grow_hmap(buildcachedat->fonts_reftable);
 }
 
-struct DashPixFont*
-buildcachedat_get_font(
-    struct BuildCacheDat* buildcachedat,
-    const char* font_name)
+int
+buildcachedat_get_font_ref_id(struct BuildCacheDat* buildcachedat, const char* font_name)
 {
     char buffer[BUILDCACHEDAT_FONT_NAME_MAX] = { 0 };
     strncpy(buffer, font_name, BUILDCACHEDAT_FONT_NAME_MAX);
-    struct FontEntry* font_entry =
-        (struct FontEntry*)dashmap_search(buildcachedat->fonts_hmap, buffer, DASHMAP_FIND);
+    struct FontRefEntry* font_entry =
+        (struct FontRefEntry*)dashmap_search(buildcachedat->fonts_reftable, buffer, DASHMAP_FIND);
     if( !font_entry )
-        return NULL;
-    return font_entry->font;
+        return -1;
+    return font_entry->uiscene_font_id;
 }
 
 struct DashMapIter*
-buildcachedat_iter_new_fonts(struct BuildCacheDat* buildcachedat)
+buildcachedat_iter_new_fonts_reftable(struct BuildCacheDat* buildcachedat)
 {
-    return dashmap_iter_new(buildcachedat->fonts_hmap);
+    return dashmap_iter_new(buildcachedat->fonts_reftable);
 }
 
-struct DashPixFont*
-buildcachedat_iter_next_font(struct DashMapIter* iter)
-{
-    struct FontEntry* font_entry = (struct FontEntry*)dashmap_iter_next(iter);
-    if( !font_entry )
-        return NULL;
-    return font_entry->font;
-}
-
-struct DashPixFont*
-buildcachedat_iter_next_font_name(
+bool
+buildcachedat_iter_next_font_ref(
     struct DashMapIter* iter,
     char* out_name,
-    int out_name_cap)
+    int out_name_cap,
+    int* out_uiscene_font_id)
 {
-    struct FontEntry* font_entry = (struct FontEntry*)dashmap_iter_next(iter);
+    struct FontRefEntry* font_entry = (struct FontRefEntry*)dashmap_iter_next(iter);
     if( !font_entry )
-        return NULL;
+        return false;
     if( out_name && out_name_cap > 0 )
     {
         int i = 0;
@@ -890,7 +846,37 @@ buildcachedat_iter_next_font_name(
         }
         out_name[i] = '\0';
     }
-    return font_entry->font;
+    if( out_uiscene_font_id )
+        *out_uiscene_font_id = font_entry->uiscene_font_id;
+    return true;
+}
+
+void
+buildcachedat_add_sprite_ref(
+    struct BuildCacheDat* buildcachedat,
+    const char* name,
+    int uiscene_element_id)
+{
+    char buffer[64] = { 0 };
+    strncpy(buffer, name, sizeof(buffer));
+    struct SpriteRefEntry* e = (struct SpriteRefEntry*)dashmap_search(
+        buildcachedat->sprites_reftable, buffer, DASHMAP_INSERT);
+    assert(e && "Sprite ref must be inserted into reftable");
+    /* Key bytes were copied by dashmap_search; only set value. */
+    e->uiscene_element_id = uiscene_element_id;
+    buildcachedat_maybe_grow_hmap(buildcachedat->sprites_reftable);
+}
+
+int
+buildcachedat_get_sprite_element_id(struct BuildCacheDat* buildcachedat, const char* name)
+{
+    char buffer[64] = { 0 };
+    strncpy(buffer, name, sizeof(buffer));
+    struct SpriteRefEntry* e = (struct SpriteRefEntry*)dashmap_search(
+        buildcachedat->sprites_reftable, buffer, DASHMAP_FIND);
+    if( !e )
+        return -1;
+    return e->uiscene_element_id;
 }
 
 bool
@@ -1160,17 +1146,19 @@ buildcachedat_iter_new_config_locs(struct BuildCacheDat* buildcachedat)
 }
 
 void
-buildcachedat_add_animframe(
+buildcachedat_add_animframe_ref(
     struct BuildCacheDat* buildcachedat,
     int animframe_id,
-    struct CacheAnimframe* animframe)
+    int animbaseframes_id,
+    int frame_index)
 {
-    struct AnimframeEntry* animframe_entry = (struct AnimframeEntry*)dashmap_search(
-        buildcachedat->animframes_hmap, &animframe_id, DASHMAP_INSERT);
-    assert(animframe_entry && "Animframe must be inserted into hmap");
+    struct AnimframeRefEntry* animframe_entry = (struct AnimframeRefEntry*)dashmap_search(
+        buildcachedat->animframes_reftable, &animframe_id, DASHMAP_INSERT);
+    assert(animframe_entry && "Animframe ref must be inserted into reftable");
     animframe_entry->id = animframe_id;
-    animframe_entry->animframe = animframe;
-    buildcachedat_maybe_grow_hmap(buildcachedat->animframes_hmap);
+    animframe_entry->animbaseframes_id = animbaseframes_id;
+    animframe_entry->frame_index = frame_index;
+    buildcachedat_maybe_grow_hmap(buildcachedat->animframes_reftable);
 }
 
 struct CacheAnimframe*
@@ -1178,11 +1166,16 @@ buildcachedat_get_animframe(
     struct BuildCacheDat* buildcachedat,
     int animframe_id)
 {
-    struct AnimframeEntry* animframe_entry = (struct AnimframeEntry*)dashmap_search(
-        buildcachedat->animframes_hmap, &animframe_id, DASHMAP_FIND);
+    struct AnimframeRefEntry* animframe_entry = (struct AnimframeRefEntry*)dashmap_search(
+        buildcachedat->animframes_reftable, &animframe_id, DASHMAP_FIND);
     if( !animframe_entry )
         return NULL;
-    return animframe_entry->animframe;
+    struct CacheDatAnimBaseFrames* abf =
+        buildcachedat_get_animbaseframes(buildcachedat, animframe_entry->animbaseframes_id);
+    if( !abf || animframe_entry->frame_index < 0 ||
+        animframe_entry->frame_index >= abf->frame_count )
+        return NULL;
+    return &abf->frames[animframe_entry->frame_index];
 }
 
 void
@@ -1397,32 +1390,31 @@ buildcachedat_component_iter_next(
 }
 
 void
-buildcachedat_add_component_sprite(
+buildcachedat_add_component_sprite_ref(
     struct BuildCacheDat* buildcachedat,
     const char* sprite_name,
-    struct DashSprite* sprite)
+    int uiscene_element_id)
 {
-    char buffer[65] = { 0 };
-    strncpy(buffer, sprite_name, 64);
-    struct ComponentSpriteEntry* sprite_entry = (struct ComponentSpriteEntry*)dashmap_search(
-        buildcachedat->component_sprites_hmap, buffer, DASHMAP_INSERT);
-    assert(sprite_entry && "Component sprite must be inserted into hmap");
-    strncpy(sprite_entry->sprite_name, sprite_name, 63);
-    sprite_entry->sprite_name[63] = '\0'; // Ensure null termination
-    sprite_entry->sprite = sprite;
-    buildcachedat_maybe_grow_hmap(buildcachedat->component_sprites_hmap);
+    char buffer[64] = { 0 };
+    strncpy(buffer, sprite_name, sizeof(buffer));
+    struct ComponentSpriteRefEntry* sprite_entry = (struct ComponentSpriteRefEntry*)dashmap_search(
+        buildcachedat->component_sprites_reftable, buffer, DASHMAP_INSERT);
+    assert(sprite_entry && "Component sprite ref must be inserted into reftable");
+    /* Key bytes were copied by dashmap_search; only set value. */
+    sprite_entry->uiscene_element_id = uiscene_element_id;
+    buildcachedat_maybe_grow_hmap(buildcachedat->component_sprites_reftable);
 }
 
-struct DashSprite*
-buildcachedat_get_component_sprite(
+int
+buildcachedat_get_component_sprite_element_id(
     struct BuildCacheDat* buildcachedat,
     const char* sprite_name)
 {
-    char buffer[65] = { 0 };
-    strncpy(buffer, sprite_name, 64);
-    struct ComponentSpriteEntry* sprite_entry = (struct ComponentSpriteEntry*)dashmap_search(
-        buildcachedat->component_sprites_hmap, buffer, DASHMAP_FIND);
+    char buffer[64] = { 0 };
+    strncpy(buffer, sprite_name, sizeof(buffer));
+    struct ComponentSpriteRefEntry* sprite_entry = (struct ComponentSpriteRefEntry*)dashmap_search(
+        buildcachedat->component_sprites_reftable, buffer, DASHMAP_FIND);
     if( !sprite_entry )
-        return NULL;
-    return sprite_entry->sprite;
+        return -1;
+    return sprite_entry->uiscene_element_id;
 }

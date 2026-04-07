@@ -12,7 +12,9 @@
 #include "osrs/rscache/tables_dat/pix32.h"
 #include "osrs/rscache/tables_dat/pix8.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
+#include "osrs/buildcachedat.h"
 #include "osrs/scene2.h"
+#include "osrs/revconfig/uiscene.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -630,7 +632,10 @@ ensure_font_id(
     int fid = uiscene_font_find_id(ui_scene, nm);
     if( fid >= 0 )
         return fid;
-    struct DashPixFont* f = buildcachedat_get_font(bcd, nm);
+    int ref_id = buildcachedat_get_font_ref_id(bcd, nm);
+    if( ref_id < 0 )
+        return -1;
+    struct DashPixFont* f = uiscene_font_get(ui_scene, ref_id);
     if( !f )
         return -1;
     return uiscene_font_add(ui_scene, nm, f);
@@ -693,12 +698,28 @@ push_rs_from_cache_component(
     break;
     case COMPONENT_TYPE_GRAPHIC:
     {
-        struct DashSprite* g0 = (comp->graphic && comp->graphic[0] != '\0')
-                                    ? buildcachedat_get_component_sprite(bcd, comp->graphic)
-                                    : NULL;
-        struct DashSprite* g1 = (comp->activeGraphic && comp->activeGraphic[0] != '\0')
-                                    ? buildcachedat_get_component_sprite(bcd, comp->activeGraphic)
-                                    : NULL;
+        struct DashSprite* g0 = NULL;
+        struct DashSprite* g1 = NULL;
+        if( comp->graphic && comp->graphic[0] != '\0' )
+        {
+            int e0 = buildcachedat_get_component_sprite_element_id(bcd, comp->graphic);
+            if( e0 >= 0 )
+            {
+                struct UISceneElement* el0 = uiscene_element_at(ui_scene, e0);
+                if( el0 && el0->dash_sprites_count > 0 && el0->dash_sprites )
+                    g0 = el0->dash_sprites[0];
+            }
+        }
+        if( comp->activeGraphic && comp->activeGraphic[0] != '\0' )
+        {
+            int e1 = buildcachedat_get_component_sprite_element_id(bcd, comp->activeGraphic);
+            if( e1 >= 0 )
+            {
+                struct UISceneElement* el1 = uiscene_element_at(ui_scene, e1);
+                if( el1 && el1->dash_sprites_count > 0 && el1->dash_sprites )
+                    g1 = el1->dash_sprites[0];
+            }
+        }
         int count = 0;
         if( g0 )
             count = 1;
@@ -775,7 +796,13 @@ push_rs_from_cache_component(
                 char const* gname = comp->invSlotGraphic[si];
                 if( !gname || gname[0] == '\0' )
                     continue;
-                struct DashSprite* sp = buildcachedat_get_component_sprite(bcd, gname);
+                int ge = buildcachedat_get_component_sprite_element_id(bcd, gname);
+                if( ge < 0 )
+                    continue;
+                struct UISceneElement* gel = uiscene_element_at(ui_scene, ge);
+                if( !gel || gel->dash_sprites_count <= 0 || !gel->dash_sprites )
+                    continue;
+                struct DashSprite* sp = gel->dash_sprites[0];
                 if( !sp )
                     continue;
                 struct DashSprite** row = malloc(sizeof(struct DashSprite*));

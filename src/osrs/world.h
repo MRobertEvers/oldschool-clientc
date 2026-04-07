@@ -1,6 +1,8 @@
 #ifndef WORLD_H
 #define WORLD_H
 
+#include <stdbool.h>
+
 #include "decor_buildmap.h"
 #include "game_entity.h"
 #include "osrs/blendmap.h"
@@ -47,7 +49,7 @@ struct World
 
     // Minimap
     struct Minimap* minimap;
-    // ScenePool
+    /** Scene2 is owned by the caller (e.g. GGame); world never frees it. */
     struct Scene2* scene2;
 
     // Todo: How to organize, these are only used at build time.
@@ -79,7 +81,7 @@ struct World
 };
 
 struct World*
-world_new(struct BuildCacheDat* buildcachedat);
+world_new(struct BuildCacheDat* buildcachedat, struct Scene2* scene2_shared);
 
 void
 world_free(struct World* world);

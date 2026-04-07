@@ -33,7 +33,7 @@ struct UISceneElement
     char name[64];
     struct DashSprite** dash_sprites;
     int dash_sprites_count;
-    /** If true, dash_sprites point at BuildCacheDat (or elsewhere); do not dashsprite_free them. */
+    /** If true, dash_sprites are not owned by this element (e.g. pointers into another element). */
     bool dash_sprites_borrowed;
 };
 

@@ -92,12 +92,13 @@ game_callback(
 
     if( LuaBuildCacheDat_CommandHasPrefix((char*)command) )
     {
-        result = LuaBuildCacheDat_DispatchCommand(bcd, (char*)command, args_view);
+        result = LuaBuildCacheDat_DispatchCommand(
+            bcd, platform->current_game, (char*)command, args_view);
     }
     else if( LuaDash_CommandHasPrefix((char*)command) )
     {
         result = LuaDash_DispatchCommand(
-            platform->current_game->sys_dash, bcd, (char*)command, args_view);
+            platform->current_game->sys_dash, bcd, platform->current_game, (char*)command, args_view);
     }
     else if( LuaGame_CommandHasPrefix((char*)command) )
     {

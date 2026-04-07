@@ -1,6 +1,7 @@
 #include "lua_ui.h"
 
 #include "osrs/buildcachedat.h"
+#include "osrs/buildcachedat_loader.h"
 #include "osrs/game.h"
 #include "osrs/lua_sidecar/lua_configfile.h"
 #include "osrs/obj_icon.h"
@@ -35,6 +36,49 @@ LuaUI_CommandHasPrefix(const char* command)
     return strncmp(command, g_prefix, sizeof(g_prefix) - 1) == 0;
 }
 
+/** Replace UIScene; salvage fonts, reset BuildCacheDat reftables tied to element/font ids, reload
+ * component sprites. Returns -1 if uiscene_new fails. */
+static int
+lua_ui_reset_uiscene_and_refs(struct GGame* game, struct BuildCacheDat* buildcachedat)
+{
+    if( !game->ui_scene )
+        return 0;
+
+    int cap = game->ui_scene->elements_count;
+    int new_cap = cap > 8192 ? cap : 8192;
+
+    struct UIScene* old = game->ui_scene;
+    struct DashPixFont* saved_fonts[UISCENE_FONT_MAX];
+    char saved_names[UISCENE_FONT_MAX][UISCENE_FONT_NAME_MAX];
+    int saved_count = old->font_count;
+    if( saved_count > UISCENE_FONT_MAX )
+        saved_count = UISCENE_FONT_MAX;
+    for( int i = 0; i < saved_count; i++ )
+    {
+        saved_fonts[i] = old->fonts[i].font;
+        memcpy(saved_names[i], old->fonts[i].name, UISCENE_FONT_NAME_MAX);
+    }
+
+    uiscene_free(old);
+    game->ui_scene = uiscene_new(new_cap);
+    if( !game->ui_scene )
+        return -1;
+
+    buildcachedat_reset_uiscene_linked_reftables(buildcachedat);
+
+    for( int i = 0; i < saved_count; i++ )
+    {
+        if( !saved_fonts[i] )
+            continue;
+        int fid = uiscene_font_add(game->ui_scene, saved_names[i], saved_fonts[i]);
+        if( fid >= 0 )
+            buildcachedat_add_font_ref(buildcachedat, saved_names[i], fid);
+    }
+
+    buildcachedat_loader_load_component_sprites_from_media(buildcachedat, game);
+    return 0;
+}
+
 struct LuaGameType*
 LuaUI_load_revconfig(
     struct GGame* game,
@@ -57,13 +101,8 @@ LuaUI_load_revconfig(
     game->inv_pool = uitree_inv_pool_new(32);
     if( !game->inv_pool )
         return LuaGameType_NewVoid();
-    if( game->ui_scene )
-    {
-        int cap = game->ui_scene->elements_count;
-        int new_cap = cap > 8192 ? cap : 8192;
-        uiscene_free(game->ui_scene);
-        game->ui_scene = uiscene_new(new_cap);
-    }
+    if( lua_ui_reset_uiscene_and_refs(game, buildcachedat) != 0 )
+        return LuaGameType_NewVoid();
 
     struct RevConfigBuffer* buf = revconfig_buffer_new(64);
     if( !buf )
@@ -79,7 +118,7 @@ LuaUI_load_revconfig(
         uitree_from_revconfig_buildcachedat(
             game->ui_root_buffer,
             game->ui_scene,
-            game->world ? game->world->scene2 : NULL,
+            game->scene2,
             buildcachedat,
             game->inv_pool,
             game,
@@ -96,12 +135,18 @@ LuaUI_load_fonts(
     struct LuaGameType* args)
 {
     (void)args;
-    struct DashMapIter* iter = buildcachedat_iter_new_fonts(buildcachedat);
+    if( !game || !game->ui_scene || !buildcachedat )
+        return LuaGameType_NewVoid();
+
+    struct DashMapIter* iter = buildcachedat_iter_new_fonts_reftable(buildcachedat);
     char name_buf[BUILDCACHEDAT_FONT_NAME_MAX + 1];
-    struct DashPixFont* font = NULL;
-    while( (font = buildcachedat_iter_next_font_name(iter, name_buf, (int)sizeof(name_buf))) !=
-           NULL )
-        uiscene_font_add(game->ui_scene, name_buf, font);
+    int ref_slot = 0;
+    while( buildcachedat_iter_next_font_ref(iter, name_buf, (int)sizeof(name_buf), &ref_slot) )
+    {
+        struct DashPixFont* font = uiscene_font_get(game->ui_scene, ref_slot);
+        if( font )
+            uiscene_font_add(game->ui_scene, name_buf, font);
+    }
     dashmap_iter_free(iter);
 
     /* Ensure default interface fonts exist in UIScene for RS text (p11/p12/b12/q8). */
@@ -111,7 +156,10 @@ LuaUI_load_fonts(
         char const* nm = required_fonts[i];
         if( uiscene_font_find_id(game->ui_scene, nm) >= 0 )
             continue;
-        struct DashPixFont* f = buildcachedat_get_font(buildcachedat, nm);
+        int sid = buildcachedat_get_font_ref_id(buildcachedat, nm);
+        if( sid < 0 )
+            continue;
+        struct DashPixFont* f = uiscene_font_get(game->ui_scene, sid);
         if( f )
             uiscene_font_add(game->ui_scene, nm, f);
     }
@@ -222,13 +270,8 @@ LuaUI_parse_revconfig(
     game->inv_pool = uitree_inv_pool_new(32);
     if( !game->inv_pool )
         return LuaGameType_NewVoid();
-    if( game->ui_scene )
-    {
-        int cap = game->ui_scene->elements_count;
-        int new_cap = cap > 8192 ? cap : 8192;
-        uiscene_free(game->ui_scene);
-        game->ui_scene = uiscene_new(new_cap);
-    }
+    if( lua_ui_reset_uiscene_and_refs(game, buildcachedat) != 0 )
+        return LuaGameType_NewVoid();
 
     if( game->pending_revconfig )
         revconfig_buffer_free(game->pending_revconfig);
@@ -310,7 +353,7 @@ LuaUI_load_revconfig_ui(
     uitree_load_ui_from_revconfig(
         game->ui_root_buffer,
         game->ui_scene,
-        game->world ? game->world->scene2 : NULL,
+        game->scene2,
         buildcachedat,
         game->inv_pool,
         game,

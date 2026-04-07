@@ -1,5 +1,7 @@
 #include "world.h"
 
+#include <assert.h>
+
 #include "blendmap.h"
 #include "datatypes/appearances.h"
 #include "game.h"
@@ -65,12 +67,13 @@ init_npc_entity(
 }
 
 struct World*
-world_new(struct BuildCacheDat* buildcachedat)
+world_new(struct BuildCacheDat* buildcachedat, struct Scene2* scene2_shared)
 {
+    assert(scene2_shared != NULL && "World requires caller-owned Scene2");
     struct World* world = malloc(sizeof(struct World));
     memset(world, 0, sizeof(struct World));
 
-    world->scene2 = scene2_new(16000);
+    world->scene2 = scene2_shared;
     world->painter = NULL;
     world->collision_map = NULL;
     world->heightmap = NULL;
@@ -112,7 +115,7 @@ world_free(struct World* world)
     collision_map_free(world->collision_map);
     heightmap_free(world->heightmap);
     minimap_free(world->minimap);
-    scene2_free(world->scene2);
+    world->scene2 = NULL;
     if( world->decor_buildmap )
         decor_buildmap_free(world->decor_buildmap);
     if( world->lightmap )
@@ -943,7 +946,7 @@ world_buildcachedat_rebuild_centerzone(
                         if( flotype->texture != -1 )
                         {
                             dash_texture =
-                                buildcachedat_get_texture(buildcachedat, flotype->texture);
+                                scene2_texture_get(world->scene2, flotype->texture);
                             assert(dash_texture && "Dash texture must be found");
 
                             int average_hsl = dash_texture_average_hsl(dash_texture);

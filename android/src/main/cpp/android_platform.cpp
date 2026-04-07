@@ -28,6 +28,7 @@ extern "C" {
 #include "osrs/tables/configs.h"
 #include "osrs/tables/sprites.h"
 #include "osrs/tables/textures.h"
+#include "osrs/scene2.h"
 #include "osrs/world.h"
 #include "osrs/xtea_config.h"
 #include "screen.h"
@@ -105,6 +106,12 @@ game_free(struct Game* game)
         free(game->textures);
     if( game->tiles )
         free(game->tiles);
+    if( game->world )
+        world_free(game->world);
+    game->world = NULL;
+    if( game->scene2_for_world )
+        scene2_free(game->scene2_for_world);
+    game->scene2_for_world = NULL;
 }
 
 // Platform initialization function from scene_tile_test.cpp
@@ -1026,7 +1033,9 @@ int xtea_config_load_keys(const char* path);
 struct Cache* cache_new_from_directory(const char* path);
 struct Scene* scene_new_from_map(struct Cache* cache, int x, int y);
 struct TexturesCache* textures_cache_new(struct Cache* cache);
-struct World* world_new();
+struct BuildCacheDat;
+struct Scene2;
+struct World* world_new(struct BuildCacheDat* buildcachedat, struct Scene2* scene2_shared);
 struct FrustrumCullmap* frustrum_cullmap_new(int width, int height);
 }
 
@@ -1295,7 +1304,13 @@ AndroidPlatform::initGame()
     // Set up basic game state
     m_game->scene = m_scene;
     m_game->textures_cache = m_textures_cache;
-    m_game->world = world_new();
+    m_game->scene2_for_world = scene2_new(16000);
+    if( !m_game->scene2_for_world )
+    {
+        LOGE("Failed to allocate Scene2 for world");
+        return false;
+    }
+    m_game->world = world_new(NULL, m_game->scene2_for_world);
     m_game->frustrum_cullmap = frustrum_cullmap_new(40, 50);
 
     // Set camera position (Lumbridge Kitchen from the original)

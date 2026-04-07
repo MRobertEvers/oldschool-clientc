@@ -94,6 +94,8 @@ struct GGame
     struct rsa rsa;
 
     struct UIScene* ui_scene;
+    /** Scene2 used for world 3D; textures load here before world exists. world->scene2 points here. */
+    struct Scene2* scene2;
     struct UITree* ui_root_buffer;
     struct UITree* ui_stack;
     struct ClientScriptVM* clientscript_vm;

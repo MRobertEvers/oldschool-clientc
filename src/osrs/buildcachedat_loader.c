@@ -23,6 +23,8 @@
 #include "osrs/rscache/tables_dat/pix8.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/texture.h"
+#include "osrs/revconfig/uiscene.h"
+#include "osrs/scene2.h"
 #include "osrs/varp_varbit_manager.h"
 #include "osrs/world.h"
 
@@ -32,6 +34,27 @@ void
 LibToriRS_WorldMinimapStaticRebuild(struct GGame* game);
 #include <stdlib.h>
 #include <string.h>
+
+static int
+loader_uiscene_attach_single_sprite_owned(struct UIScene* ui, struct DashSprite* sprite)
+{
+    if( !ui || !sprite )
+        return -1;
+    int eid = uiscene_element_acquire(ui, -1);
+    if( eid < 0 )
+        return -1;
+    struct UISceneElement* el = uiscene_element_at(ui, eid);
+    if( !el )
+        return -1;
+    struct DashSprite** row = malloc(sizeof(struct DashSprite*));
+    if( !row )
+        return -1;
+    row[0] = sprite;
+    el->dash_sprites = row;
+    el->dash_sprites_count = 1;
+    el->dash_sprites_borrowed = false;
+    return eid;
+}
 
 void
 buildcachedat_loader_set_2d_media_jagfile(
@@ -324,9 +347,12 @@ buildcachedat_loader_cache_model(
 void
 buildcachedat_loader_cache_textures(
     struct BuildCacheDat* buildcachedat,
+    struct Scene2* scene2,
     int data_size,
     void* data)
 {
+    assert(scene2 != NULL && "Textures must load into Scene2");
+
     struct FileListDat* filelist = filelist_dat_new_from_decode(data, data_size);
 
     // Hardcoded to 50 in the deob. Not sure why.
@@ -348,7 +374,8 @@ buildcachedat_loader_cache_textures(
             texture_new_from_texture_sprite(texture, animation_direction, animation_speed);
         assert(dash_texture != NULL);
 
-        buildcachedat_add_texture(buildcachedat, i, dash_texture);
+        scene2_texture_add(scene2, i, dash_texture);
+        buildcachedat_add_texture_ref(buildcachedat, i);
         cache_dat_texture_free(texture);
     }
 
@@ -410,7 +437,8 @@ buildcachedat_loader_cache_animbaseframes(
     for( int i = 0; i < animbaseframes->frame_count; i++ )
     {
         struct CacheAnimframe* animframe = &animbaseframes->frames[i];
-        buildcachedat_add_animframe(buildcachedat, animframe->id, animframe);
+        buildcachedat_add_animframe_ref(
+            buildcachedat, animframe->id, animbaseframes_id, i);
     }
 }
 
@@ -590,16 +618,16 @@ buildcachedat_loader_cache_media(
 static void
 load_one_component_sprite(
     struct BuildCacheDat* buildcachedat,
-    struct GGame* game,
+    struct UIScene* ui_scene,
     struct FileListDat* filelist,
     int index_file_idx,
     const char* sprite_name)
 {
     char filename_buf[256];
     int sprite_idx = 0;
-    if( !sprite_name || !sprite_name[0] )
+    if( !sprite_name || !sprite_name[0] || !ui_scene )
         return;
-    if( buildcachedat_get_component_sprite(buildcachedat, sprite_name) )
+    if( buildcachedat_get_component_sprite_element_id(buildcachedat, sprite_name) >= 0 )
         return; /* already loaded */
     if( sscanf(sprite_name, "%255[^,],%d", filename_buf, &sprite_idx) != 2 )
     {
@@ -619,7 +647,13 @@ load_one_component_sprite(
     if( !sprite )
         sprite = load_sprite_pix8(filelist, filename_buf, index_file_idx, sprite_idx);
     if( sprite )
-        buildcachedat_add_component_sprite(buildcachedat, sprite_name, sprite);
+    {
+        int eid = loader_uiscene_attach_single_sprite_owned(ui_scene, sprite);
+        if( eid >= 0 )
+            buildcachedat_add_component_sprite_ref(buildcachedat, sprite_name, eid);
+        else
+            dashsprite_free(sprite);
+    }
 }
 
 void
@@ -628,7 +662,7 @@ buildcachedat_loader_load_component_sprites_from_media(
     struct GGame* game)
 {
     struct FileListDat* filelist = buildcachedat->cfg_media_jagfile;
-    if( !filelist )
+    if( !filelist || !game || !game->ui_scene )
         return;
     int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
     if( index_file_idx == -1 )
@@ -640,9 +674,9 @@ buildcachedat_loader_load_component_sprites_from_media(
     while( (component = buildcachedat_component_iter_next(iter, &id)) != NULL )
     {
         load_one_component_sprite(
-            buildcachedat, game, filelist, index_file_idx, component->graphic);
+            buildcachedat, game->ui_scene, filelist, index_file_idx, component->graphic);
         load_one_component_sprite(
-            buildcachedat, game, filelist, index_file_idx, component->activeGraphic);
+            buildcachedat, game->ui_scene, filelist, index_file_idx, component->activeGraphic);
         if( component->invSlotGraphic )
         {
             for( int i = 0; i < 20; i++ )
@@ -650,7 +684,7 @@ buildcachedat_loader_load_component_sprites_from_media(
                 if( component->invSlotGraphic[i] )
                     load_one_component_sprite(
                         buildcachedat,
-                        game,
+                        game->ui_scene,
                         filelist,
                         index_file_idx,
                         component->invSlotGraphic[i]);
@@ -663,9 +697,12 @@ buildcachedat_loader_load_component_sprites_from_media(
 void
 buildcachedat_loader_cache_title(
     struct BuildCacheDat* buildcachedat,
+    struct UIScene* ui_scene,
     int data_size,
     void* data)
 {
+    assert(ui_scene != NULL && "Fonts load into UIScene");
+
     struct DashPixFont* font = NULL;
     struct FileListDat* filelist = filelist_dat_new_from_decode(data, data_size);
 
@@ -681,7 +718,7 @@ buildcachedat_loader_cache_title(
         filelist->file_sizes[index_file_idx]);
 
     font = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
-    buildcachedat_add_font(buildcachedat, "b12", font);
+    buildcachedat_add_font_ref(buildcachedat, "b12", uiscene_font_add(ui_scene, "b12", font));
     cache_dat_pixfont_free(pixfont);
 
     data_file_idx = filelist_dat_find_file_by_name(filelist, "p12.dat");
@@ -692,7 +729,7 @@ buildcachedat_loader_cache_title(
         filelist->files[index_file_idx],
         filelist->file_sizes[index_file_idx]);
     font = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
-    buildcachedat_add_font(buildcachedat, "p12", font);
+    buildcachedat_add_font_ref(buildcachedat, "p12", uiscene_font_add(ui_scene, "p12", font));
     cache_dat_pixfont_free(pixfont);
 
     data_file_idx = filelist_dat_find_file_by_name(filelist, "p11.dat");
@@ -703,7 +740,7 @@ buildcachedat_loader_cache_title(
         filelist->files[index_file_idx],
         filelist->file_sizes[index_file_idx]);
     font = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
-    buildcachedat_add_font(buildcachedat, "p11", font);
+    buildcachedat_add_font_ref(buildcachedat, "p11", uiscene_font_add(ui_scene, "p11", font));
     cache_dat_pixfont_free(pixfont);
 
     data_file_idx = filelist_dat_find_file_by_name(filelist, "q8.dat");
@@ -714,7 +751,7 @@ buildcachedat_loader_cache_title(
         filelist->files[index_file_idx],
         filelist->file_sizes[index_file_idx]);
     font = dashpixfont_new_from_cache_dat_pixfont_move(pixfont);
-    buildcachedat_add_font(buildcachedat, "q8", font);
+    buildcachedat_add_font_ref(buildcachedat, "q8", uiscene_font_add(ui_scene, "q8", font));
     cache_dat_pixfont_free(pixfont);
 
     filelist_dat_free(filelist);
@@ -872,13 +909,13 @@ buildcachedat_loader_finalize_scene(
     if( game->world )
         world_free(game->world);
 
-    game->world = world_new(buildcachedat);
+    game->world = world_new(buildcachedat, game->scene2);
 
     world_buildcachedat_rebuild_centerzone(game->world, map_sw_x * 8 + 12, map_sw_z * 8 + 12, 104);
 
     LibToriRS_WorldMinimapStaticRebuild(game);
 
-    buildcachedat_clear_keep_fonts(buildcachedat);
+    buildcachedat_clear(buildcachedat);
 }
 
 void
@@ -892,11 +929,11 @@ buildcachedat_loader_finalize_scene_centerzone(
     if( game->world )
         world_free(game->world);
 
-    game->world = world_new(buildcachedat);
+    game->world = world_new(buildcachedat, game->scene2);
 
     world_buildcachedat_rebuild_centerzone(game->world, zonex, zonez, size);
 
     LibToriRS_WorldMinimapStaticRebuild(game);
 
-    buildcachedat_clear_keep_fonts(buildcachedat);
+    buildcachedat_clear(buildcachedat);
 }

@@ -417,29 +417,15 @@ queue_static_load_commands(
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
 {
-    if( !game->buildcachedat || !game->world )
+    if( !game->buildcachedat )
         return;
 
-    struct Scene2* scene2 = game->world->scene2;
+    /* Textures are registered on game->scene2 during load (same pointer as world->scene2). */
+    struct Scene2* scene2 = game->scene2;
 
     /* Do not gate this whole function on scene2 events: static UI sprite draws must be
      * repopulated every frame, and buildcache/ui event buffers are independent of scene2.
      * When buffers are empty the pop loops are no-ops. */
-
-    struct BuildCacheDatEvent cache_event = { 0 };
-    while( buildcachedat_eventbuffer_pop(game->buildcachedat, &cache_event) )
-    {
-        if( cache_event.type != BUILDCACHEDAT_EVENT_TEXTURE_ADDED )
-            continue;
-        struct DashTexture* texture =
-            buildcachedat_get_texture(game->buildcachedat, cache_event.texture_id);
-        if( !texture )
-            continue;
-        if( scene2 )
-            scene2_texture_add(scene2, cache_event.texture_id, texture);
-        else
-            queue_texture_load_from_event(render_command_buffer, cache_event.texture_id, texture);
-    }
 
     if( scene2 )
     {

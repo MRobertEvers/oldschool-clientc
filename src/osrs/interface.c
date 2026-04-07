@@ -22,6 +22,31 @@
 
 #define INV_MENU_MAX 24
 
+static struct DashPixFont*
+interface_font_from_reftable(struct GGame* game, char const* name)
+{
+    if( !game || !game->ui_scene || !game->buildcachedat || !name )
+        return NULL;
+    int sid = buildcachedat_get_font_ref_id(game->buildcachedat, name);
+    if( sid < 0 )
+        return NULL;
+    return uiscene_font_get(game->ui_scene, sid);
+}
+
+static struct DashSprite*
+interface_component_sprite_from_reftable(struct GGame* game, char const* graphic_name)
+{
+    if( !game || !game->ui_scene || !game->buildcachedat || !graphic_name || !graphic_name[0] )
+        return NULL;
+    int eid = buildcachedat_get_component_sprite_element_id(game->buildcachedat, graphic_name);
+    if( eid < 0 )
+        return NULL;
+    struct UISceneElement* el = uiscene_element_at(game->ui_scene, eid);
+    if( !el || el->dash_sprites_count <= 0 || !el->dash_sprites )
+        return NULL;
+    return el->dash_sprites[0];
+}
+
 /* Run component script and return result. Delegates to ClientScriptVM. */
 int
 interface_get_if_var(
@@ -989,8 +1014,7 @@ interface_draw_component_text(
     int fidx = component->font;
     if( fidx < 0 || fidx > 3 )
         fidx = 1;
-    struct DashPixFont* font =
-        buildcachedat_get_font(game->buildcachedat, font_names[fidx]);
+    struct DashPixFont* font = interface_font_from_reftable(game, font_names[fidx]);
     if( !font )
         return;
 
@@ -1204,8 +1228,7 @@ interface_draw_component_graphic(
     if( !graphic_name )
         return;
 
-    struct DashSprite* sprite =
-        buildcachedat_get_component_sprite(game->buildcachedat, graphic_name);
+    struct DashSprite* sprite = interface_component_sprite_from_reftable(game, graphic_name);
 
     if( !sprite )
         return;
@@ -1227,7 +1250,7 @@ interface_draw_component_inv(
     if( !component->invSlotObjId || !component->invSlotObjCount )
         return;
 
-    struct DashPixFont* p11 = buildcachedat_get_font(game->buildcachedat, "p11");
+    struct DashPixFont* p11 = interface_font_from_reftable(game, "p11");
 
     int slot = 0;
     for( int row = 0; row < component->height; row++ )
@@ -1319,7 +1342,7 @@ interface_draw_component_inv(
                 if( graphic_name )
                 {
                     struct DashSprite* sprite =
-                        buildcachedat_get_component_sprite(game->buildcachedat, graphic_name);
+                        interface_component_sprite_from_reftable(game, graphic_name);
                     if( sprite )
                     {
                         dash2d_blit_sprite(

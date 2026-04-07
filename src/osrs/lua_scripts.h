@@ -477,7 +477,7 @@ l_buildcachedat_cache_textures(lua_State* L)
     int data_size = luaL_checkinteger(L, 1);
     void* data = lua_touserdata(L, 2);
 
-    buildcachedat_loader_cache_textures(buildcachedat, data_size, data);
+    buildcachedat_loader_cache_textures(buildcachedat, game->scene2, data_size, data);
 
     return 0;
 }
@@ -544,7 +544,7 @@ l_buildcachedat_cache_title(lua_State* L)
     int data_size = luaL_checkinteger(L, 1);
     void* data = lua_touserdata(L, 2);
 
-    buildcachedat_loader_cache_title(buildcachedat, data_size, data);
+    buildcachedat_loader_cache_title(buildcachedat, game->ui_scene, data_size, data);
 
     return 0;
 }

@@ -3,6 +3,7 @@
 
 #include "osrs/buildcachedat.h"
 #include "osrs/rscache/tables/config_floortype.h"
+#include "osrs/scene2.h"
 #include "osrs/rscache/tables/maps.h"
 #include "osrs/rscache/tables/model.h"
 #include "scenebuilder.u.c"
@@ -99,9 +100,9 @@ scenebuilder_compat_get_texture(
     struct SceneBuilder* scene_builder,
     int texture_id)
 {
-    if( scene_builder->buildcachedat != NULL )
+    if( scene_builder->buildcachedat != NULL && scene_builder->texture_scene2 != NULL )
     {
-        return buildcachedat_get_texture(scene_builder->buildcachedat, texture_id);
+        return scene2_texture_get(scene_builder->texture_scene2, texture_id);
     }
     if( scene_builder->buildcache != NULL )
     {

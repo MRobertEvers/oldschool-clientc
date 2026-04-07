@@ -85,9 +85,13 @@ buildcachedat_loader_cache_model(
     int data_size,
     void* data);
 
+struct Scene2;
+struct UIScene;
+
 void
 buildcachedat_loader_cache_textures(
     struct BuildCacheDat* buildcachedat,
+    struct Scene2* scene2,
     int data_size,
     void* data);
 
@@ -115,6 +119,7 @@ buildcachedat_loader_cache_media(
 void
 buildcachedat_loader_cache_title(
     struct BuildCacheDat* buildcachedat,
+    struct UIScene* ui_scene,
     int data_size,
     void* data);
 
