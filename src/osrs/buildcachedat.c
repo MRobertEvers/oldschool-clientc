@@ -1,6 +1,8 @@
 #include "buildcachedat.h"
 
 #include "graphics/dash.h"
+
+#include <stdbool.h>
 #include "texture.h"
 
 #define BUILDCACHEDAT_EVENTBUFFER_DEFAULT_CAPACITY 1024
@@ -443,14 +445,24 @@ buildcachedat_free(struct BuildCacheDat* buildcachedat)
     free(buildcachedat);
 }
 
-void
-buildcachedat_clear(struct BuildCacheDat* buildcachedat)
+static void
+buildcachedat_clear_internal(struct BuildCacheDat* buildcachedat, bool keep_fonts)
 {
     if( !buildcachedat )
         return;
 
+    struct DashMap* fonts_saved = NULL;
+    if( keep_fonts )
+    {
+        fonts_saved = buildcachedat->fonts_hmap;
+        buildcachedat->fonts_hmap = NULL;
+    }
+    else
+    {
+        dashmap_free_entries(buildcachedat->fonts_hmap, free_font_entry);
+    }
+
     // dashmap_free_entries(buildcachedat->textures_hmap, free_texture_entry);
-    dashmap_free_entries(buildcachedat->fonts_hmap, free_font_entry);
     dashmap_free_entries(buildcachedat->flotype_hmap, free_flotype_entry);
     dashmap_free_entries(buildcachedat->scenery_hmap, free_scenery_entry);
     dashmap_free_entries(buildcachedat->models_hmap, free_model_entry);
@@ -483,6 +495,24 @@ buildcachedat_clear(struct BuildCacheDat* buildcachedat)
     buildcachedat->eventbuffer = NULL;
 
     buildcachedat_init_maps_and_eventbuffer(buildcachedat);
+
+    if( keep_fonts && fonts_saved )
+    {
+        dashmap_free_entries(buildcachedat->fonts_hmap, NULL);
+        buildcachedat->fonts_hmap = fonts_saved;
+    }
+}
+
+void
+buildcachedat_clear(struct BuildCacheDat* buildcachedat)
+{
+    buildcachedat_clear_internal(buildcachedat, false);
+}
+
+void
+buildcachedat_clear_keep_fonts(struct BuildCacheDat* buildcachedat)
+{
+    buildcachedat_clear_internal(buildcachedat, true);
 }
 
 void

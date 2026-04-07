@@ -3,9 +3,11 @@
 #include "revconfig.h"
 #include "revconfig_load.h"
 #include "uiscene.h"
+#include "uitree.h"
 #include "uitree_load.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 int
 main()
@@ -34,7 +36,10 @@ main()
 
     struct UIScene* ui_scene = uiscene_new(128);
     struct UITree* ui = uitree_new(16);
-    uitree_from_revconfig_buildcachedat(ui, ui_scene, buildcachedat, buffer);
+    struct UIInventoryPool* inv_pool = uitree_inv_pool_new(8);
+    uitree_from_revconfig_buildcachedat(
+        ui, ui_scene, NULL, buildcachedat, inv_pool, NULL, buffer);
+    uitree_inv_pool_free(inv_pool);
 
     struct DashGraphics* dash = dash_new();
     struct DashViewPort view_port = { 0 };

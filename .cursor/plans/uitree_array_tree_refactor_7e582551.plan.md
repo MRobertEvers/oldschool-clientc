@@ -4,34 +4,34 @@ overview: Refactor UITree from a flat array into a proper index-based tree (pare
 todos:
   - id: tree-indices
     content: Add parent/first_child/next_sibling int32_t fields and component_id to StaticUIComponent in uitree.h
-    status: pending
+    status: completed
   - id: push-funcs
     content: Update all uitree_push_* functions in uitree.c to accept parent_index, maintain sibling chains, return new element index
-    status: pending
+    status: completed
   - id: game-stack
     content: Add uitree traversal stack (uitree_stack, uitree_stack_top, uitree_current) to GGame, remove uiscene_idx
-    status: pending
+    status: completed
   - id: inv-struct
     content: Define UIInventory struct and UIInventoryPool (name-indexed array of inventories with pre-loaded item sprites) in uitree.h
-    status: pending
+    status: completed
   - id: revconfig-inv
     content: Add RCFIELD_INV_ITEM and RCFIELD_UICOMPONENT_INV to revconfig.h/.c and revconfig_load.c INI key dispatch
-    status: pending
+    status: completed
   - id: sidebar-load
     content: In uitree_load.c, add LOAD_KIND_INV handler, resolve inv= on sidebar components, recursively walk CacheDatConfigComponent children and push RS children into the tree
-    status: pending
+    status: completed
   - id: rs-gfx-file
     content: Create rs_component_gfx.h/.c with GFX command emitters for RS_GRAPHIC, RS_TEXT, RS_MODEL, RS_INV, RS_LAYER -- only use UIScene/Scene2 IDs and RSComponentStatePool, never buildcachedat
-    status: pending
+    status: completed
   - id: frame-rewrite
     content: Rewrite LibToriRS_FrameNextCommand with stack-based tree traversal, sidebar tab gating, RS step delegation
-    status: pending
+    status: completed
   - id: frame-begin
     content: Update FrameBegin to reset traversal stack and uitree_current
-    status: pending
+    status: completed
   - id: cmake-update
     content: Add rs_component_gfx.c to CMakeLists.txt build
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -60,6 +60,7 @@ int32_t next_sibling;  // -1 = last sibling
 Add a `component_id` field (the CacheDatConfigComponent id for RS elements, -1 for builtins). This is used ONLY for dynamic state lookups via `RSComponentStatePool` at render time -- never for buildcachedat/cache lookups.
 
 RS union members store pre-resolved UIScene/Scene2 IDs (populated at load time):
+
 - `rs_graphic`: `scene_id`, `atlas_index`, `scene_id_active`, `atlas_index_active` (UIScene element IDs for default and active graphic sprites)
 - `rs_text`: `font_id` (UIScene font ID), plus `color`, `center`, `shadowed`, and a `const char* text` (static lifetime from cache, set at load)
 - `rs_model`: `scene2_element_id` (Scene2 element ID for the pre-built model)
@@ -130,6 +131,7 @@ RCFIELD_UICOMPONENT_INV,    // inv=<name> on [component:...] sections (sidebar)
 ```
 
 In `revconfig_load.c` `push_field_from_ini_kv`:
+
 - `"item"` when `s_ini_item_type == "inv"` -> `RCFIELD_INV_ITEM`
 - `"inv"` when `s_ini_item_type == "component"` -> `RCFIELD_UICOMPONENT_INV`
 
@@ -153,12 +155,14 @@ struct InvLoad
 ```
 
 In `uitree_from_revconfig_buildcachedat`, handle:
+
 - `RCFIELD_ITEMTYPE` with value `"inv"` -> `LOAD_KIND_INV`
 - `RCFIELD_ITEMNAME` -> store name in `InvLoad.name`
 - `RCFIELD_INV_ITEM` -> append `atoi(value)` to `InvLoad.item_ids[]`
 - `RCFIELD_ITEMDONE` for `LOAD_KIND_INV` -> call `load_inv()`
 
 `load_inv()` implementation:
+
 1. Acquire a slot in the `UIInventoryPool` passed into `uitree_from_revconfig_buildcachedat`.
 2. Copy name into `UIInventory.name`.
 3. For each `item_id` in the load:
@@ -183,6 +187,7 @@ strncpy(component_entry->inv, load->inv, sizeof(component_entry->inv) - 1);
 ```
 
 In `load_layout` for `UIELEM_BUILTIN_SIDEBAR`, resolve the inventory name to a `UIInventoryPool` index:
+
 1. Search `UIInventoryPool` for an entry matching `component_entry->inv`.
 2. Store the index in `uitree_push_builtin_sidebar(... inv_index ...)`.
 

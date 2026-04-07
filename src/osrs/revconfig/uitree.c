@@ -3,8 +3,48 @@
 #include <stdlib.h>
 #include <string.h>
 
-static struct StaticUIComponent*
-push_element(struct UITree* tree)
+static int32_t
+link_under_parent(struct UITree* tree, int32_t parent_index, int32_t new_index)
+{
+    struct StaticUIComponent* new_c = &tree->components[new_index];
+    new_c->parent = parent_index;
+    new_c->first_child = -1;
+    new_c->next_sibling = -1;
+
+    if( parent_index < 0 )
+    {
+        new_c->parent = -1;
+        if( tree->root_index < 0 )
+        {
+            tree->root_index = new_index;
+        }
+        else
+        {
+            int32_t walk = tree->root_index;
+            while( tree->components[walk].next_sibling >= 0 )
+                walk = tree->components[walk].next_sibling;
+            tree->components[walk].next_sibling = new_index;
+        }
+        return new_index;
+    }
+
+    struct StaticUIComponent* p = &tree->components[parent_index];
+    if( p->first_child < 0 )
+    {
+        p->first_child = new_index;
+    }
+    else
+    {
+        int32_t walk = p->first_child;
+        while( tree->components[walk].next_sibling >= 0 )
+            walk = tree->components[walk].next_sibling;
+        tree->components[walk].next_sibling = new_index;
+    }
+    return new_index;
+}
+
+static int32_t
+push_element(struct UITree* tree, int32_t parent_index)
 {
     if( tree->component_count >= tree->component_capacity )
     {
@@ -15,13 +55,79 @@ push_element(struct UITree* tree)
         struct StaticUIComponent* new_components =
             realloc(tree->components, new_capacity * sizeof(struct StaticUIComponent));
         if( !new_components )
-            return NULL;
+            return -1;
         tree->components = new_components;
         tree->component_capacity = new_capacity;
     }
 
-    struct StaticUIComponent* component = &tree->components[tree->component_count++];
-    return component;
+    int32_t idx = (int32_t)tree->component_count++;
+    struct StaticUIComponent* component = &tree->components[idx];
+    memset(component, 0, sizeof(struct StaticUIComponent));
+    component->parent = -1;
+    component->first_child = -1;
+    component->next_sibling = -1;
+    component->component_id = -1;
+
+    link_under_parent(tree, parent_index, idx);
+    return idx;
+}
+
+struct UIInventoryPool*
+uitree_inv_pool_new(int capacity)
+{
+    struct UIInventoryPool* pool = malloc(sizeof(struct UIInventoryPool));
+    if( !pool )
+        return NULL;
+    memset(pool, 0, sizeof(struct UIInventoryPool));
+    pool->capacity = capacity > 0 ? capacity : 8;
+    pool->inventories = calloc((size_t)pool->capacity, sizeof(struct UIInventory));
+    if( !pool->inventories )
+    {
+        free(pool);
+        return NULL;
+    }
+    return pool;
+}
+
+void
+uitree_inv_pool_free(struct UIInventoryPool* pool)
+{
+    if( !pool )
+        return;
+    free(pool->inventories);
+    free(pool);
+}
+
+int
+uitree_inv_pool_find_by_name(struct UIInventoryPool* pool, char const* name)
+{
+    if( !pool || !name || name[0] == '\0' )
+        return -1;
+    for( int i = 0; i < pool->count; i++ )
+    {
+        if( strcmp(pool->inventories[i].name, name) == 0 )
+            return i;
+    }
+    return -1;
+}
+
+int
+uitree_inv_pool_append(struct UIInventoryPool* pool, struct UIInventory const* inv)
+{
+    if( !pool || !inv )
+        return -1;
+    if( pool->count >= pool->capacity )
+    {
+        int new_cap = pool->capacity * 2;
+        struct UIInventory* ni =
+            realloc(pool->inventories, (size_t)new_cap * sizeof(struct UIInventory));
+        if( !ni )
+            return -1;
+        pool->inventories = ni;
+        pool->capacity = new_cap;
+    }
+    pool->inventories[pool->count] = *inv;
+    return pool->count++;
 }
 
 char const*
@@ -62,10 +168,12 @@ uitree_component_type_str(enum StaticUIComponentType type)
 struct UITree*
 uitree_new(uint32_t hint)
 {
+    (void)hint;
     struct UITree* tree = malloc(sizeof(struct UITree));
     if( !tree )
         return NULL;
     memset(tree, 0, sizeof(struct UITree));
+    tree->root_index = -1;
     return tree;
 }
 
@@ -78,9 +186,10 @@ uitree_free(struct UITree* tree)
     free(tree);
 }
 
-void
+int32_t
 uitree_push_sprite_xy(
     struct UITree* tree,
+    int32_t parent_index,
     int sprite_id,
     int atlas_index,
     int x,
@@ -88,9 +197,10 @@ uitree_push_sprite_xy(
     int width,
     int height)
 {
-    struct StaticUIComponent* component = push_element(tree);
-    if( !component )
-        return;
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
 
     component->type = UIELEM_BUILTIN_SPRITE;
     component->position.kind = UIPOS_XY;
@@ -100,16 +210,13 @@ uitree_push_sprite_xy(
     component->position.height = height;
     component->u.sprite.scene_id = sprite_id;
     component->u.sprite.atlas_index = atlas_index;
+    return idx;
 }
 
-#define STATIC_UI_RELATIVE_FLAG_LEFT 1
-#define STATIC_UI_RELATIVE_FLAG_TOP 2
-#define STATIC_UI_RELATIVE_FLAG_RIGHT 4
-#define STATIC_UI_RELATIVE_FLAG_BOTTOM 8
-
-void
+int32_t
 uitree_push_sprite_relative(
     struct UITree* tree,
+    int32_t parent_index,
     int sprite_id,
     int atlas_index,
     int flags,
@@ -120,11 +227,10 @@ uitree_push_sprite_relative(
     int width,
     int height)
 {
-    struct StaticUIComponent* component = push_element(tree);
-    if( !component )
-        return;
-
-    memset(component, 0, sizeof(struct StaticUIComponent));
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
 
     component->type = UIELEM_BUILTIN_SPRITE;
     component->position.kind = UIPOS_RELATIVE;
@@ -141,29 +247,32 @@ uitree_push_sprite_relative(
     component->position.height = height;
     component->u.sprite.scene_id = sprite_id;
     component->u.sprite.atlas_index = atlas_index;
+    return idx;
 }
 
-void
+int32_t
 uitree_push_world(
     struct UITree* tree,
+    int32_t parent_index,
     int x,
     int y)
 {
-    struct StaticUIComponent* component = push_element(tree);
-    if( !component )
-        return;
-
-    memset(component, 0, sizeof(struct StaticUIComponent));
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
 
     component->type = UIELEM_BUILTIN_WORLD;
     component->position.kind = UIPOS_XY;
     component->position.x = x;
     component->position.y = y;
+    return idx;
 }
 
-void
+int32_t
 uitree_push_compass(
     struct UITree* tree,
+    int32_t parent_index,
     int sprite_id,
     int atlas_index,
     int x,
@@ -173,11 +282,10 @@ uitree_push_compass(
     int anchor_x,
     int anchor_y)
 {
-    struct StaticUIComponent* component = push_element(tree);
-    if( !component )
-        return;
-
-    memset(component, 0, sizeof(struct StaticUIComponent));
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
 
     component->type = UIELEM_BUILTIN_COMPASS;
     component->position.kind = UIPOS_XY;
@@ -189,11 +297,13 @@ uitree_push_compass(
     component->position.height = height;
     component->position.anchor_x = anchor_x;
     component->position.anchor_y = anchor_y;
+    return idx;
 }
 
-void
+int32_t
 uitree_push_minimap(
     struct UITree* tree,
+    int32_t parent_index,
     int x,
     int y,
     int width,
@@ -201,11 +311,10 @@ uitree_push_minimap(
     int anchor_x,
     int anchor_y)
 {
-    struct StaticUIComponent* component = push_element(tree);
-    if( !component )
-        return;
-
-    memset(component, 0, sizeof(struct StaticUIComponent));
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
 
     component->type = UIELEM_BUILTIN_MINIMAP;
     component->position.kind = UIPOS_XY;
@@ -215,11 +324,13 @@ uitree_push_minimap(
     component->position.height = height;
     component->position.anchor_x = anchor_x;
     component->position.anchor_y = anchor_y;
+    return idx;
 }
 
-void
+int32_t
 uitree_push_redstone_tab(
     struct UITree* tree,
+    int32_t parent_index,
     int tabno,
     int sprite_id,
     int atlas_index,
@@ -230,10 +341,11 @@ uitree_push_redstone_tab(
     int width,
     int height)
 {
-    struct StaticUIComponent* component = push_element(tree);
-    if( !component )
-        return;
-    memset(component, 0, sizeof(struct StaticUIComponent));
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
     component->type = UIELEM_BUILTIN_REDSTONE_TAB;
     component->position.kind = UIPOS_XY;
     component->position.x = x;
@@ -245,22 +357,26 @@ uitree_push_redstone_tab(
     component->u.redstone_tab.atlas_index = atlas_index;
     component->u.redstone_tab.scene_id_active = sprite_active_id;
     component->u.redstone_tab.atlas_index_active = atlas_active_index;
+    return idx;
 }
 
-void
+int32_t
 uitree_push_builtin_sidebar(
     struct UITree* tree,
+    int32_t parent_index,
     int tabno,
     int componentno,
+    int inv_index,
     int x,
     int y,
     int width,
     int height)
 {
-    struct StaticUIComponent* component = push_element(tree);
-    if( !component )
-        return;
-    memset(component, 0, sizeof(struct StaticUIComponent));
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
     component->type = UIELEM_BUILTIN_SIDEBAR;
     component->position.kind = UIPOS_XY;
     component->position.x = x;
@@ -269,4 +385,178 @@ uitree_push_builtin_sidebar(
     component->position.height = height;
     component->u.sidebar.tabno = tabno;
     component->u.sidebar.componentno = componentno;
+    component->u.sidebar.inv_index = inv_index;
+    return idx;
+}
+
+int32_t
+uitree_push_sidebar_component(
+    struct UITree* tree,
+    int32_t parent_index,
+    int tabno,
+    int componentno,
+    int inv_index,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    return uitree_push_builtin_sidebar(
+        tree, parent_index, tabno, componentno, inv_index, x, y, width, height);
+}
+
+int32_t
+uitree_push_rs_layer(
+    struct UITree* tree,
+    int32_t parent_index,
+    int component_id,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_RS_LAYER;
+    component->component_id = component_id;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.rs_layer.reserved = 0;
+    return idx;
+}
+
+int32_t
+uitree_push_rs_text(
+    struct UITree* tree,
+    int32_t parent_index,
+    int component_id,
+    int font_id,
+    int color,
+    int center,
+    int shadowed,
+    char const* text,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_RS_TEXT;
+    component->component_id = component_id;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.rs_text.font_id = font_id;
+    component->u.rs_text.color = color;
+    component->u.rs_text.center = center;
+    component->u.rs_text.shadowed = shadowed;
+    component->u.rs_text.text = text;
+    return idx;
+}
+
+int32_t
+uitree_push_rs_graphic(
+    struct UITree* tree,
+    int32_t parent_index,
+    int component_id,
+    int scene_id,
+    int atlas_index,
+    int scene_id_active,
+    int atlas_index_active,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_RS_GRAPHIC;
+    component->component_id = component_id;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.rs_graphic.scene_id = scene_id;
+    component->u.rs_graphic.atlas_index = atlas_index;
+    component->u.rs_graphic.scene_id_active = scene_id_active;
+    component->u.rs_graphic.atlas_index_active = atlas_index_active;
+    return idx;
+}
+
+int32_t
+uitree_push_rs_model(
+    struct UITree* tree,
+    int32_t parent_index,
+    int component_id,
+    int scene2_element_id,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_RS_MODEL;
+    component->component_id = component_id;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.rs_model.scene2_element_id = scene2_element_id;
+    return idx;
+}
+
+int32_t
+uitree_push_rs_inv(
+    struct UITree* tree,
+    int32_t parent_index,
+    int component_id,
+    int inv_index,
+    int cols,
+    int rows,
+    int margin_x,
+    int margin_y,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_RS_INV;
+    component->component_id = component_id;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.rs_inv.inv_index = inv_index;
+    component->u.rs_inv.cols = cols;
+    component->u.rs_inv.rows = rows;
+    component->u.rs_inv.margin_x = margin_x;
+    component->u.rs_inv.margin_y = margin_y;
+    return idx;
 }

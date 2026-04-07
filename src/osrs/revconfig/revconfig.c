@@ -63,6 +63,10 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_SPRITE_ACTIVE";
     case RCFIELD_UICOMPONENT_COMPONENTNO:
         return "RCFIELD_UICOMPONENT_COMPONENTNO";
+    case RCFIELD_UICOMPONENT_INV:
+        return "RCFIELD_UICOMPONENT_INV";
+    case RCFIELD_INV_ITEM:
+        return "RCFIELD_INV_ITEM";
     case RCFIELD_UILAYOUT_COMPONENT:
         return "RCFIELD_UILAYOUT_COMPONENT";
     case RCFIELD_UILAYOUT_X:

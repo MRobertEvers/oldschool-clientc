@@ -3,13 +3,18 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/game.h"
 #include "osrs/lua_sidecar/lua_configfile.h"
+#include "osrs/obj_icon.h"
 #include "osrs/revconfig/revconfig.h"
 #include "osrs/revconfig/revconfig_load.h"
 #include "osrs/revconfig/uiscene.h"
+#include "osrs/revconfig/uitree.h"
 #include "osrs/revconfig/uitree_load.h"
 #include "osrs/rs_component_state.h"
+#include "osrs/world.h"
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static char const g_prefix[] = "ui_";
@@ -43,7 +48,15 @@ LuaUI_load_revconfig(
 
     // Reset UI state (best-effort) before reloading.
     if( game->ui_root_buffer )
+    {
         game->ui_root_buffer->component_count = 0;
+        game->ui_root_buffer->root_index = -1;
+    }
+    if( game->inv_pool )
+        uitree_inv_pool_free(game->inv_pool);
+    game->inv_pool = uitree_inv_pool_new(32);
+    if( !game->inv_pool )
+        return LuaGameType_NewVoid();
     if( game->ui_scene )
     {
         int cap = game->ui_scene->elements_count;
@@ -64,7 +77,13 @@ LuaUI_load_revconfig(
 
     if( game->ui_root_buffer && game->ui_scene )
         uitree_from_revconfig_buildcachedat(
-            game->ui_root_buffer, game->ui_scene, buildcachedat, buf);
+            game->ui_root_buffer,
+            game->ui_scene,
+            game->world ? game->world->scene2 : NULL,
+            buildcachedat,
+            game->inv_pool,
+            game,
+            buf);
 
     revconfig_buffer_free(buf);
     return LuaGameType_NewVoid();
@@ -119,6 +138,190 @@ LuaUI_load_rs_components(
     return LuaGameType_NewVoid();
 }
 
+static struct LuaGameType*
+LuaUI_resolve_inv_sprites(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)buildcachedat;
+    (void)args;
+    if( !game || !game->inv_pool || !game->ui_scene )
+        return LuaGameType_NewVoid();
+
+    struct UIInventoryPool* pool = game->inv_pool;
+    struct UIScene* ui_scene = game->ui_scene;
+
+    for( int inv_i = 0; inv_i < pool->count; inv_i++ )
+    {
+        struct UIInventory* inv = &pool->inventories[inv_i];
+        for( int it = 0; it < inv->item_count; it++ )
+        {
+            struct UIInventoryItem* item = &inv->items[it];
+            if( item->scene_id >= 0 || item->obj_id <= 0 )
+                continue;
+
+            int obj_lookup = item->obj_id - 1;
+            struct DashSprite* sp = obj_icon_get(game, obj_lookup, 1);
+            if( !sp )
+                continue;
+
+            struct DashSprite** arr = malloc(sizeof(struct DashSprite*));
+            if( !arr )
+            {
+                dashsprite_free(sp);
+                continue;
+            }
+            arr[0] = sp;
+
+            int eid = uiscene_element_acquire(ui_scene, -1);
+            if( eid < 0 )
+            {
+                free(arr);
+                dashsprite_free(sp);
+                continue;
+            }
+
+            struct UISceneElement* el = uiscene_element_at(ui_scene, eid);
+            if( !el )
+            {
+                free(arr);
+                dashsprite_free(sp);
+                continue;
+            }
+
+            el->dash_sprites = arr;
+            el->dash_sprites_count = 1;
+            el->dash_sprites_borrowed = false;
+            item->scene_id = eid;
+            item->atlas_index = 0;
+        }
+    }
+
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaUI_parse_revconfig(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    assert(game && buildcachedat);
+    assert(args);
+    struct LuaConfigFile* ui_config = (struct LuaConfigFile*)arg_userdata(args, 0);
+    struct LuaConfigFile* cache_config = (struct LuaConfigFile*)arg_userdata(args, 1);
+
+    if( game->ui_root_buffer )
+    {
+        game->ui_root_buffer->component_count = 0;
+        game->ui_root_buffer->root_index = -1;
+    }
+    if( game->inv_pool )
+        uitree_inv_pool_free(game->inv_pool);
+    game->inv_pool = uitree_inv_pool_new(32);
+    if( !game->inv_pool )
+        return LuaGameType_NewVoid();
+    if( game->ui_scene )
+    {
+        int cap = game->ui_scene->elements_count;
+        int new_cap = cap > 8192 ? cap : 8192;
+        uiscene_free(game->ui_scene);
+        game->ui_scene = uiscene_new(new_cap);
+    }
+
+    if( game->pending_revconfig )
+        revconfig_buffer_free(game->pending_revconfig);
+
+    struct RevConfigBuffer* buf = revconfig_buffer_new(64);
+    if( !buf )
+        return LuaGameType_NewVoid();
+
+    assert(cache_config);
+    revconfig_load_fields_from_ini_bytes(cache_config->data, (uint32_t)cache_config->size, buf);
+    assert(ui_config);
+    revconfig_load_fields_from_ini_bytes(ui_config->data, (uint32_t)ui_config->size, buf);
+
+    game->pending_revconfig = buf;
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaUI_get_revconfig_inv_obj_ids(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)buildcachedat;
+    (void)args;
+    if( !game || !game->pending_revconfig )
+        return LuaGameType_NewIntArray(0);
+
+    enum
+    {
+        kMaxIds = 4096
+    };
+    int tmp[kMaxIds];
+    int n = uitree_revconfig_collect_inv_obj_ids(game->pending_revconfig, tmp, kMaxIds);
+
+    struct LuaGameType* arr = LuaGameType_NewIntArray(n);
+    for( int i = 0; i < n; i++ )
+        LuaGameType_IntArrayPush(arr, tmp[i]);
+    return arr;
+}
+
+struct LuaGameType*
+LuaUI_load_revconfig_inventories(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)buildcachedat;
+    (void)args;
+    if( !game || !game->pending_revconfig || !game->inv_pool || !game->ui_scene )
+        return LuaGameType_NewVoid();
+
+    uitree_load_inventories_from_revconfig(
+        game->ui_scene,
+        game,
+        game->inv_pool,
+        game->pending_revconfig);
+
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaUI_load_revconfig_ui(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    if( !game || !game->pending_revconfig || !game->ui_root_buffer || !game->ui_scene )
+    {
+        if( game && game->pending_revconfig )
+        {
+            revconfig_buffer_free(game->pending_revconfig);
+            game->pending_revconfig = NULL;
+        }
+        return LuaGameType_NewVoid();
+    }
+
+    uitree_load_ui_from_revconfig(
+        game->ui_root_buffer,
+        game->ui_scene,
+        game->world ? game->world->scene2 : NULL,
+        buildcachedat,
+        game->inv_pool,
+        game,
+        game->pending_revconfig);
+
+    revconfig_buffer_free(game->pending_revconfig);
+    game->pending_revconfig = NULL;
+
+    return LuaGameType_NewVoid();
+}
+
 struct LuaGameType*
 LuaUI_DispatchCommand(
     struct GGame* game,
@@ -139,6 +342,16 @@ LuaUI_DispatchCommand(
         return LuaUI_load_fonts(game, buildcachedat, args);
     else if( strcmp(command, "load_rs_components") == 0 )
         return LuaUI_load_rs_components(game, buildcachedat, args);
+    else if( strcmp(command, "resolve_inv_sprites") == 0 )
+        return LuaUI_resolve_inv_sprites(game, buildcachedat, args);
+    else if( strcmp(command, "parse_revconfig") == 0 )
+        return LuaUI_parse_revconfig(game, buildcachedat, args);
+    else if( strcmp(command, "get_revconfig_inv_obj_ids") == 0 )
+        return LuaUI_get_revconfig_inv_obj_ids(game, buildcachedat, args);
+    else if( strcmp(command, "load_revconfig_inventories") == 0 )
+        return LuaUI_load_revconfig_inventories(game, buildcachedat, args);
+    else if( strcmp(command, "load_revconfig_ui") == 0 )
+        return LuaUI_load_revconfig_ui(game, buildcachedat, args);
 
     printf("Unknown ui command: %s\n", command);
     assert(false);

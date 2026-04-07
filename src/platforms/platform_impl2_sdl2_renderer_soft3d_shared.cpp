@@ -540,19 +540,19 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Render(
     }
     LibToriRS_FrameEnd(game);
 
-    for( const auto& fc : deferred_font_draws )
-    {
-        struct DashPixFont* f = fc._font_draw.font;
-        if( f && fc._font_draw.text && renderer->pixel_buffer )
-            dashfont_draw_text_ex(
-                f,
-                (uint8_t*)fc._font_draw.text,
-                fc._font_draw.x,
-                fc._font_draw.y,
-                fc._font_draw.color_rgb,
-                renderer->pixel_buffer,
-                renderer->width);
-    }
+    // for( const auto& fc : deferred_font_draws )
+    // {
+    //     struct DashPixFont* f = fc._font_draw.font;
+    //     if( f && fc._font_draw.text && renderer->pixel_buffer )
+    //         dashfont_draw_text_ex(
+    //             f,
+    //             (uint8_t*)fc._font_draw.text,
+    //             fc._font_draw.x,
+    //             fc._font_draw.y,
+    //             fc._font_draw.color_rgb,
+    //             renderer->pixel_buffer,
+    //             renderer->width);
+    // }
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         renderer->pixel_buffer,

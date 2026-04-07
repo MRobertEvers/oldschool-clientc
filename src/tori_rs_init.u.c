@@ -228,6 +228,9 @@ LibToriRS_GameNew(
     game->ui_scene = uiscene_new(512);
     game->ui_root_buffer = uitree_new(64);
     game->ui_stack = uitree_new(64);
+    game->inv_pool = uitree_inv_pool_new(32);
+    game->uitree_stack_top = -1;
+    game->uitree_current = -1;
     game->clientscript_vm = clientscript_vm_new();
     game->uiscene_queued_commands = LibToriRS_RenderCommandBufferNew(64);
     game->minimap_dynamic_commands = minimap_commands_new(64);
@@ -342,6 +345,9 @@ LibToriRS_GameFree(struct GGame* game)
 
     if( game->ui_scene )
         uiscene_free(game->ui_scene);
+    if( game->inv_pool )
+        uitree_inv_pool_free(game->inv_pool);
+    game->inv_pool = NULL;
     if( game->ui_root_buffer )
         uitree_free(game->ui_root_buffer);
     if( game->ui_stack )

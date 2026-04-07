@@ -37,6 +37,8 @@ struct FileListDat;
 struct MinimapRenderCommandBuffer;
 struct ToriRSRenderCommandBuffer;
 struct InterfaceState;
+struct UIInventoryPool;
+struct RevConfigBuffer;
 
 #define MAX_PLAYERS 2048
 #define MAX_NPCS 8192
@@ -96,8 +98,14 @@ struct GGame
     struct UITree* ui_stack;
     struct ClientScriptVM* clientscript_vm;
     struct RSComponentStatePool* rs_component_state;
+    struct UIInventoryPool* inv_pool;
+    struct RevConfigBuffer* pending_revconfig;
 
-    int uiscene_idx;
+#define UITREE_TRAVERSAL_STACK_MAX 64
+    int32_t uitree_stack[UITREE_TRAVERSAL_STACK_MAX];
+    int uitree_stack_top;   /* -1 = empty */
+    int32_t uitree_current; /* uitree node index, -1 when traversal done */
+
     int uiscene_command_idx;
 
     int cycles_elapsed;

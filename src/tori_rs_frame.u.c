@@ -15,6 +15,7 @@
 #include "osrs/packetout.h"
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
+#include "osrs/rs_component_gfx.h"
 #include "osrs/rs_component_state.h"
 #include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/scene2.h"
@@ -34,6 +35,73 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/** Set per `LibToriRS_FrameNextCommand` call for RS model culling. */
+static bool s_frame_project_models;
+
+/** Tab sidebar content (RS subtree) only when this tab is selected and no modal owns the sidebar.
+ */
+static bool
+frame_sidebar_tab_active(
+    struct GGame* game,
+    struct StaticUIComponent* sidebar)
+{
+    assert(sidebar && sidebar->type == UIELEM_BUILTIN_SIDEBAR);
+    if( !game || !game->iface )
+        return false;
+    if( game->iface->sidebar_interface_id != -1 )
+        return false;
+    return game->iface->selected_tab == sidebar->u.sidebar.tabno;
+}
+
+static bool
+frame_uitree_should_descend(
+    struct GGame* game,
+    struct StaticUIComponent* c)
+{
+    if( c->first_child < 0 )
+        return false;
+    if( c->type == UIELEM_BUILTIN_SIDEBAR )
+        return frame_sidebar_tab_active(game, c);
+    return true;
+}
+
+static void
+frame_uitree_advance_after_step(
+    struct GGame* game,
+    int32_t stepped_index)
+{
+    struct UITree* t = game->ui_root_buffer;
+    struct StaticUIComponent* c = &t->components[stepped_index];
+
+    if( frame_uitree_should_descend(game, c) )
+    {
+        if( game->uitree_stack_top + 1 >= UITREE_TRAVERSAL_STACK_MAX )
+        {
+            game->uitree_current = -1;
+            return;
+        }
+        game->uitree_stack[++game->uitree_stack_top] = stepped_index;
+        game->uitree_current = c->first_child;
+        return;
+    }
+    if( c->next_sibling >= 0 )
+    {
+        game->uitree_current = c->next_sibling;
+        return;
+    }
+    while( game->uitree_stack_top >= 0 )
+    {
+        int32_t pidx = game->uitree_stack[game->uitree_stack_top--];
+        struct StaticUIComponent* p = &t->components[pidx];
+        if( p->next_sibling >= 0 )
+        {
+            game->uitree_current = p->next_sibling;
+            return;
+        }
+    }
+    game->uitree_current = -1;
+}
 
 static void
 rs_uielem_push_iface_viewport(
@@ -448,7 +516,13 @@ LibToriRS_FrameBegin(
     game->camera->yaw = game->camera_yaw;
     game->camera->roll = game->camera_roll;
 
-    game->uiscene_idx = 0;
+    game->uitree_stack_top = -1;
+    game->uitree_current = (game->ui_root_buffer && game->ui_root_buffer->root_index >= 0)
+                               ? game->ui_root_buffer->root_index
+                               : -1;
+    game->uiscene_command_idx = 0;
+    if( game->uiscene_queued_commands )
+        LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
 
     world_pickset_reset(&game->pickset);
 
@@ -759,6 +833,14 @@ uielem_builtin_sidebar_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_BUILTIN_SIDEBAR);
+    if( !game || !game->iface )
+        return true;
+
+    /* Wrong tab or modal sidebar: emit nothing (traversal also skips first_child subtree). */
+    if( !frame_sidebar_tab_active(game, component) )
+        return true;
+
+    /* Active tab: panel is drawn by RS child nodes under this builtin. */
     return true;
 }
 
@@ -796,6 +878,7 @@ uielem_world_step(
 {
     assert(component->type == UIELEM_BUILTIN_WORLD);
 
+    struct PaintersElementCommand* cmd = NULL;
     struct DashPosition position = { 0 };
     struct ToriRSRenderCommand command = { 0 };
     struct Scene2Element* scene_element = NULL;
@@ -809,12 +892,11 @@ uielem_world_step(
         return true;
     }
 
-    struct PaintersElementCommand* cmd =
-        &game->sys_painter_buffer->commands[game->at_painters_command_index];
+next:
+    cmd = &game->sys_painter_buffer->commands[game->at_painters_command_index];
 
     game->at_painters_command_index++;
 
-next:
     switch( cmd->_bf_kind )
     {
     case PNTR_CMD_ELEMENT:
@@ -949,7 +1031,7 @@ uielem_rs_graphic_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_RS_GRAPHIC);
-    return true;
+    return rs_gfx_graphic_step(game, component, game->uiscene_queued_commands);
 }
 
 static bool
@@ -958,7 +1040,7 @@ uielem_rs_text_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_RS_TEXT);
-    return true;
+    return rs_gfx_text_step(game, component, game->uiscene_queued_commands);
 }
 
 static bool
@@ -967,7 +1049,7 @@ uielem_rs_inv_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_RS_INV);
-    return true;
+    return rs_gfx_inv_step(game, component, game->uiscene_queued_commands);
 }
 
 static bool
@@ -984,7 +1066,9 @@ uielem_rs_model_step(
     struct GGame* game,
     struct StaticUIComponent* component)
 {
-    return true;
+    assert(component->type == UIELEM_RS_MODEL);
+    return rs_gfx_model_step(
+        game, component, game->uiscene_queued_commands, s_frame_project_models);
 }
 
 bool
@@ -997,9 +1081,12 @@ LibToriRS_FrameNextCommand(
     struct StaticUIComponent* component = NULL;
     struct ToriRSRenderCommand* cmd = NULL;
     bool done = false;
+    (void)render_command_buffer;
+    s_frame_project_models = project_models;
+
     while( true )
     {
-        if( game->uiscene_idx >= game->ui_root_buffer->component_count )
+        if( !game->ui_root_buffer || game->uitree_current < 0 )
             return false;
 
         if( game->uiscene_command_idx < game->uiscene_queued_commands->command_count )
@@ -1014,11 +1101,15 @@ LibToriRS_FrameNextCommand(
 
         LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
         game->uiscene_command_idx = 0;
-        game->uiscene_idx++;
 
-        component = &game->ui_root_buffer->components[game->uiscene_idx];
+        int32_t cur = game->uitree_current;
+        component = &game->ui_root_buffer->components[cur];
 
-        int component_command_count = 0;
+        printf(
+            "uitree step: type=%s index=%d\n",
+            uitree_component_type_str(component->type),
+            (int)cur);
+
         switch( component->type )
         {
         case UIELEM_BUILTIN_SPRITE:
@@ -1055,8 +1146,12 @@ LibToriRS_FrameNextCommand(
             done = uielem_rs_inv_step(game, component);
             break;
         default:
+            done = true;
             break;
         }
+
+        (void)done;
+        frame_uitree_advance_after_step(game, cur);
     }
 
     return false;

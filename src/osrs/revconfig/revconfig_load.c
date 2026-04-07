@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Current [type:name] `type` for keyval dispatch (w/h/anchor vs layout vs component). */
+/* Current [type:name] header `type` for keyval dispatch (component, layout, inv, sprite, …). */
 static char s_ini_item_type[64];
 
 static int
@@ -52,9 +52,10 @@ push_field_from_ini_kv(
     const char* value)
 {
     uint8_t kind = RCFIELD_NONE;
-    if( strcmp(key, "sprite") == 0 )
+    /* Section type comes from [type:name] header (e.g. component, layout, inv, sprite). */
+    if( strcmp(key, "sprite") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_SPRITE;
-    else if( strcmp(key, "type") == 0 )
+    else if( strcmp(key, "type") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_TYPE;
     else if( strcmp(key, "c") == 0 )
         kind = RCFIELD_UILAYOUT_COMPONENT;
@@ -94,6 +95,10 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_TABNO;
     else if( strcmp(key, "componentno") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_COMPONENTNO;
+    else if( strcmp(key, "inv") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_INV;
+    else if( strcmp(key, "item") == 0 && strcmp(s_ini_item_type, "inv") == 0 )
+        kind = RCFIELD_INV_ITEM;
     else if( strcmp(key, "sprite_active") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_SPRITE_ACTIVE;
     else if( strcmp(key, "left") == 0 )

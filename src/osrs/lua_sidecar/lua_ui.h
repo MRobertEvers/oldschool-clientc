@@ -24,6 +24,30 @@ LuaUI_load_rs_components(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
+struct LuaGameType*
+LuaUI_parse_revconfig(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaUI_get_revconfig_inv_obj_ids(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaUI_load_revconfig_inventories(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaUI_load_revconfig_ui(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
 bool
 LuaUI_CommandHasPrefix(const char* command);
 

@@ -44,20 +44,63 @@ local function init_ui()
         end
     end
 
+    -- Obj configs needed for inventory icon generation.
+    local config_jagfile = CacheDat.load_archive(
+        CacheDat.Tables.CACHE_DAT_CONFIGS,
+        CacheDat.ConfigDatKind.CONFIG_DAT_CONFIGS, 0)
+    Game.buildcachedat_set_config_jagfile(config_jagfile)
+    Game.buildcachedat_init_objects_from_config_jagfile()
+
+    -- Step 1: Parse INI config files (stores RevConfigBuffer on game).
     local ui_archives = CacheDat.load_config_files({
         "rev_245_2/rev_245_2_ui.ini",
         "rev_245_2/rev_245_2_cache.ini",
     })
-
     local ui_config = ui_archives[1]
     local ui_cache_config = ui_archives[2]
+    Game.ui_parse_revconfig(ui_config, ui_cache_config)
 
-    print("ui_config", ui_config)
-    print("ui_cache_config", ui_cache_config)
+    -- Step 2: Get inventory obj IDs from parsed config.
+    local inv_obj_ids = Game.ui_get_revconfig_inv_obj_ids()
 
-    Game.ui_load_revconfig(ui_config, ui_cache_config)
+    -- Step 3: Load models for inventory objects (Lua cache round-trip).
+    do
+        local seen = {}
+        local inv_model_requests = {}
+        local inv_models_needed = {}
+        for _, oid in ipairs(inv_obj_ids) do
+            local actual_obj_id = (oid > 0) and (oid - 1) or oid
+            local mids = Game.buildcachedat_get_obj_model_ids(actual_obj_id)
+            for _, mid in ipairs(mids) do
+                if mid ~= 0 and not seen[mid] then
+                    seen[mid] = true
+                    if not Game.buildcachedat_has_model(mid) then
+                        table.insert(inv_model_requests, {
+                            table_id = CacheDat.Tables.CACHE_DAT_MODELS,
+                            archive_id = mid,
+                            flags = 0,
+                        })
+                        table.insert(inv_models_needed, mid)
+                    end
+                end
+            end
+        end
+        if #inv_model_requests > 0 then
+            local inv_archives = CacheDat.load_archives(inv_model_requests)
+            for i, mid in ipairs(inv_models_needed) do
+                Game.buildcachedat_cache_model(inv_archives[i], mid)
+            end
+        end
+    end
+
+    -- Step 4: Pass 1 - load inventories (sprites from now-cached models).
+    Game.ui_load_revconfig_inventories()
+
+    -- Step 5: Pass 2 - load rest of UI (sprites, components, layouts, RS resolution).
+    Game.ui_load_revconfig_ui()
+
+    -- Step 6: Fonts.
     Game.ui_load_fonts(ui_cache_config)
-    -- Game.ui_load_rs_components()
 end
 
 init_ui()

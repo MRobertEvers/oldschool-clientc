@@ -634,7 +634,8 @@ LuaBuildCacheDat_clear(
     struct LuaGameType* args)
 {
     (void)args;
-    buildcachedat_clear(buildcachedat);
+    /* Keep fonts: UIScene borrows DashPixFont* from BuildCacheDat via uiscene_font_add. */
+    buildcachedat_clear_keep_fonts(buildcachedat);
     return LuaGameType_NewVoid();
 }
 

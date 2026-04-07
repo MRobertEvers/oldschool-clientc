@@ -878,7 +878,7 @@ buildcachedat_loader_finalize_scene(
 
     LibToriRS_WorldMinimapStaticRebuild(game);
 
-    buildcachedat_clear(buildcachedat);
+    buildcachedat_clear_keep_fonts(buildcachedat);
 }
 
 void
@@ -898,5 +898,5 @@ buildcachedat_loader_finalize_scene_centerzone(
 
     LibToriRS_WorldMinimapStaticRebuild(game);
 
-    buildcachedat_clear(buildcachedat);
+    buildcachedat_clear_keep_fonts(buildcachedat);
 }

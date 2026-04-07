@@ -87,9 +87,15 @@ buildcachedat_clear_map_chunks(struct BuildCacheDat* buildcachedat);
 
 /** Free every BuildCacheDat cache (all hash maps, config/versionlist/media jagfiles, containers) and
  *  reinitialize empty maps and event buffer. The struct remains valid for reuse. DashModel meshes
- *  live on Scene2, not in BuildCacheDat. */
+ *  live on Scene2, not in BuildCacheDat. Frees loaded fonts; UIScene must be repopulated (e.g.
+ *  ui_load_fonts) if the UI stays alive. */
 void
 buildcachedat_clear(struct BuildCacheDat* buildcachedat);
+
+/** Same as buildcachedat_clear but keeps fonts_hmap (and DashPixFont ownership). Use when clearing
+ *  after world load while UIScene still holds font pointers from uiscene_font_add. */
+void
+buildcachedat_clear_keep_fonts(struct BuildCacheDat* buildcachedat);
 
 void
 buildcachedat_set_config_jagfile(
