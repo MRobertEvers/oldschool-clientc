@@ -1,8 +1,6 @@
 #ifndef WORLD_H
 #define WORLD_H
 
-#include <stdbool.h>
-
 #include "decor_buildmap.h"
 #include "game_entity.h"
 #include "osrs/blendmap.h"
@@ -19,11 +17,13 @@
 #include "osrs/sharelight_map.h"
 #include "osrs/terrain_shapemap.h"
 
+#include <stdbool.h>
+
 #define MAX_PLAYERS 2048
-#define MAX_NPCS (8192)
+#define MAX_NPCS (2048)
 
 #define MAX_MAP_BUILD_LOC_ENTITIES (16384 >> 2)
-#define MAX_MAP_BUILD_TILE_ENTITIES (43264)
+#define MAX_MAP_BUILD_TILE_ENTITIES (50000)
 
 struct World
 {
@@ -81,7 +81,9 @@ struct World
 };
 
 struct World*
-world_new(struct BuildCacheDat* buildcachedat, struct Scene2* scene2_shared);
+world_new(
+    struct BuildCacheDat* buildcachedat,
+    struct Scene2* scene2_shared);
 
 void
 world_free(struct World* world);

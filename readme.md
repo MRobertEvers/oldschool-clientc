@@ -1647,3 +1647,12 @@ Side Icons hmid
 
 python3 -m http.server 8080
 python3 -m http.server -d build_emscripten 8080
+
+// Serve cache
+test/datserver/a.out
+
+// Serve lua
+node ./serve-lua-scripts.js
+
+// Serve build
+python3 -m http.server -d build_emscripten 8080

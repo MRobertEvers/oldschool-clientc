@@ -40,9 +40,6 @@ struct InterfaceState;
 struct UIInventoryPool;
 struct RevConfigBuffer;
 
-#define MAX_PLAYERS 2048
-#define MAX_NPCS 8192
-
 #define ACTIVE_PLAYER_SLOT 2047
 
 struct RevPacket_LC245_2_Item
@@ -94,7 +91,8 @@ struct GGame
     struct rsa rsa;
 
     struct UIScene* ui_scene;
-    /** Scene2 used for world 3D; textures load here before world exists. world->scene2 points here. */
+    /** Scene2 used for world 3D; textures load here before world exists. world->scene2 points here.
+     */
     struct Scene2* scene2;
     struct UITree* ui_root_buffer;
     struct UITree* ui_stack;
