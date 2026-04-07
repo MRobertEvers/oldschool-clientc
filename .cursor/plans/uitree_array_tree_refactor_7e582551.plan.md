@@ -96,7 +96,7 @@ struct UIInventoryPool
 
 - Each `UIInventory` is a named inventory (e.g. `"inventory"`) containing a list of items with their obj IDs and pre-loaded sprite UIScene element IDs.
 - At load time, for each `item=<obj_id>` in an `[inv:name]` section, call `obj_icon_get(game, obj_id, 1)` to generate the 32x32 icon sprite, register it in UIScene via `uiscene_element_acquire`, and store the `scene_id` and `atlas_index` in the `UIInventoryItem`.
-- `UIInventoryPool` is owned by `UITree` (or `GGame`). Sidebar components and RS_INV components reference inventories by index into this pool.
+- `UIInventoryPool` is owned by `GGame` and passed as a separate argument to `uitree_from_revconfig_buildcachedat`. Sidebar components and RS_INV components reference inventories by index into this pool.
 - At render time, the RS_INV step function iterates the inventory's items and emits `TORIRS_GFX_SPRITE_DRAW` for each, looking up sprites via `uiscene_element_at(item->scene_id)`. No buildcachedat access needed.
 
 ### 2. Add traversal stack to `UITree` / `GGame`
@@ -104,6 +104,8 @@ struct UIInventoryPool
 Add to `GGame` ([game.h](src/osrs/game.h)):
 
 ```c
+struct UIInventoryPool* inv_pool;  // owned by GGame, passed to loader
+
 int32_t uitree_stack[64];   // index stack for tree traversal
 int     uitree_stack_top;   // -1 = empty
 int32_t uitree_current;     // current node being stepped, -1 when done
@@ -157,7 +159,7 @@ In `uitree_from_revconfig_buildcachedat`, handle:
 - `RCFIELD_ITEMDONE` for `LOAD_KIND_INV` -> call `load_inv()`
 
 `load_inv()` implementation:
-1. Acquire a slot in `UIInventoryPool` (on UITree or passed as parameter).
+1. Acquire a slot in the `UIInventoryPool` passed into `uitree_from_revconfig_buildcachedat`.
 2. Copy name into `UIInventory.name`.
 3. For each `item_id` in the load:
    - Call `obj_icon_get(game, item_id, 1)` to generate the 32x32 icon `DashSprite*`.
@@ -250,8 +252,8 @@ Add `src/osrs/rs_component_gfx.c` to the build.
 ## Files to modify
 
 - [src/osrs/revconfig/uitree.h](src/osrs/revconfig/uitree.h) -- tree indices, `component_id`, UIInventory/UIInventoryPool structs, updated push signatures, `inv_index` on sidebar/rs_inv unions
-- [src/osrs/revconfig/uitree.c](src/osrs/revconfig/uitree.c) -- tree link maintenance in push functions, UIInventoryPool alloc/free helpers
-- [src/osrs/revconfig/uitree_load.h](src/osrs/revconfig/uitree_load.h) -- no change expected
+- [src/osrs/revconfig/uitree.c](src/osrs/revconfig/uitree.c) -- tree link maintenance in push functions, UIInventoryPool alloc/free/lookup helpers
+- [src/osrs/revconfig/uitree_load.h](src/osrs/revconfig/uitree_load.h) -- add `UIInventoryPool*` parameter to `uitree_from_revconfig_buildcachedat`
 - [src/osrs/revconfig/uitree_load.c](src/osrs/revconfig/uitree_load.c) -- LOAD_KIND_INV handler, sidebar `inv=` resolution, CacheDatComponent child loading
 - [src/osrs/revconfig/revconfig.h](src/osrs/revconfig/revconfig.h) -- add `RCFIELD_INV_ITEM`, `RCFIELD_UICOMPONENT_INV`
 - [src/osrs/revconfig/revconfig.c](src/osrs/revconfig/revconfig.c) -- string representations for new field kinds
