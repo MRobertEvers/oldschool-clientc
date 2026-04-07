@@ -136,6 +136,9 @@ struct StaticUIComponent
             int margin_y;
             int inv_slot_offset_x[UI_INV_SLOT_OFFSET_MAX];
             int inv_slot_offset_y[UI_INV_SLOT_OFFSET_MAX];
+            /** UIScene element per slot for invSlotGraphic; -1 if none. */
+            int inv_slot_bg_scene_id[UI_INV_SLOT_OFFSET_MAX];
+            int inv_slot_bg_atlas_index[UI_INV_SLOT_OFFSET_MAX];
         } rs_inv;
         struct
         {
@@ -341,6 +344,8 @@ uitree_push_rs_inv(
     int margin_y,
     int const* inv_slot_offset_x,
     int const* inv_slot_offset_y,
+    int const* inv_slot_bg_scene_id,
+    int const* inv_slot_bg_atlas_index,
     int x,
     int y,
     int width,

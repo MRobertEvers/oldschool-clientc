@@ -182,6 +182,7 @@ rs_gfx_inv_step(
         return true;
     struct UIInventory* inv = &game->inv_pool->inventories[inv_i];
     int cols = component->u.rs_inv.cols;
+    int rows = component->u.rs_inv.rows;
     int margin_x = component->u.rs_inv.margin_x;
     int margin_y = component->u.rs_inv.margin_y;
     if( cols <= 0 )
@@ -189,31 +190,54 @@ rs_gfx_inv_step(
     int base_x = component->position.x;
     int base_y = component->position.y;
 
-    for( int i = 0; i < inv->item_count; i++ )
+    int i = 0;
+    for( int sx = 0; sx < cols; sx++ )
     {
-        int col = i % cols;
-        int row = i / cols;
-        int slot_x = base_x + col * (margin_x + 32);
-        int slot_y = base_y + row * (margin_y + 32);
-        if( i < UI_INV_SLOT_OFFSET_MAX )
+        for( int sy = 0; sy < rows; sy++, i++ )
         {
-            slot_x += component->u.rs_inv.inv_slot_offset_x[i];
-            slot_y += component->u.rs_inv.inv_slot_offset_y[i];
+            int col = i % cols;
+            int row = i / cols;
+            int slot_x = base_x + col * (margin_x + 32);
+            int slot_y = base_y + row * (margin_y + 32);
+            if( i < UI_INV_SLOT_OFFSET_MAX )
+            {
+                slot_x += component->u.rs_inv.inv_slot_offset_x[i];
+                slot_y += component->u.rs_inv.inv_slot_offset_y[i];
+            }
+
+            struct UIInventoryItem* it = &inv->items[i];
+            if( it->obj_id > 0 )
+            {
+                if( it->scene_id < 0 )
+                    continue;
+                struct UISceneElement* el = uiscene_element_at(game->ui_scene, it->scene_id);
+                if( !el || !el->dash_sprites )
+                    continue;
+                int ai = it->atlas_index;
+                if( ai < 0 || ai >= el->dash_sprites_count )
+                    continue;
+                struct DashSprite* sp = el->dash_sprites[ai];
+                if( !sp )
+                    continue;
+
+                queue_sprite_draw(queued_commands, sp, slot_x, slot_y);
+            }
+            else if(
+                i < UI_INV_SLOT_OFFSET_MAX && component->u.rs_inv.inv_slot_bg_scene_id[i] >= 0 )
+            {
+                int bg_sid = component->u.rs_inv.inv_slot_bg_scene_id[i];
+                int bg_ai = component->u.rs_inv.inv_slot_bg_atlas_index[i];
+                struct UISceneElement* bg_el = uiscene_element_at(game->ui_scene, bg_sid);
+                if( bg_el && bg_el->dash_sprites && bg_ai >= 0 &&
+                    bg_ai < bg_el->dash_sprites_count )
+                {
+                    struct DashSprite* bg_sp = bg_el->dash_sprites[bg_ai];
+                    if( bg_sp )
+                        queue_sprite_draw(queued_commands, bg_sp, slot_x, slot_y);
+                }
+            }
         }
-        struct UIInventoryItem* it = &inv->items[i];
-        if( it->scene_id < 0 )
-            continue;
-        struct UISceneElement* el = uiscene_element_at(game->ui_scene, it->scene_id);
-        if( !el || !el->dash_sprites )
-            continue;
-        int ai = it->atlas_index;
-        if( ai < 0 || ai >= el->dash_sprites_count )
-            continue;
-        struct DashSprite* sp = el->dash_sprites[ai];
-        if( !sp )
-            continue;
-        queue_sprite_draw(queued_commands, sp, slot_x, slot_y);
-        // bmp_write_file("scimitar.bmp", sp->pixels_argb, sp->width, sp->height);
     }
+
     return true;
 }

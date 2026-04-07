@@ -761,6 +761,37 @@ push_rs_from_cache_component(
     break;
     case COMPONENT_TYPE_INV:
     {
+        int bg_sid[UI_INV_SLOT_OFFSET_MAX];
+        int bg_ai[UI_INV_SLOT_OFFSET_MAX];
+        for( int si = 0; si < UI_INV_SLOT_OFFSET_MAX; si++ )
+        {
+            bg_sid[si] = -1;
+            bg_ai[si] = 0;
+        }
+        if( comp->invSlotGraphic && ui_scene )
+        {
+            for( int si = 0; si < UI_INV_SLOT_OFFSET_MAX; si++ )
+            {
+                char const* gname = comp->invSlotGraphic[si];
+                if( !gname || gname[0] == '\0' )
+                    continue;
+                struct DashSprite* sp = buildcachedat_get_component_sprite(bcd, gname);
+                if( !sp )
+                    continue;
+                struct DashSprite** row = malloc(sizeof(struct DashSprite*));
+                if( !row )
+                    continue;
+                row[0] = sp;
+                int sid = uiscene_attach_sprite_row(ui_scene, row, 1, true);
+                if( sid < 0 )
+                {
+                    free(row);
+                    continue;
+                }
+                bg_sid[si] = sid;
+                bg_ai[si] = 0;
+            }
+        }
         uitree_push_rs_inv(
             ui,
             parent_uitree_idx,
@@ -772,6 +803,8 @@ push_rs_from_cache_component(
             comp->marginY,
             comp->invSlotOffsetX,
             comp->invSlotOffsetY,
+            bg_sid,
+            bg_ai,
             abs_x,
             abs_y,
             comp->width,

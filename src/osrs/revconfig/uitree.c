@@ -226,6 +226,17 @@ uitree_print_nodes(struct UITree const* tree)
                 c->u.rs_inv.rows,
                 c->u.rs_inv.margin_x,
                 c->u.rs_inv.margin_y);
+            for( int si = 0; si < UI_INV_SLOT_OFFSET_MAX; si++ )
+            {
+                if( c->u.rs_inv.inv_slot_bg_scene_id[si] >= 0 )
+                {
+                    printf(
+                        "       rs_inv slot_bg[%d] scene_id=%d atlas=%d\n",
+                        si,
+                        c->u.rs_inv.inv_slot_bg_scene_id[si],
+                        c->u.rs_inv.inv_slot_bg_atlas_index[si]);
+                }
+            }
             break;
         case UIELEM_RS_GRAPHIC:
             printf(
@@ -617,6 +628,8 @@ uitree_push_rs_inv(
     int margin_y,
     int const* inv_slot_offset_x,
     int const* inv_slot_offset_y,
+    int const* inv_slot_bg_scene_id,
+    int const* inv_slot_bg_atlas_index,
     int x,
     int y,
     int width,
@@ -649,6 +662,25 @@ uitree_push_rs_inv(
             component->u.rs_inv.inv_slot_offset_y,
             inv_slot_offset_y,
             (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
+    }
+    if( inv_slot_bg_scene_id && inv_slot_bg_atlas_index )
+    {
+        memcpy(
+            component->u.rs_inv.inv_slot_bg_scene_id,
+            inv_slot_bg_scene_id,
+            (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
+        memcpy(
+            component->u.rs_inv.inv_slot_bg_atlas_index,
+            inv_slot_bg_atlas_index,
+            (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
+    }
+    else
+    {
+        for( int i = 0; i < UI_INV_SLOT_OFFSET_MAX; i++ )
+        {
+            component->u.rs_inv.inv_slot_bg_scene_id[i] = -1;
+            component->u.rs_inv.inv_slot_bg_atlas_index[i] = 0;
+        }
     }
     return idx;
 }
