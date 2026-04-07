@@ -191,6 +191,11 @@ rs_gfx_inv_step(
         int row = i / cols;
         int slot_x = base_x + col * (margin_x + 32);
         int slot_y = base_y + row * (margin_y + 32);
+        if( i < UI_INV_SLOT_OFFSET_MAX )
+        {
+            slot_x += component->u.rs_inv.inv_slot_offset_x[i];
+            slot_y += component->u.rs_inv.inv_slot_offset_y[i];
+        }
         struct UIInventoryItem* it = &inv->items[i];
         if( it->scene_id < 0 )
             continue;

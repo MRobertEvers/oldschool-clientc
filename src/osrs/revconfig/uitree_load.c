@@ -769,6 +769,8 @@ push_rs_from_cache_component(
             comp->height,
             comp->marginX,
             comp->marginY,
+            comp->invSlotOffsetX,
+            comp->invSlotOffsetY,
             abs_x,
             abs_y,
             comp->width,

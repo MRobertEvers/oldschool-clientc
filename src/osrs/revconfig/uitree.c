@@ -536,6 +536,8 @@ uitree_push_rs_inv(
     int rows,
     int margin_x,
     int margin_y,
+    int const* inv_slot_offset_x,
+    int const* inv_slot_offset_y,
     int x,
     int y,
     int width,
@@ -558,5 +560,16 @@ uitree_push_rs_inv(
     component->u.rs_inv.rows = rows;
     component->u.rs_inv.margin_x = margin_x;
     component->u.rs_inv.margin_y = margin_y;
+    if( inv_slot_offset_x && inv_slot_offset_y )
+    {
+        memcpy(
+            component->u.rs_inv.inv_slot_offset_x,
+            inv_slot_offset_x,
+            (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
+        memcpy(
+            component->u.rs_inv.inv_slot_offset_y,
+            inv_slot_offset_y,
+            (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
+    }
     return idx;
 }

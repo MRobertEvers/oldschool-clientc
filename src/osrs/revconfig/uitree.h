@@ -4,6 +4,8 @@
 #include <stdint.h>
 
 #define UI_INVENTORY_MAX_ITEMS 128
+/** Matches build-cache / interface.c inv slot offset arrays (first 20 slots). */
+#define UI_INV_SLOT_OFFSET_MAX 20
 
 struct UIInventoryItem
 {
@@ -132,6 +134,8 @@ struct StaticUIComponent
             int rows;
             int margin_x;
             int margin_y;
+            int inv_slot_offset_x[UI_INV_SLOT_OFFSET_MAX];
+            int inv_slot_offset_y[UI_INV_SLOT_OFFSET_MAX];
         } rs_inv;
         struct
         {
@@ -331,6 +335,8 @@ uitree_push_rs_inv(
     int rows,
     int margin_x,
     int margin_y,
+    int const* inv_slot_offset_x,
+    int const* inv_slot_offset_y,
     int x,
     int y,
     int width,

@@ -204,7 +204,6 @@ decode_component(
                 component->invSlotOffsetY[i] = g2b(inb);
 
                 char* graphic = gstringnewline(inb);
-                printf("graphic[%d] = %s\n", i, graphic);
                 component->invSlotGraphic[i] = graphic;
                 if( component->invSlotGraphic[i] != NULL &&
                     strlen(component->invSlotGraphic[i]) == 0 )
@@ -220,7 +219,6 @@ decode_component(
         for( int i = 0; i < 5; i++ )
         {
             char* iop = gstringnewline(inb);
-            printf("iop[%d] = %s\n", i, iop);
             component->iop[i] = iop;
             if( component->iop[i] != NULL && strlen(component->iop[i]) == 0 )
             {
