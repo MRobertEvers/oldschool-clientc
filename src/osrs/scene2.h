@@ -36,10 +36,8 @@ struct Scene2Event
 
 struct Scene2Element
 {
-    int id;
     bool active;
     int parent_entity_id;
-    struct Scene2* owner_scene2;
     struct Scene2Element* next;
     struct Scene2Element* prev;
 
@@ -104,6 +102,7 @@ scene2_element_clear_framemap(struct Scene2Element* element);
 
 void
 scene2_element_set_dash_model(
+    struct Scene2* scene2,
     struct Scene2Element* element,
     struct DashModel* dash_model);
 void

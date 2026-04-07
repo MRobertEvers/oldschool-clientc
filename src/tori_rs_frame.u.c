@@ -146,11 +146,12 @@ struct FrameRenderLoadKeyPtr
 };
 
 static uint64_t
-model_cache_key_u64(const struct Scene2Element* element)
+model_cache_key_u64(struct Scene2* scene2, const struct Scene2Element* element)
 {
-    if( !element )
+    if( !element || !scene2 )
         return 0;
-    return ((uint64_t)(uint32_t)element->id << 24) | ((uint64_t)element->active_anim_id << 8) |
+    int element_id = (int)(element - scene2->elements);
+    return ((uint64_t)(uint32_t)element_id << 24) | ((uint64_t)element->active_anim_id << 8) |
            (uint64_t)element->active_frame;
 }
 
@@ -161,7 +162,7 @@ queue_scene_element_load_from_event(
     struct Scene2Element* element)
 {
     (void)game;
-    uint64_t model_key = model_cache_key_u64(element);
+    uint64_t model_key = model_cache_key_u64(game->world->scene2, element);
     LibToriRS_RenderCommandBufferAddCommand(
         render_command_buffer,
         (struct ToriRSRenderCommand){
@@ -365,7 +366,7 @@ queue_static_ui_minimap_draws(
     struct MinimapRenderCommandBuffer* dyn = game->minimap_dynamic_commands;
     if( !dyn )
         return;
-    minimap_render_dynamic(mm, sw_x, sw_z, ne_x, ne_z, 0, dyn);
+    minimap_render_dynamic(mm, sw_x, sw_z, ne_x, ne_z, dyn);
     for( int j = 0; j < dyn->count; j++ )
     {
         if( dyn->commands[j].kind != MINIMAP_RENDER_COMMAND_LOC )
@@ -908,7 +909,7 @@ next:
 
         command.kind = TORIRS_GFX_MODEL_DRAW;
         command._model_draw.model = scene_element->dash_model;
-        command._model_draw.model_key = model_cache_key_u64(scene_element);
+        command._model_draw.model_key = model_cache_key_u64(game->world->scene2, scene_element);
         command._model_draw.model_id = -1;
         memcpy(&command._model_draw.position, &position, sizeof(struct DashPosition));
         LibToriRS_RenderCommandBufferAddCommand(game->uiscene_queued_commands, command);
@@ -943,7 +944,7 @@ next:
 
         command.kind = TORIRS_GFX_MODEL_DRAW;
         command._model_draw.model = scene_element->dash_model;
-        command._model_draw.model_key = model_cache_key_u64(scene_element);
+        command._model_draw.model_key = model_cache_key_u64(game->world->scene2, scene_element);
         command._model_draw.model_id = -1;
         memcpy(&command._model_draw.position, &position, sizeof(struct DashPosition));
         LibToriRS_RenderCommandBufferAddCommand(game->uiscene_queued_commands, command);

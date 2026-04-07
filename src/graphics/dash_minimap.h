@@ -7,7 +7,6 @@
 void
 dash_minimap_raster_tile_commands(
     struct Minimap* minimap,
-    int level,
     struct MinimapRenderCommandBuffer* tile_commands,
     int sw_x,
     int sw_z,

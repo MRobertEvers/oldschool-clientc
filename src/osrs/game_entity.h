@@ -126,11 +126,11 @@ struct NPCEntity
     struct EntityDrawPosition draw_position;
     struct EntityOrientation orientation;
     struct EntityAnimation animation;
-    struct EntityDescription description;
-    struct EntityName name;
+    char* description;
+    char* name;
     struct EntityVisibleLevel visible_level;
-    struct EntityAction actions[10];
-    int action_count;
+    struct EntityAction* actions;
+    uint8_t action_count;
 
     /* Client.ts: damage/health for hitsplat and health bar */
     uint8_t damage_values[ENTITY_DAMAGE_SLOTS];

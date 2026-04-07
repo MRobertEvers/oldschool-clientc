@@ -24,7 +24,7 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
     if( !tile_cmds )
         return;
 
-    minimap_render_static_tiles(mm, 0, 0, mm->width, mm->height, 0, tile_cmds);
+    minimap_render_static_tiles(mm, 0, 0, mm->width, mm->height, tile_cmds);
 
     const int pw = mm->width * 4;
     const int ph = mm->height * 4;
@@ -37,7 +37,7 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
     memset(pixels, 0, (size_t)pw * (size_t)ph * sizeof(int));
 
     dash_minimap_raster_tile_commands(
-        mm, 0, tile_cmds, 0, 0, mm->width, mm->height, pixels, pw, pw, ph);
+        mm, tile_cmds, 0, 0, mm->width, mm->height, pixels, pw, pw, ph);
     minimap_commands_free(tile_cmds);
 
     struct DashSprite* sp = dashsprite_new_from_argb_owned((uint32_t*)pixels, pw, ph);

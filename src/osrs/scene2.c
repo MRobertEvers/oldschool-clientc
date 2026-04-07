@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define SCENE2_EVENTBUFFER_DEFAULT_CAPACITY 4096
+#define SCENE2_EVENTBUFFER_DEFAULT_CAPACITY 512
 
 static void
 scene2_eventbuffer_push(
@@ -42,10 +42,8 @@ scene2_new(int size)
         if( i < size - 1 )
             scene2->elements[i].next = &scene2->elements[i + 1];
 
-        scene2->elements[i].id = i;
         scene2->elements[i].parent_entity_id = -1;
         scene2->elements[i].active = false;
-        scene2->elements[i].owner_scene2 = scene2;
     }
 
     scene2->active_list = NULL;
@@ -87,7 +85,7 @@ scene2_element_acquire(
         assert(false && "No free elements");
     }
 
-    int element_id = scene2->free_list->id;
+    int element_id = (int)(scene2->free_list - scene2->elements);
     struct Scene2Element* element = scene2->free_list;
     element->active = true;
     element->parent_entity_id = parent_entity_id;
@@ -153,11 +151,11 @@ scene2_element_clear_framemap(struct Scene2Element* element)
 
 void
 scene2_element_set_dash_model(
+    struct Scene2* scene2,
     struct Scene2Element* element,
     struct DashModel* dash_model)
 {
     assert(element && "scene2_element_set_dash_model element is NULL");
-    struct Scene2* scene2 = element->owner_scene2;
     bool model_changed = element->dash_model != dash_model;
     if( element->dash_model )
         dashmodel_free(element->dash_model);
@@ -168,7 +166,7 @@ scene2_element_set_dash_model(
             scene2,
             (struct Scene2Event){
                 .type = SCENE2_EVENT_MODEL_CHANGED,
-                .element_id = element->id,
+                .element_id = (int)(element - scene2->elements),
                 .parent_entity_id = element->parent_entity_id,
             });
     }

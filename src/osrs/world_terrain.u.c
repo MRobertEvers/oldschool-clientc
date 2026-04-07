@@ -402,10 +402,10 @@ build_scene_terrain(struct World* world)
                     minimap_background_rgb = dash_hsl16_to_rgb(underlay_hsl);
 
                 minimap_set_tile_color(
-                    world->minimap, x, z, level, minimap_foreground_rgb, MINIMAP_FOREGROUND);
+                    world->minimap, x, z, minimap_foreground_rgb, MINIMAP_FOREGROUND);
                 minimap_set_tile_color(
-                    world->minimap, x, z, level, minimap_background_rgb, MINIMAP_BACKGROUND);
-                minimap_set_tile_shape(world->minimap, x, z, level, shape, rotation);
+                    world->minimap, x, z, minimap_background_rgb, MINIMAP_BACKGROUND);
+                minimap_set_tile_shape(world->minimap, x, z, shape, rotation);
             }
         }
     }

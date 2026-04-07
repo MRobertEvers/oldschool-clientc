@@ -871,7 +871,7 @@ push_rs_from_cache_component(
             return;
         }
         memset(se->dash_position, 0, sizeof(struct DashPosition));
-        scene2_element_set_dash_model(se, m);
+        scene2_element_set_dash_model(scene2, se, m);
         uitree_push_rs_model(
             ui, parent_uitree_idx, comp->id, eid, abs_x, abs_y, comp->width, comp->height);
     }

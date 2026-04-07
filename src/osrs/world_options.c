@@ -155,7 +155,8 @@ options_add_npc(
         char const* color_tag = options_npc_combat_level_color_tag(
             player->visible_level.level, npc->visible_level.level);
         char* ptr = tooltip;
-        ptr += snprintf(ptr, sizeof(tooltip) - (ptr - tooltip), "%s", npc->name.name);
+        ptr += snprintf(
+            ptr, sizeof(tooltip) - (ptr - tooltip), "%s", npc->name ? npc->name : "");
         if( npc->visible_level.level != 0 )
         {
             ptr += snprintf(
@@ -165,8 +166,10 @@ options_add_npc(
                 color_tag,
                 npc->visible_level.level);
         }
-        for( int i = 4; i >= 0; i-- )
+        for( int i = 4; npc->actions && i >= 0; i-- )
         {
+            if( npc->actions[i].name[0] == '\0' )
+                continue;
             if( strcasecmp(npc->actions[i].name, "attack") != 0 )
             {
                 snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
@@ -204,8 +207,10 @@ options_add_npc(
             }
         }
 
-        for( int i = 4; i >= 0; i-- )
+        for( int i = 4; npc->actions && i >= 0; i-- )
         {
+            if( npc->actions[i].name[0] == '\0' )
+                continue;
             if( strcasecmp(npc->actions[i].name, "attack") == 0 )
             {
                 int priority = player->visible_level.level < npc->visible_level.level

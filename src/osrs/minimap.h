@@ -45,7 +45,6 @@ struct MinimapLoc
 {
     int tile_sx;
     int tile_sz;
-    int level;
     enum MinimapLocType type;
 };
 
@@ -53,7 +52,6 @@ struct Minimap
 {
     int width;
     int height;
-    int levels;
 
     struct MinimapTile* tiles;
     int tiles_count;
@@ -67,8 +65,7 @@ struct Minimap
 struct Minimap*
 minimap_new(
     int width,
-    int height,
-    int levels);
+    int height);
 
 enum MinimapRenderCommandKind
 {
@@ -121,7 +118,6 @@ minimap_add_loc(
     struct Minimap* minimap,
     int sx,
     int sz,
-    int level,
     enum MinimapLocType type);
 
 void
@@ -129,7 +125,6 @@ minimap_add_tile_wall(
     struct Minimap* minimap,
     int sx,
     int sz,
-    int level,
     enum MinimapWallFlag wall);
 
 #define MINIMAP_FOREGROUND 1
@@ -140,29 +135,25 @@ minimap_tile_rgb(
     struct Minimap* minimap,
     int sx,
     int sz,
-    int level,
     int is_foreground);
 
 int
 minimap_tile_wall(
     struct Minimap* minimap,
     int sx,
-    int sz,
-    int level);
+    int sz);
 
 int
 minimap_tile_shape(
     struct Minimap* minimap,
     int sx,
-    int sz,
-    int level);
+    int sz);
 
 int
 minimap_tile_rotation(
     struct Minimap* minimap,
     int sx,
-    int sz,
-    int level);
+    int sz);
 
 enum MinimapLocType
 minimap_loc_type(
@@ -174,7 +165,6 @@ minimap_set_tile_color(
     struct Minimap* minimap,
     int sx,
     int sz,
-    int level,
     uint32_t color_rgb,
     int is_foreground);
 
@@ -183,7 +173,6 @@ minimap_set_tile_shape(
     struct Minimap* minimap,
     int sx,
     int sz,
-    int level,
     int shape,
     int rotation);
 
@@ -194,7 +183,6 @@ minimap_render(
     int sw_z,
     int ne_x,
     int ne_z,
-    int level,
     struct MinimapRenderCommandBuffer* command_buffer);
 
 void
@@ -204,7 +192,6 @@ minimap_render_static_tiles(
     int sw_z,
     int ne_x,
     int ne_z,
-    int level,
     struct MinimapRenderCommandBuffer* command_buffer);
 
 void
@@ -214,7 +201,6 @@ minimap_render_dynamic(
     int sw_z,
     int ne_x,
     int ne_z,
-    int level,
     struct MinimapRenderCommandBuffer* command_buffer);
 
 #endif

@@ -111,6 +111,14 @@ world_free(struct World* world)
     for( int i = 0; i < MAX_MAP_BUILD_LOC_ENTITIES; i++ )
         free(world->map_build_loc_entities[i].actions);
 
+    for( int i = 0; i < MAX_NPCS; i++ )
+    {
+        struct NPCEntity* npc = &world->npcs[i];
+        free(npc->name);
+        free(npc->description);
+        free(npc->actions);
+    }
+
     painter_free(world->painter);
     collision_map_free(world->collision_map);
     heightmap_free(world->heightmap);
@@ -360,7 +368,7 @@ world_buildcachedat_rebuild_centerzone(
     world->painter = painter_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
     world->collision_map = collision_map_new(scene_size, scene_size);
     world->heightmap = heightmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
-    world->minimap = minimap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    world->minimap = minimap_new(scene_size, scene_size);
 
     world->lightmap = lightmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
     world->shademap = shademap2_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
@@ -623,7 +631,6 @@ world_buildcachedat_rebuild_centerzone(
                         world->minimap,
                         offset_x,
                         offset_z,
-                        level,
                         orientation_wall_flag(map_tile->orientation));
                     break;
                 }
@@ -635,7 +642,6 @@ world_buildcachedat_rebuild_centerzone(
                         world->minimap,
                         offset_x,
                         offset_z,
-                        level,
                         orientation_wall_flag(map_tile->orientation));
 
                     int next_orientation = (map_tile->orientation + 1) & 0x3;
@@ -644,7 +650,6 @@ world_buildcachedat_rebuild_centerzone(
                         world->minimap,
                         offset_x,
                         offset_z,
-                        level,
                         orientation_wall_flag(next_orientation));
                     break;
                 }
@@ -656,7 +661,6 @@ world_buildcachedat_rebuild_centerzone(
                         world->minimap,
                         offset_x,
                         offset_z,
-                        level,
                         orientation_wall_flag_diagonal(map_tile->orientation));
                     break;
                 }
@@ -1107,6 +1111,13 @@ world_cleanup_npc_entity(
     int entity_id)
 {
     struct NPCEntity* npc = &world->npcs[entity_id];
+    free(npc->name);
+    npc->name = NULL;
+    free(npc->description);
+    npc->description = NULL;
+    free(npc->actions);
+    npc->actions = NULL;
+    npc->action_count = 0;
     scene2_element_release(world->scene2, npc->scene_element2.element_id);
     npc->scene_element2.element_id = -1;
     memset(&npc->pathing, 0, sizeof(struct EntityPathing));

@@ -11,11 +11,12 @@
 #include <string.h>
 
 static uint64_t
-rs_model_cache_key_u64(struct Scene2Element const* element)
+rs_model_cache_key_u64(struct Scene2* scene2, struct Scene2Element const* element)
 {
-    if( !element )
+    if( !element || !scene2 )
         return 0;
-    return ((uint64_t)(uint32_t)element->id << 24) | ((uint64_t)element->active_anim_id << 8) |
+    int element_id = (int)(element - scene2->elements);
+    return ((uint64_t)(uint32_t)element_id << 24) | ((uint64_t)element->active_anim_id << 8) |
            (uint64_t)element->active_frame;
 }
 
@@ -158,7 +159,7 @@ rs_gfx_model_step(
         struct ToriRSRenderCommand cmd = { 0 };
         cmd.kind = TORIRS_GFX_MODEL_DRAW;
         cmd._model_draw.model = se->dash_model;
-        cmd._model_draw.model_key = rs_model_cache_key_u64(se);
+        cmd._model_draw.model_key = rs_model_cache_key_u64(game->world->scene2, se);
         cmd._model_draw.model_id = -1;
         memcpy(&cmd._model_draw.position, &position, sizeof(struct DashPosition));
         LibToriRS_RenderCommandBufferAddCommand(queued_commands, cmd);

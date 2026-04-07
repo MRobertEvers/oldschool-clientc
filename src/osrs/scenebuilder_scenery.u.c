@@ -699,7 +699,6 @@ scenery_add_wall_single(
             scene_builder->minimap,
             offset->x,
             offset->z,
-            offset->level,
             orientation_wall_flag(orientation));
     }
 
@@ -855,14 +854,12 @@ scenery_add_wall_two_sides(
             scene_builder->minimap,
             offset->x,
             offset->z,
-            offset->level,
             orientation_wall_flag(map_loc->orientation));
 
         minimap_add_tile_wall(
             scene_builder->minimap,
             offset->x,
             offset->z,
-            offset->level,
             orientation_wall_flag(next_orientation));
     }
 
@@ -1375,7 +1372,6 @@ scenery_add_wall_diagonal(
             scene_builder->minimap,
             offset->x,
             offset->z,
-            offset->level,
             orientation_wall_flag_diagonal(map_loc->orientation));
     }
 
