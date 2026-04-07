@@ -1,0 +1,299 @@
+==9446== Memcheck, a memory error detector
+==9446== Copyright (C) 2002-2022, and GNU GPL'd, by Julian Seward et al.
+==9446== Using Valgrind-3.22.0 and LibVEX; rerun with -h for copyright info
+==9446== Command: ./osx
+==9446== 
+GameNew: Memory info: 0 / 0 / 138489856
+Sizeof(struct DashGraphics): 1707936
+GameNew: Memory info after dash_new: 0 / 0 / 138919936
+GameNew: Memory info after painter_buffer_new: 0 / 0 / 138936320
+GameNew: Memory info after painter_buffer_new: 0 / 0 / 138952704
+GameNew: Memory info pre uiscene_new: 0 / 0 / 138952704
+GameNew: Memory info after uiscene_new: 0 / 0 / 139001856
+Empty
+buildcachedat_loader_load_interfaces: Loaded 8143 components
+Loading file: ../src/osrs/revconfig/configs/rev_245_2/rev_245_2_ui.ini
+file: 0x19e960e0
+Loading file: ../src/osrs/revconfig/configs/rev_245_2/rev_245_2_cache.ini
+file: 0x19e98740
+inv_obj_ids	1
+1	1333
+uitree: 86 nodes, root_index=0
+  [0] type=minimap parent=-1 first_child=-1 next_sibling=1 component_id=-1 pos kind=1 xy=(550,4) wh=(213,203)
+  [1] type=world parent=-1 first_child=-1 next_sibling=2 component_id=-1 pos kind=1 xy=(4,4) wh=(0,0)
+  [2] type=compass parent=-1 first_child=-1 next_sibling=3 component_id=-1 pos kind=1 xy=(550,4) wh=(34,34)
+  [3] type=sprite parent=-1 first_child=-1 next_sibling=4 component_id=-1 pos kind=1 xy=(553,205) wh=(190,261)
+       sprite scene_id=1 atlas_index=0
+  [4] type=sprite parent=-1 first_child=-1 next_sibling=5 component_id=-1 pos kind=1 xy=(0,4) wh=(4,334)
+       sprite scene_id=6 atlas_index=0
+  [5] type=sprite parent=-1 first_child=-1 next_sibling=6 component_id=-1 pos kind=1 xy=(0,357) wh=(17,96)
+       sprite scene_id=7 atlas_index=0
+  [6] type=sprite parent=-1 first_child=-1 next_sibling=7 component_id=-1 pos kind=1 xy=(722,4) wh=(43,156)
+       sprite scene_id=8 atlas_index=0
+  [7] type=sprite parent=-1 first_child=-1 next_sibling=8 component_id=-1 pos kind=1 xy=(743,205) wh=(22,261)
+       sprite scene_id=9 atlas_index=0
+  [8] type=sprite parent=-1 first_child=-1 next_sibling=9 component_id=-1 pos kind=1 xy=(0,0) wh=(765,4)
+       sprite scene_id=10 atlas_index=0
+  [9] type=sprite parent=-1 first_child=-1 next_sibling=10 component_id=-1 pos kind=1 xy=(516,4) wh=(34,156)
+       sprite scene_id=11 atlas_index=0
+  [10] type=sprite parent=-1 first_child=-1 next_sibling=11 component_id=-1 pos kind=1 xy=(516,205) wh=(37,133)
+       sprite scene_id=12 atlas_index=0
+  [11] type=sprite parent=-1 first_child=-1 next_sibling=12 component_id=-1 pos kind=1 xy=(496,357) wh=(57,109)
+       sprite scene_id=13 atlas_index=0
+  [12] type=sprite parent=-1 first_child=-1 next_sibling=13 component_id=-1 pos kind=1 xy=(0,338) wh=(553,19)
+       sprite scene_id=15 atlas_index=0
+  [13] type=sprite parent=-1 first_child=-1 next_sibling=14 component_id=-1 pos kind=1 xy=(550,4) wh=(172,156)
+       sprite scene_id=3 atlas_index=0
+  [14] type=sprite parent=-1 first_child=-1 next_sibling=15 component_id=-1 pos kind=1 xy=(516,160) wh=(249,45)
+       sprite scene_id=14 atlas_index=0
+  [15] type=sprite parent=-1 first_child=-1 next_sibling=16 component_id=-1 pos kind=1 xy=(0,453) wh=(496,50)
+       sprite scene_id=4 atlas_index=0
+  [16] type=sprite parent=-1 first_child=-1 next_sibling=17 component_id=-1 pos kind=1 xy=(496,466) wh=(269,37)
+       sprite scene_id=5 atlas_index=0
+  [17] type=redstone_tab parent=-1 first_child=-1 next_sibling=18 component_id=-1 pos kind=1 xy=(538,169) wh=(34,36)
+  [18] type=redstone_tab parent=-1 first_child=-1 next_sibling=19 component_id=-1 pos kind=1 xy=(570,169) wh=(30,37)
+  [19] type=redstone_tab parent=-1 first_child=-1 next_sibling=20 component_id=-1 pos kind=1 xy=(598,169) wh=(30,37)
+  [20] type=redstone_tab parent=-1 first_child=-1 next_sibling=21 component_id=-1 pos kind=1 xy=(626,169) wh=(44,35)
+  [21] type=redstone_tab parent=-1 first_child=-1 next_sibling=22 component_id=-1 pos kind=1 xy=(669,169) wh=(30,37)
+  [22] type=redstone_tab parent=-1 first_child=-1 next_sibling=23 component_id=-1 pos kind=1 xy=(696,169) wh=(30,37)
+  [23] type=redstone_tab parent=-1 first_child=-1 next_sibling=24 component_id=-1 pos kind=1 xy=(724,169) wh=(34,36)
+  [24] type=redstone_tab parent=-1 first_child=-1 next_sibling=25 component_id=-1 pos kind=1 xy=(570,465) wh=(30,37)
+  [25] type=redstone_tab parent=-1 first_child=-1 next_sibling=26 component_id=-1 pos kind=1 xy=(598,465) wh=(30,37)
+  [26] type=redstone_tab parent=-1 first_child=-1 next_sibling=27 component_id=-1 pos kind=1 xy=(625,465) wh=(44,35)
+  [27] type=redstone_tab parent=-1 first_child=-1 next_sibling=28 component_id=-1 pos kind=1 xy=(669,465) wh=(30,37)
+  [28] type=redstone_tab parent=-1 first_child=-1 next_sibling=29 component_id=-1 pos kind=1 xy=(697,465) wh=(30,37)
+  [29] type=redstone_tab parent=-1 first_child=-1 next_sibling=30 component_id=-1 pos kind=1 xy=(722,465) wh=(34,36)
+  [30] type=sprite parent=-1 first_child=-1 next_sibling=31 component_id=-1 pos kind=1 xy=(545,172) wh=(0,0)
+       sprite scene_id=16 atlas_index=0
+  [31] type=sprite parent=-1 first_child=-1 next_sibling=32 component_id=-1 pos kind=1 xy=(569,170) wh=(0,0)
+       sprite scene_id=16 atlas_index=1
+  [32] type=sprite parent=-1 first_child=-1 next_sibling=33 component_id=-1 pos kind=1 xy=(598,170) wh=(0,0)
+       sprite scene_id=16 atlas_index=2
+  [33] type=sprite parent=-1 first_child=-1 next_sibling=34 component_id=-1 pos kind=1 xy=(631,172) wh=(0,0)
+       sprite scene_id=16 atlas_index=3
+  [34] type=sprite parent=-1 first_child=-1 next_sibling=35 component_id=-1 pos kind=1 xy=(669,173) wh=(0,0)
+       sprite scene_id=16 atlas_index=4
+  [35] type=sprite parent=-1 first_child=-1 next_sibling=36 component_id=-1 pos kind=1 xy=(696,171) wh=(0,0)
+       sprite scene_id=16 atlas_index=5
+  [36] type=sprite parent=-1 first_child=-1 next_sibling=37 component_id=-1 pos kind=1 xy=(724,173) wh=(0,0)
+       sprite scene_id=16 atlas_index=6
+  [37] type=sprite parent=-1 first_child=-1 next_sibling=38 component_id=-1 pos kind=1 xy=(570,468) wh=(0,0)
+       sprite scene_id=16 atlas_index=7
+  [38] type=sprite parent=-1 first_child=-1 next_sibling=39 component_id=-1 pos kind=1 xy=(598,469) wh=(0,0)
+       sprite scene_id=16 atlas_index=8
+  [39] type=sprite parent=-1 first_child=-1 next_sibling=40 component_id=-1 pos kind=1 xy=(633,470) wh=(0,0)
+       sprite scene_id=16 atlas_index=9
+  [40] type=sprite parent=-1 first_child=-1 next_sibling=41 component_id=-1 pos kind=1 xy=(670,468) wh=(0,0)
+       sprite scene_id=16 atlas_index=10
+  [41] type=sprite parent=-1 first_child=-1 next_sibling=42 component_id=-1 pos kind=1 xy=(697,468) wh=(0,0)
+       sprite scene_id=16 atlas_index=11
+  [42] type=sprite parent=-1 first_child=-1 next_sibling=43 component_id=-1 pos kind=1 xy=(722,468) wh=(0,0)
+       sprite scene_id=16 atlas_index=12
+  [43] type=sprite parent=-1 first_child=-1 next_sibling=44 component_id=-1 pos kind=1 xy=(17,357) wh=(479,96)
+       sprite scene_id=2 atlas_index=0
+  [44] type=sidebar parent=-1 first_child=45 next_sibling=-1 component_id=-1 pos kind=1 xy=(550,205) wh=(190,261)
+       sidebar tabno=3 componentno=1644 inv_index=0
+  [45] type=rs_layer parent=44 first_child=46 next_sibling=-1 component_id=1644 pos kind=1 xy=(550,205) wh=(512,334)
+  [46] type=rs_graphic parent=45 first_child=-1 next_sibling=47 component_id=1645 pos kind=1 xy=(628,244) wh=(36,36)
+       rs_graphic scene_id=36 atlas=0 active_scene=-1 active_atlas=0
+  [47] type=rs_graphic parent=45 first_child=-1 next_sibling=48 component_id=1646 pos kind=1 xy=(628,273) wh=(36,36)
+       rs_graphic scene_id=37 atlas=0 active_scene=-1 active_atlas=0
+  [48] type=rs_graphic parent=45 first_child=-1 next_sibling=49 component_id=1647 pos kind=1 xy=(628,310) wh=(36,36)
+       rs_graphic scene_id=38 atlas=0 active_scene=-1 active_atlas=0
+  [49] type=rs_graphic parent=45 first_child=-1 next_sibling=50 component_id=1648 pos kind=1 xy=(628,351) wh=(36,36)
+       rs_graphic scene_id=39 atlas=0 active_scene=-1 active_atlas=0
+  [50] type=rs_graphic parent=45 first_child=-1 next_sibling=51 component_id=1649 pos kind=1 xy=(572,323) wh=(36,36)
+       rs_graphic scene_id=40 atlas=0 active_scene=-1 active_atlas=0
+  [51] type=rs_graphic parent=45 first_child=-1 next_sibling=52 component_id=1650 pos kind=1 xy=(572,359) wh=(36,36)
+       rs_graphic scene_id=41 atlas=0 active_scene=-1 active_atlas=0
+  [52] type=rs_graphic parent=45 first_child=-1 next_sibling=53 component_id=1651 pos kind=1 xy=(684,323) wh=(36,36)
+       rs_graphic scene_id=42 atlas=0 active_scene=-1 active_atlas=0
+  [53] type=rs_graphic parent=45 first_child=-1 next_sibling=54 component_id=1652 pos kind=1 xy=(684,359) wh=(36,36)
+       rs_graphic scene_id=43 atlas=0 active_scene=-1 active_atlas=0
+  [54] type=rs_graphic parent=45 first_child=-1 next_sibling=55 component_id=1653 pos kind=1 xy=(598,286) wh=(36,36)
+       rs_graphic scene_id=44 atlas=0 active_scene=-1 active_atlas=0
+  [55] type=rs_graphic parent=45 first_child=-1 next_sibling=56 component_id=1654 pos kind=1 xy=(657,286) wh=(36,36)
+       rs_graphic scene_id=45 atlas=0 active_scene=-1 active_atlas=0
+  [56] type=rs_graphic parent=45 first_child=-1 next_sibling=57 component_id=1655 pos kind=1 xy=(608,247) wh=(36,36)
+       rs_graphic scene_id=46 atlas=0 active_scene=-1 active_atlas=0
+  [57] type=rs_graphic parent=45 first_child=-1 next_sibling=58 component_id=1656 pos kind=1 xy=(662,246) wh=(36,36)
+       rs_graphic scene_id=47 atlas=0 active_scene=-1 active_atlas=0
+  [58] type=rs_graphic parent=45 first_child=-1 next_sibling=59 component_id=1657 pos kind=1 xy=(628,209) wh=(36,36)
+       rs_graphic scene_id=48 atlas=0 active_scene=-1 active_atlas=0
+  [59] type=rs_graphic parent=45 first_child=-1 next_sibling=60 component_id=1658 pos kind=1 xy=(587,248) wh=(36,36)
+       rs_graphic scene_id=49 atlas=0 active_scene=-1 active_atlas=0
+  [60] type=rs_graphic parent=45 first_child=-1 next_sibling=61 component_id=1659 pos kind=1 xy=(628,248) wh=(36,36)
+       rs_graphic scene_id=50 atlas=0 active_scene=-1 active_atlas=0
+  [61] type=rs_graphic parent=45 first_child=-1 next_sibling=62 component_id=1660 pos kind=1 xy=(669,248) wh=(36,36)
+       rs_graphic scene_id=51 atlas=0 active_scene=-1 active_atlas=0
+  [62] type=rs_graphic parent=45 first_child=-1 next_sibling=63 component_id=1661 pos kind=1 xy=(572,287) wh=(36,36)
+       rs_graphic scene_id=52 atlas=0 active_scene=-1 active_atlas=0
+  [63] type=rs_graphic parent=45 first_child=-1 next_sibling=64 component_id=1662 pos kind=1 xy=(628,287) wh=(36,36)
+       rs_graphic scene_id=53 atlas=0 active_scene=-1 active_atlas=0
+  [64] type=rs_graphic parent=45 first_child=-1 next_sibling=65 component_id=1663 pos kind=1 xy=(684,287) wh=(36,36)
+       rs_graphic scene_id=54 atlas=0 active_scene=-1 active_atlas=0
+  [65] type=rs_graphic parent=45 first_child=-1 next_sibling=66 component_id=1664 pos kind=1 xy=(628,327) wh=(36,36)
+       rs_graphic scene_id=55 atlas=0 active_scene=-1 active_atlas=0
+  [66] type=rs_graphic parent=45 first_child=-1 next_sibling=67 component_id=1665 pos kind=1 xy=(628,367) wh=(36,36)
+       rs_graphic scene_id=56 atlas=0 active_scene=-1 active_atlas=0
+  [67] type=rs_graphic parent=45 first_child=-1 next_sibling=68 component_id=1666 pos kind=1 xy=(572,367) wh=(36,36)
+       rs_graphic scene_id=57 atlas=0 active_scene=-1 active_atlas=0
+  [68] type=rs_graphic parent=45 first_child=-1 next_sibling=69 component_id=1667 pos kind=1 xy=(684,367) wh=(36,36)
+       rs_graphic scene_id=58 atlas=0 active_scene=-1 active_atlas=0
+  [69] type=rs_layer parent=45 first_child=70 next_sibling=85 component_id=1668 pos kind=1 xy=(558,405) wh=(161,57)
+  [70] type=rs_text parent=69 first_child=-1 next_sibling=71 component_id=1673 pos kind=1 xy=(568,408) wh=(64,11)
+       rs_text font_id=0 color=16776960 center=1 text=Attack bonus
+  [71] type=rs_text parent=69 first_child=-1 next_sibling=72 component_id=1674 pos kind=1 xy=(642,408) wh=(74,11)
+       rs_text font_id=0 color=16776960 center=1 text=Defence bonus
+  [72] type=rs_text parent=69 first_child=-1 next_sibling=73 component_id=1675 pos kind=1 xy=(574,420) wh=(54,11)
+       rs_text font_id=0 color=7040819 center=1 text=Stab: +120
+  [73] type=rs_text parent=69 first_child=-1 next_sibling=74 component_id=1676 pos kind=1 xy=(573,432) wh=(56,11)
+       rs_text font_id=0 color=7040819 center=1 text=Slash:+120
+  [74] type=rs_text parent=69 first_child=-1 next_sibling=75 component_id=1677 pos kind=1 xy=(572,444) wh=(58,11)
+       rs_text font_id=0 color=7040819 center=1 text=Crush:+120
+  [75] type=rs_text parent=69 first_child=-1 next_sibling=76 component_id=1678 pos kind=1 xy=(571,456) wh=(59,11)
+       rs_text font_id=0 color=7040819 center=1 text=Magic: +120
+  [76] type=rs_text parent=69 first_child=-1 next_sibling=77 component_id=1679 pos kind=1 xy=(570,468) wh=(62,15)
+       rs_text font_id=0 color=7040819 center=1 text=Range: +120
+  [77] type=rs_text parent=69 first_child=-1 next_sibling=78 component_id=1680 pos kind=1 xy=(654,420) wh=(54,11)
+       rs_text font_id=0 color=7040819 center=1 text=Stab: +120
+  [78] type=rs_text parent=69 first_child=-1 next_sibling=79 component_id=1681 pos kind=1 xy=(651,432) wh=(59,11)
+       rs_text font_id=0 color=7040819 center=1 text=Slash: +120
+  [79] type=rs_text parent=69 first_child=-1 next_sibling=80 component_id=1682 pos kind=1 xy=(650,444) wh=(61,11)
+       rs_text font_id=0 color=7040819 center=1 text=Crush: +120
+  [80] type=rs_text parent=69 first_child=-1 next_sibling=81 component_id=1683 pos kind=1 xy=(650,456) wh=(59,11)
+       rs_text font_id=0 color=7040819 center=1 text=Magic: +120
+  [81] type=rs_text parent=69 first_child=-1 next_sibling=82 component_id=1684 pos kind=1 xy=(649,468) wh=(62,11)
+       rs_text font_id=0 color=7040819 center=1 text=Range: +120
+  [82] type=rs_text parent=69 first_child=-1 next_sibling=83 component_id=1685 pos kind=1 xy=(606,485) wh=(73,11)
+       rs_text font_id=0 color=16776960 center=1 text=Other bonuses
+  [83] type=rs_text parent=69 first_child=-1 next_sibling=84 component_id=1686 pos kind=1 xy=(567,497) wh=(75,11)
+       rs_text font_id=0 color=7040819 center=1 text=Strength: +120
+  [84] type=rs_text parent=69 first_child=-1 next_sibling=-1 component_id=1687 pos kind=1 xy=(648,497) wh=(66,11)
+       rs_text font_id=0 color=7040819 center=1 text=Prayer: +120
+  [85] type=rs_inv parent=45 first_child=-1 next_sibling=-1 component_id=1688 pos kind=1 xy=(574,249) wh=(3,5)
+       rs_inv inv_index=0 cols=3 rows=5 margin=(24,8)
+       rs_inv slot_bg[0] scene_id=59 atlas=0
+       rs_inv slot_bg[1] scene_id=60 atlas=0
+       rs_inv slot_bg[2] scene_id=61 atlas=0
+       rs_inv slot_bg[3] scene_id=62 atlas=0
+       rs_inv slot_bg[4] scene_id=63 atlas=0
+       rs_inv slot_bg[5] scene_id=64 atlas=0
+       rs_inv slot_bg[7] scene_id=65 atlas=0
+       rs_inv slot_bg[9] scene_id=66 atlas=0
+       rs_inv slot_bg[10] scene_id=67 atlas=0
+       rs_inv slot_bg[12] scene_id=68 atlas=0
+       rs_inv slot_bg[13] scene_id=69 atlas=0
+=== Loading Map Data ===
+Time elapsed: 0.0s
+Time elapsed: 0.0s
+Time elapsed: 0.0s
+=== Loading Config ===
+Time elapsed: 0.0s
+=== Loading Models ===
+Time elapsed Pre Add Unique: 0.0s
+Time elapsed Pre Sort: 2.0s
+Time elapsed Post Sort: 2.0s
+Time elapsed: 2.0s
+=== Loading Textures ===
+=== Loading Animations ===
+=== Building Scene ===
+Pre-Alloc: Memory info: 0 / 0 / 684089344
+Post-Alloc: Memory info: 0 / 0 / 700809216
+world_buildcachedat_rebuild_centerzone: DashModel heap per scene2 element:
+=== Scene Built ===
+Connecting to 127.0.0.1:43594
+Connection in progress to 127.0.0.1:43594
+Connection failed with error: Connection refused
+==9446== 
+==9446== HEAP SUMMARY:
+==9446==     in use at exit: 4,214,302 bytes in 13,860 blocks
+==9446==   total heap usage: 1,080,857 allocs, 1,066,997 frees, 250,333,043 bytes allocated
+==9446== 
+==9446== 224 bytes in 1 blocks are definitely lost in loss record 2,701 of 2,763
+==9446==    at 0x4846828: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==9446==    by 0x193BF3: model_new_copy (model.c:2524)
+==9446==    by 0x1BC447: obj_icon_get (obj_icon.c:160)
+==9446==    by 0x1B0902: load_inv (uitree_load.c:577)
+==9446==    by 0x1B3323: uitree_load_inventories_from_revconfig (uitree_load.c:1528)
+==9446==    by 0x1E7D0E: LuaUI_load_revconfig_inventories (lua_ui.c:284)
+==9446==    by 0x1E8115: LuaUI_DispatchCommand (lua_ui.c:352)
+==9446==    by 0x2F2A0C: game_callback(void*, LuaGameType*) (in /home/matthew/Documents/Documents/git_repos/3d-raster/build/osx)
+==9446==    by 0x1EE5B1: c_wasm_dispatcher (luac_sidecar.c:56)
+==9446==    by 0x12899C: precallC (ldo.c:655)
+==9446==    by 0x128CEF: luaD_precall (ldo.c:721)
+==9446==    by 0x1577A7: luaV_execute (lvm.c:1729)
+==9446== 
+==9446== 528 (16 direct, 512 indirect) bytes in 1 blocks are definitely lost in loss record 2,719 of 2,763
+==9446==    at 0x4846828: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==9446==    by 0x1A74E2: minimap_commands_new (minimap.c:21)
+==9446==    by 0x16018A: LibToriRS_GameNew (tori_rs_init.u.c:236)
+==9446==    by 0x2F213E: main (in /home/matthew/Documents/Documents/git_repos/3d-raster/build/osx)
+==9446== 
+==9446== 4,624 (16 direct, 4,608 indirect) bytes in 1 blocks are definitely lost in loss record 2,748 of 2,763
+==9446==    at 0x4846828: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==9446==    by 0x1642AC: LibToriRS_RenderCommandBufferNew (tori_rs_render.c:12)
+==9446==    by 0x160178: LibToriRS_GameNew (tori_rs_init.u.c:235)
+==9446==    by 0x2F213E: main (in /home/matthew/Documents/Documents/git_repos/3d-raster/build/osx)
+==9446== 
+==9446== 6,956 (232 direct, 6,724 indirect) bytes in 1 blocks are definitely lost in loss record 2,750 of 2,763
+==9446==    at 0x484D953: calloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==9446==    by 0x56FB232: ??? (in /usr/lib/x86_64-linux-gnu/libdbus-1.so.3.32.4)
+==9446==    by 0x5703587: ??? (in /usr/lib/x86_64-linux-gnu/libdbus-1.so.3.32.4)
+==9446==    by 0x570589D: ??? (in /usr/lib/x86_64-linux-gnu/libdbus-1.so.3.32.4)
+==9446==    by 0x56F5872: ??? (in /usr/lib/x86_64-linux-gnu/libdbus-1.so.3.32.4)
+==9446==    by 0x56E128D: ??? (in /usr/lib/x86_64-linux-gnu/libdbus-1.so.3.32.4)
+==9446==    by 0x56E26F0: ??? (in /usr/lib/x86_64-linux-gnu/libdbus-1.so.3.32.4)
+==9446==    by 0x4996BD3: ??? (in /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.3000.0)
+==9446==    by 0x48A335E: ??? (in /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0.3000.0)
+==9446==    by 0x2F2D76: Platform2_OSX_SDL2_InitForSoft3D(Platform2_OSX_SDL2*, int, int) (in /home/matthew/Documents/Documents/git_repos/3d-raster/build/osx)
+==9446==    by 0x2F2255: main (in /home/matthew/Documents/Documents/git_repos/3d-raster/build/osx)
+==9446== 
+==9446== 131,072 bytes in 2 blocks are possibly lost in loss record 2,760 of 2,763
+==9446==    at 0x4846828: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==9446==    by 0x1A94BB: texture_new_from_texture_sprite (texture.c:335)
+==9446==    by 0x18A328: buildcachedat_loader_cache_textures (buildcachedat_loader.c:348)
+==9446==    by 0x1E5713: LuaBuildCacheDat_cache_textures (lua_buildcachedat.c:531)
+==9446==    by 0x1E6197: LuaBuildCacheDat_DispatchCommand (lua_buildcachedat.c:705)
+==9446==    by 0x2F296D: game_callback(void*, LuaGameType*) (in /home/matthew/Documents/Documents/git_repos/3d-raster/build/osx)
+==9446==    by 0x1EE5B1: c_wasm_dispatcher (luac_sidecar.c:56)
+==9446==    by 0x12899C: precallC (ldo.c:655)
+==9446==    by 0x128CEF: luaD_precall (ldo.c:721)
+==9446==    by 0x1577A7: luaV_execute (lvm.c:1729)
+==9446==    by 0x12924F: unroll (ldo.c:874)
+==9446==    by 0x129461: resume (ldo.c:942)
+==9446== 
+==9446== 913,442 (810,016 direct, 103,426 indirect) bytes in 2,978 blocks are definitely lost in loss record 2,761 of 2,763
+==9446==    at 0x4846828: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==9446==    by 0x1A0B9B: decode_obj (config_obj.c:18)
+==9446==    by 0x1A1633: cache_dat_config_obj_list_new_decode (config_obj.c:296)
+==9446==    by 0x18B31D: buildcachedat_loader_init_objects_from_config_jagfile (buildcachedat_loader.c:770)
+==9446==    by 0x1E58F3: LuaBuildCacheDat_init_objects_from_config_jagfile (lua_buildcachedat.c:611)
+==9446==    by 0x1E6357: LuaBuildCacheDat_DispatchCommand (lua_buildcachedat.c:712)
+==9446==    by 0x2F296D: game_callback(void*, LuaGameType*) (in /home/matthew/Documents/Documents/git_repos/3d-raster/build/osx)
+==9446==    by 0x1EE5B1: c_wasm_dispatcher (luac_sidecar.c:56)
+==9446==    by 0x12899C: precallC (ldo.c:655)
+==9446==    by 0x128CEF: luaD_precall (ldo.c:721)
+==9446==    by 0x1577A7: luaV_execute (lvm.c:1729)
+==9446==    by 0x12924F: unroll (ldo.c:874)
+==9446== 
+==9446== 2,905,775 (96 direct, 2,905,679 indirect) bytes in 1 blocks are definitely lost in loss record 2,763 of 2,763
+==9446==    at 0x4846828: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)
+==9446==    by 0x1826BC: dashmap_new (dashmap.c:292)
+==9446==    by 0x1868E8: buildcachedat_create_hmap (buildcachedat.c:166)
+==9446==    by 0x186B83: buildcachedat_init_maps_and_eventbuffer (buildcachedat.c:229)
+==9446==    by 0x186E76: buildcachedat_new (buildcachedat.c:278)
+==9446==    by 0x15FFBC: LibToriRS_GameNew (tori_rs_init.u.c:199)
+==9446==    by 0x2F213E: main (in /home/matthew/Documents/Documents/git_repos/3d-raster/build/osx)
+==9446== 
+==9446== LEAK SUMMARY:
+==9446==    definitely lost: 810,600 bytes in 2,983 blocks
+==9446==    indirectly lost: 3,020,949 bytes in 7,259 blocks
+==9446==      possibly lost: 131,072 bytes in 2 blocks
+==9446==    still reachable: 251,681 bytes in 3,616 blocks
+==9446==         suppressed: 0 bytes in 0 blocks
+==9446== Reachable blocks (those to which a pointer was found) are not shown.
+==9446== To see them, rerun with: --leak-check=full --show-leak-kinds=all
+==9446== 
+==9446== For lists of detected and suppressed errors, rerun with: -s
+==9446== ERROR SUMMARY: 7 errors from 7 contexts (suppressed: 0 from 0)
