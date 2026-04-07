@@ -37,12 +37,12 @@ queue_sprite_draw(
     {
         src_bb_x = sprite->crop_x;
         src_bb_y = sprite->crop_y;
-        src_bb_w = sprite->crop_width;
-        src_bb_h = sprite->crop_height;
+        src_bb_w = sprite->crop_width == 0 ? sprite->width : sprite->crop_width;
+        src_bb_h = sprite->crop_height == 0 ? sprite->height : sprite->crop_height;
         if( !src_anchor_x && !src_anchor_y )
         {
-            src_anchor_x = sprite->crop_x + (sprite->crop_width >> 1);
-            src_anchor_y = sprite->crop_y + (sprite->crop_height >> 1);
+            src_anchor_x = sprite->crop_x + (src_bb_w >> 1);
+            src_anchor_y = sprite->crop_y + (src_bb_h >> 1);
         }
     }
 

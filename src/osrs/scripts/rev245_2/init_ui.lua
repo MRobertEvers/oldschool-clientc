@@ -68,9 +68,10 @@ local function init_ui()
         local seen = {}
         local inv_model_requests = {}
         local inv_models_needed = {}
+        print("inv_obj_ids", #inv_obj_ids)
+        print_table(inv_obj_ids)
         for _, oid in ipairs(inv_obj_ids) do
-            local actual_obj_id = (oid > 0) and (oid - 1) or oid
-            local mids = Game.buildcachedat_get_obj_model_ids(actual_obj_id)
+            local mids = Game.buildcachedat_get_obj_model_ids(oid)
             for _, mid in ipairs(mids) do
                 if mid ~= 0 and not seen[mid] then
                     seen[mid] = true

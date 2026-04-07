@@ -887,12 +887,12 @@ uielem_world_step(
     if( !element )
         return true;
 
+next:
     if( game->at_painters_command_index >= game->sys_painter_buffer->command_count )
     {
         return true;
     }
 
-next:
     cmd = &game->sys_painter_buffer->commands[game->at_painters_command_index];
 
     game->at_painters_command_index++;
@@ -967,7 +967,7 @@ next:
         break;
     }
 
-    return true;
+    return game->at_painters_command_index >= game->sys_painter_buffer->command_count;
 }
 
 static bool
@@ -1105,11 +1105,6 @@ LibToriRS_FrameNextCommand(
         int32_t cur = game->uitree_current;
         component = &game->ui_root_buffer->components[cur];
 
-        printf(
-            "uitree step: type=%s index=%d\n",
-            uitree_component_type_str(component->type),
-            (int)cur);
-
         switch( component->type )
         {
         case UIELEM_BUILTIN_SPRITE:
@@ -1150,8 +1145,8 @@ LibToriRS_FrameNextCommand(
             break;
         }
 
-        (void)done;
-        frame_uitree_advance_after_step(game, cur);
+        if( done )
+            frame_uitree_advance_after_step(game, cur);
     }
 
     return false;

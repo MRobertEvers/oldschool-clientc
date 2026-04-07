@@ -269,13 +269,11 @@ load_sprite(
         int atlas_index = start_atlas_index + i;
         if( strcmp(load->format, "pix8") == 0 )
         {
-            sprites[i] =
-                load_sprite_pix8(filelist, data_file_idx, index_file_idx, atlas_index);
+            sprites[i] = load_sprite_pix8(filelist, data_file_idx, index_file_idx, atlas_index);
         }
         else if( strcmp(load->format, "pix32") == 0 )
         {
-            sprites[i] =
-                load_sprite_pix32(filelist, data_file_idx, index_file_idx, atlas_index);
+            sprites[i] = load_sprite_pix32(filelist, data_file_idx, index_file_idx, atlas_index);
         }
         else
         {
@@ -304,11 +302,7 @@ load_sprite(
         if( load->crop_width > 0 && load->crop_height > 0 )
         {
             sprite_apply_ini_crop(
-                sprites[i],
-                load->crop_x,
-                load->crop_y,
-                load->crop_width,
-                load->crop_height);
+                sprites[i], load->crop_x, load->crop_y, load->crop_width, load->crop_height);
         }
     }
 
@@ -579,7 +573,7 @@ load_inv(
         if( game && ui_scene )
         {
             /* INI item= uses same 1-based ids as interface inv slots (see interface_draw). */
-            int obj_lookup = (obj_id > 0) ? (obj_id - 1) : obj_id;
+            int obj_lookup = obj_id;
             struct DashSprite* sp = obj_icon_get(game, obj_lookup, 1);
             if( sp )
             {
@@ -699,14 +693,12 @@ push_rs_from_cache_component(
     break;
     case COMPONENT_TYPE_GRAPHIC:
     {
-        struct DashSprite* g0 =
-            (comp->graphic && comp->graphic[0] != '\0')
-                ? buildcachedat_get_component_sprite(bcd, comp->graphic)
-                : NULL;
-        struct DashSprite* g1 =
-            (comp->activeGraphic && comp->activeGraphic[0] != '\0')
-                ? buildcachedat_get_component_sprite(bcd, comp->activeGraphic)
-                : NULL;
+        struct DashSprite* g0 = (comp->graphic && comp->graphic[0] != '\0')
+                                    ? buildcachedat_get_component_sprite(bcd, comp->graphic)
+                                    : NULL;
+        struct DashSprite* g1 = (comp->activeGraphic && comp->activeGraphic[0] != '\0')
+                                    ? buildcachedat_get_component_sprite(bcd, comp->activeGraphic)
+                                    : NULL;
         int count = 0;
         if( g0 )
             count = 1;
@@ -937,7 +929,13 @@ load_layout(
                 component_entry->width,
                 component_entry->height);
             expand_sidebar_rs_tree(
-                game, ui, ui_scene, scene2, buildcachedat, sidx, component_entry->componentno,
+                game,
+                ui,
+                ui_scene,
+                scene2,
+                buildcachedat,
+                sidx,
+                component_entry->componentno,
                 inv_index);
         }
         break;
@@ -1106,7 +1104,14 @@ uitree_from_revconfig_buildcachedat(
             break;
         case RCFIELD_ITEMDONE:
             load_item(
-                &load, sprite_hmap, component_hmap, ui, ui_scene, scene2, buildcachedat, inv_pool,
+                &load,
+                sprite_hmap,
+                component_hmap,
+                ui,
+                ui_scene,
+                scene2,
+                buildcachedat,
+                inv_pool,
                 game);
             load.kind = LOAD_KIND_NONE;
             memset(&load, 0, sizeof(load));
@@ -1542,7 +1547,14 @@ uitree_load_ui_from_revconfig(
         case RCFIELD_ITEMDONE:
             if( load.kind != LOAD_KIND_INV )
                 load_item(
-                    &load, sprite_hmap, component_hmap, ui, ui_scene, scene2, buildcachedat, inv_pool,
+                    &load,
+                    sprite_hmap,
+                    component_hmap,
+                    ui,
+                    ui_scene,
+                    scene2,
+                    buildcachedat,
+                    inv_pool,
                     game);
             load.kind = LOAD_KIND_NONE;
             memset(&load, 0, sizeof(load));
