@@ -13,7 +13,8 @@ bool
 rs_gfx_graphic_step(
     struct GGame* game,
     struct StaticUIComponent* component,
-    struct ToriRSRenderCommandBuffer* queued_commands);
+    struct ToriRSRenderCommandBuffer* queued_commands,
+    int cur);
 
 bool
 rs_gfx_text_step(

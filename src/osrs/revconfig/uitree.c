@@ -1,5 +1,6 @@
 #include "uitree.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -184,6 +185,84 @@ uitree_free(struct UITree* tree)
         return;
     free(tree->components);
     free(tree);
+}
+
+void
+uitree_print_nodes(struct UITree const* tree)
+{
+    if( !tree )
+    {
+        printf("uitree_print_nodes: tree is NULL\n");
+        return;
+    }
+    printf(
+        "uitree: %u nodes, root_index=%d\n",
+        tree->component_count,
+        (int)tree->root_index);
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        struct StaticUIComponent const* c = &tree->components[i];
+        printf(
+            "  [%u] type=%s parent=%d first_child=%d next_sibling=%d component_id=%d "
+            "pos kind=%d xy=(%d,%d) wh=(%d,%d)\n",
+            i,
+            uitree_component_type_str(c->type),
+            (int)c->parent,
+            (int)c->first_child,
+            (int)c->next_sibling,
+            (int)c->component_id,
+            (int)c->position.kind,
+            c->position.x,
+            c->position.y,
+            c->position.width,
+            c->position.height);
+        switch( c->type )
+        {
+        case UIELEM_RS_INV:
+            printf(
+                "       rs_inv inv_index=%d cols=%d rows=%d margin=(%d,%d)\n",
+                c->u.rs_inv.inv_index,
+                c->u.rs_inv.cols,
+                c->u.rs_inv.rows,
+                c->u.rs_inv.margin_x,
+                c->u.rs_inv.margin_y);
+            break;
+        case UIELEM_RS_GRAPHIC:
+            printf(
+                "       rs_graphic scene_id=%d atlas=%d active_scene=%d active_atlas=%d\n",
+                c->u.rs_graphic.scene_id,
+                c->u.rs_graphic.atlas_index,
+                c->u.rs_graphic.scene_id_active,
+                c->u.rs_graphic.atlas_index_active);
+            break;
+        case UIELEM_RS_TEXT:
+            printf(
+                "       rs_text font_id=%d color=%d center=%d text=%s\n",
+                c->u.rs_text.font_id,
+                c->u.rs_text.color,
+                c->u.rs_text.center,
+                c->u.rs_text.text ? c->u.rs_text.text : "(null)");
+            break;
+        case UIELEM_RS_MODEL:
+            printf("       rs_model scene2_element_id=%d\n", c->u.rs_model.scene2_element_id);
+            break;
+        case UIELEM_BUILTIN_SPRITE:
+            printf(
+                "       sprite scene_id=%d atlas_index=%d\n",
+                c->u.sprite.scene_id,
+                c->u.sprite.atlas_index);
+            break;
+        case UIELEM_BUILTIN_SIDEBAR:
+            printf(
+                "       sidebar tabno=%d componentno=%d inv_index=%d\n",
+                c->u.sidebar.tabno,
+                c->u.sidebar.componentno,
+                c->u.sidebar.inv_index);
+            break;
+        default:
+            break;
+        }
+    }
 }
 
 int32_t

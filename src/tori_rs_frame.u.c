@@ -1028,10 +1028,11 @@ uielem_compass_step(
 static bool
 uielem_rs_graphic_step(
     struct GGame* game,
-    struct StaticUIComponent* component)
+    struct StaticUIComponent* component,
+    int cur)
 {
     assert(component->type == UIELEM_RS_GRAPHIC);
-    return rs_gfx_graphic_step(game, component, game->uiscene_queued_commands);
+    return rs_gfx_graphic_step(game, component, game->uiscene_queued_commands, cur);
 }
 
 static bool
@@ -1126,7 +1127,7 @@ LibToriRS_FrameNextCommand(
             done = uielem_builtin_sidebar_step(game, component);
             break;
         case UIELEM_RS_GRAPHIC:
-            done = uielem_rs_graphic_step(game, component);
+            done = uielem_rs_graphic_step(game, component, cur);
             break;
         case UIELEM_RS_TEXT:
             done = uielem_rs_text_step(game, component);

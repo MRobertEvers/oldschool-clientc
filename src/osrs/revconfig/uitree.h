@@ -162,6 +162,10 @@ uitree_new(uint32_t hint);
 void
 uitree_free(struct UITree* tree);
 
+/** Log every node (index, type, tree links, layout, component_id). */
+void
+uitree_print_nodes(struct UITree const* tree);
+
 struct UIInventoryPool*
 uitree_inv_pool_new(int capacity);
 

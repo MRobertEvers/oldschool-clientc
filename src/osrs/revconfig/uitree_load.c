@@ -725,6 +725,7 @@ push_rs_from_cache_component(
             sid_a = sid;
             atlas_a = 1;
         }
+
         uitree_push_rs_graphic(
             ui,
             parent_uitree_idx,
@@ -1409,6 +1410,9 @@ uitree_from_revconfig_buildcachedat(
         }
     }
 
+    if( ui )
+        uitree_print_nodes(ui);
+
     dashmap_free(sprite_hmap);
     dashmap_free(component_hmap);
     free(sprite_config.buffer);
@@ -1851,6 +1855,9 @@ uitree_load_ui_from_revconfig(
         }
         }
     }
+
+    if( ui )
+        uitree_print_nodes(ui);
 
     dashmap_free(sprite_hmap);
     dashmap_free(component_hmap);

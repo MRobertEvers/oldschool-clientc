@@ -66,7 +66,8 @@ bool
 rs_gfx_graphic_step(
     struct GGame* game,
     struct StaticUIComponent* component,
-    struct ToriRSRenderCommandBuffer* queued_commands)
+    struct ToriRSRenderCommandBuffer* queued_commands,
+    int cur)
 {
     if( !game || !component || !game->ui_scene || !queued_commands )
         return true;
@@ -81,6 +82,9 @@ rs_gfx_graphic_step(
     if( !sp )
         return true;
     queue_sprite_draw(queued_commands, sp, component->position.x, component->position.y);
+    char name[64] = { 0 };
+    snprintf(name, sizeof(name), "graphic_%d.bmp", cur);
+    bmp_write_file(name, sp->pixels_argb, sp->width, sp->height);
     return true;
 }
 
