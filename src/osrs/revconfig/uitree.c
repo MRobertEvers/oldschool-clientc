@@ -1,32 +1,31 @@
-#include "static_ui.h"
+#include "uitree.h"
 
 #include <stdlib.h>
 #include <string.h>
 
 static struct StaticUIComponent*
-push_element(struct StaticUIBuffer* buffer)
+push_element(struct UITree* tree)
 {
-    if( buffer->component_count >= buffer->component_capacity )
+    if( tree->component_count >= tree->component_capacity )
     {
-        if( buffer->component_capacity == 0 )
-            buffer->component_capacity = 16;
+        if( tree->component_capacity == 0 )
+            tree->component_capacity = 16;
 
-        uint32_t new_capacity =
-            buffer->component_capacity == 0 ? 16 : buffer->component_capacity * 2;
+        uint32_t new_capacity = tree->component_capacity == 0 ? 16 : tree->component_capacity * 2;
         struct StaticUIComponent* new_components =
-            realloc(buffer->components, new_capacity * sizeof(struct StaticUIComponent));
+            realloc(tree->components, new_capacity * sizeof(struct StaticUIComponent));
         if( !new_components )
             return NULL;
-        buffer->components = new_components;
-        buffer->component_capacity = new_capacity;
+        tree->components = new_components;
+        tree->component_capacity = new_capacity;
     }
 
-    struct StaticUIComponent* component = &buffer->components[buffer->component_count++];
+    struct StaticUIComponent* component = &tree->components[tree->component_count++];
     return component;
 }
 
 char const*
-static_ui_component_type_str(enum StaticUIComponentType type)
+uitree_component_type_str(enum StaticUIComponentType type)
 {
     switch( type )
     {
@@ -60,28 +59,28 @@ static_ui_component_type_str(enum StaticUIComponentType type)
     return "unknown";
 }
 
-struct StaticUIBuffer*
-static_ui_buffer_new(uint32_t hint)
+struct UITree*
+uitree_new(uint32_t hint)
 {
-    struct StaticUIBuffer* buffer = malloc(sizeof(struct StaticUIBuffer));
-    if( !buffer )
+    struct UITree* tree = malloc(sizeof(struct UITree));
+    if( !tree )
         return NULL;
-    memset(buffer, 0, sizeof(struct StaticUIBuffer));
-    return buffer;
+    memset(tree, 0, sizeof(struct UITree));
+    return tree;
 }
 
 void
-static_ui_buffer_free(struct StaticUIBuffer* buffer)
+uitree_free(struct UITree* tree)
 {
-    if( !buffer )
+    if( !tree )
         return;
-    free(buffer->components);
-    free(buffer);
+    free(tree->components);
+    free(tree);
 }
 
 void
-static_ui_buffer_push_sprite_xy(
-    struct StaticUIBuffer* buffer,
+uitree_push_sprite_xy(
+    struct UITree* tree,
     int sprite_id,
     int atlas_index,
     int x,
@@ -89,11 +88,10 @@ static_ui_buffer_push_sprite_xy(
     int width,
     int height)
 {
-    struct StaticUIComponent* component = push_element(buffer);
+    struct StaticUIComponent* component = push_element(tree);
     if( !component )
         return;
 
-    component->component_id = -1;
     component->type = UIELEM_BUILTIN_SPRITE;
     component->position.kind = UIPOS_XY;
     component->position.x = x;
@@ -110,8 +108,8 @@ static_ui_buffer_push_sprite_xy(
 #define STATIC_UI_RELATIVE_FLAG_BOTTOM 8
 
 void
-static_ui_buffer_push_sprite_relative(
-    struct StaticUIBuffer* buffer,
+uitree_push_sprite_relative(
+    struct UITree* tree,
     int sprite_id,
     int atlas_index,
     int flags,
@@ -122,13 +120,12 @@ static_ui_buffer_push_sprite_relative(
     int width,
     int height)
 {
-    struct StaticUIComponent* component = push_element(buffer);
+    struct StaticUIComponent* component = push_element(tree);
     if( !component )
         return;
 
     memset(component, 0, sizeof(struct StaticUIComponent));
 
-    component->component_id = -1;
     component->type = UIELEM_BUILTIN_SPRITE;
     component->position.kind = UIPOS_RELATIVE;
     component->position.relative_flags = flags;
@@ -147,18 +144,17 @@ static_ui_buffer_push_sprite_relative(
 }
 
 void
-static_ui_buffer_push_world(
-    struct StaticUIBuffer* buffer,
+uitree_push_world(
+    struct UITree* tree,
     int x,
     int y)
 {
-    struct StaticUIComponent* component = push_element(buffer);
+    struct StaticUIComponent* component = push_element(tree);
     if( !component )
         return;
 
     memset(component, 0, sizeof(struct StaticUIComponent));
 
-    component->component_id = -1;
     component->type = UIELEM_BUILTIN_WORLD;
     component->position.kind = UIPOS_XY;
     component->position.x = x;
@@ -166,8 +162,8 @@ static_ui_buffer_push_world(
 }
 
 void
-static_ui_buffer_push_compass(
-    struct StaticUIBuffer* buffer,
+uitree_push_compass(
+    struct UITree* tree,
     int sprite_id,
     int atlas_index,
     int x,
@@ -177,13 +173,12 @@ static_ui_buffer_push_compass(
     int anchor_x,
     int anchor_y)
 {
-    struct StaticUIComponent* component = push_element(buffer);
+    struct StaticUIComponent* component = push_element(tree);
     if( !component )
         return;
 
     memset(component, 0, sizeof(struct StaticUIComponent));
 
-    component->component_id = -1;
     component->type = UIELEM_BUILTIN_COMPASS;
     component->position.kind = UIPOS_XY;
     component->u.sprite.scene_id = sprite_id;
@@ -197,8 +192,8 @@ static_ui_buffer_push_compass(
 }
 
 void
-static_ui_buffer_push_minimap(
-    struct StaticUIBuffer* buffer,
+uitree_push_minimap(
+    struct UITree* tree,
     int x,
     int y,
     int width,
@@ -206,13 +201,12 @@ static_ui_buffer_push_minimap(
     int anchor_x,
     int anchor_y)
 {
-    struct StaticUIComponent* component = push_element(buffer);
+    struct StaticUIComponent* component = push_element(tree);
     if( !component )
         return;
 
     memset(component, 0, sizeof(struct StaticUIComponent));
 
-    component->component_id = -1;
     component->type = UIELEM_BUILTIN_MINIMAP;
     component->position.kind = UIPOS_XY;
     component->position.x = x;
@@ -224,8 +218,8 @@ static_ui_buffer_push_minimap(
 }
 
 void
-static_ui_buffer_push_redstone_tab(
-    struct StaticUIBuffer* buffer,
+uitree_push_redstone_tab(
+    struct UITree* tree,
     int tabno,
     int sprite_id,
     int atlas_index,
@@ -236,11 +230,10 @@ static_ui_buffer_push_redstone_tab(
     int width,
     int height)
 {
-    struct StaticUIComponent* component = push_element(buffer);
+    struct StaticUIComponent* component = push_element(tree);
     if( !component )
         return;
     memset(component, 0, sizeof(struct StaticUIComponent));
-    component->component_id = -1;
     component->type = UIELEM_BUILTIN_REDSTONE_TAB;
     component->position.kind = UIPOS_XY;
     component->position.x = x;
@@ -255,8 +248,8 @@ static_ui_buffer_push_redstone_tab(
 }
 
 void
-static_ui_buffer_push_builtin_sidebar(
-    struct StaticUIBuffer* buffer,
+uitree_push_builtin_sidebar(
+    struct UITree* tree,
     int tabno,
     int componentno,
     int x,
@@ -264,11 +257,10 @@ static_ui_buffer_push_builtin_sidebar(
     int width,
     int height)
 {
-    struct StaticUIComponent* component = push_element(buffer);
+    struct StaticUIComponent* component = push_element(tree);
     if( !component )
         return;
     memset(component, 0, sizeof(struct StaticUIComponent));
-    component->component_id = -1;
     component->type = UIELEM_BUILTIN_SIDEBAR;
     component->position.kind = UIPOS_XY;
     component->position.x = x;

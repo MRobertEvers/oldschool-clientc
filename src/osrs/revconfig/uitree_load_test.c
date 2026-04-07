@@ -2,17 +2,16 @@
 #include "osrs/buildcachedat.h"
 #include "revconfig.h"
 #include "revconfig_load.h"
-#include "static_ui_load.h"
 #include "uiscene.h"
+#include "uitree_load.h"
 
 #include <stdio.h>
 
 int
 main()
 {
-    const char* filename_cache =
-        "../src/osrs/revconfig/"
-        "configs/rev_245_2/rev_245_2_cache.ini";
+    const char* filename_cache = "../src/osrs/revconfig/"
+                                 "configs/rev_245_2/rev_245_2_cache.ini";
     char const* filename_ui = "../src/osrs/revconfig/"
                               "configs/rev_245_2/rev_245_2_ui.ini";
 
@@ -23,8 +22,7 @@ main()
     revconfig_load_fields_from_ini(filename_ui, buffer);
 
     struct BuildCacheDat* buildcachedat = buildcachedat_new();
-    struct CacheDat* cache_dat =
-        cache_dat_new_from_directory("../cache254");
+    struct CacheDat* cache_dat = cache_dat_new_from_directory("../cache254");
 
     struct CacheDatArchive* archive =
         cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_MEDIA_2D_GRAPHICS);
@@ -35,8 +33,8 @@ main()
     buildcachedat_set_2d_media_jagfile(buildcachedat, filelist);
 
     struct UIScene* ui_scene = uiscene_new(128);
-    struct StaticUIBuffer* static_ui = static_ui_buffer_new(16);
-    static_ui_from_revconfig_buildcachedat(static_ui, ui_scene, buildcachedat, buffer);
+    struct UITree* ui = uitree_new(16);
+    uitree_from_revconfig_buildcachedat(ui, ui_scene, buildcachedat, buffer);
 
     struct DashGraphics* dash = dash_new();
     struct DashViewPort view_port = { 0 };
@@ -49,13 +47,16 @@ main()
     view_port.clip_bottom = 1024;
 
     int* pixels = malloc(1024 * 1024 * sizeof(int));
-    for( int i = 0; i < static_ui->component_count; i++ )
+    for( int i = 0; i < ui->component_count; i++ )
     {
-        struct StaticUIComponent* component = &static_ui->components[i];
-        if( component->type == UIELEM_SPRITE )
+        struct StaticUIComponent* component = &ui->components[i];
+        if( component->type == UIELEM_BUILTIN_SPRITE )
         {
-            assert(component->u.sprite.scene_id != -1 && "Sprite components must have a valid scene_id");
-            struct UISceneElement* element = uiscene_element_at(ui_scene, component->u.sprite.scene_id);
+            assert(
+                component->u.sprite.scene_id != -1 &&
+                "Sprite components must have a valid scene_id");
+            struct UISceneElement* element =
+                uiscene_element_at(ui_scene, component->u.sprite.scene_id);
             printf(
                 "Blitting component %d of type %d using scene element id %d at x=%d, y=%d\n",
                 i,
@@ -77,7 +78,8 @@ main()
             else
             {
                 printf(
-                    "Failed to find sprite with id %d for sprite component\n", component->u.sprite.scene_id);
+                    "Failed to find sprite with id %d for sprite component\n",
+                    component->u.sprite.scene_id);
             }
         }
     }

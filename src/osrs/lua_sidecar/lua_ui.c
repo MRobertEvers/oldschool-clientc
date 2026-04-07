@@ -5,8 +5,8 @@
 #include "osrs/lua_sidecar/lua_configfile.h"
 #include "osrs/revconfig/revconfig.h"
 #include "osrs/revconfig/revconfig_load.h"
-#include "osrs/revconfig/static_ui_load.h"
 #include "osrs/revconfig/uiscene.h"
+#include "osrs/revconfig/uitree_load.h"
 #include "osrs/rs_component_state.h"
 
 #include <assert.h>
@@ -63,7 +63,7 @@ LuaUI_load_revconfig(
     revconfig_load_fields_from_ini_bytes(ui_config->data, (uint32_t)ui_config->size, buf);
 
     if( game->ui_root_buffer && game->ui_scene )
-        static_ui_from_revconfig_buildcachedat(
+        uitree_from_revconfig_buildcachedat(
             game->ui_root_buffer, game->ui_scene, buildcachedat, buf);
 
     revconfig_buffer_free(buf);
@@ -114,14 +114,6 @@ LuaUI_load_rs_components(
     {
         rs_component_state_pool_free(game->rs_component_state);
         game->rs_component_state = NULL;
-    }
-
-    int max_id = buildcachedat_max_component_id(buildcachedat);
-    if( max_id >= 0 )
-    {
-        game->rs_component_state = rs_component_state_pool_new(max_id + 1);
-        if( game->rs_component_state )
-            rs_component_state_seed_from_buildcachedat(game->rs_component_state, buildcachedat);
     }
 
     return LuaGameType_NewVoid();

@@ -76,8 +76,8 @@ set(COMMON_SOURCES
     src/osrs/rscache/archive.c
     src/osrs/revconfig/revconfig.c
     src/osrs/revconfig/revconfig_load.c
-    src/osrs/revconfig/static_ui.c
-    src/osrs/revconfig/static_ui_load.c
+    src/osrs/revconfig/uitree.c
+    src/osrs/revconfig/uitree_load.c
     src/osrs/revconfig/uiscene.c
     src/osrs/rscache/tables_dat/config_component.c
     src/osrs/interface.c

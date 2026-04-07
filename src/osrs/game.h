@@ -16,8 +16,8 @@
 #include "osrs/packets/revpacket_lc245_2.h"
 #include "osrs/painters.h"
 #include "osrs/player_stats.h"
-#include "osrs/revconfig/static_ui.h"
 #include "osrs/revconfig/uiscene.h"
+#include "osrs/revconfig/uitree.h"
 #include "osrs/rs_component_state.h"
 #include "osrs/rsa.h"
 #include "osrs/rscache/cache_dat.h"
@@ -92,8 +92,8 @@ struct GGame
     struct rsa rsa;
 
     struct UIScene* ui_scene;
-    struct StaticUIBuffer* ui_root_buffer;
-    struct StaticUIBuffer* ui_stack;
+    struct UITree* ui_root_buffer;
+    struct UITree* ui_stack;
     struct ClientScriptVM* clientscript_vm;
     struct RSComponentStatePool* rs_component_state;
 

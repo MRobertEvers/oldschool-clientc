@@ -16,9 +16,9 @@
 #include "osrs/minimap.h"
 #include "osrs/player_stats.h"
 #include "osrs/revconfig/revconfig_load.h"
-#include "osrs/revconfig/static_ui.h"
-#include "osrs/revconfig/static_ui_load.h"
 #include "osrs/revconfig/uiscene.h"
+#include "osrs/revconfig/uitree.h"
+#include "osrs/revconfig/uitree_load.h"
 #include "osrs/rs_component_state.h"
 #include "osrs/rsa.h"
 #include "osrs/rscache/cache_dat.h"
@@ -226,8 +226,8 @@ LibToriRS_GameNew(
         mem.heap_peak);
 
     game->ui_scene = uiscene_new(512);
-    game->ui_root_buffer = static_ui_buffer_new(64);
-    game->ui_stack = static_ui_buffer_new(64);
+    game->ui_root_buffer = uitree_new(64);
+    game->ui_stack = uitree_new(64);
     game->clientscript_vm = clientscript_vm_new();
     game->uiscene_queued_commands = LibToriRS_RenderCommandBufferNew(64);
     game->minimap_dynamic_commands = minimap_commands_new(64);
@@ -343,9 +343,9 @@ LibToriRS_GameFree(struct GGame* game)
     if( game->ui_scene )
         uiscene_free(game->ui_scene);
     if( game->ui_root_buffer )
-        static_ui_buffer_free(game->ui_root_buffer);
+        uitree_free(game->ui_root_buffer);
     if( game->ui_stack )
-        static_ui_buffer_free(game->ui_stack);
+        uitree_free(game->ui_stack);
     if( game->clientscript_vm )
         clientscript_vm_free(game->clientscript_vm);
     if( game->rs_component_state )

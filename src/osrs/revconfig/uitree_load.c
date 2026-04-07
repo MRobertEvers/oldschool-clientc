@@ -1,4 +1,4 @@
-#include "static_ui_load.h"
+#include "uitree_load.h"
 
 #include "bmp.h"
 #include "graphics/dash.h"
@@ -210,7 +210,7 @@ static void
 load_sprite(
     struct SpriteLoad* load,
     struct DashMap* sprite_hmap,
-    struct StaticUIBuffer* ui,
+    struct UITree* ui,
     struct UIScene* ui_scene,
     struct BuildCacheDat* buildcachedat)
 {
@@ -420,7 +420,7 @@ load_component(
     struct ComponentLoad* load,
     struct DashMap* sprite_hmap,
     struct DashMap* component_hmap,
-    struct StaticUIBuffer* ui,
+    struct UITree* ui,
     struct UIScene* ui_scene,
     struct BuildCacheDat* buildcachedat)
 {
@@ -550,7 +550,7 @@ static void
 load_layout(
     struct LayoutLoad* load,
     struct DashMap* component_hmap,
-    struct StaticUIBuffer* ui,
+    struct UITree* ui,
     struct UIScene* ui_scene,
     struct BuildCacheDat* buildcachedat)
 {
@@ -566,7 +566,7 @@ load_layout(
         {
         case UIELEM_BUILTIN_COMPASS:
         {
-            static_ui_buffer_push_compass(
+            uitree_push_compass(
                 ui,
                 component_entry->sprite_id,
                 component_entry->sprite_index,
@@ -580,7 +580,7 @@ load_layout(
         break;
         case UIELEM_BUILTIN_MINIMAP:
         {
-            static_ui_buffer_push_minimap(
+            uitree_push_minimap(
                 ui,
                 layout_entry->x,
                 layout_entry->y,
@@ -592,12 +592,12 @@ load_layout(
         break;
         case UIELEM_BUILTIN_WORLD: // "world"
         {
-            static_ui_buffer_push_world(ui, layout_entry->x, layout_entry->y);
+            uitree_push_world(ui, layout_entry->x, layout_entry->y);
         }
         break;
         case UIELEM_BUILTIN_REDSTONE_TAB:
         {
-            static_ui_buffer_push_redstone_tab(
+            uitree_push_redstone_tab(
                 ui,
                 component_entry->tabno,
                 component_entry->sprite_id,
@@ -612,7 +612,7 @@ load_layout(
         break;
         case UIELEM_BUILTIN_SIDEBAR: // "builtin_sidebar"
         {
-            static_ui_buffer_push_builtin_sidebar(
+            uitree_push_builtin_sidebar(
                 ui,
                 component_entry->tabno,
                 component_entry->componentno,
@@ -629,7 +629,7 @@ load_layout(
         {
             if( layout_entry->flags != 0 )
             {
-                static_ui_buffer_push_sprite_relative(
+                uitree_push_sprite_relative(
                     ui,
                     component_entry->sprite_id,
                     component_entry->sprite_index,
@@ -643,7 +643,7 @@ load_layout(
             }
             else
             {
-                static_ui_buffer_push_sprite_xy(
+                uitree_push_sprite_xy(
                     ui,
                     component_entry->sprite_id,
                     component_entry->sprite_index,
@@ -678,7 +678,7 @@ load_item(
     struct CurrentLoad* load,
     struct DashMap* sprite_hmap,
     struct DashMap* component_hmap,
-    struct StaticUIBuffer* ui,
+    struct UITree* ui,
     struct UIScene* ui_scene,
     struct BuildCacheDat* buildcachedat)
 {
@@ -722,8 +722,8 @@ on_itemname(
 }
 
 void
-static_ui_from_revconfig_buildcachedat(
-    struct StaticUIBuffer* ui,
+uitree_from_revconfig_buildcachedat(
+    struct UITree* ui,
     struct UIScene* ui_scene,
     struct BuildCacheDat* buildcachedat,
     struct RevConfigBuffer* revconfig_buffer)
@@ -1042,172 +1042,3 @@ static_ui_from_revconfig_buildcachedat(
     free(sprite_config.buffer);
     free(component_config.buffer);
 }
-
-int
-buildcachedat_max_component_id(struct BuildCacheDat* buildcachedat)
-{
-    if( !buildcachedat || !buildcachedat->component_hmap )
-        return -1;
-    int max_id = -1;
-    struct DashMapIter* iter = buildcachedat_component_iter_new(buildcachedat);
-    if( !iter )
-        return -1;
-    int id = 0;
-    while( buildcachedat_component_iter_next(iter, &id) )
-    {
-        if( id > max_id )
-            max_id = id;
-    }
-    dashmap_iter_free(iter);
-    return max_id;
-}
-
-// void
-// static_ui_rs_from_buildcachedat(
-//     struct StaticUIBuffer* ui,
-//     struct UIScene* ui_scene,
-//     struct Scene2* scene2,
-//     struct BuildCacheDat* buildcachedat)
-// {
-//     if( !ui || !ui_scene || !buildcachedat || !buildcachedat->component_hmap )
-//         return;
-
-//     struct DashMapIter* iter = buildcachedat_component_iter_new(buildcachedat);
-//     if( !iter )
-//         return;
-
-//     int id = 0;
-//     struct CacheDatConfigComponent* c = NULL;
-//     while( (c = buildcachedat_component_iter_next(iter, &id)) != NULL )
-//     {
-//         switch( c->type )
-//         {
-//         case COMPONENT_TYPE_LAYER:
-//             static_ui_buffer_push_rs_layer(ui, id, c->x, c->y, c->width, c->height);
-//             break;
-//         case COMPONENT_TYPE_TEXT:
-//         {
-//             static char const* const font_names[] = { "p11", "p12", "b12", "q8" };
-//             int fidx = c->font;
-//             if( fidx < 0 || fidx > 3 )
-//                 fidx = 1;
-//             int font_id = uiscene_font_find_id(ui_scene, font_names[fidx]);
-//             static_ui_buffer_push_rs_text(ui, id, font_id, c->x, c->y, c->width, c->height);
-//         }
-//         break;
-//         case COMPONENT_TYPE_GRAPHIC:
-//         {
-//             struct DashSprite* sp0 =
-//                 (c->graphic && c->graphic[0] != '\0')
-//                     ? buildcachedat_get_component_sprite(buildcachedat, c->graphic)
-//                     : NULL;
-//             struct DashSprite* sp1 =
-//                 (c->activeGraphic && c->activeGraphic[0] != '\0')
-//                     ? buildcachedat_get_component_sprite(buildcachedat, c->activeGraphic)
-//                     : NULL;
-//             if( !sp0 )
-//             {
-//                 static_ui_buffer_push_rs_graphic(
-//                     ui, id, -1, 0, -1, 0, c->x, c->y, c->width, c->height);
-//                 break;
-//             }
-//             int n = (sp1 != NULL && sp1 != sp0) ? 2 : 1;
-//             struct DashSprite** arr = malloc((size_t)n * sizeof(struct DashSprite*));
-//             if( !arr )
-//                 break;
-//             arr[0] = sp0;
-//             if( n == 2 )
-//                 arr[1] = sp1;
-
-//             int elem_id = uiscene_element_acquire(ui_scene, -1);
-//             if( elem_id < 0 )
-//             {
-//                 free(arr);
-//                 break;
-//             }
-//             struct UISceneElement* el = uiscene_element_at(ui_scene, elem_id);
-//             snprintf(el->name, sizeof(el->name), "rs_g_%d", id);
-//             el->dash_sprites = arr;
-//             el->dash_sprites_count = n;
-//             el->dash_sprites_borrowed = true;
-
-//             static_ui_buffer_push_rs_graphic(
-//                 ui, id, elem_id, 0, elem_id, (n == 2) ? 1 : 0, c->x, c->y, c->width, c->height);
-//         }
-//         break;
-//         case COMPONENT_TYPE_MODEL:
-//             break;
-//             if( c->modelType != 1 )
-//                 break;
-//             if( !scene2 )
-//             {
-//                 static_ui_buffer_push_rs_model(ui, id, -1, c->x, c->y, c->width, c->height);
-//                 break;
-//             }
-//             {
-//                 struct CacheModel* cm = buildcachedat_get_model(buildcachedat, c->model);
-//                 if( !cm )
-//                 {
-//                     static_ui_buffer_push_rs_model(ui, id, -1, c->x, c->y, c->width, c->height);
-//                     break;
-//                 }
-//                 struct CacheModel* copy = model_new_copy(cm);
-//                 if( !copy )
-//                     break;
-//                 struct DashModel* dm = dashmodel_new_from_cache_model(copy);
-//                 if( !dm )
-//                     break;
-//                 int e2 = scene2_element_acquire(scene2, -1);
-//                 if( e2 < 0 )
-//                 {
-//                     dashmodel_free(dm);
-//                     break;
-//                 }
-//                 scene2_element_set_dash_model(scene2_element_at(scene2, e2), dm);
-//                 static_ui_buffer_push_rs_model(ui, id, e2, c->x, c->y, c->width, c->height);
-//             }
-//             break;
-//         case COMPONENT_TYPE_INV:
-//         {
-//             static_ui_buffer_push_rs_inv(ui, id, c->x, c->y, c->width, c->height);
-//             if( !c->invSlotGraphic )
-//                 break;
-//             int slots = c->width * c->height;
-//             if( slots < 0 )
-//                 slots = 0;
-//             if( slots > 128 )
-//                 slots = 128;
-//             for( int s = 0; s < slots && s < 20; s++ )
-//             {
-//                 char const* gn = c->invSlotGraphic[s];
-//                 if( !gn || gn[0] == '\0' )
-//                     continue;
-//                 printf("inv slot graphic[%d] = %s\n", s, gn);
-//                 struct DashSprite* sp = buildcachedat_get_component_sprite(buildcachedat, gn);
-//                 if( !sp )
-//                     continue;
-//                 struct DashSprite** a = malloc(sizeof(struct DashSprite*));
-//                 if( !a )
-//                     continue;
-//                 a[0] = sp;
-//                 int eid = uiscene_element_acquire(ui_scene, -1);
-//                 if( eid < 0 )
-//                 {
-//                     free(a);
-//                     continue;
-//                 }
-//                 struct UISceneElement* el = uiscene_element_at(ui_scene, eid);
-//                 snprintf(el->name, sizeof(el->name), "rs_inv_%d_%d", id, s);
-//                 el->dash_sprites = a;
-//                 el->dash_sprites_count = 1;
-//                 el->dash_sprites_borrowed = true;
-//             }
-//         }
-//         break;
-//         default:
-//             break;
-//         }
-//     }
-
-//     dashmap_iter_free(iter);
-// }

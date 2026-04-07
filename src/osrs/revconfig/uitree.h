@@ -1,5 +1,5 @@
-#ifndef STATIC_INTERFACE_H
-#define STATIC_INTERFACE_H
+#ifndef UITREE_H
+#define UITREE_H
 
 #include <stdint.h>
 
@@ -51,8 +51,6 @@ struct StaticUIElemPosition
 struct StaticUIComponent
 {
     enum StaticUIComponentType type;
-    /** `CacheDatConfigComponent.id` for RS types; -1 for builtins. */
-    int component_id;
     struct StaticUIElemPosition position;
     union
     {
@@ -60,7 +58,7 @@ struct StaticUIComponent
         {
             int scene_id;
             int atlas_index;
-        } sprite; /* UIELEM_SPRITE, UIELEM_COMPASS, UIELEM_MINIMAP, UIELEM_WORLD */
+        } sprite;
         struct
         {
             int scene_id;        /* inactive sprite scene id; -1 if absent */
@@ -77,12 +75,36 @@ struct StaticUIComponent
         {
             int tabno;
             int componentno;
-        } sidebar; /* UIELEM_BUILTIN_SIDEBAR */
+        } sidebar;
+
+        struct
+        {
+            int font_id;
+        } rs_text;
+        struct
+        {
+            int scene_id;
+            int atlas_index;
+        } rs_graphic;
+        struct
+        {
+            int scene2_element_id;
+        } rs_model;
+        struct
+        {
+            int x;
+            int y;
+        } rs_inv;
+        struct
+        {
+            int x;
+            int y;
+        } rs_layer;
 
     } u;
 };
 
-struct StaticUIBuffer
+struct UITree
 {
     struct StaticUIComponent* components;
     uint32_t component_count;
@@ -90,17 +112,17 @@ struct StaticUIBuffer
 };
 
 char const*
-static_ui_component_type_str(enum StaticUIComponentType type);
+uitree_component_type_str(enum StaticUIComponentType type);
 
-struct StaticUIBuffer*
-static_ui_buffer_new(uint32_t hint);
-
-void
-static_ui_buffer_free(struct StaticUIBuffer* buffer);
+struct UITree*
+uitree_new(uint32_t hint);
 
 void
-static_ui_buffer_push_sprite_xy(
-    struct StaticUIBuffer* buffer,
+uitree_free(struct UITree* tree);
+
+void
+uitree_push_sprite_xy(
+    struct UITree* tree,
     int sprite_id,
     int atlas_index,
     int x,
@@ -114,8 +136,8 @@ static_ui_buffer_push_sprite_xy(
 #define STATIC_UI_RELATIVE_FLAG_BOTTOM 8
 
 void
-static_ui_buffer_push_sprite_relative(
-    struct StaticUIBuffer* buffer,
+uitree_push_sprite_relative(
+    struct UITree* tree,
     int sprite_id,
     int atlas_index,
     int flags,
@@ -127,14 +149,14 @@ static_ui_buffer_push_sprite_relative(
     int height);
 
 void
-static_ui_buffer_push_world(
-    struct StaticUIBuffer* buffer,
+uitree_push_world(
+    struct UITree* tree,
     int x,
     int y);
 
 void
-static_ui_buffer_push_compass(
-    struct StaticUIBuffer* buffer,
+uitree_push_compass(
+    struct UITree* tree,
     int sprite_id,
     int atlas_index,
     int x,
@@ -145,8 +167,8 @@ static_ui_buffer_push_compass(
     int anchor_y);
 
 void
-static_ui_buffer_push_minimap(
-    struct StaticUIBuffer* buffer,
+uitree_push_minimap(
+    struct UITree* tree,
     int x,
     int y,
     int width,
@@ -156,8 +178,8 @@ static_ui_buffer_push_minimap(
 
 /* tabno: which selected_tab value activates this component. scene_id/-1 for absent sprite. */
 void
-static_ui_buffer_push_redstone_tab(
-    struct StaticUIBuffer* buffer,
+uitree_push_redstone_tab(
+    struct UITree* tree,
     int tabno,
     int sprite_id,
     int atlas_index,
@@ -169,8 +191,8 @@ static_ui_buffer_push_redstone_tab(
     int height);
 
 void
-static_ui_buffer_push_builtin_sidebar(
-    struct StaticUIBuffer* buffer,
+uitree_push_builtin_sidebar(
+    struct UITree* tree,
     int tabno,
     int componentno,
     int x,
@@ -179,8 +201,8 @@ static_ui_buffer_push_builtin_sidebar(
     int height);
 
 void
-static_ui_buffer_push_sidebar_component(
-    struct StaticUIBuffer* buffer,
+uitree_push_sidebar_component(
+    struct UITree* tree,
     int tabno,
     int componentno,
     int x,
@@ -189,8 +211,8 @@ static_ui_buffer_push_sidebar_component(
     int height);
 
 void
-static_ui_buffer_push_rs_layer(
-    struct StaticUIBuffer* buffer,
+uitree_push_rs_layer(
+    struct UITree* tree,
     int component_id,
     int x,
     int y,
@@ -198,8 +220,8 @@ static_ui_buffer_push_rs_layer(
     int height);
 
 void
-static_ui_buffer_push_rs_text(
-    struct StaticUIBuffer* buffer,
+uitree_push_rs_text(
+    struct UITree* tree,
     int component_id,
     int font_id,
     int x,
@@ -208,8 +230,8 @@ static_ui_buffer_push_rs_text(
     int height);
 
 void
-static_ui_buffer_push_rs_graphic(
-    struct StaticUIBuffer* buffer,
+uitree_push_rs_graphic(
+    struct UITree* tree,
     int component_id,
     int scene_id,
     int atlas_index,
@@ -221,8 +243,8 @@ static_ui_buffer_push_rs_graphic(
     int height);
 
 void
-static_ui_buffer_push_rs_model(
-    struct StaticUIBuffer* buffer,
+uitree_push_rs_model(
+    struct UITree* tree,
     int component_id,
     int scene2_element_id,
     int x,
@@ -231,8 +253,8 @@ static_ui_buffer_push_rs_model(
     int height);
 
 void
-static_ui_buffer_push_rs_inv(
-    struct StaticUIBuffer* buffer,
+uitree_push_rs_inv(
+    struct UITree* tree,
     int component_id,
     int x,
     int y,

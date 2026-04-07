@@ -115,10 +115,14 @@ uiscene_font_add(
     struct DashPixFont* font);
 
 struct DashPixFont*
-uiscene_font_get(struct UIScene* uiscene, int font_id);
+uiscene_font_get(
+    struct UIScene* uiscene,
+    int font_id);
 
 /** Returns font id or -1 if not found. */
 int
-uiscene_font_find_id(struct UIScene* uiscene, const char* name);
+uiscene_font_find_id(
+    struct UIScene* uiscene,
+    const char* name);
 
 #endif
