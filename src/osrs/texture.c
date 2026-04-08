@@ -311,8 +311,7 @@ texture_new_from_texture_sprite(
     int animation_speed)
 {
     bool opaque = true;
-    // int size = texture->wi == 64 ? 64 : 128;
-    int size = 64;
+    int size = texture->wi == 64 ? 64 : 128;
     int* normalized_pixels =
         normalize_pixel_buffer(texture->pixels, texture->wi, texture->hi, size, size);
     if( !normalized_pixels )
