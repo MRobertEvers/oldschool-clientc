@@ -40,13 +40,20 @@ struct DashModelFast
     struct DashBoundsCylinder* bounds_cylinder;
 };
 
-/** Same header as fast; geometry is a weak ref to DashVertexArray. */
+/** Weak ref to DashVertexArray (vertices only); face data owned by this model shell. */
 struct DashModelVA
 {
     uint8_t flags;
     int vertex_count;
     int face_count;
     struct DashVertexArray* vertex_array;
+    hsl16_t* face_colors_a;
+    hsl16_t* face_colors_b;
+    hsl16_t* face_colors_c;
+    faceint_t* face_indices_a;
+    faceint_t* face_indices_b;
+    faceint_t* face_indices_c;
+    faceint_t* face_textures;
     struct DashBoundsCylinder* bounds_cylinder;
 };
 

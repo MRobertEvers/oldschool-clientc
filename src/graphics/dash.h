@@ -45,21 +45,14 @@ struct DashAABB
     int max_screen_y;
 };
 
-/** Geometry buffers; lifetime owned outside DashModel (VA models hold a weak pointer). */
+/** Vertex positions only; lifetime owned outside DashModel (VA models hold a weak pointer).
+ * Face colors, indices, and textures live on DashModelVA. */
 struct DashVertexArray
 {
     int vertex_count;
-    int face_count;
     vertexint_t* vertices_x;
     vertexint_t* vertices_y;
     vertexint_t* vertices_z;
-    hsl16_t* face_colors_a;
-    hsl16_t* face_colors_b;
-    hsl16_t* face_colors_c;
-    faceint_t* face_indices_a;
-    faceint_t* face_indices_b;
-    faceint_t* face_indices_c;
-    faceint_t* face_textures;
 };
 
 struct DashModel;
@@ -432,9 +425,22 @@ dashposition_free(struct DashPosition* position);
 struct DashModel*
 dashmodel_fast_new(void);
 
-/** Weak reference to vertex_array; caller frees the array separately. */
+/** Weak reference to vertex_array; caller frees the array separately. face_count starts at 0. */
 struct DashModel*
 dashmodel_va_new(struct DashVertexArray* vertex_array);
+
+/** VA only: set face_count and attach face buffers (model takes ownership; frees prior non-NULL). */
+void
+dashmodel_va_set_face_data(
+    struct DashModel* m,
+    int face_count,
+    hsl16_t* face_colors_a,
+    hsl16_t* face_colors_b,
+    hsl16_t* face_colors_c,
+    faceint_t* face_indices_a,
+    faceint_t* face_indices_b,
+    faceint_t* face_indices_c,
+    faceint_t* face_textures_nullable);
 
 struct DashModel*
 dashmodelfull_new(void);

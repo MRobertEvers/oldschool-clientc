@@ -27,6 +27,16 @@
 #define MAX_MAP_BUILD_LOC_ENTITIES (16384 >> 1)
 #define MAX_MAP_BUILD_TILE_ENTITIES (50000)
 
+/** Map-build tile entity indices reserved for consolidated terrain VA scene parents (one per level). */
+#define WORLD_TERRAIN_VA_TILE_ENTITY_BASE (MAX_MAP_BUILD_TILE_ENTITIES - MAP_TERRAIN_LEVELS)
+
+static inline int
+world_terrain_va_tile_entity_id(int level)
+{
+    assert(level >= 0 && level < MAP_TERRAIN_LEVELS);
+    return WORLD_TERRAIN_VA_TILE_ENTITY_BASE + level;
+}
+
 struct World
 {
     struct EntityVec players;
@@ -79,6 +89,10 @@ struct World
     int _offset_z;
 
     struct BuildCacheDat* buildcachedat;
+
+    /** Terrain: shared vertex buffers per level (world-space); models live on scene2 via
+     * reserved MapBuildTileEntity slots (see world_terrain_va_tile_entity_id). */
+    struct DashVertexArray* terrain_va[MAP_TERRAIN_LEVELS];
 };
 
 struct World*
