@@ -3580,6 +3580,192 @@ project_vertices_array_notex(
 #endif
 
 /**
+ * Face-indexed projection: one slot per face f in orthographic_* and screen_*.
+ * World position uses vertex_x[a], vertex_y[b], vertex_z[c] with
+ * a/b/c = vertex_faces_a/b/c[f] (mixed corners).
+ */
+static inline void
+project_vertices_array_sparse(
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
+    const int* vertex_faces_a,
+    const int* vertex_faces_b,
+    const int* vertex_faces_c,
+    int num_faces,
+    int model_yaw,
+    int model_mid_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int near_plane_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int fov_half = camera_fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+
+    for( int f = 0; f < num_faces; f++ )
+    {
+        int va = vertex_faces_a[f];
+        int vb = vertex_faces_b[f];
+        int vc = vertex_faces_c[f];
+
+        struct ProjectedVertex projected_vertex;
+        project_orthographic_fast(
+            &projected_vertex,
+            vertex_x[va],
+            vertex_y[vb],
+            vertex_z[vc],
+            model_yaw,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_pitch,
+            camera_yaw);
+
+        int x = projected_vertex.x;
+        int y = projected_vertex.y;
+
+        x *= cot_fov_half_ish15;
+        y *= cot_fov_half_ish15;
+        x >>= 15;
+        y >>= 15;
+
+        int screen_x = SCALE_UNIT(x);
+        int screen_y = SCALE_UNIT(y);
+
+        orthographic_vertices_x[f] = projected_vertex.x;
+        orthographic_vertices_y[f] = projected_vertex.y;
+        orthographic_vertices_z[f] = projected_vertex.z;
+
+        screen_vertices_x[f] = screen_x;
+        screen_vertices_y[f] = screen_y;
+    }
+
+    for( int f = 0; f < num_faces; f++ )
+    {
+        int z = orthographic_vertices_z[f];
+
+        bool clipped = false;
+        if( z < near_plane_z )
+            clipped = true;
+
+        screen_vertices_z[f] = z - model_mid_z;
+
+        if( clipped )
+        {
+            screen_vertices_x[f] = -5000;
+        }
+        else
+        {
+            screen_vertices_x[f] = screen_vertices_x[f] / z;
+            if( screen_vertices_x[f] == -5000 )
+                screen_vertices_x[f] = -5001;
+            screen_vertices_y[f] = screen_vertices_y[f] / z;
+        }
+    }
+}
+
+/**
+ * Like project_vertices_array_notex, face-indexed. One screen slot per face f;
+ * same mixed-corner world sample as project_vertices_array_sparse.
+ */
+static inline void
+project_vertices_array_notex_sparse(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
+    const int* vertex_faces_a,
+    const int* vertex_faces_b,
+    const int* vertex_faces_c,
+    int num_faces,
+    int model_yaw,
+    int model_mid_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int near_plane_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int fov_half = camera_fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+
+    for( int f = 0; f < num_faces; f++ )
+    {
+        int va = vertex_faces_a[f];
+        int vb = vertex_faces_b[f];
+        int vc = vertex_faces_c[f];
+
+        struct ProjectedVertex projected_vertex;
+        project_orthographic_fast(
+            &projected_vertex,
+            vertex_x[va],
+            vertex_y[vb],
+            vertex_z[vc],
+            model_yaw,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_pitch,
+            camera_yaw);
+
+        int x = projected_vertex.x;
+        int y = projected_vertex.y;
+        int z = projected_vertex.z;
+
+        x *= cot_fov_half_ish15;
+        y *= cot_fov_half_ish15;
+        x >>= 15;
+        y >>= 15;
+
+        int screen_x = SCALE_UNIT(x);
+        int screen_y = SCALE_UNIT(y);
+
+        screen_vertices_z[f] = z;
+        screen_vertices_x[f] = screen_x;
+        screen_vertices_y[f] = screen_y;
+    }
+
+    for( int f = 0; f < num_faces; f++ )
+    {
+        int z = screen_vertices_z[f];
+
+        bool clipped = false;
+        if( z < near_plane_z )
+            clipped = true;
+
+        screen_vertices_z[f] = z - model_mid_z;
+
+        if( clipped )
+        {
+            screen_vertices_x[f] = -5000;
+        }
+        else
+        {
+            screen_vertices_x[f] = screen_vertices_x[f] / z;
+            if( screen_vertices_x[f] == -5000 )
+                screen_vertices_x[f] = -5001;
+            screen_vertices_y[f] = screen_vertices_y[f] / z;
+        }
+    }
+}
+
+/**
  * Project vertices array with full 6DOF support (pitch, yaw, roll for model and camera)
  * Uses the full project_orthographic function instead of project_orthographic_fast
  * This function is available for all platforms, regardless of SIMD support
@@ -3729,6 +3915,171 @@ project_vertices_array6_notex(
             screen_vertices_x[i] = SCALE_UNIT(x) / z;
             screen_vertices_y[i] = SCALE_UNIT(y) / z;
             screen_vertices_z[i] = z - model_mid_z;
+        }
+    }
+}
+
+/**
+ * Like project_vertices_array6, face-indexed. One slot per face; mixed-corner
+ * sample vertex_x[a], vertex_y[b], vertex_z[c] per project_vertices_array_sparse.
+ */
+static inline void
+project_vertices_array6_sparse(
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
+    const int* vertex_faces_a,
+    const int* vertex_faces_b,
+    const int* vertex_faces_c,
+    int num_faces,
+    int model_pitch,
+    int model_yaw,
+    int model_roll,
+    int model_mid_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int near_plane_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll)
+{
+    int fov_half = camera_fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+
+    for( int f = 0; f < num_faces; f++ )
+    {
+        int va = vertex_faces_a[f];
+        int vb = vertex_faces_b[f];
+        int vc = vertex_faces_c[f];
+
+        struct ProjectedVertex projected_vertex;
+
+        projected_vertex = project_orthographic(
+            vertex_x[va],
+            vertex_y[vb],
+            vertex_z[vc],
+            model_pitch,
+            model_yaw,
+            model_roll,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_pitch,
+            camera_yaw,
+            camera_roll);
+
+        int x = projected_vertex.x;
+        int y = projected_vertex.y;
+        int z = projected_vertex.z;
+
+        orthographic_vertices_x[f] = x;
+        orthographic_vertices_y[f] = y;
+        orthographic_vertices_z[f] = z;
+
+        if( z < near_plane_z )
+        {
+            screen_vertices_x[f] = -5000;
+            screen_vertices_y[f] = -5000;
+            screen_vertices_z[f] = z - model_mid_z;
+        }
+        else
+        {
+            x *= cot_fov_half_ish15;
+            y *= cot_fov_half_ish15;
+            x >>= 15;
+            y >>= 15;
+
+            screen_vertices_x[f] = SCALE_UNIT(x) / z;
+            screen_vertices_y[f] = SCALE_UNIT(y) / z;
+            screen_vertices_z[f] = z - model_mid_z;
+        }
+    }
+}
+
+/**
+ * Like project_vertices_array6_notex, face-indexed. One slot per face; same
+ * mixed-corner sample as project_vertices_array6_sparse.
+ */
+static inline void
+project_vertices_array6_notex_sparse(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
+    const int* vertex_faces_a,
+    const int* vertex_faces_b,
+    const int* vertex_faces_c,
+    int num_faces,
+    int model_pitch,
+    int model_yaw,
+    int model_roll,
+    int model_mid_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int near_plane_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw,
+    int camera_roll)
+{
+    int fov_half = camera_fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+
+    for( int f = 0; f < num_faces; f++ )
+    {
+        int va = vertex_faces_a[f];
+        int vb = vertex_faces_b[f];
+        int vc = vertex_faces_c[f];
+
+        struct ProjectedVertex projected_vertex;
+
+        projected_vertex = project_orthographic(
+            vertex_x[va],
+            vertex_y[vb],
+            vertex_z[vc],
+            model_pitch,
+            model_yaw,
+            model_roll,
+            scene_x,
+            scene_y,
+            scene_z,
+            camera_pitch,
+            camera_yaw,
+            camera_roll);
+
+        int x = projected_vertex.x;
+        int y = projected_vertex.y;
+        int z = projected_vertex.z;
+
+        if( z < near_plane_z )
+        {
+            screen_vertices_x[f] = -5000;
+            screen_vertices_y[f] = -5000;
+            screen_vertices_z[f] = z - model_mid_z;
+        }
+        else
+        {
+            x *= cot_fov_half_ish15;
+            y *= cot_fov_half_ish15;
+            x >>= 15;
+            y >>= 15;
+
+            screen_vertices_x[f] = SCALE_UNIT(x) / z;
+            screen_vertices_y[f] = SCALE_UNIT(y) / z;
+            screen_vertices_z[f] = z - model_mid_z;
         }
     }
 }
