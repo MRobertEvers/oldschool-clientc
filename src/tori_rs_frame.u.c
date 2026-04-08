@@ -146,7 +146,9 @@ struct FrameRenderLoadKeyPtr
 };
 
 static uint64_t
-model_cache_key_u64(struct Scene2* scene2, const struct Scene2Element* element)
+model_cache_key_u64(
+    struct Scene2* scene2,
+    const struct Scene2Element* element)
 {
     if( !element || !scene2 )
         return 0;
