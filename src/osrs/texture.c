@@ -318,9 +318,12 @@ texture_new_from_texture_sprite(
         return NULL;
 
     struct DashTexture* dash_texture = (struct DashTexture*)malloc(sizeof(struct DashTexture));
-    memset(dash_texture, 0, sizeof(struct DashTexture));
     if( !dash_texture )
+    {
+        free(normalized_pixels);
         return NULL;
+    }
+    memset(dash_texture, 0, sizeof(struct DashTexture));
 
     for( int pi = 0; pi < texture->palette_count; pi++ )
     {
@@ -336,7 +339,11 @@ texture_new_from_texture_sprite(
 
     int* pixels = (int*)malloc(pixel_count * sizeof(int));
     if( !pixels )
+    {
+        free(dash_texture);
+        free(normalized_pixels);
         return NULL;
+    }
     memset(pixels, 0, pixel_count * sizeof(int));
 
     for( int i = 0; i < pixel_count; i++ )
@@ -377,6 +384,9 @@ texture_new_from_texture_sprite(
     {
         if( texture->wi != 128 || size != 64 )
         {
+            free(pixels);
+            free(dash_texture);
+            free(normalized_pixels);
             return NULL;
         }
 

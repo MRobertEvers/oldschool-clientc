@@ -47,6 +47,7 @@ struct Platform2_SDL2_Renderer_Soft3D
     void* on_viewport_changed_userdata;
 };
 
+/** Pixel buffer is `width`×`height`; `max_width`/`max_height` only clamp viewport scaling. */
 struct Platform2_SDL2_Renderer_Soft3D*
 PlatformImpl2_SDL2_Renderer_Soft3D_New(
     int width,

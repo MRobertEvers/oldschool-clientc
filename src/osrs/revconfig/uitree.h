@@ -114,6 +114,7 @@ struct StaticUIComponent
             int color;
             int center;
             int shadowed;
+            /** Heap copy; owned by UITree, freed in uitree_free. */
             char const* text;
         } rs_text;
         struct
@@ -292,6 +293,7 @@ uitree_push_rs_layer(
     int width,
     int height);
 
+/** `text` is copied (strdup); safe after buildcachedat component cache is cleared. */
 int32_t
 uitree_push_rs_text(
     struct UITree* tree,

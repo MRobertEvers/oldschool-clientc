@@ -656,6 +656,16 @@ LuaBuildCacheDat_clear_map_chunks(
     return LuaGameType_NewVoid();
 }
 
+struct LuaGameType*
+LuaBuildCacheDat_clear_component_cache(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_clear_component_cache(buildcachedat);
+    return LuaGameType_NewVoid();
+}
+
 static char const g_prefix[] = "buildcachedat_";
 
 #define DISPATCH_COMMAND(command, func)                                                            \
@@ -725,8 +735,12 @@ LuaBuildCacheDat_DispatchCommand(
     else DISPATCH_COMMAND(command, init_idkits_from_config_jagfile)
     else DISPATCH_COMMAND(command, init_objects_from_config_jagfile)
     else DISPATCH_COMMAND(command, set_2d_media_jagfile)
-    else DISPATCH_COMMAND(command, clear)
-    else DISPATCH_COMMAND(command, clear_map_chunks)
+    else if( strcmp(command, "clear_component_cache") == 0 )
+        return LuaBuildCacheDat_clear_component_cache(buildcachedat, args);
+    else if( strcmp(command, "clear_map_chunks") == 0 )
+        return LuaBuildCacheDat_clear_map_chunks(buildcachedat, args);
+    else if( strcmp(command, "clear") == 0 )
+        return LuaBuildCacheDat_clear(buildcachedat, args);
     else 
     {
         printf("Unknown command: %s\n", command);

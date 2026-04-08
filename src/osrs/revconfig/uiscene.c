@@ -94,6 +94,11 @@ uiscene_free(struct UIScene* uiscene)
             free(elem->dash_sprites);
         }
     }
+    for( int i = 0; i < uiscene->font_count; i++ )
+    {
+        if( uiscene->fonts[i].font )
+            dashpixfont_free(uiscene->fonts[i].font);
+    }
     free(uiscene->eventbuffer);
     free(uiscene->elements);
     free(uiscene);
@@ -265,6 +270,8 @@ uiscene_font_add(
     {
         if( strcmp(uiscene->fonts[i].name, name) == 0 )
         {
+            if( uiscene->fonts[i].font && uiscene->fonts[i].font != font )
+                dashpixfont_free(uiscene->fonts[i].font);
             uiscene->fonts[i].font = font;
             return i;
         }

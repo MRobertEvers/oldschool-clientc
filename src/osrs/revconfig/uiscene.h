@@ -70,6 +70,8 @@ struct UIScene
 struct UIScene*
 uiscene_new(int size);
 
+/** Frees scene elements and every non-NULL DashPixFont in font slots (UIScene owns fonts). Callers
+ * replacing a scene must clear font pointers they keep (see lua_ui_reset_uiscene_and_refs). */
 void
 uiscene_free(struct UIScene* uiscene);
 

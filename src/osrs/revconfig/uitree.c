@@ -183,6 +183,12 @@ uitree_free(struct UITree* tree)
 {
     if( !tree )
         return;
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        struct StaticUIComponent* c = &tree->components[i];
+        if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text )
+            free((void*)c->u.rs_text.text);
+    }
     free(tree->components);
     free(tree);
 }
@@ -536,9 +542,20 @@ uitree_push_rs_text(
     int width,
     int height)
 {
+    char* text_owned = NULL;
+    if( text )
+    {
+        text_owned = strdup(text);
+        if( !text_owned )
+            return -1;
+    }
+
     int32_t idx = push_element(tree, parent_index);
     if( idx < 0 )
+    {
+        free(text_owned);
         return -1;
+    }
     struct StaticUIComponent* component = &tree->components[idx];
 
     component->type = UIELEM_RS_TEXT;
@@ -552,7 +569,7 @@ uitree_push_rs_text(
     component->u.rs_text.color = color;
     component->u.rs_text.center = center;
     component->u.rs_text.shadowed = shadowed;
-    component->u.rs_text.text = text;
+    component->u.rs_text.text = text_owned;
     return idx;
 }
 

@@ -52,7 +52,8 @@ struct BuildCacheDat
     struct DashMap* flotype_hmap;
     /** Reftable: texture id loaded into Scene2 (no DashTexture* stored here). */
     struct DashMap* textures_reftable;
-    /** Reftable: font name -> UIScene font slot id. */
+    /** Reftable: font name -> UIScene font slot id only. UIScene owns DashPixFont; BuildCacheDat
+     * never frees fonts in buildcachedat_free / reset_uiscene_linked_reftables. */
     struct DashMap* fonts_reftable;
     struct DashMap* scenery_hmap;
     struct DashMap* models_hmap;
@@ -89,6 +90,13 @@ buildcachedat_free(struct BuildCacheDat* buildcachedat);
 /** Free map terrain and map scenery chunk entries; maps are recreated empty. Other tables unchanged. */
 void
 buildcachedat_clear_map_chunks(struct BuildCacheDat* buildcachedat);
+
+/** Free every decoded interface component (CacheDatConfigComponent) and recreate an empty
+ * component_hmap. Safe after static UI is built into the uitree; buildcachedat_get_component
+ * returns NULL until interfaces are loaded again. Reftables (sprites, fonts, component_sprites)
+ * are unchanged. */
+void
+buildcachedat_clear_component_cache(struct BuildCacheDat* buildcachedat);
 
 /** Free every owning BuildCacheDat cache (hash maps that own decoded data, config/versionlist/media
  * jagfiles, containers) and reinitialize those maps and event buffer. Reftable maps (textures,

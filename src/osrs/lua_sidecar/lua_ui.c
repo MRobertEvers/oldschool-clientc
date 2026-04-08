@@ -57,6 +57,8 @@ lua_ui_reset_uiscene_and_refs(struct GGame* game, struct BuildCacheDat* buildcac
     {
         saved_fonts[i] = old->fonts[i].font;
         memcpy(saved_names[i], old->fonts[i].name, UISCENE_FONT_NAME_MAX);
+        /* UIScene owns fonts; uiscene_free always frees non-NULL slots — transfer out first. */
+        old->fonts[i].font = NULL;
     }
 
     uiscene_free(old);

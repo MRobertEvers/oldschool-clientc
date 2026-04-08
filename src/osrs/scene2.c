@@ -1,5 +1,7 @@
 #include "scene2.h"
 
+#include "osrs/texture.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -70,6 +72,8 @@ scene2_free(struct Scene2* scene2)
             scene2_element_release(scene2, i);
     }
     free(scene2->elements);
+    for( int i = 0; i < scene2->textures_count; i++ )
+        texture_free(scene2->textures[i].texture);
     free(scene2->textures);
     free(scene2->eventbuffer);
     free(scene2);

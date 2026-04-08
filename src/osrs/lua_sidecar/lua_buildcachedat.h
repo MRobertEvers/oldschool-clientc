@@ -208,4 +208,9 @@ LuaBuildCacheDat_clear_map_chunks(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
+struct LuaGameType*
+LuaBuildCacheDat_clear_component_cache(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
 #endif

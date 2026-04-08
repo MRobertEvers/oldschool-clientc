@@ -102,6 +102,9 @@ local function init_ui()
 
     -- Step 6: Fonts.
     Game.ui_load_fonts(ui_cache_config)
+
+    -- Interface defs are baked into the uitree; free thousands of decoded components from RAM.
+    Game.buildcachedat_clear_component_cache()
 end
 
 init_ui()

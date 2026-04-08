@@ -414,6 +414,7 @@ buildcachedat_free(struct BuildCacheDat* buildcachedat)
         return;
 
     dashmap_free_entries(buildcachedat->textures_reftable, NULL);
+    /* fonts_reftable: slot ids only; DashPixFont owned by UIScene. */
     dashmap_free_entries(buildcachedat->fonts_reftable, NULL);
     dashmap_free_entries(buildcachedat->sprites_reftable, NULL);
     dashmap_free_entries(buildcachedat->flotype_hmap, free_flotype_entry);
@@ -532,6 +533,17 @@ buildcachedat_clear_map_chunks(struct BuildCacheDat* buildcachedat)
     dashmap_free_entries(buildcachedat->scenery_hmap, free_scenery_entry);
     buildcachedat->map_terrains_hmap = buildcachedat_new_map_terrains_hmap();
     buildcachedat->scenery_hmap = buildcachedat_new_scenery_hmap();
+}
+
+void
+buildcachedat_clear_component_cache(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat )
+        return;
+
+    dashmap_free_entries(buildcachedat->component_hmap, free_component_entry);
+    buildcachedat->component_hmap = buildcachedat_create_hmap(
+        sizeof(int), sizeof(struct ComponentEntry), BUILDCACHEDAT_HMAP_INITIAL_CAPACITY);
 }
 
 void
@@ -1277,6 +1289,11 @@ buildcachedat_add_obj(
     int obj_id,
     struct CacheDatConfigObj* obj)
 {
+    struct ObjEntry* existing =
+        (struct ObjEntry*)dashmap_search(buildcachedat->obj_hmap, &obj_id, DASHMAP_FIND);
+    if( existing && existing->obj )
+        cache_dat_config_obj_free(existing->obj);
+
     struct ObjEntry* obj_entry =
         (struct ObjEntry*)dashmap_search(buildcachedat->obj_hmap, &obj_id, DASHMAP_INSERT);
     assert(obj_entry && "Obj must be inserted into hmap");

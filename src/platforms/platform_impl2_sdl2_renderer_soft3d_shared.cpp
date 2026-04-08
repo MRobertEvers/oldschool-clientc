@@ -235,14 +235,17 @@ PlatformImpl2_SDL2_Renderer_Soft3D_New(
     renderer->max_width = max_width;
     renderer->max_height = max_height;
 
-    renderer->pixel_buffer = (int*)malloc(max_width * max_height * sizeof(int));
+    /* All rendering uses stride `width` and height `height` (see clear loop, vp_pixels, blits).
+     * max_* only clamp viewport/window scaling — not the CPU buffer layout. */
+    size_t const pixel_count = (size_t)width * (size_t)height;
+    renderer->pixel_buffer = (int*)malloc(pixel_count * sizeof(int));
     if( !renderer->pixel_buffer )
     {
         printf("Failed to allocate pixel buffer\n");
         free(renderer);
         return NULL;
     }
-    memset(renderer->pixel_buffer, 0, width * height * sizeof(int));
+    memset(renderer->pixel_buffer, 0, pixel_count * sizeof(int));
 
     renderer->dash_offset_x = 0;
     renderer->dash_offset_y = 0;
