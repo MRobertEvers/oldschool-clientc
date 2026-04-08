@@ -570,8 +570,9 @@ decode_tile(
 
     if( face_texture_ids )
     {
-        dash_model->face_textures = malloc(face_count * sizeof(int));
-        memcpy(dash_model->face_textures, face_texture_ids, face_count * sizeof(int));
+        dash_model->face_textures = malloc((size_t)face_count * sizeof(faceint_t));
+        for( int i = 0; i < face_count; i++ )
+            dash_model->face_textures[i] = (faceint_t)face_texture_ids[i];
         dash_model->has_textures = true;
     }
 
@@ -603,11 +604,11 @@ decode_tile(
     // int tm_vertex = 1;
     // // se
     // int tn_vertex = 3;
-    dash_model->face_texture_coords = (int*)malloc(face_count * sizeof(int));
-    memset(dash_model->face_texture_coords, 0, face_count * sizeof(int));
-    dash_model->textured_p_coordinate = (int*)malloc(1 * sizeof(int));
-    dash_model->textured_m_coordinate = (int*)malloc(1 * sizeof(int));
-    dash_model->textured_n_coordinate = (int*)malloc(1 * sizeof(int));
+    dash_model->face_texture_coords = (faceint_t*)malloc((size_t)face_count * sizeof(faceint_t));
+    memset(dash_model->face_texture_coords, 0, (size_t)face_count * sizeof(faceint_t));
+    dash_model->textured_p_coordinate = (faceint_t*)malloc(sizeof(faceint_t));
+    dash_model->textured_m_coordinate = (faceint_t*)malloc(sizeof(faceint_t));
+    dash_model->textured_n_coordinate = (faceint_t*)malloc(sizeof(faceint_t));
     dash_model->textured_p_coordinate[0] = 0;
     dash_model->textured_m_coordinate[0] = 1;
     dash_model->textured_n_coordinate[0] = 3;

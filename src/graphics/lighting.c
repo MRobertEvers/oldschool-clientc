@@ -197,7 +197,7 @@ apply_lighting(
     int num_faces,
     const hsl16_t* face_colors_hsl16, // The flat color.
     alphaint_t* face_alphas,
-    int* face_textures,
+    faceint_t* face_textures,
     int* face_infos,
     int light_ambient,
     int light_attenuation,

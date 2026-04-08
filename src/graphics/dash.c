@@ -386,12 +386,12 @@ dash3d_raster_model_face(
     int* orthographic_vertex_y_nullable,
     int* orthographic_vertex_z_nullable,
     int num_vertices,
-    int* face_textures,
-    int* face_texture_coords,
+    faceint_t* face_textures,
+    faceint_t* face_texture_coords,
     int face_texture_coords_length,
-    int* face_p_coordinate_nullable,
-    int* face_m_coordinate_nullable,
-    int* face_n_coordinate_nullable,
+    faceint_t* face_p_coordinate_nullable,
+    faceint_t* face_m_coordinate_nullable,
+    faceint_t* face_n_coordinate_nullable,
     int num_textured_faces,
     hsl16_t* colors_a,
     hsl16_t* colors_b,
@@ -2220,19 +2220,19 @@ dashmodel_heap_bytes(const struct DashModel* model)
         if( model->face_colors )
             total += (size_t)fc * sizeof(hsl16_t);
         if( model->face_textures )
-            total += (size_t)fc * sizeof(int);
+            total += (size_t)fc * sizeof(faceint_t);
         if( model->face_texture_coords )
-            total += (size_t)fc * sizeof(int);
+            total += (size_t)fc * sizeof(faceint_t);
     }
 
     if( tfc > 0 )
     {
         if( model->textured_p_coordinate )
-            total += (size_t)tfc * sizeof(int);
+            total += (size_t)tfc * sizeof(faceint_t);
         if( model->textured_m_coordinate )
-            total += (size_t)tfc * sizeof(int);
+            total += (size_t)tfc * sizeof(faceint_t);
         if( model->textured_n_coordinate )
-            total += (size_t)tfc * sizeof(int);
+            total += (size_t)tfc * sizeof(faceint_t);
     }
 
     total += dashmodel_normals_heap_bytes(model->normals);

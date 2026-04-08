@@ -1175,12 +1175,12 @@ decode_ob3(
 
         if( var16 == 1 )
         {
-            def->face_textures[var49] = (int)(read_unsigned_short(var1, &var8_offset) - 1);
+            def->face_textures[var49] = (read_unsigned_short(var1, &var8_offset) - 1);
         }
 
         if( def->face_texture_coords != NULL && def->face_textures[var49] != -1 )
         {
-            def->face_texture_coords[var49] = (int)(read_unsigned_byte(var1, &var9_offset) - 1);
+            def->face_texture_coords[var49] = (read_unsigned_byte(var1, &var9_offset) - 1);
         }
     }
 
@@ -1256,9 +1256,9 @@ decode_ob3(
         var54 = read_byte(var1, &var3_offset) & 255; // textureRenderType
         if( var54 == 0 )
         {
-            def->textured_p_coordinate[var53] = (int)read_unsigned_short(var1, &var3_offset);
-            def->textured_m_coordinate[var53] = (int)read_unsigned_short(var1, &var3_offset);
-            def->textured_n_coordinate[var53] = (int)read_unsigned_short(var1, &var3_offset);
+            def->textured_p_coordinate[var53] = read_unsigned_short(var1, &var3_offset);
+            def->textured_m_coordinate[var53] = read_unsigned_short(var1, &var3_offset);
+            def->textured_n_coordinate[var53] = read_unsigned_short(var1, &var3_offset);
         }
         // Note: Complex and cube texture mapping are skipped as they're not in our struct
     }
@@ -1517,7 +1517,7 @@ decode_version2__osrs_extended(
 
             if( (var41 & 2) == 2 )
             {
-                def->face_texture_coords[i] = (int)(var41 >> 2);
+                def->face_texture_coords[i] = (var41 >> 2);
                 def->face_textures[i] = def->face_colors[i];
                 def->face_colors[i] = 127;
                 if( def->face_textures[i] != -1 )
@@ -2300,12 +2300,12 @@ decode_version3__osrs_material(
 
         if( hasFaceTextures == 1 )
         {
-            def->face_textures[var51] = (int)(read_unsigned_short(var1, &var7_offset) - 1);
+            def->face_textures[var51] = (read_unsigned_short(var1, &var7_offset) - 1);
         }
 
         if( def->face_texture_coords != NULL && def->face_textures[var51] != -1 )
         {
-            def->face_texture_coords[var51] = (int)(read_unsigned_byte(var1, &var8_offset) - 1);
+            def->face_texture_coords[var51] = (read_unsigned_byte(var1, &var8_offset) - 1);
         }
     }
 
@@ -2381,9 +2381,9 @@ decode_version3__osrs_material(
         var56 = def->textureRenderTypes[var55] & 255;
         if( var56 == 0 )
         {
-            def->textured_p_coordinate[var55] = (int)read_unsigned_short(var1, &var2_offset);
-            def->textured_m_coordinate[var55] = (int)read_unsigned_short(var1, &var2_offset);
-            def->textured_n_coordinate[var55] = (int)read_unsigned_short(var1, &var2_offset);
+            def->textured_p_coordinate[var55] = read_unsigned_short(var1, &var2_offset);
+            def->textured_m_coordinate[var55] = read_unsigned_short(var1, &var2_offset);
+            def->textured_n_coordinate[var55] = read_unsigned_short(var1, &var2_offset);
         }
     }
 
@@ -2947,13 +2947,16 @@ model_new_merge(
             int vertex_index_n = 0;
 
             if( textured_p_coordinate && models[i]->textured_p_coordinate )
-                vertex_index_p = copy_vertex(model, models[i], models[i]->textured_p_coordinate[j]);
+                vertex_index_p =
+                    copy_vertex(model, models[i], (int)models[i]->textured_p_coordinate[j]);
 
             if( textured_m_coordinate && models[i]->textured_m_coordinate )
-                vertex_index_m = copy_vertex(model, models[i], models[i]->textured_m_coordinate[j]);
+                vertex_index_m =
+                    copy_vertex(model, models[i], (int)models[i]->textured_m_coordinate[j]);
 
             if( textured_n_coordinate && models[i]->textured_n_coordinate )
-                vertex_index_n = copy_vertex(model, models[i], models[i]->textured_n_coordinate[j]);
+                vertex_index_n =
+                    copy_vertex(model, models[i], (int)models[i]->textured_n_coordinate[j]);
 
             assert(vertex_index_p > -1);
             assert(vertex_index_m > -1);

@@ -316,16 +316,57 @@ dashmodel_move_from_cache_model(
     model->face_priorities = NULL;
 
     dash_model->textured_face_count = model->textured_face_count;
-    dash_model->textured_p_coordinate = model->textured_p_coordinate;
-    dash_model->textured_m_coordinate = model->textured_m_coordinate;
-    dash_model->textured_n_coordinate = model->textured_n_coordinate;
-    dash_model->face_textures = model->face_textures;
-    dash_model->face_texture_coords = model->face_texture_coords;
-    model->textured_p_coordinate = NULL;
-    model->textured_m_coordinate = NULL;
-    model->textured_n_coordinate = NULL;
-    model->face_textures = NULL;
-    model->face_texture_coords = NULL;
+    {
+        int tfc = model->textured_face_count;
+        int fc = model->face_count;
+        if( tfc > 0 && model->textured_p_coordinate && model->textured_m_coordinate &&
+            model->textured_n_coordinate )
+        {
+            dash_model->textured_p_coordinate = (faceint_t*)malloc((size_t)tfc * sizeof(faceint_t));
+            dash_model->textured_m_coordinate = (faceint_t*)malloc((size_t)tfc * sizeof(faceint_t));
+            dash_model->textured_n_coordinate = (faceint_t*)malloc((size_t)tfc * sizeof(faceint_t));
+            for( int i = 0; i < tfc; i++ )
+            {
+                dash_model->textured_p_coordinate[i] = (faceint_t)model->textured_p_coordinate[i];
+                dash_model->textured_m_coordinate[i] = (faceint_t)model->textured_m_coordinate[i];
+                dash_model->textured_n_coordinate[i] = (faceint_t)model->textured_n_coordinate[i];
+            }
+            free(model->textured_p_coordinate);
+            free(model->textured_m_coordinate);
+            free(model->textured_n_coordinate);
+            model->textured_p_coordinate = NULL;
+            model->textured_m_coordinate = NULL;
+            model->textured_n_coordinate = NULL;
+        }
+        else
+        {
+            dash_model->textured_p_coordinate = NULL;
+            dash_model->textured_m_coordinate = NULL;
+            dash_model->textured_n_coordinate = NULL;
+        }
+
+        if( fc > 0 && model->face_textures )
+        {
+            dash_model->face_textures = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
+            for( int i = 0; i < fc; i++ )
+                dash_model->face_textures[i] = (faceint_t)model->face_textures[i];
+            free(model->face_textures);
+            model->face_textures = NULL;
+        }
+        else
+            dash_model->face_textures = NULL;
+
+        if( fc > 0 && model->face_texture_coords )
+        {
+            dash_model->face_texture_coords = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
+            for( int i = 0; i < fc; i++ )
+                dash_model->face_texture_coords[i] = (faceint_t)model->face_texture_coords[i];
+            free(model->face_texture_coords);
+            model->face_texture_coords = NULL;
+        }
+        else
+            dash_model->face_texture_coords = NULL;
+    }
 
     dash_model->has_textures =
         (model->textured_face_count > 0 || dash_model->face_texture_coords != NULL);

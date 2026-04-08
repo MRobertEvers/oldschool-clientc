@@ -143,11 +143,11 @@ struct DashModel
     int textured_face_count;
 
     // Used in type 2 >
-    int* textured_p_coordinate;
-    int* textured_m_coordinate;
-    int* textured_n_coordinate;
-    int* face_texture_coords;
-    int* face_textures;
+    faceint_t* textured_p_coordinate;
+    faceint_t* textured_m_coordinate;
+    faceint_t* textured_n_coordinate;
+    faceint_t* face_textures;
+    faceint_t* face_texture_coords;
 
     struct DashModelNormals* normals;
     struct DashModelNormals* merged_normals;

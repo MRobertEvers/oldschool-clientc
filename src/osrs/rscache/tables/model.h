@@ -113,6 +113,8 @@ struct CacheModel
     int* face_indices_b;
     int* face_indices_c;
     int* face_alphas;
+    // The bottom 2 bits are the face render kind.
+    // The top bits are the face texture id.
     int* face_infos;
     int* face_priorities;
     int* face_colors;
