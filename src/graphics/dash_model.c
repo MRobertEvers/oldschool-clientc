@@ -195,6 +195,45 @@ dashfacearray_reserve(struct DashFaceArray* fa, int need_capacity)
     return true;
 }
 
+void
+dashfacearray_shrink_to_fit(struct DashFaceArray* fa)
+{
+    if( !fa || fa->count >= fa->capacity )
+        return;
+    int n = fa->count;
+    if( n == 0 )
+    {
+        free(fa->indices_a);
+        free(fa->indices_b);
+        free(fa->indices_c);
+        free(fa->colors_a);
+        free(fa->colors_b);
+        free(fa->colors_c);
+        free(fa->texture_ids);
+        fa->indices_a = NULL;
+        fa->indices_b = NULL;
+        fa->indices_c = NULL;
+        fa->colors_a = NULL;
+        fa->colors_b = NULL;
+        fa->colors_c = NULL;
+        fa->texture_ids = NULL;
+        fa->capacity = 0;
+        return;
+    }
+    fa->indices_a =
+        (faceint_t*)realloc(fa->indices_a, (size_t)n * sizeof(faceint_t));
+    fa->indices_b =
+        (faceint_t*)realloc(fa->indices_b, (size_t)n * sizeof(faceint_t));
+    fa->indices_c =
+        (faceint_t*)realloc(fa->indices_c, (size_t)n * sizeof(faceint_t));
+    fa->colors_a = (hsl16_t*)realloc(fa->colors_a, (size_t)n * sizeof(hsl16_t));
+    fa->colors_b = (hsl16_t*)realloc(fa->colors_b, (size_t)n * sizeof(hsl16_t));
+    fa->colors_c = (hsl16_t*)realloc(fa->colors_c, (size_t)n * sizeof(hsl16_t));
+    fa->texture_ids =
+        (faceint_t*)realloc(fa->texture_ids, (size_t)n * sizeof(faceint_t));
+    fa->capacity = n;
+}
+
 int
 dashfacearray_push(struct DashFaceArray* fa, const struct DashFace* face)
 {

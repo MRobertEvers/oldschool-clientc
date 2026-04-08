@@ -468,9 +468,9 @@ build_scene_terrain_va(struct World* world)
         vertexint_t* va_y = (vertexint_t*)malloc((size_t)max_verts * sizeof(vertexint_t));
         vertexint_t* va_z = (vertexint_t*)malloc((size_t)max_verts * sizeof(vertexint_t));
 
-        /* Pre-allocate face array with rough upper bound: inner*inner tiles * ~4 faces each. */
-        int est_faces = inner * inner * 4;
-        struct DashFaceArray* fa = dashfacearray_new(est_faces);
+        /* Pessimistic face bound (mirrors max_verts): max faces/tile is 24/4 from g_tile_shape_face_counts. */
+        int max_faces = inner * inner * 6;
+        struct DashFaceArray* fa = dashfacearray_new(max_faces);
 
         int vertex_count = 0;
 
@@ -718,6 +718,8 @@ build_scene_terrain_va(struct World* world)
                 tf->has_textures = false;
                 tf->first_face_index = (uint32_t)fa->count;
 
+                assert(fa->count + fcount <= max_faces);
+
                 for( int fi = 0; fi < fcount; fi++ )
                 {
                     bool is_overlay = face_indices_raw[fi * 4] == 1;
@@ -802,6 +804,8 @@ build_scene_terrain_va(struct World* world)
         va_x = (vertexint_t*)realloc(va_x, (size_t)vertex_count * sizeof(vertexint_t));
         va_y = (vertexint_t*)realloc(va_y, (size_t)vertex_count * sizeof(vertexint_t));
         va_z = (vertexint_t*)realloc(va_z, (size_t)vertex_count * sizeof(vertexint_t));
+
+        dashfacearray_shrink_to_fit(fa);
 
         struct DashVertexArray* va =
             (struct DashVertexArray*)malloc(sizeof(struct DashVertexArray));

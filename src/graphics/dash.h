@@ -467,6 +467,10 @@ dashfacearray_clear(struct DashFaceArray* fa);
 bool
 dashfacearray_reserve(struct DashFaceArray* fa, int need_capacity);
 
+/** Reallocates buffers to fit exactly `count` faces (capacity := count). No-op if already tight. */
+void
+dashfacearray_shrink_to_fit(struct DashFaceArray* fa);
+
 /** Appends one face; grows as needed. Returns new index or -1 on failure. */
 int
 dashfacearray_push(struct DashFaceArray* fa, const struct DashFace* face);

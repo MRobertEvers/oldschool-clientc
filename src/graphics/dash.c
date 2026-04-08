@@ -251,6 +251,8 @@ dash_new()
         return NULL;
     memset(dash, 0, sizeof(struct DashGraphics));
 
+    /* VA sparse projection stores screen verts at face f at slots f*3+{0,1,2}; fixed map for
+     * dash3d_face_indices_*_for_projected (models must have face_count <= 4096). */
     for( int i = 0; i < 4096; i++ )
     {
         dash->sparse_a[i] = (faceint_t)(i * 3);
@@ -1544,12 +1546,6 @@ dash3d_project(
     {
         int nf = dashmodel_face_count(model);
         assert(nf <= 4096);
-        for( int f = 0; f < nf; f++ )
-        {
-            dash->sparse_a[f] = (faceint_t)(f * 3 + 0);
-            dash->sparse_b[f] = (faceint_t)(f * 3 + 1);
-            dash->sparse_c[f] = (faceint_t)(f * 3 + 2);
-        }
         if( dashmodel_has_textures(model) )
         {
             project_vertices_array_sparse(
@@ -1754,12 +1750,6 @@ dash3d_project_raw(
     {
         int nf = dashmodel_face_count(model);
         assert(nf <= 4096);
-        for( int f = 0; f < nf; f++ )
-        {
-            dash->sparse_a[f] = (faceint_t)(f * 3 + 0);
-            dash->sparse_b[f] = (faceint_t)(f * 3 + 1);
-            dash->sparse_c[f] = (faceint_t)(f * 3 + 2);
-        }
         if( dashmodel_has_textures(model) )
         {
             project_vertices_array_sparse(
@@ -1951,12 +1941,6 @@ dash3d_project6(
     {
         int nf = dashmodel_face_count(model);
         assert(nf <= 4096);
-        for( int f = 0; f < nf; f++ )
-        {
-            dash->sparse_a[f] = (faceint_t)(f * 3 + 0);
-            dash->sparse_b[f] = (faceint_t)(f * 3 + 1);
-            dash->sparse_c[f] = (faceint_t)(f * 3 + 2);
-        }
         if( dashmodel_has_textures(model) )
         {
             project_vertices_array6_sparse(
