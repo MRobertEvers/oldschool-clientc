@@ -146,8 +146,8 @@ struct DashModel
     int* textured_p_coordinate;
     int* textured_m_coordinate;
     int* textured_n_coordinate;
-    int* face_textures;
     int* face_texture_coords;
+    int* face_textures;
 
     struct DashModelNormals* normals;
     struct DashModelNormals* merged_normals;
