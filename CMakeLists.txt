@@ -87,6 +87,7 @@ set(COMMON_SOURCES
     src/osrs/clientscript_vm.c
     src/osrs/obj_icon.c
     src/osrs/gio_cache_dat.c
+    src/osrs/entity_vec.c
     src/osrs/world.c
     src/osrs/decor_buildmap.c
     src/osrs/scene2.c

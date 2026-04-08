@@ -38,10 +38,11 @@ next_map_build_loc_entity(struct World* world)
     if( world->active_loc_entity_count < MAX_MAP_BUILD_LOC_ENTITIES )
     {
         int entity_id = world->active_loc_entity_count;
-        init_map_build_loc_entity(&world->map_build_loc_entities[entity_id], entity_id);
+        struct MapBuildLocEntity* loc = world_loc_entity_ensure(world, entity_id);
+        init_map_build_loc_entity(loc, entity_id);
         world->active_loc_entities[world->active_loc_entity_count] = entity_id;
         world->active_loc_entity_count++;
-        return &world->map_build_loc_entities[entity_id];
+        return loc;
     }
     assert(false && "No more map build loc entities");
     return NULL;
@@ -52,7 +53,7 @@ init_player_entity(
     struct World* world,
     int player_id)
 {
-    struct PlayerEntity* player = &world->players[player_id];
+    struct PlayerEntity* player = world_player_ensure(world, player_id);
     player->alive = false;
     player->scene_element2.element_id = -1;
 }
@@ -62,9 +63,20 @@ init_npc_entity(
     struct World* world,
     int npc_id)
 {
-    struct NPCEntity* npc = &world->npcs[npc_id];
+    struct NPCEntity* npc = world_npc_ensure(world, npc_id);
     npc->alive = false;
     npc->scene_element2.element_id = -1;
+}
+
+/** Slot 0 would otherwise match `entity_id != id` never (0==0) while still all-zero from pool. */
+static void
+world_prime_map_build_tile_slot0(struct World* world)
+{
+    struct MapBuildTileEntity* e =
+        ENTITY_VEC_ENSURE(world->map_build_tile_entities, struct MapBuildTileEntity, 0);
+    memset(e, 0, sizeof(*e));
+    e->scene_element.element_id = -1;
+    e->entity_id = 0;
 }
 
 struct World*
@@ -83,15 +95,18 @@ world_new(
     world->minimap = NULL;
     world->buildcachedat = buildcachedat;
 
-    for( int i = 0; i < MAX_MAP_BUILD_LOC_ENTITIES; i++ )
-    {
-        init_map_build_loc_entity(&world->map_build_loc_entities[i], i);
-    }
+    entity_vec_init(&world->players, sizeof(struct PlayerEntity), MAX_PLAYERS);
+    entity_vec_init(&world->npcs, sizeof(struct NPCEntity), MAX_NPCS);
+    entity_vec_init(
+        &world->map_build_loc_entities,
+        sizeof(struct MapBuildLocEntity),
+        MAX_MAP_BUILD_LOC_ENTITIES);
+    entity_vec_init(
+        &world->map_build_tile_entities,
+        sizeof(struct MapBuildTileEntity),
+        MAX_MAP_BUILD_TILE_ENTITIES);
 
-    for( int i = 0; i < MAX_MAP_BUILD_TILE_ENTITIES; i++ )
-    {
-        init_map_build_tile_entity(&world->map_build_tile_entities[i], i);
-    }
+    world_prime_map_build_tile_slot0(world);
 
     for( int i = 0; i < MAX_PLAYERS; i++ )
     {
@@ -111,16 +126,21 @@ world_free(struct World* world)
     if( !world )
         return;
 
-    for( int i = 0; i < MAX_MAP_BUILD_LOC_ENTITIES; i++ )
-        free(world->map_build_loc_entities[i].actions);
+    for( int i = 0; i < entity_vec_count(&world->map_build_loc_entities); i++ )
+        free(world_loc_entity(world, i)->actions);
 
-    for( int i = 0; i < MAX_NPCS; i++ )
+    for( int i = 0; i < entity_vec_count(&world->npcs); i++ )
     {
-        struct NPCEntity* npc = &world->npcs[i];
+        struct NPCEntity* npc = world_npc(world, i);
         free(npc->name);
         free(npc->description);
         free(npc->actions);
     }
+
+    entity_vec_free(&world->players);
+    entity_vec_free(&world->npcs);
+    entity_vec_free(&world->map_build_loc_entities);
+    entity_vec_free(&world->map_build_tile_entities);
 
     painter_free(world->painter);
     collision_map_free(world->collision_map);
@@ -353,9 +373,25 @@ world_buildcachedat_rebuild_centerzone(
     if( world->sharelight_map )
         sharelight_map_free(world->sharelight_map);
 
-    for( int i = 0; i < MAX_MAP_BUILD_TILE_ENTITIES; i++ )
     {
-        world_cleanup_map_build_tile_entity(world, i);
+        int prev_scene = world->_scene_size;
+        int tile_slots = 0;
+        if( prev_scene > 0 )
+            tile_slots = prev_scene * prev_scene * MAP_TERRAIN_LEVELS;
+        else
+            tile_slots = entity_vec_count(&world->map_build_tile_entities);
+        if( tile_slots > MAX_MAP_BUILD_TILE_ENTITIES )
+            tile_slots = MAX_MAP_BUILD_TILE_ENTITIES;
+        for( int i = 0; i < tile_slots; i++ )
+        {
+            world_cleanup_map_build_tile_entity(world, i);
+        }
+        entity_vec_free(&world->map_build_tile_entities);
+        entity_vec_init(
+            &world->map_build_tile_entities,
+            sizeof(struct MapBuildTileEntity),
+            MAX_MAP_BUILD_TILE_ENTITIES);
+        world_prime_map_build_tile_slot0(world);
     }
     for( int i = 0; i < world->active_loc_entity_count; i++ )
     {
@@ -1063,7 +1099,10 @@ world_cleanup_map_build_loc_entity(
     struct World* world,
     int entity_id)
 {
-    struct MapBuildLocEntity* entity = &world->map_build_loc_entities[entity_id];
+    if( entity_id < 0 || entity_id >= entity_vec_count(&world->map_build_loc_entities) )
+        return;
+
+    struct MapBuildLocEntity* entity = world_loc_entity(world, entity_id);
 
     scene2_element_release(world->scene2, entity->scene_element.element_id);
     scene2_element_release(world->scene2, entity->scene_element_two.element_id);
@@ -1084,10 +1123,15 @@ world_cleanup_map_build_tile_entity(
         return;
 
     assert(entity_id >= 0 && entity_id < MAX_MAP_BUILD_TILE_ENTITIES);
-    struct MapBuildTileEntity* entity = &world->map_build_tile_entities[entity_id];
-    if( entity->entity_id == -1 )
+    if( entity_id >= entity_vec_count(&world->map_build_tile_entities) )
         return;
-    assert(entity->entity_id == entity_id);
+
+    struct MapBuildTileEntity* entity =
+        (struct MapBuildTileEntity*)entity_vec_at(&world->map_build_tile_entities, entity_id);
+    if( entity->entity_id != entity_id )
+        return;
+    if( entity->scene_element.element_id == -1 )
+        return;
 
     scene2_element_release(world->scene2, entity->scene_element.element_id);
     entity->scene_element.element_id = -1;
@@ -1099,7 +1143,10 @@ world_cleanup_player_entity(
     struct World* world,
     int entity_id)
 {
-    struct PlayerEntity* player = &world->players[entity_id];
+    if( entity_id < 0 || entity_id >= entity_vec_count(&world->players) )
+        return;
+
+    struct PlayerEntity* player = world_player(world, entity_id);
     scene2_element_release(world->scene2, player->scene_element2.element_id);
     player->scene_element2.element_id = -1;
     memset(&player->pathing, 0, sizeof(struct EntityPathing));
@@ -1115,7 +1162,10 @@ world_cleanup_npc_entity(
     struct World* world,
     int entity_id)
 {
-    struct NPCEntity* npc = &world->npcs[entity_id];
+    if( entity_id < 0 || entity_id >= entity_vec_count(&world->npcs) )
+        return;
+
+    struct NPCEntity* npc = world_npc(world, entity_id);
     free(npc->name);
     npc->name = NULL;
     free(npc->description);
@@ -1138,7 +1188,7 @@ world_player_entity_set_appearance(
     int player_entity_id,
     struct PlayerAppearance* appearance)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
 
     struct Scene2Element* element =
         scene2_element_at(world->scene2, player->scene_element2.element_id);
@@ -1222,7 +1272,7 @@ world_map_build_loc_entity_set_animation(
 
     struct Scene2Element* element = NULL;
     struct MapBuildLocEntity* map_build_loc_entity =
-        &world->map_build_loc_entities[map_build_loc_entity_id];
+        world_loc_entity(world, map_build_loc_entity_id);
 
     if( map_build_loc_entity->scene_element.element_id != -1 )
     {
@@ -1254,7 +1304,7 @@ world_player_entity_set_animation(
     int animation_id,
     int animation_type)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
 
     struct Scene2Element* element =
         scene2_element_at(world->scene2, player->scene_element2.element_id);
@@ -1289,7 +1339,7 @@ world_npc_entity_set_animation(
     int animation_id,
     int animation_type)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
 
     struct Scene2Element* element =
         scene2_element_at(world->scene2, npc->scene_element2.element_id);
@@ -1323,7 +1373,7 @@ world_player_entity_set_passive_animations(
     int player_entity_id,
     struct PassiveAnimationInfo* passive_animation_info)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
     player->animation.readyanim = passive_animation_info->readyanim;
     player->animation.walkanim = passive_animation_info->walkanim;
     player->animation.turnanim = passive_animation_info->turnanim;
@@ -1339,7 +1389,7 @@ world_npc_entity_set_passive_animations(
     int npc_entity_id,
     struct PassiveAnimationInfo* passive_animation_info)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
     npc->animation.readyanim = passive_animation_info->readyanim;
     npc->animation.walkanim = passive_animation_info->walkanim;
     npc->animation.turnanim = passive_animation_info->turnanim;
@@ -1356,7 +1406,7 @@ world_npc_entity_path_push_moveto(
     int x,
     int z)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
 }
 
 void
@@ -1366,7 +1416,7 @@ world_player_entity_path_push_step(
     int step_type,
     int direction)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
 
     entity_pathing_push_step(&player->pathing, step_type, direction);
 }
@@ -1378,7 +1428,7 @@ world_npc_entity_path_push_step(
     int step_type,
     int direction)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
 
     entity_pathing_push_step(&npc->pathing, step_type, direction);
 }
@@ -1391,8 +1441,8 @@ world_player_entity_path_jump_relative_to_active(
     int dx,
     int dz)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
-    struct PlayerEntity* active_player = &world->players[ACTIVE_PLAYER_SLOT];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
+    struct PlayerEntity* active_player = world_player(world, ACTIVE_PLAYER_SLOT);
 
     int x = active_player->pathing.route_x[0] + dx;
     int z = active_player->pathing.route_z[0] + dz;
@@ -1410,8 +1460,8 @@ world_npc_entity_path_jump_relative_to_active(
     int dx,
     int dz)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
-    struct PlayerEntity* active_player = &world->players[ACTIVE_PLAYER_SLOT];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
+    struct PlayerEntity* active_player = world_player(world, ACTIVE_PLAYER_SLOT);
 
     int x = active_player->pathing.route_x[0] + dx;
     int z = active_player->pathing.route_z[0] + dz;
@@ -1429,7 +1479,7 @@ world_player_entity_path_jump(
     int x,
     int z)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
 
     enum PathingJump jump = entity_pathing_jump(&player->pathing, force_teleport, x, z);
     if( jump == PATHING_JUMP_TELEPORT )
@@ -1444,7 +1494,7 @@ world_npc_entity_path_jump(
     int x,
     int z)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
 
     enum PathingJump jump = entity_pathing_jump(&npc->pathing, force_teleport, x, z);
     if( jump == PATHING_JUMP_TELEPORT )
@@ -1457,7 +1507,7 @@ world_player_face_entity(
     int player_entity_id,
     int entity_id)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
 }
 
 void
@@ -1466,7 +1516,7 @@ world_npc_face_entity(
     int npc_entity_id,
     int entity_id)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
 }
 
 void
@@ -1476,7 +1526,7 @@ world_player_face_coord(
     int tile_x,
     int tile_z)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
 }
 
 void
@@ -1486,7 +1536,7 @@ world_npc_face_coord(
     int tile_x,
     int tile_z)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
 }
 
 void
@@ -1496,7 +1546,7 @@ world_npc_set_size(
     int size_x,
     int size_z)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
     npc->size.x = size_x;
     npc->size.z = size_z;
 }
@@ -1507,7 +1557,7 @@ world_npc_ensure_scene_element(
     int npc_id)
 {
     struct Scene2Element* element = NULL;
-    struct NPCEntity* npc = &world->npcs[npc_id];
+    struct NPCEntity* npc = world_npc_ensure(world, npc_id);
 
     npc->alive = true;
     if( npc->scene_element2.element_id == -1 )
@@ -1530,7 +1580,7 @@ world_player_ensure_scene_element(
     int player_id)
 {
     struct Scene2Element* element = NULL;
-    struct PlayerEntity* player = &world->players[player_id];
+    struct PlayerEntity* player = world_player_ensure(world, player_id);
 
     player->alive = true;
     if( player->scene_element2.element_id == -1 )
@@ -1556,7 +1606,7 @@ world_map_build_loc_entity_push_action(
     int code,
     char* action)
 {
-    struct MapBuildLocEntity* entity = &world->map_build_loc_entities[map_build_loc_entity_id];
+    struct MapBuildLocEntity* entity = world_loc_entity(world, map_build_loc_entity_id);
     assert(entity->action_count < 10);
     if( !entity->actions )
         entity->actions = (struct EntityAction*)calloc(10, sizeof(struct EntityAction));

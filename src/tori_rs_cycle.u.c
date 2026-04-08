@@ -173,7 +173,7 @@ entity_face(
             /* NPC target */
             if( fe < MAX_NPCS )
             {
-                struct NPCEntity* target = &game->world->npcs[fe];
+                struct NPCEntity* target = world_npc(game->world, fe);
                 if( target->alive )
                 {
                     target_x = target->draw_position.x;
@@ -194,9 +194,9 @@ entity_face(
             else
                 pid = -1;
 
-            if( pid >= 0 && game->world->players[pid].alive )
+            if( pid >= 0 && world_player(game->world, pid)->alive )
             {
-                struct PlayerEntity* target = &game->world->players[pid];
+                struct PlayerEntity* target = world_player(game->world, pid);
                 target_x = target->draw_position.x;
                 target_z = target->draw_position.z;
                 has_target = 1;

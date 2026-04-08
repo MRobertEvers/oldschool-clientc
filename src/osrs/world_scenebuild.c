@@ -191,7 +191,7 @@ world_scenebuild_player_entity_set_appearance(
     uint16_t* appearances,
     uint16_t* colors)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
     struct Scene2Element* element =
         scene2_element_at(world->scene2, player->scene_element2.element_id);
     assert(element && "Element must be found");
@@ -208,7 +208,7 @@ world_scenebuild_npc_entity_set_npc_type(
     int npc_entity_id,
     int npc_type)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
     struct Scene2Element* element =
         scene2_element_at(world->scene2, npc->scene_element2.element_id);
     assert(element && "Element must be found");

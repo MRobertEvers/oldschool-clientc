@@ -846,7 +846,7 @@ push_rs_from_cache_component(
         int* colors = NULL;
         if( comp->modelType == 3 && game->world )
         {
-            struct PlayerEntity* local = &game->world->players[ACTIVE_PLAYER_SLOT];
+            struct PlayerEntity* local = world_player(game->world, ACTIVE_PLAYER_SLOT);
             if( local->alive )
             {
                 slots = local->appearance.slots;

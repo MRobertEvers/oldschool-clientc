@@ -53,7 +53,7 @@ gameproto_exec_npc_info(
     int count = pkt_npc_info_reader_read(
         &npc_info_reader, (struct PktNpcInfo*)&packet->_npc_info, ops, 2048);
 
-    struct PlayerEntity* player = &game->world->players[ACTIVE_PLAYER_SLOT];
+    struct PlayerEntity* player = world_player(game->world, ACTIVE_PLAYER_SLOT);
     if( !player->alive )
         return;
 
@@ -205,7 +205,7 @@ add_player_info(
     struct PktPlayerInfoOp ops[2048];
 
     struct SceneElement* scene_element = NULL;
-    struct PlayerEntity* active_player = &game->world->players[ACTIVE_PLAYER_SLOT];
+    struct PlayerEntity* active_player = world_player(game->world, ACTIVE_PLAYER_SLOT);
 
     int count = pkt_player_info_reader_read(
         &player_info_reader, (struct PktPlayerInfo*)&packet->_player_info, ops, 2048);
@@ -509,7 +509,7 @@ gameproto_exec_rebuild_normal_world(
         int npc_id = world->active_npcs[i];
         if( npc_id < 0 )
             continue;
-        struct NPCEntity* npc = &world->npcs[npc_id];
+        struct NPCEntity* npc = world_npc(world, npc_id);
         if( !npc->alive )
             continue;
         for( int j = 0; j < 10; j++ )
@@ -523,7 +523,7 @@ gameproto_exec_rebuild_normal_world(
 
     for( int i = 0; i < MAX_PLAYERS; i++ )
     {
-        struct PlayerEntity* player = &world->players[i];
+        struct PlayerEntity* player = world_player(world, i);
         if( !player->alive )
             continue;
         for( int j = 0; j < 10; j++ )
@@ -761,7 +761,7 @@ gameproto_exec_if_setplayerhead(
     if( !component )
         return;
 
-    struct PlayerEntity* local_player = &game->world->players[ACTIVE_PLAYER_SLOT];
+    struct PlayerEntity* local_player = world_player(game->world, ACTIVE_PLAYER_SLOT);
     if( !local_player->alive )
         return;
 

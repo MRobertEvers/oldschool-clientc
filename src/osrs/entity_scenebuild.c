@@ -202,7 +202,7 @@ entity_scenebuild_player_change_appearance(
     int player_id,
     struct PlayerAppearance* appearance)
 {
-    struct PlayerEntity* player = &game->world->players[player_id];
+    struct PlayerEntity* player = world_player(game->world, player_id);
     struct Scene2Element* scene_element =
         scene2_element_at(game->world->scene2, player->scene_element2.element_id);
 

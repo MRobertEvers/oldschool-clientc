@@ -220,7 +220,7 @@ world_cycle_advance_map_build_loc_entity_animation(
     int entity_id,
     int cycles_elapsed)
 {
-    struct MapBuildLocEntity* entity = &world->map_build_loc_entities[entity_id];
+    struct MapBuildLocEntity* entity = world_loc_entity(world, entity_id);
     struct Scene2Element* scene_element = NULL;
     if( entity->scene_element.element_id != -1 )
     {
@@ -254,7 +254,7 @@ world_cycle_update_player_movement_and_animation(
     struct World* world,
     int player_id)
 {
-    struct PlayerEntity* player = &world->players[player_id];
+    struct PlayerEntity* player = world_player(world, player_id);
     struct EntityAnimationInfo info = {
         .scene2_element = &player->scene_element2,
         .pathing = &player->pathing,
@@ -282,7 +282,7 @@ world_cycle_advance_player_animation(
     int player_id,
     int cycles_elapsed)
 {
-    struct PlayerEntity* player = &world->players[player_id];
+    struct PlayerEntity* player = world_player(world, player_id);
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, player->scene_element2.element_id);
     world_cycle_step_element_animations(&player->animation, scene_element, cycles_elapsed);
@@ -296,7 +296,7 @@ world_cycle_update_players(
     struct PlayerEntity* player = NULL;
     for( int cycle = 0; cycle < cycles_elapsed; cycle++ )
     {
-        player = &world->players[ACTIVE_PLAYER_SLOT];
+        player = world_player(world, ACTIVE_PLAYER_SLOT);
         if( player->alive && player->scene_element2.element_id != -1 )
         {
             world_cycle_update_player_movement_and_animation(world, ACTIVE_PLAYER_SLOT);
@@ -308,7 +308,7 @@ world_cycle_update_players(
             int player_id = world->active_players[i];
             if( player_id == -1 )
                 continue;
-            struct PlayerEntity* player = &world->players[player_id];
+            struct PlayerEntity* player = world_player(world, player_id);
             if( player->alive && player->scene_element2.element_id != -1 )
             {
                 world_cycle_update_player_movement_and_animation(world, player_id);
@@ -322,7 +322,7 @@ static void
 world_cycle_push_players(struct World* world)
 {
     struct Scene2Element* scene_element = NULL;
-    struct PlayerEntity* player = &world->players[ACTIVE_PLAYER_SLOT];
+    struct PlayerEntity* player = world_player(world, ACTIVE_PLAYER_SLOT);
     struct PainterPadding padding = { 0 };
 
     if( player->alive && player->scene_element2.element_id != -1 )
@@ -352,7 +352,7 @@ world_cycle_update_npc_movement_and_animation(
     struct World* world,
     int npc_id)
 {
-    struct NPCEntity* npc = &world->npcs[npc_id];
+    struct NPCEntity* npc = world_npc(world, npc_id);
     struct EntityAnimationInfo info = {
         .scene2_element = &npc->scene_element2,
         .pathing = &npc->pathing,
@@ -380,7 +380,7 @@ world_cycle_advance_npc_animation(
     int npc_id,
     int cycles_elapsed)
 {
-    struct NPCEntity* npc = &world->npcs[npc_id];
+    struct NPCEntity* npc = world_npc(world, npc_id);
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, npc->scene_element2.element_id);
     world_cycle_step_element_animations(&npc->animation, scene_element, cycles_elapsed);
@@ -398,7 +398,7 @@ world_cycle_update_npcs(
             int npc_id = world->active_npcs[i];
             if( npc_id == -1 )
                 continue;
-            struct NPCEntity* npc = &world->npcs[npc_id];
+            struct NPCEntity* npc = world_npc(world, npc_id);
             if( npc->alive && npc->scene_element2.element_id != -1 )
             {
                 world_cycle_update_npc_movement_and_animation(world, npc_id);
@@ -417,7 +417,7 @@ world_cycle_push_npcs(struct World* world)
         int npc_id = world->active_npcs[i];
         if( npc_id == -1 )
             continue;
-        struct NPCEntity* npc = &world->npcs[npc_id];
+        struct NPCEntity* npc = world_npc(world, npc_id);
         if( npc->alive && npc->scene_element2.element_id != -1 )
         {
             struct PainterPadding padding = { 0 };

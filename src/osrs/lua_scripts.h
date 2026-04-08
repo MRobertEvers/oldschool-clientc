@@ -1507,7 +1507,7 @@ l_gameproto_get_local_player_appearance_ids(lua_State* L)
     int idk_idx = 0;
     int obj_idx = 0;
 
-    struct PlayerEntity* local = &game->world->players[ACTIVE_PLAYER_SLOT];
+    struct PlayerEntity* local = world_player(game->world, ACTIVE_PLAYER_SLOT);
     if( !local->alive )
         return 2;
 

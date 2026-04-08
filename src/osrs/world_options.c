@@ -21,7 +21,7 @@ options_add_loc(
 
     char text[64];
 
-    struct MapBuildLocEntity* map_build_loc_entity = &world->map_build_loc_entities[entity_id];
+    struct MapBuildLocEntity* map_build_loc_entity = world_loc_entity(world, entity_id);
     struct WorldOption* option = NULL;
 
     for( int i = 4; i >= 0; i-- )
@@ -140,10 +140,10 @@ options_add_npc(
     char text[64];
     char tooltip[32];
 
-    struct NPCEntity* npc = &world->npcs[entity_id];
+    struct NPCEntity* npc = world_npc(world, entity_id);
 
     struct WorldOption* option = &option_set->options[option_set->option_count];
-    struct PlayerEntity* player = &world->players[ACTIVE_PLAYER_SLOT];
+    struct PlayerEntity* player = world_player(world, ACTIVE_PLAYER_SLOT);
 
     if( x == 64 && z == 64 && npc->size.x == 1 && npc->size.z == 1 )
     {

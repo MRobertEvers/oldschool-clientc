@@ -176,16 +176,6 @@ terrain_element_acquire(
         world->scene2, entity_unified_id(ENTITY_KIND_MAP_BUILD_TILE, tile_id));
 }
 
-static void
-init_map_build_tile_entity(
-    struct MapBuildTileEntity* map_build_tile_entity,
-    int entity_id)
-{
-    memset(map_build_tile_entity, 0, sizeof(struct MapBuildTileEntity));
-    map_build_tile_entity->scene_element.element_id = -1;
-    map_build_tile_entity->entity_id = entity_id;
-}
-
 static inline int
 world_tile_entity_idx(
     struct World* world,
@@ -211,7 +201,7 @@ world_tile_entity_at(
     assert(level >= 0 && level < MAP_TERRAIN_LEVELS);
     int idx = world_tile_entity_idx(world, x, z, level);
     assert(idx >= 0 && idx < MAX_MAP_BUILD_TILE_ENTITIES);
-    return &world->map_build_tile_entities[idx];
+    return world_map_build_tile_entity(world, idx);
 }
 
 struct MapBuildTileEntity*

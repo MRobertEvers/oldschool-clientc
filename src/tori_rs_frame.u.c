@@ -534,7 +534,7 @@ entity_player_animate(
     struct World* world,
     int player_entity_id)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
     struct EntityAnimation* animation = &player->animation;
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, player->scene_element2.element_id);
@@ -579,7 +579,7 @@ entity_npc_animate(
     struct World* world,
     int npc_entity_id)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
     struct EntityAnimation* animation = &npc->animation;
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, npc->scene_element2.element_id);
@@ -625,7 +625,7 @@ entity_map_build_loc_entity_animate(
     int map_build_loc_entity_id)
 {
     struct MapBuildLocEntity* map_build_loc_entity =
-        &world->map_build_loc_entities[map_build_loc_entity_id];
+        world_loc_entity(world, map_build_loc_entity_id);
 
     struct EntityAnimation* animation = NULL;
     struct Scene2Element* scene_element = NULL;
@@ -720,7 +720,7 @@ entity_interactable(
     case ENTITY_KIND_MAP_BUILD_LOC:
     {
         struct MapBuildLocEntity* map_build_loc_entity =
-            &world->map_build_loc_entities[entity_id_from_uid(entity_id)];
+            world_loc_entity(world, entity_id_from_uid(entity_id));
         return map_build_loc_entity->interactable;
     }
     }
@@ -743,14 +743,14 @@ entity_coords_from_element(
     {
     case ENTITY_KIND_PLAYER:
     {
-        struct PlayerEntity* player = &world->players[entity_id_from_uid(entity_uid)];
+        struct PlayerEntity* player = world_player(world, entity_id_from_uid(entity_uid));
         coords->x = player->pathing.route_x[0];
         coords->z = player->pathing.route_z[0];
     }
     break;
     case ENTITY_KIND_NPC:
     {
-        struct NPCEntity* npc = &world->npcs[entity_id_from_uid(entity_uid)];
+        struct NPCEntity* npc = world_npc(world, entity_id_from_uid(entity_uid));
         coords->x = npc->pathing.route_x[0];
         coords->z = npc->pathing.route_z[0];
     }
@@ -758,7 +758,7 @@ entity_coords_from_element(
     case ENTITY_KIND_MAP_BUILD_LOC:
     {
         struct MapBuildLocEntity* map_build_loc_entity =
-            &world->map_build_loc_entities[entity_id_from_uid(entity_uid)];
+            world_loc_entity(world, entity_id_from_uid(entity_uid));
         coords->x = map_build_loc_entity->scene_coord.sx;
         coords->z = map_build_loc_entity->scene_coord.sz;
     }
