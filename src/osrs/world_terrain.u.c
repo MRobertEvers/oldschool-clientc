@@ -415,16 +415,45 @@ build_scene_terrain(struct World* world)
     }
 }
 
+/** Staging for per-tile face data between pass 1 (geometry) and pass 2 (models + scene). */
+struct TerrainTileFaceTemp
+{
+    int face_count;
+    int x;
+    int z;
+    hsl16_t* fc_a;
+    hsl16_t* fc_b;
+    hsl16_t* fc_c;
+    faceint_t* fi_a;
+    faceint_t* fi_b;
+    faceint_t* fi_c;
+    faceint_t* face_textures;
+    bool has_textures;
+};
+
+static void
+terrain_va_tile_face_temp_free(struct TerrainTileFaceTemp* t)
+{
+    free(t->fc_a);
+    free(t->fc_b);
+    free(t->fc_c);
+    free(t->fi_a);
+    free(t->fi_b);
+    free(t->fi_c);
+    free(t->face_textures);
+    memset(t, 0, sizeof(*t));
+}
+
 static void
 build_scene_terrain_va(struct World* world)
 {
     int scene_size = world->_scene_size;
     int grid_side = scene_size + 1;
+    int inner = scene_size - 2;
+    size_t tile_grid_n = (size_t)inner * (size_t)inner;
 
-    /* Maximum vertex and face counts per level (pessimistic upper bounds). */
-    int max_verts = grid_side * grid_side                      /* all corners */
-                    + (scene_size - 2) * (scene_size - 2) * 2; /* non-corner verts per tile */
-    int max_faces = (scene_size - 2) * (scene_size - 2) * 6;   /* 6 faces per tile */
+    /* Maximum vertex count per level (pessimistic upper bounds). */
+    int max_verts = grid_side * grid_side + inner * inner * 2;
 
     for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
     {
@@ -441,30 +470,18 @@ build_scene_terrain_va(struct World* world)
             0,
             scene_size);
 
-        /* Buildtime corner dedup grid: stores global vertex index for each (gx, gz) corner,
-         * or -1 if not yet added.  Only corner vertex types (1/3/5/7) hit the 128 boundary. */
+        struct TerrainTileFaceTemp* tile_faces =
+            (struct TerrainTileFaceTemp*)calloc(tile_grid_n, sizeof(struct TerrainTileFaceTemp));
+
         int* corner_grid = (int*)malloc((size_t)grid_side * grid_side * sizeof(int));
         for( int i = 0; i < grid_side * grid_side; i++ )
             corner_grid[i] = -1;
 
-        /* Vertex position arrays (VA owns them). */
         vertexint_t* va_x = (vertexint_t*)malloc((size_t)max_verts * sizeof(vertexint_t));
         vertexint_t* va_y = (vertexint_t*)malloc((size_t)max_verts * sizeof(vertexint_t));
         vertexint_t* va_z = (vertexint_t*)malloc((size_t)max_verts * sizeof(vertexint_t));
 
-        /* Face arrays (model owns them). */
-        hsl16_t* fc_a = (hsl16_t*)malloc((size_t)max_faces * sizeof(hsl16_t));
-        hsl16_t* fc_b = (hsl16_t*)malloc((size_t)max_faces * sizeof(hsl16_t));
-        hsl16_t* fc_c = (hsl16_t*)malloc((size_t)max_faces * sizeof(hsl16_t));
-        faceint_t* fi_a = (faceint_t*)malloc((size_t)max_faces * sizeof(faceint_t));
-        faceint_t* fi_b = (faceint_t*)malloc((size_t)max_faces * sizeof(faceint_t));
-        faceint_t* fi_c = (faceint_t*)malloc((size_t)max_faces * sizeof(faceint_t));
-        /* face_textures allocated on demand if any textured tile appears */
-        faceint_t* face_textures = NULL;
-        bool has_textures = false;
-
         int vertex_count = 0;
-        int face_count = 0;
 
         for( int z = 1; z < scene_size - 1; z++ )
         {
@@ -512,7 +529,6 @@ build_scene_terrain_va(struct World* world)
                     overlay_hsl = adjust_lightness(hsl, 96);
                 }
 
-                /* Pre-compute per-corner lit colors (same logic as decode_tile). */
                 int underlay_hsl_sw = multiply_lightness(underlay_hsl, light_sw);
                 int underlay_hsl_se = multiply_lightness(underlay_hsl, light_se);
                 int underlay_hsl_ne = multiply_lightness(underlay_hsl, light_ne);
@@ -523,14 +539,12 @@ build_scene_terrain_va(struct World* world)
                 int overlay_hsl_ne = adjust_lightness(overlay_hsl, light_ne);
                 int overlay_hsl_nw = adjust_lightness(overlay_hsl, light_nw);
 
-                /* -- Vertex pass -- */
                 int* vertex_indices = g_tile_shape_vertex_types[shape];
                 int vcount = g_tile_shape_vertex_types_lengths[shape];
 
                 int tile_x = x * TILE_SIZE;
                 int tile_z = z * TILE_SIZE;
 
-                /* Per-tile local arrays: lit colors and global index mapping. */
                 int underlay_colors[6];
                 int overlay_colors[6];
                 int local_to_global[6];
@@ -539,7 +553,6 @@ build_scene_terrain_va(struct World* world)
                 {
                     int vtype = vertex_indices[vi];
 
-                    /* Apply rotation (same as decode_tile). */
                     if( (vtype & 1) == 0 && vtype <= 8 )
                         vtype = ((vtype - rotation - rotation - 1) & 7) + 1;
                     if( vtype > 8 && vtype <= 12 )
@@ -552,56 +565,56 @@ build_scene_terrain_va(struct World* world)
 
                     switch( vtype )
                     {
-                    case 1: /* SW */
+                    case 1:
                         vx = tile_x;
                         vy = height_sw;
                         vz = tile_z;
                         uc = underlay_hsl_sw;
                         oc = overlay_hsl_sw;
                         break;
-                    case 2: /* S-edge mid */
+                    case 2:
                         vx = tile_x + TILE_SIZE / 2;
                         vy = (height_sw + height_se) >> 1;
                         vz = tile_z;
                         uc = mix_hsl(underlay_hsl_se, underlay_hsl_sw);
                         oc = (overlay_hsl_se + overlay_hsl_sw) >> 1;
                         break;
-                    case 3: /* SE */
+                    case 3:
                         vx = tile_x + TILE_SIZE;
                         vy = height_se;
                         vz = tile_z;
                         uc = underlay_hsl_se;
                         oc = overlay_hsl_se;
                         break;
-                    case 4: /* E-edge mid */
+                    case 4:
                         vx = tile_x + TILE_SIZE;
                         vy = (height_se + height_ne) >> 1;
                         vz = tile_z + TILE_SIZE / 2;
                         uc = mix_hsl(underlay_hsl_se, underlay_hsl_ne);
                         oc = (overlay_hsl_ne + overlay_hsl_se) >> 1;
                         break;
-                    case 5: /* NE */
+                    case 5:
                         vx = tile_x + TILE_SIZE;
                         vy = height_ne;
                         vz = tile_z + TILE_SIZE;
                         uc = underlay_hsl_ne;
                         oc = overlay_hsl_ne;
                         break;
-                    case 6: /* N-edge mid */
+                    case 6:
                         vx = tile_x + TILE_SIZE / 2;
                         vy = (height_ne + height_nw) >> 1;
                         vz = tile_z + TILE_SIZE;
                         uc = mix_hsl(underlay_hsl_ne, underlay_hsl_nw);
                         oc = (overlay_hsl_ne + overlay_hsl_nw) >> 1;
                         break;
-                    case 7: /* NW */
+                    case 7:
                         vx = tile_x;
                         vy = height_nw;
                         vz = tile_z + TILE_SIZE;
                         uc = underlay_hsl_nw;
                         oc = overlay_hsl_nw;
                         break;
-                    case 8: /* W-edge mid */
+                    case 8:
                         vx = tile_x;
                         vy = (height_nw + height_sw) >> 1;
                         vz = tile_z + TILE_SIZE / 2;
@@ -657,7 +670,7 @@ build_scene_terrain_va(struct World* world)
                         uc = underlay_hsl_ne;
                         oc = overlay_hsl_ne;
                         break;
-                    default: /* 16: NW quarter center */
+                    default:
                         vx = tile_x + TILE_SIZE / 4;
                         vy = height_nw;
                         vz = tile_z + TILE_SIZE * 3 / 4;
@@ -669,11 +682,9 @@ build_scene_terrain_va(struct World* world)
                     underlay_colors[vi] = uc;
                     overlay_colors[vi] = oc;
 
-                    /* Corner types 1/3/5/7: deduplicate via the corner grid. */
                     int global_idx;
                     if( vtype == 1 || vtype == 3 || vtype == 5 || vtype == 7 )
                     {
-                        /* Grid coords: vtype 1=SW(x,z) 3=SE(x+1,z) 5=NE(x+1,z+1) 7=NW(x,z+1) */
                         int gx = (vtype == 1 || vtype == 7) ? x : x + 1;
                         int gz = (vtype == 5 || vtype == 7) ? z + 1 : z;
                         int grid_idx = gz * grid_side + gx;
@@ -705,9 +716,22 @@ build_scene_terrain_va(struct World* world)
                     local_to_global[vi] = global_idx;
                 }
 
-                /* -- Face pass -- */
                 int* face_indices_raw = g_tile_shape_faces[shape];
                 int fcount = g_tile_shape_face_counts[shape] / 4;
+
+                struct TerrainTileFaceTemp* tf =
+                    &tile_faces[(size_t)(z - 1) * (size_t)inner + (size_t)(x - 1)];
+                tf->x = x;
+                tf->z = z;
+                tf->face_count = fcount;
+                tf->fc_a = (hsl16_t*)malloc((size_t)fcount * sizeof(hsl16_t));
+                tf->fc_b = (hsl16_t*)malloc((size_t)fcount * sizeof(hsl16_t));
+                tf->fc_c = (hsl16_t*)malloc((size_t)fcount * sizeof(hsl16_t));
+                tf->fi_a = (faceint_t*)malloc((size_t)fcount * sizeof(faceint_t));
+                tf->fi_b = (faceint_t*)malloc((size_t)fcount * sizeof(faceint_t));
+                tf->fi_c = (faceint_t*)malloc((size_t)fcount * sizeof(faceint_t));
+                tf->face_textures = NULL;
+                tf->has_textures = false;
 
                 for( int fi = 0; fi < fcount; fi++ )
                 {
@@ -740,7 +764,6 @@ build_scene_terrain_va(struct World* world)
                         color_c = underlay_colors[lc];
                     }
 
-                    /* Hide faces whose colors are invalid (transparent / no underlay). */
                     hsl16_t hsl_c;
                     if( color_a == INVALID_HSL_COLOR && face_tex == -1 )
                         hsl_c = DASHHSL16_HIDDEN;
@@ -751,35 +774,27 @@ build_scene_terrain_va(struct World* world)
                     else
                         hsl_c = (hsl16_t)(unsigned)(color_c & 0xffff);
 
-                    assert(face_count < max_faces);
-                    fc_a[face_count] = (hsl16_t)(unsigned)(color_a & 0xffff);
-                    fc_b[face_count] = (hsl16_t)(unsigned)(color_b & 0xffff);
-                    fc_c[face_count] = hsl_c;
-                    fi_a[face_count] = (faceint_t)local_to_global[la];
-                    fi_b[face_count] = (faceint_t)local_to_global[lb];
-                    fi_c[face_count] = (faceint_t)local_to_global[lc];
+                    tf->fc_a[fi] = (hsl16_t)(unsigned)(color_a & 0xffff);
+                    tf->fc_b[fi] = (hsl16_t)(unsigned)(color_b & 0xffff);
+                    tf->fc_c[fi] = hsl_c;
+                    tf->fi_a[fi] = (faceint_t)local_to_global[la];
+                    tf->fi_b[fi] = (faceint_t)local_to_global[lb];
+                    tf->fi_c[fi] = (faceint_t)local_to_global[lc];
 
                     if( face_tex != -1 )
                     {
-                        if( !face_textures )
+                        if( !tf->face_textures )
                         {
-                            face_textures =
-                                (faceint_t*)malloc((size_t)max_faces * sizeof(faceint_t));
-                            for( int k = 0; k < face_count; k++ )
-                                face_textures[k] = -1;
-                            has_textures = true;
+                            tf->face_textures =
+                                (faceint_t*)malloc((size_t)fcount * sizeof(faceint_t));
+                            for( int k = 0; k < fcount; k++ )
+                                tf->face_textures[k] = -1;
+                            tf->has_textures = true;
                         }
-                        face_textures[face_count] = (faceint_t)face_tex;
+                        tf->face_textures[fi] = (faceint_t)face_tex;
                     }
-                    else if( face_textures )
-                    {
-                        face_textures[face_count] = -1;
-                    }
-
-                    face_count++;
                 }
 
-                /* Minimap (same as build_scene_terrain). */
                 int minimap_foreground_rgb = 0;
                 int minimap_background_rgb = 0;
 
@@ -805,22 +820,10 @@ build_scene_terrain_va(struct World* world)
 
         free(corner_grid);
 
-        /* Trim to actual sizes. */
         va_x = (vertexint_t*)realloc(va_x, (size_t)vertex_count * sizeof(vertexint_t));
         va_y = (vertexint_t*)realloc(va_y, (size_t)vertex_count * sizeof(vertexint_t));
         va_z = (vertexint_t*)realloc(va_z, (size_t)vertex_count * sizeof(vertexint_t));
 
-        fc_a = (hsl16_t*)realloc(fc_a, (size_t)face_count * sizeof(hsl16_t));
-        fc_b = (hsl16_t*)realloc(fc_b, (size_t)face_count * sizeof(hsl16_t));
-        fc_c = (hsl16_t*)realloc(fc_c, (size_t)face_count * sizeof(hsl16_t));
-        fi_a = (faceint_t*)realloc(fi_a, (size_t)face_count * sizeof(faceint_t));
-        fi_b = (faceint_t*)realloc(fi_b, (size_t)face_count * sizeof(faceint_t));
-        fi_c = (faceint_t*)realloc(fi_c, (size_t)face_count * sizeof(faceint_t));
-        if( face_textures )
-            face_textures =
-                (faceint_t*)realloc(face_textures, (size_t)face_count * sizeof(faceint_t));
-
-        /* Build the vertex array (vertices only; face data goes on the model). */
         struct DashVertexArray* va =
             (struct DashVertexArray*)malloc(sizeof(struct DashVertexArray));
         va->vertex_count = vertex_count;
@@ -828,44 +831,96 @@ build_scene_terrain_va(struct World* world)
         va->vertices_y = va_y;
         va->vertices_z = va_z;
 
-        /* Free previous VA for this level (rebuild path). */
         if( world->terrain_va[level] )
             dashvertexarray_free(world->terrain_va[level]);
         world->terrain_va[level] = va;
 
-        /* Build and register the VA model on scene2. */
-        struct DashModel* model = dashmodel_va_new(va);
-        dashmodel_va_set_face_data(
-            model,
-            face_count,
-            fc_a,
-            fc_b,
-            fc_c,
-            fi_a,
-            fi_b,
-            fi_c,
-            has_textures ? face_textures : NULL);
-        if( !has_textures )
-            free(face_textures);
-        face_textures = NULL;
+        for( size_t ti = 0; ti < tile_grid_n; ti++ )
+        {
+            struct TerrainTileFaceTemp* tf = &tile_faces[ti];
+            if( tf->face_count == 0 )
+                continue;
 
-        dashmodel_set_has_textures(model, has_textures);
-        has_textures = false;
-        dashmodel_set_bounds_cylinder(model);
-        dashmodel_set_loaded(model, true);
+            int x = tf->x;
+            int z = tf->z;
+            int tile_x = x * TILE_SIZE;
+            int tile_z = z * TILE_SIZE;
 
-        int entity_id = world_terrain_va_tile_entity_id(level);
-        struct MapBuildTileEntity* tile_entity = world_tile_entity_at_new_by_id(world, entity_id);
+            struct DashModel* model = dashmodel_va_new(va);
+            dashmodel_va_set_face_data(
+                model,
+                tf->face_count,
+                tf->fc_a,
+                tf->fc_b,
+                tf->fc_c,
+                tf->fi_a,
+                tf->fi_b,
+                tf->fi_c,
+                tf->has_textures ? tf->face_textures : NULL);
+            tf->fc_a = tf->fc_b = tf->fc_c = NULL;
+            tf->fi_a = tf->fi_b = tf->fi_c = NULL;
+            tf->face_textures = NULL;
 
-        tile_entity->scene_element.element_id = terrain_element_acquire(world, entity_id);
-        struct Scene2Element* scene_element =
-            scene2_element_at(world->scene2, tile_entity->scene_element.element_id);
-        scene2_element_set_dash_position_ptr(scene_element, dashposition_new());
-        scene2_element_set_dash_model(world->scene2, scene_element, model);
-        struct DashPosition* dp = scene2_element_dash_position(scene_element);
-        dp->x = 0;
-        dp->y = 0;
-        dp->z = 0;
+            dashmodel_va_set_tile_cull_center(model, tile_x, tile_z);
+
+            int fc = tf->face_count;
+            bool tile_has_tex = tf->has_textures;
+            const faceint_t* fia = dashmodel_face_indices_a_const(model);
+            const faceint_t* fib = dashmodel_face_indices_b_const(model);
+            const faceint_t* fic = dashmodel_face_indices_c_const(model);
+
+            int uniq[24];
+            int nu = 0;
+            for( int fi = 0; fi < fc; fi++ )
+            {
+                int cands[3] = { (int)fia[fi], (int)fib[fi], (int)fic[fi] };
+                for( int j = 0; j < 3; j++ )
+                {
+                    int id = cands[j];
+                    int k;
+                    for( k = 0; k < nu; k++ )
+                    {
+                        if( uniq[k] == id )
+                            break;
+                    }
+                    if( k == nu && nu < 24 )
+                        uniq[nu++] = id;
+                }
+            }
+
+            vertexint_t lx[24];
+            vertexint_t ly[24];
+            vertexint_t lz[24];
+            for( int i = 0; i < nu; i++ )
+            {
+                int j = uniq[i];
+                lx[i] = (vertexint_t)((int)va->vertices_x[j] - tile_x);
+                ly[i] = va->vertices_y[j];
+                lz[i] = (vertexint_t)((int)va->vertices_z[j] - tile_z);
+            }
+            dashmodel_va_set_bounds_cylinder_from_local(model, nu, lx, ly, lz);
+
+            dashmodel_set_has_textures(model, tile_has_tex);
+            dashmodel_set_loaded(model, true);
+
+            struct MapBuildTileEntity* tile_entity = world_tile_entity_at_new(world, x, z, level);
+            tile_entity->scene_element.element_id =
+                terrain_element_acquire(world, tile_entity->entity_id);
+            struct Scene2Element* scene_element =
+                scene2_element_at(world->scene2, tile_entity->scene_element.element_id);
+            scene2_element_set_dash_position_ptr(scene_element, dashposition_new());
+            scene2_element_set_dash_model(world->scene2, scene_element, model);
+            struct DashPosition* dp = scene2_element_dash_position(scene_element);
+            dp->x = 0;
+            dp->y = 0;
+            dp->z = 0;
+
+            tf->face_count = 0;
+        }
+
+        for( size_t ti = 0; ti < tile_grid_n; ti++ )
+            terrain_va_tile_face_temp_free(&tile_faces[ti]);
+        free(tile_faces);
     }
 }
 

@@ -3580,9 +3580,8 @@ project_vertices_array_notex(
 #endif
 
 /**
- * Face-indexed projection: one slot per face f in orthographic_* and screen_*.
- * World position uses vertex_x[a], vertex_y[b], vertex_z[c] with
- * a/b/c = vertex_faces_a/b/c[f] (mixed corners).
+ * Face-indexed projection: three slots per face (base = f*3) in orthographic_* and screen_*.
+ * Corners use full (x,y,z) from vertex_faces_a/b/c[f] respectively.
  */
 static inline void
 project_vertices_array_sparse(
@@ -3615,69 +3614,78 @@ project_vertices_array_sparse(
 
     for( int f = 0; f < num_faces; f++ )
     {
-        int va = (int)vertex_faces_a[f];
-        int vb = (int)vertex_faces_b[f];
-        int vc = (int)vertex_faces_c[f];
+        int base = f * 3;
+        int vi[3] = {
+            (int)vertex_faces_a[f],
+            (int)vertex_faces_b[f],
+            (int)vertex_faces_c[f],
+        };
 
-        struct ProjectedVertex projected_vertex;
-        project_orthographic_fast(
-            &projected_vertex,
-            vertex_x[va],
-            vertex_y[vb],
-            vertex_z[vc],
-            model_yaw,
-            scene_x,
-            scene_y,
-            scene_z,
-            camera_pitch,
-            camera_yaw);
+        for( int s = 0; s < 3; s++ )
+        {
+            int v = vi[s];
+            struct ProjectedVertex projected_vertex;
+            project_orthographic_fast(
+                &projected_vertex,
+                vertex_x[v],
+                vertex_y[v],
+                vertex_z[v],
+                model_yaw,
+                scene_x,
+                scene_y,
+                scene_z,
+                camera_pitch,
+                camera_yaw);
 
-        int x = projected_vertex.x;
-        int y = projected_vertex.y;
+            int x = projected_vertex.x;
+            int y = projected_vertex.y;
 
-        x *= cot_fov_half_ish15;
-        y *= cot_fov_half_ish15;
-        x >>= 15;
-        y >>= 15;
+            x *= cot_fov_half_ish15;
+            y *= cot_fov_half_ish15;
+            x >>= 15;
+            y >>= 15;
 
-        int screen_x = SCALE_UNIT(x);
-        int screen_y = SCALE_UNIT(y);
+            int idx = base + s;
+            orthographic_vertices_x[idx] = projected_vertex.x;
+            orthographic_vertices_y[idx] = projected_vertex.y;
+            orthographic_vertices_z[idx] = projected_vertex.z;
 
-        orthographic_vertices_x[f] = projected_vertex.x;
-        orthographic_vertices_y[f] = projected_vertex.y;
-        orthographic_vertices_z[f] = projected_vertex.z;
-
-        screen_vertices_x[f] = screen_x;
-        screen_vertices_y[f] = screen_y;
+            screen_vertices_x[idx] = SCALE_UNIT(x);
+            screen_vertices_y[idx] = SCALE_UNIT(y);
+        }
     }
 
     for( int f = 0; f < num_faces; f++ )
     {
-        int z = orthographic_vertices_z[f];
-
-        bool clipped = false;
-        if( z < near_plane_z )
-            clipped = true;
-
-        screen_vertices_z[f] = z - model_mid_z;
-
-        if( clipped )
+        int base = f * 3;
+        for( int s = 0; s < 3; s++ )
         {
-            screen_vertices_x[f] = -5000;
-        }
-        else
-        {
-            screen_vertices_x[f] = screen_vertices_x[f] / z;
-            if( screen_vertices_x[f] == -5000 )
-                screen_vertices_x[f] = -5001;
-            screen_vertices_y[f] = screen_vertices_y[f] / z;
+            int idx = base + s;
+            int z = orthographic_vertices_z[idx];
+
+            bool clipped = false;
+            if( z < near_plane_z )
+                clipped = true;
+
+            screen_vertices_z[idx] = z - model_mid_z;
+
+            if( clipped )
+            {
+                screen_vertices_x[idx] = -5000;
+            }
+            else
+            {
+                screen_vertices_x[idx] = screen_vertices_x[idx] / z;
+                if( screen_vertices_x[idx] == -5000 )
+                    screen_vertices_x[idx] = -5001;
+                screen_vertices_y[idx] = screen_vertices_y[idx] / z;
+            }
         }
     }
 }
 
 /**
- * Like project_vertices_array_notex, face-indexed. One screen slot per face f;
- * same mixed-corner world sample as project_vertices_array_sparse.
+ * Like project_vertices_array_notex, face-indexed. Three screen slots per face (f*3 + s).
  */
 static inline void
 project_vertices_array_notex_sparse(
@@ -3707,60 +3715,73 @@ project_vertices_array_notex_sparse(
 
     for( int f = 0; f < num_faces; f++ )
     {
-        int va = (int)vertex_faces_a[f];
-        int vb = (int)vertex_faces_b[f];
-        int vc = (int)vertex_faces_c[f];
+        int base = f * 3;
+        int vi[3] = {
+            (int)vertex_faces_a[f],
+            (int)vertex_faces_b[f],
+            (int)vertex_faces_c[f],
+        };
 
-        struct ProjectedVertex projected_vertex;
-        project_orthographic_fast(
-            &projected_vertex,
-            vertex_x[va],
-            vertex_y[vb],
-            vertex_z[vc],
-            model_yaw,
-            scene_x,
-            scene_y,
-            scene_z,
-            camera_pitch,
-            camera_yaw);
+        for( int s = 0; s < 3; s++ )
+        {
+            int v = vi[s];
+            struct ProjectedVertex projected_vertex;
+            project_orthographic_fast(
+                &projected_vertex,
+                vertex_x[v],
+                vertex_y[v],
+                vertex_z[v],
+                model_yaw,
+                scene_x,
+                scene_y,
+                scene_z,
+                camera_pitch,
+                camera_yaw);
 
-        int x = projected_vertex.x;
-        int y = projected_vertex.y;
-        int z = projected_vertex.z;
+            int x = projected_vertex.x;
+            int y = projected_vertex.y;
+            int z = projected_vertex.z;
 
-        x *= cot_fov_half_ish15;
-        y *= cot_fov_half_ish15;
-        x >>= 15;
-        y >>= 15;
+            x *= cot_fov_half_ish15;
+            y *= cot_fov_half_ish15;
+            x >>= 15;
+            y >>= 15;
 
-        int screen_x = SCALE_UNIT(x);
-        int screen_y = SCALE_UNIT(y);
+            int screen_x = SCALE_UNIT(x);
+            int screen_y = SCALE_UNIT(y);
 
-        screen_vertices_z[f] = z;
-        screen_vertices_x[f] = screen_x;
-        screen_vertices_y[f] = screen_y;
+            int idx = base + s;
+            screen_vertices_z[idx] = z;
+            screen_vertices_x[idx] = screen_x;
+            screen_vertices_y[idx] = screen_y;
+        }
     }
 
     for( int f = 0; f < num_faces; f++ )
     {
-        int z = screen_vertices_z[f];
-
-        bool clipped = false;
-        if( z < near_plane_z )
-            clipped = true;
-
-        screen_vertices_z[f] = z - model_mid_z;
-
-        if( clipped )
+        int base = f * 3;
+        for( int s = 0; s < 3; s++ )
         {
-            screen_vertices_x[f] = -5000;
-        }
-        else
-        {
-            screen_vertices_x[f] = screen_vertices_x[f] / z;
-            if( screen_vertices_x[f] == -5000 )
-                screen_vertices_x[f] = -5001;
-            screen_vertices_y[f] = screen_vertices_y[f] / z;
+            int idx = base + s;
+            int z = screen_vertices_z[idx];
+
+            bool clipped = false;
+            if( z < near_plane_z )
+                clipped = true;
+
+            screen_vertices_z[idx] = z - model_mid_z;
+
+            if( clipped )
+            {
+                screen_vertices_x[idx] = -5000;
+            }
+            else
+            {
+                screen_vertices_x[idx] = screen_vertices_x[idx] / z;
+                if( screen_vertices_x[idx] == -5000 )
+                    screen_vertices_x[idx] = -5001;
+                screen_vertices_y[idx] = screen_vertices_y[idx] / z;
+            }
         }
     }
 }
@@ -3920,8 +3941,7 @@ project_vertices_array6_notex(
 }
 
 /**
- * Like project_vertices_array6, face-indexed. One slot per face; mixed-corner
- * sample vertex_x[a], vertex_y[b], vertex_z[c] per project_vertices_array_sparse.
+ * Like project_vertices_array6, face-indexed. Three slots per face (f*3 + s).
  */
 static inline void
 project_vertices_array6_sparse(
@@ -3957,57 +3977,64 @@ project_vertices_array6_sparse(
 
     for( int f = 0; f < num_faces; f++ )
     {
-        int va = (int)vertex_faces_a[f];
-        int vb = (int)vertex_faces_b[f];
-        int vc = (int)vertex_faces_c[f];
+        int base = f * 3;
+        int vi[3] = {
+            (int)vertex_faces_a[f],
+            (int)vertex_faces_b[f],
+            (int)vertex_faces_c[f],
+        };
 
-        struct ProjectedVertex projected_vertex;
-
-        projected_vertex = project_orthographic(
-            vertex_x[va],
-            vertex_y[vb],
-            vertex_z[vc],
-            model_pitch,
-            model_yaw,
-            model_roll,
-            scene_x,
-            scene_y,
-            scene_z,
-            camera_pitch,
-            camera_yaw,
-            camera_roll);
-
-        int x = projected_vertex.x;
-        int y = projected_vertex.y;
-        int z = projected_vertex.z;
-
-        orthographic_vertices_x[f] = x;
-        orthographic_vertices_y[f] = y;
-        orthographic_vertices_z[f] = z;
-
-        if( z < near_plane_z )
+        for( int s = 0; s < 3; s++ )
         {
-            screen_vertices_x[f] = -5000;
-            screen_vertices_y[f] = -5000;
-            screen_vertices_z[f] = z - model_mid_z;
-        }
-        else
-        {
-            x *= cot_fov_half_ish15;
-            y *= cot_fov_half_ish15;
-            x >>= 15;
-            y >>= 15;
+            int v = vi[s];
+            struct ProjectedVertex projected_vertex;
 
-            screen_vertices_x[f] = SCALE_UNIT(x) / z;
-            screen_vertices_y[f] = SCALE_UNIT(y) / z;
-            screen_vertices_z[f] = z - model_mid_z;
+            projected_vertex = project_orthographic(
+                vertex_x[v],
+                vertex_y[v],
+                vertex_z[v],
+                model_pitch,
+                model_yaw,
+                model_roll,
+                scene_x,
+                scene_y,
+                scene_z,
+                camera_pitch,
+                camera_yaw,
+                camera_roll);
+
+            int x = projected_vertex.x;
+            int y = projected_vertex.y;
+            int z = projected_vertex.z;
+
+            int idx = base + s;
+            orthographic_vertices_x[idx] = x;
+            orthographic_vertices_y[idx] = y;
+            orthographic_vertices_z[idx] = z;
+
+            if( z < near_plane_z )
+            {
+                screen_vertices_x[idx] = -5000;
+                screen_vertices_y[idx] = -5000;
+                screen_vertices_z[idx] = z - model_mid_z;
+            }
+            else
+            {
+                x *= cot_fov_half_ish15;
+                y *= cot_fov_half_ish15;
+                x >>= 15;
+                y >>= 15;
+
+                screen_vertices_x[idx] = SCALE_UNIT(x) / z;
+                screen_vertices_y[idx] = SCALE_UNIT(y) / z;
+                screen_vertices_z[idx] = z - model_mid_z;
+            }
         }
     }
 }
 
 /**
- * Like project_vertices_array6_notex, face-indexed. One slot per face; same
- * mixed-corner sample as project_vertices_array6_sparse.
+ * Like project_vertices_array6_notex, face-indexed. Three slots per face (f*3 + s).
  */
 static inline void
 project_vertices_array6_notex_sparse(
@@ -4040,46 +4067,55 @@ project_vertices_array6_notex_sparse(
 
     for( int f = 0; f < num_faces; f++ )
     {
-        int va = (int)vertex_faces_a[f];
-        int vb = (int)vertex_faces_b[f];
-        int vc = (int)vertex_faces_c[f];
+        int base = f * 3;
+        int vi[3] = {
+            (int)vertex_faces_a[f],
+            (int)vertex_faces_b[f],
+            (int)vertex_faces_c[f],
+        };
 
-        struct ProjectedVertex projected_vertex;
-
-        projected_vertex = project_orthographic(
-            vertex_x[va],
-            vertex_y[vb],
-            vertex_z[vc],
-            model_pitch,
-            model_yaw,
-            model_roll,
-            scene_x,
-            scene_y,
-            scene_z,
-            camera_pitch,
-            camera_yaw,
-            camera_roll);
-
-        int x = projected_vertex.x;
-        int y = projected_vertex.y;
-        int z = projected_vertex.z;
-
-        if( z < near_plane_z )
+        for( int s = 0; s < 3; s++ )
         {
-            screen_vertices_x[f] = -5000;
-            screen_vertices_y[f] = -5000;
-            screen_vertices_z[f] = z - model_mid_z;
-        }
-        else
-        {
-            x *= cot_fov_half_ish15;
-            y *= cot_fov_half_ish15;
-            x >>= 15;
-            y >>= 15;
+            int v = vi[s];
+            struct ProjectedVertex projected_vertex;
 
-            screen_vertices_x[f] = SCALE_UNIT(x) / z;
-            screen_vertices_y[f] = SCALE_UNIT(y) / z;
-            screen_vertices_z[f] = z - model_mid_z;
+            projected_vertex = project_orthographic(
+                vertex_x[v],
+                vertex_y[v],
+                vertex_z[v],
+                model_pitch,
+                model_yaw,
+                model_roll,
+                scene_x,
+                scene_y,
+                scene_z,
+                camera_pitch,
+                camera_yaw,
+                camera_roll);
+
+            int x = projected_vertex.x;
+            int y = projected_vertex.y;
+            int z = projected_vertex.z;
+
+            int idx = base + s;
+
+            if( z < near_plane_z )
+            {
+                screen_vertices_x[idx] = -5000;
+                screen_vertices_y[idx] = -5000;
+                screen_vertices_z[idx] = z - model_mid_z;
+            }
+            else
+            {
+                x *= cot_fov_half_ish15;
+                y *= cot_fov_half_ish15;
+                x >>= 15;
+                y >>= 15;
+
+                screen_vertices_x[idx] = SCALE_UNIT(x) / z;
+                screen_vertices_y[idx] = SCALE_UNIT(y) / z;
+                screen_vertices_z[idx] = z - model_mid_z;
+            }
         }
     }
 }

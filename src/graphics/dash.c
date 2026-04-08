@@ -1,6 +1,6 @@
 #include "dash.h"
-#include "dash_model_internal.h"
 
+#include "dash_model_internal.h"
 #include "dashmap.h"
 #include "osrs/colors.h"
 #include "osrs/minimap.h"
@@ -40,32 +40,40 @@ struct DashGraphics
     int tmp_face_order[4096];
     int tmp_face_order_count;
 
-    faceint_t sparse_identity[4096];
+    faceint_t sparse_a[4096];
+    faceint_t sparse_b[4096];
+    faceint_t sparse_c[4096];
 
     struct DashMap* textures_hmap;
 };
 
 static faceint_t*
-dash3d_face_indices_a_for_projected(struct DashGraphics* dash, struct DashModel* model)
+dash3d_face_indices_a_for_projected(
+    struct DashGraphics* dash,
+    struct DashModel* model)
 {
     if( dashmodel__is_va(model) )
-        return dash->sparse_identity;
+        return dash->sparse_a;
     return dashmodel_face_indices_a(model);
 }
 
 static faceint_t*
-dash3d_face_indices_b_for_projected(struct DashGraphics* dash, struct DashModel* model)
+dash3d_face_indices_b_for_projected(
+    struct DashGraphics* dash,
+    struct DashModel* model)
 {
     if( dashmodel__is_va(model) )
-        return dash->sparse_identity;
+        return dash->sparse_b;
     return dashmodel_face_indices_b(model);
 }
 
 static faceint_t*
-dash3d_face_indices_c_for_projected(struct DashGraphics* dash, struct DashModel* model)
+dash3d_face_indices_c_for_projected(
+    struct DashGraphics* dash,
+    struct DashModel* model)
 {
     if( dashmodel__is_va(model) )
-        return dash->sparse_identity;
+        return dash->sparse_c;
     return dashmodel_face_indices_c(model);
 }
 
@@ -106,40 +114,25 @@ dashmodel_reset_original_values(struct DashModel* model)
         m->original_vertices_y = malloc(sizeof(vertexint_t) * (size_t)m->vertex_count);
         m->original_vertices_z = malloc(sizeof(vertexint_t) * (size_t)m->vertex_count);
         memcpy(
-            m->original_vertices_x,
-            m->vertices_x,
-            sizeof(vertexint_t) * (size_t)m->vertex_count);
+            m->original_vertices_x, m->vertices_x, sizeof(vertexint_t) * (size_t)m->vertex_count);
         memcpy(
-            m->original_vertices_y,
-            m->vertices_y,
-            sizeof(vertexint_t) * (size_t)m->vertex_count);
+            m->original_vertices_y, m->vertices_y, sizeof(vertexint_t) * (size_t)m->vertex_count);
         memcpy(
-            m->original_vertices_z,
-            m->vertices_z,
-            sizeof(vertexint_t) * (size_t)m->vertex_count);
+            m->original_vertices_z, m->vertices_z, sizeof(vertexint_t) * (size_t)m->vertex_count);
     }
 
     if( m->face_alphas && m->original_face_alphas == NULL )
     {
         m->original_face_alphas = malloc(sizeof(alphaint_t) * (size_t)m->face_count);
-        memcpy(
-            m->original_face_alphas,
-            m->face_alphas,
-            sizeof(alphaint_t) * (size_t)m->face_count);
+        memcpy(m->original_face_alphas, m->face_alphas, sizeof(alphaint_t) * (size_t)m->face_count);
     }
 
-    memcpy(
-        m->vertices_x, m->original_vertices_x, sizeof(vertexint_t) * (size_t)m->vertex_count);
-    memcpy(
-        m->vertices_y, m->original_vertices_y, sizeof(vertexint_t) * (size_t)m->vertex_count);
-    memcpy(
-        m->vertices_z, m->original_vertices_z, sizeof(vertexint_t) * (size_t)m->vertex_count);
+    memcpy(m->vertices_x, m->original_vertices_x, sizeof(vertexint_t) * (size_t)m->vertex_count);
+    memcpy(m->vertices_y, m->original_vertices_y, sizeof(vertexint_t) * (size_t)m->vertex_count);
+    memcpy(m->vertices_z, m->original_vertices_z, sizeof(vertexint_t) * (size_t)m->vertex_count);
     if( m->face_alphas && m->original_face_alphas )
     {
-        memcpy(
-            m->face_alphas,
-            m->original_face_alphas,
-            sizeof(alphaint_t) * (size_t)m->face_count);
+        memcpy(m->face_alphas, m->original_face_alphas, sizeof(alphaint_t) * (size_t)m->face_count);
     }
 }
 
@@ -264,7 +257,11 @@ dash_new()
     memset(dash, 0, sizeof(struct DashGraphics));
 
     for( int i = 0; i < 4096; i++ )
-        dash->sparse_identity[i] = (faceint_t)i;
+    {
+        dash->sparse_a[i] = (faceint_t)(i * 3);
+        dash->sparse_b[i] = (faceint_t)(i * 3 + 1);
+        dash->sparse_c[i] = (faceint_t)(i * 3 + 2);
+    }
 
     printf("Sizeof(struct DashGraphics): %zu\n", sizeof(struct DashGraphics));
 
@@ -334,8 +331,27 @@ dash3d_fast_cull(
     int camera_yaw = camera->yaw;
     int near_plane_z = camera->near_plane_z;
 
+    int cull_mx = 0;
+    int cull_my = 0;
+    int cull_mz = 0;
+    if( dashmodel__is_va(model) )
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(model);
+        cull_mx = v->va_tile_cull_center_x;
+        cull_mz = v->va_tile_cull_center_z;
+    }
+
     project_orthographic_fast(
-        projected_vertex, 0, 0, 0, model_yaw, scene_x, scene_y, scene_z, camera_pitch, camera_yaw);
+        projected_vertex,
+        cull_mx,
+        cull_my,
+        cull_mz,
+        model_yaw,
+        scene_x,
+        scene_y,
+        scene_z,
+        camera_pitch,
+        camera_yaw);
 
     const struct DashBoundsCylinder* bc = dashmodel_bounds_cylinder_const(model);
     int model_edge_radius = bc->radius;
@@ -447,6 +463,12 @@ dash3d_calculate_cylinder_aabb_8point(
     int mz = 0;
     int my = 0;
     int mx = 0;
+    if( dashmodel__is_va(model) )
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(model);
+        mx = v->va_tile_cull_center_x;
+        mz = v->va_tile_cull_center_z;
+    }
     bb_x[0] = mx + model_edge_radius;
     bb_x[1] = mx + model_edge_radius;
     bb_x[2] = mx + model_edge_radius;
@@ -756,7 +778,8 @@ dash3d_raster_model_face(
             assert(orthographic_vertex_y_nullable != NULL);
             assert(orthographic_vertex_z_nullable != NULL);
 
-            if( face_p_coordinate_nullable && face_m_coordinate_nullable && face_n_coordinate_nullable &&
+            if( face_p_coordinate_nullable && face_m_coordinate_nullable &&
+                face_n_coordinate_nullable &&
                 (!face_texture_coords || face_texture_coords[face] != -1) )
             {
                 assert(face_p_coordinate_nullable != NULL);
@@ -1302,8 +1325,7 @@ dash3d_sort_face_draw_order(
     int* pixel_buffer,
     bool smooth)
 {
-    int model_min_depth =
-        dashmodel_bounds_cylinder_const(model)->min_z_depth_any_rotation;
+    int model_min_depth = dashmodel_bounds_cylinder_const(model)->min_z_depth_any_rotation;
     memset(dash->bucket_heads, 0xFF, sizeof(dash->bucket_heads));
 
     int bounds = bucket_sort_by_average_depth(
@@ -1429,8 +1451,7 @@ dash3d_compute_projected_face_order(
     struct DashGraphics* dash,
     struct DashModel* model)
 {
-    int model_min_depth =
-        dashmodel_bounds_cylinder_const(model)->min_z_depth_any_rotation;
+    int model_min_depth = dashmodel_bounds_cylinder_const(model)->min_z_depth_any_rotation;
     memset(dash->bucket_heads, 0xFF, sizeof(dash->bucket_heads));
 
     int bounds = bucket_sort_by_average_depth(

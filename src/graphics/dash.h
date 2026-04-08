@@ -442,6 +442,22 @@ dashmodel_va_set_face_data(
     faceint_t* face_indices_c,
     faceint_t* face_textures_nullable);
 
+/** VA only: per-tile terrain culling — tile SW corner in world (vertices remain absolute). */
+void
+dashmodel_va_set_tile_cull_center(
+    struct DashModel* m,
+    int tile_sw_x,
+    int tile_sw_z);
+
+/** VA only: replace bounds cylinder from tile-local (or model-local) vertex positions. */
+void
+dashmodel_va_set_bounds_cylinder_from_local(
+    struct DashModel* m,
+    int num_vertices,
+    const vertexint_t* vx,
+    const vertexint_t* vy,
+    const vertexint_t* vz);
+
 struct DashModel*
 dashmodelfull_new(void);
 

@@ -11,16 +11,16 @@ struct DashModelNormals;
 struct DashModelBones;
 
 /** Bits 0–1: booleans. Bits 2–4: model struct type (3 bits). Bit 7: valid marker. */
-#define DASHMODEL_FLAG_LOADED       0x01u
+#define DASHMODEL_FLAG_LOADED 0x01u
 #define DASHMODEL_FLAG_HAS_TEXTURES 0x02u
-#define DASHMODEL_FLAG_VALID        0x80u
+#define DASHMODEL_FLAG_VALID 0x80u
 
-#define DASHMODEL_TYPE_SHIFT        2u
-#define DASHMODEL_TYPE_MASK         (7u << DASHMODEL_TYPE_SHIFT)
+#define DASHMODEL_TYPE_SHIFT 2u
+#define DASHMODEL_TYPE_MASK (7u << DASHMODEL_TYPE_SHIFT)
 
-#define DASHMODEL_TYPE_FULL         0u
-#define DASHMODEL_TYPE_FAST         1u
-#define DASHMODEL_TYPE_VA           2u
+#define DASHMODEL_TYPE_FULL 0u
+#define DASHMODEL_TYPE_FAST 1u
+#define DASHMODEL_TYPE_VA 2u
 
 struct DashModelFast
 {
@@ -40,7 +40,9 @@ struct DashModelFast
     struct DashBoundsCylinder* bounds_cylinder;
 };
 
-/** Weak ref to DashVertexArray (vertices only); face data owned by this model shell. */
+/** Weak ref to DashVertexArray (vertices only); face data owned by this model shell.
+ *  When va_has_tile_cull_center: culling uses va_tile_cull_center_x/z (tile SW in world)
+ *  as the model-space origin for the bounds cylinder; vertices stay absolute world. */
 struct DashModelVA
 {
     uint8_t flags;
@@ -54,6 +56,8 @@ struct DashModelVA
     faceint_t* face_indices_b;
     faceint_t* face_indices_c;
     faceint_t* face_textures;
+    uint16_t va_tile_cull_center_x;
+    uint16_t va_tile_cull_center_z;
     struct DashBoundsCylinder* bounds_cylinder;
 };
 

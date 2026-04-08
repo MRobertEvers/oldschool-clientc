@@ -443,7 +443,8 @@ queue_static_load_commands(
                     render_command_buffer, scene_event.texture_id, texture);
                 continue;
             }
-            if( scene_event.element_id < 0 || scene_event.element_id >= scene2_elements_total(scene2) )
+            if( scene_event.element_id < 0 ||
+                scene_event.element_id >= scene2_elements_total(scene2) )
                 continue;
             if( scene_event.type != SCENE2_EVENT_ELEMENT_ACQUIRED &&
                 scene_event.type != SCENE2_EVENT_MODEL_CHANGED )
