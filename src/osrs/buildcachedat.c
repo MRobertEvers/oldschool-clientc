@@ -407,6 +407,7 @@ free_container_entry(void* e)
     }
 }
 
+
 void
 buildcachedat_free(struct BuildCacheDat* buildcachedat)
 {
@@ -482,6 +483,8 @@ buildcachedat_clear_internal(struct BuildCacheDat* buildcachedat)
     /* component_hmap: components still needed at runtime; do not free entries or map */
     dashmap_free_entries(buildcachedat->containers_hmap, free_container_entry);
     buildcachedat->containers_hmap = NULL;
+    dashmap_free_entries(buildcachedat->component_hmap, free_component_entry);
+    buildcachedat->component_hmap = NULL;
 
     filelist_dat_free(buildcachedat->cfg_config_jagfile);
     buildcachedat->cfg_config_jagfile = NULL;

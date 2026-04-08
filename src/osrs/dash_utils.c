@@ -221,17 +221,17 @@ dashmodel_move_from_cache_model(
     struct CacheModel* model)
 {
     memset(dash_model, 0, sizeof(struct DashModel));
-    if( model->_ids[0] != 0 )
-    {
-        for( int i = 0; i < 10; i++ )
-        {
-            dash_model->_dbg_ids[i] = model->_ids[i];
-        }
-    }
-    else
-    {
-        dash_model->_dbg_ids[0] = model->_id;
-    }
+    // if( model->_ids[0] != 0 )
+    // {
+    //     for( int i = 0; i < 10; i++ )
+    //     {
+    //         dash_model->_dbg_ids[i] = model->_ids[i];
+    //     }
+    // }
+    // else
+    // {
+    //     dash_model->_dbg_ids[0] = model->_id;
+    // }
 
     dash_model->vertex_count = model->vertex_count;
     if( model->vertex_count > 0 && model->vertices_x && model->vertices_y && model->vertices_z )

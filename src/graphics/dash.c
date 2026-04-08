@@ -41,8 +41,8 @@ struct DashGraphics
     int orthographic_vertices_y[4096];
     int orthographic_vertices_z[4096];
 
-    faceint_t tmp_depth_face_count[1500];
-    faceint_t tmp_depth_faces[1500 * 512];
+    faceint_t bucket_heads[1500];
+    faceint_t face_links[4096];
     faceint_t tmp_priority_face_count[12];
     faceint_t tmp_priority_depth_sum[12];
     faceint_t tmp_priority_faces[12 * 2000];
@@ -878,8 +878,8 @@ div3_fast(int x)
 
 static inline int
 bucket_sort_by_average_depth(
-    faceint_t* face_depth_buckets,
-    faceint_t* face_depth_bucket_counts,
+    faceint_t* bucket_heads,
+    faceint_t* face_links,
     int model_min_depth,
     int num_faces,
     int* vertex_x,
@@ -945,8 +945,8 @@ bucket_sort_by_average_depth(
 
             if( depth_average < 1500 && depth_average > 0 )
             {
-                int bucket_index = face_depth_bucket_counts[depth_average]++;
-                face_depth_buckets[(depth_average << 9) + bucket_index] = f;
+                face_links[f] = bucket_heads[depth_average];
+                bucket_heads[depth_average] = (faceint_t)f;
 
                 if( depth_average < min_depth )
                     min_depth = depth_average;
@@ -963,8 +963,8 @@ static inline void
 parition_faces_by_priority(
     faceint_t* face_priority_buckets,
     faceint_t* face_priority_bucket_counts,
-    faceint_t* face_depth_buckets,
-    faceint_t* face_depth_bucket_counts,
+    faceint_t* bucket_heads,
+    faceint_t* face_links,
     int num_faces,
     int* face_priorities,
     int depth_lower_bound,
@@ -980,14 +980,9 @@ parition_faces_by_priority(
      */
     for( int depth = depth_upper_bound; depth >= depth_lower_bound && depth < 1500; depth-- )
     {
-        int face_count = face_depth_bucket_counts[depth];
-        if( face_count == 0 )
-            continue;
-
-        faceint_t* faces = &face_depth_buckets[depth << 9];
-        for( int i = 0; i < face_count; i++ )
+        for( faceint_t face_idx = bucket_heads[depth]; face_idx != (faceint_t)-1;
+             face_idx = face_links[face_idx] )
         {
-            int face_idx = faces[i];
             int prio = face_priorities[face_idx];
             int priority_face_count = face_priority_bucket_counts[prio]++;
             face_priority_buckets[prio * 2000 + priority_face_count] = face_idx;
@@ -1007,7 +1002,7 @@ parition_faces_by_priority(
  * at the same prio.
  *
  * For priorities 11 and twelve, we need a reverse mapping of face => depth,
- * face_depth_buckets maps depth[depth_i][n] => face_y.
+ * via depth-linked lists (bucket_heads / face_links).
  *
  * Possible insertion points before: 0, 3, 5, or after all other prios.
  */
@@ -1017,8 +1012,8 @@ sort_face_draw_order(
     int* flex_prio11_face_to_depth,
     int* flex_prio12_face_to_depth,
     int* face_draw_order,
-    faceint_t* face_depth_buckets,
-    faceint_t* face_depth_bucket_counts,
+    faceint_t* bucket_heads,
+    faceint_t* face_links,
     faceint_t* face_priority_buckets,
     faceint_t* face_priority_bucket_counts,
     int num_faces,
@@ -1029,14 +1024,9 @@ sort_face_draw_order(
     int counts[12] = { 0 };
     for( int depth = depth_upper_bound; depth >= depth_lower_bound && depth < 1500; depth-- )
     {
-        int face_count = face_depth_bucket_counts[depth];
-        if( face_count == 0 )
-            continue;
-
-        faceint_t* faces = &face_depth_buckets[depth << 9];
-        for( int i = 0; i < face_count; i++ )
+        for( faceint_t face_idx = bucket_heads[depth]; face_idx != (faceint_t)-1;
+             face_idx = face_links[face_idx] )
         {
-            int face_idx = faces[i];
             int prio = face_priorities[face_idx];
 
             int face_count = counts[prio];
@@ -1153,14 +1143,11 @@ dash3d_sort_face_draw_order(
     bool smooth)
 {
     int model_min_depth = model->bounds_cylinder->min_z_depth_any_rotation;
-    memset(
-        dash->tmp_depth_face_count,
-        0,
-        (model_min_depth * 2 + 1) * sizeof(dash->tmp_depth_face_count[0]));
+    memset(dash->bucket_heads, 0xFF, sizeof(dash->bucket_heads));
 
     int bounds = bucket_sort_by_average_depth(
-        dash->tmp_depth_faces,
-        dash->tmp_depth_face_count,
+        dash->bucket_heads,
+        dash->face_links,
         model_min_depth,
         model->face_count,
         dash->screen_vertices_x,
@@ -1178,15 +1165,10 @@ dash3d_sort_face_draw_order(
         int order_index = 0;
         for( int depth = model_max_depth; depth < 1500 && depth >= model_min_depth; depth-- )
         {
-            int bucket_count = dash->tmp_depth_face_count[depth];
-            if( bucket_count == 0 )
-                continue;
-
-            faceint_t* faces = &dash->tmp_depth_faces[depth << 9];
-            for( int j = 0; j < bucket_count; j++ )
+            for( faceint_t face_idx = dash->bucket_heads[depth]; face_idx != (faceint_t)-1;
+                 face_idx = dash->face_links[face_idx] )
             {
-                int face = faces[j];
-                dash->tmp_face_order[order_index++] = face;
+                dash->tmp_face_order[order_index++] = face_idx;
             }
         }
 
@@ -1200,8 +1182,8 @@ dash3d_sort_face_draw_order(
         parition_faces_by_priority(
             dash->tmp_priority_faces,
             dash->tmp_priority_face_count,
-            dash->tmp_depth_faces,
-            dash->tmp_depth_face_count,
+            dash->bucket_heads,
+            dash->face_links,
             model->face_count,
             model->face_priorities,
             model_min_depth,
@@ -1212,8 +1194,8 @@ dash3d_sort_face_draw_order(
             dash->tmp_flex_prio11_face_to_depth,
             dash->tmp_flex_prio12_face_to_depth,
             dash->tmp_face_order,
-            dash->tmp_depth_faces,
-            dash->tmp_depth_face_count,
+            dash->bucket_heads,
+            dash->face_links,
             dash->tmp_priority_faces,
             dash->tmp_priority_face_count,
             model->face_count,
@@ -1283,14 +1265,11 @@ dash3d_compute_projected_face_order(
     struct DashModel* model)
 {
     int model_min_depth = model->bounds_cylinder->min_z_depth_any_rotation;
-    memset(
-        dash->tmp_depth_face_count,
-        0,
-        (model_min_depth * 2 + 1) * sizeof(dash->tmp_depth_face_count[0]));
+    memset(dash->bucket_heads, 0xFF, sizeof(dash->bucket_heads));
 
     int bounds = bucket_sort_by_average_depth(
-        dash->tmp_depth_faces,
-        dash->tmp_depth_face_count,
+        dash->bucket_heads,
+        dash->face_links,
         model_min_depth,
         model->face_count,
         dash->screen_vertices_x,
@@ -1308,14 +1287,10 @@ dash3d_compute_projected_face_order(
         int order_index = 0;
         for( int depth = model_max_depth; depth < 1500 && depth >= model_min_depth; depth-- )
         {
-            int bucket_count = dash->tmp_depth_face_count[depth];
-            if( bucket_count == 0 )
-                continue;
-
-            faceint_t* faces = &dash->tmp_depth_faces[depth << 9];
-            for( int j = 0; j < bucket_count; j++ )
+            for( faceint_t face_idx = dash->bucket_heads[depth]; face_idx != (faceint_t)-1;
+                 face_idx = dash->face_links[face_idx] )
             {
-                dash->tmp_face_order[order_index++] = faces[j];
+                dash->tmp_face_order[order_index++] = face_idx;
             }
         }
         dash->tmp_face_order_count = order_index;
@@ -1328,8 +1303,8 @@ dash3d_compute_projected_face_order(
     parition_faces_by_priority(
         dash->tmp_priority_faces,
         dash->tmp_priority_face_count,
-        dash->tmp_depth_faces,
-        dash->tmp_depth_face_count,
+        dash->bucket_heads,
+        dash->face_links,
         model->face_count,
         model->face_priorities,
         model_min_depth,
@@ -1340,8 +1315,8 @@ dash3d_compute_projected_face_order(
         dash->tmp_flex_prio11_face_to_depth,
         dash->tmp_flex_prio12_face_to_depth,
         dash->tmp_face_order,
-        dash->tmp_depth_faces,
-        dash->tmp_depth_face_count,
+        dash->bucket_heads,
+        dash->face_links,
         dash->tmp_priority_faces,
         dash->tmp_priority_face_count,
         model->face_count,

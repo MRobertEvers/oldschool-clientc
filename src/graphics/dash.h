@@ -117,7 +117,6 @@ struct DashModel
 {
     bool loaded;
     bool has_textures;
-    int _dbg_ids[10];
     int vertex_count;
     vertexint_t* vertices_x;
     vertexint_t* vertices_y;
