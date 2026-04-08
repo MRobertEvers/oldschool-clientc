@@ -49,13 +49,8 @@ struct DashModelVA
     int vertex_count;
     int face_count;
     struct DashVertexArray* vertex_array;
-    hsl16_t* face_colors_a;
-    hsl16_t* face_colors_b;
-    hsl16_t* face_colors_c;
-    faceint_t* face_indices_a;
-    faceint_t* face_indices_b;
-    faceint_t* face_indices_c;
-    faceint_t* face_textures;
+    struct DashFaceArray* face_array;
+    uint32_t first_face_index;
     uint16_t va_tile_cull_center_x;
     uint16_t va_tile_cull_center_z;
     struct DashBoundsCylinder* bounds_cylinder;

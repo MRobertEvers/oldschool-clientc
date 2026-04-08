@@ -83,6 +83,9 @@ struct World
     /** Terrain: shared vertex buffers per level (absolute world coords); per-tile DashModelVA
      * references the same array; scene elements use normal MapBuildTileEntity indices. */
     struct DashVertexArray* terrain_va[MAP_TERRAIN_LEVELS];
+
+    /** Terrain: shared face storage per level; per-tile DashModelVA references a slice. */
+    struct DashFaceArray* terrain_face_array[MAP_TERRAIN_LEVELS];
 };
 
 struct World*

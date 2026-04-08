@@ -419,29 +419,16 @@ build_scene_terrain(struct World* world)
 struct TerrainTileFaceTemp
 {
     int face_count;
+    uint32_t first_face_index;
     int x;
     int z;
-    hsl16_t* fc_a;
-    hsl16_t* fc_b;
-    hsl16_t* fc_c;
-    faceint_t* fi_a;
-    faceint_t* fi_b;
-    faceint_t* fi_c;
-    faceint_t* face_textures;
     bool has_textures;
 };
 
 static void
 terrain_va_tile_face_temp_free(struct TerrainTileFaceTemp* t)
 {
-    free(t->fc_a);
-    free(t->fc_b);
-    free(t->fc_c);
-    free(t->fi_a);
-    free(t->fi_b);
-    free(t->fi_c);
-    free(t->face_textures);
-    memset(t, 0, sizeof(*t));
+    (void)t;
 }
 
 static void
@@ -480,6 +467,10 @@ build_scene_terrain_va(struct World* world)
         vertexint_t* va_x = (vertexint_t*)malloc((size_t)max_verts * sizeof(vertexint_t));
         vertexint_t* va_y = (vertexint_t*)malloc((size_t)max_verts * sizeof(vertexint_t));
         vertexint_t* va_z = (vertexint_t*)malloc((size_t)max_verts * sizeof(vertexint_t));
+
+        /* Pre-allocate face array with rough upper bound: inner*inner tiles * ~4 faces each. */
+        int est_faces = inner * inner * 4;
+        struct DashFaceArray* fa = dashfacearray_new(est_faces);
 
         int vertex_count = 0;
 
@@ -724,14 +715,8 @@ build_scene_terrain_va(struct World* world)
                 tf->x = x;
                 tf->z = z;
                 tf->face_count = fcount;
-                tf->fc_a = (hsl16_t*)malloc((size_t)fcount * sizeof(hsl16_t));
-                tf->fc_b = (hsl16_t*)malloc((size_t)fcount * sizeof(hsl16_t));
-                tf->fc_c = (hsl16_t*)malloc((size_t)fcount * sizeof(hsl16_t));
-                tf->fi_a = (faceint_t*)malloc((size_t)fcount * sizeof(faceint_t));
-                tf->fi_b = (faceint_t*)malloc((size_t)fcount * sizeof(faceint_t));
-                tf->fi_c = (faceint_t*)malloc((size_t)fcount * sizeof(faceint_t));
-                tf->face_textures = NULL;
                 tf->has_textures = false;
+                tf->first_face_index = (uint32_t)fa->count;
 
                 for( int fi = 0; fi < fcount; fi++ )
                 {
@@ -774,25 +759,19 @@ build_scene_terrain_va(struct World* world)
                     else
                         hsl_c = (hsl16_t)(unsigned)(color_c & 0xffff);
 
-                    tf->fc_a[fi] = (hsl16_t)(unsigned)(color_a & 0xffff);
-                    tf->fc_b[fi] = (hsl16_t)(unsigned)(color_b & 0xffff);
-                    tf->fc_c[fi] = hsl_c;
-                    tf->fi_a[fi] = (faceint_t)local_to_global[la];
-                    tf->fi_b[fi] = (faceint_t)local_to_global[lb];
-                    tf->fi_c[fi] = (faceint_t)local_to_global[lc];
-
                     if( face_tex != -1 )
-                    {
-                        if( !tf->face_textures )
-                        {
-                            tf->face_textures =
-                                (faceint_t*)malloc((size_t)fcount * sizeof(faceint_t));
-                            for( int k = 0; k < fcount; k++ )
-                                tf->face_textures[k] = -1;
-                            tf->has_textures = true;
-                        }
-                        tf->face_textures[fi] = (faceint_t)face_tex;
-                    }
+                        tf->has_textures = true;
+
+                    struct DashFace face;
+                    face.indices[0] = (faceint_t)local_to_global[la];
+                    face.indices[1] = (faceint_t)local_to_global[lb];
+                    face.indices[2] = (faceint_t)local_to_global[lc];
+                    face.colors[0] = (hsl16_t)(unsigned)(color_a & 0xffff);
+                    face.colors[1] = (hsl16_t)(unsigned)(color_b & 0xffff);
+                    face.colors[2] = hsl_c;
+                    face.texture_id = (faceint_t)face_tex;
+                    face._pad = 0;
+                    dashfacearray_push(fa, &face);
                 }
 
                 int minimap_foreground_rgb = 0;
@@ -835,6 +814,10 @@ build_scene_terrain_va(struct World* world)
             dashvertexarray_free(world->terrain_va[level]);
         world->terrain_va[level] = va;
 
+        if( world->terrain_face_array[level] )
+            dashfacearray_free(world->terrain_face_array[level]);
+        world->terrain_face_array[level] = fa;
+
         for( size_t ti = 0; ti < tile_grid_n; ti++ )
         {
             struct TerrainTileFaceTemp* tf = &tile_faces[ti];
@@ -847,19 +830,7 @@ build_scene_terrain_va(struct World* world)
             int tile_z = z * TILE_SIZE;
 
             struct DashModel* model = dashmodel_va_new(va);
-            dashmodel_va_set_face_data(
-                model,
-                tf->face_count,
-                tf->fc_a,
-                tf->fc_b,
-                tf->fc_c,
-                tf->fi_a,
-                tf->fi_b,
-                tf->fi_c,
-                tf->has_textures ? tf->face_textures : NULL);
-            tf->fc_a = tf->fc_b = tf->fc_c = NULL;
-            tf->fi_a = tf->fi_b = tf->fi_c = NULL;
-            tf->face_textures = NULL;
+            dashmodel_va_set_face_array_ref(model, fa, tf->first_face_index, tf->face_count);
 
             dashmodel_va_set_tile_cull_center(model, tile_x, tile_z);
 

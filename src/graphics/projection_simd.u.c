@@ -3581,7 +3581,7 @@ project_vertices_array_notex(
 
 /**
  * Face-indexed projection: three slots per face (base = f*3) in orthographic_* and screen_*.
- * Corners use full (x,y,z) from vertex_faces_a/b/c[f] respectively.
+ * Corners use vertex_faces_a/b/c[f] as the vertex index for each corner.
  */
 static inline void
 project_vertices_array_sparse(

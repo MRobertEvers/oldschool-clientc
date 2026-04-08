@@ -90,13 +90,6 @@ dashmodel__free_full_arrays(struct DashModelFull* m)
 static void
 dashmodel__free_va_shell(struct DashModelVA* m)
 {
-    free(m->face_colors_a);
-    free(m->face_colors_b);
-    free(m->face_colors_c);
-    free(m->face_indices_a);
-    free(m->face_indices_b);
-    free(m->face_indices_c);
-    free(m->face_textures);
     free(m->bounds_cylinder);
 }
 
@@ -109,6 +102,121 @@ dashmodel_fast_new(void)
     memset(m, 0, sizeof(struct DashModelFast));
     m->flags = dashmodel__pack_flags_type(DASHMODEL_TYPE_FAST);
     return (struct DashModel*)m;
+}
+
+struct DashFaceArray*
+dashfacearray_new(int capacity)
+{
+    struct DashFaceArray* fa = (struct DashFaceArray*)malloc(sizeof(struct DashFaceArray));
+    if( !fa )
+        return NULL;
+    memset(fa, 0, sizeof(struct DashFaceArray));
+    fa->capacity = capacity > 0 ? capacity : 0;
+    if( fa->capacity > 0 )
+    {
+        fa->indices_a = (faceint_t*)malloc((size_t)fa->capacity * sizeof(faceint_t));
+        fa->indices_b = (faceint_t*)malloc((size_t)fa->capacity * sizeof(faceint_t));
+        fa->indices_c = (faceint_t*)malloc((size_t)fa->capacity * sizeof(faceint_t));
+        fa->colors_a = (hsl16_t*)malloc((size_t)fa->capacity * sizeof(hsl16_t));
+        fa->colors_b = (hsl16_t*)malloc((size_t)fa->capacity * sizeof(hsl16_t));
+        fa->colors_c = (hsl16_t*)malloc((size_t)fa->capacity * sizeof(hsl16_t));
+        fa->texture_ids = (faceint_t*)malloc((size_t)fa->capacity * sizeof(faceint_t));
+        if( !fa->indices_a || !fa->indices_b || !fa->indices_c || !fa->colors_a ||
+            !fa->colors_b || !fa->colors_c || !fa->texture_ids )
+        {
+            free(fa->indices_a);
+            free(fa->indices_b);
+            free(fa->indices_c);
+            free(fa->colors_a);
+            free(fa->colors_b);
+            free(fa->colors_c);
+            free(fa->texture_ids);
+            free(fa);
+            return NULL;
+        }
+    }
+    return fa;
+}
+
+void
+dashfacearray_free(struct DashFaceArray* fa)
+{
+    if( !fa )
+        return;
+    free(fa->indices_a);
+    free(fa->indices_b);
+    free(fa->indices_c);
+    free(fa->colors_a);
+    free(fa->colors_b);
+    free(fa->colors_c);
+    free(fa->texture_ids);
+    free(fa);
+}
+
+void
+dashfacearray_clear(struct DashFaceArray* fa)
+{
+    if( fa )
+        fa->count = 0;
+}
+
+bool
+dashfacearray_reserve(struct DashFaceArray* fa, int need_capacity)
+{
+    assert(fa && need_capacity >= 0);
+    if( need_capacity <= fa->capacity )
+        return true;
+    faceint_t* na = (faceint_t*)realloc(fa->indices_a, (size_t)need_capacity * sizeof(faceint_t));
+    faceint_t* nb = (faceint_t*)realloc(fa->indices_b, (size_t)need_capacity * sizeof(faceint_t));
+    faceint_t* nc = (faceint_t*)realloc(fa->indices_c, (size_t)need_capacity * sizeof(faceint_t));
+    hsl16_t* ca = (hsl16_t*)realloc(fa->colors_a, (size_t)need_capacity * sizeof(hsl16_t));
+    hsl16_t* cb = (hsl16_t*)realloc(fa->colors_b, (size_t)need_capacity * sizeof(hsl16_t));
+    hsl16_t* cc = (hsl16_t*)realloc(fa->colors_c, (size_t)need_capacity * sizeof(hsl16_t));
+    faceint_t* tx = (faceint_t*)realloc(fa->texture_ids, (size_t)need_capacity * sizeof(faceint_t));
+    if( !na || !nb || !nc || !ca || !cb || !cc || !tx )
+    {
+        free(na);
+        free(nb);
+        free(nc);
+        free(ca);
+        free(cb);
+        free(cc);
+        free(tx);
+        return false;
+    }
+    fa->indices_a = na;
+    fa->indices_b = nb;
+    fa->indices_c = nc;
+    fa->colors_a = ca;
+    fa->colors_b = cb;
+    fa->colors_c = cc;
+    fa->texture_ids = tx;
+    fa->capacity = need_capacity;
+    return true;
+}
+
+int
+dashfacearray_push(struct DashFaceArray* fa, const struct DashFace* face)
+{
+    assert(fa && face);
+    if( fa->count >= fa->capacity )
+    {
+        int nc = fa->capacity > 0 ? fa->capacity * 2 : 256;
+        if( nc < fa->count + 1 )
+            nc = fa->count + 1;
+        if( !dashfacearray_reserve(fa, nc) )
+            return -1;
+    }
+    int idx = fa->count;
+    fa->indices_a[idx] = face->indices[0];
+    fa->indices_b[idx] = face->indices[1];
+    fa->indices_c[idx] = face->indices[2];
+    fa->colors_a[idx] = face->colors[0];
+    fa->colors_b[idx] = face->colors[1];
+    fa->colors_c[idx] = face->colors[2];
+    fa->texture_ids[idx] = face->texture_id;
+    fa->count = idx + 1;
+    return idx;
 }
 
 struct DashModel*
@@ -126,35 +234,32 @@ dashmodel_va_new(struct DashVertexArray* vertex_array)
 }
 
 void
-dashmodel_va_set_face_data(
+dashmodel_va_set_face_array_ref(
     struct DashModel* m,
-    int face_count,
-    hsl16_t* face_colors_a,
-    hsl16_t* face_colors_b,
-    hsl16_t* face_colors_c,
-    faceint_t* face_indices_a,
-    faceint_t* face_indices_b,
-    faceint_t* face_indices_c,
-    faceint_t* face_textures_nullable)
+    struct DashFaceArray* face_array,
+    uint32_t first_face_index,
+    int face_count)
 {
     assert(m && dashmodel__is_va(m));
     dashmodel__flags(m);
     struct DashModelVA* v = dashmodel__as_va(m);
-    free(v->face_colors_a);
-    free(v->face_colors_b);
-    free(v->face_colors_c);
-    free(v->face_indices_a);
-    free(v->face_indices_b);
-    free(v->face_indices_c);
-    free(v->face_textures);
-    v->face_colors_a = face_colors_a;
-    v->face_colors_b = face_colors_b;
-    v->face_colors_c = face_colors_c;
-    v->face_indices_a = face_indices_a;
-    v->face_indices_b = face_indices_b;
-    v->face_indices_c = face_indices_c;
-    v->face_textures = face_textures_nullable;
+    v->face_array = face_array;
+    v->first_face_index = first_face_index;
     v->face_count = face_count;
+}
+
+const struct DashFaceArray*
+dashmodel_va_face_array_const(const struct DashModel* m)
+{
+    assert(m && dashmodel__is_va(m));
+    return dashmodel__as_va_const(m)->face_array;
+}
+
+uint32_t
+dashmodel_va_first_face_index(const struct DashModel* m)
+{
+    assert(m && dashmodel__is_va(m));
+    return dashmodel__as_va_const(m)->first_face_index;
 }
 
 void
@@ -387,7 +492,10 @@ dashmodel_face_colors_a(struct DashModel* m)
 {
     assert(m);
     if( dashmodel__is_va(m) )
-        return dashmodel__as_va(m)->face_colors_a;
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        return v->face_array ? v->face_array->colors_a + v->first_face_index : NULL;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->face_colors_a;
     return dashmodel__as_full(m)->face_colors_a;
@@ -398,7 +506,10 @@ dashmodel_face_colors_b(struct DashModel* m)
 {
     assert(m);
     if( dashmodel__is_va(m) )
-        return dashmodel__as_va(m)->face_colors_b;
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        return v->face_array ? v->face_array->colors_b + v->first_face_index : NULL;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->face_colors_b;
     return dashmodel__as_full(m)->face_colors_b;
@@ -409,7 +520,10 @@ dashmodel_face_colors_c(struct DashModel* m)
 {
     assert(m);
     if( dashmodel__is_va(m) )
-        return dashmodel__as_va(m)->face_colors_c;
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        return v->face_array ? v->face_array->colors_c + v->first_face_index : NULL;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->face_colors_c;
     return dashmodel__as_full(m)->face_colors_c;
@@ -420,7 +534,10 @@ dashmodel_face_colors_a_const(const struct DashModel* m)
 {
     assert(m);
     if( dashmodel__is_va(m) )
-        return dashmodel__as_va_const(m)->face_colors_a;
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        return v->face_array ? v->face_array->colors_a + v->first_face_index : NULL;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->face_colors_a;
     return dashmodel__as_full_const(m)->face_colors_a;
@@ -431,7 +548,10 @@ dashmodel_face_colors_b_const(const struct DashModel* m)
 {
     assert(m);
     if( dashmodel__is_va(m) )
-        return dashmodel__as_va_const(m)->face_colors_b;
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        return v->face_array ? v->face_array->colors_b + v->first_face_index : NULL;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->face_colors_b;
     return dashmodel__as_full_const(m)->face_colors_b;
@@ -442,7 +562,10 @@ dashmodel_face_colors_c_const(const struct DashModel* m)
 {
     assert(m);
     if( dashmodel__is_va(m) )
-        return dashmodel__as_va_const(m)->face_colors_c;
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        return v->face_array ? v->face_array->colors_c + v->first_face_index : NULL;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->face_colors_c;
     return dashmodel__as_full_const(m)->face_colors_c;
@@ -453,7 +576,10 @@ dashmodel_face_indices_a(struct DashModel* m)
 {
     assert(m);
     if( dashmodel__is_va(m) )
-        return dashmodel__as_va(m)->face_indices_a;
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        return v->face_array ? v->face_array->indices_a + v->first_face_index : NULL;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->face_indices_a;
     return dashmodel__as_full(m)->face_indices_a;
@@ -464,7 +590,10 @@ dashmodel_face_indices_b(struct DashModel* m)
 {
     assert(m);
     if( dashmodel__is_va(m) )
-        return dashmodel__as_va(m)->face_indices_b;
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        return v->face_array ? v->face_array->indices_b + v->first_face_index : NULL;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->face_indices_b;
     return dashmodel__as_full(m)->face_indices_b;
@@ -475,7 +604,10 @@ dashmodel_face_indices_c(struct DashModel* m)
 {
     assert(m);
     if( dashmodel__is_va(m) )
-        return dashmodel__as_va(m)->face_indices_c;
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        return v->face_array ? v->face_array->indices_c + v->first_face_index : NULL;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->face_indices_c;
     return dashmodel__as_full(m)->face_indices_c;
@@ -486,7 +618,10 @@ dashmodel_face_indices_a_const(const struct DashModel* m)
 {
     assert(m);
     if( dashmodel__is_va(m) )
-        return dashmodel__as_va_const(m)->face_indices_a;
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        return v->face_array ? v->face_array->indices_a + v->first_face_index : NULL;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->face_indices_a;
     return dashmodel__as_full_const(m)->face_indices_a;
@@ -497,7 +632,10 @@ dashmodel_face_indices_b_const(const struct DashModel* m)
 {
     assert(m);
     if( dashmodel__is_va(m) )
-        return dashmodel__as_va_const(m)->face_indices_b;
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        return v->face_array ? v->face_array->indices_b + v->first_face_index : NULL;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->face_indices_b;
     return dashmodel__as_full_const(m)->face_indices_b;
@@ -508,7 +646,10 @@ dashmodel_face_indices_c_const(const struct DashModel* m)
 {
     assert(m);
     if( dashmodel__is_va(m) )
-        return dashmodel__as_va_const(m)->face_indices_c;
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        return v->face_array ? v->face_array->indices_c + v->first_face_index : NULL;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->face_indices_c;
     return dashmodel__as_full_const(m)->face_indices_c;
@@ -519,7 +660,10 @@ dashmodel_face_textures(struct DashModel* m)
 {
     assert(m);
     if( dashmodel__is_va(m) )
-        return dashmodel__as_va(m)->face_textures;
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        return v->face_array ? v->face_array->texture_ids + v->first_face_index : NULL;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->face_textures;
     return dashmodel__as_full(m)->face_textures;
@@ -530,7 +674,10 @@ dashmodel_face_textures_const(const struct DashModel* m)
 {
     assert(m);
     if( dashmodel__is_va(m) )
-        return dashmodel__as_va_const(m)->face_textures;
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        return v->face_array ? v->face_array->texture_ids + v->first_face_index : NULL;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->face_textures;
     return dashmodel__as_full_const(m)->face_textures;
@@ -1361,24 +1508,6 @@ dashmodel_heap_bytes(const struct DashModel* model)
     {
         const struct DashModelVA* m = (const struct DashModelVA*)(const void*)model;
         size_t total = sizeof(struct DashModelVA);
-        int fc = m->face_count;
-        if( fc > 0 )
-        {
-            if( m->face_indices_a )
-                total += (size_t)fc * sizeof(faceint_t);
-            if( m->face_indices_b )
-                total += (size_t)fc * sizeof(faceint_t);
-            if( m->face_indices_c )
-                total += (size_t)fc * sizeof(faceint_t);
-            if( m->face_colors_a )
-                total += (size_t)fc * sizeof(hsl16_t);
-            if( m->face_colors_b )
-                total += (size_t)fc * sizeof(hsl16_t);
-            if( m->face_colors_c )
-                total += (size_t)fc * sizeof(hsl16_t);
-            if( m->face_textures )
-                total += (size_t)fc * sizeof(faceint_t);
-        }
         if( m->bounds_cylinder )
             total += sizeof(struct DashBoundsCylinder);
         return total;
@@ -1495,8 +1624,23 @@ dashmodel_valid(struct DashModel* model)
     uint8_t f = dashmodel__peek_flags(model);
     if( (f & DASHMODEL_FLAG_VALID) == 0 )
         return false;
-    if( dashmodel_face_colors_a(model) == NULL )
-        return false;
+    if( dashmodel__is_va(model) )
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(model);
+        if( v->face_count > 0 )
+        {
+            if( !v->face_array || !v->face_array->indices_a )
+                return false;
+            if( (uint64_t)v->first_face_index + (uint64_t)v->face_count >
+                (uint64_t)v->face_array->count )
+                return false;
+        }
+    }
+    else
+    {
+        if( dashmodel_face_colors_a(model) == NULL )
+            return false;
+    }
     if( dashmodel_bounds_cylinder(model) == NULL )
         return false;
     return true;

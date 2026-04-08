@@ -128,6 +128,11 @@ world_free(struct World* world)
             dashvertexarray_free(world->terrain_va[ti]);
             world->terrain_va[ti] = NULL;
         }
+        if( world->terrain_face_array[ti] )
+        {
+            dashfacearray_free(world->terrain_face_array[ti]);
+            world->terrain_face_array[ti] = NULL;
+        }
     }
     world->scene2 = NULL;
     if( world->decor_buildmap )
@@ -362,6 +367,11 @@ world_buildcachedat_rebuild_centerzone(
         {
             dashvertexarray_free(world->terrain_va[ti]);
             world->terrain_va[ti] = NULL;
+        }
+        if( world->terrain_face_array[ti] )
+        {
+            dashfacearray_free(world->terrain_face_array[ti]);
+            world->terrain_face_array[ti] = NULL;
         }
     }
 

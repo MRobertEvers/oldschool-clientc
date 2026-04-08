@@ -55,6 +55,29 @@ struct DashVertexArray
     vertexint_t* vertices_z;
 };
 
+/** One triangle face: staging-only type used when pushing into DashFaceArray. */
+struct DashFace
+{
+    faceint_t indices[3];
+    hsl16_t colors[3];
+    faceint_t texture_id;
+    uint16_t _pad;
+};
+
+/** SoA face storage shared per terrain level. DashModelVA holds a weak ref + first_face_index. */
+struct DashFaceArray
+{
+    faceint_t* indices_a;
+    faceint_t* indices_b;
+    faceint_t* indices_c;
+    hsl16_t* colors_a;
+    hsl16_t* colors_b;
+    hsl16_t* colors_c;
+    faceint_t* texture_ids;
+    int count;
+    int capacity;
+};
+
 struct DashModel;
 
 /**
@@ -429,18 +452,38 @@ dashmodel_fast_new(void);
 struct DashModel*
 dashmodel_va_new(struct DashVertexArray* vertex_array);
 
-/** VA only: set face_count and attach face buffers (model takes ownership; frees prior non-NULL). */
+/** Allocates array (faces may be NULL if capacity 0). */
+struct DashFaceArray*
+dashfacearray_new(int capacity);
+
 void
-dashmodel_va_set_face_data(
+dashfacearray_free(struct DashFaceArray* fa);
+
+/** Reset count to 0; does not shrink capacity. */
+void
+dashfacearray_clear(struct DashFaceArray* fa);
+
+/** Grow capacity to at least need_capacity. Returns false on OOM. */
+bool
+dashfacearray_reserve(struct DashFaceArray* fa, int need_capacity);
+
+/** Appends one face; grows as needed. Returns new index or -1 on failure. */
+int
+dashfacearray_push(struct DashFaceArray* fa, const struct DashFace* face);
+
+/** VA only: weak ref into shared face_array; first_face_index is offset into faces[]. */
+void
+dashmodel_va_set_face_array_ref(
     struct DashModel* m,
-    int face_count,
-    hsl16_t* face_colors_a,
-    hsl16_t* face_colors_b,
-    hsl16_t* face_colors_c,
-    faceint_t* face_indices_a,
-    faceint_t* face_indices_b,
-    faceint_t* face_indices_c,
-    faceint_t* face_textures_nullable);
+    struct DashFaceArray* face_array,
+    uint32_t first_face_index,
+    int face_count);
+
+const struct DashFaceArray*
+dashmodel_va_face_array_const(const struct DashModel* m);
+
+uint32_t
+dashmodel_va_first_face_index(const struct DashModel* m);
 
 /** VA only: per-tile terrain culling — tile SW corner in world (vertices remain absolute). */
 void

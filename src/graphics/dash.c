@@ -47,10 +47,9 @@ struct DashGraphics
     struct DashMap* textures_hmap;
 };
 
+/** For DashModelVA, sparse projection stores screen verts at f*3+{0,1,2}; return those slots. */
 static faceint_t*
-dash3d_face_indices_a_for_projected(
-    struct DashGraphics* dash,
-    struct DashModel* model)
+dash3d_face_indices_a_for_projected(struct DashGraphics* dash, struct DashModel* model)
 {
     if( dashmodel__is_va(model) )
         return dash->sparse_a;
@@ -58,9 +57,7 @@ dash3d_face_indices_a_for_projected(
 }
 
 static faceint_t*
-dash3d_face_indices_b_for_projected(
-    struct DashGraphics* dash,
-    struct DashModel* model)
+dash3d_face_indices_b_for_projected(struct DashGraphics* dash, struct DashModel* model)
 {
     if( dashmodel__is_va(model) )
         return dash->sparse_b;
@@ -68,9 +65,7 @@ dash3d_face_indices_b_for_projected(
 }
 
 static faceint_t*
-dash3d_face_indices_c_for_projected(
-    struct DashGraphics* dash,
-    struct DashModel* model)
+dash3d_face_indices_c_for_projected(struct DashGraphics* dash, struct DashModel* model)
 {
     if( dashmodel__is_va(model) )
         return dash->sparse_c;
@@ -656,9 +651,13 @@ dash3d_raster_model_face(
     int* texels = g_empty_texture_texels;
     int texture_size = 0;
     int texture_opaque = true;
-    if( face_textures && face_textures[face] != -1 )
+    int tex_id_row = -1;
+    if( face_textures != NULL )
+        tex_id_row = face_textures[face];
+
+    if( tex_id_row != -1 )
     {
-        texture_id = face_textures[face];
+        texture_id = tex_id_row;
         // gamma 0.8 is the default in os1
         texture_entry =
             (struct DashTextureEntry*)dashmap_search(textures_hmap, &texture_id, DASHMAP_FIND);
@@ -1545,6 +1544,12 @@ dash3d_project(
     {
         int nf = dashmodel_face_count(model);
         assert(nf <= 4096);
+        for( int f = 0; f < nf; f++ )
+        {
+            dash->sparse_a[f] = (faceint_t)(f * 3 + 0);
+            dash->sparse_b[f] = (faceint_t)(f * 3 + 1);
+            dash->sparse_c[f] = (faceint_t)(f * 3 + 2);
+        }
         if( dashmodel_has_textures(model) )
         {
             project_vertices_array_sparse(
@@ -1749,6 +1754,12 @@ dash3d_project_raw(
     {
         int nf = dashmodel_face_count(model);
         assert(nf <= 4096);
+        for( int f = 0; f < nf; f++ )
+        {
+            dash->sparse_a[f] = (faceint_t)(f * 3 + 0);
+            dash->sparse_b[f] = (faceint_t)(f * 3 + 1);
+            dash->sparse_c[f] = (faceint_t)(f * 3 + 2);
+        }
         if( dashmodel_has_textures(model) )
         {
             project_vertices_array_sparse(
@@ -1940,6 +1951,12 @@ dash3d_project6(
     {
         int nf = dashmodel_face_count(model);
         assert(nf <= 4096);
+        for( int f = 0; f < nf; f++ )
+        {
+            dash->sparse_a[f] = (faceint_t)(f * 3 + 0);
+            dash->sparse_b[f] = (faceint_t)(f * 3 + 1);
+            dash->sparse_c[f] = (faceint_t)(f * 3 + 2);
+        }
         if( dashmodel_has_textures(model) )
         {
             project_vertices_array6_sparse(
@@ -2119,11 +2136,15 @@ projected_model_contains(
     int adjusted_screen_x = screen_x - view_port->x_center;
     int adjusted_screen_y = screen_y - view_port->y_center;
 
+    faceint_t* fia = dash3d_face_indices_a_for_projected(dash, model);
+    faceint_t* fib = dash3d_face_indices_b_for_projected(dash, model);
+    faceint_t* fic = dash3d_face_indices_c_for_projected(dash, model);
+
     for( int i = 0; i < dashmodel_face_count(model); i++ )
     {
-        int face_a = dashmodel_face_indices_a_const(model)[i];
-        int face_b = dashmodel_face_indices_b_const(model)[i];
-        int face_c = dashmodel_face_indices_c_const(model)[i];
+        int face_a = fia[i];
+        int face_b = fib[i];
+        int face_c = fic[i];
 
         int x1 = dash->screen_vertices_x[face_a];
         int y1 = dash->screen_vertices_y[face_a];
