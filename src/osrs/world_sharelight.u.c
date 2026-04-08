@@ -366,6 +366,8 @@ defaultlight_build(struct World* world)
                 for( int i = 0; i < map_tile->default_lit_count; i++ )
                 {
                     map_element = &map_tile->defaultlight[i];
+                    if( map_element->element_idx == -1 )
+                        continue;
 
                     scene_element = scene2_element_at(world->scene2, map_element->element_idx);
 

@@ -177,9 +177,9 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
 
     print("=== Building Scene ===")
 
-    Game.game_build_scene(50, 50, 51, 51)
+    Game.game_build_scene(49, 49, 50, 50)
 
     print("=== Scene Built ===")
 end
 
-init_cache_dat(50 * 64, 50 * 64, 52 * 64, 52 * 64)
+init_cache_dat(49 * 64, 49 * 64, 52 * 64, 52 * 64)
