@@ -182,7 +182,8 @@ obj_icon_get(
     // Now calculate eyeY and eyeZ using model.minY (matching ObjType.ts line 445)
     // eyeY = sinPitch + (model.minY / 2) + obj.yof2d
     // eyeZ = cosPitch + obj.yof2d
-    int model_min_y = -dash_model->bounds_cylinder->min_y;
+    const struct DashBoundsCylinder* bc = dashmodel_bounds_cylinder_const(dash_model);
+    int model_min_y = -bc->min_y;
     position.y = sinPitch + (model_min_y / 2) + obj->yof2d;
     position.z = cosPitch + obj->yof2d;
 
@@ -332,7 +333,7 @@ head_model_render(
     position.yaw = yan;
     position.roll = 0;
     position.x = 0;
-    int model_min_y = dash_model->bounds_cylinder->min_y;
+    int model_min_y = dashmodel_bounds_cylinder_const(dash_model)->min_y;
     position.y = sinPitch - (model_min_y / 2);
     position.z = cosPitch;
 
@@ -401,7 +402,8 @@ head_model_render_to_region(
     position.yaw = yan;
     position.roll = 0;
     position.x = 0;
-    int model_height = (dash_model->bounds_cylinder->max_y - dash_model->bounds_cylinder->min_y);
+    const struct DashBoundsCylinder* bc2 = dashmodel_bounds_cylinder_const(dash_model);
+    int model_height = (bc2->max_y - bc2->min_y);
     position.y = sinPitch - (height / 2) + (model_height / 2);
     position.z = cosPitch;
 

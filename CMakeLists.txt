@@ -26,6 +26,7 @@ set(COMMON_SOURCES
     src/server/server.c
     src/server/prot.c
     src/graphics/dash.c
+    src/graphics/dash_model.c
     src/graphics/dash_minimap.c
     src/graphics/dashmap.c
     src/datastruct/list.c

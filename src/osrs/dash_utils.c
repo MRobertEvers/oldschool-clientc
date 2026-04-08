@@ -1,7 +1,9 @@
 #include "dash_utils.h"
 
+#include "graphics/dash_model_internal.h"
 #include "osrs/rscache/tables/model.h"
 
+#include <assert.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -220,32 +222,19 @@ dashmodel_move_from_cache_model(
     struct DashModel* dash_model,
     struct CacheModel* model)
 {
-    memset(dash_model, 0, sizeof(struct DashModel));
-    // if( model->_ids[0] != 0 )
-    // {
-    //     for( int i = 0; i < 10; i++ )
-    //     {
-    //         dash_model->_dbg_ids[i] = model->_ids[i];
-    //     }
-    // }
-    // else
-    // {
-    //     dash_model->_dbg_ids[0] = model->_id;
-    // }
+    assert(dash_model && model);
+    struct DashModelFull* dm = (struct DashModelFull*)(void*)dash_model;
+    assert((dm->flags & DASHMODEL_FLAG_VALID) != 0);
+    assert((dm->flags & DASHMODEL_FLAG_FAST) == 0);
 
-    dash_model->vertex_count = model->vertex_count;
     if( model->vertex_count > 0 && model->vertices_x && model->vertices_y && model->vertices_z )
     {
-        int vc = model->vertex_count;
-        dash_model->vertices_x = (vertexint_t*)malloc((size_t)vc * sizeof(vertexint_t));
-        dash_model->vertices_y = (vertexint_t*)malloc((size_t)vc * sizeof(vertexint_t));
-        dash_model->vertices_z = (vertexint_t*)malloc((size_t)vc * sizeof(vertexint_t));
-        for( int i = 0; i < vc; i++ )
-        {
-            dash_model->vertices_x[i] = (vertexint_t)model->vertices_x[i];
-            dash_model->vertices_y[i] = (vertexint_t)model->vertices_y[i];
-            dash_model->vertices_z[i] = (vertexint_t)model->vertices_z[i];
-        }
+        dashmodel_set_vertices_i32(
+            dash_model,
+            model->vertex_count,
+            model->vertices_x,
+            model->vertices_y,
+            model->vertices_z);
         free(model->vertices_x);
         free(model->vertices_y);
         free(model->vertices_z);
@@ -253,27 +242,16 @@ dashmodel_move_from_cache_model(
         model->vertices_y = NULL;
         model->vertices_z = NULL;
     }
-    else
-    {
-        dash_model->vertices_x = NULL;
-        dash_model->vertices_y = NULL;
-        dash_model->vertices_z = NULL;
-    }
 
-    dash_model->face_count = model->face_count;
     if( model->face_count > 0 && model->face_indices_a && model->face_indices_b &&
         model->face_indices_c )
     {
-        int fc = model->face_count;
-        dash_model->face_indices_a = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
-        dash_model->face_indices_b = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
-        dash_model->face_indices_c = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
-        for( int i = 0; i < fc; i++ )
-        {
-            dash_model->face_indices_a[i] = (faceint_t)model->face_indices_a[i];
-            dash_model->face_indices_b[i] = (faceint_t)model->face_indices_b[i];
-            dash_model->face_indices_c[i] = (faceint_t)model->face_indices_c[i];
-        }
+        dashmodel_set_face_indices_i32(
+            dash_model,
+            model->face_count,
+            model->face_indices_a,
+            model->face_indices_b,
+            model->face_indices_c);
         free(model->face_indices_a);
         free(model->face_indices_b);
         free(model->face_indices_c);
@@ -281,123 +259,124 @@ dashmodel_move_from_cache_model(
         model->face_indices_b = NULL;
         model->face_indices_c = NULL;
     }
-    else
-    {
-        dash_model->face_indices_a = NULL;
-        dash_model->face_indices_b = NULL;
-        dash_model->face_indices_c = NULL;
-    }
 
-    if( model->face_colors )
+    int fc = model->face_count;
+    if( model->face_colors && fc > 0 )
     {
-        dash_model->face_colors = malloc(sizeof(hsl16_t) * dash_model->face_count);
-        for( int i = 0; i < dash_model->face_count; i++ )
-            dash_model->face_colors[i] = (hsl16_t)(unsigned)(model->face_colors[i] & 0xffff);
+        hsl16_t* flat = (hsl16_t*)malloc((size_t)fc * sizeof(hsl16_t));
+        for( int i = 0; i < fc; i++ )
+            flat[i] = (hsl16_t)(unsigned)(model->face_colors[i] & 0xffff);
+        dashmodel_set_face_colors_flat(dash_model, flat, fc);
+        free(flat);
         free(model->face_colors);
         model->face_colors = NULL;
     }
-    else
-        dash_model->face_colors = NULL;
 
-    if( model->face_alphas )
+    if( fc > 0 )
+        dashmodel_alloc_lit_face_colors_zero(dash_model, fc);
+
+    if( model->face_alphas && fc > 0 )
     {
-        dash_model->face_alphas = malloc(sizeof(alphaint_t) * dash_model->face_count);
-        for( int i = 0; i < dash_model->face_count; i++ )
-            dash_model->face_alphas[i] = (alphaint_t)(model->face_alphas[i] & 0xFF);
+        alphaint_t* al = (alphaint_t*)malloc((size_t)fc * sizeof(alphaint_t));
+        for( int i = 0; i < fc; i++ )
+            al[i] = (alphaint_t)(model->face_alphas[i] & 0xFF);
+        dashmodel_set_face_alphas(dash_model, al, fc);
+        free(al);
         free(model->face_alphas);
         model->face_alphas = NULL;
     }
-    else
-        dash_model->face_alphas = NULL;
 
-    dash_model->face_infos = model->face_infos;
-    dash_model->face_priorities = model->face_priorities;
-    model->face_infos = NULL;
-    model->face_priorities = NULL;
-
-    dash_model->textured_face_count = model->textured_face_count;
+    if( model->face_infos && fc > 0 )
     {
-        int tfc = model->textured_face_count;
-        int fc = model->face_count;
-        if( tfc > 0 && model->textured_p_coordinate && model->textured_m_coordinate &&
-            model->textured_n_coordinate )
-        {
-            dash_model->textured_p_coordinate = (faceint_t*)malloc((size_t)tfc * sizeof(faceint_t));
-            dash_model->textured_m_coordinate = (faceint_t*)malloc((size_t)tfc * sizeof(faceint_t));
-            dash_model->textured_n_coordinate = (faceint_t*)malloc((size_t)tfc * sizeof(faceint_t));
-            for( int i = 0; i < tfc; i++ )
-            {
-                dash_model->textured_p_coordinate[i] = (faceint_t)model->textured_p_coordinate[i];
-                dash_model->textured_m_coordinate[i] = (faceint_t)model->textured_m_coordinate[i];
-                dash_model->textured_n_coordinate[i] = (faceint_t)model->textured_n_coordinate[i];
-            }
-            free(model->textured_p_coordinate);
-            free(model->textured_m_coordinate);
-            free(model->textured_n_coordinate);
-            model->textured_p_coordinate = NULL;
-            model->textured_m_coordinate = NULL;
-            model->textured_n_coordinate = NULL;
-        }
-        else
-        {
-            dash_model->textured_p_coordinate = NULL;
-            dash_model->textured_m_coordinate = NULL;
-            dash_model->textured_n_coordinate = NULL;
-        }
-
-        if( fc > 0 && model->face_textures )
-        {
-            dash_model->face_textures = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
-            for( int i = 0; i < fc; i++ )
-                dash_model->face_textures[i] = (faceint_t)model->face_textures[i];
-            free(model->face_textures);
-            model->face_textures = NULL;
-        }
-        else
-            dash_model->face_textures = NULL;
-
-        if( fc > 0 && model->face_texture_coords )
-        {
-            dash_model->face_texture_coords = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
-            for( int i = 0; i < fc; i++ )
-                dash_model->face_texture_coords[i] = (faceint_t)model->face_texture_coords[i];
-            free(model->face_texture_coords);
-            model->face_texture_coords = NULL;
-        }
-        else
-            dash_model->face_texture_coords = NULL;
+        dashmodel_set_face_infos(dash_model, model->face_infos, fc);
+        free(model->face_infos);
+        model->face_infos = NULL;
     }
 
-    dash_model->has_textures =
-        (model->textured_face_count > 0 || dash_model->face_texture_coords != NULL);
+    if( model->face_priorities && fc > 0 )
+    {
+        dashmodel_set_face_priorities(dash_model, model->face_priorities, fc);
+        free(model->face_priorities);
+        model->face_priorities = NULL;
+    }
 
-    // dash_model->normals = dashmodel_normals_new(model->vertex_count, model->face_count);
-    dash_model->normals = NULL;
-    dash_model->lighting = dashmodel_lighting_new(model->face_count);
+    int tfc = model->textured_face_count;
+    const bool had_per_face_tex_coords = (fc > 0 && model->face_texture_coords != NULL);
+    faceint_t* tp = NULL;
+    faceint_t* tm = NULL;
+    faceint_t* tn = NULL;
+    if( tfc > 0 && model->textured_p_coordinate && model->textured_m_coordinate &&
+        model->textured_n_coordinate )
+    {
+        tp = (faceint_t*)malloc((size_t)tfc * sizeof(faceint_t));
+        tm = (faceint_t*)malloc((size_t)tfc * sizeof(faceint_t));
+        tn = (faceint_t*)malloc((size_t)tfc * sizeof(faceint_t));
+        for( int i = 0; i < tfc; i++ )
+        {
+            tp[i] = (faceint_t)model->textured_p_coordinate[i];
+            tm[i] = (faceint_t)model->textured_m_coordinate[i];
+            tn[i] = (faceint_t)model->textured_n_coordinate[i];
+        }
+        free(model->textured_p_coordinate);
+        free(model->textured_m_coordinate);
+        free(model->textured_n_coordinate);
+        model->textured_p_coordinate = NULL;
+        model->textured_m_coordinate = NULL;
+        model->textured_n_coordinate = NULL;
+    }
+
+    faceint_t* ftc_arr = NULL;
+    if( fc > 0 && model->face_texture_coords )
+    {
+        ftc_arr = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
+        for( int i = 0; i < fc; i++ )
+            ftc_arr[i] = (faceint_t)model->face_texture_coords[i];
+        free(model->face_texture_coords);
+        model->face_texture_coords = NULL;
+    }
+
+    dashmodel_set_texture_coords(
+        dash_model,
+        tfc,
+        tp,
+        tm,
+        tn,
+        ftc_arr,
+        fc);
+    free(tp);
+    free(tm);
+    free(tn);
+    free(ftc_arr);
+
+    if( fc > 0 && model->face_textures )
+    {
+        dashmodel_set_face_textures_i32(dash_model, model->face_textures, fc);
+        free(model->face_textures);
+        model->face_textures = NULL;
+    }
+
+    dashmodel_set_has_textures(
+        dash_model,
+        (tfc > 0 || had_per_face_tex_coords));
+
+    dm->normals = NULL;
+    dm->merged_normals = NULL;
+
     if( model->vertex_bone_map )
-        dash_model->vertex_bones = dashmodel_bones_new(model->vertex_bone_map, model->vertex_count);
+        dm->vertex_bones = dashmodel_bones_new(model->vertex_bone_map, model->vertex_count);
     if( model->face_bone_map )
-        dash_model->face_bones = dashmodel_bones_new(model->face_bone_map, model->face_count);
+        dm->face_bones = dashmodel_bones_new(model->face_bone_map, model->face_count);
 
-    dash_model->bounds_cylinder =
-        (struct DashBoundsCylinder*)malloc(sizeof(struct DashBoundsCylinder));
-    memset(dash_model->bounds_cylinder, 0, sizeof(struct DashBoundsCylinder));
-
-    dash3d_calculate_bounds_cylinder(
-        dash_model->bounds_cylinder,
-        dash_model->vertex_count,
-        dash_model->vertices_x,
-        dash_model->vertices_y,
-        dash_model->vertices_z);
-
-    dash_model->loaded = true;
+    dashmodel_set_bounds_cylinder(dash_model);
+    dashmodel_set_loaded(dash_model, true);
 }
 
 struct DashModel*
 dashmodel_new_from_cache_model(struct CacheModel* model)
 {
-    struct DashModel* dash_model = (struct DashModel*)malloc(sizeof(struct DashModel));
-    memset(dash_model, 0, sizeof(struct DashModel));
+    struct DashModel* dash_model = dashmodelfull_new();
+    if( !dash_model )
+        return NULL;
     dashmodel_move_from_cache_model(dash_model, model);
     return dash_model;
 }
@@ -434,101 +413,4 @@ dashmodel_bones_new(
     modelbones_free(model_bones);
 
     return bones;
-}
-
-static struct DashModelLighting*
-model_lighting_new(int face_count)
-{
-    struct DashModelLighting* lighting = malloc(sizeof(struct DashModelLighting));
-    memset(lighting, 0, sizeof(struct DashModelLighting));
-
-    lighting->face_colors_hsl_a = malloc(sizeof(hsl16_t) * face_count);
-    memset(lighting->face_colors_hsl_a, 0, sizeof(hsl16_t) * face_count);
-
-    lighting->face_colors_hsl_b = malloc(sizeof(hsl16_t) * face_count);
-    memset(lighting->face_colors_hsl_b, 0, sizeof(hsl16_t) * face_count);
-
-    lighting->face_colors_hsl_c = malloc(sizeof(hsl16_t) * face_count);
-    memset(lighting->face_colors_hsl_c, 0, sizeof(hsl16_t) * face_count);
-
-    return lighting;
-}
-
-struct DashModelLighting*
-dashmodel_lighting_new_default(
-    struct CacheModel* model,
-    struct DashModelNormals* normals,
-    int model_contrast,
-    int model_attenuation)
-{
-    struct DashModelLighting* lighting = dashmodel_lighting_new(model->face_count);
-
-    int light_ambient = 64;
-    int light_attenuation = 768;
-    int lightsrc_x = -50;
-    int lightsrc_y = -10;
-    int lightsrc_z = -50;
-
-    light_ambient += model_contrast;
-    light_attenuation += model_attenuation;
-
-    int light_magnitude =
-        (int)sqrt(lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
-    int attenuation = (light_attenuation * light_magnitude) >> 8;
-
-    const hsl16_t* flat_hsl = NULL;
-    hsl16_t* flat_hsl_owned = NULL;
-    if( model->face_colors )
-    {
-        flat_hsl_owned = malloc(sizeof(hsl16_t) * model->face_count);
-        for( int i = 0; i < model->face_count; i++ )
-            flat_hsl_owned[i] = (hsl16_t)(unsigned)(model->face_colors[i] & 0xffff);
-        flat_hsl = flat_hsl_owned;
-    }
-
-    alphaint_t* alphas = NULL;
-    if( model->face_alphas )
-    {
-        alphas = malloc(sizeof(alphaint_t) * model->face_count);
-        for( int i = 0; i < model->face_count; i++ )
-            alphas[i] = (alphaint_t)(model->face_alphas[i] & 0xFF);
-    }
-
-    int fc = model->face_count;
-    faceint_t* fi_a = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
-    faceint_t* fi_b = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
-    faceint_t* fi_c = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
-    for( int i = 0; i < fc; i++ )
-    {
-        fi_a[i] = (faceint_t)model->face_indices_a[i];
-        fi_b[i] = (faceint_t)model->face_indices_b[i];
-        fi_c[i] = (faceint_t)model->face_indices_c[i];
-    }
-
-    apply_lighting(
-        lighting->face_colors_hsl_a,
-        lighting->face_colors_hsl_b,
-        lighting->face_colors_hsl_c,
-        normals->lighting_vertex_normals,
-        normals->lighting_face_normals,
-        fi_a,
-        fi_b,
-        fi_c,
-        model->face_count,
-        flat_hsl,
-        alphas,
-        model->face_textures,
-        model->face_infos,
-        light_ambient,
-        attenuation,
-        lightsrc_x,
-        lightsrc_y,
-        lightsrc_z);
-
-    free(fi_a);
-    free(fi_b);
-    free(fi_c);
-    free(alphas);
-    free(flat_hsl_owned);
-    return lighting;
 }

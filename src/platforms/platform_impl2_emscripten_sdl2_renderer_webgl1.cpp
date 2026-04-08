@@ -278,23 +278,28 @@ model_gpu_cache_key(const struct DashModel* model)
         key *= fnv_prime;
     };
 
-    mix_word((uint64_t)(uintptr_t)model->vertices_x);
-    mix_word((uint64_t)(uintptr_t)model->face_indices_a);
-    mix_word((uint64_t)(uintptr_t)model->face_indices_b);
-    mix_word((uint64_t)(uintptr_t)model->face_indices_c);
-    mix_word((uint64_t)model->face_count);
+    mix_word((uint64_t)(uintptr_t)dashmodel_vertices_x_const(model));
+    mix_word((uint64_t)(uintptr_t)dashmodel_face_indices_a_const(model));
+    mix_word((uint64_t)(uintptr_t)dashmodel_face_indices_b_const(model));
+    mix_word((uint64_t)(uintptr_t)dashmodel_face_indices_c_const(model));
+    mix_word((uint64_t)dashmodel_face_count(model));
 
     // Animated models are deformed in-place, so pointer-based keys are not enough:
     // hash current vertex contents to get a distinct GPU mesh per keyframe pose.
-    const bool is_animated = model->original_vertices_x && model->original_vertices_y &&
-                             model->original_vertices_z && model->vertex_count > 0;
+    struct DashModel* mw = (struct DashModel*)model;
+    const bool is_animated = dashmodel_original_vertices_x(mw) && dashmodel_original_vertices_y(mw) &&
+                             dashmodel_original_vertices_z(mw) && dashmodel_vertex_count(model) > 0;
     if( is_animated )
     {
-        for( int i = 0; i < model->vertex_count; ++i )
+        const vertexint_t* vx = dashmodel_vertices_x_const(model);
+        const vertexint_t* vy = dashmodel_vertices_y_const(model);
+        const vertexint_t* vz = dashmodel_vertices_z_const(model);
+        int vc = dashmodel_vertex_count(model);
+        for( int i = 0; i < vc; ++i )
         {
-            mix_word((uint64_t)(uint32_t)model->vertices_x[i]);
-            mix_word((uint64_t)(uint32_t)model->vertices_y[i]);
-            mix_word((uint64_t)(uint32_t)model->vertices_z[i]);
+            mix_word((uint64_t)(uint32_t)vx[i]);
+            mix_word((uint64_t)(uint32_t)vy[i]);
+            mix_word((uint64_t)(uint32_t)vz[i]);
         }
     }
     return key;
@@ -643,9 +648,11 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
             case TORIRS_GFX_MODEL_LOAD:
             {
                 struct DashModel* model = cmd._model_load.model;
-                if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
-                    !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
-                    !model->face_indices_c || model->face_count <= 0 )
+                if( !model || !dashmodel_face_colors_a(model) || !dashmodel_face_colors_b(model) ||
+                    !dashmodel_face_colors_c(model) || !dashmodel_vertices_x(model) ||
+                    !dashmodel_vertices_y(model) || !dashmodel_vertices_z(model) ||
+                    !dashmodel_face_indices_a(model) || !dashmodel_face_indices_b(model) ||
+                    !dashmodel_face_indices_c(model) || dashmodel_face_count(model) <= 0 )
                 {
                     break;
                 }
@@ -658,23 +665,23 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
                     pix3dgl_model_load(
                         renderer->pix3dgl,
                         model_idx,
-                        model->vertices_x,
-                        model->vertices_y,
-                        model->vertices_z,
-                        model->face_indices_a,
-                        model->face_indices_b,
-                        model->face_indices_c,
-                        model->face_count,
-                        model->face_textures,
-                        model->face_texture_coords,
-                        model->textured_p_coordinate,
-                        model->textured_m_coordinate,
-                        model->textured_n_coordinate,
-                        model->lighting->face_colors_hsl_a,
-                        model->lighting->face_colors_hsl_b,
-                        model->lighting->face_colors_hsl_c,
-                        model->face_infos,
-                        model->face_alphas);
+                        dashmodel_vertices_x(model),
+                        dashmodel_vertices_y(model),
+                        dashmodel_vertices_z(model),
+                        dashmodel_face_indices_a(model),
+                        dashmodel_face_indices_b(model),
+                        dashmodel_face_indices_c(model),
+                        dashmodel_face_count(model),
+                        dashmodel_face_textures(model),
+                        dashmodel_face_texture_coords(model),
+                        dashmodel_textured_p_coordinate(model),
+                        dashmodel_textured_m_coordinate(model),
+                        dashmodel_textured_n_coordinate(model),
+                        dashmodel_face_colors_a(model),
+                        dashmodel_face_colors_b(model),
+                        dashmodel_face_colors_c(model),
+                        dashmodel_face_infos(model),
+                        dashmodel_face_alphas(model));
                 }
                 break;
             }
@@ -682,9 +689,11 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
             case TORIRS_GFX_MODEL_DRAW:
             {
                 struct DashModel* model = cmd._model_draw.model;
-                if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
-                    !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
-                    !model->face_indices_c || model->face_count <= 0 )
+                if( !model || !dashmodel_face_colors_a(model) || !dashmodel_face_colors_b(model) ||
+                    !dashmodel_face_colors_c(model) || !dashmodel_vertices_x(model) ||
+                    !dashmodel_vertices_y(model) || !dashmodel_vertices_z(model) ||
+                    !dashmodel_face_indices_a(model) || !dashmodel_face_indices_b(model) ||
+                    !dashmodel_face_indices_c(model) || dashmodel_face_count(model) <= 0 )
                 {
                     break;
                 }
@@ -699,23 +708,23 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
                     pix3dgl_model_load(
                         renderer->pix3dgl,
                         model_idx,
-                        model->vertices_x,
-                        model->vertices_y,
-                        model->vertices_z,
-                        model->face_indices_a,
-                        model->face_indices_b,
-                        model->face_indices_c,
-                        model->face_count,
-                        model->face_textures,
-                        model->face_texture_coords,
-                        model->textured_p_coordinate,
-                        model->textured_m_coordinate,
-                        model->textured_n_coordinate,
-                        model->lighting->face_colors_hsl_a,
-                        model->lighting->face_colors_hsl_b,
-                        model->lighting->face_colors_hsl_c,
-                        model->face_infos,
-                        model->face_alphas);
+                        dashmodel_vertices_x(model),
+                        dashmodel_vertices_y(model),
+                        dashmodel_vertices_z(model),
+                        dashmodel_face_indices_a(model),
+                        dashmodel_face_indices_b(model),
+                        dashmodel_face_indices_c(model),
+                        dashmodel_face_count(model),
+                        dashmodel_face_textures(model),
+                        dashmodel_face_texture_coords(model),
+                        dashmodel_textured_p_coordinate(model),
+                        dashmodel_textured_m_coordinate(model),
+                        dashmodel_textured_n_coordinate(model),
+                        dashmodel_face_colors_a(model),
+                        dashmodel_face_colors_b(model),
+                        dashmodel_face_colors_c(model),
+                        dashmodel_face_infos(model),
+                        dashmodel_face_alphas(model));
                     it = renderer->model_index_by_key.find(model_key);
                 }
 

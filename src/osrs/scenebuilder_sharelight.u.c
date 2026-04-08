@@ -164,20 +164,30 @@ merge_normals(
 
     int merged_vertex_count = 0;
 
-    for( int vertex = 0; vertex < model->vertex_count; vertex++ )
+    int model_vc = dashmodel_vertex_count(model);
+    vertexint_t* model_vx = dashmodel_vertices_x(model);
+    vertexint_t* model_vy = dashmodel_vertices_y(model);
+    vertexint_t* model_vz = dashmodel_vertices_z(model);
+
+    int other_vc = dashmodel_vertex_count(other_model);
+    vertexint_t* other_vx = dashmodel_vertices_x(other_model);
+    vertexint_t* other_vy = dashmodel_vertices_y(other_model);
+    vertexint_t* other_vz = dashmodel_vertices_z(other_model);
+
+    for( int vertex = 0; vertex < model_vc; vertex++ )
     {
-        x = model->vertices_x[vertex] - check_offset_x;
-        y = model->vertices_y[vertex] - check_offset_y;
-        z = model->vertices_z[vertex] - check_offset_z;
+        x = model_vx[vertex] - check_offset_x;
+        y = model_vy[vertex] - check_offset_y;
+        z = model_vz[vertex] - check_offset_z;
 
         model_a_normal = &vertex_normals[vertex];
         model_a_lighting_normal = &lighting_vertex_normals[vertex];
 
-        for( int other_vertex = 0; other_vertex < other_model->vertex_count; other_vertex++ )
+        for( int other_vertex = 0; other_vertex < other_vc; other_vertex++ )
         {
-            other_x = other_model->vertices_x[other_vertex];
-            other_y = other_model->vertices_y[other_vertex];
-            other_z = other_model->vertices_z[other_vertex];
+            other_x = other_vx[other_vertex];
+            other_y = other_vy[other_vertex];
+            other_z = other_vz[other_vertex];
 
             model_b_normal = &other_vertex_normals[other_vertex];
             model_b_lighting_normal = &other_lighting_vertex_normals[other_vertex];
@@ -215,37 +225,35 @@ merge_normals(
         return;
 
     // Can't have two faces with the same 3 points, so only need to check two.
-    for( int face = 0; face < model->face_count; face++ )
+    int m_fc = dashmodel_face_count(model);
+    faceint_t* m_fa = dashmodel_face_indices_a(model);
+    faceint_t* m_fb = dashmodel_face_indices_b(model);
+    faceint_t* m_fci = dashmodel_face_indices_c(model);
+    for( int face = 0; face < m_fc; face++ )
     {
-        if( g_vertex_a_merge_index[model->face_indices_a[face]] == g_merge_index &&
-            g_vertex_a_merge_index[model->face_indices_b[face]] == g_merge_index &&
-            g_vertex_a_merge_index[model->face_indices_c[face]] == g_merge_index )
+        if( g_vertex_a_merge_index[m_fa[face]] == g_merge_index &&
+            g_vertex_a_merge_index[m_fb[face]] == g_merge_index &&
+            g_vertex_a_merge_index[m_fci[face]] == g_merge_index )
         {
-            // OS1 initializes face infos to 0 here.
-            if( !model->face_infos )
-            {
-                model->face_infos = malloc(sizeof(int) * model->face_count);
-                memset(model->face_infos, 0, sizeof(int) * model->face_count);
-            }
-            // Hidden face (facetype 2 is hidden)
-            model->face_infos[face] = 2;
+            int* infos = dashmodel_face_infos_ensure_zero(model);
+            if( infos )
+                infos[face] = 2;
             break;
         }
     }
-    for( int face = 0; face < other_model->face_count; face++ )
+    int o_fc = dashmodel_face_count(other_model);
+    faceint_t* o_fa = dashmodel_face_indices_a(other_model);
+    faceint_t* o_fb = dashmodel_face_indices_b(other_model);
+    faceint_t* o_fci = dashmodel_face_indices_c(other_model);
+    for( int face = 0; face < o_fc; face++ )
     {
-        if( g_vertex_b_merge_index[other_model->face_indices_a[face]] == g_merge_index &&
-            g_vertex_b_merge_index[other_model->face_indices_b[face]] == g_merge_index &&
-            g_vertex_b_merge_index[other_model->face_indices_c[face]] == g_merge_index )
+        if( g_vertex_b_merge_index[o_fa[face]] == g_merge_index &&
+            g_vertex_b_merge_index[o_fb[face]] == g_merge_index &&
+            g_vertex_b_merge_index[o_fci[face]] == g_merge_index )
         {
-            // OS1 initializes face infos to 0 here.
-            if( !other_model->face_infos )
-            {
-                other_model->face_infos = malloc(sizeof(int) * other_model->face_count);
-                memset(other_model->face_infos, 0, sizeof(int) * other_model->face_count);
-            }
-            // Hidden face (facetype 2 is hidden)
-            other_model->face_infos[face] = 2;
+            int* infos = dashmodel_face_infos_ensure_zero(other_model);
+            if( infos )
+                infos[face] = 2;
         }
     }
 }
@@ -374,6 +382,10 @@ sharelight_build_scene(
                             if( !adjacent_scene_element->dash_model )
                                 continue;
 
+                            if( !dashmodel_is_lightable(sharelight_scene_element->dash_model) ||
+                                !dashmodel_is_lightable(adjacent_scene_element->dash_model) )
+                                continue;
+
                             int check_offset_x = (adjacent_tile_coord.x - sx) * 128 +
                                                  (adjacent_build_element->size_x -
                                                   sharelight_build_element->size_x) *
@@ -388,19 +400,19 @@ sharelight_build_scene(
 
                             dashmodel_alias_normals(
                                 sharelight_build_element,
-                                sharelight_scene_element->dash_model->normals);
+                                dashmodel_normals(sharelight_scene_element->dash_model));
                             dashmodel_alias_normals(
                                 adjacent_build_element,
-                                adjacent_scene_element->dash_model->normals);
+                                dashmodel_normals(adjacent_scene_element->dash_model));
 
                             merge_normals(
                                 sharelight_scene_element->dash_model,
-                                sharelight_scene_element->dash_model->normals
+                                dashmodel_normals(sharelight_scene_element->dash_model)
                                     ->lighting_vertex_normals,
                                 sharelight_build_element->aliased_lighting_normals
                                     ->lighting_vertex_normals,
                                 adjacent_scene_element->dash_model,
-                                adjacent_scene_element->dash_model->normals
+                                dashmodel_normals(adjacent_scene_element->dash_model)
                                     ->lighting_vertex_normals,
                                 adjacent_build_element->aliased_lighting_normals
                                     ->lighting_vertex_normals,
@@ -438,22 +450,27 @@ sharelight_build_scene(
 
         if( !build_element->sharelight )
             continue;
-        dashmodel_alias_normals(build_element, scene_element->dash_model->normals);
+
+        struct DashModel* dm = scene_element->dash_model;
+        if( !dashmodel_is_lightable(dm) )
+            continue;
+
+        dashmodel_alias_normals(build_element, dashmodel_normals(scene_element->dash_model));
 
         apply_lighting(
-            scene_element->dash_model->lighting->face_colors_hsl_a,
-            scene_element->dash_model->lighting->face_colors_hsl_b,
-            scene_element->dash_model->lighting->face_colors_hsl_c,
+            dashmodel_face_colors_a(dm),
+            dashmodel_face_colors_b(dm),
+            dashmodel_face_colors_c(dm),
             build_element->aliased_lighting_normals->lighting_vertex_normals,
             build_element->aliased_lighting_normals->lighting_face_normals,
-            scene_element->dash_model->face_indices_a,
-            scene_element->dash_model->face_indices_b,
-            scene_element->dash_model->face_indices_c,
-            scene_element->dash_model->face_count,
-            scene_element->dash_model->face_colors,
-            scene_element->dash_model->face_alphas,
-            scene_element->dash_model->face_textures,
-            scene_element->dash_model->face_infos,
+            dashmodel_face_indices_a(dm),
+            dashmodel_face_indices_b(dm),
+            dashmodel_face_indices_c(dm),
+            dashmodel_face_count(dm),
+            dashmodel_face_colors_flat(dm),
+            dashmodel_face_alphas(dm),
+            dashmodel_face_textures(dm),
+            dashmodel_face_infos(dm),
             light_ambient,
             attenuation,
             lightsrc_x,

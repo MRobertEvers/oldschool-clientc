@@ -289,7 +289,10 @@ world_player_ensure(
     struct World* world,
     int id)
 {
-    return ENTITY_VEC_ENSURE(world->players, struct PlayerEntity, id);
+    struct PlayerEntity* p = ENTITY_VEC_ENSURE(world->players, struct PlayerEntity, id);
+    if( !p->alive )
+        p->scene_element2.element_id = -1;
+    return p;
 }
 
 static inline struct NPCEntity*
@@ -305,7 +308,10 @@ world_npc_ensure(
     struct World* world,
     int id)
 {
-    return ENTITY_VEC_ENSURE(world->npcs, struct NPCEntity, id);
+    struct NPCEntity* n = ENTITY_VEC_ENSURE(world->npcs, struct NPCEntity, id);
+    if( !n->alive )
+        n->scene_element2.element_id = -1;
+    return n;
 }
 
 static inline struct MapBuildLocEntity*

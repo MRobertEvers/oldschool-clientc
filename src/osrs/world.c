@@ -48,26 +48,6 @@ next_map_build_loc_entity(struct World* world)
     return NULL;
 }
 
-static void
-init_player_entity(
-    struct World* world,
-    int player_id)
-{
-    struct PlayerEntity* player = world_player_ensure(world, player_id);
-    player->alive = false;
-    player->scene_element2.element_id = -1;
-}
-
-static void
-init_npc_entity(
-    struct World* world,
-    int npc_id)
-{
-    struct NPCEntity* npc = world_npc_ensure(world, npc_id);
-    npc->alive = false;
-    npc->scene_element2.element_id = -1;
-}
-
 /** Slot 0 would otherwise match `entity_id != id` never (0==0) while still all-zero from pool. */
 static void
 world_prime_map_build_tile_slot0(struct World* world)
@@ -108,14 +88,8 @@ world_new(
 
     world_prime_map_build_tile_slot0(world);
 
-    for( int i = 0; i < MAX_PLAYERS; i++ )
-    {
-        init_player_entity(world, i);
-    }
-    for( int i = 0; i < MAX_NPCS; i++ )
-    {
-        init_npc_entity(world, i);
-    }
+    /* Local player is fixed at ACTIVE_PLAYER_SLOT; prime so world_player(world, ...) is in range. */
+    world_player_ensure(world, ACTIVE_PLAYER_SLOT);
 
     return world;
 }
@@ -303,8 +277,8 @@ world_print_scene2_dashmodel_heap_stats(struct World* world)
         struct DashModel* m = el->dash_model;
         size_t bytes = dashmodel_heap_bytes(m);
         total += bytes;
-        total_vertices += m->vertex_count;
-        total_faces += m->face_count;
+        total_vertices += dashmodel_vertex_count(m);
+        total_faces += dashmodel_face_count(m);
         count++;
         // printf(
         //     "  element %d: %zu bytes, vertices %d, faces %d\n",
