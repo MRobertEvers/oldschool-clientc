@@ -225,7 +225,7 @@ dashmodel_move_from_cache_model(
     assert(dash_model && model);
     struct DashModelFull* dm = (struct DashModelFull*)(void*)dash_model;
     assert((dm->flags & DASHMODEL_FLAG_VALID) != 0);
-    assert((dm->flags & DASHMODEL_FLAG_FAST) == 0);
+    assert(dashmodel__is_full_layout(dash_model));
 
     if( model->vertex_count > 0 && model->vertices_x && model->vertices_y && model->vertices_z )
     {

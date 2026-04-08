@@ -45,6 +45,23 @@ struct DashAABB
     int max_screen_y;
 };
 
+/** Geometry buffers; lifetime owned outside DashModel (VA models hold a weak pointer). */
+struct DashVertexArray
+{
+    int vertex_count;
+    int face_count;
+    vertexint_t* vertices_x;
+    vertexint_t* vertices_y;
+    vertexint_t* vertices_z;
+    hsl16_t* face_colors_a;
+    hsl16_t* face_colors_b;
+    hsl16_t* face_colors_c;
+    faceint_t* face_indices_a;
+    faceint_t* face_indices_b;
+    faceint_t* face_indices_c;
+    faceint_t* face_textures;
+};
+
 struct DashModel;
 
 /**
@@ -415,6 +432,10 @@ dashposition_free(struct DashPosition* position);
 struct DashModel*
 dashmodel_fast_new(void);
 
+/** Weak reference to vertex_array; caller frees the array separately. */
+struct DashModel*
+dashmodel_va_new(struct DashVertexArray* vertex_array);
+
 struct DashModel*
 dashmodelfull_new(void);
 
@@ -423,6 +444,10 @@ dashmodel_new(void);
 
 void
 dashmodel_free(struct DashModel* model);
+
+/** Frees all heap fields of `va` and `va` itself (caller-owned geometry; not called from dashmodel_free). */
+void
+dashvertexarray_free(struct DashVertexArray* va);
 
 bool
 dashmodel_is_loaded(const struct DashModel* m);
@@ -445,6 +470,9 @@ dashmodel_vertex_count(const struct DashModel* m);
 
 int
 dashmodel_face_count(const struct DashModel* m);
+
+const struct DashVertexArray*
+dashmodel_vertex_array_const(const struct DashModel* m);
 
 vertexint_t*
 dashmodel_vertices_x(struct DashModel* m);

@@ -2,6 +2,7 @@
 #define PROJECTION16_SIMD_U_C
 
 #include "projection.h"
+#include "dash_faceint.h"
 #include "dash_vertexint.h"
 /* Scalar helpers live in projection.u.c (also pulled in by render_*.u.c before this TU). */
 #include "projection.u.c"
@@ -3595,9 +3596,9 @@ project_vertices_array_sparse(
     vertexint_t* vertex_x,
     vertexint_t* vertex_y,
     vertexint_t* vertex_z,
-    const int* vertex_faces_a,
-    const int* vertex_faces_b,
-    const int* vertex_faces_c,
+    const faceint_t* vertex_faces_a,
+    const faceint_t* vertex_faces_b,
+    const faceint_t* vertex_faces_c,
     int num_faces,
     int model_yaw,
     int model_mid_z,
@@ -3615,9 +3616,9 @@ project_vertices_array_sparse(
 
     for( int f = 0; f < num_faces; f++ )
     {
-        int va = vertex_faces_a[f];
-        int vb = vertex_faces_b[f];
-        int vc = vertex_faces_c[f];
+        int va = (int)vertex_faces_a[f];
+        int vb = (int)vertex_faces_b[f];
+        int vc = (int)vertex_faces_c[f];
 
         struct ProjectedVertex projected_vertex;
         project_orthographic_fast(
@@ -3687,9 +3688,9 @@ project_vertices_array_notex_sparse(
     vertexint_t* vertex_x,
     vertexint_t* vertex_y,
     vertexint_t* vertex_z,
-    const int* vertex_faces_a,
-    const int* vertex_faces_b,
-    const int* vertex_faces_c,
+    const faceint_t* vertex_faces_a,
+    const faceint_t* vertex_faces_b,
+    const faceint_t* vertex_faces_c,
     int num_faces,
     int model_yaw,
     int model_mid_z,
@@ -3707,9 +3708,9 @@ project_vertices_array_notex_sparse(
 
     for( int f = 0; f < num_faces; f++ )
     {
-        int va = vertex_faces_a[f];
-        int vb = vertex_faces_b[f];
-        int vc = vertex_faces_c[f];
+        int va = (int)vertex_faces_a[f];
+        int vb = (int)vertex_faces_b[f];
+        int vc = (int)vertex_faces_c[f];
 
         struct ProjectedVertex projected_vertex;
         project_orthographic_fast(
@@ -3934,9 +3935,9 @@ project_vertices_array6_sparse(
     vertexint_t* vertex_x,
     vertexint_t* vertex_y,
     vertexint_t* vertex_z,
-    const int* vertex_faces_a,
-    const int* vertex_faces_b,
-    const int* vertex_faces_c,
+    const faceint_t* vertex_faces_a,
+    const faceint_t* vertex_faces_b,
+    const faceint_t* vertex_faces_c,
     int num_faces,
     int model_pitch,
     int model_yaw,
@@ -3957,9 +3958,9 @@ project_vertices_array6_sparse(
 
     for( int f = 0; f < num_faces; f++ )
     {
-        int va = vertex_faces_a[f];
-        int vb = vertex_faces_b[f];
-        int vc = vertex_faces_c[f];
+        int va = (int)vertex_faces_a[f];
+        int vb = (int)vertex_faces_b[f];
+        int vc = (int)vertex_faces_c[f];
 
         struct ProjectedVertex projected_vertex;
 
@@ -4017,9 +4018,9 @@ project_vertices_array6_notex_sparse(
     vertexint_t* vertex_x,
     vertexint_t* vertex_y,
     vertexint_t* vertex_z,
-    const int* vertex_faces_a,
-    const int* vertex_faces_b,
-    const int* vertex_faces_c,
+    const faceint_t* vertex_faces_a,
+    const faceint_t* vertex_faces_b,
+    const faceint_t* vertex_faces_c,
     int num_faces,
     int model_pitch,
     int model_yaw,
@@ -4040,9 +4041,9 @@ project_vertices_array6_notex_sparse(
 
     for( int f = 0; f < num_faces; f++ )
     {
-        int va = vertex_faces_a[f];
-        int vb = vertex_faces_b[f];
-        int vc = vertex_faces_c[f];
+        int va = (int)vertex_faces_a[f];
+        int vb = (int)vertex_faces_b[f];
+        int vc = (int)vertex_faces_c[f];
 
         struct ProjectedVertex projected_vertex;
 
