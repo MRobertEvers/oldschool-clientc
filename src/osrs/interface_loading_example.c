@@ -1,9 +1,34 @@
 // Example: Loading interface components from cache data
 
+#include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
-#include "osrs/rscache/tables_dat/config_component.h"
+#include "osrs/game.h"
 #include "osrs/gio_cache_dat.h"
+#include "osrs/revconfig/uiscene.h"
+#include "osrs/rscache/tables_dat/config_component.h"
 #include <stdio.h>
+#include <stdlib.h>
+
+static int
+example_uiscene_attach_sprite(struct GGame* game, struct DashSprite* sprite)
+{
+    if( !game || !game->ui_scene || !sprite )
+        return -1;
+    int eid = uiscene_element_acquire(game->ui_scene, -1);
+    if( eid < 0 )
+        return -1;
+    struct UISceneElement* el = uiscene_element_at(game->ui_scene, eid);
+    if( !el )
+        return -1;
+    struct DashSprite** row = malloc(sizeof(struct DashSprite*));
+    if( !row )
+        return -1;
+    row[0] = sprite;
+    el->dash_sprites = row;
+    el->dash_sprites_count = 1;
+    el->dash_sprites_borrowed = false;
+    return eid;
+}
 
 /*
  * This example shows how to load interface components from the cache
@@ -171,7 +196,11 @@ load_component_sprite_example(
     
     if (pix32) {
         struct DashSprite* sprite = dashsprite_new_from_cache_pix32(pix32);
-        buildcachedat_add_component_sprite(game->buildcachedat, sprite_name, sprite);
+        int eid = example_uiscene_attach_sprite(game, sprite);
+        if( eid >= 0 )
+            buildcachedat_add_component_sprite_ref(game->buildcachedat, sprite_name, eid);
+        else
+            dashsprite_free(sprite);
         cache_dat_pix32_free(pix32);
         printf("Loaded pix32 sprite: %s\n", sprite_name);
         return;
@@ -185,7 +214,11 @@ load_component_sprite_example(
     
     if (pix8_palette) {
         struct DashSprite* sprite = dashsprite_new_from_cache_pix8_palette(pix8_palette);
-        buildcachedat_add_component_sprite(game->buildcachedat, sprite_name, sprite);
+        int eid = example_uiscene_attach_sprite(game, sprite);
+        if( eid >= 0 )
+            buildcachedat_add_component_sprite_ref(game->buildcachedat, sprite_name, eid);
+        else
+            dashsprite_free(sprite);
         cache_dat_pix8_palette_free(pix8_palette);
         printf("Loaded pix8 sprite: %s\n", sprite_name);
         return;
@@ -268,7 +301,7 @@ init_interfaces_full_example(struct GGame* game)
  *    - Ensure bounds are set correctly for nested components
  * 
  * 4. Check sprite loading:
- *    - Verify sprite is loaded: buildcachedat_get_component_sprite()
+ *    - Verify sprite ref exists: buildcachedat_get_component_sprite_element_id() + uiscene_element_at()
  *    - Check sprite dimensions match expected values
  *    - Verify sprite pixels are not all zero/transparent
  */

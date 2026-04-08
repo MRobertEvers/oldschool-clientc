@@ -64,26 +64,6 @@ obj_icon_get(
         return NULL;
     }
 
-    // // DEBUG: Print detailed object configuration
-    // printf("\n=== obj_icon_get DEBUG: obj_id=%d, count=%d ===\n", obj_id, count);
-    // printf("  name: %s\n", obj->name ? obj->name : "(null)");
-    // printf("  model: %d\n", obj->model);
-    // printf(
-    //     "  manwear: %d, manwear2: %d, manwear3: %d\n", obj->manwear, obj->manwear2,
-    //     obj->manwear3);
-    // printf("  zoom2d: %d\n", obj->zoom2d);
-    // printf("  xan2d: %d, yan2d: %d, zan2d: %d\n", obj->xan2d, obj->yan2d, obj->zan2d);
-    // printf("  xof2d: %d, yof2d: %d\n", obj->xof2d, obj->yof2d);
-    // printf("  stackable: %d\n", obj->stackable);
-    // if( obj->recol_count > 0 )
-    // {
-    //     printf("  recolor count: %d\n", obj->recol_count);
-    //     for( int i = 0; i < obj->recol_count && i < 3; i++ )
-    //     {
-    //         printf("    recol[%d]: 0x%04X -> 0x%04X\n", i, obj->recol_s[i], obj->recol_d[i]);
-    //     }
-    // }
-
     // Handle count-based object variations (e.g., coin stacks)
     if( obj->countobj && obj->countco && count > 1 )
     {
@@ -195,13 +175,15 @@ obj_icon_get(
     // Calculate normals and apply lighting (matching ObjType.ts line 332)
     // calculateNormals(ambient + 64, contrast + 768, -50, -10, -50, true)
     // In C, this is done via _light_model_default with ambient and contrast from config
+    dashmodel_alloc_normals(dash_model);
     _light_model_default(dash_model, obj->contrast, obj->ambient);
     // printf("  Normals and lighting calculated\n");
 
     // Now calculate eyeY and eyeZ using model.minY (matching ObjType.ts line 445)
     // eyeY = sinPitch + (model.minY / 2) + obj.yof2d
     // eyeZ = cosPitch + obj.yof2d
-    int model_min_y = -dash_model->bounds_cylinder->min_y;
+    const struct DashBoundsCylinder* bc = dashmodel_bounds_cylinder_const(dash_model);
+    int model_min_y = -bc->min_y;
     position.y = sinPitch + (model_min_y / 2) + obj->yof2d;
     position.z = cosPitch + obj->yof2d;
 
@@ -351,7 +333,7 @@ head_model_render(
     position.yaw = yan;
     position.roll = 0;
     position.x = 0;
-    int model_min_y = dash_model->bounds_cylinder->min_y;
+    int model_min_y = dashmodel_bounds_cylinder_const(dash_model)->min_y;
     position.y = sinPitch - (model_min_y / 2);
     position.z = cosPitch;
 
@@ -420,7 +402,8 @@ head_model_render_to_region(
     position.yaw = yan;
     position.roll = 0;
     position.x = 0;
-    int model_height = (dash_model->bounds_cylinder->max_y - dash_model->bounds_cylinder->min_y);
+    const struct DashBoundsCylinder* bc2 = dashmodel_bounds_cylinder_const(dash_model);
+    int model_height = (bc2->max_y - bc2->min_y);
     position.y = sinPitch - (height / 2) + (model_height / 2);
     position.z = cosPitch;
 

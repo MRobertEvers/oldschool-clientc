@@ -74,8 +74,9 @@ str_ascii_toupper(
     char* str,
     int len)
 {
-    for( int i = 0; str[i] != '\0' && i < len; i++ )
-        str[i] = toupper(str[i]);
+    /* Check i < len before str[i]: callers may pass a 1-byte buffer (e.g. &c, 1). */
+    for( int i = 0; i < len && str[i] != '\0'; i++ )
+        str[i] = (char)toupper((unsigned char)str[i]);
 }
 
 void

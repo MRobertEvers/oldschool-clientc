@@ -1,5 +1,8 @@
 #include "world_scenebuild.h"
 
+#include <stdlib.h>
+#include <string.h>
+
 #include "datatypes/appearances.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/dash_utils.h"
@@ -188,7 +191,7 @@ world_scenebuild_player_entity_set_appearance(
     uint16_t* appearances,
     uint16_t* colors)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
     struct Scene2Element* element =
         scene2_element_at(world->scene2, player->scene_element2.element_id);
     assert(element && "Element must be found");
@@ -196,7 +199,7 @@ world_scenebuild_player_entity_set_appearance(
     struct DashModel* dash_model = dashmodel_new();
     player_appearance_model(world->buildcachedat, appearances, colors, dash_model);
 
-    scene2_element_set_dash_model(element, dash_model);
+    scene2_element_set_dash_model(world->scene2, element, dash_model);
 }
 
 void
@@ -205,14 +208,14 @@ world_scenebuild_npc_entity_set_npc_type(
     int npc_entity_id,
     int npc_type)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
     struct Scene2Element* element =
         scene2_element_at(world->scene2, npc->scene_element2.element_id);
     assert(element && "Element must be found");
 
     struct DashModel* dash_model = dashmodel_new();
     npc_model(world->buildcachedat, npc_type, dash_model);
-    scene2_element_set_dash_model(element, dash_model);
+    scene2_element_set_dash_model(world->scene2, element, dash_model);
 
     struct CacheDatConfigNpc* npc_config = buildcachedat_get_npc(world->buildcachedat, npc_type);
     assert(npc_config && "Npc config must be found");
@@ -227,16 +230,46 @@ world_scenebuild_npc_entity_set_npc_type(
     npc->animation.walkanim_r = npc_config->walkanim_r;
     npc->animation.walkanim_l = npc_config->walkanim_l;
 
-    strncpy(npc->name.name, npc_config->name, sizeof(npc->name.name));
-    strncpy(npc->description.description, npc_config->desc, sizeof(npc->description.description));
-    npc->visible_level.level = npc_config->vislevel;
+    free(npc->name);
+    free(npc->description);
+    free(npc->actions);
+    npc->name = NULL;
+    npc->description = NULL;
+    npc->actions = NULL;
+    npc->action_count = 0;
 
-    for( int i = 0; i < 5; i++ )
+    npc->name = malloc(64);
+    if( npc->name )
     {
-        if( npc_config->op[i] )
+        strncpy(npc->name, npc_config->name, 63);
+        npc->name[63] = '\0';
+    }
+
+    npc->description = malloc(128);
+    if( npc->description )
+    {
+        strncpy(npc->description, npc_config->desc, 127);
+        npc->description[127] = '\0';
+    }
+
+    npc->actions = calloc(10, sizeof(struct EntityAction));
+    if( npc->actions )
+    {
+        for( int i = 0; i < 5; i++ )
         {
-            strncpy(npc->actions[i].name, npc_config->op[i], sizeof(npc->actions[i].name));
-            npc->actions[i].code = i;
+            if( npc_config->op[i] )
+            {
+                strncpy(
+                    npc->actions[i].name,
+                    npc_config->op[i],
+                    sizeof(npc->actions[i].name) - 1);
+                npc->actions[i].name[sizeof(npc->actions[i].name) - 1] = '\0';
+                npc->actions[i].code = (uint16_t)i;
+                if( npc->action_count < (uint8_t)(i + 1) )
+                    npc->action_count = (uint8_t)(i + 1);
+            }
         }
     }
+
+    npc->visible_level.level = npc_config->vislevel;
 }

@@ -3,6 +3,8 @@
 
 #include "tori_rs.h"
 
+#include <assert.h>
+
 static void
 set_name(
     struct LuaGameScript* out,
@@ -62,10 +64,23 @@ script_convert_to_lua(
             out->args, LuaGameType_NewUserData(item->args.u.npc_info.data));
         LuaGameType_VarTypeArrayPush(out->args, LuaGameType_NewInt(item->args.u.npc_info.length));
         break;
+    case SCRIPT_PKT_IF_SETTAB:
+        set_name(out, "rev245_2/pkt_if_settab.lua");
+        out->args = LuaGameType_NewVarTypeArraySpread(1);
+        LuaGameType_VarTypeArrayPush(
+            out->args, LuaGameType_NewUserData(item->args.u.lc245_packet.item));
+        break;
+    case SCRIPT_PKT_UPDATE_INV_FULL:
+        set_name(out, "rev245_2/pkt_update_inv_full.lua");
+        out->args = LuaGameType_NewVarTypeArraySpread(1);
+        LuaGameType_VarTypeArrayPush(
+            out->args, LuaGameType_NewUserData(item->args.u.lc245_packet.item));
+        break;
     default:
         assert(false && "Unknown script kind");
         break;
     }
+    out->lc245_packet_item_to_free = item->lc245_2_packet_to_free;
 }
 
 #endif

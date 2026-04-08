@@ -120,6 +120,7 @@ Platform2_Emscripten_SDL2_InitForSoft3D(
     platform->drawable_height = canvas_height;
     platform->game_screen_width = canvas_width;
     platform->game_screen_height = canvas_height;
+    platform->display_scale = 1.0f;
     platform->last_frame_time_ticks = SDL_GetTicks64();
 
     return true;
@@ -162,6 +163,7 @@ Platform2_Emscripten_SDL2_InitForWebGL1(
     platform->drawable_height = canvas_height;
     platform->game_screen_width = canvas_width;
     platform->game_screen_height = canvas_height;
+    platform->display_scale = 1.0f;
     platform->last_frame_time_ticks = SDL_GetTicks64();
 
     return true;
@@ -188,8 +190,7 @@ Platform2_Emscripten_SDL2_SyncCanvasCssSize(
      * not the clip fields.  We must do this before the size-change guard so it runs even
      * when the canvas is already the same size as the initial SDL window. */
     if( game_nullable && game_nullable->iface_view_port &&
-        game_nullable->iface_view_port->clip_right <= 0 &&
-        platform->game_screen_width > 0 )
+        game_nullable->iface_view_port->clip_right <= 0 && platform->game_screen_width > 0 )
     {
         struct DashViewPort* ivp = game_nullable->iface_view_port;
         ivp->clip_left = 0;

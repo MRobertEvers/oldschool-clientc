@@ -18,19 +18,13 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
     if( !game->world || !game->world->minimap )
         return;
 
-    if( game->minimap_static_uiscene_element_id >= 0 )
-    {
-        uiscene_element_release(game->ui_scene, game->minimap_static_uiscene_element_id);
-        game->minimap_static_uiscene_element_id = -1;
-    }
-
     struct Minimap* mm = game->world->minimap;
     struct MinimapRenderCommandBuffer* tile_cmds =
         minimap_commands_new(mm->width * mm->height + 64);
     if( !tile_cmds )
         return;
 
-    minimap_render_static_tiles(mm, 0, 0, mm->width, mm->height, 0, tile_cmds);
+    minimap_render_static_tiles(mm, 0, 0, mm->width, mm->height, tile_cmds);
 
     const int pw = mm->width * 4;
     const int ph = mm->height * 4;
@@ -43,7 +37,7 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
     memset(pixels, 0, (size_t)pw * (size_t)ph * sizeof(int));
 
     dash_minimap_raster_tile_commands(
-        mm, 0, tile_cmds, 0, 0, mm->width, mm->height, pixels, pw, pw, ph);
+        mm, tile_cmds, 0, 0, mm->width, mm->height, pixels, pw, pw, ph);
     minimap_commands_free(tile_cmds);
 
     struct DashSprite* sp = dashsprite_new_from_argb_owned((uint32_t*)pixels, pw, ph);
@@ -73,8 +67,19 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
     strncpy(el->name, "minimap_static", sizeof(el->name) - 1);
     el->name[sizeof(el->name) - 1] = '\0';
 
-    game->minimap_static_uiscene_element_id = id;
-    game->sys_minimap = mm;
+    int minimap_cmd = -1;
+    for( int i = 0; i < game->ui_root_buffer->component_count; i++ )
+    {
+        if( game->ui_root_buffer->components[i].type == UIELEM_BUILTIN_MINIMAP )
+        {
+            minimap_cmd = i;
+            break;
+        }
+    }
+    if( minimap_cmd >= 0 )
+    {
+        game->ui_root_buffer->components[minimap_cmd].u.minimap.scene_id = id;
+    }
 }
 
 #endif

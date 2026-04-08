@@ -214,10 +214,12 @@ raster_linear_opaque_blend_lerp8(
     int shade)
 {
     int idx[8];
+    assert(texture_shift == 7 || texture_shift == 6);
+    int vm = texture_shift == 7 ? 0x3f80 : 0x0fc0;
     for( int i = 0; i < 8; i++ )
     {
         int u = u_scan >> texture_shift;
-        int v = v_scan & 0x3f80;
+        int v = v_scan & vm;
         idx[i] = u + v;
         u_scan += step_u;
         v_scan += step_v;

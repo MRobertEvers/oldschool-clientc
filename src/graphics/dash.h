@@ -1,12 +1,17 @@
 #ifndef DASH_H
 #define DASH_H
 
+#include "dash_alpha.h"
 #include "dash_anim.h"
+#include "dash_faceint.h"
+#include "dash_hsl16.h"
 #include "dash_math.h"
+#include "dash_vertexint.h"
 #include "dashmap.h"
 #include "lighting.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 struct DashBoundsCylinder
@@ -40,16 +45,7 @@ struct DashAABB
     int max_screen_y;
 };
 
-struct DashModelLighting
-{
-    int* face_colors_hsl_a;
-
-    // null if mode is LIGHTING_FLAT
-    int* face_colors_hsl_b;
-
-    // null if mode is LIGHTING_FLAT
-    int* face_colors_hsl_c;
-};
+struct DashModel;
 
 /**
  * Shared lighting normals are used for roofs and
@@ -99,57 +95,14 @@ struct DashModelNormals
     int lighting_face_normals_count;
 };
 
+typedef uint8_t boneint_t;
+
 struct DashModelBones
 {
     int bones_count;
     // Array of arrays vertices... AKA arrays of bones.
-    int** bones;
-    int* bones_sizes;
-};
-
-struct DashModel
-{
-    bool loaded;
-    bool has_textures;
-    int _dbg_ids[10];
-    int vertex_count;
-    int* vertices_x;
-    int* vertices_y;
-    int* vertices_z;
-
-    /**
-     * Only used if animated.
-     */
-    int* original_vertices_x;
-    int* original_vertices_y;
-    int* original_vertices_z;
-
-    int face_count;
-    int* face_indices_a;
-    int* face_indices_b;
-    int* face_indices_c;
-    int* face_alphas;
-    int* original_face_alphas;
-    int* face_infos;
-    int* face_priorities;
-    int* face_colors;
-
-    int textured_face_count;
-
-    // Used in type 2 >
-    int* textured_p_coordinate;
-    int* textured_m_coordinate;
-    int* textured_n_coordinate;
-    int* face_textures;
-    int* face_texture_coords;
-
-    struct DashModelNormals* normals;
-    struct DashModelNormals* merged_normals;
-
-    struct DashModelLighting* lighting;
-    struct DashModelBones* vertex_bones;
-    struct DashModelBones* face_bones;
-    struct DashBoundsCylinder* bounds_cylinder;
+    boneint_t** bones;
+    boneint_t* bones_sizes;
 };
 
 enum DashTextureAnimation
@@ -437,19 +390,10 @@ dash3d_projected_model_contains(
 void //
 dash3d_calculate_bounds_cylinder( //
     struct DashBoundsCylinder* bounds_cylinder,
-    int num_vertices, int* vertex_x, int* vertex_y, int* vertex_z);
+    int num_vertices, vertexint_t* vertex_x, vertexint_t* vertex_y, vertexint_t* vertex_z);
 
 void //
-dash3d_calculate_vertex_normals(
-    struct DashModelNormals* normals,
-    int face_count,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
-    int vertex_count,
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z);
+dashmodel_calculate_vertex_normals(struct DashModel* model);
 
 void //
 dash3d_add_texture(
@@ -469,21 +413,278 @@ void
 dashposition_free(struct DashPosition* position);
 
 struct DashModel*
+dashmodel_fast_new(void);
+
+struct DashModel*
+dashmodelfull_new(void);
+
+struct DashModel*
 dashmodel_new(void);
 
 void
 dashmodel_free(struct DashModel* model);
+
+bool
+dashmodel_is_loaded(const struct DashModel* m);
+
+/** Full models participate in CPU lighting / sharelight; Fast terrain does not. */
+bool
+dashmodel_is_lightable(const struct DashModel* m);
+
+void
+dashmodel_set_loaded(struct DashModel* m, bool v);
+
+bool
+dashmodel_has_textures(const struct DashModel* m);
+
+void
+dashmodel_set_has_textures(struct DashModel* m, bool v);
+
+int
+dashmodel_vertex_count(const struct DashModel* m);
+
+int
+dashmodel_face_count(const struct DashModel* m);
+
+vertexint_t*
+dashmodel_vertices_x(struct DashModel* m);
+
+vertexint_t*
+dashmodel_vertices_y(struct DashModel* m);
+
+vertexint_t*
+dashmodel_vertices_z(struct DashModel* m);
+
+const vertexint_t*
+dashmodel_vertices_x_const(const struct DashModel* m);
+
+const vertexint_t*
+dashmodel_vertices_y_const(const struct DashModel* m);
+
+const vertexint_t*
+dashmodel_vertices_z_const(const struct DashModel* m);
+
+hsl16_t*
+dashmodel_face_colors_a(struct DashModel* m);
+
+hsl16_t*
+dashmodel_face_colors_b(struct DashModel* m);
+
+hsl16_t*
+dashmodel_face_colors_c(struct DashModel* m);
+
+const hsl16_t*
+dashmodel_face_colors_a_const(const struct DashModel* m);
+
+const hsl16_t*
+dashmodel_face_colors_b_const(const struct DashModel* m);
+
+const hsl16_t*
+dashmodel_face_colors_c_const(const struct DashModel* m);
+
+faceint_t*
+dashmodel_face_indices_a(struct DashModel* m);
+
+faceint_t*
+dashmodel_face_indices_b(struct DashModel* m);
+
+faceint_t*
+dashmodel_face_indices_c(struct DashModel* m);
+
+const faceint_t*
+dashmodel_face_indices_a_const(const struct DashModel* m);
+
+const faceint_t*
+dashmodel_face_indices_b_const(const struct DashModel* m);
+
+const faceint_t*
+dashmodel_face_indices_c_const(const struct DashModel* m);
+
+faceint_t*
+dashmodel_face_textures(struct DashModel* m);
+
+const faceint_t*
+dashmodel_face_textures_const(const struct DashModel* m);
+
+struct DashBoundsCylinder*
+dashmodel_bounds_cylinder(struct DashModel* m);
+
+const struct DashBoundsCylinder*
+dashmodel_bounds_cylinder_const(const struct DashModel* m);
+
+alphaint_t*
+dashmodel_face_alphas(struct DashModel* m);
+
+const alphaint_t*
+dashmodel_face_alphas_const(const struct DashModel* m);
+
+alphaint_t*
+dashmodel_original_face_alphas(struct DashModel* m);
+
+int*
+dashmodel_face_infos(struct DashModel* m);
+
+const int*
+dashmodel_face_infos_const(const struct DashModel* m);
+
+/** Full-only: allocates face_infos (zeroed) when missing (e.g. sharelight face hiding). */
+int*
+dashmodel_face_infos_ensure_zero(struct DashModel* m);
+
+int*
+dashmodel_face_priorities(struct DashModel* m);
+
+hsl16_t*
+dashmodel_face_colors_flat(struct DashModel* m);
+
+vertexint_t*
+dashmodel_original_vertices_x(struct DashModel* m);
+
+vertexint_t*
+dashmodel_original_vertices_y(struct DashModel* m);
+
+vertexint_t*
+dashmodel_original_vertices_z(struct DashModel* m);
+
+int
+dashmodel_textured_face_count(const struct DashModel* m);
+
+faceint_t*
+dashmodel_textured_p_coordinate(struct DashModel* m);
+
+faceint_t*
+dashmodel_textured_m_coordinate(struct DashModel* m);
+
+faceint_t*
+dashmodel_textured_n_coordinate(struct DashModel* m);
+
+const faceint_t*
+dashmodel_textured_p_coordinate_const(const struct DashModel* m);
+
+const faceint_t*
+dashmodel_textured_m_coordinate_const(const struct DashModel* m);
+
+const faceint_t*
+dashmodel_textured_n_coordinate_const(const struct DashModel* m);
+
+faceint_t*
+dashmodel_face_texture_coords(struct DashModel* m);
+
+const faceint_t*
+dashmodel_face_texture_coords_const(const struct DashModel* m);
+
+struct DashModelNormals*
+dashmodel_normals(struct DashModel* m);
+
+struct DashModelNormals*
+dashmodel_merged_normals(struct DashModel* m);
+
+struct DashModelBones*
+dashmodel_vertex_bones(struct DashModel* m);
+
+struct DashModelBones*
+dashmodel_face_bones(struct DashModel* m);
+
+void
+dashmodel_set_vertices_i16(
+    struct DashModel* m,
+    int count,
+    const int16_t* src_x,
+    const int16_t* src_y,
+    const int16_t* src_z);
+
+void
+dashmodel_set_vertices_i32(
+    struct DashModel* m,
+    int count,
+    const int32_t* src_x,
+    const int32_t* src_y,
+    const int32_t* src_z);
+
+void
+dashmodel_set_face_indices_i16(
+    struct DashModel* m,
+    int count,
+    const int16_t* src_a,
+    const int16_t* src_b,
+    const int16_t* src_c);
+
+void
+dashmodel_set_face_indices_i32(
+    struct DashModel* m,
+    int count,
+    const int32_t* src_a,
+    const int32_t* src_b,
+    const int32_t* src_c);
+
+void
+dashmodel_set_face_colors_i16(
+    struct DashModel* m,
+    const uint16_t* src_a,
+    const uint16_t* src_b,
+    const uint16_t* src_c);
+
+void
+dashmodel_set_face_colors_i32(
+    struct DashModel* m,
+    const int32_t* src_a,
+    const int32_t* src_b,
+    const int32_t* src_c);
+
+void
+dashmodel_set_face_textures_i16(struct DashModel* m, const int16_t* src_textures, int count);
+
+void
+dashmodel_set_face_textures_i32(struct DashModel* m, const int32_t* src_textures, int count);
+
+void
+dashmodel_set_face_alphas(struct DashModel* m, const alphaint_t* src, int count);
+
+void
+dashmodel_set_face_infos(struct DashModel* m, const int* infos, int count);
+
+void
+dashmodel_set_face_priorities(struct DashModel* m, const int* priorities, int count);
+
+void
+dashmodel_set_face_colors_flat(struct DashModel* m, const hsl16_t* src, int count);
+
+void
+dashmodel_set_texture_coords(
+    struct DashModel* m,
+    int textured_face_count,
+    const faceint_t* p,
+    const faceint_t* m_coord,
+    const faceint_t* n,
+    const faceint_t* face_texture_coords,
+    int face_count);
+
+void
+dashmodel_set_bounds_cylinder(struct DashModel* m);
+
+void
+dashmodel_alloc_lit_face_colors_zero(struct DashModel* m, int face_count);
+
+/** Sum of heap bytes owned by the model (struct, arrays, normals, bones, bounds). */
+size_t
+dashmodel_heap_bytes(const struct DashModel* model);
+
+void
+dashmodel_alloc_normals(struct DashModel* model);
+
+void
+dashmodel_free_normals(struct DashModel* model);
 
 struct DashModelNormals* //
 dashmodel_normals_new(
     int vertex_count,
     int face_count);
 
+void
+dashmodel_normals_free(struct DashModelNormals* normals);
+
 struct DashModelNormals* //
 dashmodel_normals_new_copy(struct DashModelNormals* normals);
-
-struct DashModelLighting* //
-dashmodel_lighting_new(int face_count);
 
 struct DashBoundsCylinder* //
 dashmodel_bounds_cylinder_new(void);
@@ -833,6 +1034,35 @@ dash2d_blit_rotated_ex(
     }
 }
 
+/** Copy `src_w`×`src_h` from `src_buffer` (row-major, pitch `src_stride`) into `dst_buffer` at
+ *  (`dst_x`, `dst_y`), pitch `dst_stride`. Clips to [0, `dst_clip_w`) × [0, `dst_clip_h`). */
+static inline void
+dash2d_copy_argb_buffer(
+    const int* src_buffer,
+    int src_w,
+    int src_h,
+    int src_stride,
+    int* dst_buffer,
+    int dst_stride,
+    int dst_x,
+    int dst_y,
+    int dst_clip_w,
+    int dst_clip_h)
+{
+    for( int y = 0; y < src_h; y++ )
+    {
+        int dy = y + dst_y;
+        if( dy < 0 || dy >= dst_clip_h )
+            continue;
+        for( int x = 0; x < src_w; x++ )
+        {
+            int dx = x + dst_x;
+            if( dx >= 0 && dx < dst_clip_w )
+                dst_buffer[dy * dst_stride + dx] = src_buffer[y * src_stride + x];
+        }
+    }
+}
+
 void
 dash2d_blit_rotated(
     struct DashSprite* sprite,
@@ -851,4 +1081,5 @@ dashframe_free(struct DashFrame* frame);
 
 void
 dashframemap_free(struct DashFramemap* framemap);
+
 #endif

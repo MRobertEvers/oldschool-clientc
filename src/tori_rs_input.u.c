@@ -3,6 +3,44 @@
 
 #include "tori_rs.h"
 
+static void
+game_map_soft3d_window_mouse_to_buffer(struct GGame* game, int* px, int* py)
+{
+    int x = *px;
+    int y = *py;
+    int dx = game->soft3d_present_dst_x;
+    int dy = game->soft3d_present_dst_y;
+    int dw = game->soft3d_present_dst_w;
+    int dh = game->soft3d_present_dst_h;
+    int bw = game->soft3d_buffer_w;
+    int bh = game->soft3d_buffer_h;
+
+    if( dw <= 0 || dh <= 0 || bw <= 0 || bh <= 0 )
+        return;
+
+    x -= dx;
+    y -= dy;
+    if( x < 0 || y < 0 || x >= dw || y >= dh )
+    {
+        *px = -1;
+        *py = -1;
+        return;
+    }
+
+    long long nx = (long long)x * (long long)bw;
+    long long ny = (long long)y * (long long)bh;
+    *px = (int)(nx / (long long)dw);
+    *py = (int)(ny / (long long)dh);
+    if( *px < 0 )
+        *px = 0;
+    if( *py < 0 )
+        *py = 0;
+    if( *px >= bw )
+        *px = bw - 1;
+    if( *py >= bh )
+        *py = bh - 1;
+}
+
 void
 LibToriRS_GameProcessInput(
     struct GGame* game,
@@ -26,12 +64,12 @@ LibToriRS_GameProcessInput(
 
     for( int i = 0; i < time_quanta; i++ )
     {
-        if( game->mouse_cycle < 400 && game->mouse_cycle != -1 )
-        {
-            game->mouse_cycle += 20;
-            if( game->mouse_cycle >= 400 )
-                game->mouse_cycle = -1;
-        }
+        // if( game->mouse_cycle < 400 && game->mouse_cycle != -1 )
+        // {
+        //     game->mouse_cycle += 20;
+        //     if( game->mouse_cycle >= 400 )
+        //         game->mouse_cycle = -1;
+        // }
 
         if( game_input_keydown_or_pressed(input, TORIRSK_W) )
         {
@@ -130,6 +168,10 @@ LibToriRS_GameProcessInput(
 
     game->mouse_x = input->mouse_state.x;
     game->mouse_y = input->mouse_state.y;
+    if( game->soft3d_mouse_from_window )
+    {
+        game_map_soft3d_window_mouse_to_buffer(game, &game->mouse_x, &game->mouse_y);
+    }
 
     game->mouse_clicked = false;
     game->mouse_clicked_right = false;
@@ -140,19 +182,28 @@ LibToriRS_GameProcessInput(
         {
         case TORIRSEV2_CLICK:
         {
-            if( input->events[i].click.button == TORIRSM_LEFT )
+            int button = input->events[i].click.button;
+            if( button == TORIRSM_LEFT )
             {
+                int cx = input->events[i].click.start_mouse_x;
+                int cy = input->events[i].click.start_mouse_y;
+                if( game->soft3d_mouse_from_window )
+                    game_map_soft3d_window_mouse_to_buffer(game, &cx, &cy);
                 game->mouse_clicked = true;
                 game->mouse_cycle = 0;
-                game->mouse_clicked_x = input->events[i].click.start_mouse_x;
-                game->mouse_clicked_y = input->events[i].click.start_mouse_y;
+                game->mouse_clicked_x = cx;
+                game->mouse_clicked_y = cy;
             }
-            else if( input->events[i].click.button == TORIRSM_RIGHT )
+            else if( button == TORIRSM_RIGHT )
             {
+                int cx = input->events[i].click.start_mouse_x;
+                int cy = input->events[i].click.start_mouse_y;
+                if( game->soft3d_mouse_from_window )
+                    game_map_soft3d_window_mouse_to_buffer(game, &cx, &cy);
                 game->mouse_clicked_right = true;
                 game->mouse_cycle = 0;
-                game->mouse_clicked_right_x = input->events[i].click.start_mouse_x;
-                game->mouse_clicked_right_y = input->events[i].click.start_mouse_y;
+                game->mouse_clicked_right_x = cx;
+                game->mouse_clicked_right_y = cy;
             }
         }
         break;

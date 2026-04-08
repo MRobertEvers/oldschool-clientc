@@ -33,6 +33,8 @@ struct UISceneElement
     char name[64];
     struct DashSprite** dash_sprites;
     int dash_sprites_count;
+    /** If true, dash_sprites are not owned by this element (e.g. pointers into another element). */
+    bool dash_sprites_borrowed;
 };
 
 #define UISCENE_FONT_MAX 16
@@ -68,6 +70,8 @@ struct UIScene
 struct UIScene*
 uiscene_new(int size);
 
+/** Frees scene elements and every non-NULL DashPixFont in font slots (UIScene owns fonts). Callers
+ * replacing a scene must clear font pointers they keep (see lua_ui_reset_uiscene_and_refs). */
 void
 uiscene_free(struct UIScene* uiscene);
 
@@ -85,6 +89,13 @@ struct UISceneElement*
 uiscene_element_at(
     struct UIScene* uiscene,
     int element_id);
+
+/** First active element whose `name` matches; sprite at atlas_index or NULL. */
+struct DashSprite*
+uiscene_sprite_by_name(
+    struct UIScene* uiscene,
+    const char* name,
+    int atlas_index);
 
 bool
 uiscene_eventbuffer_is_empty(struct UIScene* uiscene);
@@ -106,10 +117,14 @@ uiscene_font_add(
     struct DashPixFont* font);
 
 struct DashPixFont*
-uiscene_font_get(struct UIScene* uiscene, int font_id);
+uiscene_font_get(
+    struct UIScene* uiscene,
+    int font_id);
 
 /** Returns font id or -1 if not found. */
 int
-uiscene_font_find_id(struct UIScene* uiscene, const char* name);
+uiscene_font_find_id(
+    struct UIScene* uiscene,
+    const char* name);
 
 #endif

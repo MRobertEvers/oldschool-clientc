@@ -2,6 +2,7 @@
 #define WORLD_H
 
 #include "decor_buildmap.h"
+#include "entity_vec.h"
 #include "game_entity.h"
 #include "osrs/blendmap.h"
 #include "osrs/buildcachedat.h"
@@ -17,23 +18,25 @@
 #include "osrs/sharelight_map.h"
 #include "osrs/terrain_shapemap.h"
 
+#include <stdbool.h>
+#include <string.h>
+
 #define MAX_PLAYERS 2048
 #define MAX_NPCS 8192
 
-#define MAX_MAP_BUILD_LOC_ENTITIES 16384
-#define MAX_MAP_BUILD_TILE_ENTITIES 65535
+#define MAX_MAP_BUILD_LOC_ENTITIES (16384 >> 1)
+#define MAX_MAP_BUILD_TILE_ENTITIES (50000)
 
 struct World
 {
-    struct PlayerEntity players[MAX_PLAYERS];
-    struct NPCEntity npcs[MAX_NPCS];
-    struct MapBuildLocEntity map_build_loc_entities[MAX_MAP_BUILD_LOC_ENTITIES];
+    struct EntityVec players;
+    struct EntityVec npcs;
+    struct EntityVec map_build_loc_entities;
+    struct EntityVec map_build_tile_entities;
 
-    struct MapBuildTileEntity map_build_tile_entities[MAX_MAP_BUILD_TILE_ENTITIES];
-
-    int active_players[MAX_PLAYERS];
-    int active_npcs[MAX_NPCS];
-    int active_loc_entities[MAX_MAP_BUILD_LOC_ENTITIES];
+    int32_t active_players[MAX_PLAYERS];
+    int32_t active_npcs[MAX_NPCS];
+    int32_t active_loc_entities[MAX_MAP_BUILD_LOC_ENTITIES];
     int active_player_count;
     int active_npc_count;
     int active_loc_entity_count;
@@ -47,7 +50,7 @@ struct World
 
     // Minimap
     struct Minimap* minimap;
-    // ScenePool
+    /** Scene2 is owned by the caller (e.g. GGame); world never frees it. */
     struct Scene2* scene2;
 
     // Todo: How to organize, these are only used at build time.
@@ -79,7 +82,9 @@ struct World
 };
 
 struct World*
-world_new(struct BuildCacheDat* buildcachedat);
+world_new(
+    struct BuildCacheDat* buildcachedat,
+    struct Scene2* scene2_shared);
 
 void
 world_free(struct World* world);
@@ -270,5 +275,75 @@ world_map_build_loc_entity_push_action(
     int map_build_loc_entity_id,
     int code,
     char* action);
+
+static inline struct PlayerEntity*
+world_player(
+    struct World* world,
+    int id)
+{
+    return ENTITY_VEC_AT(world->players, struct PlayerEntity, id);
+}
+
+static inline struct PlayerEntity*
+world_player_ensure(
+    struct World* world,
+    int id)
+{
+    struct PlayerEntity* p = ENTITY_VEC_ENSURE(world->players, struct PlayerEntity, id);
+    if( !p->alive )
+        p->scene_element2.element_id = -1;
+    return p;
+}
+
+static inline struct NPCEntity*
+world_npc(
+    struct World* world,
+    int id)
+{
+    return ENTITY_VEC_AT(world->npcs, struct NPCEntity, id);
+}
+
+static inline struct NPCEntity*
+world_npc_ensure(
+    struct World* world,
+    int id)
+{
+    struct NPCEntity* n = ENTITY_VEC_ENSURE(world->npcs, struct NPCEntity, id);
+    if( !n->alive )
+        n->scene_element2.element_id = -1;
+    return n;
+}
+
+static inline struct MapBuildLocEntity*
+world_loc_entity(
+    struct World* world,
+    int id)
+{
+    return ENTITY_VEC_AT(world->map_build_loc_entities, struct MapBuildLocEntity, id);
+}
+
+static inline struct MapBuildLocEntity*
+world_loc_entity_ensure(
+    struct World* world,
+    int id)
+{
+    return ENTITY_VEC_ENSURE(world->map_build_loc_entities, struct MapBuildLocEntity, id);
+}
+
+static inline struct MapBuildTileEntity*
+world_map_build_tile_entity(
+    struct World* world,
+    int id)
+{
+    struct MapBuildTileEntity* e =
+        ENTITY_VEC_ENSURE(world->map_build_tile_entities, struct MapBuildTileEntity, id);
+    if( e->entity_id != id )
+    {
+        memset(e, 0, sizeof(*e));
+        e->scene_element.element_id = -1;
+        e->entity_id = id;
+    }
+    return e;
+}
 
 #endif

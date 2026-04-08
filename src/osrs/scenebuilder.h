@@ -5,6 +5,7 @@
 #include "datastruct/hmap.h"
 #include "osrs/game.h"
 #include "osrs/minimap.h"
+#include "osrs/scene2.h"
 #include "osrs/rscache/tables/config_floortype.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/frame.h"
@@ -35,7 +36,8 @@ scenebuilder_load_from_buildcachedat(
     int wz_ne,
     int size_x,
     int size_z,
-    struct BuildCacheDat* buildcachedat);
+    struct BuildCacheDat* buildcachedat,
+    struct Scene2* texture_scene2);
 
 struct Scene*
 scenebuilder_load_from_buildcache(

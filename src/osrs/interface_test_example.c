@@ -1,10 +1,33 @@
 // Example: Creating and displaying a simple interface programmatically
 
-#include "osrs/game.h"
+#include "graphics/dash.h"
 #include "osrs/buildcachedat.h"
+#include "osrs/game.h"
+#include "osrs/revconfig/uiscene.h"
 #include "osrs/rscache/tables_dat/config_component.h"
 #include <stdlib.h>
 #include <string.h>
+
+static int
+test_uiscene_attach_sprite(struct GGame* game, struct DashSprite* sprite)
+{
+    if( !game || !game->ui_scene || !sprite )
+        return -1;
+    int eid = uiscene_element_acquire(game->ui_scene, -1);
+    if( eid < 0 )
+        return -1;
+    struct UISceneElement* el = uiscene_element_at(game->ui_scene, eid);
+    if( !el )
+        return -1;
+    struct DashSprite** row = malloc(sizeof(struct DashSprite*));
+    if( !row )
+        return -1;
+    row[0] = sprite;
+    el->dash_sprites = row;
+    el->dash_sprites_count = 1;
+    el->dash_sprites_borrowed = false;
+    return eid;
+}
 
 // Helper function to create a simple test interface
 void create_test_interface(struct GGame* game)
@@ -115,11 +138,11 @@ void test_interface_rendering(struct GGame* game)
     create_test_interface(game);
     
     // 2. Register compass sprite for the icon component
-    if (game->sprite_compass) {
-        buildcachedat_add_component_sprite(
-            game->buildcachedat, 
-            "compass", 
-            game->sprite_compass);
+    if( game->sprite_compass )
+    {
+        int eid = test_uiscene_attach_sprite(game, game->sprite_compass);
+        if( eid >= 0 )
+            buildcachedat_add_component_sprite_ref(game->buildcachedat, "compass", eid);
     }
     
     // 3. Display the interface by setting its ID

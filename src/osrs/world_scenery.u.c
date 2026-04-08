@@ -1,6 +1,7 @@
 #ifndef WORLD_SCENERY_U_C
 #define WORLD_SCENERY_U_C
 
+#include "contour_ground.h"
 #include "dash_utils.h"
 #include "model_transforms.h"
 #include "world.h"
@@ -81,10 +82,11 @@ scenery_element_position_init(
     int tile_x = entity_scene_coord->sx;
     int tile_z = entity_scene_coord->sz;
     int tile_level = entity_scene_coord->slevel;
-    scene_element->dash_position = dashposition_new();
-    scene_element->dash_position->x = 128 * tile_x + 64 * (size_x);
-    scene_element->dash_position->z = 128 * tile_z + 64 * (size_z);
-    scene_element->dash_position->y = heights.height_center;
+    scene2_element_set_dash_position_ptr(scene_element, dashposition_new());
+    struct DashPosition* dp = scene2_element_dash_position(scene_element);
+    dp->x = 128 * tile_x + 64 * (size_x);
+    dp->z = 128 * tile_z + 64 * (size_z);
+    dp->y = heights.height_center;
 }
 
 /**
@@ -148,22 +150,72 @@ apply_contour_ground(
     struct EntitySceneCoord* entity_scene_coord,
     struct CacheModel* model,
     int contour_ground_type,
-    int contour_ground_param)
+    int contour_ground_param,
+    int size_x,
+    int size_z)
 {
-    if( contour_ground_type == 1 )
-    {
-        struct HeightmapHeights heights = { 0 };
-        heightmap_get_heights_sized(
-            world->heightmap,
-            entity_scene_coord->sx,
-            entity_scene_coord->sz,
-            entity_scene_coord->slevel,
-            1,
-            1,
-            &heights);
+    struct Heightmap* hm = world->heightmap;
+    int sl = (int)entity_scene_coord->slevel;
 
-        model_transform_hillskew(
-            model, heights.sw_height, heights.se_height, heights.ne_height, heights.nw_height);
+    if( (contour_ground_type == 4 || contour_ground_type == 5) && sl + 1 >= hm->levels )
+    {
+        return;
+    }
+
+    /* Scene XZ origin = footprint center; size_x/z must match scenery_element_position_init. */
+    int scene_x = (int)entity_scene_coord->sx * 128 + 64 * size_x;
+    int scene_z = (int)entity_scene_coord->sz * 128 + 64 * size_z;
+    struct HeightmapHeights place_heights = { 0 };
+    heightmap_get_heights_sized(
+        hm,
+        (int)entity_scene_coord->sx,
+        (int)entity_scene_coord->sz,
+        sl,
+        size_x,
+        size_z,
+        &place_heights);
+    int scene_height = place_heights.height_center;
+
+    int hm_ax = hm->size_x;
+    int hm_az = hm->size_z;
+    int above_ax = (contour_ground_type == 4 || contour_ground_type == 5) ? hm_ax : 0;
+    int above_az = (contour_ground_type == 4 || contour_ground_type == 5) ? hm_az : 0;
+
+    struct ContourGround cg;
+    if( !contour_ground_init(&cg,
+            contour_ground_type,
+            contour_ground_param,
+            hm_ax,
+            hm_az,
+            above_ax,
+            above_az,
+            model,
+            model->vertex_count,
+            scene_x,
+            scene_z,
+            scene_height,
+            sl) )
+    {
+        return;
+    }
+
+    struct ContourGroundCommand cmd;
+    while( contour_ground_next(&cg, &cmd) )
+    {
+        switch( cmd.kind )
+        {
+        case CONTOUR_CMD_FETCH_HEIGHT:
+            contour_ground_provide(
+                &cg, heightmap_get_interpolated(hm, cmd.draw_x, cmd.draw_z, cmd.slevel));
+            break;
+        case CONTOUR_CMD_FETCH_HEIGHT_ABOVE:
+            contour_ground_provide(
+                &cg, heightmap_get_interpolated(hm, cmd.draw_x, cmd.draw_z, sl + 1));
+            break;
+        case CONTOUR_CMD_SET_Y:
+            model->vertices_y[cmd.vertex_index] = cmd.contour_y;
+            break;
+        }
     }
 }
 
@@ -174,6 +226,8 @@ world_load_scenery_model(
     struct EntitySceneElement* entity_scene_element,
     int shape_select,
     int rotation,
+    int size_x,
+    int size_z,
     struct CacheConfigLocation* config_loc)
 {
     struct CacheModel* model = NULL;
@@ -260,25 +314,28 @@ world_load_scenery_model(
         entity_scene_coord,
         model,
         config_loc->contour_ground_type,
-        config_loc->contour_ground_param);
+        config_loc->contour_ground_param,
+        size_x,
+        size_z);
 
     dash_model = dashmodel_new_from_cache_model(model);
     model_free(model);
 
-    _light_model_default(dash_model, config_loc->contrast, config_loc->ambient);
-
     scene_element = scene2_element_at(world->scene2, entity_scene_element->element_id);
 
-    scene_element->dash_model = dash_model;
+    scene2_element_set_dash_model(world->scene2, scene_element, dash_model);
 }
 
 static int
 scenery_element_acquire(
     struct World* world,
-    int entity_id)
+    int entity_id,
+    bool animated)
 {
-    return scene2_element_acquire(
-        world->scene2, entity_unified_id(ENTITY_KIND_MAP_BUILD_LOC, entity_id));
+    int parent = (int)entity_unified_id(ENTITY_KIND_MAP_BUILD_LOC, entity_id);
+    if( animated )
+        return scene2_element_acquire_full(world->scene2, parent);
+    return scene2_element_acquire_fast(world->scene2, parent);
 }
 
 static void
@@ -312,7 +369,7 @@ scenery_add_wall_single(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -323,6 +380,8 @@ scenery_add_wall_single(
         &entity->scene_element,
         LOC_SHAPE_WALL_SINGLE_SIDE,
         rotation,
+        1,
+        1,
         config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
@@ -353,19 +412,17 @@ scenery_add_wall_single(
             50);
     }
 
-    if( config_loc->sharelight )
-    {
-        sharelight_map_push(
-            world->sharelight_map,
-            entity->scene_coord.sx,
-            entity->scene_coord.sz,
-            entity->scene_coord.slevel,
-            entity->scene_element.element_id,
-            1,
-            1,
-            config_loc->ambient,
-            config_loc->contrast);
-    }
+    sharelight_map_push(
+        world->sharelight_map,
+        config_loc->sharelight != 0,
+        entity->scene_coord.sx,
+        entity->scene_coord.sz,
+        entity->scene_coord.slevel,
+        entity->scene_element.element_id,
+        1,
+        1,
+        config_loc->ambient,
+        config_loc->contrast);
 }
 
 static void
@@ -375,7 +432,7 @@ scenery_add_wall_tri_corner(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -386,6 +443,8 @@ scenery_add_wall_tri_corner(
         &entity->scene_element,
         LOC_SHAPE_WALL_TRI_CORNER,
         rotation,
+        1,
+        1,
         config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
@@ -415,19 +474,17 @@ scenery_add_wall_tri_corner(
             orientation,
             50);
 
-    if( config_loc->sharelight )
-    {
-        sharelight_map_push(
-            world->sharelight_map,
-            entity->scene_coord.sx,
-            entity->scene_coord.sz,
-            entity->scene_coord.slevel,
-            entity->scene_element.element_id,
-            1,
-            1,
-            config_loc->ambient,
-            config_loc->contrast);
-    }
+    sharelight_map_push(
+        world->sharelight_map,
+        config_loc->sharelight != 0,
+        entity->scene_coord.sx,
+        entity->scene_coord.sz,
+        entity->scene_coord.slevel,
+        entity->scene_element.element_id,
+        1,
+        1,
+        config_loc->ambient,
+        config_loc->contrast);
 }
 
 static void
@@ -437,8 +494,8 @@ scenery_add_wall_two_sides(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
-    entity->scene_element_two.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element_two.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int orientation = map_tile->orientation;
     // +4 for Mirrored
@@ -453,6 +510,8 @@ scenery_add_wall_two_sides(
         &entity->scene_element,
         LOC_SHAPE_WALL_TWO_SIDES,
         rotation,
+        1,
+        1,
         config_loc);
     world_load_scenery_model(
         world,
@@ -460,6 +519,8 @@ scenery_add_wall_two_sides(
         &entity->scene_element_two,
         LOC_SHAPE_WALL_TWO_SIDES,
         next_rotation,
+        1,
+        1,
         config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element_two, 1, 1);
@@ -488,29 +549,29 @@ scenery_add_wall_two_sides(
         entity->scene_coord.slevel,
         config_loc->wall_width);
 
-    if( config_loc->sharelight )
-    {
-        sharelight_map_push(
-            world->sharelight_map,
-            entity->scene_coord.sx,
-            entity->scene_coord.sz,
-            entity->scene_coord.slevel,
-            entity->scene_element.element_id,
-            1,
-            1,
-            config_loc->ambient,
-            config_loc->contrast);
-        sharelight_map_push(
-            world->sharelight_map,
-            entity->scene_coord.sx,
-            entity->scene_coord.sz,
-            entity->scene_coord.slevel,
-            entity->scene_element_two.element_id,
-            1,
-            1,
-            config_loc->ambient,
-            config_loc->contrast);
-    }
+    sharelight_map_push(
+        world->sharelight_map,
+        config_loc->sharelight != 0,
+        entity->scene_coord.sx,
+        entity->scene_coord.sz,
+        entity->scene_coord.slevel,
+        entity->scene_element.element_id,
+        1,
+        1,
+        config_loc->ambient,
+        config_loc->contrast);
+
+    sharelight_map_push(
+        world->sharelight_map,
+        config_loc->sharelight != 0,
+        entity->scene_coord.sx,
+        entity->scene_coord.sz,
+        entity->scene_coord.slevel,
+        entity->scene_element_two.element_id,
+        1,
+        1,
+        config_loc->ambient,
+        config_loc->contrast);
 }
 
 static void
@@ -520,7 +581,7 @@ scenery_add_wall_rect_corner(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -531,6 +592,8 @@ scenery_add_wall_rect_corner(
         &entity->scene_element,
         LOC_SHAPE_WALL_RECT_CORNER,
         rotation,
+        1,
+        1,
         config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
@@ -559,19 +622,17 @@ scenery_add_wall_rect_corner(
             orientation,
             50);
 
-    if( config_loc->sharelight )
-    {
-        sharelight_map_push(
-            world->sharelight_map,
-            entity->scene_coord.sx,
-            entity->scene_coord.sz,
-            entity->scene_coord.slevel,
-            entity->scene_element.element_id,
-            1,
-            1,
-            config_loc->ambient,
-            config_loc->contrast);
-    }
+    sharelight_map_push(
+        world->sharelight_map,
+        config_loc->sharelight != 0,
+        entity->scene_coord.sx,
+        entity->scene_coord.sz,
+        entity->scene_coord.slevel,
+        entity->scene_element.element_id,
+        1,
+        1,
+        config_loc->ambient,
+        config_loc->contrast);
 }
 
 static void
@@ -581,7 +642,7 @@ scenery_add_wall_decor_inside(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -592,6 +653,8 @@ scenery_add_wall_decor_inside(
         &entity->scene_element,
         LOC_SHAPE_WALL_DECOR_INSIDE,
         rotation,
+        1,
+        1,
         config_loc);
     world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
@@ -599,9 +662,9 @@ scenery_add_wall_decor_inside(
         scene2_element_at(world->scene2, entity->scene_element.element_id);
     if( config_loc->seq_id != -1 )
     {
-        scene_element->dash_position->yaw += 512 * orientation;
+        scene2_element_dash_position(scene_element)->yaw += 512 * orientation;
     }
-    scene_element->dash_position->yaw %= 2048;
+    scene2_element_dash_position(scene_element)->yaw %= 2048;
 
     painter_add_wall_decor(
         world->painter,
@@ -622,19 +685,17 @@ scenery_add_wall_decor_inside(
         orientation,
         DECOR_DISPLACEMENT_KIND_STRAIGHT);
 
-    if( config_loc->sharelight )
-    {
-        sharelight_map_push(
-            world->sharelight_map,
-            entity->scene_coord.sx,
-            entity->scene_coord.sz,
-            entity->scene_coord.slevel,
-            entity->scene_element.element_id,
-            1,
-            1,
-            config_loc->ambient,
-            config_loc->contrast);
-    }
+    sharelight_map_push(
+        world->sharelight_map,
+        config_loc->sharelight != 0,
+        entity->scene_coord.sx,
+        entity->scene_coord.sz,
+        entity->scene_coord.slevel,
+        entity->scene_element.element_id,
+        1,
+        1,
+        config_loc->ambient,
+        config_loc->contrast);
 }
 
 static void
@@ -644,7 +705,7 @@ scenery_add_wall_decor_outside(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -655,6 +716,8 @@ scenery_add_wall_decor_outside(
         &entity->scene_element,
         LOC_SHAPE_WALL_DECOR_INSIDE,
         rotation,
+        1,
+        1,
         config_loc);
     world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
@@ -663,9 +726,9 @@ scenery_add_wall_decor_outside(
         scene2_element_at(world->scene2, entity->scene_element.element_id);
     if( config_loc->seq_id != -1 )
     {
-        scene_element->dash_position->yaw += 512 * orientation;
+        scene2_element_dash_position(scene_element)->yaw += 512 * orientation;
     }
-    scene_element->dash_position->yaw %= 2048;
+    scene2_element_dash_position(scene_element)->yaw %= 2048;
 
     painter_add_wall_decor(
         world->painter,
@@ -686,19 +749,17 @@ scenery_add_wall_decor_outside(
         orientation,
         DECOR_DISPLACEMENT_KIND_STRAIGHT_ONWALL_OFFSET);
 
-    if( config_loc->sharelight )
-    {
-        sharelight_map_push(
-            world->sharelight_map,
-            entity->scene_coord.sx,
-            entity->scene_coord.sz,
-            entity->scene_coord.slevel,
-            entity->scene_element.element_id,
-            1,
-            1,
-            config_loc->ambient,
-            config_loc->contrast);
-    }
+    sharelight_map_push(
+        world->sharelight_map,
+        config_loc->sharelight != 0,
+        entity->scene_coord.sx,
+        entity->scene_coord.sz,
+        entity->scene_coord.slevel,
+        entity->scene_element.element_id,
+        1,
+        1,
+        config_loc->ambient,
+        config_loc->contrast);
 }
 
 // Lumbridge shield
@@ -709,7 +770,7 @@ scenery_add_wall_decor_diagonal_outside(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
     entity->interactable = config_loc->is_interactive;
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
@@ -721,18 +782,20 @@ scenery_add_wall_decor_diagonal_outside(
         &entity->scene_element,
         LOC_SHAPE_WALL_DECOR_INSIDE,
         rotation,
+        1,
+        1,
         config_loc);
     world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
-    scene_element->dash_position->yaw += WALL_DECOR_YAW_ADJUST;
+    scene2_element_dash_position(scene_element)->yaw += WALL_DECOR_YAW_ADJUST;
     if( config_loc->seq_id != -1 )
     {
-        scene_element->dash_position->yaw += 512 * orientation;
+        scene2_element_dash_position(scene_element)->yaw += 512 * orientation;
     }
-    scene_element->dash_position->yaw %= 2048;
+    scene2_element_dash_position(scene_element)->yaw %= 2048;
 
     painter_add_wall_decor(
         world->painter,
@@ -753,19 +816,17 @@ scenery_add_wall_decor_diagonal_outside(
         orientation,
         DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET);
 
-    if( config_loc->sharelight )
-    {
-        sharelight_map_push(
-            world->sharelight_map,
-            entity->scene_coord.sx,
-            entity->scene_coord.sz,
-            entity->scene_coord.slevel,
-            entity->scene_element.element_id,
-            1,
-            1,
-            config_loc->ambient,
-            config_loc->contrast);
-    }
+    sharelight_map_push(
+        world->sharelight_map,
+        config_loc->sharelight != 0,
+        entity->scene_coord.sx,
+        entity->scene_coord.sz,
+        entity->scene_coord.slevel,
+        entity->scene_element.element_id,
+        1,
+        1,
+        config_loc->ambient,
+        config_loc->contrast);
 }
 
 // Lumbridge sconce
@@ -777,7 +838,14 @@ scenery_add_wall_decor_diagonal_inside(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scene2_element_acquire(world->scene2, entity->entity_id);
+    entity->scene_element.element_id =
+        config_loc->seq_id != -1
+            ? scene2_element_acquire_full(
+                  world->scene2,
+                  (int)entity_unified_id(ENTITY_KIND_MAP_BUILD_LOC, entity->entity_id))
+            : scene2_element_acquire_fast(
+                  world->scene2,
+                  (int)entity_unified_id(ENTITY_KIND_MAP_BUILD_LOC, entity->entity_id));
     entity->interactable = config_loc->is_interactive;
 
     int orientation = (map_tile->orientation + 2) & 0x3;
@@ -789,18 +857,20 @@ scenery_add_wall_decor_diagonal_inside(
         &entity->scene_element,
         LOC_SHAPE_WALL_DECOR_INSIDE,
         rotation,
+        1,
+        1,
         config_loc);
     world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
-    scene_element->dash_position->yaw += WALL_DECOR_YAW_ADJUST;
+    scene2_element_dash_position(scene_element)->yaw += WALL_DECOR_YAW_ADJUST;
     if( config_loc->seq_id != -1 )
     {
-        scene_element->dash_position->yaw += 512 * orientation;
+        scene2_element_dash_position(scene_element)->yaw += 512 * orientation;
     }
-    scene_element->dash_position->yaw %= 2048;
+    scene2_element_dash_position(scene_element)->yaw %= 2048;
 
     painter_add_wall_decor(
         world->painter,
@@ -821,30 +891,29 @@ scenery_add_wall_decor_diagonal_inside(
         orientation,
         DECOR_DISPLACEMENT_KIND_DIAGONAL);
 
-    if( config_loc->sharelight )
-    {
-        sharelight_map_push(
-            world->sharelight_map,
-            entity->scene_coord.sx,
-            entity->scene_coord.sz,
-            entity->scene_coord.slevel,
-            entity->scene_element.element_id,
-            1,
-            1,
-            config_loc->ambient,
-            config_loc->contrast);
+    sharelight_map_push(
+        world->sharelight_map,
+        config_loc->sharelight != 0,
+        entity->scene_coord.sx,
+        entity->scene_coord.sz,
+        entity->scene_coord.slevel,
+        entity->scene_element.element_id,
+        1,
+        1,
+        config_loc->ambient,
+        config_loc->contrast);
 
-        sharelight_map_push(
-            world->sharelight_map,
-            entity->scene_coord.sx,
-            entity->scene_coord.sz,
-            entity->scene_coord.slevel,
-            entity->scene_element_two.element_id,
-            1,
-            1,
-            config_loc->ambient,
-            config_loc->contrast);
-    }
+    sharelight_map_push(
+        world->sharelight_map,
+        config_loc->sharelight != 0,
+        entity->scene_coord.sx,
+        entity->scene_coord.sz,
+        entity->scene_coord.slevel,
+        entity->scene_element_two.element_id,
+        1,
+        1,
+        config_loc->ambient,
+        config_loc->contrast);
 }
 
 static void
@@ -854,8 +923,8 @@ scenery_add_wall_decor_diagonal_double(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
-    entity->scene_element_two.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element_two.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
     entity->interactable = config_loc->is_interactive;
 
     int outside_rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
@@ -869,6 +938,8 @@ scenery_add_wall_decor_diagonal_double(
         &entity->scene_element,
         LOC_SHAPE_WALL_DECOR_INSIDE,
         outside_rotation,
+        1,
+        1,
         config_loc);
     world_load_scenery_model(
         world,
@@ -876,6 +947,8 @@ scenery_add_wall_decor_diagonal_double(
         &entity->scene_element_two,
         LOC_SHAPE_WALL_DECOR_INSIDE,
         inside_rotation,
+        1,
+        1,
         config_loc);
     world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
@@ -883,16 +956,16 @@ scenery_add_wall_decor_diagonal_double(
 
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
-    scene_element->dash_position->yaw += WALL_DECOR_YAW_ADJUST;
+    scene2_element_dash_position(scene_element)->yaw += WALL_DECOR_YAW_ADJUST;
     if( config_loc->seq_id != -1 )
-        scene_element->dash_position->yaw += 512 * outside_orientation;
-    scene_element->dash_position->yaw %= 2048;
+        scene2_element_dash_position(scene_element)->yaw += 512 * outside_orientation;
+    scene2_element_dash_position(scene_element)->yaw %= 2048;
 
     scene_element = scene2_element_at(world->scene2, entity->scene_element_two.element_id);
-    scene_element->dash_position->yaw += WALL_DECOR_YAW_ADJUST;
+    scene2_element_dash_position(scene_element)->yaw += WALL_DECOR_YAW_ADJUST;
     if( config_loc->seq_id != -1 )
-        scene_element->dash_position->yaw += 512 * inside_orientation;
-    scene_element->dash_position->yaw %= 2048;
+        scene2_element_dash_position(scene_element)->yaw += 512 * inside_orientation;
+    scene2_element_dash_position(scene_element)->yaw %= 2048;
 
     painter_add_wall_decor(
         world->painter,
@@ -931,29 +1004,28 @@ scenery_add_wall_decor_diagonal_double(
         inside_orientation,
         DECOR_DISPLACEMENT_KIND_DIAGONAL);
 
-    if( config_loc->sharelight )
-    {
-        sharelight_map_push(
-            world->sharelight_map,
-            entity->scene_coord.sx,
-            entity->scene_coord.sz,
-            entity->scene_coord.slevel,
-            entity->scene_element.element_id,
-            1,
-            1,
-            config_loc->ambient,
-            config_loc->contrast);
-        sharelight_map_push(
-            world->sharelight_map,
-            entity->scene_coord.sx,
-            entity->scene_coord.sz,
-            entity->scene_coord.slevel,
-            entity->scene_element_two.element_id,
-            1,
-            1,
-            config_loc->ambient,
-            config_loc->contrast);
-    }
+    sharelight_map_push(
+        world->sharelight_map,
+        config_loc->sharelight != 0,
+        entity->scene_coord.sx,
+        entity->scene_coord.sz,
+        entity->scene_coord.slevel,
+        entity->scene_element.element_id,
+        1,
+        1,
+        config_loc->ambient,
+        config_loc->contrast);
+    sharelight_map_push(
+        world->sharelight_map,
+        config_loc->sharelight != 0,
+        entity->scene_coord.sx,
+        entity->scene_coord.sz,
+        entity->scene_coord.slevel,
+        entity->scene_element_two.element_id,
+        1,
+        1,
+        config_loc->ambient,
+        config_loc->contrast);
 }
 
 static void
@@ -963,7 +1035,7 @@ scenery_add_wall_diagonal(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -974,6 +1046,8 @@ scenery_add_wall_diagonal(
         &entity->scene_element,
         LOC_SHAPE_WALL_DIAGONAL,
         rotation,
+        1,
+        1,
         config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
@@ -993,19 +1067,17 @@ scenery_add_wall_diagonal(
         entity->scene_coord.slevel,
         config_loc->wall_width);
 
-    if( config_loc->sharelight )
-    {
-        sharelight_map_push(
-            world->sharelight_map,
-            entity->scene_coord.sx,
-            entity->scene_coord.sz,
-            entity->scene_coord.slevel,
-            entity->scene_element.element_id,
-            1,
-            1,
-            config_loc->ambient,
-            config_loc->contrast);
-    }
+    sharelight_map_push(
+        world->sharelight_map,
+        config_loc->sharelight != 0,
+        entity->scene_coord.sx,
+        entity->scene_coord.sz,
+        entity->scene_coord.slevel,
+        entity->scene_element.element_id,
+        1,
+        1,
+        config_loc->ambient,
+        config_loc->contrast);
 }
 
 static void
@@ -1015,7 +1087,7 @@ scenery_add_normal(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
     entity->interactable = config_loc->is_interactive;
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
@@ -1036,6 +1108,8 @@ scenery_add_normal(
         &entity->scene_element,
         LOC_SHAPE_SCENERY,
         rotation,
+        size_x,
+        size_z,
         config_loc);
     world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
     scenery_element_position_init(
@@ -1044,10 +1118,10 @@ scenery_add_normal(
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
     if( map_tile->shape_select == LOC_SHAPE_SCENERY_DIAGIONAL )
-        scene_element->dash_position->yaw += 256;
+        scene2_element_dash_position(scene_element)->yaw += 256;
     if( config_loc->seq_id != -1 )
-        scene_element->dash_position->yaw += 512 * orientation;
-    scene_element->dash_position->yaw %= 2048;
+        scene2_element_dash_position(scene_element)->yaw += 512 * orientation;
+    scene2_element_dash_position(scene_element)->yaw %= 2048;
 
     painter_add_normal_scenery(
         world->painter,
@@ -1072,19 +1146,17 @@ scenery_add_normal(
             size_z,
             shade);
 
-    if( config_loc->sharelight )
-    {
-        sharelight_map_push(
-            world->sharelight_map,
-            entity->scene_coord.sx,
-            entity->scene_coord.sz,
-            entity->scene_coord.slevel,
-            entity->scene_element.element_id,
-            size_x,
-            size_z,
-            config_loc->ambient,
-            config_loc->contrast);
-    }
+    sharelight_map_push(
+        world->sharelight_map,
+        config_loc->sharelight != 0,
+        entity->scene_coord.sx,
+        entity->scene_coord.sz,
+        entity->scene_coord.slevel,
+        entity->scene_element.element_id,
+        size_x,
+        size_z,
+        config_loc->ambient,
+        config_loc->contrast);
 }
 
 static void
@@ -1094,7 +1166,7 @@ scenery_add_roof(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -1105,6 +1177,8 @@ scenery_add_roof(
         &entity->scene_element,
         map_tile->shape_select,
         rotation,
+        1,
+        1,
         config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
@@ -1117,19 +1191,17 @@ scenery_add_roof(
         1,
         1);
 
-    if( config_loc->sharelight )
-    {
-        sharelight_map_push(
-            world->sharelight_map,
-            entity->scene_coord.sx,
-            entity->scene_coord.sz,
-            entity->scene_coord.slevel,
-            entity->scene_element.element_id,
-            1,
-            1,
-            config_loc->ambient,
-            config_loc->contrast);
-    }
+    sharelight_map_push(
+        world->sharelight_map,
+        config_loc->sharelight != 0,
+        entity->scene_coord.sx,
+        entity->scene_coord.sz,
+        entity->scene_coord.slevel,
+        entity->scene_element.element_id,
+        1,
+        1,
+        config_loc->ambient,
+        config_loc->contrast);
 }
 
 static void
@@ -1139,7 +1211,7 @@ scenery_add_floor_decoration(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -1150,6 +1222,8 @@ scenery_add_floor_decoration(
         &entity->scene_element,
         LOC_SHAPE_FLOOR_DECORATION,
         rotation,
+        1,
+        1,
         config_loc);
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
 
@@ -1160,19 +1234,17 @@ scenery_add_floor_decoration(
         entity->scene_coord.slevel,
         entity->scene_element.element_id);
 
-    if( config_loc->sharelight )
-    {
-        sharelight_map_push(
-            world->sharelight_map,
-            entity->scene_coord.sx,
-            entity->scene_coord.sz,
-            entity->scene_coord.slevel,
-            entity->scene_element.element_id,
-            1,
-            1,
-            config_loc->ambient,
-            config_loc->contrast);
-    }
+    sharelight_map_push(
+        world->sharelight_map,
+        config_loc->sharelight != 0,
+        entity->scene_coord.sx,
+        entity->scene_coord.sz,
+        entity->scene_coord.slevel,
+        entity->scene_element.element_id,
+        1,
+        1,
+        config_loc->ambient,
+        config_loc->contrast);
 }
 
 static void

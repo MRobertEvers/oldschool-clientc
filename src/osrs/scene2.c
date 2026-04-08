@@ -1,10 +1,84 @@
 #include "scene2.h"
 
+#include "osrs/game_entity.h"
+#include "osrs/scene2_element_internal.h"
+#include "osrs/texture.h"
+
+#include <assert.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define SCENE2_EVENTBUFFER_DEFAULT_CAPACITY 4096
+#define SCENE2_EVENTBUFFER_DEFAULT_CAPACITY 512
+
+/* prev/next live at the same offsets on Scene2ElementFast and Scene2ElementFull. */
+static struct Scene2Element*
+scene2_el_next(struct Scene2Element* e)
+{
+    return ((struct Scene2ElementFast*)e)->next;
+}
+
+static struct Scene2Element*
+scene2_el_prev(struct Scene2Element* e)
+{
+    return ((struct Scene2ElementFast*)e)->prev;
+}
+
+static void
+scene2_el_set_next(struct Scene2Element* e, struct Scene2Element* n)
+{
+    ((struct Scene2ElementFast*)e)->next = n;
+}
+
+static void
+scene2_el_set_prev(struct Scene2Element* e, struct Scene2Element* p)
+{
+    ((struct Scene2ElementFast*)e)->prev = p;
+}
+
+static uint32_t
+scene2_pack_parent(int parent_entity_id)
+{
+    if( parent_entity_id < 0 )
+        return SCENE2_PARENT_NONE;
+    uint32_t uid = (uint32_t)parent_entity_id;
+    enum EntityKind k = entity_kind_from_uid(uid);
+    int eid = entity_id_from_uid(uid);
+    assert(eid >= 0 && (unsigned)eid < (1u << 20));
+    return ((uint32_t)k << 20) | ((uint32_t)eid & 0xfffffu);
+}
+
+static int
+scene2_unpack_parent(uint32_t flags_entity)
+{
+    uint32_t p = flags_entity & SCENE2_PARENT_MASK;
+    if( p == SCENE2_PARENT_NONE )
+        return -1;
+    enum EntityKind k = (enum EntityKind)((p >> 20) & 0xfu);
+    int eid = (int)(p & 0xfffffu);
+    return (int)entity_unified_id(k, eid);
+}
+
+int
+scene2_element_id(
+    struct Scene2* scene2,
+    const struct Scene2Element* el)
+{
+    ptrdiff_t d = (const struct Scene2ElementFast*)el - (const struct Scene2ElementFast*)scene2->fast_pool;
+    if( d >= 0 && d < scene2->fast_count )
+        return (int)d;
+    ptrdiff_t d2 =
+        (const struct Scene2ElementFull*)el - (const struct Scene2ElementFull*)scene2->full_pool;
+    assert(d2 >= 0 && d2 < scene2->full_count && "Scene2Element pointer not from this scene2");
+    return scene2->fast_count + (int)d2;
+}
+
+static int
+scene2_element_id_from_ptr(struct Scene2* scene2, struct Scene2Element* el)
+{
+    return scene2_element_id(scene2, el);
+}
 
 static void
 scene2_eventbuffer_push(
@@ -25,34 +99,62 @@ scene2_eventbuffer_push(
     scene2->eventbuffer_count++;
 }
 
+int
+scene2_elements_total(const struct Scene2* scene2)
+{
+    if( !scene2 )
+        return 0;
+    return scene2->fast_count + scene2->full_count;
+}
+
 struct Scene2*
-scene2_new(int size)
+scene2_new(int fast_count, int full_count)
 {
     struct Scene2* scene2 = malloc(sizeof(struct Scene2));
     memset(scene2, 0, sizeof(struct Scene2));
 
-    scene2->elements = (struct Scene2Element*)malloc(size * sizeof(struct Scene2Element));
-    memset(scene2->elements, 0, size * sizeof(struct Scene2Element));
-    scene2->elements_count = size;
+    scene2->fast_count = fast_count;
+    scene2->full_count = full_count;
 
-    for( int i = 0; i < size; i++ )
+    if( fast_count > 0 )
     {
-        if( i > 0 )
-            scene2->elements[i].prev = &scene2->elements[i - 1];
-        if( i < size - 1 )
-            scene2->elements[i].next = &scene2->elements[i + 1];
+        scene2->fast_pool =
+            (struct Scene2ElementFast*)malloc((size_t)fast_count * sizeof(struct Scene2ElementFast));
+        memset(scene2->fast_pool, 0, (size_t)fast_count * sizeof(struct Scene2ElementFast));
+        for( int i = 0; i < fast_count; i++ )
+        {
+            struct Scene2ElementFast* f = &scene2->fast_pool[i];
+            f->flags_entity = SCENE2_FLAG_VALID | SCENE2_FLAG_FAST | SCENE2_PARENT_NONE;
+            if( i > 0 )
+                f->prev = (struct Scene2Element*)&scene2->fast_pool[i - 1];
+            if( i < fast_count - 1 )
+                f->next = (struct Scene2Element*)&scene2->fast_pool[i + 1];
+        }
+        scene2->fast_free_list = (struct Scene2Element*)&scene2->fast_pool[0];
+    }
 
-        scene2->elements[i].id = i;
-        scene2->elements[i].parent_entity_id = -1;
-        scene2->elements[i].active = false;
-        scene2->elements[i].owner_scene2 = scene2;
+    if( full_count > 0 )
+    {
+        scene2->full_pool =
+            (struct Scene2ElementFull*)malloc((size_t)full_count * sizeof(struct Scene2ElementFull));
+        memset(scene2->full_pool, 0, (size_t)full_count * sizeof(struct Scene2ElementFull));
+        for( int i = 0; i < full_count; i++ )
+        {
+            struct Scene2ElementFull* u = &scene2->full_pool[i];
+            u->flags_entity = SCENE2_FLAG_VALID | SCENE2_PARENT_NONE;
+            if( i > 0 )
+                u->prev = (struct Scene2Element*)&scene2->full_pool[i - 1];
+            if( i < full_count - 1 )
+                u->next = (struct Scene2Element*)&scene2->full_pool[i + 1];
+        }
+        scene2->full_free_list = (struct Scene2Element*)&scene2->full_pool[0];
     }
 
     scene2->active_list = NULL;
-    scene2->free_list = &scene2->elements[0];
-
     scene2->active_len = 0;
-    scene2->free_len = size;
+    scene2->fast_free_len = fast_count;
+    scene2->full_free_len = full_count;
+
     scene2->eventbuffer_capacity = SCENE2_EVENTBUFFER_DEFAULT_CAPACITY;
     scene2->eventbuffer = calloc((size_t)scene2->eventbuffer_capacity, sizeof(struct Scene2Event));
     scene2->eventbuffer_head = 0;
@@ -65,43 +167,108 @@ scene2_new(int size)
 void
 scene2_free(struct Scene2* scene2)
 {
-    // Free the elements
-    for( int i = 0; i < scene2->elements_count; i++ )
+    if( !scene2 )
+        return;
+
+    for( int i = 0; i < scene2->fast_count; i++ )
     {
-        if( scene2->elements[i].active )
+        struct Scene2Element* e = (struct Scene2Element*)&scene2->fast_pool[i];
+        if( scene2_element_is_active(e) )
             scene2_element_release(scene2, i);
     }
-    free(scene2->elements);
+    for( int j = 0; j < scene2->full_count; j++ )
+    {
+        int id = scene2->fast_count + j;
+        struct Scene2Element* e = (struct Scene2Element*)&scene2->full_pool[j];
+        if( scene2_element_is_active(e) )
+            scene2_element_release(scene2, id);
+    }
+
+    free(scene2->fast_pool);
+    free(scene2->full_pool);
+    for( int i = 0; i < scene2->textures_count; i++ )
+        texture_free(scene2->textures[i].texture);
     free(scene2->textures);
     free(scene2->eventbuffer);
     free(scene2);
 }
 
+static void
+scene2_splice_out_active(struct Scene2* scene2, struct Scene2Element* element)
+{
+    struct Scene2Element* nx = scene2_el_next(element);
+    struct Scene2Element* pr = scene2_el_prev(element);
+    if( nx != NULL )
+        scene2_el_set_prev(nx, pr);
+    if( pr != NULL )
+        scene2_el_set_next(pr, nx);
+    else
+        scene2->active_list = nx;
+}
+
+static void
+scene2_push_active(struct Scene2* scene2, struct Scene2Element* element)
+{
+    scene2_el_set_next(element, scene2->active_list);
+    scene2_el_set_prev(element, NULL);
+    if( scene2->active_list != NULL )
+        scene2_el_set_prev(scene2->active_list, element);
+    scene2->active_list = element;
+    scene2->active_len++;
+}
+
 int
-scene2_element_acquire(
+scene2_element_acquire_fast(
     struct Scene2* scene2,
     int parent_entity_id)
 {
-    if( scene2->free_list == NULL )
-    {
-        assert(false && "No free elements");
-    }
+    if( scene2->fast_free_list == NULL )
+        assert(false && "No free fast scene2 elements");
 
-    int element_id = scene2->free_list->id;
-    struct Scene2Element* element = scene2->free_list;
-    element->active = true;
-    element->parent_entity_id = parent_entity_id;
-    scene2->free_list = element->next;
+    struct Scene2Element* element = scene2->fast_free_list;
+    scene2->fast_free_list = scene2_el_next(element);
+    if( scene2->fast_free_list != NULL )
+        scene2_el_set_prev(scene2->fast_free_list, NULL);
 
-    element->next = scene2->active_list;
-    element->prev = NULL;
-    if( scene2->active_list != NULL )
-        scene2->active_list->prev = element;
+    struct Scene2ElementFast* f = scene2__as_fast(element);
+    f->flags_entity =
+        SCENE2_FLAG_VALID | SCENE2_FLAG_FAST | SCENE2_FLAG_ACTIVE | scene2_pack_parent(parent_entity_id);
 
-    scene2->active_list = element;
+    scene2_push_active(scene2, element);
 
-    scene2->active_len++;
-    scene2->free_len--;
+    scene2->fast_free_len--;
+    int element_id = scene2_element_id_from_ptr(scene2, element);
+    scene2_eventbuffer_push(
+        scene2,
+        (struct Scene2Event){
+            .type = SCENE2_EVENT_ELEMENT_ACQUIRED,
+            .element_id = element_id,
+            .parent_entity_id = parent_entity_id,
+        });
+
+    return element_id;
+}
+
+int
+scene2_element_acquire_full(
+    struct Scene2* scene2,
+    int parent_entity_id)
+{
+    if( scene2->full_free_list == NULL )
+        assert(false && "No free full scene2 elements");
+
+    struct Scene2Element* element = scene2->full_free_list;
+    scene2->full_free_list = scene2_el_next(element);
+    if( scene2->full_free_list != NULL )
+        scene2_el_set_prev(scene2->full_free_list, NULL);
+
+    struct Scene2ElementFull* u = scene2__as_full(element);
+    u->flags_entity = SCENE2_FLAG_VALID | SCENE2_FLAG_ACTIVE | scene2_pack_parent(parent_entity_id);
+
+    scene2_push_active(scene2, element);
+
+    scene2->full_free_len--;
+    int element_id = scene2_element_id_from_ptr(scene2, element);
     scene2_eventbuffer_push(
         scene2,
         (struct Scene2Event){
@@ -134,42 +301,61 @@ scene2_element_clear_frames(struct Scene2Frames* frames)
 void
 scene2_element_clear_animation(struct Scene2Element* element)
 {
-    scene2_element_clear_frames(&element->primary_frames);
+    if( scene2__is_fast(element) )
+        return;
+    scene2_element_clear_frames(&scene2__as_full(element)->primary_frames);
 }
 
 void
 scene2_element_clear_secondary_animation(struct Scene2Element* element)
 {
-    scene2_element_clear_frames(&element->secondary_frames);
+    if( scene2__is_fast(element) )
+        return;
+    scene2_element_clear_frames(&scene2__as_full(element)->secondary_frames);
 }
 
 void
 scene2_element_clear_framemap(struct Scene2Element* element)
 {
-    if( element->dash_framemap )
-        dashframemap_free(element->dash_framemap);
-    element->dash_framemap = NULL;
+    if( scene2__is_fast(element) )
+        return;
+    struct Scene2ElementFull* u = scene2__as_full(element);
+    if( u->dash_framemap )
+        dashframemap_free(u->dash_framemap);
+    u->dash_framemap = NULL;
 }
 
 void
 scene2_element_set_dash_model(
+    struct Scene2* scene2,
     struct Scene2Element* element,
     struct DashModel* dash_model)
 {
     assert(element && "scene2_element_set_dash_model element is NULL");
-    struct Scene2* scene2 = element->owner_scene2;
-    bool model_changed = element->dash_model != dash_model;
-    if( element->dash_model )
-        dashmodel_free(element->dash_model);
-    element->dash_model = dash_model;
+    struct DashModel* old = NULL;
+    if( scene2__is_fast(element) )
+    {
+        struct Scene2ElementFast* f = scene2__as_fast(element);
+        old = f->dash_model;
+        f->dash_model = dash_model;
+    }
+    else
+    {
+        struct Scene2ElementFull* u = scene2__as_full(element);
+        old = u->dash_model;
+        u->dash_model = dash_model;
+    }
+    bool model_changed = old != dash_model;
+    if( old )
+        dashmodel_free(old);
     if( model_changed )
     {
         scene2_eventbuffer_push(
             scene2,
             (struct Scene2Event){
                 .type = SCENE2_EVENT_MODEL_CHANGED,
-                .element_id = element->id,
-                .parent_entity_id = element->parent_entity_id,
+                .element_id = scene2_element_id_from_ptr(scene2, element),
+                .parent_entity_id = scene2_element_parent_entity_id(element),
             });
     }
 }
@@ -200,7 +386,8 @@ scene2_element_push_animation_frame(
     struct DashFrame* dash_frame,
     int length)
 {
-    scene2_element_push_frame(&element->primary_frames, dash_frame, length);
+    struct Scene2ElementFull* u = scene2__as_full(element);
+    scene2_element_push_frame(&u->primary_frames, dash_frame, length);
 }
 
 void
@@ -209,7 +396,8 @@ scene2_element_push_secondary_animation_frame(
     struct DashFrame* dash_frame,
     int length)
 {
-    scene2_element_push_frame(&element->secondary_frames, dash_frame, length);
+    struct Scene2ElementFull* u = scene2__as_full(element);
+    scene2_element_push_frame(&u->secondary_frames, dash_frame, length);
 }
 
 void
@@ -217,9 +405,10 @@ scene2_element_set_framemap(
     struct Scene2Element* element,
     struct DashFramemap* dash_framemap)
 {
-    if( element->dash_framemap )
-        dashframemap_free(element->dash_framemap);
-    element->dash_framemap = dash_framemap;
+    struct Scene2ElementFull* u = scene2__as_full(element);
+    if( u->dash_framemap )
+        dashframemap_free(u->dash_framemap);
+    u->dash_framemap = dash_framemap;
 }
 
 void
@@ -231,35 +420,56 @@ scene2_element_release(
         return;
 
     struct Scene2Element* element = scene2_element_at(scene2, element_id);
-    assert(element->active && "Element must be active");
-    int parent_entity_id = element->parent_entity_id;
+    assert(scene2_element_is_active(element) && "Element must be active");
+    int parent_entity_id = scene2_element_parent_entity_id(element);
 
-    dashmodel_free(element->dash_model);
-    element->dash_model = NULL;
-    dashposition_free(element->dash_position);
-    element->dash_position = NULL;
-    dashframemap_free(element->dash_framemap);
-    element->dash_framemap = NULL;
-    scene2_element_clear_animation(element);
-    scene2_element_clear_secondary_animation(element);
+    if( scene2__is_fast(element) )
+    {
+        struct Scene2ElementFast* f = scene2__as_fast(element);
+        dashmodel_free(f->dash_model);
+        f->dash_model = NULL;
+        dashposition_free(f->dash_position);
+        f->dash_position = NULL;
+        f->flags_entity = SCENE2_FLAG_VALID | SCENE2_FLAG_FAST | SCENE2_PARENT_NONE;
+    }
+    else
+    {
+        struct Scene2ElementFull* u = scene2__as_full(element);
+        dashmodel_free(u->dash_model);
+        u->dash_model = NULL;
+        dashposition_free(u->dash_position);
+        u->dash_position = NULL;
+        dashframemap_free(u->dash_framemap);
+        u->dash_framemap = NULL;
+        scene2_element_clear_frames(&u->primary_frames);
+        scene2_element_clear_frames(&u->secondary_frames);
+        u->active_anim_id = 0;
+        u->active_frame = 0;
+        u->flags_entity = SCENE2_FLAG_VALID | SCENE2_PARENT_NONE;
+    }
 
-    element->active = false;
-    element->parent_entity_id = -1;
+    scene2_splice_out_active(scene2, element);
 
-    if( element->next != NULL )
-        element->next->prev = element->prev;
-    if( element->prev != NULL )
-        element->prev->next = element->next;
-
-    element->next = scene2->free_list;
-    element->prev = NULL;
-    if( scene2->free_list != NULL )
-        scene2->free_list->prev = element;
-
-    scene2->free_list = element;
+    if( scene2__is_fast(element) )
+    {
+        scene2_el_set_next(element, scene2->fast_free_list);
+        scene2_el_set_prev(element, NULL);
+        if( scene2->fast_free_list != NULL )
+            scene2_el_set_prev(scene2->fast_free_list, element);
+        scene2->fast_free_list = element;
+        scene2->fast_free_len++;
+    }
+    else
+    {
+        scene2_el_set_next(element, scene2->full_free_list);
+        scene2_el_set_prev(element, NULL);
+        if( scene2->full_free_list != NULL )
+            scene2_el_set_prev(scene2->full_free_list, element);
+        scene2->full_free_list = element;
+        scene2->full_free_len++;
+    }
 
     scene2->active_len--;
-    scene2->free_len++;
     scene2_eventbuffer_push(
         scene2,
         (struct Scene2Event){
@@ -274,8 +484,120 @@ scene2_element_at(
     struct Scene2* scene2,
     int element_id)
 {
-    assert(element_id >= 0 && element_id < scene2->elements_count && "Element id out of bounds");
-    return &scene2->elements[element_id];
+    int total = scene2_elements_total(scene2);
+    assert(element_id >= 0 && element_id < total && "Element id out of bounds");
+    if( element_id < scene2->fast_count )
+        return (struct Scene2Element*)&scene2->fast_pool[element_id];
+    return (struct Scene2Element*)&scene2->full_pool[element_id - scene2->fast_count];
+}
+
+bool
+scene2_element_is_active(const struct Scene2Element* element)
+{
+    return (scene2__flags_raw(element) & SCENE2_FLAG_ACTIVE) != 0;
+}
+
+int
+scene2_element_parent_entity_id(const struct Scene2Element* element)
+{
+    return scene2_unpack_parent(scene2__flags_raw(element));
+}
+
+struct DashModel*
+scene2_element_dash_model(struct Scene2Element* element)
+{
+    if( scene2__is_fast(element) )
+        return scene2__as_fast(element)->dash_model;
+    return scene2__as_full(element)->dash_model;
+}
+
+const struct DashModel*
+scene2_element_dash_model_const(const struct Scene2Element* element)
+{
+    if( scene2__is_fast(element) )
+        return scene2__as_fast_const(element)->dash_model;
+    return scene2__as_full_const(element)->dash_model;
+}
+
+struct DashPosition*
+scene2_element_dash_position(struct Scene2Element* element)
+{
+    if( scene2__is_fast(element) )
+        return scene2__as_fast(element)->dash_position;
+    return scene2__as_full(element)->dash_position;
+}
+
+void
+scene2_element_set_dash_position_ptr(
+    struct Scene2Element* element,
+    struct DashPosition* dash_position)
+{
+    if( scene2__is_fast(element) )
+        scene2__as_fast(element)->dash_position = dash_position;
+    else
+        scene2__as_full(element)->dash_position = dash_position;
+}
+
+struct Scene2Element*
+scene2_element_next(struct Scene2Element* element)
+{
+    return scene2_el_next(element);
+}
+
+struct DashFramemap*
+scene2_element_dash_framemap(struct Scene2Element* element)
+{
+    if( scene2__is_fast(element) )
+        return NULL;
+    return scene2__as_full(element)->dash_framemap;
+}
+
+uint16_t
+scene2_element_active_anim_id(const struct Scene2Element* element)
+{
+    if( scene2__is_fast(element) )
+        return 0;
+    return scene2__as_full_const(element)->active_anim_id;
+}
+
+uint8_t
+scene2_element_active_frame(const struct Scene2Element* element)
+{
+    if( scene2__is_fast(element) )
+        return 0;
+    return scene2__as_full_const(element)->active_frame;
+}
+
+void
+scene2_element_set_active_anim_id(struct Scene2Element* element, uint16_t id)
+{
+    if( scene2__is_fast(element) )
+        return;
+    scene2__as_full(element)->active_anim_id = id;
+}
+
+void
+scene2_element_set_active_frame(struct Scene2Element* element, uint8_t frame)
+{
+    if( scene2__is_fast(element) )
+        return;
+    scene2__as_full(element)->active_frame = frame;
+}
+
+struct Scene2Frames*
+scene2_element_primary_frames(struct Scene2Element* element)
+{
+    if( scene2__is_fast(element) )
+        return NULL;
+    return &scene2__as_full(element)->primary_frames;
+}
+
+struct Scene2Frames*
+scene2_element_secondary_frames(struct Scene2Element* element)
+{
+    if( scene2__is_fast(element) )
+        return NULL;
+    return &scene2__as_full(element)->secondary_frames;
 }
 
 bool

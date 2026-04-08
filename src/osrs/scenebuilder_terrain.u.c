@@ -565,7 +565,6 @@ build_scene_terrain(
                         scene_builder->minimap,
                         x,
                         z,
-                        level,
                         minimap_foreground_rgb,
                         MINIMAP_FOREGROUND);
 
@@ -574,11 +573,10 @@ build_scene_terrain(
                         scene_builder->minimap,
                         x,
                         z,
-                        level,
                         minimap_background_rgb,
                         MINIMAP_BACKGROUND);
 
-                minimap_set_tile_shape(scene_builder->minimap, x, z, level, shape, rotation);
+                minimap_set_tile_shape(scene_builder->minimap, x, z, shape, rotation);
 
                 assert(tile->dash_model == NULL);
 

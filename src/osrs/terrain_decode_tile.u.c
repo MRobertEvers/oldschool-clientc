@@ -234,9 +234,9 @@ decode_tile(
     int* vertex_indices = g_tile_shape_vertex_types[shape];
     int vertex_count = g_tile_shape_vertex_types_lengths[shape];
 
-    int* vertices_x = (int*)malloc(vertex_count * sizeof(int));
-    int* vertices_y = (int*)malloc(vertex_count * sizeof(int));
-    int* vertices_z = (int*)malloc(vertex_count * sizeof(int));
+    vertexint_t* vertices_x = (vertexint_t*)malloc((size_t)vertex_count * sizeof(vertexint_t));
+    vertexint_t* vertices_y = (vertexint_t*)malloc((size_t)vertex_count * sizeof(vertexint_t));
+    vertexint_t* vertices_z = (vertexint_t*)malloc((size_t)vertex_count * sizeof(vertexint_t));
 
     int* underlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));
     int* overlay_colors_hsl = (int*)malloc(vertex_count * sizeof(int));
@@ -438,15 +438,15 @@ decode_tile(
     int* face_indices = g_tile_shape_faces[shape];
     int face_count = g_tile_shape_face_counts[shape] / 4;
 
-    int* faces_a = (int*)malloc(face_count * sizeof(int));
-    int* faces_b = (int*)malloc(face_count * sizeof(int));
-    int* faces_c = (int*)malloc(face_count * sizeof(int));
+    faceint_t* faces_a = (faceint_t*)malloc(face_count * sizeof(faceint_t));
+    faceint_t* faces_b = (faceint_t*)malloc(face_count * sizeof(faceint_t));
+    faceint_t* faces_c = (faceint_t*)malloc(face_count * sizeof(faceint_t));
 
     int* valid_faces = (int*)malloc(face_count * sizeof(int));
 
-    int* face_colors_hsl_a = (int*)malloc(face_count * sizeof(int));
-    int* face_colors_hsl_b = (int*)malloc(face_count * sizeof(int));
-    int* face_colors_hsl_c = (int*)malloc(face_count * sizeof(int));
+    hsl16_t* face_colors_hsl_a = (hsl16_t*)malloc(face_count * sizeof(hsl16_t));
+    hsl16_t* face_colors_hsl_b = (hsl16_t*)malloc(face_count * sizeof(hsl16_t));
+    hsl16_t* face_colors_hsl_c = (hsl16_t*)malloc(face_count * sizeof(hsl16_t));
 
     int* face_texture_ids = NULL;
     // int* face_texture_u_a = NULL;
@@ -512,9 +512,9 @@ decode_tile(
                 face_texture_ids[i] = -1;
         }
 
-        face_colors_hsl_a[i] = color_a;
-        face_colors_hsl_b[i] = color_b;
-        face_colors_hsl_c[i] = color_c;
+        face_colors_hsl_a[i] = (hsl16_t)(unsigned)(color_a & 0xffff);
+        face_colors_hsl_b[i] = (hsl16_t)(unsigned)(color_b & 0xffff);
+        face_colors_hsl_c[i] = (hsl16_t)(unsigned)(color_c & 0xffff);
 
         if( color_a == INVALID_HSL_COLOR && face_texture_id == -1 )
         {
@@ -556,58 +556,66 @@ decode_tile(
     free(underlay_colors_hsl);
     free(overlay_colors_hsl);
 
-    struct DashModel* dash_model = (struct DashModel*)malloc(sizeof(struct DashModel));
-    memset(dash_model, 0, sizeof(struct DashModel));
-
-    dash_model->vertex_count = vertex_count;
-    dash_model->vertices_x = vertices_x;
-    dash_model->vertices_y = vertices_y;
-    dash_model->vertices_z = vertices_z;
-    dash_model->face_count = face_count;
-    dash_model->face_indices_a = faces_a;
-    dash_model->face_indices_b = faces_b;
-    dash_model->face_indices_c = faces_c;
-
-    if( face_texture_ids )
+    struct DashModel* dash_model = dashmodel_fast_new();
+    if( !dash_model )
     {
-        dash_model->face_textures = malloc(face_count * sizeof(int));
-        memcpy(dash_model->face_textures, face_texture_ids, face_count * sizeof(int));
-        dash_model->has_textures = true;
+        free(valid_faces);
+        free(face_colors_hsl_a);
+        free(face_colors_hsl_b);
+        free(face_colors_hsl_c);
+        free(face_texture_ids);
+        free(vertices_x);
+        free(vertices_y);
+        free(vertices_z);
+        free(faces_a);
+        free(faces_b);
+        free(faces_c);
+        return NULL;
     }
 
-    // Hide faces with color_c == -2.
+    dashmodel_set_vertices_i16(
+        dash_model,
+        vertex_count,
+        (const int16_t*)vertices_x,
+        (const int16_t*)vertices_y,
+        (const int16_t*)vertices_z);
+    free(vertices_x);
+    free(vertices_y);
+    free(vertices_z);
+
+    dashmodel_set_face_indices_i16(
+        dash_model,
+        face_count,
+        (const int16_t*)faces_a,
+        (const int16_t*)faces_b,
+        (const int16_t*)faces_c);
+    free(faces_a);
+    free(faces_b);
+    free(faces_c);
+
+    // Hide invalid faces (channel C sentinel).
     for( int i = 0; i < face_count; i++ )
     {
         if( !valid_faces[i] )
-            face_colors_hsl_c[i] = -2;
+            face_colors_hsl_c[i] = DASHHSL16_HIDDEN;
     }
-    dash_model->face_colors = malloc(face_count * sizeof(int));
-    memcpy(dash_model->face_colors, face_colors_hsl_a, face_count * sizeof(int));
 
-    dash_model->lighting = dashmodel_lighting_new(face_count);
-    memcpy(dash_model->lighting->face_colors_hsl_a, face_colors_hsl_a, face_count * sizeof(int));
-    memcpy(dash_model->lighting->face_colors_hsl_b, face_colors_hsl_b, face_count * sizeof(int));
-    memcpy(dash_model->lighting->face_colors_hsl_c, face_colors_hsl_c, face_count * sizeof(int));
+    dashmodel_set_face_colors_i16(
+        dash_model,
+        (const uint16_t*)face_colors_hsl_a,
+        (const uint16_t*)face_colors_hsl_b,
+        (const uint16_t*)face_colors_hsl_c);
 
-    dash_model->bounds_cylinder = dashmodel_bounds_cylinder_new();
+    if( face_texture_ids )
+    {
+        dashmodel_set_face_textures_i32(dash_model, face_texture_ids, face_count);
+        dashmodel_set_has_textures(dash_model, true);
+    }
+    else
+        dashmodel_set_has_textures(dash_model, false);
 
-    dash3d_calculate_bounds_cylinder(
-        dash_model->bounds_cylinder, vertex_count, vertices_x, vertices_y, vertices_z);
-
-    // // sw
-    // int tp_vertex = 0;
-    // // nw
-    // int tm_vertex = 1;
-    // // se
-    // int tn_vertex = 3;
-    dash_model->face_texture_coords = (int*)malloc(face_count * sizeof(int));
-    memset(dash_model->face_texture_coords, 0, face_count * sizeof(int));
-    dash_model->textured_p_coordinate = (int*)malloc(1 * sizeof(int));
-    dash_model->textured_m_coordinate = (int*)malloc(1 * sizeof(int));
-    dash_model->textured_n_coordinate = (int*)malloc(1 * sizeof(int));
-    dash_model->textured_p_coordinate[0] = 0;
-    dash_model->textured_m_coordinate[0] = 1;
-    dash_model->textured_n_coordinate[0] = 3;
+    dashmodel_set_bounds_cylinder(dash_model);
+    dashmodel_set_loaded(dash_model, true);
 
     free(face_colors_hsl_a);
     free(face_colors_hsl_b);
@@ -616,21 +624,6 @@ decode_tile(
     free(valid_faces);
 
     return dash_model;
-    // error:;
-    free(valid_faces);
-    free(vertices_x);
-    free(vertices_y);
-    free(vertices_z);
-    free(underlay_colors_hsl);
-    free(overlay_colors_hsl);
-    free(faces_a);
-    free(faces_b);
-    free(faces_c);
-    free(face_colors_hsl_a);
-    free(face_colors_hsl_b);
-    free(face_colors_hsl_c);
-    free(face_texture_ids);
-    return NULL;
 }
 
 #endif

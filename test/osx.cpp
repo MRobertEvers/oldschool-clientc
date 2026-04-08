@@ -159,6 +159,10 @@ main(
     struct ToriRSNetSharedBuffer* net_shared = LibToriRS_NetNewBuffer();
     struct GGame* game = LibToriRS_GameNew(net_shared, 513, 335);
     struct GInput input = { 0 };
+    const int game_width = 765;
+    const int game_height = 503;
+    const int render_max_width = game_width;
+    const int render_max_height = game_height;
     struct ToriRSRenderCommandBuffer* render_command_buffer =
         LibToriRS_RenderCommandBufferNew(1024);
     struct Platform2_OSX_SDL2* platform = Platform2_OSX_SDL2_New();
@@ -183,7 +187,7 @@ main(
     else
 #endif
 #if defined(__APPLE__)
-    if( renderer_kind == RENDERER_METAL )
+        if( renderer_kind == RENDERER_METAL )
     {
         if( !Platform2_OSX_SDL2_InitForMetal(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
         {
@@ -195,7 +199,7 @@ main(
     else
 #endif
 #if defined(_WIN32)
-    if( renderer_kind == RENDERER_D3D11 )
+        if( renderer_kind == RENDERER_D3D11 )
     {
         if( !Platform2_OSX_SDL2_InitForD3D11(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
         {
@@ -206,14 +210,14 @@ main(
     }
     else
 #endif
-    if( !Platform2_OSX_SDL2_InitForSoft3D(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
+        if( !Platform2_OSX_SDL2_InitForSoft3D(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
     {
         printf("Failed to initialize platform\n");
         osx_abort_startup(game, platform, render_command_buffer, net_shared);
         return 1;
     }
 
-    struct Platform2_OSX_SDL2_Renderer_Soft3D* renderer_soft3d = NULL;
+    Platform2_OSX_SDL2_Renderer_Soft3D* renderer_soft3d = NULL;
 #if !defined(_WIN32)
     struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer_opengl3 = NULL;
 #endif
@@ -245,7 +249,7 @@ main(
     else
 #endif
 #if defined(__APPLE__)
-    if( renderer_kind == RENDERER_METAL )
+        if( renderer_kind == RENDERER_METAL )
     {
         renderer_metal = PlatformImpl2_OSX_SDL2_Renderer_Metal_New(SCREEN_WIDTH, SCREEN_HEIGHT);
         if( !renderer_metal )
@@ -265,7 +269,7 @@ main(
     else
 #endif
 #if defined(_WIN32)
-    if( renderer_kind == RENDERER_D3D11 )
+        if( renderer_kind == RENDERER_D3D11 )
     {
         renderer_d3d11 = PlatformImpl2_OSX_SDL2_Renderer_D3D11_New(SCREEN_WIDTH, SCREEN_HEIGHT);
         if( !renderer_d3d11 )
@@ -286,7 +290,7 @@ main(
 #endif
     {
         renderer_soft3d =
-            PlatformImpl2_OSX_SDL2_Renderer_Soft3D_New(SCREEN_WIDTH, SCREEN_HEIGHT, 1600, 900);
+            PlatformImpl2_OSX_SDL2_Renderer_Soft3D_New(SCREEN_WIDTH, SCREEN_HEIGHT, render_max_width, render_max_height);
         if( !renderer_soft3d )
         {
             printf("Failed to create Soft3D renderer\n");
@@ -304,8 +308,7 @@ main(
 
     /* Fixed game output size — iface_view_port is locked to this so letterboxing
      * scales a consistent 765×503 frame to the window size. */
-    const int game_width = 765;
-    const int game_height = 503;
+
     game->iface_view_port->width = game_width;
     game->iface_view_port->height = game_height;
     game->iface_view_port->x_center = game_width / 2;
@@ -346,8 +349,7 @@ main(
 
         uint64_t timestamp_ms = SDL_GetTicks64();
 
-        Platform2_OSX_SDL2_PollEvents(
-            platform, &input, (game->chat_interface_id == -1 && game->chat_input_focused) ? 1 : 0);
+        Platform2_OSX_SDL2_PollEvents(platform, &input, 0);
 
         game->tick_ms = timestamp_ms;
 
@@ -360,13 +362,13 @@ main(
         else
 #endif
 #if defined(__APPLE__)
-        if( renderer_metal )
+            if( renderer_metal )
             PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
                 renderer_metal, game, render_command_buffer);
         else
 #endif
 #if defined(_WIN32)
-        if( renderer_d3d11 )
+            if( renderer_d3d11 )
             PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
                 renderer_d3d11, game, render_command_buffer);
         else

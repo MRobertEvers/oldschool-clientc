@@ -54,14 +54,14 @@ isProject: false
 The leak report shows several categories:
 
 1. **No top-level game cleanup** -- `LibToriRS_GameFree` is declared in `[tori_rs.h:141](src/tori_rs.h)` but never implemented. The main loop in `[test/osx.cpp](test/osx.cpp)` exits without freeing `game`, `platform`, or `render_command_buffer`.
-2. `**world_free` is incomplete** -- `[world.c:110-121](src/osrs/world.c)` frees only `painter`, `collision_map`, `heightmap`, `minimap`, `scene2`, `decor_buildmap` but skips `lightmap`, `shademap`, `overlaymap`, `sharelight_map`, `blendmap`, `terrain_shapemap` (all allocated in `world_new` at lines 76-83).
-3. `**minimap_free` leaks `tiles` and `locs`** -- `[minimap.c:65-68](src/osrs/minimap.c)` only `free(minimap)`, missing `free(minimap->tiles)` and `free(minimap->locs)`.
-4. `**painter_free` leaks `tile_paints`, `elements`, `element_paints`, queues** -- `[painters.c:228-232](src/osrs/painters.c)` only frees `tiles` and the struct itself.
-5. `**dash_free` leaks texture hashmap and its backing buffer** -- `[dash.c:119-123](src/graphics/dash.c)` only `free(dash)`.
-6. `**dashmodel_free` doesn't free `merged_normals`** -- `[dash.c:2066-2110](src/graphics/dash.c)` frees `normals` but not `merged_normals` (allocated by `alloc_merged_normals` in `world_sharelight.u.c:198`).
-7. `**decode_tile` leaks `valid_faces`** -- `[terrain_decode_tile.u.c:617](src/osrs/terrain_decode_tile.u.c)` returns before `free(valid_faces)` on line 619 (unreachable code).
-8. `**buildcachedat_free` is incomplete** -- `[buildcachedat.c:352-367](src/osrs/buildcachedat.c)` has a TODO and doesn't free many hashmaps or their payloads.
-9. `**buildcachedat_loader_finalize_scene` can orphan old world** -- `[buildcachedat_loader.c:856](src/osrs/buildcachedat_loader.c)` doesn't free a previous `game->world` before replacing it (unlike the `centerzone` variant at line 908 which does).
+2. `**world_free` is incomplete\*\* -- `[world.c:110-121](src/osrs/world.c)` frees only `painter`, `collision_map`, `heightmap`, `minimap`, `scene2`, `decor_buildmap` but skips `lightmap`, `shademap`, `overlaymap`, `sharelight_map`, `blendmap`, `terrain_shapemap` (all allocated in `world_new` at lines 76-83).
+3. `**minimap_free` leaks `tiles` and `locs`\*\* -- `[minimap.c:65-68](src/osrs/minimap.c)` only `free(minimap)`, missing `free(minimap->tiles)` and `free(minimap->locs)`.
+4. `**painter_free` leaks `tile_paints`, `elements`, `element_paints`, queues\*\* -- `[painters.c:228-232](src/osrs/painters.c)` only frees `tiles` and the struct itself.
+5. `**dash_free` leaks texture hashmap and its backing buffer\*\* -- `[dash.c:119-123](src/graphics/dash.c)` only `free(dash)`.
+6. `**dashmodel_free` doesn't free `merged_normals`\*\* -- `[dash.c:2066-2110](src/graphics/dash.c)` frees `normals` but not `merged_normals` (allocated by `alloc_merged_normals` in `world_sharelight.u.c:198`).
+7. `**decode_tile` leaks `valid_faces`\*\* -- `[terrain_decode_tile.u.c:617](src/osrs/terrain_decode_tile.u.c)` returns before `free(valid_faces)` on line 619 (unreachable code).
+8. `**buildcachedat_free` is incomplete\*\* -- `[buildcachedat.c:352-367](src/osrs/buildcachedat.c)` has a TODO and doesn't free many hashmaps or their payloads.
+9. `**buildcachedat_loader_finalize_scene` can orphan old world\*\* -- `[buildcachedat_loader.c:856](src/osrs/buildcachedat_loader.c)` doesn't free a previous `game->world` before replacing it (unlike the `centerzone` variant at line 908 which does).
 
 ## Changes
 
@@ -170,14 +170,14 @@ Since `buildcachedat` owns all data stored in its hashmaps, we need free functio
 - `config_locs_free` (`[config_locs.c](src/osrs/rscache/tables/config_locs.c)`) -- **bugs**: only frees `actions[0..4]` not `[5..9]`; `param_values` teardown is commented out. Fix both.
 - `config_floortype_overlay_free` (`[config_floortype.c](src/osrs/rscache/tables/config_floortype.c)`) -- **bug**: `_free_inplace` is empty, so `flotype_name` is never freed. Add `free(overlay->flotype_name)`.
 - `dashsprite_free` (`[dash.c](src/graphics/dash.c)`) -- frees `pixels_argb` + struct. OK.
-- `filelist_dat_free` (`[filelist.c](src/osrs/rscache/filelist.c)`) -- **bug**: frees each `files[i]` and metadata arrays but never `free(filelist->files)` (the `char`** pointer array). Fix.
+- `filelist_dat_free` (`[filelist.c](src/osrs/rscache/filelist.c)`) -- **bug**: frees each `files[i]` and metadata arrays but never `free(filelist->files)` (the `char`\*\* pointer array). Fix.
 
 **Need implementation:**
 
-- `**texture_free`** in `[texture.c](src/osrs/texture.c)` -- declared in `texture.h` but body missing. Implement: `free(texture->texels); free(texture);`
-- `**dashpixfont_free`** in `[dash.c](src/graphics/dash.c)` -- new. Loop `char_mask[0..93]` freeing each non-NULL, call `dashfont_free_atlas(font->atlas)`, `free(font->charcode_set)` if non-NULL, `free(font)`.
-- `**cache_dat_animframe_free`** in `[animframe.c](src/osrs/rscache/tables_dat/animframe.c)` -- declared in `animframe.h` but body missing. Free `frame->groups`, `frame->x`, `frame->y`, `frame->z` (NOT `frame->base` which is shared).
-- `**cache_dat_animbaseframes_free**` in `[animframe.c](src/osrs/rscache/tables_dat/animframe.c)` -- new. For each frame: call `cache_dat_animframe_free`. Then `free(animbaseframes->frames)`. Then free the base: `free(base->types)`, each `free(base->labels[i])`, `free(base->labels)`, `free(base->label_counts)`, `free(base)`. Then `free(animbaseframes)`.
+- `**texture_free`\*\* in `[texture.c](src/osrs/texture.c)` -- declared in `texture.h` but body missing. Implement: `free(texture->texels); free(texture);`
+- `**dashpixfont_free`\*\* in `[dash.c](src/graphics/dash.c)` -- new. Loop `char_mask[0..93]` freeing each non-NULL, call `dashfont_free_atlas(font->atlas)`, `free(font->charcode_set)` if non-NULL, `free(font)`.
+- `**cache_dat_animframe_free`\*\* in `[animframe.c](src/osrs/rscache/tables_dat/animframe.c)` -- declared in `animframe.h` but body missing. Free `frame->groups`, `frame->x`, `frame->y`, `frame->z` (NOT `frame->base` which is shared).
+- `**cache_dat_animbaseframes_free`\*\* in `[animframe.c](src/osrs/rscache/tables_dat/animframe.c)` -- new. For each frame: call `cache_dat_animframe_free`. Then `free(animbaseframes->frames)`. Then free the base: `free(base->types)`, each `free(base->labels[i])`, `free(base->labels)`, `free(base->label_counts)`, `free(base)`. Then `free(animbaseframes)`.
 - `**config_dat_sequence_free**` in `[config_sequence.c](src/osrs/rscache/tables/config_sequence.c)` -- new for `CacheDatSequence`. Free `frames`, `iframes`, `delay`, `walkmerge`, then the struct.
 - `**cache_dat_config_idk_free**` in `[config_idk.c](src/osrs/rscache/tables_dat/config_idk.c)` -- new. Free `idk->models`, then `free(idk)`.
 - `**cache_dat_config_obj_free**` in `[config_obj.c](src/osrs/rscache/tables_dat/config_obj.c)` -- new. Free `name`, `desc`, each non-NULL `op[i]` and `iop[i]`, `recol_s`, `recol_d`, `countobj`, `countco`, then `free(obj)`.
@@ -186,7 +186,7 @@ Since `buildcachedat` owns all data stored in its hashmaps, we need free functio
 
 ### 9. Complete `buildcachedat_free` in `[buildcachedat.c](src/osrs/buildcachedat.c)`
 
-`buildcachedat` owns all data in its hashmaps. The `DashMap` API provides `dashmap_buffer_ptr(map)` which returns the backing buffer originally passed via `config.buffer = malloc(...)`. `dashmap_free` only frees the `DashMap`* struct, not the backing buffer.
+`buildcachedat` owns all data in its hashmaps. The `DashMap` API provides `dashmap_buffer_ptr(map)` which returns the backing buffer originally passed via `config.buffer = malloc(...)`. `dashmap_free` only frees the `DashMap`\* struct, not the backing buffer.
 
 Introduce a static helper:
 
@@ -245,8 +245,8 @@ Then write per-entry-type static free callbacks and tear down all **20 hashmaps*
 
 This is the central cleanup function. It must free everything allocated in `LibToriRS_GameNew` plus runtime-allocated state. Key ownership notes:
 
-- `**buildcachedat` owns**: all textures, fonts (DashPixFont), models, config locs, anim data, scenery locs, etc. stored in its hashmaps. The `game->pixfont_`* pointers are borrowed references into `buildcachedat->fonts_hmap` -- do NOT free them separately.
-- `**game` owns**: all `DashSprite`* fields (loaded in `buildcachedat_loader_cache_media`), world, sys_dash, sys_painter, sys_painter_buffer, sys_minimap, position/view_port/camera, Isaac RNGs, packet_buffer, loginproto, ui_scene, static_ui, ui_render_command_buffer, zone state linked lists (obj_stacks, loc_changes).
+- `**buildcachedat` owns\*_: all textures, fonts (DashPixFont), models, config locs, anim data, scenery locs, etc. stored in its hashmaps. The `game->pixfont_`_ pointers are borrowed references into `buildcachedat->fonts_hmap` -- do NOT free them separately.
+- `**game` owns\*_: all `DashSprite`_ fields (loaded in `buildcachedat_loader_cache_media`), world, sys_dash, sys_painter, sys_painter_buffer, sys_minimap, position/view_port/camera, Isaac RNGs, packet_buffer, loginproto, ui_scene, static_ui, ui_render_command_buffer, zone state linked lists (obj_stacks, loc_changes).
 
 ```c
 void LibToriRS_GameFree(struct GGame* game) {
@@ -349,8 +349,6 @@ flowchart TD
   end
 ```
 
-
-
 #### Issues found
 
 **A. `yield.args` leaked between coroutine iterations** (`[platform_impl2_osx_sdl2.cpp:367-373](src/platforms/platform_impl2_osx_sdl2.cpp)`)
@@ -381,7 +379,7 @@ while (script_status == LUACSIDECAR_YIELDED) {
 
 **B. `result` freed with wrong function** (`[platform_impl2_osx_sdl2.cpp:372](src/platforms/platform_impl2_osx_sdl2.cpp)`)
 
-`result` from `on_lua_async_call` may contain `USERDATA_ARRAY_SPREAD` or other complex types. It's freed with `LuaGameType_Free` which doesn't free `int*`/`void`**/`char*` buffers inside those types. Must use `LuacGameType_Free(result)` instead.
+`result` from `on_lua_async_call` may contain `USERDATA_ARRAY_SPREAD` or other complex types. It's freed with `LuaGameType_Free` which doesn't free `int*`/`void`\*_/`char_`buffers inside those types. Must use`LuacGameType_Free(result)` instead.
 
 **C. `LuacGameType_FromLua` lightuserdata table path leaks `ptrs`** (`[luac_gametypes.c:95-109](src/osrs/lua_sidecar/luac_gametypes.c)`)
 
@@ -402,7 +400,7 @@ return gt;
 
 **D. `LuaGameType_Free` doesn't free `INT_ARRAY` values or `USERDATA_ARRAY` buffers**
 
-`LuaGameType_Free` only handles `VARTYPE_ARRAY` and `VARTYPE_ARRAY_SPREAD` children recursively, then `free(gt)`. For `INT_ARRAY`, it doesn't `free(values)`. For `USERDATA_ARRAY`, it doesn't `free` the `void`** buffer. This means:
+`LuaGameType_Free` only handles `VARTYPE_ARRAY` and `VARTYPE_ARRAY_SPREAD` children recursively, then `free(gt)`. For `INT_ARRAY`, it doesn't `free(values)`. For `USERDATA_ARRAY`, it doesn't `free` the `void`\*\* buffer. This means:
 
 - Any call site using `LuaGameType_Free` on a tree containing `INT_ARRAY` or `USERDATA_ARRAY` children leaks their inner buffers.
 - The `VARTYPE_ARRAY` recursive path in `LuaGameType_Free` calls `LuaGameType_Free` on children (not `LuacGameType_Free`), so nested `INT_ARRAY`/`STRING` children leak.
@@ -444,7 +442,7 @@ void LuaGameType_Free(struct LuaGameType* gt) {
 
 Then `LuacGameType_Free` becomes unnecessary -- all call sites should use `LuaGameType_Free`. This eliminates the split-ownership confusion and makes the recursive teardown correct for all tree shapes.
 
-**Userdata ownership rule**: `USERDATA` / `USERDATA_ARRAY` / `USERDATA_ARRAY_SPREAD` carry **borrowed** `void`* pointers to domain objects (e.g., `CacheDatArchive*`). `LuaGameType_Free` frees the `void`** backing array (the container) but **never** the individual `void`* values. The receiver that unpacks userdata via `GetUserData`/`GetUserDataArrayAt` is responsible for freeing the pointed-to objects through their domain-specific free functions when done with them.
+**Userdata ownership rule**: `USERDATA` / `USERDATA_ARRAY` / `USERDATA_ARRAY_SPREAD` carry **borrowed** `void`_ pointers to domain objects (e.g., `CacheDatArchive`_). `LuaGameType_Free` frees the `void`** backing array (the container) but **never\*_ the individual `void`_ values. The receiver that unpacks userdata via `GetUserData`/`GetUserDataArrayAt` is responsible for freeing the pointed-to objects through their domain-specific free functions when done with them.
 
 **E. `lua_buildcachedat.c` error paths use `LuaGameType_Free` on partial `VARTYPE_ARRAY` of `INT_ARRAY` children**
 
@@ -460,4 +458,3 @@ Platform2_OSX_SDL2_Free(platform);
 LibToriRS_RenderCommandBufferFree(render_command_buffer);
 LibToriRS_NetFreeBuffer(net_shared);
 ```
-

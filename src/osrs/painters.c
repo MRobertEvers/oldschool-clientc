@@ -1,5 +1,6 @@
 #include "painters.h"
 
+#include <assert.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -10,6 +11,11 @@
 #include "painters_intqueue.u.c"
 // clang-format on
 
+#define PAINTER_TILE_IDX(p, t) ((int)((t) - (p)->tiles))
+#define PAINTER_TILE_X(p, t) (PAINTER_TILE_IDX((p), (t)) % (p)->width)
+#define PAINTER_TILE_Z(p, t) \
+    ((PAINTER_TILE_IDX((p), (t)) / (p)->width) % (p)->height)
+
 static inline void
 init_painter_tile(
     struct PaintersTile* tile,
@@ -17,11 +23,13 @@ init_painter_tile(
     int sz,
     int slevel)
 {
-    tile->sx = sx;
-    tile->sz = sz;
-    tile->slevel = slevel;
-    tile->terrain_slevel = slevel;
+    (void)sx;
+    (void)sz;
+    painters_tile_set_slevel(tile, (uint8_t)slevel);
+    painters_tile_set_terrain_slevel(tile, (uint8_t)slevel);
+    painters_tile_set_flags(tile, 0);
     tile->spans = 0;
+    tile->scenery_head = -1;
     tile->wall_a = -1;
     tile->wall_b = -1;
     tile->wall_decor_a = -1;
@@ -31,7 +39,6 @@ init_painter_tile(
     tile->ground_object_bottom = -1;
     tile->ground_object_middle = -1;
     tile->ground_object_top = -1;
-    tile->flags = 0;
 }
 
 enum TilePaintStep
@@ -71,6 +78,10 @@ struct Painter
     struct TilePaint* tile_paints;
     int tile_count;
     int tile_capacity;
+
+    struct SceneryNode* scenery_pool;
+    int scenery_pool_count;
+    int scenery_pool_capacity;
 
     struct PaintersElement* elements;
     struct ElementPaint* element_paints;
@@ -181,6 +192,90 @@ painter_coord_idx(
     return sx + sz * painter->width + slevel * painter->width * painter->height;
 }
 
+static void
+scenery_pool_ensure(struct Painter* painter, int extra)
+{
+    if( painter->scenery_pool_count + extra <= painter->scenery_pool_capacity )
+        return;
+    int need = painter->scenery_pool_count + extra;
+    int cap = painter->scenery_pool_capacity ? painter->scenery_pool_capacity : 256;
+    while( cap < need )
+        cap *= 2;
+    painter->scenery_pool =
+        realloc(painter->scenery_pool, (size_t)cap * sizeof(struct SceneryNode));
+    painter->scenery_pool_capacity = cap;
+}
+
+static void
+scenery_prepend(
+    struct Painter* painter,
+    struct PaintersTile* tile,
+    int16_t element_idx,
+    uint8_t span_flags)
+{
+    scenery_pool_ensure(painter, 1);
+    int idx = painter->scenery_pool_count++;
+    painter->scenery_pool[idx] = (struct SceneryNode){
+        .element_idx = element_idx,
+        .span = span_flags,
+        .next = tile->scenery_head,
+    };
+    tile->scenery_head = idx;
+    tile->spans |= span_flags;
+}
+
+static int32_t
+clone_scenery_chain(struct Painter* painter, int32_t src_head)
+{
+    if( src_head < 0 )
+        return -1;
+
+    int32_t out_head = -1;
+    int32_t* tail_next = &out_head;
+
+    for( int32_t cur = src_head; cur != -1; cur = painter->scenery_pool[cur].next )
+    {
+        scenery_pool_ensure(painter, 1);
+        int ni = painter->scenery_pool_count++;
+        painter->scenery_pool[ni] = (struct SceneryNode){
+            .element_idx = painter->scenery_pool[cur].element_idx,
+            .span = painter->scenery_pool[cur].span,
+            .next = -1,
+        };
+        *tail_next = ni;
+        tail_next = &painter->scenery_pool[ni].next;
+    }
+    return out_head;
+}
+
+static void
+tile_recalculate_spans(struct Painter* painter, struct PaintersTile* tile)
+{
+    tile->spans = 0;
+    for( int32_t n = tile->scenery_head; n != -1; n = painter->scenery_pool[n].next )
+        tile->spans |= painter->scenery_pool[n].span;
+}
+
+static void
+tile_remove_scenery_element(
+    struct Painter* painter,
+    struct PaintersTile* tile,
+    int element)
+{
+    int32_t* link = &tile->scenery_head;
+    while( *link != -1 )
+    {
+        struct SceneryNode* node = &painter->scenery_pool[*link];
+        if( node->element_idx == element )
+        {
+            *link = node->next;
+            break;
+        }
+        link = &node->next;
+    }
+    tile_recalculate_spans(painter, tile);
+}
+
 struct Painter*
 painter_new(
     int width,
@@ -200,6 +295,10 @@ painter_new(
     memset(painter->tiles, 0, tile_count * sizeof(struct PaintersTile));
     painter->tile_count = 0;
     painter->tile_capacity = tile_count;
+
+    painter->scenery_pool = NULL;
+    painter->scenery_pool_count = 0;
+    painter->scenery_pool_capacity = 0;
 
     for( int sx = 0; sx < width; sx++ )
     {
@@ -230,6 +329,7 @@ painter_free(struct Painter* painter)
     if( !painter )
         return;
     free(painter->tiles);
+    free(painter->scenery_pool);
     free(painter->tile_paints);
     free(painter->elements);
     free(painter->element_paints);
@@ -287,7 +387,7 @@ painter_tile_set_bridge(
 
     struct PaintersTile* bridge_tile =
         painter_tile_at(painter, bridge_tile_sx, bridge_tile_sz, bridge_tile_slevel);
-    bridge_tile->flags |= PAINTERS_TILE_FLAG_BRIDGE;
+    painters_tile_or_flags(bridge_tile, PAINTERS_TILE_FLAG_BRIDGE);
 }
 
 void
@@ -304,6 +404,7 @@ painter_tile_copyto(
     struct PaintersTile* dest_tile = painter_tile_at(painter, dest_sx, dest_sz, dest_slevel);
 
     *dest_tile = *tile;
+    dest_tile->scenery_head = clone_scenery_chain(painter, tile->scenery_head);
 }
 
 void
@@ -317,7 +418,7 @@ painter_tile_set_draw_level(
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
     assert(draw_level >= 0);
     assert(draw_level < painter->levels);
-    tile->slevel = draw_level;
+    painters_tile_set_slevel(tile, (uint8_t)draw_level);
 }
 
 void
@@ -331,7 +432,7 @@ painter_tile_set_terrain_level(
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
     assert(terrain_slevel >= 0);
     assert(terrain_slevel < painter->levels);
-    tile->terrain_slevel = terrain_slevel;
+    painters_tile_set_terrain_slevel(tile, (uint8_t)terrain_slevel);
 }
 
 static struct TilePaint*
@@ -396,14 +497,7 @@ compute_normal_scenery_spans(
             }
 
             tile = painter_tile_at(painter, x, z, loc_level);
-            tile->spans |= span_flags;
-            assert(tile->scenery_count < MAX_SCENERY_COUNT);
-
-            int idx = tile->scenery_count;
-            tile->scenery[idx] = element;
-            tile->scenery_spans[idx] = span_flags;
-
-            tile->scenery_count++;
+            scenery_prepend(painter, tile, (int16_t)element, (uint8_t)span_flags);
         }
     }
 }
@@ -442,30 +536,17 @@ painter_mark_static_count(struct Painter* painter)
     painter->static_element_count = painter->element_count;
 }
 
-static void
-tile_recalculate_spans(struct PaintersTile* tile)
-{
-    tile->spans = 0;
-    for( int i = 0; i < tile->scenery_count; i++ )
-    {
-        tile->spans |= tile->scenery_spans[i];
-    }
-}
-
 void
 painter_reset_to_static(struct Painter* painter)
 {
     struct PaintersTile* tile = NULL;
     for( int i = painter->static_element_count; i < painter->element_count; i++ )
     {
-        int size_x = 1;
-        int size_z = 1;
+        if( painter->elements[i].kind != PNTRELEM_SCENERY )
+            continue;
 
-        if( painter->elements[i].kind == PNTRELEM_SCENERY )
-        {
-            size_x = painter->elements[i]._scenery.size_x;
-            size_z = painter->elements[i]._scenery.size_z;
-        }
+        int size_x = painter->elements[i]._scenery.size_x;
+        int size_z = painter->elements[i]._scenery.size_z;
 
         for( int x = 0; x < size_x; x++ )
         {
@@ -476,8 +557,7 @@ painter_reset_to_static(struct Painter* painter)
                     painter->elements[i].sx + x,
                     painter->elements[i].sz + z,
                     painter->elements[i].slevel);
-                tile->scenery_count--;
-                tile_recalculate_spans(tile);
+                tile_remove_scenery_element(painter, tile, i);
             }
         }
     }
@@ -739,8 +819,8 @@ painter_buffer_new()
 
     memset(buffer, 0x00, sizeof(struct PaintersBuffer));
 
-    buffer->command_capacity = 512;
-    buffer->commands = malloc(sizeof(struct PaintersElementCommand) * 512);
+    buffer->command_capacity = 128;
+    buffer->commands = malloc(sizeof(struct PaintersElementCommand) * buffer->command_capacity);
     return buffer;
 }
 
@@ -924,9 +1004,9 @@ painter_paint(
 
         tile = &painter->tiles[tile_idx];
 
-        int tile_sx = tile->sx;
-        int tile_sz = tile->sz;
-        int tile_slevel = tile->slevel;
+        int tile_sx = PAINTER_TILE_X(painter, tile);
+        int tile_sz = PAINTER_TILE_Z(painter, tile);
+        int tile_slevel = painters_tile_get_slevel(tile);
 
         tile_paint = &painter->tile_paints[tile_idx];
         assert(tile_paint->queue_count > 0);
@@ -952,7 +1032,8 @@ painter_paint(
         if( tile_paint->queue_count > 0 )
             continue;
 
-        if( (tile->flags & PAINTERS_TILE_FLAG_BRIDGE) != 0 || tile_slevel > max_level )
+        if( (painters_tile_get_flags(tile) & PAINTERS_TILE_FLAG_BRIDGE) != 0 ||
+            tile_slevel > max_level )
         {
             tile_paint->step = PAINT_STEP_DONE;
             continue;
@@ -1070,9 +1151,9 @@ painter_paint(
                 // The bridge floor is always stored on level 3.
                 push_command_terrain(
                     buffer,
-                    bridge_underpass_tile->sx,
-                    bridge_underpass_tile->sz,
-                    bridge_underpass_tile->terrain_slevel);
+                    PAINTER_TILE_X(painter, bridge_underpass_tile),
+                    PAINTER_TILE_Z(painter, bridge_underpass_tile),
+                    painters_tile_get_terrain_slevel(bridge_underpass_tile));
 
                 if( bridge_underpass_tile->wall_a != -1 )
                 {
@@ -1081,9 +1162,10 @@ painter_paint(
                     push_command_entity(buffer, element->_wall.entity);
                 }
 
-                for( int i = 0; i < bridge_underpass_tile->scenery_count; i++ )
+                for( int32_t sn = bridge_underpass_tile->scenery_head; sn != -1;
+                     sn = painter->scenery_pool[sn].next )
                 {
-                    int scenery_element = bridge_underpass_tile->scenery[i];
+                    int scenery_element = painter->scenery_pool[sn].element_idx;
                     element_paint = &painter->element_paints[scenery_element];
                     if( element_paint->drawn )
                         continue;
@@ -1096,7 +1178,8 @@ painter_paint(
                 }
             }
 
-            push_command_terrain(buffer, tile_sx, tile_sz, tile->terrain_slevel);
+            push_command_terrain(
+                buffer, tile_sx, tile_sz, painters_tile_get_terrain_slevel(tile));
 
             if( tile->wall_a != -1 )
             {
@@ -1240,9 +1323,9 @@ painter_paint(
             tile_paint->step = PAINT_STEP_LOCS;
 
             // Check if all locs are drawable.
-            for( int j = 0; j < tile->scenery_count; j++ )
+            for( int32_t sn = tile->scenery_head; sn != -1; sn = painter->scenery_pool[sn].next )
             {
-                int scenery_element = tile->scenery[j];
+                int scenery_element = painter->scenery_pool[sn].element_idx;
 
                 element_paint = &painter->element_paints[scenery_element];
                 if( element_paint->drawn )

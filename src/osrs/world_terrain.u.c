@@ -172,18 +172,8 @@ terrain_element_acquire(
     struct World* world,
     int tile_id)
 {
-    return scene2_element_acquire(
-        world->scene2, entity_unified_id(ENTITY_KIND_MAP_BUILD_TILE, tile_id));
-}
-
-static void
-init_map_build_tile_entity(
-    struct MapBuildTileEntity* map_build_tile_entity,
-    int entity_id)
-{
-    memset(map_build_tile_entity, 0, sizeof(struct MapBuildTileEntity));
-    map_build_tile_entity->scene_element.element_id = -1;
-    map_build_tile_entity->entity_id = entity_id;
+    return scene2_element_acquire_fast(
+        world->scene2, (int)entity_unified_id(ENTITY_KIND_MAP_BUILD_TILE, tile_id));
 }
 
 static inline int
@@ -211,7 +201,7 @@ world_tile_entity_at(
     assert(level >= 0 && level < MAP_TERRAIN_LEVELS);
     int idx = world_tile_entity_idx(world, x, z, level);
     assert(idx >= 0 && idx < MAX_MAP_BUILD_TILE_ENTITIES);
-    return &world->map_build_tile_entities[idx];
+    return world_map_build_tile_entity(world, idx);
 }
 
 struct MapBuildTileEntity*
@@ -368,12 +358,13 @@ build_scene_terrain(struct World* world)
                     underlay_hsl,
                     overlay_hsl);
 
-                scene_element->dash_model = model;
-                scene_element->dash_position = dashposition_new();
-                scene_element->dash_position->x = x * TILE_SIZE;
-                scene_element->dash_position->z = z * TILE_SIZE;
+                scene2_element_set_dash_position_ptr(scene_element, dashposition_new());
+                scene2_element_set_dash_model(world->scene2, scene_element, model);
+                struct DashPosition* dp = scene2_element_dash_position(scene_element);
+                dp->x = x * TILE_SIZE;
+                dp->z = z * TILE_SIZE;
                 // The height is built into the model.
-                scene_element->dash_position->y = 0;
+                dp->y = 0;
 
                 /* Explicit overlay minimap color from flo config; UINT32_MAX = unset (init_tile). */
                 if( overlay_tile->minimap_rgb_color != UINT32_MAX )
@@ -402,10 +393,10 @@ build_scene_terrain(struct World* world)
                     minimap_background_rgb = dash_hsl16_to_rgb(underlay_hsl);
 
                 minimap_set_tile_color(
-                    world->minimap, x, z, level, minimap_foreground_rgb, MINIMAP_FOREGROUND);
+                    world->minimap, x, z, minimap_foreground_rgb, MINIMAP_FOREGROUND);
                 minimap_set_tile_color(
-                    world->minimap, x, z, level, minimap_background_rgb, MINIMAP_BACKGROUND);
-                minimap_set_tile_shape(world->minimap, x, z, level, shape, rotation);
+                    world->minimap, x, z, minimap_background_rgb, MINIMAP_BACKGROUND);
+                minimap_set_tile_shape(world->minimap, x, z, shape, rotation);
             }
         }
     }

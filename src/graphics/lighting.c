@@ -6,12 +6,12 @@
 
 static struct LightingNormal
 calc_face_normal(
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
+    faceint_t* face_indices_a,
+    faceint_t* face_indices_b,
+    faceint_t* face_indices_c,
     int face)
 {
     struct LightingNormal normal = { 0 };
@@ -66,12 +66,12 @@ calculate_vertex_normals(
     struct LightingNormal* vertex_normals,
     struct LightingNormal* face_normals,
     int vertex_count,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z,
+    faceint_t* face_indices_a,
+    faceint_t* face_indices_b,
+    faceint_t* face_indices_c,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
     int num_faces)
 {
     for( int i = 0; i < num_faces; i++ )
@@ -186,18 +186,18 @@ lightness_clamped(int lightness)
 
 void
 apply_lighting(
-    int* face_colors_a_hsl16,
-    int* face_colors_b_hsl16,
-    int* face_colors_c_hsl16,
+    hsl16_t* face_colors_a_hsl16,
+    hsl16_t* face_colors_b_hsl16,
+    hsl16_t* face_colors_c_hsl16,
     struct LightingNormal* vertex_normals,
     struct LightingNormal* face_normals,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
+    faceint_t* face_indices_a,
+    faceint_t* face_indices_b,
+    faceint_t* face_indices_c,
     int num_faces,
-    int* face_colors_hsl16, // The flat color.
-    int* face_alphas,
-    int* face_textures,
+    const hsl16_t* face_colors_hsl16, // The flat color.
+    alphaint_t* face_alphas,
+    faceint_t* face_textures,
     int* face_infos,
     int light_ambient,
     int light_attenuation,
@@ -251,7 +251,7 @@ apply_lighting(
         if( alpha == -1 )
             type = 2;
 
-        int color_flat_hsl16 = face_colors_hsl16[i];
+        int color_flat_hsl16 = (int)face_colors_hsl16[i];
         int a = face_indices_a[i];
         int b = face_indices_b[i];
         int c = face_indices_c[i];
@@ -269,21 +269,24 @@ apply_lighting(
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
 
-                face_colors_a_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
+                face_colors_a_hsl16[i] =
+                    (hsl16_t)lighting_multiply_hsl16(color_flat_hsl16, lightness);
 
                 n = &vertex_normals[b];
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
 
-                face_colors_b_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
+                face_colors_b_hsl16[i] =
+                    (hsl16_t)lighting_multiply_hsl16(color_flat_hsl16, lightness);
 
                 n = &vertex_normals[c];
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
 
-                face_colors_c_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
+                face_colors_c_hsl16[i] =
+                    (hsl16_t)lighting_multiply_hsl16(color_flat_hsl16, lightness);
             }
             else if( type == 1 )
             {
@@ -293,18 +296,19 @@ apply_lighting(
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation + (light_attenuation >> 1));
 
-                face_colors_a_hsl16[i] = lighting_multiply_hsl16(color_flat_hsl16, lightness);
-                face_colors_c_hsl16[i] = -1;
+                face_colors_a_hsl16[i] =
+                    (hsl16_t)lighting_multiply_hsl16(color_flat_hsl16, lightness);
+                face_colors_c_hsl16[i] = DASHHSL16_FLAT;
             }
             else if( type == 2 )
             {
-                face_colors_c_hsl16[i] = -2;
+                face_colors_c_hsl16[i] = DASHHSL16_HIDDEN;
             }
             else if( type == 3 )
             {
                 // 128 is black in the pallette.
-                face_colors_a_hsl16[i] = 128;
-                face_colors_c_hsl16[i] = -2;
+                face_colors_a_hsl16[i] = (hsl16_t)128;
+                face_colors_c_hsl16[i] = DASHHSL16_HIDDEN;
             }
         }
         else
@@ -320,19 +324,19 @@ apply_lighting(
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
 
-                face_colors_a_hsl16[i] = lightness_clamped(lightness);
+                face_colors_a_hsl16[i] = (hsl16_t)lightness_clamped(lightness);
 
                 n = &vertex_normals[b];
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
-                face_colors_b_hsl16[i] = lightness_clamped(lightness);
+                face_colors_b_hsl16[i] = (hsl16_t)lightness_clamped(lightness);
 
                 n = &vertex_normals[c];
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation * n->face_count);
-                face_colors_c_hsl16[i] = lightness_clamped(lightness);
+                face_colors_c_hsl16[i] = (hsl16_t)lightness_clamped(lightness);
             }
             else if( type == 1 )
             {
@@ -342,16 +346,16 @@ apply_lighting(
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
                                         (light_attenuation + (light_attenuation >> 1));
 
-                face_colors_a_hsl16[i] = lightness_clamped(lightness);
-                face_colors_c_hsl16[i] = -1;
+                face_colors_a_hsl16[i] = (hsl16_t)lightness_clamped(lightness);
+                face_colors_c_hsl16[i] = DASHHSL16_FLAT;
             }
             else if( type == 2 )
             {
-                face_colors_c_hsl16[i] = -2;
+                face_colors_c_hsl16[i] = DASHHSL16_HIDDEN;
             }
             else if( type == 3 )
             {
-                face_colors_c_hsl16[i] = -2;
+                face_colors_c_hsl16[i] = DASHHSL16_HIDDEN;
             }
         }
     }

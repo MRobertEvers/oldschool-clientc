@@ -10,16 +10,19 @@
 #include "graphics/dash.h"
 #include "osrs/buildcache.h"
 #include "osrs/buildcachedat.h"
+#include "osrs/clientscript_vm.h"
 #include "osrs/ginput.h"
 #include "osrs/packetbuffer.h"
 #include "osrs/packets/revpacket_lc245_2.h"
 #include "osrs/painters.h"
 #include "osrs/player_stats.h"
-#include "osrs/revconfig/static_ui.h"
 #include "osrs/revconfig/uiscene.h"
+#include "osrs/revconfig/uitree.h"
+#include "osrs/rs_component_state.h"
 #include "osrs/rsa.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
+#include "osrs/scene2.h"
 #include "osrs/script_queue.h"
 #include "osrs/varp_varbit_manager.h"
 #include "osrs/world.h"
@@ -33,9 +36,9 @@
 struct FileListDat;
 struct MinimapRenderCommandBuffer;
 struct ToriRSRenderCommandBuffer;
-
-#define MAX_PLAYERS 2048
-#define MAX_NPCS 8192
+struct InterfaceState;
+struct UIInventoryPool;
+struct RevConfigBuffer;
 
 #define ACTIVE_PLAYER_SLOT 2047
 
@@ -64,17 +67,11 @@ struct GGame
     int rebuilt;
 
     struct ToriRSRenderCommandBuffer* uiscene_queued_commands;
-    struct ToriRSRenderCommandBuffer* ui_render_command_buffer;
-    /** UIScene element holding baked level-0 minimap tiles; -1 if none. */
-    int minimap_static_uiscene_element_id;
-    /** Reused each frame for minimap dynamic loc commands; reset in LibToriRS_FrameBegin. */
     struct MinimapRenderCommandBuffer* minimap_dynamic_commands;
 
     int tile_clicked_x;
     int tile_clicked_z;
     int tile_clicked_level;
-
-    bool step_done;
 
     int build_player;
     int cc;
@@ -94,9 +91,21 @@ struct GGame
     struct rsa rsa;
 
     struct UIScene* ui_scene;
-    struct StaticUIBuffer* ui_scene_buffer;
+    /** Scene2 used for world 3D; textures load here before world exists. world->scene2 points here.
+     */
+    struct Scene2* scene2;
+    struct UITree* ui_root_buffer;
+    struct UITree* ui_stack;
+    struct ClientScriptVM* clientscript_vm;
+    struct RSComponentStatePool* rs_component_state;
+    struct UIInventoryPool* inv_pool;
+    struct RevConfigBuffer* pending_revconfig;
 
-    int uiscene_idx;
+#define UITREE_TRAVERSAL_STACK_MAX 64
+    int32_t uitree_stack[UITREE_TRAVERSAL_STACK_MAX];
+    int uitree_stack_top;   /* -1 = empty */
+    int32_t uitree_current; /* uitree node index, -1 when traversal done */
+
     int uiscene_command_idx;
 
     int cycles_elapsed;
@@ -132,13 +141,9 @@ struct GGame
     struct BuildCacheDat* buildcachedat;
     struct BuildCache* buildcache;
 
-    struct VarPVarBitManager varp_varbit;
+    struct InterfaceState* iface;
 
-    /* Local player stats (UPDATE_STAT, UPDATE_RUNENERGY) */
-    int player_stat_xp[PLAYER_STAT_COUNT];
-    int player_stat_effective_level[PLAYER_STAT_COUNT];
-    int player_stat_base_level[PLAYER_STAT_COUNT];
-    int player_run_energy;
+    struct VarPVarBitManager varp_varbit;
 
     /* Media filelist kept after cache_media so we can load component sprites when interfaces load
      */
@@ -160,171 +165,25 @@ struct GGame
     struct WorldOptionSet option_set;
 
     struct DashGraphics* sys_dash;
-    struct Minimap* sys_minimap;
-    struct Painter* sys_painter;
     struct PaintersBuffer* sys_painter_buffer;
 
-    struct DashModel* model;
     struct DashPosition* position;
     struct DashViewPort* view_port;
     struct DashViewPort* iface_view_port;
     struct DashCamera* camera;
-    struct DashPixFont* pixfont_b12;
-    struct DashPixFont* pixfont_p11;
-    struct DashPixFont* pixfont_p12;
-    struct DashPixFont* pixfont_q8;
 
-    struct DashSprite* sprite_invback;
-    struct DashSprite* sprite_chatback;
-    struct DashSprite* sprite_mapback;
-    struct DashSprite* sprite_backbase1;
-    struct DashSprite* sprite_backbase2;
-    struct DashSprite* sprite_backhmid1;
-    struct DashSprite* sprite_sideicons[13];
-    struct DashSprite* sprite_compass;
-    struct DashSprite* sprite_mapedge;
-    struct DashSprite* sprite_mapscene[50];
-    struct DashSprite* sprite_mapfunction[50];
-    struct DashSprite* sprite_hitmarks[20];
-    struct DashSprite* sprite_headicons[20];
-    struct DashSprite* sprite_mapmarker0;
-    struct DashSprite* sprite_mapmarker1;
-    struct DashSprite* sprite_cross[8];
-    struct DashSprite* sprite_mapdot0;
-    struct DashSprite* sprite_mapdot1;
-    struct DashSprite* sprite_mapdot2;
-    struct DashSprite* sprite_mapdot3;
-    struct DashSprite* sprite_scrollbar0;
-    struct DashSprite* sprite_scrollbar1;
-    struct DashSprite* sprite_redstone1;
-    struct DashSprite* sprite_redstone2;
-    struct DashSprite* sprite_redstone3;
-    struct DashSprite* sprite_redstone1h;
-    struct DashSprite* sprite_redstone2h;
-    struct DashSprite* sprite_redstone1v;
-    struct DashSprite* sprite_redstone2v;
-    struct DashSprite* sprite_redstone3v;
-    struct DashSprite* sprite_redstone1hv;
-    struct DashSprite* sprite_redstone2hv;
-
-    struct DashSprite* sprite_modicons[2];
-    struct DashSprite* sprite_backleft1;
-    struct DashSprite* sprite_backleft2;
-    struct DashSprite* sprite_backright1;
-
-    struct DashSprite* sprite_backright2;
-    struct DashSprite* sprite_backtop1;
-    struct DashSprite* sprite_backvmid1;
-    struct DashSprite* sprite_backvmid2;
-    struct DashSprite* sprite_backvmid3;
-    struct DashSprite* sprite_backhmid2;
-
-    // Interface IDs (which interface is currently shown in each area)
-    int viewport_interface_id;
-    int sidebar_interface_id;
-    int chat_interface_id;
-
-    // Chat privacy (Client.ts chatPublicMode, chatPrivateMode, chatTradeMode; packet sync)
-    int chat_public_mode;  /* 0=On, 1=Friends, 2=Off, 3=Hide */
-    int chat_private_mode; /* 0=On, 1=Friends, 2=Off */
-    int chat_trade_mode;   /* 0=On, 1=Friends, 2=Off */
-
-    // Tab system
-    int selected_tab;
-    int tab_interface_id[14];
-
-    // Scroll position per component (for scrollable layers). Index by component id.
-#define MAX_COMPONENT_SCROLL_IDS 16384
-    int component_scroll_position[MAX_COMPONENT_SCROLL_IDS];
-
-    // Hovered component id for current draw area (viewport/sidebar/chat). Set before drawing;
-    // components with hide==true are only drawn when component->id == current_hovered_interface_id.
-    int current_hovered_interface_id;
-
-    // For scrollbar arrow hold: cycles_elapsed when we last applied scroll (so step = rate *
-    // delta).
-    int scroll_arrow_hold_cycles_last;
-
-    // Item selection (for inventory clicks)
-    int selected_item;
-    int selected_interface;
-    int selected_area;
-    int selected_cycle;
-
-    /* Terrain tile click (set during frame when a drawn tile contains mouse; consumed in cycle) */
-    int clicked_tile_x;     /* scene-local tile X (add scene_base_tile_x for world) */
-    int clicked_tile_z;     /* scene-local tile Z (add scene_base_tile_z for world) */
-    int clicked_tile_valid; /* 1 if click was on a tile this frame, 0 otherwise */
-
-    /* Scene SW world tile (set on rebuild normal); add to clicked_tile to get world tile for server
-     */
-    int scene_base_tile_x;
-    int scene_base_tile_z;
-
-    /* Zone packet base: set by UPDATE_ZONE_PARTIAL_FOLLOWS / UPDATE_ZONE_FULL_FOLLOWS. Used for
-     * LOC_ADD_CHANGE, OBJ_ADD, etc. x = zone_base_x + (pos>>4)&7, z = zone_base_z + pos&7 */
-    int zone_base_x;
-    int zone_base_z;
-
-    /* Dynamic zone state: obj stacks and loc changes (Client.ts objStacks, locChanges).
-     * Cleared on REBUILD_NORMAL. Full impl adds dynamic scene elements. */
-#define ZONE_SCENE_SIZE 104
-#define ZONE_LEVELS 4
-    struct ObjStackEntry* obj_stacks[ZONE_LEVELS][ZONE_SCENE_SIZE][ZONE_SCENE_SIZE];
-    struct SceneElement* obj_stack_elements[ZONE_LEVELS][ZONE_SCENE_SIZE][ZONE_SCENE_SIZE];
-    struct LocChangeEntry* loc_changes_head;
-
-/* BFS path for move (scene-local tiles); drawn as line overlay. Cleared when highlight cleared. */
-#define GAME_PATH_TILE_MAX 26
-    int path_tile_x[GAME_PATH_TILE_MAX];
-    int path_tile_z[GAME_PATH_TILE_MAX];
-    int path_tile_count; /* 0 = no path to draw */
-
-    /* Hovered interactable loc (Client.ts pickedBitsets for entityType 2). Last hit in draw order.
-     */
-    struct SceneElement* hovered_scene_element;
-
-    /* Hovered dash model (Scene2Element) for debug AABB drawing. Last hit in draw order. */
-    struct Scene2Element* hovered_scene2_element;
-
-    /* Entity UID of the hovered interactible model for the current frame (-1 = none). */
-    int hovered_interactible_entity_uid;
-    /* Guards the single FONT_DRAW emitted at end of FrameNextCommand. */
-    bool frame_hover_font_draw_done;
-
-    /* Viewport offset in screen coords (Client.ts menuArea 0: mouseX-=4, mouseY-=4). */
     int viewport_offset_x;
     int viewport_offset_y;
 
-    /* Minimenu (right-click context menu). Client.ts menuVisible, menuX, menuOption, etc. */
-#define MINIMENU_MAX_OPTIONS 32
-#define MINIMENU_OPTION_LEN 64
-    int menu_visible;
-    int menu_area; /* 0=viewport, 1=sidebar, 2=chatbox */
-    int menu_x;
-    int menu_y;
-    int menu_width;
-    int menu_height;
-    int menu_size;
-    char menu_options[MINIMENU_MAX_OPTIONS][MINIMENU_OPTION_LEN];
-    int menu_option_action[MINIMENU_MAX_OPTIONS];
-    int menu_walk_click_y;
-    int cross_mode;
-    int cross_x;
-    int cross_y;
-#define GAME_CHAT_MAX 100
-#define GAME_CHAT_SENDER_LEN 64
-#define GAME_CHAT_TEXT_LEN 128
-    int message_type[GAME_CHAT_MAX];
-    char message_sender[GAME_CHAT_MAX][GAME_CHAT_SENDER_LEN];
-    char message_text[GAME_CHAT_MAX][GAME_CHAT_TEXT_LEN];
-
-    /* Chat input and scroll (Client.ts chatTyped, chatScrollOffset, chatScrollHeight) */
-#define GAME_CHAT_TYPED_LEN 128
-    char chat_typed[GAME_CHAT_TYPED_LEN];
-    int chat_scroll_offset;
-    int chat_scroll_height;
-    int chat_input_focused; /* 1=typing to chat (keys go to chat, not movement); 0=unfocused */
+    /* SDL Soft3D: map window-space mouse to soft buffer (last SDL_RenderCopy dst rect).
+     * False on Emscripten (PollEvents maps mouse before GameProcessInput). */
+    bool soft3d_mouse_from_window;
+    int soft3d_present_dst_x;
+    int soft3d_present_dst_y;
+    int soft3d_present_dst_w;
+    int soft3d_present_dst_h;
+    int soft3d_buffer_w;
+    int soft3d_buffer_h;
 };
 
 void

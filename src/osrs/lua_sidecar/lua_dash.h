@@ -5,12 +5,14 @@
 #include "lua_gametypes.h"
 
 struct BuildCacheDat;
+struct GGame;
 struct LuaGameType;
 
 struct LuaGameType*
 LuaDash_load_textures(
     struct DashGraphics* dash,
     struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
     struct LuaGameType* args);
 
 bool
@@ -20,6 +22,7 @@ struct LuaGameType*
 LuaDash_DispatchCommand(
     struct DashGraphics* dash,
     struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
     char* command,
     struct LuaGameType* args);
 

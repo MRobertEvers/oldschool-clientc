@@ -4,22 +4,27 @@
 #include "3rd/lua/lauxlib.h"
 #include "3rd/lua/lua.h"
 #include "3rd/lua/lualib.h"
+#include "graphics/dash.h"
 #include "osrs/cache_utils.h"
+#include "osrs/clientscript_vm.h"
 #include "osrs/configmap.h"
 #include "osrs/dash_utils.h"
 #include "osrs/gameproto_process.h"
+#include "osrs/interface_state.h"
 #include "osrs/loginproto.h"
 #include "osrs/lua_scripts.h"
 #include "osrs/minimap.h"
 #include "osrs/player_stats.h"
 #include "osrs/revconfig/revconfig_load.h"
-#include "osrs/revconfig/static_ui.h"
-#include "osrs/revconfig/static_ui_load.h"
 #include "osrs/revconfig/uiscene.h"
+#include "osrs/revconfig/uitree.h"
+#include "osrs/revconfig/uitree_load.h"
+#include "osrs/rs_component_state.h"
 #include "osrs/rsa.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/filelist.h"
 #include "osrs/rscache/tables_dat/configs_dat.h"
+#include "osrs/scene2.h"
 #include "osrs/script_queue.h"
 #include "osrs/varp_varbit_manager.h"
 #include "osrs/zone_state.h"
@@ -100,6 +105,8 @@ new_render_load_map(
     return dashmap_new(&config, 0);
 }
 
+#include "platforms/common/platform_memory.h"
+
 struct GGame*
 LibToriRS_GameNew(
     struct ToriRSNetSharedBuffer* net_shared,
@@ -109,46 +116,16 @@ LibToriRS_GameNew(
     struct GGame* game = malloc(sizeof(struct GGame));
     memset(game, 0, sizeof(struct GGame));
 
+    struct PlatformMemoryInfo mem = { 0 };
+    platform_get_memory_info(&mem);
+    printf("GameNew: Memory info: %zu / %zu / %zu\n", mem.heap_used, mem.heap_total, mem.heap_peak);
+
     dash_init();
 
     game->net_shared = net_shared;
 
-    // Initialize interface IDs to -1 (no interface)
-    game->viewport_interface_id = -1;
-    game->sidebar_interface_id = -1;
-    game->chat_interface_id = -1;
-
-    game->chat_public_mode = 0;
-    game->chat_private_mode = 0;
-    game->chat_trade_mode = 0;
-
-    // Initialize tab system
-    game->selected_tab = 3; // Default to inventory tab (tab 3)
-    for( int i = 0; i < 14; i++ )
-    {
-        game->tab_interface_id[i] = -1;
-    }
-
-    // Initialize item selection
-    game->selected_item = -1;
-    game->selected_interface = -1;
-    game->selected_area = 0;
-    game->selected_cycle = 0;
-
-    for( int i = 0; i < MAX_COMPONENT_SCROLL_IDS; i++ )
-        game->component_scroll_position[i] = 0;
-
-    game->current_hovered_interface_id = -1;
-    game->scroll_arrow_hold_cycles_last = 0;
-
-    game->clicked_tile_valid = 0;
-    game->clicked_tile_x = 0;
-    game->clicked_tile_z = 0;
-    game->scene_base_tile_x = 0;
-    game->scene_base_tile_z = 0;
-    game->zone_base_x = 0;
-    game->zone_base_z = 0;
-    game->path_tile_count = 0;
+    game->viewport_offset_x = 0;
+    game->viewport_offset_y = 0;
 
     game->running = true;
 
@@ -185,9 +162,22 @@ LibToriRS_GameNew(
     game->latched = false;
 
     game->sys_dash = dash_new();
-    game->sys_painter_buffer = painter_buffer_new();
-    game->sys_painter = painter_new(104, 104, MAP_TERRAIN_LEVELS);
 
+    platform_get_memory_info(&mem);
+    printf(
+        "GameNew: Memory info after dash_new: %zu / %zu / %zu\n",
+        mem.heap_used,
+        mem.heap_total,
+        mem.heap_peak);
+
+    game->sys_painter_buffer = painter_buffer_new();
+
+    platform_get_memory_info(&mem);
+    printf(
+        "GameNew: Memory info after painter_buffer_new: %zu / %zu / %zu\n",
+        mem.heap_used,
+        mem.heap_total,
+        mem.heap_peak);
     game->position = malloc(sizeof(struct DashPosition));
     memset(game->position, 0, sizeof(struct DashPosition));
     game->view_port = malloc(sizeof(struct DashViewPort));
@@ -207,7 +197,16 @@ LibToriRS_GameNew(
     game->camera->near_plane_z = 50;
 
     game->buildcachedat = buildcachedat_new();
-    game->buildcache = buildcache_new();
+    game->buildcache = NULL;
+
+    game->iface = interface_state_new();
+
+    platform_get_memory_info(&mem);
+    printf(
+        "GameNew: Memory info after painter_buffer_new: %zu / %zu / %zu\n",
+        mem.heap_used,
+        mem.heap_total,
+        mem.heap_peak);
 
     game->random_in = isaac_new(NULL, 0);
     game->random_out = isaac_new(NULL, 0);
@@ -219,12 +218,30 @@ LibToriRS_GameNew(
 
     game->loginproto = NULL; /* created by LibToriRS_NetConnectLogin */
 
-    game->ui_scene = uiscene_new(512);
-    game->ui_scene_buffer = static_ui_buffer_new(512);
-    game->ui_render_command_buffer = LibToriRS_RenderCommandBufferNew(64);
+    platform_get_memory_info(&mem);
+    printf(
+        "GameNew: Memory info pre uiscene_new: %zu / %zu / %zu\n",
+        mem.heap_used,
+        mem.heap_total,
+        mem.heap_peak);
+
+    game->ui_scene = uiscene_new(256);
+    game->scene2 = scene2_new(20000, 4000);
+    game->ui_root_buffer = uitree_new(64);
+    game->ui_stack = uitree_new(64);
+    game->inv_pool = uitree_inv_pool_new(32);
+    game->uitree_stack_top = -1;
+    game->uitree_current = -1;
+    game->clientscript_vm = clientscript_vm_new();
     game->uiscene_queued_commands = LibToriRS_RenderCommandBufferNew(64);
-    game->minimap_static_uiscene_element_id = -1;
-    game->minimap_dynamic_commands = minimap_commands_new(2048);
+    game->minimap_dynamic_commands = minimap_commands_new(64);
+
+    platform_get_memory_info(&mem);
+    printf(
+        "GameNew: Memory info after uiscene_new: %zu / %zu / %zu\n",
+        mem.heap_used,
+        mem.heap_total,
+        mem.heap_peak);
 
     // struct CacheDatConfigComponentList* config_interface_list =
     //     cache_dat_config_component_list_new_decode(file_data, file_data_size);
@@ -287,11 +304,17 @@ LibToriRS_GameFree(struct GGame* game)
     if( !game )
         return;
 
-    if( game->world && game->sys_minimap == game->world->minimap )
-        game->sys_minimap = NULL;
-
     if( game->world )
         world_free(game->world);
+
+    if( game->scene2 )
+    {
+        scene2_free(game->scene2);
+        game->scene2 = NULL;
+    }
+
+    interface_state_free(game->iface);
+    game->iface = NULL;
 
     if( game->buildcachedat )
         buildcachedat_free(game->buildcachedat);
@@ -300,15 +323,11 @@ LibToriRS_GameFree(struct GGame* game)
 
     if( game->sys_dash )
         dash_free(game->sys_dash);
-    if( game->sys_painter )
-        painter_free(game->sys_painter);
     if( game->sys_painter_buffer )
     {
         free(game->sys_painter_buffer->commands);
         free(game->sys_painter_buffer);
     }
-    if( game->sys_minimap )
-        minimap_free(game->sys_minimap);
 
     free(game->position);
     free(game->view_port);
@@ -333,93 +352,21 @@ LibToriRS_GameFree(struct GGame* game)
 
     if( game->ui_scene )
         uiscene_free(game->ui_scene);
-    if( game->ui_scene_buffer )
-        static_ui_buffer_free(game->ui_scene_buffer);
-    if( game->ui_render_command_buffer )
-        LibToriRS_RenderCommandBufferFree(game->ui_render_command_buffer);
-    if( game->minimap_dynamic_commands )
-        minimap_commands_free(game->minimap_dynamic_commands);
+    if( game->inv_pool )
+        uitree_inv_pool_free(game->inv_pool);
+    game->inv_pool = NULL;
+    if( game->ui_root_buffer )
+        uitree_free(game->ui_root_buffer);
+    if( game->ui_stack )
+        uitree_free(game->ui_stack);
+    if( game->clientscript_vm )
+        clientscript_vm_free(game->clientscript_vm);
+    if( game->rs_component_state )
+        rs_component_state_pool_free(game->rs_component_state);
 
     lua_buildcache_free_init_configmaps(game);
 
     script_queue_clear(&game->script_queue);
-
-    dashsprite_free(game->sprite_invback);
-    dashsprite_free(game->sprite_chatback);
-    dashsprite_free(game->sprite_mapback);
-    dashsprite_free(game->sprite_backbase1);
-    dashsprite_free(game->sprite_backbase2);
-    dashsprite_free(game->sprite_backhmid1);
-    for( int i = 0; i < 13; i++ )
-        dashsprite_free(game->sprite_sideicons[i]);
-    dashsprite_free(game->sprite_compass);
-    dashsprite_free(game->sprite_mapedge);
-    for( int i = 0; i < 50; i++ )
-        dashsprite_free(game->sprite_mapscene[i]);
-    for( int i = 0; i < 50; i++ )
-        dashsprite_free(game->sprite_mapfunction[i]);
-    for( int i = 0; i < 20; i++ )
-        dashsprite_free(game->sprite_hitmarks[i]);
-    for( int i = 0; i < 20; i++ )
-        dashsprite_free(game->sprite_headicons[i]);
-    dashsprite_free(game->sprite_mapmarker0);
-    dashsprite_free(game->sprite_mapmarker1);
-    for( int i = 0; i < 8; i++ )
-        dashsprite_free(game->sprite_cross[i]);
-    dashsprite_free(game->sprite_mapdot0);
-    dashsprite_free(game->sprite_mapdot1);
-    dashsprite_free(game->sprite_mapdot2);
-    dashsprite_free(game->sprite_mapdot3);
-    dashsprite_free(game->sprite_scrollbar0);
-    dashsprite_free(game->sprite_scrollbar1);
-    dashsprite_free(game->sprite_redstone1);
-    dashsprite_free(game->sprite_redstone2);
-    dashsprite_free(game->sprite_redstone3);
-    dashsprite_free(game->sprite_redstone1h);
-    dashsprite_free(game->sprite_redstone2h);
-    dashsprite_free(game->sprite_redstone1v);
-    dashsprite_free(game->sprite_redstone2v);
-    dashsprite_free(game->sprite_redstone3v);
-    dashsprite_free(game->sprite_redstone1hv);
-    dashsprite_free(game->sprite_redstone2hv);
-    for( int i = 0; i < 2; i++ )
-        dashsprite_free(game->sprite_modicons[i]);
-    dashsprite_free(game->sprite_backleft1);
-    dashsprite_free(game->sprite_backleft2);
-    dashsprite_free(game->sprite_backright1);
-    dashsprite_free(game->sprite_backright2);
-    dashsprite_free(game->sprite_backtop1);
-    dashsprite_free(game->sprite_backvmid1);
-    dashsprite_free(game->sprite_backvmid2);
-    dashsprite_free(game->sprite_backvmid3);
-    dashsprite_free(game->sprite_backhmid2);
-
-    for( int level = 0; level < ZONE_LEVELS; level++ )
-    {
-        for( int x = 0; x < ZONE_SCENE_SIZE; x++ )
-        {
-            for( int z = 0; z < ZONE_SCENE_SIZE; z++ )
-            {
-                struct ObjStackEntry* entry = game->obj_stacks[level][x][z];
-                while( entry )
-                {
-                    struct ObjStackEntry* next = entry->next;
-                    free(entry);
-                    entry = next;
-                }
-            }
-        }
-    }
-
-    {
-        struct LocChangeEntry* entry = game->loc_changes_head;
-        while( entry )
-        {
-            struct LocChangeEntry* next = entry->next;
-            free(entry);
-            entry = next;
-        }
-    }
 
     free(game);
 }

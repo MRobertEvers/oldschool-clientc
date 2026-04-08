@@ -42,6 +42,47 @@ sharelight_map_free(struct SharelightMap* sharelight_map)
 void
 sharelight_map_push(
     struct SharelightMap* sharelight_map,
+    bool shared,
+    int x,
+    int z,
+    int level,
+    int element_idx,
+    int size_x,
+    int size_z,
+    int light_ambient,
+    int light_attenuation)
+{
+    if( shared )
+    {
+        sharelight_map_push_shared(
+            sharelight_map,
+            x,
+            z,
+            level,
+            element_idx,
+            size_x,
+            size_z,
+            light_ambient,
+            light_attenuation);
+    }
+    else
+    {
+        sharelight_map_push_default_lit_element(
+            sharelight_map,
+            x,
+            z,
+            level,
+            element_idx,
+            size_x,
+            size_z,
+            light_ambient,
+            light_attenuation);
+    }
+}
+
+void
+sharelight_map_push_shared(
+    struct SharelightMap* sharelight_map,
     int x,
     int z,
     int level,
@@ -54,11 +95,35 @@ sharelight_map_push(
     struct SharelightMapTile* tile =
         &sharelight_map->tiles[sharelight_map_coord(sharelight_map, x, z, level)];
 
-    assert(tile->elements_count < 10);
-    tile->elements[tile->elements_count++] =
+    assert(tile->sharelight_count < 10);
+    tile->sharelight[tile->sharelight_count++] =
         (struct SharelightMapElement){ .element_idx = element_idx,
                                        .size_x = size_x,
                                        .size_z = size_z,
+                                       .light_ambient = light_ambient,
+                                       .light_attenuation = light_attenuation };
+}
+
+void
+sharelight_map_push_default_lit_element(
+    struct SharelightMap* sharelight_map,
+    int x,
+    int z,
+    int level,
+    int element_idx,
+    int element_size_x,
+    int element_size_z,
+    int light_ambient,
+    int light_attenuation)
+{
+    struct SharelightMapTile* tile =
+        &sharelight_map->tiles[sharelight_map_coord(sharelight_map, x, z, level)];
+
+    assert(tile->default_lit_count < 10);
+    tile->defaultlight[tile->default_lit_count++] =
+        (struct SharelightMapElement){ .element_idx = element_idx,
+                                       .size_x = element_size_x,
+                                       .size_z = element_size_z,
                                        .light_ambient = light_ambient,
                                        .light_attenuation = light_attenuation };
 }

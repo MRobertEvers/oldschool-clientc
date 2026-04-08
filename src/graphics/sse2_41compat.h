@@ -27,6 +27,13 @@ mullo_epi32_sse2(__m128i a, __m128i b)
 #endif
 
 static inline __m128i
+proj_cvtepi16_epi32_lo64(__m128i v)
+{
+    __m128i sign = _mm_cmpgt_epi16(_mm_setzero_si128(), v);
+    return _mm_unpacklo_epi16(v, sign);
+}
+
+static inline __m128i
 mullo_epi32_sse(__m128i a, __m128i b)
 {
 #if defined(__SSE4_1__)

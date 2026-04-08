@@ -3,6 +3,7 @@
 
 #include "dash_anim.h"
 
+#include <stdint.h>
 #include <string.h>
 
 extern int g_cos_table[2048];
@@ -32,15 +33,15 @@ animate(
     int arg_y,
     int arg_z,
     int vertex_bones_count,
-    int** vertex_bones,
-    int* vertex_bones_sizes,
+    uint8_t** vertex_bones,
+    uint8_t* vertex_bones_sizes,
     int face_bones_count,
-    int** face_bones,
-    int* face_bones_sizes,
-    int* vertices_x,
-    int* vertices_y,
-    int* vertices_z,
-    int* face_alphas)
+    uint8_t** face_bones,
+    uint8_t* face_bones_sizes,
+    vertexint_t* vertices_x,
+    vertexint_t* vertices_y,
+    vertexint_t* vertices_z,
+    alphaint_t* face_alphas)
 {
     // src/rs/model/seq/SeqTransformType.ts
     // export enum SeqTransformType {
@@ -73,12 +74,12 @@ animate(
             if( bone_index >= vertex_bones_count )
                 continue;
 
-            int* bone = vertex_bones[bone_index];
+            boneint_t* bone = vertex_bones[bone_index];
             int bone_length = vertex_bones_sizes[bone_index];
 
             for( int j = 0; j < bone_length; j++ )
             {
-                int face_index = bone[j];
+                uint8_t face_index = bone[j];
                 avg_x += vertices_x[face_index];
                 avg_y += vertices_y[face_index];
                 avg_z += vertices_z[face_index];
@@ -112,7 +113,7 @@ animate(
             if( bone_index >= vertex_bones_count )
                 continue;
 
-            int* bone = vertex_bones[bone_index];
+            boneint_t* bone = vertex_bones[bone_index];
             int bone_length = vertex_bones_sizes[bone_index];
 
             for( int j = 0; j < bone_length; ++j )
@@ -137,7 +138,7 @@ animate(
             if( bone_index >= vertex_bones_count )
                 continue;
 
-            int* bone = vertex_bones[bone_index];
+            boneint_t* bone = vertex_bones[bone_index];
             int bone_length = vertex_bones_sizes[bone_index];
 
             for( int j = 0; j < bone_length; ++j )
@@ -207,7 +208,7 @@ animate(
             if( bone_index >= vertex_bones_count )
                 continue;
 
-            int* bone = vertex_bones[bone_index];
+            boneint_t* bone = vertex_bones[bone_index];
             int bone_length = vertex_bones_sizes[bone_index];
 
             for( int j = 0; j < bone_length; ++j )
@@ -238,15 +239,14 @@ animate(
             if( bone_index >= face_bones_count )
                 continue;
 
-            int* bone = face_bones[bone_index];
+            boneint_t* bone = face_bones[bone_index];
             int bone_length = face_bones_sizes[bone_index];
 
             for( int j = 0; j < bone_length; ++j )
             {
                 int face_index = bone[j];
 
-                // This mask is important because the alpha expects to wrap.
-                int alpha = face_alphas[face_index] & 0xFF;
+                int alpha = face_alphas[face_index];
                 alpha += arg_x * 8;
                 if( alpha < 0 )
                     alpha = 0;
@@ -266,10 +266,10 @@ static inline void
 anim_frame_apply(
     struct DashFrame* frame,
     struct DashFramemap* framemap,
-    int* vertices_x,
-    int* vertices_y,
-    int* vertices_z,
-    int* face_alphas,
+    vertexint_t* vertices_x,
+    vertexint_t* vertices_y,
+    vertexint_t* vertices_z,
+    alphaint_t* face_alphas,
     // These are the bones of the model. They are defined with the model.
     int vertex_bones_count,
     int** vertex_bones,
@@ -314,23 +314,24 @@ anim_frame_apply(
 }
 
 /* Client.ts Model.maskAnimate: blend primary and secondary frames using walkmerge mask.
- * Primary provides bones where base !== maskBase (or type 0). Secondary provides bones where base === maskBase (or type 0). */
+ * Primary provides bones where base !== maskBase (or type 0). Secondary provides bones where base
+ * === maskBase (or type 0). */
 static inline void
 anim_frame_apply_mask(
     struct DashFrame* primary_frame,
     struct DashFrame* secondary_frame,
     struct DashFramemap* framemap,
     int* walkmerge,
-    int* vertices_x,
-    int* vertices_y,
-    int* vertices_z,
-    int* face_alphas,
+    vertexint_t* vertices_x,
+    vertexint_t* vertices_y,
+    vertexint_t* vertices_z,
+    alphaint_t* face_alphas,
     int vertex_bones_count,
-    int** vertex_bones,
-    int* vertex_bones_sizes,
+    uint8_t** vertex_bones,
+    uint8_t* vertex_bones_sizes,
     int face_bones_count,
-    int** face_bones,
-    int* face_bones_sizes)
+    uint8_t** face_bones,
+    uint8_t* face_bones_sizes)
 {
     struct Transformation transformation = { 0 };
     int walkmerge_len = 0;
