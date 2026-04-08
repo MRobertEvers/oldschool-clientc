@@ -49,7 +49,9 @@ struct DashGraphics
 
 /** For DashModelVA, sparse projection stores screen verts at f*3+{0,1,2}; return those slots. */
 static faceint_t*
-dash3d_face_indices_a_for_projected(struct DashGraphics* dash, struct DashModel* model)
+dash3d_face_indices_a_for_projected(
+    struct DashGraphics* dash,
+    struct DashModel* model)
 {
     if( dashmodel__is_va(model) )
         return dash->sparse_a;
@@ -57,7 +59,9 @@ dash3d_face_indices_a_for_projected(struct DashGraphics* dash, struct DashModel*
 }
 
 static faceint_t*
-dash3d_face_indices_b_for_projected(struct DashGraphics* dash, struct DashModel* model)
+dash3d_face_indices_b_for_projected(
+    struct DashGraphics* dash,
+    struct DashModel* model)
 {
     if( dashmodel__is_va(model) )
         return dash->sparse_b;
@@ -65,7 +69,9 @@ dash3d_face_indices_b_for_projected(struct DashGraphics* dash, struct DashModel*
 }
 
 static faceint_t*
-dash3d_face_indices_c_for_projected(struct DashGraphics* dash, struct DashModel* model)
+dash3d_face_indices_c_for_projected(
+    struct DashGraphics* dash,
+    struct DashModel* model)
 {
     if( dashmodel__is_va(model) )
         return dash->sparse_c;
@@ -779,15 +785,13 @@ dash3d_raster_model_face(
             assert(orthographic_vertex_y_nullable != NULL);
             assert(orthographic_vertex_z_nullable != NULL);
 
-            if( face_p_coordinate_nullable && face_m_coordinate_nullable &&
-                face_n_coordinate_nullable &&
-                (!face_texture_coords || face_texture_coords[face] != -1) )
+            if( face_texture_coords && face_texture_coords[face] != -1 )
             {
                 assert(face_p_coordinate_nullable != NULL);
                 assert(face_m_coordinate_nullable != NULL);
                 assert(face_n_coordinate_nullable != NULL);
 
-                texture_face = face_texture_coords ? face_texture_coords[face] : 0;
+                texture_face = face_texture_coords[face];
 
                 tp_vertex = face_p_coordinate_nullable[texture_face];
                 tm_vertex = face_m_coordinate_nullable[texture_face];
@@ -924,16 +928,13 @@ dash3d_raster_model_face(
             break;
         case FACE_TYPE_TEXTURED_FLAT_SHADE:
         textured_flat:;
-            assert(face_p_coordinate_nullable != NULL);
-            assert(face_m_coordinate_nullable != NULL);
-            assert(face_n_coordinate_nullable != NULL);
             assert(orthographic_vertex_x_nullable != NULL);
             assert(orthographic_vertex_y_nullable != NULL);
             assert(orthographic_vertex_z_nullable != NULL);
 
-            if( !face_texture_coords || face_texture_coords[face] != -1 )
+            if( face_texture_coords && face_texture_coords[face] != -1 )
             {
-                texture_face = face_texture_coords ? face_texture_coords[face] : 0;
+                texture_face = face_texture_coords[face];
 
                 tp_vertex = face_p_coordinate_nullable[texture_face];
                 tm_vertex = face_m_coordinate_nullable[texture_face];

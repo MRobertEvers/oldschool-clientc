@@ -468,8 +468,9 @@ build_scene_terrain_va(struct World* world)
         vertexint_t* va_y = (vertexint_t*)malloc((size_t)max_verts * sizeof(vertexint_t));
         vertexint_t* va_z = (vertexint_t*)malloc((size_t)max_verts * sizeof(vertexint_t));
 
-        /* Pessimistic face bound (mirrors max_verts): max faces/tile is 24/4 from g_tile_shape_face_counts. */
-        int max_faces = inner * inner * 6;
+        /* Pessimistic face bound: max 6 real faces/tile + 1 texture-ref dummy when overlay has
+         * texture. */
+        int max_faces = inner * inner * 7;
         struct DashFaceArray* fa = dashfacearray_new(max_faces);
 
         int vertex_count = 0;
@@ -714,11 +715,27 @@ build_scene_terrain_va(struct World* world)
                     &tile_faces[(size_t)(z - 1) * (size_t)inner + (size_t)(x - 1)];
                 tf->x = x;
                 tf->z = z;
-                tf->face_count = fcount;
                 tf->has_textures = false;
                 tf->first_face_index = (uint32_t)fa->count;
 
-                assert(fa->count + fcount <= max_faces);
+                int dummy_face_count = (texture_id != -1) ? 1 : 0;
+                assert(fa->count + dummy_face_count + fcount <= max_faces);
+
+                if( texture_id != -1 )
+                {
+                    struct DashFace dummy;
+                    dummy.indices[0] = (faceint_t)local_to_global[0];
+                    dummy.indices[1] = (faceint_t)local_to_global[1];
+                    dummy.indices[2] = (faceint_t)local_to_global[3];
+                    dummy.colors[0] = 0;
+                    dummy.colors[1] = 0;
+                    dummy.colors[2] = DASHHSL16_HIDDEN;
+                    dummy.texture_id = (faceint_t)-1;
+                    dummy._pad = 0;
+                    dashfacearray_push(fa, &dummy);
+                }
+
+                tf->face_count = fcount + dummy_face_count;
 
                 for( int fi = 0; fi < fcount; fi++ )
                 {

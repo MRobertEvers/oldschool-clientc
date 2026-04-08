@@ -13,7 +13,10 @@ dashmodel__pack_flags_type(unsigned type_bits)
 
 static const faceint_t g_dashmodel_fast_tex_p[1] = { 0 };
 static const faceint_t g_dashmodel_fast_tex_m[1] = { 1 };
-static const faceint_t g_dashmodel_fast_tex_n[1] = { 3 };
+static const faceint_t g_dashmodel_fast_tex_n[1] = { 2 };
+
+/** VA terrain: all-zero face_texture_coords like legacy full terrain (terrain_decode_tile); read-only in practice. */
+static faceint_t g_dashmodel_va_face_texture_coords_zero[4096];
 
 static void
 dashmodel__free_fast_arrays(struct DashModelFast* m)
@@ -944,6 +947,8 @@ faceint_t*
 dashmodel_face_texture_coords(struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel_face_count(m) > 0 ? g_dashmodel_va_face_texture_coords_zero : NULL;
     if( !dashmodel__is_full_layout(m) )
         return NULL;
     return dashmodel__as_full(m)->face_texture_coords;
@@ -953,6 +958,8 @@ const faceint_t*
 dashmodel_face_texture_coords_const(const struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel_face_count(m) > 0 ? g_dashmodel_va_face_texture_coords_zero : NULL;
     if( !dashmodel__is_full_layout(m) )
         return NULL;
     return dashmodel__as_full_const(m)->face_texture_coords;
