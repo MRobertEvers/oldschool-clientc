@@ -857,20 +857,21 @@ push_rs_from_cache_component(
             game, comp->modelType, comp->model, slots, colors);
         if( !m )
             return;
-        int eid = scene2_element_acquire(scene2, -1);
+        int eid = scene2_element_acquire_full(scene2, -1);
         struct Scene2Element* se = scene2_element_at(scene2, eid);
         if( !se )
         {
             dashmodel_free(m);
             return;
         }
-        se->dash_position = dashposition_new();
-        if( !se->dash_position )
+        struct DashPosition* pos = dashposition_new();
+        if( !pos )
         {
             dashmodel_free(m);
             return;
         }
-        memset(se->dash_position, 0, sizeof(struct DashPosition));
+        memset(pos, 0, sizeof(struct DashPosition));
+        scene2_element_set_dash_position_ptr(se, pos);
         scene2_element_set_dash_model(scene2, se, m);
         uitree_push_rs_model(
             ui, parent_uitree_idx, comp->id, eid, abs_x, abs_y, comp->width, comp->height);

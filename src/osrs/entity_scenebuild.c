@@ -220,9 +220,9 @@ entity_scenebuild_player_change_appearance(
     player->animation.walkanim_r = appearance->walkanim_r;
     player->animation.runanim = appearance->runanim;
 
-    if( !scene_element->dash_model )
-        scene_element->dash_model = dashmodel_new();
-    player_appearance_model(game, appearance, scene_element->dash_model);
+    if( !scene2_element_dash_model(scene_element) )
+        scene2_element_set_dash_model(game->world->scene2, scene_element, dashmodel_new());
+    player_appearance_model(game, appearance, scene2_element_dash_model(scene_element));
 }
 
 static void

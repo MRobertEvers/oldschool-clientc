@@ -226,7 +226,7 @@ LibToriRS_GameNew(
         mem.heap_peak);
 
     game->ui_scene = uiscene_new(256);
-    game->scene2 = scene2_new(24000);
+    game->scene2 = scene2_new(20000, 4000);
     game->ui_root_buffer = uitree_new(64);
     game->ui_stack = uitree_new(64);
     game->inv_pool = uitree_inv_pool_new(32);

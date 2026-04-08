@@ -223,7 +223,7 @@ sharelight_build(struct World* world)
                     map_element = &map_tile->sharelight[i];
 
                     scene_element = scene2_element_at(world->scene2, map_element->element_idx);
-                    if( !scene_element->dash_model )
+                    if( !scene2_element_dash_model(scene_element) )
                         continue;
 
                     int adjacent_tiles_count = gather_adjacent_tiles(
@@ -253,7 +253,7 @@ sharelight_build(struct World* world)
 
                             adjacent_scene_element =
                                 scene2_element_at(world->scene2, adjacent_map_element->element_idx);
-                            if( !adjacent_scene_element->dash_model )
+                            if( !scene2_element_dash_model(adjacent_scene_element) )
                                 continue;
 
                             int check_offset_x =
@@ -273,20 +273,20 @@ sharelight_build(struct World* world)
                                 adjacent_tile_coord.level);
                             int check_offset_height = adjacent_height_center - height_center;
 
-                            if( !dashmodel_is_lightable(adjacent_scene_element->dash_model) ||
-                                !dashmodel_is_lightable(scene_element->dash_model) )
+                            if( !dashmodel_is_lightable(scene2_element_dash_model(adjacent_scene_element)) ||
+                                !dashmodel_is_lightable(scene2_element_dash_model(scene_element)) )
                                 continue;
 
                             merge_normals(
-                                scene_element->dash_model,
-                                dashmodel_normals(scene_element->dash_model)
+                                scene2_element_dash_model(scene_element),
+                                dashmodel_normals(scene2_element_dash_model(scene_element))
                                     ->lighting_vertex_normals,
-                                dashmodel_merged_normals(scene_element->dash_model)
+                                dashmodel_merged_normals(scene2_element_dash_model(scene_element))
                                     ->lighting_vertex_normals,
-                                adjacent_scene_element->dash_model,
-                                dashmodel_normals(adjacent_scene_element->dash_model)
+                                scene2_element_dash_model(adjacent_scene_element),
+                                dashmodel_normals(scene2_element_dash_model(adjacent_scene_element))
                                     ->lighting_vertex_normals,
-                                dashmodel_merged_normals(adjacent_scene_element->dash_model)
+                                dashmodel_merged_normals(scene2_element_dash_model(adjacent_scene_element))
                                     ->lighting_vertex_normals,
                                 check_offset_x,
                                 check_offset_height,
@@ -311,7 +311,7 @@ sharelight_build(struct World* world)
                     map_element = &map_tile->sharelight[i];
 
                     scene_element = scene2_element_at(world->scene2, map_element->element_idx);
-                    if( !scene_element->dash_model )
+                    if( !scene2_element_dash_model(scene_element) )
                         continue;
 
                     int light_ambient = 64;
@@ -328,7 +328,7 @@ sharelight_build(struct World* world)
                         lightsrc_z * lightsrc_z);
                     int attenuation = (light_attenuation * light_magnitude) >> 8;
 
-                    struct DashModel* dm = scene_element->dash_model;
+                    struct DashModel* dm = scene2_element_dash_model(scene_element);
                     if( !dashmodel_is_lightable(dm) )
                         continue;
                     apply_lighting(
@@ -381,14 +381,14 @@ defaultlight_build(struct World* world)
 
                     scene_element = scene2_element_at(world->scene2, map_element->element_idx);
 
-                    if( !scene_element->dash_model )
+                    if( !scene2_element_dash_model(scene_element) )
                         continue;
 
-                    if( !dashmodel_is_lightable(scene_element->dash_model) )
+                    if( !dashmodel_is_lightable(scene2_element_dash_model(scene_element)) )
                         continue;
 
                     _light_model_default(
-                        scene_element->dash_model,
+                        scene2_element_dash_model(scene_element),
                         map_element->light_attenuation,
                         map_element->light_ambient);
                 }
@@ -406,13 +406,13 @@ world_build_lighting(struct World* world)
     scene_element = world->scene2->active_list;
     while( scene_element != NULL )
     {
-        if( scene_element->dash_model )
+        if( scene2_element_dash_model(scene_element) )
         {
-            dashmodel_alloc_normals(scene_element->dash_model);
+            dashmodel_alloc_normals(scene2_element_dash_model(scene_element));
 
-            dashmodel_calculate_vertex_normals(scene_element->dash_model);
+            dashmodel_calculate_vertex_normals(scene2_element_dash_model(scene_element));
         }
-        scene_element = scene_element->next;
+        scene_element = scene2_element_next(scene_element);
     }
 
     sharelight_build(world);
@@ -423,12 +423,12 @@ world_build_lighting(struct World* world)
     scene_element = world->scene2->active_list;
     while( scene_element != NULL )
     {
-        if( scene_element->dash_model )
+        if( scene2_element_dash_model(scene_element) )
         {
-            dashmodel_free_normals(scene_element->dash_model);
+            dashmodel_free_normals(scene2_element_dash_model(scene_element));
         }
 
-        scene_element = scene_element->next;
+        scene_element = scene2_element_next(scene_element);
     }
 }
 

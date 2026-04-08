@@ -152,9 +152,10 @@ model_cache_key_u64(
 {
     if( !element || !scene2 )
         return 0;
-    int element_id = (int)(element - scene2->elements);
-    return ((uint64_t)(uint32_t)element_id << 24) | ((uint64_t)element->active_anim_id << 8) |
-           (uint64_t)element->active_frame;
+    int element_id = scene2_element_id((struct Scene2*)scene2, element);
+    return ((uint64_t)(uint32_t)element_id << 24) |
+           ((uint64_t)scene2_element_active_anim_id(element) << 8) |
+           (uint64_t)scene2_element_active_frame(element);
 }
 
 static void
@@ -170,7 +171,7 @@ queue_scene_element_load_from_event(
         (struct ToriRSRenderCommand){
             .kind = TORIRS_GFX_MODEL_LOAD,
             ._model_load = {
-                .model = element->dash_model,
+                .model = scene2_element_dash_model(element),
                 .model_key = model_key,
                 .model_id = -1,
             },
@@ -442,7 +443,7 @@ queue_static_load_commands(
                     render_command_buffer, scene_event.texture_id, texture);
                 continue;
             }
-            if( scene_event.element_id < 0 || scene_event.element_id >= scene2->elements_count )
+            if( scene_event.element_id < 0 || scene_event.element_id >= scene2_elements_total(scene2) )
                 continue;
             if( scene_event.type != SCENE2_EVENT_ELEMENT_ACQUIRED &&
                 scene_event.type != SCENE2_EVENT_MODEL_CHANGED )
@@ -450,9 +451,9 @@ queue_static_load_commands(
                 continue;
             }
             struct Scene2Element* element = scene2_element_at(scene2, scene_event.element_id);
-            if( !element->active || !element->dash_model )
+            if( !scene2_element_is_active(element) || !scene2_element_dash_model(element) )
                 continue;
-            if( element->parent_entity_id != scene_event.parent_entity_id )
+            if( scene2_element_parent_entity_id(element) != scene_event.parent_entity_id )
                 continue;
             queue_scene_element_load_from_event(game, render_command_buffer, element);
         }
@@ -541,36 +542,35 @@ entity_player_animate(
     if( !scene_element )
         return;
 
-    if( animation->primary_anim.anim_id != -1 && scene_element->primary_frames.count > 0 )
+    struct Scene2Frames* primary = scene2_element_primary_frames(scene_element);
+    struct Scene2Frames* secondary = scene2_element_secondary_frames(scene_element);
+    struct DashModel* dm = scene2_element_dash_model(scene_element);
+    struct DashFramemap* fm = scene2_element_dash_framemap(scene_element);
+
+    if( animation->primary_anim.anim_id != -1 && primary && primary->count > 0 )
     {
         int frame = animation->primary_anim.frame;
-        scene_element->active_anim_id = animation->primary_anim.anim_id;
-        scene_element->active_frame = (uint8_t)frame;
-        if( frame >= 0 && frame < scene_element->primary_frames.count )
+        scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
+        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
+        if( frame >= 0 && frame < primary->count )
         {
-            dashmodel_animate(
-                scene_element->dash_model,
-                scene_element->primary_frames.frames[frame],
-                scene_element->dash_framemap);
+            dashmodel_animate(dm, primary->frames[frame], fm);
         }
     }
-    else if( animation->secondary_anim.anim_id != -1 && scene_element->secondary_frames.count > 0 )
+    else if( animation->secondary_anim.anim_id != -1 && secondary && secondary->count > 0 )
     {
         int frame = animation->secondary_anim.frame;
-        scene_element->active_anim_id = animation->secondary_anim.anim_id;
-        scene_element->active_frame = (uint8_t)frame;
-        if( frame >= 0 && frame < scene_element->secondary_frames.count )
+        scene2_element_set_active_anim_id(scene_element, animation->secondary_anim.anim_id);
+        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
+        if( frame >= 0 && frame < secondary->count )
         {
-            dashmodel_animate(
-                scene_element->dash_model,
-                scene_element->secondary_frames.frames[frame],
-                scene_element->dash_framemap);
+            dashmodel_animate(dm, secondary->frames[frame], fm);
         }
     }
     else
     {
-        scene_element->active_anim_id = 0;
-        scene_element->active_frame = 0;
+        scene2_element_set_active_anim_id(scene_element, 0);
+        scene2_element_set_active_frame(scene_element, 0);
     }
 }
 
@@ -586,36 +586,35 @@ entity_npc_animate(
     if( !scene_element )
         return;
 
-    if( animation->primary_anim.anim_id != -1 && scene_element->primary_frames.count > 0 )
+    struct Scene2Frames* primary = scene2_element_primary_frames(scene_element);
+    struct Scene2Frames* secondary = scene2_element_secondary_frames(scene_element);
+    struct DashModel* dm = scene2_element_dash_model(scene_element);
+    struct DashFramemap* fm = scene2_element_dash_framemap(scene_element);
+
+    if( animation->primary_anim.anim_id != -1 && primary && primary->count > 0 )
     {
         int frame = animation->primary_anim.frame;
-        scene_element->active_anim_id = animation->primary_anim.anim_id;
-        scene_element->active_frame = (uint8_t)frame;
-        if( frame >= 0 && frame < scene_element->primary_frames.count )
+        scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
+        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
+        if( frame >= 0 && frame < primary->count )
         {
-            dashmodel_animate(
-                scene_element->dash_model,
-                scene_element->primary_frames.frames[frame],
-                scene_element->dash_framemap);
+            dashmodel_animate(dm, primary->frames[frame], fm);
         }
     }
-    else if( animation->secondary_anim.anim_id != -1 && scene_element->secondary_frames.count > 0 )
+    else if( animation->secondary_anim.anim_id != -1 && secondary && secondary->count > 0 )
     {
         int frame = animation->secondary_anim.frame;
-        scene_element->active_anim_id = animation->secondary_anim.anim_id;
-        scene_element->active_frame = (uint8_t)frame;
-        if( frame >= 0 && frame < scene_element->secondary_frames.count )
+        scene2_element_set_active_anim_id(scene_element, animation->secondary_anim.anim_id);
+        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
+        if( frame >= 0 && frame < secondary->count )
         {
-            dashmodel_animate(
-                scene_element->dash_model,
-                scene_element->secondary_frames.frames[frame],
-                scene_element->dash_framemap);
+            dashmodel_animate(dm, secondary->frames[frame], fm);
         }
     }
     else
     {
-        scene_element->active_anim_id = 0;
-        scene_element->active_frame = 0;
+        scene2_element_set_active_anim_id(scene_element, 0);
+        scene2_element_set_active_frame(scene_element, 0);
     }
 }
 
@@ -636,23 +635,24 @@ entity_map_build_loc_entity_animate(
         scene_element =
             scene2_element_at(world->scene2, map_build_loc_entity->scene_element.element_id);
 
-        if( animation->primary_anim.anim_id != -1 && scene_element->primary_frames.count > 0 )
+        struct Scene2Frames* pf = scene2_element_primary_frames(scene_element);
+        struct DashModel* dm = scene2_element_dash_model(scene_element);
+        struct DashFramemap* fm = scene2_element_dash_framemap(scene_element);
+
+        if( animation->primary_anim.anim_id != -1 && pf && pf->count > 0 )
         {
             int frame = animation->primary_anim.frame;
-            scene_element->active_anim_id = animation->primary_anim.anim_id;
-            scene_element->active_frame = (uint8_t)frame;
-            if( frame >= 0 && frame < scene_element->primary_frames.count )
+            scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
+            scene2_element_set_active_frame(scene_element, (uint8_t)frame);
+            if( frame >= 0 && frame < pf->count )
             {
-                dashmodel_animate(
-                    scene_element->dash_model,
-                    scene_element->primary_frames.frames[frame],
-                    scene_element->dash_framemap);
+                dashmodel_animate(dm, pf->frames[frame], fm);
             }
         }
         else
         {
-            scene_element->active_anim_id = 0;
-            scene_element->active_frame = 0;
+            scene2_element_set_active_anim_id(scene_element, 0);
+            scene2_element_set_active_frame(scene_element, 0);
         }
     }
 
@@ -662,23 +662,24 @@ entity_map_build_loc_entity_animate(
         scene_element =
             scene2_element_at(world->scene2, map_build_loc_entity->scene_element_two.element_id);
 
-        if( animation->primary_anim.anim_id != -1 && scene_element->primary_frames.count > 0 )
+        struct Scene2Frames* pf2 = scene2_element_primary_frames(scene_element);
+        struct DashModel* dm2 = scene2_element_dash_model(scene_element);
+        struct DashFramemap* fm2 = scene2_element_dash_framemap(scene_element);
+
+        if( animation->primary_anim.anim_id != -1 && pf2 && pf2->count > 0 )
         {
             int frame = animation->primary_anim.frame;
-            scene_element->active_anim_id = animation->primary_anim.anim_id;
-            scene_element->active_frame = (uint8_t)frame;
-            if( frame >= 0 && frame < scene_element->primary_frames.count )
+            scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
+            scene2_element_set_active_frame(scene_element, (uint8_t)frame);
+            if( frame >= 0 && frame < pf2->count )
             {
-                dashmodel_animate(
-                    scene_element->dash_model,
-                    scene_element->primary_frames.frames[frame],
-                    scene_element->dash_framemap);
+                dashmodel_animate(dm2, pf2->frames[frame], fm2);
             }
         }
         else
         {
-            scene_element->active_anim_id = 0;
-            scene_element->active_frame = 0;
+            scene2_element_set_active_anim_id(scene_element, 0);
+            scene2_element_set_active_frame(scene_element, 0);
         }
     }
 }
@@ -891,9 +892,11 @@ next:
     case PNTR_CMD_ELEMENT:
     {
         scene_element = scene2_element_at(game->world->scene2, cmd->_entity._bf_entity);
-        if( !scene_element || !scene_element->dash_model )
+        struct DashModel* ent_model = scene2_element_dash_model(scene_element);
+        struct DashPosition* ent_pos = scene2_element_dash_position(scene_element);
+        if( !scene_element || !ent_model || !ent_pos )
             goto next;
-        memcpy(&position, scene_element->dash_position, sizeof(struct DashPosition));
+        memcpy(&position, ent_pos, sizeof(struct DashPosition));
 
         position.x = position.x - game->camera_world_x;
         position.y = position.y - game->camera_world_y;
@@ -902,15 +905,15 @@ next:
         int cull = DASHCULL_VISIBLE;
 
         cull = dash3d_project_model(
-            game->sys_dash, scene_element->dash_model, &position, game->view_port, game->camera);
+            game->sys_dash, ent_model, &position, game->view_port, game->camera);
 
         if( cull != DASHCULL_VISIBLE )
             break;
 
-        entity_animate(game->world, scene_element->parent_entity_id);
+        entity_animate(game->world, scene2_element_parent_entity_id(scene_element));
 
         command.kind = TORIRS_GFX_MODEL_DRAW;
-        command._model_draw.model = scene_element->dash_model;
+        command._model_draw.model = ent_model;
         command._model_draw.model_key = model_cache_key_u64(game->world->scene2, scene_element);
         command._model_draw.model_id = -1;
         memcpy(&command._model_draw.position, &position, sizeof(struct DashPosition));
@@ -930,22 +933,24 @@ next:
 
         scene_element =
             scene2_element_at(game->world->scene2, tile_entity->scene_element.element_id);
-        if( !scene_element || !scene_element->dash_model )
+        struct DashModel* tile_model = scene2_element_dash_model(scene_element);
+        struct DashPosition* tile_pos = scene2_element_dash_position(scene_element);
+        if( !scene_element || !tile_model || !tile_pos )
             goto next;
 
-        memcpy(&position, scene_element->dash_position, sizeof(struct DashPosition));
+        memcpy(&position, tile_pos, sizeof(struct DashPosition));
 
         position.x = position.x - game->camera_world_x;
         position.y = position.y - game->camera_world_y;
         position.z = position.z - game->camera_world_z;
 
         int cull = dash3d_project_model(
-            game->sys_dash, scene_element->dash_model, &position, game->view_port, game->camera);
+            game->sys_dash, tile_model, &position, game->view_port, game->camera);
         if( cull != DASHCULL_VISIBLE )
             break;
 
         command.kind = TORIRS_GFX_MODEL_DRAW;
-        command._model_draw.model = scene_element->dash_model;
+        command._model_draw.model = tile_model;
         command._model_draw.model_key = model_cache_key_u64(game->world->scene2, scene_element);
         command._model_draw.model_id = -1;
         memcpy(&command._model_draw.position, &position, sizeof(struct DashPosition));

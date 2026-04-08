@@ -15,9 +15,10 @@ rs_model_cache_key_u64(struct Scene2* scene2, struct Scene2Element const* elemen
 {
     if( !element || !scene2 )
         return 0;
-    int element_id = (int)(element - scene2->elements);
-    return ((uint64_t)(uint32_t)element_id << 24) | ((uint64_t)element->active_anim_id << 8) |
-           (uint64_t)element->active_frame;
+    int element_id = scene2_element_id(scene2, element);
+    return ((uint64_t)(uint32_t)element_id << 24) |
+           ((uint64_t)scene2_element_active_anim_id(element) << 8) |
+           (uint64_t)scene2_element_active_frame(element);
 }
 
 static void
@@ -138,11 +139,13 @@ rs_gfx_model_step(
     if( eid < 0 )
         return true;
     struct Scene2Element* se = scene2_element_at(game->world->scene2, eid);
-    if( !se || !se->dash_model || !se->dash_position )
+    struct DashModel* mod = scene2_element_dash_model(se);
+    struct DashPosition* sepos = scene2_element_dash_position(se);
+    if( !se || !mod || !sepos )
         return true;
 
     struct DashPosition position = { 0 };
-    memcpy(&position, se->dash_position, sizeof(struct DashPosition));
+    memcpy(&position, sepos, sizeof(struct DashPosition));
     position.x = position.x - game->camera_world_x;
     position.y = position.y - game->camera_world_y;
     position.z = position.z - game->camera_world_z;
@@ -150,7 +153,7 @@ rs_gfx_model_step(
     if( project_models )
     {
         int cull = dash3d_project_model(
-            game->sys_dash, se->dash_model, &position, game->view_port, game->camera);
+            game->sys_dash, mod, &position, game->view_port, game->camera);
         if( cull != DASHCULL_VISIBLE )
             return true;
     }
@@ -158,7 +161,7 @@ rs_gfx_model_step(
     {
         struct ToriRSRenderCommand cmd = { 0 };
         cmd.kind = TORIRS_GFX_MODEL_DRAW;
-        cmd._model_draw.model = se->dash_model;
+        cmd._model_draw.model = mod;
         cmd._model_draw.model_key = rs_model_cache_key_u64(game->world->scene2, se);
         cmd._model_draw.model_id = -1;
         memcpy(&cmd._model_draw.position, &position, sizeof(struct DashPosition));

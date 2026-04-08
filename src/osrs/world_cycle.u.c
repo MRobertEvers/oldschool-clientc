@@ -208,10 +208,12 @@ world_cycle_step_element_animations(
     if( !animation )
         return;
 
-    world_cycle_step_animation(
-        &animation->primary_anim, &scene_element->primary_frames, cycles_elapsed);
-    world_cycle_step_animation(
-        &animation->secondary_anim, &scene_element->secondary_frames, cycles_elapsed);
+    struct Scene2Frames* primary = scene2_element_primary_frames(scene_element);
+    struct Scene2Frames* secondary = scene2_element_secondary_frames(scene_element);
+    if( primary )
+        world_cycle_step_animation(&animation->primary_anim, primary, cycles_elapsed);
+    if( secondary )
+        world_cycle_step_animation(&animation->secondary_anim, secondary, cycles_elapsed);
 }
 
 static void
@@ -339,10 +341,11 @@ world_cycle_push_players(struct World* world)
             padding.z_size);
 
         scene_element = scene2_element_at(world->scene2, player->scene_element2.element_id);
-        scene_element->dash_position->yaw = player->orientation.yaw;
-        scene_element->dash_position->x = player->draw_position.x;
-        scene_element->dash_position->z = player->draw_position.z;
-        scene_element->dash_position->y = heightmap_get_interpolated(
+        struct DashPosition* ppos = scene2_element_dash_position(scene_element);
+        ppos->yaw = player->orientation.yaw;
+        ppos->x = player->draw_position.x;
+        ppos->z = player->draw_position.z;
+        ppos->y = heightmap_get_interpolated(
             world->heightmap, player->draw_position.x, player->draw_position.z, 0);
     }
 }
@@ -435,10 +438,11 @@ world_cycle_push_npcs(struct World* world)
         }
 
         scene_element = scene2_element_at(world->scene2, npc->scene_element2.element_id);
-        scene_element->dash_position->yaw = npc->orientation.yaw;
-        scene_element->dash_position->x = npc->draw_position.x;
-        scene_element->dash_position->z = npc->draw_position.z;
-        scene_element->dash_position->y = heightmap_get_interpolated(
+        struct DashPosition* npos = scene2_element_dash_position(scene_element);
+        npos->yaw = npc->orientation.yaw;
+        npos->x = npc->draw_position.x;
+        npos->z = npc->draw_position.z;
+        npos->y = heightmap_get_interpolated(
             world->heightmap, npc->draw_position.x, npc->draw_position.z, 0);
     }
 }

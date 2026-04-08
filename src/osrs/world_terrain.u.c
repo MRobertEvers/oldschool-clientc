@@ -172,8 +172,8 @@ terrain_element_acquire(
     struct World* world,
     int tile_id)
 {
-    return scene2_element_acquire(
-        world->scene2, entity_unified_id(ENTITY_KIND_MAP_BUILD_TILE, tile_id));
+    return scene2_element_acquire_fast(
+        world->scene2, (int)entity_unified_id(ENTITY_KIND_MAP_BUILD_TILE, tile_id));
 }
 
 static inline int
@@ -358,12 +358,13 @@ build_scene_terrain(struct World* world)
                     underlay_hsl,
                     overlay_hsl);
 
-                scene_element->dash_model = model;
-                scene_element->dash_position = dashposition_new();
-                scene_element->dash_position->x = x * TILE_SIZE;
-                scene_element->dash_position->z = z * TILE_SIZE;
+                scene2_element_set_dash_position_ptr(scene_element, dashposition_new());
+                scene2_element_set_dash_model(world->scene2, scene_element, model);
+                struct DashPosition* dp = scene2_element_dash_position(scene_element);
+                dp->x = x * TILE_SIZE;
+                dp->z = z * TILE_SIZE;
                 // The height is built into the model.
-                scene_element->dash_position->y = 0;
+                dp->y = 0;
 
                 /* Explicit overlay minimap color from flo config; UINT32_MAX = unset (init_tile). */
                 if( overlay_tile->minimap_rgb_color != UINT32_MAX )

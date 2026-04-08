@@ -3,6 +3,13 @@
 
 #include "graphics/dash.h"
 
+#include <stdbool.h>
+#include <stdint.h>
+
+struct Scene2Element;
+struct Scene2ElementFast;
+struct Scene2ElementFull;
+
 struct Scene2TextureEntry
 {
     int id;
@@ -34,35 +41,19 @@ struct Scene2Event
     int texture_id;
 };
 
-struct Scene2Element
-{
-    bool active;
-    int parent_entity_id;
-    struct Scene2Element* next;
-    struct Scene2Element* prev;
-
-    struct DashModel* dash_model;
-    struct DashPosition* dash_position;
-
-    struct DashFramemap* dash_framemap;
-
-    uint16_t active_anim_id;
-    uint8_t  active_frame;
-
-    struct Scene2Frames primary_frames;
-    struct Scene2Frames secondary_frames;
-};
-
 struct Scene2
 {
-    // Intrusive list. Elements point to their next element.
-    struct Scene2Element* elements;
-    int elements_count;
+    struct Scene2ElementFast* fast_pool;
+    struct Scene2ElementFull* full_pool;
+    int fast_count;
+    int full_count;
 
     struct Scene2Element* active_list;
     int active_len;
-    struct Scene2Element* free_list;
-    int free_len;
+    struct Scene2Element* fast_free_list;
+    struct Scene2Element* full_free_list;
+    int fast_free_len;
+    int full_free_len;
 
     struct Scene2TextureEntry* textures;
     int textures_count;
@@ -76,13 +67,22 @@ struct Scene2
 };
 
 struct Scene2*
-scene2_new(int size);
+scene2_new(int fast_count, int full_count);
 
 void
 scene2_free(struct Scene2* scene2);
 
+/** Total element slots (fast_count + full_count). */
 int
-scene2_element_acquire(
+scene2_elements_total(const struct Scene2* scene2);
+
+int
+scene2_element_acquire_fast(
+    struct Scene2* scene2,
+    int parent_entity_id);
+
+int
+scene2_element_acquire_full(
     struct Scene2* scene2,
     int parent_entity_id);
 
@@ -105,6 +105,7 @@ scene2_element_set_dash_model(
     struct Scene2* scene2,
     struct Scene2Element* element,
     struct DashModel* dash_model);
+
 void
 scene2_element_push_animation_frame(
     struct Scene2Element* element,
@@ -126,6 +127,56 @@ struct Scene2Element*
 scene2_element_at(
     struct Scene2* scene2,
     int element_id);
+
+/** Index of this element in the scene2 pools (0 .. fast_count+full_count-1). */
+int
+scene2_element_id(
+    struct Scene2* scene2,
+    const struct Scene2Element* element);
+
+bool
+scene2_element_is_active(const struct Scene2Element* element);
+
+int
+scene2_element_parent_entity_id(const struct Scene2Element* element);
+
+struct DashModel*
+scene2_element_dash_model(struct Scene2Element* element);
+
+const struct DashModel*
+scene2_element_dash_model_const(const struct Scene2Element* element);
+
+struct DashPosition*
+scene2_element_dash_position(struct Scene2Element* element);
+
+void
+scene2_element_set_dash_position_ptr(
+    struct Scene2Element* element,
+    struct DashPosition* dash_position);
+
+struct Scene2Element*
+scene2_element_next(struct Scene2Element* element);
+
+struct DashFramemap*
+scene2_element_dash_framemap(struct Scene2Element* element);
+
+uint16_t
+scene2_element_active_anim_id(const struct Scene2Element* element);
+
+uint8_t
+scene2_element_active_frame(const struct Scene2Element* element);
+
+void
+scene2_element_set_active_anim_id(struct Scene2Element* element, uint16_t id);
+
+void
+scene2_element_set_active_frame(struct Scene2Element* element, uint8_t frame);
+
+struct Scene2Frames*
+scene2_element_primary_frames(struct Scene2Element* element);
+
+struct Scene2Frames*
+scene2_element_secondary_frames(struct Scene2Element* element);
 
 bool
 scene2_eventbuffer_is_empty(struct Scene2* scene2);

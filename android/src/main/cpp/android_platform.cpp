@@ -1304,7 +1304,7 @@ AndroidPlatform::initGame()
     // Set up basic game state
     m_game->scene = m_scene;
     m_game->textures_cache = m_textures_cache;
-    m_game->scene2_for_world = scene2_new(16000);
+    m_game->scene2_for_world = scene2_new(12000, 4000);
     if( !m_game->scene2_for_world )
     {
         LOGE("Failed to allocate Scene2 for world");

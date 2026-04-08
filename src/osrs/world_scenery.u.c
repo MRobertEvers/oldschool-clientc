@@ -82,10 +82,11 @@ scenery_element_position_init(
     int tile_x = entity_scene_coord->sx;
     int tile_z = entity_scene_coord->sz;
     int tile_level = entity_scene_coord->slevel;
-    scene_element->dash_position = dashposition_new();
-    scene_element->dash_position->x = 128 * tile_x + 64 * (size_x);
-    scene_element->dash_position->z = 128 * tile_z + 64 * (size_z);
-    scene_element->dash_position->y = heights.height_center;
+    scene2_element_set_dash_position_ptr(scene_element, dashposition_new());
+    struct DashPosition* dp = scene2_element_dash_position(scene_element);
+    dp->x = 128 * tile_x + 64 * (size_x);
+    dp->z = 128 * tile_z + 64 * (size_z);
+    dp->y = heights.height_center;
 }
 
 /**
@@ -322,16 +323,19 @@ world_load_scenery_model(
 
     scene_element = scene2_element_at(world->scene2, entity_scene_element->element_id);
 
-    scene_element->dash_model = dash_model;
+    scene2_element_set_dash_model(world->scene2, scene_element, dash_model);
 }
 
 static int
 scenery_element_acquire(
     struct World* world,
-    int entity_id)
+    int entity_id,
+    bool animated)
 {
-    return scene2_element_acquire(
-        world->scene2, entity_unified_id(ENTITY_KIND_MAP_BUILD_LOC, entity_id));
+    int parent = (int)entity_unified_id(ENTITY_KIND_MAP_BUILD_LOC, entity_id);
+    if( animated )
+        return scene2_element_acquire_full(world->scene2, parent);
+    return scene2_element_acquire_fast(world->scene2, parent);
 }
 
 static void
@@ -365,7 +369,7 @@ scenery_add_wall_single(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -428,7 +432,7 @@ scenery_add_wall_tri_corner(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -490,8 +494,8 @@ scenery_add_wall_two_sides(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
-    entity->scene_element_two.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element_two.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int orientation = map_tile->orientation;
     // +4 for Mirrored
@@ -577,7 +581,7 @@ scenery_add_wall_rect_corner(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -638,7 +642,7 @@ scenery_add_wall_decor_inside(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -658,9 +662,9 @@ scenery_add_wall_decor_inside(
         scene2_element_at(world->scene2, entity->scene_element.element_id);
     if( config_loc->seq_id != -1 )
     {
-        scene_element->dash_position->yaw += 512 * orientation;
+        scene2_element_dash_position(scene_element)->yaw += 512 * orientation;
     }
-    scene_element->dash_position->yaw %= 2048;
+    scene2_element_dash_position(scene_element)->yaw %= 2048;
 
     painter_add_wall_decor(
         world->painter,
@@ -701,7 +705,7 @@ scenery_add_wall_decor_outside(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -722,9 +726,9 @@ scenery_add_wall_decor_outside(
         scene2_element_at(world->scene2, entity->scene_element.element_id);
     if( config_loc->seq_id != -1 )
     {
-        scene_element->dash_position->yaw += 512 * orientation;
+        scene2_element_dash_position(scene_element)->yaw += 512 * orientation;
     }
-    scene_element->dash_position->yaw %= 2048;
+    scene2_element_dash_position(scene_element)->yaw %= 2048;
 
     painter_add_wall_decor(
         world->painter,
@@ -766,7 +770,7 @@ scenery_add_wall_decor_diagonal_outside(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
     entity->interactable = config_loc->is_interactive;
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
@@ -786,12 +790,12 @@ scenery_add_wall_decor_diagonal_outside(
 
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
-    scene_element->dash_position->yaw += WALL_DECOR_YAW_ADJUST;
+    scene2_element_dash_position(scene_element)->yaw += WALL_DECOR_YAW_ADJUST;
     if( config_loc->seq_id != -1 )
     {
-        scene_element->dash_position->yaw += 512 * orientation;
+        scene2_element_dash_position(scene_element)->yaw += 512 * orientation;
     }
-    scene_element->dash_position->yaw %= 2048;
+    scene2_element_dash_position(scene_element)->yaw %= 2048;
 
     painter_add_wall_decor(
         world->painter,
@@ -834,7 +838,14 @@ scenery_add_wall_decor_diagonal_inside(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scene2_element_acquire(world->scene2, entity->entity_id);
+    entity->scene_element.element_id =
+        config_loc->seq_id != -1
+            ? scene2_element_acquire_full(
+                  world->scene2,
+                  (int)entity_unified_id(ENTITY_KIND_MAP_BUILD_LOC, entity->entity_id))
+            : scene2_element_acquire_fast(
+                  world->scene2,
+                  (int)entity_unified_id(ENTITY_KIND_MAP_BUILD_LOC, entity->entity_id));
     entity->interactable = config_loc->is_interactive;
 
     int orientation = (map_tile->orientation + 2) & 0x3;
@@ -854,12 +865,12 @@ scenery_add_wall_decor_diagonal_inside(
 
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
-    scene_element->dash_position->yaw += WALL_DECOR_YAW_ADJUST;
+    scene2_element_dash_position(scene_element)->yaw += WALL_DECOR_YAW_ADJUST;
     if( config_loc->seq_id != -1 )
     {
-        scene_element->dash_position->yaw += 512 * orientation;
+        scene2_element_dash_position(scene_element)->yaw += 512 * orientation;
     }
-    scene_element->dash_position->yaw %= 2048;
+    scene2_element_dash_position(scene_element)->yaw %= 2048;
 
     painter_add_wall_decor(
         world->painter,
@@ -912,8 +923,8 @@ scenery_add_wall_decor_diagonal_double(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
-    entity->scene_element_two.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element_two.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
     entity->interactable = config_loc->is_interactive;
 
     int outside_rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
@@ -945,16 +956,16 @@ scenery_add_wall_decor_diagonal_double(
 
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
-    scene_element->dash_position->yaw += WALL_DECOR_YAW_ADJUST;
+    scene2_element_dash_position(scene_element)->yaw += WALL_DECOR_YAW_ADJUST;
     if( config_loc->seq_id != -1 )
-        scene_element->dash_position->yaw += 512 * outside_orientation;
-    scene_element->dash_position->yaw %= 2048;
+        scene2_element_dash_position(scene_element)->yaw += 512 * outside_orientation;
+    scene2_element_dash_position(scene_element)->yaw %= 2048;
 
     scene_element = scene2_element_at(world->scene2, entity->scene_element_two.element_id);
-    scene_element->dash_position->yaw += WALL_DECOR_YAW_ADJUST;
+    scene2_element_dash_position(scene_element)->yaw += WALL_DECOR_YAW_ADJUST;
     if( config_loc->seq_id != -1 )
-        scene_element->dash_position->yaw += 512 * inside_orientation;
-    scene_element->dash_position->yaw %= 2048;
+        scene2_element_dash_position(scene_element)->yaw += 512 * inside_orientation;
+    scene2_element_dash_position(scene_element)->yaw %= 2048;
 
     painter_add_wall_decor(
         world->painter,
@@ -1024,7 +1035,7 @@ scenery_add_wall_diagonal(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -1076,7 +1087,7 @@ scenery_add_normal(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
     entity->interactable = config_loc->is_interactive;
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
@@ -1107,10 +1118,10 @@ scenery_add_normal(
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
     if( map_tile->shape_select == LOC_SHAPE_SCENERY_DIAGIONAL )
-        scene_element->dash_position->yaw += 256;
+        scene2_element_dash_position(scene_element)->yaw += 256;
     if( config_loc->seq_id != -1 )
-        scene_element->dash_position->yaw += 512 * orientation;
-    scene_element->dash_position->yaw %= 2048;
+        scene2_element_dash_position(scene_element)->yaw += 512 * orientation;
+    scene2_element_dash_position(scene_element)->yaw %= 2048;
 
     painter_add_normal_scenery(
         world->painter,
@@ -1155,7 +1166,7 @@ scenery_add_roof(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -1200,7 +1211,7 @@ scenery_add_floor_decoration(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id);
+    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;

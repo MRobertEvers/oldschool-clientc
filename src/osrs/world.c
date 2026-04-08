@@ -269,12 +269,12 @@ world_print_scene2_dashmodel_heap_stats(struct World* world)
     long long total_vertices = 0;
     long long total_faces = 0;
     int count = 0;
-    for( int i = 0; i < scene2->elements_count; i++ )
+    for( int i = 0; i < scene2_elements_total(scene2); i++ )
     {
-        struct Scene2Element* el = &scene2->elements[i];
-        if( !el->dash_model )
+        struct Scene2Element* el = scene2_element_at((struct Scene2*)scene2, i);
+        struct DashModel* m = scene2_element_dash_model(el);
+        if( !m )
             continue;
-        struct DashModel* m = el->dash_model;
         size_t bytes = dashmodel_heap_bytes(m);
         total += bytes;
         total_vertices += dashmodel_vertex_count(m);
@@ -785,7 +785,7 @@ world_buildcachedat_rebuild_centerzone(
                     }
 
                     calculate_wall_decor_offset(
-                        scene_element->dash_position, orientation, offset, diagonal);
+                        scene2_element_dash_position(scene_element), orientation, offset, diagonal);
                 }
             }
         }
@@ -1212,7 +1212,7 @@ load_scene_animation(
         animframe = buildcachedat_get_animframe(world->buildcachedat, frame_id);
         assert(animframe);
 
-        if( !element->dash_framemap )
+        if( !scene2_element_dash_framemap(element) )
         {
             scene2_element_set_framemap(element, dashframemap_new_from_animframe(animframe));
         }
@@ -1536,14 +1536,14 @@ world_npc_ensure_scene_element(
     npc->alive = true;
     if( npc->scene_element2.element_id == -1 )
     {
-        npc->scene_element2.element_id =
-            scene2_element_acquire(world->scene2, entity_unified_id(ENTITY_KIND_NPC, npc_id));
+        npc->scene_element2.element_id = scene2_element_acquire_full(
+            world->scene2, (int)entity_unified_id(ENTITY_KIND_NPC, npc_id));
 
         npc->orientation.dst_yaw = 0;
 
         element = scene2_element_at(world->scene2, npc->scene_element2.element_id);
-        if( element && !element->dash_position )
-            element->dash_position = dashposition_new();
+        if( element && !scene2_element_dash_position(element) )
+            scene2_element_set_dash_position_ptr(element, dashposition_new());
     }
     return npc;
 }
@@ -1559,15 +1559,15 @@ world_player_ensure_scene_element(
     player->alive = true;
     if( player->scene_element2.element_id == -1 )
     {
-        player->scene_element2.element_id =
-            scene2_element_acquire(world->scene2, entity_unified_id(ENTITY_KIND_PLAYER, player_id));
+        player->scene_element2.element_id = scene2_element_acquire_full(
+            world->scene2, (int)entity_unified_id(ENTITY_KIND_PLAYER, player_id));
 
         // player->orientation.face_entity = -1;
         player->orientation.dst_yaw = 0;
 
         element = scene2_element_at(world->scene2, player->scene_element2.element_id);
-        if( element && !element->dash_position )
-            element->dash_position = dashposition_new();
+        if( element && !scene2_element_dash_position(element) )
+            scene2_element_set_dash_position_ptr(element, dashposition_new());
     }
 
     return player;
