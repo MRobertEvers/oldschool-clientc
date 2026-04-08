@@ -1,6 +1,8 @@
 #ifndef MODEL_H
 #define MODEL_H
 
+#include <stdint.h>
+
 struct CacheArchive;
 
 enum CacheModelFlags
@@ -136,8 +138,8 @@ struct ModelBones
 {
     int bones_count;
     // Array of arrays vertices... AKA arrays of bones.
-    int** bones;
-    int* bones_sizes;
+    uint8_t** bones;
+    uint8_t* bones_sizes;
 };
 
 struct ModelBones*

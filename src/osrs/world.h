@@ -33,9 +33,9 @@ struct World
 
     struct MapBuildTileEntity map_build_tile_entities[MAX_MAP_BUILD_TILE_ENTITIES];
 
-    int active_players[MAX_PLAYERS];
-    int active_npcs[MAX_NPCS];
-    int active_loc_entities[MAX_MAP_BUILD_LOC_ENTITIES];
+    uint16_t active_players[MAX_PLAYERS];
+    uint16_t active_npcs[MAX_NPCS];
+    uint16_t active_loc_entities[MAX_MAP_BUILD_LOC_ENTITIES];
     int active_player_count;
     int active_npc_count;
     int active_loc_entity_count;

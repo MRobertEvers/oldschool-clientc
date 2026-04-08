@@ -370,10 +370,27 @@ dashmodel_bones_new(
     memset(bones, 0, sizeof(struct DashModelBones));
 
     struct ModelBones* model_bones = modelbones_new_decode(bone_map, bone_count);
+    assert(model_bones != NULL);
+
     bones->bones_count = model_bones->bones_count;
-    bones->bones = model_bones->bones;
-    bones->bones_sizes = model_bones->bones_sizes;
-    free(model_bones);
+    bones->bones = (boneint_t**)malloc(sizeof(boneint_t*) * bones->bones_count);
+    bones->bones_sizes = (boneint_t*)malloc(sizeof(boneint_t) * bones->bones_count);
+    memset(bones->bones, 0, sizeof(boneint_t*) * bones->bones_count);
+    memset(bones->bones_sizes, 0, sizeof(boneint_t) * bones->bones_count);
+
+    for( int i = 0; i < bones->bones_count; i++ )
+        bones->bones_sizes[i] = model_bones->bones_sizes[i];
+
+    for( int i = 0; i < bones->bones_count; i++ )
+    {
+        bones->bones[i] = (boneint_t*)malloc(sizeof(boneint_t) * model_bones->bones_sizes[i]);
+        for( int j = 0; j < model_bones->bones_sizes[i]; j++ )
+        {
+            bones->bones[i][j] = (boneint_t)model_bones->bones[i][j];
+        }
+    }
+
+    modelbones_free(model_bones);
 
     return bones;
 }

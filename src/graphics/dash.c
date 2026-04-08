@@ -2389,24 +2389,24 @@ reset_original_values(struct DashModel* model)
     if( model->face_alphas && model->original_face_alphas == NULL )
     {
         model->original_face_alphas = malloc(sizeof(alphaint_t) * model->face_count);
-        memcpy(model->original_face_alphas, model->face_alphas, sizeof(alphaint_t) * model->face_count);
+        memcpy(
+            model->original_face_alphas,
+            model->face_alphas,
+            sizeof(alphaint_t) * model->face_count);
     }
 
     memcpy(
-        model->vertices_x,
-        model->original_vertices_x,
-        sizeof(vertexint_t) * model->vertex_count);
+        model->vertices_x, model->original_vertices_x, sizeof(vertexint_t) * model->vertex_count);
     memcpy(
-        model->vertices_y,
-        model->original_vertices_y,
-        sizeof(vertexint_t) * model->vertex_count);
+        model->vertices_y, model->original_vertices_y, sizeof(vertexint_t) * model->vertex_count);
     memcpy(
-        model->vertices_z,
-        model->original_vertices_z,
-        sizeof(vertexint_t) * model->vertex_count);
+        model->vertices_z, model->original_vertices_z, sizeof(vertexint_t) * model->vertex_count);
     if( model->face_alphas && model->original_face_alphas )
     {
-        memcpy(model->face_alphas, model->original_face_alphas, sizeof(alphaint_t) * model->face_count);
+        memcpy(
+            model->face_alphas,
+            model->original_face_alphas,
+            sizeof(alphaint_t) * model->face_count);
     }
 }
 

@@ -370,6 +370,7 @@ if(EMSCRIPTEN)
         -sSTACK_SIZE=512kb
         -sNO_EXIT_RUNTIME=1
         -sASSERTions=1
+        # -sWASM=0
         --shell-file ${EM_SHELL_FILE}
         -sEXPORTED_FUNCTIONS=${EXPORTED_FUNC_STR}
         -sEXPORTED_RUNTIME_METHODS=${EXPORTED_METHODS_STR}

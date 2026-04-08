@@ -19,6 +19,8 @@
 #include "world_cycle.u.c"
 // clang-format on
 
+#define CURRENT_LEVEL 0
+
 static void
 init_map_build_loc_entity(
     struct MapBuildLocEntity* map_build_loc_entity,
@@ -622,6 +624,9 @@ world_buildcachedat_rebuild_centerzone(
 
                 int level = map_tile->chunk_pos_level;
                 if( config_loc->map_scene_id == -1 )
+                    continue;
+
+                if( level != CURRENT_LEVEL )
                     continue;
 
                 switch( map_tile->shape_select )

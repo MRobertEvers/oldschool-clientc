@@ -1,19 +1,18 @@
 #ifndef DASH_H
 #define DASH_H
 
+#include "dash_alpha.h"
 #include "dash_anim.h"
+#include "dash_faceint.h"
+#include "dash_hsl16.h"
 #include "dash_math.h"
+#include "dash_vertexint.h"
 #include "dashmap.h"
+#include "lighting.h"
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-
-#include "dash_alpha.h"
-#include "dash_faceint.h"
-#include "dash_hsl16.h"
-#include "dash_vertexint.h"
-#include "lighting.h"
 
 struct DashBoundsCylinder
 {
@@ -105,12 +104,14 @@ struct DashModelNormals
     int lighting_face_normals_count;
 };
 
+typedef uint8_t boneint_t;
+
 struct DashModelBones
 {
     int bones_count;
     // Array of arrays vertices... AKA arrays of bones.
-    int** bones;
-    int* bones_sizes;
+    boneint_t** bones;
+    boneint_t* bones_sizes;
 };
 
 struct DashModel

@@ -140,8 +140,8 @@ modelbones_new_decode(
 
     // Allocate arrays
     bones->bones_count = num_bones + 1;
-    bones->bones = (int**)malloc((num_bones + 1) * sizeof(int*));
-    bones->bones_sizes = (int*)malloc((num_bones + 1) * sizeof(int));
+    bones->bones = (uint8_t**)malloc((num_bones + 1) * sizeof(uint8_t*));
+    bones->bones_sizes = (uint8_t*)malloc((num_bones + 1) * sizeof(uint8_t));
 
     if( !bones->bones || !bones->bones_sizes )
     {
