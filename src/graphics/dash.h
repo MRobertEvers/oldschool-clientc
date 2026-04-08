@@ -14,18 +14,32 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define DASH_BOUNDS_FLAG_SHARED 0x80000000u
+#define DASH_BOUNDS_ID_MASK 0x0FFFFFFFu
+
 struct DashBoundsCylinder
 {
-    int center_to_top_edge;
-    int center_to_bottom_edge;
-    int min_y;
-    int max_y;
-    int radius;
+    uint32_t flags;
+    int ref_count;
+    uint16_t center_to_top_edge;
+    uint16_t center_to_bottom_edge;
+    uint16_t min_y;
+    uint16_t max_y;
+    uint16_t radius;
 
     // TODO: Name?
     // - Max extent from model origin.
     // - Distance to farthest vertex?
-    int min_z_depth_any_rotation;
+    uint16_t min_z_depth_any_rotation;
+};
+
+struct DashVertexArray
+{
+    int vertex_count;
+    int vertex_capacity;
+    vertexint_t* vertices_x;
+    vertexint_t* vertices_y;
+    vertexint_t* vertices_z;
 };
 
 enum DashAABBKind
@@ -266,6 +280,24 @@ dash_new(void);
 void //
 dash_free(struct DashGraphics* dash);
 
+bool
+dash_has_shared_bounds_map(const struct DashGraphics* dash);
+
+struct DashBoundsCylinder*
+dash_shared_bounds_acquire(
+    struct DashGraphics* dash,
+    uint32_t id);
+
+void
+dash_shared_bounds_release(
+    struct DashGraphics* dash,
+    struct DashBoundsCylinder* bc);
+
+struct DashBoundsCylinder*
+dash_shared_bounds_alloc_empty(
+    struct DashGraphics* dash,
+    uint32_t id);
+
 #define DASHCULL_VISIBLE 0
 #define DASHCULL_CULLED_FAST 1
 #define DASHCULL_CULLED_AABB 2
@@ -412,6 +444,26 @@ dashposition_new(void);
 void
 dashposition_free(struct DashPosition* position);
 
+struct DashVertexArray*
+dashvertexarray_new(int capacity);
+
+void
+dashvertexarray_free(struct DashVertexArray* va);
+
+int
+dashvertexarray_append(
+    struct DashVertexArray* va,
+    int count,
+    const vertexint_t* x,
+    const vertexint_t* y,
+    const vertexint_t* z);
+
+void
+dashvertexarray_shrink_to_fit(struct DashVertexArray* va);
+
+struct DashModel*
+dashmodel_va_new(void);
+
 struct DashModel*
 dashmodel_fast_new(void);
 
@@ -432,13 +484,17 @@ bool
 dashmodel_is_lightable(const struct DashModel* m);
 
 void
-dashmodel_set_loaded(struct DashModel* m, bool v);
+dashmodel_set_loaded(
+    struct DashModel* m,
+    bool v);
 
 bool
 dashmodel_has_textures(const struct DashModel* m);
 
 void
-dashmodel_set_has_textures(struct DashModel* m, bool v);
+dashmodel_set_has_textures(
+    struct DashModel* m,
+    bool v);
 
 int
 dashmodel_vertex_count(const struct DashModel* m);
@@ -632,22 +688,40 @@ dashmodel_set_face_colors_i32(
     const int32_t* src_c);
 
 void
-dashmodel_set_face_textures_i16(struct DashModel* m, const int16_t* src_textures, int count);
+dashmodel_set_face_textures_i16(
+    struct DashModel* m,
+    const int16_t* src_textures,
+    int count);
 
 void
-dashmodel_set_face_textures_i32(struct DashModel* m, const int32_t* src_textures, int count);
+dashmodel_set_face_textures_i32(
+    struct DashModel* m,
+    const int32_t* src_textures,
+    int count);
 
 void
-dashmodel_set_face_alphas(struct DashModel* m, const alphaint_t* src, int count);
+dashmodel_set_face_alphas(
+    struct DashModel* m,
+    const alphaint_t* src,
+    int count);
 
 void
-dashmodel_set_face_infos(struct DashModel* m, const int* infos, int count);
+dashmodel_set_face_infos(
+    struct DashModel* m,
+    const int* infos,
+    int count);
 
 void
-dashmodel_set_face_priorities(struct DashModel* m, const int* priorities, int count);
+dashmodel_set_face_priorities(
+    struct DashModel* m,
+    const int* priorities,
+    int count);
 
 void
-dashmodel_set_face_colors_flat(struct DashModel* m, const hsl16_t* src, int count);
+dashmodel_set_face_colors_flat(
+    struct DashModel* m,
+    const hsl16_t* src,
+    int count);
 
 void
 dashmodel_set_texture_coords(
@@ -663,7 +737,9 @@ void
 dashmodel_set_bounds_cylinder(struct DashModel* m);
 
 void
-dashmodel_alloc_lit_face_colors_zero(struct DashModel* m, int face_count);
+dashmodel_alloc_lit_face_colors_zero(
+    struct DashModel* m,
+    int face_count);
 
 /** Sum of heap bytes owned by the model (struct, arrays, normals, bones, bounds). */
 size_t

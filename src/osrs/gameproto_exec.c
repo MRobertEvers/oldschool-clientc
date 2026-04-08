@@ -487,7 +487,8 @@ gameproto_exec_rebuild_normal(
 void
 gameproto_exec_rebuild_normal_world(
     struct World* world,
-    struct RevPacket_LC245_2* packet)
+    struct RevPacket_LC245_2* packet,
+    struct DashGraphics* dash_nullable)
 {
 #define SCENE_WIDTH 104
     int zone_padding = SCENE_WIDTH / (2 * 8);
@@ -502,7 +503,7 @@ gameproto_exec_rebuild_normal_world(
     int dz = new_base_z - prev_base_z;
 
     world_buildcachedat_rebuild_centerzone(
-        world, packet->_map_rebuild.zonex, packet->_map_rebuild.zonez, 104);
+        world, packet->_map_rebuild.zonex, packet->_map_rebuild.zonez, 104, dash_nullable);
 
     for( int i = 0; i < world->active_npc_count; i++ )
     {

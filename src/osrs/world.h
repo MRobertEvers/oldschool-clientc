@@ -21,6 +21,9 @@
 #include <stdbool.h>
 #include <string.h>
 
+struct DashGraphics;
+struct DashVertexArray;
+
 #define MAX_PLAYERS 2048
 #define MAX_NPCS 8192
 
@@ -52,6 +55,10 @@ struct World
     struct Minimap* minimap;
     /** Scene2 is owned by the caller (e.g. GGame); world never frees it. */
     struct Scene2* scene2;
+    /** Not owned; set before terrain build when DashGraphics is available (e.g. from GGame). */
+    struct DashGraphics* dash;
+    /** Owned; shared vertex buffer for terrain tile VA models. */
+    struct DashVertexArray* terrain_vertex_array;
 
     // Todo: How to organize, these are only used at build time.
     // Lightmap
@@ -94,7 +101,8 @@ world_buildcachedat_rebuild_centerzone(
     struct World* world,
     int zone_center_x,
     int zone_center_z,
-    int scene_size);
+    int scene_size,
+    struct DashGraphics* dash_nullable);
 
 struct MapBuildTileEntity*
 world_tile_entity_at(

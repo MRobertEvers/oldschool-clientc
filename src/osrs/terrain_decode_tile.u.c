@@ -2,6 +2,7 @@
 #define TERRAIN_DECODE_TILE_U_C
 
 #include "graphics/dash.h"
+#include "graphics/dash_model_internal.h"
 
 #include <assert.h>
 #include <math.h>
@@ -212,7 +213,8 @@ mix_hsl(
 
 // /Users/matthewevers/Documents/git_repos/meteor-client/osrs/src/main/java/SceneTileModel.java
 static struct DashModel*
-decode_tile(
+decode_tile_impl(
+    struct DashVertexArray* vertex_array_nullable,
     int shape,
     int rotation,
     int texture_id,
@@ -556,10 +558,124 @@ decode_tile(
     free(underlay_colors_hsl);
     free(overlay_colors_hsl);
 
+    // Hide invalid faces (channel C sentinel).
+    for( int i = 0; i < face_count; i++ )
+    {
+        if( !valid_faces[i] )
+            face_colors_hsl_c[i] = DASHHSL16_HIDDEN;
+    }
+
+    free(valid_faces);
+
+    if( vertex_array_nullable != NULL )
+    {
+        faceint_t* va_face_tex = NULL;
+        if( face_texture_ids )
+        {
+            va_face_tex = (faceint_t*)malloc((size_t)face_count * sizeof(faceint_t));
+            if( !va_face_tex )
+            {
+                free(face_texture_ids);
+                free(face_colors_hsl_a);
+                free(face_colors_hsl_b);
+                free(face_colors_hsl_c);
+                free(faces_a);
+                free(faces_b);
+                free(faces_c);
+                free(vertices_x);
+                free(vertices_y);
+                free(vertices_z);
+                return NULL;
+            }
+            for( int ti = 0; ti < face_count; ti++ )
+                va_face_tex[ti] = (faceint_t)face_texture_ids[ti];
+            free(face_texture_ids);
+            face_texture_ids = NULL;
+        }
+
+        struct DashModel* m = dashmodel_va_new();
+        if( !m )
+        {
+            free(va_face_tex);
+            free(face_colors_hsl_a);
+            free(face_colors_hsl_b);
+            free(face_colors_hsl_c);
+            free(faces_a);
+            free(faces_b);
+            free(faces_c);
+            free(vertices_x);
+            free(vertices_y);
+            free(vertices_z);
+            return NULL;
+        }
+
+        struct DashBoundsCylinder* bc =
+            (struct DashBoundsCylinder*)malloc(sizeof(struct DashBoundsCylinder));
+        if( !bc )
+        {
+            dashmodel_free(m);
+            free(va_face_tex);
+            free(face_colors_hsl_a);
+            free(face_colors_hsl_b);
+            free(face_colors_hsl_c);
+            free(faces_a);
+            free(faces_b);
+            free(faces_c);
+            free(vertices_x);
+            free(vertices_y);
+            free(vertices_z);
+            return NULL;
+        }
+        dash3d_calculate_bounds_cylinder(bc, vertex_count, vertices_x, vertices_y, vertices_z);
+
+        int v_off = dashvertexarray_append(
+            vertex_array_nullable,
+            vertex_count,
+            vertices_x,
+            vertices_y,
+            vertices_z);
+        free(vertices_x);
+        free(vertices_y);
+        free(vertices_z);
+        vertices_x = vertices_y = vertices_z = NULL;
+
+        if( v_off < 0 )
+        {
+            free(bc);
+            dashmodel_free(m);
+            free(va_face_tex);
+            free(face_colors_hsl_a);
+            free(face_colors_hsl_b);
+            free(face_colors_hsl_c);
+            free(faces_a);
+            free(faces_b);
+            free(faces_c);
+            return NULL;
+        }
+
+        struct DashModelVA* va = (struct DashModelVA*)(void*)m;
+        va->vertex_array = vertex_array_nullable;
+        va->vertex_offset = v_off;
+        va->vertex_count = vertex_count;
+        va->face_count = face_count;
+        va->face_indices_a = faces_a;
+        va->face_indices_b = faces_b;
+        va->face_indices_c = faces_c;
+        va->face_colors_a = face_colors_hsl_a;
+        va->face_colors_b = face_colors_hsl_b;
+        va->face_colors_c = face_colors_hsl_c;
+        va->face_textures = va_face_tex;
+        dashmodel_set_has_textures(m, va_face_tex != NULL);
+
+        va->bounds_cylinder = bc;
+
+        dashmodel_set_loaded(m, true);
+        return m;
+    }
+
     struct DashModel* dash_model = dashmodel_fast_new();
     if( !dash_model )
     {
-        free(valid_faces);
         free(face_colors_hsl_a);
         free(face_colors_hsl_b);
         free(face_colors_hsl_c);
@@ -593,13 +709,6 @@ decode_tile(
     free(faces_b);
     free(faces_c);
 
-    // Hide invalid faces (channel C sentinel).
-    for( int i = 0; i < face_count; i++ )
-    {
-        if( !valid_faces[i] )
-            face_colors_hsl_c[i] = DASHHSL16_HIDDEN;
-    }
-
     dashmodel_set_face_colors_i16(
         dash_model,
         (const uint16_t*)face_colors_hsl_a,
@@ -621,9 +730,76 @@ decode_tile(
     free(face_colors_hsl_b);
     free(face_colors_hsl_c);
     free(face_texture_ids);
-    free(valid_faces);
 
     return dash_model;
+}
+
+static struct DashModel*
+decode_tile(
+    int shape,
+    int rotation,
+    int texture_id,
+    int height_sw,
+    int height_se,
+    int height_ne,
+    int height_nw,
+    int light_sw,
+    int light_se,
+    int light_ne,
+    int light_nw,
+    int underlay_hsl16,
+    int overlay_hsl16)
+{
+    return decode_tile_impl(
+        NULL,
+        shape,
+        rotation,
+        texture_id,
+        height_sw,
+        height_se,
+        height_ne,
+        height_nw,
+        light_sw,
+        light_se,
+        light_ne,
+        light_nw,
+        underlay_hsl16,
+        overlay_hsl16);
+}
+
+static struct DashModel*
+decode_tile_va(
+    struct DashVertexArray* vertex_array,
+    int shape,
+    int rotation,
+    int texture_id,
+    int height_sw,
+    int height_se,
+    int height_ne,
+    int height_nw,
+    int light_sw,
+    int light_se,
+    int light_ne,
+    int light_nw,
+    int underlay_hsl16,
+    int overlay_hsl16)
+{
+    assert(vertex_array);
+    return decode_tile_impl(
+        vertex_array,
+        shape,
+        rotation,
+        texture_id,
+        height_sw,
+        height_se,
+        height_ne,
+        height_nw,
+        light_sw,
+        light_se,
+        light_ne,
+        light_nw,
+        underlay_hsl16,
+        overlay_hsl16);
 }
 
 #endif

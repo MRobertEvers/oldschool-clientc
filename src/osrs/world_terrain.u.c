@@ -1,6 +1,7 @@
 #ifndef WORLD_TERRAIN_U_C
 #define WORLD_TERRAIN_U_C
 
+#include "graphics/dash.h"
 #include "palette.h"
 #include "world.h"
 
@@ -11,6 +12,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -228,6 +230,15 @@ build_scene_terrain(struct World* world)
     struct OverlaymapTile* overlay_tile = NULL;
     struct MapBuildTileEntity* tile_entity = NULL;
 
+    if( world->terrain_vertex_array )
+    {
+        dashvertexarray_free(world->terrain_vertex_array);
+        world->terrain_vertex_array = NULL;
+    }
+    /* DashVertexArray starts at 32k vertices and grows in 32k steps (see dash_model.c). */
+    world->terrain_vertex_array = dashvertexarray_new(0);
+    bool use_terrain_va = (world->terrain_vertex_array != NULL);
+
     /**
      * Scene Tiles
      *
@@ -343,20 +354,41 @@ build_scene_terrain(struct World* world)
                 scene_element =
                     scene2_element_at(world->scene2, tile_entity->scene_element.element_id);
 
-                model = decode_tile(
-                    shape,
-                    rotation,
-                    texture_id,
-                    height_sw,
-                    height_se,
-                    height_ne,
-                    height_nw,
-                    light_sw,
-                    light_se,
-                    light_ne,
-                    light_nw,
-                    underlay_hsl,
-                    overlay_hsl);
+                if( use_terrain_va )
+                {
+                    model = decode_tile_va(
+                        world->terrain_vertex_array,
+                        shape,
+                        rotation,
+                        texture_id,
+                        height_sw,
+                        height_se,
+                        height_ne,
+                        height_nw,
+                        light_sw,
+                        light_se,
+                        light_ne,
+                        light_nw,
+                        underlay_hsl,
+                        overlay_hsl);
+                }
+                else
+                {
+                    model = decode_tile(
+                        shape,
+                        rotation,
+                        texture_id,
+                        height_sw,
+                        height_se,
+                        height_ne,
+                        height_nw,
+                        light_sw,
+                        light_se,
+                        light_ne,
+                        light_nw,
+                        underlay_hsl,
+                        overlay_hsl);
+                }
 
                 scene2_element_set_dash_position_ptr(scene_element, dashposition_new());
                 scene2_element_set_dash_model(world->scene2, scene_element, model);
@@ -366,7 +398,8 @@ build_scene_terrain(struct World* world)
                 // The height is built into the model.
                 dp->y = 0;
 
-                /* Explicit overlay minimap color from flo config; UINT32_MAX = unset (init_tile). */
+                /* Explicit overlay minimap color from flo config; UINT32_MAX = unset (init_tile).
+                 */
                 if( overlay_tile->minimap_rgb_color != UINT32_MAX )
                 {
                     minimap_foreground_rgb = (int)(overlay_tile->minimap_rgb_color & 0x00FFFFFFu);
@@ -399,6 +432,27 @@ build_scene_terrain(struct World* world)
                 minimap_set_tile_shape(world->minimap, x, z, shape, rotation);
             }
         }
+    }
+
+    if( use_terrain_va && world->terrain_vertex_array )
+    {
+        struct DashVertexArray* tva = world->terrain_vertex_array;
+        int n = tva->vertex_count;
+        int before_cap = tva->vertex_capacity;
+        size_t before_bytes = (size_t)before_cap * 3u * sizeof(vertexint_t);
+        printf(
+            "terrain_vertex_array before shrink: vertex_count=%d vertex_capacity=%d alloc_bytes=%zu\n",
+            n,
+            before_cap,
+            before_bytes);
+        dashvertexarray_shrink_to_fit(tva);
+        int after_cap = tva->vertex_capacity;
+        size_t after_bytes = (size_t)after_cap * 3u * sizeof(vertexint_t);
+        printf(
+            "terrain_vertex_array after shrink:  vertex_count=%d vertex_capacity=%d alloc_bytes=%zu\n",
+            tva->vertex_count,
+            after_cap,
+            after_bytes);
     }
 }
 

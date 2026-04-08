@@ -14,9 +14,11 @@ struct DashModel;
 struct DashBoundsCylinder;
 struct DashModelNormals;
 struct DashModelBones;
+struct DashVertexArray;
 
 #define DASHMODEL_FLAG_LOADED       0x01u
 #define DASHMODEL_FLAG_HAS_TEXTURES 0x02u
+#define DASHMODEL_FLAG_VA           0x20u
 #define DASHMODEL_FLAG_FAST         0x40u
 #define DASHMODEL_FLAG_VALID        0x80u
 
@@ -28,6 +30,23 @@ struct DashModelFast
     vertexint_t* vertices_x;
     vertexint_t* vertices_y;
     vertexint_t* vertices_z;
+    hsl16_t* face_colors_a;
+    hsl16_t* face_colors_b;
+    hsl16_t* face_colors_c;
+    faceint_t* face_indices_a;
+    faceint_t* face_indices_b;
+    faceint_t* face_indices_c;
+    faceint_t* face_textures;
+    struct DashBoundsCylinder* bounds_cylinder;
+};
+
+struct DashModelVA
+{
+    uint8_t flags;
+    int face_count;
+    int vertex_offset;
+    int vertex_count;
+    struct DashVertexArray* vertex_array;
     hsl16_t* face_colors_a;
     hsl16_t* face_colors_b;
     hsl16_t* face_colors_c;
@@ -99,9 +118,29 @@ dashmodel__flags(const void* m)
 }
 
 static inline bool
+dashmodel__is_va(const void* m)
+{
+    return (dashmodel__peek_flags(m) & DASHMODEL_FLAG_VA) != 0;
+}
+
+static inline bool
 dashmodel__is_fast(const void* m)
 {
     return (dashmodel__flags(m) & DASHMODEL_FLAG_FAST) != 0;
+}
+
+static inline struct DashModelVA*
+dashmodel__as_va(void* m)
+{
+    assert(dashmodel__is_va(m));
+    return (struct DashModelVA*)m;
+}
+
+static inline const struct DashModelVA*
+dashmodel__as_va_const(const void* m)
+{
+    assert(dashmodel__is_va(m));
+    return (const struct DashModelVA*)m;
 }
 
 static inline struct DashModelFast*
@@ -121,6 +160,7 @@ dashmodel__as_fast_const(const void* m)
 static inline struct DashModelFull*
 dashmodel__as_full(void* m)
 {
+    assert(!dashmodel__is_va(m));
     assert(!dashmodel__is_fast(m));
     return (struct DashModelFull*)m;
 }
@@ -128,6 +168,7 @@ dashmodel__as_full(void* m)
 static inline const struct DashModelFull*
 dashmodel__as_full_const(const void* m)
 {
+    assert(!dashmodel__is_va(m));
     assert(!dashmodel__is_fast(m));
     return (const struct DashModelFull*)m;
 }

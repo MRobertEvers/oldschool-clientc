@@ -5,9 +5,26 @@
 #include <stdlib.h>
 #include <string.h>
 
+/** Initial and growth step for DashVertexArray capacity (vertices per axis buffer). */
+#define DASH_VERTEX_ARRAY_CHUNK_VERTICES 32768
+
 static const faceint_t g_dashmodel_fast_tex_p[1] = { 0 };
 static const faceint_t g_dashmodel_fast_tex_m[1] = { 1 };
 static const faceint_t g_dashmodel_fast_tex_n[1] = { 3 };
+
+static void
+dashmodel__bounds_cylinder_release(struct DashBoundsCylinder* bc)
+{
+    if( !bc )
+        return;
+    if( (bc->flags & DASH_BOUNDS_FLAG_SHARED) != 0 )
+    {
+        assert(bc->ref_count > 0);
+        bc->ref_count--;
+        return;
+    }
+    free(bc);
+}
 
 static void
 dashmodel__free_fast_arrays(struct DashModelFast* m)
@@ -22,7 +39,7 @@ dashmodel__free_fast_arrays(struct DashModelFast* m)
     free(m->face_indices_b);
     free(m->face_indices_c);
     free(m->face_textures);
-    free(m->bounds_cylinder);
+    dashmodel__bounds_cylinder_release(m->bounds_cylinder);
 }
 
 static void
@@ -78,7 +95,20 @@ dashmodel__free_full_arrays(struct DashModelFull* m)
         free(m->face_bones->bones_sizes);
         free(m->face_bones);
     }
-    free(m->bounds_cylinder);
+    dashmodel__bounds_cylinder_release(m->bounds_cylinder);
+}
+
+static void
+dashmodel__free_va_arrays(struct DashModelVA* m)
+{
+    free(m->face_colors_a);
+    free(m->face_colors_b);
+    free(m->face_colors_c);
+    free(m->face_indices_a);
+    free(m->face_indices_b);
+    free(m->face_indices_c);
+    free(m->face_textures);
+    dashmodel__bounds_cylinder_release(m->bounds_cylinder);
 }
 
 struct DashModel*
@@ -90,6 +120,142 @@ dashmodel_fast_new(void)
     memset(m, 0, sizeof(struct DashModelFast));
     m->flags = (uint8_t)(DASHMODEL_FLAG_VALID | DASHMODEL_FLAG_FAST);
     return (struct DashModel*)m;
+}
+
+struct DashModel*
+dashmodel_va_new(void)
+{
+    struct DashModelVA* m = (struct DashModelVA*)malloc(sizeof(struct DashModelVA));
+    if( !m )
+        return NULL;
+    memset(m, 0, sizeof(struct DashModelVA));
+    m->flags = (uint8_t)(DASHMODEL_FLAG_VALID | DASHMODEL_FLAG_VA);
+    return (struct DashModel*)m;
+}
+
+struct DashVertexArray*
+dashvertexarray_new(int capacity)
+{
+    struct DashVertexArray* va = (struct DashVertexArray*)malloc(sizeof(struct DashVertexArray));
+    if( !va )
+        return NULL;
+    memset(va, 0, sizeof(*va));
+    int alloc_cap = 0;
+    if( capacity > 0 )
+    {
+        alloc_cap = capacity < DASH_VERTEX_ARRAY_CHUNK_VERTICES ? DASH_VERTEX_ARRAY_CHUNK_VERTICES
+                                                                : capacity;
+        va->vertex_capacity = alloc_cap;
+    }
+    if( alloc_cap > 0 )
+    {
+        va->vertices_x = (vertexint_t*)malloc((size_t)alloc_cap * sizeof(vertexint_t));
+        va->vertices_y = (vertexint_t*)malloc((size_t)alloc_cap * sizeof(vertexint_t));
+        va->vertices_z = (vertexint_t*)malloc((size_t)alloc_cap * sizeof(vertexint_t));
+        if( !va->vertices_x || !va->vertices_y || !va->vertices_z )
+        {
+            free(va->vertices_x);
+            free(va->vertices_y);
+            free(va->vertices_z);
+            free(va);
+            return NULL;
+        }
+    }
+    return va;
+}
+
+void
+dashvertexarray_free(struct DashVertexArray* va)
+{
+    if( !va )
+        return;
+    free(va->vertices_x);
+    free(va->vertices_y);
+    free(va->vertices_z);
+    free(va);
+}
+
+int
+dashvertexarray_append(
+    struct DashVertexArray* va,
+    int count,
+    const vertexint_t* x,
+    const vertexint_t* y,
+    const vertexint_t* z)
+{
+    assert(va && count >= 0 && x && y && z);
+    if( count <= 0 )
+        return va->vertex_count;
+    int need = va->vertex_count + count;
+    if( need > va->vertex_capacity )
+    {
+        int new_cap = va->vertex_capacity;
+        while( new_cap < need )
+            new_cap += DASH_VERTEX_ARRAY_CHUNK_VERTICES;
+        vertexint_t* nx = (vertexint_t*)realloc(va->vertices_x, (size_t)new_cap * sizeof(vertexint_t));
+        vertexint_t* ny = (vertexint_t*)realloc(va->vertices_y, (size_t)new_cap * sizeof(vertexint_t));
+        vertexint_t* nz = (vertexint_t*)realloc(va->vertices_z, (size_t)new_cap * sizeof(vertexint_t));
+        if( !nx || !ny || !nz )
+        {
+            free(nx);
+            free(ny);
+            free(nz);
+            return -1;
+        }
+        va->vertices_x = nx;
+        va->vertices_y = ny;
+        va->vertices_z = nz;
+        va->vertex_capacity = new_cap;
+    }
+    int offset = va->vertex_count;
+    memcpy(va->vertices_x + offset, x, (size_t)count * sizeof(vertexint_t));
+    memcpy(va->vertices_y + offset, y, (size_t)count * sizeof(vertexint_t));
+    memcpy(va->vertices_z + offset, z, (size_t)count * sizeof(vertexint_t));
+    va->vertex_count = need;
+    return offset;
+}
+
+void
+dashvertexarray_shrink_to_fit(struct DashVertexArray* va)
+{
+    if( !va )
+        return;
+    if( va->vertex_count <= 0 )
+    {
+        free(va->vertices_x);
+        free(va->vertices_y);
+        free(va->vertices_z);
+        va->vertices_x = NULL;
+        va->vertices_y = NULL;
+        va->vertices_z = NULL;
+        va->vertex_capacity = 0;
+        return;
+    }
+    if( va->vertex_capacity <= va->vertex_count )
+        return;
+
+    int n = va->vertex_count;
+    size_t sz = (size_t)n * sizeof(vertexint_t);
+    vertexint_t* nx = (vertexint_t*)malloc(sz);
+    vertexint_t* ny = (vertexint_t*)malloc(sz);
+    vertexint_t* nz = (vertexint_t*)malloc(sz);
+    if( !nx || !ny || !nz )
+    {
+        free(nx);
+        free(ny);
+        free(nz);
+        return;
+    }
+    memcpy(nx, va->vertices_x, sz);
+    memcpy(ny, va->vertices_y, sz);
+    memcpy(nz, va->vertices_z, sz);
+    free(va->vertices_x);
+    free(va->vertices_y);
+    free(va->vertices_z);
+    va->vertices_x = nx;
+    va->vertices_y = ny;
+    va->vertices_z = nz;
+    va->vertex_capacity = n;
 }
 
 struct DashModel*
@@ -116,6 +282,12 @@ dashmodel_free(struct DashModel* model)
         return;
     uint8_t f = dashmodel__peek_flags(model);
     assert((f & DASHMODEL_FLAG_VALID) != 0);
+    if( (f & DASHMODEL_FLAG_VA) != 0 )
+    {
+        dashmodel__free_va_arrays((struct DashModelVA*)(void*)model);
+        free(model);
+        return;
+    }
     if( (f & DASHMODEL_FLAG_FAST) != 0 )
     {
         dashmodel__free_fast_arrays((struct DashModelFast*)(void*)model);
@@ -139,7 +311,7 @@ dashmodel_is_lightable(const struct DashModel* m)
 {
     if( !m )
         return false;
-    return !dashmodel__is_fast(m);
+    return !dashmodel__is_fast(m) && !dashmodel__is_va(m);
 }
 
 void
@@ -176,6 +348,8 @@ int
 dashmodel_vertex_count(const struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va_const(m)->vertex_count;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->vertex_count;
     return dashmodel__as_full_const(m)->vertex_count;
@@ -185,6 +359,8 @@ int
 dashmodel_face_count(const struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va_const(m)->face_count;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->face_count;
     return dashmodel__as_full_const(m)->face_count;
@@ -194,6 +370,12 @@ vertexint_t*
 dashmodel_vertices_x(struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+    {
+        struct DashModelVA* va = dashmodel__as_va(m);
+        assert(va->vertex_array);
+        return va->vertex_array->vertices_x + va->vertex_offset;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->vertices_x;
     return dashmodel__as_full(m)->vertices_x;
@@ -203,6 +385,12 @@ vertexint_t*
 dashmodel_vertices_y(struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+    {
+        struct DashModelVA* va = dashmodel__as_va(m);
+        assert(va->vertex_array);
+        return va->vertex_array->vertices_y + va->vertex_offset;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->vertices_y;
     return dashmodel__as_full(m)->vertices_y;
@@ -212,6 +400,12 @@ vertexint_t*
 dashmodel_vertices_z(struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+    {
+        struct DashModelVA* va = dashmodel__as_va(m);
+        assert(va->vertex_array);
+        return va->vertex_array->vertices_z + va->vertex_offset;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->vertices_z;
     return dashmodel__as_full(m)->vertices_z;
@@ -221,6 +415,12 @@ const vertexint_t*
 dashmodel_vertices_x_const(const struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+    {
+        const struct DashModelVA* va = dashmodel__as_va_const(m);
+        assert(va->vertex_array);
+        return va->vertex_array->vertices_x + va->vertex_offset;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->vertices_x;
     return dashmodel__as_full_const(m)->vertices_x;
@@ -230,6 +430,12 @@ const vertexint_t*
 dashmodel_vertices_y_const(const struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+    {
+        const struct DashModelVA* va = dashmodel__as_va_const(m);
+        assert(va->vertex_array);
+        return va->vertex_array->vertices_y + va->vertex_offset;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->vertices_y;
     return dashmodel__as_full_const(m)->vertices_y;
@@ -239,6 +445,12 @@ const vertexint_t*
 dashmodel_vertices_z_const(const struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+    {
+        const struct DashModelVA* va = dashmodel__as_va_const(m);
+        assert(va->vertex_array);
+        return va->vertex_array->vertices_z + va->vertex_offset;
+    }
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->vertices_z;
     return dashmodel__as_full_const(m)->vertices_z;
@@ -248,6 +460,8 @@ hsl16_t*
 dashmodel_face_colors_a(struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va(m)->face_colors_a;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->face_colors_a;
     return dashmodel__as_full(m)->face_colors_a;
@@ -257,6 +471,8 @@ hsl16_t*
 dashmodel_face_colors_b(struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va(m)->face_colors_b;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->face_colors_b;
     return dashmodel__as_full(m)->face_colors_b;
@@ -266,6 +482,8 @@ hsl16_t*
 dashmodel_face_colors_c(struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va(m)->face_colors_c;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->face_colors_c;
     return dashmodel__as_full(m)->face_colors_c;
@@ -275,6 +493,8 @@ const hsl16_t*
 dashmodel_face_colors_a_const(const struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va_const(m)->face_colors_a;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->face_colors_a;
     return dashmodel__as_full_const(m)->face_colors_a;
@@ -284,6 +504,8 @@ const hsl16_t*
 dashmodel_face_colors_b_const(const struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va_const(m)->face_colors_b;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->face_colors_b;
     return dashmodel__as_full_const(m)->face_colors_b;
@@ -293,6 +515,8 @@ const hsl16_t*
 dashmodel_face_colors_c_const(const struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va_const(m)->face_colors_c;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->face_colors_c;
     return dashmodel__as_full_const(m)->face_colors_c;
@@ -302,6 +526,8 @@ faceint_t*
 dashmodel_face_indices_a(struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va(m)->face_indices_a;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->face_indices_a;
     return dashmodel__as_full(m)->face_indices_a;
@@ -311,6 +537,8 @@ faceint_t*
 dashmodel_face_indices_b(struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va(m)->face_indices_b;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->face_indices_b;
     return dashmodel__as_full(m)->face_indices_b;
@@ -320,6 +548,8 @@ faceint_t*
 dashmodel_face_indices_c(struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va(m)->face_indices_c;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->face_indices_c;
     return dashmodel__as_full(m)->face_indices_c;
@@ -329,6 +559,8 @@ const faceint_t*
 dashmodel_face_indices_a_const(const struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va_const(m)->face_indices_a;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->face_indices_a;
     return dashmodel__as_full_const(m)->face_indices_a;
@@ -338,6 +570,8 @@ const faceint_t*
 dashmodel_face_indices_b_const(const struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va_const(m)->face_indices_b;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->face_indices_b;
     return dashmodel__as_full_const(m)->face_indices_b;
@@ -347,6 +581,8 @@ const faceint_t*
 dashmodel_face_indices_c_const(const struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va_const(m)->face_indices_c;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->face_indices_c;
     return dashmodel__as_full_const(m)->face_indices_c;
@@ -356,6 +592,8 @@ faceint_t*
 dashmodel_face_textures(struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va(m)->face_textures;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->face_textures;
     return dashmodel__as_full(m)->face_textures;
@@ -365,6 +603,8 @@ const faceint_t*
 dashmodel_face_textures_const(const struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va_const(m)->face_textures;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->face_textures;
     return dashmodel__as_full_const(m)->face_textures;
@@ -374,6 +614,8 @@ struct DashBoundsCylinder*
 dashmodel_bounds_cylinder(struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va(m)->bounds_cylinder;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast(m)->bounds_cylinder;
     return dashmodel__as_full(m)->bounds_cylinder;
@@ -383,6 +625,8 @@ const struct DashBoundsCylinder*
 dashmodel_bounds_cylinder_const(const struct DashModel* m)
 {
     assert(m);
+    if( dashmodel__is_va(m) )
+        return dashmodel__as_va_const(m)->bounds_cylinder;
     if( dashmodel__is_fast(m) )
         return dashmodel__as_fast_const(m)->bounds_cylinder;
     return dashmodel__as_full_const(m)->bounds_cylinder;
@@ -392,7 +636,7 @@ alphaint_t*
 dashmodel_face_alphas(struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
         return NULL;
     return dashmodel__as_full(m)->face_alphas;
 }
@@ -401,7 +645,7 @@ const alphaint_t*
 dashmodel_face_alphas_const(const struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
         return NULL;
     return dashmodel__as_full_const(m)->face_alphas;
 }
@@ -410,7 +654,7 @@ alphaint_t*
 dashmodel_original_face_alphas(struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
         return NULL;
     return dashmodel__as_full(m)->original_face_alphas;
 }
@@ -419,7 +663,7 @@ int*
 dashmodel_face_infos(struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
         return NULL;
     return dashmodel__as_full(m)->face_infos;
 }
@@ -428,7 +672,7 @@ const int*
 dashmodel_face_infos_const(const struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
         return NULL;
     return dashmodel__as_full_const(m)->face_infos;
 }
@@ -437,6 +681,7 @@ int*
 dashmodel_face_infos_ensure_zero(struct DashModel* m)
 {
     assert(m);
+    assert(!dashmodel__is_va(m));
     assert(!dashmodel__is_fast(m));
     dashmodel__flags(m);
     int fc = dashmodel_face_count(m);
@@ -452,7 +697,7 @@ int*
 dashmodel_face_priorities(struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
         return NULL;
     return dashmodel__as_full(m)->face_priorities;
 }
@@ -461,7 +706,7 @@ hsl16_t*
 dashmodel_face_colors_flat(struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
         return NULL;
     return dashmodel__as_full(m)->face_colors;
 }
@@ -470,7 +715,7 @@ vertexint_t*
 dashmodel_original_vertices_x(struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
         return NULL;
     return dashmodel__as_full(m)->original_vertices_x;
 }
@@ -479,7 +724,7 @@ vertexint_t*
 dashmodel_original_vertices_y(struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
         return NULL;
     return dashmodel__as_full(m)->original_vertices_y;
 }
@@ -488,7 +733,7 @@ vertexint_t*
 dashmodel_original_vertices_z(struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
         return NULL;
     return dashmodel__as_full(m)->original_vertices_z;
 }
@@ -497,7 +742,7 @@ int
 dashmodel_textured_face_count(const struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
     {
         if( !dashmodel_has_textures(m) )
             return 0;
@@ -510,7 +755,7 @@ faceint_t*
 dashmodel_textured_p_coordinate(struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
     {
         if( !dashmodel_has_textures(m) )
             return NULL;
@@ -523,7 +768,7 @@ faceint_t*
 dashmodel_textured_m_coordinate(struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
     {
         if( !dashmodel_has_textures(m) )
             return NULL;
@@ -536,7 +781,7 @@ faceint_t*
 dashmodel_textured_n_coordinate(struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
     {
         if( !dashmodel_has_textures(m) )
             return NULL;
@@ -549,7 +794,7 @@ const faceint_t*
 dashmodel_textured_p_coordinate_const(const struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
     {
         if( !dashmodel_has_textures(m) )
             return NULL;
@@ -562,7 +807,7 @@ const faceint_t*
 dashmodel_textured_m_coordinate_const(const struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
     {
         if( !dashmodel_has_textures(m) )
             return NULL;
@@ -575,7 +820,7 @@ const faceint_t*
 dashmodel_textured_n_coordinate_const(const struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
     {
         if( !dashmodel_has_textures(m) )
             return NULL;
@@ -588,7 +833,7 @@ faceint_t*
 dashmodel_face_texture_coords(struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
         return NULL;
     return dashmodel__as_full(m)->face_texture_coords;
 }
@@ -597,7 +842,7 @@ const faceint_t*
 dashmodel_face_texture_coords_const(const struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
         return NULL;
     return dashmodel__as_full_const(m)->face_texture_coords;
 }
@@ -606,7 +851,7 @@ struct DashModelNormals*
 dashmodel_normals(struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
         return NULL;
     return dashmodel__as_full(m)->normals;
 }
@@ -615,7 +860,7 @@ struct DashModelNormals*
 dashmodel_merged_normals(struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
         return NULL;
     return dashmodel__as_full(m)->merged_normals;
 }
@@ -624,7 +869,7 @@ struct DashModelBones*
 dashmodel_vertex_bones(struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
         return NULL;
     return dashmodel__as_full(m)->vertex_bones;
 }
@@ -633,7 +878,7 @@ struct DashModelBones*
 dashmodel_face_bones(struct DashModel* m)
 {
     assert(m);
-    if( dashmodel__is_fast(m) )
+    if( dashmodel__is_va(m) || dashmodel__is_fast(m) )
         return NULL;
     return dashmodel__as_full(m)->face_bones;
 }
@@ -642,12 +887,14 @@ static struct DashModelFast*
 dashmodel__writable_fast(struct DashModel* m)
 {
     assert(dashmodel__is_fast(m));
+    assert(!dashmodel__is_va(m));
     return dashmodel__as_fast(m);
 }
 
 static struct DashModelFull*
 dashmodel__writable_full(struct DashModel* m)
 {
+    assert(!dashmodel__is_va(m));
     assert(!dashmodel__is_fast(m));
     return dashmodel__as_full(m);
 }
@@ -1090,11 +1337,12 @@ void
 dashmodel_set_bounds_cylinder(struct DashModel* m)
 {
     assert(m);
+    assert(!dashmodel__is_va(m));
     dashmodel__flags(m);
     if( dashmodel__is_fast(m) )
     {
         struct DashModelFast* f = dashmodel__writable_fast(m);
-        free(f->bounds_cylinder);
+        dashmodel__bounds_cylinder_release(f->bounds_cylinder);
         f->bounds_cylinder = (struct DashBoundsCylinder*)malloc(sizeof(struct DashBoundsCylinder));
         dash3d_calculate_bounds_cylinder(
             f->bounds_cylinder,
@@ -1105,7 +1353,7 @@ dashmodel_set_bounds_cylinder(struct DashModel* m)
         return;
     }
     struct DashModelFull* u = dashmodel__writable_full(m);
-    free(u->bounds_cylinder);
+    dashmodel__bounds_cylinder_release(u->bounds_cylinder);
     u->bounds_cylinder = (struct DashBoundsCylinder*)malloc(sizeof(struct DashBoundsCylinder));
     dash3d_calculate_bounds_cylinder(
         u->bounds_cylinder,
@@ -1156,6 +1404,32 @@ dashmodel_heap_bytes(const struct DashModel* model)
         return 0;
     uint8_t f = dashmodel__peek_flags(model);
     assert((f & DASHMODEL_FLAG_VALID) != 0);
+    if( (f & DASHMODEL_FLAG_VA) != 0 )
+    {
+        const struct DashModelVA* m = (const struct DashModelVA*)(const void*)model;
+        size_t total = sizeof(struct DashModelVA);
+        int fc = m->face_count;
+        if( fc > 0 )
+        {
+            if( m->face_indices_a )
+                total += (size_t)fc * sizeof(faceint_t);
+            if( m->face_indices_b )
+                total += (size_t)fc * sizeof(faceint_t);
+            if( m->face_indices_c )
+                total += (size_t)fc * sizeof(faceint_t);
+            if( m->face_colors_a )
+                total += (size_t)fc * sizeof(hsl16_t);
+            if( m->face_colors_b )
+                total += (size_t)fc * sizeof(hsl16_t);
+            if( m->face_colors_c )
+                total += (size_t)fc * sizeof(hsl16_t);
+            if( m->face_textures )
+                total += (size_t)fc * sizeof(faceint_t);
+        }
+        if( m->bounds_cylinder && (m->bounds_cylinder->flags & DASH_BOUNDS_FLAG_SHARED) == 0 )
+            total += sizeof(struct DashBoundsCylinder);
+        return total;
+    }
     if( (f & DASHMODEL_FLAG_FAST) != 0 )
     {
         const struct DashModelFast* m = (const struct DashModelFast*)(const void*)model;
@@ -1188,7 +1462,7 @@ dashmodel_heap_bytes(const struct DashModel* model)
             if( m->face_textures )
                 total += (size_t)fc * sizeof(faceint_t);
         }
-        if( m->bounds_cylinder )
+        if( m->bounds_cylinder && (m->bounds_cylinder->flags & DASH_BOUNDS_FLAG_SHARED) == 0 )
             total += sizeof(struct DashBoundsCylinder);
         return total;
     }
@@ -1254,7 +1528,7 @@ dashmodel_heap_bytes(const struct DashModel* model)
     total += dashmodel_normals_heap_bytes(m->merged_normals);
     total += dashmodel_bones_heap_bytes(m->vertex_bones);
     total += dashmodel_bones_heap_bytes(m->face_bones);
-    if( m->bounds_cylinder )
+    if( m->bounds_cylinder && (m->bounds_cylinder->flags & DASH_BOUNDS_FLAG_SHARED) == 0 )
         total += sizeof(struct DashBoundsCylinder);
     return total;
 }
@@ -1278,6 +1552,7 @@ void
 dashmodel_alloc_lit_face_colors_zero(struct DashModel* m, int face_count)
 {
     assert(m && face_count > 0);
+    assert(!dashmodel__is_va(m));
     assert(!dashmodel__is_fast(m));
     dashmodel__flags(m);
     struct DashModelFull* u = dashmodel__writable_full(m);
@@ -1295,7 +1570,7 @@ dashmodel_alloc_normals(struct DashModel* model)
 {
     assert(model);
     dashmodel__flags(model);
-    if( dashmodel__is_fast(model) )
+    if( dashmodel__is_va(model) || dashmodel__is_fast(model) )
         return;
     struct DashModelFull* m = dashmodel__writable_full(model);
     if( m->normals )
@@ -1308,7 +1583,7 @@ void
 dashmodel_free_normals(struct DashModel* model)
 {
     assert(model);
-    if( dashmodel__is_fast(model) )
+    if( dashmodel__is_va(model) || dashmodel__is_fast(model) )
         return;
     struct DashModelFull* m = dashmodel__writable_full(model);
     if( !m->normals )

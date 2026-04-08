@@ -135,6 +135,8 @@ world_free(struct World* world)
         blendmap_free(world->blendmap);
     if( world->terrain_shapemap )
         terrain_shape_map_free(world->terrain_shapemap);
+    if( world->terrain_vertex_array )
+        dashvertexarray_free(world->terrain_vertex_array);
     free(world);
 }
 
@@ -301,8 +303,12 @@ world_buildcachedat_rebuild_centerzone(
     struct World* world,
     int zone_center_x,
     int zone_center_z,
-    int scene_size)
+    int scene_size,
+    struct DashGraphics* dash_nullable)
 {
+    if( world )
+        world->dash = dash_nullable;
+
     struct BuildCacheDat* buildcachedat = world->buildcachedat;
 
     // Rebuild the center zone
@@ -359,6 +365,11 @@ world_buildcachedat_rebuild_centerzone(
         for( int i = 0; i < tile_slots; i++ )
         {
             world_cleanup_map_build_tile_entity(world, i);
+        }
+        if( world->terrain_vertex_array )
+        {
+            dashvertexarray_free(world->terrain_vertex_array);
+            world->terrain_vertex_array = NULL;
         }
         entity_vec_free(&world->map_build_tile_entities);
         entity_vec_init(

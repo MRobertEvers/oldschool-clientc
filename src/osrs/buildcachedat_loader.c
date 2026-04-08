@@ -911,7 +911,8 @@ buildcachedat_loader_finalize_scene(
 
     game->world = world_new(buildcachedat, game->scene2);
 
-    world_buildcachedat_rebuild_centerzone(game->world, map_sw_x * 8 + 12, map_sw_z * 8 + 12, 104);
+    world_buildcachedat_rebuild_centerzone(
+        game->world, map_sw_x * 8 + 12, map_sw_z * 8 + 12, 104, game->sys_dash);
 
     LibToriRS_WorldMinimapStaticRebuild(game);
 
@@ -931,7 +932,7 @@ buildcachedat_loader_finalize_scene_centerzone(
 
     game->world = world_new(buildcachedat, game->scene2);
 
-    world_buildcachedat_rebuild_centerzone(game->world, zonex, zonez, size);
+    world_buildcachedat_rebuild_centerzone(game->world, zonex, zonez, size, game->sys_dash);
 
     LibToriRS_WorldMinimapStaticRebuild(game);
 

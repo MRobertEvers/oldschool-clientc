@@ -27,6 +27,7 @@
 static struct DashModelFast*
 dashmodel__writable_fast(struct DashModel* m)
 {
+    assert(!dashmodel__is_va(m));
     assert(dashmodel__is_fast(m));
     return dashmodel__as_fast(m);
 }
@@ -34,6 +35,7 @@ dashmodel__writable_fast(struct DashModel* m)
 static struct DashModelFull*
 dashmodel__writable_full(struct DashModel* m)
 {
+    assert(!dashmodel__is_va(m));
     assert(!dashmodel__is_fast(m));
     return dashmodel__as_full(m);
 }
@@ -92,6 +94,7 @@ dashmodel_animate(
     struct DashFramemap* framemap)
 {
     assert(model);
+    assert(!dashmodel__is_va(model));
     assert(!dashmodel__is_fast(model));
     dashmodel__flags(model);
     dashmodel_reset_original_values(model);
@@ -123,6 +126,7 @@ dashmodel_animate_mask(
     int* walkmerge)
 {
     assert(model);
+    assert(!dashmodel__is_va(model));
     assert(!dashmodel__is_fast(model));
     dashmodel__flags(model);
     dashmodel_reset_original_values(model);
@@ -157,6 +161,39 @@ struct DashTextureEntry
     struct DashTexture* texture;
 };
 
+struct DashSharedBoundsEntry
+{
+    uint32_t id;
+    struct DashBoundsCylinder cylinder;
+};
+
+static uint64_t
+dash_shared_bounds_hash_fn(
+    const void* key,
+    size_t key_size,
+    void* arg)
+{
+    (void)arg;
+    if( !key || key_size != sizeof(uint32_t) )
+        return 1;
+    uint32_t k = *(const uint32_t*)key;
+    uint64_t h = (uint64_t)k + 1u;
+    return h ? h : 1u;
+}
+
+static int
+dash_shared_bounds_eq_fn(
+    const void* a,
+    const void* b,
+    size_t key_size,
+    void* arg)
+{
+    (void)arg;
+    if( !a || !b || key_size != sizeof(uint32_t) )
+        return 0;
+    return *(const uint32_t*)a == *(const uint32_t*)b;
+}
+
 struct DashGraphics
 {
     struct DashAABB aabb;
@@ -181,6 +218,7 @@ struct DashGraphics
     int tmp_face_order_count;
 
     struct DashMap* textures_hmap;
+    struct DashMap* shared_bounds_hmap;
 };
 
 /**
@@ -247,6 +285,24 @@ dash_new()
     };
     dash->textures_hmap = dashmap_new(&config, 0);
 
+    size_t sb_buf_sz = dashmap_buffer_size_for(sizeof(struct DashSharedBoundsEntry), 64);
+    void* sb_buf = malloc(sb_buf_sz);
+    if( sb_buf )
+    {
+        struct DashMapConfig sb_config = {
+            .buffer = sb_buf,
+            .buffer_size = sb_buf_sz,
+            .key_size = sizeof(uint32_t),
+            .entry_size = sizeof(struct DashSharedBoundsEntry),
+            .capacity = 0,
+            .hash_fn_nullable = dash_shared_bounds_hash_fn,
+            .eq_fn_nullable = dash_shared_bounds_eq_fn,
+        };
+        dash->shared_bounds_hmap = dashmap_new(&sb_config, 0);
+        if( !dash->shared_bounds_hmap )
+            free(sb_buf);
+    }
+
     return dash;
 }
 
@@ -260,7 +316,80 @@ dash_free(struct DashGraphics* dash)
         free(dashmap_buffer_ptr(dash->textures_hmap));
         dashmap_free(dash->textures_hmap);
     }
+    if( dash->shared_bounds_hmap )
+    {
+        free(dashmap_buffer_ptr(dash->shared_bounds_hmap));
+        dashmap_free(dash->shared_bounds_hmap);
+    }
     free(dash);
+}
+
+bool
+dash_has_shared_bounds_map(const struct DashGraphics* dash)
+{
+    return dash != NULL && dash->shared_bounds_hmap != NULL;
+}
+
+struct DashBoundsCylinder*
+dash_shared_bounds_acquire(struct DashGraphics* dash, uint32_t id)
+{
+    if( !dash || !dash->shared_bounds_hmap )
+        return NULL;
+    struct DashSharedBoundsEntry* e =
+        (struct DashSharedBoundsEntry*)dashmap_search(dash->shared_bounds_hmap, &id, DASHMAP_FIND);
+    if( !e )
+        return NULL;
+    e->cylinder.ref_count++;
+    return &e->cylinder;
+}
+
+void
+dash_shared_bounds_release(struct DashGraphics* dash, struct DashBoundsCylinder* bc)
+{
+    if( !dash || !dash->shared_bounds_hmap || !bc )
+        return;
+    if( (bc->flags & DASH_BOUNDS_FLAG_SHARED) == 0 )
+        return;
+    uint32_t id = bc->flags & DASH_BOUNDS_ID_MASK;
+    struct DashSharedBoundsEntry* e =
+        (struct DashSharedBoundsEntry*)dashmap_search(dash->shared_bounds_hmap, &id, DASHMAP_FIND);
+    if( !e )
+        return;
+    assert(bc == &e->cylinder);
+    if( e->cylinder.ref_count > 0 )
+        e->cylinder.ref_count--;
+    if( e->cylinder.ref_count <= 0 )
+    {
+        e->cylinder.ref_count = 0;
+        dashmap_search(dash->shared_bounds_hmap, &id, DASHMAP_REMOVE);
+    }
+}
+
+struct DashBoundsCylinder*
+dash_shared_bounds_alloc_empty(struct DashGraphics* dash, uint32_t id)
+{
+    if( !dash || !dash->shared_bounds_hmap )
+        return NULL;
+    struct DashSharedBoundsEntry* e = (struct DashSharedBoundsEntry*)dashmap_search(
+        dash->shared_bounds_hmap, &id, DASHMAP_FIND);
+    if( !e )
+    {
+        e = (struct DashSharedBoundsEntry*)dashmap_search(
+            dash->shared_bounds_hmap, &id, DASHMAP_INSERT);
+        if( !e )
+            return NULL;
+    }
+    else
+    {
+        assert(
+            e->cylinder.ref_count == 0 &&
+            "dash_shared_bounds_alloc_empty: bounds still referenced; free models first");
+    }
+    memset(&e->cylinder, 0, sizeof(e->cylinder));
+    e->id = id;
+    e->cylinder.flags = DASH_BOUNDS_FLAG_SHARED | (id & DASH_BOUNDS_ID_MASK);
+    e->cylinder.ref_count = 0;
+    return &e->cylinder;
 }
 
 static inline int
