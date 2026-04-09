@@ -2649,6 +2649,22 @@ painter_paint4(
 }
 
 int
+painter_paint4_1(
+    struct Painter* painter, //
+    struct PaintersBuffer* buffer,
+    int camera_sx,
+    int camera_sz,
+    int camera_slevel)
+{
+    unsigned cheb_opts = CHEB_OPT_SCENERY_INSERTION_SORT;
+#ifdef __EMSCRIPTEN__
+    cheb_opts |= CHEB_OPT_CLEAR_BBOX_TILES;
+#endif
+    return painter_paint_chebyshev(
+        painter, buffer, camera_sx, camera_sz, camera_slevel, cheb_opts);
+}
+
+int
 painter_paint2(
     struct Painter* painter, //
     struct PaintersBuffer* buffer,
