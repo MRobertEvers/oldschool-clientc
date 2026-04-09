@@ -17,6 +17,7 @@
 #include "world_terrain.u.c"
 #include "world_sharelight.u.c"
 #include "world_cycle.u.c"
+#include "../default_cullmap.u.c"
 // clang-format on
 
 #define CURRENT_LEVEL 0
@@ -117,6 +118,8 @@ world_free(struct World* world)
     entity_vec_free(&world->map_build_loc_entities);
     entity_vec_free(&world->map_build_tile_entities);
 
+    painters_cullmap_free(world->cullmap);
+    world->cullmap = NULL;
     painter_free(world->painter);
     collision_map_free(world->collision_map);
     heightmap_free(world->heightmap);
@@ -429,6 +432,38 @@ world_buildcachedat_rebuild_centerzone(
         "Pre-Alloc: Memory info: %zu / %zu / %zu\n", mem.heap_used, mem.heap_total, mem.heap_peak);
 
     world->painter = painter_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+
+    /* Build the cullmap once; reuse it on subsequent rebuilds.
+     * Radius 25 matches the hardcoded painter draw radius.
+     * Use default_cullmap.u.c when viewport matches the baked asset. */
+    if( !world->cullmap && world->cullmap_screen_width > 0 && world->cullmap_screen_height > 0 )
+    {
+        world->cullmap = painters_cullmap_baked_open_r25_nz512_w1920_h1080();
+        if( !world->cullmap )
+        {
+            world->cullmap = painters_cullmap_new(
+                PAINTERS_DEFAULT_BAKED_CULLMAP_RADIUS,
+                world->cullmap_near_clip_z,
+                world->cullmap_screen_width,
+                world->cullmap_screen_height);
+        }
+        // if( world->cullmap_near_clip_z == PAINTERS_DEFAULT_BAKED_CULLMAP_NEAR_CLIP_Z &&
+        //     world->cullmap_screen_width == PAINTERS_DEFAULT_BAKED_CULLMAP_SCREEN_W &&
+        //     world->cullmap_screen_height == PAINTERS_DEFAULT_BAKED_CULLMAP_SCREEN_H )
+        // {
+
+        // }
+        // else
+        // {
+        //     world->cullmap = painters_cullmap_new(
+        //         PAINTERS_DEFAULT_BAKED_CULLMAP_RADIUS,
+        //         world->cullmap_near_clip_z,
+        //         world->cullmap_screen_width,
+        //         world->cullmap_screen_height);
+        // }
+    }
+    painter_set_cullmap(world->painter, world->cullmap);
+
     world->collision_map = collision_map_new(scene_size, scene_size);
     world->heightmap = heightmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
     world->minimap = minimap_new(scene_size, scene_size);

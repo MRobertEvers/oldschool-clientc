@@ -532,6 +532,43 @@ LibToriRS_FrameBegin(
     LibToriRS_RenderCommandBufferReset(render_command_buffer);
     queue_static_load_commands(game, render_command_buffer);
 
+    if( game->world )
+    {
+        if( game->world->cullmap_screen_width == 0 )
+        {
+            game->world->cullmap_near_clip_z = game->camera->near_plane_z;
+            game->world->cullmap_screen_width = game->view_port->width;
+            game->world->cullmap_screen_height = game->view_port->height;
+        }
+        if( game->world->painter && !game->world->cullmap &&
+            game->world->cullmap_screen_width > 0 && game->world->cullmap_screen_height > 0 )
+        {
+            if( game->world->cullmap_near_clip_z == PAINTERS_DEFAULT_BAKED_CULLMAP_NEAR_CLIP_Z &&
+                game->world->cullmap_screen_width == PAINTERS_DEFAULT_BAKED_CULLMAP_SCREEN_W &&
+                game->world->cullmap_screen_height == PAINTERS_DEFAULT_BAKED_CULLMAP_SCREEN_H )
+            {
+                game->world->cullmap = painters_cullmap_baked_open_r25_nz512_w1920_h1080();
+                if( !game->world->cullmap )
+                {
+                    game->world->cullmap = painters_cullmap_new(
+                        PAINTERS_DEFAULT_BAKED_CULLMAP_RADIUS,
+                        game->world->cullmap_near_clip_z,
+                        game->world->cullmap_screen_width,
+                        game->world->cullmap_screen_height);
+                }
+            }
+            else
+            {
+                game->world->cullmap = painters_cullmap_new(
+                    PAINTERS_DEFAULT_BAKED_CULLMAP_RADIUS,
+                    game->world->cullmap_near_clip_z,
+                    game->world->cullmap_screen_width,
+                    game->world->cullmap_screen_height);
+            }
+            painter_set_cullmap(game->world->painter, game->world->cullmap);
+        }
+    }
+
     if( game->world && game->world->painter && game->sys_painter_buffer )
     {
         struct Painter* painter = game->world->painter;
@@ -539,6 +576,8 @@ LibToriRS_FrameBegin(
         int camera_sx = game->camera_world_x / 128;
         int camera_sz = game->camera_world_z / 128;
         int camera_slevel = game->camera_world_y / 240;
+
+        painter_set_camera_angles(painter, game->camera_pitch, game->camera_yaw);
 
         static int painter_bench_frames;
         static uint64_t painter_bench_sum_paint_ns;

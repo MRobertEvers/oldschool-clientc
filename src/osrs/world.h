@@ -49,6 +49,11 @@ struct World
 
     // Painter
     struct Painter* painter;
+    /** Precomputed frustum visibility; built once, reused across zone rebuilds. */
+    struct PaintersCullMap* cullmap;
+    int cullmap_near_clip_z;
+    int cullmap_screen_width;
+    int cullmap_screen_height;
     // Collisionmap
     struct CollisionMap* collision_map;
     // Heightmap

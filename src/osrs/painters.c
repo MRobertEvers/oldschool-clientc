@@ -9,6 +9,7 @@
 
 // clang-format off
 #include "painters_intqueue.u.c"
+#include "painters_cullmap.u.c"
 // clang-format on
 
 #define PAINTER_WF_WAVE_CAP 96
@@ -76,6 +77,10 @@ struct Painter
     int width;
     int height;
     int levels;
+
+    const struct PaintersCullMap* cullmap;
+    int camera_pitch;
+    int camera_yaw;
 
     int current_camera_sx;
     int current_camera_sz;
@@ -609,7 +614,33 @@ painter_new(
     for( int i = 0; i < PAINTER_DIST_QUEUE_BUCKETS; i++ )
         int_queue_init(&painter->distance_queues[i], 1024);
 
+    painter->cullmap = NULL;
+    painter->camera_pitch = 0;
+    painter->camera_yaw = 0;
+
     return painter;
+}
+
+void
+painter_set_cullmap(
+    struct Painter* painter,
+    struct PaintersCullMap* cm)
+{
+    if( !painter )
+        return;
+    painter->cullmap = (const struct PaintersCullMap*)cm;
+}
+
+void
+painter_set_camera_angles(
+    struct Painter* painter,
+    int pitch,
+    int yaw)
+{
+    if( !painter )
+        return;
+    painter->camera_pitch = pitch;
+    painter->camera_yaw = yaw;
 }
 
 void
@@ -1332,6 +1363,66 @@ painter_paint(
             continue;
         }
 
+        if( painter->cullmap != NULL && tile_paint->step == PAINT_STEP_READY )
+        {
+            int dx = tile_sx - camera_sx;
+            int dz = tile_sz - camera_sz;
+            if( !painters_cullmap_visible(
+                    painter->cullmap, dx, dz, painter->camera_pitch, painter->camera_yaw) )
+            {
+                tile_paint->step = PAINT_STEP_DONE;
+                /* Same inward neighbor pushes as end of PAINT_STEP_LOCS (propagation). */
+                if( tile_slevel < painter->levels - 1 )
+                {
+                    int other_idx = step_idx_up(painter, tile_idx);
+                    other_paint = &painter->tile_paints[other_idx];
+                    if( other_paint->step != PAINT_STEP_DONE )
+                        painter_push_queue(painter, other_idx, prio);
+                }
+                if( tile_sx < camera_sx )
+                {
+                    if( tile_sx + 1 < max_draw_x )
+                    {
+                        int other_idx = step_idx_east(painter, tile_idx);
+                        other_paint = &painter->tile_paints[other_idx];
+                        if( other_paint->step != PAINT_STEP_DONE )
+                            painter_push_queue(painter, other_idx, prio);
+                    }
+                }
+                if( tile_sx > camera_sx )
+                {
+                    if( tile_sx - 1 >= min_draw_x )
+                    {
+                        int other_idx = step_idx_west(painter, tile_idx);
+                        other_paint = &painter->tile_paints[other_idx];
+                        if( other_paint->step != PAINT_STEP_DONE )
+                            painter_push_queue(painter, other_idx, prio);
+                    }
+                }
+                if( tile_sz < camera_sz )
+                {
+                    if( tile_sz + 1 < max_draw_z )
+                    {
+                        int other_idx = step_idx_north(painter, tile_idx);
+                        other_paint = &painter->tile_paints[other_idx];
+                        if( other_paint->step != PAINT_STEP_DONE )
+                            painter_push_queue(painter, other_idx, prio);
+                    }
+                }
+                if( tile_sz > camera_sz )
+                {
+                    if( tile_sz - 1 >= min_draw_z )
+                    {
+                        int other_idx = step_idx_south(painter, tile_idx);
+                        other_paint = &painter->tile_paints[other_idx];
+                        if( other_paint->step != PAINT_STEP_DONE )
+                            painter_push_queue(painter, other_idx, prio);
+                    }
+                }
+                continue;
+            }
+        }
+
         assert(tile_sx >= min_draw_x);
         assert(tile_sx < max_draw_x);
         assert(tile_sz >= min_draw_z);
@@ -2049,6 +2140,66 @@ painter_paint_chebyshev(
         {
             tile_paint->step = PAINT_STEP_DONE;
             continue;
+        }
+
+        if( painter->cullmap != NULL && tile_paint->step == PAINT_STEP_READY )
+        {
+            int dx = tile_sx - camera_sx;
+            int dz = tile_sz - camera_sz;
+            if( !painters_cullmap_visible(
+                    painter->cullmap, dx, dz, painter->camera_pitch, painter->camera_yaw) )
+            {
+                tile_paint->step = PAINT_STEP_DONE;
+                /* Same inward neighbor pushes as end of PAINT_STEP_LOCS (propagation). */
+                if( tile_slevel < painter->levels - 1 )
+                {
+                    int other_idx = step_idx_up(painter, tile_idx);
+                    other_paint = &painter->tile_paints[other_idx];
+                    if( other_paint->step != PAINT_STEP_DONE )
+                        painter_push_queue_dist(painter, other_idx);
+                }
+                if( tile_sx < camera_sx )
+                {
+                    if( tile_sx + 1 < max_draw_x )
+                    {
+                        int other_idx = step_idx_east(painter, tile_idx);
+                        other_paint = &painter->tile_paints[other_idx];
+                        if( other_paint->step != PAINT_STEP_DONE )
+                            painter_push_queue_dist(painter, other_idx);
+                    }
+                }
+                if( tile_sx > camera_sx )
+                {
+                    if( tile_sx - 1 >= min_draw_x )
+                    {
+                        int other_idx = step_idx_west(painter, tile_idx);
+                        other_paint = &painter->tile_paints[other_idx];
+                        if( other_paint->step != PAINT_STEP_DONE )
+                            painter_push_queue_dist(painter, other_idx);
+                    }
+                }
+                if( tile_sz < camera_sz )
+                {
+                    if( tile_sz + 1 < max_draw_z )
+                    {
+                        int other_idx = step_idx_north(painter, tile_idx);
+                        other_paint = &painter->tile_paints[other_idx];
+                        if( other_paint->step != PAINT_STEP_DONE )
+                            painter_push_queue_dist(painter, other_idx);
+                    }
+                }
+                if( tile_sz > camera_sz )
+                {
+                    if( tile_sz - 1 >= min_draw_z )
+                    {
+                        int other_idx = step_idx_south(painter, tile_idx);
+                        other_paint = &painter->tile_paints[other_idx];
+                        if( other_paint->step != PAINT_STEP_DONE )
+                            painter_push_queue_dist(painter, other_idx);
+                    }
+                }
+                continue;
+            }
         }
 
         assert(tile_sx >= min_draw_x);
@@ -2872,6 +3023,81 @@ painter_paint2(
         {
             tile_paint->step = PAINT_STEP_DONE;
             continue;
+        }
+
+        if( painter->cullmap != NULL && tile_paint->step == PAINT_STEP_READY )
+        {
+            int dx = tile_sx - camera_sx;
+            int dz = tile_sz - camera_sz;
+            if( !painters_cullmap_visible(
+                    painter->cullmap, dx, dz, painter->camera_pitch, painter->camera_yaw) )
+            {
+                tile_paint->step = PAINT_STEP_DONE;
+                /* Same inward neighbor pushes as end of PAINT_STEP_LOCS (propagation). */
+                if( tile_slevel < painter->levels - 1 )
+                {
+                    int other_idx = step_idx_up(painter, tile_idx);
+                    other_paint = &painter->tile_paints[other_idx];
+                    if( other_paint->step != PAINT_STEP_DONE )
+                    {
+                        assert(prio + 1 < PAINTER_WF_WAVE_CAP);
+                        wf_paint2_push(painter, other_idx, prio + 1);
+                    }
+                }
+                if( tile_sx < camera_sx )
+                {
+                    if( tile_sx + 1 < max_draw_x )
+                    {
+                        int other_idx = step_idx_east(painter, tile_idx);
+                        other_paint = &painter->tile_paints[other_idx];
+                        if( other_paint->step != PAINT_STEP_DONE )
+                        {
+                            assert(prio + 1 < PAINTER_WF_WAVE_CAP);
+                            wf_paint2_push(painter, other_idx, prio + 1);
+                        }
+                    }
+                }
+                if( tile_sx > camera_sx )
+                {
+                    if( tile_sx - 1 >= min_draw_x )
+                    {
+                        int other_idx = step_idx_west(painter, tile_idx);
+                        other_paint = &painter->tile_paints[other_idx];
+                        if( other_paint->step != PAINT_STEP_DONE )
+                        {
+                            assert(prio + 1 < PAINTER_WF_WAVE_CAP);
+                            wf_paint2_push(painter, other_idx, prio + 1);
+                        }
+                    }
+                }
+                if( tile_sz < camera_sz )
+                {
+                    if( tile_sz + 1 < max_draw_z )
+                    {
+                        int other_idx = step_idx_north(painter, tile_idx);
+                        other_paint = &painter->tile_paints[other_idx];
+                        if( other_paint->step != PAINT_STEP_DONE )
+                        {
+                            assert(prio + 1 < PAINTER_WF_WAVE_CAP);
+                            wf_paint2_push(painter, other_idx, prio + 1);
+                        }
+                    }
+                }
+                if( tile_sz > camera_sz )
+                {
+                    if( tile_sz - 1 >= min_draw_z )
+                    {
+                        int other_idx = step_idx_south(painter, tile_idx);
+                        other_paint = &painter->tile_paints[other_idx];
+                        if( other_paint->step != PAINT_STEP_DONE )
+                        {
+                            assert(prio + 1 < PAINTER_WF_WAVE_CAP);
+                            wf_paint2_push(painter, other_idx, prio + 1);
+                        }
+                    }
+                }
+                continue;
+            }
         }
 
         assert(tile_sx >= min_draw_x);
