@@ -111,15 +111,18 @@ static int s_scenery_sort_camera_sx;
 static int s_scenery_sort_camera_sz;
 
 static int
-scenery_min_dist_sq(const struct PaintersElement* el)
+scenery_min_dist_sq_cam(
+    const struct PaintersElement* el,
+    int cam_sx,
+    int cam_sz)
 {
     int min_dist_sq = INT_MAX;
     for( int tx = 0; tx < el->_scenery.size_x; tx++ )
     {
         for( int tz = 0; tz < el->_scenery.size_z; tz++ )
         {
-            int dx = (el->sx + tx) - s_scenery_sort_camera_sx;
-            int dz = (el->sz + tz) - s_scenery_sort_camera_sz;
+            int dx = (el->sx + tx) - cam_sx;
+            int dz = (el->sz + tz) - cam_sz;
             int d = dx * dx + dz * dz;
             if( d < min_dist_sq )
                 min_dist_sq = d;
@@ -127,6 +130,44 @@ scenery_min_dist_sq(const struct PaintersElement* el)
     }
     return min_dist_sq;
 }
+
+static int
+scenery_min_dist_sq(const struct PaintersElement* el)
+{
+    return scenery_min_dist_sq_cam(el, s_scenery_sort_camera_sx, s_scenery_sort_camera_sz);
+}
+
+/* Same ordering as qsort(..., scenery_distance_compare): ascending min corner dist^2. */
+static void
+scenery_queue_insertion_sort(
+    int* queue,
+    int len,
+    struct Painter* painter,
+    int cam_sx,
+    int cam_sz)
+{
+    for( int i = 1; i < len; i++ )
+    {
+        int val = queue[i];
+        int d_val = scenery_min_dist_sq_cam(&painter->elements[val], cam_sx, cam_sz);
+        int j = i - 1;
+        while( j >= 0 )
+        {
+            int d_j = scenery_min_dist_sq_cam(&painter->elements[queue[j]], cam_sx, cam_sz);
+            if( d_j <= d_val )
+                break;
+            queue[j + 1] = queue[j];
+            j--;
+        }
+        queue[j + 1] = val;
+    }
+}
+
+/* painter_paint_chebyshev: bit 0 = clear only the view rectangle tile_paints; bit 1 = insertion-sort
+ * per-tile scenery instead of qsort. Same distance-queue FSM as painter_paint3 (ring order alone
+ * does not order same-Chebyshev neighbors or multi-tile footprints). */
+#define CHEB_OPT_CLEAR_BBOX_TILES (1u << 0)
+#define CHEB_OPT_SCENERY_INSERTION_SORT (1u << 1)
 
 static int
 scenery_distance_compare(
@@ -312,6 +353,29 @@ painter_coord_idx(
     assert(slevel < painter->levels);
 
     return sx + sz * painter->width + slevel * painter->width * painter->height;
+}
+
+/* Clears tile_paints only in [min_x,max_x)×[min_z,max_z)×[0,max_level). */
+static void
+painter_clear_tile_paints_region(
+    struct Painter* painter,
+    int min_draw_x,
+    int max_draw_x,
+    int min_draw_z,
+    int max_draw_z,
+    int max_level)
+{
+    for( int s = 0; s < max_level; s++ )
+    {
+        for( int z = min_draw_z; z < max_draw_z; z++ )
+        {
+            int base = painter_coord_idx(painter, min_draw_x, z, s);
+            memset(
+                &painter->tile_paints[base],
+                0,
+                (size_t)(max_draw_x - min_draw_x) * sizeof(struct TilePaint));
+        }
+    }
 }
 
 static inline int
@@ -1777,13 +1841,14 @@ painter_paint(
     return 0;
 }
 
-int
-painter_paint3(
+static int
+painter_paint_chebyshev(
     struct Painter* painter, //
     struct PaintersBuffer* buffer,
     int camera_sx,
     int camera_sz,
-    int camera_slevel)
+    int camera_slevel,
+    unsigned cheb_opts)
 {
     struct PaintersTile* tile = NULL;
     struct PaintersElement* element = NULL;
@@ -1796,7 +1861,6 @@ painter_paint3(
     int scenery_queue_length = 0;
     buffer->command_count = 0;
 
-    memset(painter->tile_paints, 0x00, painter->tile_capacity * sizeof(struct TilePaint));
     memset(painter->element_paints, 0x00, painter->element_count * sizeof(struct ElementPaint));
 
     int radius = 25;
@@ -1824,10 +1888,19 @@ painter_paint3(
     if( min_draw_z > painter->height )
         min_draw_z = painter->height;
 
-    if( min_draw_x >= max_draw_x )
-        return 0;
-    if( min_draw_z >= max_draw_z )
-        return 0;
+    if( (cheb_opts & CHEB_OPT_CLEAR_BBOX_TILES) != 0 )
+    {
+        if( min_draw_x >= max_draw_x || min_draw_z >= max_draw_z )
+            return 0;
+        painter_clear_tile_paints_region(
+            painter, min_draw_x, max_draw_x, min_draw_z, max_draw_z, max_level);
+    }
+    else
+    {
+        memset(painter->tile_paints, 0x00, painter->tile_capacity * sizeof(struct TilePaint));
+        if( min_draw_x >= max_draw_x || min_draw_z >= max_draw_z )
+            return 0;
+    }
 
     painter_dist_queue_reset(painter);
     painter->current_camera_sx = camera_sx;
@@ -2246,14 +2319,20 @@ painter_paint3(
 
         if( tile_paint->step == PAINT_STEP_LOCS )
         {
-            s_scenery_sort_painter = painter;
-            s_scenery_sort_camera_sx = camera_sx;
-            s_scenery_sort_camera_sz = camera_sz;
-            qsort(
-                scenery_queue,
-                (size_t)scenery_queue_length,
-                sizeof(scenery_queue[0]),
-                scenery_distance_compare);
+            if( (cheb_opts & CHEB_OPT_SCENERY_INSERTION_SORT) != 0 )
+                scenery_queue_insertion_sort(
+                    scenery_queue, scenery_queue_length, painter, camera_sx, camera_sz);
+            else
+            {
+                s_scenery_sort_painter = painter;
+                s_scenery_sort_camera_sx = camera_sx;
+                s_scenery_sort_camera_sz = camera_sz;
+                qsort(
+                    scenery_queue,
+                    (size_t)scenery_queue_length,
+                    sizeof(scenery_queue[0]),
+                    scenery_distance_compare);
+            }
 
             for( int j = 0; j < scenery_queue_length; j++ )
             {
@@ -2476,6 +2555,35 @@ painter_paint3(
         assert(painter->distance_queues[qi].length == 0);
 
     return 0;
+}
+
+int
+painter_paint3(
+    struct Painter* painter, //
+    struct PaintersBuffer* buffer,
+    int camera_sx,
+    int camera_sz,
+    int camera_slevel)
+{
+    return painter_paint_chebyshev(
+        painter, buffer, camera_sx, camera_sz, camera_slevel, 0u);
+}
+
+int
+painter_paint4(
+    struct Painter* painter, //
+    struct PaintersBuffer* buffer,
+    int camera_sx,
+    int camera_sz,
+    int camera_slevel)
+{
+    return painter_paint_chebyshev(
+        painter,
+        buffer,
+        camera_sx,
+        camera_sz,
+        camera_slevel,
+        CHEB_OPT_CLEAR_BBOX_TILES | CHEB_OPT_SCENERY_INSERTION_SORT);
 }
 
 int

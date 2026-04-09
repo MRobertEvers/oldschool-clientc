@@ -462,7 +462,8 @@ queue_static_load_commands(
             }
             struct Scene2Element* element =
                 scene2_element_at(scene2, scene_event.u.element.element_id);
-            if( !element || !scene2_element_is_active(element) || !scene2_element_dash_model(element) )
+            if( !element || !scene2_element_is_active(element) ||
+                !scene2_element_dash_model(element) )
                 continue;
             if( scene2_element_parent_entity_id(element) != scene_event.u.element.parent_entity_id )
                 continue;
@@ -551,26 +552,26 @@ LibToriRS_FrameBegin(
             clock_gettime(CLOCK_MONOTONIC, &t0);
             painter_paint(painter, buffer, camera_sx, camera_sz, camera_slevel);
             clock_gettime(CLOCK_MONOTONIC, &t1);
-            dt_paint_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull
-                        + (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+            dt_paint_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+                          (uint64_t)(t1.tv_nsec - t0.tv_nsec);
             clock_gettime(CLOCK_MONOTONIC, &t0);
-            painter_paint3(painter, buffer, camera_sx, camera_sz, camera_slevel);
+            painter_paint4(painter, buffer, camera_sx, camera_sz, camera_slevel);
             clock_gettime(CLOCK_MONOTONIC, &t1);
-            dt_paint3_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull
-                         + (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+            dt_paint3_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+                           (uint64_t)(t1.tv_nsec - t0.tv_nsec);
         }
         else
         {
             clock_gettime(CLOCK_MONOTONIC, &t0);
-            painter_paint3(painter, buffer, camera_sx, camera_sz, camera_slevel);
+            painter_paint4(painter, buffer, camera_sx, camera_sz, camera_slevel);
             clock_gettime(CLOCK_MONOTONIC, &t1);
-            dt_paint3_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull
-                         + (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+            dt_paint3_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+                           (uint64_t)(t1.tv_nsec - t0.tv_nsec);
             clock_gettime(CLOCK_MONOTONIC, &t0);
             painter_paint(painter, buffer, camera_sx, camera_sz, camera_slevel);
             clock_gettime(CLOCK_MONOTONIC, &t1);
-            dt_paint_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull
-                        + (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+            dt_paint_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+                          (uint64_t)(t1.tv_nsec - t0.tv_nsec);
         }
 
         painter_bench_sum_paint_ns += dt_paint_ns;
@@ -580,7 +581,7 @@ LibToriRS_FrameBegin(
         {
             fprintf(
                 stderr,
-                "painter bench (avg over %d frames): paint=%.3f ms paint3=%.3f ms\n",
+                "painter bench (avg over %d frames): paint=%.3f ms paint4=%.3f ms\n",
                 painter_bench_frames,
                 (double)painter_bench_sum_paint_ns / (double)painter_bench_frames / 1e6,
                 (double)painter_bench_sum_paint3_ns / (double)painter_bench_frames / 1e6);
