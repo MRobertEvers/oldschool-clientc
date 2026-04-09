@@ -415,6 +415,8 @@ build_scene_terrain(struct World* world)
     }
 }
 
+#if WORLD_BUILD_TERRAIN_VA
+
 /** Staging for per-tile face data between pass 1 (geometry) and pass 2 (models + scene). */
 struct TerrainTileFaceTemp
 {
@@ -915,5 +917,7 @@ build_scene_terrain_va(struct World* world)
         free(tile_faces);
     }
 }
+
+#endif /* WORLD_BUILD_TERRAIN_VA */
 
 #endif

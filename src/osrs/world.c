@@ -1070,8 +1070,11 @@ world_buildcachedat_rebuild_centerzone(
         }
     }
 
-    // build_scene_terrain(world);
+#if WORLD_BUILD_TERRAIN_VA
     build_scene_terrain_va(world);
+#else
+    build_scene_terrain(world);
+#endif
 
     world_build_lighting(world);
 
