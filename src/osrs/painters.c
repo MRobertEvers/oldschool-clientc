@@ -99,6 +99,7 @@ struct Painter
 
     /* painter_paint3: Chebyshev distance from current_camera_sx/sz (floor only; slevel via FSM). */
     struct IntQueue distance_queues[PAINTER_MAX_RADIUS];
+    int max_active_dist;
 
     /* painter_paint2: bucket queue keyed by wave (Chebyshev / corner expansion level). */
     struct IntQueue wf_wave_q[PAINTER_WF_WAVE_CAP];
@@ -180,6 +181,7 @@ painter_dist_queue_reset(struct Painter* painter)
         painter->distance_queues[i].tail = 0;
         painter->distance_queues[i].length = 0;
     }
+    painter->max_active_dist = 0;
 }
 
 static inline void
@@ -196,33 +198,33 @@ painter_push_queue_dist(struct Painter* painter, int tile_idx)
     if( dist >= PAINTER_MAX_RADIUS )
         dist = PAINTER_MAX_RADIUS - 1;
 
+    if( dist > painter->max_active_dist )
+        painter->max_active_dist = dist;
+
     struct TilePaint* tile_paint = &painter->tile_paints[tile_idx];
     tile_paint->queue_count++;
 
     int_queue_push_wrap(&painter->distance_queues[dist], tile_idx);
 }
 
-static bool
-painter_queue_is_empty_dist(struct Painter* painter)
-{
-    for( int i = 0; i < PAINTER_MAX_RADIUS; i++ )
-    {
-        if( painter->distance_queues[i].length > 0 )
-            return false;
-    }
-    return true;
-}
-
-static int
+static inline int
 painter_queue_pop_dist(struct Painter* painter)
 {
-    for( int i = PAINTER_MAX_RADIUS - 1; i >= 0; i-- )
+    int d = painter->max_active_dist;
+
+    while( d >= 0 && painter->distance_queues[d].length == 0 )
+        d--;
+
+    if( d < 0 )
     {
-        if( painter->distance_queues[i].length > 0 )
-            return int_queue_pop(&painter->distance_queues[i]) >> 8;
+        painter->max_active_dist = 0;
+        return -1;
     }
-    assert(0);
-    return -1;
+
+    painter->max_active_dist = d;
+
+    /* int_queue_push_wrap stores tile_idx << 8 (same as main painter queue). */
+    return int_queue_pop(&painter->distance_queues[d]) >> 8;
 }
 
 static void
@@ -1840,10 +1842,9 @@ painter_paint3(
         }
     }
 
-    while( !painter_queue_is_empty_dist(painter) )
+    int tile_idx;
+    while( (tile_idx = painter_queue_pop_dist(painter)) != -1 )
     {
-        int tile_idx = painter_queue_pop_dist(painter);
-
         tile = &painter->tiles[tile_idx];
 
         int tile_sx = PAINTER_TILE_X(painter, tile);
