@@ -31,7 +31,8 @@ projection16_sparse_corner_vi(
     return (int)vc[f];
 }
 
-#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
+// This was turning out slower than the scalar version, so we're disabling it for now.
+#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED) && false
 #include <arm_neon.h>
 
 static inline void
