@@ -32,13 +32,14 @@ projection16_sparse_corner_vi(
 }
 
 /**
- * Tex sparse pass1: match dense project_vertices_array staging — the first simd_prefix_slots
- * linear indices use (x*cot)>>6 / (y*cot)>>6 like the NEON (4-wide) / AVX2 (8-wide) / SSE2 (4-wide)
- * SIMD batch; remaining slots use >>=15 + SCALE_UNIT like the scalar tail (same as
- * projection_sparse_slot_tex).
+ * Sparse tex path: orthographic projection plus FOV scale into screen buffers (and orthographic z).
+ * Matches dense project_vertices_array staging — the first simd_prefix_slots linear indices use
+ * (x*cot)>>6 / (y*cot)>>6 like the NEON (4-wide) / AVX2 (8-wide) / SSE2 (4-wide) SIMD batch;
+ * remaining slots store (x*cot)>>15 / (y*cot)>>15 without SCALE_UNIT; caller runs
+ * projection16_sparse_apply_unit_scale_tail for [simd_prefix_slots, num_slots).
  */
 static inline void
-projection16_sparse_tex_pass1_slot_dense_style(
+projection16_sparse_tex_orthographic(
     int* orthographic_vertices_x,
     int* orthographic_vertices_y,
     int* orthographic_vertices_z,
@@ -77,15 +78,15 @@ projection16_sparse_tex_pass1_slot_dense_style(
     {
         xfov >>= 15;
         yfov >>= 15;
-        screen_vertices_x[idx] = SCALE_UNIT(xfov);
-        screen_vertices_y[idx] = SCALE_UNIT(yfov);
+        screen_vertices_x[idx] = xfov;
+        screen_vertices_y[idx] = yfov;
     }
 }
 
-/** Notex sparse pass1; same simd_prefix_slots split as
- * projection16_sparse_tex_pass1_slot_dense_style. */
+/** Sparse notex path: orthographic projection plus FOV scale; same simd_prefix_slots split as
+ * projection16_sparse_tex_orthographic. */
 static inline void
-projection16_sparse_notex_pass1_slot_dense_style(
+projection16_sparse_notex_orthographic(
     int* screen_vertices_x,
     int* screen_vertices_y,
     int* screen_vertices_z,
@@ -120,9 +121,24 @@ projection16_sparse_notex_pass1_slot_dense_style(
     {
         xfov >>= 15;
         yfov >>= 15;
-        screen_vertices_x[idx] = SCALE_UNIT(xfov);
-        screen_vertices_y[idx] = SCALE_UNIT(yfov);
+        screen_vertices_x[idx] = xfov;
+        screen_vertices_y[idx] = yfov;
         screen_vertices_z[idx] = z;
+    }
+}
+
+/** Apply SCALE_UNIT to screen x/y for sparse tail slots only (idx >= simd_prefix_slots). */
+static inline void
+projection16_sparse_apply_unit_scale_tail(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int simd_prefix_slots,
+    int num_linear_slots)
+{
+    for( int su = simd_prefix_slots; su < num_linear_slots; su++ )
+    {
+        screen_vertices_x[su] = SCALE_UNIT(screen_vertices_x[su]);
+        screen_vertices_y[su] = SCALE_UNIT(screen_vertices_y[su]);
     }
 }
 
@@ -149,7 +165,137 @@ projection16_neon_zdiv_notex_tail(
     int base,
     int rem,
     int model_mid_z,
-    int near_plane_z);
+    int near_plane_z,
+    int sparse_simd_prefix,
+    int sparse_num_linear);
+
+static inline void
+projection16_neon_zdiv_tex_4_at(
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int i,
+    int model_mid_z,
+    int near_plane_z)
+{
+    int32x4_t z_i = vld1q_s32(&orthographic_vertices_z[i]);
+
+    int32x4_t midz = vdupq_n_s32(model_mid_z);
+    int32x4_t outz = vsubq_s32(z_i, midz);
+    vst1q_s32(&screen_vertices_z[i], outz);
+
+    uint32x4_t clipped_mask = vcltq_s32(z_i, vdupq_n_s32(near_plane_z));
+
+    float32x4_t z_f = vcvtq_f32_s32(z_i);
+    float32x4_t recip = vrecpeq_f32(z_f);
+    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
+    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
+
+    float32x4_t scale = vdupq_n_f32((float)(1ll << 30));
+    float32x4_t recip_scaled = vmulq_f32(recip, scale);
+    int32x4_t recip_q31 = vcvtq_s32_f32(recip_scaled);
+
+    int32x4_t x = vld1q_s32(&screen_vertices_x[i]);
+    int32x4_t y = vld1q_s32(&screen_vertices_y[i]);
+
+    int64x2_t xl0 = vmull_s32(vget_low_s32(x), vget_low_s32(recip_q31));
+    int64x2_t xl1 = vmull_s32(vget_high_s32(x), vget_high_s32(recip_q31));
+    int64x2_t yl0 = vmull_s32(vget_low_s32(y), vget_low_s32(recip_q31));
+    int64x2_t yl1 = vmull_s32(vget_high_s32(y), vget_high_s32(recip_q31));
+
+    int32x4_t x_div = vcombine_s32(vshrn_n_s64(xl0, 30), vshrn_n_s64(xl1, 30));
+    int32x4_t y_div = vcombine_s32(vshrn_n_s64(yl0, 30), vshrn_n_s64(yl1, 30));
+
+    int32x4_t neg5000 = vdupq_n_s32(-5000);
+    x_div = vbslq_s32(clipped_mask, neg5000, x_div);
+
+    vst1q_s32(&screen_vertices_x[i], x_div);
+    vst1q_s32(&screen_vertices_y[i], y_div);
+}
+
+static inline void
+projection16_neon_zdiv_notex_4_at(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int i,
+    int model_mid_z,
+    int near_plane_z,
+    int sparse_simd_prefix,
+    int sparse_num_linear)
+{
+    int32x4_t z_i = vld1q_s32(&screen_vertices_z[i]);
+
+    int32x4_t midz = vdupq_n_s32(model_mid_z);
+    int32x4_t outz = vsubq_s32(z_i, midz);
+
+    uint32x4_t clipped_mask = vcltq_s32(z_i, vdupq_n_s32(near_plane_z));
+
+    float32x4_t z_f = vcvtq_f32_s32(z_i);
+    float32x4_t recip = vrecpeq_f32(z_f);
+    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
+    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
+
+    float32x4_t scale = vdupq_n_f32((float)(1ll << 30));
+    float32x4_t recip_scaled = vmulq_f32(recip, scale);
+    int32x4_t recip_q31 = vcvtq_s32_f32(recip_scaled);
+
+    int32x4_t x = vld1q_s32(&screen_vertices_x[i]);
+    int32x4_t y = vld1q_s32(&screen_vertices_y[i]);
+
+    if( sparse_num_linear > 0 )
+    {
+        int32_t slot_arr[4] = { i, i + 1, i + 2, i + 3 };
+        int32x4_t slot = vld1q_s32(slot_arr);
+        uint32x4_t in_tail = vcgeq_s32(slot, vdupq_n_s32(sparse_simd_prefix));
+        uint32x4_t below_end = vcltq_s32(slot, vdupq_n_s32(sparse_num_linear));
+        uint32x4_t need_scale = vandq_u32(in_tail, below_end);
+        int32x4_t sx = vshlq_n_s32(x, UNIT_SCALE_SHIFT);
+        int32x4_t sy = vshlq_n_s32(y, UNIT_SCALE_SHIFT);
+        x = vbslq_s32(need_scale, sx, x);
+        y = vbslq_s32(need_scale, sy, y);
+    }
+
+    int64x2_t xl0 = vmull_s32(vget_low_s32(x), vget_low_s32(recip_q31));
+    int64x2_t xl1 = vmull_s32(vget_high_s32(x), vget_high_s32(recip_q31));
+    int64x2_t yl0 = vmull_s32(vget_low_s32(y), vget_low_s32(recip_q31));
+    int64x2_t yl1 = vmull_s32(vget_high_s32(y), vget_high_s32(recip_q31));
+
+    int32x4_t x_div = vcombine_s32(vshrn_n_s64(xl0, 30), vshrn_n_s64(xl1, 30));
+    int32x4_t y_div = vcombine_s32(vshrn_n_s64(yl0, 30), vshrn_n_s64(yl1, 30));
+
+    int32x4_t neg5000 = vdupq_n_s32(-5000);
+    x_div = vbslq_s32(clipped_mask, neg5000, x_div);
+
+    vst1q_s32(&screen_vertices_x[i], x_div);
+    vst1q_s32(&screen_vertices_y[i], y_div);
+    vst1q_s32(&screen_vertices_z[i], outz);
+}
+
+/** NEON linear SCALE_UNIT for sparse tail [simd_prefix_slots, num_linear_slots); scalar epilogue.
+ */
+static inline void
+projection16_neon_sparse_apply_unit_scale_tail(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int simd_prefix_slots,
+    int num_linear_slots)
+{
+    int su = simd_prefix_slots;
+    for( ; su + 4 <= num_linear_slots; su += 4 )
+    {
+        int32x4_t xs = vld1q_s32(&screen_vertices_x[su]);
+        int32x4_t ys = vld1q_s32(&screen_vertices_y[su]);
+        vst1q_s32(&screen_vertices_x[su], vshlq_n_s32(xs, UNIT_SCALE_SHIFT));
+        vst1q_s32(&screen_vertices_y[su], vshlq_n_s32(ys, UNIT_SCALE_SHIFT));
+    }
+    for( ; su < num_linear_slots; su++ )
+    {
+        screen_vertices_x[su] = SCALE_UNIT(screen_vertices_x[su]);
+        screen_vertices_y[su] = SCALE_UNIT(screen_vertices_y[su]);
+    }
+}
 
 static inline void
 project_vertices_array_neon(
@@ -482,51 +628,14 @@ project_vertices_array(
 #ifdef ARM_NEON_FLOAT_RECIP_DIV
     for( ; i + 4 <= num_vertices; i += 4 )
     {
-        // Load z values
-        int32x4_t z_i = vld1q_s32(&orthographic_vertices_z[i]);
-
-        // Compute screen_vertices_z = z - model_mid_z
-        int32x4_t midz = vdupq_n_s32(model_mid_z);
-        int32x4_t outz = vsubq_s32(z_i, midz);
-        vst1q_s32(&screen_vertices_z[i], outz);
-
-        // Mask for clipped vertices (z < near_plane_z)
-        uint32x4_t clipped_mask = vcltq_s32(z_i, vdupq_n_s32(near_plane_z));
-
-        // Convert z to float
-        float32x4_t z_f = vcvtq_f32_s32(z_i);
-
-        // Reciprocal estimate (1/z)
-        float32x4_t recip = vrecpeq_f32(z_f);
-        recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
-        recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip); // refine twice
-
-        // Scale reciprocal into Q31 fixed-point
-        float32x4_t scale = vdupq_n_f32((float)(1ll << 30)); // use Q30 for headroom
-        float32x4_t recip_scaled = vmulq_f32(recip, scale);
-        int32x4_t recip_q31 = vcvtq_s32_f32(recip_scaled);
-
-        // Load x and y
-        int32x4_t x = vld1q_s32(&screen_vertices_x[i]);
-        int32x4_t y = vld1q_s32(&screen_vertices_y[i]);
-
-        // Multiply by reciprocal (Q30) and shift down
-        int64x2_t xl0 = vmull_s32(vget_low_s32(x), vget_low_s32(recip_q31));
-        int64x2_t xl1 = vmull_s32(vget_high_s32(x), vget_high_s32(recip_q31));
-        int64x2_t yl0 = vmull_s32(vget_low_s32(y), vget_low_s32(recip_q31));
-        int64x2_t yl1 = vmull_s32(vget_high_s32(y), vget_high_s32(recip_q31));
-
-        // Shift down by 30 to undo fixed-point scale
-        int32x4_t x_div = vcombine_s32(vshrn_n_s64(xl0, 30), vshrn_n_s64(xl1, 30));
-        int32x4_t y_div = vcombine_s32(vshrn_n_s64(yl0, 30), vshrn_n_s64(yl1, 30));
-
-        // Apply clipping: x = -5000 if clipped
-        int32x4_t neg5000 = vdupq_n_s32(-5000);
-        x_div = vbslq_s32(clipped_mask, neg5000, x_div);
-
-        // Store results
-        vst1q_s32(&screen_vertices_x[i], x_div);
-        vst1q_s32(&screen_vertices_y[i], y_div);
+        projection16_neon_zdiv_tex_4_at(
+            orthographic_vertices_z,
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            i,
+            model_mid_z,
+            near_plane_z);
     }
     if( i < num_vertices )
     {
@@ -846,39 +955,15 @@ project_vertices_array_notex(
 #ifdef ARM_NEON_FLOAT_RECIP_DIV
     for( ; i + 4 <= num_vertices; i += 4 )
     {
-        int32x4_t z_i = vld1q_s32(&screen_vertices_z[i]);
-
-        int32x4_t midz = vdupq_n_s32(model_mid_z);
-        int32x4_t outz = vsubq_s32(z_i, midz);
-
-        uint32x4_t clipped_mask = vcltq_s32(z_i, vdupq_n_s32(near_plane_z));
-
-        float32x4_t z_f = vcvtq_f32_s32(z_i);
-        float32x4_t recip = vrecpeq_f32(z_f);
-        recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
-        recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
-
-        float32x4_t scale = vdupq_n_f32((float)(1ll << 30));
-        float32x4_t recip_scaled = vmulq_f32(recip, scale);
-        int32x4_t recip_q31 = vcvtq_s32_f32(recip_scaled);
-
-        int32x4_t x = vld1q_s32(&screen_vertices_x[i]);
-        int32x4_t y = vld1q_s32(&screen_vertices_y[i]);
-
-        int64x2_t xl0 = vmull_s32(vget_low_s32(x), vget_low_s32(recip_q31));
-        int64x2_t xl1 = vmull_s32(vget_high_s32(x), vget_high_s32(recip_q31));
-        int64x2_t yl0 = vmull_s32(vget_low_s32(y), vget_low_s32(recip_q31));
-        int64x2_t yl1 = vmull_s32(vget_high_s32(y), vget_high_s32(recip_q31));
-
-        int32x4_t x_div = vcombine_s32(vshrn_n_s64(xl0, 30), vshrn_n_s64(xl1, 30));
-        int32x4_t y_div = vcombine_s32(vshrn_n_s64(yl0, 30), vshrn_n_s64(yl1, 30));
-
-        int32x4_t neg5000 = vdupq_n_s32(-5000);
-        x_div = vbslq_s32(clipped_mask, neg5000, x_div);
-
-        vst1q_s32(&screen_vertices_x[i], x_div);
-        vst1q_s32(&screen_vertices_y[i], y_div);
-        vst1q_s32(&screen_vertices_z[i], outz);
+        projection16_neon_zdiv_notex_4_at(
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            i,
+            model_mid_z,
+            near_plane_z,
+            0,
+            0);
     }
     if( i < num_vertices )
     {
@@ -889,7 +974,9 @@ project_vertices_array_notex(
             i,
             num_vertices - i,
             model_mid_z,
-            near_plane_z);
+            near_plane_z,
+            0,
+            0);
     }
 #else
     for( ; i < num_vertices; i++ )
@@ -912,21 +999,6 @@ project_vertices_array_notex(
         }
     }
 #endif
-}
-
-static inline void
-projection16_neon_scatter_i32x4(
-    int* arr,
-    int o0,
-    int o1,
-    int o2,
-    int o3,
-    int32x4_t v)
-{
-    arr[o0] = vgetq_lane_s32(v, 0);
-    arr[o1] = vgetq_lane_s32(v, 1);
-    arr[o2] = vgetq_lane_s32(v, 2);
-    arr[o3] = vgetq_lane_s32(v, 3);
 }
 
 static inline void
@@ -1029,11 +1101,26 @@ projection16_neon_zdiv_notex_tail(
     int base,
     int rem,
     int model_mid_z,
-    int near_plane_z)
+    int near_plane_z,
+    int sparse_simd_prefix,
+    int sparse_num_linear)
 {
     if( rem <= 0 )
         return;
     assert(rem <= 3);
+
+    if( sparse_num_linear > 0 )
+    {
+        for( int k = 0; k < rem; k++ )
+        {
+            int idx = base + k;
+            if( idx >= sparse_simd_prefix && idx < sparse_num_linear )
+            {
+                screen_vertices_x[idx] = SCALE_UNIT(screen_vertices_x[idx]);
+                screen_vertices_y[idx] = SCALE_UNIT(screen_vertices_y[idx]);
+            }
+        }
+    }
 
     int z_pad = (near_plane_z < INT_MAX) ? (near_plane_z + 1) : near_plane_z;
     int32x4_t z_i = vdupq_n_s32(z_pad);
@@ -1113,165 +1200,6 @@ projection16_neon_zdiv_notex_tail(
 }
 
 static inline void
-projection16_neon_sparse_zdiv_tex_4(
-    int* orthographic_vertices_z,
-    int* screen_vertices_x,
-    int* screen_vertices_y,
-    int* screen_vertices_z,
-    int o0,
-    int o1,
-    int o2,
-    int o3,
-    int model_mid_z,
-    int near_plane_z)
-{
-#ifdef ARM_NEON_FLOAT_RECIP_DIV
-    int32x4_t z_i = vsetq_lane_s32(orthographic_vertices_z[o0], vdupq_n_s32(0), 0);
-    z_i = vsetq_lane_s32(orthographic_vertices_z[o1], z_i, 1);
-    z_i = vsetq_lane_s32(orthographic_vertices_z[o2], z_i, 2);
-    z_i = vsetq_lane_s32(orthographic_vertices_z[o3], z_i, 3);
-
-    int32x4_t midz = vdupq_n_s32(model_mid_z);
-    int32x4_t outz = vsubq_s32(z_i, midz);
-
-    uint32x4_t clipped_mask = vcltq_s32(z_i, vdupq_n_s32(near_plane_z));
-
-    float32x4_t z_f = vcvtq_f32_s32(z_i);
-    float32x4_t recip = vrecpeq_f32(z_f);
-    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
-    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
-
-    float32x4_t scale = vdupq_n_f32((float)(1ll << 30));
-    float32x4_t recip_scaled = vmulq_f32(recip, scale);
-    int32x4_t recip_q31 = vcvtq_s32_f32(recip_scaled);
-
-    int32x4_t x = vsetq_lane_s32(screen_vertices_x[o0], vdupq_n_s32(0), 0);
-    x = vsetq_lane_s32(screen_vertices_x[o1], x, 1);
-    x = vsetq_lane_s32(screen_vertices_x[o2], x, 2);
-    x = vsetq_lane_s32(screen_vertices_x[o3], x, 3);
-
-    int32x4_t y = vsetq_lane_s32(screen_vertices_y[o0], vdupq_n_s32(0), 0);
-    y = vsetq_lane_s32(screen_vertices_y[o1], y, 1);
-    y = vsetq_lane_s32(screen_vertices_y[o2], y, 2);
-    y = vsetq_lane_s32(screen_vertices_y[o3], y, 3);
-
-    int64x2_t xl0 = vmull_s32(vget_low_s32(x), vget_low_s32(recip_q31));
-    int64x2_t xl1 = vmull_s32(vget_high_s32(x), vget_high_s32(recip_q31));
-    int64x2_t yl0 = vmull_s32(vget_low_s32(y), vget_low_s32(recip_q31));
-    int64x2_t yl1 = vmull_s32(vget_high_s32(y), vget_high_s32(recip_q31));
-
-    int32x4_t x_div = vcombine_s32(vshrn_n_s64(xl0, 30), vshrn_n_s64(xl1, 30));
-    int32x4_t y_div = vcombine_s32(vshrn_n_s64(yl0, 30), vshrn_n_s64(yl1, 30));
-
-    int32x4_t neg5000 = vdupq_n_s32(-5000);
-    x_div = vbslq_s32(clipped_mask, neg5000, x_div);
-
-    projection16_neon_scatter_i32x4(screen_vertices_x, o0, o1, o2, o3, x_div);
-    projection16_neon_scatter_i32x4(screen_vertices_y, o0, o1, o2, o3, y_div);
-    projection16_neon_scatter_i32x4(screen_vertices_z, o0, o1, o2, o3, outz);
-#else
-    int oz[4] = { o0, o1, o2, o3 };
-    for( int q = 0; q < 4; q++ )
-    {
-        int idx = oz[q];
-        int z = orthographic_vertices_z[idx];
-        bool clipped = (z < near_plane_z);
-        screen_vertices_z[idx] = z - model_mid_z;
-        if( clipped )
-        {
-            screen_vertices_x[idx] = -5000;
-        }
-        else
-        {
-            screen_vertices_x[idx] /= z;
-            if( screen_vertices_x[idx] == -5000 )
-                screen_vertices_x[idx] = -5001;
-            screen_vertices_y[idx] /= z;
-        }
-    }
-#endif
-}
-
-static inline void
-projection16_neon_sparse_zdiv_notex_4(
-    int* screen_vertices_x,
-    int* screen_vertices_y,
-    int* screen_vertices_z,
-    int o0,
-    int o1,
-    int o2,
-    int o3,
-    int model_mid_z,
-    int near_plane_z)
-{
-#ifdef ARM_NEON_FLOAT_RECIP_DIV
-    int32x4_t z_i = vsetq_lane_s32(screen_vertices_z[o0], vdupq_n_s32(0), 0);
-    z_i = vsetq_lane_s32(screen_vertices_z[o1], z_i, 1);
-    z_i = vsetq_lane_s32(screen_vertices_z[o2], z_i, 2);
-    z_i = vsetq_lane_s32(screen_vertices_z[o3], z_i, 3);
-
-    int32x4_t midz = vdupq_n_s32(model_mid_z);
-    int32x4_t outz = vsubq_s32(z_i, midz);
-
-    uint32x4_t clipped_mask = vcltq_s32(z_i, vdupq_n_s32(near_plane_z));
-
-    float32x4_t z_f = vcvtq_f32_s32(z_i);
-    float32x4_t recip = vrecpeq_f32(z_f);
-    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
-    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
-
-    float32x4_t scale = vdupq_n_f32((float)(1ll << 30));
-    float32x4_t recip_scaled = vmulq_f32(recip, scale);
-    int32x4_t recip_q31 = vcvtq_s32_f32(recip_scaled);
-
-    int32x4_t x = vsetq_lane_s32(screen_vertices_x[o0], vdupq_n_s32(0), 0);
-    x = vsetq_lane_s32(screen_vertices_x[o1], x, 1);
-    x = vsetq_lane_s32(screen_vertices_x[o2], x, 2);
-    x = vsetq_lane_s32(screen_vertices_x[o3], x, 3);
-
-    int32x4_t y = vsetq_lane_s32(screen_vertices_y[o0], vdupq_n_s32(0), 0);
-    y = vsetq_lane_s32(screen_vertices_y[o1], y, 1);
-    y = vsetq_lane_s32(screen_vertices_y[o2], y, 2);
-    y = vsetq_lane_s32(screen_vertices_y[o3], y, 3);
-
-    int64x2_t xl0 = vmull_s32(vget_low_s32(x), vget_low_s32(recip_q31));
-    int64x2_t xl1 = vmull_s32(vget_high_s32(x), vget_high_s32(recip_q31));
-    int64x2_t yl0 = vmull_s32(vget_low_s32(y), vget_low_s32(recip_q31));
-    int64x2_t yl1 = vmull_s32(vget_high_s32(y), vget_high_s32(recip_q31));
-
-    int32x4_t x_div = vcombine_s32(vshrn_n_s64(xl0, 30), vshrn_n_s64(xl1, 30));
-    int32x4_t y_div = vcombine_s32(vshrn_n_s64(yl0, 30), vshrn_n_s64(yl1, 30));
-
-    int32x4_t neg5000 = vdupq_n_s32(-5000);
-    x_div = vbslq_s32(clipped_mask, neg5000, x_div);
-
-    projection16_neon_scatter_i32x4(screen_vertices_x, o0, o1, o2, o3, x_div);
-    projection16_neon_scatter_i32x4(screen_vertices_y, o0, o1, o2, o3, y_div);
-    projection16_neon_scatter_i32x4(screen_vertices_z, o0, o1, o2, o3, outz);
-#else
-    int oz[4] = { o0, o1, o2, o3 };
-    for( int q = 0; q < 4; q++ )
-    {
-        int idx = oz[q];
-        int z = screen_vertices_z[idx];
-        bool clipped = (z < near_plane_z);
-        screen_vertices_z[idx] = z - model_mid_z;
-        if( clipped )
-        {
-            screen_vertices_x[idx] = -5000;
-        }
-        else
-        {
-            screen_vertices_x[idx] /= z;
-            if( screen_vertices_x[idx] == -5000 )
-                screen_vertices_x[idx] = -5001;
-            screen_vertices_y[idx] /= z;
-        }
-    }
-#endif
-}
-
-static inline void
 project_vertices_array_sparse(
     int* orthographic_vertices_x,
     int* orthographic_vertices_y,
@@ -1314,7 +1242,7 @@ project_vertices_array_sparse(
         for( int s = 0; s < 3; s++ )
         {
             int v = vi[s];
-            projection16_sparse_tex_pass1_slot_dense_style(
+            projection16_sparse_tex_orthographic(
                 orthographic_vertices_x,
                 orthographic_vertices_y,
                 orthographic_vertices_z,
@@ -1335,68 +1263,58 @@ project_vertices_array_sparse(
         }
     }
 
-    int f = 0;
-    for( ; f + 4 <= num_faces; f += 4 )
-    {
-        for( int cor = 0; cor < 3; cor++ )
-        {
-            int o0 = (f + 0) * 3 + cor;
-            int o1 = (f + 1) * 3 + cor;
-            int o2 = (f + 2) * 3 + cor;
-            int o3 = (f + 3) * 3 + cor;
-            projection16_neon_sparse_zdiv_tex_4(
-                orthographic_vertices_z,
-                screen_vertices_x,
-                screen_vertices_y,
-                screen_vertices_z,
-                o0,
-                o1,
-                o2,
-                o3,
-                model_mid_z,
-                near_plane_z);
-        }
-    }
+    projection16_neon_sparse_apply_unit_scale_tail(
+        screen_vertices_x, screen_vertices_y, simd_prefix_slots, num_linear_slots);
 
-    for( ; f < num_faces; f++ )
-    {
-        int base = f * 3;
-        for( int s = 0; s < 3; s++ )
-        {
-            int idx = base + s;
+    int zi = 0;
 #ifdef ARM_NEON_FLOAT_RECIP_DIV
-            projection16_neon_zdiv_tex_tail(
-                orthographic_vertices_z,
-                screen_vertices_x,
-                screen_vertices_y,
-                screen_vertices_z,
-                idx,
-                1,
-                model_mid_z,
-                near_plane_z);
+    for( ; zi + 4 <= num_linear_slots; zi += 4 )
+    {
+        projection16_neon_zdiv_tex_4_at(
+            orthographic_vertices_z,
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            zi,
+            model_mid_z,
+            near_plane_z);
+    }
+    if( zi < num_linear_slots )
+    {
+        projection16_neon_zdiv_tex_tail(
+            orthographic_vertices_z,
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            zi,
+            num_linear_slots - zi,
+            model_mid_z,
+            near_plane_z);
+    }
 #else
-            int z = orthographic_vertices_z[idx];
+    for( ; zi < num_linear_slots; zi++ )
+    {
+        int z = orthographic_vertices_z[zi];
 
-            bool clipped = false;
-            if( z < near_plane_z )
-                clipped = true;
+        bool clipped = false;
+        if( z < near_plane_z )
+            clipped = true;
 
-            screen_vertices_z[idx] = z - model_mid_z;
+        screen_vertices_z[zi] = z - model_mid_z;
 
-            if( clipped )
-            {
-                screen_vertices_x[idx] = -5000;
-            }
-            else
-            {
-                screen_vertices_x[idx] = screen_vertices_x[idx] / z;
-                if( screen_vertices_x[idx] == -5000 )
-                    screen_vertices_x[idx] = -5001;
-                screen_vertices_y[idx] = screen_vertices_y[idx] / z;
-            }
-#endif
+        if( clipped )
+        {
+            screen_vertices_x[zi] = -5000;
+        }
+        else
+        {
+            screen_vertices_x[zi] = screen_vertices_x[zi] / z;
+            if( screen_vertices_x[zi] == -5000 )
+                screen_vertices_x[zi] = -5001;
+            screen_vertices_y[zi] = screen_vertices_y[zi] / z;
         }
     }
+#endif
 }
 
 static inline void
@@ -1439,7 +1357,7 @@ project_vertices_array_notex_sparse(
         for( int s = 0; s < 3; s++ )
         {
             int v = vi[s];
-            projection16_sparse_notex_pass1_slot_dense_style(
+            projection16_sparse_notex_orthographic(
                 screen_vertices_x,
                 screen_vertices_y,
                 screen_vertices_z,
@@ -1458,66 +1376,63 @@ project_vertices_array_notex_sparse(
         }
     }
 
-    int f = 0;
-    for( ; f + 4 <= num_faces; f += 4 )
-    {
-        for( int cor = 0; cor < 3; cor++ )
-        {
-            int o0 = (f + 0) * 3 + cor;
-            int o1 = (f + 1) * 3 + cor;
-            int o2 = (f + 2) * 3 + cor;
-            int o3 = (f + 3) * 3 + cor;
-            projection16_neon_sparse_zdiv_notex_4(
-                screen_vertices_x,
-                screen_vertices_y,
-                screen_vertices_z,
-                o0,
-                o1,
-                o2,
-                o3,
-                model_mid_z,
-                near_plane_z);
-        }
-    }
-
-    for( ; f < num_faces; f++ )
-    {
-        int base = f * 3;
-        for( int s = 0; s < 3; s++ )
-        {
-            int idx = base + s;
+    int zi = 0;
 #ifdef ARM_NEON_FLOAT_RECIP_DIV
-            projection16_neon_zdiv_notex_tail(
-                screen_vertices_x,
-                screen_vertices_y,
-                screen_vertices_z,
-                idx,
-                1,
-                model_mid_z,
-                near_plane_z);
+    for( ; zi + 4 <= num_linear_slots; zi += 4 )
+    {
+        projection16_neon_zdiv_notex_4_at(
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            zi,
+            model_mid_z,
+            near_plane_z,
+            simd_prefix_slots,
+            num_linear_slots);
+    }
+    if( zi < num_linear_slots )
+    {
+        projection16_neon_zdiv_notex_tail(
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            zi,
+            num_linear_slots - zi,
+            model_mid_z,
+            near_plane_z,
+            simd_prefix_slots,
+            num_linear_slots);
+    }
 #else
-            int z = screen_vertices_z[idx];
+    for( ; zi < num_linear_slots; zi++ )
+    {
+        if( zi >= simd_prefix_slots )
+        {
+            screen_vertices_x[zi] = SCALE_UNIT(screen_vertices_x[zi]);
+            screen_vertices_y[zi] = SCALE_UNIT(screen_vertices_y[zi]);
+        }
 
-            bool clipped = false;
-            if( z < near_plane_z )
-                clipped = true;
+        int z = screen_vertices_z[zi];
 
-            screen_vertices_z[idx] = z - model_mid_z;
+        bool clipped = false;
+        if( z < near_plane_z )
+            clipped = true;
 
-            if( clipped )
-            {
-                screen_vertices_x[idx] = -5000;
-            }
-            else
-            {
-                screen_vertices_x[idx] = screen_vertices_x[idx] / z;
-                if( screen_vertices_x[idx] == -5000 )
-                    screen_vertices_x[idx] = -5001;
-                screen_vertices_y[idx] = screen_vertices_y[idx] / z;
-            }
-#endif
+        screen_vertices_z[zi] = z - model_mid_z;
+
+        if( clipped )
+        {
+            screen_vertices_x[zi] = -5000;
+        }
+        else
+        {
+            screen_vertices_x[zi] = screen_vertices_x[zi] / z;
+            if( screen_vertices_x[zi] == -5000 )
+                screen_vertices_x[zi] = -5001;
+            screen_vertices_y[zi] = screen_vertices_y[zi] / z;
         }
     }
+#endif
 }
 
 #elif defined(__AVX2__) && !defined(AVX2_DISABLED)
@@ -2667,7 +2582,7 @@ project_vertices_array_sparse(
         for( int s = 0; s < 3; s++ )
         {
             int v = vi[s];
-            projection16_sparse_tex_pass1_slot_dense_style(
+            projection16_sparse_tex_orthographic(
                 orthographic_vertices_x,
                 orthographic_vertices_y,
                 orthographic_vertices_z,
@@ -2687,6 +2602,9 @@ project_vertices_array_sparse(
                 cot_fov_half_ish15);
         }
     }
+
+    projection16_sparse_apply_unit_scale_tail(
+        screen_vertices_x, screen_vertices_y, simd_prefix_slots, num_linear_slots);
 
     int f = 0;
     for( ; f + 4 <= num_faces; f += 4 )
@@ -2780,7 +2698,7 @@ project_vertices_array_notex_sparse(
         for( int s = 0; s < 3; s++ )
         {
             int v = vi[s];
-            projection16_sparse_notex_pass1_slot_dense_style(
+            projection16_sparse_notex_orthographic(
                 screen_vertices_x,
                 screen_vertices_y,
                 screen_vertices_z,
@@ -2798,6 +2716,9 @@ project_vertices_array_notex_sparse(
                 cot_fov_half_ish15);
         }
     }
+
+    projection16_sparse_apply_unit_scale_tail(
+        screen_vertices_x, screen_vertices_y, simd_prefix_slots, num_linear_slots);
 
     int f = 0;
     for( ; f + 4 <= num_faces; f += 4 )
@@ -3842,7 +3763,7 @@ project_vertices_array_sparse(
         for( int s = 0; s < 3; s++ )
         {
             int v = vi[s];
-            projection16_sparse_tex_pass1_slot_dense_style(
+            projection16_sparse_tex_orthographic(
                 orthographic_vertices_x,
                 orthographic_vertices_y,
                 orthographic_vertices_z,
@@ -3862,6 +3783,9 @@ project_vertices_array_sparse(
                 cot_fov_half_ish15);
         }
     }
+
+    projection16_sparse_apply_unit_scale_tail(
+        screen_vertices_x, screen_vertices_y, simd_prefix_slots, num_linear_slots);
 
     int f = 0;
     for( ; f + 4 <= num_faces; f += 4 )
@@ -3955,7 +3879,7 @@ project_vertices_array_notex_sparse(
         for( int s = 0; s < 3; s++ )
         {
             int v = vi[s];
-            projection16_sparse_notex_pass1_slot_dense_style(
+            projection16_sparse_notex_orthographic(
                 screen_vertices_x,
                 screen_vertices_y,
                 screen_vertices_z,
@@ -3973,6 +3897,9 @@ project_vertices_array_notex_sparse(
                 cot_fov_half_ish15);
         }
     }
+
+    projection16_sparse_apply_unit_scale_tail(
+        screen_vertices_x, screen_vertices_y, simd_prefix_slots, num_linear_slots);
 
     int f = 0;
     for( ; f + 4 <= num_faces; f += 4 )
@@ -5094,7 +5021,7 @@ project_vertices_array_sparse(
         for( int s = 0; s < 3; s++ )
         {
             int v = vi[s];
-            projection16_sparse_tex_pass1_slot_dense_style(
+            projection16_sparse_tex_orthographic(
                 orthographic_vertices_x,
                 orthographic_vertices_y,
                 orthographic_vertices_z,
@@ -5114,6 +5041,9 @@ project_vertices_array_sparse(
                 cot_fov_half_ish15);
         }
     }
+
+    projection16_sparse_apply_unit_scale_tail(
+        screen_vertices_x, screen_vertices_y, simd_prefix_slots, num_linear_slots);
 
     int f = 0;
     for( ; f + 4 <= num_faces; f += 4 )
@@ -5207,7 +5137,7 @@ project_vertices_array_notex_sparse(
         for( int s = 0; s < 3; s++ )
         {
             int v = vi[s];
-            projection16_sparse_notex_pass1_slot_dense_style(
+            projection16_sparse_notex_orthographic(
                 screen_vertices_x,
                 screen_vertices_y,
                 screen_vertices_z,
@@ -5225,6 +5155,9 @@ project_vertices_array_notex_sparse(
                 cot_fov_half_ish15);
         }
     }
+
+    projection16_sparse_apply_unit_scale_tail(
+        screen_vertices_x, screen_vertices_y, simd_prefix_slots, num_linear_slots);
 
     int f = 0;
     for( ; f + 4 <= num_faces; f += 4 )
@@ -5486,6 +5419,7 @@ project_vertices_array_sparse(
     int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
+    int num_linear_slots = num_faces * 3;
     int simd_prefix_slots = 0;
 
     for( int f = 0; f < num_faces; f++ )
@@ -5500,7 +5434,7 @@ project_vertices_array_sparse(
         for( int s = 0; s < 3; s++ )
         {
             int v = vi[s];
-            projection16_sparse_tex_pass1_slot_dense_style(
+            projection16_sparse_tex_orthographic(
                 orthographic_vertices_x,
                 orthographic_vertices_y,
                 orthographic_vertices_z,
@@ -5520,6 +5454,9 @@ project_vertices_array_sparse(
                 cot_fov_half_ish15);
         }
     }
+
+    projection16_sparse_apply_unit_scale_tail(
+        screen_vertices_x, screen_vertices_y, simd_prefix_slots, num_linear_slots);
 
     for( int f = 0; f < num_faces; f++ )
     {
@@ -5579,6 +5516,7 @@ project_vertices_array_notex_sparse(
     int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
     int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
 
+    int num_linear_slots = num_faces * 3;
     int simd_prefix_slots = 0;
 
     for( int f = 0; f < num_faces; f++ )
@@ -5593,7 +5531,7 @@ project_vertices_array_notex_sparse(
         for( int s = 0; s < 3; s++ )
         {
             int v = vi[s];
-            projection16_sparse_notex_pass1_slot_dense_style(
+            projection16_sparse_notex_orthographic(
                 screen_vertices_x,
                 screen_vertices_y,
                 screen_vertices_z,
@@ -5611,6 +5549,9 @@ project_vertices_array_notex_sparse(
                 cot_fov_half_ish15);
         }
     }
+
+    projection16_sparse_apply_unit_scale_tail(
+        screen_vertices_x, screen_vertices_y, simd_prefix_slots, num_linear_slots);
 
     for( int f = 0; f < num_faces; f++ )
     {

@@ -34,6 +34,95 @@ projection_sparse_corner_vi(
 #include <arm_neon.h>
 
 static inline void
+projection_neon_zdiv_tex_4_at(
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int i,
+    int model_mid_z,
+    int near_plane_z)
+{
+    int32x4_t z_i = vld1q_s32(&orthographic_vertices_z[i]);
+
+    int32x4_t midz = vdupq_n_s32(model_mid_z);
+    int32x4_t outz = vsubq_s32(z_i, midz);
+    vst1q_s32(&screen_vertices_z[i], outz);
+
+    uint32x4_t clipped_mask = vcltq_s32(z_i, vdupq_n_s32(near_plane_z));
+
+    float32x4_t z_f = vcvtq_f32_s32(z_i);
+    float32x4_t recip = vrecpeq_f32(z_f);
+    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
+    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
+
+    float32x4_t scale = vdupq_n_f32((float)(1ll << 30));
+    float32x4_t recip_scaled = vmulq_f32(recip, scale);
+    int32x4_t recip_q31 = vcvtq_s32_f32(recip_scaled);
+
+    int32x4_t x = vld1q_s32(&screen_vertices_x[i]);
+    int32x4_t y = vld1q_s32(&screen_vertices_y[i]);
+
+    int64x2_t xl0 = vmull_s32(vget_low_s32(x), vget_low_s32(recip_q31));
+    int64x2_t xl1 = vmull_s32(vget_high_s32(x), vget_high_s32(recip_q31));
+    int64x2_t yl0 = vmull_s32(vget_low_s32(y), vget_low_s32(recip_q31));
+    int64x2_t yl1 = vmull_s32(vget_high_s32(y), vget_high_s32(recip_q31));
+
+    int32x4_t x_div = vcombine_s32(vshrn_n_s64(xl0, 30), vshrn_n_s64(xl1, 30));
+    int32x4_t y_div = vcombine_s32(vshrn_n_s64(yl0, 30), vshrn_n_s64(yl1, 30));
+
+    int32x4_t neg5000 = vdupq_n_s32(-5000);
+    x_div = vbslq_s32(clipped_mask, neg5000, x_div);
+
+    vst1q_s32(&screen_vertices_x[i], x_div);
+    vst1q_s32(&screen_vertices_y[i], y_div);
+}
+
+static inline void
+projection_neon_zdiv_notex_4_at(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int i,
+    int model_mid_z,
+    int near_plane_z)
+{
+    int32x4_t z_i = vld1q_s32(&screen_vertices_z[i]);
+
+    int32x4_t midz = vdupq_n_s32(model_mid_z);
+    int32x4_t outz = vsubq_s32(z_i, midz);
+
+    uint32x4_t clipped_mask = vcltq_s32(z_i, vdupq_n_s32(near_plane_z));
+
+    float32x4_t z_f = vcvtq_f32_s32(z_i);
+    float32x4_t recip = vrecpeq_f32(z_f);
+    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
+    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
+
+    float32x4_t scale = vdupq_n_f32((float)(1ll << 30));
+    float32x4_t recip_scaled = vmulq_f32(recip, scale);
+    int32x4_t recip_q31 = vcvtq_s32_f32(recip_scaled);
+
+    int32x4_t x = vld1q_s32(&screen_vertices_x[i]);
+    int32x4_t y = vld1q_s32(&screen_vertices_y[i]);
+
+    int64x2_t xl0 = vmull_s32(vget_low_s32(x), vget_low_s32(recip_q31));
+    int64x2_t xl1 = vmull_s32(vget_high_s32(x), vget_high_s32(recip_q31));
+    int64x2_t yl0 = vmull_s32(vget_low_s32(y), vget_low_s32(recip_q31));
+    int64x2_t yl1 = vmull_s32(vget_high_s32(y), vget_high_s32(recip_q31));
+
+    int32x4_t x_div = vcombine_s32(vshrn_n_s64(xl0, 30), vshrn_n_s64(xl1, 30));
+    int32x4_t y_div = vcombine_s32(vshrn_n_s64(yl0, 30), vshrn_n_s64(yl1, 30));
+
+    int32x4_t neg5000 = vdupq_n_s32(-5000);
+    x_div = vbslq_s32(clipped_mask, neg5000, x_div);
+
+    vst1q_s32(&screen_vertices_x[i], x_div);
+    vst1q_s32(&screen_vertices_y[i], y_div);
+    vst1q_s32(&screen_vertices_z[i], outz);
+}
+
+static inline void
 project_vertices_array_neon(
     int* orthographic_vertices_x,
     int* orthographic_vertices_y,
@@ -364,51 +453,14 @@ project_vertices_array(
 #ifdef ARM_NEON_FLOAT_RECIP_DIV
     for( ; i + 4 <= num_vertices; i += 4 )
     {
-        // Load z values
-        int32x4_t z_i = vld1q_s32(&orthographic_vertices_z[i]);
-
-        // Compute screen_vertices_z = z - model_mid_z
-        int32x4_t midz = vdupq_n_s32(model_mid_z);
-        int32x4_t outz = vsubq_s32(z_i, midz);
-        vst1q_s32(&screen_vertices_z[i], outz);
-
-        // Mask for clipped vertices (z < near_plane_z)
-        uint32x4_t clipped_mask = vcltq_s32(z_i, vdupq_n_s32(near_plane_z));
-
-        // Convert z to float
-        float32x4_t z_f = vcvtq_f32_s32(z_i);
-
-        // Reciprocal estimate (1/z)
-        float32x4_t recip = vrecpeq_f32(z_f);
-        recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
-        recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip); // refine twice
-
-        // Scale reciprocal into Q31 fixed-point
-        float32x4_t scale = vdupq_n_f32((float)(1ll << 30)); // use Q30 for headroom
-        float32x4_t recip_scaled = vmulq_f32(recip, scale);
-        int32x4_t recip_q31 = vcvtq_s32_f32(recip_scaled);
-
-        // Load x and y
-        int32x4_t x = vld1q_s32(&screen_vertices_x[i]);
-        int32x4_t y = vld1q_s32(&screen_vertices_y[i]);
-
-        // Multiply by reciprocal (Q30) and shift down
-        int64x2_t xl0 = vmull_s32(vget_low_s32(x), vget_low_s32(recip_q31));
-        int64x2_t xl1 = vmull_s32(vget_high_s32(x), vget_high_s32(recip_q31));
-        int64x2_t yl0 = vmull_s32(vget_low_s32(y), vget_low_s32(recip_q31));
-        int64x2_t yl1 = vmull_s32(vget_high_s32(y), vget_high_s32(recip_q31));
-
-        // Shift down by 30 to undo fixed-point scale
-        int32x4_t x_div = vcombine_s32(vshrn_n_s64(xl0, 30), vshrn_n_s64(xl1, 30));
-        int32x4_t y_div = vcombine_s32(vshrn_n_s64(yl0, 30), vshrn_n_s64(yl1, 30));
-
-        // Apply clipping: x = -5000 if clipped
-        int32x4_t neg5000 = vdupq_n_s32(-5000);
-        x_div = vbslq_s32(clipped_mask, neg5000, x_div);
-
-        // Store results
-        vst1q_s32(&screen_vertices_x[i], x_div);
-        vst1q_s32(&screen_vertices_y[i], y_div);
+        projection_neon_zdiv_tex_4_at(
+            orthographic_vertices_z,
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            i,
+            model_mid_z,
+            near_plane_z);
     }
 #endif // ARM_NEON_FLOAT_DIV
 
@@ -717,39 +769,13 @@ project_vertices_array_notex(
 #ifdef ARM_NEON_FLOAT_RECIP_DIV
     for( ; i + 4 <= num_vertices; i += 4 )
     {
-        int32x4_t z_i = vld1q_s32(&screen_vertices_z[i]);
-
-        int32x4_t midz = vdupq_n_s32(model_mid_z);
-        int32x4_t outz = vsubq_s32(z_i, midz);
-
-        uint32x4_t clipped_mask = vcltq_s32(z_i, vdupq_n_s32(near_plane_z));
-
-        float32x4_t z_f = vcvtq_f32_s32(z_i);
-        float32x4_t recip = vrecpeq_f32(z_f);
-        recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
-        recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
-
-        float32x4_t scale = vdupq_n_f32((float)(1ll << 30));
-        float32x4_t recip_scaled = vmulq_f32(recip, scale);
-        int32x4_t recip_q31 = vcvtq_s32_f32(recip_scaled);
-
-        int32x4_t x = vld1q_s32(&screen_vertices_x[i]);
-        int32x4_t y = vld1q_s32(&screen_vertices_y[i]);
-
-        int64x2_t xl0 = vmull_s32(vget_low_s32(x), vget_low_s32(recip_q31));
-        int64x2_t xl1 = vmull_s32(vget_high_s32(x), vget_high_s32(recip_q31));
-        int64x2_t yl0 = vmull_s32(vget_low_s32(y), vget_low_s32(recip_q31));
-        int64x2_t yl1 = vmull_s32(vget_high_s32(y), vget_high_s32(recip_q31));
-
-        int32x4_t x_div = vcombine_s32(vshrn_n_s64(xl0, 30), vshrn_n_s64(xl1, 30));
-        int32x4_t y_div = vcombine_s32(vshrn_n_s64(yl0, 30), vshrn_n_s64(yl1, 30));
-
-        int32x4_t neg5000 = vdupq_n_s32(-5000);
-        x_div = vbslq_s32(clipped_mask, neg5000, x_div);
-
-        vst1q_s32(&screen_vertices_x[i], x_div);
-        vst1q_s32(&screen_vertices_y[i], y_div);
-        vst1q_s32(&screen_vertices_z[i], outz);
+        projection_neon_zdiv_notex_4_at(
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            i,
+            model_mid_z,
+            near_plane_z);
     }
 #endif
 
@@ -772,180 +798,6 @@ project_vertices_array_notex(
             screen_vertices_y[i] /= z;
         }
     }
-}
-
-static inline void
-projection_neon_scatter_i32x4(
-    int* arr,
-    int o0,
-    int o1,
-    int o2,
-    int o3,
-    int32x4_t v)
-{
-    arr[o0] = vgetq_lane_s32(v, 0);
-    arr[o1] = vgetq_lane_s32(v, 1);
-    arr[o2] = vgetq_lane_s32(v, 2);
-    arr[o3] = vgetq_lane_s32(v, 3);
-}
-
-static inline void
-projection_neon_sparse_zdiv_tex_4(
-    int* orthographic_vertices_z,
-    int* screen_vertices_x,
-    int* screen_vertices_y,
-    int* screen_vertices_z,
-    int o0,
-    int o1,
-    int o2,
-    int o3,
-    int model_mid_z,
-    int near_plane_z)
-{
-#ifdef ARM_NEON_FLOAT_RECIP_DIV
-    int32x4_t z_i = vsetq_lane_s32(orthographic_vertices_z[o0], vdupq_n_s32(0), 0);
-    z_i = vsetq_lane_s32(orthographic_vertices_z[o1], z_i, 1);
-    z_i = vsetq_lane_s32(orthographic_vertices_z[o2], z_i, 2);
-    z_i = vsetq_lane_s32(orthographic_vertices_z[o3], z_i, 3);
-
-    int32x4_t midz = vdupq_n_s32(model_mid_z);
-    int32x4_t outz = vsubq_s32(z_i, midz);
-
-    uint32x4_t clipped_mask = vcltq_s32(z_i, vdupq_n_s32(near_plane_z));
-
-    float32x4_t z_f = vcvtq_f32_s32(z_i);
-    float32x4_t recip = vrecpeq_f32(z_f);
-    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
-    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
-
-    float32x4_t scale = vdupq_n_f32((float)(1ll << 30));
-    float32x4_t recip_scaled = vmulq_f32(recip, scale);
-    int32x4_t recip_q31 = vcvtq_s32_f32(recip_scaled);
-
-    int32x4_t x = vsetq_lane_s32(screen_vertices_x[o0], vdupq_n_s32(0), 0);
-    x = vsetq_lane_s32(screen_vertices_x[o1], x, 1);
-    x = vsetq_lane_s32(screen_vertices_x[o2], x, 2);
-    x = vsetq_lane_s32(screen_vertices_x[o3], x, 3);
-
-    int32x4_t y = vsetq_lane_s32(screen_vertices_y[o0], vdupq_n_s32(0), 0);
-    y = vsetq_lane_s32(screen_vertices_y[o1], y, 1);
-    y = vsetq_lane_s32(screen_vertices_y[o2], y, 2);
-    y = vsetq_lane_s32(screen_vertices_y[o3], y, 3);
-
-    int64x2_t xl0 = vmull_s32(vget_low_s32(x), vget_low_s32(recip_q31));
-    int64x2_t xl1 = vmull_s32(vget_high_s32(x), vget_high_s32(recip_q31));
-    int64x2_t yl0 = vmull_s32(vget_low_s32(y), vget_low_s32(recip_q31));
-    int64x2_t yl1 = vmull_s32(vget_high_s32(y), vget_high_s32(recip_q31));
-
-    int32x4_t x_div = vcombine_s32(vshrn_n_s64(xl0, 30), vshrn_n_s64(xl1, 30));
-    int32x4_t y_div = vcombine_s32(vshrn_n_s64(yl0, 30), vshrn_n_s64(yl1, 30));
-
-    int32x4_t neg5000 = vdupq_n_s32(-5000);
-    x_div = vbslq_s32(clipped_mask, neg5000, x_div);
-
-    projection_neon_scatter_i32x4(screen_vertices_x, o0, o1, o2, o3, x_div);
-    projection_neon_scatter_i32x4(screen_vertices_y, o0, o1, o2, o3, y_div);
-    projection_neon_scatter_i32x4(screen_vertices_z, o0, o1, o2, o3, outz);
-#else
-    int oz[4] = { o0, o1, o2, o3 };
-    for( int q = 0; q < 4; q++ )
-    {
-        int idx = oz[q];
-        int z = orthographic_vertices_z[idx];
-        bool clipped = (z < near_plane_z);
-        screen_vertices_z[idx] = z - model_mid_z;
-        if( clipped )
-        {
-            screen_vertices_x[idx] = -5000;
-        }
-        else
-        {
-            screen_vertices_x[idx] /= z;
-            if( screen_vertices_x[idx] == -5000 )
-                screen_vertices_x[idx] = -5001;
-            screen_vertices_y[idx] /= z;
-        }
-    }
-#endif
-}
-
-static inline void
-projection_neon_sparse_zdiv_notex_4(
-    int* screen_vertices_x,
-    int* screen_vertices_y,
-    int* screen_vertices_z,
-    int o0,
-    int o1,
-    int o2,
-    int o3,
-    int model_mid_z,
-    int near_plane_z)
-{
-#ifdef ARM_NEON_FLOAT_RECIP_DIV
-    int32x4_t z_i = vsetq_lane_s32(screen_vertices_z[o0], vdupq_n_s32(0), 0);
-    z_i = vsetq_lane_s32(screen_vertices_z[o1], z_i, 1);
-    z_i = vsetq_lane_s32(screen_vertices_z[o2], z_i, 2);
-    z_i = vsetq_lane_s32(screen_vertices_z[o3], z_i, 3);
-
-    int32x4_t midz = vdupq_n_s32(model_mid_z);
-    int32x4_t outz = vsubq_s32(z_i, midz);
-
-    uint32x4_t clipped_mask = vcltq_s32(z_i, vdupq_n_s32(near_plane_z));
-
-    float32x4_t z_f = vcvtq_f32_s32(z_i);
-    float32x4_t recip = vrecpeq_f32(z_f);
-    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
-    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
-
-    float32x4_t scale = vdupq_n_f32((float)(1ll << 30));
-    float32x4_t recip_scaled = vmulq_f32(recip, scale);
-    int32x4_t recip_q31 = vcvtq_s32_f32(recip_scaled);
-
-    int32x4_t x = vsetq_lane_s32(screen_vertices_x[o0], vdupq_n_s32(0), 0);
-    x = vsetq_lane_s32(screen_vertices_x[o1], x, 1);
-    x = vsetq_lane_s32(screen_vertices_x[o2], x, 2);
-    x = vsetq_lane_s32(screen_vertices_x[o3], x, 3);
-
-    int32x4_t y = vsetq_lane_s32(screen_vertices_y[o0], vdupq_n_s32(0), 0);
-    y = vsetq_lane_s32(screen_vertices_y[o1], y, 1);
-    y = vsetq_lane_s32(screen_vertices_y[o2], y, 2);
-    y = vsetq_lane_s32(screen_vertices_y[o3], y, 3);
-
-    int64x2_t xl0 = vmull_s32(vget_low_s32(x), vget_low_s32(recip_q31));
-    int64x2_t xl1 = vmull_s32(vget_high_s32(x), vget_high_s32(recip_q31));
-    int64x2_t yl0 = vmull_s32(vget_low_s32(y), vget_low_s32(recip_q31));
-    int64x2_t yl1 = vmull_s32(vget_high_s32(y), vget_high_s32(recip_q31));
-
-    int32x4_t x_div = vcombine_s32(vshrn_n_s64(xl0, 30), vshrn_n_s64(xl1, 30));
-    int32x4_t y_div = vcombine_s32(vshrn_n_s64(yl0, 30), vshrn_n_s64(yl1, 30));
-
-    int32x4_t neg5000 = vdupq_n_s32(-5000);
-    x_div = vbslq_s32(clipped_mask, neg5000, x_div);
-
-    projection_neon_scatter_i32x4(screen_vertices_x, o0, o1, o2, o3, x_div);
-    projection_neon_scatter_i32x4(screen_vertices_y, o0, o1, o2, o3, y_div);
-    projection_neon_scatter_i32x4(screen_vertices_z, o0, o1, o2, o3, outz);
-#else
-    int oz[4] = { o0, o1, o2, o3 };
-    for( int q = 0; q < 4; q++ )
-    {
-        int idx = oz[q];
-        int z = screen_vertices_z[idx];
-        bool clipped = (z < near_plane_z);
-        screen_vertices_z[idx] = z - model_mid_z;
-        if( clipped )
-        {
-            screen_vertices_x[idx] = -5000;
-        }
-        else
-        {
-            screen_vertices_x[idx] /= z;
-            if( screen_vertices_x[idx] == -5000 )
-                screen_vertices_x[idx] = -5001;
-            screen_vertices_y[idx] /= z;
-        }
-    }
-#endif
 }
 
 static inline void
@@ -1008,54 +860,41 @@ project_vertices_array_sparse(
         }
     }
 
-    int f = 0;
-    for( ; f + 4 <= num_faces; f += 4 )
+    int num_linear_slots = num_faces * 3;
+    int zi = 0;
+#ifdef ARM_NEON_FLOAT_RECIP_DIV
+    for( ; zi + 4 <= num_linear_slots; zi += 4 )
     {
-        for( int cor = 0; cor < 3; cor++ )
-        {
-            int o0 = (f + 0) * 3 + cor;
-            int o1 = (f + 1) * 3 + cor;
-            int o2 = (f + 2) * 3 + cor;
-            int o3 = (f + 3) * 3 + cor;
-            projection_neon_sparse_zdiv_tex_4(
-                orthographic_vertices_z,
-                screen_vertices_x,
-                screen_vertices_y,
-                screen_vertices_z,
-                o0,
-                o1,
-                o2,
-                o3,
-                model_mid_z,
-                near_plane_z);
-        }
+        projection_neon_zdiv_tex_4_at(
+            orthographic_vertices_z,
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            zi,
+            model_mid_z,
+            near_plane_z);
     }
-
-    for( ; f < num_faces; f++ )
+#endif
+    for( ; zi < num_linear_slots; zi++ )
     {
-        int base = f * 3;
-        for( int s = 0; s < 3; s++ )
+        int z = orthographic_vertices_z[zi];
+
+        bool clipped = false;
+        if( z < near_plane_z )
+            clipped = true;
+
+        screen_vertices_z[zi] = z - model_mid_z;
+
+        if( clipped )
         {
-            int idx = base + s;
-            int z = orthographic_vertices_z[idx];
-
-            bool clipped = false;
-            if( z < near_plane_z )
-                clipped = true;
-
-            screen_vertices_z[idx] = z - model_mid_z;
-
-            if( clipped )
-            {
-                screen_vertices_x[idx] = -5000;
-            }
-            else
-            {
-                screen_vertices_x[idx] = screen_vertices_x[idx] / z;
-                if( screen_vertices_x[idx] == -5000 )
-                    screen_vertices_x[idx] = -5001;
-                screen_vertices_y[idx] = screen_vertices_y[idx] / z;
-            }
+            screen_vertices_x[zi] = -5000;
+        }
+        else
+        {
+            screen_vertices_x[zi] = screen_vertices_x[zi] / z;
+            if( screen_vertices_x[zi] == -5000 )
+                screen_vertices_x[zi] = -5001;
+            screen_vertices_y[zi] = screen_vertices_y[zi] / z;
         }
     }
 }
@@ -1115,53 +954,40 @@ project_vertices_array_notex_sparse(
         }
     }
 
-    int f = 0;
-    for( ; f + 4 <= num_faces; f += 4 )
+    int num_linear_slots = num_faces * 3;
+    int zi = 0;
+#ifdef ARM_NEON_FLOAT_RECIP_DIV
+    for( ; zi + 4 <= num_linear_slots; zi += 4 )
     {
-        for( int cor = 0; cor < 3; cor++ )
-        {
-            int o0 = (f + 0) * 3 + cor;
-            int o1 = (f + 1) * 3 + cor;
-            int o2 = (f + 2) * 3 + cor;
-            int o3 = (f + 3) * 3 + cor;
-            projection_neon_sparse_zdiv_notex_4(
-                screen_vertices_x,
-                screen_vertices_y,
-                screen_vertices_z,
-                o0,
-                o1,
-                o2,
-                o3,
-                model_mid_z,
-                near_plane_z);
-        }
+        projection_neon_zdiv_notex_4_at(
+            screen_vertices_x,
+            screen_vertices_y,
+            screen_vertices_z,
+            zi,
+            model_mid_z,
+            near_plane_z);
     }
-
-    for( ; f < num_faces; f++ )
+#endif
+    for( ; zi < num_linear_slots; zi++ )
     {
-        int base = f * 3;
-        for( int s = 0; s < 3; s++ )
+        int z = screen_vertices_z[zi];
+
+        bool clipped = false;
+        if( z < near_plane_z )
+            clipped = true;
+
+        screen_vertices_z[zi] = z - model_mid_z;
+
+        if( clipped )
         {
-            int idx = base + s;
-            int z = screen_vertices_z[idx];
-
-            bool clipped = false;
-            if( z < near_plane_z )
-                clipped = true;
-
-            screen_vertices_z[idx] = z - model_mid_z;
-
-            if( clipped )
-            {
-                screen_vertices_x[idx] = -5000;
-            }
-            else
-            {
-                screen_vertices_x[idx] = screen_vertices_x[idx] / z;
-                if( screen_vertices_x[idx] == -5000 )
-                    screen_vertices_x[idx] = -5001;
-                screen_vertices_y[idx] = screen_vertices_y[idx] / z;
-            }
+            screen_vertices_x[zi] = -5000;
+        }
+        else
+        {
+            screen_vertices_x[zi] = screen_vertices_x[zi] / z;
+            if( screen_vertices_x[zi] == -5000 )
+                screen_vertices_x[zi] = -5001;
+            screen_vertices_y[zi] = screen_vertices_y[zi] / z;
         }
     }
 }

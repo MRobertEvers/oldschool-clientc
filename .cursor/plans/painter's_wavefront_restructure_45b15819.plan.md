@@ -4,34 +4,34 @@ overview: Replace the FIFO queue-based painter's algorithm with a deterministic 
 todos:
   - id: shell-precomp
     content: "Implement ShellTable pre-computation: compute Chebyshev distances, sort tiles by shell, build shell_offsets array. Add quadrant-aware ordering within each shell (NW, NE, SW, SE)."
-    status: pending
+    status: completed
   - id: loc-precomp
     content: "Implement LocDrawInfo pre-computation: for each visible loc, compute inner_shell (min Chebyshev distance of footprint tiles) and initialize remaining_ground counter."
-    status: pending
+    status: completed
   - id: frame-counter
     content: Replace ElementPaint memset with frame-counter dedup (drawn_frame vs paint_frame comparison).
-    status: pending
+    status: cancelled
   - id: ground-phase
     content: "Implement Phase 1 (ground drawing) in the wavefront loop: iterate shell tiles, draw terrain/far walls/decor/ground objects. After each ground draw, decrement remaining_ground on relevant deferred locs."
-    status: pending
+    status: completed
   - id: deferred-retry
     content: "Implement Phase 2 (deferred loc retry + level catch-up): when a deferred loc's remaining_ground hits 0, draw it, finish footprint tiles' near walls, then eagerly process higher levels at those tiles."
-    status: pending
+    status: completed
   - id: loc-phase
     content: "Implement Phase 3 (loc drawing for current shell): draw 1x1 locs immediately, defer multi-tile locs with pending footprint grounds. Use pre-sorted loc list or insertion sort."
-    status: pending
+    status: completed
   - id: near-wall-phase
     content: "Implement Phase 4 (near wall drawing): draw near walls/decor for tiles at current shell whose locs are all done."
-    status: pending
+    status: completed
   - id: level-interleave
     content: "Interleave levels within the shell loop (staircase): at each shell d, process level 0 then level 1 etc. Higher levels trail by at most 1 shell. After a deferred loc resolves, eagerly catch up all higher levels at that tile."
-    status: pending
+    status: completed
   - id: alloc-and-free
     content: Expand painter_new() to allocate all wavefront scratch buffers (shell_tiles, tile_flags, deferred_locs, sorted_locs). Expand painter_free() to free them. Both paths coexist.
-    status: pending
+    status: completed
   - id: declare-paint2
     content: Add painter_paint2 declaration to painters.h with same signature as painter_paint. Add wavefront fields and DeferredLoc struct to the header.
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -180,6 +180,7 @@ wf_build_shell_table(
 ### 4b. `wf_draw_ground`
 
 Draws the ground phase for one tile at (sx, sz, level). This is a direct copy of the `PAINT_STEP_GROUND` block from `painter_paint` (lines 1134-1316), with these two changes:
+
 1. Replace `tile_paint->near_wall_flags |= ~far_walls` (line 1139) -- omit it entirely; near_wall_flags is not used in painter_paint2.
 2. Remove the span-push block at lines 1258-1316 entirely (that was for the old FIFO).
 3. Replace `element_paint->drawn` checks with `== 2` and sets with `= 2`.
@@ -508,6 +509,7 @@ painter_paint2(struct Painter* painter, struct PaintersBuffer* buffer,
 ### Element `drawn` states used in painter_paint2
 
 `painter_paint2` reuses `element_paints[ei].drawn` (the existing field) with three values:
+
 - `0` -- not yet encountered this frame (memset to 0 at top of function)
 - `1` -- deferred (entry exists in `wf_deferred_locs`)
 - `2` -- drawn (`push_command_entity` was called)

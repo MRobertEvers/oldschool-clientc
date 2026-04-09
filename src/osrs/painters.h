@@ -23,6 +23,21 @@ enum SpanFlag
     SPAN_FLAG_SOUTH = 1 << 3,
 };
 
+/** Per-tile flags for painter_paint2 wavefront (indexed by painter tile index). */
+enum WfTileFlag
+{
+    WF_GROUND = 1 << 0,
+    WF_DONE = 1 << 1,
+};
+
+/** Deferred multi-tile scenery until all footprint tiles have ground drawn. */
+struct DeferredLoc
+{
+    int16_t element_idx;
+    int16_t remaining_ground;
+    uint8_t level;
+};
+
 enum PaintersTileFlags
 {
     /**
@@ -422,6 +437,14 @@ painter_buffer_new();
 
 int
 painter_paint(
+    struct Painter* painter, //
+    struct PaintersBuffer* buffer,
+    int camera_sx,
+    int camera_sz,
+    int camera_slevel);
+
+int
+painter_paint2(
     struct Painter* painter, //
     struct PaintersBuffer* buffer,
     int camera_sx,

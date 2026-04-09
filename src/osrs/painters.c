@@ -90,6 +90,15 @@ struct Painter
 
     struct IntQueue queue;
     struct IntQueue catchup_queue;
+
+    /* painter_paint2 wavefront scratch */
+    int* wf_shell_tiles;
+    int wf_shell_offsets[52];
+    int wf_shell_count;
+    uint8_t* wf_tile_flags;
+    struct DeferredLoc* wf_deferred_locs;
+    int wf_deferred_count;
+    int wf_deferred_capacity;
 };
 
 static struct Painter* s_scenery_sort_painter;
@@ -320,6 +329,17 @@ painter_new(
     int_queue_init(&painter->queue, 4096);
     int_queue_init(&painter->catchup_queue, 4096);
 
+    {
+        int per_level = width * height;
+        painter->wf_shell_tiles = malloc((size_t)per_level * sizeof(int));
+        painter->wf_tile_flags = malloc((size_t)tile_count * sizeof(uint8_t));
+        painter->wf_deferred_capacity = 1024;
+        painter->wf_deferred_locs = malloc(
+            (size_t)painter->wf_deferred_capacity * sizeof(struct DeferredLoc));
+        painter->wf_deferred_count = 0;
+        painter->wf_shell_count = 0;
+    }
+
     return painter;
 }
 
@@ -335,6 +355,9 @@ painter_free(struct Painter* painter)
     free(painter->element_paints);
     int_queue_free(&painter->queue);
     int_queue_free(&painter->catchup_queue);
+    free(painter->wf_shell_tiles);
+    free(painter->wf_tile_flags);
+    free(painter->wf_deferred_locs);
     free(painter);
 }
 
@@ -810,6 +833,334 @@ far_wall_flags(
         flags |= WALL_SIDE_EAST | WALL_CORNER_NORTHEAST | WALL_CORNER_SOUTHEAST;
 
     return flags;
+}
+
+static void
+wf_build_shell_table(
+    struct Painter* painter,
+    int camera_sx,
+    int camera_sz,
+    int min_draw_x,
+    int max_draw_x,
+    int min_draw_z,
+    int max_draw_z)
+{
+    int dx0 = camera_sx - min_draw_x;
+    if( dx0 < 0 )
+        dx0 = -dx0;
+    int dx1 = (max_draw_x - 1) - camera_sx;
+    if( dx1 < 0 )
+        dx1 = -dx1;
+    int dz0 = camera_sz - min_draw_z;
+    if( dz0 < 0 )
+        dz0 = -dz0;
+    int dz1 = (max_draw_z - 1) - camera_sz;
+    if( dz1 < 0 )
+        dz1 = -dz1;
+
+    int max_dist = dx0 > dx1 ? dx0 : dx1;
+    if( dz0 > max_dist )
+        max_dist = dz0;
+    if( dz1 > max_dist )
+        max_dist = dz1;
+
+    assert(max_dist + 1 < 52);
+
+    int counts[52];
+    memset(counts, 0, (size_t)(max_dist + 1) * sizeof(int));
+    for( int sx = min_draw_x; sx < max_draw_x; sx++ )
+    {
+        for( int sz = min_draw_z; sz < max_draw_z; sz++ )
+        {
+            int dx = sx - camera_sx;
+            if( dx < 0 )
+                dx = -dx;
+            int dz = sz - camera_sz;
+            if( dz < 0 )
+                dz = -dz;
+            int d = dx > dz ? dx : dz;
+            counts[d]++;
+        }
+    }
+
+    int running = 0;
+    for( int d = max_dist; d >= 0; d-- )
+    {
+        painter->wf_shell_offsets[d] = running;
+        running += counts[d];
+    }
+    painter->wf_shell_offsets[max_dist + 1] = running;
+    painter->wf_shell_count = max_dist + 1;
+
+    int fill[52];
+    for( int d = 0; d <= max_dist; d++ )
+        fill[d] = painter->wf_shell_offsets[d];
+
+    for( int sx = min_draw_x; sx < max_draw_x; sx++ )
+    {
+        for( int sz = min_draw_z; sz < max_draw_z; sz++ )
+        {
+            int dx = sx - camera_sx;
+            if( dx < 0 )
+                dx = -dx;
+            int dz = sz - camera_sz;
+            if( dz < 0 )
+                dz = -dz;
+            int d = dx > dz ? dx : dz;
+            painter->wf_shell_tiles[fill[d]++] = painter_coord_idx(painter, sx, sz, 0);
+        }
+    }
+}
+
+static void
+wf_draw_ground(
+    struct Painter* painter,
+    struct PaintersBuffer* buffer,
+    int sx,
+    int sz,
+    int level,
+    int camera_sx,
+    int camera_sz)
+{
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, level);
+    struct PaintersElement* element;
+    struct ElementPaint* element_paint;
+    int far_walls = far_wall_flags(camera_sx, camera_sz, sx, sz);
+
+    if( tile->bridge_tile != -1 )
+    {
+        struct PaintersTile* bridge_underpass_tile = &painter->tiles[tile->bridge_tile];
+
+        push_command_terrain(
+            buffer,
+            PAINTER_TILE_X(painter, bridge_underpass_tile),
+            PAINTER_TILE_Z(painter, bridge_underpass_tile),
+            painters_tile_get_terrain_slevel(bridge_underpass_tile));
+
+        if( bridge_underpass_tile->wall_a != -1 )
+        {
+            element = &painter->elements[bridge_underpass_tile->wall_a];
+            assert(element->kind == PNTRELEM_WALL_A);
+            push_command_entity(buffer, element->_wall.entity);
+        }
+
+        for( int32_t sn = bridge_underpass_tile->scenery_head; sn != -1;
+             sn = painter->scenery_pool[sn].next )
+        {
+            int scenery_element = painter->scenery_pool[sn].element_idx;
+            element_paint = &painter->element_paints[scenery_element];
+            if( element_paint->drawn == 2 )
+                continue;
+
+            element = &painter->elements[scenery_element];
+            assert(element->kind == PNTRELEM_SCENERY);
+            push_command_entity(buffer, element->_scenery.entity);
+
+            element_paint->drawn = 2;
+        }
+    }
+
+    push_command_terrain(buffer, sx, sz, painters_tile_get_terrain_slevel(tile));
+
+    if( tile->wall_a != -1 )
+    {
+        element = &painter->elements[tile->wall_a];
+        assert(element->kind == PNTRELEM_WALL_A);
+
+        if( (element->_wall.side & far_walls) != 0 )
+            push_command_entity(buffer, element->_wall.entity);
+    }
+
+    if( tile->wall_b != -1 )
+    {
+        element = &painter->elements[tile->wall_b];
+        assert(element->kind == PNTRELEM_WALL_B);
+
+        if( (element->_wall.side & far_walls) != 0 )
+            push_command_entity(buffer, element->_wall.entity);
+    }
+
+    if( tile->ground_decor != -1 )
+    {
+        element = &painter->elements[tile->ground_decor];
+        assert(element->kind == PNTRELEM_GROUND_DECOR);
+        push_command_entity(buffer, element->_ground_decor.entity);
+    }
+
+    if( tile->ground_object_bottom != -1 )
+    {
+        element = &painter->elements[tile->ground_object_bottom];
+        assert(element->kind == PNTRELEM_GROUND_OBJECT);
+        push_command_entity(buffer, element->_ground_object.entity);
+    }
+
+    if( tile->ground_object_middle != -1 )
+    {
+        element = &painter->elements[tile->ground_object_middle];
+        assert(element->kind == PNTRELEM_GROUND_OBJECT);
+        push_command_entity(buffer, element->_ground_object.entity);
+    }
+
+    if( tile->ground_object_top != -1 )
+    {
+        element = &painter->elements[tile->ground_object_top];
+        assert(element->kind == PNTRELEM_GROUND_OBJECT);
+        push_command_entity(buffer, element->_ground_object.entity);
+    }
+
+    if( tile->wall_decor_a != -1 )
+    {
+        element = &painter->elements[tile->wall_decor_a];
+        assert(element->kind == PNTRELEM_WALL_DECOR);
+        if( element->_wall_decor._bf_through_wall_flags != 0 )
+        {
+            int x_diff = element->sx - camera_sx;
+            int z_diff = element->sz - camera_sz;
+
+            int x_near = x_diff;
+            if( element->_wall_decor._bf_side == WALL_CORNER_NORTHEAST ||
+                element->_wall_decor._bf_side == WALL_CORNER_SOUTHEAST )
+                x_near = -x_diff;
+
+            int z_near = z_diff;
+            if( element->_wall_decor._bf_side == WALL_CORNER_SOUTHEAST ||
+                element->_wall_decor._bf_side == WALL_CORNER_SOUTHWEST )
+                z_near = -z_diff;
+
+            if( z_near < x_near )
+            {
+                push_command_entity(buffer, element->_wall_decor.entity);
+            }
+            else if( tile->wall_decor_b != -1 )
+            {
+                element = &painter->elements[tile->wall_decor_b];
+                assert(element->kind == PNTRELEM_WALL_DECOR);
+                push_command_entity(buffer, element->_wall_decor.entity);
+            }
+        }
+        else if( (element->_wall_decor._bf_side & far_walls) != 0 )
+        {
+            push_command_entity(buffer, element->_wall_decor.entity);
+        }
+    }
+    else
+    {
+        assert(tile->wall_decor_b == -1);
+    }
+}
+
+static void
+wf_deferred_decrement(struct Painter* painter, int sx, int sz, int level)
+{
+    for( int i = 0; i < painter->wf_deferred_count; i++ )
+    {
+        struct DeferredLoc* dl = &painter->wf_deferred_locs[i];
+        if( dl->level != level )
+            continue;
+        struct PaintersElement* el = &painter->elements[dl->element_idx];
+        if( sx < el->sx || sx >= el->sx + el->_scenery.size_x )
+            continue;
+        if( sz < el->sz || sz >= el->sz + el->_scenery.size_z )
+            continue;
+        dl->remaining_ground--;
+    }
+}
+
+static void
+wf_draw_near_walls(
+    struct Painter* painter,
+    struct PaintersBuffer* buffer,
+    int sx,
+    int sz,
+    int level,
+    int camera_sx,
+    int camera_sz)
+{
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, level);
+    struct PaintersElement* element;
+    int near_walls = ~far_wall_flags(camera_sx, camera_sz, sx, sz);
+
+    if( tile->wall_decor_a != -1 )
+    {
+        element = &painter->elements[tile->wall_decor_a];
+        assert(element->kind == PNTRELEM_WALL_DECOR);
+
+        if( element->_wall_decor._bf_through_wall_flags != 0 )
+        {
+            int x_diff = element->sx - camera_sx;
+            int z_diff = element->sz - camera_sz;
+
+            int x_near = x_diff;
+            if( element->_wall_decor._bf_side == WALL_CORNER_NORTHEAST ||
+                element->_wall_decor._bf_side == WALL_CORNER_SOUTHEAST )
+                x_near = -x_diff;
+
+            int z_near = z_diff;
+            if( element->_wall_decor._bf_side == WALL_CORNER_SOUTHEAST ||
+                element->_wall_decor._bf_side == WALL_CORNER_SOUTHWEST )
+                z_near = -z_diff;
+
+            if( z_near >= x_near )
+            {
+                push_command_entity(buffer, element->_wall_decor.entity);
+            }
+            else if( tile->wall_decor_b != -1 )
+            {
+                element = &painter->elements[tile->wall_decor_b];
+                assert(element->kind == PNTRELEM_WALL_DECOR);
+
+                push_command_entity(buffer, element->_wall_decor.entity);
+            }
+        }
+        else if( (element->_wall_decor._bf_side & near_walls) != 0 )
+        {
+            push_command_entity(buffer, element->_wall_decor.entity);
+        }
+    }
+
+    if( tile->wall_a != -1 )
+    {
+        element = &painter->elements[tile->wall_a];
+        assert(element->kind == PNTRELEM_WALL_A);
+
+        if( (element->_wall.side & near_walls) != 0 )
+            push_command_entity(buffer, element->_wall.entity);
+    }
+
+    if( tile->wall_b != -1 )
+    {
+        element = &painter->elements[tile->wall_b];
+        assert(element->kind == PNTRELEM_WALL_B);
+
+        if( (element->_wall.side & near_walls) != 0 )
+            push_command_entity(buffer, element->_wall.entity);
+    }
+}
+
+static bool
+wf_all_locs_drawn(struct Painter* painter, int sx, int sz, int level)
+{
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, level);
+    for( int32_t sn = tile->scenery_head; sn != -1; sn = painter->scenery_pool[sn].next )
+    {
+        int ei = painter->scenery_pool[sn].element_idx;
+        if( painter->element_paints[ei].drawn != 2 )
+            return false;
+    }
+    return true;
+}
+
+static void
+wf_deferred_push(struct Painter* painter, struct DeferredLoc dl)
+{
+    if( painter->wf_deferred_count >= painter->wf_deferred_capacity )
+    {
+        int ncap = painter->wf_deferred_capacity * 2;
+        painter->wf_deferred_locs = realloc(
+            painter->wf_deferred_locs, (size_t)ncap * sizeof(struct DeferredLoc));
+        painter->wf_deferred_capacity = ncap;
+    }
+    painter->wf_deferred_locs[painter->wf_deferred_count++] = dl;
 }
 
 struct PaintersBuffer*
@@ -1608,6 +1959,244 @@ painter_paint(
 
     assert(painter->queue.length == 0);
     assert(painter->catchup_queue.length == 0);
+
+    return 0;
+}
+
+int
+painter_paint2(
+    struct Painter* painter, //
+    struct PaintersBuffer* buffer,
+    int camera_sx,
+    int camera_sz,
+    int camera_slevel)
+{
+    (void)camera_slevel;
+    buffer->command_count = 0;
+
+    const int radius = 25;
+    const int max_level = 4;
+
+    int min_draw_x = camera_sx - radius;
+    int min_draw_z = camera_sz - radius;
+    if( min_draw_x < 0 )
+        min_draw_x = 0;
+    if( min_draw_z < 0 )
+        min_draw_z = 0;
+
+    int max_draw_x = camera_sx + radius;
+    int max_draw_z = camera_sz + radius;
+    if( max_draw_x > painter->width )
+        max_draw_x = painter->width;
+    if( max_draw_z > painter->height )
+        max_draw_z = painter->height;
+    if( max_draw_x < 0 )
+        max_draw_x = 0;
+    if( max_draw_z < 0 )
+        max_draw_z = 0;
+
+    if( min_draw_x >= max_draw_x || min_draw_z >= max_draw_z )
+        return 0;
+
+    memset(painter->wf_tile_flags, 0, (size_t)painter->tile_capacity * sizeof(uint8_t));
+    memset(painter->element_paints, 0, (size_t)painter->element_count * sizeof(struct ElementPaint));
+    painter->wf_deferred_count = 0;
+
+    wf_build_shell_table(
+        painter, camera_sx, camera_sz, min_draw_x, max_draw_x, min_draw_z, max_draw_z);
+
+    int max_dist = painter->wf_shell_count - 1;
+    int level_stride = painter->width * painter->height;
+
+    for( int d = max_dist; d >= 0; d-- )
+    {
+        int shell_start = painter->wf_shell_offsets[d];
+        int shell_end =
+            d > 0 ? painter->wf_shell_offsets[d - 1] : painter->wf_shell_offsets[max_dist + 1];
+
+        for( int level = 0; level < max_level; level++ )
+        {
+            /* Phase 1: ground */
+            for( int i = shell_start; i < shell_end; i++ )
+            {
+                int base_idx = painter->wf_shell_tiles[i];
+                int tile_idx = base_idx + level * level_stride;
+                int sx = base_idx % painter->width;
+                int sz = (base_idx / painter->width) % painter->height;
+
+                struct PaintersTile* tile = &painter->tiles[tile_idx];
+                if( (painters_tile_get_flags(tile) & PAINTERS_TILE_FLAG_BRIDGE) != 0 ||
+                    painters_tile_get_slevel(tile) > max_level )
+                    continue;
+
+                if( level > 0 )
+                {
+                    int lower_idx = base_idx + (level - 1) * level_stride;
+                    if( (painter->wf_tile_flags[lower_idx] & WF_DONE) == 0 )
+                        continue;
+                }
+
+                if( (painter->wf_tile_flags[tile_idx] & WF_GROUND) != 0 )
+                    continue;
+
+                wf_draw_ground(painter, buffer, sx, sz, level, camera_sx, camera_sz);
+                painter->wf_tile_flags[tile_idx] |= WF_GROUND;
+                wf_deferred_decrement(painter, sx, sz, level);
+            }
+
+            /* Phase 2: deferred locs ready */
+            for( int i = 0; i < painter->wf_deferred_count; )
+            {
+                struct DeferredLoc* dl = &painter->wf_deferred_locs[i];
+                if( dl->level != level || dl->remaining_ground != 0 )
+                {
+                    i++;
+                    continue;
+                }
+
+                struct PaintersElement* el = &painter->elements[dl->element_idx];
+                push_command_entity(buffer, el->_scenery.entity);
+                painter->element_paints[dl->element_idx].drawn = 2;
+
+                painter->wf_deferred_locs[i] =
+                    painter->wf_deferred_locs[--painter->wf_deferred_count];
+
+                int lx0 = el->sx;
+                int lz0 = el->sz;
+                int lx1 = lx0 + el->_scenery.size_x - 1;
+                int lz1 = lz0 + el->_scenery.size_z - 1;
+                if( lx0 < min_draw_x )
+                    lx0 = min_draw_x;
+                if( lz0 < min_draw_z )
+                    lz0 = min_draw_z;
+                if( lx1 > max_draw_x - 1 )
+                    lx1 = max_draw_x - 1;
+                if( lz1 > max_draw_z - 1 )
+                    lz1 = max_draw_z - 1;
+
+                for( int fx = lx0; fx <= lx1; fx++ )
+                {
+                    for( int fz = lz0; fz <= lz1; fz++ )
+                    {
+                        int fi = painter_coord_idx(painter, fx, fz, level);
+                        if( (painter->wf_tile_flags[fi] & WF_DONE) != 0 )
+                            continue;
+                        if( !wf_all_locs_drawn(painter, fx, fz, level) )
+                            continue;
+
+                        wf_draw_near_walls(painter, buffer, fx, fz, level, camera_sx, camera_sz);
+                        painter->wf_tile_flags[fi] |= WF_DONE;
+
+                        for( int cl = level + 1; cl < max_level; cl++ )
+                        {
+                            int ci = painter_coord_idx(painter, fx, fz, cl);
+                            struct PaintersTile* ct = &painter->tiles[ci];
+                            if( (painters_tile_get_flags(ct) & PAINTERS_TILE_FLAG_BRIDGE) != 0 ||
+                                painters_tile_get_slevel(ct) > max_level )
+                                break;
+                            if( (painter->wf_tile_flags[ci] & WF_DONE) != 0 )
+                                break;
+                            if( (painter->wf_tile_flags[ci] & WF_GROUND) == 0 )
+                            {
+                                wf_draw_ground(
+                                    painter, buffer, fx, fz, cl, camera_sx, camera_sz);
+                                painter->wf_tile_flags[ci] |= WF_GROUND;
+                                wf_deferred_decrement(painter, fx, fz, cl);
+                            }
+                            if( !wf_all_locs_drawn(painter, fx, fz, cl) )
+                                break;
+                            wf_draw_near_walls(painter, buffer, fx, fz, cl, camera_sx, camera_sz);
+                            painter->wf_tile_flags[ci] |= WF_DONE;
+                        }
+                    }
+                }
+            }
+
+            /* Phase 3: locs */
+            for( int i = shell_start; i < shell_end; i++ )
+            {
+                int base_idx = painter->wf_shell_tiles[i];
+                int tile_idx = base_idx + level * level_stride;
+
+                if( (painter->wf_tile_flags[tile_idx] & WF_GROUND) == 0 )
+                    continue;
+                if( (painter->wf_tile_flags[tile_idx] & WF_DONE) != 0 )
+                    continue;
+
+                struct PaintersTile* tile = &painter->tiles[tile_idx];
+                for( int32_t sn = tile->scenery_head; sn != -1;
+                     sn = painter->scenery_pool[sn].next )
+                {
+                    int ei = painter->scenery_pool[sn].element_idx;
+                    if( painter->element_paints[ei].drawn != 0 )
+                        continue;
+
+                    struct PaintersElement* el = &painter->elements[ei];
+                    assert(el->kind == PNTRELEM_SCENERY);
+
+                    int tlx0 = el->sx;
+                    int tlz0 = el->sz;
+                    int tlx1 = tlx0 + el->_scenery.size_x - 1;
+                    int tlz1 = tlz0 + el->_scenery.size_z - 1;
+                    if( tlx0 < min_draw_x )
+                        tlx0 = min_draw_x;
+                    if( tlz0 < min_draw_z )
+                        tlz0 = min_draw_z;
+                    if( tlx1 > max_draw_x - 1 )
+                        tlx1 = max_draw_x - 1;
+                    if( tlz1 > max_draw_z - 1 )
+                        tlz1 = max_draw_z - 1;
+
+                    int missing = 0;
+                    for( int fx = tlx0; fx <= tlx1; fx++ )
+                    {
+                        for( int fz = tlz0; fz <= tlz1; fz++ )
+                        {
+                            int fi = painter_coord_idx(painter, fx, fz, level);
+                            if( (painter->wf_tile_flags[fi] & WF_GROUND) == 0 )
+                                missing++;
+                        }
+                    }
+
+                    if( missing == 0 )
+                    {
+                        push_command_entity(buffer, el->_scenery.entity);
+                        painter->element_paints[ei].drawn = 2;
+                    }
+                    else
+                    {
+                        painter->element_paints[ei].drawn = 1;
+                        wf_deferred_push(
+                            painter,
+                            (struct DeferredLoc){
+                                .element_idx = (int16_t)ei,
+                                .remaining_ground = (int16_t)missing,
+                                .level = (uint8_t)level,
+                            });
+                    }
+                }
+            }
+
+            /* Phase 4: near walls */
+            for( int i = shell_start; i < shell_end; i++ )
+            {
+                int base_idx = painter->wf_shell_tiles[i];
+                int tile_idx = base_idx + level * level_stride;
+                int sx = base_idx % painter->width;
+                int sz = (base_idx / painter->width) % painter->height;
+
+                if( (painter->wf_tile_flags[tile_idx] & WF_GROUND) == 0 )
+                    continue;
+                if( (painter->wf_tile_flags[tile_idx] & WF_DONE) != 0 )
+                    continue;
+                if( !wf_all_locs_drawn(painter, sx, sz, level) )
+                    continue;
+
+                wf_draw_near_walls(painter, buffer, sx, sz, level, camera_sx, camera_sz);
+                painter->wf_tile_flags[tile_idx] |= WF_DONE;
+            }
+        }
+    }
 
     return 0;
 }
