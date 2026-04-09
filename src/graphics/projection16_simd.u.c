@@ -34,7 +34,8 @@ projection16_sparse_corner_vi(
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
 #include <arm_neon.h>
 
-static inline void projection16_neon_zdiv_tex_tail(
+static inline void
+projection16_neon_zdiv_tex_tail(
     int* orthographic_vertices_z,
     int* screen_vertices_x,
     int* screen_vertices_y,
@@ -43,7 +44,8 @@ static inline void projection16_neon_zdiv_tex_tail(
     int rem,
     int model_mid_z,
     int near_plane_z);
-static inline void projection16_neon_zdiv_notex_tail(
+static inline void
+projection16_neon_zdiv_notex_tail(
     int* screen_vertices_x,
     int* screen_vertices_y,
     int* screen_vertices_z,
@@ -859,7 +861,7 @@ projection16_neon_zdiv_tex_tail(
 {
     if( rem <= 0 )
         return;
-    assert( rem <= 3 );
+    assert(rem <= 3);
 
     int z_pad = (near_plane_z < INT_MAX) ? (near_plane_z + 1) : near_plane_z;
     int32x4_t z_i = vdupq_n_s32(z_pad);
@@ -950,7 +952,7 @@ projection16_neon_zdiv_notex_tail(
 {
     if( rem <= 0 )
         return;
-    assert( rem <= 3 );
+    assert(rem <= 3);
 
     int z_pad = (near_plane_z < INT_MAX) ? (near_plane_z + 1) : near_plane_z;
     int32x4_t z_i = vdupq_n_s32(z_pad);
