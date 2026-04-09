@@ -286,6 +286,103 @@ project_orthographic_fast(
     projected_vertex->z = z_final_scene;
 }
 
+/** Sparse projection pass1: orthographic + FOV scale; matches project_vertices_array_sparse tail. */
+static inline void
+projection_sparse_slot_tex(
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int idx,
+    int vx,
+    int vy,
+    int vz,
+    int model_yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw,
+    int cot_fov_half_ish15)
+{
+    struct ProjectedVertex projected_vertex;
+    project_orthographic_fast(
+        &projected_vertex,
+        vx,
+        vy,
+        vz,
+        model_yaw,
+        scene_x,
+        scene_y,
+        scene_z,
+        camera_pitch,
+        camera_yaw);
+
+    int x = projected_vertex.x;
+    int y = projected_vertex.y;
+
+    x *= cot_fov_half_ish15;
+    y *= cot_fov_half_ish15;
+    x >>= 15;
+    y >>= 15;
+
+    orthographic_vertices_x[idx] = projected_vertex.x;
+    orthographic_vertices_y[idx] = projected_vertex.y;
+    orthographic_vertices_z[idx] = projected_vertex.z;
+
+    screen_vertices_x[idx] = SCALE_UNIT(x);
+    screen_vertices_y[idx] = SCALE_UNIT(y);
+}
+
+/** Sparse notex pass1; matches project_vertices_array_notex_sparse tail. */
+static inline void
+projection_sparse_slot_notex(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int idx,
+    int vx,
+    int vy,
+    int vz,
+    int model_yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int camera_pitch,
+    int camera_yaw,
+    int cot_fov_half_ish15)
+{
+    struct ProjectedVertex projected_vertex;
+    project_orthographic_fast(
+        &projected_vertex,
+        vx,
+        vy,
+        vz,
+        model_yaw,
+        scene_x,
+        scene_y,
+        scene_z,
+        camera_pitch,
+        camera_yaw);
+
+    int x = projected_vertex.x;
+    int y = projected_vertex.y;
+    int z = projected_vertex.z;
+
+    x *= cot_fov_half_ish15;
+    y *= cot_fov_half_ish15;
+    x >>= 15;
+    y >>= 15;
+
+    int screen_x = SCALE_UNIT(x);
+    int screen_y = SCALE_UNIT(y);
+
+    screen_vertices_z[idx] = z;
+    screen_vertices_x[idx] = screen_x;
+    screen_vertices_y[idx] = screen_y;
+}
+
 static inline int
 project_scale_unit(int p, int fov)
 {
