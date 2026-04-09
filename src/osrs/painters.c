@@ -314,6 +314,38 @@ painter_coord_idx(
     return sx + sz * painter->width + slevel * painter->width * painter->height;
 }
 
+static inline int
+step_idx_east(struct Painter* painter, int tile_idx)
+{
+    (void)painter;
+    return tile_idx + 1;
+}
+
+static inline int
+step_idx_west(struct Painter* painter, int tile_idx)
+{
+    (void)painter;
+    return tile_idx - 1;
+}
+
+static inline int
+step_idx_north(struct Painter* painter, int tile_idx)
+{
+    return tile_idx + painter->width;
+}
+
+static inline int
+step_idx_south(struct Painter* painter, int tile_idx)
+{
+    return tile_idx - painter->width;
+}
+
+static inline int
+step_idx_up(struct Painter* painter, int tile_idx)
+{
+    return tile_idx + painter->width * painter->height;
+}
+
 static void
 scenery_pool_ensure(struct Painter* painter, int extra)
 {
@@ -1197,7 +1229,7 @@ painter_paint(
             {
                 if( tile_sx + 1 < max_draw_x )
                 {
-                    other_paint = tile_paint_at(painter, tile_sx + 1, tile_sz, tile_slevel);
+                    other_paint = &painter->tile_paints[step_idx_east(painter, tile_idx)];
 
                     // If we are not spanned by the tile, then we need to verify it is done.
                     if( other_paint->step != PAINT_STEP_DONE )
@@ -1215,7 +1247,7 @@ painter_paint(
             {
                 if( tile_sx - 1 >= min_draw_x )
                 {
-                    other_paint = tile_paint_at(painter, tile_sx - 1, tile_sz, tile_slevel);
+                    other_paint = &painter->tile_paints[step_idx_west(painter, tile_idx)];
 
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -1232,7 +1264,7 @@ painter_paint(
             {
                 if( tile_sz + 1 < max_draw_z )
                 {
-                    other_paint = tile_paint_at(painter, tile_sx, tile_sz + 1, tile_slevel);
+                    other_paint = &painter->tile_paints[step_idx_north(painter, tile_idx)];
 
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -1248,7 +1280,7 @@ painter_paint(
             {
                 if( tile_sz - 1 >= min_draw_z )
                 {
-                    other_paint = tile_paint_at(painter, tile_sx, tile_sz - 1, tile_slevel);
+                    other_paint = &painter->tile_paints[step_idx_south(painter, tile_idx)];
 
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -1392,7 +1424,7 @@ painter_paint(
             {
                 if( tile_sx + 1 < max_draw_x )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx + 1, tile_sz, tile_slevel);
+                    int other_idx = step_idx_east(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
 
                     if( other_paint->step != PAINT_STEP_DONE &&
@@ -1407,7 +1439,7 @@ painter_paint(
             {
                 if( tile_sx - 1 >= min_draw_x )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx - 1, tile_sz, tile_slevel);
+                    int other_idx = step_idx_west(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
 
                     if( other_paint->step != PAINT_STEP_DONE &&
@@ -1422,7 +1454,7 @@ painter_paint(
             {
                 if( tile_sz + 1 < max_draw_z )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx, tile_sz + 1, tile_slevel);
+                    int other_idx = step_idx_north(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
 
                     if( other_paint->step != PAINT_STEP_DONE &&
@@ -1437,7 +1469,7 @@ painter_paint(
             {
                 if( tile_sz - 1 >= min_draw_z )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx, tile_sz - 1, tile_slevel);
+                    int other_idx = step_idx_south(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
 
                     if( other_paint->step != PAINT_STEP_DONE &&
@@ -1602,7 +1634,7 @@ painter_paint(
 
             if( tile_slevel < painter->levels - 1 )
             {
-                int other_idx = painter_coord_idx(painter, tile_sx, tile_sz, tile_slevel + 1);
+                int other_idx = step_idx_up(painter, tile_idx);
                 other_paint = &painter->tile_paints[other_idx];
 
                 if( other_paint->step != PAINT_STEP_DONE )
@@ -1615,7 +1647,7 @@ painter_paint(
             {
                 if( tile_sx + 1 < max_draw_x )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx + 1, tile_sz, tile_slevel);
+                    int other_idx = step_idx_east(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
 
                     if( other_paint->step != PAINT_STEP_DONE )
@@ -1628,7 +1660,7 @@ painter_paint(
             {
                 if( tile_sx - 1 >= min_draw_x )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx - 1, tile_sz, tile_slevel);
+                    int other_idx = step_idx_west(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -1641,7 +1673,7 @@ painter_paint(
             {
                 if( tile_sz + 1 < max_draw_z )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx, tile_sz + 1, tile_slevel);
+                    int other_idx = step_idx_north(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -1654,7 +1686,7 @@ painter_paint(
             {
                 if( tile_sz - 1 >= min_draw_z )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx, tile_sz - 1, tile_slevel);
+                    int other_idx = step_idx_south(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -1907,7 +1939,7 @@ painter_paint3(
             {
                 if( tile_sx + 1 < max_draw_x )
                 {
-                    other_paint = tile_paint_at(painter, tile_sx + 1, tile_sz, tile_slevel);
+                    other_paint = &painter->tile_paints[step_idx_east(painter, tile_idx)];
 
                     // If we are not spanned by the tile, then we need to verify it is done.
                     if( other_paint->step != PAINT_STEP_DONE )
@@ -1925,7 +1957,7 @@ painter_paint3(
             {
                 if( tile_sx - 1 >= min_draw_x )
                 {
-                    other_paint = tile_paint_at(painter, tile_sx - 1, tile_sz, tile_slevel);
+                    other_paint = &painter->tile_paints[step_idx_west(painter, tile_idx)];
 
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -1942,7 +1974,7 @@ painter_paint3(
             {
                 if( tile_sz + 1 < max_draw_z )
                 {
-                    other_paint = tile_paint_at(painter, tile_sx, tile_sz + 1, tile_slevel);
+                    other_paint = &painter->tile_paints[step_idx_north(painter, tile_idx)];
 
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -1958,7 +1990,7 @@ painter_paint3(
             {
                 if( tile_sz - 1 >= min_draw_z )
                 {
-                    other_paint = tile_paint_at(painter, tile_sx, tile_sz - 1, tile_slevel);
+                    other_paint = &painter->tile_paints[step_idx_south(painter, tile_idx)];
 
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -2102,7 +2134,7 @@ painter_paint3(
             {
                 if( tile_sx + 1 < max_draw_x )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx + 1, tile_sz, tile_slevel);
+                    int other_idx = step_idx_east(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
 
                     if( other_paint->step != PAINT_STEP_DONE &&
@@ -2117,7 +2149,7 @@ painter_paint3(
             {
                 if( tile_sx - 1 >= min_draw_x )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx - 1, tile_sz, tile_slevel);
+                    int other_idx = step_idx_west(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
 
                     if( other_paint->step != PAINT_STEP_DONE &&
@@ -2132,7 +2164,7 @@ painter_paint3(
             {
                 if( tile_sz + 1 < max_draw_z )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx, tile_sz + 1, tile_slevel);
+                    int other_idx = step_idx_north(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
 
                     if( other_paint->step != PAINT_STEP_DONE &&
@@ -2147,7 +2179,7 @@ painter_paint3(
             {
                 if( tile_sz - 1 >= min_draw_z )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx, tile_sz - 1, tile_slevel);
+                    int other_idx = step_idx_south(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
 
                     if( other_paint->step != PAINT_STEP_DONE &&
@@ -2303,7 +2335,7 @@ painter_paint3(
 
             if( tile_slevel < painter->levels - 1 )
             {
-                int other_idx = painter_coord_idx(painter, tile_sx, tile_sz, tile_slevel + 1);
+                int other_idx = step_idx_up(painter, tile_idx);
                 other_paint = &painter->tile_paints[other_idx];
 
                 if( other_paint->step != PAINT_STEP_DONE )
@@ -2316,7 +2348,7 @@ painter_paint3(
             {
                 if( tile_sx + 1 < max_draw_x )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx + 1, tile_sz, tile_slevel);
+                    int other_idx = step_idx_east(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
 
                     if( other_paint->step != PAINT_STEP_DONE )
@@ -2329,7 +2361,7 @@ painter_paint3(
             {
                 if( tile_sx - 1 >= min_draw_x )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx - 1, tile_sz, tile_slevel);
+                    int other_idx = step_idx_west(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -2342,7 +2374,7 @@ painter_paint3(
             {
                 if( tile_sz + 1 < max_draw_z )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx, tile_sz + 1, tile_slevel);
+                    int other_idx = step_idx_north(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -2355,7 +2387,7 @@ painter_paint3(
             {
                 if( tile_sz - 1 >= min_draw_z )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx, tile_sz - 1, tile_slevel);
+                    int other_idx = step_idx_south(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -2681,7 +2713,7 @@ painter_paint2(
             {
                 if( tile_sx + 1 < max_draw_x )
                 {
-                    other_paint = tile_paint_at(painter, tile_sx + 1, tile_sz, tile_slevel);
+                    other_paint = &painter->tile_paints[step_idx_east(painter, tile_idx)];
 
                     // If we are not spanned by the tile, then we need to verify it is done.
                     if( other_paint->step != PAINT_STEP_DONE )
@@ -2699,7 +2731,7 @@ painter_paint2(
             {
                 if( tile_sx - 1 >= min_draw_x )
                 {
-                    other_paint = tile_paint_at(painter, tile_sx - 1, tile_sz, tile_slevel);
+                    other_paint = &painter->tile_paints[step_idx_west(painter, tile_idx)];
 
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -2716,7 +2748,7 @@ painter_paint2(
             {
                 if( tile_sz + 1 < max_draw_z )
                 {
-                    other_paint = tile_paint_at(painter, tile_sx, tile_sz + 1, tile_slevel);
+                    other_paint = &painter->tile_paints[step_idx_north(painter, tile_idx)];
 
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -2732,7 +2764,7 @@ painter_paint2(
             {
                 if( tile_sz - 1 >= min_draw_z )
                 {
-                    other_paint = tile_paint_at(painter, tile_sx, tile_sz - 1, tile_slevel);
+                    other_paint = &painter->tile_paints[step_idx_south(painter, tile_idx)];
 
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -2876,7 +2908,7 @@ painter_paint2(
             {
                 if( tile_sx + 1 < max_draw_x )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx + 1, tile_sz, tile_slevel);
+                    int other_idx = step_idx_east(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
 
                     if( other_paint->step != PAINT_STEP_DONE &&
@@ -2891,7 +2923,7 @@ painter_paint2(
             {
                 if( tile_sx - 1 >= min_draw_x )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx - 1, tile_sz, tile_slevel);
+                    int other_idx = step_idx_west(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
 
                     if( other_paint->step != PAINT_STEP_DONE &&
@@ -2906,7 +2938,7 @@ painter_paint2(
             {
                 if( tile_sz + 1 < max_draw_z )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx, tile_sz + 1, tile_slevel);
+                    int other_idx = step_idx_north(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
 
                     if( other_paint->step != PAINT_STEP_DONE &&
@@ -2921,7 +2953,7 @@ painter_paint2(
             {
                 if( tile_sz - 1 >= min_draw_z )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx, tile_sz - 1, tile_slevel);
+                    int other_idx = step_idx_south(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
 
                     if( other_paint->step != PAINT_STEP_DONE &&
@@ -3077,7 +3109,7 @@ painter_paint2(
 
             if( tile_slevel < painter->levels - 1 )
             {
-                int other_idx = painter_coord_idx(painter, tile_sx, tile_sz, tile_slevel + 1);
+                int other_idx = step_idx_up(painter, tile_idx);
                 other_paint = &painter->tile_paints[other_idx];
 
                 if( other_paint->step != PAINT_STEP_DONE )
@@ -3091,7 +3123,7 @@ painter_paint2(
             {
                 if( tile_sx + 1 < max_draw_x )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx + 1, tile_sz, tile_slevel);
+                    int other_idx = step_idx_east(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
 
                     if( other_paint->step != PAINT_STEP_DONE )
@@ -3105,7 +3137,7 @@ painter_paint2(
             {
                 if( tile_sx - 1 >= min_draw_x )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx - 1, tile_sz, tile_slevel);
+                    int other_idx = step_idx_west(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -3119,7 +3151,7 @@ painter_paint2(
             {
                 if( tile_sz + 1 < max_draw_z )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx, tile_sz + 1, tile_slevel);
+                    int other_idx = step_idx_north(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
@@ -3133,7 +3165,7 @@ painter_paint2(
             {
                 if( tile_sz - 1 >= min_draw_z )
                 {
-                    int other_idx = painter_coord_idx(painter, tile_sx, tile_sz - 1, tile_slevel);
+                    int other_idx = step_idx_south(painter, tile_idx);
                     other_paint = &painter->tile_paints[other_idx];
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
