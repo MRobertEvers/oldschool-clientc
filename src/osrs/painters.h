@@ -444,4 +444,12 @@ painter_paint2(
     int camera_sz,
     int camera_slevel);
 
+int
+painter_paint3(
+    struct Painter* painter, //
+    struct PaintersBuffer* buffer,
+    int camera_sx,
+    int camera_sz,
+    int camera_slevel);
+
 #endif

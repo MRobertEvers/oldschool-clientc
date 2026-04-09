@@ -532,7 +532,7 @@ LibToriRS_FrameBegin(
 
     if( game->world && game->world->painter && game->sys_painter_buffer )
     {
-        painter_paint2(
+        painter_paint(
             game->world->painter,
             game->sys_painter_buffer,
             game->camera_world_x / 128,
