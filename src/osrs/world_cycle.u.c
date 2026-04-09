@@ -227,12 +227,14 @@ world_cycle_advance_map_build_loc_entity_animation(
     if( entity->scene_element.element_id != -1 )
     {
         scene_element = scene2_element_at(world->scene2, entity->scene_element.element_id);
+        scene2_element_expect(scene_element, "world_cycle map_build_loc primary");
         world_cycle_step_element_animations(&entity->animation, scene_element, cycles_elapsed);
     }
 
     if( entity->scene_element_two.element_id != -1 )
     {
         scene_element = scene2_element_at(world->scene2, entity->scene_element_two.element_id);
+        scene2_element_expect(scene_element, "world_cycle map_build_loc secondary");
         world_cycle_step_element_animations(&entity->animation_two, scene_element, cycles_elapsed);
     }
 }
@@ -287,6 +289,7 @@ world_cycle_advance_player_animation(
     struct PlayerEntity* player = world_player(world, player_id);
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, player->scene_element2.element_id);
+    scene2_element_expect(scene_element, "world_cycle_advance_player_animation");
     world_cycle_step_element_animations(&player->animation, scene_element, cycles_elapsed);
 }
 
@@ -341,6 +344,7 @@ world_cycle_push_players(struct World* world)
             padding.z_size);
 
         scene_element = scene2_element_at(world->scene2, player->scene_element2.element_id);
+        scene2_element_expect(scene_element, "world_cycle_push_players");
         struct DashPosition* ppos = scene2_element_dash_position(scene_element);
         ppos->yaw = player->orientation.yaw;
         ppos->x = player->draw_position.x;
@@ -386,6 +390,7 @@ world_cycle_advance_npc_animation(
     struct NPCEntity* npc = world_npc(world, npc_id);
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, npc->scene_element2.element_id);
+    scene2_element_expect(scene_element, "world_cycle_advance_npc_animation");
     world_cycle_step_element_animations(&npc->animation, scene_element, cycles_elapsed);
 }
 
@@ -435,15 +440,16 @@ world_cycle_push_npcs(struct World* world)
                 npc->scene_element2.element_id,
                 padding.x_size,
                 padding.z_size);
-        }
 
-        scene_element = scene2_element_at(world->scene2, npc->scene_element2.element_id);
-        struct DashPosition* npos = scene2_element_dash_position(scene_element);
-        npos->yaw = npc->orientation.yaw;
-        npos->x = npc->draw_position.x;
-        npos->z = npc->draw_position.z;
-        npos->y = heightmap_get_interpolated(
-            world->heightmap, npc->draw_position.x, npc->draw_position.z, 0);
+            scene_element = scene2_element_at(world->scene2, npc->scene_element2.element_id);
+            scene2_element_expect(scene_element, "world_cycle_push_npcs");
+            struct DashPosition* npos = scene2_element_dash_position(scene_element);
+            npos->yaw = npc->orientation.yaw;
+            npos->x = npc->draw_position.x;
+            npos->z = npc->draw_position.z;
+            npos->y = heightmap_get_interpolated(
+                world->heightmap, npc->draw_position.x, npc->draw_position.z, 0);
+        }
     }
 }
 

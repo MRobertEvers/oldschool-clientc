@@ -66,8 +66,10 @@ scenery_element_position_init(
     int size_x,
     int size_z)
 {
-    struct Scene2Element* scene_element =
-        scene2_element_at(world->scene2, entity_scene_element->element_id);
+    struct Scene2Element* scene_element = scene2_element_at(
+        world->scene2,
+        entity_scene_element->element_id);
+    scene2_element_expect(scene_element, "scenery_element_position_init");
 
     struct HeightmapHeights heights = { 0 };
     heightmap_get_heights_sized(
@@ -294,7 +296,14 @@ world_load_scenery_model(
         assert(found);
     }
 
-    assert(models_count > 0);
+    if( models_count <= 0 )
+    {
+        fprintf(
+            stderr,
+            "world_load_scenery_model: no models (shape_select=%d)\n",
+            shape_select);
+        abort();
+    }
 
     if( models_count > 1 )
     {
@@ -322,6 +331,17 @@ world_load_scenery_model(
     model_free(model);
 
     scene_element = scene2_element_at(world->scene2, entity_scene_element->element_id);
+    if( !scene_element )
+    {
+        fprintf(
+            stderr,
+            "world_load_scenery_model: invalid element_id=%d (scene2 total=%d shape_select=%d)\n",
+            entity_scene_element->element_id,
+            scene2_elements_total(world->scene2),
+            shape_select);
+        dashmodel_free(dash_model);
+        abort();
+    }
 
     scene2_element_set_dash_model(world->scene2, scene_element, dash_model);
 }
@@ -660,6 +680,7 @@ scenery_add_wall_decor_inside(
     scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
+    scene2_element_expect(scene_element, "scenery_add_wall_decor_inside");
     if( config_loc->seq_id != -1 )
     {
         scene2_element_dash_position(scene_element)->yaw += 512 * orientation;
@@ -724,6 +745,7 @@ scenery_add_wall_decor_outside(
 
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
+    scene2_element_expect(scene_element, "scenery_add_wall_decor_outside");
     if( config_loc->seq_id != -1 )
     {
         scene2_element_dash_position(scene_element)->yaw += 512 * orientation;
@@ -790,6 +812,7 @@ scenery_add_wall_decor_diagonal_outside(
 
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
+    scene2_element_expect(scene_element, "scenery_add_wall_decor_diagonal_outside");
     scene2_element_dash_position(scene_element)->yaw += WALL_DECOR_YAW_ADJUST;
     if( config_loc->seq_id != -1 )
     {
@@ -865,6 +888,7 @@ scenery_add_wall_decor_diagonal_inside(
 
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
+    scene2_element_expect(scene_element, "scenery_add_wall_decor_diagonal_inside primary");
     scene2_element_dash_position(scene_element)->yaw += WALL_DECOR_YAW_ADJUST;
     if( config_loc->seq_id != -1 )
     {
@@ -956,12 +980,14 @@ scenery_add_wall_decor_diagonal_double(
 
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
+    scene2_element_expect(scene_element, "scenery_add_wall_decor_diagonal_double primary");
     scene2_element_dash_position(scene_element)->yaw += WALL_DECOR_YAW_ADJUST;
     if( config_loc->seq_id != -1 )
         scene2_element_dash_position(scene_element)->yaw += 512 * outside_orientation;
     scene2_element_dash_position(scene_element)->yaw %= 2048;
 
     scene_element = scene2_element_at(world->scene2, entity->scene_element_two.element_id);
+    scene2_element_expect(scene_element, "scenery_add_wall_decor_diagonal_double secondary");
     scene2_element_dash_position(scene_element)->yaw += WALL_DECOR_YAW_ADJUST;
     if( config_loc->seq_id != -1 )
         scene2_element_dash_position(scene_element)->yaw += 512 * inside_orientation;
@@ -1117,6 +1143,7 @@ scenery_add_normal(
 
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
+    scene2_element_expect(scene_element, "scenery_add_normal");
     if( map_tile->shape_select == LOC_SHAPE_SCENERY_DIAGIONAL )
         scene2_element_dash_position(scene_element)->yaw += 256;
     if( config_loc->seq_id != -1 )

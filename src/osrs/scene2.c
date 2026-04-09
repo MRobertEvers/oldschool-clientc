@@ -248,8 +248,15 @@ scene2_element_acquire_fast(
     struct Scene2* scene2,
     int parent_entity_id)
 {
-    if( scene2->fast_free_list == NULL )
-        assert(false && "No free fast scene2 elements");
+    if( !scene2 || scene2->fast_free_list == NULL )
+    {
+        fprintf(
+            stderr,
+            "scene2_element_acquire_fast: no free fast elements (scene2=%p fast_free_len=%d)\n",
+            (void*)scene2,
+            scene2 ? scene2->fast_free_len : -1);
+        abort();
+    }
 
     struct Scene2Element* element = scene2->fast_free_list;
     scene2->fast_free_list = scene2_el_next(element);
@@ -280,8 +287,15 @@ scene2_element_acquire_full(
     struct Scene2* scene2,
     int parent_entity_id)
 {
-    if( scene2->full_free_list == NULL )
-        assert(false && "No free full scene2 elements");
+    if( !scene2 || scene2->full_free_list == NULL )
+    {
+        fprintf(
+            stderr,
+            "scene2_element_acquire_full: no free full elements (scene2=%p full_free_len=%d)\n",
+            (void*)scene2,
+            scene2 ? scene2->full_free_len : -1);
+        abort();
+    }
 
     struct Scene2Element* element = scene2->full_free_list;
     scene2->full_free_list = scene2_el_next(element);
@@ -357,7 +371,11 @@ scene2_element_set_dash_model(
     struct Scene2Element* element,
     struct DashModel* dash_model)
 {
-    assert(element && "scene2_element_set_dash_model element is NULL");
+    if( !element )
+    {
+        fprintf(stderr, "scene2_element_set_dash_model: NULL element\n");
+        abort();
+    }
     struct DashModel* old = NULL;
     if( scene2__is_fast(element) )
     {
@@ -444,8 +462,19 @@ scene2_element_release(
 {
     if( element_id == -1 )
         return;
+    if( !scene2 )
+        return;
 
     struct Scene2Element* element = scene2_element_at(scene2, element_id);
+    if( !element )
+    {
+        fprintf(
+            stderr,
+            "scene2_element_release: invalid element_id=%d (total=%d)\n",
+            element_id,
+            scene2_elements_total(scene2));
+        abort();
+    }
     assert(scene2_element_is_active(element) && "Element must be active");
     int parent_entity_id = scene2_element_parent_entity_id(element);
 
@@ -505,13 +534,31 @@ scene2_element_release(
         });
 }
 
+void
+scene2_element_expect(
+    struct Scene2Element* el,
+    const char* context)
+{
+    if( el )
+        return;
+    fprintf(
+        stderr,
+        "scene2_element_expect: NULL element (%s)\n",
+        context ? context : "(no context)");
+    abort();
+}
+
 struct Scene2Element*
 scene2_element_at(
     struct Scene2* scene2,
     int element_id)
 {
+    if( !scene2 )
+        return NULL;
     int total = scene2_elements_total(scene2);
     assert(element_id >= 0 && element_id < total && "Element id out of bounds");
+    if( element_id < 0 || element_id >= total )
+        return NULL;
     if( element_id < scene2->fast_count )
         return (struct Scene2Element*)&scene2->fast_pool[element_id];
     return (struct Scene2Element*)&scene2->full_pool[element_id - scene2->fast_count];

@@ -462,7 +462,7 @@ queue_static_load_commands(
             }
             struct Scene2Element* element =
                 scene2_element_at(scene2, scene_event.u.element.element_id);
-            if( !scene2_element_is_active(element) || !scene2_element_dash_model(element) )
+            if( !element || !scene2_element_is_active(element) || !scene2_element_dash_model(element) )
                 continue;
             if( scene2_element_parent_entity_id(element) != scene_event.u.element.parent_entity_id )
                 continue;
@@ -695,6 +695,7 @@ entity_map_build_loc_entity_animate(
         animation = &map_build_loc_entity->animation;
         scene_element =
             scene2_element_at(world->scene2, map_build_loc_entity->scene_element.element_id);
+        scene2_element_expect(scene_element, "entity_map_build_loc_entity_animate primary");
 
         struct Scene2Frames* pf = scene2_element_primary_frames(scene_element);
         struct DashModel* dm = scene2_element_dash_model(scene_element);
@@ -722,6 +723,7 @@ entity_map_build_loc_entity_animate(
         animation = &map_build_loc_entity->animation_two;
         scene_element =
             scene2_element_at(world->scene2, map_build_loc_entity->scene_element_two.element_id);
+        scene2_element_expect(scene_element, "entity_map_build_loc_entity_animate secondary");
 
         struct Scene2Frames* pf2 = scene2_element_primary_frames(scene_element);
         struct DashModel* dm2 = scene2_element_dash_model(scene_element);
@@ -958,9 +960,11 @@ next:
     case PNTR_CMD_ELEMENT:
     {
         scene_element = scene2_element_at(game->world->scene2, cmd->_entity._bf_entity);
+        if( !scene_element )
+            goto next;
         struct DashModel* ent_model = scene2_element_dash_model(scene_element);
         struct DashPosition* ent_pos = scene2_element_dash_position(scene_element);
-        if( !scene_element || !ent_model || !ent_pos )
+        if( !ent_model || !ent_pos )
             goto next;
         memcpy(&position, ent_pos, sizeof(struct DashPosition));
 
@@ -999,9 +1003,11 @@ next:
 
         scene_element =
             scene2_element_at(game->world->scene2, tile_entity->scene_element.element_id);
+        if( !scene_element )
+            goto next;
         struct DashModel* tile_model = scene2_element_dash_model(scene_element);
         struct DashPosition* tile_pos = scene2_element_dash_position(scene_element);
-        if( !scene_element || !tile_model || !tile_pos )
+        if( !tile_model || !tile_pos )
             goto next;
 
         memcpy(&position, tile_pos, sizeof(struct DashPosition));

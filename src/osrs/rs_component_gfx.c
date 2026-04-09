@@ -139,9 +139,11 @@ rs_gfx_model_step(
     if( eid < 0 )
         return true;
     struct Scene2Element* se = scene2_element_at(game->world->scene2, eid);
+    if( !se )
+        return true;
     struct DashModel* mod = scene2_element_dash_model(se);
     struct DashPosition* sepos = scene2_element_dash_position(se);
-    if( !se || !mod || !sepos )
+    if( !mod || !sepos )
         return true;
 
     struct DashPosition position = { 0 };

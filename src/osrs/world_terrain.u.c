@@ -354,6 +354,7 @@ build_scene_terrain(struct World* world)
                 assert(tile_entity->scene_element.element_id != 0);
                 scene_element =
                     scene2_element_at(world->scene2, tile_entity->scene_element.element_id);
+                scene2_element_expect(scene_element, "build_scene_terrain tile model");
 
                 model = decode_tile(
                     shape,
@@ -918,6 +919,7 @@ build_scene_terrain_va(struct World* world)
                 terrain_element_acquire(world, tile_entity->entity_id);
             struct Scene2Element* scene_element =
                 scene2_element_at(world->scene2, tile_entity->scene_element.element_id);
+            scene2_element_expect(scene_element, "build_scene_terrain_va tile model");
             scene2_element_set_dash_position_ptr(scene_element, dashposition_new());
             scene2_element_set_dash_model(world->scene2, scene_element, model);
             struct DashPosition* dp = scene2_element_dash_position(scene_element);

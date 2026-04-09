@@ -223,7 +223,7 @@ sharelight_build(struct World* world)
                     map_element = &map_tile->sharelight[i];
 
                     scene_element = scene2_element_at(world->scene2, map_element->element_idx);
-                    if( !scene2_element_dash_model(scene_element) )
+                    if( !scene_element || !scene2_element_dash_model(scene_element) )
                         continue;
 
                     int adjacent_tiles_count = gather_adjacent_tiles(
@@ -253,7 +253,8 @@ sharelight_build(struct World* world)
 
                             adjacent_scene_element =
                                 scene2_element_at(world->scene2, adjacent_map_element->element_idx);
-                            if( !scene2_element_dash_model(adjacent_scene_element) )
+                            if( !adjacent_scene_element ||
+                                !scene2_element_dash_model(adjacent_scene_element) )
                                 continue;
 
                             int check_offset_x =
@@ -311,7 +312,7 @@ sharelight_build(struct World* world)
                     map_element = &map_tile->sharelight[i];
 
                     scene_element = scene2_element_at(world->scene2, map_element->element_idx);
-                    if( !scene2_element_dash_model(scene_element) )
+                    if( !scene_element || !scene2_element_dash_model(scene_element) )
                         continue;
 
                     int light_ambient = 64;
@@ -381,7 +382,7 @@ defaultlight_build(struct World* world)
 
                     scene_element = scene2_element_at(world->scene2, map_element->element_idx);
 
-                    if( !scene2_element_dash_model(scene_element) )
+                    if( !scene_element || !scene2_element_dash_model(scene_element) )
                         continue;
 
                     if( !dashmodel_is_lightable(scene2_element_dash_model(scene_element)) )

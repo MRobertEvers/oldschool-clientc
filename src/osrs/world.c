@@ -44,8 +44,8 @@ next_map_build_loc_entity(struct World* world)
         world->active_loc_entity_count++;
         return loc;
     }
-    assert(false && "No more map build loc entities");
-    return NULL;
+    fprintf(stderr, "next_map_build_loc_entity: exceeded MAX_MAP_BUILD_LOC_ENTITIES\n");
+    abort();
 }
 
 /** Slot 0 would otherwise match `entity_id != id` never (0==0) while still all-zero from pool. */
@@ -813,6 +813,7 @@ world_buildcachedat_rebuild_centerzone(
                     int displacement_kind = elements->displacement_kind[i];
                     int orientation = elements->orientation[i];
                     scene_element = scene2_element_at(world->scene2, element_id);
+                    scene2_element_expect(scene_element, "decor_buildmap wall offset");
 
                     bool diagonal = false;
                     int offset = 0;
@@ -1220,7 +1221,7 @@ world_player_entity_set_appearance(
 
     struct Scene2Element* element =
         scene2_element_at(world->scene2, player->scene_element2.element_id);
-    assert(element && "Element must be found");
+    scene2_element_expect(element, "world_player_entity_set_appearance");
 
     world_scenebuild_player_entity_set_appearance(
         world, player_entity_id, appearance->appearance, appearance->color);
@@ -1305,7 +1306,7 @@ world_map_build_loc_entity_set_animation(
     if( map_build_loc_entity->scene_element.element_id != -1 )
     {
         element = scene2_element_at(world->scene2, map_build_loc_entity->scene_element.element_id);
-        assert(element && "Element must be found");
+        scene2_element_expect(element, "world_map_build_loc_entity_set_animation primary");
         load_scene_animation(world, element, animation_id, ANIMATION_TYPE_PRIMARY);
 
         memset(&map_build_loc_entity->animation, 0, sizeof(struct EntityAnimation));
@@ -1316,7 +1317,7 @@ world_map_build_loc_entity_set_animation(
     {
         element =
             scene2_element_at(world->scene2, map_build_loc_entity->scene_element_two.element_id);
-        assert(element && "Element must be found");
+        scene2_element_expect(element, "world_map_build_loc_entity_set_animation secondary");
 
         load_scene_animation(world, element, animation_id, ANIMATION_TYPE_PRIMARY);
 
@@ -1334,8 +1335,12 @@ world_player_entity_set_animation(
 {
     struct PlayerEntity* player = world_player(world, player_entity_id);
 
+    if( player->scene_element2.element_id == -1 )
+        return;
+
     struct Scene2Element* element =
         scene2_element_at(world->scene2, player->scene_element2.element_id);
+    scene2_element_expect(element, "world_player_entity_set_animation");
 
     if( animation_type == ANIMATION_TYPE_PRIMARY )
     {
@@ -1369,8 +1374,12 @@ world_npc_entity_set_animation(
 {
     struct NPCEntity* npc = world_npc(world, npc_entity_id);
 
+    if( npc->scene_element2.element_id == -1 )
+        return;
+
     struct Scene2Element* element =
         scene2_element_at(world->scene2, npc->scene_element2.element_id);
+    scene2_element_expect(element, "world_npc_entity_set_animation");
 
     if( animation_type == ANIMATION_TYPE_PRIMARY )
     {
@@ -1596,7 +1605,8 @@ world_npc_ensure_scene_element(
         npc->orientation.dst_yaw = 0;
 
         element = scene2_element_at(world->scene2, npc->scene_element2.element_id);
-        if( element && !scene2_element_dash_position(element) )
+        scene2_element_expect(element, "world_npc_ensure_scene_element");
+        if( !scene2_element_dash_position(element) )
             scene2_element_set_dash_position_ptr(element, dashposition_new());
     }
     return npc;
@@ -1620,7 +1630,8 @@ world_player_ensure_scene_element(
         player->orientation.dst_yaw = 0;
 
         element = scene2_element_at(world->scene2, player->scene_element2.element_id);
-        if( element && !scene2_element_dash_position(element) )
+        scene2_element_expect(element, "world_player_ensure_scene_element");
+        if( !scene2_element_dash_position(element) )
             scene2_element_set_dash_position_ptr(element, dashposition_new());
     }
 

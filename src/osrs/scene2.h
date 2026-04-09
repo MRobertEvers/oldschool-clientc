@@ -162,10 +162,17 @@ scene2_element_set_framemap(
     struct Scene2Element* element,
     struct DashFramemap* dash_framemap);
 
+/** Valid ids are 0 .. scene2_elements_total(scene2)-1. Returns NULL if scene2 is NULL or id is out of range. */
 struct Scene2Element*
 scene2_element_at(
     struct Scene2* scene2,
     int element_id);
+
+/** Abort if el is NULL (e.g. invalid scene2_element_at). context is logged for diagnostics. */
+void
+scene2_element_expect(
+    struct Scene2Element* el,
+    const char* context);
 
 /** Index of this element in the scene2 pools (0 .. fast_count+full_count-1). */
 int

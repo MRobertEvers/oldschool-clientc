@@ -205,6 +205,7 @@ entity_scenebuild_player_change_appearance(
     struct PlayerEntity* player = world_player(game->world, player_id);
     struct Scene2Element* scene_element =
         scene2_element_at(game->world->scene2, player->scene_element2.element_id);
+    scene2_element_expect(scene_element, "entity_scenebuild_player_change_appearance");
 
     /* Store appearance in entity for IF_SETPLAYERHEAD; copy to local player for head model */
     for( int i = 0; i < 12; i++ )

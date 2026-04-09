@@ -194,7 +194,7 @@ world_scenebuild_player_entity_set_appearance(
     struct PlayerEntity* player = world_player(world, player_entity_id);
     struct Scene2Element* element =
         scene2_element_at(world->scene2, player->scene_element2.element_id);
-    assert(element && "Element must be found");
+    scene2_element_expect(element, "world_scenebuild_player_entity_set_appearance");
 
     struct DashModel* dash_model = dashmodel_new();
     player_appearance_model(world->buildcachedat, appearances, colors, dash_model);
@@ -211,7 +211,7 @@ world_scenebuild_npc_entity_set_npc_type(
     struct NPCEntity* npc = world_npc(world, npc_entity_id);
     struct Scene2Element* element =
         scene2_element_at(world->scene2, npc->scene_element2.element_id);
-    assert(element && "Element must be found");
+    scene2_element_expect(element, "world_scenebuild_npc_entity_set_npc_type");
 
     struct DashModel* dash_model = dashmodel_new();
     npc_model(world->buildcachedat, npc_type, dash_model);
