@@ -45,6 +45,39 @@ struct DashAABB
     int max_screen_y;
 };
 
+/** Vertex positions only; lifetime owned outside DashModel (VA models hold a weak pointer).
+ * Face colors, indices, and textures live on DashModelVA. */
+struct DashVertexArray
+{
+    int vertex_count;
+    vertexint_t* vertices_x;
+    vertexint_t* vertices_y;
+    vertexint_t* vertices_z;
+};
+
+/** One triangle face: staging-only type used when pushing into DashFaceArray. */
+struct DashFace
+{
+    faceint_t indices[3];
+    hsl16_t colors[3];
+    faceint_t texture_id;
+    uint16_t _pad;
+};
+
+/** SoA face storage shared per terrain level. DashModelVA holds a weak ref + first_face_index. */
+struct DashFaceArray
+{
+    faceint_t* indices_a;
+    faceint_t* indices_b;
+    faceint_t* indices_c;
+    hsl16_t* colors_a;
+    hsl16_t* colors_b;
+    hsl16_t* colors_c;
+    faceint_t* texture_ids;
+    int count;
+    int capacity;
+};
+
 struct DashModel;
 
 /**
@@ -415,6 +448,63 @@ dashposition_free(struct DashPosition* position);
 struct DashModel*
 dashmodel_fast_new(void);
 
+/** Weak reference to vertex_array; caller frees the array separately. face_count starts at 0. */
+struct DashModel*
+dashmodel_va_new(struct DashVertexArray* vertex_array);
+
+/** Allocates array (faces may be NULL if capacity 0). */
+struct DashFaceArray*
+dashfacearray_new(int capacity);
+
+void
+dashfacearray_free(struct DashFaceArray* fa);
+
+/** Reset count to 0; does not shrink capacity. */
+void
+dashfacearray_clear(struct DashFaceArray* fa);
+
+/** Grow capacity to at least need_capacity. Returns false on OOM. */
+bool
+dashfacearray_reserve(struct DashFaceArray* fa, int need_capacity);
+
+/** Reallocates buffers to fit exactly `count` faces (capacity := count). No-op if already tight. */
+void
+dashfacearray_shrink_to_fit(struct DashFaceArray* fa);
+
+/** Appends one face; grows as needed. Returns new index or -1 on failure. */
+int
+dashfacearray_push(struct DashFaceArray* fa, const struct DashFace* face);
+
+/** VA only: weak ref into shared face_array; first_face_index is offset into faces[]. */
+void
+dashmodel_va_set_face_array_ref(
+    struct DashModel* m,
+    struct DashFaceArray* face_array,
+    uint32_t first_face_index,
+    int face_count);
+
+const struct DashFaceArray*
+dashmodel_va_face_array_const(const struct DashModel* m);
+
+uint32_t
+dashmodel_va_first_face_index(const struct DashModel* m);
+
+/** VA only: per-tile terrain culling — tile SW corner in world (vertices remain absolute). */
+void
+dashmodel_va_set_tile_cull_center(
+    struct DashModel* m,
+    int tile_sw_x,
+    int tile_sw_z);
+
+/** VA only: replace bounds cylinder from tile-local (or model-local) vertex positions. */
+void
+dashmodel_va_set_bounds_cylinder_from_local(
+    struct DashModel* m,
+    int num_vertices,
+    const vertexint_t* vx,
+    const vertexint_t* vy,
+    const vertexint_t* vz);
+
 struct DashModel*
 dashmodelfull_new(void);
 
@@ -423,6 +513,10 @@ dashmodel_new(void);
 
 void
 dashmodel_free(struct DashModel* model);
+
+/** Frees all heap fields of `va` and `va` itself (caller-owned geometry; not called from dashmodel_free). */
+void
+dashvertexarray_free(struct DashVertexArray* va);
 
 bool
 dashmodel_is_loaded(const struct DashModel* m);
@@ -445,6 +539,9 @@ dashmodel_vertex_count(const struct DashModel* m);
 
 int
 dashmodel_face_count(const struct DashModel* m);
+
+const struct DashVertexArray*
+dashmodel_vertex_array_const(const struct DashModel* m);
 
 vertexint_t*
 dashmodel_vertices_x(struct DashModel* m);

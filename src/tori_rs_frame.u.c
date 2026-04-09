@@ -438,25 +438,36 @@ queue_static_load_commands(
         {
             if( scene_event.type == SCENE2_EVENT_TEXTURE_LOADED )
             {
-                struct DashTexture* texture = scene2_texture_get(scene2, scene_event.texture_id);
-                queue_texture_load_from_event(
-                    render_command_buffer, scene_event.texture_id, texture);
+                int tex_id = scene_event.u.texture.texture_id;
+                struct DashTexture* texture = scene2_texture_get(scene2, tex_id);
+                queue_texture_load_from_event(render_command_buffer, tex_id, texture);
                 continue;
             }
-            if( scene_event.element_id < 0 || scene_event.element_id >= scene2_elements_total(scene2) )
+            if( scene_event.type == SCENE2_EVENT_VERTEX_ARRAY_ADDED ||
+                scene_event.type == SCENE2_EVENT_VERTEX_ARRAY_REMOVED ||
+                scene_event.type == SCENE2_EVENT_FACE_ARRAY_ADDED ||
+                scene_event.type == SCENE2_EVENT_FACE_ARRAY_REMOVED )
+            {
+                /* GPU: use u.vertex_array.array or u.face_array.array depending on type. */
+                continue;
+            }
+            if( scene_event.u.element.element_id < 0 ||
+                scene_event.u.element.element_id >= scene2_elements_total(scene2) )
                 continue;
             if( scene_event.type != SCENE2_EVENT_ELEMENT_ACQUIRED &&
                 scene_event.type != SCENE2_EVENT_MODEL_CHANGED )
             {
                 continue;
             }
-            struct Scene2Element* element = scene2_element_at(scene2, scene_event.element_id);
+            struct Scene2Element* element =
+                scene2_element_at(scene2, scene_event.u.element.element_id);
             if( !scene2_element_is_active(element) || !scene2_element_dash_model(element) )
                 continue;
-            if( scene2_element_parent_entity_id(element) != scene_event.parent_entity_id )
+            if( scene2_element_parent_entity_id(element) != scene_event.u.element.parent_entity_id )
                 continue;
             queue_scene_element_load_from_event(game, render_command_buffer, element);
         }
+        scene2_flush_deferred_array_frees(scene2);
     }
 
     if( game->ui_scene )

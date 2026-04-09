@@ -31,14 +31,35 @@ enum Scene2EventType
     SCENE2_EVENT_ELEMENT_RELEASED = 2,
     SCENE2_EVENT_MODEL_CHANGED = 3,
     SCENE2_EVENT_TEXTURE_LOADED = 4,
+    SCENE2_EVENT_VERTEX_ARRAY_ADDED = 5,
+    SCENE2_EVENT_VERTEX_ARRAY_REMOVED = 6,
+    SCENE2_EVENT_FACE_ARRAY_ADDED = 7,
+    SCENE2_EVENT_FACE_ARRAY_REMOVED = 8,
 };
 
+/** Payload is in `u` according to `type`: element (1–3), texture (4), vertex_array (5–6), face_array (7–8). */
 struct Scene2Event
 {
     enum Scene2EventType type;
-    int element_id;
-    int parent_entity_id;
-    int texture_id;
+    union {
+        struct
+        {
+            int element_id;
+            int parent_entity_id;
+        } element;
+        struct
+        {
+            int texture_id;
+        } texture;
+        struct
+        {
+            struct DashVertexArray* array;
+        } vertex_array;
+        struct
+        {
+            struct DashFaceArray* array;
+        } face_array;
+    } u;
 };
 
 struct Scene2
@@ -58,6 +79,24 @@ struct Scene2
     struct Scene2TextureEntry* textures;
     int textures_count;
     int textures_capacity;
+
+    /** Scene2 owns these; register transfers ownership. Small growable lists. */
+    struct DashVertexArray** vertex_arrays;
+    int vertex_arrays_count;
+    int vertex_arrays_capacity;
+
+    struct DashFaceArray** face_arrays;
+    int face_arrays_count;
+    int face_arrays_capacity;
+
+    /** Unregister queues frees here until after REMOVED events are drained (see flush below). */
+    struct DashVertexArray** vertex_arrays_deferred_free;
+    int vertex_arrays_deferred_free_count;
+    int vertex_arrays_deferred_free_capacity;
+
+    struct DashFaceArray** face_arrays_deferred_free;
+    int face_arrays_deferred_free_count;
+    int face_arrays_deferred_free_capacity;
 
     struct Scene2Event* eventbuffer;
     int eventbuffer_capacity;
@@ -199,5 +238,48 @@ struct DashTexture*
 scene2_texture_get(
     struct Scene2* scene2,
     int texture_id);
+
+/** Takes ownership of vertex_array; caller must not free it. */
+void
+scene2_vertex_array_register(
+    struct Scene2* scene2,
+    struct DashVertexArray* vertex_array);
+
+/** Drops ownership; queues free after scene2_flush_deferred_array_frees (after REMOVED events). */
+void
+scene2_vertex_array_unregister(
+    struct Scene2* scene2,
+    struct DashVertexArray* vertex_array);
+
+/** Takes ownership of face_array; caller must not free it. */
+void
+scene2_face_array_register(
+    struct Scene2* scene2,
+    struct DashFaceArray* face_array);
+
+void
+scene2_face_array_unregister(
+    struct Scene2* scene2,
+    struct DashFaceArray* face_array);
+
+/** Frees arrays removed via unregister; call after consumers finish popping scene2 events. */
+void
+scene2_flush_deferred_array_frees(struct Scene2* scene2);
+
+int
+scene2_vertex_arrays_count(const struct Scene2* scene2);
+
+struct DashVertexArray*
+scene2_vertex_array_at(
+    struct Scene2* scene2,
+    int index);
+
+int
+scene2_face_arrays_count(const struct Scene2* scene2);
+
+struct DashFaceArray*
+scene2_face_array_at(
+    struct Scene2* scene2,
+    int index);
 
 #endif

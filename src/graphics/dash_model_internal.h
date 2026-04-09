@@ -1,24 +1,26 @@
 #ifndef DASH_MODEL_INTERNAL_H
 #define DASH_MODEL_INTERNAL_H
 
-#include "dash_alpha.h"
-#include "dash_faceint.h"
-#include "dash_hsl16.h"
-#include "dash_vertexint.h"
+#include "dash.h"
 
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 
-struct DashModel;
-struct DashBoundsCylinder;
 struct DashModelNormals;
 struct DashModelBones;
 
-#define DASHMODEL_FLAG_LOADED       0x01u
+/** Bits 0–1: booleans. Bits 2–4: model struct type (3 bits). Bit 7: valid marker. */
+#define DASHMODEL_FLAG_LOADED 0x01u
 #define DASHMODEL_FLAG_HAS_TEXTURES 0x02u
-#define DASHMODEL_FLAG_FAST         0x40u
-#define DASHMODEL_FLAG_VALID        0x80u
+#define DASHMODEL_FLAG_VALID 0x80u
+
+#define DASHMODEL_TYPE_SHIFT 2u
+#define DASHMODEL_TYPE_MASK (7u << DASHMODEL_TYPE_SHIFT)
+
+#define DASHMODEL_TYPE_FULL 0u
+#define DASHMODEL_TYPE_FAST 1u
+#define DASHMODEL_TYPE_VA 2u
 
 struct DashModelFast
 {
@@ -35,6 +37,22 @@ struct DashModelFast
     faceint_t* face_indices_b;
     faceint_t* face_indices_c;
     faceint_t* face_textures;
+    struct DashBoundsCylinder* bounds_cylinder;
+};
+
+/** Weak ref to DashVertexArray (vertices only); face data owned by this model shell.
+ *  When va_has_tile_cull_center: culling uses va_tile_cull_center_x/z (tile SW in world)
+ *  as the model-space origin for the bounds cylinder; vertices stay absolute world. */
+struct DashModelVA
+{
+    uint8_t flags;
+    int vertex_count;
+    int face_count;
+    struct DashVertexArray* vertex_array;
+    struct DashFaceArray* face_array;
+    uint32_t first_face_index;
+    uint16_t va_tile_cull_center_x;
+    uint16_t va_tile_cull_center_z;
     struct DashBoundsCylinder* bounds_cylinder;
 };
 
@@ -98,10 +116,46 @@ dashmodel__flags(const void* m)
     return f;
 }
 
+static inline unsigned
+dashmodel__type(const void* m)
+{
+    return (unsigned)((dashmodel__flags(m) & DASHMODEL_TYPE_MASK) >> DASHMODEL_TYPE_SHIFT);
+}
+
+static inline bool
+dashmodel__is_full_layout(const void* m)
+{
+    return dashmodel__type(m) == DASHMODEL_TYPE_FULL;
+}
+
 static inline bool
 dashmodel__is_fast(const void* m)
 {
-    return (dashmodel__flags(m) & DASHMODEL_FLAG_FAST) != 0;
+    return dashmodel__type(m) == DASHMODEL_TYPE_FAST;
+}
+
+static inline bool
+dashmodel__is_va(const void* m)
+{
+    return dashmodel__type(m) == DASHMODEL_TYPE_VA;
+}
+
+static inline struct DashVertexArray*
+dashmodel__va_array_mut(struct DashModel* m)
+{
+    assert(dashmodel__is_va(m));
+    struct DashModelVA* v = (struct DashModelVA*)(void*)m;
+    assert(v->vertex_array != NULL);
+    return v->vertex_array;
+}
+
+static inline const struct DashVertexArray*
+dashmodel__va_array_const(const void* m)
+{
+    assert(dashmodel__is_va(m));
+    const struct DashModelVA* v = (const struct DashModelVA*)m;
+    assert(v->vertex_array != NULL);
+    return v->vertex_array;
 }
 
 static inline struct DashModelFast*
@@ -118,17 +172,31 @@ dashmodel__as_fast_const(const void* m)
     return (const struct DashModelFast*)m;
 }
 
+static inline struct DashModelVA*
+dashmodel__as_va(void* m)
+{
+    assert(dashmodel__is_va(m));
+    return (struct DashModelVA*)m;
+}
+
+static inline const struct DashModelVA*
+dashmodel__as_va_const(const void* m)
+{
+    assert(dashmodel__is_va(m));
+    return (const struct DashModelVA*)m;
+}
+
 static inline struct DashModelFull*
 dashmodel__as_full(void* m)
 {
-    assert(!dashmodel__is_fast(m));
+    assert(dashmodel__is_full_layout(m));
     return (struct DashModelFull*)m;
 }
 
 static inline const struct DashModelFull*
 dashmodel__as_full_const(const void* m)
 {
-    assert(!dashmodel__is_fast(m));
+    assert(dashmodel__is_full_layout(m));
     return (const struct DashModelFull*)m;
 }
 

@@ -27,6 +27,12 @@
 #define MAX_MAP_BUILD_LOC_ENTITIES (16384 >> 1)
 #define MAX_MAP_BUILD_TILE_ENTITIES (50000)
 
+/** Nonzero: shared vertex-array terrain (build_scene_terrain_va). Zero: per-tile models
+ * (build_scene_terrain). */
+#ifndef WORLD_BUILD_TERRAIN_VA
+#define WORLD_BUILD_TERRAIN_VA 1
+#endif
+
 struct World
 {
     struct EntityVec players;
@@ -79,6 +85,12 @@ struct World
     int _offset_z;
 
     struct BuildCacheDat* buildcachedat;
+
+    /** Terrain: pointers to shared geometry per level. With scene2, Scene2 owns the arrays
+     * (register/unregister); these are non-owning. Without scene2, world frees them. */
+    struct DashVertexArray* terrain_va[MAP_TERRAIN_LEVELS];
+
+    struct DashFaceArray* terrain_face_array[MAP_TERRAIN_LEVELS];
 };
 
 struct World*

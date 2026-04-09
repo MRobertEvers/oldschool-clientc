@@ -1,6 +1,6 @@
 #include "dash.h"
-#include "dash_model_internal.h"
 
+#include "dash_model_internal.h"
 #include "dashmap.h"
 #include "osrs/colors.h"
 #include "osrs/minimap.h"
@@ -10,146 +10,6 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-
-// clang-format off
-#include "render_gouraud.u.c"
-#include "render_flat.u.c"
-#include "render_texture.u.c"
-#if VERTEXINT_BITS == 16
-#include "projection16_simd.u.c"
-#else
-#include "projection.u.c"
-#include "projection_simd.u.c"
-#endif
-#include "anim.u.c"
-// clang-format on
-
-static struct DashModelFast*
-dashmodel__writable_fast(struct DashModel* m)
-{
-    assert(dashmodel__is_fast(m));
-    return dashmodel__as_fast(m);
-}
-
-static struct DashModelFull*
-dashmodel__writable_full(struct DashModel* m)
-{
-    assert(!dashmodel__is_fast(m));
-    return dashmodel__as_full(m);
-}
-
-static void
-dashmodel_reset_original_values(struct DashModel* model)
-{
-    struct DashModelFull* m = dashmodel__writable_full(model);
-    if( m->original_vertices_x == NULL )
-    {
-        m->original_vertices_x = malloc(sizeof(vertexint_t) * (size_t)m->vertex_count);
-        m->original_vertices_y = malloc(sizeof(vertexint_t) * (size_t)m->vertex_count);
-        m->original_vertices_z = malloc(sizeof(vertexint_t) * (size_t)m->vertex_count);
-        memcpy(
-            m->original_vertices_x,
-            m->vertices_x,
-            sizeof(vertexint_t) * (size_t)m->vertex_count);
-        memcpy(
-            m->original_vertices_y,
-            m->vertices_y,
-            sizeof(vertexint_t) * (size_t)m->vertex_count);
-        memcpy(
-            m->original_vertices_z,
-            m->vertices_z,
-            sizeof(vertexint_t) * (size_t)m->vertex_count);
-    }
-
-    if( m->face_alphas && m->original_face_alphas == NULL )
-    {
-        m->original_face_alphas = malloc(sizeof(alphaint_t) * (size_t)m->face_count);
-        memcpy(
-            m->original_face_alphas,
-            m->face_alphas,
-            sizeof(alphaint_t) * (size_t)m->face_count);
-    }
-
-    memcpy(
-        m->vertices_x, m->original_vertices_x, sizeof(vertexint_t) * (size_t)m->vertex_count);
-    memcpy(
-        m->vertices_y, m->original_vertices_y, sizeof(vertexint_t) * (size_t)m->vertex_count);
-    memcpy(
-        m->vertices_z, m->original_vertices_z, sizeof(vertexint_t) * (size_t)m->vertex_count);
-    if( m->face_alphas && m->original_face_alphas )
-    {
-        memcpy(
-            m->face_alphas,
-            m->original_face_alphas,
-            sizeof(alphaint_t) * (size_t)m->face_count);
-    }
-}
-
-void
-dashmodel_animate(
-    struct DashModel* model,
-    struct DashFrame* frame,
-    struct DashFramemap* framemap)
-{
-    assert(model);
-    assert(!dashmodel__is_fast(model));
-    dashmodel__flags(model);
-    dashmodel_reset_original_values(model);
-    struct DashModelFull* m = dashmodel__writable_full(model);
-    assert(m->original_vertices_x != NULL);
-    if( frame == NULL )
-        return;
-    anim_frame_apply(
-        frame,
-        framemap,
-        m->vertices_x,
-        m->vertices_y,
-        m->vertices_z,
-        m->face_alphas,
-        m->vertex_bones ? m->vertex_bones->bones_count : 0,
-        m->vertex_bones ? (int**)m->vertex_bones->bones : NULL,
-        m->vertex_bones ? (int*)m->vertex_bones->bones_sizes : NULL,
-        m->face_bones ? m->face_bones->bones_count : 0,
-        m->face_bones ? (int**)m->face_bones->bones : NULL,
-        m->face_bones ? (int*)m->face_bones->bones_sizes : NULL);
-}
-
-void
-dashmodel_animate_mask(
-    struct DashModel* model,
-    struct DashFrame* primary_frame,
-    struct DashFrame* secondary_frame,
-    struct DashFramemap* framemap,
-    int* walkmerge)
-{
-    assert(model);
-    assert(!dashmodel__is_fast(model));
-    dashmodel__flags(model);
-    dashmodel_reset_original_values(model);
-    struct DashModelFull* m = dashmodel__writable_full(model);
-    assert(m->original_vertices_x != NULL);
-    if( primary_frame == NULL || secondary_frame == NULL || walkmerge == NULL )
-    {
-        if( primary_frame )
-            dashmodel_animate(model, primary_frame, framemap);
-        return;
-    }
-    anim_frame_apply_mask(
-        primary_frame,
-        secondary_frame,
-        framemap,
-        walkmerge,
-        m->vertices_x,
-        m->vertices_y,
-        m->vertices_z,
-        m->face_alphas,
-        m->vertex_bones ? m->vertex_bones->bones_count : 0,
-        m->vertex_bones ? (uint8_t**)m->vertex_bones->bones : NULL,
-        m->vertex_bones ? (uint8_t*)m->vertex_bones->bones_sizes : NULL,
-        m->face_bones ? m->face_bones->bones_count : 0,
-        m->face_bones ? (uint8_t**)m->face_bones->bones : NULL,
-        m->face_bones ? (uint8_t*)m->face_bones->bones_sizes : NULL);
-}
 
 struct DashTextureEntry
 {
@@ -180,8 +40,165 @@ struct DashGraphics
     int tmp_face_order[4096];
     int tmp_face_order_count;
 
+    faceint_t sparse_a[4096];
+    faceint_t sparse_b[4096];
+    faceint_t sparse_c[4096];
+
     struct DashMap* textures_hmap;
 };
+
+/** After sparse projection, screen verts for face f sit at f*3+{0,1,2}; dash_new fills sparse_*.
+ *  Dense models use model face index arrays. Call once per operation, not inside face loops. */
+static inline void
+dash3d_projected_face_index_ptrs(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    faceint_t** out_a,
+    faceint_t** out_b,
+    faceint_t** out_c)
+{
+    switch( dashmodel__type(model) )
+    {
+    case DASHMODEL_TYPE_VA:
+        *out_a = dash->sparse_a;
+        *out_b = dash->sparse_b;
+        *out_c = dash->sparse_c;
+        break;
+    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_FULL:
+        *out_a = dashmodel_face_indices_a(model);
+        *out_b = dashmodel_face_indices_b(model);
+        *out_c = dashmodel_face_indices_c(model);
+        break;
+    default:
+        assert(0);
+    }
+}
+
+// clang-format off
+#include "render_gouraud.u.c"
+#include "render_flat.u.c"
+#include "render_texture.u.c"
+#if VERTEXINT_BITS == 16
+#include "projection16_simd.u.c"
+#else
+#include "projection.u.c"
+#include "projection_simd.u.c"
+#endif
+#include "anim.u.c"
+// clang-format on
+
+static struct DashModelFast*
+dashmodel__writable_fast(struct DashModel* m)
+{
+    assert(dashmodel__is_fast(m));
+    return dashmodel__as_fast(m);
+}
+
+static struct DashModelFull*
+dashmodel__writable_full(struct DashModel* m)
+{
+    assert(dashmodel__is_full_layout(m));
+    return dashmodel__as_full(m);
+}
+
+static void
+dashmodel_reset_original_values(struct DashModel* model)
+{
+    struct DashModelFull* m = dashmodel__writable_full(model);
+    if( m->original_vertices_x == NULL )
+    {
+        m->original_vertices_x = malloc(sizeof(vertexint_t) * (size_t)m->vertex_count);
+        m->original_vertices_y = malloc(sizeof(vertexint_t) * (size_t)m->vertex_count);
+        m->original_vertices_z = malloc(sizeof(vertexint_t) * (size_t)m->vertex_count);
+        memcpy(
+            m->original_vertices_x, m->vertices_x, sizeof(vertexint_t) * (size_t)m->vertex_count);
+        memcpy(
+            m->original_vertices_y, m->vertices_y, sizeof(vertexint_t) * (size_t)m->vertex_count);
+        memcpy(
+            m->original_vertices_z, m->vertices_z, sizeof(vertexint_t) * (size_t)m->vertex_count);
+    }
+
+    if( m->face_alphas && m->original_face_alphas == NULL )
+    {
+        m->original_face_alphas = malloc(sizeof(alphaint_t) * (size_t)m->face_count);
+        memcpy(m->original_face_alphas, m->face_alphas, sizeof(alphaint_t) * (size_t)m->face_count);
+    }
+
+    memcpy(m->vertices_x, m->original_vertices_x, sizeof(vertexint_t) * (size_t)m->vertex_count);
+    memcpy(m->vertices_y, m->original_vertices_y, sizeof(vertexint_t) * (size_t)m->vertex_count);
+    memcpy(m->vertices_z, m->original_vertices_z, sizeof(vertexint_t) * (size_t)m->vertex_count);
+    if( m->face_alphas && m->original_face_alphas )
+    {
+        memcpy(m->face_alphas, m->original_face_alphas, sizeof(alphaint_t) * (size_t)m->face_count);
+    }
+}
+
+void
+dashmodel_animate(
+    struct DashModel* model,
+    struct DashFrame* frame,
+    struct DashFramemap* framemap)
+{
+    assert(model);
+    assert(dashmodel__is_full_layout(model));
+    dashmodel__flags(model);
+    dashmodel_reset_original_values(model);
+    struct DashModelFull* m = dashmodel__writable_full(model);
+    assert(m->original_vertices_x != NULL);
+    if( frame == NULL )
+        return;
+    anim_frame_apply(
+        frame,
+        framemap,
+        m->vertices_x,
+        m->vertices_y,
+        m->vertices_z,
+        m->face_alphas,
+        m->vertex_bones ? m->vertex_bones->bones_count : 0,
+        m->vertex_bones ? (int**)m->vertex_bones->bones : NULL,
+        m->vertex_bones ? (int*)m->vertex_bones->bones_sizes : NULL,
+        m->face_bones ? m->face_bones->bones_count : 0,
+        m->face_bones ? (int**)m->face_bones->bones : NULL,
+        m->face_bones ? (int*)m->face_bones->bones_sizes : NULL);
+}
+
+void
+dashmodel_animate_mask(
+    struct DashModel* model,
+    struct DashFrame* primary_frame,
+    struct DashFrame* secondary_frame,
+    struct DashFramemap* framemap,
+    int* walkmerge)
+{
+    assert(model);
+    assert(dashmodel__is_full_layout(model));
+    dashmodel__flags(model);
+    dashmodel_reset_original_values(model);
+    struct DashModelFull* m = dashmodel__writable_full(model);
+    assert(m->original_vertices_x != NULL);
+    if( primary_frame == NULL || secondary_frame == NULL || walkmerge == NULL )
+    {
+        if( primary_frame )
+            dashmodel_animate(model, primary_frame, framemap);
+        return;
+    }
+    anim_frame_apply_mask(
+        primary_frame,
+        secondary_frame,
+        framemap,
+        walkmerge,
+        m->vertices_x,
+        m->vertices_y,
+        m->vertices_z,
+        m->face_alphas,
+        m->vertex_bones ? m->vertex_bones->bones_count : 0,
+        m->vertex_bones ? (uint8_t**)m->vertex_bones->bones : NULL,
+        m->vertex_bones ? (uint8_t*)m->vertex_bones->bones_sizes : NULL,
+        m->face_bones ? m->face_bones->bones_count : 0,
+        m->face_bones ? (uint8_t**)m->face_bones->bones : NULL,
+        m->face_bones ? (uint8_t*)m->face_bones->bones_sizes : NULL);
+}
 
 /**
  * Runescape only looks at the first byte of a UTF16 code point.
@@ -236,6 +253,15 @@ dash_new()
     if( dash == NULL )
         return NULL;
     memset(dash, 0, sizeof(struct DashGraphics));
+
+    /* VA sparse projection: screen verts at face f use slots f*3+{0,1,2}; sparse_a/b/c hold those
+     * indices (see dash3d_projected_face_index_ptrs). face_count must stay <= 4096. */
+    for( int i = 0; i < 4096; i++ )
+    {
+        dash->sparse_a[i] = (faceint_t)(i * 3);
+        dash->sparse_b[i] = (faceint_t)(i * 3 + 1);
+        dash->sparse_c[i] = (faceint_t)(i * 3 + 2);
+    }
 
     printf("Sizeof(struct DashGraphics): %zu\n", sizeof(struct DashGraphics));
 
@@ -305,8 +331,36 @@ dash3d_fast_cull(
     int camera_yaw = camera->yaw;
     int near_plane_z = camera->near_plane_z;
 
+    int cull_mx = 0;
+    int cull_my = 0;
+    int cull_mz = 0;
+    switch( dashmodel__type(model) )
+    {
+    case DASHMODEL_TYPE_VA:
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(model);
+        cull_mx = v->va_tile_cull_center_x;
+        cull_mz = v->va_tile_cull_center_z;
+        break;
+    }
+    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_FULL:
+        break;
+    default:
+        assert(0);
+    }
+
     project_orthographic_fast(
-        projected_vertex, 0, 0, 0, model_yaw, scene_x, scene_y, scene_z, camera_pitch, camera_yaw);
+        projected_vertex,
+        cull_mx,
+        cull_my,
+        cull_mz,
+        model_yaw,
+        scene_x,
+        scene_y,
+        scene_z,
+        camera_pitch,
+        camera_yaw);
 
     const struct DashBoundsCylinder* bc = dashmodel_bounds_cylinder_const(model);
     int model_edge_radius = bc->radius;
@@ -418,6 +472,21 @@ dash3d_calculate_cylinder_aabb_8point(
     int mz = 0;
     int my = 0;
     int mx = 0;
+    switch( dashmodel__type(model) )
+    {
+    case DASHMODEL_TYPE_VA:
+    {
+        const struct DashModelVA* v = dashmodel__as_va_const(model);
+        mx = v->va_tile_cull_center_x;
+        mz = v->va_tile_cull_center_z;
+        break;
+    }
+    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_FULL:
+        break;
+    default:
+        assert(0);
+    }
     bb_x[0] = mx + model_edge_radius;
     bb_x[1] = mx + model_edge_radius;
     bb_x[2] = mx + model_edge_radius;
@@ -605,9 +674,13 @@ dash3d_raster_model_face(
     int* texels = g_empty_texture_texels;
     int texture_size = 0;
     int texture_opaque = true;
-    if( face_textures && face_textures[face] != -1 )
+    int tex_id_row = -1;
+    if( face_textures != NULL )
+        tex_id_row = face_textures[face];
+
+    if( tex_id_row != -1 )
     {
-        texture_id = face_textures[face];
+        texture_id = tex_id_row;
         // gamma 0.8 is the default in os1
         texture_entry =
             (struct DashTextureEntry*)dashmap_search(textures_hmap, &texture_id, DASHMAP_FIND);
@@ -727,14 +800,13 @@ dash3d_raster_model_face(
             assert(orthographic_vertex_y_nullable != NULL);
             assert(orthographic_vertex_z_nullable != NULL);
 
-            if( face_p_coordinate_nullable && face_m_coordinate_nullable && face_n_coordinate_nullable &&
-                (!face_texture_coords || face_texture_coords[face] != -1) )
+            if( face_texture_coords && face_texture_coords[face] != -1 )
             {
                 assert(face_p_coordinate_nullable != NULL);
                 assert(face_m_coordinate_nullable != NULL);
                 assert(face_n_coordinate_nullable != NULL);
 
-                texture_face = face_texture_coords ? face_texture_coords[face] : 0;
+                texture_face = face_texture_coords[face];
 
                 tp_vertex = face_p_coordinate_nullable[texture_face];
                 tm_vertex = face_m_coordinate_nullable[texture_face];
@@ -871,16 +943,13 @@ dash3d_raster_model_face(
             break;
         case FACE_TYPE_TEXTURED_FLAT_SHADE:
         textured_flat:;
-            assert(face_p_coordinate_nullable != NULL);
-            assert(face_m_coordinate_nullable != NULL);
-            assert(face_n_coordinate_nullable != NULL);
             assert(orthographic_vertex_x_nullable != NULL);
             assert(orthographic_vertex_y_nullable != NULL);
             assert(orthographic_vertex_z_nullable != NULL);
 
-            if( !face_texture_coords || face_texture_coords[face] != -1 )
+            if( face_texture_coords && face_texture_coords[face] != -1 )
             {
-                texture_face = face_texture_coords ? face_texture_coords[face] : 0;
+                texture_face = face_texture_coords[face];
 
                 tp_vertex = face_p_coordinate_nullable[texture_face];
                 tm_vertex = face_m_coordinate_nullable[texture_face];
@@ -1271,10 +1340,12 @@ dash3d_sort_face_draw_order(
     struct DashViewPort* view_port,
     struct DashCamera* camera,
     int* pixel_buffer,
-    bool smooth)
+    bool smooth,
+    faceint_t* fia,
+    faceint_t* fib,
+    faceint_t* fic)
 {
-    int model_min_depth =
-        dashmodel_bounds_cylinder_const(model)->min_z_depth_any_rotation;
+    int model_min_depth = dashmodel_bounds_cylinder_const(model)->min_z_depth_any_rotation;
     memset(dash->bucket_heads, 0xFF, sizeof(dash->bucket_heads));
 
     int bounds = bucket_sort_by_average_depth(
@@ -1285,9 +1356,9 @@ dash3d_sort_face_draw_order(
         dash->screen_vertices_x,
         dash->screen_vertices_y,
         dash->screen_vertices_z,
-        dashmodel_face_indices_a(model),
-        dashmodel_face_indices_b(model),
-        dashmodel_face_indices_c(model));
+        fia,
+        fib,
+        fic);
 
     model_min_depth = bounds & 0xFFFF;
     int model_max_depth = bounds >> 16;
@@ -1344,15 +1415,19 @@ dash3d_sort_face_draw_order(
 }
 
 static inline void
-dash3d_raster(
+dash3d_raster_with_face_indices(
     struct DashGraphics* dash,
     struct DashModel* model,
     struct DashViewPort* view_port,
     struct DashCamera* camera,
     int* pixel_buffer,
-    bool smooth)
+    bool smooth,
+    faceint_t* fia,
+    faceint_t* fib,
+    faceint_t* fic)
 {
-    dash3d_sort_face_draw_order(dash, model, view_port, camera, pixel_buffer, smooth);
+    dash3d_sort_face_draw_order(
+        dash, model, view_port, camera, pixel_buffer, smooth, fia, fib, fic);
 
     for( int i = 0; i < dash->tmp_face_order_count; i++ )
     {
@@ -1361,9 +1436,9 @@ dash3d_raster(
             pixel_buffer,
             face,
             dashmodel_face_infos(model),
-            dashmodel_face_indices_a(model),
-            dashmodel_face_indices_b(model),
-            dashmodel_face_indices_c(model),
+            fia,
+            fib,
+            fic,
             dashmodel_face_count(model),
             dash->screen_vertices_x,
             dash->screen_vertices_y,
@@ -1396,12 +1471,53 @@ dash3d_raster(
 }
 
 static inline void
+dash3d_raster(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    struct DashViewPort* view_port,
+    struct DashCamera* camera,
+    int* pixel_buffer,
+    bool smooth)
+{
+    if( dashmodel__is_va(model) )
+    {
+        dash3d_raster_with_face_indices(
+            dash,
+            model,
+            view_port,
+            camera,
+            pixel_buffer,
+            smooth,
+            dash->sparse_a,
+            dash->sparse_b,
+            dash->sparse_c);
+    }
+    else
+    {
+        dash3d_raster_with_face_indices(
+            dash,
+            model,
+            view_port,
+            camera,
+            pixel_buffer,
+            smooth,
+            dashmodel_face_indices_a(model),
+            dashmodel_face_indices_b(model),
+            dashmodel_face_indices_c(model));
+    }
+}
+
+static inline void
 dash3d_compute_projected_face_order(
     struct DashGraphics* dash,
     struct DashModel* model)
 {
-    int model_min_depth =
-        dashmodel_bounds_cylinder_const(model)->min_z_depth_any_rotation;
+    faceint_t *fia = NULL;
+    faceint_t *fib = NULL;
+    faceint_t *fic = NULL;
+    dash3d_projected_face_index_ptrs(dash, model, &fia, &fib, &fic);
+
+    int model_min_depth = dashmodel_bounds_cylinder_const(model)->min_z_depth_any_rotation;
     memset(dash->bucket_heads, 0xFF, sizeof(dash->bucket_heads));
 
     int bounds = bucket_sort_by_average_depth(
@@ -1412,9 +1528,9 @@ dash3d_compute_projected_face_order(
         dash->screen_vertices_x,
         dash->screen_vertices_y,
         dash->screen_vertices_z,
-        dashmodel_face_indices_a(model),
-        dashmodel_face_indices_b(model),
-        dashmodel_face_indices_c(model));
+        fia,
+        fib,
+        fic);
 
     model_min_depth = bounds & 0xFFFF;
     int model_max_depth = bounds >> 16;
@@ -1491,48 +1607,111 @@ dash3d_project(
         return cull;
     }
 
-    if( dashmodel_has_textures(model) )
+    switch( dashmodel__type(model) )
     {
-        project_vertices_array(
-            dash->orthographic_vertices_x,
-            dash->orthographic_vertices_y,
-            dash->orthographic_vertices_z,
-            dash->screen_vertices_x,
-            dash->screen_vertices_y,
-            dash->screen_vertices_z,
-            dashmodel_vertices_x(model),
-            dashmodel_vertices_y(model),
-            dashmodel_vertices_z(model),
-            dashmodel_vertex_count(model),
-            position->yaw,
-            center_projection.z,
-            position->x,
-            position->y,
-            position->z,
-            camera->near_plane_z,
-            camera->fov_rpi2048,
-            camera->pitch,
-            camera->yaw);
+    case DASHMODEL_TYPE_VA:
+    {
+        int nf = dashmodel_face_count(model);
+        assert(nf <= 4096);
+        if( dashmodel_has_textures(model) )
+        {
+            project_vertices_array_sparse(
+                dash->orthographic_vertices_x,
+                dash->orthographic_vertices_y,
+                dash->orthographic_vertices_z,
+                dash->screen_vertices_x,
+                dash->screen_vertices_y,
+                dash->screen_vertices_z,
+                dashmodel_vertices_x(model),
+                dashmodel_vertices_y(model),
+                dashmodel_vertices_z(model),
+                dashmodel_face_indices_a(model),
+                dashmodel_face_indices_b(model),
+                dashmodel_face_indices_c(model),
+                nf,
+                position->yaw,
+                center_projection.z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                camera->fov_rpi2048,
+                camera->pitch,
+                camera->yaw);
+        }
+        else
+        {
+            project_vertices_array_notex_sparse(
+                dash->screen_vertices_x,
+                dash->screen_vertices_y,
+                dash->screen_vertices_z,
+                dashmodel_vertices_x(model),
+                dashmodel_vertices_y(model),
+                dashmodel_vertices_z(model),
+                dashmodel_face_indices_a(model),
+                dashmodel_face_indices_b(model),
+                dashmodel_face_indices_c(model),
+                nf,
+                position->yaw,
+                center_projection.z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                camera->fov_rpi2048,
+                camera->pitch,
+                camera->yaw);
+        }
+        break;
     }
-    else
-    {
-        project_vertices_array_notex(
-            dash->screen_vertices_x,
-            dash->screen_vertices_y,
-            dash->screen_vertices_z,
-            dashmodel_vertices_x(model),
-            dashmodel_vertices_y(model),
-            dashmodel_vertices_z(model),
-            dashmodel_vertex_count(model),
-            position->yaw,
-            center_projection.z,
-            position->x,
-            position->y,
-            position->z,
-            camera->near_plane_z,
-            camera->fov_rpi2048,
-            camera->pitch,
-            camera->yaw);
+    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_FULL:
+        if( dashmodel_has_textures(model) )
+        {
+            project_vertices_array(
+                dash->orthographic_vertices_x,
+                dash->orthographic_vertices_y,
+                dash->orthographic_vertices_z,
+                dash->screen_vertices_x,
+                dash->screen_vertices_y,
+                dash->screen_vertices_z,
+                dashmodel_vertices_x(model),
+                dashmodel_vertices_y(model),
+                dashmodel_vertices_z(model),
+                dashmodel_vertex_count(model),
+                position->yaw,
+                center_projection.z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                camera->fov_rpi2048,
+                camera->pitch,
+                camera->yaw);
+        }
+        else
+        {
+            project_vertices_array_notex(
+                dash->screen_vertices_x,
+                dash->screen_vertices_y,
+                dash->screen_vertices_z,
+                dashmodel_vertices_x(model),
+                dashmodel_vertices_y(model),
+                dashmodel_vertices_z(model),
+                dashmodel_vertex_count(model),
+                position->yaw,
+                center_projection.z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                camera->fov_rpi2048,
+                camera->pitch,
+                camera->yaw);
+        }
+        break;
+    default:
+        assert(0);
     }
 
     return DASHCULL_VISIBLE;
@@ -1641,48 +1820,111 @@ dash3d_project_raw(
         camera->pitch,
         camera->yaw);
 
-    if( dashmodel_has_textures(model) )
+    switch( dashmodel__type(model) )
     {
-        project_vertices_array(
-            dash->orthographic_vertices_x,
-            dash->orthographic_vertices_y,
-            dash->orthographic_vertices_z,
-            dash->screen_vertices_x,
-            dash->screen_vertices_y,
-            dash->screen_vertices_z,
-            dashmodel_vertices_x(model),
-            dashmodel_vertices_y(model),
-            dashmodel_vertices_z(model),
-            dashmodel_vertex_count(model),
-            position->yaw,
-            center_projection.z,
-            position->x,
-            position->y,
-            position->z,
-            camera->near_plane_z,
-            camera->fov_rpi2048,
-            camera->pitch,
-            camera->yaw);
+    case DASHMODEL_TYPE_VA:
+    {
+        int nf = dashmodel_face_count(model);
+        assert(nf <= 4096);
+        if( dashmodel_has_textures(model) )
+        {
+            project_vertices_array_sparse(
+                dash->orthographic_vertices_x,
+                dash->orthographic_vertices_y,
+                dash->orthographic_vertices_z,
+                dash->screen_vertices_x,
+                dash->screen_vertices_y,
+                dash->screen_vertices_z,
+                dashmodel_vertices_x(model),
+                dashmodel_vertices_y(model),
+                dashmodel_vertices_z(model),
+                dashmodel_face_indices_a(model),
+                dashmodel_face_indices_b(model),
+                dashmodel_face_indices_c(model),
+                nf,
+                position->yaw,
+                center_projection.z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                camera->fov_rpi2048,
+                camera->pitch,
+                camera->yaw);
+        }
+        else
+        {
+            project_vertices_array_notex_sparse(
+                dash->screen_vertices_x,
+                dash->screen_vertices_y,
+                dash->screen_vertices_z,
+                dashmodel_vertices_x(model),
+                dashmodel_vertices_y(model),
+                dashmodel_vertices_z(model),
+                dashmodel_face_indices_a(model),
+                dashmodel_face_indices_b(model),
+                dashmodel_face_indices_c(model),
+                nf,
+                position->yaw,
+                center_projection.z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                camera->fov_rpi2048,
+                camera->pitch,
+                camera->yaw);
+        }
+        break;
     }
-    else
-    {
-        project_vertices_array_notex(
-            dash->screen_vertices_x,
-            dash->screen_vertices_y,
-            dash->screen_vertices_z,
-            dashmodel_vertices_x(model),
-            dashmodel_vertices_y(model),
-            dashmodel_vertices_z(model),
-            dashmodel_vertex_count(model),
-            position->yaw,
-            center_projection.z,
-            position->x,
-            position->y,
-            position->z,
-            camera->near_plane_z,
-            camera->fov_rpi2048,
-            camera->pitch,
-            camera->yaw);
+    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_FULL:
+        if( dashmodel_has_textures(model) )
+        {
+            project_vertices_array(
+                dash->orthographic_vertices_x,
+                dash->orthographic_vertices_y,
+                dash->orthographic_vertices_z,
+                dash->screen_vertices_x,
+                dash->screen_vertices_y,
+                dash->screen_vertices_z,
+                dashmodel_vertices_x(model),
+                dashmodel_vertices_y(model),
+                dashmodel_vertices_z(model),
+                dashmodel_vertex_count(model),
+                position->yaw,
+                center_projection.z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                camera->fov_rpi2048,
+                camera->pitch,
+                camera->yaw);
+        }
+        else
+        {
+            project_vertices_array_notex(
+                dash->screen_vertices_x,
+                dash->screen_vertices_y,
+                dash->screen_vertices_z,
+                dashmodel_vertices_x(model),
+                dashmodel_vertices_y(model),
+                dashmodel_vertices_z(model),
+                dashmodel_vertex_count(model),
+                position->yaw,
+                center_projection.z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                camera->fov_rpi2048,
+                camera->pitch,
+                camera->yaw);
+        }
+        break;
+    default:
+        assert(0);
     }
 
     return DASHCULL_VISIBLE;
@@ -1778,54 +2020,123 @@ dash3d_project6(
     if( cull != DASHCULL_VISIBLE )
         return cull;
 
-    if( dashmodel_has_textures(model) )
+    switch( dashmodel__type(model) )
     {
-        project_vertices_array6(
-            dash->orthographic_vertices_x,
-            dash->orthographic_vertices_y,
-            dash->orthographic_vertices_z,
-            dash->screen_vertices_x,
-            dash->screen_vertices_y,
-            dash->screen_vertices_z,
-            dashmodel_vertices_x(model),
-            dashmodel_vertices_y(model),
-            dashmodel_vertices_z(model),
-            dashmodel_vertex_count(model),
-            position->pitch,
-            position->yaw,
-            position->roll,
-            center_projection.z,
-            position->x,
-            position->y,
-            position->z,
-            camera->near_plane_z,
-            camera->fov_rpi2048,
-            camera->pitch,
-            camera->yaw,
-            camera->roll);
+    case DASHMODEL_TYPE_VA:
+    {
+        int nf = dashmodel_face_count(model);
+        assert(nf <= 4096);
+        if( dashmodel_has_textures(model) )
+        {
+            project_vertices_array6_sparse(
+                dash->orthographic_vertices_x,
+                dash->orthographic_vertices_y,
+                dash->orthographic_vertices_z,
+                dash->screen_vertices_x,
+                dash->screen_vertices_y,
+                dash->screen_vertices_z,
+                dashmodel_vertices_x(model),
+                dashmodel_vertices_y(model),
+                dashmodel_vertices_z(model),
+                dashmodel_face_indices_a(model),
+                dashmodel_face_indices_b(model),
+                dashmodel_face_indices_c(model),
+                nf,
+                position->pitch,
+                position->yaw,
+                position->roll,
+                center_projection.z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                camera->fov_rpi2048,
+                camera->pitch,
+                camera->yaw,
+                camera->roll);
+        }
+        else
+        {
+            project_vertices_array6_notex_sparse(
+                dash->screen_vertices_x,
+                dash->screen_vertices_y,
+                dash->screen_vertices_z,
+                dashmodel_vertices_x(model),
+                dashmodel_vertices_y(model),
+                dashmodel_vertices_z(model),
+                dashmodel_face_indices_a(model),
+                dashmodel_face_indices_b(model),
+                dashmodel_face_indices_c(model),
+                nf,
+                position->pitch,
+                position->yaw,
+                position->roll,
+                center_projection.z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                camera->fov_rpi2048,
+                camera->pitch,
+                camera->yaw,
+                camera->roll);
+        }
+        break;
     }
-    else
-    {
-        project_vertices_array6_notex(
-            dash->screen_vertices_x,
-            dash->screen_vertices_y,
-            dash->screen_vertices_z,
-            dashmodel_vertices_x(model),
-            dashmodel_vertices_y(model),
-            dashmodel_vertices_z(model),
-            dashmodel_vertex_count(model),
-            position->pitch,
-            position->yaw,
-            position->roll,
-            center_projection.z,
-            position->x,
-            position->y,
-            position->z,
-            camera->near_plane_z,
-            camera->fov_rpi2048,
-            camera->pitch,
-            camera->yaw,
-            camera->roll);
+    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_FULL:
+        if( dashmodel_has_textures(model) )
+        {
+            project_vertices_array6(
+                dash->orthographic_vertices_x,
+                dash->orthographic_vertices_y,
+                dash->orthographic_vertices_z,
+                dash->screen_vertices_x,
+                dash->screen_vertices_y,
+                dash->screen_vertices_z,
+                dashmodel_vertices_x(model),
+                dashmodel_vertices_y(model),
+                dashmodel_vertices_z(model),
+                dashmodel_vertex_count(model),
+                position->pitch,
+                position->yaw,
+                position->roll,
+                center_projection.z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                camera->fov_rpi2048,
+                camera->pitch,
+                camera->yaw,
+                camera->roll);
+        }
+        else
+        {
+            project_vertices_array6_notex(
+                dash->screen_vertices_x,
+                dash->screen_vertices_y,
+                dash->screen_vertices_z,
+                dashmodel_vertices_x(model),
+                dashmodel_vertices_y(model),
+                dashmodel_vertices_z(model),
+                dashmodel_vertex_count(model),
+                position->pitch,
+                position->yaw,
+                position->roll,
+                center_projection.z,
+                position->x,
+                position->y,
+                position->z,
+                camera->near_plane_z,
+                camera->fov_rpi2048,
+                camera->pitch,
+                camera->yaw,
+                camera->roll);
+        }
+        break;
+    default:
+        assert(0);
     }
 
     return DASHCULL_VISIBLE;
@@ -1901,11 +2212,16 @@ projected_model_contains(
     int adjusted_screen_x = screen_x - view_port->x_center;
     int adjusted_screen_y = screen_y - view_port->y_center;
 
+    faceint_t* fia = NULL;
+    faceint_t* fib = NULL;
+    faceint_t* fic = NULL;
+    dash3d_projected_face_index_ptrs(dash, model, &fia, &fib, &fic);
+
     for( int i = 0; i < dashmodel_face_count(model); i++ )
     {
-        int face_a = dashmodel_face_indices_a_const(model)[i];
-        int face_b = dashmodel_face_indices_b_const(model)[i];
-        int face_c = dashmodel_face_indices_c_const(model)[i];
+        int face_a = fia[i];
+        int face_b = fib[i];
+        int face_c = fic[i];
 
         int x1 = dash->screen_vertices_x[face_a];
         int y1 = dash->screen_vertices_y[face_a];

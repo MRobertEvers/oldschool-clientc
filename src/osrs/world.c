@@ -88,7 +88,8 @@ world_new(
 
     world_prime_map_build_tile_slot0(world);
 
-    /* Local player is fixed at ACTIVE_PLAYER_SLOT; prime so world_player(world, ...) is in range. */
+    /* Local player is fixed at ACTIVE_PLAYER_SLOT; prime so world_player(world, ...) is in range.
+     */
     world_player_ensure(world, ACTIVE_PLAYER_SLOT);
 
     return world;
@@ -120,6 +121,30 @@ world_free(struct World* world)
     collision_map_free(world->collision_map);
     heightmap_free(world->heightmap);
     minimap_free(world->minimap);
+    for( int ti = 0; ti < MAP_TERRAIN_LEVELS; ti++ )
+    {
+        if( world->terrain_va[ti] )
+        {
+            if( world->scene2 )
+            {
+                scene2_vertex_array_unregister(world->scene2, world->terrain_va[ti]);
+                scene2_face_array_unregister(world->scene2, world->terrain_face_array[ti]);
+            }
+            else
+            {
+                dashvertexarray_free(world->terrain_va[ti]);
+                if( world->terrain_face_array[ti] )
+                    dashfacearray_free(world->terrain_face_array[ti]);
+            }
+            world->terrain_va[ti] = NULL;
+            world->terrain_face_array[ti] = NULL;
+        }
+        else if( world->terrain_face_array[ti] && !world->scene2 )
+        {
+            dashfacearray_free(world->terrain_face_array[ti]);
+            world->terrain_face_array[ti] = NULL;
+        }
+    }
     world->scene2 = NULL;
     if( world->decor_buildmap )
         decor_buildmap_free(world->decor_buildmap);
@@ -346,6 +371,31 @@ world_buildcachedat_rebuild_centerzone(
         decor_buildmap_free(world->decor_buildmap);
     if( world->sharelight_map )
         sharelight_map_free(world->sharelight_map);
+
+    for( int ti = 0; ti < MAP_TERRAIN_LEVELS; ti++ )
+    {
+        if( world->terrain_va[ti] )
+        {
+            if( world->scene2 )
+            {
+                scene2_vertex_array_unregister(world->scene2, world->terrain_va[ti]);
+                scene2_face_array_unregister(world->scene2, world->terrain_face_array[ti]);
+            }
+            else
+            {
+                dashvertexarray_free(world->terrain_va[ti]);
+                if( world->terrain_face_array[ti] )
+                    dashfacearray_free(world->terrain_face_array[ti]);
+            }
+            world->terrain_va[ti] = NULL;
+            world->terrain_face_array[ti] = NULL;
+        }
+        else if( world->terrain_face_array[ti] && !world->scene2 )
+        {
+            dashfacearray_free(world->terrain_face_array[ti]);
+            world->terrain_face_array[ti] = NULL;
+        }
+    }
 
     {
         int prev_scene = world->_scene_size;
@@ -1042,7 +1092,11 @@ world_buildcachedat_rebuild_centerzone(
         }
     }
 
+#if WORLD_BUILD_TERRAIN_VA
+    build_scene_terrain_va(world);
+#else
     build_scene_terrain(world);
+#endif
 
     world_build_lighting(world);
 
