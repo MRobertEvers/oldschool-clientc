@@ -12,12 +12,14 @@
 // clang-format on
 
 #define PAINTER_WF_WAVE_CAP 96
-#define PAINTER_MAX_RADIUS 64
+
+/* Farthest-first bucket count for painter_paint_chebyshev / paint3 / paint4 (radius 25):
+ * L_inf max 25, L1 max 50, Euclidean uses d^2 key max 25*25+25*25 = 1250 → indices 0..1250. */
+#define PAINTER_DIST_QUEUE_BUCKETS 1251
 
 #define PAINTER_TILE_IDX(p, t) ((int)((t) - (p)->tiles))
 #define PAINTER_TILE_X(p, t) (PAINTER_TILE_IDX((p), (t)) % (p)->width)
-#define PAINTER_TILE_Z(p, t) \
-    ((PAINTER_TILE_IDX((p), (t)) / (p)->width) % (p)->height)
+#define PAINTER_TILE_Z(p, t) ((PAINTER_TILE_IDX((p), (t)) / (p)->width) % (p)->height)
 
 static inline void
 init_painter_tile(
@@ -97,8 +99,8 @@ struct Painter
     struct IntQueue queue;
     struct IntQueue catchup_queue;
 
-    /* painter_paint3: Chebyshev distance from current_camera_sx/sz (floor only; slevel via FSM). */
-    struct IntQueue distance_queues[PAINTER_MAX_RADIUS];
+    /* painter_paint3/4: distance bucket from current_camera_sx/sz (metric via calc_distance). */
+    struct IntQueue distance_queues[PAINTER_DIST_QUEUE_BUCKETS];
     int max_active_dist;
 
     /* painter_paint2: bucket queue keyed by wave (Chebyshev / corner expansion level). */
@@ -163,9 +165,9 @@ scenery_queue_insertion_sort(
     }
 }
 
-/* painter_paint_chebyshev: bit 0 = clear only the view rectangle tile_paints; bit 1 = insertion-sort
- * per-tile scenery instead of qsort. Same distance-queue FSM as painter_paint3 (ring order alone
- * does not order same-Chebyshev neighbors or multi-tile footprints). */
+/* painter_paint_chebyshev: bit 0 = clear only the view rectangle tile_paints; bit 1 =
+ * insertion-sort per-tile scenery instead of qsort. Same distance-queue FSM as painter_paint3 (ring
+ * order alone does not order same-Chebyshev neighbors or multi-tile footprints). */
 #define CHEB_OPT_CLEAR_BBOX_TILES (1u << 0)
 #define CHEB_OPT_SCENERY_INSERTION_SORT (1u << 1)
 
@@ -216,7 +218,7 @@ painter_queue_pop(struct Painter* painter)
 static void
 painter_dist_queue_reset(struct Painter* painter)
 {
-    for( int i = 0; i < PAINTER_MAX_RADIUS; i++ )
+    for( int i = 0; i < PAINTER_DIST_QUEUE_BUCKETS; i++ )
     {
         painter->distance_queues[i].head = 0;
         painter->distance_queues[i].tail = 0;
@@ -225,19 +227,59 @@ painter_dist_queue_reset(struct Painter* painter)
     painter->max_active_dist = 0;
 }
 
+static inline int
+calc_distance_chebyshev(
+    int dx,
+    int dz)
+{
+    dx = abs(dx);
+    dz = abs(dz);
+    return dx > dz ? dx : dz;
+}
+
+static inline int
+calc_distance_manhattan(
+    int dx,
+    int dz)
+{
+    return abs(dx) + abs(dz);
+}
+
+/* Bucket key monotonic with true Euclidean distance (compare d^2, avoid sqrt). */
+static inline int
+calc_distance_euclid(
+    int dx,
+    int dz)
+{
+    return dx * dx + dz * dz;
+}
+
+static inline int
+calc_distance(
+    int dx,
+    int dz)
+{
+    /* Switch wavefront shape: square (L_inf), diamond (L1), circular (L2 via d^2 buckets). */
+    return calc_distance_manhattan(dx, dz);
+    // return calc_distance_chebyshev(dx, dz);
+    // return calc_distance_euclid(dx, dz);
+}
+
 static inline void
-painter_push_queue_dist(struct Painter* painter, int tile_idx)
+painter_push_queue_dist(
+    struct Painter* painter,
+    int tile_idx)
 {
     struct PaintersTile* tile = &painter->tiles[tile_idx];
     int tile_sx = PAINTER_TILE_X(painter, tile);
     int tile_sz = PAINTER_TILE_Z(painter, tile);
 
-    int dx = abs(tile_sx - painter->current_camera_sx);
-    int dz = abs(tile_sz - painter->current_camera_sz);
-    int dist = dx > dz ? dx : dz;
+    int dx = tile_sx - painter->current_camera_sx;
+    int dz = tile_sz - painter->current_camera_sz;
+    int dist = calc_distance(dx, dz);
 
-    if( dist >= PAINTER_MAX_RADIUS )
-        dist = PAINTER_MAX_RADIUS - 1;
+    if( dist >= PAINTER_DIST_QUEUE_BUCKETS )
+        dist = PAINTER_DIST_QUEUE_BUCKETS - 1;
 
     if( dist > painter->max_active_dist )
         painter->max_active_dist = dist;
@@ -292,7 +334,10 @@ wf_queue_is_empty(struct Painter* painter)
 }
 
 static void
-wf_queue_push(struct Painter* painter, int tile_idx, int wave)
+wf_queue_push(
+    struct Painter* painter,
+    int tile_idx,
+    int wave)
 {
     assert(wave >= 0);
     assert(wave < PAINTER_WF_WAVE_CAP);
@@ -315,7 +360,10 @@ wf_queue_pop(struct Painter* painter)
 }
 
 static inline void
-wf_paint2_push(struct Painter* painter, int tile_idx, int wave)
+wf_paint2_push(
+    struct Painter* painter,
+    int tile_idx,
+    int wave)
 {
     painter->tile_paints[tile_idx].queue_count++;
     wf_queue_push(painter, tile_idx, wave);
@@ -379,39 +427,51 @@ painter_clear_tile_paints_region(
 }
 
 static inline int
-step_idx_east(struct Painter* painter, int tile_idx)
+step_idx_east(
+    struct Painter* painter,
+    int tile_idx)
 {
     (void)painter;
     return tile_idx + 1;
 }
 
 static inline int
-step_idx_west(struct Painter* painter, int tile_idx)
+step_idx_west(
+    struct Painter* painter,
+    int tile_idx)
 {
     (void)painter;
     return tile_idx - 1;
 }
 
 static inline int
-step_idx_north(struct Painter* painter, int tile_idx)
+step_idx_north(
+    struct Painter* painter,
+    int tile_idx)
 {
     return tile_idx + painter->width;
 }
 
 static inline int
-step_idx_south(struct Painter* painter, int tile_idx)
+step_idx_south(
+    struct Painter* painter,
+    int tile_idx)
 {
     return tile_idx - painter->width;
 }
 
 static inline int
-step_idx_up(struct Painter* painter, int tile_idx)
+step_idx_up(
+    struct Painter* painter,
+    int tile_idx)
 {
     return tile_idx + painter->width * painter->height;
 }
 
 static void
-scenery_pool_ensure(struct Painter* painter, int extra)
+scenery_pool_ensure(
+    struct Painter* painter,
+    int extra)
 {
     if( painter->scenery_pool_count + extra <= painter->scenery_pool_capacity )
         return;
@@ -443,7 +503,9 @@ scenery_prepend(
 }
 
 static int32_t
-clone_scenery_chain(struct Painter* painter, int32_t src_head)
+clone_scenery_chain(
+    struct Painter* painter,
+    int32_t src_head)
 {
     if( src_head < 0 )
         return -1;
@@ -467,7 +529,9 @@ clone_scenery_chain(struct Painter* painter, int32_t src_head)
 }
 
 static void
-tile_recalculate_spans(struct Painter* painter, struct PaintersTile* tile)
+tile_recalculate_spans(
+    struct Painter* painter,
+    struct PaintersTile* tile)
 {
     tile->spans = 0;
     for( int32_t n = tile->scenery_head; n != -1; n = painter->scenery_pool[n].next )
@@ -542,7 +606,7 @@ painter_new(
         int_queue_init(&painter->wf_wave_q[i], 4096);
     painter->wf_min_wave = 0;
 
-    for( int i = 0; i < PAINTER_MAX_RADIUS; i++ )
+    for( int i = 0; i < PAINTER_DIST_QUEUE_BUCKETS; i++ )
         int_queue_init(&painter->distance_queues[i], 1024);
 
     return painter;
@@ -562,7 +626,7 @@ painter_free(struct Painter* painter)
     int_queue_free(&painter->catchup_queue);
     for( int i = 0; i < PAINTER_WF_WAVE_CAP; i++ )
         int_queue_free(&painter->wf_wave_q[i]);
-    for( int i = 0; i < PAINTER_MAX_RADIUS; i++ )
+    for( int i = 0; i < PAINTER_DIST_QUEUE_BUCKETS; i++ )
         int_queue_free(&painter->distance_queues[i]);
     free(painter);
 }
@@ -1407,8 +1471,7 @@ painter_paint(
                 }
             }
 
-            push_command_terrain(
-                buffer, tile_sx, tile_sz, painters_tile_get_terrain_slevel(tile));
+            push_command_terrain(buffer, tile_sx, tile_sz, painters_tile_get_terrain_slevel(tile));
 
             if( tile->wall_a != -1 )
             {
@@ -1907,12 +1970,13 @@ painter_paint_chebyshev(
     painter->current_camera_sz = camera_sz;
 
     /*
-     * Chebyshev distance buckets use floor (sx,sz) only. Stacked slevels at the same column
-     * share a bucket; PAINT_STEP_READY still waits on the level below. Large locs no longer
-     * use catchup prio; ordering is bucket FIFO plus queue_count revisits.
+     * Distance buckets use floor (sx,sz) only; key from calc_distance (L_inf / L1 / d^2).
+     * Stacked slevels at the same column share a bucket; PAINT_STEP_READY still waits on the
+     * level below. Large locs no longer use catchup prio; ordering is bucket FIFO plus
+     * queue_count revisits.
      *
-     * Seed the full axis-aligned border of [min_draw,max_draw) (half-open in x,z). A virtual
-     * Chebyshev ring at exactly |dx|==radius || |dz|==radius misses the +x/+z edges because
+     * Seed the full axis-aligned border of [min_draw,max_draw) (half-open in x,z). For L_inf,
+     * a virtual ring at exactly |dx|==radius || |dz|==radius misses the +x/+z edges because
      * valid tiles stop at max_draw-1, and the northeast corner (max-1,max-1) has L_inf
      * distance radius-1 so it never lies on that ring — nothing would seed it.
      */
@@ -2126,8 +2190,7 @@ painter_paint_chebyshev(
                 }
             }
 
-            push_command_terrain(
-                buffer, tile_sx, tile_sz, painters_tile_get_terrain_slevel(tile));
+            push_command_terrain(buffer, tile_sx, tile_sz, painters_tile_get_terrain_slevel(tile));
 
             if( tile->wall_a != -1 )
             {
@@ -2551,7 +2614,7 @@ painter_paint_chebyshev(
     done:;
     } // while( distance queues )
 
-    for( int qi = 0; qi < PAINTER_MAX_RADIUS; qi++ )
+    for( int qi = 0; qi < PAINTER_DIST_QUEUE_BUCKETS; qi++ )
         assert(painter->distance_queues[qi].length == 0);
 
     return 0;
@@ -2565,8 +2628,7 @@ painter_paint3(
     int camera_sz,
     int camera_slevel)
 {
-    return painter_paint_chebyshev(
-        painter, buffer, camera_sx, camera_sz, camera_slevel, 0u);
+    return painter_paint_chebyshev(painter, buffer, camera_sx, camera_sz, camera_slevel, 0u);
 }
 
 int
@@ -2935,8 +2997,7 @@ painter_paint2(
                 }
             }
 
-            push_command_terrain(
-                buffer, tile_sx, tile_sz, painters_tile_get_terrain_slevel(tile));
+            push_command_terrain(buffer, tile_sx, tile_sz, painters_tile_get_terrain_slevel(tile));
 
             if( tile->wall_a != -1 )
             {

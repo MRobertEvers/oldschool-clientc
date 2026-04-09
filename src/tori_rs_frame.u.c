@@ -547,6 +547,8 @@ LibToriRS_FrameBegin(
         uint64_t dt_paint_ns;
         uint64_t dt_paint3_ns;
 
+        // painter_paint4(painter, buffer, camera_sx, camera_sz, camera_slevel);
+
         if( (rand() & 1) == 0 )
         {
             clock_gettime(CLOCK_MONOTONIC, &t0);
