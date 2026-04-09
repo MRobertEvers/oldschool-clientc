@@ -153,7 +153,7 @@ wf_build_shell_table(
        wf_shell_offsets[d] = start of shell d in wf_shell_tiles.
        wf_shell_offsets[max_dist+1] = total (sentinel). */
     int running = 0;
-    for (int d = max_dist; d >= 0; d--) {
+for (int d = max_dist; d >= 0; d--) {
         painter->wf_shell_offsets[d] = running;
         running += counts[d];
     }

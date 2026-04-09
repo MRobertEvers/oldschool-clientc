@@ -23,21 +23,6 @@ enum SpanFlag
     SPAN_FLAG_SOUTH = 1 << 3,
 };
 
-/** Per-tile flags for painter_paint2 wavefront (indexed by painter tile index). */
-enum WfTileFlag
-{
-    WF_GROUND = 1 << 0,
-    WF_DONE = 1 << 1,
-};
-
-/** Deferred multi-tile scenery until all footprint tiles have ground drawn. */
-struct DeferredLoc
-{
-    int16_t element_idx;
-    int16_t remaining_ground;
-    uint8_t level;
-};
-
 enum PaintersTileFlags
 {
     /**
@@ -118,7 +103,9 @@ painters_tile_get_slevel(const struct PaintersTile* t)
 }
 
 static inline void
-painters_tile_set_slevel(struct PaintersTile* t, uint8_t v)
+painters_tile_set_slevel(
+    struct PaintersTile* t,
+    uint8_t v)
 {
     t->packed_meta = (uint16_t)((t->packed_meta & ~PAINTERS_TILE_META_SLEVEL_MASK) | (v & 7u));
 }
@@ -131,7 +118,9 @@ painters_tile_get_terrain_slevel(const struct PaintersTile* t)
 }
 
 static inline void
-painters_tile_set_terrain_slevel(struct PaintersTile* t, uint8_t v)
+painters_tile_set_terrain_slevel(
+    struct PaintersTile* t,
+    uint8_t v)
 {
     t->packed_meta = (uint16_t)((t->packed_meta & ~PAINTERS_TILE_META_TERR_SLEVEL_MASK) |
                                 ((uint16_t)(v & 7u) << PAINTERS_TILE_META_TERR_SLEVEL_SHIFT));
@@ -144,14 +133,18 @@ painters_tile_get_flags(const struct PaintersTile* t)
 }
 
 static inline void
-painters_tile_set_flags(struct PaintersTile* t, uint16_t f)
+painters_tile_set_flags(
+    struct PaintersTile* t,
+    uint16_t f)
 {
     t->packed_meta = (uint16_t)((t->packed_meta & ((1u << PAINTERS_TILE_META_FLAGS_SHIFT) - 1u)) |
                                 (f << PAINTERS_TILE_META_FLAGS_SHIFT));
 }
 
 static inline void
-painters_tile_or_flags(struct PaintersTile* t, uint16_t f)
+painters_tile_or_flags(
+    struct PaintersTile* t,
+    uint16_t f)
 {
     painters_tile_set_flags(t, (uint16_t)(painters_tile_get_flags(t) | f));
 }
