@@ -85,6 +85,7 @@ dash3d_projected_face_index_ptrs(
 #include "projection.u.c"
 #include "projection_simd.u.c"
 #endif
+#include "projection_sparse.u.c"
 #include "anim.u.c"
 // clang-format on
 

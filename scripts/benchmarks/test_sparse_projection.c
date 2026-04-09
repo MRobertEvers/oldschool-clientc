@@ -6,6 +6,8 @@
  *   cc -std=c11 -O2 -I src/graphics -I src \
  *     scripts/benchmarks/test_sparse_projection.c src/graphics/shared_tables.c \
  *     -o build/test_sparse_projection -lm
+ *
+ * (This file #includes projection16_simd.u.c then projection_sparse.u.c.)
  */
 
 #include <stdio.h>
@@ -18,6 +20,7 @@
 #include "shared_tables.h"
 
 #include "../../src/graphics/projection16_simd.u.c"
+#include "../../src/graphics/projection_sparse.u.c"
 
 #define NF 5
 #define NSLOT (NF * 3)

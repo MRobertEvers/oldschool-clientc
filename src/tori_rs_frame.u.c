@@ -888,6 +888,11 @@ uielem_world_step(
     if( !element )
         return true;
 
+    if( game->at_painters_command_index >= game->cc )
+    {
+        return true;
+    }
+
 next:
     if( game->at_painters_command_index >= game->sys_painter_buffer->command_count )
     {
