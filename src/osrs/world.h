@@ -86,11 +86,10 @@ struct World
 
     struct BuildCacheDat* buildcachedat;
 
-    /** Terrain: shared vertex buffers per level (absolute world coords); per-tile DashModelVA
-     * references the same array; scene elements use normal MapBuildTileEntity indices. */
+    /** Terrain: pointers to shared geometry per level. With scene2, Scene2 owns the arrays
+     * (register/unregister); these are non-owning. Without scene2, world frees them. */
     struct DashVertexArray* terrain_va[MAP_TERRAIN_LEVELS];
 
-    /** Terrain: shared face storage per level; per-tile DashModelVA references a slice. */
     struct DashFaceArray* terrain_face_array[MAP_TERRAIN_LEVELS];
 };
 

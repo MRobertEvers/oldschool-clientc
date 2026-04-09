@@ -834,12 +834,28 @@ build_scene_terrain_va(struct World* world)
         va->vertices_z = va_z;
 
         if( world->terrain_va[level] )
-            dashvertexarray_free(world->terrain_va[level]);
+        {
+            if( world->scene2 )
+            {
+                scene2_vertex_array_unregister(world->scene2, world->terrain_va[level]);
+                scene2_face_array_unregister(
+                    world->scene2, world->terrain_face_array[level]);
+            }
+            else
+            {
+                dashvertexarray_free(world->terrain_va[level]);
+                if( world->terrain_face_array[level] )
+                    dashfacearray_free(world->terrain_face_array[level]);
+            }
+        }
         world->terrain_va[level] = va;
-
-        if( world->terrain_face_array[level] )
-            dashfacearray_free(world->terrain_face_array[level]);
         world->terrain_face_array[level] = fa;
+
+        if( world->scene2 )
+        {
+            scene2_vertex_array_register(world->scene2, va);
+            scene2_face_array_register(world->scene2, fa);
+        }
 
         for( size_t ti = 0; ti < tile_grid_n; ti++ )
         {

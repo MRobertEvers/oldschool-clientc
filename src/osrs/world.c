@@ -125,10 +125,21 @@ world_free(struct World* world)
     {
         if( world->terrain_va[ti] )
         {
-            dashvertexarray_free(world->terrain_va[ti]);
+            if( world->scene2 )
+            {
+                scene2_vertex_array_unregister(world->scene2, world->terrain_va[ti]);
+                scene2_face_array_unregister(world->scene2, world->terrain_face_array[ti]);
+            }
+            else
+            {
+                dashvertexarray_free(world->terrain_va[ti]);
+                if( world->terrain_face_array[ti] )
+                    dashfacearray_free(world->terrain_face_array[ti]);
+            }
             world->terrain_va[ti] = NULL;
+            world->terrain_face_array[ti] = NULL;
         }
-        if( world->terrain_face_array[ti] )
+        else if( world->terrain_face_array[ti] && !world->scene2 )
         {
             dashfacearray_free(world->terrain_face_array[ti]);
             world->terrain_face_array[ti] = NULL;
@@ -365,10 +376,21 @@ world_buildcachedat_rebuild_centerzone(
     {
         if( world->terrain_va[ti] )
         {
-            dashvertexarray_free(world->terrain_va[ti]);
+            if( world->scene2 )
+            {
+                scene2_vertex_array_unregister(world->scene2, world->terrain_va[ti]);
+                scene2_face_array_unregister(world->scene2, world->terrain_face_array[ti]);
+            }
+            else
+            {
+                dashvertexarray_free(world->terrain_va[ti]);
+                if( world->terrain_face_array[ti] )
+                    dashfacearray_free(world->terrain_face_array[ti]);
+            }
             world->terrain_va[ti] = NULL;
+            world->terrain_face_array[ti] = NULL;
         }
-        if( world->terrain_face_array[ti] )
+        else if( world->terrain_face_array[ti] && !world->scene2 )
         {
             dashfacearray_free(world->terrain_face_array[ti]);
             world->terrain_face_array[ti] = NULL;

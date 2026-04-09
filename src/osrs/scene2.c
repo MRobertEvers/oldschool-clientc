@@ -26,13 +26,17 @@ scene2_el_prev(struct Scene2Element* e)
 }
 
 static void
-scene2_el_set_next(struct Scene2Element* e, struct Scene2Element* n)
+scene2_el_set_next(
+    struct Scene2Element* e,
+    struct Scene2Element* n)
 {
     ((struct Scene2ElementFast*)e)->next = n;
 }
 
 static void
-scene2_el_set_prev(struct Scene2Element* e, struct Scene2Element* p)
+scene2_el_set_prev(
+    struct Scene2Element* e,
+    struct Scene2Element* p)
 {
     ((struct Scene2ElementFast*)e)->prev = p;
 }
@@ -65,7 +69,8 @@ scene2_element_id(
     struct Scene2* scene2,
     const struct Scene2Element* el)
 {
-    ptrdiff_t d = (const struct Scene2ElementFast*)el - (const struct Scene2ElementFast*)scene2->fast_pool;
+    ptrdiff_t d =
+        (const struct Scene2ElementFast*)el - (const struct Scene2ElementFast*)scene2->fast_pool;
     if( d >= 0 && d < scene2->fast_count )
         return (int)d;
     ptrdiff_t d2 =
@@ -75,7 +80,9 @@ scene2_element_id(
 }
 
 static int
-scene2_element_id_from_ptr(struct Scene2* scene2, struct Scene2Element* el)
+scene2_element_id_from_ptr(
+    struct Scene2* scene2,
+    struct Scene2Element* el)
 {
     return scene2_element_id(scene2, el);
 }
@@ -108,7 +115,9 @@ scene2_elements_total(const struct Scene2* scene2)
 }
 
 struct Scene2*
-scene2_new(int fast_count, int full_count)
+scene2_new(
+    int fast_count,
+    int full_count)
 {
     struct Scene2* scene2 = malloc(sizeof(struct Scene2));
     memset(scene2, 0, sizeof(struct Scene2));
@@ -118,8 +127,8 @@ scene2_new(int fast_count, int full_count)
 
     if( fast_count > 0 )
     {
-        scene2->fast_pool =
-            (struct Scene2ElementFast*)malloc((size_t)fast_count * sizeof(struct Scene2ElementFast));
+        scene2->fast_pool = (struct Scene2ElementFast*)malloc(
+            (size_t)fast_count * sizeof(struct Scene2ElementFast));
         memset(scene2->fast_pool, 0, (size_t)fast_count * sizeof(struct Scene2ElementFast));
         for( int i = 0; i < fast_count; i++ )
         {
@@ -135,8 +144,8 @@ scene2_new(int fast_count, int full_count)
 
     if( full_count > 0 )
     {
-        scene2->full_pool =
-            (struct Scene2ElementFull*)malloc((size_t)full_count * sizeof(struct Scene2ElementFull));
+        scene2->full_pool = (struct Scene2ElementFull*)malloc(
+            (size_t)full_count * sizeof(struct Scene2ElementFull));
         memset(scene2->full_pool, 0, (size_t)full_count * sizeof(struct Scene2ElementFull));
         for( int i = 0; i < full_count; i++ )
         {
@@ -189,12 +198,27 @@ scene2_free(struct Scene2* scene2)
     for( int i = 0; i < scene2->textures_count; i++ )
         texture_free(scene2->textures[i].texture);
     free(scene2->textures);
+
+    scene2_flush_deferred_array_frees(scene2);
+
+    for( int i = 0; i < scene2->vertex_arrays_count; i++ )
+        dashvertexarray_free(scene2->vertex_arrays[i]);
+    free(scene2->vertex_arrays);
+
+    for( int i = 0; i < scene2->face_arrays_count; i++ )
+        dashfacearray_free(scene2->face_arrays[i]);
+    free(scene2->face_arrays);
+
+    free(scene2->vertex_arrays_deferred_free);
+    free(scene2->face_arrays_deferred_free);
     free(scene2->eventbuffer);
     free(scene2);
 }
 
 static void
-scene2_splice_out_active(struct Scene2* scene2, struct Scene2Element* element)
+scene2_splice_out_active(
+    struct Scene2* scene2,
+    struct Scene2Element* element)
 {
     struct Scene2Element* nx = scene2_el_next(element);
     struct Scene2Element* pr = scene2_el_prev(element);
@@ -207,7 +231,9 @@ scene2_splice_out_active(struct Scene2* scene2, struct Scene2Element* element)
 }
 
 static void
-scene2_push_active(struct Scene2* scene2, struct Scene2Element* element)
+scene2_push_active(
+    struct Scene2* scene2,
+    struct Scene2Element* element)
 {
     scene2_el_set_next(element, scene2->active_list);
     scene2_el_set_prev(element, NULL);
@@ -231,8 +257,8 @@ scene2_element_acquire_fast(
         scene2_el_set_prev(scene2->fast_free_list, NULL);
 
     struct Scene2ElementFast* f = scene2__as_fast(element);
-    f->flags_entity =
-        SCENE2_FLAG_VALID | SCENE2_FLAG_FAST | SCENE2_FLAG_ACTIVE | scene2_pack_parent(parent_entity_id);
+    f->flags_entity = SCENE2_FLAG_VALID | SCENE2_FLAG_FAST | SCENE2_FLAG_ACTIVE |
+                      scene2_pack_parent(parent_entity_id);
 
     scene2_push_active(scene2, element);
 
@@ -242,8 +268,8 @@ scene2_element_acquire_fast(
         scene2,
         (struct Scene2Event){
             .type = SCENE2_EVENT_ELEMENT_ACQUIRED,
-            .element_id = element_id,
-            .parent_entity_id = parent_entity_id,
+            .u.element.element_id = element_id,
+            .u.element.parent_entity_id = parent_entity_id,
         });
 
     return element_id;
@@ -273,8 +299,8 @@ scene2_element_acquire_full(
         scene2,
         (struct Scene2Event){
             .type = SCENE2_EVENT_ELEMENT_ACQUIRED,
-            .element_id = element_id,
-            .parent_entity_id = parent_entity_id,
+            .u.element.element_id = element_id,
+            .u.element.parent_entity_id = parent_entity_id,
         });
 
     return element_id;
@@ -354,8 +380,8 @@ scene2_element_set_dash_model(
             scene2,
             (struct Scene2Event){
                 .type = SCENE2_EVENT_MODEL_CHANGED,
-                .element_id = scene2_element_id_from_ptr(scene2, element),
-                .parent_entity_id = scene2_element_parent_entity_id(element),
+                .u.element.element_id = scene2_element_id_from_ptr(scene2, element),
+                .u.element.parent_entity_id = scene2_element_parent_entity_id(element),
             });
     }
 }
@@ -474,8 +500,8 @@ scene2_element_release(
         scene2,
         (struct Scene2Event){
             .type = SCENE2_EVENT_ELEMENT_RELEASED,
-            .element_id = element_id,
-            .parent_entity_id = parent_entity_id,
+            .u.element.element_id = element_id,
+            .u.element.parent_entity_id = parent_entity_id,
         });
 }
 
@@ -569,7 +595,9 @@ scene2_element_active_frame(const struct Scene2Element* element)
 }
 
 void
-scene2_element_set_active_anim_id(struct Scene2Element* element, uint16_t id)
+scene2_element_set_active_anim_id(
+    struct Scene2Element* element,
+    uint16_t id)
 {
     if( scene2__is_fast(element) )
         return;
@@ -577,7 +605,9 @@ scene2_element_set_active_anim_id(struct Scene2Element* element, uint16_t id)
 }
 
 void
-scene2_element_set_active_frame(struct Scene2Element* element, uint8_t frame)
+scene2_element_set_active_frame(
+    struct Scene2Element* element,
+    uint8_t frame)
 {
     if( scene2__is_fast(element) )
         return;
@@ -656,7 +686,7 @@ scene2_texture_add(
         scene2,
         (struct Scene2Event){
             .type = SCENE2_EVENT_TEXTURE_LOADED,
-            .texture_id = texture_id,
+            .u.texture.texture_id = texture_id,
         });
 }
 
@@ -673,4 +703,220 @@ scene2_texture_get(
             return scene2->textures[i].texture;
     }
     return NULL;
+}
+
+static bool
+scene2__ptr_in_vertex_arrays(
+    const struct Scene2* scene2,
+    const struct DashVertexArray* va)
+{
+    for( int i = 0; i < scene2->vertex_arrays_count; i++ )
+    {
+        if( scene2->vertex_arrays[i] == va )
+            return true;
+    }
+    return false;
+}
+
+static bool
+scene2__ptr_in_face_arrays(
+    const struct Scene2* scene2,
+    const struct DashFaceArray* fa)
+{
+    for( int i = 0; i < scene2->face_arrays_count; i++ )
+    {
+        if( scene2->face_arrays[i] == fa )
+            return true;
+    }
+    return false;
+}
+
+static void
+scene2__defer_vertex_array_free(
+    struct Scene2* scene2,
+    struct DashVertexArray* va)
+{
+    if( !scene2 || !va )
+        return;
+    if( scene2->vertex_arrays_deferred_free_count >= scene2->vertex_arrays_deferred_free_capacity )
+    {
+        int ncap = scene2->vertex_arrays_deferred_free_capacity == 0
+                       ? 8
+                       : scene2->vertex_arrays_deferred_free_capacity * 2;
+        scene2->vertex_arrays_deferred_free = realloc(
+            scene2->vertex_arrays_deferred_free,
+            (size_t)ncap * sizeof(scene2->vertex_arrays_deferred_free[0]));
+        scene2->vertex_arrays_deferred_free_capacity = ncap;
+    }
+    scene2->vertex_arrays_deferred_free[scene2->vertex_arrays_deferred_free_count++] = va;
+}
+
+static void
+scene2__defer_face_array_free(
+    struct Scene2* scene2,
+    struct DashFaceArray* fa)
+{
+    if( !scene2 || !fa )
+        return;
+    if( scene2->face_arrays_deferred_free_count >= scene2->face_arrays_deferred_free_capacity )
+    {
+        int ncap = scene2->face_arrays_deferred_free_capacity == 0
+                       ? 8
+                       : scene2->face_arrays_deferred_free_capacity * 2;
+        scene2->face_arrays_deferred_free = realloc(
+            scene2->face_arrays_deferred_free,
+            (size_t)ncap * sizeof(scene2->face_arrays_deferred_free[0]));
+        scene2->face_arrays_deferred_free_capacity = ncap;
+    }
+    scene2->face_arrays_deferred_free[scene2->face_arrays_deferred_free_count++] = fa;
+}
+
+void
+scene2_flush_deferred_array_frees(struct Scene2* scene2)
+{
+    if( !scene2 )
+        return;
+    for( int i = 0; i < scene2->vertex_arrays_deferred_free_count; i++ )
+        dashvertexarray_free(scene2->vertex_arrays_deferred_free[i]);
+    scene2->vertex_arrays_deferred_free_count = 0;
+
+    for( int j = 0; j < scene2->face_arrays_deferred_free_count; j++ )
+        dashfacearray_free(scene2->face_arrays_deferred_free[j]);
+    scene2->face_arrays_deferred_free_count = 0;
+}
+
+void
+scene2_vertex_array_register(
+    struct Scene2* scene2,
+    struct DashVertexArray* vertex_array)
+{
+    if( !scene2 || !vertex_array )
+        return;
+    if( scene2__ptr_in_vertex_arrays(scene2, vertex_array) )
+        return;
+
+    if( scene2->vertex_arrays_count >= scene2->vertex_arrays_capacity )
+    {
+        int ncap = scene2->vertex_arrays_capacity == 0 ? 8 : scene2->vertex_arrays_capacity * 2;
+        scene2->vertex_arrays =
+            realloc(scene2->vertex_arrays, (size_t)ncap * sizeof(scene2->vertex_arrays[0]));
+        scene2->vertex_arrays_capacity = ncap;
+    }
+
+    scene2->vertex_arrays[scene2->vertex_arrays_count++] = vertex_array;
+    scene2_eventbuffer_push(
+        scene2,
+        (struct Scene2Event){
+            .type = SCENE2_EVENT_VERTEX_ARRAY_ADDED,
+            .u.vertex_array.array = vertex_array,
+        });
+}
+
+void
+scene2_vertex_array_unregister(
+    struct Scene2* scene2,
+    struct DashVertexArray* vertex_array)
+{
+    if( !scene2 || !vertex_array )
+        return;
+
+    for( int i = 0; i < scene2->vertex_arrays_count; i++ )
+    {
+        if( scene2->vertex_arrays[i] != vertex_array )
+            continue;
+        scene2_eventbuffer_push(
+            scene2,
+            (struct Scene2Event){
+                .type = SCENE2_EVENT_VERTEX_ARRAY_REMOVED,
+                .u.vertex_array.array = vertex_array,
+            });
+        scene2->vertex_arrays[i] = scene2->vertex_arrays[scene2->vertex_arrays_count - 1];
+        scene2->vertex_arrays_count--;
+        scene2__defer_vertex_array_free(scene2, vertex_array);
+        return;
+    }
+}
+
+void
+scene2_face_array_register(
+    struct Scene2* scene2,
+    struct DashFaceArray* face_array)
+{
+    if( !scene2 || !face_array )
+        return;
+    if( scene2__ptr_in_face_arrays(scene2, face_array) )
+        return;
+
+    if( scene2->face_arrays_count >= scene2->face_arrays_capacity )
+    {
+        int ncap = scene2->face_arrays_capacity == 0 ? 8 : scene2->face_arrays_capacity * 2;
+        scene2->face_arrays =
+            realloc(scene2->face_arrays, (size_t)ncap * sizeof(scene2->face_arrays[0]));
+        scene2->face_arrays_capacity = ncap;
+    }
+
+    scene2->face_arrays[scene2->face_arrays_count++] = face_array;
+    scene2_eventbuffer_push(
+        scene2,
+        (struct Scene2Event){
+            .type = SCENE2_EVENT_FACE_ARRAY_ADDED,
+            .u.face_array.array = face_array,
+        });
+}
+
+void
+scene2_face_array_unregister(
+    struct Scene2* scene2,
+    struct DashFaceArray* face_array)
+{
+    if( !scene2 || !face_array )
+        return;
+
+    for( int i = 0; i < scene2->face_arrays_count; i++ )
+    {
+        if( scene2->face_arrays[i] != face_array )
+            continue;
+        scene2_eventbuffer_push(
+            scene2,
+            (struct Scene2Event){
+                .type = SCENE2_EVENT_FACE_ARRAY_REMOVED,
+                .u.face_array.array = face_array,
+            });
+        scene2->face_arrays[i] = scene2->face_arrays[scene2->face_arrays_count - 1];
+        scene2->face_arrays_count--;
+        scene2__defer_face_array_free(scene2, face_array);
+        return;
+    }
+}
+
+int
+scene2_vertex_arrays_count(const struct Scene2* scene2)
+{
+    return scene2 ? scene2->vertex_arrays_count : 0;
+}
+
+struct DashVertexArray*
+scene2_vertex_array_at(
+    struct Scene2* scene2,
+    int index)
+{
+    if( !scene2 || index < 0 || index >= scene2->vertex_arrays_count )
+        return NULL;
+    return scene2->vertex_arrays[index];
+}
+
+int
+scene2_face_arrays_count(const struct Scene2* scene2)
+{
+    return scene2 ? scene2->face_arrays_count : 0;
+}
+
+struct DashFaceArray*
+scene2_face_array_at(
+    struct Scene2* scene2,
+    int index)
+{
+    if( !scene2 || index < 0 || index >= scene2->face_arrays_count )
+        return NULL;
+    return scene2->face_arrays[index];
 }
