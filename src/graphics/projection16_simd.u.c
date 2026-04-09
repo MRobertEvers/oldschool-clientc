@@ -1,9 +1,9 @@
 #ifndef PROJECTION16_SIMD_U_C
 #define PROJECTION16_SIMD_U_C
 
-#include "projection.h"
 #include "dash_faceint.h"
 #include "dash_vertexint.h"
+#include "projection.h"
 /* Scalar helpers live in projection.u.c (also pulled in by render_*.u.c before this TU). */
 #include "projection.u.c"
 
@@ -14,6 +14,21 @@
 extern int g_tan_table[2048];
 extern int g_cos_table[2048];
 extern int g_sin_table[2048];
+
+static inline int
+projection16_sparse_corner_vi(
+    int cor,
+    int f,
+    const faceint_t* va,
+    const faceint_t* vb,
+    const faceint_t* vc)
+{
+    if( cor == 0 )
+        return (int)va[f];
+    if( cor == 1 )
+        return (int)vb[f];
+    return (int)vc[f];
+}
 
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
 #include <arm_neon.h>
@@ -755,6 +770,903 @@ project_vertices_array_notex(
             if( screen_vertices_x[i] == -5000 )
                 screen_vertices_x[i] = -5001;
             screen_vertices_y[i] /= z;
+        }
+    }
+}
+
+static inline int32x4_t
+projection16_neon_gather_vx4(
+    vertexint_t* v,
+    int i0,
+    int i1,
+    int i2,
+    int i3)
+{
+    int32x4_t q = vdupq_n_s32(0);
+    q = vsetq_lane_s32((int32_t)v[i0], q, 0);
+    q = vsetq_lane_s32((int32_t)v[i1], q, 1);
+    q = vsetq_lane_s32((int32_t)v[i2], q, 2);
+    q = vsetq_lane_s32((int32_t)v[i3], q, 3);
+    return q;
+}
+
+static inline void
+projection16_neon_scatter_i32x4(
+    int* arr,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int32x4_t v)
+{
+    arr[o0] = vgetq_lane_s32(v, 0);
+    arr[o1] = vgetq_lane_s32(v, 1);
+    arr[o2] = vgetq_lane_s32(v, 2);
+    arr[o3] = vgetq_lane_s32(v, 3);
+}
+
+static inline void
+projection16_neon_sparse_tex_pass1_yaws(
+    vertexint_t* vx,
+    vertexint_t* vy,
+    vertexint_t* vz,
+    int vi0,
+    int vi1,
+    int vi2,
+    int vi3,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int cos_model_yaw,
+    int sin_model_yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int cos_camera_yaw,
+    int sin_camera_yaw,
+    int cos_camera_pitch,
+    int sin_camera_pitch,
+    int cot_fov_half_ish15,
+    int* ox,
+    int* oy,
+    int* oz,
+    int* sx,
+    int* sy)
+{
+    int32x4_t xv4 = projection16_neon_gather_vx4(vx, vi0, vi1, vi2, vi3);
+    int32x4_t yv4 = projection16_neon_gather_vx4(vy, vi0, vi1, vi2, vi3);
+    int32x4_t zv4 = projection16_neon_gather_vx4(vz, vi0, vi1, vi2, vi3);
+
+    int32x4_t c_my = vdupq_n_s32(cos_model_yaw);
+    int32x4_t s_my = vdupq_n_s32(sin_model_yaw);
+    int32x4_t x_tmp = vaddq_s32(vmulq_s32(xv4, c_my), vmulq_s32(zv4, s_my));
+    int32x4_t x_rotated = vshrq_n_s32(x_tmp, 16);
+    int32x4_t z_tmp = vsubq_s32(vmulq_s32(zv4, c_my), vmulq_s32(xv4, s_my));
+    int32x4_t z_rotated = vshrq_n_s32(z_tmp, 16);
+
+    x_rotated = vaddq_s32(x_rotated, vdupq_n_s32(scene_x));
+    int32x4_t y_rotated = vaddq_s32(yv4, vdupq_n_s32(scene_y));
+    z_rotated = vaddq_s32(z_rotated, vdupq_n_s32(scene_z));
+
+    int32x4_t c_yaw = vdupq_n_s32(cos_camera_yaw);
+    int32x4_t s_yaw = vdupq_n_s32(sin_camera_yaw);
+    int32x4_t x_scene = vaddq_s32(vmulq_s32(x_rotated, c_yaw), vmulq_s32(z_rotated, s_yaw));
+    x_scene = vshrq_n_s32(x_scene, 16);
+    int32x4_t z_scene = vsubq_s32(vmulq_s32(z_rotated, c_yaw), vmulq_s32(x_rotated, s_yaw));
+    z_scene = vshrq_n_s32(z_scene, 16);
+
+    int32x4_t c_pitch = vdupq_n_s32(cos_camera_pitch);
+    int32x4_t s_pitch = vdupq_n_s32(sin_camera_pitch);
+    int32x4_t y_scene = vsubq_s32(vmulq_s32(y_rotated, c_pitch), vmulq_s32(z_scene, s_pitch));
+    y_scene = vshrq_n_s32(y_scene, 16);
+    int32x4_t z_final = vaddq_s32(vmulq_s32(y_rotated, s_pitch), vmulq_s32(z_scene, c_pitch));
+    z_final = vshrq_n_s32(z_final, 16);
+
+    projection16_neon_scatter_i32x4(ox, o0, o1, o2, o3, x_scene);
+    projection16_neon_scatter_i32x4(oy, o0, o1, o2, o3, y_scene);
+    projection16_neon_scatter_i32x4(oz, o0, o1, o2, o3, z_final);
+
+    int32x4_t cot_v = vdupq_n_s32(cot_fov_half_ish15);
+    int32x4_t xfov = vmulq_s32(x_scene, cot_v);
+    int32x4_t yfov = vmulq_s32(y_scene, cot_v);
+    int32x4_t x_scaled = vshrq_n_s32(xfov, 6);
+    int32x4_t y_scaled = vshrq_n_s32(yfov, 6);
+
+    projection16_neon_scatter_i32x4(sx, o0, o1, o2, o3, x_scaled);
+    projection16_neon_scatter_i32x4(sy, o0, o1, o2, o3, y_scaled);
+}
+
+static inline void
+projection16_neon_sparse_tex_pass1_noyaw(
+    vertexint_t* vx,
+    vertexint_t* vy,
+    vertexint_t* vz,
+    int vi0,
+    int vi1,
+    int vi2,
+    int vi3,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int cos_camera_yaw,
+    int sin_camera_yaw,
+    int cos_camera_pitch,
+    int sin_camera_pitch,
+    int cot_fov_half_ish15,
+    int* ox,
+    int* oy,
+    int* oz,
+    int* sx,
+    int* sy)
+{
+    int32x4_t xv4 = projection16_neon_gather_vx4(vx, vi0, vi1, vi2, vi3);
+    int32x4_t yv4 = projection16_neon_gather_vx4(vy, vi0, vi1, vi2, vi3);
+    int32x4_t zv4 = projection16_neon_gather_vx4(vz, vi0, vi1, vi2, vi3);
+
+    int32x4_t x_rotated = vaddq_s32(xv4, vdupq_n_s32(scene_x));
+    int32x4_t y_rotated = vaddq_s32(yv4, vdupq_n_s32(scene_y));
+    int32x4_t z_rotated = vaddq_s32(zv4, vdupq_n_s32(scene_z));
+
+    int32x4_t c_yaw = vdupq_n_s32(cos_camera_yaw);
+    int32x4_t s_yaw = vdupq_n_s32(sin_camera_yaw);
+    int32x4_t x_scene = vaddq_s32(vmulq_s32(x_rotated, c_yaw), vmulq_s32(z_rotated, s_yaw));
+    x_scene = vshrq_n_s32(x_scene, 16);
+    int32x4_t z_scene = vsubq_s32(vmulq_s32(z_rotated, c_yaw), vmulq_s32(x_rotated, s_yaw));
+    z_scene = vshrq_n_s32(z_scene, 16);
+
+    int32x4_t c_pitch = vdupq_n_s32(cos_camera_pitch);
+    int32x4_t s_pitch = vdupq_n_s32(sin_camera_pitch);
+    int32x4_t y_scene = vsubq_s32(vmulq_s32(y_rotated, c_pitch), vmulq_s32(z_scene, s_pitch));
+    y_scene = vshrq_n_s32(y_scene, 16);
+    int32x4_t z_final = vaddq_s32(vmulq_s32(y_rotated, s_pitch), vmulq_s32(z_scene, c_pitch));
+    z_final = vshrq_n_s32(z_final, 16);
+
+    projection16_neon_scatter_i32x4(ox, o0, o1, o2, o3, x_scene);
+    projection16_neon_scatter_i32x4(oy, o0, o1, o2, o3, y_scene);
+    projection16_neon_scatter_i32x4(oz, o0, o1, o2, o3, z_final);
+
+    int32x4_t cot_v = vdupq_n_s32(cot_fov_half_ish15);
+    int32x4_t xfov = vmulq_s32(x_scene, cot_v);
+    int32x4_t yfov = vmulq_s32(y_scene, cot_v);
+    int32x4_t x_scaled = vshrq_n_s32(xfov, 6);
+    int32x4_t y_scaled = vshrq_n_s32(yfov, 6);
+
+    projection16_neon_scatter_i32x4(sx, o0, o1, o2, o3, x_scaled);
+    projection16_neon_scatter_i32x4(sy, o0, o1, o2, o3, y_scaled);
+}
+
+static inline void
+projection16_neon_sparse_notex_pass1_yaws(
+    vertexint_t* vx,
+    vertexint_t* vy,
+    vertexint_t* vz,
+    int vi0,
+    int vi1,
+    int vi2,
+    int vi3,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int cos_model_yaw,
+    int sin_model_yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int cos_camera_yaw,
+    int sin_camera_yaw,
+    int cos_camera_pitch,
+    int sin_camera_pitch,
+    int cot_fov_half_ish15,
+    int* sx,
+    int* sy,
+    int* szscr)
+{
+    int32x4_t xv4 = projection16_neon_gather_vx4(vx, vi0, vi1, vi2, vi3);
+    int32x4_t yv4 = projection16_neon_gather_vx4(vy, vi0, vi1, vi2, vi3);
+    int32x4_t zv4 = projection16_neon_gather_vx4(vz, vi0, vi1, vi2, vi3);
+
+    int32x4_t c_my = vdupq_n_s32(cos_model_yaw);
+    int32x4_t s_my = vdupq_n_s32(sin_model_yaw);
+    int32x4_t x_tmp = vaddq_s32(vmulq_s32(xv4, c_my), vmulq_s32(zv4, s_my));
+    int32x4_t x_rotated = vshrq_n_s32(x_tmp, 16);
+    int32x4_t z_tmp = vsubq_s32(vmulq_s32(zv4, c_my), vmulq_s32(xv4, s_my));
+    int32x4_t z_rotated = vshrq_n_s32(z_tmp, 16);
+
+    x_rotated = vaddq_s32(x_rotated, vdupq_n_s32(scene_x));
+    int32x4_t y_rotated = vaddq_s32(yv4, vdupq_n_s32(scene_y));
+    z_rotated = vaddq_s32(z_rotated, vdupq_n_s32(scene_z));
+
+    int32x4_t c_yaw = vdupq_n_s32(cos_camera_yaw);
+    int32x4_t s_yaw = vdupq_n_s32(sin_camera_yaw);
+    int32x4_t x_scene = vaddq_s32(vmulq_s32(x_rotated, c_yaw), vmulq_s32(z_rotated, s_yaw));
+    x_scene = vshrq_n_s32(x_scene, 16);
+    int32x4_t z_scene = vsubq_s32(vmulq_s32(z_rotated, c_yaw), vmulq_s32(x_rotated, s_yaw));
+    z_scene = vshrq_n_s32(z_scene, 16);
+
+    int32x4_t c_pitch = vdupq_n_s32(cos_camera_pitch);
+    int32x4_t s_pitch = vdupq_n_s32(sin_camera_pitch);
+    int32x4_t y_scene = vsubq_s32(vmulq_s32(y_rotated, c_pitch), vmulq_s32(z_scene, s_pitch));
+    y_scene = vshrq_n_s32(y_scene, 16);
+    int32x4_t z_final = vaddq_s32(vmulq_s32(y_rotated, s_pitch), vmulq_s32(z_scene, c_pitch));
+    z_final = vshrq_n_s32(z_final, 16);
+
+    projection16_neon_scatter_i32x4(szscr, o0, o1, o2, o3, z_final);
+
+    int32x4_t cot_v = vdupq_n_s32(cot_fov_half_ish15);
+    int32x4_t xfov = vmulq_s32(x_scene, cot_v);
+    int32x4_t yfov = vmulq_s32(y_scene, cot_v);
+    int32x4_t x_scaled = vshrq_n_s32(xfov, 6);
+    int32x4_t y_scaled = vshrq_n_s32(yfov, 6);
+
+    projection16_neon_scatter_i32x4(sx, o0, o1, o2, o3, x_scaled);
+    projection16_neon_scatter_i32x4(sy, o0, o1, o2, o3, y_scaled);
+}
+
+static inline void
+projection16_neon_sparse_notex_pass1_noyaw(
+    vertexint_t* vx,
+    vertexint_t* vy,
+    vertexint_t* vz,
+    int vi0,
+    int vi1,
+    int vi2,
+    int vi3,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int cos_camera_yaw,
+    int sin_camera_yaw,
+    int cos_camera_pitch,
+    int sin_camera_pitch,
+    int cot_fov_half_ish15,
+    int* sx,
+    int* sy,
+    int* szscr)
+{
+    int32x4_t xv4 = projection16_neon_gather_vx4(vx, vi0, vi1, vi2, vi3);
+    int32x4_t yv4 = projection16_neon_gather_vx4(vy, vi0, vi1, vi2, vi3);
+    int32x4_t zv4 = projection16_neon_gather_vx4(vz, vi0, vi1, vi2, vi3);
+
+    int32x4_t x_rotated = vaddq_s32(xv4, vdupq_n_s32(scene_x));
+    int32x4_t y_rotated = vaddq_s32(yv4, vdupq_n_s32(scene_y));
+    int32x4_t z_rotated = vaddq_s32(zv4, vdupq_n_s32(scene_z));
+
+    int32x4_t c_yaw = vdupq_n_s32(cos_camera_yaw);
+    int32x4_t s_yaw = vdupq_n_s32(sin_camera_yaw);
+    int32x4_t x_scene = vaddq_s32(vmulq_s32(x_rotated, c_yaw), vmulq_s32(z_rotated, s_yaw));
+    x_scene = vshrq_n_s32(x_scene, 16);
+    int32x4_t z_scene = vsubq_s32(vmulq_s32(z_rotated, c_yaw), vmulq_s32(x_rotated, s_yaw));
+    z_scene = vshrq_n_s32(z_scene, 16);
+
+    int32x4_t c_pitch = vdupq_n_s32(cos_camera_pitch);
+    int32x4_t s_pitch = vdupq_n_s32(sin_camera_pitch);
+    int32x4_t y_scene = vsubq_s32(vmulq_s32(y_rotated, c_pitch), vmulq_s32(z_scene, s_pitch));
+    y_scene = vshrq_n_s32(y_scene, 16);
+    int32x4_t z_final = vaddq_s32(vmulq_s32(y_rotated, s_pitch), vmulq_s32(z_scene, c_pitch));
+    z_final = vshrq_n_s32(z_final, 16);
+
+    projection16_neon_scatter_i32x4(szscr, o0, o1, o2, o3, z_final);
+
+    int32x4_t cot_v = vdupq_n_s32(cot_fov_half_ish15);
+    int32x4_t xfov = vmulq_s32(x_scene, cot_v);
+    int32x4_t yfov = vmulq_s32(y_scene, cot_v);
+    int32x4_t x_scaled = vshrq_n_s32(xfov, 6);
+    int32x4_t y_scaled = vshrq_n_s32(yfov, 6);
+
+    projection16_neon_scatter_i32x4(sx, o0, o1, o2, o3, x_scaled);
+    projection16_neon_scatter_i32x4(sy, o0, o1, o2, o3, y_scaled);
+}
+
+static inline void
+projection16_neon_sparse_zdiv_tex_4(
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int model_mid_z,
+    int near_plane_z)
+{
+#ifdef ARM_NEON_FLOAT_RECIP_DIV
+    int32x4_t z_i = vsetq_lane_s32(orthographic_vertices_z[o0], vdupq_n_s32(0), 0);
+    z_i = vsetq_lane_s32(orthographic_vertices_z[o1], z_i, 1);
+    z_i = vsetq_lane_s32(orthographic_vertices_z[o2], z_i, 2);
+    z_i = vsetq_lane_s32(orthographic_vertices_z[o3], z_i, 3);
+
+    int32x4_t midz = vdupq_n_s32(model_mid_z);
+    int32x4_t outz = vsubq_s32(z_i, midz);
+
+    uint32x4_t clipped_mask = vcltq_s32(z_i, vdupq_n_s32(near_plane_z));
+
+    float32x4_t z_f = vcvtq_f32_s32(z_i);
+    float32x4_t recip = vrecpeq_f32(z_f);
+    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
+    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
+
+    float32x4_t scale = vdupq_n_f32((float)(1ll << 30));
+    float32x4_t recip_scaled = vmulq_f32(recip, scale);
+    int32x4_t recip_q31 = vcvtq_s32_f32(recip_scaled);
+
+    int32x4_t x = vsetq_lane_s32(screen_vertices_x[o0], vdupq_n_s32(0), 0);
+    x = vsetq_lane_s32(screen_vertices_x[o1], x, 1);
+    x = vsetq_lane_s32(screen_vertices_x[o2], x, 2);
+    x = vsetq_lane_s32(screen_vertices_x[o3], x, 3);
+
+    int32x4_t y = vsetq_lane_s32(screen_vertices_y[o0], vdupq_n_s32(0), 0);
+    y = vsetq_lane_s32(screen_vertices_y[o1], y, 1);
+    y = vsetq_lane_s32(screen_vertices_y[o2], y, 2);
+    y = vsetq_lane_s32(screen_vertices_y[o3], y, 3);
+
+    int64x2_t xl0 = vmull_s32(vget_low_s32(x), vget_low_s32(recip_q31));
+    int64x2_t xl1 = vmull_s32(vget_high_s32(x), vget_high_s32(recip_q31));
+    int64x2_t yl0 = vmull_s32(vget_low_s32(y), vget_low_s32(recip_q31));
+    int64x2_t yl1 = vmull_s32(vget_high_s32(y), vget_high_s32(recip_q31));
+
+    int32x4_t x_div = vcombine_s32(vshrn_n_s64(xl0, 30), vshrn_n_s64(xl1, 30));
+    int32x4_t y_div = vcombine_s32(vshrn_n_s64(yl0, 30), vshrn_n_s64(yl1, 30));
+
+    int32x4_t neg5000 = vdupq_n_s32(-5000);
+    x_div = vbslq_s32(clipped_mask, neg5000, x_div);
+
+    projection16_neon_scatter_i32x4(screen_vertices_x, o0, o1, o2, o3, x_div);
+    projection16_neon_scatter_i32x4(screen_vertices_y, o0, o1, o2, o3, y_div);
+    projection16_neon_scatter_i32x4(screen_vertices_z, o0, o1, o2, o3, outz);
+#else
+    int oz[4] = { o0, o1, o2, o3 };
+    for( int q = 0; q < 4; q++ )
+    {
+        int idx = oz[q];
+        int z = orthographic_vertices_z[idx];
+        bool clipped = (z < near_plane_z);
+        screen_vertices_z[idx] = z - model_mid_z;
+        if( clipped )
+        {
+            screen_vertices_x[idx] = -5000;
+        }
+        else
+        {
+            screen_vertices_x[idx] /= z;
+            if( screen_vertices_x[idx] == -5000 )
+                screen_vertices_x[idx] = -5001;
+            screen_vertices_y[idx] /= z;
+        }
+    }
+#endif
+}
+
+static inline void
+projection16_neon_sparse_zdiv_notex_4(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int model_mid_z,
+    int near_plane_z)
+{
+#ifdef ARM_NEON_FLOAT_RECIP_DIV
+    int32x4_t z_i = vsetq_lane_s32(screen_vertices_z[o0], vdupq_n_s32(0), 0);
+    z_i = vsetq_lane_s32(screen_vertices_z[o1], z_i, 1);
+    z_i = vsetq_lane_s32(screen_vertices_z[o2], z_i, 2);
+    z_i = vsetq_lane_s32(screen_vertices_z[o3], z_i, 3);
+
+    int32x4_t midz = vdupq_n_s32(model_mid_z);
+    int32x4_t outz = vsubq_s32(z_i, midz);
+
+    uint32x4_t clipped_mask = vcltq_s32(z_i, vdupq_n_s32(near_plane_z));
+
+    float32x4_t z_f = vcvtq_f32_s32(z_i);
+    float32x4_t recip = vrecpeq_f32(z_f);
+    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
+    recip = vmulq_f32(vrecpsq_f32(z_f, recip), recip);
+
+    float32x4_t scale = vdupq_n_f32((float)(1ll << 30));
+    float32x4_t recip_scaled = vmulq_f32(recip, scale);
+    int32x4_t recip_q31 = vcvtq_s32_f32(recip_scaled);
+
+    int32x4_t x = vsetq_lane_s32(screen_vertices_x[o0], vdupq_n_s32(0), 0);
+    x = vsetq_lane_s32(screen_vertices_x[o1], x, 1);
+    x = vsetq_lane_s32(screen_vertices_x[o2], x, 2);
+    x = vsetq_lane_s32(screen_vertices_x[o3], x, 3);
+
+    int32x4_t y = vsetq_lane_s32(screen_vertices_y[o0], vdupq_n_s32(0), 0);
+    y = vsetq_lane_s32(screen_vertices_y[o1], y, 1);
+    y = vsetq_lane_s32(screen_vertices_y[o2], y, 2);
+    y = vsetq_lane_s32(screen_vertices_y[o3], y, 3);
+
+    int64x2_t xl0 = vmull_s32(vget_low_s32(x), vget_low_s32(recip_q31));
+    int64x2_t xl1 = vmull_s32(vget_high_s32(x), vget_high_s32(recip_q31));
+    int64x2_t yl0 = vmull_s32(vget_low_s32(y), vget_low_s32(recip_q31));
+    int64x2_t yl1 = vmull_s32(vget_high_s32(y), vget_high_s32(recip_q31));
+
+    int32x4_t x_div = vcombine_s32(vshrn_n_s64(xl0, 30), vshrn_n_s64(xl1, 30));
+    int32x4_t y_div = vcombine_s32(vshrn_n_s64(yl0, 30), vshrn_n_s64(yl1, 30));
+
+    int32x4_t neg5000 = vdupq_n_s32(-5000);
+    x_div = vbslq_s32(clipped_mask, neg5000, x_div);
+
+    projection16_neon_scatter_i32x4(screen_vertices_x, o0, o1, o2, o3, x_div);
+    projection16_neon_scatter_i32x4(screen_vertices_y, o0, o1, o2, o3, y_div);
+    projection16_neon_scatter_i32x4(screen_vertices_z, o0, o1, o2, o3, outz);
+#else
+    int oz[4] = { o0, o1, o2, o3 };
+    for( int q = 0; q < 4; q++ )
+    {
+        int idx = oz[q];
+        int z = screen_vertices_z[idx];
+        bool clipped = (z < near_plane_z);
+        screen_vertices_z[idx] = z - model_mid_z;
+        if( clipped )
+        {
+            screen_vertices_x[idx] = -5000;
+        }
+        else
+        {
+            screen_vertices_x[idx] /= z;
+            if( screen_vertices_x[idx] == -5000 )
+                screen_vertices_x[idx] = -5001;
+            screen_vertices_y[idx] /= z;
+        }
+    }
+#endif
+}
+
+static inline void
+project_vertices_array_sparse(
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
+    const faceint_t* vertex_faces_a,
+    const faceint_t* vertex_faces_b,
+    const faceint_t* vertex_faces_c,
+    int num_faces,
+    int model_yaw,
+    int model_mid_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int near_plane_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int fov_half = camera_fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+
+    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int sin_camera_pitch = g_sin_table[camera_pitch];
+    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int sin_camera_yaw = g_sin_table[camera_yaw];
+    int sin_model_yaw = g_sin_table[model_yaw];
+    int cos_model_yaw = g_cos_table[model_yaw];
+
+    int f = 0;
+    if( model_yaw != 0 )
+    {
+        for( ; f + 4 <= num_faces; f += 4 )
+        {
+            for( int cor = 0; cor < 3; cor++ )
+            {
+                int vi0 = projection16_sparse_corner_vi(
+                    cor, f + 0, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi1 = projection16_sparse_corner_vi(
+                    cor, f + 1, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi2 = projection16_sparse_corner_vi(
+                    cor, f + 2, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi3 = projection16_sparse_corner_vi(
+                    cor, f + 3, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int o0 = (f + 0) * 3 + cor;
+                int o1 = (f + 1) * 3 + cor;
+                int o2 = (f + 2) * 3 + cor;
+                int o3 = (f + 3) * 3 + cor;
+                projection16_neon_sparse_tex_pass1_yaws(
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    vi0,
+                    vi1,
+                    vi2,
+                    vi3,
+                    o0,
+                    o1,
+                    o2,
+                    o3,
+                    cos_model_yaw,
+                    sin_model_yaw,
+                    scene_x,
+                    scene_y,
+                    scene_z,
+                    cos_camera_yaw,
+                    sin_camera_yaw,
+                    cos_camera_pitch,
+                    sin_camera_pitch,
+                    cot_fov_half_ish15,
+                    orthographic_vertices_x,
+                    orthographic_vertices_y,
+                    orthographic_vertices_z,
+                    screen_vertices_x,
+                    screen_vertices_y);
+            }
+        }
+    }
+    else
+    {
+        for( ; f + 4 <= num_faces; f += 4 )
+        {
+            for( int cor = 0; cor < 3; cor++ )
+            {
+                int vi0 = projection16_sparse_corner_vi(
+                    cor, f + 0, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi1 = projection16_sparse_corner_vi(
+                    cor, f + 1, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi2 = projection16_sparse_corner_vi(
+                    cor, f + 2, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi3 = projection16_sparse_corner_vi(
+                    cor, f + 3, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int o0 = (f + 0) * 3 + cor;
+                int o1 = (f + 1) * 3 + cor;
+                int o2 = (f + 2) * 3 + cor;
+                int o3 = (f + 3) * 3 + cor;
+                projection16_neon_sparse_tex_pass1_noyaw(
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    vi0,
+                    vi1,
+                    vi2,
+                    vi3,
+                    o0,
+                    o1,
+                    o2,
+                    o3,
+                    scene_x,
+                    scene_y,
+                    scene_z,
+                    cos_camera_yaw,
+                    sin_camera_yaw,
+                    cos_camera_pitch,
+                    sin_camera_pitch,
+                    cot_fov_half_ish15,
+                    orthographic_vertices_x,
+                    orthographic_vertices_y,
+                    orthographic_vertices_z,
+                    screen_vertices_x,
+                    screen_vertices_y);
+            }
+        }
+    }
+
+    for( ; f < num_faces; f++ )
+    {
+        int base = f * 3;
+        int vi[3] = {
+            (int)vertex_faces_a[f],
+            (int)vertex_faces_b[f],
+            (int)vertex_faces_c[f],
+        };
+        for( int s = 0; s < 3; s++ )
+        {
+            int v = vi[s];
+            struct ProjectedVertex projected_vertex;
+            project_orthographic_fast(
+                &projected_vertex,
+                vertex_x[v],
+                vertex_y[v],
+                vertex_z[v],
+                model_yaw,
+                scene_x,
+                scene_y,
+                scene_z,
+                camera_pitch,
+                camera_yaw);
+
+            int x = projected_vertex.x;
+            int y = projected_vertex.y;
+
+            x *= cot_fov_half_ish15;
+            y *= cot_fov_half_ish15;
+            x >>= 15;
+            y >>= 15;
+
+            int idx = base + s;
+            orthographic_vertices_x[idx] = projected_vertex.x;
+            orthographic_vertices_y[idx] = projected_vertex.y;
+            orthographic_vertices_z[idx] = projected_vertex.z;
+
+            screen_vertices_x[idx] = SCALE_UNIT(x);
+            screen_vertices_y[idx] = SCALE_UNIT(y);
+        }
+    }
+
+    f = 0;
+    for( ; f + 4 <= num_faces; f += 4 )
+    {
+        for( int cor = 0; cor < 3; cor++ )
+        {
+            int o0 = (f + 0) * 3 + cor;
+            int o1 = (f + 1) * 3 + cor;
+            int o2 = (f + 2) * 3 + cor;
+            int o3 = (f + 3) * 3 + cor;
+            projection16_neon_sparse_zdiv_tex_4(
+                orthographic_vertices_z,
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                o0,
+                o1,
+                o2,
+                o3,
+                model_mid_z,
+                near_plane_z);
+        }
+    }
+
+    for( ; f < num_faces; f++ )
+    {
+        int base = f * 3;
+        for( int s = 0; s < 3; s++ )
+        {
+            int idx = base + s;
+            int z = orthographic_vertices_z[idx];
+
+            bool clipped = false;
+            if( z < near_plane_z )
+                clipped = true;
+
+            screen_vertices_z[idx] = z - model_mid_z;
+
+            if( clipped )
+            {
+                screen_vertices_x[idx] = -5000;
+            }
+            else
+            {
+                screen_vertices_x[idx] = screen_vertices_x[idx] / z;
+                if( screen_vertices_x[idx] == -5000 )
+                    screen_vertices_x[idx] = -5001;
+                screen_vertices_y[idx] = screen_vertices_y[idx] / z;
+            }
+        }
+    }
+}
+
+static inline void
+project_vertices_array_notex_sparse(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
+    const faceint_t* vertex_faces_a,
+    const faceint_t* vertex_faces_b,
+    const faceint_t* vertex_faces_c,
+    int num_faces,
+    int model_yaw,
+    int model_mid_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int near_plane_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int fov_half = camera_fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+
+    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int sin_camera_pitch = g_sin_table[camera_pitch];
+    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int sin_camera_yaw = g_sin_table[camera_yaw];
+    int sin_model_yaw = g_sin_table[model_yaw];
+    int cos_model_yaw = g_cos_table[model_yaw];
+
+    int f = 0;
+    if( model_yaw != 0 )
+    {
+        for( ; f + 4 <= num_faces; f += 4 )
+        {
+            for( int cor = 0; cor < 3; cor++ )
+            {
+                int vi0 = projection16_sparse_corner_vi(
+                    cor, f + 0, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi1 = projection16_sparse_corner_vi(
+                    cor, f + 1, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi2 = projection16_sparse_corner_vi(
+                    cor, f + 2, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi3 = projection16_sparse_corner_vi(
+                    cor, f + 3, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int o0 = (f + 0) * 3 + cor;
+                int o1 = (f + 1) * 3 + cor;
+                int o2 = (f + 2) * 3 + cor;
+                int o3 = (f + 3) * 3 + cor;
+                projection16_neon_sparse_notex_pass1_yaws(
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    vi0,
+                    vi1,
+                    vi2,
+                    vi3,
+                    o0,
+                    o1,
+                    o2,
+                    o3,
+                    cos_model_yaw,
+                    sin_model_yaw,
+                    scene_x,
+                    scene_y,
+                    scene_z,
+                    cos_camera_yaw,
+                    sin_camera_yaw,
+                    cos_camera_pitch,
+                    sin_camera_pitch,
+                    cot_fov_half_ish15,
+                    screen_vertices_x,
+                    screen_vertices_y,
+                    screen_vertices_z);
+            }
+        }
+    }
+    else
+    {
+        for( ; f + 4 <= num_faces; f += 4 )
+        {
+            for( int cor = 0; cor < 3; cor++ )
+            {
+                int vi0 = projection16_sparse_corner_vi(
+                    cor, f + 0, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi1 = projection16_sparse_corner_vi(
+                    cor, f + 1, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi2 = projection16_sparse_corner_vi(
+                    cor, f + 2, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi3 = projection16_sparse_corner_vi(
+                    cor, f + 3, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int o0 = (f + 0) * 3 + cor;
+                int o1 = (f + 1) * 3 + cor;
+                int o2 = (f + 2) * 3 + cor;
+                int o3 = (f + 3) * 3 + cor;
+                projection16_neon_sparse_notex_pass1_noyaw(
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    vi0,
+                    vi1,
+                    vi2,
+                    vi3,
+                    o0,
+                    o1,
+                    o2,
+                    o3,
+                    scene_x,
+                    scene_y,
+                    scene_z,
+                    cos_camera_yaw,
+                    sin_camera_yaw,
+                    cos_camera_pitch,
+                    sin_camera_pitch,
+                    cot_fov_half_ish15,
+                    screen_vertices_x,
+                    screen_vertices_y,
+                    screen_vertices_z);
+            }
+        }
+    }
+
+    for( ; f < num_faces; f++ )
+    {
+        int base = f * 3;
+        int vi[3] = {
+            (int)vertex_faces_a[f],
+            (int)vertex_faces_b[f],
+            (int)vertex_faces_c[f],
+        };
+        for( int s = 0; s < 3; s++ )
+        {
+            int v = vi[s];
+            struct ProjectedVertex projected_vertex;
+            project_orthographic_fast(
+                &projected_vertex,
+                vertex_x[v],
+                vertex_y[v],
+                vertex_z[v],
+                model_yaw,
+                scene_x,
+                scene_y,
+                scene_z,
+                camera_pitch,
+                camera_yaw);
+
+            int x = projected_vertex.x;
+            int y = projected_vertex.y;
+            int z = projected_vertex.z;
+
+            x *= cot_fov_half_ish15;
+            y *= cot_fov_half_ish15;
+            x >>= 15;
+            y >>= 15;
+
+            int screen_x = SCALE_UNIT(x);
+            int screen_y = SCALE_UNIT(y);
+
+            int idx = base + s;
+            screen_vertices_z[idx] = z;
+            screen_vertices_x[idx] = screen_x;
+            screen_vertices_y[idx] = screen_y;
+        }
+    }
+
+    f = 0;
+    for( ; f + 4 <= num_faces; f += 4 )
+    {
+        for( int cor = 0; cor < 3; cor++ )
+        {
+            int o0 = (f + 0) * 3 + cor;
+            int o1 = (f + 1) * 3 + cor;
+            int o2 = (f + 2) * 3 + cor;
+            int o3 = (f + 3) * 3 + cor;
+            projection16_neon_sparse_zdiv_notex_4(
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                o0,
+                o1,
+                o2,
+                o3,
+                model_mid_z,
+                near_plane_z);
+        }
+    }
+
+    for( ; f < num_faces; f++ )
+    {
+        int base = f * 3;
+        for( int s = 0; s < 3; s++ )
+        {
+            int idx = base + s;
+            int z = screen_vertices_z[idx];
+
+            bool clipped = false;
+            if( z < near_plane_z )
+                clipped = true;
+
+            screen_vertices_z[idx] = z - model_mid_z;
+
+            if( clipped )
+            {
+                screen_vertices_x[idx] = -5000;
+            }
+            else
+            {
+                screen_vertices_x[idx] = screen_vertices_x[idx] / z;
+                if( screen_vertices_x[idx] == -5000 )
+                    screen_vertices_x[idx] = -5001;
+                screen_vertices_y[idx] = screen_vertices_y[idx] / z;
+            }
         }
     }
 }
@@ -1714,6 +2626,938 @@ project_vertices_array_notex(
     }
 }
 
+static inline __m128i
+projection16_avx2_gather_vx4(
+    vertexint_t* v,
+    int i0,
+    int i1,
+    int i2,
+    int i3)
+{
+    return _mm_set_epi32((int)v[i3], (int)v[i2], (int)v[i1], (int)v[i0]);
+}
+
+static inline void
+projection16_avx2_scatter_i32_4(
+    int* p,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    __m128i v)
+{
+    int al[4];
+    _mm_storeu_si128((__m128i*)al, v);
+    p[o0] = al[0];
+    p[o1] = al[1];
+    p[o2] = al[2];
+    p[o3] = al[3];
+}
+
+static inline void
+projection16_avx2_sparse_tex_pass1_yaws(
+    vertexint_t* vx,
+    vertexint_t* vy,
+    vertexint_t* vz,
+    int vi0,
+    int vi1,
+    int vi2,
+    int vi3,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int cos_model_yaw,
+    int sin_model_yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int cos_camera_yaw,
+    int sin_camera_yaw,
+    int cos_camera_pitch,
+    int sin_camera_pitch,
+    int cot_fov_half_ish15,
+    int* ox,
+    int* oy,
+    int* oz,
+    int* sx,
+    int* sy)
+{
+    __m128i xv4 = projection16_avx2_gather_vx4(vx, vi0, vi1, vi2, vi3);
+    __m128i yv4 = projection16_avx2_gather_vx4(vy, vi0, vi1, vi2, vi3);
+    __m128i zv4 = projection16_avx2_gather_vx4(vz, vi0, vi1, vi2, vi3);
+
+    __m128i cos_model_yaw_v = _mm_set1_epi32(cos_model_yaw);
+    __m128i sin_model_yaw_v = _mm_set1_epi32(sin_model_yaw);
+    __m128i x_rotated = _mm_srai_epi32(
+        _mm_add_epi32(_mm_mullo_epi32(xv4, cos_model_yaw_v), _mm_mullo_epi32(zv4, sin_model_yaw_v)),
+        16);
+    __m128i z_rotated = _mm_srai_epi32(
+        _mm_sub_epi32(_mm_mullo_epi32(zv4, cos_model_yaw_v), _mm_mullo_epi32(xv4, sin_model_yaw_v)),
+        16);
+
+    x_rotated = _mm_add_epi32(x_rotated, _mm_set1_epi32(scene_x));
+    __m128i y_rotated = _mm_add_epi32(yv4, _mm_set1_epi32(scene_y));
+    z_rotated = _mm_add_epi32(z_rotated, _mm_set1_epi32(scene_z));
+
+    __m128i cos_camera_yaw_v = _mm_set1_epi32(cos_camera_yaw);
+    __m128i sin_camera_yaw_v = _mm_set1_epi32(sin_camera_yaw);
+    __m128i x_scene = _mm_srai_epi32(
+        _mm_add_epi32(
+            _mm_mullo_epi32(x_rotated, cos_camera_yaw_v),
+            _mm_mullo_epi32(z_rotated, sin_camera_yaw_v)),
+        16);
+    __m128i z_scene = _mm_srai_epi32(
+        _mm_sub_epi32(
+            _mm_mullo_epi32(z_rotated, cos_camera_yaw_v),
+            _mm_mullo_epi32(x_rotated, sin_camera_yaw_v)),
+        16);
+
+    __m128i cos_camera_pitch_v = _mm_set1_epi32(cos_camera_pitch);
+    __m128i sin_camera_pitch_v = _mm_set1_epi32(sin_camera_pitch);
+    __m128i y_scene = _mm_srai_epi32(
+        _mm_sub_epi32(
+            _mm_mullo_epi32(y_rotated, cos_camera_pitch_v),
+            _mm_mullo_epi32(z_scene, sin_camera_pitch_v)),
+        16);
+    __m128i z_final = _mm_srai_epi32(
+        _mm_add_epi32(
+            _mm_mullo_epi32(y_rotated, sin_camera_pitch_v),
+            _mm_mullo_epi32(z_scene, cos_camera_pitch_v)),
+        16);
+
+    projection16_avx2_scatter_i32_4(ox, o0, o1, o2, o3, x_scene);
+    projection16_avx2_scatter_i32_4(oy, o0, o1, o2, o3, y_scene);
+    projection16_avx2_scatter_i32_4(oz, o0, o1, o2, o3, z_final);
+
+    __m128i cot_v = _mm_set1_epi32(cot_fov_half_ish15);
+    __m128i xfov = _mm_mullo_epi32(x_scene, cot_v);
+    __m128i yfov = _mm_mullo_epi32(y_scene, cot_v);
+    __m128i x_scaled = _mm_srai_epi32(xfov, 6);
+    __m128i y_scaled = _mm_srai_epi32(yfov, 6);
+
+    projection16_avx2_scatter_i32_4(sx, o0, o1, o2, o3, x_scaled);
+    projection16_avx2_scatter_i32_4(sy, o0, o1, o2, o3, y_scaled);
+}
+
+static inline void
+projection16_avx2_sparse_tex_pass1_noyaw(
+    vertexint_t* vx,
+    vertexint_t* vy,
+    vertexint_t* vz,
+    int vi0,
+    int vi1,
+    int vi2,
+    int vi3,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int cos_camera_yaw,
+    int sin_camera_yaw,
+    int cos_camera_pitch,
+    int sin_camera_pitch,
+    int cot_fov_half_ish15,
+    int* ox,
+    int* oy,
+    int* oz,
+    int* sx,
+    int* sy)
+{
+    __m128i xv4 = projection16_avx2_gather_vx4(vx, vi0, vi1, vi2, vi3);
+    __m128i yv4 = projection16_avx2_gather_vx4(vy, vi0, vi1, vi2, vi3);
+    __m128i zv4 = projection16_avx2_gather_vx4(vz, vi0, vi1, vi2, vi3);
+
+    __m128i x_rotated = _mm_add_epi32(xv4, _mm_set1_epi32(scene_x));
+    __m128i y_rotated = _mm_add_epi32(yv4, _mm_set1_epi32(scene_y));
+    __m128i z_rotated = _mm_add_epi32(zv4, _mm_set1_epi32(scene_z));
+
+    __m128i cos_camera_yaw_v = _mm_set1_epi32(cos_camera_yaw);
+    __m128i sin_camera_yaw_v = _mm_set1_epi32(sin_camera_yaw);
+    __m128i x_scene = _mm_srai_epi32(
+        _mm_add_epi32(
+            _mm_mullo_epi32(x_rotated, cos_camera_yaw_v),
+            _mm_mullo_epi32(z_rotated, sin_camera_yaw_v)),
+        16);
+    __m128i z_scene = _mm_srai_epi32(
+        _mm_sub_epi32(
+            _mm_mullo_epi32(z_rotated, cos_camera_yaw_v),
+            _mm_mullo_epi32(x_rotated, sin_camera_yaw_v)),
+        16);
+
+    __m128i cos_camera_pitch_v = _mm_set1_epi32(cos_camera_pitch);
+    __m128i sin_camera_pitch_v = _mm_set1_epi32(sin_camera_pitch);
+    __m128i y_scene = _mm_srai_epi32(
+        _mm_sub_epi32(
+            _mm_mullo_epi32(y_rotated, cos_camera_pitch_v),
+            _mm_mullo_epi32(z_scene, sin_camera_pitch_v)),
+        16);
+    __m128i z_final = _mm_srai_epi32(
+        _mm_add_epi32(
+            _mm_mullo_epi32(y_rotated, sin_camera_pitch_v),
+            _mm_mullo_epi32(z_scene, cos_camera_pitch_v)),
+        16);
+
+    projection16_avx2_scatter_i32_4(ox, o0, o1, o2, o3, x_scene);
+    projection16_avx2_scatter_i32_4(oy, o0, o1, o2, o3, y_scene);
+    projection16_avx2_scatter_i32_4(oz, o0, o1, o2, o3, z_final);
+
+    __m128i cot_v = _mm_set1_epi32(cot_fov_half_ish15);
+    __m128i xfov = _mm_mullo_epi32(x_scene, cot_v);
+    __m128i yfov = _mm_mullo_epi32(y_scene, cot_v);
+    __m128i x_scaled = _mm_srai_epi32(xfov, 6);
+    __m128i y_scaled = _mm_srai_epi32(yfov, 6);
+
+    projection16_avx2_scatter_i32_4(sx, o0, o1, o2, o3, x_scaled);
+    projection16_avx2_scatter_i32_4(sy, o0, o1, o2, o3, y_scaled);
+}
+
+static inline void
+projection16_avx2_sparse_notex_pass1_yaws(
+    vertexint_t* vx,
+    vertexint_t* vy,
+    vertexint_t* vz,
+    int vi0,
+    int vi1,
+    int vi2,
+    int vi3,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int cos_model_yaw,
+    int sin_model_yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int cos_camera_yaw,
+    int sin_camera_yaw,
+    int cos_camera_pitch,
+    int sin_camera_pitch,
+    int cot_fov_half_ish15,
+    int* sx,
+    int* sy,
+    int* szscr)
+{
+    __m128i xv4 = projection16_avx2_gather_vx4(vx, vi0, vi1, vi2, vi3);
+    __m128i yv4 = projection16_avx2_gather_vx4(vy, vi0, vi1, vi2, vi3);
+    __m128i zv4 = projection16_avx2_gather_vx4(vz, vi0, vi1, vi2, vi3);
+
+    __m128i cos_model_yaw_v = _mm_set1_epi32(cos_model_yaw);
+    __m128i sin_model_yaw_v = _mm_set1_epi32(sin_model_yaw);
+    __m128i x_rotated = _mm_srai_epi32(
+        _mm_add_epi32(_mm_mullo_epi32(xv4, cos_model_yaw_v), _mm_mullo_epi32(zv4, sin_model_yaw_v)),
+        16);
+    __m128i z_rotated = _mm_srai_epi32(
+        _mm_sub_epi32(_mm_mullo_epi32(zv4, cos_model_yaw_v), _mm_mullo_epi32(xv4, sin_model_yaw_v)),
+        16);
+
+    x_rotated = _mm_add_epi32(x_rotated, _mm_set1_epi32(scene_x));
+    __m128i y_rotated = _mm_add_epi32(yv4, _mm_set1_epi32(scene_y));
+    z_rotated = _mm_add_epi32(z_rotated, _mm_set1_epi32(scene_z));
+
+    __m128i cos_camera_yaw_v = _mm_set1_epi32(cos_camera_yaw);
+    __m128i sin_camera_yaw_v = _mm_set1_epi32(sin_camera_yaw);
+    __m128i x_scene = _mm_srai_epi32(
+        _mm_add_epi32(
+            _mm_mullo_epi32(x_rotated, cos_camera_yaw_v),
+            _mm_mullo_epi32(z_rotated, sin_camera_yaw_v)),
+        16);
+    __m128i z_scene = _mm_srai_epi32(
+        _mm_sub_epi32(
+            _mm_mullo_epi32(z_rotated, cos_camera_yaw_v),
+            _mm_mullo_epi32(x_rotated, sin_camera_yaw_v)),
+        16);
+
+    __m128i cos_camera_pitch_v = _mm_set1_epi32(cos_camera_pitch);
+    __m128i sin_camera_pitch_v = _mm_set1_epi32(sin_camera_pitch);
+    __m128i y_scene = _mm_srai_epi32(
+        _mm_sub_epi32(
+            _mm_mullo_epi32(y_rotated, cos_camera_pitch_v),
+            _mm_mullo_epi32(z_scene, sin_camera_pitch_v)),
+        16);
+    __m128i z_final = _mm_srai_epi32(
+        _mm_add_epi32(
+            _mm_mullo_epi32(y_rotated, sin_camera_pitch_v),
+            _mm_mullo_epi32(z_scene, cos_camera_pitch_v)),
+        16);
+
+    projection16_avx2_scatter_i32_4(szscr, o0, o1, o2, o3, z_final);
+
+    __m128i cot_v = _mm_set1_epi32(cot_fov_half_ish15);
+    __m128i xfov = _mm_mullo_epi32(x_scene, cot_v);
+    __m128i yfov = _mm_mullo_epi32(y_scene, cot_v);
+    __m128i x_scaled = _mm_srai_epi32(xfov, 6);
+    __m128i y_scaled = _mm_srai_epi32(yfov, 6);
+
+    projection16_avx2_scatter_i32_4(sx, o0, o1, o2, o3, x_scaled);
+    projection16_avx2_scatter_i32_4(sy, o0, o1, o2, o3, y_scaled);
+}
+
+static inline void
+projection16_avx2_sparse_notex_pass1_noyaw(
+    vertexint_t* vx,
+    vertexint_t* vy,
+    vertexint_t* vz,
+    int vi0,
+    int vi1,
+    int vi2,
+    int vi3,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int cos_camera_yaw,
+    int sin_camera_yaw,
+    int cos_camera_pitch,
+    int sin_camera_pitch,
+    int cot_fov_half_ish15,
+    int* sx,
+    int* sy,
+    int* szscr)
+{
+    __m128i xv4 = projection16_avx2_gather_vx4(vx, vi0, vi1, vi2, vi3);
+    __m128i yv4 = projection16_avx2_gather_vx4(vy, vi0, vi1, vi2, vi3);
+    __m128i zv4 = projection16_avx2_gather_vx4(vz, vi0, vi1, vi2, vi3);
+
+    __m128i x_rotated = _mm_add_epi32(xv4, _mm_set1_epi32(scene_x));
+    __m128i y_rotated = _mm_add_epi32(yv4, _mm_set1_epi32(scene_y));
+    __m128i z_rotated = _mm_add_epi32(zv4, _mm_set1_epi32(scene_z));
+
+    __m128i cos_camera_yaw_v = _mm_set1_epi32(cos_camera_yaw);
+    __m128i sin_camera_yaw_v = _mm_set1_epi32(sin_camera_yaw);
+    __m128i x_scene = _mm_srai_epi32(
+        _mm_add_epi32(
+            _mm_mullo_epi32(x_rotated, cos_camera_yaw_v),
+            _mm_mullo_epi32(z_rotated, sin_camera_yaw_v)),
+        16);
+    __m128i z_scene = _mm_srai_epi32(
+        _mm_sub_epi32(
+            _mm_mullo_epi32(z_rotated, cos_camera_yaw_v),
+            _mm_mullo_epi32(x_rotated, sin_camera_yaw_v)),
+        16);
+
+    __m128i cos_camera_pitch_v = _mm_set1_epi32(cos_camera_pitch);
+    __m128i sin_camera_pitch_v = _mm_set1_epi32(sin_camera_pitch);
+    __m128i y_scene = _mm_srai_epi32(
+        _mm_sub_epi32(
+            _mm_mullo_epi32(y_rotated, cos_camera_pitch_v),
+            _mm_mullo_epi32(z_scene, sin_camera_pitch_v)),
+        16);
+    __m128i z_final = _mm_srai_epi32(
+        _mm_add_epi32(
+            _mm_mullo_epi32(y_rotated, sin_camera_pitch_v),
+            _mm_mullo_epi32(z_scene, cos_camera_pitch_v)),
+        16);
+
+    projection16_avx2_scatter_i32_4(szscr, o0, o1, o2, o3, z_final);
+
+    __m128i cot_v = _mm_set1_epi32(cot_fov_half_ish15);
+    __m128i xfov = _mm_mullo_epi32(x_scene, cot_v);
+    __m128i yfov = _mm_mullo_epi32(y_scene, cot_v);
+    __m128i x_scaled = _mm_srai_epi32(xfov, 6);
+    __m128i y_scaled = _mm_srai_epi32(yfov, 6);
+
+    projection16_avx2_scatter_i32_4(sx, o0, o1, o2, o3, x_scaled);
+    projection16_avx2_scatter_i32_4(sy, o0, o1, o2, o3, y_scaled);
+}
+
+static inline void
+projection16_avx2_sparse_zdiv_tex_4(
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int model_mid_z,
+    int near_plane_z)
+{
+    int oz[4] = { o0, o1, o2, o3 };
+    int vz_arr[4] = {
+        orthographic_vertices_z[o0],
+        orthographic_vertices_z[o1],
+        orthographic_vertices_z[o2],
+        orthographic_vertices_z[o3],
+    };
+    int vsx_arr[4] = {
+        screen_vertices_x[o0],
+        screen_vertices_x[o1],
+        screen_vertices_x[o2],
+        screen_vertices_x[o3],
+    };
+    int vsy_arr[4] = {
+        screen_vertices_y[o0],
+        screen_vertices_y[o1],
+        screen_vertices_y[o2],
+        screen_vertices_y[o3],
+    };
+
+    __m128 fz = _mm_set_ps((float)vz_arr[3], (float)vz_arr[2], (float)vz_arr[1], (float)vz_arr[0]);
+    __m128 fx =
+        _mm_set_ps((float)vsx_arr[3], (float)vsx_arr[2], (float)vsx_arr[1], (float)vsx_arr[0]);
+    __m128 fy =
+        _mm_set_ps((float)vsy_arr[3], (float)vsy_arr[2], (float)vsy_arr[1], (float)vsy_arr[0]);
+
+    __m128 rcp_z = _mm_rcp_ps(fz);
+    __m128 fdivx = _mm_mul_ps(fx, rcp_z);
+    __m128 fdivy = _mm_mul_ps(fy, rcp_z);
+
+    float fdivx_arr[4], fdivy_arr[4];
+    _mm_storeu_ps(fdivx_arr, fdivx);
+    _mm_storeu_ps(fdivy_arr, fdivy);
+
+    for( int j = 0; j < 4; j++ )
+    {
+        int z = vz_arr[j];
+        bool clipped = (z < near_plane_z);
+        int idx = oz[j];
+
+        screen_vertices_z[idx] = z - model_mid_z;
+
+        int divx_i = (int)fdivx_arr[j];
+        int divy_i = (int)fdivy_arr[j];
+
+        if( clipped )
+        {
+            screen_vertices_x[idx] = -5000;
+            screen_vertices_y[idx] = vsy_arr[j];
+        }
+        else
+        {
+            if( divx_i == -5000 )
+                divx_i = -5001;
+            screen_vertices_x[idx] = divx_i;
+            screen_vertices_y[idx] = divy_i;
+        }
+    }
+}
+
+static inline void
+projection16_avx2_sparse_zdiv_notex_4(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int model_mid_z,
+    int near_plane_z)
+{
+    int oz[4] = { o0, o1, o2, o3 };
+    int vz_arr[4] = {
+        screen_vertices_z[o0],
+        screen_vertices_z[o1],
+        screen_vertices_z[o2],
+        screen_vertices_z[o3],
+    };
+    int vsx_arr[4] = {
+        screen_vertices_x[o0],
+        screen_vertices_x[o1],
+        screen_vertices_x[o2],
+        screen_vertices_x[o3],
+    };
+    int vsy_arr[4] = {
+        screen_vertices_y[o0],
+        screen_vertices_y[o1],
+        screen_vertices_y[o2],
+        screen_vertices_y[o3],
+    };
+
+    __m128 fz = _mm_set_ps((float)vz_arr[3], (float)vz_arr[2], (float)vz_arr[1], (float)vz_arr[0]);
+    __m128 fx =
+        _mm_set_ps((float)vsx_arr[3], (float)vsx_arr[2], (float)vsx_arr[1], (float)vsx_arr[0]);
+    __m128 fy =
+        _mm_set_ps((float)vsy_arr[3], (float)vsy_arr[2], (float)vsy_arr[1], (float)vsy_arr[0]);
+
+    __m128 rcp_z = _mm_rcp_ps(fz);
+    __m128 fdivx = _mm_mul_ps(fx, rcp_z);
+    __m128 fdivy = _mm_mul_ps(fy, rcp_z);
+
+    float fdivx_arr[4], fdivy_arr[4];
+    _mm_storeu_ps(fdivx_arr, fdivx);
+    _mm_storeu_ps(fdivy_arr, fdivy);
+
+    for( int j = 0; j < 4; j++ )
+    {
+        int z = vz_arr[j];
+        bool clipped = (z < near_plane_z);
+        int idx = oz[j];
+
+        screen_vertices_z[idx] = z - model_mid_z;
+
+        int divx_i = (int)fdivx_arr[j];
+        int divy_i = (int)fdivy_arr[j];
+
+        if( clipped )
+        {
+            screen_vertices_x[idx] = -5000;
+            screen_vertices_y[idx] = vsy_arr[j];
+        }
+        else
+        {
+            if( divx_i == -5000 )
+                divx_i = -5001;
+            screen_vertices_x[idx] = divx_i;
+            screen_vertices_y[idx] = divy_i;
+        }
+    }
+}
+
+static inline void
+project_vertices_array_sparse(
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
+    const faceint_t* vertex_faces_a,
+    const faceint_t* vertex_faces_b,
+    const faceint_t* vertex_faces_c,
+    int num_faces,
+    int model_yaw,
+    int model_mid_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int near_plane_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int fov_half = camera_fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+
+    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int sin_camera_pitch = g_sin_table[camera_pitch];
+    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int sin_camera_yaw = g_sin_table[camera_yaw];
+    int sin_model_yaw = g_sin_table[model_yaw];
+    int cos_model_yaw = g_cos_table[model_yaw];
+
+    int f = 0;
+    if( model_yaw != 0 )
+    {
+        for( ; f + 4 <= num_faces; f += 4 )
+        {
+            for( int cor = 0; cor < 3; cor++ )
+            {
+                int vi0 = projection16_sparse_corner_vi(
+                    cor, f + 0, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi1 = projection16_sparse_corner_vi(
+                    cor, f + 1, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi2 = projection16_sparse_corner_vi(
+                    cor, f + 2, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi3 = projection16_sparse_corner_vi(
+                    cor, f + 3, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int o0 = (f + 0) * 3 + cor;
+                int o1 = (f + 1) * 3 + cor;
+                int o2 = (f + 2) * 3 + cor;
+                int o3 = (f + 3) * 3 + cor;
+                projection16_avx2_sparse_tex_pass1_yaws(
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    vi0,
+                    vi1,
+                    vi2,
+                    vi3,
+                    o0,
+                    o1,
+                    o2,
+                    o3,
+                    cos_model_yaw,
+                    sin_model_yaw,
+                    scene_x,
+                    scene_y,
+                    scene_z,
+                    cos_camera_yaw,
+                    sin_camera_yaw,
+                    cos_camera_pitch,
+                    sin_camera_pitch,
+                    cot_fov_half_ish15,
+                    orthographic_vertices_x,
+                    orthographic_vertices_y,
+                    orthographic_vertices_z,
+                    screen_vertices_x,
+                    screen_vertices_y);
+            }
+        }
+    }
+    else
+    {
+        for( ; f + 4 <= num_faces; f += 4 )
+        {
+            for( int cor = 0; cor < 3; cor++ )
+            {
+                int vi0 = projection16_sparse_corner_vi(
+                    cor, f + 0, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi1 = projection16_sparse_corner_vi(
+                    cor, f + 1, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi2 = projection16_sparse_corner_vi(
+                    cor, f + 2, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi3 = projection16_sparse_corner_vi(
+                    cor, f + 3, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int o0 = (f + 0) * 3 + cor;
+                int o1 = (f + 1) * 3 + cor;
+                int o2 = (f + 2) * 3 + cor;
+                int o3 = (f + 3) * 3 + cor;
+                projection16_avx2_sparse_tex_pass1_noyaw(
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    vi0,
+                    vi1,
+                    vi2,
+                    vi3,
+                    o0,
+                    o1,
+                    o2,
+                    o3,
+                    scene_x,
+                    scene_y,
+                    scene_z,
+                    cos_camera_yaw,
+                    sin_camera_yaw,
+                    cos_camera_pitch,
+                    sin_camera_pitch,
+                    cot_fov_half_ish15,
+                    orthographic_vertices_x,
+                    orthographic_vertices_y,
+                    orthographic_vertices_z,
+                    screen_vertices_x,
+                    screen_vertices_y);
+            }
+        }
+    }
+
+    for( ; f < num_faces; f++ )
+    {
+        int base = f * 3;
+        int vi[3] = {
+            (int)vertex_faces_a[f],
+            (int)vertex_faces_b[f],
+            (int)vertex_faces_c[f],
+        };
+        for( int s = 0; s < 3; s++ )
+        {
+            int v = vi[s];
+            struct ProjectedVertex projected_vertex;
+            project_orthographic_fast(
+                &projected_vertex,
+                vertex_x[v],
+                vertex_y[v],
+                vertex_z[v],
+                model_yaw,
+                scene_x,
+                scene_y,
+                scene_z,
+                camera_pitch,
+                camera_yaw);
+
+            int x = projected_vertex.x;
+            int y = projected_vertex.y;
+
+            x *= cot_fov_half_ish15;
+            y *= cot_fov_half_ish15;
+            x >>= 15;
+            y >>= 15;
+
+            int idx = base + s;
+            orthographic_vertices_x[idx] = projected_vertex.x;
+            orthographic_vertices_y[idx] = projected_vertex.y;
+            orthographic_vertices_z[idx] = projected_vertex.z;
+
+            screen_vertices_x[idx] = SCALE_UNIT(x);
+            screen_vertices_y[idx] = SCALE_UNIT(y);
+        }
+    }
+
+    f = 0;
+    for( ; f + 4 <= num_faces; f += 4 )
+    {
+        for( int cor = 0; cor < 3; cor++ )
+        {
+            int o0 = (f + 0) * 3 + cor;
+            int o1 = (f + 1) * 3 + cor;
+            int o2 = (f + 2) * 3 + cor;
+            int o3 = (f + 3) * 3 + cor;
+            projection16_avx2_sparse_zdiv_tex_4(
+                orthographic_vertices_z,
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                o0,
+                o1,
+                o2,
+                o3,
+                model_mid_z,
+                near_plane_z);
+        }
+    }
+
+    for( ; f < num_faces; f++ )
+    {
+        int base = f * 3;
+        for( int s = 0; s < 3; s++ )
+        {
+            int idx = base + s;
+            int z = orthographic_vertices_z[idx];
+
+            bool clipped = false;
+            if( z < near_plane_z )
+                clipped = true;
+
+            screen_vertices_z[idx] = z - model_mid_z;
+
+            if( clipped )
+            {
+                screen_vertices_x[idx] = -5000;
+            }
+            else
+            {
+                screen_vertices_x[idx] = screen_vertices_x[idx] / z;
+                if( screen_vertices_x[idx] == -5000 )
+                    screen_vertices_x[idx] = -5001;
+                screen_vertices_y[idx] = screen_vertices_y[idx] / z;
+            }
+        }
+    }
+}
+
+static inline void
+project_vertices_array_notex_sparse(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
+    const faceint_t* vertex_faces_a,
+    const faceint_t* vertex_faces_b,
+    const faceint_t* vertex_faces_c,
+    int num_faces,
+    int model_yaw,
+    int model_mid_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int near_plane_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int fov_half = camera_fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+
+    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int sin_camera_pitch = g_sin_table[camera_pitch];
+    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int sin_camera_yaw = g_sin_table[camera_yaw];
+    int sin_model_yaw = g_sin_table[model_yaw];
+    int cos_model_yaw = g_cos_table[model_yaw];
+
+    int f = 0;
+    if( model_yaw != 0 )
+    {
+        for( ; f + 4 <= num_faces; f += 4 )
+        {
+            for( int cor = 0; cor < 3; cor++ )
+            {
+                int vi0 = projection16_sparse_corner_vi(
+                    cor, f + 0, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi1 = projection16_sparse_corner_vi(
+                    cor, f + 1, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi2 = projection16_sparse_corner_vi(
+                    cor, f + 2, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi3 = projection16_sparse_corner_vi(
+                    cor, f + 3, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int o0 = (f + 0) * 3 + cor;
+                int o1 = (f + 1) * 3 + cor;
+                int o2 = (f + 2) * 3 + cor;
+                int o3 = (f + 3) * 3 + cor;
+                projection16_avx2_sparse_notex_pass1_yaws(
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    vi0,
+                    vi1,
+                    vi2,
+                    vi3,
+                    o0,
+                    o1,
+                    o2,
+                    o3,
+                    cos_model_yaw,
+                    sin_model_yaw,
+                    scene_x,
+                    scene_y,
+                    scene_z,
+                    cos_camera_yaw,
+                    sin_camera_yaw,
+                    cos_camera_pitch,
+                    sin_camera_pitch,
+                    cot_fov_half_ish15,
+                    screen_vertices_x,
+                    screen_vertices_y,
+                    screen_vertices_z);
+            }
+        }
+    }
+    else
+    {
+        for( ; f + 4 <= num_faces; f += 4 )
+        {
+            for( int cor = 0; cor < 3; cor++ )
+            {
+                int vi0 = projection16_sparse_corner_vi(
+                    cor, f + 0, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi1 = projection16_sparse_corner_vi(
+                    cor, f + 1, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi2 = projection16_sparse_corner_vi(
+                    cor, f + 2, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi3 = projection16_sparse_corner_vi(
+                    cor, f + 3, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int o0 = (f + 0) * 3 + cor;
+                int o1 = (f + 1) * 3 + cor;
+                int o2 = (f + 2) * 3 + cor;
+                int o3 = (f + 3) * 3 + cor;
+                projection16_avx2_sparse_notex_pass1_noyaw(
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    vi0,
+                    vi1,
+                    vi2,
+                    vi3,
+                    o0,
+                    o1,
+                    o2,
+                    o3,
+                    scene_x,
+                    scene_y,
+                    scene_z,
+                    cos_camera_yaw,
+                    sin_camera_yaw,
+                    cos_camera_pitch,
+                    sin_camera_pitch,
+                    cot_fov_half_ish15,
+                    screen_vertices_x,
+                    screen_vertices_y,
+                    screen_vertices_z);
+            }
+        }
+    }
+
+    for( ; f < num_faces; f++ )
+    {
+        int base = f * 3;
+        int vi[3] = {
+            (int)vertex_faces_a[f],
+            (int)vertex_faces_b[f],
+            (int)vertex_faces_c[f],
+        };
+        for( int s = 0; s < 3; s++ )
+        {
+            int v = vi[s];
+            struct ProjectedVertex projected_vertex;
+            project_orthographic_fast(
+                &projected_vertex,
+                vertex_x[v],
+                vertex_y[v],
+                vertex_z[v],
+                model_yaw,
+                scene_x,
+                scene_y,
+                scene_z,
+                camera_pitch,
+                camera_yaw);
+
+            int x = projected_vertex.x;
+            int y = projected_vertex.y;
+            int z = projected_vertex.z;
+
+            x *= cot_fov_half_ish15;
+            y *= cot_fov_half_ish15;
+            x >>= 15;
+            y >>= 15;
+
+            int screen_x = SCALE_UNIT(x);
+            int screen_y = SCALE_UNIT(y);
+
+            int idx = base + s;
+            screen_vertices_z[idx] = z;
+            screen_vertices_x[idx] = screen_x;
+            screen_vertices_y[idx] = screen_y;
+        }
+    }
+
+    f = 0;
+    for( ; f + 4 <= num_faces; f += 4 )
+    {
+        for( int cor = 0; cor < 3; cor++ )
+        {
+            int o0 = (f + 0) * 3 + cor;
+            int o1 = (f + 1) * 3 + cor;
+            int o2 = (f + 2) * 3 + cor;
+            int o3 = (f + 3) * 3 + cor;
+            projection16_avx2_sparse_zdiv_notex_4(
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                o0,
+                o1,
+                o2,
+                o3,
+                model_mid_z,
+                near_plane_z);
+        }
+    }
+
+    for( ; f < num_faces; f++ )
+    {
+        int base = f * 3;
+        for( int s = 0; s < 3; s++ )
+        {
+            int idx = base + s;
+            int z = screen_vertices_z[idx];
+
+            bool clipped = false;
+            if( z < near_plane_z )
+                clipped = true;
+
+            screen_vertices_z[idx] = z - model_mid_z;
+
+            if( clipped )
+            {
+                screen_vertices_x[idx] = -5000;
+            }
+            else
+            {
+                screen_vertices_x[idx] = screen_vertices_x[idx] / z;
+                if( screen_vertices_x[idx] == -5000 )
+                    screen_vertices_x[idx] = -5001;
+                screen_vertices_y[idx] = screen_vertices_y[idx] / z;
+            }
+        }
+    }
+}
+
 #elif (defined(__SSE2__) || defined(__SSE4_1__)) && !defined(SSE2_DISABLED)
 #include "sse2_41compat.h"
 
@@ -2518,6 +4362,938 @@ project_vertices_array_notex(
     }
 }
 
+static inline __m128i
+projection16_sse2_gather_vx4(
+    vertexint_t* v,
+    int i0,
+    int i1,
+    int i2,
+    int i3)
+{
+    return _mm_set_epi32((int)v[i3], (int)v[i2], (int)v[i1], (int)v[i0]);
+}
+
+static inline void
+projection16_sse2_scatter_i32_4(
+    int* p,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    __m128i v)
+{
+    int al[4];
+    _mm_storeu_si128((__m128i*)al, v);
+    p[o0] = al[0];
+    p[o1] = al[1];
+    p[o2] = al[2];
+    p[o3] = al[3];
+}
+
+static inline void
+projection16_sse2_sparse_tex_pass1_yaws(
+    vertexint_t* vx,
+    vertexint_t* vy,
+    vertexint_t* vz,
+    int vi0,
+    int vi1,
+    int vi2,
+    int vi3,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int cos_model_yaw,
+    int sin_model_yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int cos_camera_yaw,
+    int sin_camera_yaw,
+    int cos_camera_pitch,
+    int sin_camera_pitch,
+    int cot_fov_half_ish15,
+    int* ox,
+    int* oy,
+    int* oz,
+    int* sx,
+    int* sy)
+{
+    __m128i xv4 = projection16_sse2_gather_vx4(vx, vi0, vi1, vi2, vi3);
+    __m128i yv4 = projection16_sse2_gather_vx4(vy, vi0, vi1, vi2, vi3);
+    __m128i zv4 = projection16_sse2_gather_vx4(vz, vi0, vi1, vi2, vi3);
+
+    __m128i cos_model_yaw_v = _mm_set1_epi32(cos_model_yaw);
+    __m128i sin_model_yaw_v = _mm_set1_epi32(sin_model_yaw);
+    __m128i x_rotated = _mm_srai_epi32(
+        _mm_add_epi32(_mm_mullo_epi32(xv4, cos_model_yaw_v), _mm_mullo_epi32(zv4, sin_model_yaw_v)),
+        16);
+    __m128i z_rotated = _mm_srai_epi32(
+        _mm_sub_epi32(_mm_mullo_epi32(zv4, cos_model_yaw_v), _mm_mullo_epi32(xv4, sin_model_yaw_v)),
+        16);
+
+    x_rotated = _mm_add_epi32(x_rotated, _mm_set1_epi32(scene_x));
+    __m128i y_rotated = _mm_add_epi32(yv4, _mm_set1_epi32(scene_y));
+    z_rotated = _mm_add_epi32(z_rotated, _mm_set1_epi32(scene_z));
+
+    __m128i cos_camera_yaw_v = _mm_set1_epi32(cos_camera_yaw);
+    __m128i sin_camera_yaw_v = _mm_set1_epi32(sin_camera_yaw);
+    __m128i x_scene = _mm_srai_epi32(
+        _mm_add_epi32(
+            _mm_mullo_epi32(x_rotated, cos_camera_yaw_v),
+            _mm_mullo_epi32(z_rotated, sin_camera_yaw_v)),
+        16);
+    __m128i z_scene = _mm_srai_epi32(
+        _mm_sub_epi32(
+            _mm_mullo_epi32(z_rotated, cos_camera_yaw_v),
+            _mm_mullo_epi32(x_rotated, sin_camera_yaw_v)),
+        16);
+
+    __m128i cos_camera_pitch_v = _mm_set1_epi32(cos_camera_pitch);
+    __m128i sin_camera_pitch_v = _mm_set1_epi32(sin_camera_pitch);
+    __m128i y_scene = _mm_srai_epi32(
+        _mm_sub_epi32(
+            _mm_mullo_epi32(y_rotated, cos_camera_pitch_v),
+            _mm_mullo_epi32(z_scene, sin_camera_pitch_v)),
+        16);
+    __m128i z_final = _mm_srai_epi32(
+        _mm_add_epi32(
+            _mm_mullo_epi32(y_rotated, sin_camera_pitch_v),
+            _mm_mullo_epi32(z_scene, cos_camera_pitch_v)),
+        16);
+
+    projection16_sse2_scatter_i32_4(ox, o0, o1, o2, o3, x_scene);
+    projection16_sse2_scatter_i32_4(oy, o0, o1, o2, o3, y_scene);
+    projection16_sse2_scatter_i32_4(oz, o0, o1, o2, o3, z_final);
+
+    __m128i cot_v = _mm_set1_epi32(cot_fov_half_ish15);
+    __m128i xfov = _mm_mullo_epi32(x_scene, cot_v);
+    __m128i yfov = _mm_mullo_epi32(y_scene, cot_v);
+    __m128i x_scaled = _mm_srai_epi32(xfov, 6);
+    __m128i y_scaled = _mm_srai_epi32(yfov, 6);
+
+    projection16_sse2_scatter_i32_4(sx, o0, o1, o2, o3, x_scaled);
+    projection16_sse2_scatter_i32_4(sy, o0, o1, o2, o3, y_scaled);
+}
+
+static inline void
+projection16_sse2_sparse_tex_pass1_noyaw(
+    vertexint_t* vx,
+    vertexint_t* vy,
+    vertexint_t* vz,
+    int vi0,
+    int vi1,
+    int vi2,
+    int vi3,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int cos_camera_yaw,
+    int sin_camera_yaw,
+    int cos_camera_pitch,
+    int sin_camera_pitch,
+    int cot_fov_half_ish15,
+    int* ox,
+    int* oy,
+    int* oz,
+    int* sx,
+    int* sy)
+{
+    __m128i xv4 = projection16_sse2_gather_vx4(vx, vi0, vi1, vi2, vi3);
+    __m128i yv4 = projection16_sse2_gather_vx4(vy, vi0, vi1, vi2, vi3);
+    __m128i zv4 = projection16_sse2_gather_vx4(vz, vi0, vi1, vi2, vi3);
+
+    __m128i x_rotated = _mm_add_epi32(xv4, _mm_set1_epi32(scene_x));
+    __m128i y_rotated = _mm_add_epi32(yv4, _mm_set1_epi32(scene_y));
+    __m128i z_rotated = _mm_add_epi32(zv4, _mm_set1_epi32(scene_z));
+
+    __m128i cos_camera_yaw_v = _mm_set1_epi32(cos_camera_yaw);
+    __m128i sin_camera_yaw_v = _mm_set1_epi32(sin_camera_yaw);
+    __m128i x_scene = _mm_srai_epi32(
+        _mm_add_epi32(
+            _mm_mullo_epi32(x_rotated, cos_camera_yaw_v),
+            _mm_mullo_epi32(z_rotated, sin_camera_yaw_v)),
+        16);
+    __m128i z_scene = _mm_srai_epi32(
+        _mm_sub_epi32(
+            _mm_mullo_epi32(z_rotated, cos_camera_yaw_v),
+            _mm_mullo_epi32(x_rotated, sin_camera_yaw_v)),
+        16);
+
+    __m128i cos_camera_pitch_v = _mm_set1_epi32(cos_camera_pitch);
+    __m128i sin_camera_pitch_v = _mm_set1_epi32(sin_camera_pitch);
+    __m128i y_scene = _mm_srai_epi32(
+        _mm_sub_epi32(
+            _mm_mullo_epi32(y_rotated, cos_camera_pitch_v),
+            _mm_mullo_epi32(z_scene, sin_camera_pitch_v)),
+        16);
+    __m128i z_final = _mm_srai_epi32(
+        _mm_add_epi32(
+            _mm_mullo_epi32(y_rotated, sin_camera_pitch_v),
+            _mm_mullo_epi32(z_scene, cos_camera_pitch_v)),
+        16);
+
+    projection16_sse2_scatter_i32_4(ox, o0, o1, o2, o3, x_scene);
+    projection16_sse2_scatter_i32_4(oy, o0, o1, o2, o3, y_scene);
+    projection16_sse2_scatter_i32_4(oz, o0, o1, o2, o3, z_final);
+
+    __m128i cot_v = _mm_set1_epi32(cot_fov_half_ish15);
+    __m128i xfov = _mm_mullo_epi32(x_scene, cot_v);
+    __m128i yfov = _mm_mullo_epi32(y_scene, cot_v);
+    __m128i x_scaled = _mm_srai_epi32(xfov, 6);
+    __m128i y_scaled = _mm_srai_epi32(yfov, 6);
+
+    projection16_sse2_scatter_i32_4(sx, o0, o1, o2, o3, x_scaled);
+    projection16_sse2_scatter_i32_4(sy, o0, o1, o2, o3, y_scaled);
+}
+
+static inline void
+projection16_sse2_sparse_notex_pass1_yaws(
+    vertexint_t* vx,
+    vertexint_t* vy,
+    vertexint_t* vz,
+    int vi0,
+    int vi1,
+    int vi2,
+    int vi3,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int cos_model_yaw,
+    int sin_model_yaw,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int cos_camera_yaw,
+    int sin_camera_yaw,
+    int cos_camera_pitch,
+    int sin_camera_pitch,
+    int cot_fov_half_ish15,
+    int* sx,
+    int* sy,
+    int* szscr)
+{
+    __m128i xv4 = projection16_sse2_gather_vx4(vx, vi0, vi1, vi2, vi3);
+    __m128i yv4 = projection16_sse2_gather_vx4(vy, vi0, vi1, vi2, vi3);
+    __m128i zv4 = projection16_sse2_gather_vx4(vz, vi0, vi1, vi2, vi3);
+
+    __m128i cos_model_yaw_v = _mm_set1_epi32(cos_model_yaw);
+    __m128i sin_model_yaw_v = _mm_set1_epi32(sin_model_yaw);
+    __m128i x_rotated = _mm_srai_epi32(
+        _mm_add_epi32(_mm_mullo_epi32(xv4, cos_model_yaw_v), _mm_mullo_epi32(zv4, sin_model_yaw_v)),
+        16);
+    __m128i z_rotated = _mm_srai_epi32(
+        _mm_sub_epi32(_mm_mullo_epi32(zv4, cos_model_yaw_v), _mm_mullo_epi32(xv4, sin_model_yaw_v)),
+        16);
+
+    x_rotated = _mm_add_epi32(x_rotated, _mm_set1_epi32(scene_x));
+    __m128i y_rotated = _mm_add_epi32(yv4, _mm_set1_epi32(scene_y));
+    z_rotated = _mm_add_epi32(z_rotated, _mm_set1_epi32(scene_z));
+
+    __m128i cos_camera_yaw_v = _mm_set1_epi32(cos_camera_yaw);
+    __m128i sin_camera_yaw_v = _mm_set1_epi32(sin_camera_yaw);
+    __m128i x_scene = _mm_srai_epi32(
+        _mm_add_epi32(
+            _mm_mullo_epi32(x_rotated, cos_camera_yaw_v),
+            _mm_mullo_epi32(z_rotated, sin_camera_yaw_v)),
+        16);
+    __m128i z_scene = _mm_srai_epi32(
+        _mm_sub_epi32(
+            _mm_mullo_epi32(z_rotated, cos_camera_yaw_v),
+            _mm_mullo_epi32(x_rotated, sin_camera_yaw_v)),
+        16);
+
+    __m128i cos_camera_pitch_v = _mm_set1_epi32(cos_camera_pitch);
+    __m128i sin_camera_pitch_v = _mm_set1_epi32(sin_camera_pitch);
+    __m128i y_scene = _mm_srai_epi32(
+        _mm_sub_epi32(
+            _mm_mullo_epi32(y_rotated, cos_camera_pitch_v),
+            _mm_mullo_epi32(z_scene, sin_camera_pitch_v)),
+        16);
+    __m128i z_final = _mm_srai_epi32(
+        _mm_add_epi32(
+            _mm_mullo_epi32(y_rotated, sin_camera_pitch_v),
+            _mm_mullo_epi32(z_scene, cos_camera_pitch_v)),
+        16);
+
+    projection16_sse2_scatter_i32_4(szscr, o0, o1, o2, o3, z_final);
+
+    __m128i cot_v = _mm_set1_epi32(cot_fov_half_ish15);
+    __m128i xfov = _mm_mullo_epi32(x_scene, cot_v);
+    __m128i yfov = _mm_mullo_epi32(y_scene, cot_v);
+    __m128i x_scaled = _mm_srai_epi32(xfov, 6);
+    __m128i y_scaled = _mm_srai_epi32(yfov, 6);
+
+    projection16_sse2_scatter_i32_4(sx, o0, o1, o2, o3, x_scaled);
+    projection16_sse2_scatter_i32_4(sy, o0, o1, o2, o3, y_scaled);
+}
+
+static inline void
+projection16_sse2_sparse_notex_pass1_noyaw(
+    vertexint_t* vx,
+    vertexint_t* vy,
+    vertexint_t* vz,
+    int vi0,
+    int vi1,
+    int vi2,
+    int vi3,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int cos_camera_yaw,
+    int sin_camera_yaw,
+    int cos_camera_pitch,
+    int sin_camera_pitch,
+    int cot_fov_half_ish15,
+    int* sx,
+    int* sy,
+    int* szscr)
+{
+    __m128i xv4 = projection16_sse2_gather_vx4(vx, vi0, vi1, vi2, vi3);
+    __m128i yv4 = projection16_sse2_gather_vx4(vy, vi0, vi1, vi2, vi3);
+    __m128i zv4 = projection16_sse2_gather_vx4(vz, vi0, vi1, vi2, vi3);
+
+    __m128i x_rotated = _mm_add_epi32(xv4, _mm_set1_epi32(scene_x));
+    __m128i y_rotated = _mm_add_epi32(yv4, _mm_set1_epi32(scene_y));
+    __m128i z_rotated = _mm_add_epi32(zv4, _mm_set1_epi32(scene_z));
+
+    __m128i cos_camera_yaw_v = _mm_set1_epi32(cos_camera_yaw);
+    __m128i sin_camera_yaw_v = _mm_set1_epi32(sin_camera_yaw);
+    __m128i x_scene = _mm_srai_epi32(
+        _mm_add_epi32(
+            _mm_mullo_epi32(x_rotated, cos_camera_yaw_v),
+            _mm_mullo_epi32(z_rotated, sin_camera_yaw_v)),
+        16);
+    __m128i z_scene = _mm_srai_epi32(
+        _mm_sub_epi32(
+            _mm_mullo_epi32(z_rotated, cos_camera_yaw_v),
+            _mm_mullo_epi32(x_rotated, sin_camera_yaw_v)),
+        16);
+
+    __m128i cos_camera_pitch_v = _mm_set1_epi32(cos_camera_pitch);
+    __m128i sin_camera_pitch_v = _mm_set1_epi32(sin_camera_pitch);
+    __m128i y_scene = _mm_srai_epi32(
+        _mm_sub_epi32(
+            _mm_mullo_epi32(y_rotated, cos_camera_pitch_v),
+            _mm_mullo_epi32(z_scene, sin_camera_pitch_v)),
+        16);
+    __m128i z_final = _mm_srai_epi32(
+        _mm_add_epi32(
+            _mm_mullo_epi32(y_rotated, sin_camera_pitch_v),
+            _mm_mullo_epi32(z_scene, cos_camera_pitch_v)),
+        16);
+
+    projection16_sse2_scatter_i32_4(szscr, o0, o1, o2, o3, z_final);
+
+    __m128i cot_v = _mm_set1_epi32(cot_fov_half_ish15);
+    __m128i xfov = _mm_mullo_epi32(x_scene, cot_v);
+    __m128i yfov = _mm_mullo_epi32(y_scene, cot_v);
+    __m128i x_scaled = _mm_srai_epi32(xfov, 6);
+    __m128i y_scaled = _mm_srai_epi32(yfov, 6);
+
+    projection16_sse2_scatter_i32_4(sx, o0, o1, o2, o3, x_scaled);
+    projection16_sse2_scatter_i32_4(sy, o0, o1, o2, o3, y_scaled);
+}
+
+static inline void
+projection16_sse2_sparse_zdiv_tex_4(
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int model_mid_z,
+    int near_plane_z)
+{
+    int oz[4] = { o0, o1, o2, o3 };
+    int vz_arr[4] = {
+        orthographic_vertices_z[o0],
+        orthographic_vertices_z[o1],
+        orthographic_vertices_z[o2],
+        orthographic_vertices_z[o3],
+    };
+    int vsx_arr[4] = {
+        screen_vertices_x[o0],
+        screen_vertices_x[o1],
+        screen_vertices_x[o2],
+        screen_vertices_x[o3],
+    };
+    int vsy_arr[4] = {
+        screen_vertices_y[o0],
+        screen_vertices_y[o1],
+        screen_vertices_y[o2],
+        screen_vertices_y[o3],
+    };
+
+    __m128 fz = _mm_set_ps((float)vz_arr[3], (float)vz_arr[2], (float)vz_arr[1], (float)vz_arr[0]);
+    __m128 fx =
+        _mm_set_ps((float)vsx_arr[3], (float)vsx_arr[2], (float)vsx_arr[1], (float)vsx_arr[0]);
+    __m128 fy =
+        _mm_set_ps((float)vsy_arr[3], (float)vsy_arr[2], (float)vsy_arr[1], (float)vsy_arr[0]);
+
+    __m128 rcp_z = _mm_rcp_ps(fz);
+    __m128 fdivx = _mm_mul_ps(fx, rcp_z);
+    __m128 fdivy = _mm_mul_ps(fy, rcp_z);
+
+    float fdivx_arr[4], fdivy_arr[4];
+    _mm_storeu_ps(fdivx_arr, fdivx);
+    _mm_storeu_ps(fdivy_arr, fdivy);
+
+    for( int j = 0; j < 4; j++ )
+    {
+        int z = vz_arr[j];
+        bool clipped = (z < near_plane_z);
+        int idx = oz[j];
+
+        screen_vertices_z[idx] = z - model_mid_z;
+
+        int divx_i = (int)fdivx_arr[j];
+        int divy_i = (int)fdivy_arr[j];
+
+        if( clipped )
+        {
+            screen_vertices_x[idx] = -5000;
+            screen_vertices_y[idx] = vsy_arr[j];
+        }
+        else
+        {
+            if( divx_i == -5000 )
+                divx_i = -5001;
+            screen_vertices_x[idx] = divx_i;
+            screen_vertices_y[idx] = divy_i;
+        }
+    }
+}
+
+static inline void
+projection16_sse2_sparse_zdiv_notex_4(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int model_mid_z,
+    int near_plane_z)
+{
+    int oz[4] = { o0, o1, o2, o3 };
+    int vz_arr[4] = {
+        screen_vertices_z[o0],
+        screen_vertices_z[o1],
+        screen_vertices_z[o2],
+        screen_vertices_z[o3],
+    };
+    int vsx_arr[4] = {
+        screen_vertices_x[o0],
+        screen_vertices_x[o1],
+        screen_vertices_x[o2],
+        screen_vertices_x[o3],
+    };
+    int vsy_arr[4] = {
+        screen_vertices_y[o0],
+        screen_vertices_y[o1],
+        screen_vertices_y[o2],
+        screen_vertices_y[o3],
+    };
+
+    __m128 fz = _mm_set_ps((float)vz_arr[3], (float)vz_arr[2], (float)vz_arr[1], (float)vz_arr[0]);
+    __m128 fx =
+        _mm_set_ps((float)vsx_arr[3], (float)vsx_arr[2], (float)vsx_arr[1], (float)vsx_arr[0]);
+    __m128 fy =
+        _mm_set_ps((float)vsy_arr[3], (float)vsy_arr[2], (float)vsy_arr[1], (float)vsy_arr[0]);
+
+    __m128 rcp_z = _mm_rcp_ps(fz);
+    __m128 fdivx = _mm_mul_ps(fx, rcp_z);
+    __m128 fdivy = _mm_mul_ps(fy, rcp_z);
+
+    float fdivx_arr[4], fdivy_arr[4];
+    _mm_storeu_ps(fdivx_arr, fdivx);
+    _mm_storeu_ps(fdivy_arr, fdivy);
+
+    for( int j = 0; j < 4; j++ )
+    {
+        int z = vz_arr[j];
+        bool clipped = (z < near_plane_z);
+        int idx = oz[j];
+
+        screen_vertices_z[idx] = z - model_mid_z;
+
+        int divx_i = (int)fdivx_arr[j];
+        int divy_i = (int)fdivy_arr[j];
+
+        if( clipped )
+        {
+            screen_vertices_x[idx] = -5000;
+            screen_vertices_y[idx] = vsy_arr[j];
+        }
+        else
+        {
+            if( divx_i == -5000 )
+                divx_i = -5001;
+            screen_vertices_x[idx] = divx_i;
+            screen_vertices_y[idx] = divy_i;
+        }
+    }
+}
+
+static inline void
+project_vertices_array_sparse(
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
+    const faceint_t* vertex_faces_a,
+    const faceint_t* vertex_faces_b,
+    const faceint_t* vertex_faces_c,
+    int num_faces,
+    int model_yaw,
+    int model_mid_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int near_plane_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int fov_half = camera_fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+
+    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int sin_camera_pitch = g_sin_table[camera_pitch];
+    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int sin_camera_yaw = g_sin_table[camera_yaw];
+    int sin_model_yaw = g_sin_table[model_yaw];
+    int cos_model_yaw = g_cos_table[model_yaw];
+
+    int f = 0;
+    if( model_yaw != 0 )
+    {
+        for( ; f + 4 <= num_faces; f += 4 )
+        {
+            for( int cor = 0; cor < 3; cor++ )
+            {
+                int vi0 = projection16_sparse_corner_vi(
+                    cor, f + 0, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi1 = projection16_sparse_corner_vi(
+                    cor, f + 1, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi2 = projection16_sparse_corner_vi(
+                    cor, f + 2, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi3 = projection16_sparse_corner_vi(
+                    cor, f + 3, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int o0 = (f + 0) * 3 + cor;
+                int o1 = (f + 1) * 3 + cor;
+                int o2 = (f + 2) * 3 + cor;
+                int o3 = (f + 3) * 3 + cor;
+                projection16_sse2_sparse_tex_pass1_yaws(
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    vi0,
+                    vi1,
+                    vi2,
+                    vi3,
+                    o0,
+                    o1,
+                    o2,
+                    o3,
+                    cos_model_yaw,
+                    sin_model_yaw,
+                    scene_x,
+                    scene_y,
+                    scene_z,
+                    cos_camera_yaw,
+                    sin_camera_yaw,
+                    cos_camera_pitch,
+                    sin_camera_pitch,
+                    cot_fov_half_ish15,
+                    orthographic_vertices_x,
+                    orthographic_vertices_y,
+                    orthographic_vertices_z,
+                    screen_vertices_x,
+                    screen_vertices_y);
+            }
+        }
+    }
+    else
+    {
+        for( ; f + 4 <= num_faces; f += 4 )
+        {
+            for( int cor = 0; cor < 3; cor++ )
+            {
+                int vi0 = projection16_sparse_corner_vi(
+                    cor, f + 0, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi1 = projection16_sparse_corner_vi(
+                    cor, f + 1, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi2 = projection16_sparse_corner_vi(
+                    cor, f + 2, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi3 = projection16_sparse_corner_vi(
+                    cor, f + 3, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int o0 = (f + 0) * 3 + cor;
+                int o1 = (f + 1) * 3 + cor;
+                int o2 = (f + 2) * 3 + cor;
+                int o3 = (f + 3) * 3 + cor;
+                projection16_sse2_sparse_tex_pass1_noyaw(
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    vi0,
+                    vi1,
+                    vi2,
+                    vi3,
+                    o0,
+                    o1,
+                    o2,
+                    o3,
+                    scene_x,
+                    scene_y,
+                    scene_z,
+                    cos_camera_yaw,
+                    sin_camera_yaw,
+                    cos_camera_pitch,
+                    sin_camera_pitch,
+                    cot_fov_half_ish15,
+                    orthographic_vertices_x,
+                    orthographic_vertices_y,
+                    orthographic_vertices_z,
+                    screen_vertices_x,
+                    screen_vertices_y);
+            }
+        }
+    }
+
+    for( ; f < num_faces; f++ )
+    {
+        int base = f * 3;
+        int vi[3] = {
+            (int)vertex_faces_a[f],
+            (int)vertex_faces_b[f],
+            (int)vertex_faces_c[f],
+        };
+        for( int s = 0; s < 3; s++ )
+        {
+            int v = vi[s];
+            struct ProjectedVertex projected_vertex;
+            project_orthographic_fast(
+                &projected_vertex,
+                vertex_x[v],
+                vertex_y[v],
+                vertex_z[v],
+                model_yaw,
+                scene_x,
+                scene_y,
+                scene_z,
+                camera_pitch,
+                camera_yaw);
+
+            int x = projected_vertex.x;
+            int y = projected_vertex.y;
+
+            x *= cot_fov_half_ish15;
+            y *= cot_fov_half_ish15;
+            x >>= 15;
+            y >>= 15;
+
+            int idx = base + s;
+            orthographic_vertices_x[idx] = projected_vertex.x;
+            orthographic_vertices_y[idx] = projected_vertex.y;
+            orthographic_vertices_z[idx] = projected_vertex.z;
+
+            screen_vertices_x[idx] = SCALE_UNIT(x);
+            screen_vertices_y[idx] = SCALE_UNIT(y);
+        }
+    }
+
+    f = 0;
+    for( ; f + 4 <= num_faces; f += 4 )
+    {
+        for( int cor = 0; cor < 3; cor++ )
+        {
+            int o0 = (f + 0) * 3 + cor;
+            int o1 = (f + 1) * 3 + cor;
+            int o2 = (f + 2) * 3 + cor;
+            int o3 = (f + 3) * 3 + cor;
+            projection16_sse2_sparse_zdiv_tex_4(
+                orthographic_vertices_z,
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                o0,
+                o1,
+                o2,
+                o3,
+                model_mid_z,
+                near_plane_z);
+        }
+    }
+
+    for( ; f < num_faces; f++ )
+    {
+        int base = f * 3;
+        for( int s = 0; s < 3; s++ )
+        {
+            int idx = base + s;
+            int z = orthographic_vertices_z[idx];
+
+            bool clipped = false;
+            if( z < near_plane_z )
+                clipped = true;
+
+            screen_vertices_z[idx] = z - model_mid_z;
+
+            if( clipped )
+            {
+                screen_vertices_x[idx] = -5000;
+            }
+            else
+            {
+                screen_vertices_x[idx] = screen_vertices_x[idx] / z;
+                if( screen_vertices_x[idx] == -5000 )
+                    screen_vertices_x[idx] = -5001;
+                screen_vertices_y[idx] = screen_vertices_y[idx] / z;
+            }
+        }
+    }
+}
+
+static inline void
+project_vertices_array_notex_sparse(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
+    const faceint_t* vertex_faces_a,
+    const faceint_t* vertex_faces_b,
+    const faceint_t* vertex_faces_c,
+    int num_faces,
+    int model_yaw,
+    int model_mid_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int near_plane_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int fov_half = camera_fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+
+    int cos_camera_pitch = g_cos_table[camera_pitch];
+    int sin_camera_pitch = g_sin_table[camera_pitch];
+    int cos_camera_yaw = g_cos_table[camera_yaw];
+    int sin_camera_yaw = g_sin_table[camera_yaw];
+    int sin_model_yaw = g_sin_table[model_yaw];
+    int cos_model_yaw = g_cos_table[model_yaw];
+
+    int f = 0;
+    if( model_yaw != 0 )
+    {
+        for( ; f + 4 <= num_faces; f += 4 )
+        {
+            for( int cor = 0; cor < 3; cor++ )
+            {
+                int vi0 = projection16_sparse_corner_vi(
+                    cor, f + 0, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi1 = projection16_sparse_corner_vi(
+                    cor, f + 1, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi2 = projection16_sparse_corner_vi(
+                    cor, f + 2, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi3 = projection16_sparse_corner_vi(
+                    cor, f + 3, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int o0 = (f + 0) * 3 + cor;
+                int o1 = (f + 1) * 3 + cor;
+                int o2 = (f + 2) * 3 + cor;
+                int o3 = (f + 3) * 3 + cor;
+                projection16_sse2_sparse_notex_pass1_yaws(
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    vi0,
+                    vi1,
+                    vi2,
+                    vi3,
+                    o0,
+                    o1,
+                    o2,
+                    o3,
+                    cos_model_yaw,
+                    sin_model_yaw,
+                    scene_x,
+                    scene_y,
+                    scene_z,
+                    cos_camera_yaw,
+                    sin_camera_yaw,
+                    cos_camera_pitch,
+                    sin_camera_pitch,
+                    cot_fov_half_ish15,
+                    screen_vertices_x,
+                    screen_vertices_y,
+                    screen_vertices_z);
+            }
+        }
+    }
+    else
+    {
+        for( ; f + 4 <= num_faces; f += 4 )
+        {
+            for( int cor = 0; cor < 3; cor++ )
+            {
+                int vi0 = projection16_sparse_corner_vi(
+                    cor, f + 0, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi1 = projection16_sparse_corner_vi(
+                    cor, f + 1, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi2 = projection16_sparse_corner_vi(
+                    cor, f + 2, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi3 = projection16_sparse_corner_vi(
+                    cor, f + 3, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int o0 = (f + 0) * 3 + cor;
+                int o1 = (f + 1) * 3 + cor;
+                int o2 = (f + 2) * 3 + cor;
+                int o3 = (f + 3) * 3 + cor;
+                projection16_sse2_sparse_notex_pass1_noyaw(
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    vi0,
+                    vi1,
+                    vi2,
+                    vi3,
+                    o0,
+                    o1,
+                    o2,
+                    o3,
+                    scene_x,
+                    scene_y,
+                    scene_z,
+                    cos_camera_yaw,
+                    sin_camera_yaw,
+                    cos_camera_pitch,
+                    sin_camera_pitch,
+                    cot_fov_half_ish15,
+                    screen_vertices_x,
+                    screen_vertices_y,
+                    screen_vertices_z);
+            }
+        }
+    }
+
+    for( ; f < num_faces; f++ )
+    {
+        int base = f * 3;
+        int vi[3] = {
+            (int)vertex_faces_a[f],
+            (int)vertex_faces_b[f],
+            (int)vertex_faces_c[f],
+        };
+        for( int s = 0; s < 3; s++ )
+        {
+            int v = vi[s];
+            struct ProjectedVertex projected_vertex;
+            project_orthographic_fast(
+                &projected_vertex,
+                vertex_x[v],
+                vertex_y[v],
+                vertex_z[v],
+                model_yaw,
+                scene_x,
+                scene_y,
+                scene_z,
+                camera_pitch,
+                camera_yaw);
+
+            int x = projected_vertex.x;
+            int y = projected_vertex.y;
+            int z = projected_vertex.z;
+
+            x *= cot_fov_half_ish15;
+            y *= cot_fov_half_ish15;
+            x >>= 15;
+            y >>= 15;
+
+            int screen_x = SCALE_UNIT(x);
+            int screen_y = SCALE_UNIT(y);
+
+            int idx = base + s;
+            screen_vertices_z[idx] = z;
+            screen_vertices_x[idx] = screen_x;
+            screen_vertices_y[idx] = screen_y;
+        }
+    }
+
+    f = 0;
+    for( ; f + 4 <= num_faces; f += 4 )
+    {
+        for( int cor = 0; cor < 3; cor++ )
+        {
+            int o0 = (f + 0) * 3 + cor;
+            int o1 = (f + 1) * 3 + cor;
+            int o2 = (f + 2) * 3 + cor;
+            int o3 = (f + 3) * 3 + cor;
+            projection16_sse2_sparse_zdiv_notex_4(
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                o0,
+                o1,
+                o2,
+                o3,
+                model_mid_z,
+                near_plane_z);
+        }
+    }
+
+    for( ; f < num_faces; f++ )
+    {
+        int base = f * 3;
+        for( int s = 0; s < 3; s++ )
+        {
+            int idx = base + s;
+            int z = screen_vertices_z[idx];
+
+            bool clipped = false;
+            if( z < near_plane_z )
+                clipped = true;
+
+            screen_vertices_z[idx] = z - model_mid_z;
+
+            if( clipped )
+            {
+                screen_vertices_x[idx] = -5000;
+            }
+            else
+            {
+                screen_vertices_x[idx] = screen_vertices_x[idx] / z;
+                if( screen_vertices_x[idx] == -5000 )
+                    screen_vertices_x[idx] = -5001;
+                screen_vertices_y[idx] = screen_vertices_y[idx] / z;
+            }
+        }
+    }
+}
+
 // __SSE2__
 #elif defined(__SSE__) && !defined(SSE_DISABLED)
 #include <xmmintrin.h>
@@ -3073,7 +5849,7 @@ project_vertices_array_sse_float_notex(
         // store z_final to screen_vertices_z as temporary
         float z_final_arr[4];
         _mm_storeu_ps(z_final_arr, z_final);
-        screen_vertices_z[i]     = (int)z_final_arr[0];
+        screen_vertices_z[i] = (int)z_final_arr[0];
         screen_vertices_z[i + 1] = (int)z_final_arr[1];
         screen_vertices_z[i + 2] = (int)z_final_arr[2];
         screen_vertices_z[i + 3] = (int)z_final_arr[3];
@@ -3088,12 +5864,12 @@ project_vertices_array_sse_float_notex(
         _mm_storeu_ps(x_final_arr, x_final_f);
         _mm_storeu_ps(y_final_arr, y_final_f);
 
-        screen_vertices_x[i]     = (int)x_final_arr[0];
+        screen_vertices_x[i] = (int)x_final_arr[0];
         screen_vertices_x[i + 1] = (int)x_final_arr[1];
         screen_vertices_x[i + 2] = (int)x_final_arr[2];
         screen_vertices_x[i + 3] = (int)x_final_arr[3];
 
-        screen_vertices_y[i]     = (int)y_final_arr[0];
+        screen_vertices_y[i] = (int)y_final_arr[0];
         screen_vertices_y[i + 1] = (int)y_final_arr[1];
         screen_vertices_y[i + 2] = (int)y_final_arr[2];
         screen_vertices_y[i + 3] = (int)y_final_arr[3];
@@ -3201,7 +5977,7 @@ project_vertices_array_sse_float_noyaw_notex(
 
         float z_final_arr[4];
         _mm_storeu_ps(z_final_arr, z_final);
-        screen_vertices_z[i]     = (int)z_final_arr[0];
+        screen_vertices_z[i] = (int)z_final_arr[0];
         screen_vertices_z[i + 1] = (int)z_final_arr[1];
         screen_vertices_z[i + 2] = (int)z_final_arr[2];
         screen_vertices_z[i + 3] = (int)z_final_arr[3];
@@ -3216,12 +5992,12 @@ project_vertices_array_sse_float_noyaw_notex(
         _mm_storeu_ps(x_final_arr, x_final_f);
         _mm_storeu_ps(y_final_arr, y_final_f);
 
-        screen_vertices_x[i]     = (int)x_final_arr[0];
+        screen_vertices_x[i] = (int)x_final_arr[0];
         screen_vertices_x[i + 1] = (int)x_final_arr[1];
         screen_vertices_x[i + 2] = (int)x_final_arr[2];
         screen_vertices_x[i + 3] = (int)x_final_arr[3];
 
-        screen_vertices_y[i]     = (int)y_final_arr[0];
+        screen_vertices_y[i] = (int)y_final_arr[0];
         screen_vertices_y[i + 1] = (int)y_final_arr[1];
         screen_vertices_y[i + 2] = (int)y_final_arr[2];
         screen_vertices_y[i + 3] = (int)y_final_arr[3];
@@ -3395,6 +6171,1044 @@ project_vertices_array_notex(
             if( screen_vertices_x[i] == -5000 )
                 screen_vertices_x[i] = -5001;
             screen_vertices_y[i] = screen_vertices_y[i] / z;
+        }
+    }
+}
+
+static inline void
+projection16_sse_f_scatter_int4(
+    int* p,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int a0,
+    int a1,
+    int a2,
+    int a3)
+{
+    p[o0] = a0;
+    p[o1] = a1;
+    p[o2] = a2;
+    p[o3] = a3;
+}
+
+static inline void
+projection16_sse_f_sparse_tex_pass1_yaws(
+    vertexint_t* vx,
+    vertexint_t* vy,
+    vertexint_t* vz,
+    int vi0,
+    int vi1,
+    int vi2,
+    int vi3,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    __m128 v_cos_model_yaw,
+    __m128 v_sin_model_yaw,
+    __m128 v_cos_camera_yaw,
+    __m128 v_sin_camera_yaw,
+    __m128 v_cos_camera_pitch,
+    __m128 v_sin_camera_pitch,
+    __m128 v_cot_fov,
+    __m128 v_512,
+    float scene_x,
+    float scene_y,
+    float scene_z,
+    int* ox,
+    int* oy,
+    int* oz,
+    int* sx,
+    int* sy)
+{
+    __m128 xv4 = _mm_set_ps((float)vx[vi3], (float)vx[vi2], (float)vx[vi1], (float)vx[vi0]);
+    __m128 yv4 = _mm_set_ps((float)vy[vi3], (float)vy[vi2], (float)vy[vi1], (float)vy[vi0]);
+    __m128 zv4 = _mm_set_ps((float)vz[vi3], (float)vz[vi2], (float)vz[vi1], (float)vz[vi0]);
+
+    __m128 x_rotated =
+        _mm_add_ps(_mm_mul_ps(xv4, v_cos_model_yaw), _mm_mul_ps(zv4, v_sin_model_yaw));
+    __m128 z_rotated =
+        _mm_sub_ps(_mm_mul_ps(zv4, v_cos_model_yaw), _mm_mul_ps(xv4, v_sin_model_yaw));
+
+    __m128 x_trans = _mm_add_ps(x_rotated, _mm_set1_ps(scene_x));
+    __m128 y_trans = _mm_add_ps(yv4, _mm_set1_ps(scene_y));
+    __m128 z_trans = _mm_add_ps(z_rotated, _mm_set1_ps(scene_z));
+
+    __m128 x_scene =
+        _mm_add_ps(_mm_mul_ps(x_trans, v_cos_camera_yaw), _mm_mul_ps(z_trans, v_sin_camera_yaw));
+    __m128 z_scene =
+        _mm_sub_ps(_mm_mul_ps(z_trans, v_cos_camera_yaw), _mm_mul_ps(x_trans, v_sin_camera_yaw));
+
+    __m128 y_scene = _mm_sub_ps(
+        _mm_mul_ps(y_trans, v_cos_camera_pitch), _mm_mul_ps(z_scene, v_sin_camera_pitch));
+    __m128 z_final = _mm_add_ps(
+        _mm_mul_ps(y_trans, v_sin_camera_pitch), _mm_mul_ps(z_scene, v_cos_camera_pitch));
+
+    float x_scene_arr[4], y_scene_arr[4], z_final_arr[4];
+    _mm_storeu_ps(x_scene_arr, x_scene);
+    _mm_storeu_ps(y_scene_arr, y_scene);
+    _mm_storeu_ps(z_final_arr, z_final);
+
+    projection16_sse_f_scatter_int4(
+        ox,
+        o0,
+        o1,
+        o2,
+        o3,
+        (int)x_scene_arr[0],
+        (int)x_scene_arr[1],
+        (int)x_scene_arr[2],
+        (int)x_scene_arr[3]);
+    projection16_sse_f_scatter_int4(
+        oy,
+        o0,
+        o1,
+        o2,
+        o3,
+        (int)y_scene_arr[0],
+        (int)y_scene_arr[1],
+        (int)y_scene_arr[2],
+        (int)y_scene_arr[3]);
+    projection16_sse_f_scatter_int4(
+        oz,
+        o0,
+        o1,
+        o2,
+        o3,
+        (int)z_final_arr[0],
+        (int)z_final_arr[1],
+        (int)z_final_arr[2],
+        (int)z_final_arr[3]);
+
+    __m128 x_proj = _mm_mul_ps(x_scene, v_cot_fov);
+    __m128 y_proj = _mm_mul_ps(y_scene, v_cot_fov);
+    __m128 x_final_f = _mm_mul_ps(x_proj, v_512);
+    __m128 y_final_f = _mm_mul_ps(y_proj, v_512);
+
+    float x_final_arr[4], y_final_arr[4];
+    _mm_storeu_ps(x_final_arr, x_final_f);
+    _mm_storeu_ps(y_final_arr, y_final_f);
+
+    projection16_sse_f_scatter_int4(
+        sx,
+        o0,
+        o1,
+        o2,
+        o3,
+        (int)x_final_arr[0],
+        (int)x_final_arr[1],
+        (int)x_final_arr[2],
+        (int)x_final_arr[3]);
+    projection16_sse_f_scatter_int4(
+        sy,
+        o0,
+        o1,
+        o2,
+        o3,
+        (int)y_final_arr[0],
+        (int)y_final_arr[1],
+        (int)y_final_arr[2],
+        (int)y_final_arr[3]);
+}
+
+static inline void
+projection16_sse_f_sparse_tex_pass1_noyaw(
+    vertexint_t* vx,
+    vertexint_t* vy,
+    vertexint_t* vz,
+    int vi0,
+    int vi1,
+    int vi2,
+    int vi3,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    __m128 v_cos_camera_yaw,
+    __m128 v_sin_camera_yaw,
+    __m128 v_cos_camera_pitch,
+    __m128 v_sin_camera_pitch,
+    __m128 v_cot_fov,
+    __m128 v_512,
+    float scene_x,
+    float scene_y,
+    float scene_z,
+    int* ox,
+    int* oy,
+    int* oz,
+    int* sx,
+    int* sy)
+{
+    __m128 xv4 = _mm_set_ps((float)vx[vi3], (float)vx[vi2], (float)vx[vi1], (float)vx[vi0]);
+    __m128 yv4 = _mm_set_ps((float)vy[vi3], (float)vy[vi2], (float)vy[vi1], (float)vy[vi0]);
+    __m128 zv4 = _mm_set_ps((float)vz[vi3], (float)vz[vi2], (float)vz[vi1], (float)vz[vi0]);
+
+    __m128 x_trans = _mm_add_ps(xv4, _mm_set1_ps(scene_x));
+    __m128 y_trans = _mm_add_ps(yv4, _mm_set1_ps(scene_y));
+    __m128 z_trans = _mm_add_ps(zv4, _mm_set1_ps(scene_z));
+
+    __m128 x_scene =
+        _mm_add_ps(_mm_mul_ps(x_trans, v_cos_camera_yaw), _mm_mul_ps(z_trans, v_sin_camera_yaw));
+    __m128 z_scene =
+        _mm_sub_ps(_mm_mul_ps(z_trans, v_cos_camera_yaw), _mm_mul_ps(x_trans, v_sin_camera_yaw));
+
+    __m128 y_scene = _mm_sub_ps(
+        _mm_mul_ps(y_trans, v_cos_camera_pitch), _mm_mul_ps(z_scene, v_sin_camera_pitch));
+    __m128 z_final = _mm_add_ps(
+        _mm_mul_ps(y_trans, v_sin_camera_pitch), _mm_mul_ps(z_scene, v_cos_camera_pitch));
+
+    float x_scene_arr[4], y_scene_arr[4], z_final_arr[4];
+    _mm_storeu_ps(x_scene_arr, x_scene);
+    _mm_storeu_ps(y_scene_arr, y_scene);
+    _mm_storeu_ps(z_final_arr, z_final);
+
+    projection16_sse_f_scatter_int4(
+        ox,
+        o0,
+        o1,
+        o2,
+        o3,
+        (int)x_scene_arr[0],
+        (int)x_scene_arr[1],
+        (int)x_scene_arr[2],
+        (int)x_scene_arr[3]);
+    projection16_sse_f_scatter_int4(
+        oy,
+        o0,
+        o1,
+        o2,
+        o3,
+        (int)y_scene_arr[0],
+        (int)y_scene_arr[1],
+        (int)y_scene_arr[2],
+        (int)y_scene_arr[3]);
+    projection16_sse_f_scatter_int4(
+        oz,
+        o0,
+        o1,
+        o2,
+        o3,
+        (int)z_final_arr[0],
+        (int)z_final_arr[1],
+        (int)z_final_arr[2],
+        (int)z_final_arr[3]);
+
+    __m128 x_proj = _mm_mul_ps(x_scene, v_cot_fov);
+    __m128 y_proj = _mm_mul_ps(y_scene, v_cot_fov);
+    __m128 x_final_f = _mm_mul_ps(x_proj, v_512);
+    __m128 y_final_f = _mm_mul_ps(y_proj, v_512);
+
+    float x_final_arr[4], y_final_arr[4];
+    _mm_storeu_ps(x_final_arr, x_final_f);
+    _mm_storeu_ps(y_final_arr, y_final_f);
+
+    projection16_sse_f_scatter_int4(
+        sx,
+        o0,
+        o1,
+        o2,
+        o3,
+        (int)x_final_arr[0],
+        (int)x_final_arr[1],
+        (int)x_final_arr[2],
+        (int)x_final_arr[3]);
+    projection16_sse_f_scatter_int4(
+        sy,
+        o0,
+        o1,
+        o2,
+        o3,
+        (int)y_final_arr[0],
+        (int)y_final_arr[1],
+        (int)y_final_arr[2],
+        (int)y_final_arr[3]);
+}
+
+static inline void
+projection16_sse_f_sparse_notex_pass1_yaws(
+    vertexint_t* vx,
+    vertexint_t* vy,
+    vertexint_t* vz,
+    int vi0,
+    int vi1,
+    int vi2,
+    int vi3,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    __m128 v_cos_model_yaw,
+    __m128 v_sin_model_yaw,
+    __m128 v_cos_camera_yaw,
+    __m128 v_sin_camera_yaw,
+    __m128 v_cos_camera_pitch,
+    __m128 v_sin_camera_pitch,
+    __m128 v_cot_fov,
+    __m128 v_512,
+    float scene_x,
+    float scene_y,
+    float scene_z,
+    int* sx,
+    int* sy,
+    int* szscr)
+{
+    __m128 xv4 = _mm_set_ps((float)vx[vi3], (float)vx[vi2], (float)vx[vi1], (float)vx[vi0]);
+    __m128 yv4 = _mm_set_ps((float)vy[vi3], (float)vy[vi2], (float)vy[vi1], (float)vy[vi0]);
+    __m128 zv4 = _mm_set_ps((float)vz[vi3], (float)vz[vi2], (float)vz[vi1], (float)vz[vi0]);
+
+    __m128 x_rotated =
+        _mm_add_ps(_mm_mul_ps(xv4, v_cos_model_yaw), _mm_mul_ps(zv4, v_sin_model_yaw));
+    __m128 z_rotated =
+        _mm_sub_ps(_mm_mul_ps(zv4, v_cos_model_yaw), _mm_mul_ps(xv4, v_sin_model_yaw));
+
+    __m128 x_trans = _mm_add_ps(x_rotated, _mm_set1_ps(scene_x));
+    __m128 y_trans = _mm_add_ps(yv4, _mm_set1_ps(scene_y));
+    __m128 z_trans = _mm_add_ps(z_rotated, _mm_set1_ps(scene_z));
+
+    __m128 x_scene =
+        _mm_add_ps(_mm_mul_ps(x_trans, v_cos_camera_yaw), _mm_mul_ps(z_trans, v_sin_camera_yaw));
+    __m128 z_scene =
+        _mm_sub_ps(_mm_mul_ps(z_trans, v_cos_camera_yaw), _mm_mul_ps(x_trans, v_sin_camera_yaw));
+
+    __m128 y_scene = _mm_sub_ps(
+        _mm_mul_ps(y_trans, v_cos_camera_pitch), _mm_mul_ps(z_scene, v_sin_camera_pitch));
+    __m128 z_final = _mm_add_ps(
+        _mm_mul_ps(y_trans, v_sin_camera_pitch), _mm_mul_ps(z_scene, v_cos_camera_pitch));
+
+    float x_scene_arr[4], y_scene_arr[4], z_final_arr[4];
+    _mm_storeu_ps(x_scene_arr, x_scene);
+    _mm_storeu_ps(y_scene_arr, y_scene);
+    _mm_storeu_ps(z_final_arr, z_final);
+
+    projection16_sse_f_scatter_int4(
+        szscr,
+        o0,
+        o1,
+        o2,
+        o3,
+        (int)z_final_arr[0],
+        (int)z_final_arr[1],
+        (int)z_final_arr[2],
+        (int)z_final_arr[3]);
+
+    __m128 x_proj = _mm_mul_ps(x_scene, v_cot_fov);
+    __m128 y_proj = _mm_mul_ps(y_scene, v_cot_fov);
+    __m128 x_final_f = _mm_mul_ps(x_proj, v_512);
+    __m128 y_final_f = _mm_mul_ps(y_proj, v_512);
+
+    float x_final_arr[4], y_final_arr[4];
+    _mm_storeu_ps(x_final_arr, x_final_f);
+    _mm_storeu_ps(y_final_arr, y_final_f);
+
+    projection16_sse_f_scatter_int4(
+        sx,
+        o0,
+        o1,
+        o2,
+        o3,
+        (int)x_final_arr[0],
+        (int)x_final_arr[1],
+        (int)x_final_arr[2],
+        (int)x_final_arr[3]);
+    projection16_sse_f_scatter_int4(
+        sy,
+        o0,
+        o1,
+        o2,
+        o3,
+        (int)y_final_arr[0],
+        (int)y_final_arr[1],
+        (int)y_final_arr[2],
+        (int)y_final_arr[3]);
+}
+
+static inline void
+projection16_sse_f_sparse_notex_pass1_noyaw(
+    vertexint_t* vx,
+    vertexint_t* vy,
+    vertexint_t* vz,
+    int vi0,
+    int vi1,
+    int vi2,
+    int vi3,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    __m128 v_cos_camera_yaw,
+    __m128 v_sin_camera_yaw,
+    __m128 v_cos_camera_pitch,
+    __m128 v_sin_camera_pitch,
+    __m128 v_cot_fov,
+    __m128 v_512,
+    float scene_x,
+    float scene_y,
+    float scene_z,
+    int* sx,
+    int* sy,
+    int* szscr)
+{
+    __m128 xv4 = _mm_set_ps((float)vx[vi3], (float)vx[vi2], (float)vx[vi1], (float)vx[vi0]);
+    __m128 yv4 = _mm_set_ps((float)vy[vi3], (float)vy[vi2], (float)vy[vi1], (float)vy[vi0]);
+    __m128 zv4 = _mm_set_ps((float)vz[vi3], (float)vz[vi2], (float)vz[vi1], (float)vz[vi0]);
+
+    __m128 x_trans = _mm_add_ps(xv4, _mm_set1_ps(scene_x));
+    __m128 y_trans = _mm_add_ps(yv4, _mm_set1_ps(scene_y));
+    __m128 z_trans = _mm_add_ps(zv4, _mm_set1_ps(scene_z));
+
+    __m128 x_scene =
+        _mm_add_ps(_mm_mul_ps(x_trans, v_cos_camera_yaw), _mm_mul_ps(z_trans, v_sin_camera_yaw));
+    __m128 z_scene =
+        _mm_sub_ps(_mm_mul_ps(z_trans, v_cos_camera_yaw), _mm_mul_ps(x_trans, v_sin_camera_yaw));
+
+    __m128 y_scene = _mm_sub_ps(
+        _mm_mul_ps(y_trans, v_cos_camera_pitch), _mm_mul_ps(z_scene, v_sin_camera_pitch));
+    __m128 z_final = _mm_add_ps(
+        _mm_mul_ps(y_trans, v_sin_camera_pitch), _mm_mul_ps(z_scene, v_cos_camera_pitch));
+
+    float x_scene_arr[4], y_scene_arr[4], z_final_arr[4];
+    _mm_storeu_ps(x_scene_arr, x_scene);
+    _mm_storeu_ps(y_scene_arr, y_scene);
+    _mm_storeu_ps(z_final_arr, z_final);
+
+    projection16_sse_f_scatter_int4(
+        szscr,
+        o0,
+        o1,
+        o2,
+        o3,
+        (int)z_final_arr[0],
+        (int)z_final_arr[1],
+        (int)z_final_arr[2],
+        (int)z_final_arr[3]);
+
+    __m128 x_proj = _mm_mul_ps(x_scene, v_cot_fov);
+    __m128 y_proj = _mm_mul_ps(y_scene, v_cot_fov);
+    __m128 x_final_f = _mm_mul_ps(x_proj, v_512);
+    __m128 y_final_f = _mm_mul_ps(y_proj, v_512);
+
+    float x_final_arr[4], y_final_arr[4];
+    _mm_storeu_ps(x_final_arr, x_final_f);
+    _mm_storeu_ps(y_final_arr, y_final_f);
+
+    projection16_sse_f_scatter_int4(
+        sx,
+        o0,
+        o1,
+        o2,
+        o3,
+        (int)x_final_arr[0],
+        (int)x_final_arr[1],
+        (int)x_final_arr[2],
+        (int)x_final_arr[3]);
+    projection16_sse_f_scatter_int4(
+        sy,
+        o0,
+        o1,
+        o2,
+        o3,
+        (int)y_final_arr[0],
+        (int)y_final_arr[1],
+        (int)y_final_arr[2],
+        (int)y_final_arr[3]);
+}
+
+static inline void
+projection16_sse_f_sparse_zdiv_tex_4(
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int model_mid_z,
+    int near_plane_z)
+{
+    int oz[4] = { o0, o1, o2, o3 };
+    int vz_arr[4] = {
+        orthographic_vertices_z[o0],
+        orthographic_vertices_z[o1],
+        orthographic_vertices_z[o2],
+        orthographic_vertices_z[o3],
+    };
+    int vsx_arr[4] = {
+        screen_vertices_x[o0],
+        screen_vertices_x[o1],
+        screen_vertices_x[o2],
+        screen_vertices_x[o3],
+    };
+    int vsy_arr[4] = {
+        screen_vertices_y[o0],
+        screen_vertices_y[o1],
+        screen_vertices_y[o2],
+        screen_vertices_y[o3],
+    };
+
+    __m128 fz = _mm_set_ps((float)vz_arr[3], (float)vz_arr[2], (float)vz_arr[1], (float)vz_arr[0]);
+    __m128 fx =
+        _mm_set_ps((float)vsx_arr[3], (float)vsx_arr[2], (float)vsx_arr[1], (float)vsx_arr[0]);
+    __m128 fy =
+        _mm_set_ps((float)vsy_arr[3], (float)vsy_arr[2], (float)vsy_arr[1], (float)vsy_arr[0]);
+
+    __m128 rcp_z = _mm_rcp_ps(fz);
+    __m128 fdivx = _mm_mul_ps(fx, rcp_z);
+    __m128 fdivy = _mm_mul_ps(fy, rcp_z);
+
+    float fdivx_arr[4], fdivy_arr[4];
+    _mm_storeu_ps(fdivx_arr, fdivx);
+    _mm_storeu_ps(fdivy_arr, fdivy);
+
+    for( int j = 0; j < 4; j++ )
+    {
+        int z = vz_arr[j];
+        bool clipped = (z < near_plane_z);
+        int idx = oz[j];
+
+        screen_vertices_z[idx] = z - model_mid_z;
+
+        int divx_i = (int)fdivx_arr[j];
+        int divy_i = (int)fdivy_arr[j];
+
+        if( clipped )
+        {
+            screen_vertices_x[idx] = -5000;
+            screen_vertices_y[idx] = vsy_arr[j];
+        }
+        else
+        {
+            if( divx_i == -5000 )
+                divx_i = -5001;
+            screen_vertices_x[idx] = divx_i;
+            screen_vertices_y[idx] = divy_i;
+        }
+    }
+}
+
+static inline void
+projection16_sse_f_sparse_zdiv_notex_4(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int o0,
+    int o1,
+    int o2,
+    int o3,
+    int model_mid_z,
+    int near_plane_z)
+{
+    int oz[4] = { o0, o1, o2, o3 };
+    int vz_arr[4] = {
+        screen_vertices_z[o0],
+        screen_vertices_z[o1],
+        screen_vertices_z[o2],
+        screen_vertices_z[o3],
+    };
+    int vsx_arr[4] = {
+        screen_vertices_x[o0],
+        screen_vertices_x[o1],
+        screen_vertices_x[o2],
+        screen_vertices_x[o3],
+    };
+    int vsy_arr[4] = {
+        screen_vertices_y[o0],
+        screen_vertices_y[o1],
+        screen_vertices_y[o2],
+        screen_vertices_y[o3],
+    };
+
+    __m128 fz = _mm_set_ps((float)vz_arr[3], (float)vz_arr[2], (float)vz_arr[1], (float)vz_arr[0]);
+    __m128 fx =
+        _mm_set_ps((float)vsx_arr[3], (float)vsx_arr[2], (float)vsx_arr[1], (float)vsx_arr[0]);
+    __m128 fy =
+        _mm_set_ps((float)vsy_arr[3], (float)vsy_arr[2], (float)vsy_arr[1], (float)vsy_arr[0]);
+
+    __m128 rcp_z = _mm_rcp_ps(fz);
+    __m128 fdivx = _mm_mul_ps(fx, rcp_z);
+    __m128 fdivy = _mm_mul_ps(fy, rcp_z);
+
+    float fdivx_arr[4], fdivy_arr[4];
+    _mm_storeu_ps(fdivx_arr, fdivx);
+    _mm_storeu_ps(fdivy_arr, fdivy);
+
+    for( int j = 0; j < 4; j++ )
+    {
+        int z = vz_arr[j];
+        bool clipped = (z < near_plane_z);
+        int idx = oz[j];
+
+        screen_vertices_z[idx] = z - model_mid_z;
+
+        int divx_i = (int)fdivx_arr[j];
+        int divy_i = (int)fdivy_arr[j];
+
+        if( clipped )
+        {
+            screen_vertices_x[idx] = -5000;
+            screen_vertices_y[idx] = vsy_arr[j];
+        }
+        else
+        {
+            if( divx_i == -5000 )
+                divx_i = -5001;
+            screen_vertices_x[idx] = divx_i;
+            screen_vertices_y[idx] = divy_i;
+        }
+    }
+}
+
+static inline void
+project_vertices_array_sparse(
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
+    const faceint_t* vertex_faces_a,
+    const faceint_t* vertex_faces_b,
+    const faceint_t* vertex_faces_c,
+    int num_faces,
+    int model_yaw,
+    int model_mid_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int near_plane_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int fov_half = camera_fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    const float inv_scale = 1.0f / 65535.0f;
+    __m128 v_cos_camera_pitch = _mm_set1_ps(g_cos_table[camera_pitch] * inv_scale);
+    __m128 v_sin_camera_pitch = _mm_set1_ps(g_sin_table[camera_pitch] * inv_scale);
+    __m128 v_cos_camera_yaw = _mm_set1_ps(g_cos_table[camera_yaw] * inv_scale);
+    __m128 v_sin_camera_yaw = _mm_set1_ps(g_sin_table[camera_yaw] * inv_scale);
+    __m128 v_cos_model_yaw = _mm_set1_ps(g_cos_table[model_yaw] * inv_scale);
+    __m128 v_sin_model_yaw = _mm_set1_ps(g_sin_table[model_yaw] * inv_scale);
+    __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
+    __m128 v_512 = _mm_set1_ps((float)UNIT_SCALE);
+
+    int f = 0;
+    if( model_yaw != 0 )
+    {
+        for( ; f + 4 <= num_faces; f += 4 )
+        {
+            for( int cor = 0; cor < 3; cor++ )
+            {
+                int vi0 = projection16_sparse_corner_vi(
+                    cor, f + 0, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi1 = projection16_sparse_corner_vi(
+                    cor, f + 1, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi2 = projection16_sparse_corner_vi(
+                    cor, f + 2, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi3 = projection16_sparse_corner_vi(
+                    cor, f + 3, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int o0 = (f + 0) * 3 + cor;
+                int o1 = (f + 1) * 3 + cor;
+                int o2 = (f + 2) * 3 + cor;
+                int o3 = (f + 3) * 3 + cor;
+                projection16_sse_f_sparse_tex_pass1_yaws(
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    vi0,
+                    vi1,
+                    vi2,
+                    vi3,
+                    o0,
+                    o1,
+                    o2,
+                    o3,
+                    v_cos_model_yaw,
+                    v_sin_model_yaw,
+                    v_cos_camera_yaw,
+                    v_sin_camera_yaw,
+                    v_cos_camera_pitch,
+                    v_sin_camera_pitch,
+                    v_cot_fov,
+                    v_512,
+                    (float)scene_x,
+                    (float)scene_y,
+                    (float)scene_z,
+                    orthographic_vertices_x,
+                    orthographic_vertices_y,
+                    orthographic_vertices_z,
+                    screen_vertices_x,
+                    screen_vertices_y);
+            }
+        }
+    }
+    else
+    {
+        for( ; f + 4 <= num_faces; f += 4 )
+        {
+            for( int cor = 0; cor < 3; cor++ )
+            {
+                int vi0 = projection16_sparse_corner_vi(
+                    cor, f + 0, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi1 = projection16_sparse_corner_vi(
+                    cor, f + 1, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi2 = projection16_sparse_corner_vi(
+                    cor, f + 2, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi3 = projection16_sparse_corner_vi(
+                    cor, f + 3, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int o0 = (f + 0) * 3 + cor;
+                int o1 = (f + 1) * 3 + cor;
+                int o2 = (f + 2) * 3 + cor;
+                int o3 = (f + 3) * 3 + cor;
+                projection16_sse_f_sparse_tex_pass1_noyaw(
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    vi0,
+                    vi1,
+                    vi2,
+                    vi3,
+                    o0,
+                    o1,
+                    o2,
+                    o3,
+                    v_cos_camera_yaw,
+                    v_sin_camera_yaw,
+                    v_cos_camera_pitch,
+                    v_sin_camera_pitch,
+                    v_cot_fov,
+                    v_512,
+                    (float)scene_x,
+                    (float)scene_y,
+                    (float)scene_z,
+                    orthographic_vertices_x,
+                    orthographic_vertices_y,
+                    orthographic_vertices_z,
+                    screen_vertices_x,
+                    screen_vertices_y);
+            }
+        }
+    }
+
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+    for( ; f < num_faces; f++ )
+    {
+        int base = f * 3;
+        int vi[3] = {
+            (int)vertex_faces_a[f],
+            (int)vertex_faces_b[f],
+            (int)vertex_faces_c[f],
+        };
+        for( int s = 0; s < 3; s++ )
+        {
+            int v = vi[s];
+            struct ProjectedVertex projected_vertex;
+            project_orthographic_fast(
+                &projected_vertex,
+                vertex_x[v],
+                vertex_y[v],
+                vertex_z[v],
+                model_yaw,
+                scene_x,
+                scene_y,
+                scene_z,
+                camera_pitch,
+                camera_yaw);
+
+            int x = projected_vertex.x;
+            int y = projected_vertex.y;
+
+            x *= cot_fov_half_ish15;
+            y *= cot_fov_half_ish15;
+            x >>= 15;
+            y >>= 15;
+
+            int idx = base + s;
+            orthographic_vertices_x[idx] = projected_vertex.x;
+            orthographic_vertices_y[idx] = projected_vertex.y;
+            orthographic_vertices_z[idx] = projected_vertex.z;
+
+            screen_vertices_x[idx] = SCALE_UNIT(x);
+            screen_vertices_y[idx] = SCALE_UNIT(y);
+        }
+    }
+
+    f = 0;
+    for( ; f + 4 <= num_faces; f += 4 )
+    {
+        for( int cor = 0; cor < 3; cor++ )
+        {
+            int o0 = (f + 0) * 3 + cor;
+            int o1 = (f + 1) * 3 + cor;
+            int o2 = (f + 2) * 3 + cor;
+            int o3 = (f + 3) * 3 + cor;
+            projection16_sse_f_sparse_zdiv_tex_4(
+                orthographic_vertices_z,
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                o0,
+                o1,
+                o2,
+                o3,
+                model_mid_z,
+                near_plane_z);
+        }
+    }
+
+    for( ; f < num_faces; f++ )
+    {
+        int base = f * 3;
+        for( int s = 0; s < 3; s++ )
+        {
+            int idx = base + s;
+            int z = orthographic_vertices_z[idx];
+
+            bool clipped = false;
+            if( z < near_plane_z )
+                clipped = true;
+
+            screen_vertices_z[idx] = z - model_mid_z;
+
+            if( clipped )
+            {
+                screen_vertices_x[idx] = -5000;
+            }
+            else
+            {
+                screen_vertices_x[idx] = screen_vertices_x[idx] / z;
+                if( screen_vertices_x[idx] == -5000 )
+                    screen_vertices_x[idx] = -5001;
+                screen_vertices_y[idx] = screen_vertices_y[idx] / z;
+            }
+        }
+    }
+}
+
+static inline void
+project_vertices_array_notex_sparse(
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z,
+    const faceint_t* vertex_faces_a,
+    const faceint_t* vertex_faces_b,
+    const faceint_t* vertex_faces_c,
+    int num_faces,
+    int model_yaw,
+    int model_mid_z,
+    int scene_x,
+    int scene_y,
+    int scene_z,
+    int near_plane_z,
+    int camera_fov,
+    int camera_pitch,
+    int camera_yaw)
+{
+    int fov_half = camera_fov >> 1;
+    int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
+    const float inv_scale = 1.0f / 65535.0f;
+    __m128 v_cos_camera_pitch = _mm_set1_ps(g_cos_table[camera_pitch] * inv_scale);
+    __m128 v_sin_camera_pitch = _mm_set1_ps(g_sin_table[camera_pitch] * inv_scale);
+    __m128 v_cos_camera_yaw = _mm_set1_ps(g_cos_table[camera_yaw] * inv_scale);
+    __m128 v_sin_camera_yaw = _mm_set1_ps(g_sin_table[camera_yaw] * inv_scale);
+    __m128 v_cos_model_yaw = _mm_set1_ps(g_cos_table[model_yaw] * inv_scale);
+    __m128 v_sin_model_yaw = _mm_set1_ps(g_sin_table[model_yaw] * inv_scale);
+    __m128 v_cot_fov = _mm_set1_ps(cot_fov_half_ish16 * inv_scale);
+    __m128 v_512 = _mm_set1_ps((float)UNIT_SCALE);
+
+    int f = 0;
+    if( model_yaw != 0 )
+    {
+        for( ; f + 4 <= num_faces; f += 4 )
+        {
+            for( int cor = 0; cor < 3; cor++ )
+            {
+                int vi0 = projection16_sparse_corner_vi(
+                    cor, f + 0, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi1 = projection16_sparse_corner_vi(
+                    cor, f + 1, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi2 = projection16_sparse_corner_vi(
+                    cor, f + 2, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi3 = projection16_sparse_corner_vi(
+                    cor, f + 3, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int o0 = (f + 0) * 3 + cor;
+                int o1 = (f + 1) * 3 + cor;
+                int o2 = (f + 2) * 3 + cor;
+                int o3 = (f + 3) * 3 + cor;
+                projection16_sse_f_sparse_notex_pass1_yaws(
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    vi0,
+                    vi1,
+                    vi2,
+                    vi3,
+                    o0,
+                    o1,
+                    o2,
+                    o3,
+                    v_cos_model_yaw,
+                    v_sin_model_yaw,
+                    v_cos_camera_yaw,
+                    v_sin_camera_yaw,
+                    v_cos_camera_pitch,
+                    v_sin_camera_pitch,
+                    v_cot_fov,
+                    v_512,
+                    (float)scene_x,
+                    (float)scene_y,
+                    (float)scene_z,
+                    screen_vertices_x,
+                    screen_vertices_y,
+                    screen_vertices_z);
+            }
+        }
+    }
+    else
+    {
+        for( ; f + 4 <= num_faces; f += 4 )
+        {
+            for( int cor = 0; cor < 3; cor++ )
+            {
+                int vi0 = projection16_sparse_corner_vi(
+                    cor, f + 0, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi1 = projection16_sparse_corner_vi(
+                    cor, f + 1, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi2 = projection16_sparse_corner_vi(
+                    cor, f + 2, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int vi3 = projection16_sparse_corner_vi(
+                    cor, f + 3, vertex_faces_a, vertex_faces_b, vertex_faces_c);
+                int o0 = (f + 0) * 3 + cor;
+                int o1 = (f + 1) * 3 + cor;
+                int o2 = (f + 2) * 3 + cor;
+                int o3 = (f + 3) * 3 + cor;
+                projection16_sse_f_sparse_notex_pass1_noyaw(
+                    vertex_x,
+                    vertex_y,
+                    vertex_z,
+                    vi0,
+                    vi1,
+                    vi2,
+                    vi3,
+                    o0,
+                    o1,
+                    o2,
+                    o3,
+                    v_cos_camera_yaw,
+                    v_sin_camera_yaw,
+                    v_cos_camera_pitch,
+                    v_sin_camera_pitch,
+                    v_cot_fov,
+                    v_512,
+                    (float)scene_x,
+                    (float)scene_y,
+                    (float)scene_z,
+                    screen_vertices_x,
+                    screen_vertices_y,
+                    screen_vertices_z);
+            }
+        }
+    }
+
+    int cot_fov_half_ish15 = cot_fov_half_ish16 >> 1;
+    for( ; f < num_faces; f++ )
+    {
+        int base = f * 3;
+        int vi[3] = {
+            (int)vertex_faces_a[f],
+            (int)vertex_faces_b[f],
+            (int)vertex_faces_c[f],
+        };
+        for( int s = 0; s < 3; s++ )
+        {
+            int v = vi[s];
+            struct ProjectedVertex projected_vertex;
+            project_orthographic_fast(
+                &projected_vertex,
+                vertex_x[v],
+                vertex_y[v],
+                vertex_z[v],
+                model_yaw,
+                scene_x,
+                scene_y,
+                scene_z,
+                camera_pitch,
+                camera_yaw);
+
+            int x = projected_vertex.x;
+            int y = projected_vertex.y;
+            int z = projected_vertex.z;
+
+            x *= cot_fov_half_ish15;
+            y *= cot_fov_half_ish15;
+            x >>= 15;
+            y >>= 15;
+
+            int screen_x = SCALE_UNIT(x);
+            int screen_y = SCALE_UNIT(y);
+
+            int idx = base + s;
+            screen_vertices_z[idx] = z;
+            screen_vertices_x[idx] = screen_x;
+            screen_vertices_y[idx] = screen_y;
+        }
+    }
+
+    f = 0;
+    for( ; f + 4 <= num_faces; f += 4 )
+    {
+        for( int cor = 0; cor < 3; cor++ )
+        {
+            int o0 = (f + 0) * 3 + cor;
+            int o1 = (f + 1) * 3 + cor;
+            int o2 = (f + 2) * 3 + cor;
+            int o3 = (f + 3) * 3 + cor;
+            projection16_sse_f_sparse_zdiv_notex_4(
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                o0,
+                o1,
+                o2,
+                o3,
+                model_mid_z,
+                near_plane_z);
+        }
+    }
+
+    for( ; f < num_faces; f++ )
+    {
+        int base = f * 3;
+        for( int s = 0; s < 3; s++ )
+        {
+            int idx = base + s;
+            int z = screen_vertices_z[idx];
+
+            bool clipped = false;
+            if( z < near_plane_z )
+                clipped = true;
+
+            screen_vertices_z[idx] = z - model_mid_z;
+
+            if( clipped )
+            {
+                screen_vertices_x[idx] = -5000;
+            }
+            else
+            {
+                screen_vertices_x[idx] = screen_vertices_x[idx] / z;
+                if( screen_vertices_x[idx] == -5000 )
+                    screen_vertices_x[idx] = -5001;
+                screen_vertices_y[idx] = screen_vertices_y[idx] / z;
+            }
         }
     }
 }
@@ -3578,14 +7392,7 @@ project_vertices_array_notex(
         }
     }
 }
-#endif
 
-/**
- * Face-indexed projection: three slots per face (base = f*3) in orthographic_* and screen_*.
-/**
- * Like project_vertices_array, face-indexed. Three screen slots per face (f*3 + s).
- * Corners use vertex_faces_a/b/c[f] as the vertex index for each corner.
- */
 static inline void
 project_vertices_array_sparse(
     int* orthographic_vertices_x,
@@ -3789,6 +7596,8 @@ project_vertices_array_notex_sparse(
     }
 }
 
+#endif
+
 /**
  * Project vertices array with full 6DOF support (pitch, yaw, roll for model and camera)
  * Uses the full project_orthographic function instead of project_orthographic_fast
@@ -3826,7 +7635,7 @@ project_vertices_array6(
     for( int i = 0; i < num_vertices; i++ )
     {
         struct ProjectedVertex projected_vertex;
-        
+
         // Use full 6DOF projection
         projected_vertex = project_orthographic(
             vertex_x[i],
@@ -3945,6 +7754,8 @@ project_vertices_array6_notex(
 
 /**
  * Like project_vertices_array6, face-indexed. Three slots per face (f*3 + s).
+ * Scalar-only: dense project_vertices_array6 has no SIMD path yet, so there is no shared 6DOF
+ * vector kernel to reuse here.
  */
 static inline void
 project_vertices_array6_sparse(
