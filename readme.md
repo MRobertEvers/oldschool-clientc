@@ -822,6 +822,10 @@ valgrind --tool=callgrind  ./model_viewer > log.txt 2>&1
 valgrind --tool=callgrind  ./scene_tile_test > log.txt 2>&1
 callgrind_annotate $(ls callgrind.out.* | sort -V | tail -n 1) | less
 kcachegrind $(ls callgrind.out.* | sort -V | tail -n 1) | less
+
+valgrind --tool=massif --threshold=0.1 --massif-out-file=massif.out ./osx
+ms_print massif.out > log_mem.txt
+massif-visualizer massif.out
 ```
 
 ## White triangles on textured
@@ -1646,4 +1650,13 @@ Side Icons hmid
 ## Emscripten
 
 python3 -m http.server 8080
+python3 -m http.server -d build_emscripten 8080
+
+// Serve cache
+test/datserver/a.out
+
+// Serve lua
+node ./serve-lua-scripts.js
+
+// Serve build
 python3 -m http.server -d build_emscripten 8080

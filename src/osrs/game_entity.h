@@ -30,7 +30,6 @@ struct EntityDrawPosition
     int height;
 };
 
-
 struct EntityAction
 {
     uint16_t code;
@@ -54,9 +53,15 @@ struct EntityMinimapElement
 
 struct EntitySceneCoord
 {
-    uint16_t sx;
-    uint16_t sz;
-    uint8_t slevel;
+    // uint32_t _bf_terrain_x : 9;
+    // uint32_t _bf_terrain_z : 9;
+    // uint32_t _bf_terrain_y : 4;
+    // uint32_t sx;
+    // uint32_t sz;
+    // uint32_t slevel;
+    uint32_t sx : 9;
+    uint32_t sz : 9;
+    uint32_t slevel : 4;
 };
 
 struct EntityDebugKey
@@ -96,7 +101,7 @@ struct EntityAnimation
     int16_t walkanim;
     int16_t turnanim;
     int16_t runanim;
-int16_t walkanim_b;
+    int16_t walkanim_b;
     int16_t walkanim_r;
     int16_t walkanim_l;
 
@@ -121,11 +126,11 @@ struct NPCEntity
     struct EntityDrawPosition draw_position;
     struct EntityOrientation orientation;
     struct EntityAnimation animation;
-    struct EntityDescription description;
-    struct EntityName name;
+    char* description;
+    char* name;
     struct EntityVisibleLevel visible_level;
-    struct EntityAction actions[10];
-    int action_count;
+    struct EntityAction* actions;
+    uint8_t action_count;
 
     /* Client.ts: damage/health for hitsplat and health bar */
     uint8_t damage_values[ENTITY_DAMAGE_SLOTS];
@@ -172,9 +177,9 @@ struct MapBuildLocEntity
     struct EntityAnimation animation_two;
     struct EntitySceneCoord scene_coord;
     struct EntityAction* actions;
-    char name[32];
-    char description[64];
     uint8_t action_count;
+    char name[1];
+    char description[1];
     bool interactable;
 };
 

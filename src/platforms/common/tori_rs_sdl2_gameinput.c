@@ -1,4 +1,5 @@
 #include "tori_rs_sdl2_gameinput.h"
+
 #include "tori_rs_sdl2_gameinput_imgui.h"
 
 #include <SDL.h>
@@ -147,6 +148,18 @@ push_keyup_event(
     input->in_event_count++;
 }
 
+static int
+SDLButtonToGameInputButton(int button)
+{
+    switch( button )
+    {
+    case SDL_BUTTON_LEFT:
+        return TORIRSM_LEFT;
+    case SDL_BUTTON_RIGHT:
+        return TORIRSM_RIGHT;
+    }
+}
+
 static void
 push_mouse_move_event(
     struct GInput* input,
@@ -174,7 +187,8 @@ push_mouse_down_event(
         &input->in_events[input->in_event_count].mouse_down;
     mouse_down->mouse_x = event->x;
     mouse_down->mouse_y = event->y;
-    mouse_down->button = event->button;
+
+    mouse_down->button = SDLButtonToGameInputButton(event->button);
     input->in_event_count++;
 }
 
@@ -188,7 +202,7 @@ push_mouse_up_event(
     struct GameInputEvent_MouseUp* mouse_up = &input->in_events[input->in_event_count].mouse_up;
     mouse_up->mouse_x = event->x;
     mouse_up->mouse_y = event->y;
-    mouse_up->button = event->button;
+    mouse_up->button = SDLButtonToGameInputButton(event->button);
     input->in_event_count++;
 }
 
@@ -219,10 +233,8 @@ ToriRSLibPlatform_SDL2_GameInput_PollEvents(
     while( SDL_PollEvent(&event) )
     {
         ToriRSLibPlatform_SDL2_GameInput_ImGui_ProcessEvent(&event);
-        bool imgui_wants_keyboard =
-            ToriRSLibPlatform_SDL2_GameInput_ImGui_WantCaptureKeyboard();
-        bool imgui_wants_mouse =
-            ToriRSLibPlatform_SDL2_GameInput_ImGui_WantCaptureMouse();
+        bool imgui_wants_keyboard = ToriRSLibPlatform_SDL2_GameInput_ImGui_WantCaptureKeyboard();
+        bool imgui_wants_mouse = ToriRSLibPlatform_SDL2_GameInput_ImGui_WantCaptureMouse();
 
         switch( event.type )
         {

@@ -26,6 +26,7 @@ set(COMMON_SOURCES
     src/server/server.c
     src/server/prot.c
     src/graphics/dash.c
+    src/graphics/dash_model.c
     src/graphics/dash_minimap.c
     src/graphics/dashmap.c
     src/datastruct/list.c
@@ -76,17 +77,23 @@ set(COMMON_SOURCES
     src/osrs/rscache/archive.c
     src/osrs/revconfig/revconfig.c
     src/osrs/revconfig/revconfig_load.c
-    src/osrs/revconfig/static_ui.c
-    src/osrs/revconfig/static_ui_load.c
+    src/osrs/revconfig/uitree.c
+    src/osrs/revconfig/uitree_load.c
+    src/osrs/rs_component_gfx.c
     src/osrs/revconfig/uiscene.c
     src/osrs/rscache/tables_dat/config_component.c
     src/osrs/interface.c
+    src/osrs/interface_state.c
+    src/osrs/rs_component_state.c
+    src/osrs/clientscript_vm.c
     src/osrs/obj_icon.c
     src/osrs/gio_cache_dat.c
+    src/osrs/entity_vec.c
     src/osrs/world.c
     src/osrs/decor_buildmap.c
     src/osrs/scene2.c
     src/osrs/heightmap.c
+    src/osrs/contour_ground.c
     src/osrs/lightmap.c
     src/osrs/blendmap.c
     src/osrs/overlaymap.c
@@ -159,6 +166,7 @@ if(NOT EMSCRIPTEN)
         ${COMMON_SOURCES}
         test/osx.cpp
         src/platforms/platform_impl2_osx_sdl2.cpp
+        src/platforms/platform_impl2_sdl2_renderer_soft3d_shared.cpp
         src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp
         src/osrs/lua_sidecar/luac_sidecar_config.c
         src/imgui/imgui_impl_sdl2.cpp
@@ -259,6 +267,9 @@ if(NOT EMSCRIPTEN)
     target_include_directories(interface161_test PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
     )
+    if( NOT WIN32 )
+        target_link_libraries( interface161_test PRIVATE m )
+    endif()
 endif()
 
 # --- Emscripten Target ---
@@ -329,6 +340,7 @@ if(EMSCRIPTEN)
         ${COMMON_SOURCES}
         test/browser.cpp
         src/platforms/platform_impl2_emscripten_sdl2.cpp
+        src/platforms/platform_impl2_sdl2_renderer_soft3d_shared.cpp
         src/platforms/platform_impl2_emscripten_sdl2_renderer_soft3d.cpp
         src/platforms/platform_impl2_emscripten_sdl2_renderer_webgl1.cpp
         src/osrs/pix3dgl_opengles2.cpp
@@ -360,6 +372,7 @@ if(EMSCRIPTEN)
         -sSTACK_SIZE=512kb
         -sNO_EXIT_RUNTIME=1
         -sASSERTions=1
+        # -sWASM=0
         --shell-file ${EM_SHELL_FILE}
         -sEXPORTED_FUNCTIONS=${EXPORTED_FUNC_STR}
         -sEXPORTED_RUNTIME_METHODS=${EXPORTED_METHODS_STR}

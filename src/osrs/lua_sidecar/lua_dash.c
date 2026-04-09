@@ -1,6 +1,8 @@
 #include "lua_dash.h"
 
 #include "osrs/buildcachedat.h"
+#include "osrs/game.h"
+#include "osrs/scene2.h"
 
 #include <assert.h>
 #include <string.h>
@@ -29,19 +31,22 @@ struct LuaGameType*
 LuaDash_load_textures(
     struct DashGraphics* dash,
     struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
     struct LuaGameType* args)
 {
+    (void)buildcachedat;
     (void)args;
-    struct DashMapIter* iter = buildcachedat_iter_new_textures(buildcachedat);
+    if( !game || !game->scene2 )
+        return LuaGameType_NewVoid();
 
-    int texture_id = 0;
-    while( buildcachedat_iter_next_texture_id(iter, &texture_id) )
+    struct Scene2* s2 = game->scene2;
+    for( int i = 0; i < s2->textures_count; i++ )
     {
-        struct DashTexture* texture = buildcachedat_get_texture(buildcachedat, texture_id);
+        int tid = s2->textures[i].id;
+        struct DashTexture* texture = s2->textures[i].texture;
         if( texture )
-            dash3d_add_texture(dash, texture_id, texture);
+            dash3d_add_texture(dash, tid, texture);
     }
-    dashmap_iter_free(iter);
 
     return LuaGameType_NewVoid();
 }
@@ -58,6 +63,7 @@ struct LuaGameType*
 LuaDash_DispatchCommand(
     struct DashGraphics* dash,
     struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
     char* full_command,
     struct LuaGameType* args)
 {
@@ -69,6 +75,6 @@ LuaDash_DispatchCommand(
     command[suffix_len] = '\0';
 
     if( strcmp(command, "load_textures") == 0 )
-        return LuaDash_load_textures(dash, buildcachedat, args);
+        return LuaDash_load_textures(dash, buildcachedat, game, args);
     return NULL;
 }

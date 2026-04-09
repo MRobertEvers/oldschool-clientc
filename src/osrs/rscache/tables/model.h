@@ -1,6 +1,8 @@
 #ifndef MODEL_H
 #define MODEL_H
 
+#include <stdint.h>
+
 struct CacheArchive;
 
 enum CacheModelFlags
@@ -111,6 +113,8 @@ struct CacheModel
     int* face_indices_b;
     int* face_indices_c;
     int* face_alphas;
+    // The bottom 2 bits are the face render kind.
+    // The top bits are the face texture id.
     int* face_infos;
     int* face_priorities;
     int* face_colors;
@@ -136,8 +140,8 @@ struct ModelBones
 {
     int bones_count;
     // Array of arrays vertices... AKA arrays of bones.
-    int** bones;
-    int* bones_sizes;
+    uint8_t** bones;
+    uint8_t* bones_sizes;
 };
 
 struct ModelBones*

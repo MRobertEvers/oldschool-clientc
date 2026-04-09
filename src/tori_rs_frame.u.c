@@ -5,12 +5,20 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/collision_map.h"
 #include "osrs/dash_utils.h"
+#include "osrs/game.h"
+#include "osrs/interface.h"
+#include "osrs/interface_state.h"
 #include "osrs/isaac.h"
 #include "osrs/minimap.h"
 #include "osrs/minimenu.h"
+#include "osrs/obj_icon.h"
 #include "osrs/packetout.h"
-#include "osrs/revconfig/static_ui.h"
 #include "osrs/revconfig/uiscene.h"
+#include "osrs/revconfig/uitree.h"
+#include "osrs/rs_component_gfx.h"
+#include "osrs/rs_component_state.h"
+#include "osrs/rscache/tables_dat/config_component.h"
+#include "osrs/scene2.h"
 #include "osrs/world_options.h"
 #include "tori_rs.h"
 #include "tori_rs_render.h"
@@ -21,9 +29,116 @@
 #include <stdint.h>
 #endif
 
+#include <assert.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+/** Set per `LibToriRS_FrameNextCommand` call for RS model culling. */
+static bool s_frame_project_models;
+
+/** Tab sidebar content (RS subtree) only when this tab is selected and no modal owns the sidebar.
+ */
+static bool
+frame_sidebar_tab_active(
+    struct GGame* game,
+    struct StaticUIComponent* sidebar)
+{
+    assert(sidebar && sidebar->type == UIELEM_BUILTIN_SIDEBAR);
+    if( !game || !game->iface )
+        return false;
+    if( game->iface->sidebar_interface_id != -1 )
+        return false;
+    return game->iface->selected_tab == sidebar->u.sidebar.tabno;
+}
+
+static bool
+frame_uitree_should_descend(
+    struct GGame* game,
+    struct StaticUIComponent* c)
+{
+    if( c->first_child < 0 )
+        return false;
+    if( c->type == UIELEM_BUILTIN_SIDEBAR )
+        return frame_sidebar_tab_active(game, c);
+    return true;
+}
+
+static void
+frame_uitree_advance_after_step(
+    struct GGame* game,
+    int32_t stepped_index)
+{
+    struct UITree* t = game->ui_root_buffer;
+    struct StaticUIComponent* c = &t->components[stepped_index];
+
+    if( frame_uitree_should_descend(game, c) )
+    {
+        if( game->uitree_stack_top + 1 >= UITREE_TRAVERSAL_STACK_MAX )
+        {
+            game->uitree_current = -1;
+            return;
+        }
+        game->uitree_stack[++game->uitree_stack_top] = stepped_index;
+        game->uitree_current = c->first_child;
+        return;
+    }
+    if( c->next_sibling >= 0 )
+    {
+        game->uitree_current = c->next_sibling;
+        return;
+    }
+    while( game->uitree_stack_top >= 0 )
+    {
+        int32_t pidx = game->uitree_stack[game->uitree_stack_top--];
+        struct StaticUIComponent* p = &t->components[pidx];
+        if( p->next_sibling >= 0 )
+        {
+            game->uitree_current = p->next_sibling;
+            return;
+        }
+    }
+    game->uitree_current = -1;
+}
+
+static void
+rs_uielem_push_iface_viewport(
+    struct GGame* game,
+    int w,
+    int h,
+    struct DashViewPort* out_saved)
+{
+    *out_saved = *game->iface_view_port;
+    dash2d_set_bounds(game->iface_view_port, 0, 0, w, h);
+    game->iface_view_port->width = w;
+    game->iface_view_port->height = h;
+    game->iface_view_port->stride = w;
+    game->iface_view_port->x_center = w / 2;
+    game->iface_view_port->y_center = h / 2;
+}
+
+static void
+rs_uielem_pop_iface_viewport(
+    struct GGame* game,
+    struct DashViewPort* saved)
+{
+    *game->iface_view_port = *saved;
+}
+
+/** Root RS layers from buildcachedat are for modal overlays only (not tab sidebars). */
+static bool
+rs_root_is_active_modal(
+    struct GGame* game,
+    int component_id)
+{
+    if( !game->iface )
+        return false;
+    return game->iface->sidebar_interface_id == component_id ||
+           game->iface->viewport_interface_id == component_id ||
+           game->iface->chat_interface_id == component_id;
+}
 
 struct FrameRenderLoadKeyPtr
 {
@@ -31,12 +146,16 @@ struct FrameRenderLoadKeyPtr
 };
 
 static uint64_t
-model_cache_key_u64(const struct Scene2Element* element)
+model_cache_key_u64(
+    struct Scene2* scene2,
+    const struct Scene2Element* element)
 {
-    if( !element )
+    if( !element || !scene2 )
         return 0;
-    return ((uint64_t)(uint32_t)element->id << 24) | ((uint64_t)element->active_anim_id << 8) |
-           (uint64_t)element->active_frame;
+    int element_id = scene2_element_id((struct Scene2*)scene2, element);
+    return ((uint64_t)(uint32_t)element_id << 24) |
+           ((uint64_t)scene2_element_active_anim_id(element) << 8) |
+           (uint64_t)scene2_element_active_frame(element);
 }
 
 static void
@@ -46,13 +165,13 @@ queue_scene_element_load_from_event(
     struct Scene2Element* element)
 {
     (void)game;
-    uint64_t model_key = model_cache_key_u64(element);
+    uint64_t model_key = model_cache_key_u64(game->world->scene2, element);
     LibToriRS_RenderCommandBufferAddCommand(
         render_command_buffer,
         (struct ToriRSRenderCommand){
             .kind = TORIRS_GFX_MODEL_LOAD,
             ._model_load = {
-                .model = element->dash_model,
+                .model = scene2_element_dash_model(element),
                 .model_key = model_key,
                 .model_id = -1,
             },
@@ -182,15 +301,11 @@ queue_static_ui_minimap_draws(
     struct Minimap* mm = NULL;
     if( game->world && game->world->minimap )
         mm = game->world->minimap;
-    else if( game->sys_minimap )
-        mm = game->sys_minimap;
     if( !mm )
         return;
 
-    int elem_id = game->minimap_static_uiscene_element_id;
-    if( elem_id < 0 )
-        return;
-    struct UISceneElement* element = uiscene_element_at(game->ui_scene, elem_id);
+    struct UISceneElement* element =
+        uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
     if( !element || !element->dash_sprites || !element->dash_sprites[0] )
         return;
 
@@ -254,7 +369,7 @@ queue_static_ui_minimap_draws(
     struct MinimapRenderCommandBuffer* dyn = game->minimap_dynamic_commands;
     if( !dyn )
         return;
-    minimap_render_dynamic(mm, sw_x, sw_z, ne_x, ne_z, 0, dyn);
+    minimap_render_dynamic(mm, sw_x, sw_z, ne_x, ne_z, dyn);
     for( int j = 0; j < dyn->count; j++ )
     {
         if( dyn->commands[j].kind != MINIMAP_RENDER_COMMAND_LOC )
@@ -264,13 +379,13 @@ queue_static_ui_minimap_draws(
         switch( minimap_loc_type(mm, li) )
         {
         case MINIMAP_LOC_TYPE_PLAYER:
-            dot = game->sprite_mapdot0;
+            // dot = game->sprite_mapdot0;
             break;
         case MINIMAP_LOC_TYPE_NPC:
-            dot = game->sprite_mapdot1;
+            // dot = game->sprite_mapdot1;
             break;
         case MINIMAP_LOC_TYPE_OBJECT:
-            dot = game->sprite_mapdot2;
+            // dot = game->sprite_mapdot2;
             break;
         default:
             break;
@@ -306,29 +421,15 @@ queue_static_load_commands(
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
 {
-    if( !game->buildcachedat || !game->world )
+    if( !game->buildcachedat )
         return;
 
-    struct Scene2* scene2 = game->world->scene2;
+    /* Textures are registered on game->scene2 during load (same pointer as world->scene2). */
+    struct Scene2* scene2 = game->scene2;
 
     /* Do not gate this whole function on scene2 events: static UI sprite draws must be
      * repopulated every frame, and buildcache/ui event buffers are independent of scene2.
      * When buffers are empty the pop loops are no-ops. */
-
-    struct BuildCacheDatEvent cache_event = { 0 };
-    while( buildcachedat_eventbuffer_pop(game->buildcachedat, &cache_event) )
-    {
-        if( cache_event.type != BUILDCACHEDAT_EVENT_TEXTURE_ADDED )
-            continue;
-        struct DashTexture* texture =
-            buildcachedat_get_texture(game->buildcachedat, cache_event.texture_id);
-        if( !texture )
-            continue;
-        if( scene2 )
-            scene2_texture_add(scene2, cache_event.texture_id, texture);
-        else
-            queue_texture_load_from_event(render_command_buffer, cache_event.texture_id, texture);
-    }
 
     if( scene2 )
     {
@@ -337,25 +438,36 @@ queue_static_load_commands(
         {
             if( scene_event.type == SCENE2_EVENT_TEXTURE_LOADED )
             {
-                struct DashTexture* texture = scene2_texture_get(scene2, scene_event.texture_id);
-                queue_texture_load_from_event(
-                    render_command_buffer, scene_event.texture_id, texture);
+                int tex_id = scene_event.u.texture.texture_id;
+                struct DashTexture* texture = scene2_texture_get(scene2, tex_id);
+                queue_texture_load_from_event(render_command_buffer, tex_id, texture);
                 continue;
             }
-            if( scene_event.element_id < 0 || scene_event.element_id >= scene2->elements_count )
+            if( scene_event.type == SCENE2_EVENT_VERTEX_ARRAY_ADDED ||
+                scene_event.type == SCENE2_EVENT_VERTEX_ARRAY_REMOVED ||
+                scene_event.type == SCENE2_EVENT_FACE_ARRAY_ADDED ||
+                scene_event.type == SCENE2_EVENT_FACE_ARRAY_REMOVED )
+            {
+                /* GPU: use u.vertex_array.array or u.face_array.array depending on type. */
+                continue;
+            }
+            if( scene_event.u.element.element_id < 0 ||
+                scene_event.u.element.element_id >= scene2_elements_total(scene2) )
                 continue;
             if( scene_event.type != SCENE2_EVENT_ELEMENT_ACQUIRED &&
                 scene_event.type != SCENE2_EVENT_MODEL_CHANGED )
             {
                 continue;
             }
-            struct Scene2Element* element = scene2_element_at(scene2, scene_event.element_id);
-            if( !element->active || !element->dash_model )
+            struct Scene2Element* element =
+                scene2_element_at(scene2, scene_event.u.element.element_id);
+            if( !scene2_element_is_active(element) || !scene2_element_dash_model(element) )
                 continue;
-            if( element->parent_entity_id != scene_event.parent_entity_id )
+            if( scene2_element_parent_entity_id(element) != scene_event.u.element.parent_entity_id )
                 continue;
             queue_scene_element_load_from_event(game, render_command_buffer, element);
         }
+        scene2_flush_deferred_array_frees(scene2);
     }
 
     if( game->ui_scene )
@@ -395,24 +507,27 @@ LibToriRS_FrameBegin(
     game->at_render_command_index = 0;
     game->at_ui_render_command_index = 0;
 
+    game->interface_consumed_click = 0;
+
     game->tile_clicked_x = -1;
     game->tile_clicked_z = -1;
     game->tile_clicked_level = -1;
-
-    game->hovered_interactible_entity_uid = -1;
-    game->frame_hover_font_draw_done = false;
 
     game->camera->pitch = game->camera_pitch;
     game->camera->yaw = game->camera_yaw;
     game->camera->roll = game->camera_roll;
 
-    game->uiscene_idx = 0;
+    game->uitree_stack_top = -1;
+    game->uitree_current = (game->ui_root_buffer && game->ui_root_buffer->root_index >= 0)
+                               ? game->ui_root_buffer->root_index
+                               : -1;
+    game->uiscene_command_idx = 0;
+    if( game->uiscene_queued_commands )
+        LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
 
     world_pickset_reset(&game->pickset);
 
     LibToriRS_RenderCommandBufferReset(render_command_buffer);
-    if( game->minimap_dynamic_commands )
-        minimap_commands_reset(game->minimap_dynamic_commands);
     queue_static_load_commands(game, render_command_buffer);
 
     if( game->world && game->world->painter && game->sys_painter_buffer )
@@ -431,43 +546,42 @@ entity_player_animate(
     struct World* world,
     int player_entity_id)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
     struct EntityAnimation* animation = &player->animation;
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, player->scene_element2.element_id);
     if( !scene_element )
         return;
 
-    if( animation->primary_anim.anim_id != -1 && scene_element->primary_frames.count > 0 )
+    struct Scene2Frames* primary = scene2_element_primary_frames(scene_element);
+    struct Scene2Frames* secondary = scene2_element_secondary_frames(scene_element);
+    struct DashModel* dm = scene2_element_dash_model(scene_element);
+    struct DashFramemap* fm = scene2_element_dash_framemap(scene_element);
+
+    if( animation->primary_anim.anim_id != -1 && primary && primary->count > 0 )
     {
         int frame = animation->primary_anim.frame;
-        scene_element->active_anim_id = animation->primary_anim.anim_id;
-        scene_element->active_frame = (uint8_t)frame;
-        if( frame >= 0 && frame < scene_element->primary_frames.count )
+        scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
+        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
+        if( frame >= 0 && frame < primary->count )
         {
-            dashmodel_animate(
-                scene_element->dash_model,
-                scene_element->primary_frames.frames[frame],
-                scene_element->dash_framemap);
+            dashmodel_animate(dm, primary->frames[frame], fm);
         }
     }
-    else if( animation->secondary_anim.anim_id != -1 && scene_element->secondary_frames.count > 0 )
+    else if( animation->secondary_anim.anim_id != -1 && secondary && secondary->count > 0 )
     {
         int frame = animation->secondary_anim.frame;
-        scene_element->active_anim_id = animation->secondary_anim.anim_id;
-        scene_element->active_frame = (uint8_t)frame;
-        if( frame >= 0 && frame < scene_element->secondary_frames.count )
+        scene2_element_set_active_anim_id(scene_element, animation->secondary_anim.anim_id);
+        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
+        if( frame >= 0 && frame < secondary->count )
         {
-            dashmodel_animate(
-                scene_element->dash_model,
-                scene_element->secondary_frames.frames[frame],
-                scene_element->dash_framemap);
+            dashmodel_animate(dm, secondary->frames[frame], fm);
         }
     }
     else
     {
-        scene_element->active_anim_id = 0;
-        scene_element->active_frame = 0;
+        scene2_element_set_active_anim_id(scene_element, 0);
+        scene2_element_set_active_frame(scene_element, 0);
     }
 }
 
@@ -476,43 +590,42 @@ entity_npc_animate(
     struct World* world,
     int npc_entity_id)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
     struct EntityAnimation* animation = &npc->animation;
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, npc->scene_element2.element_id);
     if( !scene_element )
         return;
 
-    if( animation->primary_anim.anim_id != -1 && scene_element->primary_frames.count > 0 )
+    struct Scene2Frames* primary = scene2_element_primary_frames(scene_element);
+    struct Scene2Frames* secondary = scene2_element_secondary_frames(scene_element);
+    struct DashModel* dm = scene2_element_dash_model(scene_element);
+    struct DashFramemap* fm = scene2_element_dash_framemap(scene_element);
+
+    if( animation->primary_anim.anim_id != -1 && primary && primary->count > 0 )
     {
         int frame = animation->primary_anim.frame;
-        scene_element->active_anim_id = animation->primary_anim.anim_id;
-        scene_element->active_frame = (uint8_t)frame;
-        if( frame >= 0 && frame < scene_element->primary_frames.count )
+        scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
+        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
+        if( frame >= 0 && frame < primary->count )
         {
-            dashmodel_animate(
-                scene_element->dash_model,
-                scene_element->primary_frames.frames[frame],
-                scene_element->dash_framemap);
+            dashmodel_animate(dm, primary->frames[frame], fm);
         }
     }
-    else if( animation->secondary_anim.anim_id != -1 && scene_element->secondary_frames.count > 0 )
+    else if( animation->secondary_anim.anim_id != -1 && secondary && secondary->count > 0 )
     {
         int frame = animation->secondary_anim.frame;
-        scene_element->active_anim_id = animation->secondary_anim.anim_id;
-        scene_element->active_frame = (uint8_t)frame;
-        if( frame >= 0 && frame < scene_element->secondary_frames.count )
+        scene2_element_set_active_anim_id(scene_element, animation->secondary_anim.anim_id);
+        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
+        if( frame >= 0 && frame < secondary->count )
         {
-            dashmodel_animate(
-                scene_element->dash_model,
-                scene_element->secondary_frames.frames[frame],
-                scene_element->dash_framemap);
+            dashmodel_animate(dm, secondary->frames[frame], fm);
         }
     }
     else
     {
-        scene_element->active_anim_id = 0;
-        scene_element->active_frame = 0;
+        scene2_element_set_active_anim_id(scene_element, 0);
+        scene2_element_set_active_frame(scene_element, 0);
     }
 }
 
@@ -522,7 +635,7 @@ entity_map_build_loc_entity_animate(
     int map_build_loc_entity_id)
 {
     struct MapBuildLocEntity* map_build_loc_entity =
-        &world->map_build_loc_entities[map_build_loc_entity_id];
+        world_loc_entity(world, map_build_loc_entity_id);
 
     struct EntityAnimation* animation = NULL;
     struct Scene2Element* scene_element = NULL;
@@ -533,23 +646,24 @@ entity_map_build_loc_entity_animate(
         scene_element =
             scene2_element_at(world->scene2, map_build_loc_entity->scene_element.element_id);
 
-        if( animation->primary_anim.anim_id != -1 && scene_element->primary_frames.count > 0 )
+        struct Scene2Frames* pf = scene2_element_primary_frames(scene_element);
+        struct DashModel* dm = scene2_element_dash_model(scene_element);
+        struct DashFramemap* fm = scene2_element_dash_framemap(scene_element);
+
+        if( animation->primary_anim.anim_id != -1 && pf && pf->count > 0 )
         {
             int frame = animation->primary_anim.frame;
-            scene_element->active_anim_id = animation->primary_anim.anim_id;
-            scene_element->active_frame = (uint8_t)frame;
-            if( frame >= 0 && frame < scene_element->primary_frames.count )
+            scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
+            scene2_element_set_active_frame(scene_element, (uint8_t)frame);
+            if( frame >= 0 && frame < pf->count )
             {
-                dashmodel_animate(
-                    scene_element->dash_model,
-                    scene_element->primary_frames.frames[frame],
-                    scene_element->dash_framemap);
+                dashmodel_animate(dm, pf->frames[frame], fm);
             }
         }
         else
         {
-            scene_element->active_anim_id = 0;
-            scene_element->active_frame = 0;
+            scene2_element_set_active_anim_id(scene_element, 0);
+            scene2_element_set_active_frame(scene_element, 0);
         }
     }
 
@@ -559,23 +673,24 @@ entity_map_build_loc_entity_animate(
         scene_element =
             scene2_element_at(world->scene2, map_build_loc_entity->scene_element_two.element_id);
 
-        if( animation->primary_anim.anim_id != -1 && scene_element->primary_frames.count > 0 )
+        struct Scene2Frames* pf2 = scene2_element_primary_frames(scene_element);
+        struct DashModel* dm2 = scene2_element_dash_model(scene_element);
+        struct DashFramemap* fm2 = scene2_element_dash_framemap(scene_element);
+
+        if( animation->primary_anim.anim_id != -1 && pf2 && pf2->count > 0 )
         {
             int frame = animation->primary_anim.frame;
-            scene_element->active_anim_id = animation->primary_anim.anim_id;
-            scene_element->active_frame = (uint8_t)frame;
-            if( frame >= 0 && frame < scene_element->primary_frames.count )
+            scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
+            scene2_element_set_active_frame(scene_element, (uint8_t)frame);
+            if( frame >= 0 && frame < pf2->count )
             {
-                dashmodel_animate(
-                    scene_element->dash_model,
-                    scene_element->primary_frames.frames[frame],
-                    scene_element->dash_framemap);
+                dashmodel_animate(dm2, pf2->frames[frame], fm2);
             }
         }
         else
         {
-            scene_element->active_anim_id = 0;
-            scene_element->active_frame = 0;
+            scene2_element_set_active_anim_id(scene_element, 0);
+            scene2_element_set_active_frame(scene_element, 0);
         }
     }
 }
@@ -617,7 +732,7 @@ entity_interactable(
     case ENTITY_KIND_MAP_BUILD_LOC:
     {
         struct MapBuildLocEntity* map_build_loc_entity =
-            &world->map_build_loc_entities[entity_id_from_uid(entity_id)];
+            world_loc_entity(world, entity_id_from_uid(entity_id));
         return map_build_loc_entity->interactable;
     }
     }
@@ -640,14 +755,14 @@ entity_coords_from_element(
     {
     case ENTITY_KIND_PLAYER:
     {
-        struct PlayerEntity* player = &world->players[entity_id_from_uid(entity_uid)];
+        struct PlayerEntity* player = world_player(world, entity_id_from_uid(entity_uid));
         coords->x = player->pathing.route_x[0];
         coords->z = player->pathing.route_z[0];
     }
     break;
     case ENTITY_KIND_NPC:
     {
-        struct NPCEntity* npc = &world->npcs[entity_id_from_uid(entity_uid)];
+        struct NPCEntity* npc = world_npc(world, entity_id_from_uid(entity_uid));
         coords->x = npc->pathing.route_x[0];
         coords->z = npc->pathing.route_z[0];
     }
@@ -655,7 +770,7 @@ entity_coords_from_element(
     case ENTITY_KIND_MAP_BUILD_LOC:
     {
         struct MapBuildLocEntity* map_build_loc_entity =
-            &world->map_build_loc_entities[entity_id_from_uid(entity_uid)];
+            world_loc_entity(world, entity_id_from_uid(entity_uid));
         coords->x = map_build_loc_entity->scene_coord.sx;
         coords->z = map_build_loc_entity->scene_coord.sz;
     }
@@ -663,64 +778,123 @@ entity_coords_from_element(
     }
 }
 
-struct UIStep
+static bool
+uielem_redstone_tab_step(
+    struct GGame* game,
+    struct StaticUIComponent* component)
 {
-    bool done;
-};
+    assert(component->type == UIELEM_BUILTIN_REDSTONE_TAB);
+    if( !game->iface || !game->ui_scene )
+        return true;
+    if( game->iface->sidebar_interface_id != -1 )
+        return true;
 
-static void
+    int tabno = component->u.redstone_tab.tabno;
+    int x = component->position.x;
+    int y = component->position.y;
+    int w = component->position.width;
+    int h = component->position.height;
+
+    if( game->mouse_clicked && !game->interface_consumed_click )
+    {
+        int cx = game->mouse_clicked_x;
+        int cy = game->mouse_clicked_y;
+        if( cx >= x && cx < x + w && cy >= y && cy < y + h )
+        {
+            game->iface->selected_tab = tabno;
+            game->interface_consumed_click = 1;
+        }
+    }
+
+    bool is_active = (game->iface->selected_tab == tabno);
+    int sid =
+        is_active ? component->u.redstone_tab.scene_id_active : component->u.redstone_tab.scene_id;
+    int ai = is_active ? component->u.redstone_tab.atlas_index_active
+                       : component->u.redstone_tab.atlas_index;
+    if( sid < 0 )
+        return true;
+
+    struct UISceneElement* elem = uiscene_element_at(game->ui_scene, sid);
+    if( !elem || !elem->dash_sprites )
+        return true;
+    struct DashSprite* sp = elem->dash_sprites[ai];
+    if( !sp )
+        return true;
+
+    int draw_x = x;
+    int draw_y = y;
+    queue_sprite_draw_from_event(game->uiscene_queued_commands, -1, sp, draw_x, draw_y, 0);
+
+    return true;
+}
+
+static bool
+uielem_builtin_sidebar_step(
+    struct GGame* game,
+    struct StaticUIComponent* component)
+{
+    assert(component->type == UIELEM_BUILTIN_SIDEBAR);
+    if( !game || !game->iface )
+        return true;
+
+    /* Wrong tab or modal sidebar: emit nothing (traversal also skips first_child subtree). */
+    if( !frame_sidebar_tab_active(game, component) )
+        return true;
+
+    /* Active tab: panel is drawn by RS child nodes under this builtin. */
+    return true;
+}
+
+static bool
 uielem_sprite_step(
     struct GGame* game,
-    struct StaticUIComponent* component,
-    struct UIStep* step)
+    struct StaticUIComponent* component)
 {
-    assert(component->type == UIELEM_SPRITE);
+    assert(component->type == UIELEM_BUILTIN_SPRITE);
 
-    struct UISceneElement* element = uiscene_element_at(game->ui_scene, component->scene_id);
+    struct UISceneElement* element =
+        uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
     if( !element )
-        return;
+        return true;
 
-    struct DashSprite* sprite = element->dash_sprites[component->atlas_index];
+    struct DashSprite* sprite = element->dash_sprites[component->u.sprite.atlas_index];
     if( !sprite )
-        return;
+        return true;
 
     queue_sprite_draw_from_event(
         game->uiscene_queued_commands,
-        component->scene_id,
+        component->u.sprite.scene_id,
         sprite,
         component->position.x,
         component->position.y,
         0);
 
-    step->done = true;
+    return true;
 }
 
-static void
+static bool
 uielem_world_step(
     struct GGame* game,
-    struct StaticUIComponent* component,
-    struct UIStep* step,
-    bool project_models)
+    struct StaticUIComponent* component)
 {
-    assert(component->type == UIELEM_WORLD);
+    assert(component->type == UIELEM_BUILTIN_WORLD);
 
+    struct PaintersElementCommand* cmd = NULL;
     struct DashPosition position = { 0 };
     struct ToriRSRenderCommand command = { 0 };
     struct Scene2Element* scene_element = NULL;
-    struct UISceneElement* element = uiscene_element_at(game->ui_scene, component->scene_id);
+    struct UISceneElement* element =
+        uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
     if( !element )
-        return;
+        return true;
 
+next:
     if( game->at_painters_command_index >= game->sys_painter_buffer->command_count )
     {
-        step->done = true;
-        return;
+        return true;
     }
 
-    step->done = false;
-
-    struct PaintersElementCommand* cmd =
-        &game->sys_painter_buffer->commands[game->at_painters_command_index];
+    cmd = &game->sys_painter_buffer->commands[game->at_painters_command_index];
 
     game->at_painters_command_index++;
 
@@ -729,94 +903,29 @@ uielem_world_step(
     case PNTR_CMD_ELEMENT:
     {
         scene_element = scene2_element_at(game->world->scene2, cmd->_entity._bf_entity);
-        if( !scene_element || !scene_element->dash_model )
-            return;
-        memcpy(&position, scene_element->dash_position, sizeof(struct DashPosition));
+        struct DashModel* ent_model = scene2_element_dash_model(scene_element);
+        struct DashPosition* ent_pos = scene2_element_dash_position(scene_element);
+        if( !scene_element || !ent_model || !ent_pos )
+            goto next;
+        memcpy(&position, ent_pos, sizeof(struct DashPosition));
 
         position.x = position.x - game->camera_world_x;
         position.y = position.y - game->camera_world_y;
         position.z = position.z - game->camera_world_z;
 
         int cull = DASHCULL_VISIBLE;
-        // if( project_models )
-        // {
-        cull = dash3d_project_model(
-            game->sys_dash, scene_element->dash_model, &position, game->view_port, game->camera);
-        if( cull == DASHCULL_VISIBLE &&
-            entity_interactable(game->world, scene_element->parent_entity_id) && game->view_port )
-        {
-            int cvx = game->mouse_x - game->viewport_offset_x;
-            int cvy = game->mouse_y - game->viewport_offset_y;
-            if( cvx >= 0 && cvy >= 0 && cvx < game->view_port->width &&
-                cvy < game->view_port->height )
-            {
-                struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
 
-                if( cvx >= aabb->min_screen_x && cvx <= aabb->max_screen_x &&
-                    cvy >= aabb->min_screen_y && cvy <= aabb->max_screen_y &&
-                    dash3d_projected_model_contains(
-                        game->sys_dash, scene_element->dash_model, game->view_port, cvx, cvy) )
-                {
-                    game->hovered_interactible_entity_uid = scene_element->parent_entity_id;
-                }
-            }
-        }
-        // }
-        // else
-        // {
-        //     cull = dash3d_cull_fast(
-        //         game->sys_dash,
-        //         scene_element->dash_model,
-        //         &position,
-        //         game->view_port,
-        //         game->camera);
-        //     if( cull == DASHCULL_VISIBLE )
-        //         cull = dash3d_cull_aabb(
-        //             game->sys_dash,
-        //             scene_element->dash_model,
-        //             &position,
-        //             game->view_port,
-        //             game->camera);
-        //     if( cull == DASHCULL_VISIBLE && game->view_port &&
-        //         entity_interactable(game->world, scene_element->parent_entity_id) )
-        //     {
-        //         int cursor_vp_x = game->mouse_x - game->viewport_offset_x;
-        //         int cursor_vp_y = game->mouse_y - game->viewport_offset_y;
-        //         bool cursor_in_viewport = cursor_vp_x >= 0 && cursor_vp_y >= 0 &&
-        //                                   cursor_vp_x < game->view_port->width &&
-        //                                   cursor_vp_y < game->view_port->height;
-        //         struct DashAABB* aabb = dash3d_projected_model_aabb(game->sys_dash);
-        //         bool cursor_in_aabb =
-        //             cursor_vp_x >= aabb->min_screen_x && cursor_vp_x <= aabb->max_screen_x &&
-        //             cursor_vp_y >= aabb->min_screen_y && cursor_vp_y <= aabb->max_screen_y;
-        //         if( cursor_in_viewport && cursor_in_aabb )
-        //         {
-        //             dash3d_project_raw(
-        //                 game->sys_dash,
-        //                 scene_element->dash_model,
-        //                 &position,
-        //                 game->view_port,
-        //                 game->camera);
-        //             if( dash3d_projected_model_contains(
-        //                     game->sys_dash,
-        //                     scene_element->dash_model,
-        //                     game->view_port,
-        //                     cursor_vp_x,
-        //                     cursor_vp_y) )
-        //             {
-        //                 game->hovered_interactible_entity_uid = scene_element->parent_entity_id;
-        //             }
-        //         }
-        //     }
-        // }
+        cull = dash3d_project_model(
+            game->sys_dash, ent_model, &position, game->view_port, game->camera);
+
         if( cull != DASHCULL_VISIBLE )
             break;
 
-        entity_animate(game->world, scene_element->parent_entity_id);
+        entity_animate(game->world, scene2_element_parent_entity_id(scene_element));
 
         command.kind = TORIRS_GFX_MODEL_DRAW;
-        command._model_draw.model = scene_element->dash_model;
-        command._model_draw.model_key = model_cache_key_u64(scene_element);
+        command._model_draw.model = ent_model;
+        command._model_draw.model_key = model_cache_key_u64(game->world->scene2, scene_element);
         command._model_draw.model_id = -1;
         memcpy(&command._model_draw.position, &position, sizeof(struct DashPosition));
         LibToriRS_RenderCommandBufferAddCommand(game->uiscene_queued_commands, command);
@@ -831,27 +940,29 @@ uielem_world_step(
         struct MapBuildTileEntity* tile_entity = NULL;
         tile_entity = world_tile_entity_at(game->world, sx, sz, slevel);
         if( !tile_entity || tile_entity->scene_element.element_id == -1 )
-            break;
+            goto next;
 
         scene_element =
             scene2_element_at(game->world->scene2, tile_entity->scene_element.element_id);
-        if( !scene_element || !scene_element->dash_model )
-            break;
+        struct DashModel* tile_model = scene2_element_dash_model(scene_element);
+        struct DashPosition* tile_pos = scene2_element_dash_position(scene_element);
+        if( !scene_element || !tile_model || !tile_pos )
+            goto next;
 
-        memcpy(&position, scene_element->dash_position, sizeof(struct DashPosition));
+        memcpy(&position, tile_pos, sizeof(struct DashPosition));
 
         position.x = position.x - game->camera_world_x;
         position.y = position.y - game->camera_world_y;
         position.z = position.z - game->camera_world_z;
 
         int cull = dash3d_project_model(
-            game->sys_dash, scene_element->dash_model, &position, game->view_port, game->camera);
+            game->sys_dash, tile_model, &position, game->view_port, game->camera);
         if( cull != DASHCULL_VISIBLE )
             break;
 
         command.kind = TORIRS_GFX_MODEL_DRAW;
-        command._model_draw.model = scene_element->dash_model;
-        command._model_draw.model_key = model_cache_key_u64(scene_element);
+        command._model_draw.model = tile_model;
+        command._model_draw.model_key = model_cache_key_u64(game->world->scene2, scene_element);
         command._model_draw.model_id = -1;
         memcpy(&command._model_draw.position, &position, sizeof(struct DashPosition));
         LibToriRS_RenderCommandBufferAddCommand(game->uiscene_queued_commands, command);
@@ -860,39 +971,41 @@ uielem_world_step(
     default:
         break;
     }
+
+    return game->at_painters_command_index >= game->sys_painter_buffer->command_count;
 }
 
-static void
+static bool
 uielem_minimap_step(
     struct GGame* game,
-    struct StaticUIComponent* component,
-    struct UIStep* step)
+    struct StaticUIComponent* component)
 {
-    assert(component->type == UIELEM_MINIMAP);
+    assert(component->type == UIELEM_BUILTIN_MINIMAP);
 
-    struct UISceneElement* element = uiscene_element_at(game->ui_scene, component->scene_id);
+    struct UISceneElement* element =
+        uiscene_element_at(game->ui_scene, component->u.minimap.scene_id);
     if( !element )
-        return;
+        return true;
 
     queue_static_ui_minimap_draws(game, component);
-    step->done = true;
+    return true;
 }
 
-static void
+static bool
 uielem_compass_step(
     struct GGame* game,
-    struct StaticUIComponent* component,
-    struct UIStep* step)
+    struct StaticUIComponent* component)
 {
-    assert(component->type == UIELEM_COMPASS);
+    assert(component->type == UIELEM_BUILTIN_COMPASS);
 
-    struct UISceneElement* element = uiscene_element_at(game->ui_scene, component->scene_id);
+    struct UISceneElement* element =
+        uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
     if( !element )
-        return;
+        return true;
 
-    struct DashSprite* sprite = element->dash_sprites[component->atlas_index];
+    struct DashSprite* sprite = element->dash_sprites[component->u.sprite.atlas_index];
     if( !sprite )
-        return;
+        return true;
 
     struct ToriRSRenderCommand command;
     command.kind = TORIRS_GFX_SPRITE_DRAW;
@@ -914,7 +1027,54 @@ uielem_compass_step(
 
     LibToriRS_RenderCommandBufferAddCommand(game->uiscene_queued_commands, command);
 
-    step->done = true;
+    return true;
+}
+
+static bool
+uielem_rs_graphic_step(
+    struct GGame* game,
+    struct StaticUIComponent* component,
+    int cur)
+{
+    assert(component->type == UIELEM_RS_GRAPHIC);
+    return rs_gfx_graphic_step(game, component, game->uiscene_queued_commands, cur);
+}
+
+static bool
+uielem_rs_text_step(
+    struct GGame* game,
+    struct StaticUIComponent* component)
+{
+    assert(component->type == UIELEM_RS_TEXT);
+    return rs_gfx_text_step(game, component, game->uiscene_queued_commands);
+}
+
+static bool
+uielem_rs_inv_step(
+    struct GGame* game,
+    struct StaticUIComponent* component)
+{
+    assert(component->type == UIELEM_RS_INV);
+    return rs_gfx_inv_step(game, component, game->uiscene_queued_commands);
+}
+
+static bool
+uielem_rs_layer_step(
+    struct GGame* game,
+    struct StaticUIComponent* component)
+{
+    assert(component->type == UIELEM_RS_LAYER);
+    return true;
+}
+
+static bool
+uielem_rs_model_step(
+    struct GGame* game,
+    struct StaticUIComponent* component)
+{
+    assert(component->type == UIELEM_RS_MODEL);
+    return rs_gfx_model_step(
+        game, component, game->uiscene_queued_commands, s_frame_project_models);
 }
 
 bool
@@ -926,12 +1086,12 @@ LibToriRS_FrameNextCommand(
 {
     struct StaticUIComponent* component = NULL;
     struct ToriRSRenderCommand* cmd = NULL;
-    struct UIStep step = { 0 };
+    bool done = false;
+    (void)render_command_buffer;
+    s_frame_project_models = project_models;
+
     while( true )
     {
-        if( game->uiscene_idx >= game->ui_scene_buffer->component_count )
-            return false;
-
         if( game->uiscene_command_idx < game->uiscene_queued_commands->command_count )
         {
             cmd = LibToriRS_RenderCommandBufferAt(
@@ -941,41 +1101,58 @@ LibToriRS_FrameNextCommand(
 
             return true;
         }
-        else if( game->step_done )
-        {
-            game->uiscene_idx++;
-            memset(&step, 0, sizeof(step));
 
-            LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
-            game->uiscene_command_idx = 0;
-            game->step_done = false;
-            continue;
-        }
+        if( !game->ui_root_buffer || game->uitree_current < 0 )
+            return false;
 
-        step.done = true;
+        LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
+        game->uiscene_command_idx = 0;
 
-        component = &game->ui_scene_buffer->components[game->uiscene_idx];
+        int32_t cur = game->uitree_current;
+        component = &game->ui_root_buffer->components[cur];
 
-        int component_command_count = 0;
         switch( component->type )
         {
-        case UIELEM_SPRITE:
-            uielem_sprite_step(game, component, &step);
+        case UIELEM_BUILTIN_SPRITE:
+            done = uielem_sprite_step(game, component);
             break;
-        case UIELEM_WORLD:
-            uielem_world_step(game, component, &step, project_models);
+        case UIELEM_BUILTIN_WORLD:
+            done = uielem_world_step(game, component);
             break;
-        case UIELEM_MINIMAP:
-            uielem_minimap_step(game, component, &step);
+        case UIELEM_BUILTIN_MINIMAP:
+            done = uielem_minimap_step(game, component);
             break;
-        case UIELEM_COMPASS:
-            uielem_compass_step(game, component, &step);
+        case UIELEM_BUILTIN_COMPASS:
+            done = uielem_compass_step(game, component);
+            break;
+        case UIELEM_BUILTIN_REDSTONE_TAB:
+            done = uielem_redstone_tab_step(game, component);
+            break;
+        case UIELEM_BUILTIN_SIDEBAR:
+            done = uielem_builtin_sidebar_step(game, component);
+            break;
+        case UIELEM_RS_GRAPHIC:
+            done = uielem_rs_graphic_step(game, component, cur);
+            break;
+        case UIELEM_RS_TEXT:
+            done = uielem_rs_text_step(game, component);
+            break;
+        case UIELEM_RS_LAYER:
+            done = uielem_rs_layer_step(game, component);
+            break;
+        case UIELEM_RS_MODEL:
+            done = uielem_rs_model_step(game, component);
+            break;
+        case UIELEM_RS_INV:
+            done = uielem_rs_inv_step(game, component);
             break;
         default:
+            done = true;
             break;
         }
 
-        game->step_done = step.done;
+        if( done )
+            frame_uitree_advance_after_step(game, cur);
     }
 
     return false;

@@ -150,7 +150,7 @@ entity_scenebuild_obj_stack_update_tile(
     int sx,
     int sz)
 {
-    struct ObjStackEntry* head = game->obj_stacks[level][sx][sz];
+    // struct ObjStackEntry* head = game->obj_stacks[level][sx][sz];
 }
 
 static void
@@ -202,7 +202,7 @@ entity_scenebuild_player_change_appearance(
     int player_id,
     struct PlayerAppearance* appearance)
 {
-    struct PlayerEntity* player = &game->world->players[player_id];
+    struct PlayerEntity* player = world_player(game->world, player_id);
     struct Scene2Element* scene_element =
         scene2_element_at(game->world->scene2, player->scene_element2.element_id);
 
@@ -220,9 +220,9 @@ entity_scenebuild_player_change_appearance(
     player->animation.walkanim_r = appearance->walkanim_r;
     player->animation.runanim = appearance->runanim;
 
-    if( !scene_element->dash_model )
-        scene_element->dash_model = dashmodel_new();
-    player_appearance_model(game, appearance, scene_element->dash_model);
+    if( !scene2_element_dash_model(scene_element) )
+        scene2_element_set_dash_model(game->world->scene2, scene_element, dashmodel_new());
+    player_appearance_model(game, appearance, scene2_element_dash_model(scene_element));
 }
 
 static void

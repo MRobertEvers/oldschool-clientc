@@ -36,6 +36,9 @@ struct Platform2_Emscripten_SDL2
     int game_screen_width;
     int game_screen_height;
 
+    /* HiDPI / UI scale — browser uses 1.0f; matches macOS platform for ImGui init. */
+    float display_scale;
+
     uint64_t last_frame_time_ticks;
 };
 

@@ -100,20 +100,30 @@ merge_normals(
 
     int merged_vertex_count = 0;
 
-    for( int vertex = 0; vertex < model->vertex_count; vertex++ )
+    int model_vc = dashmodel_vertex_count(model);
+    vertexint_t* model_vx = dashmodel_vertices_x(model);
+    vertexint_t* model_vy = dashmodel_vertices_y(model);
+    vertexint_t* model_vz = dashmodel_vertices_z(model);
+
+    int other_vc = dashmodel_vertex_count(other_model);
+    vertexint_t* other_vx = dashmodel_vertices_x(other_model);
+    vertexint_t* other_vy = dashmodel_vertices_y(other_model);
+    vertexint_t* other_vz = dashmodel_vertices_z(other_model);
+
+    for( int vertex = 0; vertex < model_vc; vertex++ )
     {
-        x = model->vertices_x[vertex] - check_offset_x;
-        y = model->vertices_y[vertex] - check_offset_y;
-        z = model->vertices_z[vertex] - check_offset_z;
+        x = model_vx[vertex] - check_offset_x;
+        y = model_vy[vertex] - check_offset_y;
+        z = model_vz[vertex] - check_offset_z;
 
         model_a_normal = &vertex_normals[vertex];
         model_a_lighting_normal = &lighting_vertex_normals[vertex];
 
-        for( int other_vertex = 0; other_vertex < other_model->vertex_count; other_vertex++ )
+        for( int other_vertex = 0; other_vertex < other_vc; other_vertex++ )
         {
-            other_x = other_model->vertices_x[other_vertex];
-            other_y = other_model->vertices_y[other_vertex];
-            other_z = other_model->vertices_z[other_vertex];
+            other_x = other_vx[other_vertex];
+            other_y = other_vy[other_vertex];
+            other_z = other_vz[other_vertex];
 
             model_b_normal = &other_vertex_normals[other_vertex];
             model_b_lighting_normal = &other_lighting_vertex_normals[other_vertex];
@@ -151,51 +161,38 @@ merge_normals(
         return;
 
     // Can't have two faces with the same 3 points, so only need to check two.
-    for( int face = 0; face < model->face_count; face++ )
+    int m_fc = dashmodel_face_count(model);
+    faceint_t* m_fa = dashmodel_face_indices_a(model);
+    faceint_t* m_fb = dashmodel_face_indices_b(model);
+    faceint_t* m_fci = dashmodel_face_indices_c(model);
+    for( int face = 0; face < m_fc; face++ )
     {
         // If all three vertices of the face are merged, hide the face.
-        if( g_vertex_a_merge_index[model->face_indices_a[face]] == g_merge_index &&
-            g_vertex_a_merge_index[model->face_indices_b[face]] == g_merge_index &&
-            g_vertex_a_merge_index[model->face_indices_c[face]] == g_merge_index )
+        if( g_vertex_a_merge_index[m_fa[face]] == g_merge_index &&
+            g_vertex_a_merge_index[m_fb[face]] == g_merge_index &&
+            g_vertex_a_merge_index[m_fci[face]] == g_merge_index )
         {
-            // OS1 initializes face infos to 0 here.
-            if( !model->face_infos )
-            {
-                model->face_infos = malloc(sizeof(int) * model->face_count);
-                memset(model->face_infos, 0, sizeof(int) * model->face_count);
-            }
-            // Hidden face (facetype 2 is hidden)
-            model->face_infos[face] = 2;
+            int* infos = dashmodel_face_infos_ensure_zero(model);
+            if( infos )
+                infos[face] = 2;
         }
     }
-    for( int face = 0; face < other_model->face_count; face++ )
+    int o_fc = dashmodel_face_count(other_model);
+    faceint_t* o_fa = dashmodel_face_indices_a(other_model);
+    faceint_t* o_fb = dashmodel_face_indices_b(other_model);
+    faceint_t* o_fci = dashmodel_face_indices_c(other_model);
+    for( int face = 0; face < o_fc; face++ )
     {
         // If all three vertices of the face are merged, hide the face.
-        if( g_vertex_b_merge_index[other_model->face_indices_a[face]] == g_merge_index &&
-            g_vertex_b_merge_index[other_model->face_indices_b[face]] == g_merge_index &&
-            g_vertex_b_merge_index[other_model->face_indices_c[face]] == g_merge_index )
+        if( g_vertex_b_merge_index[o_fa[face]] == g_merge_index &&
+            g_vertex_b_merge_index[o_fb[face]] == g_merge_index &&
+            g_vertex_b_merge_index[o_fci[face]] == g_merge_index )
         {
-            // OS1 initializes face infos to 0 here.
-            if( !other_model->face_infos )
-            {
-                other_model->face_infos = malloc(sizeof(int) * other_model->face_count);
-                memset(other_model->face_infos, 0, sizeof(int) * other_model->face_count);
-            }
-            // Hidden face (facetype 2 is hidden)
-            other_model->face_infos[face] = 2;
+            int* infos = dashmodel_face_infos_ensure_zero(other_model);
+            if( infos )
+                infos[face] = 2;
         }
     }
-}
-
-static void
-alloc_merged_normals(struct Scene2Element* scene_element)
-{
-    if( !scene_element || !scene_element->dash_model || !scene_element->dash_model->normals ||
-        scene_element->dash_model->merged_normals )
-        return;
-
-    scene_element->dash_model->merged_normals =
-        dashmodel_normals_new_copy(scene_element->dash_model->normals);
 }
 
 #define ADJACENT_TILES_COUNT 48
@@ -221,12 +218,12 @@ sharelight_build(struct World* world)
                 map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
                 assert(map_tile && "Sharelight map tile must be valid");
 
-                for( int i = 0; i < map_tile->elements_count; i++ )
+                for( int i = 0; i < map_tile->sharelight_count; i++ )
                 {
-                    map_element = &map_tile->elements[i];
+                    map_element = &map_tile->sharelight[i];
 
                     scene_element = scene2_element_at(world->scene2, map_element->element_idx);
-                    if( !scene_element->dash_model )
+                    if( !scene2_element_dash_model(scene_element) )
                         continue;
 
                     int adjacent_tiles_count = gather_adjacent_tiles(
@@ -248,15 +245,15 @@ sharelight_build(struct World* world)
                             adjacent_tile_coord.x,
                             adjacent_tile_coord.z,
                             adjacent_tile_coord.level);
-                        for( int k = 0; k < adjacent_map_tile->elements_count; k++ )
+                        for( int k = 0; k < adjacent_map_tile->sharelight_count; k++ )
                         {
-                            adjacent_map_element = &adjacent_map_tile->elements[k];
+                            adjacent_map_element = &adjacent_map_tile->sharelight[k];
                             if( adjacent_map_element->element_idx == map_element->element_idx )
                                 continue;
 
                             adjacent_scene_element =
                                 scene2_element_at(world->scene2, adjacent_map_element->element_idx);
-                            if( !adjacent_scene_element->dash_model )
+                            if( !scene2_element_dash_model(adjacent_scene_element) )
                                 continue;
 
                             int check_offset_x =
@@ -276,23 +273,20 @@ sharelight_build(struct World* world)
                                 adjacent_tile_coord.level);
                             int check_offset_height = adjacent_height_center - height_center;
 
-                            assert(
-                                adjacent_scene_element->dash_model->normals &&
-                                "Adjacent scene element must have normals");
-                            assert(
-                                scene_element->dash_model->normals &&
-                                "Scene element must have normals");
-                            alloc_merged_normals(scene_element);
-                            alloc_merged_normals(adjacent_scene_element);
+                            if( !dashmodel_is_lightable(scene2_element_dash_model(adjacent_scene_element)) ||
+                                !dashmodel_is_lightable(scene2_element_dash_model(scene_element)) )
+                                continue;
 
                             merge_normals(
-                                scene_element->dash_model,
-                                scene_element->dash_model->normals->lighting_vertex_normals,
-                                scene_element->dash_model->merged_normals->lighting_vertex_normals,
-                                adjacent_scene_element->dash_model,
-                                adjacent_scene_element->dash_model->normals
+                                scene2_element_dash_model(scene_element),
+                                dashmodel_normals(scene2_element_dash_model(scene_element))
                                     ->lighting_vertex_normals,
-                                adjacent_scene_element->dash_model->merged_normals
+                                dashmodel_merged_normals(scene2_element_dash_model(scene_element))
+                                    ->lighting_vertex_normals,
+                                scene2_element_dash_model(adjacent_scene_element),
+                                dashmodel_normals(scene2_element_dash_model(adjacent_scene_element))
+                                    ->lighting_vertex_normals,
+                                dashmodel_merged_normals(scene2_element_dash_model(adjacent_scene_element))
                                     ->lighting_vertex_normals,
                                 check_offset_x,
                                 check_offset_height,
@@ -312,12 +306,12 @@ sharelight_build(struct World* world)
             {
                 map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
 
-                for( int i = 0; i < map_tile->elements_count; i++ )
+                for( int i = 0; i < map_tile->sharelight_count; i++ )
                 {
-                    map_element = &map_tile->elements[i];
+                    map_element = &map_tile->sharelight[i];
 
                     scene_element = scene2_element_at(world->scene2, map_element->element_idx);
-                    if( !scene_element->dash_model )
+                    if( !scene2_element_dash_model(scene_element) )
                         continue;
 
                     int light_ambient = 64;
@@ -334,24 +328,23 @@ sharelight_build(struct World* world)
                         lightsrc_z * lightsrc_z);
                     int attenuation = (light_attenuation * light_magnitude) >> 8;
 
-                    alloc_merged_normals(scene_element);
-                    if( !scene_element->dash_model->merged_normals )
+                    struct DashModel* dm = scene2_element_dash_model(scene_element);
+                    if( !dashmodel_is_lightable(dm) )
                         continue;
-
                     apply_lighting(
-                        scene_element->dash_model->lighting->face_colors_hsl_a,
-                        scene_element->dash_model->lighting->face_colors_hsl_b,
-                        scene_element->dash_model->lighting->face_colors_hsl_c,
-                        scene_element->dash_model->merged_normals->lighting_vertex_normals,
-                        scene_element->dash_model->merged_normals->lighting_face_normals,
-                        scene_element->dash_model->face_indices_a,
-                        scene_element->dash_model->face_indices_b,
-                        scene_element->dash_model->face_indices_c,
-                        scene_element->dash_model->face_count,
-                        scene_element->dash_model->face_colors,
-                        scene_element->dash_model->face_alphas,
-                        scene_element->dash_model->face_textures,
-                        scene_element->dash_model->face_infos,
+                        dashmodel_face_colors_a(dm),
+                        dashmodel_face_colors_b(dm),
+                        dashmodel_face_colors_c(dm),
+                        dashmodel_merged_normals(dm)->lighting_vertex_normals,
+                        dashmodel_merged_normals(dm)->lighting_face_normals,
+                        dashmodel_face_indices_a(dm),
+                        dashmodel_face_indices_b(dm),
+                        dashmodel_face_indices_c(dm),
+                        dashmodel_face_count(dm),
+                        dashmodel_face_colors_flat(dm),
+                        dashmodel_face_alphas(dm),
+                        dashmodel_face_textures(dm),
+                        dashmodel_face_infos(dm),
                         light_ambient,
                         attenuation,
                         lightsrc_x,
@@ -360,6 +353,82 @@ sharelight_build(struct World* world)
                 }
             }
         }
+    }
+}
+
+static void
+defaultlight_build(struct World* world)
+{
+    struct Scene2Element* scene_element = NULL;
+    struct Scene2Element* adjacent_scene_element = NULL;
+    struct SharelightMapTile* map_tile = NULL;
+    struct SharelightMapElement* map_element = NULL;
+
+    for( int sx = 0; sx < world->sharelight_map->width; sx++ )
+    {
+        for( int sz = 0; sz < world->sharelight_map->height; sz++ )
+        {
+            for( int slevel = 0; slevel < MAP_TERRAIN_LEVELS; slevel++ )
+            {
+                map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
+                assert(map_tile && "Sharelight map tile must be valid");
+
+                for( int i = 0; i < map_tile->default_lit_count; i++ )
+                {
+                    map_element = &map_tile->defaultlight[i];
+                    if( map_element->element_idx == -1 )
+                        continue;
+
+                    scene_element = scene2_element_at(world->scene2, map_element->element_idx);
+
+                    if( !scene2_element_dash_model(scene_element) )
+                        continue;
+
+                    if( !dashmodel_is_lightable(scene2_element_dash_model(scene_element)) )
+                        continue;
+
+                    _light_model_default(
+                        scene2_element_dash_model(scene_element),
+                        map_element->light_attenuation,
+                        map_element->light_ambient);
+                }
+            }
+        }
+    }
+}
+
+static void
+world_build_lighting(struct World* world)
+{
+    // Alloc normals
+    struct Scene2Element* scene_element = NULL;
+
+    scene_element = world->scene2->active_list;
+    while( scene_element != NULL )
+    {
+        if( scene2_element_dash_model(scene_element) )
+        {
+            dashmodel_alloc_normals(scene2_element_dash_model(scene_element));
+
+            dashmodel_calculate_vertex_normals(scene2_element_dash_model(scene_element));
+        }
+        scene_element = scene2_element_next(scene_element);
+    }
+
+    sharelight_build(world);
+
+    defaultlight_build(world);
+
+    // Free normals
+    scene_element = world->scene2->active_list;
+    while( scene_element != NULL )
+    {
+        if( scene2_element_dash_model(scene_element) )
+        {
+            dashmodel_free_normals(scene2_element_dash_model(scene_element));
+        }
+
+        scene_element = scene2_element_next(scene_element);
     }
 }
 

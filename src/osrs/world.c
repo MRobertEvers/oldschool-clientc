@@ -1,12 +1,14 @@
 #include "world.h"
 
-#include "game.h"
 #include "blendmap.h"
 #include "datatypes/appearances.h"
+#include "game.h"
 #include "heightmap.h"
 #include "terrain_shapemap.h"
 #include "world_scenebuild.h"
 
+#include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -16,6 +18,8 @@
 #include "world_sharelight.u.c"
 #include "world_cycle.u.c"
 // clang-format on
+
+#define CURRENT_LEVEL 0
 
 static void
 init_map_build_loc_entity(
@@ -34,66 +38,59 @@ next_map_build_loc_entity(struct World* world)
     if( world->active_loc_entity_count < MAX_MAP_BUILD_LOC_ENTITIES )
     {
         int entity_id = world->active_loc_entity_count;
-        init_map_build_loc_entity(&world->map_build_loc_entities[entity_id], entity_id);
+        struct MapBuildLocEntity* loc = world_loc_entity_ensure(world, entity_id);
+        init_map_build_loc_entity(loc, entity_id);
         world->active_loc_entities[world->active_loc_entity_count] = entity_id;
         world->active_loc_entity_count++;
-        return &world->map_build_loc_entities[entity_id];
+        return loc;
     }
     assert(false && "No more map build loc entities");
     return NULL;
 }
 
+/** Slot 0 would otherwise match `entity_id != id` never (0==0) while still all-zero from pool. */
 static void
-init_player_entity(
-    struct World* world,
-    int player_id)
+world_prime_map_build_tile_slot0(struct World* world)
 {
-    struct PlayerEntity* player = &world->players[player_id];
-    player->alive = false;
-    player->scene_element2.element_id = -1;
-}
-
-static void
-init_npc_entity(
-    struct World* world,
-    int npc_id)
-{
-    struct NPCEntity* npc = &world->npcs[npc_id];
-    npc->alive = false;
-    npc->scene_element2.element_id = -1;
+    struct MapBuildTileEntity* e =
+        ENTITY_VEC_ENSURE(world->map_build_tile_entities, struct MapBuildTileEntity, 0);
+    memset(e, 0, sizeof(*e));
+    e->scene_element.element_id = -1;
+    e->entity_id = 0;
 }
 
 struct World*
-world_new(struct BuildCacheDat* buildcachedat)
+world_new(
+    struct BuildCacheDat* buildcachedat,
+    struct Scene2* scene2_shared)
 {
+    assert(scene2_shared != NULL && "World requires caller-owned Scene2");
     struct World* world = malloc(sizeof(struct World));
     memset(world, 0, sizeof(struct World));
 
-    world->scene2 = scene2_new(22000);
-    world->painter = painter_new(104, 104, MAP_TERRAIN_LEVELS);
-    world->collision_map = collision_map_new(104, 104);
-    world->heightmap = heightmap_new(104, 104, MAP_TERRAIN_LEVELS);
-    world->minimap = minimap_new(104, 104, MAP_TERRAIN_LEVELS);
+    world->scene2 = scene2_shared;
+    world->painter = NULL;
+    world->collision_map = NULL;
+    world->heightmap = NULL;
+    world->minimap = NULL;
     world->buildcachedat = buildcachedat;
 
-    for( int i = 0; i < MAX_MAP_BUILD_LOC_ENTITIES; i++ )
-    {
-        init_map_build_loc_entity(&world->map_build_loc_entities[i], i);
-    }
+    entity_vec_init(&world->players, sizeof(struct PlayerEntity), MAX_PLAYERS);
+    entity_vec_init(&world->npcs, sizeof(struct NPCEntity), MAX_NPCS);
+    entity_vec_init(
+        &world->map_build_loc_entities,
+        sizeof(struct MapBuildLocEntity),
+        MAX_MAP_BUILD_LOC_ENTITIES);
+    entity_vec_init(
+        &world->map_build_tile_entities,
+        sizeof(struct MapBuildTileEntity),
+        MAX_MAP_BUILD_TILE_ENTITIES);
 
-    for( int i = 0; i < MAX_MAP_BUILD_TILE_ENTITIES; i++ )
-    {
-        init_map_build_tile_entity(&world->map_build_tile_entities[i], i);
-    }
+    world_prime_map_build_tile_slot0(world);
 
-    for( int i = 0; i < MAX_PLAYERS; i++ )
-    {
-        init_player_entity(world, i);
-    }
-    for( int i = 0; i < MAX_NPCS; i++ )
-    {
-        init_npc_entity(world, i);
-    }
+    /* Local player is fixed at ACTIVE_PLAYER_SLOT; prime so world_player(world, ...) is in range.
+     */
+    world_player_ensure(world, ACTIVE_PLAYER_SLOT);
 
     return world;
 }
@@ -104,14 +101,51 @@ world_free(struct World* world)
     if( !world )
         return;
 
-    for( int i = 0; i < MAX_MAP_BUILD_LOC_ENTITIES; i++ )
-        free(world->map_build_loc_entities[i].actions);
+    for( int i = 0; i < entity_vec_count(&world->map_build_loc_entities); i++ )
+        free(world_loc_entity(world, i)->actions);
+
+    for( int i = 0; i < entity_vec_count(&world->npcs); i++ )
+    {
+        struct NPCEntity* npc = world_npc(world, i);
+        free(npc->name);
+        free(npc->description);
+        free(npc->actions);
+    }
+
+    entity_vec_free(&world->players);
+    entity_vec_free(&world->npcs);
+    entity_vec_free(&world->map_build_loc_entities);
+    entity_vec_free(&world->map_build_tile_entities);
 
     painter_free(world->painter);
     collision_map_free(world->collision_map);
     heightmap_free(world->heightmap);
     minimap_free(world->minimap);
-    scene2_free(world->scene2);
+    for( int ti = 0; ti < MAP_TERRAIN_LEVELS; ti++ )
+    {
+        if( world->terrain_va[ti] )
+        {
+            if( world->scene2 )
+            {
+                scene2_vertex_array_unregister(world->scene2, world->terrain_va[ti]);
+                scene2_face_array_unregister(world->scene2, world->terrain_face_array[ti]);
+            }
+            else
+            {
+                dashvertexarray_free(world->terrain_va[ti]);
+                if( world->terrain_face_array[ti] )
+                    dashfacearray_free(world->terrain_face_array[ti]);
+            }
+            world->terrain_va[ti] = NULL;
+            world->terrain_face_array[ti] = NULL;
+        }
+        else if( world->terrain_face_array[ti] && !world->scene2 )
+        {
+            dashfacearray_free(world->terrain_face_array[ti]);
+            world->terrain_face_array[ti] = NULL;
+        }
+    }
+    world->scene2 = NULL;
     if( world->decor_buildmap )
         decor_buildmap_free(world->decor_buildmap);
     if( world->lightmap )
@@ -246,6 +280,47 @@ flag_map_set(
     flag_map->flags[flag_map_index(flag_map, x, z, level)] = flag;
 }
 
+#include "platforms/common/platform_memory.h"
+
+static void
+world_print_scene2_dashmodel_heap_stats(struct World* world)
+{
+    struct Scene2* scene2 = world->scene2;
+    if( !scene2 )
+        return;
+
+    printf("world_buildcachedat_rebuild_centerzone: DashModel heap per scene2 element:\n");
+    size_t total = 0;
+    long long total_vertices = 0;
+    long long total_faces = 0;
+    int count = 0;
+    for( int i = 0; i < scene2_elements_total(scene2); i++ )
+    {
+        struct Scene2Element* el = scene2_element_at((struct Scene2*)scene2, i);
+        struct DashModel* m = scene2_element_dash_model(el);
+        if( !m )
+            continue;
+        size_t bytes = dashmodel_heap_bytes(m);
+        total += bytes;
+        total_vertices += dashmodel_vertex_count(m);
+        total_faces += dashmodel_face_count(m);
+        count++;
+        // printf(
+        //     "  element %d: %zu bytes, vertices %d, faces %d\n",
+        //     i,
+        //     bytes,
+        //     m->vertex_count,
+        //     m->face_count);
+    }
+    // printf(
+    //     "world_buildcachedat_rebuild_centerzone: %d DashModels, total heap %zu bytes, "
+    //     "vertices %lld, faces %lld\n",
+    //     count,
+    //     total,
+    //     total_vertices,
+    //     total_faces);
+}
+
 void
 world_buildcachedat_rebuild_centerzone(
     struct World* world,
@@ -297,9 +372,50 @@ world_buildcachedat_rebuild_centerzone(
     if( world->sharelight_map )
         sharelight_map_free(world->sharelight_map);
 
-    for( int i = 0; i < MAX_MAP_BUILD_TILE_ENTITIES; i++ )
+    for( int ti = 0; ti < MAP_TERRAIN_LEVELS; ti++ )
     {
-        world_cleanup_map_build_tile_entity(world, i);
+        if( world->terrain_va[ti] )
+        {
+            if( world->scene2 )
+            {
+                scene2_vertex_array_unregister(world->scene2, world->terrain_va[ti]);
+                scene2_face_array_unregister(world->scene2, world->terrain_face_array[ti]);
+            }
+            else
+            {
+                dashvertexarray_free(world->terrain_va[ti]);
+                if( world->terrain_face_array[ti] )
+                    dashfacearray_free(world->terrain_face_array[ti]);
+            }
+            world->terrain_va[ti] = NULL;
+            world->terrain_face_array[ti] = NULL;
+        }
+        else if( world->terrain_face_array[ti] && !world->scene2 )
+        {
+            dashfacearray_free(world->terrain_face_array[ti]);
+            world->terrain_face_array[ti] = NULL;
+        }
+    }
+
+    {
+        int prev_scene = world->_scene_size;
+        int tile_slots = 0;
+        if( prev_scene > 0 )
+            tile_slots = prev_scene * prev_scene * MAP_TERRAIN_LEVELS;
+        else
+            tile_slots = entity_vec_count(&world->map_build_tile_entities);
+        if( tile_slots > MAX_MAP_BUILD_TILE_ENTITIES )
+            tile_slots = MAX_MAP_BUILD_TILE_ENTITIES;
+        for( int i = 0; i < tile_slots; i++ )
+        {
+            world_cleanup_map_build_tile_entity(world, i);
+        }
+        entity_vec_free(&world->map_build_tile_entities);
+        entity_vec_init(
+            &world->map_build_tile_entities,
+            sizeof(struct MapBuildTileEntity),
+            MAX_MAP_BUILD_TILE_ENTITIES);
+        world_prime_map_build_tile_slot0(world);
     }
     for( int i = 0; i < world->active_loc_entity_count; i++ )
     {
@@ -307,10 +423,15 @@ world_buildcachedat_rebuild_centerzone(
     }
     world->active_loc_entity_count = 0;
 
+    struct PlatformMemoryInfo mem = { 0 };
+    platform_get_memory_info(&mem);
+    printf(
+        "Pre-Alloc: Memory info: %zu / %zu / %zu\n", mem.heap_used, mem.heap_total, mem.heap_peak);
+
     world->painter = painter_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
     world->collision_map = collision_map_new(scene_size, scene_size);
     world->heightmap = heightmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
-    world->minimap = minimap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    world->minimap = minimap_new(scene_size, scene_size);
 
     world->lightmap = lightmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
     world->shademap = shademap2_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
@@ -319,6 +440,14 @@ world_buildcachedat_rebuild_centerzone(
     world->terrain_shapemap = terrain_shape_map_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
     world->decor_buildmap = decor_buildmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
     world->sharelight_map = sharelight_map_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+
+    struct PlatformMemoryInfo mem2 = { 0 };
+    platform_get_memory_info(&mem2);
+    printf(
+        "Post-Alloc: Memory info: %zu / %zu / %zu\n",
+        mem2.heap_used,
+        mem2.heap_total,
+        mem2.heap_peak);
 
     int chunk_sw_x = zone_sw_x / 8;
     int chunk_sw_z = zone_sw_z / 8;
@@ -554,7 +683,10 @@ world_buildcachedat_rebuild_centerzone(
                     continue;
 
                 int level = map_tile->chunk_pos_level;
-                if( config_loc->map_scene_id != -1 )
+                if( config_loc->map_scene_id == -1 )
+                    continue;
+
+                if( level != CURRENT_LEVEL )
                     continue;
 
                 switch( map_tile->shape_select )
@@ -565,7 +697,6 @@ world_buildcachedat_rebuild_centerzone(
                         world->minimap,
                         offset_x,
                         offset_z,
-                        level,
                         orientation_wall_flag(map_tile->orientation));
                     break;
                 }
@@ -577,7 +708,6 @@ world_buildcachedat_rebuild_centerzone(
                         world->minimap,
                         offset_x,
                         offset_z,
-                        level,
                         orientation_wall_flag(map_tile->orientation));
 
                     int next_orientation = (map_tile->orientation + 1) & 0x3;
@@ -586,7 +716,6 @@ world_buildcachedat_rebuild_centerzone(
                         world->minimap,
                         offset_x,
                         offset_z,
-                        level,
                         orientation_wall_flag(next_orientation));
                     break;
                 }
@@ -598,7 +727,6 @@ world_buildcachedat_rebuild_centerzone(
                         world->minimap,
                         offset_x,
                         offset_z,
-                        level,
                         orientation_wall_flag_diagonal(map_tile->orientation));
                     break;
                 }
@@ -707,7 +835,7 @@ world_buildcachedat_rebuild_centerzone(
                     }
 
                     calculate_wall_decor_offset(
-                        scene_element->dash_position, orientation, offset, diagonal);
+                        scene2_element_dash_position(scene_element), orientation, offset, diagonal);
                 }
             }
         }
@@ -887,8 +1015,7 @@ world_buildcachedat_rebuild_centerzone(
 
                         if( flotype->texture != -1 )
                         {
-                            dash_texture =
-                                buildcachedat_get_texture(buildcachedat, flotype->texture);
+                            dash_texture = scene2_texture_get(world->scene2, flotype->texture);
                             assert(dash_texture && "Dash texture must be found");
 
                             int average_hsl = dash_texture_average_hsl(dash_texture);
@@ -965,10 +1092,15 @@ world_buildcachedat_rebuild_centerzone(
         }
     }
 
+#if WORLD_BUILD_TERRAIN_VA
+    build_scene_terrain_va(world);
+#else
     build_scene_terrain(world);
+#endif
 
-    sharelight_build(world);
+    world_build_lighting(world);
 
+done:
     lightmap_free(world->lightmap);
     world->lightmap = NULL;
     shademap2_free(world->shademap);
@@ -984,6 +1116,8 @@ world_buildcachedat_rebuild_centerzone(
     sharelight_map_free(world->sharelight_map);
     world->sharelight_map = NULL;
 
+    world_print_scene2_dashmodel_heap_stats(world);
+
     if( buildcachedat )
         buildcachedat_clear_map_chunks(buildcachedat);
 }
@@ -993,7 +1127,10 @@ world_cleanup_map_build_loc_entity(
     struct World* world,
     int entity_id)
 {
-    struct MapBuildLocEntity* entity = &world->map_build_loc_entities[entity_id];
+    if( entity_id < 0 || entity_id >= entity_vec_count(&world->map_build_loc_entities) )
+        return;
+
+    struct MapBuildLocEntity* entity = world_loc_entity(world, entity_id);
 
     scene2_element_release(world->scene2, entity->scene_element.element_id);
     scene2_element_release(world->scene2, entity->scene_element_two.element_id);
@@ -1014,10 +1151,15 @@ world_cleanup_map_build_tile_entity(
         return;
 
     assert(entity_id >= 0 && entity_id < MAX_MAP_BUILD_TILE_ENTITIES);
-    struct MapBuildTileEntity* entity = &world->map_build_tile_entities[entity_id];
-    if( entity->entity_id == -1 )
+    if( entity_id >= entity_vec_count(&world->map_build_tile_entities) )
         return;
-    assert(entity->entity_id == entity_id);
+
+    struct MapBuildTileEntity* entity =
+        (struct MapBuildTileEntity*)entity_vec_at(&world->map_build_tile_entities, entity_id);
+    if( entity->entity_id != entity_id )
+        return;
+    if( entity->scene_element.element_id == -1 )
+        return;
 
     scene2_element_release(world->scene2, entity->scene_element.element_id);
     entity->scene_element.element_id = -1;
@@ -1029,7 +1171,10 @@ world_cleanup_player_entity(
     struct World* world,
     int entity_id)
 {
-    struct PlayerEntity* player = &world->players[entity_id];
+    if( entity_id < 0 || entity_id >= entity_vec_count(&world->players) )
+        return;
+
+    struct PlayerEntity* player = world_player(world, entity_id);
     scene2_element_release(world->scene2, player->scene_element2.element_id);
     player->scene_element2.element_id = -1;
     memset(&player->pathing, 0, sizeof(struct EntityPathing));
@@ -1045,7 +1190,17 @@ world_cleanup_npc_entity(
     struct World* world,
     int entity_id)
 {
-    struct NPCEntity* npc = &world->npcs[entity_id];
+    if( entity_id < 0 || entity_id >= entity_vec_count(&world->npcs) )
+        return;
+
+    struct NPCEntity* npc = world_npc(world, entity_id);
+    free(npc->name);
+    npc->name = NULL;
+    free(npc->description);
+    npc->description = NULL;
+    free(npc->actions);
+    npc->actions = NULL;
+    npc->action_count = 0;
     scene2_element_release(world->scene2, npc->scene_element2.element_id);
     npc->scene_element2.element_id = -1;
     memset(&npc->pathing, 0, sizeof(struct EntityPathing));
@@ -1061,7 +1216,7 @@ world_player_entity_set_appearance(
     int player_entity_id,
     struct PlayerAppearance* appearance)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
 
     struct Scene2Element* element =
         scene2_element_at(world->scene2, player->scene_element2.element_id);
@@ -1111,7 +1266,7 @@ load_scene_animation(
         animframe = buildcachedat_get_animframe(world->buildcachedat, frame_id);
         assert(animframe);
 
-        if( !element->dash_framemap )
+        if( !scene2_element_dash_framemap(element) )
         {
             scene2_element_set_framemap(element, dashframemap_new_from_animframe(animframe));
         }
@@ -1145,7 +1300,7 @@ world_map_build_loc_entity_set_animation(
 
     struct Scene2Element* element = NULL;
     struct MapBuildLocEntity* map_build_loc_entity =
-        &world->map_build_loc_entities[map_build_loc_entity_id];
+        world_loc_entity(world, map_build_loc_entity_id);
 
     if( map_build_loc_entity->scene_element.element_id != -1 )
     {
@@ -1177,7 +1332,7 @@ world_player_entity_set_animation(
     int animation_id,
     int animation_type)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
 
     struct Scene2Element* element =
         scene2_element_at(world->scene2, player->scene_element2.element_id);
@@ -1212,7 +1367,7 @@ world_npc_entity_set_animation(
     int animation_id,
     int animation_type)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
 
     struct Scene2Element* element =
         scene2_element_at(world->scene2, npc->scene_element2.element_id);
@@ -1246,7 +1401,7 @@ world_player_entity_set_passive_animations(
     int player_entity_id,
     struct PassiveAnimationInfo* passive_animation_info)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
     player->animation.readyanim = passive_animation_info->readyanim;
     player->animation.walkanim = passive_animation_info->walkanim;
     player->animation.turnanim = passive_animation_info->turnanim;
@@ -1262,7 +1417,7 @@ world_npc_entity_set_passive_animations(
     int npc_entity_id,
     struct PassiveAnimationInfo* passive_animation_info)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
     npc->animation.readyanim = passive_animation_info->readyanim;
     npc->animation.walkanim = passive_animation_info->walkanim;
     npc->animation.turnanim = passive_animation_info->turnanim;
@@ -1279,7 +1434,7 @@ world_npc_entity_path_push_moveto(
     int x,
     int z)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
 }
 
 void
@@ -1289,7 +1444,7 @@ world_player_entity_path_push_step(
     int step_type,
     int direction)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
 
     entity_pathing_push_step(&player->pathing, step_type, direction);
 }
@@ -1301,7 +1456,7 @@ world_npc_entity_path_push_step(
     int step_type,
     int direction)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
 
     entity_pathing_push_step(&npc->pathing, step_type, direction);
 }
@@ -1314,8 +1469,8 @@ world_player_entity_path_jump_relative_to_active(
     int dx,
     int dz)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
-    struct PlayerEntity* active_player = &world->players[ACTIVE_PLAYER_SLOT];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
+    struct PlayerEntity* active_player = world_player(world, ACTIVE_PLAYER_SLOT);
 
     int x = active_player->pathing.route_x[0] + dx;
     int z = active_player->pathing.route_z[0] + dz;
@@ -1333,8 +1488,8 @@ world_npc_entity_path_jump_relative_to_active(
     int dx,
     int dz)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
-    struct PlayerEntity* active_player = &world->players[ACTIVE_PLAYER_SLOT];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
+    struct PlayerEntity* active_player = world_player(world, ACTIVE_PLAYER_SLOT);
 
     int x = active_player->pathing.route_x[0] + dx;
     int z = active_player->pathing.route_z[0] + dz;
@@ -1352,7 +1507,7 @@ world_player_entity_path_jump(
     int x,
     int z)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
 
     enum PathingJump jump = entity_pathing_jump(&player->pathing, force_teleport, x, z);
     if( jump == PATHING_JUMP_TELEPORT )
@@ -1367,7 +1522,7 @@ world_npc_entity_path_jump(
     int x,
     int z)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
 
     enum PathingJump jump = entity_pathing_jump(&npc->pathing, force_teleport, x, z);
     if( jump == PATHING_JUMP_TELEPORT )
@@ -1380,7 +1535,7 @@ world_player_face_entity(
     int player_entity_id,
     int entity_id)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
 }
 
 void
@@ -1389,7 +1544,7 @@ world_npc_face_entity(
     int npc_entity_id,
     int entity_id)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
 }
 
 void
@@ -1399,7 +1554,7 @@ world_player_face_coord(
     int tile_x,
     int tile_z)
 {
-    struct PlayerEntity* player = &world->players[player_entity_id];
+    struct PlayerEntity* player = world_player(world, player_entity_id);
 }
 
 void
@@ -1409,7 +1564,7 @@ world_npc_face_coord(
     int tile_x,
     int tile_z)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
 }
 
 void
@@ -1419,7 +1574,7 @@ world_npc_set_size(
     int size_x,
     int size_z)
 {
-    struct NPCEntity* npc = &world->npcs[npc_entity_id];
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
     npc->size.x = size_x;
     npc->size.z = size_z;
 }
@@ -1430,19 +1585,19 @@ world_npc_ensure_scene_element(
     int npc_id)
 {
     struct Scene2Element* element = NULL;
-    struct NPCEntity* npc = &world->npcs[npc_id];
+    struct NPCEntity* npc = world_npc_ensure(world, npc_id);
 
     npc->alive = true;
     if( npc->scene_element2.element_id == -1 )
     {
-        npc->scene_element2.element_id =
-            scene2_element_acquire(world->scene2, entity_unified_id(ENTITY_KIND_NPC, npc_id));
+        npc->scene_element2.element_id = scene2_element_acquire_full(
+            world->scene2, (int)entity_unified_id(ENTITY_KIND_NPC, npc_id));
 
         npc->orientation.dst_yaw = 0;
 
         element = scene2_element_at(world->scene2, npc->scene_element2.element_id);
-        if( element && !element->dash_position )
-            element->dash_position = dashposition_new();
+        if( element && !scene2_element_dash_position(element) )
+            scene2_element_set_dash_position_ptr(element, dashposition_new());
     }
     return npc;
 }
@@ -1453,20 +1608,20 @@ world_player_ensure_scene_element(
     int player_id)
 {
     struct Scene2Element* element = NULL;
-    struct PlayerEntity* player = &world->players[player_id];
+    struct PlayerEntity* player = world_player_ensure(world, player_id);
 
     player->alive = true;
     if( player->scene_element2.element_id == -1 )
     {
-        player->scene_element2.element_id =
-            scene2_element_acquire(world->scene2, entity_unified_id(ENTITY_KIND_PLAYER, player_id));
+        player->scene_element2.element_id = scene2_element_acquire_full(
+            world->scene2, (int)entity_unified_id(ENTITY_KIND_PLAYER, player_id));
 
         // player->orientation.face_entity = -1;
         player->orientation.dst_yaw = 0;
 
         element = scene2_element_at(world->scene2, player->scene_element2.element_id);
-        if( element && !element->dash_position )
-            element->dash_position = dashposition_new();
+        if( element && !scene2_element_dash_position(element) )
+            scene2_element_set_dash_position_ptr(element, dashposition_new());
     }
 
     return player;
@@ -1479,7 +1634,7 @@ world_map_build_loc_entity_push_action(
     int code,
     char* action)
 {
-    struct MapBuildLocEntity* entity = &world->map_build_loc_entities[map_build_loc_entity_id];
+    struct MapBuildLocEntity* entity = world_loc_entity(world, map_build_loc_entity_id);
     assert(entity->action_count < 10);
     if( !entity->actions )
         entity->actions = (struct EntityAction*)calloc(10, sizeof(struct EntityAction));

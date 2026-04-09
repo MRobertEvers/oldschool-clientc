@@ -515,20 +515,25 @@ LuaBuildCacheDat_load_interfaces(
 struct LuaGameType*
 LuaBuildCacheDat_load_component_sprites_from_media(
     struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
     struct LuaGameType* args)
 {
-    struct GGame* game = arg_game(args);
-    buildcachedat_loader_load_component_sprites_from_media(buildcachedat, game);
+    (void)args;
+    if( game )
+        buildcachedat_loader_load_component_sprites_from_media(buildcachedat, game);
     return LuaGameType_NewVoid();
 }
 
 struct LuaGameType*
 LuaBuildCacheDat_cache_textures(
     struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
     struct LuaGameType* args)
 {
     struct CacheDatArchive* archive = arg_userdata(args, 0);
-    buildcachedat_loader_cache_textures(buildcachedat, archive->data_size, archive->data);
+    if( game && game->scene2 )
+        buildcachedat_loader_cache_textures(
+            buildcachedat, game->scene2, archive->data_size, archive->data);
     cache_dat_archive_free(archive);
     return LuaGameType_NewVoid();
 }
@@ -570,11 +575,11 @@ LuaBuildCacheDat_cache_animbaseframes(
 struct LuaGameType*
 LuaBuildCacheDat_cache_media(
     struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
     struct LuaGameType* args)
 {
-    struct GGame* game = arg_game(args);
-    int data_size = arg_int(args, 1);
-    void* data = arg_userdata(args, 2);
+    int data_size = arg_int(args, 0);
+    void* data = arg_userdata(args, 1);
 
     buildcachedat_loader_cache_media(buildcachedat, game, data_size, data);
     return LuaGameType_NewVoid();
@@ -583,11 +588,14 @@ LuaBuildCacheDat_cache_media(
 struct LuaGameType*
 LuaBuildCacheDat_cache_title(
     struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
     struct LuaGameType* args)
 {
     struct CacheDatArchive* archive = arg_userdata(args, 0);
 
-    buildcachedat_loader_cache_title(buildcachedat, archive->data_size, archive->data);
+    if( game && game->ui_scene )
+        buildcachedat_loader_cache_title(
+            buildcachedat, game->ui_scene, archive->data_size, archive->data);
     cache_dat_archive_free(archive);
     return LuaGameType_NewVoid();
 }
@@ -615,16 +623,46 @@ LuaBuildCacheDat_init_objects_from_config_jagfile(
 struct LuaGameType*
 LuaBuildCacheDat_finalize_scene(
     struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
     struct LuaGameType* args)
 {
-    struct GGame* game = arg_game(args);
-    int map_sw_x = arg_int(args, 1);
-    int map_sw_z = arg_int(args, 2);
-    int map_ne_x = arg_int(args, 3);
-    int map_ne_z = arg_int(args, 4);
+    int map_sw_x = arg_int(args, 0);
+    int map_sw_z = arg_int(args, 1);
+    int map_ne_x = arg_int(args, 2);
+    int map_ne_z = arg_int(args, 3);
 
     buildcachedat_loader_finalize_scene(
         buildcachedat, game, map_sw_x, map_sw_z, map_ne_x, map_ne_z);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_clear(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_clear(buildcachedat);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_clear_map_chunks(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_clear_map_chunks(buildcachedat);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_clear_component_cache(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_clear_component_cache(buildcachedat);
     return LuaGameType_NewVoid();
 }
 
@@ -645,6 +683,7 @@ LuaBuildCacheDat_CommandHasPrefix(char* command)
 struct LuaGameType*
 LuaBuildCacheDat_DispatchCommand(
     struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
     char* full_command,
     struct LuaGameType* args)
 {
@@ -656,7 +695,17 @@ LuaBuildCacheDat_DispatchCommand(
     command[suffix_len] = '\0';
 
     // clang-format off
-    DISPATCH_COMMAND(command, cache_map_scenery)
+    if( strcmp(command, "cache_textures") == 0 )
+        return LuaBuildCacheDat_cache_textures(buildcachedat, game, args);
+    else if( strcmp(command, "cache_title") == 0 )
+        return LuaBuildCacheDat_cache_title(buildcachedat, game, args);
+    else if( strcmp(command, "cache_media") == 0 )
+        return LuaBuildCacheDat_cache_media(buildcachedat, game, args);
+    else if( strcmp(command, "load_component_sprites_from_media") == 0 )
+        return LuaBuildCacheDat_load_component_sprites_from_media(buildcachedat, game, args);
+    else if( strcmp(command, "finalize_scene") == 0 )
+        return LuaBuildCacheDat_finalize_scene(buildcachedat, game, args);
+    else DISPATCH_COMMAND(command, cache_map_scenery)
     else DISPATCH_COMMAND(command, set_config_jagfile)
     else DISPATCH_COMMAND(command, init_varp_varbit_from_config_jagfile)
     else DISPATCH_COMMAND(command, set_versionlist_jagfile)
@@ -680,17 +729,18 @@ LuaBuildCacheDat_DispatchCommand(
     else DISPATCH_COMMAND(command, get_npc_ids_from_packet)
     else DISPATCH_COMMAND(command, cache_model)
     else DISPATCH_COMMAND(command, load_interfaces)
-    else DISPATCH_COMMAND(command, load_component_sprites_from_media)
-    else DISPATCH_COMMAND(command, cache_textures)
     else DISPATCH_COMMAND(command, init_sequences_from_config_jagfile)
     else DISPATCH_COMMAND(command, get_animbaseframes_count_from_versionlist_jagfile)
     else DISPATCH_COMMAND(command, cache_animbaseframes)
-    else DISPATCH_COMMAND(command, cache_media)
-    else DISPATCH_COMMAND(command, cache_title)
     else DISPATCH_COMMAND(command, init_idkits_from_config_jagfile)
     else DISPATCH_COMMAND(command, init_objects_from_config_jagfile)
     else DISPATCH_COMMAND(command, set_2d_media_jagfile)
-    else DISPATCH_COMMAND(command, finalize_scene)
+    else if( strcmp(command, "clear_component_cache") == 0 )
+        return LuaBuildCacheDat_clear_component_cache(buildcachedat, args);
+    else if( strcmp(command, "clear_map_chunks") == 0 )
+        return LuaBuildCacheDat_clear_map_chunks(buildcachedat, args);
+    else if( strcmp(command, "clear") == 0 )
+        return LuaBuildCacheDat_clear(buildcachedat, args);
     else 
     {
         printf("Unknown command: %s\n", command);

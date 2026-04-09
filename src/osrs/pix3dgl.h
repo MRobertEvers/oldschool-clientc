@@ -1,6 +1,11 @@
 #ifndef OSRS_PIX3D_H
 #define OSRS_PIX3D_H
 
+#include "graphics/dash_alpha.h"
+#include "graphics/dash_faceint.h"
+#include "graphics/dash_hsl16.h"
+#include "graphics/dash_vertexint.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -57,11 +62,15 @@ pix3dgl_end_2dframe(struct Pix3DGL* pix3dgl);
 /** Upload sprite pixel data into the per-sprite GPU texture cache (TORIRS_GFX_SPRITE_LOAD).
  *  No-op if the sprite is already cached. */
 void
-pix3dgl_sprite_load(struct Pix3DGL* pix3dgl, struct DashSprite* sprite);
+pix3dgl_sprite_load(
+    struct Pix3DGL* pix3dgl,
+    struct DashSprite* sprite);
 
 /** Evict a sprite from the GPU texture cache and free its GL texture (TORIRS_GFX_SPRITE_UNLOAD). */
 void
-pix3dgl_sprite_unload(struct Pix3DGL* pix3dgl, struct DashSprite* sprite);
+pix3dgl_sprite_unload(
+    struct Pix3DGL* pix3dgl,
+    struct DashSprite* sprite);
 
 /** Legacy alias for pix3dgl_begin_3dframe. */
 void
@@ -84,23 +93,23 @@ void
 pix3dgl_model_load(
     struct Pix3DGL* pix3dgl,
     int model_idx,
-    int* vertices_x,
-    int* vertices_y,
-    int* vertices_z,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
+    vertexint_t* vertices_x,
+    vertexint_t* vertices_y,
+    vertexint_t* vertices_z,
+    faceint_t* face_indices_a,
+    faceint_t* face_indices_b,
+    faceint_t* face_indices_c,
     int face_count,
-    int* face_textures_nullable,
-    int* face_texture_coords_nullable,
-    int* textured_p_coordinate_nullable,
-    int* textured_m_coordinate_nullable,
-    int* textured_n_coordinate_nullable,
-    int* face_colors_hsl_a,
-    int* face_colors_hsl_b,
-    int* face_colors_hsl_c,
+    faceint_t* face_textures_nullable,
+    faceint_t* face_texture_coords_nullable,
+    faceint_t* textured_p_coordinate_nullable,
+    faceint_t* textured_m_coordinate_nullable,
+    faceint_t* textured_n_coordinate_nullable,
+    hsl16_t* face_colors_hsl_a,
+    hsl16_t* face_colors_hsl_b,
+    hsl16_t* face_colors_hsl_c,
     int* face_infos_nullable,
-    int* face_alphas_nullable);
+    alphaint_t* face_alphas_nullable);
 void
 pix3dgl_model_draw(
     struct Pix3DGL* pix3dgl,

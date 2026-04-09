@@ -45,12 +45,16 @@ struct BuildCacheDat
 
     struct DashMap* containers_hmap;
 
-    struct DashMap* sprites;
+    /** Reftable: named sprite -> UIScene element id (no DashSprite* stored here). */
+    struct DashMap* sprites_reftable;
 
     struct DashMap* map_terrains_hmap;
     struct DashMap* flotype_hmap;
-    struct DashMap* textures_hmap;
-    struct DashMap* fonts_hmap;
+    /** Reftable: texture id loaded into Scene2 (no DashTexture* stored here). */
+    struct DashMap* textures_reftable;
+    /** Reftable: font name -> UIScene font slot id only. UIScene owns DashPixFont; BuildCacheDat
+     * never frees fonts in buildcachedat_free / reset_uiscene_linked_reftables. */
+    struct DashMap* fonts_reftable;
     struct DashMap* scenery_hmap;
     struct DashMap* models_hmap;
 
@@ -59,14 +63,16 @@ struct BuildCacheDat
     struct DashMap* npc_models_hmap;
 
     struct DashMap* config_loc_hmap;
-    struct DashMap* animframes_hmap;
+    /** Reftable: animframe id -> animbaseframes blob + frame index (no CacheAnimframe* stored). */
+    struct DashMap* animframes_reftable;
     struct DashMap* animbaseframes_hmap;
     struct DashMap* sequences_hmap;
     struct DashMap* idk_hmap;
     struct DashMap* obj_hmap;
     struct DashMap* npc_hmap;
     struct DashMap* component_hmap;
-    struct DashMap* component_sprites_hmap;
+    /** Reftable: sprite name -> UIScene element id. */
+    struct DashMap* component_sprites_reftable;
 
     struct BuildCacheDatEvent* eventbuffer;
     int eventbuffer_capacity;
@@ -84,6 +90,25 @@ buildcachedat_free(struct BuildCacheDat* buildcachedat);
 /** Free map terrain and map scenery chunk entries; maps are recreated empty. Other tables unchanged. */
 void
 buildcachedat_clear_map_chunks(struct BuildCacheDat* buildcachedat);
+
+/** Free every decoded interface component (CacheDatConfigComponent) and recreate an empty
+ * component_hmap. Safe after static UI is built into the uitree; buildcachedat_get_component
+ * returns NULL until interfaces are loaded again. Reftables (sprites, fonts, component_sprites)
+ * are unchanged. */
+void
+buildcachedat_clear_component_cache(struct BuildCacheDat* buildcachedat);
+
+/** Free every owning BuildCacheDat cache (hash maps that own decoded data, config/versionlist/media
+ * jagfiles, containers) and reinitialize those maps and event buffer. Reftable maps (textures,
+ * fonts, sprites, component_sprites, animframes) are not cleared. The struct remains valid for reuse.
+ * DashModel meshes live on Scene2, not in BuildCacheDat. */
+void
+buildcachedat_clear(struct BuildCacheDat* buildcachedat);
+
+/** Drop font / sprite / component-sprite reftables (UIScene element and font slot ids invalidated).
+ * Recreates empty maps; textures and animframe reftables unchanged. Call when replacing UIScene. */
+void
+buildcachedat_reset_uiscene_linked_reftables(struct BuildCacheDat* buildcachedat);
 
 void
 buildcachedat_set_config_jagfile(
@@ -187,50 +212,46 @@ buildcachedat_iter_new_flotypes(struct BuildCacheDat* buildcachedat);
 struct CacheConfigOverlay*
 buildcachedat_iter_next_flotype(struct DashMapIter* iter);
 
+/** Register that texture_id was loaded into Scene2 (reftable only). */
 void
-buildcachedat_add_texture(
-    struct BuildCacheDat* buildcachedat,
-    int texture_id,
-    struct DashTexture* texture);
+buildcachedat_add_texture_ref(struct BuildCacheDat* buildcachedat, int texture_id);
 
-struct DashTexture*
-buildcachedat_get_texture(
-    struct BuildCacheDat* buildcachedat,
-    int texture_id);
-
-struct DashMapIter*
-buildcachedat_iter_new_textures(struct BuildCacheDat* buildcachedat);
-
-struct DashTexture*
-buildcachedat_iter_next_texture(struct DashMapIter* iter);
-
-struct DashTexture*
-buildcachedat_iter_next_texture_id(
-    struct DashMapIter* iter,
-    int* out_id);
+bool
+buildcachedat_has_texture_ref(struct BuildCacheDat* buildcachedat, int texture_id);
 
 void
-buildcachedat_add_font(
+buildcachedat_add_font_ref(
     struct BuildCacheDat* buildcachedat,
     const char* font_name,
-    struct DashPixFont* font);
+    int uiscene_font_id);
 
-struct DashPixFont*
-buildcachedat_get_font(
+/** Returns UIScene font slot id, or -1 if unknown. */
+int
+buildcachedat_get_font_ref_id(
     struct BuildCacheDat* buildcachedat,
     const char* font_name);
 
 struct DashMapIter*
-buildcachedat_iter_new_fonts(struct BuildCacheDat* buildcachedat);
+buildcachedat_iter_new_fonts_reftable(struct BuildCacheDat* buildcachedat);
 
-struct DashPixFont*
-buildcachedat_iter_next_font(struct DashMapIter* iter);
-
-struct DashPixFont*
-buildcachedat_iter_next_font_name(
+/** Iterates font reftable; returns true while entries remain. */
+bool
+buildcachedat_iter_next_font_ref(
     struct DashMapIter* iter,
     char* out_name,
-    int out_name_cap);
+    int out_name_cap,
+    int* out_uiscene_font_id);
+
+void
+buildcachedat_add_sprite_ref(
+    struct BuildCacheDat* buildcachedat,
+    const char* name,
+    int uiscene_element_id);
+
+int
+buildcachedat_get_sprite_element_id(
+    struct BuildCacheDat* buildcachedat,
+    const char* name);
 
 bool
 buildcachedat_eventbuffer_is_empty(struct BuildCacheDat* buildcachedat);
@@ -347,21 +368,16 @@ struct DashMapIter*
 buildcachedat_iter_new_config_locs(struct BuildCacheDat* buildcachedat);
 
 void
-buildcachedat_add_animframe(
+buildcachedat_add_animframe_ref(
     struct BuildCacheDat* buildcachedat,
     int animframe_id,
-    struct CacheAnimframe* animframe);
+    int animbaseframes_id,
+    int frame_index);
 
 struct CacheAnimframe*
 buildcachedat_get_animframe(
     struct BuildCacheDat* buildcachedat,
     int animframe_id);
-
-struct CacheAnimframe*
-buildcachedat_iter_next_animframe(struct DashMapIter* iter);
-
-struct DashMapIter*
-buildcachedat_iter_new_animframes(struct BuildCacheDat* buildcachedat);
 
 void
 buildcachedat_add_animbaseframes(
@@ -464,13 +480,13 @@ buildcachedat_component_iter_next(
     int* id_out);
 
 void
-buildcachedat_add_component_sprite(
+buildcachedat_add_component_sprite_ref(
     struct BuildCacheDat* buildcachedat,
     const char* sprite_name,
-    struct DashSprite* sprite);
+    int uiscene_element_id);
 
-struct DashSprite*
-buildcachedat_get_component_sprite(
+int
+buildcachedat_get_component_sprite_element_id(
     struct BuildCacheDat* buildcachedat,
     const char* sprite_name);
 

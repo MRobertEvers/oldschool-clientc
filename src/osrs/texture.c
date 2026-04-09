@@ -40,22 +40,24 @@ normalize_pixel_buffer(
         return NULL;
     memset(normalized_pixels, 0, (size_t)new_width * new_height * sizeof(int));
 
+    int xstep = (current_width + new_width - 1) / new_width;
+    int ystep = (current_height + new_height - 1) / new_height;
     if( current_width != new_width || current_height != new_height )
     {
-        for( int y = 0; y < current_height; y++ )
+        for( int y = 0; y < current_height; y += ystep )
         {
-            for( int x = 0; x < current_width; x++ )
+            for( int x = 0; x < current_width; x += xstep )
             {
-                normalized_pixels[x + y * new_width] = pixels[x + y * current_width];
+                int dst_x = x / xstep;
+                int dst_y = y / ystep;
+                int pixel = pixels[x + y * current_width];
+                normalized_pixels[dst_x + dst_y * new_width] = pixel;
             }
         }
     }
     else
     {
-        memcpy(
-            normalized_pixels,
-            pixels,
-            (size_t)current_width * current_height * sizeof(int));
+        memcpy(normalized_pixels, pixels, (size_t)current_width * current_height * sizeof(int));
     }
 
     return normalized_pixels;
@@ -316,9 +318,12 @@ texture_new_from_texture_sprite(
         return NULL;
 
     struct DashTexture* dash_texture = (struct DashTexture*)malloc(sizeof(struct DashTexture));
-    memset(dash_texture, 0, sizeof(struct DashTexture));
     if( !dash_texture )
+    {
+        free(normalized_pixels);
         return NULL;
+    }
+    memset(dash_texture, 0, sizeof(struct DashTexture));
 
     for( int pi = 0; pi < texture->palette_count; pi++ )
     {
@@ -334,7 +339,11 @@ texture_new_from_texture_sprite(
 
     int* pixels = (int*)malloc(pixel_count * sizeof(int));
     if( !pixels )
+    {
+        free(dash_texture);
+        free(normalized_pixels);
         return NULL;
+    }
     memset(pixels, 0, pixel_count * sizeof(int));
 
     for( int i = 0; i < pixel_count; i++ )
@@ -375,6 +384,9 @@ texture_new_from_texture_sprite(
     {
         if( texture->wi != 128 || size != 64 )
         {
+            free(pixels);
+            free(dash_texture);
+            free(normalized_pixels);
             return NULL;
         }
 

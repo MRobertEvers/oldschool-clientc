@@ -1,5 +1,9 @@
 #include "interface.h"
 
+#include "osrs/clientscript_vm.h"
+#include "osrs/interface_state.h"
+#include "osrs/revconfig/uiscene.h"
+
 #include "graphics/dash.h"
 #include "obj_icon.h"
 #include "osrs/buildcachedat.h"
@@ -18,205 +22,51 @@
 
 #define INV_MENU_MAX 24
 
-/* Run component script and return result. Mirrors Client.ts getIfVar (10625-10765).
- * Uses varp_varbit_manager for opcodes 5 (pushvar), 7 (var*100/46875), 13 (testbit), 14
- * (push_varbit). Other opcodes return 0 for now. */
+static struct DashPixFont*
+interface_font_from_reftable(struct GGame* game, char const* name)
+{
+    if( !game || !game->ui_scene || !game->buildcachedat || !name )
+        return NULL;
+    int sid = buildcachedat_get_font_ref_id(game->buildcachedat, name);
+    if( sid < 0 )
+        return NULL;
+    return uiscene_font_get(game->ui_scene, sid);
+}
+
+static struct DashSprite*
+interface_component_sprite_from_reftable(struct GGame* game, char const* graphic_name)
+{
+    if( !game || !game->ui_scene || !game->buildcachedat || !graphic_name || !graphic_name[0] )
+        return NULL;
+    int eid = buildcachedat_get_component_sprite_element_id(game->buildcachedat, graphic_name);
+    if( eid < 0 )
+        return NULL;
+    struct UISceneElement* el = uiscene_element_at(game->ui_scene, eid);
+    if( !el || el->dash_sprites_count <= 0 || !el->dash_sprites )
+        return NULL;
+    return el->dash_sprites[0];
+}
+
+/* Run component script and return result. Delegates to ClientScriptVM. */
 int
 interface_get_if_var(
     struct GGame* game,
     struct CacheDatConfigComponent* component,
     int script_id)
 {
-    if( !component->scripts || script_id >= component->scripts_count )
+    if( !game || !game->clientscript_vm )
         return -2;
-
-    int* script = component->scripts[script_id];
-    if( !script )
-        return -1;
-
-    int acc = 0;
-    int pc = 0;
-    int arithmetic = 0;
-
-    struct VarPVarBitManager* mgr = &game->varp_varbit;
-
-    while( 1 )
-    {
-        int register_val = 0;
-        int next_arithmetic = 0;
-        int opcode = script[pc++];
-
-        if( opcode == 0 )
-            return acc;
-
-        switch( opcode )
-        {
-        case 1:
-            /* stat_level {skill} */
-            {
-                int skill = script[pc++];
-                register_val = (skill >= 0 && skill < PLAYER_STAT_COUNT)
-                                   ? game->player_stat_effective_level[skill]
-                                   : 0;
-                break;
-            }
-        case 2:
-            /* stat_base_level {skill} */
-            {
-                int skill = script[pc++];
-                register_val = (skill >= 0 && skill < PLAYER_STAT_COUNT)
-                                   ? game->player_stat_base_level[skill]
-                                   : 0;
-                break;
-            }
-        case 3:
-            /* stat_xp {skill} */
-            {
-                int skill = script[pc++];
-                register_val =
-                    (skill >= 0 && skill < PLAYER_STAT_COUNT) ? game->player_stat_xp[skill] : 0;
-                break;
-            }
-        case 5:
-            /* pushvar {id} */
-
-            register_val = varp_varbit_get_varp(mgr, script[pc++]);
-            break;
-        case 6:
-            /* stat_xp_remaining {skill} - xp required for next level */
-            {
-                int skill = script[pc++];
-                int base_level = (skill >= 0 && skill < PLAYER_STAT_COUNT)
-                                     ? game->player_stat_base_level[skill]
-                                     : 1;
-                if( base_level >= PLAYER_LEVEL_MAX )
-                    register_val = 0;
-                else
-                    register_val = g_player_level_experience[base_level - 1];
-                break;
-            }
-        case 7:
-            /* register = (var[id] * 100) / 46875 */
-            register_val = (varp_varbit_get_varp(mgr, script[pc++]) * 100) / 46875;
-            break;
-        case 13:
-        {
-            /* testbit {varp} {bit: 0..31} */
-            int varp_val = varp_varbit_get_varp(mgr, script[pc++]);
-            int lsb = script[pc++];
-            register_val = (varp_val & (1 << lsb)) ? 1 : 0;
-            break;
-        }
-        case 14:
-        {
-            /* push_varbit {varbit} */
-            register_val = varp_varbit_get_varbit(mgr, script[pc++]);
-            break;
-        }
-        case 8:
-            /* combat_level - not computed yet */
-            register_val = 0;
-            break;
-        case 9:
-            /* total_level - sum of base levels (0-18, 20; skip 19 runecraft) */
-            {
-                register_val = 0;
-                for( int i = 0; i < PLAYER_STAT_COUNT; i++ )
-                {
-                    if( i == 19 )
-                        continue;
-                    register_val += game->player_stat_base_level[i];
-                }
-                break;
-            }
-        case 11:
-            /* runenergy */
-            register_val = game->player_run_energy;
-            break;
-        case 12:
-            /* runweight - not from packet yet */
-            register_val = 0;
-            break;
-        case 20:
-            /* push_constant */
-            register_val = script[pc++];
-            break;
-        default:
-            /* Other opcodes: advance pc, register_val stays 0 */
-            if( opcode == 1 || opcode == 2 || opcode == 3 || opcode == 6 )
-                pc += 1;
-            else if( opcode == 4 || opcode == 10 )
-                pc += 2;
-            else if( opcode == 15 || opcode == 16 || opcode == 17 )
-                next_arithmetic = (opcode == 15) ? 1 : (opcode == 16) ? 2 : 3;
-            /* 8,9,11,12,18,19: no operands */
-            break;
-        }
-
-        if( next_arithmetic == 0 )
-        {
-            if( arithmetic == 0 )
-                acc += register_val;
-            else if( arithmetic == 1 )
-                acc -= register_val;
-            else if( arithmetic == 2 && register_val != 0 )
-                acc = acc / register_val;
-            else if( arithmetic == 3 )
-                acc = acc * register_val;
-            arithmetic = 0;
-        }
-        else
-        {
-            arithmetic = next_arithmetic;
-        }
-    }
+    return clientscript_vm_if_var(game->clientscript_vm, game, component, script_id);
 }
 
-/* Return whether component passes script comparator check. Mirrors Client.ts getIfActive
- * (10592-10623). */
 bool
 interface_get_if_active(
     struct GGame* game,
     struct CacheDatConfigComponent* component)
 {
-    if( !component->scriptComparator || !component->scriptOperand )
+    if( !game || !game->clientscript_vm )
         return false;
-
-    /* scriptComparator count matches scripts_count (one compare per script) */
-    int count = component->scripts_count;
-    if( count <= 0 )
-        return false;
-
-    for( int i = 0; i < count; i++ )
-    {
-        if( !component->scriptOperand )
-            return false;
-
-        int value = interface_get_if_var(game, component, i);
-        int operand = component->scriptOperand[i];
-        int comp = component->scriptComparator[i];
-
-        if( comp == 2 )
-        {
-            if( value >= operand )
-                return false;
-        }
-        else if( comp == 3 )
-        {
-            if( value <= operand )
-                return false;
-        }
-        else if( comp == 4 )
-        {
-            if( value == operand )
-                return false;
-        }
-        else if( value != operand )
-        {
-            return false;
-        }
-    }
-    return true;
+    return clientscript_vm_if_active(game->clientscript_vm, game, component);
 }
 
 /* Fill rect clipped to viewport to prevent scroll layers overdrawing parent. */
@@ -474,14 +324,9 @@ interface_draw_component(
     int* pixel_buffer,
     int stride)
 {
-    if( !component )
+    if( !component || !game->iface )
         return;
 
-    /* Client.ts drawInterface (9396): skip entire subtree if hide && not hovered */
-    if( component->hide && component->id != game->current_hovered_interface_id )
-        return;
-
-    // Handle non-layer components directly
     if( component->type != COMPONENT_TYPE_LAYER )
     {
         switch( component->type )
@@ -501,25 +346,23 @@ interface_draw_component(
         case COMPONENT_TYPE_MODEL:
             interface_draw_component_model(game, component, x, y, pixel_buffer, stride);
             break;
+        default:
+            break;
         }
         return;
     }
 
-    // Only process layer components that have children
     if( !component->children )
         return;
 
-    // Save current bounds
     struct DashViewPort* view_port = game->iface_view_port;
     int saved_left = view_port->clip_left;
     int saved_top = view_port->clip_top;
     int saved_right = view_port->clip_right;
     int saved_bottom = view_port->clip_bottom;
 
-    // Set bounds for this component
     dash2d_set_bounds(view_port, x, y, x + component->width, y + component->height);
 
-    // Iterate through children
     for( int i = 0; i < component->children_count; i++ )
     {
         if( !component->childX || !component->childY )
@@ -538,15 +381,13 @@ interface_draw_component(
         childX += child->x;
         childY += child->y;
 
-        // Render based on child type
         switch( child->type )
         {
         case COMPONENT_TYPE_LAYER:
         {
-            /* Use scroll position (Client.ts scrollPosition), not total scroll height */
             int scroll_pos = 0;
-            if( child_id >= 0 && child_id < MAX_COMPONENT_SCROLL_IDS )
-                scroll_pos = game->component_scroll_position[child_id];
+            if( child_id >= 0 && child_id < MAX_IFACE_SCROLL_IDS )
+                scroll_pos = game->iface->component_scroll_position[child_id];
             int max_scroll = child->scroll - child->height;
             if( max_scroll < 0 )
                 max_scroll = 0;
@@ -555,17 +396,14 @@ interface_draw_component(
             if( scroll_pos < 0 )
                 scroll_pos = 0;
 
-            /* Match Client.ts drawInterface: set bounds to layer rect and draw directly
-             * onto main buffer (no subsprite). This draws black (0) and all colours
-             * correctly; subsprite+blit had to treat 0 as transparent. */
-            int saved_left = view_port->clip_left;
-            int saved_top = view_port->clip_top;
-            int saved_right = view_port->clip_right;
-            int saved_bottom = view_port->clip_bottom;
+            int sl = view_port->clip_left;
+            int st = view_port->clip_top;
+            int sr = view_port->clip_right;
+            int sb = view_port->clip_bottom;
             dash2d_set_bounds(
                 view_port, childX, childY, childX + child->width, childY + child->height);
             interface_draw_component(game, child, childX, childY, scroll_pos, pixel_buffer, stride);
-            dash2d_set_bounds(view_port, saved_left, saved_top, saved_right, saved_bottom);
+            dash2d_set_bounds(view_port, sl, st, sr, sb);
 
             if( child->scroll > child->height )
             {
@@ -601,12 +439,14 @@ interface_draw_component(
         case COMPONENT_TYPE_MODEL:
             interface_draw_component_model(game, child, childX, childY, pixel_buffer, stride);
             break;
+        default:
+            break;
         }
     }
 
-    // Restore bounds
     dash2d_set_bounds(view_port, saved_left, saved_top, saved_right, saved_bottom);
 }
+
 
 void
 interface_draw_component_layer(
@@ -618,13 +458,9 @@ interface_draw_component_layer(
     int* pixel_buffer,
     int stride)
 {
-    // Recursive call to draw this layer and its children
     interface_draw_component(game, component, x, y, scroll_y, pixel_buffer, stride);
 }
 
-/* Recursive hit-test for hover; mirrors Client.ts handleInterfaceInput (10004-10009).
- * Updates *out_hovered_id when a child has (overlayer >= 0 || overColour != 0) and contains
- * (mouse_x, mouse_y). Last hit in draw order wins (topmost). */
 static void
 find_hovered_interface_id_recursive(
     struct GGame* game,
@@ -636,6 +472,8 @@ find_hovered_interface_id_recursive(
     int mouse_y,
     int* out_hovered_id)
 {
+    if( !game->iface )
+        return;
     if( !component->children || !component->childX || !component->childY )
         return;
     for( int i = 0; i < component->children_count; i++ )
@@ -662,8 +500,8 @@ find_hovered_interface_id_recursive(
         if( child->type == COMPONENT_TYPE_LAYER )
         {
             int scroll_pos = 0;
-            if( child_id >= 0 && child_id < MAX_COMPONENT_SCROLL_IDS )
-                scroll_pos = game->component_scroll_position[child_id];
+            if( child_id >= 0 && child_id < MAX_IFACE_SCROLL_IDS )
+                scroll_pos = game->iface->component_scroll_position[child_id];
             int max_scroll = child->scroll - child->height;
             if( max_scroll < 0 )
                 max_scroll = 0;
@@ -677,6 +515,7 @@ find_hovered_interface_id_recursive(
     }
 }
 
+
 /* Return the hovered component id for the given root and area (root_x, root_y).
  * Used to set game->current_hovered_interface_id before drawing. */
 int
@@ -689,6 +528,8 @@ interface_find_hovered_interface_id(
     int mouse_y)
 {
     if( !root || root->type != COMPONENT_TYPE_LAYER )
+        return -1;
+    if( !game->iface )
         return -1;
     int id = -1;
     find_hovered_interface_id_recursive(game, root, root_x, root_y, 0, mouse_x, mouse_y, &id);
@@ -711,6 +552,8 @@ find_scrollbar_at_recursive(
     int* out_height,
     int* out_scroll_height)
 {
+    if( !game->iface )
+        return -1;
     if( component->children && component->childX && component->childY )
     {
         for( int i = 0; i < component->children_count; i++ )
@@ -730,8 +573,8 @@ find_scrollbar_at_recursive(
             if( child->type == COMPONENT_TYPE_LAYER )
             {
                 int scroll_pos = 0;
-                if( child_id >= 0 && child_id < MAX_COMPONENT_SCROLL_IDS )
-                    scroll_pos = game->component_scroll_position[child_id];
+                if( child_id >= 0 && child_id < MAX_IFACE_SCROLL_IDS )
+                    scroll_pos = game->iface->component_scroll_position[child_id];
                 int max_scroll = child->scroll - child->height;
                 if( max_scroll < 0 )
                     max_scroll = 0;
@@ -837,6 +680,8 @@ find_button_click_at_recursive(
     int* out_menu_param_b,
     int* out_menu_param_c)
 {
+    if( !game->iface )
+        return 0;
     int found = 0;
     if( !component->children || !component->childX || !component->childY )
         return 0;
@@ -860,8 +705,8 @@ find_button_click_at_recursive(
             if( child->type == COMPONENT_TYPE_LAYER )
             {
                 int scroll_pos = 0;
-                if( child_id >= 0 && child_id < MAX_COMPONENT_SCROLL_IDS )
-                    scroll_pos = game->component_scroll_position[child_id];
+                if( child_id >= 0 && child_id < MAX_IFACE_SCROLL_IDS )
+                    scroll_pos = game->iface->component_scroll_position[child_id];
                 int max_scroll = child->scroll - child->height;
                 if( max_scroll < 0 )
                     max_scroll = 0;
@@ -891,8 +736,6 @@ find_button_click_at_recursive(
             {
                 *out_component_id = child_id;
                 *out_client_code = child->clientCode;
-                /* Client.ts: CLOSE_BUTTON -> closeModal (CLOSE_MODAL), PAUSE_BUTTON ->
-                 * RESUME_PAUSEBUTTON */
                 if( out_button_action )
                 {
                     if( child->buttonType == COMPONENT_BUTTON_TYPE_CLOSE )
@@ -1046,9 +889,11 @@ interface_handle_scrollbar_arrow_step(
     int up_not_down,
     int step)
 {
-    if( component_id < 0 || component_id >= MAX_COMPONENT_SCROLL_IDS || step <= 0 )
+    if( !game->iface )
         return;
-    int pos = game->component_scroll_position[component_id];
+    if( component_id < 0 || component_id >= MAX_IFACE_SCROLL_IDS || step <= 0 )
+        return;
+    int pos = game->iface->component_scroll_position[component_id];
     if( up_not_down )
     {
         pos -= step;
@@ -1061,7 +906,7 @@ interface_handle_scrollbar_arrow_step(
         if( max_scroll > 0 && pos > max_scroll )
             pos = max_scroll;
     }
-    game->component_scroll_position[component_id] = pos;
+    game->iface->component_scroll_position[component_id] = pos;
 }
 
 void
@@ -1084,14 +929,14 @@ interface_handle_scrollbar_click(
     int scroll_height,
     int click_y)
 {
+    if( !game->iface )
+        return;
     int track_h = height - 32;
     if( track_h <= 0 )
         return;
     int max_scroll = scroll_height - height;
     if( max_scroll <= 0 )
         return;
-    /* Map click Y (screen) to position along track: track goes from scrollbar_y+16 to
-     * scrollbar_y+height-16 */
     int local_y = click_y - (scrollbar_y + 16);
     if( local_y < 0 )
         local_y = 0;
@@ -1102,8 +947,8 @@ interface_handle_scrollbar_click(
         new_pos = 0;
     if( new_pos > max_scroll )
         new_pos = max_scroll;
-    if( component_id >= 0 && component_id < MAX_COMPONENT_SCROLL_IDS )
-        game->component_scroll_position[component_id] = new_pos;
+    if( component_id >= 0 && component_id < MAX_IFACE_SCROLL_IDS )
+        game->iface->component_scroll_position[component_id] = new_pos;
 }
 
 void
@@ -1115,14 +960,13 @@ interface_draw_component_rect(
     int* pixel_buffer,
     int stride)
 {
-    /* Client.ts 10278-10290: getIfActive -> colour2/activeColour, else colour.
-     * When hovered: use colour2Over/activeOverColour (active) or colourOver/overColour (inactive).
-     */
+    if( !game->iface )
+        return;
     int colour = component->colour;
     bool active = component->scriptComparator && interface_get_if_active(game, component);
     if( active )
         colour = component->activeColour;
-    bool hovered = (component->id == game->current_hovered_interface_id);
+    bool hovered = (component->id == game->iface->current_hovered_interface_id);
     if( hovered )
     {
         if( active && component->activeOverColour != 0 )
@@ -1147,7 +991,8 @@ interface_draw_component_rect(
         int alpha = 256 - (component->alpha & 0xFF);
         if( component->fill )
             fill_rect_alpha_clipped(
-                vp, pixel_buffer, stride, x, y, component->width, component->height, colour, alpha);
+                vp, pixel_buffer, stride, x, y, component->width, component->height, colour,
+                alpha);
         else
             draw_rect_clipped(
                 vp, pixel_buffer, stride, x, y, component->width, component->height, colour);
@@ -1163,32 +1008,16 @@ interface_draw_component_text(
     int* pixel_buffer,
     int stride)
 {
-    struct DashPixFont* font = NULL;
-    switch( component->font )
-    {
-    case 0:
-        font = game->pixfont_p11;
-        break;
-    case 1:
-        font = game->pixfont_p12;
-        break;
-    case 2:
-        font = game->pixfont_b12;
-        break;
-    case 3:
-        font = game->pixfont_q8;
-        break;
-    default:
-        font = game->pixfont_p12;
-        break;
-    }
-
+    if( !game->iface || !game->buildcachedat )
+        return;
+    static const char* font_names[] = { "p11", "p12", "b12", "q8" };
+    int fidx = component->font;
+    if( fidx < 0 || fidx > 3 )
+        fidx = 1;
+    struct DashPixFont* font = interface_font_from_reftable(game, font_names[fidx]);
     if( !font )
         return;
 
-    /* Client.ts 10315-10330: getIfActive -> colour2/activeColour + text2/activeText, else colour.
-     * When hovered: use colour2Over/activeOverColour (active) or colourOver/overColour (inactive).
-     */
     int colour = component->colour;
     const char* text_src = component->text;
     bool active = component->scriptComparator && interface_get_if_active(game, component);
@@ -1198,7 +1027,7 @@ interface_draw_component_text(
         if( component->activeText && component->activeText[0] != '\0' )
             text_src = component->activeText;
     }
-    bool hovered = (component->id == game->current_hovered_interface_id);
+    bool hovered = (component->id == game->iface->current_hovered_interface_id);
     if( hovered )
     {
         if( active && component->activeOverColour != 0 )
@@ -1210,8 +1039,6 @@ interface_draw_component_text(
     if( !text_src )
         return;
 
-    /* Client.ts 9614-9681: first line at childY + font.height2d, then lineY += font.height2d per
-     * line */
     int line_y = y + font->height2d;
     const char* rest = text_src;
     char line_buf[512];
@@ -1225,7 +1052,6 @@ interface_draw_component_text(
 
     while( rest[0] != '\0' )
     {
-        /* Find end of line: Client.ts uses indexOf('\\n') -> backslash then 'n' */
         const char* line_end = rest;
         while( line_end[0] != '\0' && !(line_end[0] == '\\' && line_end[1] == 'n') )
             line_end++;
@@ -1237,7 +1063,6 @@ interface_draw_component_text(
             memcpy(line_buf, rest, (size_t)line_len);
             line_buf[line_len] = '\0';
 
-            /* Client.ts 10356-10395: substitute %1 .. %5 with getIfVar(component, 0..4) */
             char expanded_buf[512];
             int exp_len = 0;
             for( int i = 0; i < line_len && exp_len < 511; i++ )
@@ -1281,8 +1106,6 @@ interface_draw_component_text(
                 draw_x = x;
             }
 
-            /* Client.ts PixFont.drawStringTaggable does y -= this.height2d before drawing (line
-             * 150) */
             int draw_y = line_y - font->height2d;
             if( component->shadowed )
             {
@@ -1354,13 +1177,14 @@ interface_draw_scrollbar(
     int cr = vp->clip_right;
     int cb = vp->clip_bottom;
 
-    /* Arrows: clientts/src/client/Client.ts drawScrollbar (9767-9769) imageScrollbar0 at (x,y),
-     * imageScrollbar1 at (x, y+height-16); loaded from scrollbar archive 0/1 (811-812) */
-    if( game->sprite_scrollbar0 )
-        dash2d_blit_sprite(game->sys_dash, game->sprite_scrollbar0, vp, x, y, pixel_buffer);
-    if( game->sprite_scrollbar1 )
-        dash2d_blit_sprite(
-            game->sys_dash, game->sprite_scrollbar1, vp, x, y + height - 16, pixel_buffer);
+    struct DashSprite* sb0 =
+        game->ui_scene ? uiscene_sprite_by_name(game->ui_scene, "scrollbar0", 0) : NULL;
+    struct DashSprite* sb1 =
+        game->ui_scene ? uiscene_sprite_by_name(game->ui_scene, "scrollbar1", 0) : NULL;
+    if( sb0 )
+        dash2d_blit_sprite(game->sys_dash, sb0, vp, x, y, pixel_buffer);
+    if( sb1 )
+        dash2d_blit_sprite(game->sys_dash, sb1, vp, x, y + height - 16, pixel_buffer);
 
     /* Draw track (y+16, track_h) clipped to viewport */
     int track_y = y + 16;
@@ -1404,8 +1228,7 @@ interface_draw_component_graphic(
     if( !graphic_name )
         return;
 
-    struct DashSprite* sprite =
-        buildcachedat_get_component_sprite(game->buildcachedat, graphic_name);
+    struct DashSprite* sprite = interface_component_sprite_from_reftable(game, graphic_name);
 
     if( !sprite )
         return;
@@ -1422,80 +1245,42 @@ interface_draw_component_inv(
     int* pixel_buffer,
     int stride)
 {
-    // Inventory components render items in a grid
-    // Based on Client.ts lines 9438-9534
-
-    if( !component->invSlotObjId || !component->invSlotObjCount )
-    {
-        // printf(
-        //     "DEBUG INV: No slot data (invSlotObjId=%p, invSlotObjCount=%p)\n",
-        //     (void*)component->invSlotObjId,
-        //     (void*)component->invSlotObjCount);
+    if( !game->iface || !game->buildcachedat )
         return;
-    }
+    if( !component->invSlotObjId || !component->invSlotObjCount )
+        return;
 
-    // printf(
-    //     "DEBUG INV: Drawing inventory at (%d, %d), size=%dx%d, marginX=%d, marginY=%d\n",
-    //     x,
-    //     y,
-    //     component->width,
-    //     component->height,
-    //     component->marginX,
-    //     component->marginY);
+    struct DashPixFont* p11 = interface_font_from_reftable(game, "p11");
 
     int slot = 0;
-    int items_drawn = 0;
-
-    // Iterate through grid: rows x cols
     for( int row = 0; row < component->height; row++ )
     {
         for( int col = 0; col < component->width; col++ )
         {
-            // Calculate slot position
-            // Each slot is 32x32 with margins
             int slotX = x + col * (component->marginX + 32);
             int slotY = y + row * (component->marginY + 32);
 
-            // Apply slot-specific offsets (for first 20 slots)
             if( slot < 20 && component->invSlotOffsetX && component->invSlotOffsetY )
             {
                 slotX += component->invSlotOffsetX[slot];
                 slotY += component->invSlotOffsetY[slot];
             }
 
-            // Draw item if present
             if( component->invSlotObjId[slot] > 0 )
             {
-                // Item IDs are stored as 1-indexed in invSlotObjId, subtract 1 for actual obj
-                // lookup (matching Client.ts line 9458: const id: number = child.invSlotObjId[slot]
-                // - 1;)
                 int item_id = component->invSlotObjId[slot] - 1;
                 int item_count = component->invSlotObjCount[slot];
 
-                // printf(
-                //     "DEBUG INV: Slot %d: item_id=%d (stored as %d), item_count=%d at (%d, %d)\n",
-                //     slot,
-                //     item_id,
-                //     component->invSlotObjId[slot],
-                //     item_count,
-                //     slotX,
-                //     slotY);
-
-                // Get or generate the item icon sprite
                 struct DashSprite* icon = obj_icon_get(game, item_id, item_count);
 
                 if( icon )
                 {
-                    items_drawn++;
-
-                    // Check if this item is selected (dim it) - Client.ts line 9514-9515
                     bool is_selected =
-                        (game->selected_area != 0 && game->selected_item == slot &&
-                         game->selected_interface == component->id);
+                        (game->iface->selected_area != 0 && game->iface->selected_item == slot &&
+                         game->iface->selected_interface == component->id);
 
                     if( is_selected )
                     {
-                        // Draw with alpha (dimmed) - drawAlpha(128, ...)
                         dash2d_blit_sprite_alpha(
                             game->sys_dash,
                             icon,
@@ -1507,7 +1292,6 @@ interface_draw_component_inv(
                     }
                     else
                     {
-                        // Draw normally
                         dash2d_blit_sprite(
                             game->sys_dash,
                             icon,
@@ -1517,12 +1301,9 @@ interface_draw_component_inv(
                             pixel_buffer);
                     }
 
-                    // Draw item count if > 1
-                    if( item_count > 1 && game->pixfont_p11 )
+                    if( item_count > 1 && p11 )
                     {
                         char count_str[32];
-
-                        // Format count with K/M suffixes for large numbers
                         if( item_count >= 1000000 )
                         {
                             snprintf(count_str, sizeof(count_str), "%dM", item_count / 1000000);
@@ -1536,9 +1317,8 @@ interface_draw_component_inv(
                             snprintf(count_str, sizeof(count_str), "%d", item_count);
                         }
 
-                        // Draw count text with shadow (black then yellow)
                         dashfont_draw_text(
-                            game->pixfont_p11,
+                            p11,
                             (uint8_t*)count_str,
                             slotX + 1,
                             slotY + 10,
@@ -1546,7 +1326,7 @@ interface_draw_component_inv(
                             pixel_buffer,
                             stride);
                         dashfont_draw_text(
-                            game->pixfont_p11,
+                            p11,
                             (uint8_t*)count_str,
                             slotX,
                             slotY + 9,
@@ -1558,13 +1338,11 @@ interface_draw_component_inv(
             }
             else if( component->invSlotGraphic && slot < 20 && component->invSlotGraphic[slot] )
             {
-                // Draw empty slot graphic if specified
                 const char* graphic_name = component->invSlotGraphic[slot];
-                // Validate the string pointer is not corrupted
                 if( graphic_name )
                 {
                     struct DashSprite* sprite =
-                        buildcachedat_get_component_sprite(game->buildcachedat, graphic_name);
+                        interface_component_sprite_from_reftable(game, graphic_name);
                     if( sprite )
                     {
                         dash2d_blit_sprite(
@@ -1581,8 +1359,6 @@ interface_draw_component_inv(
             slot++;
         }
     }
-
-    // printf("DEBUG INV: Total items drawn: %d\n", items_drawn);
 }
 
 void
@@ -1602,7 +1378,7 @@ interface_draw_component_model(
     int* colors = NULL;
     if( component->modelType == 3 )
     {
-        struct PlayerEntity* local = &game->world->players[ACTIVE_PLAYER_SLOT];
+        struct PlayerEntity* local = world_player(game->world, ACTIVE_PLAYER_SLOT);
         if( !local->alive )
             return;
         slots = local->appearance.slots;
@@ -1628,7 +1404,7 @@ interface_draw_component_model(
         }
         else if( component->modelType == 3 )
         {
-            struct PlayerEntity* local = &game->world->players[ACTIVE_PLAYER_SLOT];
+            struct PlayerEntity* local = world_player(game->world, ACTIVE_PLAYER_SLOT);
             if( local->alive )
                 sequence_id = local->animation.readyanim;
         }
@@ -1866,10 +1642,10 @@ interface_handle_inv_button(
     // game->outbound_buffer[game->outbound_size++] = component_id & 0xFF;
 
     // Update selection state (Client.ts lines 9055-9066)
-    game->selected_cycle = 0;
-    game->selected_interface = component_id;
-    game->selected_item = slot;
-    game->selected_area = 2; // Sidebar area
+    // game->selected_cycle = 0;
+    // game->selected_interface = component_id;
+    // game->selected_item = slot;
+    // game->selected_area = 2; // Sidebar area
 
     // Check if this component belongs to viewport or chat (would change area)
     // For now we assume it's in sidebar (area 2)

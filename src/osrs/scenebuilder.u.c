@@ -10,6 +10,7 @@
 #include "osrs/rscache/tables/framemap.h"
 #include "osrs/rscache/tables/maps.h"
 #include "osrs/rscache/tables/model.h"
+#include "osrs/scene2.h"
 
 // clang-format off
 #include "scenebuilder_buildgrid.u.c"
@@ -100,6 +101,8 @@ struct SceneBuilder
 
     struct BuildCacheDat* buildcachedat;
     struct BuildCache* buildcache;
+    /** When using buildcachedat, textures live on Scene2; set by load_from_buildcachedat. */
+    struct Scene2* texture_scene2;
 
     struct BuildGrid* build_grid;
     struct Shademap* shademap;

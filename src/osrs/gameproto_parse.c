@@ -1,6 +1,8 @@
 #include "gameproto_parse.h"
 
 #include "packetin.h"
+
+#include <stdlib.h>
 #include "rscache/bitbuffer.h"
 #include "rscache/rsbuf.h"
 #include "wordpack.h"
@@ -383,4 +385,47 @@ gameproto_parse_lc245_2(
     }
 
     return 0;
+}
+
+void
+gameproto_free_lc245_2_item(struct RevPacket_LC245_2_Item* item)
+{
+    if( !item )
+        return;
+
+    struct RevPacket_LC245_2* p = &item->packet;
+    switch( p->packet_type )
+    {
+    case PKTIN_LC245_2_NPC_INFO:
+        free(p->_npc_info.data);
+        p->_npc_info.data = NULL;
+        p->_npc_info.length = 0;
+        break;
+    case PKTIN_LC245_2_PLAYER_INFO:
+        free(p->_player_info.data);
+        p->_player_info.data = NULL;
+        p->_player_info.length = 0;
+        break;
+    case PKTIN_LC245_2_UPDATE_INV_FULL:
+        free(p->_update_inv_full.obj_ids);
+        free(p->_update_inv_full.obj_counts);
+        p->_update_inv_full.obj_ids = NULL;
+        p->_update_inv_full.obj_counts = NULL;
+        p->_update_inv_full.size = 0;
+        break;
+    case PKTIN_LC245_2_IF_SETTEXT:
+        free(p->_if_settext.text);
+        p->_if_settext.text = NULL;
+        break;
+    case PKTIN_LC245_2_MESSAGE_GAME:
+        free(p->_message_game.text);
+        p->_message_game.text = NULL;
+        break;
+    case PKTIN_LC245_2_MESSAGE_PRIVATE:
+        free(p->_message_private.text);
+        p->_message_private.text = NULL;
+        break;
+    default:
+        break;
+    }
 }

@@ -31,15 +31,20 @@ enum PaintersTileFlags
     PAINTERS_TILE_FLAG_BRIDGE = 1 << 0,
 };
 
-#define MAX_SCENERY_COUNT 10
+/**
+ * Linked-list node in the painter's scenery pool (one node per tile footprint slot).
+ * Tile grid position is implicit in the PaintersTile pointer; element_idx indexes
+ * painter->elements.
+ */
+struct SceneryNode
+{
+    int16_t element_idx;
+    uint8_t span;
+    int32_t next; /* pool index, or -1 */
+};
+
 struct PaintersTile
 {
-    int32_t bridge_tile;
-
-    // These are only used for normal locs
-    int16_t scenery[MAX_SCENERY_COUNT];
-    uint16_t scenery_count;
-
     int16_t wall_a;
     int16_t wall_b;
     int16_t wall_decor_a;
@@ -50,6 +55,9 @@ struct PaintersTile
     int16_t ground_object_bottom;
     int16_t ground_object_middle;
     int16_t ground_object_top;
+
+    int32_t bridge_tile;
+    int32_t scenery_head; /* pool index, or -1 */
 
     // Contains directions for which tiles are waiting for us to draw.
     // This is determined by locs that are larger than 1x1.
@@ -71,22 +79,67 @@ struct PaintersTile
     // underlays is drawn, the loc on top is drawn.
     // The spans are used to determine which tiles are waiting for us to draw.
 
-    // Combined spans for a single check during painting.
+    /* Combined span flags for all scenery on this tile (see enum SpanFlag). */
     uint8_t spans;
 
-    // Spans for each scenery element on the tile.
-    uint8_t scenery_spans[10];
-
-    // These are stored on the tile. Sometimes to tile coordinates do not match the
-    // index in the array coordinate (e.g. bridges)
-    uint16_t sx;
-    uint16_t sz;
-    uint8_t slevel;
-
-    uint8_t terrain_slevel;
-
-    uint16_t flags;
+    /*
+     * packed_meta layout (uint16_t):
+     *   bits 0-2:   draw level (slevel), 0-7
+     *   bits 3-5:   terrain draw level (terrain_slevel), 0-7
+     *   bits 6-15:  PaintersTileFlags
+     */
+    uint16_t packed_meta;
 };
+
+#define PAINTERS_TILE_META_SLEVEL_MASK 0x7u
+#define PAINTERS_TILE_META_TERR_SLEVEL_SHIFT 3
+#define PAINTERS_TILE_META_TERR_SLEVEL_MASK (0x7u << PAINTERS_TILE_META_TERR_SLEVEL_SHIFT)
+#define PAINTERS_TILE_META_FLAGS_SHIFT 6
+
+static inline uint8_t
+painters_tile_get_slevel(const struct PaintersTile* t)
+{
+    return (uint8_t)(t->packed_meta & PAINTERS_TILE_META_SLEVEL_MASK);
+}
+
+static inline void
+painters_tile_set_slevel(struct PaintersTile* t, uint8_t v)
+{
+    t->packed_meta = (uint16_t)((t->packed_meta & ~PAINTERS_TILE_META_SLEVEL_MASK) | (v & 7u));
+}
+
+static inline uint8_t
+painters_tile_get_terrain_slevel(const struct PaintersTile* t)
+{
+    return (uint8_t)((t->packed_meta & PAINTERS_TILE_META_TERR_SLEVEL_MASK) >>
+                     PAINTERS_TILE_META_TERR_SLEVEL_SHIFT);
+}
+
+static inline void
+painters_tile_set_terrain_slevel(struct PaintersTile* t, uint8_t v)
+{
+    t->packed_meta = (uint16_t)((t->packed_meta & ~PAINTERS_TILE_META_TERR_SLEVEL_MASK) |
+                                ((uint16_t)(v & 7u) << PAINTERS_TILE_META_TERR_SLEVEL_SHIFT));
+}
+
+static inline uint16_t
+painters_tile_get_flags(const struct PaintersTile* t)
+{
+    return (uint16_t)(t->packed_meta >> PAINTERS_TILE_META_FLAGS_SHIFT);
+}
+
+static inline void
+painters_tile_set_flags(struct PaintersTile* t, uint16_t f)
+{
+    t->packed_meta = (uint16_t)((t->packed_meta & ((1u << PAINTERS_TILE_META_FLAGS_SHIFT) - 1u)) |
+                                (f << PAINTERS_TILE_META_FLAGS_SHIFT));
+}
+
+static inline void
+painters_tile_or_flags(struct PaintersTile* t, uint16_t f)
+{
+    painters_tile_set_flags(t, (uint16_t)(painters_tile_get_flags(t) | f));
+}
 
 enum PaintersElementKind
 {
@@ -230,7 +283,6 @@ struct PaintersElementCommand
             uint32_t _bf_terrain_y : 4;
         } _terrain;
     };
-    uint32_t _padding;
 };
 
 struct Painter;

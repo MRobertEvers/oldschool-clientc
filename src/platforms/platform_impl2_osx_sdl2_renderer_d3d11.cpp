@@ -3,15 +3,14 @@
 #include "imgui.h"
 #include "imgui_impl_dx11.h"
 #include "imgui_impl_sdl2.h"
-
-#include <d3d11.h>
-#include <d3dcompiler.h>
-#include <dxgi.h>
 #include <SDL_syswm.h>
 
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <d3d11.h>
+#include <d3dcompiler.h>
+#include <dxgi.h>
 #include <vector>
 
 #ifndef M_PI
@@ -482,21 +481,28 @@ model_gpu_cache_key(const struct DashModel* model)
         key *= fnv_prime;
     };
 
-    mix_word((uint64_t)(uintptr_t)model->vertices_x);
-    mix_word((uint64_t)(uintptr_t)model->face_indices_a);
-    mix_word((uint64_t)(uintptr_t)model->face_indices_b);
-    mix_word((uint64_t)(uintptr_t)model->face_indices_c);
-    mix_word((uint64_t)model->face_count);
+    mix_word((uint64_t)(uintptr_t)dashmodel_vertices_x_const(model));
+    mix_word((uint64_t)(uintptr_t)dashmodel_face_indices_a_const(model));
+    mix_word((uint64_t)(uintptr_t)dashmodel_face_indices_b_const(model));
+    mix_word((uint64_t)(uintptr_t)dashmodel_face_indices_c_const(model));
+    mix_word((uint64_t)dashmodel_face_count(model));
 
-    const bool is_animated = model->original_vertices_x && model->original_vertices_y &&
-                             model->original_vertices_z && model->vertex_count > 0;
+    struct DashModel* mw = (struct DashModel*)model;
+    const bool is_animated = dashmodel_original_vertices_x(mw) && dashmodel_original_vertices_y(mw) &&
+                             dashmodel_original_vertices_z(mw) && dashmodel_vertex_count(model) > 0;
     if( is_animated )
-        for( int i = 0; i < model->vertex_count; ++i )
+    {
+        const vertexint_t* vx = dashmodel_vertices_x_const(model);
+        const vertexint_t* vy = dashmodel_vertices_y_const(model);
+        const vertexint_t* vz = dashmodel_vertices_z_const(model);
+        int vc = dashmodel_vertex_count(model);
+        for( int i = 0; i < vc; ++i )
         {
-            mix_word((uint64_t)(uint32_t)model->vertices_x[i]);
-            mix_word((uint64_t)(uint32_t)model->vertices_y[i]);
-            mix_word((uint64_t)(uint32_t)model->vertices_z[i]);
+            mix_word((uint64_t)(uint32_t)vx[i]);
+            mix_word((uint64_t)(uint32_t)vy[i]);
+            mix_word((uint64_t)(uint32_t)vz[i]);
         }
+    }
     return key;
 }
 
@@ -527,28 +533,33 @@ append_model_face_vertices(
     bool texture_opaque,
     std::vector<D3D11Vertex>& out)
 {
-    if( model->face_infos && model->face_infos[f] == 2 )
+    const int* face_infos = dashmodel_face_infos_const(model);
+    if( face_infos && face_infos[f] == 2 )
         return;
-    if( model->lighting && model->lighting->face_colors_hsl_c &&
-        model->lighting->face_colors_hsl_c[f] == -2 )
-        return;
-
-    const int ia = model->face_indices_a[f];
-    const int ib = model->face_indices_b[f];
-    const int ic = model->face_indices_c[f];
-    if( ia < 0 || ia >= model->vertex_count || ib < 0 || ib >= model->vertex_count || ic < 0 ||
-        ic >= model->vertex_count )
+    const hsl16_t* hsl_c_arr = dashmodel_face_colors_c_const(model);
+    if( hsl_c_arr && hsl_c_arr[f] == DASHHSL16_HIDDEN )
         return;
 
-    if( !model->lighting || !model->lighting->face_colors_hsl_a ||
-        !model->lighting->face_colors_hsl_b || !model->lighting->face_colors_hsl_c )
+    const faceint_t* face_ia = dashmodel_face_indices_a_const(model);
+    const faceint_t* face_ib = dashmodel_face_indices_b_const(model);
+    const faceint_t* face_ic = dashmodel_face_indices_c_const(model);
+    const int ia = face_ia[f];
+    const int ib = face_ib[f];
+    const int ic = face_ic[f];
+    const int vcount = dashmodel_vertex_count(model);
+    if( ia < 0 || ia >= vcount || ib < 0 || ib >= vcount || ic < 0 || ic >= vcount )
         return;
 
-    int hsl_a = model->lighting->face_colors_hsl_a[f];
-    int hsl_b = model->lighting->face_colors_hsl_b[f];
-    int hsl_c = model->lighting->face_colors_hsl_c[f];
+    const hsl16_t* hsl_a_arr = dashmodel_face_colors_a_const(model);
+    const hsl16_t* hsl_b_arr = dashmodel_face_colors_b_const(model);
+    if( !hsl_a_arr || !hsl_b_arr || !hsl_c_arr )
+        return;
+
+    int hsl_a = (int)hsl_a_arr[f];
+    int hsl_b = (int)hsl_b_arr[f];
+    int hsl_c = (int)hsl_c_arr[f];
     int rgb_a, rgb_b, rgb_c;
-    if( hsl_c == -1 )
+    if( hsl_c == DASHHSL16_FLAT )
         rgb_a = rgb_b = rgb_c = g_hsl16_to_rgb_table[hsl_a & 65535];
     else
     {
@@ -558,14 +569,10 @@ append_model_face_vertices(
     }
 
     float face_alpha = 1.0f;
-    if( model->face_alphas )
+    const alphaint_t* face_alphas = dashmodel_face_alphas_const(model);
+    if( face_alphas )
     {
-        int alpha_raw = model->face_alphas[f];
-        if( alpha_raw >= 0 )
-        {
-            const int ab = alpha_raw & 0xFF;
-            face_alpha = (float)(0xFF - ab) / 255.0f;
-        }
+        face_alpha = (float)(0xFF - face_alphas[f]) / 255.0f;
     }
 
     float u_corner[3] = { 0.0f, 0.0f, 0.0f };
@@ -575,43 +582,48 @@ append_model_face_vertices(
     {
         int texture_face_idx = f;
         int tp = 0, tm = 0, tn = 0;
-        if( model->face_texture_coords && model->face_texture_coords[f] != -1 &&
-            model->textured_p_coordinate && model->textured_m_coordinate &&
-            model->textured_n_coordinate )
+        const faceint_t* ftc = dashmodel_face_texture_coords_const(model);
+        const faceint_t* tcp = dashmodel_textured_p_coordinate_const(model);
+        const faceint_t* tcm = dashmodel_textured_m_coordinate_const(model);
+        const faceint_t* tcn = dashmodel_textured_n_coordinate_const(model);
+        if( ftc && ftc[f] != -1 && tcp && tcm && tcn )
         {
-            texture_face_idx = model->face_texture_coords[f];
-            tp = model->textured_p_coordinate[texture_face_idx];
-            tm = model->textured_m_coordinate[texture_face_idx];
-            tn = model->textured_n_coordinate[texture_face_idx];
+            texture_face_idx = ftc[f];
+            tp = tcp[texture_face_idx];
+            tm = tcm[texture_face_idx];
+            tn = tcn[texture_face_idx];
         }
         else
         {
-            tp = model->face_indices_a[texture_face_idx];
-            tm = model->face_indices_b[texture_face_idx];
-            tn = model->face_indices_c[texture_face_idx];
+            tp = face_ia[texture_face_idx];
+            tm = face_ib[texture_face_idx];
+            tn = face_ic[texture_face_idx];
         }
 
+        const vertexint_t* vtx = dashmodel_vertices_x_const(model);
+        const vertexint_t* vty = dashmodel_vertices_y_const(model);
+        const vertexint_t* vtz = dashmodel_vertices_z_const(model);
         struct UVFaceCoords uv;
         uv_pnm_compute(
             &uv,
-            (float)model->vertices_x[tp],
-            (float)model->vertices_y[tp],
-            (float)model->vertices_z[tp],
-            (float)model->vertices_x[tm],
-            (float)model->vertices_y[tm],
-            (float)model->vertices_z[tm],
-            (float)model->vertices_x[tn],
-            (float)model->vertices_y[tn],
-            (float)model->vertices_z[tn],
-            (float)model->vertices_x[ia],
-            (float)model->vertices_y[ia],
-            (float)model->vertices_z[ia],
-            (float)model->vertices_x[ib],
-            (float)model->vertices_y[ib],
-            (float)model->vertices_z[ib],
-            (float)model->vertices_x[ic],
-            (float)model->vertices_y[ic],
-            (float)model->vertices_z[ic]);
+            (float)vtx[tp],
+            (float)vty[tp],
+            (float)vtz[tp],
+            (float)vtx[tm],
+            (float)vty[tm],
+            (float)vtz[tm],
+            (float)vtx[tn],
+            (float)vty[tn],
+            (float)vtz[tn],
+            (float)vtx[ia],
+            (float)vty[ia],
+            (float)vtz[ia],
+            (float)vtx[ib],
+            (float)vty[ib],
+            (float)vtz[ib],
+            (float)vtx[ic],
+            (float)vty[ic],
+            (float)vtz[ic]);
         u_corner[0] = uv.u1;
         u_corner[1] = uv.u2;
         u_corner[2] = uv.u3;
@@ -625,12 +637,15 @@ append_model_face_vertices(
 
     const int verts[3] = { ia, ib, ic };
     const int rgbs[3] = { rgb_a, rgb_b, rgb_c };
+    const vertexint_t* vx = dashmodel_vertices_x_const(model);
+    const vertexint_t* vy = dashmodel_vertices_y_const(model);
+    const vertexint_t* vz = dashmodel_vertices_z_const(model);
     for( int vi = 0; vi < 3; ++vi )
     {
         const int vi_idx = verts[vi];
-        float lx = (float)model->vertices_x[vi_idx];
-        float ly = (float)model->vertices_y[vi_idx];
-        float lz = (float)model->vertices_z[vi_idx];
+        float lx = (float)vx[vi_idx];
+        float ly = (float)vy[vi_idx];
+        float lz = (float)vz[vi_idx];
 
         D3D11Vertex mv;
         mv.position[0] = cos_yaw * lx + sin_yaw * lz + world_x;
@@ -720,7 +735,8 @@ d3d11_resize_buffers(struct Platform2_OSX_SDL2_Renderer_D3D11* renderer)
     if( FAILED(hr) || !back_buffer )
         return false;
 
-    hr = renderer->device->CreateRenderTargetView(back_buffer, nullptr, &renderer->render_target_view);
+    hr = renderer->device->CreateRenderTargetView(
+        back_buffer, nullptr, &renderer->render_target_view);
     back_buffer->Release();
     if( FAILED(hr) )
         return false;
@@ -979,7 +995,8 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Init(
 #endif
 
     D3D_FEATURE_LEVEL feature_level;
-    D3D_FEATURE_LEVEL feature_levels[] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1,
+    D3D_FEATURE_LEVEL feature_levels[] = { D3D_FEATURE_LEVEL_11_0,
+                                           D3D_FEATURE_LEVEL_10_1,
                                            D3D_FEATURE_LEVEL_10_0 };
     HRESULT hr = D3D11CreateDeviceAndSwapChain(
         nullptr,
@@ -1091,18 +1108,30 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Init(
             ps_blob->GetBufferPointer(), ps_blob->GetBufferSize(), nullptr, &renderer->world_ps);
 
         D3D11_INPUT_ELEMENT_DESC world_layout[] = {
-            { "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(D3D11Vertex, position),
-              D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, offsetof(D3D11Vertex, color),
-              D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, offsetof(D3D11Vertex, texcoord),
-              D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "TEXCOORD", 1, DXGI_FORMAT_R32_FLOAT, 0, offsetof(D3D11Vertex, texBlend),
-              D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "TEXCOORD", 2, DXGI_FORMAT_R32_FLOAT, 0, offsetof(D3D11Vertex, textureOpaque),
-              D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "TEXCOORD", 3, DXGI_FORMAT_R32_FLOAT, 0, offsetof(D3D11Vertex, textureAnimSpeed),
-              D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "POSITION",
+             0, DXGI_FORMAT_R32G32B32A32_FLOAT,
+             0, offsetof(D3D11Vertex, position),
+             D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "COLOR",
+             0, DXGI_FORMAT_R32G32B32A32_FLOAT,
+             0, offsetof(D3D11Vertex, color),
+             D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD",
+             0, DXGI_FORMAT_R32G32_FLOAT,
+             0, offsetof(D3D11Vertex, texcoord),
+             D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD",
+             1, DXGI_FORMAT_R32_FLOAT,
+             0, offsetof(D3D11Vertex, texBlend),
+             D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD",
+             2, DXGI_FORMAT_R32_FLOAT,
+             0, offsetof(D3D11Vertex, textureOpaque),
+             D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD",
+             3, DXGI_FORMAT_R32_FLOAT,
+             0, offsetof(D3D11Vertex, textureAnimSpeed),
+             D3D11_INPUT_PER_VERTEX_DATA, 0 },
         };
         renderer->device->CreateInputLayout(
             world_layout,
@@ -1161,9 +1190,9 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Init(
             ps_blob->GetBufferPointer(), ps_blob->GetBufferSize(), nullptr, &renderer->font_ps);
 
         D3D11_INPUT_ELEMENT_DESC font_layout[] = {
-            { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 0,  D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       0, 8,  D3D11_INPUT_PER_VERTEX_DATA, 0 },
+            { "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         };
         renderer->device->CreateInputLayout(
             font_layout,
@@ -1432,9 +1461,12 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
             case TORIRS_GFX_MODEL_LOAD:
             {
                 struct DashModel* model = cmd._model_load.model;
-                if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
-                    !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
-                    !model->face_indices_c || model->face_count <= 0 )
+                if( !model || !dashmodel_face_colors_a_const(model) ||
+                    !dashmodel_face_colors_b_const(model) || !dashmodel_face_colors_c_const(model) ||
+                    !dashmodel_vertices_x_const(model) || !dashmodel_vertices_y_const(model) ||
+                    !dashmodel_vertices_z_const(model) || !dashmodel_face_indices_a_const(model) ||
+                    !dashmodel_face_indices_b_const(model) || !dashmodel_face_indices_c_const(model) ||
+                    dashmodel_face_count(model) <= 0 )
                     break;
                 preload_model_key(renderer, model);
                 break;
@@ -1443,9 +1475,12 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
             case TORIRS_GFX_MODEL_DRAW:
             {
                 struct DashModel* model = cmd._model_draw.model;
-                if( !model || !model->lighting || !model->vertices_x || !model->vertices_y ||
-                    !model->vertices_z || !model->face_indices_a || !model->face_indices_b ||
-                    !model->face_indices_c || model->face_count <= 0 )
+                if( !model || !dashmodel_face_colors_a_const(model) ||
+                    !dashmodel_face_colors_b_const(model) || !dashmodel_face_colors_c_const(model) ||
+                    !dashmodel_vertices_x_const(model) || !dashmodel_vertices_y_const(model) ||
+                    !dashmodel_vertices_z_const(model) || !dashmodel_face_indices_a_const(model) ||
+                    !dashmodel_face_indices_b_const(model) || !dashmodel_face_indices_c_const(model) ||
+                    dashmodel_face_count(model) <= 0 )
                     break;
 
                 preload_model_key(renderer, model);
@@ -1456,8 +1491,7 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
                 const int* face_order =
                     dash3d_projected_face_order(game->sys_dash, &face_order_count);
 
-                const float draw_yaw_rad =
-                    (draw_position.yaw * 2.0f * (float)M_PI) / 2048.0f;
+                const float draw_yaw_rad = (draw_position.yaw * 2.0f * (float)M_PI) / 2048.0f;
                 const float cos_yaw = cosf(draw_yaw_rad);
                 const float sin_yaw = sinf(draw_yaw_rad);
 
@@ -1465,14 +1499,14 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
                 for( int fi = 0; fi < face_order_count; ++fi )
                 {
                     const int f = face_order ? face_order[fi] : fi;
-                    if( f < 0 || f >= model->face_count )
+                    if( f < 0 || f >= dashmodel_face_count(model) )
                         continue;
 
-                    int raw_tex = model->face_textures ? model->face_textures[f] : -1;
+                    const faceint_t* ftex = dashmodel_face_textures_const(model);
+                    int raw_tex = ftex ? (int)ftex[f] : -1;
                     int eff_tex = raw_tex;
-                    if( eff_tex >= 0 &&
-                        renderer->texture_srv_by_id.find(eff_tex) ==
-                            renderer->texture_srv_by_id.end() )
+                    if( eff_tex >= 0 && renderer->texture_srv_by_id.find(eff_tex) ==
+                                            renderer->texture_srv_by_id.end() )
                         eff_tex = -1;
 
                     float anim_spd = 0.0f;
@@ -1678,8 +1712,7 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
             const float y1 = y0 + h;
             const float cx = 0.5f * (x0 + x1);
             const float cy = 0.5f * (y0 + y1);
-            const float angle =
-                (float)(sc._sprite_draw.rotation_r2pi2048 * (2.0 * M_PI) / 2048.0);
+            const float angle = (float)(sc._sprite_draw.rotation_r2pi2048 * (2.0 * M_PI) / 2048.0);
             const float ca = cosf(angle);
             const float sa = sinf(angle);
             const float hw = 0.5f * w;
@@ -1848,12 +1881,10 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
                         float cy1 = 1.0f - 2.0f * sy1 / fbh;
 
                         float v[6 * 8] = {
-                            cx0, cy0, u0, v0, cr, cg, cb, color_a,
-                            cx1, cy0, u1, v0, cr, cg, cb, color_a,
-                            cx1, cy1, u1, v1, cr, cg, cb, color_a,
-                            cx0, cy0, u0, v0, cr, cg, cb, color_a,
-                            cx1, cy1, u1, v1, cr, cg, cb, color_a,
-                            cx0, cy1, u0, v1, cr, cg, cb, color_a,
+                            cx0, cy0, u0, v0,      cr,  cg,  cb, color_a, cx1, cy0, u1, v0,
+                            cr,  cg,  cb, color_a, cx1, cy1, u1, v1,      cr,  cg,  cb, color_a,
+                            cx0, cy0, u0, v0,      cr,  cg,  cb, color_a, cx1, cy1, u1, v1,
+                            cr,  cg,  cb, color_a, cx0, cy1, u0, v1,      cr,  cg,  cb, color_a,
                         };
                         font_verts.insert(font_verts.end(), v, v + 48);
                     }

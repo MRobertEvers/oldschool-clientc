@@ -937,8 +937,7 @@ pix3dgl_end_2dframe(struct Pix3DGL* pix3dgl)
             const float bottom = (float)pix3dgl->sprite_batch_fb_height;
             const float top = 0.0f;
             create_ortho_matrix(ortho, left, right, bottom, top);
-            glUniformMatrix4fv(
-                pix3dgl->uniform_ui_projection, 1, GL_FALSE, ortho);
+            glUniformMatrix4fv(pix3dgl->uniform_ui_projection, 1, GL_FALSE, ortho);
         }
 
         glBufferData(
@@ -1089,23 +1088,23 @@ extern "C" void
 pix3dgl_model_load(
     struct Pix3DGL* pix3dgl,
     int model_idx,
-    int* vertices_x,
-    int* vertices_y,
-    int* vertices_z,
-    int* face_indices_a,
-    int* face_indices_b,
-    int* face_indices_c,
+    vertexint_t* vertices_x,
+    vertexint_t* vertices_y,
+    vertexint_t* vertices_z,
+    faceint_t* face_indices_a,
+    faceint_t* face_indices_b,
+    faceint_t* face_indices_c,
     int face_count,
-    int* face_textures_nullable,
-    int* face_texture_coords_nullable,
-    int* textured_p_coordinate_nullable,
-    int* textured_m_coordinate_nullable,
-    int* textured_n_coordinate_nullable,
-    int* face_colors_hsl_a,
-    int* face_colors_hsl_b,
-    int* face_colors_hsl_c,
+    faceint_t* face_textures_nullable,
+    faceint_t* face_texture_coords_nullable,
+    faceint_t* textured_p_coordinate_nullable,
+    faceint_t* textured_m_coordinate_nullable,
+    faceint_t* textured_n_coordinate_nullable,
+    hsl16_t* face_colors_hsl_a,
+    hsl16_t* face_colors_hsl_b,
+    hsl16_t* face_colors_hsl_c,
     int* face_infos_nullable,
-    int* face_alphas_nullable)
+    alphaint_t* face_alphas_nullable)
 {
     if( !pix3dgl || face_count <= 0 || !vertices_x || !vertices_y || !vertices_z ||
         !face_indices_a || !face_indices_b || !face_indices_c || !face_colors_hsl_a ||
@@ -1116,7 +1115,7 @@ pix3dgl_model_load(
 
     if( pix3dgl->models.find(model_idx) != pix3dgl->models.end() )
     {
-            return;
+        return;
     }
 
     GLModel model = {};
@@ -1141,13 +1140,12 @@ pix3dgl_model_load(
     texture_opaques.reserve((size_t)face_count * 3u);
     texture_anim_speeds.reserve((size_t)face_count * 3u);
 
-
     for( int face = 0; face < face_count; ++face )
     {
         bool visible = true;
         if( face_infos_nullable && face_infos_nullable[face] == 2 )
             visible = false;
-        if( face_colors_hsl_c[face] == -2 )
+        if( face_colors_hsl_c[face] == DASHHSL16_HIDDEN )
             visible = false;
         model.face_visible[(size_t)face] = visible;
 
@@ -1167,12 +1165,12 @@ pix3dgl_model_load(
         int hsl_b = face_colors_hsl_b[face];
         int hsl_c = face_colors_hsl_c[face];
         int rgb_a, rgb_b, rgb_c;
-        if( hsl_c == -1 )
+        if( hsl_c == DASHHSL16_FLAT )
         {
             rgb_a = rgb_b = rgb_c = g_hsl16_to_rgb_table[hsl_a];
             model.face_shading[(size_t)face] = SHADING_FLAT;
         }
-        else if( hsl_c == -2 )
+        else if( hsl_c == DASHHSL16_HIDDEN )
         {
             rgb_a = rgb_b = rgb_c = 0;
             model.face_shading[(size_t)face] = SHADING_FLAT;
@@ -1188,8 +1186,7 @@ pix3dgl_model_load(
         float face_alpha = 1.0f;
         if( face_alphas_nullable )
         {
-            int alpha_byte = face_alphas_nullable[face] & 0xFF;
-            face_alpha = (0xFF - alpha_byte) / 255.0f;
+            face_alpha = (0xFF - face_alphas_nullable[face]) / 255.0f;
         }
 
         int rgbs[3] = { rgb_a, rgb_b, rgb_c };

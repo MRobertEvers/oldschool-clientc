@@ -1,8 +1,15 @@
 #include "lua_game.h"
 
+#include "graphics/dashmap.h"
+#include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
 #include "osrs/game.h"
+#include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/gameproto_exec.h"
+#include "osrs/packets/revpacket_lc245_2.h"
+#include "osrs/rscache/cache_dat.h"
+
+#include <assert.h>
 
 /* Helper: get int at args[i]. args must be VarTypeArray. */
 static int
@@ -72,6 +79,135 @@ LuaGame_exec_pkt_npc_info(
     return LuaGameType_NewVoid();
 }
 
+struct LuaGameType*
+LuaGame_exec_pkt_if_settab(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    struct RevPacket_LC245_2_Item* item =
+        (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    if( item )
+        gameproto_exec_if_settab(game, &item->packet);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaGame_exec_pkt_update_inv_full(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    struct RevPacket_LC245_2_Item* item =
+        (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    if( item )
+        gameproto_exec_update_inv_full(game, &item->packet);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaGame_get_inv_obj_ids(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item =
+        (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    if( !item )
+        return LuaGameType_NewIntArray(0);
+
+    int size = item->packet._update_inv_full.size;
+    int count = 0;
+    for( int i = 0; i < size; i++ )
+    {
+        if( item->packet._update_inv_full.obj_ids[i] > 0 )
+            count++;
+    }
+
+    struct LuaGameType* arr = LuaGameType_NewIntArray(count);
+    for( int i = 0; i < size; i++ )
+    {
+        int obj_id = item->packet._update_inv_full.obj_ids[i];
+        if( obj_id > 0 )
+            LuaGameType_IntArrayPush(arr, obj_id);
+    }
+    return arr;
+}
+
+struct LuaGameType*
+LuaGame_load_interfaces(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    struct CacheDatArchive* archive = (struct CacheDatArchive*)arg_userdata(args, 0);
+    if( archive )
+    {
+        buildcachedat_loader_load_interfaces(game->buildcachedat, archive->data, archive->data_size);
+        cache_dat_archive_free(archive);
+    }
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaGame_load_component_sprites(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_loader_load_component_sprites_from_media(game->buildcachedat, game);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaGame_get_interface_model_ids(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    (void)args;
+    if( !game || !game->buildcachedat || !game->buildcachedat->component_hmap )
+        return LuaGameType_NewIntArray(0);
+
+    enum
+    {
+        kMaxIds = 16384
+    };
+    int tmp[kMaxIds];
+    int n = 0;
+
+    struct DashMapIter* it = buildcachedat_component_iter_new(game->buildcachedat);
+    if( !it )
+        return LuaGameType_NewIntArray(0);
+
+    int cid = 0;
+    struct CacheDatConfigComponent* c = NULL;
+    while( (c = buildcachedat_component_iter_next(it, &cid)) != NULL )
+    {
+        if( c->type != COMPONENT_TYPE_MODEL || c->modelType != 1 )
+            continue;
+        int mid = c->model;
+        if( mid < 0 )
+            continue;
+        int dup = 0;
+        for( int i = 0; i < n; i++ )
+        {
+            if( tmp[i] == mid )
+            {
+                dup = 1;
+                break;
+            }
+        }
+        if( dup )
+            continue;
+        if( n >= kMaxIds )
+            break;
+        tmp[n++] = mid;
+    }
+    dashmap_iter_free(it);
+
+    struct LuaGameType* arr = LuaGameType_NewIntArray(n);
+    for( int i = 0; i < n; i++ )
+        LuaGameType_IntArrayPush(arr, tmp[i]);
+    return arr;
+}
+
 static char const g_prefix[] = "game_";
 
 bool
@@ -101,6 +237,18 @@ LuaGame_DispatchCommand(
         return LuaGame_exec_pkt_player_info(game, args);
     else if( strcmp(command, "exec_pkt_npc_info") == 0 )
         return LuaGame_exec_pkt_npc_info(game, args);
+    else if( strcmp(command, "exec_pkt_if_settab") == 0 )
+        return LuaGame_exec_pkt_if_settab(game, args);
+    else if( strcmp(command, "exec_pkt_update_inv_full") == 0 )
+        return LuaGame_exec_pkt_update_inv_full(game, args);
+    else if( strcmp(command, "get_inv_obj_ids") == 0 )
+        return LuaGame_get_inv_obj_ids(game, args);
+    else if( strcmp(command, "load_interfaces") == 0 )
+        return LuaGame_load_interfaces(game, args);
+    else if( strcmp(command, "load_component_sprites") == 0 )
+        return LuaGame_load_component_sprites(game, args);
+    else if( strcmp(command, "get_interface_model_ids") == 0 )
+        return LuaGame_get_interface_model_ids(game, args);
     else
     {
         printf("Unknown command: %s\n", command);

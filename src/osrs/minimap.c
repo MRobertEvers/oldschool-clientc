@@ -8,10 +8,9 @@ static inline int
 minimap_coord_idx(
     struct Minimap* minimap,
     int sx,
-    int sz,
-    int level)
+    int sz)
 {
-    return sx + sz * minimap->width + level * minimap->width * minimap->height;
+    return sx + sz * minimap->width;
 }
 
 struct MinimapRenderCommandBuffer*
@@ -49,18 +48,16 @@ minimap_commands_reset(struct MinimapRenderCommandBuffer* command_buffer)
 struct Minimap*
 minimap_new(
     int width,
-    int height,
-    int levels)
+    int height)
 {
     struct Minimap* minimap = malloc(sizeof(struct Minimap));
     memset(minimap, 0, sizeof(struct Minimap));
 
     minimap->width = width;
     minimap->height = height;
-    minimap->levels = levels;
 
-    minimap->tiles = malloc(width * height * levels * sizeof(struct MinimapTile));
-    memset(minimap->tiles, 0, width * height * levels * sizeof(struct MinimapTile));
+    minimap->tiles = malloc(width * height * sizeof(struct MinimapTile));
+    memset(minimap->tiles, 0, width * height * sizeof(struct MinimapTile));
 
     minimap->locs = malloc(1024 * sizeof(struct MinimapLoc));
     minimap->locs_count = 0;
@@ -96,7 +93,6 @@ minimap_add_loc(
     struct Minimap* minimap,
     int sx,
     int sz,
-    int level,
     enum MinimapLocType type)
 {
     assert(sx >= 0 && sx < minimap->width);
@@ -107,7 +103,6 @@ minimap_add_loc(
     struct MinimapLoc* loc = &minimap->locs[minimap->locs_count++];
     loc->tile_sx = sx;
     loc->tile_sz = sz;
-    loc->level = level;
     loc->type = type;
 }
 
@@ -116,13 +111,12 @@ minimap_add_tile_wall(
     struct Minimap* minimap,
     int sx,
     int sz,
-    int level,
     enum MinimapWallFlag wall)
 {
     assert(sx >= 0 && sx < minimap->width);
     assert(sz >= 0 && sz < minimap->height);
 
-    int idx = minimap_coord_idx(minimap, sx, sz, level);
+    int idx = minimap_coord_idx(minimap, sx, sz);
 
     struct MinimapTile* tile = &minimap->tiles[idx];
     tile->wall |= wall;
@@ -133,14 +127,13 @@ minimap_set_tile_color(
     struct Minimap* minimap,
     int sx,
     int sz,
-    int level,
     uint32_t color_rgb,
     int is_foreground)
 {
     assert(sx >= 0 && sx < minimap->width);
     assert(sz >= 0 && sz < minimap->height);
 
-    int idx = minimap_coord_idx(minimap, sx, sz, level);
+    int idx = minimap_coord_idx(minimap, sx, sz);
 
     struct MinimapTile* tile = &minimap->tiles[idx];
     if( is_foreground == MINIMAP_FOREGROUND )
@@ -154,14 +147,13 @@ minimap_set_tile_shape(
     struct Minimap* minimap,
     int sx,
     int sz,
-    int level,
     int shape,
     int rotation)
 {
     assert(sx >= 0 && sx < minimap->width);
     assert(sz >= 0 && sz < minimap->height);
 
-    int idx = minimap_coord_idx(minimap, sx, sz, level);
+    int idx = minimap_coord_idx(minimap, sx, sz);
 
     struct MinimapTile* tile = &minimap->tiles[idx];
     tile->shape = shape;
@@ -224,10 +216,8 @@ minimap_render_static_tiles(
     int sw_z,
     int ne_x,
     int ne_z,
-    int level,
     struct MinimapRenderCommandBuffer* command_buffer)
 {
-    (void)level;
     if( sw_x < 0 )
         sw_x = 0;
     if( sw_z < 0 )
@@ -253,7 +243,6 @@ minimap_render_dynamic(
     int sw_z,
     int ne_x,
     int ne_z,
-    int level,
     struct MinimapRenderCommandBuffer* command_buffer)
 {
     if( sw_x < 0 )
@@ -267,8 +256,6 @@ minimap_render_dynamic(
 
     for( int i = 0; i < minimap->locs_count; i++ )
     {
-        if( minimap->locs[i].level != level )
-            continue;
         int lx = minimap->locs[i].tile_sx;
         int lz = minimap->locs[i].tile_sz;
         if( lx < sw_x || lx >= ne_x || lz < sw_z || lz >= ne_z )
@@ -284,11 +271,10 @@ minimap_render(
     int sw_z,
     int ne_x,
     int ne_z,
-    int level,
     struct MinimapRenderCommandBuffer* command_buffer)
 {
-    minimap_render_static_tiles(minimap, sw_x, sw_z, ne_x, ne_z, level, command_buffer);
-    minimap_render_dynamic(minimap, sw_x, sw_z, ne_x, ne_z, level, command_buffer);
+    minimap_render_static_tiles(minimap, sw_x, sw_z, ne_x, ne_z, command_buffer);
+    minimap_render_dynamic(minimap, sw_x, sw_z, ne_x, ne_z, command_buffer);
 }
 
 int
@@ -296,14 +282,12 @@ minimap_tile_rgb(
     struct Minimap* minimap,
     int sx,
     int sz,
-    int level,
     int is_foreground)
 {
     assert(sx >= 0 && sx < minimap->width);
     assert(sz >= 0 && sz < minimap->height);
-    assert(level >= 0 && level < minimap->levels);
 
-    int idx = minimap_coord_idx(minimap, sx, sz, level);
+    int idx = minimap_coord_idx(minimap, sx, sz);
     struct MinimapTile* tile = &minimap->tiles[idx];
     return is_foreground == MINIMAP_FOREGROUND ? tile->foreground_rgb : tile->background_rgb;
 }
@@ -312,14 +296,12 @@ int
 minimap_tile_wall(
     struct Minimap* minimap,
     int sx,
-    int sz,
-    int level)
+    int sz)
 {
     assert(sx >= 0 && sx < minimap->width);
     assert(sz >= 0 && sz < minimap->height);
-    assert(level >= 0 && level < minimap->levels);
 
-    int idx = minimap_coord_idx(minimap, sx, sz, level);
+    int idx = minimap_coord_idx(minimap, sx, sz);
     struct MinimapTile* tile = &minimap->tiles[idx];
     return tile->wall;
 }
@@ -327,14 +309,12 @@ int
 minimap_tile_shape(
     struct Minimap* minimap,
     int sx,
-    int sz,
-    int level)
+    int sz)
 {
     assert(sx >= 0 && sx < minimap->width);
     assert(sz >= 0 && sz < minimap->height);
-    assert(level >= 0 && level < minimap->levels);
 
-    int idx = minimap_coord_idx(minimap, sx, sz, level);
+    int idx = minimap_coord_idx(minimap, sx, sz);
     struct MinimapTile* tile = &minimap->tiles[idx];
     return tile->shape;
 }
@@ -343,14 +323,12 @@ int
 minimap_tile_rotation(
     struct Minimap* minimap,
     int sx,
-    int sz,
-    int level)
+    int sz)
 {
     assert(sx >= 0 && sx < minimap->width);
     assert(sz >= 0 && sz < minimap->height);
-    assert(level >= 0 && level < minimap->levels);
 
-    int idx = minimap_coord_idx(minimap, sx, sz, level);
+    int idx = minimap_coord_idx(minimap, sx, sz);
     struct MinimapTile* tile = &minimap->tiles[idx];
     return tile->rotation;
 }

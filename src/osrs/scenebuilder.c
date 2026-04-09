@@ -263,9 +263,11 @@ scenebuilder_load_from_buildcachedat(
     int wz_ne,
     int size_x,
     int size_z,
-    struct BuildCacheDat* buildcachedat)
+    struct BuildCacheDat* buildcachedat,
+    struct Scene2* texture_scene2)
 {
     scene_builder->buildcachedat = buildcachedat;
+    scene_builder->texture_scene2 = texture_scene2;
     return scenebuiler_build(scene_builder, wx_sw, wz_sw, wx_ne, wz_ne, size_x, size_z);
 }
 

@@ -357,7 +357,6 @@ raster_texture_scanline_opaque_blend_lerp8(
 
         // Checked on 09/15/2025, clang does NOT vectorize this loop.
         // even with -O3
-        // On large screens the vectorized version is significantly faster.
         // for( int i = 0; i < 8; i++ )
         // {
         //     int u = u_scan >> texture_shift;
@@ -720,7 +719,6 @@ raster_texture_scanline_opaque_lerp8(
 
         // Checked on 09/15/2025, clang does NOT vectorize this loop.
         // even with -O3
-        // On large screens the vectorized version is significantly faster.
         // for( int i = 0; i < 8; i++ )
         // {
         //     int u = u_scan >> texture_shift;

@@ -16,6 +16,7 @@ struct LuaGameType;
 struct LuaGameType*
 LuaBuildCacheDat_DispatchCommand(
     struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
     char* command,
     struct LuaGameType* args);
 
@@ -145,11 +146,13 @@ LuaBuildCacheDat_load_interfaces(
 struct LuaGameType*
 LuaBuildCacheDat_load_component_sprites_from_media(
     struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
     struct LuaGameType* args);
 
 struct LuaGameType*
 LuaBuildCacheDat_cache_textures(
     struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
     struct LuaGameType* args);
 
 struct LuaGameType*
@@ -170,11 +173,13 @@ LuaBuildCacheDat_cache_animbaseframes(
 struct LuaGameType*
 LuaBuildCacheDat_cache_media(
     struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
     struct LuaGameType* args);
 
 struct LuaGameType*
 LuaBuildCacheDat_cache_title(
     struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
     struct LuaGameType* args);
 
 struct LuaGameType*
@@ -189,6 +194,22 @@ LuaBuildCacheDat_init_objects_from_config_jagfile(
 
 struct LuaGameType*
 LuaBuildCacheDat_finalize_scene(
+    struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_clear(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_clear_map_chunks(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_clear_component_cache(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 

@@ -1,3 +1,4 @@
+#include "platforms/common/platform_memory.h"
 #include "platforms/platform_impl2_emscripten_sdl2.h"
 #include "platforms/platform_impl2_emscripten_sdl2_renderer_soft3d.h"
 #include "platforms/platform_impl2_emscripten_sdl2_renderer_webgl1.h"
@@ -117,13 +118,14 @@ set_game_ptr(struct GGame* game)
     // clang-format on
 }
 
-static struct Platform2_Emscripten_SDL2_Renderer_Soft3D* renderer = NULL;
+static Platform2_Emscripten_SDL2_Renderer_Soft3D* renderer = NULL;
 static struct Platform2_Emscripten_SDL2_Renderer_WebGL1* renderer_webgl1 = NULL;
 bool g_use_webgl1 = false;
 
 static bool
 read_use_webgl1_from_window()
 {
+    return false;
     // clang-format off
     return EM_ASM_INT(
                {
@@ -218,12 +220,17 @@ luajs_sidecar_callback(
 
     if( LuaBuildCacheDat_CommandHasPrefix((char*)command) )
     {
-        result = LuaBuildCacheDat_DispatchCommand(bcd, (char*)command, args_view);
+        result = LuaBuildCacheDat_DispatchCommand(
+            bcd, platform->current_game, (char*)command, args_view);
     }
     else if( LuaDash_CommandHasPrefix((char*)command) )
     {
         result = LuaDash_DispatchCommand(
-            platform->current_game->sys_dash, bcd, (char*)command, args_view);
+            platform->current_game->sys_dash,
+            bcd,
+            platform->current_game,
+            (char*)command,
+            args_view);
     }
     else if( LuaGame_CommandHasPrefix((char*)command) )
     {
@@ -231,8 +238,7 @@ luajs_sidecar_callback(
     }
     else if( LuaUI_CommandHasPrefix((char*)command) )
     {
-        result =
-            LuaUI_DispatchCommand(platform->current_game, bcd, (char*)command, args_view);
+        result = LuaUI_DispatchCommand(platform->current_game, bcd, (char*)command, args_view);
     }
 
     LuaGameType_Free(args_view);
@@ -250,6 +256,17 @@ main(
     int argc,
     char* argv[])
 {
+    struct PlatformMemoryInfo platform_memory_info = { 0 };
+
+    printf("World size: %d\n", sizeof(struct World));
+    platform_get_memory_info(&platform_memory_info);
+
+    printf(
+        "Pre-SDL2_New: Platform memory info: %zu / %zu / %zu\n",
+        platform_memory_info.heap_used,
+        platform_memory_info.heap_total,
+        platform_memory_info.heap_peak);
+
     struct Platform2_Emscripten_SDL2* platform = Platform2_Emscripten_SDL2_New();
     // These dimensions define the internal 3D render resolution used by the game/viewport.
     const int graphics3d_width = 513;
@@ -259,16 +276,32 @@ main(
     const int game_width = 765;
     const int game_height = 503;
     /* Upper bound for world viewport / soft pixel buffer (ImGui can raise view_port up to this). */
-    const int render_max_width = 1600;
-    const int render_max_height = 900;
+    const int render_max_width = game_width;
+    const int render_max_height = game_height;
+
+    platform_get_memory_info(&platform_memory_info);
+
+    printf(
+        "Pre-NetNewBuffer: Platform memory info: %zu / %zu / %zu\n",
+        platform_memory_info.heap_used,
+        platform_memory_info.heap_total,
+        platform_memory_info.heap_peak);
 
     struct ToriRSNetSharedBuffer* net_shared = LibToriRS_NetNewBuffer();
+
+    platform_get_memory_info(&platform_memory_info);
+
+    printf(
+        "Pre-GameNew: Platform memory info: %zu / %zu / %zu\n",
+        platform_memory_info.heap_used,
+        platform_memory_info.heap_total,
+        platform_memory_info.heap_peak);
+
     struct GGame* game = LibToriRS_GameNew(net_shared, graphics3d_width, graphics3d_height);
     set_game_ptr(game);
 
     struct GInput input = { 0 };
-    struct ToriRSRenderCommandBuffer* render_command_buffer =
-        LibToriRS_RenderCommandBufferNew(1024);
+    struct ToriRSRenderCommandBuffer* render_command_buffer = LibToriRS_RenderCommandBufferNew(10);
     platform->render_command_buffer = render_command_buffer;
     platform->current_game = game;
     platform->secret = 5;
@@ -301,14 +334,29 @@ main(
     }
     else
     {
+        platform_get_memory_info(&platform_memory_info);
+
+        printf(
+            "Pre-InitForSoft3D: Platform memory info: %zu / %zu / %zu\n",
+            platform_memory_info.heap_used,
+            platform_memory_info.heap_total,
+            platform_memory_info.heap_peak);
         if( !Platform2_Emscripten_SDL2_InitForSoft3D(platform, game_width, game_height) )
         {
             printf("Failed to initialize SDL window for Soft3D\n");
             return 1;
         }
 
+        platform_get_memory_info(&platform_memory_info);
+
+        printf(
+            "Pre-Renderer_Soft3D_New: Platform memory info: %zu / %zu / %zu\n",
+            platform_memory_info.heap_used,
+            platform_memory_info.heap_total,
+            platform_memory_info.heap_peak);
+
         renderer = PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_New(
-            graphics3d_width, graphics3d_height, render_max_width, render_max_height);
+            game_width, game_height, render_max_width, render_max_height);
         if( !renderer || !PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Init(renderer, platform) )
         {
             printf("Soft3D renderer init failed\n");
@@ -317,19 +365,33 @@ main(
         printf("Soft3D renderer init succeeded\n");
     }
 
-    game->iface_view_port->width    = game_width;
-    game->iface_view_port->height   = game_height;
+    game->iface_view_port->width = game_width;
+    game->iface_view_port->height = game_height;
     game->iface_view_port->x_center = game_width / 2;
     game->iface_view_port->y_center = game_height / 2;
-    game->iface_view_port->stride   = game_width;
-    game->iface_view_port->clip_left   = 0;
-    game->iface_view_port->clip_top    = 0;
-    game->iface_view_port->clip_right  = game_width;
+    game->iface_view_port->stride = game_width;
+    game->iface_view_port->clip_left = 0;
+    game->iface_view_port->clip_top = 0;
+    game->iface_view_port->clip_right = game_width;
     game->iface_view_port->clip_bottom = game_height;
 
+    platform_get_memory_info(&platform_memory_info);
+
+    printf(
+        "Platform memory info: %zu / %zu / %zu\n",
+        platform_memory_info.heap_used,
+        platform_memory_info.heap_total,
+        platform_memory_info.heap_peak);
     /* Keep viewport config identical across renderer backends (same as osx.cpp). */
     game->viewport_offset_x = 4;
     game->viewport_offset_y = 4;
+    if( renderer )
+    {
+        PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_SetDashOffset(renderer, 4, 4);
+        renderer->clicked_tile_x = -1;
+        renderer->clicked_tile_z = -1;
+        renderer->clicked_tile_level = -1;
+    }
 
     luajs_sidecar_set_callback(luajs_sidecar_callback, platform);
 

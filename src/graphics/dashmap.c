@@ -280,7 +280,7 @@ dashmap_init(
 void*
 dashmap_buffer_ptr(struct DashMap* m)
 {
-    return m->entries;
+    return m->original_buffer;
 }
 
 struct DashMap*
@@ -607,4 +607,21 @@ uint32_t
 dashmap_capacity(struct DashMap* h)
 {
     return h->capacity;
+}
+size_t
+dashmap_entry_size(struct DashMap* h)
+{
+    return h->entry_size;
+}
+
+size_t
+dashmap_buffer_size_for(
+    size_t entry_size,
+    size_t count)
+{
+    const size_t align = 16;
+    size_t header_size = sizeof(HMapSlotHeader);
+    size_t entry_offset = hmap_align_up_size(header_size, align);
+    size_t stride = hmap_align_up_size(entry_offset + entry_size, align);
+    return count * stride + (align - 1);
 }

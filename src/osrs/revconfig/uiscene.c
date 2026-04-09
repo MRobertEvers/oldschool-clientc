@@ -86,10 +86,18 @@ uiscene_free(struct UIScene* uiscene)
         struct UISceneElement* elem = &uiscene->elements[i];
         if( elem->dash_sprites )
         {
-            for( int j = 0; j < elem->dash_sprites_count; j++ )
-                dashsprite_free(elem->dash_sprites[j]);
+            if( !elem->dash_sprites_borrowed )
+            {
+                for( int j = 0; j < elem->dash_sprites_count; j++ )
+                    dashsprite_free(elem->dash_sprites[j]);
+            }
             free(elem->dash_sprites);
         }
+    }
+    for( int i = 0; i < uiscene->font_count; i++ )
+    {
+        if( uiscene->fonts[i].font )
+            dashpixfont_free(uiscene->fonts[i].font);
     }
     free(uiscene->eventbuffer);
     free(uiscene->elements);
@@ -136,10 +144,14 @@ uiscene_element_clear_dash_sprites(struct UISceneElement* element)
 {
     if( !element || !element->dash_sprites )
         return;
-    for( int i = 0; i < element->dash_sprites_count; i++ )
-        dashsprite_free(element->dash_sprites[i]);
+    if( !element->dash_sprites_borrowed )
+    {
+        for( int i = 0; i < element->dash_sprites_count; i++ )
+            dashsprite_free(element->dash_sprites[i]);
+    }
     free(element->dash_sprites);
     element->dash_sprites = NULL;
+    element->dash_sprites_borrowed = false;
 }
 
 void
@@ -192,6 +204,28 @@ uiscene_element_at(
     return &uiscene->elements[element_id];
 }
 
+struct DashSprite*
+uiscene_sprite_by_name(
+    struct UIScene* uiscene,
+    const char* name,
+    int atlas_index)
+{
+    if( !uiscene || !name )
+        return NULL;
+    for( int i = 0; i < uiscene->elements_count; i++ )
+    {
+        struct UISceneElement* e = &uiscene->elements[i];
+        if( !e->active )
+            continue;
+        if( strcmp(e->name, name) != 0 )
+            continue;
+        if( !e->dash_sprites || atlas_index < 0 || atlas_index >= e->dash_sprites_count )
+            return NULL;
+        return e->dash_sprites[atlas_index];
+    }
+    return NULL;
+}
+
 bool
 uiscene_eventbuffer_is_empty(struct UIScene* uiscene)
 {
@@ -236,6 +270,8 @@ uiscene_font_add(
     {
         if( strcmp(uiscene->fonts[i].name, name) == 0 )
         {
+            if( uiscene->fonts[i].font && uiscene->fonts[i].font != font )
+                dashpixfont_free(uiscene->fonts[i].font);
             uiscene->fonts[i].font = font;
             return i;
         }
