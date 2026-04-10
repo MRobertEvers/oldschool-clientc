@@ -143,21 +143,24 @@ LibToriRS_GameNew(
     // Camera (x, y, z): 3790, -780, 4355 : 29, 34
     // Camera (x, y, z): 79, -150, -64 : 0, 0
     // Camera (x, y, z): -194, -850, -470 : -1, -3
-    game->camera_world_x = -194;
+    // Camera (x, y, z): 4939, -850, 3406 : 38, 26
+    game->camera_world_x = 4939;
     game->camera_world_y = -850;
-    game->camera_world_z = -470;
+    game->camera_world_z = 3406;
 
     // game->camera_world_x = 3939;
     // game->camera_world_y = -800;
     // game->camera_world_z = 12589;
     // Camera (pitch, yaw, roll): 1916, 328, 0
     // Camera (pitch, yaw, roll): 48, 1856, 0
-    game->camera_pitch = 48;
+    // Camera (pitch, yaw, roll): 148, 1856, 0
+    game->camera_pitch = 148;
     game->camera_yaw = 1856;
     game->camera_roll = 0;
     game->camera_fov = 512;
     game->camera_movement_speed = 70;
     game->camera_rotation_speed = 20;
+    game->next_camera_save_ms = 0;
     game->cc = 100000;
     game->latched = false;
 

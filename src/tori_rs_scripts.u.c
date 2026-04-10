@@ -76,6 +76,17 @@ script_convert_to_lua(
         LuaGameType_VarTypeArrayPush(
             out->args, LuaGameType_NewUserData(item->args.u.lc245_packet.item));
         break;
+    case SCRIPT_LOAD_CULLMAP:
+        set_name(out, "game/load_cullmap.lua");
+        out->args = LuaGameType_NewVarTypeArraySpread(4);
+        LuaGameType_VarTypeArrayPush(
+            out->args, LuaGameType_NewInt(item->args.u.load_cullmap.viewport_w));
+        LuaGameType_VarTypeArrayPush(
+            out->args, LuaGameType_NewInt(item->args.u.load_cullmap.viewport_h));
+        LuaGameType_VarTypeArrayPush(out->args, LuaGameType_NewInt(item->args.u.load_cullmap.fov));
+        LuaGameType_VarTypeArrayPush(
+            out->args, LuaGameType_NewInt(item->args.u.load_cullmap.draw_radius));
+        break;
     default:
         assert(false && "Unknown script kind");
         break;

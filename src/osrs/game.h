@@ -157,6 +157,7 @@ struct GGame
 
     uint64_t tick_ms;
     uint64_t next_tick_ms;
+    uint64_t next_camera_save_ms;
 
     struct RevPacket_LC245_2_Item* packets_lc245_2;
 

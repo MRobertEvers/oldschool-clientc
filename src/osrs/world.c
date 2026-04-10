@@ -17,7 +17,6 @@
 #include "world_terrain.u.c"
 #include "world_sharelight.u.c"
 #include "world_cycle.u.c"
-#include "../default_cullmap.u.c"
 // clang-format on
 
 #define CURRENT_LEVEL 0
@@ -164,6 +163,18 @@ world_free(struct World* world)
     if( world->terrain_shapemap )
         terrain_shape_map_free(world->terrain_shapemap);
     free(world);
+}
+
+void
+world_set_painters_cullmap(struct World* world, struct PaintersCullMap* cm)
+{
+    if( !world )
+        return;
+    if( world->cullmap )
+        painters_cullmap_free(world->cullmap);
+    world->cullmap = cm;
+    if( world->painter )
+        painter_set_cullmap(world->painter, cm);
 }
 
 static inline enum MinimapWallFlag
@@ -433,35 +444,7 @@ world_buildcachedat_rebuild_centerzone(
 
     world->painter = painter_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
 
-    /* Build the cullmap once; reuse it on subsequent rebuilds.
-     * Radius 25 matches the hardcoded painter draw radius.
-     * Use default_cullmap.u.c when viewport matches the baked asset. */
-    if( !world->cullmap && world->cullmap_screen_width > 0 && world->cullmap_screen_height > 0 )
-    {
-        world->cullmap = painters_cullmap_baked_open_r25_nz512_w1920_h1080();
-        if( !world->cullmap )
-        {
-            world->cullmap = painters_cullmap_new(
-                PAINTERS_DEFAULT_BAKED_CULLMAP_RADIUS,
-                world->cullmap_near_clip_z,
-                world->cullmap_screen_width,
-                world->cullmap_screen_height);
-        }
-        // if( world->cullmap_near_clip_z == PAINTERS_DEFAULT_BAKED_CULLMAP_NEAR_CLIP_Z &&
-        //     world->cullmap_screen_width == PAINTERS_DEFAULT_BAKED_CULLMAP_SCREEN_W &&
-        //     world->cullmap_screen_height == PAINTERS_DEFAULT_BAKED_CULLMAP_SCREEN_H )
-        // {
-
-        // }
-        // else
-        // {
-        //     world->cullmap = painters_cullmap_new(
-        //         PAINTERS_DEFAULT_BAKED_CULLMAP_RADIUS,
-        //         world->cullmap_near_clip_z,
-        //         world->cullmap_screen_width,
-        //         world->cullmap_screen_height);
-        // }
-    }
+    /* Cullmap is installed by the game (see LibToriRS_FrameBegin) via world_set_painters_cullmap. */
     painter_set_cullmap(world->painter, world->cullmap);
 
     world->collision_map = collision_map_new(scene_size, scene_size);

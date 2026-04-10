@@ -257,6 +257,12 @@ LibToriRS_GameStep(
     }
 
     gameproto_process(game);
+
+    if( game->tick_ms >= game->next_camera_save_ms )
+    {
+        game->next_camera_save_ms = game->tick_ms + 1000;
+    }
+
     LibToriRS_GameProcessInput(game, input);
 
     if( game->world )

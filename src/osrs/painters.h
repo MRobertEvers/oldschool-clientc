@@ -1,6 +1,7 @@
 #ifndef PAINTERS_H
 #define PAINTERS_H
 
+#include <stddef.h>
 #include <stdint.h>
 /**
  * Coordinate naming convention:
@@ -297,8 +298,9 @@ struct Painter;
 
 struct PaintersCullMap;
 
+/** Build cullmap at runtime (CPU bake). */
 struct PaintersCullMap*
-painters_cullmap_new(
+painters_cullmap_build(
     int radius,
     int near_clip_z,
     int screen_width,
@@ -307,23 +309,27 @@ painters_cullmap_new(
 struct PaintersCullMap*
 painters_cullmap_new_nocull(void);
 
-/* Baked table from src/default_cullmap.u.c (see tools/gen_painters_cullmap). */
-#define PAINTERS_DEFAULT_BAKED_CULLMAP_NEAR_CLIP_Z 512
-#define PAINTERS_DEFAULT_BAKED_CULLMAP_SCREEN_W 1920
-#define PAINTERS_DEFAULT_BAKED_CULLMAP_SCREEN_H 1080
-#define PAINTERS_DEFAULT_BAKED_CULLMAP_RADIUS 25
-
+/** Load from packed visibility bytes (e.g. file read by caller). Caller frees with
+ * painters_cullmap_free. */
 struct PaintersCullMap*
-painters_cullmap_baked_open_r25_nz512_w1920_h1080(void);
+painters_cullmap_from_blob(
+    const uint8_t* data,
+    size_t nbytes,
+    int radius);
 
 void
 painters_cullmap_free(struct PaintersCullMap* cm);
 
 void
-painter_set_cullmap(struct Painter* painter, struct PaintersCullMap* cm);
+painter_set_cullmap(
+    struct Painter* painter,
+    struct PaintersCullMap* cm);
 
 void
-painter_set_camera_angles(struct Painter* painter, int pitch, int yaw);
+painter_set_camera_angles(
+    struct Painter* painter,
+    int pitch,
+    int yaw);
 
 struct Painter*
 painter_new(

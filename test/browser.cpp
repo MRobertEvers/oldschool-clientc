@@ -13,6 +13,7 @@ extern "C" {
 #include "osrs/game.h"
 #include "osrs/ginput.h"
 #include "osrs/lua_sidecar/lua_buildcachedat.h"
+#include "osrs/lua_sidecar/lua_sidecar_misc.h"
 #include "osrs/lua_sidecar/lua_dash.h"
 #include "osrs/lua_sidecar/lua_game.h"
 #include "osrs/lua_sidecar/lua_ui.h"
@@ -239,6 +240,11 @@ luajs_sidecar_callback(
     else if( LuaUI_CommandHasPrefix((char*)command) )
     {
         result = LuaUI_DispatchCommand(platform->current_game, bcd, (char*)command, args_view);
+    }
+    else if( LuaSidecarMisc_CommandHasPrefix((char*)command) )
+    {
+        result = LuaSidecarMisc_DispatchCommand(
+            platform->current_game, (char*)command, args_view);
     }
 
     LuaGameType_Free(args_view);

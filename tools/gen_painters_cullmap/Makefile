@@ -1,6 +1,9 @@
 # Build gen_painters_cullmap from this directory:
 #   make
 #   ./gen_painters_cullmap --radius 25 --near 512 --width 1920 --height 1080 -o out.c
+#   ./gen_painters_cullmap --radius 25 --near 512 --width 1920 --height 1080 --blob -o out.bin
+#   node batch_cullmaps.mjs
+#   node batch_cullmaps.mjs -j8
 
 REPO := $(abspath ../..)
 

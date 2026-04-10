@@ -1,6 +1,7 @@
 #include "luac_sidecar_config.h"
 
 #include "lua_configfile.h"
+#include "lua_gametypes.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -8,15 +9,6 @@
 #include <string.h>
 
 #define CONFIG_DIRECTORY "../src/osrs/revconfig/configs"
-
-static void*
-arg_userdata(
-    struct LuaGameType* args,
-    int i)
-{
-    struct LuaGameType* elem = LuaGameType_GetVarTypeArrayAt(args, i);
-    return LuaGameType_GetUserData(elem);
-}
 
 struct FileData
 {
@@ -51,12 +43,12 @@ load_lua_userdata_from_file(const char* name)
     if( file_data.size <= 0 )
     {
         fprintf(stderr, "Failed to load file: %s\n", name);
-        return (struct LuaConfigFile*)LuaGameType_NewVoid();
+        return NULL;
     }
 
     struct LuaConfigFile* lua_file = malloc(sizeof(struct LuaConfigFile));
     if( !lua_file )
-        return (struct LuaConfigFile*)LuaGameType_NewVoid();
+        return NULL;
     memset(lua_file, 0, sizeof(struct LuaConfigFile));
 
     strcpy(lua_file->name, name);
@@ -68,11 +60,22 @@ load_lua_userdata_from_file(const char* name)
 struct LuaGameType*
 LuaCSidecar_Config_LoadConfig(struct LuaGameType* args)
 {
-    char* config_file = (char*)arg_userdata(args, 0);
+    if( !args || LuaGameType_GetVarTypeArrayCount(args) < 1 )
+        return LuaGameType_NewVoid();
+
+    struct LuaGameType* path_gt = LuaGameType_GetVarTypeArrayAt(args, 0);
+    if( path_gt->kind != LUAGAMETYPE_STRING )
+        return LuaGameType_NewVoid();
+
+    const char* config_file = LuaGameType_GetString(path_gt);
     if( !config_file )
         return LuaGameType_NewVoid();
 
-    return (struct LuaGameType*)load_lua_userdata_from_file(config_file);
+    struct LuaConfigFile* file = load_lua_userdata_from_file(config_file);
+    if( !file )
+        return LuaGameType_NewVoid();
+
+    return LuaGameType_NewUserData(file);
 }
 
 struct LuaGameType*

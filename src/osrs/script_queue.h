@@ -17,6 +17,7 @@ enum ScriptKind
     SCRIPT_PKT_NPC_INFO,
     SCRIPT_PKT_IF_SETTAB,
     SCRIPT_PKT_UPDATE_INV_FULL,
+    SCRIPT_LOAD_CULLMAP,
     SCRIPT_COUNT
 };
 
@@ -64,6 +65,14 @@ struct ScriptArgsLc245Packet
     struct RevPacket_LC245_2_Item* item;
 };
 
+struct ScriptArgsLoadCullmap
+{
+    int viewport_w;
+    int viewport_h;
+    int fov;
+    int draw_radius;
+};
+
 /* Tagged union of all script argument structs (one member per runnable script). */
 struct ScriptArgs
 {
@@ -76,6 +85,7 @@ struct ScriptArgs
         struct ScriptArgsPlayerInfo player_info;
         struct ScriptArgsNpcInfo npc_info;
         struct ScriptArgsLc245Packet lc245_packet;
+        struct ScriptArgsLoadCullmap load_cullmap;
     } u;
 };
 

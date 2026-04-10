@@ -105,8 +105,7 @@ pcull_bit_count(
     int yaw_levels,
     int grid_side)
 {
-    return (size_t)pitch_levels * (size_t)yaw_levels * (size_t)grid_side *
-           (size_t)grid_side;
+    return (size_t)pitch_levels * (size_t)yaw_levels * (size_t)grid_side * (size_t)grid_side;
 }
 
 static inline void
@@ -148,7 +147,7 @@ pcull_bit_index(
 }
 
 struct PaintersCullMap*
-painters_cullmap_new(
+painters_cullmap_build(
     int radius,
     int near_clip_z,
     int screen_width,
@@ -157,8 +156,7 @@ painters_cullmap_new(
     if( radius < 1 )
         return NULL;
 
-    int pitch_raw_levels =
-        (PCULL_PITCH_MAX - PCULL_PITCH_MIN) / PCULL_PITCH_STEP + 1;
+    int pitch_raw_levels = (PCULL_PITCH_MAX - PCULL_PITCH_MIN) / PCULL_PITCH_STEP + 1;
     if( pitch_raw_levels < 2 )
         return NULL;
 
@@ -177,10 +175,10 @@ painters_cullmap_new(
         return NULL;
     memset(raw, 0, raw_count);
 
-#define PCULL_RAW_IDX(pr, yw, px, pz) \
-    ((size_t)(pr) * (size_t)yaw_levels * (size_t)padded_side * (size_t)padded_side + \
-     (size_t)(yw) * (size_t)padded_side * (size_t)padded_side + (size_t)(px) * (size_t)padded_side + \
-     (size_t)(pz))
+#define PCULL_RAW_IDX(pr, yw, px, pz)                                                              \
+    ((size_t)(pr) * (size_t)yaw_levels * (size_t)padded_side * (size_t)padded_side +               \
+     (size_t)(yw) * (size_t)padded_side * (size_t)padded_side +                                    \
+     (size_t)(px) * (size_t)padded_side + (size_t)(pz))
 
     for( int pr = 0; pr < pitch_raw_levels; pr++ )
     {
@@ -320,8 +318,7 @@ painters_cullmap_new(
                         }
                     }
 
-                    size_t bidx =
-                        pcull_bit_index(op, yw, ix, iz, yaw_levels, grid_side);
+                    size_t bidx = pcull_bit_index(op, yw, ix, iz, yaw_levels, grid_side);
                     pcull_bit_set(visibility, bidx, out_vis);
                 }
             }
@@ -369,6 +366,69 @@ painters_cullmap_free(struct PaintersCullMap* cm)
     free(cm);
 }
 
+static int
+pcull_dims_and_nbytes_for_radius(
+    int radius,
+    int* pitch_out_levels,
+    int* yaw_levels,
+    int* grid_side,
+    size_t* nbytes_out)
+{
+    if( radius < 1 )
+        return 0;
+    int pitch_raw_levels = (PCULL_PITCH_MAX - PCULL_PITCH_MIN) / PCULL_PITCH_STEP + 1;
+    if( pitch_raw_levels < 2 )
+        return 0;
+    int pol = pitch_raw_levels - 1;
+    int yl = 2048 / PCULL_YAW_STEP;
+    if( yl < 1 )
+        yl = 1;
+    int gs = radius * 2;
+    size_t nbits = (size_t)pol * (size_t)yl * (size_t)gs * (size_t)gs;
+    size_t nbytes = (nbits + 7u) / 8u;
+    *pitch_out_levels = pol;
+    *yaw_levels = yl;
+    *grid_side = gs;
+    *nbytes_out = nbytes;
+    return 1;
+}
+
+struct PaintersCullMap*
+painters_cullmap_from_blob(
+    const uint8_t* data,
+    size_t nbytes,
+    int radius)
+{
+    int pitch_out_levels;
+    int yaw_levels;
+    int grid_side;
+    size_t want;
+    if( !data ||
+        !pcull_dims_and_nbytes_for_radius(
+            radius, &pitch_out_levels, &yaw_levels, &grid_side, &want) ||
+        nbytes != want )
+        return NULL;
+
+    uint8_t* vis = (uint8_t*)malloc(nbytes);
+    if( !vis )
+        return NULL;
+    memcpy(vis, data, nbytes);
+
+    struct PaintersCullMap* cm = (struct PaintersCullMap*)malloc(sizeof(struct PaintersCullMap));
+    if( !cm )
+    {
+        free(vis);
+        return NULL;
+    }
+    cm->visibility = vis;
+    cm->radius = radius;
+    cm->pitch_levels = pitch_out_levels;
+    cm->yaw_levels = yaw_levels;
+    cm->grid_side = grid_side;
+    cm->all_visible = 0;
+    return cm;
+}
+
 static inline int
 painters_cullmap_visible(
     const struct PaintersCullMap* cm,
@@ -398,7 +458,6 @@ painters_cullmap_visible(
 
     int ix = dx + cm->radius;
     int iz = dz + cm->radius;
-    size_t bidx = pcull_bit_index(
-        pitch_idx, yaw_idx, ix, iz, cm->yaw_levels, cm->grid_side);
+    size_t bidx = pcull_bit_index(pitch_idx, yaw_idx, ix, iz, cm->yaw_levels, cm->grid_side);
     return pcull_bit_get(cm->visibility, bidx);
 }

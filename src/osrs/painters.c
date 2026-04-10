@@ -14,9 +14,28 @@
 
 #define PAINTER_WF_WAVE_CAP 96
 
-/* Farthest-first bucket count for painter_paint_chebyshev / paint3 / paint4 (radius 25):
- * L_inf max 25, L1 max 50, Euclidean uses d^2 key max 25*25+25*25 = 1250 → indices 0..1250. */
+/* Distance-queue metric for painter_paint_chebyshev / paint3 / paint4 (override with -D).
+ * Must match PAINTER_DIST_QUEUE_BUCKETS below (or omit buckets to derive from metric). */
+#define PAINTER_PAINT_DIST_CHEBYSHEV 0 /* L_inf; max key 25 → buckets 0..25 */
+#define PAINTER_PAINT_DIST_MANHATTAN 1 /* L1; max key 50 */
+#define PAINTER_PAINT_DIST_EUCLIDEAN 2 /* d^2 buckets; max 25*25+25*25 = 1250 */
+
+#ifndef PAINTER_PAINT_DIST_METRIC
+#define PAINTER_PAINT_DIST_METRIC PAINTER_PAINT_DIST_MANHATTAN
+#endif
+
+/* Farthest-first bucket array size (radius 25). Override with -D if you change draw radius. */
+#ifndef PAINTER_DIST_QUEUE_BUCKETS
+#if PAINTER_PAINT_DIST_METRIC == PAINTER_PAINT_DIST_CHEBYSHEV
+#define PAINTER_DIST_QUEUE_BUCKETS 26
+#elif PAINTER_PAINT_DIST_METRIC == PAINTER_PAINT_DIST_MANHATTAN
+#define PAINTER_DIST_QUEUE_BUCKETS 51
+#elif PAINTER_PAINT_DIST_METRIC == PAINTER_PAINT_DIST_EUCLIDEAN
 #define PAINTER_DIST_QUEUE_BUCKETS 1251
+#else
+#error "PAINTER_PAINT_DIST_METRIC must be PAINTER_PAINT_DIST_CHEBYSHEV, MANHATTAN, or EUCLIDEAN"
+#endif
+#endif
 
 #define PAINTER_TILE_IDX(p, t) ((int)((t) - (p)->tiles))
 #define PAINTER_TILE_X(p, t) (PAINTER_TILE_IDX((p), (t)) % (p)->width)
@@ -264,10 +283,15 @@ calc_distance(
     int dx,
     int dz)
 {
-    /* Switch wavefront shape: square (L_inf), diamond (L1), circular (L2 via d^2 buckets). */
+#if PAINTER_PAINT_DIST_METRIC == PAINTER_PAINT_DIST_CHEBYSHEV
+    return calc_distance_chebyshev(dx, dz);
+#elif PAINTER_PAINT_DIST_METRIC == PAINTER_PAINT_DIST_MANHATTAN
     return calc_distance_manhattan(dx, dz);
-    // return calc_distance_chebyshev(dx, dz);
-    // return calc_distance_euclid(dx, dz);
+#elif PAINTER_PAINT_DIST_METRIC == PAINTER_PAINT_DIST_EUCLIDEAN
+    return calc_distance_euclid(dx, dz);
+#else
+#error "PAINTER_PAINT_DIST_METRIC must be PAINTER_PAINT_DIST_CHEBYSHEV, MANHATTAN, or EUCLIDEAN"
+#endif
 }
 
 static inline void
@@ -2811,8 +2835,7 @@ painter_paint4_1(
 #ifdef __EMSCRIPTEN__
     cheb_opts |= CHEB_OPT_CLEAR_BBOX_TILES;
 #endif
-    return painter_paint_chebyshev(
-        painter, buffer, camera_sx, camera_sz, camera_slevel, cheb_opts);
+    return painter_paint_chebyshev(painter, buffer, camera_sx, camera_sz, camera_slevel, cheb_opts);
 }
 
 int

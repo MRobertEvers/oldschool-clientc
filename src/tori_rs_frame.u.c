@@ -1,6 +1,9 @@
 #ifndef TORI_RS_FRAME_U_C
 #define TORI_RS_FRAME_U_C
 
+/** Draw radius used when resolving baked cullmap; must be covered by batch_cullmaps.mjs radii. */
+#define TORI_RS_PAINTERS_CULLMAP_RADIUS 25
+
 #include "graphics/dash.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/collision_map.h"
@@ -539,37 +542,20 @@ LibToriRS_FrameBegin(
             game->world->cullmap_near_clip_z = game->camera->near_plane_z;
             game->world->cullmap_screen_width = game->view_port->width;
             game->world->cullmap_screen_height = game->view_port->height;
-        }
-        if( game->world->painter && !game->world->cullmap &&
-            game->world->cullmap_screen_width > 0 && game->world->cullmap_screen_height > 0 )
-        {
-            if( game->world->cullmap_near_clip_z == PAINTERS_DEFAULT_BAKED_CULLMAP_NEAR_CLIP_Z &&
-                game->world->cullmap_screen_width == PAINTERS_DEFAULT_BAKED_CULLMAP_SCREEN_W &&
-                game->world->cullmap_screen_height == PAINTERS_DEFAULT_BAKED_CULLMAP_SCREEN_H )
-            {
-                game->world->cullmap = painters_cullmap_baked_open_r25_nz512_w1920_h1080();
-                if( !game->world->cullmap )
-                {
-                    game->world->cullmap = painters_cullmap_new(
-                        PAINTERS_DEFAULT_BAKED_CULLMAP_RADIUS,
-                        game->world->cullmap_near_clip_z,
-                        game->world->cullmap_screen_width,
-                        game->world->cullmap_screen_height);
-                }
-            }
-            else
-            {
-                game->world->cullmap = painters_cullmap_new(
-                    PAINTERS_DEFAULT_BAKED_CULLMAP_RADIUS,
-                    game->world->cullmap_near_clip_z,
-                    game->world->cullmap_screen_width,
-                    game->world->cullmap_screen_height);
-            }
-            painter_set_cullmap(game->world->painter, game->world->cullmap);
+            struct ScriptArgs cullmap_script_args = {
+                .tag = SCRIPT_LOAD_CULLMAP,
+                .u.load_cullmap = {
+                    .viewport_w = game->world->cullmap_screen_width,
+                    .viewport_h = game->world->cullmap_screen_height,
+                    .fov = game->camera_fov,
+                    .draw_radius = TORI_RS_PAINTERS_CULLMAP_RADIUS,
+                },
+            };
+            script_queue_push(&game->script_queue, &cullmap_script_args);
         }
     }
 
-    if( game->world && game->world->painter && game->sys_painter_buffer )
+    if( game->world && game->world->painter && game->sys_painter_buffer && game->world->cullmap )
     {
         struct Painter* painter = game->world->painter;
         struct PaintersBuffer* buffer = game->sys_painter_buffer;
@@ -586,50 +572,50 @@ LibToriRS_FrameBegin(
         uint64_t dt_paint_ns;
         uint64_t dt_paint3_ns;
 
-        // painter_paint4(painter, buffer, camera_sx, camera_sz, camera_slevel);
+        painter_paint(painter, buffer, camera_sx, camera_sz, camera_slevel);
 
-        if( (rand() & 1) == 0 )
-        {
-            clock_gettime(CLOCK_MONOTONIC, &t0);
-            painter_paint(painter, buffer, camera_sx, camera_sz, camera_slevel);
-            clock_gettime(CLOCK_MONOTONIC, &t1);
-            dt_paint_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
-                          (uint64_t)(t1.tv_nsec - t0.tv_nsec);
-            clock_gettime(CLOCK_MONOTONIC, &t0);
-            painter_paint4(painter, buffer, camera_sx, camera_sz, camera_slevel);
-            clock_gettime(CLOCK_MONOTONIC, &t1);
-            dt_paint3_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
-                           (uint64_t)(t1.tv_nsec - t0.tv_nsec);
-        }
-        else
-        {
-            clock_gettime(CLOCK_MONOTONIC, &t0);
-            painter_paint4(painter, buffer, camera_sx, camera_sz, camera_slevel);
-            clock_gettime(CLOCK_MONOTONIC, &t1);
-            dt_paint3_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
-                           (uint64_t)(t1.tv_nsec - t0.tv_nsec);
-            clock_gettime(CLOCK_MONOTONIC, &t0);
-            painter_paint(painter, buffer, camera_sx, camera_sz, camera_slevel);
-            clock_gettime(CLOCK_MONOTONIC, &t1);
-            dt_paint_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
-                          (uint64_t)(t1.tv_nsec - t0.tv_nsec);
-        }
+        // if( (rand() & 1) == 0 )
+        // {
+        //     clock_gettime(CLOCK_MONOTONIC, &t0);
+        //     painter_paint(painter, buffer, camera_sx, camera_sz, camera_slevel);
+        //     clock_gettime(CLOCK_MONOTONIC, &t1);
+        //     dt_paint_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+        //                   (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+        //     clock_gettime(CLOCK_MONOTONIC, &t0);
+        //     painter_paint4(painter, buffer, camera_sx, camera_sz, camera_slevel);
+        //     clock_gettime(CLOCK_MONOTONIC, &t1);
+        //     dt_paint3_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+        //                    (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+        // }
+        // else
+        // {
+        //     clock_gettime(CLOCK_MONOTONIC, &t0);
+        //     painter_paint4(painter, buffer, camera_sx, camera_sz, camera_slevel);
+        //     clock_gettime(CLOCK_MONOTONIC, &t1);
+        //     dt_paint3_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+        //                    (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+        //     clock_gettime(CLOCK_MONOTONIC, &t0);
+        //     painter_paint(painter, buffer, camera_sx, camera_sz, camera_slevel);
+        //     clock_gettime(CLOCK_MONOTONIC, &t1);
+        //     dt_paint_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+        //                   (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+        // }
 
-        painter_bench_sum_paint_ns += dt_paint_ns;
-        painter_bench_sum_paint3_ns += dt_paint3_ns;
-        painter_bench_frames++;
-        if( painter_bench_frames >= 30 )
-        {
-            fprintf(
-                stderr,
-                "painter bench (avg over %d frames): paint=%.3f ms paint4=%.3f ms\n",
-                painter_bench_frames,
-                (double)painter_bench_sum_paint_ns / (double)painter_bench_frames / 1e6,
-                (double)painter_bench_sum_paint3_ns / (double)painter_bench_frames / 1e6);
-            painter_bench_frames = 0;
-            painter_bench_sum_paint_ns = 0;
-            painter_bench_sum_paint3_ns = 0;
-        }
+        //     painter_bench_sum_paint_ns += dt_paint_ns;
+        //     painter_bench_sum_paint3_ns += dt_paint3_ns;
+        //     painter_bench_frames++;
+        //     if( painter_bench_frames >= 30 )
+        //     {
+        //         fprintf(
+        //             stderr,
+        //             "painter bench (avg over %d frames): paint=%.3f ms paint4=%.3f ms\n",
+        //             painter_bench_frames,
+        //             (double)painter_bench_sum_paint_ns / (double)painter_bench_frames / 1e6,
+        //             (double)painter_bench_sum_paint3_ns / (double)painter_bench_frames / 1e6);
+        //         painter_bench_frames = 0;
+        //         painter_bench_sum_paint_ns = 0;
+        //         painter_bench_sum_paint3_ns = 0;
+        //     }
     }
 }
 

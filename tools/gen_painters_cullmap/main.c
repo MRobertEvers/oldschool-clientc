@@ -1,5 +1,5 @@
 /*
- * Host tool: build a PaintersCullMap with painters_cullmap_new and emit a standalone .c file
+ * Host tool: build a PaintersCullMap with painters_cullmap_build and emit a standalone .c file
  * with the packed visibility blob and a loader compatible with painters_cullmap_free.
  */
 
@@ -21,9 +21,10 @@ usage(const char* argv0)
 {
     fprintf(
         stderr,
-        "usage: %s --radius R --near Z --width W --height H [-o out.c]\n"
-        "  Builds cullmap with painters_cullmap_new and writes a C source file.\n"
-        "  Default output: painters_cullmap_baked_r{R}_nz{Z}_w{W}_h{H}.c\n",
+        "usage: %s --radius R --near Z --width W --height H [--blob] [-o outpath]\n"
+        "  Builds cullmap with painters_cullmap_build.\n"
+        "  Default: C source (.c). With --blob: raw visibility bytes (.bin).\n"
+        "  Default output: painters_cullmap_baked_r{R}_f{Z}_w{W}_h{H}.c or .bin\n",
         argv0);
 }
 
@@ -52,7 +53,7 @@ near_filename_part(
     size_t cap,
     int ne)
 {
-    snprintf(buf, cap, "nz%d", ne);
+    snprintf(buf, cap, "f%d", ne);
 }
 
 static void
@@ -64,17 +65,17 @@ suffix_ident(
     int w,
     int h)
 {
-    char nz[48];
+    char fpart[48];
     if( ne >= 0 )
-        snprintf(nz, sizeof nz, "nz%u", (unsigned)ne);
+        snprintf(fpart, sizeof fpart, "f%u", (unsigned)ne);
     else
-        snprintf(nz, sizeof nz, "nzm%u", (unsigned)(-ne));
+        snprintf(fpart, sizeof fpart, "fm%u", (unsigned)(-ne));
     snprintf(
         buf,
         cap,
         "r%u_%s_w%u_h%u",
         (unsigned)radius,
-        nz,
+        fpart,
         (unsigned)w,
         (unsigned)h);
 }
@@ -174,6 +175,21 @@ emit_c_file(
         cm->grid_side);
 }
 
+static void
+emit_blob_file(
+    FILE* f,
+    const struct PaintersCullMap* cm)
+{
+    size_t nbits = (size_t)cm->pitch_levels * (size_t)cm->yaw_levels * (size_t)cm->grid_side *
+                   (size_t)cm->grid_side;
+    size_t nbytes = (nbits + 7u) / 8u;
+    if( fwrite(cm->visibility, 1, nbytes, f) != nbytes )
+    {
+        fprintf(stderr, "gen_painters_cullmap: short write (binary)\n");
+        exit(1);
+    }
+}
+
 int
 main(int argc, char** argv)
 {
@@ -183,6 +199,7 @@ main(int argc, char** argv)
     int width = -1;
     int height = -1;
     const char* out_path = NULL;
+    bool blob_mode = false;
 
     for( int i = 1; i < argc; i++ )
     {
@@ -217,6 +234,11 @@ main(int argc, char** argv)
             out_path = argv[++i];
             continue;
         }
+        if( streq(argv[i], "--blob") )
+        {
+            blob_mode = true;
+            continue;
+        }
         fprintf(stderr, "gen_painters_cullmap: unknown argument: %s\n", argv[i]);
         usage(argv[0]);
         return 1;
@@ -233,30 +255,31 @@ main(int argc, char** argv)
     init_cos_table();
     init_tan_table();
 
-    struct PaintersCullMap* cm = painters_cullmap_new(radius, near_z, width, height);
+    struct PaintersCullMap* cm = painters_cullmap_build(radius, near_z, width, height);
     if( !cm )
     {
-        fprintf(stderr, "gen_painters_cullmap: painters_cullmap_new failed\n");
+        fprintf(stderr, "gen_painters_cullmap: painters_cullmap_build failed\n");
         return 1;
     }
 
-    char nzpart[64];
-    near_filename_part(nzpart, sizeof nzpart, near_z);
+    char fpart[64];
+    near_filename_part(fpart, sizeof fpart, near_z);
     char defname[256];
     snprintf(
         defname,
         sizeof defname,
-        "painters_cullmap_baked_r%u_%s_w%u_h%u.c",
+        "painters_cullmap_baked_r%u_%s_w%u_h%u.%s",
         (unsigned)radius,
-        nzpart,
+        fpart,
         (unsigned)width,
-        (unsigned)height);
+        (unsigned)height,
+        blob_mode ? "bin" : "c");
 
     char suffix[160];
     suffix_ident(suffix, sizeof suffix, radius, near_z, width, height);
 
     const char* path = out_path ? out_path : defname;
-    FILE* f = fopen(path, "w");
+    FILE* f = fopen(path, blob_mode ? "wb" : "w");
     if( !f )
     {
         fprintf(stderr, "gen_painters_cullmap: fopen %s: %s\n", path, strerror(errno));
@@ -264,7 +287,10 @@ main(int argc, char** argv)
         return 1;
     }
 
-    emit_c_file(f, suffix, cm, radius, near_z, width, height);
+    if( blob_mode )
+        emit_blob_file(f, cm);
+    else
+        emit_c_file(f, suffix, cm, radius, near_z, width, height);
     fclose(f);
     painters_cullmap_free(cm);
 

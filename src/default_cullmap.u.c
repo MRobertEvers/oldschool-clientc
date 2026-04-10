@@ -31,7 +31,7 @@ struct PaintersCullMap {
     int all_visible;
 };
 
-static const uint8_t painters_cullmap_baked_bytes_r25_nz512_w1920_h1080[] = {
+static const uint8_t painters_cullmap_baked_bytes_r25_f512_w1920_h1080[] = {
     0x00, 0x00, 0x00, 0xfe, 0xff, 0xff, 0x03, 0x00, 0x00, 0xf8, 0xff, 0xff,
     0x0f, 0x00, 0x00, 0xe0, 0xff, 0xff, 0x3f, 0x00, 0x00, 0xc0, 0xff, 0xff,
     0xff, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0x03, 0x00, 0x00, 0xfc, 0xff,
@@ -6702,13 +6702,13 @@ static const uint8_t painters_cullmap_baked_bytes_r25_nz512_w1920_h1080[] = {
 };
 
 struct PaintersCullMap*
-painters_cullmap_baked_open_r25_nz512_w1920_h1080(void)
+painters_cullmap_baked_open_r25_f512_w1920_h1080(void)
 {
-    size_t nbytes = sizeof painters_cullmap_baked_bytes_r25_nz512_w1920_h1080;
+    size_t nbytes = sizeof painters_cullmap_baked_bytes_r25_f512_w1920_h1080;
     uint8_t* vis = (uint8_t*)malloc(nbytes);
     if( !vis )
         return NULL;
-    memcpy(vis, painters_cullmap_baked_bytes_r25_nz512_w1920_h1080, nbytes);
+    memcpy(vis, painters_cullmap_baked_bytes_r25_f512_w1920_h1080, nbytes);
     struct PaintersCullMap* cm =
         (struct PaintersCullMap*)malloc(sizeof(struct PaintersCullMap));
     if( !cm )
