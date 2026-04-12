@@ -1,6 +1,8 @@
 #ifndef PAINTERS_WORLD3D_U_C
 #define PAINTERS_WORLD3D_U_C
 
+#include "painters_i.h"
+
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>

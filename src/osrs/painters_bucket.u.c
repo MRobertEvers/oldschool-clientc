@@ -1,7 +1,7 @@
 #ifndef PAINTERS_BUCKET_U_C
 #define PAINTERS_BUCKET_U_C
 
-#include "painters.h"
+#include "painters_i.h"
 
 #include <assert.h>
 #include <stdlib.h>

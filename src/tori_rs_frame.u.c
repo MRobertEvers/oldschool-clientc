@@ -38,6 +38,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /** Set per `LibToriRS_FrameNextCommand` call for RS model culling. */
 static bool s_frame_project_models;
@@ -564,7 +565,57 @@ LibToriRS_FrameBegin(
 
         painter_set_camera_angles(painter, game->camera_pitch, game->camera_yaw);
 
+        static int painter_bench_frames;
+        static uint64_t painter_bench_sum_paint_ns;
+        static uint64_t painter_bench_sum_paint3_ns;
+        struct timespec t0, t1;
+        uint64_t dt_paint_ns;
+        uint64_t dt_paint3_ns;
+
         painter_paint_bucket(painter, buffer, camera_sx, camera_sz, camera_slevel);
+
+        if( (rand() & 1) == 0 )
+        {
+            clock_gettime(CLOCK_MONOTONIC, &t0);
+            painter_paint_world3d(painter, buffer, camera_sx, camera_sz, camera_slevel);
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+            dt_paint_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+                          (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+            clock_gettime(CLOCK_MONOTONIC, &t0);
+            painter_paint_bucket(painter, buffer, camera_sx, camera_sz, camera_slevel);
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+            dt_paint3_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+                           (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+        }
+        else
+        {
+            clock_gettime(CLOCK_MONOTONIC, &t0);
+            painter_paint_bucket(painter, buffer, camera_sx, camera_sz, camera_slevel);
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+            dt_paint3_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+                           (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+            clock_gettime(CLOCK_MONOTONIC, &t0);
+            painter_paint_world3d(painter, buffer, camera_sx, camera_sz, camera_slevel);
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+            dt_paint_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+                          (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+        }
+
+        painter_bench_sum_paint_ns += dt_paint_ns;
+        painter_bench_sum_paint3_ns += dt_paint3_ns;
+        painter_bench_frames++;
+        if( painter_bench_frames >= 30 )
+        {
+            fprintf(
+                stderr,
+                "painter bench (avg over %d frames): paint_w3d=%.3f ms paint_bucket=%.3f ms\n",
+                painter_bench_frames,
+                (double)painter_bench_sum_paint_ns / (double)painter_bench_frames / 1e6,
+                (double)painter_bench_sum_paint3_ns / (double)painter_bench_frames / 1e6);
+            painter_bench_frames = 0;
+            painter_bench_sum_paint_ns = 0;
+            painter_bench_sum_paint3_ns = 0;
+        }
     }
 }
 
