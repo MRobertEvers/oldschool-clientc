@@ -1660,3 +1660,27 @@ node ./serve-lua-scripts.js
 
 // Serve build
 python3 -m http.server -d build_emscripten 8080
+
+## Painter
+
+```
+painter bench (avg over 30 frames): paint=1.670 ms paint4=2.052 ms
+painter bench (avg over 30 frames): paint=1.656 ms paint4=2.047 ms
+painter bench (avg over 30 frames): paint=1.655 ms paint4=2.054 ms
+painter bench (avg over 30 frames): paint=1.654 ms paint4=2.050 ms
+painter bench (avg over 30 frames): paint=1.651 ms paint4=2.040 ms
+painter bench (avg over 30 frames): paint=1.666 ms paint4=2.038 ms
+painter bench (avg over 30 frames): paint=1.671 ms paint4=2.071 ms
+
+painter bench (avg over 30 frames): paint_w3d=1.987 ms paint_bucket=1.548 ms
+painter bench (avg over 30 frames): paint_w3d=1.987 ms paint_bucket=1.568 ms
+painter bench (avg over 30 frames): paint_w3d=1.981 ms paint_bucket=1.554 ms
+painter bench (avg over 30 frames): paint_w3d=1.982 ms paint_bucket=1.569 ms
+painter bench (avg over 30 frames): paint_w3d=1.964 ms paint_bucket=1.548 ms
+painter bench (avg over 30 frames): paint_w3d=1.968 ms paint_bucket=1.555 ms
+painter bench (avg over 30 frames): paint_w3d=1.975 ms paint_bucket=1.551 ms
+painter bench (avg over 30 frames): paint_w3d=1.950 ms paint_bucket=1.528 ms
+painter bench (avg over 30 frames): paint_w3d=1.972 ms paint_bucket=1.556 ms
+painter bench (avg over 30 frames): paint_w3d=1.971 ms paint_bucket=1.556 ms
+painter bench (avg over 30 frames): paint_w3d=1.967 ms paint_bucket=1.550 ms
+```

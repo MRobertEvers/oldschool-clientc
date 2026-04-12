@@ -62,6 +62,7 @@ struct Painter
 
     void* bucket_ctx;
     void* w3d_ctx;
+    void* distmetric_ctx;
 };
 
 #endif

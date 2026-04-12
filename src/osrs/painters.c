@@ -123,6 +123,10 @@ static int
 w3d_ctx_init(struct Painter* painter);
 static void
 w3d_ctx_free(struct Painter* painter);
+static int
+distmetric_ctx_init(struct Painter* painter);
+static void
+distmetric_ctx_free(struct Painter* painter);
 
 static struct Painter* s_scenery_sort_painter;
 static int s_scenery_sort_camera_sx;
@@ -435,11 +439,14 @@ painter_new(
 
     painter->bucket_ctx = NULL;
     painter->w3d_ctx = NULL;
+    painter->distmetric_ctx = NULL;
 
-    if( bucket_ctx_init(painter) != 0 || w3d_ctx_init(painter) != 0 )
+    if( bucket_ctx_init(painter) != 0 || w3d_ctx_init(painter) != 0 ||
+        distmetric_ctx_init(painter) != 0 )
     {
         bucket_ctx_free(painter);
         w3d_ctx_free(painter);
+        distmetric_ctx_free(painter);
         free(painter->tiles);
         free(painter->scenery_pool);
         free(painter->tile_paints);
@@ -517,6 +524,7 @@ painter_free(struct Painter* painter)
     free(painter->element_paints);
     bucket_ctx_free(painter);
     w3d_ctx_free(painter);
+    distmetric_ctx_free(painter);
     free(painter);
 }
 
@@ -1012,4 +1020,5 @@ int g_trap_z = -1;
 // clang-format off
 #include "painters_bucket.u.c"
 #include "painters_world3d.u.c"
+#include "painters_distancemetric.u.c"
 // clang-format on
