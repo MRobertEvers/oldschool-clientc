@@ -1,6 +1,8 @@
 #ifndef PAINTERS_BUCKET_U_C
 #define PAINTERS_BUCKET_U_C
 
+#include "painters.h"
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,7 +13,7 @@
 struct PainterBucketCtx
 {
     int* bucket_next; /* [tile_capacity]; intrusive list per bucket, -1 = end */
-    int* dist; /* [tile_capacity] Manhattan distance key */
+    int* dist;        /* [tile_capacity] Manhattan distance key */
     uint8_t* in_heap;
     int bucket_heads[BUCKET_DIST_RANGE];
     int bucket_max;
@@ -28,7 +30,9 @@ bucket_reset(struct PainterBucketCtx* w)
 }
 
 static void
-bucket_push(struct PainterBucketCtx* w, int ti)
+bucket_push(
+    struct PainterBucketCtx* w,
+    int ti)
 {
     int d = w->dist[ti];
     assert(d >= 0 && d < BUCKET_DIST_RANGE);
@@ -58,7 +62,9 @@ bucket_pop(struct PainterBucketCtx* w)
 }
 
 static void
-bucket_push_tile(struct PainterBucketCtx* w, int ti)
+bucket_push_tile(
+    struct PainterBucketCtx* w,
+    int ti)
 {
     if( w->in_heap[ti] )
         return;
@@ -67,25 +73,33 @@ bucket_push_tile(struct PainterBucketCtx* w, int ti)
 }
 
 static inline int
-bucket_is_north(int camera_sz, int tile_sz)
+bucket_is_north(
+    int camera_sz,
+    int tile_sz)
 {
     return tile_sz < camera_sz;
 }
 
 static inline int
-bucket_is_east(int camera_sx, int tile_sx)
+bucket_is_east(
+    int camera_sx,
+    int tile_sx)
 {
     return tile_sx > camera_sx;
 }
 
 static inline int
-bucket_is_south(int camera_sz, int tile_sz)
+bucket_is_south(
+    int camera_sz,
+    int tile_sz)
 {
     return tile_sz > camera_sz;
 }
 
 static inline int
-bucket_is_west(int camera_sx, int tile_sx)
+bucket_is_west(
+    int camera_sx,
+    int tile_sx)
 {
     return tile_sx < camera_sx;
 }
@@ -191,24 +205,20 @@ painter_paint_bucket(
 
                 w->dist[ti] = abs(x - camera_sx) + abs(z - camera_sz);
 
+                tile_paint = tile_paint_at(painter, x, z, s);
                 if( (painters_tile_get_flags(t) & PAINTERS_TILE_FLAG_BRIDGE) != 0 ||
                     tile_slevel > max_level )
                 {
-                    painter->tile_paints[ti].step = PAINT_STEP_DONE;
+                    tile_paint->step = PAINT_STEP_DONE;
                 }
                 else if( !painter_cullmap_tile_visible(
-                             painter,
-                             &painter->tile_paints[ti],
-                             x,
-                             z,
-                             camera_sx,
-                             camera_sz) )
+                             painter, tile_paint, x, z, camera_sx, camera_sz) )
                 {
-                    painter->tile_paints[ti].step = PAINT_STEP_DONE;
+                    tile_paint->step = PAINT_STEP_DONE;
                 }
                 else
                 {
-                    painter->tile_paints[ti].step = PAINT_STEP_READY;
+                    tile_paint->step = PAINT_STEP_READY;
                 }
             }
         }
@@ -223,7 +233,7 @@ painter_paint_bucket(
             for( int x = min_draw_x; x < max_draw_x; x++ )
             {
                 int ti = painter_coord_idx(painter, x, z, s);
-                tile_paint = &painter->tile_paints[ti];
+                tile_paint = tile_paint_at(painter, x, z, s);
                 if( tile_paint->step != PAINT_STEP_READY )
                     continue;
                 bucket_push(w, ti);
@@ -239,12 +249,12 @@ painter_paint_bucket(
             break;
 
         tile = &painter->tiles[e_tile];
-        tile_paint = &painter->tile_paints[e_tile];
         w->in_heap[e_tile] = 0;
 
         int tile_sx = PAINTER_TILE_X(painter, tile);
         int tile_sz = PAINTER_TILE_Z(painter, tile);
         int tile_slevel = painters_tile_get_slevel(tile);
+        tile_paint = tile_paint_at(painter, tile_sx, tile_sz, tile_slevel);
 
         if( tile_paint->step == PAINT_STEP_DONE )
             continue;
@@ -262,38 +272,38 @@ painter_paint_bucket(
             tile_paint->step = PAINT_STEP_DONE;
             if( tile_slevel < painter->levels - 1 )
             {
-                int other_idx = step_idx_up(painter, e_tile);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at(painter, tile_sx, tile_sz, tile_slevel + 1);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(w, other_idx);
+                    bucket_push_tile(
+                        w, painter_coord_idx(painter, tile_sx, tile_sz, tile_slevel + 1));
             }
             if( tile_inward_east_inbounds(tile_sx, camera_sx, max_draw_x) )
             {
-                int other_idx = step_idx_east(painter, e_tile);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at(painter, tile_sx + 1, tile_sz, tile_slevel);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(w, other_idx);
+                    bucket_push_tile(
+                        w, painter_coord_idx(painter, tile_sx + 1, tile_sz, tile_slevel));
             }
             if( tile_inward_west_inbounds(tile_sx, camera_sx, min_draw_x) )
             {
-                int other_idx = step_idx_west(painter, e_tile);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at(painter, tile_sx - 1, tile_sz, tile_slevel);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(w, other_idx);
+                    bucket_push_tile(
+                        w, painter_coord_idx(painter, tile_sx - 1, tile_sz, tile_slevel));
             }
             if( tile_inward_north_inbounds(tile_sz, camera_sz, max_draw_z) )
             {
-                int other_idx = step_idx_north(painter, e_tile);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at(painter, tile_sx, tile_sz + 1, tile_slevel);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(w, other_idx);
+                    bucket_push_tile(
+                        w, painter_coord_idx(painter, tile_sx, tile_sz + 1, tile_slevel));
             }
             if( tile_inward_south_inbounds(tile_sz, camera_sz, min_draw_z) )
             {
-                int other_idx = step_idx_south(painter, e_tile);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at(painter, tile_sx, tile_sz - 1, tile_slevel);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(w, other_idx);
+                    bucket_push_tile(
+                        w, painter_coord_idx(painter, tile_sx, tile_sz - 1, tile_slevel));
             }
             continue;
         }
@@ -317,7 +327,7 @@ painter_paint_bucket(
             {
                 if( tile_is_south_inbounds(tile_sz, camera_sz, min_draw_z) )
                 {
-                    other_paint = &painter->tile_paints[step_idx_south(painter, e_tile)];
+                    other_paint = tile_paint_at(painter, tile_sx, tile_sz - 1, tile_slevel);
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
                         if( (tile->spans & SPAN_FLAG_SOUTH) == 0 )
@@ -329,7 +339,7 @@ painter_paint_bucket(
             {
                 if( tile_is_east_inbounds(tile_sx, camera_sx, max_draw_x) )
                 {
-                    other_paint = &painter->tile_paints[step_idx_east(painter, e_tile)];
+                    other_paint = tile_paint_at(painter, tile_sx + 1, tile_sz, tile_slevel);
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
                         if( (tile->spans & SPAN_FLAG_EAST) == 0 )
@@ -341,7 +351,7 @@ painter_paint_bucket(
             {
                 if( tile_is_north_inbounds(tile_sz, camera_sz, max_draw_z) )
                 {
-                    other_paint = &painter->tile_paints[step_idx_north(painter, e_tile)];
+                    other_paint = tile_paint_at(painter, tile_sx, tile_sz + 1, tile_slevel);
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
                         if( (tile->spans & SPAN_FLAG_NORTH) == 0 )
@@ -353,7 +363,7 @@ painter_paint_bucket(
             {
                 if( tile_is_west_inbounds(tile_sx, camera_sx, min_draw_x) )
                 {
-                    other_paint = &painter->tile_paints[step_idx_west(painter, e_tile)];
+                    other_paint = tile_paint_at(painter, tile_sx - 1, tile_sz, tile_slevel);
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
                         if( (tile->spans & SPAN_FLAG_WEST) == 0 )
@@ -515,8 +525,7 @@ painter_paint_bucket(
                         all_base = 0;
                         break;
                     }
-                    int uidx = painter_coord_idx(painter, ox, oz, el_slevel);
-                    struct TilePaint* u = &painter->tile_paints[uidx];
+                    struct TilePaint* u = tile_paint_at(painter, ox, oz, el_slevel);
                     if( u->step < PAINT_STEP_GROUND )
                     {
                         all_base = 0;
@@ -565,8 +574,7 @@ painter_paint_bucket(
                     {
                         if( ox < 0 || oz < 0 || ox >= painter->width || oz >= painter->height )
                             continue;
-                        int uidx = painter_coord_idx(painter, ox, oz, el_slevel);
-                        bucket_push_tile(w, uidx);
+                        bucket_push_tile(w, painter_coord_idx(painter, ox, oz, el_slevel));
                         some_drawn = 1;
                     }
                 }
@@ -643,50 +651,49 @@ painter_paint_bucket(
 
         if( tile_slevel < painter->levels - 1 )
         {
-            int other_idx = step_idx_up(painter, e_tile);
-            other_paint = &painter->tile_paints[other_idx];
+            other_paint = tile_paint_at(painter, tile_sx, tile_sz, tile_slevel + 1);
             if( other_paint->step != PAINT_STEP_DONE )
-                bucket_push_tile(w, other_idx);
+                bucket_push_tile(w, painter_coord_idx(painter, tile_sx, tile_sz, tile_slevel + 1));
         }
 
         if( bucket_is_north(camera_sz, tile_sz) )
         {
             if( tile_inward_north_inbounds(tile_sz, camera_sz, max_draw_z) )
             {
-                int other_idx = step_idx_north(painter, e_tile);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at(painter, tile_sx, tile_sz + 1, tile_slevel);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(w, other_idx);
+                    bucket_push_tile(
+                        w, painter_coord_idx(painter, tile_sx, tile_sz + 1, tile_slevel));
             }
         }
         if( bucket_is_east(camera_sx, tile_sx) )
         {
             if( tile_inward_west_inbounds(tile_sx, camera_sx, min_draw_x) )
             {
-                int other_idx = step_idx_west(painter, e_tile);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at(painter, tile_sx - 1, tile_sz, tile_slevel);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(w, other_idx);
+                    bucket_push_tile(
+                        w, painter_coord_idx(painter, tile_sx - 1, tile_sz, tile_slevel));
             }
         }
         if( bucket_is_south(camera_sz, tile_sz) )
         {
             if( tile_inward_south_inbounds(tile_sz, camera_sz, min_draw_z) )
             {
-                int other_idx = step_idx_south(painter, e_tile);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at(painter, tile_sx, tile_sz - 1, tile_slevel);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(w, other_idx);
+                    bucket_push_tile(
+                        w, painter_coord_idx(painter, tile_sx, tile_sz - 1, tile_slevel));
             }
         }
         if( bucket_is_west(camera_sx, tile_sx) )
         {
             if( tile_inward_east_inbounds(tile_sx, camera_sx, max_draw_x) )
             {
-                int other_idx = step_idx_east(painter, e_tile);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at(painter, tile_sx + 1, tile_sz, tile_slevel);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(w, other_idx);
+                    bucket_push_tile(
+                        w, painter_coord_idx(painter, tile_sx + 1, tile_sz, tile_slevel));
             }
         }
     }

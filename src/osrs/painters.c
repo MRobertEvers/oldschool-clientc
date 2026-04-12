@@ -167,24 +167,20 @@ struct Painter
     int element_count;
     int element_capacity;
 
-    void* paint1_ctx;
-    void* paint2_ctx;
-    void* distmetric_ctx;
     void* bucket_ctx;
     void* w3d_ctx;
 };
 
 /* Mode ctx init/free (defined in painters_*.u.c, included later in this TU). */
-static int paint1_ctx_init(struct Painter* painter);
-static void paint1_ctx_free(struct Painter* painter);
-static int paint2_ctx_init(struct Painter* painter);
-static void paint2_ctx_free(struct Painter* painter);
-static int distmetric_ctx_init(struct Painter* painter);
-static void distmetric_ctx_free(struct Painter* painter);
-static int bucket_ctx_init(struct Painter* painter);
-static void bucket_ctx_free(struct Painter* painter);
-static int w3d_ctx_init(struct Painter* painter);
-static void w3d_ctx_free(struct Painter* painter);
+
+static int
+bucket_ctx_init(struct Painter* painter);
+static void
+bucket_ctx_free(struct Painter* painter);
+static int
+w3d_ctx_init(struct Painter* painter);
+static void
+w3d_ctx_free(struct Painter* painter);
 
 static struct Painter* s_scenery_sort_painter;
 static int s_scenery_sort_camera_sx;
@@ -495,19 +491,11 @@ painter_new(
     painter->element_paints = malloc(128 * sizeof(struct ElementPaint));
     memset(painter->element_paints, 0, 128 * sizeof(struct ElementPaint));
 
-    painter->paint1_ctx = NULL;
-    painter->paint2_ctx = NULL;
-    painter->distmetric_ctx = NULL;
     painter->bucket_ctx = NULL;
     painter->w3d_ctx = NULL;
 
-    if( paint1_ctx_init(painter) != 0 || paint2_ctx_init(painter) != 0 ||
-        distmetric_ctx_init(painter) != 0 || bucket_ctx_init(painter) != 0 ||
-        w3d_ctx_init(painter) != 0 )
+    if( bucket_ctx_init(painter) != 0 || w3d_ctx_init(painter) != 0 )
     {
-        paint1_ctx_free(painter);
-        paint2_ctx_free(painter);
-        distmetric_ctx_free(painter);
         bucket_ctx_free(painter);
         w3d_ctx_free(painter);
         free(painter->tiles);
@@ -585,9 +573,6 @@ painter_free(struct Painter* painter)
     free(painter->tile_paints);
     free(painter->elements);
     free(painter->element_paints);
-    paint1_ctx_free(painter);
-    paint2_ctx_free(painter);
-    distmetric_ctx_free(painter);
     bucket_ctx_free(painter);
     w3d_ctx_free(painter);
     free(painter);
@@ -1083,9 +1068,6 @@ int g_trap_x = -1;
 int g_trap_z = -1;
 
 // clang-format off
-#include "painters_paint1.u.c"
-#include "painters_paint2.u.c"
-#include "painters_distancemetric.u.c"
 #include "painters_bucket.u.c"
 #include "painters_world3d.u.c"
 // clang-format on

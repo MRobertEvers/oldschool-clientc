@@ -473,42 +473,6 @@ painter_paint(
     int camera_slevel);
 
 int
-painter_paint2(
-    struct Painter* painter, //
-    struct PaintersBuffer* buffer,
-    int camera_sx,
-    int camera_sz,
-    int camera_slevel);
-
-int
-painter_paint3(
-    struct Painter* painter, //
-    struct PaintersBuffer* buffer,
-    int camera_sx,
-    int camera_sz,
-    int camera_slevel);
-
-int
-painter_paint4(
-    struct Painter* painter, //
-    struct PaintersBuffer* buffer,
-    int camera_sx,
-    int camera_sz,
-    int camera_slevel);
-
-/**
- * Like painter_paint4 (distance-bucket queue + insertion-sort scenery), but uses a full
- * tile_paints memset on native and targeted bbox clear on Emscripten/WASM.
- */
-int
-painter_paint4_1(
-    struct Painter* painter, //
-    struct PaintersBuffer* buffer,
-    int camera_sx,
-    int camera_sz,
-    int camera_slevel);
-
-int
 painter_paint_bucket(
     struct Painter* painter, //
     struct PaintersBuffer* buffer,
