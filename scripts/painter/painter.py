@@ -41,6 +41,7 @@ class Tile:
         self.dist = abs(x - (GRID_SIZE // 2)) + abs(y - (GRID_SIZE // 2))
         self.idx = idx
         self.large_tiles = []
+        self.in_heap = False
 
     def __lt__(self, other):
         return self.idx < other.idx
@@ -90,7 +91,9 @@ class GridManager:
                         t.large_tiles.append(lt)
 
         for t in self.grid.values():
-            heapq.heappush(self.tile_heap, (-t.dist, t))
+            if t.mask:
+                heapq.heappush(self.tile_heap, (-t.dist, t))
+                t.in_heap = True
 
 
     def is_north(self, t):
@@ -128,6 +131,12 @@ class GridManager:
                 return True
         return False
 
+    def _push(self, tile):
+        """Push tile onto the heap only if it is not already there."""
+        if not tile.in_heap:
+            heapq.heappush(self.tile_heap, (-tile.dist, tile))
+            tile.in_heap = True
+
     def run(self):
         """Executes one tick of the state machine logic."""
 
@@ -135,13 +144,10 @@ class GridManager:
         
         runstep = 0
 
-
-
         while self.tile_heap and runstep < self.current_step:
             runstep += 1
-            if runstep == self.current_step:
-                print(f"Running step {runstep}")
             dist, tile = heapq.heappop(self.tile_heap)
+            tile.in_heap = False
 
             if tile.step == TileStep.DONE:
                 continue
@@ -183,7 +189,7 @@ class GridManager:
             for lt in tile.large_tiles:
                 if lt.step == TileStep.DONE:
                     continue
-                
+
                 for tile_under in lt.tiles_under:
                     if tile_under.step < TileStep.BASE:
                         break
@@ -194,7 +200,7 @@ class GridManager:
             for lt in visit_lt:
                 lt.step = TileStep.DONE
                 for tile_under in lt.tiles_under:
-                    heapq.heappush(self.tile_heap, (-tile_under.dist, tile_under))
+                    self._push(tile_under)
 
             alldrawn = True
             for t in tile.large_tiles:
@@ -210,25 +216,26 @@ class GridManager:
             if tile.level < LEVELS - 1:
                 neighbor = self.grid.get((tile.x, tile.y, tile.level + 1))
                 if neighbor and neighbor.step != TileStep.DONE:
-                    heapq.heappush(self.tile_heap, (-neighbor.dist, neighbor))
+                    self._push(neighbor)
             
             # Pass towards center
             if self.is_north(tile):
                 neighbor = self.grid.get((tile.x, tile.y + 1, tile.level))
                 if neighbor and neighbor.step != TileStep.DONE:
-                    heapq.heappush(self.tile_heap, (-neighbor.dist, neighbor))
+                    self._push(neighbor)
             if self.is_east(tile):
                 neighbor = self.grid.get((tile.x - 1 , tile.y, tile.level))
                 if neighbor and neighbor.step != TileStep.DONE:
-                    heapq.heappush(self.tile_heap, (-neighbor.dist, neighbor))
+                    self._push(neighbor)
             if self.is_south(tile):
                 neighbor = self.grid.get((tile.x, tile.y - 1, tile.level))
                 if neighbor and neighbor.step != TileStep.DONE:
-                    heapq.heappush(self.tile_heap, (-neighbor.dist, neighbor))
+                    self._push(neighbor)
             if self.is_west(tile):
                 neighbor = self.grid.get((tile.x + 1, tile.y, tile.level))
                 if neighbor and neighbor.step != TileStep.DONE:
-                    heapq.heappush(self.tile_heap, (-neighbor.dist, neighbor))
+                    self._push(neighbor)
+
 
 def main():
     pygame.init()
