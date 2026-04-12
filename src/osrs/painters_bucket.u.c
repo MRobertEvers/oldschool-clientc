@@ -191,7 +191,17 @@ painter_paint_bucket(
     painter_clear_tile_paints_region(
         painter, min_draw_x, max_draw_x, min_draw_z, max_draw_z, max_level);
 
-    memset(w->in_heap, 0, (size_t)painter->tile_capacity);
+    for( int s = 0; s < max_level && s < painter->levels; s++ )
+    {
+        for( int z = min_draw_z; z < max_draw_z; z++ )
+        {
+            int base = painter_coord_idx(painter, min_draw_x, z, s);
+            memset(
+                &w->in_heap[base],
+                0,
+                (size_t)(max_draw_x - min_draw_x) * sizeof(uint8_t));
+        }
+    }
 
     for( int s = 0; s < max_level && s < painter->levels; s++ )
     {

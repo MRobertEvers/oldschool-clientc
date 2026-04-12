@@ -429,17 +429,6 @@ painter_paint_world3d(
 
     buffer->command_count = 0;
     memset(painter->element_paints, 0x00, painter->element_count * sizeof(struct ElementPaint));
-    memset(painter->tile_paints, 0x00, painter->tile_capacity * sizeof(struct TilePaint));
-
-    for( int i = 0; i < painter->tile_capacity; i++ )
-    {
-        W3(painter)->paints[i].ll_prev = -1;
-        W3(painter)->paints[i].ll_next = -1;
-        W3(painter)->paints[i].draw_front = 0;
-        W3(painter)->paints[i].draw_back = 0;
-        W3(painter)->paints[i].draw_primaries = 0;
-    }
-    w3d_link_init_sentinel(painter);
 
     int radius = 25;
     int max_level = 4;
@@ -468,6 +457,27 @@ painter_paint_world3d(
 
     if( min_draw_x >= max_draw_x || min_draw_z >= max_draw_z )
         return 0;
+
+    /* CHEB_OPT_CLEAR_BBOX_TILES-style: only reset state inside the draw rect (not full map). */
+    painter_clear_tile_paints_region(
+        painter, min_draw_x, max_draw_x, min_draw_z, max_draw_z, painter->levels);
+
+    for( int s = 0; s < painter->levels; s++ )
+    {
+        for( int z = min_draw_z; z < max_draw_z; z++ )
+        {
+            for( int x = min_draw_x; x < max_draw_x; x++ )
+            {
+                int i = painter_coord_idx(painter, x, z, s);
+                W3(painter)->paints[i].ll_prev = -1;
+                W3(painter)->paints[i].ll_next = -1;
+                W3(painter)->paints[i].draw_front = 0;
+                W3(painter)->paints[i].draw_back = 0;
+                W3(painter)->paints[i].draw_primaries = 0;
+            }
+        }
+    }
+    w3d_link_init_sentinel(painter);
 
     int eye_ix = camera_sx;
     int eye_iz = camera_sz;
