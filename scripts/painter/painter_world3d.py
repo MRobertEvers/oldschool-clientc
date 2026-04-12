@@ -20,26 +20,38 @@ COLOR_MASKED      = (10, 10, 10)
 COLOR_NOT_VISITED = (100, 100, 100)
 COLOR_BASE        = (200, 200, 0)   # drawFront=False, drawBack=True
 COLOR_DONE        = (0, 200, 0)     # drawFront=False, drawBack=False
-COLOR_LOC_BORDER  = (0, 150, 255)
+COLOR_SCENERY_BORDER = (0, 150, 255)
 COLOR_EYE         = (255, 80, 80)
 COLOR_FOV         = (200, 100, 50)
 
 
 # ---------------------------------------------------------------------------
-# Frustum helpers
+# Frustum helpers — precomputed bitmask (bit index = z * GRID_SIZE + x)
 # ---------------------------------------------------------------------------
 
-def tile_in_frustum(tx, tz, eye_x, eye_z, yaw_deg):
-    """Return True if tile (tx, tz) falls inside the view cone."""
-    dx, dz = tx - eye_x, tz - eye_z
-    if dx == 0 and dz == 0:
-        return True
-    dist = math.sqrt(dx * dx + dz * dz)
-    face_x =  math.sin(math.radians(yaw_deg))
+def compute_frustum_mask(eye_x: float, eye_z: float, yaw_deg: float) -> int:
+    """Build an int bitmask: one bit per tile visible in the view cone."""
+    mask = 0
+    half_fov = FOV_DEG / 2.0
+    face_x = math.sin(math.radians(yaw_deg))
     face_z = -math.cos(math.radians(yaw_deg))
-    dot = (dx / dist) * face_x + (dz / dist) * face_z
-    angle = math.degrees(math.acos(max(-1.0, min(1.0, dot))))
-    return angle <= FOV_DEG / 2.0
+    for z in range(GRID_SIZE):
+        for x in range(GRID_SIZE):
+            dx, dz = x - eye_x, z - eye_z
+            bit = 1 << (z * GRID_SIZE + x)
+            if dx == 0 and dz == 0:
+                mask |= bit
+                continue
+            dist = math.sqrt(dx * dx + dz * dz)
+            dot = (dx / dist) * face_x + (dz / dist) * face_z
+            angle = math.degrees(math.acos(max(-1.0, min(1.0, dot))))
+            if angle <= half_fov:
+                mask |= bit
+    return mask
+
+
+def tile_visible_in_frustum_mask(frustum_mask: int, x: int, z: int) -> bool:
+    return bool((frustum_mask >> (z * GRID_SIZE + x)) & 1)
 
 
 def move_eye(eye_x, eye_z, key):
@@ -118,16 +130,33 @@ class LinkList:
 # Data classes
 # ---------------------------------------------------------------------------
 
-class Loc:
-    def __init__(self, min_tile_x: int, max_tile_x: int,
-                 min_tile_z: int, max_tile_z: int, level: int):
-        self.min_tile_x = min_tile_x
-        self.max_tile_x = max_tile_x
-        self.min_tile_z = min_tile_z
-        self.max_tile_z = max_tile_z
+class Scenery:
+    """Multi-tile scenery: origin (x, y) and size (w, h) on the xz grid (y = z-axis tile)."""
+
+    def __init__(self, x: int, y: int, w: int, h: int, level: int):
+        self.x = x
+        self.y = y  # min tile z
+        self.w = w
+        self.h = h
         self.level = level
         self.cycle: int = 0
         self.distance: int = 0
+
+    @property
+    def min_tile_x(self) -> int:
+        return self.x
+
+    @property
+    def max_tile_x(self) -> int:
+        return self.x + self.w - 1
+
+    @property
+    def min_tile_z(self) -> int:
+        return self.y
+
+    @property
+    def max_tile_z(self) -> int:
+        return self.y + self.h - 1
 
     def reset(self) -> None:
         self.cycle = 0
@@ -144,7 +173,7 @@ class Square(Linkable):
         self.mask = mask
 
         self.primary_count: int = 0
-        self.locs: list = [None] * self.MAX_PRIMARY
+        self.scenery_list: list = [None] * self.MAX_PRIMARY
         self.primary_extend_dirs: list = [0] * self.MAX_PRIMARY
         self.combined_extend_dirs: int = 0
 
@@ -175,7 +204,7 @@ class GridManager:
         self.current_step: int = 0
 
         self.grid: dict = {}
-        self.all_locs: list = []
+        self.all_scenery: list = []
 
         self._build_grid()
 
@@ -189,26 +218,31 @@ class GridManager:
                 for z in range(GRID_SIZE):
                     self.grid[(level, x, z)] = Square(level, x, z, mask=True)
 
-        self._add_loc(1, 3, 1, 2, 0)
-        self._add_loc(2, 3, 1, 3, 0)
-        self._add_loc(6, 9, 4, 7, 0)
-        self._add_loc(7, 8, 7, 8, 1)
+        self._add_scenery(1, 1, 3, 2, 0)
+        self._add_scenery(2, 1, 2, 3, 0)
+        self._add_scenery(6, 4, 4, 4, 0)
+        self._add_scenery(7, 7, 2, 2, 1)
 
-    def _add_loc(self, min_x: int, max_x: int,
-                 min_z: int, max_z: int, level: int) -> None:
-        loc = Loc(min_x, max_x, min_z, max_z, level)
-        self.all_locs.append(loc)
+    def _add_scenery(self, x: int, y: int, w: int, h: int, level: int) -> None:
+        scenery = Scenery(x, y, w, h, level)
+        self.all_scenery.append(scenery)
+        min_x, max_x = scenery.min_tile_x, scenery.max_tile_x
+        min_z, max_z = scenery.min_tile_z, scenery.max_tile_z
         for tx in range(min_x, max_x + 1):
             for tz in range(min_z, max_z + 1):
                 sq = self.grid.get((level, tx, tz))
                 if sq is None or sq.primary_count >= Square.MAX_PRIMARY:
                     continue
                 spans = 0
-                if tx > min_x: spans |= 0x1
-                if tx < max_x: spans |= 0x4
-                if tz > min_z: spans |= 0x8
-                if tz < max_z: spans |= 0x2
-                sq.locs[sq.primary_count] = loc
+                if tx > min_x:
+                    spans |= 0x1
+                if tx < max_x:
+                    spans |= 0x4
+                if tz > min_z:
+                    spans |= 0x8
+                if tz < max_z:
+                    spans |= 0x2
+                sq.scenery_list[sq.primary_count] = scenery
                 sq.primary_extend_dirs[sq.primary_count] = spans
                 sq.combined_extend_dirs |= spans
                 sq.primary_count += 1
@@ -218,8 +252,10 @@ class GridManager:
     # ------------------------------------------------------------------
 
     def _update_masks(self) -> None:
+        frustum_mask = compute_frustum_mask(
+            self.eye_x, self.eye_z, self.yaw_deg)
         for sq in self.grid.values():
-            sq.mask = tile_in_frustum(sq.x, sq.z, self.eye_x, self.eye_z, self.yaw_deg)
+            sq.mask = tile_visible_in_frustum_mask(frustum_mask, sq.x, sq.z)
 
     # ------------------------------------------------------------------
     # Seed sequence — rebuilt each run() because eye_x/eye_z can change
@@ -273,8 +309,8 @@ class GridManager:
 
         for sq in self.grid.values():
             sq.reset_state()
-        for loc in self.all_locs:
-            loc.reset()
+        for scenery in self.all_scenery:
+            scenery.reset()
 
         seeds = self._build_seeds()
 
@@ -380,18 +416,18 @@ class GridManager:
 
             if tile.draw_primaries:
                 tile.draw_primaries = False
-                loc_buffer = []
+                scenery_buffer = []
 
                 for i in range(tile.primary_count):
-                    loc = tile.locs[i]
-                    if loc is None or loc.cycle == cycle:
+                    sc = tile.scenery_list[i]
+                    if sc is None or sc.cycle == cycle:
                         continue
 
                     blocked = False
-                    for lx in range(loc.min_tile_x, loc.max_tile_x + 1):
+                    for lx in range(sc.min_tile_x, sc.max_tile_x + 1):
                         if blocked:
                             break
-                        for lz in range(loc.min_tile_z, loc.max_tile_z + 1):
+                        for lz in range(sc.min_tile_z, sc.max_tile_z + 1):
                             other = self.grid.get((lv, lx, lz))
                             if other and other.draw_front:
                                 tile.draw_primaries = True
@@ -399,21 +435,21 @@ class GridManager:
                                 break
 
                     if not blocked:
-                        dist_x = max(self.eye_x - loc.min_tile_x,
-                                     loc.max_tile_x - self.eye_x)
-                        dz_a = self.eye_z - loc.min_tile_z
-                        dz_b = loc.max_tile_z - self.eye_z
-                        loc.distance = dist_x + max(dz_a, dz_b)
-                        loc_buffer.append(loc)
+                        dist_x = max(self.eye_x - sc.min_tile_x,
+                                     sc.max_tile_x - self.eye_x)
+                        dz_a = self.eye_z - sc.min_tile_z
+                        dz_b = sc.max_tile_z - self.eye_z
+                        sc.distance = dist_x + max(dz_a, dz_b)
+                        scenery_buffer.append(sc)
 
-                remaining = list(loc_buffer)
+                remaining = list(scenery_buffer)
                 while remaining:
                     farthest = None
                     best = -50
-                    for l in remaining:
-                        if l.cycle != cycle and l.distance > best:
-                            best = l.distance
-                            farthest = l
+                    for s in remaining:
+                        if s.cycle != cycle and s.distance > best:
+                            best = s.distance
+                            farthest = s
                     if farthest is None:
                         break
 
@@ -598,27 +634,27 @@ def main():
                         color = COLOR_NOT_VISITED
                     pygame.draw.rect(screen, color, rect)
 
-            for loc in manager.all_locs:
-                if loc.level != level:
+            for scenery in manager.all_scenery:
+                if scenery.level != level:
                     continue
-                lx = off_x + loc.min_tile_x * CELL_SIZE
-                lz = off_y + loc.min_tile_z * CELL_SIZE
-                lw = (loc.max_tile_x - loc.min_tile_x + 1) * CELL_SIZE - 2
-                lh = (loc.max_tile_z - loc.min_tile_z + 1) * CELL_SIZE - 2
+                lx = off_x + scenery.min_tile_x * CELL_SIZE
+                lz = off_y + scenery.min_tile_z * CELL_SIZE
+                lw = (scenery.max_tile_x - scenery.min_tile_x + 1) * CELL_SIZE - 2
+                lh = (scenery.max_tile_z - scenery.min_tile_z + 1) * CELL_SIZE - 2
                 if lw <= 0 or lh <= 0:
                     continue
 
                 all_front_cleared = all(
                     not manager.grid[(level, lx2, lz2)].draw_front
-                    for lx2 in range(loc.min_tile_x, loc.max_tile_x + 1)
-                    for lz2 in range(loc.min_tile_z, loc.max_tile_z + 1)
+                    for lx2 in range(scenery.min_tile_x, scenery.max_tile_x + 1)
+                    for lz2 in range(scenery.min_tile_z, scenery.max_tile_z + 1)
                     if (level, lx2, lz2) in manager.grid
                 )
                 if all_front_cleared:
                     surf = pygame.Surface((lw, lh), pygame.SRCALPHA)
                     surf.fill((0, 150, 255, 100))
                     screen.blit(surf, (lx, lz))
-                pygame.draw.rect(screen, COLOR_LOC_BORDER, (lx, lz, lw, lh), 3)
+                pygame.draw.rect(screen, COLOR_SCENERY_BORDER, (lx, lz, lw, lh), 3)
 
             draw_frustum(screen, off_x, off_y,
                          manager.eye_x, manager.eye_z, manager.yaw_deg)

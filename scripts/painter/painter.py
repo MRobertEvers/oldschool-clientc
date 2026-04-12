@@ -21,27 +21,38 @@ COLOR_MASKED     = (10, 10, 10)
 COLOR_NOT_VISITED = (100, 100, 100)
 COLOR_BASE       = (200, 200, 0)    # Yellow
 COLOR_DONE       = (0, 200, 0)     # Green
-COLOR_LARGE_TILE = (0, 150, 255)   # Blue
+COLOR_SCENERY = (0, 150, 255)   # Blue
 COLOR_EYE        = (255, 80, 80)
 COLOR_FOV        = (200, 100, 50)
 
 
 # ---------------------------------------------------------------------------
-# Frustum helpers (shared with painter_world3d.py)
+# Frustum helpers — precomputed bitmask (bit index = y * GRID_SIZE + x)
 # ---------------------------------------------------------------------------
 
-def tile_in_frustum(tx, tz, eye_x, eye_z, yaw_deg):
-    """Return True if tile (tx, tz) falls inside the view cone."""
-    dx, dz = tx - eye_x, tz - eye_z
-    if dx == 0 and dz == 0:
-        return True                         # eye tile itself is always visible
-    dist = math.sqrt(dx * dx + dz * dz)
-    # yaw 0 = north = -z direction
-    face_x =  math.sin(math.radians(yaw_deg))
+def compute_frustum_mask(eye_x: float, eye_y: float, yaw_deg: float) -> int:
+    """Build an int bitmask: one bit per tile visible in the view cone."""
+    mask = 0
+    half_fov = FOV_DEG / 2.0
+    face_x = math.sin(math.radians(yaw_deg))
     face_z = -math.cos(math.radians(yaw_deg))
-    dot = (dx / dist) * face_x + (dz / dist) * face_z
-    angle = math.degrees(math.acos(max(-1.0, min(1.0, dot))))
-    return angle <= FOV_DEG / 2.0
+    for y in range(GRID_SIZE):
+        for x in range(GRID_SIZE):
+            dx, dz = x - eye_x, y - eye_y
+            bit = 1 << (y * GRID_SIZE + x)
+            if dx == 0 and dz == 0:
+                mask |= bit
+                continue
+            dist = math.sqrt(dx * dx + dz * dz)
+            dot = (dx / dist) * face_x + (dz / dist) * face_z
+            angle = math.degrees(math.acos(max(-1.0, min(1.0, dot))))
+            if angle <= half_fov:
+                mask |= bit
+    return mask
+
+
+def tile_visible_in_frustum_mask(frustum_mask: int, x: int, y: int) -> bool:
+    return bool((frustum_mask >> (y * GRID_SIZE + x)) & 1)
 
 
 def move_eye(eye_x, eye_z, key):
@@ -84,12 +95,13 @@ class TileStep:
     BASE = 1
     DONE = 2
 
-class LargeTile:
+class Scenery:
     def __init__(self, x, y, w, h, level):
         self.rect = pygame.Rect(x, y, w, h)
         self.level = level
         self.step = TileStep.NOT_VISITED
         self.tiles_under = []
+
 
 class Tile:
     def __init__(self, x, y, level, mask=True, idx=0):
@@ -100,7 +112,8 @@ class Tile:
         self.step = TileStep.DONE if not mask else TileStep.NOT_VISITED
         self.dist = 0   # set by GridManager.reset() from current eye position
         self.idx = idx
-        self.large_tiles = []
+        self.scenery_list = []
+        self.combined_extend_dirs: int = 0
         self.in_heap = False
 
     def __lt__(self, other):
@@ -114,7 +127,7 @@ class GridManager:
         self.yaw_deg = 0.0
 
         self.grid        = {}
-        self.large_tiles = []
+        self.all_scenery = []
         self.tile_heap   = []
         heapq.heapify(self.tile_heap)
         self.current_step = 0
@@ -123,16 +136,19 @@ class GridManager:
 
     def reset(self):
         self.grid        = {}
-        self.large_tiles = []
+        self.all_scenery = []
         self.tile_heap   = []
         heapq.heapify(self.tile_heap)
+
+        frustum_mask = compute_frustum_mask(
+            self.eye_x, self.eye_y, self.yaw_deg)
 
         # Build tiles — mask = view frustum from current eye
         tile_idx = 0
         for l in range(LEVELS):
             for y in range(GRID_SIZE):
                 for x in range(GRID_SIZE):
-                    mask = tile_in_frustum(x, y, self.eye_x, self.eye_y, self.yaw_deg)
+                    mask = tile_visible_in_frustum_mask(frustum_mask, x, y)
                     self.grid[(x, y, l)] = Tile(x, y, l, mask, tile_idx)
                     tile_idx += 1
 
@@ -140,19 +156,29 @@ class GridManager:
         for t in self.grid.values():
             t.dist = abs(t.x - self.eye_x) + abs(t.y - self.eye_y)
 
-        # Large tiles
-        self.large_tiles.append(LargeTile(1, 1, 3, 2, 0))  # Level 0
-        self.large_tiles.append(LargeTile(2, 1, 2, 3, 0))  # Overlapping
-        self.large_tiles.append(LargeTile(7, 3, 4, 4, 0))  # Level 0
-        self.large_tiles.append(LargeTile(7, 7, 2, 2, 1))  # Level 1
+        # Scenery (x, y, w, h, level)
+        self.all_scenery.append(Scenery(1, 1, 3, 2, 0))
+        self.all_scenery.append(Scenery(2, 1, 2, 3, 0))
+        self.all_scenery.append(Scenery(7, 3, 4, 4, 0))
+        self.all_scenery.append(Scenery(7, 7, 2, 2, 1))
 
-        for lt in self.large_tiles:
-            for tx in range(lt.rect.x, lt.rect.x + lt.rect.width):
-                for ty in range(lt.rect.y, lt.rect.y + lt.rect.height):
-                    t = self.grid.get((tx, ty, lt.level))
+        for sc in self.all_scenery:
+            for tx in range(sc.rect.x, sc.rect.x + sc.rect.width):
+                for ty in range(sc.rect.y, sc.rect.y + sc.rect.height):
+                    t = self.grid.get((tx, ty, sc.level))
                     if t:
-                        lt.tiles_under.append(t)
-                        t.large_tiles.append(lt)
+                        sc.tiles_under.append(t)
+                        t.scenery_list.append(sc)
+                        spans = 0
+                        if tx > sc.rect.x:
+                            spans |= 0x1   # west
+                        if tx < sc.rect.x + sc.rect.width - 1:
+                            spans |= 0x4   # east
+                        if ty > sc.rect.y:
+                            spans |= 0x8   # north
+                        if ty < sc.rect.y + sc.rect.height - 1:
+                            spans |= 0x2   # south
+                        t.combined_extend_dirs |= spans
 
         for t in self.grid.values():
             if t.mask:
@@ -187,13 +213,6 @@ class GridManager:
             neighbors.append(self.grid.get((x, y + dy, l)))
         return [n for n in neighbors if n]
 
-    def check_spanning(self, current, neighbor):
-        """Check if a large tile covers both current and neighbor."""
-        for lt in current.large_tiles:
-            if lt in neighbor.large_tiles:
-                return True
-        return False
-
     def _push(self, tile):
         """Push tile onto the heap only if it is not already there."""
         if not tile.in_heap:
@@ -218,55 +237,54 @@ class GridManager:
                 if tile.level > 0:
                     neighbor = self.grid.get((tile.x, tile.y, tile.level - 1))
                     if neighbor and neighbor.step != TileStep.DONE:
-                        if not self.check_spanning(tile, neighbor):
-                            continue
+                        continue
 
                 if self.is_north(tile):
                     neighbor = self.grid.get((tile.x, tile.y - 1, tile.level))
                     if neighbor and neighbor.step != TileStep.DONE:
-                        if not self.check_spanning(tile, neighbor):
+                        if (tile.combined_extend_dirs & 0x8) == 0:
                             continue
 
                 if self.is_east(tile):
                     neighbor = self.grid.get((tile.x + 1, tile.y, tile.level))
                     if neighbor and neighbor.step != TileStep.DONE:
-                        if not self.check_spanning(tile, neighbor):
+                        if (tile.combined_extend_dirs & 0x4) == 0:
                             continue
 
                 if self.is_south(tile):
                     neighbor = self.grid.get((tile.x, tile.y + 1, tile.level))
                     if neighbor and neighbor.step != TileStep.DONE:
-                        if not self.check_spanning(tile, neighbor):
+                        if (tile.combined_extend_dirs & 0x2) == 0:
                             continue
 
                 if self.is_west(tile):
                     neighbor = self.grid.get((tile.x - 1, tile.y, tile.level))
                     if neighbor and neighbor.step != TileStep.DONE:
-                        if not self.check_spanning(tile, neighbor):
+                        if (tile.combined_extend_dirs & 0x1) == 0:
                             continue
 
             tile.step = TileStep.BASE
-            visit_lt = []
-            for lt in tile.large_tiles:
-                if lt.step == TileStep.DONE:
+            visit_sc = []
+            for sc in tile.scenery_list:
+                if sc.step == TileStep.DONE:
                     continue
-                for tile_under in lt.tiles_under:
+                for tile_under in sc.tiles_under:
                     if tile_under.step < TileStep.BASE:
                         break
                 else:
-                    visit_lt.append(lt)
+                    visit_sc.append(sc)
 
             some_drawn = False
-            for lt in visit_lt:
-                lt.step = TileStep.DONE
-                for tile_under in lt.tiles_under:
+            for sc in visit_sc:
+                sc.step = TileStep.DONE
+                for tile_under in sc.tiles_under:
                     self._push(tile_under)
                     some_drawn = True
 
             if some_drawn:
                 continue
 
-            alldrawn = all(lt.step == TileStep.DONE for lt in tile.large_tiles)
+            alldrawn = all(sc.step == TileStep.DONE for sc in tile.scenery_list)
             if not alldrawn:
                 continue
 
@@ -413,20 +431,20 @@ def main():
                         color = COLOR_NOT_VISITED
                     pygame.draw.rect(screen, color, rect)
 
-            # Large tiles
-            for lt in manager.large_tiles:
-                if lt.level == l:
-                    lx = offset_x + lt.rect.x * CELL_SIZE
-                    ly = offset_y + lt.rect.y * CELL_SIZE
-                    lw = lt.rect.width  * CELL_SIZE - 2
-                    lh = lt.rect.height * CELL_SIZE - 2
+            # Scenery
+            for sc in manager.all_scenery:
+                if sc.level == l:
+                    lx = offset_x + sc.rect.x * CELL_SIZE
+                    ly = offset_y + sc.rect.y * CELL_SIZE
+                    lw = sc.rect.width * CELL_SIZE - 2
+                    lh = sc.rect.height * CELL_SIZE - 2
                     if lw <= 0 or lh <= 0:
                         continue
-                    if lt.step == TileStep.DONE:
+                    if sc.step == TileStep.DONE:
                         s = pygame.Surface((lw, lh), pygame.SRCALPHA)
                         s.fill((0, 150, 255, 120))
                         screen.blit(s, (lx, ly))
-                    pygame.draw.rect(screen, COLOR_LARGE_TILE, (lx, ly, lw, lh), 3)
+                    pygame.draw.rect(screen, COLOR_SCENERY, (lx, ly, lw, lh), 3)
 
             # Frustum (same for both levels — eye is the same)
             draw_frustum(screen, offset_x, offset_y,
