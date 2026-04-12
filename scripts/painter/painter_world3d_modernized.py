@@ -1,6 +1,7 @@
 import pygame
 import sys
 import math
+from enum import IntEnum
 
 # --- Configuration ---
 GRID_SIZE = 11   # Must be odd; center = GRID_SIZE // 2
@@ -14,15 +15,39 @@ RADIUS = 10  # equivalent to the hardcoded 25 in World3D
 FOV_DEG     = 90.0   # full cone angle
 ROTATE_STEP = 5      # degrees per E/R step (fine 0-360 rotation)
 
+# Scenery span bits (must match _add_scenery)
+DIR_NEG_X = 0x1   # -x (left)
+DIR_POS_Z = 0x2   # +z
+DIR_POS_X = 0x4   # +x (right)
+DIR_NEG_Z = 0x8   # -z
+
+NEIGHBOR_DIRS = [
+    (DIR_NEG_X, -1, 0),
+    (DIR_POS_Z, 0, +1),
+    (DIR_POS_X, +1, 0),
+    (DIR_NEG_Z, 0, -1),
+]
+
 # Colors
 COLOR_BG          = (30, 30, 30)
 COLOR_MASKED      = (10, 10, 10)
 COLOR_NOT_VISITED = (100, 100, 100)
-COLOR_BASE        = (200, 200, 0)   # drawFront=False, drawBack=True
-COLOR_DONE        = (0, 200, 0)     # drawFront=False, drawBack=False
+COLOR_BASE        = (200, 200, 0)   # TileState.FRONT_DONE
+COLOR_DONE        = (0, 200, 0)     # TileState.DONE
 COLOR_SCENERY_BORDER = (0, 150, 255)
 COLOR_EYE         = (255, 80, 80)
 COLOR_FOV         = (200, 100, 50)
+
+
+# ---------------------------------------------------------------------------
+# Tile state machine (replaces draw_front / draw_back)
+# ---------------------------------------------------------------------------
+
+class TileState(IntEnum):
+    IDLE = 0        # masked / out of range
+    PENDING = 1     # front + back passes remain
+    FRONT_DONE = 2  # front done, back remains
+    DONE = 3        # fully processed
 
 
 # ---------------------------------------------------------------------------
@@ -177,14 +202,31 @@ class Square(Linkable):
         self.primary_extend_dirs: list = [0] * self.MAX_PRIMARY
         self.combined_extend_dirs: int = 0
 
-        self.draw_front: bool = False
-        self.draw_back: bool = False
-        self.draw_primaries: bool = False
+        self.state: TileState = TileState.IDLE
+        self.has_scenery: bool = False
+
+    @property
+    def is_pending(self) -> bool:
+        return self.state == TileState.PENDING
+
+    @property
+    def is_active(self) -> bool:
+        """Still needs processing (replaces draw_back)."""
+        return self.state in (TileState.PENDING, TileState.FRONT_DONE)
+
+    def clear_front(self) -> None:
+        self.state = TileState.FRONT_DONE
+
+    def clear_back(self) -> None:
+        self.state = TileState.DONE
+
+    def activate(self, has_scen: bool) -> None:
+        self.state = TileState.PENDING
+        self.has_scenery = has_scen
 
     def reset_state(self) -> None:
-        self.draw_front = False
-        self.draw_back = False
-        self.draw_primaries = False
+        self.state = TileState.IDLE
+        self.has_scenery = False
 
 
 # ---------------------------------------------------------------------------
@@ -207,6 +249,69 @@ class GridManager:
         self.all_scenery: list = []
 
         self._build_grid()
+
+    def _in_draw_range(self, x: int, z: int) -> bool:
+        """True if (x, z) lies inside the current algorithm draw clip."""
+        return (
+            self.min_draw_x <= x < self.max_draw_x
+            and self.min_draw_z <= z < self.max_draw_z
+        )
+
+    def _further_neighbors(self, tile: Square):
+        """Neighbors farther from the eye (painter order checks). Yields (square, dir_bit)."""
+        lv, tx, tz = tile.level, tile.x, tile.z
+        if tx <= self.eye_x and self._in_draw_range(tx - 1, tz):
+            adj = self.grid.get((lv, tx - 1, tz))
+            if adj is not None:
+                yield adj, DIR_NEG_X
+        if tx >= self.eye_x and self._in_draw_range(tx + 1, tz):
+            adj = self.grid.get((lv, tx + 1, tz))
+            if adj is not None:
+                yield adj, DIR_POS_X
+        if tz <= self.eye_z and self._in_draw_range(tx, tz - 1):
+            adj = self.grid.get((lv, tx, tz - 1))
+            if adj is not None:
+                yield adj, DIR_NEG_Z
+        if tz >= self.eye_z and self._in_draw_range(tx, tz + 1):
+            adj = self.grid.get((lv, tx, tz + 1))
+            if adj is not None:
+                yield adj, DIR_POS_Z
+
+    def _toward_neighbors(self, tile: Square):
+        """Neighbors closer to the eye (queue expansion after back pass). Same order as legacy."""
+        lv, tx, tz = tile.level, tile.x, tile.z
+        if tx < self.eye_x:
+            adj = self.grid.get((lv, tx + 1, tz))
+            if adj is not None:
+                yield adj
+        if tz < self.eye_z:
+            adj = self.grid.get((lv, tx, tz + 1))
+            if adj is not None:
+                yield adj
+        if tx > self.eye_x:
+            adj = self.grid.get((lv, tx - 1, tz))
+            if adj is not None:
+                yield adj
+        if tz > self.eye_z:
+            adj = self.grid.get((lv, tx, tz - 1))
+            if adj is not None:
+                yield adj
+
+    def _front_blocked(self, tile: Square) -> bool:
+        lv = tile.level
+        if lv > 0:
+            below = self.grid.get((lv - 1, tile.x, tile.z))
+            if below and below.is_active:
+                return True
+        for adj, dir_bit in self._further_neighbors(tile):
+            if adj.is_active and (
+                adj.is_pending or not (tile.combined_extend_dirs & dir_bit)
+            ):
+                return True
+        return False
+
+    def _back_blocked(self, tile: Square) -> bool:
+        return any(adj.is_active for adj, _ in self._further_neighbors(tile))
 
     # ------------------------------------------------------------------
     # Grid construction (called once — masks are updated dynamically)
@@ -234,14 +339,10 @@ class GridManager:
                 if sq is None or sq.primary_count >= Square.MAX_PRIMARY:
                     continue
                 spans = 0
-                if tx > min_x:
-                    spans |= 0x1
-                if tx < max_x:
-                    spans |= 0x4
-                if tz > min_z:
-                    spans |= 0x8
-                if tz < max_z:
-                    spans |= 0x2
+                for dir_bit, ddx, ddz in NEIGHBOR_DIRS:
+                    nx, nz = tx + ddx, tz + ddz
+                    if min_x <= nx <= max_x and min_z <= nz <= max_z:
+                        spans |= dir_bit
                 sq.scenery_list[sq.primary_count] = scenery
                 sq.primary_extend_dirs[sq.primary_count] = spans
                 sq.combined_extend_dirs |= spans
@@ -323,9 +424,7 @@ class GridManager:
                 for z in range(self.min_draw_z, self.max_draw_z):
                     sq = self.grid.get((level, x, z))
                     if sq and sq.mask:
-                        sq.draw_front = True
-                        sq.draw_back  = True
-                        sq.draw_primaries = sq.primary_count > 0
+                        sq.activate(has_scen=(sq.primary_count > 0))
                         tiles_remaining += 1
 
         seed_idx = 0
@@ -341,7 +440,7 @@ class GridManager:
                     phase, lv, sx, sz = seeds[seed_idx]
                     seed_idx += 1
                     sq = self.grid.get((lv, sx, sz))
-                    if sq and sq.draw_front:
+                    if sq and sq.is_pending:
                         queue.push(sq)
                         check_adjacent = (phase == 1)
                         seeded = True
@@ -352,69 +451,43 @@ class GridManager:
             tile = queue.pop()
             steps += 1
 
-            if tile is None or not tile.draw_back:
+            if tile is None or not tile.is_active:
                 continue
 
             tx = tile.x
             tz = tile.z
             lv = tile.level
 
-            if tile.draw_front:
+            if tile.is_pending:
                 if check_adjacent:
-                    if lv > 0:
-                        below = self.grid.get((lv - 1, tx, tz))
-                        if below and below.draw_back:
-                            continue
-
-                    if tx <= self.eye_x and tx > self.min_draw_x:
-                        adj = self.grid.get((lv, tx - 1, tz))
-                        if adj and adj.draw_back and (
-                                adj.draw_front or (tile.combined_extend_dirs & 0x1) == 0):
-                            continue
-
-                    if tx >= self.eye_x and tx < self.max_draw_x - 1:
-                        adj = self.grid.get((lv, tx + 1, tz))
-                        if adj and adj.draw_back and (
-                                adj.draw_front or (tile.combined_extend_dirs & 0x4) == 0):
-                            continue
-
-                    if tz <= self.eye_z and tz > self.min_draw_z:
-                        adj = self.grid.get((lv, tx, tz - 1))
-                        if adj and adj.draw_back and (
-                                adj.draw_front or (tile.combined_extend_dirs & 0x8) == 0):
-                            continue
-
-                    if tz >= self.eye_z and tz < self.max_draw_z - 1:
-                        adj = self.grid.get((lv, tx, tz + 1))
-                        if adj and adj.draw_back and (
-                                adj.draw_front or (tile.combined_extend_dirs & 0x2) == 0):
-                            continue
+                    if self._front_blocked(tile):
+                        continue
                 else:
                     check_adjacent = True
 
-                tile.draw_front = False
+                tile.clear_front()
 
                 spans = tile.combined_extend_dirs
                 if spans:
-                    if tx < self.eye_x and (spans & 0x4):
+                    if tx < self.eye_x and (spans & DIR_POS_X):
                         adj = self.grid.get((lv, tx + 1, tz))
-                        if adj and adj.draw_back:
+                        if adj and adj.is_active:
                             queue.push(adj)
-                    if tz < self.eye_z and (spans & 0x2):
+                    if tz < self.eye_z and (spans & DIR_POS_Z):
                         adj = self.grid.get((lv, tx, tz + 1))
-                        if adj and adj.draw_back:
+                        if adj and adj.is_active:
                             queue.push(adj)
-                    if tx > self.eye_x and (spans & 0x1):
+                    if tx > self.eye_x and (spans & DIR_NEG_X):
                         adj = self.grid.get((lv, tx - 1, tz))
-                        if adj and adj.draw_back:
+                        if adj and adj.is_active:
                             queue.push(adj)
-                    if tz > self.eye_z and (spans & 0x8):
+                    if tz > self.eye_z and (spans & DIR_NEG_Z):
                         adj = self.grid.get((lv, tx, tz - 1))
-                        if adj and adj.draw_back:
+                        if adj and adj.is_active:
                             queue.push(adj)
 
-            if tile.draw_primaries:
-                tile.draw_primaries = False
+            if tile.has_scenery:
+                tile.has_scenery = False
                 scenery_buffer = []
 
                 for i in range(tile.primary_count):
@@ -428,8 +501,8 @@ class GridManager:
                             break
                         for lz in range(sc.min_tile_z, sc.max_tile_z + 1):
                             other = self.grid.get((lv, lx, lz))
-                            if other and other.draw_front:
-                                tile.draw_primaries = True
+                            if other and other.is_pending:
+                                tile.has_scenery = True
                                 blocked = True
                                 break
 
@@ -458,61 +531,28 @@ class GridManager:
                     for lx in range(farthest.min_tile_x, farthest.max_tile_x + 1):
                         for lz in range(farthest.min_tile_z, farthest.max_tile_z + 1):
                             occ = self.grid.get((lv, lx, lz))
-                            if occ and (lx != tx or lz != tz) and occ.draw_back:
+                            if occ and (lx != tx or lz != tz) and occ.is_active:
                                 queue.push(occ)
 
-                if tile.draw_primaries:
+                if tile.has_scenery:
                     continue
 
-            if not tile.draw_back:
+            if not tile.is_active:
                 continue
 
-            if tx <= self.eye_x and tx > self.min_draw_x:
-                adj = self.grid.get((lv, tx - 1, tz))
-                if adj and adj.draw_back:
-                    continue
+            if self._back_blocked(tile):
+                continue
 
-            if tx >= self.eye_x and tx < self.max_draw_x - 1:
-                adj = self.grid.get((lv, tx + 1, tz))
-                if adj and adj.draw_back:
-                    continue
-
-            if tz <= self.eye_z and tz > self.min_draw_z:
-                adj = self.grid.get((lv, tx, tz - 1))
-                if adj and adj.draw_back:
-                    continue
-
-            if tz >= self.eye_z and tz < self.max_draw_z - 1:
-                adj = self.grid.get((lv, tx, tz + 1))
-                if adj and adj.draw_back:
-                    continue
-
-            tile.draw_back = False
+            tile.clear_back()
             tiles_remaining -= 1
 
             if lv < LEVELS - 1:
                 above = self.grid.get((lv + 1, tx, tz))
-                if above and above.draw_back:
+                if above and above.is_active:
                     queue.push(above)
 
-            if tx < self.eye_x:
-                adj = self.grid.get((lv, tx + 1, tz))
-                if adj and adj.draw_back:
-                    queue.push(adj)
-
-            if tz < self.eye_z:
-                adj = self.grid.get((lv, tx, tz + 1))
-                if adj and adj.draw_back:
-                    queue.push(adj)
-
-            if tx > self.eye_x:
-                adj = self.grid.get((lv, tx - 1, tz))
-                if adj and adj.draw_back:
-                    queue.push(adj)
-
-            if tz > self.eye_z:
-                adj = self.grid.get((lv, tx, tz - 1))
-                if adj and adj.draw_back:
+            for adj in self._toward_neighbors(tile):
+                if adj.is_active:
                     queue.push(adj)
 
 
@@ -525,7 +565,7 @@ def main():
     width  = (GRID_SIZE * CELL_SIZE + MARGIN * 2) * LEVELS
     height = GRID_SIZE * CELL_SIZE + MARGIN * 2
     screen = pygame.display.set_mode((width, height))
-    pygame.display.set_caption("World3D Draw Algorithm — step-through")
+    pygame.display.set_caption("World3D Draw Algorithm — modernized (step-through)")
     clock  = pygame.time.Clock()
     font   = pygame.font.SysFont(None, 24)
 
@@ -625,10 +665,11 @@ def main():
                             CELL_SIZE - 2, CELL_SIZE - 2)
                     if not sq.mask:
                         color = COLOR_MASKED
-                    elif not sq.draw_front and not sq.draw_back:
-                        color = COLOR_DONE
-                    elif not sq.draw_front and sq.draw_back:
+                    elif sq.state == TileState.FRONT_DONE:
                         color = COLOR_BASE
+                    elif sq.state in (TileState.DONE, TileState.IDLE):
+                        # IDLE: never activated (e.g. in frustum but outside draw clip)
+                        color = COLOR_DONE
                     else:
                         color = COLOR_NOT_VISITED
                     pygame.draw.rect(screen, color, rect)
@@ -644,7 +685,7 @@ def main():
                     continue
 
                 all_front_cleared = all(
-                    not manager.grid[(level, lx2, lz2)].draw_front
+                    not manager.grid[(level, lx2, lz2)].is_pending
                     for lx2 in range(scenery.min_tile_x, scenery.max_tile_x + 1)
                     for lz2 in range(scenery.min_tile_z, scenery.max_tile_z + 1)
                     if (level, lx2, lz2) in manager.grid
