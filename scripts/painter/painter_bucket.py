@@ -257,20 +257,15 @@ class GridManager:
         return False
 
     def _pop_next(self):
-        """Farthest Manhattan distance first; ties broken by smallest tile idx (heap order)."""
+        """Farthest Manhattan distance first; LIFO within a bucket."""
         while self._bucket_max >= 0:
             lst = self.buckets.get(self._bucket_max)
             if not lst:
                 self._bucket_max -= 1
                 continue
-            if len(lst) == 1:
-                tile = lst.pop()
-                if not self.buckets[self._bucket_max]:
-                    del self.buckets[self._bucket_max]
-                tile.in_heap = False
-                return tile
-            bi = min(range(len(lst)), key=lambda i: lst[i].idx)
-            tile = lst.pop(bi)
+            tile = lst.pop()
+            if not lst:
+                del self.buckets[self._bucket_max]
             tile.in_heap = False
             return tile
         return None

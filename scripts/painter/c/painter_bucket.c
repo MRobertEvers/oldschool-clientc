@@ -79,7 +79,7 @@ bucket_push(PainterBucketWorkspace *w, int ti)
         w->bucket_max = d;
 }
 
-/* Pop farthest distance first; within a bucket, smallest tile idx first (heap tie-break). */
+/* Pop farthest distance first; LIFO within a bucket (order within a distance band is irrelevant). */
 static int
 bucket_pop(PainterBucketWorkspace *w)
 {
@@ -91,34 +91,9 @@ bucket_pop(PainterBucketWorkspace *w)
             w->bucket_max--;
             continue;
         }
-
-        int best = head;
-        int best_idx = w->tiles[head].idx;
-        int cur = w->tiles[head].bucket_next;
-        while( cur >= 0 )
-        {
-            if( w->tiles[cur].idx < best_idx )
-            {
-                best_idx = w->tiles[cur].idx;
-                best = cur;
-            }
-            cur = w->tiles[cur].bucket_next;
-        }
-
-        if( best == head )
-        {
-            w->buckets[w->bucket_max] = w->tiles[head].bucket_next;
-            w->tiles[head].bucket_next = -1;
-        }
-        else
-        {
-            int prev = head;
-            while( w->tiles[prev].bucket_next != best )
-                prev = w->tiles[prev].bucket_next;
-            w->tiles[prev].bucket_next = w->tiles[best].bucket_next;
-            w->tiles[best].bucket_next = -1;
-        }
-        return best;
+        w->buckets[w->bucket_max] = w->tiles[head].bucket_next;
+        w->tiles[head].bucket_next = -1;
+        return head;
     }
     return -1;
 }

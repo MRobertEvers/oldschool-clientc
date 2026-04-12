@@ -3,7 +3,7 @@
 CC ?= cc
 CFLAGS ?= -O3 -Wall -Wextra -Wno-unused-parameter
 LDFLAGS ?= -lm
-BENCH_ITERS ?= 10000
+BENCH_ITERS ?= 100
 
 SOURCES = bench.c painter_common.c painter_bucket.c painter_world3d.c
 

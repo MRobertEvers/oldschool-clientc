@@ -7,7 +7,7 @@
 #include <time.h>
 
 #ifndef BENCH_ITERS
-#define BENCH_ITERS 1000
+#define BENCH_ITERS 100
 #endif
 
 static double
@@ -120,10 +120,10 @@ radius_for_grid(int gs)
 int
 main(void)
 {
-    const int grids[] = { 25, 65 };
+    const int grids[] = { 51, 104 };
     const double yaws[] = { 0.0, 45.0, 180.0, 360.0 };
     const double fov = 90.0;
-    const int levels_opts[] = { 1, 2, 4 };
+    const int levels_opts[] = { 2, 4 };
 
     printf(
         "%-7s %4s %4s %6s %6s %-8s %-10s %6s %7s %10s %12s %12s\n",
