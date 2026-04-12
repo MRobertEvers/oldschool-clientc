@@ -1,5 +1,6 @@
 import pygame
 import sys
+import math
 
 # --- Configuration ---
 GRID_SIZE = 11   # Must be odd; center = GRID_SIZE // 2
@@ -8,7 +9,10 @@ LEVELS = 2
 MARGIN = 50
 FPS = 60
 CENTER = GRID_SIZE // 2
-RADIUS = CENTER  # equivalent to the hardcoded 25 in World3D
+RADIUS = 10  # equivalent to the hardcoded 25 in World3D
+
+FOV_DEG     = 90.0   # full cone angle
+ROTATE_STEP = 5      # degrees per E/R step (fine 0-360 rotation)
 
 # Colors
 COLOR_BG          = (30, 30, 30)
@@ -18,14 +22,57 @@ COLOR_BASE        = (200, 200, 0)   # drawFront=False, drawBack=True
 COLOR_DONE        = (0, 200, 0)     # drawFront=False, drawBack=False
 COLOR_LOC_BORDER  = (0, 150, 255)
 COLOR_EYE         = (255, 80, 80)
+COLOR_FOV         = (200, 100, 50)
+
+
+# ---------------------------------------------------------------------------
+# Frustum helpers
+# ---------------------------------------------------------------------------
+
+def tile_in_frustum(tx, tz, eye_x, eye_z, yaw_deg):
+    """Return True if tile (tx, tz) falls inside the view cone."""
+    dx, dz = tx - eye_x, tz - eye_z
+    if dx == 0 and dz == 0:
+        return True
+    dist = math.sqrt(dx * dx + dz * dz)
+    face_x =  math.sin(math.radians(yaw_deg))
+    face_z = -math.cos(math.radians(yaw_deg))
+    dot = (dx / dist) * face_x + (dz / dist) * face_z
+    angle = math.degrees(math.acos(max(-1.0, min(1.0, dot))))
+    return angle <= FOV_DEG / 2.0
+
+
+def move_eye(eye_x, eye_z, key):
+    """Move the eye one tile: W=up, S=down, A=left, D=right (grid-aligned)."""
+    deltas = {'W': (0, -1), 'S': (0, 1), 'A': (-1, 0), 'D': (1, 0)}
+    ddx, ddz = deltas[key]
+    new_x = max(0, min(GRID_SIZE - 1, eye_x + ddx))
+    new_z = max(0, min(GRID_SIZE - 1, eye_z + ddz))
+    return new_x, new_z
+
+
+def draw_frustum(screen, off_x, off_y, eye_x, eye_z, yaw_deg):
+    """Draw facing arrow + FOV boundary lines for one level panel."""
+    cx = off_x + eye_x * CELL_SIZE + CELL_SIZE // 2
+    cz = off_y + eye_z * CELL_SIZE + CELL_SIZE // 2
+
+    arrow_len = CELL_SIZE * 1.5
+    fx =  math.sin(math.radians(yaw_deg))
+    fz = -math.cos(math.radians(yaw_deg))
+    tip = (int(cx + fx * arrow_len), int(cz + fz * arrow_len))
+    pygame.draw.line(screen, COLOR_EYE, (cx, cz), tip, 2)
+
+    fov_len = RADIUS * CELL_SIZE
+    for sign in (-1, 1):
+        angle = yaw_deg + sign * FOV_DEG / 2.0
+        lx =  math.sin(math.radians(angle))
+        lz = -math.cos(math.radians(angle))
+        end = (int(cx + lx * fov_len), int(cz + lz * fov_len))
+        pygame.draw.line(screen, COLOR_FOV, (cx, cz), end, 1)
 
 
 # ---------------------------------------------------------------------------
 # LinkList / Linkable
-# Faithful port of Client-TS/src/datastruct/LinkList.ts + Linkable.ts.
-# Key behaviour: push() unlinks before inserting at tail, so re-pushing a node
-# that is already in the list silently moves it to the tail (no duplicates).
-# pop() removes from the head.  Net effect: FIFO queue with de-duplication.
 # ---------------------------------------------------------------------------
 
 class Linkable:
@@ -49,7 +96,6 @@ class LinkList:
         self._sentinel.prev = self._sentinel
 
     def push(self, node: Linkable) -> None:
-        """Insert at tail.  If node is already linked, unlink first (moves to tail)."""
         if node.prev is not None:
             node.unlink()
         node.prev = self._sentinel.prev
@@ -58,7 +104,6 @@ class LinkList:
         node.next.prev = node
 
     def pop(self) -> Linkable | None:
-        """Remove and return the head node; None if empty."""
         node = self._sentinel.next
         if node is self._sentinel:
             return None
@@ -74,10 +119,6 @@ class LinkList:
 # ---------------------------------------------------------------------------
 
 class Loc:
-    """
-    Represents a multi-tile object (Sprite in TS).  Holds the rectangular tile
-    footprint; `cycle` is used as a "already drawn this frame" marker.
-    """
     def __init__(self, min_tile_x: int, max_tile_x: int,
                  min_tile_z: int, max_tile_z: int, level: int):
         self.min_tile_x = min_tile_x
@@ -93,16 +134,6 @@ class Loc:
 
 
 class Square(Linkable):
-    """
-    One tile cell on one level.  Extends Linkable so it can live directly
-    inside the draw queue (intrusive list — no wrapper object needed).
-
-    Structural fields (set once during grid construction, never reset):
-      primary_count, locs[], primary_extend_dirs[], combined_extend_dirs
-
-    State flags (reset at the start of every run() call):
-      draw_front, draw_back, draw_primaries
-    """
     MAX_PRIMARY = 5
 
     def __init__(self, level: int, x: int, z: int, mask: bool = True):
@@ -110,15 +141,13 @@ class Square(Linkable):
         self.level = level
         self.x = x
         self.z = z
-        self.mask = mask               # False → tile is invisible / not processed
+        self.mask = mask
 
-        # Structural
         self.primary_count: int = 0
         self.locs: list = [None] * self.MAX_PRIMARY
         self.primary_extend_dirs: list = [0] * self.MAX_PRIMARY
         self.combined_extend_dirs: int = 0
 
-        # State
         self.draw_front: bool = False
         self.draw_back: bool = False
         self.draw_primaries: bool = False
@@ -130,58 +159,43 @@ class Square(Linkable):
 
 
 # ---------------------------------------------------------------------------
-# GridManager — owns the grid, locs, seed list, and the algorithm
+# GridManager
 # ---------------------------------------------------------------------------
 
 class GridManager:
     def __init__(self):
-        self.eye_x = CENTER
-        self.eye_z = CENTER
+        self.eye_x   = CENTER
+        self.eye_z   = CENTER
+        self.yaw_deg = 0.0
+
         self.min_draw_x = 0
         self.max_draw_x = GRID_SIZE
         self.min_draw_z = 0
         self.max_draw_z = GRID_SIZE
         self.current_step: int = 0
 
-        self.grid: dict = {}        # (level, x, z) -> Square
-        self.all_locs: list = []    # all Loc objects
-
-        # Seed sequence built once; each entry is (phase, level, x, z).
-        # phase=1 → checkAdjacent starts True; phase=2 → starts False (one-shot bypass).
-        self._seeds: list = []
+        self.grid: dict = {}
+        self.all_locs: list = []
 
         self._build_grid()
-        self._seeds = self._build_seeds()
 
     # ------------------------------------------------------------------
-    # Grid / loc construction (called once)
+    # Grid construction (called once — masks are updated dynamically)
     # ------------------------------------------------------------------
 
     def _build_grid(self) -> None:
         for level in range(LEVELS):
             for x in range(GRID_SIZE):
                 for z in range(GRID_SIZE):
-                    # Same mask pattern as painter.py: center always visible,
-                    # tiles where (x%4==0 and z%3==0) are masked out.
-                    mask = (x == CENTER and z == CENTER) or not (x % 4 == 0 and z % 3 == 0)
-                    self.grid[(level, x, z)] = Square(level, x, z, mask)
+                    self.grid[(level, x, z)] = Square(level, x, z, mask=True)
 
-        # A few multi-tile locs to exercise the spanning logic.
-        # Arguments: min_x, max_x, min_z, max_z, level
-        self._add_loc(1, 3, 1, 2, 0)   # 3-wide × 2-tall, level 0
-        self._add_loc(2, 3, 1, 3, 0)   # overlapping 2-wide × 3-tall, level 0
-        self._add_loc(7, 8, 7, 8, 1)   # 2×2, level 1
+        self._add_loc(1, 3, 1, 2, 0)
+        self._add_loc(2, 3, 1, 3, 0)
+        self._add_loc(6, 9, 4, 7, 0)
+        self._add_loc(7, 8, 7, 8, 1)
 
     def _add_loc(self, min_x: int, max_x: int,
                  min_z: int, max_z: int, level: int) -> None:
-        """
-        Create one Loc and register it on every tile it covers.
-        The spanning bitmask mirrors addModel() in World3D.ts:
-          bit 0x1 → tile has a western neighbour in the same loc  (tx > min_x)
-          bit 0x4 → tile has an eastern neighbour in the same loc  (tx < max_x)
-          bit 0x8 → tile has a northern neighbour in the same loc  (tz > min_z)
-          bit 0x2 → tile has a southern neighbour in the same loc  (tz < max_z)
-        """
         loc = Loc(min_x, max_x, min_z, max_z, level)
         self.all_locs.append(loc)
         for tx in range(min_x, max_x + 1):
@@ -200,18 +214,18 @@ class GridManager:
                 sq.primary_count += 1
 
     # ------------------------------------------------------------------
-    # Seed sequence (mirrors the two spiral loops in World3D.draw)
+    # Dynamic mask update — recomputed each run() from current frustum
+    # ------------------------------------------------------------------
+
+    def _update_masks(self) -> None:
+        for sq in self.grid.values():
+            sq.mask = tile_in_frustum(sq.x, sq.z, self.eye_x, self.eye_z, self.yaw_deg)
+
+    # ------------------------------------------------------------------
+    # Seed sequence — rebuilt each run() because eye_x/eye_z can change
     # ------------------------------------------------------------------
 
     def _build_seeds(self) -> list:
-        """
-        Emit (phase, level, x, z) tuples in the same order as World3D.draw.
-        Phase 1 corresponds to checkAdjacent=True seeds; phase 2 to False.
-        Duplicate (x,z) positions that arise when dx=0 or dz=0 are collapsed
-        so that each unique tile appears at most once per (phase, level, dx, dz)
-        iteration — equivalent to the TS behaviour where the second drawTile call
-        for an already-processed tile is a harmless no-op.
-        """
         seeds = []
         for phase in (1, 2):
             for level in range(LEVELS):
@@ -245,26 +259,29 @@ class GridManager:
         return seeds
 
     # ------------------------------------------------------------------
-    # Algorithm — flattened so each queue pop is one step
+    # Algorithm
     # ------------------------------------------------------------------
 
     def run(self) -> None:
-        """
-        Re-execute the World3D.draw algorithm from scratch, stopping after
-        exactly `current_step` queue pops so the visualisation can show any
-        intermediate state.
-        """
-        # --- reset tile state and loc cycles ---
+        # Recompute draw range and masks for current eye position
+        self.min_draw_x = max(0, self.eye_x - RADIUS)
+        self.max_draw_x = min(GRID_SIZE, self.eye_x + RADIUS + 1)
+        self.min_draw_z = max(0, self.eye_z - RADIUS)
+        self.max_draw_z = min(GRID_SIZE, self.eye_z + RADIUS + 1)
+
+        self._update_masks()
+
         for sq in self.grid.values():
             sq.reset_state()
         for loc in self.all_locs:
             loc.reset()
 
-        cycle = 1           # "drawn this frame" marker
+        seeds = self._build_seeds()
+
+        cycle = 1
         tiles_remaining = 0
         queue = LinkList()
 
-        # Phase 0: mark every visible tile active (mirrors the first loop in draw())
         for level in range(LEVELS):
             for x in range(self.min_draw_x, self.max_draw_x):
                 for z in range(self.min_draw_z, self.max_draw_z):
@@ -276,18 +293,17 @@ class GridManager:
                         tiles_remaining += 1
 
         seed_idx = 0
-        check_adjacent = True   # persists across pops within one BFS run
+        check_adjacent = True
         steps = 0
 
         while steps < self.current_step:
 
-            # ----- seed the queue when it is empty -----
             if queue.is_empty():
                 if tiles_remaining == 0:
                     break
                 seeded = False
-                while seed_idx < len(self._seeds):
-                    phase, lv, sx, sz = self._seeds[seed_idx]
+                while seed_idx < len(seeds):
+                    phase, lv, sx, sz = seeds[seed_idx]
                     seed_idx += 1
                     sq = self.grid.get((lv, sx, sz))
                     if sq and sq.draw_front:
@@ -296,9 +312,8 @@ class GridManager:
                         seeded = True
                         break
                 if not seeded:
-                    break       # all seeds exhausted
+                    break
 
-            # ----- pop one tile — this is one step -----
             tile = queue.pop()
             steps += 1
 
@@ -309,55 +324,41 @@ class GridManager:
             tz = tile.z
             lv = tile.level
 
-            # ================================================================
-            # drawFront block (mirrors TS lines 1463-1689)
-            # ================================================================
             if tile.draw_front:
                 if check_adjacent:
-                    # Level below must already be done.
-                    # (TS: "level" here is the tile's level; level-1 is below it)
                     if lv > 0:
                         below = self.grid.get((lv - 1, tx, tz))
                         if below and below.draw_back:
                             continue
 
-                    # West neighbour blocks if tile is on or east of the eye
-                    # and that neighbour is still pending.
                     if tx <= self.eye_x and tx > self.min_draw_x:
                         adj = self.grid.get((lv, tx - 1, tz))
                         if adj and adj.draw_back and (
                                 adj.draw_front or (tile.combined_extend_dirs & 0x1) == 0):
                             continue
 
-                    # East neighbour blocks if tile is on or west of the eye
                     if tx >= self.eye_x and tx < self.max_draw_x - 1:
                         adj = self.grid.get((lv, tx + 1, tz))
                         if adj and adj.draw_back and (
                                 adj.draw_front or (tile.combined_extend_dirs & 0x4) == 0):
                             continue
 
-                    # North neighbour (lower z) blocks if tile is on or south of eye
                     if tz <= self.eye_z and tz > self.min_draw_z:
                         adj = self.grid.get((lv, tx, tz - 1))
                         if adj and adj.draw_back and (
                                 adj.draw_front or (tile.combined_extend_dirs & 0x8) == 0):
                             continue
 
-                    # South neighbour (higher z) blocks if tile is on or north of eye
                     if tz >= self.eye_z and tz < self.max_draw_z - 1:
                         adj = self.grid.get((lv, tx, tz + 1))
                         if adj and adj.draw_back and (
                                 adj.draw_front or (tile.combined_extend_dirs & 0x2) == 0):
                             continue
                 else:
-                    # Phase-2 first pop: skip adjacency check once, then re-enable.
                     check_adjacent = True
 
                 tile.draw_front = False
 
-                # Push spanned neighbours towards the eye so multi-tile locs can
-                # be unlocked as soon as all their tiles have draw_front cleared.
-                # (TS lines 1660-1688)
                 spans = tile.combined_extend_dirs
                 if spans:
                     if tx < self.eye_x and (spans & 0x4):
@@ -377,14 +378,6 @@ class GridManager:
                         if adj and adj.draw_back:
                             queue.push(adj)
 
-            # ================================================================
-            # cornerSides block omitted (always 0 — no walls).
-            #
-            # drawPrimaries block (TS lines 1716-1837).
-            # NOTE: this is OUTSIDE the drawFront block so it also runs on
-            # tiles that were re-queued after their drawFront was already cleared
-            # (e.g. pushed back by a loc draw).
-            # ================================================================
             if tile.draw_primaries:
                 tile.draw_primaries = False
                 loc_buffer = []
@@ -394,7 +387,6 @@ class GridManager:
                     if loc is None or loc.cycle == cycle:
                         continue
 
-                    # A loc is ready only when every tile it spans has cleared draw_front.
                     blocked = False
                     for lx in range(loc.min_tile_x, loc.max_tile_x + 1):
                         if blocked:
@@ -402,12 +394,11 @@ class GridManager:
                         for lz in range(loc.min_tile_z, loc.max_tile_z + 1):
                             other = self.grid.get((lv, lx, lz))
                             if other and other.draw_front:
-                                tile.draw_primaries = True   # re-arm; will retry
+                                tile.draw_primaries = True
                                 blocked = True
                                 break
 
                     if not blocked:
-                        # Farthest-first distance from eye (TS lines 1771-1785)
                         dist_x = max(self.eye_x - loc.min_tile_x,
                                      loc.max_tile_x - self.eye_x)
                         dz_a = self.eye_z - loc.min_tile_z
@@ -415,8 +406,6 @@ class GridManager:
                         loc.distance = dist_x + max(dz_a, dz_b)
                         loc_buffer.append(loc)
 
-                # Draw locs farthest-first (model.draw() omitted; state tracking kept).
-                # (TS lines 1789-1831)
                 remaining = list(loc_buffer)
                 while remaining:
                     farthest = None
@@ -431,8 +420,6 @@ class GridManager:
                     farthest.cycle = cycle
                     remaining.remove(farthest)
 
-                    # Push every tile in the loc's footprint back into the queue
-                    # (except the current tile — it is handled by the final gate).
                     for lx in range(farthest.min_tile_x, farthest.max_tile_x + 1):
                         for lz in range(farthest.min_tile_z, farthest.max_tile_z + 1):
                             occ = self.grid.get((lv, lx, lz))
@@ -440,15 +427,11 @@ class GridManager:
                                 queue.push(occ)
 
                 if tile.draw_primaries:
-                    continue    # some loc still blocked — revisit later
+                    continue
 
-            # ================================================================
-            # Final adjacency gate + DONE transition (TS lines 1839-1975)
-            # ================================================================
             if not tile.draw_back:
                 continue
 
-            # All four cardinal neighbours towards the eye must be done.
             if tx <= self.eye_x and tx > self.min_draw_x:
                 adj = self.grid.get((lv, tx - 1, tz))
                 if adj and adj.draw_back:
@@ -469,11 +452,9 @@ class GridManager:
                 if adj and adj.draw_back:
                     continue
 
-            # Mark DONE
             tile.draw_back = False
             tiles_remaining -= 1
 
-            # Propagate: level above + 4 cardinal neighbours towards the eye.
             if lv < LEVELS - 1:
                 above = self.grid.get((lv + 1, tx, tz))
                 if above and above.draw_back:
@@ -519,22 +500,72 @@ def main():
 
     right_down = False
     left_down  = False
+    w_down = s_down = a_down = d_down = e_down = r_down = False
+    MOVE_COOLDOWN = 100  # ms between eye/rotation steps when held
+    last_move_ms  = 0
 
     while True:
+        eye_changed = False
+        now = pygame.time.get_ticks()
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RIGHT:
                     right_down = True
                 elif event.key == pygame.K_LEFT:
                     left_down = True
+                elif event.key == pygame.K_w: w_down = True
+                elif event.key == pygame.K_s: s_down = True
+                elif event.key == pygame.K_a: a_down = True
+                elif event.key == pygame.K_d: d_down = True
+                elif event.key == pygame.K_e: e_down = True
+                elif event.key == pygame.K_r: r_down = True
+
             if event.type == pygame.KEYUP:
                 if event.key == pygame.K_RIGHT:
                     right_down = False
                 elif event.key == pygame.K_LEFT:
                     left_down = False
+                elif event.key == pygame.K_w: w_down = False
+                elif event.key == pygame.K_s: s_down = False
+                elif event.key == pygame.K_a: a_down = False
+                elif event.key == pygame.K_d: d_down = False
+                elif event.key == pygame.K_e: e_down = False
+                elif event.key == pygame.K_r: r_down = False
+
+        if now - last_move_ms >= MOVE_COOLDOWN:
+            if w_down:
+                manager.eye_x, manager.eye_z = move_eye(
+                    manager.eye_x, manager.eye_z, 'W')
+                eye_changed = True
+            elif s_down:
+                manager.eye_x, manager.eye_z = move_eye(
+                    manager.eye_x, manager.eye_z, 'S')
+                eye_changed = True
+            elif a_down:
+                manager.eye_x, manager.eye_z = move_eye(
+                    manager.eye_x, manager.eye_z, 'A')
+                eye_changed = True
+            elif d_down:
+                manager.eye_x, manager.eye_z = move_eye(
+                    manager.eye_x, manager.eye_z, 'D')
+                eye_changed = True
+            if e_down:
+                manager.yaw_deg = (manager.yaw_deg + ROTATE_STEP) % 360
+                eye_changed = True
+            elif r_down:
+                manager.yaw_deg = (manager.yaw_deg - ROTATE_STEP) % 360
+                eye_changed = True
+            if eye_changed:
+                last_move_ms = now
+
+        if eye_changed:
+            manager.current_step = 0
+            manager.run()
 
         if right_down:
             manager.current_step += 1
@@ -549,7 +580,6 @@ def main():
             off_x = MARGIN + level * (GRID_SIZE * CELL_SIZE + MARGIN)
             off_y = MARGIN
 
-            # --- 1x1 tiles ---
             for x in range(GRID_SIZE):
                 for z in range(GRID_SIZE):
                     sq = manager.grid.get((level, x, z))
@@ -568,7 +598,6 @@ def main():
                         color = COLOR_NOT_VISITED
                     pygame.draw.rect(screen, color, rect)
 
-            # --- multi-tile locs ---
             for loc in manager.all_locs:
                 if loc.level != level:
                     continue
@@ -576,8 +605,9 @@ def main():
                 lz = off_y + loc.min_tile_z * CELL_SIZE
                 lw = (loc.max_tile_x - loc.min_tile_x + 1) * CELL_SIZE - 2
                 lh = (loc.max_tile_z - loc.min_tile_z + 1) * CELL_SIZE - 2
+                if lw <= 0 or lh <= 0:
+                    continue
 
-                # Fill blue when every tile in the footprint has draw_front cleared
                 all_front_cleared = all(
                     not manager.grid[(level, lx2, lz2)].draw_front
                     for lx2 in range(loc.min_tile_x, loc.max_tile_x + 1)
@@ -590,19 +620,16 @@ def main():
                     screen.blit(surf, (lx, lz))
                 pygame.draw.rect(screen, COLOR_LOC_BORDER, (lx, lz, lw, lh), 3)
 
-            # --- eye marker ---
-            ex = off_x + manager.eye_x * CELL_SIZE + CELL_SIZE // 2
-            ez = off_y + manager.eye_z * CELL_SIZE + CELL_SIZE // 2
-            pygame.draw.circle(screen, COLOR_EYE, (ex, ez), 5)
+            draw_frustum(screen, off_x, off_y,
+                         manager.eye_x, manager.eye_z, manager.yaw_deg)
 
-            # --- level label ---
             lbl = font.render(f"Level {level}", True, (180, 180, 180))
             screen.blit(lbl, (off_x, off_y - 20))
 
-        # --- HUD ---
         hud = font.render(
-            f"Step: {manager.current_step}  |  LEFT / RIGHT arrows to step  "
-            f"|  gray=unvisited  yellow=base  green=done  blue=loc drawn",
+            f"Step: {manager.current_step}  |  "
+            f"←/→ step  WASD move  E/R rotate  "
+            f"yaw={manager.yaw_deg:.0f}°  eye=({manager.eye_x},{manager.eye_z})",
             True, (200, 200, 200))
         screen.blit(hud, (10, 10))
 
