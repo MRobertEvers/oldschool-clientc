@@ -1,7 +1,7 @@
 import pygame
 import sys
-import heapq
 import math
+from collections import defaultdict
 
 # --- Configuration ---
 GRID_SIZE = 11  # Must be odd for a clear center
@@ -89,7 +89,7 @@ def draw_frustum(screen, off_x, off_y, eye_x, eye_z, yaw_deg):
 
 
 # ---------------------------------------------------------------------------
-# Data structures
+# Data structures — bucket queue by Manhattan distance (matches C painter_bucket)
 # ---------------------------------------------------------------------------
 
 class TileStep:
@@ -118,9 +118,6 @@ class Tile:
         self.combined_extend_dirs: int = 0
         self.in_heap = False
 
-    def __lt__(self, other):
-        return self.idx < other.idx
-
 
 class GridManager:
     def __init__(self):
@@ -135,8 +132,8 @@ class GridManager:
 
         self.grid        = {}
         self.all_scenery = []
-        self.tile_heap   = []
-        heapq.heapify(self.tile_heap)
+        self.buckets = defaultdict(list)  # dist -> [Tile, ...]
+        self._bucket_max = -1
         self.current_step = 0
 
         self.reset()
@@ -158,8 +155,8 @@ class GridManager:
     def reset(self):
         self.grid        = {}
         self.all_scenery = []
-        self.tile_heap   = []
-        heapq.heapify(self.tile_heap)
+        self.buckets = defaultdict(list)
+        self._bucket_max = -1
 
         self._recompute_draw_bounds()
 
@@ -182,7 +179,7 @@ class GridManager:
                     self.grid[(x, y, l)] = Tile(x, y, l, mask, tile_idx)
                     tile_idx += 1
 
-        # Set Manhattan distance from the current eye (heap priority)
+        # Set Manhattan distance from the current eye (bucket index)
         for t in self.grid.values():
             t.dist = abs(t.x - int(self.eye_x)) + abs(t.y - int(self.eye_y))
 
@@ -212,8 +209,7 @@ class GridManager:
 
         for t in self.grid.values():
             if t.mask:
-                heapq.heappush(self.tile_heap, (-t.dist, t))
-                t.in_heap = True
+                self._push(t)
 
     # ------------------------------------------------------------------
     # Direction helpers — relative to the current eye position
@@ -244,10 +240,40 @@ class GridManager:
         return [n for n in neighbors if n]
 
     def _push(self, tile):
-        """Push tile onto the heap only if it is not already there."""
+        """Push tile into its distance bucket (O(1)) if not already queued."""
         if not tile.in_heap:
-            heapq.heappush(self.tile_heap, (-tile.dist, tile))
+            d = tile.dist
+            self.buckets[d].append(tile)
+            if d > self._bucket_max:
+                self._bucket_max = d
             tile.in_heap = True
+
+    def _queue_nonempty(self):
+        d = self._bucket_max
+        while d >= 0:
+            if self.buckets.get(d):
+                return True
+            d -= 1
+        return False
+
+    def _pop_next(self):
+        """Farthest Manhattan distance first; ties broken by smallest tile idx (heap order)."""
+        while self._bucket_max >= 0:
+            lst = self.buckets.get(self._bucket_max)
+            if not lst:
+                self._bucket_max -= 1
+                continue
+            if len(lst) == 1:
+                tile = lst.pop()
+                if not self.buckets[self._bucket_max]:
+                    del self.buckets[self._bucket_max]
+                tile.in_heap = False
+                return tile
+            bi = min(range(len(lst)), key=lambda i: lst[i].idx)
+            tile = lst.pop(bi)
+            tile.in_heap = False
+            return tile
+        return None
 
     def run(self):
         """Re-run from scratch up to current_step pops."""
@@ -255,10 +281,11 @@ class GridManager:
 
         runstep = 0
 
-        while self.tile_heap and runstep < self.current_step:
+        while self._queue_nonempty() and runstep < self.current_step:
             runstep += 1
-            dist, tile = heapq.heappop(self.tile_heap)
-            tile.in_heap = False
+            tile = self._pop_next()
+            if tile is None:
+                break
 
             if tile.step == TileStep.DONE:
                 continue
@@ -353,7 +380,7 @@ def main():
     width  = (GRID_SIZE * CELL_SIZE + MARGIN * 2) * LEVELS
     height = GRID_SIZE * CELL_SIZE + MARGIN * 2
     screen = pygame.display.set_mode((width, height))
-    pygame.display.set_caption("Manhattan Outside-In Traversal")
+    pygame.display.set_caption("Bucket Outside-In Traversal")
     clock = pygame.time.Clock()
     font  = pygame.font.SysFont(None, 24)
 
