@@ -1,7 +1,13 @@
 {
     "version": "0.2.0",
     "configurations": [
-        {"name":"Python Debugger: Current File","type":"debugpy","request":"launch","program":"${file}","console":"integratedTerminal"},
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
         {
             "name": "Debug with MinGW64 (osx.exe)",
             "type": "cppdbg",
@@ -170,8 +176,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/osx",
-            "args": [
-            ],
+            "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
             "externalConsole": false,
@@ -189,9 +194,6 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/osx",
-            "args": [
-                "--renderer=opengl3"
-            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
             "environment": [],

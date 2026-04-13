@@ -361,7 +361,6 @@ static void
 defaultlight_build(struct World* world)
 {
     struct Scene2Element* scene_element = NULL;
-    struct Scene2Element* adjacent_scene_element = NULL;
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
 
@@ -392,6 +391,7 @@ defaultlight_build(struct World* world)
                         scene2_element_dash_model(scene_element),
                         map_element->light_attenuation,
                         map_element->light_ambient);
+                    dashmodel_free_normals(scene2_element_dash_model(scene_element));
                 }
             }
         }
@@ -401,36 +401,58 @@ defaultlight_build(struct World* world)
 static void
 world_build_lighting(struct World* world)
 {
-    // Alloc normals
+    struct SharelightMapTile* map_tile = NULL;
+    struct SharelightMapElement* map_element = NULL;
     struct Scene2Element* scene_element = NULL;
 
-    scene_element = world->scene2->active_list;
-    while( scene_element != NULL )
+    for( int sx = 0; sx < world->sharelight_map->width; sx++ )
     {
-        if( scene2_element_dash_model(scene_element) )
+        for( int sz = 0; sz < world->sharelight_map->height; sz++ )
         {
-            dashmodel_alloc_normals(scene2_element_dash_model(scene_element));
+            for( int slevel = 0; slevel < MAP_TERRAIN_LEVELS; slevel++ )
+            {
+                map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
+                assert(map_tile && "Sharelight map tile must be valid");
 
-            dashmodel_calculate_vertex_normals(scene2_element_dash_model(scene_element));
+                for( int i = 0; i < map_tile->sharelight_count; i++ )
+                {
+                    map_element = &map_tile->sharelight[i];
+                    scene_element = scene2_element_at(world->scene2, map_element->element_idx);
+                    if( !scene_element || !scene2_element_dash_model(scene_element) )
+                        continue;
+
+                    dashmodel_alloc_normals(scene2_element_dash_model(scene_element));
+                    dashmodel_calculate_vertex_normals(scene2_element_dash_model(scene_element));
+                }
+            }
         }
-        scene_element = scene2_element_next(scene_element);
     }
 
     sharelight_build(world);
 
-    defaultlight_build(world);
-
-    // Free normals
-    scene_element = world->scene2->active_list;
-    while( scene_element != NULL )
+    for( int sx = 0; sx < world->sharelight_map->width; sx++ )
     {
-        if( scene2_element_dash_model(scene_element) )
+        for( int sz = 0; sz < world->sharelight_map->height; sz++ )
         {
-            dashmodel_free_normals(scene2_element_dash_model(scene_element));
-        }
+            for( int slevel = 0; slevel < MAP_TERRAIN_LEVELS; slevel++ )
+            {
+                map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
+                assert(map_tile && "Sharelight map tile must be valid");
 
-        scene_element = scene2_element_next(scene_element);
+                for( int i = 0; i < map_tile->sharelight_count; i++ )
+                {
+                    map_element = &map_tile->sharelight[i];
+                    scene_element = scene2_element_at(world->scene2, map_element->element_idx);
+                    if( !scene_element || !scene2_element_dash_model(scene_element) )
+                        continue;
+
+                    dashmodel_free_normals(scene2_element_dash_model(scene_element));
+                }
+            }
+        }
     }
+
+    defaultlight_build(world);
 }
 
 #endif

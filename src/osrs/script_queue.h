@@ -69,7 +69,8 @@ struct ScriptArgsLoadCullmap
 {
     int viewport_w;
     int viewport_h;
-    int fov;
+    /** Near clip Z (same units as gen_painters_cullmap --near); baked filename uses f{near_clip_z}. */
+    int near_clip_z;
     int draw_radius;
 };
 

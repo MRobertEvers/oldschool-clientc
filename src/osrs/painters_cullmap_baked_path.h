@@ -5,7 +5,8 @@
 
 /**
  * Baked cullmap identity: grid-snapped values used in generator filenames.
- * `fov` is carried for game state; it is not part of the .bin filename today.
+ * The `f{N}` / `fm{N}` segment in the basename comes from `nz` (near clip Z), matching
+ * gen_painters_cullmap --near. `fov` is optional game state and is not used in filenames.
  */
 struct PaintersCullmapBakedParams
 {

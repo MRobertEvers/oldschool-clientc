@@ -1,9 +1,10 @@
 local CacheDat = require("cachedat")
 
-local viewport_w, viewport_h, fov, draw_radius = ...
+local viewport_w, viewport_h, near_clip_z, draw_radius = ...
 viewport_w = viewport_w or 0
 viewport_h = viewport_h or 0
-fov = fov or 512
+-- Must match camera near_plane_z and gen_painters_cullmap --near (baked f{N} in filename).
+near_clip_z = near_clip_z or 50
 draw_radius = draw_radius or 25
 
 local function snap_dim(v)
@@ -37,11 +38,10 @@ end
 local w = snap_dim(viewport_w)
 local h = snap_dim(viewport_h)
 local radius = snap_radius(draw_radius)
-local fov_part = ("f" .. fov)
 local path = string.format(
-    "cullmaps/painters_cullmap_baked_r%d_%s_w%d_h%d.bin",
+    "cullmaps/painters_cullmap_baked_r%d_f%d_w%d_h%d.bin",
     radius,
-    fov_part,
+    near_clip_z,
     w,
     h
 )

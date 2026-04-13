@@ -31,7 +31,7 @@ function defaultJobCount() {
 
 function usage() {
   console.error(`usage: node batch_cullmaps.mjs [options]
-  --near <int>     near clip z (default 512)
+  --near <int>     near clip z (default ${DEFAULT_NEAR})
   --out-dir <path> output directory (default: repo src/osrs/revconfig/configs/cullmaps)
   -j [N], --jobs [N]  run up to N generators in parallel (default: CPU count; 1 = serial)
   --dry-run        print commands only
@@ -146,14 +146,19 @@ async function runPool(genExePath, tasks, concurrency) {
       if (i >= tasks.length) break;
       const t = tasks[i];
       try {
+        /* Do not use stdio: 'ignore' here: parallel runs would hide gen_painters_cullmap stderr
+         * (fopen errors, painters_cullmap_build failed, etc.). Default pipes are tiny per task. */
         await execFileAsync(genExePath, t.args, {
           maxBuffer: 64 * 1024 * 1024,
-          stdio: concurrency > 1 ? 'ignore' : 'inherit',
+          encoding: 'utf8',
         });
         ok++;
-      } catch {
+      } catch (err) {
         fail++;
         console.error(`batch_cullmaps: failed: ${t.base}`);
+        const es = err && typeof err.stderr === 'string' && err.stderr.trim();
+        if (es) console.error(es);
+        if (err && err.message) console.error(`batch_cullmaps: ${err.message}`);
       }
     }
   }

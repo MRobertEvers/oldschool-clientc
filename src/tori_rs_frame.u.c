@@ -5,22 +5,13 @@
 #define TORI_RS_PAINTERS_CULLMAP_RADIUS 25
 
 #include "graphics/dash.h"
-#include "osrs/buildcachedat.h"
-#include "osrs/collision_map.h"
-#include "osrs/dash_utils.h"
 #include "osrs/game.h"
-#include "osrs/interface.h"
 #include "osrs/interface_state.h"
-#include "osrs/isaac.h"
 #include "osrs/minimap.h"
-#include "osrs/minimenu.h"
-#include "osrs/obj_icon.h"
-#include "osrs/packetout.h"
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
 #include "osrs/rs_component_gfx.h"
 #include "osrs/rs_component_state.h"
-#include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/scene2.h"
 #include "osrs/world_options.h"
 #include "tori_rs.h"
@@ -547,7 +538,7 @@ LibToriRS_FrameBegin(
                 .u.load_cullmap = {
                     .viewport_w = game->world->cullmap_screen_width,
                     .viewport_h = game->world->cullmap_screen_height,
-                    .fov = game->camera_fov,
+                    .near_clip_z = game->camera->near_plane_z,
                     .draw_radius = TORI_RS_PAINTERS_CULLMAP_RADIUS,
                 },
             };

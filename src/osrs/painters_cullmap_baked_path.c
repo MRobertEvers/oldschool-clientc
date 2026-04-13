@@ -45,12 +45,15 @@ pick_baked_radius(int draw_radius)
 }
 
 static void
-format_fov(
+format_near_clip_filename_part(
     char* buf,
     size_t cap,
-    int fov)
+    int nz)
 {
-    snprintf(buf, cap, "f%d", fov);
+    if( nz >= 0 )
+        snprintf(buf, cap, "f%d", nz);
+    else
+        snprintf(buf, cap, "fm%d", -nz);
 }
 
 static char*
@@ -89,15 +92,15 @@ painters_cullmap_baked_format_filename(const struct PaintersCullmapBakedParams* 
 {
     if( !p )
         return NULL;
-    char fovpart[48];
-    format_fov(fovpart, sizeof fovpart, p->fov);
+    char nzpart[48];
+    format_near_clip_filename_part(nzpart, sizeof nzpart, p->nz);
     char tmp[256];
     int n = snprintf(
         tmp,
         sizeof tmp,
         "painters_cullmap_baked_r%d_%s_w%d_h%d.bin",
         p->radius,
-        fovpart,
+        nzpart,
         p->w,
         p->h);
     if( n < 0 || (size_t)n >= sizeof tmp )
@@ -112,8 +115,8 @@ painters_cullmap_baked_format_filepath(
 {
     if( !cullmaps_dir || !p )
         return NULL;
-    char fovpart[48];
-    format_fov(fovpart, sizeof fovpart, p->fov);
+    char nzpart[48];
+    format_near_clip_filename_part(nzpart, sizeof nzpart, p->nz);
     char tmp[1024];
     int n = snprintf(
         tmp,
@@ -121,7 +124,7 @@ painters_cullmap_baked_format_filepath(
         "%s/painters_cullmap_baked_r%d_%s_w%d_h%d.bin",
         cullmaps_dir,
         p->radius,
-        fovpart,
+        nzpart,
         p->w,
         p->h);
     if( n < 0 || (size_t)n >= sizeof tmp )

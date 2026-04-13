@@ -83,7 +83,7 @@ script_convert_to_lua(
             out->args, LuaGameType_NewInt(item->args.u.load_cullmap.viewport_w));
         LuaGameType_VarTypeArrayPush(
             out->args, LuaGameType_NewInt(item->args.u.load_cullmap.viewport_h));
-        LuaGameType_VarTypeArrayPush(out->args, LuaGameType_NewInt(item->args.u.load_cullmap.fov));
+        LuaGameType_VarTypeArrayPush(out->args, LuaGameType_NewInt(item->args.u.load_cullmap.near_clip_z));
         LuaGameType_VarTypeArrayPush(
             out->args, LuaGameType_NewInt(item->args.u.load_cullmap.draw_radius));
         break;
