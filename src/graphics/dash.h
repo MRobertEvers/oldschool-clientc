@@ -769,6 +769,10 @@ dashmodel_heap_bytes(const struct DashModel* model);
 void
 dashmodel_alloc_normals(struct DashModel* model);
 
+/** Sharelight only: vertex normals buffer merged across adjacent locs (no face array). */
+void
+dashmodel_alloc_merged_normals(struct DashModel* model);
+
 void
 dashmodel_free_normals(struct DashModel* model);
 

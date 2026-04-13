@@ -60,7 +60,10 @@ _light_model_default(
         attenuation,
         lightsrc_x,
         lightsrc_y,
-        lightsrc_z);
+        lightsrc_z,
+        dashmodel_vertices_x(dash_model),
+        dashmodel_vertices_y(dash_model),
+        dashmodel_vertices_z(dash_model));
 }
 
 #endif

@@ -2,10 +2,12 @@
 
 #include <assert.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 
+/** Per-face unit-ish normal matching `calculate_vertex_normals` / RS lighting (<<8 / magnitude). */
 static struct LightingNormal
-calc_face_normal(
+lighting_flat_face_normal(
     vertexint_t* vertex_x,
     vertexint_t* vertex_y,
     vertexint_t* vertex_z,
@@ -14,7 +16,7 @@ calc_face_normal(
     faceint_t* face_indices_c,
     int face)
 {
-    struct LightingNormal normal = { 0 };
+    struct LightingNormal out = { 0 };
 
     int a = face_indices_a[face];
     int b = face_indices_b[face];
@@ -40,10 +42,8 @@ calc_face_normal(
     int dy_ac = yc - ya;
     int dz_ac = zc - za;
 
-    // Cross Product of vectors AB and AC
     int normal_x = dy_ab * dz_ac - dy_ac * dz_ab;
     int normal_y = dz_ab * dx_ac - dz_ac * dx_ab;
-    // int normal_z = dx_ab * dy_ac - dx_ac * dy_ab;
 
     int nz;
     for( nz = dx_ab * dy_ac - dx_ac * dy_ab; normal_x > 8192 || normal_y > 8192 || nz > 8192 ||
@@ -54,11 +54,23 @@ calc_face_normal(
         normal_y >>= 0x1;
     }
 
-    normal.x = normal_x;
-    normal.y = normal_y;
-    normal.z = nz;
+    int normal_z = nz;
 
-    return normal;
+    int magnitude = sqrt(normal_x * normal_x + normal_y * normal_y + normal_z * normal_z);
+    if( magnitude <= 0 )
+        magnitude = 1;
+    normal_x <<= 8;
+    normal_y <<= 8;
+    normal_z <<= 8;
+    normal_x /= magnitude;
+    normal_y /= magnitude;
+    normal_z /= magnitude;
+
+    out.x = (int16_t)normal_x;
+    out.y = (int16_t)normal_y;
+    out.z = (int16_t)normal_z;
+    out.face_count = 1;
+    return out;
 }
 
 void
@@ -144,10 +156,13 @@ calculate_vertex_normals(
         vertex_normals[c].z += normal_z;
         vertex_normals[c].face_count++;
 
-        face_normals[i].x = normal_x;
-        face_normals[i].y = normal_y;
-        face_normals[i].z = normal_z;
-        face_normals[i].face_count = 1;
+        if( face_normals )
+        {
+            face_normals[i].x = (int16_t)normal_x;
+            face_normals[i].y = (int16_t)normal_y;
+            face_normals[i].z = (int16_t)normal_z;
+            face_normals[i].face_count = 1;
+        }
     }
 }
 
@@ -203,7 +218,10 @@ apply_lighting(
     int light_attenuation,
     int lightsrc_x,
     int lightsrc_y,
-    int lightsrc_z)
+    int lightsrc_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z)
 {
     int lightness;
     for( int i = 0; i < num_faces; i++ )
@@ -290,7 +308,22 @@ apply_lighting(
             }
             else if( type == 1 )
             {
-                n = &face_normals[i];
+                struct LightingNormal computed_fn;
+                if( face_normals )
+                    n = &face_normals[i];
+                else
+                {
+                    assert(vertex_x && vertex_y && vertex_z);
+                    computed_fn = lighting_flat_face_normal(
+                        vertex_x,
+                        vertex_y,
+                        vertex_z,
+                        face_indices_a,
+                        face_indices_b,
+                        face_indices_c,
+                        i);
+                    n = &computed_fn;
+                }
 
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /
@@ -340,7 +373,22 @@ apply_lighting(
             }
             else if( type == 1 )
             {
-                n = &face_normals[i];
+                struct LightingNormal computed_fn;
+                if( face_normals )
+                    n = &face_normals[i];
+                else
+                {
+                    assert(vertex_x && vertex_y && vertex_z);
+                    computed_fn = lighting_flat_face_normal(
+                        vertex_x,
+                        vertex_y,
+                        vertex_z,
+                        face_indices_a,
+                        face_indices_b,
+                        face_indices_c,
+                        i);
+                    n = &computed_fn;
+                }
 
                 lightness =
                     light_ambient + (lightsrc_x * n->x + lightsrc_y * n->y + lightsrc_z * n->z) /

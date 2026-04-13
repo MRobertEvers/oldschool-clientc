@@ -2353,7 +2353,8 @@ dash3d_calculate_vertex_normals(
         face_count);
 
     normals->lighting_vertex_normals_count = vertex_count;
-    normals->lighting_face_normals_count = face_count;
+    normals->lighting_face_normals_count =
+        normals->lighting_face_normals ? face_count : 0;
 }
 
 void //
@@ -2362,8 +2363,7 @@ dashmodel_calculate_vertex_normals(struct DashModel* model)
     assert(model);
     dashmodel__flags(model);
     struct DashModelNormals* nm = dashmodel_normals(model);
-    struct DashModelNormals* mm = dashmodel_merged_normals(model);
-    if( !nm || !mm )
+    if( !nm )
         return;
     int vc = dashmodel_vertex_count(model);
     int fc = dashmodel_face_count(model);
@@ -2378,14 +2378,14 @@ dashmodel_calculate_vertex_normals(struct DashModel* model)
         dashmodel_vertices_y(model),
         dashmodel_vertices_z(model));
 
-    memcpy(
-        mm->lighting_vertex_normals,
-        nm->lighting_vertex_normals,
-        sizeof(struct LightingNormal) * (size_t)vc);
-    memcpy(
-        mm->lighting_face_normals,
-        nm->lighting_face_normals,
-        sizeof(struct LightingNormal) * (size_t)fc);
+    struct DashModelNormals* mm = dashmodel_merged_normals(model);
+    if( mm && mm->lighting_vertex_normals )
+    {
+        memcpy(
+            mm->lighting_vertex_normals,
+            nm->lighting_vertex_normals,
+            sizeof(struct LightingNormal) * (size_t)vc);
+    }
 }
 
 void //
@@ -2535,10 +2535,13 @@ dashmodel_normals_new(
     memset(normals, 0, sizeof(struct DashModelNormals));
     normals->lighting_vertex_normals = malloc(sizeof(struct LightingNormal) * vertex_count);
     memset(normals->lighting_vertex_normals, 0, sizeof(struct LightingNormal) * vertex_count);
-    normals->lighting_face_normals = malloc(sizeof(struct LightingNormal) * face_count);
-    memset(normals->lighting_face_normals, 0, sizeof(struct LightingNormal) * face_count);
     normals->lighting_vertex_normals_count = vertex_count;
-    normals->lighting_face_normals_count = face_count;
+    if( face_count > 0 )
+    {
+        normals->lighting_face_normals = malloc(sizeof(struct LightingNormal) * face_count);
+        memset(normals->lighting_face_normals, 0, sizeof(struct LightingNormal) * face_count);
+        normals->lighting_face_normals_count = face_count;
+    }
     return normals;
 }
 
@@ -2562,10 +2565,13 @@ dashmodel_normals_new_copy(struct DashModelNormals* normals)
         aliased_normals->lighting_vertex_normals,
         normals->lighting_vertex_normals,
         sizeof(struct LightingNormal) * normals->lighting_vertex_normals_count);
-    memcpy(
-        aliased_normals->lighting_face_normals,
-        normals->lighting_face_normals,
-        sizeof(struct LightingNormal) * normals->lighting_face_normals_count);
+    if( aliased_normals->lighting_face_normals && normals->lighting_face_normals )
+    {
+        memcpy(
+            aliased_normals->lighting_face_normals,
+            normals->lighting_face_normals,
+            sizeof(struct LightingNormal) * normals->lighting_face_normals_count);
+    }
     return aliased_normals;
 }
 

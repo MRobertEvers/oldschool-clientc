@@ -49,6 +49,9 @@ apply_lighting(
     int light_attenuation,
     int lightsrc_x,
     int lightsrc_y,
-    int lightsrc_z);
+    int lightsrc_z,
+    vertexint_t* vertex_x,
+    vertexint_t* vertex_y,
+    vertexint_t* vertex_z);
 
 #endif

@@ -341,7 +341,7 @@ sharelight_build(struct World* world)
                         dashmodel_face_colors_b(dm),
                         dashmodel_face_colors_c(dm),
                         dashmodel_merged_normals(dm)->lighting_vertex_normals,
-                        dashmodel_merged_normals(dm)->lighting_face_normals,
+                        dashmodel_normals(dm)->lighting_face_normals,
                         dashmodel_face_indices_a(dm),
                         dashmodel_face_indices_b(dm),
                         dashmodel_face_indices_c(dm),
@@ -354,7 +354,10 @@ sharelight_build(struct World* world)
                         attenuation,
                         lightsrc_x,
                         lightsrc_y,
-                        lightsrc_z);
+                        lightsrc_z,
+                        dashmodel_vertices_x(dm),
+                        dashmodel_vertices_y(dm),
+                        dashmodel_vertices_z(dm));
                 }
             }
         }
@@ -428,6 +431,7 @@ world_build_lighting(struct World* world)
                         continue;
 
                     dashmodel_alloc_normals(scene2_element_dash_model(scene_element));
+                    dashmodel_alloc_merged_normals(scene2_element_dash_model(scene_element));
                     dashmodel_calculate_vertex_normals(scene2_element_dash_model(scene_element));
                 }
             }

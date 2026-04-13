@@ -2065,6 +2065,21 @@ dashmodel_alloc_lit_face_colors_zero(
     u->face_colors_c = (hsl16_t*)calloc((size_t)face_count, sizeof(hsl16_t));
 }
 
+static int
+dashmodel__needs_face_normals(struct DashModel* model)
+{
+    const int* fi = dashmodel_face_infos_const(model);
+    if( !fi )
+        return 0;
+    int fc = dashmodel_face_count(model);
+    for( int i = 0; i < fc; i++ )
+    {
+        if( (fi[i] & 0x3) == 1 )
+            return 1;
+    }
+    return 0;
+}
+
 void
 dashmodel_alloc_normals(struct DashModel* model)
 {
@@ -2075,8 +2090,21 @@ dashmodel_alloc_normals(struct DashModel* model)
     struct DashModelFull* m = dashmodel__writable_full(model);
     if( m->normals )
         return;
-    m->normals = dashmodel_normals_new(m->vertex_count, m->face_count);
-    m->merged_normals = dashmodel_normals_new(m->vertex_count, m->face_count);
+    int face_n = dashmodel__needs_face_normals(model) ? m->face_count : 0;
+    m->normals = dashmodel_normals_new(m->vertex_count, face_n);
+}
+
+void
+dashmodel_alloc_merged_normals(struct DashModel* model)
+{
+    assert(model);
+    dashmodel__flags(model);
+    if( dashmodel__type(model) != DASHMODEL_TYPE_FULL )
+        return;
+    struct DashModelFull* m = dashmodel__writable_full(model);
+    if( m->merged_normals )
+        return;
+    m->merged_normals = dashmodel_normals_new(m->vertex_count, 0);
 }
 
 void

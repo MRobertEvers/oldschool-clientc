@@ -258,33 +258,6 @@ merge_normals(
     }
 }
 
-static struct DashModelNormals*
-model_normals_new_copy(struct DashModelNormals* normals)
-{
-    struct DashModelNormals* aliased_normals = malloc(sizeof(struct DashModelNormals));
-    memset(aliased_normals, 0, sizeof(struct DashModelNormals));
-
-    int vertex_count = normals->lighting_vertex_normals_count;
-    int face_count = normals->lighting_face_normals_count;
-
-    aliased_normals->lighting_vertex_normals = malloc(sizeof(struct LightingNormal) * vertex_count);
-    memcpy(
-        aliased_normals->lighting_vertex_normals,
-        normals->lighting_vertex_normals,
-        sizeof(struct LightingNormal) * vertex_count);
-
-    aliased_normals->lighting_face_normals = malloc(sizeof(struct LightingNormal) * face_count);
-    memcpy(
-        aliased_normals->lighting_face_normals,
-        normals->lighting_face_normals,
-        sizeof(struct LightingNormal) * face_count);
-
-    aliased_normals->lighting_vertex_normals_count = vertex_count;
-    aliased_normals->lighting_face_normals_count = face_count;
-
-    return aliased_normals;
-}
-
 static void
 dashmodel_alias_normals(
     struct BuildElement* build_element,
@@ -293,7 +266,14 @@ dashmodel_alias_normals(
     if( build_element->aliased_lighting_normals )
         return;
 
-    build_element->aliased_lighting_normals = model_normals_new_copy(model_normals);
+    int vertex_count = model_normals->lighting_vertex_normals_count;
+    struct DashModelNormals* aliased =
+        dashmodel_normals_new(vertex_count, 0);
+    memcpy(
+        aliased->lighting_vertex_normals,
+        model_normals->lighting_vertex_normals,
+        sizeof(struct LightingNormal) * (size_t)vertex_count);
+    build_element->aliased_lighting_normals = aliased;
 }
 
 static void
@@ -462,7 +442,7 @@ sharelight_build_scene(
             dashmodel_face_colors_b(dm),
             dashmodel_face_colors_c(dm),
             build_element->aliased_lighting_normals->lighting_vertex_normals,
-            build_element->aliased_lighting_normals->lighting_face_normals,
+            dashmodel_normals(dm)->lighting_face_normals,
             dashmodel_face_indices_a(dm),
             dashmodel_face_indices_b(dm),
             dashmodel_face_indices_c(dm),
@@ -475,7 +455,10 @@ sharelight_build_scene(
             attenuation,
             lightsrc_x,
             lightsrc_y,
-            lightsrc_z);
+            lightsrc_z,
+            dashmodel_vertices_x(dm),
+            dashmodel_vertices_y(dm),
+            dashmodel_vertices_z(dm));
     }
 }
 
