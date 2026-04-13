@@ -595,6 +595,39 @@ l_buildcachedat_init_objects_from_config_jagfile(lua_State* L)
 }
 
 static int
+l_buildcachedat_clear_config_jagfile(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+
+    buildcachedat_clear_config_jagfile(buildcachedat);
+
+    return 0;
+}
+
+static int
+l_buildcachedat_clear_versionlist_jagfile(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+
+    buildcachedat_clear_versionlist_jagfile(buildcachedat);
+
+    return 0;
+}
+
+static int
+l_buildcachedat_clear_media_jagfile(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+
+    buildcachedat_clear_media_jagfile(buildcachedat);
+
+    return 0;
+}
+
+static int
 l_buildcachedat_finalize_scene(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
@@ -648,6 +681,9 @@ static const luaL_Reg buildcachedat_funcs[] = {
     { "cache_title",                                       l_buildcachedat_cache_title                         },
     { "init_idkits_from_config_jagfile",                   l_buildcachedat_init_idkits_from_config_jagfile     },
     { "init_objects_from_config_jagfile",                  l_buildcachedat_init_objects_from_config_jagfile    },
+    { "clear_config_jagfile",                              l_buildcachedat_clear_config_jagfile                },
+    { "clear_versionlist_jagfile",                         l_buildcachedat_clear_versionlist_jagfile           },
+    { "clear_media_jagfile",                               l_buildcachedat_clear_media_jagfile                 },
     { "finalize_scene",                                    l_buildcachedat_finalize_scene                      },
     { NULL,                                                NULL                                                }
 };

@@ -8,6 +8,7 @@
 #include "osrs/gameproto_exec.h"
 #include "osrs/packets/revpacket_lc245_2.h"
 #include "osrs/rscache/cache_dat.h"
+#include "platforms/common/platform_memory.h"
 
 #include <assert.h>
 
@@ -55,6 +56,20 @@ LuaGame_build_scene_centerzone(
     buildcachedat_loader_finalize_scene_centerzone(game->buildcachedat, game, zonex, zonez, size);
 
     return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaGame_get_heap_usage_mb(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    (void)game;
+    (void)args;
+    struct PlatformMemoryInfo mem = { 0 };
+    if( !platform_get_memory_info(&mem) )
+        return LuaGameType_NewFloat(0.0f);
+    float mb = (float)((double)mem.heap_used / (1024.0 * 1024.0));
+    return LuaGameType_NewFloat(mb);
 }
 
 struct LuaGameType*
@@ -249,6 +264,8 @@ LuaGame_DispatchCommand(
         return LuaGame_load_component_sprites(game, args);
     else if( strcmp(command, "get_interface_model_ids") == 0 )
         return LuaGame_get_interface_model_ids(game, args);
+    else if( strcmp(command, "get_heap_usage_mb") == 0 )
+        return LuaGame_get_heap_usage_mb(game, args);
     else
     {
         printf("Unknown command: %s\n", command);

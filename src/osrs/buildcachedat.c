@@ -185,7 +185,9 @@ buildcachedat_maybe_grow_hmap(struct DashMap* map)
 }
 
 void
-buildcachedat_reserve_hmap(struct DashMap* map, size_t min_count)
+buildcachedat_reserve_hmap(
+    struct DashMap* map,
+    size_t min_count)
 {
     /* Ensure the map can hold min_count entries at < 75% load without any incremental resize. */
     size_t need_capacity = (min_count * 4 + 2) / 3 + 1;
@@ -252,8 +254,8 @@ buildcachedat_init_reftables_if_needed(struct BuildCacheDat* buildcachedat)
         buildcachedat->textures_reftable =
             buildcachedat_create_hmap(sizeof(int), sizeof(struct TextureRefEntry), cap);
     if( !buildcachedat->fonts_reftable )
-        buildcachedat->fonts_reftable =
-            buildcachedat_create_hmap(BUILDCACHEDAT_FONT_NAME_MAX, sizeof(struct FontRefEntry), cap);
+        buildcachedat->fonts_reftable = buildcachedat_create_hmap(
+            BUILDCACHEDAT_FONT_NAME_MAX, sizeof(struct FontRefEntry), cap);
     if( !buildcachedat->animframes_reftable )
         buildcachedat->animframes_reftable =
             buildcachedat_create_hmap(sizeof(int), sizeof(struct AnimframeRefEntry), cap);
@@ -431,7 +433,6 @@ free_container_entry(void* e)
     }
 }
 
-
 void
 buildcachedat_free(struct BuildCacheDat* buildcachedat)
 {
@@ -545,6 +546,33 @@ buildcachedat_clear_jagfiles(struct BuildCacheDat* buildcachedat)
     buildcachedat->cfg_config_jagfile = NULL;
     filelist_dat_free(buildcachedat->cfg_versionlist_jagfile);
     buildcachedat->cfg_versionlist_jagfile = NULL;
+    filelist_dat_free(buildcachedat->cfg_media_jagfile);
+    buildcachedat->cfg_media_jagfile = NULL;
+}
+
+void
+buildcachedat_clear_config_jagfile(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat )
+        return;
+    filelist_dat_free(buildcachedat->cfg_config_jagfile);
+    buildcachedat->cfg_config_jagfile = NULL;
+}
+
+void
+buildcachedat_clear_versionlist_jagfile(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat )
+        return;
+    filelist_dat_free(buildcachedat->cfg_versionlist_jagfile);
+    buildcachedat->cfg_versionlist_jagfile = NULL;
+}
+
+void
+buildcachedat_clear_media_jagfile(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat )
+        return;
     filelist_dat_free(buildcachedat->cfg_media_jagfile);
     buildcachedat->cfg_media_jagfile = NULL;
 }
@@ -839,7 +867,9 @@ buildcachedat_get_flotype(
 }
 
 void
-buildcachedat_add_texture_ref(struct BuildCacheDat* buildcachedat, int texture_id)
+buildcachedat_add_texture_ref(
+    struct BuildCacheDat* buildcachedat,
+    int texture_id)
 {
     struct TextureRefEntry* texture_entry = (struct TextureRefEntry*)dashmap_search(
         buildcachedat->textures_reftable, &texture_id, DASHMAP_INSERT);
@@ -849,7 +879,9 @@ buildcachedat_add_texture_ref(struct BuildCacheDat* buildcachedat, int texture_i
 }
 
 bool
-buildcachedat_has_texture_ref(struct BuildCacheDat* buildcachedat, int texture_id)
+buildcachedat_has_texture_ref(
+    struct BuildCacheDat* buildcachedat,
+    int texture_id)
 {
     struct TextureRefEntry* texture_entry = (struct TextureRefEntry*)dashmap_search(
         buildcachedat->textures_reftable, &texture_id, DASHMAP_FIND);
@@ -874,7 +906,9 @@ buildcachedat_add_font_ref(
 }
 
 int
-buildcachedat_get_font_ref_id(struct BuildCacheDat* buildcachedat, const char* font_name)
+buildcachedat_get_font_ref_id(
+    struct BuildCacheDat* buildcachedat,
+    const char* font_name)
 {
     char buffer[BUILDCACHEDAT_FONT_NAME_MAX] = { 0 };
     strncpy(buffer, font_name, BUILDCACHEDAT_FONT_NAME_MAX);
@@ -938,7 +972,9 @@ buildcachedat_add_sprite_ref(
 }
 
 int
-buildcachedat_get_sprite_element_id(struct BuildCacheDat* buildcachedat, const char* name)
+buildcachedat_get_sprite_element_id(
+    struct BuildCacheDat* buildcachedat,
+    const char* name)
 {
     char buffer[64] = { 0 };
     strncpy(buffer, name, sizeof(buffer));

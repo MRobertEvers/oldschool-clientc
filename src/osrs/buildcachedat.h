@@ -132,6 +132,18 @@ buildcachedat_clear(struct BuildCacheDat* buildcachedat);
 void
 buildcachedat_reset_uiscene_linked_reftables(struct BuildCacheDat* buildcachedat);
 
+/** Free decoded config jagfile only (decoded tables in BuildCacheDat are unchanged). */
+void
+buildcachedat_clear_config_jagfile(struct BuildCacheDat* buildcachedat);
+
+/** Free decoded versionlist jagfile only. */
+void
+buildcachedat_clear_versionlist_jagfile(struct BuildCacheDat* buildcachedat);
+
+/** Free decoded 2D media jagfile only. */
+void
+buildcachedat_clear_media_jagfile(struct BuildCacheDat* buildcachedat);
+
 void
 buildcachedat_set_config_jagfile(
     struct BuildCacheDat* buildcachedat,

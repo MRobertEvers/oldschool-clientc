@@ -5,6 +5,11 @@ local function print_table(tbl)
     end
 end
 
+local function print_heap(label)
+    local mb = Game.game_get_heap_usage_mb()
+    print(string.format("[heap] %-48s %.1f MB", label, mb))
+end
+
 
 
 -- Build chunk list from world bounds (same coordinate convention as scenebuilder_load_from_buildcachedat)
@@ -27,6 +32,8 @@ end
 
 
 local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
+    print_heap("init_cache_dat start")
+
     local config_requests = {
         { table_id = CacheDat.Tables.CACHE_DAT_CONFIGS, archive_id = CacheDat.ConfigDatKind.CONFIG_DAT_CONFIGS,           flags = 0 },
         { table_id = CacheDat.Tables.CACHE_DAT_CONFIGS, archive_id = CacheDat.ConfigDatKind.CONFIG_DAT_VERSION_LIST,      flags = 0 },
@@ -36,6 +43,8 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     Game.buildcachedat_set_config_jagfile(config_archives[1])
     Game.buildcachedat_set_versionlist_jagfile(config_archives[2])
     Game.buildcachedat_set_2d_media_jagfile(config_archives[3])
+
+    print_heap("after jagfile setup")
 
     print("=== Loading Map Data ===")
     local chunks, _, _, _, _ = world_to_map_chunks(wx_sw, wz_sw, wx_ne, wz_ne)
@@ -56,8 +65,9 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
             table.insert(terrain_map_ids, map_id)
         end
     end
+    local terrain_archives = nil
     if #terrain_requests > 0 then
-        local terrain_archives = CacheDat.load_archives(terrain_requests)
+        terrain_archives = CacheDat.load_archives(terrain_requests)
         for i, map_id in ipairs(terrain_map_ids) do
             Game.buildcachedat_cache_map_terrain(terrain_archives[i], map_id)
         end
@@ -78,12 +88,22 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
             table.insert(scenery_map_ids, map_id)
         end
     end
+    local scenery_archives = nil
     if #scenery_requests > 0 then
-        local scenery_archives = CacheDat.load_archives(scenery_requests)
+        scenery_archives = CacheDat.load_archives(scenery_requests)
         for i, map_id in ipairs(scenery_map_ids) do
             Game.buildcachedat_cache_map_scenery(scenery_archives[i], map_id)
         end
     end
+
+    terrain_archives = nil
+    scenery_archives = nil
+    terrain_requests = nil
+    terrain_map_ids = nil
+    scenery_requests = nil
+    scenery_map_ids = nil
+    collectgarbage("collect")
+    print_heap("after map data + GC")
 
 
     print("=== Loading Config ===")
@@ -92,6 +112,12 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     Game.buildcachedat_init_idkits_from_config_jagfile()
     Game.buildcachedat_init_objects_from_config_jagfile()
     Game.buildcachedat_init_sequences_from_config_jagfile()
+
+    config_archives = nil
+    Game.buildcachedat_clear_config_jagfile()
+    Game.buildcachedat_clear_media_jagfile()
+    collectgarbage("collect")
+    print_heap("after config init + clear config/media jagfiles")
 
     print("=== Loading Models ===")
     local models_to_load = Game.buildcachedat_get_all_unique_scenery_model_ids()
@@ -105,12 +131,20 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
             table.insert(models_needed, model_id)
         end
     end
+    local model_archives = nil
     if #model_requests > 0 then
-        local model_archives = CacheDat.load_archives(model_requests)
+        model_archives = CacheDat.load_archives(model_requests)
         for i, model_id in ipairs(models_needed) do
             Game.buildcachedat_cache_model(model_archives[i], model_id)
         end
     end
+
+    model_archives = nil
+    models_needed = nil
+    model_requests = nil
+    models_to_load = nil
+    collectgarbage("collect")
+    print_heap("after models + GC")
 
 
     print("=== Loading Textures ===")
@@ -119,9 +153,12 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
         CacheDat.ConfigDatKind.CONFIG_DAT_TEXTURES)
     Game.buildcachedat_cache_textures(texture_sprites_ptr)
     Game.dash_load_textures()
+    texture_sprites_ptr = nil
+    print_heap("after textures")
 
     print("=== Loading Animations ===")
     local animbaseframes_count = Game.buildcachedat_get_animbaseframes_count_from_versionlist_jagfile()
+    Game.buildcachedat_clear_versionlist_jagfile()
 
     local anim_requests = {}
     local anim_indices = {}
@@ -131,17 +168,25 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
             table.insert(anim_indices, i)
         end
     end
+    local anim_archives = nil
     if #anim_requests > 0 then
-        local anim_archives = CacheDat.load_archives(anim_requests)
+        anim_archives = CacheDat.load_archives(anim_requests)
         for idx, anim_i in ipairs(anim_indices) do
             Game.buildcachedat_cache_animbaseframes(anim_archives[idx], anim_i)
         end
     end
 
+    anim_archives = nil
+    anim_requests = nil
+    anim_indices = nil
+    collectgarbage("collect")
+    print_heap("after animations + GC")
+
     print("=== Building Scene ===")
 
     Game.game_build_scene(49, 49, 50, 50)
 
+    print_heap("after game_build_scene (includes buildcachedat_clear)")
     print("=== Scene Built ===")
 end
 

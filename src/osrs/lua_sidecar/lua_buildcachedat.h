@@ -218,4 +218,19 @@ LuaBuildCacheDat_clear_component_cache(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
+struct LuaGameType*
+LuaBuildCacheDat_clear_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_clear_versionlist_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_clear_media_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
 #endif

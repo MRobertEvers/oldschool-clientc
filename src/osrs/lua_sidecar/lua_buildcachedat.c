@@ -683,6 +683,36 @@ LuaBuildCacheDat_clear_component_cache(
     return LuaGameType_NewVoid();
 }
 
+struct LuaGameType*
+LuaBuildCacheDat_clear_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_clear_config_jagfile(buildcachedat);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_clear_versionlist_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_clear_versionlist_jagfile(buildcachedat);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_clear_media_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_clear_media_jagfile(buildcachedat);
+    return LuaGameType_NewVoid();
+}
+
 static char const g_prefix[] = "buildcachedat_";
 
 #define DISPATCH_COMMAND(command, func)                                                            \
@@ -757,6 +787,12 @@ LuaBuildCacheDat_DispatchCommand(
         return LuaBuildCacheDat_clear_component_cache(buildcachedat, args);
     else if( strcmp(command, "clear_map_chunks") == 0 )
         return LuaBuildCacheDat_clear_map_chunks(buildcachedat, args);
+    else if( strcmp(command, "clear_config_jagfile") == 0 )
+        return LuaBuildCacheDat_clear_config_jagfile(buildcachedat, args);
+    else if( strcmp(command, "clear_versionlist_jagfile") == 0 )
+        return LuaBuildCacheDat_clear_versionlist_jagfile(buildcachedat, args);
+    else if( strcmp(command, "clear_media_jagfile") == 0 )
+        return LuaBuildCacheDat_clear_media_jagfile(buildcachedat, args);
     else if( strcmp(command, "clear") == 0 )
         return LuaBuildCacheDat_clear(buildcachedat, args);
     else 

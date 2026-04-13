@@ -64,4 +64,10 @@ LuaGame_DispatchCommand(
     char* command,
     struct LuaGameType* args);
 
+/** Heap allocator bytes in use (platform_get_memory_info), as MB float. */
+struct LuaGameType*
+LuaGame_get_heap_usage_mb(
+    struct GGame* game,
+    struct LuaGameType* args);
+
 #endif
