@@ -184,6 +184,30 @@ buildcachedat_maybe_grow_hmap(struct DashMap* map)
     free(old_buffer);
 }
 
+void
+buildcachedat_reserve_hmap(struct DashMap* map, size_t min_count)
+{
+    /* Ensure the map can hold min_count entries at < 75% load without any incremental resize. */
+    size_t need_capacity = (min_count * 4 + 2) / 3 + 1;
+    uint32_t capacity = dashmap_capacity(map);
+    if( (size_t)capacity >= need_capacity )
+        return;
+
+    /* Round up to next power of two. */
+    size_t new_capacity = (size_t)capacity;
+    while( new_capacity < need_capacity )
+        new_capacity *= 2;
+
+    size_t esize = dashmap_entry_size(map);
+    size_t new_buffer_size = dashmap_buffer_size_for(esize, new_capacity);
+    void* new_buffer = malloc(new_buffer_size);
+    void* old_buffer = NULL;
+    int rc = dashmap_resize(map, new_buffer, new_buffer_size, new_capacity, &old_buffer);
+    assert(rc == DASHMAP_OK);
+    (void)rc;
+    free(old_buffer);
+}
+
 static void
 buildcachedat_eventbuffer_push(
     struct BuildCacheDat* buildcachedat,
@@ -513,6 +537,19 @@ buildcachedat_clear(struct BuildCacheDat* buildcachedat)
 }
 
 void
+buildcachedat_clear_jagfiles(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat )
+        return;
+    filelist_dat_free(buildcachedat->cfg_config_jagfile);
+    buildcachedat->cfg_config_jagfile = NULL;
+    filelist_dat_free(buildcachedat->cfg_versionlist_jagfile);
+    buildcachedat->cfg_versionlist_jagfile = NULL;
+    filelist_dat_free(buildcachedat->cfg_media_jagfile);
+    buildcachedat->cfg_media_jagfile = NULL;
+}
+
+void
 buildcachedat_reset_uiscene_linked_reftables(struct BuildCacheDat* buildcachedat)
 {
     if( !buildcachedat )
@@ -535,6 +572,24 @@ buildcachedat_clear_map_chunks(struct BuildCacheDat* buildcachedat)
     dashmap_free_entries(buildcachedat->map_terrains_hmap, free_map_terrain_entry);
     dashmap_free_entries(buildcachedat->scenery_hmap, free_scenery_entry);
     buildcachedat->map_terrains_hmap = buildcachedat_new_map_terrains_hmap();
+    buildcachedat->scenery_hmap = buildcachedat_new_scenery_hmap();
+}
+
+void
+buildcachedat_clear_map_terrain_chunks(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat || !buildcachedat->map_terrains_hmap )
+        return;
+    dashmap_free_entries(buildcachedat->map_terrains_hmap, free_map_terrain_entry);
+    buildcachedat->map_terrains_hmap = buildcachedat_new_map_terrains_hmap();
+}
+
+void
+buildcachedat_clear_map_scenery_chunks(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat || !buildcachedat->scenery_hmap )
+        return;
+    dashmap_free_entries(buildcachedat->scenery_hmap, free_scenery_entry);
     buildcachedat->scenery_hmap = buildcachedat_new_scenery_hmap();
 }
 

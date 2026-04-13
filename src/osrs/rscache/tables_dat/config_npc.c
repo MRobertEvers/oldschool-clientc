@@ -69,8 +69,8 @@ init_npc(struct CacheDatConfigNpc* npc)
     npc->contrast = 0;
 }
 
-static struct CacheDatConfigNpc*
-decode_npc(struct RSBuffer* buffer)
+struct CacheDatConfigNpc*
+cache_dat_config_npc_decode_one(struct RSBuffer* buffer)
 {
     struct CacheDatConfigNpc* npc = malloc(sizeof(struct CacheDatConfigNpc));
     memset(npc, 0, sizeof(struct CacheDatConfigNpc));
@@ -318,7 +318,7 @@ cache_dat_config_npc_list_new_decode(
     struct FileListDatIndexed* filelist_indexed =
         filelist_dat_indexed_new_from_decode(index_data, index_data_size, data, data_size);
 
-    npc_list->npcs = malloc(filelist_indexed->offset_count * sizeof(struct CacheDatConfigNpc));
+    npc_list->npcs = malloc(filelist_indexed->offset_count * sizeof(struct CacheDatConfigNpc*));
     memset(npc_list->npcs, 0, filelist_indexed->offset_count * sizeof(struct CacheDatConfigNpc));
 
     npc_list->npcs_count = filelist_indexed->offset_count;
@@ -331,7 +331,7 @@ cache_dat_config_npc_list_new_decode(
             filelist_indexed->data + filelist_indexed->offsets[i],
             filelist_indexed->data_size - filelist_indexed->offsets[i]);
 
-        struct CacheDatConfigNpc* npc = decode_npc(&buffer);
+        struct CacheDatConfigNpc* npc = cache_dat_config_npc_decode_one(&buffer);
         if( npc == NULL )
         {
             assert(false && "Failed to decode npc");

@@ -504,6 +504,7 @@ buildcachedat_loader_init_sequences_from_config_jagfile(struct BuildCacheDat* bu
                                .position = 0 };
 
     int count = g2(&buffer);
+    buildcachedat_reserve_hmap(buildcachedat->sequences_hmap, (size_t)count);
     for( int i = 0; i < count; i++ )
     {
         struct CacheDatSequence* sequence = malloc(sizeof(struct CacheDatSequence));
@@ -876,6 +877,8 @@ buildcachedat_loader_init_idkits_from_config_jagfile(struct BuildCacheDat* build
     struct CacheDatConfigIdkList* idk_list = cache_dat_config_idk_list_new_decode(
         filelist->files[data_file_idx], filelist->file_sizes[data_file_idx]);
 
+    buildcachedat_reserve_hmap(buildcachedat->idk_hmap, (size_t)idk_list->idks_count);
+
     for( int i = 0; i < idk_list->idks_count; i++ )
     {
         buildcachedat_add_idk(buildcachedat, i, idk_list->idks[i]);
@@ -888,18 +891,26 @@ buildcachedat_loader_init_idkits_from_config_jagfile(struct BuildCacheDat* build
 
     assert(data_file_idx != -1 && index_file_idx != -1);
 
-    struct CacheDatConfigNpcList* npc_list = cache_dat_config_npc_list_new_decode(
+    struct FileListDatIndexed* npc_fi = filelist_dat_indexed_new_from_decode(
         filelist->files[index_file_idx],
         filelist->file_sizes[index_file_idx],
         filelist->files[data_file_idx],
         filelist->file_sizes[data_file_idx]);
 
-    for( int i = 0; i < npc_list->npcs_count; i++ )
+    buildcachedat_reserve_hmap(buildcachedat->npc_hmap, (size_t)npc_fi->offset_count);
+
+    for( int i = 0; i < npc_fi->offset_count; i++ )
     {
-        buildcachedat_add_npc(buildcachedat, i, npc_list->npcs[i]);
+        struct RSBuffer npc_buf;
+        rsbuf_init(
+            &npc_buf,
+            npc_fi->data + npc_fi->offsets[i],
+            npc_fi->data_size - npc_fi->offsets[i]);
+        struct CacheDatConfigNpc* npc = cache_dat_config_npc_decode_one(&npc_buf);
+        assert(npc != NULL && "Failed to decode npc");
+        buildcachedat_add_npc(buildcachedat, i, npc);
     }
-    free(npc_list->npcs);
-    free(npc_list);
+    filelist_dat_indexed_free(npc_fi);
 }
 
 void
@@ -912,18 +923,23 @@ buildcachedat_loader_init_objects_from_config_jagfile(struct BuildCacheDat* buil
     int index_file_idx = filelist_dat_find_file_by_name(filelist, "obj.idx");
     assert(index_file_idx != -1 && "Failed to find obj.idx in filelist");
 
-    struct CacheDatConfigObjList* obj_list = cache_dat_config_obj_list_new_decode(
+    struct FileListDatIndexed* fi = filelist_dat_indexed_new_from_decode(
         filelist->files[index_file_idx],
         filelist->file_sizes[index_file_idx],
         filelist->files[data_file_idx],
         filelist->file_sizes[data_file_idx]);
 
-    for( int i = 0; i < obj_list->objs_count; i++ )
+    buildcachedat_reserve_hmap(buildcachedat->obj_hmap, (size_t)fi->offset_count);
+
+    for( int i = 0; i < fi->offset_count; i++ )
     {
-        buildcachedat_add_obj(buildcachedat, i, obj_list->objs[i]);
+        struct CacheDatConfigObj* obj = cache_dat_config_obj_decode_one(
+            fi->data + fi->offsets[i], fi->data_size - fi->offsets[i]);
+        assert(obj != NULL && "Failed to decode obj");
+        buildcachedat_add_obj(buildcachedat, i, obj);
     }
-    free(obj_list->objs);
-    free(obj_list);
+
+    filelist_dat_indexed_free(fi);
 }
 
 void
@@ -1019,6 +1035,8 @@ buildcachedat_loader_finalize_scene(
 
     game->world = world_new(buildcachedat, game->scene2);
 
+    buildcachedat_clear_jagfiles(buildcachedat);
+
     world_buildcachedat_rebuild_centerzone(game->world, map_sw_x * 8 + 12, map_sw_z * 8 + 12, 104);
 
     LibToriRS_WorldMinimapStaticRebuild(game);
@@ -1038,6 +1056,8 @@ buildcachedat_loader_finalize_scene_centerzone(
         world_free(game->world);
 
     game->world = world_new(buildcachedat, game->scene2);
+
+    buildcachedat_clear_jagfiles(buildcachedat);
 
     world_buildcachedat_rebuild_centerzone(game->world, zonex, zonez, size);
 

@@ -91,12 +91,34 @@ buildcachedat_free(struct BuildCacheDat* buildcachedat);
 void
 buildcachedat_clear_map_chunks(struct BuildCacheDat* buildcachedat);
 
+/** Free only the raw map terrain chunks (CacheMapTerrain). The empty hmap is recreated; call after
+ * all terrain passes are complete to reduce peak memory. */
+void
+buildcachedat_clear_map_terrain_chunks(struct BuildCacheDat* buildcachedat);
+
+/** Free only the raw map scenery chunks (CacheMapLocs). The empty hmap is recreated; call after
+ * all scenery passes are complete to reduce peak memory. */
+void
+buildcachedat_clear_map_scenery_chunks(struct BuildCacheDat* buildcachedat);
+
 /** Free every decoded interface component (CacheDatConfigComponent) and recreate an empty
  * component_hmap. Safe after static UI is built into the uitree; buildcachedat_get_component
  * returns NULL until interfaces are loaded again. Reftables (sprites, fonts, component_sprites)
  * are unchanged. */
 void
 buildcachedat_clear_component_cache(struct BuildCacheDat* buildcachedat);
+
+/** Free the raw jagfile FileListDat buffers (config, versionlist, media) that were only needed
+ * during the decode phase. All decoded entries remain valid in their hashmaps. Call before the
+ * world rebuild to reduce peak concurrent memory. */
+void
+buildcachedat_clear_jagfiles(struct BuildCacheDat* buildcachedat);
+
+/** Pre-size a BuildCacheDat hashmap to hold at least min_count entries without any subsequent
+ * incremental resize. Call before bulk-inserting a known number of entries to avoid the transient
+ * double-buffer spike from repeated grow operations. */
+void
+buildcachedat_reserve_hmap(struct DashMap* map, size_t min_count);
 
 /** Free every owning BuildCacheDat cache (hash maps that own decoded data, config/versionlist/media
  * jagfiles, containers) and reinitialize those maps and event buffer. Reftable maps (textures,

@@ -198,171 +198,6 @@ merge_normals(
 
 #define ADJACENT_TILES_COUNT 48
 
-static void
-sharelight_build(struct World* world)
-{
-    struct TileCoord adjacent_tiles[ADJACENT_TILES_COUNT];
-    struct SharelightMapTile* map_tile = NULL;
-    struct SharelightMapTile* adjacent_map_tile = NULL;
-    struct SharelightMapElement* map_element = NULL;
-    struct SharelightMapElement* adjacent_map_element = NULL;
-
-    struct Scene2Element* scene_element = NULL;
-    struct Scene2Element* adjacent_scene_element = NULL;
-
-    for( int sx = 0; sx < world->sharelight_map->width; sx++ )
-    {
-        for( int sz = 0; sz < world->sharelight_map->height; sz++ )
-        {
-            for( int slevel = 0; slevel < MAP_TERRAIN_LEVELS; slevel++ )
-            {
-                map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
-                assert(map_tile && "Sharelight map tile must be valid");
-
-                for( int32_t pi = map_tile->sharelight_head; pi != -1;
-                     pi = world->sharelight_map->pool[pi].next )
-                {
-                    map_element = &world->sharelight_map->pool[pi].element;
-
-                    scene_element = scene2_element_at(world->scene2, map_element->element_idx);
-                    if( !scene_element || !scene2_element_dash_model(scene_element) )
-                        continue;
-
-                    int adjacent_tiles_count = gather_adjacent_tiles(
-                        world->sharelight_map->width,
-                        world->sharelight_map->height,
-                        adjacent_tiles,
-                        ADJACENT_TILES_COUNT,
-                        sx,
-                        sz,
-                        slevel,
-                        map_element->size_x,
-                        map_element->size_z);
-
-                    for( int j = 0; j < adjacent_tiles_count; j++ )
-                    {
-                        struct TileCoord adjacent_tile_coord = adjacent_tiles[j];
-                        adjacent_map_tile = sharelight_map_tile_at(
-                            world->sharelight_map,
-                            adjacent_tile_coord.x,
-                            adjacent_tile_coord.z,
-                            adjacent_tile_coord.level);
-                        for( int32_t kidx = adjacent_map_tile->sharelight_head; kidx != -1;
-                             kidx = world->sharelight_map->pool[kidx].next )
-                        {
-                            adjacent_map_element = &world->sharelight_map->pool[kidx].element;
-                            if( adjacent_map_element->element_idx == map_element->element_idx )
-                                continue;
-
-                            adjacent_scene_element =
-                                scene2_element_at(world->scene2, adjacent_map_element->element_idx);
-                            if( !adjacent_scene_element ||
-                                !scene2_element_dash_model(adjacent_scene_element) )
-                                continue;
-
-                            int check_offset_x =
-                                (adjacent_tile_coord.x - sx) * 128 +
-                                (adjacent_map_element->size_x - map_element->size_x) * 64;
-
-                            int check_offset_z =
-                                (adjacent_tile_coord.z - sz) * 128 +
-                                (adjacent_map_element->size_z - map_element->size_z) * 64;
-
-                            int height_center =
-                                heightmap_get_center(world->heightmap, sx, sz, slevel);
-                            int adjacent_height_center = heightmap_get_center(
-                                world->heightmap,
-                                adjacent_tile_coord.x,
-                                adjacent_tile_coord.z,
-                                adjacent_tile_coord.level);
-                            int check_offset_height = adjacent_height_center - height_center;
-
-                            if( !dashmodel_is_lightable(scene2_element_dash_model(adjacent_scene_element)) ||
-                                !dashmodel_is_lightable(scene2_element_dash_model(scene_element)) )
-                                continue;
-
-                            merge_normals(
-                                scene2_element_dash_model(scene_element),
-                                dashmodel_normals(scene2_element_dash_model(scene_element))
-                                    ->lighting_vertex_normals,
-                                dashmodel_merged_normals(scene2_element_dash_model(scene_element))
-                                    ->lighting_vertex_normals,
-                                scene2_element_dash_model(adjacent_scene_element),
-                                dashmodel_normals(scene2_element_dash_model(adjacent_scene_element))
-                                    ->lighting_vertex_normals,
-                                dashmodel_merged_normals(scene2_element_dash_model(adjacent_scene_element))
-                                    ->lighting_vertex_normals,
-                                check_offset_x,
-                                check_offset_height,
-                                check_offset_z);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    for( int sx = 0; sx < world->sharelight_map->width; sx++ )
-    {
-        for( int sz = 0; sz < world->sharelight_map->height; sz++ )
-        {
-            for( int slevel = 0; slevel < MAP_TERRAIN_LEVELS; slevel++ )
-            {
-                map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
-
-                for( int32_t pi = map_tile->sharelight_head; pi != -1;
-                     pi = world->sharelight_map->pool[pi].next )
-                {
-                    map_element = &world->sharelight_map->pool[pi].element;
-
-                    scene_element = scene2_element_at(world->scene2, map_element->element_idx);
-                    if( !scene_element || !scene2_element_dash_model(scene_element) )
-                        continue;
-
-                    int light_ambient = 64;
-                    int light_attenuation = 768;
-                    int lightsrc_x = -50;
-                    int lightsrc_y = -10;
-                    int lightsrc_z = -50;
-
-                    light_ambient += map_element->light_ambient;
-                    light_attenuation += map_element->light_attenuation;
-
-                    int light_magnitude = (int)sqrt(
-                        lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y +
-                        lightsrc_z * lightsrc_z);
-                    int attenuation = (light_attenuation * light_magnitude) >> 8;
-
-                    struct DashModel* dm = scene2_element_dash_model(scene_element);
-                    if( !dashmodel_is_lightable(dm) )
-                        continue;
-                    apply_lighting(
-                        dashmodel_face_colors_a(dm),
-                        dashmodel_face_colors_b(dm),
-                        dashmodel_face_colors_c(dm),
-                        dashmodel_merged_normals(dm)->lighting_vertex_normals,
-                        dashmodel_normals(dm)->lighting_face_normals,
-                        dashmodel_face_indices_a(dm),
-                        dashmodel_face_indices_b(dm),
-                        dashmodel_face_indices_c(dm),
-                        dashmodel_face_count(dm),
-                        dashmodel_face_colors_flat(dm),
-                        dashmodel_face_alphas(dm),
-                        dashmodel_face_textures(dm),
-                        dashmodel_face_infos(dm),
-                        light_ambient,
-                        attenuation,
-                        lightsrc_x,
-                        lightsrc_y,
-                        lightsrc_z,
-                        dashmodel_vertices_x(dm),
-                        dashmodel_vertices_y(dm),
-                        dashmodel_vertices_z(dm));
-                }
-            }
-        }
-    }
-}
 
 static void
 defaultlight_build(struct World* world)
@@ -406,62 +241,247 @@ defaultlight_build(struct World* world)
     }
 }
 
+/**
+ * Maximum lookahead in x-columns when allocating normals for the sharelight streaming pass.
+ * A model at column sx can look ahead at adjacent tiles up to sx+size_x (level 0) or sx+size_x
+ * (level+1, with a -1 look-back). Using 6 is conservative for OSRS elements up to 6 tiles wide.
+ */
+#define SHARELIGHT_MERGE_LOOKAHEAD 6
+
 static void
-world_build_lighting(struct World* world)
+alloc_normals_for_column(struct World* world, int sx)
 {
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
     struct Scene2Element* scene_element = NULL;
 
-    for( int sx = 0; sx < world->sharelight_map->width; sx++ )
+    for( int sz = 0; sz < world->sharelight_map->height; sz++ )
     {
-        for( int sz = 0; sz < world->sharelight_map->height; sz++ )
+        for( int slevel = 0; slevel < MAP_TERRAIN_LEVELS; slevel++ )
         {
-            for( int slevel = 0; slevel < MAP_TERRAIN_LEVELS; slevel++ )
+            map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
+            if( !map_tile )
+                continue;
+            for( int32_t pi = map_tile->sharelight_head; pi != -1;
+                 pi = world->sharelight_map->pool[pi].next )
             {
-                map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
-                assert(map_tile && "Sharelight map tile must be valid");
-
-                for( int32_t pi = map_tile->sharelight_head; pi != -1;
-                     pi = world->sharelight_map->pool[pi].next )
+                map_element = &world->sharelight_map->pool[pi].element;
+                scene_element = scene2_element_at(world->scene2, map_element->element_idx);
+                if( !scene_element || !scene2_element_dash_model(scene_element) )
+                    continue;
+                struct DashModel* dm = scene2_element_dash_model(scene_element);
+                if( !dashmodel_normals(dm) )
                 {
-                    map_element = &world->sharelight_map->pool[pi].element;
-                    scene_element = scene2_element_at(world->scene2, map_element->element_idx);
-                    if( !scene_element || !scene2_element_dash_model(scene_element) )
-                        continue;
-
-                    dashmodel_alloc_normals(scene2_element_dash_model(scene_element));
-                    dashmodel_alloc_merged_normals(scene2_element_dash_model(scene_element));
-                    dashmodel_calculate_vertex_normals(scene2_element_dash_model(scene_element));
+                    dashmodel_alloc_normals(dm);
+                    dashmodel_alloc_merged_normals(dm);
+                    dashmodel_calculate_vertex_normals(dm);
                 }
             }
         }
     }
+}
 
-    sharelight_build(world);
+static void
+merge_column(struct World* world, int sx)
+{
+    struct TileCoord adjacent_tiles[ADJACENT_TILES_COUNT];
+    struct SharelightMapTile* map_tile = NULL;
+    struct SharelightMapTile* adjacent_map_tile = NULL;
+    struct SharelightMapElement* map_element = NULL;
+    struct SharelightMapElement* adjacent_map_element = NULL;
+    struct Scene2Element* scene_element = NULL;
+    struct Scene2Element* adjacent_scene_element = NULL;
 
-    for( int sx = 0; sx < world->sharelight_map->width; sx++ )
+    for( int sz = 0; sz < world->sharelight_map->height; sz++ )
     {
-        for( int sz = 0; sz < world->sharelight_map->height; sz++ )
+        for( int slevel = 0; slevel < MAP_TERRAIN_LEVELS; slevel++ )
         {
-            for( int slevel = 0; slevel < MAP_TERRAIN_LEVELS; slevel++ )
+            map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
+            if( !map_tile )
+                continue;
+
+            for( int32_t pi = map_tile->sharelight_head; pi != -1;
+                 pi = world->sharelight_map->pool[pi].next )
             {
-                map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
-                assert(map_tile && "Sharelight map tile must be valid");
+                map_element = &world->sharelight_map->pool[pi].element;
+                scene_element = scene2_element_at(world->scene2, map_element->element_idx);
+                if( !scene_element || !scene2_element_dash_model(scene_element) )
+                    continue;
 
-                for( int32_t pi = map_tile->sharelight_head; pi != -1;
-                     pi = world->sharelight_map->pool[pi].next )
+                int adjacent_tiles_count = gather_adjacent_tiles(
+                    world->sharelight_map->width,
+                    world->sharelight_map->height,
+                    adjacent_tiles,
+                    ADJACENT_TILES_COUNT,
+                    sx,
+                    sz,
+                    slevel,
+                    map_element->size_x,
+                    map_element->size_z);
+
+                for( int j = 0; j < adjacent_tiles_count; j++ )
                 {
-                    map_element = &world->sharelight_map->pool[pi].element;
-                    scene_element = scene2_element_at(world->scene2, map_element->element_idx);
-                    if( !scene_element || !scene2_element_dash_model(scene_element) )
-                        continue;
+                    struct TileCoord adjacent_tile_coord = adjacent_tiles[j];
+                    adjacent_map_tile = sharelight_map_tile_at(
+                        world->sharelight_map,
+                        adjacent_tile_coord.x,
+                        adjacent_tile_coord.z,
+                        adjacent_tile_coord.level);
+                    for( int32_t kidx = adjacent_map_tile->sharelight_head; kidx != -1;
+                         kidx = world->sharelight_map->pool[kidx].next )
+                    {
+                        adjacent_map_element = &world->sharelight_map->pool[kidx].element;
+                        if( adjacent_map_element->element_idx == map_element->element_idx )
+                            continue;
 
-                    dashmodel_free_normals(scene2_element_dash_model(scene_element));
+                        adjacent_scene_element =
+                            scene2_element_at(world->scene2, adjacent_map_element->element_idx);
+                        if( !adjacent_scene_element ||
+                            !scene2_element_dash_model(adjacent_scene_element) )
+                            continue;
+
+                        int check_offset_x =
+                            (adjacent_tile_coord.x - sx) * 128 +
+                            (adjacent_map_element->size_x - map_element->size_x) * 64;
+
+                        int check_offset_z =
+                            (adjacent_tile_coord.z - sz) * 128 +
+                            (adjacent_map_element->size_z - map_element->size_z) * 64;
+
+                        int height_center =
+                            heightmap_get_center(world->heightmap, sx, sz, slevel);
+                        int adjacent_height_center = heightmap_get_center(
+                            world->heightmap,
+                            adjacent_tile_coord.x,
+                            adjacent_tile_coord.z,
+                            adjacent_tile_coord.level);
+                        int check_offset_height = adjacent_height_center - height_center;
+
+                        if( !dashmodel_is_lightable(scene2_element_dash_model(adjacent_scene_element)) ||
+                            !dashmodel_is_lightable(scene2_element_dash_model(scene_element)) )
+                            continue;
+
+                        merge_normals(
+                            scene2_element_dash_model(scene_element),
+                            dashmodel_normals(scene2_element_dash_model(scene_element))
+                                ->lighting_vertex_normals,
+                            dashmodel_merged_normals(scene2_element_dash_model(scene_element))
+                                ->lighting_vertex_normals,
+                            scene2_element_dash_model(adjacent_scene_element),
+                            dashmodel_normals(scene2_element_dash_model(adjacent_scene_element))
+                                ->lighting_vertex_normals,
+                            dashmodel_merged_normals(scene2_element_dash_model(adjacent_scene_element))
+                                ->lighting_vertex_normals,
+                            check_offset_x,
+                            check_offset_height,
+                            check_offset_z);
+                    }
                 }
             }
         }
     }
+}
+
+static void
+apply_and_free_column(struct World* world, int sx)
+{
+    struct SharelightMapTile* map_tile = NULL;
+    struct SharelightMapElement* map_element = NULL;
+    struct Scene2Element* scene_element = NULL;
+
+    for( int sz = 0; sz < world->sharelight_map->height; sz++ )
+    {
+        for( int slevel = 0; slevel < MAP_TERRAIN_LEVELS; slevel++ )
+        {
+            map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
+            if( !map_tile )
+                continue;
+
+            for( int32_t pi = map_tile->sharelight_head; pi != -1;
+                 pi = world->sharelight_map->pool[pi].next )
+            {
+                map_element = &world->sharelight_map->pool[pi].element;
+                scene_element = scene2_element_at(world->scene2, map_element->element_idx);
+                if( !scene_element || !scene2_element_dash_model(scene_element) )
+                    continue;
+
+                int light_ambient = 64;
+                int light_attenuation = 768;
+                int lightsrc_x = -50;
+                int lightsrc_y = -10;
+                int lightsrc_z = -50;
+
+                light_ambient += map_element->light_ambient;
+                light_attenuation += map_element->light_attenuation;
+
+                int light_magnitude = (int)sqrt(
+                    lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y +
+                    lightsrc_z * lightsrc_z);
+                int attenuation = (light_attenuation * light_magnitude) >> 8;
+
+                struct DashModel* dm = scene2_element_dash_model(scene_element);
+                if( !dashmodel_is_lightable(dm) )
+                    continue;
+                apply_lighting(
+                    dashmodel_face_colors_a(dm),
+                    dashmodel_face_colors_b(dm),
+                    dashmodel_face_colors_c(dm),
+                    dashmodel_merged_normals(dm)->lighting_vertex_normals,
+                    dashmodel_normals(dm)->lighting_face_normals,
+                    dashmodel_face_indices_a(dm),
+                    dashmodel_face_indices_b(dm),
+                    dashmodel_face_indices_c(dm),
+                    dashmodel_face_count(dm),
+                    dashmodel_face_colors_flat(dm),
+                    dashmodel_face_alphas(dm),
+                    dashmodel_face_textures(dm),
+                    dashmodel_face_infos(dm),
+                    light_ambient,
+                    attenuation,
+                    lightsrc_x,
+                    lightsrc_y,
+                    lightsrc_z,
+                    dashmodel_vertices_x(dm),
+                    dashmodel_vertices_y(dm),
+                    dashmodel_vertices_z(dm));
+
+                dashmodel_free_normals(dm);
+            }
+        }
+    }
+}
+
+static void
+world_build_lighting(struct World* world)
+{
+    int scene_size = world->sharelight_map->width;
+
+    /* Allocate normals for the initial lookahead window. */
+    int initial_cols = scene_size < SHARELIGHT_MERGE_LOOKAHEAD + 1 ?
+                       scene_size : SHARELIGHT_MERGE_LOOKAHEAD + 1;
+    for( int sx = 0; sx < initial_cols; sx++ )
+        alloc_normals_for_column(world, sx);
+
+    /*
+     * Stream through columns: alloc one column ahead, merge the current column, then
+     * apply+free the column that is now fully merged (current - 1 lags by one because the
+     * current column's primary models may still have written into column current-1 via the
+     * level+1 look-back; after processing current the column current-1 is finalized).
+     */
+    for( int sx = 0; sx < scene_size; sx++ )
+    {
+        int alloc_sx = sx + SHARELIGHT_MERGE_LOOKAHEAD;
+        if( alloc_sx < scene_size && alloc_sx >= initial_cols )
+            alloc_normals_for_column(world, alloc_sx);
+
+        merge_column(world, sx);
+
+        if( sx >= 1 )
+            apply_and_free_column(world, sx - 1);
+    }
+
+    /* Apply remaining (last column). */
+    apply_and_free_column(world, scene_size - 1);
 
     defaultlight_build(world);
 }

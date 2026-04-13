@@ -10,10 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-static struct CacheDatConfigObj*
-decode_obj(
-    void* data,
-    int size)
+struct CacheDatConfigObj*
+cache_dat_config_obj_decode_one(void* data, int size)
 {
     struct CacheDatConfigObj* obj = malloc(sizeof(struct CacheDatConfigObj));
     memset(obj, 0, sizeof(struct CacheDatConfigObj));
@@ -293,7 +291,7 @@ cache_dat_config_obj_list_new_decode(
 
     for( int i = 0; i < filelist_indexed->offset_count; i++ )
     {
-        struct CacheDatConfigObj* obj = decode_obj(
+        struct CacheDatConfigObj* obj = cache_dat_config_obj_decode_one(
             filelist_indexed->data + filelist_indexed->offsets[i],
             filelist_indexed->data_size - filelist_indexed->offsets[i]);
         if( obj == NULL )

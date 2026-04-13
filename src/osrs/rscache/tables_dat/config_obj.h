@@ -61,6 +61,10 @@ cache_dat_config_obj_list_new_decode(
     char* data,
     int data_size);
 
+/** Decode a single obj from a raw data buffer. Ownership is transferred to the caller. */
+struct CacheDatConfigObj*
+cache_dat_config_obj_decode_one(void* data, int size);
+
 void
 cache_dat_config_obj_free(struct CacheDatConfigObj* obj);
 

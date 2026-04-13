@@ -1,6 +1,8 @@
 #ifndef CONFIG_NPC_H
 #define CONFIG_NPC_H
 
+#include "../rsbuf.h"
+
 #include <stdbool.h>
 
 struct CacheDatConfigNpc
@@ -47,6 +49,11 @@ cache_dat_config_npc_list_new_decode(
     int index_data_size,
     char* data,
     int data_size);
+
+/** Decode a single NPC from a buffer positioned at the start of an entry. Ownership is
+ * transferred to the caller. */
+struct CacheDatConfigNpc*
+cache_dat_config_npc_decode_one(struct RSBuffer* buffer);
 
 void
 cache_dat_config_npc_free(struct CacheDatConfigNpc* npc);

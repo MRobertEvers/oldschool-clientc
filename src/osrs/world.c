@@ -812,6 +812,8 @@ world_buildcachedat_rebuild_centerzone(
         }
     }
 
+    buildcachedat_clear_map_scenery_chunks(buildcachedat);
+
     struct DecorElementsOnWall* elements = NULL;
     struct Scene2Element* scene_element = NULL;
     for( int sx = 0; sx < scene_size; sx++ )
@@ -1111,11 +1113,18 @@ world_buildcachedat_rebuild_centerzone(
         }
     }
 
+    buildcachedat_clear_map_terrain_chunks(buildcachedat);
+
 #if WORLD_BUILD_TERRAIN_VA
     build_scene_terrain_va(world);
 #else
     build_scene_terrain(world);
 #endif
+
+    overlaymap_free(world->overlaymap);
+    world->overlaymap = NULL;
+    decor_buildmap_free(world->decor_buildmap);
+    world->decor_buildmap = NULL;
 
     world_build_lighting(world);
 
@@ -1126,12 +1135,8 @@ done:
     world->shademap = NULL;
     blendmap_free(world->blendmap);
     world->blendmap = NULL;
-    overlaymap_free(world->overlaymap);
-    world->overlaymap = NULL;
     terrain_shape_map_free(world->terrain_shapemap);
     world->terrain_shapemap = NULL;
-    decor_buildmap_free(world->decor_buildmap);
-    world->decor_buildmap = NULL;
     sharelight_map_free(world->sharelight_map);
     world->sharelight_map = NULL;
 
