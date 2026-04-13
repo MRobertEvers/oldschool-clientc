@@ -1,4 +1,9 @@
 local CacheDat = require("cachedat")
+local function safe_gc()
+    -- collectgarbage("collect") is a no-op on Fengari (JS Lua); silently ignore
+    pcall(collectgarbage, "collect")
+end
+
 local function print_table(tbl)
     for k, v in pairs(tbl) do
         print(k, v)
@@ -102,7 +107,7 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     terrain_map_ids = nil
     scenery_requests = nil
     scenery_map_ids = nil
-    collectgarbage("collect")
+    safe_gc()
     print_heap("after map data + GC")
 
 
@@ -116,7 +121,7 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     config_archives = nil
     Game.buildcachedat_clear_config_jagfile()
     Game.buildcachedat_clear_media_jagfile()
-    collectgarbage("collect")
+    safe_gc()
     print_heap("after config init + clear config/media jagfiles")
 
     print("=== Loading Models ===")
@@ -143,7 +148,7 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     models_needed = nil
     model_requests = nil
     models_to_load = nil
-    collectgarbage("collect")
+    safe_gc()
     print_heap("after models + GC")
 
 
@@ -179,7 +184,7 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     anim_archives = nil
     anim_requests = nil
     anim_indices = nil
-    collectgarbage("collect")
+    safe_gc()
     print_heap("after animations + GC")
 
     print("=== Building Scene ===")

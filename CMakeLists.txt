@@ -10,6 +10,7 @@ endif()
 # # Disable ASAN (default)
 # cmake -DENABLE_ASAN=OFF ..
 option(ENABLE_ASAN "Enable AddressSanitizer (ASAN)" OFF)
+option(BUILD_WEB_NATIVE "Build the web_client_native (SDL-free) Emscripten target" OFF)
 
 file(GLOB LUA_SOURCES "src/3rd/lua/*.c")
 list(REMOVE_ITEM LUA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/lua.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/luac.c")
@@ -420,64 +421,66 @@ if(EMSCRIPTEN)
         COMMENT "Copying browser JS files to build directory"
     )
 
-    # SDL-free browser build (Soft3D + 2D canvas putImageData only)
-    set(WEB_CLIENT_NATIVE_SOURCES ${COMMON_SOURCES})
-    list(REMOVE_ITEM WEB_CLIENT_NATIVE_SOURCES
-        src/platforms/common/tori_rs_sdl2_gameinput.c
-        src/platforms/common/tori_rs_sdl2_gameinput_imgui.cpp
-    )
+    if(BUILD_WEB_NATIVE)
+        # SDL-free browser build (Soft3D + 2D canvas putImageData only)
+        set(WEB_CLIENT_NATIVE_SOURCES ${COMMON_SOURCES})
+        list(REMOVE_ITEM WEB_CLIENT_NATIVE_SOURCES
+            src/platforms/common/tori_rs_sdl2_gameinput.c
+            src/platforms/common/tori_rs_sdl2_gameinput_imgui.cpp
+        )
 
-    add_executable(web_client_native
-        ${WEB_CLIENT_NATIVE_SOURCES}
-        test/browser_native.cpp
-        src/platforms/platform_impl2_emscripten_native.cpp
-        src/platforms/platform_impl2_emscripten_native_renderer_soft3d.cpp
-        src/platforms/browser2/luajs_sidecar.c
-        src/platforms/browser2/luajs_gametypes.c
-        src/platforms/browser2/luajs_archives.c
-        src/platforms/browser2/luajs_configs.c
-        src/platforms/browser2/luajs_sidecar_blobs.c
-        src/platforms/browser2/netjs.c
-    )
+        add_executable(web_client_native
+            ${WEB_CLIENT_NATIVE_SOURCES}
+            test/browser_native.cpp
+            src/platforms/platform_impl2_emscripten_native.cpp
+            src/platforms/platform_impl2_emscripten_native_renderer_soft3d.cpp
+            src/platforms/browser2/luajs_sidecar.c
+            src/platforms/browser2/luajs_gametypes.c
+            src/platforms/browser2/luajs_archives.c
+            src/platforms/browser2/luajs_configs.c
+            src/platforms/browser2/luajs_sidecar_blobs.c
+            src/platforms/browser2/netjs.c
+        )
 
-    target_compile_options(web_client_native PUBLIC
-        "-mno-bulk-memory"
-        "-mno-reference-types"
-        "-mno-mutable-globals"
-        "-mno-sign-ext"
-    )
-    target_link_options(web_client_native PRIVATE
-        -sWASM=1
-        -sALLOW_MEMORY_GROWTH=1
-        -sALLOW_TABLE_GROWTH=1
-        -sSTACK_SIZE=512kb
-        -sNO_EXIT_RUNTIME=1
-        -sASSERTIONS=1
-        --shell-file ${EM_SHELL_FILE}
-        -sEXPORTED_FUNCTIONS=${EXPORTED_FUNC_STR}
-        -sEXPORTED_RUNTIME_METHODS=${EXPORTED_METHODS_STR}
-        --bind
-        -sMODULARIZE=0
-        -sEXPORT_ES6=0
-        "-mno-bulk-memory"
-        "-mno-reference-types"
-        "-mno-mutable-globals"
-        "-mno-sign-ext"
-    )
+        target_compile_options(web_client_native PUBLIC
+            "-mno-bulk-memory"
+            "-mno-reference-types"
+            "-mno-mutable-globals"
+            "-mno-sign-ext"
+        )
+        target_link_options(web_client_native PRIVATE
+            -sWASM=1
+            -sALLOW_MEMORY_GROWTH=1
+            -sALLOW_TABLE_GROWTH=1
+            -sSTACK_SIZE=512kb
+            -sNO_EXIT_RUNTIME=1
+            -sASSERTIONS=1
+            --shell-file ${EM_SHELL_FILE}
+            -sEXPORTED_FUNCTIONS=${EXPORTED_FUNC_STR}
+            -sEXPORTED_RUNTIME_METHODS=${EXPORTED_METHODS_STR}
+            --bind
+            -sMODULARIZE=0
+            -sEXPORT_ES6=0
+            "-mno-bulk-memory"
+            "-mno-reference-types"
+            "-mno-mutable-globals"
+            "-mno-sign-ext"
+        )
 
-    set_target_properties(web_client_native PROPERTIES
-        LINK_DEPENDS "${BROWSER_ASSETS}"
-        OUTPUT_NAME "index_native"
-        SUFFIX ".html"
-    )
+        set_target_properties(web_client_native PROPERTIES
+            LINK_DEPENDS "${BROWSER_ASSETS}"
+            OUTPUT_NAME "index_native"
+            SUFFIX ".html"
+        )
 
-    add_custom_command(
-        TARGET web_client_native POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${BROWSER_JS_DIR}"
-        "${CMAKE_CURRENT_BINARY_DIR}"
-        COMMENT "Copying browser JS files to build directory (web_client_native)"
-    )
+        add_custom_command(
+            TARGET web_client_native POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${BROWSER_JS_DIR}"
+            "${CMAKE_CURRENT_BINARY_DIR}"
+            COMMENT "Copying browser JS files to build directory (web_client_native)"
+        )
+    endif()
 endif()
 
 # --- Global Properties ---
