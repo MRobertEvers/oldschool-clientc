@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 struct DashModelNormals;
@@ -79,7 +80,8 @@ struct DashModelFull
     alphaint_t* face_alphas;
     alphaint_t* original_face_alphas;
     int* face_infos;
-    int* face_priorities;
+    /** Two 4-bit priorities per byte (low nibble = even face index). Values 0–12. */
+    uint8_t* face_priorities;
     hsl16_t* face_colors;
 
     int textured_face_count;
@@ -94,6 +96,30 @@ struct DashModelFull
     struct DashModelBones* face_bones;
     struct DashBoundsCylinder* bounds_cylinder;
 };
+
+static inline size_t
+dashmodel__face_priorities_byte_count(int face_count)
+{
+    return (size_t)((face_count + 1) / 2);
+}
+
+static inline int
+dashmodel__get_face_priority(const uint8_t* packed, int index)
+{
+    uint8_t byte = packed[index >> 1];
+    return (index & 1) ? (int)(byte >> 4) : (int)(byte & 0x0Fu);
+}
+
+static inline void
+dashmodel__set_face_priority(uint8_t* packed, int index, int value)
+{
+    assert(value >= 0 && value <= 15);
+    int byte_idx = index >> 1;
+    if( index & 1 )
+        packed[byte_idx] = (uint8_t)((packed[byte_idx] & 0x0Fu) | (uint8_t)(value << 4));
+    else
+        packed[byte_idx] = (uint8_t)((packed[byte_idx] & 0xF0u) | (uint8_t)(value & 0x0F));
+}
 
 static inline void*
 dashmodel__ptr(struct DashModel* m)

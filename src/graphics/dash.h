@@ -628,8 +628,8 @@ dashmodel_face_infos_const(const struct DashModel* m);
 int*
 dashmodel_face_infos_ensure_zero(struct DashModel* m);
 
-int*
-dashmodel_face_priorities(struct DashModel* m);
+const uint8_t*
+dashmodel_face_priorities(const struct DashModel* m);
 
 hsl16_t*
 dashmodel_face_colors_flat(struct DashModel* m);

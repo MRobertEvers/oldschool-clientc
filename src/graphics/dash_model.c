@@ -998,14 +998,14 @@ dashmodel_face_infos_ensure_zero(struct DashModel* m)
     return u->face_infos;
 }
 
-int*
-dashmodel_face_priorities(struct DashModel* m)
+const uint8_t*
+dashmodel_face_priorities(const struct DashModel* m)
 {
     assert(m);
     switch( dashmodel__type(m) )
     {
     case DASHMODEL_TYPE_FULL:
-        return dashmodel__as_full(m)->face_priorities;
+        return dashmodel__as_full_const(m)->face_priorities;
     default:
         return NULL;
     }
@@ -1750,8 +1750,14 @@ dashmodel_set_face_priorities(
     struct DashModelFull* u = dashmodel__writable_full(m);
     assert(count == u->face_count);
     free(u->face_priorities);
-    u->face_priorities = (int*)malloc((size_t)count * sizeof(int));
-    memcpy(u->face_priorities, priorities, (size_t)count * sizeof(int));
+    size_t nbytes = dashmodel__face_priorities_byte_count(count);
+    u->face_priorities = (uint8_t*)calloc(nbytes, 1);
+    assert(u->face_priorities != NULL);
+    for( int i = 0; i < count; i++ )
+    {
+        assert(priorities[i] >= 0 && priorities[i] <= 15);
+        dashmodel__set_face_priority(u->face_priorities, i, priorities[i]);
+    }
 }
 
 void
@@ -1979,7 +1985,7 @@ dashmodel_heap_bytes(const struct DashModel* model)
         if( m->face_infos )
             total += (size_t)fc * sizeof(int);
         if( m->face_priorities )
-            total += (size_t)fc * sizeof(int);
+            total += dashmodel__face_priorities_byte_count(fc);
         if( m->face_colors )
             total += (size_t)fc * sizeof(hsl16_t);
         if( m->face_colors_a )

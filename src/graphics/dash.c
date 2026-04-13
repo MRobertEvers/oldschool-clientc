@@ -1167,7 +1167,7 @@ parition_faces_by_priority(
     faceint_t* bucket_heads,
     faceint_t* face_links,
     int num_faces,
-    int* face_priorities,
+    const uint8_t* face_priorities,
     int depth_lower_bound,
     int depth_upper_bound)
 {
@@ -1184,7 +1184,7 @@ parition_faces_by_priority(
         for( faceint_t face_idx = bucket_heads[depth]; face_idx != (faceint_t)-1;
              face_idx = face_links[face_idx] )
         {
-            int prio = face_priorities[face_idx];
+            int prio = dashmodel__get_face_priority(face_priorities, (int)face_idx);
             int priority_face_count = face_priority_bucket_counts[prio]++;
             face_priority_buckets[prio * 2000 + priority_face_count] = face_idx;
         }
@@ -1218,7 +1218,7 @@ sort_face_draw_order(
     faceint_t* face_priority_buckets,
     faceint_t* face_priority_bucket_counts,
     int num_faces,
-    int* face_priorities,
+    const uint8_t* face_priorities,
     int depth_lower_bound,
     int depth_upper_bound)
 {
@@ -1228,7 +1228,7 @@ sort_face_draw_order(
         for( faceint_t face_idx = bucket_heads[depth]; face_idx != (faceint_t)-1;
              face_idx = face_links[face_idx] )
         {
-            int prio = face_priorities[face_idx];
+            int prio = dashmodel__get_face_priority(face_priorities, (int)face_idx);
 
             int face_count = counts[prio];
 
