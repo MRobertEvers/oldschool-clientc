@@ -50,7 +50,7 @@ dashmodel_move_from_cache_model(
 
 struct DashModelBones*
 dashmodel_bones_new(
-    int* bone_map,
+    const uint8_t* bone_map,
     int bone_count);
 
 #endif

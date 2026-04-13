@@ -263,11 +263,7 @@ dashmodel_move_from_cache_model(
     int fc = model->face_count;
     if( model->face_colors && fc > 0 )
     {
-        hsl16_t* flat = (hsl16_t*)malloc((size_t)fc * sizeof(hsl16_t));
-        for( int i = 0; i < fc; i++ )
-            flat[i] = (hsl16_t)(unsigned)(model->face_colors[i] & 0xffff);
-        dashmodel_set_face_colors_flat(dash_model, flat, fc);
-        free(flat);
+        dashmodel_set_face_colors_flat(dash_model, model->face_colors, fc);
         free(model->face_colors);
         model->face_colors = NULL;
     }
@@ -277,25 +273,29 @@ dashmodel_move_from_cache_model(
 
     if( model->face_alphas && fc > 0 )
     {
-        alphaint_t* al = (alphaint_t*)malloc((size_t)fc * sizeof(alphaint_t));
-        for( int i = 0; i < fc; i++ )
-            al[i] = (alphaint_t)(model->face_alphas[i] & 0xFF);
-        dashmodel_set_face_alphas(dash_model, al, fc);
-        free(al);
+        dashmodel_set_face_alphas(dash_model, model->face_alphas, fc);
         free(model->face_alphas);
         model->face_alphas = NULL;
     }
 
     if( model->face_infos && fc > 0 )
     {
-        dashmodel_set_face_infos(dash_model, model->face_infos, fc);
+        int* infos = (int*)malloc((size_t)fc * sizeof(int));
+        for( int i = 0; i < fc; i++ )
+            infos[i] = model->face_infos[i];
+        dashmodel_set_face_infos(dash_model, infos, fc);
+        free(infos);
         free(model->face_infos);
         model->face_infos = NULL;
     }
 
     if( model->face_priorities && fc > 0 )
     {
-        dashmodel_set_face_priorities(dash_model, model->face_priorities, fc);
+        int* prios = (int*)malloc((size_t)fc * sizeof(int));
+        for( int i = 0; i < fc; i++ )
+            prios[i] = model->face_priorities[i];
+        dashmodel_set_face_priorities(dash_model, prios, fc);
+        free(prios);
         free(model->face_priorities);
         model->face_priorities = NULL;
     }
@@ -350,7 +350,7 @@ dashmodel_move_from_cache_model(
 
     if( fc > 0 && model->face_textures )
     {
-        dashmodel_set_face_textures_i32(dash_model, model->face_textures, fc);
+        dashmodel_set_face_textures_i16(dash_model, model->face_textures, fc);
         free(model->face_textures);
         model->face_textures = NULL;
     }
@@ -383,7 +383,7 @@ dashmodel_new_from_cache_model(struct CacheModel* model)
 
 struct DashModelBones*
 dashmodel_bones_new(
-    int* bone_map,
+    const uint8_t* bone_map,
     int bone_count)
 {
     struct DashModelBones* bones = (struct DashModelBones*)malloc(sizeof(struct DashModelBones));

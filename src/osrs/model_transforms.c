@@ -57,7 +57,7 @@ model_transform_recolor(
     int color_src,
     int color_dst)
 {
-    int* face_colors_alias = model->face_colors;
+    uint16_t* face_colors_alias = model->face_colors;
 
     // This check is present in the deob. Some locs specify recolors on models without face_colors.
     if( !face_colors_alias )
@@ -82,7 +82,7 @@ model_transform_retexture(
     int texture_src,
     int texture_dst)
 {
-    int* face_textures_alias = model->face_textures;
+    int16_t* face_textures_alias = model->face_textures;
 
     // This check is present in the deob. Some locs specify retextures on models without
     // face_textures.
