@@ -306,7 +306,11 @@ LuaCSidecar_New(
         free(sidecar);
         return NULL;
     }
-    luaL_openlibs(sidecar->L);
+    /* Base, package, coroutine, math, string, table only (no io/os/debug/utf8). */
+    luaL_openselectedlibs(
+        sidecar->L,
+        LUA_GLIBK | LUA_LOADLIBK | LUA_COLIBK | LUA_MATHLIBK | LUA_STRLIBK | LUA_TABLIBK,
+        0);
 
     /* _lua_log(id, msg) – called directly by platform.lua (no yield) */
     lua_pushcfunction(sidecar->L, c_lua_log);
@@ -342,6 +346,13 @@ LuaCSidecar_Free(struct LuaCSidecar* sidecar)
             lua_close(sidecar->L);
         free(sidecar);
     }
+}
+
+void
+LuaCSidecar_GC(struct LuaCSidecar* sidecar)
+{
+    if( sidecar && sidecar->L )
+        lua_gc(sidecar->L, LUA_GCCOLLECT, 0);
 }
 
 int

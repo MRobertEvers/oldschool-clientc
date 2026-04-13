@@ -89,6 +89,11 @@ LuaBuildCacheDat_get_scenery_model_ids(
     struct LuaGameType* args);
 
 struct LuaGameType*
+LuaBuildCacheDat_get_all_unique_scenery_model_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
 LuaBuildCacheDat_get_npc_model_ids(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);

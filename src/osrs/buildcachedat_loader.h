@@ -78,6 +78,14 @@ buildcachedat_loader_get_scenery_model_ids(
     int loc_id,
     int** model_ids_out);
 
+/** Flat sorted list of unique model IDs referenced by all cached scenery placements
+ * (same flattening rules as buildcachedat_loader_get_scenery_model_ids per loc).
+ * Caller must free(*model_ids_out). Returns 0 and NULL on empty / error. */
+int
+buildcachedat_loader_get_all_unique_scenery_model_ids(
+    struct BuildCacheDat* buildcachedat,
+    int** model_ids_out);
+
 void
 buildcachedat_loader_cache_model(
     struct BuildCacheDat* buildcachedat,

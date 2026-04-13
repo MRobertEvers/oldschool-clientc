@@ -247,6 +247,23 @@ LuaBuildCacheDat_get_scenery_model_ids(
 }
 
 struct LuaGameType*
+LuaBuildCacheDat_get_all_unique_scenery_model_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    int* model_ids = NULL;
+    int count =
+        buildcachedat_loader_get_all_unique_scenery_model_ids(buildcachedat, &model_ids);
+
+    struct LuaGameType* result = LuaGameType_NewIntArray(count);
+    for( int i = 0; i < count; i++ )
+        LuaGameType_IntArrayPush(result, model_ids[i]);
+    free(model_ids);
+    return result;
+}
+
+struct LuaGameType*
 LuaBuildCacheDat_get_npc_model_ids(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
@@ -718,6 +735,7 @@ LuaBuildCacheDat_DispatchCommand(
     else DISPATCH_COMMAND(command, init_scenery_configs_from_config_jagfile)
     else DISPATCH_COMMAND(command, get_all_scenery_locs)
     else DISPATCH_COMMAND(command, get_scenery_model_ids)
+    else DISPATCH_COMMAND(command, get_all_unique_scenery_model_ids)
     else DISPATCH_COMMAND(command, get_npc_model_ids)
     else DISPATCH_COMMAND(command, get_npc_head_model_ids)
     else DISPATCH_COMMAND(command, get_idk_model_ids)

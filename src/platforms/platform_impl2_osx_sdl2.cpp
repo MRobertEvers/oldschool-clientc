@@ -533,6 +533,8 @@ Platform2_OSX_SDL2_RunLuaScripts(
             LuaGameType_Free(result);
         }
 
+        LuaCSidecar_GC(platform->lua_sidecar);
+
         void* pkt_free = script.lc245_packet_item_to_free;
         if( pkt_free )
         {

@@ -190,11 +190,11 @@ l_buildcachedat_get_all_scenery_locs(lua_State* L)
     {
         lua_newtable(L);
         lua_pushinteger(L, loc_ids[i]);
-        lua_setfield(L, -2, "loc_id");
+        lua_rawseti(L, -2, 1);
         lua_pushinteger(L, chunk_x[i]);
-        lua_setfield(L, -2, "chunk_x");
+        lua_rawseti(L, -2, 2);
         lua_pushinteger(L, chunk_z[i]);
-        lua_setfield(L, -2, "chunk_z");
+        lua_rawseti(L, -2, 3);
         lua_rawseti(L, -2, i + 1);
     }
 
@@ -214,6 +214,29 @@ l_buildcachedat_get_scenery_model_ids(lua_State* L)
 
     int* model_ids = NULL;
     int count = buildcachedat_loader_get_scenery_model_ids(buildcachedat, loc_id, &model_ids);
+
+    lua_newtable(L);
+    for( int i = 0; i < count; i++ )
+    {
+        lua_pushinteger(L, model_ids[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+
+    if( model_ids )
+        free(model_ids);
+
+    return 1;
+}
+
+static int
+l_buildcachedat_get_all_unique_scenery_model_ids(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+
+    int* model_ids = NULL;
+    int count =
+        buildcachedat_loader_get_all_unique_scenery_model_ids(buildcachedat, &model_ids);
 
     lua_newtable(L);
     for( int i = 0; i < count; i++ )
@@ -604,6 +627,8 @@ static const luaL_Reg buildcachedat_funcs[] = {
      l_buildcachedat_init_scenery_configs_from_config_jagfile                                                  },
     { "get_all_scenery_locs",                              l_buildcachedat_get_all_scenery_locs                },
     { "get_scenery_model_ids",                             l_buildcachedat_get_scenery_model_ids               },
+    { "get_all_unique_scenery_model_ids",
+     l_buildcachedat_get_all_unique_scenery_model_ids                                                            },
     { "get_npc_model_ids",                                 l_buildcachedat_get_npc_model_ids                   },
     { "get_npc_head_model_ids",                            l_buildcachedat_get_npc_head_model_ids              },
     { "get_idk_model_ids",                                 l_buildcachedat_get_idk_model_ids                   },

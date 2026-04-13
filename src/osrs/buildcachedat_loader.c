@@ -36,6 +36,33 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game);
 #include <string.h>
 
 static int
+int_cmp(const void* a, const void* b)
+{
+    int x = *(const int*)a;
+    int y = *(const int*)b;
+    if( x < y )
+        return -1;
+    if( x > y )
+        return 1;
+    return 0;
+}
+
+/** In-place unique on sorted [0..n); returns new length. */
+static int
+unique_sorted_int(int* arr, int n)
+{
+    if( n <= 0 )
+        return 0;
+    int w = 0;
+    for( int r = 1; r < n; r++ )
+    {
+        if( arr[r] != arr[w] )
+            arr[++w] = arr[r];
+    }
+    return w + 1;
+}
+
+static int
 loader_uiscene_attach_single_sprite_owned(struct UIScene* ui, struct DashSprite* sprite)
 {
     if( !ui || !sprite )
@@ -331,6 +358,87 @@ buildcachedat_loader_get_scenery_model_ids(
     vec_free(model_ids);
 
     return count;
+}
+
+int
+buildcachedat_loader_get_all_unique_scenery_model_ids(
+    struct BuildCacheDat* buildcachedat,
+    int** model_ids_out)
+{
+    *model_ids_out = NULL;
+    if( !buildcachedat )
+        return 0;
+
+    struct Vec* locs_vec = vec_new(sizeof(int), 512);
+    struct DashMapIter* iter = buildcachedat_iter_new_scenery(buildcachedat);
+    struct CacheMapLocs* locs = NULL;
+    while( (locs = buildcachedat_iter_next_scenery(iter)) )
+    {
+        for( int i = 0; i < locs->locs_count; i++ )
+        {
+            struct CacheMapLoc* loc = &locs->locs[i];
+            vec_push(locs_vec, &loc->loc_id);
+        }
+    }
+    dashmap_iter_free(iter);
+
+    int nloc = vec_size(locs_vec);
+    if( nloc == 0 )
+    {
+        vec_free(locs_vec);
+        return 0;
+    }
+
+    int* loc_arr = malloc((size_t)nloc * sizeof(int));
+    if( !loc_arr )
+    {
+        vec_free(locs_vec);
+        return 0;
+    }
+    memcpy(loc_arr, vec_data(locs_vec), (size_t)nloc * sizeof(int));
+    vec_free(locs_vec);
+
+    qsort(loc_arr, (size_t)nloc, sizeof(int), int_cmp);
+    int nunique_loc = unique_sorted_int(loc_arr, nloc);
+
+    struct Vec* models = vec_new(sizeof(int), 1024);
+    for( int li = 0; li < nunique_loc; li++ )
+    {
+        int* mids = NULL;
+        int nm = buildcachedat_loader_get_scenery_model_ids(buildcachedat, loc_arr[li], &mids);
+        for( int mi = 0; mi < nm; mi++ )
+            vec_push(models, &mids[mi]);
+        free(mids);
+    }
+    free(loc_arr);
+
+    int nm_total = vec_size(models);
+    if( nm_total == 0 )
+    {
+        vec_free(models);
+        return 0;
+    }
+
+    int* marr = malloc((size_t)nm_total * sizeof(int));
+    if( !marr )
+    {
+        vec_free(models);
+        return 0;
+    }
+    memcpy(marr, vec_data(models), (size_t)nm_total * sizeof(int));
+    vec_free(models);
+
+    qsort(marr, (size_t)nm_total, sizeof(int), int_cmp);
+    int nunique_m = unique_sorted_int(marr, nm_total);
+
+    if( nunique_m < nm_total )
+    {
+        int* shrink = realloc(marr, (size_t)nunique_m * sizeof(int));
+        if( shrink )
+            marr = shrink;
+    }
+    *model_ids_out = marr;
+    return nunique_m;
 }
 
 void

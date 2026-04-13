@@ -20,6 +20,10 @@ LuaCSidecar_New(
 void
 LuaCSidecar_Free(struct LuaCSidecar* sidecar);
 
+/** Full GC cycle on the sidecar's main Lua state (call after heavy scripts). */
+void
+LuaCSidecar_GC(struct LuaCSidecar* sidecar);
+
 #define LUACSIDECAR_DONE 0
 #define LUACSIDECAR_YIELDED 1
 

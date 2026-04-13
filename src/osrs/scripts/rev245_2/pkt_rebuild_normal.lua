@@ -82,24 +82,8 @@ end
 Game.buildcachedat_init_floortypes_from_config_jagfile()
 Game.buildcachedat_init_scenery_configs_from_config_jagfile()
 
--- Load required models using the same pattern as init_cache_dat
-local scenery_locs = Game.buildcachedat_get_all_scenery_locs()
-local seen = {}
-local models_to_load = {}
-
-for _, loc in ipairs(scenery_locs) do
-    local loc_id = loc[1]
-    local model_ids = Game.buildcachedat_get_scenery_model_ids(loc_id)
-
-    for _, model_id in ipairs(model_ids) do
-        if not seen[model_id] then
-            table.insert(models_to_load, model_id)
-            seen[model_id] = true
-        end
-    end
-end
-
-table.sort(models_to_load)
+-- Load required models (unique IDs from all cached scenery; computed in C)
+local models_to_load = Game.buildcachedat_get_all_unique_scenery_model_ids()
 
 local model_requests = {}
 local models_needed = {}
