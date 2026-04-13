@@ -166,7 +166,9 @@ world_free(struct World* world)
 }
 
 void
-world_set_painters_cullmap(struct World* world, struct PaintersCullMap* cm)
+world_set_painters_cullmap(
+    struct World* world,
+    struct PaintersCullMap* cm)
 {
     if( !world )
         return;
@@ -442,9 +444,11 @@ world_buildcachedat_rebuild_centerzone(
     printf(
         "Pre-Alloc: Memory info: %zu / %zu / %zu\n", mem.heap_used, mem.heap_total, mem.heap_peak);
 
-    world->painter = painter_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    world->painter =
+        painter_new(scene_size, scene_size, MAP_TERRAIN_LEVELS, PAINTER_NEW_CTX_BUCKET);
 
-    /* Cullmap is installed by the game (see LibToriRS_FrameBegin) via world_set_painters_cullmap. */
+    /* Cullmap is installed by the game (see LibToriRS_FrameBegin) via world_set_painters_cullmap.
+     */
     painter_set_cullmap(world->painter, world->cullmap);
 
     world->collision_map = collision_map_new(scene_size, scene_size);

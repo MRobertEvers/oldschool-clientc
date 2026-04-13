@@ -331,11 +331,20 @@ painter_set_camera_angles(
     int pitch,
     int yaw);
 
+/** Bitmask: which scratch contexts painter_new allocates up front (see painters_bucket / world3d / distancemetric). */
+enum PainterNewContextFlags
+{
+    PAINTER_NEW_CTX_BUCKET = 1u << 0,
+    PAINTER_NEW_CTX_WORLD3D = 1u << 1,
+    PAINTER_NEW_CTX_DISTMETRIC = 1u << 2,
+};
+
 struct Painter*
 painter_new(
     int width, //
     int height,
-    int levels);
+    int levels,
+    uint32_t init_contexts);
 
 void
 painter_free(

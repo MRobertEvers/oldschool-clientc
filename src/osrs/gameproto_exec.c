@@ -394,7 +394,8 @@ gameproto_exec_rebuild_normal(
     // world_buildcachedat_rebuild_centerzone(game->world, zone_center_x, zone_center_z,
     // SCENE_WIDTH);
 
-    // // game->sys_painter = painter_new(SCENE_WIDTH, SCENE_WIDTH, levels);
+    // // game->sys_painter = painter_new(
+    // //     SCENE_WIDTH, SCENE_WIDTH, levels, PAINTER_NEW_CTX_BUCKET | PAINTER_NEW_CTX_DISTMETRIC);
     // // game->sys_painter_buffer = painter_buffer_new();
     // // game->sys_minimap =
     // //     minimap_new(zone_sw_x * 8, zone_sw_z * 8, zone_sw_x * 8 + 104, zone_sw_z * 8 + 104,

@@ -400,7 +400,8 @@ struct Painter*
 painter_new(
     int width,
     int height,
-    int levels)
+    int levels,
+    uint32_t init_contexts)
 {
     struct Painter* painter = malloc(sizeof(struct Painter));
     memset(painter, 0, sizeof(struct Painter));
@@ -441,7 +442,15 @@ painter_new(
     painter->w3d_ctx = NULL;
     painter->distmetric_ctx = NULL;
 
-    if( bucket_ctx_init(painter) != 0 || distmetric_ctx_init(painter) != 0 )
+    int ctx_ok = 1;
+    if( init_contexts & PAINTER_NEW_CTX_BUCKET )
+        ctx_ok = bucket_ctx_init(painter) == 0;
+    if( ctx_ok && (init_contexts & PAINTER_NEW_CTX_WORLD3D) )
+        ctx_ok = w3d_ctx_init(painter) == 0;
+    if( ctx_ok && (init_contexts & PAINTER_NEW_CTX_DISTMETRIC) )
+        ctx_ok = distmetric_ctx_init(painter) == 0;
+
+    if( !ctx_ok )
     {
         bucket_ctx_free(painter);
         w3d_ctx_free(painter);
