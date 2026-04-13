@@ -481,6 +481,8 @@ world_buildcachedat_rebuild_centerzone(
 
     struct FlagMap* flag_map = flag_map_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
 
+    printf("Alive Heightmap\n");
+
     /**
      * Heightmap.
      */
@@ -521,6 +523,8 @@ world_buildcachedat_rebuild_centerzone(
             }
         }
     }
+
+    printf("Alive Collision Map\n");
 
     /**
      * Collision map.
@@ -684,6 +688,8 @@ world_buildcachedat_rebuild_centerzone(
         }
     }
 
+    printf("Alive Minimap\n");
+
     /**
      * Minimap Locs
      */
@@ -769,6 +775,10 @@ world_buildcachedat_rebuild_centerzone(
 
     /**
      * Scene
+     */
+    printf("Alive Scene\n");
+
+    /**
      * Entities
      */
     int count = 0;
@@ -866,6 +876,8 @@ world_buildcachedat_rebuild_centerzone(
         }
     }
 
+    printf("Alive Decor Buildmap\n");
+
     // Adjust bridges.
     /**
      * Bridges are adjusted from an upper level.
@@ -944,6 +956,8 @@ world_buildcachedat_rebuild_centerzone(
         }
     }
 
+    printf("Alive Bridges\n");
+
     flag_map_free(flag_map);
 
     painter_mark_static_count(world->painter);
@@ -952,11 +966,14 @@ world_buildcachedat_rebuild_centerzone(
      * Shademap
      */
 
+    printf("Alive Shademap\n");
+
     /**
      * Lightmap
      */
     lightmap_build(world->lightmap, world->heightmap);
 
+    printf("Alive Blendmap\n");
     /**
      * Blendmap
      */
@@ -1133,6 +1150,709 @@ world_buildcachedat_rebuild_centerzone(
     world_build_lighting(world);
 
 done:
+    lightmap_free(world->lightmap);
+    world->lightmap = NULL;
+    shademap2_free(world->shademap);
+    world->shademap = NULL;
+    blendmap_free(world->blendmap);
+    world->blendmap = NULL;
+    terrain_shape_map_free(world->terrain_shapemap);
+    world->terrain_shapemap = NULL;
+    sharelight_map_free(world->sharelight_map);
+    world->sharelight_map = NULL;
+
+    world_print_scene2_dashmodel_heap_stats(world);
+
+    if( buildcachedat )
+        buildcachedat_clear_map_chunks(buildcachedat);
+}
+
+/* =========================================================================
+ * Incremental (slow-path) rebuild: _begin / _chunk / _end
+ *
+ * These three functions decompose world_buildcachedat_rebuild_centerzone so
+ * that Lua can load and process one map chunk at a time, releasing buildcache
+ * assets between each chunk to keep peak memory low.
+ *
+ * Call order:
+ *   world_rebuild_centerzone_begin(world, zonex, zonez, scene_size)
+ *   for each (mapx, mapz):
+ *       -- load terrain + scenery + models for that chunk into buildcachedat --
+ *       world_rebuild_centerzone_chunk(world, mapx, mapz)
+ *       -- buildcache for this chunk is cleared inside _chunk --
+ *   world_rebuild_centerzone_end(world)
+ * =========================================================================*/
+
+void
+world_rebuild_centerzone_begin(
+    struct World* world,
+    int zone_center_x,
+    int zone_center_z,
+    int scene_size)
+{
+    struct BuildCacheDat* buildcachedat = world->buildcachedat;
+
+    int zone_padding = scene_size / (2 * 8);
+    int zone_sw_x = zone_center_x - zone_padding;
+    int zone_sw_z = zone_center_z - zone_padding;
+    int zone_ne_x = zone_center_x + zone_padding;
+    int zone_ne_z = zone_center_z + zone_padding;
+
+    int world_sw_x = zone_sw_x * 8;
+    int world_sw_z = zone_sw_z * 8;
+
+    world->_offset_x = world_sw_x % 64;
+    world->_offset_z = world_sw_z % 64;
+
+    world->_base_tile_x = zone_sw_x * 8;
+    world->_base_tile_z = zone_sw_z * 8;
+
+    /* Tear down existing world state (same as monolithic rebuild). */
+    if( world->painter )
+        painter_free(world->painter);
+    if( world->collision_map )
+        collision_map_free(world->collision_map);
+    if( world->heightmap )
+        heightmap_free(world->heightmap);
+    if( world->minimap )
+        minimap_free(world->minimap);
+
+    if( world->lightmap )
+        lightmap_free(world->lightmap);
+    if( world->shademap )
+        shademap2_free(world->shademap);
+    if( world->blendmap )
+        blendmap_free(world->blendmap);
+    if( world->overlaymap )
+        overlaymap_free(world->overlaymap);
+    if( world->terrain_shapemap )
+        terrain_shape_map_free(world->terrain_shapemap);
+    if( world->decor_buildmap )
+        decor_buildmap_free(world->decor_buildmap);
+    if( world->sharelight_map )
+        sharelight_map_free(world->sharelight_map);
+
+    for( int ti = 0; ti < MAP_TERRAIN_LEVELS; ti++ )
+    {
+        if( world->terrain_va[ti] )
+        {
+            if( world->scene2 )
+            {
+                scene2_vertex_array_unregister(world->scene2, world->terrain_va[ti]);
+                scene2_face_array_unregister(world->scene2, world->terrain_face_array[ti]);
+            }
+            else
+            {
+                dashvertexarray_free(world->terrain_va[ti]);
+                if( world->terrain_face_array[ti] )
+                    dashfacearray_free(world->terrain_face_array[ti]);
+            }
+            world->terrain_va[ti] = NULL;
+            world->terrain_face_array[ti] = NULL;
+        }
+        else if( world->terrain_face_array[ti] && !world->scene2 )
+        {
+            dashfacearray_free(world->terrain_face_array[ti]);
+            world->terrain_face_array[ti] = NULL;
+        }
+    }
+
+    {
+        int prev_scene = world->_scene_size;
+        int tile_slots = 0;
+        if( prev_scene > 0 )
+            tile_slots = prev_scene * prev_scene * MAP_TERRAIN_LEVELS;
+        else
+            tile_slots = entity_vec_count(&world->map_build_tile_entities);
+        if( tile_slots > MAX_MAP_BUILD_TILE_ENTITIES )
+            tile_slots = MAX_MAP_BUILD_TILE_ENTITIES;
+        for( int i = 0; i < tile_slots; i++ )
+        {
+            world_cleanup_map_build_tile_entity(world, i);
+        }
+        entity_vec_free(&world->map_build_tile_entities);
+        entity_vec_init(
+            &world->map_build_tile_entities,
+            sizeof(struct MapBuildTileEntity),
+            MAX_MAP_BUILD_TILE_ENTITIES);
+        world_prime_map_build_tile_slot0(world);
+    }
+    for( int i = 0; i < world->active_loc_entity_count; i++ )
+    {
+        world_cleanup_map_build_loc_entity(world, world->active_loc_entities[i]);
+    }
+    world->active_loc_entity_count = 0;
+
+    struct PlatformMemoryInfo mem = { 0 };
+    platform_get_memory_info(&mem);
+    printf(
+        "Pre-Alloc: Memory info: %zu / %zu / %zu\n", mem.heap_used, mem.heap_total, mem.heap_peak);
+
+    world->painter =
+        painter_new(scene_size, scene_size, MAP_TERRAIN_LEVELS, PAINTER_NEW_CTX_BUCKET);
+    painter_set_cullmap(world->painter, world->cullmap);
+
+    world->collision_map = collision_map_new(scene_size, scene_size);
+    world->heightmap = heightmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    world->minimap = minimap_new(scene_size, scene_size);
+
+    /* Allocate blendmap, overlaymap, shapemap, and decor_buildmap now so _chunk can
+     * populate them while terrain data is already loaded -- avoiding a second terrain pass.
+     * Shademap and sharelight_map are also needed during scenery_add inside _chunk. */
+    world->blendmap = blendmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    world->overlaymap = overlaymap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    world->terrain_shapemap = terrain_shape_map_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    world->decor_buildmap = decor_buildmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    world->shademap = shademap2_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    world->sharelight_map = sharelight_map_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+
+    struct PlatformMemoryInfo mem2 = { 0 };
+    platform_get_memory_info(&mem2);
+    printf(
+        "Post-Alloc: Memory info: %zu / %zu / %zu\n",
+        mem2.heap_used,
+        mem2.heap_total,
+        mem2.heap_peak);
+
+    int chunk_sw_x = zone_sw_x / 8;
+    int chunk_sw_z = zone_sw_z / 8;
+    int chunk_ne_x = zone_ne_x / 8;
+    int chunk_ne_z = zone_ne_z / 8;
+    world->_chunk_sw_x = chunk_sw_x;
+    world->_chunk_sw_z = chunk_sw_z;
+    world->_chunk_ne_x = chunk_ne_x;
+    world->_chunk_ne_z = chunk_ne_z;
+    world->_scene_size = scene_size;
+
+    /* Allocate the flag map used for bridge detection; stored on world until _end. */
+    world->_build_flag_map = flag_map_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+
+    printf("world_rebuild_centerzone_begin: done\n");
+
+    (void)buildcachedat;
+}
+
+void
+world_rebuild_centerzone_chunk(
+    struct World* world,
+    int mapx,
+    int mapz)
+{
+    struct BuildCacheDat* buildcachedat = world->buildcachedat;
+    int scene_size = world->_scene_size;
+    int offset_x;
+    int offset_z;
+
+    /* ---- Heightmap + flag_map ---- */
+    {
+        struct CacheMapTerrain* map_terrain =
+            buildcachedat_get_map_terrain(buildcachedat, mapx, mapz);
+        assert(map_terrain && "Map terrain must be found");
+
+        for( int tile_x = 0; tile_x < MAP_TERRAIN_X; tile_x++ )
+        {
+            for( int tile_z = 0; tile_z < MAP_TERRAIN_Z; tile_z++ )
+            {
+                for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
+                {
+                    offset_x = world_to_scene_x(world, mapx, tile_x);
+                    offset_z = world_to_scene_z(world, mapz, tile_z);
+
+                    if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size ||
+                        offset_z >= scene_size )
+                        continue;
+
+                    int chunk_index = MAP_TILE_COORD(tile_x, tile_z, level);
+                    struct CacheMapFloor* tile = &map_terrain->tiles_xyz[chunk_index];
+                    int height = tile->height;
+                    heightmap_set(world->heightmap, offset_x, offset_z, level, height);
+
+                    flag_map_set(world->_build_flag_map, offset_x, offset_z, level, tile->settings);
+                }
+            }
+        }
+
+        /* ---- Blendmap (underlay RGB) ---- */
+        for( int tile_x = 0; tile_x < MAP_TERRAIN_X; tile_x++ )
+        {
+            for( int tile_z = 0; tile_z < MAP_TERRAIN_Z; tile_z++ )
+            {
+                for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
+                {
+                    offset_x = world_to_scene_x(world, mapx, tile_x);
+                    offset_z = world_to_scene_z(world, mapz, tile_z);
+
+                    if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size ||
+                        offset_z >= scene_size )
+                        continue;
+
+                    struct CacheMapFloor* tile2 =
+                        &map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_z, level)];
+                    if( tile2->underlay_id > 0 )
+                    {
+                        struct CacheConfigOverlay* flotype =
+                            buildcachedat_get_flotype(buildcachedat, tile2->underlay_id - 1);
+                        assert(flotype && "Flotype must be found");
+
+                        blendmap_set_underlay_rgb(
+                            world->blendmap, offset_x, offset_z, level, flotype->rgb_color);
+                    }
+                }
+            }
+        }
+
+        /* ---- Overlaymap + shapemap ---- */
+        for( int tile_x = 0; tile_x < MAP_TERRAIN_X; tile_x++ )
+        {
+            for( int tile_z = 0; tile_z < MAP_TERRAIN_Z; tile_z++ )
+            {
+                for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
+                {
+                    offset_x = world_to_scene_x(world, mapx, tile_x);
+                    offset_z = world_to_scene_z(world, mapz, tile_z);
+
+                    if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size ||
+                        offset_z >= scene_size )
+                        continue;
+
+                    struct CacheMapFloor* tile2 =
+                        &map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_z, level)];
+
+                    int overlay_id = tile2->overlay_id - 1;
+                    int underlay_id = tile2->underlay_id - 1;
+
+                    if( overlay_id != -1 )
+                    {
+                        struct CacheConfigOverlay* flotype =
+                            buildcachedat_get_flotype(buildcachedat, overlay_id);
+                        assert(flotype && "Flotype must be found");
+
+                        overlaymap_set_tile_rgb(
+                            world->overlaymap, offset_x, offset_z, level, flotype->rgb_color);
+
+                        if( flotype->texture != -1 )
+                        {
+                            struct DashTexture* dash_texture =
+                                scene2_texture_get(world->scene2, flotype->texture);
+                            assert(dash_texture && "Dash texture must be found");
+
+                            int average_hsl = dash_texture_average_hsl(dash_texture);
+                            overlaymap_set_tile_texture(
+                                world->overlaymap,
+                                offset_x,
+                                offset_z,
+                                level,
+                                flotype->texture,
+                                average_hsl);
+                        }
+
+                        if( flotype->secondary_rgb_color > 0 )
+                        {
+                            overlaymap_set_tile_minimap(
+                                world->overlaymap,
+                                offset_x,
+                                offset_z,
+                                level,
+                                flotype->secondary_rgb_color);
+                        }
+                    }
+
+                    if( underlay_id != -1 || overlay_id != -1 )
+                    {
+                        int shape = 0;
+                        int rotation = 0;
+
+                        if( overlay_id != -1 )
+                        {
+                            shape = tile2->shape + 1;
+                            rotation = tile2->rotation;
+                        }
+
+                        terrain_shape_map_set_tile(
+                            world->terrain_shapemap,
+                            offset_x,
+                            offset_z,
+                            level,
+                            shape,
+                            rotation);
+                    }
+                }
+            }
+        }
+    }
+
+    /* ---- Collision map ---- */
+    {
+        struct CacheMapLocs* map_locs = buildcachedat_get_scenery(buildcachedat, mapx, mapz);
+        assert(map_locs && "Map scenery must be found");
+        struct CacheMapLoc* map_tile = NULL;
+        struct CacheConfigLocation* config_loc = NULL;
+
+        for( int i = 0; i < map_locs->locs_count; i++ )
+        {
+            map_tile = &map_locs->locs[i];
+
+            offset_x = world_to_scene_x(world, mapx, map_tile->chunk_pos_x);
+            offset_z = world_to_scene_z(world, mapz, map_tile->chunk_pos_z);
+
+            if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size ||
+                offset_z >= scene_size )
+                continue;
+
+            config_loc = buildcachedat_get_config_loc(buildcachedat, map_tile->loc_id);
+            assert(config_loc && "Config location must be found");
+
+            int size_x = config_loc->size_x;
+            int size_z = config_loc->size_z;
+            int angle = map_tile->orientation;
+            int blockrange = config_loc->blocks_projectiles ? 1 : 0;
+
+            switch( map_tile->shape_select )
+            {
+            case LOC_SHAPE_FLOOR_DECORATION:
+            {
+                if( config_loc->blocks_walk == 1 )
+                    collision_map_add_floor(world->collision_map, offset_x, offset_z);
+                break;
+            }
+            case LOC_SHAPE_WALL_SINGLE_SIDE:
+            {
+                if( config_loc->blocks_walk != 0 )
+                    collision_map_add_wall(
+                        world->collision_map,
+                        offset_x,
+                        offset_z,
+                        LOC_SHAPE_WALL_SINGLE_SIDE,
+                        angle,
+                        blockrange);
+                break;
+            }
+            case LOC_SHAPE_WALL_TRI_CORNER:
+            {
+                if( config_loc->blocks_walk != 0 )
+                    collision_map_add_wall(
+                        world->collision_map,
+                        offset_x,
+                        offset_z,
+                        LOC_SHAPE_WALL_TRI_CORNER,
+                        angle,
+                        blockrange);
+                break;
+            }
+            case LOC_SHAPE_WALL_TWO_SIDES:
+            {
+                if( config_loc->blocks_walk != 0 )
+                    collision_map_add_wall(
+                        world->collision_map,
+                        offset_x,
+                        offset_z,
+                        LOC_SHAPE_WALL_TWO_SIDES,
+                        angle,
+                        blockrange);
+                break;
+            }
+            case LOC_SHAPE_WALL_RECT_CORNER:
+            {
+                if( config_loc->blocks_walk != 0 )
+                    collision_map_add_wall(
+                        world->collision_map,
+                        offset_x,
+                        offset_z,
+                        LOC_SHAPE_WALL_RECT_CORNER,
+                        angle,
+                        blockrange);
+                break;
+            }
+            case LOC_SHAPE_WALL_DIAGONAL:
+            {
+                if( config_loc->blocks_walk != 0 )
+                    collision_map_add_loc(
+                        world->collision_map,
+                        offset_x,
+                        offset_z,
+                        size_x,
+                        size_z,
+                        angle,
+                        blockrange);
+                break;
+            }
+            case LOC_SHAPE_SCENERY:
+            {
+                if( config_loc->blocks_walk != 0 )
+                    collision_map_add_loc(
+                        world->collision_map,
+                        offset_x,
+                        offset_z,
+                        size_x,
+                        size_z,
+                        angle,
+                        blockrange);
+                break;
+            }
+            case LOC_SHAPE_SCENERY_DIAGIONAL:
+                {
+                    if( config_loc->blocks_walk != 0 )
+                        collision_map_add_loc(
+                            world->collision_map,
+                            offset_x,
+                            offset_z,
+                            size_x,
+                            size_z,
+                            angle,
+                            blockrange);
+                    break;
+                }
+            case LOC_SHAPE_ROOF_SLOPED:
+            case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_HARD_INNER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_HARD_OUTER_CORNER:
+            case LOC_SHAPE_ROOF_FLAT:
+            case LOC_SHAPE_ROOF_SLOPED_OVERHANG:
+            case LOC_SHAPE_ROOF_SLOPED_OVERHANG_OUTER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_OVERHANG_INNER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_OVERHANG_HARD_OUTER_CORNER:
+            {
+                if( config_loc->blocks_walk != 0 )
+                    collision_map_add_loc(
+                        world->collision_map,
+                        offset_x,
+                        offset_z,
+                        size_x,
+                        size_z,
+                        angle,
+                        blockrange);
+                break;
+            }
+            default:
+                break;
+            }
+        }
+
+        /* ---- Minimap walls ---- */
+        for( int i = 0; i < map_locs->locs_count; i++ )
+        {
+            map_tile = &map_locs->locs[i];
+            offset_x = world_to_scene_x(world, mapx, map_tile->chunk_pos_x);
+            offset_z = world_to_scene_z(world, mapz, map_tile->chunk_pos_z);
+
+            if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size ||
+                offset_z >= scene_size )
+                continue;
+
+            int level = map_tile->chunk_pos_level;
+            if( config_loc->map_scene_id == -1 )
+                continue;
+
+            if( level != CURRENT_LEVEL )
+                continue;
+
+            switch( map_tile->shape_select )
+            {
+            case LOC_SHAPE_WALL_SINGLE_SIDE:
+            {
+                minimap_add_tile_wall(
+                    world->minimap,
+                    offset_x,
+                    offset_z,
+                    orientation_wall_flag(map_tile->orientation));
+                break;
+            }
+            case LOC_SHAPE_WALL_TRI_CORNER:
+                break;
+            case LOC_SHAPE_WALL_TWO_SIDES:
+            {
+                minimap_add_tile_wall(
+                    world->minimap,
+                    offset_x,
+                    offset_z,
+                    orientation_wall_flag(map_tile->orientation));
+
+                int next_orientation = (map_tile->orientation + 1) & 0x3;
+
+                minimap_add_tile_wall(
+                    world->minimap,
+                    offset_x,
+                    offset_z,
+                    orientation_wall_flag(next_orientation));
+                break;
+            }
+            case LOC_SHAPE_WALL_RECT_CORNER:
+                break;
+            case LOC_SHAPE_WALL_DIAGONAL:
+            {
+                minimap_add_tile_wall(
+                    world->minimap,
+                    offset_x,
+                    offset_z,
+                    orientation_wall_flag_diagonal(map_tile->orientation));
+                break;
+            }
+            case LOC_SHAPE_SCENERY:
+            case LOC_SHAPE_SCENERY_DIAGIONAL:
+            case LOC_SHAPE_ROOF_SLOPED:
+            case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_HARD_INNER_CORNER:
+            case LOC_SHAPE_ROOF_SLOPED_HARD_OUTER_CORNER:
+            case LOC_SHAPE_ROOF_FLAT:
+            case LOC_SHAPE_ROOF_SLOPED_OVERHANG:
+                break;
+            }
+        }
+
+        /* ---- Scenery entities (scenery_add) ---- */
+        for( int i = 0; i < map_locs->locs_count; i++ )
+        {
+            map_tile = &map_locs->locs[i];
+            config_loc = buildcachedat_get_config_loc(buildcachedat, map_tile->loc_id);
+            assert(config_loc && "Config location must be found");
+
+            offset_x = world_to_scene_x(world, mapx, map_tile->chunk_pos_x);
+            offset_z = world_to_scene_z(world, mapz, map_tile->chunk_pos_z);
+
+            if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size ||
+                offset_z >= scene_size )
+                continue;
+
+            struct MapBuildLocEntity* entity = next_map_build_loc_entity(world);
+            entity->scene_coord.sx = offset_x;
+            entity->scene_coord.sz = offset_z;
+            entity->scene_coord.slevel = map_tile->chunk_pos_level;
+            scenery_add(world, entity, map_tile, config_loc);
+        }
+    }
+
+    /* Release this chunk's terrain and scenery data from buildcachedat. */
+    buildcachedat_clear_map_chunks(buildcachedat);
+    /* Release decoded models -- scene2 owns the uploaded mesh; raw CacheModel data is no longer
+     * needed after scenery_add completes for this chunk. */
+    buildcachedat_clear_scenery_models(buildcachedat);
+}
+
+void
+world_rebuild_centerzone_end(struct World* world)
+{
+    struct BuildCacheDat* buildcachedat = world->buildcachedat;
+    int scene_size = world->_scene_size;
+
+    /* ---- Decor wall-offset pass (scene-local, not chunk-indexed) ---- */
+    struct DecorElementsOnWall* elements = NULL;
+    struct Scene2Element* scene_element = NULL;
+    for( int sx = 0; sx < scene_size; sx++ )
+    {
+        for( int sz = 0; sz < scene_size; sz++ )
+        {
+            for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
+            {
+                int wall_width =
+                    decor_buildmap_get_wall_offset(world->decor_buildmap, sx, sz, level);
+
+                elements = decor_buildmap_get_elements(world->decor_buildmap, sx, sz, level);
+
+                for( int i = 0; i < elements->count; i++ )
+                {
+                    int element_id = elements->element_id[i];
+                    int displacement_kind = elements->displacement_kind[i];
+                    int orientation = elements->orientation[i];
+                    scene_element = scene2_element_at(world->scene2, element_id);
+                    scene2_element_expect(scene_element, "decor_buildmap wall offset");
+
+                    bool diagonal = false;
+                    int offset = 0;
+                    switch( displacement_kind )
+                    {
+                    case DECOR_DISPLACEMENT_KIND_STRAIGHT_ONWALL_OFFSET:
+                        offset += wall_width;
+                        break;
+                    case DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET:
+                        offset += (wall_width / 16) * 8 + (45);
+                        diagonal = true;
+                        break;
+                    case DECOR_DISPLACEMENT_KIND_STRAIGHT:
+                        offset += 0;
+                        break;
+                    case DECOR_DISPLACEMENT_KIND_DIAGONAL:
+                        offset += 45;
+                        diagonal = true;
+                        break;
+                    }
+
+                    calculate_wall_decor_offset(
+                        scene2_element_dash_position(scene_element), orientation, offset, diagonal);
+                }
+            }
+        }
+    }
+
+    printf("Alive Decor Buildmap\n");
+
+    /* ---- Bridge adjustment ---- */
+    int bridge_flags = 0;
+    struct PaintersTile bridge_tile_tmp = { 0 };
+    for( int x = 0; x < scene_size; x++ )
+    {
+        for( int z = 0; z < scene_size; z++ )
+        {
+            bridge_flags = flag_map_get(world->_build_flag_map, x, z, 1);
+
+            if( (bridge_flags & FLOFLAG_LINK_BELOW_PUSHDOWN) != 0 )
+            {
+                bridge_tile_tmp = *painter_tile_at(world->painter, x, z, 0);
+
+                for( int level = 0; level < painter_max_levels(world->painter) - 1; level++ )
+                {
+                    painter_tile_copyto(
+                        world->painter,
+                        x,
+                        z,
+                        level + 1,
+                        x,
+                        z,
+                        level);
+
+                    painter_tile_set_draw_level(world->painter, x, z, level, level);
+                }
+
+                *painter_tile_at(world->painter, x, z, 3) = bridge_tile_tmp;
+                painter_tile_set_bridge(world->painter, x, z, 0, x, z, 3);
+            }
+        }
+    }
+
+    printf("Alive Bridges\n");
+
+    flag_map_free(world->_build_flag_map);
+    world->_build_flag_map = NULL;
+
+    painter_mark_static_count(world->painter);
+
+    /* ---- Allocate build-only structures needed for lighting ---- */
+    world->lightmap = lightmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    /* shademap and sharelight_map are already allocated in _begin (needed by scenery_add). */
+
+    printf("Alive Lightmap\n");
+
+    lightmap_build(world->lightmap, world->heightmap);
+
+    printf("Alive Blendmap\n");
+
+    blendmap_build(world->blendmap);
+
+    /* ---- Terrain geometry ---- */
+#if WORLD_BUILD_TERRAIN_VA
+    build_scene_terrain_va(world);
+#else
+    build_scene_terrain(world);
+#endif
+
+    overlaymap_free(world->overlaymap);
+    world->overlaymap = NULL;
+    decor_buildmap_free(world->decor_buildmap);
+    world->decor_buildmap = NULL;
+
+    world_build_lighting(world);
+
     lightmap_free(world->lightmap);
     world->lightmap = NULL;
     shademap2_free(world->shademap);

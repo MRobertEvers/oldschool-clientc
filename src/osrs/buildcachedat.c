@@ -245,6 +245,13 @@ buildcachedat_new_map_terrains_hmap(void)
         sizeof(int), sizeof(struct MapTerrainEntry), BUILDCACHEDAT_HMAP_INITIAL_CAPACITY);
 }
 
+static struct DashMap*
+buildcachedat_new_models_hmap(void)
+{
+    return buildcachedat_create_hmap(
+        sizeof(int), sizeof(struct ModelEntry), BUILDCACHEDAT_HMAP_INITIAL_CAPACITY);
+}
+
 static void
 buildcachedat_init_reftables_if_needed(struct BuildCacheDat* buildcachedat)
 {
@@ -619,6 +626,18 @@ buildcachedat_clear_map_scenery_chunks(struct BuildCacheDat* buildcachedat)
         return;
     dashmap_free_entries(buildcachedat->scenery_hmap, free_scenery_entry);
     buildcachedat->scenery_hmap = buildcachedat_new_scenery_hmap();
+}
+
+void
+buildcachedat_clear_scenery_models(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat )
+        return;
+    if( buildcachedat->models_hmap )
+    {
+        dashmap_free_entries(buildcachedat->models_hmap, free_model_entry);
+        buildcachedat->models_hmap = buildcachedat_new_models_hmap();
+    }
 }
 
 void

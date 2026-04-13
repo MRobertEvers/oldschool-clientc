@@ -21,6 +21,9 @@
 #include <stdbool.h>
 #include <string.h>
 
+/* Forward declaration: defined in world.c (local struct used for bridging during build). */
+struct FlagMap;
+
 #define MAX_PLAYERS 2048
 #define MAX_NPCS 8192
 
@@ -84,10 +87,15 @@ struct World
     int _base_tile_z;
     int _chunk_sw_x;
     int _chunk_sw_z;
+    int _chunk_ne_x;
+    int _chunk_ne_z;
     int _scene_size;
 
     int _offset_x;
     int _offset_z;
+
+    /** Temporary bridge-flag map; allocated in world_rebuild_centerzone_begin, freed in _end. */
+    struct FlagMap* _build_flag_map;
 
     struct BuildCacheDat* buildcachedat;
 
@@ -116,6 +124,22 @@ world_buildcachedat_rebuild_centerzone(
     int zone_center_x,
     int zone_center_z,
     int scene_size);
+
+void
+world_rebuild_centerzone_begin(
+    struct World* world,
+    int zone_center_x,
+    int zone_center_z,
+    int scene_size);
+
+void
+world_rebuild_centerzone_chunk(
+    struct World* world,
+    int mapx,
+    int mapz);
+
+void
+world_rebuild_centerzone_end(struct World* world);
 
 struct MapBuildTileEntity*
 world_tile_entity_at(

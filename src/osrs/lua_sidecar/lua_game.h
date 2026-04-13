@@ -70,4 +70,28 @@ LuaGame_get_heap_usage_mb(
     struct GGame* game,
     struct LuaGameType* args);
 
+/** Chunked (slow-path) world rebuild: begin -- prepare world and allocate build structures. */
+struct LuaGameType*
+LuaGame_rebuild_centerzone_begin(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+/** Chunked rebuild: process a single map chunk (mapx, mapz); clears buildcache after. */
+struct LuaGameType*
+LuaGame_rebuild_centerzone_chunk(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+/** Chunked rebuild: finalize terrain/lighting, rebuild minimap, clear buildcache. */
+struct LuaGameType*
+LuaGame_rebuild_centerzone_end(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+/** Convenience: full slow rebuild in one call (all chunks assumed loaded; uses begin/chunk/end). */
+struct LuaGameType*
+LuaGame_rebuild_centerzone_slow(
+    struct GGame* game,
+    struct LuaGameType* args);
+
 #endif

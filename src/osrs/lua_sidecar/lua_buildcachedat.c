@@ -674,6 +674,16 @@ LuaBuildCacheDat_clear_map_chunks(
 }
 
 struct LuaGameType*
+LuaBuildCacheDat_clear_scenery_models(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_clear_scenery_models(buildcachedat);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
 LuaBuildCacheDat_clear_component_cache(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
@@ -787,6 +797,8 @@ LuaBuildCacheDat_DispatchCommand(
         return LuaBuildCacheDat_clear_component_cache(buildcachedat, args);
     else if( strcmp(command, "clear_map_chunks") == 0 )
         return LuaBuildCacheDat_clear_map_chunks(buildcachedat, args);
+    else if( strcmp(command, "clear_scenery_models") == 0 )
+        return LuaBuildCacheDat_clear_scenery_models(buildcachedat, args);
     else if( strcmp(command, "clear_config_jagfile") == 0 )
         return LuaBuildCacheDat_clear_config_jagfile(buildcachedat, args);
     else if( strcmp(command, "clear_versionlist_jagfile") == 0 )

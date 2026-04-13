@@ -101,6 +101,12 @@ buildcachedat_clear_map_terrain_chunks(struct BuildCacheDat* buildcachedat);
 void
 buildcachedat_clear_map_scenery_chunks(struct BuildCacheDat* buildcachedat);
 
+/** Free all decoded scenery models (CacheModel entries in models_hmap) and recreate the map empty.
+ * Safe to call after world_rebuild_centerzone_chunk since scene2 owns the uploaded mesh data.
+ * Reduces peak memory when building the world one chunk at a time. */
+void
+buildcachedat_clear_scenery_models(struct BuildCacheDat* buildcachedat);
+
 /** Free every decoded interface component (CacheDatConfigComponent) and recreate an empty
  * component_hmap. Safe after static UI is built into the uitree; buildcachedat_get_component
  * returns NULL until interfaces are loaded again. Reftables (sprites, fonts, component_sprites)

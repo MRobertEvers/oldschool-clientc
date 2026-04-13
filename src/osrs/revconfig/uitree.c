@@ -5,7 +5,10 @@
 #include <string.h>
 
 static int32_t
-link_under_parent(struct UITree* tree, int32_t parent_index, int32_t new_index)
+link_under_parent(
+    struct UITree* tree,
+    int32_t parent_index,
+    int32_t new_index)
 {
     struct StaticUIComponent* new_c = &tree->components[new_index];
     new_c->parent = parent_index;
@@ -45,7 +48,9 @@ link_under_parent(struct UITree* tree, int32_t parent_index, int32_t new_index)
 }
 
 static int32_t
-push_element(struct UITree* tree, int32_t parent_index)
+push_element(
+    struct UITree* tree,
+    int32_t parent_index)
 {
     if( tree->component_count >= tree->component_capacity )
     {
@@ -100,7 +105,9 @@ uitree_inv_pool_free(struct UIInventoryPool* pool)
 }
 
 int
-uitree_inv_pool_find_by_name(struct UIInventoryPool* pool, char const* name)
+uitree_inv_pool_find_by_name(
+    struct UIInventoryPool* pool,
+    char const* name)
 {
     if( !pool || !name || name[0] == '\0' )
         return -1;
@@ -113,7 +120,9 @@ uitree_inv_pool_find_by_name(struct UIInventoryPool* pool, char const* name)
 }
 
 int
-uitree_inv_pool_append(struct UIInventoryPool* pool, struct UIInventory const* inv)
+uitree_inv_pool_append(
+    struct UIInventoryPool* pool,
+    struct UIInventory const* inv)
 {
     if( !pool || !inv )
         return -1;
@@ -196,15 +205,13 @@ uitree_free(struct UITree* tree)
 void
 uitree_print_nodes(struct UITree const* tree)
 {
+    return;
     if( !tree )
     {
         printf("uitree_print_nodes: tree is NULL\n");
         return;
     }
-    printf(
-        "uitree: %u nodes, root_index=%d\n",
-        tree->component_count,
-        (int)tree->root_index);
+    printf("uitree: %u nodes, root_index=%d\n", tree->component_count, (int)tree->root_index);
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
         struct StaticUIComponent const* c = &tree->components[i];

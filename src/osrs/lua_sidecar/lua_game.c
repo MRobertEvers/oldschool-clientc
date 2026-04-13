@@ -8,9 +8,13 @@
 #include "osrs/gameproto_exec.h"
 #include "osrs/packets/revpacket_lc245_2.h"
 #include "osrs/rscache/cache_dat.h"
+#include "osrs/world.h"
 #include "platforms/common/platform_memory.h"
 
 #include <assert.h>
+
+/* Forward declaration: defined in tori_rs_minimap.u.c / tori_rs.h. */
+void LibToriRS_WorldMinimapStaticRebuild(struct GGame* game);
 
 /* Helper: get int at args[i]. args must be VarTypeArray. */
 static int
@@ -223,6 +227,84 @@ LuaGame_get_interface_model_ids(
     return arr;
 }
 
+struct LuaGameType*
+LuaGame_rebuild_centerzone_begin(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    int zonex = arg_int(args, 0);
+    int zonez = arg_int(args, 1);
+    int size = arg_int(args, 2);
+
+    buildcachedat_loader_prepare_scene_centerzone(game->buildcachedat, game);
+    world_rebuild_centerzone_begin(game->world, zonex, zonez, size);
+
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaGame_rebuild_centerzone_chunk(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    int mapx = arg_int(args, 0);
+    int mapz = arg_int(args, 1);
+
+    assert(game->world && "world_rebuild_centerzone_begin must be called first");
+    world_rebuild_centerzone_chunk(game->world, mapx, mapz);
+
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaGame_rebuild_centerzone_end(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    (void)args;
+
+    assert(game->world && "world_rebuild_centerzone_begin must be called first");
+    world_rebuild_centerzone_end(game->world);
+
+    LibToriRS_WorldMinimapStaticRebuild(game);
+    buildcachedat_clear(game->buildcachedat);
+
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaGame_rebuild_centerzone_slow(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    int zonex = arg_int(args, 0);
+    int zonez = arg_int(args, 1);
+    int size = arg_int(args, 2);
+
+    buildcachedat_loader_prepare_scene_centerzone(game->buildcachedat, game);
+    world_rebuild_centerzone_begin(game->world, zonex, zonez, size);
+
+    int chunk_sw_x = game->world->_chunk_sw_x;
+    int chunk_sw_z = game->world->_chunk_sw_z;
+    int chunk_ne_x = game->world->_chunk_ne_x;
+    int chunk_ne_z = game->world->_chunk_ne_z;
+
+    for( int mapx = chunk_sw_x; mapx <= chunk_ne_x; mapx++ )
+    {
+        for( int mapz = chunk_sw_z; mapz <= chunk_ne_z; mapz++ )
+        {
+            world_rebuild_centerzone_chunk(game->world, mapx, mapz);
+        }
+    }
+
+    world_rebuild_centerzone_end(game->world);
+
+    LibToriRS_WorldMinimapStaticRebuild(game);
+    buildcachedat_clear(game->buildcachedat);
+
+    return LuaGameType_NewVoid();
+}
+
 static char const g_prefix[] = "game_";
 
 bool
@@ -266,6 +348,14 @@ LuaGame_DispatchCommand(
         return LuaGame_get_interface_model_ids(game, args);
     else if( strcmp(command, "get_heap_usage_mb") == 0 )
         return LuaGame_get_heap_usage_mb(game, args);
+    else if( strcmp(command, "rebuild_centerzone_begin") == 0 )
+        return LuaGame_rebuild_centerzone_begin(game, args);
+    else if( strcmp(command, "rebuild_centerzone_chunk") == 0 )
+        return LuaGame_rebuild_centerzone_chunk(game, args);
+    else if( strcmp(command, "rebuild_centerzone_end") == 0 )
+        return LuaGame_rebuild_centerzone_end(game, args);
+    else if( strcmp(command, "rebuild_centerzone_slow") == 0 )
+        return LuaGame_rebuild_centerzone_slow(game, args);
     else
     {
         printf("Unknown command: %s\n", command);

@@ -167,4 +167,16 @@ buildcachedat_loader_finalize_scene_centerzone(
     int zonez,
     int size);
 
+/** Set up a fresh World for the chunked (slow-path) rebuild.
+ *  Frees any existing world and creates a new one.  Jagfile lifecycle is
+ *  left entirely to the caller: the config jagfile must remain valid through
+ *  the full chunk loop so per-chunk init_scenery_configs calls can decode
+ *  loc configs; the caller is responsible for clearing jagfiles at the right
+ *  points.  After this, drive the build with
+ *  world_rebuild_centerzone_begin / _chunk / _end. */
+void
+buildcachedat_loader_prepare_scene_centerzone(
+    struct BuildCacheDat* buildcachedat,
+    struct GGame* game);
+
 #endif

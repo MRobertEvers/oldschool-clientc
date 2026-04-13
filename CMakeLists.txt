@@ -373,6 +373,7 @@ if(EMSCRIPTEN)
         -sUSE_SDL=2
         -sWASM=1
         -sALLOW_MEMORY_GROWTH=1
+        # -sTOTAL_MEMORY=38mb
         -sALLOW_TABLE_GROWTH=1
         -sSTACK_SIZE=512kb
         -sNO_EXIT_RUNTIME=1
