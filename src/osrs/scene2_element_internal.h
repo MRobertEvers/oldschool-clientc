@@ -8,12 +8,12 @@
 #include <stdint.h>
 
 #define SCENE2_FLAG_VALID 0x80000000u
-#define SCENE2_FLAG_FAST 0x40000000u
+#define SCENE2_FLAG_TILE 0x40000000u
 #define SCENE2_FLAG_ACTIVE 0x20000000u
 #define SCENE2_PARENT_MASK 0x00FFFFFFu
 #define SCENE2_PARENT_NONE 0x00FFFFFFu
 
-struct Scene2ElementFast
+struct Scene2ElementTile
 {
     uint32_t flags_entity;
     struct Scene2Element* prev;
@@ -44,39 +44,39 @@ scene2__flags_raw(const struct Scene2Element* e)
 }
 
 static inline bool
-scene2__is_fast(const struct Scene2Element* e)
+scene2__is_tile(const struct Scene2Element* e)
 {
     assert((scene2__flags_raw(e) & SCENE2_FLAG_VALID) && "Scene2Element: invalid or uninitialized");
-    return (scene2__flags_raw(e) & SCENE2_FLAG_FAST) != 0;
+    return (scene2__flags_raw(e) & SCENE2_FLAG_TILE) != 0;
 }
 
-static inline struct Scene2ElementFast*
-scene2__as_fast(struct Scene2Element* e)
+static inline struct Scene2ElementTile*
+scene2__as_tile(struct Scene2Element* e)
 {
-    assert(scene2__is_fast(e));
-    return (struct Scene2ElementFast*)e;
+    assert(scene2__is_tile(e));
+    return (struct Scene2ElementTile*)e;
 }
 
 static inline struct Scene2ElementFull*
 scene2__as_full(struct Scene2Element* e)
 {
     assert((scene2__flags_raw(e) & SCENE2_FLAG_VALID) && "Scene2Element: invalid or uninitialized");
-    assert(!scene2__is_fast(e));
+    assert(!scene2__is_tile(e));
     return (struct Scene2ElementFull*)e;
 }
 
-static inline const struct Scene2ElementFast*
-scene2__as_fast_const(const struct Scene2Element* e)
+static inline const struct Scene2ElementTile*
+scene2__as_tile_const(const struct Scene2Element* e)
 {
-    assert(scene2__is_fast(e));
-    return (const struct Scene2ElementFast*)e;
+    assert(scene2__is_tile(e));
+    return (const struct Scene2ElementTile*)e;
 }
 
 static inline const struct Scene2ElementFull*
 scene2__as_full_const(const struct Scene2Element* e)
 {
     assert((scene2__flags_raw(e) & SCENE2_FLAG_VALID) && "Scene2Element: invalid or uninitialized");
-    assert(!scene2__is_fast(e));
+    assert(!scene2__is_tile(e));
     return (const struct Scene2ElementFull*)e;
 }
 

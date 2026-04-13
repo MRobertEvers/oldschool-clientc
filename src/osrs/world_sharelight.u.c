@@ -198,7 +198,6 @@ merge_normals(
 
 #define ADJACENT_TILES_COUNT 48
 
-
 static void
 defaultlight_build(struct World* world)
 {
@@ -249,7 +248,9 @@ defaultlight_build(struct World* world)
 #define SHARELIGHT_MERGE_LOOKAHEAD 6
 
 static void
-alloc_normals_for_column(struct World* world, int sx)
+alloc_normals_for_column(
+    struct World* world,
+    int sx)
 {
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
@@ -270,19 +271,26 @@ alloc_normals_for_column(struct World* world, int sx)
                 if( !scene_element || !scene2_element_dash_model(scene_element) )
                     continue;
                 struct DashModel* dm = scene2_element_dash_model(scene_element);
-                if( !dashmodel_normals(dm) )
-                {
+                /* Base normals may already exist on a shared flyweight while merged normals are
+                 * per-lite — always ensure this instance has merged_normals before merge_column. */
+                bool had_normals = dashmodel_normals(dm) != NULL;
+                bool had_merged = dashmodel_merged_normals(dm) != NULL;
+                if( !had_normals )
                     dashmodel_alloc_normals(dm);
+                if( !had_merged )
                     dashmodel_alloc_merged_normals(dm);
+                if( (!had_normals || !had_merged) && dashmodel_normals(dm) &&
+                    dashmodel_merged_normals(dm) )
                     dashmodel_calculate_vertex_normals(dm);
-                }
             }
         }
     }
 }
 
 static void
-merge_column(struct World* world, int sx)
+merge_column(
+    struct World* world,
+    int sx)
 {
     struct TileCoord adjacent_tiles[ADJACENT_TILES_COUNT];
     struct SharelightMapTile* map_tile = NULL;
@@ -348,8 +356,7 @@ merge_column(struct World* world, int sx)
                             (adjacent_tile_coord.z - sz) * 128 +
                             (adjacent_map_element->size_z - map_element->size_z) * 64;
 
-                        int height_center =
-                            heightmap_get_center(world->heightmap, sx, sz, slevel);
+                        int height_center = heightmap_get_center(world->heightmap, sx, sz, slevel);
                         int adjacent_height_center = heightmap_get_center(
                             world->heightmap,
                             adjacent_tile_coord.x,
@@ -357,7 +364,8 @@ merge_column(struct World* world, int sx)
                             adjacent_tile_coord.level);
                         int check_offset_height = adjacent_height_center - height_center;
 
-                        if( !dashmodel_is_lightable(scene2_element_dash_model(adjacent_scene_element)) ||
+                        if( !dashmodel_is_lightable(
+                                scene2_element_dash_model(adjacent_scene_element)) ||
                             !dashmodel_is_lightable(scene2_element_dash_model(scene_element)) )
                             continue;
 
@@ -370,7 +378,8 @@ merge_column(struct World* world, int sx)
                             scene2_element_dash_model(adjacent_scene_element),
                             dashmodel_normals(scene2_element_dash_model(adjacent_scene_element))
                                 ->lighting_vertex_normals,
-                            dashmodel_merged_normals(scene2_element_dash_model(adjacent_scene_element))
+                            dashmodel_merged_normals(
+                                scene2_element_dash_model(adjacent_scene_element))
                                 ->lighting_vertex_normals,
                             check_offset_x,
                             check_offset_height,
@@ -383,7 +392,9 @@ merge_column(struct World* world, int sx)
 }
 
 static void
-apply_and_free_column(struct World* world, int sx)
+apply_and_free_column(
+    struct World* world,
+    int sx)
 {
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
@@ -415,8 +426,7 @@ apply_and_free_column(struct World* world, int sx)
                 light_attenuation += map_element->light_attenuation;
 
                 int light_magnitude = (int)sqrt(
-                    lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y +
-                    lightsrc_z * lightsrc_z);
+                    lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
                 int attenuation = (light_attenuation * light_magnitude) >> 8;
 
                 struct DashModel* dm = scene2_element_dash_model(scene_element);
@@ -457,8 +467,8 @@ world_build_lighting(struct World* world)
     int scene_size = world->sharelight_map->width;
 
     /* Allocate normals for the initial lookahead window. */
-    int initial_cols = scene_size < SHARELIGHT_MERGE_LOOKAHEAD + 1 ?
-                       scene_size : SHARELIGHT_MERGE_LOOKAHEAD + 1;
+    int initial_cols =
+        scene_size < SHARELIGHT_MERGE_LOOKAHEAD + 1 ? scene_size : SHARELIGHT_MERGE_LOOKAHEAD + 1;
     for( int sx = 0; sx < initial_cols; sx++ )
         alloc_normals_for_column(world, sx);
 

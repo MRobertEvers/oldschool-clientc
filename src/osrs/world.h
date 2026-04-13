@@ -4,6 +4,8 @@
 #include "decor_buildmap.h"
 #include "entity_vec.h"
 #include "game_entity.h"
+#include "graphics/dash.h"
+#include "graphics/dashmap.h"
 #include "osrs/blendmap.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/collision_map.h"
@@ -98,6 +100,11 @@ struct World
     struct FlagMap* _build_flag_map;
 
     struct BuildCacheDat* buildcachedat;
+
+    /** Flyweight model cache: maps uint64_t bitset key -> DashModelFlyWeight*.
+     *  Shared geometry is stored once per unique (loc_id, shape_select, rotation) tuple.
+     *  Cleared at the start of each world rebuild. */
+    struct DashMap* flyweight_hmap;
 
     /** Terrain: pointers to shared geometry per level. With scene2, Scene2 owns the arrays
      * (register/unregister); these are non-owning. Without scene2, world frees them. */

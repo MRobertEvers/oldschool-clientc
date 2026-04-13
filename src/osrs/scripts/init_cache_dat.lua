@@ -225,8 +225,8 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     local zone_center_z = map_sw_z * 8 + 12
 
     print("=== Building Scene ===")
-    -- world_rebuild_centerzone_slow(zone_center_x, zone_center_z, SCENE_SIZE)
-    world_rebuild_centerzone(zone_center_x, zone_center_z, SCENE_SIZE)
+    world_rebuild_centerzone_slow(zone_center_x, zone_center_z, SCENE_SIZE)
+    -- world_rebuild_centerzone(zone_center_x, zone_center_z, SCENE_SIZE)
 
     print("=== Scene Built ===")
 end

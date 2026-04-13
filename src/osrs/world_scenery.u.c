@@ -6,6 +6,8 @@
 #include "model_transforms.h"
 #include "world.h"
 
+#include <stdlib.h>
+
 // clang-format off
 #include "_light_model_default.u.c"
 // clang-format on
@@ -66,9 +68,8 @@ scenery_element_position_init(
     int size_x,
     int size_z)
 {
-    struct Scene2Element* scene_element = scene2_element_at(
-        world->scene2,
-        entity_scene_element->element_id);
+    struct Scene2Element* scene_element =
+        scene2_element_at(world->scene2, entity_scene_element->element_id);
     scene2_element_expect(scene_element, "scenery_element_position_init");
 
     struct HeightmapHeights heights = { 0 };
@@ -184,7 +185,8 @@ apply_contour_ground(
     int above_az = (contour_ground_type == 4 || contour_ground_type == 5) ? hm_az : 0;
 
     struct ContourGround cg;
-    if( !contour_ground_init(&cg,
+    if( !contour_ground_init(
+            &cg,
             contour_ground_type,
             contour_ground_param,
             hm_ax,
@@ -219,6 +221,63 @@ apply_contour_ground(
             break;
         }
     }
+}
+
+/**
+ * Run the same contour-ground logic as apply_contour_ground, writing adjusted Y values into
+ * a DashModelLite's vertex override arrays (must already be allocated).
+ */
+static void
+apply_contour_ground_to_lite_model(
+    struct World* world,
+    struct EntitySceneCoord* entity_scene_coord,
+    struct DashModel* lite_model,
+    int contour_ground_type,
+    int contour_ground_param,
+    int size_x,
+    int size_z)
+{
+    int vc = dashmodel_vertex_count(lite_model);
+    if( vc <= 0 || contour_ground_type == 0 )
+        return;
+
+    int* scratch = (int*)malloc((size_t)vc * 3u * sizeof(int));
+    if( !scratch )
+        return;
+    int* ix = scratch;
+    int* iy = scratch + vc;
+    int* iz = scratch + vc * 2;
+
+    const vertexint_t* sx = dashmodel_vertices_x(lite_model);
+    const vertexint_t* sy = dashmodel_vertices_y(lite_model);
+    const vertexint_t* sz = dashmodel_vertices_z(lite_model);
+    for( int i = 0; i < vc; i++ )
+    {
+        ix[i] = (int)sx[i];
+        iy[i] = (int)sy[i];
+        iz[i] = (int)sz[i];
+    }
+
+    struct CacheModel proxy = { 0 };
+    proxy.vertex_count = vc;
+    proxy.vertices_x = ix;
+    proxy.vertices_y = iy;
+    proxy.vertices_z = iz;
+
+    apply_contour_ground(
+        world,
+        entity_scene_coord,
+        &proxy,
+        contour_ground_type,
+        contour_ground_param,
+        size_x,
+        size_z);
+
+    vertexint_t* out_y = dashmodel_vertices_y(lite_model);
+    for( int i = 0; i < vc; i++ )
+        out_y[i] = (vertexint_t)iy[i];
+
+    free(scratch);
 }
 
 static void
@@ -298,37 +357,97 @@ world_load_scenery_model(
 
     if( models_count <= 0 )
     {
-        fprintf(
-            stderr,
-            "world_load_scenery_model: no models (shape_select=%d)\n",
-            shape_select);
+        fprintf(stderr, "world_load_scenery_model: no models (shape_select=%d)\n", shape_select);
         abort();
-    }
-
-    if( models_count > 1 )
-    {
-        model = model_new_merge(models, models_count);
-    }
-    else
-    {
-        model = model_new_copy(models[0]);
     }
 
     struct DashModel* dash_model = NULL;
     struct Scene2Element* scene_element = NULL;
 
-    apply_transforms(config_loc, model, rotation, true);
-    apply_contour_ground(
-        world,
-        entity_scene_coord,
-        model,
-        config_loc->contour_ground_type,
-        config_loc->contour_ground_param,
-        size_x,
-        size_z);
+    /*
+     * Flyweight path: share a DashModelFlyWeight across instances with the same bitset key.
+     * Sharelight locs use an unlit flyweight plus per-instance lite face colors; animated
+     * locs use per-instance vertex overrides while bones stay on the flyweight.
+     *
+     * Bitset layout:
+     *   bits  0-2  : rotation  (3 bits)
+     *   bits  3-7  : shape_select (5 bits, LOC_SHAPE_* values 0-22)
+     *   bits  8-28 : loc config id (21 bits)
+     *   bit  48    : sharelight (1 = unlit flyweight + sharelight lite path)
+     */
+    /* Contour mutates vertices per tile; bounds live on the flyweight, so sharing would be
+     * wrong — use the full model path when contour is enabled. */
+    bool use_flyweight = world->flyweight_hmap != NULL && config_loc->contour_ground_type == 0;
 
-    dash_model = dashmodel_new_from_cache_model(model);
-    model_free(model);
+    if( use_flyweight )
+    {
+        DashModelBitset key = ((DashModelBitset)(config_loc->sharelight != 0 ? 1ULL : 0ULL) << 48) |
+                              ((DashModelBitset)(config_loc->_id & 0x1FFFFF) << 8) |
+                              ((DashModelBitset)(shape_select & 0x1F) << 3) |
+                              (DashModelBitset)(rotation & 0x7);
+
+        struct DashFlyweightEntry* entry =
+            (struct DashFlyweightEntry*)dashmap_search(world->flyweight_hmap, &key, DASHMAP_INSERT);
+
+        if( entry && entry->flyweight )
+        {
+            /* Re-use the existing flyweight — it is already transformed and lit. */
+            dash_model = dashmodel_lite_new(entry->flyweight);
+        }
+        else if( entry )
+        {
+            /* First occurrence: build a fresh flyweight for this key. */
+            struct CacheModel* fw_model = (models_count > 1) ? model_new_merge(models, models_count)
+                                                             : model_new_copy(models[0]);
+
+            apply_transforms(config_loc, fw_model, rotation, true);
+
+            struct DashModel* flyweight = dashmodel_flyweight_new_from_cache_model(fw_model);
+            model_free(fw_model);
+
+            if( flyweight )
+            {
+                if( config_loc->sharelight == 0 )
+                {
+                    /* Light the flyweight immediately; all instances share this lighting.
+                     * Normals are temporary scratch — free them once lighting is baked. */
+                    _light_model_default(flyweight, config_loc->contrast, config_loc->ambient);
+                    dashmodel_free_normals(flyweight);
+                }
+
+                /* hmap holds the initial refcount-1 reference created by dashmodel_flyweight_new.
+                 */
+                entry->flyweight = flyweight;
+                dash_model = dashmodel_lite_new(flyweight);
+            }
+        }
+        /* dashmap_search(..., INSERT) returns NULL if the table is full — fall back below. */
+
+        if( dash_model && config_loc->sharelight != 0 )
+            dashmodel_lite_prepare_sharelight_instance(dash_model);
+    }
+
+    if( !dash_model )
+    {
+        /* Non-flyweight path (sharelight, contour-ground, flyweight hmap unavailable/full). */
+        if( models_count > 1 )
+            model = model_new_merge(models, models_count);
+        else
+            model = model_new_copy(models[0]);
+
+        apply_transforms(config_loc, model, rotation, true);
+        apply_contour_ground(
+            world,
+            entity_scene_coord,
+            model,
+            config_loc->contour_ground_type,
+            config_loc->contour_ground_param,
+            size_x,
+            size_z);
+
+        dash_model = dashmodel_new_from_cache_model(model);
+        model_free(model);
+    }
 
     scene_element = scene2_element_at(world->scene2, entity_scene_element->element_id);
     if( !scene_element )
@@ -355,7 +474,7 @@ scenery_element_acquire(
     int parent = (int)entity_unified_id(ENTITY_KIND_MAP_BUILD_LOC, entity_id);
     if( animated )
         return scene2_element_acquire_full(world->scene2, parent);
-    return scene2_element_acquire_fast(world->scene2, parent);
+    return scene2_element_acquire_tile(world->scene2, parent);
 }
 
 static void
@@ -389,7 +508,8 @@ scenery_add_wall_single(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -452,7 +572,8 @@ scenery_add_wall_tri_corner(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -514,8 +635,10 @@ scenery_add_wall_two_sides(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
-    entity->scene_element_two.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element_two.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int orientation = map_tile->orientation;
     // +4 for Mirrored
@@ -601,7 +724,8 @@ scenery_add_wall_rect_corner(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -662,7 +786,8 @@ scenery_add_wall_decor_inside(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -726,7 +851,8 @@ scenery_add_wall_decor_outside(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -792,7 +918,8 @@ scenery_add_wall_decor_diagonal_outside(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
     entity->interactable = config_loc->is_interactive;
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
@@ -866,7 +993,7 @@ scenery_add_wall_decor_diagonal_inside(
             ? scene2_element_acquire_full(
                   world->scene2,
                   (int)entity_unified_id(ENTITY_KIND_MAP_BUILD_LOC, entity->entity_id))
-            : scene2_element_acquire_fast(
+            : scene2_element_acquire_tile(
                   world->scene2,
                   (int)entity_unified_id(ENTITY_KIND_MAP_BUILD_LOC, entity->entity_id));
     entity->interactable = config_loc->is_interactive;
@@ -947,8 +1074,10 @@ scenery_add_wall_decor_diagonal_double(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
-    entity->scene_element_two.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element_two.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
     entity->interactable = config_loc->is_interactive;
 
     int outside_rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
@@ -1061,7 +1190,8 @@ scenery_add_wall_diagonal(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -1113,7 +1243,8 @@ scenery_add_normal(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
     entity->interactable = config_loc->is_interactive;
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
@@ -1193,7 +1324,8 @@ scenery_add_roof(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -1238,7 +1370,8 @@ scenery_add_floor_decoration(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;

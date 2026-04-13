@@ -7,7 +7,7 @@
 #include <stdint.h>
 
 struct Scene2Element;
-struct Scene2ElementFast;
+struct Scene2ElementTile;
 struct Scene2ElementFull;
 
 struct Scene2TextureEntry
@@ -64,7 +64,7 @@ struct Scene2Event
 
 struct Scene2
 {
-    struct Scene2ElementFast* fast_pool;
+    struct Scene2ElementTile* fast_pool;
     struct Scene2ElementFull* full_pool;
     int fast_count;
     int full_count;
@@ -116,7 +116,7 @@ int
 scene2_elements_total(const struct Scene2* scene2);
 
 int
-scene2_element_acquire_fast(
+scene2_element_acquire_tile(
     struct Scene2* scene2,
     int parent_entity_id);
 

@@ -45,8 +45,8 @@ struct DashAABB
     int max_screen_y;
 };
 
-/** Vertex positions only; lifetime owned outside DashModel (VA models hold a weak pointer).
- * Face colors, indices, and textures live on DashModelVA. */
+/** Vertex positions only; lifetime owned outside DashModel (VA tile models hold a weak pointer).
+ * Face colors, indices, and textures live on DashModelVATile. */
 struct DashVertexArray
 {
     int vertex_count;
@@ -64,7 +64,7 @@ struct DashFace
     uint16_t _pad;
 };
 
-/** SoA face storage shared per terrain level. DashModelVA holds a weak ref + first_face_index. */
+/** SoA face storage shared per terrain level. DashModelVATile holds a weak ref + first_face_index. */
 struct DashFaceArray
 {
     faceint_t* indices_a;
@@ -446,11 +446,11 @@ void
 dashposition_free(struct DashPosition* position);
 
 struct DashModel*
-dashmodel_fast_new(void);
+dashmodel_tile_new(void);
 
 /** Weak reference to vertex_array; caller frees the array separately. face_count starts at 0. */
 struct DashModel*
-dashmodel_va_new(struct DashVertexArray* vertex_array);
+dashmodel_va_tile_new(struct DashVertexArray* vertex_array);
 
 /** Allocates array (faces may be NULL if capacity 0). */
 struct DashFaceArray*
@@ -475,30 +475,30 @@ dashfacearray_shrink_to_fit(struct DashFaceArray* fa);
 int
 dashfacearray_push(struct DashFaceArray* fa, const struct DashFace* face);
 
-/** VA only: weak ref into shared face_array; first_face_index is offset into faces[]. */
+/** VA tile only: weak ref into shared face_array; first_face_index is offset into faces[]. */
 void
-dashmodel_va_set_face_array_ref(
+dashmodel_va_tile_set_face_array_ref(
     struct DashModel* m,
     struct DashFaceArray* face_array,
     uint32_t first_face_index,
     int face_count);
 
 const struct DashFaceArray*
-dashmodel_va_face_array_const(const struct DashModel* m);
+dashmodel_va_tile_face_array_const(const struct DashModel* m);
 
 uint32_t
-dashmodel_va_first_face_index(const struct DashModel* m);
+dashmodel_va_tile_first_face_index(const struct DashModel* m);
 
-/** VA only: per-tile terrain culling — tile SW corner in world (vertices remain absolute). */
+/** VA tile only: per-tile terrain culling — tile SW corner in world (vertices remain absolute). */
 void
-dashmodel_va_set_tile_cull_center(
+dashmodel_va_tile_set_tile_cull_center(
     struct DashModel* m,
     int tile_sw_x,
     int tile_sw_z);
 
-/** VA only: replace bounds cylinder from tile-local (or model-local) vertex positions. */
+/** VA tile only: replace bounds cylinder from tile-local (or model-local) vertex positions. */
 void
-dashmodel_va_set_bounds_cylinder_from_local(
+dashmodel_va_tile_set_bounds_cylinder_from_local(
     struct DashModel* m,
     int num_vertices,
     const vertexint_t* vx,
@@ -510,6 +510,48 @@ dashmodelfull_new(void);
 
 struct DashModel*
 dashmodel_new(void);
+
+/** Allocate a new DashModelFlyWeight with refcount=1. All fields are zeroed; caller fills geometry. */
+struct DashModel*
+dashmodel_flyweight_new(void);
+
+/** Allocate a new DashModelLite pointing to flyweight (refcount incremented).
+ *  vertex_count and face_count are copied from flyweight. */
+struct DashModel*
+dashmodel_lite_new(struct DashModel* flyweight);
+
+/** Allocate per-instance vertex override arrays on a lite (vertex_count entries each).
+ *  Copies vertex positions from the flyweight so caller can apply contour adjustments in-place. */
+void
+dashmodel_lite_alloc_vertex_overrides(struct DashModel* lite);
+
+/** Per-instance face color buffers for sharelight (merged normals + late apply_lighting). */
+void
+dashmodel_lite_prepare_sharelight_instance(struct DashModel* lite);
+
+bool
+dashmodel_lite_is_sharelight_instance(const struct DashModel* lite);
+
+/**
+ * 64-bit key that uniquely identifies a DashModelFlyWeight by its intrinsic properties.
+ * Matches the TypeScript LocType.getModel typecode layout:
+ *   bits 0–2  : rotation / angle (0–7)
+ *   bits 3–5  : shape index within the loc's shapes array (0–7)
+ *   bits 6–26 : loc config id (up to ~2M)
+ * Static (non-animated) models use bits 0–26 only.
+ */
+typedef uint64_t DashModelBitset;
+
+/**
+ * Entry stored per-slot in the flyweight hash map (world->flyweight_hmap).
+ * The hash map key is the DashModelBitset value; the entry stores the flyweight pointer.
+ * The hash map itself holds a reference (flyweight refcount >= 1 while in map).
+ */
+struct DashFlyweightEntry
+{
+    DashModelBitset key;
+    struct DashModel* flyweight;
+};
 
 void
 dashmodel_free(struct DashModel* model);
@@ -624,7 +666,8 @@ dashmodel_face_infos(struct DashModel* m);
 const int*
 dashmodel_face_infos_const(const struct DashModel* m);
 
-/** Full-only: allocates face_infos (zeroed) when missing (e.g. sharelight face hiding). */
+/** Allocates face_infos (zeroed) when missing (e.g. sharelight face hiding). Full / flyweight /
+ *  lite (lite uses the flyweight buffer). */
 int*
 dashmodel_face_infos_ensure_zero(struct DashModel* m);
 

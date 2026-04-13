@@ -59,13 +59,15 @@ dash3d_projected_face_index_ptrs(
 {
     switch( dashmodel__type(model) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_VA_TILE:
         *out_a = dash->sparse_a;
         *out_b = dash->sparse_b;
         *out_c = dash->sparse_c;
         break;
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_TILE:
     case DASHMODEL_TYPE_FULL:
+    case DASHMODEL_TYPE_FLYWEIGHT:
+    case DASHMODEL_TYPE_LITE:
         *out_a = dashmodel_face_indices_a(model);
         *out_b = dashmodel_face_indices_b(model);
         *out_c = dashmodel_face_indices_c(model);
@@ -89,11 +91,11 @@ dash3d_projected_face_index_ptrs(
 #include "anim.u.c"
 // clang-format on
 
-static struct DashModelFast*
-dashmodel__writable_fast(struct DashModel* m)
+static struct DashModelTile*
+dashmodel__writable_tile(struct DashModel* m)
 {
-    assert(dashmodel__is_fast(m));
-    return dashmodel__as_fast(m);
+    assert(dashmodel__is_tile(m));
+    return dashmodel__as_tile(m);
 }
 
 static struct DashModelFull*
@@ -106,6 +108,60 @@ dashmodel__writable_full(struct DashModel* m)
 static void
 dashmodel_reset_original_values(struct DashModel* model)
 {
+    if( dashmodel__is_lite(model) )
+    {
+        struct DashModelLite* m = dashmodel__as_lite(model);
+        struct DashModelFlyWeight* fw = m->flyweight;
+        assert(fw);
+        if( !m->vertices_x )
+            dashmodel_lite_alloc_vertex_overrides(model);
+        int vc = m->vertex_count;
+        if( fw->original_vertices_x == NULL && vc > 0 )
+        {
+            fw->original_vertices_x =
+                malloc(sizeof(vertexint_t) * (size_t)vc);
+            fw->original_vertices_y =
+                malloc(sizeof(vertexint_t) * (size_t)vc);
+            fw->original_vertices_z =
+                malloc(sizeof(vertexint_t) * (size_t)vc);
+            memcpy(
+                fw->original_vertices_x,
+                m->vertices_x,
+                sizeof(vertexint_t) * (size_t)vc);
+            memcpy(
+                fw->original_vertices_y,
+                m->vertices_y,
+                sizeof(vertexint_t) * (size_t)vc);
+            memcpy(
+                fw->original_vertices_z,
+                m->vertices_z,
+                sizeof(vertexint_t) * (size_t)vc);
+        }
+
+        int fc = m->face_count;
+        if( dashmodel_face_bones(model) && fw->face_alphas && !m->face_alphas && fc > 0 )
+        {
+            m->face_alphas = (alphaint_t*)malloc((size_t)fc * sizeof(alphaint_t));
+            memcpy(m->face_alphas, fw->face_alphas, (size_t)fc * sizeof(alphaint_t));
+        }
+
+        if( m->face_alphas && fw->original_face_alphas == NULL && fc > 0 )
+        {
+            fw->original_face_alphas = malloc((size_t)fc * sizeof(alphaint_t));
+            memcpy(fw->original_face_alphas, m->face_alphas, (size_t)fc * sizeof(alphaint_t));
+        }
+
+        if( fw->original_vertices_x )
+        {
+            memcpy(m->vertices_x, fw->original_vertices_x, sizeof(vertexint_t) * (size_t)vc);
+            memcpy(m->vertices_y, fw->original_vertices_y, sizeof(vertexint_t) * (size_t)vc);
+            memcpy(m->vertices_z, fw->original_vertices_z, sizeof(vertexint_t) * (size_t)vc);
+        }
+        if( m->face_alphas && fw->original_face_alphas )
+            memcpy(m->face_alphas, fw->original_face_alphas, (size_t)fc * sizeof(alphaint_t));
+        return;
+    }
+
     struct DashModelFull* m = dashmodel__writable_full(model);
     if( m->original_vertices_x == NULL )
     {
@@ -142,26 +198,55 @@ dashmodel_animate(
     struct DashFramemap* framemap)
 {
     assert(model);
-    assert(dashmodel__is_full_layout(model));
+    assert(dashmodel__is_full_layout(model) || dashmodel__is_lite(model));
     dashmodel__flags(model);
     dashmodel_reset_original_values(model);
-    struct DashModelFull* m = dashmodel__writable_full(model);
-    assert(m->original_vertices_x != NULL);
     if( frame == NULL )
         return;
+
+    vertexint_t* vx;
+    vertexint_t* vy;
+    vertexint_t* vz;
+    alphaint_t* face_alphas;
+    struct DashModelBones* vbones;
+    struct DashModelBones* fbones;
+
+    if( dashmodel__is_full_layout(model) )
+    {
+        struct DashModelFull* m = dashmodel__writable_full(model);
+        assert(m->original_vertices_x != NULL);
+        vx = m->vertices_x;
+        vy = m->vertices_y;
+        vz = m->vertices_z;
+        face_alphas = m->face_alphas;
+        vbones = m->vertex_bones;
+        fbones = m->face_bones;
+    }
+    else
+    {
+        struct DashModelLite* m = dashmodel__as_lite(model);
+        assert(m->flyweight->original_vertices_x != NULL);
+        vx = m->vertices_x;
+        vy = m->vertices_y;
+        vz = m->vertices_z;
+        face_alphas = dashmodel_face_alphas(model);
+        vbones = dashmodel_vertex_bones(model);
+        fbones = dashmodel_face_bones(model);
+    }
+
     anim_frame_apply(
         frame,
         framemap,
-        m->vertices_x,
-        m->vertices_y,
-        m->vertices_z,
-        m->face_alphas,
-        m->vertex_bones ? m->vertex_bones->bones_count : 0,
-        m->vertex_bones ? (int**)m->vertex_bones->bones : NULL,
-        m->vertex_bones ? (int*)m->vertex_bones->bones_sizes : NULL,
-        m->face_bones ? m->face_bones->bones_count : 0,
-        m->face_bones ? (int**)m->face_bones->bones : NULL,
-        m->face_bones ? (int*)m->face_bones->bones_sizes : NULL);
+        vx,
+        vy,
+        vz,
+        face_alphas,
+        vbones ? vbones->bones_count : 0,
+        vbones ? (int**)vbones->bones : NULL,
+        vbones ? (int*)vbones->bones_sizes : NULL,
+        fbones ? fbones->bones_count : 0,
+        fbones ? (int**)fbones->bones : NULL,
+        fbones ? (int*)fbones->bones_sizes : NULL);
 }
 
 void
@@ -173,11 +258,40 @@ dashmodel_animate_mask(
     int* walkmerge)
 {
     assert(model);
-    assert(dashmodel__is_full_layout(model));
+    assert(dashmodel__is_full_layout(model) || dashmodel__is_lite(model));
     dashmodel__flags(model);
     dashmodel_reset_original_values(model);
-    struct DashModelFull* m = dashmodel__writable_full(model);
-    assert(m->original_vertices_x != NULL);
+
+    vertexint_t* vx;
+    vertexint_t* vy;
+    vertexint_t* vz;
+    alphaint_t* face_alphas;
+    struct DashModelBones* vbones;
+    struct DashModelBones* fbones;
+
+    if( dashmodel__is_full_layout(model) )
+    {
+        struct DashModelFull* m = dashmodel__writable_full(model);
+        assert(m->original_vertices_x != NULL);
+        vx = m->vertices_x;
+        vy = m->vertices_y;
+        vz = m->vertices_z;
+        face_alphas = m->face_alphas;
+        vbones = m->vertex_bones;
+        fbones = m->face_bones;
+    }
+    else
+    {
+        struct DashModelLite* m = dashmodel__as_lite(model);
+        assert(m->flyweight->original_vertices_x != NULL);
+        vx = m->vertices_x;
+        vy = m->vertices_y;
+        vz = m->vertices_z;
+        face_alphas = dashmodel_face_alphas(model);
+        vbones = dashmodel_vertex_bones(model);
+        fbones = dashmodel_face_bones(model);
+    }
+
     if( primary_frame == NULL || secondary_frame == NULL || walkmerge == NULL )
     {
         if( primary_frame )
@@ -189,16 +303,16 @@ dashmodel_animate_mask(
         secondary_frame,
         framemap,
         walkmerge,
-        m->vertices_x,
-        m->vertices_y,
-        m->vertices_z,
-        m->face_alphas,
-        m->vertex_bones ? m->vertex_bones->bones_count : 0,
-        m->vertex_bones ? (uint8_t**)m->vertex_bones->bones : NULL,
-        m->vertex_bones ? (uint8_t*)m->vertex_bones->bones_sizes : NULL,
-        m->face_bones ? m->face_bones->bones_count : 0,
-        m->face_bones ? (uint8_t**)m->face_bones->bones : NULL,
-        m->face_bones ? (uint8_t*)m->face_bones->bones_sizes : NULL);
+        vx,
+        vy,
+        vz,
+        face_alphas,
+        vbones ? vbones->bones_count : 0,
+        vbones ? (uint8_t**)vbones->bones : NULL,
+        vbones ? (uint8_t*)vbones->bones_sizes : NULL,
+        fbones ? fbones->bones_count : 0,
+        fbones ? (uint8_t**)fbones->bones : NULL,
+        fbones ? (uint8_t*)fbones->bones_sizes : NULL);
 }
 
 /**
@@ -337,15 +451,17 @@ dash3d_fast_cull(
     int cull_mz = 0;
     switch( dashmodel__type(model) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_VA_TILE:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(model);
+        const struct DashModelVATile* v = dashmodel__as_va_tile_const(model);
         cull_mx = v->va_tile_cull_center_x;
         cull_mz = v->va_tile_cull_center_z;
         break;
     }
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_TILE:
     case DASHMODEL_TYPE_FULL:
+    case DASHMODEL_TYPE_FLYWEIGHT:
+    case DASHMODEL_TYPE_LITE:
         break;
     default:
         assert(0);
@@ -475,15 +591,17 @@ dash3d_calculate_cylinder_aabb_8point(
     int mx = 0;
     switch( dashmodel__type(model) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_VA_TILE:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(model);
+        const struct DashModelVATile* v = dashmodel__as_va_tile_const(model);
         mx = v->va_tile_cull_center_x;
         mz = v->va_tile_cull_center_z;
         break;
     }
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_TILE:
     case DASHMODEL_TYPE_FULL:
+    case DASHMODEL_TYPE_FLYWEIGHT:
+    case DASHMODEL_TYPE_LITE:
         break;
     default:
         assert(0);
@@ -1480,7 +1598,7 @@ dash3d_raster(
     int* pixel_buffer,
     bool smooth)
 {
-    if( dashmodel__is_va(model) )
+    if( dashmodel__is_va_tile(model) )
     {
         dash3d_raster_with_face_indices(
             dash,
@@ -1610,7 +1728,7 @@ dash3d_project(
 
     switch( dashmodel__type(model) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_VA_TILE:
     {
         int nf = dashmodel_face_count(model);
         assert(nf <= 4096);
@@ -1665,8 +1783,10 @@ dash3d_project(
         }
         break;
     }
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_TILE:
     case DASHMODEL_TYPE_FULL:
+    case DASHMODEL_TYPE_FLYWEIGHT:
+    case DASHMODEL_TYPE_LITE:
         if( dashmodel_has_textures(model) )
         {
             project_vertices_array(
@@ -1823,7 +1943,7 @@ dash3d_project_raw(
 
     switch( dashmodel__type(model) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_VA_TILE:
     {
         int nf = dashmodel_face_count(model);
         assert(nf <= 4096);
@@ -1878,8 +1998,10 @@ dash3d_project_raw(
         }
         break;
     }
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_TILE:
     case DASHMODEL_TYPE_FULL:
+    case DASHMODEL_TYPE_FLYWEIGHT:
+    case DASHMODEL_TYPE_LITE:
         if( dashmodel_has_textures(model) )
         {
             project_vertices_array(
@@ -2023,7 +2145,7 @@ dash3d_project6(
 
     switch( dashmodel__type(model) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_VA_TILE:
     {
         int nf = dashmodel_face_count(model);
         assert(nf <= 4096);
@@ -2084,8 +2206,10 @@ dash3d_project6(
         }
         break;
     }
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_TILE:
     case DASHMODEL_TYPE_FULL:
+    case DASHMODEL_TYPE_FLYWEIGHT:
+    case DASHMODEL_TYPE_LITE:
         if( dashmodel_has_textures(model) )
         {
             project_vertices_array6(

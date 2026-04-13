@@ -172,7 +172,7 @@ terrain_element_acquire(
     struct World* world,
     int tile_id)
 {
-    return scene2_element_acquire_fast(
+    return scene2_element_acquire_tile(
         world->scene2, (int)entity_unified_id(ENTITY_KIND_MAP_BUILD_TILE, tile_id));
 }
 
@@ -869,10 +869,10 @@ build_scene_terrain_va(struct World* world)
             int tile_x = x * TILE_SIZE;
             int tile_z = z * TILE_SIZE;
 
-            struct DashModel* model = dashmodel_va_new(va);
-            dashmodel_va_set_face_array_ref(model, fa, tf->first_face_index, tf->face_count);
+            struct DashModel* model = dashmodel_va_tile_new(va);
+            dashmodel_va_tile_set_face_array_ref(model, fa, tf->first_face_index, tf->face_count);
 
-            dashmodel_va_set_tile_cull_center(model, tile_x, tile_z);
+            dashmodel_va_tile_set_tile_cull_center(model, tile_x, tile_z);
 
             int fc = tf->face_count;
             bool tile_has_tex = tf->has_textures;
@@ -909,7 +909,7 @@ build_scene_terrain_va(struct World* world)
                 ly[i] = va->vertices_y[j];
                 lz[i] = (vertexint_t)((int)va->vertices_z[j] - tile_z);
             }
-            dashmodel_va_set_bounds_cylinder_from_local(model, nu, lx, ly, lz);
+            dashmodel_va_tile_set_bounds_cylinder_from_local(model, nu, lx, ly, lz);
 
             dashmodel_set_has_textures(model, tile_has_tex);
             dashmodel_set_loaded(model, true);

@@ -3,6 +3,7 @@
 #include "blendmap.h"
 #include "datatypes/appearances.h"
 #include "game.h"
+#include "graphics/dashmap.h"
 #include "heightmap.h"
 #include "terrain_shapemap.h"
 #include "world_scenebuild.h"
@@ -20,6 +21,78 @@
 // clang-format on
 
 #define CURRENT_LEVEL 0
+
+/* Number of flyweight entries to pre-allocate in the hmap. */
+#define FLYWEIGHT_HMAP_INITIAL_CAPACITY 512
+
+static struct DashMap*
+world__flyweight_hmap_new(void)
+{
+    size_t entry_sz = sizeof(struct DashFlyweightEntry);
+    size_t cap = FLYWEIGHT_HMAP_INITIAL_CAPACITY;
+    size_t buf_sz = dashmap_buffer_size_for(entry_sz, cap);
+    void* buf = malloc(buf_sz);
+    if( !buf )
+        return NULL;
+    struct DashMapConfig cfg = {
+        .buffer = buf,
+        .buffer_size = buf_sz,
+        .key_size = sizeof(DashModelBitset),
+        .entry_size = entry_sz,
+        .capacity = cap,
+        .hash_fn_nullable = NULL,
+        .eq_fn_nullable = NULL,
+        .iterable_fn_nullable = NULL,
+        .arg_nullable = NULL,
+    };
+    struct DashMap* m = dashmap_new(&cfg, 0);
+    if( !m )
+        free(buf);
+    return m;
+}
+
+/**
+ * Release all flyweight entries from the hmap. Each flyweight's refcount is decremented
+ * via dashmodel_free; the flyweight is freed when the count reaches 0. The hmap and its
+ * backing buffer are then freed.
+ */
+static void
+world__flyweight_hmap_clear_and_free(struct DashMap* hmap)
+{
+    if( !hmap )
+        return;
+    struct DashMapIter* it = dashmap_iter_new(hmap);
+    while( true )
+    {
+        struct DashFlyweightEntry* entry = (struct DashFlyweightEntry*)dashmap_iter_next(it);
+        if( !entry )
+            break;
+        if( entry->flyweight )
+        {
+            /* dashmodel_free decrements refcount and frees when it reaches 0. */
+            dashmodel_free(entry->flyweight);
+            entry->flyweight = NULL;
+        }
+    }
+    dashmap_iter_free(it);
+    void* buf = dashmap_buffer_ptr(hmap);
+    dashmap_free(hmap);
+    free(buf);
+}
+
+/**
+ * Drop any existing flyweight cache and allocate a fresh one.
+ * Called at the start of every rebuild pass (both monolithic and chunked paths)
+ * so that world_load_scenery_model can use the cache.
+ */
+static void
+world__flyweight_hmap_reset(struct World* world)
+{
+    world__flyweight_hmap_clear_and_free(world->flyweight_hmap);
+    world->flyweight_hmap = world__flyweight_hmap_new();
+    if( !world->flyweight_hmap )
+        fprintf(stderr, "world__flyweight_hmap_reset: OOM allocating flyweight hmap\n");
+}
 
 static void
 init_map_build_loc_entity(
@@ -75,8 +148,10 @@ world_new(
     world->minimap = NULL;
     world->buildcachedat = buildcachedat;
 
-    entity_vec_init(&world->players, sizeof(struct PlayerEntity), MAX_PLAYERS);
-    entity_vec_init(&world->npcs, sizeof(struct NPCEntity), MAX_NPCS);
+    /* Flyweight model cache: allocated on first world_rebuild_centerzone_begin call. */
+    world->flyweight_hmap = NULL;
+
+    entity_vec_init(&world->players, sizeof(struct PlayerEntity), MAX_PLAYERS);    entity_vec_init(&world->npcs, sizeof(struct NPCEntity), MAX_NPCS);
     entity_vec_init(
         &world->map_build_loc_entities,
         sizeof(struct MapBuildLocEntity),
@@ -162,6 +237,8 @@ world_free(struct World* world)
         blendmap_free(world->blendmap);
     if( world->terrain_shapemap )
         terrain_shape_map_free(world->terrain_shapemap);
+    world__flyweight_hmap_clear_and_free(world->flyweight_hmap);
+    world->flyweight_hmap = NULL;
     free(world);
 }
 
@@ -438,6 +515,8 @@ world_buildcachedat_rebuild_centerzone(
         world_cleanup_map_build_loc_entity(world, world->active_loc_entities[i]);
     }
     world->active_loc_entity_count = 0;
+
+    world__flyweight_hmap_reset(world);
 
     struct PlatformMemoryInfo mem = { 0 };
     platform_get_memory_info(&mem);
@@ -1216,6 +1295,11 @@ world_rebuild_centerzone_begin(
         heightmap_free(world->heightmap);
     if( world->minimap )
         minimap_free(world->minimap);
+
+    /* Clear the flyweight cache: all scene elements from the previous zone load have
+     * already been released (their DashModel refcounts decremented), so it is safe
+     * to drop the hmap's own references now and rebuild fresh. */
+    world__flyweight_hmap_reset(world);
 
     if( world->lightmap )
         lightmap_free(world->lightmap);

@@ -20,10 +20,12 @@ struct DashModelBones;
 #define DASHMODEL_TYPE_MASK (7u << DASHMODEL_TYPE_SHIFT)
 
 #define DASHMODEL_TYPE_FULL 0u
-#define DASHMODEL_TYPE_FAST 1u
-#define DASHMODEL_TYPE_VA 2u
+#define DASHMODEL_TYPE_TILE 1u
+#define DASHMODEL_TYPE_VA_TILE 2u
+#define DASHMODEL_TYPE_FLYWEIGHT 3u
+#define DASHMODEL_TYPE_LITE 4u
 
-struct DashModelFast
+struct DashModelTile
 {
     uint8_t flags;
     int vertex_count;
@@ -44,7 +46,7 @@ struct DashModelFast
 /** Weak ref to DashVertexArray (vertices only); face data owned by this model shell.
  *  When va_has_tile_cull_center: culling uses va_tile_cull_center_x/z (tile SW in world)
  *  as the model-space origin for the bounds cylinder; vertices stay absolute world. */
-struct DashModelVA
+struct DashModelVATile
 {
     uint8_t flags;
     int vertex_count;
@@ -95,6 +97,100 @@ struct DashModelFull
     struct DashModelBones* vertex_bones;
     struct DashModelBones* face_bones;
     struct DashBoundsCylinder* bounds_cylinder;
+};
+
+/**
+ * Shared, reference-counted, immutable model geometry built once during scene construction.
+ * Multiple DashModelLite instances point to the same flyweight when they share the same
+ * fully-transformed and lit base mesh (same loc config + transforms + lighting).
+ *
+ * The flyweight owns all geometry arrays and is freed when refcount drops to 0.
+ */
+struct DashModelFlyWeight
+{
+    uint8_t flags;
+    int32_t refcount;
+    int vertex_count;
+    int face_count;
+
+    vertexint_t* vertices_x;
+    vertexint_t* vertices_y;
+    vertexint_t* vertices_z;
+    hsl16_t* face_colors_a;
+    hsl16_t* face_colors_b;
+    hsl16_t* face_colors_c;
+    faceint_t* face_indices_a;
+    faceint_t* face_indices_b;
+    faceint_t* face_indices_c;
+    faceint_t* face_textures;
+
+    /** Original geometry for animation reset; shared by all DashModelLite instances. */
+    vertexint_t* original_vertices_x;
+    vertexint_t* original_vertices_y;
+    vertexint_t* original_vertices_z;
+    /** Snapshot for alpha animation reset; shared by DashModelLite instances. */
+    alphaint_t* original_face_alphas;
+
+    /** Animation bone mappings. */
+    struct DashModelBones* vertex_bones;
+    struct DashModelBones* face_bones;
+
+    /** Shared face metadata. */
+    alphaint_t* face_alphas;
+    int* face_infos;
+    uint8_t* face_priorities;
+    hsl16_t* face_colors;
+
+    int textured_face_count;
+    faceint_t* textured_p_coordinate;
+    faceint_t* textured_m_coordinate;
+    faceint_t* textured_n_coordinate;
+    faceint_t* face_texture_coords;
+
+    /** Shared normals computed once during build. */
+    struct DashModelNormals* normals;
+    struct DashModelNormals* merged_normals;
+
+    /** Axis-aligned bounds in model space; shared by all DashModelLite instances. */
+    struct DashBoundsCylinder* bounds_cylinder;
+};
+
+/**
+ * Per-instance model that references a shared DashModelFlyWeight.
+ * When vertices_x is NULL, the renderer reads vertices from flyweight.
+ * Vertex overrides are allocated only when contour-ground adjustment or
+ * animation is active on this specific instance.
+ */
+struct DashModelLite
+{
+    uint8_t flags;
+    int vertex_count;
+    int face_count;
+
+    /** Shared base geometry (refcounted; never NULL). */
+    struct DashModelFlyWeight* flyweight;
+
+    /** Per-instance vertex overrides (contour ground + per-instance animation).
+     *  NULL when vertices are identical to flyweight->vertices_*. */
+    vertexint_t* vertices_x;
+    vertexint_t* vertices_y;
+    vertexint_t* vertices_z;
+
+    /** Per-instance face color overrides (animation alpha changes).
+     *  NULL when identical to flyweight->face_colors_*. */
+    hsl16_t* face_colors_a;
+    hsl16_t* face_colors_b;
+    hsl16_t* face_colors_c;
+    alphaint_t* face_alphas;
+
+    /**
+     * Per-instance merged vertex normals for sharelight (not shared; base normals live on
+     * the flyweight).
+     */
+    struct DashModelNormals* merged_normals;
+
+    /** True after dashmodel_lite_prepare_sharelight_instance (sharelight merge + late lighting). */
+    bool sharelight_instance;
 };
 
 static inline size_t
@@ -155,61 +251,61 @@ dashmodel__is_full_layout(const void* m)
 }
 
 static inline bool
-dashmodel__is_fast(const void* m)
+dashmodel__is_tile(const void* m)
 {
-    return dashmodel__type(m) == DASHMODEL_TYPE_FAST;
+    return dashmodel__type(m) == DASHMODEL_TYPE_TILE;
 }
 
 static inline bool
-dashmodel__is_va(const void* m)
+dashmodel__is_va_tile(const void* m)
 {
-    return dashmodel__type(m) == DASHMODEL_TYPE_VA;
+    return dashmodel__type(m) == DASHMODEL_TYPE_VA_TILE;
 }
 
 static inline struct DashVertexArray*
-dashmodel__va_array_mut(struct DashModel* m)
+dashmodel__va_tile_array_mut(struct DashModel* m)
 {
-    assert(dashmodel__is_va(m));
-    struct DashModelVA* v = (struct DashModelVA*)(void*)m;
+    assert(dashmodel__is_va_tile(m));
+    struct DashModelVATile* v = (struct DashModelVATile*)(void*)m;
     assert(v->vertex_array != NULL);
     return v->vertex_array;
 }
 
 static inline const struct DashVertexArray*
-dashmodel__va_array_const(const void* m)
+dashmodel__va_tile_array_const(const void* m)
 {
-    assert(dashmodel__is_va(m));
-    const struct DashModelVA* v = (const struct DashModelVA*)m;
+    assert(dashmodel__is_va_tile(m));
+    const struct DashModelVATile* v = (const struct DashModelVATile*)m;
     assert(v->vertex_array != NULL);
     return v->vertex_array;
 }
 
-static inline struct DashModelFast*
-dashmodel__as_fast(void* m)
+static inline struct DashModelTile*
+dashmodel__as_tile(void* m)
 {
-    assert(dashmodel__is_fast(m));
-    return (struct DashModelFast*)m;
+    assert(dashmodel__is_tile(m));
+    return (struct DashModelTile*)m;
 }
 
-static inline const struct DashModelFast*
-dashmodel__as_fast_const(const void* m)
+static inline const struct DashModelTile*
+dashmodel__as_tile_const(const void* m)
 {
-    assert(dashmodel__is_fast(m));
-    return (const struct DashModelFast*)m;
+    assert(dashmodel__is_tile(m));
+    return (const struct DashModelTile*)m;
 }
 
-static inline struct DashModelVA*
-dashmodel__as_va(void* m)
+static inline struct DashModelVATile*
+dashmodel__as_va_tile(void* m)
 {
-    assert(dashmodel__is_va(m));
-    return (struct DashModelVA*)m;
+    assert(dashmodel__is_va_tile(m));
+    return (struct DashModelVATile*)m;
 }
 
-static inline const struct DashModelVA*
-dashmodel__as_va_const(const void* m)
+static inline const struct DashModelVATile*
+dashmodel__as_va_tile_const(const void* m)
 {
-    assert(dashmodel__is_va(m));
-    return (const struct DashModelVA*)m;
+    assert(dashmodel__is_va_tile(m));
+    return (const struct DashModelVATile*)m;
 }
 
 static inline struct DashModelFull*
@@ -224,6 +320,46 @@ dashmodel__as_full_const(const void* m)
 {
     assert(dashmodel__is_full_layout(m));
     return (const struct DashModelFull*)m;
+}
+
+static inline bool
+dashmodel__is_flyweight(const void* m)
+{
+    return dashmodel__type(m) == DASHMODEL_TYPE_FLYWEIGHT;
+}
+
+static inline struct DashModelFlyWeight*
+dashmodel__as_flyweight(void* m)
+{
+    assert(dashmodel__is_flyweight(m));
+    return (struct DashModelFlyWeight*)m;
+}
+
+static inline const struct DashModelFlyWeight*
+dashmodel__as_flyweight_const(const void* m)
+{
+    assert(dashmodel__is_flyweight(m));
+    return (const struct DashModelFlyWeight*)m;
+}
+
+static inline bool
+dashmodel__is_lite(const void* m)
+{
+    return dashmodel__type(m) == DASHMODEL_TYPE_LITE;
+}
+
+static inline struct DashModelLite*
+dashmodel__as_lite(void* m)
+{
+    assert(dashmodel__is_lite(m));
+    return (struct DashModelLite*)m;
+}
+
+static inline const struct DashModelLite*
+dashmodel__as_lite_const(const void* m)
+{
+    assert(dashmodel__is_lite(m));
+    return (const struct DashModelLite*)m;
 }
 
 #endif

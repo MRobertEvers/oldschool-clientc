@@ -556,7 +556,7 @@ decode_tile(
     free(underlay_colors_hsl);
     free(overlay_colors_hsl);
 
-    struct DashModel* dash_model = dashmodel_fast_new();
+    struct DashModel* dash_model = dashmodel_tile_new();
     if( !dash_model )
     {
         free(valid_faces);

@@ -129,7 +129,10 @@ buildcachedat_reserve_hmap(struct DashMap* map, size_t min_count);
 /** Free every owning BuildCacheDat cache (hash maps that own decoded data, config/versionlist/media
  * jagfiles, containers) and reinitialize those maps and event buffer. Reftable maps (textures,
  * fonts, sprites, component_sprites, animframes) are not cleared. The struct remains valid for reuse.
- * DashModel meshes live on Scene2, not in BuildCacheDat. */
+ * DashModel meshes live on Scene2, not in BuildCacheDat. Per-zone flyweight DashModel caches live on
+ * struct World (flyweight_hmap); they are cleared in world_rebuild_centerzone_begin and world_free,
+ * not by this function — call those (or tear down the World) before clearing the build cache if the
+ * scene and World are being destroyed together. */
 void
 buildcachedat_clear(struct BuildCacheDat* buildcachedat);
 
