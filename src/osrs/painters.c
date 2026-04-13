@@ -441,8 +441,7 @@ painter_new(
     painter->w3d_ctx = NULL;
     painter->distmetric_ctx = NULL;
 
-    if( bucket_ctx_init(painter) != 0 || w3d_ctx_init(painter) != 0 ||
-        distmetric_ctx_init(painter) != 0 )
+    if( bucket_ctx_init(painter) != 0 || distmetric_ctx_init(painter) != 0 )
     {
         bucket_ctx_free(painter);
         w3d_ctx_free(painter);

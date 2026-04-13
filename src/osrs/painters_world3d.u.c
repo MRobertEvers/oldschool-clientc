@@ -419,6 +419,8 @@ painter_paint_world3d(
     int camera_slevel)
 {
     (void)camera_slevel;
+    if( !painter->w3d_ctx && w3d_ctx_init(painter) != 0 )
+        return -1;
     if( !W3(painter)->paints || !W3(painter)->seeds || !W3(painter)->seed_seen )
         return -1;
 

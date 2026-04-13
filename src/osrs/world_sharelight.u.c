@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <math.h>
+#include <stdint.h>
 
 struct TileCoord
 {
@@ -218,9 +219,10 @@ sharelight_build(struct World* world)
                 map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
                 assert(map_tile && "Sharelight map tile must be valid");
 
-                for( int i = 0; i < map_tile->sharelight_count; i++ )
+                for( int32_t pi = map_tile->sharelight_head; pi != -1;
+                     pi = world->sharelight_map->pool[pi].next )
                 {
-                    map_element = &map_tile->sharelight[i];
+                    map_element = &world->sharelight_map->pool[pi].element;
 
                     scene_element = scene2_element_at(world->scene2, map_element->element_idx);
                     if( !scene_element || !scene2_element_dash_model(scene_element) )
@@ -245,9 +247,10 @@ sharelight_build(struct World* world)
                             adjacent_tile_coord.x,
                             adjacent_tile_coord.z,
                             adjacent_tile_coord.level);
-                        for( int k = 0; k < adjacent_map_tile->sharelight_count; k++ )
+                        for( int32_t kidx = adjacent_map_tile->sharelight_head; kidx != -1;
+                             kidx = world->sharelight_map->pool[kidx].next )
                         {
-                            adjacent_map_element = &adjacent_map_tile->sharelight[k];
+                            adjacent_map_element = &world->sharelight_map->pool[kidx].element;
                             if( adjacent_map_element->element_idx == map_element->element_idx )
                                 continue;
 
@@ -307,9 +310,10 @@ sharelight_build(struct World* world)
             {
                 map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
 
-                for( int i = 0; i < map_tile->sharelight_count; i++ )
+                for( int32_t pi = map_tile->sharelight_head; pi != -1;
+                     pi = world->sharelight_map->pool[pi].next )
                 {
-                    map_element = &map_tile->sharelight[i];
+                    map_element = &world->sharelight_map->pool[pi].element;
 
                     scene_element = scene2_element_at(world->scene2, map_element->element_idx);
                     if( !scene_element || !scene2_element_dash_model(scene_element) )
@@ -373,9 +377,10 @@ defaultlight_build(struct World* world)
                 map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
                 assert(map_tile && "Sharelight map tile must be valid");
 
-                for( int i = 0; i < map_tile->default_lit_count; i++ )
+                for( int32_t pi = map_tile->defaultlight_head; pi != -1;
+                     pi = world->sharelight_map->pool[pi].next )
                 {
-                    map_element = &map_tile->defaultlight[i];
+                    map_element = &world->sharelight_map->pool[pi].element;
                     if( map_element->element_idx == -1 )
                         continue;
 
@@ -414,9 +419,10 @@ world_build_lighting(struct World* world)
                 map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
                 assert(map_tile && "Sharelight map tile must be valid");
 
-                for( int i = 0; i < map_tile->sharelight_count; i++ )
+                for( int32_t pi = map_tile->sharelight_head; pi != -1;
+                     pi = world->sharelight_map->pool[pi].next )
                 {
-                    map_element = &map_tile->sharelight[i];
+                    map_element = &world->sharelight_map->pool[pi].element;
                     scene_element = scene2_element_at(world->scene2, map_element->element_idx);
                     if( !scene_element || !scene2_element_dash_model(scene_element) )
                         continue;
@@ -439,9 +445,10 @@ world_build_lighting(struct World* world)
                 map_tile = sharelight_map_tile_at(world->sharelight_map, sx, sz, slevel);
                 assert(map_tile && "Sharelight map tile must be valid");
 
-                for( int i = 0; i < map_tile->sharelight_count; i++ )
+                for( int32_t pi = map_tile->sharelight_head; pi != -1;
+                     pi = world->sharelight_map->pool[pi].next )
                 {
-                    map_element = &map_tile->sharelight[i];
+                    map_element = &world->sharelight_map->pool[pi].element;
                     scene_element = scene2_element_at(world->scene2, map_element->element_idx);
                     if( !scene_element || !scene2_element_dash_model(scene_element) )
                         continue;

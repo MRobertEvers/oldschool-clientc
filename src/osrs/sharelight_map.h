@@ -16,16 +16,24 @@ struct SharelightMapElement
 
 struct SharelightMapTile
 {
-    struct SharelightMapElement sharelight[10];
+    int32_t sharelight_head;
+    int32_t defaultlight_head;
     uint8_t sharelight_count;
-
-    struct SharelightMapElement defaultlight[10];
     uint8_t default_lit_count;
+};
+
+struct SharelightMapPoolEntry
+{
+    struct SharelightMapElement element;
+    int32_t next;
 };
 
 struct SharelightMap
 {
     struct SharelightMapTile* tiles;
+    struct SharelightMapPoolEntry* pool;
+    int pool_count;
+    int pool_capacity;
     int width;
     int height;
     int levels;
