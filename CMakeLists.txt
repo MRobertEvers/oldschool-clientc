@@ -5,6 +5,11 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -Og")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Og")
+endif()
+
 # # Enable ASAN
 # cmake -DENABLE_ASAN=ON ..
 # # Disable ASAN (default)

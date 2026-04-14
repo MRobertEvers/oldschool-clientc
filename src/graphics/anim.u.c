@@ -36,11 +36,11 @@ animate(
     int arg_y,
     int arg_z,
     int vertex_bones_count,
-    uint8_t** vertex_bones,
-    uint8_t* vertex_bones_sizes,
+    boneint_t** vertex_bones,
+    boneint_t* vertex_bones_sizes,
     int face_bones_count,
-    uint8_t** face_bones,
-    uint8_t* face_bones_sizes,
+    boneint_t** face_bones,
+    boneint_t* face_bones_sizes,
     vertexint_t* vertices_x,
     vertexint_t* vertices_y,
     vertexint_t* vertices_z,
@@ -82,7 +82,7 @@ animate(
 
             for( int j = 0; j < bone_length; j++ )
             {
-                uint8_t face_index = bone[j];
+                boneint_t face_index = bone[j];
                 avg_x += vertices_x[face_index];
                 avg_y += vertices_y[face_index];
                 avg_z += vertices_z[face_index];
@@ -274,11 +274,11 @@ anim_frame_apply(
     vertexint_t* vertices_z,
     alphaint_t* face_alphas,
     int vertex_bones_count,
-    uint8_t** vertex_bones,
-    uint8_t* vertex_bones_sizes,
+    boneint_t** vertex_bones,
+    boneint_t* vertex_bones_sizes,
     int face_bones_count,
-    uint8_t** face_bones,
-    uint8_t* face_bones_sizes)
+    boneint_t** face_bones,
+    boneint_t* face_bones_sizes)
 {
     struct Transformation transformation = { 0 };
     for( int i = 0; i < frame->translator_count; i++ )
@@ -329,11 +329,11 @@ anim_frame_apply_mask(
     vertexint_t* vertices_z,
     alphaint_t* face_alphas,
     int vertex_bones_count,
-    uint8_t** vertex_bones,
-    uint8_t* vertex_bones_sizes,
+    boneint_t** vertex_bones,
+    boneint_t* vertex_bones_sizes,
     int face_bones_count,
-    uint8_t** face_bones,
-    uint8_t* face_bones_sizes)
+    boneint_t** face_bones,
+    boneint_t* face_bones_sizes)
 {
     struct Transformation transformation = { 0 };
     int walkmerge_len = 0;

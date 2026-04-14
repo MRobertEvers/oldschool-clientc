@@ -157,11 +157,11 @@ dashmodel_animate(
         m->vertices_z,
         m->face_alphas,
         m->vertex_bones ? m->vertex_bones->bones_count : 0,
-        m->vertex_bones ? (int**)m->vertex_bones->bones : NULL,
-        m->vertex_bones ? (int*)m->vertex_bones->bones_sizes : NULL,
+        m->vertex_bones ? m->vertex_bones->bones : NULL,
+        m->vertex_bones ? m->vertex_bones->bones_sizes : NULL,
         m->face_bones ? m->face_bones->bones_count : 0,
-        m->face_bones ? (int**)m->face_bones->bones : NULL,
-        m->face_bones ? (int*)m->face_bones->bones_sizes : NULL);
+        m->face_bones ? m->face_bones->bones : NULL,
+        m->face_bones ? m->face_bones->bones_sizes : NULL);
 }
 
 void
@@ -194,11 +194,11 @@ dashmodel_animate_mask(
         m->vertices_z,
         m->face_alphas,
         m->vertex_bones ? m->vertex_bones->bones_count : 0,
-        m->vertex_bones ? (uint8_t**)m->vertex_bones->bones : NULL,
-        m->vertex_bones ? (uint8_t*)m->vertex_bones->bones_sizes : NULL,
+        m->vertex_bones ? m->vertex_bones->bones : NULL,
+        m->vertex_bones ? m->vertex_bones->bones_sizes : NULL,
         m->face_bones ? m->face_bones->bones_count : 0,
-        m->face_bones ? (uint8_t**)m->face_bones->bones : NULL,
-        m->face_bones ? (uint8_t*)m->face_bones->bones_sizes : NULL);
+        m->face_bones ? m->face_bones->bones : NULL,
+        m->face_bones ? m->face_bones->bones_sizes : NULL);
 }
 
 /**
@@ -1513,9 +1513,9 @@ dash3d_compute_projected_face_order(
     struct DashGraphics* dash,
     struct DashModel* model)
 {
-    faceint_t *fia = NULL;
-    faceint_t *fib = NULL;
-    faceint_t *fic = NULL;
+    faceint_t* fia = NULL;
+    faceint_t* fib = NULL;
+    faceint_t* fic = NULL;
     dash3d_projected_face_index_ptrs(dash, model, &fia, &fib, &fic);
 
     int model_min_depth = dashmodel_bounds_cylinder_const(model)->min_z_depth_any_rotation;
@@ -2353,8 +2353,7 @@ dash3d_calculate_vertex_normals(
         face_count);
 
     normals->lighting_vertex_normals_count = vertex_count;
-    normals->lighting_face_normals_count =
-        normals->lighting_face_normals ? face_count : 0;
+    normals->lighting_face_normals_count = normals->lighting_face_normals ? face_count : 0;
 }
 
 void //

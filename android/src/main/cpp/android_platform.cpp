@@ -19,6 +19,7 @@ extern "C" {
 #include "osrs/filelist.h"
 #include "osrs/frustrum_cullmap.h"
 #include "osrs/scene.h"
+#include "osrs/scene2.h"
 #include "osrs/scene_tile.h"
 #include "osrs/tables/config_floortype.h"
 #include "osrs/tables/config_idk.h"
@@ -28,7 +29,6 @@ extern "C" {
 #include "osrs/tables/configs.h"
 #include "osrs/tables/sprites.h"
 #include "osrs/tables/textures.h"
-#include "osrs/scene2.h"
 #include "osrs/world.h"
 #include "osrs/xtea_config.h"
 #include "screen.h"
@@ -72,12 +72,14 @@ static int g_ortho_vertices_z[20];
 
 // Utility functions from scene_tile_test.cpp
 static inline int
-min(int a, int b)
+min(int a,
+    int b)
 {
     return a < b ? a : b;
 }
 static inline int
-max(int a, int b)
+max(int a,
+    int b)
 {
     return a > b ? a : b;
 }
@@ -382,7 +384,9 @@ render_scene_model(
 
 // ImGui rendering function from scene_tile_test.cpp
 static void
-game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
+game_render_imgui(
+    struct Game* game,
+    struct PlatformSDL2* platform)
 {
     ImGui_ImplSDLRenderer2_NewFrame();
     ImGui_ImplSDL2_NewFrame();
@@ -469,7 +473,10 @@ game_render_imgui(struct Game* game, struct PlatformSDL2* platform)
 
 // Main rendering function from scene_tile_test.cpp
 static void
-game_render_sdl2(struct Game* game, struct PlatformSDL2* platform, int deltas)
+game_render_sdl2(
+    struct Game* game,
+    struct PlatformSDL2* platform,
+    int deltas)
 {
     SDL_Texture* texture = platform->texture;
     SDL_Renderer* renderer = platform->renderer;
@@ -1023,20 +1030,38 @@ platform_sdl2_cleanup(struct PlatformSDL2* platform)
 
 // External functions from the main project
 extern "C" {
-void init_hsl16_to_rgb_table();
-void init_sin_table();
-void init_cos_table();
-void init_tan_table();
-void init_reciprocal16();
+void
+init_hsl16_to_rgb_table();
+void
+init_sin_table();
+void
+init_cos_table();
+void
+init_tan_table();
+void
+init_reciprocal16();
 
-int xtea_config_load_keys(const char* path);
-struct Cache* cache_new_from_directory(const char* path);
-struct Scene* scene_new_from_map(struct Cache* cache, int x, int y);
-struct TexturesCache* textures_cache_new(struct Cache* cache);
+int
+xtea_config_load_keys(const char* path);
+struct Cache*
+cache_new_from_directory(const char* path);
+struct Scene*
+scene_new_from_map(
+    struct Cache* cache,
+    int x,
+    int y);
+struct TexturesCache*
+textures_cache_new(struct Cache* cache);
 struct BuildCacheDat;
 struct Scene2;
-struct World* world_new(struct BuildCacheDat* buildcachedat, struct Scene2* scene2_shared);
-struct FrustrumCullmap* frustrum_cullmap_new(int width, int height);
+struct World*
+world_new(
+    struct BuildCacheDat* buildcachedat,
+    struct Scene2* scene2_shared);
+struct FrustrumCullmap*
+frustrum_cullmap_new(
+    int width,
+    int height);
 }
 
 AndroidPlatform::AndroidPlatform()
