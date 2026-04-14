@@ -471,8 +471,11 @@ world_rebuild_centerzone_begin(
     printf(
         "Pre-Alloc: Memory info: %zu / %zu / %zu\n", mem.heap_used, mem.heap_total, mem.heap_peak);
 
-    world->painter =
-        painter_new(scene_size, scene_size, MAP_TERRAIN_LEVELS, PAINTER_NEW_CTX_BUCKET);
+    world->painter = painter_new(
+        scene_size,
+        scene_size,
+        MAP_TERRAIN_LEVELS,
+        PAINTER_NEW_CTX_BUCKET | PAINTER_NEW_CTX_WORLD3D);
     painter_set_cullmap(world->painter, world->cullmap);
 
     world->collision_map = collision_map_new(scene_size, scene_size);
