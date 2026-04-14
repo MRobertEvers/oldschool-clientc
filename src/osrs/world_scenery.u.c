@@ -232,6 +232,10 @@ world_load_scenery_model(
     int size_z,
     struct CacheConfigLocation* config_loc)
 {
+    /* Snapshot before model work: heavy alloc may grow entity_vec and invalidate
+     * entity_scene_element if it pointed into reallocated storage. */
+    const int element_id = entity_scene_element->element_id;
+
     struct CacheModel* model = NULL;
 
     int model_ids[10];
@@ -330,13 +334,13 @@ world_load_scenery_model(
     dash_model = dashmodel_new_from_cache_model(model);
     model_free(model);
 
-    scene_element = scene2_element_at(world->scene2, entity_scene_element->element_id);
+    scene_element = scene2_element_at(world->scene2, element_id);
     if( !scene_element )
     {
         fprintf(
             stderr,
             "world_load_scenery_model: invalid element_id=%d (scene2 total=%d shape_select=%d)\n",
-            entity_scene_element->element_id,
+            element_id,
             scene2_elements_total(world->scene2),
             shape_select);
         dashmodel_free(dash_model);
@@ -922,18 +926,6 @@ scenery_add_wall_decor_diagonal_inside(
         entity->scene_coord.sz,
         entity->scene_coord.slevel,
         entity->scene_element.element_id,
-        1,
-        1,
-        config_loc->ambient,
-        config_loc->contrast);
-
-    sharelight_map_push(
-        world->sharelight_map,
-        config_loc->sharelight != 0,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element_two.element_id,
         1,
         1,
         config_loc->ambient,

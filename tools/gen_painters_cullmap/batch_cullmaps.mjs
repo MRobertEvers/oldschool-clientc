@@ -102,7 +102,12 @@ function parseArgs(argv) {
   return { near, outDir, dryRun, jobs };
 }
 
-const genExe = path.join(__dirname, 'gen_painters_cullmap');
+let genExe = '';
+if (process.platform === 'win32') {
+  genExe = path.join(__dirname, 'gen_painters_cullmap.exe');
+} else {
+  genExe = path.join(__dirname, 'gen_painters_cullmap');
+}
 
 function fPart(nz) {
   return nz >= 0 ? `f${nz}` : `fm${-nz}`;
@@ -141,7 +146,7 @@ async function runPool(genExePath, tasks, concurrency) {
   let fail = 0;
 
   async function worker() {
-    for (;;) {
+    for (; ;) {
       const i = next++;
       if (i >= tasks.length) break;
       const t = tasks[i];
@@ -170,6 +175,7 @@ async function runPool(genExePath, tasks, concurrency) {
 
 async function main() {
   const { near, outDir, dryRun, jobs } = parseArgs(process.argv.slice(2));
+
 
   if (!fs.existsSync(genExe)) {
     console.error(`batch_cullmaps: missing ${genExe} — run make in tools/gen_painters_cullmap`);

@@ -8,7 +8,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef CONFIG_DIRECTORY
 #define CONFIG_DIRECTORY "../src/osrs/revconfig/configs"
+#endif
 
 struct FileData
 {

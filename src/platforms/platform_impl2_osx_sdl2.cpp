@@ -44,8 +44,12 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef CACHE_PATH
 #define CACHE_PATH "../cache254"
+#endif
+#ifndef LUA_SCRIPTS_DIR
 #define LUA_SCRIPTS_DIR "../src/osrs/scripts"
+#endif
 
 // Detect the HiDPI scale factor for the primary display.
 // Must be called after SDL_Init(SDL_INIT_VIDEO).

@@ -16,6 +16,7 @@ endif()
 # cmake -DENABLE_ASAN=OFF ..
 option(ENABLE_ASAN "Enable AddressSanitizer (ASAN)" OFF)
 option(BUILD_WEB_NATIVE "Build the web_client_native (SDL-free) Emscripten target" OFF)
+option(ENABLE_PACKAGE_BUILD "Copy scripts/configs/cache254 next to executable; use app-root resource paths" OFF)
 
 file(GLOB LUA_SOURCES "src/3rd/lua/*.c")
 list(REMOVE_ITEM LUA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/lua.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/luac.c")
@@ -199,14 +200,33 @@ if(NOT EMSCRIPTEN)
         )
     endif()
 
+    add_executable(osx ${OSX_SOURCES})
+
     if(WIN32)
-        list(APPEND OSX_SOURCES
-            src/platforms/platform_impl2_osx_sdl2_renderer_d3d11.cpp
-            src/imgui/imgui_impl_dx11.cpp
-        )
+        # D3D11 renderer sources are not built; gate references in test/osx.cpp.
+        target_compile_definitions(osx PRIVATE TORIRS_NO_D3D11=1)
     endif()
 
-    add_executable(osx ${OSX_SOURCES})
+    if(ENABLE_PACKAGE_BUILD)
+        target_compile_definitions(osx PRIVATE
+            LUA_SCRIPTS_DIR="scripts"
+            CONFIG_DIRECTORY="configs"
+            CACHE_PATH="cache254"
+            CACHE_DAT_PATH="cache254"
+        )
+        add_custom_command(TARGET osx POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/src/osrs/scripts"
+                "${CMAKE_CURRENT_BINARY_DIR}/scripts"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/src/osrs/revconfig/configs"
+                "${CMAKE_CURRENT_BINARY_DIR}/configs"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/../cache254"
+                "${CMAKE_CURRENT_BINARY_DIR}/cache254"
+            COMMENT "ENABLE_PACKAGE_BUILD: copy resources next to osx executable"
+        )
+    endif()
 
     find_package(SDL2 REQUIRED)
     target_link_libraries(osx SDL2::SDL2)
@@ -214,6 +234,11 @@ if(NOT EMSCRIPTEN)
     if(NOT WIN32)
         find_package(OpenGL REQUIRED)
         target_link_libraries(osx OpenGL::GL)
+    endif()
+
+    if(WIN32)
+        target_link_libraries(osx ws2_32 psapi)
+        target_link_options(osx PRIVATE -Wl,-subsystem,console)
     endif()
 
     if(APPLE)
@@ -244,11 +269,6 @@ if(NOT EMSCRIPTEN)
         )
         add_custom_target(shaders_metallib DEPENDS "${_SHADERS_METALLIB}")
         add_dependencies(osx shaders_metallib)
-    endif()
-
-    if(WIN32)
-        target_link_libraries(osx ws2_32 psapi d3d11 dxgi d3dcompiler)
-        target_link_options(osx PRIVATE -Wl,-subsystem,console)
     endif()
 
     if(ENABLE_ASAN)

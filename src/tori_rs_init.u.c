@@ -35,9 +35,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef CACHE_PATH
 #define CACHE_PATH "../cache"
+#endif
+#ifndef CACHE_DAT_PATH
 #define CACHE_DAT_PATH "../cache254"
+#endif
+#ifndef LUA_SCRIPTS_DIR
 #define LUA_SCRIPTS_DIR "../src/osrs/scripts"
+#endif
 
 /** Return the module table stored as upvalue (so require("hostio_utils") works). */
 static int

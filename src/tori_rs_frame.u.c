@@ -478,7 +478,7 @@ queue_static_load_commands(
                 if( !element || !element->dash_sprites )
                     continue;
                 queue_sprite_load_from_event(
-                    render_command_buffer, ui_event.element_id, element->dash_sprites);
+                    render_command_buffer, ui_event.element_id, element->dash_sprites[0]);
             }
             else if( ui_event.type == UISCENE_EVENT_ELEMENT_RELEASED )
             {
