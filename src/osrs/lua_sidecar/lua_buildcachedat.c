@@ -158,12 +158,12 @@ LuaBuildCacheDat_animbaseframes_cache_has(
 }
 
 struct LuaGameType*
-LuaBuildCacheDat_init_floortypes_from_config_jagfile(
+LuaBuildCacheDat_floortypes_init_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     (void)args;
-    buildcachedat_loader_init_floortypes_from_config_jagfile(buildcachedat);
+    buildcachedat_loader_floortypes_init_from_config_jagfile(buildcachedat);
 
     return LuaGameType_NewVoid();
 }
@@ -619,22 +619,22 @@ LuaBuildCacheDat_cache_title(
 }
 
 struct LuaGameType*
-LuaBuildCacheDat_init_idkits_from_config_jagfile(
+LuaBuildCacheDat_idkits_init_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     (void)args;
-    buildcachedat_loader_init_idkits_from_config_jagfile(buildcachedat);
+    buildcachedat_loader_idkits_init_from_config_jagfile(buildcachedat);
     return LuaGameType_NewVoid();
 }
 
 struct LuaGameType*
-LuaBuildCacheDat_init_objects_from_config_jagfile(
+LuaBuildCacheDat_objects_init_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     (void)args;
-    buildcachedat_loader_init_objects_from_config_jagfile(buildcachedat);
+    buildcachedat_loader_objects_init_from_config_jagfile(buildcachedat);
     return LuaGameType_NewVoid();
 }
 
@@ -781,12 +781,32 @@ LuaBuildCacheDat_map_terrain_cache_clear(
 }
 
 struct LuaGameType*
-LuaBuildCacheDat_clear_component_cache(
+LuaBuildCacheDat_floortypes_clear(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     (void)args;
-    buildcachedat_clear_component_cache(buildcachedat);
+    buildcachedat_floortypes_clear(buildcachedat);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_objects_clear(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_objects_clear(buildcachedat);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_component_cache_clear(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_component_cache_clear(buildcachedat);
     return LuaGameType_NewVoid();
 }
 

@@ -682,7 +682,29 @@ buildcachedat_sequences_clear(struct BuildCacheDat* buildcachedat)
 }
 
 void
-buildcachedat_clear_component_cache(struct BuildCacheDat* buildcachedat)
+buildcachedat_floortypes_clear(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat )
+        return;
+    if( buildcachedat->flotype_hmap )
+        dashmap_free_entries(buildcachedat->flotype_hmap, free_flotype_entry);
+    buildcachedat->flotype_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct FlotypeEntry), 64);
+}
+
+void
+buildcachedat_objects_clear(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat )
+        return;
+    if( buildcachedat->obj_hmap )
+        dashmap_free_entries(buildcachedat->obj_hmap, free_obj_entry);
+    buildcachedat->obj_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct ObjEntry), 64);
+}
+
+void
+buildcachedat_component_cache_clear(struct BuildCacheDat* buildcachedat)
 {
     if( !buildcachedat )
         return;

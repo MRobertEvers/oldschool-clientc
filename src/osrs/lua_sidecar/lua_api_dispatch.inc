@@ -16,8 +16,8 @@
         return LuaBuildCacheDat_model_cache_has(bcd, args);
     case LUA_API_BUILDCACHEDAT_ANIMBASEFRAMES_CACHE_HAS:
         return LuaBuildCacheDat_animbaseframes_cache_has(bcd, args);
-    case LUA_API_BUILDCACHEDAT_INIT_FLOORTYPES_FROM_CONFIG_JAGFILE:
-        return LuaBuildCacheDat_init_floortypes_from_config_jagfile(bcd, args);
+    case LUA_API_BUILDCACHEDAT_FLOORTYPES_INIT_FROM_CONFIG_JAGFILE:
+        return LuaBuildCacheDat_floortypes_init_from_config_jagfile(bcd, args);
     case LUA_API_BUILDCACHEDAT_INIT_SCENERY_CONFIGS_FROM_CONFIG_JAGFILE:
         return LuaBuildCacheDat_init_scenery_configs_from_config_jagfile(bcd, args);
     case LUA_API_BUILDCACHEDAT_GET_ALL_SCENERY_LOCS:
@@ -54,10 +54,10 @@
         return LuaBuildCacheDat_get_animbaseframes_count_from_versionlist_jagfile(bcd, args);
     case LUA_API_BUILDCACHEDAT_ANIMBASEFRAMES_CACHE_ADD:
         return LuaBuildCacheDat_animbaseframes_cache_add(bcd, args);
-    case LUA_API_BUILDCACHEDAT_INIT_IDKITS_FROM_CONFIG_JAGFILE:
-        return LuaBuildCacheDat_init_idkits_from_config_jagfile(bcd, args);
-    case LUA_API_BUILDCACHEDAT_INIT_OBJECTS_FROM_CONFIG_JAGFILE:
-        return LuaBuildCacheDat_init_objects_from_config_jagfile(bcd, args);
+    case LUA_API_BUILDCACHEDAT_IDKITS_INIT_FROM_CONFIG_JAGFILE:
+        return LuaBuildCacheDat_idkits_init_from_config_jagfile(bcd, args);
+    case LUA_API_BUILDCACHEDAT_OBJECTS_INIT_FROM_CONFIG_JAGFILE:
+        return LuaBuildCacheDat_objects_init_from_config_jagfile(bcd, args);
     case LUA_API_BUILDCACHEDAT_SET_2D_MEDIA_JAGFILE:
         return LuaBuildCacheDat_set_2d_media_jagfile(bcd, args);
     case LUA_API_BUILDCACHEDAT_CACHE_TEXTURES:
@@ -70,8 +70,8 @@
         return LuaBuildCacheDat_load_component_sprites_from_media(bcd, game, args);
     case LUA_API_BUILDCACHEDAT_FINALIZE_SCENE:
         return LuaBuildCacheDat_finalize_scene(bcd, game, args);
-    case LUA_API_BUILDCACHEDAT_CLEAR_COMPONENT_CACHE:
-        return LuaBuildCacheDat_clear_component_cache(bcd, args);
+    case LUA_API_BUILDCACHEDAT_COMPONENT_CACHE_CLEAR:
+        return LuaBuildCacheDat_component_cache_clear(bcd, args);
     case LUA_API_BUILDCACHEDAT_CLEAR_MAP_CHUNKS:
         return LuaBuildCacheDat_clear_map_chunks(bcd, args);
     case LUA_API_BUILDCACHEDAT_MODEL_CACHE_CLEAR:
@@ -100,6 +100,10 @@
         return LuaBuildCacheDat_map_scenery_cache_clear(bcd, args);
     case LUA_API_BUILDCACHEDAT_MAP_TERRAIN_CACHE_CLEAR:
         return LuaBuildCacheDat_map_terrain_cache_clear(bcd, args);
+    case LUA_API_BUILDCACHEDAT_FLOORTYPES_CLEAR:
+        return LuaBuildCacheDat_floortypes_clear(bcd, args);
+    case LUA_API_BUILDCACHEDAT_OBJECTS_CLEAR:
+        return LuaBuildCacheDat_objects_clear(bcd, args);
     case LUA_API_GAME_BUILD_SCENE:
         return LuaGame_build_scene(game, args);
     case LUA_API_GAME_BUILD_SCENE_CENTERZONE:

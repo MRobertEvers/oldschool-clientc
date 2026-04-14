@@ -12,7 +12,7 @@ if not _G.interfaces_loaded_flag then
 end
 
 if not _G.objects_loaded_flag then
-    Game.BuildCacheDat.init_objects_from_config_jagfile()
+    Game.BuildCacheDat.objects_init_from_config_jagfile()
     _G.objects_loaded_flag = true
 end
 

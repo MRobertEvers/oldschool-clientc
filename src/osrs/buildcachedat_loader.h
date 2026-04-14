@@ -60,7 +60,7 @@ buildcachedat_loader_map_scenery_cache_add(
     void* data);
 
 void
-buildcachedat_loader_init_floortypes_from_config_jagfile(struct BuildCacheDat* buildcachedat);
+buildcachedat_loader_floortypes_init_from_config_jagfile(struct BuildCacheDat* buildcachedat);
 
 void
 buildcachedat_loader_init_scenery_configs_from_config_jagfile(struct BuildCacheDat* buildcachedat);
@@ -132,10 +132,10 @@ buildcachedat_loader_cache_title(
     void* data);
 
 void
-buildcachedat_loader_init_idkits_from_config_jagfile(struct BuildCacheDat* buildcachedat);
+buildcachedat_loader_idkits_init_from_config_jagfile(struct BuildCacheDat* buildcachedat);
 
 void
-buildcachedat_loader_init_objects_from_config_jagfile(struct BuildCacheDat* buildcachedat);
+buildcachedat_loader_objects_init_from_config_jagfile(struct BuildCacheDat* buildcachedat);
 
 void
 buildcachedat_loader_load_interfaces(

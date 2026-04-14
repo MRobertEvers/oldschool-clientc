@@ -151,12 +151,12 @@ l_buildcachedat_animbaseframes_cache_has(lua_State* L)
 }
 
 static int
-l_buildcachedat_init_floortypes_from_config_jagfile(lua_State* L)
+l_buildcachedat_floortypes_init_from_config_jagfile(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
 
-    buildcachedat_loader_init_floortypes_from_config_jagfile(buildcachedat);
+    buildcachedat_loader_floortypes_init_from_config_jagfile(buildcachedat);
 
     return 0;
 }
@@ -574,23 +574,56 @@ l_buildcachedat_cache_title(lua_State* L)
 }
 
 static int
-l_buildcachedat_init_idkits_from_config_jagfile(lua_State* L)
+l_buildcachedat_idkits_init_from_config_jagfile(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
 
-    buildcachedat_loader_init_idkits_from_config_jagfile(buildcachedat);
+    buildcachedat_loader_idkits_init_from_config_jagfile(buildcachedat);
 
     return 0;
 }
 
 static int
-l_buildcachedat_init_objects_from_config_jagfile(lua_State* L)
+l_buildcachedat_objects_init_from_config_jagfile(lua_State* L)
 {
     struct BuildCacheDat* buildcachedat =
         (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
 
-    buildcachedat_loader_init_objects_from_config_jagfile(buildcachedat);
+    buildcachedat_loader_objects_init_from_config_jagfile(buildcachedat);
+
+    return 0;
+}
+
+static int
+l_buildcachedat_floortypes_clear(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+
+    buildcachedat_floortypes_clear(buildcachedat);
+
+    return 0;
+}
+
+static int
+l_buildcachedat_objects_clear(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+
+    buildcachedat_objects_clear(buildcachedat);
+
+    return 0;
+}
+
+static int
+l_buildcachedat_component_cache_clear(lua_State* L)
+{
+    struct BuildCacheDat* buildcachedat =
+        (struct BuildCacheDat*)lua_touserdata(L, lua_upvalueindex(1));
+
+    buildcachedat_component_cache_clear(buildcachedat);
 
     return 0;
 }
@@ -656,7 +689,7 @@ static const luaL_Reg buildcachedat_funcs[] = {
     { "has_map_scenery",                                   l_buildcachedat_has_map_scenery                     },
     { "model_cache_has",                                   l_buildcachedat_model_cache_has                     },
     { "animbaseframes_cache_has",                          l_buildcachedat_animbaseframes_cache_has            },
-    { "init_floortypes_from_config_jagfile",               l_buildcachedat_init_floortypes_from_config_jagfile },
+    { "floortypes_init_from_config_jagfile",               l_buildcachedat_floortypes_init_from_config_jagfile },
     { "init_scenery_configs_from_config_jagfile",
      l_buildcachedat_init_scenery_configs_from_config_jagfile                                                  },
     { "get_all_scenery_locs",                              l_buildcachedat_get_all_scenery_locs                },
@@ -680,8 +713,11 @@ static const luaL_Reg buildcachedat_funcs[] = {
     { "animbaseframes_cache_add",                          l_buildcachedat_animbaseframes_cache_add            },
     { "cache_media",                                       l_buildcachedat_cache_media                         },
     { "cache_title",                                       l_buildcachedat_cache_title                         },
-    { "init_idkits_from_config_jagfile",                   l_buildcachedat_init_idkits_from_config_jagfile     },
-    { "init_objects_from_config_jagfile",                  l_buildcachedat_init_objects_from_config_jagfile    },
+    { "idkits_init_from_config_jagfile",                   l_buildcachedat_idkits_init_from_config_jagfile     },
+    { "objects_init_from_config_jagfile",                  l_buildcachedat_objects_init_from_config_jagfile      },
+    { "floortypes_clear",                                  l_buildcachedat_floortypes_clear                      },
+    { "objects_clear",                                     l_buildcachedat_objects_clear                         },
+    { "component_cache_clear",                             l_buildcachedat_component_cache_clear                 },
     { "clear_config_jagfile",                              l_buildcachedat_clear_config_jagfile                },
     { "clear_versionlist_jagfile",                         l_buildcachedat_clear_versionlist_jagfile           },
     { "clear_media_jagfile",                               l_buildcachedat_clear_media_jagfile                 },

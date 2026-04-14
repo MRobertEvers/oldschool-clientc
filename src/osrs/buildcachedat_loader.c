@@ -194,7 +194,7 @@ buildcachedat_loader_map_scenery_cache_add(
 }
 
 void
-buildcachedat_loader_init_floortypes_from_config_jagfile(struct BuildCacheDat* buildcachedat)
+buildcachedat_loader_floortypes_init_from_config_jagfile(struct BuildCacheDat* buildcachedat)
 {
     struct FileListDat* config_jagfile = buildcachedat_config_jagfile(buildcachedat);
     assert(config_jagfile != NULL && "Config jagfile must be loaded");
@@ -1029,7 +1029,7 @@ buildcachedat_loader_cache_title(
 }
 
 void
-buildcachedat_loader_init_idkits_from_config_jagfile(struct BuildCacheDat* buildcachedat)
+buildcachedat_loader_idkits_init_from_config_jagfile(struct BuildCacheDat* buildcachedat)
 {
     struct FileListDat* filelist = buildcachedat_config_jagfile(buildcachedat);
 
@@ -1074,7 +1074,7 @@ buildcachedat_loader_init_idkits_from_config_jagfile(struct BuildCacheDat* build
 }
 
 void
-buildcachedat_loader_init_objects_from_config_jagfile(struct BuildCacheDat* buildcachedat)
+buildcachedat_loader_objects_init_from_config_jagfile(struct BuildCacheDat* buildcachedat)
 {
     struct FileListDat* filelist = buildcachedat_config_jagfile(buildcachedat);
 

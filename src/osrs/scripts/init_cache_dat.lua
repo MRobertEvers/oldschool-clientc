@@ -48,6 +48,8 @@ end
 local function load_scenery_models_mapchunk(mapx, mapz)
     local models_to_load = Game.BuildCacheDat.scenery_config_get_model_ids_mapchunk(mapx, mapz)
 
+
+
     local model_requests = {}
     local models_needed = {}
     for _, model_id in ipairs(models_to_load) do
@@ -68,33 +70,6 @@ end
 local function load_scenery_configs_mapchunk(mapx, mapz)
     Game.BuildCacheDat.scenery_config_load_mapchunk_from_config_jagfile(mapx, mapz)
 end
-
-local function load_scenery_animations_mapchunk(mapx, mapz)
-    Game.BuildCacheDat.scenery_config_load_mapchunk_from_config_jagfile(mapx, mapz)
-
-    local animbaseframe_ids = Game.BuildCacheDat.scenery_config_get_animbaseframes_ids_mapchunk(mapx, mapz)
-
-    local seen = {}
-    local anim_requests = {}
-    for _, animbaseframe_id in ipairs(animbaseframe_ids) do
-        local archive_id = (animbaseframe_id >> 16) & 0xFFFF
-        if not seen[archive_id] and not Game.BuildCacheDat.animbaseframes_cache_has(archive_id) then
-            print("Loading animbaseframe", archive_id)
-            seen[archive_id] = true
-            table.insert(anim_requests,
-                { table_id = CacheDat.Tables.CACHE_DAT_ANIMATIONS, archive_id = archive_id, flags = 0 })
-        end
-    end
-
-    print(#anim_requests, "anim requests")
-
-    if #anim_requests > 0 then
-        local anim_archives = CacheDat.load_archives(anim_requests)
-        for _, archive in ipairs(anim_archives) do
-            Game.BuildCacheDat.animbaseframes_cache_add(archive)
-        end
-    end
-end
 -- ---------------------------------------------------------------------------
 -- world_rebuild_centerzone_slow
 --
@@ -106,13 +81,6 @@ end
 local function world_rebuild_centerzone_slow(zone_center_x, zone_center_z, scene_size)
     local chunk_sw_x, chunk_sw_z, chunk_ne_x, chunk_ne_z =
         zone_to_chunk_range(zone_center_x, zone_center_z, scene_size)
-
-    local config_archives = CacheDat.load_archives({
-        { table_id = CacheDat.Tables.CACHE_DAT_CONFIGS, archive_id = CacheDat.ConfigDatKind.CONFIG_DAT_CONFIGS,      flags = 0 },
-        { table_id = CacheDat.Tables.CACHE_DAT_CONFIGS, archive_id = CacheDat.ConfigDatKind.CONFIG_DAT_VERSION_LIST, flags = 0 },
-    })
-    Game.BuildCacheDat.set_config_jagfile(config_archives[1])
-    Game.BuildCacheDat.set_versionlist_jagfile(config_archives[2])
 
     -- Sequences are stored in an continuous blob and cannot be decoded by id.
     Game.BuildCacheDat.sequences_init_from_config_jagfile()
@@ -151,6 +119,8 @@ local function world_rebuild_centerzone_slow(zone_center_x, zone_center_z, scene
 
     -- Config jagfile is no longer needed once all chunks have been processed.
     Game.BuildCacheDat.clear_config_jagfile()
+    Game.BuildCacheDat.clear_versionlist_jagfile()
+    Game.BuildCacheDat.clear_media_jagfile()
     safe_gc()
     print_heap("after chunk loop + clear config jagfile")
 
@@ -251,7 +221,7 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     global_load_animations()
 
     print("=== Loading Config (non-scenery tables) ===")
-    Game.BuildCacheDat.init_floortypes_from_config_jagfile()
+    Game.BuildCacheDat.floortypes_init_from_config_jagfile()
     safe_gc()
 
     print_heap("after non-scenery config init")

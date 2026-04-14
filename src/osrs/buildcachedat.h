@@ -119,12 +119,20 @@ buildcachedat_scenery_config_clear(struct BuildCacheDat* buildcachedat);
 void
 buildcachedat_sequences_clear(struct BuildCacheDat* buildcachedat);
 
+/** Free all decoded floor overlay configs (flotype_hmap) and recreate the map empty. */
+void
+buildcachedat_floortypes_clear(struct BuildCacheDat* buildcachedat);
+
+/** Free all decoded object configs (obj_hmap) and recreate the map empty. */
+void
+buildcachedat_objects_clear(struct BuildCacheDat* buildcachedat);
+
 /** Free every decoded interface component (CacheDatConfigComponent) and recreate an empty
  * component_hmap. Safe after static UI is built into the uitree; buildcachedat_get_component
  * returns NULL until interfaces are loaded again. Reftables (sprites, fonts, component_sprites)
  * are unchanged. */
 void
-buildcachedat_clear_component_cache(struct BuildCacheDat* buildcachedat);
+buildcachedat_component_cache_clear(struct BuildCacheDat* buildcachedat);
 
 /** Free the raw jagfile FileListDat buffers (config, versionlist, media) that were only needed
  * during the decode phase. All decoded entries remain valid in their hashmaps. Call before the

@@ -49,7 +49,7 @@ local function init_ui()
         CacheDat.Tables.CACHE_DAT_CONFIGS,
         CacheDat.ConfigDatKind.CONFIG_DAT_CONFIGS, 0)
     Game.BuildCacheDat.set_config_jagfile(config_jagfile)
-    Game.BuildCacheDat.init_objects_from_config_jagfile()
+    Game.BuildCacheDat.objects_init_from_config_jagfile()
 
     -- Step 1: Parse INI config files (stores RevConfigBuffer on game).
     local ui_archives = CacheDat.load_config_files({
@@ -104,7 +104,8 @@ local function init_ui()
     Game.UI.load_fonts(ui_cache_config)
 
     -- Interface defs are baked into the uitree; free thousands of decoded components from RAM.
-    Game.BuildCacheDat.clear_component_cache()
+    Game.BuildCacheDat.component_cache_clear()
+    Game.BuildCacheDat.model_cache_clear()
 end
 
 init_ui()

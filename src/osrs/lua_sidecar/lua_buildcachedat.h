@@ -64,7 +64,7 @@ LuaBuildCacheDat_animbaseframes_cache_has(
     struct LuaGameType* args);
 
 struct LuaGameType*
-LuaBuildCacheDat_init_floortypes_from_config_jagfile(
+LuaBuildCacheDat_floortypes_init_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
@@ -183,12 +183,12 @@ LuaBuildCacheDat_cache_title(
     struct LuaGameType* args);
 
 struct LuaGameType*
-LuaBuildCacheDat_init_idkits_from_config_jagfile(
+LuaBuildCacheDat_idkits_init_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
 struct LuaGameType*
-LuaBuildCacheDat_init_objects_from_config_jagfile(
+LuaBuildCacheDat_objects_init_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
@@ -254,7 +254,17 @@ LuaBuildCacheDat_map_terrain_cache_clear(
     struct LuaGameType* args);
 
 struct LuaGameType*
-LuaBuildCacheDat_clear_component_cache(
+LuaBuildCacheDat_floortypes_clear(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_objects_clear(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_component_cache_clear(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 

@@ -21,8 +21,8 @@ end
 local data, length = ...
 
 -- Needed to turn appearance IDs into model IDs.
-Game.BuildCacheDat.init_idkits_from_config_jagfile()
-Game.BuildCacheDat.init_objects_from_config_jagfile()
+Game.BuildCacheDat.idkits_init_from_config_jagfile()
+Game.BuildCacheDat.objects_init_from_config_jagfile()
 
 
 

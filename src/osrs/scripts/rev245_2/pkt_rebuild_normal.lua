@@ -79,7 +79,7 @@ if #scenery_requests > 0 then
 end
 
 -- Initialize config from config jagfiles (same path as init_cache_dat)
-Game.BuildCacheDat.init_floortypes_from_config_jagfile()
+Game.BuildCacheDat.floortypes_init_from_config_jagfile()
 Game.BuildCacheDat.init_scenery_configs_from_config_jagfile()
 
 -- Load required models (unique IDs from all cached scenery; computed in C)
