@@ -5,16 +5,16 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O3")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O3")
-endif()
-
 # # Enable ASAN
 # cmake -DENABLE_ASAN=ON ..
 # # Disable ASAN (default)
 # cmake -DENABLE_ASAN=OFF ..
 option(ENABLE_ASAN "Enable AddressSanitizer (ASAN)" OFF)
+# # Enable UBSAN
+# cmake -DENABLE_UBSAN=ON ..
+# # Disable UBSAN (default)
+# cmake -DENABLE_UBSAN=OFF ..
+option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer (UBSAN)" OFF)
 option(BUILD_WEB_NATIVE "Build the web_client_native (SDL-free) Emscripten target" OFF)
 
 file(GLOB LUA_SOURCES "src/3rd/lua/*.c")
@@ -254,6 +254,10 @@ if(NOT EMSCRIPTEN)
     if(ENABLE_ASAN)
         target_compile_options(osx PRIVATE -fsanitize=address -fno-omit-frame-pointer)
         target_link_options(osx PRIVATE -fsanitize=address)
+    endif()
+    if(ENABLE_UBSAN)
+        target_compile_options(osx PRIVATE -fsanitize=undefined -fno-omit-frame-pointer)
+        target_link_options(osx PRIVATE -fsanitize=undefined)
     endif()
     add_executable(interface161_test
         tools/interface161_test/main.c

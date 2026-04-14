@@ -11,6 +11,7 @@ cmake -B build_release -DCMAKE_BUILD_TYPE=Release
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake .. -DCMAKE_BUILD_TYPE=Debug
 cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
 # For compiler invocations
 make VERBOSE=1

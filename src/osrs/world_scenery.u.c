@@ -361,6 +361,7 @@ scenery_element_acquire(
     int parent = (int)entity_unified_id(ENTITY_KIND_MAP_BUILD_LOC, entity_id);
     if( animated )
         return scene2_element_acquire_full(world->scene2, parent);
+
     return scene2_element_acquire_fast(world->scene2, parent);
 }
 

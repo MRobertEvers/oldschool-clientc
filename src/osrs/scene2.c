@@ -12,17 +12,22 @@
 
 #define SCENE2_EVENTBUFFER_DEFAULT_CAPACITY 512
 
-/* prev/next live at the same offsets on Scene2ElementFast and Scene2ElementFull. */
+/* prev/next live at the same offsets on Scene2ElementFast and Scene2ElementFull; use the
+ * correct concrete type so we do not violate strict aliasing when reading/writing links. */
 static struct Scene2Element*
 scene2_el_next(struct Scene2Element* e)
 {
-    return ((struct Scene2ElementFast*)e)->next;
+    if( scene2__flags_raw(e) & SCENE2_FLAG_FAST )
+        return ((struct Scene2ElementFast*)e)->next;
+    return ((struct Scene2ElementFull*)e)->next;
 }
 
 static struct Scene2Element*
 scene2_el_prev(struct Scene2Element* e)
 {
-    return ((struct Scene2ElementFast*)e)->prev;
+    if( scene2__flags_raw(e) & SCENE2_FLAG_FAST )
+        return ((struct Scene2ElementFast*)e)->prev;
+    return ((struct Scene2ElementFull*)e)->prev;
 }
 
 static void
@@ -30,7 +35,10 @@ scene2_el_set_next(
     struct Scene2Element* e,
     struct Scene2Element* n)
 {
-    ((struct Scene2ElementFast*)e)->next = n;
+    if( scene2__flags_raw(e) & SCENE2_FLAG_FAST )
+        ((struct Scene2ElementFast*)e)->next = n;
+    else
+        ((struct Scene2ElementFull*)e)->next = n;
 }
 
 static void
@@ -38,7 +46,10 @@ scene2_el_set_prev(
     struct Scene2Element* e,
     struct Scene2Element* p)
 {
-    ((struct Scene2ElementFast*)e)->prev = p;
+    if( scene2__flags_raw(e) & SCENE2_FLAG_FAST )
+        ((struct Scene2ElementFast*)e)->prev = p;
+    else
+        ((struct Scene2ElementFull*)e)->prev = p;
 }
 
 static uint32_t
@@ -69,13 +80,15 @@ scene2_element_id(
     struct Scene2* scene2,
     const struct Scene2Element* el)
 {
-    ptrdiff_t d =
-        (const struct Scene2ElementFast*)el - (const struct Scene2ElementFast*)scene2->fast_pool;
-    if( d >= 0 && d < scene2->fast_count )
+    assert(scene2 && el);
+    if( scene2__flags_raw(el) & SCENE2_FLAG_FAST )
+    {
+        ptrdiff_t d = (const struct Scene2ElementFast*)el - scene2->fast_pool;
+        assert(d >= 0 && d < scene2->fast_count && "Scene2Element pointer not from fast pool");
         return (int)d;
-    ptrdiff_t d2 =
-        (const struct Scene2ElementFull*)el - (const struct Scene2ElementFull*)scene2->full_pool;
-    assert(d2 >= 0 && d2 < scene2->full_count && "Scene2Element pointer not from this scene2");
+    }
+    ptrdiff_t d2 = (const struct Scene2ElementFull*)el - scene2->full_pool;
+    assert(d2 >= 0 && d2 < scene2->full_count && "Scene2Element pointer not from full pool");
     return scene2->fast_count + (int)d2;
 }
 
