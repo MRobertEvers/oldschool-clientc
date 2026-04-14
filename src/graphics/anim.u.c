@@ -27,7 +27,7 @@ animate(
      * [1] => Bone Group 5
      * [2] => Bone Group 9 etc.
      */
-    int* bone_group,
+    const uint8_t* bone_group,
     int bone_group_length,
     int arg_x,
     int arg_y,
@@ -287,8 +287,8 @@ anim_frame_apply(
 
         int index = frame->index_frame_ids[i];
 
-        int* bone_group = framemap->bone_groups[index];
-        int bone_group_length = framemap->bone_groups_lengths[index];
+        uint8_t* bone_group = framemap->bone_groups[index];
+        int bone_group_length = (int)framemap->bone_groups_lengths[index];
         int type = framemap->types[index];
 
         // cache/src/main/java/net/runelite/cache/definitions/ModelDefinition.java
@@ -354,8 +354,8 @@ anim_frame_apply_mask(
         if( !use_primary || base >= framemap->length )
             continue;
 
-        int* bone_group = framemap->bone_groups[base];
-        int bone_group_length = framemap->bone_groups_lengths[base];
+        uint8_t* bone_group = framemap->bone_groups[base];
+        int bone_group_length = (int)framemap->bone_groups_lengths[base];
         animate(
             &transformation,
             type,
@@ -392,8 +392,8 @@ anim_frame_apply_mask(
         if( !use_secondary || base >= framemap->length )
             continue;
 
-        int* bone_group = framemap->bone_groups[base];
-        int bone_group_length = framemap->bone_groups_lengths[base];
+        uint8_t* bone_group = framemap->bone_groups[base];
+        int bone_group_length = (int)framemap->bone_groups_lengths[base];
         animate(
             &transformation,
             type,

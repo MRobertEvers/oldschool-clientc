@@ -291,29 +291,29 @@ cache_dat_animbase_new_decode(
 
     int length = g1(&buffer);
     animbase->length = length;
-    animbase->types = malloc(length * sizeof(int));
-    animbase->labels = malloc(length * sizeof(int*));
-    memset(animbase->types, 0, length * sizeof(int));
-    memset(animbase->labels, 0, length * sizeof(int*));
+    animbase->types = malloc((size_t)length * sizeof(uint8_t));
+    animbase->labels = malloc((size_t)length * sizeof(uint8_t*));
+    memset(animbase->types, 0, (size_t)length * sizeof(uint8_t));
+    memset(animbase->labels, 0, (size_t)length * sizeof(uint8_t*));
 
-    animbase->label_counts = malloc(length * sizeof(int));
-    memset(animbase->label_counts, 0, length * sizeof(int));
+    animbase->label_counts = malloc((size_t)length * sizeof(uint16_t));
+    memset(animbase->label_counts, 0, (size_t)length * sizeof(uint16_t));
 
     for( int i = 0; i < length; i++ )
     {
-        animbase->types[i] = g1(&buffer);
+        animbase->types[i] = (uint8_t)g1(&buffer);
     }
 
     for( int i = 0; i < length; i++ )
     {
         int count = g1(&buffer);
-        animbase->labels[i] = malloc(count * sizeof(int));
-        animbase->label_counts[i] = count;
-        memset(animbase->labels[i], 0, count * sizeof(int));
+        animbase->labels[i] = malloc((size_t)count * sizeof(uint8_t));
+        animbase->label_counts[i] = (uint16_t)count;
+        memset(animbase->labels[i], 0, (size_t)count * sizeof(uint8_t));
 
         for( int j = 0; j < count; j++ )
         {
-            animbase->labels[i][j] = g1(&buffer);
+            animbase->labels[i][j] = (uint8_t)g1(&buffer);
         }
     }
     return animbase;

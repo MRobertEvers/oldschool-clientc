@@ -19,9 +19,9 @@ struct DashFrame
 struct DashFramemap
 {
     int id;
-    int* types;
-    int** bone_groups;
-    int* bone_groups_lengths;
+    uint8_t* types;
+    uint8_t** bone_groups;
+    uint16_t* bone_groups_lengths;
     int length;
 };
 

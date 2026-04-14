@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -16,17 +17,19 @@ dashframemap_new_from_cache_framemap(struct CacheFramemap* framemap)
     dashframemap->id = framemap->id;
     dashframemap->length = framemap->length;
 
-    dashframemap->bone_groups = malloc(framemap->length * sizeof(int*));
-    memcpy(dashframemap->bone_groups, framemap->bone_groups, framemap->length * sizeof(int*));
+    dashframemap->bone_groups = malloc((size_t)framemap->length * sizeof(uint8_t*));
+    dashframemap->bone_groups_lengths = malloc((size_t)framemap->length * sizeof(uint16_t));
+    dashframemap->types = malloc((size_t)framemap->length * sizeof(uint8_t));
 
-    dashframemap->bone_groups_lengths = malloc(framemap->length * sizeof(int));
-    memcpy(
-        dashframemap->bone_groups_lengths,
-        framemap->bone_groups_lengths,
-        framemap->length * sizeof(int));
-
-    dashframemap->types = malloc(framemap->length * sizeof(int));
-    memcpy(dashframemap->types, framemap->types, framemap->length * sizeof(int));
+    for( int i = 0; i < framemap->length; i++ )
+    {
+        dashframemap->types[i] = (uint8_t)framemap->types[i];
+        int count = framemap->bone_groups_lengths[i];
+        dashframemap->bone_groups_lengths[i] = (uint16_t)count;
+        dashframemap->bone_groups[i] = malloc((size_t)count * sizeof(uint8_t));
+        for( int j = 0; j < count; j++ )
+            dashframemap->bone_groups[i][j] = (uint8_t)framemap->bone_groups[i][j];
+    }
     return dashframemap;
 }
 
@@ -100,21 +103,27 @@ dashframemap_new_from_animframe(struct CacheAnimframe* animframe)
     dashframemap->id = animframe->id;
     dashframemap->length = animframe->base->length;
 
-    dashframemap->bone_groups = malloc(animframe->base->length * sizeof(int*));
-    dashframemap->bone_groups_lengths = malloc(animframe->base->length * sizeof(int));
-    dashframemap->types = malloc(animframe->base->length * sizeof(int));
+    dashframemap->bone_groups = malloc((size_t)animframe->base->length * sizeof(uint8_t*));
+    dashframemap->bone_groups_lengths =
+        malloc((size_t)animframe->base->length * sizeof(uint16_t));
+    dashframemap->types = malloc((size_t)animframe->base->length * sizeof(uint8_t));
     memcpy(
         dashframemap->bone_groups_lengths,
         animframe->base->label_counts,
-        animframe->base->length * sizeof(int));
-    memcpy(dashframemap->types, animframe->base->types, animframe->base->length * sizeof(int));
+        (size_t)animframe->base->length * sizeof(uint16_t));
+    memcpy(
+        dashframemap->types,
+        animframe->base->types,
+        (size_t)animframe->base->length * sizeof(uint8_t));
 
     for( int i = 0; i < animframe->base->length; i++ )
     {
         int count = animframe->base->label_counts[i];
-        dashframemap->bone_groups[i] = malloc((size_t)count * sizeof(int));
+        dashframemap->bone_groups[i] = malloc((size_t)count * sizeof(uint8_t));
         memcpy(
-            dashframemap->bone_groups[i], animframe->base->labels[i], (size_t)count * sizeof(int));
+            dashframemap->bone_groups[i],
+            animframe->base->labels[i],
+            (size_t)count * sizeof(uint8_t));
     }
     return dashframemap;
 }

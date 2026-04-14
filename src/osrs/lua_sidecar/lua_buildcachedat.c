@@ -3,12 +3,12 @@
 #include "lua_gametypes.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
-#include "osrs/rscache/cache_dat.h"
 #include "osrs/datatypes/appearances.h"
 #include "osrs/datatypes/player_appearance.h"
 #include "osrs/game.h"
 #include "osrs/packets/pkt_npc_info.h"
 #include "osrs/packets/pkt_player_info.h"
+#include "osrs/rscache/cache_dat.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -253,8 +253,7 @@ LuaBuildCacheDat_get_all_unique_scenery_model_ids(
 {
     (void)args;
     int* model_ids = NULL;
-    int count =
-        buildcachedat_loader_get_all_unique_scenery_model_ids(buildcachedat, &model_ids);
+    int count = buildcachedat_loader_get_all_unique_scenery_model_ids(buildcachedat, &model_ids);
 
     struct LuaGameType* result = LuaGameType_NewIntArray(count);
     for( int i = 0; i < count; i++ )
@@ -512,7 +511,8 @@ LuaBuildCacheDat_model_cache_add(
     struct CacheDatArchive* archive = arg_userdata(args, 0);
     int model_id = archive->archive_id;
 
-    buildcachedat_loader_model_cache_add(buildcachedat, model_id, archive->data_size, archive->data);
+    buildcachedat_loader_model_cache_add(
+        buildcachedat, model_id, archive->data_size, archive->data);
     cache_dat_archive_free(archive);
     return LuaGameType_NewVoid();
 }
@@ -582,7 +582,8 @@ LuaBuildCacheDat_animbaseframes_cache_add(
     struct LuaGameType* args)
 {
     struct CacheDatArchive* archive = arg_userdata(args, 0);
-    int animbaseframes_id = arg_int(args, 1);
+    assert(archive);
+    int animbaseframes_id = archive->archive_id;
     buildcachedat_loader_animbaseframes_cache_add(
         buildcachedat, animbaseframes_id, archive->data_size, archive->data);
     cache_dat_archive_free(archive);
@@ -703,8 +704,8 @@ LuaBuildCacheDat_scenery_config_get_model_ids_mapchunk(
     int mapx = arg_int(args, 0);
     int mapz = arg_int(args, 1);
     int* ids = NULL;
-    int count = buildcachedat_loader_scenery_config_get_model_ids_mapchunk(
-        buildcachedat, mapx, mapz, &ids);
+    int count =
+        buildcachedat_loader_scenery_config_get_model_ids_mapchunk(buildcachedat, mapx, mapz, &ids);
     struct LuaGameType* result = LuaGameType_NewIntArray(count);
     for( int i = 0; i < count; i++ )
         LuaGameType_IntArrayPush(result, ids[i]);

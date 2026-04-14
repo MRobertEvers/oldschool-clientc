@@ -482,7 +482,7 @@ load_model_animations_dati(
     for( int i = 0; i < sequence->frame_count; i++ )
     {
         // Get the frame definition ID from the second 2 bytes of the sequence frame ID The
-        //     first 2 bytes are the sequence ID,
+        //     first 2 bytes are the frame archive ID,
         //     the second 2 bytes are the frame file ID
         int frame_id = sequence->frames[i];
 
@@ -703,10 +703,7 @@ scenery_add_wall_single(
     if( config_loc->map_scene_id == -1 )
     {
         minimap_add_tile_wall(
-            scene_builder->minimap,
-            offset->x,
-            offset->z,
-            orientation_wall_flag(orientation));
+            scene_builder->minimap, offset->x, offset->z, orientation_wall_flag(orientation));
     }
 
     /* Shademap */
@@ -864,10 +861,7 @@ scenery_add_wall_two_sides(
             orientation_wall_flag(map_loc->orientation));
 
         minimap_add_tile_wall(
-            scene_builder->minimap,
-            offset->x,
-            offset->z,
-            orientation_wall_flag(next_orientation));
+            scene_builder->minimap, offset->x, offset->z, orientation_wall_flag(next_orientation));
     }
 
     /**

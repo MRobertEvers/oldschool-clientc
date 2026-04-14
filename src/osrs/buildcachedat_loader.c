@@ -5,6 +5,7 @@
 #include "osrs/dash_utils.h"
 #include "osrs/minimap.h"
 #include "osrs/painters.h"
+#include "osrs/revconfig/uiscene.h"
 #include "osrs/rscache/archive.h"
 #include "osrs/rscache/filelist.h"
 #include "osrs/rscache/rsbuf.h"
@@ -22,9 +23,8 @@
 #include "osrs/rscache/tables_dat/pix32.h"
 #include "osrs/rscache/tables_dat/pix8.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
-#include "osrs/texture.h"
-#include "osrs/revconfig/uiscene.h"
 #include "osrs/scene2.h"
+#include "osrs/texture.h"
 #include "osrs/varp_varbit_manager.h"
 #include "osrs/world.h"
 
@@ -36,7 +36,9 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game);
 #include <string.h>
 
 static int
-int_cmp(const void* a, const void* b)
+int_cmp(
+    const void* a,
+    const void* b)
 {
     int x = *(const int*)a;
     int y = *(const int*)b;
@@ -49,7 +51,9 @@ int_cmp(const void* a, const void* b)
 
 /** In-place unique on sorted [0..n); returns new length. */
 static int
-unique_sorted_int(int* arr, int n)
+unique_sorted_int(
+    int* arr,
+    int n)
 {
     if( n <= 0 )
         return 0;
@@ -63,7 +67,9 @@ unique_sorted_int(int* arr, int n)
 }
 
 static int
-loader_uiscene_attach_single_sprite_owned(struct UIScene* ui, struct DashSprite* sprite)
+loader_uiscene_attach_single_sprite_owned(
+    struct UIScene* ui,
+    struct DashSprite* sprite)
 {
     if( !ui || !sprite )
         return -1;
@@ -340,8 +346,8 @@ buildcachedat_loader_scenery_config_get_model_ids_mapchunk(
         struct CacheMapLoc* loc = &locs->locs[i];
         assert(loc->loc_id != -1 && "Loc id must be valid");
         assert(
-            buildcachedat_get_config_loc(buildcachedat, loc->loc_id) != NULL
-            && "Loc config must be decoded");
+            buildcachedat_get_config_loc(buildcachedat, loc->loc_id) != NULL &&
+            "Loc config must be decoded");
 
         int* mids = NULL;
         int n = buildcachedat_loader_get_scenery_model_ids(buildcachedat, loc->loc_id, &mids);
@@ -395,7 +401,12 @@ buildcachedat_loader_scenery_config_get_animbaseframes_ids_mapchunk(
             buildcachedat_get_sequence(buildcachedat, config_loc->seq_id);
         assert(sequence != NULL && "Sequence must be decoded");
         for( int j = 0; j < sequence->frame_count; j++ )
-            vec_push(frame_ids, &sequence->frames[j]);
+        {
+            int sequence_frame_id = sequence->frames[j];
+            // int frame_archive_id = (sequence_frame_id >> 16) & 0xFFFF;
+            // int frame_file_id = sequence_frame_id & 0xFFFF;
+            vec_push(frame_ids, &sequence_frame_id);
+        }
     }
 
     int count = vec_size(frame_ids);
@@ -698,8 +709,7 @@ buildcachedat_loader_animbaseframes_cache_add(
     for( int i = 0; i < animbaseframes->frame_count; i++ )
     {
         struct CacheAnimframe* animframe = &animbaseframes->frames[i];
-        buildcachedat_add_animframe_ref(
-            buildcachedat, animframe->id, animbaseframes_id, i);
+        buildcachedat_add_animframe_ref(buildcachedat, animframe->id, animbaseframes_id, i);
     }
 }
 
@@ -1055,9 +1065,7 @@ buildcachedat_loader_init_idkits_from_config_jagfile(struct BuildCacheDat* build
     {
         struct RSBuffer npc_buf;
         rsbuf_init(
-            &npc_buf,
-            npc_fi->data + npc_fi->offsets[i],
-            npc_fi->data_size - npc_fi->offsets[i]);
+            &npc_buf, npc_fi->data + npc_fi->offsets[i], npc_fi->data_size - npc_fi->offsets[i]);
         struct CacheDatConfigNpc* npc = cache_dat_config_npc_decode_one(&npc_buf);
         assert(npc != NULL && "Failed to decode npc");
         buildcachedat_add_npc(buildcachedat, i, npc);

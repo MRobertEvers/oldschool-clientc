@@ -65,29 +65,35 @@ local function load_scenery_models_mapchunk(mapx, mapz)
     end
 end
 
+local function load_scenery_configs_mapchunk(mapx, mapz)
+    Game.BuildCacheDat.scenery_config_load_mapchunk_from_config_jagfile(mapx, mapz)
+end
+
 local function load_scenery_animations_mapchunk(mapx, mapz)
     Game.BuildCacheDat.scenery_config_load_mapchunk_from_config_jagfile(mapx, mapz)
 
-    local animbaseframe_ids = Game.BuildCacheDat.scenery_config_get_animbaseframe_ids_mapchunk(mapx, mapz)
+    local animbaseframe_ids = Game.BuildCacheDat.scenery_config_get_animbaseframes_ids_mapchunk(mapx, mapz)
 
-    print("=== Loading Animations for mapchunk (%d, %d) ===", mapx, mapz)
+    local seen = {}
     local anim_requests = {}
-    local anim_indices = {}
     for _, animbaseframe_id in ipairs(animbaseframe_ids) do
-        if not Game.BuildCacheDat.animbaseframes_cache_has(animbaseframe_id) then
+        local archive_id = (animbaseframe_id >> 16) & 0xFFFF
+        if not seen[archive_id] and not Game.BuildCacheDat.animbaseframes_cache_has(archive_id) then
+            print("Loading animbaseframe", archive_id)
+            seen[archive_id] = true
             table.insert(anim_requests,
-                { table_id = CacheDat.Tables.CACHE_DAT_ANIMATIONS, archive_id = animbaseframe_id, flags = 0 })
-            table.insert(anim_indices, animbaseframe_id)
+                { table_id = CacheDat.Tables.CACHE_DAT_ANIMATIONS, archive_id = archive_id, flags = 0 })
         end
     end
+
+    print(#anim_requests, "anim requests")
+
     if #anim_requests > 0 then
         local anim_archives = CacheDat.load_archives(anim_requests)
-        for idx, anim_i in ipairs(anim_indices) do
-            Game.BuildCacheDat.animbaseframes_cache_add(anim_archives[idx], anim_i)
+        for _, archive in ipairs(anim_archives) do
+            Game.BuildCacheDat.animbaseframes_cache_add(archive)
         end
     end
-    anim_requests = nil
-    anim_indices = nil
 end
 -- ---------------------------------------------------------------------------
 -- world_rebuild_centerzone_slow
@@ -126,13 +132,17 @@ local function world_rebuild_centerzone_slow(zone_center_x, zone_center_z, scene
 
             load_chunk_map_scenery_and_terrain(mapx, mapz)
 
-            load_scenery_animations_mapchunk(mapx, mapz)
+            load_scenery_configs_mapchunk(mapx, mapz)
             load_scenery_models_mapchunk(mapx, mapz)
 
             safe_gc()
             print_heap("after animations + GC")
 
             Game.Game.rebuild_centerzone_chunk(mapx, mapz)
+
+            Game.BuildCacheDat.model_cache_clear()
+            Game.BuildCacheDat.map_terrain_cache_clear()
+            Game.BuildCacheDat.map_scenery_cache_clear()
 
             safe_gc()
             print_heap(string.format("  after chunk (%d,%d)", mapx, mapz))
@@ -188,6 +198,36 @@ local function world_rebuild_centerzone(zone_center_x, zone_center_z, scene_size
     print_heap("after game_build_scene_centerzone (includes buildcachedat_clear)")
 end
 
+local function global_load_textures()
+    local texture_sprites_ptr = CacheDat.load_archive(
+        CacheDat.Tables.CACHE_DAT_CONFIGS,
+        CacheDat.ConfigDatKind.CONFIG_DAT_TEXTURES)
+    Game.BuildCacheDat.cache_textures(texture_sprites_ptr)
+    Game.Dash.load_textures()
+end
+
+local function global_load_animations()
+    local animbaseframes_count = Game.BuildCacheDat.get_animbaseframes_count_from_versionlist_jagfile()
+
+    local anim_requests = {}
+    local anim_indices = {}
+    for i = 0, animbaseframes_count - 1 do
+        if not Game.BuildCacheDat.animbaseframes_cache_has(i) then
+            table.insert(anim_requests, { table_id = CacheDat.Tables.CACHE_DAT_ANIMATIONS, archive_id = i, flags = 0 })
+            table.insert(anim_indices, i)
+        end
+    end
+
+    if #anim_requests > 0 then
+        local anim_archives = CacheDat.load_archives(anim_requests)
+        for _, archive in ipairs(anim_archives) do
+            Game.BuildCacheDat.animbaseframes_cache_add(archive)
+        end
+    end
+end
+
+
+
 -- ---------------------------------------------------------------------------
 -- init_cache_dat
 -- ---------------------------------------------------------------------------
@@ -204,14 +244,17 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     config_archives = nil
     print_heap("after jagfile setup")
 
-    -- Decode non-scenery config tables (these do not depend on cached scenery).
-    -- init_scenery_configs is intentionally deferred to the build functions because
-    -- it iterates the currently-cached scenery to find loc-ids to decode.
+    print("=== Loading Textures ===")
+    global_load_textures()
+
+    print("=== Loading Animations ===")
+    global_load_animations()
+
     print("=== Loading Config (non-scenery tables) ===")
     Game.BuildCacheDat.init_floortypes_from_config_jagfile()
     safe_gc()
 
-    print_heap("after non-scenery config init + clear media jagfile")
+    print_heap("after non-scenery config init")
 
     -- Derive zone center from map_sw (matches buildcachedat_loader_finalize_scene formula).
     local map_sw_x = math.floor(wx_sw / 64)
@@ -222,7 +265,6 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
 
     print("=== Building Scene ===")
     world_rebuild_centerzone_slow(zone_center_x, zone_center_z, SCENE_SIZE)
-    -- world_rebuild_centerzone(zone_center_x, zone_center_z, SCENE_SIZE)
 
     print("=== Scene Built ===")
 end

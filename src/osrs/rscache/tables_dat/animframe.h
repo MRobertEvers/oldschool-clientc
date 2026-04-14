@@ -6,9 +6,9 @@
 struct CacheAnimBase
 {
     int length;
-    int* types;
-    int** labels;
-    int* label_counts;
+    uint8_t* types;
+    uint8_t** labels;
+    uint16_t* label_counts;
 };
 
 struct CacheAnimframe
