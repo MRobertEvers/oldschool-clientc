@@ -89,7 +89,7 @@ dash3d_projected_face_index_ptrs(
 #include "anim.u.c"
 // clang-format on
 
-static struct DashModelFast*
+static struct DashModelGround*
 dashmodel__writable_fast(struct DashModel* m)
 {
     assert(dashmodel__is_fast(m));
@@ -339,7 +339,7 @@ dash3d_fast_cull(
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(model);
+        const struct DashModelVAGround* v = dashmodel__as_va_const(model);
         cull_mx = v->va_tile_cull_center_x;
         cull_mz = v->va_tile_cull_center_z;
         break;
@@ -477,7 +477,7 @@ dash3d_calculate_cylinder_aabb_8point(
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(model);
+        const struct DashModelVAGround* v = dashmodel__as_va_const(model);
         mx = v->va_tile_cull_center_x;
         mz = v->va_tile_cull_center_z;
         break;

@@ -23,7 +23,7 @@ struct DashModelBones;
 #define DASHMODEL_TYPE_FAST 1u
 #define DASHMODEL_TYPE_VA 2u
 
-struct DashModelFast
+struct DashModelGround
 {
     uint8_t flags;
     int vertex_count;
@@ -44,7 +44,7 @@ struct DashModelFast
 /** Weak ref to DashVertexArray (vertices only); face data owned by this model shell.
  *  When va_has_tile_cull_center: culling uses va_tile_cull_center_x/z (tile SW in world)
  *  as the model-space origin for the bounds cylinder; vertices stay absolute world. */
-struct DashModelVA
+struct DashModelVAGround
 {
     uint8_t flags;
     int vertex_count;
@@ -170,7 +170,7 @@ static inline struct DashVertexArray*
 dashmodel__va_array_mut(struct DashModel* m)
 {
     assert(dashmodel__is_va(m));
-    struct DashModelVA* v = (struct DashModelVA*)(void*)m;
+    struct DashModelVAGround* v = (struct DashModelVAGround*)(void*)m;
     assert(v->vertex_array != NULL);
     return v->vertex_array;
 }
@@ -179,37 +179,37 @@ static inline const struct DashVertexArray*
 dashmodel__va_array_const(const void* m)
 {
     assert(dashmodel__is_va(m));
-    const struct DashModelVA* v = (const struct DashModelVA*)m;
+    const struct DashModelVAGround* v = (const struct DashModelVAGround*)m;
     assert(v->vertex_array != NULL);
     return v->vertex_array;
 }
 
-static inline struct DashModelFast*
+static inline struct DashModelGround*
 dashmodel__as_fast(void* m)
 {
     assert(dashmodel__is_fast(m));
-    return (struct DashModelFast*)m;
+    return (struct DashModelGround*)m;
 }
 
-static inline const struct DashModelFast*
+static inline const struct DashModelGround*
 dashmodel__as_fast_const(const void* m)
 {
     assert(dashmodel__is_fast(m));
-    return (const struct DashModelFast*)m;
+    return (const struct DashModelGround*)m;
 }
 
-static inline struct DashModelVA*
+static inline struct DashModelVAGround*
 dashmodel__as_va(void* m)
 {
     assert(dashmodel__is_va(m));
-    return (struct DashModelVA*)m;
+    return (struct DashModelVAGround*)m;
 }
 
-static inline const struct DashModelVA*
+static inline const struct DashModelVAGround*
 dashmodel__as_va_const(const void* m)
 {
     assert(dashmodel__is_va(m));
-    return (const struct DashModelVA*)m;
+    return (const struct DashModelVAGround*)m;
 }
 
 static inline struct DashModelFull*

@@ -48,8 +48,6 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
         return;
     }
 
-    bmp_write_file("minimap_static.bmp", pixels, pw, ph);
-
     int id = uiscene_element_acquire(game->ui_scene, -1);
     if( id < 0 )
     {

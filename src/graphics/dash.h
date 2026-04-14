@@ -47,7 +47,7 @@ struct DashAABB
 };
 
 /** Vertex positions only; lifetime owned outside DashModel (VA models hold a weak pointer).
- * Face colors, indices, and textures live on DashModelVA. */
+ * Face colors, indices, and textures live on DashModelVAGround. */
 struct DashVertexArray
 {
     int vertex_count;
@@ -65,7 +65,7 @@ struct DashFace
     uint16_t _pad;
 };
 
-/** SoA face storage shared per terrain level. DashModelVA holds a weak ref + first_face_index. */
+/** SoA face storage shared per terrain level. DashModelVAGround holds a weak ref + first_face_index. */
 struct DashFaceArray
 {
     faceint_t* indices_a;

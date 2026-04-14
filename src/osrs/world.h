@@ -118,7 +118,9 @@ world_free(struct World* world);
 
 /** Replace painters cullmap; frees any previous map. World owns cm. Updates painter if present. */
 void
-world_set_painters_cullmap(struct World* world, struct PaintersCullMap* cm);
+world_set_painters_cullmap(
+    struct World* world,
+    struct PaintersCullMap* cm);
 
 void
 world_buildcachedat_rebuild_centerzone(

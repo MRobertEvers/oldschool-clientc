@@ -19,7 +19,7 @@ static const faceint_t g_dashmodel_fast_tex_n[1] = { 2 };
 static faceint_t g_dashmodel_va_face_texture_coords_zero[4096];
 
 static void
-dashmodel__free_fast_arrays(struct DashModelFast* m)
+dashmodel__free_fast_arrays(struct DashModelGround* m)
 {
     free(m->vertices_x);
     free(m->vertices_y);
@@ -91,7 +91,7 @@ dashmodel__free_full_arrays(struct DashModelFull* m)
 }
 
 static void
-dashmodel__free_va_shell(struct DashModelVA* m)
+dashmodel__free_va_shell(struct DashModelVAGround* m)
 {
     free(m->bounds_cylinder);
 }
@@ -99,10 +99,10 @@ dashmodel__free_va_shell(struct DashModelVA* m)
 struct DashModel*
 dashmodel_fast_new(void)
 {
-    struct DashModelFast* m = (struct DashModelFast*)malloc(sizeof(struct DashModelFast));
+    struct DashModelGround* m = (struct DashModelGround*)malloc(sizeof(struct DashModelGround));
     if( !m )
         return NULL;
-    memset(m, 0, sizeof(struct DashModelFast));
+    memset(m, 0, sizeof(struct DashModelGround));
     m->flags = dashmodel__pack_flags_type(DASHMODEL_TYPE_FAST);
     return (struct DashModel*)m;
 }
@@ -264,10 +264,10 @@ dashfacearray_push(struct DashFaceArray* fa, const struct DashFace* face)
 struct DashModel*
 dashmodel_va_new(struct DashVertexArray* vertex_array)
 {
-    struct DashModelVA* m = (struct DashModelVA*)malloc(sizeof(struct DashModelVA));
+    struct DashModelVAGround* m = (struct DashModelVAGround*)malloc(sizeof(struct DashModelVAGround));
     if( !m )
         return NULL;
-    memset(m, 0, sizeof(struct DashModelVA));
+    memset(m, 0, sizeof(struct DashModelVAGround));
     m->flags = dashmodel__pack_flags_type(DASHMODEL_TYPE_VA);
     m->vertex_array = vertex_array;
     if( vertex_array )
@@ -284,7 +284,7 @@ dashmodel_va_set_face_array_ref(
 {
     assert(m && dashmodel__is_va(m));
     dashmodel__flags(m);
-    struct DashModelVA* v = dashmodel__as_va(m);
+    struct DashModelVAGround* v = dashmodel__as_va(m);
     v->face_array = face_array;
     v->first_face_index = first_face_index;
     v->face_count = face_count;
@@ -312,7 +312,7 @@ dashmodel_va_set_tile_cull_center(
 {
     assert(m && dashmodel__is_va(m));
     dashmodel__flags(m);
-    struct DashModelVA* v = dashmodel__as_va(m);
+    struct DashModelVAGround* v = dashmodel__as_va(m);
     v->va_tile_cull_center_x = tile_sw_x;
     v->va_tile_cull_center_z = tile_sw_z;
 }
@@ -328,7 +328,7 @@ dashmodel_va_set_bounds_cylinder_from_local(
     assert(m && dashmodel__is_va(m));
     assert(num_vertices > 0 && vx && vy && vz);
     dashmodel__flags(m);
-    struct DashModelVA* v = dashmodel__as_va(m);
+    struct DashModelVAGround* v = dashmodel__as_va(m);
     free(v->bounds_cylinder);
     v->bounds_cylinder = (struct DashBoundsCylinder*)malloc(sizeof(struct DashBoundsCylinder));
     dash3d_calculate_bounds_cylinder(
@@ -377,11 +377,11 @@ dashmodel_free(struct DashModel* model)
     switch( (unsigned)((f & DASHMODEL_TYPE_MASK) >> DASHMODEL_TYPE_SHIFT) )
     {
     case DASHMODEL_TYPE_FAST:
-        dashmodel__free_fast_arrays((struct DashModelFast*)(void*)model);
+        dashmodel__free_fast_arrays((struct DashModelGround*)(void*)model);
         free(model);
         return;
     case DASHMODEL_TYPE_VA:
-        dashmodel__free_va_shell((struct DashModelVA*)(void*)model);
+        dashmodel__free_va_shell((struct DashModelVAGround*)(void*)model);
         free(model);
         return;
     case DASHMODEL_TYPE_FULL:
@@ -596,7 +596,7 @@ dashmodel_face_colors_a(struct DashModel* m)
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
         return v->face_array ? v->face_array->colors_a + v->first_face_index : NULL;
     }
     case DASHMODEL_TYPE_FAST:
@@ -617,7 +617,7 @@ dashmodel_face_colors_b(struct DashModel* m)
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
         return v->face_array ? v->face_array->colors_b + v->first_face_index : NULL;
     }
     case DASHMODEL_TYPE_FAST:
@@ -638,7 +638,7 @@ dashmodel_face_colors_c(struct DashModel* m)
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
         return v->face_array ? v->face_array->colors_c + v->first_face_index : NULL;
     }
     case DASHMODEL_TYPE_FAST:
@@ -659,7 +659,7 @@ dashmodel_face_colors_a_const(const struct DashModel* m)
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
         return v->face_array ? v->face_array->colors_a + v->first_face_index : NULL;
     }
     case DASHMODEL_TYPE_FAST:
@@ -680,7 +680,7 @@ dashmodel_face_colors_b_const(const struct DashModel* m)
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
         return v->face_array ? v->face_array->colors_b + v->first_face_index : NULL;
     }
     case DASHMODEL_TYPE_FAST:
@@ -701,7 +701,7 @@ dashmodel_face_colors_c_const(const struct DashModel* m)
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
         return v->face_array ? v->face_array->colors_c + v->first_face_index : NULL;
     }
     case DASHMODEL_TYPE_FAST:
@@ -722,7 +722,7 @@ dashmodel_face_indices_a(struct DashModel* m)
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
         return v->face_array ? v->face_array->indices_a + v->first_face_index : NULL;
     }
     case DASHMODEL_TYPE_FAST:
@@ -743,7 +743,7 @@ dashmodel_face_indices_b(struct DashModel* m)
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
         return v->face_array ? v->face_array->indices_b + v->first_face_index : NULL;
     }
     case DASHMODEL_TYPE_FAST:
@@ -764,7 +764,7 @@ dashmodel_face_indices_c(struct DashModel* m)
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
         return v->face_array ? v->face_array->indices_c + v->first_face_index : NULL;
     }
     case DASHMODEL_TYPE_FAST:
@@ -785,7 +785,7 @@ dashmodel_face_indices_a_const(const struct DashModel* m)
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
         return v->face_array ? v->face_array->indices_a + v->first_face_index : NULL;
     }
     case DASHMODEL_TYPE_FAST:
@@ -806,7 +806,7 @@ dashmodel_face_indices_b_const(const struct DashModel* m)
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
         return v->face_array ? v->face_array->indices_b + v->first_face_index : NULL;
     }
     case DASHMODEL_TYPE_FAST:
@@ -827,7 +827,7 @@ dashmodel_face_indices_c_const(const struct DashModel* m)
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
         return v->face_array ? v->face_array->indices_c + v->first_face_index : NULL;
     }
     case DASHMODEL_TYPE_FAST:
@@ -848,7 +848,7 @@ dashmodel_face_textures(struct DashModel* m)
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
         return v->face_array ? v->face_array->texture_ids + v->first_face_index : NULL;
     }
     case DASHMODEL_TYPE_FAST:
@@ -869,7 +869,7 @@ dashmodel_face_textures_const(const struct DashModel* m)
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
         return v->face_array ? v->face_array->texture_ids + v->first_face_index : NULL;
     }
     case DASHMODEL_TYPE_FAST:
@@ -1278,7 +1278,7 @@ dashmodel_face_bones(struct DashModel* m)
     }
 }
 
-static struct DashModelFast*
+static struct DashModelGround*
 dashmodel__writable_fast(struct DashModel* m)
 {
     assert(dashmodel__is_fast(m));
@@ -1307,7 +1307,7 @@ dashmodel_set_vertices_i16(
     {
     case DASHMODEL_TYPE_FAST:
     {
-        struct DashModelFast* f = dashmodel__writable_fast(m);
+        struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->vertices_x);
         free(f->vertices_y);
         free(f->vertices_z);
@@ -1363,7 +1363,7 @@ dashmodel_set_vertices_i32(
     {
     case DASHMODEL_TYPE_FAST:
     {
-        struct DashModelFast* f = dashmodel__writable_fast(m);
+        struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->vertices_x);
         free(f->vertices_y);
         free(f->vertices_z);
@@ -1425,7 +1425,7 @@ dashmodel_set_face_indices_i16(
     {
     case DASHMODEL_TYPE_FAST:
     {
-        struct DashModelFast* f = dashmodel__writable_fast(m);
+        struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->face_indices_a);
         free(f->face_indices_b);
         free(f->face_indices_c);
@@ -1481,7 +1481,7 @@ dashmodel_set_face_indices_i32(
     {
     case DASHMODEL_TYPE_FAST:
     {
-        struct DashModelFast* f = dashmodel__writable_fast(m);
+        struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->face_indices_a);
         free(f->face_indices_b);
         free(f->face_indices_c);
@@ -1544,7 +1544,7 @@ dashmodel_set_face_colors_i16(
     {
     case DASHMODEL_TYPE_FAST:
     {
-        struct DashModelFast* f = dashmodel__writable_fast(m);
+        struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->face_colors_a);
         free(f->face_colors_b);
         free(f->face_colors_c);
@@ -1589,7 +1589,7 @@ dashmodel_set_face_colors_i32(
     {
     case DASHMODEL_TYPE_FAST:
     {
-        struct DashModelFast* f = dashmodel__writable_fast(m);
+        struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->face_colors_a);
         free(f->face_colors_b);
         free(f->face_colors_c);
@@ -1637,7 +1637,7 @@ dashmodel_set_face_textures_i16(
     {
     case DASHMODEL_TYPE_FAST:
     {
-        struct DashModelFast* f = dashmodel__writable_fast(m);
+        struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->face_textures);
         if( count <= 0 || !src_textures )
         {
@@ -1677,7 +1677,7 @@ dashmodel_set_face_textures_i32(
     {
     case DASHMODEL_TYPE_FAST:
     {
-        struct DashModelFast* f = dashmodel__writable_fast(m);
+        struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->face_textures);
         if( count <= 0 || !src_textures )
         {
@@ -1824,7 +1824,7 @@ dashmodel_set_bounds_cylinder(struct DashModel* m)
     {
     case DASHMODEL_TYPE_VA:
     {
-        struct DashModelVA* v = dashmodel__as_va(m);
+        struct DashModelVAGround* v = dashmodel__as_va(m);
         struct DashVertexArray* va = v->vertex_array;
         assert(va != NULL);
         free(v->bounds_cylinder);
@@ -1835,7 +1835,7 @@ dashmodel_set_bounds_cylinder(struct DashModel* m)
     }
     case DASHMODEL_TYPE_FAST:
     {
-        struct DashModelFast* f = dashmodel__writable_fast(m);
+        struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->bounds_cylinder);
         f->bounds_cylinder = (struct DashBoundsCylinder*)malloc(sizeof(struct DashBoundsCylinder));
         dash3d_calculate_bounds_cylinder(
@@ -1902,16 +1902,16 @@ dashmodel_heap_bytes(const struct DashModel* model)
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* m = (const struct DashModelVA*)(const void*)model;
-        size_t total = sizeof(struct DashModelVA);
+        const struct DashModelVAGround* m = (const struct DashModelVAGround*)(const void*)model;
+        size_t total = sizeof(struct DashModelVAGround);
         if( m->bounds_cylinder )
             total += sizeof(struct DashBoundsCylinder);
         return total;
     }
     case DASHMODEL_TYPE_FAST:
     {
-        const struct DashModelFast* m = (const struct DashModelFast*)(const void*)model;
-        size_t total = sizeof(struct DashModelFast);
+        const struct DashModelGround* m = (const struct DashModelGround*)(const void*)model;
+        size_t total = sizeof(struct DashModelGround);
         int vc = m->vertex_count;
         int fc = m->face_count;
         if( vc > 0 )
@@ -2029,7 +2029,7 @@ dashmodel_valid(struct DashModel* model)
     {
     case DASHMODEL_TYPE_VA:
     {
-        const struct DashModelVA* v = dashmodel__as_va_const(model);
+        const struct DashModelVAGround* v = dashmodel__as_va_const(model);
         if( v->face_count > 0 )
         {
             if( !v->face_array || !v->face_array->indices_a )

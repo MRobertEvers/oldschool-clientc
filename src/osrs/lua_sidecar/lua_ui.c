@@ -31,13 +31,15 @@ arg_userdata(
 /** Replace UIScene; salvage fonts, reset BuildCacheDat reftables tied to element/font ids, reload
  * component sprites. Returns -1 if uiscene_new fails. */
 static int
-lua_ui_reset_uiscene_and_refs(struct GGame* game, struct BuildCacheDat* buildcachedat)
+lua_ui_reset_uiscene_and_refs(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat)
 {
     if( !game->ui_scene )
         return 0;
 
     int cap = game->ui_scene->elements_count;
-    int new_cap = cap > 8192 ? cap : 8192;
+    int new_cap = cap > 512 ? cap : 512;
 
     struct UIScene* old = game->ui_scene;
     struct DashPixFont* saved_fonts[UISCENE_FONT_MAX];
@@ -319,10 +321,7 @@ LuaUI_load_revconfig_inventories(
         return LuaGameType_NewVoid();
 
     uitree_load_inventories_from_revconfig(
-        game->ui_scene,
-        game,
-        game->inv_pool,
-        game->pending_revconfig);
+        game->ui_scene, game, game->inv_pool, game->pending_revconfig);
 
     return LuaGameType_NewVoid();
 }
@@ -358,4 +357,3 @@ LuaUI_load_revconfig_ui(
 
     return LuaGameType_NewVoid();
 }
-
