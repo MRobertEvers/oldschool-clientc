@@ -36,10 +36,8 @@ dash_minimap_raster_tile_commands(
         if( command->kind != MINIMAP_RENDER_COMMAND_TILE )
             continue;
 
-        int shape =
-            minimap_tile_shape(minimap, command->_tile.tile_sx, command->_tile.tile_sz);
-        int angle =
-            minimap_tile_rotation(minimap, command->_tile.tile_sx, command->_tile.tile_sz);
+        int shape = minimap_tile_shape(minimap, command->_tile.tile_sx, command->_tile.tile_sz);
+        int angle = minimap_tile_rotation(minimap, command->_tile.tile_sx, command->_tile.tile_sz);
         int rgb_background = minimap_tile_rgb(
             minimap, command->_tile.tile_sx, command->_tile.tile_sz, MINIMAP_BACKGROUND);
         int rgb_foreground = minimap_tile_rgb(
@@ -61,8 +59,7 @@ dash_minimap_raster_tile_commands(
             dst_width,
             dst_height);
 
-        int wall =
-            minimap_tile_wall(minimap, command->_tile.tile_sx, command->_tile.tile_sz);
+        int wall = minimap_tile_wall(minimap, command->_tile.tile_sx, command->_tile.tile_sz);
         if( wall != 0 )
         {
             dash2d_draw_minimap_wall(

@@ -677,8 +677,6 @@ world_buildcachedat_rebuild_centerzone(
         }
     }
 
-    printf("Alive Minimap\n");
-
     /**
      * Minimap Locs
      */
@@ -1626,8 +1624,10 @@ world_rebuild_centerzone_chunk(
             if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size || offset_z >= scene_size )
                 continue;
 
+            config_loc = buildcachedat_get_config_loc(buildcachedat, map_tile->loc_id);
+
             int level = map_tile->chunk_pos_level;
-            if( config_loc->map_scene_id == -1 )
+            if( config_loc->map_scene_id != -1 )
                 continue;
 
             if( level != CURRENT_LEVEL )
@@ -1704,12 +1704,6 @@ world_rebuild_centerzone_chunk(
             scenery_add(world, entity, map_tile, config_loc);
         }
     }
-
-    /* Release this chunk's terrain and scenery data from buildcachedat. */
-    buildcachedat_clear_map_chunks(buildcachedat);
-    /* Release decoded models -- scene2 owns the uploaded mesh; raw CacheModel data is no longer
-     * needed after scenery_add completes for this chunk. */
-    buildcachedat_model_cache_clear(buildcachedat);
 }
 
 void
@@ -1840,9 +1834,6 @@ world_rebuild_centerzone_end(struct World* world)
     world->sharelight_map = NULL;
 
     world_print_scene2_dashmodel_heap_stats(world);
-
-    if( buildcachedat )
-        buildcachedat_clear_map_chunks(buildcachedat);
 
     world->load_complete = true;
 }

@@ -406,11 +406,14 @@ build_scene_terrain(struct World* world)
                 if( underlay_hsl != -1 )
                     minimap_background_rgb = dash_hsl16_to_rgb(underlay_hsl);
 
-                minimap_set_tile_color(
-                    world->minimap, x, z, minimap_foreground_rgb, MINIMAP_FOREGROUND);
-                minimap_set_tile_color(
-                    world->minimap, x, z, minimap_background_rgb, MINIMAP_BACKGROUND);
-                minimap_set_tile_shape(world->minimap, x, z, shape, rotation);
+                if( level == 0 )
+                {
+                    minimap_set_tile_color(
+                        world->minimap, x, z, minimap_foreground_rgb, MINIMAP_FOREGROUND);
+                    minimap_set_tile_color(
+                        world->minimap, x, z, minimap_background_rgb, MINIMAP_BACKGROUND);
+                    minimap_set_tile_shape(world->minimap, x, z, shape, rotation);
+                }
             }
         }
     }
@@ -811,11 +814,14 @@ build_scene_terrain_va(struct World* world)
                 if( underlay_hsl != UNDERLAY_HSL_NONE )
                     minimap_background_rgb = dash_hsl16_to_rgb(underlay_hsl);
 
-                minimap_set_tile_color(
-                    world->minimap, x, z, minimap_foreground_rgb, MINIMAP_FOREGROUND);
-                minimap_set_tile_color(
-                    world->minimap, x, z, minimap_background_rgb, MINIMAP_BACKGROUND);
-                minimap_set_tile_shape(world->minimap, x, z, shape, rotation);
+                if( level == 0 )
+                {
+                    minimap_set_tile_color(
+                        world->minimap, x, z, minimap_foreground_rgb, MINIMAP_FOREGROUND);
+                    minimap_set_tile_color(
+                        world->minimap, x, z, minimap_background_rgb, MINIMAP_BACKGROUND);
+                    minimap_set_tile_shape(world->minimap, x, z, shape, rotation);
+                }
             }
         }
 
@@ -839,8 +845,7 @@ build_scene_terrain_va(struct World* world)
             if( world->scene2 )
             {
                 scene2_vertex_array_unregister(world->scene2, world->terrain_va[level]);
-                scene2_face_array_unregister(
-                    world->scene2, world->terrain_face_array[level]);
+                scene2_face_array_unregister(world->scene2, world->terrain_face_array[level]);
             }
             else
             {

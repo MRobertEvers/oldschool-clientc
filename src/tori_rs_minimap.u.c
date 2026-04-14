@@ -1,6 +1,7 @@
 #ifndef TORI_RS_MINIMAP_U_C
 #define TORI_RS_MINIMAP_U_C
 
+#include "bmp.h"
 #include "graphics/dash.h"
 #include "graphics/dash_minimap.h"
 #include "osrs/minimap.h"
@@ -46,6 +47,8 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
         free(pixels);
         return;
     }
+
+    bmp_write_file("minimap_static.bmp", pixels, pw, ph);
 
     int id = uiscene_element_acquire(game->ui_scene, -1);
     if( id < 0 )
