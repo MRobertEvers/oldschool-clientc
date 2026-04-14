@@ -114,7 +114,7 @@ LibToriRSPlatformC_NetPoll(
         else if( connect_result == SOCKSTREAM_CONNECT_INFLIGHT )
         {
             // Still connecting
-            printf("Still connecting...\n");
+            // printf("Still connecting...\n");
         }
     }
     else

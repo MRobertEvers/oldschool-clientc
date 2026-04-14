@@ -16,7 +16,9 @@
 #include <string.h>
 #include <time.h>
 
+#ifndef LUA_SCRIPTS_DIR
 #define LUA_SCRIPTS_DIR "../src/osrs/scripts"
+#endif
 
 static int
 c_wasm_dispatcher_by_id(lua_State* L)

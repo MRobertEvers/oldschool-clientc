@@ -18,7 +18,7 @@ extern "C" {
 #if !defined(_WIN32)
 #include "platforms/platform_impl2_osx_sdl2_renderer_opengl3.h"
 #endif
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
 #include "platforms/platform_impl2_osx_sdl2_renderer_d3d11.h"
 #endif
 #include "platforms/platform_impl2_osx_sdl2_renderer_soft3d.h"
@@ -48,7 +48,7 @@ enum RendererKind
 #if defined(__APPLE__)
     RENDERER_METAL,
 #endif
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
     RENDERER_D3D11,
 #endif
 };
@@ -71,7 +71,7 @@ select_renderer(
         if( strcmp(env_renderer, "metal") == 0 )
             return RENDERER_METAL;
 #endif
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
         if( strcmp(env_renderer, "d3d11") == 0 || strcmp(env_renderer, "dx11") == 0 )
             return RENDERER_D3D11;
 #endif
@@ -89,7 +89,7 @@ select_renderer(
         if( strcmp(argv[i], "--renderer=metal") == 0 || strcmp(argv[i], "--metal") == 0 )
             return RENDERER_METAL;
 #endif
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
         if( strcmp(argv[i], "--renderer=d3d11") == 0 || strcmp(argv[i], "--d3d11") == 0 ||
             strcmp(argv[i], "--renderer=dx11") == 0 || strcmp(argv[i], "--dx11") == 0 )
             return RENDERER_D3D11;
@@ -198,7 +198,7 @@ main(
     }
     else
 #endif
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
         if( renderer_kind == RENDERER_D3D11 )
     {
         if( !Platform2_OSX_SDL2_InitForD3D11(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
@@ -224,7 +224,7 @@ main(
 #if defined(__APPLE__)
     struct Platform2_OSX_SDL2_Renderer_Metal* renderer_metal = NULL;
 #endif
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
     struct Platform2_OSX_SDL2_Renderer_D3D11* renderer_d3d11 = NULL;
 #endif
 
@@ -268,7 +268,7 @@ main(
     }
     else
 #endif
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
         if( renderer_kind == RENDERER_D3D11 )
     {
         renderer_d3d11 = PlatformImpl2_OSX_SDL2_Renderer_D3D11_New(SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -367,7 +367,7 @@ main(
                 renderer_metal, game, render_command_buffer);
         else
 #endif
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
             if( renderer_d3d11 )
             PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
                 renderer_d3d11, game, render_command_buffer);
@@ -392,7 +392,7 @@ main(
     if( renderer_metal )
         PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(renderer_metal);
 #endif
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
     if( renderer_d3d11 )
         PlatformImpl2_OSX_SDL2_Renderer_D3D11_Free(renderer_d3d11);
 #endif

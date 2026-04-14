@@ -3,6 +3,6 @@
 
 #include <stdint.h>
 
-typedef int16_t boneint_t;
+typedef uint8_t boneint_t;
 
 #endif

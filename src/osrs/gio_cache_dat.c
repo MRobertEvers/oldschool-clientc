@@ -13,7 +13,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef CACHE_PATH
 #define CACHE_PATH "../cache254"
+#endif
 
 struct FileBuffer*
 filebuffer_new(
