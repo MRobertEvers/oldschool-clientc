@@ -253,6 +253,9 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
     static std::vector<ToriRSRenderCommand> deferred_font_draws;
     deferred_font_draws.clear();
 
+    /* Readme "FrameStart" — timing covers FrameBegin + command drain + FrameEnd. */
+    double const soft3d_t_frame_start_ms = emscripten_get_now();
+
     LibToriRS_FrameBegin(game, render_command_buffer);
     while( LibToriRS_FrameNextCommand(game, render_command_buffer, &command, true) )
     {
@@ -335,6 +338,22 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
         }
     }
     LibToriRS_FrameEnd(game);
+
+    {
+        double const soft3d_ms = emscripten_get_now() - soft3d_t_frame_start_ms;
+        static double s_soft3d_frame_ms_sum = 0.0;
+        static int s_soft3d_frame_count = 0;
+        s_soft3d_frame_ms_sum += soft3d_ms;
+        s_soft3d_frame_count++;
+        if( s_soft3d_frame_count >= 30 )
+        {
+            printf(
+                "[soft3d_native] LibToriRS_FrameBegin..FrameEnd avg (30 frames): %.3f ms\n",
+                s_soft3d_frame_ms_sum / 30.0);
+            s_soft3d_frame_ms_sum = 0.0;
+            s_soft3d_frame_count = 0;
+        }
+    }
 
     struct DstRect
     {

@@ -8,8 +8,13 @@
 #include "shared_tables.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifndef DASH_BUCKET_SORT_USE_LINKED_LIST
+#define DASH_BUCKET_SORT_USE_LINKED_LIST 1
+#endif
 
 struct DashTextureEntry
 {
@@ -29,8 +34,13 @@ struct DashGraphics
     int orthographic_vertices_y[4096];
     int orthographic_vertices_z[4096];
 
+#if DASH_BUCKET_SORT_USE_LINKED_LIST
     faceint_t bucket_heads[1500];
     faceint_t face_links[4096];
+#else
+    faceint_t tmp_depth_face_count[1500];
+    faceint_t tmp_depth_faces[1500 * 512];
+#endif
     faceint_t tmp_priority_face_count[12];
     faceint_t tmp_priority_depth_sum[12];
     faceint_t tmp_priority_faces[12 * 2000];
@@ -1077,6 +1087,7 @@ div3_fast(int x)
     return (x * 21845) >> 16;
 }
 
+#if DASH_BUCKET_SORT_USE_LINKED_LIST
 static inline int
 bucket_sort_by_average_depth(
     faceint_t* bucket_heads,
@@ -1334,6 +1345,219 @@ sort_face_draw_order(
     return order_index;
 }
 
+#else /* DASH_BUCKET_SORT_USE_LINKED_LIST */
+
+static inline int
+bucket_sort_by_average_depth(
+    faceint_t* face_depth_buckets,
+    faceint_t* face_depth_bucket_counts,
+    int model_min_depth,
+    int num_faces,
+    int* vertex_x,
+    int* vertex_y,
+    int* vertex_z,
+    faceint_t* face_a,
+    faceint_t* face_b,
+    faceint_t* face_c)
+{
+    int min_depth = INT_MAX;
+    int max_depth = INT_MIN;
+
+    for( int f = 0; f < num_faces; f++ )
+    {
+        int a = face_a[f];
+        int b = face_b[f];
+        int c = face_c[f];
+
+        int xa = vertex_x[a];
+        int xb = vertex_x[b];
+        int xc = vertex_x[c];
+
+        int ya = vertex_y[a];
+        int yb = vertex_y[b];
+        int yc = vertex_y[c];
+
+        int za = vertex_z[a];
+        int zb = vertex_z[b];
+        int zc = vertex_z[c];
+
+        int dot_product = (xa - xb) * (yc - yb) - (ya - yb) * (xc - xb);
+        if( dot_product > 0 )
+        {
+            int depth_average = div3_fast(za + zb + zc) + model_min_depth;
+
+            if( depth_average < 1500 && depth_average > 0 )
+            {
+                int bucket_index = face_depth_bucket_counts[depth_average]++;
+                face_depth_buckets[(depth_average << 9) + bucket_index] = (faceint_t)f;
+
+                if( depth_average < min_depth )
+                    min_depth = depth_average;
+                if( depth_average > max_depth )
+                    max_depth = depth_average;
+            }
+        }
+    }
+
+    return (min_depth) | (max_depth << 16);
+}
+
+static inline void
+parition_faces_by_priority(
+    faceint_t* face_priority_buckets,
+    faceint_t* face_priority_bucket_counts,
+    faceint_t* face_depth_buckets,
+    faceint_t* face_depth_bucket_counts,
+    int num_faces,
+    const uint8_t* face_priorities,
+    int depth_lower_bound,
+    int depth_upper_bound)
+{
+    for( int depth = depth_upper_bound; depth >= depth_lower_bound && depth < 1500; depth-- )
+    {
+        int face_count = (int)face_depth_bucket_counts[depth];
+        if( face_count == 0 )
+            continue;
+
+        faceint_t* faces = &face_depth_buckets[depth << 9];
+        for( int i = 0; i < face_count; i++ )
+        {
+            faceint_t face_idx = faces[i];
+            int prio = dashmodel__get_face_priority(face_priorities, (int)face_idx);
+            int priority_face_count = face_priority_bucket_counts[prio]++;
+            face_priority_buckets[prio * 2000 + priority_face_count] = face_idx;
+        }
+    }
+}
+
+/**
+ * Same as linked-list variant; dense storage uses tmp_depth_faces / tmp_depth_face_count.
+ */
+static inline int
+sort_face_draw_order(
+    faceint_t* priority_depths,
+    int* flex_prio11_face_to_depth,
+    int* flex_prio12_face_to_depth,
+    int* face_draw_order,
+    faceint_t* face_depth_buckets,
+    faceint_t* face_depth_bucket_counts,
+    faceint_t* face_priority_buckets,
+    faceint_t* face_priority_bucket_counts,
+    int num_faces,
+    const uint8_t* face_priorities,
+    int depth_lower_bound,
+    int depth_upper_bound)
+{
+    int counts[12] = { 0 };
+    for( int depth = depth_upper_bound; depth >= depth_lower_bound && depth < 1500; depth-- )
+    {
+        int n = (int)face_depth_bucket_counts[depth];
+        if( n == 0 )
+            continue;
+
+        faceint_t* faces = &face_depth_buckets[depth << 9];
+        for( int i = 0; i < n; i++ )
+        {
+            faceint_t face_idx = faces[i];
+            int prio = dashmodel__get_face_priority(face_priorities, (int)face_idx);
+
+            int face_count = counts[prio];
+
+            if( prio < 10 )
+            {
+                priority_depths[prio] += depth;
+            }
+            else if( prio == 10 )
+            {
+                flex_prio11_face_to_depth[face_count] = depth | (face_idx << 16);
+            }
+            else if( prio == 11 )
+            {
+                flex_prio12_face_to_depth[face_count] = depth | (face_idx << 16);
+            }
+
+            counts[prio]++;
+        }
+    }
+
+    int average_depth1_2 = 0;
+    int count1_2 = counts[1] + counts[2];
+    if( count1_2 > 0 )
+        average_depth1_2 = (priority_depths[1] + priority_depths[2]) / count1_2;
+    int average_depth3_4 = 0;
+    int count3_4 = counts[3] + counts[4];
+    if( count3_4 > 0 )
+        average_depth3_4 = (priority_depths[3] + priority_depths[4]) / count3_4;
+    int average_depth6_8 = 0;
+    int count6_8 = counts[6] + counts[8];
+    if( count6_8 > 0 )
+        average_depth6_8 = (priority_depths[6] + priority_depths[8]) / count6_8;
+
+    for( int i = 0; i < counts[11]; i++ )
+    {
+        flex_prio11_face_to_depth[counts[10] + i] = flex_prio12_face_to_depth[i];
+    }
+    counts[10] += counts[11];
+
+    int flexible_face_index = 0;
+    int order_index = 0;
+
+    while( flexible_face_index < counts[10] &&
+           (flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth1_2 )
+    {
+        face_draw_order[order_index++] = flex_prio11_face_to_depth[flexible_face_index] >> 16;
+        flexible_face_index++;
+    }
+
+    for( int prio = 0; prio < 3; prio++ )
+    {
+        for( int i = 0; i < counts[prio]; i++ )
+        {
+            face_draw_order[order_index++] = face_priority_buckets[prio * 2000 + i];
+        }
+    }
+
+    while( flexible_face_index < counts[10] &&
+           (flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth3_4 )
+    {
+        face_draw_order[order_index++] = flex_prio11_face_to_depth[flexible_face_index] >> 16;
+        flexible_face_index++;
+    }
+
+    for( int prio = 3; prio < 5; prio++ )
+    {
+        for( int i = 0; i < counts[prio]; i++ )
+        {
+            face_draw_order[order_index++] = face_priority_buckets[prio * 2000 + i];
+        }
+    }
+
+    while( flexible_face_index < counts[10] &&
+           (flex_prio11_face_to_depth[flexible_face_index] & 0xFFFF) > average_depth6_8 )
+    {
+        face_draw_order[order_index++] = flex_prio11_face_to_depth[flexible_face_index] >> 16;
+        flexible_face_index++;
+    }
+
+    for( int prio = 5; prio < 10; prio++ )
+    {
+        for( int i = 0; i < counts[prio]; i++ )
+        {
+            face_draw_order[order_index++] = face_priority_buckets[prio * 2000 + i];
+        }
+    }
+
+    while( flexible_face_index < counts[10] )
+    {
+        face_draw_order[order_index++] = flex_prio11_face_to_depth[flexible_face_index] >> 16;
+        flexible_face_index++;
+    }
+
+    return order_index;
+}
+
+#endif /* DASH_BUCKET_SORT_USE_LINKED_LIST */
+
 static inline void
 dash3d_sort_face_draw_order(
     struct DashGraphics* dash,
@@ -1347,6 +1571,7 @@ dash3d_sort_face_draw_order(
     faceint_t* fic)
 {
     int model_min_depth = dashmodel_bounds_cylinder_const(model)->min_z_depth_any_rotation;
+#if DASH_BUCKET_SORT_USE_LINKED_LIST
     memset(dash->bucket_heads, 0xFF, sizeof(dash->bucket_heads));
 
     int bounds = bucket_sort_by_average_depth(
@@ -1360,6 +1585,24 @@ dash3d_sort_face_draw_order(
         fia,
         fib,
         fic);
+#else
+    memset(
+        dash->tmp_depth_face_count,
+        0,
+        (size_t)(model_min_depth * 2 + 1) * sizeof(dash->tmp_depth_face_count[0]));
+
+    int bounds = bucket_sort_by_average_depth(
+        dash->tmp_depth_faces,
+        dash->tmp_depth_face_count,
+        model_min_depth,
+        dashmodel_face_count(model),
+        dash->screen_vertices_x,
+        dash->screen_vertices_y,
+        dash->screen_vertices_z,
+        fia,
+        fib,
+        fic);
+#endif
 
     model_min_depth = bounds & 0xFFFF;
     int model_max_depth = bounds >> 16;
@@ -1369,11 +1612,23 @@ dash3d_sort_face_draw_order(
         int order_index = 0;
         for( int depth = model_max_depth; depth < 1500 && depth >= model_min_depth; depth-- )
         {
+#if DASH_BUCKET_SORT_USE_LINKED_LIST
             for( faceint_t face_idx = dash->bucket_heads[depth]; face_idx != (faceint_t)-1;
                  face_idx = dash->face_links[face_idx] )
             {
                 dash->tmp_face_order[order_index++] = face_idx;
             }
+#else
+            int bucket_count = (int)dash->tmp_depth_face_count[depth];
+            if( bucket_count == 0 )
+                continue;
+
+            faceint_t* faces = &dash->tmp_depth_faces[depth << 9];
+            for( int j = 0; j < bucket_count; j++ )
+            {
+                dash->tmp_face_order[order_index++] = faces[j];
+            }
+#endif
         }
 
         dash->tmp_face_order_count = order_index;
@@ -1383,6 +1638,7 @@ dash3d_sort_face_draw_order(
         memset(dash->tmp_priority_depth_sum, 0, sizeof(dash->tmp_priority_depth_sum));
         memset(dash->tmp_priority_face_count, 0, sizeof(dash->tmp_priority_face_count));
 
+#if DASH_BUCKET_SORT_USE_LINKED_LIST
         parition_faces_by_priority(
             dash->tmp_priority_faces,
             dash->tmp_priority_face_count,
@@ -1406,6 +1662,31 @@ dash3d_sort_face_draw_order(
             dashmodel_face_priorities(model),
             model_min_depth,
             model_max_depth);
+#else
+        parition_faces_by_priority(
+            dash->tmp_priority_faces,
+            dash->tmp_priority_face_count,
+            dash->tmp_depth_faces,
+            dash->tmp_depth_face_count,
+            dashmodel_face_count(model),
+            dashmodel_face_priorities(model),
+            model_min_depth,
+            model_max_depth);
+
+        int valid_faces = sort_face_draw_order(
+            dash->tmp_priority_depth_sum,
+            dash->tmp_flex_prio11_face_to_depth,
+            dash->tmp_flex_prio12_face_to_depth,
+            dash->tmp_face_order,
+            dash->tmp_depth_faces,
+            dash->tmp_depth_face_count,
+            dash->tmp_priority_faces,
+            dash->tmp_priority_face_count,
+            dashmodel_face_count(model),
+            dashmodel_face_priorities(model),
+            model_min_depth,
+            model_max_depth);
+#endif
 
         dash->tmp_face_order_count = valid_faces;
     }
@@ -1541,6 +1822,7 @@ dash3d_compute_projected_face_order(
     dash3d_projected_face_index_ptrs(dash, model, &fia, &fib, &fic);
 
     int model_min_depth = dashmodel_bounds_cylinder_const(model)->min_z_depth_any_rotation;
+#if DASH_BUCKET_SORT_USE_LINKED_LIST
     memset(dash->bucket_heads, 0xFF, sizeof(dash->bucket_heads));
 
     int bounds = bucket_sort_by_average_depth(
@@ -1554,6 +1836,24 @@ dash3d_compute_projected_face_order(
         fia,
         fib,
         fic);
+#else
+    memset(
+        dash->tmp_depth_face_count,
+        0,
+        (size_t)(model_min_depth * 2 + 1) * sizeof(dash->tmp_depth_face_count[0]));
+
+    int bounds = bucket_sort_by_average_depth(
+        dash->tmp_depth_faces,
+        dash->tmp_depth_face_count,
+        model_min_depth,
+        dashmodel_face_count(model),
+        dash->screen_vertices_x,
+        dash->screen_vertices_y,
+        dash->screen_vertices_z,
+        fia,
+        fib,
+        fic);
+#endif
 
     model_min_depth = bounds & 0xFFFF;
     int model_max_depth = bounds >> 16;
@@ -1563,11 +1863,23 @@ dash3d_compute_projected_face_order(
         int order_index = 0;
         for( int depth = model_max_depth; depth < 1500 && depth >= model_min_depth; depth-- )
         {
+#if DASH_BUCKET_SORT_USE_LINKED_LIST
             for( faceint_t face_idx = dash->bucket_heads[depth]; face_idx != (faceint_t)-1;
                  face_idx = dash->face_links[face_idx] )
             {
                 dash->tmp_face_order[order_index++] = face_idx;
             }
+#else
+            int bucket_count = (int)dash->tmp_depth_face_count[depth];
+            if( bucket_count == 0 )
+                continue;
+
+            faceint_t* faces = &dash->tmp_depth_faces[depth << 9];
+            for( int j = 0; j < bucket_count; j++ )
+            {
+                dash->tmp_face_order[order_index++] = faces[j];
+            }
+#endif
         }
         dash->tmp_face_order_count = order_index;
         return;
@@ -1576,6 +1888,7 @@ dash3d_compute_projected_face_order(
     memset(dash->tmp_priority_depth_sum, 0, sizeof(dash->tmp_priority_depth_sum));
     memset(dash->tmp_priority_face_count, 0, sizeof(dash->tmp_priority_face_count));
 
+#if DASH_BUCKET_SORT_USE_LINKED_LIST
     parition_faces_by_priority(
         dash->tmp_priority_faces,
         dash->tmp_priority_face_count,
@@ -1599,6 +1912,31 @@ dash3d_compute_projected_face_order(
         dashmodel_face_priorities(model),
         model_min_depth,
         model_max_depth);
+#else
+    parition_faces_by_priority(
+        dash->tmp_priority_faces,
+        dash->tmp_priority_face_count,
+        dash->tmp_depth_faces,
+        dash->tmp_depth_face_count,
+        dashmodel_face_count(model),
+        dashmodel_face_priorities(model),
+        model_min_depth,
+        model_max_depth);
+
+    dash->tmp_face_order_count = sort_face_draw_order(
+        dash->tmp_priority_depth_sum,
+        dash->tmp_flex_prio11_face_to_depth,
+        dash->tmp_flex_prio12_face_to_depth,
+        dash->tmp_face_order,
+        dash->tmp_depth_faces,
+        dash->tmp_depth_face_count,
+        dash->tmp_priority_faces,
+        dash->tmp_priority_face_count,
+        dashmodel_face_count(model),
+        dashmodel_face_priorities(model),
+        model_min_depth,
+        model_max_depth);
+#endif
 }
 
 static inline int
