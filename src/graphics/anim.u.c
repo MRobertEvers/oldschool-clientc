@@ -273,13 +273,12 @@ anim_frame_apply(
     vertexint_t* vertices_y,
     vertexint_t* vertices_z,
     alphaint_t* face_alphas,
-    // These are the bones of the model. They are defined with the model.
     int vertex_bones_count,
-    int** vertex_bones,
-    int* vertex_bones_sizes,
+    uint8_t** vertex_bones,
+    uint8_t* vertex_bones_sizes,
     int face_bones_count,
-    int** face_bones,
-    int* face_bones_sizes)
+    uint8_t** face_bones,
+    uint8_t* face_bones_sizes)
 {
     struct Transformation transformation = { 0 };
     for( int i = 0; i < frame->translator_count; i++ )
