@@ -27,7 +27,7 @@ for _, oid in ipairs(obj_ids) do
     for _, model_id in ipairs(model_ids) do
         if model_id ~= 0 and not seen[model_id] then
             seen[model_id] = true
-            if not Game.BuildCacheDat.has_model(model_id) then
+            if not Game.BuildCacheDat.model_cache_has(model_id) then
                 table.insert(models_to_load, {
                     table_id = CacheDat.Tables.CACHE_DAT_MODELS,
                     archive_id = model_id,
@@ -42,7 +42,7 @@ end
 if #models_to_load > 0 then
     local archives = CacheDat.load_archives(models_to_load)
     for i, model_id in ipairs(models_needed) do
-        Game.BuildCacheDat.cache_model(archives[i], model_id)
+        Game.BuildCacheDat.model_cache_add(archives[i], model_id)
     end
 end
 

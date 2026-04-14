@@ -611,7 +611,7 @@ buildcachedat_clear_map_chunks(struct BuildCacheDat* buildcachedat)
 }
 
 void
-buildcachedat_clear_map_terrain_chunks(struct BuildCacheDat* buildcachedat)
+buildcachedat_map_terrain_cache_clear(struct BuildCacheDat* buildcachedat)
 {
     if( !buildcachedat || !buildcachedat->map_terrains_hmap )
         return;
@@ -620,7 +620,7 @@ buildcachedat_clear_map_terrain_chunks(struct BuildCacheDat* buildcachedat)
 }
 
 void
-buildcachedat_clear_map_scenery_chunks(struct BuildCacheDat* buildcachedat)
+buildcachedat_map_scenery_cache_clear(struct BuildCacheDat* buildcachedat)
 {
     if( !buildcachedat || !buildcachedat->scenery_hmap )
         return;
@@ -629,7 +629,7 @@ buildcachedat_clear_map_scenery_chunks(struct BuildCacheDat* buildcachedat)
 }
 
 void
-buildcachedat_clear_scenery_models(struct BuildCacheDat* buildcachedat)
+buildcachedat_model_cache_clear(struct BuildCacheDat* buildcachedat)
 {
     if( !buildcachedat )
         return;
@@ -638,6 +638,47 @@ buildcachedat_clear_scenery_models(struct BuildCacheDat* buildcachedat)
         dashmap_free_entries(buildcachedat->models_hmap, free_model_entry);
         buildcachedat->models_hmap = buildcachedat_new_models_hmap();
     }
+}
+
+void
+buildcachedat_animbaseframes_cache_clear(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat )
+        return;
+    if( buildcachedat->animbaseframes_hmap )
+    {
+        dashmap_free_entries(buildcachedat->animbaseframes_hmap, free_animbaseframes_entry);
+        buildcachedat->animbaseframes_hmap =
+            buildcachedat_create_hmap(sizeof(int), sizeof(struct AnimbaseframesEntry), 64);
+    }
+    if( buildcachedat->animframes_reftable )
+    {
+        dashmap_free_entries(buildcachedat->animframes_reftable, NULL);
+        buildcachedat->animframes_reftable = NULL;
+    }
+    buildcachedat_init_reftables_if_needed(buildcachedat);
+}
+
+void
+buildcachedat_scenery_config_clear(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat )
+        return;
+    if( buildcachedat->config_loc_hmap )
+        dashmap_free_entries(buildcachedat->config_loc_hmap, free_config_loc_entry);
+    buildcachedat->config_loc_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct ConfigLocEntry), 64);
+}
+
+void
+buildcachedat_sequences_clear(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat )
+        return;
+    if( buildcachedat->sequences_hmap )
+        dashmap_free_entries(buildcachedat->sequences_hmap, free_sequence_entry);
+    buildcachedat->sequences_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct SequenceEntry), 64);
 }
 
 void

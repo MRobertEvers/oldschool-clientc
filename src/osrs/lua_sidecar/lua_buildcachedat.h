@@ -14,7 +14,7 @@ struct LuaGameType;
  * Functions that return void return NULL. */
 
 struct LuaGameType*
-LuaBuildCacheDat_cache_map_scenery(
+LuaBuildCacheDat_map_scenery_cache_add(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
@@ -39,7 +39,7 @@ LuaBuildCacheDat_set_2d_media_jagfile(
     struct LuaGameType* args);
 
 struct LuaGameType*
-LuaBuildCacheDat_cache_map_terrain(
+LuaBuildCacheDat_map_terrain_cache_add(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
@@ -54,12 +54,12 @@ LuaBuildCacheDat_has_map_scenery(
     struct LuaGameType* args);
 
 struct LuaGameType*
-LuaBuildCacheDat_has_model(
+LuaBuildCacheDat_model_cache_has(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
 struct LuaGameType*
-LuaBuildCacheDat_has_animbaseframes(
+LuaBuildCacheDat_animbaseframes_cache_has(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
@@ -134,7 +134,7 @@ LuaBuildCacheDat_get_npc_ids_from_packet(
     struct LuaGameType* args);
 
 struct LuaGameType*
-LuaBuildCacheDat_cache_model(
+LuaBuildCacheDat_model_cache_add(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
@@ -156,7 +156,7 @@ LuaBuildCacheDat_cache_textures(
     struct LuaGameType* args);
 
 struct LuaGameType*
-LuaBuildCacheDat_init_sequences_from_config_jagfile(
+LuaBuildCacheDat_sequences_init_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
@@ -166,7 +166,7 @@ LuaBuildCacheDat_get_animbaseframes_count_from_versionlist_jagfile(
     struct LuaGameType* args);
 
 struct LuaGameType*
-LuaBuildCacheDat_cache_animbaseframes(
+LuaBuildCacheDat_animbaseframes_cache_add(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
@@ -209,7 +209,47 @@ LuaBuildCacheDat_clear_map_chunks(
     struct LuaGameType* args);
 
 struct LuaGameType*
-LuaBuildCacheDat_clear_scenery_models(
+LuaBuildCacheDat_model_cache_clear(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_scenery_config_load_mapchunk_from_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_scenery_config_get_model_ids_mapchunk(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_scenery_config_get_animbaseframes_ids_mapchunk(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_animbaseframes_cache_clear(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_scenery_config_clear(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_sequences_clear(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_map_scenery_cache_clear(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_map_terrain_cache_clear(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 

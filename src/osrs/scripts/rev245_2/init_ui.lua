@@ -28,7 +28,7 @@ local function init_ui()
     local model_requests = {}
     local models_needed = {}
     for _, model_id in ipairs(model_ids) do
-        if not Game.BuildCacheDat.has_model(model_id) then
+        if not Game.BuildCacheDat.model_cache_has(model_id) then
             table.insert(model_requests, {
                 table_id = CacheDat.Tables.CACHE_DAT_MODELS,
                 archive_id = model_id,
@@ -40,7 +40,7 @@ local function init_ui()
     if #model_requests > 0 then
         local model_archives = CacheDat.load_archives(model_requests)
         for i, _ in ipairs(models_needed) do
-            Game.BuildCacheDat.cache_model(model_archives[i], models_needed[i])
+            Game.BuildCacheDat.model_cache_add(model_archives[i], models_needed[i])
         end
     end
 
@@ -75,7 +75,7 @@ local function init_ui()
             for _, mid in ipairs(mids) do
                 if mid ~= 0 and not seen[mid] then
                     seen[mid] = true
-                    if not Game.BuildCacheDat.has_model(mid) then
+                    if not Game.BuildCacheDat.model_cache_has(mid) then
                         table.insert(inv_model_requests, {
                             table_id = CacheDat.Tables.CACHE_DAT_MODELS,
                             archive_id = mid,
@@ -89,7 +89,7 @@ local function init_ui()
         if #inv_model_requests > 0 then
             local inv_archives = CacheDat.load_archives(inv_model_requests)
             for i, mid in ipairs(inv_models_needed) do
-                Game.BuildCacheDat.cache_model(inv_archives[i], mid)
+                Game.BuildCacheDat.model_cache_add(inv_archives[i], mid)
             end
         end
     end

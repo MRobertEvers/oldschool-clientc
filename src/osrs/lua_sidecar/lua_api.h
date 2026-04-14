@@ -49,7 +49,7 @@ lua_api_lookup_full(
     const char* s,
     size_t n);
 
-/** Lua method suffix within a domain (e.g. "has_model") -> id. */
+/** Lua method suffix within a domain (e.g. "model_cache_has") -> id. */
 LuaApiId
 lua_api_domain_lookup(
     enum LuaApiDomain domain,

@@ -60,7 +60,7 @@ end
 local model_requests = {}
 local models_needed = {}
 for _, model_id in ipairs(queued_model_ids) do
-    if not Game.BuildCacheDat.has_model(model_id) then
+    if not Game.BuildCacheDat.model_cache_has(model_id) then
         table.insert(
             model_requests,
             { table_id = CacheDat.Tables.CACHE_DAT_MODELS, archive_id = model_id, flags = 0 }
@@ -72,7 +72,7 @@ end
 if #model_requests > 0 then
     local model_archives = CacheDat.load_archives(model_requests)
     for i, model_id in ipairs(models_needed) do
-        Game.BuildCacheDat.cache_model(model_archives[i], model_id)
+        Game.BuildCacheDat.model_cache_add(model_archives[i], model_id)
     end
 end
 

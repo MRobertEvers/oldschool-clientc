@@ -42,14 +42,14 @@ arg_game(struct LuaGameType* args)
 }
 
 struct LuaGameType*
-LuaBuildCacheDat_cache_map_scenery(
+LuaBuildCacheDat_map_scenery_cache_add(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     struct CacheDatArchive* archive = arg_userdata(args, 0);
     int map_id = arg_int(args, 1);
 
-    buildcachedat_loader_cache_map_scenery_mapid(
+    buildcachedat_loader_map_scenery_cache_add_mapid(
         buildcachedat, map_id, archive->data_size, archive->data);
     cache_dat_archive_free(archive);
     return LuaGameType_NewVoid();
@@ -101,14 +101,14 @@ LuaBuildCacheDat_set_versionlist_jagfile(
 }
 
 struct LuaGameType*
-LuaBuildCacheDat_cache_map_terrain(
+LuaBuildCacheDat_map_terrain_cache_add(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     struct CacheDatArchive* archive = arg_userdata(args, 0);
     int map_id = arg_int(args, 1);
 
-    buildcachedat_loader_cache_map_terrain_mapid(
+    buildcachedat_loader_map_terrain_cache_add_mapid(
         buildcachedat, map_id, archive->data_size, archive->data);
     cache_dat_archive_free(archive);
     return LuaGameType_NewVoid();
@@ -137,7 +137,7 @@ LuaBuildCacheDat_has_map_scenery(
 }
 
 struct LuaGameType*
-LuaBuildCacheDat_has_model(
+LuaBuildCacheDat_model_cache_has(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
@@ -147,7 +147,7 @@ LuaBuildCacheDat_has_model(
 }
 
 struct LuaGameType*
-LuaBuildCacheDat_has_animbaseframes(
+LuaBuildCacheDat_animbaseframes_cache_has(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
@@ -505,14 +505,14 @@ LuaBuildCacheDat_get_npc_ids_from_packet(
 }
 
 struct LuaGameType*
-LuaBuildCacheDat_cache_model(
+LuaBuildCacheDat_model_cache_add(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     struct CacheDatArchive* archive = arg_userdata(args, 0);
     int model_id = archive->archive_id;
 
-    buildcachedat_loader_cache_model(buildcachedat, model_id, archive->data_size, archive->data);
+    buildcachedat_loader_model_cache_add(buildcachedat, model_id, archive->data_size, archive->data);
     cache_dat_archive_free(archive);
     return LuaGameType_NewVoid();
 }
@@ -556,12 +556,12 @@ LuaBuildCacheDat_cache_textures(
 }
 
 struct LuaGameType*
-LuaBuildCacheDat_init_sequences_from_config_jagfile(
+LuaBuildCacheDat_sequences_init_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     (void)args;
-    buildcachedat_loader_init_sequences_from_config_jagfile(buildcachedat);
+    buildcachedat_loader_sequences_init_from_config_jagfile(buildcachedat);
     return LuaGameType_NewVoid();
 }
 
@@ -577,13 +577,13 @@ LuaBuildCacheDat_get_animbaseframes_count_from_versionlist_jagfile(
 }
 
 struct LuaGameType*
-LuaBuildCacheDat_cache_animbaseframes(
+LuaBuildCacheDat_animbaseframes_cache_add(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     struct CacheDatArchive* archive = arg_userdata(args, 0);
     int animbaseframes_id = arg_int(args, 1);
-    buildcachedat_loader_cache_animbaseframes(
+    buildcachedat_loader_animbaseframes_cache_add(
         buildcachedat, animbaseframes_id, archive->data_size, archive->data);
     cache_dat_archive_free(archive);
     return LuaGameType_NewVoid();
@@ -674,12 +674,108 @@ LuaBuildCacheDat_clear_map_chunks(
 }
 
 struct LuaGameType*
-LuaBuildCacheDat_clear_scenery_models(
+LuaBuildCacheDat_model_cache_clear(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     (void)args;
-    buildcachedat_clear_scenery_models(buildcachedat);
+    buildcachedat_model_cache_clear(buildcachedat);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_scenery_config_load_mapchunk_from_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    int mapx = arg_int(args, 0);
+    int mapz = arg_int(args, 1);
+    buildcachedat_loader_scenery_config_load_mapchunk_from_config_jagfile(
+        buildcachedat, mapx, mapz);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_scenery_config_get_model_ids_mapchunk(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    int mapx = arg_int(args, 0);
+    int mapz = arg_int(args, 1);
+    int* ids = NULL;
+    int count = buildcachedat_loader_scenery_config_get_model_ids_mapchunk(
+        buildcachedat, mapx, mapz, &ids);
+    struct LuaGameType* result = LuaGameType_NewIntArray(count);
+    for( int i = 0; i < count; i++ )
+        LuaGameType_IntArrayPush(result, ids[i]);
+    free(ids);
+    return result;
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_scenery_config_get_animbaseframes_ids_mapchunk(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    int mapx = arg_int(args, 0);
+    int mapz = arg_int(args, 1);
+    int* ids = NULL;
+    int count = buildcachedat_loader_scenery_config_get_animbaseframes_ids_mapchunk(
+        buildcachedat, mapx, mapz, &ids);
+    struct LuaGameType* result = LuaGameType_NewIntArray(count);
+    for( int i = 0; i < count; i++ )
+        LuaGameType_IntArrayPush(result, ids[i]);
+    free(ids);
+    return result;
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_animbaseframes_cache_clear(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_animbaseframes_cache_clear(buildcachedat);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_scenery_config_clear(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_scenery_config_clear(buildcachedat);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_sequences_clear(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_sequences_clear(buildcachedat);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_map_scenery_cache_clear(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_map_scenery_cache_clear(buildcachedat);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_map_terrain_cache_clear(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_map_terrain_cache_clear(buildcachedat);
     return LuaGameType_NewVoid();
 }
 

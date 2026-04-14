@@ -826,7 +826,7 @@ world_buildcachedat_rebuild_centerzone(
         }
     }
 
-    buildcachedat_clear_map_scenery_chunks(buildcachedat);
+    buildcachedat_map_scenery_cache_clear(buildcachedat);
 
     struct DecorElementsOnWall* elements = NULL;
     struct Scene2Element* scene_element = NULL;
@@ -1134,7 +1134,7 @@ world_buildcachedat_rebuild_centerzone(
         }
     }
 
-    buildcachedat_clear_map_terrain_chunks(buildcachedat);
+    buildcachedat_map_terrain_cache_clear(buildcachedat);
 
 #if WORLD_BUILD_TERRAIN_VA
     build_scene_terrain_va(world);
@@ -1727,7 +1727,7 @@ world_rebuild_centerzone_chunk(
     buildcachedat_clear_map_chunks(buildcachedat);
     /* Release decoded models -- scene2 owns the uploaded mesh; raw CacheModel data is no longer
      * needed after scenery_add completes for this chunk. */
-    buildcachedat_clear_scenery_models(buildcachedat);
+    buildcachedat_model_cache_clear(buildcachedat);
 }
 
 void

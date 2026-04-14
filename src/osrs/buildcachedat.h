@@ -94,18 +94,30 @@ buildcachedat_clear_map_chunks(struct BuildCacheDat* buildcachedat);
 /** Free only the raw map terrain chunks (CacheMapTerrain). The empty hmap is recreated; call after
  * all terrain passes are complete to reduce peak memory. */
 void
-buildcachedat_clear_map_terrain_chunks(struct BuildCacheDat* buildcachedat);
+buildcachedat_map_terrain_cache_clear(struct BuildCacheDat* buildcachedat);
 
 /** Free only the raw map scenery chunks (CacheMapLocs). The empty hmap is recreated; call after
  * all scenery passes are complete to reduce peak memory. */
 void
-buildcachedat_clear_map_scenery_chunks(struct BuildCacheDat* buildcachedat);
+buildcachedat_map_scenery_cache_clear(struct BuildCacheDat* buildcachedat);
 
 /** Free all decoded scenery models (CacheModel entries in models_hmap) and recreate the map empty.
  * Safe to call after world_rebuild_centerzone_chunk since scene2 owns the uploaded mesh data.
  * Reduces peak memory when building the world one chunk at a time. */
 void
-buildcachedat_clear_scenery_models(struct BuildCacheDat* buildcachedat);
+buildcachedat_model_cache_clear(struct BuildCacheDat* buildcachedat);
+
+/** Free decoded animbaseframes blobs and the animframe reftable; maps are recreated empty. */
+void
+buildcachedat_animbaseframes_cache_clear(struct BuildCacheDat* buildcachedat);
+
+/** Free all decoded loc configs (config_loc_hmap) and recreate the map empty. */
+void
+buildcachedat_scenery_config_clear(struct BuildCacheDat* buildcachedat);
+
+/** Free all decoded sequences and recreate sequences_hmap empty. */
+void
+buildcachedat_sequences_clear(struct BuildCacheDat* buildcachedat);
 
 /** Free every decoded interface component (CacheDatConfigComponent) and recreate an empty
  * component_hmap. Safe after static UI is built into the uitree; buildcachedat_get_component

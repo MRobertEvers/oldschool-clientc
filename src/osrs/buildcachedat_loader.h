@@ -30,14 +30,14 @@ buildcachedat_loader_set_versionlist_jagfile(
     void* data);
 
 void
-buildcachedat_loader_cache_map_terrain_mapid(
+buildcachedat_loader_map_terrain_cache_add_mapid(
     struct BuildCacheDat* buildcachedat,
     int map_id,
     int data_size,
     void* data);
 
 void
-buildcachedat_loader_cache_map_terrain(
+buildcachedat_loader_map_terrain_cache_add(
     struct BuildCacheDat* buildcachedat,
     int param_a,
     int param_b,
@@ -45,14 +45,14 @@ buildcachedat_loader_cache_map_terrain(
     void* data);
 
 void
-buildcachedat_loader_cache_map_scenery_mapid(
+buildcachedat_loader_map_scenery_cache_add_mapid(
     struct BuildCacheDat* buildcachedat,
     int map_id,
     int data_size,
     void* data);
 
 void
-buildcachedat_loader_cache_map_scenery(
+buildcachedat_loader_map_scenery_cache_add(
     struct BuildCacheDat* buildcachedat,
     int param_a,
     int param_b,
@@ -87,7 +87,7 @@ buildcachedat_loader_get_all_unique_scenery_model_ids(
     int** model_ids_out);
 
 void
-buildcachedat_loader_cache_model(
+buildcachedat_loader_model_cache_add(
     struct BuildCacheDat* buildcachedat,
     int model_id,
     int data_size,
@@ -104,14 +104,14 @@ buildcachedat_loader_cache_textures(
     void* data);
 
 void
-buildcachedat_loader_init_sequences_from_config_jagfile(struct BuildCacheDat* buildcachedat);
+buildcachedat_loader_sequences_init_from_config_jagfile(struct BuildCacheDat* buildcachedat);
 
 int
 buildcachedat_loader_get_animbaseframes_count_from_versionlist_jagfile(
     struct BuildCacheDat* buildcachedat);
 
 void
-buildcachedat_loader_cache_animbaseframes(
+buildcachedat_loader_animbaseframes_cache_add(
     struct BuildCacheDat* buildcachedat,
     int animbaseframes_id,
     int data_size,
@@ -178,5 +178,25 @@ void
 buildcachedat_loader_prepare_scene_centerzone(
     struct BuildCacheDat* buildcachedat,
     struct GGame* game);
+
+void
+buildcachedat_loader_scenery_config_load_mapchunk_from_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    int mapx,
+    int mapz);
+
+int
+buildcachedat_loader_scenery_config_get_model_ids_mapchunk(
+    struct BuildCacheDat* buildcachedat,
+    int mapx,
+    int mapz,
+    int** model_ids_out);
+
+int
+buildcachedat_loader_scenery_config_get_animbaseframes_ids_mapchunk(
+    struct BuildCacheDat* buildcachedat,
+    int mapx,
+    int mapz,
+    int** frame_ids_out);
 
 #endif

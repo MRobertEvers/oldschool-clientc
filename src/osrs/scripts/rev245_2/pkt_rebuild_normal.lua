@@ -53,7 +53,7 @@ end
 if #terrain_requests > 0 then
     local terrain_archives = CacheDat.load_archives(terrain_requests)
     for i, map_id in ipairs(terrain_map_ids) do
-        Game.BuildCacheDat.cache_map_terrain(terrain_archives[i], map_id)
+        Game.BuildCacheDat.map_terrain_cache_add(terrain_archives[i], map_id)
     end
 end
 
@@ -74,7 +74,7 @@ end
 if #scenery_requests > 0 then
     local scenery_archives = CacheDat.load_archives(scenery_requests)
     for i, map_id in ipairs(scenery_map_ids) do
-        Game.BuildCacheDat.cache_map_scenery(scenery_archives[i], map_id)
+        Game.BuildCacheDat.map_scenery_cache_add(scenery_archives[i], map_id)
     end
 end
 
@@ -88,7 +88,7 @@ local models_to_load = Game.BuildCacheDat.get_all_unique_scenery_model_ids()
 local model_requests = {}
 local models_needed = {}
 for _, model_id in ipairs(models_to_load) do
-    if not Game.BuildCacheDat.has_model(model_id) then
+    if not Game.BuildCacheDat.model_cache_has(model_id) then
         table.insert(model_requests, {
             table_id = CacheDat.Tables.CACHE_DAT_MODELS,
             archive_id = model_id,
@@ -101,7 +101,7 @@ end
 if #model_requests > 0 then
     local model_archives = CacheDat.load_archives(model_requests)
     for i, model_id in ipairs(models_needed) do
-        Game.BuildCacheDat.cache_model(model_archives[i], model_id)
+        Game.BuildCacheDat.model_cache_add(model_archives[i], model_id)
     end
 end
 

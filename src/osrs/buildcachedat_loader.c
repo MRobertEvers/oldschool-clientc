@@ -124,7 +124,7 @@ buildcachedat_loader_set_versionlist_jagfile(
 }
 
 void
-buildcachedat_loader_cache_map_terrain_mapid(
+buildcachedat_loader_map_terrain_cache_add_mapid(
     struct BuildCacheDat* buildcachedat,
     int map_id,
     int data_size,
@@ -140,7 +140,7 @@ buildcachedat_loader_cache_map_terrain_mapid(
 }
 
 void
-buildcachedat_loader_cache_map_terrain(
+buildcachedat_loader_map_terrain_cache_add(
     struct BuildCacheDat* buildcachedat,
     int param_a,
     int param_b,
@@ -157,7 +157,7 @@ buildcachedat_loader_cache_map_terrain(
 }
 
 void
-buildcachedat_loader_cache_map_scenery_mapid(
+buildcachedat_loader_map_scenery_cache_add_mapid(
     struct BuildCacheDat* buildcachedat,
     int map_id,
     int data_size,
@@ -172,7 +172,7 @@ buildcachedat_loader_cache_map_scenery_mapid(
 }
 
 void
-buildcachedat_loader_cache_map_scenery(
+buildcachedat_loader_map_scenery_cache_add(
     struct BuildCacheDat* buildcachedat,
     int param_a,
     int param_b,
@@ -265,6 +265,158 @@ buildcachedat_loader_init_scenery_configs_from_config_jagfile(struct BuildCacheD
     }
     dashmap_iter_free(iter);
     filelist_dat_indexed_free(filelist_indexed);
+}
+
+void
+buildcachedat_loader_scenery_config_load_mapchunk_from_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    int mapx,
+    int mapz)
+{
+    struct FileListDat* config_jagfile = buildcachedat_config_jagfile(buildcachedat);
+    assert(config_jagfile != NULL && "Config jagfile must be loaded");
+
+    int data_file_idx = filelist_dat_find_file_by_name(config_jagfile, "loc.dat");
+    int index_file_idx = filelist_dat_find_file_by_name(config_jagfile, "loc.idx");
+
+    assert(data_file_idx != -1 && "Data file must be found");
+    assert(index_file_idx != -1 && "Index file must be found");
+
+    struct FileListDatIndexed* filelist_indexed = filelist_dat_indexed_new_from_decode(
+        config_jagfile->files[index_file_idx],
+        config_jagfile->file_sizes[index_file_idx],
+        config_jagfile->files[data_file_idx],
+        config_jagfile->file_sizes[data_file_idx]);
+
+    struct CacheMapLocs* locs = buildcachedat_get_scenery(buildcachedat, mapx, mapz);
+    if( !locs )
+    {
+        filelist_dat_indexed_free(filelist_indexed);
+        return;
+    }
+
+    for( int i = 0; i < locs->locs_count; i++ )
+    {
+        struct CacheMapLoc* loc = &locs->locs[i];
+        assert(loc->loc_id != -1 && "Loc id must be valid");
+        assert(loc->loc_id < filelist_indexed->offset_count && "Loc id must be within range");
+
+        if( buildcachedat_get_config_loc(buildcachedat, loc->loc_id) )
+            continue;
+
+        struct CacheConfigLocation* config_loc = malloc(sizeof(struct CacheConfigLocation));
+        memset(config_loc, 0, sizeof(struct CacheConfigLocation));
+
+        int offset = filelist_indexed->offsets[loc->loc_id];
+
+        config_locs_decode_inplace(
+            config_loc,
+            filelist_indexed->data + offset,
+            filelist_indexed->data_size - offset,
+            CONFIG_LOC_DECODE_DAT);
+
+        config_loc->_id = loc->loc_id;
+
+        buildcachedat_add_config_loc(buildcachedat, loc->loc_id, config_loc);
+    }
+
+    filelist_dat_indexed_free(filelist_indexed);
+}
+
+int
+buildcachedat_loader_scenery_config_get_model_ids_mapchunk(
+    struct BuildCacheDat* buildcachedat,
+    int mapx,
+    int mapz,
+    int** model_ids_out)
+{
+    *model_ids_out = NULL;
+    struct CacheMapLocs* locs = buildcachedat_get_scenery(buildcachedat, mapx, mapz);
+    assert(locs != NULL && "Scenery chunk must be loaded");
+
+    struct Vec* model_ids = vec_new(sizeof(int), 32);
+    for( int i = 0; i < locs->locs_count; i++ )
+    {
+        struct CacheMapLoc* loc = &locs->locs[i];
+        assert(loc->loc_id != -1 && "Loc id must be valid");
+        assert(
+            buildcachedat_get_config_loc(buildcachedat, loc->loc_id) != NULL
+            && "Loc config must be decoded");
+
+        int* mids = NULL;
+        int n = buildcachedat_loader_get_scenery_model_ids(buildcachedat, loc->loc_id, &mids);
+        for( int j = 0; j < n; j++ )
+            vec_push(model_ids, &mids[j]);
+        free(mids);
+    }
+
+    int count = vec_size(model_ids);
+    if( count == 0 )
+    {
+        vec_free(model_ids);
+        return 0;
+    }
+
+    qsort(vec_data(model_ids), (size_t)count, sizeof(int), int_cmp);
+    count = unique_sorted_int((int*)vec_data(model_ids), count);
+
+    *model_ids_out = malloc((size_t)count * sizeof(int));
+    if( !*model_ids_out )
+    {
+        vec_free(model_ids);
+        return 0;
+    }
+    memcpy(*model_ids_out, vec_data(model_ids), (size_t)count * sizeof(int));
+    vec_free(model_ids);
+    return count;
+}
+
+int
+buildcachedat_loader_scenery_config_get_animbaseframes_ids_mapchunk(
+    struct BuildCacheDat* buildcachedat,
+    int mapx,
+    int mapz,
+    int** frame_ids_out)
+{
+    *frame_ids_out = NULL;
+    struct CacheMapLocs* locs = buildcachedat_get_scenery(buildcachedat, mapx, mapz);
+    assert(locs != NULL && "Scenery chunk must be loaded");
+
+    struct Vec* frame_ids = vec_new(sizeof(int), 32);
+    for( int i = 0; i < locs->locs_count; i++ )
+    {
+        struct CacheMapLoc* loc = &locs->locs[i];
+        struct CacheConfigLocation* config_loc =
+            buildcachedat_get_config_loc(buildcachedat, loc->loc_id);
+        assert(config_loc != NULL && "Loc config must be decoded");
+        if( config_loc->seq_id == -1 )
+            continue;
+        struct CacheDatSequence* sequence =
+            buildcachedat_get_sequence(buildcachedat, config_loc->seq_id);
+        assert(sequence != NULL && "Sequence must be decoded");
+        for( int j = 0; j < sequence->frame_count; j++ )
+            vec_push(frame_ids, &sequence->frames[j]);
+    }
+
+    int count = vec_size(frame_ids);
+    if( count == 0 )
+    {
+        vec_free(frame_ids);
+        return 0;
+    }
+
+    qsort(vec_data(frame_ids), (size_t)count, sizeof(int), int_cmp);
+    count = unique_sorted_int((int*)vec_data(frame_ids), count);
+
+    *frame_ids_out = malloc((size_t)count * sizeof(int));
+    if( !*frame_ids_out )
+    {
+        vec_free(frame_ids);
+        return 0;
+    }
+    memcpy(*frame_ids_out, vec_data(frame_ids), (size_t)count * sizeof(int));
+    vec_free(frame_ids);
+    return count;
 }
 
 int
@@ -442,7 +594,7 @@ buildcachedat_loader_get_all_unique_scenery_model_ids(
 }
 
 void
-buildcachedat_loader_cache_model(
+buildcachedat_loader_model_cache_add(
     struct BuildCacheDat* buildcachedat,
     int model_id,
     int data_size,
@@ -491,7 +643,7 @@ buildcachedat_loader_cache_textures(
 }
 
 void
-buildcachedat_loader_init_sequences_from_config_jagfile(struct BuildCacheDat* buildcachedat)
+buildcachedat_loader_sequences_init_from_config_jagfile(struct BuildCacheDat* buildcachedat)
 {
     struct FileListDat* config_jagfile = buildcachedat_config_jagfile(buildcachedat);
     assert(config_jagfile != NULL && "Config jagfile must be loaded");
@@ -532,7 +684,7 @@ buildcachedat_loader_get_animbaseframes_count_from_versionlist_jagfile(
 }
 
 void
-buildcachedat_loader_cache_animbaseframes(
+buildcachedat_loader_animbaseframes_cache_add(
     struct BuildCacheDat* buildcachedat,
     int animbaseframes_id,
     int data_size,
