@@ -321,20 +321,7 @@ world_print_scene2_dashmodel_heap_stats(struct World* world)
         total_vertices += dashmodel_vertex_count(m);
         total_faces += dashmodel_face_count(m);
         count++;
-        // printf(
-        //     "  element %d: %zu bytes, vertices %d, faces %d\n",
-        //     i,
-        //     bytes,
-        //     m->vertex_count,
-        //     m->face_count);
     }
-    // printf(
-    //     "world_buildcachedat_rebuild_centerzone: %d DashModels, total heap %zu bytes, "
-    //     "vertices %lld, faces %lld\n",
-    //     count,
-    //     total,
-    //     total_vertices,
-    //     total_faces);
 }
 
 void
@@ -1475,12 +1462,7 @@ world_rebuild_centerzone_chunk(
                         }
 
                         terrain_shape_map_set_tile(
-                            world->terrain_shapemap,
-                            offset_x,
-                            offset_z,
-                            level,
-                            shape,
-                            rotation);
+                            world->terrain_shapemap, offset_x, offset_z, level, shape, rotation);
                     }
                 }
             }
@@ -1501,8 +1483,7 @@ world_rebuild_centerzone_chunk(
             offset_x = world_to_scene_x(world, mapx, map_tile->chunk_pos_x);
             offset_z = world_to_scene_z(world, mapz, map_tile->chunk_pos_z);
 
-            if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size ||
-                offset_z >= scene_size )
+            if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size || offset_z >= scene_size )
                 continue;
 
             config_loc = buildcachedat_get_config_loc(buildcachedat, map_tile->loc_id);
@@ -1596,18 +1577,18 @@ world_rebuild_centerzone_chunk(
                 break;
             }
             case LOC_SHAPE_SCENERY_DIAGIONAL:
-                {
-                    if( config_loc->blocks_walk != 0 )
-                        collision_map_add_loc(
-                            world->collision_map,
-                            offset_x,
-                            offset_z,
-                            size_x,
-                            size_z,
-                            angle,
-                            blockrange);
-                    break;
-                }
+            {
+                if( config_loc->blocks_walk != 0 )
+                    collision_map_add_loc(
+                        world->collision_map,
+                        offset_x,
+                        offset_z,
+                        size_x,
+                        size_z,
+                        angle,
+                        blockrange);
+                break;
+            }
             case LOC_SHAPE_ROOF_SLOPED:
             case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
             case LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:
@@ -1642,8 +1623,7 @@ world_rebuild_centerzone_chunk(
             offset_x = world_to_scene_x(world, mapx, map_tile->chunk_pos_x);
             offset_z = world_to_scene_z(world, mapz, map_tile->chunk_pos_z);
 
-            if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size ||
-                offset_z >= scene_size )
+            if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size || offset_z >= scene_size )
                 continue;
 
             int level = map_tile->chunk_pos_level;
@@ -1677,10 +1657,7 @@ world_rebuild_centerzone_chunk(
                 int next_orientation = (map_tile->orientation + 1) & 0x3;
 
                 minimap_add_tile_wall(
-                    world->minimap,
-                    offset_x,
-                    offset_z,
-                    orientation_wall_flag(next_orientation));
+                    world->minimap, offset_x, offset_z, orientation_wall_flag(next_orientation));
                 break;
             }
             case LOC_SHAPE_WALL_RECT_CORNER:
@@ -1717,8 +1694,7 @@ world_rebuild_centerzone_chunk(
             offset_x = world_to_scene_x(world, mapx, map_tile->chunk_pos_x);
             offset_z = world_to_scene_z(world, mapz, map_tile->chunk_pos_z);
 
-            if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size ||
-                offset_z >= scene_size )
+            if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size || offset_z >= scene_size )
                 continue;
 
             struct MapBuildLocEntity* entity = next_map_build_loc_entity(world);
@@ -1808,14 +1784,7 @@ world_rebuild_centerzone_end(struct World* world)
 
                 for( int level = 0; level < painter_max_levels(world->painter) - 1; level++ )
                 {
-                    painter_tile_copyto(
-                        world->painter,
-                        x,
-                        z,
-                        level + 1,
-                        x,
-                        z,
-                        level);
+                    painter_tile_copyto(world->painter, x, z, level + 1, x, z, level);
 
                     painter_tile_set_draw_level(world->painter, x, z, level, level);
                 }
