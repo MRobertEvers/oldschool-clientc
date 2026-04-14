@@ -34,6 +34,24 @@
 #include <fcntl.h>
 #endif
 
+#ifdef _WIN32
+/* inet_pton is not declared when _WIN32_WINNT < 0x0600 (e.g. WinXP targets). */
+static int
+sockstream_ipv4_from_string(const char* host, struct in_addr* addr)
+{
+    struct sockaddr_in sa;
+    INT sa_len = (INT)sizeof(sa);
+
+    if( WSAStringToAddressA((LPSTR)host, AF_INET, NULL, (struct sockaddr*)&sa, &sa_len)
+        == SOCKET_ERROR )
+    {
+        return 0;
+    }
+    *addr = sa.sin_addr;
+    return 1;
+}
+#endif
+
 int
 sockstream_init(void)
 {
@@ -135,7 +153,11 @@ sockstream_connect(
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(port);
 
+#ifndef _WIN32
     if( inet_pton(AF_INET, host, &server_addr.sin_addr) <= 0 )
+#else
+    if( !sockstream_ipv4_from_string(host, &server_addr.sin_addr) )
+#endif
     {
         printf("Invalid address: %s\n", host);
 #ifdef _WIN32

@@ -103,6 +103,10 @@ struct StaticUIComponent
         } minimap;
         struct
         {
+            uint8_t level_mask;
+        } world;
+        struct
+        {
             int tabno;
             int componentno;
             int inv_index; /* UIInventoryPool index; -1 if none */
@@ -219,7 +223,8 @@ uitree_push_world(
     struct UITree* tree,
     int32_t parent_index,
     int x,
-    int y);
+    int y,
+    uint8_t level_mask);
 
 int32_t
 uitree_push_compass(

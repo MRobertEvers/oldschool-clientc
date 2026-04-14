@@ -97,6 +97,8 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_COMPONENTNO;
     else if( strcmp(key, "inv") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_INV;
+    else if( strcmp(key, "paint_levels") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_PAINT_LEVELS;
     else if( strcmp(key, "item") == 0 && strcmp(s_ini_item_type, "inv") == 0 )
         kind = RCFIELD_INV_ITEM;
     else if( strcmp(key, "sprite_active") == 0 && strcmp(s_ini_item_type, "component") == 0 )

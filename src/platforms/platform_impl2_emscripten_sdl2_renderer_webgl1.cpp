@@ -322,6 +322,7 @@ render_imgui_overlay(
         1000.0f / ImGui::GetIO().Framerate,
         ImGui::GetIO().Framerate);
 
+#ifdef ENABLE_HEAP_INFO
     {
         struct PlatformMemoryInfo mem = {};
         if( platform_get_memory_info(&mem) )
@@ -336,6 +337,7 @@ render_imgui_overlay(
                 ImGui::Text("Peak: %.1f MB", mem.heap_peak / (1024.0f * 1024.0f));
         }
     }
+#endif
 
     ImGui::Text(
         "Camera: %d %d %d", game->camera_world_x, game->camera_world_y, game->camera_world_z);

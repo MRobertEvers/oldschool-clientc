@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """
-Zip Lua scripts, one baked cullmap, cache254, the osx executable, and optional Win32 DLLs.
+Zip Lua scripts, revconfig configs (INI trees under configs/, excluding the cullmaps folder),
+the baked cullmap .bin, cache254, the osx executable, and optional Win32 DLLs.
 Loads repo-root .env for defaults; CLI overrides .env. Paths in .env may be relative to repo root.
+
+Always runs `cmake -S <repo> -B BUILD_DIR -DCMAKE_BUILD_TYPE=BUILD_TYPE` then
+`cmake --build BUILD_DIR` (uses the generator CMake picked; no separate `make` on PATH).
 """
 from __future__ import annotations
 
@@ -16,9 +20,11 @@ CULLMAP_BIN = "painters_cullmap_baked_r25_f50_w600_h400.bin"
 
 DEFAULTS = {
     "SCRIPTS_DIR": "src/osrs/scripts",
+    "REVCONFIGS_DIR": "src/osrs/revconfig/configs",
     "CULLMAPS_DIR": "src/osrs/revconfig/configs/cullmaps",
-    "CACHE_DIR": "../cache254",
+    "CACHE_DIR": "cache254",
     "BUILD_DIR": "build-mingw",
+    "BUILD_TYPE": "Release",
     "PACKAGE_OUTPUT": "package_build.zip",
     "SDL2_DLL_PATH": "",
     "LIBWINPTHREAD_DLL_PATH": "",
@@ -72,12 +78,22 @@ def add_tree_lua(z: zipfile.ZipFile, src_dir: Path, arc_prefix: str) -> None:
         z.write(path, arcname=arc)
 
 
-def add_tree_all(z: zipfile.ZipFile, src_dir: Path, arc_prefix: str) -> None:
+def add_tree_all(
+    z: zipfile.ZipFile,
+    src_dir: Path,
+    arc_prefix: str,
+    *,
+    exclude_top_level_names: frozenset[str] | None = None,
+) -> None:
+    skip = exclude_top_level_names or frozenset()
     for path in sorted(src_dir.rglob("*")):
-        if path.is_file():
-            rel = path.relative_to(src_dir)
-            arc = f"{arc_prefix}/{rel.as_posix()}"
-            z.write(path, arcname=arc)
+        if not path.is_file():
+            continue
+        rel = path.relative_to(src_dir)
+        if rel.parts and rel.parts[0] in skip:
+            continue
+        arc = f"{arc_prefix}/{rel.as_posix()}"
+        z.write(path, arcname=arc)
 
 
 def main() -> int:
@@ -92,9 +108,14 @@ def main() -> int:
         help="Lua scripts directory (default: env SCRIPTS_DIR or repo default)",
     )
     parser.add_argument(
+        "--revconfigs-dir",
+        default=env.get("REVCONFIGS_DIR", DEFAULTS["REVCONFIGS_DIR"]),
+        help="Revconfig configs tree (packed as configs/; top-level cullmaps/ is omitted)",
+    )
+    parser.add_argument(
         "--cullmaps-dir",
         default=env.get("CULLMAPS_DIR", DEFAULTS["CULLMAPS_DIR"]),
-        help="Directory containing cullmap .bin files",
+        help="Directory containing cullmap .bin files (used to verify the baked cullmap exists)",
     )
     parser.add_argument(
         "--cache-dir",
@@ -125,33 +146,59 @@ def main() -> int:
     parser.add_argument(
         "--compile-flags",
         default=env.get("COMPILE_FLAGS", DEFAULTS["COMPILE_FLAGS"]).strip(),
-        help="Additional arguments passed to make as overrides (e.g. CFLAGS=\"-O2\" CXXFLAGS=\"-O2\"); empty skips build",
+        help="Extra args after `cmake --build ... --` for the native tool (e.g. VERBOSE=1); optional",
+    )
+    parser.add_argument(
+        "--build-type",
+        default=env.get("BUILD_TYPE", DEFAULTS["BUILD_TYPE"]).strip(),
+        help="CMake CMAKE_BUILD_TYPE when configuring before build (default: Release)",
     )
     args = parser.parse_args()
 
     scripts_dir = resolve_path(repo, args.scripts_dir)
+    revconfigs_dir = resolve_path(repo, args.revconfigs_dir)
     cullmaps_dir = resolve_path(repo, args.cullmaps_dir)
     cache_dir = resolve_path(repo, args.cache_dir)
     build_dir = resolve_path(repo, args.build_dir)
     out_zip = resolve_path(repo, args.output)
 
+    if not build_dir.is_dir():
+        print(f"package_build: BUILD_DIR is not a directory: {build_dir}", file=sys.stderr)
+        return 1
+
+    build_type = (args.build_type or "Release").strip()
+    cmake_cmd = [
+        "cmake",
+        "-S",
+        str(repo),
+        "-B",
+        str(build_dir),
+        f"-DCMAKE_BUILD_TYPE={build_type}",
+    ]
+    print(f"package_build: running {' '.join(cmake_cmd)}")
+    result = subprocess.run(cmake_cmd)
+    if result.returncode != 0:
+        print(f"package_build: cmake failed (exit {result.returncode})", file=sys.stderr)
+        return 1
+
+    build_cmd = ["cmake", "--build", str(build_dir)]
     compile_flags = (args.compile_flags or "").strip()
     if compile_flags:
-        if not build_dir.is_dir():
-            print(f"package_build: BUILD_DIR is not a directory: {build_dir}", file=sys.stderr)
-            return 1
-        cmd = ["make", "-C", str(build_dir)] + shlex.split(compile_flags)
-        print(f"package_build: running {' '.join(cmd)}")
-        result = subprocess.run(cmd)
-        if result.returncode != 0:
-            print(f"package_build: make failed (exit {result.returncode})", file=sys.stderr)
-            return 1
+        build_cmd.append("--")
+        build_cmd.extend(shlex.split(compile_flags))
+    print(f"package_build: running {' '.join(build_cmd)}")
+    result = subprocess.run(build_cmd)
+    if result.returncode != 0:
+        print(f"package_build: cmake --build failed (exit {result.returncode})", file=sys.stderr)
+        return 1
 
     cullmap_path = cullmaps_dir / CULLMAP_BIN
 
     missing: list[str] = []
     if not scripts_dir.is_dir():
         missing.append(str(scripts_dir))
+    if not revconfigs_dir.is_dir():
+        missing.append(str(revconfigs_dir))
     if not cullmap_path.is_file():
         missing.append(str(cullmap_path))
     if not cache_dir.is_dir():
@@ -186,6 +233,12 @@ def main() -> int:
 
     with zipfile.ZipFile(out_zip, "w", compression=zipfile.ZIP_DEFLATED) as z:
         add_tree_lua(z, scripts_dir, "scripts")
+        add_tree_all(
+            z,
+            revconfigs_dir,
+            "configs",
+            exclude_top_level_names=frozenset({"cullmaps"}),
+        )
         z.write(cullmap_path, arcname=f"configs/cullmaps/{CULLMAP_BIN}")
         add_tree_all(z, cache_dir, "cache254")
         z.write(exe_path, arcname=exe_path.name)

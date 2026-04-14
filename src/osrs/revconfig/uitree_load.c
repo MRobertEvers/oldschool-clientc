@@ -19,6 +19,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 
 struct SpriteEntry
@@ -45,6 +46,7 @@ struct ComponentEntry
     int tabno;
     int componentno;
     char inv[64];
+    uint8_t level_mask;
 };
 
 enum SpriteLoad_AtlasMode
@@ -89,7 +91,45 @@ struct ComponentLoad
     int tabno;
     int componentno;
     char inv[64];
+    char paint_levels[64];
 };
+
+/** Comma-separated level indices 0-3 -> bitmask; empty string -> all levels (0xF). */
+static uint8_t
+parse_paint_levels_mask(const char* str)
+{
+    if( !str || str[0] == '\0' )
+        return 0xFu;
+    unsigned m = 0u;
+    const char* p = str;
+    while( *p != '\0' )
+    {
+        while( *p == ' ' || *p == '\t' )
+            p++;
+        if( *p == '\0' )
+            break;
+        char* end = NULL;
+        long v = strtol(p, &end, 10);
+        if( end == p )
+        {
+            while( *p && *p != ',' )
+                p++;
+            if( *p == ',' )
+                p++;
+            continue;
+        }
+        if( v >= 0 && v < 8 )
+            m |= 1u << (unsigned)v;
+        p = end;
+        while( *p == ' ' || *p == '\t' )
+            p++;
+        if( *p == ',' )
+            p++;
+    }
+    if( m == 0u )
+        return 0xFu;
+    return (uint8_t)m;
+}
 
 #define MAX_LAYOUT_ENTRIES 64
 
@@ -463,6 +503,7 @@ load_component(
     }
     break;
     case UIELEM_BUILTIN_WORLD:
+        component_entry->level_mask = parse_paint_levels_mask(load->paint_levels);
         break;
     case UIELEM_BUILTIN_SPRITE:
     {
@@ -958,7 +999,8 @@ load_layout(
         break;
         case UIELEM_BUILTIN_WORLD: // "world"
         {
-            uitree_push_world(ui, -1, layout_entry->x, layout_entry->y);
+            uitree_push_world(
+                ui, -1, layout_entry->x, layout_entry->y, component_entry->level_mask);
         }
         break;
         case UIELEM_BUILTIN_REDSTONE_TAB:
@@ -1323,6 +1365,16 @@ uitree_from_revconfig_buildcachedat(
                 "UICOMPONENT_INV field must be within a component item");
             strncpy(load._component.inv, field->value, sizeof(load._component.inv) - 1);
             load._component.inv[sizeof(load._component.inv) - 1] = '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_PAINT_LEVELS:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "UICOMPONENT_PAINT_LEVELS field must be within a component item");
+            strncpy(
+                load._component.paint_levels, field->value, sizeof(load._component.paint_levels) - 1);
+            load._component.paint_levels[sizeof(load._component.paint_levels) - 1] = '\0';
         }
         break;
         case RCFIELD_INV_ITEM:
@@ -1769,6 +1821,16 @@ uitree_load_ui_from_revconfig(
                 "UICOMPONENT_INV field must be within a component item");
             strncpy(load._component.inv, field->value, sizeof(load._component.inv) - 1);
             load._component.inv[sizeof(load._component.inv) - 1] = '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_PAINT_LEVELS:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "UICOMPONENT_PAINT_LEVELS field must be within a component item");
+            strncpy(
+                load._component.paint_levels, field->value, sizeof(load._component.paint_levels) - 1);
+            load._component.paint_levels[sizeof(load._component.paint_levels) - 1] = '\0';
         }
         break;
         case RCFIELD_INV_ITEM:

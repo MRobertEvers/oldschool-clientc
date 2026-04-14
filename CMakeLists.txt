@@ -17,6 +17,7 @@ option(ENABLE_ASAN "Enable AddressSanitizer (ASAN)" OFF)
 option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer (UBSAN)" OFF)
 option(BUILD_WEB_NATIVE "Build the web_client_native (SDL-free) Emscripten target" OFF)
 option(ENABLE_PACKAGE_BUILD "Copy scripts/configs/cache254 next to executable; use app-root resource paths" OFF)
+option(ENABLE_HEAP_INFO "Show heap stats in ImGui debug overlays (platform_get_memory_info)" OFF)
 
 file(GLOB LUA_SOURCES "src/3rd/lua/*.c")
 list(REMOVE_ITEM LUA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/lua.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/luac.c")
@@ -214,16 +215,28 @@ if(NOT EMSCRIPTEN)
             CACHE_PATH="cache254"
             CACHE_DAT_PATH="cache254"
         )
-        add_custom_command(TARGET osx POST_BUILD
+        set(_osx_pkg_post_build
             COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_SOURCE_DIR}/src/osrs/scripts"
                 "${CMAKE_CURRENT_BINARY_DIR}/scripts"
             COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_SOURCE_DIR}/src/osrs/revconfig/configs"
                 "${CMAKE_CURRENT_BINARY_DIR}/configs"
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/../cache254"
-                "${CMAKE_CURRENT_BINARY_DIR}/cache254"
+        )
+        if(EXISTS "${CMAKE_SOURCE_DIR}/../cache254")
+            list(APPEND _osx_pkg_post_build
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${CMAKE_SOURCE_DIR}/../cache254"
+                    "${CMAKE_CURRENT_BINARY_DIR}/cache254"
+            )
+        else()
+            message(WARNING
+                "ENABLE_PACKAGE_BUILD: no directory at ${CMAKE_SOURCE_DIR}/../cache254 — skipping cache copy. "
+                "Place or symlink a cache254 folder next to the repo for a full distributable build."
+            )
+        endif()
+        add_custom_command(TARGET osx POST_BUILD
+            ${_osx_pkg_post_build}
             COMMENT "ENABLE_PACKAGE_BUILD: copy resources next to osx executable"
         )
     endif()
@@ -514,6 +527,14 @@ if(EMSCRIPTEN)
             COMMENT "Copying browser JS files to build directory (web_client_native)"
         )
     endif()
+endif()
+
+if(ENABLE_HEAP_INFO)
+    foreach(_t_imgui_heap osx web_client web_client_native)
+        if(TARGET ${_t_imgui_heap})
+            target_compile_definitions(${_t_imgui_heap} PRIVATE ENABLE_HEAP_INFO=1)
+        endif()
+    endforeach()
 endif()
 
 # --- Global Properties ---

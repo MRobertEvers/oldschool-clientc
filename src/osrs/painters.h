@@ -331,6 +331,12 @@ painter_set_camera_angles(
     int pitch,
     int yaw);
 
+/** Bitmask of levels to draw (bits 0-3 for levels 0-3). Default 0xF = all levels. */
+void
+painter_set_level_mask(
+    struct Painter* painter,
+    uint8_t mask);
+
 /** Bitmask: which scratch contexts painter_new allocates up front (see painters_bucket / world3d / distancemetric). */
 enum PainterNewContextFlags
 {

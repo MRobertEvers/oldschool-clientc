@@ -44,6 +44,9 @@ struct Painter
     int camera_pitch;
     int camera_yaw;
 
+    /** Bitmask: bit s set => level s participates in paint (0-3 for MAP_TERRAIN_LEVELS). Default 0xF. */
+    uint8_t level_mask;
+
     int static_element_count;
 
     struct PaintersTile* tiles;

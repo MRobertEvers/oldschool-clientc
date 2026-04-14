@@ -73,6 +73,7 @@ render_imgui(
         1000.0f / ImGui::GetIO().Framerate,
         ImGui::GetIO().Framerate);
 
+#ifdef ENABLE_HEAP_INFO
     {
         struct PlatformMemoryInfo mem = {};
         if( platform_get_memory_info(&mem) )
@@ -87,6 +88,7 @@ render_imgui(
                 ImGui::Text("Peak: %.1f MB", mem.heap_peak / (1024.0f * 1024.0f));
         }
     }
+#endif
 
     Uint64 frequency = SDL_GetPerformanceFrequency();
     (void)frequency;

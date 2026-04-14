@@ -468,8 +468,19 @@ painter_new(
     painter->cullmap = NULL;
     painter->camera_pitch = 0;
     painter->camera_yaw = 0;
+    painter->level_mask = 0xFu;
 
     return painter;
+}
+
+void
+painter_set_level_mask(
+    struct Painter* painter,
+    uint8_t mask)
+{
+    if( !painter )
+        return;
+    painter->level_mask = mask;
 }
 
 static inline bool

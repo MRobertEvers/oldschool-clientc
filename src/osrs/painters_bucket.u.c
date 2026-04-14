@@ -193,6 +193,8 @@ painter_paint_bucket(
 
     for( int s = 0; s < max_level && s < painter->levels; s++ )
     {
+        if( (painter->level_mask & (1u << s)) == 0 )
+            continue;
         for( int z = min_draw_z; z < max_draw_z; z++ )
         {
             int base = painter_coord_idx(painter, min_draw_x, z, s);
@@ -205,6 +207,8 @@ painter_paint_bucket(
 
     for( int s = 0; s < max_level && s < painter->levels; s++ )
     {
+        if( (painter->level_mask & (1u << s)) == 0 )
+            continue;
         for( int z = min_draw_z; z < max_draw_z; z++ )
         {
             for( int x = min_draw_x; x < max_draw_x; x++ )
@@ -238,6 +242,8 @@ painter_paint_bucket(
 
     for( int s = 0; s < max_level && s < painter->levels; s++ )
     {
+        if( (painter->level_mask & (1u << s)) == 0 )
+            continue;
         for( int z = min_draw_z; z < max_draw_z; z++ )
         {
             for( int x = min_draw_x; x < max_draw_x; x++ )

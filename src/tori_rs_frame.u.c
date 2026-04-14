@@ -49,6 +49,20 @@ frame_sidebar_tab_active(
     return game->iface->selected_tab == sidebar->u.sidebar.tabno;
 }
 
+/** Level bitmask from first `UIELEM_BUILTIN_WORLD` in the UI tree; default all levels. */
+static uint8_t
+frame_ui_world_level_mask(struct GGame* game)
+{
+    if( !game || !game->ui_root_buffer )
+        return 0xFu;
+    for( uint32_t i = 0; i < game->ui_root_buffer->component_count; i++ )
+    {
+        if( game->ui_root_buffer->components[i].type == UIELEM_BUILTIN_WORLD )
+            return game->ui_root_buffer->components[i].u.world.level_mask;
+    }
+    return 0xFu;
+}
+
 static bool
 frame_uitree_should_descend(
     struct GGame* game,
@@ -557,6 +571,7 @@ LibToriRS_FrameBegin(
         int camera_slevel = game->camera_world_y / 240;
 
         painter_set_camera_angles(painter, game->camera_pitch, game->camera_yaw);
+        painter_set_level_mask(painter, frame_ui_world_level_mask(game));
 
         static int painter_bench_frames;
         static uint64_t painter_bench_sum_paint_ns;

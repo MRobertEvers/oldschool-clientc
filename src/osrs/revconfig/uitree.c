@@ -358,7 +358,8 @@ uitree_push_world(
     struct UITree* tree,
     int32_t parent_index,
     int x,
-    int y)
+    int y,
+    uint8_t level_mask)
 {
     int32_t idx = push_element(tree, parent_index);
     if( idx < 0 )
@@ -369,6 +370,7 @@ uitree_push_world(
     component->position.kind = UIPOS_XY;
     component->position.x = x;
     component->position.y = y;
+    component->u.world.level_mask = level_mask;
     return idx;
 }
 
