@@ -1,4 +1,5 @@
 #include "painters.h"
+
 #include "painters_i.h"
 
 #include <assert.h>
@@ -710,6 +711,7 @@ painter_add_normal_scenery(
     int size_x,
     int size_z)
 {
+    assert(entity >= 0 && entity < UINT16_MAX);
     int element = painter_push_element(painter);
 
     compute_normal_scenery_spans(painter, sx, sz, slevel, size_x, size_z, element);

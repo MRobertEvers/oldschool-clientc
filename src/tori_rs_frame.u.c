@@ -546,10 +546,12 @@ LibToriRS_FrameBegin(
         }
     }
 
-    if( game->world && game->world->painter && game->sys_painter_buffer && game->world->cullmap )
+    if( game->world && game->world->load_complete && game->world->painter &&
+        game->sys_painter_buffer && game->world->cullmap )
     {
-        struct Painter* painter = game->world->painter;
         struct PaintersBuffer* buffer = game->sys_painter_buffer;
+
+        struct Painter* painter = game->world->painter;
         int camera_sx = game->camera_world_x / 128;
         int camera_sz = game->camera_world_z / 128;
         int camera_slevel = game->camera_world_y / 240;

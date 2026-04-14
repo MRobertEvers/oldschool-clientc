@@ -346,6 +346,8 @@ world_buildcachedat_rebuild_centerzone(
 {
     struct BuildCacheDat* buildcachedat = world->buildcachedat;
 
+    world->load_complete = false;
+
     // Rebuild the center zone
     int zone_padding = scene_size / (2 * 8);
     int zone_sw_x = zone_center_x - zone_padding;
@@ -1165,6 +1167,8 @@ done:
 
     if( buildcachedat )
         buildcachedat_clear_map_chunks(buildcachedat);
+
+    world->load_complete = true;
 }
 
 /* =========================================================================
@@ -1191,6 +1195,8 @@ world_rebuild_centerzone_begin(
     int scene_size)
 {
     struct BuildCacheDat* buildcachedat = world->buildcachedat;
+
+    world->load_complete = false;
 
     int zone_padding = scene_size / (2 * 8);
     int zone_sw_x = zone_center_x - zone_padding;
@@ -1868,6 +1874,8 @@ world_rebuild_centerzone_end(struct World* world)
 
     if( buildcachedat )
         buildcachedat_clear_map_chunks(buildcachedat);
+
+    world->load_complete = true;
 }
 
 void

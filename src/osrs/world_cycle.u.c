@@ -469,6 +469,9 @@ world_cycle(
     struct World* world,
     int cycles_elapsed)
 {
+    if( !world || !world->load_complete )
+        return;
+
     world_cycle_begin(world);
 
     world_cycle_update_map_build_loc_entities(world, cycles_elapsed);

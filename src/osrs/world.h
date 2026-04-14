@@ -66,6 +66,8 @@ struct World
     struct Minimap* minimap;
     /** Scene2 is owned by the caller (e.g. GGame); world never frees it. */
     struct Scene2* scene2;
+    /** False while a center-zone rebuild is in progress; true after it completes. */
+    bool load_complete;
 
     // Todo: How to organize, these are only used at build time.
     // Lightmap
