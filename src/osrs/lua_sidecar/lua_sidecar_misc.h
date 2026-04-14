@@ -6,15 +6,6 @@
 
 #include <stdbool.h>
 
-bool
-LuaSidecarMisc_CommandHasPrefix(const char* command);
-
-struct LuaGameType*
-LuaSidecarMisc_DispatchCommand(
-    struct GGame* game,
-    char* full_command,
-    struct LuaGameType* args);
-
 /** Args: [LuaConfigFile* userdata, int radius]. Installs cullmap on game->world. */
 struct LuaGameType*
 LuaSidecarMisc_read_cullmap_from_blob(

@@ -25,6 +25,12 @@ LuaUI_load_rs_components(
     struct LuaGameType* args);
 
 struct LuaGameType*
+LuaUI_resolve_inv_sprites(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
 LuaUI_parse_revconfig(
     struct GGame* game,
     struct BuildCacheDat* buildcachedat,
@@ -46,16 +52,6 @@ struct LuaGameType*
 LuaUI_load_revconfig_ui(
     struct GGame* game,
     struct BuildCacheDat* buildcachedat,
-    struct LuaGameType* args);
-
-bool
-LuaUI_CommandHasPrefix(const char* command);
-
-struct LuaGameType*
-LuaUI_DispatchCommand(
-    struct GGame* game,
-    struct BuildCacheDat* buildcachedat,
-    char* command,
     struct LuaGameType* args);
 
 #endif

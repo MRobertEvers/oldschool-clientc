@@ -55,15 +55,6 @@ LuaGame_get_interface_model_ids(
     struct GGame* game,
     struct LuaGameType* args);
 
-bool
-LuaGame_CommandHasPrefix(const char* command);
-
-struct LuaGameType*
-LuaGame_DispatchCommand(
-    struct GGame* game,
-    char* command,
-    struct LuaGameType* args);
-
 /** Heap allocator bytes in use (platform_get_memory_info), as MB float. */
 struct LuaGameType*
 LuaGame_get_heap_usage_mb(

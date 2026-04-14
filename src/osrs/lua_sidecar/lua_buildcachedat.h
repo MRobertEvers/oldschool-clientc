@@ -14,16 +14,6 @@ struct LuaGameType;
  * Functions that return void return NULL. */
 
 struct LuaGameType*
-LuaBuildCacheDat_DispatchCommand(
-    struct BuildCacheDat* buildcachedat,
-    struct GGame* game,
-    char* command,
-    struct LuaGameType* args);
-
-bool
-LuaBuildCacheDat_CommandHasPrefix(char* command);
-
-struct LuaGameType*
 LuaBuildCacheDat_cache_map_scenery(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
@@ -40,6 +30,11 @@ LuaBuildCacheDat_init_varp_varbit_from_config_jagfile(
 
 struct LuaGameType*
 LuaBuildCacheDat_set_versionlist_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_set_2d_media_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
@@ -210,6 +205,11 @@ LuaBuildCacheDat_clear(
 
 struct LuaGameType*
 LuaBuildCacheDat_clear_map_chunks(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_clear_scenery_models(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 

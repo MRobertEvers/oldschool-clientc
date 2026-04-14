@@ -6,7 +6,7 @@ local function safe_gc()
 end
 
 local function print_heap(label)
-    local mb = Game.game_get_heap_usage_mb()
+    local mb = Game.Game.get_heap_usage_mb()
     print(string.format("[heap] %-48s %.1f MB", label, mb))
 end
 
@@ -27,30 +27,30 @@ end
 
 -- Load terrain and scenery for a single chunk into buildcachedat.
 local function load_chunk_map_data(mapx, mapz)
-    if not Game.buildcachedat_has_map_terrain(mapx, mapz) then
+    if not Game.BuildCacheDat.has_map_terrain(mapx, mapz) then
         local map_id = (mapx << 16) | (mapz)
         local terrain_archive = CacheDat.load_archive(
             CacheDat.Tables.CACHE_DAT_MAPS, map_id,
             CacheDat.ArchiveIdFlags.MAP_TERRAIN)
-        Game.buildcachedat_cache_map_terrain(terrain_archive, map_id)
+        Game.BuildCacheDat.cache_map_terrain(terrain_archive, map_id)
     end
 
-    if not Game.buildcachedat_has_map_scenery(mapx, mapz) then
+    if not Game.BuildCacheDat.has_map_scenery(mapx, mapz) then
         local map_id = (mapx << 16) | (mapz)
         local scenery_archive = CacheDat.load_archive(
             CacheDat.Tables.CACHE_DAT_MAPS, map_id,
             CacheDat.ArchiveIdFlags.MAP_SCENERY)
-        Game.buildcachedat_cache_map_scenery(scenery_archive, map_id)
+        Game.BuildCacheDat.cache_map_scenery(scenery_archive, map_id)
     end
 end
 
 -- Load models for all scenery currently cached in buildcachedat.
 local function load_scenery_models()
-    local models_to_load = Game.buildcachedat_get_all_unique_scenery_model_ids()
+    local models_to_load = Game.BuildCacheDat.get_all_unique_scenery_model_ids()
     local model_requests = {}
     local models_needed = {}
     for _, model_id in ipairs(models_to_load) do
-        if not Game.buildcachedat_has_model(model_id) then
+        if not Game.BuildCacheDat.has_model(model_id) then
             table.insert(model_requests,
                 { table_id = CacheDat.Tables.CACHE_DAT_MODELS, archive_id = model_id, flags = 0 })
             table.insert(models_needed, model_id)
@@ -59,7 +59,7 @@ local function load_scenery_models()
     if #model_requests > 0 then
         local model_archives = CacheDat.load_archives(model_requests)
         for i, model_id in ipairs(models_needed) do
-            Game.buildcachedat_cache_model(model_archives[i], model_id)
+            Game.BuildCacheDat.cache_model(model_archives[i], model_id)
         end
     end
 end
@@ -81,7 +81,7 @@ local function world_rebuild_centerzone_slow(zone_center_x, zone_center_z, scene
         zone_center_x, zone_center_z, scene_size,
         chunk_sw_x, chunk_ne_x, chunk_sw_z, chunk_ne_z))
 
-    Game.game_rebuild_centerzone_begin(zone_center_x, zone_center_z, scene_size)
+    Game.Game.rebuild_centerzone_begin(zone_center_x, zone_center_z, scene_size)
     print_heap("after rebuild_centerzone_begin")
 
     for mapx = chunk_sw_x, chunk_ne_x do
@@ -93,13 +93,13 @@ local function world_rebuild_centerzone_slow(zone_center_x, zone_center_z, scene
             -- buildcachedat_init_scenery_configs iterates the currently-cached scenery to
             -- discover which loc-ids to decode.  It must run after scenery is loaded and
             -- while the config jagfile is still set.
-            Game.buildcachedat_init_scenery_configs_from_config_jagfile()
+            Game.BuildCacheDat.init_scenery_configs_from_config_jagfile()
 
             load_scenery_models()
 
             -- Populates heightmap, collision, minimap, entities, blendmap, overlaymap,
             -- and shapemap for this chunk.  Clears terrain + scenery + models on return.
-            Game.game_rebuild_centerzone_chunk(mapx, mapz)
+            Game.Game.rebuild_centerzone_chunk(mapx, mapz)
 
             safe_gc()
             print_heap(string.format("  after chunk (%d,%d)", mapx, mapz))
@@ -107,11 +107,11 @@ local function world_rebuild_centerzone_slow(zone_center_x, zone_center_z, scene
     end
 
     -- Config jagfile is no longer needed once all chunks have been processed.
-    Game.buildcachedat_clear_config_jagfile()
+    Game.BuildCacheDat.clear_config_jagfile()
     safe_gc()
     print_heap("after chunk loop + clear config jagfile")
 
-    Game.game_rebuild_centerzone_end()
+    Game.Game.rebuild_centerzone_end()
     print_heap("after rebuild_centerzone_end (includes buildcachedat_clear)")
 end
 
@@ -141,8 +141,8 @@ local function world_rebuild_centerzone(zone_center_x, zone_center_z, scene_size
     print_heap("after bulk map data load")
 
     -- All scenery is now cached; decode config_locs for every loc at once.
-    Game.buildcachedat_init_scenery_configs_from_config_jagfile()
-    Game.buildcachedat_clear_config_jagfile()
+    Game.BuildCacheDat.init_scenery_configs_from_config_jagfile()
+    Game.BuildCacheDat.clear_config_jagfile()
     safe_gc()
     print_heap("after scenery config init + clear config jagfile")
 
@@ -151,7 +151,7 @@ local function world_rebuild_centerzone(zone_center_x, zone_center_z, scene_size
     print_heap("after bulk model load")
 
     -- Build the scene in one monolithic C call.
-    Game.game_build_scene_centerzone(zone_center_x, zone_center_z, scene_size)
+    Game.Game.build_scene_centerzone(zone_center_x, zone_center_z, scene_size)
     print_heap("after game_build_scene_centerzone (includes buildcachedat_clear)")
 end
 
@@ -167,9 +167,9 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
         { table_id = CacheDat.Tables.CACHE_DAT_CONFIGS, archive_id = CacheDat.ConfigDatKind.CONFIG_DAT_VERSION_LIST,      flags = 0 },
         { table_id = CacheDat.Tables.CACHE_DAT_CONFIGS, archive_id = CacheDat.ConfigDatKind.CONFIG_DAT_MEDIA_2D_GRAPHICS, flags = 0 },
     })
-    Game.buildcachedat_set_config_jagfile(config_archives[1])
-    Game.buildcachedat_set_versionlist_jagfile(config_archives[2])
-    Game.buildcachedat_set_2d_media_jagfile(config_archives[3])
+    Game.BuildCacheDat.set_config_jagfile(config_archives[1])
+    Game.BuildCacheDat.set_versionlist_jagfile(config_archives[2])
+    Game.BuildCacheDat.set_2d_media_jagfile(config_archives[3])
     config_archives = nil
     print_heap("after jagfile setup")
 
@@ -177,10 +177,10 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     -- init_scenery_configs is intentionally deferred to the build functions because
     -- it iterates the currently-cached scenery to find loc-ids to decode.
     print("=== Loading Config (non-scenery tables) ===")
-    Game.buildcachedat_init_floortypes_from_config_jagfile()
-    Game.buildcachedat_init_idkits_from_config_jagfile()
-    Game.buildcachedat_init_sequences_from_config_jagfile()
-    Game.buildcachedat_clear_media_jagfile()
+    Game.BuildCacheDat.init_floortypes_from_config_jagfile()
+    Game.BuildCacheDat.init_idkits_from_config_jagfile()
+    Game.BuildCacheDat.init_sequences_from_config_jagfile()
+    Game.BuildCacheDat.clear_media_jagfile()
     safe_gc()
     print_heap("after non-scenery config init + clear media jagfile")
 
@@ -188,19 +188,19 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     local texture_sprites_ptr = CacheDat.load_archive(
         CacheDat.Tables.CACHE_DAT_CONFIGS,
         CacheDat.ConfigDatKind.CONFIG_DAT_TEXTURES)
-    Game.buildcachedat_cache_textures(texture_sprites_ptr)
-    Game.dash_load_textures()
+    Game.BuildCacheDat.cache_textures(texture_sprites_ptr)
+    Game.Dash.load_textures()
     texture_sprites_ptr = nil
     print_heap("after textures")
 
     print("=== Loading Animations ===")
-    local animbaseframes_count = Game.buildcachedat_get_animbaseframes_count_from_versionlist_jagfile()
-    Game.buildcachedat_clear_versionlist_jagfile()
+    local animbaseframes_count = Game.BuildCacheDat.get_animbaseframes_count_from_versionlist_jagfile()
+    Game.BuildCacheDat.clear_versionlist_jagfile()
 
     local anim_requests = {}
     local anim_indices = {}
     for i = 0, animbaseframes_count - 1 do
-        if not Game.buildcachedat_has_animbaseframes(i) then
+        if not Game.BuildCacheDat.has_animbaseframes(i) then
             table.insert(anim_requests,
                 { table_id = CacheDat.Tables.CACHE_DAT_ANIMATIONS, archive_id = i, flags = 0 })
             table.insert(anim_indices, i)
@@ -209,7 +209,7 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     if #anim_requests > 0 then
         local anim_archives = CacheDat.load_archives(anim_requests)
         for idx, anim_i in ipairs(anim_indices) do
-            Game.buildcachedat_cache_animbaseframes(anim_archives[idx], anim_i)
+            Game.BuildCacheDat.cache_animbaseframes(anim_archives[idx], anim_i)
         end
     end
     anim_requests = nil

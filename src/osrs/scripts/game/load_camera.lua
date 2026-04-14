@@ -1,4 +1,4 @@
-local cam = Game.misc_load_camera()
+local cam = Game.Misc.load_camera()
 if cam then
     _G.camera_x = cam[1]
     _G.camera_y = cam[2]

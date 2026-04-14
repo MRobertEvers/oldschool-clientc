@@ -1,1 +1,1 @@
-Game.misc_save_camera()
+Game.Misc.save_camera()

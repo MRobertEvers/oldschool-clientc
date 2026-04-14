@@ -5,6 +5,7 @@
 #include "3rd/lua/lualib.h"
 #include "osrs/game.h"
 #include "osrs/lua_scripts.h"
+#include "osrs/lua_sidecar/lua_api.h"
 #include "osrs/lua_sidecar/lua_configfile.h"
 #include "osrs/lua_sidecar/lua_gametypes.h"
 #include "osrs/lua_sidecar/lua_platform.h"
@@ -18,33 +19,22 @@
 #define LUA_SCRIPTS_DIR "../src/osrs/scripts"
 
 static int
-c_wasm_dispatcher(lua_State* L)
+c_wasm_dispatcher_by_id(lua_State* L)
 {
-    const char* func_name = lua_tostring(L, lua_upvalueindex(1));
+    int api_id = (int)lua_tointeger(L, lua_upvalueindex(1));
     void* ctx = lua_touserdata(L, lua_upvalueindex(2));
     LuaCSidecar_GameCallback callback =
         (LuaCSidecar_GameCallback)lua_touserdata(L, lua_upvalueindex(3));
 
     if( !callback )
-    {
-        printf("C Dispatch: Calling '%s' on context %p (no callback)\n", func_name, ctx);
         return 0;
-    }
 
-    /* Build args as VarTypeArray [func_name_string, arg1, arg2, ...] */
     int nargs = lua_gettop(L);
     struct LuaGameType* args = LuaGameType_NewVarTypeArray(nargs + 1);
     if( !args )
         return lua_error(L);
 
-    char* func_name_copy = func_name ? strdup(func_name) : strdup("");
-    if( !func_name_copy )
-    {
-        LuaGameType_Free(args);
-        return lua_error(L);
-    }
-    LuaGameType_VarTypeArrayPush(
-        args, LuaGameType_NewString(func_name_copy, (int)strlen(func_name_copy)));
+    LuaGameType_VarTypeArrayPush(args, LuaGameType_NewInt(api_id));
 
     for( int i = 1; i <= nargs; i++ )
     {
@@ -64,71 +54,95 @@ c_wasm_dispatcher(lua_State* L)
     }
     return 0;
 }
+
+/** __index for Game.<Domain> proxy tables; UV1=ctx, UV2=callback, UV3=LuaApiDomain (integer). */
 static int
-mt_index(lua_State* L)
+domain_mt_index(lua_State* L)
 {
-    // Access the pointers baked into THIS specific mt_index instance
     void* ctx = lua_touserdata(L, lua_upvalueindex(1));
     void* callback = lua_touserdata(L, lua_upvalueindex(2));
+    enum LuaApiDomain domain = (enum LuaApiDomain)lua_tointeger(L, lua_upvalueindex(3));
 
-    // 1. Get the cache from the metatable
     if( !lua_getmetatable(L, 1) )
         return 0;
     lua_pushstring(L, "__cache");
     lua_rawget(L, -2);
     int cache_idx = lua_gettop(L);
 
-    // 2. Check cache
     lua_pushvalue(L, 2);
     lua_rawget(L, cache_idx);
     if( !lua_isnil(L, -1) )
         return 1;
     lua_pop(L, 1);
 
-    // 3. Create dispatcher with 3 upvalues
-    lua_pushvalue(L, 2);                // UV 1: func_name
-    lua_pushlightuserdata(L, ctx);      // UV 2: ctx
-    lua_pushlightuserdata(L, callback); // UV 3: callback
-    lua_pushcclosure(L, c_wasm_dispatcher, 3);
+    const char* key = lua_tostring(L, 2);
+    if( !key )
+        return 0;
 
-    // 4. Store in cache
+    LuaApiId id = lua_api_domain_lookup(domain, key);
+    if( id == LUA_API_INVALID )
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_pushinteger(L, (lua_Integer)id);
+    lua_pushlightuserdata(L, ctx);
+    lua_pushlightuserdata(L, callback);
+    lua_pushcclosure(L, c_wasm_dispatcher_by_id, 3);
+
     lua_pushvalue(L, 2);
     lua_pushvalue(L, -2);
     lua_rawset(L, cache_idx);
 
     return 1;
 }
+
+/** Push Game.<fieldName> as a proxy table with weak-valued __cache. */
+static void
+push_domain_proxy(
+    lua_State* L,
+    void* wasm_ctx,
+    LuaCSidecar_GameCallback callback,
+    enum LuaApiDomain domain,
+    const char* lua_field_name)
+{
+    lua_newtable(L);
+
+    lua_newtable(L);
+    lua_pushstring(L, "__cache");
+    lua_newtable(L);
+    lua_newtable(L);
+    lua_pushstring(L, "v");
+    lua_setfield(L, -2, "__mode");
+    lua_setmetatable(L, -2);
+    lua_rawset(L, -3);
+
+    lua_pushlightuserdata(L, wasm_ctx);
+    lua_pushlightuserdata(L, (void*)callback);
+    lua_pushinteger(L, (lua_Integer)domain);
+    lua_pushcclosure(L, domain_mt_index, 3);
+    lua_setfield(L, -2, "__index");
+
+    lua_setmetatable(L, -2);
+    lua_setfield(L, -2, lua_field_name);
+}
+
 static int
 create_wasm_object(
     lua_State* L,
     void* wasm_ctx,
     LuaCSidecar_GameCallback callback)
 {
-    lua_newtable(L); // The Object "Game"
-
-    // 1. Create the metatable
     lua_newtable(L);
 
-    // 2. Create and attach the cache table to the metatable
-    lua_pushstring(L, "__cache");
-    lua_newtable(L);
-    lua_newtable(L); // Cache metatable for weak values
-    lua_pushstring(L, "v");
-    lua_setfield(L, -2, "__mode");
-    lua_setmetatable(L, -2);
-    lua_rawset(L, -3); // mt.__cache = {}
+    push_domain_proxy(L, wasm_ctx, callback, LUA_DOMAIN_BUILDCACHEDAT, "BuildCacheDat");
+    push_domain_proxy(L, wasm_ctx, callback, LUA_DOMAIN_GAME, "Game");
+    push_domain_proxy(L, wasm_ctx, callback, LUA_DOMAIN_DASH, "Dash");
+    push_domain_proxy(L, wasm_ctx, callback, LUA_DOMAIN_UI, "UI");
+    push_domain_proxy(L, wasm_ctx, callback, LUA_DOMAIN_MISC, "Misc");
 
-    // 3. Bind mt_index with 2 UPVALUES (ctx and callback)
-    // This is the "Magic" part: the pointers live in the C-closure of mt_index
-    lua_pushlightuserdata(L, wasm_ctx);
-    lua_pushlightuserdata(L, (void*)callback);
-    lua_pushcclosure(L, mt_index, 2);
-    lua_setfield(L, -2, "__index");
-
-    // 4. Set metatable and Global
-    lua_setmetatable(L, -2);
     lua_setglobal(L, "Game");
-
     return 1;
 }
 
@@ -311,6 +325,8 @@ LuaCSidecar_New(
         sidecar->L,
         LUA_GLIBK | LUA_LOADLIBK | LUA_COLIBK | LUA_MATHLIBK | LUA_STRLIBK | LUA_TABLIBK,
         0);
+
+    lua_api_init();
 
     /* _lua_log(id, msg) – called directly by platform.lua (no yield) */
     lua_pushcfunction(sidecar->L, c_lua_log);

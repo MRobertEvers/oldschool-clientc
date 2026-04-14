@@ -62,35 +62,3 @@ LuaSidecarMisc_load_camera(
     return out;
 }
 
-static char const g_prefix[] = "misc_";
-
-bool
-LuaSidecarMisc_CommandHasPrefix(const char* command)
-{
-    return strncmp(command, g_prefix, sizeof(g_prefix) - 1) == 0;
-}
-
-struct LuaGameType*
-LuaSidecarMisc_DispatchCommand(
-    struct GGame* game,
-    char* full_command,
-    struct LuaGameType* args)
-{
-    assert(memcmp(full_command, g_prefix, sizeof(g_prefix) - 1) == 0);
-    char command[256];
-    size_t suffix_len = strlen(full_command) - sizeof(g_prefix) + 1;
-    assert(suffix_len < sizeof(command));
-    memcpy(command, full_command + sizeof(g_prefix) - 1, suffix_len);
-    command[suffix_len] = '\0';
-
-    if( strcmp(command, "read_cullmap_from_blob") == 0 )
-        return LuaSidecarMisc_read_cullmap_from_blob(game, args);
-    if( strcmp(command, "save_camera") == 0 )
-        return LuaSidecarMisc_save_camera(game, args);
-    if( strcmp(command, "load_camera") == 0 )
-        return LuaSidecarMisc_load_camera(game, args);
-
-    printf("Unknown misc_ command: %s\n", command);
-    assert(false);
-    return LuaGameType_NewVoid();
-}

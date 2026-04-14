@@ -50,31 +50,3 @@ LuaDash_load_textures(
 
     return LuaGameType_NewVoid();
 }
-
-static char const g_prefix[] = "dash_";
-
-bool
-LuaDash_CommandHasPrefix(const char* command)
-{
-    return strncmp(command, g_prefix, sizeof(g_prefix) - 1) == 0;
-}
-
-struct LuaGameType*
-LuaDash_DispatchCommand(
-    struct DashGraphics* dash,
-    struct BuildCacheDat* buildcachedat,
-    struct GGame* game,
-    char* full_command,
-    struct LuaGameType* args)
-{
-    assert(memcmp(full_command, g_prefix, sizeof(g_prefix) - 1) == 0);
-    char command[256];
-    size_t suffix_len = strlen(full_command) - sizeof(g_prefix) + 1;
-    assert(suffix_len < sizeof(command));
-    memcpy(command, full_command + sizeof(g_prefix) - 1, suffix_len);
-    command[suffix_len] = '\0';
-
-    if( strcmp(command, "load_textures") == 0 )
-        return LuaDash_load_textures(dash, buildcachedat, game, args);
-    return NULL;
-}

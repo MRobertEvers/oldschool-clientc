@@ -18,8 +18,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static char const g_prefix[] = "ui_";
-
 /* Helper: get userdata at args[i]. */
 static void*
 arg_userdata(
@@ -28,12 +26,6 @@ arg_userdata(
 {
     struct LuaGameType* elem = LuaGameType_GetVarTypeArrayAt(args, i);
     return LuaGameType_GetUserData(elem);
-}
-
-bool
-LuaUI_CommandHasPrefix(const char* command)
-{
-    return strncmp(command, g_prefix, sizeof(g_prefix) - 1) == 0;
 }
 
 /** Replace UIScene; salvage fonts, reset BuildCacheDat reftables tied to element/font ids, reload
@@ -188,7 +180,7 @@ LuaUI_load_rs_components(
     return LuaGameType_NewVoid();
 }
 
-static struct LuaGameType*
+struct LuaGameType*
 LuaUI_resolve_inv_sprites(
     struct GGame* game,
     struct BuildCacheDat* buildcachedat,
@@ -367,38 +359,3 @@ LuaUI_load_revconfig_ui(
     return LuaGameType_NewVoid();
 }
 
-struct LuaGameType*
-LuaUI_DispatchCommand(
-    struct GGame* game,
-    struct BuildCacheDat* buildcachedat,
-    char* full_command,
-    struct LuaGameType* args)
-{
-    assert(memcmp(full_command, g_prefix, sizeof(g_prefix) - 1) == 0);
-    char command[256];
-    size_t suffix_len = strlen(full_command) - sizeof(g_prefix) + 1;
-    assert(suffix_len < sizeof(command));
-    memcpy(command, full_command + sizeof(g_prefix) - 1, suffix_len);
-    command[suffix_len] = '\0';
-
-    if( strcmp(command, "load_revconfig") == 0 )
-        return LuaUI_load_revconfig(game, buildcachedat, args);
-    else if( strcmp(command, "load_fonts") == 0 )
-        return LuaUI_load_fonts(game, buildcachedat, args);
-    else if( strcmp(command, "load_rs_components") == 0 )
-        return LuaUI_load_rs_components(game, buildcachedat, args);
-    else if( strcmp(command, "resolve_inv_sprites") == 0 )
-        return LuaUI_resolve_inv_sprites(game, buildcachedat, args);
-    else if( strcmp(command, "parse_revconfig") == 0 )
-        return LuaUI_parse_revconfig(game, buildcachedat, args);
-    else if( strcmp(command, "get_revconfig_inv_obj_ids") == 0 )
-        return LuaUI_get_revconfig_inv_obj_ids(game, buildcachedat, args);
-    else if( strcmp(command, "load_revconfig_inventories") == 0 )
-        return LuaUI_load_revconfig_inventories(game, buildcachedat, args);
-    else if( strcmp(command, "load_revconfig_ui") == 0 )
-        return LuaUI_load_revconfig_ui(game, buildcachedat, args);
-
-    printf("Unknown ui command: %s\n", command);
-    assert(false);
-    return NULL;
-}

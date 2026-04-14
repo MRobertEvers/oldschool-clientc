@@ -1,5 +1,7 @@
 #include "luajs_sidecar.h"
 
+#include "osrs/lua_sidecar/lua_api.h"
+
 #include <assert.h>
 #include <emscripten.h>
 #include <stdint.h>
@@ -9,6 +11,7 @@ EMSCRIPTEN_KEEPALIVE
 struct LuaGameType*
 dispatch_lua_command(struct LuaGameType* args)
 {
+    lua_api_init();
     // printf("dispatch_lua_command\n");
     // clang-format off
     int fn = EM_ASM_INT({ return window.LuaSidecarCallback || 0; });

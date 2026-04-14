@@ -1,5 +1,5 @@
 -- pkt_rebuild_normal: load terrain, scenery, and models for rebuild zone via CacheDat /
--- Game.buildcachedat_* APIs, then run gameproto_exec rebuild
+-- Game.BuildCacheDat.* APIs, then run gameproto_exec rebuild
 local CacheDat = require("cachedat")
 
 local SCENE_WIDTH = 104
@@ -40,7 +40,7 @@ local chunks, _, _, _, _ = world_to_map_chunks(wx_sw, wz_sw, wx_ne, wz_ne)
 local terrain_requests = {}
 local terrain_map_ids = {}
 for _, chunk in ipairs(chunks) do
-    if not Game.buildcachedat_has_map_terrain(chunk.x, chunk.z) then
+    if not Game.BuildCacheDat.has_map_terrain(chunk.x, chunk.z) then
         local map_id = (chunk.x << 16) | (chunk.z)
         table.insert(terrain_requests, {
             table_id = CacheDat.Tables.CACHE_DAT_MAPS,
@@ -53,7 +53,7 @@ end
 if #terrain_requests > 0 then
     local terrain_archives = CacheDat.load_archives(terrain_requests)
     for i, map_id in ipairs(terrain_map_ids) do
-        Game.buildcachedat_cache_map_terrain(terrain_archives[i], map_id)
+        Game.BuildCacheDat.cache_map_terrain(terrain_archives[i], map_id)
     end
 end
 
@@ -61,7 +61,7 @@ end
 local scenery_requests = {}
 local scenery_map_ids = {}
 for _, chunk in ipairs(chunks) do
-    if not Game.buildcachedat_has_map_scenery(chunk.x, chunk.z) then
+    if not Game.BuildCacheDat.has_map_scenery(chunk.x, chunk.z) then
         local map_id = (chunk.x << 16) | (chunk.z)
         table.insert(scenery_requests, {
             table_id = CacheDat.Tables.CACHE_DAT_MAPS,
@@ -74,21 +74,21 @@ end
 if #scenery_requests > 0 then
     local scenery_archives = CacheDat.load_archives(scenery_requests)
     for i, map_id in ipairs(scenery_map_ids) do
-        Game.buildcachedat_cache_map_scenery(scenery_archives[i], map_id)
+        Game.BuildCacheDat.cache_map_scenery(scenery_archives[i], map_id)
     end
 end
 
 -- Initialize config from config jagfiles (same path as init_cache_dat)
-Game.buildcachedat_init_floortypes_from_config_jagfile()
-Game.buildcachedat_init_scenery_configs_from_config_jagfile()
+Game.BuildCacheDat.init_floortypes_from_config_jagfile()
+Game.BuildCacheDat.init_scenery_configs_from_config_jagfile()
 
 -- Load required models (unique IDs from all cached scenery; computed in C)
-local models_to_load = Game.buildcachedat_get_all_unique_scenery_model_ids()
+local models_to_load = Game.BuildCacheDat.get_all_unique_scenery_model_ids()
 
 local model_requests = {}
 local models_needed = {}
 for _, model_id in ipairs(models_to_load) do
-    if not Game.buildcachedat_has_model(model_id) then
+    if not Game.BuildCacheDat.has_model(model_id) then
         table.insert(model_requests, {
             table_id = CacheDat.Tables.CACHE_DAT_MODELS,
             archive_id = model_id,
@@ -101,8 +101,8 @@ end
 if #model_requests > 0 then
     local model_archives = CacheDat.load_archives(model_requests)
     for i, model_id in ipairs(models_needed) do
-        Game.buildcachedat_cache_model(model_archives[i], model_id)
+        Game.BuildCacheDat.cache_model(model_archives[i], model_id)
     end
 end
 
-Game.game_build_scene_centerzone(zonex, zonez, SCENE_WIDTH)
+Game.Game.build_scene_centerzone(zonex, zonez, SCENE_WIDTH)

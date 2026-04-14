@@ -47,4 +47,4 @@ local path = string.format(
 )
 
 local cullmap_file = CacheDat.load_config_file(path)
-Game.misc_read_cullmap_from_blob(cullmap_file, radius)
+Game.Misc.read_cullmap_from_blob(cullmap_file, radius)

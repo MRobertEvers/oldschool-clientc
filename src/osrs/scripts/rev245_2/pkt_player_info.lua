@@ -1,4 +1,4 @@
--- pkt_player_info: load all appearance models (IDK + OBJ) via CacheDat / Game.buildcachedat_* before processing.
+-- pkt_player_info: load all appearance models (IDK + OBJ) via CacheDat / Game.BuildCacheDat.* before processing.
 local CacheDat = require("cachedat")
 
 local function print_table(tbl)
@@ -21,37 +21,37 @@ end
 local data, length = ...
 
 -- Needed to turn appearance IDs into model IDs.
-Game.buildcachedat_init_idkits_from_config_jagfile()
-Game.buildcachedat_init_objects_from_config_jagfile()
+Game.BuildCacheDat.init_idkits_from_config_jagfile()
+Game.BuildCacheDat.init_objects_from_config_jagfile()
 
 
 
-local idk_ids, obj_ids = Game.buildcachedat_get_player_appearance_ids_from_packet(data, length)
+local idk_ids, obj_ids = Game.BuildCacheDat.get_player_appearance_ids_from_packet(data, length)
 
 local seen = {}
 local queued_model_ids = {}
 
 for _, idk_id in ipairs(idk_ids) do
-    local model_ids = Game.buildcachedat_get_idk_model_ids(idk_id)
+    local model_ids = Game.BuildCacheDat.get_idk_model_ids(idk_id)
     for _, model_id in ipairs(model_ids) do
         queue_unique(seen, queued_model_ids, model_id)
     end
 
     -- Also load head models for chat head (IF_SETPLAYERHEAD)
-    local head_model_ids = Game.buildcachedat_get_idk_head_model_ids(idk_id)
+    local head_model_ids = Game.BuildCacheDat.get_idk_head_model_ids(idk_id)
     for _, model_id in ipairs(head_model_ids) do
         queue_unique(seen, queued_model_ids, model_id)
     end
 end
 
 for _, obj_id in ipairs(obj_ids) do
-    local model_ids = Game.buildcachedat_get_obj_model_ids(obj_id)
+    local model_ids = Game.BuildCacheDat.get_obj_model_ids(obj_id)
     for _, model_id in ipairs(model_ids) do
         queue_unique(seen, queued_model_ids, model_id)
     end
 
     -- Also load head models for chat head (IF_SETPLAYERHEAD)
-    local head_model_ids = Game.buildcachedat_get_obj_head_model_ids(obj_id, 0)
+    local head_model_ids = Game.BuildCacheDat.get_obj_head_model_ids(obj_id, 0)
     for _, model_id in ipairs(head_model_ids) do
         queue_unique(seen, queued_model_ids, model_id)
     end
@@ -60,7 +60,7 @@ end
 local model_requests = {}
 local models_needed = {}
 for _, model_id in ipairs(queued_model_ids) do
-    if not Game.buildcachedat_has_model(model_id) then
+    if not Game.BuildCacheDat.has_model(model_id) then
         table.insert(
             model_requests,
             { table_id = CacheDat.Tables.CACHE_DAT_MODELS, archive_id = model_id, flags = 0 }
@@ -72,8 +72,8 @@ end
 if #model_requests > 0 then
     local model_archives = CacheDat.load_archives(model_requests)
     for i, model_id in ipairs(models_needed) do
-        Game.buildcachedat_cache_model(model_archives[i], model_id)
+        Game.BuildCacheDat.cache_model(model_archives[i], model_id)
     end
 end
 
-Game.game_exec_pkt_player_info(data, length)
+Game.Game.exec_pkt_player_info(data, length)

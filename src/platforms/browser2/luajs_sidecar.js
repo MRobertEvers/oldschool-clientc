@@ -1,4 +1,5 @@
 import { LuaCacheFunctionNo } from "./luajs_sidecar_fnnos.js";
+import { luaApiDomainMaps } from "./luajs_api_maps.js";
 import { createLuaGameTypes, pushToLua, fromLua } from "./luajs_gametypes.js";
 const { lua, lauxlib, lualib, to_luastring } = window.fengari;
 
@@ -92,9 +93,9 @@ function parseMultipartPartsWithHeaders(raw, contentTypeHeader) {
 //   return ptr; // Return the address (pointer) to pass to Wasm functions
 // }
 
-// 1. The Core Dispatcher (matches c_wasm_dispatcher)
-function wasmDispatcher(L) {
-  const func_name = lua.lua_tostring(L, lua.lua_upvalueindex(1));
+/** Matches c_wasm_dispatcher_by_id — first VarTypeArray slot is LuaApiId (int). */
+function wasmDispatcherById(L) {
+  const apiId = lua.lua_tointeger(L, lua.lua_upvalueindex(1));
   const ctx = lua.lua_touserdata(L, lua.lua_upvalueindex(2));
   const wasm = lua.lua_touserdata(L, lua.lua_upvalueindex(3));
 
@@ -103,9 +104,7 @@ function wasmDispatcher(L) {
   const args = gt.newVarTypeArray(nargs + 1);
   if (!args) return lua.lua_error(L);
 
-  const [strPtr, strLen] = gt.stringToWasm(luaString(func_name) ?? "");
-
-  const funcNameElem = gt.newString(strPtr, strLen);
+  const funcNameElem = gt.newInt(apiId);
   if (funcNameElem) gt.varTypeArrayPush(args, funcNameElem);
 
   for (let i = 1; i <= nargs; i++) {
@@ -128,10 +127,11 @@ function wasmDispatcher(L) {
   return 0;
 }
 
-// 2. The __index with Weak Caching (matches mt_index in luac_sidecar.c)
-function mtIndex(L) {
+/** __index for Game.<Domain>; UV1=ctx, UV2=wasm, UV3=domain id (integer). */
+function domainMtIndex(L) {
   const ctx = lua.lua_touserdata(L, lua.lua_upvalueindex(1));
-  const callback = lua.lua_touserdata(L, lua.lua_upvalueindex(2));
+  const wasm = lua.lua_touserdata(L, lua.lua_upvalueindex(2));
+  const domainId = lua.lua_tointeger(L, lua.lua_upvalueindex(3));
 
   if (!lua.lua_getmetatable(L, 1)) return 0;
   lua.lua_pushstring(L, "__cache");
@@ -143,10 +143,18 @@ function mtIndex(L) {
   if (!lua.lua_isnil(L, -1)) return 1;
   lua.lua_pop(L, 1);
 
-  lua.lua_pushvalue(L, 2);
+  const keyStr = luaString(lua.lua_tostring(L, 2));
+  const map = luaApiDomainMaps[domainId];
+  const id = map ? map.get(keyStr) : undefined;
+  if (id == null) {
+    lua.lua_pushnil(L);
+    return 1;
+  }
+
+  lua.lua_pushinteger(L, id);
   lua.lua_pushlightuserdata(L, ctx);
-  lua.lua_pushlightuserdata(L, callback);
-  lua.lua_pushcclosure(L, wasmDispatcher, 3);
+  lua.lua_pushlightuserdata(L, wasm);
+  lua.lua_pushcclosure(L, wasmDispatcherById, 3);
 
   lua.lua_pushvalue(L, 2);
   lua.lua_pushvalue(L, -2);
@@ -155,7 +163,7 @@ function mtIndex(L) {
   return 1;
 }
 
-function createWasmLuaBridge(L, ctx, callback) {
+function pushDomainProxy(L, ctx, wasm, domainId, fieldName) {
   lua.lua_newtable(L);
 
   lua.lua_newtable(L);
@@ -168,11 +176,22 @@ function createWasmLuaBridge(L, ctx, callback) {
   lua.lua_rawset(L, -3);
 
   lua.lua_pushlightuserdata(L, ctx);
-  lua.lua_pushlightuserdata(L, callback ?? null);
-  lua.lua_pushcclosure(L, mtIndex, 2);
+  lua.lua_pushlightuserdata(L, wasm);
+  lua.lua_pushinteger(L, domainId);
+  lua.lua_pushcclosure(L, domainMtIndex, 3);
   lua.lua_setfield(L, -2, "__index");
 
   lua.lua_setmetatable(L, -2);
+  lua.lua_setfield(L, -2, fieldName);
+}
+
+function createWasmLuaBridge(L, ctx, wasm) {
+  lua.lua_newtable(L);
+  pushDomainProxy(L, ctx, wasm, 0, "BuildCacheDat");
+  pushDomainProxy(L, ctx, wasm, 1, "Game");
+  pushDomainProxy(L, ctx, wasm, 2, "Dash");
+  pushDomainProxy(L, ctx, wasm, 3, "UI");
+  pushDomainProxy(L, ctx, wasm, 4, "Misc");
   lua.lua_setglobal(L, "Game");
   return 1;
 }

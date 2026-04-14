@@ -152,6 +152,8 @@ set(COMMON_SOURCES
     src/osrs/lua_sidecar/lua_gametypes.c
     src/osrs/lua_sidecar/luac_gametypes.c
     src/osrs/lua_sidecar/luac_sidecar.c
+    src/osrs/lua_sidecar/lua_api.c
+    src/osrs/lua_sidecar/lua_api_ht.c
     src/osrs/lua_sidecar/lua_platform.c
     src/imgui/imgui.cpp
     src/imgui/imgui_draw.cpp
@@ -397,6 +399,7 @@ if(EMSCRIPTEN)
     set(BROWSER_ASSETS
         ${EM_SHELL_FILE}
         ${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/luajs_sidecar.js
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/luajs_api_maps.js
         ${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/luajs_gametypes.js
         ${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/netjs.js
         ${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/fengari-web.js

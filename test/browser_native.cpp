@@ -12,11 +12,8 @@
 extern "C" {
 #include "osrs/game.h"
 #include "osrs/ginput.h"
-#include "osrs/lua_sidecar/lua_buildcachedat.h"
-#include "osrs/lua_sidecar/lua_sidecar_misc.h"
-#include "osrs/lua_sidecar/lua_dash.h"
-#include "osrs/lua_sidecar/lua_game.h"
-#include "osrs/lua_sidecar/lua_ui.h"
+#include "osrs/lua_sidecar/lua_api.h"
+#include "osrs/lua_sidecar/lua_gametypes.h"
 #include "platforms/browser2/luajs_sidecar.h"
 }
 
@@ -148,40 +145,16 @@ luajs_sidecar_callback_native(
     struct BuildCacheDat* bcd = platform->current_game->buildcachedat;
 
     struct LuaGameType* command_gametype = LuaGameType_GetVarTypeArrayAt(args, 0);
-    assert(command_gametype->kind == LUAGAMETYPE_STRING);
-    const char* command = LuaGameType_GetString(command_gametype);
+    assert(command_gametype->kind == LUAGAMETYPE_INT);
+    LuaApiId api_id = (LuaApiId)LuaGameType_GetInt(command_gametype);
 
-    struct LuaGameType* result = NULL;
     struct LuaGameType* args_view = LuaGameType_NewVarTypeArrayView(args, 1);
-
-    if( LuaBuildCacheDat_CommandHasPrefix((char*)command) )
-    {
-        result = LuaBuildCacheDat_DispatchCommand(
-            bcd, platform->current_game, (char*)command, args_view);
-    }
-    else if( LuaDash_CommandHasPrefix((char*)command) )
-    {
-        result = LuaDash_DispatchCommand(
-            platform->current_game->sys_dash,
-            bcd,
-            platform->current_game,
-            (char*)command,
-            args_view);
-    }
-    else if( LuaGame_CommandHasPrefix((char*)command) )
-    {
-        result = LuaGame_DispatchCommand(platform->current_game, (char*)command, args_view);
-    }
-    else if( LuaUI_CommandHasPrefix((char*)command) )
-    {
-        result = LuaUI_DispatchCommand(platform->current_game, bcd, (char*)command, args_view);
-    }
-    else if( LuaSidecarMisc_CommandHasPrefix((char*)command) )
-    {
-        result = LuaSidecarMisc_DispatchCommand(
-            platform->current_game, (char*)command, args_view);
-    }
-
+    struct LuaGameType* result = lua_api_dispatch(
+        platform->current_game,
+        bcd,
+        platform->current_game->sys_dash,
+        api_id,
+        args_view);
     LuaGameType_Free(args_view);
 
     if( result )
