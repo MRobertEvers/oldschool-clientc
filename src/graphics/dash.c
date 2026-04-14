@@ -1430,37 +1430,59 @@ dash3d_raster_with_face_indices(
     dash3d_sort_face_draw_order(
         dash, model, view_port, camera, pixel_buffer, smooth, fia, fib, fic);
 
+    int* face_infos = dashmodel_face_infos(model);
+    int face_count = dashmodel_face_count(model);
+    bool has_textures = dashmodel_has_textures(model);
+    int vertex_count = dashmodel_vertex_count(model);
+    faceint_t* face_textures = dashmodel_face_textures(model);
+    faceint_t* face_texture_coords = dashmodel_face_texture_coords(model);
+    int textured_face_count = dashmodel_textured_face_count(model);
+    faceint_t* textured_p = dashmodel_textured_p_coordinate(model);
+    faceint_t* textured_m = dashmodel_textured_m_coordinate(model);
+    faceint_t* textured_n = dashmodel_textured_n_coordinate(model);
+    hsl16_t* face_colors_a = dashmodel_face_colors_a(model);
+    hsl16_t* face_colors_b = dashmodel_face_colors_b(model);
+    hsl16_t* face_colors_c = dashmodel_face_colors_c(model);
+    alphaint_t* face_alphas = dashmodel_face_alphas(model);
+
+    int* orthographic_vertices_x = has_textures ? dash->orthographic_vertices_x : NULL;
+    int* orthographic_vertices_y = has_textures ? dash->orthographic_vertices_y : NULL;
+    int* orthographic_vertices_z = has_textures ? dash->orthographic_vertices_z : NULL;
+
+    int clip_x = view_port->width >> 1;
+    int clip_y = view_port->height >> 1;
+
     for( int i = 0; i < dash->tmp_face_order_count; i++ )
     {
         int face = dash->tmp_face_order[i];
         dash3d_raster_model_face(
             pixel_buffer,
             face,
-            dashmodel_face_infos(model),
+            face_infos,
             fia,
             fib,
             fic,
-            dashmodel_face_count(model),
+            face_count,
             dash->screen_vertices_x,
             dash->screen_vertices_y,
             dash->screen_vertices_z,
-            dashmodel_has_textures(model) ? dash->orthographic_vertices_x : NULL,
-            dashmodel_has_textures(model) ? dash->orthographic_vertices_y : NULL,
-            dashmodel_has_textures(model) ? dash->orthographic_vertices_z : NULL,
-            dashmodel_vertex_count(model),
-            dashmodel_face_textures(model),
-            dashmodel_face_texture_coords(model),
-            dashmodel_textured_face_count(model),
-            dashmodel_textured_p_coordinate(model),
-            dashmodel_textured_m_coordinate(model),
-            dashmodel_textured_n_coordinate(model),
-            dashmodel_textured_face_count(model),
-            dashmodel_face_colors_a(model),
-            dashmodel_face_colors_b(model),
-            dashmodel_face_colors_c(model),
-            dashmodel_face_alphas(model),
-            view_port->width >> 1,
-            view_port->height >> 1,
+            orthographic_vertices_x,
+            orthographic_vertices_y,
+            orthographic_vertices_z,
+            vertex_count,
+            face_textures,
+            face_texture_coords,
+            textured_face_count,
+            textured_p,
+            textured_m,
+            textured_n,
+            textured_face_count,
+            face_colors_a,
+            face_colors_b,
+            face_colors_c,
+            face_alphas,
+            clip_x,
+            clip_y,
             camera->near_plane_z,
             view_port->width,
             view_port->height,
