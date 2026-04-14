@@ -1,7 +1,7 @@
 #ifndef OSRS_PIX3D_H
 #define OSRS_PIX3D_H
 
-#include "graphics/dash_alpha.h"
+#include "graphics/dash_alphaint.h"
 #include "graphics/dash_faceint.h"
 #include "graphics/dash_hsl16.h"
 #include "graphics/dash_vertexint.h"

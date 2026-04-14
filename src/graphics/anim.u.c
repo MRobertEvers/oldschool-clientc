@@ -1,7 +1,10 @@
 #ifndef ANIM_U_C
 #define ANIM_U_C
 
+#include "dash_alphaint.h"
 #include "dash_anim.h"
+#include "dash_boneint.h"
+#include "dash_vertexint.h"
 
 #include <stdint.h>
 #include <string.h>

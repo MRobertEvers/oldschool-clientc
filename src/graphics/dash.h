@@ -1,8 +1,9 @@
 #ifndef DASH_H
 #define DASH_H
 
-#include "dash_alpha.h"
+#include "dash_alphaint.h"
 #include "dash_anim.h"
+#include "dash_boneint.h"
 #include "dash_faceint.h"
 #include "dash_hsl16.h"
 #include "dash_math.h"
@@ -127,8 +128,6 @@ struct DashModelNormals
     struct LightingNormal* lighting_face_normals;
     int lighting_face_normals_count;
 };
-
-typedef uint8_t boneint_t;
 
 struct DashModelBones
 {
@@ -465,7 +464,9 @@ dashfacearray_clear(struct DashFaceArray* fa);
 
 /** Grow capacity to at least need_capacity. Returns false on OOM. */
 bool
-dashfacearray_reserve(struct DashFaceArray* fa, int need_capacity);
+dashfacearray_reserve(
+    struct DashFaceArray* fa,
+    int need_capacity);
 
 /** Reallocates buffers to fit exactly `count` faces (capacity := count). No-op if already tight. */
 void
@@ -473,7 +474,9 @@ dashfacearray_shrink_to_fit(struct DashFaceArray* fa);
 
 /** Appends one face; grows as needed. Returns new index or -1 on failure. */
 int
-dashfacearray_push(struct DashFaceArray* fa, const struct DashFace* face);
+dashfacearray_push(
+    struct DashFaceArray* fa,
+    const struct DashFace* face);
 
 /** VA only: weak ref into shared face_array; first_face_index is offset into faces[]. */
 void
@@ -514,7 +517,8 @@ dashmodel_new(void);
 void
 dashmodel_free(struct DashModel* model);
 
-/** Frees all heap fields of `va` and `va` itself (caller-owned geometry; not called from dashmodel_free). */
+/** Frees all heap fields of `va` and `va` itself (caller-owned geometry; not called from
+ * dashmodel_free). */
 void
 dashvertexarray_free(struct DashVertexArray* va);
 
@@ -526,13 +530,17 @@ bool
 dashmodel_is_lightable(const struct DashModel* m);
 
 void
-dashmodel_set_loaded(struct DashModel* m, bool v);
+dashmodel_set_loaded(
+    struct DashModel* m,
+    bool v);
 
 bool
 dashmodel_has_textures(const struct DashModel* m);
 
 void
-dashmodel_set_has_textures(struct DashModel* m, bool v);
+dashmodel_set_has_textures(
+    struct DashModel* m,
+    bool v);
 
 int
 dashmodel_vertex_count(const struct DashModel* m);
@@ -729,22 +737,40 @@ dashmodel_set_face_colors_i32(
     const int32_t* src_c);
 
 void
-dashmodel_set_face_textures_i16(struct DashModel* m, const int16_t* src_textures, int count);
+dashmodel_set_face_textures_i16(
+    struct DashModel* m,
+    const int16_t* src_textures,
+    int count);
 
 void
-dashmodel_set_face_textures_i32(struct DashModel* m, const int32_t* src_textures, int count);
+dashmodel_set_face_textures_i32(
+    struct DashModel* m,
+    const int32_t* src_textures,
+    int count);
 
 void
-dashmodel_set_face_alphas(struct DashModel* m, const alphaint_t* src, int count);
+dashmodel_set_face_alphas(
+    struct DashModel* m,
+    const alphaint_t* src,
+    int count);
 
 void
-dashmodel_set_face_infos(struct DashModel* m, const int* infos, int count);
+dashmodel_set_face_infos(
+    struct DashModel* m,
+    const int* infos,
+    int count);
 
 void
-dashmodel_set_face_priorities(struct DashModel* m, const int* priorities, int count);
+dashmodel_set_face_priorities(
+    struct DashModel* m,
+    const int* priorities,
+    int count);
 
 void
-dashmodel_set_face_colors_flat(struct DashModel* m, const hsl16_t* src, int count);
+dashmodel_set_face_colors_flat(
+    struct DashModel* m,
+    const hsl16_t* src,
+    int count);
 
 void
 dashmodel_set_texture_coords(
@@ -760,7 +786,9 @@ void
 dashmodel_set_bounds_cylinder(struct DashModel* m);
 
 void
-dashmodel_alloc_lit_face_colors_zero(struct DashModel* m, int face_count);
+dashmodel_alloc_lit_face_colors_zero(
+    struct DashModel* m,
+    int face_count);
 
 /** Sum of heap bytes owned by the model (struct, arrays, normals, bones, bounds). */
 size_t

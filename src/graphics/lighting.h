@@ -1,7 +1,7 @@
 #ifndef LIGHTING_H
 #define LIGHTING_H
 
-#include "dash_alpha.h"
+#include "dash_alphaint.h"
 #include "dash_faceint.h"
 #include "dash_hsl16.h"
 #include "dash_vertexint.h"

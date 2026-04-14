@@ -269,7 +269,8 @@
     "luajs_emscripten_compat.h": "c",
     "platform_memory.h": "c",
     "uitree_load.h": "c",
-    "entity_scenebuild.h": "c"
+    "entity_scenebuild.h": "c",
+    "dash_vertexint.h": "c"
   },
   "[linux]": {
     "C_Cpp.default.configurationName": "Linux",

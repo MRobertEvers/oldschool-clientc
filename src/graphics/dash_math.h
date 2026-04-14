@@ -2,6 +2,7 @@
 #define DASH_MATH_H
 
 #include "shared_tables.h"
+
 #include <assert.h>
 #include <stdint.h>
 
