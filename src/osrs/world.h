@@ -33,7 +33,7 @@ struct FlagMap;
 /** Nonzero: shared vertex-array terrain (build_scene_terrain_va). Zero: per-tile models
  * (build_scene_terrain). */
 #ifndef WORLD_BUILD_TERRAIN_VA
-#define WORLD_BUILD_TERRAIN_VA 1
+#define WORLD_BUILD_TERRAIN_VA 0
 #endif
 
 struct World

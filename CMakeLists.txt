@@ -529,13 +529,16 @@ if(EMSCRIPTEN)
     endif()
 endif()
 
-if(ENABLE_HEAP_INFO)
-    foreach(_t_imgui_heap osx web_client web_client_native)
-        if(TARGET ${_t_imgui_heap})
+# Always set ENABLE_HEAP_INFO to 0 or 1 so #if ENABLE_HEAP_INFO works (#ifdef is true even for =0).
+foreach(_t_imgui_heap osx web_client web_client_native)
+    if(TARGET ${_t_imgui_heap})
+        if(ENABLE_HEAP_INFO)
             target_compile_definitions(${_t_imgui_heap} PRIVATE ENABLE_HEAP_INFO=1)
+        else()
+            target_compile_definitions(${_t_imgui_heap} PRIVATE ENABLE_HEAP_INFO=0)
         endif()
-    endforeach()
-endif()
+    endif()
+endforeach()
 
 # --- Global Properties ---
 foreach(target osx web_client web_client_native)

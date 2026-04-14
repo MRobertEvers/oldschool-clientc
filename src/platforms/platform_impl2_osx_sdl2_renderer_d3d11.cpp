@@ -783,7 +783,7 @@ render_imgui_overlay(
         1000.0f / ImGui::GetIO().Framerate,
         ImGui::GetIO().Framerate);
 
-#ifdef ENABLE_HEAP_INFO
+#if ENABLE_HEAP_INFO
     {
         struct PlatformMemoryInfo mem = {};
         if( platform_get_memory_info(&mem) )

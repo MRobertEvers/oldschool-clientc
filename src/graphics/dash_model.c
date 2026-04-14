@@ -13,7 +13,8 @@ dashmodel__pack_flags_type(unsigned type_bits)
 
 static const faceint_t g_dashmodel_fast_tex_p[1] = { 0 };
 static const faceint_t g_dashmodel_fast_tex_m[1] = { 1 };
-static const faceint_t g_dashmodel_fast_tex_n[1] = { 2 };
+static const faceint_t g_dashmodel_fast_tex_n[1] = { 3 };
+static const faceint_t g_dashmodel_va_tex_n[1] = { 2 };
 
 /** VA terrain: all-zero face_texture_coords like legacy full terrain (terrain_decode_tile); read-only in practice. */
 static faceint_t g_dashmodel_va_face_texture_coords_zero[4096];
@@ -1127,10 +1128,13 @@ dashmodel_textured_n_coordinate(struct DashModel* m)
     switch( dashmodel__type(m) )
     {
     case DASHMODEL_TYPE_FAST:
-    case DASHMODEL_TYPE_VA:
         if( !dashmodel_has_textures(m) )
             return NULL;
         return (faceint_t*)(void*)&g_dashmodel_fast_tex_n[0];
+    case DASHMODEL_TYPE_VA:
+        if( !dashmodel_has_textures(m) )
+            return NULL;
+        return (faceint_t*)(void*)&g_dashmodel_va_tex_n[0];
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full(m)->textured_n_coordinate;
     default:
@@ -1184,10 +1188,13 @@ dashmodel_textured_n_coordinate_const(const struct DashModel* m)
     switch( dashmodel__type(m) )
     {
     case DASHMODEL_TYPE_FAST:
-    case DASHMODEL_TYPE_VA:
         if( !dashmodel_has_textures(m) )
             return NULL;
         return g_dashmodel_fast_tex_n;
+    case DASHMODEL_TYPE_VA:
+        if( !dashmodel_has_textures(m) )
+            return NULL;
+        return g_dashmodel_va_tex_n;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full_const(m)->textured_n_coordinate;
     default:
@@ -1202,6 +1209,7 @@ dashmodel_face_texture_coords(struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
+    case DASHMODEL_TYPE_FAST:
     case DASHMODEL_TYPE_VA:
         return dashmodel_face_count(m) > 0 ? g_dashmodel_va_face_texture_coords_zero : NULL;
     case DASHMODEL_TYPE_FULL:
@@ -1217,6 +1225,7 @@ dashmodel_face_texture_coords_const(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
+    case DASHMODEL_TYPE_FAST:
     case DASHMODEL_TYPE_VA:
         return dashmodel_face_count(m) > 0 ? g_dashmodel_va_face_texture_coords_zero : NULL;
     case DASHMODEL_TYPE_FULL:
