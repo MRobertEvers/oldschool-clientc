@@ -17,6 +17,14 @@
 // #define DISABLE_CULLMAPS 1
 
 static inline void
+painters_tile_store_element_ref(uint16_t* slot, int element)
+{
+    assert(element >= 0);
+    assert((unsigned)element < (unsigned)PAINTERS_TILE_ELEMENT_REF_NONE);
+    *slot = (uint16_t)element;
+}
+
+static inline void
 init_painter_tile(
     struct PaintersTile* tile,
     int sx,
@@ -29,16 +37,16 @@ init_painter_tile(
     painters_tile_set_terrain_slevel(tile, (uint8_t)slevel);
     painters_tile_set_flags(tile, 0);
     tile->spans = 0;
-    tile->scenery_head = -1;
-    tile->wall_a = -1;
-    tile->wall_b = -1;
-    tile->wall_decor_a = -1;
-    tile->wall_decor_b = -1;
-    tile->bridge_tile = -1;
-    tile->ground_decor = -1;
-    tile->ground_object_bottom = -1;
-    tile->ground_object_middle = -1;
-    tile->ground_object_top = -1;
+    tile->scenery_head = PAINTERS_SCENERY_POOL_IDX_NONE;
+    tile->wall_a = PAINTERS_TILE_ELEMENT_REF_NONE;
+    tile->wall_b = PAINTERS_TILE_ELEMENT_REF_NONE;
+    tile->wall_decor_a = PAINTERS_TILE_ELEMENT_REF_NONE;
+    tile->wall_decor_b = PAINTERS_TILE_ELEMENT_REF_NONE;
+    tile->bridge_tile = PAINTERS_BRIDGE_TILE_IDX_NONE;
+    tile->ground_decor = PAINTERS_TILE_ELEMENT_REF_NONE;
+    tile->ground_object_bottom = PAINTERS_TILE_ELEMENT_REF_NONE;
+    tile->ground_object_middle = PAINTERS_TILE_ELEMENT_REF_NONE;
+    tile->ground_object_top = PAINTERS_TILE_ELEMENT_REF_NONE;
 }
 
 static inline bool
@@ -326,13 +334,15 @@ static void
 scenery_prepend(
     struct Painter* painter,
     struct PaintersTile* tile,
-    int16_t element_idx,
+    int element_idx,
     uint8_t span_flags)
 {
+    assert(element_idx >= 0);
+    assert((unsigned)element_idx < (unsigned)PAINTERS_TILE_ELEMENT_REF_NONE);
     scenery_pool_ensure(painter, 1);
     int idx = painter->scenery_pool_count++;
     painter->scenery_pool[idx] = (struct SceneryNode){
-        .element_idx = element_idx,
+        .element_idx = (uint16_t)element_idx,
         .span = span_flags,
         .next = tile->scenery_head,
     };
@@ -345,20 +355,21 @@ clone_scenery_chain(
     struct Painter* painter,
     int32_t src_head)
 {
-    if( src_head < 0 )
-        return -1;
+    if( src_head == PAINTERS_SCENERY_POOL_IDX_NONE )
+        return PAINTERS_SCENERY_POOL_IDX_NONE;
 
-    int32_t out_head = -1;
+    int32_t out_head = PAINTERS_SCENERY_POOL_IDX_NONE;
     int32_t* tail_next = &out_head;
 
-    for( int32_t cur = src_head; cur != -1; cur = painter->scenery_pool[cur].next )
+    for( int32_t cur = src_head; cur != PAINTERS_SCENERY_POOL_IDX_NONE;
+         cur = painter->scenery_pool[cur].next )
     {
         scenery_pool_ensure(painter, 1);
         int ni = painter->scenery_pool_count++;
         painter->scenery_pool[ni] = (struct SceneryNode){
             .element_idx = painter->scenery_pool[cur].element_idx,
             .span = painter->scenery_pool[cur].span,
-            .next = -1,
+            .next = PAINTERS_SCENERY_POOL_IDX_NONE,
         };
         *tail_next = ni;
         tail_next = &painter->scenery_pool[ni].next;
@@ -372,7 +383,8 @@ tile_recalculate_spans(
     struct PaintersTile* tile)
 {
     tile->spans = 0;
-    for( int32_t n = tile->scenery_head; n != -1; n = painter->scenery_pool[n].next )
+    for( int32_t n = tile->scenery_head; n != PAINTERS_SCENERY_POOL_IDX_NONE;
+         n = painter->scenery_pool[n].next )
         tile->spans |= painter->scenery_pool[n].span;
 }
 
@@ -383,10 +395,10 @@ tile_remove_scenery_element(
     int element)
 {
     int32_t* link = &tile->scenery_head;
-    while( *link != -1 )
+    while( *link != PAINTERS_SCENERY_POOL_IDX_NONE )
     {
         struct SceneryNode* node = &painter->scenery_pool[*link];
-        if( node->element_idx == element )
+        if( (int)node->element_idx == element )
         {
             *link = node->next;
             break;
@@ -695,7 +707,7 @@ compute_normal_scenery_spans(
             }
 
             tile = painter_tile_at(painter, x, z, loc_level);
-            scenery_prepend(painter, tile, (int16_t)element, (uint8_t)span_flags);
+            scenery_prepend(painter, tile, element, (uint8_t)span_flags);
         }
     }
 }
@@ -743,18 +755,34 @@ painter_reset_to_static(struct Painter* painter)
         if( painter->elements[i].kind != PNTRELEM_SCENERY )
             continue;
 
+        int sx = painter->elements[i].sx;
+        int sz = painter->elements[i].sz;
+        int slevel = painter->elements[i].slevel;
         int size_x = painter->elements[i]._scenery.size_x;
         int size_z = painter->elements[i]._scenery.size_z;
 
-        for( int x = 0; x < size_x; x++ )
+        /* Match compute_normal_scenery_spans: spans are only linked inside the painter,
+         * but the element still stores the full footprint — do not index past bounds. */
+        int min_tile_x = sx;
+        int min_tile_z = sz;
+        int max_tile_x = sx + size_x - 1;
+        int max_tile_z = sz + size_z - 1;
+        if( max_tile_x > painter->width - 1 )
+            max_tile_x = painter->width - 1;
+        if( max_tile_z > painter->height - 1 )
+            max_tile_z = painter->height - 1;
+        if( min_tile_x < 0 )
+            min_tile_x = 0;
+        if( min_tile_z < 0 )
+            min_tile_z = 0;
+        if( min_tile_x > max_tile_x || min_tile_z > max_tile_z )
+            continue;
+
+        for( int x = min_tile_x; x <= max_tile_x; x++ )
         {
-            for( int z = 0; z < size_z; z++ )
+            for( int z = min_tile_z; z <= max_tile_z; z++ )
             {
-                tile = painter_tile_at(
-                    painter,
-                    painter->elements[i].sx + x,
-                    painter->elements[i].sz + z,
-                    painter->elements[i].slevel);
+                tile = painter_tile_at(painter, x, z, slevel);
                 tile_remove_scenery_element(painter, tile, i);
             }
         }
@@ -780,14 +808,14 @@ painter_add_wall(
     switch( wall_ab )
     {
     case WALL_A:
-        assert(tile->wall_a == -1);
+        assert(tile->wall_a == PAINTERS_TILE_ELEMENT_REF_NONE);
         kind = PNTRELEM_WALL_A;
-        tile->wall_a = element;
+        painters_tile_store_element_ref(&tile->wall_a, element);
         break;
     case WALL_B:
-        assert(tile->wall_b == -1);
+        assert(tile->wall_b == PAINTERS_TILE_ELEMENT_REF_NONE);
         kind = PNTRELEM_WALL_B;
-        tile->wall_b = element;
+        painters_tile_store_element_ref(&tile->wall_b, element);
         break;
     default:
         assert(false);
@@ -821,12 +849,12 @@ painter_add_wall_decor(
     switch( wall_ab )
     {
     case WALL_A:
-        assert(tile->wall_decor_a == -1);
-        tile->wall_decor_a = element;
+        assert(tile->wall_decor_a == PAINTERS_TILE_ELEMENT_REF_NONE);
+        painters_tile_store_element_ref(&tile->wall_decor_a, element);
         break;
     case WALL_B:
-        assert(tile->wall_decor_b == -1);
-        tile->wall_decor_b = element;
+        assert(tile->wall_decor_b == PAINTERS_TILE_ELEMENT_REF_NONE);
+        painters_tile_store_element_ref(&tile->wall_decor_b, element);
         break;
     default:
         assert(false);
@@ -857,8 +885,8 @@ painter_add_ground_decor(
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
     int element = painter_push_element(painter);
 
-    assert(tile->ground_decor == -1);
-    tile->ground_decor = element;
+    assert(tile->ground_decor == PAINTERS_TILE_ELEMENT_REF_NONE);
+    painters_tile_store_element_ref(&tile->ground_decor, element);
 
     painter->elements[element] = (struct PaintersElement){
         .kind = PNTRELEM_GROUND_DECOR,
@@ -885,16 +913,16 @@ painter_add_ground_object(
     switch( bottom_middle_top )
     {
     case GROUND_OBJECT_BOTTOM:
-        assert(tile->ground_object_bottom == -1);
-        tile->ground_object_bottom = element;
+        assert(tile->ground_object_bottom == PAINTERS_TILE_ELEMENT_REF_NONE);
+        painters_tile_store_element_ref(&tile->ground_object_bottom, element);
         break;
     case GROUND_OBJECT_MIDDLE:
-        assert(tile->ground_object_middle == -1);
-        tile->ground_object_middle = element;
+        assert(tile->ground_object_middle == PAINTERS_TILE_ELEMENT_REF_NONE);
+        painters_tile_store_element_ref(&tile->ground_object_middle, element);
         break;
     case GROUND_OBJECT_TOP:
-        assert(tile->ground_object_top == -1);
-        tile->ground_object_top = element;
+        assert(tile->ground_object_top == PAINTERS_TILE_ELEMENT_REF_NONE);
+        painters_tile_store_element_ref(&tile->ground_object_top, element);
         break;
     default:
         assert(false);

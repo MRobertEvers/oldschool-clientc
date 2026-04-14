@@ -3,6 +3,14 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
+/** No wall/ground element on this tile; valid refs are [0, PAINTERS_TILE_ELEMENT_REF_NONE). */
+#define PAINTERS_TILE_ELEMENT_REF_NONE UINT16_MAX
+
+/** End of scenery_pool intrusive list (or unused bridge link); int32_t sentinel. */
+#define PAINTERS_SCENERY_POOL_IDX_NONE (-1)
+#define PAINTERS_BRIDGE_TILE_IDX_NONE PAINTERS_SCENERY_POOL_IDX_NONE
+
 /**
  * Coordinate naming convention:
  * c := chunk -> relative to the map chunk, 0-63
@@ -39,26 +47,26 @@ enum PaintersTileFlags
  */
 struct SceneryNode
 {
-    int16_t element_idx;
+    uint16_t element_idx;
     uint8_t span;
-    int32_t next; /* pool index, or -1 */
+    int32_t next; /* pool index, or PAINTERS_SCENERY_POOL_IDX_NONE */
 };
 
 struct PaintersTile
 {
-    int16_t wall_a;
-    int16_t wall_b;
-    int16_t wall_decor_a;
-    int16_t wall_decor_b;
+    uint16_t wall_a;
+    uint16_t wall_b;
+    uint16_t wall_decor_a;
+    uint16_t wall_decor_b;
 
-    int16_t ground_decor;
+    uint16_t ground_decor;
 
-    int16_t ground_object_bottom;
-    int16_t ground_object_middle;
-    int16_t ground_object_top;
+    uint16_t ground_object_bottom;
+    uint16_t ground_object_middle;
+    uint16_t ground_object_top;
 
     int32_t bridge_tile;
-    int32_t scenery_head; /* pool index, or -1 */
+    int32_t scenery_head; /* pool index, or PAINTERS_SCENERY_POOL_IDX_NONE */
 
     // Contains directions for which tiles are waiting for us to draw.
     // This is determined by locs that are larger than 1x1.

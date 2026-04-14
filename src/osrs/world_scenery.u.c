@@ -149,7 +149,7 @@ apply_transforms(
 
 static void
 apply_contour_ground(
-    struct World* world,
+    struct Heightmap* hm,
     struct EntitySceneCoord* entity_scene_coord,
     struct CacheModel* model,
     int contour_ground_type,
@@ -157,7 +157,6 @@ apply_contour_ground(
     int size_x,
     int size_z)
 {
-    struct Heightmap* hm = world->heightmap;
     int sl = (int)entity_scene_coord->slevel;
 
     if( (contour_ground_type == 4 || contour_ground_type == 5) && sl + 1 >= hm->levels )
@@ -229,7 +228,7 @@ apply_contour_ground(
  */
 static void
 apply_contour_ground_to_lite_model(
-    struct World* world,
+    struct Heightmap* hm,
     struct EntitySceneCoord* entity_scene_coord,
     struct DashModel* lite_model,
     int contour_ground_type,
@@ -265,13 +264,7 @@ apply_contour_ground_to_lite_model(
     proxy.vertices_z = iz;
 
     apply_contour_ground(
-        world,
-        entity_scene_coord,
-        &proxy,
-        contour_ground_type,
-        contour_ground_param,
-        size_x,
-        size_z);
+        hm, entity_scene_coord, &proxy, contour_ground_type, contour_ground_param, size_x, size_z);
 
     vertexint_t* out_y = dashmodel_vertices_y(lite_model);
     for( int i = 0; i < vc; i++ )
@@ -379,7 +372,7 @@ world_load_scenery_model(
      * wrong — use the full model path when contour is enabled. */
     bool use_flyweight = world->flyweight_hmap != NULL && config_loc->contour_ground_type == 0;
 
-    if( use_flyweight )
+    if( use_flyweight && false )
     {
         DashModelBitset key = ((DashModelBitset)(config_loc->sharelight != 0 ? 1ULL : 0ULL) << 48) |
                               ((DashModelBitset)(config_loc->_id & 0x1FFFFF) << 8) |
@@ -437,7 +430,7 @@ world_load_scenery_model(
 
         apply_transforms(config_loc, model, rotation, true);
         apply_contour_ground(
-            world,
+            world->heightmap,
             entity_scene_coord,
             model,
             config_loc->contour_ground_type,

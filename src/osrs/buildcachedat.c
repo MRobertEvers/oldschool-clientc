@@ -641,6 +641,29 @@ buildcachedat_clear_scenery_models(struct BuildCacheDat* buildcachedat)
 }
 
 void
+buildcachedat_clear_scenery_configs(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat )
+        return;
+    if( buildcachedat->config_loc_hmap )
+    {
+        dashmap_free_entries(buildcachedat->config_loc_hmap, free_config_loc_entry);
+        buildcachedat->config_loc_hmap = buildcachedat_create_hmap(
+            sizeof(int), sizeof(struct ConfigLocEntry), BUILDCACHEDAT_HMAP_INITIAL_CAPACITY);
+    }
+}
+
+void
+buildcachedat_clear_objects(struct BuildCacheDat* buildcachedat)
+{
+    if( !buildcachedat )
+        return;
+    dashmap_free_entries(buildcachedat->obj_hmap, free_obj_entry);
+    buildcachedat->obj_hmap = buildcachedat_create_hmap(
+        sizeof(int), sizeof(struct ObjEntry), BUILDCACHEDAT_HMAP_INITIAL_CAPACITY);
+}
+
+void
 buildcachedat_clear_component_cache(struct BuildCacheDat* buildcachedat)
 {
     if( !buildcachedat )

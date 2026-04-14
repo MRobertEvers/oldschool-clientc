@@ -377,7 +377,7 @@ if(EMSCRIPTEN)
         -sALLOW_TABLE_GROWTH=1
         -sSTACK_SIZE=512kb
         -sNO_EXIT_RUNTIME=1
-        -sASSERTions=1
+        -sASSERTIONS=1
         # -sWASM=0
         --shell-file ${EM_SHELL_FILE}
         -sEXPORTED_FUNCTIONS=${EXPORTED_FUNC_STR}

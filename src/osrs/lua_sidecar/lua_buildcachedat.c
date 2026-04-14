@@ -3,12 +3,12 @@
 #include "lua_gametypes.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
-#include "osrs/rscache/cache_dat.h"
 #include "osrs/datatypes/appearances.h"
 #include "osrs/datatypes/player_appearance.h"
 #include "osrs/game.h"
 #include "osrs/packets/pkt_npc_info.h"
 #include "osrs/packets/pkt_player_info.h"
+#include "osrs/rscache/cache_dat.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -253,8 +253,7 @@ LuaBuildCacheDat_get_all_unique_scenery_model_ids(
 {
     (void)args;
     int* model_ids = NULL;
-    int count =
-        buildcachedat_loader_get_all_unique_scenery_model_ids(buildcachedat, &model_ids);
+    int count = buildcachedat_loader_get_all_unique_scenery_model_ids(buildcachedat, &model_ids);
 
     struct LuaGameType* result = LuaGameType_NewIntArray(count);
     for( int i = 0; i < count; i++ )
@@ -684,12 +683,32 @@ LuaBuildCacheDat_clear_scenery_models(
 }
 
 struct LuaGameType*
+LuaBuildCacheDat_clear_scenery_configs(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_clear_scenery_configs(buildcachedat);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
 LuaBuildCacheDat_clear_component_cache(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
     (void)args;
     buildcachedat_clear_component_cache(buildcachedat);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_clear_objects(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_clear_objects(buildcachedat);
     return LuaGameType_NewVoid();
 }
 
@@ -795,10 +814,14 @@ LuaBuildCacheDat_DispatchCommand(
     else DISPATCH_COMMAND(command, set_2d_media_jagfile)
     else if( strcmp(command, "clear_component_cache") == 0 )
         return LuaBuildCacheDat_clear_component_cache(buildcachedat, args);
+    else if( strcmp(command, "clear_objects") == 0 )
+        return LuaBuildCacheDat_clear_objects(buildcachedat, args);
     else if( strcmp(command, "clear_map_chunks") == 0 )
         return LuaBuildCacheDat_clear_map_chunks(buildcachedat, args);
     else if( strcmp(command, "clear_scenery_models") == 0 )
         return LuaBuildCacheDat_clear_scenery_models(buildcachedat, args);
+    else if( strcmp(command, "clear_scenery_configs") == 0 )
+        return LuaBuildCacheDat_clear_scenery_configs(buildcachedat, args);
     else if( strcmp(command, "clear_config_jagfile") == 0 )
         return LuaBuildCacheDat_clear_config_jagfile(buildcachedat, args);
     else if( strcmp(command, "clear_versionlist_jagfile") == 0 )

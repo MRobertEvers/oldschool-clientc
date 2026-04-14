@@ -46,6 +46,7 @@ NEON_DISABLED
 
 ```
 emcmake cmake -B build.em -DCMAKE_BUILD_TYPE=Debug
+emcmake cmake .. -DCMAKE_BUILD_TYPE=Debug
 
 cd build.em
 

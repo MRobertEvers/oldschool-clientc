@@ -64,11 +64,18 @@ local function load_scenery_models()
     end
 end
 
+-- Drop decoded loc configs and scenery model blobs so the next chunk does not accumulate them.
+local function cleanup_chunk_scenery_cache()
+    Game.buildcachedat_clear_scenery_configs()
+    Game.buildcachedat_clear_scenery_models()
+    Game.buildcachedat_clear_map_chunks()
+end
+
 -- ---------------------------------------------------------------------------
 -- world_rebuild_centerzone_slow
 --
 -- Incremental build: loads and processes one map chunk at a time, releasing
--- terrain, scenery and model assets from buildcachedat between chunks.
+-- terrain, scenery, model, and loc-config decode state from buildcachedat between chunks.
 -- Requires the config jagfile to be set before calling (used by
 -- init_scenery_configs per-chunk); the jagfile is cleared on return.
 -- ---------------------------------------------------------------------------
@@ -90,16 +97,18 @@ local function world_rebuild_centerzone_slow(zone_center_x, zone_center_z, scene
 
             load_chunk_map_data(mapx, mapz)
 
-            -- buildcachedat_init_scenery_configs iterates the currently-cached scenery to
-            -- discover which loc-ids to decode.  It must run after scenery is loaded and
-            -- while the config jagfile is still set.
+
             Game.buildcachedat_init_scenery_configs_from_config_jagfile()
 
             load_scenery_models()
 
             -- Populates heightmap, collision, minimap, entities, blendmap, overlaymap,
-            -- and shapemap for this chunk.  Clears terrain + scenery + models on return.
+            -- and shapemap for this chunk. Clears terrain + scenery + models on return;
+            -- cleanup_chunk_scenery_cache then drops loc config decode cache (and models again).
             Game.game_rebuild_centerzone_chunk(mapx, mapz)
+            print_heap(string.format(" 1 after chunk (%d,%d)", mapx, mapz))
+            cleanup_chunk_scenery_cache()
+            print_heap(string.format(" 2 after chunk (%d,%d)", mapx, mapz))
 
             safe_gc()
             print_heap(string.format("  after chunk (%d,%d)", mapx, mapz))
@@ -178,7 +187,7 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     -- it iterates the currently-cached scenery to find loc-ids to decode.
     print("=== Loading Config (non-scenery tables) ===")
     Game.buildcachedat_init_floortypes_from_config_jagfile()
-    Game.buildcachedat_init_idkits_from_config_jagfile()
+    -- Game.buildcachedat_init_idkits_from_config_jagfile()
     Game.buildcachedat_init_sequences_from_config_jagfile()
     Game.buildcachedat_clear_media_jagfile()
     safe_gc()

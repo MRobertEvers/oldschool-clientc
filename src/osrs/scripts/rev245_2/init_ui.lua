@@ -1,5 +1,9 @@
 local CacheDat = require("cachedat")
 
+local function print_heap(label)
+    local mb = Game.game_get_heap_usage_mb()
+    print(string.format("[heap] %-48s %.1f MB", label, mb))
+end
 
 local function print_table(t)
     for k, v in pairs(t) do
@@ -8,6 +12,8 @@ local function print_table(t)
 end
 
 local function init_ui()
+    print_heap("before media jagfile")
+
     local media_jagfile = CacheDat.load_archive(CacheDat.Tables.CACHE_DAT_CONFIGS,
         CacheDat.ConfigDatKind.CONFIG_DAT_MEDIA_2D_GRAPHICS, 0)
     Game.buildcachedat_set_2d_media_jagfile(media_jagfile)
@@ -22,6 +28,8 @@ local function init_ui()
     Game.game_load_interfaces(interfaces_archive)
     Game.game_load_component_sprites()
     _G.interfaces_loaded_flag = true
+
+    print_heap("after interfaces")
 
     -- Interface MODEL components (modelType 1) need raw models in BuildCacheDat.
     local model_ids = Game.game_get_interface_model_ids()
@@ -43,14 +51,14 @@ local function init_ui()
             Game.buildcachedat_cache_model(model_archives[i], models_needed[i])
         end
     end
-
+    print_heap("after interface models")
     -- Obj configs needed for inventory icon generation.
     local config_jagfile = CacheDat.load_archive(
         CacheDat.Tables.CACHE_DAT_CONFIGS,
         CacheDat.ConfigDatKind.CONFIG_DAT_CONFIGS, 0)
     Game.buildcachedat_set_config_jagfile(config_jagfile)
     Game.buildcachedat_init_objects_from_config_jagfile()
-
+    print_heap("after objects")
     -- Step 1: Parse INI config files (stores RevConfigBuffer on game).
     local ui_archives = CacheDat.load_config_files({
         "rev_245_2/rev_245_2_ui.ini",
@@ -59,10 +67,10 @@ local function init_ui()
     local ui_config = ui_archives[1]
     local ui_cache_config = ui_archives[2]
     Game.ui_parse_revconfig(ui_config, ui_cache_config)
-
+    print_heap("after ui parse")
     -- Step 2: Get inventory obj IDs from parsed config.
     local inv_obj_ids = Game.ui_get_revconfig_inv_obj_ids()
-
+    print_heap("after inv obj ids")
     -- Step 3: Load models for inventory objects (Lua cache round-trip).
     do
         local seen = {}
@@ -93,18 +101,20 @@ local function init_ui()
             end
         end
     end
-
+    print_heap("after inv models")
     -- Step 4: Pass 1 - load inventories (sprites from now-cached models).
     Game.ui_load_revconfig_inventories()
-
+    print_heap("after inv inventories")
     -- Step 5: Pass 2 - load rest of UI (sprites, components, layouts, RS resolution).
     Game.ui_load_revconfig_ui()
-
+    print_heap("after ui")
     -- Step 6: Fonts.
     Game.ui_load_fonts(ui_cache_config)
-
+    print_heap("after fonts")
     -- Interface defs are baked into the uitree; free thousands of decoded components from RAM.
     Game.buildcachedat_clear_component_cache()
+    Game.buildcachedat_clear_objects()
+    print_heap("after component cache")
 end
 
 init_ui()

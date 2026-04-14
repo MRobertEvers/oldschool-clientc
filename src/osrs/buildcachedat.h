@@ -87,7 +87,8 @@ buildcachedat_new(void);
 void
 buildcachedat_free(struct BuildCacheDat* buildcachedat);
 
-/** Free map terrain and map scenery chunk entries; maps are recreated empty. Other tables unchanged. */
+/** Free map terrain and map scenery chunk entries; maps are recreated empty. Other tables
+ * unchanged. */
 void
 buildcachedat_clear_map_chunks(struct BuildCacheDat* buildcachedat);
 
@@ -107,12 +108,22 @@ buildcachedat_clear_map_scenery_chunks(struct BuildCacheDat* buildcachedat);
 void
 buildcachedat_clear_scenery_models(struct BuildCacheDat* buildcachedat);
 
+/** Free all decoded loc configs (CacheConfigLocation in config_loc_hmap) and recreate the map
+ * empty. Call between per-chunk init_scenery_configs passes so loc decode memory does not
+ * accumulate. */
+void
+buildcachedat_clear_scenery_configs(struct BuildCacheDat* buildcachedat);
+
 /** Free every decoded interface component (CacheDatConfigComponent) and recreate an empty
  * component_hmap. Safe after static UI is built into the uitree; buildcachedat_get_component
  * returns NULL until interfaces are loaded again. Reftables (sprites, fonts, component_sprites)
  * are unchanged. */
 void
 buildcachedat_clear_component_cache(struct BuildCacheDat* buildcachedat);
+
+/** Free all decoded objects (CacheDatConfigObj in obj_hmap) and recreate an empty obj_hmap. */
+void
+buildcachedat_clear_objects(struct BuildCacheDat* buildcachedat);
 
 /** Free the raw jagfile FileListDat buffers (config, versionlist, media) that were only needed
  * during the decode phase. All decoded entries remain valid in their hashmaps. Call before the
@@ -124,15 +135,17 @@ buildcachedat_clear_jagfiles(struct BuildCacheDat* buildcachedat);
  * incremental resize. Call before bulk-inserting a known number of entries to avoid the transient
  * double-buffer spike from repeated grow operations. */
 void
-buildcachedat_reserve_hmap(struct DashMap* map, size_t min_count);
+buildcachedat_reserve_hmap(
+    struct DashMap* map,
+    size_t min_count);
 
 /** Free every owning BuildCacheDat cache (hash maps that own decoded data, config/versionlist/media
  * jagfiles, containers) and reinitialize those maps and event buffer. Reftable maps (textures,
- * fonts, sprites, component_sprites, animframes) are not cleared. The struct remains valid for reuse.
- * DashModel meshes live on Scene2, not in BuildCacheDat. Per-zone flyweight DashModel caches live on
- * struct World (flyweight_hmap); they are cleared in world_rebuild_centerzone_begin and world_free,
- * not by this function — call those (or tear down the World) before clearing the build cache if the
- * scene and World are being destroyed together. */
+ * fonts, sprites, component_sprites, animframes) are not cleared. The struct remains valid for
+ * reuse. DashModel meshes live on Scene2, not in BuildCacheDat. Per-zone flyweight DashModel caches
+ * live on struct World (flyweight_hmap); they are cleared in world_rebuild_centerzone_begin and
+ * world_free, not by this function — call those (or tear down the World) before clearing the build
+ * cache if the scene and World are being destroyed together. */
 void
 buildcachedat_clear(struct BuildCacheDat* buildcachedat);
 
@@ -257,10 +270,14 @@ buildcachedat_iter_next_flotype(struct DashMapIter* iter);
 
 /** Register that texture_id was loaded into Scene2 (reftable only). */
 void
-buildcachedat_add_texture_ref(struct BuildCacheDat* buildcachedat, int texture_id);
+buildcachedat_add_texture_ref(
+    struct BuildCacheDat* buildcachedat,
+    int texture_id);
 
 bool
-buildcachedat_has_texture_ref(struct BuildCacheDat* buildcachedat, int texture_id);
+buildcachedat_has_texture_ref(
+    struct BuildCacheDat* buildcachedat,
+    int texture_id);
 
 void
 buildcachedat_add_font_ref(

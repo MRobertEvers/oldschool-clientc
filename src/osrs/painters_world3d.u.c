@@ -234,7 +234,7 @@ painter_w3d_emit_ground_pass(
     int far_walls = far_wall_flags(camera_sx, camera_sz, tile_sx, tile_sz);
     tile_paint->near_wall_flags |= ~far_walls;
 
-    if( tile->bridge_tile != -1 )
+    if( tile->bridge_tile != PAINTERS_BRIDGE_TILE_IDX_NONE )
     {
         bridge_underpass_tile = &painter->tiles[tile->bridge_tile];
 
@@ -244,14 +244,15 @@ painter_w3d_emit_ground_pass(
             PAINTER_TILE_Z(painter, bridge_underpass_tile),
             painters_tile_get_terrain_slevel(bridge_underpass_tile));
 
-        if( bridge_underpass_tile->wall_a != -1 )
+        if( bridge_underpass_tile->wall_a != PAINTERS_TILE_ELEMENT_REF_NONE )
         {
             element = &painter->elements[bridge_underpass_tile->wall_a];
             assert(element->kind == PNTRELEM_WALL_A);
             push_command_entity(buffer, element->_wall.entity);
         }
 
-        for( int32_t sn = bridge_underpass_tile->scenery_head; sn != -1;
+        for( int32_t sn = bridge_underpass_tile->scenery_head;
+             sn != PAINTERS_SCENERY_POOL_IDX_NONE;
              sn = painter->scenery_pool[sn].next )
         {
             int scenery_element = painter->scenery_pool[sn].element_idx;
@@ -269,7 +270,7 @@ painter_w3d_emit_ground_pass(
 
     push_command_terrain(buffer, tile_sx, tile_sz, painters_tile_get_terrain_slevel(tile));
 
-    if( tile->wall_a != -1 )
+    if( tile->wall_a != PAINTERS_TILE_ELEMENT_REF_NONE )
     {
         element = &painter->elements[tile->wall_a];
         assert(element->kind == PNTRELEM_WALL_A);
@@ -278,7 +279,7 @@ painter_w3d_emit_ground_pass(
             push_command_entity(buffer, element->_wall.entity);
     }
 
-    if( tile->wall_b != -1 )
+    if( tile->wall_b != PAINTERS_TILE_ELEMENT_REF_NONE )
     {
         element = &painter->elements[tile->wall_b];
         assert(element->kind == PNTRELEM_WALL_B);
@@ -287,21 +288,21 @@ painter_w3d_emit_ground_pass(
             push_command_entity(buffer, element->_wall.entity);
     }
 
-    if( tile->ground_decor != -1 )
+    if( tile->ground_decor != PAINTERS_TILE_ELEMENT_REF_NONE )
     {
         element = &painter->elements[tile->ground_decor];
         assert(element->kind == PNTRELEM_GROUND_DECOR);
         push_command_entity(buffer, element->_ground_decor.entity);
     }
 
-    if( tile->ground_object_bottom != -1 )
+    if( tile->ground_object_bottom != PAINTERS_TILE_ELEMENT_REF_NONE )
     {
         element = &painter->elements[tile->ground_object_bottom];
         assert(element->kind == PNTRELEM_GROUND_OBJECT);
         push_command_entity(buffer, element->_ground_object.entity);
     }
 
-    if( tile->wall_decor_a != -1 )
+    if( tile->wall_decor_a != PAINTERS_TILE_ELEMENT_REF_NONE )
     {
         element = &painter->elements[tile->wall_decor_a];
         assert(element->kind == PNTRELEM_WALL_DECOR);
@@ -324,7 +325,7 @@ painter_w3d_emit_ground_pass(
             {
                 push_command_entity(buffer, element->_wall_decor.entity);
             }
-            else if( tile->wall_decor_b != -1 )
+            else if( tile->wall_decor_b != PAINTERS_TILE_ELEMENT_REF_NONE )
             {
                 element = &painter->elements[tile->wall_decor_b];
                 assert(element->kind == PNTRELEM_WALL_DECOR);
@@ -338,7 +339,7 @@ painter_w3d_emit_ground_pass(
     }
     else
     {
-        assert(tile->wall_decor_b == -1);
+        assert(tile->wall_decor_b == PAINTERS_TILE_ELEMENT_REF_NONE);
     }
 }
 
@@ -353,7 +354,7 @@ painter_w3d_emit_near_wall_pass(
 {
     struct PaintersElement* element = NULL;
 
-    if( tile->wall_decor_a != -1 )
+    if( tile->wall_decor_a != PAINTERS_TILE_ELEMENT_REF_NONE )
     {
         element = &painter->elements[tile->wall_decor_a];
         assert(element->kind == PNTRELEM_WALL_DECOR);
@@ -377,7 +378,7 @@ painter_w3d_emit_near_wall_pass(
             {
                 push_command_entity(buffer, element->_wall_decor.entity);
             }
-            else if( tile->wall_decor_b != -1 )
+            else if( tile->wall_decor_b != PAINTERS_TILE_ELEMENT_REF_NONE )
             {
                 element = &painter->elements[tile->wall_decor_b];
                 assert(element->kind == PNTRELEM_WALL_DECOR);
@@ -391,7 +392,7 @@ painter_w3d_emit_near_wall_pass(
         }
     }
 
-    if( tile->wall_a != -1 )
+    if( tile->wall_a != PAINTERS_TILE_ELEMENT_REF_NONE )
     {
         element = &painter->elements[tile->wall_a];
         assert(element->kind == PNTRELEM_WALL_A);
@@ -400,7 +401,7 @@ painter_w3d_emit_near_wall_pass(
             push_command_entity(buffer, element->_wall.entity);
     }
 
-    if( tile->wall_b != -1 )
+    if( tile->wall_b != PAINTERS_TILE_ELEMENT_REF_NONE )
     {
         element = &painter->elements[tile->wall_b];
         assert(element->kind == PNTRELEM_WALL_B);
@@ -505,7 +506,8 @@ painter_paint_world3d(
                 }
                 W3(painter)->paints[idx].draw_front = 1;
                 W3(painter)->paints[idx].draw_back = 1;
-                W3(painter)->paints[idx].draw_primaries = (tile->scenery_head != -1) ? 1u : 0u;
+                W3(painter)->paints[idx].draw_primaries =
+                    (tile->scenery_head != PAINTERS_SCENERY_POOL_IDX_NONE) ? 1u : 0u;
                 tiles_remaining++;
             }
         }
@@ -701,7 +703,8 @@ painter_paint_world3d(
             int buf_si[100];
             int buf_n = 0;
 
-            for( int32_t sn = tile->scenery_head; sn != -1; sn = painter->scenery_pool[sn].next )
+            for( int32_t sn = tile->scenery_head; sn != PAINTERS_SCENERY_POOL_IDX_NONE;
+                 sn = painter->scenery_pool[sn].next )
             {
                 int si = painter->scenery_pool[sn].element_idx;
                 element_paint = &painter->element_paints[si];
