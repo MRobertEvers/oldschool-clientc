@@ -66,9 +66,8 @@ scenery_element_position_init(
     int size_x,
     int size_z)
 {
-    struct Scene2Element* scene_element = scene2_element_at(
-        world->scene2,
-        entity_scene_element->element_id);
+    struct Scene2Element* scene_element =
+        scene2_element_at(world->scene2, entity_scene_element->element_id);
     scene2_element_expect(scene_element, "scenery_element_position_init");
 
     struct HeightmapHeights heights = { 0 };
@@ -184,7 +183,8 @@ apply_contour_ground(
     int above_az = (contour_ground_type == 4 || contour_ground_type == 5) ? hm_az : 0;
 
     struct ContourGround cg;
-    if( !contour_ground_init(&cg,
+    if( !contour_ground_init(
+            &cg,
             contour_ground_type,
             contour_ground_param,
             hm_ax,
@@ -233,6 +233,15 @@ world_load_scenery_model(
     struct CacheConfigLocation* config_loc)
 {
     struct CacheModel* model = NULL;
+
+    if( entity_scene_element->element_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "world_load_scenery_model: invalid element_id=%d\n",
+            entity_scene_element->element_id);
+        abort();
+    }
 
     int model_ids[10];
     int model_ids_count = 0;
@@ -298,10 +307,7 @@ world_load_scenery_model(
 
     if( models_count <= 0 )
     {
-        fprintf(
-            stderr,
-            "world_load_scenery_model: no models (shape_select=%d)\n",
-            shape_select);
+        fprintf(stderr, "world_load_scenery_model: no models (shape_select=%d)\n", shape_select);
         abort();
     }
 
@@ -389,7 +395,17 @@ scenery_add_wall_single(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+
+    if( entity->scene_element.element_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "scenery_add_wall_single: invalid element_id=%d\n",
+            entity->scene_element.element_id);
+        abort();
+    }
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -452,7 +468,17 @@ scenery_add_wall_tri_corner(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+
+    if( entity->scene_element.element_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "scenery_add_wall_tri_corner: invalid element_id=%d\n",
+            entity->scene_element.element_id);
+        abort();
+    }
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -514,8 +540,28 @@ scenery_add_wall_two_sides(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
-    entity->scene_element_two.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element_two.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+
+    if( entity->scene_element.element_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "scenery_add_wall_two_sides: invalid element_id=%d\n",
+            entity->scene_element.element_id);
+        abort();
+    }
+
+    if( entity->scene_element_two.element_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "scenery_add_wall_two_sides: invalid element_id=%d\n",
+            entity->scene_element_two.element_id);
+        abort();
+    }
 
     int orientation = map_tile->orientation;
     // +4 for Mirrored
@@ -601,7 +647,17 @@ scenery_add_wall_rect_corner(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+
+    if( entity->scene_element.element_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "scenery_add_wall_rect_corner: invalid element_id=%d\n",
+            entity->scene_element.element_id);
+        abort();
+    }
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -662,7 +718,17 @@ scenery_add_wall_decor_inside(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+
+    if( entity->scene_element.element_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "scenery_add_wall_decor_inside: invalid element_id=%d\n",
+            entity->scene_element.element_id);
+        abort();
+    }
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -726,7 +792,17 @@ scenery_add_wall_decor_outside(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+
+    if( entity->scene_element.element_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "scenery_add_wall_decor_outside: invalid element_id=%d\n",
+            entity->scene_element.element_id);
+        abort();
+    }
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -792,7 +868,18 @@ scenery_add_wall_decor_diagonal_outside(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+
+    if( entity->scene_element.element_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "scenery_add_wall_decor_diagonal_outside: invalid element_id=%d\n",
+            entity->scene_element.element_id);
+        abort();
+    }
+
     entity->interactable = config_loc->is_interactive;
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
@@ -862,13 +949,17 @@ scenery_add_wall_decor_diagonal_inside(
     struct CacheConfigLocation* config_loc)
 {
     entity->scene_element.element_id =
-        config_loc->seq_id != -1
-            ? scene2_element_acquire_full(
-                  world->scene2,
-                  (int)entity_unified_id(ENTITY_KIND_MAP_BUILD_LOC, entity->entity_id))
-            : scene2_element_acquire_fast(
-                  world->scene2,
-                  (int)entity_unified_id(ENTITY_KIND_MAP_BUILD_LOC, entity->entity_id));
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+
+    if( entity->scene_element.element_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "scenery_add_wall_decor_diagonal_inside: invalid element_id=%d\n",
+            entity->scene_element.element_id);
+        abort();
+    }
+
     entity->interactable = config_loc->is_interactive;
 
     int orientation = (map_tile->orientation + 2) & 0x3;
@@ -947,8 +1038,29 @@ scenery_add_wall_decor_diagonal_double(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
-    entity->scene_element_two.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element_two.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+
+    if( entity->scene_element.element_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "scenery_add_wall_decor_diagonal_double: invalid element_id=%d\n",
+            entity->scene_element.element_id);
+        abort();
+    }
+
+    if( entity->scene_element_two.element_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "scenery_add_wall_decor_diagonal_double: invalid element_id=%d\n",
+            entity->scene_element_two.element_id);
+        abort();
+    }
+
     entity->interactable = config_loc->is_interactive;
 
     int outside_rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
@@ -1061,7 +1173,17 @@ scenery_add_wall_diagonal(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+
+    if( entity->scene_element.element_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "scenery_add_wall_diagonal: invalid element_id=%d\n",
+            entity->scene_element.element_id);
+        abort();
+    }
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -1113,7 +1235,18 @@ scenery_add_normal(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+
+    if( entity->scene_element.element_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "scenery_add_normal: invalid element_id=%d\n",
+            entity->scene_element.element_id);
+        abort();
+    }
+
     entity->interactable = config_loc->is_interactive;
 
     int rotation = config_loc->seq_id != -1 ? 0 : map_tile->orientation;
@@ -1193,7 +1326,15 @@ scenery_add_roof(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+
+    if( entity->scene_element.element_id < 0 )
+    {
+        fprintf(
+            stderr, "scenery_add_roof: invalid element_id=%d\n", entity->scene_element.element_id);
+        abort();
+    }
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;
@@ -1238,7 +1379,17 @@ scenery_add_floor_decoration(
     struct CacheMapLoc* map_tile,
     struct CacheConfigLocation* config_loc)
 {
-    entity->scene_element.element_id = scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+    entity->scene_element.element_id =
+        scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
+
+    if( entity->scene_element.element_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "scenery_add_floor_decoration: invalid element_id=%d\n",
+            entity->scene_element.element_id);
+        abort();
+    }
 
     int rotation = map_tile->orientation;
     int orientation = map_tile->orientation;

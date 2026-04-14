@@ -542,9 +542,7 @@ scene2_element_expect(
     if( el )
         return;
     fprintf(
-        stderr,
-        "scene2_element_expect: NULL element (%s)\n",
-        context ? context : "(no context)");
+        stderr, "scene2_element_expect: NULL element (%s)\n", context ? context : "(no context)");
     abort();
 }
 

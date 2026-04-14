@@ -190,6 +190,24 @@
             ]
         },
         {
+            "name": "(lldb) Launch Prod OSX",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build_release/osx",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build_release",
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "setupCommands": [
+                {
+                    "description": "Stop on debug traps (SIGTRAP)",
+                    "text": "process handle SIGTRAP -n false -p true -s false",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
             "name": "(gdb) Launch OSX",
             "type": "cppdbg",
             "request": "launch",
