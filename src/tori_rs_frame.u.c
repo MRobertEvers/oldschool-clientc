@@ -31,6 +31,10 @@
 #include <string.h>
 #include <time.h>
 
+#ifndef PAINTER_DEBUG_DUMP_SCENERY
+#define PAINTER_DEBUG_DUMP_SCENERY 1
+#endif
+
 /** Set per `LibToriRS_FrameNextCommand` call for RS model culling. */
 static bool s_frame_project_models;
 
@@ -555,6 +559,13 @@ LibToriRS_FrameBegin(
         int camera_slevel = game->camera_world_y / 240;
 
         painter_set_camera_angles(painter, game->camera_pitch, game->camera_yaw);
+
+#if PAINTER_DEBUG_DUMP_SCENERY
+        static int painter_scenery_dump_frame;
+        /* Periodic: every 300 frames. For one shot, use: if( painter_scenery_dump_frame++ == 0 ) */
+        if( (painter_scenery_dump_frame++ % 300) == 0 )
+            painter_log_scenery_inventory(painter, "LibToriRS_FrameBegin");
+#endif
 
         static int painter_bench_frames;
         static uint64_t painter_bench_sum_paint_ns;

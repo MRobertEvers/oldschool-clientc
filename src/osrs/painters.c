@@ -1,4 +1,5 @@
 #include "painters.h"
+
 #include "painters_i.h"
 
 #include <assert.h>
@@ -17,7 +18,9 @@
 // #define DISABLE_CULLMAPS 1
 
 static inline void
-painters_tile_store_element_ref(uint16_t* slot, int element)
+painters_tile_store_element_ref(
+    uint16_t* slot,
+    int element)
 {
     assert(element >= 0);
     assert((unsigned)element < (unsigned)PAINTERS_TILE_ELEMENT_REF_NONE);
@@ -401,7 +404,7 @@ tile_remove_scenery_element(
         if( (int)node->element_idx == element )
         {
             *link = node->next;
-            break;
+            continue;
         }
         link = &node->next;
     }
@@ -724,12 +727,11 @@ painter_add_normal_scenery(
 {
     int element = painter_push_element(painter);
 
-    compute_normal_scenery_spans(painter, sx, sz, slevel, size_x, size_z, element);
-
     assert(size_x > 0);
     assert(size_z > 0);
     assert(size_x < 16);
     assert(size_z < 16);
+    /* Commit element before tiles reference it (span walk / paint invariants). */
     painter->elements[element] = (struct PaintersElement){
         .kind = PNTRELEM_SCENERY,
         .sx = sx,
@@ -737,6 +739,9 @@ painter_add_normal_scenery(
         .slevel = slevel,
         ._scenery = { .entity = entity, .size_x = size_x, .size_z = size_z },
     };
+
+    compute_normal_scenery_spans(painter, sx, sz, slevel, size_x, size_z, element);
+
     return element;
 }
 
@@ -791,6 +796,71 @@ painter_reset_to_static(struct Painter* painter)
     painter->element_count = painter->static_element_count;
 }
 
+void
+painter_log_scenery_inventory(
+    const struct Painter* painter,
+    const char* tag)
+{
+    fprintf(
+        stdout,
+        "[painter_scenery] %s w=%d h=%d levels=%d static_element_count=%d element_count=%d\n",
+        tag ? tag : "",
+        painter->width,
+        painter->height,
+        painter->levels,
+        painter->static_element_count,
+        painter->element_count);
+
+    fprintf(
+        stdout, "[painter_scenery] ELEMENT kind,idx,static,entity,sx,sz,slevel,size_x,size_z\n");
+    for( int i = 0; i < painter->element_count; i++ )
+    {
+        const struct PaintersElement* e = &painter->elements[i];
+        if( e->kind != PNTRELEM_SCENERY )
+            continue;
+        fprintf(
+            stdout,
+            "[painter_scenery] ELEMENT SCENERY,%d,%c,%u,%u,%u,%u,%u,%u\n",
+            i,
+            i < painter->static_element_count ? 'S' : 'D',
+            (unsigned)e->_scenery.entity,
+            (unsigned)e->sx,
+            (unsigned)e->sz,
+            (unsigned)e->slevel,
+            (unsigned)e->_scenery.size_x,
+            (unsigned)e->_scenery.size_z);
+    }
+
+    fprintf(
+        stdout,
+        "[painter_scenery] POOL tile_sx,tile_sz,tile_level,pool_idx,element_idx,span_hex\n");
+    struct Painter* p_mut = (struct Painter*)painter;
+    for( int sx = 0; sx < painter->width; sx++ )
+    {
+        for( int sz = 0; sz < painter->height; sz++ )
+        {
+            for( int slevel = 0; slevel < painter->levels; slevel++ )
+            {
+                const struct PaintersTile* tile = painter_tile_at(p_mut, sx, sz, slevel);
+                for( int32_t sn = tile->scenery_head; sn != PAINTERS_SCENERY_POOL_IDX_NONE;
+                     sn = painter->scenery_pool[sn].next )
+                {
+                    const struct SceneryNode* node = &painter->scenery_pool[sn];
+                    fprintf(
+                        stdout,
+                        "[painter_scenery] POOL %d,%d,%d,%d,%u,0x%02x\n",
+                        sx,
+                        sz,
+                        slevel,
+                        (int)sn,
+                        (unsigned)node->element_idx,
+                        (unsigned)node->span);
+                }
+            }
+        }
+    }
+}
+
 int
 painter_add_wall(
     struct Painter* painter,
@@ -810,12 +880,10 @@ painter_add_wall(
     case WALL_A:
         assert(tile->wall_a == PAINTERS_TILE_ELEMENT_REF_NONE);
         kind = PNTRELEM_WALL_A;
-        painters_tile_store_element_ref(&tile->wall_a, element);
         break;
     case WALL_B:
         assert(tile->wall_b == PAINTERS_TILE_ELEMENT_REF_NONE);
         kind = PNTRELEM_WALL_B;
-        painters_tile_store_element_ref(&tile->wall_b, element);
         break;
     default:
         assert(false);
@@ -828,6 +896,11 @@ painter_add_wall(
         .slevel = slevel,
         ._wall = { .entity = entity, .side = side },
     };
+
+    if( wall_ab == WALL_A )
+        painters_tile_store_element_ref(&tile->wall_a, element);
+    else
+        painters_tile_store_element_ref(&tile->wall_b, element);
 
     return element;
 }
@@ -851,10 +924,12 @@ painter_add_wall_decor(
     case WALL_A:
         assert(tile->wall_decor_a == PAINTERS_TILE_ELEMENT_REF_NONE);
         painters_tile_store_element_ref(&tile->wall_decor_a, element);
+
         break;
     case WALL_B:
         assert(tile->wall_decor_b == PAINTERS_TILE_ELEMENT_REF_NONE);
         painters_tile_store_element_ref(&tile->wall_decor_b, element);
+
         break;
     default:
         assert(false);
@@ -871,6 +946,7 @@ painter_add_wall_decor(
             ._bf_through_wall_flags = through_wall_flags,
         },
     };
+
     return element;
 }
 
@@ -886,7 +962,6 @@ painter_add_ground_decor(
     int element = painter_push_element(painter);
 
     assert(tile->ground_decor == PAINTERS_TILE_ELEMENT_REF_NONE);
-    painters_tile_store_element_ref(&tile->ground_decor, element);
 
     painter->elements[element] = (struct PaintersElement){
         .kind = PNTRELEM_GROUND_DECOR,
@@ -895,6 +970,7 @@ painter_add_ground_decor(
         .slevel = slevel,
         ._ground_decor = { .entity = entity },
     };
+    painters_tile_store_element_ref(&tile->ground_decor, element);
     return element;
 }
 
@@ -914,15 +990,12 @@ painter_add_ground_object(
     {
     case GROUND_OBJECT_BOTTOM:
         assert(tile->ground_object_bottom == PAINTERS_TILE_ELEMENT_REF_NONE);
-        painters_tile_store_element_ref(&tile->ground_object_bottom, element);
         break;
     case GROUND_OBJECT_MIDDLE:
         assert(tile->ground_object_middle == PAINTERS_TILE_ELEMENT_REF_NONE);
-        painters_tile_store_element_ref(&tile->ground_object_middle, element);
         break;
     case GROUND_OBJECT_TOP:
         assert(tile->ground_object_top == PAINTERS_TILE_ELEMENT_REF_NONE);
-        painters_tile_store_element_ref(&tile->ground_object_top, element);
         break;
     default:
         assert(false);
@@ -935,6 +1008,21 @@ painter_add_ground_object(
         .slevel = slevel,
         ._ground_object = { .entity = entity },
     };
+
+    switch( bottom_middle_top )
+    {
+    case GROUND_OBJECT_BOTTOM:
+        painters_tile_store_element_ref(&tile->ground_object_bottom, element);
+        break;
+    case GROUND_OBJECT_MIDDLE:
+        painters_tile_store_element_ref(&tile->ground_object_middle, element);
+        break;
+    case GROUND_OBJECT_TOP:
+        painters_tile_store_element_ref(&tile->ground_object_top, element);
+        break;
+    default:
+        assert(false);
+    }
     return element;
 }
 

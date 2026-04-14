@@ -426,6 +426,12 @@ painter_mark_static_count(struct Painter* painter);
 void
 painter_reset_to_static(struct Painter* painter);
 
+/** stderr: all PNTRELEM_SCENERY rows + per-tile scenery_pool chains (diff native vs WASM). */
+void
+painter_log_scenery_inventory(
+    const struct Painter* painter,
+    const char* tag);
+
 #define WALL_A 0
 #define WALL_B 1
 
