@@ -85,7 +85,7 @@ tile_inward_east_inbounds(
     int camera_sx,
     int max_draw_x)
 {
-    return tile_sx < camera_sx && tile_sx + 1 < max_draw_x;
+    return tile_sx <= camera_sx && tile_sx + 1 < max_draw_x;
 }
 
 static inline bool
@@ -94,7 +94,7 @@ tile_inward_west_inbounds(
     int camera_sx,
     int min_draw_x)
 {
-    return tile_sx > camera_sx && tile_sx - 1 >= min_draw_x;
+    return tile_sx >= camera_sx && tile_sx - 1 >= min_draw_x;
 }
 
 static inline bool
@@ -103,7 +103,7 @@ tile_inward_north_inbounds(
     int camera_sz,
     int max_draw_z)
 {
-    return tile_sz < camera_sz && tile_sz + 1 < max_draw_z;
+    return tile_sz <= camera_sz && tile_sz + 1 < max_draw_z;
 }
 
 static inline bool
@@ -112,7 +112,7 @@ tile_inward_south_inbounds(
     int camera_sz,
     int min_draw_z)
 {
-    return tile_sz > camera_sz && tile_sz - 1 >= min_draw_z;
+    return tile_sz >= camera_sz && tile_sz - 1 >= min_draw_z;
 }
 
 /* Mode ctx init/free (defined in painters_*.u.c, included later in this TU). */
@@ -701,7 +701,9 @@ painter_tile_set_grid_level(
 }
 
 static inline struct TilePaint*
-tile_paint_at_idx(struct Painter* painter, int idx)
+tile_paint_at_idx(
+    struct Painter* painter,
+    int idx)
 {
     return &painter->tile_paints[idx];
 }
