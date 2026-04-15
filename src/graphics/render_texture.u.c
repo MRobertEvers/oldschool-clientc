@@ -5,6 +5,7 @@
 // clang-format off
 #include "texture.u.c"
 #include "texture_blend_branching.u.c"
+#include "texture_blend_branching_v3.u.c"
 #include "render_clip.u.c"
 #include "render_gouraud.u.c"
 #include "texture_opaque_blend_affine.c"
@@ -44,7 +45,7 @@ raster_texture_blend(
 {
     if( texture_opaque )
     {
-        raster_texture_opaque_blend_blerp8(
+        raster_texture_opaque_blend_blerp8_v3(
             pixel_buffer,
             stride,
             screen_width,

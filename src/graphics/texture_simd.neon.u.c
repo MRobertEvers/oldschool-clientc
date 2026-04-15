@@ -1,4 +1,5 @@
 #include <arm_neon.h>
+
 #include <assert.h>
 
 // shade_blend for 4 pixels at a time
