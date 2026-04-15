@@ -1,9 +1,15 @@
 ---
 name: Raster variant catalogue
-overview: Inventory of all software rasterization implementations under `src/graphics/`, grouped into Flat, Gouraud, texture flat-shaded, and texture Gouraud-shaded, with a single reference table (including perspective vs affine, opaque vs transparent, and SIMD/scanline layers).
+overview: Inventory of all software rasterization implementations under `src/graphics/`, grouped into Flat, Gouraud, texture flat-shaded, and texture Gouraud-shaded, with a single reference table (including perspective vs affine, opaque vs transparent, and SIMD/scanline layers). Follow-ups and todos live in this file only — do not fork a second plan for the same workstream.
 todos:
-  - id: optional-doc
-    content: If desired, copy the master table into a project doc (e.g. docs/) -- user did not request a file write in this task.
+  - id: fix-plan-filenames
+    content: "Plan body uses correct repo paths: gouraud_simd_alpha.u.c (not gouraud_span_alpha); texture_simd.u.c (not tex_simd)."
+    status: completed
+  - id: variant-id-column
+    content: Add Variant_ID column to the master table for all F/G/TF/TS rows per the naming grammar (legacy:/unused: where applicable).
+    status: pending
+  - id: optional-docs-export
+    content: Optionally add docs/RASTER_VARIANT_CATALOGUE.md with table + intro; link back to this plan for SIMD/layout/migration.
     status: pending
 isProject: false
 ---
@@ -31,7 +37,7 @@ G5   Gouraud               screen       ordered bs1 helper        raster_gouraud
 G6   Gouraud               screen       dispatch + clip faces     raster_gouraud, raster_gouraud_s1, raster_face_gouraud*, raster_face_gouraud_near_clip*  render_gouraud.u.c
 G7   Gouraud (legacy S4)   screen       edge-walk s4 + alpha      raster_gouraud_s4, raster_gouraud_alpha_s4              gouraud.u.c (s4 opaque commented out in render; alpha still used from s1 path)
 G8   Gouraud (alt bary)    screen       full-triangle bary s4     raster_gouraud_s4_bary                                  gouraud_barycentric.u.c (included from gouraud.u.c; not render default)
-G9   Gouraud span blend    screen       per-pixel alpha span      raster_linear_alpha_s4                                  gouraud_span_alpha.u.c (SIMD -- see Chain 1 below)
+G9   Gouraud span blend    screen       per-pixel alpha span      raster_linear_alpha_s4                                  gouraud_simd_alpha.u.c (SIMD -- see Chain 1 below)
 G10  Gouraud (parallel TU) screen       s1 edge path              raster_gouraud_s1, raster_gouraud_alpha_s1              gouraud_s1.u.c (alternate TU; same GOURAUD_U_C guard)
 G11  Gouraud (unused TU)   screen       non-bary branching bs4    raster_gouraud_bs4, raster_gouraud_ordered_bs4          gouraud_branching.c (never #included in repo)
 G12  Gouraud (unused TU)   screen       bs1 + misnamed bs4        raster_gouraud_ordered_bs1, raster_gouraud_bs4          gouraud_s1_branching.c (never #included)
@@ -68,7 +74,17 @@ TS11 Texture Gouraud       perspective  full-triangle lerp8       raster_texture
 - **Scalar gap**: `draw_texture_scanline_opaque_blend_ordered_blerp8_v3` (TS9 opaque perspective scanline) is **absent** from [`texture_simd.scalar.u.c`](src/graphics/texture_simd.scalar.u.c). Only the transparent variant is present. All SIMD ISA files (NEON, SSE2, SSE4.1, AVX2) provide both.
 - **Repo-only / not in `dash.c`**: F4, G8, G10-G13, standalone copies [`tex_shadeblend_affine_opaque.c`](src/graphics/tex_shadeblend_affine_opaque.c) / [`tex_shadeblend_affine_trans.c`](src/graphics/tex_shadeblend_affine_trans.c) (duplicate symbol names; not `#include`d anywhere), and [`docs/gouraud_raster.c`](docs/gouraud_raster.c) (standalone demo).
 
-No code changes are required for this catalogue; documentation-only.
+No code changes are required for the core catalogue narrative; optional follow-ups may add a `docs/` export or extend the master table (see below).
+
+### Plan maintenance
+
+Keep all catalogue iteration in **this** plan file. Do not create a separate Cursor plan for the same documentation workstream.
+
+### Planned documentation follow-ups
+
+1. **Variant_ID column** — Add a column to the fixed-width master table for every row, using the grammar in [Proposed naming scheme](#proposed-naming-scheme) (`legacy:` / `unused:` prefixes where applicable). For texture rows with opaque/trans pairs, either one cell with two IDs separated by ` / ` or aligned sub-rows — pick one convention and use it consistently.
+2. **Optional `docs/` export** — e.g. `docs/RASTER_VARIANT_CATALOGUE.md` with a short intro, the table (including Variant_ID once added), and pointers to the SIMD integration and migration sections in this plan (avoid duplicating the full document unless you want a standalone reader copy).
+3. **Deferred tracks** (when you pick them up, still describe progress here): scalar `draw_texture_scanline_opaque_blend_ordered_blerp8_v3` in `texture_simd.scalar.u.c`; phased directory migration; C symbol renames.
 
 ---
 
@@ -76,7 +92,7 @@ No code changes are required for this catalogue; documentation-only.
 
 There are exactly **two separate SIMD selection chains** in the rasterizer. They cover different operations and different render categories.
 
-### Chain 1 - Gouraud alpha span (`gouraud_span_alpha.u.c`)
+### Chain 1 - Gouraud alpha span (`gouraud_simd_alpha.u.c`)
 
 Covers: **G9** only.
 
@@ -107,11 +123,11 @@ No SIMD exists for the **opaque** Gouraud paths (G1-G8). Those rely on compiler 
 
 ---
 
-### Chain 2 - Texture inner loops (`tex_simd.u.c`)
+### Chain 2 - Texture inner loops (`texture_simd.u.c`)
 
 Covers: **TS8, TS9, TS10** -- and transitively every texture triangle raster that calls these kernels (TF1-TF5, TS1-TS2, TS6, TS11).
 
-**Selection:** [`tex_simd.u.c`](src/graphics/tex_simd.u.c) picks one file at compile time:
+**Selection:** [`texture_simd.u.c`](src/graphics/texture_simd.u.c) picks one file at compile time:
 
 ```text
 NEON  ->  AVX2  ->  SSE4.1  ->  SSE2  ->  scalar
@@ -146,7 +162,7 @@ output = (texel_rgb * shade) >> 8   -- tex_trans:  skip write if texel == 0
 - NEON: `vld1q_u32`, `vmulq_n_u16`, `vshrq_n_u16`, `vqmovn_u16`, `vcombine_u8`; transparent uses `vceqq_u32` + `vbslq_u32`. 8 pixels per call via two 128-bit vectors.
 - AVX2: `shade_blend8_avx2` uses a single `__m256i` pass for 8 pixels; transparent uses `_mm256_cmpeq_epi32` + `_mm256_blendv_epi8`. Only ISA that processes all 8 pixels in a single vector operation.
 - SSE4.1: `shade_blend4_sse` via `smmintrin.h`; two passes of 4 pixels each. Transparent uses `_mm_blendv_epi8` (SSE4.1 instruction).
-- SSE2: identical code to SSE4.1 including `_mm_blendv_epi8`. This is intentional: `tex_simd.u.c` checks `__SSE4_1__` before `__SSE2__`, so the SSE2 file only activates on targets that report SSE2 but not SSE4.1.
+- SSE2: identical code to SSE4.1 including `_mm_blendv_epi8`. This is intentional: `texture_simd.u.c` checks `__SSE4_1__` before `__SSE2__`, so the SSE2 file only activates on targets that report SSE2 but not SSE4.1.
 - Scalar: plain C loops, auto-vectorizable. Missing the opaque perspective scanline (noted above).
 
 **Texel gather is always scalar.** Even in SIMD builds, `u`/`v` coordinate computation and the `texels[u + v]` fetch are done with scalar integer arithmetic before the SIMD shade-blend. No platform has a texel gather that avoids the scalar gather phase.
@@ -245,12 +261,12 @@ draw_span_<family>_<gate>_<algo>[_v3][_vec]
 ```
 
 - Without `_vec`: plain C loop; compiler may auto-vectorize but no intrinsics are written.
-- With `_vec`: explicit intrinsics exist for this symbol (NEON / AVX2 / SSE4.1 / SSE2 implementations live in `texture_simd.*.u.c` or `gouraud_span_alpha.u.c`). The scalar fallback that shares the same name does **not** carry `_vec` in docs.
+- With `_vec`: explicit intrinsics exist for this symbol (NEON / AVX2 / SSE4.1 / SSE2 implementations live in `texture_simd.*.u.c` or `gouraud_simd_alpha.u.c`). The scalar fallback that shares the same name does **not** carry `_vec` in docs.
 
 **Which symbols have explicit SIMD (`_vec`):**
 
 ```text
-draw_span_gouraud_alpha_s4_vec          -- raster_linear_alpha_s4 (gouraud_span_alpha.u.c)
+draw_span_gouraud_alpha_s4_vec          -- raster_linear_alpha_s4 (gouraud_simd_alpha.u.c)
 draw_span_tex_shadeblend_tex_opaque_lerp8_vec    -- raster_linear_opaque_blend_lerp8
 draw_span_tex_shadeblend_tex_trans_lerp8_vec     -- raster_linear_transparent_blend_lerp8
 draw_span_tex_shadeblend_tex_opaque_lerp8_v3_vec -- raster_linear_opaque_blend_lerp8_v3

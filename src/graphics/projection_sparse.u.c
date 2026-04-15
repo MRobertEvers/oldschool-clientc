@@ -12,7 +12,7 @@ extern int g_tan_table[2048];
 
 #if VERTEXINT_BITS == 16
 
-/** Pass-1 staging matches scalar dense `project_vertices_array` in projection16_simd (#else). */
+/** Pass-1 FOV scale matches dense NEON `>> 6` after `x * cot_fov_half_ish15` (not `>> 15` + `<< 9`). */
 static inline void
 projection16_sparse_slot_tex_dense_match(
     int* orthographic_vertices_x,
@@ -40,15 +40,15 @@ projection16_sparse_slot_tex_dense_match(
     int y = pv.y;
     x *= cot_fov_half_ish15;
     y *= cot_fov_half_ish15;
-    x >>= 15;
-    y >>= 15;
+    x >>= 6;
+    y >>= 6;
 
     orthographic_vertices_x[idx] = pv.x;
     orthographic_vertices_y[idx] = pv.y;
     orthographic_vertices_z[idx] = pv.z;
 
-    screen_vertices_x[idx] = SCALE_UNIT(x);
-    screen_vertices_y[idx] = SCALE_UNIT(y);
+    screen_vertices_x[idx] = x;
+    screen_vertices_y[idx] = y;
 }
 
 static inline void
@@ -77,12 +77,12 @@ projection16_sparse_slot_notex_dense_match(
     int z = pv.z;
     x *= cot_fov_half_ish15;
     y *= cot_fov_half_ish15;
-    x >>= 15;
-    y >>= 15;
+    x >>= 6;
+    y >>= 6;
 
     screen_vertices_z[idx] = z;
-    screen_vertices_x[idx] = SCALE_UNIT(x);
-    screen_vertices_y[idx] = SCALE_UNIT(y);
+    screen_vertices_x[idx] = x;
+    screen_vertices_y[idx] = y;
 }
 
 static inline void
@@ -147,6 +147,34 @@ project_vertices_array_sparse(
         }
     }
 
+#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
+    {
+        int zi = 0;
+        for( ; zi + 4 <= num_linear_slots; zi += 4 )
+        {
+            projection16_neon_zdiv_tex_4_at(
+                orthographic_vertices_z,
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                zi,
+                model_mid_z,
+                near_plane_z);
+        }
+        if( zi < num_linear_slots )
+        {
+            projection16_neon_zdiv_tex_tail(
+                orthographic_vertices_z,
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                zi,
+                num_linear_slots - zi,
+                model_mid_z,
+                near_plane_z);
+        }
+    }
+#else
     for( int zi = 0; zi < num_linear_slots; zi++ )
     {
         int z = orthographic_vertices_z[zi];
@@ -169,6 +197,7 @@ project_vertices_array_sparse(
             screen_vertices_y[zi] = screen_vertices_y[zi] / z;
         }
     }
+#endif
 }
 
 static inline void
@@ -228,6 +257,32 @@ project_vertices_array_notex_sparse(
         }
     }
 
+#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
+    {
+        int zi = 0;
+        for( ; zi + 4 <= num_linear_slots; zi += 4 )
+        {
+            projection16_neon_zdiv_notex_4_at(
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                zi,
+                model_mid_z,
+                near_plane_z);
+        }
+        if( zi < num_linear_slots )
+        {
+            projection16_neon_zdiv_notex_tail(
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                zi,
+                num_linear_slots - zi,
+                model_mid_z,
+                near_plane_z);
+        }
+    }
+#else
     for( int zi = 0; zi < num_linear_slots; zi++ )
     {
         int z = screen_vertices_z[zi];
@@ -250,6 +305,7 @@ project_vertices_array_notex_sparse(
             screen_vertices_y[zi] = screen_vertices_y[zi] / z;
         }
     }
+#endif
 }
 
 #else /* VERTEXINT_BITS == 32 */
@@ -291,15 +347,15 @@ projection_sparse_slot_tex(
 
     x *= cot_fov_half_ish15;
     y *= cot_fov_half_ish15;
-    x >>= 15;
-    y >>= 15;
+    x >>= 6;
+    y >>= 6;
 
     orthographic_vertices_x[idx] = projected_vertex.x;
     orthographic_vertices_y[idx] = projected_vertex.y;
     orthographic_vertices_z[idx] = projected_vertex.z;
 
-    screen_vertices_x[idx] = SCALE_UNIT(x);
-    screen_vertices_y[idx] = SCALE_UNIT(y);
+    screen_vertices_x[idx] = x;
+    screen_vertices_y[idx] = y;
 }
 
 static inline void
@@ -338,15 +394,12 @@ projection_sparse_slot_notex(
 
     x *= cot_fov_half_ish15;
     y *= cot_fov_half_ish15;
-    x >>= 15;
-    y >>= 15;
-
-    int screen_x = SCALE_UNIT(x);
-    int screen_y = SCALE_UNIT(y);
+    x >>= 6;
+    y >>= 6;
 
     screen_vertices_z[idx] = z;
-    screen_vertices_x[idx] = screen_x;
-    screen_vertices_y[idx] = screen_y;
+    screen_vertices_x[idx] = x;
+    screen_vertices_y[idx] = y;
 }
 
 static inline void
@@ -410,6 +463,39 @@ project_vertices_array_sparse(
     }
 
     int num_linear_slots = num_faces * 3;
+#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
+    {
+        int zi = 0;
+        for( ; zi + 4 <= num_linear_slots; zi += 4 )
+        {
+            projection_neon_zdiv_tex_4_at(
+                orthographic_vertices_z,
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                zi,
+                model_mid_z,
+                near_plane_z);
+        }
+        for( ; zi < num_linear_slots; zi++ )
+        {
+            int z = orthographic_vertices_z[zi];
+            bool clipped = (z < near_plane_z);
+            screen_vertices_z[zi] = z - model_mid_z;
+            if( clipped )
+            {
+                screen_vertices_x[zi] = -5000;
+            }
+            else
+            {
+                screen_vertices_x[zi] = screen_vertices_x[zi] / z;
+                if( screen_vertices_x[zi] == -5000 )
+                    screen_vertices_x[zi] = -5001;
+                screen_vertices_y[zi] = screen_vertices_y[zi] / z;
+            }
+        }
+    }
+#else
     for( int zi = 0; zi < num_linear_slots; zi++ )
     {
         int z = orthographic_vertices_z[zi];
@@ -432,6 +518,7 @@ project_vertices_array_sparse(
             screen_vertices_y[zi] = screen_vertices_y[zi] / z;
         }
     }
+#endif
 }
 
 static inline void
@@ -490,6 +577,38 @@ project_vertices_array_notex_sparse(
     }
 
     int num_linear_slots = num_faces * 3;
+#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
+    {
+        int zi = 0;
+        for( ; zi + 4 <= num_linear_slots; zi += 4 )
+        {
+            projection_neon_zdiv_notex_4_at(
+                screen_vertices_x,
+                screen_vertices_y,
+                screen_vertices_z,
+                zi,
+                model_mid_z,
+                near_plane_z);
+        }
+        for( ; zi < num_linear_slots; zi++ )
+        {
+            int z = screen_vertices_z[zi];
+            bool clipped = (z < near_plane_z);
+            screen_vertices_z[zi] = z - model_mid_z;
+            if( clipped )
+            {
+                screen_vertices_x[zi] = -5000;
+            }
+            else
+            {
+                screen_vertices_x[zi] = screen_vertices_x[zi] / z;
+                if( screen_vertices_x[zi] == -5000 )
+                    screen_vertices_x[zi] = -5001;
+                screen_vertices_y[zi] = screen_vertices_y[zi] / z;
+            }
+        }
+    }
+#else
     for( int zi = 0; zi < num_linear_slots; zi++ )
     {
         int z = screen_vertices_z[zi];
@@ -512,6 +631,7 @@ project_vertices_array_notex_sparse(
             screen_vertices_y[zi] = screen_vertices_y[zi] / z;
         }
     }
+#endif
 }
 
 #endif /* VERTEXINT_BITS */
@@ -598,11 +718,11 @@ project_vertices_array6_sparse(
             {
                 x *= cot_fov_half_ish15;
                 y *= cot_fov_half_ish15;
-                x >>= 15;
-                y >>= 15;
+                x >>= 6;
+                y >>= 6;
 
-                screen_vertices_x[idx] = SCALE_UNIT(x) / z;
-                screen_vertices_y[idx] = SCALE_UNIT(y) / z;
+                screen_vertices_x[idx] = x / z;
+                screen_vertices_y[idx] = y / z;
                 screen_vertices_z[idx] = z - model_mid_z;
             }
         }
@@ -685,11 +805,11 @@ project_vertices_array6_notex_sparse(
             {
                 x *= cot_fov_half_ish15;
                 y *= cot_fov_half_ish15;
-                x >>= 15;
-                y >>= 15;
+                x >>= 6;
+                y >>= 6;
 
-                screen_vertices_x[idx] = SCALE_UNIT(x) / z;
-                screen_vertices_y[idx] = SCALE_UNIT(y) / z;
+                screen_vertices_x[idx] = x / z;
+                screen_vertices_y[idx] = y / z;
                 screen_vertices_z[idx] = z - model_mid_z;
             }
         }

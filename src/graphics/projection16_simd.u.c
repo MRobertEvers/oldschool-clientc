@@ -257,11 +257,8 @@ project_vertices_array_neon(
         orthographic_vertices_y[i] = y_scene;
         orthographic_vertices_z[i] = z_final_scene;
 
-        int screen_x = (x_scene * cot_fov_half_ish15) >> 15;
-        int screen_y = (y_scene * cot_fov_half_ish15) >> 15;
-
-        screen_x = SCALE_UNIT(screen_x);
-        screen_y = SCALE_UNIT(screen_y);
+        int screen_x = (x_scene * cot_fov_half_ish15) >> 6;
+        int screen_y = (y_scene * cot_fov_half_ish15) >> 6;
 
         screen_vertices_x[i] = screen_x;
         screen_vertices_y[i] = screen_y;
@@ -378,11 +375,8 @@ project_vertices_array_noyaw_neon(
         orthographic_vertices_y[i] = y_scene;
         orthographic_vertices_z[i] = z_final_scene;
 
-        int screen_x = (x_scene * cot_fov_half_ish15) >> 15;
-        int screen_y = (y_scene * cot_fov_half_ish15) >> 15;
-
-        screen_x = SCALE_UNIT(screen_x);
-        screen_y = SCALE_UNIT(screen_y);
+        int screen_x = (x_scene * cot_fov_half_ish15) >> 6;
+        int screen_y = (y_scene * cot_fov_half_ish15) >> 6;
 
         screen_vertices_x[i] = screen_x;
         screen_vertices_y[i] = screen_y;
@@ -613,11 +607,8 @@ project_vertices_array_neon_notex(
 
         screen_vertices_z[i] = z_final_scene;
 
-        int screen_x = (x_scene * cot_fov_half_ish15) >> 15;
-        int screen_y = (y_scene * cot_fov_half_ish15) >> 15;
-
-        screen_x = SCALE_UNIT(screen_x);
-        screen_y = SCALE_UNIT(screen_y);
+        int screen_x = (x_scene * cot_fov_half_ish15) >> 6;
+        int screen_y = (y_scene * cot_fov_half_ish15) >> 6;
 
         screen_vertices_x[i] = screen_x;
         screen_vertices_y[i] = screen_y;
@@ -716,11 +707,8 @@ project_vertices_array_noyaw_neon_notex(
 
         screen_vertices_z[i] = z_final_scene;
 
-        int screen_x = (x_scene * cot_fov_half_ish15) >> 15;
-        int screen_y = (y_scene * cot_fov_half_ish15) >> 15;
-
-        screen_x = SCALE_UNIT(screen_x);
-        screen_y = SCALE_UNIT(screen_y);
+        int screen_x = (x_scene * cot_fov_half_ish15) >> 6;
+        int screen_y = (y_scene * cot_fov_half_ish15) >> 6;
 
         screen_vertices_x[i] = screen_x;
         screen_vertices_y[i] = screen_y;
@@ -1195,12 +1183,10 @@ project_vertices_array_avx2(
 
         int screen_x = x_scene * cot_fov_half_ish15;
         int screen_y = y_scene * cot_fov_half_ish15;
-        screen_x >>= 15;
-        screen_y >>= 15;
+        screen_x >>= 6;
+        screen_y >>= 6;
 
         // So we can increase x_bits_max to 11 by reducing the angle scale by 1.
-        screen_x = SCALE_UNIT(screen_x);
-        screen_y = SCALE_UNIT(screen_y);
 
         screen_vertices_x[i] = screen_x;
         screen_vertices_y[i] = screen_y;
@@ -1398,12 +1384,10 @@ project_vertices_array_noyaw_avx2(
 
         int screen_x = x_scene * cot_fov_half_ish15;
         int screen_y = y_scene * cot_fov_half_ish15;
-        screen_x >>= 15;
-        screen_y >>= 15;
+        screen_x >>= 6;
+        screen_y >>= 6;
 
         // So we can increase x_bits_max to 11 by reducing the angle scale by 1.
-        screen_x = SCALE_UNIT(screen_x);
-        screen_y = SCALE_UNIT(screen_y);
 
         // assert(screen_vertices_x[i] == screen_x);
         // assert(screen_vertices_y[i] == screen_y);
@@ -1710,11 +1694,8 @@ project_vertices_array_avx2_notex(
 
         int screen_x = x_scene * cot_fov_half_ish15;
         int screen_y = y_scene * cot_fov_half_ish15;
-        screen_x >>= 15;
-        screen_y >>= 15;
-
-        screen_x = SCALE_UNIT(screen_x);
-        screen_y = SCALE_UNIT(screen_y);
+        screen_x >>= 6;
+        screen_y >>= 6;
 
         screen_vertices_x[i] = screen_x;
         screen_vertices_y[i] = screen_y;
@@ -1825,11 +1806,8 @@ project_vertices_array_noyaw_avx2_notex(
 
         int screen_x = x_scene * cot_fov_half_ish15;
         int screen_y = y_scene * cot_fov_half_ish15;
-        screen_x >>= 15;
-        screen_y >>= 15;
-
-        screen_x = SCALE_UNIT(screen_x);
-        screen_y = SCALE_UNIT(screen_y);
+        screen_x >>= 6;
+        screen_y >>= 6;
 
         screen_vertices_x[i] = screen_x;
         screen_vertices_y[i] = screen_y;
@@ -2092,11 +2070,8 @@ project_vertices_array_sse(
         orthographic_vertices_y[i] = y_scene;
         orthographic_vertices_z[i] = z_final_scene;
 
-        int screen_x = (x_scene * cot_fov_half_ish15) >> 15;
-        int screen_y = (y_scene * cot_fov_half_ish15) >> 15;
-
-        screen_x = SCALE_UNIT(screen_x);
-        screen_y = SCALE_UNIT(screen_y);
+        int screen_x = (x_scene * cot_fov_half_ish15) >> 6;
+        int screen_y = (y_scene * cot_fov_half_ish15) >> 6;
 
         screen_vertices_x[i] = screen_x;
         screen_vertices_y[i] = screen_y;
@@ -2212,11 +2187,8 @@ project_vertices_array_noyaw_sse(
         orthographic_vertices_y[i] = y_scene;
         orthographic_vertices_z[i] = z_final_scene;
 
-        int screen_x = (x_scene * cot_fov_half_ish15) >> 15;
-        int screen_y = (y_scene * cot_fov_half_ish15) >> 15;
-
-        screen_x = SCALE_UNIT(screen_x);
-        screen_y = SCALE_UNIT(screen_y);
+        int screen_x = (x_scene * cot_fov_half_ish15) >> 6;
+        int screen_y = (y_scene * cot_fov_half_ish15) >> 6;
 
         screen_vertices_x[i] = screen_x;
         screen_vertices_y[i] = screen_y;
@@ -2502,11 +2474,8 @@ project_vertices_array_sse_notex(
 
         screen_vertices_z[i] = z_final_scene;
 
-        int screen_x = (x_scene * cot_fov_half_ish15) >> 15;
-        int screen_y = (y_scene * cot_fov_half_ish15) >> 15;
-
-        screen_x = SCALE_UNIT(screen_x);
-        screen_y = SCALE_UNIT(screen_y);
+        int screen_x = (x_scene * cot_fov_half_ish15) >> 6;
+        int screen_y = (y_scene * cot_fov_half_ish15) >> 6;
 
         screen_vertices_x[i] = screen_x;
         screen_vertices_y[i] = screen_y;
@@ -2614,11 +2583,8 @@ project_vertices_array_noyaw_sse_notex(
 
         screen_vertices_z[i] = z_final_scene;
 
-        int screen_x = (x_scene * cot_fov_half_ish15) >> 15;
-        int screen_y = (y_scene * cot_fov_half_ish15) >> 15;
-
-        screen_x = SCALE_UNIT(screen_x);
-        screen_y = SCALE_UNIT(screen_y);
+        int screen_x = (x_scene * cot_fov_half_ish15) >> 6;
+        int screen_y = (y_scene * cot_fov_half_ish15) >> 6;
 
         screen_vertices_x[i] = screen_x;
         screen_vertices_y[i] = screen_y;
@@ -3700,11 +3666,11 @@ project_vertices_array(
 
         x *= cot_fov_half_ish15;
         y *= cot_fov_half_ish15;
-        x >>= 15;
-        y >>= 15;
+        x >>= 6;
+        y >>= 6;
 
-        int screen_x = SCALE_UNIT(x);
-        int screen_y = SCALE_UNIT(y);
+        int screen_x = x;
+        int screen_y = y;
 
         orthographic_vertices_x[i] = projected_vertex.x;
         orthographic_vertices_y[i] = projected_vertex.y;
@@ -3789,11 +3755,11 @@ project_vertices_array_notex(
 
         x *= cot_fov_half_ish15;
         y *= cot_fov_half_ish15;
-        x >>= 15;
-        y >>= 15;
+        x >>= 6;
+        y >>= 6;
 
-        int screen_x = SCALE_UNIT(x);
-        int screen_y = SCALE_UNIT(y);
+        int screen_x = x;
+        int screen_y = y;
 
         // store raw z temporarily for the second-pass z-division
         screen_vertices_z[i] = z;
@@ -3900,11 +3866,11 @@ project_vertices_array6(
         {
             x *= cot_fov_half_ish15;
             y *= cot_fov_half_ish15;
-            x >>= 15;
-            y >>= 15;
+            x >>= 6;
+            y >>= 6;
 
-            screen_vertices_x[i] = SCALE_UNIT(x) / z;
-            screen_vertices_y[i] = SCALE_UNIT(y) / z;
+            screen_vertices_x[i] = x / z;
+            screen_vertices_y[i] = y / z;
             screen_vertices_z[i] = z - model_mid_z;
         }
     }
@@ -3972,11 +3938,11 @@ project_vertices_array6_notex(
         {
             x *= cot_fov_half_ish15;
             y *= cot_fov_half_ish15;
-            x >>= 15;
-            y >>= 15;
+            x >>= 6;
+            y >>= 6;
 
-            screen_vertices_x[i] = SCALE_UNIT(x) / z;
-            screen_vertices_y[i] = SCALE_UNIT(y) / z;
+            screen_vertices_x[i] = x / z;
+            screen_vertices_y[i] = y / z;
             screen_vertices_z[i] = z - model_mid_z;
         }
     }
