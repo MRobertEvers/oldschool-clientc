@@ -7,6 +7,7 @@
 
 // clang-format off
 #include "flat.u.c"
+#include "flat_branching_bs4.c"
 #include "render_face_alpha.u.c"
 #include "render_clip.u.c"
 // clang-format on
@@ -28,12 +29,12 @@ raster_flat(
 {
     if( alpha == 0xFF )
     {
-        raster_flat_s4(
+        raster_flat_bs4(
             pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color);
     }
     else
     {
-        raster_flat_alpha_s4(
+        raster_flat_alpha_bs4(
             pixel_buffer,
             stride,
             screen_width,
