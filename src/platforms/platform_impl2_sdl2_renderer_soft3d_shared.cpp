@@ -549,23 +549,23 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Render(
     }
     LibToriRS_FrameEnd(game);
 
-    {
-        Uint64 const soft3d_t_after = SDL_GetPerformanceCounter();
-        double const soft3d_ms =
-            (double)(soft3d_t_after - soft3d_t_frame_start) * 1000.0 / (double)soft3d_perf_freq;
-        static double s_soft3d_frame_ms_sum = 0.0;
-        static int s_soft3d_frame_count = 0;
-        s_soft3d_frame_ms_sum += soft3d_ms;
-        s_soft3d_frame_count++;
-        if( s_soft3d_frame_count >= 30 )
-        {
-            printf(
-                "[soft3d] LibToriRS_FrameBegin..FrameEnd avg (30 frames): %.3f ms\n",
-                s_soft3d_frame_ms_sum / 30.0);
-            s_soft3d_frame_ms_sum = 0.0;
-            s_soft3d_frame_count = 0;
-        }
-    }
+    // {
+    //     Uint64 const soft3d_t_after = SDL_GetPerformanceCounter();
+    //     double const soft3d_ms =
+    //         (double)(soft3d_t_after - soft3d_t_frame_start) * 1000.0 / (double)soft3d_perf_freq;
+    //     static double s_soft3d_frame_ms_sum = 0.0;
+    //     static int s_soft3d_frame_count = 0;
+    //     s_soft3d_frame_ms_sum += soft3d_ms;
+    //     s_soft3d_frame_count++;
+    //     if( s_soft3d_frame_count >= 30 )
+    //     {
+    //         printf(
+    //             "[soft3d] LibToriRS_FrameBegin..FrameEnd avg (30 frames): %.3f ms\n",
+    //             s_soft3d_frame_ms_sum / 30.0);
+    //         s_soft3d_frame_ms_sum = 0.0;
+    //         s_soft3d_frame_count = 0;
+    //     }
+    // }
 
     // for( const auto& fc : deferred_font_draws )
     // {

@@ -583,32 +583,32 @@ LibToriRS_FrameBegin(
         uint64_t dt_paint4_ns;
 
         painter_paint_bucket(painter, buffer, camera_sx, camera_sz, camera_slevel);
-        if( (rand() & 1) == 0 )
-        {
-            clock_gettime(CLOCK_MONOTONIC, &t0);
-            painter_paint_world3d(painter, buffer, camera_sx, camera_sz, camera_slevel);
-            clock_gettime(CLOCK_MONOTONIC, &t1);
-            dt_paint_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
-                          (uint64_t)(t1.tv_nsec - t0.tv_nsec);
-            clock_gettime(CLOCK_MONOTONIC, &t0);
-            painter_paint_bucket(painter, buffer, camera_sx, camera_sz, camera_slevel);
-            clock_gettime(CLOCK_MONOTONIC, &t1);
-            dt_paint3_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
-                           (uint64_t)(t1.tv_nsec - t0.tv_nsec);
-        }
-        else
-        {
-            clock_gettime(CLOCK_MONOTONIC, &t0);
-            painter_paint_bucket(painter, buffer, camera_sx, camera_sz, camera_slevel);
-            clock_gettime(CLOCK_MONOTONIC, &t1);
-            dt_paint3_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
-                           (uint64_t)(t1.tv_nsec - t0.tv_nsec);
-            clock_gettime(CLOCK_MONOTONIC, &t0);
-            painter_paint_world3d(painter, buffer, camera_sx, camera_sz, camera_slevel);
-            clock_gettime(CLOCK_MONOTONIC, &t1);
-            dt_paint_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
-                          (uint64_t)(t1.tv_nsec - t0.tv_nsec);
-        }
+        // if( (rand() & 1) == 0 )
+        // {
+        //     clock_gettime(CLOCK_MONOTONIC, &t0);
+        //     painter_paint_world3d(painter, buffer, camera_sx, camera_sz, camera_slevel);
+        //     clock_gettime(CLOCK_MONOTONIC, &t1);
+        //     dt_paint_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+        //                   (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+        //     clock_gettime(CLOCK_MONOTONIC, &t0);
+        //     painter_paint_bucket(painter, buffer, camera_sx, camera_sz, camera_slevel);
+        //     clock_gettime(CLOCK_MONOTONIC, &t1);
+        //     dt_paint3_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+        //                    (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+        // }
+        // else
+        // {
+        //     clock_gettime(CLOCK_MONOTONIC, &t0);
+        //     painter_paint_bucket(painter, buffer, camera_sx, camera_sz, camera_slevel);
+        //     clock_gettime(CLOCK_MONOTONIC, &t1);
+        //     dt_paint3_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+        //                    (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+        //     clock_gettime(CLOCK_MONOTONIC, &t0);
+        //     painter_paint_world3d(painter, buffer, camera_sx, camera_sz, camera_slevel);
+        //     clock_gettime(CLOCK_MONOTONIC, &t1);
+        //     dt_paint_ns = (uint64_t)(t1.tv_sec - t0.tv_sec) * 1000000000ull +
+        //                   (uint64_t)(t1.tv_nsec - t0.tv_nsec);
+        // }
 
         painter_bench_sum_paint_ns += dt_paint_ns;
         painter_bench_sum_paint3_ns += dt_paint3_ns;

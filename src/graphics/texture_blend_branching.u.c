@@ -335,11 +335,12 @@ raster_texture_opaque_blend_ordered_blerp8(
 
         while( y1-- > 0 )
         {
-            draw_texture_scanline_opaque_blend_ordered_blerp8(
+            draw_texture_scanline_opaque_blend_ordered_blerp8_v3(
+                // draw_texture_scanline_opaque_blend_ordered_blerp8(
                 pixel_buffer,
-                stride,
+                // stride,
                 screen_width,
-                screen_height,
+                // screen_height,
                 edge_x_AB_ish16,
                 edge_x_AC_ish16,
                 offset,
@@ -368,11 +369,12 @@ raster_texture_opaque_blend_ordered_blerp8(
 
         while( y2-- > 0 )
         {
-            draw_texture_scanline_opaque_blend_ordered_blerp8(
+            // draw_texture_scanline_opaque_blend_ordered_blerp8(
+            draw_texture_scanline_opaque_blend_ordered_blerp8_v3(
                 pixel_buffer,
-                stride,
+                // stride,
                 screen_width,
-                screen_height,
+                // screen_height,
                 edge_x_BC_ish16,
                 edge_x_AC_ish16,
                 offset,
@@ -406,11 +408,11 @@ raster_texture_opaque_blend_ordered_blerp8(
 
         while( y1-- > 0 )
         {
-            draw_texture_scanline_opaque_blend_ordered_blerp8(
+            draw_texture_scanline_opaque_blend_ordered_blerp8_v3(
                 pixel_buffer,
-                stride,
+                // stride,
                 screen_width,
-                screen_height,
+                // screen_height,
                 edge_x_AC_ish16,
                 edge_x_AB_ish16,
                 offset,
@@ -439,11 +441,11 @@ raster_texture_opaque_blend_ordered_blerp8(
 
         while( y2-- > 0 )
         {
-            draw_texture_scanline_opaque_blend_ordered_blerp8(
+            draw_texture_scanline_opaque_blend_ordered_blerp8_v3(
                 pixel_buffer,
-                stride,
+                // stride,
                 screen_width,
-                screen_height,
+                // screen_height,
                 edge_x_AC_ish16,
                 edge_x_BC_ish16,
                 offset,
