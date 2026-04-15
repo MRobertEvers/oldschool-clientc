@@ -5,7 +5,6 @@
 // clang-format on
 
 #include "dash_model_internal.h"
-#include "dashmap.h"
 #include "osrs/colors.h"
 #include "osrs/minimap.h"
 #include "osrs/palette.h"
@@ -17,14 +16,8 @@
 #include <string.h>
 
 #ifndef DASH_BUCKET_SORT_USE_LINKED_LIST
-#define DASH_BUCKET_SORT_USE_LINKED_LIST 1
+#define DASH_BUCKET_SORT_USE_LINKED_LIST 0
 #endif
-
-struct DashTextureEntry
-{
-    int id;
-    struct DashTexture* texture;
-};
 
 struct DashGraphics
 {
@@ -58,7 +51,7 @@ struct DashGraphics
     faceint_t sparse_b[4096];
     faceint_t sparse_c[4096];
 
-    struct DashMap* textures_hmap;
+    struct DashTextureMap texture_map;
 };
 
 /** After sparse projection, screen verts for face f sit at f*3+{0,1,2}; dash_new fills sparse_*.
@@ -280,13 +273,7 @@ dash_new()
 
     printf("Sizeof(struct DashGraphics): %zu\n", sizeof(struct DashGraphics));
 
-    struct DashMapConfig config = {
-        .buffer = malloc(4096),
-        .buffer_size = 4096,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct DashTextureEntry),
-    };
-    dash->textures_hmap = dashmap_new(&config, 0);
+    dashtexturemap_init(&dash->texture_map);
 
     return dash;
 }
@@ -296,12 +283,56 @@ dash_free(struct DashGraphics* dash)
 {
     if( !dash )
         return;
-    if( dash->textures_hmap )
-    {
-        free(dashmap_buffer_ptr(dash->textures_hmap));
-        dashmap_free(dash->textures_hmap);
-    }
     free(dash);
+}
+
+void
+dashtexturemap_init(struct DashTextureMap* map)
+{
+    memset(map->textures, 0, sizeof(map->textures));
+    map->count = 0;
+}
+
+void
+dashtexturemap_set(
+    struct DashTextureMap* map,
+    int id,
+    struct DashTexture* texture)
+{
+    assert(id >= 0 && id < DASH_TEXTURE_MAP_CAPACITY);
+    struct DashTexture* old = map->textures[id];
+    if( old == texture )
+        return;
+    if( old != NULL && texture == NULL )
+        map->count--;
+    else if( old == NULL && texture != NULL )
+        map->count++;
+    map->textures[id] = texture;
+}
+
+struct DashTexture*
+dashtexturemap_get(
+    const struct DashTextureMap* map,
+    int id)
+{
+    if( id < 0 || id >= DASH_TEXTURE_MAP_CAPACITY )
+        return NULL;
+    return map->textures[id];
+}
+
+struct DashTexture*
+dashtexturemap_iter_next(
+    const struct DashTextureMap* map,
+    int* cursor)
+{
+    while( *cursor < DASH_TEXTURE_MAP_CAPACITY )
+    {
+        struct DashTexture* t = map->textures[*cursor];
+        (*cursor)++;
+        if( t != NULL )
+            return t;
+    }
+    return NULL;
 }
 
 static inline int
@@ -561,83 +592,61 @@ enum FaceType
     FACE_TYPE_TEXTURED_FLAT_SHADE,
 };
 
-void
-dash3d_raster_model_face(
-    int* pixel_buffer,
-    int face,
-    int* face_infos,
-    faceint_t* face_indices_a,
-    faceint_t* face_indices_b,
-    faceint_t* face_indices_c,
-    int num_faces,
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z,
-    int* orthographic_vertex_x_nullable,
-    int* orthographic_vertex_y_nullable,
-    int* orthographic_vertex_z_nullable,
-    int num_vertices,
-    faceint_t* face_textures,
-    faceint_t* face_texture_coords,
-    int face_texture_coords_length,
-    faceint_t* face_p_coordinate_nullable,
-    faceint_t* face_m_coordinate_nullable,
-    faceint_t* face_n_coordinate_nullable,
-    int num_textured_faces,
-    hsl16_t* colors_a,
-    hsl16_t* colors_b,
-    hsl16_t* colors_c,
-    alphaint_t* face_alphas_nullable,
-    int offset_x,
-    int offset_y,
-    int near_plane_z,
-    int screen_width,
-    int screen_height,
-    int stride,
-    int camera_fov,
-    struct DashMap* textures_hmap,
-    bool smooth)
+struct DashModelRasterContext
 {
-    struct DashTextureEntry* texture_entry = NULL;
+    int* pixel_buffer;
+    int* face_infos;
+    faceint_t* face_indices_a;
+    faceint_t* face_indices_b;
+    faceint_t* face_indices_c;
+    int num_faces;
+    int* vertex_x;
+    int* vertex_y;
+    int* vertex_z;
+    int* orthographic_vertex_x_nullable;
+    int* orthographic_vertex_y_nullable;
+    int* orthographic_vertex_z_nullable;
+    int num_vertices;
+    faceint_t* face_textures;
+    faceint_t* face_texture_coords;
+    int face_texture_coords_length;
+    faceint_t* face_p_coordinate_nullable;
+    faceint_t* face_m_coordinate_nullable;
+    faceint_t* face_n_coordinate_nullable;
+    int num_textured_faces;
+    hsl16_t* colors_a;
+    hsl16_t* colors_b;
+    hsl16_t* colors_c;
+    alphaint_t* face_alphas_nullable;
+    int offset_x;
+    int offset_y;
+    int near_plane_z;
+    int screen_width;
+    int screen_height;
+    int stride;
+    int camera_fov;
+    struct DashTextureMap* texture_map;
+    bool smooth;
+};
+
+static inline void
+dash3d_raster_model_face(
+    int face,
+    struct DashModelRasterContext* ctx)
+{
     struct DashTexture* texture = NULL;
 
     // TODO: FaceTYpe is wrong, type 2 is hidden, 3 is black, 0 is gouraud, 1 is flat.
-    enum FaceType type = face_infos ? (face_infos[face] & 0x3) : FACE_TYPE_GOURAUD;
+    enum FaceType type = ctx->face_infos ? (ctx->face_infos[face] & 0x3) : FACE_TYPE_GOURAUD;
     if( type == 2 )
     {
         return;
     }
     assert(type >= 0 && type <= 3);
 
-    int color_a = colors_a[face];
-    int color_b = colors_b[face];
-    int color_c = colors_c[face];
-
-    if( color_c == DASHHSL16_HIDDEN )
-    {
-        return;
-    }
-
-    int tp_vertex = -1;
-    int tm_vertex = -1;
-    int tn_vertex = -1;
-
-    int tp_x = -1;
-    int tp_y = -1;
-    int tp_z = -1;
-    int tm_x = -1;
-    int tm_y = -1;
-    int tm_z = -1;
-    int tn_x = -1;
-    int tn_y = -1;
-    int tn_z = -1;
-
-    int texture_id = -1;
-    int texture_face = -1;
-
-    assert(face < num_faces);
-
-    int alpha = face_alphas_nullable ? (face_alphas_nullable[face]) : 0xFF;
+    int color_a = ctx->colors_a[face];
+    int color_b = ctx->colors_b[face];
+    int color_c = ctx->colors_c[face];
 
     // Faces with color_c == -2 are not drawn. As far as I can tell, these faces are used for
     // texture PNM coordinates that do not coincide with a visible face.
@@ -657,8 +666,29 @@ dash3d_raster_model_face(
         // color_c = 0;
     }
 
+    int tp_vertex;
+    int tm_vertex;
+    int tn_vertex;
+
+    int tp_x;
+    int tp_y;
+    int tp_z;
+    int tm_x;
+    int tm_y;
+    int tm_z;
+    int tn_x;
+    int tn_y;
+    int tn_z;
+
+    int texture_id;
+    int texture_face;
+
+    assert(face < ctx->num_faces);
+
+    int alpha = ctx->face_alphas_nullable ? (ctx->face_alphas_nullable[face]) : 0xFF;
+
     // TODO: See above comments. alpha overrides colors.
-    // if( face_alphas_nullable && face_alphas_nullable[index] < 0 )
+    // if( ctx->face_alphas_nullable && ctx->face_alphas_nullable[index] < 0 )
     // {
     //     return;
     // }
@@ -667,17 +697,14 @@ dash3d_raster_model_face(
     int texture_size = 0;
     int texture_opaque = true;
     int tex_id_row = -1;
-    if( face_textures != NULL )
-        tex_id_row = face_textures[face];
+    if( ctx->face_textures != NULL )
+        tex_id_row = ctx->face_textures[face];
 
     if( tex_id_row != -1 )
     {
         texture_id = tex_id_row;
         // gamma 0.8 is the default in os1
-        texture_entry =
-            (struct DashTextureEntry*)dashmap_search(textures_hmap, &texture_id, DASHMAP_FIND);
-        assert(texture_entry != NULL);
-        texture = texture_entry->texture;
+        texture = dashtexturemap_get(ctx->texture_map, texture_id);
         assert(texture != NULL);
 
         texels = texture->texels;
@@ -694,7 +721,7 @@ dash3d_raster_model_face(
         // Alpha is a signed byte, but for non-textured
         // faces, we treat it as unsigned.
         // DASHHSL16_FLAT / DASHHSL16_HIDDEN are reserved. See lighting code.
-        if( face_alphas_nullable )
+        if( ctx->face_alphas_nullable )
             alpha = 0xFF - alpha;
 
         if( color_c == DASHHSL16_FLAT )
@@ -708,56 +735,55 @@ dash3d_raster_model_face(
         switch( type )
         {
         case FACE_TYPE_GOURAUD:
-
-            if( smooth )
+            if( ctx->smooth )
             {
                 raster_face_gouraud_s1(
-                    pixel_buffer,
+                    ctx->pixel_buffer,
                     face,
-                    face_indices_a,
-                    face_indices_b,
-                    face_indices_c,
-                    vertex_x,
-                    vertex_y,
-                    vertex_z,
-                    orthographic_vertex_x_nullable,
-                    orthographic_vertex_y_nullable,
-                    orthographic_vertex_z_nullable,
-                    colors_a,
-                    colors_b,
-                    colors_c,
-                    face_alphas_nullable,
-                    near_plane_z,
-                    offset_x,
-                    offset_y,
-                    stride,
-                    screen_width,
-                    screen_height);
+                    ctx->face_indices_a,
+                    ctx->face_indices_b,
+                    ctx->face_indices_c,
+                    ctx->vertex_x,
+                    ctx->vertex_y,
+                    ctx->vertex_z,
+                    ctx->orthographic_vertex_x_nullable,
+                    ctx->orthographic_vertex_y_nullable,
+                    ctx->orthographic_vertex_z_nullable,
+                    ctx->colors_a,
+                    ctx->colors_b,
+                    ctx->colors_c,
+                    ctx->face_alphas_nullable,
+                    ctx->near_plane_z,
+                    ctx->offset_x,
+                    ctx->offset_y,
+                    ctx->stride,
+                    ctx->screen_width,
+                    ctx->screen_height);
             }
             else
             {
                 raster_face_gouraud(
-                    pixel_buffer,
+                    ctx->pixel_buffer,
                     face,
-                    face_indices_a,
-                    face_indices_b,
-                    face_indices_c,
-                    vertex_x,
-                    vertex_y,
-                    vertex_z,
-                    orthographic_vertex_x_nullable,
-                    orthographic_vertex_y_nullable,
-                    orthographic_vertex_z_nullable,
-                    colors_a,
-                    colors_b,
-                    colors_c,
-                    face_alphas_nullable,
-                    near_plane_z,
-                    offset_x,
-                    offset_y,
-                    stride,
-                    screen_width,
-                    screen_height);
+                    ctx->face_indices_a,
+                    ctx->face_indices_b,
+                    ctx->face_indices_c,
+                    ctx->vertex_x,
+                    ctx->vertex_y,
+                    ctx->vertex_z,
+                    ctx->orthographic_vertex_x_nullable,
+                    ctx->orthographic_vertex_y_nullable,
+                    ctx->orthographic_vertex_z_nullable,
+                    ctx->colors_a,
+                    ctx->colors_b,
+                    ctx->colors_c,
+                    ctx->face_alphas_nullable,
+                    ctx->near_plane_z,
+                    ctx->offset_x,
+                    ctx->offset_y,
+                    ctx->stride,
+                    ctx->screen_width,
+                    ctx->screen_height);
             }
 
             break;
@@ -765,111 +791,111 @@ dash3d_raster_model_face(
             // Skip triangle if any vertex was clipped
 
             raster_face_flat(
-                pixel_buffer,
+                ctx->pixel_buffer,
                 face,
-                face_indices_a,
-                face_indices_b,
-                face_indices_c,
-                vertex_x,
-                vertex_y,
-                vertex_z,
-                orthographic_vertex_x_nullable,
-                orthographic_vertex_y_nullable,
-                orthographic_vertex_z_nullable,
-                colors_a,
-                face_alphas_nullable,
-                near_plane_z,
-                offset_x,
-                offset_y,
-                stride,
-                screen_width,
-                screen_height);
+                ctx->face_indices_a,
+                ctx->face_indices_b,
+                ctx->face_indices_c,
+                ctx->vertex_x,
+                ctx->vertex_y,
+                ctx->vertex_z,
+                ctx->orthographic_vertex_x_nullable,
+                ctx->orthographic_vertex_y_nullable,
+                ctx->orthographic_vertex_z_nullable,
+                ctx->colors_a,
+                ctx->face_alphas_nullable,
+                ctx->near_plane_z,
+                ctx->offset_x,
+                ctx->offset_y,
+                ctx->stride,
+                ctx->screen_width,
+                ctx->screen_height);
 
             break;
         case FACE_TYPE_TEXTURED:
         textured:;
-            assert(orthographic_vertex_x_nullable != NULL);
-            assert(orthographic_vertex_y_nullable != NULL);
-            assert(orthographic_vertex_z_nullable != NULL);
+            assert(ctx->orthographic_vertex_x_nullable != NULL);
+            assert(ctx->orthographic_vertex_y_nullable != NULL);
+            assert(ctx->orthographic_vertex_z_nullable != NULL);
 
-            if( face_texture_coords && face_texture_coords[face] != -1 )
+            if( ctx->face_texture_coords && ctx->face_texture_coords[face] != -1 )
             {
-                assert(face_p_coordinate_nullable != NULL);
-                assert(face_m_coordinate_nullable != NULL);
-                assert(face_n_coordinate_nullable != NULL);
+                assert(ctx->face_p_coordinate_nullable != NULL);
+                assert(ctx->face_m_coordinate_nullable != NULL);
+                assert(ctx->face_n_coordinate_nullable != NULL);
 
-                texture_face = face_texture_coords[face];
+                texture_face = ctx->face_texture_coords[face];
 
-                tp_vertex = face_p_coordinate_nullable[texture_face];
-                tm_vertex = face_m_coordinate_nullable[texture_face];
-                tn_vertex = face_n_coordinate_nullable[texture_face];
+                tp_vertex = ctx->face_p_coordinate_nullable[texture_face];
+                tm_vertex = ctx->face_m_coordinate_nullable[texture_face];
+                tn_vertex = ctx->face_n_coordinate_nullable[texture_face];
             }
             else
             {
                 texture_face = face;
-                tp_vertex = face_indices_a[texture_face];
-                tm_vertex = face_indices_b[texture_face];
-                tn_vertex = face_indices_c[texture_face];
+                tp_vertex = ctx->face_indices_a[texture_face];
+                tm_vertex = ctx->face_indices_b[texture_face];
+                tn_vertex = ctx->face_indices_c[texture_face];
             }
-            // texture_id = face_textures[index];
-            // texture_face = face_infos[index] >> 2;
-            // texture_face = face_texture_coords[index];
+            // texture_id = ctx->face_textures[index];
+            // texture_face = ctx->face_infos[index] >> 2;
+            // texture_face = ctx->face_texture_coords[index];
 
             assert(tp_vertex > -1);
             assert(tm_vertex > -1);
             assert(tn_vertex > -1);
 
-            assert(tp_vertex < num_vertices);
-            assert(tm_vertex < num_vertices);
-            assert(tn_vertex < num_vertices);
+            assert(tp_vertex < ctx->num_vertices);
+            assert(tm_vertex < ctx->num_vertices);
+            assert(tn_vertex < ctx->num_vertices);
 
             raster_face_texture_blend(
-                pixel_buffer,
-                stride,
-                screen_width,
-                screen_height,
-                camera_fov,
+                ctx->pixel_buffer,
+                ctx->stride,
+                ctx->screen_width,
+                ctx->screen_height,
+                ctx->camera_fov,
                 face,
                 tp_vertex,
                 tm_vertex,
                 tn_vertex,
-                face_indices_a,
-                face_indices_b,
-                face_indices_c,
-                vertex_x,
-                vertex_y,
-                vertex_z,
-                orthographic_vertex_x_nullable,
-                orthographic_vertex_y_nullable,
-                orthographic_vertex_z_nullable,
-                colors_a,
-                colors_b,
-                colors_c,
+                ctx->face_indices_a,
+                ctx->face_indices_b,
+                ctx->face_indices_c,
+                ctx->vertex_x,
+                ctx->vertex_y,
+                ctx->vertex_z,
+                ctx->orthographic_vertex_x_nullable,
+                ctx->orthographic_vertex_y_nullable,
+                ctx->orthographic_vertex_z_nullable,
+                ctx->colors_a,
+                ctx->colors_b,
+                ctx->colors_c,
                 texels,
                 texture_size,
                 texture_opaque,
-                near_plane_z,
-                offset_x,
-                offset_y);
+                ctx->near_plane_z,
+                ctx->offset_x,
+                ctx->offset_y);
 
-            // tp_x = orthographic_vertex_x_nullable[tp_face];
-            // tp_y = orthographic_vertex_y_nullable[tp_face];
-            // tp_z = orthographic_vertex_z_nullable[tp_face];
+            // tp_x = ctx->orthographic_vertex_x_nullable[tp_face];
+            // tp_y = ctx->orthographic_vertex_y_nullable[tp_face];
+            // tp_z = ctx->orthographic_vertex_z_nullable[tp_face];
 
-            // tm_x = orthographic_vertex_x_nullable[tm_face];
-            // tm_y = orthographic_vertex_y_nullable[tm_face];
-            // tm_z = orthographic_vertex_z_nullable[tm_face];
+            // tm_x = ctx->orthographic_vertex_x_nullable[tm_face];
+            // tm_y = ctx->orthographic_vertex_y_nullable[tm_face];
+            // tm_z = ctx->orthographic_vertex_z_nullable[tm_face];
 
-            // tn_x = orthographic_vertex_x_nullable[tn_face];
-            // tn_y = orthographic_vertex_y_nullable[tn_face];
-            // tn_z = orthographic_vertex_z_nullable[tn_face];
+            // tn_x = ctx->orthographic_vertex_x_nullable[tn_face];
+            // tn_y = ctx->orthographic_vertex_y_nullable[tn_face];
+            // tn_z = ctx->orthographic_vertex_z_nullable[tn_face];
 
             // if( texture->opaque )
             // {
             //     raster_texture_opaque_blend_lerp8(
-            //         pixel_buffer,
-            //         screen_width,
-            //         screen_height,
+            //         ctx->pixel_buffer,
+            //         ctx->screen_width,
+            //         ctx->screen_height,
             //         x1,
             //         x2,
             //         x3,
@@ -894,9 +920,9 @@ dash3d_raster_model_face(
             // else
             // {
             //     raster_texture_transparent_blend_lerp8(
-            //         pixel_buffer,
-            //         screen_width,
-            //         screen_height,
+            //         ctx->pixel_buffer,
+            //         ctx->screen_width,
+            //         ctx->screen_height,
             //         x1,
             //         x2,
             //         x3,
@@ -922,9 +948,9 @@ dash3d_raster_model_face(
             // This will draw a white triangle over the projected texture pnm coords.
 
             // raster_flat(
-            //     pixel_buffer,
-            //     screen_width,
-            //     screen_height,
+            //     ctx->pixel_buffer,
+            //     ctx->screen_width,
+            //     ctx->screen_height,
             //     tex_x1,
             //     tex_x2,
             //     tex_x3,
@@ -935,82 +961,82 @@ dash3d_raster_model_face(
             break;
         case FACE_TYPE_TEXTURED_FLAT_SHADE:
         textured_flat:;
-            assert(orthographic_vertex_x_nullable != NULL);
-            assert(orthographic_vertex_y_nullable != NULL);
-            assert(orthographic_vertex_z_nullable != NULL);
+            assert(ctx->orthographic_vertex_x_nullable != NULL);
+            assert(ctx->orthographic_vertex_y_nullable != NULL);
+            assert(ctx->orthographic_vertex_z_nullable != NULL);
 
-            if( face_texture_coords && face_texture_coords[face] != -1 )
+            if( ctx->face_texture_coords && ctx->face_texture_coords[face] != -1 )
             {
-                texture_face = face_texture_coords[face];
+                texture_face = ctx->face_texture_coords[face];
 
-                tp_vertex = face_p_coordinate_nullable[texture_face];
-                tm_vertex = face_m_coordinate_nullable[texture_face];
-                tn_vertex = face_n_coordinate_nullable[texture_face];
+                tp_vertex = ctx->face_p_coordinate_nullable[texture_face];
+                tm_vertex = ctx->face_m_coordinate_nullable[texture_face];
+                tn_vertex = ctx->face_n_coordinate_nullable[texture_face];
             }
             else
             {
                 texture_face = face;
-                tp_vertex = face_indices_a[texture_face];
-                tm_vertex = face_indices_b[texture_face];
-                tn_vertex = face_indices_c[texture_face];
+                tp_vertex = ctx->face_indices_a[texture_face];
+                tm_vertex = ctx->face_indices_b[texture_face];
+                tn_vertex = ctx->face_indices_c[texture_face];
             }
-            // texture_id = face_textures[index];
-            // texture_face = face_infos[index] >> 2;
-            // texture_face = face_texture_coords[index];
+            // texture_id = ctx->face_textures[index];
+            // texture_face = ctx->face_infos[index] >> 2;
+            // texture_face = ctx->face_texture_coords[index];
 
             assert(tp_vertex > -1);
             assert(tm_vertex > -1);
             assert(tn_vertex > -1);
 
-            assert(tp_vertex < num_vertices);
-            assert(tm_vertex < num_vertices);
-            assert(tn_vertex < num_vertices);
+            assert(tp_vertex < ctx->num_vertices);
+            assert(tm_vertex < ctx->num_vertices);
+            assert(tn_vertex < ctx->num_vertices);
 
             raster_face_texture_flat(
-                pixel_buffer,
-                stride,
-                screen_width,
-                screen_height,
-                camera_fov,
+                ctx->pixel_buffer,
+                ctx->stride,
+                ctx->screen_width,
+                ctx->screen_height,
+                ctx->camera_fov,
                 face,
                 tp_vertex,
                 tm_vertex,
                 tn_vertex,
-                face_indices_a,
-                face_indices_b,
-                face_indices_c,
-                vertex_x,
-                vertex_y,
-                vertex_z,
-                orthographic_vertex_x_nullable,
-                orthographic_vertex_y_nullable,
-                orthographic_vertex_z_nullable,
-                colors_a,
+                ctx->face_indices_a,
+                ctx->face_indices_b,
+                ctx->face_indices_c,
+                ctx->vertex_x,
+                ctx->vertex_y,
+                ctx->vertex_z,
+                ctx->orthographic_vertex_x_nullable,
+                ctx->orthographic_vertex_y_nullable,
+                ctx->orthographic_vertex_z_nullable,
+                ctx->colors_a,
                 texels,
                 texture_size,
                 texture_opaque,
-                near_plane_z,
-                offset_x,
-                offset_y);
+                ctx->near_plane_z,
+                ctx->offset_x,
+                ctx->offset_y);
 
-            // tp_x = orthographic_vertex_x_nullable[tp_face];
-            // tp_y = orthographic_vertex_y_nullable[tp_face];
-            // tp_z = orthographic_vertex_z_nullable[tp_face];
+            // tp_x = ctx->orthographic_vertex_x_nullable[tp_face];
+            // tp_y = ctx->orthographic_vertex_y_nullable[tp_face];
+            // tp_z = ctx->orthographic_vertex_z_nullable[tp_face];
 
-            // tm_x = orthographic_vertex_x_nullable[tm_face];
-            // tm_y = orthographic_vertex_y_nullable[tm_face];
-            // tm_z = orthographic_vertex_z_nullable[tm_face];
+            // tm_x = ctx->orthographic_vertex_x_nullable[tm_face];
+            // tm_y = ctx->orthographic_vertex_y_nullable[tm_face];
+            // tm_z = ctx->orthographic_vertex_z_nullable[tm_face];
 
-            // tn_x = orthographic_vertex_x_nullable[tn_face];
-            // tn_y = orthographic_vertex_y_nullable[tn_face];
-            // tn_z = orthographic_vertex_z_nullable[tn_face];
+            // tn_x = ctx->orthographic_vertex_x_nullable[tn_face];
+            // tn_y = ctx->orthographic_vertex_y_nullable[tn_face];
+            // tn_z = ctx->orthographic_vertex_z_nullable[tn_face];
 
             // if( texture->opaque )
             // {
             //     raster_texture_opaque_lerp8(
-            //         pixel_buffer,
-            //         screen_width,
-            //         screen_height,
+            //         ctx->pixel_buffer,
+            //         ctx->screen_width,
+            //         ctx->screen_height,
             //         x1,
             //         x2,
             //         x3,
@@ -1033,9 +1059,9 @@ dash3d_raster_model_face(
             // else
             // {
             //     raster_texture_transparent_lerp8(
-            //         pixel_buffer,
-            //         screen_width,
-            //         screen_height,
+            //         ctx->pixel_buffer,
+            //         ctx->screen_width,
+            //         ctx->screen_height,
             //         x1,
             //         x2,
             //         x3,
@@ -1328,60 +1354,132 @@ sort_face_draw_order(
 
 #else /* DASH_BUCKET_SORT_USE_LINKED_LIST */
 
+// Using a magic constant for 1/3 fixed-point multiplication (1/3 approx 0x55555556 >> 32)
+#define DIV3_SHR 32
+#define DIV3_MUL 1431655766UL
+
+static inline int
+div3_fast_fixedpoint(int z_sum)
+{
+    return (int)(((uint64_t)z_sum * DIV3_MUL) >> DIV3_SHR);
+}
+
 static inline int
 bucket_sort_by_average_depth(
-    faceint_t* face_depth_buckets,
-    faceint_t* face_depth_bucket_counts,
+    faceint_t* restrict face_depth_buckets,
+    faceint_t* restrict face_depth_bucket_counts,
     int model_min_depth,
     int num_faces,
-    int* vertex_x,
-    int* vertex_y,
-    int* vertex_z,
-    faceint_t* face_a,
-    faceint_t* face_b,
-    faceint_t* face_c)
+    const int* restrict vx,
+    const int* restrict vy,
+    const int* restrict vz,
+    const faceint_t* restrict face_a,
+    const faceint_t* restrict face_b,
+    const faceint_t* restrict face_c)
 {
-    int min_depth = INT_MAX;
-    int max_depth = INT_MIN;
+    int min_d = 1500;
+    int max_d = 0;
 
     for( int f = 0; f < num_faces; f++ )
     {
-        int a = face_a[f];
-        int b = face_b[f];
-        int c = face_c[f];
+        // Hoist indices
+        const uint32_t a = face_a[f];
+        const uint32_t b = face_b[f];
+        const uint32_t c = face_c[f];
 
-        int xa = vertex_x[a];
-        int xb = vertex_x[b];
-        int xc = vertex_x[c];
+        // 2D Cross Product for Backface Culling
+        // Localizing these variables helps the compiler use registers effectively
+        const int dx1 = vx[a] - vx[b];
+        const int dy1 = vy[a] - vy[b];
+        const int dx2 = vx[c] - vx[b];
+        const int dy2 = vy[c] - vy[b];
 
-        int ya = vertex_y[a];
-        int yb = vertex_y[b];
-        int yc = vertex_y[c];
-
-        int za = vertex_z[a];
-        int zb = vertex_z[b];
-        int zc = vertex_z[c];
-
-        int dot_product = (xa - xb) * (yc - yb) - (ya - yb) * (xc - xb);
-        if( dot_product > 0 )
+        if( (dx1 * dy2 - dy1 * dx2) > 0 )
         {
-            int depth_average = div3_fast(za + zb + zc) + model_min_depth;
+            // Calculate average depth using fixed-point instead of div3_fast
+            // (za + zb + zc) * 0.333...
+            int z_sum = vz[a] + vz[b] + vz[c];
+            int depth_avg = div3_fast_fixedpoint(z_sum) + model_min_depth;
 
-            if( depth_average < 1500 && depth_average > 0 )
+            // Using unsigned comparison trick to check 0 < depth_avg < 1500 in one branch
+            if( (unsigned int)depth_avg < 1500 )
             {
-                int bucket_index = face_depth_bucket_counts[depth_average]++;
-                face_depth_buckets[(depth_average << 9) + bucket_index] = (faceint_t)f;
+                const int count = face_depth_bucket_counts[depth_avg];
+                face_depth_bucket_counts[depth_avg] = count + 1;
 
-                if( depth_average < min_depth )
-                    min_depth = depth_average;
-                if( depth_average > max_depth )
-                    max_depth = depth_average;
+                // (depth << 9) is a 512-entry stride.
+                // Ensure face_depth_buckets is aligned to cache lines.
+                face_depth_buckets[(depth_avg << 9) + count] = (faceint_t)f;
+
+                // Branchless min/max (optional, depends on architecture)
+                if( depth_avg < min_d )
+                    min_d = depth_avg;
+                if( depth_avg > max_d )
+                    max_d = depth_avg;
             }
         }
     }
 
-    return (min_depth) | (max_depth << 16);
+    // Handle case where no faces were added
+    if( min_d > max_d )
+        return 0;
+    return (min_d) | (max_d << 16);
 }
+
+// static inline int
+// bucket_sort_by_average_depth(
+//     faceint_t* face_depth_buckets,
+//     faceint_t* face_depth_bucket_counts,
+//     int model_min_depth,
+//     int num_faces,
+//     int* vertex_x,
+//     int* vertex_y,
+//     int* vertex_z,
+//     faceint_t* face_a,
+//     faceint_t* face_b,
+//     faceint_t* face_c)
+// {
+//     int min_depth = INT_MAX;
+//     int max_depth = INT_MIN;
+
+//     for( int f = 0; f < num_faces; f++ )
+//     {
+//         int a = face_a[f];
+//         int b = face_b[f];
+//         int c = face_c[f];
+
+//         int xa = vertex_x[a];
+//         int xb = vertex_x[b];
+//         int xc = vertex_x[c];
+
+//         int ya = vertex_y[a];
+//         int yb = vertex_y[b];
+//         int yc = vertex_y[c];
+
+//         int dot_product = (xa - xb) * (yc - yb) - (ya - yb) * (xc - xb);
+//         if( dot_product > 0 )
+//         {
+//             int za = vertex_z[a];
+//             int zb = vertex_z[b];
+//             int zc = vertex_z[c];
+
+//             int depth_average = div3_fast(za + zb + zc) + model_min_depth;
+
+//             if( depth_average < 1500 && depth_average > 0 )
+//             {
+//                 int bucket_index = face_depth_bucket_counts[depth_average]++;
+//                 face_depth_buckets[(depth_average << 9) + bucket_index] = (faceint_t)f;
+
+//                 if( depth_average < min_depth )
+//                     min_depth = depth_average;
+//                 if( depth_average > max_depth )
+//                     max_depth = depth_average;
+//             }
+//         }
+//     }
+
+//     return (min_depth) | (max_depth << 16);
+// }
 
 static inline void
 parition_faces_by_priority(
@@ -1540,6 +1638,7 @@ sort_face_draw_order(
 #endif /* DASH_BUCKET_SORT_USE_LINKED_LIST */
 
 static inline void
+// static __attribute__((noinline)) void
 dash3d_sort_face_draw_order(
     struct DashGraphics* dash,
     struct DashModel* model,
@@ -1591,7 +1690,9 @@ dash3d_sort_face_draw_order(
     if( !dashmodel_face_priorities(model) )
     {
         int order_index = 0;
-        for( int depth = model_max_depth; depth < 1500 && depth >= model_min_depth; depth-- )
+        if( model_max_depth >= 1500 )
+            model_max_depth = 1499;
+        for( int depth = model_max_depth; depth >= model_min_depth; depth-- )
         {
 #if DASH_BUCKET_SORT_USE_LINKED_LIST
             for( faceint_t face_idx = dash->bucket_heads[depth]; face_idx != (faceint_t)-1;
@@ -1607,8 +1708,9 @@ dash3d_sort_face_draw_order(
             faceint_t* faces = &dash->tmp_depth_faces[depth << 9];
             for( int j = 0; j < bucket_count; j++ )
             {
-                dash->tmp_face_order[order_index++] = faces[j];
+                dash->tmp_face_order[order_index] = faces[j];
             }
+            order_index += bucket_count;
 #endif
         }
 
@@ -1714,44 +1816,46 @@ dash3d_raster_with_face_indices(
     int clip_x = view_port->width >> 1;
     int clip_y = view_port->height >> 1;
 
+    struct DashModelRasterContext ctx = {
+        .pixel_buffer = pixel_buffer,
+        .face_infos = face_infos,
+        .face_indices_a = fia,
+        .face_indices_b = fib,
+        .face_indices_c = fic,
+        .num_faces = face_count,
+        .vertex_x = dash->screen_vertices_x,
+        .vertex_y = dash->screen_vertices_y,
+        .vertex_z = dash->screen_vertices_z,
+        .orthographic_vertex_x_nullable = orthographic_vertices_x,
+        .orthographic_vertex_y_nullable = orthographic_vertices_y,
+        .orthographic_vertex_z_nullable = orthographic_vertices_z,
+        .num_vertices = vertex_count,
+        .face_textures = face_textures,
+        .face_texture_coords = face_texture_coords,
+        .face_texture_coords_length = textured_face_count,
+        .face_p_coordinate_nullable = textured_p,
+        .face_m_coordinate_nullable = textured_m,
+        .face_n_coordinate_nullable = textured_n,
+        .num_textured_faces = textured_face_count,
+        .colors_a = face_colors_a,
+        .colors_b = face_colors_b,
+        .colors_c = face_colors_c,
+        .face_alphas_nullable = face_alphas,
+        .offset_x = clip_x,
+        .offset_y = clip_y,
+        .near_plane_z = camera->near_plane_z,
+        .screen_width = view_port->width,
+        .screen_height = view_port->height,
+        .stride = view_port->stride,
+        .camera_fov = camera->fov_rpi2048,
+        .texture_map = &dash->texture_map,
+        .smooth = smooth,
+    };
+
     for( int i = 0; i < dash->tmp_face_order_count; i++ )
     {
         int face = dash->tmp_face_order[i];
-        dash3d_raster_model_face(
-            pixel_buffer,
-            face,
-            face_infos,
-            fia,
-            fib,
-            fic,
-            face_count,
-            dash->screen_vertices_x,
-            dash->screen_vertices_y,
-            dash->screen_vertices_z,
-            orthographic_vertices_x,
-            orthographic_vertices_y,
-            orthographic_vertices_z,
-            vertex_count,
-            face_textures,
-            face_texture_coords,
-            textured_face_count,
-            textured_p,
-            textured_m,
-            textured_n,
-            textured_face_count,
-            face_colors_a,
-            face_colors_b,
-            face_colors_c,
-            face_alphas,
-            clip_x,
-            clip_y,
-            camera->near_plane_z,
-            view_port->width,
-            view_port->height,
-            view_port->stride,
-            camera->fov_rpi2048,
-            dash->textures_hmap,
-            smooth);
+        dash3d_raster_model_face(face, &ctx);
     }
 }
 
@@ -2734,17 +2838,7 @@ dash3d_add_texture(
     int texture_id, //
     struct DashTexture* texture)
 {
-    struct DashTextureEntry* entry =
-        (struct DashTextureEntry*)dashmap_search(dash->textures_hmap, &texture_id, DASHMAP_INSERT);
-
-    if( !entry )
-    {
-        // TODO: Resize;
-        assert(false && "Handle resize textures hashmap");
-    }
-
-    entry->id = texture_id;
-    entry->texture = texture;
+    dashtexturemap_set(&dash->texture_map, texture_id, texture);
 }
 
 /* Texture animation - matches Java animate_texture (res/animate_texture.java) and Client.ts.
@@ -2842,12 +2936,10 @@ dash_animate_textures(
     struct DashGraphics* dash,
     int time_delta)
 {
-    struct DashTextureEntry* entry = NULL;
-
-    struct DashMapIter* iter = dashmap_iter_new(dash->textures_hmap);
-    while( (entry = (struct DashTextureEntry*)dashmap_iter_next(iter)) )
-        animate_texture(entry->texture, time_delta);
-    dashmap_iter_free(iter);
+    int cursor = 0;
+    struct DashTexture* tex;
+    while( (tex = dashtexturemap_iter_next(&dash->texture_map, &cursor)) )
+        animate_texture(tex, time_delta);
 }
 
 struct DashPosition*

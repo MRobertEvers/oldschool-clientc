@@ -160,6 +160,26 @@ struct DashTexture
     int average_hsl;
 };
 
+#define DASH_TEXTURE_MAP_CAPACITY 51
+
+struct DashTextureMap
+{
+    struct DashTexture* textures[DASH_TEXTURE_MAP_CAPACITY];
+    int count; /* number of non-NULL entries */
+};
+
+void
+dashtexturemap_init(struct DashTextureMap* map);
+
+void
+dashtexturemap_set(struct DashTextureMap* map, int id, struct DashTexture* texture);
+
+struct DashTexture*
+dashtexturemap_get(const struct DashTextureMap* map, int id);
+
+struct DashTexture*
+dashtexturemap_iter_next(const struct DashTextureMap* map, int* cursor);
+
 struct DashViewPort
 {
     int stride;
