@@ -46,6 +46,8 @@ struct Painter
 
     /** Bitmask: bit s set => level s participates in paint (0-3 for MAP_TERRAIN_LEVELS). Default 0xF. */
     uint8_t level_mask;
+    /** Lowest set bit in level_mask; 0 when mask is all bits or unset. */
+    uint8_t min_level;
 
     int static_element_count;
 

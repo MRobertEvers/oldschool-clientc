@@ -469,6 +469,7 @@ painter_new(
     painter->camera_pitch = 0;
     painter->camera_yaw = 0;
     painter->level_mask = 0xFu;
+    painter->min_level = 0;
 
     return painter;
 }
@@ -481,6 +482,41 @@ painter_set_level_mask(
     if( !painter )
         return;
     painter->level_mask = mask;
+    painter->min_level = 0;
+    if( mask == 0u )
+        return;
+    for( int i = 0; i < 8; i++ )
+    {
+        if( mask & (1u << i) )
+        {
+            painter->min_level = (uint8_t)i;
+            return;
+        }
+    }
+}
+
+void
+painter_set_level_range(
+    struct Painter* painter,
+    int lo,
+    int hi)
+{
+    if( !painter )
+        return;
+    if( lo > hi )
+    {
+        int t = lo;
+        lo = hi;
+        hi = t;
+    }
+    if( lo < 0 )
+        lo = 0;
+    if( hi > 7 )
+        hi = 7;
+    unsigned mask = 0u;
+    for( int i = lo; i <= hi; i++ )
+        mask |= 1u << (unsigned)i;
+    painter_set_level_mask(painter, (uint8_t)mask);
 }
 
 static inline bool

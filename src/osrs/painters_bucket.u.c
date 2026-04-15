@@ -164,7 +164,26 @@ painter_paint_bucket(
     memset(painter->element_paints, 0x00, painter->element_count * sizeof(struct ElementPaint));
 
     int radius = 25;
-    int max_level = 4;
+
+    uint8_t draw_mask = painter->level_mask ? painter->level_mask : 0xFu;
+    int min_level = 0;
+    int max_level = 0;
+    for( int _b = 0; _b < 8; _b++ )
+    {
+        if( draw_mask & (1u << _b) )
+        {
+            min_level = _b;
+            break;
+        }
+    }
+    for( int _b = 7; _b >= 0; _b-- )
+    {
+        if( draw_mask & (1u << _b) )
+        {
+            max_level = _b + 1;
+            break;
+        }
+    }
 
     int max_draw_x = camera_sx + radius;
     int max_draw_z = camera_sz + radius;
@@ -194,9 +213,9 @@ painter_paint_bucket(
     painter_clear_tile_paints_region(
         painter, min_draw_x, max_draw_x, min_draw_z, max_draw_z, max_level);
 
-    for( int s = 0; s < max_level && s < painter->levels; s++ )
+    for( int s = min_level; s < max_level && s < painter->levels; s++ )
     {
-        if( (painter->level_mask & (1u << s)) == 0 )
+        if( (draw_mask & (1u << s)) == 0 )
             continue;
         for( int z = min_draw_z; z < max_draw_z; z++ )
         {
@@ -214,11 +233,12 @@ painter_paint_bucket(
         max_draw_x,
         min_draw_z,
         max_draw_z,
+        min_level,
         max_level);
 
-    for( int s = 0; s < max_level && s < painter->levels; s++ )
+    for( int s = min_level; s < max_level && s < painter->levels; s++ )
     {
-        if( (painter->level_mask & (1u << s)) == 0 )
+        if( (draw_mask & (1u << s)) == 0 )
             continue;
         for( int z = min_draw_z; z < max_draw_z; z++ )
         {
@@ -230,7 +250,7 @@ painter_paint_bucket(
 
                 tile_paint = tile_paint_at(painter, x, z, s);
                 if( (painters_tile_get_flags(t) & PAINTERS_TILE_FLAG_BRIDGE) != 0 ||
-                    tile_slevel > max_level )
+                    (draw_mask & (1u << tile_slevel)) == 0 )
                 {
                     tile_paint->step = PAINT_STEP_DONE;
                 }
@@ -249,9 +269,9 @@ painter_paint_bucket(
 
     bucket_reset(w);
 
-    for( int s = 0; s < max_level && s < painter->levels; s++ )
+    for( int s = min_level; s < max_level && s < painter->levels; s++ )
     {
-        if( (painter->level_mask & (1u << s)) == 0 )
+        if( (draw_mask & (1u << s)) == 0 )
             continue;
         for( int z = min_draw_z; z < max_draw_z; z++ )
         {
@@ -285,7 +305,7 @@ painter_paint_bucket(
             continue;
 
         if( (painters_tile_get_flags(tile) & PAINTERS_TILE_FLAG_BRIDGE) != 0 ||
-            tile_slevel > max_level )
+            (draw_mask & (1u << tile_slevel)) == 0 )
         {
             tile_paint->step = PAINT_STEP_DONE;
             continue;

@@ -337,6 +337,13 @@ painter_set_level_mask(
     struct Painter* painter,
     uint8_t mask);
 
+/** Draw only levels lo through hi inclusive (0-based). */
+void
+painter_set_level_range(
+    struct Painter* painter,
+    int lo,
+    int hi);
+
 /** Bitmask: which scratch contexts painter_new allocates up front (see painters_bucket / world3d / distancemetric). */
 enum PainterNewContextFlags
 {

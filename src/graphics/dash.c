@@ -634,6 +634,8 @@ dash3d_raster_model_face(
     int face,
     struct DashModelRasterContext* ctx)
 {
+    assert(face >= 0 && face < ctx->num_faces);
+
     struct DashTexture* texture = NULL;
 
     // TODO: FaceTYpe is wrong, type 2 is hidden, 3 is black, 0 is gouraud, 1 is flat.
@@ -682,8 +684,6 @@ dash3d_raster_model_face(
 
     int texture_id;
     int texture_face;
-
-    assert(face < ctx->num_faces);
 
     int alpha = ctx->face_alphas_nullable ? (ctx->face_alphas_nullable[face]) : 0xFF;
 
@@ -1708,9 +1708,8 @@ dash3d_sort_face_draw_order(
             faceint_t* faces = &dash->tmp_depth_faces[depth << 9];
             for( int j = 0; j < bucket_count; j++ )
             {
-                dash->tmp_face_order[order_index] = faces[j];
+                dash->tmp_face_order[order_index++] = faces[j];
             }
-            order_index += bucket_count;
 #endif
         }
 

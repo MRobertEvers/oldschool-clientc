@@ -94,7 +94,7 @@ struct ComponentLoad
     char paint_levels[64];
 };
 
-/** Comma-separated level indices 0-3 -> bitmask; empty string -> all levels (0xF). */
+/** Comma-separated level indices 0-7, optional inclusive ranges "lo-hi" -> bitmask; empty -> 0xF. */
 static uint8_t
 parse_paint_levels_mask(const char* str)
 {
@@ -109,7 +109,7 @@ parse_paint_levels_mask(const char* str)
         if( *p == '\0' )
             break;
         char* end = NULL;
-        long v = strtol(p, &end, 10);
+        long lo = strtol(p, &end, 10);
         if( end == p )
         {
             while( *p && *p != ',' )
@@ -118,9 +118,37 @@ parse_paint_levels_mask(const char* str)
                 p++;
             continue;
         }
-        if( v >= 0 && v < 8 )
-            m |= 1u << (unsigned)v;
         p = end;
+        while( *p == ' ' || *p == '\t' )
+            p++;
+        if( *p == '-' )
+        {
+            p++;
+            while( *p == ' ' || *p == '\t' )
+                p++;
+            long hi = strtol(p, &end, 10);
+            if( end != p )
+            {
+                long a = lo;
+                long b = hi;
+                if( a > b )
+                {
+                    long t = a;
+                    a = b;
+                    b = t;
+                }
+                for( long k = a; k <= b && k < 8; k++ )
+                {
+                    if( k >= 0 )
+                        m |= 1u << (unsigned)k;
+                }
+                p = end;
+            }
+            else if( lo >= 0 && lo < 8 )
+                m |= 1u << (unsigned)lo;
+        }
+        else if( lo >= 0 && lo < 8 )
+            m |= 1u << (unsigned)lo;
         while( *p == ' ' || *p == '\t' )
             p++;
         if( *p == ',' )
