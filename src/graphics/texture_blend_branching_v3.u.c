@@ -7,8 +7,8 @@
 
 #include <stdint.h>
 
-/* draw_texture_scanline_opaque_blend_ordered_blerp8_v3 is provided by texture_simd.* (included
- * above). */
+/* draw_texture_scanline_opaque_blend_ordered_blerp8_v3 (TextureScanlineV3Context) is provided by
+ * texture_simd.* (included above). */
 
 static inline void
 raster_texture_opaque_blend_ordered_blerp8_v3(
@@ -152,6 +152,19 @@ raster_texture_opaque_blend_ordered_blerp8_v3(
         y2 = screen_height - 1;
     }
 
+    TextureScanlineV3Context scanline_ctx;
+    scanline_ctx.pixel_buffer = pixel_buffer;
+    scanline_ctx.screen_width = screen_width;
+    scanline_ctx.step_au_dx = vOVPlane_normal_xhat;
+    scanline_ctx.step_bv_dx = vUOPlane_normal_xhat;
+    scanline_ctx.step_cw_dx = vUVPlane_normal_xhat;
+    scanline_ctx.step_shade8bit_dx_ish8 = shade8bit_xhat_ish8;
+    scanline_ctx.texels = texels;
+    scanline_ctx.texture_width = texture_width;
+    scanline_ctx.texture_shift = (texture_width == 128) ? 7 : 6;
+    scanline_ctx.v_mask = (texture_width == 128) ? 0x3F80 : 0x0FC0;
+    scanline_ctx.u_mask = texture_width - 1;
+
     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
     {
@@ -161,21 +174,14 @@ raster_texture_opaque_blend_ordered_blerp8_v3(
         while( y1-- > 0 )
         {
             draw_texture_scanline_opaque_blend_ordered_blerp8_v3(
-                pixel_buffer,
-                screen_width,
                 edge_x_AB_ish16,
                 edge_x_AC_ish16,
                 offset,
                 au,
                 bv,
                 cw,
-                vOVPlane_normal_xhat,
-                vUOPlane_normal_xhat,
-                vUVPlane_normal_xhat,
                 shade8bit_edge_ish8,
-                shade8bit_xhat_ish8,
-                texels,
-                texture_width);
+                &scanline_ctx);
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_AB_ish16 += step_edge_x_AB_ish16;
@@ -192,21 +198,14 @@ raster_texture_opaque_blend_ordered_blerp8_v3(
         while( y2-- > 0 )
         {
             draw_texture_scanline_opaque_blend_ordered_blerp8_v3(
-                pixel_buffer,
-                screen_width,
                 edge_x_BC_ish16,
                 edge_x_AC_ish16,
                 offset,
                 au,
                 bv,
                 cw,
-                vOVPlane_normal_xhat,
-                vUOPlane_normal_xhat,
-                vUVPlane_normal_xhat,
                 shade8bit_edge_ish8,
-                shade8bit_xhat_ish8,
-                texels,
-                texture_width);
+                &scanline_ctx);
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_BC_ish16 += step_edge_x_BC_ish16;
@@ -228,21 +227,14 @@ raster_texture_opaque_blend_ordered_blerp8_v3(
         while( y1-- > 0 )
         {
             draw_texture_scanline_opaque_blend_ordered_blerp8_v3(
-                pixel_buffer,
-                screen_width,
                 edge_x_AC_ish16,
                 edge_x_AB_ish16,
                 offset,
                 au,
                 bv,
                 cw,
-                vOVPlane_normal_xhat,
-                vUOPlane_normal_xhat,
-                vUVPlane_normal_xhat,
                 shade8bit_edge_ish8,
-                shade8bit_xhat_ish8,
-                texels,
-                texture_width);
+                &scanline_ctx);
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_AB_ish16 += step_edge_x_AB_ish16;
@@ -259,21 +251,14 @@ raster_texture_opaque_blend_ordered_blerp8_v3(
         while( y2-- > 0 )
         {
             draw_texture_scanline_opaque_blend_ordered_blerp8_v3(
-                pixel_buffer,
-                screen_width,
                 edge_x_AC_ish16,
                 edge_x_BC_ish16,
                 offset,
                 au,
                 bv,
                 cw,
-                vOVPlane_normal_xhat,
-                vUOPlane_normal_xhat,
-                vUVPlane_normal_xhat,
                 shade8bit_edge_ish8,
-                shade8bit_xhat_ish8,
-                texels,
-                texture_width);
+                &scanline_ctx);
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_BC_ish16 += step_edge_x_BC_ish16;

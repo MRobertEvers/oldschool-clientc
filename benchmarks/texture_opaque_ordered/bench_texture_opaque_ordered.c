@@ -47,6 +47,16 @@ now_seconds(void)
     return (double)ts.tv_sec + 1e-9 * (double)ts.tv_nsec;
 }
 
+/* 4MB buffer to touch between iterations (optional cold-cache / thrash). */
+static char cache_thrasher[4 * 1024 * 1024];
+
+static void
+flush_l1_l2(void)
+{
+    for( int i = 0; i < 4 * 1024 * 1024; i += 64 )
+        cache_thrasher[i] += 1;
+}
+
 static void
 fill_lookup_stubs(void)
 {
@@ -101,7 +111,7 @@ typedef struct
 } bench_case_t;
 
 static double
-time_raster(
+time_raster_realistic(
     blerp8_fn fn,
     int* pixels,
     int screen_w,
@@ -120,6 +130,7 @@ time_raster(
     int* texels)
 {
     int stride = screen_w;
+
     for( int w = 0; w < BENCH_WARMUP; w++ )
         fn(
             pixels,
@@ -150,18 +161,27 @@ time_raster(
 
     double t0 = now_seconds();
     for( int n = 0; n < BENCH_ITERS; n++ )
+    {
+        int jitter_x = (n % 7) - 3;
+        int jitter_y = (n % 5) - 2;
+        int align_shift = (n & 3);
+
+        /* Uncomment for cold-cache / worst-case timing:
+        flush_l1_l2();
+        */
+
         fn(
             pixels,
             stride,
             screen_w,
             screen_h,
             camera_fov,
-            x0,
-            x1,
-            x2,
-            y0,
-            y1,
-            y2,
+            x0 + jitter_x + align_shift,
+            x1 + jitter_x,
+            x2 + jitter_x,
+            y0 + jitter_y,
+            y1 + jitter_y,
+            y2 + jitter_y,
             0,
             texture_dim,
             0,
@@ -176,6 +196,7 @@ time_raster(
             shade_c,
             texels,
             texture_dim);
+    }
     double t1 = now_seconds();
 
     volatile int sink = pixels[(screen_h / 2) * stride + (screen_w / 2)];
@@ -465,7 +486,7 @@ int main(void)
         for( int i = 0; i < bc->texture_dim * bc->texture_dim; i++ )
             texels[i] = 0x00ab00ff | ((i & 0xff) << 16);
 
-        double ts = time_raster(
+        double ts = time_raster_realistic(
             bench_raster_texture_opaque_blend_scalar,
             pixels,
             bc->screen_w,
@@ -483,7 +504,7 @@ int main(void)
             bc->shade_c,
             texels);
 
-        double tv = time_raster(
+        double tv = time_raster_realistic(
             bench_raster_texture_opaque_blend_simd,
             pixels,
             bc->screen_w,

@@ -222,22 +222,26 @@ raster_linear_transparent_blend_lerp8_v3(
 
 static inline void
 draw_texture_scanline_opaque_blend_ordered_blerp8_v3(
-    int* pixel_buffer,
-    int screen_width,
     int screen_x0_ish16,
     int screen_x1_ish16,
     int pixel_offset,
     int au,
     int bv,
     int cw,
-    int step_au_dx,
-    int step_bv_dx,
-    int step_cw_dx,
     int shade8bit_ish8,
-    int step_shade8bit_dx_ish8,
-    int* texels,
-    int texture_width)
+    const TextureScanlineV3Context* ctx)
 {
+    int* pixel_buffer = ctx->pixel_buffer;
+    int screen_width = ctx->screen_width;
+    int step_au_dx = ctx->step_au_dx;
+    int step_bv_dx = ctx->step_bv_dx;
+    int step_cw_dx = ctx->step_cw_dx;
+    int step_shade8bit_dx_ish8 = ctx->step_shade8bit_dx_ish8;
+    int* texels = ctx->texels;
+    int texture_shift = ctx->texture_shift;
+    int u_mask = ctx->u_mask;
+    int v_mask = ctx->v_mask;
+
     int x0 = (screen_x0_ish16 - 1) >> 16;
     if( x0 < 0 )
         x0 = 0;
@@ -251,10 +255,6 @@ draw_texture_scanline_opaque_blend_ordered_blerp8_v3(
     au += step_au_dx * adjust;
     bv += step_bv_dx * adjust;
     cw += step_cw_dx * adjust;
-
-    int texture_shift = (texture_width == 128) ? 7 : 6;
-    int v_mask = (texture_width == 128) ? 0x3F80 : 0x0FC0;
-    int u_mask = texture_width - 1;
 
     int steps = x1 - x0;
     int offset = pixel_offset + x0;
@@ -320,22 +320,26 @@ draw_texture_scanline_opaque_blend_ordered_blerp8_v3(
 
 static inline void
 draw_texture_scanline_transparent_blend_ordered_blerp8_v3(
-    int* pixel_buffer,
-    int screen_width,
     int screen_x0_ish16,
     int screen_x1_ish16,
     int pixel_offset,
     int au,
     int bv,
     int cw,
-    int step_au_dx,
-    int step_bv_dx,
-    int step_cw_dx,
     int shade8bit_ish8,
-    int step_shade8bit_dx_ish8,
-    int* texels,
-    int texture_width)
+    const TextureScanlineV3Context* ctx)
 {
+    int* pixel_buffer = ctx->pixel_buffer;
+    int screen_width = ctx->screen_width;
+    int step_au_dx = ctx->step_au_dx;
+    int step_bv_dx = ctx->step_bv_dx;
+    int step_cw_dx = ctx->step_cw_dx;
+    int step_shade8bit_dx_ish8 = ctx->step_shade8bit_dx_ish8;
+    int* texels = ctx->texels;
+    int texture_shift = ctx->texture_shift;
+    int u_mask = ctx->u_mask;
+    int v_mask = ctx->v_mask;
+
     int x0 = (screen_x0_ish16 - 1) >> 16;
     if( x0 < 0 )
         x0 = 0;
@@ -349,10 +353,6 @@ draw_texture_scanline_transparent_blend_ordered_blerp8_v3(
     au += step_au_dx * adjust;
     bv += step_bv_dx * adjust;
     cw += step_cw_dx * adjust;
-
-    int texture_shift = (texture_width == 128) ? 7 : 6;
-    int v_mask = (texture_width == 128) ? 0x3F80 : 0x0FC0;
-    int u_mask = texture_width - 1;
 
     int steps = x1 - x0;
     int offset = pixel_offset + x0;

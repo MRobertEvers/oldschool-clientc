@@ -45,7 +45,7 @@ raster_texture_blend(
 {
     if( texture_opaque )
     {
-        raster_texture_opaque_blend_blerp8_v3(
+        raster_texture_opaque_blend_blerp8(
             pixel_buffer,
             stride,
             screen_width,
