@@ -21,16 +21,12 @@ bucket_fill_distances(
     int min_level,
     int max_level)
 {
-    uint8_t draw_mask = painter->level_mask ? painter->level_mask : 0xFu;
     __m128i v_step = _mm_setr_epi32(0, 1, 2, 3);
     __m128i v_cam_x = _mm_set1_epi32(camera_sx);
     __m128i v_cam_z = _mm_set1_epi32(camera_sz);
 
     for( int s = min_level; s < max_level && s < painter->levels; s++ )
     {
-        if( (draw_mask & (1u << s)) == 0 )
-            continue;
-
         for( int z = min_draw_z; z < max_draw_z; z++ )
         {
             __m128i v_z = _mm_set1_epi32(z);

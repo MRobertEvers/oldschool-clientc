@@ -14,7 +14,6 @@ bucket_fill_distances(
     int min_level,
     int max_level)
 {
-    uint8_t draw_mask = painter->level_mask ? painter->level_mask : 0xFu;
     int32_t step_arr[4] = { 0, 1, 2, 3 };
     int32x4_t v_step = vld1q_s32(step_arr);
     int32x4_t v_cam_x = vdupq_n_s32(camera_sx);
@@ -22,9 +21,6 @@ bucket_fill_distances(
 
     for( int s = min_level; s < max_level && s < painter->levels; s++ )
     {
-        if( (draw_mask & (1u << s)) == 0 )
-            continue;
-
         for( int z = min_draw_z; z < max_draw_z; z++ )
         {
             int32x4_t v_z = vdupq_n_s32(z);

@@ -27,7 +27,7 @@ init_painter_tile(
     (void)sx;
     (void)sz;
     painters_tile_set_slevel(tile, (uint8_t)slevel);
-    painters_tile_set_terrain_slevel(tile, (uint8_t)slevel);
+    painters_tile_set_grid_level(tile, (uint8_t)slevel);
     painters_tile_set_flags(tile, 0);
     tile->spans = 0;
     tile->scenery_head = -1;
@@ -666,6 +666,7 @@ painter_tile_copyto(
 
     *dest_tile = *tile;
     dest_tile->scenery_head = clone_scenery_chain(painter, tile->scenery_head);
+    painters_tile_set_grid_level(dest_tile, (uint8_t)dest_slevel);
 }
 
 void
@@ -683,17 +684,17 @@ painter_tile_set_draw_level(
 }
 
 void
-painter_tile_set_terrain_level(
+painter_tile_set_grid_level(
     struct Painter* painter, //
     int sx,
     int sz,
     int slevel,
-    int terrain_slevel)
+    int grid_level)
 {
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
-    assert(terrain_slevel >= 0);
-    assert(terrain_slevel < painter->levels);
-    painters_tile_set_terrain_slevel(tile, (uint8_t)terrain_slevel);
+    assert(grid_level >= 0);
+    assert(grid_level < painter->levels);
+    painters_tile_set_grid_level(tile, (uint8_t)grid_level);
 }
 
 static inline struct TilePaint*

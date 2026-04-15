@@ -6,6 +6,7 @@
 #include "../rsbuf.h"
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #define MAP_TERRAIN_X 64
@@ -76,50 +77,90 @@ struct CacheMapLocs
 };
 
 /**
- * From LostCity 254. They seem to have worked this out.
+ * Per-tile flags from cache terrain (CacheMapFloor.settings).
+ * Names and semantics align with Client-TS MapFlag (Client-TS/src/dash3d/MapFlag.ts) and
+ * ClientBuild.getVisBelowLevel() (Client-TS/src/dash3d/ClientBuild.ts).
+ *
+ * Build-time use in 3draster:
+ *   - Collision: FLOFLAG_BLOCK.
+ *   - Bridge push-down: FLOFLAG_LINK_BELOW on cache level 1 (same column).
+ *   - Painter draw level (slevel in packed_meta): map_floor_vis_below_draw_level() from the
+ *     cache floor that *contributed* content to each painter grid slot after push-down.
+ *
+ * The painter does not read these flags at draw time; only pre-computed slevel matters.
  */
-// export const enum MapFlag {
-//     Block = 0x1,
-//     LinkBelow = 0x2,
-//     RemoveRoof = 0x4,
-//     VisBelow = 0x8,
-//     ForceHighDetail = 0x10,
-// }
-
 enum FloorFlags
 {
-    // Used with the collisionmap.
-    FLOFLAG_BLOCKGROUND = 0x01,
+    /**
+     * FLOFLAG_BLOCK (0x01) -- Client-TS MapFlag.Block
+     *
+     * Ground tile blocks walking (collision map marks the tile impassable).
+     * No effect on painter draw level.
+     */
+    FLOFLAG_BLOCK = 0x01,
 
-    // TODO: Rename this to draw below.
-    // TALL LOCS: For example res/link_below_nonbridge_flagbanner_is_linkbelow.png
-    // The flags/banners in the duel arena. The locs of the walkway are on level 0, but are
-    // 2 levels tall. The banners are on level 1, but have the link below flag.
-    // BRIDGE: Additionally, bridge
-    // This is also used for tiles under a bridge. Normally,
-    // the bridge is stored on level 1, with visbelow flag set.
-    // This is the underpass.
-    // This causes all the tiles to be "shifted down" by one level.
-    // SPECIAL NOTE: When this flag is set on level 1, it will cause ALL levels on a particular
-    // square to be shifted down by one level. Other it's ignored.
-    // if ((mapl[1][var3][var4] & 0x2) == 2) {
-    //     var5 = var2 - 1;
-    // ((levelTileFlags[0][x0][z0] & 0x2) == 0) && (((levelTileFlags[level][x0][z0] & 0x10) != 0)
+    /**
+     * FLOFLAG_LINK_BELOW (0x02) -- Client-TS MapFlag.LinkBelow
+     *
+     * When set on cache level 1 at (x,z), the entire column is push-down'd in the painter:
+     *   cache 1 -> grid 0, cache 2 -> grid 1, cache 3 -> grid 2, old grid 0 -> bridge slot
+     *   (grid 3) with PAINTERS_TILE_FLAG_BRIDGE, drawn via bridge_tile before the surface tile.
+     *
+     * For draw-level math (before/after push), if this bit is set on level 1, every cache
+     * level L > 0 is treated as one draw level lower unless FLOFLAG_VIS_BELOW overrides on
+     * that specific cache tile (see map_floor_vis_below_draw_level).
+     */
+    FLOFLAG_LINK_BELOW = 0x02,
 
-    FLOFLAG_BRIDGE = 0x02,
-    FLOFLAG_DOWNLEVEL = 0x02,
-    FLOFLAG_LINK_BELOW_PUSHDOWN = 0x02,
-    // Indicates that this is a tile with a roof.
-    FLOFLAG_ROOF = 0x04,
-    // if ((mapl[arg0][arg1][arg2] & 0x8) != 0) {
-    // var8 = 0;
-    // When this is true, the tiles elements will be drawn even if the max
-    // draw level is below the tile's level.
-    // It DOES NOT change the painter level. It only effects whether is would be
-    // drawn if the max draw level is below the tile's level.
-    FLOFLAG_DRAW_LEVEL_0 = 0x08,
+    /**
+     * FLOFLAG_REMOVE_ROOF (0x04) -- Client-TS MapFlag.RemoveRoof
+     *
+     * Client uses this for roof culling (hide upper roofs when camera/player is under a
+     * "remove roof" tile). Does not affect painter slevel or tile inclusion in 3draster.
+     */
+    FLOFLAG_REMOVE_ROOF = 0x04,
+
+    /**
+     * FLOFLAG_VIS_BELOW (0x08) -- Client-TS MapFlag.VisBelow
+     *
+     * On this cache tile's own level, forces painter draw level (slevel) to 0 so the tile
+     * and all attached locs participate when max draw level is 0. Overrides the LinkBelow
+     * "level - 1" reduction for that tile only.
+     *
+     * Matches: if ((mapl[level][x][z] & VisBelow) !== 0) return 0; in getVisBelowLevel().
+     */
+    FLOFLAG_VIS_BELOW = 0x08,
+
+    /**
+     * FLOFLAG_FORCE_HIGH_DETAIL (0x10) -- Client-TS MapFlag.ForceHighDetail
+     *
+     * In client low-memory mode, tiles with this flag skip ground/loc loading. 3draster has
+     * no low-memory path; flag is unused at runtime here.
+     */
     FLOFLAG_FORCE_HIGH_DETAIL = 0x10,
 };
+
+/**
+ * ClientBuild.getVisBelowLevel(level, stx, stz): draw level stored on each Square before
+ * pushDown. We apply the same formula to cache *source* level when assigning painter slevel
+ * after bridge layout is known.
+ *
+ * @param settings_at_cache_level  CacheMapFloor.settings for the source cache level.
+ * @param cache_level                Source terrain level (0..MAP_TERRAIN_LEVELS-1).
+ * @param column_has_link_below_l1  Non-zero if (mapl[1][x][z] & LinkBelow) at this column.
+ */
+static inline int
+map_floor_vis_below_draw_level(
+    uint8_t settings_at_cache_level,
+    int cache_level,
+    int column_has_link_below_l1)
+{
+    if( (settings_at_cache_level & FLOFLAG_VIS_BELOW) != 0 )
+        return 0;
+    if( cache_level > 0 && column_has_link_below_l1 != 0 )
+        return cache_level - 1;
+    return cache_level;
+}
 
 // { 1, 3, 5, 7 },
 // { 1, 3, 5, 7 }, // PLAIN_SHAPE

@@ -958,27 +958,7 @@ world_rebuild_centerzone_end(struct World* world)
 
     printf("Alive Decor Buildmap\n");
 
-    /* ---- FLOFLAG_DOWNLEVEL -> painter (before bridge so copyto carries packed_meta) ---- */
-    struct PaintersTile* tile = NULL;
-    for( int x = 0; x < scene_size; x++ )
-    {
-        for( int z = 0; z < scene_size; z++ )
-        {
-            for( int level = 0;
-                 level < MAP_TERRAIN_LEVELS && level < painter_max_levels(world->painter);
-                 level++ )
-            {
-                int fl = flag_map_get(world->_build_flag_map, x, z, level);
-                if( (fl & FLOFLAG_DOWNLEVEL) != 0 )
-                {
-                    tile = painter_tile_at(world->painter, x, z, level);
-                    painters_tile_or_flags(tile, PAINTERS_TILE_FLAG_DOWNLEVEL);
-                }
-            }
-        }
-    }
-
-    /* ---- Bridge adjustment ---- */
+    /* ---- Bridge adjustment (LinkBelow on cache level 1) ---- */
     int bridge_flags = 0;
     struct PaintersTile bridge_tile_tmp = { 0 };
     for( int x = 0; x < scene_size; x++ )
@@ -987,19 +967,63 @@ world_rebuild_centerzone_end(struct World* world)
         {
             bridge_flags = flag_map_get(world->_build_flag_map, x, z, 1);
 
-            if( (bridge_flags & FLOFLAG_LINK_BELOW_PUSHDOWN) != 0 )
+            if( (bridge_flags & FLOFLAG_LINK_BELOW) != 0 )
             {
                 bridge_tile_tmp = *painter_tile_at(world->painter, x, z, 0);
 
                 for( int level = 0; level < painter_max_levels(world->painter) - 1; level++ )
                 {
                     painter_tile_copyto(world->painter, x, z, level + 1, x, z, level);
-
-                    painter_tile_set_draw_level(world->painter, x, z, level, level);
                 }
 
                 *painter_tile_at(world->painter, x, z, 3) = bridge_tile_tmp;
+                painters_tile_set_grid_level(painter_tile_at(world->painter, x, z, 3), 3);
                 painter_tile_set_bridge(world->painter, x, z, 0, x, z, 3);
+            }
+        }
+    }
+
+    /*
+     * Painter draw level (slevel) from cache flags, matching ClientBuild.getVisBelowLevel +
+     * pushDown source mapping: for each painter grid level g, content came from cache level
+     * src (inverse of push-down when LinkBelow on level 1).
+     */
+#ifndef WORLD_DEBUG_VIS_BELOW_DRAW
+#define WORLD_DEBUG_VIS_BELOW_DRAW 0
+#endif
+#if WORLD_DEBUG_VIS_BELOW_DRAW
+    int world_dbg_vis_below_samples = 0;
+#endif
+    for( int x = 0; x < scene_size; x++ )
+    {
+        for( int z = 0; z < scene_size; z++ )
+        {
+            int link_l1 =
+                (flag_map_get(world->_build_flag_map, x, z, 1) & FLOFLAG_LINK_BELOW) != 0;
+            for( int g = 0; g < painter_max_levels(world->painter); g++ )
+            {
+                int src = link_l1 ? (g < 3 ? g + 1 : 0) : g;
+                uint8_t st =
+                    (uint8_t)flag_map_get(world->_build_flag_map, x, z, src);
+                int draw = map_floor_vis_below_draw_level(st, src, link_l1);
+                painter_tile_set_draw_level(world->painter, x, z, g, draw);
+#if WORLD_DEBUG_VIS_BELOW_DRAW
+                if( world_dbg_vis_below_samples < 200 &&
+                    (draw != g || (st & FLOFLAG_VIS_BELOW) != 0 || link_l1 != 0) )
+                {
+                    printf(
+                        "[vis_below] sx=%d sz=%d grid=%d src_cache=%d settings=0x%02x draw_level=%d "
+                        "link_l1=%d\n",
+                        x,
+                        z,
+                        g,
+                        src,
+                        (unsigned)st,
+                        draw,
+                        link_l1);
+                    world_dbg_vis_below_samples++;
+                }
+#endif
             }
         }
     }

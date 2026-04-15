@@ -27,13 +27,10 @@ enum SpanFlag
 enum PaintersTileFlags
 {
     /**
-     * The bridge tile is actually a bridge drawn on a different level.
+     * Bridge underpass slot after LinkBelow push-down: holds the former level-0 tile at grid
+     * level 3, drawn via bridge_tile before the surface tile. Skipped in normal level passes.
      */
     PAINTERS_TILE_FLAG_BRIDGE = 1 << 0,
-    /**
-     * From cache FLOFLAG_DOWNLEVEL (0x02): allow draw when slevel is one above max draw level.
-     */
-    PAINTERS_TILE_FLAG_DOWNLEVEL = 1 << 1,
 };
 
 /**
@@ -90,15 +87,24 @@ struct PaintersTile
     /*
      * packed_meta layout (uint16_t):
      *   bits 0-2:   draw level (slevel), 0-7
-     *   bits 3-5:   terrain draw level (terrain_slevel), 0-7
+     *   bits 3-5:   grid level (grid_level), 0-7
      *   bits 6-15:  PaintersTileFlags
+     *
+     * grid_level: The fixed position of this tile in the vertical grid stack (0 = ground,
+     *   1 = first floor, etc.). Set once at init and never changes. Used for array indexing
+     *   (painter_coord_idx, step_idx_up/down) and terrain mesh lookup (push_command_terrain).
+     *
+     * draw level (slevel): The visibility level this tile participates in, checked against the
+     *   UI draw_mask to decide whether the tile is drawn or skipped. Normally equals grid_level,
+     *   but VisBelow (0x08 floor flag) lowers it so upper-floor tiles become visible when only
+     *   lower levels are enabled in draw_mask — e.g. a tile on grid_level=1 can have slevel=0.
      */
     uint16_t packed_meta;
 };
 
 #define PAINTERS_TILE_META_SLEVEL_MASK 0x7u
-#define PAINTERS_TILE_META_TERR_SLEVEL_SHIFT 3
-#define PAINTERS_TILE_META_TERR_SLEVEL_MASK (0x7u << PAINTERS_TILE_META_TERR_SLEVEL_SHIFT)
+#define PAINTERS_TILE_META_GRID_LEVEL_SHIFT 3
+#define PAINTERS_TILE_META_GRID_LEVEL_MASK (0x7u << PAINTERS_TILE_META_GRID_LEVEL_SHIFT)
 #define PAINTERS_TILE_META_FLAGS_SHIFT 6
 
 static inline uint8_t
@@ -116,19 +122,19 @@ painters_tile_set_slevel(
 }
 
 static inline uint8_t
-painters_tile_get_terrain_slevel(const struct PaintersTile* t)
+painters_tile_get_grid_level(const struct PaintersTile* t)
 {
-    return (uint8_t)((t->packed_meta & PAINTERS_TILE_META_TERR_SLEVEL_MASK) >>
-                     PAINTERS_TILE_META_TERR_SLEVEL_SHIFT);
+    return (uint8_t)((t->packed_meta & PAINTERS_TILE_META_GRID_LEVEL_MASK) >>
+                     PAINTERS_TILE_META_GRID_LEVEL_SHIFT);
 }
 
 static inline void
-painters_tile_set_terrain_slevel(
+painters_tile_set_grid_level(
     struct PaintersTile* t,
     uint8_t v)
 {
-    t->packed_meta = (uint16_t)((t->packed_meta & ~PAINTERS_TILE_META_TERR_SLEVEL_MASK) |
-                                ((uint16_t)(v & 7u) << PAINTERS_TILE_META_TERR_SLEVEL_SHIFT));
+    t->packed_meta = (uint16_t)((t->packed_meta & ~PAINTERS_TILE_META_GRID_LEVEL_MASK) |
+                                ((uint16_t)(v & 7u) << PAINTERS_TILE_META_GRID_LEVEL_SHIFT));
 }
 
 static inline uint16_t
@@ -403,12 +409,12 @@ painter_tile_set_draw_level(
     int draw_level);
 
 void
-painter_tile_set_terrain_level(
+painter_tile_set_grid_level(
     struct Painter* painter, //
     int sx,
     int sz,
     int slevel,
-    int terrain_slevel);
+    int grid_level);
 
 void
 painter_tile_copyto(

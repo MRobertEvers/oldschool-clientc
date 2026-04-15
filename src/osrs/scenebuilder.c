@@ -106,6 +106,31 @@ init_build_grid(
     }
 }
 
+/** Match world build: painter slevel from cache VisBelow / LinkBelow after bridge layout. */
+static void
+scenebuilder_apply_vis_below_draw_levels(
+    struct Painter* painter,
+    struct TerrainGrid* tg,
+    int tile_width_x,
+    int tile_width_z)
+{
+    for( int x = 0; x < tile_width_x; x++ )
+    {
+        for( int z = 0; z < tile_width_z; z++ )
+        {
+            struct CacheMapFloor* b = tile_from_sw_origin(tg, x, z, 1);
+            int link_l1 = (b->settings & FLOFLAG_LINK_BELOW) != 0;
+            for( int g = 0; g < painter_max_levels(painter); g++ )
+            {
+                int src = link_l1 ? (g < 3 ? g + 1 : 0) : g;
+                struct CacheMapFloor* srcf = tile_from_sw_origin(tg, x, z, src);
+                int draw = map_floor_vis_below_draw_level(srcf->settings, src, link_l1);
+                painter_tile_set_draw_level(painter, x, z, g, draw);
+            }
+        }
+    }
+}
+
 static struct Scene*
 scenebuiler_build(
     struct SceneBuilder* scene_builder,
@@ -169,26 +194,6 @@ scenebuiler_build(
     struct CacheMapFloor* bridge = NULL;
     struct PaintersTile bridge_tile_tmp = { 0 };
 
-    /* FLOFLAG_DOWNLEVEL before bridge so painter_tile_copyto keeps packed_meta. */
-    for( int x = 0; x < scene->tile_width_x; x++ )
-    {
-        for( int z = 0; z < scene->tile_width_z; z++ )
-        {
-            for( int level = 0; level < painter_max_levels(scene_builder->painter) &&
-                                level < MAP_TERRAIN_LEVELS;
-                 level++ )
-            {
-                struct CacheMapFloor* flo = tile_from_sw_origin(&terrain_grid, x, z, level);
-                if( (flo->settings & FLOFLAG_DOWNLEVEL) != 0 )
-                {
-                    painters_tile_or_flags(
-                        painter_tile_at(scene_builder->painter, x, z, level),
-                        PAINTERS_TILE_FLAG_DOWNLEVEL);
-                }
-            }
-        }
-    }
-
     for( int x = 0; x < scene->tile_width_x; x++ )
     {
         for( int z = 0; z < scene->tile_width_z; z++ )
@@ -214,7 +219,7 @@ scenebuiler_build(
             ground = tile_from_sw_origin(&terrain_grid, x, z, 0);
             bridge = tile_from_sw_origin(&terrain_grid, x, z, 1);
 
-            if( (bridge->settings & FLOFLAG_BRIDGE) != 0 )
+            if( (bridge->settings & FLOFLAG_LINK_BELOW) != 0 )
             {
                 bridge_tile_tmp = *painter_tile_at(scene_builder->painter, x, z, 0);
 
@@ -234,12 +239,11 @@ scenebuiler_build(
                         x,
                         z,
                         level);
-
-                    painter_tile_set_draw_level(scene_builder->painter, x, z, level, level);
                 }
 
                 // Use the newly unused tile on level 3 as the bridge slot.
                 *painter_tile_at(scene_builder->painter, x, z, 3) = bridge_tile_tmp;
+                painters_tile_set_grid_level(painter_tile_at(scene_builder->painter, x, z, 3), 3);
                 painter_tile_set_bridge(scene_builder->painter, x, z, 0, x, z, 3);
 
                 // Update the collisionmap
@@ -269,6 +273,12 @@ scenebuiler_build(
             }
         }
     }
+
+    scenebuilder_apply_vis_below_draw_levels(
+        scene_builder->painter,
+        &terrain_grid,
+        scene->tile_width_x,
+        scene->tile_width_z);
 
     painter_mark_static_count(scene_builder->painter);
 

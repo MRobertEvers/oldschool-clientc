@@ -1915,7 +1915,7 @@ build_scene_scenery(
     //         ground = tile_from_sw_origin(terrain_grid, x, z, 0);
     //         bridge = tile_from_sw_origin(terrain_grid, x, z, 1);
 
-    //         if( (bridge->settings & FLOFLAG_BRIDGE) != 0 )
+    //         if( (bridge->settings & FLOFLAG_LINK_BELOW) != 0 )
     //         {
     //             bridge_tile_tmp = *painter_tile_at(scene_builder->painter, x, z, 0);
 

@@ -155,7 +155,7 @@ merge_normals(
 
     /**
      * Normals that are merged are assumed to be abutting each other and their faces not visible.
-     * Hide them only when hide_faces is true (same level, or adjacent level with DOWNLEVEL).
+     * Hide them only when hide_faces is true (same level, or adjacent levels with same draw slevel).
      */
     if( merged_vertex_count < 3 || !hide_faces )
         return;
@@ -283,7 +283,8 @@ alloc_normals_for_column(
 
 /**
  * Whether sharelight may hide abutting faces between two merge candidates.
- * Same level: yes. Adjacent levels (differ by 1): only if the higher tile has DOWNLEVEL.
+ * Same stack level: yes. Adjacent stack levels (differ by 1): only if both tiles share the same
+ * painter draw slevel (e.g. upper floor drawn as part of the same max-draw-level band).
  */
 static bool
 sharelight_should_hide_faces_for_merge(
@@ -304,13 +305,17 @@ sharelight_should_hide_faces_for_merge(
     if( ds != 1 )
         return false;
 
-    int higher_s = primary_slevel > adjacent_slevel ? primary_slevel : adjacent_slevel;
-    int higher_sx = primary_slevel > adjacent_slevel ? primary_sx : adjacent_sx;
-    int higher_sz = primary_slevel > adjacent_slevel ? primary_sz : adjacent_sz;
-    struct PaintersTile* higher_tile =
-        painter_tile_at(world->painter, higher_sx, higher_sz, higher_s);
-    return higher_tile != NULL &&
-           (painters_tile_get_flags(higher_tile) & PAINTERS_TILE_FLAG_DOWNLEVEL) != 0;
+    int lo_l = primary_slevel < adjacent_slevel ? primary_slevel : adjacent_slevel;
+    int hi_l = primary_slevel > adjacent_slevel ? primary_slevel : adjacent_slevel;
+    int lo_sx = primary_slevel < adjacent_slevel ? primary_sx : adjacent_sx;
+    int lo_sz = primary_slevel < adjacent_slevel ? primary_sz : adjacent_sz;
+    int hi_sx = primary_slevel > adjacent_slevel ? primary_sx : adjacent_sx;
+    int hi_sz = primary_slevel > adjacent_slevel ? primary_sz : adjacent_sz;
+
+    struct PaintersTile* lo_tile = painter_tile_at(world->painter, lo_sx, lo_sz, lo_l);
+    struct PaintersTile* hi_tile = painter_tile_at(world->painter, hi_sx, hi_sz, hi_l);
+    return lo_tile != NULL && hi_tile != NULL &&
+           painters_tile_get_slevel(lo_tile) == painters_tile_get_slevel(hi_tile);
 }
 
 static void

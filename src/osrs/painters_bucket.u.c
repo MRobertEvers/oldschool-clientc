@@ -143,27 +143,6 @@ bucket_ctx_free(struct Painter* painter)
 
 #include "painters_bucket_simd.u.c"
 
-/**
- * Bridge tiles are never bucketed. Otherwise a tile is excluded when draw_mask has no bit for
- * its draw slevel; PAINTERS_TILE_FLAG_DOWNLEVEL allows inclusion when the level one below is drawn.
- */
-static bool
-bucket_tile_excluded_by_bridge_or_draw_mask(
-    uint16_t tile_flags,
-    int tile_slevel,
-    uint8_t draw_mask)
-{
-    if( (tile_flags & PAINTERS_TILE_FLAG_BRIDGE) != 0 )
-        return true;
-    int excluded_by_mask = (draw_mask & (1u << tile_slevel)) == 0;
-    if( (tile_flags & PAINTERS_TILE_FLAG_DOWNLEVEL) != 0 && tile_slevel > 0 &&
-        (draw_mask & (1u << (unsigned)(tile_slevel - 1))) != 0 )
-    {
-        excluded_by_mask = 0;
-    }
-    return excluded_by_mask != 0;
-}
-
 int
 painter_paint_bucket(
     struct Painter* painter,
@@ -188,24 +167,9 @@ painter_paint_bucket(
     int radius = 25;
 
     uint8_t draw_mask = painter->level_mask ? painter->level_mask : 0xFu;
+    /* Iterate all grid stack levels; per-tile draw_mask uses packed slevel (VisBelow). */
     int min_level = 0;
-    int max_level = 0;
-    for( int _b = 0; _b < 8; _b++ )
-    {
-        if( draw_mask & (1u << _b) )
-        {
-            min_level = _b;
-            break;
-        }
-    }
-    for( int _b = 7; _b >= 0; _b-- )
-    {
-        if( draw_mask & (1u << _b) )
-        {
-            max_level = _b + 1;
-            break;
-        }
-    }
+    int max_level = painter->levels;
 
     int max_draw_x = camera_sx + radius;
     int max_draw_z = camera_sz + radius;
@@ -237,10 +201,8 @@ painter_paint_bucket(
     painter_clear_tile_paints_region(
         painter, min_draw_x, max_draw_x, min_draw_z, max_draw_z, max_level);
 
-    for( int s = min_level; s < max_level && s < painter->levels; s++ )
+    for( int s = min_level; s < max_level; s++ )
     {
-        if( (draw_mask & (1u << s)) == 0 )
-            continue;
         for( int z = min_draw_z; z < max_draw_z; z++ )
         {
             int base = painter_coord_idx(painter, min_draw_x, z, s);
@@ -260,10 +222,8 @@ painter_paint_bucket(
         min_level,
         max_level);
 
-    for( int s = min_level; s < max_level && s < painter->levels; s++ )
+    for( int s = min_level; s < max_level; s++ )
     {
-        if( (draw_mask & (1u << s)) == 0 )
-            continue;
         for( int z = min_draw_z; z < max_draw_z; z++ )
         {
             for( int x = min_draw_x; x < max_draw_x; x++ )
@@ -273,7 +233,7 @@ painter_paint_bucket(
                 int tile_slevel = painters_tile_get_slevel(t);
 
                 tile_paint = tile_paint_at_idx(painter, ti);
-                if( bucket_tile_excluded_by_bridge_or_draw_mask(
+                if( tile_excluded_by_bridge_or_draw_mask(
                         painters_tile_get_flags(t), tile_slevel, draw_mask) )
                 {
                     tile_paint->step = PAINT_STEP_DONE;
@@ -293,10 +253,8 @@ painter_paint_bucket(
 
     bucket_reset(w);
 
-    for( int s = min_level; s < max_level && s < painter->levels; s++ )
+    for( int s = min_level; s < max_level; s++ )
     {
-        if( (draw_mask & (1u << s)) == 0 )
-            continue;
         int row_start = painter_coord_idx(painter, min_draw_x, min_draw_z, s);
         for( int z = min_draw_z; z < max_draw_z; z++ )
         {
@@ -326,14 +284,15 @@ painter_paint_bucket(
 
         int tile_sx = PAINTER_TILE_X(painter, tile);
         int tile_sz = PAINTER_TILE_Z(painter, tile);
+        int grid_level = painters_tile_get_grid_level(tile);
         int tile_slevel = painters_tile_get_slevel(tile);
         tile_paint = tile_paint_at_idx(painter, e_tile);
 
         if( tile_paint->step == PAINT_STEP_DONE )
             continue;
 
-        if( (painters_tile_get_flags(tile) & PAINTERS_TILE_FLAG_BRIDGE) != 0 ||
-            (draw_mask & (1u << tile_slevel)) == 0 )
+        if( tile_excluded_by_bridge_or_draw_mask(
+                painters_tile_get_flags(tile), tile_slevel, draw_mask) )
         {
             tile_paint->step = PAINT_STEP_DONE;
             continue;
@@ -343,7 +302,7 @@ painter_paint_bucket(
                 painter, tile_paint, tile_sx, tile_sz, camera_sx, camera_sz) )
         {
             tile_paint->step = PAINT_STEP_DONE;
-            if( tile_slevel < painter->levels - 1 )
+            if( grid_level < painter->levels - 1 )
             {
                 int nidx = step_idx_up(painter, e_tile);
                 other_paint = tile_paint_at_idx(painter, nidx);
@@ -388,7 +347,7 @@ painter_paint_bucket(
 
         if( tile_paint->step == PAINT_STEP_READY )
         {
-            if( tile_slevel > 0 )
+            if( grid_level > 0 )
             {
                 other_paint = tile_paint_at_idx(painter, step_idx_down(painter, e_tile));
                 if( other_paint->step != PAINT_STEP_DONE )
@@ -455,7 +414,7 @@ painter_paint_bucket(
                     buffer,
                     PAINTER_TILE_X(painter, bridge_underpass_tile),
                     PAINTER_TILE_Z(painter, bridge_underpass_tile),
-                    painters_tile_get_terrain_slevel(bridge_underpass_tile));
+                    painters_tile_get_grid_level(bridge_underpass_tile));
 
                 if( bridge_underpass_tile->wall_a != -1 )
                 {
@@ -480,7 +439,7 @@ painter_paint_bucket(
                 }
             }
 
-            push_command_terrain(buffer, tile_sx, tile_sz, painters_tile_get_terrain_slevel(tile));
+            push_command_terrain(buffer, tile_sx, tile_sz, painters_tile_get_grid_level(tile));
 
             if( tile->wall_a != -1 )
             {
@@ -722,7 +681,7 @@ painter_paint_bucket(
 
         tile_paint->step = PAINT_STEP_DONE;
 
-        if( tile_slevel < painter->levels - 1 )
+        if( grid_level < painter->levels - 1 )
         {
             int nidx = step_idx_up(painter, e_tile);
             other_paint = tile_paint_at_idx(painter, nidx);

@@ -11,11 +11,8 @@ bucket_fill_distances(
     int min_level,
     int max_level)
 {
-    uint8_t draw_mask = painter->level_mask ? painter->level_mask : 0xFu;
     for( int s = min_level; s < max_level && s < painter->levels; s++ )
     {
-        if( (draw_mask & (1u << s)) == 0 )
-            continue;
         for( int z = min_draw_z; z < max_draw_z; z++ )
         {
             for( int x = min_draw_x; x < max_draw_x; x++ )

@@ -5,7 +5,9 @@
 
 #include "painters.h"
 
+#include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #define PAINTER_TILE_IDX(p, t) ((int)((t) - (p)->tiles))
 #define PAINTER_TILE_X(p, t) (PAINTER_TILE_IDX((p), (t)) % (p)->width)
@@ -73,5 +75,21 @@ struct Painter
     void* w3d_ctx;
     void* distmetric_ctx;
 };
+
+/**
+ * Bridge tiles are drawn via bridge_tile, not the normal level iteration. Otherwise a tile is
+ * excluded when draw_mask has no bit for its draw slevel (slevel is set at world build from
+ * cache VisBelow / LinkBelow; the painter does not read floor flags at draw time).
+ */
+static inline bool
+tile_excluded_by_bridge_or_draw_mask(
+    uint16_t tile_flags,
+    int tile_slevel,
+    uint8_t draw_mask)
+{
+    if( (tile_flags & PAINTERS_TILE_FLAG_BRIDGE) != 0 )
+        return true;
+    return (draw_mask & (1u << tile_slevel)) == 0;
+}
 
 #endif
