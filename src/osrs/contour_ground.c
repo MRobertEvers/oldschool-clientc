@@ -1,7 +1,5 @@
 #include "contour_ground.h"
 
-#include "osrs/rscache/tables/model.h"
-
 #include <assert.h>
 
 static bool
@@ -45,8 +43,12 @@ contour_ground_init(
     int hm_size_z,
     int hm_above_size_x,
     int hm_above_size_z,
-    const struct CacheModel* model,
+    const void* vertices_x,
+    const void* vertices_y,
+    const void* vertices_z,
+    int vertex_count,
     int used_vertex_count,
+    enum ContourVertexType vertex_type,
     int scene_x,
     int scene_z,
     int scene_height,
@@ -55,8 +57,8 @@ contour_ground_init(
     assert(cg);
     cg->_active = false;
 
-    if( used_vertex_count <= 0 || !model || !model->vertices_x || !model->vertices_y
-        || !model->vertices_z )
+    if( used_vertex_count <= 0 || vertex_count <= 0 || used_vertex_count > vertex_count ||
+        !vertices_x || !vertices_y || !vertices_z )
     {
         return false;
     }
@@ -66,18 +68,18 @@ contour_ground_init(
         return false;
     }
 
-    int min_x = model->vertices_x[0];
+    int min_x = contour_vertex_get(vertices_x, vertex_type, 0);
     int max_x = min_x;
-    int min_z = model->vertices_z[0];
+    int min_z = contour_vertex_get(vertices_z, vertex_type, 0);
     int max_z = min_z;
-    int min_y = model->vertices_y[0];
+    int min_y = contour_vertex_get(vertices_y, vertex_type, 0);
     int max_y = min_y;
 
     for( int i = 1; i < used_vertex_count; i++ )
     {
-        int vx = model->vertices_x[i];
-        int vz = model->vertices_z[i];
-        int vy = model->vertices_y[i];
+        int vx = contour_vertex_get(vertices_x, vertex_type, i);
+        int vz = contour_vertex_get(vertices_z, vertex_type, i);
+        int vy = contour_vertex_get(vertices_y, vertex_type, i);
         if( vx < min_x )
         {
             min_x = vx;
@@ -119,9 +121,8 @@ contour_ground_init(
 
     if( type == 4 || type == 5 )
     {
-        if( hm_above_size_x <= 0 || hm_above_size_z <= 0
-            || !bbox_fits_heightmap(
-                start_x, end_x, start_z, end_z, hm_above_size_x, hm_above_size_z) )
+        if( hm_above_size_x <= 0 || hm_above_size_z <= 0 ||
+            !bbox_fits_heightmap(start_x, end_x, start_z, end_z, hm_above_size_x, hm_above_size_z) )
         {
             return false;
         }
@@ -133,8 +134,12 @@ contour_ground_init(
     cg->scene_z = scene_z;
     cg->scene_height = scene_height;
     cg->slevel = slevel;
-    cg->model = model;
+    cg->vertices_x = vertices_x;
+    cg->vertices_y = vertices_y;
+    cg->vertices_z = vertices_z;
+    cg->vertex_count = vertex_count;
     cg->used_vertex_count = used_vertex_count;
+    cg->vertex_type = vertex_type;
     cg->_min_y = min_y;
     cg->_delta_y = max_y - min_y;
     cg->_hm_size_x = hm_size_x;
@@ -144,7 +149,7 @@ contour_ground_init(
 
     if( type == 1 || type == 2 )
     {
-        cg->_limit = model->vertex_count;
+        cg->_limit = vertex_count;
     }
     else
     {
@@ -156,7 +161,9 @@ contour_ground_init(
 }
 
 bool
-contour_ground_next(struct ContourGround* cg, struct ContourGroundCommand* cmd)
+contour_ground_next(
+    struct ContourGround* cg,
+    struct ContourGroundCommand* cmd)
 {
     assert(cg && cmd);
 
@@ -165,19 +172,18 @@ contour_ground_next(struct ContourGround* cg, struct ContourGroundCommand* cmd)
         return false;
     }
 
-    const struct CacheModel* m = cg->model;
     int i = cg->_i;
-    int vx = m->vertices_x[i] + cg->scene_x;
-    int vz = m->vertices_z[i] + cg->scene_z;
-    int vy = m->vertices_y[i];
+    int vx = contour_vertex_get(cg->vertices_x, cg->vertex_type, i) + cg->scene_x;
+    int vz = contour_vertex_get(cg->vertices_z, cg->vertex_type, i) + cg->scene_z;
+    int vy = contour_vertex_get(cg->vertices_y, cg->vertex_type, i);
 
     switch( cg->type )
     {
     case 1:
         if( cg->_substep == 0 )
         {
-            if( i >= cg->used_vertex_count
-                && !vertex_interp_in_bounds(vx, vz, cg->_hm_size_x, cg->_hm_size_z) )
+            if( i >= cg->used_vertex_count &&
+                !vertex_interp_in_bounds(vx, vz, cg->_hm_size_x, cg->_hm_size_z) )
             {
                 cmd->kind = CONTOUR_CMD_SET_Y;
                 cmd->vertex_index = i;
@@ -222,8 +228,8 @@ contour_ground_next(struct ContourGround* cg, struct ContourGroundCommand* cmd)
                     cg->_substep = 0;
                     return true;
                 }
-                if( i >= cg->used_vertex_count
-                    && !vertex_interp_in_bounds(vx, vz, cg->_hm_size_x, cg->_hm_size_z) )
+                if( i >= cg->used_vertex_count &&
+                    !vertex_interp_in_bounds(vx, vz, cg->_hm_size_x, cg->_hm_size_z) )
                 {
                     cmd->kind = CONTOUR_CMD_SET_Y;
                     cmd->vertex_index = i;
@@ -240,7 +246,8 @@ contour_ground_next(struct ContourGround* cg, struct ContourGroundCommand* cmd)
             }
             cmd->kind = CONTOUR_CMD_SET_Y;
             cmd->vertex_index = i;
-            cmd->contour_y = vy + ((cg->_height - cg->scene_height) * (cg->param - y_ratio)) / cg->param;
+            cmd->contour_y =
+                vy + ((cg->_height - cg->scene_height) * (cg->param - y_ratio)) / cg->param;
             cg->_i++;
             cg->_substep = 0;
             return true;
@@ -299,8 +306,8 @@ contour_ground_next(struct ContourGround* cg, struct ContourGroundCommand* cmd)
             int delta_height = cg->_height - cg->_height_above;
             cmd->kind = CONTOUR_CMD_SET_Y;
             cmd->vertex_index = i;
-            cmd->contour_y = (((((vy << 8) / cg->_delta_y) | 0) * delta_height) >> 8)
-                - (cg->scene_height - cg->_height);
+            cmd->contour_y = (((((vy << 8) / cg->_delta_y) | 0) * delta_height) >> 8) -
+                             (cg->scene_height - cg->_height);
             cg->_i++;
             cg->_substep = 0;
             return true;
@@ -312,7 +319,9 @@ contour_ground_next(struct ContourGround* cg, struct ContourGroundCommand* cmd)
 }
 
 void
-contour_ground_provide(struct ContourGround* cg, int height)
+contour_ground_provide(
+    struct ContourGround* cg,
+    int height)
 {
     assert(cg && cg->_active);
 

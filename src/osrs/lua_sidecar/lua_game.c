@@ -293,7 +293,15 @@ LuaGame_rebuild_centerzone_slow(
     {
         for( int mapz = chunk_sw_z; mapz <= chunk_ne_z; mapz++ )
         {
-            world_rebuild_centerzone_chunk(game->world, mapx, mapz);
+            world_rebuild_centerzone_chunk_terrain(game->world, mapx, mapz);
+        }
+    }
+
+    for( int mapx = chunk_sw_x; mapx <= chunk_ne_x; mapx++ )
+    {
+        for( int mapz = chunk_sw_z; mapz <= chunk_ne_z; mapz++ )
+        {
+            world_rebuild_centerzone_chunk_scenery(game->world, mapx, mapz);
         }
     }
 

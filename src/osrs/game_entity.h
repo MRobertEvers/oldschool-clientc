@@ -176,6 +176,9 @@ struct MapBuildLocEntity
     struct EntityAnimation animation;
     struct EntityAnimation animation_two;
     struct EntitySceneCoord scene_coord;
+    /** Footprint for heightmap_get_heights_sized (DashPosition Y refresh in world_contour_ground). */
+    uint16_t place_size_x;
+    uint16_t place_size_z;
     struct EntityAction* actions;
     uint8_t action_count;
     char name[1];

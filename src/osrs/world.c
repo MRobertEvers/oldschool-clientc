@@ -30,6 +30,8 @@ init_map_build_loc_entity(
     map_build_loc_entity->scene_element.element_id = -1;
     map_build_loc_entity->entity_id = entity_id;
     map_build_loc_entity->scene_element_two.element_id = -1;
+    map_build_loc_entity->place_size_x = 1;
+    map_build_loc_entity->place_size_z = 1;
 }
 
 static struct MapBuildLocEntity*
@@ -162,6 +164,10 @@ world_free(struct World* world)
         blendmap_free(world->blendmap);
     if( world->terrain_shapemap )
         terrain_shape_map_free(world->terrain_shapemap);
+    free(world->contour_ground_queue);
+    world->contour_ground_queue = NULL;
+    world->contour_ground_queue_count = 0;
+    world->contour_ground_queue_cap = 0;
     free(world);
 }
 
@@ -339,7 +345,15 @@ world_buildcachedat_rebuild_centerzone(
     {
         for( int mapz = world->_chunk_sw_z; mapz <= world->_chunk_ne_z; mapz++ )
         {
-            world_rebuild_centerzone_chunk(world, mapx, mapz);
+            world_rebuild_centerzone_chunk_terrain(world, mapx, mapz);
+        }
+    }
+
+    for( int mapx = world->_chunk_sw_x; mapx <= world->_chunk_ne_x; mapx++ )
+    {
+        for( int mapz = world->_chunk_sw_z; mapz <= world->_chunk_ne_z; mapz++ )
+        {
+            world_rebuild_centerzone_chunk_scenery(world, mapx, mapz);
         }
     }
 
@@ -355,13 +369,15 @@ world_buildcachedat_rebuild_centerzone(
  * Lua can use the same pieces to load and process one map chunk at a time,
  * releasing buildcache assets between chunks to keep peak memory low.
  *
- * Call order:
+ * Call order (contour ground needs full heightmap before scenery):
  *   world_rebuild_centerzone_begin(world, zonex, zonez, scene_size)
  *   for each (mapx, mapz):
- *       -- load terrain + scenery + models for that chunk into buildcachedat --
- *       world_rebuild_centerzone_chunk(world, mapx, mapz)
- *       -- optional: clear per-chunk buildcache entries (Lua slow path) --
+ *       world_rebuild_centerzone_chunk_terrain(world, mapx, mapz)
+ *   for each (mapx, mapz):
+ *       world_rebuild_centerzone_chunk_scenery(world, mapx, mapz)
  *   world_rebuild_centerzone_end(world)
+ *
+ * Or world_rebuild_centerzone_chunk (terrain+scenery) per chunk for incremental Lua.
  * =========================================================================*/
 
 void
@@ -479,12 +495,13 @@ world_rebuild_centerzone_begin(
     painter_set_cullmap(world->painter, world->cullmap);
 
     world->collision_map = collision_map_new(scene_size, scene_size);
-    world->heightmap = heightmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
+    /* +1: corner posts (matches Client-TS groundh SIZE+1). */
+    world->heightmap = heightmap_new(scene_size + 1, scene_size + 1, MAP_TERRAIN_LEVELS);
     world->minimap = minimap_new(scene_size, scene_size);
 
-    /* Allocate blendmap, overlaymap, shapemap, and decor_buildmap now so _chunk can
-     * populate them while terrain data is already loaded -- avoiding a second terrain pass.
-     * Shademap and sharelight_map are also needed during scenery_add inside _chunk. */
+    /* Allocate blendmap, overlaymap, shapemap, and decor_buildmap now so _chunk_terrain can
+     * populate them while terrain data is already loaded.
+     * Shademap and sharelight_map are also needed during scenery_add inside _chunk_scenery. */
     world->blendmap = blendmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
     world->overlaymap = overlaymap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
     world->terrain_shapemap = terrain_shape_map_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
@@ -513,13 +530,15 @@ world_rebuild_centerzone_begin(
     /* Allocate the flag map used for bridge detection; stored on world until _end. */
     world->_build_flag_map = flag_map_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);
 
+    world->contour_ground_queue_count = 0;
+
     printf("world_rebuild_centerzone_begin: done\n");
 
     (void)buildcachedat;
 }
 
 void
-world_rebuild_centerzone_chunk(
+world_rebuild_centerzone_chunk_terrain(
     struct World* world,
     int mapx,
     int mapz)
@@ -539,21 +558,27 @@ world_rebuild_centerzone_chunk(
         {
             for( int tile_z = 0; tile_z < MAP_TERRAIN_Z; tile_z++ )
             {
+                offset_x = world_to_scene_x(world, mapx, tile_x);
+                offset_z = world_to_scene_z(world, mapz, tile_z);
+
                 for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
                 {
-                    offset_x = world_to_scene_x(world, mapx, tile_x);
-                    offset_z = world_to_scene_z(world, mapz, tile_z);
-
-                    if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size ||
-                        offset_z >= scene_size )
-                        continue;
-
                     int chunk_index = MAP_TILE_COORD(tile_x, tile_z, level);
                     struct CacheMapFloor* tile = &map_terrain->tiles_xyz[chunk_index];
                     int height = tile->height;
-                    heightmap_set(world->heightmap, offset_x, offset_z, level, height);
 
-                    flag_map_set(world->_build_flag_map, offset_x, offset_z, level, tile->settings);
+                    if( offset_x >= 0 && offset_z >= 0 && offset_x <= scene_size &&
+                        offset_z <= scene_size )
+                    {
+                        heightmap_set(world->heightmap, offset_x, offset_z, level, height);
+                    }
+
+                    if( offset_x >= 0 && offset_z >= 0 && offset_x < scene_size &&
+                        offset_z < scene_size )
+                    {
+                        flag_map_set(
+                            world->_build_flag_map, offset_x, offset_z, level, tile->settings);
+                    }
                 }
             }
         }
@@ -661,13 +686,25 @@ world_rebuild_centerzone_chunk(
             }
         }
     }
+}
+
+void
+world_rebuild_centerzone_chunk_scenery(
+    struct World* world,
+    int mapx,
+    int mapz)
+{
+    struct BuildCacheDat* buildcachedat = world->buildcachedat;
+    int scene_size = world->_scene_size;
+    int offset_x;
+    int offset_z;
+    struct CacheMapLoc* map_tile = NULL;
+    struct CacheConfigLocation* config_loc = NULL;
 
     /* ---- Collision map ---- */
     {
         struct CacheMapLocs* map_locs = buildcachedat_get_scenery(buildcachedat, mapx, mapz);
         assert(map_locs && "Map scenery must be found");
-        struct CacheMapLoc* map_tile = NULL;
-        struct CacheConfigLocation* config_loc = NULL;
 
         for( int i = 0; i < map_locs->locs_count; i++ )
         {
@@ -902,10 +939,22 @@ world_rebuild_centerzone_chunk(
 }
 
 void
+world_rebuild_centerzone_chunk(
+    struct World* world,
+    int mapx,
+    int mapz)
+{
+    world_rebuild_centerzone_chunk_terrain(world, mapx, mapz);
+    world_rebuild_centerzone_chunk_scenery(world, mapx, mapz);
+}
+
+void
 world_rebuild_centerzone_end(struct World* world)
 {
     struct BuildCacheDat* buildcachedat = world->buildcachedat;
     int scene_size = world->_scene_size;
+
+    world_contour_ground(world);
 
     /* ---- Decor wall-offset pass (scene-local, not chunk-indexed) ---- */
     struct DecorElementsOnWall* elements = NULL;
@@ -999,13 +1048,11 @@ world_rebuild_centerzone_end(struct World* world)
     {
         for( int z = 0; z < scene_size; z++ )
         {
-            int link_l1 =
-                (flag_map_get(world->_build_flag_map, x, z, 1) & FLOFLAG_LINK_BELOW) != 0;
+            int link_l1 = (flag_map_get(world->_build_flag_map, x, z, 1) & FLOFLAG_LINK_BELOW) != 0;
             for( int g = 0; g < painter_max_levels(world->painter); g++ )
             {
                 int src = link_l1 ? (g < 3 ? g + 1 : 0) : g;
-                uint8_t st =
-                    (uint8_t)flag_map_get(world->_build_flag_map, x, z, src);
+                uint8_t st = (uint8_t)flag_map_get(world->_build_flag_map, x, z, src);
                 int draw = map_floor_vis_below_draw_level(st, src, link_l1);
                 painter_tile_set_draw_level(world->painter, x, z, g, draw);
 #if WORLD_DEBUG_VIS_BELOW_DRAW
@@ -1013,7 +1060,8 @@ world_rebuild_centerzone_end(struct World* world)
                     (draw != g || (st & FLOFLAG_VIS_BELOW) != 0 || link_l1 != 0) )
                 {
                     printf(
-                        "[vis_below] sx=%d sz=%d grid=%d src_cache=%d settings=0x%02x draw_level=%d "
+                        "[vis_below] sx=%d sz=%d grid=%d src_cache=%d settings=0x%02x "
+                        "draw_level=%d "
                         "link_l1=%d\n",
                         x,
                         z,

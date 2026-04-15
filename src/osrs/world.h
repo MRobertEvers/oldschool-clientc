@@ -30,10 +30,22 @@ struct FlagMap;
 #define MAX_MAP_BUILD_LOC_ENTITIES (16384 >> 1)
 #define MAX_MAP_BUILD_TILE_ENTITIES (50000)
 
+/** Queued loc for contour-ground pass (see world_contour_ground). */
+struct ContourGroundQueueEntry
+{
+    int entity_id;
+    int loc_id;
+    int shape_select;
+    int rotation;
+    int size_x;
+    int size_z;
+    int element_slot;
+};
+
 /** Nonzero: shared vertex-array terrain (build_scene_terrain_va). Zero: per-tile models
  * (build_scene_terrain). */
 #ifndef WORLD_BUILD_TERRAIN_VA
-#define WORLD_BUILD_TERRAIN_VA 0
+#define WORLD_BUILD_TERRAIN_VA 1
 #endif
 
 struct World
@@ -99,6 +111,10 @@ struct World
     /** Temporary bridge-flag map; allocated in world_rebuild_centerzone_begin, freed in _end. */
     struct FlagMap* _build_flag_map;
 
+    struct ContourGroundQueueEntry* contour_ground_queue;
+    int contour_ground_queue_count;
+    int contour_ground_queue_cap;
+
     struct BuildCacheDat* buildcachedat;
 
     /** Terrain: pointers to shared geometry per level. With scene2, Scene2 owns the arrays
@@ -137,6 +153,19 @@ world_rebuild_centerzone_begin(
     int scene_size);
 
 void
+world_rebuild_centerzone_chunk_terrain(
+    struct World* world,
+    int mapx,
+    int mapz);
+
+void
+world_rebuild_centerzone_chunk_scenery(
+    struct World* world,
+    int mapx,
+    int mapz);
+
+/** Calls terrain then scenery for one map square (Lua incremental path). */
+void
 world_rebuild_centerzone_chunk(
     struct World* world,
     int mapx,
@@ -144,6 +173,21 @@ world_rebuild_centerzone_chunk(
 
 void
 world_rebuild_centerzone_end(struct World* world);
+
+/** After all map chunks are loaded; applies queued heightmap-based contour to loc DashModels. */
+void
+world_contour_ground(struct World* world);
+
+void
+world_contour_ground_queue_push(
+    struct World* world,
+    int entity_id,
+    int loc_id,
+    int shape_select,
+    int rotation,
+    int size_x,
+    int size_z,
+    int element_slot);
 
 struct MapBuildTileEntity*
 world_tile_entity_at(

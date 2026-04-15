@@ -2,8 +2,24 @@
 #define CONTOUR_GROUND_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
-struct CacheModel;
+enum ContourVertexType
+{
+    CONTOUR_VERTEX_INT,
+    CONTOUR_VERTEX_INT16,
+};
+
+static inline int
+contour_vertex_get(
+    const void* arr,
+    enum ContourVertexType t,
+    int i)
+{
+    if( t == CONTOUR_VERTEX_INT16 )
+        return (int)((const int16_t*)arr)[i];
+    return ((const int*)arr)[i];
+}
 
 enum ContourGroundCmdKind
 {
@@ -35,8 +51,12 @@ struct ContourGround
     int scene_z;
     int scene_height;
     int slevel;
-    const struct CacheModel* model;
+    const void* vertices_x;
+    const void* vertices_y;
+    const void* vertices_z;
+    int vertex_count;
     int used_vertex_count;
+    enum ContourVertexType vertex_type;
 
     int _i;
     int _limit;
@@ -63,18 +83,26 @@ contour_ground_init(
     int hm_size_z,
     int hm_above_size_x,
     int hm_above_size_z,
-    const struct CacheModel* model,
+    const void* vertices_x,
+    const void* vertices_y,
+    const void* vertices_z,
+    int vertex_count,
     int used_vertex_count,
+    enum ContourVertexType vertex_type,
     int scene_x,
     int scene_z,
     int scene_height,
     int slevel);
 
 bool
-contour_ground_next(struct ContourGround* cg, struct ContourGroundCommand* cmd);
+contour_ground_next(
+    struct ContourGround* cg,
+    struct ContourGroundCommand* cmd);
 
 /** Call after CONTOUR_CMD_FETCH_HEIGHT or CONTOUR_CMD_FETCH_HEIGHT_ABOVE before the next next(). */
 void
-contour_ground_provide(struct ContourGround* cg, int height);
+contour_ground_provide(
+    struct ContourGround* cg,
+    int height);
 
 #endif

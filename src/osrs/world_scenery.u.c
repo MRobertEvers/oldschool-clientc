@@ -6,6 +6,9 @@
 #include "model_transforms.h"
 #include "world.h"
 
+#include <assert.h>
+#include <stdlib.h>
+
 // clang-format off
 #include "_light_model_default.u.c"
 // clang-format on
@@ -16,6 +19,41 @@ static const int WALL_DECOR_ROTATION_OFFSET_X[] = { 1, 0, -1, 0 };
 static const int WALL_DECOR_ROTATION_OFFSET_Z[] = { 0, -1, 0, 1 };
 static const int WALL_DECOR_ROTATION_DIAGONAL_OFFSET_X[] = { 1, -1, -1, 1 };
 static const int WALL_DECOR_ROTATION_DIAGONAL_OFFSET_Z[] = { -1, -1, 1, 1 };
+
+void
+world_contour_ground_queue_push(
+    struct World* world,
+    int entity_id,
+    int loc_id,
+    int shape_select,
+    int rotation,
+    int size_x,
+    int size_z,
+    int element_slot)
+{
+    if( entity_id < 0 )
+        return;
+
+    if( world->contour_ground_queue_count >= world->contour_ground_queue_cap )
+    {
+        int ncap = world->contour_ground_queue_cap ? world->contour_ground_queue_cap * 2 : 512;
+        struct ContourGroundQueueEntry* next = (struct ContourGroundQueueEntry*)realloc(
+            world->contour_ground_queue, (size_t)ncap * sizeof(struct ContourGroundQueueEntry));
+        assert(next);
+        world->contour_ground_queue = next;
+        world->contour_ground_queue_cap = ncap;
+    }
+
+    struct ContourGroundQueueEntry* r =
+        &world->contour_ground_queue[world->contour_ground_queue_count++];
+    r->entity_id = entity_id;
+    r->loc_id = loc_id;
+    r->shape_select = shape_select;
+    r->rotation = rotation;
+    r->size_x = size_x;
+    r->size_z = size_z;
+    r->element_slot = element_slot;
+}
 
 /**
  * This is a configured offset for a loc, then there may be additional
@@ -61,11 +99,18 @@ static const int ROTATION_WALL_CORNER_TYPE[] = {
 static void
 scenery_element_position_init(
     struct World* world,
+    struct MapBuildLocEntity* entity,
     struct EntitySceneCoord* entity_scene_coord,
     struct EntitySceneElement* entity_scene_element,
     int size_x,
     int size_z)
 {
+    if( entity )
+    {
+        entity->place_size_x = (uint16_t)size_x;
+        entity->place_size_z = (uint16_t)size_z;
+    }
+
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity_scene_element->element_id);
     scene2_element_expect(scene_element, "scenery_element_position_init");
@@ -82,7 +127,6 @@ scenery_element_position_init(
 
     int tile_x = entity_scene_coord->sx;
     int tile_z = entity_scene_coord->sz;
-    int tile_level = entity_scene_coord->slevel;
     scene2_element_set_dash_position_ptr(scene_element, dashposition_new());
     struct DashPosition* dp = scene2_element_dash_position(scene_element);
     dp->x = 128 * tile_x + 64 * (size_x);
@@ -146,84 +190,10 @@ apply_transforms(
 }
 
 static void
-apply_contour_ground(
-    struct World* world,
-    struct EntitySceneCoord* entity_scene_coord,
-    struct CacheModel* model,
-    int contour_ground_type,
-    int contour_ground_param,
-    int size_x,
-    int size_z)
-{
-    struct Heightmap* hm = world->heightmap;
-    int sl = (int)entity_scene_coord->slevel;
-
-    if( (contour_ground_type == 4 || contour_ground_type == 5) && sl + 1 >= hm->levels )
-    {
-        return;
-    }
-
-    /* Scene XZ origin = footprint center; size_x/z must match scenery_element_position_init. */
-    int scene_x = (int)entity_scene_coord->sx * 128 + 64 * size_x;
-    int scene_z = (int)entity_scene_coord->sz * 128 + 64 * size_z;
-    struct HeightmapHeights place_heights = { 0 };
-    heightmap_get_heights_sized(
-        hm,
-        (int)entity_scene_coord->sx,
-        (int)entity_scene_coord->sz,
-        sl,
-        size_x,
-        size_z,
-        &place_heights);
-    int scene_height = place_heights.height_center;
-
-    int hm_ax = hm->size_x;
-    int hm_az = hm->size_z;
-    int above_ax = (contour_ground_type == 4 || contour_ground_type == 5) ? hm_ax : 0;
-    int above_az = (contour_ground_type == 4 || contour_ground_type == 5) ? hm_az : 0;
-
-    struct ContourGround cg;
-    if( !contour_ground_init(
-            &cg,
-            contour_ground_type,
-            contour_ground_param,
-            hm_ax,
-            hm_az,
-            above_ax,
-            above_az,
-            model,
-            model->vertex_count,
-            scene_x,
-            scene_z,
-            scene_height,
-            sl) )
-    {
-        return;
-    }
-
-    struct ContourGroundCommand cmd;
-    while( contour_ground_next(&cg, &cmd) )
-    {
-        switch( cmd.kind )
-        {
-        case CONTOUR_CMD_FETCH_HEIGHT:
-            contour_ground_provide(
-                &cg, heightmap_get_interpolated(hm, cmd.draw_x, cmd.draw_z, cmd.slevel));
-            break;
-        case CONTOUR_CMD_FETCH_HEIGHT_ABOVE:
-            contour_ground_provide(
-                &cg, heightmap_get_interpolated(hm, cmd.draw_x, cmd.draw_z, sl + 1));
-            break;
-        case CONTOUR_CMD_SET_Y:
-            model->vertices_y[cmd.vertex_index] = cmd.contour_y;
-            break;
-        }
-    }
-}
-
-static void
 world_load_scenery_model(
     struct World* world,
+    struct MapBuildLocEntity* entity,
+    struct CacheMapLoc* map_tile,
     struct EntitySceneCoord* entity_scene_coord,
     struct EntitySceneElement* entity_scene_element,
     int shape_select,
@@ -328,14 +298,6 @@ world_load_scenery_model(
     struct Scene2Element* scene_element = NULL;
 
     apply_transforms(config_loc, model, rotation, true);
-    apply_contour_ground(
-        world,
-        entity_scene_coord,
-        model,
-        config_loc->contour_ground_type,
-        config_loc->contour_ground_param,
-        size_x,
-        size_z);
 
     dash_model = dashmodel_new_from_cache_model(model);
     model_free(model);
@@ -354,6 +316,20 @@ world_load_scenery_model(
     }
 
     scene2_element_set_dash_model(world->scene2, scene_element, dash_model);
+
+    if( config_loc->contour_ground_type != 0 )
+    {
+        int element_slot = (entity_scene_element == &entity->scene_element_two) ? 1 : 0;
+        world_contour_ground_queue_push(
+            world,
+            entity->entity_id,
+            map_tile->loc_id,
+            shape_select,
+            rotation,
+            size_x,
+            size_z,
+            element_slot);
+    }
 }
 
 static int
@@ -417,6 +393,8 @@ scenery_add_wall_single(
 
     world_load_scenery_model(
         world,
+        entity,
+        map_tile,
         &entity->scene_coord,
         &entity->scene_element,
         LOC_SHAPE_WALL_SINGLE_SIDE,
@@ -424,7 +402,7 @@ scenery_add_wall_single(
         1,
         1,
         config_loc);
-    scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
+    scenery_element_position_init(world, entity, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     painter_add_wall(
         world->painter,
@@ -490,6 +468,8 @@ scenery_add_wall_tri_corner(
 
     world_load_scenery_model(
         world,
+        entity,
+        map_tile,
         &entity->scene_coord,
         &entity->scene_element,
         LOC_SHAPE_WALL_TRI_CORNER,
@@ -497,7 +477,7 @@ scenery_add_wall_tri_corner(
         1,
         1,
         config_loc);
-    scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
+    scenery_element_position_init(world, entity, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     painter_add_wall(
         world->painter,
@@ -577,6 +557,8 @@ scenery_add_wall_two_sides(
 
     world_load_scenery_model(
         world,
+        entity,
+        map_tile,
         &entity->scene_coord,
         &entity->scene_element,
         LOC_SHAPE_WALL_TWO_SIDES,
@@ -586,6 +568,8 @@ scenery_add_wall_two_sides(
         config_loc);
     world_load_scenery_model(
         world,
+        entity,
+        map_tile,
         &entity->scene_coord,
         &entity->scene_element_two,
         LOC_SHAPE_WALL_TWO_SIDES,
@@ -593,8 +577,8 @@ scenery_add_wall_two_sides(
         1,
         1,
         config_loc);
-    scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
-    scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element_two, 1, 1);
+    scenery_element_position_init(world, entity, &entity->scene_coord, &entity->scene_element, 1, 1);
+    scenery_element_position_init(world, entity, &entity->scene_coord, &entity->scene_element_two, 1, 1);
 
     painter_add_wall(
         world->painter,
@@ -669,6 +653,8 @@ scenery_add_wall_rect_corner(
 
     world_load_scenery_model(
         world,
+        entity,
+        map_tile,
         &entity->scene_coord,
         &entity->scene_element,
         LOC_SHAPE_WALL_RECT_CORNER,
@@ -676,7 +662,7 @@ scenery_add_wall_rect_corner(
         1,
         1,
         config_loc);
-    scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
+    scenery_element_position_init(world, entity, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     painter_add_wall(
         world->painter,
@@ -740,6 +726,8 @@ scenery_add_wall_decor_inside(
 
     world_load_scenery_model(
         world,
+        entity,
+        map_tile,
         &entity->scene_coord,
         &entity->scene_element,
         LOC_SHAPE_WALL_DECOR_INSIDE,
@@ -748,7 +736,7 @@ scenery_add_wall_decor_inside(
         1,
         config_loc);
     world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
-    scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
+    scenery_element_position_init(world, entity, &entity->scene_coord, &entity->scene_element, 1, 1);
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
     scene2_element_expect(scene_element, "scenery_add_wall_decor_inside");
@@ -814,6 +802,8 @@ scenery_add_wall_decor_outside(
 
     world_load_scenery_model(
         world,
+        entity,
+        map_tile,
         &entity->scene_coord,
         &entity->scene_element,
         LOC_SHAPE_WALL_DECOR_INSIDE,
@@ -822,7 +812,7 @@ scenery_add_wall_decor_outside(
         1,
         config_loc);
     world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
-    scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
+    scenery_element_position_init(world, entity, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
@@ -892,6 +882,8 @@ scenery_add_wall_decor_diagonal_outside(
 
     world_load_scenery_model(
         world,
+        entity,
+        map_tile,
         &entity->scene_coord,
         &entity->scene_element,
         LOC_SHAPE_WALL_DECOR_INSIDE,
@@ -900,7 +892,7 @@ scenery_add_wall_decor_diagonal_outside(
         1,
         config_loc);
     world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
-    scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
+    scenery_element_position_init(world, entity, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
@@ -972,6 +964,8 @@ scenery_add_wall_decor_diagonal_inside(
 
     world_load_scenery_model(
         world,
+        entity,
+        map_tile,
         &entity->scene_coord,
         &entity->scene_element,
         LOC_SHAPE_WALL_DECOR_INSIDE,
@@ -980,7 +974,7 @@ scenery_add_wall_decor_diagonal_inside(
         1,
         config_loc);
     world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
-    scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
+    scenery_element_position_init(world, entity, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
@@ -1063,6 +1057,8 @@ scenery_add_wall_decor_diagonal_double(
 
     world_load_scenery_model(
         world,
+        entity,
+        map_tile,
         &entity->scene_coord,
         &entity->scene_element,
         LOC_SHAPE_WALL_DECOR_INSIDE,
@@ -1072,6 +1068,8 @@ scenery_add_wall_decor_diagonal_double(
         config_loc);
     world_load_scenery_model(
         world,
+        entity,
+        map_tile,
         &entity->scene_coord,
         &entity->scene_element_two,
         LOC_SHAPE_WALL_DECOR_INSIDE,
@@ -1080,8 +1078,8 @@ scenery_add_wall_decor_diagonal_double(
         1,
         config_loc);
     world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
-    scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
-    scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element_two, 1, 1);
+    scenery_element_position_init(world, entity, &entity->scene_coord, &entity->scene_element, 1, 1);
+    scenery_element_position_init(world, entity, &entity->scene_coord, &entity->scene_element_two, 1, 1);
 
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
@@ -1183,6 +1181,8 @@ scenery_add_wall_diagonal(
 
     world_load_scenery_model(
         world,
+        entity,
+        map_tile,
         &entity->scene_coord,
         &entity->scene_element,
         LOC_SHAPE_WALL_DIAGONAL,
@@ -1190,7 +1190,7 @@ scenery_add_wall_diagonal(
         1,
         1,
         config_loc);
-    scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
+    scenery_element_position_init(world, entity, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     painter_add_normal_scenery(
         world->painter,
@@ -1256,6 +1256,8 @@ scenery_add_normal(
 
     world_load_scenery_model(
         world,
+        entity,
+        map_tile,
         &entity->scene_coord,
         &entity->scene_element,
         LOC_SHAPE_SCENERY,
@@ -1265,7 +1267,7 @@ scenery_add_normal(
         config_loc);
     world_map_build_loc_entity_set_animation(world, entity->entity_id, config_loc->seq_id);
     scenery_element_position_init(
-        world, &entity->scene_coord, &entity->scene_element, size_x, size_z);
+        world, entity, &entity->scene_coord, &entity->scene_element, size_x, size_z);
 
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, entity->scene_element.element_id);
@@ -1334,6 +1336,8 @@ scenery_add_roof(
 
     world_load_scenery_model(
         world,
+        entity,
+        map_tile,
         &entity->scene_coord,
         &entity->scene_element,
         map_tile->shape_select,
@@ -1341,7 +1345,7 @@ scenery_add_roof(
         1,
         1,
         config_loc);
-    scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
+    scenery_element_position_init(world, entity, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     painter_add_normal_scenery(
         world->painter,
@@ -1389,6 +1393,8 @@ scenery_add_floor_decoration(
 
     world_load_scenery_model(
         world,
+        entity,
+        map_tile,
         &entity->scene_coord,
         &entity->scene_element,
         LOC_SHAPE_FLOOR_DECORATION,
@@ -1396,7 +1402,7 @@ scenery_add_floor_decoration(
         1,
         1,
         config_loc);
-    scenery_element_position_init(world, &entity->scene_coord, &entity->scene_element, 1, 1);
+    scenery_element_position_init(world, entity, &entity->scene_coord, &entity->scene_element, 1, 1);
 
     painter_add_ground_decor(
         world->painter,
@@ -1479,6 +1485,154 @@ scenery_add(
         scenery_add_floor_decoration(world, entity, map_tile, config_loc);
         break;
     }
+}
+
+static void
+world_contour_ground_refresh_all_loc_dash_y(struct World* world)
+{
+    struct Heightmap* hm = world->heightmap;
+    if( !hm || world->active_loc_entity_count <= 0 )
+        return;
+
+    for( int i = 0; i < world->active_loc_entity_count; i++ )
+    {
+        int eid = world->active_loc_entities[i];
+        struct MapBuildLocEntity* entity = world_loc_entity(world, eid);
+        int sx = (int)entity->scene_coord.sx;
+        int sz = (int)entity->scene_coord.sz;
+        int sl = (int)entity->scene_coord.slevel;
+        int psx = entity->place_size_x > 0 ? (int)entity->place_size_x : 1;
+        int psz = entity->place_size_z > 0 ? (int)entity->place_size_z : 1;
+
+        struct EntitySceneElement* eses[2] = { &entity->scene_element, &entity->scene_element_two };
+        for( int s = 0; s < 2; s++ )
+        {
+            struct EntitySceneElement* ese = eses[s];
+            if( ese->element_id < 0 )
+                continue;
+            struct Scene2Element* scene_el = scene2_element_at(world->scene2, ese->element_id);
+            if( !scene_el )
+                continue;
+            struct DashPosition* dp = scene2_element_dash_position(scene_el);
+            if( !dp )
+                continue;
+            struct HeightmapHeights heights = { 0 };
+            heightmap_get_heights_sized(hm, sx, sz, sl, psx, psz, &heights);
+            dp->y = heights.height_center;
+        }
+    }
+}
+
+void
+world_contour_ground(struct World* world)
+{
+    struct Heightmap* hm = world->heightmap;
+    if( !hm )
+        return;
+
+    int n = world->contour_ground_queue_count;
+    if( n > 0 && world->contour_ground_queue )
+    {
+        int loc_count = entity_vec_count(&world->map_build_loc_entities);
+
+        for( int ri = 0; ri < n; ri++ )
+        {
+            struct ContourGroundQueueEntry* r = &world->contour_ground_queue[ri];
+            if( r->entity_id < 0 || r->entity_id >= loc_count )
+                continue;
+
+            struct MapBuildLocEntity* entity = world_loc_entity(world, r->entity_id);
+            struct EntitySceneElement* ese =
+                r->element_slot ? &entity->scene_element_two : &entity->scene_element;
+            if( ese->element_id < 0 )
+                continue;
+
+            struct CacheConfigLocation* config_loc =
+                buildcachedat_get_config_loc(world->buildcachedat, r->loc_id);
+            if( !config_loc || config_loc->contour_ground_type == 0 )
+                continue;
+
+            struct Scene2Element* scene_el = scene2_element_at(world->scene2, ese->element_id);
+            if( !scene_el )
+                continue;
+
+            struct DashModel* dm = scene2_element_dash_model(scene_el);
+            if( !dm )
+                continue;
+
+            int contour_type = config_loc->contour_ground_type;
+            int contour_param = config_loc->contour_ground_param;
+            struct EntitySceneCoord* coord = &entity->scene_coord;
+            int sl = (int)coord->slevel;
+            if( (contour_type == 4 || contour_type == 5) && sl + 1 >= hm->levels )
+                continue;
+
+            int scene_x = (int)coord->sx * 128 + 64 * r->size_x;
+            int scene_z = (int)coord->sz * 128 + 64 * r->size_z;
+            struct HeightmapHeights place_heights = { 0 };
+            heightmap_get_heights_sized(
+                hm, (int)coord->sx, (int)coord->sz, sl, r->size_x, r->size_z, &place_heights);
+            int scene_height = place_heights.height_center;
+
+            int hm_ax = hm->size_x;
+            int hm_az = hm->size_z;
+            int above_ax = (contour_type == 4 || contour_type == 5) ? hm_ax : 0;
+            int above_az = (contour_type == 4 || contour_type == 5) ? hm_az : 0;
+
+            int vc = dashmodel_vertex_count(dm);
+            vertexint_t* vxs = dashmodel_vertices_x(dm);
+            vertexint_t* vys = dashmodel_vertices_y(dm);
+            vertexint_t* vzs = dashmodel_vertices_z(dm);
+            if( vc <= 0 || !vxs || !vys || !vzs )
+                continue;
+
+            struct ContourGround cg;
+            if( !contour_ground_init(
+                    &cg,
+                    contour_type,
+                    contour_param,
+                    hm_ax,
+                    hm_az,
+                    above_ax,
+                    above_az,
+                    vxs,
+                    vys,
+                    vzs,
+                    vc,
+                    vc,
+                    CONTOUR_VERTEX_INT16,
+                    scene_x,
+                    scene_z,
+                    scene_height,
+                    sl) )
+                continue;
+
+            struct ContourGroundCommand cmd;
+            while( contour_ground_next(&cg, &cmd) )
+            {
+                switch( cmd.kind )
+                {
+                case CONTOUR_CMD_FETCH_HEIGHT:
+                    contour_ground_provide(
+                        &cg, heightmap_get_interpolated(hm, cmd.draw_x, cmd.draw_z, cmd.slevel));
+                    break;
+                case CONTOUR_CMD_FETCH_HEIGHT_ABOVE:
+                    contour_ground_provide(
+                        &cg, heightmap_get_interpolated(hm, cmd.draw_x, cmd.draw_z, sl + 1));
+                    break;
+                case CONTOUR_CMD_SET_Y:
+                    vys[cmd.vertex_index] = (vertexint_t)cmd.contour_y;
+                    break;
+                }
+            }
+
+            dashmodel_set_bounds_cylinder(dm);
+        }
+    }
+
+    world_contour_ground_refresh_all_loc_dash_y(world);
+
+    world->contour_ground_queue_count = 0;
 }
 
 #endif
