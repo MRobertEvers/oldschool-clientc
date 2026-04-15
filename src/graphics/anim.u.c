@@ -20,6 +20,17 @@ struct Transformation
     int origin_z;
 };
 
+/** Store animated vertex coords in int16 without relying on impl-defined int16 overflow. */
+static inline vertexint_t
+anim_vertexint_clamp(int v)
+{
+    // if( v > INT16_MAX )
+    //     return (vertexint_t)INT16_MAX;
+    // if( v < INT16_MIN )
+    //     return (vertexint_t)INT16_MIN;
+    return (vertexint_t)v;
+}
+
 static void
 animate(
     struct Transformation* transformation,
@@ -122,9 +133,12 @@ animate(
             for( int j = 0; j < bone_length; ++j )
             {
                 int vertex_index = bone[j];
-                vertices_x[vertex_index] += arg_x;
-                vertices_y[vertex_index] += arg_y;
-                vertices_z[vertex_index] += arg_z;
+                int vx = (int)vertices_x[vertex_index] + arg_x;
+                int vy = (int)vertices_y[vertex_index] + arg_y;
+                int vz = (int)vertices_z[vertex_index] + arg_z;
+                vertices_x[vertex_index] = anim_vertexint_clamp(vx);
+                vertices_y[vertex_index] = anim_vertexint_clamp(vy);
+                vertices_z[vertex_index] = anim_vertexint_clamp(vz);
             }
         }
         break;
@@ -147,9 +161,9 @@ animate(
             for( int j = 0; j < bone_length; ++j )
             {
                 int vertex_index = bone[j];
-                vertices_x[vertex_index] -= transformation->origin_x;
-                vertices_y[vertex_index] -= transformation->origin_y;
-                vertices_z[vertex_index] -= transformation->origin_z;
+                int x = (int)vertices_x[vertex_index] - transformation->origin_x;
+                int y = (int)vertices_y[vertex_index] - transformation->origin_y;
+                int z = (int)vertices_z[vertex_index] - transformation->origin_z;
                 int pitch = (arg_x & 255) * 8;
                 int yaw = (arg_y & 255) * 8;
                 int roll = (arg_z & 255) * 8;
@@ -158,44 +172,32 @@ animate(
                 {
                     int sin_roll = g_sin_table[roll];
                     int cos_roll = g_cos_table[roll];
-                    var17 =
-                        sin_roll * vertices_y[vertex_index] + cos_roll * vertices_x[vertex_index] >>
-                        16;
-                    vertices_y[vertex_index] = (cos_roll * vertices_y[vertex_index] -
-                                                sin_roll * vertices_x[vertex_index]) >>
-                                               16;
-                    vertices_x[vertex_index] = var17;
+                    var17 = (sin_roll * y + cos_roll * x) >> 16;
+                    y = (cos_roll * y - sin_roll * x) >> 16;
+                    x = var17;
                 }
 
                 if( pitch != 0 )
                 {
                     int sin_pitch = g_sin_table[pitch];
                     int cos_pitch = g_cos_table[pitch];
-                    var17 = (cos_pitch * vertices_y[vertex_index] -
-                             sin_pitch * vertices_z[vertex_index]) >>
-                            16;
-                    vertices_z[vertex_index] = (sin_pitch * vertices_y[vertex_index] +
-                                                cos_pitch * vertices_z[vertex_index]) >>
-                                               16;
-                    vertices_y[vertex_index] = var17;
+                    var17 = (cos_pitch * y - sin_pitch * z) >> 16;
+                    z = (sin_pitch * y + cos_pitch * z) >> 16;
+                    y = var17;
                 }
 
                 if( yaw != 0 )
                 {
                     int sin_yaw = g_sin_table[yaw];
                     int cos_yaw = g_cos_table[yaw];
-                    var17 =
-                        (sin_yaw * vertices_z[vertex_index] + cos_yaw * vertices_x[vertex_index]) >>
-                        16;
-                    vertices_z[vertex_index] =
-                        (cos_yaw * vertices_z[vertex_index] - sin_yaw * vertices_x[vertex_index]) >>
-                        16;
-                    vertices_x[vertex_index] = var17;
+                    var17 = (sin_yaw * z + cos_yaw * x) >> 16;
+                    z = (cos_yaw * z - sin_yaw * x) >> 16;
+                    x = var17;
                 }
 
-                vertices_x[vertex_index] += transformation->origin_x;
-                vertices_y[vertex_index] += transformation->origin_y;
-                vertices_z[vertex_index] += transformation->origin_z;
+                vertices_x[vertex_index] = anim_vertexint_clamp(x + transformation->origin_x);
+                vertices_y[vertex_index] = anim_vertexint_clamp(y + transformation->origin_y);
+                vertices_z[vertex_index] = anim_vertexint_clamp(z + transformation->origin_z);
             }
         }
         break;
@@ -217,15 +219,15 @@ animate(
             for( int j = 0; j < bone_length; ++j )
             {
                 int vertex_index = bone[j];
-                vertices_x[vertex_index] -= transformation->origin_x;
-                vertices_y[vertex_index] -= transformation->origin_y;
-                vertices_z[vertex_index] -= transformation->origin_z;
-                vertices_x[vertex_index] = arg_x * vertices_x[vertex_index] / 128;
-                vertices_y[vertex_index] = arg_y * vertices_y[vertex_index] / 128;
-                vertices_z[vertex_index] = arg_z * vertices_z[vertex_index] / 128;
-                vertices_x[vertex_index] += transformation->origin_x;
-                vertices_y[vertex_index] += transformation->origin_y;
-                vertices_z[vertex_index] += transformation->origin_z;
+                int x = (int)vertices_x[vertex_index] - transformation->origin_x;
+                int y = (int)vertices_y[vertex_index] - transformation->origin_y;
+                int z = (int)vertices_z[vertex_index] - transformation->origin_z;
+                x = arg_x * x / 128;
+                y = arg_y * y / 128;
+                z = arg_z * z / 128;
+                vertices_x[vertex_index] = anim_vertexint_clamp(x + transformation->origin_x);
+                vertices_y[vertex_index] = anim_vertexint_clamp(y + transformation->origin_y);
+                vertices_z[vertex_index] = anim_vertexint_clamp(z + transformation->origin_z);
             }
         }
         break;

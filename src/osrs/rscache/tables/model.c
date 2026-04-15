@@ -140,8 +140,8 @@ modelbones_new_decode(
 
     // Allocate arrays
     bones->bones_count = num_bones + 1;
-    bones->bones = (uint8_t**)malloc((num_bones + 1) * sizeof(uint8_t*));
-    bones->bones_sizes = (uint8_t*)malloc((num_bones + 1) * sizeof(uint8_t));
+    bones->bones = (uint16_t**)malloc((num_bones + 1) * sizeof(uint16_t*));
+    bones->bones_sizes = (uint16_t*)malloc((num_bones + 1) * sizeof(uint16_t));
 
     if( !bones->bones || !bones->bones_sizes )
     {
@@ -154,7 +154,7 @@ modelbones_new_decode(
     // Allocate each group array
     for( int i = 0; i <= num_bones; i++ )
     {
-        bones->bones[i] = (uint8_t*)malloc((size_t)bone_counts[i] * sizeof(uint8_t));
+        bones->bones[i] = (uint16_t*)malloc((size_t)bone_counts[i] * sizeof(uint16_t));
         bones->bones_sizes[i] = 0;
     }
 
@@ -163,7 +163,7 @@ modelbones_new_decode(
     {
         int bone = vertex_bone_map[i];
         if( bone >= 0 )
-            bones->bones[bone][bones->bones_sizes[bone]++] = (uint8_t)i;
+            bones->bones[bone][bones->bones_sizes[bone]++] = (uint16_t)i;
     }
 
     return bones;

@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
-typedef uint8_t boneint_t;
+/** Vertex/face indices inside bone groups; must hold full model vertex/face counts (>255). */
+typedef uint16_t boneint_t;
 
 #endif

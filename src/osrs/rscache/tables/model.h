@@ -140,8 +140,8 @@ struct ModelBones
 {
     int bones_count;
     // Array of arrays vertices... AKA arrays of bones.
-    uint8_t** bones;
-    uint8_t* bones_sizes;
+    uint16_t** bones;
+    uint16_t* bones_sizes;
 };
 
 struct ModelBones*
