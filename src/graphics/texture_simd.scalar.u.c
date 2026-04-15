@@ -140,7 +140,7 @@ draw_texture_scanline_transparent_blend_ordered_blerp8_v3(
 
     while( blocks-- )
     {
-        if( cw > 0 )
+        if( (cw >> texture_shift) != 0 )
         {
             CALC_BLOCK_PARAMS(cw, au, bv);
             raster_linear_transparent_blend_lerp8_v3(
@@ -162,7 +162,7 @@ draw_texture_scanline_transparent_blend_ordered_blerp8_v3(
         shade8bit_ish8 += (step_shade8bit_dx_ish8 << 3);
     }
 
-    if( remaining > 0 && cw > 0 )
+    if( remaining > 0 && (cw >> texture_shift) != 0 )
     {
         CALC_BLOCK_PARAMS(cw, au, bv);
         int u_scan = cur_u << texture_shift;
