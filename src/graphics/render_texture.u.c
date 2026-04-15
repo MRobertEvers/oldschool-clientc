@@ -77,7 +77,7 @@ raster_texture_blend(
     }
     else
     {
-        raster_texture_transparent_blend_lerp8(
+        raster_texture_transparent_blend_blerp8_v3(
             pixel_buffer,
             stride,
             screen_width,
