@@ -21,6 +21,21 @@ contour_vertex_get(
     return ((const int*)arr)[i];
 }
 
+/** Loc config `contour_ground_type` (cache opcodes 21, 81, 93, 94, 95). Values must stay 1–5. */
+enum ContourGroundType
+{
+    /** Opcode 21: sample main heightmap, offset by scene placement height. */
+    CONTOUR_GROUND_SCENE_FOLLOW = 1,
+    /** Opcode 81: threshold blend using `param` and optional heightmap sample. */
+    CONTOUR_GROUND_THRESHOLD_BLEND = 2,
+    /** Opcode 93: keep model vertex Y. */
+    CONTOUR_GROUND_MODEL_Y = 3,
+    /** Opcode 94: sample heightmap one level above. */
+    CONTOUR_GROUND_ABOVE_OFFSET = 4,
+    /** Opcode 95: sample main and above, blend by vertex Y span. */
+    CONTOUR_GROUND_DUAL_LEVEL_BLEND = 5,
+};
+
 enum ContourGroundCmdKind
 {
     /** Caller: interpolated height at (draw_x, draw_z, slevel) in the main heightmap. */
@@ -45,7 +60,7 @@ struct ContourGroundCommand
 
 struct ContourGround
 {
-    int type;
+    enum ContourGroundType type;
     int param;
     int scene_x;
     int scene_z;

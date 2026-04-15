@@ -7,6 +7,7 @@
 #include "osrs/collision_map.h"
 #include "osrs/dash_utils.h"
 #include "osrs/minimap.h"
+#include "contour_ground.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/maps.h"
 #include "osrs/rscache/tables/model.h"
@@ -112,7 +113,7 @@ apply_transforms(
     bool scaled = loc->resize_x != 128 || loc->resize_height != 128 || loc->resize_z != 128;
     bool translated = loc->offset_x != 0 || loc->offset_y != 0 || loc->offset_z != 0;
     // TODO: handle the other contoured ground types.
-    bool hillskewed = loc->contour_ground_type == 1;
+    bool hillskewed = loc->contour_ground_type == CONTOUR_GROUND_SCENE_FOLLOW;
 
     if( mirrored )
         model_transform_mirror(model);
