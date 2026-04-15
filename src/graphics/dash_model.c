@@ -105,7 +105,7 @@ dashmodel_fast_new(void)
     if( !m )
         return NULL;
     memset(m, 0, sizeof(struct DashModelGround));
-    m->flags = dashmodel__pack_flags_type(DASHMODEL_TYPE_FAST);
+    m->flags = dashmodel__pack_flags_type(DASHMODEL_TYPE_GROUND);
     return (struct DashModel*)m;
 }
 
@@ -271,7 +271,7 @@ dashmodel_va_new(struct DashVertexArray* vertex_array)
     if( !m )
         return NULL;
     memset(m, 0, sizeof(struct DashModelVAGround));
-    m->flags = dashmodel__pack_flags_type(DASHMODEL_TYPE_VA);
+    m->flags = dashmodel__pack_flags_type(DASHMODEL_TYPE_GROUND_VA);
     m->vertex_array = vertex_array;
     if( vertex_array )
         m->vertex_count = vertex_array->vertex_count;
@@ -285,9 +285,9 @@ dashmodel_va_set_face_array_ref(
     uint32_t first_face_index,
     int face_count)
 {
-    assert(m && dashmodel__is_va(m));
+    assert(m && dashmodel__is_ground_va(m));
     dashmodel__flags(m);
-    struct DashModelVAGround* v = dashmodel__as_va(m);
+    struct DashModelVAGround* v = dashmodel__as_ground_va(m);
     v->face_array = face_array;
     v->first_face_index = first_face_index;
     v->face_count = face_count;
@@ -296,15 +296,15 @@ dashmodel_va_set_face_array_ref(
 const struct DashFaceArray*
 dashmodel_va_face_array_const(const struct DashModel* m)
 {
-    assert(m && dashmodel__is_va(m));
-    return dashmodel__as_va_const(m)->face_array;
+    assert(m && dashmodel__is_ground_va(m));
+    return dashmodel__as_ground_va_const(m)->face_array;
 }
 
 uint32_t
 dashmodel_va_first_face_index(const struct DashModel* m)
 {
-    assert(m && dashmodel__is_va(m));
-    return dashmodel__as_va_const(m)->first_face_index;
+    assert(m && dashmodel__is_ground_va(m));
+    return dashmodel__as_ground_va_const(m)->first_face_index;
 }
 
 void
@@ -313,9 +313,9 @@ dashmodel_va_set_tile_cull_center(
     int tile_sw_x,
     int tile_sw_z)
 {
-    assert(m && dashmodel__is_va(m));
+    assert(m && dashmodel__is_ground_va(m));
     dashmodel__flags(m);
-    struct DashModelVAGround* v = dashmodel__as_va(m);
+    struct DashModelVAGround* v = dashmodel__as_ground_va(m);
     v->va_tile_cull_center_x = tile_sw_x;
     v->va_tile_cull_center_z = tile_sw_z;
 }
@@ -328,10 +328,10 @@ dashmodel_va_set_bounds_cylinder_from_local(
     const vertexint_t* vy,
     const vertexint_t* vz)
 {
-    assert(m && dashmodel__is_va(m));
+    assert(m && dashmodel__is_ground_va(m));
     assert(num_vertices > 0 && vx && vy && vz);
     dashmodel__flags(m);
-    struct DashModelVAGround* v = dashmodel__as_va(m);
+    struct DashModelVAGround* v = dashmodel__as_ground_va(m);
     free(v->bounds_cylinder);
     v->bounds_cylinder = (struct DashBoundsCylinder*)malloc(sizeof(struct DashBoundsCylinder));
     dash3d_calculate_bounds_cylinder(
@@ -379,11 +379,11 @@ dashmodel_free(struct DashModel* model)
     assert((f & DASHMODEL_FLAG_VALID) != 0);
     switch( (unsigned)((f & DASHMODEL_TYPE_MASK) >> DASHMODEL_TYPE_SHIFT) )
     {
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
         dashmodel__free_fast_arrays((struct DashModelGround*)(void*)model);
         free(model);
         return;
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
         dashmodel__free_va_shell((struct DashModelVAGround*)(void*)model);
         free(model);
         return;
@@ -451,10 +451,10 @@ dashmodel_vertex_count(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
-        return dashmodel__as_va_const(m)->vertex_count;
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast_const(m)->vertex_count;
+    case DASHMODEL_TYPE_GROUND_VA:
+        return dashmodel__as_ground_va_const(m)->vertex_count;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground_const(m)->vertex_count;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full_const(m)->vertex_count;
     default:
@@ -469,10 +469,10 @@ dashmodel_face_count(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
-        return dashmodel__as_va_const(m)->face_count;
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast_const(m)->face_count;
+    case DASHMODEL_TYPE_GROUND_VA:
+        return dashmodel__as_ground_va_const(m)->face_count;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground_const(m)->face_count;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full_const(m)->face_count;
     default:
@@ -487,10 +487,10 @@ dashmodel_vertices_x(struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
         return dashmodel__va_array_mut(m)->vertices_x;
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast(m)->vertices_x;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground(m)->vertices_x;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full(m)->vertices_x;
     default:
@@ -505,10 +505,10 @@ dashmodel_vertices_y(struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
         return dashmodel__va_array_mut(m)->vertices_y;
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast(m)->vertices_y;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground(m)->vertices_y;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full(m)->vertices_y;
     default:
@@ -523,10 +523,10 @@ dashmodel_vertices_z(struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
         return dashmodel__va_array_mut(m)->vertices_z;
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast(m)->vertices_z;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground(m)->vertices_z;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full(m)->vertices_z;
     default:
@@ -541,10 +541,10 @@ dashmodel_vertices_x_const(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
         return dashmodel__va_array_const(m)->vertices_x;
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast_const(m)->vertices_x;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground_const(m)->vertices_x;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full_const(m)->vertices_x;
     default:
@@ -559,10 +559,10 @@ dashmodel_vertices_y_const(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
         return dashmodel__va_array_const(m)->vertices_y;
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast_const(m)->vertices_y;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground_const(m)->vertices_y;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full_const(m)->vertices_y;
     default:
@@ -577,10 +577,10 @@ dashmodel_vertices_z_const(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
         return dashmodel__va_array_const(m)->vertices_z;
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast_const(m)->vertices_z;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground_const(m)->vertices_z;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full_const(m)->vertices_z;
     default:
@@ -595,13 +595,13 @@ dashmodel_face_colors_a(struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
-        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(m);
         return v->face_array ? v->face_array->colors_a + v->first_face_index : NULL;
     }
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast(m)->face_colors_a;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground(m)->face_colors_a;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full(m)->face_colors_a;
     default:
@@ -616,13 +616,13 @@ dashmodel_face_colors_b(struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
-        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(m);
         return v->face_array ? v->face_array->colors_b + v->first_face_index : NULL;
     }
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast(m)->face_colors_b;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground(m)->face_colors_b;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full(m)->face_colors_b;
     default:
@@ -637,13 +637,13 @@ dashmodel_face_colors_c(struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
-        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(m);
         return v->face_array ? v->face_array->colors_c + v->first_face_index : NULL;
     }
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast(m)->face_colors_c;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground(m)->face_colors_c;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full(m)->face_colors_c;
     default:
@@ -658,13 +658,13 @@ dashmodel_face_colors_a_const(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
-        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(m);
         return v->face_array ? v->face_array->colors_a + v->first_face_index : NULL;
     }
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast_const(m)->face_colors_a;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground_const(m)->face_colors_a;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full_const(m)->face_colors_a;
     default:
@@ -679,13 +679,13 @@ dashmodel_face_colors_b_const(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
-        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(m);
         return v->face_array ? v->face_array->colors_b + v->first_face_index : NULL;
     }
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast_const(m)->face_colors_b;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground_const(m)->face_colors_b;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full_const(m)->face_colors_b;
     default:
@@ -700,13 +700,13 @@ dashmodel_face_colors_c_const(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
-        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(m);
         return v->face_array ? v->face_array->colors_c + v->first_face_index : NULL;
     }
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast_const(m)->face_colors_c;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground_const(m)->face_colors_c;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full_const(m)->face_colors_c;
     default:
@@ -721,13 +721,13 @@ dashmodel_face_indices_a(struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
-        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(m);
         return v->face_array ? v->face_array->indices_a + v->first_face_index : NULL;
     }
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast(m)->face_indices_a;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground(m)->face_indices_a;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full(m)->face_indices_a;
     default:
@@ -742,13 +742,13 @@ dashmodel_face_indices_b(struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
-        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(m);
         return v->face_array ? v->face_array->indices_b + v->first_face_index : NULL;
     }
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast(m)->face_indices_b;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground(m)->face_indices_b;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full(m)->face_indices_b;
     default:
@@ -763,13 +763,13 @@ dashmodel_face_indices_c(struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
-        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(m);
         return v->face_array ? v->face_array->indices_c + v->first_face_index : NULL;
     }
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast(m)->face_indices_c;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground(m)->face_indices_c;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full(m)->face_indices_c;
     default:
@@ -784,13 +784,13 @@ dashmodel_face_indices_a_const(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
-        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(m);
         return v->face_array ? v->face_array->indices_a + v->first_face_index : NULL;
     }
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast_const(m)->face_indices_a;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground_const(m)->face_indices_a;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full_const(m)->face_indices_a;
     default:
@@ -805,13 +805,13 @@ dashmodel_face_indices_b_const(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
-        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(m);
         return v->face_array ? v->face_array->indices_b + v->first_face_index : NULL;
     }
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast_const(m)->face_indices_b;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground_const(m)->face_indices_b;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full_const(m)->face_indices_b;
     default:
@@ -826,13 +826,13 @@ dashmodel_face_indices_c_const(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
-        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(m);
         return v->face_array ? v->face_array->indices_c + v->first_face_index : NULL;
     }
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast_const(m)->face_indices_c;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground_const(m)->face_indices_c;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full_const(m)->face_indices_c;
     default:
@@ -847,13 +847,13 @@ dashmodel_face_textures(struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
-        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(m);
         return v->face_array ? v->face_array->texture_ids + v->first_face_index : NULL;
     }
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast(m)->face_textures;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground(m)->face_textures;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full(m)->face_textures;
     default:
@@ -868,13 +868,13 @@ dashmodel_face_textures_const(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
-        const struct DashModelVAGround* v = dashmodel__as_va_const(m);
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(m);
         return v->face_array ? v->face_array->texture_ids + v->first_face_index : NULL;
     }
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast_const(m)->face_textures;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground_const(m)->face_textures;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full_const(m)->face_textures;
     default:
@@ -889,10 +889,10 @@ dashmodel_bounds_cylinder(struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
-        return dashmodel__as_va(m)->bounds_cylinder;
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast(m)->bounds_cylinder;
+    case DASHMODEL_TYPE_GROUND_VA:
+        return dashmodel__as_ground_va(m)->bounds_cylinder;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground(m)->bounds_cylinder;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full(m)->bounds_cylinder;
     default:
@@ -907,10 +907,10 @@ dashmodel_bounds_cylinder_const(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
-        return dashmodel__as_va_const(m)->bounds_cylinder;
-    case DASHMODEL_TYPE_FAST:
-        return dashmodel__as_fast_const(m)->bounds_cylinder;
+    case DASHMODEL_TYPE_GROUND_VA:
+        return dashmodel__as_ground_va_const(m)->bounds_cylinder;
+    case DASHMODEL_TYPE_GROUND:
+        return dashmodel__as_ground_const(m)->bounds_cylinder;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full_const(m)->bounds_cylinder;
     default:
@@ -1070,8 +1070,8 @@ dashmodel_textured_face_count(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_FAST:
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND:
+    case DASHMODEL_TYPE_GROUND_VA:
         if( !dashmodel_has_textures(m) )
             return 0;
         return 1;
@@ -1089,8 +1089,8 @@ dashmodel_textured_p_coordinate(struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_FAST:
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND:
+    case DASHMODEL_TYPE_GROUND_VA:
         if( !dashmodel_has_textures(m) )
             return NULL;
         return (faceint_t*)(void*)&g_dashmodel_fast_tex_p[0];
@@ -1108,8 +1108,8 @@ dashmodel_textured_m_coordinate(struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_FAST:
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND:
+    case DASHMODEL_TYPE_GROUND_VA:
         if( !dashmodel_has_textures(m) )
             return NULL;
         return (faceint_t*)(void*)&g_dashmodel_fast_tex_m[0];
@@ -1127,11 +1127,11 @@ dashmodel_textured_n_coordinate(struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
         if( !dashmodel_has_textures(m) )
             return NULL;
         return (faceint_t*)(void*)&g_dashmodel_fast_tex_n[0];
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
         if( !dashmodel_has_textures(m) )
             return NULL;
         return (faceint_t*)(void*)&g_dashmodel_va_tex_n[0];
@@ -1149,8 +1149,8 @@ dashmodel_textured_p_coordinate_const(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_FAST:
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND:
+    case DASHMODEL_TYPE_GROUND_VA:
         if( !dashmodel_has_textures(m) )
             return NULL;
         return g_dashmodel_fast_tex_p;
@@ -1168,8 +1168,8 @@ dashmodel_textured_m_coordinate_const(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_FAST:
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND:
+    case DASHMODEL_TYPE_GROUND_VA:
         if( !dashmodel_has_textures(m) )
             return NULL;
         return g_dashmodel_fast_tex_m;
@@ -1187,11 +1187,11 @@ dashmodel_textured_n_coordinate_const(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
         if( !dashmodel_has_textures(m) )
             return NULL;
         return g_dashmodel_fast_tex_n;
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
         if( !dashmodel_has_textures(m) )
             return NULL;
         return g_dashmodel_va_tex_n;
@@ -1209,8 +1209,8 @@ dashmodel_face_texture_coords(struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_FAST:
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND:
+    case DASHMODEL_TYPE_GROUND_VA:
         return dashmodel_face_count(m) > 0 ? g_dashmodel_va_face_texture_coords_zero : NULL;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full(m)->face_texture_coords;
@@ -1225,8 +1225,8 @@ dashmodel_face_texture_coords_const(const struct DashModel* m)
     assert(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_FAST:
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND:
+    case DASHMODEL_TYPE_GROUND_VA:
         return dashmodel_face_count(m) > 0 ? g_dashmodel_va_face_texture_coords_zero : NULL;
     case DASHMODEL_TYPE_FULL:
         return dashmodel__as_full_const(m)->face_texture_coords;
@@ -1290,8 +1290,8 @@ dashmodel_face_bones(struct DashModel* m)
 static struct DashModelGround*
 dashmodel__writable_fast(struct DashModel* m)
 {
-    assert(dashmodel__is_fast(m));
-    return dashmodel__as_fast(m);
+    assert(dashmodel__is_ground(m));
+    return dashmodel__as_ground(m);
 }
 
 static struct DashModelFull*
@@ -1311,10 +1311,10 @@ dashmodel_set_vertices_i16(
 {
     assert(m && count >= 0);
     dashmodel__flags(m);
-    assert(!dashmodel__is_va(m));
+    assert(!dashmodel__is_ground_va(m));
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
     {
         struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->vertices_x);
@@ -1367,10 +1367,10 @@ dashmodel_set_vertices_i32(
 {
     assert(m && count >= 0);
     dashmodel__flags(m);
-    assert(!dashmodel__is_va(m));
+    assert(!dashmodel__is_ground_va(m));
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
     {
         struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->vertices_x);
@@ -1429,10 +1429,10 @@ dashmodel_set_face_indices_i16(
 {
     assert(m && count >= 0);
     dashmodel__flags(m);
-    assert(!dashmodel__is_va(m));
+    assert(!dashmodel__is_ground_va(m));
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
     {
         struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->face_indices_a);
@@ -1485,10 +1485,10 @@ dashmodel_set_face_indices_i32(
 {
     assert(m && count >= 0);
     dashmodel__flags(m);
-    assert(!dashmodel__is_va(m));
+    assert(!dashmodel__is_ground_va(m));
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
     {
         struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->face_indices_a);
@@ -1546,12 +1546,12 @@ dashmodel_set_face_colors_i16(
 {
     assert(m && src_a && src_b && src_c);
     dashmodel__flags(m);
-    assert(!dashmodel__is_va(m));
+    assert(!dashmodel__is_ground_va(m));
     int fc = dashmodel_face_count(m);
     assert(fc > 0);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
     {
         struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->face_colors_a);
@@ -1591,12 +1591,12 @@ dashmodel_set_face_colors_i32(
 {
     assert(m && src_a && src_b && src_c);
     dashmodel__flags(m);
-    assert(!dashmodel__is_va(m));
+    assert(!dashmodel__is_ground_va(m));
     int fc = dashmodel_face_count(m);
     assert(fc > 0);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
     {
         struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->face_colors_a);
@@ -1641,10 +1641,10 @@ dashmodel_set_face_textures_i16(
 {
     assert(m && count >= 0);
     dashmodel__flags(m);
-    assert(!dashmodel__is_va(m));
+    assert(!dashmodel__is_ground_va(m));
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
     {
         struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->face_textures);
@@ -1681,10 +1681,10 @@ dashmodel_set_face_textures_i32(
 {
     assert(m && count >= 0);
     dashmodel__flags(m);
-    assert(!dashmodel__is_va(m));
+    assert(!dashmodel__is_ground_va(m));
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
     {
         struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->face_textures);
@@ -1831,9 +1831,9 @@ dashmodel_set_bounds_cylinder(struct DashModel* m)
     dashmodel__flags(m);
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
-        struct DashModelVAGround* v = dashmodel__as_va(m);
+        struct DashModelVAGround* v = dashmodel__as_ground_va(m);
         struct DashVertexArray* va = v->vertex_array;
         assert(va != NULL);
         free(v->bounds_cylinder);
@@ -1842,7 +1842,7 @@ dashmodel_set_bounds_cylinder(struct DashModel* m)
             v->bounds_cylinder, va->vertex_count, va->vertices_x, va->vertices_y, va->vertices_z);
         return;
     }
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
     {
         struct DashModelGround* f = dashmodel__writable_fast(m);
         free(f->bounds_cylinder);
@@ -1909,7 +1909,7 @@ dashmodel_heap_bytes(const struct DashModel* model)
     assert((f & DASHMODEL_FLAG_VALID) != 0);
     switch( (unsigned)((f & DASHMODEL_TYPE_MASK) >> DASHMODEL_TYPE_SHIFT) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
         const struct DashModelVAGround* m = (const struct DashModelVAGround*)(const void*)model;
         size_t total = sizeof(struct DashModelVAGround);
@@ -1917,7 +1917,7 @@ dashmodel_heap_bytes(const struct DashModel* model)
             total += sizeof(struct DashBoundsCylinder);
         return total;
     }
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
     {
         const struct DashModelGround* m = (const struct DashModelGround*)(const void*)model;
         size_t total = sizeof(struct DashModelGround);
@@ -2036,9 +2036,9 @@ dashmodel_valid(struct DashModel* model)
         return false;
     switch( dashmodel__type(model) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
-        const struct DashModelVAGround* v = dashmodel__as_va_const(model);
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(model);
         if( v->face_count > 0 )
         {
             if( !v->face_array || !v->face_array->indices_a )
@@ -2049,7 +2049,7 @@ dashmodel_valid(struct DashModel* model)
         }
         break;
     }
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
     case DASHMODEL_TYPE_FULL:
         if( dashmodel_face_colors_a(model) == NULL )
             return false;
@@ -2144,8 +2144,8 @@ dashmodel_vertex_array_const(const struct DashModel* m)
         return NULL;
     switch( dashmodel__type(m) )
     {
-    case DASHMODEL_TYPE_VA:
-        return dashmodel__as_va_const(m)->vertex_array;
+    case DASHMODEL_TYPE_GROUND_VA:
+        return dashmodel__as_ground_va_const(m)->vertex_array;
     default:
         return NULL;
     }

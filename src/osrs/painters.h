@@ -30,6 +30,10 @@ enum PaintersTileFlags
      * The bridge tile is actually a bridge drawn on a different level.
      */
     PAINTERS_TILE_FLAG_BRIDGE = 1 << 0,
+    /**
+     * From cache FLOFLAG_DOWNLEVEL (0x02): allow draw when slevel is one above max draw level.
+     */
+    PAINTERS_TILE_FLAG_DOWNLEVEL = 1 << 1,
 };
 
 /**
@@ -344,7 +348,8 @@ painter_set_level_range(
     int lo,
     int hi);
 
-/** Bitmask: which scratch contexts painter_new allocates up front (see painters_bucket / world3d / distancemetric). */
+/** Bitmask: which scratch contexts painter_new allocates up front (see painters_bucket / world3d /
+ * distancemetric). */
 enum PainterNewContextFlags
 {
     PAINTER_NEW_CTX_BUCKET = 1u << 0,

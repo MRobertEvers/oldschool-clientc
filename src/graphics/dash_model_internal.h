@@ -20,8 +20,8 @@ struct DashModelBones;
 #define DASHMODEL_TYPE_MASK (7u << DASHMODEL_TYPE_SHIFT)
 
 #define DASHMODEL_TYPE_FULL 0u
-#define DASHMODEL_TYPE_FAST 1u
-#define DASHMODEL_TYPE_VA 2u
+#define DASHMODEL_TYPE_GROUND 1u
+#define DASHMODEL_TYPE_GROUND_VA 2u
 
 struct DashModelGround
 {
@@ -104,14 +104,19 @@ dashmodel__face_priorities_byte_count(int face_count)
 }
 
 static inline int
-dashmodel__get_face_priority(const uint8_t* packed, int index)
+dashmodel__get_face_priority(
+    const uint8_t* packed,
+    int index)
 {
     uint8_t byte = packed[index >> 1];
     return (index & 1) ? (int)(byte >> 4) : (int)(byte & 0x0Fu);
 }
 
 static inline void
-dashmodel__set_face_priority(uint8_t* packed, int index, int value)
+dashmodel__set_face_priority(
+    uint8_t* packed,
+    int index,
+    int value)
 {
     assert(value >= 0 && value <= 15);
     int byte_idx = index >> 1;
@@ -155,21 +160,35 @@ dashmodel__is_full_layout(const void* m)
 }
 
 static inline bool
-dashmodel__is_fast(const void* m)
+dashmodel__is_ground(const void* m)
 {
-    return dashmodel__type(m) == DASHMODEL_TYPE_FAST;
+    return dashmodel__type(m) == DASHMODEL_TYPE_GROUND;
 }
 
 static inline bool
-dashmodel__is_va(const void* m)
+dashmodel__is_ground_va(const void* m)
 {
-    return dashmodel__type(m) == DASHMODEL_TYPE_VA;
+    return dashmodel__type(m) == DASHMODEL_TYPE_GROUND_VA;
+}
+
+static inline bool
+dashmodel__is_ground_any(const void* m)
+{
+    uint8_t type = dashmodel__type(m);
+    switch( type )
+    {
+    case DASHMODEL_TYPE_GROUND:
+    case DASHMODEL_TYPE_GROUND_VA:
+        return true;
+    default:
+        return false;
+    }
 }
 
 static inline struct DashVertexArray*
 dashmodel__va_array_mut(struct DashModel* m)
 {
-    assert(dashmodel__is_va(m));
+    assert(dashmodel__is_ground_va(m));
     struct DashModelVAGround* v = (struct DashModelVAGround*)(void*)m;
     assert(v->vertex_array != NULL);
     return v->vertex_array;
@@ -178,37 +197,37 @@ dashmodel__va_array_mut(struct DashModel* m)
 static inline const struct DashVertexArray*
 dashmodel__va_array_const(const void* m)
 {
-    assert(dashmodel__is_va(m));
+    assert(dashmodel__is_ground_va(m));
     const struct DashModelVAGround* v = (const struct DashModelVAGround*)m;
     assert(v->vertex_array != NULL);
     return v->vertex_array;
 }
 
 static inline struct DashModelGround*
-dashmodel__as_fast(void* m)
+dashmodel__as_ground(void* m)
 {
-    assert(dashmodel__is_fast(m));
+    assert(dashmodel__is_ground(m));
     return (struct DashModelGround*)m;
 }
 
 static inline const struct DashModelGround*
-dashmodel__as_fast_const(const void* m)
+dashmodel__as_ground_const(const void* m)
 {
-    assert(dashmodel__is_fast(m));
+    assert(dashmodel__is_ground(m));
     return (const struct DashModelGround*)m;
 }
 
 static inline struct DashModelVAGround*
-dashmodel__as_va(void* m)
+dashmodel__as_ground_va(void* m)
 {
-    assert(dashmodel__is_va(m));
+    assert(dashmodel__is_ground_va(m));
     return (struct DashModelVAGround*)m;
 }
 
 static inline const struct DashModelVAGround*
-dashmodel__as_va_const(const void* m)
+dashmodel__as_ground_va_const(const void* m)
 {
-    assert(dashmodel__is_va(m));
+    assert(dashmodel__is_ground_va(m));
     return (const struct DashModelVAGround*)m;
 }
 

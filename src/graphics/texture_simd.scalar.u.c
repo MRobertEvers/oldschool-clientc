@@ -86,6 +86,32 @@ raster_linear_transparent_blend_lerp8_v3(
 }
 
 static inline void
+raster_linear_opaque_blend_lerp8_v3(
+    uint32_t* __restrict pixel_buffer,
+    const uint32_t* __restrict texels,
+    int u_scan,
+    int v_scan,
+    int step_u,
+    int step_v,
+    int texture_shift,
+    int u_mask,
+    int v_mask,
+    int shade)
+{
+    assert(texture_shift == 7 || texture_shift == 6);
+    for( int i = 0; i < 8; i++ )
+    {
+        int u = (u_scan >> texture_shift) & u_mask;
+        int v = v_scan & v_mask;
+        int t = texels[u + v];
+        pixel_buffer[i] = (uint32_t)shade_blend(t, shade);
+
+        u_scan += step_u;
+        v_scan += step_v;
+    }
+}
+
+static inline void
 draw_texture_scanline_transparent_blend_ordered_blerp8_v3(
     int* pixel_buffer,
     int screen_width,
@@ -182,4 +208,229 @@ draw_texture_scanline_transparent_blend_ordered_blerp8_v3(
         }
     }
 #undef CALC_BLOCK_PARAMS
+}
+
+static inline void
+draw_texture_scanline_opaque_blend_affine_ordered_ish16(
+    int* pixel_buffer,
+    int screen_width,
+    int screen_x0_ish16,
+    int screen_x1_ish16,
+    int pixel_offset,
+    int au,
+    int bv,
+    int cw,
+    int step_au_dx,
+    int step_bv_dx,
+    int step_cw_dx,
+    int shade8bit_ish8,
+    int step_shade8bit_dx_ish8,
+    int* texels,
+    int texture_width)
+{
+    if( screen_x0_ish16 == screen_x1_ish16 )
+        return;
+
+    if( screen_x0_ish16 < 0 )
+        screen_x0_ish16 = 0;
+
+    int x0 = (screen_x0_ish16 - 1) >> 16;
+    if( x0 < 0 )
+        x0 = 0;
+    int x1 = screen_x1_ish16 >> 16;
+    if( x1 >= screen_width )
+        x1 = screen_width - 1;
+    if( x0 >= x1 )
+        return;
+
+    int adjust = x0 - (screen_width >> 1);
+    au += step_au_dx * adjust;
+    bv += step_bv_dx * adjust;
+    cw += step_cw_dx * adjust;
+
+    int offset = pixel_offset + x0;
+    shade8bit_ish8 += step_shade8bit_dx_ish8 * x0;
+
+    int width = x1 - x0;
+
+    int texture_shift = (texture_width == 128) ? 7 : 6;
+    int v_mask = (texture_width == 128) ? 0x3F80 : 0x0FC0;
+    int u_mask = texture_width - 1;
+
+    int w_div = cw >> texture_shift;
+    int u_coord = 0;
+    int v_coord = 0;
+    if( w_div != 0 )
+    {
+        u_coord = au / w_div;
+        v_coord = bv / w_div;
+    }
+    u_coord = clamp(u_coord, 0, texture_width - 1);
+
+    int au_end = au + step_au_dx * width;
+    int bv_end = bv + step_bv_dx * width;
+    int cw_end = cw + step_cw_dx * width;
+    int w_div_end = cw_end >> texture_shift;
+    int u_coord_end = 0;
+    int v_coord_end = 0;
+    if( w_div_end != 0 )
+    {
+        u_coord_end = au_end / w_div_end;
+        v_coord_end = bv_end / w_div_end;
+    }
+    u_coord_end = clamp(u_coord_end, 0, texture_width - 1);
+
+    int u_scan = u_coord << texture_shift;
+    int v_scan = v_coord << texture_shift;
+    int step_u = ((u_coord_end - u_coord) << texture_shift) / width;
+    int step_v = ((v_coord_end - v_coord) << texture_shift) / width;
+
+    int blocks = width >> 3;
+    int remaining = width & 7;
+
+    while( blocks-- )
+    {
+        raster_linear_opaque_blend_lerp8_v3(
+            (uint32_t*)&pixel_buffer[offset],
+            (uint32_t*)texels,
+            u_scan,
+            v_scan,
+            step_u,
+            step_v,
+            texture_shift,
+            u_mask,
+            v_mask,
+            shade8bit_ish8 >> 8);
+        u_scan += step_u * 8;
+        v_scan += step_v * 8;
+        offset += 8;
+        shade8bit_ish8 += (step_shade8bit_dx_ish8 << 3);
+    }
+
+    if( remaining > 0 )
+    {
+        int shade = shade8bit_ish8 >> 8;
+        for( int i = 0; i < remaining; i++ )
+        {
+            int u = (u_scan >> texture_shift) & u_mask;
+            int v = v_scan & v_mask;
+            pixel_buffer[offset++] = shade_blend(texels[u + v], shade);
+            u_scan += step_u;
+            v_scan += step_v;
+        }
+    }
+}
+
+static inline void
+draw_texture_scanline_transparent_blend_affine_ordered_ish16(
+    int* pixel_buffer,
+    int screen_width,
+    int screen_x0_ish16,
+    int screen_x1_ish16,
+    int pixel_offset,
+    int au,
+    int bv,
+    int cw,
+    int step_au_dx,
+    int step_bv_dx,
+    int step_cw_dx,
+    int shade8bit_ish8,
+    int step_shade8bit_dx_ish8,
+    int* texels,
+    int texture_width)
+{
+    if( screen_x0_ish16 == screen_x1_ish16 )
+        return;
+
+    if( screen_x0_ish16 < 0 )
+        screen_x0_ish16 = 0;
+
+    int x0 = (screen_x0_ish16 - 1) >> 16;
+    if( x0 < 0 )
+        x0 = 0;
+    int x1 = screen_x1_ish16 >> 16;
+    if( x1 >= screen_width )
+        x1 = screen_width - 1;
+    if( x0 >= x1 )
+        return;
+
+    int adjust = x0 - (screen_width >> 1);
+    au += step_au_dx * adjust;
+    bv += step_bv_dx * adjust;
+    cw += step_cw_dx * adjust;
+
+    int offset = pixel_offset + x0;
+    shade8bit_ish8 += step_shade8bit_dx_ish8 * x0;
+
+    int width = x1 - x0;
+
+    int texture_shift = (texture_width == 128) ? 7 : 6;
+    int v_mask = (texture_width == 128) ? 0x3F80 : 0x0FC0;
+    int u_mask = texture_width - 1;
+
+    int w_div = cw >> texture_shift;
+    int u_coord = 0;
+    int v_coord = 0;
+    if( w_div != 0 )
+    {
+        u_coord = au / w_div;
+        v_coord = bv / w_div;
+    }
+    u_coord = clamp(u_coord, 0, texture_width - 1);
+
+    int au_end = au + step_au_dx * width;
+    int bv_end = bv + step_bv_dx * width;
+    int cw_end = cw + step_cw_dx * width;
+    int w_div_end = cw_end >> texture_shift;
+    int u_coord_end = 0;
+    int v_coord_end = 0;
+    if( w_div_end != 0 )
+    {
+        u_coord_end = au_end / w_div_end;
+        v_coord_end = bv_end / w_div_end;
+    }
+    u_coord_end = clamp(u_coord_end, 0, texture_width - 1);
+
+    int u_scan = u_coord << texture_shift;
+    int v_scan = v_coord << texture_shift;
+    int step_u = ((u_coord_end - u_coord) << texture_shift) / width;
+    int step_v = ((v_coord_end - v_coord) << texture_shift) / width;
+
+    int blocks = width >> 3;
+    int remaining = width & 7;
+
+    while( blocks-- )
+    {
+        raster_linear_transparent_blend_lerp8_v3(
+            (uint32_t*)&pixel_buffer[offset],
+            (uint32_t*)texels,
+            u_scan,
+            v_scan,
+            step_u,
+            step_v,
+            texture_shift,
+            u_mask,
+            v_mask,
+            shade8bit_ish8 >> 8);
+        u_scan += step_u * 8;
+        v_scan += step_v * 8;
+        offset += 8;
+        shade8bit_ish8 += (step_shade8bit_dx_ish8 << 3);
+    }
+
+    if( remaining > 0 )
+    {
+        int shade = shade8bit_ish8 >> 8;
+        for( int i = 0; i < remaining; i++ )
+        {
+            int u = (u_scan >> texture_shift) & u_mask;
+            int v = v_scan & v_mask;
+            int t = texels[u + v];
+            if( t != 0 )
+                pixel_buffer[offset] = shade_blend(t, shade);
+            offset++;
+            u_scan += step_u;
+            v_scan += step_v;
+        }
+    }
 }

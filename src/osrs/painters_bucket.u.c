@@ -4,6 +4,7 @@
 #include "painters_i.h"
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -142,6 +143,27 @@ bucket_ctx_free(struct Painter* painter)
 
 #include "painters_bucket_simd.u.c"
 
+/**
+ * Bridge tiles are never bucketed. Otherwise a tile is excluded when draw_mask has no bit for
+ * its draw slevel; PAINTERS_TILE_FLAG_DOWNLEVEL allows inclusion when the level one below is drawn.
+ */
+static bool
+bucket_tile_excluded_by_bridge_or_draw_mask(
+    uint16_t tile_flags,
+    int tile_slevel,
+    uint8_t draw_mask)
+{
+    if( (tile_flags & PAINTERS_TILE_FLAG_BRIDGE) != 0 )
+        return true;
+    int excluded_by_mask = (draw_mask & (1u << tile_slevel)) == 0;
+    if( (tile_flags & PAINTERS_TILE_FLAG_DOWNLEVEL) != 0 && tile_slevel > 0 &&
+        (draw_mask & (1u << (unsigned)(tile_slevel - 1))) != 0 )
+    {
+        excluded_by_mask = 0;
+    }
+    return excluded_by_mask != 0;
+}
+
 int
 painter_paint_bucket(
     struct Painter* painter,
@@ -251,8 +273,8 @@ painter_paint_bucket(
                 int tile_slevel = painters_tile_get_slevel(t);
 
                 tile_paint = tile_paint_at_idx(painter, ti);
-                if( (painters_tile_get_flags(t) & PAINTERS_TILE_FLAG_BRIDGE) != 0 ||
-                    (draw_mask & (1u << tile_slevel)) == 0 )
+                if( bucket_tile_excluded_by_bridge_or_draw_mask(
+                        painters_tile_get_flags(t), tile_slevel, draw_mask) )
                 {
                     tile_paint->step = PAINT_STEP_DONE;
                 }

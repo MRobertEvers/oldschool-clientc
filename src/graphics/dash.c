@@ -66,12 +66,12 @@ dash3d_projected_face_index_ptrs(
 {
     switch( dashmodel__type(model) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
         *out_a = dash->sparse_a;
         *out_b = dash->sparse_b;
         *out_c = dash->sparse_c;
         break;
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
     case DASHMODEL_TYPE_FULL:
         *out_a = dashmodel_face_indices_a(model);
         *out_b = dashmodel_face_indices_b(model);
@@ -99,8 +99,8 @@ dash3d_projected_face_index_ptrs(
 static struct DashModelGround*
 dashmodel__writable_fast(struct DashModel* m)
 {
-    assert(dashmodel__is_fast(m));
-    return dashmodel__as_fast(m);
+    assert(dashmodel__is_ground(m));
+    return dashmodel__as_ground(m);
 }
 
 static struct DashModelFull*
@@ -382,14 +382,14 @@ dash3d_fast_cull(
     int cull_mz = 0;
     switch( dashmodel__type(model) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
-        const struct DashModelVAGround* v = dashmodel__as_va_const(model);
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(model);
         cull_mx = v->va_tile_cull_center_x;
         cull_mz = v->va_tile_cull_center_z;
         break;
     }
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
     case DASHMODEL_TYPE_FULL:
         break;
     default:
@@ -503,9 +503,9 @@ dash3d_calculate_cylinder_aabb_8point(
     int mz = 0;
 
     /* 1. Simplify switch statement and remove 'my' since it was always 0 */
-    if( dashmodel__type(model) == DASHMODEL_TYPE_VA )
+    if( dashmodel__type(model) == DASHMODEL_TYPE_GROUND_VA )
     {
-        const struct DashModelVAGround* v = dashmodel__as_va_const(model);
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(model);
         mx = v->va_tile_cull_center_x;
         mz = v->va_tile_cull_center_z;
     }
@@ -584,6 +584,12 @@ dash3d_calculate_cylinder_aabb_8point(
 
 static const int g_empty_texture_texels[128 * 128] = { 0 };
 
+enum DashModelRasterFlags
+{
+    RASTER_FLAG_GOURAUD_SMOOTH = 1 << 0,
+    RASTER_FLAG_TEXTURE_AFFINE = 1 << 1,
+};
+
 enum FaceType
 {
     FACE_TYPE_GOURAUD,
@@ -626,7 +632,7 @@ struct DashModelRasterContext
     int stride;
     int camera_fov;
     struct DashTextureMap* texture_map;
-    bool smooth;
+    int flags;
 };
 
 static inline void
@@ -735,7 +741,7 @@ dash3d_raster_model_face(
         switch( type )
         {
         case FACE_TYPE_GOURAUD:
-            if( ctx->smooth )
+            if( (ctx->flags & RASTER_FLAG_GOURAUD_SMOOTH) != 0 )
             {
                 raster_face_gouraud_s1(
                     ctx->pixel_buffer,
@@ -849,115 +855,69 @@ dash3d_raster_model_face(
             assert(tm_vertex < ctx->num_vertices);
             assert(tn_vertex < ctx->num_vertices);
 
-            raster_face_texture_blend(
-                ctx->pixel_buffer,
-                ctx->stride,
-                ctx->screen_width,
-                ctx->screen_height,
-                ctx->camera_fov,
-                face,
-                tp_vertex,
-                tm_vertex,
-                tn_vertex,
-                ctx->face_indices_a,
-                ctx->face_indices_b,
-                ctx->face_indices_c,
-                ctx->vertex_x,
-                ctx->vertex_y,
-                ctx->vertex_z,
-                ctx->orthographic_vertex_x_nullable,
-                ctx->orthographic_vertex_y_nullable,
-                ctx->orthographic_vertex_z_nullable,
-                ctx->colors_a,
-                ctx->colors_b,
-                ctx->colors_c,
-                texels,
-                texture_size,
-                texture_opaque,
-                ctx->near_plane_z,
-                ctx->offset_x,
-                ctx->offset_y);
+            if( (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 )
+            {
+                raster_face_texture_blend_affine_v3(
+                    ctx->pixel_buffer,
+                    ctx->stride,
+                    ctx->screen_width,
+                    ctx->screen_height,
+                    ctx->camera_fov,
+                    face,
+                    tp_vertex,
+                    tm_vertex,
+                    tn_vertex,
+                    ctx->face_indices_a,
+                    ctx->face_indices_b,
+                    ctx->face_indices_c,
+                    ctx->vertex_x,
+                    ctx->vertex_y,
+                    ctx->vertex_z,
+                    ctx->orthographic_vertex_x_nullable,
+                    ctx->orthographic_vertex_y_nullable,
+                    ctx->orthographic_vertex_z_nullable,
+                    ctx->colors_a,
+                    ctx->colors_b,
+                    ctx->colors_c,
+                    texels,
+                    texture_size,
+                    texture_opaque,
+                    ctx->near_plane_z,
+                    ctx->offset_x,
+                    ctx->offset_y);
+            }
+            else
+            {
+                raster_face_texture_blend(
+                    ctx->pixel_buffer,
+                    ctx->stride,
+                    ctx->screen_width,
+                    ctx->screen_height,
+                    ctx->camera_fov,
+                    face,
+                    tp_vertex,
+                    tm_vertex,
+                    tn_vertex,
+                    ctx->face_indices_a,
+                    ctx->face_indices_b,
+                    ctx->face_indices_c,
+                    ctx->vertex_x,
+                    ctx->vertex_y,
+                    ctx->vertex_z,
+                    ctx->orthographic_vertex_x_nullable,
+                    ctx->orthographic_vertex_y_nullable,
+                    ctx->orthographic_vertex_z_nullable,
+                    ctx->colors_a,
+                    ctx->colors_b,
+                    ctx->colors_c,
+                    texels,
+                    texture_size,
+                    texture_opaque,
+                    ctx->near_plane_z,
+                    ctx->offset_x,
+                    ctx->offset_y);
+            }
 
-            // tp_x = ctx->orthographic_vertex_x_nullable[tp_face];
-            // tp_y = ctx->orthographic_vertex_y_nullable[tp_face];
-            // tp_z = ctx->orthographic_vertex_z_nullable[tp_face];
-
-            // tm_x = ctx->orthographic_vertex_x_nullable[tm_face];
-            // tm_y = ctx->orthographic_vertex_y_nullable[tm_face];
-            // tm_z = ctx->orthographic_vertex_z_nullable[tm_face];
-
-            // tn_x = ctx->orthographic_vertex_x_nullable[tn_face];
-            // tn_y = ctx->orthographic_vertex_y_nullable[tn_face];
-            // tn_z = ctx->orthographic_vertex_z_nullable[tn_face];
-
-            // if( texture->opaque )
-            // {
-            //     raster_texture_opaque_blend_lerp8(
-            //         ctx->pixel_buffer,
-            //         ctx->screen_width,
-            //         ctx->screen_height,
-            //         x1,
-            //         x2,
-            //         x3,
-            //         y1,
-            //         y2,
-            //         y3,
-            //         tp_x,
-            //         tm_x,
-            //         tn_x,
-            //         tp_y,
-            //         tm_y,
-            //         tn_y,
-            //         tp_z,
-            //         tm_z,
-            //         tn_z,
-            //         color_a,
-            //         color_b,
-            //         color_c,
-            //         texels,
-            //         128);
-            // }
-            // else
-            // {
-            //     raster_texture_transparent_blend_lerp8(
-            //         ctx->pixel_buffer,
-            //         ctx->screen_width,
-            //         ctx->screen_height,
-            //         x1,
-            //         x2,
-            //         x3,
-            //         y1,
-            //         y2,
-            //         y3,
-            //         tp_x,
-            //         tm_x,
-            //         tn_x,
-            //         tp_y,
-            //         tm_y,
-            //         tn_y,
-            //         tp_z,
-            //         tm_z,
-            //         tn_z,
-            //         color_a,
-            //         color_b,
-            //         color_c,
-            //         texels,
-            //         128);
-            // }
-
-            // This will draw a white triangle over the projected texture pnm coords.
-
-            // raster_flat(
-            //     ctx->pixel_buffer,
-            //     ctx->screen_width,
-            //     ctx->screen_height,
-            //     tex_x1,
-            //     tex_x2,
-            //     tex_x3,
-            //     tex_y1,
-            //     tex_y2,
-            //     tex_y3,
-            //     color_a);
             break;
         case FACE_TYPE_TEXTURED_FLAT_SHADE:
         textured_flat:;
@@ -992,95 +952,64 @@ dash3d_raster_model_face(
             assert(tm_vertex < ctx->num_vertices);
             assert(tn_vertex < ctx->num_vertices);
 
-            raster_face_texture_flat(
-                ctx->pixel_buffer,
-                ctx->stride,
-                ctx->screen_width,
-                ctx->screen_height,
-                ctx->camera_fov,
-                face,
-                tp_vertex,
-                tm_vertex,
-                tn_vertex,
-                ctx->face_indices_a,
-                ctx->face_indices_b,
-                ctx->face_indices_c,
-                ctx->vertex_x,
-                ctx->vertex_y,
-                ctx->vertex_z,
-                ctx->orthographic_vertex_x_nullable,
-                ctx->orthographic_vertex_y_nullable,
-                ctx->orthographic_vertex_z_nullable,
-                ctx->colors_a,
-                texels,
-                texture_size,
-                texture_opaque,
-                ctx->near_plane_z,
-                ctx->offset_x,
-                ctx->offset_y);
-
-            // tp_x = ctx->orthographic_vertex_x_nullable[tp_face];
-            // tp_y = ctx->orthographic_vertex_y_nullable[tp_face];
-            // tp_z = ctx->orthographic_vertex_z_nullable[tp_face];
-
-            // tm_x = ctx->orthographic_vertex_x_nullable[tm_face];
-            // tm_y = ctx->orthographic_vertex_y_nullable[tm_face];
-            // tm_z = ctx->orthographic_vertex_z_nullable[tm_face];
-
-            // tn_x = ctx->orthographic_vertex_x_nullable[tn_face];
-            // tn_y = ctx->orthographic_vertex_y_nullable[tn_face];
-            // tn_z = ctx->orthographic_vertex_z_nullable[tn_face];
-
-            // if( texture->opaque )
-            // {
-            //     raster_texture_opaque_lerp8(
-            //         ctx->pixel_buffer,
-            //         ctx->screen_width,
-            //         ctx->screen_height,
-            //         x1,
-            //         x2,
-            //         x3,
-            //         y1,
-            //         y2,
-            //         y3,
-            //         tp_x,
-            //         tm_x,
-            //         tn_x,
-            //         tp_y,
-            //         tm_y,
-            //         tn_y,
-            //         tp_z,
-            //         tm_z,
-            //         tn_z,
-            //         color_a,
-            //         texels,
-            //         128);
-            // }
-            // else
-            // {
-            //     raster_texture_transparent_lerp8(
-            //         ctx->pixel_buffer,
-            //         ctx->screen_width,
-            //         ctx->screen_height,
-            //         x1,
-            //         x2,
-            //         x3,
-            //         y1,
-            //         y2,
-            //         y3,
-            //         tp_x,
-            //         tm_x,
-            //         tn_x,
-            //         tp_y,
-            //         tm_y,
-            //         tn_y,
-            //         tp_z,
-            //         tm_z,
-            //         tn_z,
-            //         color_a,
-            //         texels,
-            //         128);
-            // }
+            if( (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 )
+            {
+                raster_face_texture_flat_affine_v3(
+                    ctx->pixel_buffer,
+                    ctx->stride,
+                    ctx->screen_width,
+                    ctx->screen_height,
+                    ctx->camera_fov,
+                    face,
+                    tp_vertex,
+                    tm_vertex,
+                    tn_vertex,
+                    ctx->face_indices_a,
+                    ctx->face_indices_b,
+                    ctx->face_indices_c,
+                    ctx->vertex_x,
+                    ctx->vertex_y,
+                    ctx->vertex_z,
+                    ctx->orthographic_vertex_x_nullable,
+                    ctx->orthographic_vertex_y_nullable,
+                    ctx->orthographic_vertex_z_nullable,
+                    ctx->colors_a,
+                    texels,
+                    texture_size,
+                    texture_opaque,
+                    ctx->near_plane_z,
+                    ctx->offset_x,
+                    ctx->offset_y);
+            }
+            else
+            {
+                raster_face_texture_flat(
+                    ctx->pixel_buffer,
+                    ctx->stride,
+                    ctx->screen_width,
+                    ctx->screen_height,
+                    ctx->camera_fov,
+                    face,
+                    tp_vertex,
+                    tm_vertex,
+                    tn_vertex,
+                    ctx->face_indices_a,
+                    ctx->face_indices_b,
+                    ctx->face_indices_c,
+                    ctx->vertex_x,
+                    ctx->vertex_y,
+                    ctx->vertex_z,
+                    ctx->orthographic_vertex_x_nullable,
+                    ctx->orthographic_vertex_y_nullable,
+                    ctx->orthographic_vertex_z_nullable,
+                    ctx->colors_a,
+                    texels,
+                    texture_size,
+                    texture_opaque,
+                    ctx->near_plane_z,
+                    ctx->offset_x,
+                    ctx->offset_y);
+            }
 
             break;
         }
@@ -1815,6 +1744,16 @@ dash3d_raster_with_face_indices(
     int clip_x = view_port->width >> 1;
     int clip_y = view_port->height >> 1;
 
+    int flags = 0;
+    if( smooth )
+    {
+        flags |= RASTER_FLAG_GOURAUD_SMOOTH;
+    }
+    if( dashmodel__is_ground_any(model) )
+    {
+        flags |= RASTER_FLAG_TEXTURE_AFFINE;
+    }
+
     struct DashModelRasterContext ctx = {
         .pixel_buffer = pixel_buffer,
         .face_infos = face_infos,
@@ -1848,7 +1787,7 @@ dash3d_raster_with_face_indices(
         .stride = view_port->stride,
         .camera_fov = camera->fov_rpi2048,
         .texture_map = &dash->texture_map,
-        .smooth = smooth,
+        .flags = flags,
     };
 
     for( int i = 0; i < dash->tmp_face_order_count; i++ )
@@ -1867,7 +1806,7 @@ dash3d_raster(
     int* pixel_buffer,
     bool smooth)
 {
-    if( dashmodel__is_va(model) )
+    if( dashmodel__is_ground_va(model) )
     {
         dash3d_raster_with_face_indices(
             dash,
@@ -2054,7 +1993,7 @@ dash3d_project(
 
     switch( dashmodel__type(model) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
         int nf = dashmodel_face_count(model);
         assert(nf <= 4096);
@@ -2109,7 +2048,7 @@ dash3d_project(
         }
         break;
     }
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
     case DASHMODEL_TYPE_FULL:
         if( dashmodel_has_textures(model) )
         {
@@ -2267,7 +2206,7 @@ dash3d_project_raw(
 
     switch( dashmodel__type(model) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
         int nf = dashmodel_face_count(model);
         assert(nf <= 4096);
@@ -2322,7 +2261,7 @@ dash3d_project_raw(
         }
         break;
     }
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
     case DASHMODEL_TYPE_FULL:
         if( dashmodel_has_textures(model) )
         {
@@ -2467,7 +2406,7 @@ dash3d_project6(
 
     switch( dashmodel__type(model) )
     {
-    case DASHMODEL_TYPE_VA:
+    case DASHMODEL_TYPE_GROUND_VA:
     {
         int nf = dashmodel_face_count(model);
         assert(nf <= 4096);
@@ -2528,7 +2467,7 @@ dash3d_project6(
         }
         break;
     }
-    case DASHMODEL_TYPE_FAST:
+    case DASHMODEL_TYPE_GROUND:
     case DASHMODEL_TYPE_FULL:
         if( dashmodel_has_textures(model) )
         {

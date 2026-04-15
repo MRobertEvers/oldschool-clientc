@@ -11,7 +11,9 @@
 #include "texture_blend_branching_v3.u.c"
 #include "render_clip.u.c"
 #include "render_gouraud.u.c"
-#include "texture_opaque_blend_affine.c"
+#include "texture_blend_branching_affine.u.c"
+#include "texture_blend_branching_affine_v3.u.c"
+#include "render_texture_affine.u.c"
 // clang-format on
 
 static inline void

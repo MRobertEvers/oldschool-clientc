@@ -496,10 +496,15 @@ painter_paint_world3d(
                 int idx = painter_coord_idx(painter, x, z, level);
                 tile = &painter->tiles[idx];
                 tile_paint = &painter->tile_paints[idx];
-                if( (painters_tile_get_flags(tile) & PAINTERS_TILE_FLAG_BRIDGE) != 0 )
-                    continue;
-                if( painters_tile_get_slevel(tile) > max_level )
-                    continue;
+                {
+                    uint16_t tile_flags = painters_tile_get_flags(tile);
+                    if( (tile_flags & PAINTERS_TILE_FLAG_BRIDGE) != 0 )
+                        continue;
+                    int eff_max = max_level +
+                        ((tile_flags & PAINTERS_TILE_FLAG_DOWNLEVEL) != 0 ? 1 : 0);
+                    if( painters_tile_get_slevel(tile) > eff_max )
+                        continue;
+                }
                 if( !painter_cullmap_tile_visible(painter, tile_paint, x, z, camera_sx, camera_sz) )
                 {
                     tile_paint->step = PAINT_STEP_DONE;
@@ -563,13 +568,17 @@ painter_paint_world3d(
         int tile_slevel = painters_tile_get_slevel(tile);
         tile_paint = &painter->tile_paints[tile_idx];
 
-        if( (painters_tile_get_flags(tile) & PAINTERS_TILE_FLAG_BRIDGE) != 0 ||
-            tile_slevel > max_level )
         {
-            wp->draw_front = 0;
-            wp->draw_back = 0;
-            wp->draw_primaries = 0;
-            continue;
+            uint16_t tile_flags = painters_tile_get_flags(tile);
+            int eff_max = max_level +
+                ((tile_flags & PAINTERS_TILE_FLAG_DOWNLEVEL) != 0 ? 1 : 0);
+            if( (tile_flags & PAINTERS_TILE_FLAG_BRIDGE) != 0 || tile_slevel > eff_max )
+            {
+                wp->draw_front = 0;
+                wp->draw_back = 0;
+                wp->draw_primaries = 0;
+                continue;
+            }
         }
 
         if( !painter_cullmap_tile_visible(

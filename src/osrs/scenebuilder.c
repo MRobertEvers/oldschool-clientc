@@ -168,6 +168,27 @@ scenebuiler_build(
     struct CacheMapFloor* ground = NULL;
     struct CacheMapFloor* bridge = NULL;
     struct PaintersTile bridge_tile_tmp = { 0 };
+
+    /* FLOFLAG_DOWNLEVEL before bridge so painter_tile_copyto keeps packed_meta. */
+    for( int x = 0; x < scene->tile_width_x; x++ )
+    {
+        for( int z = 0; z < scene->tile_width_z; z++ )
+        {
+            for( int level = 0; level < painter_max_levels(scene_builder->painter) &&
+                                level < MAP_TERRAIN_LEVELS;
+                 level++ )
+            {
+                struct CacheMapFloor* flo = tile_from_sw_origin(&terrain_grid, x, z, level);
+                if( (flo->settings & FLOFLAG_DOWNLEVEL) != 0 )
+                {
+                    painters_tile_or_flags(
+                        painter_tile_at(scene_builder->painter, x, z, level),
+                        PAINTERS_TILE_FLAG_DOWNLEVEL);
+                }
+            }
+        }
+    }
+
     for( int x = 0; x < scene->tile_width_x; x++ )
     {
         for( int z = 0; z < scene->tile_width_z; z++ )

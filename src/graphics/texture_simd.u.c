@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "clamp.h"
+
 // clang-format off
 #include "shade.h"
 // clang-format on
@@ -16,7 +18,7 @@
 #elif defined(__SSE2__) && !defined(SSE2_DISABLED)
 #include "texture_simd.sse2.u.c"
 #else
-#include "texture_simd.scaler.u.c"
+#include "texture_simd.scalar.u.c"
 #endif
 
 #endif

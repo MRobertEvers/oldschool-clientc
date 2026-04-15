@@ -2,6 +2,8 @@
 #define RENDER_GOURAUD_U_C
 
 #include "graphics/dash_alphaint.h"
+#include "graphics/dash_faceint.h"
+#include "graphics/dash_hsl16.h"
 
 #include <assert.h>
 

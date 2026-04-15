@@ -958,6 +958,26 @@ world_rebuild_centerzone_end(struct World* world)
 
     printf("Alive Decor Buildmap\n");
 
+    /* ---- FLOFLAG_DOWNLEVEL -> painter (before bridge so copyto carries packed_meta) ---- */
+    struct PaintersTile* tile = NULL;
+    for( int x = 0; x < scene_size; x++ )
+    {
+        for( int z = 0; z < scene_size; z++ )
+        {
+            for( int level = 0;
+                 level < MAP_TERRAIN_LEVELS && level < painter_max_levels(world->painter);
+                 level++ )
+            {
+                int fl = flag_map_get(world->_build_flag_map, x, z, level);
+                if( (fl & FLOFLAG_DOWNLEVEL) != 0 )
+                {
+                    tile = painter_tile_at(world->painter, x, z, level);
+                    painters_tile_or_flags(tile, PAINTERS_TILE_FLAG_DOWNLEVEL);
+                }
+            }
+        }
+    }
+
     /* ---- Bridge adjustment ---- */
     int bridge_flags = 0;
     struct PaintersTile bridge_tile_tmp = { 0 };

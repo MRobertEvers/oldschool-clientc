@@ -311,11 +311,15 @@ painter_paint_distancemetric(
         if( tile_paint->queue_count > 0 )
             continue;
 
-        if( (painters_tile_get_flags(tile) & PAINTERS_TILE_FLAG_BRIDGE) != 0 ||
-            tile_slevel > max_level )
         {
-            tile_paint->step = PAINT_STEP_DONE;
-            continue;
+            uint16_t tile_flags = painters_tile_get_flags(tile);
+            int eff_max = max_level +
+                ((tile_flags & PAINTERS_TILE_FLAG_DOWNLEVEL) != 0 ? 1 : 0);
+            if( (tile_flags & PAINTERS_TILE_FLAG_BRIDGE) != 0 || tile_slevel > eff_max )
+            {
+                tile_paint->step = PAINT_STEP_DONE;
+                continue;
+            }
         }
 
         if( !painter_cullmap_tile_visible(

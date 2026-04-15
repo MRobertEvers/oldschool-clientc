@@ -88,7 +88,8 @@ merge_normals(
     struct LightingNormal* other_lighting_vertex_normals,
     int check_offset_x,
     int check_offset_y,
-    int check_offset_z)
+    int check_offset_z,
+    bool hide_faces)
 {
     g_merge_index++;
 
@@ -154,11 +155,9 @@ merge_normals(
 
     /**
      * Normals that are merged are assumed to be abutting each other and their faces not visible.
-     * Hide them.
+     * Hide them only when hide_faces is true (same level, or adjacent level with DOWNLEVEL).
      */
-
-    // TODO: This isn't allow for locs. Only ground decor.
-    if( merged_vertex_count < 3 )
+    if( merged_vertex_count < 3 || !hide_faces )
         return;
 
     // Can't have two faces with the same 3 points, so only need to check two.
@@ -197,7 +196,6 @@ merge_normals(
 }
 
 #define ADJACENT_TILES_COUNT 48
-
 
 static void
 defaultlight_build(struct World* world)
@@ -249,7 +247,9 @@ defaultlight_build(struct World* world)
 #define SHARELIGHT_MERGE_LOOKAHEAD 6
 
 static void
-alloc_normals_for_column(struct World* world, int sx)
+alloc_normals_for_column(
+    struct World* world,
+    int sx)
 {
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
@@ -281,8 +281,42 @@ alloc_normals_for_column(struct World* world, int sx)
     }
 }
 
+/**
+ * Whether sharelight may hide abutting faces between two merge candidates.
+ * Same level: yes. Adjacent levels (differ by 1): only if the higher tile has DOWNLEVEL.
+ */
+static bool
+sharelight_should_hide_faces_for_merge(
+    struct World* world,
+    int primary_sx,
+    int primary_sz,
+    int primary_slevel,
+    int adjacent_sx,
+    int adjacent_sz,
+    int adjacent_slevel)
+{
+    if( primary_slevel == adjacent_slevel )
+        return true;
+
+    int ds = primary_slevel - adjacent_slevel;
+    if( ds < 0 )
+        ds = -ds;
+    if( ds != 1 )
+        return false;
+
+    int higher_s = primary_slevel > adjacent_slevel ? primary_slevel : adjacent_slevel;
+    int higher_sx = primary_slevel > adjacent_slevel ? primary_sx : adjacent_sx;
+    int higher_sz = primary_slevel > adjacent_slevel ? primary_sz : adjacent_sz;
+    struct PaintersTile* higher_tile =
+        painter_tile_at(world->painter, higher_sx, higher_sz, higher_s);
+    return higher_tile != NULL &&
+           (painters_tile_get_flags(higher_tile) & PAINTERS_TILE_FLAG_DOWNLEVEL) != 0;
+}
+
 static void
-merge_column(struct World* world, int sx)
+merge_column(
+    struct World* world,
+    int sx)
 {
     struct TileCoord adjacent_tiles[ADJACENT_TILES_COUNT];
     struct SharelightMapTile* map_tile = NULL;
@@ -348,8 +382,7 @@ merge_column(struct World* world, int sx)
                             (adjacent_tile_coord.z - sz) * 128 +
                             (adjacent_map_element->size_z - map_element->size_z) * 64;
 
-                        int height_center =
-                            heightmap_get_center(world->heightmap, sx, sz, slevel);
+                        int height_center = heightmap_get_center(world->heightmap, sx, sz, slevel);
                         int adjacent_height_center = heightmap_get_center(
                             world->heightmap,
                             adjacent_tile_coord.x,
@@ -357,9 +390,19 @@ merge_column(struct World* world, int sx)
                             adjacent_tile_coord.level);
                         int check_offset_height = adjacent_height_center - height_center;
 
-                        if( !dashmodel_is_lightable(scene2_element_dash_model(adjacent_scene_element)) ||
+                        if( !dashmodel_is_lightable(
+                                scene2_element_dash_model(adjacent_scene_element)) ||
                             !dashmodel_is_lightable(scene2_element_dash_model(scene_element)) )
                             continue;
+
+                        bool hide_faces = sharelight_should_hide_faces_for_merge(
+                            world,
+                            sx,
+                            sz,
+                            slevel,
+                            adjacent_tile_coord.x,
+                            adjacent_tile_coord.z,
+                            adjacent_tile_coord.level);
 
                         merge_normals(
                             scene2_element_dash_model(scene_element),
@@ -370,11 +413,13 @@ merge_column(struct World* world, int sx)
                             scene2_element_dash_model(adjacent_scene_element),
                             dashmodel_normals(scene2_element_dash_model(adjacent_scene_element))
                                 ->lighting_vertex_normals,
-                            dashmodel_merged_normals(scene2_element_dash_model(adjacent_scene_element))
+                            dashmodel_merged_normals(
+                                scene2_element_dash_model(adjacent_scene_element))
                                 ->lighting_vertex_normals,
                             check_offset_x,
                             check_offset_height,
-                            check_offset_z);
+                            check_offset_z,
+                            hide_faces);
                     }
                 }
             }
@@ -383,7 +428,9 @@ merge_column(struct World* world, int sx)
 }
 
 static void
-apply_and_free_column(struct World* world, int sx)
+apply_and_free_column(
+    struct World* world,
+    int sx)
 {
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
@@ -415,8 +462,7 @@ apply_and_free_column(struct World* world, int sx)
                 light_attenuation += map_element->light_attenuation;
 
                 int light_magnitude = (int)sqrt(
-                    lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y +
-                    lightsrc_z * lightsrc_z);
+                    lightsrc_x * lightsrc_x + lightsrc_y * lightsrc_y + lightsrc_z * lightsrc_z);
                 int attenuation = (light_attenuation * light_magnitude) >> 8;
 
                 struct DashModel* dm = scene2_element_dash_model(scene_element);
@@ -457,8 +503,8 @@ world_build_lighting(struct World* world)
     int scene_size = world->sharelight_map->width;
 
     /* Allocate normals for the initial lookahead window. */
-    int initial_cols = scene_size < SHARELIGHT_MERGE_LOOKAHEAD + 1 ?
-                       scene_size : SHARELIGHT_MERGE_LOOKAHEAD + 1;
+    int initial_cols =
+        scene_size < SHARELIGHT_MERGE_LOOKAHEAD + 1 ? scene_size : SHARELIGHT_MERGE_LOOKAHEAD + 1;
     for( int sx = 0; sx < initial_cols; sx++ )
         alloc_normals_for_column(world, sx);
 
