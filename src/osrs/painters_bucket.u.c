@@ -250,7 +250,7 @@ painter_paint_bucket(
                 struct PaintersTile* t = &painter->tiles[ti];
                 int tile_slevel = painters_tile_get_slevel(t);
 
-                tile_paint = tile_paint_at(painter, x, z, s);
+                tile_paint = tile_paint_at_idx(painter, ti);
                 if( (painters_tile_get_flags(t) & PAINTERS_TILE_FLAG_BRIDGE) != 0 ||
                     (draw_mask & (1u << tile_slevel)) == 0 )
                 {
@@ -275,17 +275,21 @@ painter_paint_bucket(
     {
         if( (draw_mask & (1u << s)) == 0 )
             continue;
+        int row_start = painter_coord_idx(painter, min_draw_x, min_draw_z, s);
         for( int z = min_draw_z; z < max_draw_z; z++ )
         {
+            int ti = row_start;
             for( int x = min_draw_x; x < max_draw_x; x++ )
             {
-                int ti = painter_coord_idx(painter, x, z, s);
-                tile_paint = tile_paint_at(painter, x, z, s);
-                if( tile_paint->step != PAINT_STEP_READY )
-                    continue;
-                bucket_push(w, ti);
-                w->in_heap[ti] = 1;
+                tile_paint = tile_paint_at_idx(painter, ti);
+                if( tile_paint->step == PAINT_STEP_READY )
+                {
+                    bucket_push(w, ti);
+                    w->in_heap[ti] = 1;
+                }
+                ti = step_idx_east(painter, ti);
             }
+            row_start = step_idx_north(painter, row_start);
         }
     }
 
@@ -301,7 +305,7 @@ painter_paint_bucket(
         int tile_sx = PAINTER_TILE_X(painter, tile);
         int tile_sz = PAINTER_TILE_Z(painter, tile);
         int tile_slevel = painters_tile_get_slevel(tile);
-        tile_paint = tile_paint_at(painter, tile_sx, tile_sz, tile_slevel);
+        tile_paint = tile_paint_at_idx(painter, e_tile);
 
         if( tile_paint->step == PAINT_STEP_DONE )
             continue;
@@ -319,38 +323,38 @@ painter_paint_bucket(
             tile_paint->step = PAINT_STEP_DONE;
             if( tile_slevel < painter->levels - 1 )
             {
-                other_paint = tile_paint_at(painter, tile_sx, tile_sz, tile_slevel + 1);
+                int nidx = step_idx_up(painter, e_tile);
+                other_paint = tile_paint_at_idx(painter, nidx);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(
-                        w, painter_coord_idx(painter, tile_sx, tile_sz, tile_slevel + 1));
+                    bucket_push_tile(w, nidx);
             }
             if( tile_inward_east_inbounds(tile_sx, camera_sx, max_draw_x) )
             {
-                other_paint = tile_paint_at(painter, tile_sx + 1, tile_sz, tile_slevel);
+                int nidx = step_idx_east(painter, e_tile);
+                other_paint = tile_paint_at_idx(painter, nidx);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(
-                        w, painter_coord_idx(painter, tile_sx + 1, tile_sz, tile_slevel));
+                    bucket_push_tile(w, nidx);
             }
             if( tile_inward_west_inbounds(tile_sx, camera_sx, min_draw_x) )
             {
-                other_paint = tile_paint_at(painter, tile_sx - 1, tile_sz, tile_slevel);
+                int nidx = step_idx_west(painter, e_tile);
+                other_paint = tile_paint_at_idx(painter, nidx);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(
-                        w, painter_coord_idx(painter, tile_sx - 1, tile_sz, tile_slevel));
+                    bucket_push_tile(w, nidx);
             }
             if( tile_inward_north_inbounds(tile_sz, camera_sz, max_draw_z) )
             {
-                other_paint = tile_paint_at(painter, tile_sx, tile_sz + 1, tile_slevel);
+                int nidx = step_idx_north(painter, e_tile);
+                other_paint = tile_paint_at_idx(painter, nidx);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(
-                        w, painter_coord_idx(painter, tile_sx, tile_sz + 1, tile_slevel));
+                    bucket_push_tile(w, nidx);
             }
             if( tile_inward_south_inbounds(tile_sz, camera_sz, min_draw_z) )
             {
-                other_paint = tile_paint_at(painter, tile_sx, tile_sz - 1, tile_slevel);
+                int nidx = step_idx_south(painter, e_tile);
+                other_paint = tile_paint_at_idx(painter, nidx);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(
-                        w, painter_coord_idx(painter, tile_sx, tile_sz - 1, tile_slevel));
+                    bucket_push_tile(w, nidx);
             }
             continue;
         }
@@ -364,7 +368,7 @@ painter_paint_bucket(
         {
             if( tile_slevel > 0 )
             {
-                other_paint = tile_paint_at(painter, tile_sx, tile_sz, tile_slevel - 1);
+                other_paint = tile_paint_at_idx(painter, step_idx_down(painter, e_tile));
                 if( other_paint->step != PAINT_STEP_DONE )
                     continue;
             }
@@ -374,7 +378,7 @@ painter_paint_bucket(
             {
                 if( tile_is_south_inbounds(tile_sz, camera_sz, min_draw_z) )
                 {
-                    other_paint = tile_paint_at(painter, tile_sx, tile_sz - 1, tile_slevel);
+                    other_paint = tile_paint_at_idx(painter, step_idx_south(painter, e_tile));
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
                         if( (tile->spans & SPAN_FLAG_SOUTH) == 0 )
@@ -386,7 +390,7 @@ painter_paint_bucket(
             {
                 if( tile_is_east_inbounds(tile_sx, camera_sx, max_draw_x) )
                 {
-                    other_paint = tile_paint_at(painter, tile_sx + 1, tile_sz, tile_slevel);
+                    other_paint = tile_paint_at_idx(painter, step_idx_east(painter, e_tile));
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
                         if( (tile->spans & SPAN_FLAG_EAST) == 0 )
@@ -398,7 +402,7 @@ painter_paint_bucket(
             {
                 if( tile_is_north_inbounds(tile_sz, camera_sz, max_draw_z) )
                 {
-                    other_paint = tile_paint_at(painter, tile_sx, tile_sz + 1, tile_slevel);
+                    other_paint = tile_paint_at_idx(painter, step_idx_north(painter, e_tile));
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
                         if( (tile->spans & SPAN_FLAG_NORTH) == 0 )
@@ -410,7 +414,7 @@ painter_paint_bucket(
             {
                 if( tile_is_west_inbounds(tile_sx, camera_sx, min_draw_x) )
                 {
-                    other_paint = tile_paint_at(painter, tile_sx - 1, tile_sz, tile_slevel);
+                    other_paint = tile_paint_at_idx(painter, step_idx_west(painter, e_tile));
                     if( other_paint->step != PAINT_STEP_DONE )
                     {
                         if( (tile->spans & SPAN_FLAG_WEST) == 0 )
@@ -698,49 +702,50 @@ painter_paint_bucket(
 
         if( tile_slevel < painter->levels - 1 )
         {
-            other_paint = tile_paint_at(painter, tile_sx, tile_sz, tile_slevel + 1);
+            int nidx = step_idx_up(painter, e_tile);
+            other_paint = tile_paint_at_idx(painter, nidx);
             if( other_paint->step != PAINT_STEP_DONE )
-                bucket_push_tile(w, painter_coord_idx(painter, tile_sx, tile_sz, tile_slevel + 1));
+                bucket_push_tile(w, nidx);
         }
 
         if( bucket_is_north(camera_sz, tile_sz) )
         {
             if( tile_inward_north_inbounds(tile_sz, camera_sz, max_draw_z) )
             {
-                other_paint = tile_paint_at(painter, tile_sx, tile_sz + 1, tile_slevel);
+                int nidx = step_idx_north(painter, e_tile);
+                other_paint = tile_paint_at_idx(painter, nidx);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(
-                        w, painter_coord_idx(painter, tile_sx, tile_sz + 1, tile_slevel));
+                    bucket_push_tile(w, nidx);
             }
         }
         if( bucket_is_east(camera_sx, tile_sx) )
         {
             if( tile_inward_west_inbounds(tile_sx, camera_sx, min_draw_x) )
             {
-                other_paint = tile_paint_at(painter, tile_sx - 1, tile_sz, tile_slevel);
+                int nidx = step_idx_west(painter, e_tile);
+                other_paint = tile_paint_at_idx(painter, nidx);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(
-                        w, painter_coord_idx(painter, tile_sx - 1, tile_sz, tile_slevel));
+                    bucket_push_tile(w, nidx);
             }
         }
         if( bucket_is_south(camera_sz, tile_sz) )
         {
             if( tile_inward_south_inbounds(tile_sz, camera_sz, min_draw_z) )
             {
-                other_paint = tile_paint_at(painter, tile_sx, tile_sz - 1, tile_slevel);
+                int nidx = step_idx_south(painter, e_tile);
+                other_paint = tile_paint_at_idx(painter, nidx);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(
-                        w, painter_coord_idx(painter, tile_sx, tile_sz - 1, tile_slevel));
+                    bucket_push_tile(w, nidx);
             }
         }
         if( bucket_is_west(camera_sx, tile_sx) )
         {
             if( tile_inward_east_inbounds(tile_sx, camera_sx, max_draw_x) )
             {
-                other_paint = tile_paint_at(painter, tile_sx + 1, tile_sz, tile_slevel);
+                int nidx = step_idx_east(painter, e_tile);
+                other_paint = tile_paint_at_idx(painter, nidx);
                 if( other_paint->step != PAINT_STEP_DONE )
-                    bucket_push_tile(
-                        w, painter_coord_idx(painter, tile_sx + 1, tile_sz, tile_slevel));
+                    bucket_push_tile(w, nidx);
             }
         }
     }

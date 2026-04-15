@@ -143,7 +143,7 @@ painter_push_queue_dist(
     if( dist > d->max_active_dist )
         d->max_active_dist = dist;
 
-    struct TilePaint* tile_paint = &painter->tile_paints[tile_idx];
+    struct TilePaint* tile_paint = tile_paint_at_idx(painter, tile_idx);
     tile_paint->queue_count++;
 
     int_queue_push_wrap(&d->distance_queues[dist], tile_idx);
@@ -250,14 +250,14 @@ painter_paint_distancemetric(
     for( int coord_sx = min_draw_x; coord_sx < max_draw_x; coord_sx++ )
     {
         int coord_idx = painter_coord_idx(painter, coord_sx, min_draw_z, 0);
-        tile_paint = &painter->tile_paints[coord_idx];
+        tile_paint = tile_paint_at_idx(painter, coord_idx);
         if( tile_paint->queue_count == 0 )
             painter_push_queue_dist(painter, coord_idx);
 
         if( max_draw_z - 1 != min_draw_z )
         {
             coord_idx = painter_coord_idx(painter, coord_sx, max_draw_z - 1, 0);
-            tile_paint = &painter->tile_paints[coord_idx];
+            tile_paint = tile_paint_at_idx(painter, coord_idx);
             if( tile_paint->queue_count == 0 )
                 painter_push_queue_dist(painter, coord_idx);
         }
@@ -265,14 +265,14 @@ painter_paint_distancemetric(
     for( int coord_sz = min_draw_z + 1; coord_sz < max_draw_z - 1; coord_sz++ )
     {
         int coord_idx = painter_coord_idx(painter, min_draw_x, coord_sz, 0);
-        tile_paint = &painter->tile_paints[coord_idx];
+        tile_paint = tile_paint_at_idx(painter, coord_idx);
         if( tile_paint->queue_count == 0 )
             painter_push_queue_dist(painter, coord_idx);
 
         if( max_draw_x - 1 != min_draw_x )
         {
             coord_idx = painter_coord_idx(painter, max_draw_x - 1, coord_sz, 0);
-            tile_paint = &painter->tile_paints[coord_idx];
+            tile_paint = tile_paint_at_idx(painter, coord_idx);
             if( tile_paint->queue_count == 0 )
                 painter_push_queue_dist(painter, coord_idx);
         }
@@ -287,7 +287,7 @@ painter_paint_distancemetric(
         int tile_sz = PAINTER_TILE_Z(painter, tile);
         int tile_slevel = painters_tile_get_slevel(tile);
 
-        tile_paint = &painter->tile_paints[tile_idx];
+        tile_paint = tile_paint_at_idx(painter, tile_idx);
         assert(tile_paint->queue_count > 0);
         tile_paint->queue_count -= 1;
 
@@ -326,35 +326,35 @@ painter_paint_distancemetric(
             if( tile_slevel < painter->levels - 1 )
             {
                 int other_idx = step_idx_up(painter, tile_idx);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at_idx(painter, other_idx);
                 if( other_paint->step != PAINT_STEP_DONE )
                     painter_push_queue_dist(painter, other_idx);
             }
             if( tile_inward_east_inbounds(tile_sx, camera_sx, max_draw_x) )
             {
                 int other_idx = step_idx_east(painter, tile_idx);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at_idx(painter, other_idx);
                 if( other_paint->step != PAINT_STEP_DONE )
                     painter_push_queue_dist(painter, other_idx);
             }
             if( tile_inward_west_inbounds(tile_sx, camera_sx, min_draw_x) )
             {
                 int other_idx = step_idx_west(painter, tile_idx);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at_idx(painter, other_idx);
                 if( other_paint->step != PAINT_STEP_DONE )
                     painter_push_queue_dist(painter, other_idx);
             }
             if( tile_inward_north_inbounds(tile_sz, camera_sz, max_draw_z) )
             {
                 int other_idx = step_idx_north(painter, tile_idx);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at_idx(painter, other_idx);
                 if( other_paint->step != PAINT_STEP_DONE )
                     painter_push_queue_dist(painter, other_idx);
             }
             if( tile_inward_south_inbounds(tile_sz, camera_sz, min_draw_z) )
             {
                 int other_idx = step_idx_south(painter, tile_idx);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at_idx(painter, other_idx);
                 if( other_paint->step != PAINT_STEP_DONE )
                     painter_push_queue_dist(painter, other_idx);
             }
@@ -374,7 +374,7 @@ painter_paint_distancemetric(
         {
             if( tile_slevel > 0 )
             {
-                other_paint = tile_paint_at(painter, tile_sx, tile_sz, tile_slevel - 1);
+                other_paint = tile_paint_at_idx(painter, step_idx_down(painter, tile_idx));
 
                 if( other_paint->step != PAINT_STEP_DONE )
                 {
@@ -384,7 +384,7 @@ painter_paint_distancemetric(
 
             if( tile_is_east_inbounds(tile_sx, camera_sx, max_draw_x) )
             {
-                other_paint = &painter->tile_paints[step_idx_east(painter, tile_idx)];
+                other_paint = tile_paint_at_idx(painter, step_idx_east(painter, tile_idx));
 
                 // If we are not spanned by the tile, then we need to verify it is done.
                 if( other_paint->step != PAINT_STEP_DONE )
@@ -399,7 +399,7 @@ painter_paint_distancemetric(
 
             if( tile_is_west_inbounds(tile_sx, camera_sx, min_draw_x) )
             {
-                other_paint = &painter->tile_paints[step_idx_west(painter, tile_idx)];
+                other_paint = tile_paint_at_idx(painter, step_idx_west(painter, tile_idx));
 
                 if( other_paint->step != PAINT_STEP_DONE )
                 {
@@ -413,7 +413,7 @@ painter_paint_distancemetric(
 
             if( tile_is_north_inbounds(tile_sz, camera_sz, max_draw_z) )
             {
-                other_paint = &painter->tile_paints[step_idx_north(painter, tile_idx)];
+                other_paint = tile_paint_at_idx(painter, step_idx_north(painter, tile_idx));
 
                 if( other_paint->step != PAINT_STEP_DONE )
                 {
@@ -426,7 +426,7 @@ painter_paint_distancemetric(
             }
             if( tile_is_south_inbounds(tile_sz, camera_sz, min_draw_z) )
             {
-                other_paint = &painter->tile_paints[step_idx_south(painter, tile_idx)];
+                other_paint = tile_paint_at_idx(painter, step_idx_south(painter, tile_idx));
 
                 if( other_paint->step != PAINT_STEP_DONE )
                 {
@@ -567,7 +567,7 @@ painter_paint_distancemetric(
             if( tile_inward_east_inbounds(tile_sx, camera_sx, max_draw_x) )
             {
                 int other_idx = step_idx_east(painter, tile_idx);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at_idx(painter, other_idx);
 
                 if( other_paint->step != PAINT_STEP_DONE &&
                     (tile->spans & SPAN_FLAG_EAST) != 0 )
@@ -579,7 +579,7 @@ painter_paint_distancemetric(
             if( tile_inward_west_inbounds(tile_sx, camera_sx, min_draw_x) )
             {
                 int other_idx = step_idx_west(painter, tile_idx);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at_idx(painter, other_idx);
 
                 if( other_paint->step != PAINT_STEP_DONE &&
                     (tile->spans & SPAN_FLAG_WEST) != 0 )
@@ -591,7 +591,7 @@ painter_paint_distancemetric(
             if( tile_inward_north_inbounds(tile_sz, camera_sz, max_draw_z) )
             {
                 int other_idx = step_idx_north(painter, tile_idx);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at_idx(painter, other_idx);
 
                 if( other_paint->step != PAINT_STEP_DONE &&
                     (tile->spans & SPAN_FLAG_NORTH) != 0 )
@@ -603,7 +603,7 @@ painter_paint_distancemetric(
             if( tile_inward_south_inbounds(tile_sz, camera_sz, min_draw_z) )
             {
                 int other_idx = step_idx_south(painter, tile_idx);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at_idx(painter, other_idx);
 
                 if( other_paint->step != PAINT_STEP_DONE &&
                     (tile->spans & SPAN_FLAG_SOUTH) != 0 )
@@ -649,8 +649,9 @@ painter_paint_distancemetric(
                 {
                     for( int other_tile_z = min_tile_z; other_tile_z <= max_tile_z; other_tile_z++ )
                     {
-                        other_paint =
-                            tile_paint_at(painter, other_tile_x, other_tile_z, tile_slevel);
+                        other_paint = tile_paint_at_idx(
+                            painter,
+                            painter_coord_idx(painter, other_tile_x, other_tile_z, tile_slevel));
 
                         if( other_paint->step <= PAINT_STEP_GROUND )
                         {
@@ -742,7 +743,7 @@ painter_paint_distancemetric(
                     {
                         int other_idx =
                             painter_coord_idx(painter, other_tile_x, other_tile_z, tile_slevel);
-                        other_paint = &painter->tile_paints[other_idx];
+                        other_paint = tile_paint_at_idx(painter, other_idx);
 
                         painter_push_queue_dist(painter, other_idx);
                     }
@@ -764,7 +765,7 @@ painter_paint_distancemetric(
             if( tile_slevel < painter->levels - 1 )
             {
                 int other_idx = step_idx_up(painter, tile_idx);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at_idx(painter, other_idx);
 
                 if( other_paint->step != PAINT_STEP_DONE )
                 {
@@ -775,7 +776,7 @@ painter_paint_distancemetric(
             if( tile_inward_east_inbounds(tile_sx, camera_sx, max_draw_x) )
             {
                 int other_idx = step_idx_east(painter, tile_idx);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at_idx(painter, other_idx);
 
                 if( other_paint->step != PAINT_STEP_DONE )
                 {
@@ -785,7 +786,7 @@ painter_paint_distancemetric(
             if( tile_inward_west_inbounds(tile_sx, camera_sx, min_draw_x) )
             {
                 int other_idx = step_idx_west(painter, tile_idx);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at_idx(painter, other_idx);
                 if( other_paint->step != PAINT_STEP_DONE )
                 {
                     painter_push_queue_dist(painter, other_idx);
@@ -795,7 +796,7 @@ painter_paint_distancemetric(
             if( tile_inward_north_inbounds(tile_sz, camera_sz, max_draw_z) )
             {
                 int other_idx = step_idx_north(painter, tile_idx);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at_idx(painter, other_idx);
                 if( other_paint->step != PAINT_STEP_DONE )
                 {
                     painter_push_queue_dist(painter, other_idx);
@@ -805,7 +806,7 @@ painter_paint_distancemetric(
             if( tile_inward_south_inbounds(tile_sz, camera_sz, min_draw_z) )
             {
                 int other_idx = step_idx_south(painter, tile_idx);
-                other_paint = &painter->tile_paints[other_idx];
+                other_paint = tile_paint_at_idx(painter, other_idx);
                 if( other_paint->step != PAINT_STEP_DONE )
                 {
                     painter_push_queue_dist(painter, other_idx);

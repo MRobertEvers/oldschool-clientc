@@ -696,6 +696,12 @@ painter_tile_set_terrain_level(
     painters_tile_set_terrain_slevel(tile, (uint8_t)terrain_slevel);
 }
 
+static inline struct TilePaint*
+tile_paint_at_idx(struct Painter* painter, int idx)
+{
+    return &painter->tile_paints[idx];
+}
+
 static struct TilePaint*
 tile_paint_at(
     struct Painter* painter,
@@ -703,7 +709,7 @@ tile_paint_at(
     int sz,
     int slevel)
 {
-    return &painter->tile_paints[painter_coord_idx(painter, sx, sz, slevel)];
+    return tile_paint_at_idx(painter, painter_coord_idx(painter, sx, sz, slevel));
 }
 
 static void
