@@ -53,7 +53,7 @@ raster_gouraud(
     }
     else
     {
-        raster_gouraud_alpha_s4(
+        raster_gouraud_alpha_bary_bs4(
             pixel_buffer,
             stride,
             screen_width,
@@ -107,7 +107,7 @@ raster_gouraud_s1(
     }
     else
     {
-        raster_gouraud_alpha_s4(
+        raster_gouraud_alpha_bary_bs4(
             pixel_buffer,
             stride,
             screen_width,
