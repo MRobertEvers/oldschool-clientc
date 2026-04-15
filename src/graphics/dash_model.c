@@ -16,7 +16,8 @@ static const faceint_t g_dashmodel_fast_tex_m[1] = { 1 };
 static const faceint_t g_dashmodel_fast_tex_n[1] = { 3 };
 static const faceint_t g_dashmodel_va_tex_n[1] = { 2 };
 
-/** VA terrain: all-zero face_texture_coords like legacy full terrain (terrain_decode_tile); read-only in practice. */
+/** VA terrain: all-zero face_texture_coords like legacy full terrain (terrain_decode_tile);
+ * read-only in practice. */
 static faceint_t g_dashmodel_va_face_texture_coords_zero[4096];
 
 static void
@@ -125,8 +126,8 @@ dashfacearray_new(int capacity)
         fa->colors_b = (hsl16_t*)malloc((size_t)fa->capacity * sizeof(hsl16_t));
         fa->colors_c = (hsl16_t*)malloc((size_t)fa->capacity * sizeof(hsl16_t));
         fa->texture_ids = (faceint_t*)malloc((size_t)fa->capacity * sizeof(faceint_t));
-        if( !fa->indices_a || !fa->indices_b || !fa->indices_c || !fa->colors_a ||
-            !fa->colors_b || !fa->colors_c || !fa->texture_ids )
+        if( !fa->indices_a || !fa->indices_b || !fa->indices_c || !fa->colors_a || !fa->colors_b ||
+            !fa->colors_c || !fa->texture_ids )
         {
             free(fa->indices_a);
             free(fa->indices_b);
@@ -165,7 +166,9 @@ dashfacearray_clear(struct DashFaceArray* fa)
 }
 
 bool
-dashfacearray_reserve(struct DashFaceArray* fa, int need_capacity)
+dashfacearray_reserve(
+    struct DashFaceArray* fa,
+    int need_capacity)
 {
     assert(fa && need_capacity >= 0);
     if( need_capacity <= fa->capacity )
@@ -224,22 +227,20 @@ dashfacearray_shrink_to_fit(struct DashFaceArray* fa)
         fa->capacity = 0;
         return;
     }
-    fa->indices_a =
-        (faceint_t*)realloc(fa->indices_a, (size_t)n * sizeof(faceint_t));
-    fa->indices_b =
-        (faceint_t*)realloc(fa->indices_b, (size_t)n * sizeof(faceint_t));
-    fa->indices_c =
-        (faceint_t*)realloc(fa->indices_c, (size_t)n * sizeof(faceint_t));
+    fa->indices_a = (faceint_t*)realloc(fa->indices_a, (size_t)n * sizeof(faceint_t));
+    fa->indices_b = (faceint_t*)realloc(fa->indices_b, (size_t)n * sizeof(faceint_t));
+    fa->indices_c = (faceint_t*)realloc(fa->indices_c, (size_t)n * sizeof(faceint_t));
     fa->colors_a = (hsl16_t*)realloc(fa->colors_a, (size_t)n * sizeof(hsl16_t));
     fa->colors_b = (hsl16_t*)realloc(fa->colors_b, (size_t)n * sizeof(hsl16_t));
     fa->colors_c = (hsl16_t*)realloc(fa->colors_c, (size_t)n * sizeof(hsl16_t));
-    fa->texture_ids =
-        (faceint_t*)realloc(fa->texture_ids, (size_t)n * sizeof(faceint_t));
+    fa->texture_ids = (faceint_t*)realloc(fa->texture_ids, (size_t)n * sizeof(faceint_t));
     fa->capacity = n;
 }
 
 int
-dashfacearray_push(struct DashFaceArray* fa, const struct DashFace* face)
+dashfacearray_push(
+    struct DashFaceArray* fa,
+    const struct DashFace* face)
 {
     assert(fa && face);
     if( fa->count >= fa->capacity )
@@ -265,7 +266,8 @@ dashfacearray_push(struct DashFaceArray* fa, const struct DashFace* face)
 struct DashModel*
 dashmodel_va_new(struct DashVertexArray* vertex_array)
 {
-    struct DashModelVAGround* m = (struct DashModelVAGround*)malloc(sizeof(struct DashModelVAGround));
+    struct DashModelVAGround* m =
+        (struct DashModelVAGround*)malloc(sizeof(struct DashModelVAGround));
     if( !m )
         return NULL;
     memset(m, 0, sizeof(struct DashModelVAGround));
@@ -427,8 +429,6 @@ dashmodel_set_loaded(
 bool
 dashmodel_has_textures(const struct DashModel* m)
 {
-    if( !m )
-        return false;
     return (dashmodel__flags(m) & DASHMODEL_FLAG_HAS_TEXTURES) != 0;
 }
 

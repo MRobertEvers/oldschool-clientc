@@ -463,75 +463,41 @@ dash3d_calculate_cylinder_aabb_8point(
     struct DashViewPort* view_port,
     struct DashCamera* camera)
 {
-    int model_yaw = position->yaw;
     const struct DashBoundsCylinder* bcyl = dashmodel_bounds_cylinder_const(model);
     int model_edge_radius = bcyl->radius;
-    int model_center_to_top_edge = bcyl->center_to_top_edge;
-    int model_center_to_bottom_edge = bcyl->center_to_bottom_edge;
     int model_min_y = bcyl->min_y;
     int model_max_y = bcyl->max_y;
-    int screen_edge_width = view_port->x_center;
-    int screen_edge_height = view_port->y_center;
-    int scene_x = position->x;
-    int scene_y = position->y;
-    int scene_z = position->z;
-    int near_plane_z = camera->near_plane_z;
-    int camera_pitch = camera->pitch;
-    int camera_yaw = camera->yaw;
-    int camera_fov = camera->fov_rpi2048;
 
-    vertexint_t bb_x[8];
-    vertexint_t bb_y[8];
-    vertexint_t bb_z[8];
-
-    int mz = 0;
-    int my = 0;
     int mx = 0;
-    switch( dashmodel__type(model) )
-    {
-    case DASHMODEL_TYPE_VA:
+    int mz = 0;
+
+    /* 1. Simplify switch statement and remove 'my' since it was always 0 */
+    if( dashmodel__type(model) == DASHMODEL_TYPE_VA )
     {
         const struct DashModelVAGround* v = dashmodel__as_va_const(model);
         mx = v->va_tile_cull_center_x;
         mz = v->va_tile_cull_center_z;
-        break;
     }
-    case DASHMODEL_TYPE_FAST:
-    case DASHMODEL_TYPE_FULL:
-        break;
-    default:
-        assert(0);
-    }
-    bb_x[0] = mx + model_edge_radius;
-    bb_x[1] = mx + model_edge_radius;
-    bb_x[2] = mx + model_edge_radius;
-    bb_x[3] = mx + model_edge_radius;
-    bb_x[4] = mx - model_edge_radius;
-    bb_x[5] = mx - model_edge_radius;
-    bb_x[6] = mx - model_edge_radius;
-    bb_x[7] = mx - model_edge_radius;
 
-    bb_y[0] = my + model_min_y;
-    bb_y[1] = my + model_min_y;
-    bb_y[2] = my + model_max_y;
-    bb_y[3] = my + model_max_y;
-    bb_y[4] = my + model_min_y;
-    bb_y[5] = my + model_min_y;
-    bb_y[6] = my + model_max_y;
-    bb_y[7] = my + model_max_y;
+    /* Pre-calculate offsets to avoid repeating additions/subtractions */
+    int max_x = mx + model_edge_radius;
+    int min_x = mx - model_edge_radius;
+    int max_z = mz + model_edge_radius;
+    int min_z = mz - model_edge_radius;
 
-    bb_z[0] = mz + model_edge_radius;
-    bb_z[1] = mz - model_edge_radius;
-    bb_z[2] = mz + model_edge_radius;
-    bb_z[3] = mz - model_edge_radius;
-    bb_z[4] = mz + model_edge_radius;
-    bb_z[5] = mz - model_edge_radius;
-    bb_z[6] = mz + model_edge_radius;
-    bb_z[7] = mz - model_edge_radius;
+    /* 2. Direct array initialization */
+    vertexint_t bb_x[8] = { max_x, max_x, max_x, max_x, min_x, min_x, min_x, min_x };
+    vertexint_t bb_y[8] = { model_min_y, model_min_y, model_max_y, model_max_y,
+                            model_min_y, model_min_y, model_max_y, model_max_y };
+    vertexint_t bb_z[8] = { max_z, min_z, max_z, min_z, max_z, min_z, max_z, min_z };
 
-    int sc_x[8] = { 0 };
-    int sc_y[8] = { 0 };
-    int sc_z[8] = { 0 };
+    /* 3. Do not zero-initialize these arrays!
+       project_vertices_array_notex completely overwrites them immediately.
+       { 0 } forces the CPU to call memset or do 24 unnecessary writes. */
+    int sc_x[8];
+    int sc_y[8];
+    int sc_z[8];
+
     project_vertices_array_notex(
         sc_x,
         sc_y,
@@ -540,36 +506,47 @@ dash3d_calculate_cylinder_aabb_8point(
         bb_y,
         bb_z,
         8,
-        model_yaw,
+        position->yaw,
         0,
-        scene_x,
-        scene_y,
-        scene_z,
-        near_plane_z,
-        camera_fov,
-        camera_pitch,
-        camera_yaw);
+        position->x,
+        position->y,
+        position->z,
+        camera->near_plane_z,
+        camera->fov_rpi2048,
+        camera->pitch,
+        camera->yaw);
 
-    aabb->min_screen_x = sc_x[0];
-    aabb->min_screen_y = sc_y[0];
-    aabb->max_screen_x = sc_x[0];
-    aabb->max_screen_y = sc_y[0];
-    for( int i = 0; i < 8; i++ )
+    /* 4. Min/Max loop optimizations */
+    int min_sx = sc_x[0];
+    int max_sx = sc_x[0];
+    int min_sy = sc_y[0];
+    int max_sy = sc_y[0];
+
+    /* Start at 1 (0 is already handled) and use else-if to skip checks */
+    for( int i = 1; i < 8; i++ )
     {
-        if( sc_x[i] < aabb->min_screen_x )
-            aabb->min_screen_x = sc_x[i];
-        if( sc_x[i] > aabb->max_screen_x )
-            aabb->max_screen_x = sc_x[i];
-        if( sc_y[i] < aabb->min_screen_y )
-            aabb->min_screen_y = sc_y[i];
-        if( sc_y[i] > aabb->max_screen_y )
-            aabb->max_screen_y = sc_y[i];
+        int sx = sc_x[i];
+        int sy = sc_y[i];
+
+        if( sx < min_sx )
+            min_sx = sx;
+        else if( sx > max_sx )
+            max_sx = sx;
+
+        if( sy < min_sy )
+            min_sy = sy;
+        else if( sy > max_sy )
+            max_sy = sy;
     }
 
-    aabb->min_screen_x += screen_edge_width;
-    aabb->min_screen_y += screen_edge_height;
-    aabb->max_screen_x += screen_edge_width;
-    aabb->max_screen_y += screen_edge_height;
+    /* 5. Apply viewport offsets in one go at the end */
+    int cx = view_port->x_center;
+    int cy = view_port->y_center;
+
+    aabb->min_screen_x = min_sx + cx;
+    aabb->max_screen_x = max_sx + cx;
+    aabb->min_screen_y = min_sy + cy;
+    aabb->max_screen_y = max_sy + cy;
 
     aabb->kind = DASHAABB_KIND_CYLINDER_8POINT;
 }
