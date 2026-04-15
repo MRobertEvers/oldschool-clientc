@@ -16,6 +16,9 @@ public/cache/
 emsdk/
 android/.idea/
 
+package_build_*.zip
+/package_build_winxp
+
 debug.keystore
 gradle.properties
 
