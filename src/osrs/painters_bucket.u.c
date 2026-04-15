@@ -4,6 +4,7 @@
 #include "painters_i.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -139,6 +140,8 @@ bucket_ctx_free(struct Painter* painter)
     painter->bucket_ctx = NULL;
 }
 
+#include "painters_bucket_simd.u.c"
+
 int
 painter_paint_bucket(
     struct Painter* painter,
@@ -202,6 +205,17 @@ painter_paint_bucket(
         }
     }
 
+    bucket_fill_distances(
+        w,
+        painter,
+        camera_sx,
+        camera_sz,
+        min_draw_x,
+        max_draw_x,
+        min_draw_z,
+        max_draw_z,
+        max_level);
+
     for( int s = 0; s < max_level && s < painter->levels; s++ )
     {
         if( (painter->level_mask & (1u << s)) == 0 )
@@ -213,8 +227,6 @@ painter_paint_bucket(
                 int ti = painter_coord_idx(painter, x, z, s);
                 struct PaintersTile* t = &painter->tiles[ti];
                 int tile_slevel = painters_tile_get_slevel(t);
-
-                w->dist[ti] = abs(x - camera_sx) + abs(z - camera_sz);
 
                 tile_paint = tile_paint_at(painter, x, z, s);
                 if( (painters_tile_get_flags(t) & PAINTERS_TILE_FLAG_BRIDGE) != 0 ||
