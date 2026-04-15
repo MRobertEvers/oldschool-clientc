@@ -376,6 +376,9 @@ draw_texture_scanline_transparent_blend_ordered_blerp8_v3(
         if( (cw >> texture_shift) != 0 )
         {
             CALC_BLOCK_PARAMS(cw, au, bv);
+            cur_u = clamp(cur_u, 0, texture_width - 1);
+            nxt_u = clamp(nxt_u, 0, texture_width - 1);
+            s_u = (nxt_u - cur_u) << (texture_shift - 3);
             raster_linear_transparent_blend_lerp8_v3(
                 (uint32_t*)&pixel_buffer[offset],
                 (uint32_t*)texels,
@@ -398,6 +401,9 @@ draw_texture_scanline_transparent_blend_ordered_blerp8_v3(
     if( remaining > 0 && (cw >> texture_shift) != 0 )
     {
         CALC_BLOCK_PARAMS(cw, au, bv);
+        cur_u = clamp(cur_u, 0, texture_width - 1);
+        nxt_u = clamp(nxt_u, 0, texture_width - 1);
+        s_u = (nxt_u - cur_u) << (texture_shift - 3);
         int u_scan = cur_u << texture_shift;
         int v_scan = cur_v << texture_shift;
         int shade = shade8bit_ish8 >> 8;
