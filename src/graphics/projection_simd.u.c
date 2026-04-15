@@ -755,12 +755,7 @@ project_vertices_array_notex(
     for( ; i + 4 <= num_vertices; i += 4 )
     {
         projection_neon_zdiv_notex_4_at(
-            screen_vertices_x,
-            screen_vertices_y,
-            screen_vertices_z,
-            i,
-            model_mid_z,
-            near_plane_z);
+            screen_vertices_x, screen_vertices_y, screen_vertices_z, i, model_mid_z, near_plane_z);
     }
 #endif
 

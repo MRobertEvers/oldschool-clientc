@@ -1,5 +1,9 @@
 #include "dash.h"
 
+// clang-format off
+#include "dash2d_simd.u.c"
+// clang-format on
+
 #include "dash_model_internal.h"
 #include "dashmap.h"
 #include "osrs/colors.h"
@@ -3065,7 +3069,7 @@ dash2d_blit_sprite(
 {
     if( !sprite )
         return;
-    dash2d_blit_sprite_subrect(
+    dash2d_blit_sprite_subrect_fast(
         dash,
         sprite,
         view_port,

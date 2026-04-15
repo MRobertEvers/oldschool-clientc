@@ -17,7 +17,6 @@ extern int g_cos_table[2048];
 extern int g_sin_table[2048];
 
 // This was turning out slower than the scalar version, so we're disabling it for now.
-#define NEON_DISABLED
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
 #include <arm_neon.h>
 
@@ -789,12 +788,7 @@ project_vertices_array_notex(
     for( ; i + 4 <= num_vertices; i += 4 )
     {
         projection16_neon_zdiv_notex_4_at(
-            screen_vertices_x,
-            screen_vertices_y,
-            screen_vertices_z,
-            i,
-            model_mid_z,
-            near_plane_z);
+            screen_vertices_x, screen_vertices_y, screen_vertices_z, i, model_mid_z, near_plane_z);
     }
     if( i < num_vertices )
     {
