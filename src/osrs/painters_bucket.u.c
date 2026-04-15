@@ -414,7 +414,7 @@ painter_paint_bucket(
                     buffer,
                     PAINTER_TILE_X(painter, bridge_underpass_tile),
                     PAINTER_TILE_Z(painter, bridge_underpass_tile),
-                    painters_tile_get_grid_level(bridge_underpass_tile));
+                    painters_tile_get_terrain_level(bridge_underpass_tile));
 
                 if( bridge_underpass_tile->wall_a != -1 )
                 {
@@ -439,7 +439,7 @@ painter_paint_bucket(
                 }
             }
 
-            push_command_terrain(buffer, tile_sx, tile_sz, painters_tile_get_grid_level(tile));
+            push_command_terrain(buffer, tile_sx, tile_sz, painters_tile_get_terrain_level(tile));
 
             if( tile->wall_a != -1 )
             {

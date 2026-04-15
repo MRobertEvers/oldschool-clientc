@@ -977,6 +977,7 @@ world_rebuild_centerzone_end(struct World* world)
                 }
 
                 *painter_tile_at(world->painter, x, z, 3) = bridge_tile_tmp;
+                /* grid_level becomes 3; terrain_level stays from bridge_tile_tmp (old grid 0). */
                 painters_tile_set_grid_level(painter_tile_at(world->painter, x, z, 3), 3);
                 painter_tile_set_bridge(world->painter, x, z, 0, x, z, 3);
             }

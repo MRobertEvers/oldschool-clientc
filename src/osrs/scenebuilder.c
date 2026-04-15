@@ -243,6 +243,7 @@ scenebuiler_build(
 
                 // Use the newly unused tile on level 3 as the bridge slot.
                 *painter_tile_at(scene_builder->painter, x, z, 3) = bridge_tile_tmp;
+                /* grid_level becomes 3; terrain_level stays from bridge_tile_tmp (old grid 0). */
                 painters_tile_set_grid_level(painter_tile_at(scene_builder->painter, x, z, 3), 3);
                 painter_tile_set_bridge(scene_builder->painter, x, z, 0, x, z, 3);
 
