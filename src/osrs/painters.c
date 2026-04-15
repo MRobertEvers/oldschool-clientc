@@ -519,6 +519,24 @@ painter_set_level_range(
     painter_set_level_mask(painter, (uint8_t)mask);
 }
 
+static void
+painter_cullmap_refresh_indices(struct Painter* painter)
+{
+    const struct PaintersCullMap* cm = painter->cullmap;
+    if( !cm || cm->all_visible )
+    {
+        painter->cull_pitch_idx = 0;
+        painter->cull_yaw_idx = 0;
+        return;
+    }
+    painters_cullmap_indices_from_angles(
+        cm,
+        painter->camera_pitch,
+        painter->camera_yaw,
+        &painter->cull_pitch_idx,
+        &painter->cull_yaw_idx);
+}
+
 static inline bool
 painter_cullmap_tile_visible(
     const struct Painter* painter,
@@ -542,7 +560,7 @@ painter_cullmap_tile_visible(
     int dx = tile_sx - camera_sx;
     int dz = tile_sz - camera_sz;
     return painters_cullmap_visible(
-        painter->cullmap, dx, dz, painter->camera_pitch, painter->camera_yaw);
+        painter->cullmap, dx, dz, painter->cull_pitch_idx, painter->cull_yaw_idx);
 #endif
 }
 

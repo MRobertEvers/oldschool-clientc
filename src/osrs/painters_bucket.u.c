@@ -210,6 +210,8 @@ painter_paint_bucket(
     if( min_draw_x >= max_draw_x || min_draw_z >= max_draw_z )
         return 0;
 
+    painter_cullmap_refresh_indices(painter);
+
     painter_clear_tile_paints_region(
         painter, min_draw_x, max_draw_x, min_draw_z, max_draw_z, max_level);
 

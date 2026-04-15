@@ -429,20 +429,15 @@ painters_cullmap_from_blob(
     return cm;
 }
 
-static inline int
-painters_cullmap_visible(
+/** Caller must pass non-NULL cm with all_visible false. */
+static inline void
+painters_cullmap_indices_from_angles(
     const struct PaintersCullMap* cm,
-    int dx,
-    int dz,
     int pitch,
-    int yaw)
+    int yaw,
+    int* pitch_idx_out,
+    int* yaw_idx_out)
 {
-    if( !cm || cm->all_visible )
-        return 1;
-
-    if( dx < -cm->radius || dx >= cm->radius || dz < -cm->radius || dz >= cm->radius )
-        return 0;
-
     int pitch_idx = (pitch - PCULL_PITCH_MIN) / PCULL_PITCH_STEP;
     if( pitch_idx < 0 )
         pitch_idx = 0;
@@ -455,6 +450,24 @@ painters_cullmap_visible(
     int yaw_idx = yaw_norm / PCULL_YAW_STEP;
     if( yaw_idx >= cm->yaw_levels )
         yaw_idx = cm->yaw_levels - 1;
+
+    *pitch_idx_out = pitch_idx;
+    *yaw_idx_out = yaw_idx;
+}
+
+static inline int
+painters_cullmap_visible(
+    const struct PaintersCullMap* cm,
+    int dx,
+    int dz,
+    int pitch_idx,
+    int yaw_idx)
+{
+    if( !cm || cm->all_visible )
+        return 1;
+
+    if( dx < -cm->radius || dx >= cm->radius || dz < -cm->radius || dz >= cm->radius )
+        return 0;
 
     int ix = dx + cm->radius;
     int iz = dz + cm->radius;

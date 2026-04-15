@@ -43,6 +43,8 @@ struct Painter
     const struct PaintersCullMap* cullmap;
     int camera_pitch;
     int camera_yaw;
+    int cull_pitch_idx;
+    int cull_yaw_idx;
 
     /** Bitmask: bit s set => level s participates in paint (0-3 for MAP_TERRAIN_LEVELS). Default 0xF. */
     uint8_t level_mask;
