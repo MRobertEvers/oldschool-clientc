@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdint.h>
 
 static inline void
 raster_linear_transparent_blend_lerp8(

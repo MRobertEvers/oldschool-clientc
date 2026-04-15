@@ -1,6 +1,8 @@
 #ifndef RENDER_GOURAUD_U_C
 #define RENDER_GOURAUD_U_C
 
+#include "graphics/dash_alphaint.h"
+
 #include <assert.h>
 
 // clang-format off

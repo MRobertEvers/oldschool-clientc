@@ -1,4 +1,5 @@
-/* AVX2 intrinsics (requires __AVX2__); filename kept as texture_simd.avx for consistency with project naming. */
+/* AVX2 intrinsics (requires __AVX2__); filename kept as texture_simd.avx for consistency with
+ * project naming. */
 #include <assert.h>
 #include <immintrin.h>
 

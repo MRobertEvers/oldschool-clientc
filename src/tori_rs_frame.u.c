@@ -610,23 +610,23 @@ LibToriRS_FrameBegin(
         //                   (uint64_t)(t1.tv_nsec - t0.tv_nsec);
         // }
 
-        painter_bench_sum_paint_ns += dt_paint_ns;
-        painter_bench_sum_paint3_ns += dt_paint3_ns;
-        painter_bench_sum_paint4_ns += dt_paint4_ns;
-        painter_bench_frames++;
-        if( painter_bench_frames >= 30 )
-        {
-            fprintf(
-                stderr,
-                "painter bench (avg over %d frames): paint_w3d=%.3f ms paint_bucket=%.3f ms \n",
-                painter_bench_frames,
-                (double)painter_bench_sum_paint_ns / (double)painter_bench_frames / 1e6,
-                (double)painter_bench_sum_paint3_ns / (double)painter_bench_frames / 1e6);
-            painter_bench_frames = 0;
-            painter_bench_sum_paint_ns = 0;
-            painter_bench_sum_paint3_ns = 0;
-            painter_bench_sum_paint4_ns = 0;
-        }
+        // painter_bench_sum_paint_ns += dt_paint_ns;
+        // painter_bench_sum_paint3_ns += dt_paint3_ns;
+        // painter_bench_sum_paint4_ns += dt_paint4_ns;
+        // painter_bench_frames++;
+        // if( painter_bench_frames >= 30 )
+        // {
+        //     fprintf(
+        //         stderr,
+        //         "painter bench (avg over %d frames): paint_w3d=%.3f ms paint_bucket=%.3f ms \n",
+        //         painter_bench_frames,
+        //         (double)painter_bench_sum_paint_ns / (double)painter_bench_frames / 1e6,
+        //         (double)painter_bench_sum_paint3_ns / (double)painter_bench_frames / 1e6);
+        //     painter_bench_frames = 0;
+        //     painter_bench_sum_paint_ns = 0;
+        //     painter_bench_sum_paint3_ns = 0;
+        //     painter_bench_sum_paint4_ns = 0;
+        // }
     }
 }
 

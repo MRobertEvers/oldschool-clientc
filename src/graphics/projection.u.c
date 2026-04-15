@@ -287,7 +287,9 @@ project_orthographic_fast(
 }
 
 static inline int
-project_scale_unit(int p, int fov)
+project_scale_unit(
+    int p,
+    int fov)
 {
     int fov_half = fov >> 1;
     int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
@@ -317,7 +319,10 @@ project_scale_unit(int p, int fov)
 }
 
 static inline int
-project_divide(int p, int z, int fov)
+project_divide(
+    int p,
+    int z,
+    int fov)
 {
     int fov_half = fov >> 1;
     int cot_fov_half_ish16 = g_tan_table[1536 - fov_half];
@@ -592,12 +597,7 @@ project_fast_notex(
     z_final_scene >>= 16;
 
     project_perspective_fast(
-        projected_vertex,
-        x_scene,
-        y_scene,
-        z_final_scene,
-        fov_r2pi2048,
-        near_clip);
+        projected_vertex, x_scene, y_scene, z_final_scene, fov_r2pi2048, near_clip);
 }
 
 static inline struct ProjectedVertex
