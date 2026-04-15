@@ -87,9 +87,11 @@ dash3d_projected_face_index_ptrs(
 #include "render_flat.u.c"
 #include "render_texture.u.c"
 #if VERTEXINT_BITS == 16
+#include "projection_zdiv_simd.u.c"
 #include "projection16_simd.u.c"
 #else
 #include "projection.u.c"
+#include "projection_zdiv_simd.u.c"
 #include "projection_simd.u.c"
 #endif
 #include "projection_sparse.u.c"

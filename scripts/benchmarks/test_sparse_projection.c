@@ -7,7 +7,8 @@
  *     scripts/benchmarks/test_sparse_projection.c src/graphics/shared_tables.c \
  *     -o build/test_sparse_projection -lm
  *
- * (This file #includes projection16_simd.u.c then projection_sparse.u.c.)
+ * (This file #includes projection_zdiv_simd.u.c before projection16_simd.u.c,
+ *  then projection_sparse.u.c — same rule as dash.c for 16-bit.)
  */
 
 #include <stdio.h>
@@ -19,9 +20,11 @@
 #include "projection.h"
 #include "shared_tables.h"
 
+#include "../../src/graphics/projection_zdiv_simd.u.c"
 #include "../../src/graphics/projection16_simd.u.c"
 #include "../../src/graphics/projection_sparse.u.c"
 
+/* 15 slots exercises sparse z-div tails (remainder mod 8 and mod 4). */
 #define NF 5
 #define NSLOT (NF * 3)
 

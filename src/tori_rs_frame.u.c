@@ -566,8 +566,8 @@ LibToriRS_FrameBegin(
         struct PaintersBuffer* buffer = game->sys_painter_buffer;
 
         struct Painter* painter = game->world->painter;
-        int camera_sx = game->camera_world_x / 128;
-        int camera_sz = game->camera_world_z / 128;
+        int camera_sx = (game->camera_world_x) / 128;
+        int camera_sz = (game->camera_world_z) / 128;
         int camera_slevel = game->camera_world_y / 240;
 
         painter_set_camera_angles(painter, game->camera_pitch, game->camera_yaw);
@@ -582,6 +582,7 @@ LibToriRS_FrameBegin(
         uint64_t dt_paint3_ns;
         uint64_t dt_paint4_ns;
 
+        // painter_paint_world3d(painter, buffer, camera_sx, camera_sz, camera_slevel);
         painter_paint_bucket(painter, buffer, camera_sx, camera_sz, camera_slevel);
         // if( (rand() & 1) == 0 )
         // {

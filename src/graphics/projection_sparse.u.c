@@ -12,7 +12,8 @@ extern int g_tan_table[2048];
 
 #if VERTEXINT_BITS == 16
 
-/** Pass-1 FOV scale matches dense NEON `>> 6` after `x * cot_fov_half_ish15` (not `>> 15` + `<< 9`). */
+/** Pass-1 FOV scale matches dense NEON `>> 6` after `x * cot_fov_half_ish15` (not `>> 15` + `<<
+ * 9`). */
 static inline void
 projection16_sparse_slot_tex_dense_match(
     int* orthographic_vertices_x,
@@ -147,57 +148,14 @@ project_vertices_array_sparse(
         }
     }
 
-#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-    {
-        int zi = 0;
-        for( ; zi + 4 <= num_linear_slots; zi += 4 )
-        {
-            projection16_neon_zdiv_tex_4_at(
-                orthographic_vertices_z,
-                screen_vertices_x,
-                screen_vertices_y,
-                screen_vertices_z,
-                zi,
-                model_mid_z,
-                near_plane_z);
-        }
-        if( zi < num_linear_slots )
-        {
-            projection16_neon_zdiv_tex_tail(
-                orthographic_vertices_z,
-                screen_vertices_x,
-                screen_vertices_y,
-                screen_vertices_z,
-                zi,
-                num_linear_slots - zi,
-                model_mid_z,
-                near_plane_z);
-        }
-    }
-#else
-    for( int zi = 0; zi < num_linear_slots; zi++ )
-    {
-        int z = orthographic_vertices_z[zi];
-
-        bool clipped = false;
-        if( z < near_plane_z )
-            clipped = true;
-
-        screen_vertices_z[zi] = z - model_mid_z;
-
-        if( clipped )
-        {
-            screen_vertices_x[zi] = -5000;
-        }
-        else
-        {
-            screen_vertices_x[zi] = screen_vertices_x[zi] / z;
-            if( screen_vertices_x[zi] == -5000 )
-                screen_vertices_x[zi] = -5001;
-            screen_vertices_y[zi] = screen_vertices_y[zi] / z;
-        }
-    }
-#endif
+    projection_zdiv_pass_tex(
+        orthographic_vertices_z,
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        num_linear_slots,
+        model_mid_z,
+        near_plane_z);
 }
 
 static inline void
@@ -257,55 +215,13 @@ project_vertices_array_notex_sparse(
         }
     }
 
-#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-    {
-        int zi = 0;
-        for( ; zi + 4 <= num_linear_slots; zi += 4 )
-        {
-            projection16_neon_zdiv_notex_4_at(
-                screen_vertices_x,
-                screen_vertices_y,
-                screen_vertices_z,
-                zi,
-                model_mid_z,
-                near_plane_z);
-        }
-        if( zi < num_linear_slots )
-        {
-            projection16_neon_zdiv_notex_tail(
-                screen_vertices_x,
-                screen_vertices_y,
-                screen_vertices_z,
-                zi,
-                num_linear_slots - zi,
-                model_mid_z,
-                near_plane_z);
-        }
-    }
-#else
-    for( int zi = 0; zi < num_linear_slots; zi++ )
-    {
-        int z = screen_vertices_z[zi];
-
-        bool clipped = false;
-        if( z < near_plane_z )
-            clipped = true;
-
-        screen_vertices_z[zi] = z - model_mid_z;
-
-        if( clipped )
-        {
-            screen_vertices_x[zi] = -5000;
-        }
-        else
-        {
-            screen_vertices_x[zi] = screen_vertices_x[zi] / z;
-            if( screen_vertices_x[zi] == -5000 )
-                screen_vertices_x[zi] = -5001;
-            screen_vertices_y[zi] = screen_vertices_y[zi] / z;
-        }
-    }
-#endif
+    projection_zdiv_pass_notex(
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        num_linear_slots,
+        model_mid_z,
+        near_plane_z);
 }
 
 #else /* VERTEXINT_BITS == 32 */
@@ -463,62 +379,14 @@ project_vertices_array_sparse(
     }
 
     int num_linear_slots = num_faces * 3;
-#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-    {
-        int zi = 0;
-        for( ; zi + 4 <= num_linear_slots; zi += 4 )
-        {
-            projection_neon_zdiv_tex_4_at(
-                orthographic_vertices_z,
-                screen_vertices_x,
-                screen_vertices_y,
-                screen_vertices_z,
-                zi,
-                model_mid_z,
-                near_plane_z);
-        }
-        for( ; zi < num_linear_slots; zi++ )
-        {
-            int z = orthographic_vertices_z[zi];
-            bool clipped = (z < near_plane_z);
-            screen_vertices_z[zi] = z - model_mid_z;
-            if( clipped )
-            {
-                screen_vertices_x[zi] = -5000;
-            }
-            else
-            {
-                screen_vertices_x[zi] = screen_vertices_x[zi] / z;
-                if( screen_vertices_x[zi] == -5000 )
-                    screen_vertices_x[zi] = -5001;
-                screen_vertices_y[zi] = screen_vertices_y[zi] / z;
-            }
-        }
-    }
-#else
-    for( int zi = 0; zi < num_linear_slots; zi++ )
-    {
-        int z = orthographic_vertices_z[zi];
-
-        bool clipped = false;
-        if( z < near_plane_z )
-            clipped = true;
-
-        screen_vertices_z[zi] = z - model_mid_z;
-
-        if( clipped )
-        {
-            screen_vertices_x[zi] = -5000;
-        }
-        else
-        {
-            screen_vertices_x[zi] = screen_vertices_x[zi] / z;
-            if( screen_vertices_x[zi] == -5000 )
-                screen_vertices_x[zi] = -5001;
-            screen_vertices_y[zi] = screen_vertices_y[zi] / z;
-        }
-    }
-#endif
+    projection_zdiv_pass_tex(
+        orthographic_vertices_z,
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        num_linear_slots,
+        model_mid_z,
+        near_plane_z);
 }
 
 static inline void
@@ -577,61 +445,13 @@ project_vertices_array_notex_sparse(
     }
 
     int num_linear_slots = num_faces * 3;
-#if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
-    {
-        int zi = 0;
-        for( ; zi + 4 <= num_linear_slots; zi += 4 )
-        {
-            projection_neon_zdiv_notex_4_at(
-                screen_vertices_x,
-                screen_vertices_y,
-                screen_vertices_z,
-                zi,
-                model_mid_z,
-                near_plane_z);
-        }
-        for( ; zi < num_linear_slots; zi++ )
-        {
-            int z = screen_vertices_z[zi];
-            bool clipped = (z < near_plane_z);
-            screen_vertices_z[zi] = z - model_mid_z;
-            if( clipped )
-            {
-                screen_vertices_x[zi] = -5000;
-            }
-            else
-            {
-                screen_vertices_x[zi] = screen_vertices_x[zi] / z;
-                if( screen_vertices_x[zi] == -5000 )
-                    screen_vertices_x[zi] = -5001;
-                screen_vertices_y[zi] = screen_vertices_y[zi] / z;
-            }
-        }
-    }
-#else
-    for( int zi = 0; zi < num_linear_slots; zi++ )
-    {
-        int z = screen_vertices_z[zi];
-
-        bool clipped = false;
-        if( z < near_plane_z )
-            clipped = true;
-
-        screen_vertices_z[zi] = z - model_mid_z;
-
-        if( clipped )
-        {
-            screen_vertices_x[zi] = -5000;
-        }
-        else
-        {
-            screen_vertices_x[zi] = screen_vertices_x[zi] / z;
-            if( screen_vertices_x[zi] == -5000 )
-                screen_vertices_x[zi] = -5001;
-            screen_vertices_y[zi] = screen_vertices_y[zi] / z;
-        }
-    }
-#endif
+    projection_zdiv_pass_notex(
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        num_linear_slots,
+        model_mid_z,
+        near_plane_z);
 }
 
 #endif /* VERTEXINT_BITS */
