@@ -520,21 +520,19 @@ painter_set_level_range(
 }
 
 static void
-painter_cullmap_refresh_indices(struct Painter* painter)
+painter_cullmap_refresh_camera_key(struct Painter* painter)
 {
     const struct PaintersCullMap* cm = painter->cullmap;
     if( !cm || cm->all_visible )
     {
-        painter->cull_pitch_idx = 0;
-        painter->cull_yaw_idx = 0;
+        painter->cull_camera_key = 0;
         return;
     }
+    int pitch_idx;
+    int yaw_idx;
     painters_cullmap_indices_from_angles(
-        cm,
-        painter->camera_pitch,
-        painter->camera_yaw,
-        &painter->cull_pitch_idx,
-        &painter->cull_yaw_idx);
+        cm, painter->camera_pitch, painter->camera_yaw, &pitch_idx, &yaw_idx);
+    painter->cull_camera_key = painters_cullmap_camera_key_from_indices(cm, pitch_idx, yaw_idx);
 }
 
 static inline bool
@@ -559,8 +557,7 @@ painter_cullmap_tile_visible(
         return true;
     int dx = tile_sx - camera_sx;
     int dz = tile_sz - camera_sz;
-    return painters_cullmap_visible(
-        painter->cullmap, dx, dz, painter->cull_pitch_idx, painter->cull_yaw_idx);
+    return painters_cullmap_visible_keyed(painter->cullmap, dx, dz, painter->cull_camera_key);
 #endif
 }
 

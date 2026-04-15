@@ -460,7 +460,7 @@ painter_paint_world3d(
     if( min_draw_x >= max_draw_x || min_draw_z >= max_draw_z )
         return 0;
 
-    painter_cullmap_refresh_indices(painter);
+    painter_cullmap_refresh_camera_key(painter);
 
     /* CHEB_OPT_CLEAR_BBOX_TILES-style: only reset state inside the draw rect (not full map). */
     painter_clear_tile_paints_region(

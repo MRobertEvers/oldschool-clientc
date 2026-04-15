@@ -455,13 +455,22 @@ painters_cullmap_indices_from_angles(
     *yaw_idx_out = yaw_idx;
 }
 
+/** Precompute pitch/yaw slice base: same as pcull_bit_index(pitch_idx, yaw_idx, 0, 0, ...). */
+static inline size_t
+painters_cullmap_camera_key_from_indices(
+    const struct PaintersCullMap* cm,
+    int pitch_idx,
+    int yaw_idx)
+{
+    return pcull_bit_index(pitch_idx, yaw_idx, 0, 0, cm->yaw_levels, cm->grid_side);
+}
+
 static inline int
-painters_cullmap_visible(
+painters_cullmap_visible_keyed(
     const struct PaintersCullMap* cm,
     int dx,
     int dz,
-    int pitch_idx,
-    int yaw_idx)
+    size_t camera_key)
 {
     if( !cm || cm->all_visible )
         return 1;
@@ -471,6 +480,7 @@ painters_cullmap_visible(
 
     int ix = dx + cm->radius;
     int iz = dz + cm->radius;
-    size_t bidx = pcull_bit_index(pitch_idx, yaw_idx, ix, iz, cm->yaw_levels, cm->grid_side);
+    int gs = cm->grid_side;
+    size_t bidx = camera_key + (size_t)ix * (size_t)gs + (size_t)iz;
     return pcull_bit_get(cm->visibility, bidx);
 }

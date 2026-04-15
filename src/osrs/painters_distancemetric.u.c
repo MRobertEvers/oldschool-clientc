@@ -230,7 +230,7 @@ painter_paint_distancemetric(
             return 0;
     }
 
-    painter_cullmap_refresh_indices(painter);
+    painter_cullmap_refresh_camera_key(painter);
 
     painter_dist_queue_reset(painter);
     DM(painter)->current_camera_sx = camera_sx;

@@ -5,6 +5,8 @@
 
 #include "painters.h"
 
+#include <stddef.h>
+
 #define PAINTER_TILE_IDX(p, t) ((int)((t) - (p)->tiles))
 #define PAINTER_TILE_X(p, t) (PAINTER_TILE_IDX((p), (t)) % (p)->width)
 #define PAINTER_TILE_Z(p, t) ((PAINTER_TILE_IDX((p), (t)) / (p)->width) % (p)->height)
@@ -43,8 +45,8 @@ struct Painter
     const struct PaintersCullMap* cullmap;
     int camera_pitch;
     int camera_yaw;
-    int cull_pitch_idx;
-    int cull_yaw_idx;
+    /** Bit offset for current (pitch,yaw) slice: pcull_bit_index(pitch_idx, yaw_idx, 0, 0, ...). */
+    size_t cull_camera_key;
 
     /** Bitmask: bit s set => level s participates in paint (0-3 for MAP_TERRAIN_LEVELS). Default 0xF. */
     uint8_t level_mask;
