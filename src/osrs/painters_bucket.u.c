@@ -1,6 +1,7 @@
 #ifndef PAINTERS_BUCKET_U_C
 #define PAINTERS_BUCKET_U_C
 
+#include "painter_tile_iter.u.c"
 #include "painters_i.h"
 
 #include <assert.h>
@@ -222,54 +223,41 @@ painter_paint_bucket(
         min_level,
         max_level);
 
-    for( int s = min_level; s < max_level; s++ )
+    struct TileIter tile_iter;
+    tile_iter_init(
+        &tile_iter, painter, min_draw_x, max_draw_x, min_draw_z, max_draw_z, min_level, max_level);
+    for( int ti, x, z; (ti = tile_iter_next(&tile_iter, &x, &z)) >= 0; )
     {
-        for( int z = min_draw_z; z < max_draw_z; z++ )
-        {
-            for( int x = min_draw_x; x < max_draw_x; x++ )
-            {
-                int ti = painter_coord_idx(painter, x, z, s);
-                struct PaintersTile* t = &painter->tiles[ti];
-                int tile_slevel = painters_tile_get_slevel(t);
+        struct PaintersTile* t = &painter->tiles[ti];
+        int tile_slevel = painters_tile_get_slevel(t);
 
-                tile_paint = tile_paint_at_idx(painter, ti);
-                if( tile_excluded_by_bridge_or_draw_mask(
-                        painters_tile_get_flags(t), tile_slevel, draw_mask) )
-                {
-                    tile_paint->step = PAINT_STEP_DONE;
-                }
-                else if( !painter_cullmap_tile_visible(
-                             painter, tile_paint, x, z, camera_sx, camera_sz) )
-                {
-                    tile_paint->step = PAINT_STEP_DONE;
-                }
-                else
-                {
-                    tile_paint->step = PAINT_STEP_READY;
-                }
-            }
+        tile_paint = tile_paint_at_idx(painter, ti);
+        if( tile_excluded_by_bridge_or_draw_mask(
+                painters_tile_get_flags(t), tile_slevel, draw_mask) )
+        {
+            tile_paint->step = PAINT_STEP_DONE;
+        }
+        else if( !painter_cullmap_tile_visible(painter, tile_paint, x, z, camera_sx, camera_sz) )
+        {
+            tile_paint->step = PAINT_STEP_DONE;
+        }
+        else
+        {
+            tile_paint->step = PAINT_STEP_READY;
         }
     }
 
     bucket_reset(w);
 
-    for( int s = min_level; s < max_level; s++ )
+    tile_iter_init(
+        &tile_iter, painter, min_draw_x, max_draw_x, min_draw_z, max_draw_z, min_level, max_level);
+    for( int ti; (ti = tile_iter_next(&tile_iter, NULL, NULL)) >= 0; )
     {
-        int row_start = painter_coord_idx(painter, min_draw_x, min_draw_z, s);
-        for( int z = min_draw_z; z < max_draw_z; z++ )
+        tile_paint = tile_paint_at_idx(painter, ti);
+        if( tile_paint->step == PAINT_STEP_READY )
         {
-            int ti = row_start;
-            for( int x = min_draw_x; x < max_draw_x; x++ )
-            {
-                tile_paint = tile_paint_at_idx(painter, ti);
-                if( tile_paint->step == PAINT_STEP_READY )
-                {
-                    bucket_push(w, ti);
-                    w->in_heap[ti] = 1;
-                }
-                ti = step_idx_east(painter, ti);
-            }
-            row_start = step_idx_north(painter, row_start);
+            bucket_push(w, ti);
+            w->in_heap[ti] = 1;
         }
     }
 

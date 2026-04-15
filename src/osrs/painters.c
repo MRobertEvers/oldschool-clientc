@@ -1100,6 +1100,7 @@ int g_trap_x = -1;
 int g_trap_z = -1;
 
 // clang-format off
+#include "painter_tile_iter.u.c"
 #include "painters_bucket.u.c"
 #include "painters_world3d.u.c"
 #include "painters_distancemetric.u.c"
