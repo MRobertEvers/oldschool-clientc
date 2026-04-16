@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
   <title>CI subscribers</title>
-  <style>
+  <style type="text/css">
     body { font-family: sans-serif; margin: 1.5rem; }
     table { border-collapse: collapse; }
     th, td { border: 1px solid #ccc; padding: 0.4rem 0.75rem; text-align: left; }
@@ -23,51 +23,128 @@
     <tbody id="rows"></tbody>
   </table>
   <p id="err"></p>
-  <script>
-    function loadSubscribers() {
-      var err = document.getElementById("err");
-      err.textContent = "";
-      var xhr = new XMLHttpRequest();
-      xhr.open("GET", "/v1/subscribers", true);
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState !== 4) return;
-        if (xhr.status !== 200) {
-          err.textContent = "HTTP " + xhr.status;
-          return;
-        }
-        var data;
-        try {
-          data = JSON.parse(xhr.responseText);
-        } catch (e) {
-          err.textContent = "Invalid JSON";
-          return;
-        }
-        var tbody = document.getElementById("rows");
-        tbody.innerHTML = "";
-        for (var i = 0; i < data.length; i++) {
-          var row = data[i];
-          var tr = document.createElement("tr");
-          var aliveClass = row.alive ? "alive" : "dead";
-          tr.innerHTML =
-            "<td>" + escapeHtml(row.id) + "</td>" +
-            "<td>" + escapeHtml(row.notify_url) + "</td>" +
-            "<td>" + escapeHtml(String(row.last_seen)) + "</td>" +
-            "<td class=\"" + aliveClass + "\">" + (row.alive ? "yes" : "no") + "</td>";
-          tbody.appendChild(tr);
-        }
-      };
-      xhr.send(null);
+  <script type="text/javascript">
+/* IE6 (JScript 5.6 / ES3) + modern browsers: XHR, JSON.parse, textContent, addEventListener */
+
+(function () {
+  function newXHR() {
+    if (typeof XMLHttpRequest !== "undefined") {
+      try { return new XMLHttpRequest(); } catch (e0) {}
     }
-    function escapeHtml(s) {
-      return String(s)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
+    var ids = ["Msxml2.XMLHTTP.6.0", "Msxml2.XMLHTTP.3.0", "Microsoft.XMLHTTP"];
+    var i, ax;
+    for (i = 0; i < ids.length; i++) {
+      try {
+        ax = new ActiveXObject(ids[i]);
+        return ax;
+      } catch (e1) {}
     }
-    document.getElementById("refresh").onclick = loadSubscribers;
-    loadSubscribers();
-    setInterval(loadSubscribers, 5000);
+    return null;
+  }
+
+  function setText(el, s) {
+    if (!el) return;
+    if (typeof el.textContent !== "undefined") {
+      el.textContent = s;
+    } else {
+      el.innerText = s;
+    }
+  }
+
+  function bindClick(el, fn) {
+    if (!el) return;
+    if (el.addEventListener) {
+      el.addEventListener("click", fn, false);
+    } else if (el.attachEvent) {
+      el.attachEvent("onclick", fn);
+    } else {
+      el.onclick = fn;
+    }
+  }
+
+  /* JSON.parse: use native when present; else eval (same-origin trusted /v1/subscribers only). */
+  function parseJSON(text) {
+    if (typeof JSON !== "undefined" && typeof JSON.parse === "function") {
+      return JSON.parse(text);
+    }
+    return eval("(" + text + ")");
+  }
+
+  function escapeHtml(s) {
+    s = String(s);
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function appendTdHtml(tr, html) {
+    var td = document.createElement("td");
+    td.innerHTML = html;
+    tr.appendChild(td);
+  }
+
+  function appendTdClassText(tr, cls, text) {
+    var td = document.createElement("td");
+    td.className = cls;
+    if (typeof td.textContent !== "undefined") {
+      td.textContent = text;
+    } else {
+      td.innerText = text;
+    }
+    tr.appendChild(td);
+  }
+
+  function loadSubscribers() {
+    var err = document.getElementById("err");
+    setText(err, "");
+    var xhr = newXHR();
+    if (!xhr) {
+      setText(err, "No HTTP transport (need XMLHttpRequest or MSXML)");
+      return;
+    }
+    xhr.open("GET", "/v1/subscribers", true);
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) return;
+      if (xhr.status !== 200) {
+        setText(err, "HTTP " + xhr.status);
+        return;
+      }
+      var data;
+      try {
+        data = parseJSON(xhr.responseText);
+      } catch (e2) {
+        setText(err, "Invalid JSON");
+        return;
+      }
+      if (!data || typeof data.length === "undefined") {
+        setText(err, "Bad response");
+        return;
+      }
+      var tbody = document.getElementById("rows");
+      while (tbody.firstChild) {
+        tbody.removeChild(tbody.firstChild);
+      }
+      var i, row, tr, aliveClass;
+      for (i = 0; i < data.length; i++) {
+        row = data[i];
+        tr = document.createElement("tr");
+        appendTdHtml(tr, escapeHtml(row.id));
+        appendTdHtml(tr, escapeHtml(row.notify_url));
+        appendTdHtml(tr, escapeHtml(String(row.last_seen)));
+        aliveClass = row.alive ? "alive" : "dead";
+        appendTdClassText(tr, aliveClass, row.alive ? "yes" : "no");
+        tbody.appendChild(tr);
+      }
+    };
+    xhr.send("");
+  }
+
+  bindClick(document.getElementById("refresh"), loadSubscribers);
+  loadSubscribers();
+  window.setInterval(loadSubscribers, 5000);
+})();
   </script>
 </body>
 </html>

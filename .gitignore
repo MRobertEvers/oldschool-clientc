@@ -10,7 +10,8 @@ cache.*/
 runelite
 all_tiles.json
 symbols.txt
-build*/
+# Root-level CMake/out dirs only (unanchored "build*/" would ignore tools/ci/build_host)
+/build*/
 public/cache/
 .cache/
 emsdk/
@@ -18,6 +19,13 @@ android/.idea/
 
 package_build_*.zip
 /package_build_winxp
+
+# Local WinXP CI env files + outputs (see tools/ci/.env.example)
+tools/ci/build_host/.env.build_host
+tools/ci/runner/.env.xp_runner
+tools/ci/client/.env.trigger
+tools/ci/build_host/artifacts/
+tools/ci/build_host/results/
 
 debug.keystore
 gradle.properties
@@ -29,5 +37,5 @@ lib/python*
 *.dSYM
 *.o
 
-# Generated painters cullmap blobs (see tools/ci/gen_painters_cullmap)
+# Generated painters cullmap blobs (see tools/gen_painters_cullmap)
 src/osrs/revconfig/configs/cullmaps/*.bin

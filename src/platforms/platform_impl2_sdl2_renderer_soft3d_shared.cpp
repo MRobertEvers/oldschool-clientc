@@ -49,6 +49,108 @@ extern "C" {
 #include <string.h>
 #include <vector>
 
+static SDL_Surface*
+soft3d_wrapped_pixels_surface_new(struct Platform2_SDL2_Renderer_Soft3D* r)
+{
+    /* XRGB (Amask=0): raster ARGB words often have A=0; per-pixel alpha would blit as invisible. */
+    SDL_Surface* s = SDL_CreateRGBSurfaceFrom(
+        r->pixel_buffer,
+        r->width,
+        r->height,
+        32,
+        r->width * (int)sizeof(int),
+        0x00FF0000,
+        0x0000FF00,
+        0x000000FF,
+        0);
+    if( s )
+        SDL_SetSurfaceBlendMode(s, SDL_BLENDMODE_NONE);
+    return s;
+}
+
+static bool
+soft3d_reinit_imgui_sdl_render_backends(
+    SDL_Window* win,
+    struct Platform2_SDL2_Renderer_Soft3D* renderer)
+{
+    ImGui_ImplSDLRenderer2_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+
+    if( !ImGui_ImplSDL2_InitForSDLRenderer(win, renderer->renderer) )
+    {
+        printf("ImGui SDL2 reinit failed\n");
+        return false;
+    }
+    if( !ImGui_ImplSDLRenderer2_Init(renderer->renderer) )
+    {
+        printf("ImGui Renderer reinit failed\n");
+        ImGui_ImplSDL2_Shutdown();
+        return false;
+    }
+    return true;
+}
+
+static bool
+soft3d_init_present_via_window_surface(
+    struct Platform2_SDL2_Renderer_Soft3D* renderer,
+    SDL_Window* win)
+{
+    SDL_Surface* ws = SDL_GetWindowSurface(win);
+    if( !ws )
+        return false;
+
+    renderer->renderer = SDL_CreateSoftwareRenderer(ws);
+    if( !renderer->renderer )
+        return false;
+
+    renderer->wrapped_pixels_surface = soft3d_wrapped_pixels_surface_new(renderer);
+    if( !renderer->wrapped_pixels_surface )
+    {
+        SDL_DestroyRenderer(renderer->renderer);
+        renderer->renderer = NULL;
+        return false;
+    }
+
+    renderer->texture = NULL;
+    renderer->present_surface_cache_w = ws->w;
+    renderer->present_surface_cache_h = ws->h;
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
+
+    float scale = soft3d_platform_display_scale(renderer->platform);
+    if( scale > 1.0f )
+    {
+        ImGui::GetStyle().ScaleAllSizes(scale);
+        ImGui::GetIO().FontGlobalScale = scale;
+    }
+
+    if( !ImGui_ImplSDL2_InitForSDLRenderer(win, renderer->renderer) )
+    {
+        printf("ImGui SDL2 init failed\n");
+        ImGui::DestroyContext();
+        SDL_FreeSurface(renderer->wrapped_pixels_surface);
+        renderer->wrapped_pixels_surface = NULL;
+        SDL_DestroyRenderer(renderer->renderer);
+        renderer->renderer = NULL;
+        return false;
+    }
+    if( !ImGui_ImplSDLRenderer2_Init(renderer->renderer) )
+    {
+        printf("ImGui Renderer init failed\n");
+        ImGui_ImplSDL2_Shutdown();
+        ImGui::DestroyContext();
+        SDL_FreeSurface(renderer->wrapped_pixels_surface);
+        renderer->wrapped_pixels_surface = NULL;
+        SDL_DestroyRenderer(renderer->renderer);
+        renderer->renderer = NULL;
+        return false;
+    }
+
+    return true;
+}
+
 extern int g_trap_command;
 extern int g_trap_x;
 extern int g_trap_z;
@@ -271,6 +373,11 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Shutdown(struct Platform2_SDL2_Renderer_Soft3
         SDL_DestroyTexture(renderer->texture);
         renderer->texture = NULL;
     }
+    if( renderer->wrapped_pixels_surface )
+    {
+        SDL_FreeSurface(renderer->wrapped_pixels_surface);
+        renderer->wrapped_pixels_surface = NULL;
+    }
     if( renderer->renderer )
     {
         SDL_DestroyRenderer(renderer->renderer);
@@ -294,59 +401,20 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Init(
     void* platform)
 {
     renderer->platform = platform;
+    renderer->texture = NULL;
 
     SDL_Window* win = soft3d_platform_window(platform);
-    renderer->renderer = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
-    if( !renderer->renderer )
+    if( !win )
     {
-        printf("Renderer creation failed: %s\n", SDL_GetError());
+        printf("Soft3D init: no SDL window\n");
         return false;
     }
 
-    renderer->texture = SDL_CreateTexture(
-        renderer->renderer,
-        SDL_PIXELFORMAT_ARGB8888,
-        SDL_TEXTUREACCESS_STREAMING,
-        renderer->width,
-        renderer->height);
-    if( !renderer->texture )
+    if( !soft3d_init_present_via_window_surface(renderer, win) )
     {
-        printf("Failed to create texture\n");
-        SDL_DestroyRenderer(renderer->renderer);
-        renderer->renderer = NULL;
-        return false;
-    }
-
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGui::StyleColorsDark();
-
-    float scale = soft3d_platform_display_scale(platform);
-    if( scale > 1.0f )
-    {
-        ImGui::GetStyle().ScaleAllSizes(scale);
-        ImGui::GetIO().FontGlobalScale = scale;
-    }
-
-    if( !ImGui_ImplSDL2_InitForSDLRenderer(win, renderer->renderer) )
-    {
-        printf("ImGui SDL2 init failed\n");
-        ImGui::DestroyContext();
-        SDL_DestroyTexture(renderer->texture);
-        renderer->texture = NULL;
-        SDL_DestroyRenderer(renderer->renderer);
-        renderer->renderer = NULL;
-        return false;
-    }
-    if( !ImGui_ImplSDLRenderer2_Init(renderer->renderer) )
-    {
-        printf("ImGui Renderer init failed\n");
-        ImGui_ImplSDL2_Shutdown();
-        ImGui::DestroyContext();
-        SDL_DestroyTexture(renderer->texture);
-        renderer->texture = NULL;
-        SDL_DestroyRenderer(renderer->renderer);
-        renderer->renderer = NULL;
+        printf(
+            "Soft3D init failed (need SDL_GetWindowSurface + software renderer): %s\n",
+            SDL_GetError());
         return false;
     }
 
@@ -447,16 +515,14 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Render(
         game->view_port->stride = renderer->width;
     }
 
-    for( int y = 0; y < renderer->height; y++ )
-        memset(&renderer->pixel_buffer[y * renderer->width], 0x00, renderer->width * sizeof(int));
-
     struct ToriRSRenderCommand command = { 0 };
 
+    int* const raster_pixels = renderer->pixel_buffer;
+
     int* vp_pixels = NULL;
-    if( game->view_port && renderer->pixel_buffer )
+    if( game->view_port && raster_pixels )
     {
-        vp_pixels = &renderer->pixel_buffer
-                         [renderer->dash_offset_y * renderer->width + renderer->dash_offset_x];
+        vp_pixels = &raster_pixels[renderer->dash_offset_y * renderer->width + renderer->dash_offset_x];
     }
 
     static std::vector<ToriRSRenderCommand> deferred_font_draws;
@@ -508,7 +574,7 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Render(
             if( srh <= 0 )
                 srh = sp->height;
 
-            if( !game->sys_dash || !game->iface_view_port || !renderer->pixel_buffer )
+            if( !game->sys_dash || !game->iface_view_port || !raster_pixels )
                 break;
             if( command._sprite_draw.rotated )
             {
@@ -521,7 +587,7 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Render(
                     srh,
                     command._sprite_draw.src_anchor_x,
                     command._sprite_draw.src_anchor_y,
-                    renderer->pixel_buffer,
+                    raster_pixels,
                     renderer->width,
                     command._sprite_draw.dst_bb_x,
                     command._sprite_draw.dst_bb_y,
@@ -539,7 +605,7 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Render(
                     game->iface_view_port,
                     command._sprite_draw.dst_bb_x,
                     command._sprite_draw.dst_bb_y,
-                    renderer->pixel_buffer);
+                    raster_pixels);
             }
         }
         break;
@@ -581,38 +647,11 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Render(
     //             renderer->width);
     // }
 
-    SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
-        renderer->pixel_buffer,
-        renderer->width,
-        renderer->height,
-        32,
-        renderer->width * sizeof(int),
-        0x00FF0000,
-        0x0000FF00,
-        0x000000FF,
-        0xFF000000);
-
-    int* pix_write = NULL;
-    int texture_pitch = 0;
-    if( SDL_LockTexture(renderer->texture, NULL, (void**)&pix_write, &texture_pitch) < 0 )
-    {
-        SDL_FreeSurface(surface);
-        return;
-    }
-
-    int* src_pixels = (int*)surface->pixels;
-    int texture_w = texture_pitch / sizeof(int);
-
-    /* Streaming texture must be cleared: soft buffer uses 0 for transparent/empty. */
-    memset(pix_write, 0, (size_t)texture_pitch * (size_t)renderer->height);
-
-    for( int src_y = 0; src_y < (renderer->height); src_y++ )
-    {
-        int* row = &pix_write[(src_y * texture_w)];
-        memcpy(row, &src_pixels[src_y * renderer->width], (size_t)renderer->width * sizeof(int));
-    }
-
-    SDL_UnlockTexture(renderer->texture);
+    SDL_Window* const pwin = soft3d_platform_window(renderer->platform);
+    SDL_Surface* ws = pwin ? SDL_GetWindowSurface(pwin) : NULL;
+    /* Letterbox in the same pixel space as the window surface (can differ from SDL_GetWindowSize on HiDPI). */
+    int const box_w = ws ? ws->w : window_width;
+    int const box_h = ws ? ws->h : window_height;
 
     SDL_Rect dst_rect;
     dst_rect.x = 0;
@@ -620,7 +659,7 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Render(
     dst_rect.w = renderer->width;
     dst_rect.h = renderer->height;
 
-    if( window_width > renderer->width || window_height > renderer->height )
+    if( box_w > renderer->width || box_h > renderer->height )
     {
         SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
     }
@@ -630,21 +669,21 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Render(
     }
 
     float src_aspect = (float)renderer->width / (float)renderer->height;
-    float window_aspect = (float)window_width / (float)window_height;
+    float window_aspect = (float)box_w / (float)box_h;
 
     if( src_aspect > window_aspect )
     {
-        dst_rect.w = window_width;
-        dst_rect.h = (int)(window_width / src_aspect);
+        dst_rect.w = box_w;
+        dst_rect.h = (int)(box_w / src_aspect);
         dst_rect.x = 0;
-        dst_rect.y = (window_height - dst_rect.h) / 2;
+        dst_rect.y = (box_h - dst_rect.h) / 2;
     }
     else
     {
-        dst_rect.h = window_height;
-        dst_rect.w = (int)(window_height * src_aspect);
+        dst_rect.h = box_h;
+        dst_rect.w = (int)(box_h * src_aspect);
         dst_rect.y = 0;
-        dst_rect.x = (window_width - dst_rect.w) / 2;
+        dst_rect.x = (box_w - dst_rect.w) / 2;
     }
 
 #ifdef __EMSCRIPTEN__
@@ -659,12 +698,70 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Render(
     game->soft3d_buffer_w = renderer->width;
     game->soft3d_buffer_h = renderer->height;
 
-    SDL_RenderCopy(renderer->renderer, renderer->texture, NULL, &dst_rect);
-    SDL_FreeSurface(surface);
+    if( ws && renderer->wrapped_pixels_surface )
+    {
+        if( ws->w != renderer->present_surface_cache_w ||
+            ws->h != renderer->present_surface_cache_h )
+        {
+            SDL_Renderer* const new_r = SDL_CreateSoftwareRenderer(ws);
+            if( renderer->renderer )
+                SDL_DestroyRenderer(renderer->renderer);
+            renderer->renderer = new_r;
+            if( renderer->renderer )
+            {
+                if( !soft3d_reinit_imgui_sdl_render_backends(pwin, renderer) )
+                {
+                    fprintf(stderr, "ImGui reinit after window resize failed\n");
+                    SDL_DestroyRenderer(renderer->renderer);
+                    renderer->renderer = NULL;
+                }
+                else
+                {
+                    renderer->present_surface_cache_w = ws->w;
+                    renderer->present_surface_cache_h = ws->h;
+                }
+            }
+            else
+            {
+                fprintf(
+                    stderr,
+                    "SDL_CreateSoftwareRenderer failed: %s\n",
+                    SDL_GetError());
+            }
+        }
 
-    render_imgui(renderer, game);
+        if( renderer->renderer )
+        {
+            Uint32 const black = SDL_MapRGB(ws->format, 0, 0, 0);
+            SDL_FillRect(ws, NULL, black);
 
-    SDL_RenderPresent(renderer->renderer);
+            /* ImGui uses the same software render target; draw it first, then composite the game
+             * framebuffer on top so queued renderer work cannot erase the blit. */
+            render_imgui(renderer, game);
+
+            SDL_Rect blit_dst = dst_rect;
+            int blit_rc;
+            if( dst_rect.w == renderer->width && dst_rect.h == renderer->height )
+            {
+                blit_rc = SDL_BlitSurface(
+                    renderer->wrapped_pixels_surface, NULL, ws, &blit_dst);
+            }
+            else
+            {
+                blit_rc = SDL_BlitScaled(
+                    renderer->wrapped_pixels_surface, NULL, ws, &blit_dst);
+            }
+            if( blit_rc < 0 )
+            {
+                fprintf(
+                    stderr,
+                    "SDL blit to window surface failed: %s\n",
+                    SDL_GetError());
+            }
+
+            SDL_RenderPresent(renderer->renderer);
+        }
+    }
 }
 
 void
