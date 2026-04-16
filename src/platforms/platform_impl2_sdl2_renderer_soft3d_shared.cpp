@@ -1,8 +1,14 @@
 #include "platform_impl2_sdl2_renderer_soft3d_shared.h"
 
-#include "imgui.h"
-#include "imgui_impl_sdl2.h"
-#include "imgui_impl_sdlrenderer2.h"
+#include "nuklear/torirs_nk_config.h"
+#include "nuklear.h"
+
+#define NK_SDL_RENDERER_SDL_H <SDL.h>
+#define TORIRS_NK_SDL_RENDERER_IMPLEMENTATION
+#include "nuklear/backends/sdl_renderer/nuklear_torirs_sdl_renderer.h"
+
+#include "platforms/common/torirs_nk_ui_bridge.h"
+#include "platforms/common/torirs_nuklear_debug_panel.h"
 
 #ifdef __EMSCRIPTEN__
 #include "platform_impl2_emscripten_sdl2.h"
@@ -49,173 +55,31 @@ extern "C" {
 #include <string.h>
 #include <vector>
 
-extern int g_trap_command;
-extern int g_trap_x;
-extern int g_trap_z;
-
-static bool g_show_collision_map = false;
+static struct nk_context* s_soft3d_nk;
+static Uint64 s_soft3d_ui_prev_perf;
 
 static void
-render_imgui(
+render_nuklear_overlay(
     struct Platform2_SDL2_Renderer_Soft3D* renderer,
     struct GGame* game)
 {
-    ImGui_ImplSDLRenderer2_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
+    if( !s_soft3d_nk )
+        return;
 
-    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(300, 260), ImGuiCond_FirstUseEver);
+    double const dt = torirs_nk_ui_frame_delta_sec(&s_soft3d_ui_prev_perf);
 
-    ImGui::Begin("Info");
-    ImGui::Text(
-        "Application average %.3f ms/frame (%.1f FPS)",
-        1000.0f / ImGui::GetIO().Framerate,
-        ImGui::GetIO().Framerate);
+    TorirsNkDebugPanelParams params = {};
+    params.window_title = "Info";
+    params.delta_time_sec = dt;
+    params.view_w_cap = renderer->max_width;
+    params.view_h_cap = renderer->max_height;
+    params.sdl_window = soft3d_platform_window(renderer->platform);
+    params.soft3d = renderer;
+    params.include_soft3d_extras = 1;
 
-#if ENABLE_HEAP_INFO
-    {
-        struct PlatformMemoryInfo mem = {};
-        if( platform_get_memory_info(&mem) )
-        {
-            float used_mb = mem.heap_used / (1024.0f * 1024.0f);
-            float total_mb = mem.heap_total / (1024.0f * 1024.0f);
-            ImGui::Text("Heap: %.1f / %.1f MB", used_mb, total_mb);
-            if( mem.heap_total > 0 )
-                ImGui::ProgressBar(
-                    (float)mem.heap_used / (float)mem.heap_total, ImVec2(-1, 0), nullptr);
-            if( mem.heap_peak > 0 )
-                ImGui::Text("Peak: %.1f MB", mem.heap_peak / (1024.0f * 1024.0f));
-        }
-    }
-#endif
-
-    Uint64 frequency = SDL_GetPerformanceFrequency();
-    (void)frequency;
-
-    ImGui::Text("Max paint command: %d", game->cc);
-    ImGui::Text("Trap command: %d", g_trap_command);
-    if( ImGui::Button("Trap command") )
-    {
-        if( g_trap_command == -1 )
-            g_trap_command = game->cc;
-        else
-            g_trap_command = -1;
-    }
-
-    ImGui::InputInt("Trap X", &g_trap_x);
-    ImGui::InputInt("Trap Z", &g_trap_z);
-
-    ImGui::Separator();
-    ImGui::Checkbox("Dynamic pixel size", &renderer->pixel_size_dynamic);
-    ImGui::Text("Render size: %d x %d", renderer->width, renderer->height);
-
-    if( game->view_port )
-    {
-        ImGui::Separator();
-        ImGui::BeginDisabled(renderer->pixel_size_dynamic);
-        int w = game->view_port->width;
-        int h = game->view_port->height;
-        bool changed = ImGui::InputInt("World viewport W", &w);
-        changed |= ImGui::InputInt("World viewport H", &h);
-        if( changed )
-        {
-            if( w > renderer->max_width )
-                w = renderer->max_width;
-            if( h > renderer->max_height )
-                h = renderer->max_height;
-            LibToriRS_GameSetWorldViewportSize(game, w, h);
-        }
-        ImGui::EndDisabled();
-    }
-
-    ImGui::Text("Mouse (game x, y): %d, %d", game->mouse_x, game->mouse_y);
-
-    if( soft3d_platform_window(renderer->platform) )
-    {
-        int window_mouse_x = 0;
-        int window_mouse_y = 0;
-        SDL_GetMouseState(&window_mouse_x, &window_mouse_y);
-        ImGui::Text("Mouse (window x, y): %d, %d", window_mouse_x, window_mouse_y);
-    }
-
-    char camera_pos_text[256];
-    snprintf(
-        camera_pos_text,
-        sizeof(camera_pos_text),
-        "Camera (x, y, z): %d, %d, %d : %d, %d",
-        game->camera_world_x,
-        game->camera_world_y,
-        game->camera_world_z,
-        game->camera_world_x / 128,
-        game->camera_world_z / 128);
-    ImGui::Text("%s", camera_pos_text);
-    ImGui::SameLine();
-    if( ImGui::SmallButton("Copy##pos") )
-    {
-        ImGui::SetClipboardText(camera_pos_text);
-    }
-
-    char camera_rot_text[256];
-    snprintf(
-        camera_rot_text,
-        sizeof(camera_rot_text),
-        "Camera (pitch, yaw, roll): %d, %d, %d",
-        game->camera_pitch,
-        game->camera_yaw,
-        game->camera_roll);
-    ImGui::Text("%s", camera_rot_text);
-    ImGui::SameLine();
-    if( ImGui::SmallButton("Copy##rot") )
-    {
-        ImGui::SetClipboardText(camera_rot_text);
-    }
-
-    ImGui::Separator();
-    if( renderer->clicked_tile_x != -1 && renderer->clicked_tile_z != -1 )
-    {
-        char clicked_tile_text[256];
-        snprintf(
-            clicked_tile_text,
-            sizeof(clicked_tile_text),
-            "Clicked Tile: (%d, %d, level %d)",
-            renderer->clicked_tile_x,
-            renderer->clicked_tile_z,
-            renderer->clicked_tile_level);
-        ImGui::Text("%s", clicked_tile_text);
-        ImGui::SameLine();
-        if( ImGui::SmallButton("Copy##tile") )
-        {
-            ImGui::SetClipboardText(clicked_tile_text);
-        }
-    }
-    else
-    {
-        ImGui::Text("Clicked Tile: None");
-    }
-
-    ImGui::Separator();
-
-    ImGui::Separator();
-    ImGui::Checkbox("Show collision map", &g_show_collision_map);
-
-    ImGui::Separator();
-    ImGui::Text("Interface System:");
-    // ImGui::Text("Current viewport ID: %d", game->viewport_interface_id);
-    // ImGui::Text("Current sidebar ID: %d", game->sidebar_interface_id);
-    // ImGui::Text("Selected tab: %d", game->selected_tab);
-    // if( game->selected_tab >= 0 && game->selected_tab < 14 )
-    // {
-    //     ImGui::Text(
-    //         "Tab %d interface ID: %d",
-    //         game->selected_tab,
-    //         game->tab_interface_id[game->selected_tab]);
-    // }
-
-    ImGui::End();
-
-    ImGui::Render();
-    ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), renderer->renderer);
+    torirs_nk_debug_panel_draw(s_soft3d_nk, game, &params);
+    torirs_nk_ui_after_frame(s_soft3d_nk);
+    torirs_nk_sdlren_render(NK_ANTI_ALIASING_ON);
 }
 
 struct Platform2_SDL2_Renderer_Soft3D*
@@ -260,11 +124,11 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Shutdown(struct Platform2_SDL2_Renderer_Soft3
 {
     if( !renderer )
         return;
-    if( ImGui::GetCurrentContext() )
+    if( s_soft3d_nk )
     {
-        ImGui_ImplSDLRenderer2_Shutdown();
-        ImGui_ImplSDL2_Shutdown();
-        ImGui::DestroyContext();
+        torirs_nk_ui_clear_active();
+        torirs_nk_sdlren_shutdown();
+        s_soft3d_nk = NULL;
     }
     if( renderer->texture )
     {
@@ -317,38 +181,26 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Init(
         return false;
     }
 
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGui::StyleColorsDark();
-
-    float scale = soft3d_platform_display_scale(platform);
-    if( scale > 1.0f )
+    s_soft3d_nk = torirs_nk_sdlren_init(win, renderer->renderer);
+    if( !s_soft3d_nk )
     {
-        ImGui::GetStyle().ScaleAllSizes(scale);
-        ImGui::GetIO().FontGlobalScale = scale;
-    }
-
-    if( !ImGui_ImplSDL2_InitForSDLRenderer(win, renderer->renderer) )
-    {
-        printf("ImGui SDL2 init failed\n");
-        ImGui::DestroyContext();
+        printf("Nuklear SDL renderer init failed\n");
         SDL_DestroyTexture(renderer->texture);
         renderer->texture = NULL;
         SDL_DestroyRenderer(renderer->renderer);
         renderer->renderer = NULL;
         return false;
     }
-    if( !ImGui_ImplSDLRenderer2_Init(renderer->renderer) )
+
     {
-        printf("ImGui Renderer init failed\n");
-        ImGui_ImplSDL2_Shutdown();
-        ImGui::DestroyContext();
-        SDL_DestroyTexture(renderer->texture);
-        renderer->texture = NULL;
-        SDL_DestroyRenderer(renderer->renderer);
-        renderer->renderer = NULL;
-        return false;
+        struct nk_font_atlas* atlas = NULL;
+        torirs_nk_sdlren_font_stash_begin(&atlas);
+        nk_font_atlas_add_default(atlas, 13.0f * soft3d_platform_display_scale(platform), NULL);
+        torirs_nk_sdlren_font_stash_end();
     }
+
+    torirs_nk_ui_set_active(s_soft3d_nk, torirs_nk_sdlren_handle_event, torirs_nk_sdlren_handle_grab);
+    s_soft3d_ui_prev_perf = SDL_GetPerformanceCounter();
 
     return true;
 }
@@ -662,7 +514,7 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Render(
     SDL_RenderCopy(renderer->renderer, renderer->texture, NULL, &dst_rect);
     SDL_FreeSurface(surface);
 
-    render_imgui(renderer, game);
+    render_nuklear_overlay(renderer, game);
 
     SDL_RenderPresent(renderer->renderer);
 }

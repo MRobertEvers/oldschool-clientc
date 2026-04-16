@@ -1,10 +1,17 @@
 #include "platform_impl2_osx_sdl2_renderer_opengl3.h"
 
 #include "graphics/dash.h"
-#include "imgui.h"
-#include "imgui_impl_opengl3.h"
-#include "imgui_impl_sdl2.h"
+#include "platforms/common/torirs_nk_ui_bridge.h"
+#include "platforms/common/torirs_nuklear_debug_panel.h"
 #include "tori_rs_render.h"
+
+#include <SDL.h>
+
+#include "nuklear/torirs_nk_config.h"
+#include "nuklear.h"
+
+#define TORIRS_NK_SDL_GL3_IMPLEMENTATION
+#include "nuklear/backends/sdl_opengl3/nuklear_torirs_sdl_gl3.h"
 
 extern "C" {
 #include "platforms/common/platform_memory.h"
@@ -318,65 +325,32 @@ model_gpu_cache_key(const struct DashModel* model)
     return key;
 }
 
+static struct nk_context* s_gl3_nk;
+static Uint64 s_gl3_ui_prev_perf;
+
 static void
-render_imgui_overlay(
+render_nuklear_overlay(
     struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer,
     struct GGame* game)
 {
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
+    if( !s_gl3_nk )
+        return;
 
-    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(320, 220), ImGuiCond_FirstUseEver);
-    ImGui::Begin("OpenGL3 Debug");
-    ImGui::Text(
-        "Application average %.3f ms/frame (%.1f FPS)",
-        1000.0f / ImGui::GetIO().Framerate,
-        ImGui::GetIO().Framerate);
+    double const dt = torirs_nk_ui_frame_delta_sec(&s_gl3_ui_prev_perf);
 
-#if ENABLE_HEAP_INFO
-    {
-        struct PlatformMemoryInfo mem = {};
-        if( platform_get_memory_info(&mem) )
-        {
-            float used_mb = mem.heap_used / (1024.0f * 1024.0f);
-            float total_mb = mem.heap_total / (1024.0f * 1024.0f);
-            ImGui::Text("Heap: %.1f / %.1f MB", used_mb, total_mb);
-            if( mem.heap_total > 0 )
-                ImGui::ProgressBar(
-                    (float)mem.heap_used / (float)mem.heap_total, ImVec2(-1, 0), nullptr);
-            if( mem.heap_peak > 0 )
-                ImGui::Text("Peak: %.1f MB", mem.heap_peak / (1024.0f * 1024.0f));
-        }
-    }
-#endif
+    TorirsNkDebugPanelParams params = {};
+    params.window_title = "OpenGL3 Debug";
+    params.delta_time_sec = dt;
+    params.view_w_cap = 4096;
+    params.view_h_cap = 4096;
+    params.include_soft3d_extras = 0;
 
-    ImGui::Text(
-        "Camera: %d %d %d", game->camera_world_x, game->camera_world_y, game->camera_world_z);
-    ImGui::Text("Mouse: %d %d", game->mouse_x, game->mouse_y);
-    if( game->view_port )
-    {
-        ImGui::Separator();
-        int w = game->view_port->width;
-        int h = game->view_port->height;
-        bool changed = ImGui::InputInt("World viewport W", &w);
-        changed |= ImGui::InputInt("World viewport H", &h);
-        if( changed )
-        {
-            if( w > 4096 )
-                w = 4096;
-            if( h > 4096 )
-                h = 4096;
-            LibToriRS_GameSetWorldViewportSize(game, w, h);
-        }
-    }
-    ImGui::End();
+    torirs_nk_debug_panel_draw(s_gl3_nk, game, &params);
+    torirs_nk_ui_after_frame(s_gl3_nk);
 
-    ImGui::Render();
     glDisable(GL_DEPTH_TEST);
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-    pix3dgl_restore_gl_state_after_imgui(renderer->pix3dgl);
+    torirs_nk_gl3_render(NK_ANTI_ALIASING_ON, 512 * 1024, 128 * 1024);
+    pix3dgl_restore_gl_state_after_ui(renderer->pix3dgl);
 }
 
 static void
@@ -444,11 +418,11 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Free(struct Platform2_OSX_SDL2_Renderer_
         renderer->pix3dgl = NULL;
     }
 
-    if( ImGui::GetCurrentContext() )
+    if( s_gl3_nk )
     {
-        ImGui_ImplOpenGL3_Shutdown();
-        ImGui_ImplSDL2_Shutdown();
-        ImGui::DestroyContext();
+        torirs_nk_ui_clear_active();
+        torirs_nk_gl3_shutdown();
+        s_gl3_nk = NULL;
     }
 
     if( renderer->gl_context )
@@ -495,23 +469,10 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Init(
         return false;
     }
 
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGui::StyleColorsDark();
-#if !defined(__APPLE__)
-    // Linux/Windows OpenGL windows omit ALLOW_HIGHDPI (see InitForOpenGL3); scale UI
-    // to match platform->display_scale the same way as the Soft3D renderer.
-    float imgui_scale = platform->display_scale;
-    if( imgui_scale > 1.0f )
+    s_gl3_nk = torirs_nk_gl3_init(platform->window);
+    if( !s_gl3_nk )
     {
-        ImGui::GetStyle().ScaleAllSizes(imgui_scale);
-        ImGui::GetIO().FontGlobalScale = imgui_scale;
-    }
-#endif
-    if( !ImGui_ImplSDL2_InitForOpenGL(platform->window, renderer->gl_context) )
-    {
-        printf("ImGui SDL2 init failed for OpenGL3\n");
-        ImGui::DestroyContext();
+        printf("Nuklear OpenGL3 init failed\n");
         pix3dgl_cleanup(renderer->pix3dgl);
         renderer->pix3dgl = NULL;
         SDL_GL_DeleteContext(renderer->gl_context);
@@ -519,22 +480,20 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Init(
         renderer->gl_context_ready = false;
         return false;
     }
+
+    {
+        struct nk_font_atlas* atlas = NULL;
+        torirs_nk_gl3_font_stash_begin(&atlas);
 #if defined(__APPLE__)
-    if( !ImGui_ImplOpenGL3_Init("#version 150") )
+        nk_font_atlas_add_default(atlas, 13.0f, NULL);
 #else
-    if( !ImGui_ImplOpenGL3_Init("#version 130") )
+        nk_font_atlas_add_default(atlas, 13.0f * platform->display_scale, NULL);
 #endif
-    {
-        printf("ImGui OpenGL3 init failed for OpenGL3 renderer\n");
-        ImGui_ImplSDL2_Shutdown();
-        ImGui::DestroyContext();
-        pix3dgl_cleanup(renderer->pix3dgl);
-        renderer->pix3dgl = NULL;
-        SDL_GL_DeleteContext(renderer->gl_context);
-        renderer->gl_context = NULL;
-        renderer->gl_context_ready = false;
-        return false;
+        torirs_nk_gl3_font_stash_end();
     }
+
+    torirs_nk_ui_set_active(s_gl3_nk, torirs_nk_gl3_handle_event, torirs_nk_gl3_handle_grab);
+    s_gl3_ui_prev_perf = SDL_GetPerformanceCounter();
 
     return true;
 }
@@ -942,7 +901,7 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
 
     LibToriRS_FrameEnd(game);
     glViewport(0, 0, renderer->width, renderer->height);
-    render_imgui_overlay(renderer, game);
+    render_nuklear_overlay(renderer, game);
     SDL_GL_SwapWindow(renderer->platform->window);
 
     s_frame++;

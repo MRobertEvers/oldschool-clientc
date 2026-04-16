@@ -251,7 +251,7 @@ main(
      * All renderers letterbox this to the actual canvas/window size. */
     const int game_width = 765;
     const int game_height = 503;
-    /* Upper bound for world viewport / soft pixel buffer (ImGui can raise view_port up to this). */
+    /* Upper bound for world viewport / soft pixel buffer (debug UI can raise view_port up to this). */
     const int render_max_width = game_width;
     const int render_max_height = game_height;
 

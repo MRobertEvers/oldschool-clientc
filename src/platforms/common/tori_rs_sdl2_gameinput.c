@@ -1,6 +1,6 @@
 #include "tori_rs_sdl2_gameinput.h"
 
-#include "tori_rs_sdl2_gameinput_imgui.h"
+#include "tori_rs_sdl2_gameinput_nuklear.h"
 
 #include <SDL.h>
 #include <assert.h>
@@ -155,8 +155,12 @@ SDLButtonToGameInputButton(int button)
     {
     case SDL_BUTTON_LEFT:
         return TORIRSM_LEFT;
+    case SDL_BUTTON_MIDDLE:
+        return TORIRSM_MIDDLE;
     case SDL_BUTTON_RIGHT:
         return TORIRSM_RIGHT;
+    default:
+        return TORIRSM_LEFT;
     }
 }
 
@@ -230,11 +234,12 @@ ToriRSLibPlatform_SDL2_GameInput_PollEvents(
     input->time_delta_accumulator_seconds += time_delta_seconds;
     input->time = time;
     SDL_Event event;
+    bool nk_wants_keyboard = ToriRSLibPlatform_SDL2_GameInput_NK_WantCaptureKeyboard();
+    bool nk_wants_mouse = ToriRSLibPlatform_SDL2_GameInput_NK_WantCaptureMouse();
+    ToriRSLibPlatform_SDL2_GameInput_NK_PrePoll();
     while( SDL_PollEvent(&event) )
     {
-        ToriRSLibPlatform_SDL2_GameInput_ImGui_ProcessEvent(&event);
-        bool imgui_wants_keyboard = ToriRSLibPlatform_SDL2_GameInput_ImGui_WantCaptureKeyboard();
-        bool imgui_wants_mouse = ToriRSLibPlatform_SDL2_GameInput_ImGui_WantCaptureMouse();
+        ToriRSLibPlatform_SDL2_GameInput_NK_ProcessEvent(&event);
 
         switch( event.type )
         {
@@ -242,29 +247,30 @@ ToriRSLibPlatform_SDL2_GameInput_PollEvents(
             input->quit = 1;
             break;
         case SDL_KEYDOWN:
-            if( !imgui_wants_keyboard )
+            if( !nk_wants_keyboard )
                 push_keydown_event(input, event.key.keysym.sym);
             break;
         case SDL_KEYUP:
-            if( !imgui_wants_keyboard )
+            if( !nk_wants_keyboard )
                 push_keyup_event(input, event.key.keysym.sym);
             break;
         case SDL_MOUSEMOTION:
-            if( !imgui_wants_mouse )
+            if( !nk_wants_mouse )
                 push_mouse_move_event(input, &event.motion);
             break;
         case SDL_MOUSEBUTTONDOWN:
-            if( !imgui_wants_mouse )
+            if( !nk_wants_mouse )
                 push_mouse_down_event(input, &event.button);
             break;
         case SDL_MOUSEBUTTONUP:
-            if( !imgui_wants_mouse )
+            if( !nk_wants_mouse )
                 push_mouse_up_event(input, &event.button);
             break;
         case SDL_MOUSEWHEEL:
-            if( !imgui_wants_mouse )
+            if( !nk_wants_mouse )
                 push_mouse_wheel_event(input, &event.wheel);
             break;
         }
     }
+    ToriRSLibPlatform_SDL2_GameInput_NK_PostPoll();
 }

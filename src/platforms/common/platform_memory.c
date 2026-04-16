@@ -29,7 +29,7 @@ platform_get_memory_info(struct PlatformMemoryInfo* info)
      * Do not use mach_task_basic_info resident vs virtual here: virtual_size is
      * process address space (often huge due to mmap), so used/total looked empty.
      * malloc_zone_statistics (NULL aggregates all zones) matches Linux mallinfo
-     * / Emscripten heap semantics for the ImGui bar.
+     * / Emscripten heap semantics for the debug overlay heap bar.
      */
     malloc_statistics_t stats;
     malloc_zone_statistics(NULL, &stats);

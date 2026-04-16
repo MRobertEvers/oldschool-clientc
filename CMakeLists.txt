@@ -17,7 +17,7 @@ option(ENABLE_ASAN "Enable AddressSanitizer (ASAN)" OFF)
 option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer (UBSAN)" OFF)
 option(BUILD_WEB_NATIVE "Build the web_client_native (SDL-free) Emscripten target" OFF)
 option(ENABLE_PACKAGE_BUILD "Copy scripts/configs/cache254 next to executable; use app-root resource paths" OFF)
-option(ENABLE_HEAP_INFO "Show heap stats in ImGui debug overlays (platform_get_memory_info)" OFF)
+option(ENABLE_HEAP_INFO "Show heap stats in Nuklear debug overlays (platform_get_memory_info)" OFF)
 option(DASH_BUCKET_SORT_USE_LINKED_LIST
     "Use linked-list bucket sort (lower RAM; may be slower than dense array)" OFF)
 
@@ -45,7 +45,11 @@ set(COMMON_SOURCES
     src/platforms/common/sockstream.c
     src/platforms/common/platform_memory.c
     src/platforms/common/tori_rs_sdl2_gameinput.c
-    src/platforms/common/tori_rs_sdl2_gameinput_imgui.cpp
+    src/platforms/common/tori_rs_sdl2_gameinput_nuklear.cpp
+    src/platforms/common/torirs_nk_sdl_input.cpp
+    src/platforms/common/torirs_nk_ui_bridge.cpp
+    src/platforms/common/torirs_nuklear_debug_panel.cpp
+    src/nuklear/nuklear_impl.c
     src/osrs/ginput.c
     src/osrs/buildcachedat.c
     src/osrs/isaac.c
@@ -164,10 +168,6 @@ set(COMMON_SOURCES
     src/osrs/lua_sidecar/lua_api.c
     src/osrs/lua_sidecar/lua_api_ht.c
     src/osrs/lua_sidecar/lua_platform.c
-    src/imgui/imgui.cpp
-    src/imgui/imgui_draw.cpp
-    src/imgui/imgui_tables.cpp
-    src/imgui/imgui_widgets.cpp
     src/3rd/bzip/bzip.c
     src/3rd/miniz/miniz.c
     src/3rd/tommath/mpi.c
@@ -184,22 +184,19 @@ if(NOT EMSCRIPTEN)
         src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp
         src/osrs/lua_sidecar/luac_sidecar_config.c
         src/osrs/lua_sidecar/luac_sidecar_command_dispatch.c
-        src/imgui/imgui_impl_sdl2.cpp
-        src/imgui/imgui_impl_sdlrenderer2.cpp
     )
 
     if(NOT WIN32)
         list(APPEND OSX_SOURCES
             src/platforms/platform_impl2_osx_sdl2_renderer_opengl3.cpp
             src/osrs/pix3dgl.cpp
-            src/imgui/imgui_impl_opengl3.cpp
         )
     endif()
 
     if(APPLE)
         list(APPEND OSX_SOURCES
             src/platforms/platform_impl2_osx_sdl2_renderer_metal.mm
-            src/imgui/imgui_impl_metal.mm
+            src/nuklear/backends/torirs_nk_metal_sdl.mm
         )
     endif()
 
@@ -266,7 +263,7 @@ if(NOT EMSCRIPTEN)
         # Enable ARC only for the Objective-C++ Metal files
         set_source_files_properties(
             src/platforms/platform_impl2_osx_sdl2_renderer_metal.mm
-            src/imgui/imgui_impl_metal.mm
+            src/nuklear/backends/torirs_nk_metal_sdl.mm
             PROPERTIES COMPILE_FLAGS "-fobjc-arc"
         )
 
@@ -400,9 +397,6 @@ if(EMSCRIPTEN)
         src/platforms/browser2/luajs_configs.c
         src/platforms/browser2/luajs_sidecar_blobs.c
         src/platforms/browser2/netjs.c
-        src/imgui/imgui_impl_sdl2.cpp
-        src/imgui/imgui_impl_sdlrenderer2.cpp
-        src/imgui/imgui_impl_opengl3.cpp
     )
 
     # Emscripten-specific Compile/Link flags
@@ -474,7 +468,11 @@ if(EMSCRIPTEN)
         set(WEB_CLIENT_NATIVE_SOURCES ${COMMON_SOURCES})
         list(REMOVE_ITEM WEB_CLIENT_NATIVE_SOURCES
             src/platforms/common/tori_rs_sdl2_gameinput.c
-            src/platforms/common/tori_rs_sdl2_gameinput_imgui.cpp
+            src/platforms/common/tori_rs_sdl2_gameinput_nuklear.cpp
+            src/platforms/common/torirs_nk_sdl_input.cpp
+            src/platforms/common/torirs_nk_ui_bridge.cpp
+            src/platforms/common/torirs_nuklear_debug_panel.cpp
+            src/nuklear/nuklear_impl.c
         )
 
         add_executable(web_client_native
@@ -532,12 +530,12 @@ if(EMSCRIPTEN)
 endif()
 
 # Always set ENABLE_HEAP_INFO to 0 or 1 so #if ENABLE_HEAP_INFO works (#ifdef is true even for =0).
-foreach(_t_imgui_heap osx web_client web_client_native)
-    if(TARGET ${_t_imgui_heap})
+foreach(_t_nk_heap osx web_client web_client_native)
+    if(TARGET ${_t_nk_heap})
         if(ENABLE_HEAP_INFO)
-            target_compile_definitions(${_t_imgui_heap} PRIVATE ENABLE_HEAP_INFO=1)
+            target_compile_definitions(${_t_nk_heap} PRIVATE ENABLE_HEAP_INFO=1)
         else()
-            target_compile_definitions(${_t_imgui_heap} PRIVATE ENABLE_HEAP_INFO=0)
+            target_compile_definitions(${_t_nk_heap} PRIVATE ENABLE_HEAP_INFO=0)
         endif()
     endif()
 endforeach()
@@ -555,7 +553,7 @@ endforeach()
 # --- Global Properties ---
 foreach(target osx web_client web_client_native)
     if(TARGET ${target})
-        target_include_directories(${target} PRIVATE src src/imgui)
+        target_include_directories(${target} PRIVATE src src/nuklear)
         set_target_properties(${target} PROPERTIES
             C_STANDARD 11
             CXX_STANDARD 17

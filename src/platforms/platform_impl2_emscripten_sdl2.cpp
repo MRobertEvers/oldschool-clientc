@@ -4,6 +4,8 @@ extern "C" {
 #include "common/tori_rs_sdl2_gameinput.h"
 }
 
+#include "platforms/common/torirs_nk_ui_bridge.h"
+
 // #include "osrs/rscache/cache_dat.h"
 // #include "tori_rs.h"
 
@@ -14,10 +16,6 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-// Include ImGui SDL backend to process events (C++)
-#include "imgui.h"
-#include "imgui_impl_sdl2.h"
 
 static void
 transform_mouse_coordinates(
@@ -215,9 +213,6 @@ Platform2_Emscripten_SDL2_SyncCanvasCssSize(
         SDL_SetWindowSize(platform->window, new_w, new_h);
 
     emscripten_set_canvas_element_size("#canvas", new_w, new_h);
-
-    if( ImGui::GetCurrentContext() != nullptr )
-        ImGui::GetIO().DisplaySize = ImVec2((float)new_w, (float)new_h);
 }
 
 void
@@ -241,15 +236,12 @@ Platform2_Emscripten_SDL2_PollEvents(struct Platform2_Emscripten_SDL2* platform)
     double time_s = (double)(SDL_GetTicks64()) / 1000.0;
     ToriRSLibPlatform_SDL2_GameInput_PollEvents(input, time_s);
     /* Keep game mouse coords in sync when the canvas resizes without a motion event. */
-    if( ImGui::GetCurrentContext() == nullptr || !ImGui::GetIO().WantCaptureMouse )
+    if( !torirs_nk_ui_want_capture_mouse_prev() )
     {
         int mx = 0;
         int my = 0;
         SDL_GetMouseState(&mx, &my);
         transform_mouse_coordinates(mx, my, &input->mouse_state.x, &input->mouse_state.y, platform);
-    }
-    else
-    {
     }
 }
 

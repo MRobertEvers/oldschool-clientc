@@ -106,7 +106,8 @@ endif()
 # Include directories
 include_directories(
     ${CMAKE_SOURCE_DIR}/../src
-    ${CMAKE_SOURCE_DIR}/../src/imgui
+    ${CMAKE_SOURCE_DIR}/../src/nuklear
+    ${CMAKE_SOURCE_DIR}/../src/platforms/common
     ${CMAKE_SOURCE_DIR}/src/main/cpp
     ${SDL2_INCLUDE_DIRS}
 )
@@ -164,7 +165,7 @@ set(ANDROID_SOURCES
     ../src/osrs/filelist.c
     ../src/graphics/render.c
     ../src/osrs/rsbuf.c
-    ../src/graphics/gouraud_deob.c
+    ../src/graphics/reference/gouraud_deob.c
     ../src/graphics/lighting.c
     ../src/osrs/anim.c
     ../src/osrs/model_transforms.c
@@ -174,13 +175,9 @@ set(ANDROID_SOURCES
     ../src/osrs/scene_cache.c
     ../src/datastruct/ht.c
     ../src/osrs/tables/noise.c
-    ../src/imgui/imgui.cpp
-    ../src/imgui/imgui_draw.cpp
-    ../src/imgui/imgui_tables.cpp
-    ../src/imgui/imgui_widgets.cpp
-    ../src/imgui/imgui_demo.cpp
-    ../src/imgui/imgui_impl_sdl2.cpp
-    ../src/imgui/imgui_impl_sdlrenderer2.cpp
+    ../src/nuklear/nuklear_impl.c
+    ../src/platforms/common/torirs_nk_sdl_input.cpp
+    ../src/platforms/common/torirs_nk_ui_bridge.cpp
     ../src/3rd/bzip/bzip.c
     ../src/3rd/miniz/miniz.c
 )

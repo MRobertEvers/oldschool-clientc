@@ -1,10 +1,12 @@
 #ifndef GOURAUD_SIMD_U_C
 #define GOURAUD_SIMD_U_C
 
+#include "graphics/dash_restrict.h"
+
 #include <stdint.h>
 
 // clang-format off
-#include "alpha.h"
+#include "graphics/alpha.h"
 // clang-format on
 
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)

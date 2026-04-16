@@ -1,8 +1,8 @@
 /*
- * Benchmark raster_texture_opaque_blend_blerp8 (texture_blend_branching.u.c) vs
- * raster_texture_opaque_blend_blerp8_v3 (texture_blend_branching_v3.u.c).
+ * Benchmark raster_texture_opaque_blend_branching_lerp8 (texture_blend_branching.u.c) vs
+ * raster_texture_opaque_blend_branching_lerp8_v3 (texture_blend_branching_v3.u.c).
  *
- * Same projection + texture_simd are included once via the first header; the v3 header adds
+ * Same projection + tex.span (SIMD) are included once via the first header; the v3 header adds
  * the SIMD-path raster without re-including projection/simd (include guards).
  */
 #include <stdio.h>
@@ -13,13 +13,13 @@ int g_cos_table[2048];
 int g_tan_table[2048];
 int g_reciprocal16_simd[4096];
 
-#define raster_texture_opaque_blend_blerp8 bench_raster_texture_opaque_blend_scalar
+#define raster_texture_opaque_blend_branching_lerp8 bench_raster_texture_opaque_blend_scalar
 #include "../../src/graphics/texture_blend_branching.u.c"
-#undef raster_texture_opaque_blend_blerp8
+#undef raster_texture_opaque_blend_branching_lerp8
 
-#define raster_texture_opaque_blend_blerp8_v3 bench_raster_texture_opaque_blend_simd
+#define raster_texture_opaque_blend_branching_lerp8_v3 bench_raster_texture_opaque_blend_simd
 #include "../../src/graphics/texture_blend_branching_v3.u.c"
-#undef raster_texture_opaque_blend_blerp8_v3
+#undef raster_texture_opaque_blend_branching_lerp8_v3
 
 #ifndef BENCH_ITERS
 #define BENCH_ITERS 400
@@ -60,7 +60,7 @@ fill_lookup_stubs(void)
         g_reciprocal16_simd[i] = (int)(65536.0 * 4096.0 / (double)(i + 1));
 }
 
-typedef void (*blerp8_fn)(
+typedef void (*branching_lerp8_fn)(
     int* pixel_buffer,
     int stride,
     int screen_width,
@@ -102,7 +102,7 @@ typedef struct
 
 static double
 time_raster(
-    blerp8_fn fn,
+    branching_lerp8_fn fn,
     int* pixels,
     int screen_w,
     int screen_h,
@@ -235,7 +235,7 @@ main(void)
         { "shade_dark_edges",           1024, 768,  128, 256, 50,  50,  974, 50,  512, 718,  8,   120, 8   },
         { "shade_bright",               1024, 768,  128, 256, 100, 100, 924, 100, 512, 680,  120, 120, 120 },
         /* Vertex order / winding: same geometry, different (xi,yi) assignments
-         * (y0,y1,y2 ordering) to exercise all six branches inside blerp8. */
+         * (y0,y1,y2 ordering) to exercise all six branches inside branching_lerp8. */
         { "order_y_asc_top_bl_br",      1024, 768,  128, 256, 512, 80,  120, 660, 904, 660,  64,  64,  64  },
         { "order_bl_br_top",            1024, 768,  128, 256, 120, 660, 904, 660, 512, 80,   64,  64,  64  },
         { "order_br_bl_top",            1024, 768,  128, 256, 904, 660, 120, 660, 512, 80,   64,  64,  64  },
@@ -247,7 +247,7 @@ main(void)
     const int n_cases = (int)(sizeof(cases) / sizeof(cases[0]));
 
     printf(
-        "raster_texture_opaque_blend_blerp8 vs raster_texture_opaque_blend_blerp8_v3\n"
+        "raster_texture_opaque_blend_branching_lerp8 vs raster_texture_opaque_blend_branching_lerp8_v3\n"
         "iters=%d  warmup=%d\n\n",
         BENCH_ITERS,
         BENCH_WARMUP);
@@ -313,8 +313,8 @@ main(void)
 
         printf(
             "%s  (%dx%d tex=%d fov=%d)\n"
-            "  raster_texture_opaque_blend_blerp8:    %6.4f s total  %6.3f ms/call\n"
-            "  raster_texture_opaque_blend_blerp8_v3: %6.4f s total  %6.3f ms/call  (SIMD ~%.2f× "
+            "  raster_texture_opaque_blend_branching_lerp8:    %6.4f s total  %6.3f ms/call\n"
+            "  raster_texture_opaque_blend_branching_lerp8_v3: %6.4f s total  %6.3f ms/call  (SIMD ~%.2f× "
             "faster)\n\n",
             bc->name,
             bc->screen_w,

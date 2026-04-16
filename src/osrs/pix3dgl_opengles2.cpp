@@ -1387,7 +1387,7 @@ pix3dgl_end_2dframe(struct Pix3DGL* pix3dgl)
 }
 
 extern "C" void
-pix3dgl_restore_gl_state_after_imgui(struct Pix3DGL* pix3dgl)
+pix3dgl_restore_gl_state_after_ui(struct Pix3DGL* pix3dgl)
 {
     if( !pix3dgl || !pix3dgl->program_es2 )
         return;

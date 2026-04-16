@@ -35,7 +35,7 @@ raster_texture_blend_affine_v3(
 {
     if( texture_opaque )
     {
-        raster_texture_opaque_blend_affine_v3(
+        raster_texture_opaque_blend_affine_branching_lerp8_v3(
             pixel_buffer,
             stride,
             screen_width,
@@ -64,7 +64,7 @@ raster_texture_blend_affine_v3(
     }
     else
     {
-        raster_texture_transparent_blend_affine_v3(
+        raster_texture_transparent_blend_affine_branching_lerp8_v3(
             pixel_buffer,
             stride,
             screen_width,
@@ -127,7 +127,7 @@ raster_texture_blend_affine(
 {
     if( texture_opaque )
     {
-        raster_texture_opaque_blend_affine(
+        raster_texture_opaque_blend_affine_branching_lerp8(
             pixel_buffer,
             stride,
             screen_width,
@@ -156,7 +156,7 @@ raster_texture_blend_affine(
     }
     else
     {
-        raster_texture_transparent_blend_affine(
+        raster_texture_transparent_blend_affine_branching_lerp8(
             pixel_buffer,
             stride,
             screen_width,
@@ -221,7 +221,7 @@ raster_texture_flat_affine_v3(
 
     if( texture_opaque )
     {
-        raster_texture_opaque_blend_affine_v3(
+        raster_texture_opaque_blend_affine_branching_lerp8_v3(
             pixel_buffer,
             stride,
             screen_width,
@@ -250,7 +250,7 @@ raster_texture_flat_affine_v3(
     }
     else
     {
-        raster_texture_transparent_blend_affine_v3(
+        raster_texture_transparent_blend_affine_branching_lerp8_v3(
             pixel_buffer,
             stride,
             screen_width,
@@ -315,7 +315,7 @@ raster_texture_flat_affine(
 
     if( texture_opaque )
     {
-        raster_texture_opaque_blend_affine(
+        raster_texture_opaque_blend_affine_branching_lerp8(
             pixel_buffer,
             stride,
             screen_width,
@@ -344,7 +344,7 @@ raster_texture_flat_affine(
     }
     else
     {
-        raster_texture_transparent_blend_affine(
+        raster_texture_transparent_blend_affine_branching_lerp8(
             pixel_buffer,
             stride,
             screen_width,

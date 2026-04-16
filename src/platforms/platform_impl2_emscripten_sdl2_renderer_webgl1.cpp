@@ -1,15 +1,23 @@
 #include "platform_impl2_emscripten_sdl2_renderer_webgl1.h"
 
 #include "graphics/dash.h"
+#include "platforms/common/torirs_nk_ui_bridge.h"
+#include "platforms/common/torirs_nuklear_debug_panel.h"
 #include "tori_rs_render.h"
 
 extern "C" {
 #include "platforms/common/platform_memory.h"
+#include "tori_rs.h"
 }
 
-#include "imgui.h"
-#include "imgui_impl_opengl3.h"
-#include "imgui_impl_sdl2.h"
+#include <SDL.h>
+
+#include "nuklear/torirs_nk_config.h"
+#include "nuklear.h"
+
+#define TORIRS_NK_SDL_GLES2_IMPLEMENTATION
+#include "nuklear/backends/sdl_opengles2/nuklear_torirs_sdl_gles2.h"
+
 #include <GLES2/gl2.h>
 #include <emscripten/html5.h>
 
@@ -17,6 +25,9 @@ extern "C" {
 #include <cstdio>
 #include <cstring>
 #include <emscripten.h>
+
+static struct nk_context* s_webgl_nk;
+static Uint64 s_webgl_ui_prev_perf;
 
 static const char* g_font_vertex_shader_es2 = R"(#version 100
 attribute vec2 aPos;
@@ -306,69 +317,35 @@ model_gpu_cache_key(const struct DashModel* model)
 }
 
 static void
-render_imgui_overlay(
+render_nuklear_overlay(
     struct Platform2_Emscripten_SDL2_Renderer_WebGL1* renderer,
     struct GGame* game)
 {
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
+    if( !s_webgl_nk )
+        return;
 
-    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(320, 220), ImGuiCond_FirstUseEver);
-    ImGui::Begin("WebGL1 Debug");
-    ImGui::Text(
-        "Application average %.3f ms/frame (%.1f FPS)",
-        1000.0f / ImGui::GetIO().Framerate,
-        ImGui::GetIO().Framerate);
+    double const dt = torirs_nk_ui_frame_delta_sec(&s_webgl_ui_prev_perf);
 
-#if ENABLE_HEAP_INFO
-    {
-        struct PlatformMemoryInfo mem = {};
-        if( platform_get_memory_info(&mem) )
-        {
-            float used_mb = mem.heap_used / (1024.0f * 1024.0f);
-            float total_mb = mem.heap_total / (1024.0f * 1024.0f);
-            ImGui::Text("Heap: %.1f / %.1f MB", used_mb, total_mb);
-            if( mem.heap_total > 0 )
-                ImGui::ProgressBar(
-                    (float)mem.heap_used / (float)mem.heap_total, ImVec2(-1, 0), nullptr);
-            if( mem.heap_peak > 0 )
-                ImGui::Text("Peak: %.1f MB", mem.heap_peak / (1024.0f * 1024.0f));
-        }
-    }
-#endif
+    int mw = renderer->max_width > 0 ? renderer->max_width : 4096;
+    int mh = renderer->max_height > 0 ? renderer->max_height : 4096;
 
-    ImGui::Text(
-        "Camera: %d %d %d", game->camera_world_x, game->camera_world_y, game->camera_world_z);
-    ImGui::Text("Mouse: %d %d", game->mouse_x, game->mouse_y);
-    if( game->view_port )
-    {
-        ImGui::Separator();
-        int w = game->view_port->width;
-        int h = game->view_port->height;
-        bool changed = ImGui::InputInt("World viewport W", &w);
-        changed |= ImGui::InputInt("World viewport H", &h);
-        if( changed )
-        {
-            int mw = renderer->max_width > 0 ? renderer->max_width : 4096;
-            int mh = renderer->max_height > 0 ? renderer->max_height : 4096;
-            if( w > mw )
-                w = mw;
-            if( h > mh )
-                h = mh;
-            LibToriRS_GameSetWorldViewportSize(game, w, h);
-        }
-    }
-    ImGui::Text("Loaded model keys: %zu", renderer->loaded_model_keys.size());
-    ImGui::Text("Loaded scene keys: %zu", renderer->loaded_scene_element_keys.size());
-    ImGui::Text("Loaded textures: %zu", renderer->loaded_texture_ids.size());
-    ImGui::End();
+    TorirsNkDebugPanelParams params = {};
+    params.window_title = "WebGL1 Debug";
+    params.delta_time_sec = dt;
+    params.view_w_cap = mw;
+    params.view_h_cap = mh;
+    params.include_soft3d_extras = 0;
+    params.include_load_counts = 1;
+    params.loaded_models = renderer->loaded_model_keys.size();
+    params.loaded_scenes = renderer->loaded_scene_element_keys.size();
+    params.loaded_textures = renderer->loaded_texture_ids.size();
 
-    ImGui::Render();
+    torirs_nk_debug_panel_draw(s_webgl_nk, game, &params);
+    torirs_nk_ui_after_frame(s_webgl_nk);
+
     glDisable(GL_DEPTH_TEST);
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-    pix3dgl_restore_gl_state_after_imgui(renderer->pix3dgl);
+    torirs_nk_gles2_render(NK_ANTI_ALIASING_ON, 512 * 1024, 128 * 1024);
+    pix3dgl_restore_gl_state_after_ui(renderer->pix3dgl);
 }
 
 struct LetterboxRect
@@ -475,6 +452,12 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Free(
         pix3dgl_cleanup(renderer->pix3dgl);
         renderer->pix3dgl = NULL;
     }
+    if( s_webgl_nk )
+    {
+        torirs_nk_ui_clear_active();
+        torirs_nk_gles2_shutdown();
+        s_webgl_nk = NULL;
+    }
     delete renderer;
 }
 
@@ -523,19 +506,20 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Init(
         return false;
     }
 
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGui::StyleColorsDark();
-    if( !ImGui_ImplSDL2_InitForOpenGL(platform->window, renderer->gl_context) )
+    s_webgl_nk = torirs_nk_gles2_init(platform->window);
+    if( !s_webgl_nk )
     {
-        printf("ImGui SDL2 init failed for WebGL1\n");
+        printf("Nuklear WebGL1 init failed\n");
         return false;
     }
-    if( !ImGui_ImplOpenGL3_Init("#version 100") )
     {
-        printf("ImGui OpenGL3 init failed for WebGL1\n");
-        return false;
+        struct nk_font_atlas* atlas = NULL;
+        torirs_nk_gles2_font_stash_begin(&atlas);
+        nk_font_atlas_add_default(atlas, 13.0f, NULL);
+        torirs_nk_gles2_font_stash_end();
     }
+    torirs_nk_ui_set_active(s_webgl_nk, torirs_nk_gles2_handle_event, torirs_nk_gles2_handle_grab);
+    s_webgl_ui_prev_perf = SDL_GetPerformanceCounter();
 
     return true;
 }
@@ -998,7 +982,7 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
     LibToriRS_FrameEnd(game);
 
     glViewport(0, 0, renderer->width, renderer->height);
-    render_imgui_overlay(renderer, game);
+    render_nuklear_overlay(renderer, game);
 
     if( renderer->platform && renderer->platform->window )
         SDL_GL_SwapWindow(renderer->platform->window);

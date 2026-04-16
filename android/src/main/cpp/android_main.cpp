@@ -38,12 +38,7 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
-// ImGui headers
-#define IMGUI_DEFINE_MATH_OPERATORS
 #include "android_platform.h"
-#include "imgui.h"
-#include "imgui_impl_sdl2.h"
-#include "imgui_impl_sdlrenderer2.h"
 
 // #define LOG_TAG "SceneTileTest"
 // #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)

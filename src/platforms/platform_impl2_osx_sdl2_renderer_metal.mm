@@ -1,12 +1,15 @@
 // System ObjC/Metal headers must come before any game headers.
 #include "platform_impl2_osx_sdl2_renderer_metal.h"
 
-#include "imgui.h"
-#include "imgui_impl_metal.h"
-#include "imgui_impl_sdl2.h"
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
+
+#include "nuklear/backends/torirs_nk_metal_sdl.h"
+#include "platforms/common/torirs_nk_ui_bridge.h"
+#include "platforms/common/torirs_nuklear_debug_panel.h"
+
+#include <SDL.h>
 
 #include <cmath>
 #include <cstdio>
@@ -24,8 +27,12 @@ extern "C" {
 #include "graphics/shared_tables.h"
 #include "osrs/game.h"
 #include "platforms/common/platform_memory.h"
+#include "tori_rs.h"
 #include "tori_rs_render.h"
 }
+
+static struct TorirsNkMetalUi* s_mtl_nk;
+static Uint64 s_mtl_ui_prev_perf;
 
 // Must match src/osrs/pix3dglcore.u.cpp (used by Pix3DGL / OpenGL3 renderer).
 static void
@@ -467,70 +474,39 @@ preload_model_key(
 }
 
 // ---------------------------------------------------------------------------
-// ImGui overlay
+// Nuklear overlay (Metal)
 // ---------------------------------------------------------------------------
 static void
-render_imgui_overlay(
+render_nuklear_overlay(
     struct Platform2_OSX_SDL2_Renderer_Metal* renderer,
     struct GGame* game,
-    id<MTLCommandBuffer> commandBuffer,
-    id<MTLRenderCommandEncoder> encoder,
-    MTLRenderPassDescriptor* renderPassDesc)
+    id<MTLRenderCommandEncoder> encoder)
 {
-    ImGui_ImplMetal_NewFrame(renderPassDesc);
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
+    if( !s_mtl_nk )
+        return;
 
-    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(320, 220), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Metal Debug");
-    ImGui::Text(
-        "Application average %.3f ms/frame (%.1f FPS)",
-        1000.0f / ImGui::GetIO().Framerate,
-        ImGui::GetIO().Framerate);
+    double const dt = torirs_nk_ui_frame_delta_sec(&s_mtl_ui_prev_perf);
 
-#if ENABLE_HEAP_INFO
-    {
-        struct PlatformMemoryInfo mem = {};
-        if( platform_get_memory_info(&mem) )
-        {
-            float used_mb = mem.heap_used / (1024.0f * 1024.0f);
-            float total_mb = mem.heap_total / (1024.0f * 1024.0f);
-            ImGui::Text("Heap: %.1f / %.1f MB", used_mb, total_mb);
-            if( mem.heap_total > 0 )
-                ImGui::ProgressBar(
-                    (float)mem.heap_used / (float)mem.heap_total, ImVec2(-1, 0), nullptr);
-            if( mem.heap_peak > 0 )
-                ImGui::Text("Peak: %.1f MB", mem.heap_peak / (1024.0f * 1024.0f));
-        }
-    }
-#endif
+    TorirsNkDebugPanelParams params = {};
+    params.window_title = "Metal Debug";
+    params.delta_time_sec = dt;
+    params.view_w_cap = 4096;
+    params.view_h_cap = 4096;
+    params.include_soft3d_extras = 0;
+    params.include_gpu_frame_stats = 1;
+    params.gpu_model_draws = renderer->debug_model_draws;
+    params.gpu_tris = renderer->debug_triangles;
 
-    ImGui::Text(
-        "Camera: %d %d %d", game->camera_world_x, game->camera_world_y, game->camera_world_z);
-    ImGui::Text("Mouse: %d %d", game->mouse_x, game->mouse_y);
-    if( game->view_port )
-    {
-        ImGui::Separator();
-        int w = game->view_port->width;
-        int h = game->view_port->height;
-        bool changed = ImGui::InputInt("World viewport W", &w);
-        changed |= ImGui::InputInt("World viewport H", &h);
-        if( changed )
-        {
-            if( w > 4096 )
-                w = 4096;
-            if( h > 4096 )
-                h = 4096;
-            LibToriRS_GameSetWorldViewportSize(game, w, h);
-        }
-    }
-    ImGui::Text("Frame model draws: %u", renderer->debug_model_draws);
-    ImGui::Text("Frame triangles: %u", renderer->debug_triangles);
-    ImGui::End();
-
-    ImGui::Render();
-    ImGui_ImplMetal_RenderDrawData(ImGui::GetDrawData(), commandBuffer, encoder);
+    struct nk_context* nk = torirs_nk_metal_ctx(s_mtl_nk);
+    torirs_nk_debug_panel_draw(nk, game, &params);
+    torirs_nk_ui_after_frame(nk);
+    torirs_nk_metal_resize(s_mtl_nk, renderer->width, renderer->height);
+    torirs_nk_metal_render(
+        s_mtl_nk,
+        (__bridge void*)encoder,
+        renderer->width,
+        renderer->height,
+        NK_ANTI_ALIASING_ON);
 }
 
 // ---------------------------------------------------------------------------
@@ -624,11 +600,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(struct Platform2_OSX_SDL2_Renderer_Me
         renderer->mtl_font_pipeline = nullptr;
     }
 
-    if( ImGui::GetCurrentContext() )
+    if( s_mtl_nk )
     {
-        ImGui_ImplMetal_Shutdown();
-        ImGui_ImplSDL2_Shutdown();
-        ImGui::DestroyContext();
+        torirs_nk_ui_clear_active();
+        torirs_nk_metal_shutdown(s_mtl_nk);
+        s_mtl_nk = NULL;
     }
 
     // ARC manages the Metal objects; clear pointers so the bridged refs release
@@ -989,13 +965,24 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
     renderer->mtl_font_vbo = (__bridge_retained void*)fontVbo;
 
     // -----------------------------------------------------------------------
-    // ImGui
+    // Nuklear (Metal)
     // -----------------------------------------------------------------------
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGui::StyleColorsDark();
-    ImGui_ImplSDL2_InitForMetal(platform->window);
-    ImGui_ImplMetal_Init(device);
+    s_mtl_nk = torirs_nk_metal_init(
+        (__bridge void*)device, renderer->width, renderer->height, 512 * 1024, 128 * 1024);
+    if( !s_mtl_nk )
+    {
+        printf("Nuklear Metal init failed\n");
+        renderer->metal_ready = false;
+        return false;
+    }
+    {
+        struct nk_font_atlas* atlas = NULL;
+        torirs_nk_metal_font_stash_begin(s_mtl_nk, &atlas);
+        nk_font_atlas_add_default(atlas, 13.0f, NULL);
+        torirs_nk_metal_font_stash_end(s_mtl_nk);
+    }
+    torirs_nk_ui_set_active(torirs_nk_metal_ctx(s_mtl_nk), NULL, NULL);
+    s_mtl_ui_prev_perf = SDL_GetPerformanceCounter();
 
     renderer->metal_ready = true;
     return true;
@@ -1687,9 +1674,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
         }
 
         // -----------------------------------------------------------------------
-        // Finish scene pass, render ImGui overlay in the same render encoder
+        // Finish scene pass, render Nuklear overlay in the same render encoder
         // -----------------------------------------------------------------------
-        // Reset viewport to full drawable for ImGui
         MTLViewport fullVp = { .originX = 0.0,
                                .originY = 0.0,
                                .width = (double)renderer->width,
@@ -1698,7 +1684,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
                                .zfar = 1.0 };
         [encoder setViewport:fullVp];
 
-        render_imgui_overlay(renderer, game, cmdBuf, encoder, rpDesc);
+        render_nuklear_overlay(renderer, game, encoder);
 
         LibToriRS_FrameEnd(game);
 

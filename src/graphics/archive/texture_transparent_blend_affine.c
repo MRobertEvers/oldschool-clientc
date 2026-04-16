@@ -9,7 +9,7 @@
 
 // Forward declarations
 static inline void
-raster_texture_transparent_blend_affine_ordered(
+raster_texture_transparent_blend_affine_branching_lerp8_ordered(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -37,7 +37,7 @@ raster_texture_transparent_blend_affine_ordered(
     int texture_width);
 
 static inline void
-raster_texture_transparent_blend_affine(
+raster_texture_transparent_blend_affine_branching_lerp8(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -79,7 +79,7 @@ raster_texture_transparent_blend_affine(
             if( y2 < 0 || y0 >= screen_height )
                 return;
 
-            raster_texture_transparent_blend_affine_ordered(
+            raster_texture_transparent_blend_affine_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -112,7 +112,7 @@ raster_texture_transparent_blend_affine(
             if( y1 < 0 || y0 >= screen_height )
                 return;
 
-            raster_texture_transparent_blend_affine_ordered(
+            raster_texture_transparent_blend_affine_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -148,7 +148,7 @@ raster_texture_transparent_blend_affine(
             if( y0 < 0 || y1 >= screen_height )
                 return;
 
-            raster_texture_transparent_blend_affine_ordered(
+            raster_texture_transparent_blend_affine_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -181,7 +181,7 @@ raster_texture_transparent_blend_affine(
             if( y2 < 0 || y1 >= screen_height )
                 return;
 
-            raster_texture_transparent_blend_affine_ordered(
+            raster_texture_transparent_blend_affine_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -217,7 +217,7 @@ raster_texture_transparent_blend_affine(
             if( y1 < 0 || y2 >= screen_height )
                 return;
 
-            raster_texture_transparent_blend_affine_ordered(
+            raster_texture_transparent_blend_affine_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -250,7 +250,7 @@ raster_texture_transparent_blend_affine(
             if( y0 < 0 || y2 >= screen_height )
                 return;
 
-            raster_texture_transparent_blend_affine_ordered(
+            raster_texture_transparent_blend_affine_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -281,7 +281,7 @@ raster_texture_transparent_blend_affine(
 }
 
 static inline void
-draw_texture_scanline_transparent_blend_affine_ordered(
+draw_texture_scanline_transparent_blend_affine_branching_lerp8_ordered(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -438,7 +438,7 @@ draw_texture_scanline_transparent_blend_affine_ordered(
 }
 
 static inline void
-raster_texture_transparent_blend_affine_ordered(
+raster_texture_transparent_blend_affine_branching_lerp8_ordered(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -607,7 +607,7 @@ raster_texture_transparent_blend_affine_ordered(
 
             while( y1-- > 0 )
             {
-                draw_texture_scanline_transparent_blend_affine_ordered(
+                draw_texture_scanline_transparent_blend_affine_branching_lerp8_ordered(
                     pixel_buffer,
                     stride,
                     screen_width,
@@ -636,7 +636,7 @@ raster_texture_transparent_blend_affine_ordered(
 
             while( y2-- > 0 )
             {
-                draw_texture_scanline_transparent_blend_affine_ordered(
+                draw_texture_scanline_transparent_blend_affine_branching_lerp8_ordered(
                     pixel_buffer,
                     stride,
                     screen_width,
@@ -670,7 +670,7 @@ raster_texture_transparent_blend_affine_ordered(
 
             while( y1-- > 0 )
             {
-                draw_texture_scanline_transparent_blend_affine_ordered(
+                draw_texture_scanline_transparent_blend_affine_branching_lerp8_ordered(
                     pixel_buffer,
                     stride,
                     screen_width,
@@ -699,7 +699,7 @@ raster_texture_transparent_blend_affine_ordered(
 
             while( y2-- > 0 )
             {
-                draw_texture_scanline_transparent_blend_affine_ordered(
+                draw_texture_scanline_transparent_blend_affine_branching_lerp8_ordered(
                     pixel_buffer,
                     stride,
                     screen_width,

@@ -1,9 +1,20 @@
 #include "platform_impl2_osx_sdl2_renderer_d3d11.h"
 
-#include "imgui.h"
-#include "imgui_impl_dx11.h"
-#include "imgui_impl_sdl2.h"
+#include "nuklear/torirs_nk_config.h"
+#include "nuklear.h"
+
+#include "platforms/common/torirs_nk_ui_bridge.h"
+#include "platforms/common/torirs_nuklear_debug_panel.h"
+
+#include <SDL.h>
 #include <SDL_syswm.h>
+
+extern "C" {
+#include "tori_rs.h"
+}
+
+#define NK_D3D11_IMPLEMENTATION
+#include "nuklear/backends/d3d11/nuklear_d3d11.h"
 
 #include <cmath>
 #include <cstdio>
@@ -17,13 +28,15 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+static struct nk_context* s_d3d11_nk;
+static Uint64 s_d3d11_ui_prev_perf;
+
 #include "graphics/uv_pnm.h"
 
 extern "C" {
 #include "graphics/dash.h"
 #include "graphics/shared_tables.h"
 #include "osrs/game.h"
-#include "platforms/common/platform_memory.h"
 #include "tori_rs_render.h"
 }
 
@@ -764,71 +777,37 @@ d3d11_resize_buffers(struct Platform2_OSX_SDL2_Renderer_D3D11* renderer)
 }
 
 // ---------------------------------------------------------------------------
-// ImGui overlay
+// Nuklear overlay (nk_d3d11)
 // ---------------------------------------------------------------------------
 static void
-render_imgui_overlay(
+render_nuklear_overlay(
     struct Platform2_OSX_SDL2_Renderer_D3D11* renderer,
     struct GGame* game)
 {
-    ImGui_ImplDX11_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
+    if( !s_d3d11_nk || !renderer || !game )
+        return;
 
-    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(320, 220), ImGuiCond_FirstUseEver);
-    ImGui::Begin("D3D11 Debug");
-    ImGui::Text(
-        "Application average %.3f ms/frame (%.1f FPS)",
-        1000.0f / ImGui::GetIO().Framerate,
-        ImGui::GetIO().Framerate);
+    double const dt = torirs_nk_ui_frame_delta_sec(&s_d3d11_ui_prev_perf);
 
-#if ENABLE_HEAP_INFO
-    {
-        struct PlatformMemoryInfo mem = {};
-        if( platform_get_memory_info(&mem) )
-        {
-            float used_mb = mem.heap_used / (1024.0f * 1024.0f);
-            float total_mb = mem.heap_total / (1024.0f * 1024.0f);
-            ImGui::Text("Heap: %.1f / %.1f MB", used_mb, total_mb);
-            if( mem.heap_total > 0 )
-                ImGui::ProgressBar(
-                    (float)mem.heap_used / (float)mem.heap_total, ImVec2(-1, 0), nullptr);
-            if( mem.heap_peak > 0 )
-                ImGui::Text("Peak: %.1f MB", mem.heap_peak / (1024.0f * 1024.0f));
-        }
-    }
-#endif
+    TorirsNkDebugPanelParams params = {};
+    params.window_title = "D3D11 Debug";
+    params.delta_time_sec = dt;
+    params.view_w_cap = 4096;
+    params.view_h_cap = 4096;
+    params.sdl_window = renderer->platform ? renderer->platform->window : nullptr;
+    params.soft3d = nullptr;
+    params.include_soft3d_extras = 0;
+    params.include_load_counts = 1;
+    params.loaded_models = renderer->loaded_model_keys.size();
+    params.loaded_scenes = renderer->loaded_scene_element_keys.size();
+    params.loaded_textures = renderer->loaded_texture_ids.size();
+    params.include_gpu_frame_stats = 1;
+    params.gpu_model_draws = renderer->debug_model_draws;
+    params.gpu_tris = renderer->debug_triangles;
 
-    ImGui::Text(
-        "Camera: %d %d %d", game->camera_world_x, game->camera_world_y, game->camera_world_z);
-    ImGui::Text("Mouse: %d %d", game->mouse_x, game->mouse_y);
-    if( game->view_port )
-    {
-        ImGui::Separator();
-        int w = game->view_port->width;
-        int h = game->view_port->height;
-        bool changed = ImGui::InputInt("World viewport W", &w);
-        changed |= ImGui::InputInt("World viewport H", &h);
-        if( changed )
-        {
-            if( w > 4096 )
-                w = 4096;
-            if( h > 4096 )
-                h = 4096;
-            LibToriRS_GameSetWorldViewportSize(game, w, h);
-        }
-    }
-    ImGui::Text("Loaded model keys: %zu", renderer->loaded_model_keys.size());
-    ImGui::Text("Loaded scene keys: %zu", renderer->loaded_scene_element_keys.size());
-    ImGui::Text("Loaded textures: %zu", renderer->loaded_texture_ids.size());
-    ImGui::Separator();
-    ImGui::Text("Frame model draws: %u", renderer->debug_model_draws);
-    ImGui::Text("Frame triangles: %u", renderer->debug_triangles);
-    ImGui::End();
-
-    ImGui::Render();
-    ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+    torirs_nk_debug_panel_draw(s_d3d11_nk, game, &params);
+    torirs_nk_ui_after_frame(s_d3d11_nk);
+    nk_d3d11_render(renderer->device_context, NK_ANTI_ALIASING_ON);
 }
 
 // ---------------------------------------------------------------------------
@@ -901,11 +880,11 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Free(struct Platform2_OSX_SDL2_Renderer_D3
             kv.second.srv->Release();
     }
 
-    if( ImGui::GetCurrentContext() )
+    if( s_d3d11_nk )
     {
-        ImGui_ImplDX11_Shutdown();
-        ImGui_ImplSDL2_Shutdown();
-        ImGui::DestroyContext();
+        torirs_nk_ui_clear_active();
+        nk_d3d11_shutdown();
+        s_d3d11_nk = nullptr;
     }
 
     if( renderer->dummy_srv )
@@ -1231,20 +1210,25 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Init(
             renderer->dummy_texture, &srv_desc, &renderer->dummy_srv);
     }
 
-    // ImGui
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGui::StyleColorsDark();
-
-    float imgui_scale = platform->display_scale;
-    if( imgui_scale > 1.0f )
+    s_d3d11_nk = nk_d3d11_init(
+        renderer->device,
+        renderer->width,
+        renderer->height,
+        512 * 1024,
+        128 * 1024);
+    if( !s_d3d11_nk )
     {
-        ImGui::GetStyle().ScaleAllSizes(imgui_scale);
-        ImGui::GetIO().FontGlobalScale = imgui_scale;
+        printf("Nuklear D3D11 init failed\n");
+        return false;
     }
-
-    ImGui_ImplSDL2_InitForD3D(platform->window);
-    ImGui_ImplDX11_Init(renderer->device, renderer->device_context);
+    {
+        struct nk_font_atlas* atlas = nullptr;
+        nk_d3d11_font_stash_begin(&atlas);
+        nk_font_atlas_add_default(atlas, 13.0f * platform->display_scale, nullptr);
+        nk_d3d11_font_stash_end();
+    }
+    torirs_nk_ui_set_active(s_d3d11_nk, nullptr, nullptr);
+    s_d3d11_ui_prev_perf = SDL_GetPerformanceCounter();
 
     renderer->d3d11_ready = true;
     return true;
@@ -1268,6 +1252,8 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
         renderer->width = new_w;
         renderer->height = new_h;
         d3d11_resize_buffers(renderer);
+        if( s_d3d11_nk )
+            nk_d3d11_resize(renderer->device_context, renderer->width, renderer->height);
     }
 
     if( !renderer->render_target_view )
@@ -1902,8 +1888,8 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
 
     LibToriRS_FrameEnd(game);
 
-    // ImGui overlay
-    render_imgui_overlay(renderer, game);
+    // Nuklear overlay
+    render_nuklear_overlay(renderer, game);
 
     renderer->swap_chain->Present(0, 0);
 }

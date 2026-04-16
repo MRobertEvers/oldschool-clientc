@@ -1,22 +1,33 @@
 ---
 name: Raster variant catalogue
-overview: Inventory of all software rasterization implementations under `src/graphics/`, grouped into Flat, Gouraud, texture flat-shaded, and texture Gouraud-shaded, with a single reference table (including perspective vs affine, opaque vs transparent, and SIMD/scanline layers). Follow-ups and todos live in this file only — do not fork a second plan for the same workstream.
+overview: Inventory of all software rasterization implementations under `src/graphics/`, grouped into Flat, Gouraud, texture flat-shaded, and texture Gouraud-shaded, with a master reference table (including perspective vs affine, opaque vs transparent, and SIMD/scanline layers). Variant_ID column and markdown export live in docs/RASTER_VARIANT_CATALOGUE.md; follow-ups and todos stay in this plan — do not fork a second plan for the same workstream.
 todos:
-  - id: fix-plan-filenames
-    content: "Plan body uses correct repo paths: gouraud_simd_alpha.u.c (not gouraud_span_alpha); texture_simd.u.c (not tex_simd)."
-    status: completed
   - id: variant-id-column
-    content: Add Variant_ID column to the master table for all F/G/TF/TS rows per the naming grammar (legacy:/unused: where applicable).
-    status: pending
+    content: Variant_ID for every F/G/TF/TS row (grammar with legacy:/unused:/reference:) — shipped in docs/RASTER_VARIANT_CATALOGUE.md markdown table.
+    status: completed
   - id: optional-docs-export
-    content: Optionally add docs/RASTER_VARIANT_CATALOGUE.md with table + intro; link back to this plan for SIMD/layout/migration.
-    status: pending
+    content: docs/RASTER_VARIANT_CATALOGUE.md — intro, master table + Variant_ID, link to this plan for SIMD / naming / migration.
+    status: completed
+  - id: plan-master-variant-id
+    content: Optional — mirror Variant_ID column in the plan fixed-width master table below (canonical IDs remain in docs/RASTER_VARIANT_CATALOGUE.md).
+    status: completed
+  - id: scalar-ts9-opaque-scanline
+    content: Implement draw_texture_scanline_opaque_blend_ordered_sort_lerp8_v3 in texture_simd.scalar.u.c (parity with other ISAs; TS9 opaque gap).
+    status: completed
+  - id: raster-directory-migration
+    content: "Phased git mv under src/graphics/raster/ per Proposed file organization; update every #include from dash.c through .u.c chains."
+    status: completed
+  - id: c-symbol-rename-pass
+    content: Optional large diff — C symbols / draw_* names aligned with underscore projection of Variant IDs (face, scanline, span layers).
+    status: completed
 isProject: false
 ---
 
 # Rasterization variant catalogue
 
-Primary include graph for the live client: [`src/graphics/dash.c`](src/graphics/dash.c) pulls in [`render_flat.u.c`](src/graphics/render_flat.u.c), [`render_gouraud.u.c`](src/graphics/render_gouraud.u.c), and [`render_tex.u.c`](src/graphics/render_tex.u.c) (which transitively includes affine routing via [`render_tex_affine.u.c`](src/graphics/render_tex_affine.u.c)).
+Primary include graph for the live client: [`src/graphics/dash.c`](src/graphics/dash.c) pulls in [`render_flat.u.c`](src/graphics/render_flat.u.c), [`render_gouraud.u.c`](src/graphics/render_gouraud.u.c), and [`render_texture.u.c`](src/graphics/render_texture.u.c) (which transitively includes affine routing via [`render_texture_affine.u.c`](src/graphics/render_texture_affine.u.c)).
+
+**Variant_ID column:** canonical table with a Variant_ID per row is [`docs/RASTER_VARIANT_CATALOGUE.md`](docs/RASTER_VARIANT_CATALOGUE.md) (markdown). The fixed-width table below matches rows/symbols/sources; add a Variant_ID column here only if you want one document without opening `docs/`.
 
 Below is a **single master table** (fixed-width inside a code block). Rows are **distinct implementation surfaces**: triangle-level `raster_*` entry points, important **ordered-triangle** siblings used internally, **face/near-clip** wrappers, **scanline** helpers, and **SIMD ISA backends** that re-implement the same symbols.
 
@@ -46,21 +57,21 @@ G13  Gouraud (reference)   n/a          decomp triangle           gouraud_deob_d
 TF1  Texture flat          perspective  opaque triangle           raster_texture_opaque_lerp8                             texture.u.c (calls SIMD kernel TS8)
 TF2  Texture flat          perspective  transparent triangle      raster_texture_transparent_lerp8                        texture.u.c (calls SIMD kernel TS8)
 TF3  Texture flat          perspective  scanline helpers          raster_texture_scanline_opaque_lerp8, raster_texture_scanline_transparent_lerp8  texture.u.c
-TF4  Texture flat          affine       dispatch (reuses blend)   raster_texture_flat_affine, raster_texture_flat_affine_v3  render_tex_affine.u.c
+TF4  Texture flat          affine       dispatch (reuses blend)   raster_texture_flat_affine, raster_texture_flat_affine_v3  render_texture_affine.u.c
 TF5  Texture flat          affine       opaque / transparent tri  raster_texture_opaque_blend_affine(_v3), raster_texture_transparent_blend_affine(_v3)  texture_blend_branching_affine.u.c, texture_blend_branching_affine_v3.u.c
-TF6  Texture flat          affine       face + near clip          raster_face_texture_flat_affine*, raster_face_texture_flat_affine*_near_clip  render_tex_affine.u.c
-TF7  Texture flat          perspective  face + near clip          raster_face_texture_flat*, raster_face_texture_flat_near_clip  render_tex.u.c
-TF8  Texture flat          perspective  dispatch                  raster_texture_flat                                     render_tex.u.c
+TF6  Texture flat          affine       face + near clip          raster_face_texture_flat_affine*, raster_face_texture_flat_affine*_near_clip  render_texture_affine.u.c
+TF7  Texture flat          perspective  face + near clip          raster_face_texture_flat*, raster_face_texture_flat_near_clip  render_texture.u.c
+TF8  Texture flat          perspective  dispatch                  raster_texture_flat                                     render_texture.u.c
 --
-TS1  Texture Gouraud       perspective  opaque / transparent v3   raster_texture_opaque_blend_blerp8_v3, raster_texture_transparent_blend_blerp8_v3  texture_blend_branching_v3.u.c (active; calls SIMD scanline TS9)
-TS2  Texture Gouraud       perspective  non-v3 blerp8             raster_texture_*_blend_blerp8, *_ordered_blerp8         texture_blend_branching.u.c (superseded by TS1 for default dispatch)
-TS3  Texture Gouraud       perspective  face + near clip          raster_face_texture_blend*, raster_face_texture_blend_near_clip  render_tex.u.c
-TS4  Texture Gouraud       perspective  dispatch                  raster_texture_blend                                    render_tex.u.c
-TS5  Texture Gouraud       affine       dispatch                  raster_texture_blend_affine, raster_texture_blend_affine_v3  render_tex_affine.u.c
+TS1  Texture Gouraud       perspective  opaque / transparent v3   raster_texture_opaque_blend_sort_lerp8_v3, raster_texture_transparent_blend_sort_lerp8_v3  texture_blend_branching_v3.u.c (active; calls SIMD scanline TS9)
+TS2  Texture Gouraud       perspective  non-v3 sort.lerp8             raster_texture_*_blend_sort_lerp8, *_ordered_sort_lerp8         texture_blend_branching.u.c (superseded by TS1 for default dispatch)
+TS3  Texture Gouraud       perspective  face + near clip          raster_face_texture_blend*, raster_face_texture_blend_near_clip  render_texture.u.c
+TS4  Texture Gouraud       perspective  dispatch                  raster_texture_blend                                    render_texture.u.c
+TS5  Texture Gouraud       affine       dispatch                  raster_texture_blend_affine, raster_texture_blend_affine_v3  render_texture_affine.u.c
 TS6  Texture Gouraud       affine       opaque / transparent tri  same affine symbols as TF5 (shade varies per vertex)    texture_blend_branching_affine*.u.c (calls SIMD scanline TS10)
-TS7  Texture Gouraud       affine       face + near clip          raster_face_texture_blend_affine*                       render_tex_affine.u.c
+TS7  Texture Gouraud       affine       face + near clip          raster_face_texture_blend_affine*                       render_texture_affine.u.c
 TS8  Texture (SIMD kernel) perspective  8-pixel lerp8 + v3        raster_linear_*_blend_lerp8[_v3]                        texture_simd.{scalar,sse2,sse41,avx,neon}.u.c (Chain 2)
-TS9  Texture (SIMD scan)   perspective  scanline blerp8 v3        draw_texture_scanline_*_blend_ordered_blerp8_v3         texture_simd.*.u.c (scalar: tex_trans only; SIMD: both)
+TS9  Texture (SIMD scan)   perspective  scanline sort.lerp8 v3        draw_texture_scanline_*_blend_ordered_sort_lerp8_v3         texture_simd.*.u.c (scalar: textrans only; SIMD: both)
 TS10 Texture (SIMD scan)   affine       scanline affine ish16     draw_texture_scanline_*_blend_affine_ordered_ish16      texture_simd.*.u.c (all ISAs including scalar)
 TS11 Texture Gouraud       perspective  full-triangle lerp8       raster_texture_*_blend_lerp8                            texture.u.c (legacy path; calls TS8)
 ```
@@ -68,13 +79,13 @@ TS11 Texture Gouraud       perspective  full-triangle lerp8       raster_texture
 ### How to read this
 
 - **Flat / Gouraud**: triangle work is almost entirely in the `raster_*` symbols above; **F5** and **G6** are the **face-level** APIs used from the model pipeline (near clipping, vertex fetch).
-- **Texture flat vs texture Gouraud**: both share the **same affine kernels** (TF5 / TS6); flat mode passes a **repeated per-vertex shade** through the blend affine entry points (see [`raster_texture_flat_affine_v3`](src/graphics/render_tex_affine.u.c) lines 222-248 where it calls the opaque/transparent blend with `shade, shade, shade`).
-- **Perspective "shaded" path today**: [`raster_texture_blend`](src/graphics/render_tex.u.c) always calls the **v3 blerp8** symbols (TS1), not the older `texture.u.c` triangle rasterizers (TS11).
+- **Texture flat vs texture Gouraud**: both share the **same affine kernels** (TF5 / TS6); flat mode passes a **repeated per-vertex shade** through the blend affine entry points (see [`raster_texture_flat_affine_v3`](src/graphics/render_texture_affine.u.c) lines 222-248 where it calls the opaque/transparent blend with `shade, shade, shade`).
+- **Perspective "shaded" path today**: [`raster_texture_blend`](src/graphics/render_texture.u.c) always calls the **v3 sort.lerp8** symbols (TS1), not the older `texture.u.c` triangle rasterizers (TS11).
 - **SIMD**: G9 (Gouraud alpha span) and TS8-TS10 (texture inner loops) have explicit SIMD intrinsics -- see the SIMD Integration section below. All other variants rely on compiler auto-vectorization only.
-- **Scalar gap**: `draw_texture_scanline_opaque_blend_ordered_blerp8_v3` (TS9 opaque perspective scanline) is **absent** from [`texture_simd.scalar.u.c`](src/graphics/texture_simd.scalar.u.c). Only the transparent variant is present. All SIMD ISA files (NEON, SSE2, SSE4.1, AVX2) provide both.
-- **Repo-only / not in `dash.c`**: F4, G8, G10-G13, standalone copies [`tex_shadeblend_affine_opaque.c`](src/graphics/tex_shadeblend_affine_opaque.c) / [`tex_shadeblend_affine_trans.c`](src/graphics/tex_shadeblend_affine_trans.c) (duplicate symbol names; not `#include`d anywhere), and [`docs/gouraud_raster.c`](docs/gouraud_raster.c) (standalone demo).
+- **Scalar gap**: `draw_texture_scanline_opaque_blend_ordered_sort_lerp8_v3` (TS9 opaque perspective scanline) is **absent** from [`texture_simd.scalar.u.c`](src/graphics/texture_simd.scalar.u.c). Only the transparent variant is present. All SIMD ISA files (NEON, SSE2, SSE4.1, AVX2) provide both.
+- **Repo-only / not in `dash.c`**: F4, G8, G10-G13, standalone copies [`texture_opaque_blend_affine.c`](src/graphics/texture_opaque_blend_affine.c) / [`texture_transparent_blend_affine.c`](src/graphics/texture_transparent_blend_affine.c) (duplicate symbol names; not `#include`d anywhere), and [`docs/gouraud_raster.c`](docs/gouraud_raster.c) (standalone demo).
 
-No code changes are required for the core catalogue narrative; optional follow-ups may add a `docs/` export or extend the master table (see below).
+The core catalogue narrative is documentation-only; execution tracks are listed in **todos** above and summarized under [Planned documentation follow-ups](#planned-documentation-follow-ups) / deferred work.
 
 ### Plan maintenance
 
@@ -82,9 +93,9 @@ Keep all catalogue iteration in **this** plan file. Do not create a separate Cur
 
 ### Planned documentation follow-ups
 
-1. **Variant_ID column** — Add a column to the fixed-width master table for every row, using the grammar in [Proposed naming scheme](#proposed-naming-scheme) (`legacy:` / `unused:` prefixes where applicable). For texture rows with opaque/trans pairs, either one cell with two IDs separated by ` / ` or aligned sub-rows — pick one convention and use it consistently.
-2. **Optional `docs/` export** — e.g. `docs/RASTER_VARIANT_CATALOGUE.md` with a short intro, the table (including Variant_ID once added), and pointers to the SIMD integration and migration sections in this plan (avoid duplicating the full document unless you want a standalone reader copy).
-3. **Deferred tracks** (when you pick them up, still describe progress here): scalar `draw_texture_scanline_opaque_blend_ordered_blerp8_v3` in `texture_simd.scalar.u.c`; phased directory migration; C symbol renames.
+1. **Variant_ID column** — **Done** in [`docs/RASTER_VARIANT_CATALOGUE.md`](docs/RASTER_VARIANT_CATALOGUE.md): markdown table with one **Variant_ID** per row (or `/`-joined IDs when a row maps to multiple canonical IDs), grammar per [Proposed naming scheme](#proposed-naming-scheme). **Optional:** mirror the same column in the fixed-width table below (todo `plan-master-variant-id`).
+2. **`docs/` export** — **Done:** [`docs/RASTER_VARIANT_CATALOGUE.md`](docs/RASTER_VARIANT_CATALOGUE.md) links back here for SIMD integration, face/scanline/span naming, and proposed file organization / migration.
+3. **Deferred execution tracks** (see YAML **todos**): scalar TS9 opaque perspective scanline in `texture_simd.scalar.u.c`; phased `raster/` directory migration; optional C symbol rename pass. Log notable progress in this section when you ship pieces.
 
 ---
 
@@ -138,14 +149,14 @@ NEON  ->  AVX2  ->  SSE4.1  ->  SSE2  ->  scalar
 ```text
 Layer           Symbol                                                       gate        scalar?
 --------------  -----------------------------------------------------------  ----------  -------
-8-pixel kernel  raster_linear_opaque_blend_lerp8                            tex_opaque  yes (plain C)
-8-pixel kernel  raster_linear_transparent_blend_lerp8                       tex_trans   yes (plain C)
-8-pixel kernel  raster_linear_opaque_blend_lerp8_v3                         tex_opaque  yes (plain C)
-8-pixel kernel  raster_linear_transparent_blend_lerp8_v3                    tex_trans   yes (plain C)
-persp scanline  draw_texture_scanline_opaque_blend_ordered_blerp8_v3        tex_opaque  NO (gap)
-persp scanline  draw_texture_scanline_transparent_blend_ordered_blerp8_v3   tex_trans   yes
-affine scanline draw_texture_scanline_opaque_blend_affine_ordered_ish16     tex_opaque  yes
-affine scanline draw_texture_scanline_transparent_blend_affine_ordered_ish16 tex_trans  yes
+8-pixel kernel  raster_linear_opaque_blend_lerp8                            texopaque  yes (plain C)
+8-pixel kernel  raster_linear_transparent_blend_lerp8                       textrans   yes (plain C)
+8-pixel kernel  raster_linear_opaque_blend_lerp8_v3                         texopaque  yes (plain C)
+8-pixel kernel  raster_linear_transparent_blend_lerp8_v3                    textrans   yes (plain C)
+persp scanline  draw_texture_scanline_opaque_blend_ordered_sort_lerp8_v3        texopaque  NO (gap)
+persp scanline  draw_texture_scanline_transparent_blend_ordered_sort_lerp8_v3   textrans   yes
+affine scanline draw_texture_scanline_opaque_blend_affine_ordered_ish16     texopaque  yes
+affine scanline draw_texture_scanline_transparent_blend_affine_ordered_ish16 textrans  yes
 ```
 
 The `_v3` 8-pixel kernels use `__restrict`-qualified pointer arithmetic (no `offset` parameter) and are the **active** path from the v3 triangle rasterizers. The non-`_v3` kernels are called from the legacy `texture.u.c` path (TS11 / TF1-TF2).
@@ -153,8 +164,8 @@ The `_v3` 8-pixel kernels use `__restrict`-qualified pointer arithmetic (no `off
 **Operation:** shade-multiply texel RGB by a per-pixel lighting factor (distinct from Chain 1 alpha compositing):
 
 ```text
-output = (texel_rgb * shade) >> 8   -- tex_opaque: always write
-output = (texel_rgb * shade) >> 8   -- tex_trans:  skip write if texel == 0
+output = (texel_rgb * shade) >> 8   -- texopaque: always write
+output = (texel_rgb * shade) >> 8   -- textrans:  skip write if texel == 0
 ```
 
 **ISA details:**
@@ -170,17 +181,17 @@ output = (texel_rgb * shade) >> 8   -- tex_trans:  skip write if texel == 0
 **Call hierarchy (perspective Gouraud shaded, active path):**
 
 ```text
-raster_texture_blend                                          [render_tex.u.c -- dispatch]
-  raster_texture_opaque_blend_blerp8_v3                      [texture_blend_branching_v3.u.c -- triangle]
-    raster_texture_opaque_blend_ordered_blerp8_v3             [same file -- ordered edge walk]
-      draw_texture_scanline_opaque_blend_ordered_blerp8_v3   [texture_simd.*.u.c -- scanline (TS9)]
+raster_texture_blend                                          [render_texture.u.c -- dispatch]
+  raster_texture_opaque_blend_sort_lerp8_v3                      [texture_blend_branching_v3.u.c -- triangle]
+    raster_texture_opaque_blend_ordered_sort_lerp8_v3             [same file -- ordered edge walk]
+      draw_texture_scanline_opaque_blend_ordered_sort_lerp8_v3   [texture_simd.*.u.c -- scanline (TS9)]
         raster_linear_opaque_blend_lerp8_v3                  [texture_simd.*.u.c -- 8-pixel SIMD kernel (TS8)]
 ```
 
-**Call hierarchy (affine path, both tex_shadeflat and tex_shadeblend):**
+**Call hierarchy (affine path, both texshadeflat and texshadeblend):**
 
 ```text
-raster_texture_blend_affine_v3                                [render_tex_affine.u.c -- dispatch]
+raster_texture_blend_affine_v3                                [render_texture_affine.u.c -- dispatch]
   raster_texture_opaque_blend_affine_v3                       [texture_blend_branching_affine_v3.u.c -- triangle]
     raster_texture_opaque_blend_affine_ordered_v3              [same file -- ordered edge walk]
       draw_texture_scanline_opaque_blend_affine_ordered_ish16 [texture_simd.*.u.c -- scanline (TS10)]
@@ -203,33 +214,35 @@ Compose IDs from **fixed-order dimensions** so two people never invent incompati
 <family>.<space>.<gate>.<kernel>[.<walk>][.<layer>]
 ```
 
-| Token | Allowed values | Meaning |
-|-------|----------------|---------|
-| `family` | `flat`, `gouraud`, `tex_shadeflat`, `tex_shadeblend` | `tex_shadeflat` = texture with constant (flat) shade; `tex_shadeblend` = per-vertex shade blended with texels |
-| `space` | `screen`, `persp`, `affine` | `screen` = 2D triangle raster (flat/gouraud); `persp` / `affine` = texture projection mode |
-| `gate` | see Gate semantics below | Dispatch branch: fill alpha for solid surfaces vs texel transparency mode for textures |
-| `kernel` | see below | Algorithm / inner loop family |
-| `walk` | (omit) or `ordered` | Triangle is decomposed with fixed vertex order (branching "ordered" paths) |
-| `layer` | (omit) or `face`, `scanline`, `span` | Pipeline layer; omit = default triangle raster |
+**C function names (underscore slug):** use the **same token order** as the Variant ID, but join with `_` (never `.`). Texture scanlines and spans include `<space>` (`persp` or `affine`) before `<gate>` (`texopaque` / `textrans`). Optional walk/layer from the dotted form become trailing tokens such as `_ordered` or `_vec`. Dotted IDs above remain the canonical **docs / file-stem** spelling; symbols are the underscored projection of that grammar onto the **Kernel vocabulary** list below (e.g. `sort.lerp8_v3`, `affine_v3`, `span_alpha`).
+
+| Token    | Allowed values                                     | Meaning                                                                                                     |
+| -------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `family` | `flat`, `gouraud`, `texshadeflat`, `texshadeblend` | `texshadeflat` = texture with constant (flat) shade; `texshadeblend` = per-vertex shade blended with texels |
+| `space`  | `screen`, `persp`, `affine`                        | `screen` = 2D triangle raster (flat/gouraud); `persp` / `affine` = texture projection mode                  |
+| `gate`   | see Gate semantics below                           | Dispatch branch: fill alpha for solid surfaces vs texel transparency mode for textures                      |
+| `kernel` | see below                                          | Algorithm / inner loop family                                                                               |
+| `walk`   | (omit) or `ordered`                                | Triangle is decomposed with fixed vertex order (branching "ordered" paths)                                  |
+| `layer`  | (omit) or `face`, `scanline`, `span`               | Pipeline layer; omit = default triangle raster                                                              |
 
 **Gate semantics (texture opaque != fill opaque)**
 
 - **`flat` / `gouraud`:** `gate` is **fill coverage**: `opaque` = alpha `0xFF` path; `alpha` = partial opacity / blending path (e.g. `raster_flat_alpha_bs4`, `raster_gouraud_alpha_bary_bs4`). Triangle-level, not atlas-level.
 
-- **`tex_shadeflat` / `tex_shadeblend`:** `gate` is **texel mode**, matching the `texture_opaque` boolean in the C code:
-  - `tex_opaque` -- all texels treated as solid; `raster_texture_opaque_*`, `raster_linear_opaque_*`, `draw_texture_scanline_opaque_*`
-  - `tex_trans` -- texture may have transparent texels; skip write where `texel == 0`; `raster_texture_transparent_*`, `raster_linear_transparent_*`
+- **`texshadeflat` / `texshadeblend`:** `gate` is **texel mode**, matching the `texture_opaque` boolean in the C code:
+  - `texopaque` -- all texels treated as solid; `raster_texture_opaque_*`, `raster_linear_opaque_*`, `draw_texture_scanline_opaque_*`
+  - `textrans` -- texture may have transparent texels; skip write where `texel == 0`; `raster_texture_transparent_*`, `raster_linear_transparent_*`
 
-Using `tex_opaque` / `tex_trans` avoids collision with `gouraud.screen.alpha` (vertex blend alpha).
+Using `texopaque` / `textrans` avoids collision with `gouraud.screen.alpha` (vertex blend alpha).
 
 **Code to name quick map:**
 
-| User phrase | gate | Typical C prefix |
-|-------------|------|------------------|
-| Texture opaque (solid atlas) | `tex_opaque` | `raster_texture_opaque_*`, `raster_linear_opaque_*` |
-| Texture transparent (cutout atlas) | `tex_trans` | `raster_texture_transparent_*`, `raster_linear_transparent_*` |
-| Flat / Gouraud opaque fill | `opaque` | `*_bs4` / `*_bary_bs4` without `alpha` |
-| Flat / Gouraud alpha fill | `alpha` | `raster_flat_alpha_*`, `raster_gouraud_alpha_bary_*` |
+| User phrase                        | gate        | Typical C prefix                                              |
+| ---------------------------------- | ----------- | ------------------------------------------------------------- |
+| Texture opaque (solid atlas)       | `texopaque` | `raster_texture_opaque_*`, `raster_linear_opaque_*`           |
+| Texture transparent (cutout atlas) | `textrans`  | `raster_texture_transparent_*`, `raster_linear_transparent_*` |
+| Flat / Gouraud opaque fill         | `opaque`    | `*_bs4` / `*_bary_bs4` without `alpha`                        |
+| Flat / Gouraud alpha fill          | `alpha`     | `raster_flat_alpha_*`, `raster_gouraud_alpha_bary_*`          |
 
 **Kernel token decode (important):**
 
@@ -250,14 +263,14 @@ When `branch` appears as a standalone prefix it means the triangle decomposition
 
 - Flat: `branch_s4` (branching edge walk, step-4), `sort_s4` (legacy y-sorted).
 - Gouraud: `bary_branch_s4`, `bary_branch_s1`, `bary_s4` (non-branching full-triangle bary), `edge_s4`, `edge_s1`, `span_alpha` (alpha span fill -- explicit SIMD), `ref_deob` (reference only).
-- Texture: `lerp8`, `blerp8`, `blerp8_v3`, `affine`, `affine_v3`. The `lerp8` / `blerp8_v3` scanlines and spans have explicit SIMD implementations (see `vec` token below).
+- Texture: `lerp8`, `sort.lerp8`, `sort.lerp8_v3`, `affine`, `affine_v3`. The `lerp8` / `sort.lerp8_v3` scanlines and spans have explicit SIMD implementations (see `vec` token below).
 
 **Vectorization token: `vec`**
 
 The naming scheme adds an optional `vec` suffix to indicate whether a symbol has **explicit SIMD intrinsics** (as opposed to relying on compiler auto-vectorization). This applies primarily at the **span layer** (`draw_span_*`) and is also relevant when cataloguing scanlines:
 
 ```text
-draw_span_<family>_<gate>_<algo>[_v3][_vec]
+draw_span_<family>_<space>_<gate>_<kernel>[_vec]
 ```
 
 - Without `_vec`: plain C loop; compiler may auto-vectorize but no intrinsics are written.
@@ -266,11 +279,11 @@ draw_span_<family>_<gate>_<algo>[_v3][_vec]
 **Which symbols have explicit SIMD (`_vec`):**
 
 ```text
-draw_span_gouraud_alpha_s4_vec          -- raster_linear_alpha_s4 (gouraud_simd_alpha.u.c)
-draw_span_tex_shadeblend_tex_opaque_lerp8_vec    -- raster_linear_opaque_blend_lerp8
-draw_span_tex_shadeblend_tex_trans_lerp8_vec     -- raster_linear_transparent_blend_lerp8
-draw_span_tex_shadeblend_tex_opaque_lerp8_v3_vec -- raster_linear_opaque_blend_lerp8_v3
-draw_span_tex_shadeblend_tex_trans_lerp8_v3_vec  -- raster_linear_transparent_blend_lerp8_v3
+draw_span_gouraud_screen_alpha_span_alpha_vec   -- raster_linear_alpha_s4 (gouraud_simd_alpha.u.c)
+draw_span_texshadeblend_persp_texopaque_lerp8_vec    -- raster_linear_opaque_blend_lerp8
+draw_span_texshadeblend_persp_textrans_lerp8_vec     -- raster_linear_transparent_blend_lerp8
+draw_span_texshadeblend_persp_texopaque_lerp8_v3_vec -- raster_linear_opaque_blend_lerp8_v3
+draw_span_texshadeblend_persp_textrans_lerp8_v3_vec  -- raster_linear_transparent_blend_lerp8_v3
 ```
 
 The scanline coordinators (`draw_scanline_*`) themselves contain no intrinsics -- they call the `_vec` spans -- so they do not carry the `_vec` suffix. Triangle and face wrappers are always scalar control flow; `vec` never applies there.
@@ -288,12 +301,12 @@ The scanline coordinators (`draw_scanline_*`) themselves contain no intrinsics -
 - G7 (commented) -> `legacy:gouraud.screen.opaque.edge_s4`; alpha still live -> `gouraud.screen.alpha.edge_s4`
 - G8 -> `gouraud.screen.opaque.bary_s4`
 - G9 -> `gouraud.screen.alpha.span_alpha.vec` (span layer, explicitly vectorized)
-- TF1 / TF2 -> `tex_shadeflat.persp.tex_opaque.lerp8` / `tex_shadeflat.persp.tex_trans.lerp8`
-- TF5 -> `tex_shadeflat.affine.tex_opaque.affine_v3` / `tex_shadeflat.affine.tex_trans.affine_v3`
-- TS1 -> `tex_shadeblend.persp.tex_opaque.blerp8_v3` / `tex_shadeblend.persp.tex_trans.blerp8_v3`
-- TS8 (8-pixel span kernel) -> `tex_shadeblend.persp.tex_opaque.lerp8_v3.span.vec` (explicitly vectorized span)
-- TS9 (scanline) -> `tex_shadeblend.persp.tex_opaque.blerp8_v3.scanline`
-- TS10 (affine scanline) -> `tex_shadeblend.affine.tex_opaque.affine_v3.scanline`
+- TF1 / TF2 -> `texshadeflat.persp.texopaque.lerp8` / `texshadeflat.persp.textrans.lerp8`
+- TF5 -> `texshadeflat.affine.texopaque.affine_v3` / `texshadeflat.affine.textrans.affine_v3`
+- TS1 -> `texshadeblend.persp.texopaque.sort.lerp8_v3` / `texshadeblend.persp.textrans.sort.lerp8_v3`
+- TS8 (8-pixel span kernel) -> `texshadeblend.persp.texopaque.lerp8_v3.span.vec` (explicitly vectorized span)
+- TS9 (scanline) -> `texshadeblend.persp.texopaque.sort.lerp8_v3.scanline`
+- TS10 (affine scanline) -> `texshadeblend.affine.texopaque.affine_v3.scanline`
 
 **Shorter slug (logs, column headers):** `FLAT-bs4-opq`, `GOUR-bary4-a`, `TEXF-lerp-TOPQ`, `TEXF-lerp-TTRN`, `TEXG-bl8v3-TOPQ`, `TEXG-bl8v3-TTRN`, `TEXG-aff-v3-TOPQ`.
 
@@ -304,7 +317,7 @@ The scanline coordinators (`draw_scanline_*`) themselves contain no intrinsics -
 
 ### Optional rename direction (if you ever normalize C symbols)
 
-Pattern: `raster_<family>_<space>_<gate>_<kernel>` with `face_` / `draw_scanline_` prefixes for layers, e.g. `raster_tex_shadeblend_persp_tex_opaque_blerp8_v3`. Large diff; the ID scheme above gives you the vocabulary without renaming.
+Pattern: `raster_<family>_<space>_<gate>_<kernel>` with `face_` / `draw_scanline_` prefixes for layers, e.g. `raster_texshadeblend_persp_texopaque_sort_lerp8_v3`. Large diff; the ID scheme above gives you the vocabulary without renaming.
 
 ### Deprecation / unused tags
 
@@ -348,6 +361,7 @@ raster_face_texture_flat_affine                   OK
 ```
 
 Problems:
+
 - `near_clip` placement varies: before variant (`near_clip_s1`) vs after variant (`affine_v3_near_clip`).
 - `f` suffix on `near_clipf` is opaque -- means float z coordinates, not documented anywhere in the name.
 - `texture_blend` for gouraud-shaded texture is confusing; `blend` elsewhere means alpha blending.
@@ -370,7 +384,7 @@ Within each prefix, `ordered` appears at different positions:
 
 ```text
 draw_scanline_gouraud_ordered_bary_bs4           ordered BEFORE algorithm (bary_bs4)
-draw_texture_scanline_opaque_blend_ordered_blerp8_v3  ordered AFTER gate (opaque_blend)
+draw_texture_scanline_opaque_blend_ordered_sort_lerp8_v3  ordered AFTER gate (opaque_blend)
 ```
 
 **Layer C -- 8-pixel span / SIMD kernel**
@@ -389,10 +403,10 @@ raster_linear_transparent_blend_lerp8_v3 same
 
 ### Proposed consistent naming (all three layers)
 
-**Rule for every layer:** `<prefix>_<family>_<gate>_<algo>[_v3][_ordered][_nearclip][_zfloat]`
+**Rule for every layer:** underscore-separated tokens only (never `.`). Texture scanlines/spans/triangles follow `<prefix>_<family>_<space>_<gate>_<kernel>[_ordered][_nearclip][_zfloat]`; flat/gouraud scanlines may omit `_screen_` when unambiguous. `<kernel>` matches the ID grammar (`branch_s4`, `lerp8`, `sort.lerp8_v3`, `affine_v3`, `span_alpha`, …), not ad-hoc shorthands.
 
 Suffix order (always right-to-left from the most specific modifier):
-`algo` -> `v3` -> `ordered` -> (end for scanline/span) or `nearclip` -> `zfloat` (face only)
+`kernel` (token may already embed `_v3`, e.g. `affine_v3`) -> `ordered` -> (end for scanline/span) or `nearclip` -> `zfloat` (face only)
 
 **Layer A -- Face wrappers: `raster_face_<family>[_<variant>][_nearclip][_zfloat]`**
 
@@ -408,30 +422,31 @@ raster_face_gouraud_near_clipf               raster_face_gouraud_nearclip_zfloat
 raster_face_gouraud_s1                       raster_face_gouraud_s1 (no change)
 raster_face_gouraud_near_clip_s1             raster_face_gouraud_s1_nearclip  (s1 before nearclip)
 
-raster_face_texture_blend                    raster_face_tex_shadeblend_persp
-raster_face_texture_blend_near_clip          raster_face_tex_shadeblend_persp_nearclip
-raster_face_texture_flat                     raster_face_tex_shadeflat_persp
-raster_face_texture_flat_near_clip           raster_face_tex_shadeflat_persp_nearclip
+raster_face_texture_blend                    raster_face_texshadeblend_persp
+raster_face_texture_blend_near_clip          raster_face_texshadeblend_persp_nearclip
+raster_face_texture_flat                     raster_face_texshadeflat_persp
+raster_face_texture_flat_near_clip           raster_face_texshadeflat_persp_nearclip
 
-raster_face_texture_blend_affine             raster_face_tex_shadeblend_affine
-raster_face_texture_blend_affine_near_clip   raster_face_tex_shadeblend_affine_nearclip
-raster_face_texture_blend_affine_v3          raster_face_tex_shadeblend_affine_v3
-raster_face_texture_blend_affine_v3_near_clip  raster_face_tex_shadeblend_affine_v3_nearclip
-raster_face_texture_flat_affine              raster_face_tex_shadeflat_affine
-raster_face_texture_flat_affine_near_clip    raster_face_tex_shadeflat_affine_nearclip
-raster_face_texture_flat_affine_v3           raster_face_tex_shadeflat_affine_v3
-raster_face_texture_flat_affine_v3_near_clip   raster_face_tex_shadeflat_affine_v3_nearclip
+raster_face_texture_blend_affine             raster_face_texshadeblend_affine
+raster_face_texture_blend_affine_near_clip   raster_face_texshadeblend_affine_nearclip
+raster_face_texture_blend_affine_v3          raster_face_texshadeblend_affine_v3
+raster_face_texture_blend_affine_v3_near_clip  raster_face_texshadeblend_affine_v3_nearclip
+raster_face_texture_flat_affine              raster_face_texshadeflat_affine
+raster_face_texture_flat_affine_near_clip    raster_face_texshadeflat_affine_nearclip
+raster_face_texture_flat_affine_v3           raster_face_texshadeflat_affine_v3
+raster_face_texture_flat_affine_v3_near_clip   raster_face_texshadeflat_affine_v3_nearclip
 ```
 
 Key decisions:
+
 - `near_clip` -> `nearclip` (no underscore mid-word; consistent everywhere).
 - `s1` always before `nearclip` (variant is part of the algorithm identity; clip is a pipeline modifier).
 - `f` -> `zfloat` (self-documenting).
-- `texture_blend` -> `tex_shadeblend_persp`; `texture_flat` -> `tex_shadeflat_persp` (matches family+space from the ID grammar; removes "blend" ambiguity).
+- `texture_blend` -> `texshadeblend_persp`; `texture_flat` -> `texshadeflat_persp` (matches family+space from the ID grammar; removes "blend" ambiguity).
 
-**Layer B -- Scanline functions: `draw_scanline_<family>_<gate>_<algo>[_v3][_ordered]`**
+**Layer B -- Scanline functions: `draw_scanline_<family>_<space>_<gate>_<kernel>[_ordered]`** (for flat/gouraud, `screen` may be omitted in short slugs when unambiguous; texture paths always include `persp` or `affine`.)
 
-Unified prefix is `draw_scanline_` for all families. `ordered` always at the end.
+Unified prefix is `draw_scanline_` for all families. `ordered` always at the end. `<kernel>` uses the same tokens as the ID grammar (`lerp8`, `sort.lerp8`, `sort.lerp8_v3`, `affine`, `affine_v3`, …), not legacy words like `blend`.
 
 ```text
 Current                                               Proposed
@@ -452,43 +467,45 @@ draw_scanline_gouraud_ordered_bary_bs1                draw_scanline_gouraud_opaq
 draw_scanline_gouraud_ordered_bs1 (unused)            draw_scanline_gouraud_opaque_branch_s1_ordered
 draw_scanline_gouraud_ordered_bs4 (unused)            draw_scanline_gouraud_opaque_branch_s4_ordered
 
-raster_texture_scanline_opaque_lerp8                  draw_scanline_tex_shadeflat_tex_opaque_lerp8
-raster_texture_scanline_transparent_lerp8             draw_scanline_tex_shadeflat_tex_trans_lerp8
-raster_texture_scanline_opaque_blend_lerp8            draw_scanline_tex_shadeblend_tex_opaque_lerp8
-raster_texture_scanline_transparent_blend_lerp8       draw_scanline_tex_shadeblend_tex_trans_lerp8
+raster_texture_scanline_opaque_lerp8                  draw_scanline_texshadeflat_persp_texopaque_lerp8
+raster_texture_scanline_transparent_lerp8             draw_scanline_texshadeflat_persp_textrans_lerp8
+raster_texture_scanline_opaque_blend_lerp8            draw_scanline_texshadeblend_persp_texopaque_lerp8
+raster_texture_scanline_transparent_blend_lerp8       draw_scanline_texshadeblend_persp_textrans_lerp8
 
-draw_texture_scanline_opaque_blend_ordered_blerp8     draw_scanline_tex_shadeblend_tex_opaque_blerp8_ordered
-draw_texture_scanline_transparent_blend_ordered_blerp8 draw_scanline_tex_shadeblend_tex_trans_blerp8_ordered
-draw_texture_scanline_opaque_blend_ordered_blerp8_v3  draw_scanline_tex_shadeblend_tex_opaque_blerp8_v3_ordered
-draw_texture_scanline_transparent_blend_ordered_blerp8_v3 draw_scanline_tex_shadeblend_tex_trans_blerp8_v3_ordered
-draw_texture_scanline_opaque_blend_affine_ordered     draw_scanline_tex_shadeblend_tex_opaque_affine_ordered
-draw_texture_scanline_transparent_blend_affine_ordered draw_scanline_tex_shadeblend_tex_trans_affine_ordered
-draw_texture_scanline_opaque_blend_affine_ordered_ish16  draw_scanline_tex_shadeblend_tex_opaque_affine_v3_ordered
-draw_texture_scanline_transparent_blend_affine_ordered_ish16 draw_scanline_tex_shadeblend_tex_trans_affine_v3_ordered
+draw_texture_scanline_opaque_blend_ordered_sort_lerp8     draw_scanline_texshadeblend_persp_texopaque_sort_lerp8_ordered
+draw_texture_scanline_transparent_blend_ordered_sort_lerp8 draw_scanline_texshadeblend_persp_textrans_sort_lerp8_ordered
+draw_texture_scanline_opaque_blend_ordered_sort_lerp8_v3  draw_scanline_texshadeblend_persp_texopaque_sort_lerp8_v3_ordered
+draw_texture_scanline_transparent_blend_ordered_sort_lerp8_v3 draw_scanline_texshadeblend_persp_textrans_sort_lerp8_v3_ordered
+draw_texture_scanline_opaque_blend_affine_ordered     draw_scanline_texshadeblend_affine_texopaque_affine_ordered
+draw_texture_scanline_transparent_blend_affine_ordered draw_scanline_texshadeblend_affine_textrans_affine_ordered
+draw_texture_scanline_opaque_blend_affine_ordered_ish16  draw_scanline_texshadeblend_affine_texopaque_affine_v3_ordered
+draw_texture_scanline_transparent_blend_affine_ordered_ish16 draw_scanline_texshadeblend_affine_textrans_affine_v3_ordered
 ```
 
 Notes:
-- `blend` removed from all texture scanline names (it is not alpha blending -- it means gouraud-shaded; replaced by `tex_shadeblend` family token).
+
+- `blend` removed from all texture scanline names (it is not alpha blending -- it means gouraud-shaded; replaced by `texshadeblend` family token).
 - `ish16` suffix dropped; replaced by `_v3` which is the consistent generation marker already used at triangle level.
 - `ordered` always at end.
-- `raster_texture_scanline_*` prefix unified to `draw_scanline_tex_*`.
+- `raster_texture_scanline_*` / `draw_texture_scanline_*` prefix unified to `draw_scanline_` + `texshadeflat_` or `texshadeblend_` + `persp_` or `affine_` + gate + kernel tokens (underscores only).
 - `bs4` / `bs1` decoded: `b` = branching, so `bs4` = `branch_s4`. Wherever the old name had `bs4` or `bs1` those tokens are spelled out as `branch_s4` / `branch_s1` in the proposed names.
 
-**Layer C -- 8-pixel span / SIMD kernel: `draw_span_<family>_<gate>_<algo>[_v3][_vec]`**
+**Layer C -- 8-pixel span / SIMD kernel: `draw_span_<family>_<space>_<gate>_<kernel>[_vec]`**
 
 `_vec` marks symbols that have explicit SIMD intrinsic implementations (in addition to the scalar fallback that shares the same name).
 
 ```text
 Current                                   Proposed
 ----------------------------------------  --------------------------------------------------
-raster_linear_alpha_s4                    draw_span_gouraud_alpha_s4_vec
-raster_linear_opaque_blend_lerp8          draw_span_tex_shadeblend_tex_opaque_lerp8_vec
-raster_linear_transparent_blend_lerp8     draw_span_tex_shadeblend_tex_trans_lerp8_vec
-raster_linear_opaque_blend_lerp8_v3       draw_span_tex_shadeblend_tex_opaque_lerp8_v3_vec
-raster_linear_transparent_blend_lerp8_v3  draw_span_tex_shadeblend_tex_trans_lerp8_v3_vec
+raster_linear_alpha_s4                    draw_span_gouraud_screen_alpha_span_alpha_vec
+raster_linear_opaque_blend_lerp8          draw_span_texshadeblend_persp_texopaque_lerp8_vec
+raster_linear_transparent_blend_lerp8     draw_span_texshadeblend_persp_textrans_lerp8_vec
+raster_linear_opaque_blend_lerp8_v3       draw_span_texshadeblend_persp_texopaque_lerp8_v3_vec
+raster_linear_transparent_blend_lerp8_v3  draw_span_texshadeblend_persp_textrans_lerp8_v3_vec
 ```
 
 Notes:
+
 - `raster_linear_` -> `draw_span_` makes the pipeline level explicit and removes the ambiguous "linear".
 - `blend` removed from texture span names for the same reason as scanline (not alpha blending).
 - Gouraud alpha span gains its family in the name.
@@ -518,10 +535,11 @@ The `.u.c` include-chain pattern means file locality matters: each `.u.c` file i
 ### Proposed directory tree
 
 File names encode the full variant ID grammar (`<family>.<space>.<gate>.<kernel>[.<layer>]`). Each file contains exactly one variant. Exceptions:
-- **Face files** (`*.face.u.c`) are dispatchers *above* the variant level — splitting them per variant would be circular.
+
+- **Face files** (`*.face.u.c`) are dispatchers _above_ the variant level — splitting them per variant would be circular.
 - **`gouraud.screen.bary.u.c`** is a shared algorithm helper included by the edge TUs, not a standalone variant.
 - **`tex.span.*.u.c`** files are ISA implementation modules; the ISA is the discriminator, not the variant — one file per ISA covers all span functions for that ISA.
-- `tex_shadeflat.affine.tex_opaque.affine.u.c` has `affine` twice (space and kernel tokens collide); this is accepted — the plan's own ID grammar already uses this form.
+- `texshadeflat.affine.texopaque.affine.u.c` has `affine` twice (space and kernel tokens collide); this is accepted — the plan's own ID grammar already uses this form.
 
 ```text
 src/graphics/
@@ -569,7 +587,7 @@ src/graphics/
 
     gouraud/
       span/
-        gouraud.screen.alpha.span.u.c        [from gouraud_simd_alpha.u.c -- draw_span_gouraud_alpha_s4_vec: NEON/AVX/SSE/scalar]
+        gouraud.screen.alpha.span.u.c        [from gouraud_simd_alpha.u.c -- draw_span_gouraud_screen_alpha_span_alpha_vec: NEON/AVX/SSE/scalar]
       gouraud.screen.bary.u.c                [from gouraud_barycentric.u.c -- shared bary helper; not a standalone variant]
       gouraud.screen.opaque.edge_s4.u.c      [from gouraud.u.c -- opaque edge-walk s4]
       gouraud.screen.alpha.edge_s4.u.c       [from gouraud.u.c -- alpha edge-walk s4]
@@ -588,39 +606,39 @@ src/graphics/
         tex.span.avx.u.c   tex.span.neon.u.c
 
       -- perspective lerp8 (legacy; from texture.u.c) --
-      tex_shadeflat.persp.tex_opaque.lerp8.u.c     [TF1 -- active shadeflat opaque persp triangle]
-      tex_shadeflat.persp.tex_trans.lerp8.u.c      [TF2 -- active shadeflat trans persp triangle]
-      tex_shadeblend.persp.tex_opaque.lerp8.u.c    [TS11 opaque -- legacy shadeblend; superseded by blerp8_v3]
-      tex_shadeblend.persp.tex_trans.lerp8.u.c     [TS11 trans -- legacy shadeblend; superseded by blerp8_v3]
+      texshadeflat.persp.texopaque.lerp8.u.c     [TF1 -- active shadeflat opaque persp triangle]
+      texshadeflat.persp.textrans.lerp8.u.c      [TF2 -- active shadeflat trans persp triangle]
+      texshadeblend.persp.texopaque.lerp8.u.c    [TS11 opaque -- legacy shadeblend; superseded by sort.lerp8_v3]
+      texshadeblend.persp.textrans.lerp8.u.c     [TS11 trans -- legacy shadeblend; superseded by sort.lerp8_v3]
 
-      -- perspective blerp8 (from texture_blend_branching.u.c; superseded by v3) --
-      tex_shadeblend.persp.tex_opaque.blerp8.u.c   [TS2 opaque -- superseded by blerp8_v3]
-      tex_shadeblend.persp.tex_trans.blerp8.u.c    [TS2 trans -- superseded by blerp8_v3]
+      -- perspective sort.lerp8 (from texture_blend_branching.u.c; superseded by v3) --
+      texshadeblend.persp.texopaque.sort.lerp8.u.c   [TS2 opaque -- superseded by sort.lerp8_v3]
+      texshadeblend.persp.textrans.sort.lerp8.u.c    [TS2 trans -- superseded by sort.lerp8_v3]
 
-      -- perspective blerp8_v3 (from texture_blend_branching_v3.u.c; active) --
-      tex_shadeblend.persp.tex_opaque.blerp8_v3.u.c  [TS1 opaque -- active persp shadeblend path]
-      tex_shadeblend.persp.tex_trans.blerp8_v3.u.c   [TS1 trans -- active persp shadeblend path]
+      -- perspective sort.lerp8_v3 (from texture_blend_branching_v3.u.c; active) --
+      texshadeblend.persp.texopaque.sort.lerp8_v3.u.c  [TS1 opaque -- active persp shadeblend path]
+      texshadeblend.persp.textrans.sort.lerp8_v3.u.c   [TS1 trans -- active persp shadeblend path]
 
       -- affine (from texture_blend_branching_affine.u.c) --
-      tex_shadeflat.affine.tex_opaque.affine.u.c   [TF5 opaque -- affine shadeflat]
-      tex_shadeflat.affine.tex_trans.affine.u.c    [TF5 trans -- affine shadeflat]
-      tex_shadeblend.affine.tex_opaque.affine.u.c  [TS6 opaque -- affine shadeblend]
-      tex_shadeblend.affine.tex_trans.affine.u.c   [TS6 trans -- affine shadeblend]
+      texshadeflat.affine.texopaque.affine.u.c   [TF5 opaque -- affine shadeflat]
+      texshadeflat.affine.textrans.affine.u.c    [TF5 trans -- affine shadeflat]
+      texshadeblend.affine.texopaque.affine.u.c  [TS6 opaque -- affine shadeblend]
+      texshadeblend.affine.textrans.affine.u.c   [TS6 trans -- affine shadeblend]
 
       -- affine_v3 (from texture_blend_branching_affine_v3.u.c; active) --
-      tex_shadeflat.affine.tex_opaque.affine_v3.u.c   [TF5 opaque v3 -- active affine shadeflat]
-      tex_shadeflat.affine.tex_trans.affine_v3.u.c    [TF5 trans v3 -- active affine shadeflat]
-      tex_shadeblend.affine.tex_opaque.affine_v3.u.c  [TS6 opaque v3 -- active affine shadeblend]
-      tex_shadeblend.affine.tex_trans.affine_v3.u.c   [TS6 trans v3 -- active affine shadeblend]
+      texshadeflat.affine.texopaque.affine_v3.u.c   [TF5 opaque v3 -- active affine shadeflat]
+      texshadeflat.affine.textrans.affine_v3.u.c    [TF5 trans v3 -- active affine shadeflat]
+      texshadeblend.affine.texopaque.affine_v3.u.c  [TS6 opaque v3 -- active affine shadeblend]
+      texshadeblend.affine.textrans.affine_v3.u.c   [TS6 trans v3 -- active affine shadeblend]
 
-      tex.persp.face.u.c               [from render_tex.u.c -- persp face dispatch; above variant level]
-      tex.affine.face.u.c              [from render_tex_affine.u.c -- affine face dispatch; above variant level]
+      tex.persp.face.u.c               [from render_texture.u.c -- persp face dispatch; above variant level]
+      tex.affine.face.u.c              [from render_texture_affine.u.c -- affine face dispatch; above variant level]
 
   archive/                     [never #included from active pipeline; kept for reference diff]
     gouraud.screen.branch_s4.c         [was gouraud_branching.c]
     gouraud.screen.branch_s1.c         [was gouraud_s1_branching.c]
-    tex_shadeblend.affine.tex_opaque.c [was texture_opaque_blend_affine.c]
-    tex_shadeblend.affine.tex_trans.c  [was texture_transparent_blend_affine.c]
+    texshadeblend.affine.texopaque.c [was texture_opaque_blend_affine.c]
+    texshadeblend.affine.textrans.c  [was texture_transparent_blend_affine.c]
 
   reference/                   [decompiled / original research code; never compiled into client]
     gouraud_deob.c
@@ -645,9 +663,9 @@ These implement `raster_gouraud_bs4` / `raster_gouraud_ordered_bs4` and the s1 e
 
 **`texture_opaque_blend_affine.c`, `texture_transparent_blend_affine.c`**
 
-These define the same symbols as the code inside `tex_shadeblend.affine.tex_opaque.affine.u.c` and `tex_shadeblend.affine.tex_trans.affine.u.c` but as standalone `.c` files. They are not `#include`d from any active TU. They appear to be an earlier stage of development before the symbols were absorbed into the branching file.
+These define the same symbols as the code inside `texshadeblend.affine.texopaque.affine.u.c` and `texshadeblend.affine.textrans.affine.u.c` but as standalone `.c` files. They are not `#include`d from any active TU. They appear to be an earlier stage of development before the symbols were absorbed into the branching file.
 
-- Move to `archive/` with a rename to `tex_shadeblend.affine.tex_opaque.c` and `tex_shadeblend.affine.tex_trans.c`.
+- Move to `archive/` with a rename to `texshadeblend.affine.texopaque.c` and `texshadeblend.affine.textrans.c`.
 
 ### Include-path impact
 
@@ -656,11 +674,11 @@ Moving files to subdirectories touches `#include "..."` paths in the `.u.c` chai
 ```text
 gouraud.face.u.c     : "gouraud.u.c" -> "gouraud.screen.opaque.edge_s4.u.c" + "gouraud.screen.alpha.edge_s4.u.c", etc.
 flat.face.u.c        : "flat.u.c" -> "flat.screen.opaque.sort_s4.u.c" + "flat.screen.alpha.sort_s4.u.c", etc.
-tex.persp.face.u.c   : "texture.u.c" -> "tex_shadeflat.persp.tex_opaque.lerp8.u.c" + ...,
-                       "texture_blend_branching_v3.u.c" -> "tex_shadeblend.persp.tex_opaque.blerp8_v3.u.c" + ..., etc.
+tex.persp.face.u.c   : "texture.u.c" -> "texshadeflat.persp.texopaque.lerp8.u.c" + ...,
+                       "texture_blend_branching_v3.u.c" -> "texshadeblend.persp.texopaque.sort.lerp8_v3.u.c" + ..., etc.
 render_clip.u.c      : stays or moves to support/; update its includers
 dash.c               : "render_gouraud.u.c" -> "raster/gouraud/gouraud.face.u.c",
-                       "render_tex.u.c" -> "raster/texture/tex.persp.face.u.c", etc.
+                       "render_texture.u.c" -> "raster/texture/tex.persp.face.u.c", etc.
 ```
 
 Because `dash.c` is the root of the entire `.u.c` include tree, and all paths are relative, each move only affects the one file that contains the `#include "..."`. No build system changes are needed if the files are still under the same source root.

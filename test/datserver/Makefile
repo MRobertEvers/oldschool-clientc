@@ -10,7 +10,7 @@ PROJECT_ROOT_FOLDER := $(shell while [ "$$PWD" != "/" ]; do \
 PROJECT_ROOT = $(abspath $(PROJECT_ROOT_FOLDER))/src
 
 # 2. Setup Flags
-CFLAGS = -Wall -Wextra -g -I$(PROJECT_ROOT) -I$(PROJECT_ROOT)/imgui -I.
+CFLAGS = -Wall -Wextra -g -I$(PROJECT_ROOT) -I.
 
 # 3. List Sources with absolute/relative paths
 SRCS = datserver.c \

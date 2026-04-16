@@ -32,7 +32,7 @@ struct Platform2_OSX_SDL2_Renderer_Metal
     int height;
     bool metal_ready;
 
-    /** Filled each Render() for the ImGui debug panel */
+    /** Filled each Render() for the Nuklear debug panel */
     unsigned int debug_model_draws;
     unsigned int debug_triangles;
 

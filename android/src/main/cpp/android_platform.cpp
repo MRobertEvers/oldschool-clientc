@@ -43,11 +43,17 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
-// ImGui headers
-#define IMGUI_DEFINE_MATH_OPERATORS
-#include "imgui.h"
-#include "imgui_impl_sdl2.h"
-#include "imgui_impl_sdlrenderer2.h"
+#include "nuklear/torirs_nk_config.h"
+#include "nuklear.h"
+
+#define NK_SDL_RENDERER_SDL_H <SDL.h>
+#define TORIRS_NK_SDL_RENDERER_IMPLEMENTATION
+#include "nuklear/backends/sdl_renderer/nuklear_torirs_sdl_renderer.h"
+
+#include "platforms/common/torirs_nk_ui_bridge.h"
+
+static struct nk_context* s_scene_tile_nk;
+static Uint64 s_scene_tile_nk_prev_ticks;
 
 // Constants from scene_tile_test.cpp
 #define GUI_WINDOW_WIDTH 400
@@ -205,22 +211,21 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     SDL_GetRendererOutputSize(
         platform->renderer, &platform->drawable_width, &platform->drawable_height);
 
-    // Initialize ImGui
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGui::StyleColorsDark();
-
-    // Setup Platform/Renderer backends
-    if( !ImGui_ImplSDL2_InitForSDLRenderer(platform->window, platform->renderer) )
+    s_scene_tile_nk = torirs_nk_sdlren_init(platform->window, platform->renderer);
+    if( !s_scene_tile_nk )
     {
-        printf("ImGui SDL2 init failed\n");
+        printf("Nuklear SDL renderer init failed\n");
         return false;
     }
-    if( !ImGui_ImplSDLRenderer2_Init(platform->renderer) )
     {
-        printf("ImGui Renderer init failed\n");
-        return false;
+        struct nk_font_atlas* atlas = nullptr;
+        torirs_nk_sdlren_font_stash_begin(&atlas);
+        nk_font_atlas_add_default(atlas, 13.0f, nullptr);
+        torirs_nk_sdlren_font_stash_end();
     }
+    torirs_nk_ui_set_active(
+        s_scene_tile_nk, torirs_nk_sdlren_handle_event, torirs_nk_sdlren_handle_grab);
+    s_scene_tile_nk_prev_ticks = SDL_GetTicks64();
 
     return true;
 }
@@ -382,93 +387,105 @@ render_scene_model(
         textures_cache);
 }
 
-// ImGui rendering function from scene_tile_test.cpp
+// Nuklear overlay (SDL_Renderer)
 static void
-game_render_imgui(
+game_render_nuklear(
     struct Game* game,
     struct PlatformSDL2* platform)
 {
-    ImGui_ImplSDLRenderer2_NewFrame();
-    ImGui_ImplSDL2_NewFrame();
-    ImGui::NewFrame();
+    if( !s_scene_tile_nk || !game || !platform )
+        return;
 
-    // Info window
-    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(300, 150), ImGuiCond_FirstUseEver);
+    Uint64 const t = SDL_GetTicks64();
+    float const dt = s_scene_tile_nk_prev_ticks ? (float)(t - s_scene_tile_nk_prev_ticks) / 1000.0f
+                                                : (1.0f / 60.0f);
+    s_scene_tile_nk_prev_ticks = t;
+    float const fps = dt > 1e-8f ? 1.0f / dt : 0.0f;
 
-    ImGui::Begin("Info");
-    ImGui::Text(
-        "Application average %.3f ms/frame (%.1f FPS)",
-        1000.0f / ImGui::GetIO().Framerate,
-        ImGui::GetIO().Framerate);
-    Uint64 frequency = SDL_GetPerformanceFrequency();
-    ImGui::Text(
-        "Render Time: %.3f ms/frame",
-        (double)(game->end_time - game->start_time) * 1000.0 / (double)frequency);
-    ImGui::Text(
-        "Average Render Time: %.3f ms/frame, %.3f ms/frame",
-        (double)(game->frame_time_sum / game->frame_count) * 1000.0 / (double)frequency,
-        (double)(game->painters_time_sum / game->frame_count) * 1000.0 / (double)frequency);
-    ImGui::Text("Mouse (x, y): %d, %d", game->mouse_x, game->mouse_y);
+    Uint64 const frequency = SDL_GetPerformanceFrequency();
 
-    ImGui::Text("Hover model: %d, %d", game->hover_model, game->hover_loc_yaw);
-    ImGui::Text(
-        "Hover loc: %d, %d, %d", game->hover_loc_x, game->hover_loc_y, game->hover_loc_level);
-
-    // Camera position with copy button
-    char camera_pos_text[256];
-    snprintf(
-        camera_pos_text,
-        sizeof(camera_pos_text),
-        "Camera (x, y, z): %d, %d, %d : %d, %d",
-        game->camera_x,
-        game->camera_y,
-        game->camera_z,
-        game->camera_x / 128,
-        game->camera_y / 128);
-    ImGui::Text("%s", camera_pos_text);
-    ImGui::SameLine();
-    if( ImGui::SmallButton("Copy##pos") )
+    struct nk_context* nk = s_scene_tile_nk;
+    if( nk_begin(
+            nk,
+            "Info",
+            nk_rect(10, 10, 340, 520),
+            NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE | NK_WINDOW_TITLE |
+                NK_WINDOW_MINIMIZABLE) )
     {
-        ImGui::SetClipboardText(camera_pos_text);
-    }
+        nk_layout_row_dynamic(nk, 18, 1);
+        nk_labelf(nk, NK_TEXT_LEFT, "%.3f ms/frame (%.1f FPS)", dt * 1000.0f, fps);
+        nk_labelf(
+            nk,
+            NK_TEXT_LEFT,
+            "Render Time: %.3f ms/frame",
+            (double)(game->end_time - game->start_time) * 1000.0 / (double)frequency);
+        nk_labelf(
+            nk,
+            NK_TEXT_LEFT,
+            "Average Render Time: %.3f ms/frame, %.3f ms/frame",
+            game->frame_count
+                ? (double)(game->frame_time_sum / game->frame_count) * 1000.0 / (double)frequency
+                : 0.0,
+            game->frame_count
+                ? (double)(game->painters_time_sum / game->frame_count) * 1000.0 /
+                      (double)frequency
+                : 0.0);
+        nk_labelf(nk, NK_TEXT_LEFT, "Mouse (x, y): %d, %d", game->mouse_x, game->mouse_y);
+        nk_labelf(nk, NK_TEXT_LEFT, "Hover model: %d, %d", game->hover_model, game->hover_loc_yaw);
+        nk_labelf(
+            nk,
+            NK_TEXT_LEFT,
+            "Hover loc: %d, %d, %d",
+            game->hover_loc_x,
+            game->hover_loc_y,
+            game->hover_loc_level);
 
-    ImGui::Text("Camera tile: %d, %d", game->camera_x / 128, game->camera_y / 128);
+        char camera_pos_text[256];
+        snprintf(
+            camera_pos_text,
+            sizeof(camera_pos_text),
+            "Camera (x, y, z): %d, %d, %d : %d, %d",
+            game->camera_x,
+            game->camera_y,
+            game->camera_z,
+            game->camera_x / 128,
+            game->camera_y / 128);
+        nk_layout_row_template_begin(nk, 22);
+        nk_layout_row_template_push_dynamic(nk);
+        nk_layout_row_template_push_static(nk, 48);
+        nk_layout_row_template_end(nk);
+        nk_label(nk, camera_pos_text, NK_TEXT_LEFT);
+        if( nk_button_label(nk, "Copy##pos") )
+            SDL_SetClipboardText(camera_pos_text);
 
-    // Camera rotation with copy button
-    char camera_rot_text[256];
-    snprintf(
-        camera_rot_text,
-        sizeof(camera_rot_text),
-        "Camera (pitch, yaw, roll, fake_pitch): %d, %d, %d, %d",
-        game->camera_pitch,
-        game->camera_yaw,
-        game->camera_roll,
-        game->fake_pitch);
-    ImGui::Text("%s", camera_rot_text);
-    ImGui::SameLine();
-    if( ImGui::SmallButton("Copy##rot") )
-    {
-        ImGui::SetClipboardText(camera_rot_text);
-    }
+        nk_labelf(nk, NK_TEXT_LEFT, "Camera tile: %d, %d", game->camera_x / 128, game->camera_y / 128);
 
-    // Add camera speed slider
-    ImGui::Separator();
-    ImGui::Text("Camera Controls");
-    ImGui::SliderInt("Movement Speed", &game->camera_speed, 10, 200, "%d");
-    if( ImGui::IsItemHovered() )
-    {
-        ImGui::SetTooltip("Adjusts how fast the camera moves when using WASD keys");
-    }
-    ImGui::SliderInt("FOV", &game->camera_fov, 64, 768, "%d");
-    if( ImGui::IsItemHovered() )
-    {
-        ImGui::SetTooltip("Adjusts the camera field of view");
-    }
-    ImGui::End();
+        char camera_rot_text[256];
+        snprintf(
+            camera_rot_text,
+            sizeof(camera_rot_text),
+            "Camera (pitch, yaw, roll, fake_pitch): %d, %d, %d, %d",
+            game->camera_pitch,
+            game->camera_yaw,
+            game->camera_roll,
+            game->fake_pitch);
+        nk_layout_row_template_begin(nk, 22);
+        nk_layout_row_template_push_dynamic(nk);
+        nk_layout_row_template_push_static(nk, 48);
+        nk_layout_row_template_end(nk);
+        nk_label(nk, camera_rot_text, NK_TEXT_LEFT);
+        if( nk_button_label(nk, "Copy##rot") )
+            SDL_SetClipboardText(camera_rot_text);
 
-    ImGui::Render();
-    ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), platform->renderer);
+        nk_layout_row_dynamic(nk, 18, 1);
+        nk_label(nk, "Camera Controls", NK_TEXT_LEFT);
+        nk_property_int(nk, "Movement Speed", 10, &game->camera_speed, 200, 1, 0.1f);
+        nk_property_int(nk, "FOV", 64, &game->camera_fov, 768, 1, 0.1f);
+    }
+    nk_end(nk);
+
+    torirs_nk_ui_after_frame(s_scene_tile_nk);
+    torirs_nk_sdlren_render(NK_ANTI_ALIASING_ON);
 }
 
 // Main rendering function from scene_tile_test.cpp
@@ -1016,6 +1033,12 @@ platform_sdl2_cleanup(struct PlatformSDL2* platform)
 {
     if( platform )
     {
+        if( s_scene_tile_nk )
+        {
+            torirs_nk_ui_clear_active();
+            torirs_nk_sdlren_shutdown();
+            s_scene_tile_nk = nullptr;
+        }
         if( platform->texture )
             SDL_DestroyTexture(platform->texture);
         if( platform->renderer )
@@ -1388,15 +1411,12 @@ void
 AndroidPlatform::processEvents()
 {
     SDL_Event event;
+    bool const nk_wants_keyboard = torirs_nk_ui_want_capture_keyboard_prev();
+    bool const nk_wants_mouse = torirs_nk_ui_want_capture_mouse_prev();
+    torirs_nk_ui_pre_poll_events();
     while( SDL_PollEvent(&event) )
     {
-        // Process ImGui events first
-        ImGui_ImplSDL2_ProcessEvent(&event);
-
-        // Check if ImGui wants to capture keyboard/mouse input
-        ImGuiIO& io = ImGui::GetIO();
-        bool imgui_wants_keyboard = io.WantCaptureKeyboard;
-        bool imgui_wants_mouse = io.WantCaptureMouse;
+        torirs_nk_ui_process_event(&event);
 
         switch( event.type )
         {
@@ -1423,7 +1443,7 @@ AndroidPlatform::processEvents()
             }
             break;
         case SDL_MOUSEMOTION:
-            if( !imgui_wants_mouse && m_game )
+            if( !nk_wants_mouse && m_game )
             {
                 transform_mouse_coordinates(
                     event.motion.x,
@@ -1434,7 +1454,7 @@ AndroidPlatform::processEvents()
             }
             break;
         case SDL_MOUSEBUTTONDOWN:
-            if( !imgui_wants_mouse && m_game )
+            if( !nk_wants_mouse && m_game )
             {
                 int transformed_x, transformed_y;
                 transform_mouse_coordinates(
@@ -1445,7 +1465,7 @@ AndroidPlatform::processEvents()
             }
             break;
         case SDL_KEYDOWN:
-            if( !imgui_wants_keyboard && m_game )
+            if( !nk_wants_keyboard && m_game )
             {
                 switch( event.key.keysym.sym )
                 {
@@ -1507,6 +1527,7 @@ AndroidPlatform::processEvents()
             break;
         }
     }
+    torirs_nk_ui_post_poll_events();
 }
 
 void
@@ -1527,6 +1548,6 @@ AndroidPlatform::render()
     if( m_sdl_platform && m_game )
     {
         game_render_sdl2(m_game, m_sdl_platform, 1);
-        game_render_imgui(m_game, m_sdl_platform);
+        game_render_nuklear(m_game, m_sdl_platform);
     }
 }

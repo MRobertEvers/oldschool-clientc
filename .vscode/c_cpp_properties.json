@@ -33,7 +33,7 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/src",
-                "${workspaceFolder}/src/imgui",
+                "${workspaceFolder}/src/nuklear",
                 "${workspaceFolder}/src/osrs",
                 "${workspaceFolder}/src/3rd",
                 "${workspaceFolder}/src/datastruct",

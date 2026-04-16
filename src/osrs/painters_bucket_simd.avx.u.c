@@ -1,5 +1,5 @@
 /* AVX2 intrinsics (requires __AVX2__); filename kept as painters_bucket_simd.avx for consistency
- * with project naming (see texture_simd.avx.u.c). */
+ * with project naming (see tex.span.avx.u.c). */
 #include <immintrin.h>
 
 static void

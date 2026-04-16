@@ -50,7 +50,7 @@ raster_texture_blend(
 {
     if( texture_opaque )
     {
-        raster_texture_opaque_blend_blerp8_v3(
+        raster_texture_opaque_blend_branching_lerp8_v3(
             pixel_buffer,
             stride,
             screen_width,
@@ -79,7 +79,7 @@ raster_texture_blend(
     }
     else
     {
-        raster_texture_transparent_blend_blerp8_v3(
+        raster_texture_transparent_blend_branching_lerp8_v3(
             pixel_buffer,
             stride,
             screen_width,
@@ -641,7 +641,7 @@ raster_face_texture_blend(
     // int orthographic_z1 = orthographic_vertices_z[face_indices_b[face]];
     // int orthographic_z2 = orthographic_vertices_z[face_indices_c[face]];
 
-    // raster_texture_affine_opaque_blend_blerp8(
+    // raster_texture_affine_opaque_blend_branching_lerp8(
     //     pixel_buffer,
     //     stride,
     //     screen_width,
@@ -683,7 +683,7 @@ raster_face_texture_blend(
     // assert(shade_b >= 0 && shade_b < 128);
     // assert(shade_c >= 0 && shade_c < 128);
 
-    // raster_texture_opaque_blend_affine(
+    // raster_texture_opaque_blend_affine_branching_lerp8(
     //     pixel_buffer,
     //     stride,
     //     screen_width,

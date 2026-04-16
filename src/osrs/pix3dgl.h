@@ -86,9 +86,9 @@ pix3dgl_begin_frame(
 /** Legacy alias for pix3dgl_end_3dframe. */
 void
 pix3dgl_end_frame(struct Pix3DGL* pix3dgl);
-/** Reapply Pix3DGL fixed-function GL state after ImGui_ImplOpenGL3_RenderDrawData (no glGet). */
+/** Reapply Pix3DGL fixed-function GL state after the Nuklear GL overlay pass (no glGet). */
 void
-pix3dgl_restore_gl_state_after_imgui(struct Pix3DGL* pix3dgl);
+pix3dgl_restore_gl_state_after_ui(struct Pix3DGL* pix3dgl);
 void
 pix3dgl_model_load(
     struct Pix3DGL* pix3dgl,
