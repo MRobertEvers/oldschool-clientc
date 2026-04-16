@@ -14,8 +14,6 @@ struct Platform2_SDL2_Renderer_Soft3D
 {
     SDL_Renderer* renderer;
     SDL_Texture* texture;
-    /** View over `pixel_buffer` for SDL blits; does not own pixels. */
-    SDL_Surface* wrapped_pixels_surface;
     void* platform;
     int* pixel_buffer;
     int width;
@@ -47,9 +45,6 @@ struct Platform2_SDL2_Renderer_Soft3D
         int new_height,
         void* userdata);
     void* on_viewport_changed_userdata;
-
-    int present_surface_cache_w;
-    int present_surface_cache_h;
 };
 
 /** Pixel buffer is `width`×`height`; `max_width`/`max_height` only clamp viewport scaling. */
