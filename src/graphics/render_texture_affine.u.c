@@ -3,7 +3,7 @@
 
 static inline void
 raster_texture_blend_affine_v3(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -26,7 +26,7 @@ raster_texture_blend_affine_v3(
     int shade_a,
     int shade_b,
     int shade_c,
-    int* texels,
+    int* RESTRICT texels,
     int texture_size,
     int texture_opaque,
     int near_plane_z,
@@ -95,7 +95,7 @@ raster_texture_blend_affine_v3(
 
 static inline void
 raster_texture_blend_affine(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -118,7 +118,7 @@ raster_texture_blend_affine(
     int shade_a,
     int shade_b,
     int shade_c,
-    int* texels,
+    int* RESTRICT texels,
     int texture_size,
     int texture_opaque,
     int near_plane_z,
@@ -187,7 +187,7 @@ raster_texture_blend_affine(
 
 static inline void
 raster_texture_flat_affine_v3(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -208,7 +208,7 @@ raster_texture_flat_affine_v3(
     int orthographic_z1,
     int orthographic_z2,
     int shade,
-    int* texels,
+    int* RESTRICT texels,
     int texture_size,
     int texture_opaque,
     int near_plane_z,
@@ -281,7 +281,7 @@ raster_texture_flat_affine_v3(
 
 static inline void
 raster_texture_flat_affine(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -302,7 +302,7 @@ raster_texture_flat_affine(
     int orthographic_z1,
     int orthographic_z2,
     int shade,
-    int* texels,
+    int* RESTRICT texels,
     int texture_size,
     int texture_opaque,
     int near_plane_z,
@@ -375,7 +375,7 @@ raster_texture_flat_affine(
 
 static inline void
 raster_face_texture_blend_affine_v3_near_clip(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -396,7 +396,7 @@ raster_face_texture_blend_affine_v3_near_clip(
     hsl16_t* colors_a,
     hsl16_t* colors_b,
     hsl16_t* colors_c,
-    int* texels,
+    int* RESTRICT texels,
     int texture_size,
     int texture_opaque,
     int near_plane_z,
@@ -711,7 +711,7 @@ raster_face_texture_blend_affine_v3_near_clip(
 
 static inline void
 raster_face_texture_blend_affine_near_clip(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -732,7 +732,7 @@ raster_face_texture_blend_affine_near_clip(
     hsl16_t* colors_a,
     hsl16_t* colors_b,
     hsl16_t* colors_c,
-    int* texels,
+    int* RESTRICT texels,
     int texture_size,
     int texture_opaque,
     int near_plane_z,
@@ -1047,7 +1047,7 @@ raster_face_texture_blend_affine_near_clip(
 
 static inline void
 raster_face_texture_blend_affine_v3(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -1068,7 +1068,7 @@ raster_face_texture_blend_affine_v3(
     hsl16_t* colors_a,
     hsl16_t* colors_b,
     hsl16_t* colors_c,
-    int* texels,
+    int* RESTRICT texels,
     int texture_size,
     int texture_opaque,
     int near_plane_z,
@@ -1182,7 +1182,7 @@ raster_face_texture_blend_affine_v3(
 
 static inline void
 raster_face_texture_blend_affine(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -1203,7 +1203,7 @@ raster_face_texture_blend_affine(
     hsl16_t* colors_a,
     hsl16_t* colors_b,
     hsl16_t* colors_c,
-    int* texels,
+    int* RESTRICT texels,
     int texture_size,
     int texture_opaque,
     int near_plane_z,
@@ -1317,7 +1317,7 @@ raster_face_texture_blend_affine(
 
 static inline void
 raster_face_texture_flat_affine_v3_near_clip(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -1336,7 +1336,7 @@ raster_face_texture_flat_affine_v3_near_clip(
     int* orthographic_vertices_y,
     int* orthographic_vertices_z,
     hsl16_t* colors,
-    int* texels,
+    int* RESTRICT texels,
     int texture_size,
     int texture_opaque,
     int near_plane_z,
@@ -1595,7 +1595,7 @@ raster_face_texture_flat_affine_v3_near_clip(
 
 static inline void
 raster_face_texture_flat_affine_v3(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -1614,7 +1614,7 @@ raster_face_texture_flat_affine_v3(
     int* orthographic_vertices_y,
     int* orthographic_vertices_z,
     hsl16_t* colors,
-    int* texels,
+    int* RESTRICT texels,
     int texture_size,
     int texture_opaque,
     int near_plane_z,
@@ -1715,7 +1715,7 @@ raster_face_texture_flat_affine_v3(
 
 static inline void
 raster_face_texture_flat_affine_near_clip(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -1734,7 +1734,7 @@ raster_face_texture_flat_affine_near_clip(
     int* orthographic_vertices_y,
     int* orthographic_vertices_z,
     hsl16_t* colors,
-    int* texels,
+    int* RESTRICT texels,
     int texture_size,
     int texture_opaque,
     int near_plane_z,
@@ -1993,7 +1993,7 @@ raster_face_texture_flat_affine_near_clip(
 
 static inline void
 raster_face_texture_flat_affine(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -2012,7 +2012,7 @@ raster_face_texture_flat_affine(
     int* orthographic_vertices_y,
     int* orthographic_vertices_z,
     hsl16_t* colors,
-    int* texels,
+    int* RESTRICT texels,
     int texture_size,
     int texture_opaque,
     int near_plane_z,

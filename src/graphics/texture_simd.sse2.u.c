@@ -28,9 +28,9 @@ shade_blend4_sse(
 
 static inline void
 raster_linear_transparent_blend_lerp8(
-    uint32_t* pixel_buffer,
+    uint32_t* RESTRICT pixel_buffer,
     int offset,
-    const uint32_t* texels,
+    const uint32_t* RESTRICT texels,
     int u_scan,
     int v_scan,
     int step_u,
@@ -79,9 +79,9 @@ raster_linear_transparent_blend_lerp8(
 
 static inline void
 raster_linear_opaque_blend_lerp8(
-    uint32_t* pixel_buffer,
+    uint32_t* RESTRICT pixel_buffer,
     int offset,
-    const uint32_t* texels,
+    const uint32_t* RESTRICT texels,
     int u_scan,
     int v_scan,
     int step_u,
@@ -190,7 +190,7 @@ raster_linear_transparent_blend_lerp8_v3(
 
 static inline void
 draw_texture_scanline_opaque_blend_ordered_blerp8_v3(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int screen_width,
     int screen_x0_ish16,
     int screen_x1_ish16,
@@ -203,7 +203,7 @@ draw_texture_scanline_opaque_blend_ordered_blerp8_v3(
     int step_cw_dx,
     int shade8bit_ish8,
     int step_shade8bit_dx_ish8,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     int x0 = (screen_x0_ish16 - 1) >> 16;
@@ -286,7 +286,7 @@ draw_texture_scanline_opaque_blend_ordered_blerp8_v3(
 
 static inline void
 draw_texture_scanline_transparent_blend_ordered_blerp8_v3(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int screen_width,
     int screen_x0_ish16,
     int screen_x1_ish16,
@@ -299,7 +299,7 @@ draw_texture_scanline_transparent_blend_ordered_blerp8_v3(
     int step_cw_dx,
     int shade8bit_ish8,
     int step_shade8bit_dx_ish8,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     int x0 = (screen_x0_ish16 - 1) >> 16;
@@ -391,7 +391,7 @@ draw_texture_scanline_transparent_blend_ordered_blerp8_v3(
 
 static inline void
 draw_texture_scanline_opaque_blend_affine_ordered_ish16(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int screen_width,
     int screen_x0_ish16,
     int screen_x1_ish16,
@@ -404,7 +404,7 @@ draw_texture_scanline_opaque_blend_affine_ordered_ish16(
     int step_cw_dx,
     int shade8bit_ish8,
     int step_shade8bit_dx_ish8,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     if( screen_x0_ish16 == screen_x1_ish16 )
@@ -502,7 +502,7 @@ draw_texture_scanline_opaque_blend_affine_ordered_ish16(
 
 static inline void
 draw_texture_scanline_transparent_blend_affine_ordered_ish16(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int screen_width,
     int screen_x0_ish16,
     int screen_x1_ish16,
@@ -515,7 +515,7 @@ draw_texture_scanline_transparent_blend_affine_ordered_ish16(
     int step_cw_dx,
     int shade8bit_ish8,
     int step_shade8bit_dx_ish8,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     if( screen_x0_ish16 == screen_x1_ish16 )

@@ -1,6 +1,8 @@
 #ifndef ALPHA_H
 #define ALPHA_H
 
+#include "dash_restrict.h"
+
 /**
  * This is a cute way to alpha blend two rgb colors.
  *

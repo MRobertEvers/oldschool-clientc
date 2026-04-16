@@ -201,7 +201,7 @@ raster_flat_s4(
 
 static inline void
 draw_scanline_flat_alpha_s4(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int y,
@@ -268,7 +268,7 @@ draw_scanline_flat_alpha_s4(
 
 void
 raster_flat_alpha_s4(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,

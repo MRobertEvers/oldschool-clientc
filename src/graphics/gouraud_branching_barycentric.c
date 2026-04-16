@@ -79,7 +79,7 @@ draw_scanline_gouraud_ordered_bary_bs4(
 
 static inline void
 draw_scanline_gouraud_ordered_bary_alpha_bs4(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int offset,
     int screen_width,
     int y,
@@ -395,7 +395,7 @@ raster_gouraud_ordered_bary_bs4(
 
 static inline void
 raster_gouraud_ordered_bary_alpha_bs4(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -747,7 +747,7 @@ raster_gouraud_bary_bs4(
 
 static inline void
 raster_gouraud_alpha_bary_bs4(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,

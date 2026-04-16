@@ -1,6 +1,8 @@
 #ifndef SHADE_H
 #define SHADE_H
 
+#include "dash_restrict.h"
+
 #include <assert.h>
 
 /**

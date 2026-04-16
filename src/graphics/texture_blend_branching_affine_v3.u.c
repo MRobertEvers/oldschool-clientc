@@ -11,7 +11,7 @@
 
 static inline void
 raster_texture_opaque_blend_affine_ordered_v3(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -34,7 +34,7 @@ raster_texture_opaque_blend_affine_ordered_v3(
     int shade7bit_a,
     int shade7bit_b,
     int shade7bit_c,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     if( y0 >= screen_height )
@@ -277,7 +277,7 @@ raster_texture_opaque_blend_affine_ordered_v3(
 
 static inline void
 raster_texture_transparent_blend_affine_ordered_v3(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -300,7 +300,7 @@ raster_texture_transparent_blend_affine_ordered_v3(
     int shade7bit_a,
     int shade7bit_b,
     int shade7bit_c,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     if( y0 >= screen_height )
@@ -543,7 +543,7 @@ raster_texture_transparent_blend_affine_ordered_v3(
 
 static inline void
 raster_texture_opaque_blend_affine_v3(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -566,7 +566,7 @@ raster_texture_opaque_blend_affine_v3(
     int shade7bit_a,
     int shade7bit_b,
     int shade7bit_c,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     if( y0 <= y1 && y0 <= y2 )
@@ -774,7 +774,7 @@ raster_texture_opaque_blend_affine_v3(
 
 static inline void
 raster_texture_transparent_blend_affine_v3(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -797,7 +797,7 @@ raster_texture_transparent_blend_affine_v3(
     int shade7bit_a,
     int shade7bit_b,
     int shade7bit_c,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     if( y0 <= y1 && y0 <= y2 )

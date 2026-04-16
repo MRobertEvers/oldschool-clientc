@@ -43,7 +43,7 @@ alpha_blend4_neon(uint32x4_t pixels, uint32x4_t colors, int alpha)
 }
 
 static inline void
-raster_linear_alpha_s4(uint32_t* pixel_buffer, int offset, int rgb_color, int alpha)
+raster_linear_alpha_s4(uint32_t* RESTRICT pixel_buffer, int offset, int rgb_color, int alpha)
 {
     // Load 4 existing pixels from buffer
     uint32x4_t pixels = vld1q_u32(&pixel_buffer[offset]);
@@ -100,7 +100,7 @@ alpha_blend4_avx2(__m128i pixels, __m128i colors, int alpha)
 }
 
 static inline void
-raster_linear_alpha_s4(uint32_t* pixel_buffer, int offset, int rgb_color, int alpha)
+raster_linear_alpha_s4(uint32_t* RESTRICT pixel_buffer, int offset, int rgb_color, int alpha)
 {
     // Load 4 existing pixels from buffer
     __m128i pixels = _mm_loadu_si128((__m128i*)&pixel_buffer[offset]);
@@ -150,7 +150,7 @@ alpha_blend4_sse2(__m128i pixels, __m128i colors, int alpha)
 }
 
 static inline void
-raster_linear_alpha_s4(uint32_t* pixel_buffer, int offset, int rgb_color, int alpha)
+raster_linear_alpha_s4(uint32_t* RESTRICT pixel_buffer, int offset, int rgb_color, int alpha)
 {
     // Load 4 existing pixels from buffer
     __m128i pixels = _mm_loadu_si128((__m128i*)&pixel_buffer[offset]);
@@ -168,7 +168,7 @@ raster_linear_alpha_s4(uint32_t* pixel_buffer, int offset, int rgb_color, int al
 #else
 
 static inline void
-raster_linear_alpha_s4(uint32_t* pixel_buffer, int offset, int rgb_color, int alpha)
+raster_linear_alpha_s4(uint32_t* RESTRICT pixel_buffer, int offset, int rgb_color, int alpha)
 {
     for( int i = 0; i < 4; i++ )
     {

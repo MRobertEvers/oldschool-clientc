@@ -69,7 +69,7 @@ draw_scanline_flat_ordered_bs4(
 
 static inline void
 draw_scanline_flat_alpha_ordered_bs4(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int offset,
     int screen_width,
     int x_start_ish16,
@@ -291,7 +291,7 @@ raster_flat_ordered_bs4(
 
 static inline void
 raster_flat_alpha_ordered_bs4(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -591,7 +591,7 @@ raster_flat_bs4(
 
 static inline void
 raster_flat_alpha_bs4(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,

@@ -1,6 +1,8 @@
 #ifndef CLAMP_H
 #define CLAMP_H
 
+#include "dash_restrict.h"
+
 static inline int
 clamp(int value, int min, int max)
 {

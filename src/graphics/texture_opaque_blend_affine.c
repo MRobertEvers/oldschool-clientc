@@ -10,7 +10,7 @@
 // Forward declarations
 static inline void
 raster_texture_opaque_blend_affine_ordered(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -33,12 +33,12 @@ raster_texture_opaque_blend_affine_ordered(
     int shade0,
     int shade1,
     int shade2,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width);
 
 static inline void
 raster_texture_opaque_blend_affine(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -61,7 +61,7 @@ raster_texture_opaque_blend_affine(
     int shade7bit_a,
     int shade7bit_b,
     int shade7bit_c,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     // either.
@@ -282,7 +282,7 @@ raster_texture_opaque_blend_affine(
 
 static inline void
 draw_texture_scanline_opaque_blend_affine_ordered(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -297,7 +297,7 @@ draw_texture_scanline_opaque_blend_affine_ordered(
     int step_u_dx,
     int step_v_dx,
     int step_w_dx,
-    int* texels,
+    int* RESTRICT texels,
     int origin_x)
 {
     if( x_end > screen_width )
@@ -413,7 +413,7 @@ draw_texture_scanline_opaque_blend_affine_ordered(
 
 static inline void
 raster_texture_opaque_blend_affine_ordered(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -436,7 +436,7 @@ raster_texture_opaque_blend_affine_ordered(
     int shade0,
     int shade1,
     int shade2,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     // Map orthographic texture coordinates to u/v/w

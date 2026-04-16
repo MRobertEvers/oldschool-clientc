@@ -31,7 +31,7 @@
 
 static inline void
 raster_texture_scanline_transparent_blend_lerp8(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -46,7 +46,7 @@ raster_texture_scanline_transparent_blend_lerp8(
     int step_cw_dx,
     int shade8bit_ish8,
     int step_shade8bit_dx_ish8,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     if( screen_x0_ish16 == screen_x1_ish16 )
@@ -225,7 +225,7 @@ raster_texture_scanline_transparent_blend_lerp8(
 
 static void
 raster_texture_scanline_opaque_blend_lerp8(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -240,7 +240,7 @@ raster_texture_scanline_opaque_blend_lerp8(
     int step_cw_dx,
     int shade8bit_ish8,
     int step_shade8bit_dx_ish8,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     if( screen_x0_ish16 == screen_x1_ish16 )
@@ -420,7 +420,7 @@ raster_texture_scanline_opaque_blend_lerp8(
 
 static void
 raster_texture_scanline_transparent_lerp8(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -434,7 +434,7 @@ raster_texture_scanline_transparent_lerp8(
     int step_bv_dx,
     int step_cw_dx,
     int shade8bit_ish8,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     if( screen_x0 == screen_x1 )
@@ -594,7 +594,7 @@ raster_texture_scanline_transparent_lerp8(
 
 static void
 raster_texture_scanline_opaque_lerp8(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -608,7 +608,7 @@ raster_texture_scanline_opaque_lerp8(
     int step_bv_dx,
     int step_cw_dx,
     int shade8bit,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     if( screen_x0_ish16 == screen_x1_ish16 )
@@ -779,7 +779,7 @@ raster_texture_scanline_opaque_lerp8(
 
 static inline void
 raster_texture_transparent_blend_lerp8(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -802,7 +802,7 @@ raster_texture_transparent_blend_lerp8(
     int shade7bit_a,
     int shade7bit_b,
     int shade7bit_c,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     if( screen_y2 < screen_y0 )
@@ -1031,7 +1031,7 @@ raster_texture_transparent_blend_lerp8(
 
 static inline void
 raster_texture_opaque_blend_lerp8(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -1054,7 +1054,7 @@ raster_texture_opaque_blend_lerp8(
     int shade7bit_a,
     int shade7bit_b,
     int shade7bit_c,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     if( screen_y2 < screen_y0 )
@@ -1283,7 +1283,7 @@ raster_texture_opaque_blend_lerp8(
 
 static inline void
 raster_texture_transparent_lerp8(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -1304,7 +1304,7 @@ raster_texture_transparent_lerp8(
     int orthographic_uend_z1,
     int orthographic_vend_z2,
     int shade7bit,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     if( screen_y2 < screen_y0 )
@@ -1513,7 +1513,7 @@ raster_texture_transparent_lerp8(
 
 static inline void
 raster_texture_opaque_lerp8(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -1534,7 +1534,7 @@ raster_texture_opaque_lerp8(
     int orthographic_uend_z1,
     int orthographic_vend_z2,
     int shade7bit,
-    int* texels,
+    int* RESTRICT texels,
     int texture_width)
 {
     if( screen_y2 < screen_y0 )
