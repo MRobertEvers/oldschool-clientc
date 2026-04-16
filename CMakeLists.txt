@@ -295,7 +295,7 @@ if(NOT EMSCRIPTEN)
         target_link_options(osx PRIVATE -fsanitize=undefined)
     endif()
     add_executable(interface161_test
-        tools/interface161_test/main.c
+        tools/ci/interface161_test/main.c
         src/osrs/rscache/tables/component.c
         src/osrs/rscache/rsbuf.c
         src/bmp.c

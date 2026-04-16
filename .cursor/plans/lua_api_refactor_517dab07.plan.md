@@ -6,7 +6,7 @@ todos:
     content: "Add lua_api.h + per-module *.inc X-macro fragments: (LuaApiId enum, full_string, domain, suffix) tuples for every dispatchable command"
     status: completed
   - id: gen-ht
-    content: "Implement tools/gen_lua_api_ht.py: search hash functions, emit lua_api_ht.c with global full-string hash + per-domain suffix arrays; lua_api_init() builds from static table"
+    content: "Implement tools/ci/gen_lua_api_ht.py: search hash functions, emit lua_api_ht.c with global full-string hash + per-domain suffix arrays; lua_api_init() builds from static table"
     status: completed
   - id: nested-game
     content: "Refactor create_wasm_object in luac_sidecar.c: five PascalCase proxy subtables; __index does per-domain suffix lookup -> captures LuaApiId integer upvalue; c_wasm_dispatcher_by_id passes integer, not string"
@@ -104,7 +104,7 @@ LuaApiId lua_api_domain_lookup(int domain, const char* suffix, size_t n); // suf
 
 ## Generated [`lua_api_ht.c`](src/osrs/lua_sidecar/lua_api_ht.c) + Python tool
 
-[`tools/gen_lua_api_ht.py`](tools/gen_lua_api_ht.py) does:
+[`tools/ci/gen_lua_api_ht.py`](tools/ci/gen_lua_api_ht.py) does:
 
 1. **Parse** the `.inc` fragment files to get `(id, full_string, domain, suffix)` rows.
 2. **Search** for optimal hash: try FNV-1a, djb2, Murmur3-mix, polynomial rolling (tunable seed/multiplier) x table sizes from `ceil(1.25xN)` up to `2xN` (next power of two preferred). Metric: min max-probe-depth, then min average probes, then `timeit` microbenchmark on actual strings.
@@ -113,7 +113,7 @@ LuaApiId lua_api_domain_lookup(int domain, const char* suffix, size_t n); // suf
    - **Per-domain sorted arrays** of `(suffix, LuaApiId)` pairs: for `lua_api_domain_lookup` via bsearch. These are small (<=40 entries per domain), so bsearch is cache-friendly and sufficient.
 4. **`lua_api_init()`** in `lua_api.c` **verifies** every slot by checking `lua_api_hash_bytes(k_lua_api_strings[id])` lands correctly and the full string matches. In debug builds this catches drift if the registry is edited but the generated file is stale. In release (`NDEBUG`) the function is a no-op.
 
-The generated file is committed to the repo. Re-run `python3 tools/gen_lua_api_ht.py` when the registry changes. An optional CMake `add_custom_command` can wire this up automatically when Python is available.
+The generated file is committed to the repo. Re-run `python3 tools/ci/gen_lua_api_ht.py` when the registry changes. An optional CMake `add_custom_command` can wire this up automatically when Python is available.
 
 ## Refactored `__index` and dispatcher in C
 

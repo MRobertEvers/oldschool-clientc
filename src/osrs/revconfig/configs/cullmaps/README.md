@@ -9,13 +9,13 @@ From the repository root (or any working directory):
 1. Build the host tool:
 
    ```sh
-   cd tools/gen_painters_cullmap && make
+   cd tools/ci/gen_painters_cullmap && make
    ```
 
 2. Run the batch script (writes into this directory by default):
 
    ```sh
-   node tools/gen_painters_cullmap/batch_cullmaps.mjs
+   node tools/ci/gen_painters_cullmap/batch_cullmaps.mjs
    ```
 
    Options:
@@ -25,7 +25,7 @@ From the repository root (or any working directory):
    - `-j [N]`, `--jobs [N]` — run up to `N` generator processes in parallel (default: CPU count; `-j 1` is serial). With `jobs > 1`, child `stdio` is discarded to avoid interleaved output.
    - `--dry-run` — print `gen_painters_cullmap` command lines without running them.
 
-Viewport and radius grids are defined in `tools/gen_painters_cullmap/batch_cullmaps.mjs` (`BAKE_SCREEN`, `BAKE_RADIUS`, `DEFAULT_NEAR`). The same numbers are duplicated in `src/osrs/painters_cullmap_baked_path.c` (`PCULL_BAKE_*`) for runtime picking.
+Viewport and radius grids are defined in `tools/ci/gen_painters_cullmap/batch_cullmaps.mjs` (`BAKE_SCREEN`, `BAKE_RADIUS`, `DEFAULT_NEAR`). The same numbers are duplicated in `src/osrs/painters_cullmap_baked_path.c` (`PCULL_BAKE_*`) for runtime picking.
 
 `painters_cullmap_baked_path` fills `struct PaintersCullmapBakedParams` and returns malloc’d filename/path strings; it does not read files. Loading uses `painters_cullmap_from_blob` after the game reads bytes, or `painters_cullmap_build` for a runtime bake.
 

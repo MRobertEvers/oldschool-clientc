@@ -29,5 +29,5 @@ lib/python*
 *.dSYM
 *.o
 
-# Generated painters cullmap blobs (see tools/gen_painters_cullmap)
+# Generated painters cullmap blobs (see tools/ci/gen_painters_cullmap)
 src/osrs/revconfig/configs/cullmaps/*.bin

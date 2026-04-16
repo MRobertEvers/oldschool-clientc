@@ -33,7 +33,7 @@ DEFAULTS = {
 
 
 def repo_root() -> Path:
-    return Path(__file__).resolve().parent.parent
+    return Path(__file__).resolve().parent.parent.parent
 
 
 def parse_dotenv(path: Path) -> dict[str, str]:

@@ -5,7 +5,7 @@
 #   node batch_cullmaps.mjs
 #   node batch_cullmaps.mjs -j8
 
-REPO := $(abspath ../..)
+REPO := $(abspath ../../..)
 
 CC ?= cc
 CFLAGS += -Wall -Wextra -O2 -I$(REPO)/src

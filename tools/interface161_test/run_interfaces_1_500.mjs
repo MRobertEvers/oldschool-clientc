@@ -24,8 +24,8 @@ function parseArgs(argv) {
     let outDir = path.join(process.cwd(), 'interface_exports');
     let binary =
         process.platform === 'win32'
-            ? path.join(__dirname, '..', '..', 'build', 'interface161_test.exe')
-            : path.join(__dirname, '..', '..', 'build', 'interface161_test');
+            ? path.join(__dirname, '..', '..', '..', 'build', 'interface161_test.exe')
+            : path.join(__dirname, '..', '..', '..', 'build', 'interface161_test');
 
     const rest = argv.slice(1);
     for (let i = 0; i < rest.length; i++) {

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CI subscribers</title>
+  <style>
+    body { font-family: sans-serif; margin: 1.5rem; }
+    table { border-collapse: collapse; }
+    th, td { border: 1px solid #ccc; padding: 0.4rem 0.75rem; text-align: left; }
+    th { background: #f4f4f4; }
+    .alive { color: #080; }
+    .dead { color: #c00; }
+    #err { color: #c00; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Subscribers</h1>
+  <p><button type="button" id="refresh">Refresh</button></p>
+  <table>
+    <thead>
+      <tr><th>id</th><th>notify_url</th><th>last_seen</th><th>alive</th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <p id="err"></p>
+  <script>
+    function loadSubscribers() {
+      var err = document.getElementById("err");
+      err.textContent = "";
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", "/v1/subscribers", true);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4) return;
+        if (xhr.status !== 200) {
+          err.textContent = "HTTP " + xhr.status;
+          return;
+        }
+        var data;
+        try {
+          data = JSON.parse(xhr.responseText);
+        } catch (e) {
+          err.textContent = "Invalid JSON";
+          return;
+        }
+        var tbody = document.getElementById("rows");
+        tbody.innerHTML = "";
+        for (var i = 0; i < data.length; i++) {
+          var row = data[i];
+          var tr = document.createElement("tr");
+          var aliveClass = row.alive ? "alive" : "dead";
+          tr.innerHTML =
+            "<td>" + escapeHtml(row.id) + "</td>" +
+            "<td>" + escapeHtml(row.notify_url) + "</td>" +
+            "<td>" + escapeHtml(String(row.last_seen)) + "</td>" +
+            "<td class=\"" + aliveClass + "\">" + (row.alive ? "yes" : "no") + "</td>";
+          tbody.appendChild(tr);
+        }
+      };
+      xhr.send(null);
+    }
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+    document.getElementById("refresh").onclick = loadSubscribers;
+    loadSubscribers();
+    setInterval(loadSubscribers, 5000);
+  </script>
+</body>
+</html>

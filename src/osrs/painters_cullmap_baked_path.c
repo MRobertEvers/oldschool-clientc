@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Must match tools/gen_painters_cullmap/batch_cullmaps.mjs (BAKE_SCREEN, BAKE_RADIUS). */
+/* Must match tools/ci/gen_painters_cullmap/batch_cullmaps.mjs (BAKE_SCREEN, BAKE_RADIUS). */
 #define PCULL_BAKE_DIM_MIN 100
 #define PCULL_BAKE_DIM_MAX 2000
 #define PCULL_BAKE_DIM_STEP 100

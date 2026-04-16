@@ -67,7 +67,7 @@ Or equivalently: `make -C build-winxp -j$(nproc)`
 You need SDL2.dll and libwinpthread-1.dll for the i686 build. Adjust paths to match your i686 SDL2 and pthread DLLs:
 
 ```bash
-python tools/package_build.py \
+python tools/ci/package_build.py \
   --build-dir build-winxp \
   --sdl2-dll "$MINGW_I686/bin/SDL2.dll" \
   --libwinpthread-dll "$MINGW_I686/bin/libwinpthread-1.dll" \

@@ -40,7 +40,7 @@ function usage() {
 
 function parseArgs(argv) {
   let near = DEFAULT_NEAR;
-  let outDir = path.join(__dirname, '../../src/osrs/revconfig/configs/cullmaps');
+  let outDir = path.join(__dirname, '../../../src/osrs/revconfig/configs/cullmaps');
   let dryRun = false;
   let jobs = defaultJobCount();
   for (let i = 0; i < argv.length; i++) {
@@ -178,7 +178,7 @@ async function main() {
 
 
   if (!fs.existsSync(genExe)) {
-    console.error(`batch_cullmaps: missing ${genExe} — run make in tools/gen_painters_cullmap`);
+    console.error(`batch_cullmaps: missing ${genExe} — run make in tools/ci/gen_painters_cullmap`);
     process.exit(1);
   }
 

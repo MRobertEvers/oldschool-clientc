@@ -1,5 +1,5 @@
 # Thin wrapper: build the CMake target from repo root.
-ROOT := $(abspath ../..)
+ROOT := $(abspath ../../..)
 BUILD ?= $(ROOT)/build
 
 .PHONY: all clean

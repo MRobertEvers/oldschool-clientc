@@ -19,7 +19,7 @@ struct PaintersCullmapBakedParams
 
 /**
  * Fill params: smallest baked w/h/radius not smaller than viewport and draw_radius;
- * copies nz and fov through. Grid matches tools/gen_painters_cullmap/batch_cullmaps.mjs.
+ * copies nz and fov through. Grid matches tools/ci/gen_painters_cullmap/batch_cullmaps.mjs.
  */
 void
 painters_cullmap_baked_params_resolve(
