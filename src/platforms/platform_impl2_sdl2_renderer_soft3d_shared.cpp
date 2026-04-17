@@ -42,6 +42,13 @@ static struct nk_context* s_soft3d_nk;
 static Uint64 s_soft3d_ui_prev_perf;
 
 static void
+sdl_soft3d_set_clipboard_text(const char* text)
+{
+    if( text )
+        (void)SDL_SetClipboardText(text);
+}
+
+static void
 render_nuklear_overlay(
     struct Platform2_SDL2_Renderer_Soft3D* renderer,
     struct GGame* game)
@@ -51,16 +58,32 @@ render_nuklear_overlay(
 
     double const dt = torirs_nk_ui_frame_delta_sec(&s_soft3d_ui_prev_perf);
 
+    int mx = 0;
+    int my = 0;
+    SDL_GetMouseState(&mx, &my);
+
+    int pixel_size_dynamic_i = renderer->pixel_size_dynamic ? 1 : 0;
+
     TorirsNkDebugPanelParams params = {};
     params.window_title = "Info";
     params.delta_time_sec = dt;
     params.view_w_cap = renderer->max_width;
     params.view_h_cap = renderer->max_height;
-    params.sdl_window = soft3d_platform_window(renderer->platform);
-    params.soft3d = renderer;
-    params.include_soft3d_extras = 1;
+    params.window_mouse_valid = 1;
+    params.window_mouse_x = mx;
+    params.window_mouse_y = my;
+    params.pixel_size_dynamic_inout = &pixel_size_dynamic_i;
+    params.render_width = renderer->width;
+    params.render_height = renderer->height;
+    params.max_width = renderer->max_width;
+    params.max_height = renderer->max_height;
+    params.clicked_tile_x = renderer->clicked_tile_x;
+    params.clicked_tile_z = renderer->clicked_tile_z;
+    params.clicked_tile_level = renderer->clicked_tile_level;
+    params.set_clipboard_text = sdl_soft3d_set_clipboard_text;
 
     torirs_nk_debug_panel_draw(s_soft3d_nk, game, &params);
+    renderer->pixel_size_dynamic = pixel_size_dynamic_i != 0;
     torirs_nk_ui_after_frame(s_soft3d_nk);
     torirs_nk_sdlren_render(NK_ANTI_ALIASING_ON);
 }

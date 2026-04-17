@@ -760,9 +760,6 @@ render_nuklear_overlay(
     params.delta_time_sec = dt;
     params.view_w_cap = 4096;
     params.view_h_cap = 4096;
-    params.sdl_window = renderer->platform ? renderer->platform->window : nullptr;
-    params.soft3d = nullptr;
-    params.include_soft3d_extras = 0;
     params.include_load_counts = 1;
     params.loaded_models = (unsigned)renderer->loaded_model_keys.size();
     params.loaded_scenes = renderer->loaded_scene_element_keys.size();
