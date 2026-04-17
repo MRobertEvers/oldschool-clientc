@@ -85,6 +85,20 @@ uiscene_element_acquire(
     struct UIScene* uiscene,
     int parent_entity_id);
 
+/** Acquires an element AND assigns dash_sprites/name BEFORE pushing the ELEMENT_ACQUIRED event.
+ *  This eliminates the window where a consumer can observe the element with dash_sprites==NULL.
+ *  - sprites: caller-owned array; ownership transfers (UIScene takes the pointer as-is, will free
+ *    via free()/dashsprite_free unless `borrowed` is true).
+ *  - name: optional, may be NULL; truncated to 63 chars. */
+int
+uiscene_element_acquire_with_sprites(
+    struct UIScene* uiscene,
+    int parent_entity_id,
+    struct DashSprite** sprites,
+    int sprites_count,
+    bool borrowed,
+    const char* name);
+
 void
 uiscene_element_release(
     struct UIScene* uiscene,

@@ -11,6 +11,7 @@
 
 #include <SDL.h>
 
+#include <climits>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -136,21 +137,19 @@ metal_remap_projection_opengl_to_metal_z(float* proj_colmajor)
 }
 
 // ---------------------------------------------------------------------------
-// Vertex layout that matches Shaders.metal (stride 64, 16-byte aligned)
+// Vertex layout that matches Shaders.metal struct Vertex (model-local xyz)
 // ---------------------------------------------------------------------------
 struct MetalVertex
 {
-    float position[4]; // xyz + unused w (1.0)
+    float position[4]; // xyz model-local, w = 1
     float color[4];    // r, g, b, a
     float texcoord[2];
-    float texBlend;         // 1.0 = sample texture * color (Pix3DGL), 0.0 = color only
-    float textureOpaque;    // 1.0 = opaque tex; 0.0 = alpha-tested like GL path
-    float textureAnimSpeed; // signed, same encoding as pix3dgl_load_texture
+    float texBlend; // baked: raw face tex id >= 0 → 1 (per-run uniform clamps if missing GPU tex)
     float _pad_vertex;
 };
 
 // ---------------------------------------------------------------------------
-// Uniform buffer that matches Shaders.metal
+// Uniform buffer that matches Shaders.metal struct Uniforms
 // ---------------------------------------------------------------------------
 struct MetalUniforms
 {
@@ -159,6 +158,25 @@ struct MetalUniforms
     float uClock;
     float _pad_uniform[3];
 };
+
+// Matches Shaders.metal InstanceUniform (buffer 2); dynamic offsets use 256-byte stride.
+struct MetalInstanceUniform
+{
+    float cos_yaw, sin_yaw, world_x, world_y;
+    float world_z, _pad_i[3];
+};
+
+// Matches Shaders.metal RunUniform (fragment buffer 3)
+struct MetalRunUniform
+{
+    float texBlendOverride;
+    float textureOpaque;
+    float textureAnimSpeed;
+    float pad;
+};
+
+static const size_t kMetalInstanceUniformStride = 256;
+static const size_t kMetalRunUniformStride = 256;
 
 // ---------------------------------------------------------------------------
 // Viewport helpers (identical to opengl3 renderer)
@@ -253,6 +271,55 @@ compute_gl_world_viewport_rect(
     return rect;
 }
 
+/** Convert logical dst_bb (game / window coordinates) to a Metal scissor rect in drawable pixels.
+ *  Clamps to the framebuffer and guards against negative intermediate Y (which would wrap as
+ *  NSUInteger and disable rasterization for the draw). */
+static MTLScissorRect
+metal_clamped_scissor_from_logical_dst_bb(
+    int fbw,
+    int fbh,
+    int win_w,
+    int win_h,
+    int dst_x,
+    int dst_y,
+    int dst_w,
+    int dst_h)
+{
+    MTLScissorRect full = { 0,
+                            0,
+                            (NSUInteger)(fbw > 0 ? fbw : 1),
+                            (NSUInteger)(fbh > 0 ? fbh : 1) };
+    if( fbw <= 0 || fbh <= 0 || win_w <= 0 || win_h <= 0 || dst_w <= 0 || dst_h <= 0 )
+        return full;
+
+    LogicalViewportRect lr = { dst_x, dst_y, dst_w, dst_h };
+    MTLViewportRect gr = compute_gl_world_viewport_rect(fbw, fbh, win_w, win_h, lr);
+
+    NSInteger msx = (NSInteger)gr.x;
+    NSInteger msy = (NSInteger)fbh - (NSInteger)gr.y - (NSInteger)gr.height;
+    NSInteger msw = (NSInteger)gr.width;
+    NSInteger msh = (NSInteger)gr.height;
+
+    if( msx < 0 )
+    {
+        msw += msx;
+        msx = 0;
+    }
+    if( msy < 0 )
+    {
+        msh += msy;
+        msy = 0;
+    }
+    if( msx + msw > fbw )
+        msw = fbw - msx;
+    if( msy + msh > fbh )
+        msh = fbh - msy;
+    if( msw <= 0 || msh <= 0 )
+        return full;
+
+    return MTLScissorRect{ (NSUInteger)msx, (NSUInteger)msy, (NSUInteger)msw, (NSUInteger)msh };
+}
+
 // Same encoding as pix3dgl_load_texture (direction → sign, speed scale).
 static float
 metal_texture_animation_signed(
@@ -267,28 +334,21 @@ metal_texture_animation_signed(
     return -speed;
 }
 
-// Append one face (3 vertices) in model draw order. Skips invisible / invalid faces.
-// effective_tex_id is -1 for untextured, or a loaded texture id (caller drops missing atlas slots).
-static void
-append_model_face_vertices(
+/** Fill 3 model-local vertices for face `f`. Returns false if face is skipped (caller may
+ *  substitute degenerate verts). `raw_tex` is the model's face texture id for UV/texBlend bake. */
+static bool
+fill_model_face_vertices_model_local(
     const struct DashModel* model,
     int f,
-    float world_x,
-    float world_y,
-    float world_z,
-    float cos_yaw,
-    float sin_yaw,
-    int effective_tex_id,
-    float texture_anim_speed,
-    bool texture_opaque,
-    std::vector<MetalVertex>& out)
+    int raw_tex,
+    MetalVertex out[3])
 {
     const int* face_infos = dashmodel_face_infos_const(model);
     if( face_infos && face_infos[f] == 2 )
-        return;
+        return false;
     const hsl16_t* hsl_c_arr = dashmodel_face_colors_c_const(model);
     if( hsl_c_arr && hsl_c_arr[f] == DASHHSL16_HIDDEN )
-        return;
+        return false;
 
     const faceint_t* face_ia = dashmodel_face_indices_a_const(model);
     const faceint_t* face_ib = dashmodel_face_indices_b_const(model);
@@ -298,12 +358,12 @@ append_model_face_vertices(
     const int ic = face_ic[f];
     const int vcount = dashmodel_vertex_count(model);
     if( ia < 0 || ia >= vcount || ib < 0 || ib >= vcount || ic < 0 || ic >= vcount )
-        return;
+        return false;
 
     const hsl16_t* hsl_a_arr = dashmodel_face_colors_a_const(model);
     const hsl16_t* hsl_b_arr = dashmodel_face_colors_b_const(model);
     if( !hsl_a_arr || !hsl_b_arr || !hsl_c_arr )
-        return;
+        return false;
 
     int hsl_a = (int)hsl_a_arr[f];
     int hsl_b = (int)hsl_b_arr[f];
@@ -321,14 +381,12 @@ append_model_face_vertices(
     float face_alpha = 1.0f;
     const alphaint_t* face_alphas = dashmodel_face_alphas_const(model);
     if( face_alphas )
-    {
         face_alpha = (float)(0xFF - face_alphas[f]) / 255.0f;
-    }
 
     float u_corner[3] = { 0.0f, 0.0f, 0.0f };
     float v_corner[3] = { 0.0f, 0.0f, 0.0f };
 
-    if( effective_tex_id >= 0 )
+    if( raw_tex >= 0 )
     {
         int texture_face_idx = f;
         int tp = 0, tm = 0, tn = 0;
@@ -338,12 +396,11 @@ append_model_face_vertices(
         const faceint_t* tcn = dashmodel_textured_n_coordinate_const(model);
         if( dashmodel__is_ground_va(model) )
         {
-            /* Face 0 is dummy SW/SE/NW inserted by world_terrain to anchor per-tile UV basis. */
             tp = (int)face_ia[0];
             tm = (int)face_ib[0];
             tn = (int)face_ic[0];
             if( tp < 0 || tp >= vcount || tm < 0 || tm >= vcount || tn < 0 || tn >= vcount )
-                return;
+                return false;
         }
         else if( ftc && ftc[f] != -1 && tcp && tcm && tcn )
         {
@@ -391,9 +448,7 @@ append_model_face_vertices(
         v_corner[2] = uv.v3;
     }
 
-    const float texBlend = effective_tex_id >= 0 ? 1.0f : 0.0f;
-    const float opaque_f = texture_opaque ? 1.0f : 0.0f;
-
+    const float texBlend = raw_tex >= 0 ? 1.0f : 0.0f;
     const int verts[3] = { ia, ib, ic };
     const int rgbs[3] = { rgb_a, rgb_b, rgb_c };
     const vertexint_t* vx = dashmodel_vertices_x_const(model);
@@ -402,30 +457,131 @@ append_model_face_vertices(
     for( int vi = 0; vi < 3; ++vi )
     {
         const int vi_idx = verts[vi];
-        float lx = (float)vx[vi_idx];
-        float ly = (float)vy[vi_idx];
-        float lz = (float)vz[vi_idx];
-
         MetalVertex mv;
-        mv.position[0] = cos_yaw * lx + sin_yaw * lz + world_x;
-        mv.position[1] = ly + world_y;
-        mv.position[2] = -sin_yaw * lx + cos_yaw * lz + world_z;
+        mv.position[0] = (float)vx[vi_idx];
+        mv.position[1] = (float)vy[vi_idx];
+        mv.position[2] = (float)vz[vi_idx];
         mv.position[3] = 1.0f;
-
         int rgb = rgbs[vi];
         mv.color[0] = ((rgb >> 16) & 0xFF) / 255.0f;
         mv.color[1] = ((rgb >> 8) & 0xFF) / 255.0f;
         mv.color[2] = (rgb & 0xFF) / 255.0f;
         mv.color[3] = face_alpha;
-
         mv.texcoord[0] = u_corner[vi];
         mv.texcoord[1] = v_corner[vi];
         mv.texBlend = texBlend;
-        mv.textureOpaque = opaque_f;
-        mv.textureAnimSpeed = texture_anim_speed;
         mv._pad_vertex = 0.0f;
-        out.push_back(mv);
+        out[vi] = mv;
     }
+    return true;
+}
+
+static void
+metal_vertex_fill_invisible(MetalVertex* v)
+{
+    memset(v, 0, sizeof(MetalVertex));
+    v->position[3] = 1.0f;
+    v->color[3] = 0.0f;
+}
+
+static MetalModelGpu*
+build_model_gpu(
+    struct Platform2_SDL2_Renderer_Metal* renderer,
+    id<MTLDevice> device,
+    const struct DashModel* model,
+    uint64_t model_key)
+{
+    if( !model || !renderer || !device )
+        return nullptr;
+    if( !dashmodel_face_colors_a_const(model) || !dashmodel_face_colors_b_const(model) ||
+        !dashmodel_face_colors_c_const(model) || !dashmodel_vertices_x_const(model) ||
+        !dashmodel_vertices_y_const(model) || !dashmodel_vertices_z_const(model) ||
+        !dashmodel_face_indices_a_const(model) || !dashmodel_face_indices_b_const(model) ||
+        !dashmodel_face_indices_c_const(model) || dashmodel_face_count(model) <= 0 )
+        return nullptr;
+
+    const int fc = dashmodel_face_count(model);
+    const faceint_t* ftex = dashmodel_face_textures_const(model);
+    std::vector<MetalVertex> verts((size_t)fc * 3u);
+    auto* gpu = new MetalModelGpu();
+    gpu->face_count = fc;
+    gpu->per_face_raw_tex_id.resize((size_t)fc);
+    for( int f = 0; f < fc; ++f )
+    {
+        int raw = ftex ? (int)ftex[f] : -1;
+        gpu->per_face_raw_tex_id[(size_t)f] = raw;
+        MetalVertex tri[3];
+        if( !fill_model_face_vertices_model_local(model, f, raw, tri) )
+        {
+            metal_vertex_fill_invisible(&tri[0]);
+            metal_vertex_fill_invisible(&tri[1]);
+            metal_vertex_fill_invisible(&tri[2]);
+        }
+        verts[(size_t)f * 3u + 0u] = tri[0];
+        verts[(size_t)f * 3u + 1u] = tri[1];
+        verts[(size_t)f * 3u + 2u] = tri[2];
+    }
+
+    const size_t bytes = verts.size() * sizeof(MetalVertex);
+    id<MTLBuffer> vbo = [device newBufferWithBytes:verts.data()
+                                             length:(NSUInteger)bytes
+                                            options:MTLResourceStorageModeShared];
+    if( !vbo )
+    {
+        delete gpu;
+        return nullptr;
+    }
+    gpu->vbo = (__bridge_retained void*)vbo;
+    renderer->model_gpu_by_key[model_key] = gpu;
+    if( renderer->model_index_by_key.find(model_key) == renderer->model_index_by_key.end() )
+        renderer->model_index_by_key[model_key] = renderer->next_model_index++;
+    return gpu;
+}
+
+static void
+release_metal_model_gpu(MetalModelGpu* gpu)
+{
+    if( !gpu )
+        return;
+    if( gpu->vbo )
+    {
+        CFRelease(gpu->vbo);
+        gpu->vbo = nullptr;
+    }
+    delete gpu;
+}
+
+static MetalModelGpu*
+lookup_or_build_model_gpu(
+    struct Platform2_SDL2_Renderer_Metal* renderer,
+    id<MTLDevice> device,
+    const struct DashModel* model,
+    uint64_t model_key)
+{
+    auto it = renderer->model_gpu_by_key.find(model_key);
+    if( it != renderer->model_gpu_by_key.end() && it->second )
+        return it->second;
+    return build_model_gpu(renderer, device, model, model_key);
+}
+
+static void
+metal_ensure_ring_bytes(
+    struct Platform2_SDL2_Renderer_Metal* r,
+    id<MTLDevice> device,
+    void** ring_buf,
+    size_t* ring_size,
+    size_t need_total_bytes)
+{
+    if( *ring_size >= need_total_bytes )
+        return;
+    size_t n = *ring_size ? *ring_size : (size_t)65536;
+    while( n < need_total_bytes )
+        n *= 2;
+    if( *ring_buf )
+        CFRelease(*ring_buf);
+    id<MTLBuffer> b = [device newBufferWithLength:(NSUInteger)n options:MTLResourceStorageModeShared];
+    *ring_buf = (__bridge_retained void*)b;
+    *ring_size = n;
 }
 
 static inline int
@@ -434,10 +590,8 @@ model_id_from_model_cache_key(uint64_t k)
     return (int)(uint32_t)(k >> 24);
 }
 
-// Pre-cache placeholder (we still track load ids, but actual vertex buffers
-// are built per-draw with the correct world offset so this is a no-op).
 static void
-preload_model_key(
+register_model_index_slot(
     struct Platform2_SDL2_Renderer_Metal* renderer,
     uint64_t model_key)
 {
@@ -554,6 +708,15 @@ PlatformImpl2_SDL2_Renderer_Metal_New(
     renderer->depth_texture_height = 0;
     renderer->mtl_model_vertex_buf = nullptr;
     renderer->mtl_model_vertex_buf_size = 0;
+    renderer->mtl_index_ring = nullptr;
+    renderer->mtl_index_ring_size = 0;
+    renderer->mtl_index_ring_write_offset = 0;
+    renderer->mtl_instance_uniform_ring = nullptr;
+    renderer->mtl_instance_uniform_ring_size = 0;
+    renderer->mtl_instance_uniform_ring_write_offset = 0;
+    renderer->mtl_run_uniform_ring = nullptr;
+    renderer->mtl_run_uniform_ring_size = 0;
+    renderer->mtl_run_uniform_ring_write_offset = 0;
     renderer->mtl_sprite_quad_buf = nullptr;
     renderer->mtl_font_pipeline = nullptr;
     renderer->mtl_font_vbo = nullptr;
@@ -582,6 +745,29 @@ PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* ren
         if( kv.second )
             CFRelease(kv.second);
     renderer->font_atlas_textures.clear();
+
+    for( auto& kv : renderer->model_gpu_by_key )
+        release_metal_model_gpu(kv.second);
+    renderer->model_gpu_by_key.clear();
+
+    if( renderer->mtl_index_ring )
+    {
+        CFRelease(renderer->mtl_index_ring);
+        renderer->mtl_index_ring = nullptr;
+        renderer->mtl_index_ring_size = 0;
+    }
+    if( renderer->mtl_instance_uniform_ring )
+    {
+        CFRelease(renderer->mtl_instance_uniform_ring);
+        renderer->mtl_instance_uniform_ring = nullptr;
+        renderer->mtl_instance_uniform_ring_size = 0;
+    }
+    if( renderer->mtl_run_uniform_ring )
+    {
+        CFRelease(renderer->mtl_run_uniform_ring);
+        renderer->mtl_run_uniform_ring = nullptr;
+        renderer->mtl_run_uniform_ring_size = 0;
+    }
 
     if( renderer->mtl_font_vbo )
     {
@@ -788,12 +974,6 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
     vtxDesc.attributes[3].format = MTLVertexFormatFloat;
     vtxDesc.attributes[3].offset = offsetof(MetalVertex, texBlend);
     vtxDesc.attributes[3].bufferIndex = 0;
-    vtxDesc.attributes[4].format = MTLVertexFormatFloat;
-    vtxDesc.attributes[4].offset = offsetof(MetalVertex, textureOpaque);
-    vtxDesc.attributes[4].bufferIndex = 0;
-    vtxDesc.attributes[5].format = MTLVertexFormatFloat;
-    vtxDesc.attributes[5].offset = offsetof(MetalVertex, textureAnimSpeed);
-    vtxDesc.attributes[5].bufferIndex = 0;
     vtxDesc.layouts[0].stride = sizeof(MetalVertex);
     vtxDesc.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
 
@@ -976,13 +1156,37 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
     // Sync initial drawable size
     sync_drawable_size(renderer);
 
-    // Model vertex buffer: reusable staging for flush_batch(); grown on demand.
+    // Model vertex buffer: legacy buffer (kept for potential reuse); MODEL_DRAW uses static VBOs.
     {
         const size_t initial_bytes = 4u * 1024u * 1024u; // 4 MB
         id<MTLBuffer> mvb = [device newBufferWithLength:(NSUInteger)initial_bytes
                                                 options:MTLResourceStorageModeShared];
         renderer->mtl_model_vertex_buf = (__bridge_retained void*)mvb;
         renderer->mtl_model_vertex_buf_size = initial_bytes;
+    }
+
+    {
+        const size_t ixBytes = 4u * 1024u * 1024u;
+        id<MTLBuffer> ix = [device newBufferWithLength:ixBytes options:MTLResourceStorageModeShared];
+        renderer->mtl_index_ring = (__bridge_retained void*)ix;
+        renderer->mtl_index_ring_size = ixBytes;
+        renderer->mtl_index_ring_write_offset = 0;
+    }
+    {
+        const size_t instBytes = kMetalInstanceUniformStride * 4096u;
+        id<MTLBuffer> instb =
+            [device newBufferWithLength:instBytes options:MTLResourceStorageModeShared];
+        renderer->mtl_instance_uniform_ring = (__bridge_retained void*)instb;
+        renderer->mtl_instance_uniform_ring_size = instBytes;
+        renderer->mtl_instance_uniform_ring_write_offset = 0;
+    }
+    {
+        const size_t runBytes = kMetalRunUniformStride * 8192u;
+        id<MTLBuffer> runb =
+            [device newBufferWithLength:runBytes options:MTLResourceStorageModeShared];
+        renderer->mtl_run_uniform_ring = (__bridge_retained void*)runb;
+        renderer->mtl_run_uniform_ring_size = runBytes;
+        renderer->mtl_run_uniform_ring_write_offset = 0;
     }
 
     // Pre-allocate a sprite quad vertex buffer large enough for 4096 sprites per frame.
@@ -1153,26 +1357,28 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         // -----------------------------------------------------------------------
         LibToriRS_FrameBegin(game, render_command_buffer);
 
+        renderer->mtl_index_ring_write_offset = 0;
+        renderer->mtl_instance_uniform_ring_write_offset = 0;
+        renderer->mtl_run_uniform_ring_write_offset = 0;
+
         enum
         {
             MTL_PASS_NONE = 0,
             MTL_PASS_3D,
             MTL_PASS_2D
         } current_pass = MTL_PASS_NONE;
-        bool sprite_pipeline_set = false;
-        bool font_pipeline_set = false;
+        enum
+        {
+            kMTLPipeNone = 0,
+            kMTLPipe3D = 1,
+            kMTLPipeUI = 2,
+            kMTLPipeFont = 3
+        };
+        int current_pipe = kMTLPipeNone;
         int current_font_id = -1;
-
-        // Pass 1 + 2 + 3 collapsed into a single streaming loop.
-        static std::vector<MetalVertex> batch_verts;
-        batch_verts.clear();
-        int batch_tex_id = -0x7fffffff; // sentinel: force first flush path
 
         id<MTLTexture> dummyTex = (__bridge id<MTLTexture>)renderer->mtl_dummy_texture;
         id<MTLSamplerState> samp = (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
-
-        id<MTLBuffer> modelBuf = (__bridge id<MTLBuffer>)renderer->mtl_model_vertex_buf;
-        NSUInteger modelBufOffset = 0;
 
         id<MTLRenderPipelineState> uiPipeState =
             renderer->mtl_ui_sprite_pipeline
@@ -1222,50 +1428,50 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         };
 
         auto flush_batch = [&]() {
-            if( batch_verts.empty() )
+            /* Legacy: model verts are drawn via static VBO + indexed path; nothing batched here. */
+        };
+
+        auto ensure_pipe = [&](int desired) {
+            if( current_pipe == desired )
                 return;
-            id<MTLTexture> bindTex = dummyTex;
-            if( batch_tex_id >= 0 )
+            if( current_pipe == kMTLPipe3D )
+                flush_batch();
+            if( current_pipe == kMTLPipeFont )
+                flush_font_batch();
+            if( desired == kMTLPipe3D )
             {
-                auto it = renderer->texture_by_id.find(batch_tex_id);
-                if( it == renderer->texture_by_id.end() || !it->second )
+                [encoder setViewport:metalVp];
+                [encoder setRenderPipelineState:pipeState];
+                [encoder setDepthStencilState:dsState];
+                [encoder setCullMode:MTLCullModeNone];
+                current_font_id = -1;
+            }
+            else if( desired == kMTLPipeUI )
+            {
+                if( !uiPipeState )
                 {
-                    batch_verts.clear();
+                    current_pipe = desired;
                     return;
                 }
-                bindTex = (__bridge id<MTLTexture>)it->second;
+                [encoder setViewport:spriteVp];
+                [encoder setRenderPipelineState:uiPipeState];
+                [encoder setDepthStencilState:dsState];
+                [encoder setCullMode:MTLCullModeNone];
+                current_font_id = -1;
             }
-            NSUInteger batchBytes = (NSUInteger)(batch_verts.size() * sizeof(MetalVertex));
-
-            // Grow the reusable buffer if the accumulated frame data won't fit.
-            if( modelBufOffset + batchBytes > renderer->mtl_model_vertex_buf_size )
+            else if( desired == kMTLPipeFont )
             {
-                size_t needed = (size_t)(modelBufOffset + batchBytes);
-                size_t newSize = renderer->mtl_model_vertex_buf_size;
-                while( newSize < needed )
-                    newSize *= 2;
-                if( renderer->mtl_model_vertex_buf )
-                    CFRelease(renderer->mtl_model_vertex_buf);
-                id<MTLBuffer> grown = [device newBufferWithLength:(NSUInteger)newSize
-                                                          options:MTLResourceStorageModeShared];
-                renderer->mtl_model_vertex_buf = (__bridge_retained void*)grown;
-                renderer->mtl_model_vertex_buf_size = newSize;
-                modelBuf = grown;
+                if( !fontPipeState )
+                {
+                    current_pipe = desired;
+                    return;
+                }
+                [encoder setRenderPipelineState:fontPipeState];
+                [encoder setDepthStencilState:dsState];
+                [encoder setCullMode:MTLCullModeNone];
+                [encoder setViewport:spriteVp];
             }
-
-            memcpy((char*)modelBuf.contents + modelBufOffset, batch_verts.data(), batchBytes);
-
-            [encoder setFragmentTexture:bindTex atIndex:0];
-            [encoder setFragmentSamplerState:samp atIndex:0];
-            [encoder setVertexBuffer:modelBuf offset:modelBufOffset atIndex:0];
-            [encoder setVertexBuffer:unifBuf offset:0 atIndex:1];
-            [encoder setFragmentBuffer:unifBuf offset:0 atIndex:1];
-            [encoder drawPrimitives:MTLPrimitiveTypeTriangle
-                        vertexStart:0
-                        vertexCount:(NSUInteger)batch_verts.size()];
-            modelBufOffset += batchBytes;
-            renderer->debug_triangles += (unsigned int)(batch_verts.size() / 3);
-            batch_verts.clear();
+            current_pipe = desired;
         };
 
         {
@@ -1277,34 +1483,18 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                 switch( cmd.kind )
                 {
                 case TORIRS_GFX_BEGIN_3D:
-                    flush_font_batch();
-                    flush_batch();
-                    [encoder setRenderPipelineState:pipeState];
-                    [encoder setDepthStencilState:dsState];
-                    [encoder setViewport:metalVp];
                     current_pass = MTL_PASS_3D;
-                    sprite_pipeline_set = false;
-                    font_pipeline_set = false;
-                    current_font_id = -1;
                     break;
 
                 case TORIRS_GFX_END_3D:
-                    flush_batch();
                     current_pass = MTL_PASS_NONE;
                     break;
 
                 case TORIRS_GFX_BEGIN_2D:
-                    sprite_pipeline_set = false;
-                    font_pipeline_set = false;
-                    current_font_id = -1;
                     current_pass = MTL_PASS_2D;
                     break;
 
                 case TORIRS_GFX_END_2D:
-                    flush_font_batch();
-                    sprite_pipeline_set = false;
-                    font_pipeline_set = false;
-                    current_font_id = -1;
                     current_pass = MTL_PASS_NONE;
                     break;
 
@@ -1366,7 +1556,14 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                         !dashmodel_face_indices_b_const(model) || !dashmodel_face_indices_c_const(model) ||
                         dashmodel_face_count(model) <= 0 )
                         break;
-                    preload_model_key(renderer, cmd._model_load.model_key);
+                    const uint64_t mk = cmd._model_load.model_key;
+                    if( renderer->model_gpu_by_key.find(mk) == renderer->model_gpu_by_key.end() ||
+                        !renderer->model_gpu_by_key[mk] )
+                    {
+                        if( !build_model_gpu(renderer, device, model, mk) )
+                            break;
+                    }
+                    register_model_index_slot(renderer, mk);
                     break;
                 }
 
@@ -1380,6 +1577,17 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     {
                         if( model_id_from_model_cache_key(it->first) == mid )
                             it = renderer->model_index_by_key.erase(it);
+                        else
+                            ++it;
+                    }
+                    for( auto it = renderer->model_gpu_by_key.begin();
+                         it != renderer->model_gpu_by_key.end(); )
+                    {
+                        if( model_id_from_model_cache_key(it->first) == mid )
+                        {
+                            release_metal_model_gpu(it->second);
+                            it = renderer->model_gpu_by_key.erase(it);
+                        }
                         else
                             ++it;
                     }
@@ -1403,10 +1611,6 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     int rh = cmd._clear_rect.h;
                     if( rw <= 0 || rh <= 0 )
                         break;
-                    LogicalViewportRect lr = { rx, ry, rw, rh };
-                    MTLViewportRect gr =
-                        compute_gl_world_viewport_rect(
-                            renderer->width, renderer->height, win_width, win_height, lr);
                     const float fbw = (float)(win_width > 0 ? win_width : renderer->width);
                     const float fbh = (float)(win_height > 0 ? win_height : renderer->height);
                     if( fbw <= 0.0f || fbh <= 0.0f )
@@ -1433,9 +1637,15 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                                            .znear = 0.0,
                                            .zfar = 1.0 };
                     [encoder setViewport:fullVp];
-                    NSUInteger msx = (NSUInteger)gr.x;
-                    NSUInteger msy = (NSUInteger)(renderer->height - gr.y - gr.height);
-                    MTLScissorRect sc = { msx, msy, (NSUInteger)gr.width, (NSUInteger)gr.height };
+                    MTLScissorRect sc = metal_clamped_scissor_from_logical_dst_bb(
+                        renderer->width,
+                        renderer->height,
+                        win_width,
+                        win_height,
+                        rx,
+                        ry,
+                        rw,
+                        rh);
                     [encoder setScissorRect:sc];
                     [encoder setRenderPipelineState:clrPipe];
                     [encoder setVertexBuffer:quadBuf offset:0 atIndex:0];
@@ -1461,6 +1671,12 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                         [encoder setRenderPipelineState:pipeState];
                         [encoder setDepthStencilState:dsState];
                     }
+                    if( current_pass == MTL_PASS_3D )
+                        current_pipe = kMTLPipe3D;
+                    else if( current_pass == MTL_PASS_2D )
+                        current_pipe = kMTLPipeNone;
+                    else
+                        current_pipe = kMTLPipe3D;
                     break;
                 }
 
@@ -1475,10 +1691,13 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                         dashmodel_face_count(model) <= 0 )
                         break;
 
-                    preload_model_key(renderer, cmd._model_draw.model_key);
+                    ensure_pipe(kMTLPipe3D);
 
-                    /* FrameNextCommand already projected this model (project_models=true).
-                     * The sys_dash projection state is still valid — use it directly. */
+                    MetalModelGpu* gpu =
+                        lookup_or_build_model_gpu(renderer, device, model, cmd._model_draw.model_key);
+                    if( !gpu || !gpu->vbo )
+                        break;
+
                     struct DashPosition draw_position = cmd._model_draw.position;
                     int face_order_count = dash3d_prepare_projected_face_order(
                         game->sys_dash, model, &draw_position, game->view_port, game->camera);
@@ -1489,52 +1708,143 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     const float cos_yaw = cosf(yaw_rad);
                     const float sin_yaw = sinf(yaw_rad);
 
-                    renderer->debug_model_draws++;
-                    for( int fi = 0; fi < face_order_count; ++fi )
+                    metal_ensure_ring_bytes(
+                        renderer,
+                        device,
+                        &renderer->mtl_instance_uniform_ring,
+                        &renderer->mtl_instance_uniform_ring_size,
+                        renderer->mtl_instance_uniform_ring_write_offset +
+                            kMetalInstanceUniformStride);
+                    const NSUInteger instOff = renderer->mtl_instance_uniform_ring_write_offset;
                     {
-                        const int f = face_order ? face_order[fi] : fi;
-                        if( f < 0 || f >= dashmodel_face_count(model) )
+                        id<MTLBuffer> instRing =
+                            (__bridge id<MTLBuffer>)renderer->mtl_instance_uniform_ring;
+                        char* base = (char*)instRing.contents + instOff;
+                        memset(base, 0, kMetalInstanceUniformStride);
+                        MetalInstanceUniform inst = { cos_yaw,
+                                                      sin_yaw,
+                                                      (float)draw_position.x,
+                                                      (float)draw_position.y,
+                                                      (float)draw_position.z,
+                                                      { 0.0f, 0.0f, 0.0f } };
+                        memcpy(base, &inst, sizeof(inst));
+                    }
+                    renderer->mtl_instance_uniform_ring_write_offset += kMetalInstanceUniformStride;
+
+                    id<MTLBuffer> gpuVbo = (__bridge id<MTLBuffer>)gpu->vbo;
+                    id<MTLBuffer> instRingBuf =
+                        (__bridge id<MTLBuffer>)renderer->mtl_instance_uniform_ring;
+                    id<MTLBuffer> idxRingBuf = (__bridge id<MTLBuffer>)renderer->mtl_index_ring;
+                    id<MTLBuffer> runRingBuf = (__bridge id<MTLBuffer>)renderer->mtl_run_uniform_ring;
+
+                    auto eff_tex_for_face = [&](int f) -> int {
+                        if( f < 0 || f >= gpu->face_count )
+                            return -1;
+                        const int raw = gpu->per_face_raw_tex_id[(size_t)f];
+                        if( raw < 0 )
+                            return -1;
+                        if( renderer->texture_by_id.find(raw) == renderer->texture_by_id.end() )
+                            return -1;
+                        return raw;
+                    };
+
+                    renderer->debug_model_draws++;
+                    if( face_order_count <= 0 || !face_order )
+                        break;
+
+                    int run_start = 0;
+                    int run_tex = eff_tex_for_face(face_order[0]);
+                    for( int i = 1; i <= face_order_count; ++i )
+                    {
+                        const int t = (i < face_order_count) ? eff_tex_for_face(face_order[i])
+                                                             : INT_MIN;
+                        if( i < face_order_count && t == run_tex )
                             continue;
 
-                        const faceint_t* ftex = dashmodel_face_textures_const(model);
-                        int raw_tex = ftex ? (int)ftex[f] : -1;
-                        int eff_tex = raw_tex;
-                        if( eff_tex >= 0 &&
-                            renderer->texture_by_id.find(eff_tex) == renderer->texture_by_id.end() )
-                            eff_tex = -1;
-
-                        float anim_spd = 0.0f;
-                        bool tex_opaque = true;
-                        if( eff_tex >= 0 )
+                        const int nfaces = i - run_start;
+                        if( nfaces > 0 )
                         {
-                            auto as_it = renderer->texture_anim_speed_by_id.find(eff_tex);
-                            if( as_it != renderer->texture_anim_speed_by_id.end() )
-                                anim_spd = as_it->second;
-                            auto op_it = renderer->texture_opaque_by_id.find(eff_tex);
-                            if( op_it != renderer->texture_opaque_by_id.end() )
-                                tex_opaque = op_it->second;
+                            size_t nidx = 0;
+                            for( int k = 0; k < nfaces; ++k )
+                            {
+                                const int f = face_order[run_start + k];
+                                if( f >= 0 && f < gpu->face_count )
+                                    nidx += 3u;
+                            }
+                            if( nidx > 0 )
+                            {
+                                const size_t ixBytes = nidx * sizeof(uint32_t);
+                                metal_ensure_ring_bytes(
+                                    renderer,
+                                    device,
+                                    &renderer->mtl_index_ring,
+                                    &renderer->mtl_index_ring_size,
+                                    renderer->mtl_index_ring_write_offset + ixBytes);
+                                const NSUInteger ixOff = renderer->mtl_index_ring_write_offset;
+                                uint32_t* dst = (uint32_t*)((char*)idxRingBuf.contents + ixOff);
+                                size_t wpos = 0;
+                                for( int k = 0; k < nfaces; ++k )
+                                {
+                                    const int f = face_order[run_start + k];
+                                    if( f < 0 || f >= gpu->face_count )
+                                        continue;
+                                    dst[wpos++] = (uint32_t)(f * 3 + 0);
+                                    dst[wpos++] = (uint32_t)(f * 3 + 1);
+                                    dst[wpos++] = (uint32_t)(f * 3 + 2);
+                                }
+                                renderer->mtl_index_ring_write_offset += ixBytes;
+
+                                metal_ensure_ring_bytes(
+                                    renderer,
+                                    device,
+                                    &renderer->mtl_run_uniform_ring,
+                                    &renderer->mtl_run_uniform_ring_size,
+                                    renderer->mtl_run_uniform_ring_write_offset +
+                                        kMetalRunUniformStride);
+                                const NSUInteger runOff = renderer->mtl_run_uniform_ring_write_offset;
+                                {
+                                    char* rbase = (char*)runRingBuf.contents + runOff;
+                                    memset(rbase, 0, kMetalRunUniformStride);
+                                    MetalRunUniform ru;
+                                    ru.texBlendOverride = (run_tex >= 0) ? 1.0f : 0.0f;
+                                    ru.textureAnimSpeed = 0.0f;
+                                    ru.textureOpaque = 1.0f;
+                                    ru.pad = 0.0f;
+                                    if( run_tex >= 0 )
+                                    {
+                                        auto as_it = renderer->texture_anim_speed_by_id.find(run_tex);
+                                        if( as_it != renderer->texture_anim_speed_by_id.end() )
+                                            ru.textureAnimSpeed = as_it->second;
+                                        auto op_it = renderer->texture_opaque_by_id.find(run_tex);
+                                        if( op_it != renderer->texture_opaque_by_id.end() )
+                                            ru.textureOpaque = op_it->second ? 1.0f : 0.0f;
+                                    }
+                                    memcpy(rbase, &ru, sizeof(ru));
+                                }
+                                renderer->mtl_run_uniform_ring_write_offset += kMetalRunUniformStride;
+
+                                id<MTLTexture> bindTex =
+                                    (run_tex >= 0)
+                                        ? (__bridge id<MTLTexture>)renderer->texture_by_id[run_tex]
+                                        : dummyTex;
+
+                                [encoder setVertexBuffer:gpuVbo offset:0 atIndex:0];
+                                [encoder setVertexBuffer:unifBuf offset:0 atIndex:1];
+                                [encoder setVertexBuffer:instRingBuf offset:instOff atIndex:2];
+                                [encoder setFragmentBuffer:unifBuf offset:0 atIndex:1];
+                                [encoder setFragmentBuffer:runRingBuf offset:runOff atIndex:3];
+                                [encoder setFragmentTexture:bindTex atIndex:0];
+                                [encoder setFragmentSamplerState:samp atIndex:0];
+                                [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                                                    indexCount:(NSUInteger)nidx
+                                                     indexType:MTLIndexTypeUInt32
+                                                   indexBuffer:idxRingBuf
+                                             indexBufferOffset:ixOff];
+                                renderer->debug_triangles += (unsigned int)(nidx / 3u);
+                            }
                         }
-
-                        const int batch_key = eff_tex;
-                        if( !batch_verts.empty() && batch_key != batch_tex_id )
-                            flush_batch();
-                        batch_tex_id = batch_key;
-
-                        const size_t before = batch_verts.size();
-                        append_model_face_vertices(
-                            model,
-                            f,
-                            (float)draw_position.x,
-                            (float)draw_position.y,
-                            (float)draw_position.z,
-                            cos_yaw,
-                            sin_yaw,
-                            eff_tex,
-                            anim_spd,
-                            tex_opaque,
-                            batch_verts);
-                        if( batch_verts.size() == before )
-                            continue;
+                        run_start = i;
+                        run_tex = (i < face_order_count) ? t : run_tex;
                     }
                     break;
                 }
@@ -1558,15 +1868,23 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
 
                     const int sw = sp->width;
                     const int sh = sp->height;
-                    // Pixel data is 0x00RRGGBB; pixel == 0 is the transparent color key.
+                    /* ARGB / xRGB: use high-byte alpha when set; otherwise treat 0x00000000 as
+                     * transparent and any other RGB as opaque (matches color-keyed soft paths). */
                     std::vector<uint8_t> rgba((size_t)sw * (size_t)sh * 4u);
                     for( int p = 0; p < sw * sh; ++p )
                     {
-                        uint32_t pix = sp->pixels_argb[p];
+                        uint32_t pix = (uint32_t)sp->pixels_argb[p];
+                        uint8_t a_hi = (uint8_t)((pix >> 24) & 0xFFu);
+                        uint32_t rgb = pix & 0x00FFFFFFu;
+                        uint8_t a = 0;
+                        if( a_hi != 0 )
+                            a = a_hi;
+                        else if( rgb != 0u )
+                            a = 0xFFu;
                         rgba[(size_t)p * 4u + 0u] = (uint8_t)((pix >> 16) & 0xFFu);
                         rgba[(size_t)p * 4u + 1u] = (uint8_t)((pix >> 8) & 0xFFu);
                         rgba[(size_t)p * 4u + 2u] = (uint8_t)(pix & 0xFFu);
-                        rgba[(size_t)p * 4u + 3u] = (pix != 0u) ? 0xFFu : 0x00u;
+                        rgba[(size_t)p * 4u + 3u] = a;
                     }
                     MTLTextureDescriptor* td = [MTLTextureDescriptor
                         texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
@@ -1602,17 +1920,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                 {
                     if( !uiPipeState || !spriteQuadBuf )
                         break;
-                    if( !sprite_pipeline_set )
-                    {
-                        flush_font_batch();
-                        [encoder setViewport:spriteVp];
-                        [encoder setRenderPipelineState:uiPipeState];
-                        [encoder setDepthStencilState:dsState];
-                        [encoder setCullMode:MTLCullModeNone];
-                        sprite_pipeline_set = true;
-                        font_pipeline_set = false;
-                        current_font_id = -1;
-                    }
+                    ensure_pipe(kMTLPipeUI);
 
                     struct DashSprite* sp = cmd._sprite_draw.sprite;
                     if( !sp || sp->width <= 0 || sp->height <= 0 )
@@ -1654,6 +1962,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                         const float angle = (float)ang * (float)(2.0 * M_PI / 2048.0);
                         const float ca = cosf(angle);
                         const float sa = sinf(angle);
+                        /* Sub-rect corners in the same coordinate system as src_anchor (see
+                         * dash2d_blit_rotated_ex / uielem_compass_step vs minimap emitters). */
                         struct
                         {
                             int lx, ly;
@@ -1713,16 +2023,15 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                         cmd._sprite_draw.dst_bb_h > 0;
                     if( rotated_clip )
                     {
-                        LogicalViewportRect lr = { cmd._sprite_draw.dst_bb_x,
-                                                   cmd._sprite_draw.dst_bb_y,
-                                                   cmd._sprite_draw.dst_bb_w,
-                                                   cmd._sprite_draw.dst_bb_h };
-                        MTLViewportRect gr = compute_gl_world_viewport_rect(
-                            renderer->width, renderer->height, win_width, win_height, lr);
-                        NSUInteger msx = (NSUInteger)gr.x;
-                        NSUInteger msy =
-                            (NSUInteger)(renderer->height - gr.y - gr.height);
-                        MTLScissorRect sc = { msx, msy, (NSUInteger)gr.width, (NSUInteger)gr.height };
+                        MTLScissorRect sc = metal_clamped_scissor_from_logical_dst_bb(
+                            renderer->width,
+                            renderer->height,
+                            win_width,
+                            win_height,
+                            cmd._sprite_draw.dst_bb_x,
+                            cmd._sprite_draw.dst_bb_y,
+                            cmd._sprite_draw.dst_bb_w,
+                            cmd._sprite_draw.dst_bb_h);
                         [encoder setScissorRect:sc];
                     }
 
@@ -1786,18 +2095,10 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     auto texIt = renderer->font_atlas_textures.find(fid);
                     if( texIt == renderer->font_atlas_textures.end() || !texIt->second )
                         break;
-                    if( !font_pipeline_set || current_font_id != fid )
+                    ensure_pipe(kMTLPipeFont);
+                    if( current_font_id != fid )
                     {
                         flush_font_batch();
-                        if( !font_pipeline_set )
-                        {
-                            [encoder setRenderPipelineState:fontPipeState];
-                            [encoder setDepthStencilState:dsState];
-                            [encoder setCullMode:MTLCullModeNone];
-                            [encoder setViewport:spriteVp];
-                            font_pipeline_set = true;
-                            sprite_pipeline_set = false;
-                        }
                         current_font_id = fid;
                         current_font_atlas_tex = (__bridge id<MTLTexture>)texIt->second;
                     }
@@ -1880,6 +2181,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         }
         flush_batch();
         flush_font_batch();
+        current_pipe = kMTLPipeNone;
 
         // -----------------------------------------------------------------------
         // Finish scene pass, render Nuklear overlay in the same render encoder

@@ -182,6 +182,57 @@ uiscene_element_acquire(
     return element->id;
 }
 
+int
+uiscene_element_acquire_with_sprites(
+    struct UIScene* uiscene,
+    int parent_entity_id,
+    struct DashSprite** sprites,
+    int sprites_count,
+    bool borrowed,
+    const char* name)
+{
+    if( uiscene->free_len == 0 )
+        return -1;
+
+    struct UISceneElement* element = uiscene->free_list;
+    element->active = true;
+    element->parent_entity_id = parent_entity_id;
+
+    uiscene->free_list = element->next;
+
+    element->next = uiscene->active_list;
+    element->prev = NULL;
+    if( uiscene->active_list != NULL )
+        uiscene->active_list->prev = element;
+
+    uiscene->active_list = element;
+
+    uiscene->active_len++;
+    uiscene->free_len--;
+
+    element->dash_sprites = sprites;
+    element->dash_sprites_count = sprites_count;
+    element->dash_sprites_borrowed = borrowed;
+
+    if( name )
+    {
+        strncpy(element->name, name, sizeof(element->name) - 1);
+        element->name[sizeof(element->name) - 1] = '\0';
+    }
+    else
+        element->name[0] = '\0';
+
+    uiscene_eventbuffer_push(
+        uiscene,
+        (struct UISceneEvent){
+            .type = UISCENE_EVENT_ELEMENT_ACQUIRED,
+            .element_id = element->id,
+            .parent_entity_id = parent_entity_id,
+        });
+
+    return element->id;
+}
+
 void
 uiscene_element_release(
     struct UIScene* uiscene,

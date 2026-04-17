@@ -12,6 +12,14 @@ extern "C" {
 #include "tori_rs.h"
 }
 
+/** GPU-cached static vertices for one model key (see build_model_gpu in .mm). */
+struct MetalModelGpu
+{
+    void* vbo; // id<MTLBuffer>
+    int face_count;
+    std::vector<int> per_face_raw_tex_id;
+};
+
 // Metal objects are stored as void* so this header is valid from plain C++ translation
 // units (e.g. test/sdl2.cpp). The .mm implementation casts them to id<MTL*> internally.
 struct Platform2_SDL2_Renderer_Metal
@@ -51,6 +59,9 @@ struct Platform2_SDL2_Renderer_Metal
     /** (model_id<<24|anim<<8|frame) from model_cache_key_u64 -> stable slot index for debug/stats. */
     std::unordered_map<uint64_t, int> model_index_by_key;
 
+    /** Static model-local vertex buffers keyed by model_cache_key_u64. */
+    std::unordered_map<uint64_t, MetalModelGpu*> model_gpu_by_key;
+
     // Sprite GPU texture cache keyed by torirs_sprite_cache_key(element_id, atlas_index).
     // Value is id<MTLTexture> stored as void* to keep header ObjC-free.
     std::unordered_map<uint64_t, void*> sprite_textures_by_slot;
@@ -60,9 +71,24 @@ struct Platform2_SDL2_Renderer_Metal
     int   depth_texture_width;
     int   depth_texture_height;
 
-    // Reusable MTLBuffer for model vertex batches (replaces per-batch newBufferWithBytes).
+    // Reusable MTLBuffer for model vertex batches (legacy / unused with static model VBO path).
     void* mtl_model_vertex_buf;          // id<MTLBuffer>
     size_t mtl_model_vertex_buf_size;    // current allocation size in bytes
+
+    /** Per-frame ring: uint32 indices for drawIndexedPrimitives (MODEL_DRAW). */
+    void* mtl_index_ring;
+    size_t mtl_index_ring_size;
+    size_t mtl_index_ring_write_offset;
+
+    /** Per-frame ring: MetalInstanceUniform per MODEL_DRAW (vertex buffer index 2). */
+    void* mtl_instance_uniform_ring;
+    size_t mtl_instance_uniform_ring_size;
+    size_t mtl_instance_uniform_ring_write_offset;
+
+    /** Per-frame ring: MetalRunUniform per texture run (fragment buffer index 3). */
+    void* mtl_run_uniform_ring;
+    size_t mtl_run_uniform_ring_size;
+    size_t mtl_run_uniform_ring_write_offset;
 
     // Reusable 96-byte MTLBuffer (6 verts × 4 floats) for sprite quad draws.
     void* mtl_sprite_quad_buf;  // id<MTLBuffer>

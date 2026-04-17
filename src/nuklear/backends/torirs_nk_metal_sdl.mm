@@ -311,6 +311,16 @@ torirs_nk_metal_render(
 
     id<MTLRenderCommandEncoder> enc = (__bridge id<MTLRenderCommandEncoder>)mtl_render_command_encoder;
 
+    /* Nuklear inherits the Metal encoder's scissor from earlier draws; reset so the first NK
+     * clip rect is not intersected with a stale (possibly empty) scissor from the game pass. */
+    {
+        MTLScissorRect full_sc = { 0,
+                                   0,
+                                   (NSUInteger)drawable_width,
+                                   (NSUInteger)drawable_height };
+        [enc setScissorRect:full_sc];
+    }
+
     void* vmem = malloc(ui->max_vertex_bytes);
     void* imem = malloc(ui->max_index_bytes);
     if( !vmem || !imem )

@@ -48,25 +48,23 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
         return;
     }
 
-    int id = uiscene_element_acquire(game->ui_scene, -1);
+    struct DashSprite** sprites_array =
+        (struct DashSprite**)malloc(sizeof(struct DashSprite*));
+    if( !sprites_array )
+    {
+        dashsprite_free(sp);
+        return;
+    }
+    sprites_array[0] = sp;
+
+    int id = uiscene_element_acquire_with_sprites(
+        game->ui_scene, -1, sprites_array, 1, false, "minimap_static");
     if( id < 0 )
     {
         dashsprite_free(sp);
+        free(sprites_array);
         return;
     }
-
-    struct UISceneElement* el = uiscene_element_at(game->ui_scene, id);
-    el->dash_sprites = (struct DashSprite**)malloc(sizeof(struct DashSprite*));
-    if( !el->dash_sprites )
-    {
-        dashsprite_free(sp);
-        uiscene_element_release(game->ui_scene, id);
-        return;
-    }
-    el->dash_sprites[0] = sp;
-    el->dash_sprites_count = 1;
-    strncpy(el->name, "minimap_static", sizeof(el->name) - 1);
-    el->name[sizeof(el->name) - 1] = '\0';
 
     int minimap_cmd = -1;
     for( int i = 0; i < game->ui_root_buffer->component_count; i++ )
