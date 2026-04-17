@@ -19,6 +19,7 @@ extern "C" {
 #include <cstdio>
 #include <cstring>
 #include <d3d11.h>
+#include <d3d11_1.h>
 #include <d3dcompiler.h>
 #include <dxgi.h>
 #include <vector>
@@ -1456,6 +1457,31 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
                     dashmodel_face_count(model) <= 0 )
                     break;
                 preload_model_key(renderer, model);
+                break;
+            }
+
+            case TORIRS_GFX_CLEAR_RECT:
+            {
+                flush_batch();
+                int rx = cmd._clear_rect.x;
+                int ry = cmd._clear_rect.y;
+                int rw = cmd._clear_rect.w;
+                int rh = cmd._clear_rect.h;
+                if( rw <= 0 || rh <= 0 )
+                    break;
+                LogicalViewportRect lr = { rx, ry, rw, rh };
+                D3D11ViewportRect cr = compute_d3d11_world_viewport_rect(
+                    renderer->width, renderer->height, win_width, win_height, lr);
+                if( cr.width <= 0 || cr.height <= 0 )
+                    break;
+                ID3D11DeviceContext1* ctx1 = nullptr;
+                if( SUCCEEDED(ctx->QueryInterface(IID_ID3D11DeviceContext1, (void**)&ctx1)) )
+                {
+                    float transparent[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+                    D3D11_RECT rc = { cr.x, cr.y, cr.x + cr.width, cr.y + cr.height };
+                    ctx1->ClearView(renderer->render_target_view, transparent, &rc, 1u);
+                    ctx1->Release();
+                }
                 break;
             }
 

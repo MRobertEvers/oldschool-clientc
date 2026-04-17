@@ -106,6 +106,12 @@ fragment float4 uiSpriteFrag(
     return c;
 }
 
+/** Solid transparent clear for TORIRS_GFX_CLEAR_RECT (no texture). */
+fragment float4 torirsClearRectFrag(UIVertOut in [[stage_in]])
+{
+    return float4(0.0, 0.0, 0.0, 0.0);
+}
+
 // ---------------------------------------------------------------------------
 // Font atlas rendering: per-vertex color tinted by atlas alpha
 // ---------------------------------------------------------------------------

@@ -543,6 +543,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_New(
     renderer->mtl_command_queue = nil;
     renderer->mtl_pipeline_state = nil;
     renderer->mtl_ui_sprite_pipeline = nil;
+    renderer->mtl_clear_rect_pipeline = nil;
     renderer->mtl_depth_stencil = nil;
     renderer->mtl_uniform_buffer = nil;
     renderer->mtl_sampler_state = nil;
@@ -651,6 +652,11 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(struct Platform2_OSX_SDL2_Renderer_Me
     {
         CFRelease(renderer->mtl_ui_sprite_pipeline);
         renderer->mtl_ui_sprite_pipeline = nullptr;
+    }
+    if( renderer->mtl_clear_rect_pipeline )
+    {
+        CFRelease(renderer->mtl_clear_rect_pipeline);
+        renderer->mtl_clear_rect_pipeline = nullptr;
     }
     if( renderer->mtl_pipeline_state )
     {
@@ -859,6 +865,27 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
             printf(
                 "Metal: UI sprite pipeline creation failed: %s\n",
                 uiErr ? uiErr.localizedDescription.UTF8String : "unknown");
+
+        id<MTLFunction> clearFragFn = [shaderLibrary newFunctionWithName:@"torirsClearRectFrag"];
+        if( uiPipe && clearFragFn )
+        {
+            MTLRenderPipelineDescriptor* clrDesc = [[MTLRenderPipelineDescriptor alloc] init];
+            clrDesc.vertexFunction = uiVertFn;
+            clrDesc.fragmentFunction = clearFragFn;
+            clrDesc.vertexDescriptor = uiVtx;
+            clrDesc.colorAttachments[0].pixelFormat = layer.pixelFormat;
+            clrDesc.colorAttachments[0].blendingEnabled = NO;
+            clrDesc.depthAttachmentPixelFormat = MTLPixelFormatInvalid;
+            NSError* clrErr = nil;
+            id<MTLRenderPipelineState> clrPipe =
+                [device newRenderPipelineStateWithDescriptor:clrDesc error:&clrErr];
+            if( clrPipe )
+                renderer->mtl_clear_rect_pipeline = (__bridge_retained void*)clrPipe;
+            else
+                printf(
+                    "Metal: clear rect pipeline creation failed: %s\n",
+                    clrErr ? clrErr.localizedDescription.UTF8String : "unknown");
+        }
     }
 
     id<MTLFunction> fontVertFn = [shaderLibrary newFunctionWithName:@"uiFontVert"];
@@ -1246,6 +1273,70 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
                         dashmodel_face_count(model) <= 0 )
                         break;
                     preload_model_key(renderer, model);
+                    break;
+                }
+
+                case TORIRS_GFX_CLEAR_RECT:
+                {
+                    flush_batch();
+                    id<MTLRenderPipelineState> clrPipe =
+                        renderer->mtl_clear_rect_pipeline
+                            ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_clear_rect_pipeline
+                            : nil;
+                    id<MTLBuffer> quadBuf = (__bridge id<MTLBuffer>)renderer->mtl_sprite_quad_buf;
+                    if( !clrPipe || !quadBuf )
+                        break;
+                    int rx = cmd._clear_rect.x;
+                    int ry = cmd._clear_rect.y;
+                    int rw = cmd._clear_rect.w;
+                    int rh = cmd._clear_rect.h;
+                    if( rw <= 0 || rh <= 0 )
+                        break;
+                    LogicalViewportRect lr = { rx, ry, rw, rh };
+                    MTLViewportRect gr =
+                        compute_gl_world_viewport_rect(
+                            renderer->width, renderer->height, win_width, win_height, lr);
+                    const float fbw = (float)(win_width > 0 ? win_width : renderer->width);
+                    const float fbh = (float)(win_height > 0 ? win_height : renderer->height);
+                    if( fbw <= 0.0f || fbh <= 0.0f )
+                        break;
+                    auto to_clip = [&](float xp, float yp, float* ocx, float* ocy) {
+                        *ocx = 2.0f * xp / fbw - 1.0f;
+                        *ocy = 1.0f - 2.0f * yp / fbh;
+                    };
+                    float c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y;
+                    to_clip((float)rx, (float)ry, &c0x, &c0y);
+                    to_clip((float)(rx + rw), (float)ry, &c1x, &c1y);
+                    to_clip((float)(rx + rw), (float)(ry + rh), &c2x, &c2y);
+                    to_clip((float)rx, (float)(ry + rh), &c3x, &c3y);
+                    float verts[6 * 4] = {
+                        c0x, c0y, 0.0f, 0.0f, c1x, c1y, 1.0f, 0.0f, c2x, c2y, 1.0f, 1.0f,
+                        c0x, c0y, 0.0f, 0.0f, c2x, c2y, 1.0f, 1.0f, c3x, c3y, 0.0f, 1.0f,
+                    };
+                    memcpy(quadBuf.contents, verts, sizeof(verts));
+
+                    MTLViewport fullVp = { .originX = 0.0,
+                                           .originY = 0.0,
+                                           .width = (double)renderer->width,
+                                           .height = (double)renderer->height,
+                                           .znear = 0.0,
+                                           .zfar = 1.0 };
+                    [encoder setViewport:fullVp];
+                    NSUInteger msx = (NSUInteger)gr.x;
+                    NSUInteger msy = (NSUInteger)(renderer->height - gr.y - gr.height);
+                    MTLScissorRect sc = { msx, msy, (NSUInteger)gr.width, (NSUInteger)gr.height };
+                    [encoder setScissorRect:sc];
+                    [encoder setRenderPipelineState:clrPipe];
+                    [encoder setVertexBuffer:quadBuf offset:0 atIndex:0];
+                    [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+                    MTLScissorRect scMax = { 0,
+                                             0,
+                                             (NSUInteger)renderer->width,
+                                             (NSUInteger)renderer->height };
+                    [encoder setScissorRect:scMax];
+                    [encoder setViewport:metalVp];
+                    [encoder setRenderPipelineState:pipeState];
+                    [encoder setDepthStencilState:dsState];
                     break;
                 }
 

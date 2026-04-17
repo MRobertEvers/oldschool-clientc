@@ -330,6 +330,27 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Render(
         case TORIRS_GFX_FONT_DRAW:
             deferred_font_draws.push_back(command);
             break;
+        case TORIRS_GFX_CLEAR_RECT:
+        {
+            int cx = command._clear_rect.x;
+            int cy = command._clear_rect.y;
+            int cw = command._clear_rect.w;
+            int ch = command._clear_rect.h;
+            int* pb = renderer->pixel_buffer;
+            if( cw <= 0 || ch <= 0 || !pb )
+                break;
+            int rw = renderer->width;
+            int rh = renderer->height;
+            int x0 = cx < 0 ? 0 : cx;
+            int y0 = cy < 0 ? 0 : cy;
+            int x1 = cx + cw > rw ? rw : cx + cw;
+            int y1 = cy + ch > rh ? rh : cy + ch;
+            if( x0 >= x1 || y0 >= y1 )
+                break;
+            for( int row = y0; row < y1; ++row )
+                memset(&pb[row * rw + x0], 0, (size_t)(x1 - x0) * sizeof(int));
+        }
+        break;
         case TORIRS_GFX_MODEL_DRAW:
             if( vp_pixels )
                 dash3d_raster_projected_model(

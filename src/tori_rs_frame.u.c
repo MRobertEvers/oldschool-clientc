@@ -352,6 +352,22 @@ queue_static_ui_minimap_draws(
     anchor_x = camera_tile_x * (static_sprite->width / 104);
     anchor_y = static_sprite->height - camera_tile_z * (static_sprite->height / 104);
 
+    if( game->uiscene_queued_commands && component->position.width > 0 &&
+        component->position.height > 0 )
+    {
+        LibToriRS_RenderCommandBufferAddCommand(
+            game->uiscene_queued_commands,
+            (struct ToriRSRenderCommand){
+                .kind = TORIRS_GFX_CLEAR_RECT,
+                ._clear_rect = {
+                    .x = component->position.x,
+                    .y = component->position.y,
+                    .w = component->position.width,
+                    .h = component->position.height,
+                },
+            });
+    }
+
     LibToriRS_RenderCommandBufferAddCommand(
         game->uiscene_queued_commands,
         (struct ToriRSRenderCommand){
@@ -983,6 +999,22 @@ uielem_world_step(
     if( game->at_painters_command_index >= game->cc )
     {
         return true;
+    }
+
+    if( game->at_painters_command_index == 0 && game->view_port && game->uiscene_queued_commands &&
+        game->view_port->width > 0 && game->view_port->height > 0 )
+    {
+        LibToriRS_RenderCommandBufferAddCommand(
+            game->uiscene_queued_commands,
+            (struct ToriRSRenderCommand){
+                .kind = TORIRS_GFX_CLEAR_RECT,
+                ._clear_rect = {
+                    .x = game->viewport_offset_x,
+                    .y = game->viewport_offset_y,
+                    .w = game->view_port->width,
+                    .h = game->view_port->height,
+                },
+            });
     }
 
 next:

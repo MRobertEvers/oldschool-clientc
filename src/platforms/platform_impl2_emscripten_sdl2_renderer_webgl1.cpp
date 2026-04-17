@@ -669,6 +669,33 @@ PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
                 break;
             }
 
+            case TORIRS_GFX_CLEAR_RECT:
+            {
+                int rx = cmd._clear_rect.x;
+                int ry = cmd._clear_rect.y;
+                int rw = cmd._clear_rect.w;
+                int rh = cmd._clear_rect.h;
+                if( rw <= 0 || rh <= 0 )
+                    break;
+                LogicalViewportRect lr = { rx, ry, rw, rh };
+                const GLViewportRect glr_lb =
+                    compute_world_viewport_rect(lb.w, lb.h, window_width, window_height, lr);
+                const GLViewportRect glr = { lb.x + glr_lb.x,
+                                             lb_gl_y + glr_lb.y,
+                                             glr_lb.width,
+                                             glr_lb.height };
+                GLint vp[4];
+                glGetIntegerv(GL_VIEWPORT, vp);
+                glViewport(0, 0, renderer->width, renderer->height);
+                glEnable(GL_SCISSOR_TEST);
+                glScissor(glr.x, glr.y, glr.width, glr.height);
+                glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                glDisable(GL_SCISSOR_TEST);
+                glViewport(vp[0], vp[1], vp[2], vp[3]);
+                break;
+            }
+
             case TORIRS_GFX_MODEL_DRAW:
             {
                 struct DashModel* model = cmd._model_draw.model;

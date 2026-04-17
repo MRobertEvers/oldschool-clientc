@@ -23,6 +23,8 @@ enum ToriRSRenderCommandKind
     TORIRS_GFX_MODEL_DRAW,
     TORIRS_GFX_SPRITE_DRAW,
     TORIRS_GFX_FONT_DRAW,
+    /** Clear ARGB destination rectangle to transparent black (0). */
+    TORIRS_GFX_CLEAR_RECT,
 };
 
 /** `TORIRS_GFX_SPRITE_DRAW._sprite_draw.blit_dest`: normal UI framebuffer blit. */
@@ -92,6 +94,13 @@ struct ToriRSRenderCommand
             int src_anchor_x;
             int src_anchor_y;
         } _sprite_draw;
+        struct
+        {
+            int x;
+            int y;
+            int w;
+            int h;
+        } _clear_rect;
     };
 };
 

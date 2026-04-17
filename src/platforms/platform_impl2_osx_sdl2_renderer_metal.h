@@ -20,6 +20,7 @@ struct Platform2_OSX_SDL2_Renderer_Metal
     void* mtl_command_queue;  // id<MTLCommandQueue>
     void* mtl_pipeline_state;     // id<MTLRenderPipelineState>
     void* mtl_ui_sprite_pipeline; // id<MTLRenderPipelineState> — TORIRS_GFX_SPRITE_DRAW
+    void* mtl_clear_rect_pipeline; // id<MTLRenderPipelineState> — TORIRS_GFX_CLEAR_RECT
     void* mtl_depth_stencil;      // id<MTLDepthStencilState>
     void* mtl_uniform_buffer; // id<MTLBuffer>
     void* mtl_sampler_state;  // id<MTLSamplerState> — texture sampling (clamp U, repeat V)
