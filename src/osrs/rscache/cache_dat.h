@@ -6,6 +6,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum CacheDatTable
 {
     CACHE_DAT_CONFIGS = 0,
@@ -269,5 +273,9 @@ cache_dat_archive_free(struct CacheDatArchive* archive);
 // Jagfile jagTextures = this.getJagFile("textures", 6, this.jagChecksum[6], "textures", 45);
 // Jagfile jagWordenc = this.getJagFile("chat system", 7, this.jagChecksum[7], "wordenc", 50);
 // Jagfile jagSounds = this.getJagFile("sound effects", 8, this.jagChecksum[8], "sounds", 55);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -1,6 +1,10 @@
 #ifndef DASH_H
 #define DASH_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "dash_alphaint.h"
 #include "dash_anim.h"
 #include "dash_boneint.h"
@@ -1235,5 +1239,9 @@ dashframe_free(struct DashFrame* frame);
 
 void
 dashframemap_free(struct DashFramemap* framemap);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -20,7 +20,7 @@ extern "C" {
 #include <string.h>
 
 #define SCREEN_WIDTH 800
-#define SCREEN_HEIGHT 500
+#define SCREEN_HEIGHT 600
 
 int
 main(
@@ -98,10 +98,10 @@ main(
 
     struct SockStream* login_stream = NULL;
     sockstream_init();
-    login_stream = sockstream_new();
+    // login_stream = sockstream_new();
 
     char const* host = "127.0.0.1:43594";
-    LibToriRS_NetConnectLogin(game, host, "asdf2", "a");
+    // LibToriRS_NetConnectLogin(game, host, "asdf2", "a");
 
     while( LibToriRS_GameIsRunning(game) )
     {

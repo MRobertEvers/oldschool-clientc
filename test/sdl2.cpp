@@ -36,21 +36,15 @@ extern "C" {
 #endif
 
 #define SCREEN_WIDTH 800
-#define SCREEN_HEIGHT 500
+#define SCREEN_HEIGHT 520
 #define LOGIN_PORT 43594
 
 enum RendererKind
 {
     RENDERER_SOFT3D,
-#if !defined(_WIN32)
     RENDERER_OPENGL3,
-#endif
-#if defined(__APPLE__)
     RENDERER_METAL,
-#endif
-#if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
     RENDERER_D3D11,
-#endif
 };
 
 static RendererKind
@@ -96,8 +90,8 @@ select_renderer(
 #endif
     }
 
-    return RENDERER_METAL;
-    // return RENDERER_SOFT3D;
+    // return RENDERER_METAL;
+    return RENDERER_SOFT3D;
 }
 
 static void

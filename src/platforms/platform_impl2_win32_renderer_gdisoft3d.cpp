@@ -1,5 +1,3 @@
-#include "platform_impl2_win32_renderer_gdisoft3d.h"
-
 #if defined(_WIN32)
 
 #ifndef _WIN32_WINNT
@@ -13,6 +11,8 @@
 #endif
 #include <windows.h>
 
+/* Include C game/dash headers before platform_impl2_win32*.h so buildcachedat.h does not
+ * win the include race and pin dash/cache_dat to C++ linkage (breaks MinGW link vs .c objs). */
 extern "C" {
 #include "graphics/dash.h"
 #include "osrs/game.h"
@@ -20,9 +20,13 @@ extern "C" {
 #include "tori_rs_render.h"
 }
 
+#include "platform_impl2_win32_renderer_gdisoft3d.h"
+
 #include "nuklear/torirs_nuklear.h"
-#define NK_RAWFB_IMPLEMENTATION
+extern "C" {
 #include "nuklear/backends/rawfb/nuklear_rawfb.h"
+struct nk_context* torirs_rawfb_get_nk_context(struct rawfb_context* rawfb);
+}
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -130,7 +134,7 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_Init(
             pl);
         if( renderer->nk_rawfb )
             platform->nk_ctx_for_input =
-                (void*)&((struct rawfb_context*)renderer->nk_rawfb)->ctx;
+                (void*)torirs_rawfb_get_nk_context((struct rawfb_context*)renderer->nk_rawfb);
         else
         {
             free(renderer->nk_font_tex_mem);
@@ -353,9 +357,14 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_Render(
     {
         switch( command.kind )
         {
+        case TORIRS_GFX_NONE:
+            break;
         case TORIRS_GFX_FONT_LOAD:
         case TORIRS_GFX_MODEL_LOAD:
         case TORIRS_GFX_MODEL_UNLOAD:
+            break;
+        case TORIRS_GFX_SPRITE_LOAD:
+        case TORIRS_GFX_SPRITE_UNLOAD:
             break;
         case TORIRS_GFX_TEXTURE_LOAD:
         {
@@ -485,7 +494,7 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_Render(
             : 1.0 / 60.0;
         renderer->nk_prev_time_ms = now_ms;
 
-        struct nk_context* nk = &rawfb->ctx;
+        struct nk_context* nk = torirs_rawfb_get_nk_context(rawfb);
         if( nk_begin(
                 nk,
                 "Info",

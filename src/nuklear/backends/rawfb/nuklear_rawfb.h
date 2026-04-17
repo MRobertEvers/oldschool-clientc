@@ -32,6 +32,10 @@
 #ifndef NK_RAWFB_H_
 #define NK_RAWFB_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct rawfb_context;
 
 struct rawfb_pl {
@@ -45,6 +49,10 @@ NK_API struct rawfb_context *nk_rawfb_init(void *fb, void *tex_mem, const unsign
 NK_API void                  nk_rawfb_render(const struct rawfb_context *rawfb, const struct nk_color clear, const unsigned char enable_clear);
 NK_API void                  nk_rawfb_shutdown(struct rawfb_context *rawfb);
 NK_API void                  nk_rawfb_resize_fb(struct rawfb_context *rawfb, void *fb, const unsigned int w, const unsigned int h, const unsigned int pitch, const struct rawfb_pl pl);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 /*

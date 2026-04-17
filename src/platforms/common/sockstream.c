@@ -351,6 +351,10 @@ sockstream_recv(
 int
 sockstream_poll_connect(struct SockStream* stream)
 {
+    if ( !stream )
+    {
+        return SOCKSTREAM_CONNECT_FAILED;
+    }
     if( !stream || stream->sockfd < 0 || stream->status != SOCKSTREAM_STATUS_CONNECTING )
     {
         // If already connected, return success

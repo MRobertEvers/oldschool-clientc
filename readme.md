@@ -8,10 +8,10 @@ Rewrite of the osrs renderer.
 cmake -B build -DCMAKE_BUILD_TYPE=Debug
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake -B build_release -DCMAKE_BUILD_TYPE=Release
+cmake -B build-mingw-release -DCMAKE_BUILD_TYPE=Release
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake .. -DCMAKE_BUILD_TYPE=Debug
 cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
-cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
 # For compiler invocations
 make VERBOSE=1
@@ -633,7 +633,7 @@ return;
 sudo ../profile.d -c ./scene_tile_test > out.stacks
 
 sudo ../profile.d -c ./main_client > out.stacks
-sudo ../profile.d -c ./sdl2 > out.stacks
+sudo ../profile.d -c ./osx > out.stacks
 ```
 
 Then using flamegraph
@@ -645,8 +645,6 @@ https://github.com/brendangregg/FlameGraph
 # /Users/matthewevers/Documents/git_repos/FlameGraph
 
 ./stackcollapse.pl ./build/out.stacks > out.folded
-./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/build_release/out.stacks > out.folded
-./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/build/out.stacks > out.folded
 ./flamegraph.pl out.folded > flamegraph.svg
 open flamegraph.svg
 ```
@@ -818,7 +816,7 @@ On linux
 valgrind --leak-check=full ./scene_tile_test
 
 valgrind --leak-check=full ./scene_tile_test > log.txt 2>&1
-valgrind --leak-check=full ./sdl2 > log.txt 2>&1
+valgrind --leak-check=full ./osx > log.txt 2>&1
 
 # Callgrind must be built without ASan
 valgrind --tool=callgrind  ./model_viewer > log.txt 2>&1
@@ -826,7 +824,7 @@ valgrind --tool=callgrind  ./scene_tile_test > log.txt 2>&1
 callgrind_annotate $(ls callgrind.out.* | sort -V | tail -n 1) | less
 kcachegrind $(ls callgrind.out.* | sort -V | tail -n 1) | less
 
-valgrind --tool=massif --threshold=0.1 --massif-out-file=massif.out ./sdl2
+valgrind --tool=massif --threshold=0.1 --massif-out-file=massif.out ./osx
 ms_print massif.out > log_mem.txt
 massif-visualizer massif.out
 ```

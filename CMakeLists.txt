@@ -273,6 +273,7 @@ if(NOT EMSCRIPTEN)
         )
         list(APPEND WIN32_PLATFORM_SOURCES
             test/win32.cpp
+            src/nuklear/backends/rawfb/nuklear_rawfb_impl.c
             src/platforms/platform_impl2_win32.cpp
             src/platforms/platform_impl2_win32_renderer_gdisoft3d.cpp
             src/osrs/lua_sidecar/luac_sidecar_config.c
@@ -284,6 +285,10 @@ if(NOT EMSCRIPTEN)
             target_link_options(win32 PRIVATE /SUBSYSTEM:CONSOLE)
         else()
             target_link_options(win32 PRIVATE -Wl,-subsystem,console)
+            # Always-on debug symbols + frame pointers for the win32 target so segfaults
+            # produce meaningful backtraces under gdb even in Release/RelWithDebInfo builds.
+            target_compile_options(win32 PRIVATE -g3 -gdwarf-4 -fno-omit-frame-pointer)
+            target_link_options(win32 PRIVATE -g3 -gdwarf-4)
         endif()
         if(ENABLE_ASAN)
             target_compile_options(win32 PRIVATE -fsanitize=address -fno-omit-frame-pointer)

@@ -1,5 +1,3 @@
-#include "platform_impl2_win32.h"
-
 #if defined(_WIN32)
 
 #ifndef _WIN32_WINNT
@@ -12,6 +10,15 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+
+/* Prime dash + cache_dat under C linkage before headers that pull buildcachedat.h (see
+ * platform_impl2_win32.h), or MinGW links C++-mangled refs to C symbols from .c files. */
+extern "C" {
+#include "graphics/dash.h"
+#include "osrs/rscache/cache_dat.h"
+}
+
+#include "platform_impl2_win32.h"
 
 #include "platform_impl2_win32_renderer_gdisoft3d.h"
 #include "nuklear/torirs_nuklear.h"
