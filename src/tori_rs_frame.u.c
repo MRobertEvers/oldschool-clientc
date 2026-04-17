@@ -1104,15 +1104,11 @@ uielem_world_step(
     struct DashPosition position = { 0 };
     struct ToriRSRenderCommand command = { 0 };
     struct Scene2Element* scene_element = NULL;
-    struct UISceneElement* element =
-        uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
-    if( !element )
-        return true;
 
     if( game->at_painters_command_index == 0 )
         s_uielem_world_inside_3d = false;
 
-    if( game->at_painters_command_index >= game->cc )
+    if( !game->sys_painter_buffer )
     {
         if( s_uielem_world_inside_3d && game->uiscene_queued_commands )
         {
@@ -1121,6 +1117,10 @@ uielem_world_step(
         }
         return true;
     }
+
+    int cap = game->sys_painter_buffer->command_count;
+    if( game->cc < cap )
+        cap = game->cc;
 
     if( game->at_painters_command_index == 0 && game->view_port && game->uiscene_queued_commands &&
         game->view_port->width > 0 && game->view_port->height > 0 )
@@ -1142,7 +1142,7 @@ uielem_world_step(
     }
 
 next:
-    if( game->at_painters_command_index >= game->sys_painter_buffer->command_count )
+    if( game->at_painters_command_index >= cap )
     {
         if( s_uielem_world_inside_3d && game->uiscene_queued_commands )
         {
@@ -1247,8 +1247,7 @@ next:
     }
 
     {
-        bool done =
-            game->at_painters_command_index >= game->sys_painter_buffer->command_count;
+        bool done = game->at_painters_command_index >= cap;
         if( done && s_uielem_world_inside_3d && game->uiscene_queued_commands )
         {
             emit_marker(game->uiscene_queued_commands, TORIRS_GFX_END_3D);

@@ -336,7 +336,16 @@ append_model_face_vertices(
         const faceint_t* tcp = dashmodel_textured_p_coordinate_const(model);
         const faceint_t* tcm = dashmodel_textured_m_coordinate_const(model);
         const faceint_t* tcn = dashmodel_textured_n_coordinate_const(model);
-        if( ftc && ftc[f] != -1 && tcp && tcm && tcn )
+        if( dashmodel__is_ground_va(model) )
+        {
+            /* Face 0 is dummy SW/SE/NW inserted by world_terrain to anchor per-tile UV basis. */
+            tp = (int)face_ia[0];
+            tm = (int)face_ib[0];
+            tn = (int)face_ic[0];
+            if( tp < 0 || tp >= vcount || tm < 0 || tm >= vcount || tn < 0 || tn >= vcount )
+                return;
+        }
+        else if( ftc && ftc[f] != -1 && tcp && tcm && tcn )
         {
             texture_face_idx = ftc[f];
             tp = tcp[texture_face_idx];
@@ -1633,14 +1642,14 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     {
                         const int dw = cmd._sprite_draw.dst_bb_w;
                         const int dh = cmd._sprite_draw.dst_bb_h;
-                        if( dw <= 0 || dh <= 0 )
+                        if( dw <= 0 || dh <= 0 || iw <= 0 || ih <= 0 )
                             break;
+                        const int sax = cmd._sprite_draw.src_anchor_x;
+                        const int say = cmd._sprite_draw.src_anchor_y;
                         const float pivot_x =
                             (float)cmd._sprite_draw.dst_bb_x + (float)cmd._sprite_draw.dst_anchor_x;
                         const float pivot_y =
                             (float)cmd._sprite_draw.dst_bb_y + (float)cmd._sprite_draw.dst_anchor_y;
-                        const int dax = cmd._sprite_draw.dst_anchor_x;
-                        const int day = cmd._sprite_draw.dst_anchor_y;
                         const int ang = cmd._sprite_draw.rotation_r2pi2048 & 2047;
                         const float angle = (float)ang * (float)(2.0 * M_PI / 2048.0);
                         const float ca = cosf(angle);
@@ -1648,14 +1657,16 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                         struct
                         {
                             int lx, ly;
-                        } corners[4] = { { 0, 0 },
-                                         { dw, 0 },
-                                         { dw, dh },
-                                         { 0, dh } };
+                        } corners[4] = {
+                            { 0, 0 },
+                            { iw, 0 },
+                            { iw, ih },
+                            { 0, ih },
+                        };
                         for( int k = 0; k < 4; ++k )
                         {
-                            float Lx = (float)(corners[k].lx - dax);
-                            float Ly = (float)(corners[k].ly - day);
+                            float Lx = (float)(corners[k].lx - sax);
+                            float Ly = (float)(corners[k].ly - say);
                             px[k] = pivot_x + ca * Lx - sa * Ly;
                             py[k] = pivot_y + sa * Lx + ca * Ly;
                         }
@@ -1697,12 +1708,38 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                         c0x, c0y, u0, v0, c2x, c2y, u1, v1, c3x, c3y, u0, v1,
                     };
 
+                    const bool rotated_clip =
+                        cmd._sprite_draw.rotated && cmd._sprite_draw.dst_bb_w > 0 &&
+                        cmd._sprite_draw.dst_bb_h > 0;
+                    if( rotated_clip )
+                    {
+                        LogicalViewportRect lr = { cmd._sprite_draw.dst_bb_x,
+                                                   cmd._sprite_draw.dst_bb_y,
+                                                   cmd._sprite_draw.dst_bb_w,
+                                                   cmd._sprite_draw.dst_bb_h };
+                        MTLViewportRect gr = compute_gl_world_viewport_rect(
+                            renderer->width, renderer->height, win_width, win_height, lr);
+                        NSUInteger msx = (NSUInteger)gr.x;
+                        NSUInteger msy =
+                            (NSUInteger)(renderer->height - gr.y - gr.height);
+                        MTLScissorRect sc = { msx, msy, (NSUInteger)gr.width, (NSUInteger)gr.height };
+                        [encoder setScissorRect:sc];
+                    }
+
                     NSUInteger slotOffset = sprite_slot * kSpriteSlotBytes;
                     memcpy((char*)spriteQuadBuf.contents + slotOffset, verts, sizeof(verts));
                     [encoder setVertexBuffer:spriteQuadBuf offset:slotOffset atIndex:0];
                     [encoder setFragmentTexture:spriteTex atIndex:0];
                     [encoder setFragmentSamplerState:uiSamplerNearest atIndex:0];
                     [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+                    if( rotated_clip )
+                    {
+                        MTLScissorRect scMax = { 0,
+                                                 0,
+                                                 (NSUInteger)renderer->width,
+                                                 (NSUInteger)renderer->height };
+                        [encoder setScissorRect:scMax];
+                    }
                     ++sprite_slot;
                     break;
                 }
