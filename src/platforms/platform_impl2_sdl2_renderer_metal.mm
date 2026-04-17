@@ -1,16 +1,14 @@
 // System ObjC/Metal headers must come before any game headers.
 #include "platform_impl2_sdl2_renderer_metal.h"
 
+#include "nuklear/backends/torirs_nk_metal_sdl.h"
+#include "platforms/common/torirs_nk_ui_bridge.h"
+#include "platforms/common/torirs_nuklear_debug_panel.h"
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
 
-#include "nuklear/backends/torirs_nk_metal_sdl.h"
-#include "platforms/common/torirs_nk_ui_bridge.h"
-#include "platforms/common/torirs_nuklear_debug_panel.h"
-
 #include <SDL.h>
-
 #include <climits>
 #include <cmath>
 #include <cstdio>
@@ -285,10 +283,9 @@ metal_clamped_scissor_from_logical_dst_bb(
     int dst_w,
     int dst_h)
 {
-    MTLScissorRect full = { 0,
-                            0,
-                            (NSUInteger)(fbw > 0 ? fbw : 1),
-                            (NSUInteger)(fbh > 0 ? fbh : 1) };
+    MTLScissorRect full = {
+        0, 0, (NSUInteger)(fbw > 0 ? fbw : 1), (NSUInteger)(fbh > 0 ? fbh : 1)
+    };
     if( fbw <= 0 || fbh <= 0 || win_w <= 0 || win_h <= 0 || dst_w <= 0 || dst_h <= 0 )
         return full;
 
@@ -524,8 +521,8 @@ build_model_gpu(
 
     const size_t bytes = verts.size() * sizeof(MetalVertex);
     id<MTLBuffer> vbo = [device newBufferWithBytes:verts.data()
-                                             length:(NSUInteger)bytes
-                                            options:MTLResourceStorageModeShared];
+                                            length:(NSUInteger)bytes
+                                           options:MTLResourceStorageModeShared];
     if( !vbo )
     {
         delete gpu;
@@ -579,7 +576,8 @@ metal_ensure_ring_bytes(
         n *= 2;
     if( *ring_buf )
         CFRelease(*ring_buf);
-    id<MTLBuffer> b = [device newBufferWithLength:(NSUInteger)n options:MTLResourceStorageModeShared];
+    id<MTLBuffer> b = [device newBufferWithLength:(NSUInteger)n
+                                          options:MTLResourceStorageModeShared];
     *ring_buf = (__bridge_retained void*)b;
     *ring_size = n;
 }
@@ -644,7 +642,8 @@ render_nuklear_overlay(
     torirs_nk_metal_resize(s_mtl_nk, win_w, win_h);
     /* AGX can SEGV on setDepthStencilState:nil; reuse the renderer's no-op depth state. */
     if( renderer->mtl_depth_stencil )
-        [encoder setDepthStencilState:(__bridge id<MTLDepthStencilState>)renderer->mtl_depth_stencil];
+        [encoder
+            setDepthStencilState:(__bridge id<MTLDepthStencilState>)renderer->mtl_depth_stencil];
     torirs_nk_metal_render(
         s_mtl_nk,
         (__bridge void*)encoder,
@@ -1167,23 +1166,24 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
 
     {
         const size_t ixBytes = 4u * 1024u * 1024u;
-        id<MTLBuffer> ix = [device newBufferWithLength:ixBytes options:MTLResourceStorageModeShared];
+        id<MTLBuffer> ix = [device newBufferWithLength:ixBytes
+                                               options:MTLResourceStorageModeShared];
         renderer->mtl_index_ring = (__bridge_retained void*)ix;
         renderer->mtl_index_ring_size = ixBytes;
         renderer->mtl_index_ring_write_offset = 0;
     }
     {
         const size_t instBytes = kMetalInstanceUniformStride * 4096u;
-        id<MTLBuffer> instb =
-            [device newBufferWithLength:instBytes options:MTLResourceStorageModeShared];
+        id<MTLBuffer> instb = [device newBufferWithLength:instBytes
+                                                  options:MTLResourceStorageModeShared];
         renderer->mtl_instance_uniform_ring = (__bridge_retained void*)instb;
         renderer->mtl_instance_uniform_ring_size = instBytes;
         renderer->mtl_instance_uniform_ring_write_offset = 0;
     }
     {
         const size_t runBytes = kMetalRunUniformStride * 8192u;
-        id<MTLBuffer> runb =
-            [device newBufferWithLength:runBytes options:MTLResourceStorageModeShared];
+        id<MTLBuffer> runb = [device newBufferWithLength:runBytes
+                                                 options:MTLResourceStorageModeShared];
         renderer->mtl_run_uniform_ring = (__bridge_retained void*)runb;
         renderer->mtl_run_uniform_ring_size = runBytes;
         renderer->mtl_run_uniform_ring_write_offset = 0;
@@ -1397,11 +1397,11 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         id<MTLSamplerState> fontSampler = uiSamplerNearest;
 
         MTLViewport spriteVp = { .originX = 0.0,
-                               .originY = 0.0,
-                               .width = (double)renderer->width,
-                               .height = (double)renderer->height,
-                               .znear = 0.0,
-                               .zfar = 1.0 };
+                                 .originY = 0.0,
+                                 .width = (double)renderer->width,
+                                 .height = (double)renderer->height,
+                                 .znear = 0.0,
+                                 .zfar = 1.0 };
 
         static std::vector<float> font_verts;
         font_verts.clear();
@@ -1550,11 +1550,13 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                 {
                     struct DashModel* model = cmd._model_load.model;
                     if( !model || !dashmodel_face_colors_a_const(model) ||
-                        !dashmodel_face_colors_b_const(model) || !dashmodel_face_colors_c_const(model) ||
+                        !dashmodel_face_colors_b_const(model) ||
+                        !dashmodel_face_colors_c_const(model) ||
                         !dashmodel_vertices_x_const(model) || !dashmodel_vertices_y_const(model) ||
-                        !dashmodel_vertices_z_const(model) || !dashmodel_face_indices_a_const(model) ||
-                        !dashmodel_face_indices_b_const(model) || !dashmodel_face_indices_c_const(model) ||
-                        dashmodel_face_count(model) <= 0 )
+                        !dashmodel_vertices_z_const(model) ||
+                        !dashmodel_face_indices_a_const(model) ||
+                        !dashmodel_face_indices_b_const(model) ||
+                        !dashmodel_face_indices_c_const(model) || dashmodel_face_count(model) <= 0 )
                         break;
                     const uint64_t mk = cmd._model_load.model_key;
                     if( renderer->model_gpu_by_key.find(mk) == renderer->model_gpu_by_key.end() ||
@@ -1595,106 +1597,28 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                 }
 
                 case TORIRS_GFX_CLEAR_RECT:
-                {
-                    flush_batch();
-                    flush_font_batch();
-                    id<MTLRenderPipelineState> clrPipe =
-                        renderer->mtl_clear_rect_pipeline
-                            ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_clear_rect_pipeline
-                            : nil;
-                    id<MTLBuffer> quadBuf = (__bridge id<MTLBuffer>)renderer->mtl_sprite_quad_buf;
-                    if( !clrPipe || !quadBuf )
-                        break;
-                    int rx = cmd._clear_rect.x;
-                    int ry = cmd._clear_rect.y;
-                    int rw = cmd._clear_rect.w;
-                    int rh = cmd._clear_rect.h;
-                    if( rw <= 0 || rh <= 0 )
-                        break;
-                    const float fbw = (float)(win_width > 0 ? win_width : renderer->width);
-                    const float fbh = (float)(win_height > 0 ? win_height : renderer->height);
-                    if( fbw <= 0.0f || fbh <= 0.0f )
-                        break;
-                    auto to_clip = [&](float xp, float yp, float* ocx, float* ocy) {
-                        *ocx = 2.0f * xp / fbw - 1.0f;
-                        *ocy = 1.0f - 2.0f * yp / fbh;
-                    };
-                    float c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y;
-                    to_clip((float)rx, (float)ry, &c0x, &c0y);
-                    to_clip((float)(rx + rw), (float)ry, &c1x, &c1y);
-                    to_clip((float)(rx + rw), (float)(ry + rh), &c2x, &c2y);
-                    to_clip((float)rx, (float)(ry + rh), &c3x, &c3y);
-                    float verts[6 * 4] = {
-                        c0x, c0y, 0.0f, 0.0f, c1x, c1y, 1.0f, 0.0f, c2x, c2y, 1.0f, 1.0f,
-                        c0x, c0y, 0.0f, 0.0f, c2x, c2y, 1.0f, 1.0f, c3x, c3y, 0.0f, 1.0f,
-                    };
-                    memcpy(quadBuf.contents, verts, sizeof(verts));
-
-                    MTLViewport fullVp = { .originX = 0.0,
-                                           .originY = 0.0,
-                                           .width = (double)renderer->width,
-                                           .height = (double)renderer->height,
-                                           .znear = 0.0,
-                                           .zfar = 1.0 };
-                    [encoder setViewport:fullVp];
-                    MTLScissorRect sc = metal_clamped_scissor_from_logical_dst_bb(
-                        renderer->width,
-                        renderer->height,
-                        win_width,
-                        win_height,
-                        rx,
-                        ry,
-                        rw,
-                        rh);
-                    [encoder setScissorRect:sc];
-                    [encoder setRenderPipelineState:clrPipe];
-                    [encoder setVertexBuffer:quadBuf offset:0 atIndex:0];
-                    [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
-                    MTLScissorRect scMax = { 0,
-                                             0,
-                                             (NSUInteger)renderer->width,
-                                             (NSUInteger)renderer->height };
-                    [encoder setScissorRect:scMax];
-                    if( current_pass == MTL_PASS_3D )
-                    {
-                        [encoder setViewport:metalVp];
-                        [encoder setRenderPipelineState:pipeState];
-                        [encoder setDepthStencilState:dsState];
-                    }
-                    else if( current_pass == MTL_PASS_2D )
-                    {
-                        [encoder setViewport:spriteVp];
-                    }
-                    else
-                    {
-                        [encoder setViewport:metalVp];
-                        [encoder setRenderPipelineState:pipeState];
-                        [encoder setDepthStencilState:dsState];
-                    }
-                    if( current_pass == MTL_PASS_3D )
-                        current_pipe = kMTLPipe3D;
-                    else if( current_pass == MTL_PASS_2D )
-                        current_pipe = kMTLPipeNone;
-                    else
-                        current_pipe = kMTLPipe3D;
+                    /* Intentional no-op: Metal does not implement 2D CLEAR_RECT. A GPU clear here
+                     * erased the minimap (and similar) before the following sprite; Soft3D and
+                     * other backends may still handle the command. */
                     break;
-                }
 
                 case TORIRS_GFX_MODEL_DRAW:
                 {
                     struct DashModel* model = cmd._model_draw.model;
                     if( !model || !dashmodel_face_colors_a_const(model) ||
-                        !dashmodel_face_colors_b_const(model) || !dashmodel_face_colors_c_const(model) ||
+                        !dashmodel_face_colors_b_const(model) ||
+                        !dashmodel_face_colors_c_const(model) ||
                         !dashmodel_vertices_x_const(model) || !dashmodel_vertices_y_const(model) ||
-                        !dashmodel_vertices_z_const(model) || !dashmodel_face_indices_a_const(model) ||
-                        !dashmodel_face_indices_b_const(model) || !dashmodel_face_indices_c_const(model) ||
-                        dashmodel_face_count(model) <= 0 )
+                        !dashmodel_vertices_z_const(model) ||
+                        !dashmodel_face_indices_a_const(model) ||
+                        !dashmodel_face_indices_b_const(model) ||
+                        !dashmodel_face_indices_c_const(model) || dashmodel_face_count(model) <= 0 )
                         break;
 
                     ensure_pipe(kMTLPipe3D);
 
-                    MetalModelGpu* gpu =
-                        lookup_or_build_model_gpu(renderer, device, model, cmd._model_draw.model_key);
+                    MetalModelGpu* gpu = lookup_or_build_model_gpu(
+                        renderer, device, model, cmd._model_draw.model_key);
                     if( !gpu || !gpu->vbo )
                         break;
 
@@ -1721,12 +1645,14 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                             (__bridge id<MTLBuffer>)renderer->mtl_instance_uniform_ring;
                         char* base = (char*)instRing.contents + instOff;
                         memset(base, 0, kMetalInstanceUniformStride);
-                        MetalInstanceUniform inst = { cos_yaw,
-                                                      sin_yaw,
-                                                      (float)draw_position.x,
-                                                      (float)draw_position.y,
-                                                      (float)draw_position.z,
-                                                      { 0.0f, 0.0f, 0.0f } };
+                        MetalInstanceUniform inst = {
+                            cos_yaw,
+                            sin_yaw,
+                            (float)draw_position.x,
+                            (float)draw_position.y,
+                            (float)draw_position.z,
+                            { 0.0f, 0.0f, 0.0f }
+                        };
                         memcpy(base, &inst, sizeof(inst));
                     }
                     renderer->mtl_instance_uniform_ring_write_offset += kMetalInstanceUniformStride;
@@ -1735,7 +1661,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     id<MTLBuffer> instRingBuf =
                         (__bridge id<MTLBuffer>)renderer->mtl_instance_uniform_ring;
                     id<MTLBuffer> idxRingBuf = (__bridge id<MTLBuffer>)renderer->mtl_index_ring;
-                    id<MTLBuffer> runRingBuf = (__bridge id<MTLBuffer>)renderer->mtl_run_uniform_ring;
+                    id<MTLBuffer> runRingBuf =
+                        (__bridge id<MTLBuffer>)renderer->mtl_run_uniform_ring;
 
                     auto eff_tex_for_face = [&](int f) -> int {
                         if( f < 0 || f >= gpu->face_count )
@@ -1756,8 +1683,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     int run_tex = eff_tex_for_face(face_order[0]);
                     for( int i = 1; i <= face_order_count; ++i )
                     {
-                        const int t = (i < face_order_count) ? eff_tex_for_face(face_order[i])
-                                                             : INT_MIN;
+                        const int t =
+                            (i < face_order_count) ? eff_tex_for_face(face_order[i]) : INT_MIN;
                         if( i < face_order_count && t == run_tex )
                             continue;
 
@@ -1801,7 +1728,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                                     &renderer->mtl_run_uniform_ring_size,
                                     renderer->mtl_run_uniform_ring_write_offset +
                                         kMetalRunUniformStride);
-                                const NSUInteger runOff = renderer->mtl_run_uniform_ring_write_offset;
+                                const NSUInteger runOff =
+                                    renderer->mtl_run_uniform_ring_write_offset;
                                 {
                                     char* rbase = (char*)runRingBuf.contents + runOff;
                                     memset(rbase, 0, kMetalRunUniformStride);
@@ -1812,7 +1740,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                                     ru.pad = 0.0f;
                                     if( run_tex >= 0 )
                                     {
-                                        auto as_it = renderer->texture_anim_speed_by_id.find(run_tex);
+                                        auto as_it =
+                                            renderer->texture_anim_speed_by_id.find(run_tex);
                                         if( as_it != renderer->texture_anim_speed_by_id.end() )
                                             ru.textureAnimSpeed = as_it->second;
                                         auto op_it = renderer->texture_opaque_by_id.find(run_tex);
@@ -1821,7 +1750,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                                     }
                                     memcpy(rbase, &ru, sizeof(ru));
                                 }
-                                renderer->mtl_run_uniform_ring_write_offset += kMetalRunUniformStride;
+                                renderer->mtl_run_uniform_ring_write_offset +=
+                                    kMetalRunUniformStride;
 
                                 id<MTLTexture> bindTex =
                                     (run_tex >= 0)
@@ -1899,6 +1829,15 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                                withBytes:rgba.data()
                              bytesPerRow:(NSUInteger)sw * 4u];
                     renderer->sprite_textures_by_slot[sk] = (__bridge_retained void*)spTex;
+                    fprintf(
+                        stderr,
+                        "[metal] TORIRS_GFX_SPRITE_LOAD applied: element_id=%d atlas_index=%d "
+                        "texture=%dx%d cache_key=0x%016llx\n",
+                        cmd._sprite_load.element_id,
+                        cmd._sprite_load.atlas_index,
+                        sw,
+                        sh,
+                        (unsigned long long)sk);
                     break;
                 }
 
@@ -1930,7 +1869,9 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                         cmd._sprite_draw.element_id, cmd._sprite_draw.atlas_index);
                     auto texIt = renderer->sprite_textures_by_slot.find(sk);
                     if( texIt == renderer->sprite_textures_by_slot.end() || !texIt->second )
+                    {
                         break;
+                    }
                     id<MTLTexture> spriteTex = (__bridge id<MTLTexture>)texIt->second;
 
                     const int iw =
@@ -1940,7 +1881,20 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     const int ix = cmd._sprite_draw.src_bb_x;
                     const int iy = cmd._sprite_draw.src_bb_y;
                     if( ix < 0 || iy < 0 || ix + iw > sp->width || iy + ih > sp->height )
+                    {
+                        fprintf(
+                            stderr,
+                            "[metal] SPRITE_DRAW skipped: src_bb out of bounds "
+                            "element_id=%d ix=%d iy=%d iw=%d ih=%d sprite=%dx%d\n",
+                            cmd._sprite_draw.element_id,
+                            ix,
+                            iy,
+                            iw,
+                            ih,
+                            sp->width,
+                            sp->height);
                         break;
+                    }
                     const float tw = (float)sp->width;
                     const float th = (float)sp->height;
 
@@ -1951,7 +1905,18 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                         const int dw = cmd._sprite_draw.dst_bb_w;
                         const int dh = cmd._sprite_draw.dst_bb_h;
                         if( dw <= 0 || dh <= 0 || iw <= 0 || ih <= 0 )
+                        {
+                            fprintf(
+                                stderr,
+                                "[metal] SPRITE_DRAW skipped: bad dst/src size "
+                                "element_id=%d dw=%d dh=%d iw=%d ih=%d\n",
+                                cmd._sprite_draw.element_id,
+                                dw,
+                                dh,
+                                iw,
+                                ih);
                             break;
+                        }
                         const int sax = cmd._sprite_draw.src_anchor_x;
                         const int say = cmd._sprite_draw.src_anchor_y;
                         const float pivot_x =
@@ -1968,10 +1933,10 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                         {
                             int lx, ly;
                         } corners[4] = {
-                            { 0, 0 },
-                            { iw, 0 },
+                            { 0,  0  },
+                            { iw, 0  },
                             { iw, ih },
-                            { 0, ih },
+                            { 0,  ih },
                         };
                         for( int k = 0; k < 4; ++k )
                         {
@@ -2018,9 +1983,9 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                         c0x, c0y, u0, v0, c2x, c2y, u1, v1, c3x, c3y, u0, v1,
                     };
 
-                    const bool rotated_clip =
-                        cmd._sprite_draw.rotated && cmd._sprite_draw.dst_bb_w > 0 &&
-                        cmd._sprite_draw.dst_bb_h > 0;
+                    const bool rotated_clip = cmd._sprite_draw.rotated &&
+                                              cmd._sprite_draw.dst_bb_w > 0 &&
+                                              cmd._sprite_draw.dst_bb_h > 0;
                     if( rotated_clip )
                     {
                         MTLScissorRect sc = metal_clamped_scissor_from_logical_dst_bb(
@@ -2041,12 +2006,12 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     [encoder setFragmentTexture:spriteTex atIndex:0];
                     [encoder setFragmentSamplerState:uiSamplerNearest atIndex:0];
                     [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+
                     if( rotated_clip )
                     {
-                        MTLScissorRect scMax = { 0,
-                                                 0,
-                                                 (NSUInteger)renderer->width,
-                                                 (NSUInteger)renderer->height };
+                        MTLScissorRect scMax = {
+                            0, 0, (NSUInteger)renderer->width, (NSUInteger)renderer->height
+                        };
                         [encoder setScissorRect:scMax];
                     }
                     ++sprite_slot;
@@ -2159,9 +2124,10 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                                 float cy1 = 1.0f - 2.0f * sy1 / fbh_font;
 
                                 float vq[6 * 8] = {
-                                    cx0, cy0, u0, v0, cr, cg, cb, ca, cx1, cy0, u1, v0, cr, cg, cb, ca,
-                                    cx1, cy1, u1, v1, cr, cg, cb, ca, cx0, cy0, u0, v0, cr, cg, cb, ca,
-                                    cx1, cy1, u1, v1, cr, cg, cb, ca, cx0, cy1, u0, v1, cr, cg, cb, ca,
+                                    cx0, cy0, u0, v0, cr,  cg,  cb, ca, cx1, cy0, u1, v0,
+                                    cr,  cg,  cb, ca, cx1, cy1, u1, v1, cr,  cg,  cb, ca,
+                                    cx0, cy0, u0, v0, cr,  cg,  cb, ca, cx1, cy1, u1, v1,
+                                    cr,  cg,  cb, ca, cx0, cy1, u0, v1, cr,  cg,  cb, ca,
                                 };
                                 font_verts.insert(font_verts.end(), vq, vq + 48);
                             }

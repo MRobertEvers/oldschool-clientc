@@ -377,16 +377,45 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_Render(
         {
             struct DashPixFont* f = command._font_draw.font;
             const uint8_t* text = command._font_draw.text;
-            if( f && text && renderer->pixel_buffer )
+            if( !f || !text || !renderer->pixel_buffer )
+                break;
+            const int ox = renderer->dash_offset_x;
+            const int oy = renderer->dash_offset_y;
+            const int fx = command._font_draw.x + ox;
+            const int fy = command._font_draw.y + oy;
+            int cl = 0;
+            int ct = 0;
+            int cr = renderer->width;
+            int cb = renderer->height;
+            if( game->view_port )
             {
-                dashfont_draw_text_ex(
+                cl = ox;
+                ct = oy;
+                cr = ox + game->view_port->width;
+                cb = oy + game->view_port->height;
+                if( cl < 0 )
+                    cl = 0;
+                if( ct < 0 )
+                    ct = 0;
+                if( cr > renderer->width )
+                    cr = renderer->width;
+                if( cb > renderer->height )
+                    cb = renderer->height;
+            }
+            if( cl < cr && ct < cb )
+            {
+                dashfont_draw_text_ex_clipped(
                     f,
                     (uint8_t*)text,
-                    command._font_draw.x,
-                    command._font_draw.y,
+                    fx,
+                    fy,
                     command._font_draw.color_rgb,
                     renderer->pixel_buffer,
-                    renderer->width);
+                    renderer->width,
+                    cl,
+                    ct,
+                    cr,
+                    cb);
             }
         }
         break;

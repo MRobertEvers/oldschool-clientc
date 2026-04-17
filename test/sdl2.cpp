@@ -35,8 +35,18 @@ extern "C" {
 #include <malloc/malloc.h>
 #endif
 
-#define SCREEN_WIDTH 800
-#define SCREEN_HEIGHT 520
+namespace
+{
+/** Inset from window edge to world view (matches `game->viewport_offset_*` below). */
+constexpr int kViewportInset = 4;
+/** Logical OSRS-style frame the sim locks to (iface / world projection). */
+constexpr int kGameViewportWidth = 765;
+constexpr int kGameViewportHeight = 503;
+/** SDL window + CPU buffer: must cover inset + game pixels + inset so vp_pixels never OOB. */
+constexpr int kScreenWidth = kViewportInset + kGameViewportWidth + kViewportInset;
+constexpr int kScreenHeight = kViewportInset + kGameViewportHeight + kViewportInset;
+} // namespace
+
 #define LOGIN_PORT 43594
 
 enum RendererKind
@@ -154,8 +164,8 @@ main(
     struct ToriRSNetSharedBuffer* net_shared = LibToriRS_NetNewBuffer();
     struct GGame* game = LibToriRS_GameNew(net_shared, 513, 335);
     struct GInput input = { 0 };
-    const int game_width = 765;
-    const int game_height = 503;
+    const int game_width = kGameViewportWidth;
+    const int game_height = kGameViewportHeight;
     const int render_max_width = game_width;
     const int render_max_height = game_height;
     struct ToriRSRenderCommandBuffer* render_command_buffer =
@@ -172,7 +182,7 @@ main(
 #if !defined(_WIN32)
     if( renderer_kind == RENDERER_OPENGL3 )
     {
-        if( !Platform2_SDL2_InitForOpenGL3(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
+        if( !Platform2_SDL2_InitForOpenGL3(platform, kScreenWidth, kScreenHeight) )
         {
             printf("Failed to initialize platform for OpenGL3\n");
             osx_abort_startup(game, platform, render_command_buffer, net_shared);
@@ -184,7 +194,7 @@ main(
 #if defined(__APPLE__)
         if( renderer_kind == RENDERER_METAL )
     {
-        if( !Platform2_SDL2_InitForMetal(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
+        if( !Platform2_SDL2_InitForMetal(platform, kScreenWidth, kScreenHeight) )
         {
             printf("Failed to initialize platform for Metal\n");
             osx_abort_startup(game, platform, render_command_buffer, net_shared);
@@ -196,7 +206,7 @@ main(
 #if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
         if( renderer_kind == RENDERER_D3D11 )
     {
-        if( !Platform2_SDL2_InitForD3D11(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
+        if( !Platform2_SDL2_InitForD3D11(platform, kScreenWidth, kScreenHeight) )
         {
             printf("Failed to initialize platform for D3D11\n");
             osx_abort_startup(game, platform, render_command_buffer, net_shared);
@@ -205,7 +215,7 @@ main(
     }
     else
 #endif
-        if( !Platform2_SDL2_InitForSoft3D(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
+        if( !Platform2_SDL2_InitForSoft3D(platform, kScreenWidth, kScreenHeight) )
     {
         printf("Failed to initialize platform\n");
         osx_abort_startup(game, platform, render_command_buffer, net_shared);
@@ -226,7 +236,7 @@ main(
 #if !defined(_WIN32)
     if( renderer_kind == RENDERER_OPENGL3 )
     {
-        renderer_opengl3 = PlatformImpl2_SDL2_Renderer_OpenGL3_New(SCREEN_WIDTH, SCREEN_HEIGHT);
+        renderer_opengl3 = PlatformImpl2_SDL2_Renderer_OpenGL3_New(kScreenWidth, kScreenHeight);
         if( !renderer_opengl3 )
         {
             printf("Failed to create OpenGL3 renderer\n");
@@ -246,7 +256,7 @@ main(
 #if defined(__APPLE__)
         if( renderer_kind == RENDERER_METAL )
     {
-        renderer_metal = PlatformImpl2_SDL2_Renderer_Metal_New(SCREEN_WIDTH, SCREEN_HEIGHT);
+        renderer_metal = PlatformImpl2_SDL2_Renderer_Metal_New(kScreenWidth, kScreenHeight);
         if( !renderer_metal )
         {
             printf("Failed to create Metal renderer\n");
@@ -266,7 +276,7 @@ main(
 #if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
         if( renderer_kind == RENDERER_D3D11 )
     {
-        renderer_d3d11 = PlatformImpl2_SDL2_Renderer_D3D11_New(SCREEN_WIDTH, SCREEN_HEIGHT);
+        renderer_d3d11 = PlatformImpl2_SDL2_Renderer_D3D11_New(kScreenWidth, kScreenHeight);
         if( !renderer_d3d11 )
         {
             printf("Failed to create D3D11 renderer\n");
@@ -285,7 +295,7 @@ main(
 #endif
     {
         renderer_soft3d = PlatformImpl2_SDL2_Renderer_Soft3D_New(
-            SCREEN_WIDTH, SCREEN_HEIGHT, render_max_width, render_max_height);
+            kScreenWidth, kScreenHeight, render_max_width, render_max_height);
         if( !renderer_soft3d )
         {
             printf("Failed to create Soft3D renderer\n");
@@ -315,10 +325,11 @@ main(
     game->iface_view_port->clip_bottom = game_height;
 
     /* Keep viewport config identical across renderer backends. */
-    game->viewport_offset_x = 4;
-    game->viewport_offset_y = 4;
+    game->viewport_offset_x = kViewportInset;
+    game->viewport_offset_y = kViewportInset;
     if( renderer_soft3d )
-        PlatformImpl2_SDL2_Renderer_Soft3D_SetDashOffset(renderer_soft3d, 4, 4);
+        PlatformImpl2_SDL2_Renderer_Soft3D_SetDashOffset(
+            renderer_soft3d, kViewportInset, kViewportInset);
 
     struct SockStream* login_stream = NULL;
     sockstream_init();

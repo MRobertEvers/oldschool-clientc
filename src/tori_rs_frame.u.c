@@ -328,12 +328,23 @@ queue_static_ui_minimap_draws(
     if( game->world && game->world->minimap )
         mm = game->world->minimap;
     if( !mm )
+    {
+        fprintf(stderr, "[minimap] draw skipped: no world minimap\n");
         return;
+    }
 
     struct UISceneElement* element =
         uiscene_element_at(game->ui_scene, component->u.minimap.scene_id);
     if( !element || !element->dash_sprites || !element->dash_sprites[0] )
+    {
+        fprintf(
+            stderr,
+            "[minimap] draw skipped: scene_id=%d element=%p dash_sprites[0]=%p\n",
+            component->u.minimap.scene_id,
+            (void*)element,
+            (void*)(element && element->dash_sprites ? element->dash_sprites[0] : NULL));
         return;
+    }
 
     struct DashSprite* static_sprite = element->dash_sprites[0];
 
@@ -358,7 +369,18 @@ queue_static_ui_minimap_draws(
     int src_w = (ne_x - sw_x) * 4;
     int src_h = (ne_z - sw_z) * 4;
     if( src_w <= 0 || src_h <= 0 )
+    {
+        fprintf(
+            stderr,
+            "[minimap] draw skipped: bad src rect src_w=%d src_h=%d (camera tiles sw=%d,%d ne=%d,%d)\n",
+            src_w,
+            src_h,
+            sw_x,
+            sw_z,
+            ne_x,
+            ne_z);
         return;
+    }
 
     int minimap_pass_2d = 0;
 
@@ -389,6 +411,24 @@ queue_static_ui_minimap_draws(
     }
 
     emit_begin_2d_marker(game, &minimap_pass_2d);
+    fprintf(
+        stderr,
+        "[minimap] TORIRS_GFX_SPRITE_DRAW queued: element_id=%d dst=(%d,%d) %dx%d anchor=(%d,%d) "
+        "sprite=%dx%d crop=%dx%d src_anchor=(%d,%d) yaw2048=%d\n",
+        component->u.minimap.scene_id,
+        component->position.x,
+        component->position.y,
+        component->position.width,
+        component->position.height,
+        component->position.anchor_x,
+        component->position.anchor_y,
+        static_sprite->width,
+        static_sprite->height,
+        static_sprite->crop_width,
+        static_sprite->crop_height,
+        anchor_x,
+        anchor_y,
+        (game->camera_yaw) & 0x7ff);
     LibToriRS_RenderCommandBufferAddCommand(
         game->uiscene_queued_commands,
             (struct ToriRSRenderCommand){
@@ -592,6 +632,18 @@ queue_static_load_commands(
                         continue;
                     queue_sprite_load_from_event(
                         render_command_buffer, ui_event.element_id, ai, sp);
+                    if( strcmp(element->name, "minimap_static") == 0 )
+                    {
+                        fprintf(
+                            stderr,
+                            "[minimap] TORIRS_GFX_SPRITE_LOAD emitted: element_id=%d atlas_index=%d "
+                            "sprite=%dx%d name=%s\n",
+                            ui_event.element_id,
+                            ai,
+                            sp->width,
+                            sp->height,
+                            element->name);
+                    }
                 }
             }
             else if( ui_event.type == UISCENE_EVENT_ELEMENT_RELEASED )

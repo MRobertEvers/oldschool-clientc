@@ -8,6 +8,7 @@
 #include "osrs/revconfig/uiscene.h"
 #include "tori_rs.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -18,6 +19,26 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
         return;
     if( !game->world || !game->world->minimap )
         return;
+    if( !game->ui_root_buffer )
+        return;
+
+    int minimap_cmd = -1;
+    for( int i = 0; i < game->ui_root_buffer->component_count; i++ )
+    {
+        if( game->ui_root_buffer->components[i].type == UIELEM_BUILTIN_MINIMAP )
+        {
+            minimap_cmd = i;
+            break;
+        }
+    }
+    if( minimap_cmd < 0 )
+    {
+        fprintf(
+            stderr,
+            "[minimap] LibToriRS_WorldMinimapStaticRebuild: skipped (no UIELEM_BUILTIN_MINIMAP in "
+            "ui_root_buffer)\n");
+        return;
+    }
 
     struct Minimap* mm = game->world->minimap;
     struct MinimapRenderCommandBuffer* tile_cmds =
@@ -66,19 +87,18 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
         return;
     }
 
-    int minimap_cmd = -1;
-    for( int i = 0; i < game->ui_root_buffer->component_count; i++ )
-    {
-        if( game->ui_root_buffer->components[i].type == UIELEM_BUILTIN_MINIMAP )
-        {
-            minimap_cmd = i;
-            break;
-        }
-    }
-    if( minimap_cmd >= 0 )
-    {
-        game->ui_root_buffer->components[minimap_cmd].u.minimap.scene_id = id;
-    }
+    game->ui_root_buffer->components[minimap_cmd].u.minimap.scene_id = id;
+
+    fprintf(
+        stderr,
+        "[minimap] created: uiscene_element_id=%d sprite=%dx%d pixels=%dx%d scene_id bound to "
+        "uitree[%d]\n",
+        id,
+        sp->width,
+        sp->height,
+        pw,
+        ph,
+        minimap_cmd);
 }
 
 #endif
