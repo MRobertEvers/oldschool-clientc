@@ -355,6 +355,17 @@ Win32_Platform_WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 platform->drawable_width = nw;
                 platform->drawable_height = nh;
             }
+            if( platform->gdi_renderer_for_paint )
+            {
+                PlatformImpl2_Win32_Renderer_GDISoft3D_MarkLetterboxDirty(
+                    (struct Platform2_Win32_Renderer_GDISoft3D*)
+                        platform->gdi_renderer_for_paint);
+            }
+            /* Force a full-client WM_PAINT: when the window grows, BeginPaint's HDC is clipped
+             * to the newly-exposed region. Without a full invalidation, FillRect would miss the
+             * parts of the old client that are now letterbox bars (e.g. aspect flip on resize).
+             * WM_ERASEBKGND still returns TRUE so there is no flicker from a default erase. */
+            InvalidateRect(hwnd, NULL, FALSE);
         }
         return DefWindowProc(hwnd, msg, wParam, lParam);
 

@@ -1158,6 +1158,7 @@ dash2d_blit_rotated_ex(
     int src_anchor_y,
     int* RESTRICT dst_buffer,
     int dst_stride,
+    int dst_buffer_height,
     int dst_x,
     int dst_y,
     int dst_width,
@@ -1179,6 +1180,12 @@ dash2d_blit_rotated_ex(
     if( max_x > dst_stride )
         max_x = dst_stride;
     if( min_x >= max_x )
+        return;
+    if( min_y < 0 )
+        min_y = 0;
+    if( max_y > dst_buffer_height )
+        max_y = dst_buffer_height;
+    if( min_y >= max_y )
         return;
 
     for( int dst_y_abs = min_y; dst_y_abs < max_y; dst_y_abs++ )

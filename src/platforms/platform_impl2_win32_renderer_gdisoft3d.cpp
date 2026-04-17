@@ -77,6 +77,9 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_New(
     renderer->dash_offset_x = 0;
     renderer->dash_offset_y = 0;
 
+    /* First present must clear the bars; nothing has painted them yet. */
+    renderer->letterbox_dirty = true;
+
     if( !QueryPerformanceFrequency(&renderer->nk_qpc_freq) )
         renderer->nk_qpc_freq.QuadPart = 0;
 
@@ -174,6 +177,14 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_SetDynamicPixelSize(
 }
 
 void
+PlatformImpl2_Win32_Renderer_GDISoft3D_MarkLetterboxDirty(
+    struct Platform2_Win32_Renderer_GDISoft3D* renderer)
+{
+    if( renderer )
+        renderer->letterbox_dirty = true;
+}
+
+void
 PlatformImpl2_Win32_Renderer_GDISoft3D_SetViewportChangedCallback(
     struct Platform2_Win32_Renderer_GDISoft3D* renderer,
     void (*callback)(
@@ -232,6 +243,50 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_PresentToHdc(
     renderer->present_dst_y = dst_rect.y;
     renderer->present_dst_w = dst_rect.w;
     renderer->present_dst_h = dst_rect.h;
+
+    /* Letterbox/pillarbox: client area outside dst_rect is not covered by StretchDIBits;
+     * WM_ERASEBKGND returns TRUE so the bars stay put across frames. Only re-clear when
+     * something (typically WM_SIZE) marked them dirty. */
+    if( renderer->letterbox_dirty )
+    {
+        HBRUSH black = (HBRUSH)GetStockObject(BLACK_BRUSH);
+        RECT rc;
+
+        if( dst_rect.x > 0 )
+        {
+            rc.left = 0;
+            rc.top = 0;
+            rc.right = dst_rect.x;
+            rc.bottom = client_h;
+            FillRect(hdc, &rc, black);
+        }
+        if( dst_rect.x + dst_rect.w < client_w )
+        {
+            rc.left = dst_rect.x + dst_rect.w;
+            rc.top = 0;
+            rc.right = client_w;
+            rc.bottom = client_h;
+            FillRect(hdc, &rc, black);
+        }
+        if( dst_rect.y > 0 )
+        {
+            rc.left = dst_rect.x;
+            rc.top = 0;
+            rc.right = dst_rect.x + dst_rect.w;
+            rc.bottom = dst_rect.y;
+            FillRect(hdc, &rc, black);
+        }
+        if( dst_rect.y + dst_rect.h < client_h )
+        {
+            rc.left = dst_rect.x;
+            rc.top = dst_rect.y + dst_rect.h;
+            rc.right = dst_rect.x + dst_rect.w;
+            rc.bottom = client_h;
+            FillRect(hdc, &rc, black);
+        }
+
+        renderer->letterbox_dirty = false;
+    }
 
     BITMAPINFO bi;
     memset(&bi, 0, sizeof(bi));
@@ -486,6 +541,7 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_Render(
                     command._sprite_draw.src_anchor_y,
                     renderer->pixel_buffer,
                     renderer->width,
+                    renderer->height,
                     command._sprite_draw.dst_bb_x,
                     command._sprite_draw.dst_bb_y,
                     command._sprite_draw.dst_bb_w,

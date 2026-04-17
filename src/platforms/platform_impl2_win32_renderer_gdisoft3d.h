@@ -56,6 +56,11 @@ struct Platform2_Win32_Renderer_GDISoft3D
     int present_dst_w;
     int present_dst_h;
 
+    /** Set when the letterbox bars need re-clearing (e.g. after WM_SIZE).
+     *  StretchDIBits only covers dst_rect and WM_ERASEBKGND is suppressed, so the bars
+     *  are otherwise preserved across frames and don't need per-frame clearing. */
+    bool letterbox_dirty;
+
     void* nk_rawfb; /* struct rawfb_context* */
     uint8_t* nk_font_tex_mem;
     LARGE_INTEGER nk_qpc_freq;
@@ -93,6 +98,12 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_PresentToHdc(
     HDC hdc,
     int client_w,
     int client_h);
+
+/** Signal that the letterbox/pillarbox bars need to be re-cleared on the next present.
+ *  Should be called from WM_SIZE and any other event that changes client size or dst_rect. */
+void
+PlatformImpl2_Win32_Renderer_GDISoft3D_MarkLetterboxDirty(
+    struct Platform2_Win32_Renderer_GDISoft3D* renderer);
 
 void
 PlatformImpl2_Win32_Renderer_GDISoft3D_SetDashOffset(

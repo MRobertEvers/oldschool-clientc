@@ -454,6 +454,7 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
                     command._sprite_draw.src_anchor_y,
                     renderer->pixel_buffer,
                     renderer->width,
+                    renderer->height,
                     command._sprite_draw.dst_bb_x,
                     command._sprite_draw.dst_bb_y,
                     command._sprite_draw.dst_bb_w,
