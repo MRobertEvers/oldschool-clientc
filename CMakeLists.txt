@@ -261,6 +261,40 @@ if(NOT EMSCRIPTEN)
         target_link_options(sdl2 PRIVATE -Wl,-subsystem,console)
     endif()
 
+    # SDL-free Win32 + GDI Soft3D (Windows hosts only; XP SP3–oriented code paths).
+    if(WIN32)
+        set(WIN32_PLATFORM_SOURCES ${COMMON_SOURCES})
+        list(REMOVE_ITEM WIN32_PLATFORM_SOURCES
+            src/platforms/common/tori_rs_sdl2_gameinput.c
+            src/platforms/common/tori_rs_sdl2_gameinput_nuklear.cpp
+            src/platforms/common/torirs_nk_sdl_input.cpp
+            src/platforms/common/torirs_nk_ui_bridge.cpp
+            src/platforms/common/torirs_nuklear_debug_panel.cpp
+        )
+        list(APPEND WIN32_PLATFORM_SOURCES
+            test/win32.cpp
+            src/platforms/platform_impl2_win32.cpp
+            src/platforms/platform_impl2_win32_renderer_gdisoft3d.cpp
+            src/osrs/lua_sidecar/luac_sidecar_config.c
+            src/osrs/lua_sidecar/luac_sidecar_command_dispatch.c
+        )
+        add_executable(win32 ${WIN32_PLATFORM_SOURCES})
+        target_link_libraries(win32 PRIVATE ws2_32 psapi winmm gdi32 user32 kernel32)
+        if(MSVC)
+            target_link_options(win32 PRIVATE /SUBSYSTEM:CONSOLE)
+        else()
+            target_link_options(win32 PRIVATE -Wl,-subsystem,console)
+        endif()
+        if(ENABLE_ASAN)
+            target_compile_options(win32 PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+            target_link_options(win32 PRIVATE -fsanitize=address)
+        endif()
+        if(ENABLE_UBSAN)
+            target_compile_options(win32 PRIVATE -fsanitize=undefined -fno-omit-frame-pointer)
+            target_link_options(win32 PRIVATE -fsanitize=undefined)
+        endif()
+    endif()
+
     if(APPLE)
         target_link_libraries(sdl2
             "-framework Metal"
@@ -539,7 +573,7 @@ if(EMSCRIPTEN)
 endif()
 
 # Always set ENABLE_HEAP_INFO to 0 or 1 so #if ENABLE_HEAP_INFO works (#ifdef is true even for =0).
-foreach(_t_nk_heap sdl2 web_client web_client_native)
+foreach(_t_nk_heap sdl2 web_client web_client_native win32)
     if(TARGET ${_t_nk_heap})
         if(ENABLE_HEAP_INFO)
             target_compile_definitions(${_t_nk_heap} PRIVATE ENABLE_HEAP_INFO=1)
@@ -549,7 +583,7 @@ foreach(_t_nk_heap sdl2 web_client web_client_native)
     endif()
 endforeach()
 
-foreach(_t_bucket_sort sdl2 web_client web_client_native)
+foreach(_t_bucket_sort sdl2 web_client web_client_native win32)
     if(TARGET ${_t_bucket_sort})
         if(DASH_BUCKET_SORT_USE_LINKED_LIST)
             target_compile_definitions(${_t_bucket_sort} PRIVATE DASH_BUCKET_SORT_USE_LINKED_LIST=1)
@@ -560,7 +594,7 @@ foreach(_t_bucket_sort sdl2 web_client web_client_native)
 endforeach()
 
 # --- Global Properties ---
-foreach(target sdl2 web_client web_client_native)
+foreach(target sdl2 web_client web_client_native win32)
     if(TARGET ${target})
         target_include_directories(${target} PRIVATE src src/nuklear)
         set_target_properties(${target} PROPERTIES
