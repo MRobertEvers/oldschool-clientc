@@ -14,7 +14,7 @@ extern int g_reciprocal16[4096];
 
 extern int g_hsl16_to_rgb_table[65536];
 
-#include "raster/gouraud/gouraud.screen.opaque.edge_s1.u.c"
-#include "raster/gouraud/gouraud.screen.alpha.edge_s1.u.c"
+#include "raster/gouraud/gouraud.screen.opaque.edge.sort.s1.u.c"
+#include "raster/gouraud/gouraud.screen.alpha.edge.sort.s1.u.c"
 
 #endif

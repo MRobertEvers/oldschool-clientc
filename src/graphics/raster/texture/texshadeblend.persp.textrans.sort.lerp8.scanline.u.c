@@ -1,5 +1,5 @@
-#ifndef TEXSHADEFLAT_PERSP_TEXOPAQUE_BLEND_LERP8_SCANLINE_U_C
-#define TEXSHADEFLAT_PERSP_TEXOPAQUE_BLEND_LERP8_SCANLINE_U_C
+#ifndef TEXSHADEBLEND_PERSP_TEXTRANS_SORT_LERP8_SCANLINE_U_C
+#define TEXSHADEBLEND_PERSP_TEXTRANS_SORT_LERP8_SCANLINE_U_C
 
 #include "graphics/clamp.h"
 #include "graphics/dash_restrict.h"
@@ -9,8 +9,8 @@
 #include <assert.h>
 #include <stdint.h>
 
-static void
-raster_texture_scanline_opaque_blend_lerp8(
+static inline void
+raster_texture_scanline_transparent_blend_sort_lerp8(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -93,11 +93,8 @@ raster_texture_scanline_opaque_blend_lerp8(
     int lerp8_last_steps = steps & 0x7;
     int lerp8_shade_step = step_shade8bit_dx_ish8 << 3;
     int shade;
-    do
+    while( lerp8_steps-- > 0 )
     {
-        if( lerp8_steps == 0 )
-            break;
-
         int w = (cw) >> texture_shift;
         if( w == 0 )
             continue;
@@ -127,7 +124,7 @@ raster_texture_scanline_opaque_blend_lerp8(
 
         shade = shade8bit_ish8 >> 8;
 
-        raster_linear_opaque_blend_lerp8(
+        raster_linear_transparent_blend_lerp8(
             (uint32_t*)pixel_buffer,
             offset,
             (uint32_t*)texels,
@@ -148,7 +145,8 @@ raster_texture_scanline_opaque_blend_lerp8(
         //     int u = u_scan >> texture_shift;
         //     int v = v_scan & 0x3f80;
         //     int texel = texels[u + (v)];
-        //     pixel_buffer[offset] = shade_blend(texel, shade);
+        //     if( texel != 0 )
+        //         pixel_buffer[offset] = shade_blend(texel, shade);
 
         //     u_scan += step_u;
         //     v_scan += step_v;
@@ -157,8 +155,7 @@ raster_texture_scanline_opaque_blend_lerp8(
         // }
 
         shade8bit_ish8 += lerp8_shade_step;
-
-    } while( lerp8_steps-- > 0 );
+    };
 
     if( lerp8_last_steps == 0 )
         return;
@@ -189,13 +186,15 @@ raster_texture_scanline_opaque_blend_lerp8(
     int u_scan = curr_u << texture_shift;
     int v_scan = curr_v << texture_shift;
 
+    // This does get vectorized.
     shade = shade8bit_ish8 >> 8;
     for( int i = 0; i < lerp8_last_steps; i++ )
     {
         int u = u_scan >> texture_shift;
         int v = v_scan & mask;
         int texel = texels[u + v];
-        pixel_buffer[offset] = shade_blend(texel, shade);
+        if( texel != 0 )
+            pixel_buffer[offset] = shade_blend(texel, shade);
 
         u_scan += step_u;
         v_scan += step_v;

@@ -1,5 +1,5 @@
-#ifndef GOURAUD_SCREEN_OPAQUE_EDGE_S4_U_C
-#define GOURAUD_SCREEN_OPAQUE_EDGE_S4_U_C
+#ifndef GOURAUD_SCREEN_OPAQUE_EDGE_SORT_S4_U_C
+#define GOURAUD_SCREEN_OPAQUE_EDGE_SORT_S4_U_C
 
 #include "graphics/dash_restrict.h"
 
@@ -8,7 +8,7 @@
 extern int g_hsl16_to_rgb_table[65536];
 
 static inline void
-draw_scanline_gouraud_edge_s4(
+draw_scanline_gouraud_edge_sort_s4(
     int* pixel_buffer,
     int stride,
     int screen_width,
@@ -94,7 +94,7 @@ draw_scanline_gouraud_edge_s4(
 }
 
 static inline void
-raster_gouraud_edge_s4(
+raster_gouraud_edge_sort_s4(
     int* pixel_buffer,
     int stride,
     int screen_width,
@@ -274,7 +274,7 @@ raster_gouraud_edge_s4(
         int color_start_current = edge_color_AC_ish15 >> 7;
         int color_end_current = edge_color_AB_ish15 >> 7;
 
-        draw_scanline_gouraud_edge_s4(
+        draw_scanline_gouraud_edge_sort_s4(
             pixel_buffer,
             stride,
             screen_width,
@@ -304,7 +304,7 @@ raster_gouraud_edge_s4(
         int color_start_current = edge_color_AC_ish15 >> 7;
         int color_end_current = edge_color_BC_ish15 >> 7;
 
-        draw_scanline_gouraud_edge_s4(
+        draw_scanline_gouraud_edge_sort_s4(
             pixel_buffer,
             stride,
             screen_width,

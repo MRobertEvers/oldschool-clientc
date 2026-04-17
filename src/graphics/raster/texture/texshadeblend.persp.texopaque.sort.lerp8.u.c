@@ -1,5 +1,5 @@
-#ifndef TEXSHADEFLAT_PERSP_TEXOPAQUE_LERP8_U_C
-#define TEXSHADEFLAT_PERSP_TEXOPAQUE_LERP8_U_C
+#ifndef TEXSHADEBLEND_PERSP_TEXOPAQUE_SORT_LERP8_U_C
+#define TEXSHADEBLEND_PERSP_TEXOPAQUE_SORT_LERP8_U_C
 
 #include "graphics/dash_restrict.h"
 #include "tex_shard_swap.h"
@@ -7,7 +7,7 @@
 #include <assert.h>
 
 static inline void
-raster_texture_opaque_lerp8(
+raster_texture_opaque_blend_sort_lerp8(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -28,7 +28,9 @@ raster_texture_opaque_lerp8(
     int orthographic_uvorigin_z0,
     int orthographic_uend_z1,
     int orthographic_vend_z2,
-    int shade7bit,
+    int shade7bit_a,
+    int shade7bit_b,
+    int shade7bit_c,
     int* RESTRICT texels,
     int texture_width)
 {
@@ -36,18 +38,21 @@ raster_texture_opaque_lerp8(
     {
         SWAP(screen_y0, screen_y2);
         SWAP(screen_x0, screen_x2);
+        SWAP(shade7bit_a, shade7bit_c);
     }
 
     if( screen_y1 < screen_y0 )
     {
         SWAP(screen_y0, screen_y1);
         SWAP(screen_x0, screen_x1);
+        SWAP(shade7bit_a, shade7bit_b);
     }
 
     if( screen_y2 < screen_y1 )
     {
         SWAP(screen_y1, screen_y2);
         SWAP(screen_x1, screen_x2);
+        SWAP(shade7bit_b, shade7bit_c);
     }
 
     if( screen_y0 >= screen_height )
@@ -89,6 +94,9 @@ raster_texture_opaque_lerp8(
     int dx_AB = screen_x1 - screen_x0;
     int dx_BC = screen_x2 - screen_x1;
 
+    int dblend7bit_ab = shade7bit_b - shade7bit_a;
+    int dblend7bit_ac = shade7bit_c - shade7bit_a;
+
     int step_edge_x_AC_ish16 = 0;
     int step_edge_x_AB_ish16 = 0;
     int step_edge_x_BC_ish16 = 0;
@@ -108,6 +116,14 @@ raster_texture_opaque_lerp8(
     // Same idea here for color. Solve the system of equations.
     // Barycentric coordinates.
 
+    // Shades are provided 0-127, shift up by 1, then up by 8 to get 0-255.
+    // Again, kramer's rule.
+    int shade8bit_yhat_ish8 = ((dx_AC * dblend7bit_ab - dx_AB * dblend7bit_ac) << 9) / sarea_abc;
+    int shade8bit_xhat_ish8 = ((dy_AB * dblend7bit_ac - dy_AC * dblend7bit_ab) << 9) / sarea_abc;
+
+    int shade8bit_edge_ish8 =
+        (shade7bit_a << 9) - shade8bit_xhat_ish8 * screen_x0 + shade8bit_xhat_ish8;
+
     int au = 0;
     int bv = 0;
     int cw = 0;
@@ -120,6 +136,7 @@ raster_texture_opaque_lerp8(
     {
         edge_x_AC_ish16 -= step_edge_x_AC_ish16 * screen_y0;
         edge_x_AB_ish16 -= step_edge_x_AB_ish16 * screen_y0;
+        shade8bit_edge_ish8 -= shade8bit_yhat_ish8 * screen_y0;
         screen_y0 = 0;
     }
 
@@ -148,13 +165,14 @@ raster_texture_opaque_lerp8(
     int steps = screen_y1 - screen_y0;
     int offset = screen_y0 * stride;
 
-    int shade8bit = shade7bit << 1;
-
     assert(screen_y0 < screen_height);
 
     while( steps-- > 0 )
     {
-        raster_texture_scanline_opaque_lerp8(
+        // int x_start = edge_x_AC_ish16 >> 16;
+        // int x_end = edge_x_AB_ish16 >> 16;
+
+        raster_texture_scanline_opaque_blend_sort_lerp8(
             pixel_buffer,
             stride,
             screen_width,
@@ -168,7 +186,8 @@ raster_texture_opaque_lerp8(
             vOVPlane_normal_xhat,
             vUOPlane_normal_xhat,
             vUVPlane_normal_xhat,
-            shade8bit,
+            shade8bit_edge_ish8,
+            shade8bit_xhat_ish8,
             texels,
             texture_width);
 
@@ -178,6 +197,8 @@ raster_texture_opaque_lerp8(
         au += vOVPlane_normal_yhat;
         bv += vUOPlane_normal_yhat;
         cw += vUVPlane_normal_yhat;
+
+        shade8bit_edge_ish8 += shade8bit_yhat_ish8;
 
         offset += stride;
     }
@@ -205,7 +226,7 @@ raster_texture_opaque_lerp8(
     steps = screen_y2 - screen_y1;
     while( steps-- > 0 )
     {
-        raster_texture_scanline_opaque_lerp8(
+        raster_texture_scanline_opaque_blend_sort_lerp8(
             pixel_buffer,
             stride,
             screen_width,
@@ -219,7 +240,8 @@ raster_texture_opaque_lerp8(
             vOVPlane_normal_xhat,
             vUOPlane_normal_xhat,
             vUVPlane_normal_xhat,
-            shade8bit,
+            shade8bit_edge_ish8,
+            shade8bit_xhat_ish8,
             texels,
             texture_width);
 
@@ -229,6 +251,8 @@ raster_texture_opaque_lerp8(
         au += vOVPlane_normal_yhat;
         bv += vUOPlane_normal_yhat;
         cw += vUVPlane_normal_yhat;
+
+        shade8bit_edge_ish8 += shade8bit_yhat_ish8;
 
         offset += stride;
     }

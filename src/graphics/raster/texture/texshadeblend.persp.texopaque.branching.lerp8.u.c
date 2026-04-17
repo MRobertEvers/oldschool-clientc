@@ -9,7 +9,7 @@
 #include <stdint.h>
 
 void
-raster_texture_opaque_blend_ordered_branching_lerp8(
+raster_texture_opaque_blend_branching_lerp8_ordered(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -158,8 +158,8 @@ raster_texture_opaque_blend_ordered_branching_lerp8(
 
         while( y1-- > 0 )
         {
-            draw_texture_scanline_opaque_blend_ordered_branching_lerp8(
-                // draw_texture_scanline_opaque_blend_ordered_branching_lerp8(
+            draw_texture_scanline_opaque_blend_branching_lerp8_ordered(
+                // draw_texture_scanline_opaque_blend_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -192,8 +192,8 @@ raster_texture_opaque_blend_ordered_branching_lerp8(
 
         while( y2-- > 0 )
         {
-            // draw_texture_scanline_opaque_blend_ordered_branching_lerp8(
-            draw_texture_scanline_opaque_blend_ordered_branching_lerp8(
+            // draw_texture_scanline_opaque_blend_branching_lerp8_ordered(
+            draw_texture_scanline_opaque_blend_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -231,7 +231,7 @@ raster_texture_opaque_blend_ordered_branching_lerp8(
 
         while( y1-- > 0 )
         {
-            draw_texture_scanline_opaque_blend_ordered_branching_lerp8(
+            draw_texture_scanline_opaque_blend_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -264,7 +264,7 @@ raster_texture_opaque_blend_ordered_branching_lerp8(
 
         while( y2-- > 0 )
         {
-            draw_texture_scanline_opaque_blend_ordered_branching_lerp8(
+            draw_texture_scanline_opaque_blend_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -339,7 +339,7 @@ raster_texture_opaque_blend_branching_lerp8(
             if( y2 < 0 || y0 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_ordered_branching_lerp8(
+            raster_texture_opaque_blend_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -372,7 +372,7 @@ raster_texture_opaque_blend_branching_lerp8(
             if( y1 < 0 || y0 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_ordered_branching_lerp8(
+            raster_texture_opaque_blend_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -408,7 +408,7 @@ raster_texture_opaque_blend_branching_lerp8(
             if( y0 < 0 || y1 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_ordered_branching_lerp8(
+            raster_texture_opaque_blend_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -441,7 +441,7 @@ raster_texture_opaque_blend_branching_lerp8(
             if( y2 < 0 || y1 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_ordered_branching_lerp8(
+            raster_texture_opaque_blend_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -477,7 +477,7 @@ raster_texture_opaque_blend_branching_lerp8(
             if( y1 < 0 || y2 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_ordered_branching_lerp8(
+            raster_texture_opaque_blend_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -510,7 +510,7 @@ raster_texture_opaque_blend_branching_lerp8(
             if( y0 < 0 || y2 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_ordered_branching_lerp8(
+            raster_texture_opaque_blend_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,

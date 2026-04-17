@@ -117,7 +117,7 @@ raster_linear_opaque_blend_lerp8(
 }
 
 static inline void
-draw_texture_scanline_opaque_blend_ordered_branching_lerp8(
+draw_texture_scanline_opaque_blend_branching_lerp8_ordered(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -278,7 +278,7 @@ draw_texture_scanline_opaque_blend_ordered_branching_lerp8(
 }
 
 static inline void
-draw_texture_scanline_transparent_blend_ordered_branching_lerp8(
+draw_texture_scanline_transparent_blend_branching_lerp8_ordered(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -547,7 +547,7 @@ raster_linear_transparent_blend_lerp8_v3(
 }
 
 static inline void
-draw_texture_scanline_opaque_blend_ordered_branching_lerp8_v3(
+draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
     int* RESTRICT pixel_buffer,
     int screen_width,
     int screen_x0_ish16,
@@ -645,7 +645,7 @@ draw_texture_scanline_opaque_blend_ordered_branching_lerp8_v3(
 }
 
 static inline void
-draw_texture_scanline_transparent_blend_ordered_branching_lerp8_v3(
+draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
     int* RESTRICT pixel_buffer,
     int screen_width,
     int screen_x0_ish16,
@@ -1033,7 +1033,7 @@ draw_texture_scanline_transparent_blend_affine_branching_lerp8_ordered(
 
 
 static inline void
-draw_texture_scanline_opaque_blend_affine_branching_lerp8_ordered_ish16(
+draw_texture_scanline_opaque_blend_affine_branching_lerp8_ish16_ordered(
     int* RESTRICT pixel_buffer,
     int screen_width,
     int screen_x0_ish16,
@@ -1144,7 +1144,7 @@ draw_texture_scanline_opaque_blend_affine_branching_lerp8_ordered_ish16(
 }
 
 static inline void
-draw_texture_scanline_transparent_blend_affine_branching_lerp8_ordered_ish16(
+draw_texture_scanline_transparent_blend_affine_branching_lerp8_ish16_ordered(
     int* RESTRICT pixel_buffer,
     int screen_width,
     int screen_x0_ish16,

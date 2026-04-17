@@ -6,7 +6,7 @@
 
 #include <stdint.h>
 
-/* draw_texture_scanline_*_blend_affine_branching_lerp8_ordered_ish16 are provided by tex.span.* (included above). */
+/* draw_texture_scanline_*_blend_affine_branching_lerp8_ish16_ordered are provided by tex.span.* (included above). */
 
 #include "raster/texture/texshadeblend.affine.texopaque.branching.lerp8_v3.u.c"
 #include "raster/texture/texshadeblend.affine.textrans.branching.lerp8_v3.u.c"

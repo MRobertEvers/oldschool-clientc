@@ -1,5 +1,5 @@
-#ifndef TEXSHADEFLAT_PERSP_TEXTRANS_LERP8_U_C
-#define TEXSHADEFLAT_PERSP_TEXTRANS_LERP8_U_C
+#ifndef TEXSHADEFLAT_PERSP_TEXTRANS_SORT_LERP8_U_C
+#define TEXSHADEFLAT_PERSP_TEXTRANS_SORT_LERP8_U_C
 
 #include "graphics/dash_restrict.h"
 #include "tex_shard_swap.h"
@@ -7,7 +7,7 @@
 #include <assert.h>
 
 static inline void
-raster_texture_transparent_lerp8(
+raster_texture_transparent_sort_lerp8(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -156,7 +156,7 @@ raster_texture_transparent_lerp8(
         int x_start = edge_x_AC_ish16 >> 16;
         int x_end = edge_x_AB_ish16 >> 16;
 
-        raster_texture_scanline_transparent_lerp8(
+        raster_texture_scanline_transparent_sort_lerp8(
             pixel_buffer,
             stride,
             screen_width,
@@ -207,7 +207,7 @@ raster_texture_transparent_lerp8(
     steps = screen_y2 - screen_y1;
     while( steps-- > 0 )
     {
-        raster_texture_scanline_transparent_lerp8(
+        raster_texture_scanline_transparent_sort_lerp8(
             pixel_buffer,
             stride,
             screen_width,

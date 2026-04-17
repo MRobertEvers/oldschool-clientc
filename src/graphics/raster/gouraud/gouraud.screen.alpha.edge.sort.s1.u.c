@@ -1,5 +1,5 @@
-#ifndef GOURAUD_SCREEN_ALPHA_EDGE_S1_U_C
-#define GOURAUD_SCREEN_ALPHA_EDGE_S1_U_C
+#ifndef GOURAUD_SCREEN_ALPHA_EDGE_SORT_S1_U_C
+#define GOURAUD_SCREEN_ALPHA_EDGE_SORT_S1_U_C
 
 #include "graphics/dash_restrict.h"
 #include "graphics/alpha.h"
@@ -9,7 +9,7 @@
 extern int g_hsl16_to_rgb_table[65536];
 
 static inline void
-draw_scanline_gouraud_alpha_edge_s1(
+draw_scanline_gouraud_alpha_edge_sort_s1(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -77,7 +77,7 @@ draw_scanline_gouraud_alpha_edge_s1(
 // #include "reference/gouraud_deob.h"
 
 static inline void
-raster_gouraud_alpha_edge_s1(
+raster_gouraud_alpha_edge_sort_s1(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -259,7 +259,7 @@ raster_gouraud_alpha_edge_s1(
         int color_start_current = edge_color_AC_ish15 >> 7;
         int color_end_current = edge_color_AB_ish15 >> 7;
 
-        draw_scanline_gouraud_alpha_edge_s1(
+        draw_scanline_gouraud_alpha_edge_sort_s1(
             pixel_buffer,
             stride,
             screen_width,
@@ -289,7 +289,7 @@ raster_gouraud_alpha_edge_s1(
         int color_start_current = edge_color_AC_ish15 >> 7;
         int color_end_current = edge_color_BC_ish15 >> 7;
 
-        draw_scanline_gouraud_alpha_edge_s1(
+        draw_scanline_gouraud_alpha_edge_sort_s1(
             pixel_buffer,
             stride,
             screen_width,

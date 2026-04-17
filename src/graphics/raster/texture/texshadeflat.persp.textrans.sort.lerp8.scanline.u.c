@@ -1,5 +1,5 @@
-#ifndef TEXSHADEFLAT_PERSP_TEXTRANS_LERP8_SCANLINE_U_C
-#define TEXSHADEFLAT_PERSP_TEXTRANS_LERP8_SCANLINE_U_C
+#ifndef TEXSHADEFLAT_PERSP_TEXTRANS_SORT_LERP8_SCANLINE_U_C
+#define TEXSHADEFLAT_PERSP_TEXTRANS_SORT_LERP8_SCANLINE_U_C
 
 #include "graphics/clamp.h"
 #include "graphics/dash_restrict.h"
@@ -9,7 +9,7 @@
 #include <assert.h>
 
 static void
-raster_texture_scanline_transparent_lerp8(
+raster_texture_scanline_transparent_sort_lerp8(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,

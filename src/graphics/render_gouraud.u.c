@@ -35,8 +35,8 @@ raster_gouraud(
 {
     if( alpha == 0xFF )
     {
-        // raster_gouraud_edge_s4(
-        raster_gouraud_bary_bs4(
+        // raster_gouraud_edge_sort_s4(
+        raster_gouraud_bary_branching_bs4(
             pixel_buffer,
             stride,
             screen_width,
@@ -53,7 +53,7 @@ raster_gouraud(
     }
     else
     {
-        raster_gouraud_alpha_bary_bs4(
+        raster_gouraud_alpha_bary_branching_bs4(
             pixel_buffer,
             stride,
             screen_width,
@@ -72,7 +72,7 @@ raster_gouraud(
 }
 
 static inline void
-raster_gouraud_edge_s1(
+raster_gouraud_edge_sort_s1(
     int* pixel_buffer,
     int stride,
     int screen_width,
@@ -90,7 +90,7 @@ raster_gouraud_edge_s1(
 {
     if( alpha == 0xFF )
     {
-        raster_gouraud_bary_bs1(
+        raster_gouraud_bary_branching_bs1(
             pixel_buffer,
             stride,
             screen_width,
@@ -107,7 +107,7 @@ raster_gouraud_edge_s1(
     }
     else
     {
-        raster_gouraud_alpha_bary_bs4(
+        raster_gouraud_alpha_bary_branching_bs4(
             pixel_buffer,
             stride,
             screen_width,
@@ -982,7 +982,7 @@ raster_face_gouraud_near_clip_s1(
     xc += offset_x;
     yc += offset_y;
 
-    raster_gouraud_edge_s1(
+    raster_gouraud_edge_sort_s1(
         pixel_buffer,
         stride,
         screen_width,
@@ -1008,7 +1008,7 @@ raster_face_gouraud_near_clip_s1(
     xb += offset_x;
     yb += offset_y;
 
-    raster_gouraud_edge_s1(
+    raster_gouraud_edge_sort_s1(
         pixel_buffer,
         stride,
         screen_width,
@@ -1107,7 +1107,7 @@ raster_face_gouraud_s1(
     assert(color_b >= 0 && color_b < 65536);
     assert(color_c >= 0 && color_c < 65536);
 
-    raster_gouraud_edge_s1(
+    raster_gouraud_edge_sort_s1(
         pixel_buffer,
         stride,
         screen_width,

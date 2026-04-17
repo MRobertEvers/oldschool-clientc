@@ -29,13 +29,13 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-#include "raster/texture/texshadeflat.persp.textrans.blend_lerp8.scanline.u.c"
-#include "raster/texture/texshadeflat.persp.texopaque.blend_lerp8.scanline.u.c"
-#include "raster/texture/texshadeflat.persp.textrans.lerp8.scanline.u.c"
-#include "raster/texture/texshadeflat.persp.texopaque.lerp8.scanline.u.c"
-#include "raster/texture/texshadeblend.persp.textrans.lerp8.u.c"
-#include "raster/texture/texshadeblend.persp.texopaque.lerp8.u.c"
-#include "raster/texture/texshadeflat.persp.textrans.lerp8.u.c"
-#include "raster/texture/texshadeflat.persp.texopaque.lerp8.u.c"
+#include "raster/texture/texshadeblend.persp.textrans.sort.lerp8.scanline.u.c"
+#include "raster/texture/texshadeblend.persp.texopaque.sort.lerp8.scanline.u.c"
+#include "raster/texture/texshadeflat.persp.textrans.sort.lerp8.scanline.u.c"
+#include "raster/texture/texshadeflat.persp.texopaque.sort.lerp8.scanline.u.c"
+#include "raster/texture/texshadeblend.persp.textrans.sort.lerp8.u.c"
+#include "raster/texture/texshadeblend.persp.texopaque.sort.lerp8.u.c"
+#include "raster/texture/texshadeflat.persp.textrans.sort.lerp8.u.c"
+#include "raster/texture/texshadeflat.persp.texopaque.sort.lerp8.u.c"
 
 #endif

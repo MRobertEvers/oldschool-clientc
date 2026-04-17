@@ -1,24 +1,27 @@
-#ifndef FLAT_SCREEN_ALPHA_BRANCH_S4_C
-#define FLAT_SCREEN_ALPHA_BRANCH_S4_C
+#ifndef GOURAUD_SCREEN_ALPHA_BARY_BRANCHING_S4_C
+#define GOURAUD_SCREEN_ALPHA_BARY_BRANCHING_S4_C
 
 #include "graphics/dash_restrict.h"
 #include "graphics/alpha.h"
 
-#include <assert.h>
 #include <stdint.h>
 
 extern int g_hsl16_to_rgb_table[65536];
 
 static inline void
-draw_scanline_flat_alpha_ordered_bs4(
+draw_scanline_gouraud_alpha_bary_branching_bs4_ordered(
     int* RESTRICT pixel_buffer,
     int offset,
     int screen_width,
+    int y,
     int x_start_ish16,
     int x_end_ish16,
-    int color_hsl16,
+    int color_hsl16_ish8,
+    int color_step_hsl16_ish8,
     int alpha)
 {
+    (void)y;
+
     if( x_start_ish16 == x_end_ish16 )
         return;
 
@@ -35,15 +38,18 @@ draw_scanline_flat_alpha_ordered_bs4(
         return;
 
     offset += x_start;
+    color_hsl16_ish8 += x_start * color_step_hsl16_ish8;
 
-    int span = (x_end - x_start);
-    assert(span > 0);
+    int stride = (x_end - x_start);
 
-    int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
+    int steps = (stride) >> 2;
+    color_step_hsl16_ish8 <<= 2;
 
-    int steps = (span) >> 2;
     while( steps-- > 0 )
     {
+        int color_hsl16 = color_hsl16_ish8 >> 8;
+        int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
+
         for( int i = 0; i < 4; i++ )
         {
             int rgb_blend = pixel_buffer[offset];
@@ -51,9 +57,12 @@ draw_scanline_flat_alpha_ordered_bs4(
             pixel_buffer[offset] = rgb_blend;
             offset += 1;
         }
+
+        color_hsl16_ish8 += color_step_hsl16_ish8;
     }
 
-    switch( (span) & 0x3 )
+    int rgb_color = g_hsl16_to_rgb_table[color_hsl16_ish8 >> 8];
+    switch( (stride) & 0x3 )
     {
     case 3:
     {
@@ -77,9 +86,8 @@ draw_scanline_flat_alpha_ordered_bs4(
     }
     }
 }
-
 static inline void
-raster_flat_alpha_ordered_bs4(
+raster_gouraud_alpha_bary_branching_bs4_ordered(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -90,7 +98,9 @@ raster_flat_alpha_ordered_bs4(
     int y0,
     int y1,
     int y2,
-    int color_hsl16,
+    int color0_hsl16,
+    int color1_hsl16,
+    int color2_hsl16,
     int alpha)
 {
     if( y2 - y0 == 0 )
@@ -104,6 +114,12 @@ raster_flat_alpha_ordered_bs4(
     int sarea = dx_AB * dy_AC - dx_AC * dy_AB;
     if( sarea == 0 )
         return;
+
+    int d_hsl_AB = color1_hsl16 - color0_hsl16;
+    int d_hsl_AC = color2_hsl16 - color0_hsl16;
+
+    int step_x_hsl_ish8 = ((d_hsl_AB * dy_AC - d_hsl_AC * dy_AB) << 8) / sarea;
+    int step_y_hsl_ish8 = ((d_hsl_AC * dx_AB - d_hsl_AB * dx_AC) << 8) / sarea;
 
     int step_edge_x_AC_ish16;
     int step_edge_x_AB_ish16;
@@ -128,10 +144,14 @@ raster_flat_alpha_ordered_bs4(
     int edge_x_AB_ish16 = x0 << 16;
     int edge_x_BC_ish16 = x1 << 16;
 
+    int hsl_ish8 = step_x_hsl_ish8 + (color0_hsl16 << 8) - (x0 * step_x_hsl_ish8);
+
     if( y0 < 0 )
     {
         edge_x_AC_ish16 -= step_edge_x_AC_ish16 * y0;
         edge_x_AB_ish16 -= step_edge_x_AB_ish16 * y0;
+
+        hsl_ish8 -= step_y_hsl_ish8 * y0;
 
         y0 = 0;
     }
@@ -163,35 +183,42 @@ raster_flat_alpha_ordered_bs4(
 
         while( y1-- > 0 )
         {
-            draw_scanline_flat_alpha_ordered_bs4(
+            draw_scanline_gouraud_alpha_bary_branching_bs4_ordered(
                 pixel_buffer,
                 offset,
                 screen_width,
+                0,
                 edge_x_AB_ish16,
                 edge_x_AC_ish16,
-                color_hsl16,
+                hsl_ish8,
+                step_x_hsl_ish8,
                 alpha);
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_AB_ish16 += step_edge_x_AB_ish16;
+
+            hsl_ish8 += step_y_hsl_ish8;
 
             offset += stride;
         }
 
         while( y2-- > 0 )
         {
-            draw_scanline_flat_alpha_ordered_bs4(
+            draw_scanline_gouraud_alpha_bary_branching_bs4_ordered(
                 pixel_buffer,
                 offset,
                 screen_width,
+                0,
                 edge_x_BC_ish16,
                 edge_x_AC_ish16,
-                color_hsl16,
+                hsl_ish8,
+                step_x_hsl_ish8,
                 alpha);
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_BC_ish16 += step_edge_x_BC_ish16;
 
+            hsl_ish8 += step_y_hsl_ish8;
             offset += stride;
         }
     }
@@ -202,42 +229,47 @@ raster_flat_alpha_ordered_bs4(
 
         while( y1-- > 0 )
         {
-            draw_scanline_flat_alpha_ordered_bs4(
+            draw_scanline_gouraud_alpha_bary_branching_bs4_ordered(
                 pixel_buffer,
                 offset,
                 screen_width,
+                0,
                 edge_x_AC_ish16,
                 edge_x_AB_ish16,
-                color_hsl16,
+                hsl_ish8,
+                step_x_hsl_ish8,
                 alpha);
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_AB_ish16 += step_edge_x_AB_ish16;
 
+            hsl_ish8 += step_y_hsl_ish8;
             offset += stride;
         }
 
         while( y2-- > 0 )
         {
-            draw_scanline_flat_alpha_ordered_bs4(
+            draw_scanline_gouraud_alpha_bary_branching_bs4_ordered(
                 pixel_buffer,
                 offset,
                 screen_width,
+                0,
                 edge_x_AC_ish16,
                 edge_x_BC_ish16,
-                color_hsl16,
+                hsl_ish8,
+                step_x_hsl_ish8,
                 alpha);
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_BC_ish16 += step_edge_x_BC_ish16;
 
+            hsl_ish8 += step_y_hsl_ish8;
             offset += stride;
         }
     }
 }
-
 static inline void
-raster_flat_alpha_bs4(
+raster_gouraud_alpha_bary_branching_bs4(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -248,7 +280,9 @@ raster_flat_alpha_bs4(
     int y0,
     int y1,
     int y2,
-    int color_hsl16,
+    int color0_hsl16,
+    int color1_hsl16,
+    int color2_hsl16,
     int alpha)
 {
     if( y0 <= y1 && y0 <= y2 )
@@ -261,7 +295,7 @@ raster_flat_alpha_bs4(
             if( y2 < 0 || y0 >= screen_height )
                 return;
 
-            raster_flat_alpha_ordered_bs4(
+            raster_gouraud_alpha_bary_branching_bs4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -272,7 +306,9 @@ raster_flat_alpha_bs4(
                 y0,
                 y1,
                 y2,
-                color_hsl16,
+                color0_hsl16,
+                color1_hsl16,
+                color2_hsl16,
                 alpha);
         }
         else
@@ -280,7 +316,7 @@ raster_flat_alpha_bs4(
             if( y1 < 0 || y0 >= screen_height )
                 return;
 
-            raster_flat_alpha_ordered_bs4(
+            raster_gouraud_alpha_bary_branching_bs4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -291,7 +327,9 @@ raster_flat_alpha_bs4(
                 y0,
                 y2,
                 y1,
-                color_hsl16,
+                color0_hsl16,
+                color2_hsl16,
+                color1_hsl16,
                 alpha);
         }
     }
@@ -305,7 +343,7 @@ raster_flat_alpha_bs4(
             if( y0 < 0 || y1 >= screen_height )
                 return;
 
-            raster_flat_alpha_ordered_bs4(
+            raster_gouraud_alpha_bary_branching_bs4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -316,7 +354,9 @@ raster_flat_alpha_bs4(
                 y1,
                 y2,
                 y0,
-                color_hsl16,
+                color1_hsl16,
+                color2_hsl16,
+                color0_hsl16,
                 alpha);
         }
         else
@@ -324,7 +364,7 @@ raster_flat_alpha_bs4(
             if( y2 < 0 || y1 >= screen_height )
                 return;
 
-            raster_flat_alpha_ordered_bs4(
+            raster_gouraud_alpha_bary_branching_bs4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -335,7 +375,9 @@ raster_flat_alpha_bs4(
                 y1,
                 y0,
                 y2,
-                color_hsl16,
+                color1_hsl16,
+                color0_hsl16,
+                color2_hsl16,
                 alpha);
         }
     }
@@ -349,7 +391,7 @@ raster_flat_alpha_bs4(
             if( y1 < 0 || y2 >= screen_height )
                 return;
 
-            raster_flat_alpha_ordered_bs4(
+            raster_gouraud_alpha_bary_branching_bs4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -360,7 +402,9 @@ raster_flat_alpha_bs4(
                 y2,
                 y0,
                 y1,
-                color_hsl16,
+                color2_hsl16,
+                color0_hsl16,
+                color1_hsl16,
                 alpha);
         }
         else
@@ -368,7 +412,7 @@ raster_flat_alpha_bs4(
             if( y0 < 0 || y2 >= screen_height )
                 return;
 
-            raster_flat_alpha_ordered_bs4(
+            raster_gouraud_alpha_bary_branching_bs4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -379,7 +423,9 @@ raster_flat_alpha_bs4(
                 y2,
                 y1,
                 y0,
-                color_hsl16,
+                color2_hsl16,
+                color1_hsl16,
+                color0_hsl16,
                 alpha);
         }
     }

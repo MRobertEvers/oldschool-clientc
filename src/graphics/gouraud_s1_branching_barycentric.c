@@ -13,7 +13,7 @@ extern int g_reciprocal16[4096];
  * For E-Cores, this is faster. E.g. Running in lower power mode.
  */
 static inline void
-draw_scanline_gouraud_ordered_bary_bs1(
+draw_scanline_gouraud_bary_branching_bs1_ordered(
     int* pixel_buffer,
     int offset,
     int screen_width,
@@ -55,7 +55,7 @@ draw_scanline_gouraud_ordered_bary_bs1(
 }
 
 static inline void
-raster_gouraud_ordered_bary_bs1(
+raster_gouraud_bary_branching_bs1_ordered(
     int* pixel_buffer,
     int stride,
     int screen_width,
@@ -206,7 +206,7 @@ raster_gouraud_ordered_bary_bs1(
 
         while( y1-- > 0 )
         {
-            draw_scanline_gouraud_ordered_bary_bs1(
+            draw_scanline_gouraud_bary_branching_bs1_ordered(
                 pixel_buffer,
                 offset,
                 screen_width,
@@ -226,7 +226,7 @@ raster_gouraud_ordered_bary_bs1(
 
         while( y2-- > 0 )
         {
-            draw_scanline_gouraud_ordered_bary_bs1(
+            draw_scanline_gouraud_bary_branching_bs1_ordered(
                 pixel_buffer,
                 offset,
                 screen_width,
@@ -253,7 +253,7 @@ raster_gouraud_ordered_bary_bs1(
             // if( i >= screen_height )
             //     break;
 
-            draw_scanline_gouraud_ordered_bary_bs1(
+            draw_scanline_gouraud_bary_branching_bs1_ordered(
                 pixel_buffer,
                 offset,
                 screen_width,
@@ -272,7 +272,7 @@ raster_gouraud_ordered_bary_bs1(
 
         while( y2-- > 0 )
         {
-            draw_scanline_gouraud_ordered_bary_bs1(
+            draw_scanline_gouraud_bary_branching_bs1_ordered(
                 pixel_buffer,
                 offset,
                 screen_width,
@@ -292,7 +292,7 @@ raster_gouraud_ordered_bary_bs1(
 }
 
 static inline void
-raster_gouraud_bary_bs1(
+raster_gouraud_bary_branching_bs1(
     int* pixel_buffer,
     int stride,
     int screen_width,
@@ -325,7 +325,7 @@ raster_gouraud_bary_bs1(
             if( y2 < 0 || y0 >= screen_height )
                 return;
 
-            raster_gouraud_ordered_bary_bs1(
+            raster_gouraud_bary_branching_bs1_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -346,7 +346,7 @@ raster_gouraud_bary_bs1(
             if( y1 < 0 || y0 >= screen_height )
                 return;
 
-            raster_gouraud_ordered_bary_bs1(
+            raster_gouraud_bary_branching_bs1_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -373,7 +373,7 @@ raster_gouraud_bary_bs1(
             if( y0 < 0 || y1 >= screen_height )
                 return;
 
-            raster_gouraud_ordered_bary_bs1(
+            raster_gouraud_bary_branching_bs1_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -394,7 +394,7 @@ raster_gouraud_bary_bs1(
             if( y2 < 0 || y1 >= screen_height )
                 return;
 
-            raster_gouraud_ordered_bary_bs1(
+            raster_gouraud_bary_branching_bs1_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -421,7 +421,7 @@ raster_gouraud_bary_bs1(
             if( y1 < 0 || y2 >= screen_height )
                 return;
 
-            raster_gouraud_ordered_bary_bs1(
+            raster_gouraud_bary_branching_bs1_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -442,7 +442,7 @@ raster_gouraud_bary_bs1(
             if( y0 < 0 || y2 >= screen_height )
                 return;
 
-            raster_gouraud_ordered_bary_bs1(
+            raster_gouraud_bary_branching_bs1_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,

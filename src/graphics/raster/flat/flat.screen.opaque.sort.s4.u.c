@@ -67,7 +67,7 @@ draw_scanline_flat_sort_s4(
 }
 
 void
-raster_flat_s4(
+raster_flat_sort_s4(
     int* pixel_buffer,
     int stride,
     int screen_width,

@@ -1,5 +1,5 @@
-#ifndef GOURAUD_SCREEN_ALPHA_EDGE_S4_U_C
-#define GOURAUD_SCREEN_ALPHA_EDGE_S4_U_C
+#ifndef GOURAUD_SCREEN_ALPHA_EDGE_SORT_S4_U_C
+#define GOURAUD_SCREEN_ALPHA_EDGE_SORT_S4_U_C
 
 #include "graphics/dash_restrict.h"
 #include "graphics/alpha.h"
@@ -15,7 +15,7 @@ void raster_linear_alpha_s4(
     int alpha);
 
 static inline void
-draw_scanline_gouraud_alpha_edge_s4(
+draw_scanline_gouraud_alpha_edge_sort_s4(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -125,7 +125,7 @@ draw_scanline_gouraud_alpha_edge_s4(
 }
 
 static inline void
-raster_gouraud_alpha_edge_s4(
+raster_gouraud_alpha_edge_sort_s4(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -307,7 +307,7 @@ raster_gouraud_alpha_edge_s4(
         int color_start_current = edge_color_AC_ish15 >> 7;
         int color_end_current = edge_color_AB_ish15 >> 7;
 
-        draw_scanline_gouraud_alpha_edge_s4(
+        draw_scanline_gouraud_alpha_edge_sort_s4(
             pixel_buffer,
             stride,
             screen_width,
@@ -337,7 +337,7 @@ raster_gouraud_alpha_edge_s4(
         int color_start_current = edge_color_AC_ish15 >> 7;
         int color_end_current = edge_color_BC_ish15 >> 7;
 
-        draw_scanline_gouraud_alpha_edge_s4(
+        draw_scanline_gouraud_alpha_edge_sort_s4(
             pixel_buffer,
             stride,
             screen_width,

@@ -31,7 +31,7 @@ With `VA=0`, each tile is a small [`decode_tile`](src/osrs/terrain_decode_tile.u
 
 With `VA=1`, [`build_scene_terrain_va`](src/osrs/world_terrain.u.c) uses **world-space** vertices in a shared [`DashVertexArray`](src/graphics/dash_model.c), [`DashPosition`](src/osrs/world_terrain.u.c) is `(0,0,0)`, and draw uses **sparse** face indices ([`dash3d_raster`](src/graphics/dash.c) + [`projection_sparse.u.c`](src/graphics/projection_sparse.u.c)).
 
-The **same** [`raster_face_gouraud`](src/graphics/render_gouraud.u.c) / [`raster_gouraud_bary_bs4`](src/graphics/gouraud_branching_barycentric.c) runs for both; the difference is **which integers reach the scanline** (projection layout + deduped corners), not a separate “level 1” raster variant.
+The **same** [`raster_face_gouraud`](src/graphics/render_gouraud.u.c) / [`raster_gouraud_bary_branching_bs4`](src/graphics/gouraud_branching_barycentric.c) runs for both; the difference is **which integers reach the scanline** (projection layout + deduped corners), not a separate “level 1” raster variant.
 
 ## Leading raster-side mechanisms (sub-pixel / 1-pixel seams)
 
