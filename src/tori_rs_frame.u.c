@@ -616,18 +616,7 @@ queue_static_load_commands(
                         continue;
                     queue_sprite_load_from_event(
                         render_command_buffer, ui_event.element_id, ai, sp);
-                    if( strcmp(element->name, "minimap_static") == 0 )
-                    {
-                        fprintf(
-                            stderr,
-                            "[minimap] TORIRS_GFX_SPRITE_LOAD emitted: element_id=%d atlas_index=%d "
-                            "sprite=%dx%d name=%s\n",
-                            ui_event.element_id,
-                            ai,
-                            sp->width,
-                            sp->height,
-                            element->name);
-                    }
+                  
                 }
             }
             else if( ui_event.type == UISCENE_EVENT_ELEMENT_RELEASED )

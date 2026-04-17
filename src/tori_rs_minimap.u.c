@@ -89,16 +89,7 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
 
     game->ui_root_buffer->components[minimap_cmd].u.minimap.scene_id = id;
 
-    fprintf(
-        stderr,
-        "[minimap] created: uiscene_element_id=%d sprite=%dx%d pixels=%dx%d scene_id bound to "
-        "uitree[%d]\n",
-        id,
-        sp->width,
-        sp->height,
-        pw,
-        ph,
-        minimap_cmd);
+
 }
 
 #endif

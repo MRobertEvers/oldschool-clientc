@@ -96,7 +96,6 @@ LuaCSidecar_Config_LoadConfigs(struct LuaGameType* args)
             return LuaGameType_NewVoid();
 
         struct LuaConfigFile* file = load_lua_userdata_from_file(name);
-        printf("file: %p\n", file);
         if( !file )
             return LuaGameType_NewVoid();
         LuaGameType_UserDataArrayPush(files, file);

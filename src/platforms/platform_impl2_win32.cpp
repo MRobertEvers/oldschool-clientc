@@ -21,6 +21,9 @@ extern "C" {
 #include "platform_impl2_win32.h"
 
 #include "platform_impl2_win32_renderer_gdisoft3d.h"
+#if defined(TORIRS_HAS_D3D8)
+#include "platform_impl2_win32_renderer_d3d8.h"
+#endif
 #include "nuklear/torirs_nuklear.h"
 
 extern "C" {
@@ -331,13 +334,26 @@ Win32_Platform_WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         GetClientRect(hwnd, &cr);
         int cw = cr.right - cr.left;
         int ch = cr.bottom - cr.top;
-        if( platform && platform->gdi_renderer_for_paint && cw > 0 && ch > 0 )
+        if( platform && platform->win32_renderer_for_paint && cw > 0 && ch > 0 )
         {
-            PlatformImpl2_Win32_Renderer_GDISoft3D_PresentToHdc(
-                (struct Platform2_Win32_Renderer_GDISoft3D*)platform->gdi_renderer_for_paint,
-                hdc,
-                cw,
-                ch);
+            if( platform->win32_renderer_kind == TORIRS_WIN32_RENDERER_KIND_GDI )
+            {
+                PlatformImpl2_Win32_Renderer_GDISoft3D_PresentToHdc(
+                    (struct Platform2_Win32_Renderer_GDISoft3D*)platform->win32_renderer_for_paint,
+                    hdc,
+                    cw,
+                    ch);
+            }
+#if defined(TORIRS_HAS_D3D8)
+            else if( platform->win32_renderer_kind == TORIRS_WIN32_RENDERER_KIND_D3D8 )
+            {
+                PlatformImpl2_Win32_Renderer_D3D8_PresentOrInvalidate(
+                    (struct Platform2_Win32_Renderer_D3D8*)platform->win32_renderer_for_paint,
+                    hdc,
+                    cw,
+                    ch);
+            }
+#endif
         }
         EndPaint(hwnd, &ps);
         return 0;
@@ -355,11 +371,21 @@ Win32_Platform_WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 platform->drawable_width = nw;
                 platform->drawable_height = nh;
             }
-            if( platform->gdi_renderer_for_paint )
+            if( platform->win32_renderer_for_paint )
             {
-                PlatformImpl2_Win32_Renderer_GDISoft3D_MarkLetterboxDirty(
-                    (struct Platform2_Win32_Renderer_GDISoft3D*)
-                        platform->gdi_renderer_for_paint);
+                if( platform->win32_renderer_kind == TORIRS_WIN32_RENDERER_KIND_GDI )
+                {
+                    PlatformImpl2_Win32_Renderer_GDISoft3D_MarkLetterboxDirty(
+                        (struct Platform2_Win32_Renderer_GDISoft3D*)
+                            platform->win32_renderer_for_paint);
+                }
+#if defined(TORIRS_HAS_D3D8)
+                else if( platform->win32_renderer_kind == TORIRS_WIN32_RENDERER_KIND_D3D8 )
+                {
+                    PlatformImpl2_Win32_Renderer_D3D8_MarkResizeDirty(
+                        (struct Platform2_Win32_Renderer_D3D8*)platform->win32_renderer_for_paint);
+                }
+#endif
             }
             /* Force a full-client WM_PAINT: when the window grows, BeginPaint's HDC is clipped
              * to the newly-exposed region. Without a full invalidation, FillRect would miss the

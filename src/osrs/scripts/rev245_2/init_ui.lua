@@ -68,8 +68,6 @@ local function init_ui()
         local seen = {}
         local inv_model_requests = {}
         local inv_models_needed = {}
-        print("inv_obj_ids", #inv_obj_ids)
-        print_table(inv_obj_ids)
         for _, oid in ipairs(inv_obj_ids) do
             local mids = Game.BuildCacheDat.get_obj_model_ids(oid)
             for _, mid in ipairs(mids) do

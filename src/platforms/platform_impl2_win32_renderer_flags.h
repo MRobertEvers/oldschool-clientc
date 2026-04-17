@@ -1,0 +1,27 @@
+#ifndef PLATFORM_IMPL2_WIN32_RENDERER_FLAGS_H
+#define PLATFORM_IMPL2_WIN32_RENDERER_FLAGS_H
+
+/** Bit flags for which win32 render backends are compiled in. */
+enum ToriRSWin32RendererBits
+{
+    TORIRS_WIN32_RENDERER_GDISOFT3D = 1u << 0,
+#if defined(TORIRS_HAS_D3D8)
+    TORIRS_WIN32_RENDERER_D3D8 = 1u << 1,
+#endif
+};
+
+#if defined(TORIRS_HAS_D3D8)
+#define TORIRS_WIN32_RENDERER_SUPPORT_MASK \
+    (TORIRS_WIN32_RENDERER_GDISOFT3D | TORIRS_WIN32_RENDERER_D3D8)
+#else
+#define TORIRS_WIN32_RENDERER_SUPPORT_MASK (TORIRS_WIN32_RENDERER_GDISOFT3D)
+#endif
+
+/** Values for Platform2_Win32::renderer_kind */
+enum ToriRSWin32RendererKind
+{
+    TORIRS_WIN32_RENDERER_KIND_GDI = 0,
+    TORIRS_WIN32_RENDERER_KIND_D3D8 = 1,
+};
+
+#endif /* PLATFORM_IMPL2_WIN32_RENDERER_FLAGS_H */

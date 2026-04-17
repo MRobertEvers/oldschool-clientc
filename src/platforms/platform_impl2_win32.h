@@ -3,6 +3,7 @@
 
 #if defined(_WIN32)
 
+#include "platform_impl2_win32_renderer_flags.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/ginput.h"
 #include "tori_rs_render.h"
@@ -44,8 +45,10 @@ struct Platform2_Win32
     int tracked_mouse_x;
     int tracked_mouse_y;
 
-    /** Set after renderer init so WM_PAINT can present the last CPU buffer. */
-    void* gdi_renderer_for_paint;
+    /** GDI Soft3D or D3D8 renderer; WM_PAINT / WM_SIZE dispatch by `win32_renderer_kind`. */
+    void* win32_renderer_for_paint;
+    /** One of `ToriRSWin32RendererKind` (e.g. TORIRS_WIN32_RENDERER_KIND_GDI). */
+    int win32_renderer_kind;
 
     /** Nuklear context for input (struct nk_context*), set after rawfb renderer init. */
     void* nk_ctx_for_input;
