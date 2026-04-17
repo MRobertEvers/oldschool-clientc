@@ -80,6 +80,30 @@ raster_linear_transparent_blend_lerp8(
 }
 
 static inline void
+raster_linear_transparent_texshadeflat_lerp8(
+    uint32_t* RESTRICT pixel_buffer,
+    int offset,
+    const uint32_t* RESTRICT texels,
+    int u_scan,
+    int v_scan,
+    int step_u,
+    int step_v,
+    int texture_shift,
+    int shade)
+{
+    raster_linear_transparent_blend_lerp8(
+        pixel_buffer,
+        offset,
+        texels,
+        u_scan,
+        v_scan,
+        step_u,
+        step_v,
+        texture_shift,
+        shade);
+}
+
+static inline void
 raster_linear_opaque_blend_lerp8(
     uint32_t* RESTRICT pixel_buffer,
     int offset,
@@ -114,6 +138,30 @@ raster_linear_opaque_blend_lerp8(
     // Store results directly (no transparency masking for opaque rendering)
     vst1q_u32(&pixel_buffer[offset], r0);
     vst1q_u32(&pixel_buffer[offset + 4], r1);
+}
+
+static inline void
+raster_linear_opaque_texshadeflat_lerp8(
+    uint32_t* RESTRICT pixel_buffer,
+    int offset,
+    const uint32_t* RESTRICT texels,
+    int u_scan,
+    int v_scan,
+    int step_u,
+    int step_v,
+    int texture_shift,
+    int shade)
+{
+    raster_linear_opaque_blend_lerp8(
+        pixel_buffer,
+        offset,
+        texels,
+        u_scan,
+        v_scan,
+        step_u,
+        step_v,
+        texture_shift,
+        shade);
 }
 
 static inline void

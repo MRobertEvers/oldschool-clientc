@@ -6,7 +6,7 @@ int g_cos_table[2048];
 int g_tan_table[2048];
 int g_reciprocal16_simd[4096];
 
-#include "../../src/graphics/texture.u.c"
+#include "../../src/graphics/old/texture.u.c"
 
 #ifndef BENCH_ITERS
 #define BENCH_ITERS 5000

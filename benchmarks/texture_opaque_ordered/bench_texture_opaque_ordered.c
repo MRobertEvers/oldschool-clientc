@@ -14,11 +14,11 @@ int g_tan_table[2048];
 int g_reciprocal16_simd[4096];
 
 #define raster_texture_opaque_blend_branching_lerp8 bench_raster_texture_opaque_blend_scalar
-#include "../../src/graphics/texture_blend_branching.u.c"
+#include "../../src/graphics/old/texture_blend_branching.u.c"
 #undef raster_texture_opaque_blend_branching_lerp8
 
 #define raster_texture_opaque_blend_branching_lerp8_v3 bench_raster_texture_opaque_blend_simd
-#include "../../src/graphics/texture_blend_branching_v3.u.c"
+#include "../../src/graphics/old/texture_blend_branching_v3.u.c"
 #undef raster_texture_opaque_blend_branching_lerp8_v3
 
 #ifndef BENCH_ITERS

@@ -5,8 +5,8 @@
 #include <string.h>
 
 // Bring in the rasterizers and helpers
-#include "../../src/graphics/gouraud.u.c"
-#include "../../src/graphics/gouraud_barycentric.u.c"
+#include "../../src/graphics/old/gouraud.u.c"
+#include "../../src/graphics/old/gouraud_barycentric.u.c"
 
 #define W 800
 #define H 600

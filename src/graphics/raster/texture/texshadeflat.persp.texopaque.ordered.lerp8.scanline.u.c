@@ -1,5 +1,5 @@
-#ifndef TEXSHADEFLAT_PERSP_TEXOPAQUE_SORT_LERP8_SCANLINE_U_C
-#define TEXSHADEFLAT_PERSP_TEXOPAQUE_SORT_LERP8_SCANLINE_U_C
+#ifndef TEXSHADEFLAT_PERSP_TEXOPAQUE_ORDERED_LERP8_SCANLINE_U_C
+#define TEXSHADEFLAT_PERSP_TEXOPAQUE_ORDERED_LERP8_SCANLINE_U_C
 
 #include "graphics/clamp.h"
 #include "graphics/dash_restrict.h"
@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 static void
-raster_texture_scanline_opaque_sort_lerp8(
+raster_texture_scanline_opaque_ordered_lerp8(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -30,11 +30,6 @@ raster_texture_scanline_opaque_sort_lerp8(
 {
     if( screen_x0_ish16 == screen_x1_ish16 )
         return;
-
-    if( screen_x0_ish16 > screen_x1_ish16 )
-    {
-        SWAP(screen_x0_ish16, screen_x1_ish16);
-    }
 
     int steps, adjust;
 
@@ -133,21 +128,6 @@ raster_texture_scanline_opaque_sort_lerp8(
         u_scan += step_u;
         v_scan += step_v;
         offset += 8;
-
-        // Checked on 09/15/2025, clang does NOT vectorize this loop.
-        // even with -O3
-        // for( int i = 0; i < 8; i++ )
-        // {
-        //     int u = u_scan >> texture_shift;
-        //     int v = v_scan & 0x3f80;
-        //     int texel = texels[u + (v)];
-        //     pixel_buffer[offset] = shade_blend(texel, shade);
-
-        //     u_scan += step_u;
-        //     v_scan += step_v;
-
-        //     offset += 1;
-        // }
 
     } while( lerp8_steps-- > 0 );
 

@@ -140,7 +140,7 @@ raster_texture_flat(
 {
     if( texture_opaque )
     {
-        raster_texture_opaque_sort_lerp8(
+        raster_texture_opaque_branching_lerp8(
             pixel_buffer,
             stride,
             screen_width,
@@ -167,7 +167,7 @@ raster_texture_flat(
     }
     else
     {
-        raster_texture_transparent_sort_lerp8(
+        raster_texture_transparent_branching_lerp8(
             pixel_buffer,
             stride,
             screen_width,

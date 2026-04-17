@@ -1,10 +1,10 @@
 #ifndef RENDER_CLIP_U_C
 #define RENDER_CLIP_U_C
 
-#include "shared_tables.h"
+#include "../shared_tables.h"
 
 // clang-format off
-#include "projection.u.c"
+#include "../projection.u.c"
 // clang-format on
 
 static int g_clip_x[10] = { 0 };

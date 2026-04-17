@@ -83,9 +83,9 @@ dash3d_projected_face_index_ptrs(
 }
 
 // clang-format off
-#include "render_gouraud.u.c"
-#include "render_flat.u.c"
-#include "render_texture.u.c"
+#include "old/render_gouraud.u.c"
+#include "old/render_flat.u.c"
+#include "old/render_texture.u.c"
 #if VERTEXINT_BITS == 16
 #include "projection_zdiv_simd.u.c"
 #include "projection16_simd.u.c"

@@ -6,7 +6,7 @@
 
 // Bring in the rasterizers and helpers
 #include "../../src/graphics/alpha.h"
-#include "../../src/graphics/gouraud.u.c"
+#include "../../src/graphics/old/gouraud.u.c"
 
 #define W 800
 #define H 600
