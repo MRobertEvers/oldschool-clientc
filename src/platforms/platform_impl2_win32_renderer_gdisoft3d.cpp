@@ -77,6 +77,9 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_New(
     renderer->dash_offset_x = 0;
     renderer->dash_offset_y = 0;
 
+    if( !QueryPerformanceFrequency(&renderer->nk_qpc_freq) )
+        renderer->nk_qpc_freq.QuadPart = 0;
+
     gdisoft3d_setup_bmi(renderer);
 
     return renderer;
@@ -109,7 +112,6 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_Init(
     if( !renderer || !platform )
         return false;
     renderer->platform = platform;
-    renderer->nk_prev_time_ms = 0.0;
 
     static const int FONT_TEX_BYTES = 512 * 512;
     renderer->nk_font_tex_mem = (uint8_t*)malloc((size_t)FONT_TEX_BYTES);
@@ -133,8 +135,13 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_Init(
             (unsigned)(renderer->width * (int)sizeof(int)),
             pl);
         if( renderer->nk_rawfb )
-            platform->nk_ctx_for_input =
-                (void*)torirs_rawfb_get_nk_context((struct rawfb_context*)renderer->nk_rawfb);
+        {
+            struct nk_context* nk =
+                torirs_rawfb_get_nk_context((struct rawfb_context*)renderer->nk_rawfb);
+            platform->nk_ctx_for_input = (void*)nk;
+            if( nk )
+                nk_style_hide_cursor(nk);
+        }
         else
         {
             free(renderer->nk_font_tex_mem);
@@ -517,11 +524,28 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_Render(
     if( renderer->nk_rawfb )
     {
         struct rawfb_context* rawfb = (struct rawfb_context*)renderer->nk_rawfb;
-        double now_ms = (double)(uint32_t)GetTickCount();
-        double dt = (renderer->nk_prev_time_ms > 0.0)
-            ? (now_ms - renderer->nk_prev_time_ms) / 1000.0
-            : 1.0 / 60.0;
-        renderer->nk_prev_time_ms = now_ms;
+
+        LARGE_INTEGER now_qpc;
+        QueryPerformanceCounter(&now_qpc);
+        double dt = 1.0 / 60.0;
+        if( renderer->nk_prev_qpc_valid && renderer->nk_qpc_freq.QuadPart > 0 )
+        {
+            LONGLONG ticks = now_qpc.QuadPart - renderer->nk_prev_qpc.QuadPart;
+            dt = (double)ticks / (double)renderer->nk_qpc_freq.QuadPart;
+            if( dt < 1e-6 )
+                dt = 1e-6;
+        }
+        renderer->nk_prev_qpc = now_qpc;
+        renderer->nk_prev_qpc_valid = 1;
+
+        if( renderer->nk_dt_smoothed <= 0.0 )
+            renderer->nk_dt_smoothed = dt;
+        else
+            renderer->nk_dt_smoothed += 0.1 * (dt - renderer->nk_dt_smoothed);
+
+        double dt_ms = renderer->nk_dt_smoothed * 1000.0;
+        double fps =
+            renderer->nk_dt_smoothed > 1e-9 ? 1.0 / renderer->nk_dt_smoothed : 0.0;
 
         struct nk_context* nk = torirs_rawfb_get_nk_context(rawfb);
         if( nk_begin(
@@ -531,8 +555,7 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_Render(
                 NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE) )
         {
             nk_layout_row_dynamic(nk, 18, 1);
-            double fps = dt > 1e-12 ? 1.0 / dt : 0.0;
-            nk_labelf(nk, NK_TEXT_LEFT, "%.2f ms (%.1f FPS)", dt * 1000.0, fps);
+            nk_labelf(nk, NK_TEXT_LEFT, "%7.2f ms (%6.1f FPS)", dt_ms, fps);
             nk_labelf(nk, NK_TEXT_LEFT, "Buffer: %dx%d", renderer->width, renderer->height);
             nk_labelf(nk, NK_TEXT_LEFT, "Window: %dx%d", window_width, window_height);
             if( game->view_port )

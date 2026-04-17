@@ -58,7 +58,10 @@ struct Platform2_Win32_Renderer_GDISoft3D
 
     void* nk_rawfb; /* struct rawfb_context* */
     uint8_t* nk_font_tex_mem;
-    double nk_prev_time_ms;
+    LARGE_INTEGER nk_qpc_freq;
+    LARGE_INTEGER nk_prev_qpc;
+    int nk_prev_qpc_valid;
+    double nk_dt_smoothed;
 };
 
 struct Platform2_Win32_Renderer_GDISoft3D*

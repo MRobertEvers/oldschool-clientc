@@ -411,24 +411,7 @@ queue_static_ui_minimap_draws(
     }
 
     emit_begin_2d_marker(game, &minimap_pass_2d);
-    fprintf(
-        stderr,
-        "[minimap] TORIRS_GFX_SPRITE_DRAW queued: element_id=%d dst=(%d,%d) %dx%d anchor=(%d,%d) "
-        "sprite=%dx%d crop=%dx%d src_anchor=(%d,%d) yaw2048=%d\n",
-        component->u.minimap.scene_id,
-        component->position.x,
-        component->position.y,
-        component->position.width,
-        component->position.height,
-        component->position.anchor_x,
-        component->position.anchor_y,
-        static_sprite->width,
-        static_sprite->height,
-        static_sprite->crop_width,
-        static_sprite->crop_height,
-        anchor_x,
-        anchor_y,
-        (game->camera_yaw) & 0x7ff);
+   
     LibToriRS_RenderCommandBufferAddCommand(
         game->uiscene_queued_commands,
             (struct ToriRSRenderCommand){
