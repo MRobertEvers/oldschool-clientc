@@ -111,6 +111,8 @@ push_field_from_ini_kv(
         kind = RCFIELD_UILAYOUT_RIGHT;
     else if( strcmp(key, "bottom") == 0 )
         kind = RCFIELD_UILAYOUT_BOTTOM;
+    else if( strcmp(key, "dirty") == 0 && strcmp(s_ini_item_type, "layout") == 0 )
+        kind = RCFIELD_UILAYOUT_DIRTY;
     else if( strcmp(key, "table") == 0 )
         kind = RCFIELD_CACHE_TABLE;
     else if( strcmp(key, "archive") == 0 )

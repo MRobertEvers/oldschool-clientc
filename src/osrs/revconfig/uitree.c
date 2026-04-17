@@ -75,6 +75,7 @@ push_element(
     component->component_id = -1;
 
     link_under_parent(tree, parent_index, idx);
+    tree->generation++;
     return idx;
 }
 

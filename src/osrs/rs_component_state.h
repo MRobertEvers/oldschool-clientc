@@ -11,6 +11,8 @@ struct RSLayerDynState
     int scroll_position;
     bool hidden;
     struct DashSprite* cached_sprite;
+    /** Bumped on any mutation affecting layer visibility/scroll; used for UI dirty signatures. */
+    uint32_t version;
 };
 
 struct RSModelDynState
@@ -18,6 +20,7 @@ struct RSModelDynState
     int seq_frame;
     int seq_cycle;
     struct DashSprite* cached_sprite;
+    uint32_t version;
 };
 
 struct RSTextDynState
@@ -25,11 +28,13 @@ struct RSTextDynState
     char* text_override;
     int active_state; /* 0 = use config; 1 = forced active */
     struct DashSprite* cached_sprite;
+    uint32_t version;
 };
 
 struct RSInvDynState
 {
     struct DashSprite* cached_sprite;
+    uint32_t version;
 };
 
 struct RSComponentStatePool

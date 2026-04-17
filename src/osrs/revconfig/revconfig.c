@@ -91,6 +91,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UILAYOUT_BOTTOM";
     case RCFIELD_UILAYOUT_RIGHT:
         return "RCFIELD_UILAYOUT_RIGHT";
+    case RCFIELD_UILAYOUT_DIRTY:
+        return "RCFIELD_UILAYOUT_DIRTY";
     default:
         return "UNKNOWN";
     }

@@ -76,6 +76,8 @@ struct StaticUIElemPosition
 struct StaticUIComponent
 {
     enum StaticUIComponentType type;
+    /** Layout arg dirty=true in INI; forces always-dirty in ui_dirty_pre_pass. */
+    uint8_t always_dirty;
     int32_t parent;        /* -1 = root or root-chain node */
     int32_t first_child;   /* -1 = leaf */
     int32_t next_sibling;  /* -1 = last sibling */
@@ -159,6 +161,8 @@ struct UITree
     uint32_t component_count;
     uint32_t component_capacity;
     int32_t root_index; /* first root in root sibling chain; -1 if empty */
+    /** Incremented on every `uitree_push_*` / node add; used to invalidate UI dirty caches. */
+    uint32_t generation;
 };
 
 char const*

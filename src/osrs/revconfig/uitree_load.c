@@ -175,6 +175,7 @@ struct LayoutItem
     int height;
     int anchor_x;
     int anchor_y;
+    uint8_t always_dirty;
 };
 
 struct LayoutLoad
@@ -999,7 +1000,7 @@ load_layout(
         {
         case UIELEM_BUILTIN_COMPASS:
         {
-            uitree_push_compass(
+            int32_t idx = uitree_push_compass(
                 ui,
                 -1,
                 component_entry->sprite_id,
@@ -1010,11 +1011,13 @@ load_layout(
                 component_entry->height,
                 component_entry->anchor_x,
                 component_entry->anchor_y);
+            if( layout_entry->always_dirty && idx >= 0 )
+                ui->components[idx].always_dirty = 1;
         }
         break;
         case UIELEM_BUILTIN_MINIMAP:
         {
-            uitree_push_minimap(
+            int32_t idx = uitree_push_minimap(
                 ui,
                 -1,
                 layout_entry->x,
@@ -1023,17 +1026,21 @@ load_layout(
                 component_entry->height,
                 component_entry->anchor_x,
                 component_entry->anchor_y);
+            if( layout_entry->always_dirty && idx >= 0 )
+                ui->components[idx].always_dirty = 1;
         }
         break;
         case UIELEM_BUILTIN_WORLD: // "world"
         {
-            uitree_push_world(
+            int32_t idx = uitree_push_world(
                 ui, -1, layout_entry->x, layout_entry->y, component_entry->level_mask);
+            if( layout_entry->always_dirty && idx >= 0 )
+                ui->components[idx].always_dirty = 1;
         }
         break;
         case UIELEM_BUILTIN_REDSTONE_TAB:
         {
-            uitree_push_redstone_tab(
+            int32_t idx = uitree_push_redstone_tab(
                 ui,
                 -1,
                 component_entry->tabno,
@@ -1045,6 +1052,8 @@ load_layout(
                 layout_entry->y,
                 component_entry->width,
                 component_entry->height);
+            if( layout_entry->always_dirty && idx >= 0 )
+                ui->components[idx].always_dirty = 1;
         }
         break;
         case UIELEM_BUILTIN_SIDEBAR: // "builtin_sidebar"
@@ -1062,6 +1071,8 @@ load_layout(
                 layout_entry->y,
                 component_entry->width,
                 component_entry->height);
+            if( layout_entry->always_dirty && sidx >= 0 )
+                ui->components[sidx].always_dirty = 1;
             expand_sidebar_rs_tree(
                 game,
                 ui,
@@ -1078,9 +1089,10 @@ load_layout(
 
         case UIELEM_BUILTIN_SPRITE:
         {
+            int32_t idx;
             if( layout_entry->flags != 0 )
             {
-                uitree_push_sprite_relative(
+                idx = uitree_push_sprite_relative(
                     ui,
                     -1,
                     component_entry->sprite_id,
@@ -1095,7 +1107,7 @@ load_layout(
             }
             else
             {
-                uitree_push_sprite_xy(
+                idx = uitree_push_sprite_xy(
                     ui,
                     -1,
                     component_entry->sprite_id,
@@ -1105,6 +1117,8 @@ load_layout(
                     component_entry->width,
                     component_entry->height);
             }
+            if( layout_entry->always_dirty && idx >= 0 )
+                ui->components[idx].always_dirty = 1;
         }
         break;
         default:
@@ -1548,6 +1562,20 @@ uitree_from_revconfig_buildcachedat(
             load._layout.entries[load._layout.entry_count - 1].right = atoi(field->value);
             break;
         }
+        case RCFIELD_UILAYOUT_DIRTY:
+        {
+            assert(
+                load._layout.entry_count > 0 &&
+                "UILAYOUT_DIRTY must come after a UILAYOUT_COMPONENT field");
+            assert(
+                load.kind == LOAD_KIND_LAYOUT &&
+                "UILAYOUT_DIRTY field must be within a layout item");
+            const char* v = field->value;
+            int truthy = (strcmp(v, "true") == 0) || (strcmp(v, "1") == 0);
+            load._layout.entries[load._layout.entry_count - 1].always_dirty =
+                truthy ? 1u : 0u;
+        }
+        break;
         }
     }
 
@@ -2004,6 +2032,20 @@ uitree_load_ui_from_revconfig(
             load._layout.entries[load._layout.entry_count - 1].right = atoi(field->value);
             break;
         }
+        case RCFIELD_UILAYOUT_DIRTY:
+        {
+            assert(
+                load._layout.entry_count > 0 &&
+                "UILAYOUT_DIRTY must come after a UILAYOUT_COMPONENT field");
+            assert(
+                load.kind == LOAD_KIND_LAYOUT &&
+                "UILAYOUT_DIRTY field must be within a layout item");
+            const char* v = field->value;
+            int truthy = (strcmp(v, "true") == 0) || (strcmp(v, "1") == 0);
+            load._layout.entries[load._layout.entry_count - 1].always_dirty =
+                truthy ? 1u : 0u;
+        }
+        break;
         }
     }
 

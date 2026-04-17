@@ -100,6 +100,7 @@ set(COMMON_SOURCES
     src/osrs/interface.c
     src/osrs/interface_state.c
     src/osrs/rs_component_state.c
+    src/osrs/ui_dirty.c
     src/osrs/clientscript_vm.c
     src/osrs/obj_icon.c
     src/osrs/gio_cache_dat.c
@@ -297,6 +298,34 @@ if(NOT EMSCRIPTEN)
         if(ENABLE_UBSAN)
             target_compile_options(win32 PRIVATE -fsanitize=undefined -fno-omit-frame-pointer)
             target_link_options(win32 PRIVATE -fsanitize=undefined)
+        endif()
+
+        if(ENABLE_PACKAGE_BUILD)
+            target_compile_definitions(win32 PRIVATE
+                LUA_SCRIPTS_DIR="scripts"
+                CONFIG_DIRECTORY="configs"
+                CACHE_PATH="cache254"
+                CACHE_DAT_PATH="cache254"
+            )
+            set(_win32_pkg_post_build
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${CMAKE_SOURCE_DIR}/src/osrs/scripts"
+                    "${CMAKE_CURRENT_BINARY_DIR}/scripts"
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${CMAKE_SOURCE_DIR}/src/osrs/revconfig/configs"
+                    "${CMAKE_CURRENT_BINARY_DIR}/configs"
+            )
+            if(EXISTS "${CMAKE_SOURCE_DIR}/../cache254")
+                list(APPEND _win32_pkg_post_build
+                    COMMAND ${CMAKE_COMMAND} -E copy_directory
+                        "${CMAKE_SOURCE_DIR}/../cache254"
+                        "${CMAKE_CURRENT_BINARY_DIR}/cache254"
+                )
+            endif()
+            add_custom_command(TARGET win32 POST_BUILD
+                ${_win32_pkg_post_build}
+                COMMENT "ENABLE_PACKAGE_BUILD: copy resources next to win32 executable"
+            )
         endif()
     endif()
 

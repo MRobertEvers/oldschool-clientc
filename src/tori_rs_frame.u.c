@@ -12,6 +12,7 @@
 #include "osrs/revconfig/uitree.h"
 #include "osrs/rs_component_gfx.h"
 #include "osrs/rs_component_state.h"
+#include "osrs/ui_dirty.h"
 #include "osrs/scene2.h"
 #include "osrs/world_options.h"
 #include "tori_rs.h"
@@ -689,6 +690,10 @@ LibToriRS_FrameBegin(
     if( game->uiscene_queued_commands )
         LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
 
+    ui_runtime_ensure_capacity(
+        game, game->ui_root_buffer ? game->ui_root_buffer->component_count : 0);
+    ui_dirty_pre_pass(game);
+
     s_uielem_world_inside_3d = false;
 
     world_pickset_reset(&game->pickset);
@@ -1037,6 +1042,9 @@ uielem_redstone_tab_step(
     if( game->iface->sidebar_interface_id != -1 )
         return true;
 
+    if( !ui_dirty_node(game, component) )
+        return true;
+
     int redstone_2d = 0;
 
     int tabno = component->u.redstone_tab.tabno;
@@ -1044,17 +1052,6 @@ uielem_redstone_tab_step(
     int y = component->position.y;
     int w = component->position.width;
     int h = component->position.height;
-
-    if( game->mouse_clicked && !game->interface_consumed_click )
-    {
-        int cx = game->mouse_clicked_x;
-        int cy = game->mouse_clicked_y;
-        if( cx >= x && cx < x + w && cy >= y && cy < y + h )
-        {
-            game->iface->selected_tab = tabno;
-            game->interface_consumed_click = 1;
-        }
-    }
 
     bool is_active = (game->iface->selected_tab == tabno);
     int sid =
@@ -1093,6 +1090,9 @@ uielem_builtin_sidebar_step(
     if( !frame_sidebar_tab_active(game, component) )
         return true;
 
+    if( !ui_dirty_node(game, component) )
+        return true;
+
     /* Active tab: panel is drawn by RS child nodes under this builtin. */
     return true;
 }
@@ -1103,6 +1103,9 @@ uielem_sprite_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_BUILTIN_SPRITE);
+
+    if( !ui_dirty_node(game, component) )
+        return true;
 
     struct UISceneElement* element =
         uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
@@ -1134,6 +1137,9 @@ uielem_world_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_BUILTIN_WORLD);
+
+    if( !ui_dirty_node(game, component) )
+        return true;
 
     struct PaintersElementCommand* cmd = NULL;
     struct DashPosition position = { 0 };
@@ -1299,6 +1305,9 @@ uielem_minimap_step(
 {
     assert(component->type == UIELEM_BUILTIN_MINIMAP);
 
+    if( !ui_dirty_node(game, component) )
+        return true;
+
     struct UISceneElement* element =
         uiscene_element_at(game->ui_scene, component->u.minimap.scene_id);
     if( !element )
@@ -1314,6 +1323,9 @@ uielem_compass_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_BUILTIN_COMPASS);
+
+    if( !ui_dirty_node(game, component) )
+        return true;
 
     struct UISceneElement* element =
         uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
@@ -1361,6 +1373,8 @@ uielem_rs_graphic_step(
     int cur)
 {
     assert(component->type == UIELEM_RS_GRAPHIC);
+    if( !ui_dirty_node(game, component) )
+        return true;
     return rs_gfx_graphic_step(game, component, game->uiscene_queued_commands, cur);
 }
 
@@ -1370,6 +1384,8 @@ uielem_rs_text_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_RS_TEXT);
+    if( !ui_dirty_node(game, component) )
+        return true;
     return rs_gfx_text_step(game, component, game->uiscene_queued_commands);
 }
 
@@ -1379,6 +1395,8 @@ uielem_rs_inv_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_RS_INV);
+    if( !ui_dirty_node(game, component) )
+        return true;
     return rs_gfx_inv_step(game, component, game->uiscene_queued_commands);
 }
 
@@ -1388,6 +1406,8 @@ uielem_rs_layer_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_RS_LAYER);
+    if( !ui_dirty_node(game, component) )
+        return true;
     return true;
 }
 
@@ -1397,6 +1417,8 @@ uielem_rs_model_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_RS_MODEL);
+    if( !ui_dirty_node(game, component) )
+        return true;
     return rs_gfx_model_step(
         game, component, game->uiscene_queued_commands, s_frame_project_models);
 }
