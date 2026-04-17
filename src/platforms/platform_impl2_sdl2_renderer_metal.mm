@@ -24,6 +24,7 @@
 
 extern "C" {
 #include "graphics/dash.h"
+#include "graphics/dash_model_internal.h"
 #include "graphics/shared_tables.h"
 #include "osrs/game.h"
 #include "platforms/common/platform_memory.h"
@@ -252,47 +253,6 @@ compute_gl_world_viewport_rect(
     return rect;
 }
 
-static uintptr_t
-model_gpu_cache_key(const struct DashModel* model)
-{
-    if( !model )
-        return 0;
-#if UINTPTR_MAX == 0xffffffffu
-    uintptr_t key = 2166136261u;
-#else
-    uintptr_t key = 1469598103934665603ull;
-#endif
-    const uintptr_t fnv_prime = (uintptr_t)16777619u;
-    auto mix_word = [&](uintptr_t word) {
-        key ^= word;
-        key *= fnv_prime;
-    };
-
-    mix_word((uintptr_t)dashmodel_vertices_x_const(model));
-    mix_word((uintptr_t)dashmodel_face_indices_a_const(model));
-    mix_word((uintptr_t)dashmodel_face_indices_b_const(model));
-    mix_word((uintptr_t)dashmodel_face_indices_c_const(model));
-    mix_word((uintptr_t)dashmodel_face_count(model));
-
-    struct DashModel* mw = (struct DashModel*)model;
-    const bool is_animated = dashmodel_original_vertices_x(mw) && dashmodel_original_vertices_y(mw) &&
-                             dashmodel_original_vertices_z(mw) && dashmodel_vertex_count(model) > 0;
-    if( is_animated )
-    {
-        const vertexint_t* vx = dashmodel_vertices_x_const(model);
-        const vertexint_t* vy = dashmodel_vertices_y_const(model);
-        const vertexint_t* vz = dashmodel_vertices_z_const(model);
-        int vc = dashmodel_vertex_count(model);
-        for( int i = 0; i < vc; ++i )
-        {
-            mix_word((uintptr_t)(uint32_t)vx[i]);
-            mix_word((uintptr_t)(uint32_t)vy[i]);
-            mix_word((uintptr_t)(uint32_t)vz[i]);
-        }
-    }
-    return key;
-}
-
 // Same encoding as pix3dgl_load_texture (direction → sign, speed scale).
 static float
 metal_texture_animation_signed(
@@ -385,9 +345,9 @@ append_model_face_vertices(
         }
         else
         {
-            tp = face_ia[texture_face_idx];
-            tm = face_ib[texture_face_idx];
-            tn = face_ic[texture_face_idx];
+            tp = face_ia[f];
+            tm = face_ib[f];
+            tn = face_ic[f];
         }
 
         const vertexint_t* vtx = dashmodel_vertices_x_const(model);
@@ -459,18 +419,23 @@ append_model_face_vertices(
     }
 }
 
-// Pre-cache placeholder (we still track load keys, but actual vertex buffers
+static inline int
+model_id_from_model_cache_key(uint64_t k)
+{
+    return (int)(uint32_t)(k >> 24);
+}
+
+// Pre-cache placeholder (we still track load ids, but actual vertex buffers
 // are built per-draw with the correct world offset so this is a no-op).
 static void
 preload_model_key(
     struct Platform2_SDL2_Renderer_Metal* renderer,
-    const struct DashModel* model)
+    uint64_t model_key)
 {
-    if( !model )
+    if( model_id_from_model_cache_key(model_key) <= 0 )
         return;
-    uintptr_t key = model_gpu_cache_key(model);
-    if( renderer->model_index_by_key.find(key) == renderer->model_index_by_key.end() )
-        renderer->model_index_by_key[key] = renderer->next_model_index++;
+    if( renderer->model_index_by_key.find(model_key) == renderer->model_index_by_key.end() )
+        renderer->model_index_by_key[model_key] = renderer->next_model_index++;
 }
 
 // ---------------------------------------------------------------------------
@@ -497,13 +462,31 @@ render_nuklear_overlay(
     params.gpu_model_draws = renderer->debug_model_draws;
     params.gpu_tris = renderer->debug_triangles;
 
+    int win_w = renderer->platform ? renderer->platform->game_screen_width : 0;
+    int win_h = renderer->platform ? renderer->platform->game_screen_height : 0;
+    if( win_w <= 0 || win_h <= 0 )
+    {
+        SDL_Window* wnd = renderer->platform ? renderer->platform->window : nullptr;
+        if( wnd )
+            SDL_GetWindowSize(wnd, &win_w, &win_h);
+    }
+    if( win_w <= 0 )
+        win_w = renderer->width;
+    if( win_h <= 0 )
+        win_h = renderer->height;
+
     struct nk_context* nk = torirs_nk_metal_ctx(s_mtl_nk);
     torirs_nk_debug_panel_draw(nk, game, &params);
     torirs_nk_ui_after_frame(nk);
-    torirs_nk_metal_resize(s_mtl_nk, renderer->width, renderer->height);
+    torirs_nk_metal_resize(s_mtl_nk, win_w, win_h);
+    /* AGX can SEGV on setDepthStencilState:nil; reuse the renderer's no-op depth state. */
+    if( renderer->mtl_depth_stencil )
+        [encoder setDepthStencilState:(__bridge id<MTLDepthStencilState>)renderer->mtl_depth_stencil];
     torirs_nk_metal_render(
         s_mtl_nk,
         (__bridge void*)encoder,
+        win_w,
+        win_h,
         renderer->width,
         renderer->height,
         NK_ANTI_ALIASING_ON);
@@ -547,6 +530,7 @@ PlatformImpl2_SDL2_Renderer_Metal_New(
     renderer->mtl_depth_stencil = nil;
     renderer->mtl_uniform_buffer = nil;
     renderer->mtl_sampler_state = nil;
+    renderer->mtl_sampler_state_nearest = nil;
     renderer->mtl_dummy_texture = nil;
     renderer->metal_view = nullptr;
     renderer->platform = nullptr;
@@ -579,10 +563,10 @@ PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* ren
             CFRelease(kv.second);
 
     // Release cached sprite textures
-    for( auto& kv : renderer->sprite_texture_by_ptr )
+    for( auto& kv : renderer->sprite_textures_by_slot )
         if( kv.second )
             CFRelease(kv.second);
-    renderer->sprite_texture_by_ptr.clear();
+    renderer->sprite_textures_by_slot.clear();
 
     // Release cached font atlas textures
     for( auto& kv : renderer->font_atlas_textures )
@@ -632,6 +616,11 @@ PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* ren
     {
         CFRelease(renderer->mtl_dummy_texture);
         renderer->mtl_dummy_texture = nullptr;
+    }
+    if( renderer->mtl_sampler_state_nearest )
+    {
+        CFRelease(renderer->mtl_sampler_state_nearest);
+        renderer->mtl_sampler_state_nearest = nullptr;
     }
     if( renderer->mtl_sampler_state )
     {
@@ -952,6 +941,14 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
     id<MTLSamplerState> sampState = [device newSamplerStateWithDescriptor:sampDesc];
     renderer->mtl_sampler_state = (__bridge_retained void*)sampState;
 
+    MTLSamplerDescriptor* sampNearDesc = [[MTLSamplerDescriptor alloc] init];
+    sampNearDesc.minFilter = MTLSamplerMinMagFilterNearest;
+    sampNearDesc.magFilter = MTLSamplerMinMagFilterNearest;
+    sampNearDesc.sAddressMode = MTLSamplerAddressModeClampToEdge;
+    sampNearDesc.tAddressMode = MTLSamplerAddressModeClampToEdge;
+    id<MTLSamplerState> sampNearState = [device newSamplerStateWithDescriptor:sampNearDesc];
+    renderer->mtl_sampler_state_nearest = (__bridge_retained void*)sampNearState;
+
     MTLTextureDescriptor* dumDesc =
         [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
                                                            width:1
@@ -1127,8 +1124,6 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         id<MTLCommandBuffer> cmdBuf = [queue commandBuffer];
         id<MTLRenderCommandEncoder> encoder = [cmdBuf renderCommandEncoderWithDescriptor:rpDesc];
 
-        [encoder setRenderPipelineState:pipeState];
-        [encoder setDepthStencilState:dsState];
         // Metal viewport Y vs GL + column-major clip can invert winding; match painter order like
         // z-off GL.
         [encoder setCullMode:MTLCullModeNone];
@@ -1142,19 +1137,22 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                                 .height = (double)gl_vp.height,
                                 .znear = 0.0,
                                 .zfar = 1.0 };
-        [encoder setViewport:metalVp];
 
         // -----------------------------------------------------------------------
-        // Drain the render command buffer inline (streaming, no pre-cache).
-        // FrameNextCommand projects each model (project_models=true); the resulting
-        // sys_dash state is consumed immediately by dash3d_prepare_projected_face_order
-        // so no second projection is needed.  Sprite draws require a different Metal
-        // pipeline state and must come after all model draws, so they are deferred.
+        // Drain commands inline. BEGIN_3D/END_3D and BEGIN_2D/END_2D bracket model vs
+        // UI draws; sprites and fonts are drawn at command position (no deferral).
         // -----------------------------------------------------------------------
         LibToriRS_FrameBegin(game, render_command_buffer);
 
-        static std::vector<ToriRSRenderCommand> sprite_cmds;
-        sprite_cmds.clear();
+        enum
+        {
+            MTL_PASS_NONE = 0,
+            MTL_PASS_3D,
+            MTL_PASS_2D
+        } current_pass = MTL_PASS_NONE;
+        bool sprite_pipeline_set = false;
+        bool font_pipeline_set = false;
+        int current_font_id = -1;
 
         // Pass 1 + 2 + 3 collapsed into a single streaming loop.
         static std::vector<MetalVertex> batch_verts;
@@ -1166,6 +1164,53 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
 
         id<MTLBuffer> modelBuf = (__bridge id<MTLBuffer>)renderer->mtl_model_vertex_buf;
         NSUInteger modelBufOffset = 0;
+
+        id<MTLRenderPipelineState> uiPipeState =
+            renderer->mtl_ui_sprite_pipeline
+                ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_ui_sprite_pipeline
+                : nil;
+        id<MTLRenderPipelineState> fontPipeState =
+            renderer->mtl_font_pipeline
+                ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_font_pipeline
+                : nil;
+        id<MTLBuffer> spriteQuadBuf = (__bridge id<MTLBuffer>)renderer->mtl_sprite_quad_buf;
+        id<MTLBuffer> fontVbo = (__bridge id<MTLBuffer>)renderer->mtl_font_vbo;
+        id<MTLSamplerState> uiSamplerNearest =
+            renderer->mtl_sampler_state_nearest
+                ? (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state_nearest
+                : (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
+        id<MTLSamplerState> fontSampler = uiSamplerNearest;
+
+        MTLViewport spriteVp = { .originX = 0.0,
+                               .originY = 0.0,
+                               .width = (double)renderer->width,
+                               .height = (double)renderer->height,
+                               .znear = 0.0,
+                               .zfar = 1.0 };
+
+        static std::vector<float> font_verts;
+        font_verts.clear();
+        id<MTLTexture> current_font_atlas_tex = nil;
+
+        const float fbw_font = (float)(win_width > 0 ? win_width : renderer->width);
+        const float fbh_font = (float)(win_height > 0 ? win_height : renderer->height);
+
+        auto flush_font_batch = [&]() {
+            if( font_verts.empty() || !current_font_atlas_tex || !fontVbo )
+                return;
+            int vert_count = (int)(font_verts.size() / 8);
+            NSUInteger byte_count = font_verts.size() * sizeof(float);
+            if( byte_count > fontVbo.length )
+                return;
+            memcpy(fontVbo.contents, font_verts.data(), byte_count);
+            [encoder setVertexBuffer:fontVbo offset:0 atIndex:0];
+            [encoder setFragmentTexture:current_font_atlas_tex atIndex:0];
+            [encoder setFragmentSamplerState:fontSampler atIndex:0];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                        vertexStart:0
+                        vertexCount:(NSUInteger)vert_count];
+            font_verts.clear();
+        };
 
         auto flush_batch = [&]() {
             if( batch_verts.empty() )
@@ -1216,10 +1261,50 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
 
         {
             struct ToriRSRenderCommand cmd = { 0 };
+            static const NSUInteger kSpriteSlotBytes = 6 * 4 * sizeof(float); // 96 bytes
+            NSUInteger sprite_slot = 0;
             while( LibToriRS_FrameNextCommand(game, render_command_buffer, &cmd, true) )
             {
                 switch( cmd.kind )
                 {
+                case TORIRS_GFX_BEGIN_3D:
+                    flush_font_batch();
+                    flush_batch();
+                    [encoder setRenderPipelineState:pipeState];
+                    [encoder setDepthStencilState:dsState];
+                    [encoder setViewport:metalVp];
+                    current_pass = MTL_PASS_3D;
+                    sprite_pipeline_set = false;
+                    font_pipeline_set = false;
+                    current_font_id = -1;
+                    break;
+
+                case TORIRS_GFX_END_3D:
+                    flush_batch();
+                    current_pass = MTL_PASS_NONE;
+                    break;
+
+                case TORIRS_GFX_BEGIN_2D:
+                    sprite_pipeline_set = false;
+                    font_pipeline_set = false;
+                    current_font_id = -1;
+                    current_pass = MTL_PASS_2D;
+                    break;
+
+                case TORIRS_GFX_END_2D:
+                    flush_font_batch();
+                    sprite_pipeline_set = false;
+                    font_pipeline_set = false;
+                    current_font_id = -1;
+                    current_pass = MTL_PASS_NONE;
+                    break;
+
+                case TORIRS_GFX_VERTEX_ARRAY_LOAD:
+                case TORIRS_GFX_VERTEX_ARRAY_UNLOAD:
+                case TORIRS_GFX_FACE_ARRAY_LOAD:
+                case TORIRS_GFX_FACE_ARRAY_UNLOAD:
+                    break;
+
                 case TORIRS_GFX_TEXTURE_LOAD:
                 {
                     const int tex_id = cmd._texture_load.texture_id;
@@ -1272,13 +1357,30 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                         !dashmodel_face_indices_b_const(model) || !dashmodel_face_indices_c_const(model) ||
                         dashmodel_face_count(model) <= 0 )
                         break;
-                    preload_model_key(renderer, model);
+                    preload_model_key(renderer, cmd._model_load.model_key);
+                    break;
+                }
+
+                case TORIRS_GFX_MODEL_UNLOAD:
+                {
+                    const int mid = cmd._model_load.model_id;
+                    if( mid <= 0 )
+                        break;
+                    for( auto it = renderer->model_index_by_key.begin();
+                         it != renderer->model_index_by_key.end(); )
+                    {
+                        if( model_id_from_model_cache_key(it->first) == mid )
+                            it = renderer->model_index_by_key.erase(it);
+                        else
+                            ++it;
+                    }
                     break;
                 }
 
                 case TORIRS_GFX_CLEAR_RECT:
                 {
                     flush_batch();
+                    flush_font_batch();
                     id<MTLRenderPipelineState> clrPipe =
                         renderer->mtl_clear_rect_pipeline
                             ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_clear_rect_pipeline
@@ -1334,9 +1436,22 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                                              (NSUInteger)renderer->width,
                                              (NSUInteger)renderer->height };
                     [encoder setScissorRect:scMax];
-                    [encoder setViewport:metalVp];
-                    [encoder setRenderPipelineState:pipeState];
-                    [encoder setDepthStencilState:dsState];
+                    if( current_pass == MTL_PASS_3D )
+                    {
+                        [encoder setViewport:metalVp];
+                        [encoder setRenderPipelineState:pipeState];
+                        [encoder setDepthStencilState:dsState];
+                    }
+                    else if( current_pass == MTL_PASS_2D )
+                    {
+                        [encoder setViewport:spriteVp];
+                    }
+                    else
+                    {
+                        [encoder setViewport:metalVp];
+                        [encoder setRenderPipelineState:pipeState];
+                        [encoder setDepthStencilState:dsState];
+                    }
                     break;
                 }
 
@@ -1351,7 +1466,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                         dashmodel_face_count(model) <= 0 )
                         break;
 
-                    preload_model_key(renderer, model);
+                    preload_model_key(renderer, cmd._model_draw.model_key);
 
                     /* FrameNextCommand already projected this model (project_models=true).
                      * The sys_dash projection state is still valid — use it directly. */
@@ -1421,13 +1536,14 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     if( !sp || !sp->pixels_argb || sp->width <= 0 || sp->height <= 0 )
                         break;
 
-                    // Release any stale cached texture for this pointer
+                    const uint64_t sk = torirs_sprite_cache_key(
+                        cmd._sprite_load.element_id, cmd._sprite_load.atlas_index);
                     {
-                        auto it = renderer->sprite_texture_by_ptr.find(sp);
-                        if( it != renderer->sprite_texture_by_ptr.end() && it->second )
+                        auto it = renderer->sprite_textures_by_slot.find(sk);
+                        if( it != renderer->sprite_textures_by_slot.end() && it->second )
                         {
                             CFRelease(it->second);
-                            renderer->sprite_texture_by_ptr.erase(it);
+                            renderer->sprite_textures_by_slot.erase(it);
                         }
                     }
 
@@ -1455,141 +1571,108 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                              mipmapLevel:0
                                withBytes:rgba.data()
                              bytesPerRow:(NSUInteger)sw * 4u];
-                    renderer->sprite_texture_by_ptr[sp] = (__bridge_retained void*)spTex;
+                    renderer->sprite_textures_by_slot[sk] = (__bridge_retained void*)spTex;
                     break;
                 }
 
                 case TORIRS_GFX_SPRITE_UNLOAD:
                 {
-                    struct DashSprite* sp = cmd._sprite_load.sprite;
-                    auto it = renderer->sprite_texture_by_ptr.find(sp);
-                    if( it != renderer->sprite_texture_by_ptr.end() )
+                    const uint64_t sk = torirs_sprite_cache_key(
+                        cmd._sprite_load.element_id, cmd._sprite_load.atlas_index);
+                    auto it = renderer->sprite_textures_by_slot.find(sk);
+                    if( it != renderer->sprite_textures_by_slot.end() )
                     {
                         if( it->second )
                             CFRelease(it->second);
-                        renderer->sprite_texture_by_ptr.erase(it);
+                        renderer->sprite_textures_by_slot.erase(it);
                     }
                     break;
                 }
 
                 case TORIRS_GFX_SPRITE_DRAW:
-                    sprite_cmds.push_back(cmd);
-                    break;
-
-                case TORIRS_GFX_FONT_LOAD:
                 {
-                    struct DashPixFont* font = cmd._font_load.font;
-                    if( font && font->atlas &&
-                        renderer->font_atlas_textures.find(font) ==
-                            renderer->font_atlas_textures.end() )
+                    if( !uiPipeState || !spriteQuadBuf )
+                        break;
+                    if( !sprite_pipeline_set )
                     {
-                        struct DashFontAtlas* atlas = font->atlas;
-                        MTLTextureDescriptor* td = [MTLTextureDescriptor
-                            texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
-                                                         width:(NSUInteger)atlas->atlas_width
-                                                        height:(NSUInteger)atlas->atlas_height
-                                                     mipmapped:NO];
-                        td.usage = MTLTextureUsageShaderRead;
-                        td.storageMode = MTLStorageModeShared;
-                        id<MTLTexture> atlasTex = [device newTextureWithDescriptor:td];
-                        [atlasTex replaceRegion:MTLRegionMake2D(
-                                                    0,
-                                                    0,
-                                                    (NSUInteger)atlas->atlas_width,
-                                                    (NSUInteger)atlas->atlas_height)
-                                    mipmapLevel:0
-                                      withBytes:atlas->rgba_pixels
-                                    bytesPerRow:(NSUInteger)atlas->atlas_width * 4u];
-                        renderer->font_atlas_textures[font] = (__bridge_retained void*)atlasTex;
+                        flush_font_batch();
+                        [encoder setViewport:spriteVp];
+                        [encoder setRenderPipelineState:uiPipeState];
+                        [encoder setDepthStencilState:dsState];
+                        [encoder setCullMode:MTLCullModeNone];
+                        sprite_pipeline_set = true;
+                        font_pipeline_set = false;
+                        current_font_id = -1;
                     }
-                    break;
-                }
 
-                case TORIRS_GFX_FONT_DRAW:
-                    sprite_cmds.push_back(cmd);
-                    break;
-
-                default:
-                    break;
-                }
-            }
-        }
-        flush_batch();
-
-        id<MTLRenderPipelineState> uiPipeState =
-            renderer->mtl_ui_sprite_pipeline
-                ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_ui_sprite_pipeline
-                : nil;
-        id<MTLSamplerState> uiSampler = (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
-        if( uiPipeState )
-        {
-            MTLViewport spriteVp = { .originX = 0.0,
-                                     .originY = 0.0,
-                                     .width = (double)renderer->width,
-                                     .height = (double)renderer->height,
-                                     .znear = 0.0,
-                                     .zfar = 1.0 };
-            [encoder setViewport:spriteVp];
-            [encoder setRenderPipelineState:uiPipeState];
-            [encoder setDepthStencilState:dsState];
-            [encoder setCullMode:MTLCullModeNone];
-
-            id<MTLBuffer> spriteQuadBuf = (__bridge id<MTLBuffer>)renderer->mtl_sprite_quad_buf;
-            // Each sprite occupies a unique slot so the GPU sees distinct data per draw call.
-            static const NSUInteger kSpriteSlotBytes = 6 * 4 * sizeof(float); // 96 bytes
-            NSUInteger spriteSlot = 0;
-
-            for( const auto& sc : sprite_cmds )
-            {
-                if( sc.kind == TORIRS_GFX_SPRITE_DRAW )
-                {
-                    struct DashSprite* sp = sc._sprite_draw.sprite;
+                    struct DashSprite* sp = cmd._sprite_draw.sprite;
                     if( !sp || sp->width <= 0 || sp->height <= 0 )
-                        continue;
+                        break;
 
-                    // Look up the pre-uploaded texture — no allocation or pixel conversion.
-                    auto texIt = renderer->sprite_texture_by_ptr.find(sp);
-                    if( texIt == renderer->sprite_texture_by_ptr.end() || !texIt->second )
-                        continue;
+                    const uint64_t sk = torirs_sprite_cache_key(
+                        cmd._sprite_draw.element_id, cmd._sprite_draw.atlas_index);
+                    auto texIt = renderer->sprite_textures_by_slot.find(sk);
+                    if( texIt == renderer->sprite_textures_by_slot.end() || !texIt->second )
+                        break;
                     id<MTLTexture> spriteTex = (__bridge id<MTLTexture>)texIt->second;
 
-                    const int dst_x = sc._sprite_draw.dst_bb_x + sp->crop_x;
-                    const int dst_y = sc._sprite_draw.dst_bb_y + sp->crop_y;
                     const int iw =
-                        sc._sprite_draw.src_bb_w > 0 ? sc._sprite_draw.src_bb_w : sp->width;
+                        cmd._sprite_draw.src_bb_w > 0 ? cmd._sprite_draw.src_bb_w : sp->width;
                     const int ih =
-                        sc._sprite_draw.src_bb_h > 0 ? sc._sprite_draw.src_bb_h : sp->height;
-                    const int ix = sc._sprite_draw.src_bb_x;
-                    const int iy = sc._sprite_draw.src_bb_y;
+                        cmd._sprite_draw.src_bb_h > 0 ? cmd._sprite_draw.src_bb_h : sp->height;
+                    const int ix = cmd._sprite_draw.src_bb_x;
+                    const int iy = cmd._sprite_draw.src_bb_y;
                     if( ix < 0 || iy < 0 || ix + iw > sp->width || iy + ih > sp->height )
-                        continue;
+                        break;
                     const float tw = (float)sp->width;
                     const float th = (float)sp->height;
-                    const float w = (float)iw;
-                    const float h = (float)ih;
-                    const float x0 = (float)dst_x;
-                    const float y0 = (float)dst_y;
-                    const float x1 = x0 + w;
-                    const float y1 = y0 + h;
-                    const float cx = 0.5f * (x0 + x1);
-                    const float cy = 0.5f * (y0 + y1);
-                    const float angle =
-                        (float)(sc._sprite_draw.rotation_r2pi2048 * (2.0 * M_PI) / 2048.0);
-                    const float ca = cosf(angle);
-                    const float sa = sinf(angle);
-                    const float hw = 0.5f * w;
-                    const float hh = 0.5f * h;
 
                     float px[4];
                     float py[4];
-                    auto rot_local = [&](float lx, float ly, int k) {
-                        px[k] = cx + ca * lx - sa * ly;
-                        py[k] = cy + sa * lx + ca * ly;
-                    };
-                    rot_local(-hw, -hh, 0);
-                    rot_local(hw, -hh, 1);
-                    rot_local(hw, hh, 2);
-                    rot_local(-hw, hh, 3);
+                    if( cmd._sprite_draw.rotated )
+                    {
+                        const int dw = cmd._sprite_draw.dst_bb_w;
+                        const int dh = cmd._sprite_draw.dst_bb_h;
+                        if( dw <= 0 || dh <= 0 )
+                            break;
+                        const float pivot_x =
+                            (float)cmd._sprite_draw.dst_bb_x + (float)cmd._sprite_draw.dst_anchor_x;
+                        const float pivot_y =
+                            (float)cmd._sprite_draw.dst_bb_y + (float)cmd._sprite_draw.dst_anchor_y;
+                        const int dax = cmd._sprite_draw.dst_anchor_x;
+                        const int day = cmd._sprite_draw.dst_anchor_y;
+                        const int ang = cmd._sprite_draw.rotation_r2pi2048 & 2047;
+                        const float angle = (float)ang * (float)(2.0 * M_PI / 2048.0);
+                        const float ca = cosf(angle);
+                        const float sa = sinf(angle);
+                        struct
+                        {
+                            int lx, ly;
+                        } corners[4] = { { 0, 0 },
+                                         { dw, 0 },
+                                         { dw, dh },
+                                         { 0, dh } };
+                        for( int k = 0; k < 4; ++k )
+                        {
+                            float Lx = (float)(corners[k].lx - dax);
+                            float Ly = (float)(corners[k].ly - day);
+                            px[k] = pivot_x + ca * Lx - sa * Ly;
+                            py[k] = pivot_y + sa * Lx + ca * Ly;
+                        }
+                    }
+                    else
+                    {
+                        const int dst_x = cmd._sprite_draw.dst_bb_x + sp->crop_x;
+                        const int dst_y = cmd._sprite_draw.dst_bb_y + sp->crop_y;
+                        const float w = (float)iw;
+                        const float h = (float)ih;
+                        const float x0 = (float)dst_x;
+                        const float y0 = (float)dst_y;
+                        px[0] = px[3] = x0;
+                        px[1] = px[2] = x0 + w;
+                        py[0] = py[1] = y0;
+                        py[2] = py[3] = y0 + h;
+                    }
 
                     const float fbw = (float)(win_width > 0 ? win_width : renderer->width);
                     const float fbh = (float)(win_height > 0 ? win_height : renderer->height);
@@ -1614,155 +1697,152 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                         c0x, c0y, u0, v0, c2x, c2y, u1, v1, c3x, c3y, u0, v1,
                     };
 
-                    NSUInteger slotOffset = spriteSlot * kSpriteSlotBytes;
+                    NSUInteger slotOffset = sprite_slot * kSpriteSlotBytes;
                     memcpy((char*)spriteQuadBuf.contents + slotOffset, verts, sizeof(verts));
                     [encoder setVertexBuffer:spriteQuadBuf offset:slotOffset atIndex:0];
                     [encoder setFragmentTexture:spriteTex atIndex:0];
-                    [encoder setFragmentSamplerState:uiSampler atIndex:0];
+                    [encoder setFragmentSamplerState:uiSamplerNearest atIndex:0];
                     [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
-                    ++spriteSlot;
+                    ++sprite_slot;
+                    break;
+                }
+
+                case TORIRS_GFX_FONT_LOAD:
+                {
+                    struct DashPixFont* font = cmd._font_load.font;
+                    const int font_id = cmd._font_load.font_id;
+                    if( font && font->atlas &&
+                        renderer->font_atlas_textures.find(font_id) ==
+                            renderer->font_atlas_textures.end() )
+                    {
+                        struct DashFontAtlas* atlas = font->atlas;
+                        MTLTextureDescriptor* td = [MTLTextureDescriptor
+                            texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                         width:(NSUInteger)atlas->atlas_width
+                                                        height:(NSUInteger)atlas->atlas_height
+                                                     mipmapped:NO];
+                        td.usage = MTLTextureUsageShaderRead;
+                        td.storageMode = MTLStorageModeShared;
+                        id<MTLTexture> atlasTex = [device newTextureWithDescriptor:td];
+                        [atlasTex replaceRegion:MTLRegionMake2D(
+                                                    0,
+                                                    0,
+                                                    (NSUInteger)atlas->atlas_width,
+                                                    (NSUInteger)atlas->atlas_height)
+                                    mipmapLevel:0
+                                      withBytes:atlas->rgba_pixels
+                                    bytesPerRow:(NSUInteger)atlas->atlas_width * 4u];
+                        renderer->font_atlas_textures[font_id] = (__bridge_retained void*)atlasTex;
+                    }
+                    break;
+                }
+
+                case TORIRS_GFX_FONT_DRAW:
+                {
+                    if( !fontPipeState || !fontVbo )
+                        break;
+                    struct DashPixFont* f = cmd._font_draw.font;
+                    if( !f || !f->atlas || !cmd._font_draw.text || f->height2d <= 0 )
+                        break;
+
+                    const int fid = cmd._font_draw.font_id;
+                    auto texIt = renderer->font_atlas_textures.find(fid);
+                    if( texIt == renderer->font_atlas_textures.end() || !texIt->second )
+                        break;
+                    if( !font_pipeline_set || current_font_id != fid )
+                    {
+                        flush_font_batch();
+                        if( !font_pipeline_set )
+                        {
+                            [encoder setRenderPipelineState:fontPipeState];
+                            [encoder setDepthStencilState:dsState];
+                            [encoder setCullMode:MTLCullModeNone];
+                            [encoder setViewport:spriteVp];
+                            font_pipeline_set = true;
+                            sprite_pipeline_set = false;
+                        }
+                        current_font_id = fid;
+                        current_font_atlas_tex = (__bridge id<MTLTexture>)texIt->second;
+                    }
+
+                    struct DashFontAtlas* atlas = f->atlas;
+                    const float inv_aw = 1.0f / (float)atlas->atlas_width;
+                    const float inv_ah = 1.0f / (float)atlas->atlas_height;
+
+                    const uint8_t* text = cmd._font_draw.text;
+                    int length = (int)strlen((const char*)text);
+                    int color_rgb = cmd._font_draw.color_rgb;
+                    float cr = (float)((color_rgb >> 16) & 0xFF) / 255.0f;
+                    float cg = (float)((color_rgb >> 8) & 0xFF) / 255.0f;
+                    float cb = (float)(color_rgb & 0xFF) / 255.0f;
+                    float ca = 1.0f;
+                    int pen_x = cmd._font_draw.x;
+                    int base_y = cmd._font_draw.y;
+
+                    for( int i = 0; i < length; i++ )
+                    {
+                        if( text[i] == '@' && i + 5 <= length && text[i + 4] == '@' )
+                        {
+                            int new_color = dashfont_evaluate_color_tag((const char*)&text[i + 1]);
+                            if( new_color >= 0 )
+                            {
+                                color_rgb = new_color;
+                                cr = (float)((color_rgb >> 16) & 0xFF) / 255.0f;
+                                cg = (float)((color_rgb >> 8) & 0xFF) / 255.0f;
+                                cb = (float)(color_rgb & 0xFF) / 255.0f;
+                            }
+                            if( i + 6 <= length && text[i + 5] == ' ' )
+                                i += 5;
+                            else
+                                i += 4;
+                            continue;
+                        }
+
+                        int c = dashfont_charcode_to_glyph(text[i]);
+                        if( c < DASH_FONT_CHAR_COUNT )
+                        {
+                            int gw = atlas->glyph_w[c];
+                            int gh = atlas->glyph_h[c];
+                            if( gw > 0 && gh > 0 )
+                            {
+                                float sx0 = (float)(pen_x + f->char_offset_x[c]);
+                                float sy0 = (float)(base_y + f->char_offset_y[c]);
+                                float sx1 = sx0 + (float)gw;
+                                float sy1 = sy0 + (float)gh;
+
+                                float u0 = (float)atlas->glyph_x[c] * inv_aw;
+                                float v0 = (float)atlas->glyph_y[c] * inv_ah;
+                                float u1 = (float)(atlas->glyph_x[c] + gw) * inv_aw;
+                                float v1 = (float)(atlas->glyph_y[c] + gh) * inv_ah;
+
+                                float cx0 = 2.0f * sx0 / fbw_font - 1.0f;
+                                float cy0 = 1.0f - 2.0f * sy0 / fbh_font;
+                                float cx1 = 2.0f * sx1 / fbw_font - 1.0f;
+                                float cy1 = 1.0f - 2.0f * sy1 / fbh_font;
+
+                                float vq[6 * 8] = {
+                                    cx0, cy0, u0, v0, cr, cg, cb, ca, cx1, cy0, u1, v0, cr, cg, cb, ca,
+                                    cx1, cy1, u1, v1, cr, cg, cb, ca, cx0, cy0, u0, v0, cr, cg, cb, ca,
+                                    cx1, cy1, u1, v1, cr, cg, cb, ca, cx0, cy1, u0, v1, cr, cg, cb, ca,
+                                };
+                                font_verts.insert(font_verts.end(), vq, vq + 48);
+                            }
+                        }
+                        int adv = f->char_advance[c];
+                        if( adv <= 0 )
+                            adv = 4;
+                        pen_x += adv;
+                    }
+                    break;
+                }
+
+                default:
+                    break;
                 }
             }
         }
-
-        /* Font draws: emit per-glyph quads from atlas textures using the font pipeline. */
-        id<MTLRenderPipelineState> fontPipeState =
-            renderer->mtl_font_pipeline
-                ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_font_pipeline
-                : nil;
-        if( fontPipeState && renderer->mtl_font_vbo )
-        {
-            id<MTLBuffer> fontVbo = (__bridge id<MTLBuffer>)renderer->mtl_font_vbo;
-            id<MTLSamplerState> fontSampler =
-                (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
-
-            [encoder setRenderPipelineState:fontPipeState];
-            [encoder setDepthStencilState:dsState];
-            [encoder setCullMode:MTLCullModeNone];
-            MTLViewport fontVp = { .originX = 0.0,
-                                   .originY = 0.0,
-                                   .width = (double)renderer->width,
-                                   .height = (double)renderer->height,
-                                   .znear = 0.0,
-                                   .zfar = 1.0 };
-            [encoder setViewport:fontVp];
-
-            static std::vector<float> font_verts;
-            font_verts.clear();
-
-            struct DashPixFont* current_font_ptr = NULL;
-            id<MTLTexture> current_atlas_tex = nil;
-
-            const float fbw = (float)(win_width > 0 ? win_width : renderer->width);
-            const float fbh = (float)(win_height > 0 ? win_height : renderer->height);
-
-            auto flush_font_batch = [&]() {
-                if( font_verts.empty() || !current_atlas_tex )
-                    return;
-                int vert_count = (int)(font_verts.size() / 8);
-                NSUInteger byte_count = font_verts.size() * sizeof(float);
-                if( byte_count > fontVbo.length )
-                    return;
-                memcpy(fontVbo.contents, font_verts.data(), byte_count);
-                [encoder setVertexBuffer:fontVbo offset:0 atIndex:0];
-                [encoder setFragmentTexture:current_atlas_tex atIndex:0];
-                [encoder setFragmentSamplerState:fontSampler atIndex:0];
-                [encoder drawPrimitives:MTLPrimitiveTypeTriangle
-                            vertexStart:0
-                            vertexCount:(NSUInteger)vert_count];
-                font_verts.clear();
-            };
-
-            for( const auto& sc : sprite_cmds )
-            {
-                if( sc.kind != TORIRS_GFX_FONT_DRAW )
-                    continue;
-                struct DashPixFont* f = sc._font_draw.font;
-                if( !f || !f->atlas || !sc._font_draw.text || f->height2d <= 0 )
-                    continue;
-
-                auto texIt = renderer->font_atlas_textures.find(f);
-                if( texIt == renderer->font_atlas_textures.end() || !texIt->second )
-                    continue;
-
-                if( current_font_ptr != f )
-                {
-                    flush_font_batch();
-                    current_font_ptr = f;
-                    current_atlas_tex = (__bridge id<MTLTexture>)texIt->second;
-                }
-
-                struct DashFontAtlas* atlas = f->atlas;
-                const float inv_aw = 1.0f / (float)atlas->atlas_width;
-                const float inv_ah = 1.0f / (float)atlas->atlas_height;
-
-                const uint8_t* text = sc._font_draw.text;
-                int length = (int)strlen((const char*)text);
-                int color_rgb = sc._font_draw.color_rgb;
-                float cr = (float)((color_rgb >> 16) & 0xFF) / 255.0f;
-                float cg = (float)((color_rgb >> 8) & 0xFF) / 255.0f;
-                float cb = (float)(color_rgb & 0xFF) / 255.0f;
-                float ca = 1.0f;
-                int pen_x = sc._font_draw.x;
-                int base_y = sc._font_draw.y;
-
-                for( int i = 0; i < length; i++ )
-                {
-                    if( text[i] == '@' && i + 5 <= length && text[i + 4] == '@' )
-                    {
-                        int new_color = dashfont_evaluate_color_tag((const char*)&text[i + 1]);
-                        if( new_color >= 0 )
-                        {
-                            color_rgb = new_color;
-                            cr = (float)((color_rgb >> 16) & 0xFF) / 255.0f;
-                            cg = (float)((color_rgb >> 8) & 0xFF) / 255.0f;
-                            cb = (float)(color_rgb & 0xFF) / 255.0f;
-                        }
-                        if( i + 6 <= length && text[i + 5] == ' ' )
-                            i += 5;
-                        else
-                            i += 4;
-                        continue;
-                    }
-
-                    int c = dashfont_charcode_to_glyph(text[i]);
-                    if( c < DASH_FONT_CHAR_COUNT )
-                    {
-                        int gw = atlas->glyph_w[c];
-                        int gh = atlas->glyph_h[c];
-                        if( gw > 0 && gh > 0 )
-                        {
-                            float sx0 = (float)(pen_x + f->char_offset_x[c]);
-                            float sy0 = (float)(base_y + f->char_offset_y[c]);
-                            float sx1 = sx0 + (float)gw;
-                            float sy1 = sy0 + (float)gh;
-
-                            float u0 = (float)atlas->glyph_x[c] * inv_aw;
-                            float v0 = (float)atlas->glyph_y[c] * inv_ah;
-                            float u1 = (float)(atlas->glyph_x[c] + gw) * inv_aw;
-                            float v1 = (float)(atlas->glyph_y[c] + gh) * inv_ah;
-
-                            float cx0 = 2.0f * sx0 / fbw - 1.0f;
-                            float cy0 = 1.0f - 2.0f * sy0 / fbh;
-                            float cx1 = 2.0f * sx1 / fbw - 1.0f;
-                            float cy1 = 1.0f - 2.0f * sy1 / fbh;
-
-                            float v[6 * 8] = {
-                                cx0, cy0, u0, v0, cr, cg, cb, ca, cx1, cy0, u1, v0, cr, cg, cb, ca,
-                                cx1, cy1, u1, v1, cr, cg, cb, ca, cx0, cy0, u0, v0, cr, cg, cb, ca,
-                                cx1, cy1, u1, v1, cr, cg, cb, ca, cx0, cy1, u0, v1, cr, cg, cb, ca,
-                            };
-                            font_verts.insert(font_verts.end(), v, v + 48);
-                        }
-                    }
-                    int adv = f->char_advance[c];
-                    if( adv <= 0 )
-                        adv = 4;
-                    pen_x += adv;
-                }
-            }
-            flush_font_batch();
-        }
+        flush_batch();
+        flush_font_batch();
 
         // -----------------------------------------------------------------------
         // Finish scene pass, render Nuklear overlay in the same render encoder

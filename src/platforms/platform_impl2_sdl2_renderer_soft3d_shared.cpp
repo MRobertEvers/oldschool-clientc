@@ -37,7 +37,6 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <vector>
 
 static struct nk_context* s_soft3d_nk;
 static Uint64 s_soft3d_ui_prev_perf;
@@ -293,9 +292,6 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
                          [renderer->dash_offset_y * renderer->width + renderer->dash_offset_x];
     }
 
-    static std::vector<ToriRSRenderCommand> deferred_font_draws;
-    deferred_font_draws.clear();
-
     /* Readme "FrameStart" — timing covers FrameBegin + command drain + FrameEnd. */
     Uint64 const soft3d_perf_freq = SDL_GetPerformanceFrequency();
     Uint64 const soft3d_t_frame_start = SDL_GetPerformanceCounter();
@@ -307,6 +303,7 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
         {
         case TORIRS_GFX_FONT_LOAD:
         case TORIRS_GFX_MODEL_LOAD:
+        case TORIRS_GFX_MODEL_UNLOAD:
             break;
         case TORIRS_GFX_TEXTURE_LOAD:
         {
@@ -316,8 +313,22 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
         }
         break;
         case TORIRS_GFX_FONT_DRAW:
-            deferred_font_draws.push_back(command);
-            break;
+        {
+            struct DashPixFont* f = command._font_draw.font;
+            const uint8_t* text = command._font_draw.text;
+            if( f && text && renderer->pixel_buffer )
+            {
+                dashfont_draw_text_ex(
+                    f,
+                    (uint8_t*)text,
+                    command._font_draw.x,
+                    command._font_draw.y,
+                    command._font_draw.color_rgb,
+                    renderer->pixel_buffer,
+                    renderer->width);
+            }
+        }
+        break;
         case TORIRS_GFX_CLEAR_RECT:
         {
             int cx = command._clear_rect.x;
@@ -398,6 +409,15 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
             }
         }
         break;
+        case TORIRS_GFX_BEGIN_3D:
+        case TORIRS_GFX_END_3D:
+        case TORIRS_GFX_BEGIN_2D:
+        case TORIRS_GFX_END_2D:
+        case TORIRS_GFX_VERTEX_ARRAY_LOAD:
+        case TORIRS_GFX_VERTEX_ARRAY_UNLOAD:
+        case TORIRS_GFX_FACE_ARRAY_LOAD:
+        case TORIRS_GFX_FACE_ARRAY_UNLOAD:
+            break;
         default:
             break;
         }
@@ -420,20 +440,6 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
     //         s_soft3d_frame_ms_sum = 0.0;
     //         s_soft3d_frame_count = 0;
     //     }
-    // }
-
-    // for( const auto& fc : deferred_font_draws )
-    // {
-    //     struct DashPixFont* f = fc._font_draw.font;
-    //     if( f && fc._font_draw.text && renderer->pixel_buffer )
-    //         dashfont_draw_text_ex(
-    //             f,
-    //             (uint8_t*)fc._font_draw.text,
-    //             fc._font_draw.x,
-    //             fc._font_draw.y,
-    //             fc._font_draw.color_rgb,
-    //             renderer->pixel_buffer,
-    //             renderer->width);
     // }
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(

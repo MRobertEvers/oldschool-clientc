@@ -35,6 +35,7 @@ static Uint64 s_d3d11_ui_prev_perf;
 
 extern "C" {
 #include "graphics/dash.h"
+#include "graphics/dash_model_internal.h"
 #include "graphics/shared_tables.h"
 #include "osrs/game.h"
 #include "tori_rs_render.h"
@@ -479,46 +480,6 @@ compute_d3d11_world_viewport_rect(
     return rect;
 }
 
-// ---------------------------------------------------------------------------
-// Model helpers (identical to Metal renderer)
-// ---------------------------------------------------------------------------
-static uint64_t
-model_gpu_cache_key(const struct DashModel* model)
-{
-    if( !model )
-        return 0;
-    uint64_t key = 14695981039346656037ULL;
-    const uint64_t fnv_prime = 1099511628211ULL;
-    auto mix_word = [&](uint64_t word) {
-        key ^= word;
-        key *= fnv_prime;
-    };
-
-    mix_word((uint64_t)(uintptr_t)dashmodel_vertices_x_const(model));
-    mix_word((uint64_t)(uintptr_t)dashmodel_face_indices_a_const(model));
-    mix_word((uint64_t)(uintptr_t)dashmodel_face_indices_b_const(model));
-    mix_word((uint64_t)(uintptr_t)dashmodel_face_indices_c_const(model));
-    mix_word((uint64_t)dashmodel_face_count(model));
-
-    struct DashModel* mw = (struct DashModel*)model;
-    const bool is_animated = dashmodel_original_vertices_x(mw) && dashmodel_original_vertices_y(mw) &&
-                             dashmodel_original_vertices_z(mw) && dashmodel_vertex_count(model) > 0;
-    if( is_animated )
-    {
-        const vertexint_t* vx = dashmodel_vertices_x_const(model);
-        const vertexint_t* vy = dashmodel_vertices_y_const(model);
-        const vertexint_t* vz = dashmodel_vertices_z_const(model);
-        int vc = dashmodel_vertex_count(model);
-        for( int i = 0; i < vc; ++i )
-        {
-            mix_word((uint64_t)(uint32_t)vx[i]);
-            mix_word((uint64_t)(uint32_t)vy[i]);
-            mix_word((uint64_t)(uint32_t)vz[i]);
-        }
-    }
-    return key;
-}
-
 static float
 d3d11_texture_animation_signed(
     int animation_direction,
@@ -608,9 +569,9 @@ append_model_face_vertices(
         }
         else
         {
-            tp = face_ia[texture_face_idx];
-            tm = face_ib[texture_face_idx];
-            tn = face_ic[texture_face_idx];
+            tp = face_ia[f];
+            tm = face_ib[f];
+            tn = face_ic[f];
         }
 
         const vertexint_t* vtx = dashmodel_vertices_x_const(model);
@@ -682,17 +643,22 @@ append_model_face_vertices(
     }
 }
 
+static inline int
+model_id_from_model_cache_key(uint64_t k)
+{
+    return (int)(uint32_t)(k >> 24);
+}
+
 static void
 preload_model_key(
     struct Platform2_SDL2_Renderer_D3D11* renderer,
-    const struct DashModel* model)
+    uint64_t model_key)
 {
-    if( !model )
+    if( model_id_from_model_cache_key(model_key) <= 0 )
         return;
-    uint64_t key = model_gpu_cache_key(model);
-    renderer->loaded_model_keys.insert(key);
-    if( renderer->model_index_by_key.find(key) == renderer->model_index_by_key.end() )
-        renderer->model_index_by_key[key] = renderer->next_model_index++;
+    renderer->loaded_model_keys.insert(model_key);
+    if( renderer->model_index_by_key.find(model_key) == renderer->model_index_by_key.end() )
+        renderer->model_index_by_key[model_key] = renderer->next_model_index++;
 }
 
 // ---------------------------------------------------------------------------
@@ -798,7 +764,7 @@ render_nuklear_overlay(
     params.soft3d = nullptr;
     params.include_soft3d_extras = 0;
     params.include_load_counts = 1;
-    params.loaded_models = renderer->loaded_model_keys.size();
+    params.loaded_models = (unsigned)renderer->loaded_model_keys.size();
     params.loaded_scenes = renderer->loaded_scene_element_keys.size();
     params.loaded_textures = renderer->loaded_texture_ids.size();
     params.include_gpu_frame_stats = 1;
@@ -865,10 +831,10 @@ PlatformImpl2_SDL2_Renderer_D3D11_Free(struct Platform2_SDL2_Renderer_D3D11* ren
         if( kv.second )
             kv.second->Release();
 
-    for( auto& kv : renderer->sprite_texture_by_ptr )
+    for( auto& kv : renderer->sprite_textures_by_slot )
         if( kv.second )
             kv.second->Release();
-    for( auto& kv : renderer->sprite_srv_by_ptr )
+    for( auto& kv : renderer->sprite_srv_by_slot )
         if( kv.second )
             kv.second->Release();
 
@@ -1456,7 +1422,31 @@ PlatformImpl2_SDL2_Renderer_D3D11_Render(
                     !dashmodel_face_indices_b_const(model) || !dashmodel_face_indices_c_const(model) ||
                     dashmodel_face_count(model) <= 0 )
                     break;
-                preload_model_key(renderer, model);
+                preload_model_key(renderer, cmd._model_load.model_key);
+                break;
+            }
+
+            case TORIRS_GFX_MODEL_UNLOAD:
+            {
+                const int mid = cmd._model_load.model_id;
+                if( mid <= 0 )
+                    break;
+                for( auto it = renderer->model_index_by_key.begin();
+                     it != renderer->model_index_by_key.end(); )
+                {
+                    if( model_id_from_model_cache_key(it->first) == mid )
+                        it = renderer->model_index_by_key.erase(it);
+                    else
+                        ++it;
+                }
+                for( auto it = renderer->loaded_model_keys.begin();
+                     it != renderer->loaded_model_keys.end(); )
+                {
+                    if( model_id_from_model_cache_key(*it) == mid )
+                        it = renderer->loaded_model_keys.erase(it);
+                    else
+                        ++it;
+                }
                 break;
             }
 
@@ -1496,7 +1486,7 @@ PlatformImpl2_SDL2_Renderer_D3D11_Render(
                     dashmodel_face_count(model) <= 0 )
                     break;
 
-                preload_model_key(renderer, model);
+                preload_model_key(renderer, cmd._model_draw.model_key);
 
                 struct DashPosition draw_position = cmd._model_draw.position;
                 int face_order_count = dash3d_prepare_projected_face_order(
@@ -1561,18 +1551,20 @@ PlatformImpl2_SDL2_Renderer_D3D11_Render(
                 if( !sp || !sp->pixels_argb || sp->width <= 0 || sp->height <= 0 )
                     break;
 
+                const uint64_t sk = torirs_sprite_cache_key(
+                    cmd._sprite_load.element_id, cmd._sprite_load.atlas_index);
                 {
-                    auto it = renderer->sprite_texture_by_ptr.find(sp);
-                    if( it != renderer->sprite_texture_by_ptr.end() && it->second )
+                    auto it = renderer->sprite_textures_by_slot.find(sk);
+                    if( it != renderer->sprite_textures_by_slot.end() && it->second )
                     {
                         it->second->Release();
-                        renderer->sprite_texture_by_ptr.erase(it);
+                        renderer->sprite_textures_by_slot.erase(it);
                     }
-                    auto sit = renderer->sprite_srv_by_ptr.find(sp);
-                    if( sit != renderer->sprite_srv_by_ptr.end() && sit->second )
+                    auto sit = renderer->sprite_srv_by_slot.find(sk);
+                    if( sit != renderer->sprite_srv_by_slot.end() && sit->second )
                     {
                         sit->second->Release();
-                        renderer->sprite_srv_by_ptr.erase(sit);
+                        renderer->sprite_srv_by_slot.erase(sit);
                     }
                 }
 
@@ -1610,27 +1602,28 @@ PlatformImpl2_SDL2_Renderer_D3D11_Render(
                 ID3D11ShaderResourceView* sp_srv = nullptr;
                 renderer->device->CreateShaderResourceView(sp_tex, &srv_desc, &sp_srv);
 
-                renderer->sprite_texture_by_ptr[sp] = sp_tex;
-                renderer->sprite_srv_by_ptr[sp] = sp_srv;
+                renderer->sprite_textures_by_slot[sk] = sp_tex;
+                renderer->sprite_srv_by_slot[sk] = sp_srv;
                 break;
             }
 
             case TORIRS_GFX_SPRITE_UNLOAD:
             {
-                struct DashSprite* sp = cmd._sprite_load.sprite;
-                auto it = renderer->sprite_texture_by_ptr.find(sp);
-                if( it != renderer->sprite_texture_by_ptr.end() )
+                const uint64_t sk = torirs_sprite_cache_key(
+                    cmd._sprite_load.element_id, cmd._sprite_load.atlas_index);
+                auto it = renderer->sprite_textures_by_slot.find(sk);
+                if( it != renderer->sprite_textures_by_slot.end() )
                 {
                     if( it->second )
                         it->second->Release();
-                    renderer->sprite_texture_by_ptr.erase(it);
+                    renderer->sprite_textures_by_slot.erase(it);
                 }
-                auto sit = renderer->sprite_srv_by_ptr.find(sp);
-                if( sit != renderer->sprite_srv_by_ptr.end() )
+                auto sit = renderer->sprite_srv_by_slot.find(sk);
+                if( sit != renderer->sprite_srv_by_slot.end() )
                 {
                     if( sit->second )
                         sit->second->Release();
-                    renderer->sprite_srv_by_ptr.erase(sit);
+                    renderer->sprite_srv_by_slot.erase(sit);
                 }
                 break;
             }
@@ -1642,8 +1635,9 @@ PlatformImpl2_SDL2_Renderer_D3D11_Render(
             case TORIRS_GFX_FONT_LOAD:
             {
                 struct DashPixFont* font = cmd._font_load.font;
+                const int font_id = cmd._font_load.font_id;
                 if( font && font->atlas &&
-                    renderer->font_atlas_cache.find(font) == renderer->font_atlas_cache.end() )
+                    renderer->font_atlas_cache.find(font_id) == renderer->font_atlas_cache.end() )
                 {
                     struct DashFontAtlas* atlas = font->atlas;
 
@@ -1672,13 +1666,23 @@ PlatformImpl2_SDL2_Renderer_D3D11_Render(
                     D3D11FontAtlasEntry entry;
                     entry.texture = atlas_tex;
                     entry.srv = atlas_srv;
-                    renderer->font_atlas_cache[font] = entry;
+                    renderer->font_atlas_cache[font_id] = entry;
                 }
                 break;
             }
 
             case TORIRS_GFX_FONT_DRAW:
                 sprite_cmds.push_back(cmd);
+                break;
+
+            case TORIRS_GFX_BEGIN_3D:
+            case TORIRS_GFX_END_3D:
+            case TORIRS_GFX_BEGIN_2D:
+            case TORIRS_GFX_END_2D:
+            case TORIRS_GFX_VERTEX_ARRAY_LOAD:
+            case TORIRS_GFX_VERTEX_ARRAY_UNLOAD:
+            case TORIRS_GFX_FACE_ARRAY_LOAD:
+            case TORIRS_GFX_FACE_ARRAY_UNLOAD:
                 break;
 
             default:
@@ -1711,35 +1715,73 @@ PlatformImpl2_SDL2_Renderer_D3D11_Render(
             if( !sp || sp->width <= 0 || sp->height <= 0 )
                 continue;
 
-            auto srv_it = renderer->sprite_srv_by_ptr.find(sp);
-            if( srv_it == renderer->sprite_srv_by_ptr.end() || !srv_it->second )
+            const uint64_t sk = torirs_sprite_cache_key(
+                sc._sprite_draw.element_id, sc._sprite_draw.atlas_index);
+            auto srv_it = renderer->sprite_srv_by_slot.find(sk);
+            if( srv_it == renderer->sprite_srv_by_slot.end() || !srv_it->second )
                 continue;
 
-            const int dst_x = sc._sprite_draw.x + sp->crop_x;
-            const int dst_y = sc._sprite_draw.y + sp->crop_y;
-            const float w = (float)sp->width;
-            const float h = (float)sp->height;
-            const float x0 = (float)dst_x;
-            const float y0 = (float)dst_y;
-            const float x1 = x0 + w;
-            const float y1 = y0 + h;
-            const float cx = 0.5f * (x0 + x1);
-            const float cy = 0.5f * (y0 + y1);
-            const float angle = (float)(sc._sprite_draw.rotation_r2pi2048 * (2.0 * M_PI) / 2048.0);
-            const float ca = cosf(angle);
-            const float sa = sinf(angle);
-            const float hw = 0.5f * w;
-            const float hh = 0.5f * h;
+            const int iw =
+                sc._sprite_draw.src_bb_w > 0 ? sc._sprite_draw.src_bb_w : sp->width;
+            const int ih =
+                sc._sprite_draw.src_bb_h > 0 ? sc._sprite_draw.src_bb_h : sp->height;
+            const int ix = sc._sprite_draw.src_bb_x;
+            const int iy = sc._sprite_draw.src_bb_y;
+            if( ix < 0 || iy < 0 || ix + iw > sp->width || iy + ih > sp->height )
+                continue;
+            const float tw = (float)sp->width;
+            const float th = (float)sp->height;
+            const float u0 = (float)ix / tw;
+            const float v0 = (float)iy / th;
+            const float u1 = (float)(ix + iw) / tw;
+            const float v1 = (float)(iy + ih) / th;
 
-            float px[4], py[4];
-            auto rot_local = [&](float lx, float ly, int k) {
-                px[k] = cx + ca * lx - sa * ly;
-                py[k] = cy + sa * lx + ca * ly;
-            };
-            rot_local(-hw, -hh, 0);
-            rot_local(hw, -hh, 1);
-            rot_local(hw, hh, 2);
-            rot_local(-hw, hh, 3);
+            float px[4];
+            float py[4];
+            if( sc._sprite_draw.rotated )
+            {
+                const int dw = sc._sprite_draw.dst_bb_w;
+                const int dh = sc._sprite_draw.dst_bb_h;
+                if( dw <= 0 || dh <= 0 )
+                    continue;
+                const float pivot_x =
+                    (float)sc._sprite_draw.dst_bb_x + (float)sc._sprite_draw.dst_anchor_x;
+                const float pivot_y =
+                    (float)sc._sprite_draw.dst_bb_y + (float)sc._sprite_draw.dst_anchor_y;
+                const int dax = sc._sprite_draw.dst_anchor_x;
+                const int day = sc._sprite_draw.dst_anchor_y;
+                const int ang = sc._sprite_draw.rotation_r2pi2048 & 2047;
+                const float angle = (float)ang * (float)(2.0 * M_PI / 2048.0);
+                const float ca = cosf(angle);
+                const float sa = sinf(angle);
+                struct
+                {
+                    int lx, ly;
+                } corners[4] = { { 0, 0 },
+                                 { dw, 0 },
+                                 { dw, dh },
+                                 { 0, dh } };
+                for( int k = 0; k < 4; ++k )
+                {
+                    float Lx = (float)(corners[k].lx - dax);
+                    float Ly = (float)(corners[k].ly - day);
+                    px[k] = pivot_x + ca * Lx - sa * Ly;
+                    py[k] = pivot_y + sa * Lx + ca * Ly;
+                }
+            }
+            else
+            {
+                const int dst_x = sc._sprite_draw.dst_bb_x + sp->crop_x;
+                const int dst_y = sc._sprite_draw.dst_bb_y + sp->crop_y;
+                const float w = (float)iw;
+                const float h = (float)ih;
+                const float x0 = (float)dst_x;
+                const float y0 = (float)dst_y;
+                px[0] = px[3] = x0;
+                px[1] = px[2] = x0 + w;
+                py[0] = py[1] = y0;
+                py[2] = py[3] = y0 + h;
+            }
 
             const float fbw = (float)(win_width > 0 ? win_width : renderer->width);
             const float fbh = (float)(win_height > 0 ? win_height : renderer->height);
@@ -1755,8 +1797,8 @@ PlatformImpl2_SDL2_Renderer_D3D11_Render(
             to_clip(px[3], py[3], &c3x, &c3y);
 
             float verts[6 * 4] = {
-                c0x, c0y, 0.0f, 0.0f, c1x, c1y, 1.0f, 0.0f, c2x, c2y, 1.0f, 1.0f,
-                c0x, c0y, 0.0f, 0.0f, c2x, c2y, 1.0f, 1.0f, c3x, c3y, 0.0f, 1.0f,
+                c0x, c0y, u0, v0, c1x, c1y, u1, v0, c2x, c2y, u1, v1,
+                c0x, c0y, u0, v0, c2x, c2y, u1, v1, c3x, c3y, u0, v1,
             };
 
             D3D11_BUFFER_DESC vb_desc = {};
@@ -1789,7 +1831,7 @@ PlatformImpl2_SDL2_Renderer_D3D11_Render(
         static std::vector<float> font_verts;
         font_verts.clear();
 
-        struct DashPixFont* current_font_ptr = nullptr;
+        int current_font_id = -1;
         ID3D11ShaderResourceView* current_atlas_srv = nullptr;
 
         const float fbw = (float)(win_width > 0 ? win_width : renderer->width);
@@ -1827,14 +1869,15 @@ PlatformImpl2_SDL2_Renderer_D3D11_Render(
             if( !f || !f->atlas || !sc._font_draw.text || f->height2d <= 0 )
                 continue;
 
-            auto texIt = renderer->font_atlas_cache.find(f);
+            const int fid = sc._font_draw.font_id;
+            auto texIt = renderer->font_atlas_cache.find(fid);
             if( texIt == renderer->font_atlas_cache.end() || !texIt->second.srv )
                 continue;
 
-            if( current_font_ptr != f )
+            if( current_font_id != fid )
             {
                 flush_font_batch();
-                current_font_ptr = f;
+                current_font_id = fid;
                 current_atlas_srv = texIt->second.srv;
             }
 

@@ -10,13 +10,41 @@
 
 #include <string.h>
 
+static void
+rs_gfx_emit_marker(struct ToriRSRenderCommandBuffer* buf, uint8_t kind)
+{
+    if( !buf )
+        return;
+    struct ToriRSRenderCommand m = { 0 };
+    m.kind = kind;
+    LibToriRS_RenderCommandBufferAddCommand(buf, m);
+}
+
+static void
+rs_gfx_pass_marker_2d_begin(struct ToriRSRenderCommandBuffer* buf, int* begun)
+{
+    if( !begun || *begun || !buf )
+        return;
+    rs_gfx_emit_marker(buf, TORIRS_GFX_BEGIN_2D);
+    *begun = 1;
+}
+
+static void
+rs_gfx_pass_marker_2d_end(struct ToriRSRenderCommandBuffer* buf, int* begun)
+{
+    if( !begun || !*begun || !buf )
+        return;
+    rs_gfx_emit_marker(buf, TORIRS_GFX_END_2D);
+    *begun = 0;
+}
+
 static uint64_t
 rs_model_cache_key_u64(struct Scene2* scene2, struct Scene2Element const* element)
 {
     if( !element || !scene2 )
         return 0;
-    int element_id = scene2_element_id(scene2, element);
-    return ((uint64_t)(uint32_t)element_id << 24) |
+    int model_id = scene2_element_dash_model_gpu_id(element);
+    return ((uint64_t)(uint32_t)model_id << 24) |
            ((uint64_t)scene2_element_active_anim_id(element) << 8) |
            (uint64_t)scene2_element_active_frame(element);
 }
@@ -24,6 +52,8 @@ rs_model_cache_key_u64(struct Scene2* scene2, struct Scene2Element const* elemen
 static void
 queue_sprite_draw(
     struct ToriRSRenderCommandBuffer* buf,
+    int element_id,
+    int atlas_index,
     struct DashSprite* sprite,
     int x,
     int y)
@@ -49,6 +79,8 @@ queue_sprite_draw(
         (struct ToriRSRenderCommand){
             .kind = TORIRS_GFX_SPRITE_DRAW,
             ._sprite_draw = {
+                .element_id = element_id,
+                .atlas_index = atlas_index,
                 .sprite = sprite,
                 .dst_bb_x = x,
                 .dst_bb_y = y,
@@ -83,7 +115,16 @@ rs_gfx_graphic_step(
     struct DashSprite* sp = el->dash_sprites[ai];
     if( !sp )
         return true;
-    queue_sprite_draw(queued_commands, sp, component->position.x, component->position.y);
+    int g2d = 0;
+    rs_gfx_pass_marker_2d_begin(queued_commands, &g2d);
+    queue_sprite_draw(
+        queued_commands,
+        sid,
+        ai,
+        sp,
+        component->position.x,
+        component->position.y);
+    rs_gfx_pass_marker_2d_end(queued_commands, &g2d);
     return true;
 }
 
@@ -110,18 +151,24 @@ rs_gfx_text_step(
         draw_x = component->position.x + (component->position.width / 2) - (tw / 2);
     }
 
-    LibToriRS_RenderCommandBufferAddCommand(
-        queued_commands,
-        (struct ToriRSRenderCommand){
-            .kind = TORIRS_GFX_FONT_DRAW,
-            ._font_draw = {
-                .font = font,
-                .text = (const uint8_t*)text,
-                .x = draw_x,
-                .y = draw_y,
-                .color_rgb = component->u.rs_text.color,
-            },
-        });
+    {
+        int t2d = 0;
+        rs_gfx_pass_marker_2d_begin(queued_commands, &t2d);
+        LibToriRS_RenderCommandBufferAddCommand(
+            queued_commands,
+            (struct ToriRSRenderCommand){
+                .kind = TORIRS_GFX_FONT_DRAW,
+                ._font_draw = {
+                    .font_id = fid,
+                    .font = font,
+                    .text = (const uint8_t*)text,
+                    .x = draw_x,
+                    .y = draw_y,
+                    .color_rgb = component->u.rs_text.color,
+                },
+            });
+        rs_gfx_pass_marker_2d_end(queued_commands, &t2d);
+    }
     (void)component->u.rs_text.shadowed;
     return true;
 }
@@ -165,9 +212,11 @@ rs_gfx_model_step(
         cmd.kind = TORIRS_GFX_MODEL_DRAW;
         cmd._model_draw.model = mod;
         cmd._model_draw.model_key = rs_model_cache_key_u64(game->world->scene2, se);
-        cmd._model_draw.model_id = -1;
+        cmd._model_draw.model_id = scene2_element_dash_model_gpu_id(se);
         memcpy(&cmd._model_draw.position, &position, sizeof(struct DashPosition));
+        rs_gfx_emit_marker(queued_commands, TORIRS_GFX_BEGIN_3D);
         LibToriRS_RenderCommandBufferAddCommand(queued_commands, cmd);
+        rs_gfx_emit_marker(queued_commands, TORIRS_GFX_END_3D);
     }
     return true;
 }
@@ -193,6 +242,7 @@ rs_gfx_inv_step(
     int base_x = component->position.x;
     int base_y = component->position.y;
 
+    int inv_2d = 0;
     int i = 0;
     for( int sx = 0; sx < cols; sx++ )
     {
@@ -223,7 +273,8 @@ rs_gfx_inv_step(
                 if( !sp )
                     continue;
 
-                queue_sprite_draw(queued_commands, sp, slot_x, slot_y);
+                rs_gfx_pass_marker_2d_begin(queued_commands, &inv_2d);
+                queue_sprite_draw(queued_commands, it->scene_id, ai, sp, slot_x, slot_y);
             }
             else if(
                 i < UI_INV_SLOT_OFFSET_MAX && component->u.rs_inv.inv_slot_bg_scene_id[i] >= 0 )
@@ -236,11 +287,16 @@ rs_gfx_inv_step(
                 {
                     struct DashSprite* bg_sp = bg_el->dash_sprites[bg_ai];
                     if( bg_sp )
-                        queue_sprite_draw(queued_commands, bg_sp, slot_x, slot_y);
+                    {
+                        rs_gfx_pass_marker_2d_begin(queued_commands, &inv_2d);
+                        queue_sprite_draw(
+                            queued_commands, bg_sid, bg_ai, bg_sp, slot_x, slot_y);
+                    }
                 }
             }
         }
     }
 
+    rs_gfx_pass_marker_2d_end(queued_commands, &inv_2d);
     return true;
 }

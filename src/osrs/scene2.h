@@ -29,15 +29,16 @@ enum Scene2EventType
     SCENE2_EVENT_NONE = 0,
     SCENE2_EVENT_ELEMENT_ACQUIRED = 1,
     SCENE2_EVENT_ELEMENT_RELEASED = 2,
-    SCENE2_EVENT_MODEL_CHANGED = 3,
+    SCENE2_EVENT_MODEL_LOADED = 3,
     SCENE2_EVENT_TEXTURE_LOADED = 4,
     SCENE2_EVENT_VERTEX_ARRAY_ADDED = 5,
     SCENE2_EVENT_VERTEX_ARRAY_REMOVED = 6,
     SCENE2_EVENT_FACE_ARRAY_ADDED = 7,
     SCENE2_EVENT_FACE_ARRAY_REMOVED = 8,
+    SCENE2_EVENT_MODEL_UNLOADED = 9,
 };
 
-/** Payload is in `u` according to `type`: element (1–3), texture (4), vertex_array (5–6), face_array (7–8). */
+/** Payload is in `u` according to `type` (element 1–2, model 3+9, texture 4, vertex_array 5–6, face_array 7–8). */
 struct Scene2Event
 {
     enum Scene2EventType type;
@@ -49,14 +50,24 @@ struct Scene2Event
         } element;
         struct
         {
+            int element_id;
+            int parent_entity_id;
+            int model_id;
+            /** Valid until scene2_flush_deferred_array_frees (deferred dashmodel_free). */
+            struct DashModel* model;
+        } model;
+        struct
+        {
             int texture_id;
         } texture;
         struct
         {
+            int array_id;
             struct DashVertexArray* array;
         } vertex_array;
         struct
         {
+            int array_id;
             struct DashFaceArray* array;
         } face_array;
     } u;
@@ -103,6 +114,15 @@ struct Scene2
     int eventbuffer_head;
     int eventbuffer_tail;
     int eventbuffer_count;
+
+    int next_vertex_array_gpu_id;
+    int next_face_array_gpu_id;
+    int next_model_gpu_id;
+
+    /** Models removed via set_dash_model/release; freed after MODEL_UNLOADED events are drained. */
+    struct DashModel** models_deferred_free;
+    int models_deferred_free_count;
+    int models_deferred_free_capacity;
 };
 
 struct Scene2*
@@ -192,6 +212,10 @@ scene2_element_dash_model(struct Scene2Element* element);
 const struct DashModel*
 scene2_element_dash_model_const(const struct Scene2Element* element);
 
+/** Id assigned when a model is set on this element; 0 if none. Used with render MODEL_LOAD/UNLOAD. */
+int
+scene2_element_dash_model_gpu_id(const struct Scene2Element* element);
+
 struct DashPosition*
 scene2_element_dash_position(struct Scene2Element* element);
 
@@ -269,7 +293,7 @@ scene2_face_array_unregister(
     struct Scene2* scene2,
     struct DashFaceArray* face_array);
 
-/** Frees arrays removed via unregister; call after consumers finish popping scene2 events. */
+/** Frees vertex/face arrays and DashModels queued for deferred free; call after consumers finish popping scene2 events. */
 void
 scene2_flush_deferred_array_frees(struct Scene2* scene2);
 

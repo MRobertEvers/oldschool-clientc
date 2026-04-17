@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define SCENE2_EVENTBUFFER_DEFAULT_CAPACITY 512
+#define SCENE2_EVENTBUFFER_DEFAULT_CAPACITY 4096
 
 /* prev/next live at the same offsets on Scene2ElementFast and Scene2ElementFull; use the
  * correct concrete type so we do not violate strict aliasing when reading/writing links. */
@@ -110,8 +110,20 @@ scene2_eventbuffer_push(
 
     if( scene2->eventbuffer_count == scene2->eventbuffer_capacity )
     {
-        scene2->eventbuffer_head = (scene2->eventbuffer_head + 1) % scene2->eventbuffer_capacity;
-        scene2->eventbuffer_count--;
+        int old_cap = scene2->eventbuffer_capacity;
+        int new_cap = old_cap > 0 ? old_cap * 2 : 16;
+        struct Scene2Event* nb = calloc((size_t)new_cap, sizeof(struct Scene2Event));
+        if( !nb )
+            return;
+        for( int i = 0; i < scene2->eventbuffer_count; i++ )
+        {
+            nb[i] = scene2->eventbuffer[(scene2->eventbuffer_head + i) % old_cap];
+        }
+        free(scene2->eventbuffer);
+        scene2->eventbuffer = nb;
+        scene2->eventbuffer_capacity = new_cap;
+        scene2->eventbuffer_head = 0;
+        scene2->eventbuffer_tail = scene2->eventbuffer_count;
     }
 
     scene2->eventbuffer[scene2->eventbuffer_tail] = event;
@@ -183,6 +195,10 @@ scene2_new(
     scene2->eventbuffer_tail = 0;
     scene2->eventbuffer_count = 0;
 
+    scene2->next_vertex_array_gpu_id = 0;
+    scene2->next_face_array_gpu_id = 0;
+    scene2->next_model_gpu_id = 0;
+
     return scene2;
 }
 
@@ -224,6 +240,7 @@ scene2_free(struct Scene2* scene2)
 
     free(scene2->vertex_arrays_deferred_free);
     free(scene2->face_arrays_deferred_free);
+    free(scene2->models_deferred_free);
     free(scene2->eventbuffer);
     free(scene2);
 }
@@ -378,6 +395,25 @@ scene2_element_clear_framemap(struct Scene2Element* element)
     u->dash_framemap = NULL;
 }
 
+static void
+scene2__defer_model_free(
+    struct Scene2* scene2,
+    struct DashModel* model)
+{
+    if( !scene2 || !model )
+        return;
+    if( scene2->models_deferred_free_count >= scene2->models_deferred_free_capacity )
+    {
+        int ncap = scene2->models_deferred_free_capacity == 0 ? 8
+                                                           : scene2->models_deferred_free_capacity * 2;
+        scene2->models_deferred_free = realloc(
+            scene2->models_deferred_free,
+            (size_t)ncap * sizeof(scene2->models_deferred_free[0]));
+        scene2->models_deferred_free_capacity = ncap;
+    }
+    scene2->models_deferred_free[scene2->models_deferred_free_count++] = model;
+}
+
 void
 scene2_element_set_dash_model(
     struct Scene2* scene2,
@@ -391,28 +427,69 @@ scene2_element_set_dash_model(
     }
     struct DashModel* old = NULL;
     if( scene2__is_fast(element) )
+        old = scene2__as_fast(element)->dash_model;
+    else
+        old = scene2__as_full(element)->dash_model;
+    if( old == dash_model )
+        return;
+
+    int element_id = scene2_element_id_from_ptr(scene2, element);
+    int parent_entity_id = scene2_element_parent_entity_id(element);
+
+    if( old && scene2 )
+    {
+        int old_model_id = 0;
+        if( scene2__is_fast(element) )
+            old_model_id = scene2__as_fast(element)->dash_model_gpu_id;
+        else
+            old_model_id = scene2__as_full(element)->dash_model_gpu_id;
+
+        scene2_eventbuffer_push(
+            scene2,
+            (struct Scene2Event){
+                .type = SCENE2_EVENT_MODEL_UNLOADED,
+                .u.model = {
+                    .element_id = element_id,
+                    .parent_entity_id = parent_entity_id,
+                    .model_id = old_model_id,
+                    .model = old,
+                },
+            });
+        scene2__defer_model_free(scene2, old);
+    }
+
+    if( scene2__is_fast(element) )
     {
         struct Scene2ElementFast* f = scene2__as_fast(element);
-        old = f->dash_model;
         f->dash_model = dash_model;
+        f->dash_model_gpu_id = 0;
     }
     else
     {
         struct Scene2ElementFull* u = scene2__as_full(element);
-        old = u->dash_model;
         u->dash_model = dash_model;
+        u->dash_model_gpu_id = 0;
     }
-    bool model_changed = old != dash_model;
-    if( old )
-        dashmodel_free(old);
-    if( model_changed )
+
+    if( dash_model && scene2 )
     {
+        scene2->next_model_gpu_id++;
+        int new_id = scene2->next_model_gpu_id;
+        if( scene2__is_fast(element) )
+            scene2__as_fast(element)->dash_model_gpu_id = new_id;
+        else
+            scene2__as_full(element)->dash_model_gpu_id = new_id;
+
         scene2_eventbuffer_push(
             scene2,
             (struct Scene2Event){
-                .type = SCENE2_EVENT_MODEL_CHANGED,
-                .u.element.element_id = scene2_element_id_from_ptr(scene2, element),
-                .u.element.parent_entity_id = scene2_element_parent_entity_id(element),
+                .type = SCENE2_EVENT_MODEL_LOADED,
+                .u.model = {
+                    .element_id = element_id,
+                    .parent_entity_id = parent_entity_id,
+                    .model_id = new_id,
+                    .model = dash_model,
+                },
             });
     }
 }
@@ -494,8 +571,23 @@ scene2_element_release(
     if( scene2__is_fast(element) )
     {
         struct Scene2ElementFast* f = scene2__as_fast(element);
-        dashmodel_free(f->dash_model);
+        if( f->dash_model )
+        {
+            scene2_eventbuffer_push(
+                scene2,
+                (struct Scene2Event){
+                    .type = SCENE2_EVENT_MODEL_UNLOADED,
+                    .u.model = {
+                        .element_id = element_id,
+                        .parent_entity_id = parent_entity_id,
+                        .model_id = f->dash_model_gpu_id,
+                        .model = f->dash_model,
+                    },
+                });
+            scene2__defer_model_free(scene2, f->dash_model);
+        }
         f->dash_model = NULL;
+        f->dash_model_gpu_id = 0;
         dashposition_free(f->dash_position);
         f->dash_position = NULL;
         f->flags_entity = SCENE2_FLAG_VALID | SCENE2_FLAG_FAST | SCENE2_PARENT_NONE;
@@ -503,8 +595,23 @@ scene2_element_release(
     else
     {
         struct Scene2ElementFull* u = scene2__as_full(element);
-        dashmodel_free(u->dash_model);
+        if( u->dash_model )
+        {
+            scene2_eventbuffer_push(
+                scene2,
+                (struct Scene2Event){
+                    .type = SCENE2_EVENT_MODEL_UNLOADED,
+                    .u.model = {
+                        .element_id = element_id,
+                        .parent_entity_id = parent_entity_id,
+                        .model_id = u->dash_model_gpu_id,
+                        .model = u->dash_model,
+                    },
+                });
+            scene2__defer_model_free(scene2, u->dash_model);
+        }
         u->dash_model = NULL;
+        u->dash_model_gpu_id = 0;
         dashposition_free(u->dash_position);
         u->dash_position = NULL;
         dashframemap_free(u->dash_framemap);
@@ -601,6 +708,16 @@ scene2_element_dash_model_const(const struct Scene2Element* element)
     if( scene2__is_fast(element) )
         return scene2__as_fast_const(element)->dash_model;
     return scene2__as_full_const(element)->dash_model;
+}
+
+int
+scene2_element_dash_model_gpu_id(const struct Scene2Element* element)
+{
+    if( !element )
+        return 0;
+    if( scene2__is_fast(element) )
+        return scene2__as_fast_const(element)->dash_model_gpu_id;
+    return scene2__as_full_const(element)->dash_model_gpu_id;
 }
 
 struct DashPosition*
@@ -841,6 +958,10 @@ scene2_flush_deferred_array_frees(struct Scene2* scene2)
     for( int j = 0; j < scene2->face_arrays_deferred_free_count; j++ )
         dashfacearray_free(scene2->face_arrays_deferred_free[j]);
     scene2->face_arrays_deferred_free_count = 0;
+
+    for( int k = 0; k < scene2->models_deferred_free_count; k++ )
+        dashmodel_free(scene2->models_deferred_free[k]);
+    scene2->models_deferred_free_count = 0;
 }
 
 void
@@ -861,12 +982,18 @@ scene2_vertex_array_register(
         scene2->vertex_arrays_capacity = ncap;
     }
 
+    scene2->next_vertex_array_gpu_id++;
+    vertex_array->scene2_gpu_id = scene2->next_vertex_array_gpu_id;
+
     scene2->vertex_arrays[scene2->vertex_arrays_count++] = vertex_array;
     scene2_eventbuffer_push(
         scene2,
         (struct Scene2Event){
             .type = SCENE2_EVENT_VERTEX_ARRAY_ADDED,
-            .u.vertex_array.array = vertex_array,
+            .u.vertex_array = {
+                .array_id = vertex_array->scene2_gpu_id,
+                .array = vertex_array,
+            },
         });
 }
 
@@ -886,7 +1013,10 @@ scene2_vertex_array_unregister(
             scene2,
             (struct Scene2Event){
                 .type = SCENE2_EVENT_VERTEX_ARRAY_REMOVED,
-                .u.vertex_array.array = vertex_array,
+                .u.vertex_array = {
+                    .array_id = vertex_array->scene2_gpu_id,
+                    .array = vertex_array,
+                },
             });
         scene2->vertex_arrays[i] = scene2->vertex_arrays[scene2->vertex_arrays_count - 1];
         scene2->vertex_arrays_count--;
@@ -913,12 +1043,18 @@ scene2_face_array_register(
         scene2->face_arrays_capacity = ncap;
     }
 
+    scene2->next_face_array_gpu_id++;
+    face_array->scene2_gpu_id = scene2->next_face_array_gpu_id;
+
     scene2->face_arrays[scene2->face_arrays_count++] = face_array;
     scene2_eventbuffer_push(
         scene2,
         (struct Scene2Event){
             .type = SCENE2_EVENT_FACE_ARRAY_ADDED,
-            .u.face_array.array = face_array,
+            .u.face_array = {
+                .array_id = face_array->scene2_gpu_id,
+                .array = face_array,
+            },
         });
 }
 
@@ -938,7 +1074,10 @@ scene2_face_array_unregister(
             scene2,
             (struct Scene2Event){
                 .type = SCENE2_EVENT_FACE_ARRAY_REMOVED,
-                .u.face_array.array = face_array,
+                .u.face_array = {
+                    .array_id = face_array->scene2_gpu_id,
+                    .array = face_array,
+                },
             });
         scene2->face_arrays[i] = scene2->face_arrays[scene2->face_arrays_count - 1];
         scene2->face_arrays_count--;

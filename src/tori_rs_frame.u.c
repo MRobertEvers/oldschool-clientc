@@ -34,6 +34,37 @@
 /** Set per `LibToriRS_FrameNextCommand` call for RS model culling. */
 static bool s_frame_project_models;
 
+/** Tracks whether uielem_world_step has emitted TORIRS_GFX_BEGIN_3D without END_3D yet. */
+static bool s_uielem_world_inside_3d = false;
+
+static void
+emit_marker(struct ToriRSRenderCommandBuffer* buf, uint8_t kind)
+{
+    if( !buf )
+        return;
+    struct ToriRSRenderCommand m = { 0 };
+    m.kind = kind;
+    LibToriRS_RenderCommandBufferAddCommand(buf, m);
+}
+
+static void
+emit_begin_2d_marker(struct GGame* game, int* begun)
+{
+    if( !begun || *begun || !game->uiscene_queued_commands )
+        return;
+    emit_marker(game->uiscene_queued_commands, TORIRS_GFX_BEGIN_2D);
+    *begun = 1;
+}
+
+static void
+emit_end_2d_marker(struct GGame* game, int* begun)
+{
+    if( !begun || !*begun || !game->uiscene_queued_commands )
+        return;
+    emit_marker(game->uiscene_queued_commands, TORIRS_GFX_END_2D);
+    *begun = 0;
+}
+
 /** Tab sidebar content (RS subtree) only when this tab is selected and no modal owns the sidebar.
  */
 static bool
@@ -161,30 +192,10 @@ model_cache_key_u64(
 {
     if( !element || !scene2 )
         return 0;
-    int element_id = scene2_element_id((struct Scene2*)scene2, element);
-    return ((uint64_t)(uint32_t)element_id << 24) |
+    int model_id = scene2_element_dash_model_gpu_id(element);
+    return ((uint64_t)(uint32_t)model_id << 24) |
            ((uint64_t)scene2_element_active_anim_id(element) << 8) |
            (uint64_t)scene2_element_active_frame(element);
-}
-
-static void
-queue_scene_element_load_from_event(
-    struct GGame* game,
-    struct ToriRSRenderCommandBuffer* render_command_buffer,
-    struct Scene2Element* element)
-{
-    (void)game;
-    uint64_t model_key = model_cache_key_u64(game->world->scene2, element);
-    LibToriRS_RenderCommandBufferAddCommand(
-        render_command_buffer,
-        (struct ToriRSRenderCommand){
-            .kind = TORIRS_GFX_MODEL_LOAD,
-            ._model_load = {
-                .model = scene2_element_dash_model(element),
-                .model_key = model_key,
-                .model_id = -1,
-            },
-        });
 }
 
 static void
@@ -208,6 +219,7 @@ static void
 queue_sprite_load_from_event(
     struct ToriRSRenderCommandBuffer* render_command_buffer,
     int element_id,
+    int atlas_index,
     struct DashSprite* sprite)
 {
     LibToriRS_RenderCommandBufferAddCommand(
@@ -216,6 +228,7 @@ queue_sprite_load_from_event(
             .kind = TORIRS_GFX_SPRITE_LOAD,
             ._sprite_load = {
                 .element_id = element_id,
+                .atlas_index = atlas_index,
                 .sprite = sprite,
             },
         });
@@ -225,6 +238,7 @@ static void
 queue_sprite_unload_from_event(
     struct ToriRSRenderCommandBuffer* render_command_buffer,
     int element_id,
+    int atlas_index,
     struct DashSprite* sprite)
 {
     LibToriRS_RenderCommandBufferAddCommand(
@@ -233,6 +247,7 @@ queue_sprite_unload_from_event(
             .kind = TORIRS_GFX_SPRITE_UNLOAD,
             ._sprite_load = {
                 .element_id = element_id,
+                .atlas_index = atlas_index,
                 .sprite = sprite,
             },
         });
@@ -259,6 +274,7 @@ static void
 queue_sprite_draw_from_event(
     struct ToriRSRenderCommandBuffer* render_command_buffer,
     int element_id,
+    int atlas_index,
     struct DashSprite* sprite,
     int x,
     int y,
@@ -286,6 +302,8 @@ queue_sprite_draw_from_event(
     struct ToriRSRenderCommand command = {
         .kind = TORIRS_GFX_SPRITE_DRAW,
         ._sprite_draw = {
+            .element_id = element_id,
+            .atlas_index = atlas_index,
             .sprite = sprite,
             .dst_bb_x = x,
             .dst_bb_y = y,
@@ -298,7 +316,6 @@ queue_sprite_draw_from_event(
             .src_bb_h = src_bb_h,
         },
     };
-    (void)element_id;
     LibToriRS_RenderCommandBufferAddCommand(render_command_buffer, command);
 }
 
@@ -314,7 +331,7 @@ queue_static_ui_minimap_draws(
         return;
 
     struct UISceneElement* element =
-        uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
+        uiscene_element_at(game->ui_scene, component->u.minimap.scene_id);
     if( !element || !element->dash_sprites || !element->dash_sprites[0] )
         return;
 
@@ -343,6 +360,8 @@ queue_static_ui_minimap_draws(
     if( src_w <= 0 || src_h <= 0 )
         return;
 
+    int minimap_pass_2d = 0;
+
     int anchor_x = 0;
     int anchor_y = 0;
 
@@ -355,6 +374,7 @@ queue_static_ui_minimap_draws(
     if( game->uiscene_queued_commands && component->position.width > 0 &&
         component->position.height > 0 )
     {
+        emit_begin_2d_marker(game, &minimap_pass_2d);
         LibToriRS_RenderCommandBufferAddCommand(
             game->uiscene_queued_commands,
             (struct ToriRSRenderCommand){
@@ -368,32 +388,38 @@ queue_static_ui_minimap_draws(
             });
     }
 
+    emit_begin_2d_marker(game, &minimap_pass_2d);
     LibToriRS_RenderCommandBufferAddCommand(
         game->uiscene_queued_commands,
-        (struct ToriRSRenderCommand){
-            .kind = TORIRS_GFX_SPRITE_DRAW,
-            ._sprite_draw = {
-                .sprite = static_sprite,
-                .dst_anchor_x = component->position.anchor_x,
-                .dst_anchor_y = component->position.anchor_y,
-                .dst_bb_x = component->position.x,
-                .dst_bb_y = component->position.y,
-                .dst_bb_w = component->position.width,
-                .dst_bb_h = component->position.height,
-                .rotated = true,
-                .rotation_r2pi2048 = (( game->camera_yaw)& 0x7ff),
-                .src_bb_x = 0,
-                .src_bb_y = 0,
-                .src_bb_w = static_sprite->crop_width,
-                .src_bb_h = static_sprite->crop_height,
-                .src_anchor_x = anchor_x,
-                .src_anchor_y = anchor_y,
-            },
-        });
+            (struct ToriRSRenderCommand){
+                .kind = TORIRS_GFX_SPRITE_DRAW,
+                ._sprite_draw = {
+                    .element_id = component->u.minimap.scene_id,
+                    .atlas_index = 0,
+                    .sprite = static_sprite,
+                    .dst_anchor_x = component->position.anchor_x,
+                    .dst_anchor_y = component->position.anchor_y,
+                    .dst_bb_x = component->position.x,
+                    .dst_bb_y = component->position.y,
+                    .dst_bb_w = component->position.width,
+                    .dst_bb_h = component->position.height,
+                    .rotated = true,
+                    .rotation_r2pi2048 = (( game->camera_yaw)& 0x7ff),
+                    .src_bb_x = 0,
+                    .src_bb_y = 0,
+                    .src_bb_w = static_sprite->crop_width,
+                    .src_bb_h = static_sprite->crop_height,
+                    .src_anchor_x = anchor_x,
+                    .src_anchor_y = anchor_y,
+                },
+            });
 
     struct MinimapRenderCommandBuffer* dyn = game->minimap_dynamic_commands;
     if( !dyn )
+    {
+        emit_end_2d_marker(game, &minimap_pass_2d);
         return;
+    }
     minimap_render_dynamic(mm, sw_x, sw_z, ne_x, ne_z, dyn);
     for( int j = 0; j < dyn->count; j++ )
     {
@@ -426,6 +452,8 @@ queue_static_ui_minimap_draws(
             (struct ToriRSRenderCommand){
                 .kind = TORIRS_GFX_SPRITE_DRAW,
                 ._sprite_draw = {
+                    .element_id = component->u.minimap.scene_id,
+                    .atlas_index = 100 + j,
                     .sprite = dot,
                     .dst_bb_x = dot_x,
                     .dst_bb_y = dot_y,
@@ -439,6 +467,7 @@ queue_static_ui_minimap_draws(
                 },
             });
     }
+    emit_end_2d_marker(game, &minimap_pass_2d);
 }
 
 static void
@@ -468,30 +497,79 @@ queue_static_load_commands(
                 queue_texture_load_from_event(render_command_buffer, tex_id, texture);
                 continue;
             }
-            if( scene_event.type == SCENE2_EVENT_VERTEX_ARRAY_ADDED ||
-                scene_event.type == SCENE2_EVENT_VERTEX_ARRAY_REMOVED ||
-                scene_event.type == SCENE2_EVENT_FACE_ARRAY_ADDED ||
-                scene_event.type == SCENE2_EVENT_FACE_ARRAY_REMOVED )
+            if( scene_event.type == SCENE2_EVENT_VERTEX_ARRAY_ADDED )
             {
-                /* GPU: use u.vertex_array.array or u.face_array.array depending on type. */
+                struct ToriRSRenderCommand cmd = { 0 };
+                cmd.kind = TORIRS_GFX_VERTEX_ARRAY_LOAD;
+                cmd._vertex_array_load.array_id = scene_event.u.vertex_array.array_id;
+                cmd._vertex_array_load.array = scene_event.u.vertex_array.array;
+                LibToriRS_RenderCommandBufferAddCommand(render_command_buffer, cmd);
                 continue;
             }
-            if( scene_event.u.element.element_id < 0 ||
-                scene_event.u.element.element_id >= scene2_elements_total(scene2) )
-                continue;
-            if( scene_event.type != SCENE2_EVENT_ELEMENT_ACQUIRED &&
-                scene_event.type != SCENE2_EVENT_MODEL_CHANGED )
+            if( scene_event.type == SCENE2_EVENT_VERTEX_ARRAY_REMOVED )
             {
+                struct ToriRSRenderCommand cmd = { 0 };
+                cmd.kind = TORIRS_GFX_VERTEX_ARRAY_UNLOAD;
+                cmd._vertex_array_load.array_id = scene_event.u.vertex_array.array_id;
+                cmd._vertex_array_load.array = scene_event.u.vertex_array.array;
+                LibToriRS_RenderCommandBufferAddCommand(render_command_buffer, cmd);
                 continue;
             }
-            struct Scene2Element* element =
-                scene2_element_at(scene2, scene_event.u.element.element_id);
-            if( !element || !scene2_element_is_active(element) ||
-                !scene2_element_dash_model(element) )
+            if( scene_event.type == SCENE2_EVENT_FACE_ARRAY_ADDED )
+            {
+                struct ToriRSRenderCommand cmd = { 0 };
+                cmd.kind = TORIRS_GFX_FACE_ARRAY_LOAD;
+                cmd._face_array_load.array_id = scene_event.u.face_array.array_id;
+                cmd._face_array_load.array = scene_event.u.face_array.array;
+                LibToriRS_RenderCommandBufferAddCommand(render_command_buffer, cmd);
                 continue;
-            if( scene2_element_parent_entity_id(element) != scene_event.u.element.parent_entity_id )
+            }
+            if( scene_event.type == SCENE2_EVENT_FACE_ARRAY_REMOVED )
+            {
+                struct ToriRSRenderCommand cmd = { 0 };
+                cmd.kind = TORIRS_GFX_FACE_ARRAY_UNLOAD;
+                cmd._face_array_load.array_id = scene_event.u.face_array.array_id;
+                cmd._face_array_load.array = scene_event.u.face_array.array;
+                LibToriRS_RenderCommandBufferAddCommand(render_command_buffer, cmd);
                 continue;
-            queue_scene_element_load_from_event(game, render_command_buffer, element);
+            }
+            if( scene_event.type == SCENE2_EVENT_MODEL_LOADED )
+            {
+                int eid = scene_event.u.model.element_id;
+                if( eid < 0 || eid >= scene2_elements_total(scene2) )
+                    continue;
+                struct Scene2Element* el = scene2_element_at(scene2, eid);
+                if( !el || !scene2_element_is_active(el) || !scene2_element_dash_model(el) )
+                    continue;
+                if( scene2_element_parent_entity_id(el) != scene_event.u.model.parent_entity_id )
+                    continue;
+                uint64_t model_key = model_cache_key_u64(scene2, el);
+                LibToriRS_RenderCommandBufferAddCommand(
+                    render_command_buffer,
+                    (struct ToriRSRenderCommand){
+                        .kind = TORIRS_GFX_MODEL_LOAD,
+                        ._model_load = {
+                            .model = scene_event.u.model.model,
+                            .model_key = model_key,
+                            .model_id = scene_event.u.model.model_id,
+                        },
+                    });
+                continue;
+            }
+            if( scene_event.type == SCENE2_EVENT_MODEL_UNLOADED )
+            {
+                LibToriRS_RenderCommandBufferAddCommand(
+                    render_command_buffer,
+                    (struct ToriRSRenderCommand){
+                        .kind = TORIRS_GFX_MODEL_UNLOAD,
+                        ._model_load = {
+                            .model = scene_event.u.model.model,
+                            .model_key = 0,
+                            .model_id = scene_event.u.model.model_id,
+                        },
+                    });
+                continue;
+            }
         }
         scene2_flush_deferred_array_frees(scene2);
     }
@@ -507,12 +585,37 @@ queue_static_load_commands(
                     uiscene_element_at(game->ui_scene, ui_event.element_id);
                 if( !element || !element->dash_sprites )
                     continue;
-                queue_sprite_load_from_event(
-                    render_command_buffer, ui_event.element_id, element->dash_sprites[0]);
+                for( int ai = 0; ai < element->dash_sprites_count; ++ai )
+                {
+                    struct DashSprite* sp = element->dash_sprites[ai];
+                    if( !sp )
+                        continue;
+                    queue_sprite_load_from_event(
+                        render_command_buffer, ui_event.element_id, ai, sp);
+                }
             }
             else if( ui_event.type == UISCENE_EVENT_ELEMENT_RELEASED )
             {
-                queue_sprite_unload_from_event(render_command_buffer, ui_event.element_id, NULL);
+                for( int ri = 0; ri < ui_event.released_sprites_count; ri++ )
+                {
+                    struct DashSprite* sp = ui_event.released_sprites[ri];
+                    if( !sp )
+                        continue;
+                    queue_sprite_unload_from_event(
+                        render_command_buffer, ui_event.element_id, ri, sp);
+                }
+                if( ui_event.released_sprites )
+                {
+                    if( !ui_event.released_sprites_borrowed )
+                    {
+                        for( int ri = 0; ri < ui_event.released_sprites_count; ri++ )
+                        {
+                            if( ui_event.released_sprites[ri] )
+                                dashsprite_free(ui_event.released_sprites[ri]);
+                        }
+                    }
+                    free(ui_event.released_sprites);
+                }
             }
             else if( ui_event.type == UISCENE_EVENT_FONT_ADDED )
             {
@@ -550,6 +653,8 @@ LibToriRS_FrameBegin(
     game->uiscene_command_idx = 0;
     if( game->uiscene_queued_commands )
         LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
+
+    s_uielem_world_inside_3d = false;
 
     world_pickset_reset(&game->pickset);
 
@@ -897,6 +1002,8 @@ uielem_redstone_tab_step(
     if( game->iface->sidebar_interface_id != -1 )
         return true;
 
+    int redstone_2d = 0;
+
     int tabno = component->u.redstone_tab.tabno;
     int x = component->position.x;
     int y = component->position.y;
@@ -931,7 +1038,9 @@ uielem_redstone_tab_step(
 
     int draw_x = x;
     int draw_y = y;
-    queue_sprite_draw_from_event(game->uiscene_queued_commands, -1, sp, draw_x, draw_y, 0);
+    emit_begin_2d_marker(game, &redstone_2d);
+    queue_sprite_draw_from_event(game->uiscene_queued_commands, sid, ai, sp, draw_x, draw_y, 0);
+    emit_end_2d_marker(game, &redstone_2d);
 
     return true;
 }
@@ -969,13 +1078,17 @@ uielem_sprite_step(
     if( !sprite )
         return true;
 
+    int sprite_2d = 0;
+    emit_begin_2d_marker(game, &sprite_2d);
     queue_sprite_draw_from_event(
         game->uiscene_queued_commands,
         component->u.sprite.scene_id,
+        component->u.sprite.atlas_index,
         sprite,
         component->position.x,
         component->position.y,
         0);
+    emit_end_2d_marker(game, &sprite_2d);
 
     return true;
 }
@@ -996,14 +1109,24 @@ uielem_world_step(
     if( !element )
         return true;
 
+    if( game->at_painters_command_index == 0 )
+        s_uielem_world_inside_3d = false;
+
     if( game->at_painters_command_index >= game->cc )
     {
+        if( s_uielem_world_inside_3d && game->uiscene_queued_commands )
+        {
+            emit_marker(game->uiscene_queued_commands, TORIRS_GFX_END_3D);
+            s_uielem_world_inside_3d = false;
+        }
         return true;
     }
 
     if( game->at_painters_command_index == 0 && game->view_port && game->uiscene_queued_commands &&
         game->view_port->width > 0 && game->view_port->height > 0 )
     {
+        int world_clear_2d = 0;
+        emit_begin_2d_marker(game, &world_clear_2d);
         LibToriRS_RenderCommandBufferAddCommand(
             game->uiscene_queued_commands,
             (struct ToriRSRenderCommand){
@@ -1015,11 +1138,17 @@ uielem_world_step(
                     .h = game->view_port->height,
                 },
             });
+        emit_end_2d_marker(game, &world_clear_2d);
     }
 
 next:
     if( game->at_painters_command_index >= game->sys_painter_buffer->command_count )
     {
+        if( s_uielem_world_inside_3d && game->uiscene_queued_commands )
+        {
+            emit_marker(game->uiscene_queued_commands, TORIRS_GFX_END_3D);
+            s_uielem_world_inside_3d = false;
+        }
         return true;
     }
 
@@ -1054,10 +1183,16 @@ next:
 
         entity_animate(game->world, scene2_element_parent_entity_id(scene_element));
 
+        if( !s_uielem_world_inside_3d && game->uiscene_queued_commands )
+        {
+            emit_marker(game->uiscene_queued_commands, TORIRS_GFX_BEGIN_3D);
+            s_uielem_world_inside_3d = true;
+        }
+
         command.kind = TORIRS_GFX_MODEL_DRAW;
         command._model_draw.model = ent_model;
         command._model_draw.model_key = model_cache_key_u64(game->world->scene2, scene_element);
-        command._model_draw.model_id = -1;
+        command._model_draw.model_id = scene2_element_dash_model_gpu_id(scene_element);
         memcpy(&command._model_draw.position, &position, sizeof(struct DashPosition));
         LibToriRS_RenderCommandBufferAddCommand(game->uiscene_queued_commands, command);
     }
@@ -1093,10 +1228,16 @@ next:
         if( cull != DASHCULL_VISIBLE )
             break;
 
+        if( !s_uielem_world_inside_3d && game->uiscene_queued_commands )
+        {
+            emit_marker(game->uiscene_queued_commands, TORIRS_GFX_BEGIN_3D);
+            s_uielem_world_inside_3d = true;
+        }
+
         command.kind = TORIRS_GFX_MODEL_DRAW;
         command._model_draw.model = tile_model;
         command._model_draw.model_key = model_cache_key_u64(game->world->scene2, scene_element);
-        command._model_draw.model_id = -1;
+        command._model_draw.model_id = scene2_element_dash_model_gpu_id(scene_element);
         memcpy(&command._model_draw.position, &position, sizeof(struct DashPosition));
         LibToriRS_RenderCommandBufferAddCommand(game->uiscene_queued_commands, command);
     }
@@ -1105,7 +1246,16 @@ next:
         break;
     }
 
-    return game->at_painters_command_index >= game->sys_painter_buffer->command_count;
+    {
+        bool done =
+            game->at_painters_command_index >= game->sys_painter_buffer->command_count;
+        if( done && s_uielem_world_inside_3d && game->uiscene_queued_commands )
+        {
+            emit_marker(game->uiscene_queued_commands, TORIRS_GFX_END_3D);
+            s_uielem_world_inside_3d = false;
+        }
+        return done;
+    }
 }
 
 static bool
@@ -1142,6 +1292,8 @@ uielem_compass_step(
 
     struct ToriRSRenderCommand command;
     command.kind = TORIRS_GFX_SPRITE_DRAW;
+    command._sprite_draw.element_id = component->u.sprite.scene_id;
+    command._sprite_draw.atlas_index = component->u.sprite.atlas_index;
     command._sprite_draw.rotated = true;
     command._sprite_draw.sprite = sprite;
     command._sprite_draw.dst_bb_x = component->position.x;
@@ -1158,7 +1310,12 @@ uielem_compass_step(
     command._sprite_draw.src_anchor_y = sprite->crop_height >> 1;
     command._sprite_draw.rotation_r2pi2048 = ((game->camera_yaw) & 0x7ff);
 
-    LibToriRS_RenderCommandBufferAddCommand(game->uiscene_queued_commands, command);
+    {
+        int compass_2d = 0;
+        emit_begin_2d_marker(game, &compass_2d);
+        LibToriRS_RenderCommandBufferAddCommand(game->uiscene_queued_commands, command);
+        emit_end_2d_marker(game, &compass_2d);
+    }
 
     return true;
 }
@@ -1220,11 +1377,21 @@ LibToriRS_FrameNextCommand(
     struct StaticUIComponent* component = NULL;
     struct ToriRSRenderCommand* cmd = NULL;
     bool done = false;
-    (void)render_command_buffer;
     s_frame_project_models = project_models;
 
     while( true )
     {
+        if( render_command_buffer &&
+            game->at_render_command_index <
+                LibToriRS_RenderCommandBufferCount(render_command_buffer) )
+        {
+            cmd = LibToriRS_RenderCommandBufferAt(
+                render_command_buffer, game->at_render_command_index);
+            memcpy(command, cmd, sizeof(struct ToriRSRenderCommand));
+            game->at_render_command_index++;
+            return true;
+        }
+
         if( game->uiscene_command_idx < game->uiscene_queued_commands->command_count )
         {
             cmd = LibToriRS_RenderCommandBufferAt(

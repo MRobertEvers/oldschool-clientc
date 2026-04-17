@@ -20,11 +20,18 @@ extern "C" {
 
 #include <cmath>
 #include <cstdio>
+#include <cstdint>
 #include <cstring>
 #include <emscripten.h>
 
 static struct nk_context* s_webgl_nk;
 static Uint64 s_webgl_ui_prev_perf;
+
+static inline int
+model_id_from_model_cache_key(uint64_t k)
+{
+    return (int)(uint32_t)(k >> 24);
+}
 
 static const char* g_font_vertex_shader_es2 = R"(#version 100
 attribute vec2 aPos;
@@ -639,6 +646,8 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
                 {
                     break;
                 }
+                if( model_id_from_model_cache_key(cmd._model_load.model_key) <= 0 )
+                    break;
                 renderer->loaded_model_keys.insert(cmd._model_load.model_key);
                 if( renderer->model_index_by_key.find(cmd._model_load.model_key) ==
                     renderer->model_index_by_key.end() )
@@ -665,6 +674,30 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
                         dashmodel_face_colors_c(model),
                         dashmodel_face_infos(model),
                         dashmodel_face_alphas(model));
+                }
+                break;
+            }
+
+            case TORIRS_GFX_MODEL_UNLOAD:
+            {
+                const int mid = cmd._model_load.model_id;
+                if( mid <= 0 )
+                    break;
+                for( auto it = renderer->model_index_by_key.begin();
+                     it != renderer->model_index_by_key.end(); )
+                {
+                    if( model_id_from_model_cache_key(it->first) == mid )
+                        it = renderer->model_index_by_key.erase(it);
+                    else
+                        ++it;
+                }
+                for( auto it = renderer->loaded_model_keys.begin();
+                     it != renderer->loaded_model_keys.end(); )
+                {
+                    if( model_id_from_model_cache_key(*it) == mid )
+                        it = renderer->loaded_model_keys.erase(it);
+                    else
+                        ++it;
                 }
                 break;
             }
@@ -709,6 +742,8 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
                 }
 
                 uint64_t model_key = cmd._model_draw.model_key;
+                if( model_id_from_model_cache_key(model_key) <= 0 )
+                    break;
                 auto it = renderer->model_index_by_key.find(model_key);
                 if( it == renderer->model_index_by_key.end() )
                 {
@@ -761,6 +796,16 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
             case TORIRS_GFX_SPRITE_UNLOAD:
             case TORIRS_GFX_SPRITE_DRAW:
                 sprite_cmds.push_back(cmd);
+                break;
+
+            case TORIRS_GFX_BEGIN_3D:
+            case TORIRS_GFX_END_3D:
+            case TORIRS_GFX_BEGIN_2D:
+            case TORIRS_GFX_END_2D:
+            case TORIRS_GFX_VERTEX_ARRAY_LOAD:
+            case TORIRS_GFX_VERTEX_ARRAY_UNLOAD:
+            case TORIRS_GFX_FACE_ARRAY_LOAD:
+            case TORIRS_GFX_FACE_ARRAY_UNLOAD:
                 break;
 
             default:

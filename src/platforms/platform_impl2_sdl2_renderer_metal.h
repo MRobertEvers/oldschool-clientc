@@ -3,6 +3,7 @@
 
 #include "platform_impl2_sdl2.h"
 #include <SDL.h>
+#include <cstdint>
 #include <unordered_map>
 #include <vector>
 
@@ -23,7 +24,8 @@ struct Platform2_SDL2_Renderer_Metal
     void* mtl_clear_rect_pipeline; // id<MTLRenderPipelineState> — TORIRS_GFX_CLEAR_RECT
     void* mtl_depth_stencil;      // id<MTLDepthStencilState>
     void* mtl_uniform_buffer; // id<MTLBuffer>
-    void* mtl_sampler_state;  // id<MTLSamplerState> — texture sampling (clamp U, repeat V)
+    void* mtl_sampler_state;  // id<MTLSamplerState> — 3D world textures (linear, clamp U, repeat V)
+    void* mtl_sampler_state_nearest; // id<MTLSamplerState> — sprites / fonts (nearest)
     void* mtl_dummy_texture;  // id<MTLTexture> 1×1 white — bound when texBlend == 0
 
     SDL_MetalView metal_view; // SDL_MetalView is itself a void*
@@ -46,13 +48,12 @@ struct Platform2_SDL2_Renderer_Metal
     std::unordered_map<int, float> texture_anim_speed_by_id;
     std::unordered_map<int, bool>  texture_opaque_by_id;
 
-    // Index assignment used to map model keys to a stable integer slot
-    std::unordered_map<uintptr_t, int>  model_index_by_key;
+    /** (model_id<<24|anim<<8|frame) from model_cache_key_u64 -> stable slot index for debug/stats. */
+    std::unordered_map<uint64_t, int> model_index_by_key;
 
-    // Sprite GPU texture cache keyed by DashSprite* (stable pointer per sprite).
+    // Sprite GPU texture cache keyed by torirs_sprite_cache_key(element_id, atlas_index).
     // Value is id<MTLTexture> stored as void* to keep header ObjC-free.
-    // Populated by TORIRS_GFX_SPRITE_LOAD, evicted by TORIRS_GFX_SPRITE_UNLOAD.
-    std::unordered_map<void*, void*> sprite_texture_by_ptr;
+    std::unordered_map<uint64_t, void*> sprite_textures_by_slot;
 
     // Cached depth texture; only reallocated when drawable dimensions change.
     void* mtl_depth_texture;    // id<MTLTexture>
@@ -68,7 +69,7 @@ struct Platform2_SDL2_Renderer_Metal
 
     void* mtl_font_pipeline;    // id<MTLRenderPipelineState> for font atlas rendering
     void* mtl_font_vbo;         // id<MTLBuffer> for font vertex data
-    std::unordered_map<struct DashPixFont*, void*> font_atlas_textures; // DashPixFont* -> id<MTLTexture>
+    std::unordered_map<int, void*> font_atlas_textures; // font_id -> id<MTLTexture>
 };
 
 struct Platform2_SDL2_Renderer_Metal*

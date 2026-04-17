@@ -3,6 +3,7 @@
 
 #include "platform_impl2_sdl2.h"
 #include <SDL.h>
+#include <cstdint>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -72,7 +73,7 @@ struct Platform2_SDL2_Renderer_D3D11
     std::unordered_map<int, float> texture_anim_speed_by_id;
     std::unordered_map<int, bool> texture_opaque_by_id;
 
-    // Index assignment for model keys
+    /** (model_id<<24|anim<<8|frame) from model_cache_key_u64 -> stable slot index for debug/stats. */
     std::unordered_map<uint64_t, int> model_index_by_key;
 
     // Stats / debug sets (mirrors the OpenGL3/Metal renderer)
@@ -80,12 +81,10 @@ struct Platform2_SDL2_Renderer_D3D11
     std::unordered_set<uint64_t> loaded_scene_element_keys;
     std::unordered_set<int> loaded_texture_ids;
 
-    // Sprite GPU texture cache keyed by DashSprite*
-    std::unordered_map<void*, ID3D11Texture2D*> sprite_texture_by_ptr;
-    std::unordered_map<void*, ID3D11ShaderResourceView*> sprite_srv_by_ptr;
+    std::unordered_map<uint64_t, ID3D11Texture2D*> sprite_textures_by_slot;
+    std::unordered_map<uint64_t, ID3D11ShaderResourceView*> sprite_srv_by_slot;
 
-    // Font atlas cache
-    std::unordered_map<struct DashPixFont*, D3D11FontAtlasEntry> font_atlas_cache;
+    std::unordered_map<int, D3D11FontAtlasEntry> font_atlas_cache;
 };
 
 struct Platform2_SDL2_Renderer_D3D11*

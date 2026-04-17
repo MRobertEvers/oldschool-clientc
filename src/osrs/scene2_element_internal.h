@@ -20,6 +20,8 @@ struct Scene2ElementFast
     struct Scene2Element* next;
     struct DashModel* dash_model;
     struct DashPosition* dash_position;
+    /** Monotonic id from Scene2 when a model is assigned; used in GPU load/unload commands. */
+    int dash_model_gpu_id;
 };
 
 struct Scene2ElementFull
@@ -29,6 +31,8 @@ struct Scene2ElementFull
     struct Scene2Element* next;
     struct DashModel* dash_model;
     struct DashPosition* dash_position;
+    /** Monotonic id from Scene2 when a model is assigned; used in GPU load/unload commands. */
+    int dash_model_gpu_id;
     struct DashFramemap* dash_framemap;
     uint16_t active_anim_id;
     uint8_t active_frame;

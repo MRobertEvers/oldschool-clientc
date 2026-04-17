@@ -11,7 +11,6 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <vector>
 
 EM_JS(void, emscripten_native_canvas_put_rgba, (const uint8_t* rgba_ptr, int w, int h, int dst_x, int dst_y), {
     var canvas = document.getElementById('canvas');
@@ -250,9 +249,6 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
                          [renderer->dash_offset_y * renderer->width + renderer->dash_offset_x];
     }
 
-    static std::vector<ToriRSRenderCommand> deferred_font_draws;
-    deferred_font_draws.clear();
-
     /* Readme "FrameStart" — timing covers FrameBegin + command drain + FrameEnd. */
     double const soft3d_t_frame_start_ms = emscripten_get_now();
 
@@ -263,6 +259,7 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
         {
         case TORIRS_GFX_FONT_LOAD:
         case TORIRS_GFX_MODEL_LOAD:
+        case TORIRS_GFX_MODEL_UNLOAD:
             break;
         case TORIRS_GFX_TEXTURE_LOAD:
         {
@@ -272,8 +269,22 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
         }
         break;
         case TORIRS_GFX_FONT_DRAW:
-            deferred_font_draws.push_back(command);
-            break;
+        {
+            struct DashPixFont* f = command._font_draw.font;
+            const uint8_t* text = command._font_draw.text;
+            if( f && text && renderer->pixel_buffer )
+            {
+                dashfont_draw_text_ex(
+                    f,
+                    (uint8_t*)text,
+                    command._font_draw.x,
+                    command._font_draw.y,
+                    command._font_draw.color_rgb,
+                    renderer->pixel_buffer,
+                    renderer->width);
+            }
+        }
+        break;
         case TORIRS_GFX_CLEAR_RECT:
         {
             int cx = command._clear_rect.x;
@@ -354,6 +365,15 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
             }
         }
         break;
+        case TORIRS_GFX_BEGIN_3D:
+        case TORIRS_GFX_END_3D:
+        case TORIRS_GFX_BEGIN_2D:
+        case TORIRS_GFX_END_2D:
+        case TORIRS_GFX_VERTEX_ARRAY_LOAD:
+        case TORIRS_GFX_VERTEX_ARRAY_UNLOAD:
+        case TORIRS_GFX_FACE_ARRAY_LOAD:
+        case TORIRS_GFX_FACE_ARRAY_UNLOAD:
+            break;
         default:
             break;
         }
@@ -414,8 +434,6 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
     game->soft3d_present_dst_h = dst_rect.h;
     game->soft3d_buffer_w = renderer->width;
     game->soft3d_buffer_h = renderer->height;
-
-    (void)deferred_font_draws;
 
     const int pixel_count = renderer->width * renderer->height;
     argb_buffer_to_rgba_bytes(renderer->pixel_buffer, pixel_count, renderer->rgba_buffer);

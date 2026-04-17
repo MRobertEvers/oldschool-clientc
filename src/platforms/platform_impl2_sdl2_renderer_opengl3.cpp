@@ -285,43 +285,6 @@ yaw_to_radians(int yaw_r2pi2048)
     return (yaw_r2pi2048 * 2.0f * 3.14159265358979323846f) / 2048.0f;
 }
 
-static uint64_t
-model_gpu_cache_key(const struct DashModel* model)
-{
-    if( !model )
-        return 0;
-    uint64_t key = 14695981039346656037ULL;
-    const uint64_t fnv_prime = 1099511628211ULL;
-    auto mix_word = [&](uint64_t word) {
-        key ^= word;
-        key *= fnv_prime;
-    };
-
-    mix_word((uint64_t)(uintptr_t)dashmodel_vertices_x_const(model));
-    mix_word((uint64_t)(uintptr_t)dashmodel_face_indices_a_const(model));
-    mix_word((uint64_t)(uintptr_t)dashmodel_face_indices_b_const(model));
-    mix_word((uint64_t)(uintptr_t)dashmodel_face_indices_c_const(model));
-    mix_word((uint64_t)dashmodel_face_count(model));
-
-    struct DashModel* mw = (struct DashModel*)model;
-    const bool is_animated = dashmodel_original_vertices_x(mw) && dashmodel_original_vertices_y(mw) &&
-                             dashmodel_original_vertices_z(mw) && dashmodel_vertex_count(model) > 0;
-    if( is_animated )
-    {
-        const vertexint_t* vx = dashmodel_vertices_x_const(model);
-        const vertexint_t* vy = dashmodel_vertices_y_const(model);
-        const vertexint_t* vz = dashmodel_vertices_z_const(model);
-        int vc = dashmodel_vertex_count(model);
-        for( int i = 0; i < vc; ++i )
-        {
-            mix_word((uint64_t)(uint32_t)vx[i]);
-            mix_word((uint64_t)(uint32_t)vy[i]);
-            mix_word((uint64_t)(uint32_t)vz[i]);
-        }
-    }
-    return key;
-}
-
 static struct nk_context* s_gl3_nk;
 static Uint64 s_gl3_ui_prev_perf;
 
@@ -364,6 +327,12 @@ sync_drawable_size(struct Platform2_SDL2_Renderer_OpenGL3* renderer)
 
     renderer->width = drawable_width;
     renderer->height = drawable_height;
+}
+
+static inline int
+model_id_from_model_cache_key(uint64_t k)
+{
+    return (int)(uint32_t)(k >> 24);
 }
 
 struct Platform2_SDL2_Renderer_OpenGL3*
@@ -591,6 +560,8 @@ PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
                 {
                     break;
                 }
+                if( model_id_from_model_cache_key(cmd._model_load.model_key) <= 0 )
+                    break;
                 if( renderer->model_index_by_key.find(cmd._model_load.model_key) ==
                     renderer->model_index_by_key.end() )
                 {
@@ -616,6 +587,22 @@ PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
                         dashmodel_face_colors_c(model),
                         dashmodel_face_infos(model),
                         dashmodel_face_alphas(model));
+                }
+                break;
+            }
+
+            case TORIRS_GFX_MODEL_UNLOAD:
+            {
+                const int mid = cmd._model_load.model_id;
+                if( mid <= 0 )
+                    break;
+                for( auto it = renderer->model_index_by_key.begin();
+                     it != renderer->model_index_by_key.end(); )
+                {
+                    if( model_id_from_model_cache_key(it->first) == mid )
+                        it = renderer->model_index_by_key.erase(it);
+                    else
+                        ++it;
                 }
                 break;
             }
@@ -656,6 +643,8 @@ PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
                 }
 
                 uint64_t model_key = cmd._model_draw.model_key;
+                if( model_id_from_model_cache_key(model_key) <= 0 )
+                    break;
                 auto it = renderer->model_index_by_key.find(model_key);
                 if( it == renderer->model_index_by_key.end() )
                 {
@@ -707,6 +696,16 @@ PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
             case TORIRS_GFX_SPRITE_UNLOAD:
             case TORIRS_GFX_SPRITE_DRAW:
                 sprite_cmds.push_back(cmd);
+                break;
+
+            case TORIRS_GFX_BEGIN_3D:
+            case TORIRS_GFX_END_3D:
+            case TORIRS_GFX_BEGIN_2D:
+            case TORIRS_GFX_END_2D:
+            case TORIRS_GFX_VERTEX_ARRAY_LOAD:
+            case TORIRS_GFX_VERTEX_ARRAY_UNLOAD:
+            case TORIRS_GFX_FACE_ARRAY_LOAD:
+            case TORIRS_GFX_FACE_ARRAY_UNLOAD:
                 break;
 
             default:

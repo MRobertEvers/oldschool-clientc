@@ -839,6 +839,7 @@ build_scene_terrain_va(struct World* world)
         va->vertices_x = va_x;
         va->vertices_y = va_y;
         va->vertices_z = va_z;
+        va->scene2_gpu_id = 0;
 
         if( world->terrain_va[level] )
         {

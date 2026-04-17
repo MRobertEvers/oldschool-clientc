@@ -20,6 +20,11 @@ struct UISceneEvent
     int element_id;
     int parent_entity_id;
     int font_id;
+    /** ELEMENT_RELEASED only: snapshot of sprite pointers (malloc'd); consumer frees array +
+     * DashSprites when released_sprites_borrowed is false. */
+    struct DashSprite** released_sprites;
+    int released_sprites_count;
+    bool released_sprites_borrowed;
 };
 
 struct UISceneElement

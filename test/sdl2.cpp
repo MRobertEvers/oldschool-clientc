@@ -96,7 +96,8 @@ select_renderer(
 #endif
     }
 
-    return RENDERER_SOFT3D;
+    return RENDERER_METAL;
+    // return RENDERER_SOFT3D;
 }
 
 static void
@@ -289,8 +290,8 @@ main(
     else
 #endif
     {
-        renderer_soft3d =
-            PlatformImpl2_SDL2_Renderer_Soft3D_New(SCREEN_WIDTH, SCREEN_HEIGHT, render_max_width, render_max_height);
+        renderer_soft3d = PlatformImpl2_SDL2_Renderer_Soft3D_New(
+            SCREEN_WIDTH, SCREEN_HEIGHT, render_max_width, render_max_height);
         if( !renderer_soft3d )
         {
             printf("Failed to create Soft3D renderer\n");
@@ -363,18 +364,15 @@ main(
 #endif
 #if defined(__APPLE__)
             if( renderer_metal )
-            PlatformImpl2_SDL2_Renderer_Metal_Render(
-                renderer_metal, game, render_command_buffer);
+            PlatformImpl2_SDL2_Renderer_Metal_Render(renderer_metal, game, render_command_buffer);
         else
 #endif
 #if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
             if( renderer_d3d11 )
-            PlatformImpl2_SDL2_Renderer_D3D11_Render(
-                renderer_d3d11, game, render_command_buffer);
+            PlatformImpl2_SDL2_Renderer_D3D11_Render(renderer_d3d11, game, render_command_buffer);
         else
 #endif
-            PlatformImpl2_SDL2_Renderer_Soft3D_Render(
-                renderer_soft3d, game, render_command_buffer);
+            PlatformImpl2_SDL2_Renderer_Soft3D_Render(renderer_soft3d, game, render_command_buffer);
     }
 
     if( login_stream )

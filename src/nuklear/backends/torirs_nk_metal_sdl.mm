@@ -9,6 +9,7 @@
 #include <float.h>
 #include <math.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -295,12 +296,18 @@ void
 torirs_nk_metal_render(
     struct TorirsNkMetalUi* ui,
     void* mtl_render_command_encoder,
-    int framebuffer_width,
-    int framebuffer_height,
+    int window_width,
+    int window_height,
+    int drawable_width,
+    int drawable_height,
     enum nk_anti_aliasing aa)
 {
-    if( !ui || !mtl_render_command_encoder || framebuffer_width <= 0 || framebuffer_height <= 0 )
+    if( !ui || !mtl_render_command_encoder || drawable_width <= 0 || drawable_height <= 0 )
         return;
+    if( window_width <= 0 )
+        window_width = drawable_width;
+    if( window_height <= 0 )
+        window_height = drawable_height;
 
     id<MTLRenderCommandEncoder> enc = (__bridge id<MTLRenderCommandEncoder>)mtl_render_command_encoder;
 
@@ -335,7 +342,11 @@ torirs_nk_metal_render(
     struct nk_buffer vbuf, ibuf;
     nk_buffer_init_fixed(&vbuf, vmem, (nk_size)ui->max_vertex_bytes);
     nk_buffer_init_fixed(&ibuf, imem, (nk_size)ui->max_index_bytes);
-    nk_convert(&ui->ctx, &ui->cmds, &vbuf, &ibuf, &config);
+    nk_flags conv = nk_convert(&ui->ctx, &ui->cmds, &vbuf, &ibuf, &config);
+    if( conv & NK_CONVERT_VERTEX_BUFFER_FULL )
+        fprintf(stderr, "torirs_nk_metal_render: NK_CONVERT_VERTEX_BUFFER_FULL\n");
+    if( conv & NK_CONVERT_ELEMENT_BUFFER_FULL )
+        fprintf(stderr, "torirs_nk_metal_render: NK_CONVERT_ELEMENT_BUFFER_FULL\n");
 
     const nk_size vbytes = nk_buffer_total(&vbuf);
     const nk_size ibytes = nk_buffer_total(&ibuf);
@@ -356,11 +367,17 @@ torirs_nk_metal_render(
         id<MTLTexture> tex = cmd->texture.ptr ? (__bridge id<MTLTexture>)cmd->texture.ptr : ui->null_texture;
         [enc setFragmentTexture:tex atIndex:0];
 
+        const float sx = (float)drawable_width / (float)window_width;
+        const float sy = (float)drawable_height / (float)window_height;
+        const float px = (float)cmd->clip_rect.x * sx;
+        const float py = (float)cmd->clip_rect.y * sy;
+        const float pw = (float)cmd->clip_rect.w * sx;
+        const float ph = (float)cmd->clip_rect.h * sy;
         MTLScissorRect sc;
-        sc.x = (NSUInteger)cmd->clip_rect.x;
-        sc.y = (NSUInteger)((float)framebuffer_height - (float)cmd->clip_rect.y - (float)cmd->clip_rect.h);
-        sc.width = (NSUInteger)cmd->clip_rect.w;
-        sc.height = (NSUInteger)cmd->clip_rect.h;
+        sc.x = (NSUInteger)px;
+        sc.y = (NSUInteger)((float)drawable_height - py - ph);
+        sc.width = (NSUInteger)(pw > 0.0f ? pw : 0.0f);
+        sc.height = (NSUInteger)(ph > 0.0f ? ph : 0.0f);
         [enc setScissorRect:sc];
 
         [enc drawIndexedPrimitives:MTLPrimitiveTypeTriangle

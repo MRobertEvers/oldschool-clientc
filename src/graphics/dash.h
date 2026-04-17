@@ -55,6 +55,8 @@ struct DashVertexArray
     vertexint_t* vertices_x;
     vertexint_t* vertices_y;
     vertexint_t* vertices_z;
+    /** Assigned in scene2_vertex_array_register; used in render command payloads. */
+    int scene2_gpu_id;
 };
 
 /** One triangle face: staging-only type used when pushing into DashFaceArray. */
@@ -78,6 +80,8 @@ struct DashFaceArray
     faceint_t* texture_ids;
     int count;
     int capacity;
+    /** Assigned in scene2_face_array_register; used in render command payloads. */
+    int scene2_gpu_id;
 };
 
 struct DashModel;

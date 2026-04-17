@@ -3,6 +3,7 @@
 
 #include "platform_impl2_sdl2.h"
 #include <SDL.h>
+#include <cstdint>
 #include <unordered_map>
 #include <vector>
 
@@ -34,6 +35,7 @@ struct Platform2_SDL2_Renderer_OpenGL3
     bool gl_context_ready;
     struct Pix3DGL* pix3dgl;
     int next_model_index;
+    /** (model_id<<24|anim<<8|frame) from model_cache_key_u64 -> pix3dgl model slot index. */
     std::unordered_map<uint64_t, int> model_index_by_key;
 
     std::unordered_map<struct DashPixFont*, GLFontAtlasEntry> font_atlas_cache;
