@@ -80,6 +80,8 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_New(
     /* First present must clear the bars; nothing has painted them yet. */
     renderer->letterbox_dirty = true;
 
+    renderer->present_use_stretch = true;
+
     if( !QueryPerformanceFrequency(&renderer->nk_qpc_freq) )
         renderer->nk_qpc_freq.QuadPart = 0;
 
@@ -177,6 +179,15 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_SetDynamicPixelSize(
 }
 
 void
+PlatformImpl2_Win32_Renderer_GDISoft3D_SetPresentUseStretch(
+    struct Platform2_Win32_Renderer_GDISoft3D* renderer,
+    bool use_stretch)
+{
+    if( renderer )
+        renderer->present_use_stretch = use_stretch;
+}
+
+void
 PlatformImpl2_Win32_Renderer_GDISoft3D_MarkLetterboxDirty(
     struct Platform2_Win32_Renderer_GDISoft3D* renderer)
 {
@@ -218,25 +229,36 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_PresentToHdc(
         int x, y, w, h;
     } dst_rect = { 0, 0, renderer->width, renderer->height };
 
-    float src_aspect = (float)renderer->width / (float)renderer->height;
-    float window_aspect = (float)window_width / (float)window_height;
-
-    if( window_width > 0 && window_height > 0 )
+    if( renderer->present_use_stretch )
     {
-        if( src_aspect > window_aspect )
+        float src_aspect = (float)renderer->width / (float)renderer->height;
+        float window_aspect = (float)window_width / (float)window_height;
+
+        if( window_width > 0 && window_height > 0 )
         {
-            dst_rect.w = window_width;
-            dst_rect.h = (int)(window_width / src_aspect);
-            dst_rect.x = 0;
-            dst_rect.y = (window_height - dst_rect.h) / 2;
+            if( src_aspect > window_aspect )
+            {
+                dst_rect.w = window_width;
+                dst_rect.h = (int)(window_width / src_aspect);
+                dst_rect.x = 0;
+                dst_rect.y = (window_height - dst_rect.h) / 2;
+            }
+            else
+            {
+                dst_rect.h = window_height;
+                dst_rect.w = (int)(window_height * src_aspect);
+                dst_rect.y = 0;
+                dst_rect.x = (window_width - dst_rect.w) / 2;
+            }
         }
-        else
-        {
-            dst_rect.h = window_height;
-            dst_rect.w = (int)(window_height * src_aspect);
-            dst_rect.y = 0;
-            dst_rect.x = (window_width - dst_rect.w) / 2;
-        }
+    }
+    else
+    {
+        /* 1:1 centered; GDI clips if the window is smaller than the buffer. */
+        dst_rect.w = renderer->width;
+        dst_rect.h = renderer->height;
+        dst_rect.x = (window_width - dst_rect.w) / 2;
+        dst_rect.y = (window_height - dst_rect.h) / 2;
     }
 
     renderer->present_dst_x = dst_rect.x;
@@ -244,7 +266,7 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_PresentToHdc(
     renderer->present_dst_w = dst_rect.w;
     renderer->present_dst_h = dst_rect.h;
 
-    /* Letterbox/pillarbox: client area outside dst_rect is not covered by StretchDIBits;
+    /* Letterbox/pillarbox: client area outside dst_rect is not covered by the DIB present;
      * WM_ERASEBKGND returns TRUE so the bars stay put across frames. Only re-clear when
      * something (typically WM_SIZE) marked them dirty. */
     if( renderer->letterbox_dirty )
@@ -292,20 +314,39 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_PresentToHdc(
     memset(&bi, 0, sizeof(bi));
     bi.bmiHeader = renderer->bmi_header;
 
-    StretchDIBits(
-        hdc,
-        dst_rect.x,
-        dst_rect.y,
-        dst_rect.w,
-        dst_rect.h,
-        0,
-        0,
-        renderer->width,
-        renderer->height,
-        renderer->pixel_buffer,
-        &bi,
-        DIB_RGB_COLORS,
-        SRCCOPY);
+    if( renderer->present_use_stretch )
+    {
+        StretchDIBits(
+            hdc,
+            dst_rect.x,
+            dst_rect.y,
+            dst_rect.w,
+            dst_rect.h,
+            0,
+            0,
+            renderer->width,
+            renderer->height,
+            renderer->pixel_buffer,
+            &bi,
+            DIB_RGB_COLORS,
+            SRCCOPY);
+    }
+    else
+    {
+        SetDIBitsToDevice(
+            hdc,
+            dst_rect.x,
+            dst_rect.y,
+            (DWORD)dst_rect.w,
+            (DWORD)dst_rect.h,
+            0,
+            0,
+            0,
+            (UINT)renderer->height,
+            renderer->pixel_buffer,
+            &bi,
+            DIB_RGB_COLORS);
+    }
 }
 
 void

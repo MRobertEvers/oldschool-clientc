@@ -391,6 +391,14 @@ world_rebuild_centerzone_begin(
 
     world->load_complete = false;
 
+    if( world->scene2 )
+    {
+        if( world->rebuild_prev_batch_id != 0 )
+            scene2_batch_clear(world->scene2, world->rebuild_prev_batch_id);
+        world->rebuild_batch_id_counter++;
+        scene2_batch_begin(world->scene2, world->rebuild_batch_id_counter);
+    }
+
     int zone_padding = scene_size / (2 * 8);
     int zone_sw_x = zone_center_x - zone_padding;
     int zone_sw_z = zone_center_z - zone_padding;
@@ -1122,6 +1130,12 @@ world_rebuild_centerzone_end(struct World* world)
     world->sharelight_map = NULL;
 
     world_print_scene2_dashmodel_heap_stats(world);
+
+    if( world->scene2 )
+    {
+        scene2_batch_end(world->scene2);
+        world->rebuild_prev_batch_id = world->rebuild_batch_id_counter;
+    }
 
     world->load_complete = true;
 }

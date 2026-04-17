@@ -199,6 +199,9 @@ scene2_new(
     scene2->next_face_array_gpu_id = 0;
     scene2->next_model_gpu_id = 0;
 
+    scene2->batch_active = false;
+    scene2->batch_current_id = 0;
+
     return scene2;
 }
 
@@ -305,6 +308,7 @@ scene2_element_acquire_fast(
         scene2,
         (struct Scene2Event){
             .type = SCENE2_EVENT_ELEMENT_ACQUIRED,
+            .batched = false,
             .u.element.element_id = element_id,
             .u.element.parent_entity_id = parent_entity_id,
         });
@@ -343,6 +347,7 @@ scene2_element_acquire_full(
         scene2,
         (struct Scene2Event){
             .type = SCENE2_EVENT_ELEMENT_ACQUIRED,
+            .batched = false,
             .u.element.element_id = element_id,
             .u.element.parent_entity_id = parent_entity_id,
         });
@@ -448,6 +453,7 @@ scene2_element_set_dash_model(
             scene2,
             (struct Scene2Event){
                 .type = SCENE2_EVENT_MODEL_UNLOADED,
+                .batched = false,
                 .u.model = {
                     .element_id = element_id,
                     .parent_entity_id = parent_entity_id,
@@ -484,6 +490,7 @@ scene2_element_set_dash_model(
             scene2,
             (struct Scene2Event){
                 .type = SCENE2_EVENT_MODEL_LOADED,
+                .batched = scene2->batch_active,
                 .u.model = {
                     .element_id = element_id,
                     .parent_entity_id = parent_entity_id,
@@ -577,6 +584,7 @@ scene2_element_release(
                 scene2,
                 (struct Scene2Event){
                     .type = SCENE2_EVENT_MODEL_UNLOADED,
+                    .batched = false,
                     .u.model = {
                         .element_id = element_id,
                         .parent_entity_id = parent_entity_id,
@@ -601,6 +609,7 @@ scene2_element_release(
                 scene2,
                 (struct Scene2Event){
                     .type = SCENE2_EVENT_MODEL_UNLOADED,
+                    .batched = false,
                     .u.model = {
                         .element_id = element_id,
                         .parent_entity_id = parent_entity_id,
@@ -649,6 +658,7 @@ scene2_element_release(
         scene2,
         (struct Scene2Event){
             .type = SCENE2_EVENT_ELEMENT_RELEASED,
+            .batched = false,
             .u.element.element_id = element_id,
             .u.element.parent_entity_id = parent_entity_id,
         });
@@ -861,6 +871,7 @@ scene2_texture_add(
         scene2,
         (struct Scene2Event){
             .type = SCENE2_EVENT_TEXTURE_LOADED,
+            .batched = false,
             .u.texture.texture_id = texture_id,
         });
 }
@@ -990,6 +1001,7 @@ scene2_vertex_array_register(
         scene2,
         (struct Scene2Event){
             .type = SCENE2_EVENT_VERTEX_ARRAY_ADDED,
+            .batched = scene2->batch_active,
             .u.vertex_array = {
                 .array_id = vertex_array->scene2_gpu_id,
                 .array = vertex_array,
@@ -1013,6 +1025,7 @@ scene2_vertex_array_unregister(
             scene2,
             (struct Scene2Event){
                 .type = SCENE2_EVENT_VERTEX_ARRAY_REMOVED,
+                .batched = false,
                 .u.vertex_array = {
                     .array_id = vertex_array->scene2_gpu_id,
                     .array = vertex_array,
@@ -1051,6 +1064,7 @@ scene2_face_array_register(
         scene2,
         (struct Scene2Event){
             .type = SCENE2_EVENT_FACE_ARRAY_ADDED,
+            .batched = scene2->batch_active,
             .u.face_array = {
                 .array_id = face_array->scene2_gpu_id,
                 .array = face_array,
@@ -1074,6 +1088,7 @@ scene2_face_array_unregister(
             scene2,
             (struct Scene2Event){
                 .type = SCENE2_EVENT_FACE_ARRAY_REMOVED,
+                .batched = false,
                 .u.face_array = {
                     .array_id = face_array->scene2_gpu_id,
                     .array = face_array,
@@ -1116,4 +1131,56 @@ scene2_face_array_at(
     if( !scene2 || index < 0 || index >= scene2->face_arrays_count )
         return NULL;
     return scene2->face_arrays[index];
+}
+
+void
+scene2_batch_begin(
+    struct Scene2* scene2,
+    uint32_t batch_id)
+{
+    if( !scene2 )
+        return;
+    assert(!scene2->batch_active && "scene2_batch_begin: nested batch");
+    scene2->batch_current_id = batch_id;
+    scene2->batch_active = true;
+    scene2_eventbuffer_push(
+        scene2,
+        (struct Scene2Event){
+            .type = SCENE2_EVENT_BATCH_BEGIN,
+            .batched = false,
+            .u.batch.batch_id = batch_id,
+        });
+}
+
+void
+scene2_batch_end(struct Scene2* scene2)
+{
+    if( !scene2 )
+        return;
+    assert(scene2->batch_active && "scene2_batch_end: no active batch");
+    uint32_t id = scene2->batch_current_id;
+    scene2->batch_active = false;
+    scene2_eventbuffer_push(
+        scene2,
+        (struct Scene2Event){
+            .type = SCENE2_EVENT_BATCH_END,
+            .batched = false,
+            .u.batch.batch_id = id,
+        });
+}
+
+void
+scene2_batch_clear(
+    struct Scene2* scene2,
+    uint32_t batch_id)
+{
+    if( !scene2 )
+        return;
+    scene2_eventbuffer_push(
+        scene2,
+        (struct Scene2Event){
+            .type = SCENE2_EVENT_BATCH_CLEAR,
+            .batched = false,
+            .u.batch.batch_id = batch_id,
+        });
 }

@@ -33,6 +33,15 @@ enum ToriRSRenderCommandKind
     /** Between BEGIN_2D and END_2D, only SPRITE_DRAW / FONT_DRAW / CLEAR_RECT. */
     TORIRS_GFX_BEGIN_2D,
     TORIRS_GFX_END_2D,
+    /** World rebuild batch: merge model VBO/EBO between START and END. Payload `_batch`. */
+    TORIRS_GFX_BATCH_MODEL_LOAD_START,
+    TORIRS_GFX_BATCH_MODEL_LOAD_END,
+    /** Unload merged batch GPU data for `batch_id`. Payload `_batch`. */
+    TORIRS_GFX_BATCH_MODEL_CLEAR,
+    /** Same as MODEL_LOAD but part of the active batch (merged on capable renderers). */
+    TORIRS_GFX_MODEL_BATCHED_LOAD,
+    TORIRS_GFX_VERTEX_ARRAY_BATCHED_LOAD,
+    TORIRS_GFX_FACE_ARRAY_BATCHED_LOAD,
 };
 
 /** `TORIRS_GFX_SPRITE_DRAW._sprite_draw.blit_dest`: normal UI framebuffer blit. */
@@ -134,6 +143,10 @@ struct ToriRSRenderCommand
             int array_id;
             struct DashFaceArray* array;
         } _face_array_load;
+        struct
+        {
+            uint32_t batch_id;
+        } _batch;
     };
 };
 
