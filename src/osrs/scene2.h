@@ -36,12 +36,17 @@ enum Scene2EventType
     SCENE2_EVENT_FACE_ARRAY_ADDED = 7,
     SCENE2_EVENT_FACE_ARRAY_REMOVED = 8,
     SCENE2_EVENT_MODEL_UNLOADED = 9,
+    SCENE2_EVENT_BATCH_BEGIN = 10,
+    SCENE2_EVENT_BATCH_END = 11,
+    SCENE2_EVENT_BATCH_CLEAR = 12,
 };
 
-/** Payload is in `u` according to `type` (element 1–2, model 3+9, texture 4, vertex_array 5–6, face_array 7–8). */
+/** Payload is in `u` according to `type` (element 1–2, model 3+9, texture 4, vertex_array 5–6, face_array 7–8, batch 10–12). */
 struct Scene2Event
 {
     enum Scene2EventType type;
+    /** True for MODEL_LOADED / VERTEX_ARRAY_ADDED / FACE_ARRAY_ADDED emitted while batch is active. */
+    bool batched;
     union {
         struct
         {
@@ -70,6 +75,10 @@ struct Scene2Event
             int array_id;
             struct DashFaceArray* array;
         } face_array;
+        struct
+        {
+            uint32_t batch_id;
+        } batch;
     } u;
 };
 
@@ -123,6 +132,10 @@ struct Scene2
     struct DashModel** models_deferred_free;
     int models_deferred_free_count;
     int models_deferred_free_capacity;
+
+    /** World rebuild GPU batch: when true, static load events are tagged `batched`. */
+    bool batch_active;
+    uint32_t batch_current_id;
 };
 
 struct Scene2*
@@ -292,6 +305,18 @@ void
 scene2_face_array_unregister(
     struct Scene2* scene2,
     struct DashFaceArray* face_array);
+
+/** Begin a rebuild batch (world increments `batch_id` each rebuild). Asserts no nested batch. */
+void
+scene2_batch_begin(struct Scene2* scene2, uint32_t batch_id);
+
+/** End the active batch; emits BATCH_END with current batch id. */
+void
+scene2_batch_end(struct Scene2* scene2);
+
+/** Tell renderers to unload merged GPU data for a prior batch id. */
+void
+scene2_batch_clear(struct Scene2* scene2, uint32_t batch_id);
 
 /** Frees vertex/face arrays and DashModels queued for deferred free; call after consumers finish popping scene2 events. */
 void

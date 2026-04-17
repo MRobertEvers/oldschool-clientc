@@ -19,6 +19,7 @@
 #include "osrs/terrain_shapemap.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 
 /* Forward declaration: defined in world.c (local struct used for bridging during build). */
@@ -80,6 +81,11 @@ struct World
     struct Scene2* scene2;
     /** False while a center-zone rebuild is in progress; true after it completes. */
     bool load_complete;
+
+    /** Scene2 GPU batch id for world rebuilds (Metal/D3D8 merged VBO path). */
+    uint32_t rebuild_batch_id_counter;
+    /** Last completed rebuild batch id; cleared via scene2 on next begin. */
+    uint32_t rebuild_prev_batch_id;
 
     // Todo: How to organize, these are only used at build time.
     // Lightmap

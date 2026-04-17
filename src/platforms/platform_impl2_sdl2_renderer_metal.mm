@@ -13,6 +13,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <unordered_map>
 #include <vector>
 
 #ifndef M_PI
@@ -144,6 +145,26 @@ struct MetalVertex
     float texcoord[2];
     float texBlend; // baked: raw face tex id >= 0 → 1 (per-run uniform clamps if missing GPU tex)
     float _pad_vertex;
+};
+
+struct MetalBatchModelEntry
+{
+    uint64_t model_key;
+    int model_id;
+    int vertex_base;
+    int face_count;
+    std::vector<int> per_face_raw_tex_id;
+};
+
+struct MetalModelBatch
+{
+    uint32_t batch_id = 0;
+    void* vbo = nullptr;
+    void* ebo = nullptr;
+    int total_vertex_count = 0;
+    std::vector<MetalVertex> pending_verts;
+    std::vector<uint32_t> pending_indices;
+    std::unordered_map<uint64_t, MetalBatchModelEntry> entries_by_key;
 };
 
 // ---------------------------------------------------------------------------
@@ -548,6 +569,24 @@ release_metal_model_gpu(MetalModelGpu* gpu)
     delete gpu;
 }
 
+static void
+release_metal_model_batch(MetalModelBatch* batch)
+{
+    if( !batch )
+        return;
+    if( batch->vbo )
+    {
+        CFRelease(batch->vbo);
+        batch->vbo = nullptr;
+    }
+    if( batch->ebo )
+    {
+        CFRelease(batch->ebo);
+        batch->ebo = nullptr;
+    }
+    delete batch;
+}
+
 static MetalModelGpu*
 lookup_or_build_model_gpu(
     struct Platform2_SDL2_Renderer_Metal* renderer,
@@ -719,6 +758,7 @@ PlatformImpl2_SDL2_Renderer_Metal_New(
     renderer->mtl_sprite_quad_buf = nullptr;
     renderer->mtl_font_pipeline = nullptr;
     renderer->mtl_font_vbo = nullptr;
+    renderer->mtl_current_model_batch = nullptr;
     return renderer;
 }
 
@@ -748,6 +788,19 @@ PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* ren
     for( auto& kv : renderer->model_gpu_by_key )
         release_metal_model_gpu(kv.second);
     renderer->model_gpu_by_key.clear();
+
+    if( renderer->mtl_current_model_batch )
+    {
+        release_metal_model_batch((MetalModelBatch*)renderer->mtl_current_model_batch);
+        renderer->mtl_current_model_batch = nullptr;
+    }
+    for( auto& kv : renderer->mtl_model_batches_by_id )
+    {
+        if( kv.second )
+            release_metal_model_batch((MetalModelBatch*)kv.second);
+    }
+    renderer->mtl_model_batches_by_id.clear();
+    renderer->mtl_batched_model_batch_by_key.clear();
 
     if( renderer->mtl_index_ring )
     {
@@ -1582,6 +1635,14 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                         else
                             ++it;
                     }
+                    for( auto it = renderer->mtl_batched_model_batch_by_key.begin();
+                         it != renderer->mtl_batched_model_batch_by_key.end(); )
+                    {
+                        if( model_id_from_model_cache_key(it->first) == mid )
+                            it = renderer->mtl_batched_model_batch_by_key.erase(it);
+                        else
+                            ++it;
+                    }
                     for( auto it = renderer->model_gpu_by_key.begin();
                          it != renderer->model_gpu_by_key.end(); )
                     {
@@ -1595,6 +1656,136 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     }
                     break;
                 }
+
+                case TORIRS_GFX_BATCH_MODEL_LOAD_START:
+                {
+                    const uint32_t bid = cmd._batch.batch_id;
+                    if( renderer->mtl_current_model_batch )
+                    {
+                        release_metal_model_batch((MetalModelBatch*)renderer->mtl_current_model_batch);
+                        renderer->mtl_current_model_batch = nullptr;
+                    }
+                    MetalModelBatch* nb = new MetalModelBatch();
+                    nb->batch_id = bid;
+                    renderer->mtl_current_model_batch = (void*)nb;
+                }
+                break;
+
+                case TORIRS_GFX_MODEL_BATCHED_LOAD:
+                {
+                    struct DashModel* model = cmd._model_load.model;
+                    const uint64_t mk = cmd._model_load.model_key;
+                    MetalModelBatch* batch = (MetalModelBatch*)renderer->mtl_current_model_batch;
+                    if( !batch || !model )
+                        break;
+                    if( dashmodel_face_count(model) <= 0 )
+                        break;
+                    if( !dashmodel_face_colors_a_const(model) || !dashmodel_face_colors_b_const(model) ||
+                        !dashmodel_face_colors_c_const(model) )
+                        break;
+                    if( !dashmodel_vertices_x_const(model) || !dashmodel_vertices_y_const(model) ||
+                        !dashmodel_vertices_z_const(model) )
+                        break;
+                    if( !dashmodel_face_indices_a_const(model) || !dashmodel_face_indices_b_const(model) ||
+                        !dashmodel_face_indices_c_const(model) )
+                        break;
+
+                    const int fc = dashmodel_face_count(model);
+                    const faceint_t* ftex = dashmodel_face_textures_const(model);
+                    MetalBatchModelEntry ent;
+                    ent.model_key = mk;
+                    ent.model_id = cmd._model_load.model_id;
+                    ent.vertex_base = batch->total_vertex_count;
+                    ent.face_count = fc;
+                    ent.per_face_raw_tex_id.resize((size_t)fc);
+
+                    const int vb = ent.vertex_base;
+                    for( int f = 0; f < fc; ++f )
+                    {
+                        int raw = ftex ? (int)ftex[f] : -1;
+                        ent.per_face_raw_tex_id[(size_t)f] = raw;
+                        MetalVertex tri[3];
+                        if( !fill_model_face_vertices_model_local(model, f, raw, tri) )
+                        {
+                            metal_vertex_fill_invisible(&tri[0]);
+                            metal_vertex_fill_invisible(&tri[1]);
+                            metal_vertex_fill_invisible(&tri[2]);
+                        }
+                        batch->pending_verts.push_back(tri[0]);
+                        batch->pending_verts.push_back(tri[1]);
+                        batch->pending_verts.push_back(tri[2]);
+                        batch->pending_indices.push_back((uint32_t)(vb + f * 3 + 0));
+                        batch->pending_indices.push_back((uint32_t)(vb + f * 3 + 1));
+                        batch->pending_indices.push_back((uint32_t)(vb + f * 3 + 2));
+                    }
+                    batch->total_vertex_count += fc * 3;
+                    batch->entries_by_key[mk] = std::move(ent);
+                    renderer->mtl_batched_model_batch_by_key[mk] = (void*)batch;
+                    register_model_index_slot(renderer, mk);
+                }
+                break;
+
+                case TORIRS_GFX_BATCH_MODEL_LOAD_END:
+                {
+                    const uint32_t bid = cmd._batch.batch_id;
+                    MetalModelBatch* batch = (MetalModelBatch*)renderer->mtl_current_model_batch;
+                    if( !batch || batch->batch_id != bid )
+                        break;
+                    renderer->mtl_current_model_batch = nullptr;
+                    if( batch->pending_verts.empty() )
+                    {
+                        release_metal_model_batch(batch);
+                        break;
+                    }
+                    const size_t vbytes = batch->pending_verts.size() * sizeof(MetalVertex);
+                    id<MTLBuffer> vbo =
+                        [device newBufferWithBytes:batch->pending_verts.data()
+                                              length:(NSUInteger)vbytes
+                                             options:MTLResourceStorageModeShared];
+                    if( !vbo )
+                    {
+                        release_metal_model_batch(batch);
+                        break;
+                    }
+                    batch->vbo = (__bridge_retained void*)vbo;
+                    batch->pending_verts.clear();
+
+                    const size_t ibytes = batch->pending_indices.size() * sizeof(uint32_t);
+                    id<MTLBuffer> ibo =
+                        [device newBufferWithBytes:batch->pending_indices.data()
+                                            length:(NSUInteger)ibytes
+                                           options:MTLResourceStorageModeShared];
+                    if( ibo )
+                        batch->ebo = (__bridge_retained void*)ibo;
+                    batch->pending_indices.clear();
+
+                    renderer->mtl_model_batches_by_id[batch->batch_id] = (void*)batch;
+                }
+                break;
+
+                case TORIRS_GFX_BATCH_MODEL_CLEAR:
+                {
+                    const uint32_t bid = cmd._batch.batch_id;
+                    auto bit = renderer->mtl_model_batches_by_id.find(bid);
+                    if( bit == renderer->mtl_model_batches_by_id.end() || !bit->second )
+                        break;
+                    MetalModelBatch* batch = (MetalModelBatch*)bit->second;
+                    renderer->mtl_model_batches_by_id.erase(bit);
+                    for( auto it = renderer->mtl_batched_model_batch_by_key.begin();
+                         it != renderer->mtl_batched_model_batch_by_key.end(); )
+                    {
+                        if( it->second == (void*)batch )
+                            it = renderer->mtl_batched_model_batch_by_key.erase(it);
+                        else
+                            ++it;
+                    }
+                    release_metal_model_batch(batch);
+                }
+                break;
+
+                case TORIRS_GFX_VERTEX_ARRAY_BATCHED_LOAD:
+                case TORIRS_GFX_FACE_ARRAY_BATCHED_LOAD:
+                    break;
 
                 case TORIRS_GFX_CLEAR_RECT:
                     /* Intentional no-op: Metal does not implement 2D CLEAR_RECT. A GPU clear here
@@ -1617,8 +1808,30 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
 
                     ensure_pipe(kMTLPipe3D);
 
-                    MetalModelGpu* gpu = lookup_or_build_model_gpu(
-                        renderer, device, model, cmd._model_draw.model_key);
+                    const uint64_t mk_draw = cmd._model_draw.model_key;
+                    int vertex_index_base = 0;
+                    MetalModelBatch* batched_batch_ptr = nullptr;
+                    MetalModelGpu* gpu = nullptr;
+                    MetalModelGpu batched_wrap{};
+
+                    auto bmit = renderer->mtl_batched_model_batch_by_key.find(mk_draw);
+                    if( bmit != renderer->mtl_batched_model_batch_by_key.end() && bmit->second )
+                    {
+                        batched_batch_ptr = (MetalModelBatch*)bmit->second;
+                        auto eit = batched_batch_ptr->entries_by_key.find(mk_draw);
+                        if( eit == batched_batch_ptr->entries_by_key.end() )
+                            break;
+                        const MetalBatchModelEntry& ent = eit->second;
+                        vertex_index_base = ent.vertex_base;
+                        batched_wrap.vbo = batched_batch_ptr->vbo;
+                        batched_wrap.face_count = ent.face_count;
+                        batched_wrap.per_face_raw_tex_id = ent.per_face_raw_tex_id;
+                        gpu = &batched_wrap;
+                    }
+                    else
+                    {
+                        gpu = lookup_or_build_model_gpu(renderer, device, model, mk_draw);
+                    }
                     if( !gpu || !gpu->vbo )
                         break;
 
@@ -1715,9 +1928,9 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                                     const int f = face_order[run_start + k];
                                     if( f < 0 || f >= gpu->face_count )
                                         continue;
-                                    dst[wpos++] = (uint32_t)(f * 3 + 0);
-                                    dst[wpos++] = (uint32_t)(f * 3 + 1);
-                                    dst[wpos++] = (uint32_t)(f * 3 + 2);
+                                    dst[wpos++] = (uint32_t)(vertex_index_base + f * 3 + 0);
+                                    dst[wpos++] = (uint32_t)(vertex_index_base + f * 3 + 1);
+                                    dst[wpos++] = (uint32_t)(vertex_index_base + f * 3 + 2);
                                 }
                                 renderer->mtl_index_ring_write_offset += ixBytes;
 

@@ -81,12 +81,48 @@ struct D3D8UiVertex
 static const DWORD kFvfWorld = D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1;
 static const DWORD kFvfUi = D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1;
 
+/** Set true to skip the full-screen Nuklear overlay quad for A/B testing (3D vs overlay). */
+static const bool kSkipNuklearOverlayQuad = true;
+
 struct D3D8ModelGpu
 {
     IDirect3DVertexBuffer8* vbo;
     int face_count;
     std::vector<int> per_face_raw_tex_id;
+    /** CPU copy of the first face's three vertices (for one-shot MODEL_DRAW diagnostics). */
+    D3D8WorldVertex first_face_verts[3];
+    /** CPU copy of the last face's three vertices (for one-shot MODEL_DRAW diagnostics). */
+    D3D8WorldVertex last_face_verts[3];
 };
+
+struct D3D8BatchModelEntry
+{
+    uint64_t model_key;
+    int model_id;
+    int vertex_base;
+    int face_count;
+    std::vector<int> per_face_raw_tex_id;
+};
+
+struct D3D8ModelBatch
+{
+    uint32_t batch_id = 0;
+    IDirect3DVertexBuffer8* vbo = nullptr;
+    IDirect3DIndexBuffer8* ebo = nullptr;
+    int total_vertex_count = 0;
+    std::vector<D3D8WorldVertex> pending_verts;
+    std::vector<uint16_t> pending_indices;
+    std::unordered_map<uint64_t, D3D8BatchModelEntry> entries_by_key;
+};
+
+static void
+d3d8_mul_row_vec_d3dmatrix(const float v[4], const D3DMATRIX* m, float out[4])
+{
+    out[0] = v[0] * m->_11 + v[1] * m->_21 + v[2] * m->_31 + v[3] * m->_41;
+    out[1] = v[0] * m->_12 + v[1] * m->_22 + v[2] * m->_32 + v[3] * m->_42;
+    out[2] = v[0] * m->_13 + v[1] * m->_23 + v[2] * m->_33 + v[3] * m->_43;
+    out[3] = v[0] * m->_14 + v[1] * m->_24 + v[2] * m->_34 + v[3] * m->_44;
+}
 
 enum PassKind
 {
@@ -133,9 +169,21 @@ struct D3D8Internal
 
     size_t ib_ring_write_offset;
 
+    /** Merged world-rebuild batches (TORIRS_GFX_BATCH_* / MODEL_BATCHED_LOAD). */
+    D3D8ModelBatch* current_batch = nullptr;
+    std::unordered_map<uint32_t, D3D8ModelBatch*> batches_by_id;
+    std::unordered_map<uint64_t, D3D8ModelBatch*> batched_model_batch_by_key;
+
     /** Completed frames (incremented at end of Render). `< 3` = verbose tracing window. */
     unsigned int frame_count;
     bool trace_first_gfx[32];
+
+    /** After scene RT is (re)created, clear once before preserving UI across frames. */
+    bool scene_rt_needs_initial_clear = true;
+
+    /** View/projection for this frame (for MODEL_DRAW clip-space diagnostics). */
+    D3DMATRIX frame_view;
+    D3DMATRIX frame_proj;
 };
 
 /** First 3 completed frames: verbose. After that, log each GFX kind only once. */
@@ -267,23 +315,25 @@ d3d8_compute_projection_matrix(float* out_matrix, float fov, float screen_width,
 static void
 colmajor_to_d3dmatrix(const float* cm, D3DMATRIX* m)
 {
-    /* cm is column-major: column k starts at cm[k*4]. D3D column-vector p' = M*p:
-     * column 0 -> _11,_21,_31,_41 */
+    /* `cm` stores a matrix designed for column-vector math (v' = M * v), the
+     * same convention our Metal / D3D11 shaders use. D3D8 fixed-function uses
+     * row-vector math (v' = v * M), so we must TRANSPOSE when loading:
+     * column k of the source becomes row k+1 of the D3DMATRIX. */
     m->_11 = cm[0];
-    m->_21 = cm[1];
-    m->_31 = cm[2];
-    m->_41 = cm[3];
-    m->_12 = cm[4];
+    m->_12 = cm[1];
+    m->_13 = cm[2];
+    m->_14 = cm[3];
+    m->_21 = cm[4];
     m->_22 = cm[5];
-    m->_32 = cm[6];
-    m->_42 = cm[7];
-    m->_13 = cm[8];
-    m->_23 = cm[9];
+    m->_23 = cm[6];
+    m->_24 = cm[7];
+    m->_31 = cm[8];
+    m->_32 = cm[9];
     m->_33 = cm[10];
-    m->_43 = cm[11];
-    m->_14 = cm[12];
-    m->_24 = cm[13];
-    m->_34 = cm[14];
+    m->_34 = cm[11];
+    m->_41 = cm[12];
+    m->_42 = cm[13];
+    m->_43 = cm[14];
     m->_44 = cm[15];
 }
 
@@ -313,6 +363,8 @@ d3d8_vertex_fill_invisible(D3D8WorldVertex* v)
 }
 
 static unsigned s_fill_face_fail_logs = 0;
+static unsigned s_model_draw_debug = 0;
+static unsigned s_dip_full_log = 0;
 
 static void
 d3d8_log_fill_face_fail(int f, const char* reason)
@@ -551,6 +603,18 @@ d3d8_build_model_gpu(
         verts[(size_t)f * 3u + 0u] = tri[0];
         verts[(size_t)f * 3u + 1u] = tri[1];
         verts[(size_t)f * 3u + 2u] = tri[2];
+        if( f == 0 )
+        {
+            gpu->first_face_verts[0] = tri[0];
+            gpu->first_face_verts[1] = tri[1];
+            gpu->first_face_verts[2] = tri[2];
+        }
+        if( f == fc - 1 )
+        {
+            gpu->last_face_verts[0] = tri[0];
+            gpu->last_face_verts[1] = tri[1];
+            gpu->last_face_verts[2] = tri[2];
+        }
     }
 
     const UINT bytes = (UINT)(verts.size() * sizeof(D3D8WorldVertex));
@@ -604,6 +668,18 @@ d3d8_release_model_gpu(D3D8ModelGpu* gpu)
     if( gpu->vbo )
         gpu->vbo->Release();
     delete gpu;
+}
+
+static void
+d3d8_release_model_batch(D3D8ModelBatch* batch)
+{
+    if( !batch )
+        return;
+    if( batch->vbo )
+        batch->vbo->Release();
+    if( batch->ebo )
+        batch->ebo->Release();
+    delete batch;
 }
 
 static D3D8ModelGpu*
@@ -769,6 +845,16 @@ d3d8_destroy_internal(D3D8Internal* p)
     for( auto& kv : p->model_gpu_by_key )
         d3d8_release_model_gpu(kv.second);
     p->model_gpu_by_key.clear();
+
+    if( p->current_batch )
+    {
+        d3d8_release_model_batch(p->current_batch);
+        p->current_batch = nullptr;
+    }
+    for( auto& kv : p->batches_by_id )
+        d3d8_release_model_batch(kv.second);
+    p->batches_by_id.clear();
+    p->batched_model_batch_by_key.clear();
 
     for( auto& kv : p->sprite_by_slot )
         if( kv.second )
@@ -966,6 +1052,7 @@ d3d8_reset_device(struct Platform2_Win32_Renderer_D3D8* ren, D3D8Internal* p, HW
         return false;
     }
     d3d8_log("d3d8_reset_device: index ring ok bytes=%zu", ib_need);
+    p->scene_rt_needs_initial_clear = true;
     d3d8_log("d3d8_reset_device: complete ok");
     return true;
 }
@@ -1048,6 +1135,15 @@ d3d8_create_device(struct Platform2_Win32_Renderer_D3D8* ren, D3D8Internal* p, H
     HRESULT capshr = p->d3d->GetDeviceCaps(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &caps);
     if( capshr == D3D_OK )
     {
+        d3d8_log(
+            "d3d8_create_device: MaxVertexIndex=%lu",
+            (unsigned long)caps.MaxVertexIndex);
+        if( caps.MaxVertexIndex < 0xFFFFu )
+        {
+            d3d8_log(
+                "d3d8_create_device: WARNING MaxVertexIndex < 0xFFFF (unexpected); "
+                "32-bit indices still valid with SW VP");
+        }
         if( !(caps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT) )
         {
             create_flags = D3DCREATE_SOFTWARE_VERTEXPROCESSING;
@@ -1423,40 +1519,15 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
     D3DMATRIX d3d_proj;
     colmajor_to_d3dmatrix(view_m, &d3d_view);
     colmajor_to_d3dmatrix(proj_m, &d3d_proj);
+    p->frame_view = d3d_view;
+    p->frame_proj = d3d_proj;
 
     const float u_clock = (float)((DWORD)GetTickCount() / 20u);
 
     p->ib_ring_write_offset = 0;
     p->current_pass = PASS_NONE;
-    p->current_font_id = -1;
     p->debug_model_draws = 0;
     p->debug_triangles = 0;
-
-    std::vector<D3D8UiVertex> font_verts;
-    auto flush_font = [&]() {
-        if( font_verts.empty() || p->current_font_id < 0 )
-        {
-            font_verts.clear();
-            return;
-        }
-        auto it = p->font_atlas_by_id.find(p->current_font_id);
-        if( it == p->font_atlas_by_id.end() || !it->second )
-        {
-            font_verts.clear();
-            return;
-        }
-        d3d8_ensure_pass(p, dev, PASS_2D);
-        dev->SetTexture(0, it->second);
-        dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
-        dev->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
-        dev->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
-        dev->DrawPrimitiveUP(
-            D3DPT_TRIANGLELIST,
-            (UINT)(font_verts.size() / 3),
-            font_verts.data(),
-            sizeof(D3D8UiVertex));
-        font_verts.clear();
-    };
 
     HRESULT hr_rt = dev->SetRenderTarget(p->scene_rt_surf, p->scene_ds);
     if( FAILED(hr_rt) )
@@ -1470,12 +1541,19 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             "Render: SetViewport(scene) failed hr=0x%08lX",
             (unsigned long)hr_vp);
 
+    /* D3D8 FFP: reset inherited state each frame; overlay/2D paths mutate render state. */
+    d3d8_apply_default_render_state(dev);
+    dev->SetRenderState(D3DRS_LIGHTING, FALSE);
+
+    /* 3d-only isolation: clear scene RT every frame (magenta) so we can see whether 3d overdraws it.
+     * Clear before BeginScene (D3D8 convention). */
+    dev->Clear(0, nullptr, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, 0xFFFF00FF, 1.0f, 0);
+
     HRESULT hr_bs = dev->BeginScene();
     if( FAILED(hr_bs) )
         d3d8_log(
             "Render: BeginScene failed hr=0x%08lX",
             (unsigned long)hr_bs);
-    dev->Clear(0, nullptr, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, 0x00000000, 1.0f, 0);
 
     dev->SetTransform(D3DTS_VIEW, &d3d_view);
     dev->SetTransform(D3DTS_PROJECTION, &d3d_proj);
@@ -1660,6 +1738,14 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             }
             if( mid <= 0 )
                 break;
+            for( auto it = p->batched_model_batch_by_key.begin();
+                 it != p->batched_model_batch_by_key.end(); )
+            {
+                if( model_id_from_model_cache_key(it->first) == mid )
+                    it = p->batched_model_batch_by_key.erase(it);
+                else
+                    ++it;
+            }
             for( auto it = p->model_gpu_by_key.begin(); it != p->model_gpu_by_key.end(); )
             {
                 if( model_id_from_model_cache_key(it->first) == mid )
@@ -1672,6 +1758,198 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             }
         }
         break;
+
+        case TORIRS_GFX_BATCH_MODEL_LOAD_START:
+        {
+            uint32_t bid = command._batch.batch_id;
+            if( p->current_batch )
+            {
+                d3d8_log(
+                    "BATCH_MODEL_LOAD_START: replacing incomplete batch id=%u",
+                    (unsigned)p->current_batch->batch_id);
+                d3d8_release_model_batch(p->current_batch);
+                p->current_batch = nullptr;
+            }
+            p->current_batch = new D3D8ModelBatch();
+            p->current_batch->batch_id = bid;
+        }
+        break;
+
+        case TORIRS_GFX_MODEL_BATCHED_LOAD:
+        {
+            struct DashModel* model = command._model_load.model;
+            uint64_t mk = command._model_load.model_key;
+            if( !p->current_batch || !model )
+                break;
+            if( dashmodel_face_count(model) <= 0 )
+                break;
+            if( !dashmodel_face_colors_a_const(model) || !dashmodel_face_colors_b_const(model) ||
+                !dashmodel_face_colors_c_const(model) )
+                break;
+            if( !dashmodel_vertices_x_const(model) || !dashmodel_vertices_y_const(model) ||
+                !dashmodel_vertices_z_const(model) )
+                break;
+            if( !dashmodel_face_indices_a_const(model) || !dashmodel_face_indices_b_const(model) ||
+                !dashmodel_face_indices_c_const(model) )
+                break;
+
+            const int fc = dashmodel_face_count(model);
+            const faceint_t* ftex = dashmodel_face_textures_const(model);
+            D3D8BatchModelEntry ent;
+            ent.model_key = mk;
+            ent.model_id = command._model_load.model_id;
+            ent.vertex_base = p->current_batch->total_vertex_count;
+            ent.face_count = fc;
+            ent.per_face_raw_tex_id.resize((size_t)fc);
+
+            for( int f = 0; f < fc; ++f )
+            {
+                int raw = ftex ? (int)ftex[f] : -1;
+                ent.per_face_raw_tex_id[(size_t)f] = raw;
+                D3D8WorldVertex tri[3];
+                if( !fill_model_face_vertices_model_local(model, f, raw, tri) )
+                {
+                    d3d8_vertex_fill_invisible(&tri[0]);
+                    d3d8_vertex_fill_invisible(&tri[1]);
+                    d3d8_vertex_fill_invisible(&tri[2]);
+                }
+                p->current_batch->pending_verts.push_back(tri[0]);
+                p->current_batch->pending_verts.push_back(tri[1]);
+                p->current_batch->pending_verts.push_back(tri[2]);
+                /* Per-model-local indices; BaseVertexIndex on SetIndices supplies batch offset. */
+                p->current_batch->pending_indices.push_back((uint16_t)(f * 3 + 0));
+                p->current_batch->pending_indices.push_back((uint16_t)(f * 3 + 1));
+                p->current_batch->pending_indices.push_back((uint16_t)(f * 3 + 2));
+            }
+            p->current_batch->total_vertex_count += fc * 3;
+            p->current_batch->entries_by_key[mk] = std::move(ent);
+            p->batched_model_batch_by_key[mk] = p->current_batch;
+        }
+        break;
+
+        case TORIRS_GFX_BATCH_MODEL_LOAD_END:
+        {
+            uint32_t bid = command._batch.batch_id;
+            if( !p->current_batch || p->current_batch->batch_id != bid )
+                break;
+            D3D8ModelBatch* batch = p->current_batch;
+            p->current_batch = nullptr;
+            if( batch->pending_verts.empty() )
+            {
+                delete batch;
+                break;
+            }
+
+            const UINT vbytes = (UINT)(batch->pending_verts.size() * sizeof(D3D8WorldVertex));
+            IDirect3DVertexBuffer8* vbo = nullptr;
+            HRESULT hrvb = dev->CreateVertexBuffer(
+                vbytes, D3DUSAGE_WRITEONLY, kFvfWorld, D3DPOOL_MANAGED, &vbo);
+            if( hrvb != D3D_OK || !vbo )
+            {
+                d3d8_log(
+                    "BATCH_MODEL_LOAD_END: CreateVertexBuffer failed hr=0x%08lX",
+                    (unsigned long)hrvb);
+                delete batch;
+                break;
+            }
+            void* vdst = nullptr;
+            HRESULT hvlock = vbo->Lock(0, vbytes, (BYTE**)&vdst, 0);
+            if( hvlock != D3D_OK )
+            {
+                d3d8_log(
+                    "BATCH_MODEL_LOAD_END: VBO Lock failed hr=0x%08lX",
+                    (unsigned long)hvlock);
+                vbo->Release();
+                delete batch;
+                break;
+            }
+            memcpy(vdst, batch->pending_verts.data(), vbytes);
+            vbo->Unlock();
+            batch->vbo = vbo;
+            batch->pending_verts.clear();
+
+            static unsigned s_batch_end_logs = 0;
+            uint16_t max_idx = 0;
+            if( !batch->pending_indices.empty() )
+            {
+                for( uint16_t ix : batch->pending_indices )
+                {
+                    if( ix > max_idx )
+                        max_idx = ix;
+                }
+            }
+            if( s_batch_end_logs < 4u )
+            {
+                s_batch_end_logs++;
+                d3d8_log(
+                    "BATCH_MODEL_LOAD_END[%u]: batch_id=%u total_vertex_count=%d "
+                    "index_count=%zu max_per_model_local_index=%u",
+                    s_batch_end_logs,
+                    (unsigned)bid,
+                    batch->total_vertex_count,
+                    batch->pending_indices.size(),
+                    (unsigned)max_idx);
+            }
+
+            const UINT ibytes = (UINT)(batch->pending_indices.size() * sizeof(uint16_t));
+            IDirect3DIndexBuffer8* ibo = nullptr;
+            HRESULT hrib =
+                dev->CreateIndexBuffer(ibytes, D3DUSAGE_WRITEONLY, D3DFMT_INDEX16, D3DPOOL_MANAGED, &ibo);
+            if( hrib != D3D_OK || !ibo )
+            {
+                d3d8_log(
+                    "BATCH_MODEL_LOAD_END: CreateIndexBuffer failed hr=0x%08lX",
+                    (unsigned long)hrib);
+                batch->vbo->Release();
+                batch->vbo = nullptr;
+                delete batch;
+                break;
+            }
+            void* idst = nullptr;
+            HRESULT hilock = ibo->Lock(0, ibytes, (BYTE**)&idst, 0);
+            if( hilock != D3D_OK )
+            {
+                d3d8_log(
+                    "BATCH_MODEL_LOAD_END: IBO Lock failed hr=0x%08lX",
+                    (unsigned long)hilock);
+                ibo->Release();
+                batch->vbo->Release();
+                batch->vbo = nullptr;
+                delete batch;
+                break;
+            }
+            memcpy(idst, batch->pending_indices.data(), ibytes);
+            ibo->Unlock();
+            batch->ebo = ibo;
+            batch->pending_indices.clear();
+
+            p->batches_by_id[batch->batch_id] = batch;
+        }
+        break;
+
+        case TORIRS_GFX_BATCH_MODEL_CLEAR:
+        {
+            uint32_t bid = command._batch.batch_id;
+            auto bit = p->batches_by_id.find(bid);
+            if( bit == p->batches_by_id.end() || !bit->second )
+                break;
+            D3D8ModelBatch* batch = bit->second;
+            p->batches_by_id.erase(bit);
+            for( auto it = p->batched_model_batch_by_key.begin();
+                 it != p->batched_model_batch_by_key.end(); )
+            {
+                if( it->second == batch )
+                    it = p->batched_model_batch_by_key.erase(it);
+                else
+                    ++it;
+            }
+            d3d8_release_model_batch(batch);
+        }
+        break;
+
+        case TORIRS_GFX_VERTEX_ARRAY_BATCHED_LOAD:
+        case TORIRS_GFX_FACE_ARRAY_BATCHED_LOAD:
+            break;
 
         case TORIRS_GFX_SPRITE_LOAD:
         {
@@ -1846,38 +2124,17 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
 
         case TORIRS_GFX_CLEAR_RECT:
         {
-            flush_font();
-            int cx = command._clear_rect.x;
-            int cy = command._clear_rect.y;
-            int cw = command._clear_rect.w;
-            int ch = command._clear_rect.h;
+            const int kcmd = (int)TORIRS_GFX_CLEAR_RECT;
+            if( d3d8_should_log_cmd(p, kcmd) )
             {
-                const int kcmd = (int)TORIRS_GFX_CLEAR_RECT;
-                if( d3d8_should_log_cmd(p, kcmd) )
-                {
-                    d3d8_log("cmd CLEAR_RECT %d,%d %dx%d", cx, cy, cw, ch);
-                    d3d8_mark_cmd_logged(p, kcmd);
-                }
+                d3d8_log(
+                    "cmd CLEAR_RECT %d,%d %dx%d (noop)",
+                    command._clear_rect.x,
+                    command._clear_rect.y,
+                    command._clear_rect.w,
+                    command._clear_rect.h);
+                d3d8_mark_cmd_logged(p, kcmd);
             }
-            if( cw <= 0 || ch <= 0 )
-                break;
-            D3DVIEWPORT8 saved;
-            dev->GetViewport(&saved);
-            D3DVIEWPORT8 cvp = {
-                (DWORD)cx,
-                (DWORD)cy,
-                (DWORD)cw,
-                (DWORD)ch,
-                0.0f,
-                1.0f
-            };
-            if( (int)cvp.X + (int)cvp.Width > renderer->width )
-                cvp.Width = (DWORD)(renderer->width - (int)cvp.X);
-            if( (int)cvp.Y + (int)cvp.Height > renderer->height )
-                cvp.Height = (DWORD)(renderer->height - (int)cvp.Y);
-            dev->SetViewport(&cvp);
-            dev->Clear(0, nullptr, D3DCLEAR_TARGET, 0x00000000, 1.0f, 0);
-            dev->SetViewport(&saved);
         }
         break;
 
@@ -1887,10 +2144,38 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             if( !model || !game->sys_dash || !game->view_port || !game->camera )
                 break;
             d3d8_ensure_pass(p, dev, PASS_3D);
-            D3D8ModelGpu* gpu =
-                d3d8_lookup_or_build_model_gpu(p, dev, model, command._model_draw.model_key);
+            uint64_t mk_draw = command._model_draw.model_key;
+            int vertex_index_base = 0;
+            UINT num_vertices_for_draw = 0;
+            D3D8ModelGpu* gpu = nullptr;
+            D3D8ModelGpu batched_wrap{};
+            D3D8ModelBatch* batched_batch_ptr = nullptr;
+
+            auto bmit = p->batched_model_batch_by_key.find(mk_draw);
+            if( bmit != p->batched_model_batch_by_key.end() && bmit->second )
+            {
+                batched_batch_ptr = bmit->second;
+                auto eit = batched_batch_ptr->entries_by_key.find(mk_draw);
+                if( eit == batched_batch_ptr->entries_by_key.end() )
+                    break;
+                const D3D8BatchModelEntry& ent = eit->second;
+                vertex_index_base = ent.vertex_base;
+                batched_wrap.vbo = batched_batch_ptr->vbo;
+                batched_wrap.face_count = ent.face_count;
+                batched_wrap.per_face_raw_tex_id = ent.per_face_raw_tex_id;
+                gpu = &batched_wrap;
+            }
+            else
+            {
+                gpu = d3d8_lookup_or_build_model_gpu(p, dev, model, mk_draw);
+                if( !gpu || !gpu->vbo )
+                    break;
+            }
             if( !gpu || !gpu->vbo )
                 break;
+            /* D3D8 DIP NumVertices: count for this model only; BaseVertexIndex on SetIndices
+             * selects the sub-range inside a shared batched VBO. */
+            num_vertices_for_draw = (UINT)(gpu->face_count * 3);
 
             struct DashPosition draw_position = command._model_draw.position;
             int face_order_count = dash3d_prepare_projected_face_order(
@@ -1946,6 +2231,99 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             world._43 = (float)draw_position.z;
             world._44 = 1.0f;
             dev->SetTransform(D3DTS_WORLD, &world);
+
+            if( s_model_draw_debug < 2u )
+            {
+                d3d8_log(
+                    "MODEL_DRAW dbg[%u] batched=%d vertex_index_base=%d num_vertices_for_draw=%u "
+                    "buf=%dx%d vp=%dx%d pos=(%d,%d,%d) yaw=%d",
+                    s_model_draw_debug,
+                    batched_batch_ptr ? 1 : 0,
+                    vertex_index_base,
+                    (unsigned)num_vertices_for_draw,
+                    renderer->width,
+                    renderer->height,
+                    vp_w,
+                    vp_h,
+                    draw_position.x,
+                    draw_position.y,
+                    draw_position.z,
+                    (int)draw_position.yaw);
+                d3d8_log(
+                    "MODEL_DRAW dbg world row3: %f %f %f %f",
+                    world._41,
+                    world._42,
+                    world._43,
+                    world._44);
+                d3d8_log(
+                    "MODEL_DRAW dbg view row3: %f %f %f %f",
+                    p->frame_view._41,
+                    p->frame_view._42,
+                    p->frame_view._43,
+                    p->frame_view._44);
+                d3d8_log(
+                    "MODEL_DRAW dbg proj row0: %f %f %f %f",
+                    p->frame_proj._11,
+                    p->frame_proj._12,
+                    p->frame_proj._13,
+                    p->frame_proj._14);
+                d3d8_log(
+                    "MODEL_DRAW dbg proj row3: %f %f %f %f",
+                    p->frame_proj._41,
+                    p->frame_proj._42,
+                    p->frame_proj._43,
+                    p->frame_proj._44);
+                if( !batched_batch_ptr )
+                {
+                    const D3D8WorldVertex* fv = gpu->first_face_verts;
+                    const D3D8WorldVertex* lv = gpu->last_face_verts;
+                    float wsp[4], vsp[4], clip[4];
+                    float v0[4] = { fv[0].x, fv[0].y, fv[0].z, 1.0f };
+                    d3d8_mul_row_vec_d3dmatrix(v0, &world, wsp);
+                    d3d8_mul_row_vec_d3dmatrix(wsp, &p->frame_view, vsp);
+                    d3d8_mul_row_vec_d3dmatrix(vsp, &p->frame_proj, clip);
+                    const float wclip = clip[3];
+                    const float invw = (wclip != 0.0f) ? (1.0f / wclip) : 0.0f;
+                    d3d8_log(
+                        "MODEL_DRAW dbg first_face v_local=(%f,%f,%f) clip=(%f,%f,%f,%f) "
+                        "ndc=(%f,%f,%f)",
+                        fv[0].x,
+                        fv[0].y,
+                        fv[0].z,
+                        clip[0],
+                        clip[1],
+                        clip[2],
+                        wclip,
+                        clip[0] * invw,
+                        clip[1] * invw,
+                        clip[2] * invw);
+                    float vL[4] = { lv[0].x, lv[0].y, lv[0].z, 1.0f };
+                    d3d8_mul_row_vec_d3dmatrix(vL, &world, wsp);
+                    d3d8_mul_row_vec_d3dmatrix(wsp, &p->frame_view, vsp);
+                    d3d8_mul_row_vec_d3dmatrix(vsp, &p->frame_proj, clip);
+                    const float wclipL = clip[3];
+                    const float invwL = (wclipL != 0.0f) ? (1.0f / wclipL) : 0.0f;
+                    d3d8_log(
+                        "MODEL_DRAW dbg last_face v0_local=(%f,%f,%f) clip=(%f,%f,%f,%f) "
+                        "ndc=(%f,%f,%f)",
+                        lv[0].x,
+                        lv[0].y,
+                        lv[0].z,
+                        clip[0],
+                        clip[1],
+                        clip[2],
+                        wclipL,
+                        clip[0] * invwL,
+                        clip[1] * invwL,
+                        clip[2] * invwL);
+                }
+                else
+                {
+                    d3d8_log(
+                        "MODEL_DRAW dbg (batched VBO: no CPU first/last_face verts for clip)");
+                }
+                s_model_draw_debug++;
+            }
 
             auto eff_tex = [&](int f) -> int {
                 if( f < 0 || f >= gpu->face_count )
@@ -2017,12 +2395,14 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                     const int f = face_order[run_start + k];
                     if( f < 0 || f >= gpu->face_count )
                         continue;
+                    /* Per-model-local indices; device adds BaseVertexIndex from SetIndices. */
                     idst[wpos++] = (uint16_t)(f * 3 + 0);
                     idst[wpos++] = (uint16_t)(f * 3 + 1);
                     idst[wpos++] = (uint16_t)(f * 3 + 2);
                 }
                 p->ib_ring->Unlock();
-                dev->SetIndices(p->ib_ring, 0);
+                HRESULT hr_si =
+                    dev->SetIndices(p->ib_ring, (UINT)vertex_index_base);
 
                 if( run_tex < 0 )
                 {
@@ -2058,9 +2438,22 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                 HRESULT hr_dip = dev->DrawIndexedPrimitive(
                     D3DPT_TRIANGLELIST,
                     0,
-                    (UINT)(gpu->face_count * 3),
+                    num_vertices_for_draw,
                     start_index,
                     tri_count);
+                if( s_dip_full_log < 4u )
+                {
+                    d3d8_log(
+                        "MODEL_DRAW dbg DIP SetIndices(base=%u) hr_si=0x%08lX "
+                        "minIndex=0 NumVertices=%u startIndex=%u primCount=%u hr_dip=0x%08lX",
+                        (unsigned)vertex_index_base,
+                        (unsigned long)hr_si,
+                        num_vertices_for_draw,
+                        (unsigned)start_index,
+                        (unsigned)tri_count,
+                        (unsigned long)hr_dip);
+                    s_dip_full_log++;
+                }
                 if( FAILED(hr_dip) )
                     d3d8_log(
                         "MODEL_DRAW DrawIndexedPrimitive failed hr=0x%08lX start_index=%u "
@@ -2090,252 +2483,22 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
 
         case TORIRS_GFX_SPRITE_DRAW:
         {
+            const int kcmd = (int)TORIRS_GFX_SPRITE_DRAW;
+            if( d3d8_should_log_cmd(p, kcmd) )
             {
-                const int kcmd = (int)TORIRS_GFX_SPRITE_DRAW;
-                if( d3d8_should_log_cmd(p, kcmd) )
-                {
-                    d3d8_log(
-                        "cmd SPRITE_DRAW element=%d atlas=%d rotated=%d dst=%d,%d %dx%d src=%d,%d "
-                        "%dx%d",
-                        command._sprite_draw.element_id,
-                        command._sprite_draw.atlas_index,
-                        command._sprite_draw.rotated ? 1 : 0,
-                        command._sprite_draw.dst_bb_x,
-                        command._sprite_draw.dst_bb_y,
-                        command._sprite_draw.dst_bb_w,
-                        command._sprite_draw.dst_bb_h,
-                        command._sprite_draw.src_bb_x,
-                        command._sprite_draw.src_bb_y,
-                        command._sprite_draw.src_bb_w,
-                        command._sprite_draw.src_bb_h);
-                    d3d8_mark_cmd_logged(p, kcmd);
-                }
+                d3d8_log("cmd SPRITE_DRAW (disabled: 3d-only mode)");
+                d3d8_mark_cmd_logged(p, kcmd);
             }
-            struct DashSprite* sp = command._sprite_draw.sprite;
-            if( !sp )
-                break;
-            uint64_t sk = torirs_sprite_cache_key(
-                command._sprite_draw.element_id, command._sprite_draw.atlas_index);
-            auto tex_it = p->sprite_by_slot.find(sk);
-            if( tex_it == p->sprite_by_slot.end() || !tex_it->second )
-                break;
-            int tw = sp->width;
-            int th = sp->height;
-            auto sz_it = p->sprite_size_by_slot.find(sk);
-            if( sz_it != p->sprite_size_by_slot.end() )
-            {
-                tw = sz_it->second.first;
-                th = sz_it->second.second;
-            }
-            const int iw =
-                command._sprite_draw.src_bb_w > 0 ? command._sprite_draw.src_bb_w : sp->width;
-            const int ih =
-                command._sprite_draw.src_bb_h > 0 ? command._sprite_draw.src_bb_h : sp->height;
-            const int ix = command._sprite_draw.src_bb_x;
-            const int iy = command._sprite_draw.src_bb_y;
-            if( ix < 0 || iy < 0 || ix + iw > sp->width || iy + ih > sp->height )
-                break;
-
-            flush_font();
-            d3d8_ensure_pass(p, dev, PASS_2D);
-            dev->SetTexture(0, tex_it->second);
-            dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
-            dev->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
-
-            float px[4];
-            float py[4];
-            if( command._sprite_draw.rotated )
-            {
-                const int dw = command._sprite_draw.dst_bb_w;
-                const int dh = command._sprite_draw.dst_bb_h;
-                if( dw <= 0 || dh <= 0 || iw <= 0 || ih <= 0 )
-                    break;
-                const int sax = command._sprite_draw.src_anchor_x;
-                const int say = command._sprite_draw.src_anchor_y;
-                const float pivot_x =
-                    (float)command._sprite_draw.dst_bb_x + (float)command._sprite_draw.dst_anchor_x;
-                const float pivot_y =
-                    (float)command._sprite_draw.dst_bb_y + (float)command._sprite_draw.dst_anchor_y;
-                const int ang = command._sprite_draw.rotation_r2pi2048 & 2047;
-                const float angle = (float)ang * (float)(2.0 * M_PI / 2048.0);
-                const float ca = cosf(angle);
-                const float sa = sinf(angle);
-                struct
-                {
-                    int lx, ly;
-                } corners[4] = {
-                    { 0, 0 },
-                    { iw, 0 },
-                    { iw, ih },
-                    { 0, ih },
-                };
-                for( int k = 0; k < 4; ++k )
-                {
-                    float Lx = (float)(corners[k].lx - sax);
-                    float Ly = (float)(corners[k].ly - say);
-                    px[k] = pivot_x + ca * Lx - sa * Ly;
-                    py[k] = pivot_y + sa * Lx + ca * Ly;
-                }
-            }
-            else
-            {
-                const int dst_x = command._sprite_draw.dst_bb_x + sp->crop_x;
-                const int dst_y = command._sprite_draw.dst_bb_y + sp->crop_y;
-                const float w = (float)iw;
-                const float h = (float)ih;
-                const float x0 = (float)dst_x;
-                const float y0 = (float)dst_y;
-                px[0] = px[3] = x0;
-                px[1] = px[2] = x0 + w;
-                py[0] = py[1] = y0;
-                py[2] = py[3] = y0 + h;
-            }
-
-            const float twf = (float)tw;
-            const float thf = (float)th;
-            float u0 = (float)ix / twf;
-            float v0 = (float)iy / thf;
-            float u1 = (float)(ix + iw) / twf;
-            float v1 = (float)(iy + ih) / thf;
-
-            DWORD white = 0xFFFFFFFF;
-            D3D8UiVertex v[6] = {
-                { px[0], py[0], 0.0f, 1.0f, white, u0, v0 },
-                { px[1], py[1], 0.0f, 1.0f, white, u1, v0 },
-                { px[2], py[2], 0.0f, 1.0f, white, u1, v1 },
-                { px[0], py[0], 0.0f, 1.0f, white, u0, v0 },
-                { px[2], py[2], 0.0f, 1.0f, white, u1, v1 },
-                { px[3], py[3], 0.0f, 1.0f, white, u0, v1 },
-            };
-            dev->DrawPrimitiveUP(D3DPT_TRIANGLELIST, 2, v, sizeof(D3D8UiVertex));
-            dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
         }
         break;
 
         case TORIRS_GFX_FONT_DRAW:
         {
-            struct DashPixFont* f = command._font_draw.font;
-            const uint8_t* text = command._font_draw.text;
+            const int kcmd = (int)TORIRS_GFX_FONT_DRAW;
+            if( d3d8_should_log_cmd(p, kcmd) )
             {
-                const int kcmd = (int)TORIRS_GFX_FONT_DRAW;
-                if( d3d8_should_log_cmd(p, kcmd) && text )
-                {
-                    char preview[48];
-                    int pi = 0;
-                    for( int ci = 0; ci < 28 && text[ci] && pi < (int)sizeof(preview) - 2; ++ci )
-                    {
-                        unsigned char c = text[ci];
-                        if( c >= 32u && c < 127u )
-                            preview[pi++] = (char)c;
-                        else
-                        {
-                            int w = snprintf(
-                                preview + pi,
-                                sizeof(preview) - (size_t)pi,
-                                "\\x%02x",
-                                (unsigned)c);
-                            if( w > 0 )
-                                pi += w;
-                            if( pi >= (int)sizeof(preview) - 1 )
-                                break;
-                        }
-                    }
-                    preview[pi] = '\0';
-                    d3d8_log(
-                        "cmd FONT_DRAW font_id=%d xy=%d,%d preview=\"%s\"",
-                        command._font_draw.font_id,
-                        command._font_draw.x,
-                        command._font_draw.y,
-                        preview);
-                    d3d8_mark_cmd_logged(p, kcmd);
-                }
-            }
-            if( !f || !f->atlas || !text || f->height2d <= 0 )
-                break;
-            int fid = command._font_draw.font_id;
-            if( p->font_atlas_by_id.find(fid) == p->font_atlas_by_id.end() )
-                break;
-
-            if( p->current_font_id != fid )
-            {
-                flush_font();
-                p->current_font_id = fid;
-            }
-
-            struct DashFontAtlas* atlas = f->atlas;
-            const float inv_aw = 1.0f / (float)atlas->atlas_width;
-            const float inv_ah = 1.0f / (float)atlas->atlas_height;
-            const float fbw = (float)renderer->width;
-            const float fbh = (float)renderer->height;
-
-            int length = (int)strlen((const char*)text);
-            int color_rgb = command._font_draw.color_rgb;
-            float cr = (float)((color_rgb >> 16) & 0xFF) / 255.0f;
-            float cg = (float)((color_rgb >> 8) & 0xFF) / 255.0f;
-            float cb = (float)(color_rgb & 0xFF) / 255.0f;
-            float ca = 1.0f;
-            int pen_x = command._font_draw.x;
-            int base_y = command._font_draw.y;
-
-            for( int i = 0; i < length; i++ )
-            {
-                if( text[i] == '@' && i + 5 <= length && text[i + 4] == '@' )
-                {
-                    int new_color = dashfont_evaluate_color_tag((const char*)&text[i + 1]);
-                    if( new_color >= 0 )
-                    {
-                        color_rgb = new_color;
-                        cr = (float)((color_rgb >> 16) & 0xFF) / 255.0f;
-                        cg = (float)((color_rgb >> 8) & 0xFF) / 255.0f;
-                        cb = (float)(color_rgb & 0xFF) / 255.0f;
-                    }
-                    if( i + 6 <= length && text[i + 5] == ' ' )
-                        i += 5;
-                    else
-                        i += 4;
-                    continue;
-                }
-
-                int c = dashfont_charcode_to_glyph(text[i]);
-                if( c < DASH_FONT_CHAR_COUNT )
-                {
-                    int gw = atlas->glyph_w[c];
-                    int gh = atlas->glyph_h[c];
-                    if( gw > 0 && gh > 0 )
-                    {
-                        float sx0 = (float)(pen_x + f->char_offset_x[c]);
-                        float sy0 = (float)(base_y + f->char_offset_y[c]);
-                        float sx1 = sx0 + (float)gw;
-                        float sy1 = sy0 + (float)gh;
-
-                        float gu0 = (float)atlas->glyph_x[c] * inv_aw;
-                        float gv0 = (float)atlas->glyph_y[c] * inv_ah;
-                        float gu1 = (float)(atlas->glyph_x[c] + gw) * inv_aw;
-                        float gv1 = (float)(atlas->glyph_y[c] + gh) * inv_ah;
-
-                        DWORD diff = ((DWORD)(ca * 255.0f) << 24) |
-                            ((DWORD)(cr * 255.0f) << 16) | ((DWORD)(cg * 255.0f) << 8) |
-                            (DWORD)(cb * 255.0f);
-
-                        D3D8UiVertex q[6] = {
-                            { sx0, sy0, 0, 1, diff, gu0, gv0 },
-                            { sx1, sy0, 0, 1, diff, gu1, gv0 },
-                            { sx1, sy1, 0, 1, diff, gu1, gv1 },
-                            { sx0, sy0, 0, 1, diff, gu0, gv0 },
-                            { sx1, sy1, 0, 1, diff, gu1, gv1 },
-                            { sx0, sy1, 0, 1, diff, gu0, gv1 },
-                        };
-                        font_verts.insert(font_verts.end(), q, q + 6);
-                    }
-                    int adv = f->char_advance[c];
-                    if( adv <= 0 )
-                        adv = 4;
-                    pen_x += adv;
-                }
-                else
-                {
-                    pen_x += 4;
-                }
+                d3d8_log("cmd FONT_DRAW (disabled: 3d-only mode)");
+                d3d8_mark_cmd_logged(p, kcmd);
             }
         }
         break;
@@ -2369,11 +2532,8 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             p->debug_model_draws,
             p->debug_triangles);
 
-    flush_font();
-    p->current_font_id = -1;
-
-    /* Nuklear overlay (same panel as GDI path). */
-    if( renderer->nk_rawfb )
+    /* Nuklear overlay (same panel as GDI path). Skipped entirely when kSkipNuklearOverlayQuad. */
+    if( !kSkipNuklearOverlayQuad && renderer->nk_rawfb )
     {
         struct rawfb_context* rawfb = (struct rawfb_context*)renderer->nk_rawfb;
         LARGE_INTEGER now_qpc;
@@ -2426,9 +2586,12 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             nk_labelf(nk, NK_TEXT_LEFT, "Paint cmd: %d", game->cc);
         }
         nk_end(nk);
-        nk_rawfb_render(rawfb, nk_rgba(0, 0, 0, 0), 0);
+        /* Clear nuklear's CPU buffer to fully-transparent every frame so only
+         * UI pixels become opaque; the rest stays alpha=0 and lets the 3D
+         * scene through when we alpha-blend this overlay on top. */
+        nk_rawfb_render(rawfb, nk_rgba(0, 0, 0, 0), 1);
 
-        if( p->nk_overlay_tex )
+        if( p->nk_overlay_tex && !kSkipNuklearOverlayQuad )
         {
             D3DLOCKED_RECT lr;
             HRESULT hr_nk = p->nk_overlay_tex->LockRect(0, &lr, nullptr, D3DLOCK_DISCARD);
@@ -2448,8 +2611,17 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
 
             d3d8_ensure_pass(p, dev, PASS_2D);
             dev->SetTexture(0, p->nk_overlay_tex);
+            /* Explicitly set every piece of state this overlay draw depends
+             * on so that a stray global state change elsewhere can't make
+             * the overlay opaquely cover the 3D scene. */
             dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+            dev->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+            dev->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+            dev->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+            dev->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
             dev->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+            dev->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+            dev->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
             dev->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
             float rw = (float)renderer->width;
             float rh = (float)renderer->height;

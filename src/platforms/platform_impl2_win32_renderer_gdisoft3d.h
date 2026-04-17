@@ -43,6 +43,10 @@ struct Platform2_Win32_Renderer_GDISoft3D
 
     bool pixel_size_dynamic;
 
+    /** If true (default), present with StretchDIBits (aspect-fit scaling). If false, 1:1
+     *  SetDIBitsToDevice (no scaling). */
+    bool present_use_stretch;
+
     void (*on_viewport_changed)(
         struct GGame* game,
         int new_width,
@@ -115,6 +119,11 @@ void
 PlatformImpl2_Win32_Renderer_GDISoft3D_SetDynamicPixelSize(
     struct Platform2_Win32_Renderer_GDISoft3D* renderer,
     bool dynamic);
+
+void
+PlatformImpl2_Win32_Renderer_GDISoft3D_SetPresentUseStretch(
+    struct Platform2_Win32_Renderer_GDISoft3D* renderer,
+    bool use_stretch);
 
 void
 PlatformImpl2_Win32_Renderer_GDISoft3D_SetViewportChangedCallback(

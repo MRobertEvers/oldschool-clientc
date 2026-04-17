@@ -51,6 +51,53 @@ win32_pick_renderer_kind(int argc, char** argv)
     return 0;
 }
 
+/** true = StretchDIBits (aspect-fit, default); false = SetDIBitsToDevice (1:1, no scaling). */
+static bool
+win32_pick_gdi_present_use_stretch(int argc, char** argv)
+{
+    const char* from_arg = nullptr;
+    for( int i = 1; i < argc; ++i )
+    {
+        if( strncmp(argv[i], "--gdi-present=", 14) == 0 )
+            from_arg = argv[i] + 14;
+    }
+    const char* v = from_arg;
+    if( !v )
+        v = getenv("TORIRS_WIN32_GDI_PRESENT");
+    if( !v )
+        return true;
+    if( strcmp(v, "stretch") == 0 )
+        return true;
+    if( strcmp(v, "copy") == 0 || strcmp(v, "blit") == 0 || strcmp(v, "1to1") == 0 )
+        return false;
+    return true;
+}
+
+static void
+win32_log_gdi_present_mode(int argc, char** argv, bool use_stretch)
+{
+    const char* env = getenv("TORIRS_WIN32_GDI_PRESENT");
+    fprintf(
+        stderr,
+        "[win32] TORIRS_WIN32_GDI_PRESENT=%s\n",
+        env ? env : "(unset)");
+    const char* arg_gdi_present = nullptr;
+    for( int i = 1; i < argc; ++i )
+    {
+        if( strncmp(argv[i], "--gdi-present=", 14) == 0 )
+            arg_gdi_present = argv[i] + 14;
+    }
+    fprintf(
+        stderr,
+        "[win32] --gdi-present= from argv: %s\n",
+        arg_gdi_present ? arg_gdi_present : "(not set)");
+    fprintf(
+        stderr,
+        "[win32] resolved GDI present mode: %s\n",
+        use_stretch ? "stretch" : "copy (1:1)");
+    fflush(stderr);
+}
+
 static void
 win32_log_renderer_selection(int argc, char** argv, int want_kind)
 {
@@ -130,6 +177,9 @@ main(
     const int want_renderer = win32_pick_renderer_kind(argc, argv);
     win32_log_renderer_selection(argc, argv, want_renderer);
 
+    const bool gdi_present_use_stretch = win32_pick_gdi_present_use_stretch(argc, argv);
+    win32_log_gdi_present_mode(argc, argv, gdi_present_use_stretch);
+
     struct Platform2_Win32_Renderer_GDISoft3D* renderer_gdi = nullptr;
 #if defined(TORIRS_HAS_D3D8)
     struct Platform2_Win32_Renderer_D3D8* renderer_d3d8 = nullptr;
@@ -192,6 +242,8 @@ main(
         }
         platform->win32_renderer_for_paint = (void*)renderer_gdi;
         platform->win32_renderer_kind = TORIRS_WIN32_RENDERER_KIND_GDI;
+        PlatformImpl2_Win32_Renderer_GDISoft3D_SetPresentUseStretch(
+            renderer_gdi, gdi_present_use_stretch);
         fprintf(stderr, "[win32] Active renderer: GDI Soft3D\n");
         fflush(stderr);
     }

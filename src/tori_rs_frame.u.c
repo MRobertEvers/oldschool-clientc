@@ -521,10 +521,42 @@ queue_static_load_commands(
                 queue_texture_load_from_event(render_command_buffer, tex_id, texture);
                 continue;
             }
+            if( scene_event.type == SCENE2_EVENT_BATCH_BEGIN )
+            {
+                LibToriRS_RenderCommandBufferAddCommand(
+                    render_command_buffer,
+                    (struct ToriRSRenderCommand){
+                        .kind = TORIRS_GFX_BATCH_MODEL_LOAD_START,
+                        ._batch = { .batch_id = scene_event.u.batch.batch_id },
+                    });
+                continue;
+            }
+            if( scene_event.type == SCENE2_EVENT_BATCH_END )
+            {
+                LibToriRS_RenderCommandBufferAddCommand(
+                    render_command_buffer,
+                    (struct ToriRSRenderCommand){
+                        .kind = TORIRS_GFX_BATCH_MODEL_LOAD_END,
+                        ._batch = { .batch_id = scene_event.u.batch.batch_id },
+                    });
+                continue;
+            }
+            if( scene_event.type == SCENE2_EVENT_BATCH_CLEAR )
+            {
+                LibToriRS_RenderCommandBufferAddCommand(
+                    render_command_buffer,
+                    (struct ToriRSRenderCommand){
+                        .kind = TORIRS_GFX_BATCH_MODEL_CLEAR,
+                        ._batch = { .batch_id = scene_event.u.batch.batch_id },
+                    });
+                continue;
+            }
             if( scene_event.type == SCENE2_EVENT_VERTEX_ARRAY_ADDED )
             {
                 struct ToriRSRenderCommand cmd = { 0 };
-                cmd.kind = TORIRS_GFX_VERTEX_ARRAY_LOAD;
+                cmd.kind =
+                    scene_event.batched ? TORIRS_GFX_VERTEX_ARRAY_BATCHED_LOAD
+                                        : TORIRS_GFX_VERTEX_ARRAY_LOAD;
                 cmd._vertex_array_load.array_id = scene_event.u.vertex_array.array_id;
                 cmd._vertex_array_load.array = scene_event.u.vertex_array.array;
                 LibToriRS_RenderCommandBufferAddCommand(render_command_buffer, cmd);
@@ -542,7 +574,8 @@ queue_static_load_commands(
             if( scene_event.type == SCENE2_EVENT_FACE_ARRAY_ADDED )
             {
                 struct ToriRSRenderCommand cmd = { 0 };
-                cmd.kind = TORIRS_GFX_FACE_ARRAY_LOAD;
+                cmd.kind = scene_event.batched ? TORIRS_GFX_FACE_ARRAY_BATCHED_LOAD
+                                               : TORIRS_GFX_FACE_ARRAY_LOAD;
                 cmd._face_array_load.array_id = scene_event.u.face_array.array_id;
                 cmd._face_array_load.array = scene_event.u.face_array.array;
                 LibToriRS_RenderCommandBufferAddCommand(render_command_buffer, cmd);
@@ -571,7 +604,8 @@ queue_static_load_commands(
                 LibToriRS_RenderCommandBufferAddCommand(
                     render_command_buffer,
                     (struct ToriRSRenderCommand){
-                        .kind = TORIRS_GFX_MODEL_LOAD,
+                        .kind = scene_event.batched ? TORIRS_GFX_MODEL_BATCHED_LOAD
+                                                    : TORIRS_GFX_MODEL_LOAD,
                         ._model_load = {
                             .model = scene_event.u.model.model,
                             .model_key = model_key,

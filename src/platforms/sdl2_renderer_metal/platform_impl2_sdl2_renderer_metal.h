@@ -62,6 +62,11 @@ struct Platform2_SDL2_Renderer_Metal
     /** Static model-local vertex buffers keyed by model_cache_key_u64. */
     std::unordered_map<uint64_t, MetalModelGpu*> model_gpu_by_key;
 
+    /** World-rebuild merged batches (opaque MetalModelBatch* in .mm). */
+    void* mtl_current_model_batch;
+    std::unordered_map<uint32_t, void*> mtl_model_batches_by_id;
+    std::unordered_map<uint64_t, void*> mtl_batched_model_batch_by_key;
+
     // Sprite GPU texture cache keyed by torirs_sprite_cache_key(element_id, atlas_index).
     // Value is id<MTLTexture> stored as void* to keep header ObjC-free.
     std::unordered_map<uint64_t, void*> sprite_textures_by_slot;
