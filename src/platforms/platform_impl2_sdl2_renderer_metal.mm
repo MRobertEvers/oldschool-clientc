@@ -618,6 +618,7 @@ render_nuklear_overlay(
     params.delta_time_sec = dt;
     params.view_w_cap = 4096;
     params.view_h_cap = 4096;
+    params.include_soft3d_extras = 0;
     params.include_gpu_frame_stats = 1;
     params.gpu_model_draws = renderer->debug_model_draws;
     params.gpu_tris = renderer->debug_triangles;

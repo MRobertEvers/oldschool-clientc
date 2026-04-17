@@ -28,38 +28,9 @@ extern "C" {
 struct nk_context* torirs_rawfb_get_nk_context(struct rawfb_context* rawfb);
 }
 
-#include "platforms/common/torirs_nuklear_debug_panel.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static void
-win32_nk_set_clipboard_text(const char* text)
-{
-    if( !text )
-        return;
-    size_t const n = strlen(text) + 1u;
-    if( !OpenClipboard(NULL) )
-        return;
-    EmptyClipboard();
-    HGLOBAL hg = GlobalAlloc(GMEM_MOVEABLE, n);
-    if( !hg )
-    {
-        CloseClipboard();
-        return;
-    }
-    void* lock = GlobalLock(hg);
-    if( lock )
-    {
-        memcpy(lock, text, n);
-        GlobalUnlock(hg);
-        SetClipboardData(CF_TEXT, hg);
-    }
-    else
-        GlobalFree(hg);
-    CloseClipboard();
-}
 
 static void
 gdisoft3d_setup_bmi(struct Platform2_Win32_Renderer_GDISoft3D* renderer)
@@ -628,44 +599,33 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_Render(
         else
             renderer->nk_dt_smoothed += 0.1 * (dt - renderer->nk_dt_smoothed);
 
+        double dt_ms = renderer->nk_dt_smoothed * 1000.0;
+        double fps =
+            renderer->nk_dt_smoothed > 1e-9 ? 1.0 / renderer->nk_dt_smoothed : 0.0;
+
         struct nk_context* nk = torirs_rawfb_get_nk_context(rawfb);
-
-        int pixel_size_dynamic_i = renderer->pixel_size_dynamic ? 1 : 0;
-        int win_mx = 0;
-        int win_my = 0;
-        int win_mouse_ok = 0;
-        if( renderer->platform && renderer->platform->hwnd )
+        if( nk_begin(
+                nk,
+                "Info",
+                nk_rect(10, 10, 280, 200),
+                NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_MINIMIZABLE | NK_WINDOW_TITLE) )
         {
-            HWND hwnd = (HWND)renderer->platform->hwnd;
-            POINT pt;
-            if( GetCursorPos(&pt) && ScreenToClient(hwnd, &pt) )
+            nk_layout_row_dynamic(nk, 18, 1);
+            nk_labelf(nk, NK_TEXT_LEFT, "%7.2f ms (%6.1f FPS)", dt_ms, fps);
+            nk_labelf(nk, NK_TEXT_LEFT, "Buffer: %dx%d", renderer->width, renderer->height);
+            nk_labelf(nk, NK_TEXT_LEFT, "Window: %dx%d", window_width, window_height);
+            if( game->view_port )
             {
-                win_mx = (int)pt.x;
-                win_my = (int)pt.y;
-                win_mouse_ok = 1;
+                nk_labelf(
+                    nk,
+                    NK_TEXT_LEFT,
+                    "Viewport: %dx%d",
+                    game->view_port->width,
+                    game->view_port->height);
             }
+            nk_labelf(nk, NK_TEXT_LEFT, "Paint cmd: %d", game->cc);
         }
-
-        TorirsNkDebugPanelParams params = {};
-        params.window_title = "Info";
-        params.delta_time_sec = renderer->nk_dt_smoothed;
-        params.view_w_cap = renderer->max_width;
-        params.view_h_cap = renderer->max_height;
-        params.window_mouse_valid = win_mouse_ok;
-        params.window_mouse_x = win_mx;
-        params.window_mouse_y = win_my;
-        params.pixel_size_dynamic_inout = &pixel_size_dynamic_i;
-        params.render_width = renderer->width;
-        params.render_height = renderer->height;
-        params.max_width = renderer->max_width;
-        params.max_height = renderer->max_height;
-        params.clicked_tile_x = renderer->clicked_tile_x;
-        params.clicked_tile_z = renderer->clicked_tile_z;
-        params.clicked_tile_level = renderer->clicked_tile_level;
-        params.set_clipboard_text = win32_nk_set_clipboard_text;
-
-        torirs_nk_debug_panel_draw(nk, game, &params);
-        renderer->pixel_size_dynamic = pixel_size_dynamic_i != 0;
+        nk_end(nk);
         nk_rawfb_render(rawfb, nk_rgba(0, 0, 0, 0), 0);
     }
 

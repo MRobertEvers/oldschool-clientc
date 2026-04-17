@@ -303,6 +303,7 @@ render_nuklear_overlay(
     params.delta_time_sec = dt;
     params.view_w_cap = 4096;
     params.view_h_cap = 4096;
+    params.include_soft3d_extras = 0;
 
     torirs_nk_debug_panel_draw(s_gl3_nk, game, &params);
     torirs_nk_ui_after_frame(s_gl3_nk);

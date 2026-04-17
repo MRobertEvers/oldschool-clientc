@@ -1,10 +1,12 @@
 #ifndef TORIRS_NUKLEAR_DEBUG_PANEL_H
 #define TORIRS_NUKLEAR_DEBUG_PANEL_H
 
+#include <SDL.h>
 #include <stddef.h>
 
 struct nk_context;
 struct GGame;
+struct Platform2_SDL2_Renderer_Soft3D;
 
 typedef struct TorirsNkDebugPanelParams
 {
@@ -12,21 +14,9 @@ typedef struct TorirsNkDebugPanelParams
     double delta_time_sec;
     int view_w_cap;
     int view_h_cap;
-    /** If non-zero, window_mouse_x/y are valid (caller pre-queries, e.g. SDL or Win32). */
-    int window_mouse_valid;
-    int window_mouse_x;
-    int window_mouse_y;
-    /** If non-NULL, show soft3d-style extras (trap, dynamic pixel, render size, tile copy).
-     *  Checkbox reads/writes 0 or 1 through this pointer. */
-    int* pixel_size_dynamic_inout;
-    int render_width;
-    int render_height;
-    int max_width;
-    int max_height;
-    int clicked_tile_x;
-    int clicked_tile_z;
-    int clicked_tile_level;
-    void (*set_clipboard_text)(const char* text);
+    SDL_Window* sdl_window;
+    struct Platform2_SDL2_Renderer_Soft3D* soft3d;
+    int include_soft3d_extras;
     int include_load_counts;
     size_t loaded_models;
     size_t loaded_scenes;

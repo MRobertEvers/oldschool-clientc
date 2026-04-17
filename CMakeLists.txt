@@ -270,6 +270,7 @@ if(NOT EMSCRIPTEN)
             src/platforms/common/tori_rs_sdl2_gameinput_nuklear.cpp
             src/platforms/common/torirs_nk_sdl_input.cpp
             src/platforms/common/torirs_nk_ui_bridge.cpp
+            src/platforms/common/torirs_nuklear_debug_panel.cpp
         )
         list(APPEND WIN32_PLATFORM_SOURCES
             test/win32.cpp
