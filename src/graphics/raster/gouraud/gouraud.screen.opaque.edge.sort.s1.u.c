@@ -9,7 +9,7 @@ extern int g_hsl16_to_rgb_table[65536];
 
 static inline void
 draw_scanline_gouraud_edge_sort_s1(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int y,
@@ -71,7 +71,7 @@ draw_scanline_gouraud_edge_sort_s1(
 }
 static inline void
 raster_gouraud_edge_sort_s1(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,

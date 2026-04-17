@@ -1,13 +1,15 @@
 #ifndef GOURAUD_BARYCENTRIC_U_C
 #define GOURAUD_BARYCENTRIC_U_C
 
+#include "graphics/dash_restrict.h"
+
 #include <limits.h>
 
 extern int g_hsl16_to_rgb_table[65536];
 
 static inline void
 draw_scanline_gouraud_s4_bary(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int offset,
     int stride_width,
     int x_start_ish,
@@ -79,7 +81,7 @@ draw_scanline_gouraud_s4_bary(
 
 static inline void
 raster_gouraud_s4_bary(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int screen_width,
     int screen_height,
     int x0,

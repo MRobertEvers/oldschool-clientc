@@ -16,7 +16,7 @@ extern int g_hsl16_to_rgb_table[65536];
  */
 static inline void
 draw_scanline_flat_branching_bs4_ordered(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int offset,
     int screen_width,
     int x_start_ish16,
@@ -70,7 +70,7 @@ draw_scanline_flat_branching_bs4_ordered(
 
 static inline void
 raster_flat_branching_bs4_ordered(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -223,7 +223,7 @@ raster_flat_branching_bs4_ordered(
 
 static inline void
 raster_flat_branching_bs4(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,

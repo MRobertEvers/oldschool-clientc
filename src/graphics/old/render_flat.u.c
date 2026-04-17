@@ -2,6 +2,7 @@
 #include "graphics/dash_alphaint.h"
 #include "graphics/dash_faceint.h"
 #include "graphics/dash_hsl16.h"
+#include "graphics/dash_restrict.h"
 
 #include <assert.h>
 
@@ -14,7 +15,7 @@
 
 static inline void
 raster_flat(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -55,19 +56,19 @@ raster_flat(
  */
 static inline void
 raster_face_flat_near_clip(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int face,
-    faceint_t* face_indices_a,
-    faceint_t* face_indices_b,
-    faceint_t* face_indices_c,
-    int* screen_vertices_x,
-    int* screen_vertices_y,
-    int* screen_vertices_z,
-    int* orthographic_vertices_x,
-    int* orthographic_vertices_y,
-    int* orthographic_vertices_z,
-    hsl16_t* colors,
-    alphaint_t* face_alphas_nullable,
+    faceint_t* RESTRICT face_indices_a,
+    faceint_t* RESTRICT face_indices_b,
+    faceint_t* RESTRICT face_indices_c,
+    int* RESTRICT screen_vertices_x,
+    int* RESTRICT screen_vertices_y,
+    int* RESTRICT screen_vertices_z,
+    int* RESTRICT orthographic_vertices_x,
+    int* RESTRICT orthographic_vertices_y,
+    int* RESTRICT orthographic_vertices_z,
+    hsl16_t* RESTRICT colors,
+    alphaint_t* RESTRICT face_alphas_nullable,
     int near_plane_z,
     int offset_x,
     int offset_y,
@@ -252,19 +253,19 @@ raster_face_flat_near_clip(
 
 static inline void
 raster_face_flat(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int face,
-    faceint_t* face_indices_a,
-    faceint_t* face_indices_b,
-    faceint_t* face_indices_c,
-    int* screen_vertices_x,
-    int* screen_vertices_y,
-    int* screen_vertices_z,
-    int* orthographic_vertices_x,
-    int* orthographic_vertices_y,
-    int* orthographic_vertices_z,
-    hsl16_t* colors,
-    alphaint_t* face_alphas_nullable,
+    faceint_t* RESTRICT face_indices_a,
+    faceint_t* RESTRICT face_indices_b,
+    faceint_t* RESTRICT face_indices_c,
+    int* RESTRICT screen_vertices_x,
+    int* RESTRICT screen_vertices_y,
+    int* RESTRICT screen_vertices_z,
+    int* RESTRICT orthographic_vertices_x,
+    int* RESTRICT orthographic_vertices_y,
+    int* RESTRICT orthographic_vertices_z,
+    hsl16_t* RESTRICT colors,
+    alphaint_t* RESTRICT face_alphas_nullable,
     int near_plane_z,
     int offset_x,
     int offset_y,

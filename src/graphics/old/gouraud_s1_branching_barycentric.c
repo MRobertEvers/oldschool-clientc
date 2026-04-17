@@ -1,6 +1,8 @@
 #ifndef GOURAUD_S1_BRANCHING_BARYCENTRIC_C
 #define GOURAUD_S1_BRANCHING_BARYCENTRIC_C
 
+#include "graphics/dash_restrict.h"
+
 #include <assert.h>
 #include <stdbool.h>
 extern int g_hsl16_to_rgb_table[65536];
@@ -14,7 +16,7 @@ extern int g_reciprocal16[4096];
  */
 static inline void
 draw_scanline_gouraud_bary_branching_s1_ordered(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int offset,
     int screen_width,
     int y,
@@ -56,7 +58,7 @@ draw_scanline_gouraud_bary_branching_s1_ordered(
 
 static inline void
 raster_gouraud_bary_branching_s1_ordered(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -293,7 +295,7 @@ raster_gouraud_bary_branching_s1_ordered(
 
 static inline void
 raster_gouraud_bary_branching_s1(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
