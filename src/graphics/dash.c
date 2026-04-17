@@ -3069,12 +3069,12 @@ dashpixpalette_free(struct DashPixPalette* palette)
 
 void
 dash2d_blit_sprite(
-    struct DashGraphics* dash,
-    struct DashSprite* sprite,
-    struct DashViewPort* view_port,
+    struct DashGraphics* RESTRICT dash,
+    struct DashSprite* RESTRICT sprite,
+    struct DashViewPort* RESTRICT view_port,
     int x_offset,
     int y_offset,
-    int* pixel_buffer)
+    int* RESTRICT pixel_buffer)
 {
     if( !sprite )
         return;
@@ -3093,16 +3093,16 @@ dash2d_blit_sprite(
 
 void
 dash2d_blit_sprite_subrect(
-    struct DashGraphics* dash,
-    struct DashSprite* sprite,
-    struct DashViewPort* view_port,
+    struct DashGraphics* RESTRICT dash,
+    struct DashSprite* RESTRICT sprite,
+    struct DashViewPort* RESTRICT view_port,
     int x_offset,
     int y_offset,
     int src_x,
     int src_y,
     int src_w,
     int src_h,
-    int* pixel_buffer)
+    int* RESTRICT pixel_buffer)
 {
     (void)dash;
     if( !sprite || !sprite->pixels_argb || src_w <= 0 || src_h <= 0 )
@@ -3770,7 +3770,7 @@ dash_texture_average_hsl(struct DashTexture* texture)
 
 void
 dash2d_fill_rect(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x,
     int y,
@@ -3790,7 +3790,7 @@ dash2d_fill_rect(
 
 void
 dash2d_fill_rect_clipped(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x,
     int y,
@@ -3822,7 +3822,7 @@ dash2d_fill_rect_clipped(
 
 void
 dash2d_draw_rect(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x,
     int y,
@@ -3846,7 +3846,7 @@ dash2d_draw_rect(
 
 void
 dash2d_fill_rect_alpha(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x,
     int y,
@@ -3881,7 +3881,7 @@ dash2d_fill_rect_alpha(
 
 static void
 dash2d_fill_triangle_alpha(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x1,
     int y1,
@@ -3964,10 +3964,10 @@ dash2d_fill_triangle_alpha(
 
 void
 dash2d_fill_polygon_alpha(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
-    const int* x,
-    const int* y,
+    const int* RESTRICT x,
+    const int* RESTRICT y,
     int n,
     int color_rgb,
     int alpha,
@@ -4010,7 +4010,7 @@ dash2d_fill_polygon_alpha(
 
 void
 dash2d_draw_rect_alpha(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x,
     int y,
@@ -4076,7 +4076,7 @@ dash2d_draw_rect_alpha(
 
 void
 dash2d_draw_line_alpha(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x0,
     int y0,
@@ -4158,13 +4158,13 @@ dash2d_draw_line_alpha(
 
 void
 dash2d_blit_sprite_alpha(
-    struct DashGraphics* dash,
-    struct DashSprite* sprite,
-    struct DashViewPort* view_port,
+    struct DashGraphics* RESTRICT dash,
+    struct DashSprite* RESTRICT sprite,
+    struct DashViewPort* RESTRICT view_port,
     int x,
     int y,
     int alpha,
-    int* pixel_buffer)
+    int* RESTRICT pixel_buffer)
 {
     if( !sprite )
         return;
@@ -4214,7 +4214,7 @@ dash2d_blit_sprite_alpha(
 
 void
 dash2d_set_bounds(
-    struct DashViewPort* view_port,
+    struct DashViewPort* RESTRICT view_port,
     int left,
     int top,
     int right,
@@ -4251,7 +4251,7 @@ static int g_minimap_tile_mask[16][16] = {
 
 void
 dash2d_fill_minimap_tile(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x,
     int y,
@@ -4372,7 +4372,7 @@ dash2d_fill_minimap_tile(
 
 void
 dash2d_draw_minimap_wall(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x,
     int y,
@@ -4480,8 +4480,8 @@ dash2d_draw_minimap_wall(
 
 void
 dash2d_blit_rotated(
-    struct DashSprite* sprite,
-    int* pixel_buffer,
+    struct DashSprite* RESTRICT sprite,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x,
     int y,

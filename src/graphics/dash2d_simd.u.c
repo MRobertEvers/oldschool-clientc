@@ -16,7 +16,7 @@
 #include "dash2d_simd.sse2.u.c"
 #define dash2d_blit_sprite_subrect_fast dash2d_blit_sprite_subrect_sse2
 #else
-#include "dash2d_simd.scaler.u.c"
+#include "dash2d_simd.scalar.u.c"
 #define dash2d_blit_sprite_subrect_fast dash2d_blit_sprite_subrect_scalar
 #endif
 

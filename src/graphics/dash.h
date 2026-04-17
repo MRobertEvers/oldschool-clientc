@@ -7,6 +7,7 @@
 #include "dash_faceint.h"
 #include "dash_hsl16.h"
 #include "dash_math.h"
+#include "dash_restrict.h"
 #include "dash_vertexint.h"
 #include "dashmap.h"
 #include "lighting.h"
@@ -877,27 +878,27 @@ dashpixpalette_free(struct DashPixPalette* palette);
 
 void
 dash2d_blit_sprite(
-    struct DashGraphics* dash,
-    struct DashSprite* sprite,
-    struct DashViewPort* view_port,
+    struct DashGraphics* RESTRICT dash,
+    struct DashSprite* RESTRICT sprite,
+    struct DashViewPort* RESTRICT view_port,
     int x,
     int y,
-    int* pixel_buffer);
+    int* RESTRICT pixel_buffer);
 
 /** Blit sprite sub-rectangle [src_x,src_y)+[src_w,src_h) to (x,y); still applies sprite
  * crop_x/crop_y to dst. */
 void
 dash2d_blit_sprite_subrect(
-    struct DashGraphics* dash,
-    struct DashSprite* sprite,
-    struct DashViewPort* view_port,
+    struct DashGraphics* RESTRICT dash,
+    struct DashSprite* RESTRICT sprite,
+    struct DashViewPort* RESTRICT view_port,
     int x,
     int y,
     int src_x,
     int src_y,
     int src_w,
     int src_h,
-    int* pixel_buffer);
+    int* RESTRICT pixel_buffer);
 
 void
 dashsprite_flip_horizontal(struct DashSprite* sprite);
@@ -983,7 +984,7 @@ dashfont_evaluate_color_tag(const char* tag);
 
 void
 dash2d_fill_rect(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x,
     int y,
@@ -993,7 +994,7 @@ dash2d_fill_rect(
 
 void
 dash2d_fill_rect_clipped(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x,
     int y,
@@ -1007,7 +1008,7 @@ dash2d_fill_rect_clipped(
 
 void
 dash2d_draw_rect(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x,
     int y,
@@ -1017,7 +1018,7 @@ dash2d_draw_rect(
 
 void
 dash2d_fill_rect_alpha(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x,
     int y,
@@ -1028,10 +1029,10 @@ dash2d_fill_rect_alpha(
 
 void
 dash2d_fill_polygon_alpha(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
-    const int* x,
-    const int* y,
+    const int* RESTRICT x,
+    const int* RESTRICT y,
     int n,
     int color_rgb,
     int alpha,
@@ -1042,7 +1043,7 @@ dash2d_fill_polygon_alpha(
 
 void
 dash2d_draw_rect_alpha(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x,
     int y,
@@ -1053,7 +1054,7 @@ dash2d_draw_rect_alpha(
 
 void
 dash2d_draw_line_alpha(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x0,
     int y0,
@@ -1068,17 +1069,17 @@ dash2d_draw_line_alpha(
 
 void
 dash2d_blit_sprite_alpha(
-    struct DashGraphics* dash,
-    struct DashSprite* sprite,
-    struct DashViewPort* view_port,
+    struct DashGraphics* RESTRICT dash,
+    struct DashSprite* RESTRICT sprite,
+    struct DashViewPort* RESTRICT view_port,
     int x,
     int y,
     int alpha,
-    int* pixel_buffer);
+    int* RESTRICT pixel_buffer);
 
 void
 dash2d_set_bounds(
-    struct DashViewPort* view_port,
+    struct DashViewPort* RESTRICT view_port,
     int left,
     int top,
     int right,
@@ -1089,7 +1090,7 @@ dash_texture_average_hsl(struct DashTexture* texture);
 
 void
 dash2d_fill_rect(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x,
     int y,
@@ -1099,7 +1100,7 @@ dash2d_fill_rect(
 
 void
 dash2d_fill_minimap_tile(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x,
     int y,
@@ -1112,7 +1113,7 @@ dash2d_fill_minimap_tile(
 
 void
 dash2d_draw_minimap_wall(
-    int* pixel_buffer,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x,
     int y,
@@ -1125,7 +1126,7 @@ dash2d_draw_minimap_wall(
  *  (`src_crop_x`, `src_crop_y`) in the buffer. Row pitch is `src_stride` (full bitmap width). */
 static inline void
 dash2d_blit_rotated_ex(
-    int* src_buffer,
+    int* RESTRICT src_buffer,
     int src_stride,
     int src_crop_x,
     int src_crop_y,
@@ -1133,7 +1134,7 @@ dash2d_blit_rotated_ex(
     int src_height,
     int src_anchor_x,
     int src_anchor_y,
-    int* dst_buffer,
+    int* RESTRICT dst_buffer,
     int dst_stride,
     int dst_x,
     int dst_y,
@@ -1187,11 +1188,11 @@ dash2d_blit_rotated_ex(
  *  (`dst_x`, `dst_y`), pitch `dst_stride`. Clips to [0, `dst_clip_w`) × [0, `dst_clip_h`). */
 static inline void
 dash2d_copy_argb_buffer(
-    const int* src_buffer,
+    const int* RESTRICT src_buffer,
     int src_w,
     int src_h,
     int src_stride,
-    int* dst_buffer,
+    int* RESTRICT dst_buffer,
     int dst_stride,
     int dst_x,
     int dst_y,
@@ -1214,8 +1215,8 @@ dash2d_copy_argb_buffer(
 
 void
 dash2d_blit_rotated(
-    struct DashSprite* sprite,
-    int* pixel_buffer,
+    struct DashSprite* RESTRICT sprite,
+    int* RESTRICT pixel_buffer,
     int stride,
     int x,
     int y,

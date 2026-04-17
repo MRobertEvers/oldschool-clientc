@@ -4,16 +4,16 @@
 
 void
 dash2d_blit_sprite_subrect_scalar(
-    struct DashGraphics* dash,
-    struct DashSprite* sprite,
-    struct DashViewPort* view_port,
+    struct DashGraphics* RESTRICT dash,
+    struct DashSprite* RESTRICT sprite,
+    struct DashViewPort* RESTRICT view_port,
     int x_offset,
     int y_offset,
     int src_x,
     int src_y,
     int src_w,
     int src_h,
-    int* pixel_buffer)
+    int* RESTRICT pixel_buffer)
 {
     (void)dash;
     if( !sprite || !sprite->pixels_argb || src_w <= 0 || src_h <= 0 )
