@@ -1,12 +1,8 @@
 #include "platform_impl2_sdl2_renderer_soft3d_shared.h"
 
-#include "nuklear/torirs_nk_config.h"
-#include "nuklear.h"
-
 #define NK_SDL_RENDERER_SDL_H <SDL.h>
 #define TORIRS_NK_SDL_RENDERER_IMPLEMENTATION
 #include "nuklear/backends/sdl_renderer/nuklear_torirs_sdl_renderer.h"
-
 #include "platforms/common/torirs_nk_ui_bridge.h"
 #include "platforms/common/torirs_nuklear_debug_panel.h"
 
@@ -199,7 +195,8 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Init(
         torirs_nk_sdlren_font_stash_end();
     }
 
-    torirs_nk_ui_set_active(s_soft3d_nk, torirs_nk_sdlren_handle_event, torirs_nk_sdlren_handle_grab);
+    torirs_nk_ui_set_active(
+        s_soft3d_nk, torirs_nk_sdlren_handle_event, torirs_nk_sdlren_handle_grab);
     s_soft3d_ui_prev_perf = SDL_GetPerformanceCounter();
 
     return true;
@@ -298,9 +295,6 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Render(
         game->view_port->y_center = game->view_port->height / 2;
         game->view_port->stride = renderer->width;
     }
-
-    for( int y = 0; y < renderer->height; y++ )
-        memset(&renderer->pixel_buffer[y * renderer->width], 0x00, renderer->width * sizeof(int));
 
     struct ToriRSRenderCommand command = { 0 };
 

@@ -1,8 +1,7 @@
 #ifndef TORIRS_NK_METAL_SDL_H
 #define TORIRS_NK_METAL_SDL_H
 
-#include "torirs_nk_config.h"
-#include "nuklear.h"
+#include "torirs_nuklear.h"
 
 #ifdef __cplusplus
 extern "C" {

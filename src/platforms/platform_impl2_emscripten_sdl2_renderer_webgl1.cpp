@@ -12,9 +12,6 @@ extern "C" {
 
 #include <SDL.h>
 
-#include "nuklear/torirs_nk_config.h"
-#include "nuklear.h"
-
 #define TORIRS_NK_SDL_GLES2_IMPLEMENTATION
 #include "nuklear/backends/sdl_opengles2/nuklear_torirs_sdl_gles2.h"
 

@@ -15,6 +15,8 @@
 #ifndef TORIRS_NK_SDL_GLES2_H_
 #define TORIRS_NK_SDL_GLES2_H_
 
+#include "nuklear/torirs_nuklear.h"
+
 #include <SDL.h>
 #include <SDL_opengles2.h>
 
@@ -39,6 +41,9 @@ NK_API void                 torirs_nk_gles2_handle_grab(void);
  * ===============================================================
  */
 #ifdef TORIRS_NK_SDL_GLES2_IMPLEMENTATION
+#if !defined(nk_draw_foreach)
+#error Nuklear was included without vertex-buffer support before this backend. Use #include "nuklear/torirs_nuklear.h" (or include this header before any bare #include "nuklear.h").
+#endif
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>

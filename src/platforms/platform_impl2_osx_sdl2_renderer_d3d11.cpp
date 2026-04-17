@@ -1,7 +1,6 @@
 #include "platform_impl2_osx_sdl2_renderer_d3d11.h"
 
-#include "nuklear/torirs_nk_config.h"
-#include "nuklear.h"
+#include "nuklear/torirs_nuklear.h"
 
 #include "platforms/common/torirs_nk_ui_bridge.h"
 #include "platforms/common/torirs_nuklear_debug_panel.h"

@@ -1,7 +1,6 @@
 #include "torirs_nk_ui_bridge.h"
 
-#include "torirs_nk_config.h"
-#include "nuklear.h"
+#include "nuklear/torirs_nuklear.h"
 #include "torirs_nk_sdl_input.h"
 
 #include <string.h>

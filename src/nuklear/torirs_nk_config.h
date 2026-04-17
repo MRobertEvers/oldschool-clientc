@@ -1,4 +1,6 @@
-/* Include before every #include "nuklear.h" (must match nuklear_impl.c). */
+/* Prefer #include "nuklear/torirs_nuklear.h" in app code so config is applied before
+ * nuklear.h on the first parse. If you include "nuklear.h" directly, include this file
+ * immediately before it (must match nuklear_impl.c). */
 #ifndef TORIRS_NK_CONFIG_H
 #define TORIRS_NK_CONFIG_H
 

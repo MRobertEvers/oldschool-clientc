@@ -1,4 +1,3 @@
-/* Single translation unit for Nuklear; flags must match every #include "nuklear.h". */
-#include "torirs_nk_config.h"
+/* Single translation unit for Nuklear; flags must match every use of torirs_nuklear.h. */
 #define NK_IMPLEMENTATION
-#include "nuklear.h"
+#include "torirs_nuklear.h"

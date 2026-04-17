@@ -7,9 +7,6 @@
 
 #include <SDL.h>
 
-#include "nuklear/torirs_nk_config.h"
-#include "nuklear.h"
-
 #define TORIRS_NK_SDL_GL3_IMPLEMENTATION
 #include "nuklear/backends/sdl_opengl3/nuklear_torirs_sdl_gl3.h"
 

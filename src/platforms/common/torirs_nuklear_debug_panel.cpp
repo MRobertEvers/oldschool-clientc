@@ -1,7 +1,6 @@
 #include "torirs_nuklear_debug_panel.h"
 
-#include "torirs_nk_config.h"
-#include "nuklear.h"
+#include "nuklear/torirs_nuklear.h"
 
 #include "platforms/platform_impl2_sdl2_renderer_soft3d_shared.h"
 #include "platforms/common/platform_memory.h"

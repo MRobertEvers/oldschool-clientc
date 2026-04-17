@@ -43,9 +43,6 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
-#include "nuklear/torirs_nk_config.h"
-#include "nuklear.h"
-
 #define NK_SDL_RENDERER_SDL_H <SDL.h>
 #define TORIRS_NK_SDL_RENDERER_IMPLEMENTATION
 #include "nuklear/backends/sdl_renderer/nuklear_torirs_sdl_renderer.h"
