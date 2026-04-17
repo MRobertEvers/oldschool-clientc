@@ -8,11 +8,11 @@
 #include <assert.h>
 
 // clang-format off
-#include "gouraud.u.c"
-#include "render_clip.u.c"
-#include "render_face_alpha.u.c"
-#include "gouraud_branching_barycentric.c"
-#include "gouraud_s1_branching_barycentric.c"
+#include "old/gouraud.u.c"
+#include "old/render_clip.u.c"
+#include "old/render_face_alpha.u.c"
+#include "old/gouraud_branching_barycentric.c"
+#include "old/gouraud_s1_branching_barycentric.c"
 
 // clang-format on
 
@@ -90,7 +90,7 @@ raster_gouraud_edge_sort_s1(
 {
     if( alpha == 0xFF )
     {
-        raster_gouraud_bary_branching_bs1(
+        raster_gouraud_bary_branching_s1(
             pixel_buffer,
             stride,
             screen_width,
@@ -107,7 +107,7 @@ raster_gouraud_edge_sort_s1(
     }
     else
     {
-        raster_gouraud_alpha_bary_branching_bs4(
+        raster_gouraud_alpha_bary_branching_s1(
             pixel_buffer,
             stride,
             screen_width,

@@ -6,7 +6,7 @@ This document is the **standalone export** of the master variant table, includin
 
 - **Plan (SIMD, naming, migration):** [Raster variant catalogue](../.cursor/plans/raster_variant_catalogue_2aabb9e0.plan.md)
 
-**Primary include graph (live client):** [`dash.c`](../src/graphics/dash.c) includes [`render_flat.u.c`](../src/graphics/old/render_flat.u.c), [`render_gouraud.u.c`](../src/graphics/old/render_gouraud.u.c), and [`render_texture.u.c`](../src/graphics/old/render_texture.u.c) (which pulls in affine routing via [`render_texture_affine.u.c`](../src/graphics/old/render_texture_affine.u.c)).
+**Primary include graph (live client):** [`dash.c`](../src/graphics/dash.c) includes [`render_flat.u.c`](../src/graphics/old/render_flat.u.c), [`render_gouraud.u.c`](../src/graphics/render_gouraud.u.c), and [`render_texture.u.c`](../src/graphics/old/render_texture.u.c) (which pulls in affine routing via [`render_texture_affine.u.c`](../src/graphics/old/render_texture_affine.u.c)).
 
 ---
 
@@ -26,9 +26,10 @@ When one catalogue row maps to **multiple** canonical IDs (e.g. opaque vs transp
 | G1 | `gouraud.screen.opaque.bary.branching.s4` | Gouraud | screen | opaque bs4 barycentric | `raster_gouraud_bary_branching_bs4` | [`gouraud_branching_barycentric.c`](../src/graphics/old/gouraud_branching_barycentric.c) → [`raster/gouraud/gouraud.screen.opaque.bary.branching.s4.c`](../src/graphics/raster/gouraud/gouraud.screen.opaque.bary.branching.s4.c) |
 | G2 | `gouraud.screen.alpha.bary.branching.s4` | Gouraud | screen | alpha bs4 barycentric | `raster_gouraud_alpha_bary_branching_bs4` | `gouraud_branching_barycentric.c` → [`raster/gouraud/gouraud.screen.alpha.bary.branching.s4.c`](../src/graphics/raster/gouraud/gouraud.screen.alpha.bary.branching.s4.c) |
 | G3 | `gouraud.screen.opaque.bary.branching.s4.ordered` / `gouraud.screen.alpha.bary.branching.s4.ordered` | Gouraud | screen | ordered bary variants | `raster_gouraud_bary_branching_bs4_ordered`, `raster_gouraud_alpha_bary_branching_bs4_ordered` | same as G1/G2 (`raster/gouraud/gouraud.screen.*.bary.branching.s4.c`) |
-| G4 | `gouraud.screen.opaque.bary.branching.s1` | Gouraud | screen | opaque bs1 barycentric | `raster_gouraud_bary_branching_bs1` | `gouraud_s1_branching_barycentric.c` |
-| G5 | `gouraud.screen.opaque.bary.branching.s1.ordered` | Gouraud | screen | ordered bs1 helper | `raster_gouraud_bary_branching_bs1_ordered` | `gouraud_s1_branching_barycentric.c` |
-| G6 | `gouraud.screen.face` | Gouraud | screen | dispatch + clip faces | `raster_gouraud`, `raster_gouraud_edge_sort_s1`, `raster_face_gouraud*`, `raster_face_gouraud_near_clip*` | `render_gouraud.u.c` |
+| G4 | `gouraud.screen.opaque.bary.branching.s1` | Gouraud | screen | opaque branching s1 barycentric | `raster_gouraud_bary_branching_s1` | `gouraud_s1_branching_barycentric.c` |
+| G5 | `gouraud.screen.opaque.bary.branching.s1.ordered` | Gouraud | screen | ordered s1 helper | `raster_gouraud_bary_branching_s1_ordered` | `gouraud_s1_branching_barycentric.c` |
+| G5a | `gouraud.screen.alpha.bary.branching.s1` | Gouraud | screen | alpha branching s1 (smooth path) | `raster_gouraud_alpha_bary_branching_s1`, `raster_gouraud_alpha_bary_branching_s1_ordered` | [`gouraud_s1_branching_barycentric.c`](../src/graphics/old/gouraud_s1_branching_barycentric.c) → [`raster/gouraud/gouraud.screen.alpha.bary.branching.s1.c`](../src/graphics/raster/gouraud/gouraud.screen.alpha.bary.branching.s1.c) |
+| G6 | `gouraud.screen.face` | Gouraud | screen | dispatch + clip faces | `raster_gouraud`, `raster_gouraud_edge_sort_s1`, `raster_face_gouraud*`, `raster_face_gouraud_near_clip*` | [`render_gouraud.u.c`](../src/graphics/render_gouraud.u.c) |
 | G7 | `legacy:gouraud.screen.opaque.edge.sort.s4` / `gouraud.screen.alpha.edge.sort.s4` | Gouraud (legacy S4) | screen | edge-walk s4 + alpha | `raster_gouraud_edge_sort_s4`, `raster_gouraud_alpha_edge_sort_s4` | [`gouraud.u.c`](../src/graphics/old/gouraud.u.c) → [`raster/gouraud/gouraud.screen.opaque.edge.sort.s4.u.c`](../src/graphics/raster/gouraud/gouraud.screen.opaque.edge.sort.s4.u.c), [`gouraud.screen.alpha.edge.sort.s4.u.c`](../src/graphics/raster/gouraud/gouraud.screen.alpha.edge.sort.s4.u.c) (s4 opaque commented out in render; alpha still used from s1 path) |
 | G8 | `gouraud.screen.opaque.bary_s4` | Gouraud (alt bary) | screen | full-triangle bary s4 | `raster_gouraud_s4_bary` | `gouraud_barycentric.u.c` (included from `gouraud.u.c`; not render default) |
 | G9 | `gouraud.screen.alpha.span_alpha.vec` | Gouraud span blend | screen | per-pixel alpha span | `raster_linear_alpha_s4` | [`raster/gouraud/span/gouraud.screen.alpha.span.u.c`](../src/graphics/raster/gouraud/span/gouraud.screen.alpha.span.u.c) (via [`gouraud.u.c`](../src/graphics/old/gouraud.u.c); SIMD — see plan § SIMD Integration) |
@@ -84,8 +85,9 @@ F5   flat.screen.face                                     Flat face dispatch
 G1   gouraud.screen.opaque.bary.branching.s4              Gouraud opaque bary bs4
 G2   gouraud.screen.alpha.bary.branching.s4               Gouraud alpha bary bs4
 G3   gouraud.screen.opaque.bary.branching.s4.ordered / ... Gouraud ordered bary
-G4   gouraud.screen.opaque.bary.branching.s1              Gouraud opaque bary bs1
-G5   gouraud.screen.opaque.bary.branching.s1.ordered      Gouraud ordered bs1
+G4   gouraud.screen.opaque.bary.branching.s1              Gouraud opaque bary branching s1
+G5   gouraud.screen.opaque.bary.branching.s1.ordered      Gouraud ordered s1
+G5a  gouraud.screen.alpha.bary.branching.s1               Gouraud alpha branching s1 (smooth path)
 G6   gouraud.screen.face                                   Gouraud face dispatch
 G7   legacy:gouraud.screen.opaque.edge.sort.s4 / gouraud...alpha.edge.sort.s4  Gouraud legacy s4 + alpha
 G8   gouraud.screen.opaque.bary_s4                        Gouraud alt bary s4

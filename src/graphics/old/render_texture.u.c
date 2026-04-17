@@ -10,7 +10,7 @@
 #include "texture_blend_branching.u.c"
 #include "texture_blend_branching_v3.u.c"
 #include "render_clip.u.c"
-#include "render_gouraud.u.c"
+#include "../render_gouraud.u.c"
 #include "texture_blend_branching_affine.u.c"
 #include "texture_blend_branching_affine_v3.u.c"
 #include "render_texture_affine.u.c"
