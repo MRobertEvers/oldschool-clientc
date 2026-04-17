@@ -745,7 +745,7 @@ dash3d_raster_model_face(
         case FACE_TYPE_GOURAUD:
             if( (ctx->flags & RASTER_FLAG_GOURAUD_SMOOTH) != 0 )
             {
-                raster_face_gouraud_s1(
+                raster_face_gouraud_smooth(
                     ctx->pixel_buffer,
                     face,
                     ctx->face_indices_a,

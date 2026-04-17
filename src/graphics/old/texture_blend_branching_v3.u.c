@@ -7,7 +7,8 @@
 
 #include <stdint.h>
 
-/* draw_texture_scanline_*_blend_branching_lerp8_v3_ordered are provided by tex.span.* (included above). */
+/* draw_texture_scanline_*_blend_branching_lerp8_v3_ordered are provided by tex.span.* (included
+ * above). */
 
 #include "../raster/texture/texshadeblend.persp.texopaque.branching.lerp8_v3.u.c"
 #include "../raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c"

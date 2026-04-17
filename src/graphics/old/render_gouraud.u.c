@@ -1124,4 +1124,52 @@ raster_face_gouraud_s1(
         alpha);
 }
 
+static inline void
+raster_face_gouraud_smooth(
+    int* pixel_buffer,
+    int face,
+    faceint_t* face_indices_a,
+    faceint_t* face_indices_b,
+    faceint_t* face_indices_c,
+    int* screen_vertices_x,
+    int* screen_vertices_y,
+    int* screen_vertices_z,
+    int* orthographic_vertices_x,
+    int* orthographic_vertices_y,
+    int* orthographic_vertices_z,
+    hsl16_t* colors_a,
+    hsl16_t* colors_b,
+    hsl16_t* colors_c,
+    alphaint_t* face_alphas_nullable,
+    int near_plane_z,
+    int offset_x,
+    int offset_y,
+    int stride,
+    int screen_width,
+    int screen_height)
+{
+    raster_face_gouraud_s1(
+        pixel_buffer,
+        face,
+        face_indices_a,
+        face_indices_b,
+        face_indices_c,
+        screen_vertices_x,
+        screen_vertices_y,
+        screen_vertices_z,
+        orthographic_vertices_x,
+        orthographic_vertices_y,
+        orthographic_vertices_z,
+        colors_a,
+        colors_b,
+        colors_c,
+        face_alphas_nullable,
+        near_plane_z,
+        offset_x,
+        offset_y,
+        stride,
+        screen_width,
+        screen_height);
+}
+
 #endif
