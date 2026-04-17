@@ -3050,6 +3050,8 @@ dashsprite_new_from_argb_owned(
     sprite->pixels_argb = pixels_argb;
     sprite->width = width;
     sprite->height = height;
+    sprite->crop_width = width;
+    sprite->crop_height = height;
     return sprite;
 }
 
@@ -3630,6 +3632,74 @@ dashfont_draw_text_ex(
             int dst_offset =
                 y * stride + x + pixfont->char_offset_x[c] + pixfont->char_offset_y[c] * stride;
             dashfont_draw_mask(w, h, mask, 0, 0, pixels, dst_offset, stride - w, color);
+        }
+        int adv = pixfont->char_advance[c];
+        if( adv <= 0 )
+            adv = 4;
+        x += adv;
+    }
+}
+
+void
+dashfont_draw_text_ex_clipped(
+    struct DashPixFont* pixfont,
+    uint8_t* text,
+    int x,
+    int y,
+    int default_color_rgb,
+    int* pixels,
+    int stride,
+    int clip_left,
+    int clip_top,
+    int clip_right,
+    int clip_bottom)
+{
+    if( clip_left >= clip_right || clip_top >= clip_bottom )
+        return;
+    int length = (int)strlen((char*)text);
+    int color = default_color_rgb;
+
+    for( int i = 0; i < length; i++ )
+    {
+        if( text[i] == '@' && i + 5 <= length && text[i + 4] == '@' )
+        {
+            int new_color = dashfont_evaluate_color_tag((char*)&text[i + 1]);
+            if( new_color >= 0 )
+                color = new_color;
+
+            if( i + 6 <= length && text[i + 5] == ' ' )
+                i += 5;
+            else
+                i += 4;
+            continue;
+        }
+        uint8_t code_point = text[i];
+        int c = DASH_FONT_CHARCODESET[code_point];
+        if( c < DASH_FONT_CHAR_COUNT )
+        {
+            int w = pixfont->char_mask_width[c];
+            int h = pixfont->char_mask_height[c];
+            int* mask = pixfont->char_mask[c];
+            int base_x = x + pixfont->char_offset_x[c];
+            int base_y = y + pixfont->char_offset_y[c];
+            int dst_offset = base_y * stride + base_x;
+            dashfont_draw_mask_clipped(
+                w,
+                h,
+                mask,
+                0,
+                0,
+                pixels,
+                dst_offset,
+                stride - w,
+                stride,
+                base_x,
+                base_y,
+                clip_left,
+                clip_top,
+                clip_right,
+                clip_bottom,
+                color);
         }
         int adv = pixfont->char_advance[c];
         if( adv <= 0 )

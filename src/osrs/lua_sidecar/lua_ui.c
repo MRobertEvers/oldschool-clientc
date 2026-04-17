@@ -12,6 +12,7 @@
 #include "osrs/revconfig/uitree_load.h"
 #include "osrs/rs_component_state.h"
 #include "osrs/world.h"
+#include "tori_rs.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -354,6 +355,9 @@ LuaUI_load_revconfig_ui(
 
     revconfig_buffer_free(game->pending_revconfig);
     game->pending_revconfig = NULL;
+
+    if( game->world && game->world->minimap )
+        LibToriRS_WorldMinimapStaticRebuild(game);
 
     return LuaGameType_NewVoid();
 }

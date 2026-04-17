@@ -278,9 +278,45 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
 
     if( game->view_port )
     {
+        game->view_port->stride = renderer->width;
+
+        const int ox = renderer->dash_offset_x;
+        const int oy = renderer->dash_offset_y;
+        const int max_vp_w = renderer->width - ox;
+        const int max_vp_h = renderer->height - oy;
+        if( max_vp_w > 0 && max_vp_h > 0 )
+        {
+            if( game->view_port->width > max_vp_w )
+                game->view_port->width = max_vp_w;
+            if( game->view_port->height > max_vp_h )
+                game->view_port->height = max_vp_h;
+
+            if( game->view_port->clip_left < 0 )
+                game->view_port->clip_left = 0;
+            if( game->view_port->clip_top < 0 )
+                game->view_port->clip_top = 0;
+            if( game->view_port->clip_right > max_vp_w )
+                game->view_port->clip_right = max_vp_w;
+            if( game->view_port->clip_bottom > max_vp_h )
+                game->view_port->clip_bottom = max_vp_h;
+            if( game->view_port->clip_right > game->view_port->width )
+                game->view_port->clip_right = game->view_port->width;
+            if( game->view_port->clip_bottom > game->view_port->height )
+                game->view_port->clip_bottom = game->view_port->height;
+            if( game->view_port->clip_left >= game->view_port->clip_right )
+            {
+                game->view_port->clip_left = 0;
+                game->view_port->clip_right = game->view_port->width;
+            }
+            if( game->view_port->clip_top >= game->view_port->clip_bottom )
+            {
+                game->view_port->clip_top = 0;
+                game->view_port->clip_bottom = game->view_port->height;
+            }
+        }
+
         game->view_port->x_center = game->view_port->width / 2;
         game->view_port->y_center = game->view_port->height / 2;
-        game->view_port->stride = renderer->width;
     }
 
     struct ToriRSRenderCommand command = { 0 };
@@ -316,16 +352,45 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
         {
             struct DashPixFont* f = command._font_draw.font;
             const uint8_t* text = command._font_draw.text;
-            if( f && text && renderer->pixel_buffer )
+            if( !f || !text || !renderer->pixel_buffer )
+                break;
+            const int ox = renderer->dash_offset_x;
+            const int oy = renderer->dash_offset_y;
+            const int fx = command._font_draw.x + ox;
+            const int fy = command._font_draw.y + oy;
+            int cl = 0;
+            int ct = 0;
+            int cr = renderer->width;
+            int cb = renderer->height;
+            if( game->view_port )
             {
-                dashfont_draw_text_ex(
+                cl = ox;
+                ct = oy;
+                cr = ox + game->view_port->width;
+                cb = oy + game->view_port->height;
+                if( cl < 0 )
+                    cl = 0;
+                if( ct < 0 )
+                    ct = 0;
+                if( cr > renderer->width )
+                    cr = renderer->width;
+                if( cb > renderer->height )
+                    cb = renderer->height;
+            }
+            if( cl < cr && ct < cb )
+            {
+                dashfont_draw_text_ex_clipped(
                     f,
                     (uint8_t*)text,
-                    command._font_draw.x,
-                    command._font_draw.y,
+                    fx,
+                    fy,
                     command._font_draw.color_rgb,
                     renderer->pixel_buffer,
-                    renderer->width);
+                    renderer->width,
+                    cl,
+                    ct,
+                    cr,
+                    cb);
             }
         }
         break;
