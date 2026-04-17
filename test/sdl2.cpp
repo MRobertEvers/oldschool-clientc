@@ -11,17 +11,17 @@ extern "C" {
 #include "3rd/lua/lua.h"
 #include "3rd/lua/lualib.h"
 }
-#include "platforms/platform_impl2_osx_sdl2.h"
+#include "platforms/platform_impl2_sdl2.h"
 #if defined(__APPLE__)
-#include "platforms/platform_impl2_osx_sdl2_renderer_metal.h"
+#include "platforms/platform_impl2_sdl2_renderer_metal.h"
 #endif
 #if !defined(_WIN32)
-#include "platforms/platform_impl2_osx_sdl2_renderer_opengl3.h"
+#include "platforms/platform_impl2_sdl2_renderer_opengl3.h"
 #endif
 #if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
-#include "platforms/platform_impl2_osx_sdl2_renderer_d3d11.h"
+#include "platforms/platform_impl2_sdl2_renderer_d3d11.h"
 #endif
-#include "platforms/platform_impl2_osx_sdl2_renderer_soft3d.h"
+#include "platforms/platform_impl2_sdl2_renderer_soft3d.h"
 
 #include <SDL.h>
 #include <assert.h>
@@ -102,14 +102,14 @@ select_renderer(
 static void
 osx_abort_startup(
     struct GGame* game,
-    struct Platform2_OSX_SDL2* platform,
+    struct Platform2_SDL2* platform,
     struct ToriRSRenderCommandBuffer* rcb,
     struct ToriRSNetSharedBuffer* net)
 {
     if( game )
         LibToriRS_GameFree(game);
     if( platform )
-        Platform2_OSX_SDL2_Free(platform);
+        Platform2_SDL2_Free(platform);
     if( rcb )
         LibToriRS_RenderCommandBufferFree(rcb);
     if( net )
@@ -165,7 +165,7 @@ main(
     const int render_max_height = game_height;
     struct ToriRSRenderCommandBuffer* render_command_buffer =
         LibToriRS_RenderCommandBufferNew(1024);
-    struct Platform2_OSX_SDL2* platform = Platform2_OSX_SDL2_New();
+    struct Platform2_SDL2* platform = Platform2_SDL2_New();
     if( !platform )
     {
         printf("Failed to create platform\n");
@@ -177,7 +177,7 @@ main(
 #if !defined(_WIN32)
     if( renderer_kind == RENDERER_OPENGL3 )
     {
-        if( !Platform2_OSX_SDL2_InitForOpenGL3(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
+        if( !Platform2_SDL2_InitForOpenGL3(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
         {
             printf("Failed to initialize platform for OpenGL3\n");
             osx_abort_startup(game, platform, render_command_buffer, net_shared);
@@ -189,7 +189,7 @@ main(
 #if defined(__APPLE__)
         if( renderer_kind == RENDERER_METAL )
     {
-        if( !Platform2_OSX_SDL2_InitForMetal(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
+        if( !Platform2_SDL2_InitForMetal(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
         {
             printf("Failed to initialize platform for Metal\n");
             osx_abort_startup(game, platform, render_command_buffer, net_shared);
@@ -201,7 +201,7 @@ main(
 #if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
         if( renderer_kind == RENDERER_D3D11 )
     {
-        if( !Platform2_OSX_SDL2_InitForD3D11(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
+        if( !Platform2_SDL2_InitForD3D11(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
         {
             printf("Failed to initialize platform for D3D11\n");
             osx_abort_startup(game, platform, render_command_buffer, net_shared);
@@ -210,38 +210,38 @@ main(
     }
     else
 #endif
-        if( !Platform2_OSX_SDL2_InitForSoft3D(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
+        if( !Platform2_SDL2_InitForSoft3D(platform, SCREEN_WIDTH, SCREEN_HEIGHT) )
     {
         printf("Failed to initialize platform\n");
         osx_abort_startup(game, platform, render_command_buffer, net_shared);
         return 1;
     }
 
-    Platform2_OSX_SDL2_Renderer_Soft3D* renderer_soft3d = NULL;
+    Platform2_SDL2_Renderer_Soft3D* renderer_soft3d = NULL;
 #if !defined(_WIN32)
-    struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer_opengl3 = NULL;
+    struct Platform2_SDL2_Renderer_OpenGL3* renderer_opengl3 = NULL;
 #endif
 #if defined(__APPLE__)
-    struct Platform2_OSX_SDL2_Renderer_Metal* renderer_metal = NULL;
+    struct Platform2_SDL2_Renderer_Metal* renderer_metal = NULL;
 #endif
 #if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
-    struct Platform2_OSX_SDL2_Renderer_D3D11* renderer_d3d11 = NULL;
+    struct Platform2_SDL2_Renderer_D3D11* renderer_d3d11 = NULL;
 #endif
 
 #if !defined(_WIN32)
     if( renderer_kind == RENDERER_OPENGL3 )
     {
-        renderer_opengl3 = PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_New(SCREEN_WIDTH, SCREEN_HEIGHT);
+        renderer_opengl3 = PlatformImpl2_SDL2_Renderer_OpenGL3_New(SCREEN_WIDTH, SCREEN_HEIGHT);
         if( !renderer_opengl3 )
         {
             printf("Failed to create OpenGL3 renderer\n");
             osx_abort_startup(game, platform, render_command_buffer, net_shared);
             return 1;
         }
-        if( !PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Init(renderer_opengl3, platform) )
+        if( !PlatformImpl2_SDL2_Renderer_OpenGL3_Init(renderer_opengl3, platform) )
         {
             printf("Failed to initialize OpenGL3 renderer\n");
-            PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Free(renderer_opengl3);
+            PlatformImpl2_SDL2_Renderer_OpenGL3_Free(renderer_opengl3);
             osx_abort_startup(game, platform, render_command_buffer, net_shared);
             return 1;
         }
@@ -251,17 +251,17 @@ main(
 #if defined(__APPLE__)
         if( renderer_kind == RENDERER_METAL )
     {
-        renderer_metal = PlatformImpl2_OSX_SDL2_Renderer_Metal_New(SCREEN_WIDTH, SCREEN_HEIGHT);
+        renderer_metal = PlatformImpl2_SDL2_Renderer_Metal_New(SCREEN_WIDTH, SCREEN_HEIGHT);
         if( !renderer_metal )
         {
             printf("Failed to create Metal renderer\n");
             osx_abort_startup(game, platform, render_command_buffer, net_shared);
             return 1;
         }
-        if( !PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(renderer_metal, platform) )
+        if( !PlatformImpl2_SDL2_Renderer_Metal_Init(renderer_metal, platform) )
         {
             printf("Failed to initialize Metal renderer\n");
-            PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(renderer_metal);
+            PlatformImpl2_SDL2_Renderer_Metal_Free(renderer_metal);
             osx_abort_startup(game, platform, render_command_buffer, net_shared);
             return 1;
         }
@@ -271,17 +271,17 @@ main(
 #if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
         if( renderer_kind == RENDERER_D3D11 )
     {
-        renderer_d3d11 = PlatformImpl2_OSX_SDL2_Renderer_D3D11_New(SCREEN_WIDTH, SCREEN_HEIGHT);
+        renderer_d3d11 = PlatformImpl2_SDL2_Renderer_D3D11_New(SCREEN_WIDTH, SCREEN_HEIGHT);
         if( !renderer_d3d11 )
         {
             printf("Failed to create D3D11 renderer\n");
             osx_abort_startup(game, platform, render_command_buffer, net_shared);
             return 1;
         }
-        if( !PlatformImpl2_OSX_SDL2_Renderer_D3D11_Init(renderer_d3d11, platform) )
+        if( !PlatformImpl2_SDL2_Renderer_D3D11_Init(renderer_d3d11, platform) )
         {
             printf("Failed to initialize D3D11 renderer\n");
-            PlatformImpl2_OSX_SDL2_Renderer_D3D11_Free(renderer_d3d11);
+            PlatformImpl2_SDL2_Renderer_D3D11_Free(renderer_d3d11);
             osx_abort_startup(game, platform, render_command_buffer, net_shared);
             return 1;
         }
@@ -290,17 +290,17 @@ main(
 #endif
     {
         renderer_soft3d =
-            PlatformImpl2_OSX_SDL2_Renderer_Soft3D_New(SCREEN_WIDTH, SCREEN_HEIGHT, render_max_width, render_max_height);
+            PlatformImpl2_SDL2_Renderer_Soft3D_New(SCREEN_WIDTH, SCREEN_HEIGHT, render_max_width, render_max_height);
         if( !renderer_soft3d )
         {
             printf("Failed to create Soft3D renderer\n");
             osx_abort_startup(game, platform, render_command_buffer, net_shared);
             return 1;
         }
-        if( !PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Init(renderer_soft3d, platform) )
+        if( !PlatformImpl2_SDL2_Renderer_Soft3D_Init(renderer_soft3d, platform) )
         {
             printf("Failed to initialize Soft3D renderer\n");
-            PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Free(renderer_soft3d);
+            PlatformImpl2_SDL2_Renderer_Soft3D_Free(renderer_soft3d);
             osx_abort_startup(game, platform, render_command_buffer, net_shared);
             return 1;
         }
@@ -323,7 +323,7 @@ main(
     game->viewport_offset_x = 4;
     game->viewport_offset_y = 4;
     if( renderer_soft3d )
-        PlatformImpl2_OSX_SDL2_Renderer_Soft3D_SetDashOffset(renderer_soft3d, 4, 4);
+        PlatformImpl2_SDL2_Renderer_Soft3D_SetDashOffset(renderer_soft3d, 4, 4);
 
     struct SockStream* login_stream = NULL;
     sockstream_init();
@@ -342,14 +342,14 @@ main(
     int reconnect_requested = 0;
     while( LibToriRS_GameIsRunning(game) )
     {
-        Platform2_OSX_SDL2_RunLuaScripts(platform, game);
+        Platform2_SDL2_RunLuaScripts(platform, game);
 
         LibToriRSPlatformC_NetPoll(game->net_shared, login_stream);
         LibToriRS_NetPump(game);
 
         uint64_t timestamp_ms = SDL_GetTicks64();
 
-        Platform2_OSX_SDL2_PollEvents(platform, &input, 0);
+        Platform2_SDL2_PollEvents(platform, &input, 0);
 
         game->tick_ms = timestamp_ms;
 
@@ -357,23 +357,23 @@ main(
 
 #if !defined(_WIN32)
         if( renderer_opengl3 )
-            PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
+            PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
                 renderer_opengl3, game, render_command_buffer);
         else
 #endif
 #if defined(__APPLE__)
             if( renderer_metal )
-            PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
+            PlatformImpl2_SDL2_Renderer_Metal_Render(
                 renderer_metal, game, render_command_buffer);
         else
 #endif
 #if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
             if( renderer_d3d11 )
-            PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
+            PlatformImpl2_SDL2_Renderer_D3D11_Render(
                 renderer_d3d11, game, render_command_buffer);
         else
 #endif
-            PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render(
+            PlatformImpl2_SDL2_Renderer_Soft3D_Render(
                 renderer_soft3d, game, render_command_buffer);
     }
 
@@ -386,21 +386,21 @@ main(
     sockstream_cleanup();
 #if !defined(_WIN32)
     if( renderer_opengl3 )
-        PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Free(renderer_opengl3);
+        PlatformImpl2_SDL2_Renderer_OpenGL3_Free(renderer_opengl3);
 #endif
 #if defined(__APPLE__)
     if( renderer_metal )
-        PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(renderer_metal);
+        PlatformImpl2_SDL2_Renderer_Metal_Free(renderer_metal);
 #endif
 #if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
     if( renderer_d3d11 )
-        PlatformImpl2_OSX_SDL2_Renderer_D3D11_Free(renderer_d3d11);
+        PlatformImpl2_SDL2_Renderer_D3D11_Free(renderer_d3d11);
 #endif
     if( renderer_soft3d )
-        PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Free(renderer_soft3d);
+        PlatformImpl2_SDL2_Renderer_Soft3D_Free(renderer_soft3d);
 
     LibToriRS_GameFree(game);
-    Platform2_OSX_SDL2_Free(platform);
+    Platform2_SDL2_Free(platform);
     LibToriRS_RenderCommandBufferFree(render_command_buffer);
     LibToriRS_NetFreeBuffer(net_shared);
 #if defined(__APPLE__)

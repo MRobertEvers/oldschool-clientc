@@ -176,45 +176,53 @@ set(COMMON_SOURCES
 
 # --- Native (OSX/Windows) Target ---
 if(NOT EMSCRIPTEN)
-    set(OSX_SOURCES
+    set(SDL2_NATIVE_SOURCES
         ${COMMON_SOURCES}
-        test/osx.cpp
-        src/platforms/platform_impl2_osx_sdl2.cpp
+        test/sdl2.cpp
+        src/platforms/platform_impl2_sdl2.cpp
         src/platforms/platform_impl2_sdl2_renderer_soft3d_shared.cpp
-        src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp
+        src/platforms/platform_impl2_sdl2_renderer_soft3d.cpp
         src/osrs/lua_sidecar/luac_sidecar_config.c
         src/osrs/lua_sidecar/luac_sidecar_command_dispatch.c
     )
 
+    if(APPLE)
+        list(APPEND SDL2_NATIVE_SOURCES src/platforms/platform_impl2_sdl2_port_osx.cpp)
+    elseif(WIN32)
+        list(APPEND SDL2_NATIVE_SOURCES src/platforms/platform_impl2_sdl2_port_win.cpp)
+    else()
+        list(APPEND SDL2_NATIVE_SOURCES src/platforms/platform_impl2_sdl2_port_linux.cpp)
+    endif()
+
     if(NOT WIN32)
-        list(APPEND OSX_SOURCES
-            src/platforms/platform_impl2_osx_sdl2_renderer_opengl3.cpp
+        list(APPEND SDL2_NATIVE_SOURCES
+            src/platforms/platform_impl2_sdl2_renderer_opengl3.cpp
             src/osrs/pix3dgl.cpp
         )
     endif()
 
     if(APPLE)
-        list(APPEND OSX_SOURCES
-            src/platforms/platform_impl2_osx_sdl2_renderer_metal.mm
+        list(APPEND SDL2_NATIVE_SOURCES
+            src/platforms/platform_impl2_sdl2_renderer_metal.mm
             src/nuklear/backends/torirs_nk_metal_sdl.mm
         )
     endif()
 
-    add_executable(osx ${OSX_SOURCES})
+    add_executable(sdl2 ${SDL2_NATIVE_SOURCES})
 
     if(WIN32)
-        # D3D11 renderer sources are not built; gate references in test/osx.cpp.
-        target_compile_definitions(osx PRIVATE TORIRS_NO_D3D11=1)
+        # D3D11 renderer sources are not built; gate references in test/sdl2.cpp.
+        target_compile_definitions(sdl2 PRIVATE TORIRS_NO_D3D11=1)
     endif()
 
     if(ENABLE_PACKAGE_BUILD)
-        target_compile_definitions(osx PRIVATE
+        target_compile_definitions(sdl2 PRIVATE
             LUA_SCRIPTS_DIR="scripts"
             CONFIG_DIRECTORY="configs"
             CACHE_PATH="cache254"
             CACHE_DAT_PATH="cache254"
         )
-        set(_osx_pkg_post_build
+        set(_sdl2_pkg_post_build
             COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_SOURCE_DIR}/src/osrs/scripts"
                 "${CMAKE_CURRENT_BINARY_DIR}/scripts"
@@ -223,7 +231,7 @@ if(NOT EMSCRIPTEN)
                 "${CMAKE_CURRENT_BINARY_DIR}/configs"
         )
         if(EXISTS "${CMAKE_SOURCE_DIR}/../cache254")
-            list(APPEND _osx_pkg_post_build
+            list(APPEND _sdl2_pkg_post_build
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
                     "${CMAKE_SOURCE_DIR}/../cache254"
                     "${CMAKE_CURRENT_BINARY_DIR}/cache254"
@@ -234,27 +242,27 @@ if(NOT EMSCRIPTEN)
                 "Place or symlink a cache254 folder next to the repo for a full distributable build."
             )
         endif()
-        add_custom_command(TARGET osx POST_BUILD
-            ${_osx_pkg_post_build}
-            COMMENT "ENABLE_PACKAGE_BUILD: copy resources next to osx executable"
+        add_custom_command(TARGET sdl2 POST_BUILD
+            ${_sdl2_pkg_post_build}
+            COMMENT "ENABLE_PACKAGE_BUILD: copy resources next to sdl2 executable"
         )
     endif()
 
     find_package(SDL2 REQUIRED)
-    target_link_libraries(osx SDL2::SDL2)
+    target_link_libraries(sdl2 SDL2::SDL2)
 
     if(NOT WIN32)
         find_package(OpenGL REQUIRED)
-        target_link_libraries(osx OpenGL::GL)
+        target_link_libraries(sdl2 OpenGL::GL)
     endif()
 
     if(WIN32)
-        target_link_libraries(osx ws2_32 psapi)
-        target_link_options(osx PRIVATE -Wl,-subsystem,console)
+        target_link_libraries(sdl2 ws2_32 psapi)
+        target_link_options(sdl2 PRIVATE -Wl,-subsystem,console)
     endif()
 
     if(APPLE)
-        target_link_libraries(osx
+        target_link_libraries(sdl2
             "-framework Metal"
             "-framework MetalKit"
             "-framework QuartzCore"
@@ -262,12 +270,12 @@ if(NOT EMSCRIPTEN)
         )
         # Enable ARC only for the Objective-C++ Metal files
         set_source_files_properties(
-            src/platforms/platform_impl2_osx_sdl2_renderer_metal.mm
+            src/platforms/platform_impl2_sdl2_renderer_metal.mm
             src/nuklear/backends/torirs_nk_metal_sdl.mm
             PROPERTIES COMPILE_FLAGS "-fobjc-arc"
         )
 
-        # Compile src/Shaders.metal -> Shaders.metallib next to the osx binary (runtime load path)
+        # Compile src/Shaders.metal -> Shaders.metallib next to the sdl2 binary (runtime load path)
         set(_SHADERS_METAL "${CMAKE_CURRENT_SOURCE_DIR}/src/Shaders.metal")
         set(_SHADERS_AIR "${CMAKE_CURRENT_BINARY_DIR}/Shaders.air")
         set(_SHADERS_METALLIB "${CMAKE_CURRENT_BINARY_DIR}/Shaders.metallib")
@@ -280,16 +288,16 @@ if(NOT EMSCRIPTEN)
             COMMENT "Compiling Shaders.metal -> Shaders.metallib"
         )
         add_custom_target(shaders_metallib DEPENDS "${_SHADERS_METALLIB}")
-        add_dependencies(osx shaders_metallib)
+        add_dependencies(sdl2 shaders_metallib)
     endif()
 
     if(ENABLE_ASAN)
-        target_compile_options(osx PRIVATE -fsanitize=address -fno-omit-frame-pointer)
-        target_link_options(osx PRIVATE -fsanitize=address)
+        target_compile_options(sdl2 PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+        target_link_options(sdl2 PRIVATE -fsanitize=address)
     endif()
     if(ENABLE_UBSAN)
-        target_compile_options(osx PRIVATE -fsanitize=undefined -fno-omit-frame-pointer)
-        target_link_options(osx PRIVATE -fsanitize=undefined)
+        target_compile_options(sdl2 PRIVATE -fsanitize=undefined -fno-omit-frame-pointer)
+        target_link_options(sdl2 PRIVATE -fsanitize=undefined)
     endif()
     add_executable(interface161_test
         tools/interface161_test/main.c
@@ -386,10 +394,11 @@ if(EMSCRIPTEN)
     add_executable(web_client
         ${COMMON_SOURCES}
         test/browser.cpp
-        src/platforms/platform_impl2_emscripten_sdl2.cpp
+        src/platforms/platform_impl2_sdl2.cpp
+        src/platforms/platform_impl2_sdl2_port_emscripten.cpp
         src/platforms/platform_impl2_sdl2_renderer_soft3d_shared.cpp
-        src/platforms/platform_impl2_emscripten_sdl2_renderer_soft3d.cpp
-        src/platforms/platform_impl2_emscripten_sdl2_renderer_webgl1.cpp
+        src/platforms/platform_impl2_sdl2_renderer_soft3d.cpp
+        src/platforms/platform_impl2_sdl2_renderer_webgl1.cpp
         src/osrs/pix3dgl_opengles2.cpp
         src/platforms/browser2/luajs_sidecar.c
         src/platforms/browser2/luajs_gametypes.c
@@ -530,7 +539,7 @@ if(EMSCRIPTEN)
 endif()
 
 # Always set ENABLE_HEAP_INFO to 0 or 1 so #if ENABLE_HEAP_INFO works (#ifdef is true even for =0).
-foreach(_t_nk_heap osx web_client web_client_native)
+foreach(_t_nk_heap sdl2 web_client web_client_native)
     if(TARGET ${_t_nk_heap})
         if(ENABLE_HEAP_INFO)
             target_compile_definitions(${_t_nk_heap} PRIVATE ENABLE_HEAP_INFO=1)
@@ -540,7 +549,7 @@ foreach(_t_nk_heap osx web_client web_client_native)
     endif()
 endforeach()
 
-foreach(_t_bucket_sort osx web_client web_client_native)
+foreach(_t_bucket_sort sdl2 web_client web_client_native)
     if(TARGET ${_t_bucket_sort})
         if(DASH_BUCKET_SORT_USE_LINKED_LIST)
             target_compile_definitions(${_t_bucket_sort} PRIVATE DASH_BUCKET_SORT_USE_LINKED_LIST=1)
@@ -551,7 +560,7 @@ foreach(_t_bucket_sort osx web_client web_client_native)
 endforeach()
 
 # --- Global Properties ---
-foreach(target osx web_client web_client_native)
+foreach(target sdl2 web_client web_client_native)
     if(TARGET ${target})
         target_include_directories(${target} PRIVATE src src/nuklear)
         set_target_properties(${target} PROPERTIES

@@ -331,7 +331,7 @@ example_ui_show_modal(const char* message)
  * Integration Instructions:
  * ============================================================================
  *
- * 1. In your main game initialization (e.g., platform_impl2_osx_sdl2.cpp):
+ * 1. In your main game initialization (e.g., platform_impl2_sdl2.cpp):
  *    - Call example_ui_init(game) after loading sprites and fonts
  *
  * 2. In your main game loop:
@@ -365,7 +365,7 @@ example_ui_show_modal(const char* message)
  * Platform-Specific Integration Example:
  * ============================================================================
  *
- * In platform_impl2_osx_sdl2_renderer_soft3d.cpp, add to the render function:
+ * In platform_impl2_sdl2_renderer_soft3d.cpp, add to the render function:
  *
  *     // After drawing the 3D scene:
  *     example_ui_draw(

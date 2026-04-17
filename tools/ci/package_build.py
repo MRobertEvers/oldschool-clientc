@@ -62,12 +62,12 @@ def resolve_path(repo: Path, p: str) -> Path:
 
 
 def find_executable(build_dir: Path) -> Path:
-    for name in ("osx.exe", "osx"):
+    for name in ("sdl2.exe", "sdl2"):
         cand = build_dir / name
         if cand.is_file():
             return cand
     raise FileNotFoundError(
-        f"No osx.exe or osx found in {build_dir}"
+        f"No sdl2.exe or sdl2 found in {build_dir}"
     )
 
 
@@ -207,7 +207,7 @@ def main() -> int:
     try:
         exe_path = find_executable(build_dir)
     except FileNotFoundError:
-        missing.append(f"{build_dir} (osx.exe or osx)")
+        missing.append(f"{build_dir} (sdl2.exe or sdl2)")
 
     if missing:
         print("package_build: missing required paths:", file=sys.stderr)

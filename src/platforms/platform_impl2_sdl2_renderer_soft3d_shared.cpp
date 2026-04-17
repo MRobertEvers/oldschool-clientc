@@ -6,22 +6,14 @@
 #include "platforms/common/torirs_nk_ui_bridge.h"
 #include "platforms/common/torirs_nuklear_debug_panel.h"
 
-#ifdef __EMSCRIPTEN__
-#include "platform_impl2_emscripten_sdl2.h"
-#else
-#include "platform_impl2_osx_sdl2.h"
-#endif
+#include "platform_impl2_sdl2.h"
 
 static SDL_Window*
 soft3d_platform_window(void* platform)
 {
     if( !platform )
         return NULL;
-#ifdef __EMSCRIPTEN__
-    return ((struct Platform2_Emscripten_SDL2*)platform)->window;
-#else
-    return ((struct Platform2_OSX_SDL2*)platform)->window;
-#endif
+    return ((struct Platform2_SDL2*)platform)->window;
 }
 
 static float
@@ -29,11 +21,7 @@ soft3d_platform_display_scale(void* platform)
 {
     if( !platform )
         return 1.0f;
-#ifdef __EMSCRIPTEN__
-    return ((struct Platform2_Emscripten_SDL2*)platform)->display_scale;
-#else
-    return ((struct Platform2_OSX_SDL2*)platform)->display_scale;
-#endif
+    return ((struct Platform2_SDL2*)platform)->display_scale;
 }
 
 extern "C" {
@@ -79,7 +67,7 @@ render_nuklear_overlay(
 }
 
 struct Platform2_SDL2_Renderer_Soft3D*
-PlatformImpl2_SDL2_Renderer_Soft3D_New(
+PlatformImpl2_SDL2_Renderer_Soft3DShared_New(
     int width,
     int height,
     int max_width,
@@ -116,7 +104,7 @@ PlatformImpl2_SDL2_Renderer_Soft3D_New(
 }
 
 void
-PlatformImpl2_SDL2_Renderer_Soft3D_Shutdown(struct Platform2_SDL2_Renderer_Soft3D* renderer)
+PlatformImpl2_SDL2_Renderer_Soft3DShared_Shutdown(struct Platform2_SDL2_Renderer_Soft3D* renderer)
 {
     if( !renderer )
         return;
@@ -139,17 +127,17 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Shutdown(struct Platform2_SDL2_Renderer_Soft3
 }
 
 void
-PlatformImpl2_SDL2_Renderer_Soft3D_Free(struct Platform2_SDL2_Renderer_Soft3D* renderer)
+PlatformImpl2_SDL2_Renderer_Soft3DShared_Free(struct Platform2_SDL2_Renderer_Soft3D* renderer)
 {
     if( !renderer )
         return;
-    PlatformImpl2_SDL2_Renderer_Soft3D_Shutdown(renderer);
+    PlatformImpl2_SDL2_Renderer_Soft3DShared_Shutdown(renderer);
     free(renderer->pixel_buffer);
     free(renderer);
 }
 
 bool
-PlatformImpl2_SDL2_Renderer_Soft3D_Init(
+PlatformImpl2_SDL2_Renderer_Soft3DShared_Init(
     struct Platform2_SDL2_Renderer_Soft3D* renderer,
     void* platform)
 {
@@ -203,7 +191,7 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Init(
 }
 
 void
-PlatformImpl2_SDL2_Renderer_Soft3D_SetDashOffset(
+PlatformImpl2_SDL2_Renderer_Soft3DShared_SetDashOffset(
     struct Platform2_SDL2_Renderer_Soft3D* renderer,
     int offset_x,
     int offset_y)
@@ -216,7 +204,7 @@ PlatformImpl2_SDL2_Renderer_Soft3D_SetDashOffset(
 }
 
 void
-PlatformImpl2_SDL2_Renderer_Soft3D_Render(
+PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
     struct Platform2_SDL2_Renderer_Soft3D* renderer,
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
@@ -535,7 +523,7 @@ PlatformImpl2_SDL2_Renderer_Soft3D_Render(
 }
 
 void
-PlatformImpl2_SDL2_Renderer_Soft3D_SetDynamicPixelSize(
+PlatformImpl2_SDL2_Renderer_Soft3DShared_SetDynamicPixelSize(
     struct Platform2_SDL2_Renderer_Soft3D* renderer,
     bool dynamic)
 {
@@ -543,7 +531,7 @@ PlatformImpl2_SDL2_Renderer_Soft3D_SetDynamicPixelSize(
 }
 
 void
-PlatformImpl2_SDL2_Renderer_Soft3D_SetViewportChangedCallback(
+PlatformImpl2_SDL2_Renderer_Soft3DShared_SetViewportChangedCallback(
     struct Platform2_SDL2_Renderer_Soft3D* renderer,
     void (*callback)(
         struct GGame* game,

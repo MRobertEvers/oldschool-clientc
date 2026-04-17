@@ -1,7 +1,7 @@
-#ifndef PLATFORM_IMPL2_OSX_SDL2_RENDERER_D3D11_H
-#define PLATFORM_IMPL2_OSX_SDL2_RENDERER_D3D11_H
+#ifndef PLATFORM_IMPL2_SDL2_RENDERER_D3D11_H
+#define PLATFORM_IMPL2_SDL2_RENDERER_D3D11_H
 
-#include "platform_impl2_osx_sdl2.h"
+#include "platform_impl2_sdl2.h"
 #include <SDL.h>
 #include <unordered_map>
 #include <unordered_set>
@@ -21,7 +21,7 @@ struct D3D11FontAtlasEntry
     ID3D11ShaderResourceView* srv;
 };
 
-struct Platform2_OSX_SDL2_Renderer_D3D11
+struct Platform2_SDL2_Renderer_D3D11
 {
     ID3D11Device* device;
     ID3D11DeviceContext* device_context;
@@ -54,7 +54,7 @@ struct Platform2_OSX_SDL2_Renderer_D3D11
     ID3D11Texture2D* dummy_texture;
     ID3D11ShaderResourceView* dummy_srv;
 
-    struct Platform2_OSX_SDL2* platform;
+    struct Platform2_SDL2* platform;
     int width;
     int height;
     bool d3d11_ready;
@@ -88,23 +88,23 @@ struct Platform2_OSX_SDL2_Renderer_D3D11
     std::unordered_map<struct DashPixFont*, D3D11FontAtlasEntry> font_atlas_cache;
 };
 
-struct Platform2_OSX_SDL2_Renderer_D3D11*
-PlatformImpl2_OSX_SDL2_Renderer_D3D11_New(
+struct Platform2_SDL2_Renderer_D3D11*
+PlatformImpl2_SDL2_Renderer_D3D11_New(
     int width,
     int height);
 
 void
-PlatformImpl2_OSX_SDL2_Renderer_D3D11_Free(
-    struct Platform2_OSX_SDL2_Renderer_D3D11* renderer);
+PlatformImpl2_SDL2_Renderer_D3D11_Free(
+    struct Platform2_SDL2_Renderer_D3D11* renderer);
 
 bool
-PlatformImpl2_OSX_SDL2_Renderer_D3D11_Init(
-    struct Platform2_OSX_SDL2_Renderer_D3D11* renderer,
-    struct Platform2_OSX_SDL2* platform);
+PlatformImpl2_SDL2_Renderer_D3D11_Init(
+    struct Platform2_SDL2_Renderer_D3D11* renderer,
+    struct Platform2_SDL2* platform);
 
 void
-PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
-    struct Platform2_OSX_SDL2_Renderer_D3D11* renderer,
+PlatformImpl2_SDL2_Renderer_D3D11_Render(
+    struct Platform2_SDL2_Renderer_D3D11* renderer,
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer);
 

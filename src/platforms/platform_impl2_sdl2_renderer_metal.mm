@@ -1,5 +1,5 @@
 // System ObjC/Metal headers must come before any game headers.
-#include "platform_impl2_osx_sdl2_renderer_metal.h"
+#include "platform_impl2_sdl2_renderer_metal.h"
 
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
@@ -209,7 +209,7 @@ compute_logical_viewport_rect(
     return rect;
 }
 
-// Same as platform_impl2_osx_sdl2_renderer_opengl3.cpp: rect.y is OpenGL
+// Same as platform_impl2_sdl2_renderer_opengl3.cpp: rect.y is OpenGL
 // bottom-left Y (not top-left).
 static MTLViewportRect
 compute_gl_world_viewport_rect(
@@ -463,7 +463,7 @@ append_model_face_vertices(
 // are built per-draw with the correct world offset so this is a no-op).
 static void
 preload_model_key(
-    struct Platform2_OSX_SDL2_Renderer_Metal* renderer,
+    struct Platform2_SDL2_Renderer_Metal* renderer,
     const struct DashModel* model)
 {
     if( !model )
@@ -478,7 +478,7 @@ preload_model_key(
 // ---------------------------------------------------------------------------
 static void
 render_nuklear_overlay(
-    struct Platform2_OSX_SDL2_Renderer_Metal* renderer,
+    struct Platform2_SDL2_Renderer_Metal* renderer,
     struct GGame* game,
     id<MTLRenderCommandEncoder> encoder)
 {
@@ -513,7 +513,7 @@ render_nuklear_overlay(
 // Sync drawable size from SDL Metal view
 // ---------------------------------------------------------------------------
 static void
-sync_drawable_size(struct Platform2_OSX_SDL2_Renderer_Metal* renderer)
+sync_drawable_size(struct Platform2_SDL2_Renderer_Metal* renderer)
 {
     if( !renderer || !renderer->metal_view )
         return;
@@ -533,12 +533,12 @@ sync_drawable_size(struct Platform2_OSX_SDL2_Renderer_Metal* renderer)
 // Public API
 // ---------------------------------------------------------------------------
 
-struct Platform2_OSX_SDL2_Renderer_Metal*
-PlatformImpl2_OSX_SDL2_Renderer_Metal_New(
+struct Platform2_SDL2_Renderer_Metal*
+PlatformImpl2_SDL2_Renderer_Metal_New(
     int width,
     int height)
 {
-    auto* renderer = new Platform2_OSX_SDL2_Renderer_Metal();
+    auto* renderer = new Platform2_SDL2_Renderer_Metal();
     renderer->mtl_device = nil;
     renderer->mtl_command_queue = nil;
     renderer->mtl_pipeline_state = nil;
@@ -568,7 +568,7 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_New(
 }
 
 void
-PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(struct Platform2_OSX_SDL2_Renderer_Metal* renderer)
+PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* renderer)
 {
     if( !renderer )
         return;
@@ -684,9 +684,9 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(struct Platform2_OSX_SDL2_Renderer_Me
 }
 
 bool
-PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
-    struct Platform2_OSX_SDL2_Renderer_Metal* renderer,
-    struct Platform2_OSX_SDL2* platform)
+PlatformImpl2_SDL2_Renderer_Metal_Init(
+    struct Platform2_SDL2_Renderer_Metal* renderer,
+    struct Platform2_SDL2* platform)
 {
     if( !renderer || !platform || !platform->window )
         return false;
@@ -1016,8 +1016,8 @@ PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
 }
 
 void
-PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
-    struct Platform2_OSX_SDL2_Renderer_Metal* renderer,
+PlatformImpl2_SDL2_Renderer_Metal_Render(
+    struct Platform2_SDL2_Renderer_Metal* renderer,
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
 {

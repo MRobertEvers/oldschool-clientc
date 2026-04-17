@@ -1,7 +1,7 @@
-#ifndef PLATFORM_IMPL2_OSX_SDL2_RENDERER_OPENGL3_H
-#define PLATFORM_IMPL2_OSX_SDL2_RENDERER_OPENGL3_H
+#ifndef PLATFORM_IMPL2_SDL2_RENDERER_OPENGL3_H
+#define PLATFORM_IMPL2_SDL2_RENDERER_OPENGL3_H
 
-#include "platform_impl2_osx_sdl2.h"
+#include "platform_impl2_sdl2.h"
 #include <SDL.h>
 #include <unordered_map>
 #include <vector>
@@ -25,10 +25,10 @@ struct GLFontAtlasEntry
     GLuint texture;
 };
 
-struct Platform2_OSX_SDL2_Renderer_OpenGL3
+struct Platform2_SDL2_Renderer_OpenGL3
 {
     SDL_GLContext gl_context;
-    struct Platform2_OSX_SDL2* platform;
+    struct Platform2_SDL2* platform;
     int width;
     int height;
     bool gl_context_ready;
@@ -44,23 +44,23 @@ struct Platform2_OSX_SDL2_Renderer_OpenGL3
     GLint font_uniform_tex;
 };
 
-struct Platform2_OSX_SDL2_Renderer_OpenGL3*
-PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_New(
+struct Platform2_SDL2_Renderer_OpenGL3*
+PlatformImpl2_SDL2_Renderer_OpenGL3_New(
     int width,
     int height);
 
 void
-PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Free(
-    struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer);
+PlatformImpl2_SDL2_Renderer_OpenGL3_Free(
+    struct Platform2_SDL2_Renderer_OpenGL3* renderer);
 
 bool
-PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Init(
-    struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer,
-    struct Platform2_OSX_SDL2* platform);
+PlatformImpl2_SDL2_Renderer_OpenGL3_Init(
+    struct Platform2_SDL2_Renderer_OpenGL3* renderer,
+    struct Platform2_SDL2* platform);
 
 void
-PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
-    struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer,
+PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
+    struct Platform2_SDL2_Renderer_OpenGL3* renderer,
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer);
 

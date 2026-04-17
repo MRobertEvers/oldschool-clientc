@@ -1,7 +1,7 @@
 #include "platforms/common/platform_memory.h"
-#include "platforms/platform_impl2_emscripten_sdl2.h"
-#include "platforms/platform_impl2_emscripten_sdl2_renderer_soft3d.h"
-#include "platforms/platform_impl2_emscripten_sdl2_renderer_webgl1.h"
+#include "platforms/platform_impl2_sdl2.h"
+#include "platforms/platform_impl2_sdl2_renderer_soft3d.h"
+#include "platforms/platform_impl2_sdl2_renderer_webgl1.h"
 #include "tori_rs.h"
 
 #include <emscripten.h>
@@ -116,8 +116,8 @@ set_game_ptr(struct GGame* game)
     // clang-format on
 }
 
-static Platform2_Emscripten_SDL2_Renderer_Soft3D* renderer = NULL;
-static struct Platform2_Emscripten_SDL2_Renderer_WebGL1* renderer_webgl1 = NULL;
+static struct Platform2_SDL2_Renderer_Soft3D* renderer = NULL;
+static struct Platform2_SDL2_Renderer_WebGL1* renderer_webgl1 = NULL;
 bool g_use_webgl1 = false;
 
 static bool
@@ -166,16 +166,16 @@ read_use_webgl1_from_window()
 void
 emscripten_main_loop(void* arg)
 {
-    struct Platform2_Emscripten_SDL2* platform = (struct Platform2_Emscripten_SDL2*)arg;
+    struct Platform2_SDL2* platform = (struct Platform2_SDL2*)arg;
 
     if( !platform->window )
         return;
 
     LibToriRS_NetPump(platform->current_game);
 
-    Platform2_Emscripten_SDL2_PollEvents(platform);
+    Platform2_SDL2_PollEvents(platform, NULL, 0);
 
-    Platform2_Emscripten_SDL2_RunLuaScripts(platform);
+    Platform2_SDL2_RunLuaScripts(platform, platform->current_game);
 
     LibToriRS_GameStep(platform->current_game, platform->input, platform->render_command_buffer);
 
@@ -183,14 +183,14 @@ emscripten_main_loop(void* arg)
     {
         if( !renderer_webgl1 )
             return;
-        PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Render(
+        PlatformImpl2_SDL2_Renderer_WebGL1_Render(
             renderer_webgl1, platform->current_game, platform->render_command_buffer);
     }
     else
     {
         if( !renderer )
             return;
-        PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Render(
+        PlatformImpl2_SDL2_Renderer_Soft3D_Render(
             renderer, platform->current_game, platform->render_command_buffer);
     }
 
@@ -202,7 +202,7 @@ luajs_sidecar_callback(
     void* ctx,
     struct LuaGameType* args)
 {
-    struct Platform2_Emscripten_SDL2* platform = (struct Platform2_Emscripten_SDL2*)ctx;
+    struct Platform2_SDL2* platform = (struct Platform2_SDL2*)ctx;
 
     // LuaGameType_Print(args);
 
@@ -243,7 +243,7 @@ main(
         platform_memory_info.heap_total,
         platform_memory_info.heap_peak);
 
-    struct Platform2_Emscripten_SDL2* platform = Platform2_Emscripten_SDL2_New();
+    struct Platform2_SDL2* platform = Platform2_SDL2_New();
     // These dimensions define the internal 3D render resolution used by the game/viewport.
     const int graphics3d_width = 513;
     const int graphics3d_height = 335;
@@ -291,17 +291,17 @@ main(
     g_use_webgl1 = read_use_webgl1_from_window();
     if( g_use_webgl1 )
     {
-        if( !Platform2_Emscripten_SDL2_InitForWebGL1(platform, game_width, game_height) )
+        if( !Platform2_SDL2_InitForWebGL1(platform, game_width, game_height) )
         {
             printf("Failed to initialize SDL window for WebGL1\n");
             return 1;
         }
 
-        renderer_webgl1 = PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_New(
+        renderer_webgl1 = PlatformImpl2_SDL2_Renderer_WebGL1_New(
             game_width, game_height, render_max_width, render_max_height);
         printf("renderer_webgl1: %p\n", renderer_webgl1);
         if( !renderer_webgl1 ||
-            !PlatformImpl2_Emscripten_SDL2_Renderer_WebGL1_Init(renderer_webgl1, platform) )
+            !PlatformImpl2_SDL2_Renderer_WebGL1_Init(renderer_webgl1, platform) )
         {
             printf("WebGL1 renderer init failed\n");
             return 1;
@@ -317,7 +317,7 @@ main(
             platform_memory_info.heap_used,
             platform_memory_info.heap_total,
             platform_memory_info.heap_peak);
-        if( !Platform2_Emscripten_SDL2_InitForSoft3D(platform, game_width, game_height) )
+        if( !Platform2_SDL2_InitForSoft3D(platform, game_width, game_height) )
         {
             printf("Failed to initialize SDL window for Soft3D\n");
             return 1;
@@ -331,9 +331,9 @@ main(
             platform_memory_info.heap_total,
             platform_memory_info.heap_peak);
 
-        renderer = PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_New(
+        renderer = PlatformImpl2_SDL2_Renderer_Soft3D_New(
             game_width, game_height, render_max_width, render_max_height);
-        if( !renderer || !PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_Init(renderer, platform) )
+        if( !renderer || !PlatformImpl2_SDL2_Renderer_Soft3D_Init(renderer, platform) )
         {
             printf("Soft3D renderer init failed\n");
             return 1;
@@ -358,12 +358,12 @@ main(
         platform_memory_info.heap_used,
         platform_memory_info.heap_total,
         platform_memory_info.heap_peak);
-    /* Keep viewport config identical across renderer backends (same as osx.cpp). */
+    /* Keep viewport config identical across renderer backends (same as sdl2.cpp). */
     game->viewport_offset_x = 4;
     game->viewport_offset_y = 4;
     if( renderer )
     {
-        PlatformImpl2_Emscripten_SDL2_Renderer_Soft3D_SetDashOffset(renderer, 4, 4);
+        PlatformImpl2_SDL2_Renderer_Soft3D_SetDashOffset(renderer, 4, 4);
         renderer->clicked_tile_x = -1;
         renderer->clicked_tile_z = -1;
         renderer->clicked_tile_level = -1;

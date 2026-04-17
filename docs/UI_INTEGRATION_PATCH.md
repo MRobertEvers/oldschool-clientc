@@ -4,7 +4,7 @@ This guide shows how to integrate the UI system into the existing platform code.
 
 ## Option 1: Quick Test Integration (Minimal Changes)
 
-Add these lines to `src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp`:
+Add these lines to `src/platforms/platform_impl2_sdl2_renderer_soft3d.cpp`:
 
 ### 1. Add include at top of file (after other includes)
 
@@ -23,7 +23,7 @@ static struct UIContext* g_ui = NULL;
 ### 3. Initialize UI in your init function
 
 ```cpp
-// In platform_impl2_osx_sdl2_renderer_soft3d_init or similar:
+// In platform_impl2_sdl2_renderer_soft3d_init or similar:
 g_ui = ui_new();
 if (g_ui) {
     ui_set_state(g_ui, UI_STATE_TITLE);

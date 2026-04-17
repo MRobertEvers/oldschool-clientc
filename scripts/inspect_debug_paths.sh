@@ -2,7 +2,7 @@
 # Inspect debug paths in a MinGW-built executable
 # Usage: ./inspect_debug_paths.sh [path_to_exe]
 
-EXE="${1:-build-mingw/osx.exe}"
+EXE="${1:-build-mingw/sdl2.exe}"
 
 if [ ! -f "$EXE" ]; then
     echo "Error: Executable not found: $EXE"

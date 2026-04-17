@@ -272,7 +272,7 @@ Potential additions:
 Run tests with:
 
 ```bash
-./build/osx  # or your platform executable
+./build/sdl2  # or your platform executable
 ```
 
 Test checklist:

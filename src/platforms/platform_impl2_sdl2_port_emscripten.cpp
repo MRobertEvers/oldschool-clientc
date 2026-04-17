@@ -1,16 +1,15 @@
-#include "platform_impl2_emscripten_sdl2.h"
+#include "platform_impl2_sdl2.h"
+#include "platform_impl2_sdl2_internal.h"
 
 extern "C" {
 #include "common/tori_rs_sdl2_gameinput.h"
+#include "osrs/game.h"
+#include "tori_rs.h"
 }
 
 #include "platforms/common/torirs_nk_ui_bridge.h"
 
-// #include "osrs/rscache/cache_dat.h"
-// #include "tori_rs.h"
-
 #include <emscripten/html5.h>
-
 #include <SDL.h>
 #include <emscripten.h>
 #include <stdio.h>
@@ -23,7 +22,7 @@ transform_mouse_coordinates(
     int window_mouse_y,
     int* game_mouse_x,
     int* game_mouse_y,
-    struct Platform2_Emscripten_SDL2* platform)
+    struct Platform2_SDL2* platform)
 {
     float src_aspect = (float)platform->game_screen_width / (float)platform->game_screen_height;
     float dst_aspect = (float)platform->drawable_width / (float)platform->drawable_height;
@@ -61,33 +60,29 @@ transform_mouse_coordinates(
     }
 }
 
-struct Platform2_Emscripten_SDL2*
-Platform2_Emscripten_SDL2_New(void)
+bool
+PlatformImpl2_SDL2_Port_Emscripten_InitNewFields(struct Platform2_SDL2* platform)
 {
-    struct Platform2_Emscripten_SDL2* platform =
-        (struct Platform2_Emscripten_SDL2*)malloc(sizeof(struct Platform2_Emscripten_SDL2));
-    memset(platform, 0, sizeof(struct Platform2_Emscripten_SDL2));
-
     platform->input = (struct GInput*)malloc(sizeof(struct GInput));
+    if( !platform->input )
+        return false;
     memset(platform->input, 0, sizeof(struct GInput));
-
-    // platform->game = LibToriRS_GameNew(NULL, 513, 335);
-    // platform->render_command_buffer = LibToriRS_RenderCommandBufferNew(1024);
-
-    return platform;
+    return true;
 }
 
 void
-Platform2_Emscripten_SDL2_Free(struct Platform2_Emscripten_SDL2* platform)
+PlatformImpl2_SDL2_Port_Emscripten_FreeExtra(struct Platform2_SDL2* platform)
 {
     if( platform->input )
+    {
         free(platform->input);
-    free(platform);
+        platform->input = NULL;
+    }
 }
 
 bool
-Platform2_Emscripten_SDL2_InitForSoft3D(
-    struct Platform2_Emscripten_SDL2* platform,
+PlatformImpl2_SDL2_Port_Emscripten_InitForSoft3D(
+    struct Platform2_SDL2* platform,
     int canvas_width,
     int canvas_height)
 {
@@ -103,9 +98,7 @@ Platform2_Emscripten_SDL2_InitForSoft3D(
         SDL_WINDOWPOS_UNDEFINED,
         canvas_width,
         canvas_height,
-        SDL_WINDOW_SHOWN |
-            SDL_WINDOW_RESIZABLE); // Use SHOWN instead of OPENGL for Emscripten - context created
-                                   // separately, RESIZABLE allows full-width canvas
+        SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
     if( !platform->window )
     {
         printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
@@ -125,8 +118,8 @@ Platform2_Emscripten_SDL2_InitForSoft3D(
 }
 
 bool
-Platform2_Emscripten_SDL2_InitForWebGL1(
-    struct Platform2_Emscripten_SDL2* platform,
+PlatformImpl2_SDL2_Port_Emscripten_InitForWebGL1(
+    struct Platform2_SDL2* platform,
     int canvas_width,
     int canvas_height)
 {
@@ -168,8 +161,8 @@ Platform2_Emscripten_SDL2_InitForWebGL1(
 }
 
 void
-Platform2_Emscripten_SDL2_SyncCanvasCssSize(
-    struct Platform2_Emscripten_SDL2* platform,
+PlatformImpl2_SDL2_Port_Emscripten_SyncCanvasCssSize(
+    struct Platform2_SDL2* platform,
     struct GGame* game_nullable)
 {
     if( !platform )
@@ -183,10 +176,6 @@ Platform2_Emscripten_SDL2_SyncCanvasCssSize(
     if( new_w <= 0 || new_h <= 0 )
         return;
 
-    /* One-time initialisation: set iface_view_port clip bounds to the fixed output size.
-     * LibToriRS_GameNew leaves clip_right = 0; browser.cpp sets width/height/stride but
-     * not the clip fields.  We must do this before the size-change guard so it runs even
-     * when the canvas is already the same size as the initial SDL window. */
     if( game_nullable && game_nullable->iface_view_port &&
         game_nullable->iface_view_port->clip_right <= 0 && platform->game_screen_width > 0 )
     {
@@ -204,10 +193,6 @@ Platform2_Emscripten_SDL2_SyncCanvasCssSize(
     platform->window_height = new_h;
     platform->drawable_width = new_w;
     platform->drawable_height = new_h;
-    /* game_screen_width/height and iface_view_port width/height/stride are fixed at
-     * output resolution and are intentionally NOT updated here — all viewport values
-     * are in output space, not canvas/window space.  The renderers letterbox the
-     * output into the canvas. */
 
     if( platform->window )
         SDL_SetWindowSize(platform->window, new_w, new_h);
@@ -216,32 +201,24 @@ Platform2_Emscripten_SDL2_SyncCanvasCssSize(
 }
 
 void
-Platform2_Emscripten_SDL2_Shutdown(struct Platform2_Emscripten_SDL2* platform)
+PlatformImpl2_SDL2_Port_Emscripten_PollEvents(
+    struct Platform2_SDL2* platform,
+    struct GInput* input,
+    int chat_focused)
 {
-    if( platform->window )
-    {
-        SDL_DestroyWindow(platform->window);
-        platform->window = NULL;
-    }
-    SDL_Quit();
-}
+    (void)chat_focused;
+    struct GInput* poll_input = input ? input : platform->input;
 
-void
-Platform2_Emscripten_SDL2_PollEvents(struct Platform2_Emscripten_SDL2* platform)
-{
-    struct GInput* input = platform->input;
-
-    Platform2_Emscripten_SDL2_SyncCanvasCssSize(platform, platform->current_game);
+    PlatformImpl2_SDL2_Port_Emscripten_SyncCanvasCssSize(platform, platform->current_game);
 
     double time_s = (double)(SDL_GetTicks64()) / 1000.0;
-    ToriRSLibPlatform_SDL2_GameInput_PollEvents(input, time_s);
-    /* Keep game mouse coords in sync when the canvas resizes without a motion event. */
+    ToriRSLibPlatform_SDL2_GameInput_PollEvents(poll_input, time_s);
     if( !torirs_nk_ui_want_capture_mouse_prev() )
     {
         int mx = 0;
         int my = 0;
         SDL_GetMouseState(&mx, &my);
-        transform_mouse_coordinates(mx, my, &input->mouse_state.x, &input->mouse_state.y, platform);
+        transform_mouse_coordinates(mx, my, &poll_input->mouse_state.x, &poll_input->mouse_state.y, platform);
     }
 }
 
@@ -254,26 +231,23 @@ send_lua_game_script_to_js(struct LuaGameScript* script)
             if (typeof window.done === 'undefined') {
                 window.done = false;
             }
-            
-            var script = $0; // Convert C++ pointer to JS LuaGameScript
+            var script = $0;
             window.LUA_SCRIPT_QUEUE = window.LUA_SCRIPT_QUEUE || [];
-            window.LUA_SCRIPT_QUEUE.push(script); // Add to queue
+            window.LUA_SCRIPT_QUEUE.push(script);
         },
         script);
-
     // clang-format on
 }
 
 void
-Platform2_Emscripten_SDL2_RunLuaScripts(struct Platform2_Emscripten_SDL2* platform)
+PlatformImpl2_SDL2_Port_Emscripten_RunLuaScripts(struct Platform2_SDL2* platform, struct GGame* game)
 {
     struct LuaGameScript* script = NULL;
-    int script_status = 0;
 
-    while( !LibToriRS_LuaScriptQueueIsEmpty(platform->current_game) )
+    while( !LibToriRS_LuaScriptQueueIsEmpty(game) )
     {
         script = LuaGameScript_New();
-        LibToriRS_LuaScriptQueuePop(platform->current_game, script);
+        LibToriRS_LuaScriptQueuePop(game, script);
 
         send_lua_game_script_to_js(script);
     }

@@ -633,7 +633,7 @@ return;
 sudo ../profile.d -c ./scene_tile_test > out.stacks
 
 sudo ../profile.d -c ./main_client > out.stacks
-sudo ../profile.d -c ./osx > out.stacks
+sudo ../profile.d -c ./sdl2 > out.stacks
 ```
 
 Then using flamegraph
@@ -818,7 +818,7 @@ On linux
 valgrind --leak-check=full ./scene_tile_test
 
 valgrind --leak-check=full ./scene_tile_test > log.txt 2>&1
-valgrind --leak-check=full ./osx > log.txt 2>&1
+valgrind --leak-check=full ./sdl2 > log.txt 2>&1
 
 # Callgrind must be built without ASan
 valgrind --tool=callgrind  ./model_viewer > log.txt 2>&1
@@ -826,7 +826,7 @@ valgrind --tool=callgrind  ./scene_tile_test > log.txt 2>&1
 callgrind_annotate $(ls callgrind.out.* | sort -V | tail -n 1) | less
 kcachegrind $(ls callgrind.out.* | sort -V | tail -n 1) | less
 
-valgrind --tool=massif --threshold=0.1 --massif-out-file=massif.out ./osx
+valgrind --tool=massif --threshold=0.1 --massif-out-file=massif.out ./sdl2
 ms_print massif.out > log_mem.txt
 massif-visualizer massif.out
 ```

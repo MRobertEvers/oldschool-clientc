@@ -1,38 +1,38 @@
-#include "platform_impl2_osx_sdl2_renderer_opengl3.h"
+#include "platform_impl2_sdl2_renderer_webgl1.h"
 
 #include "graphics/dash.h"
 #include "platforms/common/torirs_nk_ui_bridge.h"
 #include "platforms/common/torirs_nuklear_debug_panel.h"
 #include "tori_rs_render.h"
 
-#include <SDL.h>
-
-#define TORIRS_NK_SDL_GL3_IMPLEMENTATION
-#include "nuklear/backends/sdl_opengl3/nuklear_torirs_sdl_gl3.h"
-
 extern "C" {
 #include "platforms/common/platform_memory.h"
+#include "tori_rs.h"
 }
 
-#if defined(__APPLE__)
-#include <OpenGL/gl3.h>
-#else
-#define GL_GLEXT_PROTOTYPES
-#include <GL/glcorearb.h>
-#endif
+#include <SDL.h>
+
+#define TORIRS_NK_SDL_GLES2_IMPLEMENTATION
+#include "nuklear/backends/sdl_opengles2/nuklear_torirs_sdl_gles2.h"
+
+#include <GLES2/gl2.h>
+#include <emscripten/html5.h>
 
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <emscripten.h>
 
-static const char* g_font_vertex_shader = R"(
-#version 330 core
-layout(location = 0) in vec2 aPos;
-layout(location = 1) in vec2 aUv;
-layout(location = 2) in vec4 aColor;
+static struct nk_context* s_webgl_nk;
+static Uint64 s_webgl_ui_prev_perf;
+
+static const char* g_font_vertex_shader_es2 = R"(#version 100
+attribute vec2 aPos;
+attribute vec2 aUv;
+attribute vec4 aColor;
 uniform mat4 uProjection;
-out vec2 vUv;
-out vec4 vColor;
+varying vec2 vUv;
+varying vec4 vColor;
 void main()
 {
     vUv = aUv;
@@ -41,25 +41,22 @@ void main()
 }
 )";
 
-static const char* g_font_fragment_shader = R"(
-#version 330 core
-in vec2 vUv;
-in vec4 vColor;
+static const char* g_font_fragment_shader_es2 = R"(#version 100
+precision mediump float;
+varying vec2 vUv;
+varying vec4 vColor;
 uniform sampler2D uTex;
-out vec4 FragColor;
 void main()
 {
-    float a = texture(uTex, vUv).a;
+    float a = texture2D(uTex, vUv).a;
     if( a < 0.01 )
         discard;
-    FragColor = vec4(vColor.rgb, a * vColor.a);
+    gl_FragColor = vec4(vColor.rgb, a * vColor.a);
 }
 )";
 
 static GLuint
-compile_shader(
-    GLenum type,
-    const char* source)
+compile_shader_es2(GLenum type, const char* source)
 {
     GLuint shader = glCreateShader(type);
     glShaderSource(shader, 1, &source, NULL);
@@ -70,7 +67,7 @@ compile_shader(
     {
         char log[512];
         glGetShaderInfoLog(shader, sizeof(log), NULL, log);
-        printf("Font shader compile error: %s\n", log);
+        printf("Font shader compile error (ES2): %s\n", log);
         glDeleteShader(shader);
         return 0;
     }
@@ -78,13 +75,14 @@ compile_shader(
 }
 
 static GLuint
-link_program(
-    GLuint vert,
-    GLuint frag)
+link_program_es2(GLuint vert, GLuint frag)
 {
     GLuint prog = glCreateProgram();
     glAttachShader(prog, vert);
     glAttachShader(prog, frag);
+    glBindAttribLocation(prog, 0, "aPos");
+    glBindAttribLocation(prog, 1, "aUv");
+    glBindAttribLocation(prog, 2, "aColor");
     glLinkProgram(prog);
     GLint ok = 0;
     glGetProgramiv(prog, GL_LINK_STATUS, &ok);
@@ -92,7 +90,7 @@ link_program(
     {
         char log[512];
         glGetProgramInfoLog(prog, sizeof(log), NULL, log);
-        printf("Font program link error: %s\n", log);
+        printf("Font program link error (ES2): %s\n", log);
         glDeleteProgram(prog);
         return 0;
     }
@@ -100,13 +98,13 @@ link_program(
 }
 
 static bool
-gl3_ensure_font_program(struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer)
+webgl1_ensure_font_program(struct Platform2_SDL2_Renderer_WebGL1* renderer)
 {
     if( renderer->font_program )
         return true;
 
-    GLuint vs = compile_shader(GL_VERTEX_SHADER, g_font_vertex_shader);
-    GLuint fs = compile_shader(GL_FRAGMENT_SHADER, g_font_fragment_shader);
+    GLuint vs = compile_shader_es2(GL_VERTEX_SHADER, g_font_vertex_shader_es2);
+    GLuint fs = compile_shader_es2(GL_FRAGMENT_SHADER, g_font_fragment_shader_es2);
     if( !vs || !fs )
     {
         if( vs )
@@ -115,42 +113,33 @@ gl3_ensure_font_program(struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer)
             glDeleteShader(fs);
         return false;
     }
-    renderer->font_program = link_program(vs, fs);
+    renderer->font_program = link_program_es2(vs, fs);
     glDeleteShader(vs);
     glDeleteShader(fs);
     if( !renderer->font_program )
         return false;
 
-    renderer->font_uniform_projection = glGetUniformLocation(renderer->font_program, "uProjection");
+    renderer->font_attrib_pos = glGetAttribLocation(renderer->font_program, "aPos");
+    renderer->font_attrib_uv = glGetAttribLocation(renderer->font_program, "aUv");
+    renderer->font_attrib_color = glGetAttribLocation(renderer->font_program, "aColor");
+    renderer->font_uniform_projection =
+        glGetUniformLocation(renderer->font_program, "uProjection");
     renderer->font_uniform_tex = glGetUniformLocation(renderer->font_program, "uTex");
 
-    glGenVertexArrays(1, &renderer->font_vao);
     glGenBuffers(1, &renderer->font_vbo);
-
-    glBindVertexArray(renderer->font_vao);
-    glBindBuffer(GL_ARRAY_BUFFER, renderer->font_vbo);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(2 * sizeof(float)));
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(4 * sizeof(float)));
-    glBindVertexArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
     return true;
 }
 
 static void
-gl3_font_load(
-    struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer,
+webgl1_font_load(
+    struct Platform2_SDL2_Renderer_WebGL1* renderer,
     struct DashPixFont* font)
 {
     if( !font || !font->atlas )
         return;
     if( renderer->font_atlas_cache.count(font) )
         return;
-    if( !gl3_ensure_font_program(renderer) )
+    if( !webgl1_ensure_font_program(renderer) )
         return;
 
     struct DashFontAtlas* atlas = font->atlas;
@@ -169,7 +158,7 @@ gl3_font_load(
     glTexImage2D(
         GL_TEXTURE_2D,
         0,
-        GL_RGBA8,
+        GL_RGBA,
         atlas->atlas_width,
         atlas->atlas_height,
         0,
@@ -177,7 +166,7 @@ gl3_font_load(
         GL_UNSIGNED_BYTE,
         atlas->rgba_pixels);
 
-    GLFontAtlasEntry entry;
+    GLFontAtlasEntryES2 entry;
     entry.texture = tex;
     renderer->font_atlas_cache[font] = entry;
 }
@@ -303,6 +292,8 @@ model_gpu_cache_key(const struct DashModel* model)
     mix_word((uint64_t)(uintptr_t)dashmodel_face_indices_c_const(model));
     mix_word((uint64_t)dashmodel_face_count(model));
 
+    // Animated models are deformed in-place, so pointer-based keys are not enough:
+    // hash current vertex contents to get a distinct GPU mesh per keyframe pose.
     struct DashModel* mw = (struct DashModel*)model;
     const bool is_animated = dashmodel_original_vertices_x(mw) && dashmodel_original_vertices_y(mw) &&
                              dashmodel_original_vertices_z(mw) && dashmodel_vertex_count(model) > 0;
@@ -322,79 +313,125 @@ model_gpu_cache_key(const struct DashModel* model)
     return key;
 }
 
-static struct nk_context* s_gl3_nk;
-static Uint64 s_gl3_ui_prev_perf;
-
 static void
 render_nuklear_overlay(
-    struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer,
+    struct Platform2_SDL2_Renderer_WebGL1* renderer,
     struct GGame* game)
 {
-    if( !s_gl3_nk )
+    if( !s_webgl_nk )
         return;
 
-    double const dt = torirs_nk_ui_frame_delta_sec(&s_gl3_ui_prev_perf);
+    double const dt = torirs_nk_ui_frame_delta_sec(&s_webgl_ui_prev_perf);
+
+    int mw = renderer->max_width > 0 ? renderer->max_width : 4096;
+    int mh = renderer->max_height > 0 ? renderer->max_height : 4096;
 
     TorirsNkDebugPanelParams params = {};
-    params.window_title = "OpenGL3 Debug";
+    params.window_title = "WebGL1 Debug";
     params.delta_time_sec = dt;
-    params.view_w_cap = 4096;
-    params.view_h_cap = 4096;
+    params.view_w_cap = mw;
+    params.view_h_cap = mh;
     params.include_soft3d_extras = 0;
+    params.include_load_counts = 1;
+    params.loaded_models = renderer->loaded_model_keys.size();
+    params.loaded_scenes = renderer->loaded_scene_element_keys.size();
+    params.loaded_textures = renderer->loaded_texture_ids.size();
 
-    torirs_nk_debug_panel_draw(s_gl3_nk, game, &params);
-    torirs_nk_ui_after_frame(s_gl3_nk);
+    torirs_nk_debug_panel_draw(s_webgl_nk, game, &params);
+    torirs_nk_ui_after_frame(s_webgl_nk);
 
     glDisable(GL_DEPTH_TEST);
-    torirs_nk_gl3_render(NK_ANTI_ALIASING_ON, 512 * 1024, 128 * 1024);
+    torirs_nk_gles2_render(NK_ANTI_ALIASING_ON, 512 * 1024, 128 * 1024);
     pix3dgl_restore_gl_state_after_ui(renderer->pix3dgl);
 }
 
-static void
-sync_drawable_size(struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer)
+struct LetterboxRect
 {
-    if( !renderer || !renderer->platform || !renderer->platform->window )
-        return;
+    int x, y, w, h;
+};
 
-    int drawable_width = 0;
-    int drawable_height = 0;
-    SDL_GL_GetDrawableSize(renderer->platform->window, &drawable_width, &drawable_height);
-    if( drawable_width <= 0 || drawable_height <= 0 )
-        return;
-
-    renderer->width = drawable_width;
-    renderer->height = drawable_height;
+/* Returns a centered rect that fits game_w×game_h inside canvas_w×canvas_h
+ * while preserving the game's aspect ratio (letterbox / pillarbox). */
+static LetterboxRect
+compute_letterbox_rect(int canvas_w, int canvas_h, int game_w, int game_h)
+{
+    LetterboxRect r = { 0, 0, canvas_w, canvas_h };
+    if( canvas_w <= 0 || canvas_h <= 0 || game_w <= 0 || game_h <= 0 )
+        return r;
+    const float ca = (float)canvas_w / (float)canvas_h;
+    const float ga = (float)game_w / (float)game_h;
+    if( ga > ca )
+    {
+        r.w = canvas_w;
+        r.h = (int)((float)canvas_w / ga);
+        r.x = 0;
+        r.y = (canvas_h - r.h) / 2;
+    }
+    else
+    {
+        r.h = canvas_h;
+        r.w = (int)((float)canvas_h * ga);
+        r.y = 0;
+        r.x = (canvas_w - r.w) / 2;
+    }
+    return r;
 }
 
-struct Platform2_OSX_SDL2_Renderer_OpenGL3*
-PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_New(
-    int width,
-    int height)
+static void
+sync_canvas_size(struct Platform2_SDL2_Renderer_WebGL1* renderer)
 {
-    auto* renderer = new Platform2_OSX_SDL2_Renderer_OpenGL3();
+    if( !renderer->platform )
+        return;
+
+    Platform2_SDL2_SyncCanvasCssSize(
+        renderer->platform, renderer->platform->current_game);
+
+    int new_w = renderer->platform->drawable_width;
+    int new_h = renderer->platform->drawable_height;
+    if( new_w <= 0 || new_h <= 0 )
+        return;
+
+    if( new_w != renderer->width || new_h != renderer->height )
+    {
+        renderer->width = new_w;
+        renderer->height = new_h;
+        glViewport(0, 0, renderer->width, renderer->height);
+    }
+}
+
+struct Platform2_SDL2_Renderer_WebGL1*
+PlatformImpl2_SDL2_Renderer_WebGL1_New(
+    int width,
+    int height,
+    int max_width,
+    int max_height)
+{
+    auto* renderer = new Platform2_SDL2_Renderer_WebGL1();
     renderer->gl_context = NULL;
     renderer->platform = NULL;
     renderer->width = width;
     renderer->height = height;
-    renderer->gl_context_ready = false;
+    renderer->max_width = max_width;
+    renderer->max_height = max_height;
+    renderer->webgl_context_ready = false;
     renderer->pix3dgl = NULL;
     renderer->next_model_index = 1;
     renderer->font_program = 0;
-    renderer->font_vao = 0;
     renderer->font_vbo = 0;
+    renderer->font_attrib_pos = -1;
+    renderer->font_attrib_uv = -1;
+    renderer->font_attrib_color = -1;
     renderer->font_uniform_projection = -1;
     renderer->font_uniform_tex = -1;
     return renderer;
 }
 
 void
-PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Free(struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer)
+PlatformImpl2_SDL2_Renderer_WebGL1_Free(
+    struct Platform2_SDL2_Renderer_WebGL1* renderer)
 {
     if( !renderer )
         return;
-
-    if( renderer->platform && renderer->platform->window && renderer->gl_context )
-        SDL_GL_MakeCurrent(renderer->platform->window, renderer->gl_context);
 
     for( auto& kv : renderer->font_atlas_cache )
     {
@@ -404,8 +441,6 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Free(struct Platform2_OSX_SDL2_Renderer_
     renderer->font_atlas_cache.clear();
     if( renderer->font_vbo )
         glDeleteBuffers(1, &renderer->font_vbo);
-    if( renderer->font_vao )
-        glDeleteVertexArrays(1, &renderer->font_vao);
     if( renderer->font_program )
         glDeleteProgram(renderer->font_program);
 
@@ -414,121 +449,133 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Free(struct Platform2_OSX_SDL2_Renderer_
         pix3dgl_cleanup(renderer->pix3dgl);
         renderer->pix3dgl = NULL;
     }
-
-    if( s_gl3_nk )
+    if( s_webgl_nk )
     {
         torirs_nk_ui_clear_active();
-        torirs_nk_gl3_shutdown();
-        s_gl3_nk = NULL;
-    }
-
-    if( renderer->gl_context )
-    {
-        SDL_GL_DeleteContext(renderer->gl_context);
-        renderer->gl_context = NULL;
+        torirs_nk_gles2_shutdown();
+        s_webgl_nk = NULL;
     }
     delete renderer;
 }
 
 bool
-PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Init(
-    struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer,
-    struct Platform2_OSX_SDL2* platform)
+PlatformImpl2_SDL2_Renderer_WebGL1_Init(
+    struct Platform2_SDL2_Renderer_WebGL1* renderer,
+    struct Platform2_SDL2* platform)
 {
-    if( !renderer || !platform || !platform->window )
+    if( !renderer || !platform )
         return false;
 
     renderer->platform = platform;
-    renderer->gl_context = SDL_GL_CreateContext(platform->window);
-    if( !renderer->gl_context )
+
+    EmscriptenWebGLContextAttributes attrs;
+    emscripten_webgl_init_context_attributes(&attrs);
+    attrs.alpha = 1;
+    attrs.depth = 1;
+    attrs.stencil = 0;
+    attrs.antialias = 0;
+    attrs.premultipliedAlpha = 0;
+    attrs.preserveDrawingBuffer = 0;
+    attrs.enableExtensionsByDefault = 1;
+    attrs.majorVersion = 1;
+    attrs.minorVersion = 0;
+
+    EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_create_context("#canvas", &attrs);
+    if( ctx <= 0 )
     {
-        printf("OpenGL3 init failed: could not create context: %s\n", SDL_GetError());
+        printf("WebGL1 init failed: could not create context\n");
         return false;
     }
-    if( SDL_GL_MakeCurrent(platform->window, renderer->gl_context) != 0 )
+    if( emscripten_webgl_make_context_current(ctx) != EMSCRIPTEN_RESULT_SUCCESS )
     {
-        printf("OpenGL3 init failed: could not make context current: %s\n", SDL_GetError());
-        SDL_GL_DeleteContext(renderer->gl_context);
-        renderer->gl_context = NULL;
+        printf("WebGL1 init failed: could not make context current\n");
         return false;
     }
 
-    SDL_GL_SetSwapInterval(0);
-    renderer->gl_context_ready = true;
-    sync_drawable_size(renderer);
+    renderer->gl_context = (SDL_GLContext)ctx;
+    renderer->webgl_context_ready = true;
+    emscripten_set_canvas_element_size("#canvas", renderer->width, renderer->height);
+    glViewport(0, 0, renderer->width, renderer->height);
     renderer->pix3dgl = pix3dgl_new(false, true);
     if( !renderer->pix3dgl )
     {
-        printf("OpenGL3 init failed: Pix3DGL setup failed\n");
-        SDL_GL_DeleteContext(renderer->gl_context);
-        renderer->gl_context = NULL;
-        renderer->gl_context_ready = false;
+        printf("WebGL1 init failed: Pix3DGL setup failed\n");
         return false;
     }
 
-    s_gl3_nk = torirs_nk_gl3_init(platform->window);
-    if( !s_gl3_nk )
+    s_webgl_nk = torirs_nk_gles2_init(platform->window);
+    if( !s_webgl_nk )
     {
-        printf("Nuklear OpenGL3 init failed\n");
-        pix3dgl_cleanup(renderer->pix3dgl);
-        renderer->pix3dgl = NULL;
-        SDL_GL_DeleteContext(renderer->gl_context);
-        renderer->gl_context = NULL;
-        renderer->gl_context_ready = false;
+        printf("Nuklear WebGL1 init failed\n");
         return false;
     }
-
     {
         struct nk_font_atlas* atlas = NULL;
-        torirs_nk_gl3_font_stash_begin(&atlas);
-#if defined(__APPLE__)
+        torirs_nk_gles2_font_stash_begin(&atlas);
         nk_font_atlas_add_default(atlas, 13.0f, NULL);
-#else
-        nk_font_atlas_add_default(atlas, 13.0f * platform->display_scale, NULL);
-#endif
-        torirs_nk_gl3_font_stash_end();
+        torirs_nk_gles2_font_stash_end();
     }
-
-    torirs_nk_ui_set_active(s_gl3_nk, torirs_nk_gl3_handle_event, torirs_nk_gl3_handle_grab);
-    s_gl3_ui_prev_perf = SDL_GetPerformanceCounter();
+    torirs_nk_ui_set_active(s_webgl_nk, torirs_nk_gles2_handle_event, torirs_nk_gles2_handle_grab);
+    s_webgl_ui_prev_perf = SDL_GetPerformanceCounter();
 
     return true;
 }
 
 void
-PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
-    struct Platform2_OSX_SDL2_Renderer_OpenGL3* renderer,
+PlatformImpl2_SDL2_Renderer_WebGL1_Render(
+    struct Platform2_SDL2_Renderer_WebGL1* renderer,
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
 {
     static uint64_t s_frame = 0;
-    if( !renderer || !renderer->gl_context_ready || !renderer->pix3dgl || !game ||
-        !render_command_buffer || !renderer->platform || !renderer->platform->window )
-    {
+    if( !renderer || !renderer->webgl_context_ready || !renderer->pix3dgl || !game ||
+        !render_command_buffer )
         return;
-    }
 
-    SDL_GL_MakeCurrent(renderer->platform->window, renderer->gl_context);
-    sync_drawable_size(renderer);
+    emscripten_webgl_make_context_current((EMSCRIPTEN_WEBGL_CONTEXT_HANDLE)renderer->gl_context);
+    sync_canvas_size(renderer);
 
     glViewport(0, 0, renderer->width, renderer->height);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    int window_width = renderer->platform->game_screen_width;
-    int window_height = renderer->platform->game_screen_height;
+    /* Logical window size — same source as OpenGL3 (platform game_screen + SDL fallback).
+     * Use for compute_logical_viewport_rect, compute_world_viewport_rect scaling, and
+     * pix3dgl_sprite_draw. Drawable size stays renderer->width/height (framebuffer). */
+    int window_width = renderer->platform ? renderer->platform->game_screen_width : 0;
+    int window_height = renderer->platform ? renderer->platform->game_screen_height : 0;
     if( window_width <= 0 || window_height <= 0 )
-        SDL_GetWindowSize(renderer->platform->window, &window_width, &window_height);
+    {
+        if( renderer->platform && renderer->platform->window )
+            SDL_GetWindowSize(renderer->platform->window, &window_width, &window_height);
+    }
+    if( window_width <= 0 || window_height <= 0 )
+    {
+        window_width = renderer->width;
+        window_height = renderer->height;
+    }
+    /* Letterbox the fixed output (game_screen_width × game_screen_height) into the
+     * canvas (renderer->width × renderer->height), preserving aspect ratio. */
+    const LetterboxRect lb =
+        compute_letterbox_rect(renderer->width, renderer->height, window_width, window_height);
+    /* GL Y origin of the letterbox (GL y=0 is bottom of canvas). */
+    const int lb_gl_y = renderer->height - lb.y - lb.h;
+
     const LogicalViewportRect logical_viewport =
         compute_logical_viewport_rect(window_width, window_height, game);
-    const GLViewportRect world_viewport = compute_world_viewport_rect(
-        renderer->width, renderer->height, window_width, window_height, logical_viewport);
+    /* Scale the world sub-viewport from output space into the letterbox area. */
+    const GLViewportRect world_vp_in_lb = compute_world_viewport_rect(
+        lb.w, lb.h, window_width, window_height, logical_viewport);
+    const GLViewportRect world_viewport = { lb.x + world_vp_in_lb.x,
+                                            lb_gl_y + world_vp_in_lb.y,
+                                            world_vp_in_lb.width,
+                                            world_vp_in_lb.height };
     glViewport(world_viewport.x, world_viewport.y, world_viewport.width, world_viewport.height);
 
     const float projection_width = (float)logical_viewport.width;
     const float projection_height = (float)logical_viewport.height;
 
-    pix3dgl_set_animation_clock(renderer->pix3dgl, (float)(SDL_GetTicks64() / 20));
+    pix3dgl_set_animation_clock(renderer->pix3dgl, (float)((uint64_t)emscripten_get_now() / 20));
     pix3dgl_begin_3dframe(
         renderer->pix3dgl,
         (float)0,
@@ -555,7 +602,7 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
             switch( cmd.kind )
             {
             case TORIRS_GFX_FONT_LOAD:
-                gl3_font_load(renderer, cmd._font_load.font);
+                webgl1_font_load(renderer, cmd._font_load.font);
                 break;
 
             case TORIRS_GFX_FONT_DRAW:
@@ -564,6 +611,7 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
 
             case TORIRS_GFX_TEXTURE_LOAD:
             {
+                renderer->loaded_texture_ids.insert(cmd._texture_load.texture_id);
                 struct DashTexture* texture = cmd._texture_load.texture_nullable;
                 if( texture && texture->texels )
                 {
@@ -591,6 +639,7 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
                 {
                     break;
                 }
+                renderer->loaded_model_keys.insert(cmd._model_load.model_key);
                 if( renderer->model_index_by_key.find(cmd._model_load.model_key) ==
                     renderer->model_index_by_key.end() )
                 {
@@ -629,8 +678,12 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
                 if( rw <= 0 || rh <= 0 )
                     break;
                 LogicalViewportRect lr = { rx, ry, rw, rh };
-                GLViewportRect glr = compute_world_viewport_rect(
-                    renderer->width, renderer->height, window_width, window_height, lr);
+                const GLViewportRect glr_lb =
+                    compute_world_viewport_rect(lb.w, lb.h, window_width, window_height, lr);
+                const GLViewportRect glr = { lb.x + glr_lb.x,
+                                             lb_gl_y + glr_lb.y,
+                                             glr_lb.width,
+                                             glr_lb.height };
                 GLint vp[4];
                 glGetIntegerv(GL_VIEWPORT, vp);
                 glViewport(0, 0, renderer->width, renderer->height);
@@ -661,6 +714,7 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
                 {
                     int model_idx = renderer->next_model_index++;
                     renderer->model_index_by_key[model_key] = model_idx;
+                    renderer->loaded_model_keys.insert(model_key);
                     pix3dgl_model_load(
                         renderer->pix3dgl,
                         model_idx,
@@ -718,7 +772,10 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
     glViewport(world_viewport.x, world_viewport.y, world_viewport.width, world_viewport.height);
     pix3dgl_end_3dframe(renderer->pix3dgl);
 
-    /* Process sprite loads and unloads (update GPU texture cache). */
+    /* Sprites are authored in output (game_screen) space; map them into the letterbox
+     * area of the canvas so they scale with the 3D world. */
+    glViewport(lb.x, lb_gl_y, lb.w, lb.h);
+
     for( const auto& sc : sprite_cmds )
     {
         if( sc.kind == TORIRS_GFX_SPRITE_LOAD )
@@ -735,34 +792,32 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
         }
     }
 
-    glViewport(0, 0, renderer->width, renderer->height);
     pix3dgl_begin_2dframe(renderer->pix3dgl);
-
     for( const auto& sc : sprite_cmds )
     {
-        if( sc.kind == TORIRS_GFX_SPRITE_DRAW )
-        {
-            struct DashSprite* sp = sc._sprite_draw.sprite;
-            if( !sp )
-                continue;
-            pix3dgl_sprite_draw(
-                renderer->pix3dgl,
-                sp,
-                sc._sprite_draw.dst_bb_x,
-                sc._sprite_draw.dst_bb_y,
-                window_width,
-                window_height,
-                sc._sprite_draw.rotation_r2pi2048,
-                sc._sprite_draw.src_bb_x,
-                sc._sprite_draw.src_bb_y,
-                sc._sprite_draw.src_bb_w,
-                sc._sprite_draw.src_bb_h);
-        }
+        if( sc.kind != TORIRS_GFX_SPRITE_DRAW )
+            continue;
+        struct DashSprite* sp = sc._sprite_draw.sprite;
+        if( !sp )
+            continue;
+        /* Sprite coordinates are authored in logical screen space; match OpenGL3 renderer. */
+        pix3dgl_sprite_draw(
+            renderer->pix3dgl,
+            sp,
+            sc._sprite_draw.dst_bb_x,
+            sc._sprite_draw.dst_bb_y,
+            window_width,
+            window_height,
+            sc._sprite_draw.rotation_r2pi2048,
+            sc._sprite_draw.src_bb_x,
+            sc._sprite_draw.src_bb_y,
+            sc._sprite_draw.src_bb_w,
+            sc._sprite_draw.src_bb_h);
     }
     pix3dgl_end_2dframe(renderer->pix3dgl);
 
     /* Font draws: emit per-glyph quads from the pre-built atlas textures. */
-    if( renderer->font_program && renderer->font_vao && renderer->font_vbo )
+    if( renderer->font_program && renderer->font_vbo )
     {
         static std::vector<float> font_verts;
         font_verts.clear();
@@ -803,7 +858,6 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, current_font_tex);
 
-            glBindVertexArray(renderer->font_vao);
             glBindBuffer(GL_ARRAY_BUFFER, renderer->font_vbo);
             glBufferData(
                 GL_ARRAY_BUFFER,
@@ -811,17 +865,44 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
                 font_verts.data(),
                 GL_STREAM_DRAW);
 
-            glEnableVertexAttribArray(0);
-            glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(1);
-            glVertexAttribPointer(
-                1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(2 * sizeof(float)));
-            glEnableVertexAttribArray(2);
-            glVertexAttribPointer(
-                2, 4, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(4 * sizeof(float)));
+            const GLsizei stride = 8 * sizeof(float);
+            if( renderer->font_attrib_pos >= 0 )
+            {
+                glEnableVertexAttribArray(renderer->font_attrib_pos);
+                glVertexAttribPointer(
+                    renderer->font_attrib_pos, 2, GL_FLOAT, GL_FALSE, stride, (void*)0);
+            }
+            if( renderer->font_attrib_uv >= 0 )
+            {
+                glEnableVertexAttribArray(renderer->font_attrib_uv);
+                glVertexAttribPointer(
+                    renderer->font_attrib_uv,
+                    2,
+                    GL_FLOAT,
+                    GL_FALSE,
+                    stride,
+                    (void*)(2 * sizeof(float)));
+            }
+            if( renderer->font_attrib_color >= 0 )
+            {
+                glEnableVertexAttribArray(renderer->font_attrib_color);
+                glVertexAttribPointer(
+                    renderer->font_attrib_color,
+                    4,
+                    GL_FLOAT,
+                    GL_FALSE,
+                    stride,
+                    (void*)(4 * sizeof(float)));
+            }
 
             glDrawArrays(GL_TRIANGLES, 0, vert_count);
-            glBindVertexArray(0);
+
+            if( renderer->font_attrib_pos >= 0 )
+                glDisableVertexAttribArray(renderer->font_attrib_pos);
+            if( renderer->font_attrib_uv >= 0 )
+                glDisableVertexAttribArray(renderer->font_attrib_uv);
+            if( renderer->font_attrib_color >= 0 )
+                glDisableVertexAttribArray(renderer->font_attrib_color);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
             glUseProgram(0);
 
@@ -839,7 +920,7 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
             auto it = renderer->font_atlas_cache.find(f);
             if( it == renderer->font_atlas_cache.end() )
             {
-                gl3_font_load(renderer, f);
+                webgl1_font_load(renderer, f);
                 it = renderer->font_atlas_cache.find(f);
                 if( it == renderer->font_atlas_cache.end() )
                     continue;
@@ -903,9 +984,12 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
                         float v1 = (float)(atlas->glyph_y[c] + gh) * inv_ah;
 
                         float v[6 * 8] = {
-                            x0, y0, u0, v0, cr, cg, cb, ca, x1, y0, u1, v0, cr, cg, cb, ca,
-                            x1, y1, u1, v1, cr, cg, cb, ca, x0, y0, u0, v0, cr, cg, cb, ca,
-                            x1, y1, u1, v1, cr, cg, cb, ca, x0, y1, u0, v1, cr, cg, cb, ca,
+                            x0, y0, u0, v0, cr, cg, cb, ca,
+                            x1, y0, u1, v0, cr, cg, cb, ca,
+                            x1, y1, u1, v1, cr, cg, cb, ca,
+                            x0, y0, u0, v0, cr, cg, cb, ca,
+                            x1, y1, u1, v1, cr, cg, cb, ca,
+                            x0, y1, u0, v1, cr, cg, cb, ca,
                         };
                         font_verts.insert(font_verts.end(), v, v + 48);
                     }
@@ -920,9 +1004,12 @@ PlatformImpl2_OSX_SDL2_Renderer_OpenGL3_Render(
     }
 
     LibToriRS_FrameEnd(game);
+
     glViewport(0, 0, renderer->width, renderer->height);
     render_nuklear_overlay(renderer, game);
-    SDL_GL_SwapWindow(renderer->platform->window);
+
+    if( renderer->platform && renderer->platform->window )
+        SDL_GL_SwapWindow(renderer->platform->window);
 
     s_frame++;
 }

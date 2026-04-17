@@ -1,7 +1,7 @@
-#ifndef PLATFORM_IMPL2_OSX_SDL2_RENDERER_METAL_H
-#define PLATFORM_IMPL2_OSX_SDL2_RENDERER_METAL_H
+#ifndef PLATFORM_IMPL2_SDL2_RENDERER_METAL_H
+#define PLATFORM_IMPL2_SDL2_RENDERER_METAL_H
 
-#include "platform_impl2_osx_sdl2.h"
+#include "platform_impl2_sdl2.h"
 #include <SDL.h>
 #include <unordered_map>
 #include <vector>
@@ -12,8 +12,8 @@ extern "C" {
 }
 
 // Metal objects are stored as void* so this header is valid from plain C++ translation
-// units (e.g. test/osx.cpp). The .mm implementation casts them to id<MTL*> internally.
-struct Platform2_OSX_SDL2_Renderer_Metal
+// units (e.g. test/sdl2.cpp). The .mm implementation casts them to id<MTL*> internally.
+struct Platform2_SDL2_Renderer_Metal
 {
     // Metal API objects (void* to keep header C++-clean; cast in .mm)
     void* mtl_device;         // id<MTLDevice>
@@ -28,7 +28,7 @@ struct Platform2_OSX_SDL2_Renderer_Metal
 
     SDL_MetalView metal_view; // SDL_MetalView is itself a void*
 
-    struct Platform2_OSX_SDL2* platform;
+    struct Platform2_SDL2* platform;
     int width;
     int height;
     bool metal_ready;
@@ -71,23 +71,23 @@ struct Platform2_OSX_SDL2_Renderer_Metal
     std::unordered_map<struct DashPixFont*, void*> font_atlas_textures; // DashPixFont* -> id<MTLTexture>
 };
 
-struct Platform2_OSX_SDL2_Renderer_Metal*
-PlatformImpl2_OSX_SDL2_Renderer_Metal_New(
+struct Platform2_SDL2_Renderer_Metal*
+PlatformImpl2_SDL2_Renderer_Metal_New(
     int width,
     int height);
 
 void
-PlatformImpl2_OSX_SDL2_Renderer_Metal_Free(
-    struct Platform2_OSX_SDL2_Renderer_Metal* renderer);
+PlatformImpl2_SDL2_Renderer_Metal_Free(
+    struct Platform2_SDL2_Renderer_Metal* renderer);
 
 bool
-PlatformImpl2_OSX_SDL2_Renderer_Metal_Init(
-    struct Platform2_OSX_SDL2_Renderer_Metal* renderer,
-    struct Platform2_OSX_SDL2* platform);
+PlatformImpl2_SDL2_Renderer_Metal_Init(
+    struct Platform2_SDL2_Renderer_Metal* renderer,
+    struct Platform2_SDL2* platform);
 
 void
-PlatformImpl2_OSX_SDL2_Renderer_Metal_Render(
-    struct Platform2_OSX_SDL2_Renderer_Metal* renderer,
+PlatformImpl2_SDL2_Renderer_Metal_Render(
+    struct Platform2_SDL2_Renderer_Metal* renderer,
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer);
 

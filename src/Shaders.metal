@@ -1,7 +1,7 @@
 #include <metal_stdlib>
 using namespace metal;
 
-// Must match MetalVertex / MetalUniforms in platform_impl2_osx_sdl2_renderer_metal.mm
+// Must match MetalVertex / MetalUniforms in platform_impl2_sdl2_renderer_metal.mm
 struct Vertex {
     float4 position [[attribute(0)]];
     float4 color [[attribute(1)]];

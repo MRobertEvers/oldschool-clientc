@@ -1,4 +1,4 @@
-#include "platform_impl2_osx_sdl2_renderer_d3d11.h"
+#include "platform_impl2_sdl2_renderer_d3d11.h"
 
 #include "nuklear/torirs_nuklear.h"
 
@@ -684,7 +684,7 @@ append_model_face_vertices(
 
 static void
 preload_model_key(
-    struct Platform2_OSX_SDL2_Renderer_D3D11* renderer,
+    struct Platform2_SDL2_Renderer_D3D11* renderer,
     const struct DashModel* model)
 {
     if( !model )
@@ -699,7 +699,7 @@ preload_model_key(
 // Sync drawable size from SDL window
 // ---------------------------------------------------------------------------
 static void
-sync_drawable_size(struct Platform2_OSX_SDL2_Renderer_D3D11* renderer)
+sync_drawable_size(struct Platform2_SDL2_Renderer_D3D11* renderer)
 {
     if( !renderer || !renderer->platform || !renderer->platform->window )
         return;
@@ -717,7 +717,7 @@ sync_drawable_size(struct Platform2_OSX_SDL2_Renderer_D3D11* renderer)
 // Resize swap chain buffers when window size changes
 // ---------------------------------------------------------------------------
 static bool
-d3d11_resize_buffers(struct Platform2_OSX_SDL2_Renderer_D3D11* renderer)
+d3d11_resize_buffers(struct Platform2_SDL2_Renderer_D3D11* renderer)
 {
     if( !renderer->swap_chain || !renderer->device )
         return false;
@@ -781,7 +781,7 @@ d3d11_resize_buffers(struct Platform2_OSX_SDL2_Renderer_D3D11* renderer)
 // ---------------------------------------------------------------------------
 static void
 render_nuklear_overlay(
-    struct Platform2_OSX_SDL2_Renderer_D3D11* renderer,
+    struct Platform2_SDL2_Renderer_D3D11* renderer,
     struct GGame* game)
 {
     if( !s_d3d11_nk || !renderer || !game )
@@ -814,12 +814,12 @@ render_nuklear_overlay(
 // Public API
 // ---------------------------------------------------------------------------
 
-struct Platform2_OSX_SDL2_Renderer_D3D11*
-PlatformImpl2_OSX_SDL2_Renderer_D3D11_New(
+struct Platform2_SDL2_Renderer_D3D11*
+PlatformImpl2_SDL2_Renderer_D3D11_New(
     int width,
     int height)
 {
-    auto* renderer = new Platform2_OSX_SDL2_Renderer_D3D11();
+    auto* renderer = new Platform2_SDL2_Renderer_D3D11();
     renderer->device = nullptr;
     renderer->device_context = nullptr;
     renderer->swap_chain = nullptr;
@@ -853,7 +853,7 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_New(
 }
 
 void
-PlatformImpl2_OSX_SDL2_Renderer_D3D11_Free(struct Platform2_OSX_SDL2_Renderer_D3D11* renderer)
+PlatformImpl2_SDL2_Renderer_D3D11_Free(struct Platform2_SDL2_Renderer_D3D11* renderer)
 {
     if( !renderer )
         return;
@@ -936,9 +936,9 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Free(struct Platform2_OSX_SDL2_Renderer_D3
 }
 
 bool
-PlatformImpl2_OSX_SDL2_Renderer_D3D11_Init(
-    struct Platform2_OSX_SDL2_Renderer_D3D11* renderer,
-    struct Platform2_OSX_SDL2* platform)
+PlatformImpl2_SDL2_Renderer_D3D11_Init(
+    struct Platform2_SDL2_Renderer_D3D11* renderer,
+    struct Platform2_SDL2* platform)
 {
     if( !renderer || !platform || !platform->window )
         return false;
@@ -1235,8 +1235,8 @@ PlatformImpl2_OSX_SDL2_Renderer_D3D11_Init(
 }
 
 void
-PlatformImpl2_OSX_SDL2_Renderer_D3D11_Render(
-    struct Platform2_OSX_SDL2_Renderer_D3D11* renderer,
+PlatformImpl2_SDL2_Renderer_D3D11_Render(
+    struct Platform2_SDL2_Renderer_D3D11* renderer,
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
 {

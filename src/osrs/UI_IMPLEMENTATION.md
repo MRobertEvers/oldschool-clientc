@@ -52,7 +52,7 @@ Added interface tracking fields:
 ### Rendering Flow
 
 ```
-PlatformImpl2_OSX_SDL2_Renderer_Soft3D_Render()
+PlatformImpl2_SDL2_Renderer_Soft3D_Render()
   ├─> Render 3D scene to dash_buffer
   ├─> Render UI sprites (minimap, compass, inventory back, etc.)
   ├─> Initialize viewport clipping bounds
@@ -150,7 +150,7 @@ Sprites are loaded once and cached by name for efficient reuse.
 - `src/graphics/dash.h/c` - Added 2D primitives and viewport clipping
 - `src/osrs/game.h` - Added interface ID tracking
 - `src/tori_rs_init.u.c` - Initialize interface IDs to -1
-- `src/platforms/platform_impl2_osx_sdl2_renderer_soft3d.cpp` - Integrated interface rendering
+- `src/platforms/platform_impl2_sdl2_renderer_soft3d.cpp` - Integrated interface rendering
 
 ## Next Steps
 

@@ -13,7 +13,7 @@ This directory holds **build-system packaging** for distributable zips. Other Py
 
 ## `package_build.py`
 
-**What it does:** Runs CMake configure and build for a chosen build directory, then writes a **distribution zip** containing Lua scripts, revconfig configs (excluding the `cullmaps` subtree from the packed tree but adding the single baked `.bin`), `cache254/`, the `osx` / `osx.exe` binary, and optional Windows DLLs (`SDL2.dll`, `libwinpthread-1.dll`) when paths are given.
+**What it does:** Runs CMake configure and build for a chosen build directory, then writes a **distribution zip** containing Lua scripts, revconfig configs (excluding the `cullmaps` subtree from the packed tree but adding the single baked `.bin`), `cache254/`, the `sdl2` / `sdl2.exe` binary, and optional Windows DLLs (`SDL2.dll`, `libwinpthread-1.dll`) when paths are given.
 
 **Configuration:** Reads repo-root `.env` for defaults. CLI flags override `.env`.
 
