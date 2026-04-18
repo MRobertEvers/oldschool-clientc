@@ -29,6 +29,12 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
+# RelWithDebInfo: embed DWARF in binaries (gdb/lldb). Applies to sdl2, benchmark_project, etc.,
+# not only win32 (which also sets -g3 on that target for historical reasons).
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options("$<$<CONFIG:RelWithDebInfo>:-g3;-gdwarf-4;-fno-omit-frame-pointer>")
+endif()
+
 # # Enable ASAN
 # cmake -DENABLE_ASAN=ON ..
 # # Disable ASAN (default)
@@ -273,7 +279,80 @@ if(NOT EMSCRIPTEN)
         )
     endif()
 
-    find_package(SDL2 REQUIRED)
+    # Try normal find_package first (MODULE then CONFIG). If that fails — e.g. a
+    # partial toolchain drop-in that only ships headers/import-lib/dll but no
+    # SDL2Config.cmake, common with winlibs — synthesize SDL2::SDL2 manually
+    # from CMAKE_PREFIX_PATH / SDL2_ROOT so we don't silently fall through to a
+    # system SDL2 with the wrong architecture (e.g. 64-bit msys2 SDL2 for a 32-bit build).
+    find_package(SDL2 QUIET)
+    if(NOT TARGET SDL2::SDL2)
+        set(_sdl2_search_roots "")
+        if(DEFINED SDL2_ROOT)
+            list(APPEND _sdl2_search_roots "${SDL2_ROOT}")
+        endif()
+        if(DEFINED ENV{SDL2_ROOT})
+            list(APPEND _sdl2_search_roots "$ENV{SDL2_ROOT}")
+        endif()
+        foreach(_p ${CMAKE_PREFIX_PATH})
+            list(APPEND _sdl2_search_roots "${_p}")
+        endforeach()
+        if(DEFINED ENV{CMAKE_PREFIX_PATH})
+            foreach(_p $ENV{CMAKE_PREFIX_PATH})
+                list(APPEND _sdl2_search_roots "${_p}")
+            endforeach()
+        endif()
+
+        find_path(SDL2_INCLUDE_DIR
+            NAMES SDL.h
+            HINTS ${_sdl2_search_roots}
+            PATH_SUFFIXES include/SDL2 include
+        )
+        find_library(SDL2MAIN_LIBRARY
+            NAMES SDL2main
+            HINTS ${_sdl2_search_roots}
+            PATH_SUFFIXES lib
+        )
+        find_library(SDL2_LIBRARY
+            NAMES SDL2
+            HINTS ${_sdl2_search_roots}
+            PATH_SUFFIXES lib
+        )
+
+        if(SDL2_INCLUDE_DIR AND SDL2_LIBRARY)
+            message(STATUS "SDL2: no CMake config found, using manual fallback")
+            message(STATUS "  SDL2 include: ${SDL2_INCLUDE_DIR}")
+            message(STATUS "  SDL2 library: ${SDL2_LIBRARY}")
+            if(SDL2MAIN_LIBRARY)
+                message(STATUS "  SDL2main    : ${SDL2MAIN_LIBRARY}")
+            endif()
+            add_library(SDL2::SDL2 UNKNOWN IMPORTED)
+            set_target_properties(SDL2::SDL2 PROPERTIES
+                IMPORTED_LOCATION "${SDL2_LIBRARY}"
+                INTERFACE_INCLUDE_DIRECTORIES "${SDL2_INCLUDE_DIR}"
+            )
+            if(WIN32)
+                # SDL2 on Win32 needs these Windows libs at link time.
+                set_target_properties(SDL2::SDL2 PROPERTIES
+                    INTERFACE_LINK_LIBRARIES "mingw32;imm32;setupapi;version;winmm"
+                )
+            endif()
+            if(SDL2MAIN_LIBRARY AND NOT TARGET SDL2::SDL2main)
+                add_library(SDL2::SDL2main UNKNOWN IMPORTED)
+                set_target_properties(SDL2::SDL2main PROPERTIES
+                    IMPORTED_LOCATION "${SDL2MAIN_LIBRARY}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${SDL2_INCLUDE_DIR}"
+                )
+            endif()
+            set(SDL2_FOUND TRUE)
+        else()
+            message(FATAL_ERROR
+                "SDL2 not found. Tried CMake config mode and manual fallback. "
+                "Set -DCMAKE_PREFIX_PATH=<path-to-SDL2-prefix> (a directory containing "
+                "include/SDL2/SDL.h and lib/libSDL2.dll.a or equivalent), or install "
+                "SDL2 with a SDL2Config.cmake."
+            )
+        endif()
+    endif()
     target_link_libraries(sdl2 SDL2::SDL2)
 
     if(NOT WIN32)
@@ -330,8 +409,15 @@ if(NOT EMSCRIPTEN)
             target_link_options(win32 PRIVATE -Wl,-subsystem,console)
             # Always-on debug symbols + frame pointers for the win32 target so segfaults
             # produce meaningful backtraces under gdb even in Release/RelWithDebInfo builds.
-            target_compile_options(win32 PRIVATE -g3 -gdwarf-4 -fno-omit-frame-pointer)
-            target_link_options(win32 PRIVATE -g3 -gdwarf-4)
+
+            if (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
+                target_compile_options(win32 PRIVATE -O3 -g3 -gdwarf-2 -fno-omit-frame-pointer)
+                target_link_options(win32 PRIVATE -O3 -g3 -gdwarf-2)
+            endif()
+            if (CMAKE_BUILD_TYPE STREQUAL "Release")
+                target_compile_options(win32 PRIVATE -O3)
+                target_link_options(win32 PRIVATE -O3)
+            endif()
         endif()
         if(ENABLE_ASAN)
             target_compile_options(win32 PRIVATE -fsanitize=address -fno-omit-frame-pointer)

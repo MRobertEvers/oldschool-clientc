@@ -90,6 +90,8 @@ struct D3D8ModelGpu
     IDirect3DVertexBuffer8* vbo;
     int face_count;
     std::vector<int> per_face_raw_tex_id;
+    /** If non-null, per-face texture ids are read from here (batched VBO path). */
+    const int* per_face_raw_tex_ptr = nullptr;
     /** CPU copy of the first face's three vertices (for one-shot MODEL_DRAW diagnostics). */
     D3D8WorldVertex first_face_verts[3];
     /** CPU copy of the last face's three vertices (for one-shot MODEL_DRAW diagnostics). */
@@ -114,6 +116,21 @@ struct D3D8ModelBatch
     std::vector<D3D8WorldVertex> pending_verts;
     std::vector<uint16_t> pending_indices;
     std::unordered_map<uint64_t, D3D8BatchModelEntry> entries_by_key;
+};
+
+struct D3D8BatchedModelVariant
+{
+    uint64_t model_key = 0;
+    D3D8ModelBatch* batch = nullptr;
+    D3D8BatchModelEntry* entry = nullptr;
+};
+
+struct D3D8TextureSlot
+{
+    IDirect3DTexture8* tex = nullptr;
+    float anim_speed = 0.0f;
+    bool opaque = true;
+    bool valid = false;
 };
 
 static void
@@ -149,11 +166,11 @@ struct D3D8Internal
     UINT client_w;
     UINT client_h;
 
-    std::unordered_map<int, IDirect3DTexture8*> texture_by_id;
-    std::unordered_map<int, float> texture_anim_speed_by_id;
-    std::unordered_map<int, bool> texture_opaque_by_id;
+    std::vector<D3D8TextureSlot> texture_slots;
 
     std::unordered_map<uint64_t, D3D8ModelGpu*> model_gpu_by_key;
+    uint64_t model_gpu_memo_key = 0;
+    D3D8ModelGpu* model_gpu_memo_ptr = nullptr;
 
     std::unordered_map<uint64_t, IDirect3DTexture8*> sprite_by_slot;
     std::unordered_map<uint64_t, std::pair<int, int>> sprite_size_by_slot;
@@ -173,25 +190,31 @@ struct D3D8Internal
     /** Merged world-rebuild batches (TORIRS_GFX_BATCH_* / MODEL_BATCHED_LOAD). */
     D3D8ModelBatch* current_batch = nullptr;
     std::unordered_map<uint32_t, D3D8ModelBatch*> batches_by_id;
-    std::unordered_map<uint64_t, D3D8ModelBatch*> batched_model_batch_by_key;
+    /** Indexed by model id; each bucket lists anim/frame variants for batched VBO draws. */
+    std::vector<std::vector<D3D8BatchedModelVariant>> batched_model_variants_by_id;
 
     /** Completed frames (incremented at end of Render). `< 3` = verbose tracing window. */
     unsigned int frame_count;
     bool trace_first_gfx[32];
 
-<<<<<<< HEAD
     /** Viewports for the current frame, applied by d3d8_ensure_pass on pass transitions. */
     D3DVIEWPORT8 frame_vp_3d;
     D3DVIEWPORT8 frame_vp_2d;
-=======
-    /** After scene RT is (re)created, clear once before preserving UI across frames. */
-    bool scene_rt_needs_initial_clear = true;
->>>>>>> ef0087259d345e99c1581bc94acb79d1fd44e733
 
     /** View/projection for this frame (for MODEL_DRAW clip-space diagnostics). */
     D3DMATRIX frame_view;
     D3DMATRIX frame_proj;
 };
+
+static void
+d3d8_ensure_texture_slots(D3D8Internal* p, int tex_id)
+{
+    if( tex_id < 0 )
+        return;
+    size_t const need = (size_t)tex_id + 1u;
+    if( p->texture_slots.size() < need )
+        p->texture_slots.resize(need);
+}
 
 /** First 3 completed frames: verbose. After that, log each GFX kind only once. */
 static constexpr int kD3d8GfxKindSlots = 32;
@@ -653,7 +676,10 @@ d3d8_build_model_gpu(
     memcpy(dst, verts.data(), bytes);
     vbo->Unlock();
     gpu->vbo = vbo;
+    gpu->per_face_raw_tex_ptr = nullptr;
     priv->model_gpu_by_key[model_key] = gpu;
+    priv->model_gpu_memo_key = model_key;
+    priv->model_gpu_memo_ptr = gpu;
     if( s_build_model_gpu_ok_logs < 8u )
     {
         s_build_model_gpu_ok_logs++;
@@ -696,9 +722,15 @@ d3d8_lookup_or_build_model_gpu(
     const struct DashModel* model,
     uint64_t model_key)
 {
+    if( priv->model_gpu_memo_ptr && priv->model_gpu_memo_key == model_key )
+        return priv->model_gpu_memo_ptr;
     auto it = priv->model_gpu_by_key.find(model_key);
     if( it != priv->model_gpu_by_key.end() && it->second )
+    {
+        priv->model_gpu_memo_key = model_key;
+        priv->model_gpu_memo_ptr = it->second;
         return it->second;
+    }
     return d3d8_build_model_gpu(priv, device, model, model_key);
 }
 
@@ -842,16 +874,16 @@ d3d8_destroy_internal(D3D8Internal* p)
 {
     if( !p )
         return;
-    for( auto& kv : p->texture_by_id )
-        if( kv.second )
-            kv.second->Release();
-    p->texture_by_id.clear();
-    p->texture_anim_speed_by_id.clear();
-    p->texture_opaque_by_id.clear();
+    for( D3D8TextureSlot& s : p->texture_slots )
+        if( s.tex )
+            s.tex->Release();
+    p->texture_slots.clear();
 
     for( auto& kv : p->model_gpu_by_key )
         d3d8_release_model_gpu(kv.second);
     p->model_gpu_by_key.clear();
+    p->model_gpu_memo_key = 0;
+    p->model_gpu_memo_ptr = nullptr;
 
     if( p->current_batch )
     {
@@ -861,7 +893,7 @@ d3d8_destroy_internal(D3D8Internal* p)
     for( auto& kv : p->batches_by_id )
         d3d8_release_model_batch(kv.second);
     p->batches_by_id.clear();
-    p->batched_model_batch_by_key.clear();
+    p->batched_model_variants_by_id.clear();
 
     for( auto& kv : p->sprite_by_slot )
         if( kv.second )
@@ -1059,7 +1091,6 @@ d3d8_reset_device(struct Platform2_Win32_Renderer_D3D8* ren, D3D8Internal* p, HW
         return false;
     }
     d3d8_log("d3d8_reset_device: index ring ok bytes=%zu", ib_need);
-    p->scene_rt_needs_initial_clear = true;
     d3d8_log("d3d8_reset_device: complete ok");
     return true;
 }
@@ -1542,6 +1573,32 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
     p->debug_triangles = 0;
     p->current_font_id = -1;
 
+    std::vector<D3D8UiVertex> font_verts;
+    auto flush_font = [&]() {
+        if( font_verts.empty() || p->current_font_id < 0 )
+        {
+            font_verts.clear();
+            return;
+        }
+        auto it = p->font_atlas_by_id.find(p->current_font_id);
+        if( it == p->font_atlas_by_id.end() || !it->second )
+        {
+            font_verts.clear();
+            return;
+        }
+        d3d8_ensure_pass(p, dev, PASS_2D);
+        dev->SetTexture(0, it->second);
+        dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+        dev->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+        dev->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
+        dev->DrawPrimitiveUP(
+            D3DPT_TRIANGLELIST,
+            (UINT)(font_verts.size() / 3),
+            font_verts.data(),
+            sizeof(D3D8UiVertex));
+        font_verts.clear();
+    };
+
     HRESULT hr_rt = dev->SetRenderTarget(p->scene_rt_surf, p->scene_ds);
     if( FAILED(hr_rt) )
         d3d8_log(
@@ -1640,14 +1697,17 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             }
             if( !texture || !texture->texels )
                 break;
-            auto old_it = p->texture_by_id.find(tex_id);
+            d3d8_ensure_texture_slots(p, tex_id);
+            D3D8TextureSlot& prev = p->texture_slots[(size_t)tex_id];
             if( d3d8_trace_on(p) )
                 d3d8_log(
                     "TEXTURE_LOAD[%d]: evicting old=%p",
                     tex_id,
-                    (void*)(old_it != p->texture_by_id.end() ? old_it->second : nullptr));
-            if( old_it != p->texture_by_id.end() && old_it->second )
-                old_it->second->Release();
+                    (void*)(prev.valid ? prev.tex : nullptr));
+            if( prev.valid && prev.tex )
+                prev.tex->Release();
+            prev.tex = nullptr;
+            prev.valid = false;
             if( d3d8_trace_on(p) )
                 d3d8_log(
                     "TEXTURE_LOAD[%d]: read anim tex=%p dir=%d speed=%d opaque=%d",
@@ -1660,10 +1720,8 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                 d3d8_texture_animation_signed(texture->animation_direction, texture->animation_speed);
             if( d3d8_trace_on(p) )
                 d3d8_log("TEXTURE_LOAD[%d]: anim_signed=%.4f, inserting anim_speed map", tex_id, anim_signed);
-            p->texture_anim_speed_by_id[tex_id] = anim_signed;
             if( d3d8_trace_on(p) )
                 d3d8_log("TEXTURE_LOAD[%d]: inserting opaque map", tex_id);
-            p->texture_opaque_by_id[tex_id] = texture->opaque ? true : false;
             if( d3d8_trace_on(p) )
                 d3d8_log("TEXTURE_LOAD[%d]: maps updated", tex_id);
 
@@ -1727,7 +1785,10 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             dt->UnlockRect(0);
             if( d3d8_trace_on(p) )
                 d3d8_log("TEXTURE_LOAD[%d]: UnlockRect done", tex_id);
-            p->texture_by_id[tex_id] = dt;
+            prev.tex = dt;
+            prev.anim_speed = anim_signed;
+            prev.opaque = texture->opaque ? true : false;
+            prev.valid = true;
             if( d3d8_trace_on(p) )
                 d3d8_log("TEXTURE_LOAD[%d]: cached tex=%p", tex_id, (void*)dt);
         }
@@ -1768,14 +1829,10 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             }
             if( mid <= 0 )
                 break;
-            for( auto it = p->batched_model_batch_by_key.begin();
-                 it != p->batched_model_batch_by_key.end(); )
-            {
-                if( model_id_from_model_cache_key(it->first) == mid )
-                    it = p->batched_model_batch_by_key.erase(it);
-                else
-                    ++it;
-            }
+            p->model_gpu_memo_key = 0;
+            p->model_gpu_memo_ptr = nullptr;
+            if( mid >= 0 && (size_t)mid < p->batched_model_variants_by_id.size() )
+                p->batched_model_variants_by_id[(size_t)mid].clear();
             for( auto it = p->model_gpu_by_key.begin(); it != p->model_gpu_by_key.end(); )
             {
                 if( model_id_from_model_cache_key(it->first) == mid )
@@ -1852,8 +1909,28 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                 p->current_batch->pending_indices.push_back((uint16_t)(f * 3 + 2));
             }
             p->current_batch->total_vertex_count += fc * 3;
-            p->current_batch->entries_by_key[mk] = std::move(ent);
-            p->batched_model_batch_by_key[mk] = p->current_batch;
+            D3D8BatchModelEntry& slot = p->current_batch->entries_by_key[mk];
+            slot = std::move(ent);
+            {
+                int mid = (int)(uint32_t)(mk >> 24);
+                if( mid < 0 )
+                    break;
+                if( (size_t)mid >= p->batched_model_variants_by_id.size() )
+                    p->batched_model_variants_by_id.resize((size_t)mid + 1);
+                auto& bucket = p->batched_model_variants_by_id[(size_t)mid];
+                bool replaced = false;
+                for( auto& v : bucket )
+                {
+                    if( v.model_key == mk )
+                    {
+                        v = { mk, p->current_batch, &slot };
+                        replaced = true;
+                        break;
+                    }
+                }
+                if( !replaced )
+                    bucket.push_back({ mk, p->current_batch, &slot });
+            }
         }
         break;
 
@@ -1965,13 +2042,22 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                 break;
             D3D8ModelBatch* batch = bit->second;
             p->batches_by_id.erase(bit);
-            for( auto it = p->batched_model_batch_by_key.begin();
-                 it != p->batched_model_batch_by_key.end(); )
+            for( const auto& kv : batch->entries_by_key )
             {
-                if( it->second == batch )
-                    it = p->batched_model_batch_by_key.erase(it);
-                else
-                    ++it;
+                uint64_t mk = kv.first;
+                int mid = (int)(uint32_t)(mk >> 24);
+                if( mid < 0 || (size_t)mid >= p->batched_model_variants_by_id.size() )
+                    continue;
+                auto& bucket = p->batched_model_variants_by_id[(size_t)mid];
+                for( size_t i = 0; i < bucket.size(); ++i )
+                {
+                    if( bucket[i].model_key == mk )
+                    {
+                        bucket[i] = bucket.back();
+                        bucket.pop_back();
+                        break;
+                    }
+                }
             }
             d3d8_release_model_batch(batch);
         }
@@ -2181,21 +2267,25 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             D3D8ModelGpu batched_wrap{};
             D3D8ModelBatch* batched_batch_ptr = nullptr;
 
-            auto bmit = p->batched_model_batch_by_key.find(mk_draw);
-            if( bmit != p->batched_model_batch_by_key.end() && bmit->second )
+            int mid_draw = (int)(uint32_t)(mk_draw >> 24);
+            if( mid_draw >= 0 && (size_t)mid_draw < p->batched_model_variants_by_id.size() )
             {
-                batched_batch_ptr = bmit->second;
-                auto eit = batched_batch_ptr->entries_by_key.find(mk_draw);
-                if( eit == batched_batch_ptr->entries_by_key.end() )
+                const auto& bucket = p->batched_model_variants_by_id[(size_t)mid_draw];
+                for( const auto& v : bucket )
+                {
+                    if( v.model_key != mk_draw || !v.batch || !v.entry )
+                        continue;
+                    batched_batch_ptr = v.batch;
+                    const D3D8BatchModelEntry& ent = *v.entry;
+                    vertex_index_base = ent.vertex_base;
+                    batched_wrap.vbo = batched_batch_ptr->vbo;
+                    batched_wrap.face_count = ent.face_count;
+                    batched_wrap.per_face_raw_tex_ptr = ent.per_face_raw_tex_id.data();
+                    gpu = &batched_wrap;
                     break;
-                const D3D8BatchModelEntry& ent = eit->second;
-                vertex_index_base = ent.vertex_base;
-                batched_wrap.vbo = batched_batch_ptr->vbo;
-                batched_wrap.face_count = ent.face_count;
-                batched_wrap.per_face_raw_tex_id = ent.per_face_raw_tex_id;
-                gpu = &batched_wrap;
+                }
             }
-            else
+            if( !gpu )
             {
                 gpu = d3d8_lookup_or_build_model_gpu(p, dev, model, mk_draw);
                 if( !gpu || !gpu->vbo )
@@ -2358,10 +2448,11 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             auto eff_tex = [&](int f) -> int {
                 if( f < 0 || f >= gpu->face_count )
                     return -1;
-                int raw = gpu->per_face_raw_tex_id[(size_t)f];
+                int const raw = gpu->per_face_raw_tex_ptr ? gpu->per_face_raw_tex_ptr[f]
+                                                          : gpu->per_face_raw_tex_id[(size_t)f];
                 if( raw < 0 )
                     return -1;
-                if( p->texture_by_id.find(raw) == p->texture_by_id.end() )
+                if( raw >= (int)p->texture_slots.size() || !p->texture_slots[(size_t)raw].valid )
                     return -1;
                 return raw;
             };
@@ -2443,9 +2534,10 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                 }
                 else
                 {
-                    dev->SetTexture(0, p->texture_by_id[run_tex]);
+                    const D3D8TextureSlot& ts = p->texture_slots[(size_t)run_tex];
+                    dev->SetTexture(0, ts.tex);
                     dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
-                    float speed = p->texture_anim_speed_by_id[run_tex];
+                    float speed = ts.anim_speed;
                     if( speed != 0.0f )
                     {
                         if( speed > 0.0f )
@@ -2456,11 +2548,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                     else
                         d3d8_disable_texture_transform(dev);
 
-                    bool opaque = true;
-                    auto oi = p->texture_opaque_by_id.find(run_tex);
-                    if( oi != p->texture_opaque_by_id.end() )
-                        opaque = oi->second;
-                    dev->SetRenderState(D3DRS_ALPHATESTENABLE, opaque ? FALSE : TRUE);
+                    dev->SetRenderState(D3DRS_ALPHATESTENABLE, ts.opaque ? FALSE : TRUE);
                 }
 
                 UINT start_index = (UINT)(p->ib_ring_write_offset / sizeof(uint16_t));
@@ -2644,8 +2732,8 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
 
         case TORIRS_GFX_FONT_DRAW:
         {
-            const int kcmd = (int)TORIRS_GFX_FONT_DRAW;
-            if( d3d8_should_log_cmd(p, kcmd) )
+            struct DashPixFont* f = command._font_draw.font;
+            const uint8_t* text = command._font_draw.text;
             {
                 const int kcmd = (int)TORIRS_GFX_FONT_DRAW;
                 if( d3d8_should_log_cmd(p, kcmd) && text )
@@ -2865,11 +2953,24 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             HRESULT hr_nk = p->nk_overlay_tex->LockRect(0, &lr, nullptr, D3DLOCK_DISCARD);
             if( hr_nk == D3D_OK )
             {
-                for( int row = 0; row < renderer->height; ++row )
+                const int w = renderer->width;
+                const int h = renderer->height;
+                const size_t row_bytes = (size_t)w * sizeof(int);
+                if( lr.Pitch == (LONG)row_bytes )
+                {
                     memcpy(
-                        (unsigned char*)lr.pBits + row * lr.Pitch,
-                        renderer->nk_pixel_buffer + row * renderer->width,
-                        (size_t)renderer->width * sizeof(int));
+                        lr.pBits,
+                        renderer->nk_pixel_buffer,
+                        row_bytes * (size_t)h);
+                }
+                else
+                {
+                    for( int row = 0; row < h; ++row )
+                        memcpy(
+                            (unsigned char*)lr.pBits + row * lr.Pitch,
+                            renderer->nk_pixel_buffer + row * w,
+                            row_bytes);
+                }
                 p->nk_overlay_tex->UnlockRect(0);
             }
             else if( FAILED(hr_nk) )

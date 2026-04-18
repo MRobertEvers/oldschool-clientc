@@ -2,7 +2,7 @@
  * benchmark_main.c — Rasterizer benchmark suite
  *
  * Benchmarks flat, gouraud, and texture rasterizer variants (sort + branching)
- * over 30 frames with 20,000 triangles each.
+ * over 10 frames with 20,000 triangles each.
  *
  * Uses SDL2 for display and Nuklear for timing overlay.
  * Loads real textures from cache for transparent/opaque texture benchmarks.
@@ -83,8 +83,8 @@
 #define SCREEN_H      600
 #define NUM_TRIS      20000
 #define MIN_AREA_ABS  64
-#define NUM_FRAMES    30
-#define WARMUP_FRAMES 2
+#define NUM_FRAMES    10
+#define WARMUP_FRAMES 1
 #define CAMERA_FOV    512
 #define TEX_WIDTH     128
 
