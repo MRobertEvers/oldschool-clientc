@@ -27,6 +27,7 @@ extern "C" {
 #include "graphics/shared_tables.h"
 #include "graphics/uv_pnm.h"
 #include "osrs/game.h"
+#include "osrs/ui_dirty.h"
 #include "tori_rs.h"
 #include "tori_rs_render.h"
 }
@@ -1473,6 +1474,8 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             d3d8_log(
                 "Render: resize_dirty d3d8_reset_device -> %s",
                 resize_ok ? "ok" : "FAILED");
+        if( resize_ok )
+            ui_dirty_invalidate_all(game);
         renderer->resize_dirty = false;
     }
 
