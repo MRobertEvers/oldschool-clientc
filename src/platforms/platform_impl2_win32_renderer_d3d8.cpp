@@ -179,9 +179,14 @@ struct D3D8Internal
     unsigned int frame_count;
     bool trace_first_gfx[32];
 
+<<<<<<< HEAD
     /** Viewports for the current frame, applied by d3d8_ensure_pass on pass transitions. */
     D3DVIEWPORT8 frame_vp_3d;
     D3DVIEWPORT8 frame_vp_2d;
+=======
+    /** After scene RT is (re)created, clear once before preserving UI across frames. */
+    bool scene_rt_needs_initial_clear = true;
+>>>>>>> ef0087259d345e99c1581bc94acb79d1fd44e733
 
     /** View/projection for this frame (for MODEL_DRAW clip-space diagnostics). */
     D3DMATRIX frame_view;
@@ -1054,6 +1059,7 @@ d3d8_reset_device(struct Platform2_Win32_Renderer_D3D8* ren, D3D8Internal* p, HW
         return false;
     }
     d3d8_log("d3d8_reset_device: index ring ok bytes=%zu", ib_need);
+    p->scene_rt_needs_initial_clear = true;
     d3d8_log("d3d8_reset_device: complete ok");
     return true;
 }
@@ -1535,32 +1541,6 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
     p->debug_model_draws = 0;
     p->debug_triangles = 0;
     p->current_font_id = -1;
-
-    std::vector<D3D8UiVertex> font_verts;
-    auto flush_font = [&]() {
-        if( font_verts.empty() || p->current_font_id < 0 )
-        {
-            font_verts.clear();
-            return;
-        }
-        auto it = p->font_atlas_by_id.find(p->current_font_id);
-        if( it == p->font_atlas_by_id.end() || !it->second )
-        {
-            font_verts.clear();
-            return;
-        }
-        d3d8_ensure_pass(p, dev, PASS_2D);
-        dev->SetTexture(0, it->second);
-        dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
-        dev->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
-        dev->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
-        dev->DrawPrimitiveUP(
-            D3DPT_TRIANGLELIST,
-            (UINT)(font_verts.size() / 3),
-            font_verts.data(),
-            sizeof(D3D8UiVertex));
-        font_verts.clear();
-    };
 
     HRESULT hr_rt = dev->SetRenderTarget(p->scene_rt_surf, p->scene_ds);
     if( FAILED(hr_rt) )
@@ -2174,38 +2154,17 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
 
         case TORIRS_GFX_CLEAR_RECT:
         {
-            flush_font();
-            int cx = command._clear_rect.x;
-            int cy = command._clear_rect.y;
-            int cw = command._clear_rect.w;
-            int ch = command._clear_rect.h;
+            const int kcmd = (int)TORIRS_GFX_CLEAR_RECT;
+            if( d3d8_should_log_cmd(p, kcmd) )
             {
-                const int kcmd = (int)TORIRS_GFX_CLEAR_RECT;
-                if( d3d8_should_log_cmd(p, kcmd) )
-                {
-                    d3d8_log("cmd CLEAR_RECT %d,%d %dx%d", cx, cy, cw, ch);
-                    d3d8_mark_cmd_logged(p, kcmd);
-                }
+                d3d8_log(
+                    "cmd CLEAR_RECT %d,%d %dx%d (noop)",
+                    command._clear_rect.x,
+                    command._clear_rect.y,
+                    command._clear_rect.w,
+                    command._clear_rect.h);
+                d3d8_mark_cmd_logged(p, kcmd);
             }
-            if( cw <= 0 || ch <= 0 )
-                break;
-            D3DVIEWPORT8 saved;
-            dev->GetViewport(&saved);
-            D3DVIEWPORT8 cvp = {
-                (DWORD)cx,
-                (DWORD)cy,
-                (DWORD)cw,
-                (DWORD)ch,
-                0.0f,
-                1.0f
-            };
-            if( (int)cvp.X + (int)cvp.Width > renderer->width )
-                cvp.Width = (DWORD)(renderer->width - (int)cvp.X);
-            if( (int)cvp.Y + (int)cvp.Height > renderer->height )
-                cvp.Height = (DWORD)(renderer->height - (int)cvp.Y);
-            dev->SetViewport(&cvp);
-            dev->Clear(0, nullptr, D3DCLEAR_TARGET, 0x00000000, 1.0f, 0);
-            dev->SetViewport(&saved);
         }
         break;
 
@@ -2554,26 +2513,11 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
 
         case TORIRS_GFX_SPRITE_DRAW:
         {
+            const int kcmd = (int)TORIRS_GFX_SPRITE_DRAW;
+            if( d3d8_should_log_cmd(p, kcmd) )
             {
-                const int kcmd = (int)TORIRS_GFX_SPRITE_DRAW;
-                if( d3d8_should_log_cmd(p, kcmd) )
-                {
-                    d3d8_log(
-                        "cmd SPRITE_DRAW element=%d atlas=%d rotated=%d dst=%d,%d %dx%d src=%d,%d "
-                        "%dx%d",
-                        command._sprite_draw.element_id,
-                        command._sprite_draw.atlas_index,
-                        command._sprite_draw.rotated ? 1 : 0,
-                        command._sprite_draw.dst_bb_x,
-                        command._sprite_draw.dst_bb_y,
-                        command._sprite_draw.dst_bb_w,
-                        command._sprite_draw.dst_bb_h,
-                        command._sprite_draw.src_bb_x,
-                        command._sprite_draw.src_bb_y,
-                        command._sprite_draw.src_bb_w,
-                        command._sprite_draw.src_bb_h);
-                    d3d8_mark_cmd_logged(p, kcmd);
-                }
+                d3d8_log("cmd SPRITE_DRAW (disabled: 3d-only mode)");
+                d3d8_mark_cmd_logged(p, kcmd);
             }
             struct DashSprite* sp = command._sprite_draw.sprite;
             if( !sp )
@@ -2700,8 +2644,8 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
 
         case TORIRS_GFX_FONT_DRAW:
         {
-            struct DashPixFont* f = command._font_draw.font;
-            const uint8_t* text = command._font_draw.text;
+            const int kcmd = (int)TORIRS_GFX_FONT_DRAW;
+            if( d3d8_should_log_cmd(p, kcmd) )
             {
                 const int kcmd = (int)TORIRS_GFX_FONT_DRAW;
                 if( d3d8_should_log_cmd(p, kcmd) && text )
