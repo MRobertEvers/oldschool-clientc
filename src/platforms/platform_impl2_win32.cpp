@@ -458,9 +458,10 @@ Win32_Platform_WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         platform->tracked_mouse_x = mx;
         platform->tracked_mouse_y = my;
 
-        int gx = 0;
-        int gy = 0;
-        transform_mouse_coordinates(mx, my, &gx, &gy, platform);
+        int gx = mx;
+        int gy = my;
+        if( !platform->skip_mouse_transform )
+            transform_mouse_coordinates(mx, my, &gx, &gy, platform);
 
         if( platform->nk_ctx_for_input )
             nk_input_motion((struct nk_context*)platform->nk_ctx_for_input, gx, gy);
@@ -497,9 +498,10 @@ Win32_Platform_WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         int my = (int)(short)HIWORD(lParam);
         platform->tracked_mouse_x = mx;
         platform->tracked_mouse_y = my;
-        int gx = 0;
-        int gy = 0;
-        transform_mouse_coordinates(mx, my, &gx, &gy, platform);
+        int gx = mx;
+        int gy = my;
+        if( !platform->skip_mouse_transform )
+            transform_mouse_coordinates(mx, my, &gx, &gy, platform);
         if( platform->nk_ctx_for_input )
         {
             struct nk_context* nk = (struct nk_context*)platform->nk_ctx_for_input;
@@ -535,9 +537,10 @@ Win32_Platform_WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         int my = (int)(short)HIWORD(lParam);
         platform->tracked_mouse_x = mx;
         platform->tracked_mouse_y = my;
-        int gx = 0;
-        int gy = 0;
-        transform_mouse_coordinates(mx, my, &gx, &gy, platform);
+        int gx = mx;
+        int gy = my;
+        if( !platform->skip_mouse_transform )
+            transform_mouse_coordinates(mx, my, &gx, &gy, platform);
         if( platform->nk_ctx_for_input )
         {
             struct nk_context* nk = (struct nk_context*)platform->nk_ctx_for_input;
@@ -780,7 +783,15 @@ Platform2_Win32_PollEvents(
     {
         int mx = platform->tracked_mouse_x;
         int my = platform->tracked_mouse_y;
-        transform_mouse_coordinates(mx, my, &input->mouse_state.x, &input->mouse_state.y, platform);
+        if( platform->skip_mouse_transform )
+        {
+            input->mouse_state.x = mx;
+            input->mouse_state.y = my;
+        }
+        else
+        {
+            transform_mouse_coordinates(mx, my, &input->mouse_state.x, &input->mouse_state.y, platform);
+        }
     }
 
     platform->poll_input = NULL;

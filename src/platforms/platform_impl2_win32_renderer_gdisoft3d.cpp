@@ -117,6 +117,7 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_Init(
     if( !renderer || !platform )
         return false;
     renderer->platform = platform;
+    platform->skip_mouse_transform = 1;
 
     static const int FONT_TEX_BYTES = 512 * 512;
     renderer->nk_font_tex_mem = (uint8_t*)malloc((size_t)FONT_TEX_BYTES);

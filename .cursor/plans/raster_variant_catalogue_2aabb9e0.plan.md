@@ -34,9 +34,9 @@ Below is a **single master table** (fixed-width inside a code block). Rows are *
 ```text
 Row  Category              Projection   Role / shading            Symbol(s) (representative)                              Source file(s)
 ---  --------------------  -----------  ------------------------   ------------------------------------------              ----------------------------------------------
-F1   Flat                  screen       opaque triangle           raster_flat_bs4                                         flat_branching_bs4.c
-F2   Flat                  screen       alpha fill triangle       raster_flat_alpha_bs4                                   flat_branching_bs4.c
-F3   Flat                  screen       ordered-walk helpers      raster_flat_ordered_bs4, raster_flat_alpha_ordered_bs4   flat_branching_bs4.c (internal to F1/F2)
+F1   Flat                  screen       opaque triangle           raster_flat_bs4                                         flat_branching_s4.c
+F2   Flat                  screen       alpha fill triangle       raster_flat_alpha_bs4                                   flat_branching_s4.c
+F3   Flat                  screen       ordered-walk helpers      raster_flat_ordered_bs4, raster_flat_alpha_ordered_bs4   flat_branching_s4.c (internal to F1/F2)
 F4   Flat (legacy)         screen       opaque / alpha s4 path    raster_flat_s4, raster_flat_alpha_s4                    flat.u.c (not called from render_flat today)
 F5   Flat                  screen       dispatch + clip faces     raster_flat, raster_face_flat*, raster_face_flat_near_clip  render_flat.u.c
 --
@@ -198,7 +198,7 @@ raster_texture_blend_affine_v3                                [render_texture_af
         raster_linear_opaque_blend_lerp8_v3                   [texture_simd.*.u.c -- 8-pixel SIMD kernel (TS8)]
 ```
 
-**No SIMD** in flat rasterizers (`flat.u.c`, `flat_branching_bs4.c`), solid Gouraud triangle walkers, or face/near-clip wrappers (those are control flow, not inner loops).
+**No SIMD** in flat rasterizers (`flat.u.c`, `flat_branching_s4.c`), solid Gouraud triangle walkers, or face/near-clip wrappers (those are control flow, not inner loops).
 
 ---
 
@@ -373,7 +373,7 @@ Three different prefixes exist for the same layer:
 ```text
 Prefix                       Used in
 ---------------------------  ------------------------------------
-draw_scanline_flat_*         flat.u.c, flat_branching_bs4.c
+draw_scanline_flat_*         flat.u.c, flat_branching_s4.c
 draw_scanline_gouraud_*      gouraud.u.c, gouraud_s1.u.c, gouraud_barycentric.u.c,
                              gouraud_branching*.c, gouraud_s1_branching*.c
 raster_texture_scanline_*    texture.u.c  (legacy lerp8 path)
@@ -581,8 +581,8 @@ src/graphics/
     flat/
       flat.screen.opaque.sort_s4.u.c         [from flat.u.c -- legacy opaque edge-walk s4]
       flat.screen.alpha.sort_s4.u.c          [from flat.u.c -- legacy alpha edge-walk s4]
-      flat.screen.opaque.branch_s4.c         [from flat_branching_bs4.c -- active opaque]
-      flat.screen.alpha.branch_s4.c          [from flat_branching_bs4.c -- active alpha]
+      flat.screen.opaque.branch_s4.c         [from flat_branching_s4.c -- active opaque]
+      flat.screen.alpha.branch_s4.c          [from flat_branching_s4.c -- active alpha]
       flat.face.u.c                          [from render_flat.u.c -- face dispatch; above variant level]
 
     gouraud/

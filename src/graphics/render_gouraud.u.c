@@ -37,7 +37,7 @@ raster_gouraud(
     if( alpha == 0xFF )
     {
         // raster_gouraud_edge_sort_s4(
-        raster_gouraud_bary_branching_bs4(
+        raster_gouraud_bary_branching_s4(
             pixel_buffer,
             stride,
             screen_width,
@@ -54,7 +54,7 @@ raster_gouraud(
     }
     else
     {
-        raster_gouraud_alpha_bary_branching_bs4(
+        raster_gouraud_alpha_bary_branching_s4(
             pixel_buffer,
             stride,
             screen_width,

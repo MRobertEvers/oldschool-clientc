@@ -1082,7 +1082,28 @@ uielem_redstone_tab_step(
     int ai = is_active ? component->u.redstone_tab.atlas_index_active
                        : component->u.redstone_tab.atlas_index;
     if( sid < 0 )
+    {
+        /* Inactive tab with no sprite — clear the region so stale active-tab pixels
+         * don't persist on renderers that keep a persistent framebuffer (GDI, D3D8, Soft3D). */
+        if( game->uiscene_queued_commands && w > 0 && h > 0 )
+        {
+            int clear_2d = 0;
+            emit_begin_2d_marker(game, &clear_2d);
+            LibToriRS_RenderCommandBufferAddCommand(
+                game->uiscene_queued_commands,
+                (struct ToriRSRenderCommand){
+                    .kind = TORIRS_GFX_CLEAR_RECT,
+                    ._clear_rect = {
+                        .x = x,
+                        .y = y,
+                        .w = w,
+                        .h = h,
+                    },
+                });
+            emit_end_2d_marker(game, &clear_2d);
+        }
         return true;
+    }
 
     struct UISceneElement* elem = uiscene_element_at(game->ui_scene, sid);
     if( !elem || !elem->dash_sprites )

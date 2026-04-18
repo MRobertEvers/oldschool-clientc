@@ -55,6 +55,11 @@ struct Platform2_Win32
 
     /** Set for the duration of PollEvents so WndProc can set input->quit on WM_CLOSE. */
     struct GInput* poll_input;
+
+    /** When true, WndProc passes raw window-pixel mouse coords to events instead of
+     *  mapping through transform_mouse_coordinates.  Set by soft3D renderers (GDI / D3D8)
+     *  that rely on game_map_soft3d_window_mouse_to_buffer for the single correct mapping. */
+    int skip_mouse_transform;
 };
 
 struct Platform2_Win32*

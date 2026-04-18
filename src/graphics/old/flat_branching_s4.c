@@ -1,5 +1,5 @@
-#ifndef FLAT_BRANCHING_BS4_C
-#define FLAT_BRANCHING_BS4_C
+#ifndef FLAT_branching_s4_C
+#define FLAT_branching_s4_C
 
 #include "../alpha.h"
 

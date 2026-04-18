@@ -267,16 +267,87 @@ Platform2_SDL2_InitForD3D11(
 }
 #endif
 
+/** Map raw window-pixel mouse coordinates to game_screen_width × game_screen_height space,
+ *  accounting for aspect-ratio letterboxing.  Used by non-soft3D renderers (Metal, OpenGL3, D3D11)
+ *  where game_map_soft3d_window_mouse_to_buffer is not active. */
+static void
+sdl2_transform_mouse_coordinates(
+    int window_mouse_x,
+    int window_mouse_y,
+    int* game_mouse_x,
+    int* game_mouse_y,
+    int window_w,
+    int window_h,
+    int game_screen_w,
+    int game_screen_h)
+{
+    if( window_w <= 0 || window_h <= 0 || game_screen_w <= 0 || game_screen_h <= 0 )
+        return;
+
+    float src_aspect = (float)game_screen_w / (float)game_screen_h;
+    float dst_aspect = (float)window_w / (float)window_h;
+
+    int dst_x, dst_y, dst_w, dst_h;
+
+    if( src_aspect > dst_aspect )
+    {
+        dst_w = window_w;
+        dst_h = (int)(window_w / src_aspect);
+        dst_x = 0;
+        dst_y = (window_h - dst_h) / 2;
+    }
+    else
+    {
+        dst_h = window_h;
+        dst_w = (int)(window_h * src_aspect);
+        dst_y = 0;
+        dst_x = (window_w - dst_w) / 2;
+    }
+
+    if( window_mouse_x < dst_x || window_mouse_x >= dst_x + dst_w || window_mouse_y < dst_y ||
+        window_mouse_y >= dst_y + dst_h )
+    {
+        *game_mouse_x = -1;
+        *game_mouse_y = -1;
+    }
+    else
+    {
+        float relative_x = (float)(window_mouse_x - dst_x) / (float)dst_w;
+        float relative_y = (float)(window_mouse_y - dst_y) / (float)dst_h;
+
+        *game_mouse_x = (int)(relative_x * game_screen_w);
+        *game_mouse_y = (int)(relative_y * game_screen_h);
+    }
+}
+
 void
 Platform2_SDL2_PollEvents(
     struct Platform2_SDL2* platform,
     struct GInput* input,
     int chat_focused)
 {
-    (void)platform;
     (void)chat_focused;
     double time_s = (double)(SDL_GetTicks64()) / 1000.0;
     ToriRSLibPlatform_SDL2_GameInput_PollEvents(input, time_s);
+
+    /* For non-soft3D renderers (Metal, OpenGL3, D3D11), map raw SDL window-pixel mouse
+     * coordinates to game_screen space.  Soft3D renderers set soft3d_mouse_from_window=true
+     * and rely on game_map_soft3d_window_mouse_to_buffer in the game layer instead. */
+    struct GGame* game = platform->current_game;
+    if( game && !game->soft3d_mouse_from_window && platform->window )
+    {
+        int mx = 0, my = 0;
+        SDL_GetMouseState(&mx, &my);
+        /* Use logical window size (not drawable/framebuffer size) since SDL mouse events
+         * report logical pixel coordinates even on HiDPI displays. */
+        int ww = 0, wh = 0;
+        SDL_GetWindowSize(platform->window, &ww, &wh);
+        sdl2_transform_mouse_coordinates(
+            mx, my,
+            &input->mouse_state.x, &input->mouse_state.y,
+            ww, wh,
+            platform->game_screen_width, platform->game_screen_height);
+    }
 }
 
 static struct LuaGameType*

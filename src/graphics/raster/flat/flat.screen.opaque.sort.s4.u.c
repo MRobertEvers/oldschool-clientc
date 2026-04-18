@@ -66,7 +66,7 @@ draw_scanline_flat_sort_s4(
     }
 }
 
-void
+static inline void
 raster_flat_sort_s4(
     int* RESTRICT pixel_buffer,
     int stride,

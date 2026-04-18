@@ -9,7 +9,7 @@
 extern int g_hsl16_to_rgb_table[65536];
 
 static inline void
-draw_scanline_gouraud_alpha_bary_branching_bs4_ordered(
+draw_scanline_gouraud_alpha_bary_branching_s4_ordered(
     int* RESTRICT pixel_buffer,
     int offset,
     int screen_width,
@@ -87,7 +87,7 @@ draw_scanline_gouraud_alpha_bary_branching_bs4_ordered(
     }
 }
 static inline void
-raster_gouraud_alpha_bary_branching_bs4_ordered(
+raster_gouraud_alpha_bary_branching_s4_ordered(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -183,7 +183,7 @@ raster_gouraud_alpha_bary_branching_bs4_ordered(
 
         while( y1-- > 0 )
         {
-            draw_scanline_gouraud_alpha_bary_branching_bs4_ordered(
+            draw_scanline_gouraud_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 offset,
                 screen_width,
@@ -204,7 +204,7 @@ raster_gouraud_alpha_bary_branching_bs4_ordered(
 
         while( y2-- > 0 )
         {
-            draw_scanline_gouraud_alpha_bary_branching_bs4_ordered(
+            draw_scanline_gouraud_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 offset,
                 screen_width,
@@ -229,7 +229,7 @@ raster_gouraud_alpha_bary_branching_bs4_ordered(
 
         while( y1-- > 0 )
         {
-            draw_scanline_gouraud_alpha_bary_branching_bs4_ordered(
+            draw_scanline_gouraud_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 offset,
                 screen_width,
@@ -249,7 +249,7 @@ raster_gouraud_alpha_bary_branching_bs4_ordered(
 
         while( y2-- > 0 )
         {
-            draw_scanline_gouraud_alpha_bary_branching_bs4_ordered(
+            draw_scanline_gouraud_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 offset,
                 screen_width,
@@ -269,7 +269,7 @@ raster_gouraud_alpha_bary_branching_bs4_ordered(
     }
 }
 static inline void
-raster_gouraud_alpha_bary_branching_bs4(
+raster_gouraud_alpha_bary_branching_s4(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -295,7 +295,7 @@ raster_gouraud_alpha_bary_branching_bs4(
             if( y2 < 0 || y0 >= screen_height )
                 return;
 
-            raster_gouraud_alpha_bary_branching_bs4_ordered(
+            raster_gouraud_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -316,7 +316,7 @@ raster_gouraud_alpha_bary_branching_bs4(
             if( y1 < 0 || y0 >= screen_height )
                 return;
 
-            raster_gouraud_alpha_bary_branching_bs4_ordered(
+            raster_gouraud_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -343,7 +343,7 @@ raster_gouraud_alpha_bary_branching_bs4(
             if( y0 < 0 || y1 >= screen_height )
                 return;
 
-            raster_gouraud_alpha_bary_branching_bs4_ordered(
+            raster_gouraud_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -364,7 +364,7 @@ raster_gouraud_alpha_bary_branching_bs4(
             if( y2 < 0 || y1 >= screen_height )
                 return;
 
-            raster_gouraud_alpha_bary_branching_bs4_ordered(
+            raster_gouraud_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -391,7 +391,7 @@ raster_gouraud_alpha_bary_branching_bs4(
             if( y1 < 0 || y2 >= screen_height )
                 return;
 
-            raster_gouraud_alpha_bary_branching_bs4_ordered(
+            raster_gouraud_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -412,7 +412,7 @@ raster_gouraud_alpha_bary_branching_bs4(
             if( y0 < 0 || y2 >= screen_height )
                 return;
 
-            raster_gouraud_alpha_bary_branching_bs4_ordered(
+            raster_gouraud_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,

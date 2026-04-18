@@ -360,6 +360,11 @@ ui_dirty_pre_pass(struct GGame* game)
     struct UITree* tree = game->ui_root_buffer;
     ui_runtime_ensure_capacity(game, tree->component_count);
 
+    /* Process redstone clicks FIRST so that selected_tab is updated before the
+     * global_dirty comparison below.  Otherwise the prev != current check sees the
+     * old value and ui_dirty_invalidate_all() never fires on the click frame. */
+    walk_redstone_clicks(game);
+
     bool global_dirty = false;
 
     if( game->ui_prev_ui_root_generation != tree->generation )
@@ -384,8 +389,6 @@ ui_dirty_pre_pass(struct GGame* game)
 
     if( global_dirty )
         ui_dirty_invalidate_all(game);
-
-    walk_redstone_clicks(game);
 
     int mx = game->mouse_x;
     int my = game->mouse_y;

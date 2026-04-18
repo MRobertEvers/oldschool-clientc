@@ -435,6 +435,36 @@ if(NOT EMSCRIPTEN)
     if( NOT WIN32 )
         target_link_libraries( interface161_test PRIVATE m )
     endif()
+
+    # --- Benchmark Project: rasterizer benchmark suite ---
+    # Uses SDL2 + Nuklear to benchmark flat, gouraud, and texture rasterizers.
+    # The benchmark_main.c includes rasterizer .u.c files directly.
+    # COMMON_SOURCES provides cache loading, shared tables, Lua, etc.
+    set(BENCH_PROJECT_SOURCES ${COMMON_SOURCES})
+    # Remove platform-specific SDL2 glue (benchmark has its own main loop)
+    list(REMOVE_ITEM BENCH_PROJECT_SOURCES
+        src/platforms/common/tori_rs_sdl2_gameinput.c
+        src/platforms/common/tori_rs_sdl2_gameinput_nuklear.cpp
+        src/platforms/common/torirs_nk_sdl_input.cpp
+        src/platforms/common/torirs_nk_ui_bridge.cpp
+        src/platforms/common/torirs_nuklear_debug_panel.cpp
+    )
+    add_executable(benchmark_project
+        ${BENCH_PROJECT_SOURCES}
+        benchmarks/benchmark_project/benchmark_main.c
+    )
+    target_link_libraries(benchmark_project SDL2::SDL2)
+    if(WIN32)
+        target_link_libraries(benchmark_project ws2_32 psapi winmm gdi32 user32 kernel32)
+        if(MSVC)
+            target_link_options(benchmark_project PRIVATE /SUBSYSTEM:CONSOLE)
+        else()
+            target_link_options(benchmark_project PRIVATE -Wl,-subsystem,console)
+        endif()
+    else()
+        target_link_libraries(benchmark_project m)
+    endif()
+
 endif()
 
 # --- Emscripten Target ---
@@ -659,7 +689,7 @@ foreach(_t_nk_heap sdl2 web_client web_client_native win32)
     endif()
 endforeach()
 
-foreach(_t_bucket_sort sdl2 web_client web_client_native win32)
+foreach(_t_bucket_sort sdl2 web_client web_client_native win32 benchmark_project)
     if(TARGET ${_t_bucket_sort})
         if(DASH_BUCKET_SORT_USE_LINKED_LIST)
             target_compile_definitions(${_t_bucket_sort} PRIVATE DASH_BUCKET_SORT_USE_LINKED_LIST=1)
@@ -670,7 +700,7 @@ foreach(_t_bucket_sort sdl2 web_client web_client_native win32)
 endforeach()
 
 # --- Global Properties ---
-foreach(target sdl2 web_client web_client_native win32)
+foreach(target sdl2 web_client web_client_native win32 benchmark_project)
     if(TARGET ${target})
         target_include_directories(${target} PRIVATE src src/nuklear)
         set_target_properties(${target} PROPERTIES
