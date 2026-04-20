@@ -94,6 +94,7 @@
 #include "graphics/raster/flat/flat.deob.u.c"
 #include "graphics/raster/gouraud/gouraud.deob.u.c"
 #include "graphics/raster/texture/texture.deob.u.c"
+#include "graphics/raster/texture/texture.deob2.u.c"
 
 /* Texture loading from cache */
 #include "osrs/rscache/cache_dat.h"
@@ -150,6 +151,8 @@ enum BenchVariant
     BENCH_GOURAUD_DEOB,
     BENCH_TEX_OPAQUE_DEOB,
     BENCH_TEX_TRANS_DEOB,
+    BENCH_TEX_OPAQUE_DEOB2,
+    BENCH_TEX_TRANS_DEOB2,
     BENCH_VARIANT_COUNT
 };
 
@@ -184,11 +187,13 @@ static const char* variant_names[BENCH_VARIANT_COUNT] = {
     "Gouraud (Pix3D deob)",
     "Texture opaque (Pix3D deob)",
     "Texture transparent (Pix3D deob)",
+    "Texture opaque (Pix3D deob2)",
+    "Texture transparent (Pix3D deob2)",
 };
 
 /* Category for display grouping */
 static int variant_category[BENCH_VARIANT_COUNT] = {
-    0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5,
+    0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5,
 };
 static const char* category_names[] = {
     "Flat",
@@ -1141,6 +1146,52 @@ run_benchmark_variant(
                     texels,
                     0);
                 break;
+            case BENCH_TEX_OPAQUE_DEOB2:
+                pix3d_deob2_texture_triangle(
+                    tri_x0[i],
+                    tri_x1[i],
+                    tri_x2[i],
+                    tri_y0[i],
+                    tri_y1[i],
+                    tri_y2[i],
+                    tri_color0[i],
+                    tri_color1[i],
+                    tri_color2[i],
+                    tri_ortho_uvorigin_x[i],
+                    tri_ortho_uvorigin_y[i],
+                    tri_ortho_uvorigin_z[i],
+                    tri_ortho_uend_x[i],
+                    tri_ortho_vend_x[i],
+                    tri_ortho_uend_y[i],
+                    tri_ortho_vend_y[i],
+                    tri_ortho_uend_z[i],
+                    tri_ortho_vend_z[i],
+                    texels,
+                    1);
+                break;
+            case BENCH_TEX_TRANS_DEOB2:
+                pix3d_deob2_texture_triangle(
+                    tri_x0[i],
+                    tri_x1[i],
+                    tri_x2[i],
+                    tri_y0[i],
+                    tri_y1[i],
+                    tri_y2[i],
+                    tri_color0[i],
+                    tri_color1[i],
+                    tri_color2[i],
+                    tri_ortho_uvorigin_x[i],
+                    tri_ortho_uvorigin_y[i],
+                    tri_ortho_uvorigin_z[i],
+                    tri_ortho_uend_x[i],
+                    tri_ortho_vend_x[i],
+                    tri_ortho_uend_y[i],
+                    tri_ortho_vend_y[i],
+                    tri_ortho_uend_z[i],
+                    tri_ortho_vend_z[i],
+                    texels,
+                    0);
+                break;
             default:
                 break;
             }
@@ -1800,6 +1851,52 @@ run_benchmark_variant(
                     texels,
                     0);
                 break;
+            case BENCH_TEX_OPAQUE_DEOB2:
+                pix3d_deob2_texture_triangle(
+                    tri_x0[i],
+                    tri_x1[i],
+                    tri_x2[i],
+                    tri_y0[i],
+                    tri_y1[i],
+                    tri_y2[i],
+                    tri_color0[i],
+                    tri_color1[i],
+                    tri_color2[i],
+                    tri_ortho_uvorigin_x[i],
+                    tri_ortho_uvorigin_y[i],
+                    tri_ortho_uvorigin_z[i],
+                    tri_ortho_uend_x[i],
+                    tri_ortho_vend_x[i],
+                    tri_ortho_uend_y[i],
+                    tri_ortho_vend_y[i],
+                    tri_ortho_uend_z[i],
+                    tri_ortho_vend_z[i],
+                    texels,
+                    1);
+                break;
+            case BENCH_TEX_TRANS_DEOB2:
+                pix3d_deob2_texture_triangle(
+                    tri_x0[i],
+                    tri_x1[i],
+                    tri_x2[i],
+                    tri_y0[i],
+                    tri_y1[i],
+                    tri_y2[i],
+                    tri_color0[i],
+                    tri_color1[i],
+                    tri_color2[i],
+                    tri_ortho_uvorigin_x[i],
+                    tri_ortho_uvorigin_y[i],
+                    tri_ortho_uvorigin_z[i],
+                    tri_ortho_uend_x[i],
+                    tri_ortho_vend_x[i],
+                    tri_ortho_uend_y[i],
+                    tri_ortho_vend_y[i],
+                    tri_ortho_uend_z[i],
+                    tri_ortho_vend_z[i],
+                    texels,
+                    0);
+                break;
             default:
                 break;
             }
@@ -2064,6 +2161,8 @@ main(
     run_benchmark_variant(BENCH_GOURAUD_DEOB, NULL);
     run_benchmark_variant(BENCH_TEX_OPAQUE_DEOB, opaque_texels);
     run_benchmark_variant(BENCH_TEX_TRANS_DEOB, transparent_texels);
+    run_benchmark_variant(BENCH_TEX_OPAQUE_DEOB2, opaque_texels);
+    run_benchmark_variant(BENCH_TEX_TRANS_DEOB2, transparent_texels);
 
     printf("\n=== Benchmarks complete. Displaying results. ===\n");
     printf("Close the window or press ESC to exit.\n\n");
