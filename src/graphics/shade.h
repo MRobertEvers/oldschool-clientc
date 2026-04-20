@@ -4,6 +4,7 @@
 #include "dash_restrict.h"
 
 #include <assert.h>
+#include <stdint.h>
 
 /**
  * This is a cute way to alpha blend two rgb colors.
@@ -19,11 +20,11 @@
  */
 static inline int
 shade_blend(
-    int base,
-    int shade)
+    uint32_t base,
+    uint32_t shade)
 {
-    int rb = base & 0x00ff00ff;
-    int g = base & 0x0000ff00;
+    uint32_t rb = base & 0x00ff00ff;
+    uint32_t g = base & 0x0000ff00;
 
     rb *= shade;
     g *= shade;
