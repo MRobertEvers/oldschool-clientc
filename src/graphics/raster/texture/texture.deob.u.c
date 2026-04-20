@@ -2,9 +2,12 @@
 #define TEXTURE_DEOB_U_C
 
 #include "graphics/dash_restrict.h"
-#include "graphics/raster/deob/pix3d_deob_dbg.h"
 #include "graphics/raster/deob/pix3d_deob_state.h"
 #include "graphics/shade.h"
+
+#ifndef DEOB_TEXTURE_DEBUG_V_MODULO
+#define DEOB_TEXTURE_DEBUG_V_MODULO 0 /* 1: wrap U/V columns & rows with %128 in texel fetch */
+#endif
 
 extern int g_reciprocal15[4096];
 
@@ -128,13 +131,9 @@ pix3d_deob_texture_raster(
 
     /* Pix3D.textureRaster returns if xA >= xB (no swap). Callers are written so each active
      * edge usually passes increasing x; when xA > xB we normalize to (left,right) with matching
-     * shades so UV/shade match the geometric span — see g_deob_cnt_raster_inverted_args. */
+     * shades so UV/shade match the geometric span. */
     if( xA == xB )
-    {
-        DEOB_CNT_INC(g_deob_cnt_skip_apex_zero_width);
-        DEOB_DBG("raster SKIP: xA==xB texels=%p x=%d", (void*)texels, xA);
         return;
-    }
     if( xA > xB )
     {
         return;
@@ -153,16 +152,7 @@ pix3d_deob_texture_raster(
             xA = 0;
         }
         if( xA >= xB )
-        {
-            DEOB_CNT_INC(g_deob_cnt_skip_hclip_empty);
-            DEOB_DBG(
-                "raster SKIP after hclip xA>=xB: xA=%d xB=%d shadeA=%d shadeB=%d",
-                xA,
-                xB,
-                shadeA,
-                shadeB);
             return;
-        }
         strides = (xB - xA) >> 3;
         shadeStrides <<= 12;
     }
@@ -181,31 +171,12 @@ pix3d_deob_texture_raster(
     }
 
     shadeA <<= 9;
-    {
-        int u8 = pix3d_deob_texture_shade_u8(shadeA);
-        DEOB_DBG(
-            "raster: xA=%d xB=%d shadeA<<9=%d -> shade_u8=%d sat255=%d hclip=%d",
-            xA,
-            xB,
-            shadeA,
-            u8,
-            u8 >= 255 ? 1 : 0,
-            g_pix3d_deob_hclip);
-    }
-    int y_off_row = (g_pix3d_deob_width != 0) ? off / g_pix3d_deob_width : 0;
     off += xA;
-#if !DEOB_TEXTURE_DEBUG
-    (void)y_off_row;
-#endif
 
     int nextU = 0, nextV = 0, curW, dx, stepU, stepV;
 
     if( g_pix3d_deob_low_mem )
-    {
-        DEOB_CNT_INC(g_deob_cnt_skip_apex_zero_width);
-        DEOB_DBG("raster SKIP: low_mem=1");
         return;
-    }
 
     dx = xA - g_pix3d_deob_origin_x;
     u = u + (uStride >> 3) * dx;
@@ -214,18 +185,6 @@ pix3d_deob_texture_raster(
     u |= 0;
     v |= 0;
     w |= 0;
-
-    DEOB_DBG(
-        "raster uvw: y_off=%d xA=%d dx=%d u=%d v=%d w=%d uS=%d vS=%d wS=%d",
-        y_off_row,
-        xA,
-        dx,
-        u,
-        v,
-        w,
-        uStride,
-        vStride,
-        wStride);
 
     /* Pix3D.textureRaster (!lowMem): never return when w>>14==0; only skip u/w divide (Pix3D.ts
      * ~2700–2731). Early return here dropped whole spans and diverged from TS on slivers. */
@@ -260,16 +219,6 @@ pix3d_deob_texture_raster(
 
     stepU = (nextU - curU) >> 3;
     stepV = (nextV - curV) >> 3;
-
-    DEOB_DBG(
-        "raster div: curW=%d curU=%d curV=%d nextU=%d nextV=%d stepU=%d stepV=%d",
-        curW,
-        curU,
-        curV,
-        nextU,
-        nextV,
-        stepU,
-        stepV);
 
     if( g_pix3d_deob_opaque )
     {
@@ -483,8 +432,6 @@ pix3d_deob_texture_raster(
             curV += stepV;
         }
     }
-
-    DEOB_CNT_INC(g_deob_cnt_raster_ok);
 }
 
 /*
@@ -565,36 +512,10 @@ pix3d_deob_texture_triangle(
     if( yC != yA )
         shadeStepAC = (((shadeA - shadeC) << 16) / (yA - yC)) | 0;
 
-    DEOB_DBG(
-        "tex-tri: u=%d v=%d w=%d uStride=%d vStride=%d wStride=%d uVert=%d vVert=%d wVert=%d",
-        u,
-        v,
-        w,
-        uStride,
-        vStride,
-        wStride,
-        uStepVertical,
-        vStepVertical,
-        wStepVertical);
-    DEOB_DBG(
-        "tex-tri: shadeStep AB=%d BC=%d AC=%d shade_in=(%d,%d,%d)",
-        shadeStepAB,
-        shadeStepBC,
-        shadeStepAC,
-        shadeA,
-        shadeB,
-        shadeC);
-
     if( yA <= yB && yA <= yC )
     {
-        DEOB_CNT_INC(g_deob_cnt_tex_tri_yA_min);
         if( yA >= g_pix3d_deob_clip_max_y )
-        {
-            DEOB_CNT_INC(g_deob_cnt_skip_clip_max_y);
-            DEOB_DBG(
-                "tex-tri SKIP branch_yA_min: yA=%d >= clip_max_y=%d", yA, g_pix3d_deob_clip_max_y);
             return;
-        }
 
         if( yB > g_pix3d_deob_clip_max_y )
             yB = g_pix3d_deob_clip_max_y;
@@ -604,10 +525,6 @@ pix3d_deob_texture_triangle(
 
         if( yB < yC )
         {
-            DEOB_CNT_INC(g_deob_cnt_tex_tri_yA_yBlt_yC);
-            const int shadeA_unscaled = shadeA;
-            const int yA_in = yA;
-
             xA <<= 16;
             xC = xA;
             shadeA <<= 16;
@@ -642,23 +559,8 @@ pix3d_deob_texture_triangle(
                 w |= 0;
             }
 
-            {
-                int replayA = shadeA_unscaled << 16;
-                if( yA_in < 0 )
-                    replayA -= shadeStepAB * yA_in;
-                DEOB_DBG(
-                    "tex-tri post-clip yB<yC: yA_in=%d shade_unscaled=%d shadeA_i32=%d "
-                    "wide_replay=%lld match_replay=%d",
-                    yA_in,
-                    shadeA_unscaled,
-                    shadeA,
-                    (long long)replayA,
-                    (int)(replayA == shadeA));
-            }
-
             if( (yA != yB && xStepAC < xStepAB) || (yA == yB && xStepAC > xStepBC) )
             {
-                DEOB_CNT_INC(g_deob_cnt_tex_tri_yA_yBltC_inner_ac_ab);
                 yC -= yB;
                 yB -= yA;
                 yA = g_pix3d_deob_scanline[yA];
@@ -737,7 +639,6 @@ pix3d_deob_texture_triangle(
             }
             else
             {
-                DEOB_CNT_INC(g_deob_cnt_tex_tri_yA_yBltC_inner_else);
                 yC -= yB;
                 yB -= yA;
                 yA = g_pix3d_deob_scanline[yA];
@@ -817,7 +718,6 @@ pix3d_deob_texture_triangle(
         }
         else
         {
-            DEOB_CNT_INC(g_deob_cnt_tex_tri_yA_yBge_yC);
             xA <<= 16;
             xB = xA;
             shadeA <<= 16;
@@ -856,7 +756,6 @@ pix3d_deob_texture_triangle(
              * here with bodies swapped vs the TS listing — same edges as TS else/if. */
             if( (yA != yC && xStepAC < xStepAB) || (yA == yC && xStepBC > xStepAB) )
             {
-                DEOB_CNT_INC(g_deob_cnt_tex_tri_yA_yBgeC_path1);
                 yB -= yC;
                 yC -= yA;
                 yA = g_pix3d_deob_scanline[yA];
@@ -935,7 +834,6 @@ pix3d_deob_texture_triangle(
             }
             else
             {
-                DEOB_CNT_INC(g_deob_cnt_tex_tri_yA_yBgeC_path2);
                 yB -= yC;
                 yC -= yA;
                 yA = g_pix3d_deob_scanline[yA];
@@ -1016,14 +914,8 @@ pix3d_deob_texture_triangle(
     }
     else if( yB <= yC )
     {
-        DEOB_CNT_INC(g_deob_cnt_tex_tri_yB_mid);
         if( yB >= g_pix3d_deob_clip_max_y )
-        {
-            DEOB_CNT_INC(g_deob_cnt_skip_clip_max_y);
-            DEOB_DBG(
-                "tex-tri SKIP branch_yB_mid: yB=%d >= clip_max_y=%d", yB, g_pix3d_deob_clip_max_y);
             return;
-        }
 
         if( yC > g_pix3d_deob_clip_max_y )
             yC = g_pix3d_deob_clip_max_y;
@@ -1410,14 +1302,8 @@ pix3d_deob_texture_triangle(
     }
     else
     {
-                DEOB_CNT_INC(g_deob_cnt_tex_tri_yC_max);
         if( yC >= g_pix3d_deob_clip_max_y )
-        {
-            DEOB_CNT_INC(g_deob_cnt_skip_clip_max_y);
-            DEOB_DBG(
-                "tex-tri SKIP branch_yC_max: yC=%d >= clip_max_y=%d", yC, g_pix3d_deob_clip_max_y);
             return;
-        }
 
         if( yA > g_pix3d_deob_clip_max_y )
             yA = g_pix3d_deob_clip_max_y;

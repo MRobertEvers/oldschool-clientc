@@ -1,28 +1,6 @@
 #include "pix3d_deob_state.h"
-#include "graphics/raster/deob/pix3d_deob_dbg.h"
 
 #include <stdlib.h>
-
-int g_deob_dbg_remaining = 200;
-int g_deob_dbg_frame = 0;
-
-int g_deob_cnt_compat_calls = 0;
-int g_deob_cnt_skip_clip_max_y = 0;
-int g_deob_cnt_skip_apex_zero_width = 0;
-int g_deob_cnt_skip_hclip_empty = 0;
-int g_deob_cnt_raster_ok = 0;
-int g_deob_cnt_raster_inverted_args = 0;
-int g_deob_cnt_dispatch_calls = 0;
-
-int g_deob_cnt_tex_tri_yA_min = 0;
-int g_deob_cnt_tex_tri_yB_mid = 0;
-int g_deob_cnt_tex_tri_yC_max = 0;
-int g_deob_cnt_tex_tri_yA_yBlt_yC = 0;
-int g_deob_cnt_tex_tri_yA_yBge_yC = 0;
-int g_deob_cnt_tex_tri_yA_yBltC_inner_ac_ab = 0;
-int g_deob_cnt_tex_tri_yA_yBltC_inner_else = 0;
-int g_deob_cnt_tex_tri_yA_yBgeC_path1 = 0;
-int g_deob_cnt_tex_tri_yA_yBgeC_path2 = 0;
 
 int* g_pix3d_deob_pixels = NULL;
 int g_pix3d_deob_width = 0;

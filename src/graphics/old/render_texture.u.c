@@ -1,6 +1,5 @@
 #include "graphics/dash.h"
 #include "graphics/raster/deob/pix3d_deob_compat.h"
-#include "graphics/raster/deob/pix3d_deob_dbg.h"
 #include "graphics/raster/deob/pix3d_deob_state.h"
 #include "graphics/raster_bench_runtime.h"
 
@@ -55,7 +54,6 @@ raster_texture_blend_bench_dispatch_opaque(
     int offset_x,
     int offset_y)
 {
-    DEOB_CNT_INC(g_deob_cnt_dispatch_calls);
     (void)texture_opaque;
     switch( variant )
     {

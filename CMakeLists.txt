@@ -250,10 +250,8 @@ if(NOT EMSCRIPTEN)
     list(REMOVE_ITEM BENCH_SDL2_SOURCES test/sdl2.cpp)
     list(APPEND BENCH_SDL2_SOURCES benchmarks/bench_sdl2/bench_sdl2_main.cpp)
     add_executable(bench_sdl2 ${BENCH_SDL2_SOURCES})
-    target_compile_definitions(bench_sdl2 PRIVATE DEOB_TEXTURE_DEBUG=1)
-    # Optional deob texture debug: explicit U/V wrap (%128 per axis) in texel fetch — add
+    # Optional: U/V wrap (%128 per axis) in deob texel fetch — add
     #   target_compile_definitions(bench_sdl2 PRIVATE DEOB_TEXTURE_DEBUG_V_MODULO=1)
-    # or pass -DDEOB_TEXTURE_DEBUG_V_MODULO=1 in CMAKE_C_FLAGS / compile_commands.
     if(WIN32)
         target_compile_definitions(bench_sdl2 PRIVATE TORIRS_NO_D3D11=1)
     endif()

@@ -3,7 +3,6 @@
 
 #include "graphics/raster/deob/pix3d_deob_compat.h"
 
-#include "graphics/raster/deob/pix3d_deob_dbg.h"
 #include "graphics/raster/deob/pix3d_deob_state.c"
 #include "graphics/raster/deob/pix3d_deob_state.h"
 #include "graphics/raster/flat/flat.deob.u.c"
@@ -23,70 +22,12 @@ static int s_deob_compat_clip_max_y;
 static inline int
 deob_shade_7bit(int s)
 {
-    return 127;
-    if( s < 0 )
-    {
-#if DEOB_TEXTURE_DEBUG
-        if( s != 0 )
-            DEOB_DBG("deob_shade_7bit: clamp neg %d -> 0", s);
-#endif
-        return 0;
-    }
-    if( s > 127 )
-    {
-#if DEOB_TEXTURE_DEBUG
-        DEOB_DBG("deob_shade_7bit: clamp %d -> 127", s);
-#endif
-        return 127;
-    }
-    return s;
+    return s & 0x7F;
 }
 
 void
 pix3d_deob_compat_dbg_tick(void)
 {
-#if DEOB_TEXTURE_DEBUG
-    DEOB_DBG_ALWAYS(
-        "frame %d totals: compat=%d dispatch=%d ok=%d inv_span=%d skip_clip=%d skip_apex=%d "
-        "skip_hclip=%d "
-        "tri_yA=%d tri_yB=%d tri_yC=%d yA_yBltC=%d yA_yBgeC=%d yA_yBltC_i1=%d yA_yBltC_i2=%d "
-        "yA_yBge_p1=%d yA_yBge_p2=%d",
-        g_deob_dbg_frame,
-        g_deob_cnt_compat_calls,
-        g_deob_cnt_dispatch_calls,
-        g_deob_cnt_raster_ok,
-        g_deob_cnt_raster_inverted_args,
-        g_deob_cnt_skip_clip_max_y,
-        g_deob_cnt_skip_apex_zero_width,
-        g_deob_cnt_skip_hclip_empty,
-        g_deob_cnt_tex_tri_yA_min,
-        g_deob_cnt_tex_tri_yB_mid,
-        g_deob_cnt_tex_tri_yC_max,
-        g_deob_cnt_tex_tri_yA_yBlt_yC,
-        g_deob_cnt_tex_tri_yA_yBge_yC,
-        g_deob_cnt_tex_tri_yA_yBltC_inner_ac_ab,
-        g_deob_cnt_tex_tri_yA_yBltC_inner_else,
-        g_deob_cnt_tex_tri_yA_yBgeC_path1,
-        g_deob_cnt_tex_tri_yA_yBgeC_path2);
-    g_deob_cnt_compat_calls = 0;
-    g_deob_cnt_dispatch_calls = 0;
-    g_deob_cnt_raster_ok = 0;
-    g_deob_cnt_raster_inverted_args = 0;
-    g_deob_cnt_skip_clip_max_y = 0;
-    g_deob_cnt_skip_apex_zero_width = 0;
-    g_deob_cnt_skip_hclip_empty = 0;
-    g_deob_cnt_tex_tri_yA_min = 0;
-    g_deob_cnt_tex_tri_yB_mid = 0;
-    g_deob_cnt_tex_tri_yC_max = 0;
-    g_deob_cnt_tex_tri_yA_yBlt_yC = 0;
-    g_deob_cnt_tex_tri_yA_yBge_yC = 0;
-    g_deob_cnt_tex_tri_yA_yBltC_inner_ac_ab = 0;
-    g_deob_cnt_tex_tri_yA_yBltC_inner_else = 0;
-    g_deob_cnt_tex_tri_yA_yBgeC_path1 = 0;
-    g_deob_cnt_tex_tri_yA_yBgeC_path2 = 0;
-    g_deob_dbg_remaining = 200;
-    g_deob_dbg_frame++;
-#endif
 }
 
 void
@@ -108,8 +49,6 @@ pix3d_deob_compat_ensure(
     int stride,
     int clip_max_y)
 {
-    /* Per-frame [DEOBDBG!] totals + g_deob_dbg_remaining rearm: pix3d_deob_compat_dbg_tick() at
-     * Soft3D frame start (ensure runs per-draw-call; do not rearm here). */
     if( pixels == s_deob_compat_pixels && screen_width == s_deob_compat_w &&
         screen_height == s_deob_compat_h && stride == s_deob_compat_stride &&
         clip_max_y == s_deob_compat_clip_max_y )
@@ -129,17 +68,6 @@ pix3d_deob_compat_ensure(
     s_deob_compat_h = screen_height;
     s_deob_compat_stride = stride;
     s_deob_compat_clip_max_y = clip_max_y;
-
-    DEOB_DBG_ALWAYS(
-        "ensure: sw=%d sh=%d stride=%d origin_x=%d origin_y=%d size_x=%d width=%d clip_max_y=%d",
-        screen_width,
-        screen_height,
-        stride,
-        g_pix3d_deob_origin_x,
-        g_pix3d_deob_origin_y,
-        g_pix3d_deob_size_x,
-        g_pix3d_deob_width,
-        g_pix3d_deob_clip_max_y);
 }
 
 void
@@ -237,39 +165,8 @@ raster_texture_screen_deob_compat(
     (void)texture_size;
 
     pix3d_deob_compat_ensure(pixel_buffer, screen_width, screen_height, stride, screen_height);
-    DEOB_CNT_INC(g_deob_cnt_compat_calls);
     pix3d_deob_set_alpha(0);
     g_pix3d_deob_opaque = texture_opaque ? 1 : 0;
-
-    DEOB_DBG(
-        "compat-tex/deob: x=(%d,%d,%d) y=(%d,%d,%d) shade_in=(%d,%d,%d) clamped=(%d,%d,%d) "
-        "flags_a=(neg=%d gt127=%d gt255=%d) ortho_o=(%d,%d,%d) ortho_u=(%d,%d,%d) "
-        "ortho_v=(%d,%d,%d) opaque=%d",
-        x1,
-        x2,
-        x3,
-        y1,
-        y2,
-        y3,
-        shade_a,
-        shade_b,
-        shade_c,
-        deob_shade_7bit(shade_a),
-        deob_shade_7bit(shade_b),
-        deob_shade_7bit(shade_c),
-        shade_a < 0 ? 1 : 0,
-        shade_a > 127 ? 1 : 0,
-        shade_a > 255 ? 1 : 0,
-        orthographic_uvorigin_x0,
-        orthographic_uvorigin_y0,
-        orthographic_uvorigin_z0,
-        orthographic_uend_x1,
-        orthographic_vend_x2,
-        orthographic_uend_y1,
-        orthographic_vend_y2,
-        orthographic_uend_z1,
-        orthographic_vend_z2,
-        texture_opaque ? 1 : 0);
 
     pix3d_deob_texture_triangle(
         x1,
@@ -336,39 +233,8 @@ raster_texture_screen_deob2_compat(
     (void)texture_size;
 
     pix3d_deob_compat_ensure(pixel_buffer, screen_width, screen_height, stride, screen_height);
-    DEOB_CNT_INC(g_deob_cnt_compat_calls);
     pix3d_deob_set_alpha(0);
     g_pix3d_deob_opaque = texture_opaque ? 1 : 0;
-
-    DEOB_DBG(
-        "compat-tex/deob2: x=(%d,%d,%d) y=(%d,%d,%d) shade_in=(%d,%d,%d) clamped=(%d,%d,%d) "
-        "flags_a=(neg=%d gt127=%d gt255=%d) ortho_o=(%d,%d,%d) ortho_u=(%d,%d,%d) "
-        "ortho_v=(%d,%d,%d) opaque=%d",
-        x1,
-        x2,
-        x3,
-        y1,
-        y2,
-        y3,
-        shade_a,
-        shade_b,
-        shade_c,
-        deob_shade_7bit(shade_a),
-        deob_shade_7bit(shade_b),
-        deob_shade_7bit(shade_c),
-        shade_a < 0 ? 1 : 0,
-        shade_a > 127 ? 1 : 0,
-        shade_a > 255 ? 1 : 0,
-        orthographic_uvorigin_x0,
-        orthographic_uvorigin_y0,
-        orthographic_uvorigin_z0,
-        orthographic_uend_x1,
-        orthographic_vend_x2,
-        orthographic_uend_y1,
-        orthographic_vend_y2,
-        orthographic_uend_z1,
-        orthographic_vend_z2,
-        texture_opaque ? 1 : 0);
 
     pix3d_deob2_texture_triangle(
         x1,
