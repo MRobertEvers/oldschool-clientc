@@ -2,16 +2,16 @@
 #define PIX3D_DEOB_COMPAT_U_C
 
 #include "graphics/raster/deob/pix3d_deob_compat.h"
+
 #include "graphics/raster/deob/pix3d_deob_dbg.h"
-#include "graphics/raster/deob/pix3d_deob_state.h"
-#include "graphics/shared_tables.h"
-
-#include <stddef.h>
-
 #include "graphics/raster/deob/pix3d_deob_state.c"
+#include "graphics/raster/deob/pix3d_deob_state.h"
 #include "graphics/raster/flat/flat.deob.u.c"
 #include "graphics/raster/gouraud/gouraud.deob.u.c"
 #include "graphics/raster/texture/texture.deob2.u.c"
+#include "graphics/shared_tables.h"
+
+#include <stddef.h>
 
 static int* s_deob_compat_pixels;
 static int s_deob_compat_w;
@@ -23,37 +23,74 @@ static int s_deob_compat_clip_max_y;
 static inline int
 deob_shade_7bit(int s)
 {
+    return 127;
     if( s < 0 )
+    {
+#if DEOB_TEXTURE_DEBUG
+        if( s != 0 )
+            DEOB_DBG("deob_shade_7bit: clamp neg %d -> 0", s);
+#endif
         return 0;
+    }
     if( s > 127 )
+    {
+#if DEOB_TEXTURE_DEBUG
+        DEOB_DBG("deob_shade_7bit: clamp %d -> 127", s);
+#endif
         return 127;
+    }
     return s;
 }
 
-void pix3d_deob_compat_dbg_tick(void)
+void
+pix3d_deob_compat_dbg_tick(void)
 {
 #if DEOB_TEXTURE_DEBUG
     DEOB_DBG_ALWAYS(
-        "frame %d totals: compat=%d dispatch=%d ok=%d skip_clip=%d skip_apex=%d skip_hclip=%d",
+        "frame %d totals: compat=%d dispatch=%d ok=%d inv_span=%d skip_clip=%d skip_apex=%d "
+        "skip_hclip=%d "
+        "tri_yA=%d tri_yB=%d tri_yC=%d yA_yBltC=%d yA_yBgeC=%d yA_yBltC_i1=%d yA_yBltC_i2=%d "
+        "yA_yBge_p1=%d yA_yBge_p2=%d",
         g_deob_dbg_frame,
         g_deob_cnt_compat_calls,
         g_deob_cnt_dispatch_calls,
         g_deob_cnt_raster_ok,
+        g_deob_cnt_raster_inverted_args,
         g_deob_cnt_skip_clip_max_y,
         g_deob_cnt_skip_apex_zero_width,
-        g_deob_cnt_skip_hclip_empty);
+        g_deob_cnt_skip_hclip_empty,
+        g_deob_cnt_tex_tri_yA_min,
+        g_deob_cnt_tex_tri_yB_mid,
+        g_deob_cnt_tex_tri_yC_max,
+        g_deob_cnt_tex_tri_yA_yBlt_yC,
+        g_deob_cnt_tex_tri_yA_yBge_yC,
+        g_deob_cnt_tex_tri_yA_yBltC_inner_ac_ab,
+        g_deob_cnt_tex_tri_yA_yBltC_inner_else,
+        g_deob_cnt_tex_tri_yA_yBgeC_path1,
+        g_deob_cnt_tex_tri_yA_yBgeC_path2);
     g_deob_cnt_compat_calls = 0;
     g_deob_cnt_dispatch_calls = 0;
     g_deob_cnt_raster_ok = 0;
+    g_deob_cnt_raster_inverted_args = 0;
     g_deob_cnt_skip_clip_max_y = 0;
     g_deob_cnt_skip_apex_zero_width = 0;
     g_deob_cnt_skip_hclip_empty = 0;
+    g_deob_cnt_tex_tri_yA_min = 0;
+    g_deob_cnt_tex_tri_yB_mid = 0;
+    g_deob_cnt_tex_tri_yC_max = 0;
+    g_deob_cnt_tex_tri_yA_yBlt_yC = 0;
+    g_deob_cnt_tex_tri_yA_yBge_yC = 0;
+    g_deob_cnt_tex_tri_yA_yBltC_inner_ac_ab = 0;
+    g_deob_cnt_tex_tri_yA_yBltC_inner_else = 0;
+    g_deob_cnt_tex_tri_yA_yBgeC_path1 = 0;
+    g_deob_cnt_tex_tri_yA_yBgeC_path2 = 0;
     g_deob_dbg_remaining = 200;
     g_deob_dbg_frame++;
 #endif
 }
 
-void pix3d_deob_compat_reset(void)
+void
+pix3d_deob_compat_reset(void)
 {
     pix3d_deob_free();
     s_deob_compat_pixels = NULL;
@@ -71,10 +108,11 @@ pix3d_deob_compat_ensure(
     int stride,
     int clip_max_y)
 {
-    /* Per-frame [DEOBDBG!] totals + g_deob_dbg_remaining rearm: pix3d_deob_compat_dbg_tick() at Soft3D
-     * frame start (ensure runs per-draw-call; do not rearm here). */
-    if( pixels == s_deob_compat_pixels && screen_width == s_deob_compat_w && screen_height == s_deob_compat_h
-        && stride == s_deob_compat_stride && clip_max_y == s_deob_compat_clip_max_y )
+    /* Per-frame [DEOBDBG!] totals + g_deob_dbg_remaining rearm: pix3d_deob_compat_dbg_tick() at
+     * Soft3D frame start (ensure runs per-draw-call; do not rearm here). */
+    if( pixels == s_deob_compat_pixels && screen_width == s_deob_compat_w &&
+        screen_height == s_deob_compat_h && stride == s_deob_compat_stride &&
+        clip_max_y == s_deob_compat_clip_max_y )
         return;
 
     pix3d_deob_set_clipping(pixels, stride, screen_height, screen_width, clip_max_y);
@@ -104,7 +142,8 @@ pix3d_deob_compat_ensure(
         g_pix3d_deob_clip_max_y);
 }
 
-void raster_flat_screen_deob_compat(
+void
+raster_flat_screen_deob_compat(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -128,7 +167,8 @@ void raster_flat_screen_deob_compat(
     pix3d_deob_flat_triangle(x1, x2, x3, y1, y2, y3, rgb);
 }
 
-void raster_gouraud_screen_deob_compat(
+void
+raster_gouraud_screen_deob_compat(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -153,7 +193,8 @@ void raster_gouraud_screen_deob_compat(
     pix3d_deob_gouraud_triangle(x1, x2, x3, y1, y2, y3, color_a, color_b, color_c);
 }
 
-void raster_texture_screen_deob_compat(
+void
+raster_texture_screen_deob_compat(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -184,6 +225,11 @@ void raster_texture_screen_deob_compat(
     int offset_x,
     int offset_y)
 {
+    /* Persp bench paths (texshadeblend / texshadeflat) apply camera_fov via project_scale_unit on
+     * plane normals; pix3d_deob_texture_triangle matches Java/Pix3D and expects orthographic
+     * corners already in that projection space. Same raw corners + different FOV => different UV vs
+     * lerp8. Pix3D may also use packed shade grids (texel>>>shift); here one texture + shade_blend
+     * multiply. */
     (void)camera_fov;
     (void)near_plane_z;
     (void)offset_x;
@@ -197,7 +243,8 @@ void raster_texture_screen_deob_compat(
 
     DEOB_DBG(
         "compat-tex/deob: x=(%d,%d,%d) y=(%d,%d,%d) shade_in=(%d,%d,%d) clamped=(%d,%d,%d) "
-        "flags_a=(neg=%d gt127=%d gt255=%d) ortho_o=(%d,%d,%d) ortho_u=(%d,%d,%d) ortho_v=(%d,%d,%d) opaque=%d",
+        "flags_a=(neg=%d gt127=%d gt255=%d) ortho_o=(%d,%d,%d) ortho_u=(%d,%d,%d) "
+        "ortho_v=(%d,%d,%d) opaque=%d",
         x1,
         x2,
         x3,
@@ -247,7 +294,8 @@ void raster_texture_screen_deob_compat(
         texture_opaque ? 1 : 0);
 }
 
-void raster_texture_screen_deob2_compat(
+void
+raster_texture_screen_deob2_compat(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -278,6 +326,9 @@ void raster_texture_screen_deob2_compat(
     int offset_x,
     int offset_y)
 {
+    /* See raster_texture_screen_deob_compat: FOV is unused; compare to persp lerp8 only when ortho
+     * inputs are in the same space as Java deob. Shading: single texture + multiply, not Pix3D
+     * grids. */
     (void)camera_fov;
     (void)near_plane_z;
     (void)offset_x;
@@ -291,7 +342,8 @@ void raster_texture_screen_deob2_compat(
 
     DEOB_DBG(
         "compat-tex/deob2: x=(%d,%d,%d) y=(%d,%d,%d) shade_in=(%d,%d,%d) clamped=(%d,%d,%d) "
-        "flags_a=(neg=%d gt127=%d gt255=%d) ortho_o=(%d,%d,%d) ortho_u=(%d,%d,%d) ortho_v=(%d,%d,%d) opaque=%d",
+        "flags_a=(neg=%d gt127=%d gt255=%d) ortho_o=(%d,%d,%d) ortho_u=(%d,%d,%d) "
+        "ortho_v=(%d,%d,%d) opaque=%d",
         x1,
         x2,
         x3,
@@ -341,7 +393,8 @@ void raster_texture_screen_deob2_compat(
         texture_opaque ? 1 : 0);
 }
 
-void raster_texture_flat_screen_deob2_compat(
+void
+raster_texture_flat_screen_deob2_compat(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -402,7 +455,8 @@ void raster_texture_flat_screen_deob2_compat(
         offset_y);
 }
 
-void raster_texture_flat_screen_deob_compat(
+void
+raster_texture_flat_screen_deob_compat(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,

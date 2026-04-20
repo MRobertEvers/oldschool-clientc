@@ -89,7 +89,8 @@
 #include "graphics/raster/texture/texshadeflat.persp.textrans.branching.lerp8.u.c"
 #include "graphics/raster/texture/texshadeflat.persp.textrans.sort.lerp8.u.c"
 
-/* Pix3D deob reference ports (static inline rasterizers; globals live in dash.c via pix3d_deob_compat) */
+/* Pix3D deob reference ports (static inline rasterizers; globals live in dash.c via
+ * pix3d_deob_compat) */
 #include "graphics/raster/deob/pix3d_deob_state.h"
 #include "graphics/raster/flat/flat.deob.u.c"
 #include "graphics/raster/gouraud/gouraud.deob.u.c"
@@ -1813,9 +1814,9 @@ run_benchmark_variant(
                     tri_y0[i],
                     tri_y1[i],
                     tri_y2[i],
-                    tri_color0[i],
-                    tri_color1[i],
-                    tri_color2[i],
+                    127,
+                    127,
+                    127,
                     tri_ortho_uvorigin_x[i],
                     tri_ortho_uvorigin_y[i],
                     tri_ortho_uvorigin_z[i],
@@ -1836,9 +1837,9 @@ run_benchmark_variant(
                     tri_y0[i],
                     tri_y1[i],
                     tri_y2[i],
-                    tri_color0[i],
-                    tri_color1[i],
-                    tri_color2[i],
+                    127,
+                    127,
+                    127,
                     tri_ortho_uvorigin_x[i],
                     tri_ortho_uvorigin_y[i],
                     tri_ortho_uvorigin_z[i],

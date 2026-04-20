@@ -55,8 +55,21 @@ pix3d_deob_texture_raster(
     int shadeA,
     int shadeB)
 {
-    if( !texels || xA >= xB )
+    if( !texels )
         return;
+
+    if( xA == xB )
+        return;
+
+    if( xA > xB )
+    {
+        int t = xA;
+        xA = xB;
+        xB = t;
+        t = shadeA;
+        shadeA = shadeB;
+        shadeB = t;
+    }
 
     int shadeStrides;
     int strides;
@@ -271,6 +284,17 @@ tri = tri.replace("shadeA <<= 15;", "shadeA <<= 16;")
 tri = tri.replace("shadeB <<= 15;", "shadeB <<= 16;")
 tri = tri.replace("shadeC <<= 15;", "shadeC <<= 16;")
 
+# Java/Pix3D textureTriangle uses <<16 for shade edge deltas (gouraud uses <<15 for 15-bit colour).
+tri = tri.replace(
+    "((shadeB - shadeA) << 15) / (yB - yA)", "((shadeB - shadeA) << 16) / (yB - yA)"
+)
+tri = tri.replace(
+    "((shadeC - shadeB) << 15) / (yC - yB)", "((shadeC - shadeB) << 16) / (yC - yB)"
+)
+tri = tri.replace(
+    "((shadeA - shadeC) << 15) / (yA - yC)", "((shadeA - shadeC) << 16) / (yA - yC)"
+)
+
 tri = tri.replace("shadeA >> 8 >> 8", "shadeA >> 8")
 tri = tri.replace("shadeB >> 8 >> 8", "shadeB >> 8")
 tri = tri.replace("shadeC >> 8 >> 8", "shadeC >> 8")
@@ -331,12 +355,9 @@ tri = tri.replace(
     1,
 )
 
-# Pix3D uses different condition: (yA === yC || xStepAC >= xStepAB) && (yA !== yC || xStepBC <= xStepAB)
-tri = tri.replace(
-    "            if( (yA != yC && xStepAC < xStepAB) || (yA == yC && xStepBC > xStepAB) )",
-    "            if( (yA == yC || xStepAC >= xStepAB) && (yA != yC || xStepBC <= xStepAB) )",
-    1,
-)
+# Keep gouraud's predicate here: De Morgan form is equivalent but swaps which if/else body runs;
+# bodies are still the gouraud-generated pair, so flipping the condition alone mis-pairs edges/UV.
+# (Do not replace with (yA == yC || xStepAC >= xStepAB) && ...)
 
 # yB<=yC branch: dy = yB - originY after yC clamp (yC < yA case)
 tri = tri.replace(

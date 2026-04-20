@@ -34,6 +34,4 @@ shade_blend(
     return (rb | g) >> 8;
 }
 
-
-
 #endif

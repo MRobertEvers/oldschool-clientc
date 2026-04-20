@@ -6,19 +6,42 @@
 #include "graphics/raster/deob/pix3d_deob_state.h"
 #include "graphics/shade.h"
 
-#include <stdint.h>
-
 extern int g_reciprocal15[4096];
 
-/* 128×128 layout: same u/v indexing as tex.span / texshadeflat scanlines (texture_shift 7). */
+/*
+ * UV indexing follows Pix3D/Java 128×128 packed coordinates (U subtexel + V row mask).
+ * Shading does not: Pix3D may use texel>>>shadeShift and shade-related U tweaks for a
+ * multi-shade texture grid; this engine keeps one ARGB texture and applies lighting via
+ * shade_blend() (multiply), matching tex.span / lerp8 — not bit-shifted texel samples.
+ */
+/* U column 0..127 after subtexel shift (clamped); V row from curV & 0x3f80. With
+ * DEOB_TEXTURE_DEBUG_V_MODULO: repeat UV via %128 on both. */
 static inline int
-pix3d_deob_texture_texel_fetch_128(int* texels, int curU, int curV)
+pix3d_deob_texture_texel_fetch_128(
+    int* texels,
+    int curU,
+    int curV)
 {
-    int u = (curU >> 7) & 127;
-    int v = curV & 0x3f80;
-    return texels[u + v];
+// #define DEOB_TEXTURE_DEBUG_V_MODULO 1
+#if DEOB_TEXTURE_DEBUG_V_MODULO
+    int col = curU >> 7;
+    col = ((col % 128) + 128) % 128;
+    int uc = col;
+    int row = curV >> 7;
+    row = ((row % 128) + 128) % 128;
+    int vr = row << 7;
+#else
+    int uc = curU >> 7;
+    if( uc < 0 )
+        uc = 0;
+    else if( uc > 127 )
+        uc = 127;
+    int vr = (int)(((unsigned int)curV) & 0x3f80u);
+#endif
+    return texels[uc + vr];
 }
 
+/* Interpolated span shade → 0..255 for shade_blend; not Pix3D shadeShift on texel bits. */
 static inline int
 pix3d_deob_texture_shade_u8(int shadeA_ish)
 {
@@ -28,6 +51,58 @@ pix3d_deob_texture_shade_u8(int shadeA_ish)
     if( s < 0 )
         s = 0;
     return s;
+}
+
+/* Homogeneous barycentric setup: Pix3D.ts textureTriangle ~1632–1650 (vertical = origin−B,
+ * horizontal = C−origin). TS parity spot-check: same int products and shifts; after each major
+ * branch’s `dy` adjust, u/v/w match TS before the first textureRaster call when inputs match
+ * Model.ts (fixed P/M/N, face order a,b,c). */
+static inline void
+pix3d_deob_texture_barycentric_from_corners(
+    int originX,
+    int originY,
+    int originZ,
+    int txB,
+    int tyB,
+    int tzB,
+    int txC,
+    int tyC,
+    int tzC,
+    int* u,
+    int* v,
+    int* w,
+    int* uStride,
+    int* vStride,
+    int* wStride,
+    int* uStepVertical,
+    int* vStepVertical,
+    int* wStepVertical)
+{
+    int verticalX = originX - txB;
+    int verticalY = originY - tyB;
+    int verticalZ = originZ - tzB;
+    int horizontalX = txC - originX;
+    int horizontalY = tyC - originY;
+    int horizontalZ = tzC - originZ;
+    int t;
+    t = (horizontalX * originY - horizontalY * originX) << 14;
+    *u = t;
+    t = (horizontalY * originZ - horizontalZ * originY) << 8;
+    *uStride = t;
+    t = (horizontalZ * originX - horizontalX * originZ) << 5;
+    *uStepVertical = t;
+    t = (verticalX * originY - verticalY * originX) << 14;
+    *v = t;
+    t = (verticalY * originZ - verticalZ * originY) << 8;
+    *vStride = t;
+    t = (verticalZ * originX - verticalX * originZ) << 5;
+    *vStepVertical = t;
+    t = (verticalY * horizontalX - verticalX * horizontalY) << 14;
+    *w = t;
+    t = (verticalZ * horizontalY - verticalY * horizontalZ) << 8;
+    *wStride = t;
+    t = (verticalX * horizontalZ - verticalZ * horizontalX) << 5;
+    *wStepVertical = t;
 }
 
 static inline void
@@ -51,21 +126,18 @@ pix3d_deob_texture_raster(
     if( !texels )
         return;
 
+    /* Pix3D.textureRaster returns if xA >= xB (no swap). Callers are written so each active
+     * edge usually passes increasing x; when xA > xB we normalize to (left,right) with matching
+     * shades so UV/shade match the geometric span — see g_deob_cnt_raster_inverted_args. */
     if( xA == xB )
     {
         DEOB_CNT_INC(g_deob_cnt_skip_apex_zero_width);
-        DEOB_DBG("raster SKIP zero-width: xA=xB=%d", xA);
+        DEOB_DBG("raster SKIP: xA==xB texels=%p x=%d", (void*)texels, xA);
         return;
     }
-
     if( xA > xB )
     {
-        int tmp = xA;
-        xA = xB;
-        xB = tmp;
-        tmp = shadeA;
-        shadeA = shadeB;
-        shadeB = tmp;
+        return;
     }
 
     int shadeStrides;
@@ -83,7 +155,12 @@ pix3d_deob_texture_raster(
         if( xA >= xB )
         {
             DEOB_CNT_INC(g_deob_cnt_skip_hclip_empty);
-            DEOB_DBG("raster SKIP after hclip xA>=xB: xA=%d xB=%d shadeA=%d shadeB=%d", xA, xB, shadeA, shadeB);
+            DEOB_DBG(
+                "raster SKIP after hclip xA>=xB: xA=%d xB=%d shadeA=%d shadeB=%d",
+                xA,
+                xB,
+                shadeA,
+                shadeB);
             return;
         }
         strides = (xB - xA) >> 3;
@@ -94,7 +171,7 @@ pix3d_deob_texture_raster(
         if( xB - xA > 7 )
         {
             strides = (xB - xA) >> 3;
-            shadeStrides = ((shadeB - shadeA) * g_reciprocal15[strides]) >> 6;
+            shadeStrides = ((shadeB - shadeA) * g_reciprocal16[strides]) >> 6;
         }
         else
         {
@@ -115,7 +192,11 @@ pix3d_deob_texture_raster(
             u8 >= 255 ? 1 : 0,
             g_pix3d_deob_hclip);
     }
+    int y_off_row = (g_pix3d_deob_width != 0) ? off / g_pix3d_deob_width : 0;
     off += xA;
+#if !DEOB_TEXTURE_DEBUG
+    (void)y_off_row;
+#endif
 
     int nextU = 0, nextV = 0, curW, dx, stepU, stepV;
 
@@ -134,6 +215,20 @@ pix3d_deob_texture_raster(
     v |= 0;
     w |= 0;
 
+    DEOB_DBG(
+        "raster uvw: y_off=%d xA=%d dx=%d u=%d v=%d w=%d uS=%d vS=%d wS=%d",
+        y_off_row,
+        xA,
+        dx,
+        u,
+        v,
+        w,
+        uStride,
+        vStride,
+        wStride);
+
+    /* Pix3D.textureRaster (!lowMem): never return when w>>14==0; only skip u/w divide (Pix3D.ts
+     * ~2700–2731). Early return here dropped whole spans and diverged from TS on slivers. */
     curW = w >> 14;
     if( curW != 0 )
     {
@@ -166,71 +261,238 @@ pix3d_deob_texture_raster(
     stepU = (nextU - curU) >> 3;
     stepV = (nextV - curV) >> 3;
 
-#define DEOB_TEX_PIX()                                                                               \
-    do                                                                                             \
-    {                                                                                              \
-        int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);                        \
-        int shade = pix3d_deob_texture_shade_u8(shadeA);                                             \
-        if( g_pix3d_deob_opaque )                                                                  \
-            dst[off++] = shade_blend(texel, shade);                                                \
-        else                                                                                       \
-        {                                                                                          \
-            if( texel != 0 )                                                                       \
-                dst[off] = shade_blend(texel, shade);                                              \
-            off++;                                                                                 \
-        }                                                                                          \
-        curU += stepU;                                                                             \
-        curV += stepV;                                                                             \
-    } while( 0 )
+    DEOB_DBG(
+        "raster div: curW=%d curU=%d curV=%d nextU=%d nextV=%d stepU=%d stepV=%d",
+        curW,
+        curU,
+        curV,
+        nextU,
+        nextV,
+        stepU,
+        stepV);
 
-#define DEOB_TEX_BLOCK8()                                                                          \
-    do                                                                                             \
-    {                                                                                              \
-        DEOB_TEX_PIX();                                                                            \
-        DEOB_TEX_PIX();                                                                            \
-        DEOB_TEX_PIX();                                                                            \
-        DEOB_TEX_PIX();                                                                            \
-        DEOB_TEX_PIX();                                                                            \
-        DEOB_TEX_PIX();                                                                            \
-        DEOB_TEX_PIX();                                                                            \
-        DEOB_TEX_PIX();                                                                            \
-        curU = nextU;                                                                              \
-        curV = nextV;                                                                              \
-        u += uStride;                                                                              \
-        v += vStride;                                                                              \
-        w += wStride;                                                                              \
-        u |= 0;                                                                                    \
-        v |= 0;                                                                                    \
-        w |= 0;                                                                                    \
-        curW = w >> 14;                                                                            \
-        if( curW != 0 )                                                                            \
-        {                                                                                          \
-            nextU = (u / curW) | 0;                                                                \
-            nextV = (v / curW) | 0;                                                                \
-            if( nextU < 7 )                                                                        \
-                nextU = 7;                                                                         \
-            else if( nextU > 16256 )                                                               \
-                nextU = 16256;                                                                     \
-        }                                                                                          \
-        stepU = (nextU - curU) >> 3;                                                               \
-        stepV = (nextV - curV) >> 3;                                                               \
-        shadeA += shadeStrides;                                                                    \
-    } while( 0 )
+    if( g_pix3d_deob_opaque )
+    {
+        while( strides-- > 0 )
+        {
+            {
+                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+                int shade = pix3d_deob_texture_shade_u8(shadeA);
+                dst[off++] = shade_blend(texel, shade);
+                curU += stepU;
+                curV += stepV;
+            }
+            {
+                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+                int shade = pix3d_deob_texture_shade_u8(shadeA);
+                dst[off++] = shade_blend(texel, shade);
+                curU += stepU;
+                curV += stepV;
+            }
+            {
+                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+                int shade = pix3d_deob_texture_shade_u8(shadeA);
+                dst[off++] = shade_blend(texel, shade);
+                curU += stepU;
+                curV += stepV;
+            }
+            {
+                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+                int shade = pix3d_deob_texture_shade_u8(shadeA);
+                dst[off++] = shade_blend(texel, shade);
+                curU += stepU;
+                curV += stepV;
+            }
+            {
+                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+                int shade = pix3d_deob_texture_shade_u8(shadeA);
+                dst[off++] = shade_blend(texel, shade);
+                curU += stepU;
+                curV += stepV;
+            }
+            {
+                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+                int shade = pix3d_deob_texture_shade_u8(shadeA);
+                dst[off++] = shade_blend(texel, shade);
+                curU += stepU;
+                curV += stepV;
+            }
+            {
+                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+                int shade = pix3d_deob_texture_shade_u8(shadeA);
+                dst[off++] = shade_blend(texel, shade);
+                curU += stepU;
+                curV += stepV;
+            }
+            {
+                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+                int shade = pix3d_deob_texture_shade_u8(shadeA);
+                dst[off++] = shade_blend(texel, shade);
+                curU = nextU;
+                curV = nextV;
+            }
 
-    while( strides-- > 0 )
-        DEOB_TEX_BLOCK8();
+            u += uStride;
+            v += vStride;
+            w += wStride;
+            u |= 0;
+            v |= 0;
+            w |= 0;
 
-    strides = (xB - xA) & 0x7;
-    while( strides-- > 0 )
-        DEOB_TEX_PIX();
+            curW = w >> 14;
+
+            if( curW != 0 )
+            {
+                nextU = (u / curW) | 0;
+                nextV = (v / curW) | 0;
+
+                if( nextU < 7 )
+                    nextU = 7;
+                else if( nextU > 16256 )
+                    nextU = 16256;
+            }
+
+            stepU = (nextU - curU) >> 3;
+            stepV = (nextV - curV) >> 3;
+            shadeA += shadeStrides;
+        }
+
+        strides = (xB - xA) & 0x7;
+
+        while( strides-- > 0 )
+        {
+            int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            int shade = pix3d_deob_texture_shade_u8(shadeA);
+            dst[off++] = shade_blend(texel, shade);
+            curU += stepU;
+            curV += stepV;
+        }
+    }
+    else
+    {
+        while( strides-- > 0 && texels )
+        {
+            {
+                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+                int shade = pix3d_deob_texture_shade_u8(shadeA);
+                if( texel != 0 )
+                    dst[off] = shade_blend(texel, shade);
+                off++;
+                curU += stepU;
+                curV += stepV;
+            }
+            {
+                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+                int shade = pix3d_deob_texture_shade_u8(shadeA);
+                if( texel != 0 )
+                    dst[off] = shade_blend(texel, shade);
+                off++;
+                curU += stepU;
+                curV += stepV;
+            }
+            {
+                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+                int shade = pix3d_deob_texture_shade_u8(shadeA);
+                if( texel != 0 )
+                    dst[off] = shade_blend(texel, shade);
+                off++;
+                curU += stepU;
+                curV += stepV;
+            }
+            {
+                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+                int shade = pix3d_deob_texture_shade_u8(shadeA);
+                if( texel != 0 )
+                    dst[off] = shade_blend(texel, shade);
+                off++;
+                curU += stepU;
+                curV += stepV;
+            }
+            {
+                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+                int shade = pix3d_deob_texture_shade_u8(shadeA);
+                if( texel != 0 )
+                    dst[off] = shade_blend(texel, shade);
+                off++;
+                curU += stepU;
+                curV += stepV;
+            }
+            {
+                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+                int shade = pix3d_deob_texture_shade_u8(shadeA);
+                if( texel != 0 )
+                    dst[off] = shade_blend(texel, shade);
+                off++;
+                curU += stepU;
+                curV += stepV;
+            }
+            {
+                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+                int shade = pix3d_deob_texture_shade_u8(shadeA);
+                if( texel != 0 )
+                    dst[off] = shade_blend(texel, shade);
+                off++;
+                curU += stepU;
+                curV += stepV;
+            }
+            {
+                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+                int shade = pix3d_deob_texture_shade_u8(shadeA);
+                if( texel != 0 )
+                    dst[off] = shade_blend(texel, shade);
+                off++;
+                curU = nextU;
+                curV = nextV;
+            }
+
+            u += uStride;
+            v += vStride;
+            w += wStride;
+            u |= 0;
+            v |= 0;
+            w |= 0;
+
+            curW = w >> 14;
+
+            if( curW != 0 )
+            {
+                nextU = (u / curW) | 0;
+                nextV = (v / curW) | 0;
+
+                if( nextU < 7 )
+                    nextU = 7;
+                else if( nextU > 16256 )
+                    nextU = 16256;
+            }
+
+            stepU = (nextU - curU) >> 3;
+            stepV = (nextV - curV) >> 3;
+            shadeA += shadeStrides;
+        }
+
+        strides = (xB - xA) & 0x7;
+
+        while( strides-- > 0 && texels )
+        {
+            int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            int shade = pix3d_deob_texture_shade_u8(shadeA);
+            if( texel != 0 )
+                dst[off] = shade_blend(texel, shade);
+            off++;
+            curU += stepU;
+            curV += stepV;
+        }
+    }
 
     DEOB_CNT_INC(g_deob_cnt_raster_ok);
-
-#undef DEOB_TEX_BLOCK8
-#undef DEOB_TEX_PIX
 }
 
-
+/*
+ * Triangle walk matches Pix3D.textureTriangle (Client-TS/src/dash3d/Pix3D.ts ~1619–2412): same
+ * xStep and shadeStep edge slopes, same y-order branches. Flat-bottom under yA-min uses
+ * `if( !((yA==yC||xStepAC>=xStepAB)&&(yA!=yC||xStepBC<=xStepAB)) )` here — De Morgan of TS line
+ * ~1833 — with if/else bodies swapped vs TS text; control flow is equivalent.
+ */
 static inline void
 pix3d_deob_texture_triangle(
     int xA,
@@ -256,21 +518,28 @@ pix3d_deob_texture_triangle(
 {
     g_pix3d_deob_opaque = is_opaque;
 
-    int verticalX = originX - txB;
-    int verticalY = originY - tyB;
-    int verticalZ = originZ - tzB;
-    int horizontalX = txC - originX;
-    int horizontalY = tyC - originY;
-    int horizontalZ = tzC - originZ;
-    int u = (horizontalX * originY - horizontalY * originX) << 14;
-    int uStride = (horizontalY * originZ - horizontalZ * originY) << 8;
-    int uStepVertical = (horizontalZ * originX - horizontalX * originZ) << 5;
-    int v = (verticalX * originY - verticalY * originX) << 14;
-    int vStride = (verticalY * originZ - verticalZ * originY) << 8;
-    int vStepVertical = (verticalZ * originX - verticalX * originZ) << 5;
-    int w = (verticalY * horizontalX - verticalX * horizontalY) << 14;
-    int wStride = (verticalZ * horizontalY - verticalY * horizontalZ) << 8;
-    int wStepVertical = (verticalX * horizontalZ - verticalZ * horizontalX) << 5;
+    int u, v, w;
+    int uStride, vStride, wStride;
+    int uStepVertical, vStepVertical, wStepVertical;
+    pix3d_deob_texture_barycentric_from_corners(
+        originX,
+        originY,
+        originZ,
+        txB,
+        tyB,
+        tzB,
+        txC,
+        tyC,
+        tzC,
+        &u,
+        &v,
+        &w,
+        &uStride,
+        &vStride,
+        &wStride,
+        &uStepVertical,
+        &vStepVertical,
+        &wStepVertical);
 
     int xStepAB = 0;
     if( yB != yA )
@@ -286,15 +555,15 @@ pix3d_deob_texture_triangle(
 
     int shadeStepAB = 0;
     if( yB != yA )
-        shadeStepAB = (((shadeB - shadeA) << 15) / (yB - yA)) | 0;
+        shadeStepAB = (((shadeB - shadeA) << 16) / (yB - yA)) | 0;
 
     int shadeStepBC = 0;
     if( yC != yB )
-        shadeStepBC = (((shadeC - shadeB) << 15) / (yC - yB)) | 0;
+        shadeStepBC = (((shadeC - shadeB) << 16) / (yC - yB)) | 0;
 
     int shadeStepAC = 0;
     if( yC != yA )
-        shadeStepAC = (((shadeA - shadeC) << 15) / (yA - yC)) | 0;
+        shadeStepAC = (((shadeA - shadeC) << 16) / (yA - yC)) | 0;
 
     DEOB_DBG(
         "tex-tri: u=%d v=%d w=%d uStride=%d vStride=%d wStride=%d uVert=%d vVert=%d wVert=%d",
@@ -318,10 +587,12 @@ pix3d_deob_texture_triangle(
 
     if( yA <= yB && yA <= yC )
     {
+        DEOB_CNT_INC(g_deob_cnt_tex_tri_yA_min);
         if( yA >= g_pix3d_deob_clip_max_y )
         {
             DEOB_CNT_INC(g_deob_cnt_skip_clip_max_y);
-            DEOB_DBG("tex-tri SKIP branch_yA_min: yA=%d >= clip_max_y=%d", yA, g_pix3d_deob_clip_max_y);
+            DEOB_DBG(
+                "tex-tri SKIP branch_yA_min: yA=%d >= clip_max_y=%d", yA, g_pix3d_deob_clip_max_y);
             return;
         }
 
@@ -333,6 +604,7 @@ pix3d_deob_texture_triangle(
 
         if( yB < yC )
         {
+            DEOB_CNT_INC(g_deob_cnt_tex_tri_yA_yBlt_yC);
             const int shadeA_unscaled = shadeA;
             const int yA_in = yA;
 
@@ -371,20 +643,22 @@ pix3d_deob_texture_triangle(
             }
 
             {
-                int64_t replayA = ((int64_t)shadeA_unscaled << 16);
+                int replayA = shadeA_unscaled << 16;
                 if( yA_in < 0 )
-                    replayA -= (int64_t)shadeStepAB * (int64_t)yA_in;
+                    replayA -= shadeStepAB * yA_in;
                 DEOB_DBG(
-                    "tex-tri post-clip yB<yC: yA_in=%d shade_unscaled=%d shadeA_i32=%d wide_replay=%lld match_replay=%d",
+                    "tex-tri post-clip yB<yC: yA_in=%d shade_unscaled=%d shadeA_i32=%d "
+                    "wide_replay=%lld match_replay=%d",
                     yA_in,
                     shadeA_unscaled,
                     shadeA,
                     (long long)replayA,
-                    (int)((int32_t)replayA == shadeA));
+                    (int)(replayA == shadeA));
             }
 
             if( (yA != yB && xStepAC < xStepAB) || (yA == yB && xStepAC > xStepBC) )
             {
+                DEOB_CNT_INC(g_deob_cnt_tex_tri_yA_yBltC_inner_ac_ab);
                 yC -= yB;
                 yB -= yA;
                 yA = g_pix3d_deob_scanline[yA];
@@ -402,7 +676,22 @@ pix3d_deob_texture_triangle(
                             if( yC < 0 )
                                 return;
 
-                            pix3d_deob_texture_raster(xC >> 16, xB >> 16, g_pix3d_deob_pixels, yA, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeC >> 8, shadeB >> 8);
+                            pix3d_deob_texture_raster(
+                                xC >> 16,
+                                xB >> 16,
+                                g_pix3d_deob_pixels,
+                                yA,
+                                texels,
+                                0,
+                                0,
+                                u,
+                                v,
+                                w,
+                                uStride,
+                                vStride,
+                                wStride,
+                                shadeC >> 8,
+                                shadeB >> 8);
                             xC += xStepAC;
                             xB += xStepBC;
                             shadeC += shadeStepAC;
@@ -417,16 +706,38 @@ pix3d_deob_texture_triangle(
                         }
                     }
 
-                    pix3d_deob_texture_raster(xC >> 16, xA >> 16, g_pix3d_deob_pixels, yA, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeC >> 8, shadeA >> 8);
+                    pix3d_deob_texture_raster(
+                        xC >> 16,
+                        xA >> 16,
+                        g_pix3d_deob_pixels,
+                        yA,
+                        texels,
+                        0,
+                        0,
+                        u,
+                        v,
+                        w,
+                        uStride,
+                        vStride,
+                        wStride,
+                        shadeC >> 8,
+                        shadeA >> 8);
                     xC += xStepAC;
                     xA += xStepAB;
                     shadeC += shadeStepAC;
                     shadeA += shadeStepAB;
                     yA += g_pix3d_deob_width;
+                    u += uStepVertical;
+                    v += vStepVertical;
+                    w += wStepVertical;
+                    u |= 0;
+                    v |= 0;
+                    w |= 0;
                 }
             }
             else
             {
+                DEOB_CNT_INC(g_deob_cnt_tex_tri_yA_yBltC_inner_else);
                 yC -= yB;
                 yB -= yA;
                 yA = g_pix3d_deob_scanline[yA];
@@ -444,7 +755,22 @@ pix3d_deob_texture_triangle(
                             if( yC < 0 )
                                 return;
 
-                            pix3d_deob_texture_raster(xB >> 16, xC >> 16, g_pix3d_deob_pixels, yA, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeB >> 8, shadeC >> 8);
+                            pix3d_deob_texture_raster(
+                                xB >> 16,
+                                xC >> 16,
+                                g_pix3d_deob_pixels,
+                                yA,
+                                texels,
+                                0,
+                                0,
+                                u,
+                                v,
+                                w,
+                                uStride,
+                                vStride,
+                                wStride,
+                                shadeB >> 8,
+                                shadeC >> 8);
                             xC += xStepAC;
                             xB += xStepBC;
                             shadeC += shadeStepAC;
@@ -459,17 +785,39 @@ pix3d_deob_texture_triangle(
                         }
                     }
 
-                    pix3d_deob_texture_raster(xA >> 16, xC >> 16, g_pix3d_deob_pixels, yA, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeA >> 8, shadeC >> 8);
+                    pix3d_deob_texture_raster(
+                        xA >> 16,
+                        xC >> 16,
+                        g_pix3d_deob_pixels,
+                        yA,
+                        texels,
+                        0,
+                        0,
+                        u,
+                        v,
+                        w,
+                        uStride,
+                        vStride,
+                        wStride,
+                        shadeA >> 8,
+                        shadeC >> 8);
                     xC += xStepAC;
                     xA += xStepAB;
                     shadeC += shadeStepAC;
                     shadeA += shadeStepAB;
                     yA += g_pix3d_deob_width;
+                    u += uStepVertical;
+                    v += vStepVertical;
+                    w += wStepVertical;
+                    u |= 0;
+                    v |= 0;
+                    w |= 0;
                 }
             }
         }
         else
         {
+            DEOB_CNT_INC(g_deob_cnt_tex_tri_yA_yBge_yC);
             xA <<= 16;
             xB = xA;
             shadeA <<= 16;
@@ -504,8 +852,11 @@ pix3d_deob_texture_triangle(
                 w |= 0;
             }
 
-            if( (yA == yC || xStepAC >= xStepAB) && (yA != yC || xStepBC <= xStepAB) )
+            /* TS ~1833: if T = ((yA==yC||xStepAC>=xStepAB)&&(yA!=yC||xStepBC<=xStepAB)); C uses !T
+             * here with bodies swapped vs the TS listing — same edges as TS else/if. */
+            if( (yA != yC && xStepAC < xStepAB) || (yA == yC && xStepBC > xStepAB) )
             {
+                DEOB_CNT_INC(g_deob_cnt_tex_tri_yA_yBgeC_path1);
                 yB -= yC;
                 yC -= yA;
                 yA = g_pix3d_deob_scanline[yA];
@@ -523,7 +874,22 @@ pix3d_deob_texture_triangle(
                             if( yB < 0 )
                                 return;
 
-                            pix3d_deob_texture_raster(xC >> 16, xA >> 16, g_pix3d_deob_pixels, yA, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeC >> 8, shadeA >> 8);
+                            pix3d_deob_texture_raster(
+                                xC >> 16,
+                                xA >> 16,
+                                g_pix3d_deob_pixels,
+                                yA,
+                                texels,
+                                0,
+                                0,
+                                u,
+                                v,
+                                w,
+                                uStride,
+                                vStride,
+                                wStride,
+                                shadeC >> 8,
+                                shadeA >> 8);
                             xC += xStepBC;
                             xA += xStepAB;
                             shadeC += shadeStepBC;
@@ -538,16 +904,38 @@ pix3d_deob_texture_triangle(
                         }
                     }
 
-                    pix3d_deob_texture_raster(xB >> 16, xA >> 16, g_pix3d_deob_pixels, yA, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeB >> 8, shadeA >> 8);
+                    pix3d_deob_texture_raster(
+                        xB >> 16,
+                        xA >> 16,
+                        g_pix3d_deob_pixels,
+                        yA,
+                        texels,
+                        0,
+                        0,
+                        u,
+                        v,
+                        w,
+                        uStride,
+                        vStride,
+                        wStride,
+                        shadeB >> 8,
+                        shadeA >> 8);
                     xB += xStepAC;
                     xA += xStepAB;
                     shadeB += shadeStepAC;
                     shadeA += shadeStepAB;
                     yA += g_pix3d_deob_width;
+                    u += uStepVertical;
+                    v += vStepVertical;
+                    w += wStepVertical;
+                    u |= 0;
+                    v |= 0;
+                    w |= 0;
                 }
             }
             else
             {
+                DEOB_CNT_INC(g_deob_cnt_tex_tri_yA_yBgeC_path2);
                 yB -= yC;
                 yC -= yA;
                 yA = g_pix3d_deob_scanline[yA];
@@ -565,7 +953,22 @@ pix3d_deob_texture_triangle(
                             if( yB < 0 )
                                 return;
 
-                            pix3d_deob_texture_raster(xA >> 16, xC >> 16, g_pix3d_deob_pixels, yA, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeA >> 8, shadeC >> 8);
+                            pix3d_deob_texture_raster(
+                                xA >> 16,
+                                xC >> 16,
+                                g_pix3d_deob_pixels,
+                                yA,
+                                texels,
+                                0,
+                                0,
+                                u,
+                                v,
+                                w,
+                                uStride,
+                                vStride,
+                                wStride,
+                                shadeA >> 8,
+                                shadeC >> 8);
                             xC += xStepBC;
                             xA += xStepAB;
                             shadeC += shadeStepBC;
@@ -580,22 +983,45 @@ pix3d_deob_texture_triangle(
                         }
                     }
 
-                    pix3d_deob_texture_raster(xA >> 16, xB >> 16, g_pix3d_deob_pixels, yA, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeA >> 8, shadeB >> 8);
+                    pix3d_deob_texture_raster(
+                        xA >> 16,
+                        xB >> 16,
+                        g_pix3d_deob_pixels,
+                        yA,
+                        texels,
+                        0,
+                        0,
+                        u,
+                        v,
+                        w,
+                        uStride,
+                        vStride,
+                        wStride,
+                        shadeA >> 8,
+                        shadeB >> 8);
                     xB += xStepAC;
                     xA += xStepAB;
                     shadeB += shadeStepAC;
                     shadeA += shadeStepAB;
                     yA += g_pix3d_deob_width;
+                    u += uStepVertical;
+                    v += vStepVertical;
+                    w += wStepVertical;
+                    u |= 0;
+                    v |= 0;
+                    w |= 0;
                 }
             }
         }
     }
     else if( yB <= yC )
     {
+        DEOB_CNT_INC(g_deob_cnt_tex_tri_yB_mid);
         if( yB >= g_pix3d_deob_clip_max_y )
         {
             DEOB_CNT_INC(g_deob_cnt_skip_clip_max_y);
-            DEOB_DBG("tex-tri SKIP branch_yB_mid: yB=%d >= clip_max_y=%d", yB, g_pix3d_deob_clip_max_y);
+            DEOB_DBG(
+                "tex-tri SKIP branch_yB_mid: yB=%d >= clip_max_y=%d", yB, g_pix3d_deob_clip_max_y);
             return;
         }
 
@@ -660,7 +1086,22 @@ pix3d_deob_texture_triangle(
                             if( yA < 0 )
                                 return;
 
-                            pix3d_deob_texture_raster(xA >> 16, xC >> 16, g_pix3d_deob_pixels, yB, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeA >> 8, shadeC >> 8);
+                            pix3d_deob_texture_raster(
+                                xA >> 16,
+                                xC >> 16,
+                                g_pix3d_deob_pixels,
+                                yB,
+                                texels,
+                                0,
+                                0,
+                                u,
+                                v,
+                                w,
+                                uStride,
+                                vStride,
+                                wStride,
+                                shadeA >> 8,
+                                shadeC >> 8);
                             xA += xStepAB;
                             xC += xStepAC;
                             shadeA += shadeStepAB;
@@ -669,18 +1110,36 @@ pix3d_deob_texture_triangle(
                             u += uStepVertical;
                             v += vStepVertical;
                             w += wStepVertical;
-                            u |= 0;
-                            v |= 0;
-                            w |= 0;
                         }
                     }
 
-                    pix3d_deob_texture_raster(xA >> 16, xB >> 16, g_pix3d_deob_pixels, yB, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeA >> 8, shadeB >> 8);
+                    pix3d_deob_texture_raster(
+                        xA >> 16,
+                        xB >> 16,
+                        g_pix3d_deob_pixels,
+                        yB,
+                        texels,
+                        0,
+                        0,
+                        u,
+                        v,
+                        w,
+                        uStride,
+                        vStride,
+                        wStride,
+                        shadeA >> 8,
+                        shadeB >> 8);
                     xA += xStepAB;
                     xB += xStepBC;
                     shadeA += shadeStepAB;
                     shadeB += shadeStepBC;
                     yB += g_pix3d_deob_width;
+                    u += uStepVertical;
+                    v += vStepVertical;
+                    w += wStepVertical;
+                    u |= 0;
+                    v |= 0;
+                    w |= 0;
                 }
             }
             else
@@ -702,7 +1161,22 @@ pix3d_deob_texture_triangle(
                             if( yA < 0 )
                                 return;
 
-                            pix3d_deob_texture_raster(xC >> 16, xA >> 16, g_pix3d_deob_pixels, yB, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeC >> 8, shadeA >> 8);
+                            pix3d_deob_texture_raster(
+                                xC >> 16,
+                                xA >> 16,
+                                g_pix3d_deob_pixels,
+                                yB,
+                                texels,
+                                0,
+                                0,
+                                u,
+                                v,
+                                w,
+                                uStride,
+                                vStride,
+                                wStride,
+                                shadeC >> 8,
+                                shadeA >> 8);
                             xA += xStepAB;
                             xC += xStepAC;
                             shadeA += shadeStepAB;
@@ -711,18 +1185,36 @@ pix3d_deob_texture_triangle(
                             u += uStepVertical;
                             v += vStepVertical;
                             w += wStepVertical;
-                            u |= 0;
-                            v |= 0;
-                            w |= 0;
                         }
                     }
 
-                    pix3d_deob_texture_raster(xB >> 16, xA >> 16, g_pix3d_deob_pixels, yB, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeB >> 8, shadeA >> 8);
+                    pix3d_deob_texture_raster(
+                        xB >> 16,
+                        xA >> 16,
+                        g_pix3d_deob_pixels,
+                        yB,
+                        texels,
+                        0,
+                        0,
+                        u,
+                        v,
+                        w,
+                        uStride,
+                        vStride,
+                        wStride,
+                        shadeB >> 8,
+                        shadeA >> 8);
                     xA += xStepAB;
                     xB += xStepBC;
                     shadeA += shadeStepAB;
                     shadeB += shadeStepBC;
                     yB += g_pix3d_deob_width;
+                    u += uStepVertical;
+                    v += vStepVertical;
+                    w += wStepVertical;
+                    u |= 0;
+                    v |= 0;
+                    w |= 0;
                 }
             }
         }
@@ -781,7 +1273,22 @@ pix3d_deob_texture_triangle(
                             if( yC < 0 )
                                 return;
 
-                            pix3d_deob_texture_raster(xA >> 16, xB >> 16, g_pix3d_deob_pixels, yB, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeA >> 8, shadeB >> 8);
+                            pix3d_deob_texture_raster(
+                                xA >> 16,
+                                xB >> 16,
+                                g_pix3d_deob_pixels,
+                                yB,
+                                texels,
+                                0,
+                                0,
+                                u,
+                                v,
+                                w,
+                                uStride,
+                                vStride,
+                                wStride,
+                                shadeA >> 8,
+                                shadeB >> 8);
                             xA += xStepAC;
                             xB += xStepBC;
                             shadeA += shadeStepAC;
@@ -796,12 +1303,33 @@ pix3d_deob_texture_triangle(
                         }
                     }
 
-                    pix3d_deob_texture_raster(xC >> 16, xB >> 16, g_pix3d_deob_pixels, yB, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeC >> 8, shadeB >> 8);
+                    pix3d_deob_texture_raster(
+                        xC >> 16,
+                        xB >> 16,
+                        g_pix3d_deob_pixels,
+                        yB,
+                        texels,
+                        0,
+                        0,
+                        u,
+                        v,
+                        w,
+                        uStride,
+                        vStride,
+                        wStride,
+                        shadeC >> 8,
+                        shadeB >> 8);
                     xC += xStepAB;
                     xB += xStepBC;
                     shadeC += shadeStepAB;
                     shadeB += shadeStepBC;
                     yB += g_pix3d_deob_width;
+                    u += uStepVertical;
+                    v += vStepVertical;
+                    w += wStepVertical;
+                    u |= 0;
+                    v |= 0;
+                    w |= 0;
                 }
             }
             else
@@ -819,7 +1347,22 @@ pix3d_deob_texture_triangle(
                             if( yC < 0 )
                                 return;
 
-                            pix3d_deob_texture_raster(xB >> 16, xA >> 16, g_pix3d_deob_pixels, yB, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeB >> 8, shadeA >> 8);
+                            pix3d_deob_texture_raster(
+                                xB >> 16,
+                                xA >> 16,
+                                g_pix3d_deob_pixels,
+                                yB,
+                                texels,
+                                0,
+                                0,
+                                u,
+                                v,
+                                w,
+                                uStride,
+                                vStride,
+                                wStride,
+                                shadeB >> 8,
+                                shadeA >> 8);
                             xA += xStepAC;
                             xB += xStepBC;
                             shadeA += shadeStepAC;
@@ -834,22 +1377,45 @@ pix3d_deob_texture_triangle(
                         }
                     }
 
-                    pix3d_deob_texture_raster(xB >> 16, xC >> 16, g_pix3d_deob_pixels, yB, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeB >> 8, shadeC >> 8);
+                    pix3d_deob_texture_raster(
+                        xB >> 16,
+                        xC >> 16,
+                        g_pix3d_deob_pixels,
+                        yB,
+                        texels,
+                        0,
+                        0,
+                        u,
+                        v,
+                        w,
+                        uStride,
+                        vStride,
+                        wStride,
+                        shadeB >> 8,
+                        shadeC >> 8);
                     xC += xStepAB;
                     xB += xStepBC;
                     shadeC += shadeStepAB;
                     shadeB += shadeStepBC;
                     yB += g_pix3d_deob_width;
+                    u += uStepVertical;
+                    v += vStepVertical;
+                    w += wStepVertical;
+                    u |= 0;
+                    v |= 0;
+                    w |= 0;
                 }
             }
         }
     }
     else
     {
+                DEOB_CNT_INC(g_deob_cnt_tex_tri_yC_max);
         if( yC >= g_pix3d_deob_clip_max_y )
         {
             DEOB_CNT_INC(g_deob_cnt_skip_clip_max_y);
-            DEOB_DBG("tex-tri SKIP branch_yC_max: yC=%d >= clip_max_y=%d", yC, g_pix3d_deob_clip_max_y);
+            DEOB_DBG(
+                "tex-tri SKIP branch_yC_max: yC=%d >= clip_max_y=%d", yC, g_pix3d_deob_clip_max_y);
             return;
         }
 
@@ -914,7 +1480,22 @@ pix3d_deob_texture_triangle(
                             if( yB < 0 )
                                 return;
 
-                            pix3d_deob_texture_raster(xB >> 16, xA >> 16, g_pix3d_deob_pixels, yC, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeB >> 8, shadeA >> 8);
+                            pix3d_deob_texture_raster(
+                                xB >> 16,
+                                xA >> 16,
+                                g_pix3d_deob_pixels,
+                                yC,
+                                texels,
+                                0,
+                                0,
+                                u,
+                                v,
+                                w,
+                                uStride,
+                                vStride,
+                                wStride,
+                                shadeB >> 8,
+                                shadeA >> 8);
                             xB += xStepBC;
                             xA += xStepAB;
                             shadeB += shadeStepBC;
@@ -929,12 +1510,33 @@ pix3d_deob_texture_triangle(
                         }
                     }
 
-                    pix3d_deob_texture_raster(xB >> 16, xC >> 16, g_pix3d_deob_pixels, yC, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeB >> 8, shadeC >> 8);
+                    pix3d_deob_texture_raster(
+                        xB >> 16,
+                        xC >> 16,
+                        g_pix3d_deob_pixels,
+                        yC,
+                        texels,
+                        0,
+                        0,
+                        u,
+                        v,
+                        w,
+                        uStride,
+                        vStride,
+                        wStride,
+                        shadeB >> 8,
+                        shadeC >> 8);
                     xB += xStepBC;
                     xC += xStepAC;
                     shadeB += shadeStepBC;
                     shadeC += shadeStepAC;
                     yC += g_pix3d_deob_width;
+                    u += uStepVertical;
+                    v += vStepVertical;
+                    w += wStepVertical;
+                    u |= 0;
+                    v |= 0;
+                    w |= 0;
                 }
             }
             else
@@ -952,7 +1554,22 @@ pix3d_deob_texture_triangle(
                             if( yB < 0 )
                                 return;
 
-                            pix3d_deob_texture_raster(xA >> 16, xB >> 16, g_pix3d_deob_pixels, yC, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeA >> 8, shadeB >> 8);
+                            pix3d_deob_texture_raster(
+                                xA >> 16,
+                                xB >> 16,
+                                g_pix3d_deob_pixels,
+                                yC,
+                                texels,
+                                0,
+                                0,
+                                u,
+                                v,
+                                w,
+                                uStride,
+                                vStride,
+                                wStride,
+                                shadeA >> 8,
+                                shadeB >> 8);
                             xB += xStepBC;
                             xA += xStepAB;
                             shadeB += shadeStepBC;
@@ -967,12 +1584,33 @@ pix3d_deob_texture_triangle(
                         }
                     }
 
-                    pix3d_deob_texture_raster(xC >> 16, xB >> 16, g_pix3d_deob_pixels, yC, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeC >> 8, shadeB >> 8);
+                    pix3d_deob_texture_raster(
+                        xC >> 16,
+                        xB >> 16,
+                        g_pix3d_deob_pixels,
+                        yC,
+                        texels,
+                        0,
+                        0,
+                        u,
+                        v,
+                        w,
+                        uStride,
+                        vStride,
+                        wStride,
+                        shadeC >> 8,
+                        shadeB >> 8);
                     xB += xStepBC;
                     xC += xStepAC;
                     shadeB += shadeStepBC;
                     shadeC += shadeStepAC;
                     yC += g_pix3d_deob_width;
+                    u += uStepVertical;
+                    v += vStepVertical;
+                    w += wStepVertical;
+                    u |= 0;
+                    v |= 0;
+                    w |= 0;
                 }
             }
         }
@@ -1031,7 +1669,22 @@ pix3d_deob_texture_triangle(
                             if( yA < 0 )
                                 return;
 
-                            pix3d_deob_texture_raster(xB >> 16, xC >> 16, g_pix3d_deob_pixels, yC, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeB >> 8, shadeC >> 8);
+                            pix3d_deob_texture_raster(
+                                xB >> 16,
+                                xC >> 16,
+                                g_pix3d_deob_pixels,
+                                yC,
+                                texels,
+                                0,
+                                0,
+                                u,
+                                v,
+                                w,
+                                uStride,
+                                vStride,
+                                wStride,
+                                shadeB >> 8,
+                                shadeC >> 8);
                             xB += xStepAB;
                             xC += xStepAC;
                             shadeB += shadeStepAB;
@@ -1046,12 +1699,33 @@ pix3d_deob_texture_triangle(
                         }
                     }
 
-                    pix3d_deob_texture_raster(xA >> 16, xC >> 16, g_pix3d_deob_pixels, yC, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeA >> 8, shadeC >> 8);
+                    pix3d_deob_texture_raster(
+                        xA >> 16,
+                        xC >> 16,
+                        g_pix3d_deob_pixels,
+                        yC,
+                        texels,
+                        0,
+                        0,
+                        u,
+                        v,
+                        w,
+                        uStride,
+                        vStride,
+                        wStride,
+                        shadeA >> 8,
+                        shadeC >> 8);
                     xA += xStepBC;
                     xC += xStepAC;
                     shadeA += shadeStepBC;
                     shadeC += shadeStepAC;
                     yC += g_pix3d_deob_width;
+                    u += uStepVertical;
+                    v += vStepVertical;
+                    w += wStepVertical;
+                    u |= 0;
+                    v |= 0;
+                    w |= 0;
                 }
             }
             else
@@ -1069,7 +1743,22 @@ pix3d_deob_texture_triangle(
                             if( yA < 0 )
                                 return;
 
-                            pix3d_deob_texture_raster(xC >> 16, xB >> 16, g_pix3d_deob_pixels, yC, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeC >> 8, shadeB >> 8);
+                            pix3d_deob_texture_raster(
+                                xC >> 16,
+                                xB >> 16,
+                                g_pix3d_deob_pixels,
+                                yC,
+                                texels,
+                                0,
+                                0,
+                                u,
+                                v,
+                                w,
+                                uStride,
+                                vStride,
+                                wStride,
+                                shadeC >> 8,
+                                shadeB >> 8);
                             xB += xStepAB;
                             xC += xStepAC;
                             shadeB += shadeStepAB;
@@ -1084,12 +1773,33 @@ pix3d_deob_texture_triangle(
                         }
                     }
 
-                    pix3d_deob_texture_raster(xC >> 16, xA >> 16, g_pix3d_deob_pixels, yC, texels, 0, 0, u, v, w, uStride, vStride, wStride, shadeC >> 8, shadeA >> 8);
+                    pix3d_deob_texture_raster(
+                        xC >> 16,
+                        xA >> 16,
+                        g_pix3d_deob_pixels,
+                        yC,
+                        texels,
+                        0,
+                        0,
+                        u,
+                        v,
+                        w,
+                        uStride,
+                        vStride,
+                        wStride,
+                        shadeC >> 8,
+                        shadeA >> 8);
                     xA += xStepBC;
                     xC += xStepAC;
                     shadeA += shadeStepBC;
                     shadeC += shadeStepAC;
                     yC += g_pix3d_deob_width;
+                    u += uStepVertical;
+                    v += vStepVertical;
+                    w += wStepVertical;
+                    u |= 0;
+                    v |= 0;
+                    w |= 0;
                 }
             }
         }

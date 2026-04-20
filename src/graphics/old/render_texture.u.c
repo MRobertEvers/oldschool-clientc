@@ -1926,6 +1926,8 @@ raster_face_texture_blend(
     int y3 = screen_vertices_y[face_indices_c[face]];
     int z3 = screen_vertices_z[face_indices_c[face]];
 
+    /* Pix3D deob: (tp_vertex,tm_vertex,tn_vertex) are O,B,C for textureTriangle; (x1,x2,x3) are
+     * screen positions of face_indices_a/b/c — all six must refer to the same triangle corners. */
     int orthographic_uvorigin_x0 = orthographic_vertices_x[tp_vertex];
     int orthographic_uvorigin_y0 = orthographic_vertices_y[tp_vertex];
     int orthographic_uvorigin_z0 = orthographic_vertices_z[tp_vertex];

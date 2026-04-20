@@ -7,6 +7,10 @@
 #define DEOB_TEXTURE_DEBUG 0 /* bench_sdl2 sets DEOB_TEXTURE_DEBUG=1 via CMake */
 #endif
 
+#ifndef DEOB_TEXTURE_DEBUG_V_MODULO
+#define DEOB_TEXTURE_DEBUG_V_MODULO 0 /* 1: wrap U/V columns & rows with %128 in pix3d_deob_texture_texel_fetch_128 */
+#endif
+
 #if DEOB_TEXTURE_DEBUG
 extern int g_deob_dbg_remaining;
 extern int g_deob_dbg_frame;
