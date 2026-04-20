@@ -25,22 +25,12 @@ pix3d_deob_texture_texel_fetch_128(
     int curU,
     int curV)
 {
-// #define DEOB_TEXTURE_DEBUG_V_MODULO 1
-#if DEOB_TEXTURE_DEBUG_V_MODULO
-    int col = curU >> 7;
-    col = ((col % 128) + 128) % 128;
-    int uc = col;
-    int row = curV >> 7;
-    row = ((row % 128) + 128) % 128;
-    int vr = row << 7;
-#else
     int uc = curU >> 7;
     if( uc < 0 )
         uc = 0;
     else if( uc > 127 )
         uc = 127;
     int vr = (int)(((unsigned int)curV) & 0x3f80u);
-#endif
     return texels[uc + vr];
 }
 
@@ -49,11 +39,7 @@ static inline int
 pix3d_deob_texture_shade_u8(int shadeA_ish)
 {
     int s = shadeA_ish >> 16;
-    if( s > 255 )
-        s = 255;
-    if( s < 0 )
-        s = 0;
-    return s;
+    return s & 0xFF;
 }
 
 /* Homogeneous barycentric setup: Pix3D.ts textureTriangle ~1632–1650 (vertical = origin−B,
@@ -222,64 +208,43 @@ pix3d_deob_texture_raster(
 
     if( g_pix3d_deob_opaque )
     {
+        int texel, shade;
         while( strides-- > 0 )
         {
-            {
-                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-                int shade = pix3d_deob_texture_shade_u8(shadeA);
-                dst[off++] = shade_blend(texel, shade);
-                curU += stepU;
-                curV += stepV;
-            }
-            {
-                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-                int shade = pix3d_deob_texture_shade_u8(shadeA);
-                dst[off++] = shade_blend(texel, shade);
-                curU += stepU;
-                curV += stepV;
-            }
-            {
-                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-                int shade = pix3d_deob_texture_shade_u8(shadeA);
-                dst[off++] = shade_blend(texel, shade);
-                curU += stepU;
-                curV += stepV;
-            }
-            {
-                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-                int shade = pix3d_deob_texture_shade_u8(shadeA);
-                dst[off++] = shade_blend(texel, shade);
-                curU += stepU;
-                curV += stepV;
-            }
-            {
-                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-                int shade = pix3d_deob_texture_shade_u8(shadeA);
-                dst[off++] = shade_blend(texel, shade);
-                curU += stepU;
-                curV += stepV;
-            }
-            {
-                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-                int shade = pix3d_deob_texture_shade_u8(shadeA);
-                dst[off++] = shade_blend(texel, shade);
-                curU += stepU;
-                curV += stepV;
-            }
-            {
-                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-                int shade = pix3d_deob_texture_shade_u8(shadeA);
-                dst[off++] = shade_blend(texel, shade);
-                curU += stepU;
-                curV += stepV;
-            }
-            {
-                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-                int shade = pix3d_deob_texture_shade_u8(shadeA);
-                dst[off++] = shade_blend(texel, shade);
-                curU = nextU;
-                curV = nextV;
-            }
+            shade = pix3d_deob_texture_shade_u8(shadeA);
+
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            dst[off++] = shade_blend(texel, shade);
+            curU += stepU;
+            curV += stepV;
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            dst[off++] = shade_blend(texel, shade);
+            curU += stepU;
+            curV += stepV;
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            dst[off++] = shade_blend(texel, shade);
+            curU += stepU;
+            curV += stepV;
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            dst[off++] = shade_blend(texel, shade);
+            curU += stepU;
+            curV += stepV;
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            dst[off++] = shade_blend(texel, shade);
+            curU += stepU;
+            curV += stepV;
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            dst[off++] = shade_blend(texel, shade);
+            curU += stepU;
+            curV += stepV;
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            dst[off++] = shade_blend(texel, shade);
+            curU += stepU;
+            curV += stepV;
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            dst[off++] = shade_blend(texel, shade);
+            curU = nextU;
+            curV = nextV;
 
             u += uStride;
             v += vStride;
@@ -308,10 +273,10 @@ pix3d_deob_texture_raster(
 
         strides = (xB - xA) & 0x7;
 
+        shade = pix3d_deob_texture_shade_u8(shadeA);
         while( strides-- > 0 )
         {
-            int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-            int shade = pix3d_deob_texture_shade_u8(shadeA);
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
             dst[off++] = shade_blend(texel, shade);
             curU += stepU;
             curV += stepV;
@@ -319,80 +284,59 @@ pix3d_deob_texture_raster(
     }
     else
     {
+        int texel, shade;
         while( strides-- > 0 && texels )
         {
-            {
-                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-                int shade = pix3d_deob_texture_shade_u8(shadeA);
-                if( texel != 0 )
-                    dst[off] = shade_blend(texel, shade);
-                off++;
-                curU += stepU;
-                curV += stepV;
-            }
-            {
-                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-                int shade = pix3d_deob_texture_shade_u8(shadeA);
-                if( texel != 0 )
-                    dst[off] = shade_blend(texel, shade);
-                off++;
-                curU += stepU;
-                curV += stepV;
-            }
-            {
-                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-                int shade = pix3d_deob_texture_shade_u8(shadeA);
-                if( texel != 0 )
-                    dst[off] = shade_blend(texel, shade);
-                off++;
-                curU += stepU;
-                curV += stepV;
-            }
-            {
-                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-                int shade = pix3d_deob_texture_shade_u8(shadeA);
-                if( texel != 0 )
-                    dst[off] = shade_blend(texel, shade);
-                off++;
-                curU += stepU;
-                curV += stepV;
-            }
-            {
-                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-                int shade = pix3d_deob_texture_shade_u8(shadeA);
-                if( texel != 0 )
-                    dst[off] = shade_blend(texel, shade);
-                off++;
-                curU += stepU;
-                curV += stepV;
-            }
-            {
-                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-                int shade = pix3d_deob_texture_shade_u8(shadeA);
-                if( texel != 0 )
-                    dst[off] = shade_blend(texel, shade);
-                off++;
-                curU += stepU;
-                curV += stepV;
-            }
-            {
-                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-                int shade = pix3d_deob_texture_shade_u8(shadeA);
-                if( texel != 0 )
-                    dst[off] = shade_blend(texel, shade);
-                off++;
-                curU += stepU;
-                curV += stepV;
-            }
-            {
-                int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-                int shade = pix3d_deob_texture_shade_u8(shadeA);
-                if( texel != 0 )
-                    dst[off] = shade_blend(texel, shade);
-                off++;
-                curU = nextU;
-                curV = nextV;
-            }
+            shade = pix3d_deob_texture_shade_u8(shadeA);
+
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            if( texel != 0 )
+                dst[off] = shade_blend(texel, shade);
+            off++;
+            curU += stepU;
+            curV += stepV;
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            if( texel != 0 )
+                dst[off] = shade_blend(texel, shade);
+            off++;
+            curU += stepU;
+            curV += stepV;
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            if( texel != 0 )
+                dst[off] = shade_blend(texel, shade);
+            off++;
+            curU += stepU;
+            curV += stepV;
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            if( texel != 0 )
+                dst[off] = shade_blend(texel, shade);
+            off++;
+            curU += stepU;
+            curV += stepV;
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            if( texel != 0 )
+                dst[off] = shade_blend(texel, shade);
+            off++;
+            curU += stepU;
+            curV += stepV;
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            if( texel != 0 )
+                dst[off] = shade_blend(texel, shade);
+            off++;
+            curU += stepU;
+            curV += stepV;
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            if( texel != 0 )
+                dst[off] = shade_blend(texel, shade);
+            off++;
+            curU += stepU;
+            curV += stepV;
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
+            if( texel != 0 )
+                dst[off] = shade_blend(texel, shade);
+            off++;
+            curU = nextU;
+            curV = nextV;
 
             u += uStride;
             v += vStride;
@@ -421,10 +365,10 @@ pix3d_deob_texture_raster(
 
         strides = (xB - xA) & 0x7;
 
-        while( strides-- > 0 && texels )
+        shade = pix3d_deob_texture_shade_u8(shadeA);
+        while( strides-- > 0 )
         {
-            int texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
-            int shade = pix3d_deob_texture_shade_u8(shadeA);
+            texel = pix3d_deob_texture_texel_fetch_128(texels, curU, curV);
             if( texel != 0 )
                 dst[off] = shade_blend(texel, shade);
             off++;
