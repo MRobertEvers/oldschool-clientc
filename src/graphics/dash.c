@@ -1,4 +1,8 @@
 #include "dash.h"
+#include "graphics/raster/deob/pix3d_deob_compat.h"
+#include "graphics/raster_bench_runtime.h"
+
+struct DashRasterBenchRuntime g_raster_bench;
 
 // clang-format off
 #include "dash2d_simd.u.c"
@@ -96,6 +100,7 @@ dash3d_projected_face_index_ptrs(
 #endif
 #include "projection_sparse.u.c"
 #include "anim.u.c"
+#include "graphics/raster/deob/pix3d_deob_compat.u.c"
 // clang-format on
 
 static struct DashModelGround*
@@ -602,6 +607,7 @@ enum FaceType
 
 struct DashModelRasterContext
 {
+    uint32_t bench_flag;
     int* pixel_buffer;
     int* face_infos;
     faceint_t* face_indices_a;
@@ -743,7 +749,7 @@ dash3d_raster_model_face(
         switch( type )
         {
         case FACE_TYPE_GOURAUD:
-            if( (ctx->flags & RASTER_FLAG_GOURAUD_SMOOTH) != 0 )
+            if( !g_raster_bench.active && (ctx->flags & RASTER_FLAG_GOURAUD_SMOOTH) != 0 )
             {
                 raster_face_gouraud_smooth(
                     ctx->pixel_buffer,
@@ -857,7 +863,7 @@ dash3d_raster_model_face(
             assert(tm_vertex < ctx->num_vertices);
             assert(tn_vertex < ctx->num_vertices);
 
-            if( (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 )
+            if( !g_raster_bench.active && (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 )
             {
                 raster_face_texture_blend_affine_v3(
                     ctx->pixel_buffer,
@@ -954,7 +960,7 @@ dash3d_raster_model_face(
             assert(tm_vertex < ctx->num_vertices);
             assert(tn_vertex < ctx->num_vertices);
 
-            if( (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 )
+            if( !g_raster_bench.active && (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 )
             {
                 raster_face_texture_flat_affine_v3(
                     ctx->pixel_buffer,

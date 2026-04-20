@@ -1,3 +1,6 @@
+#include "graphics/dash.h"
+#include "graphics/raster/deob/pix3d_deob_compat.h"
+#include "graphics/raster_bench_runtime.h"
 
 #include "graphics/dash_alphaint.h"
 #include "graphics/dash_faceint.h"
@@ -12,6 +15,104 @@
 #include "render_face_alpha.u.c"
 #include "render_clip.u.c"
 // clang-format on
+
+static inline void
+raster_flat_bench_dispatch_inner(
+    int variant,
+    int* RESTRICT pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    int x1,
+    int x2,
+    int x3,
+    int y1,
+    int y2,
+    int y3,
+    int color,
+    int alpha)
+{
+    switch( variant )
+    {
+    case RASTER_BENCH_FLAT_DEOB:
+        raster_flat_screen_deob_compat(
+            pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color, alpha);
+        return;
+    case RASTER_BENCH_FLAT_OPAQUE_BRANCHING_S4:
+        raster_flat_screen_opaque_branching_s4(
+            pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color);
+        return;
+    case RASTER_BENCH_FLAT_OPAQUE_SORT_S4:
+        raster_flat_screen_opaque_sort_s4(
+            pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color);
+        return;
+    case RASTER_BENCH_FLAT_ALPHA_BRANCHING_S4:
+        raster_flat_screen_alpha_branching_s4(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color,
+            alpha);
+        return;
+    case RASTER_BENCH_FLAT_ALPHA_SORT_S4:
+        raster_flat_screen_alpha_sort_s4(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color,
+            alpha);
+        return;
+    default:
+        raster_flat_screen_opaque_branching_s4(
+            pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color);
+        return;
+    }
+}
+
+static inline void
+raster_flat_bench(
+    int* RESTRICT pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    int x1,
+    int x2,
+    int x3,
+    int y1,
+    int y2,
+    int y3,
+    int color,
+    int alpha)
+{
+    raster_flat_bench_dispatch_inner(
+        (int)RASTER_BENCH_GET(g_raster_bench.packed, RASTER_BENCH_SHIFT_FLAT),
+        pixel_buffer,
+        stride,
+        screen_width,
+        screen_height,
+        x1,
+        x2,
+        x3,
+        y1,
+        y2,
+        y3,
+        color,
+        alpha);
+}
 
 static inline void
 raster_flat(
@@ -235,8 +336,12 @@ raster_face_flat_near_clip(
     xc += offset_x;
     yc += offset_y;
 
-    raster_flat(
-        pixel_buffer, stride, screen_width, screen_height, xa, xb, xc, ya, yb, yc, color, alpha);
+    if( g_raster_bench.active )
+        raster_flat_bench(
+            pixel_buffer, stride, screen_width, screen_height, xa, xb, xc, ya, yb, yc, color, alpha);
+    else
+        raster_flat(
+            pixel_buffer, stride, screen_width, screen_height, xa, xb, xc, ya, yb, yc, color, alpha);
 
     if( clipped_count != 4 )
         return;
@@ -247,8 +352,12 @@ raster_face_flat_near_clip(
     xb += offset_x;
     yb += offset_y;
 
-    raster_flat(
-        pixel_buffer, stride, screen_width, screen_height, xa, xc, xb, ya, yc, yb, color, alpha);
+    if( g_raster_bench.active )
+        raster_flat_bench(
+            pixel_buffer, stride, screen_width, screen_height, xa, xc, xb, ya, yc, yb, color, alpha);
+    else
+        raster_flat(
+            pixel_buffer, stride, screen_width, screen_height, xa, xc, xb, ya, yc, yb, color, alpha);
 }
 
 static inline void
@@ -330,6 +439,10 @@ raster_face_flat(
 
     // drawGouraudTriangle(pixel_buffer, y1, y2, y3, x1, x2, x3, color_a, color_b, color_c);
 
-    raster_flat(
-        pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color, alpha);
+    if( g_raster_bench.active )
+        raster_flat_bench(
+            pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color, alpha);
+    else
+        raster_flat(
+            pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color, alpha);
 }

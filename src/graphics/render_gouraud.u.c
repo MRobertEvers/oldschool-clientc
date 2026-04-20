@@ -1,6 +1,10 @@
 #ifndef RENDER_GOURAUD_U_C
 #define RENDER_GOURAUD_U_C
 
+#include "graphics/dash.h"
+#include "graphics/raster/deob/pix3d_deob_compat.h"
+#include "graphics/raster_bench_runtime.h"
+
 #include "graphics/dash_alphaint.h"
 #include "graphics/dash_faceint.h"
 #include "graphics/dash_hsl16.h"
@@ -16,6 +20,279 @@
 #include "old/gouraud_s1_branching_barycentric.c"
 
 // clang-format on
+
+static inline void
+raster_gouraud_bench_dispatch_inner(
+    int variant,
+    int* RESTRICT pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    int x1,
+    int x2,
+    int x3,
+    int y1,
+    int y2,
+    int y3,
+    int color_a,
+    int color_b,
+    int color_c,
+    int alpha)
+{
+    switch( variant )
+    {
+    case RASTER_BENCH_GOURAUD_DEOB:
+        raster_gouraud_screen_deob_compat(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c,
+            alpha);
+        return;
+    case RASTER_BENCH_GOURAUD_ALPHA_BARY_BRANCHING_S1:
+        raster_gouraud_screen_alpha_bary_branching_s1(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c,
+            alpha);
+        return;
+    case RASTER_BENCH_GOURAUD_ALPHA_BARY_BRANCHING_S4:
+        raster_gouraud_screen_alpha_bary_branching_s4(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c,
+            alpha);
+        return;
+    case RASTER_BENCH_GOURAUD_ALPHA_BARY_SORT_S1:
+        raster_gouraud_screen_alpha_bary_sort_s1(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c,
+            alpha);
+        return;
+    case RASTER_BENCH_GOURAUD_ALPHA_BARY_SORT_S4:
+        raster_gouraud_screen_alpha_bary_sort_s4(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c,
+            alpha);
+        return;
+    case RASTER_BENCH_GOURAUD_ALPHA_EDGE_SORT_S1:
+        raster_gouraud_screen_alpha_edge_sort_s1(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c,
+            alpha);
+        return;
+    case RASTER_BENCH_GOURAUD_ALPHA_EDGE_SORT_S4:
+        raster_gouraud_screen_alpha_edge_sort_s4(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c,
+            alpha);
+        return;
+    case RASTER_BENCH_GOURAUD_OPAQUE_BARY_BRANCHING_S4:
+        raster_gouraud_screen_opaque_bary_branching_s4(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c);
+        return;
+    case RASTER_BENCH_GOURAUD_OPAQUE_BARY_SORT_S1:
+        raster_gouraud_screen_opaque_bary_sort_s1(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c);
+        return;
+    case RASTER_BENCH_GOURAUD_OPAQUE_BARY_SORT_S4:
+        raster_gouraud_screen_opaque_bary_sort_s4(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c);
+        return;
+    case RASTER_BENCH_GOURAUD_OPAQUE_EDGE_SORT_S1:
+        raster_gouraud_screen_opaque_edge_sort_s1(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c);
+        return;
+    case RASTER_BENCH_GOURAUD_OPAQUE_EDGE_SORT_S4:
+        raster_gouraud_screen_opaque_edge_sort_s4(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c);
+        return;
+    default:
+        raster_gouraud_screen_opaque_bary_branching_s4(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c);
+        return;
+    }
+}
+
+static inline void
+raster_gouraud_bench(
+    int* RESTRICT pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    int x1,
+    int x2,
+    int x3,
+    int y1,
+    int y2,
+    int y3,
+    int color_a,
+    int color_b,
+    int color_c,
+    int alpha)
+{
+    raster_gouraud_bench_dispatch_inner(
+        (int)RASTER_BENCH_GET(g_raster_bench.packed, RASTER_BENCH_SHIFT_GOURAUD),
+        pixel_buffer,
+        stride,
+        screen_width,
+        screen_height,
+        x1,
+        x2,
+        x3,
+        y1,
+        y2,
+        y3,
+        color_a,
+        color_b,
+        color_c,
+        alpha);
+}
 
 static inline void
 raster_gouraud(
@@ -337,21 +614,38 @@ raster_face_gouraud_near_clip(
     xc += offset_x;
     yc += offset_y;
 
-    raster_gouraud(
-        pixel_buffer,
-        stride,
-        screen_width,
-        screen_height,
-        xa,
-        xb,
-        xc,
-        ya,
-        yb,
-        yc,
-        color_a,
-        color_b,
-        color_c,
-        alpha);
+    if( g_raster_bench.active )
+        raster_gouraud_bench(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            xa,
+            xb,
+            xc,
+            ya,
+            yb,
+            yc,
+            color_a,
+            color_b,
+            color_c,
+            alpha);
+    else
+        raster_gouraud(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            xa,
+            xb,
+            xc,
+            ya,
+            yb,
+            yc,
+            color_a,
+            color_b,
+            color_c,
+            alpha);
 
     if( clipped_count != 4 )
         return;
@@ -363,21 +657,38 @@ raster_face_gouraud_near_clip(
     xb += offset_x;
     yb += offset_y;
 
-    raster_gouraud(
-        pixel_buffer,
-        stride,
-        screen_width,
-        screen_height,
-        xa,
-        xc,
-        xb,
-        ya,
-        yc,
-        yb,
-        color_a,
-        color_c,
-        color_b,
-        alpha);
+    if( g_raster_bench.active )
+        raster_gouraud_bench(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            xa,
+            xc,
+            xb,
+            ya,
+            yc,
+            yb,
+            color_a,
+            color_c,
+            color_b,
+            alpha);
+    else
+        raster_gouraud(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            xa,
+            xc,
+            xb,
+            ya,
+            yc,
+            yb,
+            color_a,
+            color_c,
+            color_b,
+            alpha);
 }
 
 static inline void
@@ -606,21 +917,38 @@ raster_face_gouraud_near_clipf(
     xc += offset_x;
     yc += offset_y;
 
-    raster_gouraud(
-        pixel_buffer,
-        stride,
-        screen_width,
-        screen_height,
-        xa,
-        xb,
-        xc,
-        ya,
-        yb,
-        yc,
-        color_a,
-        color_b,
-        color_c,
-        alpha);
+    if( g_raster_bench.active )
+        raster_gouraud_bench(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            xa,
+            xb,
+            xc,
+            ya,
+            yb,
+            yc,
+            color_a,
+            color_b,
+            color_c,
+            alpha);
+    else
+        raster_gouraud(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            xa,
+            xb,
+            xc,
+            ya,
+            yb,
+            yc,
+            color_a,
+            color_b,
+            color_c,
+            alpha);
 
     assert(clipped_count <= 4);
     if( clipped_count != 4 )
@@ -650,21 +978,38 @@ raster_face_gouraud_near_clipf(
     xb += offset_x;
     yb += offset_y;
 
-    raster_gouraud(
-        pixel_buffer,
-        stride,
-        screen_width,
-        screen_height,
-        xa,
-        xc,
-        xb,
-        ya,
-        yc,
-        yb,
-        color_a,
-        color_c,
-        color_b,
-        alpha);
+    if( g_raster_bench.active )
+        raster_gouraud_bench(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            xa,
+            xc,
+            xb,
+            ya,
+            yc,
+            yb,
+            color_a,
+            color_c,
+            color_b,
+            alpha);
+    else
+        raster_gouraud(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            xa,
+            xc,
+            xb,
+            ya,
+            yc,
+            yb,
+            color_a,
+            color_c,
+            color_b,
+            alpha);
 }
 
 static inline void
@@ -751,21 +1096,38 @@ raster_face_gouraud(
 
     // drawGouraudTriangle(pixel_buffer, y1, y2, y3, x1, x2, x3, color_a, color_b, color_c);
 
-    raster_gouraud(
-        pixel_buffer,
-        stride,
-        screen_width,
-        screen_height,
-        x1,
-        x2,
-        x3,
-        y1,
-        y2,
-        y3,
-        color_a,
-        color_b,
-        color_c,
-        alpha);
+    if( g_raster_bench.active )
+        raster_gouraud_bench(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c,
+            alpha);
+    else
+        raster_gouraud(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c,
+            alpha);
 }
 
 static inline void

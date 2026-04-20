@@ -89,8 +89,8 @@
 #include "graphics/raster/texture/texshadeflat.persp.textrans.branching.lerp8.u.c"
 #include "graphics/raster/texture/texshadeflat.persp.textrans.sort.lerp8.u.c"
 
-/* Pix3D deob reference ports (globals + static inline rasterizers) */
-#include "graphics/raster/deob/pix3d_deob_state.c"
+/* Pix3D deob reference ports (static inline rasterizers; globals live in dash.c via pix3d_deob_compat) */
+#include "graphics/raster/deob/pix3d_deob_state.h"
 #include "graphics/raster/flat/flat.deob.u.c"
 #include "graphics/raster/gouraud/gouraud.deob.u.c"
 #include "graphics/raster/texture/texture.deob.u.c"
