@@ -258,6 +258,34 @@ if(NOT EMSCRIPTEN)
     endif()
 
     if(ENABLE_PACKAGE_BUILD)
+        target_compile_definitions(bench_sdl2 PRIVATE
+            LUA_SCRIPTS_DIR="scripts"
+            CONFIG_DIRECTORY="configs"
+            CACHE_PATH="cache254"
+            CACHE_DAT_PATH="cache254"
+        )
+        set(_bench_sdl2_pkg_post_build
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/src/osrs/scripts"
+                "${CMAKE_CURRENT_BINARY_DIR}/scripts"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/src/osrs/revconfig/configs"
+                "${CMAKE_CURRENT_BINARY_DIR}/configs"
+        )
+        if(EXISTS "${CMAKE_SOURCE_DIR}/../cache254")
+            list(APPEND _bench_sdl2_pkg_post_build
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${CMAKE_SOURCE_DIR}/../cache254"
+                    "${CMAKE_CURRENT_BINARY_DIR}/cache254"
+            )
+        endif()
+        add_custom_command(TARGET bench_sdl2 POST_BUILD
+            ${_bench_sdl2_pkg_post_build}
+            COMMENT "ENABLE_PACKAGE_BUILD: copy resources next to bench_sdl2 executable"
+        )
+    endif()
+
+    if(ENABLE_PACKAGE_BUILD)
         target_compile_definitions(sdl2 PRIVATE
             LUA_SCRIPTS_DIR="scripts"
             CONFIG_DIRECTORY="configs"

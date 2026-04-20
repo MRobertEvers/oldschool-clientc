@@ -35,6 +35,12 @@ extern "C" {
 
 namespace
 {
+#ifndef BENCH_SDL2_FRAMES_PER_SEGMENT
+#define BENCH_SDL2_FRAMES_PER_SEGMENT 5000
+#endif
+
+constexpr int kBenchFramesPerSegment = BENCH_SDL2_FRAMES_PER_SEGMENT;
+
 constexpr int kViewportInset = 4;
 constexpr int kGameViewportWidth = 765;
 constexpr int kGameViewportHeight = 503;
@@ -160,7 +166,7 @@ struct BenchState
     FILE* report_fp;
     int next_report_index;
     int frames_in_segment;
-    double segment_times_ms[1000];
+    double segment_times_ms[kBenchFramesPerSegment];
     double ring_times_ms[1000];
     int ring_pos;
     int ring_count;
@@ -589,9 +595,9 @@ main(
         if( g_bench.running_bench && g_bench.report_fp )
         {
             g_bench.segment_times_ms[g_bench.frames_in_segment++] = frame_ms;
-            if( g_bench.frames_in_segment >= 1000 )
+            if( g_bench.frames_in_segment >= kBenchFramesPerSegment )
             {
-                double const m = mean_ms(g_bench.segment_times_ms, 1000);
+                double const m = mean_ms(g_bench.segment_times_ms, kBenchFramesPerSegment);
                 if( g_bench.bench_phase_default )
                 {
                     write_report_entry(

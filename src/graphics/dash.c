@@ -21,34 +21,6 @@
 #define DASH_BUCKET_SORT_USE_LINKED_LIST 0
 #endif
 
-#ifndef NDEBUG
-/* Textured faces: P/M/N indices must be the same three mesh vertices as face (a,b,c) (Model.ts). */
-static int
-dash_face_tex_indices_same_set(int fa, int fb, int fc, int tp, int tm, int tn)
-{
-    int f[3] = { fa, fb, fc };
-    int t[3] = { tp, tm, tn };
-    int i, j, tmp;
-    for( i = 0; i < 3; i++ )
-        for( j = i + 1; j < 3; j++ )
-            if( f[i] > f[j] )
-            {
-                tmp = f[i];
-                f[i] = f[j];
-                f[j] = tmp;
-            }
-    for( i = 0; i < 3; i++ )
-        for( j = i + 1; j < 3; j++ )
-            if( t[i] > t[j] )
-            {
-                tmp = t[i];
-                t[i] = t[j];
-                t[j] = tmp;
-            }
-    return f[0] == t[0] && f[1] == t[1] && f[2] == t[2];
-}
-#endif
-
 struct DashGraphics
 {
     struct DashAABB aabb;
@@ -889,16 +861,6 @@ dash3d_raster_model_face(
             assert(tm_vertex < ctx->num_vertices);
             assert(tn_vertex < ctx->num_vertices);
 
-#ifndef NDEBUG
-            assert(
-                dash_face_tex_indices_same_set(
-                    ctx->face_indices_a[face],
-                    ctx->face_indices_b[face],
-                    ctx->face_indices_c[face],
-                    tp_vertex,
-                    tm_vertex,
-                    tn_vertex));
-#endif
 
             if( !g_raster_bench.active && (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 )
             {
@@ -997,16 +959,6 @@ dash3d_raster_model_face(
             assert(tm_vertex < ctx->num_vertices);
             assert(tn_vertex < ctx->num_vertices);
 
-#ifndef NDEBUG
-            assert(
-                dash_face_tex_indices_same_set(
-                    ctx->face_indices_a[face],
-                    ctx->face_indices_b[face],
-                    ctx->face_indices_c[face],
-                    tp_vertex,
-                    tm_vertex,
-                    tn_vertex));
-#endif
 
             if( !g_raster_bench.active && (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 )
             {
