@@ -1,7 +1,7 @@
 #include "graphics/dash.h"
+#include "graphics/dash_bench.h"
 #include "graphics/raster/deob/pix3d_deob_compat.h"
 #include "graphics/raster/deob/pix3d_deob_state.h"
-#include "graphics/raster_bench_runtime.h"
 
 #include "graphics/dash_faceint.h"
 #include "graphics/dash_hsl16.h"

@@ -1,6 +1,6 @@
 #include "graphics/dash.h"
+#include "graphics/dash_bench.h"
 #include "graphics/raster/deob/pix3d_deob_compat.h"
-#include "graphics/raster_bench_runtime.h"
 
 #include "graphics/dash_alphaint.h"
 #include "graphics/dash_faceint.h"
@@ -98,8 +98,10 @@ raster_flat_bench(
     int color,
     int alpha)
 {
+    uint32_t const slot_shift =
+        (alpha == 0xFF) ? RASTER_BENCH_SHIFT_FLAT : RASTER_BENCH_SHIFT_FLAT_ALPHA;
     raster_flat_bench_dispatch_inner(
-        (int)RASTER_BENCH_GET(g_raster_bench.packed, RASTER_BENCH_SHIFT_FLAT),
+        (int)RASTER_BENCH_GET(g_raster_bench.packed, slot_shift),
         pixel_buffer,
         stride,
         screen_width,

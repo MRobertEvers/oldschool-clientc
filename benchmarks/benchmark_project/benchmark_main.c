@@ -148,8 +148,10 @@ enum BenchVariant
     BENCH_TEXBLEND_AFFINE_TRANS_BRANCHING,
     BENCH_TEXBLEND_AFFINE_OPAQUE_BRANCHING_V3,
     BENCH_TEXBLEND_AFFINE_TRANS_BRANCHING_V3,
-    BENCH_FLAT_DEOB,
-    BENCH_GOURAUD_DEOB,
+    BENCH_FLAT_OPAQUE_DEOB,
+    BENCH_FLAT_ALPHA_DEOB,
+    BENCH_GOURAUD_OPAQUE_DEOB,
+    BENCH_GOURAUD_ALPHA_DEOB,
     BENCH_TEX_OPAQUE_DEOB,
     BENCH_TEX_TRANS_DEOB,
     BENCH_TEX_OPAQUE_DEOB2,
@@ -184,8 +186,10 @@ static const char* variant_names[BENCH_VARIANT_COUNT] = {
     "TexBlend affine transparent (branching lerp8)",
     "TexBlend affine opaque (branching lerp8_v3)",
     "TexBlend affine transparent (branching lerp8_v3)",
-    "Flat (Pix3D deob)",
-    "Gouraud (Pix3D deob)",
+    "Flat opaque (Pix3D deob)",
+    "Flat alpha (Pix3D deob)",
+    "Gouraud opaque (Pix3D deob)",
+    "Gouraud alpha (Pix3D deob)",
     "Texture opaque (Pix3D deob)",
     "Texture transparent (Pix3D deob)",
     "Texture opaque (Pix3D deob2)",
@@ -194,7 +198,7 @@ static const char* variant_names[BENCH_VARIANT_COUNT] = {
 
 /* Category for display grouping */
 static int variant_category[BENCH_VARIANT_COUNT] = {
-    0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5,
+    0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5,
 };
 static const char* category_names[] = {
     "Flat",
@@ -1079,7 +1083,8 @@ run_benchmark_variant(
                     texels,
                     TEX_WIDTH);
                 break;
-            case BENCH_FLAT_DEOB:
+            case BENCH_FLAT_OPAQUE_DEOB:
+                pix3d_deob_set_alpha(0);
                 pix3d_deob_flat_triangle(
                     tri_x0[i],
                     tri_x1[i],
@@ -1089,7 +1094,32 @@ run_benchmark_variant(
                     tri_y2[i],
                     g_hsl16_to_rgb_table[tri_flat_color[i] & 0xFFFF]);
                 break;
-            case BENCH_GOURAUD_DEOB:
+            case BENCH_FLAT_ALPHA_DEOB:
+                pix3d_deob_set_alpha(256 - BENCH_ALPHA7);
+                pix3d_deob_flat_triangle(
+                    tri_x0[i],
+                    tri_x1[i],
+                    tri_x2[i],
+                    tri_y0[i],
+                    tri_y1[i],
+                    tri_y2[i],
+                    g_hsl16_to_rgb_table[tri_flat_color[i] & 0xFFFF]);
+                break;
+            case BENCH_GOURAUD_OPAQUE_DEOB:
+                pix3d_deob_set_alpha(0);
+                pix3d_deob_gouraud_triangle(
+                    tri_x0[i],
+                    tri_x1[i],
+                    tri_x2[i],
+                    tri_y0[i],
+                    tri_y1[i],
+                    tri_y2[i],
+                    tri_color0[i],
+                    tri_color1[i],
+                    tri_color2[i]);
+                break;
+            case BENCH_GOURAUD_ALPHA_DEOB:
+                pix3d_deob_set_alpha(256 - BENCH_ALPHA7);
                 pix3d_deob_gouraud_triangle(
                     tri_x0[i],
                     tri_x1[i],
@@ -1784,7 +1814,8 @@ run_benchmark_variant(
                     texels,
                     TEX_WIDTH);
                 break;
-            case BENCH_FLAT_DEOB:
+            case BENCH_FLAT_OPAQUE_DEOB:
+                pix3d_deob_set_alpha(0);
                 pix3d_deob_flat_triangle(
                     tri_x0[i],
                     tri_x1[i],
@@ -1794,7 +1825,32 @@ run_benchmark_variant(
                     tri_y2[i],
                     g_hsl16_to_rgb_table[tri_flat_color[i] & 0xFFFF]);
                 break;
-            case BENCH_GOURAUD_DEOB:
+            case BENCH_FLAT_ALPHA_DEOB:
+                pix3d_deob_set_alpha(256 - BENCH_ALPHA7);
+                pix3d_deob_flat_triangle(
+                    tri_x0[i],
+                    tri_x1[i],
+                    tri_x2[i],
+                    tri_y0[i],
+                    tri_y1[i],
+                    tri_y2[i],
+                    g_hsl16_to_rgb_table[tri_flat_color[i] & 0xFFFF]);
+                break;
+            case BENCH_GOURAUD_OPAQUE_DEOB:
+                pix3d_deob_set_alpha(0);
+                pix3d_deob_gouraud_triangle(
+                    tri_x0[i],
+                    tri_x1[i],
+                    tri_x2[i],
+                    tri_y0[i],
+                    tri_y1[i],
+                    tri_y2[i],
+                    tri_color0[i],
+                    tri_color1[i],
+                    tri_color2[i]);
+                break;
+            case BENCH_GOURAUD_ALPHA_DEOB:
+                pix3d_deob_set_alpha(256 - BENCH_ALPHA7);
                 pix3d_deob_gouraud_triangle(
                     tri_x0[i],
                     tri_x1[i],
@@ -2158,8 +2214,10 @@ main(
     run_benchmark_variant(BENCH_TEXBLEND_AFFINE_TRANS_BRANCHING_V3, transparent_texels);
 
     printf("\n[Deob — Pix3D reference ports]\n");
-    run_benchmark_variant(BENCH_FLAT_DEOB, NULL);
-    run_benchmark_variant(BENCH_GOURAUD_DEOB, NULL);
+    run_benchmark_variant(BENCH_FLAT_OPAQUE_DEOB, NULL);
+    run_benchmark_variant(BENCH_FLAT_ALPHA_DEOB, NULL);
+    run_benchmark_variant(BENCH_GOURAUD_OPAQUE_DEOB, NULL);
+    run_benchmark_variant(BENCH_GOURAUD_ALPHA_DEOB, NULL);
     run_benchmark_variant(BENCH_TEX_OPAQUE_DEOB, opaque_texels);
     run_benchmark_variant(BENCH_TEX_TRANS_DEOB, transparent_texels);
     run_benchmark_variant(BENCH_TEX_OPAQUE_DEOB2, opaque_texels);

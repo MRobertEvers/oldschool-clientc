@@ -4,7 +4,7 @@ extern "C" {
 #include "LibToriRSPlatformC.h"
 #include "osrs/ginput.h"
 #include "graphics/dash.h"
-#include "graphics/raster_bench_runtime.h"
+#include "graphics/dash_bench.h"
 #include "osrs/game.h"
 #include "osrs/world.h"
 #include "platforms/common/sockstream.h"
@@ -41,7 +41,7 @@ constexpr int kGameViewportHeight = 503;
 constexpr int kScreenWidth = kViewportInset + kGameViewportWidth + kViewportInset;
 constexpr int kScreenHeight = kViewportInset + kGameViewportHeight + kViewportInset;
 
-constexpr int kBenchSlotCount = 6;
+constexpr int kBenchSlotCount = 8;
 constexpr int kBenchTotalSegments = 40; /* 1 default + 39 non-default variants */
 
 struct VariantInfo
@@ -53,23 +53,42 @@ struct VariantInfo
 struct SlotInfo
 {
     const char* slot_label;
+    /* Short, machine-friendly tag emitted as `category=` in report.ini. Mirrors the slot's
+     * geometry/alpha bucket (e.g. "texopaque.blend", "gouraud.alpha"). */
+    const char* category;
     uint32_t shift;
     const VariantInfo* variants;
     size_t count;
     int default_variant_index;
 };
 
-/* Canonical names follow raster source filenames (without .u.c / .c). */
+/* Canonical names follow raster source filenames (without .u.c / .c).
+ * Flat / Gouraud are split into opaque (alpha == 0xFF) and alpha (alpha != 0xFF) slots; the
+ * dispatch picks which slot to read from based on the per-face alpha at draw time. The deob
+ * compat path handles both opaque and alpha internally, so it appears in both slot lists. */
 
-static const VariantInfo kVariantsFlat[] = {
+static const VariantInfo kVariantsFlatOpaque[] = {
     { "flat.deob", RASTER_BENCH_FLAT_DEOB },
     { "flat.screen.opaque.branching.s4", RASTER_BENCH_FLAT_OPAQUE_BRANCHING_S4 },
     { "flat.screen.opaque.sort.s4", RASTER_BENCH_FLAT_OPAQUE_SORT_S4 },
+};
+
+static const VariantInfo kVariantsFlatAlpha[] = {
+    { "flat.deob", RASTER_BENCH_FLAT_DEOB },
     { "flat.screen.alpha.branching.s4", RASTER_BENCH_FLAT_ALPHA_BRANCHING_S4 },
     { "flat.screen.alpha.sort.s4", RASTER_BENCH_FLAT_ALPHA_SORT_S4 },
 };
 
-static const VariantInfo kVariantsGouraud[] = {
+static const VariantInfo kVariantsGouraudOpaque[] = {
+    { "gouraud.deob", RASTER_BENCH_GOURAUD_DEOB },
+    { "gouraud.screen.opaque.bary.branching.s4", RASTER_BENCH_GOURAUD_OPAQUE_BARY_BRANCHING_S4 },
+    { "gouraud.screen.opaque.bary.sort.s1", RASTER_BENCH_GOURAUD_OPAQUE_BARY_SORT_S1 },
+    { "gouraud.screen.opaque.bary.sort.s4", RASTER_BENCH_GOURAUD_OPAQUE_BARY_SORT_S4 },
+    { "gouraud.screen.opaque.edge.sort.s1", RASTER_BENCH_GOURAUD_OPAQUE_EDGE_SORT_S1 },
+    { "gouraud.screen.opaque.edge.sort.s4", RASTER_BENCH_GOURAUD_OPAQUE_EDGE_SORT_S4 },
+};
+
+static const VariantInfo kVariantsGouraudAlpha[] = {
     { "gouraud.deob", RASTER_BENCH_GOURAUD_DEOB },
     { "gouraud.screen.alpha.bary.branching.s1", RASTER_BENCH_GOURAUD_ALPHA_BARY_BRANCHING_S1 },
     { "gouraud.screen.alpha.bary.branching.s4", RASTER_BENCH_GOURAUD_ALPHA_BARY_BRANCHING_S4 },
@@ -77,11 +96,6 @@ static const VariantInfo kVariantsGouraud[] = {
     { "gouraud.screen.alpha.bary.sort.s4", RASTER_BENCH_GOURAUD_ALPHA_BARY_SORT_S4 },
     { "gouraud.screen.alpha.edge.sort.s1", RASTER_BENCH_GOURAUD_ALPHA_EDGE_SORT_S1 },
     { "gouraud.screen.alpha.edge.sort.s4", RASTER_BENCH_GOURAUD_ALPHA_EDGE_SORT_S4 },
-    { "gouraud.screen.opaque.bary.branching.s4", RASTER_BENCH_GOURAUD_OPAQUE_BARY_BRANCHING_S4 },
-    { "gouraud.screen.opaque.bary.sort.s1", RASTER_BENCH_GOURAUD_OPAQUE_BARY_SORT_S1 },
-    { "gouraud.screen.opaque.bary.sort.s4", RASTER_BENCH_GOURAUD_OPAQUE_BARY_SORT_S4 },
-    { "gouraud.screen.opaque.edge.sort.s1", RASTER_BENCH_GOURAUD_OPAQUE_EDGE_SORT_S1 },
-    { "gouraud.screen.opaque.edge.sort.s4", RASTER_BENCH_GOURAUD_OPAQUE_EDGE_SORT_S4 },
 };
 
 static const VariantInfo kVariantsTexOpaque[] = {
@@ -124,14 +138,16 @@ static const VariantInfo kVariantsTexFlatTrans[] = {
     { "texshadeflat.persp.textrans.ordered.lerp8.scanline", RASTER_BENCH_TEXTURED_FLAT_TRANS_PERSP_ORDERED_LERP8_SCANLINE },
 };
 
-/* Order matches RASTER_BENCH_PACK(g, f, tex_o, tex_t, texfo, tft). */
+/* Order matches RASTER_BENCH_PACK(g, f, tex_o, tex_t, texfo, tft, f_alpha, g_alpha). */
 static const SlotInfo kSlots[kBenchSlotCount] = {
-    { "Gouraud", RASTER_BENCH_SHIFT_GOURAUD, kVariantsGouraud, 12, 7 },
-    { "Flat", RASTER_BENCH_SHIFT_FLAT, kVariantsFlat, 5, 1 },
-    { "Tex opaque", RASTER_BENCH_SHIFT_TEXTURED_OPAQUE, kVariantsTexOpaque, 8, 3 },
-    { "Tex transparent", RASTER_BENCH_SHIFT_TEXTURED_TRANS, kVariantsTexTrans, 8, 3 },
-    { "Tex-flat opaque", RASTER_BENCH_SHIFT_TEXTURED_FLAT_OPAQUE, kVariantsTexFlatOpaque, 6, 2 },
-    { "Tex-flat transparent", RASTER_BENCH_SHIFT_TEXTURED_FLAT_TRANS, kVariantsTexFlatTrans, 6, 2 },
+    { "Gouraud opaque", "gouraud.opaque", RASTER_BENCH_SHIFT_GOURAUD, kVariantsGouraudOpaque, 6, 1 },
+    { "Flat opaque", "flat.opaque", RASTER_BENCH_SHIFT_FLAT, kVariantsFlatOpaque, 3, 1 },
+    { "Tex opaque", "texopaque.blend", RASTER_BENCH_SHIFT_TEXTURED_OPAQUE, kVariantsTexOpaque, 8, 3 },
+    { "Tex transparent", "textrans.blend", RASTER_BENCH_SHIFT_TEXTURED_TRANS, kVariantsTexTrans, 8, 3 },
+    { "Tex-flat opaque", "texopaque.flat", RASTER_BENCH_SHIFT_TEXTURED_FLAT_OPAQUE, kVariantsTexFlatOpaque, 6, 2 },
+    { "Tex-flat transparent", "textrans.flat", RASTER_BENCH_SHIFT_TEXTURED_FLAT_TRANS, kVariantsTexFlatTrans, 6, 2 },
+    { "Flat alpha", "flat.alpha", RASTER_BENCH_SHIFT_FLAT_ALPHA, kVariantsFlatAlpha, 3, 1 },
+    { "Gouraud alpha", "gouraud.alpha", RASTER_BENCH_SHIFT_GOURAUD_ALPHA, kVariantsGouraudAlpha, 7, 2 },
 };
 
 struct BenchState
@@ -162,7 +178,9 @@ pack_defaults(void)
         kSlots[2].variants[kSlots[2].default_variant_index].value,
         kSlots[3].variants[kSlots[3].default_variant_index].value,
         kSlots[4].variants[kSlots[4].default_variant_index].value,
-        kSlots[5].variants[kSlots[5].default_variant_index].value);
+        kSlots[5].variants[kSlots[5].default_variant_index].value,
+        kSlots[6].variants[kSlots[6].default_variant_index].value,
+        kSlots[7].variants[kSlots[7].default_variant_index].value);
 }
 
 static uint32_t
@@ -174,7 +192,9 @@ pack_live(BenchState const& s)
         kSlots[2].variants[s.selected_variant[2]].value,
         kSlots[3].variants[s.selected_variant[3]].value,
         kSlots[4].variants[s.selected_variant[4]].value,
-        kSlots[5].variants[s.selected_variant[5]].value);
+        kSlots[5].variants[s.selected_variant[5]].value,
+        kSlots[6].variants[s.selected_variant[6]].value,
+        kSlots[7].variants[s.selected_variant[7]].value);
 }
 
 static uint32_t
@@ -237,6 +257,7 @@ static void
 write_report_entry(
     FILE* fp,
     int section,
+    char const* category,
     char const* combination,
     double mean_frametime_ms,
     struct GGame* game)
@@ -253,6 +274,7 @@ write_report_entry(
     fprintf(
         fp,
         "[bench%d]\n"
+        "category=%s\n"
         "combination=%s\n"
         "frametime_ms=%.6f\n"
         "world_scene=%d, %d, %d, %d\n"
@@ -260,6 +282,7 @@ write_report_entry(
         "camera_angle=%d, %d, %d\n"
         "\n",
         section,
+        category,
         combination,
         mean_frametime_ms,
         wx_sw,
@@ -575,6 +598,7 @@ main(
                         g_bench.report_fp,
                         g_bench.next_report_index++,
                         "default",
+                        "default",
                         m,
                         game);
                     g_bench.bench_phase_default = 0;
@@ -587,11 +611,12 @@ main(
                 }
                 else
                 {
-                    char const* combo
-                        = kSlots[g_bench.bench_slot].variants[g_bench.bench_variant_idx].canonical;
+                    SlotInfo const& slot = kSlots[g_bench.bench_slot];
+                    char const* combo = slot.variants[g_bench.bench_variant_idx].canonical;
                     write_report_entry(
                         g_bench.report_fp,
                         g_bench.next_report_index++,
+                        slot.category,
                         combo,
                         m,
                         game);

@@ -1,8 +1,6 @@
 #include "dash.h"
+#include "graphics/dash_bench.h"
 #include "graphics/raster/deob/pix3d_deob_compat.h"
-#include "graphics/raster_bench_runtime.h"
-
-struct DashRasterBenchRuntime g_raster_bench;
 
 // clang-format off
 #include "dash2d_simd.u.c"

@@ -2,8 +2,8 @@
 #define RENDER_GOURAUD_U_C
 
 #include "graphics/dash.h"
+#include "graphics/dash_bench.h"
 #include "graphics/raster/deob/pix3d_deob_compat.h"
-#include "graphics/raster_bench_runtime.h"
 
 #include "graphics/dash_alphaint.h"
 #include "graphics/dash_faceint.h"
@@ -276,8 +276,10 @@ raster_gouraud_bench(
     int color_c,
     int alpha)
 {
+    uint32_t const slot_shift =
+        (alpha == 0xFF) ? RASTER_BENCH_SHIFT_GOURAUD : RASTER_BENCH_SHIFT_GOURAUD_ALPHA;
     raster_gouraud_bench_dispatch_inner(
-        (int)RASTER_BENCH_GET(g_raster_bench.packed, RASTER_BENCH_SHIFT_GOURAUD),
+        (int)RASTER_BENCH_GET(g_raster_bench.packed, slot_shift),
         pixel_buffer,
         stride,
         screen_width,
