@@ -1,6 +1,6 @@
 /*
- * Benchmark raster_texture_opaque_blend_branching_lerp8 (texture_blend_branching.u.c) vs
- * raster_texture_opaque_blend_branching_lerp8_v3 (texture_blend_branching_v3.u.c).
+ * Benchmark raster_texshadeblend_persp_texopaque_branching_lerp8 (texture_blend_branching.u.c) vs
+ * raster_texshadeblend_persp_texopaque_branching_lerp8_v3 (texture_blend_branching_v3.u.c).
  *
  * Same projection + tex.span (SIMD) are included once via the first header; the v3 header adds
  * the SIMD-path raster without re-including projection/simd (include guards).
@@ -13,13 +13,13 @@ int g_cos_table[2048];
 int g_tan_table[2048];
 int g_reciprocal16_simd[4096];
 
-#define raster_texture_opaque_blend_branching_lerp8 bench_raster_texture_opaque_blend_scalar
+#define raster_texshadeblend_persp_texopaque_branching_lerp8 bench_raster_texture_opaque_blend_scalar
 #include "../../src/graphics/old/texture_blend_branching.u.c"
-#undef raster_texture_opaque_blend_branching_lerp8
+#undef raster_texshadeblend_persp_texopaque_branching_lerp8
 
-#define raster_texture_opaque_blend_branching_lerp8_v3 bench_raster_texture_opaque_blend_simd
+#define raster_texshadeblend_persp_texopaque_branching_lerp8_v3 bench_raster_texture_opaque_blend_simd
 #include "../../src/graphics/old/texture_blend_branching_v3.u.c"
-#undef raster_texture_opaque_blend_branching_lerp8_v3
+#undef raster_texshadeblend_persp_texopaque_branching_lerp8_v3
 
 #ifndef BENCH_ITERS
 #define BENCH_ITERS 400
@@ -247,7 +247,7 @@ main(void)
     const int n_cases = (int)(sizeof(cases) / sizeof(cases[0]));
 
     printf(
-        "raster_texture_opaque_blend_branching_lerp8 vs raster_texture_opaque_blend_branching_lerp8_v3\n"
+        "raster_texshadeblend_persp_texopaque_branching_lerp8 vs raster_texshadeblend_persp_texopaque_branching_lerp8_v3\n"
         "iters=%d  warmup=%d\n\n",
         BENCH_ITERS,
         BENCH_WARMUP);
@@ -313,8 +313,8 @@ main(void)
 
         printf(
             "%s  (%dx%d tex=%d fov=%d)\n"
-            "  raster_texture_opaque_blend_branching_lerp8:    %6.4f s total  %6.3f ms/call\n"
-            "  raster_texture_opaque_blend_branching_lerp8_v3: %6.4f s total  %6.3f ms/call  (SIMD ~%.2f× "
+            "  raster_texshadeblend_persp_texopaque_branching_lerp8:    %6.4f s total  %6.3f ms/call\n"
+            "  raster_texshadeblend_persp_texopaque_branching_lerp8_v3: %6.4f s total  %6.3f ms/call  (SIMD ~%.2f× "
             "faster)\n\n",
             bc->name,
             bc->screen_w,

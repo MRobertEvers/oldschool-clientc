@@ -34,15 +34,15 @@ Below is a **single master table** (fixed-width inside a code block). Rows are *
 ```text
 Row  Category              Projection   Role / shading            Symbol(s) (representative)                              Source file(s)
 ---  --------------------  -----------  ------------------------   ------------------------------------------              ----------------------------------------------
-F1   Flat                  screen       opaque triangle           raster_flat_bs4                                         flat_branching_s4.c
-F2   Flat                  screen       alpha fill triangle       raster_flat_alpha_bs4                                   flat_branching_s4.c
-F3   Flat                  screen       ordered-walk helpers      raster_flat_ordered_bs4, raster_flat_alpha_ordered_bs4   flat_branching_s4.c (internal to F1/F2)
-F4   Flat (legacy)         screen       opaque / alpha s4 path    raster_flat_s4, raster_flat_alpha_s4                    flat.u.c (not called from render_flat today)
+F1   Flat                  screen       opaque triangle           raster_flat_screen_opaque_branching_s4                  raster/flat/flat.screen.opaque.branching.s4.c
+F2   Flat                  screen       alpha fill triangle       raster_flat_screen_alpha_branching_s4                    raster/flat/flat.screen.alpha.branching.s4.c
+F3   Flat                  screen       ordered-walk helpers      raster_flat_screen_opaque_branching_s4_ordered, raster_flat_screen_alpha_branching_s4_ordered  same TU as F1/F2
+F4   Flat (legacy)         screen       opaque / alpha s4 path    raster_flat_screen_opaque_sort_s4, raster_flat_screen_alpha_sort_s4  raster/flat/flat.screen.*.sort.s4.u.c
 F5   Flat                  screen       dispatch + clip faces     raster_flat, raster_face_flat*, raster_face_flat_near_clip  render_flat.u.c
 --
-G1   Gouraud               screen       opaque bs4 barycentric    raster_gouraud_bary_bs4                                 gouraud_branching_barycentric.c
-G2   Gouraud               screen       alpha bs4 barycentric     raster_gouraud_alpha_bary_bs4                           gouraud_branching_barycentric.c
-G3   Gouraud               screen       ordered bary variants     raster_gouraud_ordered_bary_bs4, raster_gouraud_ordered_bary_alpha_bs4  gouraud_branching_barycentric.c
+G1   Gouraud               screen       opaque bs4 barycentric    raster_gouraud_screen_opaque_bary_branching_s4         raster/gouraud/gouraud.screen.opaque.bary.branching.s4.c
+G2   Gouraud               screen       alpha bs4 barycentric     raster_gouraud_screen_alpha_bary_branching_s4           raster/gouraud/gouraud.screen.alpha.bary.branching.s4.c
+G3   Gouraud               screen       ordered bary variants     raster_gouraud_screen_opaque_bary_branching_s4_ordered, raster_gouraud_screen_alpha_bary_branching_s4_ordered  same TU as G1/G2
 G4   Gouraud               screen       opaque bs1 barycentric    raster_gouraud_bary_bs1                                 gouraud_s1_branching_barycentric.c
 G5   Gouraud               screen       ordered bs1 helper        raster_gouraud_ordered_bary_bs1                         gouraud_s1_branching_barycentric.c
 G6   Gouraud               screen       dispatch + clip faces     raster_gouraud, raster_gouraud_s1, raster_face_gouraud*, raster_face_gouraud_near_clip*  render_gouraud.u.c
@@ -54,17 +54,17 @@ G11  Gouraud (unused TU)   screen       non-bary branching bs4    raster_gouraud
 G12  Gouraud (unused TU)   screen       bs1 + misnamed bs4        raster_gouraud_ordered_bs1, raster_gouraud_bs4          gouraud_s1_branching.c (never #included)
 G13  Gouraud (reference)   n/a          decomp triangle           gouraud_deob_draw_triangle, gouraud_deob_draw_scanline  gouraud_deob.c (standalone reference; not in dash.c)
 --
-TF1  Texture flat          perspective  opaque triangle           raster_texture_opaque_lerp8                             texture.u.c (calls SIMD kernel TS8)
-TF2  Texture flat          perspective  transparent triangle      raster_texture_transparent_lerp8                        texture.u.c (calls SIMD kernel TS8)
-TF3  Texture flat          perspective  scanline helpers          raster_texture_scanline_opaque_lerp8, raster_texture_scanline_transparent_lerp8  texture.u.c
+TF1  Texture flat          perspective  opaque triangle           raster_texshadeflat_persp_texopaque_branching_lerp8     texture.u.c (calls SIMD kernel TS8)
+TF2  Texture flat          perspective  transparent triangle      raster_texshadeflat_persp_textrans_branching_lerp8      texture.u.c (calls SIMD kernel TS8)
+TF3  Texture flat          perspective  scanline helpers          raster_texshadeflat_persp_texopaque_sort_lerp8_scanline, raster_texshadeflat_persp_textrans_sort_lerp8_scanline  texture.u.c
 TF4  Texture flat          affine       dispatch (reuses blend)   raster_texture_flat_affine, raster_texture_flat_affine_v3  render_texture_affine.u.c
-TF5  Texture flat          affine       opaque / transparent tri  raster_texture_opaque_blend_affine(_v3), raster_texture_transparent_blend_affine(_v3)  texture_blend_branching_affine.u.c, texture_blend_branching_affine_v3.u.c
+TF5  Texture flat          affine       opaque / transparent tri  raster_texshadeblend_affine_texopaque_branching_lerp8(_v3), raster_texshadeblend_affine_textrans_branching_lerp8(_v3)  texture_blend_branching_affine.u.c, texture_blend_branching_affine_v3.u.c
 TF6  Texture flat          affine       face + near clip          raster_face_texture_flat_affine*, raster_face_texture_flat_affine*_near_clip  render_texture_affine.u.c
 TF7  Texture flat          perspective  face + near clip          raster_face_texture_flat*, raster_face_texture_flat_near_clip  render_texture.u.c
 TF8  Texture flat          perspective  dispatch                  raster_texture_flat                                     render_texture.u.c
 --
-TS1  Texture Gouraud       perspective  opaque / transparent v3   raster_texture_opaque_blend_sort_lerp8_v3, raster_texture_transparent_blend_sort_lerp8_v3  texture_blend_branching_v3.u.c (active; calls SIMD scanline TS9)
-TS2  Texture Gouraud       perspective  non-v3 sort.lerp8             raster_texture_*_blend_sort_lerp8, *_ordered_sort_lerp8         texture_blend_branching.u.c (superseded by TS1 for default dispatch)
+TS1  Texture Gouraud       perspective  opaque / transparent v3   raster_texshadeblend_persp_texopaque_branching_lerp8_v3, raster_texshadeblend_persp_textrans_branching_lerp8_v3  texture_blend_branching_v3.u.c (active; calls SIMD scanline TS9)
+TS2  Texture Gouraud       perspective  non-v3 branching.lerp8    raster_texshadeblend_persp_texopaque_branching_lerp8, raster_texshadeblend_persp_textrans_branching_lerp8  texture_blend_branching.u.c (superseded by TS1 for default dispatch)
 TS3  Texture Gouraud       perspective  face + near clip          raster_face_texture_blend*, raster_face_texture_blend_near_clip  render_texture.u.c
 TS4  Texture Gouraud       perspective  dispatch                  raster_texture_blend                                    render_texture.u.c
 TS5  Texture Gouraud       affine       dispatch                  raster_texture_blend_affine, raster_texture_blend_affine_v3  render_texture_affine.u.c
@@ -73,7 +73,7 @@ TS7  Texture Gouraud       affine       face + near clip          raster_face_te
 TS8  Texture (SIMD kernel) perspective  8-pixel lerp8 + v3        raster_linear_*_blend_lerp8[_v3]                        texture_simd.{scalar,sse2,sse41,avx,neon}.u.c (Chain 2)
 TS9  Texture (SIMD scan)   perspective  scanline sort.lerp8 v3        draw_texture_scanline_*_blend_ordered_sort_lerp8_v3         texture_simd.*.u.c (scalar: textrans only; SIMD: both)
 TS10 Texture (SIMD scan)   affine       scanline affine ish16     draw_texture_scanline_*_blend_affine_ordered_ish16      texture_simd.*.u.c (all ISAs including scalar)
-TS11 Texture Gouraud       perspective  full-triangle lerp8       raster_texture_*_blend_lerp8                            texture.u.c (legacy path; calls TS8)
+TS11 Texture Gouraud       perspective  full-triangle lerp8       raster_texshadeblend_persp_texopaque_sort_lerp8, raster_texshadeblend_persp_textrans_sort_lerp8  texture.u.c (legacy path; calls TS8)
 ```
 
 ### How to read this

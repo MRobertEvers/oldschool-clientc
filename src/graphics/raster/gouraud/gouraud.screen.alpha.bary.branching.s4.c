@@ -1,15 +1,15 @@
 #ifndef GOURAUD_SCREEN_ALPHA_BARY_BRANCHING_S4_C
 #define GOURAUD_SCREEN_ALPHA_BARY_BRANCHING_S4_C
 
-#include "graphics/dash_restrict.h"
 #include "graphics/alpha.h"
+#include "graphics/dash_restrict.h"
 
 #include <stdint.h>
 
 extern int g_hsl16_to_rgb_table[65536];
 
 static inline void
-draw_scanline_gouraud_alpha_bary_branching_s4_ordered(
+draw_scanline_gouraud_screen_alpha_bary_branching_s4_ordered(
     int* RESTRICT pixel_buffer,
     int offset,
     int screen_width,
@@ -87,7 +87,7 @@ draw_scanline_gouraud_alpha_bary_branching_s4_ordered(
     }
 }
 static inline void
-raster_gouraud_alpha_bary_branching_s4_ordered(
+raster_gouraud_screen_alpha_bary_branching_s4_ordered(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -118,24 +118,24 @@ raster_gouraud_alpha_bary_branching_s4_ordered(
     int d_hsl_AB = color1_hsl16 - color0_hsl16;
     int d_hsl_AC = color2_hsl16 - color0_hsl16;
 
-    int step_x_hsl_ish8 = ((d_hsl_AB * dy_AC - d_hsl_AC * dy_AB) << 8) / sarea;
-    int step_y_hsl_ish8 = ((d_hsl_AC * dx_AB - d_hsl_AB * dx_AC) << 8) / sarea;
+    int step_x_hsl_ish8 = (int)(((int64_t)(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB) << 8) / sarea);
+    int step_y_hsl_ish8 = (int)(((int64_t)(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC) << 8) / sarea);
 
     int step_edge_x_AC_ish16;
     int step_edge_x_AB_ish16;
     int step_edge_x_BC_ish16;
 
-    if( dy_AC > 0 && dy_AC < 4096 )
+    if( dy_AC > 0 )
         step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
     else
         step_edge_x_AC_ish16 = 0;
 
-    if( dy_AB > 0 && dy_AB < 4096 )
+    if( dy_AB > 0 )
         step_edge_x_AB_ish16 = (dx_AB << 16) / dy_AB;
     else
         step_edge_x_AB_ish16 = 0;
 
-    if( y2 != y1 && y2 - y1 < 4096 )
+    if( y2 != y1 )
         step_edge_x_BC_ish16 = ((x2 - x1) << 16) / (y2 - y1);
     else
         step_edge_x_BC_ish16 = 0;
@@ -183,7 +183,7 @@ raster_gouraud_alpha_bary_branching_s4_ordered(
 
         while( y1-- > 0 )
         {
-            draw_scanline_gouraud_alpha_bary_branching_s4_ordered(
+            draw_scanline_gouraud_screen_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 offset,
                 screen_width,
@@ -204,7 +204,7 @@ raster_gouraud_alpha_bary_branching_s4_ordered(
 
         while( y2-- > 0 )
         {
-            draw_scanline_gouraud_alpha_bary_branching_s4_ordered(
+            draw_scanline_gouraud_screen_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 offset,
                 screen_width,
@@ -229,7 +229,7 @@ raster_gouraud_alpha_bary_branching_s4_ordered(
 
         while( y1-- > 0 )
         {
-            draw_scanline_gouraud_alpha_bary_branching_s4_ordered(
+            draw_scanline_gouraud_screen_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 offset,
                 screen_width,
@@ -249,7 +249,7 @@ raster_gouraud_alpha_bary_branching_s4_ordered(
 
         while( y2-- > 0 )
         {
-            draw_scanline_gouraud_alpha_bary_branching_s4_ordered(
+            draw_scanline_gouraud_screen_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 offset,
                 screen_width,
@@ -269,7 +269,7 @@ raster_gouraud_alpha_bary_branching_s4_ordered(
     }
 }
 static inline void
-raster_gouraud_alpha_bary_branching_s4(
+raster_gouraud_screen_alpha_bary_branching_s4(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -295,7 +295,7 @@ raster_gouraud_alpha_bary_branching_s4(
             if( y2 < 0 || y0 >= screen_height )
                 return;
 
-            raster_gouraud_alpha_bary_branching_s4_ordered(
+            raster_gouraud_screen_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -316,7 +316,7 @@ raster_gouraud_alpha_bary_branching_s4(
             if( y1 < 0 || y0 >= screen_height )
                 return;
 
-            raster_gouraud_alpha_bary_branching_s4_ordered(
+            raster_gouraud_screen_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -343,7 +343,7 @@ raster_gouraud_alpha_bary_branching_s4(
             if( y0 < 0 || y1 >= screen_height )
                 return;
 
-            raster_gouraud_alpha_bary_branching_s4_ordered(
+            raster_gouraud_screen_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -364,7 +364,7 @@ raster_gouraud_alpha_bary_branching_s4(
             if( y2 < 0 || y1 >= screen_height )
                 return;
 
-            raster_gouraud_alpha_bary_branching_s4_ordered(
+            raster_gouraud_screen_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -391,7 +391,7 @@ raster_gouraud_alpha_bary_branching_s4(
             if( y1 < 0 || y2 >= screen_height )
                 return;
 
-            raster_gouraud_alpha_bary_branching_s4_ordered(
+            raster_gouraud_screen_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -412,7 +412,7 @@ raster_gouraud_alpha_bary_branching_s4(
             if( y0 < 0 || y2 >= screen_height )
                 return;
 
-            raster_gouraud_alpha_bary_branching_s4_ordered(
+            raster_gouraud_screen_alpha_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,

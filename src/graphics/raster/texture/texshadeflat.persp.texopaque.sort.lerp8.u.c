@@ -7,7 +7,7 @@
 #include <assert.h>
 
 static inline void
-raster_texture_opaque_sort_lerp8(
+raster_texshadeflat_persp_texopaque_sort_lerp8(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -154,7 +154,7 @@ raster_texture_opaque_sort_lerp8(
 
     while( steps-- > 0 )
     {
-        raster_texture_scanline_opaque_sort_lerp8(
+        raster_texshadeflat_persp_texopaque_sort_lerp8_scanline(
             pixel_buffer,
             stride,
             screen_width,
@@ -205,7 +205,7 @@ raster_texture_opaque_sort_lerp8(
     steps = screen_y2 - screen_y1;
     while( steps-- > 0 )
     {
-        raster_texture_scanline_opaque_sort_lerp8(
+        raster_texshadeflat_persp_texopaque_sort_lerp8_scanline(
             pixel_buffer,
             stride,
             screen_width,

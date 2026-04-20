@@ -15,7 +15,7 @@ extern int g_hsl16_to_rgb_table[65536];
  * gouraud_branching_barycentric.c without barycentric color.
  */
 static inline void
-draw_scanline_flat_branching_s4_ordered(
+draw_scanline_flat_screen_opaque_branching_s4_ordered(
     int* RESTRICT pixel_buffer,
     int offset,
     int screen_width,
@@ -69,7 +69,7 @@ draw_scanline_flat_branching_s4_ordered(
 }
 
 static inline void
-raster_flat_branching_s4_ordered(
+raster_flat_screen_opaque_branching_s4_ordered(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -98,17 +98,17 @@ raster_flat_branching_s4_ordered(
     int step_edge_x_AB_ish16;
     int step_edge_x_BC_ish16;
 
-    if( dy_AC > 0 && dy_AC < 4096 )
+    if( dy_AC > 0 )
         step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
     else
         step_edge_x_AC_ish16 = 0;
 
-    if( dy_AB > 0 && dy_AB < 4096 )
+    if( dy_AB > 0 )
         step_edge_x_AB_ish16 = (dx_AB << 16) / dy_AB;
     else
         step_edge_x_AB_ish16 = 0;
 
-    if( y2 != y1 && y2 - y1 < 4096 )
+    if( y2 != y1 )
         step_edge_x_BC_ish16 = ((x2 - x1) << 16) / (y2 - y1);
     else
         step_edge_x_BC_ish16 = 0;
@@ -152,13 +152,8 @@ raster_flat_branching_s4_ordered(
 
         while( y1-- > 0 )
         {
-            draw_scanline_flat_branching_s4_ordered(
-                pixel_buffer,
-                offset,
-                screen_width,
-                edge_x_AB_ish16,
-                edge_x_AC_ish16,
-                color_hsl16);
+            draw_scanline_flat_screen_opaque_branching_s4_ordered(
+                pixel_buffer, offset, screen_width, edge_x_AB_ish16, edge_x_AC_ish16, color_hsl16);
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_AB_ish16 += step_edge_x_AB_ish16;
@@ -168,13 +163,8 @@ raster_flat_branching_s4_ordered(
 
         while( y2-- > 0 )
         {
-            draw_scanline_flat_branching_s4_ordered(
-                pixel_buffer,
-                offset,
-                screen_width,
-                edge_x_BC_ish16,
-                edge_x_AC_ish16,
-                color_hsl16);
+            draw_scanline_flat_screen_opaque_branching_s4_ordered(
+                pixel_buffer, offset, screen_width, edge_x_BC_ish16, edge_x_AC_ish16, color_hsl16);
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_BC_ish16 += step_edge_x_BC_ish16;
@@ -189,13 +179,8 @@ raster_flat_branching_s4_ordered(
 
         while( y1-- > 0 )
         {
-            draw_scanline_flat_branching_s4_ordered(
-                pixel_buffer,
-                offset,
-                screen_width,
-                edge_x_AC_ish16,
-                edge_x_AB_ish16,
-                color_hsl16);
+            draw_scanline_flat_screen_opaque_branching_s4_ordered(
+                pixel_buffer, offset, screen_width, edge_x_AC_ish16, edge_x_AB_ish16, color_hsl16);
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_AB_ish16 += step_edge_x_AB_ish16;
@@ -205,13 +190,8 @@ raster_flat_branching_s4_ordered(
 
         while( y2-- > 0 )
         {
-            draw_scanline_flat_branching_s4_ordered(
-                pixel_buffer,
-                offset,
-                screen_width,
-                edge_x_AC_ish16,
-                edge_x_BC_ish16,
-                color_hsl16);
+            draw_scanline_flat_screen_opaque_branching_s4_ordered(
+                pixel_buffer, offset, screen_width, edge_x_AC_ish16, edge_x_BC_ish16, color_hsl16);
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_BC_ish16 += step_edge_x_BC_ish16;
@@ -222,7 +202,7 @@ raster_flat_branching_s4_ordered(
 }
 
 static inline void
-raster_flat_branching_s4(
+raster_flat_screen_opaque_branching_s4(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -245,7 +225,7 @@ raster_flat_branching_s4(
             if( y2 < 0 || y0 >= screen_height )
                 return;
 
-            raster_flat_branching_s4_ordered(
+            raster_flat_screen_opaque_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -263,7 +243,7 @@ raster_flat_branching_s4(
             if( y1 < 0 || y0 >= screen_height )
                 return;
 
-            raster_flat_branching_s4_ordered(
+            raster_flat_screen_opaque_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -287,7 +267,7 @@ raster_flat_branching_s4(
             if( y0 < 0 || y1 >= screen_height )
                 return;
 
-            raster_flat_branching_s4_ordered(
+            raster_flat_screen_opaque_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -305,7 +285,7 @@ raster_flat_branching_s4(
             if( y2 < 0 || y1 >= screen_height )
                 return;
 
-            raster_flat_branching_s4_ordered(
+            raster_flat_screen_opaque_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -329,7 +309,7 @@ raster_flat_branching_s4(
             if( y1 < 0 || y2 >= screen_height )
                 return;
 
-            raster_flat_branching_s4_ordered(
+            raster_flat_screen_opaque_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -347,7 +327,7 @@ raster_flat_branching_s4(
             if( y0 < 0 || y2 >= screen_height )
                 return;
 
-            raster_flat_branching_s4_ordered(
+            raster_flat_screen_opaque_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,

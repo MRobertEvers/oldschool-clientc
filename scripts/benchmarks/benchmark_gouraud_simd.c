@@ -401,7 +401,7 @@ bench_old(int* buffer, int alpha)
     for( int i = 0; i < NUM_TRIS; i++ )
     {
         Tri t = tris[i];
-        raster_gouraud_alpha_edge_sort_s4(
+        raster_gouraud_screen_alpha_edge_sort_s4(
             buffer, W, H, t.x0, t.y0, t.x1, t.y1, t.x2, t.y2, t.c0, t.c1, t.c2, alpha);
     }
 }

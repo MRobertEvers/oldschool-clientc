@@ -1,4 +1,4 @@
-/* Times raster_texture_scanline_transparent_sort_lerp8 (scalar; includes texture.u.c). */
+/* Times raster_texshadeflat_persp_textrans_sort_lerp8_scanline (scalar; includes texture.u.c). */
 #include <time.h>
 
 int g_sin_table[2048];
@@ -49,7 +49,7 @@ int main(void)
     double t0 = now_seconds();
     for( int n = 0; n < BENCH_ITERS; n++ )
     {
-        raster_texture_scanline_transparent_sort_lerp8(
+        raster_texshadeflat_persp_textrans_sort_lerp8_scanline(
             pixel_row,
             screen_width,
             screen_width,

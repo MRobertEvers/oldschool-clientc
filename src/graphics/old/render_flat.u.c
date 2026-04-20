@@ -30,12 +30,12 @@ raster_flat(
 {
     if( alpha == 0xFF )
     {
-        raster_flat_branching_s4(
+        raster_flat_screen_opaque_branching_s4(
             pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color);
     }
     else
     {
-        raster_flat_alpha_branching_s4(
+        raster_flat_screen_alpha_branching_s4(
             pixel_buffer,
             stride,
             screen_width,

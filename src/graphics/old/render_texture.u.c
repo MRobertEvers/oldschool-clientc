@@ -51,7 +51,7 @@ raster_texture_blend(
 {
     if( texture_opaque )
     {
-        raster_texture_opaque_blend_branching_lerp8_v3(
+        raster_texshadeblend_persp_texopaque_branching_lerp8_v3(
             pixel_buffer,
             stride,
             screen_width,
@@ -80,7 +80,7 @@ raster_texture_blend(
     }
     else
     {
-        raster_texture_transparent_blend_branching_lerp8_v3(
+        raster_texshadeblend_persp_textrans_branching_lerp8_v3(
             pixel_buffer,
             stride,
             screen_width,
@@ -141,7 +141,7 @@ raster_texture_flat(
 {
     if( texture_opaque )
     {
-        raster_texture_opaque_branching_lerp8(
+        raster_texshadeflat_persp_texopaque_branching_lerp8(
             pixel_buffer,
             stride,
             screen_width,
@@ -168,7 +168,7 @@ raster_texture_flat(
     }
     else
     {
-        raster_texture_transparent_branching_lerp8(
+        raster_texshadeflat_persp_textrans_branching_lerp8(
             pixel_buffer,
             stride,
             screen_width,
@@ -684,7 +684,7 @@ raster_face_texture_blend(
     // assert(shade_b >= 0 && shade_b < 128);
     // assert(shade_c >= 0 && shade_c < 128);
 
-    // raster_texture_opaque_blend_affine_branching_lerp8(
+    // raster_texshadeblend_affine_texopaque_branching_lerp8(
     //     pixel_buffer,
     //     stride,
     //     screen_width,

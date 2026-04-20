@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 static void
-raster_texture_scanline_transparent_ordered_lerp8(
+raster_texshadeflat_persp_textrans_ordered_lerp8_scanline(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,

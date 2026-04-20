@@ -8,8 +8,8 @@
 
 #include <stdint.h>
 
-void
-raster_texture_opaque_blend_branching_lerp8_ordered(
+static inline void
+raster_texshadeblend_persp_texopaque_branching_lerp8_ordered(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -296,8 +296,9 @@ raster_texture_opaque_blend_branching_lerp8_ordered(
         }
     }
 }
-void
-raster_texture_opaque_blend_branching_lerp8(
+
+static inline void
+raster_texshadeblend_persp_texopaque_branching_lerp8(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -339,7 +340,7 @@ raster_texture_opaque_blend_branching_lerp8(
             if( y2 < 0 || y0 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_branching_lerp8_ordered(
+            raster_texshadeblend_persp_texopaque_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -372,7 +373,7 @@ raster_texture_opaque_blend_branching_lerp8(
             if( y1 < 0 || y0 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_branching_lerp8_ordered(
+            raster_texshadeblend_persp_texopaque_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -408,7 +409,7 @@ raster_texture_opaque_blend_branching_lerp8(
             if( y0 < 0 || y1 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_branching_lerp8_ordered(
+            raster_texshadeblend_persp_texopaque_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -441,7 +442,7 @@ raster_texture_opaque_blend_branching_lerp8(
             if( y2 < 0 || y1 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_branching_lerp8_ordered(
+            raster_texshadeblend_persp_texopaque_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -477,7 +478,7 @@ raster_texture_opaque_blend_branching_lerp8(
             if( y1 < 0 || y2 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_branching_lerp8_ordered(
+            raster_texshadeblend_persp_texopaque_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -510,7 +511,7 @@ raster_texture_opaque_blend_branching_lerp8(
             if( y0 < 0 || y2 >= screen_height )
                 return;
 
-            raster_texture_opaque_blend_branching_lerp8_ordered(
+            raster_texshadeblend_persp_texopaque_branching_lerp8_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,

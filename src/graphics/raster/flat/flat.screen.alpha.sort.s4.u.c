@@ -1,8 +1,8 @@
 #ifndef FLAT_SCREEN_ALPHA_SORT_S4_U_C
 #define FLAT_SCREEN_ALPHA_SORT_S4_U_C
 
-#include "graphics/dash_restrict.h"
 #include "graphics/alpha.h"
+#include "graphics/dash_restrict.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -10,7 +10,7 @@
 extern int g_hsl16_to_rgb_table[65536];
 
 static inline void
-draw_scanline_flat_alpha_sort_s4(
+draw_scanline_flat_screen_alpha_sort_s4(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -76,8 +76,8 @@ draw_scanline_flat_alpha_sort_s4(
     }
 }
 
-void
-raster_flat_alpha_sort_s4(
+static inline void
+raster_flat_screen_alpha_sort_s4(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -189,7 +189,7 @@ raster_flat_alpha_sort_s4(
         int x_start_current = edge_x_AC_ish16 >> 16;
         int x_end_current = edge_x_AB_ish16 >> 16;
 
-        draw_scanline_flat_alpha_sort_s4(
+        draw_scanline_flat_screen_alpha_sort_s4(
             pixel_buffer,
             stride,
             screen_width,
@@ -211,7 +211,7 @@ raster_flat_alpha_sort_s4(
         int x_start_current = edge_x_AC_ish16 >> 16;
         int x_end_current = edge_x_BC_ish16 >> 16;
 
-        draw_scanline_flat_alpha_sort_s4(
+        draw_scanline_flat_screen_alpha_sort_s4(
             pixel_buffer,
             stride,
             screen_width,

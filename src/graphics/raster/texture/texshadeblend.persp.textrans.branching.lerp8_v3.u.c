@@ -5,7 +5,7 @@
 #include "span/tex.span_peer_decl.h"
 
 static inline void
-raster_texture_transparent_blend_branching_lerp8_v3_ordered(
+raster_texshadeblend_persp_textrans_branching_lerp8_v3_ordered(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -282,8 +282,8 @@ raster_texture_transparent_blend_branching_lerp8_v3_ordered(
         }
     }
 }
-void
-raster_texture_transparent_blend_branching_lerp8_v3(
+static inline void
+raster_texshadeblend_persp_textrans_branching_lerp8_v3(
     int* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -325,7 +325,7 @@ raster_texture_transparent_blend_branching_lerp8_v3(
             if( y2 < 0 || y0 >= screen_height )
                 return;
 
-            raster_texture_transparent_blend_branching_lerp8_v3_ordered(
+            raster_texshadeblend_persp_textrans_branching_lerp8_v3_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -358,7 +358,7 @@ raster_texture_transparent_blend_branching_lerp8_v3(
             if( y1 < 0 || y0 >= screen_height )
                 return;
 
-            raster_texture_transparent_blend_branching_lerp8_v3_ordered(
+            raster_texshadeblend_persp_textrans_branching_lerp8_v3_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -394,7 +394,7 @@ raster_texture_transparent_blend_branching_lerp8_v3(
             if( y0 < 0 || y1 >= screen_height )
                 return;
 
-            raster_texture_transparent_blend_branching_lerp8_v3_ordered(
+            raster_texshadeblend_persp_textrans_branching_lerp8_v3_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -427,7 +427,7 @@ raster_texture_transparent_blend_branching_lerp8_v3(
             if( y2 < 0 || y1 >= screen_height )
                 return;
 
-            raster_texture_transparent_blend_branching_lerp8_v3_ordered(
+            raster_texshadeblend_persp_textrans_branching_lerp8_v3_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -463,7 +463,7 @@ raster_texture_transparent_blend_branching_lerp8_v3(
             if( y1 < 0 || y2 >= screen_height )
                 return;
 
-            raster_texture_transparent_blend_branching_lerp8_v3_ordered(
+            raster_texshadeblend_persp_textrans_branching_lerp8_v3_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -496,7 +496,7 @@ raster_texture_transparent_blend_branching_lerp8_v3(
             if( y0 < 0 || y2 >= screen_height )
                 return;
 
-            raster_texture_transparent_blend_branching_lerp8_v3_ordered(
+            raster_texshadeblend_persp_textrans_branching_lerp8_v3_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
