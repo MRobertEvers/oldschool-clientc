@@ -41,6 +41,19 @@ cmake -B build-winxp -G "MinGW Makefiles" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_C_COMPILER="$MINGW_I686/bin/gcc.exe" \
   -DCMAKE_CXX_COMPILER="$MINGW_I686/bin/g++.exe" \
+  -DCMAKE_PREFIX_PATH="$MINGW_I686" \
+  -DCMAKE_C_FLAGS="-march=pentium4 -msse2 -mfpmath=sse -D_WIN32_WINNT=0x0501 -DWINVER=0x0501" \
+  -DCMAKE_CXX_FLAGS="-march=pentium4 -msse2 -mfpmath=sse -D_WIN32_WINNT=0x0501 -DWINVER=0x0501" \
+  -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++ -Wl,--subsystem,console:5.01" \
+  -DENABLE_PACKAGE_BUILD=ON
+
+MINGW_I686="/c/Users/mrobe/Downloads/winlibs-i686-posix-dwarf-gcc-15.2.0-mingw-w64msvcrt-13.0.0-r2/mingw32"
+
+cmake -B build-winxp -G "MinGW Makefiles" \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_C_COMPILER="$MINGW_I686/bin/gcc.exe" \
+  -DCMAKE_CXX_COMPILER="$MINGW_I686/bin/g++.exe" \
+  -DCMAKE_PREFIX_PATH="$MINGW_I686" \
   -DCMAKE_C_FLAGS="-march=pentium4 -msse2 -mfpmath=sse -D_WIN32_WINNT=0x0501 -DWINVER=0x0501" \
   -DCMAKE_CXX_FLAGS="-march=pentium4 -msse2 -mfpmath=sse -D_WIN32_WINNT=0x0501 -DWINVER=0x0501" \
   -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++ -Wl,--subsystem,console:5.01" \
@@ -48,11 +61,14 @@ cmake -B build-winxp -G "MinGW Makefiles" \
 ```
 
 Key flags:
+- `-DCMAKE_PREFIX_PATH="$MINGW_I686"` -- so CMake finds the i686 SDL2 (headers + `libSDL2.dll.a`) in the winlibs tree; without it, config may pick up 64-bit MSYS2 SDL2 and fail
 - `-march=pentium4 -msse2 -mfpmath=sse` -- targets Pentium 4+, enables SSE2, uses SSE for FP math
 - `-D_WIN32_WINNT=0x0501 -DWINVER=0x0501` -- Windows XP API level
 - `-Wl,--subsystem,console:5.01` -- PE subsystem version for XP compatibility
 - `-static-libgcc -static-libstdc++` -- avoids shipping GCC runtime DLLs
 - `-DENABLE_PACKAGE_BUILD=ON` -- hardcodes relative resource paths for distribution
+
+If you previously configured with the wrong SDL2, remove the build dir before re-running cmake: `rm -rf build-winxp`.
 
 ## Step 2: Build
 

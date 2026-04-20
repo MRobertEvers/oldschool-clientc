@@ -2,7 +2,7 @@
  * benchmark_main.c — Rasterizer benchmark suite
  *
  * Benchmarks flat, gouraud, and texture rasterizer variants (sort + branching)
- * over 30 frames with 20,000 triangles each.
+ * over 10 frames with 20,000 triangles each.
  *
  * Uses SDL2 for display and Nuklear for timing overlay.
  * Loads real textures from cache for transparent/opaque texture benchmarks.
@@ -188,8 +188,7 @@ static const char* variant_names[BENCH_VARIANT_COUNT] = {
 
 /* Category for display grouping */
 static int variant_category[BENCH_VARIANT_COUNT] = {
-    0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4,
-    5, 5, 5, 5,
+    0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5,
 };
 static const char* category_names[] = {
     "Flat",

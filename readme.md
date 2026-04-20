@@ -1685,3 +1685,20 @@ painter bench (avg over 30 frames): paint_w3d=1.972 ms paint_bucket=1.556 ms
 painter bench (avg over 30 frames): paint_w3d=1.971 ms paint_bucket=1.556 ms
 painter bench (avg over 30 frames): paint_w3d=1.967 ms paint_bucket=1.550 ms
 ```
+
+# Debugging On Target
+
+
+/c/Users/mrobe/Downloads/cv2pdb-0.54/cv2pdb.exe ./build-winxp/win32.exe
+
+
+```
+/c/Users/mrobe/Downloads/cv2pdb-0.54/cv2pdb.exe win32.exe
+
+strings win32.exe | grep .pdb
+
+# Place the pdb file where this path points on the dest machine.
+mrobe@MatthewLenovo MINGW64 /c/Users/mrobe/Documents/git_repos/3d-raster/build-winxp
+$ strings win32.exe | grep .pdb
+C:\Users\mrobe\Documents\git_repos\3d-raster\build-winxp\win32.pdb
+```
