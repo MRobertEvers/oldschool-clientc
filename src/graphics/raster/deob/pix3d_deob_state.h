@@ -23,6 +23,13 @@ extern int g_pix3d_deob_low_detail;
 extern int g_pix3d_deob_low_mem;
 extern int g_pix3d_deob_opaque;
 
+extern int g_deob_cnt_compat_calls;
+extern int g_deob_cnt_skip_clip_max_y;
+extern int g_deob_cnt_skip_apex_zero_width;
+extern int g_deob_cnt_skip_hclip_empty;
+extern int g_deob_cnt_raster_ok;
+extern int g_deob_cnt_dispatch_calls;
+
 void pix3d_deob_set_clipping(
     int* pixels,
     int width,

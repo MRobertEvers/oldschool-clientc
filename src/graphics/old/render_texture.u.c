@@ -1,5 +1,7 @@
 #include "graphics/dash.h"
 #include "graphics/raster/deob/pix3d_deob_compat.h"
+#include "graphics/raster/deob/pix3d_deob_dbg.h"
+#include "graphics/raster/deob/pix3d_deob_state.h"
 #include "graphics/raster_bench_runtime.h"
 
 #include "graphics/dash_faceint.h"
@@ -53,11 +55,44 @@ raster_texture_blend_bench_dispatch_opaque(
     int offset_x,
     int offset_y)
 {
+    DEOB_CNT_INC(g_deob_cnt_dispatch_calls);
     (void)texture_opaque;
     switch( variant )
     {
     case RASTER_BENCH_TEXTURED_OPAQUE_DEOB:
         raster_texture_screen_deob_compat(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            camera_fov,
+            screen_x0,
+            screen_x1,
+            screen_x2,
+            screen_y0,
+            screen_y1,
+            screen_y2,
+            orthographic_x0,
+            orthographic_x1,
+            orthographic_x2,
+            orthographic_y0,
+            orthographic_y1,
+            orthographic_y2,
+            orthographic_z0,
+            orthographic_z1,
+            orthographic_z2,
+            shade_a,
+            shade_b,
+            shade_c,
+            texels,
+            texture_size,
+            texture_opaque,
+            near_plane_z,
+            offset_x,
+            offset_y);
+        return;
+    case RASTER_BENCH_TEXTURED_OPAQUE_DEOB2:
+        raster_texture_screen_deob2_compat(
             pixel_buffer,
             stride,
             screen_width,
@@ -356,6 +391,38 @@ raster_texture_blend_bench_dispatch_trans(
             offset_x,
             offset_y);
         return;
+    case RASTER_BENCH_TEXTURED_TRANS_DEOB2:
+        raster_texture_screen_deob2_compat(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            camera_fov,
+            screen_x0,
+            screen_x1,
+            screen_x2,
+            screen_y0,
+            screen_y1,
+            screen_y2,
+            orthographic_x0,
+            orthographic_x1,
+            orthographic_x2,
+            orthographic_y0,
+            orthographic_y1,
+            orthographic_y2,
+            orthographic_z0,
+            orthographic_z1,
+            orthographic_z2,
+            shade_a,
+            shade_b,
+            shade_c,
+            texels,
+            texture_size,
+            texture_opaque,
+            near_plane_z,
+            offset_x,
+            offset_y);
+        return;
     case RASTER_BENCH_TEXTURED_TRANS_PERSP_BRANCHING_LERP8:
         raster_texshadeblend_persp_textrans_branching_lerp8(
             pixel_buffer,
@@ -619,6 +686,36 @@ raster_texture_flat_bench_dispatch_opaque(
             offset_x,
             offset_y);
         return;
+    case RASTER_BENCH_TEXTURED_FLAT_OPAQUE_DEOB2:
+        raster_texture_flat_screen_deob2_compat(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            camera_fov,
+            screen_x0,
+            screen_x1,
+            screen_x2,
+            screen_y0,
+            screen_y1,
+            screen_y2,
+            orthographic_x0,
+            orthographic_x1,
+            orthographic_x2,
+            orthographic_y0,
+            orthographic_y1,
+            orthographic_y2,
+            orthographic_z0,
+            orthographic_z1,
+            orthographic_z2,
+            shade,
+            texels,
+            texture_size,
+            texture_opaque,
+            near_plane_z,
+            offset_x,
+            offset_y);
+        return;
     case RASTER_BENCH_TEXTURED_FLAT_OPAQUE_PERSP_BRANCHING_LERP8:
         raster_texshadeflat_persp_texopaque_branching_lerp8(
             pixel_buffer,
@@ -788,6 +885,36 @@ raster_texture_flat_bench_dispatch_trans(
     {
     case RASTER_BENCH_TEXTURED_FLAT_TRANS_DEOB:
         raster_texture_flat_screen_deob_compat(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            camera_fov,
+            screen_x0,
+            screen_x1,
+            screen_x2,
+            screen_y0,
+            screen_y1,
+            screen_y2,
+            orthographic_x0,
+            orthographic_x1,
+            orthographic_x2,
+            orthographic_y0,
+            orthographic_y1,
+            orthographic_y2,
+            orthographic_z0,
+            orthographic_z1,
+            orthographic_z2,
+            shade,
+            texels,
+            texture_size,
+            texture_opaque,
+            near_plane_z,
+            offset_x,
+            offset_y);
+        return;
+    case RASTER_BENCH_TEXTURED_FLAT_TRANS_DEOB2:
+        raster_texture_flat_screen_deob2_compat(
             pixel_buffer,
             stride,
             screen_width,

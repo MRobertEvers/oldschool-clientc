@@ -246,6 +246,15 @@ if(NOT EMSCRIPTEN)
         target_compile_definitions(sdl2 PRIVATE TORIRS_NO_D3D11=1)
     endif()
 
+    set(BENCH_SDL2_SOURCES ${SDL2_NATIVE_SOURCES})
+    list(REMOVE_ITEM BENCH_SDL2_SOURCES test/sdl2.cpp)
+    list(APPEND BENCH_SDL2_SOURCES benchmarks/bench_sdl2/bench_sdl2_main.cpp)
+    add_executable(bench_sdl2 ${BENCH_SDL2_SOURCES})
+    target_compile_definitions(bench_sdl2 PRIVATE DEOB_TEXTURE_DEBUG=1)
+    if(WIN32)
+        target_compile_definitions(bench_sdl2 PRIVATE TORIRS_NO_D3D11=1)
+    endif()
+
     if(ENABLE_PACKAGE_BUILD)
         target_compile_definitions(sdl2 PRIVATE
             LUA_SCRIPTS_DIR="scripts"
@@ -354,15 +363,19 @@ if(NOT EMSCRIPTEN)
         endif()
     endif()
     target_link_libraries(sdl2 SDL2::SDL2)
+    target_link_libraries(bench_sdl2 SDL2::SDL2)
 
     if(NOT WIN32)
         find_package(OpenGL REQUIRED)
         target_link_libraries(sdl2 OpenGL::GL)
+        target_link_libraries(bench_sdl2 OpenGL::GL)
     endif()
 
     if(WIN32)
         target_link_libraries(sdl2 ws2_32 psapi)
         target_link_options(sdl2 PRIVATE -Wl,-subsystem,console)
+        target_link_libraries(bench_sdl2 ws2_32 psapi)
+        target_link_options(bench_sdl2 PRIVATE -Wl,-subsystem,console)
     endif()
 
     # SDL-free Win32 + GDI Soft3D (Windows hosts only; XP SP3–oriented code paths).
@@ -464,6 +477,12 @@ if(NOT EMSCRIPTEN)
             "-framework QuartzCore"
             "-framework Foundation"
         )
+        target_link_libraries(bench_sdl2
+            "-framework Metal"
+            "-framework MetalKit"
+            "-framework QuartzCore"
+            "-framework Foundation"
+        )
         # Enable ARC only for the Objective-C++ Metal files
         set_source_files_properties(
             src/platforms/platform_impl2_sdl2_renderer_metal.mm
@@ -485,15 +504,20 @@ if(NOT EMSCRIPTEN)
         )
         add_custom_target(shaders_metallib DEPENDS "${_SHADERS_METALLIB}")
         add_dependencies(sdl2 shaders_metallib)
+        add_dependencies(bench_sdl2 shaders_metallib)
     endif()
 
     if(ENABLE_ASAN)
         target_compile_options(sdl2 PRIVATE -fsanitize=address -fno-omit-frame-pointer)
         target_link_options(sdl2 PRIVATE -fsanitize=address)
+        target_compile_options(bench_sdl2 PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+        target_link_options(bench_sdl2 PRIVATE -fsanitize=address)
     endif()
     if(ENABLE_UBSAN)
         target_compile_options(sdl2 PRIVATE -fsanitize=undefined -fno-omit-frame-pointer)
         target_link_options(sdl2 PRIVATE -fsanitize=undefined)
+        target_compile_options(bench_sdl2 PRIVATE -fsanitize=undefined -fno-omit-frame-pointer)
+        target_link_options(bench_sdl2 PRIVATE -fsanitize=undefined)
     endif()
     add_executable(interface161_test
         tools/interface161_test/main.c
@@ -765,7 +789,7 @@ if(EMSCRIPTEN)
 endif()
 
 # Always set ENABLE_HEAP_INFO to 0 or 1 so #if ENABLE_HEAP_INFO works (#ifdef is true even for =0).
-foreach(_t_nk_heap sdl2 web_client web_client_native win32)
+foreach(_t_nk_heap sdl2 bench_sdl2 web_client web_client_native win32)
     if(TARGET ${_t_nk_heap})
         if(ENABLE_HEAP_INFO)
             target_compile_definitions(${_t_nk_heap} PRIVATE ENABLE_HEAP_INFO=1)
@@ -775,7 +799,7 @@ foreach(_t_nk_heap sdl2 web_client web_client_native win32)
     endif()
 endforeach()
 
-foreach(_t_bucket_sort sdl2 web_client web_client_native win32 benchmark_project)
+foreach(_t_bucket_sort sdl2 bench_sdl2 web_client web_client_native win32 benchmark_project)
     if(TARGET ${_t_bucket_sort})
         if(DASH_BUCKET_SORT_USE_LINKED_LIST)
             target_compile_definitions(${_t_bucket_sort} PRIVATE DASH_BUCKET_SORT_USE_LINKED_LIST=1)
@@ -786,7 +810,7 @@ foreach(_t_bucket_sort sdl2 web_client web_client_native win32 benchmark_project
 endforeach()
 
 # --- Global Properties ---
-foreach(target sdl2 web_client web_client_native win32 benchmark_project)
+foreach(target sdl2 bench_sdl2 web_client web_client_native win32 benchmark_project)
     if(TARGET ${target})
         target_include_directories(${target} PRIVATE src src/nuklear)
         set_target_properties(${target} PROPERTIES

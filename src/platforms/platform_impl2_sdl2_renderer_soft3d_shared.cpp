@@ -4,6 +4,7 @@
 #define TORIRS_NK_SDL_RENDERER_IMPLEMENTATION
 #include "nuklear/backends/sdl_renderer/nuklear_torirs_sdl_renderer.h"
 #include "platforms/common/torirs_nk_ui_bridge.h"
+#include "platforms/common/torirs_nk_bench_panel.h"
 #include "platforms/common/torirs_nuklear_debug_panel.h"
 
 #include "platform_impl2_sdl2.h"
@@ -26,6 +27,7 @@ soft3d_platform_display_scale(void* platform)
 
 extern "C" {
 #include "graphics/dash.h"
+#include "graphics/raster/deob/pix3d_deob_compat.h"
 #include "osrs/game.h"
 #include "osrs/world_option_set.h"
 #include "platforms/common/platform_memory.h"
@@ -40,6 +42,20 @@ extern "C" {
 
 static struct nk_context* s_soft3d_nk;
 static Uint64 s_soft3d_ui_prev_perf;
+
+static void (*s_bench_panel_draw)(struct nk_context*, struct GGame*) = nullptr;
+
+extern "C" void
+torirs_nk_bench_panel_register(void (*draw)(struct nk_context* nk, struct GGame* game))
+{
+    s_bench_panel_draw = draw;
+}
+
+extern "C" void
+torirs_nk_bench_panel_unregister(void)
+{
+    s_bench_panel_draw = nullptr;
+}
 
 static void
 render_nuklear_overlay(
@@ -61,6 +77,8 @@ render_nuklear_overlay(
     params.include_soft3d_extras = 1;
 
     torirs_nk_debug_panel_draw(s_soft3d_nk, game, &params);
+    if( s_bench_panel_draw )
+        s_bench_panel_draw(s_soft3d_nk, game);
     torirs_nk_ui_after_frame(s_soft3d_nk);
     torirs_nk_sdlren_render(NK_ANTI_ALIASING_ON);
 }
@@ -208,6 +226,7 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
 {
+    pix3d_deob_compat_dbg_tick();
     game->viewport_offset_x = renderer->dash_offset_x;
     game->viewport_offset_y = renderer->dash_offset_y;
 
@@ -489,6 +508,12 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
         }
     }
     LibToriRS_FrameEnd(game);
+
+    {
+        Uint64 const soft3d_t_after = SDL_GetPerformanceCounter();
+        renderer->last_raster_ms =
+            (double)(soft3d_t_after - soft3d_t_frame_start) * 1000.0 / (double)soft3d_perf_freq;
+    }
 
     // {
     //     Uint64 const soft3d_t_after = SDL_GetPerformanceCounter();

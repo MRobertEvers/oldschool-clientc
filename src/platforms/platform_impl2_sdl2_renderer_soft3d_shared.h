@@ -26,6 +26,9 @@ struct Platform2_SDL2_Renderer_Soft3D
 
     float time_delta_accumulator;
 
+    /** Wall ms for last LibToriRS_FrameBegin..FrameEnd (soft raster + command drain). */
+    double last_raster_ms;
+
     int first_frame;
     int clicked_tile_x;
     int clicked_tile_z;
