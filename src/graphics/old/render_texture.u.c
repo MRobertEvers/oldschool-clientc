@@ -205,35 +205,6 @@ raster_texture_blend_bench_dispatch_opaque(
             texels,
             texture_size);
         return;
-    case RASTER_BENCH_TEXTURED_OPAQUE_PERSP_SORT_LERP8_SCANLINE:
-        /* Scanline shard is static + different ABI; full triangle uses it internally. */
-        raster_texshadeblend_persp_texopaque_sort_lerp8(
-            pixel_buffer,
-            stride,
-            screen_width,
-            screen_height,
-            camera_fov,
-            screen_x0,
-            screen_x1,
-            screen_x2,
-            screen_y0,
-            screen_y1,
-            screen_y2,
-            orthographic_x0,
-            orthographic_x1,
-            orthographic_x2,
-            orthographic_y0,
-            orthographic_y1,
-            orthographic_y2,
-            orthographic_z0,
-            orthographic_z1,
-            orthographic_z2,
-            shade_a,
-            shade_b,
-            shade_c,
-            texels,
-            texture_size);
-        return;
     case RASTER_BENCH_TEXTURED_OPAQUE_AFFINE_BRANCHING_LERP8:
         raster_texshadeblend_affine_texopaque_branching_lerp8(
             pixel_buffer,
@@ -505,34 +476,6 @@ raster_texture_blend_bench_dispatch_trans(
             texels,
             texture_size);
         return;
-    case RASTER_BENCH_TEXTURED_TRANS_PERSP_SORT_LERP8_SCANLINE:
-        raster_texshadeblend_persp_textrans_sort_lerp8(
-            pixel_buffer,
-            stride,
-            screen_width,
-            screen_height,
-            camera_fov,
-            screen_x0,
-            screen_x1,
-            screen_x2,
-            screen_y0,
-            screen_y1,
-            screen_y2,
-            orthographic_x0,
-            orthographic_x1,
-            orthographic_x2,
-            orthographic_y0,
-            orthographic_y1,
-            orthographic_y2,
-            orthographic_z0,
-            orthographic_z1,
-            orthographic_z2,
-            shade_a,
-            shade_b,
-            shade_c,
-            texels,
-            texture_size);
-        return;
     case RASTER_BENCH_TEXTURED_TRANS_AFFINE_BRANCHING_LERP8:
         raster_texshadeblend_affine_textrans_branching_lerp8(
             pixel_buffer,
@@ -766,58 +709,6 @@ raster_texture_flat_bench_dispatch_opaque(
             texels,
             texture_size);
         return;
-    case RASTER_BENCH_TEXTURED_FLAT_OPAQUE_PERSP_SORT_LERP8_SCANLINE:
-        raster_texshadeflat_persp_texopaque_sort_lerp8(
-            pixel_buffer,
-            stride,
-            screen_width,
-            screen_height,
-            camera_fov,
-            screen_x0,
-            screen_x1,
-            screen_x2,
-            screen_y0,
-            screen_y1,
-            screen_y2,
-            orthographic_x0,
-            orthographic_x1,
-            orthographic_x2,
-            orthographic_y0,
-            orthographic_y1,
-            orthographic_y2,
-            orthographic_z0,
-            orthographic_z1,
-            orthographic_z2,
-            shade,
-            texels,
-            texture_size);
-        return;
-    case RASTER_BENCH_TEXTURED_FLAT_OPAQUE_PERSP_ORDERED_LERP8_SCANLINE:
-        raster_texshadeflat_persp_texopaque_branching_lerp8(
-            pixel_buffer,
-            stride,
-            screen_width,
-            screen_height,
-            camera_fov,
-            screen_x0,
-            screen_x1,
-            screen_x2,
-            screen_y0,
-            screen_y1,
-            screen_y2,
-            orthographic_x0,
-            orthographic_x1,
-            orthographic_x2,
-            orthographic_y0,
-            orthographic_y1,
-            orthographic_y2,
-            orthographic_z0,
-            orthographic_z1,
-            orthographic_z2,
-            shade,
-            texels,
-            texture_size);
-        return;
     default:
         raster_texshadeflat_persp_texopaque_branching_lerp8(
             pixel_buffer,
@@ -969,58 +860,6 @@ raster_texture_flat_bench_dispatch_trans(
         return;
     case RASTER_BENCH_TEXTURED_FLAT_TRANS_PERSP_SORT_LERP8:
         raster_texshadeflat_persp_textrans_sort_lerp8(
-            pixel_buffer,
-            stride,
-            screen_width,
-            screen_height,
-            camera_fov,
-            screen_x0,
-            screen_x1,
-            screen_x2,
-            screen_y0,
-            screen_y1,
-            screen_y2,
-            orthographic_x0,
-            orthographic_x1,
-            orthographic_x2,
-            orthographic_y0,
-            orthographic_y1,
-            orthographic_y2,
-            orthographic_z0,
-            orthographic_z1,
-            orthographic_z2,
-            shade,
-            texels,
-            texture_size);
-        return;
-    case RASTER_BENCH_TEXTURED_FLAT_TRANS_PERSP_SORT_LERP8_SCANLINE:
-        raster_texshadeflat_persp_textrans_sort_lerp8(
-            pixel_buffer,
-            stride,
-            screen_width,
-            screen_height,
-            camera_fov,
-            screen_x0,
-            screen_x1,
-            screen_x2,
-            screen_y0,
-            screen_y1,
-            screen_y2,
-            orthographic_x0,
-            orthographic_x1,
-            orthographic_x2,
-            orthographic_y0,
-            orthographic_y1,
-            orthographic_y2,
-            orthographic_z0,
-            orthographic_z1,
-            orthographic_z2,
-            shade,
-            texels,
-            texture_size);
-        return;
-    case RASTER_BENCH_TEXTURED_FLAT_TRANS_PERSP_ORDERED_LERP8_SCANLINE:
-        raster_texshadeflat_persp_textrans_branching_lerp8(
             pixel_buffer,
             stride,
             screen_width,

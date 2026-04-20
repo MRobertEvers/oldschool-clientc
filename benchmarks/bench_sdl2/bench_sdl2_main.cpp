@@ -48,7 +48,7 @@ constexpr int kScreenWidth = kViewportInset + kGameViewportWidth + kViewportInse
 constexpr int kScreenHeight = kViewportInset + kGameViewportHeight + kViewportInset;
 
 constexpr int kBenchSlotCount = 8;
-constexpr int kBenchTotalSegments = 40; /* 1 default + 39 non-default variants */
+constexpr int kBenchTotalSegments = 34; /* 1 default + 33 non-default variants */
 
 struct VariantInfo
 {
@@ -110,7 +110,6 @@ static const VariantInfo kVariantsTexOpaque[] = {
     { "texshadeblend.persp.texopaque.branching.lerp8", RASTER_BENCH_TEXTURED_OPAQUE_PERSP_BRANCHING_LERP8 },
     { "texshadeblend.persp.texopaque.branching.lerp8_v3", RASTER_BENCH_TEXTURED_OPAQUE_PERSP_BRANCHING_LERP8_V3 },
     { "texshadeblend.persp.texopaque.sort.lerp8", RASTER_BENCH_TEXTURED_OPAQUE_PERSP_SORT_LERP8 },
-    { "texshadeblend.persp.texopaque.sort.lerp8.scanline", RASTER_BENCH_TEXTURED_OPAQUE_PERSP_SORT_LERP8_SCANLINE },
     { "texshadeblend.affine.texopaque.branching.lerp8", RASTER_BENCH_TEXTURED_OPAQUE_AFFINE_BRANCHING_LERP8 },
     { "texshadeblend.affine.texopaque.branching.lerp8_v3", RASTER_BENCH_TEXTURED_OPAQUE_AFFINE_BRANCHING_LERP8_V3 },
 };
@@ -121,7 +120,6 @@ static const VariantInfo kVariantsTexTrans[] = {
     { "texshadeblend.persp.textrans.branching.lerp8", RASTER_BENCH_TEXTURED_TRANS_PERSP_BRANCHING_LERP8 },
     { "texshadeblend.persp.textrans.branching.lerp8_v3", RASTER_BENCH_TEXTURED_TRANS_PERSP_BRANCHING_LERP8_V3 },
     { "texshadeblend.persp.textrans.sort.lerp8", RASTER_BENCH_TEXTURED_TRANS_PERSP_SORT_LERP8 },
-    { "texshadeblend.persp.textrans.sort.lerp8.scanline", RASTER_BENCH_TEXTURED_TRANS_PERSP_SORT_LERP8_SCANLINE },
     { "texshadeblend.affine.textrans.branching.lerp8", RASTER_BENCH_TEXTURED_TRANS_AFFINE_BRANCHING_LERP8 },
     { "texshadeblend.affine.textrans.branching.lerp8_v3", RASTER_BENCH_TEXTURED_TRANS_AFFINE_BRANCHING_LERP8_V3 },
 };
@@ -131,8 +129,6 @@ static const VariantInfo kVariantsTexFlatOpaque[] = {
     { "texture.deob2", RASTER_BENCH_TEXTURED_FLAT_OPAQUE_DEOB2 },
     { "texshadeflat.persp.texopaque.branching.lerp8", RASTER_BENCH_TEXTURED_FLAT_OPAQUE_PERSP_BRANCHING_LERP8 },
     { "texshadeflat.persp.texopaque.sort.lerp8", RASTER_BENCH_TEXTURED_FLAT_OPAQUE_PERSP_SORT_LERP8 },
-    { "texshadeflat.persp.texopaque.sort.lerp8.scanline", RASTER_BENCH_TEXTURED_FLAT_OPAQUE_PERSP_SORT_LERP8_SCANLINE },
-    { "texshadeflat.persp.texopaque.ordered.lerp8.scanline", RASTER_BENCH_TEXTURED_FLAT_OPAQUE_PERSP_ORDERED_LERP8_SCANLINE },
 };
 
 static const VariantInfo kVariantsTexFlatTrans[] = {
@@ -140,18 +136,16 @@ static const VariantInfo kVariantsTexFlatTrans[] = {
     { "texture.deob2", RASTER_BENCH_TEXTURED_FLAT_TRANS_DEOB2 },
     { "texshadeflat.persp.textrans.branching.lerp8", RASTER_BENCH_TEXTURED_FLAT_TRANS_PERSP_BRANCHING_LERP8 },
     { "texshadeflat.persp.textrans.sort.lerp8", RASTER_BENCH_TEXTURED_FLAT_TRANS_PERSP_SORT_LERP8 },
-    { "texshadeflat.persp.textrans.sort.lerp8.scanline", RASTER_BENCH_TEXTURED_FLAT_TRANS_PERSP_SORT_LERP8_SCANLINE },
-    { "texshadeflat.persp.textrans.ordered.lerp8.scanline", RASTER_BENCH_TEXTURED_FLAT_TRANS_PERSP_ORDERED_LERP8_SCANLINE },
 };
 
 /* Order matches RASTER_BENCH_PACK(g, f, tex_o, tex_t, texfo, tft, f_alpha, g_alpha). */
 static const SlotInfo kSlots[kBenchSlotCount] = {
     { "Gouraud opaque", "gouraud.opaque", RASTER_BENCH_SHIFT_GOURAUD, kVariantsGouraudOpaque, 6, 1 },
     { "Flat opaque", "flat.opaque", RASTER_BENCH_SHIFT_FLAT, kVariantsFlatOpaque, 3, 1 },
-    { "Tex opaque", "texopaque.blend", RASTER_BENCH_SHIFT_TEXTURED_OPAQUE, kVariantsTexOpaque, 8, 3 },
-    { "Tex transparent", "textrans.blend", RASTER_BENCH_SHIFT_TEXTURED_TRANS, kVariantsTexTrans, 8, 3 },
-    { "Tex-flat opaque", "texopaque.flat", RASTER_BENCH_SHIFT_TEXTURED_FLAT_OPAQUE, kVariantsTexFlatOpaque, 6, 2 },
-    { "Tex-flat transparent", "textrans.flat", RASTER_BENCH_SHIFT_TEXTURED_FLAT_TRANS, kVariantsTexFlatTrans, 6, 2 },
+    { "Tex opaque", "texopaque.blend", RASTER_BENCH_SHIFT_TEXTURED_OPAQUE, kVariantsTexOpaque, 7, 3 },
+    { "Tex transparent", "textrans.blend", RASTER_BENCH_SHIFT_TEXTURED_TRANS, kVariantsTexTrans, 7, 3 },
+    { "Tex-flat opaque", "texopaque.flat", RASTER_BENCH_SHIFT_TEXTURED_FLAT_OPAQUE, kVariantsTexFlatOpaque, 4, 2 },
+    { "Tex-flat transparent", "textrans.flat", RASTER_BENCH_SHIFT_TEXTURED_FLAT_TRANS, kVariantsTexFlatTrans, 4, 2 },
     { "Flat alpha", "flat.alpha", RASTER_BENCH_SHIFT_FLAT_ALPHA, kVariantsFlatAlpha, 3, 1 },
     { "Gouraud alpha", "gouraud.alpha", RASTER_BENCH_SHIFT_GOURAUD_ALPHA, kVariantsGouraudAlpha, 7, 2 },
 };
