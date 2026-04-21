@@ -27,20 +27,23 @@ p4_shade_blend4_sse(
     return _mm_packus_epi16(texel_lo, texel_hi);
 }
 
-/* Normalized reciprocal table: w in [2^15,2^16); 0.30 fixed-point inv, 64-bit mul, then shift. */
+/* Normalized reciprocal on |w|; sign of w restored (negative w supported). */
 static inline int
 p4_persp_coord(
     int a,
     int w)
 {
-    if( w <= 0 )
+    if( w == 0 )
         return 0;
-    int lz = __builtin_clz((unsigned)w);
+    int32_t mask = w >> 31;
+    uint32_t w_abs = (uint32_t)((w ^ mask) - mask);
+    int lz = __builtin_clz(w_abs);
     int shift = lz - 16;
-    uint32_t w_norm = (shift >= 0) ? ((uint32_t)w << shift) : ((uint32_t)w >> -shift);
+    uint32_t w_norm = (shift >= 0) ? (w_abs << shift) : (w_abs >> -shift);
     uint32_t inv_w = g_reciprocal_norm30[w_norm & 0x7FFF];
     int64_t full = (int64_t)a * (int64_t)inv_w;
-    return (int32_t)(full >> (30 - shift));
+    int32_t result = (int32_t)(full >> (30 - shift));
+    return (int32_t)(((int64_t)result ^ mask) - mask);
 }
 
 static inline void
@@ -112,7 +115,7 @@ draw_texture_scanline_opaque_blend_branching_lerp8_vpentium4_ordered(
     int v_mask = (texture_width == 128) ? 0x3F80 : 0x0FC0;
     int u_mask = texture_width - 1;
 
-    if( (cw >> texture_shift) <= 0 )
+    if( (cw >> texture_shift) == 0 )
         return;
 
     int steps = x1 - x0;
@@ -128,8 +131,8 @@ draw_texture_scanline_opaque_blend_branching_lerp8_vpentium4_ordered(
         int w1 = (cw + (step_cw_dx << 3)) >> texture_shift;
         int cur_u = p4_persp_coord(au, w0);
         int cur_v = p4_persp_coord(bv, w0);
-        int nxt_u = p4_persp_coord(au + (step_au_dx << 3), w1 > 0 ? w1 : 1);
-        int nxt_v = p4_persp_coord(bv + (step_bv_dx << 3), w1 > 0 ? w1 : 1);
+        int nxt_u = p4_persp_coord(au + (step_au_dx << 3), w1 != 0 ? w1 : 1);
+        int nxt_v = p4_persp_coord(bv + (step_bv_dx << 3), w1 != 0 ? w1 : 1);
         int s_u = (nxt_u - cur_u) << (texture_shift - 3);
         int s_v = (nxt_v - cur_v) << (texture_shift - 3);
 
@@ -158,8 +161,8 @@ draw_texture_scanline_opaque_blend_branching_lerp8_vpentium4_ordered(
         int w1 = (cw + (step_cw_dx << 3)) >> texture_shift;
         int cur_u = p4_persp_coord(au, w0);
         int cur_v = p4_persp_coord(bv, w0);
-        int nxt_u = p4_persp_coord(au + (step_au_dx << 3), w1 > 0 ? w1 : 1);
-        int nxt_v = p4_persp_coord(bv + (step_bv_dx << 3), w1 > 0 ? w1 : 1);
+        int nxt_u = p4_persp_coord(au + (step_au_dx << 3), w1 != 0 ? w1 : 1);
+        int nxt_v = p4_persp_coord(bv + (step_bv_dx << 3), w1 != 0 ? w1 : 1);
         int s_u = (nxt_u - cur_u) << (texture_shift - 3);
         int s_v = (nxt_v - cur_v) << (texture_shift - 3);
         int u_scan = cur_u << texture_shift;
