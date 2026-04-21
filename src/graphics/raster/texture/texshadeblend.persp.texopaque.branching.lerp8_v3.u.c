@@ -32,7 +32,7 @@ raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(
     int* RESTRICT texels,
     int texture_width)
 {
-    if( y0 >= screen_height )
+    if( y0 > screen_height )
         return;
 
     // These two vectors now point in the direction or U or V.
@@ -136,14 +136,14 @@ raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(
 
     int offset = y0 * stride;
 
-    if( y1 >= screen_height )
+    if( y1 > screen_height )
     {
-        y1 = screen_height - 1;
-        y2 = screen_height - 1;
+        y1 = screen_height;
+        y2 = screen_height;
     }
-    else if( y2 >= screen_height )
+    else if( y2 > screen_height )
     {
-        y2 = screen_height - 1;
+        y2 = screen_height;
     }
 
     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
@@ -323,7 +323,7 @@ raster_texshadeblend_persp_texopaque_branching_lerp8_v3(
         // y0, y1, y2,
         if( y1 <= y2 )
         {
-            if( y2 < 0 || y0 >= screen_height )
+            if( y2 < 0 || y0 > screen_height )
                 return;
 
             raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(
@@ -356,7 +356,7 @@ raster_texshadeblend_persp_texopaque_branching_lerp8_v3(
         // y0, y2, y1,
         else
         {
-            if( y1 < 0 || y0 >= screen_height )
+            if( y1 < 0 || y0 > screen_height )
                 return;
 
             raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(
@@ -392,7 +392,7 @@ raster_texshadeblend_persp_texopaque_branching_lerp8_v3(
         // y1, y2, y0
         if( y2 <= y0 )
         {
-            if( y0 < 0 || y1 >= screen_height )
+            if( y0 < 0 || y1 > screen_height )
                 return;
 
             raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(
@@ -425,7 +425,7 @@ raster_texshadeblend_persp_texopaque_branching_lerp8_v3(
         // y1, y0, y2,
         else
         {
-            if( y2 < 0 || y1 >= screen_height )
+            if( y2 < 0 || y1 > screen_height )
                 return;
 
             raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(
@@ -461,7 +461,7 @@ raster_texshadeblend_persp_texopaque_branching_lerp8_v3(
         // y2, y0, y1,
         if( y0 <= y1 )
         {
-            if( y1 < 0 || y2 >= screen_height )
+            if( y1 < 0 || y2 > screen_height )
                 return;
 
             raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(
@@ -494,7 +494,7 @@ raster_texshadeblend_persp_texopaque_branching_lerp8_v3(
         // y2, y1, y0,
         else
         {
-            if( y0 < 0 || y2 >= screen_height )
+            if( y0 < 0 || y2 > screen_height )
                 return;
 
             raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(

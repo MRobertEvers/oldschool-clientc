@@ -257,12 +257,12 @@ raster_gouraud_screen_alpha_bary_branching_s1(
 {
     if( y0 <= y1 && y0 <= y2 )
     {
-        if( y0 >= screen_height )
+        if( y0 > screen_height )
             return;
 
         if( y1 <= y2 )
         {
-            if( y2 < 0 || y0 >= screen_height )
+            if( y2 < 0 || y0 > screen_height )
                 return;
 
             raster_gouraud_screen_alpha_bary_branching_s1_ordered(
@@ -283,7 +283,7 @@ raster_gouraud_screen_alpha_bary_branching_s1(
         }
         else
         {
-            if( y1 < 0 || y0 >= screen_height )
+            if( y1 < 0 || y0 > screen_height )
                 return;
 
             raster_gouraud_screen_alpha_bary_branching_s1_ordered(
@@ -305,12 +305,12 @@ raster_gouraud_screen_alpha_bary_branching_s1(
     }
     else if( y1 <= y2 )
     {
-        if( y1 >= screen_height )
+        if( y1 > screen_height )
             return;
 
         if( y2 <= y0 )
         {
-            if( y0 < 0 || y1 >= screen_height )
+            if( y0 < 0 || y1 > screen_height )
                 return;
 
             raster_gouraud_screen_alpha_bary_branching_s1_ordered(
@@ -331,7 +331,7 @@ raster_gouraud_screen_alpha_bary_branching_s1(
         }
         else
         {
-            if( y2 < 0 || y1 >= screen_height )
+            if( y2 < 0 || y1 > screen_height )
                 return;
 
             raster_gouraud_screen_alpha_bary_branching_s1_ordered(
@@ -353,12 +353,12 @@ raster_gouraud_screen_alpha_bary_branching_s1(
     }
     else
     {
-        if( y2 >= screen_height )
+        if( y2 > screen_height )
             return;
 
         if( y0 <= y1 )
         {
-            if( y1 < 0 || y2 >= screen_height )
+            if( y1 < 0 || y2 > screen_height )
                 return;
 
             raster_gouraud_screen_alpha_bary_branching_s1_ordered(
@@ -379,7 +379,7 @@ raster_gouraud_screen_alpha_bary_branching_s1(
         }
         else
         {
-            if( y0 < 0 || y2 >= screen_height )
+            if( y0 < 0 || y2 > screen_height )
                 return;
 
             raster_gouraud_screen_alpha_bary_branching_s1_ordered(

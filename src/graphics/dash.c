@@ -1,4 +1,5 @@
 #include "dash.h"
+
 #include "graphics/dash_bench.h"
 #include "graphics/raster/deob/pix3d_deob_compat.h"
 
@@ -861,7 +862,6 @@ dash3d_raster_model_face(
             assert(tm_vertex < ctx->num_vertices);
             assert(tn_vertex < ctx->num_vertices);
 
-
             if( !g_raster_bench.active && (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 )
             {
                 raster_face_texture_blend_affine_v3(
@@ -958,7 +958,6 @@ dash3d_raster_model_face(
             assert(tp_vertex < ctx->num_vertices);
             assert(tm_vertex < ctx->num_vertices);
             assert(tn_vertex < ctx->num_vertices);
-
 
             if( !g_raster_bench.active && (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 )
             {

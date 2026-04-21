@@ -272,7 +272,7 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
 
         while( y1-- > 0 )
         {
-            // if( i >= screen_height )
+            // if( i > screen_height )
             //     break;
 
             draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
@@ -337,13 +337,13 @@ raster_gouraud_screen_opaque_bary_branching_s4(
     // y2, y1, y0,
     if( y0 <= y1 && y0 <= y2 )
     {
-        if( y0 >= screen_height )
+        if( y0 > screen_height )
             return;
 
         // y0, y1, y2,
         if( y1 <= y2 )
         {
-            if( y2 < 0 || y0 >= screen_height )
+            if( y2 < 0 || y0 > screen_height )
                 return;
 
             raster_gouraud_screen_opaque_bary_branching_s4_ordered(
@@ -364,7 +364,7 @@ raster_gouraud_screen_opaque_bary_branching_s4(
         // y0, y2, y1,
         else
         {
-            if( y1 < 0 || y0 >= screen_height )
+            if( y1 < 0 || y0 > screen_height )
                 return;
 
             raster_gouraud_screen_opaque_bary_branching_s4_ordered(
@@ -385,13 +385,13 @@ raster_gouraud_screen_opaque_bary_branching_s4(
     }
     else if( y1 <= y2 )
     {
-        if( y1 >= screen_height )
+        if( y1 > screen_height )
             return;
 
         // y1, y2, y0
         if( y2 <= y0 )
         {
-            if( y0 < 0 || y1 >= screen_height )
+            if( y0 < 0 || y1 > screen_height )
                 return;
 
             raster_gouraud_screen_opaque_bary_branching_s4_ordered(
@@ -412,7 +412,7 @@ raster_gouraud_screen_opaque_bary_branching_s4(
         // y1, y0, y2,
         else
         {
-            if( y2 < 0 || y1 >= screen_height )
+            if( y2 < 0 || y1 > screen_height )
                 return;
 
             raster_gouraud_screen_opaque_bary_branching_s4_ordered(
@@ -433,13 +433,13 @@ raster_gouraud_screen_opaque_bary_branching_s4(
     }
     else
     {
-        if( y2 >= screen_height )
+        if( y2 > screen_height )
             return;
 
         // y2, y0, y1,
         if( y0 <= y1 )
         {
-            if( y1 < 0 || y2 >= screen_height )
+            if( y1 < 0 || y2 > screen_height )
                 return;
 
             raster_gouraud_screen_opaque_bary_branching_s4_ordered(
@@ -460,7 +460,7 @@ raster_gouraud_screen_opaque_bary_branching_s4(
         // y2, y1, y0,
         else
         {
-            if( y0 < 0 || y2 >= screen_height )
+            if( y0 < 0 || y2 > screen_height )
                 return;
 
             raster_gouraud_screen_opaque_bary_branching_s4_ordered(

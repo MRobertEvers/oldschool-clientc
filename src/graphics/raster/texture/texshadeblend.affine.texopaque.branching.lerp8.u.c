@@ -341,7 +341,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8(
         // y0, y1, y2,
         if( y1 <= y2 )
         {
-            if( y2 < 0 || y0 >= screen_height )
+            if( y2 < 0 || y0 > screen_height )
                 return;
 
             raster_texshadeblend_affine_texopaque_branching_lerp8_ordered(
@@ -374,7 +374,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8(
         // y0, y2, y1,
         else
         {
-            if( y1 < 0 || y0 >= screen_height )
+            if( y1 < 0 || y0 > screen_height )
                 return;
 
             raster_texshadeblend_affine_texopaque_branching_lerp8_ordered(
@@ -410,7 +410,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8(
         // y1, y2, y0
         if( y2 <= y0 )
         {
-            if( y0 < 0 || y1 >= screen_height )
+            if( y0 < 0 || y1 > screen_height )
                 return;
 
             raster_texshadeblend_affine_texopaque_branching_lerp8_ordered(
@@ -443,7 +443,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8(
         // y1, y0, y2,
         else
         {
-            if( y2 < 0 || y1 >= screen_height )
+            if( y2 < 0 || y1 > screen_height )
                 return;
 
             raster_texshadeblend_affine_texopaque_branching_lerp8_ordered(
@@ -479,7 +479,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8(
         // y2, y0, y1,
         if( y0 <= y1 )
         {
-            if( y1 < 0 || y2 >= screen_height )
+            if( y1 < 0 || y2 > screen_height )
                 return;
 
             raster_texshadeblend_affine_texopaque_branching_lerp8_ordered(
@@ -512,7 +512,7 @@ raster_texshadeblend_affine_texopaque_branching_lerp8(
         // y2, y1, y0,
         else
         {
-            if( y0 < 0 || y2 >= screen_height )
+            if( y0 < 0 || y2 > screen_height )
                 return;
 
             raster_texshadeblend_affine_texopaque_branching_lerp8_ordered(

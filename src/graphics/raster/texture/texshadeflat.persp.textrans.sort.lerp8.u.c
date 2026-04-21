@@ -50,7 +50,7 @@ raster_texshadeflat_persp_textrans_sort_lerp8(
         SWAP(screen_x1, screen_x2);
     }
 
-    if( screen_y0 >= screen_height )
+    if( screen_y0 > screen_height )
         return;
 
     // Assumes that the world coordinates differ from uv coordinates only by a scaling factor
@@ -132,8 +132,8 @@ raster_texshadeflat_persp_textrans_sort_lerp8(
     if( screen_y0 > screen_y1 )
         return;
 
-    if( screen_y1 >= screen_height )
-        screen_y1 = screen_height - 1;
+    if( screen_y1 > screen_height )
+        screen_y1 = screen_height;
 
     au = project_scale_unit(vOVPlane_normal_zhat, camera_fov);
     bv = project_scale_unit(vUOPlane_normal_zhat, camera_fov);
@@ -184,8 +184,8 @@ raster_texshadeflat_persp_textrans_sort_lerp8(
         offset += stride;
     }
 
-    if( screen_y2 >= screen_height )
-        screen_y2 = screen_height - 1;
+    if( screen_y2 > screen_height )
+        screen_y2 = screen_height;
 
     if( screen_y1 > screen_y2 )
         return;

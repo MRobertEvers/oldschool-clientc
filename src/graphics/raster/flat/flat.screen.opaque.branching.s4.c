@@ -178,14 +178,14 @@ raster_flat_screen_opaque_branching_s4_ordered(
 
     int offset = y0 * stride;
 
-    if( y1 >= screen_height )
+    if( y1 > screen_height )
     {
-        y1 = screen_height - 1;
-        y2 = screen_height - 1;
+        y1 = screen_height;
+        y2 = screen_height;
     }
-    else if( y2 >= screen_height )
+    else if( y2 > screen_height )
     {
-        y2 = screen_height - 1;
+        y2 = screen_height;
     }
 
     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
@@ -332,12 +332,12 @@ raster_flat_screen_opaque_branching_s4(
 {
     if( y0 <= y1 && y0 <= y2 )
     {
-        if( y0 >= screen_height )
+        if( y0 > screen_height )
             return;
 
         if( y1 <= y2 )
         {
-            if( y2 < 0 || y0 >= screen_height )
+            if( y2 < 0 || y0 > screen_height )
                 return;
 
             raster_flat_screen_opaque_branching_s4_ordered(
@@ -355,7 +355,7 @@ raster_flat_screen_opaque_branching_s4(
         }
         else
         {
-            if( y1 < 0 || y0 >= screen_height )
+            if( y1 < 0 || y0 > screen_height )
                 return;
 
             raster_flat_screen_opaque_branching_s4_ordered(
@@ -374,12 +374,12 @@ raster_flat_screen_opaque_branching_s4(
     }
     else if( y1 <= y2 )
     {
-        if( y1 >= screen_height )
+        if( y1 > screen_height )
             return;
 
         if( y2 <= y0 )
         {
-            if( y0 < 0 || y1 >= screen_height )
+            if( y0 < 0 || y1 > screen_height )
                 return;
 
             raster_flat_screen_opaque_branching_s4_ordered(
@@ -397,7 +397,7 @@ raster_flat_screen_opaque_branching_s4(
         }
         else
         {
-            if( y2 < 0 || y1 >= screen_height )
+            if( y2 < 0 || y1 > screen_height )
                 return;
 
             raster_flat_screen_opaque_branching_s4_ordered(
@@ -416,12 +416,12 @@ raster_flat_screen_opaque_branching_s4(
     }
     else
     {
-        if( y2 >= screen_height )
+        if( y2 > screen_height )
             return;
 
         if( y0 <= y1 )
         {
-            if( y1 < 0 || y2 >= screen_height )
+            if( y1 < 0 || y2 > screen_height )
                 return;
 
             raster_flat_screen_opaque_branching_s4_ordered(
@@ -439,7 +439,7 @@ raster_flat_screen_opaque_branching_s4(
         }
         else
         {
-            if( y0 < 0 || y2 >= screen_height )
+            if( y0 < 0 || y2 > screen_height )
                 return;
 
             raster_flat_screen_opaque_branching_s4_ordered(
