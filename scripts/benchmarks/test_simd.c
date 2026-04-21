@@ -1,6 +1,6 @@
 #include "../../src/graphics/projection.u.c"
 #include "../../src/graphics/projection_simd.u.c"
-#include "../../src/shared_tables.c"
+#include "../../src/graphics/shared_tables.c"
 
 #include <stdio.h>
 
