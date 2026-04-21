@@ -1,10 +1,9 @@
 #ifndef GOURAUD_SCREEN_ALPHA_BARY_BRANCHING_S1_C
 #define GOURAUD_SCREEN_ALPHA_BARY_BRANCHING_S1_C
 
-#include "graphics/dash_restrict.h"
 #include "graphics/alpha.h"
-
-#include <stdint.h>
+#include "graphics/dash_restrict.h"
+#include "graphics/raster/gouraud/gouraud_barycentric_steps.h"
 
 extern int g_hsl16_to_rgb_table[65536];
 
@@ -86,8 +85,10 @@ raster_gouraud_screen_alpha_bary_branching_s1_ordered(
     int d_hsl_AB = color1_hsl16 - color0_hsl16;
     int d_hsl_AC = color2_hsl16 - color0_hsl16;
 
-    int step_x_hsl_ish8 = ((d_hsl_AB * dy_AC - d_hsl_AC * dy_AB) << 8) / sarea;
-    int step_y_hsl_ish8 = ((d_hsl_AC * dx_AB - d_hsl_AB * dx_AC) << 8) / sarea;
+    int step_x_hsl_ish8 =
+        gouraud_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, sarea);
+    int step_y_hsl_ish8 =
+        gouraud_barycentric_hsl_step_ish8(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, sarea);
 
     int step_edge_x_AC_ish16;
     int step_edge_x_AB_ish16;
@@ -133,14 +134,14 @@ raster_gouraud_screen_alpha_bary_branching_s1_ordered(
 
     int offset = y0 * stride;
 
-    if( y1 >= screen_height )
+    if( y1 > screen_height )
     {
-        y1 = screen_height - 1;
-        y2 = screen_height - 1;
+        y1 = screen_height;
+        y2 = screen_height;
     }
-    else if( y2 >= screen_height )
+    else if( y2 > screen_height )
     {
-        y2 = screen_height - 1;
+        y2 = screen_height;
     }
 
     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||

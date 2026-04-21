@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 extern int g_hsl16_to_rgb_table[65536];
+extern int g_reciprocal15[4096];
 
 static inline void
 draw_scanline_gouraud_screen_opaque_edge_sort_s1(
@@ -38,7 +39,7 @@ draw_scanline_gouraud_screen_opaque_edge_sort_s1(
     int step_color_hsl16_ish8 = 0;
     if( dx_stride > 0 )
     {
-        step_color_hsl16_ish8 = dcolor_hsl16_ish8 / dx_stride;
+        step_color_hsl16_ish8 = ((dcolor_hsl16_ish8)*g_reciprocal15[dx_stride]) >> 15;
     }
 
     if( x_end >= screen_width )
@@ -69,6 +70,7 @@ draw_scanline_gouraud_screen_opaque_edge_sort_s1(
         color_hsl16_ish8 += step_color_hsl16_ish8;
     }
 }
+
 static inline void
 raster_gouraud_screen_opaque_edge_sort_s1(
     int* RESTRICT pixel_buffer,
@@ -235,10 +237,10 @@ raster_gouraud_screen_opaque_edge_sort_s1(
         y1 = 0;
     }
 
-    if( y1 >= screen_height )
-        y1 = screen_height - 1;
-    if( y2 >= screen_height )
-        y2 = screen_height - 1;
+    if( y1 > screen_height )
+        y1 = screen_height;
+    if( y2 > screen_height )
+        y2 = screen_height;
 
     int i = y0;
     for( ; i < y1; ++i )

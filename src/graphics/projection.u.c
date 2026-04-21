@@ -3,6 +3,8 @@
 
 #include "projection.h"
 
+#include "graphics/shared_tables.h"
+
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
@@ -12,7 +14,7 @@
 extern int g_cos_table[2048];
 extern int g_sin_table[2048];
 extern int g_tan_table[2048];
-extern int g_reciprocal16_simd[4096];
+extern uint16_t g_reciprocal16_simd[G_RECIPROCAL16_SIMD_LEN];
 
 /**
  * Treats the camera as if it is at the origin (0, 0, 0)

@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 extern int g_hsl16_to_rgb_table[65536];
+extern int g_reciprocal15[4096];
 
 /* raster_linear_alpha_s4: include span/gouraud.screen.alpha.span.u.c before this file */
 
@@ -43,7 +44,7 @@ draw_scanline_gouraud_screen_alpha_edge_sort_s4(
     int step_color_hsl16_ish8 = 0;
     if( dx_stride > 3 )
     {
-        step_color_hsl16_ish8 = dcolor_hsl16_ish8 / dx_stride;
+        step_color_hsl16_ish8 = ((dcolor_hsl16_ish8)*g_reciprocal15[dx_stride]) >> 15;
     }
 
     if( x_end >= screen_width )

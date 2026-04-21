@@ -3,6 +3,7 @@
 
 #include "graphics/alpha.h"
 #include "graphics/dash_restrict.h"
+#include "graphics/raster/flat/flat_screen_edges.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -10,14 +11,13 @@
 extern int g_hsl16_to_rgb_table[65536];
 
 static inline void
-draw_scanline_flat_screen_alpha_sort_s4(
+draw_scanline_flat_screen_alpha_sort_s4_clipped(
     int* RESTRICT pixel_buffer,
-    int stride,
+    int row_off,
     int screen_width,
-    int y,
     int x_start,
     int x_end,
-    int color_hsl16,
+    int rgb_color,
     int alpha)
 {
     if( x_start == x_end )
@@ -42,9 +42,64 @@ draw_scanline_flat_screen_alpha_sort_s4(
     int dx_stride = x_end - x_start;
     assert(dx_stride > 0);
 
-    // Steps by 4.
-    int offset = x_start + y * stride;
-    int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
+    int offset = row_off + x_start;
+
+    int steps = (dx_stride) >> 2;
+    int rgb_blend;
+    while( --steps >= 0 )
+    {
+        rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset++] = rgb_blend;
+
+        rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset++] = rgb_blend;
+
+        rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset++] = rgb_blend;
+
+        rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset++] = rgb_blend;
+    }
+
+    steps = (dx_stride) & 0x3;
+    while( --steps >= 0 )
+    {
+        rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset++] = rgb_blend;
+    }
+}
+
+static inline void
+draw_scanline_flat_screen_alpha_sort_s4_noclip(
+    int* RESTRICT pixel_buffer,
+    int row_off,
+    int x_start,
+    int x_end,
+    int rgb_color,
+    int alpha)
+{
+    if( x_start == x_end )
+        return;
+    if( x_start > x_end )
+    {
+        int tmp;
+        tmp = x_start;
+        x_start = x_end;
+        x_end = tmp;
+    }
+
+    if( x_start >= x_end )
+        return;
+
+    int dx_stride = x_end - x_start;
+    assert(dx_stride > 0);
+
+    int offset = row_off + x_start;
 
     int steps = (dx_stride) >> 2;
     int rgb_blend;
@@ -130,6 +185,8 @@ raster_flat_screen_alpha_sort_s4(
     if( x0 == x1 && x1 == x2 )
         return;
 
+    int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
+
     int dx_AC = x2 - x0;
     int dy_AC = y2 - y0;
     int dx_AB = x1 - x0;
@@ -183,46 +240,90 @@ raster_flat_screen_alpha_sort_s4(
         y1 = 0;
     }
 
+    int seg1_count = 0;
+    if( y0 < screen_height && y1 > y0 )
+        seg1_count = (y1 < screen_height) ? (y1 - y0) : (screen_height - y0);
+
+    int noclip_s1 = flat_screen_fixed_edges_no_hclip(
+        edge_x_AC_ish16,
+        step_edge_x_AC_ish16,
+        edge_x_AB_ish16,
+        step_edge_x_AB_ish16,
+        seg1_count,
+        screen_width);
+
+    int seg2_count = 0;
+    if( y1 < screen_height && y2 > y1 )
+        seg2_count = (y2 < screen_height) ? (y2 - y1) : (screen_height - y1);
+
+    int ac_at_second_half = edge_x_AC_ish16 + seg1_count * step_edge_x_AC_ish16;
+    int noclip_s2 = flat_screen_fixed_edges_no_hclip(
+        ac_at_second_half,
+        step_edge_x_AC_ish16,
+        edge_x_BC_ish16,
+        step_edge_x_BC_ish16,
+        seg2_count,
+        screen_width);
+
+    int row_off = y0 * stride;
+
     int i = y0;
     for( ; i < y1 && i < screen_height; ++i )
     {
         int x_start_current = edge_x_AC_ish16 >> 16;
         int x_end_current = edge_x_AB_ish16 >> 16;
 
-        draw_scanline_flat_screen_alpha_sort_s4(
-            pixel_buffer,
-            stride,
-            screen_width,
-            i,
-            x_start_current,
-            x_end_current,
-            color_hsl16,
-            alpha);
+        if( noclip_s1 )
+        {
+            draw_scanline_flat_screen_alpha_sort_s4_noclip(
+                pixel_buffer, row_off, x_start_current, x_end_current, rgb_color, alpha);
+        }
+        else
+        {
+            draw_scanline_flat_screen_alpha_sort_s4_clipped(
+                pixel_buffer,
+                row_off,
+                screen_width,
+                x_start_current,
+                x_end_current,
+                rgb_color,
+                alpha);
+        }
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_AB_ish16 += step_edge_x_AB_ish16;
+        row_off += stride;
     }
 
     if( y1 > y2 )
         return;
 
     i = y1;
+    row_off = y1 * stride;
     for( ; i < y2 && i < screen_height; ++i )
     {
         int x_start_current = edge_x_AC_ish16 >> 16;
         int x_end_current = edge_x_BC_ish16 >> 16;
 
-        draw_scanline_flat_screen_alpha_sort_s4(
-            pixel_buffer,
-            stride,
-            screen_width,
-            i,
-            x_start_current,
-            x_end_current,
-            color_hsl16,
-            alpha);
+        if( noclip_s2 )
+        {
+            draw_scanline_flat_screen_alpha_sort_s4_noclip(
+                pixel_buffer, row_off, x_start_current, x_end_current, rgb_color, alpha);
+        }
+        else
+        {
+            draw_scanline_flat_screen_alpha_sort_s4_clipped(
+                pixel_buffer,
+                row_off,
+                screen_width,
+                x_start_current,
+                x_end_current,
+                rgb_color,
+                alpha);
+        }
 
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_BC_ish16 += step_edge_x_BC_ish16;
+        row_off += stride;
     }
 }
 

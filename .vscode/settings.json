@@ -271,7 +271,8 @@
     "uitree_load.h": "c",
     "entity_scenebuild.h": "c",
     "dash_vertexint.h": "c",
-    "texture_simd.neon.u.c": "cpp"
+    "texture_simd.neon.u.c": "cpp",
+    "pix3d_deob_state.h": "c"
   },
   "[linux]": {
     "C_Cpp.default.configurationName": "Linux",

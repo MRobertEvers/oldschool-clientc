@@ -2,8 +2,7 @@
 #define GOURAUD_SCREEN_OPAQUE_BARY_BRANCHING_S4_C
 
 #include "graphics/dash_restrict.h"
-
-#include <stdint.h>
+#include "graphics/raster/gouraud/gouraud_barycentric_steps.h"
 
 extern int g_hsl16_to_rgb_table[65536];
 
@@ -74,6 +73,7 @@ draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
         pixel_buffer[offset] = rgb_color;
     }
 }
+
 static inline void
 raster_gouraud_screen_opaque_bary_branching_s4_ordered(
     int* RESTRICT pixel_buffer,
@@ -108,8 +108,10 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
     /**
      * This is derived from a barycentric coordinate.
      */
-    int step_x_hsl_ish8 = (int)(((int64_t)(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB) << 8) / sarea);
-    int step_y_hsl_ish8 = (int)(((int64_t)(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC) << 8) / sarea);
+    int step_x_hsl_ish8 =
+        gouraud_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, sarea);
+    int step_y_hsl_ish8 =
+        gouraud_barycentric_hsl_step_ish8(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, sarea);
 
     int step_edge_x_AC_ish16;
     int step_edge_x_AB_ish16;
@@ -208,14 +210,14 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
 
     int offset = y0 * stride;
 
-    if( y1 >= screen_height )
+    if( y1 > screen_height )
     {
-        y1 = screen_height - 1;
-        y2 = screen_height - 1;
+        y1 = screen_height;
+        y2 = screen_height;
     }
-    else if( y2 >= screen_height )
+    else if( y2 > screen_height )
     {
-        y2 = screen_height - 1;
+        y2 = screen_height;
     }
 
     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||

@@ -14,6 +14,7 @@
 
 // clang-format off
 #include "old/gouraud.u.c"
+#include "raster/gouraud/gouraud.screen.opaque.edge.branching.s4.u.c"
 #include "old/render_clip.u.c"
 #include "old/render_face_alpha.u.c"
 #include "old/gouraud_branching_barycentric.c"
@@ -226,6 +227,22 @@ raster_gouraud_bench_dispatch_inner(
         return;
     case RASTER_BENCH_GOURAUD_OPAQUE_EDGE_SORT_S4:
         raster_gouraud_screen_opaque_edge_sort_s4(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color_a,
+            color_b,
+            color_c);
+        return;
+    case RASTER_BENCH_GOURAUD_OPAQUE_EDGE_BRANCHING_S4:
+        raster_gouraud_screen_opaque_edge_branching_s4(
             pixel_buffer,
             stride,
             screen_width,

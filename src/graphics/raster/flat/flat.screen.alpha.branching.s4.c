@@ -3,6 +3,7 @@
 
 #include "graphics/alpha.h"
 #include "graphics/dash_restrict.h"
+#include "graphics/raster/flat/flat_screen_edges.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -10,13 +11,13 @@
 extern int g_hsl16_to_rgb_table[65536];
 
 static inline void
-draw_scanline_flat_screen_alpha_branching_s4_ordered(
+draw_scanline_flat_screen_alpha_branching_s4_ordered_clipped(
     int* RESTRICT pixel_buffer,
     int offset,
     int screen_width,
     int x_start_ish16,
     int x_end_ish16,
-    int color_hsl16,
+    int rgb_color,
     int alpha)
 {
     if( x_start_ish16 == x_end_ish16 )
@@ -39,7 +40,65 @@ draw_scanline_flat_screen_alpha_branching_s4_ordered(
     int span = (x_end - x_start);
     assert(span > 0);
 
-    int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
+    int steps = (span) >> 2;
+    while( steps-- > 0 )
+    {
+        for( int i = 0; i < 4; i++ )
+        {
+            int rgb_blend = pixel_buffer[offset];
+            rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+            pixel_buffer[offset] = rgb_blend;
+            offset += 1;
+        }
+    }
+
+    switch( (span) & 0x3 )
+    {
+    case 3:
+    {
+        int rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset] = rgb_blend;
+        offset += 1;
+    }
+    case 2:
+    {
+        int rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset] = rgb_blend;
+        offset += 1;
+    }
+    case 1:
+    {
+        int rgb_blend = pixel_buffer[offset];
+        rgb_blend = alpha_blend(alpha, rgb_blend, rgb_color);
+        pixel_buffer[offset] = rgb_blend;
+    }
+    }
+}
+
+static inline void
+draw_scanline_flat_screen_alpha_branching_s4_ordered_noclip(
+    int* RESTRICT pixel_buffer,
+    int offset,
+    int x_start_ish16,
+    int x_end_ish16,
+    int rgb_color,
+    int alpha)
+{
+    if( x_start_ish16 == x_end_ish16 )
+        return;
+
+    int x_end = x_end_ish16 >> 16;
+    int x_start = x_start_ish16 >> 16;
+
+    if( x_start >= x_end )
+        return;
+
+    offset += x_start;
+
+    int span = (x_end - x_start);
+    assert(span > 0);
 
     int steps = (span) >> 2;
     while( steps-- > 0 )
@@ -105,6 +164,8 @@ raster_flat_screen_alpha_branching_s4_ordered(
     if( sarea == 0 )
         return;
 
+    int rgb_color = g_hsl16_to_rgb_table[color_hsl16];
+
     int step_edge_x_AC_ish16;
     int step_edge_x_AB_ish16;
     int step_edge_x_BC_ish16;
@@ -158,19 +219,53 @@ raster_flat_screen_alpha_branching_s4_ordered(
     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )
     {
+        int seg1_count = y1 - y0;
+        int seg2_count = y2 - y1;
+        if( seg1_count < 0 )
+            seg1_count = 0;
+        if( seg2_count < 0 )
+            seg2_count = 0;
+        int noclip_s1 = flat_screen_fixed_edges_no_hclip(
+            edge_x_AB_ish16,
+            step_edge_x_AB_ish16,
+            edge_x_AC_ish16,
+            step_edge_x_AC_ish16,
+            seg1_count,
+            screen_width);
+        int noclip_s2 = flat_screen_fixed_edges_no_hclip(
+            edge_x_BC_ish16,
+            step_edge_x_BC_ish16,
+            edge_x_AC_ish16 + seg1_count * step_edge_x_AC_ish16,
+            step_edge_x_AC_ish16,
+            seg2_count,
+            screen_width);
+
         y2 -= y1;
         y1 -= y0;
 
         while( y1-- > 0 )
         {
-            draw_scanline_flat_screen_alpha_branching_s4_ordered(
-                pixel_buffer,
-                offset,
-                screen_width,
-                edge_x_AB_ish16,
-                edge_x_AC_ish16,
-                color_hsl16,
-                alpha);
+            if( noclip_s1 )
+            {
+                draw_scanline_flat_screen_alpha_branching_s4_ordered_noclip(
+                    pixel_buffer,
+                    offset,
+                    edge_x_AB_ish16,
+                    edge_x_AC_ish16,
+                    rgb_color,
+                    alpha);
+            }
+            else
+            {
+                draw_scanline_flat_screen_alpha_branching_s4_ordered_clipped(
+                    pixel_buffer,
+                    offset,
+                    screen_width,
+                    edge_x_AB_ish16,
+                    edge_x_AC_ish16,
+                    rgb_color,
+                    alpha);
+            }
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_AB_ish16 += step_edge_x_AB_ish16;
@@ -180,14 +275,27 @@ raster_flat_screen_alpha_branching_s4_ordered(
 
         while( y2-- > 0 )
         {
-            draw_scanline_flat_screen_alpha_branching_s4_ordered(
-                pixel_buffer,
-                offset,
-                screen_width,
-                edge_x_BC_ish16,
-                edge_x_AC_ish16,
-                color_hsl16,
-                alpha);
+            if( noclip_s2 )
+            {
+                draw_scanline_flat_screen_alpha_branching_s4_ordered_noclip(
+                    pixel_buffer,
+                    offset,
+                    edge_x_BC_ish16,
+                    edge_x_AC_ish16,
+                    rgb_color,
+                    alpha);
+            }
+            else
+            {
+                draw_scanline_flat_screen_alpha_branching_s4_ordered_clipped(
+                    pixel_buffer,
+                    offset,
+                    screen_width,
+                    edge_x_BC_ish16,
+                    edge_x_AC_ish16,
+                    rgb_color,
+                    alpha);
+            }
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_BC_ish16 += step_edge_x_BC_ish16;
@@ -197,19 +305,53 @@ raster_flat_screen_alpha_branching_s4_ordered(
     }
     else
     {
+        int seg1_count = y1 - y0;
+        int seg2_count = y2 - y1;
+        if( seg1_count < 0 )
+            seg1_count = 0;
+        if( seg2_count < 0 )
+            seg2_count = 0;
+        int noclip_s1 = flat_screen_fixed_edges_no_hclip(
+            edge_x_AC_ish16,
+            step_edge_x_AC_ish16,
+            edge_x_AB_ish16,
+            step_edge_x_AB_ish16,
+            seg1_count,
+            screen_width);
+        int noclip_s2 = flat_screen_fixed_edges_no_hclip(
+            edge_x_AC_ish16 + seg1_count * step_edge_x_AC_ish16,
+            step_edge_x_AC_ish16,
+            edge_x_BC_ish16,
+            step_edge_x_BC_ish16,
+            seg2_count,
+            screen_width);
+
         y2 -= y1;
         y1 -= y0;
 
         while( y1-- > 0 )
         {
-            draw_scanline_flat_screen_alpha_branching_s4_ordered(
-                pixel_buffer,
-                offset,
-                screen_width,
-                edge_x_AC_ish16,
-                edge_x_AB_ish16,
-                color_hsl16,
-                alpha);
+            if( noclip_s1 )
+            {
+                draw_scanline_flat_screen_alpha_branching_s4_ordered_noclip(
+                    pixel_buffer,
+                    offset,
+                    edge_x_AC_ish16,
+                    edge_x_AB_ish16,
+                    rgb_color,
+                    alpha);
+            }
+            else
+            {
+                draw_scanline_flat_screen_alpha_branching_s4_ordered_clipped(
+                    pixel_buffer,
+                    offset,
+                    screen_width,
+                    edge_x_AC_ish16,
+                    edge_x_AB_ish16,
+                    rgb_color,
+                    alpha);
+            }
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_AB_ish16 += step_edge_x_AB_ish16;
@@ -219,14 +361,27 @@ raster_flat_screen_alpha_branching_s4_ordered(
 
         while( y2-- > 0 )
         {
-            draw_scanline_flat_screen_alpha_branching_s4_ordered(
-                pixel_buffer,
-                offset,
-                screen_width,
-                edge_x_AC_ish16,
-                edge_x_BC_ish16,
-                color_hsl16,
-                alpha);
+            if( noclip_s2 )
+            {
+                draw_scanline_flat_screen_alpha_branching_s4_ordered_noclip(
+                    pixel_buffer,
+                    offset,
+                    edge_x_AC_ish16,
+                    edge_x_BC_ish16,
+                    rgb_color,
+                    alpha);
+            }
+            else
+            {
+                draw_scanline_flat_screen_alpha_branching_s4_ordered_clipped(
+                    pixel_buffer,
+                    offset,
+                    screen_width,
+                    edge_x_AC_ish16,
+                    edge_x_BC_ish16,
+                    rgb_color,
+                    alpha);
+            }
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_BC_ish16 += step_edge_x_BC_ish16;

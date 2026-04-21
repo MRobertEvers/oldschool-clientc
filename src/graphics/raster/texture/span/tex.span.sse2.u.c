@@ -94,15 +94,7 @@ raster_linear_transparent_texshadeflat_lerp8(
     int shade)
 {
     raster_linear_transparent_blend_lerp8(
-        pixel_buffer,
-        offset,
-        texels,
-        u_scan,
-        v_scan,
-        step_u,
-        step_v,
-        texture_shift,
-        shade);
+        pixel_buffer, offset, texels, u_scan, v_scan, step_u, step_v, texture_shift, shade);
 }
 
 static inline void
@@ -155,15 +147,7 @@ raster_linear_opaque_texshadeflat_lerp8(
     int shade)
 {
     raster_linear_opaque_blend_lerp8(
-        pixel_buffer,
-        offset,
-        texels,
-        u_scan,
-        v_scan,
-        step_u,
-        step_v,
-        texture_shift,
-        shade);
+        pixel_buffer, offset, texels, u_scan, v_scan, step_u, step_v, texture_shift, shade);
 }
 
 static inline void
@@ -1045,7 +1029,6 @@ draw_texture_scanline_transparent_blend_affine_branching_lerp8_ordered(
         } while( remaining > 0 );
     }
 }
-
 
 static inline void
 draw_texture_scanline_opaque_blend_affine_branching_lerp8_ish16_ordered(

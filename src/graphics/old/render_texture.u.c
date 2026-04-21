@@ -14,6 +14,7 @@
 #include "texture.u.c"
 #include "texture_blend_branching.u.c"
 #include "texture_blend_branching_v3.u.c"
+#include "../raster/texture/texshadeblend.persp.texopaque.branching.lerp8_vpentium4.u.c"
 #include "render_clip.u.c"
 #include "../render_gouraud.u.c"
 #include "texture_blend_branching_affine.u.c"
@@ -151,6 +152,34 @@ raster_texture_blend_bench_dispatch_opaque(
         return;
     case RASTER_BENCH_TEXTURED_OPAQUE_PERSP_BRANCHING_LERP8_V3:
         raster_texshadeblend_persp_texopaque_branching_lerp8_v3(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            camera_fov,
+            screen_x0,
+            screen_x1,
+            screen_x2,
+            screen_y0,
+            screen_y1,
+            screen_y2,
+            orthographic_x0,
+            orthographic_x1,
+            orthographic_x2,
+            orthographic_y0,
+            orthographic_y1,
+            orthographic_y2,
+            orthographic_z0,
+            orthographic_z1,
+            orthographic_z2,
+            shade_a,
+            shade_b,
+            shade_c,
+            texels,
+            texture_size);
+        return;
+    case RASTER_BENCH_TEXTURED_OPAQUE_PERSP_BRANCHING_LERP8_VPENTIUM4:
+        raster_texshadeblend_persp_texopaque_branching_lerp8_vpentium4(
             pixel_buffer,
             stride,
             screen_width,

@@ -1,12 +1,13 @@
 #ifndef GOURAUD_SCREEN_ALPHA_EDGE_SORT_S1_U_C
 #define GOURAUD_SCREEN_ALPHA_EDGE_SORT_S1_U_C
 
-#include "graphics/dash_restrict.h"
 #include "graphics/alpha.h"
+#include "graphics/dash_restrict.h"
 
 #include <stdint.h>
 
 extern int g_hsl16_to_rgb_table[65536];
+extern int g_reciprocal15[4096];
 
 static inline void
 draw_scanline_gouraud_screen_alpha_edge_sort_s1(
@@ -40,7 +41,7 @@ draw_scanline_gouraud_screen_alpha_edge_sort_s1(
     int step_color_hsl16_ish8 = 0;
     if( dx_stride > 0 )
     {
-        step_color_hsl16_ish8 = dcolor_hsl16_ish8 / dx_stride;
+        step_color_hsl16_ish8 = ((dcolor_hsl16_ish8)*g_reciprocal15[dx_stride]) >> 15;
     }
 
     if( x_end >= screen_width )

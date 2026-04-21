@@ -1,10 +1,12 @@
 /* Times raster_texshadeflat_persp_textrans_sort_lerp8_scanline (scalar; includes texture.u.c). */
+#include <stdint.h>
 #include <time.h>
 
 int g_sin_table[2048];
 int g_cos_table[2048];
 int g_tan_table[2048];
-int g_reciprocal16_simd[4096];
+uint16_t g_reciprocal16_simd[256 * 1024];
+uint32_t g_reciprocal_norm30[1 << 15];
 
 #include "../../src/graphics/old/texture.u.c"
 
@@ -21,7 +23,8 @@ now_seconds(void)
     return (double)ts.tv_sec + 1e-9 * (double)ts.tv_nsec;
 }
 
-int main(void)
+int
+main(void)
 {
     enum
     {
@@ -45,6 +48,9 @@ int main(void)
     int screen_x0 = 0;
     int screen_x1 = 8191;
     int pixel_offset = 0;
+
+    for( uint32_t i = 0; i < (1u << 15); i++ )
+        g_reciprocal_norm30[i] = (uint32_t)((1u << 30) / (0x8000u + i));
 
     double t0 = now_seconds();
     for( int n = 0; n < BENCH_ITERS; n++ )

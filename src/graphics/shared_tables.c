@@ -1,3 +1,5 @@
+#include "graphics/shared_tables.h"
+
 #include <math.h>
 #include <stdint.h>
 
@@ -12,7 +14,8 @@ int g_tan_table[2048];
 
 int g_reciprocal15[4096];
 int g_reciprocal16[4096];
-int g_reciprocal16_simd[8192];
+uint16_t g_reciprocal16_simd[G_RECIPROCAL16_SIMD_LEN];
+uint32_t g_reciprocal_norm30[G_RECIPROCAL_NORM_LEN];
 
 int
 pix3d_set_gamma(
@@ -175,6 +178,9 @@ init_reciprocal16()
     for( int i = 1; i < 4096; i++ )
         g_reciprocal15[i] = ((1 << 15) / i);
 
-    for( int i = 1; i < 8192; i++ )
+    for( int i = 1; i < G_RECIPROCAL16_SIMD_LEN; i++ )
         g_reciprocal16_simd[i] = ((1 << 16) / i);
+
+    for( uint32_t i = 0; i < G_RECIPROCAL_NORM_LEN; i++ )
+        g_reciprocal_norm30[i] = (uint32_t)((1u << G_RECIPROCAL_NORM_BITS) / (0x8000u + i));
 }

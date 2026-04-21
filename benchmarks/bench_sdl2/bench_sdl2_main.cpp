@@ -2,10 +2,10 @@
 
 extern "C" {
 #include "LibToriRSPlatformC.h"
-#include "osrs/ginput.h"
 #include "graphics/dash.h"
 #include "graphics/dash_bench.h"
 #include "osrs/game.h"
+#include "osrs/ginput.h"
 #include "osrs/world.h"
 #include "platforms/common/sockstream.h"
 #include "tori_rs.h"
@@ -15,11 +15,10 @@ extern "C" {
 #include "3rd/lua/lua.h"
 #include "3rd/lua/lualib.h"
 }
+#include "nuklear/torirs_nuklear.h"
 #include "platforms/common/torirs_nk_bench_panel.h"
 #include "platforms/platform_impl2_sdl2.h"
 #include "platforms/platform_impl2_sdl2_renderer_soft3d.h"
-
-#include "nuklear/torirs_nuklear.h"
 
 #include <SDL.h>
 #include <math.h>
@@ -36,7 +35,7 @@ extern "C" {
 namespace
 {
 #ifndef BENCH_SDL2_FRAMES_PER_SEGMENT
-#define BENCH_SDL2_FRAMES_PER_SEGMENT 5000
+#define BENCH_SDL2_FRAMES_PER_SEGMENT 1000
 #endif
 
 constexpr int kBenchFramesPerSegment = BENCH_SDL2_FRAMES_PER_SEGMENT;
@@ -48,7 +47,7 @@ constexpr int kScreenWidth = kViewportInset + kGameViewportWidth + kViewportInse
 constexpr int kScreenHeight = kViewportInset + kGameViewportHeight + kViewportInset;
 
 constexpr int kBenchSlotCount = 8;
-constexpr int kBenchTotalSegments = 34; /* 1 default + 33 non-default variants */
+constexpr int kBenchTotalSegments = 36; /* 1 default + 35 non-default variants */
 
 struct VariantInfo
 {
@@ -74,80 +73,112 @@ struct SlotInfo
  * compat path handles both opaque and alpha internally, so it appears in both slot lists. */
 
 static const VariantInfo kVariantsFlatOpaque[] = {
-    { "flat.deob", RASTER_BENCH_FLAT_DEOB },
+    { "flat.deob",                       RASTER_BENCH_FLAT_DEOB                },
     { "flat.screen.opaque.branching.s4", RASTER_BENCH_FLAT_OPAQUE_BRANCHING_S4 },
-    { "flat.screen.opaque.sort.s4", RASTER_BENCH_FLAT_OPAQUE_SORT_S4 },
+    { "flat.screen.opaque.sort.s4",      RASTER_BENCH_FLAT_OPAQUE_SORT_S4      },
 };
 
 static const VariantInfo kVariantsFlatAlpha[] = {
-    { "flat.deob", RASTER_BENCH_FLAT_DEOB },
+    { "flat.deob",                      RASTER_BENCH_FLAT_DEOB               },
     { "flat.screen.alpha.branching.s4", RASTER_BENCH_FLAT_ALPHA_BRANCHING_S4 },
-    { "flat.screen.alpha.sort.s4", RASTER_BENCH_FLAT_ALPHA_SORT_S4 },
+    { "flat.screen.alpha.sort.s4",      RASTER_BENCH_FLAT_ALPHA_SORT_S4      },
 };
 
 static const VariantInfo kVariantsGouraudOpaque[] = {
-    { "gouraud.deob", RASTER_BENCH_GOURAUD_DEOB },
+    { "gouraud.deob",                            RASTER_BENCH_GOURAUD_DEOB                     },
     { "gouraud.screen.opaque.bary.branching.s4", RASTER_BENCH_GOURAUD_OPAQUE_BARY_BRANCHING_S4 },
-    { "gouraud.screen.opaque.bary.sort.s1", RASTER_BENCH_GOURAUD_OPAQUE_BARY_SORT_S1 },
-    { "gouraud.screen.opaque.bary.sort.s4", RASTER_BENCH_GOURAUD_OPAQUE_BARY_SORT_S4 },
-    { "gouraud.screen.opaque.edge.sort.s1", RASTER_BENCH_GOURAUD_OPAQUE_EDGE_SORT_S1 },
-    { "gouraud.screen.opaque.edge.sort.s4", RASTER_BENCH_GOURAUD_OPAQUE_EDGE_SORT_S4 },
+    { "gouraud.screen.opaque.bary.sort.s1",      RASTER_BENCH_GOURAUD_OPAQUE_BARY_SORT_S1      },
+    { "gouraud.screen.opaque.bary.sort.s4",      RASTER_BENCH_GOURAUD_OPAQUE_BARY_SORT_S4      },
+    { "gouraud.screen.opaque.edge.sort.s1",      RASTER_BENCH_GOURAUD_OPAQUE_EDGE_SORT_S1      },
+    { "gouraud.screen.opaque.edge.sort.s4",      RASTER_BENCH_GOURAUD_OPAQUE_EDGE_SORT_S4      },
+    { "gouraud.screen.opaque.edge.branching.s4", RASTER_BENCH_GOURAUD_OPAQUE_EDGE_BRANCHING_S4 },
 };
 
 static const VariantInfo kVariantsGouraudAlpha[] = {
-    { "gouraud.deob", RASTER_BENCH_GOURAUD_DEOB },
+    { "gouraud.deob",                           RASTER_BENCH_GOURAUD_DEOB                    },
     { "gouraud.screen.alpha.bary.branching.s1", RASTER_BENCH_GOURAUD_ALPHA_BARY_BRANCHING_S1 },
     { "gouraud.screen.alpha.bary.branching.s4", RASTER_BENCH_GOURAUD_ALPHA_BARY_BRANCHING_S4 },
-    { "gouraud.screen.alpha.bary.sort.s1", RASTER_BENCH_GOURAUD_ALPHA_BARY_SORT_S1 },
-    { "gouraud.screen.alpha.bary.sort.s4", RASTER_BENCH_GOURAUD_ALPHA_BARY_SORT_S4 },
-    { "gouraud.screen.alpha.edge.sort.s1", RASTER_BENCH_GOURAUD_ALPHA_EDGE_SORT_S1 },
-    { "gouraud.screen.alpha.edge.sort.s4", RASTER_BENCH_GOURAUD_ALPHA_EDGE_SORT_S4 },
+    { "gouraud.screen.alpha.bary.sort.s1",      RASTER_BENCH_GOURAUD_ALPHA_BARY_SORT_S1      },
+    { "gouraud.screen.alpha.bary.sort.s4",      RASTER_BENCH_GOURAUD_ALPHA_BARY_SORT_S4      },
+    { "gouraud.screen.alpha.edge.sort.s1",      RASTER_BENCH_GOURAUD_ALPHA_EDGE_SORT_S1      },
+    { "gouraud.screen.alpha.edge.sort.s4",      RASTER_BENCH_GOURAUD_ALPHA_EDGE_SORT_S4      },
 };
 
 static const VariantInfo kVariantsTexOpaque[] = {
-    { "texture.deob", RASTER_BENCH_TEXTURED_OPAQUE_DEOB },
-    { "texture.deob2", RASTER_BENCH_TEXTURED_OPAQUE_DEOB2 },
-    { "texshadeblend.persp.texopaque.branching.lerp8", RASTER_BENCH_TEXTURED_OPAQUE_PERSP_BRANCHING_LERP8 },
-    { "texshadeblend.persp.texopaque.branching.lerp8_v3", RASTER_BENCH_TEXTURED_OPAQUE_PERSP_BRANCHING_LERP8_V3 },
-    { "texshadeblend.persp.texopaque.sort.lerp8", RASTER_BENCH_TEXTURED_OPAQUE_PERSP_SORT_LERP8 },
-    { "texshadeblend.affine.texopaque.branching.lerp8", RASTER_BENCH_TEXTURED_OPAQUE_AFFINE_BRANCHING_LERP8 },
-    { "texshadeblend.affine.texopaque.branching.lerp8_v3", RASTER_BENCH_TEXTURED_OPAQUE_AFFINE_BRANCHING_LERP8_V3 },
+    { "texture.deob",                                            RASTER_BENCH_TEXTURED_OPAQUE_DEOB             },
+    { "texture.deob2",                                           RASTER_BENCH_TEXTURED_OPAQUE_DEOB2            },
+    { "texshadeblend.persp.texopaque.branching.lerp8",
+     RASTER_BENCH_TEXTURED_OPAQUE_PERSP_BRANCHING_LERP8                                                        },
+    { "texshadeblend.persp.texopaque.branching.lerp8_v3",
+     RASTER_BENCH_TEXTURED_OPAQUE_PERSP_BRANCHING_LERP8_V3                                                     },
+    { "texshadeblend.persp.texopaque.branching.lerp8_vpentium4",
+     RASTER_BENCH_TEXTURED_OPAQUE_PERSP_BRANCHING_LERP8_VPENTIUM4                                              },
+    { "texshadeblend.persp.texopaque.sort.lerp8",                RASTER_BENCH_TEXTURED_OPAQUE_PERSP_SORT_LERP8 },
+    { "texshadeblend.affine.texopaque.branching.lerp8",
+     RASTER_BENCH_TEXTURED_OPAQUE_AFFINE_BRANCHING_LERP8                                                       },
+    { "texshadeblend.affine.texopaque.branching.lerp8_v3",
+     RASTER_BENCH_TEXTURED_OPAQUE_AFFINE_BRANCHING_LERP8_V3                                                    },
 };
 
 static const VariantInfo kVariantsTexTrans[] = {
-    { "texture.deob", RASTER_BENCH_TEXTURED_TRANS_DEOB },
-    { "texture.deob2", RASTER_BENCH_TEXTURED_TRANS_DEOB2 },
-    { "texshadeblend.persp.textrans.branching.lerp8", RASTER_BENCH_TEXTURED_TRANS_PERSP_BRANCHING_LERP8 },
-    { "texshadeblend.persp.textrans.branching.lerp8_v3", RASTER_BENCH_TEXTURED_TRANS_PERSP_BRANCHING_LERP8_V3 },
-    { "texshadeblend.persp.textrans.sort.lerp8", RASTER_BENCH_TEXTURED_TRANS_PERSP_SORT_LERP8 },
-    { "texshadeblend.affine.textrans.branching.lerp8", RASTER_BENCH_TEXTURED_TRANS_AFFINE_BRANCHING_LERP8 },
-    { "texshadeblend.affine.textrans.branching.lerp8_v3", RASTER_BENCH_TEXTURED_TRANS_AFFINE_BRANCHING_LERP8_V3 },
+    { "texture.deob",                                     RASTER_BENCH_TEXTURED_TRANS_DEOB             },
+    { "texture.deob2",                                    RASTER_BENCH_TEXTURED_TRANS_DEOB2            },
+    { "texshadeblend.persp.textrans.branching.lerp8",
+     RASTER_BENCH_TEXTURED_TRANS_PERSP_BRANCHING_LERP8                                                 },
+    { "texshadeblend.persp.textrans.branching.lerp8_v3",
+     RASTER_BENCH_TEXTURED_TRANS_PERSP_BRANCHING_LERP8_V3                                              },
+    { "texshadeblend.persp.textrans.sort.lerp8",          RASTER_BENCH_TEXTURED_TRANS_PERSP_SORT_LERP8 },
+    { "texshadeblend.affine.textrans.branching.lerp8",
+     RASTER_BENCH_TEXTURED_TRANS_AFFINE_BRANCHING_LERP8                                                },
+    { "texshadeblend.affine.textrans.branching.lerp8_v3",
+     RASTER_BENCH_TEXTURED_TRANS_AFFINE_BRANCHING_LERP8_V3                                             },
 };
 
 static const VariantInfo kVariantsTexFlatOpaque[] = {
-    { "texture.deob", RASTER_BENCH_TEXTURED_FLAT_OPAQUE_DEOB },
-    { "texture.deob2", RASTER_BENCH_TEXTURED_FLAT_OPAQUE_DEOB2 },
-    { "texshadeflat.persp.texopaque.branching.lerp8", RASTER_BENCH_TEXTURED_FLAT_OPAQUE_PERSP_BRANCHING_LERP8 },
-    { "texshadeflat.persp.texopaque.sort.lerp8", RASTER_BENCH_TEXTURED_FLAT_OPAQUE_PERSP_SORT_LERP8 },
+    { "texture.deob",                                 RASTER_BENCH_TEXTURED_FLAT_OPAQUE_DEOB  },
+    { "texture.deob2",                                RASTER_BENCH_TEXTURED_FLAT_OPAQUE_DEOB2 },
+    { "texshadeflat.persp.texopaque.branching.lerp8",
+     RASTER_BENCH_TEXTURED_FLAT_OPAQUE_PERSP_BRANCHING_LERP8                                  },
+    { "texshadeflat.persp.texopaque.sort.lerp8",
+     RASTER_BENCH_TEXTURED_FLAT_OPAQUE_PERSP_SORT_LERP8                                       },
 };
 
 static const VariantInfo kVariantsTexFlatTrans[] = {
-    { "texture.deob", RASTER_BENCH_TEXTURED_FLAT_TRANS_DEOB },
-    { "texture.deob2", RASTER_BENCH_TEXTURED_FLAT_TRANS_DEOB2 },
-    { "texshadeflat.persp.textrans.branching.lerp8", RASTER_BENCH_TEXTURED_FLAT_TRANS_PERSP_BRANCHING_LERP8 },
-    { "texshadeflat.persp.textrans.sort.lerp8", RASTER_BENCH_TEXTURED_FLAT_TRANS_PERSP_SORT_LERP8 },
+    { "texture.deob",                                RASTER_BENCH_TEXTURED_FLAT_TRANS_DEOB             },
+    { "texture.deob2",                               RASTER_BENCH_TEXTURED_FLAT_TRANS_DEOB2            },
+    { "texshadeflat.persp.textrans.branching.lerp8",
+     RASTER_BENCH_TEXTURED_FLAT_TRANS_PERSP_BRANCHING_LERP8                                            },
+    { "texshadeflat.persp.textrans.sort.lerp8",      RASTER_BENCH_TEXTURED_FLAT_TRANS_PERSP_SORT_LERP8 },
 };
 
 /* Order matches RASTER_BENCH_PACK(g, f, tex_o, tex_t, texfo, tft, f_alpha, g_alpha). */
 static const SlotInfo kSlots[kBenchSlotCount] = {
-    { "Gouraud opaque", "gouraud.opaque", RASTER_BENCH_SHIFT_GOURAUD, kVariantsGouraudOpaque, 6, 1 },
-    { "Flat opaque", "flat.opaque", RASTER_BENCH_SHIFT_FLAT, kVariantsFlatOpaque, 3, 1 },
-    { "Tex opaque", "texopaque.blend", RASTER_BENCH_SHIFT_TEXTURED_OPAQUE, kVariantsTexOpaque, 7, 3 },
-    { "Tex transparent", "textrans.blend", RASTER_BENCH_SHIFT_TEXTURED_TRANS, kVariantsTexTrans, 7, 3 },
-    { "Tex-flat opaque", "texopaque.flat", RASTER_BENCH_SHIFT_TEXTURED_FLAT_OPAQUE, kVariantsTexFlatOpaque, 4, 2 },
-    { "Tex-flat transparent", "textrans.flat", RASTER_BENCH_SHIFT_TEXTURED_FLAT_TRANS, kVariantsTexFlatTrans, 4, 2 },
-    { "Flat alpha", "flat.alpha", RASTER_BENCH_SHIFT_FLAT_ALPHA, kVariantsFlatAlpha, 3, 1 },
-    { "Gouraud alpha", "gouraud.alpha", RASTER_BENCH_SHIFT_GOURAUD_ALPHA, kVariantsGouraudAlpha, 7, 2 },
+    { "Gouraud opaque",
+     "gouraud.opaque",                       RASTER_BENCH_SHIFT_GOURAUD,
+     kVariantsGouraudOpaque,                                                                               7,
+     1                                                                                                          },
+    { "Flat opaque",          "flat.opaque", RASTER_BENCH_SHIFT_FLAT,                 kVariantsFlatOpaque, 3, 1 },
+    { "Tex opaque",
+     "texopaque.blend",                      RASTER_BENCH_SHIFT_TEXTURED_OPAQUE,
+     kVariantsTexOpaque,                                                                                   8,
+     3                                                                                                          },
+    { "Tex transparent",
+     "textrans.blend",                       RASTER_BENCH_SHIFT_TEXTURED_TRANS,
+     kVariantsTexTrans,                                                                                    7,
+     3                                                                                                          },
+    { "Tex-flat opaque",
+     "texopaque.flat",                       RASTER_BENCH_SHIFT_TEXTURED_FLAT_OPAQUE,
+     kVariantsTexFlatOpaque,                                                                               4,
+     2                                                                                                          },
+    { "Tex-flat transparent",
+     "textrans.flat",                        RASTER_BENCH_SHIFT_TEXTURED_FLAT_TRANS,
+     kVariantsTexFlatTrans,                                                                                4,
+     2                                                                                                          },
+    { "Flat alpha",           "flat.alpha",  RASTER_BENCH_SHIFT_FLAT_ALPHA,           kVariantsFlatAlpha,  3, 1 },
+    { "Gouraud alpha",
+     "gouraud.alpha",                        RASTER_BENCH_SHIFT_GOURAUD_ALPHA,
+     kVariantsGouraudAlpha,                                                                                7,
+     2                                                                                                          },
 };
 
 struct BenchState
@@ -198,7 +229,9 @@ pack_live(BenchState const& s)
 }
 
 static uint32_t
-pack_with_override(int slot, int variant_index)
+pack_with_override(
+    int slot,
+    int variant_index)
 {
     uint32_t const base = pack_defaults();
     uint32_t const shift = kSlots[slot].shift;
@@ -217,7 +250,9 @@ current_bench_pack(BenchState const& s)
 }
 
 static bool
-bench_find_first_variant(int* out_slot, int* out_v)
+bench_find_first_variant(
+    int* out_slot,
+    int* out_v)
 {
     for( int si = 0; si < kBenchSlotCount; ++si )
     {
@@ -234,7 +269,9 @@ bench_find_first_variant(int* out_slot, int* out_v)
 }
 
 static bool
-bench_advance_variant(int* slot_io, int* v_io)
+bench_advance_variant(
+    int* slot_io,
+    int* v_io)
 {
     int cs = *slot_io;
     int cv = *v_io + 1;
@@ -299,7 +336,9 @@ write_report_entry(
 }
 
 static double
-mean_ms(double const* arr, int n)
+mean_ms(
+    double const* arr,
+    int n)
 {
     if( n <= 0 )
         return 0.0;
@@ -310,7 +349,9 @@ mean_ms(double const* arr, int n)
 }
 
 static void
-ring_push(BenchState* st, double ms)
+ring_push(
+    BenchState* st,
+    double ms)
 {
     st->ring_times_ms[st->ring_pos] = ms;
     st->ring_pos = (st->ring_pos + 1) % 1000;
@@ -334,7 +375,9 @@ rolling_mean_fps(BenchState const& st)
 }
 
 static void
-bench_panel_draw(struct nk_context* nk, struct GGame* game)
+bench_panel_draw(
+    struct nk_context* nk,
+    struct GGame* game)
 {
     (void)game;
     if( nk_begin(
@@ -368,13 +411,7 @@ bench_panel_draw(struct nk_context* nk, struct GGame* game)
                 labels[i] = sl.variants[i].canonical;
 
             nk_label(nk, sl.slot_label, NK_TEXT_LEFT);
-            nk_combobox(
-                nk,
-                labels,
-                n,
-                &g_bench.selected_variant[si],
-                22,
-                nk_vec2(400, 200));
+            nk_combobox(nk, labels, n, &g_bench.selected_variant[si], 22, nk_vec2(400, 200));
         }
 
         nk_layout_row_dynamic(nk, 28, 2);
@@ -502,7 +539,8 @@ main(
     int const game_height = kGameViewportHeight;
     int const render_max_width = game_width;
     int const render_max_height = game_height;
-    struct ToriRSRenderCommandBuffer* render_command_buffer = LibToriRS_RenderCommandBufferNew(1024);
+    struct ToriRSRenderCommandBuffer* render_command_buffer =
+        LibToriRS_RenderCommandBufferNew(1024);
     struct Platform2_SDL2* platform = Platform2_SDL2_New();
     if( !platform )
     {
@@ -549,7 +587,8 @@ main(
 
     game->viewport_offset_x = kViewportInset;
     game->viewport_offset_y = kViewportInset;
-    PlatformImpl2_SDL2_Renderer_Soft3D_SetDashOffset(renderer_soft3d, kViewportInset, kViewportInset);
+    PlatformImpl2_SDL2_Renderer_Soft3D_SetDashOffset(
+        renderer_soft3d, kViewportInset, kViewportInset);
 
     renderer_soft3d->clicked_tile_x = -1;
     renderer_soft3d->clicked_tile_z = -1;

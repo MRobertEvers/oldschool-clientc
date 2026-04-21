@@ -44,6 +44,7 @@
 #include "graphics/raster/gouraud/gouraud.screen.opaque.bary.sort.s1.u.c"
 #include "graphics/raster/gouraud/gouraud.screen.opaque.bary.sort.s4.u.c"
 #include "graphics/raster/gouraud/gouraud.screen.opaque.edge.sort.s4.u.c"
+#include "graphics/raster/gouraud/gouraud.screen.opaque.edge.branching.s4.u.c"
 #include "graphics/raster/gouraud/span/gouraud.screen.alpha.span.u.c"
 
 /* Texture dependencies — replicate include chain from texture.u.c */
@@ -80,6 +81,7 @@
 #include "graphics/raster/texture/texshadeblend.affine.textrans.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texshadeblend.persp.texopaque.branching.lerp8.u.c"
 #include "graphics/raster/texture/texshadeblend.persp.texopaque.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texshadeblend.persp.texopaque.branching.lerp8_vpentium4.u.c"
 #include "graphics/raster/texture/texshadeblend.persp.texopaque.sort.lerp8.u.c"
 #include "graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8.u.c"
 #include "graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c"
@@ -141,6 +143,7 @@ enum BenchVariant
     BENCH_TEXBLEND_PERSP_OPAQUE_BRANCHING,
     BENCH_TEXBLEND_PERSP_TRANS_BRANCHING,
     BENCH_TEXBLEND_PERSP_OPAQUE_BRANCHING_V3,
+    BENCH_TEXBLEND_PERSP_OPAQUE_BRANCHING_VPENTIUM4,
     BENCH_TEXBLEND_PERSP_TRANS_BRANCHING_V3,
     BENCH_TEXBLEND_PERSP_OPAQUE_SORT,
     BENCH_TEXBLEND_PERSP_TRANS_SORT,
@@ -179,6 +182,7 @@ static const char* variant_names[BENCH_VARIANT_COUNT] = {
     "TexBlend persp opaque (branching lerp8)",
     "TexBlend persp transparent (branching lerp8)",
     "TexBlend persp opaque (branching lerp8_v3)",
+    "TexBlend persp opaque (branching lerp8_vpentium4)",
     "TexBlend persp transparent (branching lerp8_v3)",
     "TexBlend persp opaque (sort lerp8)",
     "TexBlend persp transparent (sort lerp8)",
@@ -198,7 +202,7 @@ static const char* variant_names[BENCH_VARIANT_COUNT] = {
 
 /* Category for display grouping */
 static int variant_category[BENCH_VARIANT_COUNT] = {
-    0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5,
+    0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5,
 };
 static const char* category_names[] = {
     "Flat",
@@ -861,6 +865,34 @@ run_benchmark_variant(
                 break;
             case BENCH_TEXBLEND_PERSP_OPAQUE_BRANCHING_V3:
                 raster_texshadeblend_persp_texopaque_branching_lerp8_v3(
+                    pixels,
+                    SCREEN_W,
+                    SCREEN_W,
+                    SCREEN_H,
+                    CAMERA_FOV,
+                    tri_x0[i],
+                    tri_x1[i],
+                    tri_x2[i],
+                    tri_y0[i],
+                    tri_y1[i],
+                    tri_y2[i],
+                    tri_ortho_uvorigin_x[i],
+                    tri_ortho_uend_x[i],
+                    tri_ortho_vend_x[i],
+                    tri_ortho_uvorigin_y[i],
+                    tri_ortho_uend_y[i],
+                    tri_ortho_vend_y[i],
+                    tri_ortho_uvorigin_z[i],
+                    tri_ortho_uend_z[i],
+                    tri_ortho_vend_z[i],
+                    tri_shade7bit[i],
+                    tri_shade7bit[i],
+                    tri_shade7bit[i],
+                    texels,
+                    TEX_WIDTH);
+                break;
+            case BENCH_TEXBLEND_PERSP_OPAQUE_BRANCHING_VPENTIUM4:
+                raster_texshadeblend_persp_texopaque_branching_lerp8_vpentium4(
                     pixels,
                     SCREEN_W,
                     SCREEN_W,
@@ -1618,6 +1650,34 @@ run_benchmark_variant(
                     texels,
                     TEX_WIDTH);
                 break;
+            case BENCH_TEXBLEND_PERSP_OPAQUE_BRANCHING_VPENTIUM4:
+                raster_texshadeblend_persp_texopaque_branching_lerp8_vpentium4(
+                    pixels,
+                    SCREEN_W,
+                    SCREEN_W,
+                    SCREEN_H,
+                    CAMERA_FOV,
+                    tri_x0[i],
+                    tri_x1[i],
+                    tri_x2[i],
+                    tri_y0[i],
+                    tri_y1[i],
+                    tri_y2[i],
+                    tri_ortho_uvorigin_x[i],
+                    tri_ortho_uend_x[i],
+                    tri_ortho_vend_x[i],
+                    tri_ortho_uvorigin_y[i],
+                    tri_ortho_uend_y[i],
+                    tri_ortho_vend_y[i],
+                    tri_ortho_uvorigin_z[i],
+                    tri_ortho_uend_z[i],
+                    tri_ortho_vend_z[i],
+                    tri_shade7bit[i],
+                    tri_shade7bit[i],
+                    tri_shade7bit[i],
+                    texels,
+                    TEX_WIDTH);
+                break;
             case BENCH_TEXBLEND_PERSP_TRANS_BRANCHING_V3:
                 raster_texshadeblend_persp_textrans_branching_lerp8_v3(
                     pixels,
@@ -2198,6 +2258,7 @@ main(
     printf("\n[Texture Blend Persp — opaque]\n");
     run_benchmark_variant(BENCH_TEXBLEND_PERSP_OPAQUE_BRANCHING, opaque_texels);
     run_benchmark_variant(BENCH_TEXBLEND_PERSP_OPAQUE_BRANCHING_V3, opaque_texels);
+    run_benchmark_variant(BENCH_TEXBLEND_PERSP_OPAQUE_BRANCHING_VPENTIUM4, opaque_texels);
     run_benchmark_variant(BENCH_TEXBLEND_PERSP_OPAQUE_SORT, opaque_texels);
 
     printf("\n[Texture Blend Persp — transparent]\n");

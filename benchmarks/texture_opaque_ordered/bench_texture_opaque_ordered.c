@@ -5,19 +5,23 @@
  * Same projection + tex.span (SIMD) are included once via the first header; the v3 header adds
  * the SIMD-path raster without re-including projection/simd (include guards).
  */
+#include <stdint.h>
 #include <stdio.h>
 #include <time.h>
 
 int g_sin_table[2048];
 int g_cos_table[2048];
 int g_tan_table[2048];
-int g_reciprocal16_simd[4096];
+uint16_t g_reciprocal16_simd[256 * 1024];
+uint32_t g_reciprocal_norm30[1 << 15];
 
-#define raster_texshadeblend_persp_texopaque_branching_lerp8 bench_raster_texture_opaque_blend_scalar
+#define raster_texshadeblend_persp_texopaque_branching_lerp8                                       \
+    bench_raster_texture_opaque_blend_scalar
 #include "../../src/graphics/old/texture_blend_branching.u.c"
 #undef raster_texshadeblend_persp_texopaque_branching_lerp8
 
-#define raster_texshadeblend_persp_texopaque_branching_lerp8_v3 bench_raster_texture_opaque_blend_simd
+#define raster_texshadeblend_persp_texopaque_branching_lerp8_v3                                    \
+    bench_raster_texture_opaque_blend_simd
 #include "../../src/graphics/old/texture_blend_branching_v3.u.c"
 #undef raster_texshadeblend_persp_texopaque_branching_lerp8_v3
 
@@ -56,8 +60,10 @@ fill_lookup_stubs(void)
         g_cos_table[i] = 65536;
         g_tan_table[i] = 65536;
     }
-    for( int i = 0; i < 4096; i++ )
-        g_reciprocal16_simd[i] = (int)(65536.0 * 4096.0 / (double)(i + 1));
+    for( int i = 1; i < 256 * 1024; i++ )
+        g_reciprocal16_simd[i] = (uint16_t)((1 << 16) / i);
+    for( uint32_t i = 0; i < (1u << 15); i++ )
+        g_reciprocal_norm30[i] = (uint32_t)((1u << 30) / (0x8000u + i));
 }
 
 typedef void (*branching_lerp8_fn)(
@@ -247,7 +253,8 @@ main(void)
     const int n_cases = (int)(sizeof(cases) / sizeof(cases[0]));
 
     printf(
-        "raster_texshadeblend_persp_texopaque_branching_lerp8 vs raster_texshadeblend_persp_texopaque_branching_lerp8_v3\n"
+        "raster_texshadeblend_persp_texopaque_branching_lerp8 vs "
+        "raster_texshadeblend_persp_texopaque_branching_lerp8_v3\n"
         "iters=%d  warmup=%d\n\n",
         BENCH_ITERS,
         BENCH_WARMUP);
@@ -313,8 +320,10 @@ main(void)
 
         printf(
             "%s  (%dx%d tex=%d fov=%d)\n"
-            "  raster_texshadeblend_persp_texopaque_branching_lerp8:    %6.4f s total  %6.3f ms/call\n"
-            "  raster_texshadeblend_persp_texopaque_branching_lerp8_v3: %6.4f s total  %6.3f ms/call  (SIMD ~%.2f× "
+            "  raster_texshadeblend_persp_texopaque_branching_lerp8:    %6.4f s total  %6.3f "
+            "ms/call\n"
+            "  raster_texshadeblend_persp_texopaque_branching_lerp8_v3: %6.4f s total  %6.3f "
+            "ms/call  (SIMD ~%.2f× "
             "faster)\n\n",
             bc->name,
             bc->screen_w,

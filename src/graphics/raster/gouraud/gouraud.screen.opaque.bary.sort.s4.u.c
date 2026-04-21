@@ -2,8 +2,7 @@
 #define GOURAUD_SCREEN_OPAQUE_BARY_SORT_S4_U_C
 
 #include "graphics/dash_restrict.h"
-
-#include <stdint.h>
+#include "graphics/raster/gouraud/gouraud_barycentric_steps.h"
 
 extern int g_hsl16_to_rgb_table[65536];
 
@@ -159,9 +158,9 @@ raster_gouraud_screen_opaque_bary_sort_s4(
     int d_hsl_AC = color2_hsl16 - color0_hsl16;
 
     int step_x_hsl_ish8 =
-        (int)(((int64_t)(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB) << 8) / sarea);
+        gouraud_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, sarea);
     int step_y_hsl_ish8 =
-        (int)(((int64_t)(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC) << 8) / sarea);
+        gouraud_barycentric_hsl_step_ish8(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, sarea);
 
     int dx_BC = x2 - x1;
     int dy_BC = y2 - y1;
@@ -208,10 +207,10 @@ raster_gouraud_screen_opaque_bary_sort_s4(
         y1 = 0;
     }
 
-    if( y1 >= screen_height )
-        y1 = screen_height - 1;
-    if( y2 >= screen_height )
-        y2 = screen_height - 1;
+    if( y1 > screen_height )
+        y1 = screen_height;
+    if( y2 > screen_height )
+        y2 = screen_height;
 
     int offset = y0 * stride;
 
@@ -222,14 +221,7 @@ raster_gouraud_screen_opaque_bary_sort_s4(
         int x_hi = MAX(edge_x_AC_ish16, edge_x_AB_ish16);
 
         draw_scanline_gouraud_screen_opaque_bary_sort_s4(
-            pixel_buffer,
-            offset,
-            screen_width,
-            i,
-            x_lo,
-            x_hi,
-            hsl_ish8,
-            step_x_hsl_ish8);
+            pixel_buffer, offset, screen_width, i, x_lo, x_hi, hsl_ish8, step_x_hsl_ish8);
 
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_AB_ish16 += step_edge_x_AB_ish16;
@@ -249,14 +241,7 @@ raster_gouraud_screen_opaque_bary_sort_s4(
         int x_hi = MAX(edge_x_AC_ish16, edge_x_BC_ish16);
 
         draw_scanline_gouraud_screen_opaque_bary_sort_s4(
-            pixel_buffer,
-            offset,
-            screen_width,
-            i,
-            x_lo,
-            x_hi,
-            hsl_ish8,
-            step_x_hsl_ish8);
+            pixel_buffer, offset, screen_width, i, x_lo, x_hi, hsl_ish8, step_x_hsl_ish8);
 
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
         edge_x_BC_ish16 += step_edge_x_BC_ish16;
