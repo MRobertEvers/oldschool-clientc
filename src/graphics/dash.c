@@ -528,13 +528,13 @@ dash3d_calculate_cylinder_aabb_8point(
     vertexint_t bb_z[8] = { max_z, min_z, max_z, min_z, max_z, min_z, max_z, min_z };
 
     /* 3. Do not zero-initialize these arrays!
-       project_vertices_array_notex completely overwrites them immediately.
+       project_vertices_array_fused_notex completely overwrites them immediately.
        { 0 } forces the CPU to call memset or do 24 unnecessary writes. */
     int sc_x[8];
     int sc_y[8];
     int sc_z[8];
 
-    project_vertices_array_notex(
+    project_vertices_array_fused_notex(
         sc_x,
         sc_y,
         sc_z,
@@ -2007,7 +2007,7 @@ dash3d_project(
         assert(nf <= 4096);
         if( dashmodel_has_textures(model) )
         {
-            project_vertices_array_sparse(
+            project_vertices_array_sparse_fused(
                 dash->orthographic_vertices_x,
                 dash->orthographic_vertices_y,
                 dash->orthographic_vertices_z,
@@ -2033,7 +2033,7 @@ dash3d_project(
         }
         else
         {
-            project_vertices_array_notex_sparse(
+            project_vertices_array_sparse_fused_notex(
                 dash->screen_vertices_x,
                 dash->screen_vertices_y,
                 dash->screen_vertices_z,
@@ -2060,7 +2060,7 @@ dash3d_project(
     case DASHMODEL_TYPE_FULL:
         if( dashmodel_has_textures(model) )
         {
-            project_vertices_array(
+            project_vertices_array_fused(
                 dash->orthographic_vertices_x,
                 dash->orthographic_vertices_y,
                 dash->orthographic_vertices_z,
@@ -2083,7 +2083,7 @@ dash3d_project(
         }
         else
         {
-            project_vertices_array_notex(
+            project_vertices_array_fused_notex(
                 dash->screen_vertices_x,
                 dash->screen_vertices_y,
                 dash->screen_vertices_z,
@@ -2220,7 +2220,7 @@ dash3d_project_raw(
         assert(nf <= 4096);
         if( dashmodel_has_textures(model) )
         {
-            project_vertices_array_sparse(
+            project_vertices_array_sparse_fused(
                 dash->orthographic_vertices_x,
                 dash->orthographic_vertices_y,
                 dash->orthographic_vertices_z,
@@ -2246,7 +2246,7 @@ dash3d_project_raw(
         }
         else
         {
-            project_vertices_array_notex_sparse(
+            project_vertices_array_sparse_fused_notex(
                 dash->screen_vertices_x,
                 dash->screen_vertices_y,
                 dash->screen_vertices_z,
@@ -2273,7 +2273,7 @@ dash3d_project_raw(
     case DASHMODEL_TYPE_FULL:
         if( dashmodel_has_textures(model) )
         {
-            project_vertices_array(
+            project_vertices_array_fused(
                 dash->orthographic_vertices_x,
                 dash->orthographic_vertices_y,
                 dash->orthographic_vertices_z,
@@ -2296,7 +2296,7 @@ dash3d_project_raw(
         }
         else
         {
-            project_vertices_array_notex(
+            project_vertices_array_fused_notex(
                 dash->screen_vertices_x,
                 dash->screen_vertices_y,
                 dash->screen_vertices_z,
@@ -2420,7 +2420,7 @@ dash3d_project6(
         assert(nf <= 4096);
         if( dashmodel_has_textures(model) )
         {
-            project_vertices_array6_sparse(
+            project_vertices_array6_sparse_fused(
                 dash->orthographic_vertices_x,
                 dash->orthographic_vertices_y,
                 dash->orthographic_vertices_z,
@@ -2449,7 +2449,7 @@ dash3d_project6(
         }
         else
         {
-            project_vertices_array6_notex_sparse(
+            project_vertices_array6_sparse_fused_notex(
                 dash->screen_vertices_x,
                 dash->screen_vertices_y,
                 dash->screen_vertices_z,
@@ -2479,7 +2479,7 @@ dash3d_project6(
     case DASHMODEL_TYPE_FULL:
         if( dashmodel_has_textures(model) )
         {
-            project_vertices_array6(
+            project_vertices_array6_fused(
                 dash->orthographic_vertices_x,
                 dash->orthographic_vertices_y,
                 dash->orthographic_vertices_z,
@@ -2505,7 +2505,7 @@ dash3d_project6(
         }
         else
         {
-            project_vertices_array6_notex(
+            project_vertices_array6_fused_notex(
                 dash->screen_vertices_x,
                 dash->screen_vertices_y,
                 dash->screen_vertices_z,
