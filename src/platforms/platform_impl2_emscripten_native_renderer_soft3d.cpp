@@ -12,23 +12,34 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
-EM_JS(void, emscripten_native_canvas_put_rgba, (const uint8_t* rgba_ptr, int w, int h, int dst_x, int dst_y), {
-    var canvas = document.getElementById('canvas');
-    if( !canvas || !rgba_ptr || w <= 0 || h <= 0 )
-        return;
-    var ctx = canvas.getContext('2d');
-    if( !ctx )
-        return;
-    var len = w * h * 4;
-    var copy = new Uint8ClampedArray(Module.HEAPU8.buffer, rgba_ptr, len);
-    var data = new Uint8ClampedArray(copy);
-    var imageData = new ImageData(data, w, h);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.putImageData(imageData, dst_x, dst_y);
-});
+EM_JS(
+    void,
+    emscripten_native_canvas_put_rgba,
+    (const uint8_t* rgba_ptr,
+     int w,
+     int h,
+     int dst_x,
+     int dst_y),
+    {
+        var canvas = document.getElementById('canvas');
+        if( !canvas || !rgba_ptr || w <= 0 || h <= 0 )
+            return;
+        var ctx = canvas.getContext('2d');
+        if( !ctx )
+            return;
+        var len = w * h * 4;
+        var copy = new Uint8ClampedArray(Module.HEAPU8.buffer, rgba_ptr, len);
+        var data = new Uint8ClampedArray(copy);
+        var imageData = new ImageData(data, w, h);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.putImageData(imageData, dst_x, dst_y);
+    });
 
 static void
-argb_buffer_to_rgba_bytes(const int* src, int pixel_count, uint8_t* dst_rgba)
+argb_buffer_to_rgba_bytes(
+    const int* src,
+    int pixel_count,
+    uint8_t* dst_rgba)
 {
     for( int i = 0; i < pixel_count; i++ )
     {
@@ -150,7 +161,8 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
 {
-    if( !renderer || !game || !render_command_buffer || !renderer->pixel_buffer || !renderer->rgba_buffer )
+    if( !renderer || !game || !render_command_buffer || !renderer->pixel_buffer ||
+        !renderer->rgba_buffer )
         return;
 
     game->viewport_offset_x = renderer->dash_offset_x;
@@ -286,26 +298,10 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
         }
         break;
         case TORIRS_GFX_CLEAR_RECT:
-        {
-            int cx = command._clear_rect.x;
-            int cy = command._clear_rect.y;
-            int cw = command._clear_rect.w;
-            int ch = command._clear_rect.h;
-            int* pb = renderer->pixel_buffer;
-            if( cw <= 0 || ch <= 0 || !pb )
-                break;
-            int rw = renderer->width;
-            int rh = renderer->height;
-            int x0 = cx < 0 ? 0 : cx;
-            int y0 = cy < 0 ? 0 : cy;
-            int x1 = cx + cw > rw ? rw : cx + cw;
-            int y1 = cy + ch > rh ? rh : cy + ch;
-            if( x0 >= x1 || y0 >= y1 )
-                break;
-            for( int row = y0; row < y1; ++row )
-                memset(&pb[row * rw + x0], 0, (size_t)(x1 - x0) * sizeof(int));
-        }
-        break;
+            /* No-op: this renderer does a full-frame memset to zero before processing
+             * commands, so mid-stream CLEAR_RECT would erase sprites blitted earlier
+             * in the same frame. */
+            break;
         case TORIRS_GFX_MODEL_DRAW:
             if( vp_pixels )
                 dash3d_raster_projected_model(

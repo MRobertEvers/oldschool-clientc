@@ -100,6 +100,46 @@ frame_ui_world_level_mask(struct GGame* game)
     return 0xFu;
 }
 
+/** Per-frame traversal context ("fiber") passed into every uielem step function. */
+struct UIFrameState
+{
+    struct GGame* game;
+    struct ToriRSRenderCommandBuffer* cmds;
+    int mouse_x;
+    int mouse_y;
+};
+
+/** Returns true when (mx,my) falls inside the node's bounding box. */
+static bool
+node_hit_test(
+    struct StaticUIComponent const* node,
+    int mx,
+    int my)
+{
+    int x = node->position.x;
+    int y = node->position.y;
+    int w = node->position.width;
+    int h = node->position.height;
+    return (w > 0 && h > 0 && mx >= x && mx < x + w && my >= y && my < y + h);
+}
+
+/** Returns true when the node should emit draw commands this frame. */
+static bool
+node_is_dirty(
+    struct UIFrameState const* fiber,
+    struct StaticUIComponent const* node)
+{
+    if( fiber->game->uitree_force_dirty )
+        return true;
+    if( node->always_dirty )
+        return true;
+    /* World, minimap and compass are always live (continuous 3D/2D renders). */
+    if( node->type == UIELEM_BUILTIN_WORLD || node->type == UIELEM_BUILTIN_MINIMAP ||
+        node->type == UIELEM_BUILTIN_COMPASS )
+        return true;
+    return node_hit_test(node, fiber->mouse_x, fiber->mouse_y);
+}
+
 static bool
 frame_uitree_should_descend(
     struct GGame* game,
@@ -115,19 +155,23 @@ frame_uitree_should_descend(
 static void
 frame_uitree_advance_after_step(
     struct GGame* game,
-    int32_t stepped_index)
+    int32_t stepped_index,
+    bool dirty)
 {
     struct UITree* t = game->ui_root_buffer;
     struct StaticUIComponent* c = &t->components[stepped_index];
 
-    if( frame_uitree_should_descend(game, c) )
+    /* Only descend into children when the node was dirty; skip entire subtree otherwise. */
+    if( dirty && frame_uitree_should_descend(game, c) )
     {
         if( game->uitree_stack_top + 1 >= UITREE_TRAVERSAL_STACK_MAX )
         {
             game->uitree_current = -1;
             return;
         }
-        game->uitree_stack[++game->uitree_stack_top] = stepped_index;
+        game->uitree_stack[++game->uitree_stack_top] = (struct UITraversalFrame){
+            .parent_index = stepped_index,
+        };
         game->uitree_current = c->first_child;
         return;
     }
@@ -138,8 +182,8 @@ frame_uitree_advance_after_step(
     }
     while( game->uitree_stack_top >= 0 )
     {
-        int32_t pidx = game->uitree_stack[game->uitree_stack_top--];
-        struct StaticUIComponent* p = &t->components[pidx];
+        struct UITraversalFrame frame = game->uitree_stack[game->uitree_stack_top--];
+        struct StaticUIComponent* p = &t->components[frame.parent_index];
         if( p->next_sibling >= 0 )
         {
             game->uitree_current = p->next_sibling;
@@ -1056,9 +1100,11 @@ entity_coords_from_element(
 
 static bool
 uielem_redstone_tab_step(
-    struct GGame* game,
-    struct StaticUIComponent* component)
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
 {
+    struct GGame* game = fiber->game;
+    struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_BUILTIN_REDSTONE_TAB);
     if( !game->iface || !game->ui_scene )
         return true;
@@ -1120,9 +1166,11 @@ uielem_redstone_tab_step(
 
 static bool
 uielem_builtin_sidebar_step(
-    struct GGame* game,
-    struct StaticUIComponent* component)
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
 {
+    struct GGame* game = fiber->game;
+    struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_BUILTIN_SIDEBAR);
     if( !game || !game->iface )
         return true;
@@ -1137,9 +1185,11 @@ uielem_builtin_sidebar_step(
 
 static bool
 uielem_sprite_step(
-    struct GGame* game,
-    struct StaticUIComponent* component)
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
 {
+    struct GGame* game = fiber->game;
+    struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_BUILTIN_SPRITE);
 
     struct UISceneElement* element =
@@ -1168,9 +1218,11 @@ uielem_sprite_step(
 
 static bool
 uielem_world_step(
-    struct GGame* game,
-    struct StaticUIComponent* component)
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
 {
+    struct GGame* game = fiber->game;
+    struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_BUILTIN_WORLD);
 
     struct PaintersElementCommand* cmd = NULL;
@@ -1332,9 +1384,11 @@ next:
 
 static bool
 uielem_minimap_step(
-    struct GGame* game,
-    struct StaticUIComponent* component)
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
 {
+    struct GGame* game = fiber->game;
+    struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_BUILTIN_MINIMAP);
 
     struct UISceneElement* element =
@@ -1348,9 +1402,11 @@ uielem_minimap_step(
 
 static bool
 uielem_compass_step(
-    struct GGame* game,
-    struct StaticUIComponent* component)
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
 {
+    struct GGame* game = fiber->game;
+    struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_BUILTIN_COMPASS);
 
     struct UISceneElement* element =
@@ -1394,46 +1450,56 @@ uielem_compass_step(
 
 static bool
 uielem_rs_graphic_step(
-    struct GGame* game,
-    struct StaticUIComponent* component,
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node,
     int cur)
 {
+    struct GGame* game = fiber->game;
+    struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_RS_GRAPHIC);
     return rs_gfx_graphic_step(game, component, game->uiscene_queued_commands, cur);
 }
 
 static bool
 uielem_rs_text_step(
-    struct GGame* game,
-    struct StaticUIComponent* component)
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
 {
+    struct GGame* game = fiber->game;
+    struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_RS_TEXT);
     return rs_gfx_text_step(game, component, game->uiscene_queued_commands);
 }
 
 static bool
 uielem_rs_inv_step(
-    struct GGame* game,
-    struct StaticUIComponent* component)
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
 {
+    struct GGame* game = fiber->game;
+    struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_RS_INV);
     return rs_gfx_inv_step(game, component, game->uiscene_queued_commands);
 }
 
 static bool
 uielem_rs_layer_step(
-    struct GGame* game,
-    struct StaticUIComponent* component)
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
 {
+    struct GGame* game = fiber->game;
+    struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_RS_LAYER);
     return true;
 }
 
 static bool
 uielem_rs_model_step(
-    struct GGame* game,
-    struct StaticUIComponent* component)
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
 {
+    struct GGame* game = fiber->game;
+    struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_RS_MODEL);
     return rs_gfx_model_step(
         game, component, game->uiscene_queued_commands, s_frame_project_models);
@@ -1482,40 +1548,57 @@ LibToriRS_FrameNextCommand(
         int32_t cur = game->uitree_current;
         component = &game->ui_root_buffer->components[cur];
 
+        struct UIFrameState fiber = {
+            .game = game,
+            .cmds = game->uiscene_queued_commands,
+            .mouse_x = game->mouse_x,
+            .mouse_y = game->mouse_y,
+        };
+
+        bool dirty = node_is_dirty(&fiber, component);
+        component->dirty_this_frame = dirty ? 1 : 0;
+
+        if( !dirty )
+        {
+            /* Skip this node and its entire subtree. */
+            frame_uitree_advance_after_step(game, cur, false);
+            continue;
+        }
+
         switch( component->type )
         {
         case UIELEM_BUILTIN_SPRITE:
-            done = uielem_sprite_step(game, component);
+            done = uielem_sprite_step(&fiber, component);
             break;
         case UIELEM_BUILTIN_WORLD:
-            done = uielem_world_step(game, component);
+            done = uielem_world_step(&fiber, component);
             break;
         case UIELEM_BUILTIN_MINIMAP:
-            done = uielem_minimap_step(game, component);
+            done = uielem_minimap_step(&fiber, component);
             break;
         case UIELEM_BUILTIN_COMPASS:
-            done = uielem_compass_step(game, component);
+            done = uielem_compass_step(&fiber, component);
             break;
         case UIELEM_BUILTIN_REDSTONE_TAB:
-            done = uielem_redstone_tab_step(game, component);
+            done = uielem_redstone_tab_step(&fiber, component);
             break;
         case UIELEM_BUILTIN_SIDEBAR:
-            done = uielem_builtin_sidebar_step(game, component);
+            done = uielem_builtin_sidebar_step(&fiber, component);
             break;
         case UIELEM_RS_GRAPHIC:
-            done = uielem_rs_graphic_step(game, component, cur);
+            done = uielem_rs_graphic_step(&fiber, component, cur);
             break;
         case UIELEM_RS_TEXT:
-            done = uielem_rs_text_step(game, component);
+            done = uielem_rs_text_step(&fiber, component);
             break;
         case UIELEM_RS_LAYER:
-            done = uielem_rs_layer_step(game, component);
+            done = uielem_rs_layer_step(&fiber, component);
             break;
         case UIELEM_RS_MODEL:
-            done = uielem_rs_model_step(game, component);
+            done = uielem_rs_model_step(&fiber, component);
             break;
         case UIELEM_RS_INV:
-            done = uielem_rs_inv_step(game, component);
+            done = uielem_rs_inv_step(&fiber, component);
             break;
         default:
             done = true;
@@ -1523,7 +1606,7 @@ LibToriRS_FrameNextCommand(
         }
 
         if( done )
-            frame_uitree_advance_after_step(game, cur);
+            frame_uitree_advance_after_step(game, cur, true);
     }
 
     return false;
@@ -1535,6 +1618,7 @@ LibToriRS_FrameNextCommand(
 void
 LibToriRS_FrameEnd(struct GGame* game)
 {
+    game->uitree_force_dirty = false;
     /* Build optionset from pickset for tooltip and context menu (Client.ts menuOption /
      * drawTooltip). */
     if( game->world )

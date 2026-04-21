@@ -76,12 +76,14 @@ struct StaticUIElemPosition
 struct StaticUIComponent
 {
     enum StaticUIComponentType type;
-    /** Layout arg dirty=true in INI; forces always-dirty in ui_dirty_pre_pass. */
+    /** Layout arg dirty=true in INI; forces this node to always emit draw commands. */
     uint8_t always_dirty;
-    int32_t parent;        /* -1 = root or root-chain node */
-    int32_t first_child;   /* -1 = leaf */
-    int32_t next_sibling;  /* -1 = last sibling */
-    int component_id;      /* CacheDatConfigComponent id for RS nodes; -1 for builtins */
+    /** Set each frame: true if this node should emit draw commands this frame. */
+    uint8_t dirty_this_frame;
+    int32_t parent;       /* -1 = root or root-chain node */
+    int32_t first_child;  /* -1 = leaf */
+    int32_t next_sibling; /* -1 = last sibling */
+    int component_id;     /* CacheDatConfigComponent id for RS nodes; -1 for builtins */
 
     struct StaticUIElemPosition position;
     union
@@ -94,7 +96,7 @@ struct StaticUIComponent
         struct
         {
             int scene_id;        /* inactive sprite scene id; -1 if absent */
-            int atlas_index;   /* inactive sprite atlas index */
+            int atlas_index;     /* inactive sprite atlas index */
             int scene_id_active; /* active sprite scene id; -1 if absent */
             int atlas_index_active;
             int tabno; /* which selected_tab value activates this tab */
@@ -186,11 +188,15 @@ uitree_inv_pool_free(struct UIInventoryPool* pool);
 
 /** Returns pool index or -1 if not found. */
 int
-uitree_inv_pool_find_by_name(struct UIInventoryPool* pool, char const* name);
+uitree_inv_pool_find_by_name(
+    struct UIInventoryPool* pool,
+    char const* name);
 
 /** Appends a copy of inv; returns new index or -1. */
 int
-uitree_inv_pool_append(struct UIInventoryPool* pool, struct UIInventory const* inv);
+uitree_inv_pool_append(
+    struct UIInventoryPool* pool,
+    struct UIInventory const* inv);
 
 #define STATIC_UI_RELATIVE_FLAG_LEFT 1
 #define STATIC_UI_RELATIVE_FLAG_TOP 2

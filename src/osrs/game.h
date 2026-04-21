@@ -103,9 +103,15 @@ struct GGame
     struct RevConfigBuffer* pending_revconfig;
 
 #define UITREE_TRAVERSAL_STACK_MAX 64
-    int32_t uitree_stack[UITREE_TRAVERSAL_STACK_MAX];
-    int uitree_stack_top;   /* -1 = empty */
-    int32_t uitree_current; /* uitree node index, -1 when traversal done */
+    /** Per-level frame state pushed when descending into a child list. */
+    struct UITraversalFrame
+    {
+        int32_t parent_index; /* index of the parent node in ui_root_buffer->components */
+    };
+    struct UITraversalFrame uitree_stack[UITREE_TRAVERSAL_STACK_MAX];
+    int uitree_stack_top;            /* -1 = empty */
+    int32_t uitree_current;          /* uitree node index, -1 when traversal done */
+    bool uitree_force_dirty;         /* true = all nodes dirty this frame (initial state) */
 
     int uiscene_command_idx;
 

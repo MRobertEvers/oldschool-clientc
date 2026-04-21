@@ -242,6 +242,7 @@ LibToriRS_GameNew(
     game->inv_pool = uitree_inv_pool_new(32);
     game->uitree_stack_top = -1;
     game->uitree_current = -1;
+    game->uitree_force_dirty = true;
     game->clientscript_vm = clientscript_vm_new();
     game->uiscene_queued_commands = LibToriRS_RenderCommandBufferNew(64);
     game->minimap_dynamic_commands = minimap_commands_new(64);
