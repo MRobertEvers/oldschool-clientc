@@ -244,15 +244,6 @@ LibToriRS_GameNew(
     game->uitree_current = -1;
     game->clientscript_vm = clientscript_vm_new();
     game->uiscene_queued_commands = LibToriRS_RenderCommandBufferNew(64);
-    game->ui_runtime = NULL;
-    game->ui_runtime_capacity = 0;
-    game->ui_prev_selected_tab = game->iface->selected_tab;
-    game->ui_prev_sidebar_interface_id = game->iface->sidebar_interface_id;
-    game->ui_prev_viewport_interface_id = game->iface->viewport_interface_id;
-    game->ui_prev_chat_interface_id = game->iface->chat_interface_id;
-    game->ui_prev_ui_root_generation = 0;
-    game->ui_prev_view_port_w = game->view_port->width;
-    game->ui_prev_view_port_h = game->view_port->height;
     game->minimap_dynamic_commands = minimap_commands_new(64);
 
     platform_get_memory_info(&mem);
@@ -386,8 +377,6 @@ LibToriRS_GameFree(struct GGame* game)
     if( game->uiscene_queued_commands )
         LibToriRS_RenderCommandBufferFree(game->uiscene_queued_commands);
     game->uiscene_queued_commands = NULL;
-    free(game->ui_runtime);
-    game->ui_runtime = NULL;
 
     lua_buildcache_free_init_configmaps(game);
 

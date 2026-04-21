@@ -19,7 +19,6 @@
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
 #include "osrs/rs_component_state.h"
-#include "osrs/ui_dirty.h"
 #include "osrs/rsa.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
@@ -68,15 +67,6 @@ struct GGame
     int rebuilt;
 
     struct ToriRSRenderCommandBuffer* uiscene_queued_commands;
-    struct UINodeRuntime* ui_runtime;
-    uint32_t ui_runtime_capacity;
-    int ui_prev_selected_tab;
-    int ui_prev_sidebar_interface_id;
-    int ui_prev_viewport_interface_id;
-    int ui_prev_chat_interface_id;
-    uint32_t ui_prev_ui_root_generation;
-    int ui_prev_view_port_w;
-    int ui_prev_view_port_h;
 
     struct MinimapRenderCommandBuffer* minimap_dynamic_commands;
 

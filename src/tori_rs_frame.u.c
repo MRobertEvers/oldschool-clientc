@@ -12,7 +12,6 @@
 #include "osrs/revconfig/uitree.h"
 #include "osrs/rs_component_gfx.h"
 #include "osrs/rs_component_state.h"
-#include "osrs/ui_dirty.h"
 #include "osrs/scene2.h"
 #include "osrs/world_options.h"
 #include "tori_rs.h"
@@ -39,7 +38,9 @@ static bool s_frame_project_models;
 static bool s_uielem_world_inside_3d = false;
 
 static void
-emit_marker(struct ToriRSRenderCommandBuffer* buf, uint8_t kind)
+emit_marker(
+    struct ToriRSRenderCommandBuffer* buf,
+    uint8_t kind)
 {
     if( !buf )
         return;
@@ -49,7 +50,9 @@ emit_marker(struct ToriRSRenderCommandBuffer* buf, uint8_t kind)
 }
 
 static void
-emit_begin_2d_marker(struct GGame* game, int* begun)
+emit_begin_2d_marker(
+    struct GGame* game,
+    int* begun)
 {
     if( !begun || *begun || !game->uiscene_queued_commands )
         return;
@@ -58,7 +61,9 @@ emit_begin_2d_marker(struct GGame* game, int* begun)
 }
 
 static void
-emit_end_2d_marker(struct GGame* game, int* begun)
+emit_end_2d_marker(
+    struct GGame* game,
+    int* begun)
 {
     if( !begun || !*begun || !game->uiscene_queued_commands )
         return;
@@ -373,7 +378,8 @@ queue_static_ui_minimap_draws(
     {
         fprintf(
             stderr,
-            "[minimap] draw skipped: bad src rect src_w=%d src_h=%d (camera tiles sw=%d,%d ne=%d,%d)\n",
+            "[minimap] draw skipped: bad src rect src_w=%d src_h=%d (camera tiles sw=%d,%d "
+            "ne=%d,%d)\n",
             src_w,
             src_h,
             sw_x,
@@ -412,7 +418,7 @@ queue_static_ui_minimap_draws(
     }
 
     emit_begin_2d_marker(game, &minimap_pass_2d);
-   
+
     LibToriRS_RenderCommandBufferAddCommand(
         game->uiscene_queued_commands,
             (struct ToriRSRenderCommand){
@@ -554,9 +560,8 @@ queue_static_load_commands(
             if( scene_event.type == SCENE2_EVENT_VERTEX_ARRAY_ADDED )
             {
                 struct ToriRSRenderCommand cmd = { 0 };
-                cmd.kind =
-                    scene_event.batched ? TORIRS_GFX_VERTEX_ARRAY_BATCHED_LOAD
-                                        : TORIRS_GFX_VERTEX_ARRAY_LOAD;
+                cmd.kind = scene_event.batched ? TORIRS_GFX_VERTEX_ARRAY_BATCHED_LOAD
+                                               : TORIRS_GFX_VERTEX_ARRAY_LOAD;
                 cmd._vertex_array_load.array_id = scene_event.u.vertex_array.array_id;
                 cmd._vertex_array_load.array = scene_event.u.vertex_array.array;
                 LibToriRS_RenderCommandBufferAddCommand(render_command_buffer, cmd);
@@ -650,7 +655,6 @@ queue_static_load_commands(
                         continue;
                     queue_sprite_load_from_event(
                         render_command_buffer, ui_event.element_id, ai, sp);
-                  
                 }
             }
             else if( ui_event.type == UISCENE_EVENT_ELEMENT_RELEASED )
@@ -712,10 +716,6 @@ LibToriRS_FrameBegin(
     game->uiscene_command_idx = 0;
     if( game->uiscene_queued_commands )
         LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
-
-    ui_runtime_ensure_capacity(
-        game, game->ui_root_buffer ? game->ui_root_buffer->component_count : 0);
-    ui_dirty_pre_pass(game);
 
     s_uielem_world_inside_3d = false;
 
@@ -1065,9 +1065,6 @@ uielem_redstone_tab_step(
     if( game->iface->sidebar_interface_id != -1 )
         return true;
 
-    if( !ui_dirty_node(game, component) )
-        return true;
-
     int redstone_2d = 0;
 
     int tabno = component->u.redstone_tab.tabno;
@@ -1134,9 +1131,6 @@ uielem_builtin_sidebar_step(
     if( !frame_sidebar_tab_active(game, component) )
         return true;
 
-    if( !ui_dirty_node(game, component) )
-        return true;
-
     /* Active tab: panel is drawn by RS child nodes under this builtin. */
     return true;
 }
@@ -1147,9 +1141,6 @@ uielem_sprite_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_BUILTIN_SPRITE);
-
-    if( !ui_dirty_node(game, component) )
-        return true;
 
     struct UISceneElement* element =
         uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
@@ -1181,9 +1172,6 @@ uielem_world_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_BUILTIN_WORLD);
-
-    if( !ui_dirty_node(game, component) )
-        return true;
 
     struct PaintersElementCommand* cmd = NULL;
     struct DashPosition position = { 0 };
@@ -1349,9 +1337,6 @@ uielem_minimap_step(
 {
     assert(component->type == UIELEM_BUILTIN_MINIMAP);
 
-    if( !ui_dirty_node(game, component) )
-        return true;
-
     struct UISceneElement* element =
         uiscene_element_at(game->ui_scene, component->u.minimap.scene_id);
     if( !element )
@@ -1367,9 +1352,6 @@ uielem_compass_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_BUILTIN_COMPASS);
-
-    if( !ui_dirty_node(game, component) )
-        return true;
 
     struct UISceneElement* element =
         uiscene_element_at(game->ui_scene, component->u.sprite.scene_id);
@@ -1417,8 +1399,6 @@ uielem_rs_graphic_step(
     int cur)
 {
     assert(component->type == UIELEM_RS_GRAPHIC);
-    if( !ui_dirty_node(game, component) )
-        return true;
     return rs_gfx_graphic_step(game, component, game->uiscene_queued_commands, cur);
 }
 
@@ -1428,8 +1408,6 @@ uielem_rs_text_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_RS_TEXT);
-    if( !ui_dirty_node(game, component) )
-        return true;
     return rs_gfx_text_step(game, component, game->uiscene_queued_commands);
 }
 
@@ -1439,8 +1417,6 @@ uielem_rs_inv_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_RS_INV);
-    if( !ui_dirty_node(game, component) )
-        return true;
     return rs_gfx_inv_step(game, component, game->uiscene_queued_commands);
 }
 
@@ -1450,8 +1426,6 @@ uielem_rs_layer_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_RS_LAYER);
-    if( !ui_dirty_node(game, component) )
-        return true;
     return true;
 }
 
@@ -1461,8 +1435,6 @@ uielem_rs_model_step(
     struct StaticUIComponent* component)
 {
     assert(component->type == UIELEM_RS_MODEL);
-    if( !ui_dirty_node(game, component) )
-        return true;
     return rs_gfx_model_step(
         game, component, game->uiscene_queued_commands, s_frame_project_models);
 }
@@ -1481,9 +1453,8 @@ LibToriRS_FrameNextCommand(
 
     while( true )
     {
-        if( render_command_buffer &&
-            game->at_render_command_index <
-                LibToriRS_RenderCommandBufferCount(render_command_buffer) )
+        if( render_command_buffer && game->at_render_command_index <
+                                         LibToriRS_RenderCommandBufferCount(render_command_buffer) )
         {
             cmd = LibToriRS_RenderCommandBufferAt(
                 render_command_buffer, game->at_render_command_index);

@@ -10,17 +10,21 @@ check_include_file_cxx("d3d8.h" HAVE_D3D8_H)
 set(HAVE_LIBD3D8 0)
 set(TORIRS_D3D8_IMPORT_LIB "")
 set(TORIRS_DXGUID_IMPORT_LIB "")
+
 if(HAVE_D3D8_H AND DEFINED CMAKE_CXX_COMPILER)
     get_filename_component(_torirs_cxx_bin "${CMAKE_CXX_COMPILER}" DIRECTORY)
     set(_torirs_d3d8_libdir "${_torirs_cxx_bin}/../i686-w64-mingw32/lib")
+
     if(EXISTS "${_torirs_d3d8_libdir}/libd3d8.a")
         find_library(TORIRS_D3D8_IMPORT_LIB d3d8 PATHS "${_torirs_d3d8_libdir}" NO_DEFAULT_PATH)
         find_library(TORIRS_DXGUID_IMPORT_LIB dxguid PATHS "${_torirs_d3d8_libdir}" NO_DEFAULT_PATH)
+
         if(TORIRS_D3D8_IMPORT_LIB AND TORIRS_DXGUID_IMPORT_LIB)
             set(HAVE_LIBD3D8 1)
         endif()
     endif()
 endif()
+
 if(HAVE_D3D8_H AND NOT HAVE_LIBD3D8)
     check_library_exists(d3d8 Direct3DCreate8 "" HAVE_LIBD3D8)
 endif()
@@ -40,6 +44,7 @@ endif()
 # # Disable ASAN (default)
 # cmake -DENABLE_ASAN=OFF ..
 option(ENABLE_ASAN "Enable AddressSanitizer (ASAN)" OFF)
+
 # # Enable UBSAN
 # cmake -DENABLE_UBSAN=ON ..
 # # Disable UBSAN (default)
@@ -54,6 +59,7 @@ set_property(CACHE DASH_BUCKET_SORT_MODE PROPERTY STRINGS SPARSE_2D LINKED_LIST 
 
 option(DASH_BUCKET_SORT_USE_LINKED_LIST
     "Legacy alias: when ON, forces DASH_BUCKET_SORT_MODE=LINKED_LIST" OFF)
+
 if(DASH_BUCKET_SORT_USE_LINKED_LIST)
     set(DASH_BUCKET_SORT_MODE "LINKED_LIST" CACHE STRING
         "Bucket sort backend: SPARSE_2D, LINKED_LIST, or PREFIX_SUM" FORCE)
@@ -139,7 +145,6 @@ set(COMMON_SOURCES
     src/osrs/interface.c
     src/osrs/interface_state.c
     src/osrs/rs_component_state.c
-    src/osrs/ui_dirty.c
     src/osrs/clientscript_vm.c
     src/osrs/obj_icon.c
     src/osrs/gio_cache_dat.c
@@ -259,8 +264,9 @@ if(NOT EMSCRIPTEN)
     list(REMOVE_ITEM BENCH_SDL2_SOURCES test/sdl2.cpp)
     list(APPEND BENCH_SDL2_SOURCES benchmarks/bench_sdl2/bench_sdl2_main.cpp)
     add_executable(bench_sdl2 ${BENCH_SDL2_SOURCES})
+
     # Optional: U/V wrap (%128 per axis) in deob texel fetch — add
-    #   target_compile_definitions(bench_sdl2 PRIVATE DEOB_TEXTURE_DEBUG_V_MODULO=1)
+    # target_compile_definitions(bench_sdl2 PRIVATE DEOB_TEXTURE_DEBUG_V_MODULO=1)
     if(WIN32)
         target_compile_definitions(bench_sdl2 PRIVATE TORIRS_NO_D3D11=1)
     endif()
@@ -274,19 +280,21 @@ if(NOT EMSCRIPTEN)
         )
         set(_bench_sdl2_pkg_post_build
             COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/src/osrs/scripts"
-                "${CMAKE_CURRENT_BINARY_DIR}/scripts"
+            "${CMAKE_SOURCE_DIR}/src/osrs/scripts"
+            "${CMAKE_CURRENT_BINARY_DIR}/scripts"
             COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/src/osrs/revconfig/configs"
-                "${CMAKE_CURRENT_BINARY_DIR}/configs"
+            "${CMAKE_SOURCE_DIR}/src/osrs/revconfig/configs"
+            "${CMAKE_CURRENT_BINARY_DIR}/configs"
         )
+
         if(EXISTS "${CMAKE_SOURCE_DIR}/../cache254")
             list(APPEND _bench_sdl2_pkg_post_build
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    "${CMAKE_SOURCE_DIR}/../cache254"
-                    "${CMAKE_CURRENT_BINARY_DIR}/cache254"
+                "${CMAKE_SOURCE_DIR}/../cache254"
+                "${CMAKE_CURRENT_BINARY_DIR}/cache254"
             )
         endif()
+
         add_custom_command(TARGET bench_sdl2 POST_BUILD
             ${_bench_sdl2_pkg_post_build}
             COMMENT "ENABLE_PACKAGE_BUILD: copy resources next to bench_sdl2 executable"
@@ -302,17 +310,18 @@ if(NOT EMSCRIPTEN)
         )
         set(_sdl2_pkg_post_build
             COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/src/osrs/scripts"
-                "${CMAKE_CURRENT_BINARY_DIR}/scripts"
+            "${CMAKE_SOURCE_DIR}/src/osrs/scripts"
+            "${CMAKE_CURRENT_BINARY_DIR}/scripts"
             COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/src/osrs/revconfig/configs"
-                "${CMAKE_CURRENT_BINARY_DIR}/configs"
+            "${CMAKE_SOURCE_DIR}/src/osrs/revconfig/configs"
+            "${CMAKE_CURRENT_BINARY_DIR}/configs"
         )
+
         if(EXISTS "${CMAKE_SOURCE_DIR}/../cache254")
             list(APPEND _sdl2_pkg_post_build
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    "${CMAKE_SOURCE_DIR}/../cache254"
-                    "${CMAKE_CURRENT_BINARY_DIR}/cache254"
+                "${CMAKE_SOURCE_DIR}/../cache254"
+                "${CMAKE_CURRENT_BINARY_DIR}/cache254"
             )
         else()
             message(WARNING
@@ -320,6 +329,7 @@ if(NOT EMSCRIPTEN)
                 "Place or symlink a cache254 folder next to the repo for a full distributable build."
             )
         endif()
+
         add_custom_command(TARGET sdl2 POST_BUILD
             ${_sdl2_pkg_post_build}
             COMMENT "ENABLE_PACKAGE_BUILD: copy resources next to sdl2 executable"
@@ -332,17 +342,22 @@ if(NOT EMSCRIPTEN)
     # from CMAKE_PREFIX_PATH / SDL2_ROOT so we don't silently fall through to a
     # system SDL2 with the wrong architecture (e.g. 64-bit msys2 SDL2 for a 32-bit build).
     find_package(SDL2 QUIET)
+
     if(NOT TARGET SDL2::SDL2)
         set(_sdl2_search_roots "")
+
         if(DEFINED SDL2_ROOT)
             list(APPEND _sdl2_search_roots "${SDL2_ROOT}")
         endif()
+
         if(DEFINED ENV{SDL2_ROOT})
             list(APPEND _sdl2_search_roots "$ENV{SDL2_ROOT}")
         endif()
+
         foreach(_p ${CMAKE_PREFIX_PATH})
             list(APPEND _sdl2_search_roots "${_p}")
         endforeach()
+
         if(DEFINED ENV{CMAKE_PREFIX_PATH})
             foreach(_p $ENV{CMAKE_PREFIX_PATH})
                 list(APPEND _sdl2_search_roots "${_p}")
@@ -369,20 +384,24 @@ if(NOT EMSCRIPTEN)
             message(STATUS "SDL2: no CMake config found, using manual fallback")
             message(STATUS "  SDL2 include: ${SDL2_INCLUDE_DIR}")
             message(STATUS "  SDL2 library: ${SDL2_LIBRARY}")
+
             if(SDL2MAIN_LIBRARY)
                 message(STATUS "  SDL2main    : ${SDL2MAIN_LIBRARY}")
             endif()
+
             add_library(SDL2::SDL2 UNKNOWN IMPORTED)
             set_target_properties(SDL2::SDL2 PROPERTIES
                 IMPORTED_LOCATION "${SDL2_LIBRARY}"
                 INTERFACE_INCLUDE_DIRECTORIES "${SDL2_INCLUDE_DIR}"
             )
+
             if(WIN32)
                 # SDL2 on Win32 needs these Windows libs at link time.
                 set_target_properties(SDL2::SDL2 PROPERTIES
                     INTERFACE_LINK_LIBRARIES "mingw32;imm32;setupapi;version;winmm"
                 )
             endif()
+
             if(SDL2MAIN_LIBRARY AND NOT TARGET SDL2::SDL2main)
                 add_library(SDL2::SDL2main UNKNOWN IMPORTED)
                 set_target_properties(SDL2::SDL2main PROPERTIES
@@ -390,6 +409,7 @@ if(NOT EMSCRIPTEN)
                     INTERFACE_INCLUDE_DIRECTORIES "${SDL2_INCLUDE_DIR}"
                 )
             endif()
+
             set(SDL2_FOUND TRUE)
         else()
             message(FATAL_ERROR
@@ -400,6 +420,7 @@ if(NOT EMSCRIPTEN)
             )
         endif()
     endif()
+
     target_link_libraries(sdl2 SDL2::SDL2)
     target_link_libraries(bench_sdl2 SDL2::SDL2)
 
@@ -434,46 +455,55 @@ if(NOT EMSCRIPTEN)
             src/osrs/lua_sidecar/luac_sidecar_config.c
             src/osrs/lua_sidecar/luac_sidecar_command_dispatch.c
         )
+
         if(HAVE_D3D8_H)
             list(APPEND WIN32_PLATFORM_SOURCES
                 src/platforms/platform_impl2_win32_renderer_d3d8.cpp
             )
         endif()
+
         add_executable(win32 ${WIN32_PLATFORM_SOURCES})
         target_link_libraries(win32 PRIVATE ws2_32 psapi winmm gdi32 user32 kernel32)
+
         if(HAVE_D3D8_H)
             target_compile_definitions(win32 PRIVATE TORIRS_HAS_D3D8=1)
+
             if(HAVE_LIBD3D8)
                 if(TORIRS_D3D8_IMPORT_LIB AND TORIRS_DXGUID_IMPORT_LIB)
                     target_link_libraries(win32 PRIVATE ${TORIRS_D3D8_IMPORT_LIB} ${TORIRS_DXGUID_IMPORT_LIB})
                 else()
                     target_link_libraries(win32 PRIVATE d3d8 dxguid)
                 endif()
+
                 target_compile_definitions(win32 PRIVATE TORIRS_D3D8_STATIC_LINK=1)
             endif()
         else()
             target_compile_definitions(win32 PRIVATE TORIRS_NO_D3D8=1)
         endif()
+
         if(MSVC)
             target_link_options(win32 PRIVATE /SUBSYSTEM:CONSOLE)
         else()
             target_link_options(win32 PRIVATE -Wl,-subsystem,console)
+
             # Always-on debug symbols + frame pointers for the win32 target so segfaults
             # produce meaningful backtraces under gdb even in Release/RelWithDebInfo builds.
-
-            if (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
+            if(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo" OR CMAKE_BUILD_TYPE STREQUAL "Debug")
                 target_compile_options(win32 PRIVATE -O3 -g3 -gdwarf-2 -fno-omit-frame-pointer)
                 target_link_options(win32 PRIVATE -O3 -g3 -gdwarf-2)
             endif()
-            if (CMAKE_BUILD_TYPE STREQUAL "Release")
+
+            if(CMAKE_BUILD_TYPE STREQUAL "Release")
                 target_compile_options(win32 PRIVATE -O3)
                 target_link_options(win32 PRIVATE -O3)
             endif()
         endif()
+
         if(ENABLE_ASAN)
             target_compile_options(win32 PRIVATE -fsanitize=address -fno-omit-frame-pointer)
             target_link_options(win32 PRIVATE -fsanitize=address)
         endif()
+
         if(ENABLE_UBSAN)
             target_compile_options(win32 PRIVATE -fsanitize=undefined -fno-omit-frame-pointer)
             target_link_options(win32 PRIVATE -fsanitize=undefined)
@@ -488,19 +518,21 @@ if(NOT EMSCRIPTEN)
             )
             set(_win32_pkg_post_build
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    "${CMAKE_SOURCE_DIR}/src/osrs/scripts"
-                    "${CMAKE_CURRENT_BINARY_DIR}/scripts"
+                "${CMAKE_SOURCE_DIR}/src/osrs/scripts"
+                "${CMAKE_CURRENT_BINARY_DIR}/scripts"
                 COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    "${CMAKE_SOURCE_DIR}/src/osrs/revconfig/configs"
-                    "${CMAKE_CURRENT_BINARY_DIR}/configs"
+                "${CMAKE_SOURCE_DIR}/src/osrs/revconfig/configs"
+                "${CMAKE_CURRENT_BINARY_DIR}/configs"
             )
+
             if(EXISTS "${CMAKE_SOURCE_DIR}/../cache254")
                 list(APPEND _win32_pkg_post_build
                     COMMAND ${CMAKE_COMMAND} -E copy_directory
-                        "${CMAKE_SOURCE_DIR}/../cache254"
-                        "${CMAKE_CURRENT_BINARY_DIR}/cache254"
+                    "${CMAKE_SOURCE_DIR}/../cache254"
+                    "${CMAKE_CURRENT_BINARY_DIR}/cache254"
                 )
             endif()
+
             add_custom_command(TARGET win32 POST_BUILD
                 ${_win32_pkg_post_build}
                 COMMENT "ENABLE_PACKAGE_BUILD: copy resources next to win32 executable"
@@ -521,6 +553,7 @@ if(NOT EMSCRIPTEN)
             "-framework QuartzCore"
             "-framework Foundation"
         )
+
         # Enable ARC only for the Objective-C++ Metal files
         set_source_files_properties(
             src/platforms/platform_impl2_sdl2_renderer_metal.mm
@@ -551,12 +584,14 @@ if(NOT EMSCRIPTEN)
         target_compile_options(bench_sdl2 PRIVATE -fsanitize=address -fno-omit-frame-pointer)
         target_link_options(bench_sdl2 PRIVATE -fsanitize=address)
     endif()
+
     if(ENABLE_UBSAN)
         target_compile_options(sdl2 PRIVATE -fsanitize=undefined -fno-omit-frame-pointer)
         target_link_options(sdl2 PRIVATE -fsanitize=undefined)
         target_compile_options(bench_sdl2 PRIVATE -fsanitize=undefined -fno-omit-frame-pointer)
         target_link_options(bench_sdl2 PRIVATE -fsanitize=undefined)
     endif()
+
     add_executable(interface161_test
         tools/interface161_test/main.c
         src/osrs/rscache/tables/component.c
@@ -580,8 +615,9 @@ if(NOT EMSCRIPTEN)
     target_include_directories(interface161_test PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
     )
-    if( NOT WIN32 )
-        target_link_libraries( interface161_test PRIVATE m )
+
+    if(NOT WIN32)
+        target_link_libraries(interface161_test PRIVATE m)
     endif()
 
     # --- Benchmark Project: rasterizer benchmark suite ---
@@ -589,6 +625,7 @@ if(NOT EMSCRIPTEN)
     # The benchmark_main.c includes rasterizer .u.c files directly.
     # COMMON_SOURCES provides cache loading, shared tables, Lua, etc.
     set(BENCH_PROJECT_SOURCES ${COMMON_SOURCES})
+
     # Remove platform-specific SDL2 glue (benchmark has its own main loop)
     list(REMOVE_ITEM BENCH_PROJECT_SOURCES
         src/platforms/common/tori_rs_sdl2_gameinput.c
@@ -602,8 +639,10 @@ if(NOT EMSCRIPTEN)
         benchmarks/benchmark_project/benchmark_main.c
     )
     target_link_libraries(benchmark_project SDL2::SDL2)
+
     if(WIN32)
         target_link_libraries(benchmark_project ws2_32 psapi winmm gdi32 user32 kernel32)
+
         if(MSVC)
             target_link_options(benchmark_project PRIVATE /SUBSYSTEM:CONSOLE)
         else()
@@ -612,7 +651,6 @@ if(NOT EMSCRIPTEN)
     else()
         target_link_libraries(benchmark_project m)
     endif()
-
 endif()
 
 # --- Emscripten Target ---
@@ -697,8 +735,9 @@ if(EMSCRIPTEN)
     )
 
     # Emscripten-specific Compile/Link flags
-    target_compile_options(web_client PUBLIC 
+    target_compile_options(web_client PUBLIC
         -sUSE_SDL=2
+
         # // These seem to be needed for webgl1 on motorola
         # // Chrome 85
         "-mno-bulk-memory"
@@ -710,21 +749,24 @@ if(EMSCRIPTEN)
         -sUSE_SDL=2
         -sWASM=1
         -sALLOW_MEMORY_GROWTH=1
+
         # -sTOTAL_MEMORY=38mb
         -sALLOW_TABLE_GROWTH=1
         -sSTACK_SIZE=512kb
         -sNO_EXIT_RUNTIME=1
         -sASSERTions=1
+
         # -sWASM=0
         --shell-file ${EM_SHELL_FILE}
         -sEXPORTED_FUNCTIONS=${EXPORTED_FUNC_STR}
         -sEXPORTED_RUNTIME_METHODS=${EXPORTED_METHODS_STR}
         --bind
+
         # // These seem to be needed for webgl1 on motorola
         # // Chrome 85
         # -sINITIAL_TABLE=65536
         -sMODULARIZE=0
-        -sEXPORT_ES6=0 
+        -sEXPORT_ES6=0
         "-mno-bulk-memory"
         "-mno-reference-types"
         "-mno-mutable-globals"

@@ -9,17 +9,16 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include <windows.h>
-
-#include <d3d8.h>
-
-#include <cstdarg>
-#include <cstdlib>
-#include <cmath>
-#include <cstdio>
-#include <cstring>
 #include <unordered_map>
+
+#include <cmath>
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <d3d8.h>
 #include <vector>
+#include <windows.h>
 
 extern "C" {
 #include "graphics/dash.h"
@@ -27,21 +26,21 @@ extern "C" {
 #include "graphics/shared_tables.h"
 #include "graphics/uv_pnm.h"
 #include "osrs/game.h"
-#include "osrs/ui_dirty.h"
 #include "tori_rs.h"
 #include "tori_rs_render.h"
 }
 
-#include "platform_impl2_win32_renderer_d3d8.h"
-
 #include "nuklear/torirs_nuklear.h"
+#include "platform_impl2_win32_renderer_d3d8.h"
 extern "C" {
 #include "nuklear/backends/rawfb/nuklear_rawfb.h"
-struct nk_context* torirs_rawfb_get_nk_context(struct rawfb_context* rawfb);
+struct nk_context*
+torirs_rawfb_get_nk_context(struct rawfb_context* rawfb);
 }
 
 #if defined(TORIRS_D3D8_STATIC_LINK)
-extern "C" IDirect3D8* WINAPI Direct3DCreate8(UINT SDKVersion);
+extern "C" IDirect3D8* WINAPI
+Direct3DCreate8(UINT SDKVersion);
 #endif
 
 #ifndef D3D_SDK_VERSION
@@ -52,7 +51,9 @@ namespace
 {
 
 static void
-d3d8_log(const char* fmt, ...)
+d3d8_log(
+    const char* fmt,
+    ...)
 {
     va_list ap;
     va_start(ap, fmt);
@@ -134,7 +135,10 @@ struct D3D8TextureSlot
 };
 
 static void
-d3d8_mul_row_vec_d3dmatrix(const float v[4], const D3DMATRIX* m, float out[4])
+d3d8_mul_row_vec_d3dmatrix(
+    const float v[4],
+    const D3DMATRIX* m,
+    float out[4])
 {
     out[0] = v[0] * m->_11 + v[1] * m->_21 + v[2] * m->_31 + v[3] * m->_41;
     out[1] = v[0] * m->_12 + v[1] * m->_22 + v[2] * m->_32 + v[3] * m->_42;
@@ -207,7 +211,9 @@ struct D3D8Internal
 };
 
 static void
-d3d8_ensure_texture_slots(D3D8Internal* p, int tex_id)
+d3d8_ensure_texture_slots(
+    D3D8Internal* p,
+    int tex_id)
 {
     if( tex_id < 0 )
         return;
@@ -227,7 +233,9 @@ d3d8_trace_on(const D3D8Internal* p)
 }
 
 static bool
-d3d8_should_log_cmd(D3D8Internal* p, int kind)
+d3d8_should_log_cmd(
+    D3D8Internal* p,
+    int kind)
 {
     if( kind < 0 || kind >= kD3d8GfxKindSlots )
         return d3d8_trace_on(p);
@@ -236,9 +244,12 @@ d3d8_should_log_cmd(D3D8Internal* p, int kind)
     return !p->trace_first_gfx[(size_t)kind];
 }
 
-/** After logging a command: only mark "seen" when past the verbose window, so first 3 frames log every instance of each kind. */
+/** After logging a command: only mark "seen" when past the verbose window, so first 3 frames log
+ * every instance of each kind. */
 static void
-d3d8_mark_cmd_logged(D3D8Internal* p, int kind)
+d3d8_mark_cmd_logged(
+    D3D8Internal* p,
+    int kind)
 {
     if( d3d8_trace_on(p) )
         return;
@@ -253,7 +264,10 @@ d3d8_priv(struct Platform2_Win32_Renderer_D3D8* r)
 }
 
 static void
-mat4_mul_colmajor(const float* a, const float* b, float* out)
+mat4_mul_colmajor(
+    const float* a,
+    const float* b,
+    float* out)
 {
     for( int c = 0; c < 4; ++c )
         for( int r = 0; r < 4; ++r )
@@ -316,7 +330,11 @@ d3d8_compute_view_matrix(
 }
 
 static void
-d3d8_compute_projection_matrix(float* out_matrix, float fov, float screen_width, float screen_height)
+d3d8_compute_projection_matrix(
+    float* out_matrix,
+    float fov,
+    float screen_width,
+    float screen_height)
 {
     float y = 1.0f / tanf(fov * 0.5f);
     float x = y;
@@ -343,7 +361,9 @@ d3d8_compute_projection_matrix(float* out_matrix, float fov, float screen_width,
 }
 
 static void
-colmajor_to_d3dmatrix(const float* cm, D3DMATRIX* m)
+colmajor_to_d3dmatrix(
+    const float* cm,
+    D3DMATRIX* m)
 {
     /* `cm` stores a matrix designed for column-vector math (v' = M * v), the
      * same convention our Metal / D3D11 shaders use. D3D8 fixed-function uses
@@ -368,7 +388,9 @@ colmajor_to_d3dmatrix(const float* cm, D3DMATRIX* m)
 }
 
 static float
-d3d8_texture_animation_signed(int animation_direction, int animation_speed)
+d3d8_texture_animation_signed(
+    int animation_direction,
+    int animation_speed)
 {
     if( animation_direction == 0 )
         return 0.0f;
@@ -397,7 +419,9 @@ static unsigned s_model_draw_debug = 0;
 static unsigned s_dip_full_log = 0;
 
 static void
-d3d8_log_fill_face_fail(int f, const char* reason)
+d3d8_log_fill_face_fail(
+    int f,
+    const char* reason)
 {
     if( s_fill_face_fail_logs >= 64u )
         return;
@@ -434,9 +458,7 @@ fill_model_face_vertices_model_local(
     const int vcount = dashmodel_vertex_count(model);
     if( ia < 0 || ia >= vcount || ib < 0 || ib >= vcount || ic < 0 || ic >= vcount )
     {
-        d3d8_log_fill_face_fail(
-            f,
-            "bad vertex index ia/ib/ic vs vcount");
+        d3d8_log_fill_face_fail(f, "bad vertex index ia/ib/ic vs vcount");
         return false;
     }
 
@@ -735,7 +757,10 @@ d3d8_lookup_or_build_model_gpu(
 }
 
 static void
-d3d8_apply_texture_matrix_translate(IDirect3DDevice8* dev, float du, float dv)
+d3d8_apply_texture_matrix_translate(
+    IDirect3DDevice8* dev,
+    float du,
+    float dv)
 {
     D3DMATRIX m;
     memset(&m, 0, sizeof(m));
@@ -784,7 +809,12 @@ d3d8_apply_default_render_state(IDirect3DDevice8* dev)
 
 /** dst: client pixel rect (left, top, right, bottom) for the scaled game image. */
 static void
-compute_letterbox_dst(int buf_w, int buf_h, int window_w, int window_h, RECT* out_dst)
+compute_letterbox_dst(
+    int buf_w,
+    int buf_h,
+    int window_w,
+    int window_h,
+    RECT* out_dst)
 {
     out_dst->left = 0;
     out_dst->top = 0;
@@ -833,8 +863,8 @@ PlatformImpl2_Win32_Renderer_D3D8_New(
         height,
         max_width,
         max_height);
-    struct Platform2_Win32_Renderer_D3D8* r =
-        (struct Platform2_Win32_Renderer_D3D8*)calloc(1, sizeof(struct Platform2_Win32_Renderer_D3D8));
+    struct Platform2_Win32_Renderer_D3D8* r = (struct Platform2_Win32_Renderer_D3D8*)calloc(
+        1, sizeof(struct Platform2_Win32_Renderer_D3D8));
     if( !r )
     {
         d3d8_log("D3D8_New: calloc(renderer) failed");
@@ -948,21 +978,18 @@ PlatformImpl2_Win32_Renderer_D3D8_Free(struct Platform2_Win32_Renderer_D3D8* ren
 }
 
 static bool
-d3d8_reset_device(struct Platform2_Win32_Renderer_D3D8* ren, D3D8Internal* p, HWND hwnd)
+d3d8_reset_device(
+    struct Platform2_Win32_Renderer_D3D8* ren,
+    D3D8Internal* p,
+    HWND hwnd)
 {
     if( !p->device || !hwnd )
     {
-        d3d8_log(
-            "d3d8_reset_device: abort device=%p hwnd=%p",
-            (void*)p->device,
-            (void*)hwnd);
+        d3d8_log("d3d8_reset_device: abort device=%p hwnd=%p", (void*)p->device, (void*)hwnd);
         return false;
     }
 
-    d3d8_log(
-        "d3d8_reset_device: enter scene_rt=%dx%d client pending...",
-        ren->width,
-        ren->height);
+    d3d8_log("d3d8_reset_device: enter scene_rt=%dx%d client pending...", ren->width, ren->height);
 
     if( p->nk_overlay_tex )
     {
@@ -1022,13 +1049,7 @@ d3d8_reset_device(struct Platform2_Win32_Renderer_D3D8* ren, D3D8Internal* p, HW
     UINT w = (UINT)ren->width;
     UINT h = (UINT)ren->height;
     hr = p->device->CreateTexture(
-        w,
-        h,
-        1,
-        D3DUSAGE_RENDERTARGET,
-        D3DFMT_X8R8G8B8,
-        D3DPOOL_DEFAULT,
-        &p->scene_rt_tex);
+        w, h, 1, D3DUSAGE_RENDERTARGET, D3DFMT_X8R8G8B8, D3DPOOL_DEFAULT, &p->scene_rt_tex);
     if( FAILED(hr) || !p->scene_rt_tex )
     {
         d3d8_log(
@@ -1042,34 +1063,24 @@ d3d8_reset_device(struct Platform2_Win32_Renderer_D3D8* ren, D3D8Internal* p, HW
     if( FAILED(hr) )
     {
         d3d8_log(
-            "d3d8_reset_device: GetSurfaceLevel(scene_rt) failed hr=0x%08lX",
-            (unsigned long)hr);
+            "d3d8_reset_device: GetSurfaceLevel(scene_rt) failed hr=0x%08lX", (unsigned long)hr);
         return false;
     }
-    hr = p->device->CreateDepthStencilSurface(
-        w, h, D3DFMT_D16, D3DMULTISAMPLE_NONE, &p->scene_ds);
+    hr = p->device->CreateDepthStencilSurface(w, h, D3DFMT_D16, D3DMULTISAMPLE_NONE, &p->scene_ds);
     if( FAILED(hr) )
     {
         d3d8_log(
-            "d3d8_reset_device: CreateDepthStencilSurface failed hr=0x%08lX",
-            (unsigned long)hr);
+            "d3d8_reset_device: CreateDepthStencilSurface failed hr=0x%08lX", (unsigned long)hr);
         return false;
     }
     d3d8_log("d3d8_reset_device: depth-stencil ok");
 
     hr = p->device->CreateTexture(
-        w,
-        h,
-        1,
-        D3DUSAGE_DYNAMIC,
-        D3DFMT_A8R8G8B8,
-        D3DPOOL_DEFAULT,
-        &p->nk_overlay_tex);
+        w, h, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &p->nk_overlay_tex);
     if( FAILED(hr) )
     {
         d3d8_log(
-            "d3d8_reset_device: CreateTexture(nk_overlay) failed hr=0x%08lX",
-            (unsigned long)hr);
+            "d3d8_reset_device: CreateTexture(nk_overlay) failed hr=0x%08lX", (unsigned long)hr);
         return false;
     }
     d3d8_log("d3d8_reset_device: nk_overlay texture ok");
@@ -1077,11 +1088,7 @@ d3d8_reset_device(struct Platform2_Win32_Renderer_D3D8* ren, D3D8Internal* p, HW
     const size_t ib_need = 65536 * sizeof(uint16_t);
     p->ib_ring_size_bytes = ib_need;
     hr = p->device->CreateIndexBuffer(
-        (UINT)ib_need,
-        D3DUSAGE_DYNAMIC,
-        D3DFMT_INDEX16,
-        D3DPOOL_DEFAULT,
-        &p->ib_ring);
+        (UINT)ib_need, D3DUSAGE_DYNAMIC, D3DFMT_INDEX16, D3DPOOL_DEFAULT, &p->ib_ring);
     if( !SUCCEEDED(hr) || !p->ib_ring )
     {
         d3d8_log(
@@ -1096,7 +1103,10 @@ d3d8_reset_device(struct Platform2_Win32_Renderer_D3D8* ren, D3D8Internal* p, HW
 }
 
 static bool
-d3d8_create_device(struct Platform2_Win32_Renderer_D3D8* ren, D3D8Internal* p, HWND hwnd)
+d3d8_create_device(
+    struct Platform2_Win32_Renderer_D3D8* ren,
+    D3D8Internal* p,
+    HWND hwnd)
 {
     d3d8_log(
         "d3d8_create_device: enter hwnd=%p ren=%p D3D_SDK_VERSION=%u",
@@ -1116,11 +1126,9 @@ d3d8_create_device(struct Platform2_Win32_Renderer_D3D8* ren, D3D8Internal* p, H
             (unsigned long)GetLastError());
         return false;
     }
-    d3d8_log(
-        "d3d8_create_device: d3d8.dll loaded ok h_dll=%p",
-        (void*)p->h_dll);
-    PFN_Direct3DCreate8 fn = reinterpret_cast<PFN_Direct3DCreate8>(
-        GetProcAddress(p->h_dll, "Direct3DCreate8"));
+    d3d8_log("d3d8_create_device: d3d8.dll loaded ok h_dll=%p", (void*)p->h_dll);
+    PFN_Direct3DCreate8 fn =
+        reinterpret_cast<PFN_Direct3DCreate8>(GetProcAddress(p->h_dll, "Direct3DCreate8"));
     if( !fn )
     {
         d3d8_log(
@@ -1128,9 +1136,7 @@ d3d8_create_device(struct Platform2_Win32_Renderer_D3D8* ren, D3D8Internal* p, H
             (unsigned long)GetLastError());
         return false;
     }
-    d3d8_log(
-        "d3d8_create_device: GetProcAddress(Direct3DCreate8) ok fn=%p",
-        (void*)fn);
+    d3d8_log("d3d8_create_device: GetProcAddress(Direct3DCreate8) ok fn=%p", (void*)fn);
     p->d3d = fn(D3D_SDK_VERSION);
 #endif
     if( !p->d3d )
@@ -1173,9 +1179,7 @@ d3d8_create_device(struct Platform2_Win32_Renderer_D3D8* ren, D3D8Internal* p, H
     HRESULT capshr = p->d3d->GetDeviceCaps(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &caps);
     if( capshr == D3D_OK )
     {
-        d3d8_log(
-            "d3d8_create_device: MaxVertexIndex=%lu",
-            (unsigned long)caps.MaxVertexIndex);
+        d3d8_log("d3d8_create_device: MaxVertexIndex=%lu", (unsigned long)caps.MaxVertexIndex);
         if( caps.MaxVertexIndex < 0xFFFFu )
         {
             d3d8_log(
@@ -1190,8 +1194,7 @@ d3d8_create_device(struct Platform2_Win32_Renderer_D3D8* ren, D3D8Internal* p, H
                 "(no HW T&L)");
         }
         else
-            d3d8_log(
-                "d3d8_create_device: GetDeviceCaps ok -> HARDWARE_VERTEXPROCESSING");
+            d3d8_log("d3d8_create_device: GetDeviceCaps ok -> HARDWARE_VERTEXPROCESSING");
     }
     else
     {
@@ -1201,12 +1204,7 @@ d3d8_create_device(struct Platform2_Win32_Renderer_D3D8* ren, D3D8Internal* p, H
     }
 
     HRESULT hr = p->d3d->CreateDevice(
-        D3DADAPTER_DEFAULT,
-        D3DDEVTYPE_HAL,
-        hwnd,
-        create_flags,
-        &p->pp,
-        &p->device);
+        D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hwnd, create_flags, &p->pp, &p->device);
     if( FAILED(hr) || !p->device )
     {
         d3d8_log(
@@ -1236,10 +1234,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Init(
     struct Platform2_Win32_Renderer_D3D8* renderer,
     struct Platform2_Win32* platform)
 {
-    d3d8_log(
-        "D3D8_Init: enter renderer=%p platform=%p",
-        (void*)renderer,
-        (void*)platform);
+    d3d8_log("D3D8_Init: enter renderer=%p platform=%p", (void*)renderer, (void*)platform);
     if( !renderer )
     {
         d3d8_log("D3D8_Init: abort renderer is NULL");
@@ -1347,7 +1342,11 @@ PlatformImpl2_Win32_Renderer_D3D8_MarkResizeDirty(struct Platform2_Win32_Rendere
 void
 PlatformImpl2_Win32_Renderer_D3D8_SetViewportChangedCallback(
     struct Platform2_Win32_Renderer_D3D8* renderer,
-    void (*callback)(struct GGame* game, int new_width, int new_height, void* userdata),
+    void (*callback)(
+        struct GGame* game,
+        int new_width,
+        int new_height,
+        void* userdata),
     void* userdata)
 {
     if( !renderer )
@@ -1377,7 +1376,10 @@ PlatformImpl2_Win32_Renderer_D3D8_PresentOrInvalidate(
 }
 
 static void
-d3d8_ensure_pass(D3D8Internal* priv, IDirect3DDevice8* dev, PassKind want)
+d3d8_ensure_pass(
+    D3D8Internal* priv,
+    IDirect3DDevice8* dev,
+    PassKind want)
 {
     if( priv->current_pass == want )
         return;
@@ -1509,28 +1511,20 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
     {
         bool resize_ok = d3d8_reset_device(renderer, p, hwnd);
         if( d3d8_trace_on(p) || !resize_ok )
-            d3d8_log(
-                "Render: resize_dirty d3d8_reset_device -> %s",
-                resize_ok ? "ok" : "FAILED");
-        if( resize_ok )
-            ui_dirty_invalidate_all(game);
+            d3d8_log("Render: resize_dirty d3d8_reset_device -> %s", resize_ok ? "ok" : "FAILED");
         renderer->resize_dirty = false;
     }
 
     HRESULT coop = p->device->TestCooperativeLevel();
     if( d3d8_trace_on(p) || coop != D3D_OK )
-        d3d8_log(
-            "Render: TestCooperativeLevel hr=0x%08lX",
-            (unsigned long)coop);
+        d3d8_log("Render: TestCooperativeLevel hr=0x%08lX", (unsigned long)coop);
     if( coop == D3DERR_DEVICELOST )
         return;
     if( coop == D3DERR_DEVICENOTRESET )
     {
         bool r2 = d3d8_reset_device(renderer, p, hwnd);
         if( d3d8_trace_on(p) || !r2 )
-            d3d8_log(
-                "Render: DEVICENOTRESET d3d8_reset_device -> %s",
-                r2 ? "ok" : "FAILED");
+            d3d8_log("Render: DEVICENOTRESET d3d8_reset_device -> %s", r2 ? "ok" : "FAILED");
     }
 
     IDirect3DDevice8* dev = p->device;
@@ -1601,9 +1595,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
 
     HRESULT hr_rt = dev->SetRenderTarget(p->scene_rt_surf, p->scene_ds);
     if( FAILED(hr_rt) )
-        d3d8_log(
-            "Render: SetRenderTarget(scene_rt) failed hr=0x%08lX",
-            (unsigned long)hr_rt);
+        d3d8_log("Render: SetRenderTarget(scene_rt) failed hr=0x%08lX", (unsigned long)hr_rt);
     p->frame_vp_2d = { 0, 0, (DWORD)renderer->width, (DWORD)renderer->height, 0.0f, 1.0f };
     DWORD vp3d_x = (DWORD)(renderer->dash_offset_x > 0 ? renderer->dash_offset_x : 0);
     DWORD vp3d_y = (DWORD)(renderer->dash_offset_y > 0 ? renderer->dash_offset_y : 0);
@@ -1622,9 +1614,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
     /* Default to 2D viewport for state setup / pre-draw clears. */
     HRESULT hr_vp = dev->SetViewport(&p->frame_vp_2d);
     if( FAILED(hr_vp) )
-        d3d8_log(
-            "Render: SetViewport(scene 2d) failed hr=0x%08lX",
-            (unsigned long)hr_vp);
+        d3d8_log("Render: SetViewport(scene 2d) failed hr=0x%08lX", (unsigned long)hr_vp);
 
     /* D3D8 FFP: reset inherited state each frame; overlay/2D paths mutate render state. */
     d3d8_apply_default_render_state(dev);
@@ -1638,9 +1628,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
 
     HRESULT hr_bs = dev->BeginScene();
     if( FAILED(hr_bs) )
-        d3d8_log(
-            "Render: BeginScene failed hr=0x%08lX",
-            (unsigned long)hr_bs);
+        d3d8_log("Render: BeginScene failed hr=0x%08lX", (unsigned long)hr_bs);
 
     dev->SetTransform(D3DTS_VIEW, &d3d_view);
     dev->SetTransform(D3DTS_PROJECTION, &d3d_proj);
@@ -1669,9 +1657,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                             texture->height,
                             texture->opaque ? 1 : 0);
                     else
-                        d3d8_log(
-                            "cmd TEXTURE_LOAD tex_id=%d (skip: null or no texels)",
-                            tex_id);
+                        d3d8_log("cmd TEXTURE_LOAD tex_id=%d (skip: null or no texels)", tex_id);
                     d3d8_mark_cmd_logged(p, kcmd);
                 }
             }
@@ -1716,10 +1702,13 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                     texture->animation_direction,
                     texture->animation_speed,
                     texture->opaque);
-            float anim_signed =
-                d3d8_texture_animation_signed(texture->animation_direction, texture->animation_speed);
+            float anim_signed = d3d8_texture_animation_signed(
+                texture->animation_direction, texture->animation_speed);
             if( d3d8_trace_on(p) )
-                d3d8_log("TEXTURE_LOAD[%d]: anim_signed=%.4f, inserting anim_speed map", tex_id, anim_signed);
+                d3d8_log(
+                    "TEXTURE_LOAD[%d]: anim_signed=%.4f, inserting anim_speed map",
+                    tex_id,
+                    anim_signed);
             if( d3d8_trace_on(p) )
                 d3d8_log("TEXTURE_LOAD[%d]: inserting opaque map", tex_id);
             if( d3d8_trace_on(p) )
@@ -1963,9 +1952,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             HRESULT hvlock = vbo->Lock(0, vbytes, (BYTE**)&vdst, 0);
             if( hvlock != D3D_OK )
             {
-                d3d8_log(
-                    "BATCH_MODEL_LOAD_END: VBO Lock failed hr=0x%08lX",
-                    (unsigned long)hvlock);
+                d3d8_log("BATCH_MODEL_LOAD_END: VBO Lock failed hr=0x%08lX", (unsigned long)hvlock);
                 vbo->Release();
                 delete batch;
                 break;
@@ -2000,8 +1987,8 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
 
             const UINT ibytes = (UINT)(batch->pending_indices.size() * sizeof(uint16_t));
             IDirect3DIndexBuffer8* ibo = nullptr;
-            HRESULT hrib =
-                dev->CreateIndexBuffer(ibytes, D3DUSAGE_WRITEONLY, D3DFMT_INDEX16, D3DPOOL_MANAGED, &ibo);
+            HRESULT hrib = dev->CreateIndexBuffer(
+                ibytes, D3DUSAGE_WRITEONLY, D3DFMT_INDEX16, D3DPOOL_MANAGED, &ibo);
             if( hrib != D3D_OK || !ibo )
             {
                 d3d8_log(
@@ -2016,9 +2003,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             HRESULT hilock = ibo->Lock(0, ibytes, (BYTE**)&idst, 0);
             if( hilock != D3D_OK )
             {
-                d3d8_log(
-                    "BATCH_MODEL_LOAD_END: IBO Lock failed hr=0x%08lX",
-                    (unsigned long)hilock);
+                d3d8_log("BATCH_MODEL_LOAD_END: IBO Lock failed hr=0x%08lX", (unsigned long)hilock);
                 ibo->Release();
                 batch->vbo->Release();
                 batch->vbo = nullptr;
@@ -2080,10 +2065,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                         command._sprite_load.atlas_index,
                         (void*)sp);
                     if( sp && sp->pixels_argb )
-                        d3d8_log(
-                            "cmd SPRITE_LOAD size=%dx%d",
-                            sp->width,
-                            sp->height);
+                        d3d8_log("cmd SPRITE_LOAD size=%dx%d", sp->width, sp->height);
                     d3d8_mark_cmd_logged(p, kcmd);
                 }
             }
@@ -2099,13 +2081,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             }
             IDirect3DTexture8* st = nullptr;
             HRESULT hsp = dev->CreateTexture(
-                (UINT)sp->width,
-                (UINT)sp->height,
-                1,
-                0,
-                D3DFMT_A8R8G8B8,
-                D3DPOOL_MANAGED,
-                &st);
+                (UINT)sp->width, (UINT)sp->height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &st);
             if( hsp != D3D_OK || !st )
             {
                 d3d8_log(
@@ -2183,10 +2159,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                 const int kcmd = (int)TORIRS_GFX_FONT_LOAD;
                 if( d3d8_should_log_cmd(p, kcmd) )
                 {
-                    d3d8_log(
-                        "cmd FONT_LOAD font_id=%d font=%p",
-                        font_id,
-                        (void*)f);
+                    d3d8_log("cmd FONT_LOAD font_id=%d font=%p", font_id, (void*)f);
                     if( f && f->atlas )
                         d3d8_log(
                             "cmd FONT_LOAD atlas %dx%d",
@@ -2300,8 +2273,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             struct DashPosition draw_position = command._model_draw.position;
             int face_order_count = dash3d_prepare_projected_face_order(
                 game->sys_dash, model, &draw_position, game->view_port, game->camera);
-            const int* face_order =
-                dash3d_projected_face_order(game->sys_dash, &face_order_count);
+            const int* face_order = dash3d_projected_face_order(game->sys_dash, &face_order_count);
             if( face_order_count <= 0 || !face_order )
                 break;
 
@@ -2327,8 +2299,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             unsigned int draws_before = p->debug_model_draws;
             unsigned int tris_before = p->debug_triangles;
 
-            const float yaw_rad_m =
-                (draw_position.yaw * 2.0f * (float)M_PI) / 2048.0f;
+            const float yaw_rad_m = (draw_position.yaw * 2.0f * (float)M_PI) / 2048.0f;
             const float cos_yaw = cosf(yaw_rad_m);
             const float sin_yaw = sinf(yaw_rad_m);
 
@@ -2439,8 +2410,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                 }
                 else
                 {
-                    d3d8_log(
-                        "MODEL_DRAW dbg (batched VBO: no CPU first/last_face verts for clip)");
+                    d3d8_log("MODEL_DRAW dbg (batched VBO: no CPU first/last_face verts for clip)");
                 }
                 s_model_draw_debug++;
             }
@@ -2496,10 +2466,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                 DWORD lock_flags =
                     p->ib_ring_write_offset == 0 ? D3DLOCK_DISCARD : D3DLOCK_NOOVERWRITE;
                 HRESULT hr_ib = p->ib_ring->Lock(
-                    (UINT)p->ib_ring_write_offset,
-                    nidx_bytes,
-                    (BYTE**)&lock_dst,
-                    lock_flags);
+                    (UINT)p->ib_ring_write_offset, nidx_bytes, (BYTE**)&lock_dst, lock_flags);
                 if( hr_ib != D3D_OK )
                 {
                     d3d8_log(
@@ -2522,8 +2489,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                     idst[wpos++] = (uint16_t)(f * 3 + 2);
                 }
                 p->ib_ring->Unlock();
-                HRESULT hr_si =
-                    dev->SetIndices(p->ib_ring, (UINT)vertex_index_base);
+                HRESULT hr_si = dev->SetIndices(p->ib_ring, (UINT)vertex_index_base);
 
                 if( run_tex < 0 )
                 {
@@ -2554,11 +2520,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                 UINT start_index = (UINT)(p->ib_ring_write_offset / sizeof(uint16_t));
                 const UINT tri_count = (UINT)(nidx / 3u);
                 HRESULT hr_dip = dev->DrawIndexedPrimitive(
-                    D3DPT_TRIANGLELIST,
-                    0,
-                    num_vertices_for_draw,
-                    start_index,
-                    tri_count);
+                    D3DPT_TRIANGLELIST, 0, num_vertices_for_draw, start_index, tri_count);
                 if( s_dip_full_log < 4u )
                 {
                     d3d8_log(
@@ -2680,10 +2642,10 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                 {
                     int lx, ly;
                 } corners[4] = {
-                    { 0, 0 },
-                    { iw, 0 },
+                    { 0,  0  },
+                    { iw, 0  },
                     { iw, ih },
-                    { 0, ih },
+                    { 0,  ih },
                 };
                 for( int k = 0; k < 4; ++k )
                 {
@@ -2748,10 +2710,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                         else
                         {
                             int w = snprintf(
-                                preview + pi,
-                                sizeof(preview) - (size_t)pi,
-                                "\\x%02x",
-                                (unsigned)c);
+                                preview + pi, sizeof(preview) - (size_t)pi, "\\x%02x", (unsigned)c);
                             if( w > 0 )
                                 pi += w;
                             if( pi >= (int)sizeof(preview) - 1 )
@@ -2829,9 +2788,8 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                         float gu1 = (float)(atlas->glyph_x[c] + gw) * inv_aw;
                         float gv1 = (float)(atlas->glyph_y[c] + gh) * inv_ah;
 
-                        DWORD diff = ((DWORD)(ca * 255.0f) << 24) |
-                            ((DWORD)(cr * 255.0f) << 16) | ((DWORD)(cg * 255.0f) << 8) |
-                            (DWORD)(cb * 255.0f);
+                        DWORD diff = ((DWORD)(ca * 255.0f) << 24) | ((DWORD)(cr * 255.0f) << 16) |
+                                     ((DWORD)(cg * 255.0f) << 8) | (DWORD)(cb * 255.0f);
 
                         D3D8UiVertex q[6] = {
                             { sx0, sy0, 0, 1, diff, gu0, gv0 },
@@ -2884,9 +2842,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
 
     if( d3d8_trace_on(p) )
         d3d8_log(
-            "Render: commands_done draws=%u tris=%u",
-            p->debug_model_draws,
-            p->debug_triangles);
+            "Render: commands_done draws=%u tris=%u", p->debug_model_draws, p->debug_triangles);
 
     /* Nuklear overlay (same panel as GDI path). Skipped entirely when kSkipNuklearOverlayQuad. */
     if( !kSkipNuklearOverlayQuad && renderer->nk_rawfb )
@@ -2958,10 +2914,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                 const size_t row_bytes = (size_t)w * sizeof(int);
                 if( lr.Pitch == (LONG)row_bytes )
                 {
-                    memcpy(
-                        lr.pBits,
-                        renderer->nk_pixel_buffer,
-                        row_bytes * (size_t)h);
+                    memcpy(lr.pBits, renderer->nk_pixel_buffer, row_bytes * (size_t)h);
                 }
                 else
                 {
@@ -2974,9 +2927,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                 p->nk_overlay_tex->UnlockRect(0);
             }
             else if( FAILED(hr_nk) )
-                d3d8_log(
-                    "nk_overlay LockRect failed hr=0x%08lX",
-                    (unsigned long)hr_nk);
+                d3d8_log("nk_overlay LockRect failed hr=0x%08lX", (unsigned long)hr_nk);
 
             d3d8_ensure_pass(p, dev, PASS_2D);
             dev->SetTexture(0, p->nk_overlay_tex);
@@ -2997,11 +2948,11 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             DWORD amb = 0xFFFFFFFF;
             D3D8UiVertex q[6] = {
                 { 0.0f, 0.0f, 0.0f, 1.0f, amb, 0.0f, 0.0f },
-                { rw, 0.0f, 0.0f, 1.0f, amb, 1.0f, 0.0f },
-                { rw, rh, 0.0f, 1.0f, amb, 1.0f, 1.0f },
+                { rw,   0.0f, 0.0f, 1.0f, amb, 1.0f, 0.0f },
+                { rw,   rh,   0.0f, 1.0f, amb, 1.0f, 1.0f },
                 { 0.0f, 0.0f, 0.0f, 1.0f, amb, 0.0f, 0.0f },
-                { rw, rh, 0.0f, 1.0f, amb, 1.0f, 1.0f },
-                { 0.0f, rh, 0.0f, 1.0f, amb, 0.0f, 1.0f },
+                { rw,   rh,   0.0f, 1.0f, amb, 1.0f, 1.0f },
+                { 0.0f, rh,   0.0f, 1.0f, amb, 0.0f, 1.0f },
             };
             dev->DrawPrimitiveUP(D3DPT_TRIANGLELIST, 2, q, sizeof(D3D8UiVertex));
         }
@@ -3009,9 +2960,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
 
     HRESULT hr_es1 = dev->EndScene();
     if( FAILED(hr_es1) )
-        d3d8_log(
-            "Render: EndScene(1) failed hr=0x%08lX",
-            (unsigned long)hr_es1);
+        d3d8_log("Render: EndScene(1) failed hr=0x%08lX", (unsigned long)hr_es1);
 
     /* Letterbox: scene_rt_tex -> back buffer */
     IDirect3DSurface8* bb = nullptr;
@@ -3021,16 +2970,12 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         HRESULT hr_sbb = dev->SetRenderTarget(bb, nullptr);
         if( FAILED(hr_sbb) )
             d3d8_log(
-                "Render: SetRenderTarget(backbuffer) failed hr=0x%08lX",
-                (unsigned long)hr_sbb);
+                "Render: SetRenderTarget(backbuffer) failed hr=0x%08lX", (unsigned long)hr_sbb);
         bb->Release();
     }
     else
     {
-        d3d8_log(
-            "Render: GetBackBuffer failed hr=0x%08lX bb=%p",
-            (unsigned long)hr_gb,
-            (void*)bb);
+        d3d8_log("Render: GetBackBuffer failed hr=0x%08lX bb=%p", (unsigned long)hr_gb, (void*)bb);
         if( bb )
             bb->Release();
     }
@@ -3052,9 +2997,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
 
     HRESULT hr_bs2 = dev->BeginScene();
     if( FAILED(hr_bs2) )
-        d3d8_log(
-            "Render: BeginScene(2 letterbox) failed hr=0x%08lX",
-            (unsigned long)hr_bs2);
+        d3d8_log("Render: BeginScene(2 letterbox) failed hr=0x%08lX", (unsigned long)hr_bs2);
     d3d8_ensure_pass(p, dev, PASS_2D);
     dev->SetTexture(0, p->scene_rt_tex);
     dev->SetTextureStageState(0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
@@ -3062,14 +3005,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
     dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
     dev->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
 
-    D3DVIEWPORT8 bbvp = {
-        0,
-        0,
-        (DWORD)window_width,
-        (DWORD)window_height,
-        0.0f,
-        1.0f
-    };
+    D3DVIEWPORT8 bbvp = { 0, 0, (DWORD)window_width, (DWORD)window_height, 0.0f, 1.0f };
     dev->SetViewport(&bbvp);
 
     float x0 = (float)dst.left;
@@ -3091,19 +3027,13 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
     dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE);
     HRESULT hr_es2 = dev->EndScene();
     if( FAILED(hr_es2) )
-        d3d8_log(
-            "Render: EndScene(2) failed hr=0x%08lX",
-            (unsigned long)hr_es2);
+        d3d8_log("Render: EndScene(2) failed hr=0x%08lX", (unsigned long)hr_es2);
 
     HRESULT hr_pr = dev->Present(nullptr, nullptr, nullptr, nullptr);
     if( FAILED(hr_pr) )
-        d3d8_log(
-            "Render: Present failed hr=0x%08lX",
-            (unsigned long)hr_pr);
+        d3d8_log("Render: Present failed hr=0x%08lX", (unsigned long)hr_pr);
     else if( d3d8_trace_on(p) )
-        d3d8_log(
-            "Render: Present ok hr=0x%08lX",
-            (unsigned long)hr_pr);
+        d3d8_log("Render: Present ok hr=0x%08lX", (unsigned long)hr_pr);
 
     game->soft3d_mouse_from_window = true;
     game->soft3d_present_dst_x = renderer->present_dst_x;
