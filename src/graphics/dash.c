@@ -1297,7 +1297,7 @@ sort_face_draw_order(
 static inline int
 div3_fast_fixedpoint(int z_sum)
 {
-    return (int)(((uint64_t)z_sum * DIV3_MUL) >> DIV3_SHR);
+    return (z_sum * 21845) >> 16;
 }
 
 static inline int
@@ -1362,61 +1362,6 @@ bucket_sort_by_average_depth(
     return (min_d) | (max_d << 16);
 }
 
-// static inline int
-// bucket_sort_by_average_depth(
-//     faceint_t* face_depth_buckets,
-//     faceint_t* face_depth_bucket_counts,
-//     int model_min_depth,
-//     int num_faces,
-//     int* vertex_x,
-//     int* vertex_y,
-//     int* vertex_z,
-//     faceint_t* face_a,
-//     faceint_t* face_b,
-//     faceint_t* face_c)
-// {
-//     int min_depth = INT_MAX;
-//     int max_depth = INT_MIN;
-
-//     for( int f = 0; f < num_faces; f++ )
-//     {
-//         int a = face_a[f];
-//         int b = face_b[f];
-//         int c = face_c[f];
-
-//         int xa = vertex_x[a];
-//         int xb = vertex_x[b];
-//         int xc = vertex_x[c];
-
-//         int ya = vertex_y[a];
-//         int yb = vertex_y[b];
-//         int yc = vertex_y[c];
-
-//         int dot_product = (xa - xb) * (yc - yb) - (ya - yb) * (xc - xb);
-//         if( dot_product > 0 )
-//         {
-//             int za = vertex_z[a];
-//             int zb = vertex_z[b];
-//             int zc = vertex_z[c];
-
-//             int depth_average = div3_fast(za + zb + zc) + model_min_depth;
-
-//             if( depth_average < 1500 && depth_average > 0 )
-//             {
-//                 int bucket_index = face_depth_bucket_counts[depth_average]++;
-//                 face_depth_buckets[(depth_average << 9) + bucket_index] = (faceint_t)f;
-
-//                 if( depth_average < min_depth )
-//                     min_depth = depth_average;
-//                 if( depth_average > max_depth )
-//                     max_depth = depth_average;
-//             }
-//         }
-//     }
-
-//     return (min_depth) | (max_depth << 16);
-// }
-
 static inline void
 parition_faces_by_priority(
     faceint_t* face_priority_buckets,
@@ -1428,7 +1373,10 @@ parition_faces_by_priority(
     int depth_lower_bound,
     int depth_upper_bound)
 {
-    for( int depth = depth_upper_bound; depth >= depth_lower_bound && depth < 1500; depth-- )
+    if (depth_upper_bound >= 1500)
+        depth_upper_bound = 1499;
+
+    for( int depth = depth_upper_bound; depth >= depth_lower_bound; depth-- )
     {
         int face_count = (int)face_depth_bucket_counts[depth];
         if( face_count == 0 )

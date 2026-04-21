@@ -23,6 +23,16 @@ mullo_epi32_sse2(__m128i a, __m128i b)
         _mm_shuffle_epi32(tmp1, _MM_SHUFFLE(0, 0, 2, 0)),
         _mm_shuffle_epi32(tmp2, _MM_SHUFFLE(0, 0, 2, 0)));
 }
+// static inline __m128i
+// mullo_epi32_sse2(__m128i a, __m128i b)
+// {
+//     __m128i tmp1 = _mm_mul_epu32(a, b);                                       // a0*b0, a2*b2
+//     __m128i tmp2 = _mm_mul_epu32(_mm_srli_si128(a, 4), _mm_srli_si128(b, 4)); // a1*b1, a3*b3
+
+//     return _mm_unpacklo_epi32(
+//         _mm_shuffle_epi32(tmp1, _MM_SHUFFLE(0, 0, 2, 0)),
+//         _mm_shuffle_epi32(tmp2, _MM_SHUFFLE(0, 0, 2, 0)));
+// }
 
 #endif
 

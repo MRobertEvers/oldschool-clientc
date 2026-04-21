@@ -49,6 +49,18 @@ cmake -B build-winxp -G "MinGW Makefiles" \
 
 MINGW_I686="/c/Users/mrobe/Downloads/winlibs-i686-posix-dwarf-gcc-15.2.0-mingw-w64msvcrt-13.0.0-r2/mingw32"
 
+cmake -B build-winxp-reldbg -G "MinGW Makefiles" \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DCMAKE_C_COMPILER="$MINGW_I686/bin/gcc.exe" \
+  -DCMAKE_CXX_COMPILER="$MINGW_I686/bin/g++.exe" \
+  -DCMAKE_PREFIX_PATH="$MINGW_I686" \
+  -DCMAKE_C_FLAGS="-march=pentium4 -msse2 -mfpmath=sse -D_WIN32_WINNT=0x0501 -DWINVER=0x0501" \
+  -DCMAKE_CXX_FLAGS="-march=pentium4 -msse2 -mfpmath=sse -D_WIN32_WINNT=0x0501 -DWINVER=0x0501" \
+  -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++ -Wl,--subsystem,console:5.01" \
+  -DENABLE_PACKAGE_BUILD=ON
+
+MINGW_I686="/c/Users/mrobe/Downloads/winlibs-i686-posix-dwarf-gcc-15.2.0-mingw-w64msvcrt-13.0.0-r2/mingw32"
+
 cmake -B build-winxp -G "MinGW Makefiles" \
   -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_C_COMPILER="$MINGW_I686/bin/gcc.exe" \
@@ -74,6 +86,7 @@ If you previously configured with the wrong SDL2, remove the build dir before re
 
 ```bash
 cmake --build build-winxp -j$(nproc)
+cmake --build build-winxp-reldbg -j$(nproc)
 ```
 
 Or equivalently: `make -C build-winxp -j$(nproc)`
