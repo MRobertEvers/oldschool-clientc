@@ -48,8 +48,16 @@ option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer (UBSAN)" OFF)
 option(BUILD_WEB_NATIVE "Build the web_client_native (SDL-free) Emscripten target" OFF)
 option(ENABLE_PACKAGE_BUILD "Copy scripts/configs/cache254 next to executable; use app-root resource paths" OFF)
 option(ENABLE_HEAP_INFO "Show heap stats in Nuklear debug overlays (platform_get_memory_info)" OFF)
+set(DASH_BUCKET_SORT_MODE "SPARSE_2D"
+    CACHE STRING "Bucket sort backend: SPARSE_2D, LINKED_LIST, or PREFIX_SUM")
+set_property(CACHE DASH_BUCKET_SORT_MODE PROPERTY STRINGS SPARSE_2D LINKED_LIST PREFIX_SUM)
+
 option(DASH_BUCKET_SORT_USE_LINKED_LIST
-    "Use linked-list bucket sort (lower RAM; may be slower than dense array)" OFF)
+    "Legacy alias: when ON, forces DASH_BUCKET_SORT_MODE=LINKED_LIST" OFF)
+if(DASH_BUCKET_SORT_USE_LINKED_LIST)
+    set(DASH_BUCKET_SORT_MODE "LINKED_LIST" CACHE STRING
+        "Bucket sort backend: SPARSE_2D, LINKED_LIST, or PREFIX_SUM" FORCE)
+endif()
 
 file(GLOB LUA_SOURCES "src/3rd/lua/*.c")
 list(REMOVE_ITEM LUA_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/lua.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/3rd/lua/luac.c")
@@ -831,10 +839,12 @@ endforeach()
 
 foreach(_t_bucket_sort sdl2 bench_sdl2 web_client web_client_native win32 benchmark_project)
     if(TARGET ${_t_bucket_sort})
-        if(DASH_BUCKET_SORT_USE_LINKED_LIST)
-            target_compile_definitions(${_t_bucket_sort} PRIVATE DASH_BUCKET_SORT_USE_LINKED_LIST=1)
+        if(DASH_BUCKET_SORT_MODE STREQUAL "LINKED_LIST")
+            target_compile_definitions(${_t_bucket_sort} PRIVATE DASH_BUCKET_SORT_MODE=1)
+        elseif(DASH_BUCKET_SORT_MODE STREQUAL "PREFIX_SUM")
+            target_compile_definitions(${_t_bucket_sort} PRIVATE DASH_BUCKET_SORT_MODE=2)
         else()
-            target_compile_definitions(${_t_bucket_sort} PRIVATE DASH_BUCKET_SORT_USE_LINKED_LIST=0)
+            target_compile_definitions(${_t_bucket_sort} PRIVATE DASH_BUCKET_SORT_MODE=0)
         endif()
     endif()
 endforeach()

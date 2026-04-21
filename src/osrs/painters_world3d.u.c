@@ -240,8 +240,8 @@ painter_w3d_emit_ground_pass(
 
         push_command_terrain(
             buffer,
-            PAINTER_TILE_X(painter, bridge_underpass_tile),
-            PAINTER_TILE_Z(painter, bridge_underpass_tile),
+            bridge_underpass_tile->sx,
+            bridge_underpass_tile->sz,
             painters_tile_get_terrain_level(bridge_underpass_tile));
 
         if( bridge_underpass_tile->wall_a != -1 )
@@ -560,8 +560,8 @@ painter_paint_world3d(
             continue;
 
         tile = &painter->tiles[tile_idx];
-        int tile_sx = PAINTER_TILE_X(painter, tile);
-        int tile_sz = PAINTER_TILE_Z(painter, tile);
+        int tile_sx = tile->sx;
+        int tile_sz = tile->sz;
         int tile_slevel = painters_tile_get_slevel(tile);
         int grid_level = painters_tile_get_grid_level(tile);
         tile_paint = &painter->tile_paints[tile_idx];

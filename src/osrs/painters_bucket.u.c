@@ -237,12 +237,12 @@ painter_paint_bucket(
 
         tile = &painter->tiles[e_tile];
         w->in_heap[e_tile] = 0;
-
-        int tile_sx = PAINTER_TILE_X(painter, tile);
-        int tile_sz = PAINTER_TILE_Z(painter, tile);
+        
+        tile_paint = tile_paint_at_idx(painter, e_tile);
+        int tile_sx = tile->sx;
+        int tile_sz = tile->sz;
         int grid_level = painters_tile_get_grid_level(tile);
         int tile_slevel = painters_tile_get_slevel(tile);
-        tile_paint = tile_paint_at_idx(painter, e_tile);
 
         if( tile_paint->step == PAINT_STEP_DONE )
             continue;
@@ -358,8 +358,8 @@ painter_paint_bucket(
                 bridge_underpass_tile = &painter->tiles[tile->bridge_tile];
                 push_command_terrain(
                     buffer,
-                    PAINTER_TILE_X(painter, bridge_underpass_tile),
-                    PAINTER_TILE_Z(painter, bridge_underpass_tile),
+                    bridge_underpass_tile->sx,
+                    bridge_underpass_tile->sz,
                     painters_tile_get_terrain_level(bridge_underpass_tile));
 
                 if( bridge_underpass_tile->wall_a != -1 )

@@ -9,9 +9,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define PAINTER_TILE_IDX(p, t) ((int)((t) - (p)->tiles))
-#define PAINTER_TILE_X(p, t) (PAINTER_TILE_IDX((p), (t)) % (p)->width)
-#define PAINTER_TILE_Z(p, t) ((PAINTER_TILE_IDX((p), (t)) / (p)->width) % (p)->height)
 
 enum TilePaintStep
 {

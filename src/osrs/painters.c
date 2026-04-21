@@ -24,8 +24,8 @@ init_painter_tile(
     int sz,
     int slevel)
 {
-    (void)sx;
-    (void)sz;
+    tile->sx = (uint16_t)sx;
+    tile->sz = (uint16_t)sz;
     painters_tile_set_slevel(tile, (uint8_t)slevel);
     painters_tile_set_grid_level(tile, (uint8_t)slevel);
     painters_tile_set_terrain_level(tile, (uint8_t)slevel);
@@ -670,6 +670,8 @@ painter_tile_copyto(
     /* grid_level follows the destination slot; terrain_level stays from the source (bridge
      * push-down) so push_command_terrain still indexes the correct world terrain mesh. */
     painters_tile_set_grid_level(dest_tile, (uint8_t)dest_slevel);
+    dest_tile->sx = (uint16_t)dest_sx;
+    dest_tile->sz = (uint16_t)dest_sz;
 }
 
 void

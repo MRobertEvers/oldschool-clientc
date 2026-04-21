@@ -47,6 +47,9 @@ struct SceneryNode
 
 struct PaintersTile
 {
+    uint16_t sx;
+    uint16_t sz;
+
     int16_t wall_a;
     int16_t wall_b;
     int16_t wall_decor_a;

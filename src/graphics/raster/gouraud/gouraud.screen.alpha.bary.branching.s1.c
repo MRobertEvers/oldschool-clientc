@@ -94,17 +94,17 @@ raster_gouraud_screen_alpha_bary_branching_s1_ordered(
     int step_edge_x_AB_ish16;
     int step_edge_x_BC_ish16;
 
-    if( dy_AC > 0 && dy_AC < 4096 )
+    if( dy_AC > 0 )
         step_edge_x_AC_ish16 = (dx_AC << 16) / dy_AC;
     else
         step_edge_x_AC_ish16 = 0;
 
-    if( dy_AB > 0 && dy_AB < 4096 )
+    if( dy_AB > 0 )
         step_edge_x_AB_ish16 = (dx_AB << 16) / dy_AB;
     else
         step_edge_x_AB_ish16 = 0;
 
-    if( y2 != y1 && y2 - y1 < 4096 )
+    if( y2 != y1 )
         step_edge_x_BC_ish16 = ((x2 - x1) << 16) / (y2 - y1);
     else
         step_edge_x_BC_ish16 = 0;

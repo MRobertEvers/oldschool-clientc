@@ -130,8 +130,8 @@ painter_push_queue_dist(
 {
     struct DistMetricCtx* d = DM(painter);
     struct PaintersTile* tile = &painter->tiles[tile_idx];
-    int tile_sx = PAINTER_TILE_X(painter, tile);
-    int tile_sz = PAINTER_TILE_Z(painter, tile);
+    int tile_sx = tile->sx;
+    int tile_sz = tile->sz;
 
     int dx = tile_sx - d->current_camera_sx;
     int dz = tile_sz - d->current_camera_sz;
@@ -284,8 +284,8 @@ painter_paint_distancemetric(
     {
         tile = &painter->tiles[tile_idx];
 
-        int tile_sx = PAINTER_TILE_X(painter, tile);
-        int tile_sz = PAINTER_TILE_Z(painter, tile);
+        int tile_sx = tile->sx;
+        int tile_sz = tile->sz;
         int tile_slevel = painters_tile_get_slevel(tile);
         int grid_level = painters_tile_get_grid_level(tile);
 
@@ -465,8 +465,8 @@ painter_paint_distancemetric(
                 // The bridge floor is always stored on level 3.
                 push_command_terrain(
                     buffer,
-                    PAINTER_TILE_X(painter, bridge_underpass_tile),
-                    PAINTER_TILE_Z(painter, bridge_underpass_tile),
+                    bridge_underpass_tile->sx,
+                    bridge_underpass_tile->sz,
                     painters_tile_get_terrain_level(bridge_underpass_tile));
 
                 if( bridge_underpass_tile->wall_a != -1 )
