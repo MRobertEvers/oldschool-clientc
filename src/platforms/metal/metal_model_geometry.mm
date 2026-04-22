@@ -202,9 +202,17 @@ fill_face_corner_vertices_from_fa(
 
     if( raw_tex >= 0 && fa->count > 0 )
     {
-        const int tp = (int)fa->indices_a[0];
-        const int tm = (int)fa->indices_b[0];
-        const int tn = (int)fa->indices_c[0];
+        /* P/M/N from the VAGround model's first face in this FA (see dashmodel_va_first_face_index). */
+        int pnm_f = 0;
+        if( fa->va_ground_model_first && f >= 0 && f < fa->count )
+        {
+            pnm_f = (int)fa->va_ground_model_first[f];
+            if( pnm_f < 0 || pnm_f >= fa->count )
+                pnm_f = 0;
+        }
+        const int tp = (int)fa->indices_a[pnm_f];
+        const int tm = (int)fa->indices_b[pnm_f];
+        const int tn = (int)fa->indices_c[pnm_f];
         if( tp < 0 || tp >= vcount || tm < 0 || tm >= vcount || tn < 0 || tn >= vcount )
             return false;
 

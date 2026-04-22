@@ -101,13 +101,13 @@ fragment float4 fragmentShader(
         local.x = clamp(local.x, 0.008, 0.992);
         local.y = clamp(fract(local.y), 0.008, 0.992);
     } else {
-        // VA/FA: uv_pnm can exceed 0-1; tile U and V like pre-clamp Metal (dual fract + scroll)
+        // VA/FA: uv_pnm can exceed 0-1; tile U and V with fract, then inset like mode 0 (atlas margin)
         if( t.animOp.x > 0.0 )
             local.x += clk * t.animOp.x;
         if( t.animOp.y > 0.0 )
             local.y += clk * t.animOp.y;
-        local.x = fract(local.x);
-        local.y = fract(local.y);
+        local.x = clamp(fract(local.x), 0.008, 0.992);
+        local.y = clamp(fract(local.y), 0.008, 0.992);
     }
     float2 uv_atlas = t.uvRect.xy + local * t.uvRect.zw;
     float4 texColor = atlas.sample(samp, uv_atlas);

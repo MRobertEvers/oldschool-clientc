@@ -139,6 +139,7 @@ dashfacearray_new(int capacity)
             free(fa);
             return NULL;
         }
+        fa->va_ground_model_first = NULL;
     }
     return fa;
 }
@@ -155,6 +156,7 @@ dashfacearray_free(struct DashFaceArray* fa)
     free(fa->colors_b);
     free(fa->colors_c);
     free(fa->texture_ids);
+    free(fa->va_ground_model_first);
     free(fa);
 }
 
@@ -217,6 +219,7 @@ dashfacearray_shrink_to_fit(struct DashFaceArray* fa)
         free(fa->colors_b);
         free(fa->colors_c);
         free(fa->texture_ids);
+        free(fa->va_ground_model_first);
         fa->indices_a = NULL;
         fa->indices_b = NULL;
         fa->indices_c = NULL;
@@ -224,6 +227,7 @@ dashfacearray_shrink_to_fit(struct DashFaceArray* fa)
         fa->colors_b = NULL;
         fa->colors_c = NULL;
         fa->texture_ids = NULL;
+        fa->va_ground_model_first = NULL;
         fa->capacity = 0;
         return;
     }
@@ -234,6 +238,13 @@ dashfacearray_shrink_to_fit(struct DashFaceArray* fa)
     fa->colors_b = (hsl16_t*)realloc(fa->colors_b, (size_t)n * sizeof(hsl16_t));
     fa->colors_c = (hsl16_t*)realloc(fa->colors_c, (size_t)n * sizeof(hsl16_t));
     fa->texture_ids = (faceint_t*)realloc(fa->texture_ids, (size_t)n * sizeof(faceint_t));
+    if( fa->va_ground_model_first )
+    {
+        faceint_t* ng = (faceint_t*)realloc(
+            fa->va_ground_model_first, (size_t)n * sizeof(faceint_t));
+        if( ng )
+            fa->va_ground_model_first = ng;
+    }
     fa->capacity = n;
 }
 
