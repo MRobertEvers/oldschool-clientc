@@ -1,38 +1,35 @@
 #include <metal_stdlib>
 using namespace metal;
 
-// Must match MetalVertex / MetalUniforms / MetalInstanceUniform / MetalRunUniform in
-// platform_impl2_sdl2_renderer_metal.mm
+// Must match MetalVertex / MetalUniforms / MetalInstanceUniform in platforms/metal/metal_internal.h
 struct Vertex {
-    float4 position [[attribute(0)]]; // xyz = model-local, w = 1
+    float4 position [[attribute(0)]];
     float4 color [[attribute(1)]];
     float2 texcoord [[attribute(2)]];
-    float texBlend [[attribute(3)]];
+    ushort2 texIdPack [[attribute(3)]];
 };
 
 struct InstanceUniform {
-    float4 t0; // cos_yaw, sin_yaw, world_x, world_y
-    float4 t1; // world_z, pad
-};
-
-struct RunUniform {
-    float texBlendOverride;
-    float textureOpaque;
-    float textureAnimSpeed;
-    float pad;
+    float4 t0;
+    float4 t1;
 };
 
 struct Uniforms {
     float4x4 modelViewMatrix;
     float4x4 projectionMatrix;
-    float4 uClockPad; // .x = animation time (seconds), matches pix3dgl uClock
+    float4 uClockPad;
+};
+
+struct AtlasTile {
+    float4 uvRect;
+    float4 animOp;
 };
 
 struct VertexOut {
     float4 position [[position]];
     float4 color;
     float2 texcoord;
-    float texBlend [[flat]];
+    uint tex_id [[flat]];
 };
 
 vertex VertexOut vertexShader(
@@ -51,49 +48,44 @@ vertex VertexOut vertexShader(
     out.position = uniforms.projectionMatrix * uniforms.modelViewMatrix * worldPos;
     out.color = in.color;
     out.texcoord = in.texcoord;
-    out.texBlend = in.texBlend;
+    out.tex_id = (uint)in.texIdPack.x;
     return out;
 }
 
 fragment float4 fragmentShader(
     VertexOut in [[stage_in]],
     constant Uniforms& uniforms [[buffer(1)]],
-    constant RunUniform& runU [[buffer(3)]],
-    texture2d<float> tex [[texture(0)]],
-    sampler samp [[sampler(0)]])
+    texture2d<float> atlas [[texture(0)]],
+    sampler samp [[sampler(0)]],
+    constant AtlasTile* tiles [[buffer(4)]])
 {
-    float tb = min(in.texBlend, runU.texBlendOverride);
-    float2 localUV = in.texcoord;
-    if( tb > 0.5 )
+    if( in.tex_id >= 256u )
     {
-        if( runU.textureAnimSpeed > 0.0 )
-            localUV.x = localUV.x + (uniforms.uClockPad.x * runU.textureAnimSpeed);
-        else if( runU.textureAnimSpeed < 0.0 )
-            localUV.y = localUV.y - (uniforms.uClockPad.x * (-runU.textureAnimSpeed));
-        localUV.x = clamp(localUV.x, 0.008, 0.992);
-        localUV.y = clamp(fract(localUV.y), 0.008, 0.992);
+        return float4(in.color.rgb, in.color.a);
     }
+    AtlasTile t = tiles[in.tex_id];
+    if( t.uvRect.z <= 0.0 || t.uvRect.w <= 0.0 )
+        return float4(in.color.rgb, in.color.a);
 
-    float4 texColor = tex.sample(samp, localUV);
+    float2 local = in.texcoord;
+    const float clk = uniforms.uClockPad.x;
+    local.x = fract(local.x + clk * t.animOp.x);
+    local.y = fract(local.y + clk * t.animOp.y);
+    float2 uv_atlas = t.uvRect.xy + local * t.uvRect.zw;
+    float4 texColor = atlas.sample(samp, uv_atlas);
 
-    float3 finalColor = mix(in.color.rgb, texColor.rgb * in.color.rgb, tb);
+    float3 finalColor = mix(in.color.rgb, texColor.rgb * in.color.rgb, 1.0);
     float finalAlpha = in.color.a;
 
-    if( tb > 0.5 )
+    if( t.animOp.z < 0.5 )
     {
-        if( runU.textureOpaque < 0.5 )
-        {
-            if( texColor.a < 0.5 )
-                discard_fragment();
-        }
+        if( texColor.a < 0.5 )
+            discard_fragment();
     }
 
     return float4(finalColor, finalAlpha);
 }
 
-// ---------------------------------------------------------------------------
-// Simple textured quad for UI sprites (full-framebuffer clip space, no atlas)
-// ---------------------------------------------------------------------------
 struct UIVertIn {
     float2 p [[attribute(0)]];
     float2 uv [[attribute(1)]];
@@ -108,7 +100,7 @@ vertex UIVertOut uiSpriteVert(UIVertIn in [[stage_in]])
 {
     UIVertOut o;
     o.position = float4(in.p, 0.0, 1.0);
-    o.uv       = in.uv;
+    o.uv = in.uv;
     return o;
 }
 
@@ -123,15 +115,11 @@ fragment float4 uiSpriteFrag(
     return c;
 }
 
-/** Solid transparent clear for TORIRS_GFX_CLEAR_RECT (no texture). */
 fragment float4 torirsClearRectFrag(UIVertOut in [[stage_in]])
 {
     return float4(0.0, 0.0, 0.0, 0.0);
 }
 
-// ---------------------------------------------------------------------------
-// Font atlas rendering: per-vertex color tinted by atlas alpha
-// ---------------------------------------------------------------------------
 struct UIFontVertIn {
     float2 p [[attribute(0)]];
     float2 uv [[attribute(1)]];
@@ -148,8 +136,8 @@ vertex UIFontVertOut uiFontVert(UIFontVertIn in [[stage_in]])
 {
     UIFontVertOut o;
     o.position = float4(in.p, 0.0, 1.0);
-    o.uv       = in.uv;
-    o.color    = in.color;
+    o.uv = in.uv;
+    o.color = in.color;
     return o;
 }
 

@@ -249,7 +249,18 @@ if(NOT EMSCRIPTEN)
 
     if(APPLE)
         list(APPEND SDL2_NATIVE_SOURCES
-            src/platforms/platform_impl2_sdl2_renderer_metal.mm
+            src/platforms/metal/metal_helpers.mm
+            src/platforms/metal/metal_overlay.mm
+            src/platforms/metal/metal_init.mm
+            src/platforms/metal/metal_render_context.mm
+            src/platforms/metal/metal_model_geometry.mm
+            src/platforms/metal/metal_model_events.mm
+            src/platforms/metal/metal_atlas_world.mm
+            src/platforms/metal/metal_atlas_sprite.mm
+            src/platforms/metal/metal_atlas_font.mm
+            src/platforms/metal/metal_batch3d.mm
+            src/platforms/metal/metal_draw_model.mm
+            src/platforms/metal/metal_render.mm
             src/nuklear/backends/torirs_nk_metal_sdl.mm
         )
     endif()
@@ -557,7 +568,18 @@ if(NOT EMSCRIPTEN)
 
         # Enable ARC only for the Objective-C++ Metal files
         set_source_files_properties(
-            src/platforms/platform_impl2_sdl2_renderer_metal.mm
+            src/platforms/metal/metal_helpers.mm
+            src/platforms/metal/metal_overlay.mm
+            src/platforms/metal/metal_init.mm
+            src/platforms/metal/metal_render_context.mm
+            src/platforms/metal/metal_model_geometry.mm
+            src/platforms/metal/metal_model_events.mm
+            src/platforms/metal/metal_atlas_world.mm
+            src/platforms/metal/metal_atlas_sprite.mm
+            src/platforms/metal/metal_atlas_font.mm
+            src/platforms/metal/metal_batch3d.mm
+            src/platforms/metal/metal_draw_model.mm
+            src/platforms/metal/metal_render.mm
             src/nuklear/backends/torirs_nk_metal_sdl.mm
             PROPERTIES COMPILE_FLAGS "-fobjc-arc"
         )

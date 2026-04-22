@@ -48,8 +48,15 @@ public:
         uint32_t vtx_count;
         int face_count;
         std::vector<int> per_face_tex_id; ///< Length == face_count
-        bool owns_buffer;                 ///< True for standalone; batch owns the VBO otherwise
-        bool loaded;                      ///< False = slot allocated but not populated
+        bool owns_buffer; ///< True for standalone; batch owns the VBO otherwise
+        bool loaded;      ///< False = slot allocated but not populated
+        /** Shared batch IBO: first index element (uint32) for this model; 0 if unused. */
+        uint32_t batch_index_first;
+        /** Number of uint32 indices (typically face_count * 3). */
+        uint32_t batch_index_count;
+        /** Standalone pose: optional index buffer (sequential 0..vtx-1); null for batch. */
+        BufH index_buffer;
+        bool owns_index_buffer;
     };
 
     /** Sub-table for one anim_id: indexed by frame_id. */
@@ -179,6 +186,7 @@ public:
         batch->pending_vert_count += vert_count;
         batch->vert_size_bytes = vert_size_bytes;
 
+        const uint32_t idx_first = (uint32_t)batch->pending_indices.size();
         // Sequential indices (faces are pre-sorted by the caller)
         const uint32_t vtx_base = (uint32_t)(byte_offset / (size_t)vert_size_bytes);
         for( int v = 0; v < vert_count; ++v )
@@ -191,6 +199,10 @@ public:
         r.vtx_count = (uint32_t)vert_count;
         r.face_count = face_count;
         r.owns_buffer = false;
+        r.batch_index_first = idx_first;
+        r.batch_index_count = (uint32_t)vert_count;
+        r.index_buffer = null_;
+        r.owns_index_buffer = false;
         r.loaded = true;
         r.per_face_tex_id.clear();
         if( per_face_tex && face_count > 0 )
@@ -265,7 +277,11 @@ public:
         uint32_t vtx_count,
         int face_count,
         const int* per_face_tex,
-        bool owns_buffer)
+        bool owns_buffer,
+        BufH index_buffer,
+        bool owns_index_buffer,
+        uint32_t batch_index_first,
+        uint32_t batch_index_count)
     {
         if( model_gpu_id < 0 || model_gpu_id >= model_capacity_ )
             return -1;
@@ -275,6 +291,10 @@ public:
         r.vtx_count = vtx_count;
         r.face_count = face_count;
         r.owns_buffer = owns_buffer;
+        r.index_buffer = index_buffer;
+        r.owns_index_buffer = owns_index_buffer;
+        r.batch_index_first = batch_index_first;
+        r.batch_index_count = batch_index_count;
         r.loaded = true;
         r.per_face_tex_id.clear();
         if( per_face_tex && face_count > 0 )
@@ -319,6 +339,18 @@ public:
             return null_;
         const BatchEntry* b = find_batch_const(entry.batch_id);
         return b ? b->vbo : null_;
+    }
+
+    BufH
+    get_batch_ibo_for_model(int model_gpu_id) const
+    {
+        if( model_gpu_id < 0 || model_gpu_id >= model_capacity_ )
+            return null_;
+        const ModelEntry& entry = entries_[model_gpu_id];
+        if( !entry.is_batched )
+            return null_;
+        const BatchEntry* b = find_batch_const(entry.batch_id);
+        return b ? b->ibo : null_;
     }
 
     BatchEntry*
@@ -410,6 +442,10 @@ private:
                 anim.frames[k].vtx_count = 0;
                 anim.frames[k].face_count = 0;
                 anim.frames[k].owns_buffer = false;
+                anim.frames[k].batch_index_first = 0;
+                anim.frames[k].batch_index_count = 0;
+                anim.frames[k].index_buffer = null_;
+                anim.frames[k].owns_index_buffer = false;
                 anim.frames[k].loaded = false;
             }
         }
