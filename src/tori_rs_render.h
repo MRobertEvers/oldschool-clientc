@@ -23,10 +23,6 @@ enum ToriRSRenderCommandKind
     TORIRS_GFX_FONT_DRAW,
     /** Clear ARGB destination rectangle to transparent black (0). */
     TORIRS_GFX_CLEAR_RECT,
-    TORIRS_GFX_VERTEX_ARRAY_LOAD,
-    TORIRS_GFX_VERTEX_ARRAY_UNLOAD,
-    TORIRS_GFX_FACE_ARRAY_LOAD,
-    TORIRS_GFX_FACE_ARRAY_UNLOAD,
     /** Between BEGIN_3D and END_3D, only MODEL_DRAW will appear. */
     TORIRS_GFX_BEGIN_3D,
     TORIRS_GFX_END_3D,

@@ -2818,10 +2818,6 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         case TORIRS_GFX_END_3D:
         case TORIRS_GFX_BEGIN_2D:
         case TORIRS_GFX_END_2D:
-        case TORIRS_GFX_VERTEX_ARRAY_LOAD:
-        case TORIRS_GFX_VERTEX_ARRAY_UNLOAD:
-        case TORIRS_GFX_FACE_ARRAY_LOAD:
-        case TORIRS_GFX_FACE_ARRAY_UNLOAD:
         case TORIRS_GFX_NONE:
         default:
         {

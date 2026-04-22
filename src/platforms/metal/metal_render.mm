@@ -153,7 +153,6 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         MetalRenderCtx ctx = {};
         ctx.renderer = renderer;
         ctx.game = game;
-        ctx.render_commands = render_command_buffer;
         ctx.device = device;
         ctx.encoder = encoder;
         ctx.unifBuf = unifBuf;
@@ -218,18 +217,6 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     current_pass = kMTLPassNone;
                     break;
 
-                case TORIRS_GFX_VERTEX_ARRAY_LOAD:
-                    metal_frame_event_vertex_array_load(&ctx, &cmd);
-                    break;
-                case TORIRS_GFX_VERTEX_ARRAY_UNLOAD:
-                    metal_frame_event_vertex_array_unload(&ctx, &cmd);
-                    break;
-                case TORIRS_GFX_FACE_ARRAY_LOAD:
-                    metal_frame_event_face_array_load(&ctx, &cmd);
-                    break;
-                case TORIRS_GFX_FACE_ARRAY_UNLOAD:
-                    metal_frame_event_face_array_unload(&ctx, &cmd);
-                    break;
                 case TORIRS_GFX_BATCH3D_VERTEX_ARRAY_LOAD:
                     metal_frame_event_batch_vertex_array_load(&ctx, &cmd);
                     break;

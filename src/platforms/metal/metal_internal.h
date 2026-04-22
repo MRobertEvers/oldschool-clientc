@@ -116,8 +116,6 @@ struct MetalRenderCtx
 {
     struct Platform2_SDL2_Renderer_Metal* renderer = nullptr;
     struct GGame* game = nullptr;
-    /** Main frame command buffer; used to peek ahead for VA PNM when baking face arrays. */
-    struct ToriRSRenderCommandBuffer* render_commands = nullptr;
     id<MTLDevice> device = nil;
     id<MTLRenderCommandEncoder> encoder = nil;
     id<MTLBuffer> unifBuf = nil;
@@ -310,17 +308,11 @@ void
 metal_frame_event_model_animation_load(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
 
 void
-metal_frame_event_vertex_array_load(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
-void
-metal_frame_event_vertex_array_unload(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
-void
-metal_frame_event_face_array_load(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
-void
-metal_frame_event_face_array_unload(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
-void
 metal_frame_event_batch_vertex_array_load(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
 void
 metal_frame_event_batch_face_array_load(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
+void
+metal_patch_batched_va_model_verts(MetalRenderCtx* ctx, struct DashModel* model);
 
 void
 metal_sprite_draw_impl(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);

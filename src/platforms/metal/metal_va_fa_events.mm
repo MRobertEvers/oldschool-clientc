@@ -1,49 +1,10 @@
 // System ObjC/Metal headers must come before any game headers.
 #include "platforms/metal/metal_internal.h"
 
-#include "tori_rs_render.h"
-
 #include <algorithm>
 #include <climits>
-
-/** Terrain shares one FA across many VA tile models; each model's first_face_index is the PNM
- *  reference face for all faces in that range. Those MODEL_LOAD commands follow FACE_ARRAY_LOAD in
- *  the same render command buffer, so we recover the map here without DashFaceArray side storage.
- */
-static void
-metal_fill_pnm_from_upcoming_va_models(
-    struct GGame* game,
-    struct ToriRSRenderCommandBuffer* buf,
-    struct DashFaceArray* fa,
-    int* pnm_out)
-{
-    if( !game || !buf || !fa || !pnm_out || fa->count <= 0 )
-        return;
-    const int ncmd = LibToriRS_RenderCommandBufferCount(buf);
-    for( int i = game->at_render_command_index; i < ncmd; ++i )
-    {
-        struct ToriRSRenderCommand* c = LibToriRS_RenderCommandBufferAt(buf, i);
-        struct DashModel* m = nullptr;
-        if( c->kind == TORIRS_GFX_MODEL_LOAD || c->kind == TORIRS_GFX_BATCH3D_MODEL_LOAD )
-            m = c->_model_load.model;
-        else
-            continue;
-        if( !m || !dashmodel__is_ground_va(m) )
-            continue;
-        if( dashmodel_va_face_array_const(m) != fa )
-            continue;
-        const uint32_t first = dashmodel_va_first_face_index(m);
-        const int fcnt = dashmodel_face_count(m);
-        if( fcnt <= 0 )
-            continue;
-        for( int k = 0; k < fcnt; ++k )
-        {
-            const int gi = (int)first + k;
-            if( gi >= 0 && gi < fa->count )
-                pnm_out[gi] = (int)first;
-        }
-    }
-}
+#include <cstring>
+#include <vector>
 
 static struct DashVertexArray*
 metal_find_staged_va_for_face_array(
@@ -76,119 +37,6 @@ metal_find_staged_va_for_face_array(
         }
     }
     return best;
-}
-
-void
-metal_frame_event_vertex_array_load(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd)
-{
-    struct DashVertexArray* va = cmd->_vertex_array_load.array;
-    const int va_id = cmd->_vertex_array_load.array_id;
-    if( !va || va_id < 0 || va->vertex_count <= 0 )
-        return;
-    ctx->renderer->mtl_va_staging[va_id] = va;
-    ctx->renderer->model_cache.register_vertex_array(
-        va_id, nullptr, false, (uint32_t)va->vertex_count, (int)sizeof(MetalVertex));
-}
-
-void
-metal_frame_event_vertex_array_unload(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd)
-{
-    const int va_id = cmd->_vertex_array_load.array_id;
-    ctx->renderer->mtl_va_staging.erase(va_id);
-    ctx->renderer->model_cache.unload_vertex_array(va_id);
-}
-
-static void
-metal_bake_and_register_face_array_standalone(
-    MetalRenderCtx* ctx,
-    int fa_id,
-    struct DashVertexArray* va,
-    struct DashFaceArray* fa)
-{
-    const int fc = fa->count;
-    std::vector<int> pnm((size_t)fc, 0);
-    metal_fill_pnm_from_upcoming_va_models(ctx->game, ctx->render_commands, fa, pnm.data());
-    std::vector<MetalVertex> verts((size_t)fc * 3u);
-    std::vector<int> per_face_tex((size_t)fc);
-    for( int f = 0; f < fc; ++f )
-    {
-        int raw = fa->texture_ids ? (int)fa->texture_ids[f] : -1;
-        per_face_tex[(size_t)f] = raw;
-        MetalVertex tri[3];
-        if( !fill_face_corner_vertices_from_fa(va, fa, f, raw, pnm.data(), tri) )
-        {
-            metal_vertex_fill_invisible(&tri[0]);
-            metal_vertex_fill_invisible(&tri[1]);
-            metal_vertex_fill_invisible(&tri[2]);
-        }
-        verts[(size_t)f * 3u + 0u] = tri[0];
-        verts[(size_t)f * 3u + 1u] = tri[1];
-        verts[(size_t)f * 3u + 2u] = tri[2];
-    }
-
-    const size_t vbytes = verts.size() * sizeof(MetalVertex);
-    id<MTLBuffer> vbo = [ctx->device newBufferWithBytes:verts.data()
-                                                 length:(NSUInteger)vbytes
-                                                options:MTLResourceStorageModeShared];
-    std::vector<uint32_t> idx((size_t)fc * 3u);
-    for( size_t i = 0; i < idx.size(); ++i )
-        idx[i] = (uint32_t)i;
-    id<MTLBuffer> ibo = [ctx->device newBufferWithBytes:idx.data()
-                                                 length:idx.size() * sizeof(uint32_t)
-                                                options:MTLResourceStorageModeShared];
-    ctx->renderer->model_cache.register_face_array(
-        fa_id,
-        vbo ? (__bridge_retained void*)vbo : nullptr,
-        ibo ? (__bridge_retained void*)ibo : nullptr,
-        true,
-        true,
-        fc,
-        per_face_tex.data());
-}
-
-void
-metal_frame_event_face_array_load(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd)
-{
-    struct DashFaceArray* fa = cmd->_face_array_load.array;
-    const int fa_id = cmd->_face_array_load.array_id;
-    if( !fa || fa_id < 0 || fa->count <= 0 )
-        return;
-
-    struct DashVertexArray* va = metal_find_staged_va_for_face_array(ctx->renderer, fa);
-    if( !va )
-    {
-        fprintf(stderr, "[metal] FACE_ARRAY_LOAD: no matching staged vertex array\n");
-        return;
-    }
-
-    Gpu3DCache<void*>::FaceArrayEntry* existing = ctx->renderer->model_cache.get_face_array(fa_id);
-    if( existing && existing->owns_vbuf && existing->vbuf )
-        CFRelease(existing->vbuf);
-    if( existing && existing->owns_ibuf && existing->ibuf )
-        CFRelease(existing->ibuf);
-    ctx->renderer->model_cache.unload_face_array(fa_id);
-
-    metal_bake_and_register_face_array_standalone(ctx, fa_id, va, fa);
-}
-
-void
-metal_frame_event_face_array_unload(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd)
-{
-    const int fa_id = cmd->_face_array_load.array_id;
-    Gpu3DCache<void*>::FaceArrayEntry* e = ctx->renderer->model_cache.get_face_array(fa_id);
-    if( e && e->owns_vbuf && e->vbuf )
-        CFRelease(e->vbuf);
-    if( e && e->owns_ibuf && e->ibuf )
-        CFRelease(e->ibuf);
-    ctx->renderer->model_cache.unload_face_array(fa_id);
 }
 
 void
@@ -226,7 +74,6 @@ metal_frame_event_batch_face_array_load(
 
     const int fc = fa->count;
     std::vector<int> pnm((size_t)fc, 0);
-    metal_fill_pnm_from_upcoming_va_models(ctx->game, ctx->render_commands, fa, pnm.data());
     std::vector<MetalVertex> verts((size_t)fc * 3u);
     std::vector<int> per_face_tex((size_t)fc);
     for( int f = 0; f < fc; ++f )
@@ -247,4 +94,54 @@ metal_frame_event_batch_face_array_load(
 
     ctx->renderer->model_cache.accumulate_batch_face_array(
         bid, fa_id, verts.data(), (int)sizeof(MetalVertex), fc * 3, fc, per_face_tex.data());
+}
+
+void
+metal_patch_batched_va_model_verts(MetalRenderCtx* ctx, struct DashModel* model)
+{
+    if( !ctx || !ctx->renderer || !model || !dashmodel__is_ground_va(model) )
+        return;
+    const uint32_t bid = ctx->renderer->current_model_batch_id;
+    if( bid == 0 )
+        return;
+    struct DashModelVAGround* vg = dashmodel__as_ground_va(model);
+    if( !vg->vertex_array || !vg->face_array )
+        return;
+    const int va_id = vg->vertex_array->scene2_gpu_id;
+    const int fa_id = vg->face_array->scene2_gpu_id;
+    auto it = ctx->renderer->mtl_va_staging.find(va_id);
+    if( it == ctx->renderer->mtl_va_staging.end() || !it->second )
+        return;
+    struct DashVertexArray* va = it->second;
+    struct DashFaceArray* fa = vg->face_array;
+    const uint32_t first = dashmodel_va_first_face_index(model);
+    const int fc = dashmodel_face_count(model);
+    if( fc <= 0 )
+        return;
+    const int pnm_val = (int)first;
+    Gpu3DCache<void*>& cache = ctx->renderer->model_cache;
+    if( !cache.patch_face_array_pnm_va_range(fa_id, first, fc, pnm_val) )
+        return;
+    const int* pnm = cache.face_array_pnm_ptr(fa_id);
+    if( !pnm )
+        return;
+    const int vs = (int)sizeof(MetalVertex);
+    size_t slice_len = 0;
+    uint8_t* dst_base =
+        cache.mutable_batch_face_vert_slice(bid, fa_id, first, fc, vs, &slice_len);
+    if( !dst_base || slice_len == 0 )
+        return;
+    MetalVertex tri[3];
+    for( int f = (int)first; f < (int)first + fc; ++f )
+    {
+        int raw = fa->texture_ids ? (int)fa->texture_ids[f] : -1;
+        if( !fill_face_corner_vertices_from_fa(va, fa, f, raw, pnm, tri) )
+        {
+            metal_vertex_fill_invisible(&tri[0]);
+            metal_vertex_fill_invisible(&tri[1]);
+            metal_vertex_fill_invisible(&tri[2]);
+        }
+        uint8_t* dst = dst_base + (size_t)(f - (int)first) * 3u * (size_t)vs;
+        memcpy(dst, tri, 3u * (size_t)vs);
+    }
 }

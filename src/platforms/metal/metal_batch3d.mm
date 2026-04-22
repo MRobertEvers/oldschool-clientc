@@ -27,7 +27,10 @@ metal_frame_event_model_batched_load(
     const uint32_t bid = ctx->renderer->current_model_batch_id;
     if( !model || mid <= 0 || bid == 0 )
         return;
-    metal_dispatch_model_load(ctx->renderer, ctx->device, mid, model, true, bid);
+    if( !metal_dispatch_model_load(ctx->renderer, ctx->device, mid, model, true, bid) )
+        return;
+    if( dashmodel__is_ground_va(model) )
+        metal_patch_batched_va_model_verts(ctx, model);
 }
 
 // ---------------------------------------------------------------------------
@@ -68,10 +71,13 @@ metal_frame_event_batch_model_load_end(
                                                      length:(NSUInteger)vb
                                                     options:MTLResourceStorageModeShared];
         id<MTLBuffer> ibo = [ctx->device newBufferWithBytes:pi
-                                                    length:(NSUInteger)ic * sizeof(uint32_t)
-                                                   options:MTLResourceStorageModeShared];
+                                                     length:(NSUInteger)ic * sizeof(uint32_t)
+                                                    options:MTLResourceStorageModeShared];
         ctx->renderer->model_cache.set_chunk_buffers(
-            bid, c, vbo ? (__bridge_retained void*)vbo : nullptr, ibo ? (__bridge_retained void*)ibo : nullptr);
+            bid,
+            c,
+            vbo ? (__bridge_retained void*)vbo : nullptr,
+            ibo ? (__bridge_retained void*)ibo : nullptr);
     }
     if( !any )
     {
@@ -98,7 +104,8 @@ metal_frame_event_batch_model_clear(
     const int n = ctx->renderer->model_cache.get_batch_chunk_count(bid);
     for( int c = 0; c < n; ++c )
     {
-        const Gpu3DCache<void*>::BatchChunk* ch = ctx->renderer->model_cache.get_batch_chunk(bid, c);
+        const Gpu3DCache<void*>::BatchChunk* ch =
+            ctx->renderer->model_cache.get_batch_chunk(bid, c);
         if( !ch )
             continue;
         if( ch->vbo )

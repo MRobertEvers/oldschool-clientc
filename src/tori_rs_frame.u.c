@@ -706,17 +706,7 @@ queue_static_load_commands(
             if( scene_event.type == SCENE2_EVENT_VERTEX_ARRAY_ADDED )
             {
                 struct ToriRSRenderCommand cmd = { 0 };
-                cmd.kind = scene_event.batched ? TORIRS_GFX_BATCH3D_VERTEX_ARRAY_LOAD
-                                               : TORIRS_GFX_VERTEX_ARRAY_LOAD;
-                cmd._vertex_array_load.array_id = scene_event.u.vertex_array.array_id;
-                cmd._vertex_array_load.array = scene_event.u.vertex_array.array;
-                LibToriRS_RenderCommandBufferAddCommand(render_command_buffer, cmd);
-                continue;
-            }
-            if( scene_event.type == SCENE2_EVENT_VERTEX_ARRAY_REMOVED )
-            {
-                struct ToriRSRenderCommand cmd = { 0 };
-                cmd.kind = TORIRS_GFX_VERTEX_ARRAY_UNLOAD;
+                cmd.kind = TORIRS_GFX_BATCH3D_VERTEX_ARRAY_LOAD;
                 cmd._vertex_array_load.array_id = scene_event.u.vertex_array.array_id;
                 cmd._vertex_array_load.array = scene_event.u.vertex_array.array;
                 LibToriRS_RenderCommandBufferAddCommand(render_command_buffer, cmd);
@@ -725,17 +715,7 @@ queue_static_load_commands(
             if( scene_event.type == SCENE2_EVENT_FACE_ARRAY_ADDED )
             {
                 struct ToriRSRenderCommand cmd = { 0 };
-                cmd.kind = scene_event.batched ? TORIRS_GFX_BATCH3D_FACE_ARRAY_LOAD
-                                               : TORIRS_GFX_FACE_ARRAY_LOAD;
-                cmd._face_array_load.array_id = scene_event.u.face_array.array_id;
-                cmd._face_array_load.array = scene_event.u.face_array.array;
-                LibToriRS_RenderCommandBufferAddCommand(render_command_buffer, cmd);
-                continue;
-            }
-            if( scene_event.type == SCENE2_EVENT_FACE_ARRAY_REMOVED )
-            {
-                struct ToriRSRenderCommand cmd = { 0 };
-                cmd.kind = TORIRS_GFX_FACE_ARRAY_UNLOAD;
+                cmd.kind = TORIRS_GFX_BATCH3D_FACE_ARRAY_LOAD;
                 cmd._face_array_load.array_id = scene_event.u.face_array.array_id;
                 cmd._face_array_load.array = scene_event.u.face_array.array;
                 LibToriRS_RenderCommandBufferAddCommand(render_command_buffer, cmd);

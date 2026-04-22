@@ -9,6 +9,8 @@
 #include <cstring>
 #include <vector>
 
+#include "platforms/common/batch_load_buffer.h"
+
 /** Per-model draw yaw encoding for GPU instance data (see BufferedFaceOrder / Metal shader). */
 enum class Gpu3DAngleEncoding : uint32_t
 {
@@ -57,6 +59,8 @@ public:
         bool owns_ibuf = false;
         int face_count = 0;
         std::vector<int> per_face_tex_id;
+        /** Per global face index: FA row used as P/M/N reference for VA terrain UVs (Metal). */
+        std::vector<int> va_pnm_ref_face;
         bool loaded = false;
         int batch_id = -1;
         int batch_chunk_index = 0;
@@ -99,8 +103,8 @@ public:
 
     struct BatchChunk
     {
-        std::vector<uint8_t> pending_verts;
-        std::vector<uint32_t> pending_indices;
+        BatchLoadBuffer<uint8_t> pending_verts;
+        BatchLoadBuffer<uint32_t> pending_indices;
         int pending_vert_count = 0;
         BufH vbo{};
         BufH ibo{};
@@ -342,8 +346,8 @@ public:
         BatchChunk& ch = batch->chunks[(size_t)batch->active_chunk];
         const uint32_t byte_offset = (uint32_t)ch.pending_verts.size();
         const size_t append_bytes = (size_t)vert_size_bytes * (size_t)vert_count;
-        ch.pending_verts.resize(ch.pending_verts.size() + append_bytes);
-        memcpy(ch.pending_verts.data() + byte_offset, raw_verts, append_bytes);
+        ch.pending_verts.append(
+            static_cast<const uint8_t*>(raw_verts), append_bytes);
         ch.pending_vert_count += vert_count;
         batch->vert_size_bytes = vert_size_bytes;
 
@@ -397,8 +401,8 @@ public:
         BatchChunk& ch = batch->chunks[(size_t)batch->active_chunk];
         const uint32_t byte_offset = (uint32_t)ch.pending_verts.size();
         const size_t append_bytes = (size_t)vert_size_bytes * (size_t)vert_count;
-        ch.pending_verts.resize(ch.pending_verts.size() + append_bytes);
-        memcpy(ch.pending_verts.data() + byte_offset, raw_verts, append_bytes);
+        ch.pending_verts.append(
+            static_cast<const uint8_t*>(raw_verts), append_bytes);
         ch.pending_vert_count += vert_count;
         batch->vert_size_bytes = vert_size_bytes;
 
@@ -421,7 +425,73 @@ public:
         fe.per_face_tex_id.clear();
         if( per_face_tex && face_count > 0 )
             fe.per_face_tex_id.assign(per_face_tex, per_face_tex + face_count);
+        fe.va_pnm_ref_face.assign((size_t)face_count, 0);
         fe.loaded = true;
+    }
+
+    bool
+    patch_face_array_pnm_va_range(
+        int fa_id,
+        uint32_t first_face,
+        int face_count,
+        int pnm_value)
+    {
+        if( fa_id < 0 || fa_id >= kGpuIdTableSize || face_count <= 0 )
+            return false;
+        FaceArrayEntry& fe = fa_entries_[(size_t)fa_id];
+        if( !fe.loaded || fe.face_count <= 0 )
+            return false;
+        if( (uint64_t)first_face + (uint64_t)face_count > (uint64_t)(unsigned)fe.face_count )
+            return false;
+        if( fe.va_pnm_ref_face.size() != (size_t)fe.face_count )
+            fe.va_pnm_ref_face.assign((size_t)fe.face_count, 0);
+        for( int k = 0; k < face_count; ++k )
+            fe.va_pnm_ref_face[(size_t)first_face + (size_t)k] = pnm_value;
+        return true;
+    }
+
+    uint8_t*
+    mutable_batch_face_vert_slice(
+        uint32_t batch_id,
+        int fa_id,
+        uint32_t first_face,
+        int face_count,
+        int vert_stride_bytes,
+        size_t* out_len_bytes)
+    {
+        if( out_len_bytes )
+            *out_len_bytes = 0;
+        if( fa_id < 0 || fa_id >= kGpuIdTableSize || face_count <= 0 || vert_stride_bytes <= 0 )
+            return nullptr;
+        FaceArrayEntry& fe = fa_entries_[(size_t)fa_id];
+        if( !fe.loaded || fe.batch_id != (int)batch_id )
+            return nullptr;
+        BatchEntry* batch = find_batch(batch_id);
+        if( !batch || fe.batch_chunk_index < 0 ||
+            (size_t)fe.batch_chunk_index >= batch->chunks.size() )
+            return nullptr;
+        BatchChunk& ch = batch->chunks[(size_t)fe.batch_chunk_index];
+        const size_t slice_off =
+            (size_t)fe.vtx_byte_offset +
+            (size_t)first_face * 3u * (size_t)vert_stride_bytes;
+        const size_t slice_len =
+            (size_t)face_count * 3u * (size_t)vert_stride_bytes;
+        if( slice_off + slice_len > ch.pending_verts.size() )
+            return nullptr;
+        if( out_len_bytes )
+            *out_len_bytes = slice_len;
+        return ch.pending_verts.data() + slice_off;
+    }
+
+    const int*
+    face_array_pnm_ptr(int fa_id) const
+    {
+        if( fa_id < 0 || fa_id >= kGpuIdTableSize )
+            return nullptr;
+        const FaceArrayEntry& fe = fa_entries_[(size_t)fa_id];
+        if( !fe.loaded || fe.va_pnm_ref_face.size() != (size_t)fe.face_count )
+            return nullptr;
+        return fe.va_pnm_ref_face.data();
     }
 
     void
@@ -497,10 +567,8 @@ public:
         BatchChunk& ch = b->chunks[(size_t)chunk_index];
         ch.vbo = vbo;
         ch.ibo = ibo;
-        ch.pending_verts.clear();
-        ch.pending_verts.shrink_to_fit();
-        ch.pending_indices.clear();
-        ch.pending_indices.shrink_to_fit();
+        ch.pending_verts.clear_shrink();
+        ch.pending_indices.clear_shrink();
         ch.pending_vert_count = 0;
     }
 
@@ -513,10 +581,8 @@ public:
         batch->open = false;
         for( auto& ch : batch->chunks )
         {
-            ch.pending_verts.clear();
-            ch.pending_verts.shrink_to_fit();
-            ch.pending_indices.clear();
-            ch.pending_indices.shrink_to_fit();
+            ch.pending_verts.clear_shrink();
+            ch.pending_indices.clear_shrink();
             ch.pending_vert_count = 0;
         }
     }
