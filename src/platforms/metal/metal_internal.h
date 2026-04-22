@@ -6,7 +6,7 @@
 #include "nuklear/backends/torirs_nk_metal_sdl.h"
 #include "platforms/common/torirs_nk_ui_bridge.h"
 #include "platforms/common/torirs_nuklear_debug_panel.h"
-#include "platforms/common/sorted_face_order.h"
+#include "platforms/common/buffered_face_order.h"
 #include "tori_rs_render.h"
 
 #import <Foundation/Foundation.h>
@@ -39,7 +39,6 @@ struct TorirsNkMetalUi;
 extern struct TorirsNkMetalUi* s_mtl_nk;
 extern Uint64 s_mtl_ui_prev_perf;
 
-inline constexpr size_t kMetalInstanceUniformStride = 256;
 inline constexpr size_t kMetalRunUniformStride = 256;
 
 struct MetalVertex
@@ -57,12 +56,6 @@ struct MetalUniforms
     float projectionMatrix[16];
     float uClock;
     float _pad_uniform[3];
-};
-
-struct MetalInstanceUniform
-{
-    float cos_yaw, sin_yaw, world_x, world_y;
-    float world_z, _pad_i[3];
 };
 
 struct MetalRunUniform
@@ -101,6 +94,14 @@ enum MetalPassKind
 
 static const NSUInteger kSpriteSlotBytes = 6 * 4 * sizeof(float);
 
+struct MetalDrawBuffersResolved
+{
+    void* vbo = nullptr;
+    int batch_chunk_index = -1;
+    int vertex_index_base = 0;
+    int gpu_face_count = 0;
+};
+
 struct MetalRenderCtx
 {
     struct Platform2_SDL2_Renderer_Metal* renderer = nullptr;
@@ -120,9 +121,8 @@ struct MetalRenderCtx
     id<MTLBuffer> fontVbo = nil;
     id<MTLTexture> worldAtlasTex = nil;
     id<MTLBuffer> worldAtlasTilesBuf = nil;
-    id<MTLBuffer> idxRingBuf = nil;
-    id<MTLBuffer> instRingBuf = nil;
     id<MTLBuffer> runRingBuf = nil;
+    BufferedFaceOrder* bfo3d = nullptr;
     MTLViewport metalVp{};
     MTLViewport spriteVp{};
     int win_width = 0;
@@ -184,15 +184,12 @@ metal_clamped_scissor_from_logical_dst_bb(
 void
 sync_drawable_size(struct Platform2_SDL2_Renderer_Metal* renderer);
 
-void
-metal_ensure_ring_bytes(
-    struct Platform2_SDL2_Renderer_Metal* r,
-    id<MTLDevice> device,
-    int slot,
-    void** ring_buf,
-    size_t* ring_size,
-    size_t* ring_write_offset,
-    size_t need_total_bytes);
+bool
+metal_resolve_model_draw_buffers(
+    Gpu3DCache<void*>& cache,
+    int model_gpu_id,
+    Gpu3DCache<void*>::ModelBufferRange* range,
+    MetalDrawBuffersResolved* out);
 
 bool
 fill_model_face_vertices_model_local(
@@ -213,6 +210,23 @@ build_model_instance(
     int anim_id = 0,
     int frame_index = 0);
 
+bool
+metal_dispatch_model_load(
+    struct Platform2_SDL2_Renderer_Metal* renderer,
+    id<MTLDevice> device,
+    int model_id,
+    struct DashModel* model,
+    bool in_batch,
+    uint32_t batch_id);
+
+bool
+fill_face_corner_vertices_from_fa(
+    const struct DashVertexArray* va,
+    const struct DashFaceArray* fa,
+    int face_index,
+    int raw_tex,
+    MetalVertex out[3]);
+
 void
 render_nuklear_overlay(
     struct Platform2_SDL2_Renderer_Metal* renderer,
@@ -223,6 +237,8 @@ void
 metal_flush_font_batch(MetalRenderCtx* ctx);
 void
 metal_flush_batch(MetalRenderCtx* ctx);
+void
+metal_flush_3d(MetalRenderCtx* ctx, BufferedFaceOrder* bfo);
 void
 metal_ensure_pipe(MetalRenderCtx* ctx, int desired);
 
@@ -271,5 +287,21 @@ void
 metal_frame_event_batch_font_load_end(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
 void
 metal_frame_event_model_animation_load(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
+
+void
+metal_frame_event_vertex_array_load(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
+void
+metal_frame_event_vertex_array_unload(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
+void
+metal_frame_event_face_array_load(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
+void
+metal_frame_event_face_array_unload(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
+void
+metal_frame_event_batch_vertex_array_load(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
+void
+metal_frame_event_batch_face_array_load(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
+
+void
+metal_sprite_draw_impl(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
 
 #endif

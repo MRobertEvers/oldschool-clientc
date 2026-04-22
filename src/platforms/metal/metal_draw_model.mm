@@ -1,6 +1,62 @@
 // System ObjC/Metal headers must come before any game headers.
 #include "platforms/metal/metal_internal.h"
 
+bool
+metal_resolve_model_draw_buffers(
+    Gpu3DCache<void*>& cache,
+    int model_gpu_id,
+    Gpu3DCache<void*>::ModelBufferRange* range,
+    MetalDrawBuffersResolved* out)
+{
+    if( !range || !out )
+        return false;
+    const int stride = (int)sizeof(MetalVertex);
+    if( stride <= 0 )
+        return false;
+
+    if( range->fa_gpu_id >= 0 )
+    {
+        Gpu3DCache<void*>::FaceArrayEntry* fa = cache.get_face_array(range->fa_gpu_id);
+        if( !fa )
+            return false;
+        if( fa->batch_id >= 0 )
+        {
+            void* vbo = cache.get_batch_vbo_for_chunk((uint32_t)fa->batch_id, fa->batch_chunk_index);
+            if( !vbo )
+                return false;
+            out->vbo = vbo;
+            out->batch_chunk_index = fa->batch_chunk_index;
+        }
+        else
+        {
+            out->vbo = fa->vbuf;
+            out->batch_chunk_index = -1;
+        }
+        out->vertex_index_base = (int)(range->vtx_byte_offset / (uint32_t)stride);
+        out->gpu_face_count = range->face_count;
+        return out->vbo != nullptr;
+    }
+
+    Gpu3DCache<void*>::ModelEntry* entry = cache.get_model_entry(model_gpu_id);
+    if( entry && entry->is_batched )
+    {
+        void* vbo = cache.get_batch_vbo_for_model(model_gpu_id);
+        if( !vbo )
+            return false;
+        out->vbo = vbo;
+        out->batch_chunk_index = range->batch_chunk_index;
+        out->vertex_index_base = (int)(range->vtx_byte_offset / (uint32_t)stride);
+        out->gpu_face_count = range->face_count;
+        return true;
+    }
+
+    out->vbo = range->buffer;
+    out->batch_chunk_index = -1;
+    out->vertex_index_base = (int)(range->vtx_byte_offset / (uint32_t)stride);
+    out->gpu_face_count = range->face_count;
+    return out->vbo != nullptr;
+}
+
 void
 metal_frame_event_model_draw(
     MetalRenderCtx* ctx,
@@ -14,13 +70,14 @@ metal_frame_event_model_draw(
         !dashmodel_face_indices_c_const(model) || dashmodel_face_count(model) <= 0 )
         return;
 
-    metal_ensure_pipe(ctx, kMTLPipe3D);
+    if( !ctx->bfo3d )
+        return;
 
     const int mid_draw = cmd->_model_draw.model_id;
     if( mid_draw <= 0 )
         return;
 
-    GpuModelCache<void*>::ModelBufferRange* range =
+    Gpu3DCache<void*>::ModelBufferRange* range =
         ctx->renderer->model_cache.get_instance(mid_draw, 0, 0);
     if( !range )
     {
@@ -31,99 +88,24 @@ metal_frame_event_model_draw(
     if( !range )
         return;
 
-    void* vbo_h = nullptr;
-    int vertex_index_base = 0;
-    auto* model_entry = ctx->renderer->model_cache.get_model_entry(mid_draw);
-    if( model_entry && model_entry->is_batched )
-    {
-        vbo_h = ctx->renderer->model_cache.get_batch_vbo_for_model(mid_draw);
-        vertex_index_base = (int)(range->vtx_byte_offset / sizeof(MetalVertex));
-    }
-    else
-    {
-        vbo_h = range->buffer;
-    }
-    if( !vbo_h )
+    MetalDrawBuffersResolved buf = {};
+    if( !metal_resolve_model_draw_buffers(ctx->renderer->model_cache, mid_draw, range, &buf) )
         return;
-
-    const int gpu_face_count = range->face_count;
 
     struct DashPosition draw_position = cmd->_model_draw.position;
-    SortedFaceOrder sorted;
-    sorted.prepare(
-        ctx->game->sys_dash, model, &draw_position, ctx->game->view_port, ctx->game->camera);
-    if( sorted.count() <= 0 || !sorted.faces() )
-        return;
 
-    const float yaw_rad = (draw_position.yaw * 2.0f * (float)M_PI) / 2048.0f;
-    const float cos_yaw = cosf(yaw_rad);
-    const float sin_yaw = sinf(yaw_rad);
-
-    const int slot = ctx->encode_slot;
-    const size_t worst_ix = (size_t)gpu_face_count * 3u * sizeof(uint32_t);
-    metal_ensure_ring_bytes(
-        ctx->renderer,
-        ctx->device,
-        slot,
-        &ctx->renderer->mtl_index_ring[slot],
-        &ctx->renderer->mtl_index_ring_size[slot],
-        &ctx->renderer->mtl_index_ring_write_offset[slot],
-        ctx->renderer->mtl_index_ring_write_offset[slot] + worst_ix);
-    metal_ensure_ring_bytes(
-        ctx->renderer,
-        ctx->device,
-        slot,
-        &ctx->renderer->mtl_instance_uniform_ring[slot],
-        &ctx->renderer->mtl_instance_uniform_ring_size[slot],
-        &ctx->renderer->mtl_instance_uniform_ring_write_offset[slot],
-        ctx->renderer->mtl_instance_uniform_ring_write_offset[slot] + kMetalInstanceUniformStride);
-
-    id<MTLBuffer> instRingBuf = (__bridge id<MTLBuffer>)ctx->renderer->mtl_instance_uniform_ring[slot];
-    const NSUInteger instOff = ctx->renderer->mtl_instance_uniform_ring_write_offset[slot];
+    while( !ctx->bfo3d->append_model(
+        ctx->game->sys_dash,
+        model,
+        &draw_position,
+        ctx->game->view_port,
+        ctx->game->camera,
+        buf.batch_chunk_index,
+        buf.vbo,
+        buf.vertex_index_base,
+        buf.gpu_face_count) )
     {
-        char* base = (char*)instRingBuf.contents + instOff;
-        memset(base, 0, kMetalInstanceUniformStride);
-        MetalInstanceUniform inst = {
-            cos_yaw,
-            sin_yaw,
-            (float)draw_position.x,
-            (float)draw_position.y,
-            (float)draw_position.z,
-            { 0.0f, 0.0f, 0.0f }
-        };
-        memcpy(base, &inst, sizeof(inst));
+        metal_flush_3d(ctx, ctx->bfo3d);
+        ctx->bfo3d->begin_pass();
     }
-    ctx->renderer->mtl_instance_uniform_ring_write_offset[slot] += kMetalInstanceUniformStride;
-
-    id<MTLBuffer> gpuVbo = (__bridge id<MTLBuffer>)vbo_h;
-    id<MTLBuffer> idxRingBuf = (__bridge id<MTLBuffer>)ctx->renderer->mtl_index_ring[slot];
-    const NSUInteger ixOff = ctx->renderer->mtl_index_ring_write_offset[slot];
-    uint32_t* dst = (uint32_t*)((char*)idxRingBuf.contents + ixOff);
-
-    size_t nidx = 0;
-    for( int i = 0; i < sorted.count(); ++i )
-    {
-        const int f = sorted.faces()[i];
-        if( f < 0 || f >= gpu_face_count )
-            continue;
-        dst[nidx++] = (uint32_t)(vertex_index_base + f * 3 + 0);
-        dst[nidx++] = (uint32_t)(vertex_index_base + f * 3 + 1);
-        dst[nidx++] = (uint32_t)(vertex_index_base + f * 3 + 2);
-    }
-    if( nidx == 0 )
-        return;
-
-    ctx->renderer->mtl_index_ring_write_offset[slot] += nidx * sizeof(uint32_t);
-
-    ctx->renderer->debug_model_draws++;
-    [ctx->encoder setVertexBuffer:gpuVbo offset:0 atIndex:0];
-    [ctx->encoder setVertexBuffer:ctx->unifBuf offset:0 atIndex:1];
-    [ctx->encoder setVertexBuffer:instRingBuf offset:instOff atIndex:2];
-    [ctx->encoder setFragmentBuffer:ctx->unifBuf offset:0 atIndex:1];
-    [ctx->encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                             indexCount:(NSUInteger)nidx
-                              indexType:MTLIndexTypeUInt32
-                            indexBuffer:idxRingBuf
-                      indexBufferOffset:ixOff];
-    ctx->renderer->debug_triangles += (unsigned int)(nidx / 3u);
 }

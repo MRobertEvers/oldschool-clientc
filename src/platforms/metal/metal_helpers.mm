@@ -235,31 +235,6 @@ metal_clamped_scissor_from_logical_dst_bb(
 }
 
 void
-metal_ensure_ring_bytes(
-    struct Platform2_SDL2_Renderer_Metal* r,
-    id<MTLDevice> device,
-    int slot,
-    void** ring_buf,
-    size_t* ring_size,
-    size_t* ring_write_offset,
-    size_t need_total_bytes)
-{
-    (void)slot;
-    (void)ring_write_offset;
-    if( *ring_size >= need_total_bytes )
-        return;
-    size_t n = *ring_size ? *ring_size : (size_t)65536;
-    while( n < need_total_bytes )
-        n *= 2;
-    if( *ring_buf )
-        CFRelease(*ring_buf);
-    id<MTLBuffer> b = [device newBufferWithLength:(NSUInteger)n
-                                          options:MTLResourceStorageModeShared];
-    *ring_buf = (__bridge_retained void*)b;
-    *ring_size = n;
-}
-
-void
 sync_drawable_size(struct Platform2_SDL2_Renderer_Metal* renderer)
 {
     if( !renderer || !renderer->metal_view )

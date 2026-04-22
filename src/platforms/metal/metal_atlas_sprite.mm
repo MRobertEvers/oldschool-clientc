@@ -89,7 +89,7 @@ metal_frame_event_sprite_unload(
 // TORIRS_GFX_SPRITE_DRAW
 // ---------------------------------------------------------------------------
 void
-metal_frame_event_sprite_draw(
+metal_sprite_draw_impl(
     MetalRenderCtx* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
@@ -244,5 +244,13 @@ metal_frame_event_sprite_draw(
         [ctx->encoder setScissorRect:scMax];
     }
     ++ctx->sprite_slot;
+}
+
+void
+metal_frame_event_sprite_draw(
+    MetalRenderCtx* ctx,
+    const struct ToriRSRenderCommand* cmd)
+{
+    metal_sprite_draw_impl(ctx, cmd);
 }
 

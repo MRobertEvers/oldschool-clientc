@@ -260,6 +260,7 @@ if(NOT EMSCRIPTEN)
             src/platforms/metal/metal_atlas_font.mm
             src/platforms/metal/metal_batch3d.mm
             src/platforms/metal/metal_draw_model.mm
+            src/platforms/metal/metal_va_fa_events.mm
             src/platforms/metal/metal_render.mm
             src/nuklear/backends/torirs_nk_metal_sdl.mm
         )
@@ -579,6 +580,7 @@ if(NOT EMSCRIPTEN)
             src/platforms/metal/metal_atlas_font.mm
             src/platforms/metal/metal_batch3d.mm
             src/platforms/metal/metal_draw_model.mm
+            src/platforms/metal/metal_va_fa_events.mm
             src/platforms/metal/metal_render.mm
             src/nuklear/backends/torirs_nk_metal_sdl.mm
             PROPERTIES COMPILE_FLAGS "-fobjc-arc"

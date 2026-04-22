@@ -3,6 +3,30 @@
 
 #include <unordered_set>
 
+static void*
+mtl_gr_create(void* user, size_t bytes)
+{
+    id<MTLDevice> dev = (__bridge id<MTLDevice>)user;
+    id<MTLBuffer> b =
+        [dev newBufferWithLength:(NSUInteger)bytes options:MTLResourceStorageModeShared];
+    return (__bridge_retained void*)b;
+}
+
+static void
+mtl_gr_release(void* user, void* buf)
+{
+    (void)user;
+    if( buf )
+        CFRelease(buf);
+}
+
+static void*
+mtl_gr_map(void* user, void* buf)
+{
+    (void)user;
+    return [(__bridge id<MTLBuffer>)buf contents];
+}
+
 struct Platform2_SDL2_Renderer_Metal*
 PlatformImpl2_SDL2_Renderer_Metal_New(
     int width,
@@ -33,12 +57,6 @@ PlatformImpl2_SDL2_Renderer_Metal_New(
     renderer->mtl_model_vertex_buf_size = 0;
     for( int s = 0; s < kMetalInflightFrames; ++s )
     {
-        renderer->mtl_index_ring[s] = nullptr;
-        renderer->mtl_index_ring_size[s] = 0;
-        renderer->mtl_index_ring_write_offset[s] = 0;
-        renderer->mtl_instance_uniform_ring[s] = nullptr;
-        renderer->mtl_instance_uniform_ring_size[s] = 0;
-        renderer->mtl_instance_uniform_ring_write_offset[s] = 0;
         renderer->mtl_run_uniform_ring[s] = nullptr;
         renderer->mtl_run_uniform_ring_size[s] = 0;
         renderer->mtl_run_uniform_ring_write_offset[s] = 0;
@@ -61,7 +79,10 @@ PlatformImpl2_SDL2_Renderer_Metal_New(
     renderer->mtl_frame_semaphore =
         (__bridge_retained void*)dispatch_semaphore_create(kMetalInflightFrames);
     renderer->texture_cache.init(256, nullptr);
-    renderer->model_cache.init(4096, nullptr);
+    renderer->model_cache.init(
+        Gpu3DCache<void*>::kGpuIdTableSize,
+        nullptr,
+        Gpu3DCache<void*>::BatchCaps{ INT_MAX, INT_MAX });
     renderer->sprite_cache.init(4096, 8, nullptr);
     renderer->font_cache.init(nullptr);
     return renderer;
@@ -125,34 +146,26 @@ PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* ren
                 }
         }
         // Release batch VBOs
-        for( int bi = 0; bi < GpuModelCache<void*>::kMaxBatches; ++bi )
-        {
-            auto* batch =
-                renderer->model_cache.get_batch(0xFFFFFF00u | (uint32_t)bi); // won't match
-            (void)batch;
-        }
-        // Iterate all batch slots by checking via get_batch_vbo_for_model on all members
-        // Simpler: just release batch VBOs we know about. Since we can't iterate batch IDs
-        // without public access, we rely on destroy() below to free memory; caller already
-        // released GPU handles via unload_batch() during gameplay. Any remaining ones leak
-        // on exit (acceptable for a renderer shutdown path).
+        renderer->model_cache.for_each_in_use_batch(
+            [&](uint32_t /*bid*/, Gpu3DCache<void*>::BatchEntry* b) {
+                for( auto& ch : b->chunks )
+                {
+                    if( ch.vbo )
+                        CFRelease(ch.vbo);
+                    if( ch.ibo )
+                        CFRelease(ch.ibo);
+                    ch.vbo = nullptr;
+                    ch.ibo = nullptr;
+                }
+            });
         renderer->model_cache.destroy();
     }
 
+    renderer->mtl_draw_stream_ring.destroy();
+    renderer->mtl_instance_xform_ring.destroy();
+
     for( int s = 0; s < kMetalInflightFrames; ++s )
     {
-        if( renderer->mtl_index_ring[s] )
-        {
-            CFRelease(renderer->mtl_index_ring[s]);
-            renderer->mtl_index_ring[s] = nullptr;
-            renderer->mtl_index_ring_size[s] = 0;
-        }
-        if( renderer->mtl_instance_uniform_ring[s] )
-        {
-            CFRelease(renderer->mtl_instance_uniform_ring[s]);
-            renderer->mtl_instance_uniform_ring[s] = nullptr;
-            renderer->mtl_instance_uniform_ring_size[s] = 0;
-        }
         if( renderer->mtl_run_uniform_ring[s] )
         {
             CFRelease(renderer->mtl_run_uniform_ring[s]);
@@ -180,8 +193,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* ren
     }
 
     // ARC manages the Metal objects; clear pointers so the bridged refs release
-    renderer->texture_anim_speed_by_id.clear();
-    renderer->texture_opaque_by_id.clear();
+    renderer->mtl_va_staging.clear();
 
     if( renderer->mtl_model_vertex_buf )
     {
@@ -352,27 +364,10 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
         return false;
     }
 
-    // Vertex descriptor matching MetalVertex layout (see Shaders.metal struct Vertex)
-    MTLVertexDescriptor* vtxDesc = [[MTLVertexDescriptor alloc] init];
-    vtxDesc.attributes[0].format = MTLVertexFormatFloat4;
-    vtxDesc.attributes[0].offset = offsetof(MetalVertex, position);
-    vtxDesc.attributes[0].bufferIndex = 0;
-    vtxDesc.attributes[1].format = MTLVertexFormatFloat4;
-    vtxDesc.attributes[1].offset = offsetof(MetalVertex, color);
-    vtxDesc.attributes[1].bufferIndex = 0;
-    vtxDesc.attributes[2].format = MTLVertexFormatFloat2;
-    vtxDesc.attributes[2].offset = offsetof(MetalVertex, texcoord);
-    vtxDesc.attributes[2].bufferIndex = 0;
-    vtxDesc.attributes[3].format = MTLVertexFormatUShort2;
-    vtxDesc.attributes[3].offset = offsetof(MetalVertex, tex_id);
-    vtxDesc.attributes[3].bufferIndex = 0;
-    vtxDesc.layouts[0].stride = sizeof(MetalVertex);
-    vtxDesc.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
-
     MTLRenderPipelineDescriptor* pipeDesc = [[MTLRenderPipelineDescriptor alloc] init];
     pipeDesc.vertexFunction = vertFn;
     pipeDesc.fragmentFunction = fragFn;
-    pipeDesc.vertexDescriptor = vtxDesc;
+    pipeDesc.vertexDescriptor = nil;
     pipeDesc.colorAttachments[0].pixelFormat = layer.pixelFormat;
 
     // Enable alpha blending for transparent faces
@@ -557,24 +552,20 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
         renderer->mtl_model_vertex_buf_size = initial_bytes;
     }
 
-    for( int s = 0; s < kMetalInflightFrames; ++s )
-    {
-        const size_t ixBytes = 4u * 1024u * 1024u;
-        id<MTLBuffer> ix = [device newBufferWithLength:ixBytes
-                                               options:MTLResourceStorageModeShared];
-        renderer->mtl_index_ring[s] = (__bridge_retained void*)ix;
-        renderer->mtl_index_ring_size[s] = ixBytes;
-        renderer->mtl_index_ring_write_offset[s] = 0;
-    }
-    for( int s = 0; s < kMetalInflightFrames; ++s )
-    {
-        const size_t instBytes = kMetalInstanceUniformStride * 4096u;
-        id<MTLBuffer> instb = [device newBufferWithLength:instBytes
-                                                  options:MTLResourceStorageModeShared];
-        renderer->mtl_instance_uniform_ring[s] = (__bridge_retained void*)instb;
-        renderer->mtl_instance_uniform_ring_size[s] = instBytes;
-        renderer->mtl_instance_uniform_ring_write_offset[s] = 0;
-    }
+    renderer->mtl_draw_stream_ring.init(
+        kMetalInflightFrames,
+        65536,
+        mtl_gr_create,
+        mtl_gr_release,
+        mtl_gr_map,
+        (__bridge void*)device);
+    renderer->mtl_instance_xform_ring.init(
+        kMetalInflightFrames,
+        65536,
+        mtl_gr_create,
+        mtl_gr_release,
+        mtl_gr_map,
+        (__bridge void*)device);
     for( int s = 0; s < kMetalInflightFrames; ++s )
     {
         const size_t runBytes = kMetalRunUniformStride * 8192u;

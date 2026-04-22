@@ -138,9 +138,9 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         LibToriRS_FrameBegin(game, render_command_buffer);
 
         const int slot = renderer->mtl_encode_slot % kMetalInflightFrames;
-        renderer->mtl_index_ring_write_offset[slot] = 0;
-        renderer->mtl_instance_uniform_ring_write_offset[slot] = 0;
         renderer->mtl_run_uniform_ring_write_offset[slot] = 0;
+        renderer->mtl_draw_stream_ring.begin_slot(slot);
+        renderer->mtl_instance_xform_ring.begin_slot(slot);
 
         MTLViewport spriteVp = { .originX = 0.0,
                                  .originY = 0.0,
@@ -149,6 +149,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                                  .znear = 0.0,
                                  .zfar = 1.0 };
 
+        BufferedFaceOrder bfo3d_accum;
         MetalRenderCtx ctx = {};
         ctx.renderer = renderer;
         ctx.game = game;
@@ -186,9 +187,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         ctx.encode_slot = slot;
         ctx.worldAtlasTex = (__bridge id<MTLTexture>)renderer->mtl_world_atlas_tex;
         ctx.worldAtlasTilesBuf = (__bridge id<MTLBuffer>)renderer->mtl_world_atlas_tiles_buf;
-        ctx.idxRingBuf = (__bridge id<MTLBuffer>)renderer->mtl_index_ring[slot];
-        ctx.instRingBuf = (__bridge id<MTLBuffer>)renderer->mtl_instance_uniform_ring[slot];
         ctx.runRingBuf = (__bridge id<MTLBuffer>)renderer->mtl_run_uniform_ring[slot];
+        ctx.bfo3d = &bfo3d_accum;
 
         // -----------------------------------------------------------------------
         // Drain render commands — dispatch each through its named handler
@@ -202,23 +202,39 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                 {
                 case TORIRS_GFX_BEGIN_3D:
                     current_pass = kMTLPass3D;
+                    bfo3d_accum.begin_pass();
                     break;
                 case TORIRS_GFX_END_3D:
+                    metal_flush_3d(&ctx, &bfo3d_accum);
+                    bfo3d_accum.begin_pass();
                     current_pass = kMTLPassNone;
                     break;
                 case TORIRS_GFX_BEGIN_2D:
                     current_pass = kMTLPass2D;
                     break;
                 case TORIRS_GFX_END_2D:
+                    metal_flush_font_batch(&ctx);
                     current_pass = kMTLPassNone;
                     break;
 
                 case TORIRS_GFX_VERTEX_ARRAY_LOAD:
+                    metal_frame_event_vertex_array_load(&ctx, &cmd);
+                    break;
                 case TORIRS_GFX_VERTEX_ARRAY_UNLOAD:
+                    metal_frame_event_vertex_array_unload(&ctx, &cmd);
+                    break;
                 case TORIRS_GFX_FACE_ARRAY_LOAD:
+                    metal_frame_event_face_array_load(&ctx, &cmd);
+                    break;
                 case TORIRS_GFX_FACE_ARRAY_UNLOAD:
+                    metal_frame_event_face_array_unload(&ctx, &cmd);
+                    break;
                 case TORIRS_GFX_BATCH3D_VERTEX_ARRAY_LOAD:
+                    metal_frame_event_batch_vertex_array_load(&ctx, &cmd);
+                    break;
                 case TORIRS_GFX_BATCH3D_FACE_ARRAY_LOAD:
+                    metal_frame_event_batch_face_array_load(&ctx, &cmd);
+                    break;
                 case TORIRS_GFX_CLEAR_RECT:
                     break;
 
@@ -290,7 +306,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
             }
         }
         (void)current_pass;
-        metal_flush_batch(&ctx);
+        metal_flush_3d(&ctx, &bfo3d_accum);
         metal_flush_font_batch(&ctx);
         ctx.current_pipe = kMTLPipeNone;
 

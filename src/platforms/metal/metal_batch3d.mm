@@ -27,39 +27,7 @@ metal_frame_event_model_batched_load(
     const uint32_t bid = ctx->renderer->current_model_batch_id;
     if( !model || mid <= 0 || bid == 0 )
         return;
-    if( dashmodel_face_count(model) <= 0 )
-        return;
-    if( !dashmodel_face_colors_a_const(model) || !dashmodel_face_colors_b_const(model) ||
-        !dashmodel_face_colors_c_const(model) )
-        return;
-    if( !dashmodel_vertices_x_const(model) || !dashmodel_vertices_y_const(model) ||
-        !dashmodel_vertices_z_const(model) )
-        return;
-    if( !dashmodel_face_indices_a_const(model) || !dashmodel_face_indices_b_const(model) ||
-        !dashmodel_face_indices_c_const(model) )
-        return;
-
-    const int fc = dashmodel_face_count(model);
-    const faceint_t* ftex = dashmodel_face_textures_const(model);
-    std::vector<MetalVertex> verts((size_t)fc * 3u);
-    std::vector<int> per_face_tex((size_t)fc);
-    for( int f = 0; f < fc; ++f )
-    {
-        int raw = ftex ? (int)ftex[f] : -1;
-        per_face_tex[(size_t)f] = raw;
-        MetalVertex tri[3];
-        if( !fill_model_face_vertices_model_local(model, f, raw, tri) )
-        {
-            metal_vertex_fill_invisible(&tri[0]);
-            metal_vertex_fill_invisible(&tri[1]);
-            metal_vertex_fill_invisible(&tri[2]);
-        }
-        verts[(size_t)f * 3u + 0u] = tri[0];
-        verts[(size_t)f * 3u + 1u] = tri[1];
-        verts[(size_t)f * 3u + 2u] = tri[2];
-    }
-    ctx->renderer->model_cache.accumulate_batch_model(
-        bid, mid, verts.data(), (int)sizeof(MetalVertex), fc * 3, fc, per_face_tex.data());
+    metal_dispatch_model_load(ctx->renderer, ctx->device, mid, model, true, bid);
 }
 
 // ---------------------------------------------------------------------------
@@ -71,34 +39,47 @@ metal_frame_event_batch_model_load_end(
     const struct ToriRSRenderCommand* cmd)
 {
     const uint32_t bid = cmd->_batch.batch_id;
-    GpuModelCache<void*>::BatchEntry* batch = ctx->renderer->model_cache.get_batch(bid);
+    Gpu3DCache<void*>::BatchEntry* batch = ctx->renderer->model_cache.get_batch(bid);
     if( !batch || !batch->open )
     {
         ctx->renderer->current_model_batch_id = 0;
         return;
     }
-    const int byte_count = ctx->renderer->model_cache.get_batch_pending_byte_count(bid);
-    if( byte_count <= 0 )
+
+    const int nchunks = ctx->renderer->model_cache.get_batch_chunk_count(bid);
+    if( nchunks <= 0 )
     {
-        ctx->renderer->model_cache.end_batch(bid, nullptr, nullptr);
+        ctx->renderer->model_cache.end_batch(bid);
         ctx->renderer->current_model_batch_id = 0;
         return;
     }
-    const void* pending = ctx->renderer->model_cache.get_batch_pending_verts(bid);
-    id<MTLBuffer> vbo = [ctx->device newBufferWithBytes:pending
-                                                 length:(NSUInteger)byte_count
-                                                options:MTLResourceStorageModeShared];
-    const size_t idx_count = batch->pending_indices.size();
-    const size_t idx_bytes = idx_count * sizeof(uint32_t);
-    id<MTLBuffer> ibo = nil;
-    if( idx_bytes > 0 )
+
+    bool any = false;
+    for( int c = 0; c < nchunks; ++c )
     {
-        ibo = [ctx->device newBufferWithBytes:batch->pending_indices.data()
-                                        length:(NSUInteger)idx_bytes
-                                       options:MTLResourceStorageModeShared];
+        const int vb = ctx->renderer->model_cache.get_chunk_pending_bytes(bid, c);
+        const int ic = ctx->renderer->model_cache.get_chunk_pending_index_count(bid, c);
+        if( vb <= 0 || ic <= 0 )
+            continue;
+        any = true;
+        const void* pv = ctx->renderer->model_cache.get_chunk_pending_verts(bid, c);
+        const uint32_t* pi = ctx->renderer->model_cache.get_chunk_pending_indices(bid, c);
+        id<MTLBuffer> vbo = [ctx->device newBufferWithBytes:pv
+                                                     length:(NSUInteger)vb
+                                                    options:MTLResourceStorageModeShared];
+        id<MTLBuffer> ibo = [ctx->device newBufferWithBytes:pi
+                                                    length:(NSUInteger)ic * sizeof(uint32_t)
+                                                   options:MTLResourceStorageModeShared];
+        ctx->renderer->model_cache.set_chunk_buffers(
+            bid, c, vbo ? (__bridge_retained void*)vbo : nullptr, ibo ? (__bridge_retained void*)ibo : nullptr);
     }
-    ctx->renderer->model_cache.end_batch(
-        bid, vbo ? (__bridge_retained void*)vbo : nullptr, ibo ? (__bridge_retained void*)ibo : nullptr);
+    if( !any )
+    {
+        ctx->renderer->model_cache.unload_batch(bid);
+        ctx->renderer->current_model_batch_id = 0;
+        return;
+    }
+    ctx->renderer->model_cache.end_batch(bid);
     ctx->renderer->current_model_batch_id = 0;
 }
 
@@ -114,15 +95,16 @@ metal_frame_event_batch_model_clear(
     auto* batch = ctx->renderer->model_cache.get_batch(bid);
     if( !batch )
         return;
-    if( batch->vbo )
+    const int n = ctx->renderer->model_cache.get_batch_chunk_count(bid);
+    for( int c = 0; c < n; ++c )
     {
-        CFRelease(batch->vbo);
-        batch->vbo = nullptr;
-    }
-    if( batch->ibo )
-    {
-        CFRelease(batch->ibo);
-        batch->ibo = nullptr;
+        const Gpu3DCache<void*>::BatchChunk* ch = ctx->renderer->model_cache.get_batch_chunk(bid, c);
+        if( !ch )
+            continue;
+        if( ch->vbo )
+            CFRelease(ch->vbo);
+        if( ch->ibo )
+            CFRelease(ch->ibo);
     }
     ctx->renderer->model_cache.unload_batch(bid);
 }

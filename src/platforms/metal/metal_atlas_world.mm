@@ -151,9 +151,6 @@ metal_frame_event_texture_load(
     auto* tiles = (MetalAtlasTile*)tilesBuf.contents;
     tiles[tex_id] = tile;
 
-    r->texture_anim_speed_by_id[tex_id] = tile.anim_u;
-    r->texture_opaque_by_id[tex_id] = tex->opaque;
-
     r->texture_cache.register_texture(tex_id, r->mtl_world_atlas_tex);
 }
 

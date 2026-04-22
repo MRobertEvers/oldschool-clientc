@@ -1,14 +1,18 @@
 #ifndef PLATFORMS_METAL_METAL_H
 #define PLATFORMS_METAL_METAL_H
 
+#include "platforms/common/gpu_ring_buffer.h"
+#include "platforms/gpu_3d_cache.h"
 #include "platforms/gpu_font_cache.h"
-#include "platforms/gpu_model_cache.h"
 #include "platforms/gpu_sprite_cache.h"
 #include "platforms/gpu_texture_cache.h"
 #include "platforms/platform_impl2_sdl2.h"
-#include <cstdint>
 #include <unordered_map>
+
+#include <cstdint>
 #include <vector>
+
+struct DashVertexArray;
 
 #include <SDL.h>
 
@@ -54,11 +58,8 @@ struct Platform2_SDL2_Renderer_Metal
     unsigned int debug_model_draws;
     unsigned int debug_triangles;
 
-    std::unordered_map<int, float> texture_anim_speed_by_id;
-    std::unordered_map<int, bool> texture_opaque_by_id;
-
     GpuTextureCache<void*> texture_cache;
-    GpuModelCache<void*> model_cache;
+    Gpu3DCache<void*> model_cache;
     GpuSpriteCache<void*> sprite_cache;
     GpuFontCache<void*> font_cache;
 
@@ -85,13 +86,8 @@ struct Platform2_SDL2_Renderer_Metal
     void* mtl_model_vertex_buf;
     size_t mtl_model_vertex_buf_size;
 
-    void* mtl_index_ring[kMetalInflightFrames];
-    size_t mtl_index_ring_size[kMetalInflightFrames];
-    size_t mtl_index_ring_write_offset[kMetalInflightFrames];
-
-    void* mtl_instance_uniform_ring[kMetalInflightFrames];
-    size_t mtl_instance_uniform_ring_size[kMetalInflightFrames];
-    size_t mtl_instance_uniform_ring_write_offset[kMetalInflightFrames];
+    GpuRingBuffer<void*> mtl_draw_stream_ring;
+    GpuRingBuffer<void*> mtl_instance_xform_ring;
 
     void* mtl_run_uniform_ring[kMetalInflightFrames];
     size_t mtl_run_uniform_ring_size[kMetalInflightFrames];
@@ -109,10 +105,15 @@ struct Platform2_SDL2_Renderer_Metal
 
     /** Scratch RGBA upload (reused by texture/sprite paths). */
     std::vector<uint8_t> rgba_scratch;
+
+    /** CPU-only: resolve FA bakes to the tightest matching staged VA (by index coverage). */
+    std::unordered_map<int, struct DashVertexArray*> mtl_va_staging;
 };
 
 struct Platform2_SDL2_Renderer_Metal*
-PlatformImpl2_SDL2_Renderer_Metal_New(int width, int height);
+PlatformImpl2_SDL2_Renderer_Metal_New(
+    int width,
+    int height);
 
 void
 PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* renderer);

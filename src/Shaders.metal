@@ -1,17 +1,31 @@
 #include <metal_stdlib>
 using namespace metal;
 
-// Must match MetalVertex / MetalUniforms / MetalInstanceUniform in platforms/metal/metal_internal.h
-struct Vertex {
-    float4 position [[attribute(0)]];
-    float4 color [[attribute(1)]];
-    float2 texcoord [[attribute(2)]];
-    ushort2 texIdPack [[attribute(3)]];
+// Must match MetalVertex / MetalUniforms / InstanceXform / DrawStreamEntry in metal_internal /
+// buffered_face_order (C++). C packs float[4] at 4-byte alignment (44 bytes total); use packed_* so
+// indexing matches CPU sizeof(MetalVertex).
+struct MetalVertexPacked {
+    packed_float4 position;
+    packed_float4 color;
+    packed_float2 texcoord;
+    ushort tex_id;
+    ushort _pad_vertex;
 };
 
-struct InstanceUniform {
-    float4 t0;
-    float4 t1;
+struct InstanceXform {
+    float cos_yaw;
+    float sin_yaw;
+    float x;
+    float y;
+    float z;
+    float _pad0;
+    float _pad1;
+    float _pad2;
+};
+
+struct DrawEntry {
+    uint vertex_index;
+    uint instance_id;
 };
 
 struct Uniforms {
@@ -33,22 +47,26 @@ struct VertexOut {
 };
 
 vertex VertexOut vertexShader(
-    Vertex in [[stage_in]],
+    uint vid [[vertex_id]],
     constant Uniforms& uniforms [[buffer(1)]],
-    constant InstanceUniform& inst [[buffer(2)]])
+    device const InstanceXform* instances [[buffer(2)]],
+    device const DrawEntry* stream [[buffer(3)]],
+    device const MetalVertexPacked* verts [[buffer(0)]])
 {
+    DrawEntry e = stream[vid];
+    MetalVertexPacked v = verts[e.vertex_index];
+    InstanceXform t = instances[e.instance_id];
+
+    float3 p = float4(v.position).xyz;
+    float xr = p.x * t.cos_yaw - p.z * t.sin_yaw;
+    float zr = p.x * t.sin_yaw + p.z * t.cos_yaw;
+    float4 worldPos = float4(xr + t.x, p.y + t.y, zr + t.z, 1.0);
+
     VertexOut out;
-    float lx = in.position.x;
-    float ly = in.position.y;
-    float lz = in.position.z;
-    float wx = inst.t0.x * lx + inst.t0.y * lz + inst.t0.z;
-    float wy = ly + inst.t0.w;
-    float wz = -inst.t0.y * lx + inst.t0.x * lz + inst.t1.x;
-    float4 worldPos = float4(wx, wy, wz, 1.0);
     out.position = uniforms.projectionMatrix * uniforms.modelViewMatrix * worldPos;
-    out.color = in.color;
-    out.texcoord = in.texcoord;
-    out.tex_id = (uint)in.texIdPack.x;
+    out.color = float4(v.color);
+    out.texcoord = float2(v.texcoord);
+    out.tex_id = (uint)v.tex_id;
     return out;
 }
 

@@ -7,17 +7,27 @@ metal_frame_event_model_load(
     const struct ToriRSRenderCommand* cmd)
 {
     struct DashModel* model = cmd->_model_load.model;
-    if( !model || !dashmodel_face_colors_a_const(model) || !dashmodel_face_colors_b_const(model) ||
+    if( !model )
+        return;
+    const int mid = cmd->_model_load.model_id;
+    if( mid <= 0 )
+        return;
+    if( dashmodel__is_ground_va(model) )
+    {
+        const struct DashModelVAGround* vg = (const struct DashModelVAGround*)model;
+        if( !vg->vertex_array || !vg->face_array )
+            return;
+    }
+    else if(
+        !dashmodel_face_colors_a_const(model) || !dashmodel_face_colors_b_const(model) ||
         !dashmodel_face_colors_c_const(model) || !dashmodel_vertices_x_const(model) ||
         !dashmodel_vertices_y_const(model) || !dashmodel_vertices_z_const(model) ||
         !dashmodel_face_indices_a_const(model) || !dashmodel_face_indices_b_const(model) ||
         !dashmodel_face_indices_c_const(model) || dashmodel_face_count(model) <= 0 )
         return;
-    const int mid = cmd->_model_load.model_id;
-    if( mid <= 0 )
-        return;
+
     if( !ctx->renderer->model_cache.get_instance(mid, 0, 0) )
-        build_model_instance(ctx->renderer, ctx->device, model, mid);
+        metal_dispatch_model_load(ctx->renderer, ctx->device, mid, model, false, 0u);
 }
 
 void
