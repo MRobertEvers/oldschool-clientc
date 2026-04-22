@@ -12,6 +12,7 @@
 #include "osrs/scene2.h"
 #include "osrs/world_options.h"
 #include "tori_rs.h"
+#include "tori_rs_frame_state.h"
 #include "tori_rs_render.h"
 
 #ifdef TORI_DEBUG_MINIMAP_FRAME
@@ -31,9 +32,6 @@
 /** Set per `LibToriRS_FrameNextCommand` call for RS model culling. */
 static bool s_frame_project_models;
 
-/** Tracks whether uielem_world_step has emitted TORIRS_GFX_BEGIN_3D without END_3D yet. */
-static bool s_uielem_world_inside_3d = false;
-
 static void
 emit_marker(
     struct ToriRSRenderCommandBuffer* buf,
@@ -46,26 +44,34 @@ emit_marker(
     LibToriRS_RenderCommandBufferAddCommand(buf, m);
 }
 
-static void
-emit_begin_2d_marker(
-    struct GGame* game,
-    int* begun)
+void
+frame_emit_pass(struct UIFrameState* fiber, enum FramePassKind target)
 {
-    if( !begun || *begun || !game->uiscene_queued_commands )
+    if( !fiber || !fiber->cmds || !fiber->pass || *fiber->pass == target )
         return;
-    emit_marker(game->uiscene_queued_commands, TORIRS_GFX_BEGIN_2D);
-    *begun = 1;
-}
-
-static void
-emit_end_2d_marker(
-    struct GGame* game,
-    int* begun)
-{
-    if( !begun || !*begun || !game->uiscene_queued_commands )
-        return;
-    emit_marker(game->uiscene_queued_commands, TORIRS_GFX_END_2D);
-    *begun = 0;
+    switch( *fiber->pass )
+    {
+    case FRAME_PASS_2D:
+        emit_marker(fiber->cmds, TORIRS_GFX_END_2D);
+        break;
+    case FRAME_PASS_3D:
+        emit_marker(fiber->cmds, TORIRS_GFX_END_3D);
+        break;
+    default:
+        break;
+    }
+    switch( target )
+    {
+    case FRAME_PASS_2D:
+        emit_marker(fiber->cmds, TORIRS_GFX_BEGIN_2D);
+        break;
+    case FRAME_PASS_3D:
+        emit_marker(fiber->cmds, TORIRS_GFX_BEGIN_3D);
+        break;
+    default:
+        break;
+    }
+    *fiber->pass = target;
 }
 
 /** Tab sidebar content (RS subtree) only when this tab is selected and no modal owns the sidebar.
@@ -96,15 +102,6 @@ frame_ui_world_level_mask(struct GGame* game)
     }
     return 0xFu;
 }
-
-/** Per-frame traversal context ("fiber") passed into every uielem step function. */
-struct UIFrameState
-{
-    struct GGame* game;
-    struct ToriRSRenderCommandBuffer* cmds;
-    int mouse_x;
-    int mouse_y;
-};
 
 static inline bool
 uielem_sprite_is_dirty(
@@ -435,9 +432,10 @@ queue_sprite_draw_from_event(
 
 static void
 queue_static_ui_minimap_draws(
-    struct GGame* game,
+    struct UIFrameState* fiber,
     struct StaticUIComponent* component)
 {
+    struct GGame* game = fiber->game;
     struct Minimap* mm = NULL;
     if( game->world && game->world->minimap )
         mm = game->world->minimap;
@@ -497,8 +495,6 @@ queue_static_ui_minimap_draws(
         return;
     }
 
-    int minimap_pass_2d = 0;
-
     int anchor_x = 0;
     int anchor_y = 0;
 
@@ -511,7 +507,7 @@ queue_static_ui_minimap_draws(
     if( game->uiscene_queued_commands && component->position.width > 0 &&
         component->position.height > 0 )
     {
-        emit_begin_2d_marker(game, &minimap_pass_2d);
+        frame_emit_pass(fiber, FRAME_PASS_2D);
         LibToriRS_RenderCommandBufferAddCommand(
             game->uiscene_queued_commands,
             (struct ToriRSRenderCommand){
@@ -525,7 +521,7 @@ queue_static_ui_minimap_draws(
             });
     }
 
-    emit_begin_2d_marker(game, &minimap_pass_2d);
+    frame_emit_pass(fiber, FRAME_PASS_2D);
 
     LibToriRS_RenderCommandBufferAddCommand(
         game->uiscene_queued_commands,
@@ -555,7 +551,6 @@ queue_static_ui_minimap_draws(
     struct MinimapRenderCommandBuffer* dyn = game->minimap_dynamic_commands;
     if( !dyn )
     {
-        emit_end_2d_marker(game, &minimap_pass_2d);
         return;
     }
     minimap_render_dynamic(mm, sw_x, sw_z, ne_x, ne_z, dyn);
@@ -605,7 +600,6 @@ queue_static_ui_minimap_draws(
                 },
             });
     }
-    emit_end_2d_marker(game, &minimap_pass_2d);
 }
 
 static void
@@ -884,7 +878,7 @@ LibToriRS_FrameBegin(
         uitree_grid_dirty_prepass(
             game->ui_root_buffer, game->mouse_x, game->mouse_y, game->uitree_force_dirty);
 
-    s_uielem_world_inside_3d = false;
+    game->frame_pass = FRAME_PASS_NONE;
 
     world_pickset_reset(&game->pickset);
 
@@ -1216,8 +1210,6 @@ uielem_redstone_tab_step(
     if( game->iface->sidebar_interface_id != -1 )
         return true;
 
-    int redstone_2d = 0;
-
     int tabno = component->u.redstone_tab.tabno;
     int x = component->position.x;
     int y = component->position.y;
@@ -1243,9 +1235,8 @@ uielem_redstone_tab_step(
 
     int draw_x = x;
     int draw_y = y;
-    emit_begin_2d_marker(game, &redstone_2d);
+    frame_emit_pass(fiber, FRAME_PASS_2D);
     queue_sprite_draw_from_event(game->uiscene_queued_commands, sid, ai, sp, draw_x, draw_y, 0);
-    emit_end_2d_marker(game, &redstone_2d);
 
     return true;
 }
@@ -1291,8 +1282,7 @@ uielem_sprite_step(
     if( !sprite )
         return true;
 
-    int sprite_2d = 0;
-    emit_begin_2d_marker(game, &sprite_2d);
+    frame_emit_pass(fiber, FRAME_PASS_2D);
     queue_sprite_draw_from_event(
         game->uiscene_queued_commands,
         component->u.sprite.scene_id,
@@ -1301,7 +1291,6 @@ uielem_sprite_step(
         component->position.x,
         component->position.y,
         0);
-    emit_end_2d_marker(game, &sprite_2d);
 
     return true;
 }
@@ -1322,16 +1311,10 @@ uielem_world_step(
     struct ToriRSRenderCommand command = { 0 };
     struct Scene2Element* scene_element = NULL;
 
-    if( game->at_painters_command_index == 0 )
-        s_uielem_world_inside_3d = false;
-
     if( !game->sys_painter_buffer )
     {
-        if( s_uielem_world_inside_3d && game->uiscene_queued_commands )
-        {
-            emit_marker(game->uiscene_queued_commands, TORIRS_GFX_END_3D);
-            s_uielem_world_inside_3d = false;
-        }
+        if( game->uiscene_queued_commands )
+            frame_emit_pass(fiber, FRAME_PASS_NONE);
         return true;
     }
 
@@ -1342,8 +1325,7 @@ uielem_world_step(
     if( game->at_painters_command_index == 0 && game->view_port && game->uiscene_queued_commands &&
         game->view_port->width > 0 && game->view_port->height > 0 )
     {
-        int world_clear_2d = 0;
-        emit_begin_2d_marker(game, &world_clear_2d);
+        frame_emit_pass(fiber, FRAME_PASS_2D);
         LibToriRS_RenderCommandBufferAddCommand(
             game->uiscene_queued_commands,
             (struct ToriRSRenderCommand){
@@ -1355,17 +1337,13 @@ uielem_world_step(
                     .h = game->view_port->height,
                 },
             });
-        emit_end_2d_marker(game, &world_clear_2d);
     }
 
 next:
     if( game->at_painters_command_index >= cap )
     {
-        if( s_uielem_world_inside_3d && game->uiscene_queued_commands )
-        {
-            emit_marker(game->uiscene_queued_commands, TORIRS_GFX_END_3D);
-            s_uielem_world_inside_3d = false;
-        }
+        if( game->uiscene_queued_commands )
+            frame_emit_pass(fiber, FRAME_PASS_NONE);
         return true;
     }
 
@@ -1400,11 +1378,8 @@ next:
 
         entity_animate(game->world, scene2_element_parent_entity_id(scene_element));
 
-        if( !s_uielem_world_inside_3d && game->uiscene_queued_commands )
-        {
-            emit_marker(game->uiscene_queued_commands, TORIRS_GFX_BEGIN_3D);
-            s_uielem_world_inside_3d = true;
-        }
+        if( game->uiscene_queued_commands )
+            frame_emit_pass(fiber, FRAME_PASS_3D);
 
         command.kind = TORIRS_GFX_MODEL_DRAW;
         command._model_draw.model = ent_model;
@@ -1445,11 +1420,8 @@ next:
         if( cull != DASHCULL_VISIBLE )
             break;
 
-        if( !s_uielem_world_inside_3d && game->uiscene_queued_commands )
-        {
-            emit_marker(game->uiscene_queued_commands, TORIRS_GFX_BEGIN_3D);
-            s_uielem_world_inside_3d = true;
-        }
+        if( game->uiscene_queued_commands )
+            frame_emit_pass(fiber, FRAME_PASS_3D);
 
         command.kind = TORIRS_GFX_MODEL_DRAW;
         command._model_draw.model = tile_model;
@@ -1465,11 +1437,8 @@ next:
 
     {
         bool done = game->at_painters_command_index >= cap;
-        if( done && s_uielem_world_inside_3d && game->uiscene_queued_commands )
-        {
-            emit_marker(game->uiscene_queued_commands, TORIRS_GFX_END_3D);
-            s_uielem_world_inside_3d = false;
-        }
+        if( done && game->uiscene_queued_commands )
+            frame_emit_pass(fiber, FRAME_PASS_NONE);
         return done;
     }
 }
@@ -1490,7 +1459,7 @@ uielem_minimap_step(
     if( !element )
         return true;
 
-    queue_static_ui_minimap_draws(game, component);
+    queue_static_ui_minimap_draws(fiber, component);
     return true;
 }
 
@@ -1534,12 +1503,8 @@ uielem_compass_step(
     command._sprite_draw.src_anchor_y = sprite->crop_height >> 1;
     command._sprite_draw.rotation_r2pi2048 = ((game->camera_yaw) & 0x7ff);
 
-    {
-        int compass_2d = 0;
-        emit_begin_2d_marker(game, &compass_2d);
-        LibToriRS_RenderCommandBufferAddCommand(game->uiscene_queued_commands, command);
-        emit_end_2d_marker(game, &compass_2d);
-    }
+    frame_emit_pass(fiber, FRAME_PASS_2D);
+    LibToriRS_RenderCommandBufferAddCommand(game->uiscene_queued_commands, command);
 
     return true;
 }
@@ -1555,7 +1520,7 @@ uielem_rs_graphic_step(
     struct GGame* game = fiber->game;
     struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_RS_GRAPHIC);
-    return rs_gfx_graphic_step(game, component, game->uiscene_queued_commands, cur);
+    return rs_gfx_graphic_step(fiber, component, cur);
 }
 
 static bool
@@ -1568,7 +1533,7 @@ uielem_rs_text_step(
     struct GGame* game = fiber->game;
     struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_RS_TEXT);
-    return rs_gfx_text_step(game, component, game->uiscene_queued_commands);
+    return rs_gfx_text_step(fiber, component);
 }
 
 static bool
@@ -1581,7 +1546,7 @@ uielem_rs_inv_step(
     struct GGame* game = fiber->game;
     struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_RS_INV);
-    return rs_gfx_inv_step(game, component, game->uiscene_queued_commands);
+    return rs_gfx_inv_step(fiber, component);
 }
 
 static bool
@@ -1607,8 +1572,7 @@ uielem_rs_model_step(
     struct GGame* game = fiber->game;
     struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_RS_MODEL);
-    return rs_gfx_model_step(
-        game, component, game->uiscene_queued_commands, s_frame_project_models);
+    return rs_gfx_model_step(fiber, component, s_frame_project_models);
 }
 
 bool
@@ -1635,7 +1599,8 @@ LibToriRS_FrameNextCommand(
             return true;
         }
 
-        if( game->uiscene_command_idx < game->uiscene_queued_commands->command_count )
+        if( game->uiscene_queued_commands &&
+            game->uiscene_command_idx < game->uiscene_queued_commands->command_count )
         {
             cmd = LibToriRS_RenderCommandBufferAt(
                 game->uiscene_queued_commands, game->uiscene_command_idx);
@@ -1646,6 +1611,23 @@ LibToriRS_FrameNextCommand(
         }
 
         if( !game->ui_root_buffer || game->uitree_current < 0 )
+        {
+            if( game->uiscene_queued_commands && game->frame_pass != FRAME_PASS_NONE )
+            {
+                struct UIFrameState fiber = {
+                    .game = game,
+                    .cmds = game->uiscene_queued_commands,
+                    .mouse_x = game->mouse_x,
+                    .mouse_y = game->mouse_y,
+                    .pass = &game->frame_pass,
+                };
+                frame_emit_pass(&fiber, FRAME_PASS_NONE);
+                continue;
+            }
+            return false;
+        }
+
+        if( !game->uiscene_queued_commands )
             return false;
 
         LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
@@ -1659,6 +1641,7 @@ LibToriRS_FrameNextCommand(
             .cmds = game->uiscene_queued_commands,
             .mouse_x = game->mouse_x,
             .mouse_y = game->mouse_y,
+            .pass = &game->frame_pass,
         };
 
         switch( component->type )
@@ -1714,6 +1697,7 @@ LibToriRS_FrameNextCommand(
 void
 LibToriRS_FrameEnd(struct GGame* game)
 {
+    game->frame_pass = FRAME_PASS_NONE;
     game->uitree_force_dirty = false;
     /* Build optionset from pickset for tooltip and context menu (Client.ts menuOption /
      * drawTooltip). */

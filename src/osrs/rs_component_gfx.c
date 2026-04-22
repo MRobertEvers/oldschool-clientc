@@ -10,34 +10,6 @@
 
 #include <string.h>
 
-static void
-rs_gfx_emit_marker(struct ToriRSRenderCommandBuffer* buf, uint8_t kind)
-{
-    if( !buf )
-        return;
-    struct ToriRSRenderCommand m = { 0 };
-    m.kind = kind;
-    LibToriRS_RenderCommandBufferAddCommand(buf, m);
-}
-
-static void
-rs_gfx_pass_marker_2d_begin(struct ToriRSRenderCommandBuffer* buf, int* begun)
-{
-    if( !begun || *begun || !buf )
-        return;
-    rs_gfx_emit_marker(buf, TORIRS_GFX_BEGIN_2D);
-    *begun = 1;
-}
-
-static void
-rs_gfx_pass_marker_2d_end(struct ToriRSRenderCommandBuffer* buf, int* begun)
-{
-    if( !begun || !*begun || !buf )
-        return;
-    rs_gfx_emit_marker(buf, TORIRS_GFX_END_2D);
-    *begun = 0;
-}
-
 static uint64_t
 rs_model_cache_key_u64(struct Scene2* scene2, struct Scene2Element const* element)
 {
@@ -98,11 +70,13 @@ queue_sprite_draw(
 
 bool
 rs_gfx_graphic_step(
-    struct GGame* game,
+    struct UIFrameState* fiber,
     struct StaticUIComponent* component,
-    struct ToriRSRenderCommandBuffer* queued_commands,
     int cur)
 {
+    (void)cur;
+    struct GGame* game = fiber->game;
+    struct ToriRSRenderCommandBuffer* queued_commands = fiber->cmds;
     if( !game || !component || !game->ui_scene || !queued_commands )
         return true;
     int sid = component->u.rs_graphic.scene_id;
@@ -115,8 +89,7 @@ rs_gfx_graphic_step(
     struct DashSprite* sp = el->dash_sprites[ai];
     if( !sp )
         return true;
-    int g2d = 0;
-    rs_gfx_pass_marker_2d_begin(queued_commands, &g2d);
+    frame_emit_pass(fiber, FRAME_PASS_2D);
     queue_sprite_draw(
         queued_commands,
         sid,
@@ -124,16 +97,14 @@ rs_gfx_graphic_step(
         sp,
         component->position.x,
         component->position.y);
-    rs_gfx_pass_marker_2d_end(queued_commands, &g2d);
     return true;
 }
 
 bool
-rs_gfx_text_step(
-    struct GGame* game,
-    struct StaticUIComponent* component,
-    struct ToriRSRenderCommandBuffer* queued_commands)
+rs_gfx_text_step(struct UIFrameState* fiber, struct StaticUIComponent* component)
 {
+    struct GGame* game = fiber->game;
+    struct ToriRSRenderCommandBuffer* queued_commands = fiber->cmds;
     if( !game || !component || !game->ui_scene || !queued_commands )
         return true;
     int fid = component->u.rs_text.font_id;
@@ -151,35 +122,32 @@ rs_gfx_text_step(
         draw_x = component->position.x + (component->position.width / 2) - (tw / 2);
     }
 
-    {
-        int t2d = 0;
-        rs_gfx_pass_marker_2d_begin(queued_commands, &t2d);
-        LibToriRS_RenderCommandBufferAddCommand(
-            queued_commands,
-            (struct ToriRSRenderCommand){
-                .kind = TORIRS_GFX_FONT_DRAW,
-                ._font_draw = {
-                    .font_id = fid,
-                    .font = font,
-                    .text = (const uint8_t*)text,
-                    .x = draw_x,
-                    .y = draw_y,
-                    .color_rgb = component->u.rs_text.color,
-                },
-            });
-        rs_gfx_pass_marker_2d_end(queued_commands, &t2d);
-    }
+    frame_emit_pass(fiber, FRAME_PASS_2D);
+    LibToriRS_RenderCommandBufferAddCommand(
+        queued_commands,
+        (struct ToriRSRenderCommand){
+            .kind = TORIRS_GFX_FONT_DRAW,
+            ._font_draw = {
+                .font_id = fid,
+                .font = font,
+                .text = (const uint8_t*)text,
+                .x = draw_x,
+                .y = draw_y,
+                .color_rgb = component->u.rs_text.color,
+            },
+        });
     (void)component->u.rs_text.shadowed;
     return true;
 }
 
 bool
 rs_gfx_model_step(
-    struct GGame* game,
+    struct UIFrameState* fiber,
     struct StaticUIComponent* component,
-    struct ToriRSRenderCommandBuffer* queued_commands,
     bool project_models)
 {
+    struct GGame* game = fiber->game;
+    struct ToriRSRenderCommandBuffer* queued_commands = fiber->cmds;
     if( !game || !component || !game->world || !game->world->scene2 || !queued_commands )
         return true;
     int eid = component->u.rs_model.scene2_element_id;
@@ -207,6 +175,7 @@ rs_gfx_model_step(
             return true;
     }
 
+    frame_emit_pass(fiber, FRAME_PASS_3D);
     {
         struct ToriRSRenderCommand cmd = { 0 };
         cmd.kind = TORIRS_GFX_MODEL_DRAW;
@@ -214,19 +183,16 @@ rs_gfx_model_step(
         cmd._model_draw.model_key = rs_model_cache_key_u64(game->world->scene2, se);
         cmd._model_draw.model_id = scene2_element_dash_model_gpu_id(se);
         memcpy(&cmd._model_draw.position, &position, sizeof(struct DashPosition));
-        rs_gfx_emit_marker(queued_commands, TORIRS_GFX_BEGIN_3D);
         LibToriRS_RenderCommandBufferAddCommand(queued_commands, cmd);
-        rs_gfx_emit_marker(queued_commands, TORIRS_GFX_END_3D);
     }
     return true;
 }
 
 bool
-rs_gfx_inv_step(
-    struct GGame* game,
-    struct StaticUIComponent* component,
-    struct ToriRSRenderCommandBuffer* queued_commands)
+rs_gfx_inv_step(struct UIFrameState* fiber, struct StaticUIComponent* component)
 {
+    struct GGame* game = fiber->game;
+    struct ToriRSRenderCommandBuffer* queued_commands = fiber->cmds;
     if( !game || !component || !game->ui_scene || !queued_commands || !game->inv_pool )
         return true;
     int inv_i = component->u.rs_inv.inv_index;
@@ -242,7 +208,6 @@ rs_gfx_inv_step(
     int base_x = component->position.x;
     int base_y = component->position.y;
 
-    int inv_2d = 0;
     int i = 0;
     for( int sx = 0; sx < cols; sx++ )
     {
@@ -273,7 +238,7 @@ rs_gfx_inv_step(
                 if( !sp )
                     continue;
 
-                rs_gfx_pass_marker_2d_begin(queued_commands, &inv_2d);
+                frame_emit_pass(fiber, FRAME_PASS_2D);
                 queue_sprite_draw(queued_commands, it->scene_id, ai, sp, slot_x, slot_y);
             }
             else if(
@@ -288,7 +253,7 @@ rs_gfx_inv_step(
                     struct DashSprite* bg_sp = bg_el->dash_sprites[bg_ai];
                     if( bg_sp )
                     {
-                        rs_gfx_pass_marker_2d_begin(queued_commands, &inv_2d);
+                        frame_emit_pass(fiber, FRAME_PASS_2D);
                         queue_sprite_draw(
                             queued_commands, bg_sid, bg_ai, bg_sp, slot_x, slot_y);
                     }
@@ -297,6 +262,5 @@ rs_gfx_inv_step(
         }
     }
 
-    rs_gfx_pass_marker_2d_end(queued_commands, &inv_2d);
     return true;
 }

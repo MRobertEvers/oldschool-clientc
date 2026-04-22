@@ -93,7 +93,7 @@ metal_sprite_draw_impl(
     MetalRenderCtx* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
-    if( !ctx->uiPipeState || !ctx->spriteQuadBuf )
+    if( !ctx->uiPipeState )
         return;
     metal_ensure_pipe(ctx, kMTLPipeUI);
 
@@ -190,8 +190,14 @@ metal_sprite_draw_impl(
         py[2] = py[3] = y0 + h;
     }
 
-    const float fbw = (float)(ctx->win_width > 0 ? ctx->win_width : ctx->renderer->width);
-    const float fbh = (float)(ctx->win_height > 0 ? ctx->win_height : ctx->renderer->height);
+    /* Match pre-batching Metal: logical window coords -> NDC for full-drawable spriteVp
+       (not letterboxed through ui_gl_vp; see git 732d9a97 metal_frame_event_sprite_draw). */
+    float fbw = (float)(ctx->win_width > 0 ? ctx->win_width : ctx->renderer->width);
+    float fbh = (float)(ctx->win_height > 0 ? ctx->win_height : ctx->renderer->height);
+    if( fbw <= 0.0f )
+        fbw = 1.0f;
+    if( fbh <= 0.0f )
+        fbh = 1.0f;
     auto to_clip = [&](float xp, float yp, float* ocx, float* ocy) {
         *ocx = 2.0f * xp / fbw - 1.0f;
         *ocy = 1.0f - 2.0f * yp / fbh;
@@ -213,8 +219,20 @@ metal_sprite_draw_impl(
         c0x, c0y, u0, v0, c2x, c2y, u1, v1, c3x, c3y, u0, v1,
     };
 
+    SpriteQuadVertex six[6];
+    for( int i = 0; i < 6; ++i )
+    {
+        six[i].cx = verts[i * 4 + 0];
+        six[i].cy = verts[i * 4 + 1];
+        six[i].u = verts[i * 4 + 2];
+        six[i].v = verts[i * 4 + 3];
+    }
+
     const bool rotated_clip = cmd->_sprite_draw.rotated && cmd->_sprite_draw.dst_bb_w > 0 &&
                               cmd->_sprite_draw.dst_bb_h > 0;
+
+    SpriteLogicalScissor sc_log{};
+    const SpriteLogicalScissor* psc = nullptr;
     if( rotated_clip )
     {
         MTLScissorRect sc = metal_clamped_scissor_from_logical_dst_bb(
@@ -226,24 +244,15 @@ metal_sprite_draw_impl(
             cmd->_sprite_draw.dst_bb_y,
             cmd->_sprite_draw.dst_bb_w,
             cmd->_sprite_draw.dst_bb_h);
-        [ctx->encoder setScissorRect:sc];
+        sc_log.x = (uint32_t)sc.x;
+        sc_log.y = (uint32_t)sc.y;
+        sc_log.width = (uint32_t)sc.width;
+        sc_log.height = (uint32_t)sc.height;
+        psc = &sc_log;
     }
 
-    NSUInteger slotOffset = ctx->sprite_slot * kSpriteSlotBytes;
-    memcpy((char*)ctx->spriteQuadBuf.contents + slotOffset, verts, sizeof(verts));
-    [ctx->encoder setVertexBuffer:ctx->spriteQuadBuf offset:slotOffset atIndex:0];
-    [ctx->encoder setFragmentTexture:spriteTex atIndex:0];
-    [ctx->encoder setFragmentSamplerState:ctx->uiSamplerNearest atIndex:0];
-    [ctx->encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
-
-    if( rotated_clip )
-    {
-        MTLScissorRect scMax = {
-            0, 0, (NSUInteger)ctx->renderer->width, (NSUInteger)ctx->renderer->height
-        };
-        [ctx->encoder setScissorRect:scMax];
-    }
-    ++ctx->sprite_slot;
+    if( ctx->bsp2d )
+        ctx->bsp2d->enqueue((__bridge void*)spriteTex, six, psc);
 }
 
 void

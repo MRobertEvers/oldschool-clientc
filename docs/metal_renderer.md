@@ -28,7 +28,7 @@ The game and scene layer record a sequence of `ToriRSRenderCommand` values into 
 
 7. **Command loop** — [`LibToriRS_FrameNextCommand`](../src/tori_rs_frame.u.c) with `&cmd` until false; dispatch via `switch (cmd.kind)` (see §3).
 
-8. **Guaranteed flushes** — After the loop: [`metal_flush_3d`](../src/platforms/metal/metal_render_context.mm) and [`metal_flush_font_batch`](../src/platforms/metal/metal_render_context.mm) so any remaining 3D or font geometry is encoded.
+8. **Guaranteed flushes** — After the loop: [`metal_flush_3d`](../src/platforms/metal/metal_render_context.mm) and [`metal_flush_2d`](../src/platforms/metal/metal_render_context.mm) so any remaining 3D or 2D (sprite + font) geometry is encoded.
 
 9. **Nuklear** — Full-frame viewport, [`render_nuklear_overlay`](../src/platforms/metal/metal_internal.h), then [`LibToriRS_FrameEnd`](../src/tori_rs_frame.u.c).
 
@@ -71,13 +71,13 @@ Enum: [`ToriRSRenderCommandKind`](../src/tori_rs_render.h). Dispatch: [`metal_re
 | `TORIRS_GFX_SPRITE_LOAD` | [`metal_frame_event_sprite_load`](../src/platforms/metal/metal_atlas_sprite.mm) | Standalone texture or add to open sprite batch | `_sprite_load` |
 | `TORIRS_GFX_SPRITE_UNLOAD` | [`metal_frame_event_sprite_unload`](../src/platforms/metal/metal_atlas_sprite.mm) | Evict sprite entry; `CFRelease` if standalone | `_sprite_load` |
 | `TORIRS_GFX_MODEL_DRAW` | [`metal_frame_event_model_draw`](../src/platforms/metal/metal_draw_model.mm) | Append to [`BufferedFaceOrder`](../src/platforms/common/buffered_face_order.h); may flush | `_model_draw` |
-| `TORIRS_GFX_SPRITE_DRAW` | [`metal_frame_event_sprite_draw`](../src/platforms/metal/metal_atlas_sprite.mm) | UI pipeline quad draw | `_sprite_draw` |
-| `TORIRS_GFX_FONT_DRAW` | [`metal_frame_event_font_draw`](../src/platforms/metal/metal_atlas_font.mm) | Append glyphs; may flush on font change | `_font_draw` |
+| `TORIRS_GFX_SPRITE_DRAW` | [`metal_frame_event_sprite_draw`](../src/platforms/metal/metal_atlas_sprite.mm) | Append quad to [`BufferedSprite2D`](../src/platforms/common/buffered_sprite_2d.h); flushed at `END_2D` | `_sprite_draw` |
+| `TORIRS_GFX_FONT_DRAW` | [`metal_frame_event_font_draw`](../src/platforms/metal/metal_atlas_font.mm) | Append glyphs to [`BufferedFont2D`](../src/platforms/common/buffered_font_2d.h); flushed at `END_2D` | `_font_draw` |
 | `TORIRS_GFX_CLEAR_RECT` | (empty `case`) | **No-op** on Metal | `_clear_rect` |
 | `TORIRS_GFX_BEGIN_3D` | inline | `bfo3d.begin_pass()`; set pass state | — |
 | `TORIRS_GFX_END_3D` | [`metal_flush_3d`](../src/platforms/metal/metal_render_context.mm) + `bfo3d.begin_pass()` | Flush accumulated 3D; reset BFO for next segment | — |
-| `TORIRS_GFX_BEGIN_2D` | inline | Sets `current_pass` (tracking only) | — |
-| `TORIRS_GFX_END_2D` | [`metal_flush_font_batch`](../src/platforms/metal/metal_render_context.mm) | Flush font vertex batch | — |
+| `TORIRS_GFX_BEGIN_2D` | inline | Clears [`BufferedSprite2D`](../src/platforms/common/buffered_sprite_2d.h) / [`BufferedFont2D`](../src/platforms/common/buffered_font_2d.h) for the pass | — |
+| `TORIRS_GFX_END_2D` | [`metal_flush_2d`](../src/platforms/metal/metal_render_context.mm) | Batch-draw sprites (per atlas/scissor group) then fonts (per atlas group) | — |
 | `TORIRS_GFX_BATCH3D_LOAD_START` | [`metal_frame_event_batch_model_load_start`](../src/platforms/metal/metal_batch3d.mm) | [`Gpu3DCache::begin_batch`](../src/platforms/gpu_3d_cache.h) | `_batch` |
 | `TORIRS_GFX_BATCH3D_LOAD_END` | [`metal_frame_event_batch_model_load_end`](../src/platforms/metal/metal_batch3d.mm) | `newBufferWithBytes` per chunk; `end_batch` or `unload_batch` | `_batch` |
 | `TORIRS_GFX_BATCH3D_CLEAR` | [`metal_frame_event_batch_model_clear`](../src/platforms/metal/metal_batch3d.mm) | `CFRelease` chunk VBO/IBO; `unload_batch` | `_batch` |
@@ -95,8 +95,8 @@ Enum: [`ToriRSRenderCommandKind`](../src/tori_rs_render.h). Dispatch: [`metal_re
 
 **Pass and flush rules**
 
-- `END_3D` flushes 3D (`metal_flush_3d`) and starts a new empty BFO pass. `END_2D` flushes **font** batch only (not 3D).
-- After the entire command stream, the renderer **always** calls `metal_flush_3d` and `metal_flush_font_batch` again ([`metal_render.mm`](../src/platforms/metal/metal_render.mm) ~297–298) so trailing geometry is not lost.
+- `END_3D` flushes 3D (`metal_flush_3d`) and starts a new empty BFO pass. `END_2D` flushes **2D** (`metal_flush_2d`: sprites + fonts).
+- After the entire command stream, the renderer **always** calls `metal_flush_3d` and `metal_flush_2d` again ([`metal_render.mm`](../src/platforms/metal/metal_render.mm) ~300–303) so trailing geometry is not lost.
 - `TORIRS_GFX_CLEAR_RECT` has an explicit empty case: transparent clear is **not** implemented in this Metal file (contrast with header comment in [`tori_rs_render.h`](../src/tori_rs_render.h)). Other layers may clear the framebuffer before Metal runs.
 
 ---
@@ -217,7 +217,7 @@ flowchart LR
 
 ### 5.4 Pipeline and bindings for 3D
 
-[`metal_ensure_pipe`](../src/platforms/metal/metal_render_context.mm) when switching to [`kMTLPipe3D`](../src/platforms/metal/metal_internal.h): may flush previous 3D BFO and font batch; sets `metalVp`, main pipeline, depth state, cull mode; binds [`worldAtlasTex`](../src/platforms/metal/metal_atlas_world.mm) at texture 0, [`worldAtlasTilesBuf`](../src/platforms/metal/metal_atlas_world.mm) at **fragment** buffer 4, sampler 0. This matches the fragment side of [`Shaders.metal`](../src/Shaders.metal) (`atlas` + `tiles`).
+[`metal_ensure_pipe`](../src/platforms/metal/metal_render_context.mm) when switching to [`kMTLPipe3D`](../src/platforms/metal/metal_internal.h): may flush previous 3D BFO; sets `metalVp`, main pipeline, depth state, cull mode; binds [`worldAtlasTex`](../src/platforms/metal/metal_atlas_world.mm) at texture 0, [`worldAtlasTilesBuf`](../src/platforms/metal/metal_atlas_world.mm) at **fragment** buffer 4, sampler 0. This matches the fragment side of [`Shaders.metal`](../src/Shaders.metal) (`atlas` + `tiles`). Switching between UI and font pipes does **not** flush 2D batches (that happens at `END_2D`).
 
 ---
 
@@ -237,7 +237,7 @@ flowchart LR
 
 **Unload** — `CFRelease` standalone texture handle, `unload_sprite`.
 
-**Draw** — [`metal_sprite_draw_impl`](../src/platforms/metal/metal_atlas_sprite.mm) requires `uiPipeState` and `spriteQuadBuf`. Switches to [`kMTLPipeUI`](../src/platforms/metal/metal_internal.h). **src bounding box** must lie inside the sprite; otherwise stderr and return. **Rotated** path: pivot, angle from `rotation_r2pi2048`, quads; optional **scissor** to destination BB then restore full scissor. Vertices (clip space + UV) are `memcpy`’d to `spriteQuadBuf` at `sprite_slot * kSpriteSlotBytes` ([`metal_internal.h`](../src/platforms/metal/metal_internal.h) `kSpriteSlotBytes`); one draw of 2 triangles; `sprite_slot` increments.
+**Draw** — [`metal_sprite_draw_impl`](../src/platforms/metal/metal_atlas_sprite.mm) requires `uiPipeState`. Switches to [`kMTLPipeUI`](../src/platforms/metal/metal_internal.h). **src bounding box** must lie inside the sprite; otherwise stderr and return. **Rotated** path: pivot, angle from `rotation_r2pi2048`, quads; optional **scissor** (logical rect) is stored per batch group. Six clip-space+UV vertices are appended to [`BufferedSprite2D`](../src/platforms/common/buffered_sprite_2d.h); at `END_2D`, [`metal_flush_2d`](../src/platforms/metal/metal_render_context.mm) uploads groups to `spriteQuadBuf` and issues one draw per (atlas, scissor) group (chunked if the group exceeds VBO size).
 
 ### 7.2 Fonts
 
@@ -245,9 +245,9 @@ flowchart LR
 
 **End sprite/font batches** — [`metal_frame_event_batch_sprite_load_end`](file:///Users/mathewevers/Documents/git_repos/3draster/src/platforms/metal/metal_atlas_font.mm) / [`metal_frame_event_batch_font_load_end`](file:///Users/mathewevers/Documents/git_repos/3draster/src/platforms/metal/metal_atlas_font.mm): `finalize_batch`, then upload a packed atlas. Sprite end converts pixels through `rgba` scratch; font end uses **`atlas->pixels` directly** in `replaceRegion` (different from standalone font load which copies from `rgba_pixels`).
 
-**Draw** — [`metal_frame_event_font_draw`](../src/platforms/metal/metal_atlas_font.mm) uses [`kMTLPipeFont`](../src/platforms/metal/metal_internal.h), expands color tags, builds 6-vertex (two-triangle) quads into `std::vector<float> font_verts` (8 floats per vertex: pos, UV, color). On font id change, [`metal_flush_font_batch`](../src/platforms/metal/metal_render_context.mm) copies to `fontVbo.contents` and draws, then sets new atlas texture.
+**Draw** — [`metal_frame_event_font_draw`](../src/platforms/metal/metal_atlas_font.mm) uses [`kMTLPipeFont`](../src/platforms/metal/metal_internal.h), expands color tags, builds 6-vertex (two-triangle) quads into [`BufferedFont2D`](../src/platforms/common/buffered_font_2d.h) (8 floats per vertex). `BufferedFont2D::set_font` starts a new draw group when the font/atlas changes.
 
-`END_2D` and the final frame flush ensure pending `font_verts` are submitted.
+`END_2D` and the final frame flush call [`metal_flush_2d`](../src/platforms/metal/metal_render_context.mm) to submit pending sprite and font geometry.
 
 ---
 

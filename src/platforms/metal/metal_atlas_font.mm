@@ -63,12 +63,8 @@ metal_frame_event_font_draw(
     if( !fontEntry || !fontEntry->atlas_texture )
         return;
     metal_ensure_pipe(ctx, kMTLPipeFont);
-    if( ctx->current_font_id != fid )
-    {
-        metal_flush_font_batch(ctx);
-        ctx->current_font_id = fid;
-        ctx->current_font_atlas_tex = (__bridge id<MTLTexture>)fontEntry->atlas_texture;
-    }
+    if( ctx->bft2d )
+        ctx->bft2d->set_font(fid, fontEntry->atlas_texture);
 
     struct DashFontAtlas* atlas = f->atlas;
     const float inv_aw = 1.0f / (float)atlas->atlas_width;
@@ -120,17 +116,21 @@ metal_frame_event_font_draw(
                 float u1 = (float)(atlas->glyph_x[c] + gw) * inv_aw;
                 float v1 = (float)(atlas->glyph_y[c] + gh) * inv_ah;
 
-                float cx0 = 2.0f * sx0 / ctx->fbw_font - 1.0f;
-                float cy0 = 1.0f - 2.0f * sy0 / ctx->fbh_font;
-                float cx1 = 2.0f * sx1 / ctx->fbw_font - 1.0f;
-                float cy1 = 1.0f - 2.0f * sy1 / ctx->fbh_font;
+                /* Match pre-batching Metal (git 732d9a97): window logical -> NDC via fbw_font. */
+                const float fw = ctx->fbw_font > 0.0f ? ctx->fbw_font : 1.0f;
+                const float fh = ctx->fbh_font > 0.0f ? ctx->fbh_font : 1.0f;
+                float cx0 = 2.0f * sx0 / fw - 1.0f;
+                float cy0 = 1.0f - 2.0f * sy0 / fh;
+                float cx1 = 2.0f * sx1 / fw - 1.0f;
+                float cy1 = 1.0f - 2.0f * sy1 / fh;
 
                 float vq[6 * 8] = {
                     cx0, cy0, u0, v0, cr, cg, cb, ca, cx1, cy0, u1, v0, cr, cg, cb, ca,
                     cx1, cy1, u1, v1, cr, cg, cb, ca, cx0, cy0, u0, v0, cr, cg, cb, ca,
                     cx1, cy1, u1, v1, cr, cg, cb, ca, cx0, cy1, u0, v1, cr, cg, cb, ca,
                 };
-                ctx->font_verts.insert(ctx->font_verts.end(), vq, vq + 48);
+                if( ctx->bft2d )
+                    ctx->bft2d->append_glyph_quad(vq);
             }
         }
         int adv = f->char_advance[c];

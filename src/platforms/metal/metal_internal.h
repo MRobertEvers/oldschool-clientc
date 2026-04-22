@@ -7,6 +7,8 @@
 #include "platforms/common/torirs_nk_ui_bridge.h"
 #include "platforms/common/torirs_nuklear_debug_panel.h"
 #include "platforms/common/buffered_face_order.h"
+#include "platforms/common/buffered_font_2d.h"
+#include "platforms/common/buffered_sprite_2d.h"
 #include "tori_rs_render.h"
 
 #import <Foundation/Foundation.h>
@@ -135,15 +137,15 @@ struct MetalRenderCtx
     BufferedFaceOrder* bfo3d = nullptr;
     MTLViewport metalVp{};
     MTLViewport spriteVp{};
+    /** GL-style game rect in drawable pixels (y from bottom); for helpers that need it. */
+    ToriGlViewportPixels ui_gl_vp{};
     int win_width = 0;
     int win_height = 0;
     float fbw_font = 0.0f;
     float fbh_font = 0.0f;
     int current_pipe = 0;
-    int current_font_id = -1;
-    id<MTLTexture> current_font_atlas_tex = nil;
-    NSUInteger sprite_slot = 0;
-    std::vector<float> font_verts;
+    BufferedSprite2D* bsp2d = nullptr;
+    BufferedFont2D* bft2d = nullptr;
     int encode_slot = 0;
 };
 
@@ -199,6 +201,19 @@ metal_clamped_scissor_from_logical_dst_bb(
     int dst_w,
     int dst_h);
 
+/** Logical UI position (top-left origin, y down) to NDC for full-drawable spriteVp. */
+void
+metal_ui_logical_to_ndc(
+    int drawable_w,
+    int drawable_h,
+    int win_w,
+    int win_h,
+    const ToriGlViewportPixels& ui_gl_vp,
+    float xp,
+    float yp,
+    float* ocx,
+    float* ocy);
+
 void
 sync_drawable_size(struct Platform2_SDL2_Renderer_Metal* renderer);
 
@@ -253,7 +268,7 @@ render_nuklear_overlay(
     id<MTLRenderCommandEncoder> encoder);
 
 void
-metal_flush_font_batch(MetalRenderCtx* ctx);
+metal_flush_2d(MetalRenderCtx* ctx);
 void
 metal_flush_batch(MetalRenderCtx* ctx);
 void

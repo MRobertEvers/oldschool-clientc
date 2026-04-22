@@ -28,6 +28,7 @@
 #include "osrs/world.h"
 #include "osrs/world_option_set.h"
 #include "osrs/zone_state.h"
+#include "tori_rs_render.h"
 #include "world_pickset.h"
 
 #include <stdbool.h>
@@ -67,6 +68,8 @@ struct GGame
     int rebuilt;
 
     struct ToriRSRenderCommandBuffer* uiscene_queued_commands;
+    /** Tracks emitted TORIRS_GFX pass across UI component steps (see frame_emit_pass). */
+    enum FramePassKind frame_pass;
 
     struct MinimapRenderCommandBuffer* minimap_dynamic_commands;
 

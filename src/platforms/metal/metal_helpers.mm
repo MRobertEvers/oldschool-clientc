@@ -205,6 +205,42 @@ compute_gl_world_viewport_rect(
     return rect;
 }
 
+void
+metal_ui_logical_to_ndc(
+    int drawable_w,
+    int drawable_h,
+    int win_w,
+    int win_h,
+    const ToriGlViewportPixels& ui_gl_vp,
+    float xp,
+    float yp,
+    float* ocx,
+    float* ocy)
+{
+    if( !ocx || !ocy )
+        return;
+    if( drawable_w <= 0 || drawable_h <= 0 )
+    {
+        *ocx = *ocy = 0.0f;
+        return;
+    }
+    const int ww = win_w > 0 ? win_w : drawable_w;
+    const int wh = win_h > 0 ? win_h : drawable_h;
+    if( ui_gl_vp.width <= 0 || ui_gl_vp.height <= 0 || ww <= 0 || wh <= 0 )
+    {
+        *ocx = 2.0f * xp / (float)ww - 1.0f;
+        *ocy = 1.0f - 2.0f * yp / (float)wh;
+        return;
+    }
+    const double px =
+        (double)ui_gl_vp.x + (double)xp * (double)ui_gl_vp.width / (double)ww;
+    const double game_top =
+        (double)drawable_h - (double)ui_gl_vp.y - (double)ui_gl_vp.height;
+    const double py_top = game_top + (double)yp * (double)ui_gl_vp.height / (double)wh;
+    *ocx = (float)(2.0 * px / (double)drawable_w - 1.0);
+    *ocy = (float)(1.0 - 2.0 * py_top / (double)drawable_h);
+}
+
 MTLScissorRect
 metal_clamped_scissor_from_logical_dst_bb(
     int fbw,

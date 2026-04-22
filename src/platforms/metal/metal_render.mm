@@ -132,6 +132,13 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                                 .znear = 0.0,
                                 .zfar = 1.0 };
 
+        MTLViewport spriteVp = { .originX = 0.0,
+                                 .originY = 0.0,
+                                 .width = (double)renderer->width,
+                                 .height = (double)renderer->height,
+                                 .znear = 0.0,
+                                 .zfar = 1.0 };
+
         // -----------------------------------------------------------------------
         // Build the per-frame render context
         // -----------------------------------------------------------------------
@@ -142,14 +149,9 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         renderer->mtl_draw_stream_ring.begin_slot(slot);
         renderer->mtl_instance_xform_ring.begin_slot(slot);
 
-        MTLViewport spriteVp = { .originX = 0.0,
-                                 .originY = 0.0,
-                                 .width = (double)renderer->width,
-                                 .height = (double)renderer->height,
-                                 .znear = 0.0,
-                                 .zfar = 1.0 };
-
         BufferedFaceOrder bfo3d_accum;
+        BufferedSprite2D bsp2d_accum;
+        BufferedFont2D bft2d_accum;
         MetalRenderCtx ctx = {};
         ctx.renderer = renderer;
         ctx.game = game;
@@ -176,19 +178,19 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         ctx.fontVbo = (__bridge id<MTLBuffer>)renderer->mtl_font_vbo;
         ctx.metalVp = metalVp;
         ctx.spriteVp = spriteVp;
+        ctx.ui_gl_vp = gl_vp;
         ctx.win_width = win_width;
         ctx.win_height = win_height;
         ctx.fbw_font = (float)(win_width > 0 ? win_width : renderer->width);
         ctx.fbh_font = (float)(win_height > 0 ? win_height : renderer->height);
         ctx.current_pipe = kMTLPipeNone;
-        ctx.current_font_id = -1;
-        ctx.current_font_atlas_tex = nil;
-        ctx.sprite_slot = 0;
         ctx.encode_slot = slot;
         ctx.worldAtlasTex = (__bridge id<MTLTexture>)renderer->mtl_world_atlas_tex;
         ctx.worldAtlasTilesBuf = (__bridge id<MTLBuffer>)renderer->mtl_world_atlas_tiles_buf;
         ctx.runRingBuf = (__bridge id<MTLBuffer>)renderer->mtl_run_uniform_ring[slot];
         ctx.bfo3d = &bfo3d_accum;
+        ctx.bsp2d = &bsp2d_accum;
+        ctx.bft2d = &bft2d_accum;
 
         // -----------------------------------------------------------------------
         // Drain render commands — dispatch each through its named handler
@@ -202,7 +204,6 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                 {
                 case TORIRS_GFX_BEGIN_3D:
                     current_pass = kMTLPass3D;
-                    bfo3d_accum.begin_pass();
                     break;
                 case TORIRS_GFX_END_3D:
                     metal_flush_3d(&ctx, &bfo3d_accum);
@@ -213,7 +214,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     current_pass = kMTLPass2D;
                     break;
                 case TORIRS_GFX_END_2D:
-                    metal_flush_font_batch(&ctx);
+                    metal_flush_2d(&ctx);
                     current_pass = kMTLPassNone;
                     break;
 
@@ -294,8 +295,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
             }
         }
         (void)current_pass;
+        metal_flush_2d(&ctx);
         metal_flush_3d(&ctx, &bfo3d_accum);
-        metal_flush_font_batch(&ctx);
         ctx.current_pipe = kMTLPipeNone;
 
         // -----------------------------------------------------------------------

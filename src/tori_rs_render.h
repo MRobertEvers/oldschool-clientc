@@ -6,6 +6,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/** UI / command-buffer pass for BEGIN_2D / END_2D / BEGIN_3D / END_3D coalescing. */
+enum FramePassKind
+{
+    FRAME_PASS_NONE = 0,
+    FRAME_PASS_2D,
+    FRAME_PASS_3D,
+};
+
 enum ToriRSRenderCommandKind
 {
     TORIRS_GFX_NONE,
