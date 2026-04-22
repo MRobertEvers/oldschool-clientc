@@ -1,9 +1,9 @@
 #ifndef UITREE_H
 #define UITREE_H
 
-#include <stdint.h>
-
 #include "uitree_grid.h"
+
+#include <stdint.h>
 
 #define UI_INVENTORY_MAX_ITEMS 128
 /** Matches build-cache / interface.c inv slot offset arrays (first 20 slots). */

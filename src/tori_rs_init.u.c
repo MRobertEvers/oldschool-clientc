@@ -284,6 +284,18 @@ LibToriRS_GameNew(
             },
         };
         script_queue_push(&game->script_queue, &args);
+
+        args = (struct ScriptArgs)
+        {
+            .tag = SCRIPT_LOAD_CULLMAP,
+            .u.load_cullmap = {
+                .viewport_w = game->view_port->width,
+                .viewport_h = game->view_port->height,
+                .near_clip_z = game->camera->near_plane_z,
+                .draw_radius = TORI_RS_PAINTERS_CULLMAP_RADIUS,
+            },
+        };
+        script_queue_push(&game->script_queue, &args);
     }
 
     return game;
@@ -307,6 +319,23 @@ LibToriRS_GameSetWorldViewportSize(
     game->view_port->stride = width;
     game->view_port->x_center = width / 2;
     game->view_port->y_center = height / 2;
+
+    game->world->cullmap_near_clip_z = game->camera->near_plane_z;
+    game->world->cullmap_screen_width = width;
+    game->world->cullmap_screen_height = height;
+
+    struct ScriptArgs args;
+    args = (struct ScriptArgs)
+        {
+            .tag = SCRIPT_LOAD_CULLMAP,
+            .u.load_cullmap = {
+                .viewport_w = game->view_port->width,
+                .viewport_h = game->view_port->height,
+                .near_clip_z = game->camera->near_plane_z,
+                .draw_radius = TORI_RS_PAINTERS_CULLMAP_RADIUS,
+            },
+        };
+    script_queue_push(&game->script_queue, &args);
 }
 
 void

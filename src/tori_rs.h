@@ -1,6 +1,9 @@
 #ifndef TORI_RS_H
 #define TORI_RS_H
 
+/** Draw radius used when resolving baked cullmap; must be covered by batch_cullmaps.mjs radii. */
+#define TORI_RS_PAINTERS_CULLMAP_RADIUS 25
+
 #include "datastruct/vec.h"
 #include "osrs/game.h"
 #include "osrs/ginput.h"

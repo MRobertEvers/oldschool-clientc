@@ -1,9 +1,6 @@
 #ifndef TORI_RS_FRAME_U_C
 #define TORI_RS_FRAME_U_C
 
-/** Draw radius used when resolving baked cullmap; must be covered by batch_cullmaps.mjs radii. */
-#define TORI_RS_PAINTERS_CULLMAP_RADIUS 25
-
 #include "graphics/dash.h"
 #include "osrs/game.h"
 #include "osrs/interface_state.h"
@@ -828,92 +825,10 @@ LibToriRS_FrameBegin(
     if( game->uiscene_queued_commands )
         LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
 
-    /* Dirty prepass: set is_dirty on every component before tree traversal.
-     * Always-live types and always_dirty nodes are unconditionally marked.
-     * Otherwise:
-     *   1. For each element in the mouse tile, mark all tiles that element spans as tile-dirty.
-     *   2. Mark all elements in any tile-dirty tile as is_dirty. */
+    /* Dirty prepass: set is_dirty on every component before tree traversal. */
     if( game->ui_root_buffer )
-    {
-        struct UITree* uitree = game->ui_root_buffer;
-        uint32_t n = uitree->component_count;
-        bool force = game->uitree_force_dirty;
-        for( uint32_t i = 0; i < n; i++ )
-        {
-            struct StaticUIComponent* c = &uitree->components[i];
-            if( force || c->always_dirty )
-                c->is_dirty = true;
-
-            switch( c->type )
-            {
-            case UIELEM_BUILTIN_WORLD:
-            case UIELEM_BUILTIN_MINIMAP:
-            case UIELEM_BUILTIN_COMPASS:
-                c->is_dirty = true;
-            }
-        }
-        if( !force )
-        {
-            int total_tiles = UI_GRID_W * UI_GRID_H;
-            for( int i = 0; i < total_tiles; i++ )
-                uitree->grid[i].dirty = 0;
-
-            /* Step 1: for each element in the mouse tile, mark all tiles it spans. */
-            int tx = game->mouse_x / UI_GRID_TILE_SIZE;
-            int ty = game->mouse_y / UI_GRID_TILE_SIZE;
-            if( tx < 0 )
-                tx = 0;
-            if( ty < 0 )
-                ty = 0;
-            if( tx >= UI_GRID_W )
-                tx = UI_GRID_W - 1;
-            if( ty >= UI_GRID_H )
-                ty = UI_GRID_H - 1;
-            struct UIGridTile* mouse_tile = &uitree->grid[ty * UI_GRID_W + tx];
-            for( int j = 0; j < mouse_tile->count; j++ )
-            {
-                int32_t idx = mouse_tile->indices[j];
-                if( idx < 0 || (uint32_t)idx >= n )
-                    continue;
-                struct StaticUIComponent* c = &uitree->components[idx];
-                if( c->position.kind != UIPOS_XY )
-                    continue;
-                int x = c->position.x, y = c->position.y;
-                int w = c->position.width, h = c->position.height;
-                if( w <= 0 || h <= 0 )
-                    continue;
-                int etx_min = x / UI_GRID_TILE_SIZE;
-                int ety_min = y / UI_GRID_TILE_SIZE;
-                int etx_max = (x + w - 1) / UI_GRID_TILE_SIZE;
-                int ety_max = (y + h - 1) / UI_GRID_TILE_SIZE;
-                if( etx_min < 0 )
-                    etx_min = 0;
-                if( ety_min < 0 )
-                    ety_min = 0;
-                if( etx_max >= UI_GRID_W )
-                    etx_max = UI_GRID_W - 1;
-                if( ety_max >= UI_GRID_H )
-                    ety_max = UI_GRID_H - 1;
-                for( int ety = ety_min; ety <= ety_max; ety++ )
-                    for( int etx = etx_min; etx <= etx_max; etx++ )
-                        uitree->grid[ety * UI_GRID_W + etx].dirty = 1;
-            }
-
-            /* Step 2: mark all elements in tile-dirty tiles as is_dirty. */
-            for( int ti = 0; ti < total_tiles; ti++ )
-            {
-                if( !uitree->grid[ti].dirty )
-                    continue;
-                struct UIGridTile* tile = &uitree->grid[ti];
-                for( int j = 0; j < tile->count; j++ )
-                {
-                    int32_t idx = tile->indices[j];
-                    if( idx >= 0 && (uint32_t)idx < n )
-                        uitree->components[idx].is_dirty = 1;
-                }
-            }
-        }
-    }
+        uitree_grid_dirty_prepass(
+            game->ui_root_buffer, game->mouse_x, game->mouse_y, game->uitree_force_dirty);
 
     s_uielem_world_inside_3d = false;
 
@@ -921,26 +836,6 @@ LibToriRS_FrameBegin(
 
     LibToriRS_RenderCommandBufferReset(render_command_buffer);
     queue_static_load_commands(game, render_command_buffer);
-
-    if( game->world )
-    {
-        if( game->world->cullmap_screen_width == 0 )
-        {
-            game->world->cullmap_near_clip_z = game->camera->near_plane_z;
-            game->world->cullmap_screen_width = game->view_port->width;
-            game->world->cullmap_screen_height = game->view_port->height;
-            struct ScriptArgs cullmap_script_args = {
-                .tag = SCRIPT_LOAD_CULLMAP,
-                .u.load_cullmap = {
-                    .viewport_w = game->world->cullmap_screen_width,
-                    .viewport_h = game->world->cullmap_screen_height,
-                    .near_clip_z = game->camera->near_plane_z,
-                    .draw_radius = TORI_RS_PAINTERS_CULLMAP_RADIUS,
-                },
-            };
-            script_queue_push(&game->script_queue, &cullmap_script_args);
-        }
-    }
 
     if( game->world && game->world->load_complete && game->world->painter &&
         game->sys_painter_buffer && game->world->cullmap )
