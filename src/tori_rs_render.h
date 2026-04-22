@@ -75,6 +75,25 @@ torirs_sprite_cache_key(
     return ((uint64_t)(uint32_t)element_id << 32) | (uint64_t)(uint32_t)atlas_index;
 }
 
+/** Match `model_cache_key_u64` / `rs_model_cache_key_u64`: model_id<<24 | anim<<8 | frame. */
+static inline int
+torirs_model_id_from_cache_key(uint64_t k)
+{
+    return (int)(uint32_t)(k >> 24);
+}
+
+static inline void
+torirs_model_cache_key_decode(
+    uint64_t k,
+    int* out_anim_id,
+    int* out_frame_index)
+{
+    if( out_anim_id )
+        *out_anim_id = (int)((k >> 8) & 0xFFFFu);
+    if( out_frame_index )
+        *out_frame_index = (int)(k & 0xFFu);
+}
+
 struct ToriRSRenderCommand
 {
     uint8_t kind;
@@ -83,7 +102,7 @@ struct ToriRSRenderCommand
         struct
         {
             struct DashModel* model;
-            /** Legacy composite (element<<24|anim<<8|frame); prefer model_id for GPU caches. */
+            /** Packed: model_id<<24 | anim_id<<8 | frame_index (see torirs_model_cache_key_decode). */
             uint64_t model_key;
             /** Scene2-assigned id from MODEL_LOADED; canonical key for renderer model caches. */
             int model_id;
@@ -119,6 +138,7 @@ struct ToriRSRenderCommand
         {
             struct DashModel* model;
             struct DashPosition position;
+            /** Same packing as MODEL_LOAD (`torirs_model_cache_key_decode`). */
             uint64_t model_key;
             /** Same Scene2 id as MODEL_LOAD for this element's current model (see
              * scene2_element_dash_model_gpu_id). */

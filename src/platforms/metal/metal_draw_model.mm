@@ -38,7 +38,7 @@ metal_resolve_model_draw_buffers(
     }
 
     Gpu3DCache<void*>::ModelEntry* entry = cache.get_model_entry(model_gpu_id);
-    if( entry && entry->is_batched )
+    if( entry && entry->is_batched && !range->buffer )
     {
         void* vbo = cache.get_batch_vbo_for_model(model_gpu_id);
         if( !vbo )
@@ -77,13 +77,26 @@ metal_frame_event_model_draw(
     if( mid_draw <= 0 )
         return;
 
+    const uint64_t mk = cmd->_model_draw.model_key;
+    int anim_id = 0;
+    int frame_index = 0;
+    torirs_model_cache_key_decode(mk, &anim_id, &frame_index);
+
     Gpu3DCache<void*>::ModelBufferRange* range =
-        ctx->renderer->model_cache.get_instance(mid_draw, 0, 0);
+        ctx->renderer->model_cache.get_instance(mid_draw, anim_id, frame_index);
     if( !range )
     {
-        if( !build_model_instance(ctx->renderer, ctx->device, model, mid_draw) )
-            return;
-        range = ctx->renderer->model_cache.get_instance(mid_draw, 0, 0);
+        if( !build_model_instance(
+                ctx->renderer, ctx->device, model, mid_draw, anim_id, frame_index) )
+        {
+            if( anim_id == 0 && frame_index == 0 )
+                return;
+            if( !build_model_instance(ctx->renderer, ctx->device, model, mid_draw, 0, 0) )
+                return;
+            range = ctx->renderer->model_cache.get_instance(mid_draw, 0, 0);
+        }
+        else
+            range = ctx->renderer->model_cache.get_instance(mid_draw, anim_id, frame_index);
     }
     if( !range )
         return;
@@ -94,6 +107,22 @@ metal_frame_event_model_draw(
 
     struct DashPosition draw_position = cmd->_model_draw.position;
 
+    Gpu3DAngleEncoding angle_enc = Gpu3DAngleEncoding::DashR2pi2048;
+    if( Gpu3DCache<void*>::ModelEntry* me = ctx->renderer->model_cache.get_model_entry(mid_draw) )
+        angle_enc = me->angle_encoding;
+
+    float cos_yaw = 1.0f;
+    float sin_yaw = 0.0f;
+    switch( angle_enc )
+    {
+    case Gpu3DAngleEncoding::DashR2pi2048:
+    case Gpu3DAngleEncoding::Reserved1:
+    case Gpu3DAngleEncoding::Reserved2:
+    default:
+        metal_prebake_model_yaw_cos_sin(draw_position.yaw, &cos_yaw, &sin_yaw);
+        break;
+    }
+
     while( !ctx->bfo3d->append_model(
         ctx->game->sys_dash,
         model,
@@ -103,7 +132,10 @@ metal_frame_event_model_draw(
         buf.batch_chunk_index,
         buf.vbo,
         buf.vertex_index_base,
-        buf.gpu_face_count) )
+        buf.gpu_face_count,
+        cos_yaw,
+        sin_yaw,
+        angle_enc) )
     {
         metal_flush_3d(ctx, ctx->bfo3d);
         ctx->bfo3d->begin_pass();

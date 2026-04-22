@@ -9,18 +9,20 @@ struct MetalVertexPacked {
     packed_float4 color;
     packed_float2 texcoord;
     ushort tex_id;
-    ushort _pad_vertex;
+    ushort uv_mode; // 0: OpenGL-style clamp U / fract+inset V. 1: VA dual-fract tile.
 };
 
+/* 32 bytes; must match InstanceXform in buffered_face_order.h.
+ *  cos_yaw/sin_yaw: cosf/sinf(metal_dash_yaw_to_radians(Dash yaw)) on CPU (Metal renderer). */
 struct InstanceXform {
     float cos_yaw;
     float sin_yaw;
     float x;
     float y;
     float z;
-    float _pad0;
-    float _pad1;
-    float _pad2;
+    uint angle_encoding;
+    int _pad0;
+    int _pad1;
 };
 
 struct DrawEntry {
@@ -44,6 +46,7 @@ struct VertexOut {
     float4 color;
     float2 texcoord;
     uint tex_id [[flat]];
+    uint uv_mode [[flat]];
 };
 
 vertex VertexOut vertexShader(
@@ -58,8 +61,9 @@ vertex VertexOut vertexShader(
     InstanceXform t = instances[e.instance_id];
 
     float3 p = float4(v.position).xyz;
-    float xr = p.x * t.cos_yaw - p.z * t.sin_yaw;
-    float zr = p.x * t.sin_yaw + p.z * t.cos_yaw;
+    /* projection.u.c / D3D11 xz yaw; trig was prebaked on CPU into cos_yaw/sin_yaw. */
+    float xr = p.x * t.cos_yaw + p.z * t.sin_yaw;
+    float zr = -p.x * t.sin_yaw + p.z * t.cos_yaw;
     float4 worldPos = float4(xr + t.x, p.y + t.y, zr + t.z, 1.0);
 
     VertexOut out;
@@ -67,6 +71,7 @@ vertex VertexOut vertexShader(
     out.color = float4(v.color);
     out.texcoord = float2(v.texcoord);
     out.tex_id = (uint)v.tex_id;
+    out.uv_mode = (uint)v.uv_mode;
     return out;
 }
 
@@ -87,8 +92,23 @@ fragment float4 fragmentShader(
 
     float2 local = in.texcoord;
     const float clk = uniforms.uClockPad.x;
-    local.x = fract(local.x + clk * t.animOp.x);
-    local.y = fract(local.y + clk * t.animOp.y);
+    if( in.uv_mode == 0u ) {
+        // OpenGL: clamp U, fract+inset V; V scroll with clock minus
+        if( t.animOp.x > 0.0 )
+            local.x += clk * t.animOp.x;
+        if( t.animOp.y > 0.0 )
+            local.y -= clk * t.animOp.y;
+        local.x = clamp(local.x, 0.008, 0.992);
+        local.y = clamp(fract(local.y), 0.008, 0.992);
+    } else {
+        // VA/FA: uv_pnm can exceed 0-1; tile U and V like pre-clamp Metal (dual fract + scroll)
+        if( t.animOp.x > 0.0 )
+            local.x += clk * t.animOp.x;
+        if( t.animOp.y > 0.0 )
+            local.y += clk * t.animOp.y;
+        local.x = fract(local.x);
+        local.y = fract(local.y);
+    }
     float2 uv_atlas = t.uvRect.xy + local * t.uvRect.zw;
     float4 texColor = atlas.sample(samp, uv_atlas);
 

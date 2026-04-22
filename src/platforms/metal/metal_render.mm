@@ -100,8 +100,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         const float projection_height = (float)logical_vp.height;
 
         MetalUniforms uniforms;
-        const float pitch_rad = ((float)game->camera_pitch * 2.0f * (float)M_PI) / 2048.0f;
-        const float yaw_rad = ((float)game->camera_yaw * 2.0f * (float)M_PI) / 2048.0f;
+        const float pitch_rad = metal_dash_yaw_to_radians(game->camera_pitch);
+        const float yaw_rad = metal_dash_yaw_to_radians(game->camera_yaw);
         metal_compute_view_matrix(uniforms.modelViewMatrix, 0.0f, 0.0f, 0.0f, pitch_rad, yaw_rad);
         metal_compute_projection_matrix(
             uniforms.projectionMatrix,

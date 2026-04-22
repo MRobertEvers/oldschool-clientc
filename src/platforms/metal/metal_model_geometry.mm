@@ -138,7 +138,7 @@ fill_model_face_vertices_model_local(
         mv.texcoord[0] = u_corner[vi];
         mv.texcoord[1] = v_corner[vi];
         mv.tex_id = tex_slot;
-        mv._pad_vertex = 0;
+        mv.uv_mode = kMetalVertexUvMode_Standard;
         out[vi] = mv;
     }
     return true;
@@ -263,7 +263,7 @@ fill_face_corner_vertices_from_fa(
         mv.texcoord[0] = u_corner[vi];
         mv.texcoord[1] = v_corner[vi];
         mv.tex_id = tex_slot;
-        mv._pad_vertex = 0;
+        mv.uv_mode = kMetalVertexUvMode_VaFractTile;
         out[vi] = mv;
     }
     return true;

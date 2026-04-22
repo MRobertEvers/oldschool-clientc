@@ -9,6 +9,16 @@
 #include <cstring>
 #include <vector>
 
+/** Per-model draw yaw encoding for GPU instance data (see BufferedFaceOrder / Metal shader). */
+enum class Gpu3DAngleEncoding : uint32_t
+{
+    /** Integer 0..2047 (2048 = full turn); matches DashPosition::yaw in dash.h. */
+    DashR2pi2048 = 0,
+    /** Reserved for prepacked cos/sin or other backends. */
+    Reserved1 = 1,
+    Reserved2 = 2,
+};
+
 /**
  * Gpu3DCache<BufH>
  *
@@ -84,6 +94,7 @@ public:
         std::vector<AnimEntry> anims;
         bool is_batched = false;
         uint32_t batch_id = 0;
+        Gpu3DAngleEncoding angle_encoding = Gpu3DAngleEncoding::DashR2pi2048;
     };
 
     struct BatchChunk
@@ -106,10 +117,15 @@ public:
     };
 
     void
-    init(int model_capacity, BufH null_value, BatchCaps caps = { INT_MAX, INT_MAX })
+    init(
+        int model_capacity,
+        BufH null_value,
+        BatchCaps caps = { INT_MAX, INT_MAX },
+        Gpu3DAngleEncoding angle_encoding = Gpu3DAngleEncoding::DashR2pi2048)
     {
         null_ = null_value;
         caps_ = caps;
+        angle_encoding_ = angle_encoding;
         if( model_capacity < 1 )
             model_capacity = 1;
         if( model_capacity > kGpuIdTableSize )
@@ -127,6 +143,12 @@ public:
         }
         va_entries_.assign((size_t)kGpuIdTableSize, VertexArrayEntry{});
         fa_entries_.assign((size_t)kGpuIdTableSize, FaceArrayEntry{});
+    }
+
+    Gpu3DAngleEncoding
+    angle_encoding() const
+    {
+        return angle_encoding_;
     }
 
     void
@@ -262,6 +284,7 @@ public:
         }
         entries_[model_gpu_id].is_batched = (fa->batch_id >= 0);
         entries_[model_gpu_id].batch_id = fa->batch_id >= 0 ? (uint32_t)fa->batch_id : 0u;
+        entries_[model_gpu_id].angle_encoding = angle_encoding_;
         return 0;
     }
 
@@ -350,6 +373,7 @@ public:
 
         entries_[model_gpu_id].is_batched = true;
         entries_[model_gpu_id].batch_id = batch_id;
+        entries_[model_gpu_id].angle_encoding = angle_encoding_;
     }
 
     void
@@ -572,6 +596,7 @@ public:
         r.per_face_tex_id.clear();
         if( per_face_tex && face_count > 0 )
             r.per_face_tex_id.assign(per_face_tex, per_face_tex + face_count);
+        entries_[model_gpu_id].angle_encoding = angle_encoding_;
         return 0;
     }
 
@@ -676,6 +701,7 @@ public:
         entry.anims.clear();
         entry.is_batched = false;
         entry.batch_id = 0;
+        entry.angle_encoding = angle_encoding_;
     }
 
 private:
@@ -745,6 +771,7 @@ private:
     BatchEntry batches_[kMaxBatches];
     BufH null_{};
     BatchCaps caps_{ INT_MAX, INT_MAX };
+    Gpu3DAngleEncoding angle_encoding_ = Gpu3DAngleEncoding::DashR2pi2048;
     std::vector<VertexArrayEntry> va_entries_;
     std::vector<FaceArrayEntry> fa_entries_;
 };

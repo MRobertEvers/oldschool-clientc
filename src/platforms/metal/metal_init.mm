@@ -82,7 +82,8 @@ PlatformImpl2_SDL2_Renderer_Metal_New(
     renderer->model_cache.init(
         Gpu3DCache<void*>::kGpuIdTableSize,
         nullptr,
-        Gpu3DCache<void*>::BatchCaps{ INT_MAX, INT_MAX });
+        Gpu3DCache<void*>::BatchCaps{ INT_MAX, INT_MAX },
+        Gpu3DAngleEncoding::DashR2pi2048);
     renderer->sprite_cache.init(4096, 8, nullptr);
     renderer->font_cache.init(nullptr);
     return renderer;
@@ -513,7 +514,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
     sampDesc.minFilter = MTLSamplerMinMagFilterLinear;
     sampDesc.magFilter = MTLSamplerMinMagFilterLinear;
     sampDesc.sAddressMode = MTLSamplerAddressModeClampToEdge;
-    sampDesc.tAddressMode = MTLSamplerAddressModeRepeat;
+    sampDesc.tAddressMode = MTLSamplerAddressModeClampToEdge;
     id<MTLSamplerState> sampState = [device newSamplerStateWithDescriptor:sampDesc];
     renderer->mtl_sampler_state = (__bridge_retained void*)sampState;
 

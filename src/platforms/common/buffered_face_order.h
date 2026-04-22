@@ -1,6 +1,7 @@
 #pragma once
 
 #include "graphics/dash.h"
+#include "platforms/gpu_3d_cache.h"
 
 #include <cmath>
 #include <cstdint>
@@ -18,11 +19,19 @@ struct DrawStreamEntry
     uint32_t instance_id;
 };
 
+/** 32 bytes; must match `InstanceXform` in Shaders.metal.
+ *  cos_yaw/sin_yaw are CPU-prebaked for Y-axis rotation (projection.u.c / D3D11 xz step); GPU
+ *  only applies multiply-add. */
 struct InstanceXform
 {
-    float cos_yaw, sin_yaw, x, y, z;
-    float _pad[3];
+    float cos_yaw;
+    float sin_yaw;
+    float x, y, z;
+    uint32_t angle_encoding;
+    int32_t _pad[2];
 };
+
+static_assert(sizeof(InstanceXform) == 32, "InstanceXform size must match Metal shader");
 
 struct PassFlushSlice
 {
@@ -65,6 +74,9 @@ public:
      * @param static_vbo        id<MTLBuffer> bridged as void* — static geometry for this slice
      * @param vertex_index_base first vertex index in static VBO for this model's geometry
      * @param gpu_face_count    model face count used for bounds checks on projected indices
+     * @param cos_yaw / sin_yaw  CPU-prebaked trig for Y rotation (Metal: from
+     *                           `metal_prebake_model_yaw_cos_sin` / Dash yaw → radians).
+     * @param angle_encoding     must match Gpu3DCache / model entry (metadata for future paths).
      * @return false if instance table full (caller should flush + begin_pass + retry)
      */
     bool
@@ -77,7 +89,10 @@ public:
         int batch_chunk_index,
         void* static_vbo,
         int vertex_index_base,
-        int gpu_face_count)
+        int gpu_face_count,
+        float cos_yaw,
+        float sin_yaw,
+        Gpu3DAngleEncoding angle_encoding)
     {
         if( !dash || !model || !position || !view_port || !camera || !static_vbo || gpu_face_count <= 0 )
             return true;
@@ -108,14 +123,14 @@ public:
         if( emit_tris <= 0 )
             return true;
 
-        const float yaw_rad = (position->yaw * 2.0f * (float)M_PI) / 2048.0f;
         InstanceXform xf = {
-            cosf(yaw_rad),
-            sinf(yaw_rad),
+            cos_yaw,
+            sin_yaw,
             (float)position->x,
             (float)position->y,
             (float)position->z,
-            { 0.0f, 0.0f, 0.0f }
+            static_cast<uint32_t>(angle_encoding),
+            { 0, 0 },
         };
         const int inst_id = (int)instances_.size();
         instances_.push_back(xf);

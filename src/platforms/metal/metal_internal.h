@@ -15,6 +15,7 @@
 
 #include <SDL.h>
 #include <climits>
+#include <cstdint>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -41,13 +42,22 @@ extern Uint64 s_mtl_ui_prev_perf;
 
 inline constexpr size_t kMetalRunUniformStride = 256;
 
+/** Vertex local UV policy for world atlas (see Shaders.metal fragmentShader). */
+enum : uint16_t
+{
+    /** Match OpenGL: clamp U, fract V with insets (standard models). */
+    kMetalVertexUvMode_Standard = 0,
+    /** VA/FA ground: tile both U and V with fract (large UV from uv_pnm). */
+    kMetalVertexUvMode_VaFractTile = 1
+};
+
 struct MetalVertex
 {
     float position[4];
     float color[4];
     float texcoord[2];
     uint16_t tex_id;
-    uint16_t _pad_vertex;
+    uint16_t uv_mode;
 };
 
 struct MetalUniforms
@@ -145,6 +155,14 @@ metal_compute_view_matrix(
     float camera_z,
     float pitch,
     float yaw);
+
+/** Dash `yaw` / `camera_yaw` in [0,2048) → radians; same factor as `metal_render.mm` uniforms. */
+float
+metal_dash_yaw_to_radians(int dash_yaw);
+
+/** cos/sin for model Y rotation in world xz; uses `metal_dash_yaw_to_radians` then `cosf`/`sinf`. */
+void
+metal_prebake_model_yaw_cos_sin(int dash_yaw, float* cos_out, float* sin_out);
 
 void
 metal_compute_projection_matrix(

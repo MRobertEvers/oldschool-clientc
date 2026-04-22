@@ -18,6 +18,22 @@ mat4_mul_colmajor(
         }
 }
 
+float
+metal_dash_yaw_to_radians(int dash_yaw)
+{
+    return ((float)dash_yaw * 2.0f * (float)M_PI) / 2048.0f;
+}
+
+void
+metal_prebake_model_yaw_cos_sin(int dash_yaw, float* cos_out, float* sin_out)
+{
+    if( !cos_out || !sin_out )
+        return;
+    const float yaw_rad = metal_dash_yaw_to_radians(dash_yaw);
+    *cos_out = cosf(yaw_rad);
+    *sin_out = sinf(yaw_rad);
+}
+
 void
 metal_compute_view_matrix(
     float* out_matrix,
