@@ -159,6 +159,7 @@ fill_face_corner_vertices_from_fa(
     const struct DashFaceArray* fa,
     int f,
     int raw_tex,
+    const int* pnm_ref_face_per_face,
     MetalVertex out[3])
 {
     if( !va || !fa || f < 0 || f >= fa->count )
@@ -202,11 +203,11 @@ fill_face_corner_vertices_from_fa(
 
     if( raw_tex >= 0 && fa->count > 0 )
     {
-        /* P/M/N from the VAGround model's first face in this FA (see dashmodel_va_first_face_index). */
+        /* P/M/N from the VAGround model's first face in this FA (Metal fills pnm_ref_face_per_face). */
         int pnm_f = 0;
-        if( fa->va_ground_model_first && f >= 0 && f < fa->count )
+        if( pnm_ref_face_per_face && f >= 0 && f < fa->count )
         {
-            pnm_f = (int)fa->va_ground_model_first[f];
+            pnm_f = pnm_ref_face_per_face[f];
             if( pnm_f < 0 || pnm_f >= fa->count )
                 pnm_f = 0;
         }

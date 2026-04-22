@@ -72,7 +72,8 @@ struct DashFace
     uint16_t _pad;
 };
 
-/** SoA face storage shared per terrain level. DashModelVAGround holds a weak ref + first_face_index. */
+/** SoA face storage shared per terrain level. DashModelVAGround holds a weak ref +
+ * first_face_index. */
 struct DashFaceArray
 {
     faceint_t* indices_a;
@@ -82,9 +83,6 @@ struct DashFaceArray
     hsl16_t* colors_b;
     hsl16_t* colors_c;
     faceint_t* texture_ids;
-    /** If non-NULL (terrain VA), length == count. Each entry is the global first_face_index of the
-     *  VAGround model containing that face (P/M/N ref = that face, i.e. model "face 0" in the FA). */
-    faceint_t* va_ground_model_first;
     int count;
     int capacity;
     /** Assigned in scene2_face_array_register; used in render command payloads. */
@@ -184,13 +182,20 @@ void
 dashtexturemap_init(struct DashTextureMap* map);
 
 void
-dashtexturemap_set(struct DashTextureMap* map, int id, struct DashTexture* texture);
+dashtexturemap_set(
+    struct DashTextureMap* map,
+    int id,
+    struct DashTexture* texture);
 
 struct DashTexture*
-dashtexturemap_get(const struct DashTextureMap* map, int id);
+dashtexturemap_get(
+    const struct DashTextureMap* map,
+    int id);
 
 struct DashTexture*
-dashtexturemap_iter_next(const struct DashTextureMap* map, int* cursor);
+dashtexturemap_iter_next(
+    const struct DashTextureMap* map,
+    int* cursor);
 
 struct DashViewPort
 {

@@ -153,6 +153,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         MetalRenderCtx ctx = {};
         ctx.renderer = renderer;
         ctx.game = game;
+        ctx.render_commands = render_command_buffer;
         ctx.device = device;
         ctx.encoder = encoder;
         ctx.unifBuf = unifBuf;

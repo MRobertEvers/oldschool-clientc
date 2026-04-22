@@ -116,6 +116,8 @@ struct MetalRenderCtx
 {
     struct Platform2_SDL2_Renderer_Metal* renderer = nullptr;
     struct GGame* game = nullptr;
+    /** Main frame command buffer; used to peek ahead for VA PNM when baking face arrays. */
+    struct ToriRSRenderCommandBuffer* render_commands = nullptr;
     id<MTLDevice> device = nil;
     id<MTLRenderCommandEncoder> encoder = nil;
     id<MTLBuffer> unifBuf = nil;
@@ -243,6 +245,7 @@ fill_face_corner_vertices_from_fa(
     const struct DashFaceArray* fa,
     int face_index,
     int raw_tex,
+    const int* pnm_ref_face_per_face,
     MetalVertex out[3]);
 
 void

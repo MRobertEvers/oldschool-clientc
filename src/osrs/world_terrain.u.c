@@ -833,27 +833,6 @@ build_scene_terrain_va(struct World* world)
 
         dashfacearray_shrink_to_fit(fa);
 
-        if( fa->count > 0 )
-        {
-            fa->va_ground_model_first = (faceint_t*)malloc( (size_t)fa->count * sizeof( faceint_t ) );
-            if( fa->va_ground_model_first )
-            {
-                for( size_t ti = 0; ti < tile_grid_n; ti++ )
-                {
-                    struct TerrainTileFaceTemp* tff = &tile_faces[ti];
-                    if( tff->face_count == 0 )
-                        continue;
-                    uint32_t L = tff->first_face_index;
-                    for( int k = 0; k < tff->face_count; k++ )
-                    {
-                        int idx = (int)L + k;
-                        if( idx >= 0 && idx < fa->count )
-                            fa->va_ground_model_first[(size_t)idx] = (faceint_t)L;
-                    }
-                }
-            }
-        }
-
         struct DashVertexArray* va =
             (struct DashVertexArray*)malloc(sizeof(struct DashVertexArray));
         va->vertex_count = vertex_count;

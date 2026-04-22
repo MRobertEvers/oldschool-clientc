@@ -1,8 +1,49 @@
 // System ObjC/Metal headers must come before any game headers.
 #include "platforms/metal/metal_internal.h"
 
+#include "tori_rs_render.h"
+
 #include <algorithm>
 #include <climits>
+
+/** Terrain shares one FA across many VA tile models; each model's first_face_index is the PNM
+ *  reference face for all faces in that range. Those MODEL_LOAD commands follow FACE_ARRAY_LOAD in
+ *  the same render command buffer, so we recover the map here without DashFaceArray side storage.
+ */
+static void
+metal_fill_pnm_from_upcoming_va_models(
+    struct GGame* game,
+    struct ToriRSRenderCommandBuffer* buf,
+    struct DashFaceArray* fa,
+    int* pnm_out)
+{
+    if( !game || !buf || !fa || !pnm_out || fa->count <= 0 )
+        return;
+    const int ncmd = LibToriRS_RenderCommandBufferCount(buf);
+    for( int i = game->at_render_command_index; i < ncmd; ++i )
+    {
+        struct ToriRSRenderCommand* c = LibToriRS_RenderCommandBufferAt(buf, i);
+        struct DashModel* m = nullptr;
+        if( c->kind == TORIRS_GFX_MODEL_LOAD || c->kind == TORIRS_GFX_BATCH3D_MODEL_LOAD )
+            m = c->_model_load.model;
+        else
+            continue;
+        if( !m || !dashmodel__is_ground_va(m) )
+            continue;
+        if( dashmodel_va_face_array_const(m) != fa )
+            continue;
+        const uint32_t first = dashmodel_va_first_face_index(m);
+        const int fcnt = dashmodel_face_count(m);
+        if( fcnt <= 0 )
+            continue;
+        for( int k = 0; k < fcnt; ++k )
+        {
+            const int gi = (int)first + k;
+            if( gi >= 0 && gi < fa->count )
+                pnm_out[gi] = (int)first;
+        }
+    }
+}
 
 static struct DashVertexArray*
 metal_find_staged_va_for_face_array(
@@ -69,6 +110,8 @@ metal_bake_and_register_face_array_standalone(
     struct DashFaceArray* fa)
 {
     const int fc = fa->count;
+    std::vector<int> pnm((size_t)fc, 0);
+    metal_fill_pnm_from_upcoming_va_models(ctx->game, ctx->render_commands, fa, pnm.data());
     std::vector<MetalVertex> verts((size_t)fc * 3u);
     std::vector<int> per_face_tex((size_t)fc);
     for( int f = 0; f < fc; ++f )
@@ -76,7 +119,7 @@ metal_bake_and_register_face_array_standalone(
         int raw = fa->texture_ids ? (int)fa->texture_ids[f] : -1;
         per_face_tex[(size_t)f] = raw;
         MetalVertex tri[3];
-        if( !fill_face_corner_vertices_from_fa(va, fa, f, raw, tri) )
+        if( !fill_face_corner_vertices_from_fa(va, fa, f, raw, pnm.data(), tri) )
         {
             metal_vertex_fill_invisible(&tri[0]);
             metal_vertex_fill_invisible(&tri[1]);
@@ -182,6 +225,8 @@ metal_frame_event_batch_face_array_load(
     }
 
     const int fc = fa->count;
+    std::vector<int> pnm((size_t)fc, 0);
+    metal_fill_pnm_from_upcoming_va_models(ctx->game, ctx->render_commands, fa, pnm.data());
     std::vector<MetalVertex> verts((size_t)fc * 3u);
     std::vector<int> per_face_tex((size_t)fc);
     for( int f = 0; f < fc; ++f )
@@ -189,7 +234,7 @@ metal_frame_event_batch_face_array_load(
         int raw = fa->texture_ids ? (int)fa->texture_ids[f] : -1;
         per_face_tex[(size_t)f] = raw;
         MetalVertex tri[3];
-        if( !fill_face_corner_vertices_from_fa(va, fa, f, raw, tri) )
+        if( !fill_face_corner_vertices_from_fa(va, fa, f, raw, pnm.data(), tri) )
         {
             metal_vertex_fill_invisible(&tri[0]);
             metal_vertex_fill_invisible(&tri[1]);
