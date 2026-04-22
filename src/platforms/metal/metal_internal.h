@@ -124,6 +124,7 @@ struct MetalRenderCtx
     id<MTLRenderPipelineState> pipeState = nil;
     id<MTLRenderPipelineState> uiPipeState = nil;
     id<MTLRenderPipelineState> fontPipeState = nil;
+    id<MTLRenderPipelineState> clearRectPipeState = nil;
     id<MTLDepthStencilState> dsState = nil;
     id<MTLTexture> dummyTex = nil;
     id<MTLSamplerState> samp = nil;
@@ -269,6 +270,8 @@ render_nuklear_overlay(
 
 void
 metal_flush_2d(MetalRenderCtx* ctx);
+void
+metal_frame_event_clear_rect(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
 void
 metal_flush_batch(MetalRenderCtx* ctx);
 void

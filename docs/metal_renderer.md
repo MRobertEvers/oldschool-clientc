@@ -73,7 +73,7 @@ Enum: [`ToriRSRenderCommandKind`](../src/tori_rs_render.h). Dispatch: [`metal_re
 | `TORIRS_GFX_MODEL_DRAW` | [`metal_frame_event_model_draw`](../src/platforms/metal/metal_draw_model.mm) | Append to [`BufferedFaceOrder`](../src/platforms/common/buffered_face_order.h); may flush | `_model_draw` |
 | `TORIRS_GFX_SPRITE_DRAW` | [`metal_frame_event_sprite_draw`](../src/platforms/metal/metal_atlas_sprite.mm) | Append quad to [`BufferedSprite2D`](../src/platforms/common/buffered_sprite_2d.h); flushed at `END_2D` | `_sprite_draw` |
 | `TORIRS_GFX_FONT_DRAW` | [`metal_frame_event_font_draw`](../src/platforms/metal/metal_atlas_font.mm) | Append glyphs to [`BufferedFont2D`](../src/platforms/common/buffered_font_2d.h); flushed at `END_2D` | `_font_draw` |
-| `TORIRS_GFX_CLEAR_RECT` | (empty `case`) | **No-op** on Metal | `_clear_rect` |
+| `TORIRS_GFX_CLEAR_RECT` | [`metal_frame_event_clear_rect`](../src/platforms/metal/metal_render_context.mm) | `metal_flush_2d` first (batched sprites/fonts before clear), then scissored quad with `torirsClearRectFrag` / `mtl_clear_rect_pipeline` | `_clear_rect` |
 | `TORIRS_GFX_BEGIN_3D` | inline | `bfo3d.begin_pass()`; set pass state | — |
 | `TORIRS_GFX_END_3D` | [`metal_flush_3d`](../src/platforms/metal/metal_render_context.mm) + `bfo3d.begin_pass()` | Flush accumulated 3D; reset BFO for next segment | — |
 | `TORIRS_GFX_BEGIN_2D` | inline | Clears [`BufferedSprite2D`](../src/platforms/common/buffered_sprite_2d.h) / [`BufferedFont2D`](../src/platforms/common/buffered_font_2d.h) for the pass | — |
@@ -97,7 +97,7 @@ Enum: [`ToriRSRenderCommandKind`](../src/tori_rs_render.h). Dispatch: [`metal_re
 
 - `END_3D` flushes 3D (`metal_flush_3d`) and starts a new empty BFO pass. `END_2D` flushes **2D** (`metal_flush_2d`: sprites + fonts).
 - After the entire command stream, the renderer **always** calls `metal_flush_3d` and `metal_flush_2d` again ([`metal_render.mm`](../src/platforms/metal/metal_render.mm) ~300–303) so trailing geometry is not lost.
-- `TORIRS_GFX_CLEAR_RECT` has an explicit empty case: transparent clear is **not** implemented in this Metal file (contrast with header comment in [`tori_rs_render.h`](../src/tori_rs_render.h)). Other layers may clear the framebuffer before Metal runs.
+- `TORIRS_GFX_CLEAR_RECT` matches other backends: flush pending 2D, then clear the logical rect in drawable space (transparent write), so minimap / world UI regions do not retain stale color under batching.
 
 ---
 

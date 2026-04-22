@@ -166,6 +166,10 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         ctx.fontPipeState = renderer->mtl_font_pipeline
                                 ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_font_pipeline
                                 : nil;
+        ctx.clearRectPipeState = renderer->mtl_clear_rect_pipeline
+                                     ? (__bridge id<MTLRenderPipelineState>)
+                                           renderer->mtl_clear_rect_pipeline
+                                     : nil;
         ctx.dsState = dsState;
         ctx.dummyTex = (__bridge id<MTLTexture>)renderer->mtl_dummy_texture;
         ctx.samp = (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
@@ -225,6 +229,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     metal_frame_event_batch_face_array_load(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_CLEAR_RECT:
+                    metal_frame_event_clear_rect(&ctx, &cmd);
                     break;
 
                 case TORIRS_GFX_TEXTURE_LOAD:

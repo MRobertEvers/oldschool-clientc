@@ -441,7 +441,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
             clrDesc.vertexDescriptor = uiVtx;
             clrDesc.colorAttachments[0].pixelFormat = layer.pixelFormat;
             clrDesc.colorAttachments[0].blendingEnabled = NO;
-            clrDesc.depthAttachmentPixelFormat = MTLPixelFormatInvalid;
+            /* Must match the main render pass depth attachment (same as UI sprite pipe). */
+            clrDesc.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
             NSError* clrErr = nil;
             id<MTLRenderPipelineState> clrPipe =
                 [device newRenderPipelineStateWithDescriptor:clrDesc error:&clrErr];
