@@ -62,9 +62,12 @@ metal_frame_event_font_draw(
     auto* fontEntry = ctx->renderer->font_cache.get_font(fid);
     if( !fontEntry || !fontEntry->atlas_texture )
         return;
-    metal_ensure_pipe(ctx, kMTLPipeFont);
     if( ctx->bft2d )
-        ctx->bft2d->set_font(fid, fontEntry->atlas_texture);
+        ctx->bft2d->set_font(
+            fid,
+            fontEntry->atlas_texture,
+            ctx->b2d_order,
+            &ctx->split_font_before_next_set_font);
 
     struct DashFontAtlas* atlas = f->atlas;
     const float inv_aw = 1.0f / (float)atlas->atlas_width;
@@ -138,6 +141,10 @@ metal_frame_event_font_draw(
             adv = 4;
         pen_x += adv;
     }
+
+    if( ctx->bft2d )
+        ctx->bft2d->close_open_segment(ctx->b2d_order);
+    ctx->split_sprite_before_next_enqueue = true;
 }
 
 // ---------------------------------------------------------------------------

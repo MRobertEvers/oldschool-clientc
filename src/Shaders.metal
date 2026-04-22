@@ -158,6 +158,21 @@ fragment float4 torirsClearRectFrag(UIVertOut in [[stage_in]])
     return float4(0.0, 0.0, 0.0, 0.0);
 }
 
+/** Same clip xy as UI clears; z/w chosen so NDC depth == 1.0 (match main pass clearDepth). */
+vertex UIVertOut torirsClearRectDepthVert(UIVertIn in [[stage_in]])
+{
+    UIVertOut o;
+    o.position = float4(in.p.x, in.p.y, 1.0, 1.0);
+    o.uv = in.uv;
+    return o;
+}
+
+fragment float4 torirsClearRectDepthFrag(UIVertOut in [[stage_in]])
+{
+    (void)in;
+    return float4(0.0);
+}
+
 struct UIFontVertIn {
     float2 p [[attribute(0)]];
     float2 uv [[attribute(1)]];

@@ -95,7 +95,6 @@ metal_sprite_draw_impl(
 {
     if( !ctx->uiPipeState )
         return;
-    metal_ensure_pipe(ctx, kMTLPipeUI);
 
     struct DashSprite* sp = cmd->_sprite_draw.sprite;
     if( !sp || sp->width <= 0 || sp->height <= 0 )
@@ -149,12 +148,13 @@ metal_sprite_draw_impl(
                 ih);
             return;
         }
-        const int sax = cmd->_sprite_draw.src_anchor_x;
-        const int say = cmd->_sprite_draw.src_anchor_y;
+        /* Match D3D11 / SDL2 D3D11 path: rotate a dst-sized quad around dst_anchor. */
         const float pivot_x =
             (float)cmd->_sprite_draw.dst_bb_x + (float)cmd->_sprite_draw.dst_anchor_x;
         const float pivot_y =
             (float)cmd->_sprite_draw.dst_bb_y + (float)cmd->_sprite_draw.dst_anchor_y;
+        const int dax = cmd->_sprite_draw.dst_anchor_x;
+        const int day = cmd->_sprite_draw.dst_anchor_y;
         const int ang = cmd->_sprite_draw.rotation_r2pi2048 & 2047;
         const float angle = (float)ang * (float)(2.0 * M_PI / 2048.0);
         const float ca = cosf(angle);
@@ -164,16 +164,59 @@ metal_sprite_draw_impl(
             int lx, ly;
         } corners[4] = {
             { 0,  0  },
-            { iw, 0  },
-            { iw, ih },
-            { 0,  ih },
+            { dw, 0  },
+            { dw, dh },
+            { 0,  dh },
         };
         for( int k = 0; k < 4; ++k )
         {
-            float Lx = (float)(corners[k].lx - sax);
-            float Ly = (float)(corners[k].ly - say);
+            float Lx = (float)(corners[k].lx - dax);
+            float Ly = (float)(corners[k].ly - day);
             px[k] = pivot_x + ca * Lx - sa * Ly;
             py[k] = pivot_y + sa * Lx + ca * Ly;
+        }
+
+        static bool s_logged_rot_sprite;
+        if( !s_logged_rot_sprite )
+        {
+            s_logged_rot_sprite = true;
+            NSUInteger tw_tex = 0, th_tex = 0;
+            if( spriteTex )
+            {
+                tw_tex = spriteTex.width;
+                th_tex = spriteTex.height;
+            }
+            fprintf(
+                stderr,
+                "[metal] rotated SPRITE_DRAW (once): el=%d dst_bb=%d,%d %dx%d dst_anchor=%d,%d "
+                "src_bb=%d,%d %dx%d ang=%d px_py=(%.1f,%.1f)(%.1f,%.1f)(%.1f,%.1f)(%.1f,%.1f) "
+                "uv=(%.4f,%.4f)-(%.4f,%.4f) tex=%zux%zu\n",
+                cmd->_sprite_draw.element_id,
+                cmd->_sprite_draw.dst_bb_x,
+                cmd->_sprite_draw.dst_bb_y,
+                dw,
+                dh,
+                cmd->_sprite_draw.dst_anchor_x,
+                cmd->_sprite_draw.dst_anchor_y,
+                ix,
+                iy,
+                iw,
+                ih,
+                ang,
+                px[0],
+                py[0],
+                px[1],
+                py[1],
+                px[2],
+                py[2],
+                px[3],
+                py[3],
+                (float)ix / tw,
+                (float)iy / th,
+                (float)(ix + iw) / tw,
+                (float)(iy + ih) / th,
+                (size_t)tw_tex,
+                (size_t)th_tex);
         }
     }
     else
@@ -228,31 +271,14 @@ metal_sprite_draw_impl(
         six[i].v = verts[i * 4 + 3];
     }
 
-    const bool rotated_clip = cmd->_sprite_draw.rotated && cmd->_sprite_draw.dst_bb_w > 0 &&
-                              cmd->_sprite_draw.dst_bb_h > 0;
-
-    SpriteLogicalScissor sc_log{};
-    const SpriteLogicalScissor* psc = nullptr;
-    if( rotated_clip )
-    {
-        MTLScissorRect sc = metal_clamped_scissor_from_logical_dst_bb(
-            ctx->renderer->width,
-            ctx->renderer->height,
-            ctx->win_width,
-            ctx->win_height,
-            cmd->_sprite_draw.dst_bb_x,
-            cmd->_sprite_draw.dst_bb_y,
-            cmd->_sprite_draw.dst_bb_w,
-            cmd->_sprite_draw.dst_bb_h);
-        sc_log.x = (uint32_t)sc.x;
-        sc_log.y = (uint32_t)sc.y;
-        sc_log.width = (uint32_t)sc.width;
-        sc_log.height = (uint32_t)sc.height;
-        psc = &sc_log;
-    }
-
     if( ctx->bsp2d )
-        ctx->bsp2d->enqueue((__bridge void*)spriteTex, six, psc);
+        ctx->bsp2d->enqueue(
+            (__bridge void*)spriteTex,
+            six,
+            nullptr,
+            ctx->b2d_order,
+            &ctx->split_sprite_before_next_enqueue);
+    ctx->split_font_before_next_set_font = true;
 }
 
 void

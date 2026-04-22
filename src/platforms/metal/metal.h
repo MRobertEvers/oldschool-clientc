@@ -42,6 +42,9 @@ struct Platform2_SDL2_Renderer_Metal
     void* mtl_pipeline_state;
     void* mtl_ui_sprite_pipeline;
     void* mtl_clear_rect_pipeline;
+    /** Depth-only pass for TORIRS_GFX_CLEAR_RECT (depth write, color write mask none). */
+    void* mtl_clear_rect_depth_pipeline;
+    void* mtl_clear_rect_depth_write_ds;
     void* mtl_depth_stencil;
     void* mtl_uniform_buffer;
     void* mtl_sampler_state;
@@ -94,6 +97,8 @@ struct Platform2_SDL2_Renderer_Metal
     size_t mtl_run_uniform_ring_write_offset[kMetalInflightFrames];
 
     void* mtl_sprite_quad_buf;
+    /** CPU-shared verts for `TORIRS_GFX_CLEAR_RECT` only (fixed small slot count per frame). */
+    void* mtl_clear_quad_buf;
 
     void* mtl_font_pipeline;
     void* mtl_font_vbo;

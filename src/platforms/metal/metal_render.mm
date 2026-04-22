@@ -152,6 +152,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         BufferedFaceOrder bfo3d_accum;
         BufferedSprite2D bsp2d_accum;
         BufferedFont2D bft2d_accum;
+        Buffered2DOrder b2d_order_accum;
         MetalRenderCtx ctx = {};
         ctx.renderer = renderer;
         ctx.game = game;
@@ -170,6 +171,14 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                                      ? (__bridge id<MTLRenderPipelineState>)
                                            renderer->mtl_clear_rect_pipeline
                                      : nil;
+        ctx.clearRectDepthPipeState =
+            renderer->mtl_clear_rect_depth_pipeline
+                ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_clear_rect_depth_pipeline
+                : nil;
+        ctx.clearRectDepthDsState =
+            renderer->mtl_clear_rect_depth_write_ds
+                ? (__bridge id<MTLDepthStencilState>)renderer->mtl_clear_rect_depth_write_ds
+                : nil;
         ctx.dsState = dsState;
         ctx.dummyTex = (__bridge id<MTLTexture>)renderer->mtl_dummy_texture;
         ctx.samp = (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
@@ -179,6 +188,9 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                 : (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state;
         ctx.fontSampler = ctx.uiSamplerNearest;
         ctx.spriteQuadBuf = (__bridge id<MTLBuffer>)renderer->mtl_sprite_quad_buf;
+        ctx.clearQuadBuf = renderer->mtl_clear_quad_buf
+                               ? (__bridge id<MTLBuffer>)renderer->mtl_clear_quad_buf
+                               : nil;
         ctx.fontVbo = (__bridge id<MTLBuffer>)renderer->mtl_font_vbo;
         ctx.metalVp = metalVp;
         ctx.spriteVp = spriteVp;
@@ -195,6 +207,9 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         ctx.bfo3d = &bfo3d_accum;
         ctx.bsp2d = &bsp2d_accum;
         ctx.bft2d = &bft2d_accum;
+        ctx.b2d_order = &b2d_order_accum;
+        ctx.split_sprite_before_next_enqueue = false;
+        ctx.split_font_before_next_set_font = false;
 
         // -----------------------------------------------------------------------
         // Drain render commands — dispatch each through its named handler
@@ -215,6 +230,14 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     current_pass = kMTLPassNone;
                     break;
                 case TORIRS_GFX_BEGIN_2D:
+                    if( ctx.bsp2d )
+                        ctx.bsp2d->begin_pass();
+                    if( ctx.bft2d )
+                        ctx.bft2d->begin_pass();
+                    if( ctx.b2d_order )
+                        ctx.b2d_order->begin_pass();
+                    ctx.split_sprite_before_next_enqueue = false;
+                    ctx.split_font_before_next_set_font = false;
                     current_pass = kMTLPass2D;
                     break;
                 case TORIRS_GFX_END_2D:
@@ -300,8 +323,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
             }
         }
         (void)current_pass;
-        metal_flush_2d(&ctx);
         metal_flush_3d(&ctx, &bfo3d_accum);
+        metal_flush_2d(&ctx);
         ctx.current_pipe = kMTLPipeNone;
 
         // -----------------------------------------------------------------------

@@ -495,14 +495,29 @@ queue_static_ui_minimap_draws(
         return;
     }
 
-    int anchor_x = 0;
-    int anchor_y = 0;
-
-    camera_tile_x = game->camera_world_x / 128;
-    camera_tile_z = game->camera_world_z / 128;
-
-    anchor_x = camera_tile_x * (static_sprite->width / 104);
-    anchor_y = static_sprite->height - camera_tile_z * (static_sprite->height / 104);
+    /* Clamp source rect to the static atlas texture (renderer-agnostic UV crop). */
+    {
+        const int spw = static_sprite->width;
+        const int sph = static_sprite->height;
+        if( src_x < 0 )
+        {
+            src_w += src_x;
+            src_x = 0;
+        }
+        if( src_y < 0 )
+        {
+            src_h += src_y;
+            src_y = 0;
+        }
+        if( src_x >= spw || src_y >= sph || spw <= 0 || sph <= 0 )
+            return;
+        if( src_x + src_w > spw )
+            src_w = spw - src_x;
+        if( src_y + src_h > sph )
+            src_h = sph - src_y;
+        if( src_w <= 0 || src_h <= 0 )
+            return;
+    }
 
     if( game->uiscene_queued_commands && component->position.width > 0 &&
         component->position.height > 0 )
@@ -539,12 +554,12 @@ queue_static_ui_minimap_draws(
                     .dst_bb_h = component->position.height,
                     .rotated = true,
                     .rotation_r2pi2048 = (( game->camera_yaw)& 0x7ff),
-                    .src_bb_x = 0,
-                    .src_bb_y = 0,
-                    .src_bb_w = static_sprite->crop_width,
-                    .src_bb_h = static_sprite->crop_height,
-                    .src_anchor_x = anchor_x,
-                    .src_anchor_y = anchor_y,
+                    .src_bb_x = src_x,
+                    .src_bb_y = src_y,
+                    .src_bb_w = src_w,
+                    .src_bb_h = src_h,
+                    .src_anchor_x = src_w >> 1,
+                    .src_anchor_y = src_h >> 1,
                 },
             });
 

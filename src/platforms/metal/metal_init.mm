@@ -38,6 +38,8 @@ PlatformImpl2_SDL2_Renderer_Metal_New(
     renderer->mtl_pipeline_state = nil;
     renderer->mtl_ui_sprite_pipeline = nil;
     renderer->mtl_clear_rect_pipeline = nil;
+    renderer->mtl_clear_rect_depth_pipeline = nil;
+    renderer->mtl_clear_rect_depth_write_ds = nil;
     renderer->mtl_depth_stencil = nil;
     renderer->mtl_uniform_buffer = nil;
     renderer->mtl_sampler_state = nil;
@@ -62,6 +64,7 @@ PlatformImpl2_SDL2_Renderer_Metal_New(
         renderer->mtl_run_uniform_ring_write_offset[s] = 0;
     }
     renderer->mtl_sprite_quad_buf = nullptr;
+    renderer->mtl_clear_quad_buf = nullptr;
     renderer->mtl_font_pipeline = nullptr;
     renderer->mtl_font_vbo = nullptr;
     renderer->current_model_batch_id = 0;
@@ -207,6 +210,11 @@ PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* ren
         CFRelease(renderer->mtl_sprite_quad_buf);
         renderer->mtl_sprite_quad_buf = nullptr;
     }
+    if( renderer->mtl_clear_quad_buf )
+    {
+        CFRelease(renderer->mtl_clear_quad_buf);
+        renderer->mtl_clear_quad_buf = nullptr;
+    }
     if( renderer->mtl_depth_texture )
     {
         CFRelease(renderer->mtl_depth_texture);
@@ -246,6 +254,16 @@ PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* ren
     {
         CFRelease(renderer->mtl_clear_rect_pipeline);
         renderer->mtl_clear_rect_pipeline = nullptr;
+    }
+    if( renderer->mtl_clear_rect_depth_pipeline )
+    {
+        CFRelease(renderer->mtl_clear_rect_depth_pipeline);
+        renderer->mtl_clear_rect_depth_pipeline = nullptr;
+    }
+    if( renderer->mtl_clear_rect_depth_write_ds )
+    {
+        CFRelease(renderer->mtl_clear_rect_depth_write_ds);
+        renderer->mtl_clear_rect_depth_write_ds = nullptr;
     }
     if( renderer->mtl_pipeline_state )
     {
@@ -452,6 +470,42 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
                 printf(
                     "Metal: clear rect pipeline creation failed: %s\n",
                     clrErr ? clrErr.localizedDescription.UTF8String : "unknown");
+
+            id<MTLFunction> clrDepthVertFn =
+                [shaderLibrary newFunctionWithName:@"torirsClearRectDepthVert"];
+            id<MTLFunction> clrDepthFragFn =
+                [shaderLibrary newFunctionWithName:@"torirsClearRectDepthFrag"];
+            if( clrPipe && clrDepthVertFn && clrDepthFragFn )
+            {
+                MTLRenderPipelineDescriptor* clrDepthDesc =
+                    [[MTLRenderPipelineDescriptor alloc] init];
+                clrDepthDesc.vertexFunction = clrDepthVertFn;
+                clrDepthDesc.fragmentFunction = clrDepthFragFn;
+                clrDepthDesc.vertexDescriptor = uiVtx;
+                clrDepthDesc.colorAttachments[0].pixelFormat = layer.pixelFormat;
+                clrDepthDesc.colorAttachments[0].writeMask = MTLColorWriteMaskNone;
+                clrDepthDesc.colorAttachments[0].blendingEnabled = NO;
+                clrDepthDesc.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
+                NSError* clrDepthErr = nil;
+                id<MTLRenderPipelineState> clrDepthPipe =
+                    [device newRenderPipelineStateWithDescriptor:clrDepthDesc error:&clrDepthErr];
+                if( clrDepthPipe )
+                    renderer->mtl_clear_rect_depth_pipeline =
+                        (__bridge_retained void*)clrDepthPipe;
+                else
+                    printf(
+                        "Metal: clear rect depth pipeline creation failed: %s\n",
+                        clrDepthErr ? clrDepthErr.localizedDescription.UTF8String : "unknown");
+
+                MTLDepthStencilDescriptor* clrDepthDsDesc =
+                    [[MTLDepthStencilDescriptor alloc] init];
+                clrDepthDsDesc.depthCompareFunction = MTLCompareFunctionAlways;
+                clrDepthDsDesc.depthWriteEnabled = YES;
+                id<MTLDepthStencilState> clrDepthDs =
+                    [device newDepthStencilStateWithDescriptor:clrDepthDsDesc];
+                if( clrDepthDs )
+                    renderer->mtl_clear_rect_depth_write_ds = (__bridge_retained void*)clrDepthDs;
+            }
         }
     }
 
@@ -586,6 +640,11 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
     id<MTLBuffer> sqb = [device newBufferWithLength:(NSUInteger)(4096 * 6 * 4 * sizeof(float))
                                             options:MTLResourceStorageModeShared];
     renderer->mtl_sprite_quad_buf = (__bridge_retained void*)sqb;
+
+    id<MTLBuffer> cqb = [device newBufferWithLength:(NSUInteger)kMetalMaxClearRectsPerFrame
+                                                         * kSpriteSlotBytes
+                                            options:MTLResourceStorageModeShared];
+    renderer->mtl_clear_quad_buf = (__bridge_retained void*)cqb;
 
     // Font vertex buffer: 4096 glyphs × 6 verts × 8 floats (pos2 + uv2 + color4) × 4 bytes
     id<MTLBuffer> fontVbo = [device newBufferWithLength:(NSUInteger)(4096 * 6 * 8 * sizeof(float))

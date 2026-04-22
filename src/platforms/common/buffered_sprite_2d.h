@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <vector>
 
+class Buffered2DOrder;
+
 /** One sprite vertex: clip-space xy + UV (matches UI sprite pipeline). */
 struct SpriteQuadVertex
 {
@@ -45,10 +47,17 @@ public:
     enqueue(
         void* atlas_tex,
         const SpriteQuadVertex six_verts[6],
-        const SpriteLogicalScissor* opt_scissor)
+        const SpriteLogicalScissor* opt_scissor,
+        Buffered2DOrder* order = nullptr,
+        bool* split_sprite_before_next_enqueue = nullptr)
     {
+        const bool force_split =
+            split_sprite_before_next_enqueue && *split_sprite_before_next_enqueue;
+        if( force_split )
+            *split_sprite_before_next_enqueue = false;
+
         const bool has_sc = (opt_scissor != nullptr);
-        bool need_new = groups_.empty();
+        bool need_new = groups_.empty() || force_split;
         if( !need_new )
         {
             const SpriteDrawGroup& g = groups_.back();
@@ -72,6 +81,8 @@ public:
             if( has_sc )
                 ng.scissor = *opt_scissor;
             groups_.push_back(ng);
+            if( order )
+                order->push_sprite((uint32_t)(groups_.size() - 1u));
         }
         for( int i = 0; i < 6; ++i )
             verts_.push_back(six_verts[i]);

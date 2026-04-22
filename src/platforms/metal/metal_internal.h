@@ -6,6 +6,7 @@
 #include "nuklear/backends/torirs_nk_metal_sdl.h"
 #include "platforms/common/torirs_nk_ui_bridge.h"
 #include "platforms/common/torirs_nuklear_debug_panel.h"
+#include "platforms/common/buffered_2d_order.h"
 #include "platforms/common/buffered_face_order.h"
 #include "platforms/common/buffered_font_2d.h"
 #include "platforms/common/buffered_sprite_2d.h"
@@ -106,6 +107,9 @@ enum MetalPassKind
 
 static const NSUInteger kSpriteSlotBytes = 6 * 4 * sizeof(float);
 
+/** Max `TORIRS_GFX_CLEAR_RECT` per frame; slots live in `mtl_clear_quad_buf` (not `spriteQuadBuf`). */
+inline constexpr int kMetalMaxClearRectsPerFrame = 8;
+
 struct MetalDrawBuffersResolved
 {
     void* vbo = nullptr;
@@ -125,12 +129,15 @@ struct MetalRenderCtx
     id<MTLRenderPipelineState> uiPipeState = nil;
     id<MTLRenderPipelineState> fontPipeState = nil;
     id<MTLRenderPipelineState> clearRectPipeState = nil;
+    id<MTLRenderPipelineState> clearRectDepthPipeState = nil;
+    id<MTLDepthStencilState> clearRectDepthDsState = nil;
     id<MTLDepthStencilState> dsState = nil;
     id<MTLTexture> dummyTex = nil;
     id<MTLSamplerState> samp = nil;
     id<MTLSamplerState> uiSamplerNearest = nil;
     id<MTLSamplerState> fontSampler = nil;
     id<MTLBuffer> spriteQuadBuf = nil;
+    id<MTLBuffer> clearQuadBuf = nil;
     id<MTLBuffer> fontVbo = nil;
     id<MTLTexture> worldAtlasTex = nil;
     id<MTLBuffer> worldAtlasTilesBuf = nil;
@@ -147,7 +154,15 @@ struct MetalRenderCtx
     int current_pipe = 0;
     BufferedSprite2D* bsp2d = nullptr;
     BufferedFont2D* bft2d = nullptr;
+    /** Per-frame ordered sprite/font flush list; set each frame in `metal_render.mm`. */
+    Buffered2DOrder* b2d_order = nullptr;
+    /** After a font draw, next sprite enqueue starts a new batch (preserves interleave). */
+    bool split_sprite_before_next_enqueue = false;
+    /** After a sprite draw, next `set_font` starts a new font group (preserves interleave). */
+    bool split_font_before_next_set_font = false;
     int encode_slot = 0;
+    /** Next slot in `clearQuadBuf` for `metal_frame_event_clear_rect` (bytes = slot * kSpriteSlotBytes). */
+    int clear_rect_slot = 0;
 };
 
 void
@@ -270,6 +285,11 @@ render_nuklear_overlay(
 
 void
 metal_flush_2d(MetalRenderCtx* ctx);
+/** Submit batched UI sprites only; leaves font batch untouched (preserves sprite/font order). */
+void
+metal_flush_2d_sprites_only(MetalRenderCtx* ctx);
+void
+metal_flush_2d_fonts(MetalRenderCtx* ctx);
 void
 metal_frame_event_clear_rect(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
 void

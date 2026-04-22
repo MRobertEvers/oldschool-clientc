@@ -1,7 +1,7 @@
 // System ObjC/Metal headers must come before any game headers.
 #include "platforms/metal/metal_internal.h"
 
-static void
+void
 metal_flush_2d_fonts(MetalRenderCtx* ctx)
 {
     if( !ctx || !ctx->encoder || !ctx->bft2d || !ctx->fontVbo || !ctx->fontPipeState )
@@ -71,6 +71,203 @@ metal_flush_2d_fonts(MetalRenderCtx* ctx)
 }
 
 void
+metal_flush_2d_sprites_only(MetalRenderCtx* ctx)
+{
+    if( !ctx || !ctx->encoder || !ctx->bsp2d )
+        return;
+
+    if( ctx->bsp2d->groups().empty() )
+        return;
+
+    /* Do not discard batched sprites when we cannot encode (missing UI pipe/buffer). */
+    if( !ctx->spriteQuadBuf || !ctx->uiPipeState )
+        return;
+
+    metal_ensure_pipe(ctx, kMTLPipeUI);
+
+    const std::vector<SpriteDrawGroup>& groups = ctx->bsp2d->groups();
+    const std::vector<SpriteQuadVertex>& verts = ctx->bsp2d->verts();
+    const SpriteQuadVertex* vbase = verts.data();
+    const NSUInteger buf_len = ctx->spriteQuadBuf.length;
+    const size_t vert_bytes = verts.size() * sizeof(SpriteQuadVertex);
+
+    if( buf_len == 0 )
+    {
+        ctx->bsp2d->begin_pass();
+    }
+    else if( vert_bytes > 0 && vert_bytes <= (size_t)buf_len )
+    {
+        memcpy(ctx->spriteQuadBuf.contents, vbase, vert_bytes);
+        for( const SpriteDrawGroup& g : groups )
+        {
+            id<MTLTexture> tex = (__bridge id<MTLTexture>)g.atlas_tex;
+            if( !tex || g.vertex_count == 0 )
+                continue;
+
+            [ctx->encoder setFragmentTexture:tex atIndex:0];
+            [ctx->encoder setFragmentSamplerState:ctx->uiSamplerNearest atIndex:0];
+
+            if( g.has_scissor )
+            {
+                MTLScissorRect sc = {
+                    g.scissor.x,
+                    g.scissor.y,
+                    g.scissor.width,
+                    g.scissor.height,
+                };
+                [ctx->encoder setScissorRect:sc];
+            }
+
+            const NSUInteger byte_off =
+                (NSUInteger)g.first_vertex * sizeof(SpriteQuadVertex);
+            [ctx->encoder setVertexBuffer:ctx->spriteQuadBuf offset:byte_off atIndex:0];
+            [ctx->encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                             vertexStart:0
+                             vertexCount:(NSUInteger)g.vertex_count];
+
+            if( g.has_scissor )
+            {
+                MTLScissorRect scMax = {
+                    0,
+                    0,
+                    (NSUInteger)ctx->renderer->width,
+                    (NSUInteger)ctx->renderer->height,
+                };
+                [ctx->encoder setScissorRect:scMax];
+            }
+        }
+        ctx->bsp2d->begin_pass();
+    }
+    else if( vert_bytes > (size_t)buf_len )
+    {
+        static bool s_warned_sprite_2d_ovf;
+        if( !s_warned_sprite_2d_ovf )
+        {
+            fprintf(
+                stderr,
+                "[metal] metal_flush_2d: batched sprite verts (%zu bytes) exceed buffer "
+                "(%llu), packing prefix groups\n",
+                vert_bytes,
+                (unsigned long long)buf_len);
+            s_warned_sprite_2d_ovf = true;
+        }
+        size_t cursor = 0;
+        for( const SpriteDrawGroup& g : groups )
+        {
+            id<MTLTexture> tex = (__bridge id<MTLTexture>)g.atlas_tex;
+            if( !tex || g.vertex_count == 0 )
+                continue;
+
+            [ctx->encoder setFragmentTexture:tex atIndex:0];
+            [ctx->encoder setFragmentSamplerState:ctx->uiSamplerNearest atIndex:0];
+
+            if( g.has_scissor )
+            {
+                MTLScissorRect sc = {
+                    g.scissor.x,
+                    g.scissor.y,
+                    g.scissor.width,
+                    g.scissor.height,
+                };
+                [ctx->encoder setScissorRect:sc];
+            }
+
+            const size_t nbytes = (size_t)g.vertex_count * sizeof(SpriteQuadVertex);
+            if( cursor + nbytes > (size_t)buf_len )
+                break;
+            memcpy(
+                (uint8_t*)ctx->spriteQuadBuf.contents + cursor,
+                vbase + g.first_vertex,
+                nbytes);
+            [ctx->encoder setVertexBuffer:ctx->spriteQuadBuf offset:(NSUInteger)cursor atIndex:0];
+            [ctx->encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                             vertexStart:0
+                             vertexCount:(NSUInteger)g.vertex_count];
+            cursor += nbytes;
+
+            if( g.has_scissor )
+            {
+                MTLScissorRect scMax = {
+                    0,
+                    0,
+                    (NSUInteger)ctx->renderer->width,
+                    (NSUInteger)ctx->renderer->height,
+                };
+                [ctx->encoder setScissorRect:scMax];
+            }
+        }
+        ctx->bsp2d->begin_pass();
+    }
+    else
+        ctx->bsp2d->begin_pass();
+}
+
+static void
+metal_draw_one_sprite_group(
+    MetalRenderCtx* ctx,
+    const SpriteDrawGroup& g,
+    NSUInteger vbo_byte_offset)
+{
+    if( !ctx || !ctx->encoder || !ctx->uiPipeState || !ctx->spriteQuadBuf )
+        return;
+    metal_ensure_pipe(ctx, kMTLPipeUI);
+    id<MTLTexture> tex = (__bridge id<MTLTexture>)g.atlas_tex;
+    if( !tex || g.vertex_count == 0 )
+        return;
+
+    [ctx->encoder setFragmentTexture:tex atIndex:0];
+    [ctx->encoder setFragmentSamplerState:ctx->uiSamplerNearest atIndex:0];
+
+    if( g.has_scissor )
+    {
+        MTLScissorRect sc = {
+            g.scissor.x,
+            g.scissor.y,
+            g.scissor.width,
+            g.scissor.height,
+        };
+        [ctx->encoder setScissorRect:sc];
+    }
+
+    [ctx->encoder setVertexBuffer:ctx->spriteQuadBuf offset:vbo_byte_offset atIndex:0];
+    [ctx->encoder drawPrimitives:MTLPrimitiveTypeTriangle
+                     vertexStart:0
+                     vertexCount:(NSUInteger)g.vertex_count];
+
+    if( g.has_scissor )
+    {
+        MTLScissorRect scMax = {
+            0,
+            0,
+            (NSUInteger)ctx->renderer->width,
+            (NSUInteger)ctx->renderer->height,
+        };
+        [ctx->encoder setScissorRect:scMax];
+    }
+}
+
+static void
+metal_draw_one_font_group(
+    MetalRenderCtx* ctx,
+    const FontDrawGroup& g,
+    NSUInteger vbo_byte_offset)
+{
+    if( !ctx || !ctx->encoder || !ctx->fontPipeState || !ctx->fontVbo )
+        return;
+    metal_ensure_pipe(ctx, kMTLPipeFont);
+    id<MTLTexture> tex = (__bridge id<MTLTexture>)g.atlas_tex;
+    if( !tex || g.float_count == 0 )
+        return;
+    const NSUInteger vcount = (NSUInteger)(g.float_count / 8u);
+    if( vcount == 0 )
+        return;
+    [ctx->encoder setVertexBuffer:ctx->fontVbo offset:vbo_byte_offset atIndex:0];
+    [ctx->encoder setFragmentTexture:tex atIndex:0];
+    [ctx->encoder setFragmentSamplerState:ctx->fontSampler atIndex:0];
+    [ctx->encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:vcount];
+}
+
+void
 metal_frame_event_clear_rect(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd)
 {
     if( !ctx || !ctx->encoder || !cmd || !ctx->renderer )
@@ -79,14 +276,14 @@ metal_frame_event_clear_rect(MetalRenderCtx* ctx, const struct ToriRSRenderComma
     /* Encode any batched 2D before this clear so order matches other renderers. */
     metal_flush_2d(ctx);
 
-    if( !ctx->clearRectPipeState || !ctx->spriteQuadBuf )
+    if( !ctx->clearRectPipeState || !ctx->clearQuadBuf )
     {
         ctx->current_pipe = kMTLPipeNone;
         return;
     }
 
-    void* sqb_cpu = ctx->spriteQuadBuf.contents;
-    if( !sqb_cpu )
+    void* cqb_cpu = ctx->clearQuadBuf.contents;
+    if( !cqb_cpu )
     {
         ctx->current_pipe = kMTLPipeNone;
         return;
@@ -101,6 +298,22 @@ metal_frame_event_clear_rect(MetalRenderCtx* ctx, const struct ToriRSRenderComma
         ctx->current_pipe = kMTLPipeNone;
         return;
     }
+
+    int slot = ctx->clear_rect_slot;
+    if( slot >= kMetalMaxClearRectsPerFrame )
+    {
+        static bool s_warned_clear_slot;
+        if( !s_warned_clear_slot )
+        {
+            fprintf(
+                stderr,
+                "[metal] CLEAR_RECT: more than %d clears in one frame; reusing last slot\n",
+                kMetalMaxClearRectsPerFrame);
+            s_warned_clear_slot = true;
+        }
+        slot = kMetalMaxClearRectsPerFrame - 1;
+    }
+    const NSUInteger slot_off = (NSUInteger)slot * kSpriteSlotBytes;
 
     MTLScissorRect sc = metal_clamped_scissor_from_logical_dst_bb(
         ctx->renderer->width,
@@ -138,15 +351,26 @@ metal_frame_event_clear_rect(MetalRenderCtx* ctx, const struct ToriRSRenderComma
         c0x, c0y, 0.0f, 0.0f, c2x, c2y, 0.0f, 0.0f, c3x, c3y, 0.0f, 0.0f,
     };
 
-    memcpy(sqb_cpu, quad, sizeof(quad));
+    memcpy((uint8_t*)cqb_cpu + slot_off, quad, sizeof(quad));
+    ctx->clear_rect_slot++;
 
     [ctx->encoder setViewport:ctx->spriteVp];
     [ctx->encoder setScissorRect:sc];
+    /* Match OpenGL CLEAR_RECT depth clear in the scissored rect (main pass clearDepth == 1.0). */
+    if( ctx->clearRectDepthPipeState && ctx->clearRectDepthDsState &&
+        ctx->renderer->mtl_depth_texture )
+    {
+        [ctx->encoder setDepthStencilState:ctx->clearRectDepthDsState];
+        [ctx->encoder setRenderPipelineState:ctx->clearRectDepthPipeState];
+        [ctx->encoder setCullMode:MTLCullModeNone];
+        [ctx->encoder setVertexBuffer:ctx->clearQuadBuf offset:slot_off atIndex:0];
+        [ctx->encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+    }
     [ctx->encoder setRenderPipelineState:ctx->clearRectPipeState];
     if( ctx->dsState )
         [ctx->encoder setDepthStencilState:ctx->dsState];
     [ctx->encoder setCullMode:MTLCullModeNone];
-    [ctx->encoder setVertexBuffer:ctx->spriteQuadBuf offset:0 atIndex:0];
+    [ctx->encoder setVertexBuffer:ctx->clearQuadBuf offset:slot_off atIndex:0];
     [ctx->encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
 
     MTLScissorRect scMax = {
@@ -166,132 +390,105 @@ metal_flush_2d(MetalRenderCtx* ctx)
     if( !ctx || !ctx->encoder )
         return;
 
-    if( ctx->bsp2d && ctx->spriteQuadBuf && ctx->uiPipeState &&
-        !ctx->bsp2d->groups().empty() )
+    if( ctx->bft2d && ctx->b2d_order )
+        ctx->bft2d->close_open_segment(ctx->b2d_order);
+
+    const bool has_sprites = ctx->bsp2d && !ctx->bsp2d->groups().empty();
+    const bool has_fonts = ctx->bft2d && !ctx->bft2d->groups().empty();
+    const bool has_ops = ctx->b2d_order && !ctx->b2d_order->empty();
+
+    if( !has_sprites && !has_fonts )
     {
-        metal_ensure_pipe(ctx, kMTLPipeUI);
-
-        const std::vector<SpriteDrawGroup>& groups = ctx->bsp2d->groups();
-        const std::vector<SpriteQuadVertex>& verts = ctx->bsp2d->verts();
-        const SpriteQuadVertex* vbase = verts.data();
-        const NSUInteger buf_len = ctx->spriteQuadBuf.length;
-        const size_t vert_bytes = verts.size() * sizeof(SpriteQuadVertex);
-
-        if( buf_len == 0 )
-        {
+        if( ctx->bsp2d )
             ctx->bsp2d->begin_pass();
+        if( ctx->bft2d )
+            ctx->bft2d->begin_pass();
+        if( ctx->b2d_order )
+            ctx->b2d_order->begin_pass();
+        ctx->split_sprite_before_next_enqueue = false;
+        ctx->split_font_before_next_set_font = false;
+        return;
+    }
+
+    if( !ctx->b2d_order || !has_ops )
+    {
+        static bool s_warned_missing_2d_order;
+        if( !has_ops && ctx->b2d_order && ( has_sprites || has_fonts ) && !s_warned_missing_2d_order )
+        {
+            fprintf(
+                stderr,
+                "[metal] metal_flush_2d: missing flush order; falling back to sprites-then-fonts\n");
+            s_warned_missing_2d_order = true;
         }
-        else if( vert_bytes > 0 && vert_bytes <= (size_t)buf_len )
+        metal_flush_2d_sprites_only(ctx);
+        metal_flush_2d_fonts(ctx);
+        ctx->split_sprite_before_next_enqueue = false;
+        ctx->split_font_before_next_set_font = false;
+        return;
+    }
+
+    const std::vector<SpriteDrawGroup>& sgroups = ctx->bsp2d->groups();
+    const std::vector<SpriteQuadVertex>& sverts = ctx->bsp2d->verts();
+    const SpriteQuadVertex* svbase = sverts.data();
+    const size_t svert_bytes = sverts.size() * sizeof(SpriteQuadVertex);
+    const NSUInteger sbuf_len = ctx->spriteQuadBuf ? ctx->spriteQuadBuf.length : 0;
+
+    const std::vector<FontDrawGroup>& fgroups = ctx->bft2d->groups();
+    const std::vector<float>& fverts = ctx->bft2d->verts();
+    const float* fall = fverts.data();
+    const size_t ftotal_bytes = fverts.size() * sizeof(float);
+    const NSUInteger fbuf_len = ctx->fontVbo ? ctx->fontVbo.length : 0;
+
+    const bool sprite_ok = !has_sprites ||
+        ( ctx->spriteQuadBuf && svert_bytes > 0 && svert_bytes <= (size_t)sbuf_len );
+    const bool font_ok = !has_fonts || ftotal_bytes == 0 ||
+        ( ctx->fontVbo && ftotal_bytes <= (size_t)fbuf_len );
+
+    if( !sprite_ok || !font_ok )
+    {
+        metal_flush_2d_sprites_only(ctx);
+        metal_flush_2d_fonts(ctx);
+        ctx->split_sprite_before_next_enqueue = false;
+        ctx->split_font_before_next_set_font = false;
+        return;
+    }
+
+    if( svert_bytes > 0 && ctx->spriteQuadBuf )
+        memcpy(ctx->spriteQuadBuf.contents, svbase, svert_bytes);
+    if( ftotal_bytes > 0 && ctx->fontVbo )
+        memcpy(ctx->fontVbo.contents, fall, ftotal_bytes);
+
+    for( const Tori2DFlushOp& op : ctx->b2d_order->ops() )
+    {
+        if( op.kind == Tori2DFlushKind::Sprite )
         {
-            memcpy(ctx->spriteQuadBuf.contents, vbase, vert_bytes);
-            for( const SpriteDrawGroup& g : groups )
-            {
-                id<MTLTexture> tex = (__bridge id<MTLTexture>)g.atlas_tex;
-                if( !tex || g.vertex_count == 0 )
-                    continue;
-
-                [ctx->encoder setFragmentTexture:tex atIndex:0];
-                [ctx->encoder setFragmentSamplerState:ctx->uiSamplerNearest atIndex:0];
-
-                if( g.has_scissor )
-                {
-                    MTLScissorRect sc = {
-                        g.scissor.x,
-                        g.scissor.y,
-                        g.scissor.width,
-                        g.scissor.height,
-                    };
-                    [ctx->encoder setScissorRect:sc];
-                }
-
-                const NSUInteger byte_off =
-                    (NSUInteger)g.first_vertex * sizeof(SpriteQuadVertex);
-                [ctx->encoder setVertexBuffer:ctx->spriteQuadBuf offset:byte_off atIndex:0];
-                [ctx->encoder drawPrimitives:MTLPrimitiveTypeTriangle
-                                 vertexStart:0
-                                 vertexCount:(NSUInteger)g.vertex_count];
-
-                if( g.has_scissor )
-                {
-                    MTLScissorRect scMax = {
-                        0,
-                        0,
-                        (NSUInteger)ctx->renderer->width,
-                        (NSUInteger)ctx->renderer->height,
-                    };
-                    [ctx->encoder setScissorRect:scMax];
-                }
-            }
-            ctx->bsp2d->begin_pass();
-        }
-        else if( vert_bytes > (size_t)buf_len )
-        {
-            static bool s_warned_sprite_2d_ovf;
-            if( !s_warned_sprite_2d_ovf )
-            {
-                fprintf(
-                    stderr,
-                    "[metal] metal_flush_2d: batched sprite verts (%zu bytes) exceed buffer "
-                    "(%llu), packing prefix groups\n",
-                    vert_bytes,
-                    (unsigned long long)buf_len);
-                s_warned_sprite_2d_ovf = true;
-            }
-            size_t cursor = 0;
-            for( const SpriteDrawGroup& g : groups )
-            {
-                id<MTLTexture> tex = (__bridge id<MTLTexture>)g.atlas_tex;
-                if( !tex || g.vertex_count == 0 )
-                    continue;
-
-                [ctx->encoder setFragmentTexture:tex atIndex:0];
-                [ctx->encoder setFragmentSamplerState:ctx->uiSamplerNearest atIndex:0];
-
-                if( g.has_scissor )
-                {
-                    MTLScissorRect sc = {
-                        g.scissor.x,
-                        g.scissor.y,
-                        g.scissor.width,
-                        g.scissor.height,
-                    };
-                    [ctx->encoder setScissorRect:sc];
-                }
-
-                const size_t nbytes = (size_t)g.vertex_count * sizeof(SpriteQuadVertex);
-                if( cursor + nbytes > (size_t)buf_len )
-                    break;
-                memcpy(
-                    (uint8_t*)ctx->spriteQuadBuf.contents + cursor,
-                    vbase + g.first_vertex,
-                    nbytes);
-                [ctx->encoder setVertexBuffer:ctx->spriteQuadBuf offset:(NSUInteger)cursor
-                                       atIndex:0];
-                [ctx->encoder drawPrimitives:MTLPrimitiveTypeTriangle
-                                 vertexStart:0
-                                 vertexCount:(NSUInteger)g.vertex_count];
-                cursor += nbytes;
-
-                if( g.has_scissor )
-                {
-                    MTLScissorRect scMax = {
-                        0,
-                        0,
-                        (NSUInteger)ctx->renderer->width,
-                        (NSUInteger)ctx->renderer->height,
-                    };
-                    [ctx->encoder setScissorRect:scMax];
-                }
-            }
-            ctx->bsp2d->begin_pass();
+            if( !ctx->bsp2d || op.group_index >= sgroups.size() )
+                continue;
+            const SpriteDrawGroup& g = sgroups[op.group_index];
+            const NSUInteger byte_off =
+                (NSUInteger)g.first_vertex * sizeof(SpriteQuadVertex);
+            metal_draw_one_sprite_group(ctx, g, byte_off);
         }
         else
-            ctx->bsp2d->begin_pass();
+        {
+            if( !ctx->bft2d || op.group_index >= fgroups.size() )
+                continue;
+            const FontDrawGroup& g = fgroups[op.group_index];
+            const NSUInteger byte_off = (NSUInteger)g.first_float * sizeof(float);
+            metal_draw_one_font_group(ctx, g, byte_off);
+        }
     }
-    else if( ctx->bsp2d )
-        ctx->bsp2d->begin_pass();
 
-    metal_flush_2d_fonts(ctx);
+    ctx->current_pipe = kMTLPipeNone;
+
+    if( ctx->bsp2d )
+        ctx->bsp2d->begin_pass();
+    if( ctx->bft2d )
+        ctx->bft2d->begin_pass();
+    if( ctx->b2d_order )
+        ctx->b2d_order->begin_pass();
+    ctx->split_sprite_before_next_enqueue = false;
+    ctx->split_font_before_next_set_font = false;
 }
 
 void

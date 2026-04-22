@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <vector>
 
+class Buffered2DOrder;
+
 struct FontDrawGroup
 {
     int font_id = -1;
@@ -29,8 +31,31 @@ public:
     }
 
     void
-    set_font(int font_id, void* atlas_tex)
+    set_font(
+        int font_id,
+        void* atlas_tex,
+        Buffered2DOrder* order = nullptr,
+        bool* split_font_before_next_set_font = nullptr)
     {
+        if( split_font_before_next_set_font && *split_font_before_next_set_font )
+        {
+            *split_font_before_next_set_font = false;
+            if( cur_font_ >= 0 && verts_.size() > segment_start_ )
+            {
+                groups_.push_back(FontDrawGroup{
+                    cur_font_,
+                    cur_atlas_,
+                    segment_start_,
+                    (uint32_t)(verts_.size() - segment_start_),
+                });
+                if( order )
+                    order->push_font((uint32_t)(groups_.size() - 1u));
+            }
+            cur_font_ = -1;
+            cur_atlas_ = nullptr;
+            segment_start_ = (uint32_t)verts_.size();
+        }
+
         if( cur_font_ == font_id && cur_atlas_ == atlas_tex )
             return;
         if( cur_font_ >= 0 && verts_.size() > segment_start_ )
@@ -41,6 +66,8 @@ public:
                 segment_start_,
                 (uint32_t)(verts_.size() - segment_start_),
             });
+            if( order )
+                order->push_font((uint32_t)(groups_.size() - 1u));
         }
         cur_font_ = font_id;
         cur_atlas_ = atlas_tex;
@@ -57,7 +84,7 @@ public:
 
     /** Finalize the open segment into groups() (call before iterating groups to draw). */
     void
-    close_open_segment()
+    close_open_segment(Buffered2DOrder* order = nullptr)
     {
         if( cur_font_ >= 0 && verts_.size() > segment_start_ )
         {
@@ -67,6 +94,8 @@ public:
                 segment_start_,
                 (uint32_t)(verts_.size() - segment_start_),
             });
+            if( order )
+                order->push_font((uint32_t)(groups_.size() - 1u));
         }
         cur_font_ = -1;
         cur_atlas_ = nullptr;
@@ -83,6 +112,13 @@ public:
     verts() const
     {
         return verts_;
+    }
+
+    /** True if there is glyph data to flush (open segment and/or verts not yet drawn). */
+    bool
+    has_pending_work() const
+    {
+        return !verts_.empty() || ( cur_font_ >= 0 && verts_.size() > segment_start_ );
     }
 
 private:
