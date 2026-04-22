@@ -6,11 +6,11 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include <windows.h>
-
 #include "platform_impl2_win32.h"
+
 #include <stdbool.h>
 #include <stdint.h>
+#include <windows.h>
 
 struct GGame;
 struct ToriRSRenderCommandBuffer;
@@ -19,6 +19,8 @@ struct Platform2_Win32_Renderer_GDISoft3D
 {
     struct Platform2_Win32* platform;
     int* pixel_buffer;
+    HBITMAP dib_bitmap;
+    HDC dib_dc;
     BITMAPINFOHEADER bmi_header;
     int width;
     int height;
@@ -81,8 +83,7 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_New(
     int max_height);
 
 void
-PlatformImpl2_Win32_Renderer_GDISoft3D_Free(
-    struct Platform2_Win32_Renderer_GDISoft3D* renderer);
+PlatformImpl2_Win32_Renderer_GDISoft3D_Free(struct Platform2_Win32_Renderer_GDISoft3D* renderer);
 
 bool
 PlatformImpl2_Win32_Renderer_GDISoft3D_Init(

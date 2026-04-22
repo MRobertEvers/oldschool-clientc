@@ -20,12 +20,12 @@ extern "C" {
 #include "tori_rs_render.h"
 }
 
-#include "platform_impl2_win32_renderer_gdisoft3d.h"
-
 #include "nuklear/torirs_nuklear.h"
+#include "platform_impl2_win32_renderer_gdisoft3d.h"
 extern "C" {
 #include "nuklear/backends/rawfb/nuklear_rawfb.h"
-struct nk_context* torirs_rawfb_get_nk_context(struct rawfb_context* rawfb);
+struct nk_context*
+torirs_rawfb_get_nk_context(struct rawfb_context* rawfb);
 }
 
 #include <stdio.h>
@@ -64,16 +64,6 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_New(
     renderer->max_width = max_width;
     renderer->max_height = max_height;
 
-    size_t const pixel_count = (size_t)width * (size_t)height;
-    renderer->pixel_buffer = (int*)malloc(pixel_count * sizeof(int));
-    if( !renderer->pixel_buffer )
-    {
-        printf("Failed to allocate pixel buffer\n");
-        free(renderer);
-        return NULL;
-    }
-    memset(renderer->pixel_buffer, 0, pixel_count * sizeof(int));
-
     renderer->dash_offset_x = 0;
     renderer->dash_offset_y = 0;
 
@@ -87,12 +77,35 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_New(
 
     gdisoft3d_setup_bmi(renderer);
 
+    {
+        BITMAPINFO bi;
+        memset(&bi, 0, sizeof(bi));
+        bi.bmiHeader = renderer->bmi_header;
+        renderer->dib_bitmap =
+            CreateDIBSection(NULL, &bi, DIB_RGB_COLORS, (void**)&renderer->pixel_buffer, NULL, 0);
+        if( !renderer->dib_bitmap )
+        {
+            printf("Failed to create DIB section\n");
+            free(renderer);
+            return NULL;
+        }
+    }
+
+    renderer->dib_dc = CreateCompatibleDC(NULL);
+    if( !renderer->dib_dc )
+    {
+        printf("Failed to create DIB DC\n");
+        DeleteObject(renderer->dib_bitmap);
+        free(renderer);
+        return NULL;
+    }
+    SelectObject(renderer->dib_dc, renderer->dib_bitmap);
+
     return renderer;
 }
 
 void
-PlatformImpl2_Win32_Renderer_GDISoft3D_Free(
-    struct Platform2_Win32_Renderer_GDISoft3D* renderer)
+PlatformImpl2_Win32_Renderer_GDISoft3D_Free(struct Platform2_Win32_Renderer_GDISoft3D* renderer)
 {
     if( !renderer )
         return;
@@ -105,7 +118,11 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_Free(
         renderer->platform->nk_ctx_for_input = NULL;
     free(renderer->nk_font_tex_mem);
     renderer->nk_font_tex_mem = NULL;
-    free(renderer->pixel_buffer);
+    DeleteDC(renderer->dib_dc);
+    renderer->dib_dc = NULL;
+    DeleteObject(renderer->dib_bitmap);
+    renderer->dib_bitmap = NULL;
+    renderer->pixel_buffer = NULL;
     free(renderer);
 }
 
@@ -311,42 +328,33 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_PresentToHdc(
         renderer->letterbox_dirty = false;
     }
 
-    BITMAPINFO bi;
-    memset(&bi, 0, sizeof(bi));
-    bi.bmiHeader = renderer->bmi_header;
-
     if( renderer->present_use_stretch )
     {
-        StretchDIBits(
+        StretchBlt(
             hdc,
             dst_rect.x,
             dst_rect.y,
             dst_rect.w,
             dst_rect.h,
+            renderer->dib_dc,
             0,
             0,
             renderer->width,
             renderer->height,
-            renderer->pixel_buffer,
-            &bi,
-            DIB_RGB_COLORS,
             SRCCOPY);
     }
     else
     {
-        SetDIBitsToDevice(
+        BitBlt(
             hdc,
             dst_rect.x,
             dst_rect.y,
-            (DWORD)dst_rect.w,
-            (DWORD)dst_rect.h,
+            renderer->width,
+            renderer->height,
+            renderer->dib_dc,
             0,
             0,
-            0,
-            (UINT)renderer->height,
-            renderer->pixel_buffer,
-            &bi,
-            DIB_RGB_COLORS);
+            SRCCOPY);
     }
 }
 
@@ -642,8 +650,7 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_Render(
             renderer->nk_dt_smoothed += 0.1 * (dt - renderer->nk_dt_smoothed);
 
         double dt_ms = renderer->nk_dt_smoothed * 1000.0;
-        double fps =
-            renderer->nk_dt_smoothed > 1e-9 ? 1.0 / renderer->nk_dt_smoothed : 0.0;
+        double fps = renderer->nk_dt_smoothed > 1e-9 ? 1.0 / renderer->nk_dt_smoothed : 0.0;
 
         struct nk_context* nk = torirs_rawfb_get_nk_context(rawfb);
         if( nk_begin(
