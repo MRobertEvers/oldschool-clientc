@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "uitree_grid.h"
+
 #define UI_INVENTORY_MAX_ITEMS 128
 /** Matches build-cache / interface.c inv slot offset arrays (first 20 slots). */
 #define UI_INV_SLOT_OFFSET_MAX 20
@@ -78,8 +80,8 @@ struct StaticUIComponent
     enum StaticUIComponentType type;
     /** Layout arg dirty=true in INI; forces this node to always emit draw commands. */
     uint8_t always_dirty;
-    /** Set each frame: true if this node should emit draw commands this frame. */
-    uint8_t dirty_this_frame;
+    /** Set during the dirty prepass each frame; true if this node should emit draw commands. */
+    uint8_t is_dirty;
     int32_t parent;       /* -1 = root or root-chain node */
     int32_t first_child;  /* -1 = leaf */
     int32_t next_sibling; /* -1 = last sibling */
@@ -165,6 +167,8 @@ struct UITree
     int32_t root_index; /* first root in root sibling chain; -1 if empty */
     /** Incremented on every `uitree_push_*` / node add; used to invalidate UI dirty caches. */
     uint32_t generation;
+    /** Spatial grid: each tile lists component indices whose bounds overlap that tile. */
+    struct UIGridTile grid[UI_GRID_W * UI_GRID_H];
 };
 
 char const*

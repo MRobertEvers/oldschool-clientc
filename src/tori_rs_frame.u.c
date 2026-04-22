@@ -109,35 +109,103 @@ struct UIFrameState
     int mouse_y;
 };
 
-/** Returns true when (mx,my) falls inside the node's bounding box. */
-static bool
-node_hit_test(
-    struct StaticUIComponent const* node,
-    int mx,
-    int my)
-{
-    int x = node->position.x;
-    int y = node->position.y;
-    int w = node->position.width;
-    int h = node->position.height;
-    return (w > 0 && h > 0 && mx >= x && mx < x + w && my >= y && my < y + h);
-}
-
-/** Returns true when the node should emit draw commands this frame. */
-static bool
-node_is_dirty(
+static inline bool
+uielem_sprite_is_dirty(
     struct UIFrameState const* fiber,
     struct StaticUIComponent const* node)
 {
-    if( fiber->game->uitree_force_dirty )
-        return true;
-    if( node->always_dirty )
-        return true;
-    /* World, minimap and compass are always live (continuous 3D/2D renders). */
-    if( node->type == UIELEM_BUILTIN_WORLD || node->type == UIELEM_BUILTIN_MINIMAP ||
-        node->type == UIELEM_BUILTIN_COMPASS )
-        return true;
-    return node_hit_test(node, fiber->mouse_x, fiber->mouse_y);
+    (void)fiber;
+    return node->is_dirty;
+}
+
+static inline bool
+uielem_world_is_dirty(
+    struct UIFrameState const* fiber,
+    struct StaticUIComponent const* node)
+{
+    (void)fiber;
+    return node->is_dirty;
+}
+
+static inline bool
+uielem_minimap_is_dirty(
+    struct UIFrameState const* fiber,
+    struct StaticUIComponent const* node)
+{
+    (void)fiber;
+    return node->is_dirty;
+}
+
+static inline bool
+uielem_compass_is_dirty(
+    struct UIFrameState const* fiber,
+    struct StaticUIComponent const* node)
+{
+    (void)fiber;
+    return node->is_dirty;
+}
+
+static inline bool
+uielem_redstone_tab_is_dirty(
+    struct UIFrameState const* fiber,
+    struct StaticUIComponent const* node)
+{
+    (void)fiber;
+    return node->is_dirty;
+}
+
+static inline bool
+uielem_builtin_sidebar_is_dirty(
+    struct UIFrameState const* fiber,
+    struct StaticUIComponent const* node)
+{
+    (void)fiber;
+    return node->is_dirty;
+}
+
+static inline bool
+uielem_rs_graphic_is_dirty(
+    struct UIFrameState const* fiber,
+    struct StaticUIComponent const* node)
+{
+    (void)fiber;
+    return node->is_dirty;
+}
+
+static inline bool
+uielem_rs_text_is_dirty(
+    struct UIFrameState const* fiber,
+    struct StaticUIComponent const* node)
+{
+    (void)fiber;
+    return node->is_dirty;
+}
+
+static inline bool
+uielem_rs_inv_is_dirty(
+    struct UIFrameState const* fiber,
+    struct StaticUIComponent const* node)
+{
+    (void)fiber;
+    return node->is_dirty;
+}
+
+static inline bool
+uielem_rs_layer_is_dirty(
+    struct UIFrameState const* fiber,
+    struct StaticUIComponent const* node)
+{
+    (void)fiber;
+    return node->is_dirty;
+}
+
+static inline bool
+uielem_rs_model_is_dirty(
+    struct UIFrameState const* fiber,
+    struct StaticUIComponent const* node)
+{
+    (void)fiber;
+    return node->is_dirty;
 }
 
 static bool
@@ -155,14 +223,13 @@ frame_uitree_should_descend(
 static void
 frame_uitree_advance_after_step(
     struct GGame* game,
-    int32_t stepped_index,
-    bool dirty)
+    int32_t stepped_index)
 {
     struct UITree* t = game->ui_root_buffer;
     struct StaticUIComponent* c = &t->components[stepped_index];
 
     /* Only descend into children when the node was dirty; skip entire subtree otherwise. */
-    if( dirty && frame_uitree_should_descend(game, c) )
+    if( c->is_dirty && frame_uitree_should_descend(game, c) )
     {
         if( game->uitree_stack_top + 1 >= UITREE_TRAVERSAL_STACK_MAX )
         {
@@ -761,6 +828,93 @@ LibToriRS_FrameBegin(
     if( game->uiscene_queued_commands )
         LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
 
+    /* Dirty prepass: set is_dirty on every component before tree traversal.
+     * Always-live types and always_dirty nodes are unconditionally marked.
+     * Otherwise:
+     *   1. For each element in the mouse tile, mark all tiles that element spans as tile-dirty.
+     *   2. Mark all elements in any tile-dirty tile as is_dirty. */
+    if( game->ui_root_buffer )
+    {
+        struct UITree* uitree = game->ui_root_buffer;
+        uint32_t n = uitree->component_count;
+        bool force = game->uitree_force_dirty;
+        for( uint32_t i = 0; i < n; i++ )
+        {
+            struct StaticUIComponent* c = &uitree->components[i];
+            if( force || c->always_dirty )
+                c->is_dirty = true;
+
+            switch( c->type )
+            {
+            case UIELEM_BUILTIN_WORLD:
+            case UIELEM_BUILTIN_MINIMAP:
+            case UIELEM_BUILTIN_COMPASS:
+                c->is_dirty = true;
+            }
+        }
+        if( !force )
+        {
+            int total_tiles = UI_GRID_W * UI_GRID_H;
+            for( int i = 0; i < total_tiles; i++ )
+                uitree->grid[i].dirty = 0;
+
+            /* Step 1: for each element in the mouse tile, mark all tiles it spans. */
+            int tx = game->mouse_x / UI_GRID_TILE_SIZE;
+            int ty = game->mouse_y / UI_GRID_TILE_SIZE;
+            if( tx < 0 )
+                tx = 0;
+            if( ty < 0 )
+                ty = 0;
+            if( tx >= UI_GRID_W )
+                tx = UI_GRID_W - 1;
+            if( ty >= UI_GRID_H )
+                ty = UI_GRID_H - 1;
+            struct UIGridTile* mouse_tile = &uitree->grid[ty * UI_GRID_W + tx];
+            for( int j = 0; j < mouse_tile->count; j++ )
+            {
+                int32_t idx = mouse_tile->indices[j];
+                if( idx < 0 || (uint32_t)idx >= n )
+                    continue;
+                struct StaticUIComponent* c = &uitree->components[idx];
+                if( c->position.kind != UIPOS_XY )
+                    continue;
+                int x = c->position.x, y = c->position.y;
+                int w = c->position.width, h = c->position.height;
+                if( w <= 0 || h <= 0 )
+                    continue;
+                int etx_min = x / UI_GRID_TILE_SIZE;
+                int ety_min = y / UI_GRID_TILE_SIZE;
+                int etx_max = (x + w - 1) / UI_GRID_TILE_SIZE;
+                int ety_max = (y + h - 1) / UI_GRID_TILE_SIZE;
+                if( etx_min < 0 )
+                    etx_min = 0;
+                if( ety_min < 0 )
+                    ety_min = 0;
+                if( etx_max >= UI_GRID_W )
+                    etx_max = UI_GRID_W - 1;
+                if( ety_max >= UI_GRID_H )
+                    ety_max = UI_GRID_H - 1;
+                for( int ety = ety_min; ety <= ety_max; ety++ )
+                    for( int etx = etx_min; etx <= etx_max; etx++ )
+                        uitree->grid[ety * UI_GRID_W + etx].dirty = 1;
+            }
+
+            /* Step 2: mark all elements in tile-dirty tiles as is_dirty. */
+            for( int ti = 0; ti < total_tiles; ti++ )
+            {
+                if( !uitree->grid[ti].dirty )
+                    continue;
+                struct UIGridTile* tile = &uitree->grid[ti];
+                for( int j = 0; j < tile->count; j++ )
+                {
+                    int32_t idx = tile->indices[j];
+                    if( idx >= 0 && (uint32_t)idx < n )
+                        uitree->components[idx].is_dirty = 1;
+                }
+            }
+        }
+    }
+
     s_uielem_world_inside_3d = false;
 
     world_pickset_reset(&game->pickset);
@@ -1103,6 +1257,8 @@ uielem_redstone_tab_step(
     struct UIFrameState* fiber,
     struct StaticUIComponent* node)
 {
+    if( !uielem_redstone_tab_is_dirty(fiber, node) )
+        return true;
     struct GGame* game = fiber->game;
     struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_BUILTIN_REDSTONE_TAB);
@@ -1126,25 +1282,6 @@ uielem_redstone_tab_step(
                        : component->u.redstone_tab.atlas_index;
     if( sid < 0 )
     {
-        /* Inactive tab with no sprite — clear the region so stale active-tab pixels
-         * don't persist on renderers that keep a persistent framebuffer (GDI, D3D8, Soft3D). */
-        if( game->uiscene_queued_commands && w > 0 && h > 0 )
-        {
-            int clear_2d = 0;
-            emit_begin_2d_marker(game, &clear_2d);
-            LibToriRS_RenderCommandBufferAddCommand(
-                game->uiscene_queued_commands,
-                (struct ToriRSRenderCommand){
-                    .kind = TORIRS_GFX_CLEAR_RECT,
-                    ._clear_rect = {
-                        .x = x,
-                        .y = y,
-                        .w = w,
-                        .h = h,
-                    },
-                });
-            emit_end_2d_marker(game, &clear_2d);
-        }
         return true;
     }
 
@@ -1169,6 +1306,8 @@ uielem_builtin_sidebar_step(
     struct UIFrameState* fiber,
     struct StaticUIComponent* node)
 {
+    if( !uielem_builtin_sidebar_is_dirty(fiber, node) )
+        return true;
     struct GGame* game = fiber->game;
     struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_BUILTIN_SIDEBAR);
@@ -1188,6 +1327,8 @@ uielem_sprite_step(
     struct UIFrameState* fiber,
     struct StaticUIComponent* node)
 {
+    if( !uielem_sprite_is_dirty(fiber, node) )
+        return true;
     struct GGame* game = fiber->game;
     struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_BUILTIN_SPRITE);
@@ -1221,6 +1362,8 @@ uielem_world_step(
     struct UIFrameState* fiber,
     struct StaticUIComponent* node)
 {
+    if( !uielem_world_is_dirty(fiber, node) )
+        return true;
     struct GGame* game = fiber->game;
     struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_BUILTIN_WORLD);
@@ -1387,6 +1530,8 @@ uielem_minimap_step(
     struct UIFrameState* fiber,
     struct StaticUIComponent* node)
 {
+    if( !uielem_minimap_is_dirty(fiber, node) )
+        return true;
     struct GGame* game = fiber->game;
     struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_BUILTIN_MINIMAP);
@@ -1405,6 +1550,8 @@ uielem_compass_step(
     struct UIFrameState* fiber,
     struct StaticUIComponent* node)
 {
+    if( !uielem_compass_is_dirty(fiber, node) )
+        return true;
     struct GGame* game = fiber->game;
     struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_BUILTIN_COMPASS);
@@ -1454,6 +1601,8 @@ uielem_rs_graphic_step(
     struct StaticUIComponent* node,
     int cur)
 {
+    if( !uielem_rs_graphic_is_dirty(fiber, node) )
+        return true;
     struct GGame* game = fiber->game;
     struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_RS_GRAPHIC);
@@ -1465,6 +1614,8 @@ uielem_rs_text_step(
     struct UIFrameState* fiber,
     struct StaticUIComponent* node)
 {
+    if( !uielem_rs_text_is_dirty(fiber, node) )
+        return true;
     struct GGame* game = fiber->game;
     struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_RS_TEXT);
@@ -1476,6 +1627,8 @@ uielem_rs_inv_step(
     struct UIFrameState* fiber,
     struct StaticUIComponent* node)
 {
+    if( !uielem_rs_inv_is_dirty(fiber, node) )
+        return true;
     struct GGame* game = fiber->game;
     struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_RS_INV);
@@ -1487,6 +1640,8 @@ uielem_rs_layer_step(
     struct UIFrameState* fiber,
     struct StaticUIComponent* node)
 {
+    if( !uielem_rs_layer_is_dirty(fiber, node) )
+        return true;
     struct GGame* game = fiber->game;
     struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_RS_LAYER);
@@ -1498,6 +1653,8 @@ uielem_rs_model_step(
     struct UIFrameState* fiber,
     struct StaticUIComponent* node)
 {
+    if( !uielem_rs_model_is_dirty(fiber, node) )
+        return true;
     struct GGame* game = fiber->game;
     struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_RS_MODEL);
@@ -1555,16 +1712,6 @@ LibToriRS_FrameNextCommand(
             .mouse_y = game->mouse_y,
         };
 
-        bool dirty = node_is_dirty(&fiber, component);
-        component->dirty_this_frame = dirty ? 1 : 0;
-
-        if( !dirty )
-        {
-            /* Skip this node and its entire subtree. */
-            frame_uitree_advance_after_step(game, cur, false);
-            continue;
-        }
-
         switch( component->type )
         {
         case UIELEM_BUILTIN_SPRITE:
@@ -1606,7 +1753,7 @@ LibToriRS_FrameNextCommand(
         }
 
         if( done )
-            frame_uitree_advance_after_step(game, cur, true);
+            frame_uitree_advance_after_step(game, cur);
     }
 
     return false;
