@@ -191,7 +191,7 @@ struct D3D8Internal
 
     size_t ib_ring_write_offset;
 
-    /** Merged world-rebuild batches (TORIRS_GFX_BATCH_* / MODEL_BATCHED_LOAD). */
+    /** Merged world-rebuild batches (TORIRS_GFX_BATCH3D_* and related load kinds). */
     D3D8ModelBatch* current_batch = nullptr;
     std::unordered_map<uint32_t, D3D8ModelBatch*> batches_by_id;
     /** Indexed by model id; each bucket lists anim/frame variants for batched VBO draws. */
@@ -1835,13 +1835,13 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_BATCH_MODEL_LOAD_START:
+        case TORIRS_GFX_BATCH3D_LOAD_START:
         {
             uint32_t bid = command._batch.batch_id;
             if( p->current_batch )
             {
                 d3d8_log(
-                    "BATCH_MODEL_LOAD_START: replacing incomplete batch id=%u",
+                    "BATCH3D_LOAD_START: replacing incomplete batch id=%u",
                     (unsigned)p->current_batch->batch_id);
                 d3d8_release_model_batch(p->current_batch);
                 p->current_batch = nullptr;
@@ -1851,7 +1851,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_MODEL_BATCHED_LOAD:
+        case TORIRS_GFX_BATCH3D_MODEL_LOAD:
         {
             struct DashModel* model = command._model_load.model;
             uint64_t mk = command._model_load.model_key;
@@ -1923,7 +1923,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_BATCH_MODEL_LOAD_END:
+        case TORIRS_GFX_BATCH3D_LOAD_END:
         {
             uint32_t bid = command._batch.batch_id;
             if( !p->current_batch || p->current_batch->batch_id != bid )
@@ -1943,7 +1943,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             if( hrvb != D3D_OK || !vbo )
             {
                 d3d8_log(
-                    "BATCH_MODEL_LOAD_END: CreateVertexBuffer failed hr=0x%08lX",
+                    "BATCH3D_LOAD_END: CreateVertexBuffer failed hr=0x%08lX",
                     (unsigned long)hrvb);
                 delete batch;
                 break;
@@ -1952,7 +1952,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             HRESULT hvlock = vbo->Lock(0, vbytes, (BYTE**)&vdst, 0);
             if( hvlock != D3D_OK )
             {
-                d3d8_log("BATCH_MODEL_LOAD_END: VBO Lock failed hr=0x%08lX", (unsigned long)hvlock);
+                d3d8_log("BATCH3D_LOAD_END: VBO Lock failed hr=0x%08lX", (unsigned long)hvlock);
                 vbo->Release();
                 delete batch;
                 break;
@@ -1976,7 +1976,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             {
                 s_batch_end_logs++;
                 d3d8_log(
-                    "BATCH_MODEL_LOAD_END[%u]: batch_id=%u total_vertex_count=%d "
+                    "BATCH3D_LOAD_END[%u]: batch_id=%u total_vertex_count=%d "
                     "index_count=%zu max_per_model_local_index=%u",
                     s_batch_end_logs,
                     (unsigned)bid,
@@ -1992,7 +1992,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             if( hrib != D3D_OK || !ibo )
             {
                 d3d8_log(
-                    "BATCH_MODEL_LOAD_END: CreateIndexBuffer failed hr=0x%08lX",
+                    "BATCH3D_LOAD_END: CreateIndexBuffer failed hr=0x%08lX",
                     (unsigned long)hrib);
                 batch->vbo->Release();
                 batch->vbo = nullptr;
@@ -2003,7 +2003,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             HRESULT hilock = ibo->Lock(0, ibytes, (BYTE**)&idst, 0);
             if( hilock != D3D_OK )
             {
-                d3d8_log("BATCH_MODEL_LOAD_END: IBO Lock failed hr=0x%08lX", (unsigned long)hilock);
+                d3d8_log("BATCH3D_LOAD_END: IBO Lock failed hr=0x%08lX", (unsigned long)hilock);
                 ibo->Release();
                 batch->vbo->Release();
                 batch->vbo = nullptr;
@@ -2019,7 +2019,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_BATCH_MODEL_CLEAR:
+        case TORIRS_GFX_BATCH3D_CLEAR:
         {
             uint32_t bid = command._batch.batch_id;
             auto bit = p->batches_by_id.find(bid);
@@ -2048,8 +2048,8 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_VERTEX_ARRAY_BATCHED_LOAD:
-        case TORIRS_GFX_FACE_ARRAY_BATCHED_LOAD:
+        case TORIRS_GFX_BATCH3D_VERTEX_ARRAY_LOAD:
+        case TORIRS_GFX_BATCH3D_FACE_ARRAY_LOAD:
             break;
 
         case TORIRS_GFX_SPRITE_LOAD:

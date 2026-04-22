@@ -628,6 +628,26 @@ queue_static_load_commands(
         struct Scene2Event scene_event = { 0 };
         while( scene2_eventbuffer_pop(scene2, &scene_event) )
         {
+            if( scene_event.type == SCENE2_EVENT_TEXTURE_BATCH_BEGIN )
+            {
+                LibToriRS_RenderCommandBufferAddCommand(
+                    render_command_buffer,
+                    (struct ToriRSRenderCommand){
+                        .kind = TORIRS_GFX_BATCH_TEXTURE_LOAD_START,
+                        ._batch = { .batch_id = scene_event.u.batch.batch_id },
+                    });
+                continue;
+            }
+            if( scene_event.type == SCENE2_EVENT_TEXTURE_BATCH_END )
+            {
+                LibToriRS_RenderCommandBufferAddCommand(
+                    render_command_buffer,
+                    (struct ToriRSRenderCommand){
+                        .kind = TORIRS_GFX_BATCH_TEXTURE_LOAD_END,
+                        ._batch = { .batch_id = scene_event.u.batch.batch_id },
+                    });
+                continue;
+            }
             if( scene_event.type == SCENE2_EVENT_TEXTURE_LOADED )
             {
                 int tex_id = scene_event.u.texture.texture_id;
@@ -635,12 +655,30 @@ queue_static_load_commands(
                 queue_texture_load_from_event(render_command_buffer, tex_id, texture);
                 continue;
             }
+            if( scene_event.type == SCENE2_EVENT_ANIMATION_LOADED )
+            {
+                LibToriRS_RenderCommandBufferAddCommand(
+                    render_command_buffer,
+                    (struct ToriRSRenderCommand){
+                        .kind = scene_event.batched ? TORIRS_GFX_BATCH3D_MODEL_ANIMATION_LOAD
+                                                    : TORIRS_GFX_MODEL_ANIMATION_LOAD,
+                        ._animation_load = {
+                            .model        = scene_event.u.animation.model,
+                            .frame        = scene_event.u.animation.frame,
+                            .framemap     = scene_event.u.animation.framemap,
+                            .model_gpu_id = scene_event.u.animation.model_gpu_id,
+                            .anim_id      = scene_event.u.animation.anim_id,
+                            .frame_index  = scene_event.u.animation.frame_index,
+                        },
+                    });
+                continue;
+            }
             if( scene_event.type == SCENE2_EVENT_BATCH_BEGIN )
             {
                 LibToriRS_RenderCommandBufferAddCommand(
                     render_command_buffer,
                     (struct ToriRSRenderCommand){
-                        .kind = TORIRS_GFX_BATCH_MODEL_LOAD_START,
+                        .kind = TORIRS_GFX_BATCH3D_LOAD_START,
                         ._batch = { .batch_id = scene_event.u.batch.batch_id },
                     });
                 continue;
@@ -650,7 +688,7 @@ queue_static_load_commands(
                 LibToriRS_RenderCommandBufferAddCommand(
                     render_command_buffer,
                     (struct ToriRSRenderCommand){
-                        .kind = TORIRS_GFX_BATCH_MODEL_LOAD_END,
+                        .kind = TORIRS_GFX_BATCH3D_LOAD_END,
                         ._batch = { .batch_id = scene_event.u.batch.batch_id },
                     });
                 continue;
@@ -660,7 +698,7 @@ queue_static_load_commands(
                 LibToriRS_RenderCommandBufferAddCommand(
                     render_command_buffer,
                     (struct ToriRSRenderCommand){
-                        .kind = TORIRS_GFX_BATCH_MODEL_CLEAR,
+                        .kind = TORIRS_GFX_BATCH3D_CLEAR,
                         ._batch = { .batch_id = scene_event.u.batch.batch_id },
                     });
                 continue;
@@ -668,7 +706,7 @@ queue_static_load_commands(
             if( scene_event.type == SCENE2_EVENT_VERTEX_ARRAY_ADDED )
             {
                 struct ToriRSRenderCommand cmd = { 0 };
-                cmd.kind = scene_event.batched ? TORIRS_GFX_VERTEX_ARRAY_BATCHED_LOAD
+                cmd.kind = scene_event.batched ? TORIRS_GFX_BATCH3D_VERTEX_ARRAY_LOAD
                                                : TORIRS_GFX_VERTEX_ARRAY_LOAD;
                 cmd._vertex_array_load.array_id = scene_event.u.vertex_array.array_id;
                 cmd._vertex_array_load.array = scene_event.u.vertex_array.array;
@@ -687,7 +725,7 @@ queue_static_load_commands(
             if( scene_event.type == SCENE2_EVENT_FACE_ARRAY_ADDED )
             {
                 struct ToriRSRenderCommand cmd = { 0 };
-                cmd.kind = scene_event.batched ? TORIRS_GFX_FACE_ARRAY_BATCHED_LOAD
+                cmd.kind = scene_event.batched ? TORIRS_GFX_BATCH3D_FACE_ARRAY_LOAD
                                                : TORIRS_GFX_FACE_ARRAY_LOAD;
                 cmd._face_array_load.array_id = scene_event.u.face_array.array_id;
                 cmd._face_array_load.array = scene_event.u.face_array.array;
@@ -717,7 +755,7 @@ queue_static_load_commands(
                 LibToriRS_RenderCommandBufferAddCommand(
                     render_command_buffer,
                     (struct ToriRSRenderCommand){
-                        .kind = scene_event.batched ? TORIRS_GFX_MODEL_BATCHED_LOAD
+                        .kind = scene_event.batched ? TORIRS_GFX_BATCH3D_MODEL_LOAD
                                                     : TORIRS_GFX_MODEL_LOAD,
                         ._model_load = {
                             .model = scene_event.u.model.model,
@@ -793,6 +831,42 @@ queue_static_load_commands(
                 struct DashPixFont* font = uiscene_font_get(game->ui_scene, ui_event.font_id);
                 if( font )
                     queue_font_load_from_event(render_command_buffer, ui_event.font_id, font);
+            }
+            else if( ui_event.type == UISCENE_EVENT_BATCH_SPRITE_BEGIN )
+            {
+                LibToriRS_RenderCommandBufferAddCommand(
+                    render_command_buffer,
+                    (struct ToriRSRenderCommand){
+                        .kind = TORIRS_GFX_BATCH_SPRITE_LOAD_START,
+                        ._batch = { .batch_id = ui_event.batch_id },
+                    });
+            }
+            else if( ui_event.type == UISCENE_EVENT_BATCH_SPRITE_END )
+            {
+                LibToriRS_RenderCommandBufferAddCommand(
+                    render_command_buffer,
+                    (struct ToriRSRenderCommand){
+                        .kind = TORIRS_GFX_BATCH_SPRITE_LOAD_END,
+                        ._batch = { .batch_id = ui_event.batch_id },
+                    });
+            }
+            else if( ui_event.type == UISCENE_EVENT_BATCH_FONT_BEGIN )
+            {
+                LibToriRS_RenderCommandBufferAddCommand(
+                    render_command_buffer,
+                    (struct ToriRSRenderCommand){
+                        .kind = TORIRS_GFX_BATCH_FONT_LOAD_START,
+                        ._batch = { .batch_id = ui_event.batch_id },
+                    });
+            }
+            else if( ui_event.type == UISCENE_EVENT_BATCH_FONT_END )
+            {
+                LibToriRS_RenderCommandBufferAddCommand(
+                    render_command_buffer,
+                    (struct ToriRSRenderCommand){
+                        .kind = TORIRS_GFX_BATCH_FONT_LOAD_END,
+                        ._batch = { .batch_id = ui_event.batch_id },
+                    });
             }
         }
     }

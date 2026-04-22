@@ -626,6 +626,8 @@ buildcachedat_loader_cache_textures(
 
     struct FileListDat* filelist = filelist_dat_new_from_decode(data, data_size);
 
+    scene2_texture_batch_begin(scene2, 1);
+
     // Hardcoded to 50 in the deob. Not sure why.
     for( int i = 0; i < 50; i++ )
     {
@@ -649,6 +651,8 @@ buildcachedat_loader_cache_textures(
         buildcachedat_add_texture_ref(buildcachedat, i);
         cache_dat_texture_free(texture);
     }
+
+    scene2_texture_batch_end(scene2);
 
     filelist_dat_free(filelist);
 }

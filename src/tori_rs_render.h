@@ -34,14 +34,30 @@ enum ToriRSRenderCommandKind
     TORIRS_GFX_BEGIN_2D,
     TORIRS_GFX_END_2D,
     /** World rebuild batch: merge model VBO/EBO between START and END. Payload `_batch`. */
-    TORIRS_GFX_BATCH_MODEL_LOAD_START,
-    TORIRS_GFX_BATCH_MODEL_LOAD_END,
+    TORIRS_GFX_BATCH3D_LOAD_START,
+    TORIRS_GFX_BATCH3D_LOAD_END,
     /** Unload merged batch GPU data for `batch_id`. Payload `_batch`. */
-    TORIRS_GFX_BATCH_MODEL_CLEAR,
+    TORIRS_GFX_BATCH3D_CLEAR,
     /** Same as MODEL_LOAD but part of the active batch (merged on capable renderers). */
-    TORIRS_GFX_MODEL_BATCHED_LOAD,
-    TORIRS_GFX_VERTEX_ARRAY_BATCHED_LOAD,
-    TORIRS_GFX_FACE_ARRAY_BATCHED_LOAD,
+    TORIRS_GFX_BATCH3D_MODEL_LOAD,
+    TORIRS_GFX_BATCH3D_VERTEX_ARRAY_LOAD,
+    TORIRS_GFX_BATCH3D_FACE_ARRAY_LOAD,
+    /** Pre-baked animated pose: load (model_gpu_id, anim_id, frame) into the model cache. */
+    TORIRS_GFX_MODEL_ANIMATION_LOAD,
+    /** Same as MODEL_ANIMATION_LOAD but merged into the active world-rebuild batch. */
+    TORIRS_GFX_BATCH3D_MODEL_ANIMATION_LOAD,
+    /** Begin batching sprite atlas uploads under batch_id. Payload `_batch`. */
+    TORIRS_GFX_BATCH_SPRITE_LOAD_START,
+    /** End sprite batch; renderer packs atlas and uploads GPU texture. Payload `_batch`. */
+    TORIRS_GFX_BATCH_SPRITE_LOAD_END,
+    /** Begin batching font atlas uploads under batch_id. Payload `_batch`. */
+    TORIRS_GFX_BATCH_FONT_LOAD_START,
+    /** End font batch; renderer packs atlas and uploads GPU texture. Payload `_batch`. */
+    TORIRS_GFX_BATCH_FONT_LOAD_END,
+    /** Begin batching world texture uploads under batch_id. Payload `_batch`. */
+    TORIRS_GFX_BATCH_TEXTURE_LOAD_START,
+    /** End texture batch; renderer may build a texture array. Payload `_batch`. */
+    TORIRS_GFX_BATCH_TEXTURE_LOAD_END,
 };
 
 /** `TORIRS_GFX_SPRITE_DRAW._sprite_draw.blit_dest`: normal UI framebuffer blit. */
@@ -52,7 +68,9 @@ enum ToriRSRenderCommandKind
 
 /** Pack UIScene `element_id` + sprite atlas index for GPU caches (not a DashSprite*). */
 static inline uint64_t
-torirs_sprite_cache_key(int element_id, int atlas_index)
+torirs_sprite_cache_key(
+    int element_id,
+    int atlas_index)
 {
     return ((uint64_t)(uint32_t)element_id << 32) | (uint64_t)(uint32_t)atlas_index;
 }
@@ -102,7 +120,8 @@ struct ToriRSRenderCommand
             struct DashModel* model;
             struct DashPosition position;
             uint64_t model_key;
-            /** Same Scene2 id as MODEL_LOAD for this element's current model (see scene2_element_dash_model_gpu_id). */
+            /** Same Scene2 id as MODEL_LOAD for this element's current model (see
+             * scene2_element_dash_model_gpu_id). */
             int model_id;
         } _model_draw;
         struct
@@ -147,6 +166,19 @@ struct ToriRSRenderCommand
         {
             uint32_t batch_id;
         } _batch;
+        /**
+         * MODEL_ANIMATION_LOAD / BATCH3D_MODEL_ANIMATION_LOAD:
+         * Pre-baked animated pose for (model_gpu_id, anim_id, frame).
+         */
+        struct
+        {
+            struct DashModel* model;
+            struct DashFrame* frame;
+            struct DashFramemap* framemap;
+            int model_gpu_id;
+            int anim_id;
+            int frame_index;
+        } _animation_load;
     };
 };
 

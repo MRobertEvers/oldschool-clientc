@@ -39,15 +39,24 @@ enum Scene2EventType
     SCENE2_EVENT_BATCH_BEGIN = 10,
     SCENE2_EVENT_BATCH_END = 11,
     SCENE2_EVENT_BATCH_CLEAR = 12,
+    /** Pre-baked animated pose ready for upload: (model_gpu_id, anim_id, frame_index). */
+    SCENE2_EVENT_ANIMATION_LOADED = 13,
+    /** Begin batching world texture uploads under `batch_id`. */
+    SCENE2_EVENT_TEXTURE_BATCH_BEGIN = 14,
+    /** End world texture batch. */
+    SCENE2_EVENT_TEXTURE_BATCH_END = 15,
 };
 
-/** Payload is in `u` according to `type` (element 1–2, model 3+9, texture 4, vertex_array 5–6, face_array 7–8, batch 10–12). */
+/** Payload is in `u` according to `type` (element 1–2, model 3+9, texture 4, vertex_array 5–6,
+ * face_array 7–8, batch 10–12). */
 struct Scene2Event
 {
     enum Scene2EventType type;
-    /** True for MODEL_LOADED / VERTEX_ARRAY_ADDED / FACE_ARRAY_ADDED emitted while batch is active. */
+    /** True for MODEL_LOADED / VERTEX_ARRAY_ADDED / FACE_ARRAY_ADDED emitted while batch is active.
+     */
     bool batched;
-    union {
+    union
+    {
         struct
         {
             int element_id;
@@ -79,6 +88,16 @@ struct Scene2Event
         {
             uint32_t batch_id;
         } batch;
+        /** ANIMATION_LOADED: pose for (model_gpu_id, anim_id, frame_index). */
+        struct
+        {
+            int model_gpu_id;
+            int anim_id;
+            int frame_index;
+            struct DashModel* model;
+            struct DashFrame* frame;
+            struct DashFramemap* framemap;
+        } animation;
     } u;
 };
 
@@ -136,10 +155,16 @@ struct Scene2
     /** World rebuild GPU batch: when true, static load events are tagged `batched`. */
     bool batch_active;
     uint32_t batch_current_id;
+
+    /** World texture batch: wraps all TEXTURE_LOADED events during initial cache load. */
+    bool texture_batch_active;
+    uint32_t texture_batch_current_id;
 };
 
 struct Scene2*
-scene2_new(int fast_count, int full_count);
+scene2_new(
+    int fast_count,
+    int full_count);
 
 void
 scene2_free(struct Scene2* scene2);
@@ -195,7 +220,22 @@ scene2_element_set_framemap(
     struct Scene2Element* element,
     struct DashFramemap* dash_framemap);
 
-/** Valid ids are 0 .. scene2_elements_total(scene2)-1. Returns NULL if scene2 is NULL or id is out of range. */
+/**
+ * Enqueue a SCENE2_EVENT_ANIMATION_LOADED event for a pre-baked animated pose.
+ * `frame` and `framemap` pointers are stored in the event payload (not copied).
+ */
+void
+scene2_element_queue_animation_load(
+    struct Scene2* scene2,
+    int model_gpu_id,
+    int anim_id,
+    int frame_index,
+    struct DashModel* model,
+    struct DashFrame* frame,
+    struct DashFramemap* framemap);
+
+/** Valid ids are 0 .. scene2_elements_total(scene2)-1. Returns NULL if scene2 is NULL or id is out
+ * of range. */
 struct Scene2Element*
 scene2_element_at(
     struct Scene2* scene2,
@@ -225,7 +265,8 @@ scene2_element_dash_model(struct Scene2Element* element);
 const struct DashModel*
 scene2_element_dash_model_const(const struct Scene2Element* element);
 
-/** Id assigned when a model is set on this element; 0 if none. Used with render MODEL_LOAD/UNLOAD. */
+/** Id assigned when a model is set on this element; 0 if none. Used with render MODEL_LOAD/UNLOAD.
+ */
 int
 scene2_element_dash_model_gpu_id(const struct Scene2Element* element);
 
@@ -250,10 +291,14 @@ uint8_t
 scene2_element_active_frame(const struct Scene2Element* element);
 
 void
-scene2_element_set_active_anim_id(struct Scene2Element* element, uint16_t id);
+scene2_element_set_active_anim_id(
+    struct Scene2Element* element,
+    uint16_t id);
 
 void
-scene2_element_set_active_frame(struct Scene2Element* element, uint8_t frame);
+scene2_element_set_active_frame(
+    struct Scene2Element* element,
+    uint8_t frame);
 
 struct Scene2Frames*
 scene2_element_primary_frames(struct Scene2Element* element);
@@ -308,7 +353,9 @@ scene2_face_array_unregister(
 
 /** Begin a rebuild batch (world increments `batch_id` each rebuild). Asserts no nested batch. */
 void
-scene2_batch_begin(struct Scene2* scene2, uint32_t batch_id);
+scene2_batch_begin(
+    struct Scene2* scene2,
+    uint32_t batch_id);
 
 /** End the active batch; emits BATCH_END with current batch id. */
 void
@@ -316,9 +363,22 @@ scene2_batch_end(struct Scene2* scene2);
 
 /** Tell renderers to unload merged GPU data for a prior batch id. */
 void
-scene2_batch_clear(struct Scene2* scene2, uint32_t batch_id);
+scene2_batch_clear(
+    struct Scene2* scene2,
+    uint32_t batch_id);
 
-/** Frees vertex/face arrays and DashModels queued for deferred free; call after consumers finish popping scene2 events. */
+/** Begin a world-texture array batch (wraps texture loads 0-49). */
+void
+scene2_texture_batch_begin(
+    struct Scene2* scene2,
+    uint32_t batch_id);
+
+/** End the active texture batch; emits TEXTURE_BATCH_END. */
+void
+scene2_texture_batch_end(struct Scene2* scene2);
+
+/** Frees vertex/face arrays and DashModels queued for deferred free; call after consumers finish
+ * popping scene2 events. */
 void
 scene2_flush_deferred_array_frees(struct Scene2* scene2);
 

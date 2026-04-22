@@ -12,6 +12,14 @@ enum UISceneEventType
     UISCENE_EVENT_ELEMENT_ACQUIRED = 1,
     UISCENE_EVENT_ELEMENT_RELEASED = 2,
     UISCENE_EVENT_FONT_ADDED = 3,
+    /** Begin batching sprite atlas uploads under `batch_id`. */
+    UISCENE_EVENT_BATCH_SPRITE_BEGIN = 4,
+    /** End sprite batch; consumer packs atlas and uploads GPU texture. */
+    UISCENE_EVENT_BATCH_SPRITE_END = 5,
+    /** Begin batching font atlas uploads under `batch_id`. */
+    UISCENE_EVENT_BATCH_FONT_BEGIN = 6,
+    /** End font batch; consumer packs atlas and uploads GPU texture. */
+    UISCENE_EVENT_BATCH_FONT_END = 7,
 };
 
 struct UISceneEvent
@@ -20,6 +28,7 @@ struct UISceneEvent
     int element_id;
     int parent_entity_id;
     int font_id;
+    uint32_t batch_id; ///< For BATCH_SPRITE_BEGIN/END and BATCH_FONT_BEGIN/END
     /** ELEMENT_RELEASED only: snapshot of sprite pointers (malloc'd); consumer frees array +
      * DashSprites when released_sprites_borrowed is false. */
     struct DashSprite** released_sprites;
@@ -70,6 +79,10 @@ struct UIScene
 
     struct UISceneFontSlot fonts[UISCENE_FONT_MAX];
     int font_count;
+
+    /** Active batch IDs (0 = none). */
+    uint32_t active_sprite_batch_id;
+    uint32_t active_font_batch_id;
 };
 
 struct UIScene*
@@ -145,5 +158,27 @@ int
 uiscene_font_find_id(
     struct UIScene* uiscene,
     const char* name);
+
+/** Open a sprite atlas batch. All ELEMENT_ACQUIRED events inside until
+ * uiscene_sprite_batch_end() are tagged with this batch_id. */
+void
+uiscene_sprite_batch_begin(
+    struct UIScene* uiscene,
+    uint32_t batch_id);
+
+/** Close the active sprite batch. */
+void
+uiscene_sprite_batch_end(struct UIScene* uiscene);
+
+/** Open a font batch. All FONT_ADDED events inside until
+ * uiscene_font_batch_end() are tagged with this batch_id. */
+void
+uiscene_font_batch_begin(
+    struct UIScene* uiscene,
+    uint32_t batch_id);
+
+/** Close the active font batch. */
+void
+uiscene_font_batch_end(struct UIScene* uiscene);
 
 #endif

@@ -1,10 +1,15 @@
 #ifndef PLATFORM_IMPL2_SDL2_RENDERER_METAL_H
 #define PLATFORM_IMPL2_SDL2_RENDERER_METAL_H
 
+#include "gpu_font_cache.h"
+#include "gpu_model_cache.h"
+#include "gpu_sprite_cache.h"
+#include "gpu_texture_cache.h"
 #include "platform_impl2_sdl2.h"
+#include <unordered_map>
+
 #include <SDL.h>
 #include <cstdint>
-#include <unordered_map>
 #include <vector>
 
 extern "C" {
@@ -12,29 +17,21 @@ extern "C" {
 #include "tori_rs.h"
 }
 
-/** GPU-cached static vertices for one model key (see build_model_gpu in .mm). */
-struct MetalModelGpu
-{
-    void* vbo; // id<MTLBuffer>
-    int face_count;
-    std::vector<int> per_face_raw_tex_id;
-};
-
 // Metal objects are stored as void* so this header is valid from plain C++ translation
 // units (e.g. test/sdl2.cpp). The .mm implementation casts them to id<MTL*> internally.
 struct Platform2_SDL2_Renderer_Metal
 {
     // Metal API objects (void* to keep header C++-clean; cast in .mm)
-    void* mtl_device;         // id<MTLDevice>
-    void* mtl_command_queue;  // id<MTLCommandQueue>
-    void* mtl_pipeline_state;     // id<MTLRenderPipelineState>
-    void* mtl_ui_sprite_pipeline; // id<MTLRenderPipelineState> — TORIRS_GFX_SPRITE_DRAW
+    void* mtl_device;              // id<MTLDevice>
+    void* mtl_command_queue;       // id<MTLCommandQueue>
+    void* mtl_pipeline_state;      // id<MTLRenderPipelineState>
+    void* mtl_ui_sprite_pipeline;  // id<MTLRenderPipelineState> — TORIRS_GFX_SPRITE_DRAW
     void* mtl_clear_rect_pipeline; // id<MTLRenderPipelineState> — TORIRS_GFX_CLEAR_RECT
-    void* mtl_depth_stencil;      // id<MTLDepthStencilState>
-    void* mtl_uniform_buffer; // id<MTLBuffer>
-    void* mtl_sampler_state;  // id<MTLSamplerState> — 3D world textures (linear, clamp U, repeat V)
+    void* mtl_depth_stencil;       // id<MTLDepthStencilState>
+    void* mtl_uniform_buffer;      // id<MTLBuffer>
+    void* mtl_sampler_state; // id<MTLSamplerState> — 3D world textures (linear, clamp U, repeat V)
     void* mtl_sampler_state_nearest; // id<MTLSamplerState> — sprites / fonts (nearest)
-    void* mtl_dummy_texture;  // id<MTLTexture> 1×1 white — bound when texBlend == 0
+    void* mtl_dummy_texture;         // id<MTLTexture> 1×1 white — bound when texBlend == 0
 
     SDL_MetalView metal_view; // SDL_MetalView is itself a void*
 
@@ -47,38 +44,34 @@ struct Platform2_SDL2_Renderer_Metal
     unsigned int debug_model_draws;
     unsigned int debug_triangles;
 
-    int next_model_index;
-
-    // Per-texture cached Metal texture (void* = id<MTLTexture>)
-    std::unordered_map<int, void*> texture_by_id;
-
     // Match pix3dgl_load_texture: signed anim (U+ / V−) and opaque flag per texture id
     std::unordered_map<int, float> texture_anim_speed_by_id;
-    std::unordered_map<int, bool>  texture_opaque_by_id;
+    std::unordered_map<int, bool> texture_opaque_by_id;
 
-    /** (model_id<<24|anim<<8|frame) from model_cache_key_u64 -> stable slot index for debug/stats. */
-    std::unordered_map<uint64_t, int> model_index_by_key;
+    // O(1) flat-array GPU caches
+    GpuTextureCache<void*> texture_cache; // void* = id<MTLTexture>
+    GpuModelCache<void*> model_cache;     // void* = id<MTLBuffer>
+    GpuSpriteCache<void*> sprite_cache;   // void* = id<MTLTexture>
+    GpuFontCache<void*> font_cache;       // void* = id<MTLTexture>
 
-    /** Static model-local vertex buffers keyed by model_cache_key_u64. */
-    std::unordered_map<uint64_t, MetalModelGpu*> model_gpu_by_key;
+    /** Texture array for world geometry (id<MTLTexture> with arrayLength=50). */
+    void* mtl_world_texture_array; // id<MTLTexture>
 
-    /** World-rebuild merged batches (opaque MetalModelBatch* in .mm). */
-    void* mtl_current_model_batch;
-    std::unordered_map<uint32_t, void*> mtl_model_batches_by_id;
-    std::unordered_map<uint64_t, void*> mtl_batched_model_batch_by_key;
-
-    // Sprite GPU texture cache keyed by torirs_sprite_cache_key(element_id, atlas_index).
-    // Value is id<MTLTexture> stored as void* to keep header ObjC-free.
-    std::unordered_map<uint64_t, void*> sprite_textures_by_slot;
+    /** Tracks which batch is currently open between BATCH3D_LOAD_START and END. */
+    uint32_t current_model_batch_id;
+    /** Tracks sprite batch between BATCH_SPRITE_LOAD_START and END. */
+    uint32_t current_sprite_batch_id;
+    /** Tracks font batch between BATCH_FONT_LOAD_START and END. */
+    uint32_t current_font_batch_id;
 
     // Cached depth texture; only reallocated when drawable dimensions change.
-    void* mtl_depth_texture;    // id<MTLTexture>
-    int   depth_texture_width;
-    int   depth_texture_height;
+    void* mtl_depth_texture; // id<MTLTexture>
+    int depth_texture_width;
+    int depth_texture_height;
 
     // Reusable MTLBuffer for model vertex batches (legacy / unused with static model VBO path).
-    void* mtl_model_vertex_buf;          // id<MTLBuffer>
-    size_t mtl_model_vertex_buf_size;    // current allocation size in bytes
+    void* mtl_model_vertex_buf;       // id<MTLBuffer>
+    size_t mtl_model_vertex_buf_size; // current allocation size in bytes
 
     /** Per-frame ring: uint32 indices for drawIndexedPrimitives (MODEL_DRAW). */
     void* mtl_index_ring;
@@ -96,11 +89,13 @@ struct Platform2_SDL2_Renderer_Metal
     size_t mtl_run_uniform_ring_write_offset;
 
     // Reusable 96-byte MTLBuffer (6 verts × 4 floats) for sprite quad draws.
-    void* mtl_sprite_quad_buf;  // id<MTLBuffer>
+    void* mtl_sprite_quad_buf; // id<MTLBuffer>
 
-    void* mtl_font_pipeline;    // id<MTLRenderPipelineState> for font atlas rendering
-    void* mtl_font_vbo;         // id<MTLBuffer> for font vertex data
-    std::unordered_map<int, void*> font_atlas_textures; // font_id -> id<MTLTexture>
+    void* mtl_font_pipeline; // id<MTLRenderPipelineState> for font atlas rendering
+    void* mtl_font_vbo;      // id<MTLBuffer> for font vertex data
+
+    /** Serializes CPU and GPU: CPU waits here until the previous frame's GPU work completes. */
+    void* mtl_frame_semaphore; // dispatch_semaphore_t — cast in .mm
 };
 
 struct Platform2_SDL2_Renderer_Metal*
@@ -109,8 +104,7 @@ PlatformImpl2_SDL2_Renderer_Metal_New(
     int height);
 
 void
-PlatformImpl2_SDL2_Renderer_Metal_Free(
-    struct Platform2_SDL2_Renderer_Metal* renderer);
+PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* renderer);
 
 bool
 PlatformImpl2_SDL2_Renderer_Metal_Init(

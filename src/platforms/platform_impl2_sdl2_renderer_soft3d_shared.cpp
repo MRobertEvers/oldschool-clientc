@@ -500,8 +500,10 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
         case TORIRS_GFX_END_2D:
         case TORIRS_GFX_VERTEX_ARRAY_LOAD:
         case TORIRS_GFX_VERTEX_ARRAY_UNLOAD:
+        case TORIRS_GFX_BATCH3D_VERTEX_ARRAY_LOAD:
         case TORIRS_GFX_FACE_ARRAY_LOAD:
         case TORIRS_GFX_FACE_ARRAY_UNLOAD:
+        case TORIRS_GFX_BATCH3D_FACE_ARRAY_LOAD:
             break;
         default:
             break;

@@ -409,11 +409,11 @@ scene2__defer_model_free(
         return;
     if( scene2->models_deferred_free_count >= scene2->models_deferred_free_capacity )
     {
-        int ncap = scene2->models_deferred_free_capacity == 0 ? 8
-                                                           : scene2->models_deferred_free_capacity * 2;
+        int ncap = scene2->models_deferred_free_capacity == 0
+                       ? 8
+                       : scene2->models_deferred_free_capacity * 2;
         scene2->models_deferred_free = realloc(
-            scene2->models_deferred_free,
-            (size_t)ncap * sizeof(scene2->models_deferred_free[0]));
+            scene2->models_deferred_free, (size_t)ncap * sizeof(scene2->models_deferred_free[0]));
         scene2->models_deferred_free_capacity = ncap;
     }
     scene2->models_deferred_free[scene2->models_deferred_free_count++] = model;
@@ -1182,5 +1182,68 @@ scene2_batch_clear(
             .type = SCENE2_EVENT_BATCH_CLEAR,
             .batched = false,
             .u.batch.batch_id = batch_id,
+        });
+}
+
+void
+scene2_element_queue_animation_load(
+    struct Scene2* scene2,
+    int model_gpu_id,
+    int anim_id,
+    int frame_index,
+    struct DashModel* model,
+    struct DashFrame* frame,
+    struct DashFramemap* framemap)
+{
+    if( !scene2 )
+        return;
+    scene2_eventbuffer_push(
+        scene2,
+        (struct Scene2Event){
+            .type    = SCENE2_EVENT_ANIMATION_LOADED,
+            .batched = scene2->batch_active,
+            .u.animation = {
+                .model_gpu_id = model_gpu_id,
+                .anim_id      = anim_id,
+                .frame_index  = frame_index,
+                .model        = model,
+                .frame        = frame,
+                .framemap     = framemap,
+            },
+        });
+}
+
+void
+scene2_texture_batch_begin(
+    struct Scene2* scene2,
+    uint32_t batch_id)
+{
+    if( !scene2 )
+        return;
+    scene2->texture_batch_active = true;
+    scene2->texture_batch_current_id = batch_id;
+    scene2_eventbuffer_push(
+        scene2,
+        (struct Scene2Event){
+            .type = SCENE2_EVENT_TEXTURE_BATCH_BEGIN,
+            .batched = false,
+            .u.batch.batch_id = batch_id,
+        });
+}
+
+void
+scene2_texture_batch_end(struct Scene2* scene2)
+{
+    if( !scene2 )
+        return;
+    uint32_t id = scene2->texture_batch_current_id;
+    scene2->texture_batch_active = false;
+    scene2->texture_batch_current_id = 0;
+    scene2_eventbuffer_push(
+        scene2,
+        (struct Scene2Event){
+            .type = SCENE2_EVENT_TEXTURE_BATCH_END,
+            .batched = false,
+            .u.batch.batch_id = id,
         });
 }

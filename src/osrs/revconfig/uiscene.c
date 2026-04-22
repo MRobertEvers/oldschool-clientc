@@ -429,3 +429,66 @@ uiscene_font_find_id(
     }
     return -1;
 }
+void
+uiscene_sprite_batch_begin(
+    struct UIScene* uiscene,
+    uint32_t batch_id)
+{
+    if( !uiscene )
+        return;
+    uiscene->active_sprite_batch_id = batch_id;
+    uiscene_eventbuffer_push(
+        uiscene,
+        (struct UISceneEvent){
+            .type     = UISCENE_EVENT_BATCH_SPRITE_BEGIN,
+            .batch_id = batch_id,
+        });
+}
+
+void
+uiscene_sprite_batch_end(
+    struct UIScene* uiscene)
+{
+    if( !uiscene )
+        return;
+    const uint32_t batch_id = uiscene->active_sprite_batch_id;
+    uiscene->active_sprite_batch_id = 0;
+    uiscene_eventbuffer_push(
+        uiscene,
+        (struct UISceneEvent){
+            .type     = UISCENE_EVENT_BATCH_SPRITE_END,
+            .batch_id = batch_id,
+        });
+}
+
+void
+uiscene_font_batch_begin(
+    struct UIScene* uiscene,
+    uint32_t batch_id)
+{
+    if( !uiscene )
+        return;
+    uiscene->active_font_batch_id = batch_id;
+    uiscene_eventbuffer_push(
+        uiscene,
+        (struct UISceneEvent){
+            .type     = UISCENE_EVENT_BATCH_FONT_BEGIN,
+            .batch_id = batch_id,
+        });
+}
+
+void
+uiscene_font_batch_end(
+    struct UIScene* uiscene)
+{
+    if( !uiscene )
+        return;
+    const uint32_t batch_id = uiscene->active_font_batch_id;
+    uiscene->active_font_batch_id = 0;
+    uiscene_eventbuffer_push(
+        uiscene,
+        (struct UISceneEvent){
+            .type     = UISCENE_EVENT_BATCH_FONT_END,
+            .batch_id = batch_id,
+        });
+}
