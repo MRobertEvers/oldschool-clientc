@@ -1,5 +1,6 @@
 #include "scene2.h"
 
+#include "graphics/dash_model_internal.h"
 #include "osrs/game_entity.h"
 #include "osrs/scene2_element_internal.h"
 #include "osrs/texture.h"
@@ -479,6 +480,7 @@ scene2_element_set_dash_model(
 
     if( dash_model && scene2 )
     {
+        assert(!dashmodel__is_ground_va(dash_model) || scene2->batch_active);
         scene2->next_model_gpu_id++;
         int new_id = scene2->next_model_gpu_id;
         if( scene2__is_fast(element) )

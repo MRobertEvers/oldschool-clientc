@@ -3,13 +3,13 @@
 #ifndef GPU_3D_CACHE_H
 #define GPU_3D_CACHE_H
 
+#include "platforms/common/batch_load_buffer.h"
+
 #include <climits>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <vector>
-
-#include "platforms/common/batch_load_buffer.h"
 
 /** Per-model draw yaw encoding for GPU instance data (see BufferedFaceOrder / Metal shader). */
 enum class Gpu3DAngleEncoding : uint32_t
@@ -124,7 +124,8 @@ public:
     init(
         int model_capacity,
         BufH null_value,
-        BatchCaps caps = { INT_MAX, INT_MAX },
+        BatchCaps caps = { INT_MAX,
+                           INT_MAX },
         Gpu3DAngleEncoding angle_encoding = Gpu3DAngleEncoding::DashR2pi2048)
     {
         null_ = null_value;
@@ -170,7 +171,12 @@ public:
     // ------------------------------------------------------------------
 
     int
-    register_vertex_array(int va_id, BufH vbuf, bool owns, uint32_t vert_count, int vert_size)
+    register_vertex_array(
+        int va_id,
+        BufH vbuf,
+        bool owns,
+        uint32_t vert_count,
+        int vert_size)
     {
         if( va_id < 0 || va_id >= kGpuIdTableSize )
             return -1;
@@ -312,7 +318,10 @@ public:
     }
 
     void
-    roll_chunk_if_needed(BatchEntry* batch, int vert_count, int idx_count)
+    roll_chunk_if_needed(
+        BatchEntry* batch,
+        int vert_count,
+        int idx_count)
     {
         if( batch->chunks.empty() )
             batch->chunks.emplace_back();
@@ -346,8 +355,7 @@ public:
         BatchChunk& ch = batch->chunks[(size_t)batch->active_chunk];
         const uint32_t byte_offset = (uint32_t)ch.pending_verts.size();
         const size_t append_bytes = (size_t)vert_size_bytes * (size_t)vert_count;
-        ch.pending_verts.append(
-            static_cast<const uint8_t*>(raw_verts), append_bytes);
+        ch.pending_verts.append(static_cast<const uint8_t*>(raw_verts), append_bytes);
         ch.pending_vert_count += vert_count;
         batch->vert_size_bytes = vert_size_bytes;
 
@@ -401,8 +409,7 @@ public:
         BatchChunk& ch = batch->chunks[(size_t)batch->active_chunk];
         const uint32_t byte_offset = (uint32_t)ch.pending_verts.size();
         const size_t append_bytes = (size_t)vert_size_bytes * (size_t)vert_count;
-        ch.pending_verts.append(
-            static_cast<const uint8_t*>(raw_verts), append_bytes);
+        ch.pending_verts.append(static_cast<const uint8_t*>(raw_verts), append_bytes);
         ch.pending_vert_count += vert_count;
         batch->vert_size_bytes = vert_size_bytes;
 
@@ -472,10 +479,8 @@ public:
             return nullptr;
         BatchChunk& ch = batch->chunks[(size_t)fe.batch_chunk_index];
         const size_t slice_off =
-            (size_t)fe.vtx_byte_offset +
-            (size_t)first_face * 3u * (size_t)vert_stride_bytes;
-        const size_t slice_len =
-            (size_t)face_count * 3u * (size_t)vert_stride_bytes;
+            (size_t)fe.vtx_byte_offset + (size_t)first_face * 3u * (size_t)vert_stride_bytes;
+        const size_t slice_len = (size_t)face_count * 3u * (size_t)vert_stride_bytes;
         if( slice_off + slice_len > ch.pending_verts.size() )
             return nullptr;
         if( out_len_bytes )
@@ -495,24 +500,14 @@ public:
     }
 
     void
-    register_batch_vertex_array(uint32_t batch_id, int va_id, uint32_t vert_count, int vert_size)
+    register_batch_vertex_array(
+        uint32_t batch_id,
+        int va_id,
+        uint32_t vert_count,
+        int vert_size)
     {
         (void)batch_id;
         register_vertex_array(va_id, null_, false, vert_count, vert_size);
-    }
-
-    void
-    register_batch_va_model(
-        uint32_t batch_id,
-        int model_gpu_id,
-        int va_id,
-        int fa_id,
-        uint32_t fa_first_face,
-        int face_count,
-        int vert_stride_bytes)
-    {
-        (void)batch_id;
-        register_va_model(model_gpu_id, 0, 0, va_id, fa_id, fa_first_face, face_count, vert_stride_bytes);
     }
 
     int
@@ -523,7 +518,9 @@ public:
     }
 
     const void*
-    get_chunk_pending_verts(uint32_t batch_id, int chunk_index) const
+    get_chunk_pending_verts(
+        uint32_t batch_id,
+        int chunk_index) const
     {
         const BatchEntry* b = find_batch_const(batch_id);
         if( !b || chunk_index < 0 || (size_t)chunk_index >= b->chunks.size() )
@@ -532,7 +529,9 @@ public:
     }
 
     int
-    get_chunk_pending_bytes(uint32_t batch_id, int chunk_index) const
+    get_chunk_pending_bytes(
+        uint32_t batch_id,
+        int chunk_index) const
     {
         const BatchEntry* b = find_batch_const(batch_id);
         if( !b || chunk_index < 0 || (size_t)chunk_index >= b->chunks.size() )
@@ -541,7 +540,9 @@ public:
     }
 
     const uint32_t*
-    get_chunk_pending_indices(uint32_t batch_id, int chunk_index) const
+    get_chunk_pending_indices(
+        uint32_t batch_id,
+        int chunk_index) const
     {
         const BatchEntry* b = find_batch_const(batch_id);
         if( !b || chunk_index < 0 || (size_t)chunk_index >= b->chunks.size() )
@@ -550,7 +551,9 @@ public:
     }
 
     int
-    get_chunk_pending_index_count(uint32_t batch_id, int chunk_index) const
+    get_chunk_pending_index_count(
+        uint32_t batch_id,
+        int chunk_index) const
     {
         const BatchEntry* b = find_batch_const(batch_id);
         if( !b || chunk_index < 0 || (size_t)chunk_index >= b->chunks.size() )
@@ -559,7 +562,11 @@ public:
     }
 
     void
-    set_chunk_buffers(uint32_t batch_id, int chunk_index, BufH vbo, BufH ibo)
+    set_chunk_buffers(
+        uint32_t batch_id,
+        int chunk_index,
+        BufH vbo,
+        BufH ibo)
     {
         BatchEntry* b = find_batch(batch_id);
         if( !b || chunk_index < 0 || (size_t)chunk_index >= b->chunks.size() )
@@ -614,7 +621,9 @@ public:
     }
 
     const BatchChunk*
-    get_batch_chunk(uint32_t batch_id, int chunk_index) const
+    get_batch_chunk(
+        uint32_t batch_id,
+        int chunk_index) const
     {
         const BatchEntry* b = find_batch_const(batch_id);
         if( !b || chunk_index < 0 || (size_t)chunk_index >= b->chunks.size() )
@@ -667,7 +676,10 @@ public:
     }
 
     ModelBufferRange*
-    get_instance(int model_gpu_id, int anim_id, int frame_id)
+    get_instance(
+        int model_gpu_id,
+        int anim_id,
+        int frame_id)
     {
         if( model_gpu_id < 0 || model_gpu_id >= model_capacity_ )
             return nullptr;
@@ -682,21 +694,28 @@ public:
     }
 
     BufH
-    get_batch_vbo_for_chunk(uint32_t batch_id, int chunk_index) const
+    get_batch_vbo_for_chunk(
+        uint32_t batch_id,
+        int chunk_index) const
     {
         const BatchChunk* ch = get_batch_chunk(batch_id, chunk_index);
         return ch ? ch->vbo : null_;
     }
 
     BufH
-    get_batch_ibo_for_chunk(uint32_t batch_id, int chunk_index) const
+    get_batch_ibo_for_chunk(
+        uint32_t batch_id,
+        int chunk_index) const
     {
         const BatchChunk* ch = get_batch_chunk(batch_id, chunk_index);
         return ch ? ch->ibo : null_;
     }
 
     const ModelBufferRange*
-    get_instance_const(int model_gpu_id, int anim_id, int frame_id) const
+    get_instance_const(
+        int model_gpu_id,
+        int anim_id,
+        int frame_id) const
     {
         if( model_gpu_id < 0 || model_gpu_id >= model_capacity_ )
             return nullptr;
@@ -772,7 +791,10 @@ public:
 
 private:
     ModelBufferRange&
-    ensure_slot(int model_gpu_id, int anim_id, int frame_id)
+    ensure_slot(
+        int model_gpu_id,
+        int anim_id,
+        int frame_id)
     {
         ModelEntry& entry = entries_[model_gpu_id];
         if( anim_id >= (int)entry.anims.size() )

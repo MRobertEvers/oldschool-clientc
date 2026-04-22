@@ -328,9 +328,7 @@ metal_load_va_model(
     struct Platform2_SDL2_Renderer_Metal* renderer,
     id<MTLDevice> device,
     int mid,
-    struct DashModel* model,
-    bool in_batch,
-    uint32_t batch_id)
+    struct DashModel* model)
 {
     (void)device;
     if( !dashmodel__is_ground_va(model) || !renderer || mid <= 0 )
@@ -345,16 +343,8 @@ metal_load_va_model(
     if( fc <= 0 )
         return false;
 
-    if( in_batch )
-    {
-        renderer->model_cache.register_batch_va_model(
-            batch_id, mid, va_id, fa_id, first, fc, (int)sizeof(MetalVertex));
-    }
-    else
-    {
-        renderer->model_cache.register_va_model(
-            mid, 0, 0, va_id, fa_id, first, fc, (int)sizeof(MetalVertex));
-    }
+    renderer->model_cache.register_va_model(
+        mid, 0, 0, va_id, fa_id, first, fc, (int)sizeof(MetalVertex));
     return true;
 }
 
@@ -373,7 +363,9 @@ metal_dispatch_model_load(
     switch( dashmodel__type(model) )
     {
     case DASHMODEL_TYPE_GROUND_VA:
-        return metal_load_va_model(renderer, device, model_id, model, in_batch, batch_id);
+        if( !in_batch )
+            return false;
+        return metal_load_va_model(renderer, device, model_id, model);
     case DASHMODEL_TYPE_GROUND:
     case DASHMODEL_TYPE_FULL:
         return metal_load_owning_model(renderer, device, model_id, model, in_batch, batch_id);

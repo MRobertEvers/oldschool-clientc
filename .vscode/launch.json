@@ -176,7 +176,9 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/sdl2",
-            "args": [],
+            "args": [
+                "--renderer=metal"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
             "externalConsole": false,

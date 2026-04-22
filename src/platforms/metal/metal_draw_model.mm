@@ -19,19 +19,13 @@ metal_resolve_model_draw_buffers(
         Gpu3DCache<void*>::FaceArrayEntry* fa = cache.get_face_array(range->fa_gpu_id);
         if( !fa )
             return false;
-        if( fa->batch_id >= 0 )
-        {
-            void* vbo = cache.get_batch_vbo_for_chunk((uint32_t)fa->batch_id, fa->batch_chunk_index);
-            if( !vbo )
-                return false;
-            out->vbo = vbo;
-            out->batch_chunk_index = fa->batch_chunk_index;
-        }
-        else
-        {
-            out->vbo = fa->vbuf;
-            out->batch_chunk_index = -1;
-        }
+        if( fa->batch_id < 0 )
+            return false;
+        void* vbo = cache.get_batch_vbo_for_chunk((uint32_t)fa->batch_id, fa->batch_chunk_index);
+        if( !vbo )
+            return false;
+        out->vbo = vbo;
+        out->batch_chunk_index = fa->batch_chunk_index;
         out->vertex_index_base = (int)(range->vtx_byte_offset / (uint32_t)stride);
         out->gpu_face_count = range->face_count;
         return out->vbo != nullptr;

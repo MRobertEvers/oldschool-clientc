@@ -13,12 +13,8 @@ metal_frame_event_model_load(
     if( mid <= 0 )
         return;
     if( dashmodel__is_ground_va(model) )
-    {
-        const struct DashModelVAGround* vg = (const struct DashModelVAGround*)model;
-        if( !vg->vertex_array || !vg->face_array )
-            return;
-    }
-    else if(
+        return;
+    if(
         !dashmodel_face_colors_a_const(model) || !dashmodel_face_colors_b_const(model) ||
         !dashmodel_face_colors_c_const(model) || !dashmodel_vertices_x_const(model) ||
         !dashmodel_vertices_y_const(model) || !dashmodel_vertices_z_const(model) ||
