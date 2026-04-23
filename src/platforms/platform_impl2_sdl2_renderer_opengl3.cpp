@@ -1,6 +1,7 @@
 #include "platform_impl2_sdl2_renderer_opengl3.h"
 
 #include "graphics/dash.h"
+#include "graphics/dash_model_internal.h"
 #include "platforms/common/torirs_nk_ui_bridge.h"
 #include "platforms/common/torirs_nuklear_debug_panel.h"
 #include "tori_rs_render.h"
@@ -586,7 +587,8 @@ PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
                         dashmodel_face_colors_b(model),
                         dashmodel_face_colors_c(model),
                         dashmodel_face_infos(model),
-                        dashmodel_face_alphas(model));
+                        dashmodel_face_alphas(model),
+                        dashmodel__is_ground_va(model) ? 1 : 0);
                 }
                 break;
             }
@@ -646,6 +648,7 @@ PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
                 if( model_id_from_model_cache_key(model_key) <= 0 )
                     break;
                 auto it = renderer->model_index_by_key.find(model_key);
+                int const is_gv = dashmodel__is_ground_va(model) ? 1 : 0;
                 if( it == renderer->model_index_by_key.end() )
                 {
                     int model_idx = renderer->next_model_index++;
@@ -669,8 +672,35 @@ PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
                         dashmodel_face_colors_b(model),
                         dashmodel_face_colors_c(model),
                         dashmodel_face_infos(model),
-                        dashmodel_face_alphas(model));
+                        dashmodel_face_alphas(model),
+                        is_gv);
                     it = renderer->model_index_by_key.find(model_key);
+                }
+                else if( pix3dgl_model_need_texture_rebake(renderer->pix3dgl, it->second) )
+                {
+                    int const model_idx = it->second;
+                    pix3dgl_model_destroy(renderer->pix3dgl, model_idx);
+                    pix3dgl_model_load(
+                        renderer->pix3dgl,
+                        model_idx,
+                        dashmodel_vertices_x(model),
+                        dashmodel_vertices_y(model),
+                        dashmodel_vertices_z(model),
+                        dashmodel_face_indices_a(model),
+                        dashmodel_face_indices_b(model),
+                        dashmodel_face_indices_c(model),
+                        dashmodel_face_count(model),
+                        dashmodel_face_textures(model),
+                        dashmodel_face_texture_coords(model),
+                        dashmodel_textured_p_coordinate(model),
+                        dashmodel_textured_m_coordinate(model),
+                        dashmodel_textured_n_coordinate(model),
+                        dashmodel_face_colors_a(model),
+                        dashmodel_face_colors_b(model),
+                        dashmodel_face_colors_c(model),
+                        dashmodel_face_infos(model),
+                        dashmodel_face_alphas(model),
+                        is_gv);
                 }
 
                 /* FrameNextCommand already projected this model (project_models=true).
@@ -742,18 +772,51 @@ PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
             struct DashSprite* sp = sc._sprite_draw.sprite;
             if( !sp )
                 continue;
-            pix3dgl_sprite_draw(
+            int sx = 0;
+            int sy = 0;
+            int sw = 0;
+            int sh = 0;
+            int use_sc = 0;
+            if( sc._sprite_draw.rotated )
+            {
+                LogicalViewportRect clip_lr = {
+                    sc._sprite_draw.dst_bb_x,
+                    sc._sprite_draw.dst_bb_y,
+                    sc._sprite_draw.dst_bb_w,
+                    sc._sprite_draw.dst_bb_h,
+                };
+                GLViewportRect glr = compute_world_viewport_rect(
+                    renderer->width, renderer->height, window_width, window_height, clip_lr);
+                sx = glr.x;
+                sy = glr.y;
+                sw = glr.width;
+                sh = glr.height;
+                use_sc = (sw > 0 && sh > 0) ? 1 : 0;
+            }
+            pix3dgl_sprite_draw_ex(
                 renderer->pix3dgl,
                 sp,
                 sc._sprite_draw.dst_bb_x,
                 sc._sprite_draw.dst_bb_y,
                 window_width,
                 window_height,
+                sc._sprite_draw.rotated ? 1 : 0,
+                sc._sprite_draw.dst_bb_w,
+                sc._sprite_draw.dst_bb_h,
+                sc._sprite_draw.dst_anchor_x,
+                sc._sprite_draw.dst_anchor_y,
+                sc._sprite_draw.src_anchor_x,
+                sc._sprite_draw.src_anchor_y,
                 sc._sprite_draw.rotation_r2pi2048,
                 sc._sprite_draw.src_bb_x,
                 sc._sprite_draw.src_bb_y,
                 sc._sprite_draw.src_bb_w,
-                sc._sprite_draw.src_bb_h);
+                sc._sprite_draw.src_bb_h,
+                sx,
+                sy,
+                sw,
+                sh,
+                use_sc);
         }
     }
     pix3dgl_end_2dframe(renderer->pix3dgl);

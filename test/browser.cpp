@@ -123,7 +123,6 @@ bool g_use_webgl1 = false;
 static bool
 read_use_webgl1_from_window()
 {
-    return false;
     // clang-format off
     return EM_ASM_INT(
                {

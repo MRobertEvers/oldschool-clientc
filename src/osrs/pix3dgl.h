@@ -89,6 +89,10 @@ pix3dgl_end_frame(struct Pix3DGL* pix3dgl);
 /** Reapply Pix3DGL fixed-function GL state after the Nuklear GL overlay pass (no glGet). */
 void
 pix3dgl_restore_gl_state_after_ui(struct Pix3DGL* pix3dgl);
+/** Release GPU buffers for `model_idx` so a subsequent `pix3dgl_model_load` can replace it. */
+void
+pix3dgl_model_destroy(struct Pix3DGL* pix3dgl, int model_idx);
+
 void
 pix3dgl_model_load(
     struct Pix3DGL* pix3dgl,
@@ -109,7 +113,12 @@ pix3dgl_model_load(
     hsl16_t* face_colors_hsl_b,
     hsl16_t* face_colors_hsl_c,
     int* face_infos_nullable,
-    alphaint_t* face_alphas_nullable);
+    alphaint_t* face_alphas_nullable,
+    int is_ground_va);
+
+/** True if this model was uploaded before its atlas slots existed and should be reloaded. */
+int
+pix3dgl_model_need_texture_rebake(struct Pix3DGL* pix3dgl, int model_idx);
 void
 pix3dgl_model_draw(
     struct Pix3DGL* pix3dgl,
@@ -151,6 +160,35 @@ pix3dgl_sprite_draw(
     int src_y,
     int src_w,
     int src_h);
+
+/** Full TORIRS_GFX_SPRITE_DRAW: `rotated` uses dst_bb_w/h + anchors (D3D11-style quad + UV).
+ *  When `use_scissor` is set, `scissor_*` are framebuffer pixel coords for glScissor (x,y
+ *  lower-left of box, width, height). */
+void
+pix3dgl_sprite_draw_ex(
+    struct Pix3DGL* pix3dgl,
+    struct DashSprite* sprite,
+    int dst_bb_x,
+    int dst_bb_y,
+    int framebuffer_width,
+    int framebuffer_height,
+    int rotated,
+    int dst_bb_w,
+    int dst_bb_h,
+    int dst_anchor_x,
+    int dst_anchor_y,
+    int src_anchor_x,
+    int src_anchor_y,
+    int rotation_r2pi2048,
+    int src_bb_x,
+    int src_bb_y,
+    int src_bb_w,
+    int src_bb_h,
+    int scissor_x,
+    int scissor_y,
+    int scissor_w,
+    int scissor_h,
+    int use_scissor);
 
 #ifdef __cplusplus
 }

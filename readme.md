@@ -1654,7 +1654,8 @@ python3 -m http.server 8080
 python3 -m http.server -d build_emscripten 8080
 
 // Serve cache
-test/datserver/a.out
+cd test/datserver
+./a.out
 
 // Serve lua
 node ./serve-lua-scripts.js
@@ -1688,9 +1689,7 @@ painter bench (avg over 30 frames): paint_w3d=1.967 ms paint_bucket=1.550 ms
 
 # Debugging On Target
 
-
 /c/Users/mrobe/Downloads/cv2pdb-0.54/cv2pdb.exe ./build-winxp/win32.exe
-
 
 ```
 /c/Users/mrobe/Downloads/cv2pdb-0.54/cv2pdb.exe win32.exe

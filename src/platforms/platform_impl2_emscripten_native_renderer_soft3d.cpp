@@ -244,13 +244,46 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
 
     if( game->view_port )
     {
+        game->view_port->stride = renderer->width;
+
+        const int ox = renderer->dash_offset_x;
+        const int oy = renderer->dash_offset_y;
+        const int max_vp_w = renderer->width - ox;
+        const int max_vp_h = renderer->height - oy;
+        if( max_vp_w > 0 && max_vp_h > 0 )
+        {
+            if( game->view_port->width > max_vp_w )
+                game->view_port->width = max_vp_w;
+            if( game->view_port->height > max_vp_h )
+                game->view_port->height = max_vp_h;
+
+            if( game->view_port->clip_left < 0 )
+                game->view_port->clip_left = 0;
+            if( game->view_port->clip_top < 0 )
+                game->view_port->clip_top = 0;
+            if( game->view_port->clip_right > max_vp_w )
+                game->view_port->clip_right = max_vp_w;
+            if( game->view_port->clip_bottom > max_vp_h )
+                game->view_port->clip_bottom = max_vp_h;
+            if( game->view_port->clip_right > game->view_port->width )
+                game->view_port->clip_right = game->view_port->width;
+            if( game->view_port->clip_bottom > game->view_port->height )
+                game->view_port->clip_bottom = game->view_port->height;
+            if( game->view_port->clip_left >= game->view_port->clip_right )
+            {
+                game->view_port->clip_left = 0;
+                game->view_port->clip_right = game->view_port->width;
+            }
+            if( game->view_port->clip_top >= game->view_port->clip_bottom )
+            {
+                game->view_port->clip_top = 0;
+                game->view_port->clip_bottom = game->view_port->height;
+            }
+        }
+
         game->view_port->x_center = game->view_port->width / 2;
         game->view_port->y_center = game->view_port->height / 2;
-        game->view_port->stride = renderer->width;
     }
-
-    for( int y = 0; y < renderer->height; y++ )
-        memset(&renderer->pixel_buffer[y * renderer->width], 0x00, renderer->width * sizeof(int));
 
     struct ToriRSRenderCommand command = { 0 };
 
@@ -271,6 +304,7 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
         {
         case TORIRS_GFX_FONT_LOAD:
         case TORIRS_GFX_MODEL_LOAD:
+        case TORIRS_GFX_BATCH3D_MODEL_LOAD:
         case TORIRS_GFX_MODEL_UNLOAD:
             break;
         case TORIRS_GFX_TEXTURE_LOAD:
@@ -284,24 +318,69 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
         {
             struct DashPixFont* f = command._font_draw.font;
             const uint8_t* text = command._font_draw.text;
-            if( f && text && renderer->pixel_buffer )
+            if( !f || !text || !renderer->pixel_buffer )
+                break;
+            const int ox = renderer->dash_offset_x;
+            const int oy = renderer->dash_offset_y;
+            const int fx = command._font_draw.x + ox;
+            const int fy = command._font_draw.y + oy;
+            int cl = 0;
+            int ct = 0;
+            int cr = renderer->width;
+            int cb = renderer->height;
+            if( game->view_port )
             {
-                dashfont_draw_text_ex(
+                cl = ox;
+                ct = oy;
+                cr = ox + game->view_port->width;
+                cb = oy + game->view_port->height;
+                if( cl < 0 )
+                    cl = 0;
+                if( ct < 0 )
+                    ct = 0;
+                if( cr > renderer->width )
+                    cr = renderer->width;
+                if( cb > renderer->height )
+                    cb = renderer->height;
+            }
+            if( cl < cr && ct < cb )
+            {
+                dashfont_draw_text_ex_clipped(
                     f,
                     (uint8_t*)text,
-                    command._font_draw.x,
-                    command._font_draw.y,
+                    fx,
+                    fy,
                     command._font_draw.color_rgb,
                     renderer->pixel_buffer,
-                    renderer->width);
+                    renderer->width,
+                    cl,
+                    ct,
+                    cr,
+                    cb);
             }
         }
         break;
         case TORIRS_GFX_CLEAR_RECT:
-            /* No-op: this renderer does a full-frame memset to zero before processing
-             * commands, so mid-stream CLEAR_RECT would erase sprites blitted earlier
-             * in the same frame. */
-            break;
+        {
+            int cx = command._clear_rect.x;
+            int cy = command._clear_rect.y;
+            int cw = command._clear_rect.w;
+            int ch = command._clear_rect.h;
+            int* pb = renderer->pixel_buffer;
+            if( cw <= 0 || ch <= 0 || !pb )
+                break;
+            int rw = renderer->width;
+            int rh = renderer->height;
+            int x0 = cx < 0 ? 0 : cx;
+            int y0 = cy < 0 ? 0 : cy;
+            int x1 = cx + cw > rw ? rw : cx + cw;
+            int y1 = cy + ch > rh ? rh : cy + ch;
+            if( x0 >= x1 || y0 >= y1 )
+                break;
+            for( int row = y0; row < y1; ++row )
+                memset(&pb[row * rw + x0], 0, (size_t)(x1 - x0) * sizeof(int));
+        }
+        break;
         case TORIRS_GFX_MODEL_DRAW:
             if( vp_pixels )
                 dash3d_raster_projected_model(
@@ -366,8 +445,19 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
         case TORIRS_GFX_END_3D:
         case TORIRS_GFX_BEGIN_2D:
         case TORIRS_GFX_END_2D:
+        case TORIRS_GFX_BATCH3D_LOAD_START:
+        case TORIRS_GFX_BATCH3D_LOAD_END:
+        case TORIRS_GFX_BATCH3D_CLEAR:
         case TORIRS_GFX_BATCH3D_VERTEX_ARRAY_LOAD:
         case TORIRS_GFX_BATCH3D_FACE_ARRAY_LOAD:
+        case TORIRS_GFX_MODEL_ANIMATION_LOAD:
+        case TORIRS_GFX_BATCH3D_MODEL_ANIMATION_LOAD:
+        case TORIRS_GFX_BATCH_TEXTURE_LOAD_START:
+        case TORIRS_GFX_BATCH_TEXTURE_LOAD_END:
+        case TORIRS_GFX_BATCH_SPRITE_LOAD_START:
+        case TORIRS_GFX_BATCH_SPRITE_LOAD_END:
+        case TORIRS_GFX_BATCH_FONT_LOAD_START:
+        case TORIRS_GFX_BATCH_FONT_LOAD_END:
             break;
         default:
             break;

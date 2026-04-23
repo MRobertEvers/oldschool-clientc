@@ -18,6 +18,7 @@
 #include "graphics/shared_tables.h"
 #include "graphics/uv_pnm.h"
 #include "pix3dgl.h"
+#include "platforms/common/torirs_sprite_draw_cpu.h"
 
 #include <algorithm>
 #include <cmath>
@@ -166,6 +167,7 @@ attribute vec2 aTexCoord;
 attribute float aTextureId;
 attribute float aTextureOpaque;
 attribute float aTextureAnimSpeed;
+attribute float aUvMode;
 
 uniform mat4 uViewMatrix;       // Precomputed on CPU
 uniform mat4 uProjectionMatrix; // Precomputed on CPU
@@ -178,6 +180,7 @@ varying float vTexBlend;       // 1.0 if textured, 0.0 if not
 varying float vAtlasSlot;      // Atlas slot ID for wrapping
 varying float vTextureOpaque;  // 1.0 if opaque, 0.0 if transparent
 varying float vTextureAnimSpeed; // Animation speed
+varying float vUvMode;
 
 void main() {
     // Apply transformations
@@ -192,6 +195,7 @@ void main() {
     vAtlasSlot = aTextureId;
     vTextureOpaque = aTextureOpaque;
     vTextureAnimSpeed = aTextureAnimSpeed;
+    vUvMode = aUvMode;
 }
 )";
 
@@ -208,6 +212,7 @@ varying float vTexBlend;
 varying float vAtlasSlot;
 varying float vTextureOpaque;
 varying float vTextureAnimSpeed;
+varying float vUvMode;
 
 uniform sampler2D uTextureAtlas;
 uniform highp float uClock;
@@ -241,13 +246,14 @@ void main() {
             localUV.y = localUV.y - (uClock * -vTextureAnimSpeed);
         }
         
-        // Match software rasterizer behavior:
-        // - U is clamped (no horizontal tiling)
-        // - V is tiled/repeated (vertical wrapping)
-        // Inset by 0.008/0.992 to prevent bilinear sampling from bleeding into zero-alpha
-        // empty margins between atlas tile slots.
-        localUV.x = clamp(localUV.x, 0.008, 0.992);          // Clamp U
-        localUV.y = clamp(fract(localUV.y), 0.008, 0.992);   // Tile V
+        // Standard models: clamp U, fract V. Ground VA (uv_pnm): fract both (match Metal).
+        if (vUvMode > 0.5) {
+            localUV.x = clamp(fract(localUV.x), 0.008, 0.992);
+            localUV.y = clamp(fract(localUV.y), 0.008, 0.992);
+        } else {
+            localUV.x = clamp(localUV.x, 0.008, 0.992);
+            localUV.y = clamp(fract(localUV.y), 0.008, 0.992);
+        }
         
         // Transform back to atlas space
         finalTexCoord = tileOrigin + localUV * tileSizeNorm;
@@ -321,9 +327,11 @@ struct GLModel
     GLuint textureIdVBO;
     GLuint textureOpaqueVBO;
     GLuint textureAnimSpeedVBO;
+    GLuint uvModeVBO;
 
     int face_count;
     bool has_textures;
+    bool needs_atlas_rebake;
     int first_texture_id;           // First texture ID used by this model (for simple rendering)
     std::vector<int> face_textures; // Texture ID per face (-1 = no texture)
     std::vector<bool> face_visible; // Whether each face should be drawn
@@ -523,6 +531,11 @@ struct Pix3DGL
     {
         GLuint tex;
         float verts[6 * 4]; /* 6 vertices × (screen_x, screen_y, u, v) */
+        bool use_scissor;
+        int scissor_x;
+        int scissor_y;
+        int scissor_w;
+        int scissor_h;
     };
     std::vector<SpritePendingDraw> pending_sprite_draws;
     int sprite_batch_fb_width;
@@ -658,6 +671,7 @@ create_shader_program(
     glBindAttribLocation(program, 3, "aTextureId");
     glBindAttribLocation(program, 4, "aTextureOpaque");
     glBindAttribLocation(program, 5, "aTextureAnimSpeed");
+    glBindAttribLocation(program, 6, "aUvMode");
 
     glLinkProgram(program);
 
@@ -1365,20 +1379,40 @@ pix3dgl_end_2dframe(struct Pix3DGL* pix3dgl)
             glUniform1i(pix3dgl->uniform_ui_tex, 0);
         glActiveTexture(GL_TEXTURE0);
 
-        /* Draw consecutive same-texture sprites as one glDrawArrays call. */
+        /* Draw consecutive same-texture + same-scissor sprites as one glDrawArrays call. */
         int group_start = 0;
         while( group_start < n )
         {
-            GLuint group_tex = draws[group_start].tex;
+            GLuint const group_tex = draws[group_start].tex;
+            Pix3DGL::SpritePendingDraw const& g0 = draws[group_start];
             int group_end = group_start + 1;
-            while( group_end < n && draws[group_end].tex == group_tex )
+            while( group_end < n )
+            {
+                Pix3DGL::SpritePendingDraw const& g = draws[group_end];
+                if( g.tex != group_tex || g.use_scissor != g0.use_scissor )
+                    break;
+                if( g0.use_scissor &&
+                    (g.scissor_x != g0.scissor_x || g.scissor_y != g0.scissor_y ||
+                     g.scissor_w != g0.scissor_w || g.scissor_h != g0.scissor_h) )
+                    break;
                 ++group_end;
+            }
 
             glBindTexture(GL_TEXTURE_2D, group_tex);
+            if( g0.use_scissor && g0.scissor_w > 0 && g0.scissor_h > 0 )
+            {
+                glEnable(GL_SCISSOR_TEST);
+                glScissor(g0.scissor_x, g0.scissor_y, g0.scissor_w, g0.scissor_h);
+            }
+            else
+            {
+                glDisable(GL_SCISSOR_TEST);
+            }
             glDrawArrays(GL_TRIANGLES, group_start * 6, (group_end - group_start) * 6);
 
             group_start = group_end;
         }
+        glDisable(GL_SCISSOR_TEST);
     }
 
     BIND_VERTEX_ARRAY(0);
@@ -1426,6 +1460,46 @@ pix3dgl_restore_gl_state_after_ui(struct Pix3DGL* pix3dgl)
 }
 
 extern "C" void
+pix3dgl_model_destroy(struct Pix3DGL* pix3dgl, int model_idx)
+{
+    if( !pix3dgl )
+        return;
+    auto it = pix3dgl->models.find(model_idx);
+    if( it == pix3dgl->models.end() )
+        return;
+    GLModel& model = it->second;
+    DELETE_VERTEX_ARRAYS(1, &model.VAO);
+    glDeleteBuffers(1, &model.VBO);
+    glDeleteBuffers(1, &model.colorVBO);
+    glDeleteBuffers(1, &model.texCoordVBO);
+    glDeleteBuffers(1, &model.textureIdVBO);
+    glDeleteBuffers(1, &model.textureOpaqueVBO);
+    glDeleteBuffers(1, &model.textureAnimSpeedVBO);
+    glDeleteBuffers(1, &model.uvModeVBO);
+    pix3dgl->models.erase(it);
+}
+
+extern "C" int
+pix3dgl_model_need_texture_rebake(struct Pix3DGL* pix3dgl, int model_idx)
+{
+    if( !pix3dgl )
+        return 0;
+    auto it = pix3dgl->models.find(model_idx);
+    if( it == pix3dgl->models.end() || !it->second.needs_atlas_rebake )
+        return 0;
+    GLModel const& model = it->second;
+    for( int f = 0; f < model.face_count; ++f )
+    {
+        int raw = model.face_textures[(size_t)f];
+        if( raw < 0 )
+            continue;
+        if( pix3dgl->texture_ids.find(raw) == pix3dgl->texture_ids.end() )
+            return 0;
+    }
+    return 1;
+}
+
+extern "C" void
 pix3dgl_model_load(
     struct Pix3DGL* pix3dgl,
     int model_idx,
@@ -1445,7 +1519,8 @@ pix3dgl_model_load(
     hsl16_t* face_colors_hsl_b,
     hsl16_t* face_colors_hsl_c,
     int* face_infos_nullable,
-    alphaint_t* face_alphas_nullable)
+    alphaint_t* face_alphas_nullable,
+    int is_ground_va)
 {
     if( !pix3dgl || face_count <= 0 || !vertices_x || !vertices_y || !vertices_z ||
         !face_indices_a || !face_indices_b || !face_indices_c || !face_colors_hsl_a ||
@@ -1455,11 +1530,28 @@ pix3dgl_model_load(
     if( pix3dgl->models.find(model_idx) != pix3dgl->models.end() )
         return;
 
+    int vcount = 0;
+    for( int f = 0; f < face_count; ++f )
+    {
+        int ia0 = (int)face_indices_a[f];
+        int ib0 = (int)face_indices_b[f];
+        int ic0 = (int)face_indices_c[f];
+        if( ia0 > vcount )
+            vcount = ia0;
+        if( ib0 > vcount )
+            vcount = ib0;
+        if( ic0 > vcount )
+            vcount = ic0;
+    }
+    vcount += 1;
+
     GLModel model = {};
     model.idx = model_idx;
     model.face_count = face_count;
     model.has_textures = false;
     model.first_texture_id = -1;
+    model.needs_atlas_rebake = false;
+    model.uvModeVBO = 0;
     model.face_textures.resize((size_t)face_count, -1);
     model.face_visible.resize((size_t)face_count, true);
     model.face_shading.resize((size_t)face_count, SHADING_GOURAUD);
@@ -1470,12 +1562,14 @@ pix3dgl_model_load(
     std::vector<float> texture_ids;
     std::vector<float> texture_opaques;
     std::vector<float> texture_anim_speeds;
+    std::vector<float> uv_modes;
     verts.reserve((size_t)face_count * 9u);
     colors.reserve((size_t)face_count * 12u);
     uvs.reserve((size_t)face_count * 6u);
     texture_ids.reserve((size_t)face_count * 3u);
     texture_opaques.reserve((size_t)face_count * 3u);
     texture_anim_speeds.reserve((size_t)face_count * 3u);
+    uv_modes.reserve((size_t)face_count * 3u);
 
     for( int face = 0; face < face_count; ++face )
     {
@@ -1536,78 +1630,97 @@ pix3dgl_model_load(
             colors.push_back(face_alpha);
         }
 
-        int texture_id = (face_textures_nullable ? face_textures_nullable[face] : -1);
+        int const raw_tex = (face_textures_nullable ? (int)face_textures_nullable[face] : -1);
+        model.face_textures[(size_t)face] = raw_tex;
+
         int atlas_slot = -1;
-        if( texture_id != -1 )
+        if( raw_tex != -1 )
         {
-            auto tex_it = pix3dgl->texture_ids.find(texture_id);
+            auto tex_it = pix3dgl->texture_ids.find(raw_tex);
             if( tex_it != pix3dgl->texture_ids.end() )
             {
                 atlas_slot = tex_it->second;
                 model.has_textures = true;
                 if( model.first_texture_id == -1 )
-                    model.first_texture_id = texture_id;
+                    model.first_texture_id = raw_tex;
             }
             else
             {
-                texture_id = -1;
+                model.needs_atlas_rebake = true;
             }
         }
-        model.face_textures[(size_t)face] = texture_id;
 
-        if( texture_id != -1 )
+        if( raw_tex != -1 && atlas_slot >= 0 )
         {
             int texture_face_idx = face;
             int tp = 0;
             int tm = 0;
             int tn = 0;
 
-            if( face_texture_coords_nullable && face_texture_coords_nullable[face] != -1 )
+            if( is_ground_va )
+            {
+                tp = (int)face_indices_a[0];
+                tm = (int)face_indices_b[0];
+                tn = (int)face_indices_c[0];
+            }
+            else if(
+                face_texture_coords_nullable && face_texture_coords_nullable[face] != -1 &&
+                textured_p_coordinate_nullable && textured_m_coordinate_nullable &&
+                textured_n_coordinate_nullable )
             {
                 texture_face_idx = face_texture_coords_nullable[face];
-                tp = textured_p_coordinate_nullable[texture_face_idx];
-                tm = textured_m_coordinate_nullable[texture_face_idx];
-                tn = textured_n_coordinate_nullable[texture_face_idx];
+                tp = (int)textured_p_coordinate_nullable[texture_face_idx];
+                tm = (int)textured_m_coordinate_nullable[texture_face_idx];
+                tn = (int)textured_n_coordinate_nullable[texture_face_idx];
             }
             else
             {
-                tp = face_indices_a[texture_face_idx];
-                tm = face_indices_b[texture_face_idx];
-                tn = face_indices_c[texture_face_idx];
+                tp = (int)face_indices_a[texture_face_idx];
+                tm = (int)face_indices_b[texture_face_idx];
+                tn = (int)face_indices_c[texture_face_idx];
             }
 
-            struct UVFaceCoords uv;
-            uv_pnm_compute(
-                &uv,
-                (float)vertices_x[tp],
-                (float)vertices_y[tp],
-                (float)vertices_z[tp],
-                (float)vertices_x[tm],
-                (float)vertices_y[tm],
-                (float)vertices_z[tm],
-                (float)vertices_x[tn],
-                (float)vertices_y[tn],
-                (float)vertices_z[tn],
-                (float)vertices_x[ia],
-                (float)vertices_y[ia],
-                (float)vertices_z[ia],
-                (float)vertices_x[ib],
-                (float)vertices_y[ib],
-                (float)vertices_z[ib],
-                (float)vertices_x[ic],
-                (float)vertices_y[ic],
-                (float)vertices_z[ic]);
+            if( tp < 0 || tp >= vcount || tm < 0 || tm >= vcount || tn < 0 || tn >= vcount )
+            {
+                for( int i = 0; i < 6; ++i )
+                    uvs.push_back(0.0f);
+                atlas_slot = -1;
+            }
+            else
+            {
+                struct UVFaceCoords uv;
+                uv_pnm_compute(
+                    &uv,
+                    (float)vertices_x[tp],
+                    (float)vertices_y[tp],
+                    (float)vertices_z[tp],
+                    (float)vertices_x[tm],
+                    (float)vertices_y[tm],
+                    (float)vertices_z[tm],
+                    (float)vertices_x[tn],
+                    (float)vertices_y[tn],
+                    (float)vertices_z[tn],
+                    (float)vertices_x[ia],
+                    (float)vertices_y[ia],
+                    (float)vertices_z[ia],
+                    (float)vertices_x[ib],
+                    (float)vertices_y[ib],
+                    (float)vertices_z[ib],
+                    (float)vertices_x[ic],
+                    (float)vertices_y[ic],
+                    (float)vertices_z[ic]);
 
-            float tile_u = (float)(atlas_slot % pix3dgl->atlas_tiles_per_row);
-            float tile_v = (float)(atlas_slot / pix3dgl->atlas_tiles_per_row);
-            float tile_size = (float)pix3dgl->atlas_tile_size;
-            float atlas_size = (float)pix3dgl->atlas_size;
-            uvs.push_back((tile_u + uv.u1) * tile_size / atlas_size);
-            uvs.push_back((tile_v + uv.v1) * tile_size / atlas_size);
-            uvs.push_back((tile_u + uv.u2) * tile_size / atlas_size);
-            uvs.push_back((tile_v + uv.v2) * tile_size / atlas_size);
-            uvs.push_back((tile_u + uv.u3) * tile_size / atlas_size);
-            uvs.push_back((tile_v + uv.v3) * tile_size / atlas_size);
+                float tile_u = (float)(atlas_slot % pix3dgl->atlas_tiles_per_row);
+                float tile_v = (float)(atlas_slot / pix3dgl->atlas_tiles_per_row);
+                float tile_size = (float)pix3dgl->atlas_tile_size;
+                float atlas_size = (float)pix3dgl->atlas_size;
+                uvs.push_back((tile_u + uv.u1) * tile_size / atlas_size);
+                uvs.push_back((tile_v + uv.v1) * tile_size / atlas_size);
+                uvs.push_back((tile_u + uv.u2) * tile_size / atlas_size);
+                uvs.push_back((tile_v + uv.v2) * tile_size / atlas_size);
+                uvs.push_back((tile_u + uv.u3) * tile_size / atlas_size);
+                uvs.push_back((tile_v + uv.v3) * tile_size / atlas_size);
+            }
         }
         else
         {
@@ -1617,24 +1730,28 @@ pix3dgl_model_load(
         }
 
         float is_opaque = 1.0f;
-        if( texture_id != -1 )
+        if( raw_tex != -1 )
         {
-            auto op_it = pix3dgl->texture_to_opaque.find(texture_id);
+            auto op_it = pix3dgl->texture_to_opaque.find(raw_tex);
             if( op_it != pix3dgl->texture_to_opaque.end() )
                 is_opaque = op_it->second ? 1.0f : 0.0f;
         }
         float anim_speed = 0.0f;
-        if( texture_id != -1 )
+        if( raw_tex != -1 )
         {
-            auto an_it = pix3dgl->texture_to_animation_speed.find(texture_id);
+            auto an_it = pix3dgl->texture_to_animation_speed.find(raw_tex);
             if( an_it != pix3dgl->texture_to_animation_speed.end() )
                 anim_speed = an_it->second;
         }
+        int const vbo_tex_slot = atlas_slot;
+        float const uv_mode_val =
+            (is_ground_va && raw_tex != -1 && vbo_tex_slot >= 0) ? 1.0f : 0.0f;
         for( int i = 0; i < 3; ++i )
         {
-            texture_ids.push_back((float)atlas_slot);
+            texture_ids.push_back((float)vbo_tex_slot);
             texture_opaques.push_back(is_opaque);
             texture_anim_speeds.push_back(anim_speed);
+            uv_modes.push_back(uv_mode_val);
         }
     }
 
@@ -1685,6 +1802,13 @@ pix3dgl_model_load(
         GL_STATIC_DRAW);
     glVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
     glEnableVertexAttribArray(5);
+
+    glGenBuffers(1, &model.uvModeVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, model.uvModeVBO);
+    glBufferData(
+        GL_ARRAY_BUFFER, uv_modes.size() * sizeof(float), uv_modes.data(), GL_STATIC_DRAW);
+    glVertexAttribPointer(6, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
+    glEnableVertexAttribArray(6);
 
     BIND_VERTEX_ARRAY(0);
     pix3dgl->models[model_idx] = std::move(model);
@@ -2173,6 +2297,130 @@ pix3dgl_sprite_unload(
 }
 
 extern "C" void
+pix3dgl_sprite_draw_ex(
+    struct Pix3DGL* pix3dgl,
+    struct DashSprite* sprite,
+    int dst_bb_x,
+    int dst_bb_y,
+    int framebuffer_width,
+    int framebuffer_height,
+    int rotated,
+    int dst_bb_w,
+    int dst_bb_h,
+    int dst_anchor_x,
+    int dst_anchor_y,
+    int src_anchor_x,
+    int src_anchor_y,
+    int rotation_r2pi2048,
+    int src_bb_x,
+    int src_bb_y,
+    int src_bb_w,
+    int src_bb_h,
+    int scissor_x,
+    int scissor_y,
+    int scissor_w,
+    int scissor_h,
+    int use_scissor)
+{
+    (void)src_anchor_x;
+    (void)src_anchor_y;
+    if( !pix3dgl || !pix3dgl->program_ui || !pix3dgl->ui_vbo )
+        return;
+    if( !sprite || !sprite->pixels_argb || framebuffer_width <= 0 || framebuffer_height <= 0 ||
+        sprite->width <= 0 || sprite->height <= 0 )
+        return;
+
+    const int iw = src_bb_w > 0 ? src_bb_w : sprite->width;
+    const int ih = src_bb_h > 0 ? src_bb_h : sprite->height;
+    const int ix = src_bb_x;
+    const int iy = src_bb_y;
+    if( ix < 0 || iy < 0 || ix + iw > sprite->width || iy + ih > sprite->height )
+        return;
+
+    uintptr_t key = (uintptr_t)sprite;
+    if( !pix3dgl->sprite_texture_cache.count(key) )
+        pix3dgl_sprite_load(pix3dgl, sprite);
+
+    auto it = pix3dgl->sprite_texture_cache.find(key);
+    if( it == pix3dgl->sprite_texture_cache.end() )
+        return;
+    GLuint const tex = it->second;
+
+    const float tw = (float)sprite->width;
+    const float th = (float)sprite->height;
+    const float u0 = (float)ix / tw;
+    const float v0 = (float)iy / th;
+    const float u1 = (float)(ix + iw) / tw;
+    const float v1 = (float)(iy + ih) / th;
+
+    float px[4];
+    float py[4];
+    if( rotated )
+    {
+        if( dst_bb_w <= 0 || dst_bb_h <= 0 )
+            return;
+        torirs_sprite_rotated_dst_corners_logical_px(
+            dst_bb_x,
+            dst_bb_y,
+            dst_bb_w,
+            dst_bb_h,
+            dst_anchor_x,
+            dst_anchor_y,
+            rotation_r2pi2048,
+            px,
+            py);
+    }
+    else
+    {
+        int const dst_x = dst_bb_x + sprite->crop_x;
+        int const dst_y = dst_bb_y + sprite->crop_y;
+        const float w = (float)iw;
+        const float h = (float)ih;
+        const float x0 = (float)dst_x;
+        const float y0 = (float)dst_y;
+        const float x1 = x0 + w;
+        const float y1 = y0 + h;
+        const float cx = 0.5f * (x0 + x1);
+        const float cy = 0.5f * (y0 + y1);
+        const float angle = (float)(rotation_r2pi2048 * (2.0 * M_PI) / 2048.0);
+        const float ca = cosf(angle);
+        const float sa = sinf(angle);
+        const float hw = 0.5f * w;
+        const float hh = 0.5f * h;
+
+        auto rot_local = [&](float lx, float ly, float* ox, float* oy) {
+            *ox = cx + ca * lx - sa * ly;
+            *oy = cy + sa * lx + ca * ly;
+        };
+
+        rot_local(-hw, -hh, &px[0], &py[0]);
+        rot_local(hw, -hh, &px[1], &py[1]);
+        rot_local(hw, hh, &px[2], &py[2]);
+        rot_local(-hw, hh, &px[3], &py[3]);
+    }
+
+    if( pix3dgl->sprite_batch_fb_width <= 0 )
+    {
+        pix3dgl->sprite_batch_fb_width = framebuffer_width;
+        pix3dgl->sprite_batch_fb_height = framebuffer_height;
+    }
+
+    Pix3DGL::SpritePendingDraw draw{};
+    draw.tex = tex;
+    draw.use_scissor = use_scissor != 0;
+    draw.scissor_x = scissor_x;
+    draw.scissor_y = scissor_y;
+    draw.scissor_w = scissor_w;
+    draw.scissor_h = scissor_h;
+    float verts[6 * 4] = {
+        px[0], py[0], u0, v0, px[1], py[1], u1, v0, px[2], py[2], u1, v1,
+        px[0], py[0], u0, v0, px[2], py[2], u1, v1, px[3], py[3], u0, v1,
+    };
+    memcpy(draw.verts, verts, sizeof(verts));
+    pix3dgl->pending_sprite_draws.push_back(draw);
+}
+
+extern "C" void
 pix3dgl_sprite_draw(
     struct Pix3DGL* pix3dgl,
     struct DashSprite* sprite,
@@ -2186,80 +2434,30 @@ pix3dgl_sprite_draw(
     int src_w,
     int src_h)
 {
-    if( !pix3dgl || !pix3dgl->program_ui || !pix3dgl->ui_vbo )
-        return;
-    if( !sprite || !sprite->pixels_argb || framebuffer_width <= 0 || framebuffer_height <= 0 ||
-        sprite->width <= 0 || sprite->height <= 0 )
-        return;
-
-    const int iw = src_w > 0 ? src_w : sprite->width;
-    const int ih = src_h > 0 ? src_h : sprite->height;
-    const int ix = src_x;
-    const int iy = src_y;
-    if( ix < 0 || iy < 0 || ix + iw > sprite->width || iy + ih > sprite->height )
-        return;
-
-    /* Lazy-upload fallback: if the sprite was never explicitly loaded, upload it now. */
-    uintptr_t key = (uintptr_t)sprite;
-    if( !pix3dgl->sprite_texture_cache.count(key) )
-        pix3dgl_sprite_load(pix3dgl, sprite);
-
-    auto it = pix3dgl->sprite_texture_cache.find(key);
-    if( it == pix3dgl->sprite_texture_cache.end() )
-        return; /* Upload failed. */
-    GLuint tex = it->second;
-
-    dst_x += sprite->crop_x;
-    dst_y += sprite->crop_y;
-    const float tw = (float)sprite->width;
-    const float th = (float)sprite->height;
-    const float w = (float)iw;
-    const float h = (float)ih;
-    const float x0 = (float)dst_x;
-    const float y0 = (float)dst_y;
-    const float x1 = x0 + w;
-    const float y1 = y0 + h;
-    const float cx = 0.5f * (x0 + x1);
-    const float cy = 0.5f * (y0 + y1);
-    const float angle = (float)(rotation_r2pi2048 * (2.0 * M_PI) / 2048.0);
-    const float ca = cosf(angle);
-    const float sa = sinf(angle);
-    const float hw = 0.5f * w;
-    const float hh = 0.5f * h;
-
-    auto rot_local = [&](float lx, float ly, float* ox, float* oy) {
-        *ox = cx + ca * lx - sa * ly;
-        *oy = cy + sa * lx + ca * ly;
-    };
-
-    float px[4];
-    float py[4];
-    rot_local(-hw, -hh, &px[0], &py[0]);
-    rot_local(hw, -hh, &px[1], &py[1]);
-    rot_local(hw, hh, &px[2], &py[2]);
-    rot_local(-hw, hh, &px[3], &py[3]);
-
-    const float u0 = (float)ix / tw;
-    const float v0 = (float)iy / th;
-    const float u1 = (float)(ix + iw) / tw;
-    const float v1 = (float)(iy + ih) / th;
-
-    /* Capture framebuffer dimensions for projection (used in pix3dgl_end_2dframe). */
-    if( pix3dgl->sprite_batch_fb_width <= 0 )
-    {
-        pix3dgl->sprite_batch_fb_width = framebuffer_width;
-        pix3dgl->sprite_batch_fb_height = framebuffer_height;
-    }
-
-    /* Enqueue into the frame batch; pix3dgl_end_2dframe will issue the GL calls. */
-    Pix3DGL::SpritePendingDraw draw;
-    draw.tex = tex;
-    float verts[6 * 4] = {
-        px[0], py[0], u0, v0, px[1], py[1], u1, v0, px[2], py[2], u1, v1,
-        px[0], py[0], u0, v0, px[2], py[2], u1, v1, px[3], py[3], u0, v1,
-    };
-    memcpy(draw.verts, verts, sizeof(verts));
-    pix3dgl->pending_sprite_draws.push_back(draw);
+    pix3dgl_sprite_draw_ex(
+        pix3dgl,
+        sprite,
+        dst_x,
+        dst_y,
+        framebuffer_width,
+        framebuffer_height,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        rotation_r2pi2048,
+        src_x,
+        src_y,
+        src_w,
+        src_h,
+        0,
+        0,
+        0,
+        0,
+        0);
 }
 
 extern "C" void
@@ -2278,6 +2476,7 @@ pix3dgl_cleanup(struct Pix3DGL* pix3dgl)
             glDeleteBuffers(1, &model.textureIdVBO);
             glDeleteBuffers(1, &model.textureOpaqueVBO);
             glDeleteBuffers(1, &model.textureAnimSpeedVBO);
+            glDeleteBuffers(1, &model.uvModeVBO);
         }
 
         // Note: With atlas, individual textures are stored as slots in texture_ids map

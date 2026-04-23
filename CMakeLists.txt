@@ -752,8 +752,15 @@ if(EMSCRIPTEN)
         src/platforms/platform_impl2_sdl2_port_emscripten.cpp
         src/platforms/platform_impl2_sdl2_renderer_soft3d_shared.cpp
         src/platforms/platform_impl2_sdl2_renderer_soft3d.cpp
-        src/platforms/platform_impl2_sdl2_renderer_webgl1.cpp
-        src/osrs/pix3dgl_opengles2.cpp
+        src/platforms/webgl1/webgl1_init.cpp
+        src/platforms/webgl1/webgl1_render.cpp
+        src/platforms/webgl1/webgl1_math.cpp
+        src/platforms/webgl1/webgl1_shaders.cpp
+        src/platforms/webgl1/webgl1_atlas_world.cpp
+        src/platforms/webgl1/webgl1_model_geometry.cpp
+        src/platforms/webgl1/webgl1_model_dispatch.cpp
+        src/platforms/webgl1/webgl1_flush.cpp
+        src/platforms/webgl1/webgl1_events.cpp
         src/platforms/browser2/luajs_sidecar.c
         src/platforms/browser2/luajs_gametypes.c
         src/platforms/browser2/luajs_archives.c
