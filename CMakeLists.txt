@@ -92,6 +92,7 @@ set(COMMON_SOURCES
     src/platforms/common/torirs_sprite_argb_rgba.c
     src/platforms/common/torirs_font_glyph_quad.c
     src/platforms/common/torirs_sprite_draw_cpu.cpp
+    src/platforms/common/pass_2d_builder/pass_2d_builder_draw.cpp
     src/platforms/common/tori_rs_sdl2_gameinput.c
     src/platforms/common/tori_rs_sdl2_gameinput_nuklear.cpp
     src/platforms/common/torirs_nk_sdl_input.cpp
@@ -264,6 +265,7 @@ if(NOT EMSCRIPTEN)
             src/platforms/metal/metal_batch3d.mm
             src/platforms/metal/metal_draw_model.mm
             src/platforms/metal/metal_va_fa_events.mm
+            src/platforms/common/pass_3d_builder/pass_3d_builder2_metal.mm
             src/platforms/metal/metal_render.mm
             src/nuklear/backends/torirs_nk_metal_sdl.mm
         )
@@ -584,6 +586,7 @@ if(NOT EMSCRIPTEN)
             src/platforms/metal/metal_batch3d.mm
             src/platforms/metal/metal_draw_model.mm
             src/platforms/metal/metal_va_fa_events.mm
+            src/platforms/common/pass_3d_builder/pass_3d_builder2_metal.mm
             src/platforms/metal/metal_render.mm
             src/nuklear/backends/torirs_nk_metal_sdl.mm
             PROPERTIES COMPILE_FLAGS "-fobjc-arc"

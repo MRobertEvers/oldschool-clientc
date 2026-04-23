@@ -1,5 +1,7 @@
 #pragma once
 
+#include "graphics/dash.h"
+
 #include <cstdint>
 #include <vector>
 
@@ -43,6 +45,17 @@ public:
         int width,
         int height);
 
+    /**
+     * Convenience: extract pixel data directly from a DashSprite and enqueue.
+     * Validates sp, pixels, and dimensions before calling add_sprite().
+     * No-op if sp is null or has zero dimensions.
+     */
+    void
+    add_sprite_from_dash(
+        const struct DashSprite* sp,
+        int element_id,
+        int atlas_index);
+
     const std::vector<SpriteAtlasEntry>&
     entries() const;
     bool
@@ -73,6 +86,17 @@ SpriteAtlasBuilder::add_sprite(
     int height)
 {
     entries_.push_back(SpriteAtlasEntry{ element_id, atlas_index, pixels_argb, width, height });
+}
+
+inline void
+SpriteAtlasBuilder::add_sprite_from_dash(
+    const struct DashSprite* sp,
+    int element_id,
+    int atlas_index)
+{
+    if( !sp || !sp->pixels_argb || sp->width <= 0 || sp->height <= 0 )
+        return;
+    add_sprite(element_id, atlas_index, sp->pixels_argb, sp->width, sp->height);
 }
 
 inline const std::vector<SpriteAtlasEntry>&

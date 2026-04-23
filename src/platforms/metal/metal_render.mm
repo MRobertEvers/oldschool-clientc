@@ -167,8 +167,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                 : nil;
         ctx.uiInverseRotPipeState =
             renderer->mtl_ui_sprite_inverse_rot_pipeline
-                ? (__bridge id<MTLRenderPipelineState>)
-                      renderer->mtl_ui_sprite_inverse_rot_pipeline
+                ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_ui_sprite_inverse_rot_pipeline
                 : nil;
         ctx.fontPipeState = renderer->mtl_font_pipeline
                                 ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_font_pipeline
@@ -252,19 +251,13 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     world_clear._clear_rect.h = logical_vp.height;
                     if( world_clear._clear_rect.w > 0 && world_clear._clear_rect.h > 0 )
                         metal_frame_event_clear_rect(&ctx, &world_clear);
+                    renderer->mtl_pass3d_builder.Begin3D();
                     current_pass = kMTLPass3D;
                 }
                 break;
                 case TORIRS_GFX_END_3D:
-                    metal_flush_3d(&ctx, &bfo3d_accum);
-                    bfo3d_accum.begin_pass();
-                    {
-                        NSUInteger dw = (NSUInteger)(renderer->width > 0 ? renderer->width : 1);
-                        NSUInteger dh = (NSUInteger)(renderer->height > 0 ? renderer->height : 1);
-                        MTLScissorRect scMax = { 0, 0, dw, dh };
-                        [encoder setViewport:ctx.spriteVp];
-                        [encoder setScissorRect:scMax];
-                    }
+                    Pass3DBuilder2SubmitMetal(
+                        renderer->mtl_pass3d_builder, &ctx, &renderer->model_cache);
                     current_pass = kMTLPassNone;
                     break;
                 case TORIRS_GFX_BEGIN_2D:

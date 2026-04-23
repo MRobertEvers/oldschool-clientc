@@ -2,6 +2,7 @@
 #define PLATFORMS_METAL_METAL_H
 
 #include "platforms/common/gpu_ring_buffer.h"
+#include "platforms/common/pass_3d_builder/pass_3d_builder2.h"
 #include "platforms/gpu_3d_cache.h"
 #include "platforms/gpu_font_cache.h"
 #include "platforms/gpu_sprite_cache.h"
@@ -65,6 +66,7 @@ struct Platform2_SDL2_Renderer_Metal
 
     GpuTextureCache<void*> texture_cache;
     Gpu3DCache<void*> model_cache;
+    Pass3DBuilder2 mtl_pass3d_builder;
     GpuSpriteCache<void*> sprite_cache;
     GpuFontCache<void*> font_cache;
 

@@ -4,6 +4,8 @@
 #include "platforms/common/buffered_font_2d.h"
 #include "platforms/common/buffered_sprite_2d.h"
 
+struct ToriRSRenderCommand;
+
 /**
  * Pass2DBuilder — frame-scoped accumulator for 2D sprite and font draws.
  *
@@ -31,6 +33,59 @@ public:
         void* atlas_tex,
         const SpriteQuadVertex six_verts[6],
         const SpriteLogicalScissor* opt_scissor = nullptr);
+
+    /**
+     * Enqueue a sprite quad with inverse-rotation fragment constants (rotated blit path).
+     * inv_rot must not be null when calling this overload.
+     */
+    void
+    enqueue_sprite(
+        void* atlas_tex,
+        const SpriteQuadVertex six_verts[6],
+        const SpriteLogicalScissor* opt_scissor,
+        const SpriteInverseRotParams* inv_rot);
+
+    /**
+     * Compute clip-space quad from a TORIRS_GFX_SPRITE_DRAW command and enqueue it.
+     *
+     * atlas_tex    — pre-looked-up GPU texture handle for the sprite.
+     * tex_w/tex_h  — pixel dimensions of the GPU texture (sprite dims for standalone,
+     *                atlas dims for batched sprites).
+     * atlas_u0/v0  — sub-atlas UV origin in [0,1] (0,0 for standalone sprites).
+     * fbw/fbh      — framebuffer dimensions used for logical-pixel → NDC conversion.
+     *
+     * No-op if the command sprite pointer is null, dimensions are invalid, or atlas_tex
+     * is null.
+     */
+    void
+    enqueue_sprite_from_draw(
+        const struct ToriRSRenderCommand* cmd,
+        void* atlas_tex,
+        float tex_w,
+        float tex_h,
+        float atlas_u0,
+        float atlas_v0,
+        float fbw,
+        float fbh);
+
+    /**
+     * Expand a TORIRS_GFX_FONT_DRAW command into glyph quads and append them.
+     *
+     * atlas_tex — pre-looked-up GPU texture handle for the font atlas.
+     * fbw/fbh   — framebuffer dimensions for logical-pixel → NDC conversion.
+     *
+     * Calls set_font(), appends each visible glyph via append_glyph_quad(), then
+     * calls close_font_segment() — equivalent to what the Metal renderer does inside
+     * metal_frame_event_font_draw().
+     *
+     * No-op if the command font pointer is null, has no atlas, or atlas_tex is null.
+     */
+    void
+    append_font_draw(
+        const struct ToriRSRenderCommand* cmd,
+        void* atlas_tex,
+        float fbw,
+        float fbh);
 
     void
     set_font(
@@ -92,6 +147,17 @@ Pass2DBuilder::enqueue_sprite(
     const SpriteLogicalScissor* opt_scissor)
 {
     bsp2d_.enqueue(atlas_tex, six_verts, opt_scissor, &b2d_order_, &split_sprite_);
+    split_font_ = true;
+}
+
+inline void
+Pass2DBuilder::enqueue_sprite(
+    void* atlas_tex,
+    const SpriteQuadVertex six_verts[6],
+    const SpriteLogicalScissor* opt_scissor,
+    const SpriteInverseRotParams* inv_rot)
+{
+    bsp2d_.enqueue(atlas_tex, six_verts, opt_scissor, &b2d_order_, &split_sprite_, inv_rot);
     split_font_ = true;
 }
 

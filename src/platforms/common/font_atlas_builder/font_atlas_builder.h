@@ -1,5 +1,7 @@
 #pragma once
 
+#include "graphics/dash.h"
+
 #include <cstdint>
 #include <vector>
 
@@ -41,6 +43,16 @@ public:
         int width,
         int height);
 
+    /**
+     * Convenience: extract atlas data directly from a DashPixFont and enqueue.
+     * Validates font, font->atlas, pixels, and dimensions before calling add_font().
+     * No-op if font is null, has no atlas, or atlas has zero dimensions.
+     */
+    void
+    add_font_from_dash(
+        const struct DashPixFont* font,
+        int font_id);
+
     const std::vector<FontAtlasEntry>&
     entries() const;
     bool
@@ -70,6 +82,17 @@ FontAtlasBuilder::add_font(
     int height)
 {
     entries_.push_back(FontAtlasEntry{ font_id, pixels_rgba, width, height });
+}
+
+inline void
+FontAtlasBuilder::add_font_from_dash(
+    const struct DashPixFont* font,
+    int font_id)
+{
+    if( !font || !font->atlas || !font->atlas->rgba_pixels ||
+        font->atlas->atlas_width <= 0 || font->atlas->atlas_height <= 0 )
+        return;
+    add_font(font_id, font->atlas->rgba_pixels, font->atlas->atlas_width, font->atlas->atlas_height);
 }
 
 inline const std::vector<FontAtlasEntry>&
