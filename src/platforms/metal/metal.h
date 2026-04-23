@@ -41,6 +41,8 @@ struct Platform2_SDL2_Renderer_Metal
     void* mtl_command_queue;
     void* mtl_pipeline_state;
     void* mtl_ui_sprite_pipeline;
+    /** UI sprite inverse-rotated blit (`uiSpriteInverseRotFrag`); optional if compile fails. */
+    void* mtl_ui_sprite_inverse_rot_pipeline;
     void* mtl_clear_rect_pipeline;
     /** Depth-only pass for TORIRS_GFX_CLEAR_RECT (depth write, color write mask none). */
     void* mtl_clear_rect_depth_pipeline;

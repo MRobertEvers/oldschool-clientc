@@ -37,6 +37,7 @@ PlatformImpl2_SDL2_Renderer_Metal_New(
     renderer->mtl_command_queue = nil;
     renderer->mtl_pipeline_state = nil;
     renderer->mtl_ui_sprite_pipeline = nil;
+    renderer->mtl_ui_sprite_inverse_rot_pipeline = nil;
     renderer->mtl_clear_rect_pipeline = nil;
     renderer->mtl_clear_rect_depth_pipeline = nil;
     renderer->mtl_clear_rect_depth_write_ds = nil;
@@ -252,6 +253,11 @@ PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* ren
         CFRelease(renderer->mtl_ui_sprite_pipeline);
         renderer->mtl_ui_sprite_pipeline = nullptr;
     }
+    if( renderer->mtl_ui_sprite_inverse_rot_pipeline )
+    {
+        CFRelease(renderer->mtl_ui_sprite_inverse_rot_pipeline);
+        renderer->mtl_ui_sprite_inverse_rot_pipeline = nullptr;
+    }
     if( renderer->mtl_clear_rect_pipeline )
     {
         CFRelease(renderer->mtl_clear_rect_pipeline);
@@ -451,6 +457,36 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
             printf(
                 "Metal: UI sprite pipeline creation failed: %s\n",
                 uiErr ? uiErr.localizedDescription.UTF8String : "unknown");
+
+        id<MTLFunction> uiInverseRotFragFn =
+            [shaderLibrary newFunctionWithName:@"uiSpriteInverseRotFrag"];
+        if( uiVertFn && uiInverseRotFragFn && uiPipe )
+        {
+            MTLRenderPipelineDescriptor* invDesc = [[MTLRenderPipelineDescriptor alloc] init];
+            invDesc.vertexFunction = uiVertFn;
+            invDesc.fragmentFunction = uiInverseRotFragFn;
+            invDesc.vertexDescriptor = uiVtx;
+            invDesc.colorAttachments[0].pixelFormat = layer.pixelFormat;
+            invDesc.colorAttachments[0].blendingEnabled = YES;
+            invDesc.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
+            invDesc.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+            invDesc.colorAttachments[0].destinationRGBBlendFactor =
+                MTLBlendFactorOneMinusSourceAlpha;
+            invDesc.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
+            invDesc.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorOne;
+            invDesc.colorAttachments[0].destinationAlphaBlendFactor =
+                MTLBlendFactorOneMinusSourceAlpha;
+            invDesc.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
+            NSError* invErr = nil;
+            id<MTLRenderPipelineState> invPipe =
+                [device newRenderPipelineStateWithDescriptor:invDesc error:&invErr];
+            if( invPipe )
+                renderer->mtl_ui_sprite_inverse_rot_pipeline = (__bridge_retained void*)invPipe;
+            else
+                printf(
+                    "Metal: UI sprite inverse-rot pipeline creation failed: %s\n",
+                    invErr ? invErr.localizedDescription.UTF8String : "unknown");
+        }
 
         id<MTLFunction> clearFragFn = [shaderLibrary newFunctionWithName:@"torirsClearRectFrag"];
         if( uiPipe && clearFragFn )

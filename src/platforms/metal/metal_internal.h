@@ -127,6 +127,7 @@ struct MetalRenderCtx
     id<MTLBuffer> unifBuf = nil;
     id<MTLRenderPipelineState> pipeState = nil;
     id<MTLRenderPipelineState> uiPipeState = nil;
+    id<MTLRenderPipelineState> uiInverseRotPipeState = nil;
     id<MTLRenderPipelineState> fontPipeState = nil;
     id<MTLRenderPipelineState> clearRectPipeState = nil;
     id<MTLRenderPipelineState> clearRectDepthPipeState = nil;

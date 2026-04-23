@@ -11,6 +11,29 @@ struct SpriteQuadVertex
     float cx, cy, u, v;
 };
 
+/** Fragment constants for inverse-map rotated blit; must match `SpriteInverseRotParams` in Shaders.metal. */
+struct SpriteInverseRotParams
+{
+    float dst_origin_x;
+    float dst_origin_y;
+    float dst_anchor_x;
+    float dst_anchor_y;
+    float src_anchor_x;
+    float src_anchor_y;
+    float src_crop_x;
+    float src_crop_y;
+    float src_size_x;
+    float src_size_y;
+    float cos_val;
+    float sin_val;
+    float tex_size_x;
+    float tex_size_y;
+    float _pad0;
+    float _pad1;
+};
+
+static_assert(sizeof(SpriteInverseRotParams) == 64, "SpriteInverseRotParams must match MSL");
+
 /** Logical scissor in drawable pixels (same fields as Metal's MTLScissorRect). */
 struct SpriteLogicalScissor
 {
@@ -27,6 +50,8 @@ struct SpriteDrawGroup
     uint32_t vertex_count = 0;
     bool has_scissor = false;
     SpriteLogicalScissor scissor{};
+    bool inverse_rot_blit = false;
+    SpriteInverseRotParams inverse_rot_params{};
 };
 
 /**
@@ -49,7 +74,8 @@ public:
         const SpriteQuadVertex six_verts[6],
         const SpriteLogicalScissor* opt_scissor,
         Buffered2DOrder* order = nullptr,
-        bool* split_sprite_before_next_enqueue = nullptr)
+        bool* split_sprite_before_next_enqueue = nullptr,
+        const SpriteInverseRotParams* inverse_rot_params = nullptr)
     {
         const bool force_split =
             split_sprite_before_next_enqueue && *split_sprite_before_next_enqueue;
@@ -57,7 +83,8 @@ public:
             *split_sprite_before_next_enqueue = false;
 
         const bool has_sc = (opt_scissor != nullptr);
-        bool need_new = groups_.empty() || force_split;
+        const bool inverse_rot = (inverse_rot_params != nullptr);
+        bool need_new = groups_.empty() || force_split || inverse_rot;
         if( !need_new )
         {
             const SpriteDrawGroup& g = groups_.back();
@@ -80,6 +107,11 @@ public:
             ng.has_scissor = has_sc;
             if( has_sc )
                 ng.scissor = *opt_scissor;
+            if( inverse_rot )
+            {
+                ng.inverse_rot_blit = true;
+                ng.inverse_rot_params = *inverse_rot_params;
+            }
             groups_.push_back(ng);
             if( order )
                 order->push_sprite((uint32_t)(groups_.size() - 1u));

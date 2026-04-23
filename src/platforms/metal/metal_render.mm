@@ -165,6 +165,11 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
             renderer->mtl_ui_sprite_pipeline
                 ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_ui_sprite_pipeline
                 : nil;
+        ctx.uiInverseRotPipeState =
+            renderer->mtl_ui_sprite_inverse_rot_pipeline
+                ? (__bridge id<MTLRenderPipelineState>)
+                      renderer->mtl_ui_sprite_inverse_rot_pipeline
+                : nil;
         ctx.fontPipeState = renderer->mtl_font_pipeline
                                 ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_font_pipeline
                                 : nil;

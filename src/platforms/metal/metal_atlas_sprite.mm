@@ -1,6 +1,10 @@
 // System ObjC/Metal headers must come before any game headers.
 #include "platforms/metal/metal_internal.h"
 
+extern "C" {
+#include "graphics/dash_math.h"
+}
+
 void
 metal_frame_event_sprite_load(
     MetalRenderCtx* ctx,
@@ -93,9 +97,6 @@ metal_sprite_draw_impl(
     MetalRenderCtx* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
-    if( !ctx->uiPipeState )
-        return;
-
     struct DashSprite* sp = cmd->_sprite_draw.sprite;
     if( !sp || sp->width <= 0 || sp->height <= 0 )
         return;
@@ -129,9 +130,25 @@ metal_sprite_draw_impl(
     const float tw = (float)sp->width;
     const float th = (float)sp->height;
 
+    const bool rotated = cmd->_sprite_draw.rotated;
+    if( rotated )
+    {
+        if( !ctx->uiInverseRotPipeState )
+            return;
+    }
+    else
+    {
+        if( !ctx->uiPipeState )
+            return;
+    }
+
     float px[4];
     float py[4];
-    if( cmd->_sprite_draw.rotated )
+    float log_u[4];
+    float log_v[4];
+    SpriteInverseRotParams inv_params{};
+
+    if( rotated )
     {
         const int dw = cmd->_sprite_draw.dst_bb_w;
         const int dh = cmd->_sprite_draw.dst_bb_h;
@@ -148,79 +165,40 @@ metal_sprite_draw_impl(
                 ih);
             return;
         }
-        /* Rotate in pixel space: quad matches src_bb (iw×ih) so UV aspect matches geometry;
-           map dst_anchor into that local box so layout anchor stays on-screen. */
-        const float pivot_x =
-            (float)cmd->_sprite_draw.dst_bb_x + (float)cmd->_sprite_draw.dst_anchor_x;
-        const float pivot_y =
-            (float)cmd->_sprite_draw.dst_bb_y + (float)cmd->_sprite_draw.dst_anchor_y;
-        const int dax = cmd->_sprite_draw.dst_anchor_x;
-        const int day = cmd->_sprite_draw.dst_anchor_y;
-        const float dax_s = (float)dax * (float)iw / (float)dw;
-        const float day_s = (float)day * (float)ih / (float)dh;
-        const int ang = cmd->_sprite_draw.rotation_r2pi2048 & 2047;
-        const float angle = (float)ang * (float)(2.0 * M_PI / 2048.0);
-        const float ca = cosf(angle);
-        const float sa = sinf(angle);
-        struct
-        {
-            int lx, ly;
-        } corners[4] = {
-            { 0,   0   },
-            { iw,  0   },
-            { iw,  ih  },
-            { 0,   ih  },
-        };
-        for( int k = 0; k < 4; ++k )
-        {
-            float Lx = (float)corners[k].lx - dax_s;
-            float Ly = (float)corners[k].ly - day_s;
-            px[k] = pivot_x + ca * Lx - sa * Ly;
-            py[k] = pivot_y + sa * Lx + ca * Ly;
-        }
+        const int dst_bb_x = cmd->_sprite_draw.dst_bb_x;
+        const int dst_bb_y = cmd->_sprite_draw.dst_bb_y;
+        px[0] = px[3] = (float)dst_bb_x;
+        px[1] = px[2] = (float)(dst_bb_x + dw);
+        py[0] = py[1] = (float)dst_bb_y;
+        py[2] = py[3] = (float)(dst_bb_y + dh);
+        log_u[0] = log_u[3] = (float)dst_bb_x;
+        log_u[1] = log_u[2] = (float)(dst_bb_x + dw);
+        log_v[0] = log_v[1] = (float)dst_bb_y;
+        log_v[2] = log_v[3] = (float)(dst_bb_y + dh);
 
-        static bool s_logged_rot_sprite;
-        if( !s_logged_rot_sprite )
-        {
-            s_logged_rot_sprite = true;
-            NSUInteger tw_tex = 0, th_tex = 0;
-            if( spriteTex )
-            {
-                tw_tex = spriteTex.width;
-                th_tex = spriteTex.height;
-            }
-            fprintf(
-                stderr,
-                "[metal] rotated SPRITE_DRAW (once): el=%d dst_bb=%d,%d %dx%d dst_anchor=%d,%d "
-                "src_bb=%d,%d %dx%d ang=%d px_py=(%.1f,%.1f)(%.1f,%.1f)(%.1f,%.1f)(%.1f,%.1f) "
-                "uv=(%.4f,%.4f)-(%.4f,%.4f) tex=%zux%zu\n",
-                cmd->_sprite_draw.element_id,
-                cmd->_sprite_draw.dst_bb_x,
-                cmd->_sprite_draw.dst_bb_y,
-                dw,
-                dh,
-                cmd->_sprite_draw.dst_anchor_x,
-                cmd->_sprite_draw.dst_anchor_y,
-                ix,
-                iy,
-                iw,
-                ih,
-                ang,
-                px[0],
-                py[0],
-                px[1],
-                py[1],
-                px[2],
-                py[2],
-                px[3],
-                py[3],
-                (float)ix / tw,
-                (float)iy / th,
-                (float)(ix + iw) / tw,
-                (float)(iy + ih) / th,
-                (size_t)tw_tex,
-                (size_t)th_tex);
-        }
+        inv_params.dst_origin_x = (float)dst_bb_x;
+        inv_params.dst_origin_y = (float)dst_bb_y;
+        inv_params.dst_anchor_x = (float)cmd->_sprite_draw.dst_anchor_x;
+        inv_params.dst_anchor_y = (float)cmd->_sprite_draw.dst_anchor_y;
+        inv_params.src_anchor_x = (float)cmd->_sprite_draw.src_anchor_x;
+        inv_params.src_anchor_y = (float)cmd->_sprite_draw.src_anchor_y;
+        inv_params.src_size_x = (float)iw;
+        inv_params.src_size_y = (float)ih;
+
+        const NSUInteger tex_w = spriteTex.width;
+        const NSUInteger tex_h = spriteTex.height;
+        const float atlas_x = spriteEntry->u0 * (float)tex_w;
+        const float atlas_y = spriteEntry->v0 * (float)tex_h;
+        inv_params.src_crop_x = (float)ix + atlas_x;
+        inv_params.src_crop_y = (float)iy + atlas_y;
+        inv_params.tex_size_x = (float)tex_w;
+        inv_params.tex_size_y = (float)tex_h;
+
+        const int ang = cmd->_sprite_draw.rotation_r2pi2048 & 2047;
+        inv_params.cos_val = (float)dash_cos(ang) / 65536.0f;
+        inv_params.sin_val = (float)dash_sin(ang) / 65536.0f;
+        inv_params._pad0 = 0.0f;
+        inv_params._pad1 = 0.0f;
     }
     else
     {
@@ -255,15 +233,65 @@ metal_sprite_draw_impl(
     to_clip(px[2], py[2], &c2x, &c2y);
     to_clip(px[3], py[3], &c3x, &c3y);
 
-    const float u0 = (float)ix / tw;
-    const float v0 = (float)iy / th;
-    const float u1 = (float)(ix + iw) / tw;
-    const float v1 = (float)(iy + ih) / th;
-
-    float verts[6 * 4] = {
-        c0x, c0y, u0, v0, c1x, c1y, u1, v0, c2x, c2y, u1, v1,
-        c0x, c0y, u0, v0, c2x, c2y, u1, v1, c3x, c3y, u0, v1,
-    };
+    float verts[6 * 4];
+    if( rotated )
+    {
+        verts[0] = c0x;
+        verts[1] = c0y;
+        verts[2] = log_u[0];
+        verts[3] = log_v[0];
+        verts[4] = c1x;
+        verts[5] = c1y;
+        verts[6] = log_u[1];
+        verts[7] = log_v[1];
+        verts[8] = c2x;
+        verts[9] = c2y;
+        verts[10] = log_u[2];
+        verts[11] = log_v[2];
+        verts[12] = c0x;
+        verts[13] = c0y;
+        verts[14] = log_u[0];
+        verts[15] = log_v[0];
+        verts[16] = c2x;
+        verts[17] = c2y;
+        verts[18] = log_u[2];
+        verts[19] = log_v[2];
+        verts[20] = c3x;
+        verts[21] = c3y;
+        verts[22] = log_u[3];
+        verts[23] = log_v[3];
+    }
+    else
+    {
+        const float u0 = (float)ix / tw;
+        const float v0 = (float)iy / th;
+        const float u1 = (float)(ix + iw) / tw;
+        const float v1 = (float)(iy + ih) / th;
+        verts[0] = c0x;
+        verts[1] = c0y;
+        verts[2] = u0;
+        verts[3] = v0;
+        verts[4] = c1x;
+        verts[5] = c1y;
+        verts[6] = u1;
+        verts[7] = v0;
+        verts[8] = c2x;
+        verts[9] = c2y;
+        verts[10] = u1;
+        verts[11] = v1;
+        verts[12] = c0x;
+        verts[13] = c0y;
+        verts[14] = u0;
+        verts[15] = v0;
+        verts[16] = c2x;
+        verts[17] = c2y;
+        verts[18] = u1;
+        verts[19] = v1;
+        verts[20] = c3x;
+        verts[21] = c3y;
+        verts[22] = u0;
+        verts[23] = v1;
+    }
 
     SpriteQuadVertex six[6];
     for( int i = 0; i < 6; ++i )
@@ -275,12 +303,23 @@ metal_sprite_draw_impl(
     }
 
     if( ctx->bsp2d )
-        ctx->bsp2d->enqueue(
-            (__bridge void*)spriteTex,
-            six,
-            nullptr,
-            ctx->b2d_order,
-            &ctx->split_sprite_before_next_enqueue);
+    {
+        if( rotated )
+            ctx->bsp2d->enqueue(
+                (__bridge void*)spriteTex,
+                six,
+                nullptr,
+                ctx->b2d_order,
+                &ctx->split_sprite_before_next_enqueue,
+                &inv_params);
+        else
+            ctx->bsp2d->enqueue(
+                (__bridge void*)spriteTex,
+                six,
+                nullptr,
+                ctx->b2d_order,
+                &ctx->split_sprite_before_next_enqueue);
+    }
     ctx->split_font_before_next_set_font = true;
 }
 

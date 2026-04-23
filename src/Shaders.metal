@@ -153,6 +153,65 @@ fragment float4 uiSpriteFrag(
     return c;
 }
 
+/** Must match `SpriteInverseRotParams` in `buffered_sprite_2d.h` (16 floats, 64 bytes). */
+struct SpriteInverseRotParams {
+    float dst_origin_x;
+    float dst_origin_y;
+    float dst_anchor_x;
+    float dst_anchor_y;
+    float src_anchor_x;
+    float src_anchor_y;
+    float src_crop_x;
+    float src_crop_y;
+    float src_size_x;
+    float src_size_y;
+    float cos_val;
+    float sin_val;
+    float tex_size_x;
+    float tex_size_y;
+    float _pad0;
+    float _pad1;
+};
+
+/** Inverse-map blit: `in.uv` holds logical destination pixel (x,y); matches `dash2d_blit_rotated_ex`. */
+fragment float4 uiSpriteInverseRotFrag(
+    UIVertOut in [[stage_in]],
+    constant SpriteInverseRotParams& params [[buffer(1)]],
+    texture2d<float, access::sample> src_tex [[texture(0)]])
+{
+    float dst_x_abs = floor(in.uv.x);
+    float dst_y_abs = floor(in.uv.y);
+
+    float rel_x = dst_x_abs - params.dst_origin_x - params.dst_anchor_x;
+    float rel_y = dst_y_abs - params.dst_origin_y - params.dst_anchor_y;
+
+    float src_rel_x = (rel_x * params.cos_val) + (rel_y * params.sin_val);
+    float src_rel_y = (-rel_x * params.sin_val) + (rel_y * params.cos_val);
+
+    float src_x = floor(params.src_anchor_x + src_rel_x);
+    float src_y = floor(params.src_anchor_y + src_rel_y);
+
+    if( src_x < 0.0 || src_x >= params.src_size_x || src_y < 0.0 || src_y >= params.src_size_y )
+        discard_fragment();
+
+    float bx = params.src_crop_x + src_x;
+    float by = params.src_crop_y + src_y;
+
+    float2 uv = float2(bx / params.tex_size_x, by / params.tex_size_y);
+
+    constexpr sampler point_sampler(
+        coord::normalized,
+        address::clamp_to_zero,
+        filter::nearest);
+    float4 src_pixel = src_tex.sample(point_sampler, uv);
+
+    if( src_pixel.a == 0.0 ||
+        (src_pixel.r == 0.0 && src_pixel.g == 0.0 && src_pixel.b == 0.0) )
+        discard_fragment();
+
+    return src_pixel;
+}
+
 fragment float4 torirsClearRectFrag(UIVertOut in [[stage_in]])
 {
     return float4(0.0, 0.0, 0.0, 0.0);

@@ -85,6 +85,37 @@ metal_flush_2d_fonts(MetalRenderCtx* ctx)
     ctx->bft2d->begin_pass();
 }
 
+/** After `metal_ensure_pipe(kMTLPipeUI)`, bind UI sprite or inverse-rot pipeline + fragment params. */
+static bool
+metal_bind_sprite_group_pipeline(MetalRenderCtx* ctx, const SpriteDrawGroup& g)
+{
+    if( g.inverse_rot_blit )
+    {
+        if( !ctx->uiInverseRotPipeState )
+        {
+            static bool s_warned_missing_inv_rot_pipe;
+            if( !s_warned_missing_inv_rot_pipe )
+            {
+                fprintf(
+                    stderr,
+                    "[metal] inverse-rot sprite draw skipped: "
+                    "mtl_ui_sprite_inverse_rot_pipeline unavailable\n");
+                s_warned_missing_inv_rot_pipe = true;
+            }
+            return false;
+        }
+        [ctx->encoder setRenderPipelineState:ctx->uiInverseRotPipeState];
+        [ctx->encoder setFragmentBytes:&g.inverse_rot_params
+                                 length:sizeof(SpriteInverseRotParams)
+                                atIndex:1];
+        return true;
+    }
+    if( !ctx->uiPipeState )
+        return false;
+    [ctx->encoder setRenderPipelineState:ctx->uiPipeState];
+    return true;
+}
+
 void
 metal_flush_2d_sprites_only(MetalRenderCtx* ctx)
 {
@@ -95,15 +126,15 @@ metal_flush_2d_sprites_only(MetalRenderCtx* ctx)
         return;
 
     /* Do not discard batched sprites when we cannot encode (missing UI pipe/buffer). */
-    if( !ctx->spriteQuadBuf || !ctx->uiPipeState )
+    if( !ctx->spriteQuadBuf )
+        return;
+    if( !ctx->uiPipeState && !ctx->uiInverseRotPipeState )
         return;
 
     const int s = metal_2d_inflight_slot(ctx);
     size_t base = ctx->renderer->mtl_sprite_staging_offset[s];
     const NSUInteger buf_len = ctx->spriteQuadBuf.length;
     const size_t available = (size_t)buf_len > base ? (size_t)buf_len - base : 0U;
-
-    metal_ensure_pipe(ctx, kMTLPipeUI);
 
     const std::vector<SpriteDrawGroup>& groups = ctx->bsp2d->groups();
     const std::vector<SpriteQuadVertex>& verts = ctx->bsp2d->verts();
@@ -121,6 +152,10 @@ metal_flush_2d_sprites_only(MetalRenderCtx* ctx)
         {
             id<MTLTexture> tex = (__bridge id<MTLTexture>)g.atlas_tex;
             if( !tex || g.vertex_count == 0 )
+                continue;
+
+            metal_ensure_pipe(ctx, kMTLPipeUI);
+            if( !metal_bind_sprite_group_pipeline(ctx, g) )
                 continue;
 
             [ctx->encoder setFragmentTexture:tex atIndex:0];
@@ -178,6 +213,10 @@ metal_flush_2d_sprites_only(MetalRenderCtx* ctx)
             if( !tex || g.vertex_count == 0 )
                 continue;
 
+            metal_ensure_pipe(ctx, kMTLPipeUI);
+            if( !metal_bind_sprite_group_pipeline(ctx, g) )
+                continue;
+
             [ctx->encoder setFragmentTexture:tex atIndex:0];
             [ctx->encoder setFragmentSamplerState:ctx->uiSamplerNearest atIndex:0];
 
@@ -231,9 +270,11 @@ metal_draw_one_sprite_group(
     const SpriteDrawGroup& g,
     NSUInteger vbo_byte_offset)
 {
-    if( !ctx || !ctx->encoder || !ctx->uiPipeState || !ctx->spriteQuadBuf )
+    if( !ctx || !ctx->encoder || !ctx->spriteQuadBuf )
         return;
     metal_ensure_pipe(ctx, kMTLPipeUI);
+    if( !metal_bind_sprite_group_pipeline(ctx, g) )
+        return;
     id<MTLTexture> tex = (__bridge id<MTLTexture>)g.atlas_tex;
     if( !tex || g.vertex_count == 0 )
         return;
@@ -623,13 +664,16 @@ metal_ensure_pipe(MetalRenderCtx* ctx, int desired)
     }
     else if( desired == kMTLPipeUI )
     {
-        if( !ctx->uiPipeState )
+        if( !ctx->uiPipeState && !ctx->uiInverseRotPipeState )
         {
             ctx->current_pipe = desired;
             return;
         }
         [ctx->encoder setViewport:ctx->spriteVp];
-        [ctx->encoder setRenderPipelineState:ctx->uiPipeState];
+        if( ctx->uiPipeState )
+            [ctx->encoder setRenderPipelineState:ctx->uiPipeState];
+        else
+            [ctx->encoder setRenderPipelineState:ctx->uiInverseRotPipeState];
         [ctx->encoder setDepthStencilState:ctx->dsState];
         [ctx->encoder setCullMode:MTLCullModeNone];
     }
