@@ -254,10 +254,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     metal_flush_3d(&ctx, &bfo3d_accum);
                     bfo3d_accum.begin_pass();
                     {
-                        NSUInteger dw =
-                            (NSUInteger)(renderer->width > 0 ? renderer->width : 1);
-                        NSUInteger dh =
-                            (NSUInteger)(renderer->height > 0 ? renderer->height : 1);
+                        NSUInteger dw = (NSUInteger)(renderer->width > 0 ? renderer->width : 1);
+                        NSUInteger dh = (NSUInteger)(renderer->height > 0 ? renderer->height : 1);
                         MTLScissorRect scMax = { 0, 0, dw, dh };
                         [encoder setViewport:ctx.spriteVp];
                         [encoder setScissorRect:scMax];
@@ -274,10 +272,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     ctx.split_sprite_before_next_enqueue = false;
                     ctx.split_font_before_next_set_font = false;
                     {
-                        NSUInteger dw =
-                            (NSUInteger)(renderer->width > 0 ? renderer->width : 1);
-                        NSUInteger dh =
-                            (NSUInteger)(renderer->height > 0 ? renderer->height : 1);
+                        NSUInteger dw = (NSUInteger)(renderer->width > 0 ? renderer->width : 1);
+                        NSUInteger dh = (NSUInteger)(renderer->height > 0 ? renderer->height : 1);
                         MTLScissorRect scMax = { 0, 0, dw, dh };
                         [encoder setViewport:ctx.spriteVp];
                         [encoder setScissorRect:scMax];

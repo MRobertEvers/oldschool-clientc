@@ -76,7 +76,8 @@ LibToriRS_GameSetWorldViewportSize(
     int width,
     int height);
 
-/** `view_port` size plus `viewport_offset_*` from the same values (3D clear / projection / cull). */
+/** `view_port` size plus `viewport_offset_*` from the same values (3D clear / projection / cull).
+ */
 void
 LibToriRS_GameSetWorldViewportRect(
     struct GGame* game,

@@ -21,6 +21,8 @@ struct UIFrameState
 
 /** Emit TORIRS_GFX BEGIN/END markers only when transitioning between pass kinds. */
 void
-frame_emit_pass(struct UIFrameState* fiber, enum FramePassKind target);
+frame_emit_pass(
+    struct UIFrameState* fiber,
+    enum FramePassKind target);
 
 #endif

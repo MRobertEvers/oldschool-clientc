@@ -917,11 +917,7 @@ LibToriRS_FrameBegin(
                 break;
             }
             LibToriRS_GameSetWorldViewportRect(
-                game,
-                c->position.x,
-                c->position.y,
-                c->position.width,
-                c->position.height);
+                game, c->position.x, c->position.y, c->position.width, c->position.height);
             break;
         }
     }
@@ -1691,7 +1687,6 @@ LibToriRS_FrameNextCommand(
             .mouse_y = game->mouse_y,
             .pass = &game->frame_pass,
         };
-
         switch( component->type )
         {
         case UIELEM_BUILTIN_SPRITE:

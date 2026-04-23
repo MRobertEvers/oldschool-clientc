@@ -106,7 +106,8 @@ struct ToriRSRenderCommand
         struct
         {
             struct DashModel* model;
-            /** Packed: model_id<<24 | anim_id<<8 | frame_index (see torirs_model_cache_key_decode). */
+            /** Packed: model_id<<24 | anim_id<<8 | frame_index (see torirs_model_cache_key_decode).
+             */
             uint64_t model_key;
             /** Scene2-assigned id from MODEL_LOADED; canonical key for renderer model caches. */
             int model_id;

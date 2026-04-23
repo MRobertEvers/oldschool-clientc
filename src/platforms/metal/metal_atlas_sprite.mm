@@ -148,13 +148,16 @@ metal_sprite_draw_impl(
                 ih);
             return;
         }
-        /* Match D3D11 / SDL2 D3D11 path: rotate a dst-sized quad around dst_anchor. */
+        /* Rotate in pixel space: quad matches src_bb (iw×ih) so UV aspect matches geometry;
+           map dst_anchor into that local box so layout anchor stays on-screen. */
         const float pivot_x =
             (float)cmd->_sprite_draw.dst_bb_x + (float)cmd->_sprite_draw.dst_anchor_x;
         const float pivot_y =
             (float)cmd->_sprite_draw.dst_bb_y + (float)cmd->_sprite_draw.dst_anchor_y;
         const int dax = cmd->_sprite_draw.dst_anchor_x;
         const int day = cmd->_sprite_draw.dst_anchor_y;
+        const float dax_s = (float)dax * (float)iw / (float)dw;
+        const float day_s = (float)day * (float)ih / (float)dh;
         const int ang = cmd->_sprite_draw.rotation_r2pi2048 & 2047;
         const float angle = (float)ang * (float)(2.0 * M_PI / 2048.0);
         const float ca = cosf(angle);
@@ -163,15 +166,15 @@ metal_sprite_draw_impl(
         {
             int lx, ly;
         } corners[4] = {
-            { 0,  0  },
-            { dw, 0  },
-            { dw, dh },
-            { 0,  dh },
+            { 0,   0   },
+            { iw,  0   },
+            { iw,  ih  },
+            { 0,   ih  },
         };
         for( int k = 0; k < 4; ++k )
         {
-            float Lx = (float)(corners[k].lx - dax);
-            float Ly = (float)(corners[k].ly - day);
+            float Lx = (float)corners[k].lx - dax_s;
+            float Ly = (float)corners[k].ly - day_s;
             px[k] = pivot_x + ca * Lx - sa * Ly;
             py[k] = pivot_y + sa * Lx + ca * Ly;
         }
@@ -288,4 +291,3 @@ metal_frame_event_sprite_draw(
 {
     metal_sprite_draw_impl(ctx, cmd);
 }
-

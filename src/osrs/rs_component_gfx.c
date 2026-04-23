@@ -11,7 +11,9 @@
 #include <string.h>
 
 static uint64_t
-rs_model_cache_key_u64(struct Scene2* scene2, struct Scene2Element const* element)
+rs_model_cache_key_u64(
+    struct Scene2* scene2,
+    struct Scene2Element const* element)
 {
     if( !element || !scene2 )
         return 0;
@@ -90,18 +92,14 @@ rs_gfx_graphic_step(
     if( !sp )
         return true;
     frame_emit_pass(fiber, FRAME_PASS_2D);
-    queue_sprite_draw(
-        queued_commands,
-        sid,
-        ai,
-        sp,
-        component->position.x,
-        component->position.y);
+    queue_sprite_draw(queued_commands, sid, ai, sp, component->position.x, component->position.y);
     return true;
 }
 
 bool
-rs_gfx_text_step(struct UIFrameState* fiber, struct StaticUIComponent* component)
+rs_gfx_text_step(
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* component)
 {
     struct GGame* game = fiber->game;
     struct ToriRSRenderCommandBuffer* queued_commands = fiber->cmds;
@@ -169,8 +167,8 @@ rs_gfx_model_step(
 
     if( project_models )
     {
-        int cull = dash3d_project_model(
-            game->sys_dash, mod, &position, game->view_port, game->camera);
+        int cull =
+            dash3d_project_model(game->sys_dash, mod, &position, game->view_port, game->camera);
         if( cull != DASHCULL_VISIBLE )
             return true;
     }
@@ -189,7 +187,9 @@ rs_gfx_model_step(
 }
 
 bool
-rs_gfx_inv_step(struct UIFrameState* fiber, struct StaticUIComponent* component)
+rs_gfx_inv_step(
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* component)
 {
     struct GGame* game = fiber->game;
     struct ToriRSRenderCommandBuffer* queued_commands = fiber->cmds;
@@ -254,8 +254,7 @@ rs_gfx_inv_step(struct UIFrameState* fiber, struct StaticUIComponent* component)
                     if( bg_sp )
                     {
                         frame_emit_pass(fiber, FRAME_PASS_2D);
-                        queue_sprite_draw(
-                            queued_commands, bg_sid, bg_ai, bg_sp, slot_x, slot_y);
+                        queue_sprite_draw(queued_commands, bg_sid, bg_ai, bg_sp, slot_x, slot_y);
                     }
                 }
             }
