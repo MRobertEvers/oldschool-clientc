@@ -48,26 +48,21 @@ queue_sprite_draw(
     int src_anchor_x = sprite->crop_x;
     int src_anchor_y = sprite->crop_y;
 
-    LibToriRS_RenderCommandBufferAddCommand(
-        buf,
-        (struct ToriRSRenderCommand){
-            .kind = TORIRS_GFX_SPRITE_DRAW,
-            ._sprite_draw = {
-                .element_id = element_id,
-                .atlas_index = atlas_index,
-                .sprite = sprite,
-                .dst_bb_x = x,
-                .dst_bb_y = y,
-                .src_anchor_x = src_anchor_x,
-                .src_anchor_y = src_anchor_y,
-                .rotation_r2pi2048 = 0,
-                .src_bb_x = src_bb_x,
-                .src_bb_y = src_bb_y,
-                .src_bb_w = src_bb_w,
-                .src_bb_h = src_bb_h,
-                .rotated = false,
-            },
-        });
+    struct ToriRSRenderCommand* c = LibToriRS_RenderCommandBufferEmplaceCommand(buf);
+    c->kind = TORIRS_GFX_SPRITE_DRAW;
+    c->_sprite_draw.element_id = element_id;
+    c->_sprite_draw.atlas_index = atlas_index;
+    c->_sprite_draw.sprite = sprite;
+    c->_sprite_draw.dst_bb_x = x;
+    c->_sprite_draw.dst_bb_y = y;
+    c->_sprite_draw.src_anchor_x = src_anchor_x;
+    c->_sprite_draw.src_anchor_y = src_anchor_y;
+    c->_sprite_draw.rotation_r2pi2048 = 0;
+    c->_sprite_draw.src_bb_x = src_bb_x;
+    c->_sprite_draw.src_bb_y = src_bb_y;
+    c->_sprite_draw.src_bb_w = src_bb_w;
+    c->_sprite_draw.src_bb_h = src_bb_h;
+    c->_sprite_draw.rotated = false;
 }
 
 bool
@@ -121,19 +116,14 @@ rs_gfx_text_step(
     }
 
     frame_emit_pass(fiber, FRAME_PASS_2D);
-    LibToriRS_RenderCommandBufferAddCommand(
-        queued_commands,
-        (struct ToriRSRenderCommand){
-            .kind = TORIRS_GFX_FONT_DRAW,
-            ._font_draw = {
-                .font_id = fid,
-                .font = font,
-                .text = (const uint8_t*)text,
-                .x = draw_x,
-                .y = draw_y,
-                .color_rgb = component->u.rs_text.color,
-            },
-        });
+    struct ToriRSRenderCommand* c = LibToriRS_RenderCommandBufferEmplaceCommand(queued_commands);
+    c->kind = TORIRS_GFX_FONT_DRAW;
+    c->_font_draw.font_id = fid;
+    c->_font_draw.font = font;
+    c->_font_draw.text = (const uint8_t*)text;
+    c->_font_draw.x = draw_x;
+    c->_font_draw.y = draw_y;
+    c->_font_draw.color_rgb = component->u.rs_text.color;
     (void)component->u.rs_text.shadowed;
     return true;
 }
@@ -175,13 +165,13 @@ rs_gfx_model_step(
 
     frame_emit_pass(fiber, FRAME_PASS_3D);
     {
-        struct ToriRSRenderCommand cmd = { 0 };
-        cmd.kind = TORIRS_GFX_MODEL_DRAW;
-        cmd._model_draw.model = mod;
-        cmd._model_draw.model_key = rs_model_cache_key_u64(game->world->scene2, se);
-        cmd._model_draw.model_id = scene2_element_dash_model_gpu_id(se);
-        memcpy(&cmd._model_draw.position, &position, sizeof(struct DashPosition));
-        LibToriRS_RenderCommandBufferAddCommand(queued_commands, cmd);
+        struct ToriRSRenderCommand* cmd =
+            LibToriRS_RenderCommandBufferEmplaceCommand(queued_commands);
+        cmd->kind = TORIRS_GFX_MODEL_DRAW;
+        cmd->_model_draw.model = mod;
+        cmd->_model_draw.model_key = rs_model_cache_key_u64(game->world->scene2, se);
+        cmd->_model_draw.model_id = scene2_element_dash_model_gpu_id(se);
+        memcpy(&cmd->_model_draw.position, &position, sizeof(struct DashPosition));
     }
     return true;
 }

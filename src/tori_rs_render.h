@@ -216,9 +216,12 @@ void
 LibToriRS_RenderCommandBufferFree(struct ToriRSRenderCommandBuffer* buffer);
 
 void
-LibToriRS_RenderCommandBufferAddCommand(
+LibToriRS_RenderCommandBufferAddCommandByCopy(
     struct ToriRSRenderCommandBuffer* buffer,
-    struct ToriRSRenderCommand command);
+    const struct ToriRSRenderCommand* command);
+
+struct ToriRSRenderCommand*
+LibToriRS_RenderCommandBufferEmplaceCommand(struct ToriRSRenderCommandBuffer* buffer);
 
 void
 LibToriRS_RenderCommandBufferReset(struct ToriRSRenderCommandBuffer* buffer);
