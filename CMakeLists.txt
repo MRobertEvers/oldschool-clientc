@@ -89,6 +89,9 @@ set(COMMON_SOURCES
     src/datastruct/ringbuf.c
     src/platforms/common/sockstream.c
     src/platforms/common/platform_memory.c
+    src/platforms/common/torirs_sprite_argb_rgba.c
+    src/platforms/common/torirs_font_glyph_quad.c
+    src/platforms/common/torirs_sprite_draw_cpu.cpp
     src/platforms/common/tori_rs_sdl2_gameinput.c
     src/platforms/common/tori_rs_sdl2_gameinput_nuklear.cpp
     src/platforms/common/torirs_nk_sdl_input.cpp

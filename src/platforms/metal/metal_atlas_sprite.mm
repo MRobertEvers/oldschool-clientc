@@ -1,9 +1,8 @@
 // System ObjC/Metal headers must come before any game headers.
 #include "platforms/metal/metal_internal.h"
-
-extern "C" {
-#include "graphics/dash_math.h"
-}
+#include "platforms/common/torirs_gpu_clipspace.h"
+#include "platforms/common/torirs_sprite_argb_rgba.h"
+#include "platforms/common/torirs_sprite_draw_cpu.h"
 
 void
 metal_frame_event_sprite_load(
@@ -35,21 +34,8 @@ metal_frame_event_sprite_load(
     const int sh = sp->height;
     std::vector<uint8_t>& rgba = ctx->renderer->rgba_scratch;
     rgba.resize((size_t)sw * (size_t)sh * 4u);
-    for( int p = 0; p < sw * sh; ++p )
-    {
-        uint32_t pix = (uint32_t)sp->pixels_argb[p];
-        uint8_t a_hi = (uint8_t)((pix >> 24) & 0xFFu);
-        uint32_t rgb = pix & 0x00FFFFFFu;
-        uint8_t a = 0;
-        if( a_hi != 0 )
-            a = a_hi;
-        else if( rgb != 0u )
-            a = 0xFFu;
-        rgba[(size_t)p * 4u + 0u] = (uint8_t)((pix >> 16) & 0xFFu);
-        rgba[(size_t)p * 4u + 1u] = (uint8_t)((pix >> 8) & 0xFFu);
-        rgba[(size_t)p * 4u + 2u] = (uint8_t)(pix & 0xFFu);
-        rgba[(size_t)p * 4u + 3u] = a;
-    }
+    torirs_copy_sprite_argb_pixels_to_rgba8(
+        (const uint32_t*)sp->pixels_argb, rgba.data(), sw * sh);
     MTLTextureDescriptor* td =
         [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
                                                            width:(NSUInteger)sw
@@ -176,29 +162,20 @@ metal_sprite_draw_impl(
         log_v[0] = log_v[1] = (float)dst_bb_y;
         log_v[2] = log_v[3] = (float)(dst_bb_y + dh);
 
-        inv_params.dst_origin_x = (float)dst_bb_x;
-        inv_params.dst_origin_y = (float)dst_bb_y;
-        inv_params.dst_anchor_x = (float)cmd->_sprite_draw.dst_anchor_x;
-        inv_params.dst_anchor_y = (float)cmd->_sprite_draw.dst_anchor_y;
-        inv_params.src_anchor_x = (float)cmd->_sprite_draw.src_anchor_x;
-        inv_params.src_anchor_y = (float)cmd->_sprite_draw.src_anchor_y;
-        inv_params.src_size_x = (float)iw;
-        inv_params.src_size_y = (float)ih;
-
         const NSUInteger tex_w = spriteTex.width;
         const NSUInteger tex_h = spriteTex.height;
-        const float atlas_x = spriteEntry->u0 * (float)tex_w;
-        const float atlas_y = spriteEntry->v0 * (float)tex_h;
-        inv_params.src_crop_x = (float)ix + atlas_x;
-        inv_params.src_crop_y = (float)iy + atlas_y;
-        inv_params.tex_size_x = (float)tex_w;
-        inv_params.tex_size_y = (float)tex_h;
-
-        const int ang = cmd->_sprite_draw.rotation_r2pi2048 & 2047;
-        inv_params.cos_val = (float)dash_cos(ang) / 65536.0f;
-        inv_params.sin_val = (float)dash_sin(ang) / 65536.0f;
-        inv_params._pad0 = 0.0f;
-        inv_params._pad1 = 0.0f;
+        if( !torirs_sprite_inverse_rot_params_from_cmd(
+                cmd,
+                ix,
+                iy,
+                iw,
+                ih,
+                (float)tex_w,
+                (float)tex_h,
+                spriteEntry->u0,
+                spriteEntry->v0,
+                &inv_params) )
+            return;
     }
     else
     {
@@ -218,20 +195,11 @@ metal_sprite_draw_impl(
        (not letterboxed through ui_gl_vp; see git 732d9a97 metal_frame_event_sprite_draw). */
     float fbw = (float)(ctx->win_width > 0 ? ctx->win_width : ctx->renderer->width);
     float fbh = (float)(ctx->win_height > 0 ? ctx->win_height : ctx->renderer->height);
-    if( fbw <= 0.0f )
-        fbw = 1.0f;
-    if( fbh <= 0.0f )
-        fbh = 1.0f;
-    auto to_clip = [&](float xp, float yp, float* ocx, float* ocy) {
-        *ocx = 2.0f * xp / fbw - 1.0f;
-        *ocy = 1.0f - 2.0f * yp / fbh;
-    };
-
     float c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y;
-    to_clip(px[0], py[0], &c0x, &c0y);
-    to_clip(px[1], py[1], &c1x, &c1y);
-    to_clip(px[2], py[2], &c2x, &c2y);
-    to_clip(px[3], py[3], &c3x, &c3y);
+    torirs_logical_pixel_to_ndc(px[0], py[0], fbw, fbh, &c0x, &c0y);
+    torirs_logical_pixel_to_ndc(px[1], py[1], fbw, fbh, &c1x, &c1y);
+    torirs_logical_pixel_to_ndc(px[2], py[2], fbw, fbh, &c2x, &c2y);
+    torirs_logical_pixel_to_ndc(px[3], py[3], fbw, fbh, &c3x, &c3y);
 
     float verts[6 * 4];
     if( rotated )

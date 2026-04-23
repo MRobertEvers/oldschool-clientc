@@ -2,8 +2,11 @@
 
 #include "nuklear/torirs_nuklear.h"
 
+#include "platforms/common/torirs_font_glyph_quad.h"
+#include "platforms/common/torirs_gpu_clipspace.h"
 #include "platforms/common/torirs_nk_ui_bridge.h"
 #include "platforms/common/torirs_nuklear_debug_panel.h"
+#include "platforms/common/torirs_sprite_draw_cpu.h"
 
 #include <SDL.h>
 #include <SDL_syswm.h>
@@ -1742,30 +1745,16 @@ PlatformImpl2_SDL2_Renderer_D3D11_Render(
                 const int dh = sc._sprite_draw.dst_bb_h;
                 if( dw <= 0 || dh <= 0 )
                     continue;
-                const float pivot_x =
-                    (float)sc._sprite_draw.dst_bb_x + (float)sc._sprite_draw.dst_anchor_x;
-                const float pivot_y =
-                    (float)sc._sprite_draw.dst_bb_y + (float)sc._sprite_draw.dst_anchor_y;
-                const int dax = sc._sprite_draw.dst_anchor_x;
-                const int day = sc._sprite_draw.dst_anchor_y;
-                const int ang = sc._sprite_draw.rotation_r2pi2048 & 2047;
-                const float angle = (float)ang * (float)(2.0 * M_PI / 2048.0);
-                const float ca = cosf(angle);
-                const float sa = sinf(angle);
-                struct
-                {
-                    int lx, ly;
-                } corners[4] = { { 0, 0 },
-                                 { dw, 0 },
-                                 { dw, dh },
-                                 { 0, dh } };
-                for( int k = 0; k < 4; ++k )
-                {
-                    float Lx = (float)(corners[k].lx - dax);
-                    float Ly = (float)(corners[k].ly - day);
-                    px[k] = pivot_x + ca * Lx - sa * Ly;
-                    py[k] = pivot_y + sa * Lx + ca * Ly;
-                }
+                torirs_sprite_rotated_dst_corners_logical_px(
+                    sc._sprite_draw.dst_bb_x,
+                    sc._sprite_draw.dst_bb_y,
+                    dw,
+                    dh,
+                    sc._sprite_draw.dst_anchor_x,
+                    sc._sprite_draw.dst_anchor_y,
+                    sc._sprite_draw.rotation_r2pi2048,
+                    px,
+                    py);
             }
             else
             {
@@ -1783,16 +1772,12 @@ PlatformImpl2_SDL2_Renderer_D3D11_Render(
 
             const float fbw = (float)(win_width > 0 ? win_width : renderer->width);
             const float fbh = (float)(win_height > 0 ? win_height : renderer->height);
-            auto to_clip = [&](float xp, float yp, float* ocx, float* ocy) {
-                *ocx = 2.0f * xp / fbw - 1.0f;
-                *ocy = 1.0f - 2.0f * yp / fbh;
-            };
 
             float c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y;
-            to_clip(px[0], py[0], &c0x, &c0y);
-            to_clip(px[1], py[1], &c1x, &c1y);
-            to_clip(px[2], py[2], &c2x, &c2y);
-            to_clip(px[3], py[3], &c3x, &c3y);
+            torirs_logical_pixel_to_ndc(px[0], py[0], fbw, fbh, &c0x, &c0y);
+            torirs_logical_pixel_to_ndc(px[1], py[1], fbw, fbh, &c1x, &c1y);
+            torirs_logical_pixel_to_ndc(px[2], py[2], fbw, fbh, &c2x, &c2y);
+            torirs_logical_pixel_to_ndc(px[3], py[3], fbw, fbh, &c3x, &c3y);
 
             float verts[6 * 4] = {
                 c0x, c0y, u0, v0, c1x, c1y, u1, v0, c2x, c2y, u1, v1,
@@ -1929,17 +1914,23 @@ PlatformImpl2_SDL2_Renderer_D3D11_Render(
                         float u1 = (float)(atlas->glyph_x[c] + gw) * inv_aw;
                         float v1 = (float)(atlas->glyph_y[c] + gh) * inv_ah;
 
-                        float cx0 = 2.0f * sx0 / fbw - 1.0f;
-                        float cy0 = 1.0f - 2.0f * sy0 / fbh;
-                        float cx1 = 2.0f * sx1 / fbw - 1.0f;
-                        float cy1 = 1.0f - 2.0f * sy1 / fbh;
-
-                        float v[6 * 8] = {
-                            cx0, cy0, u0, v0,      cr,  cg,  cb, color_a, cx1, cy0, u1, v0,
-                            cr,  cg,  cb, color_a, cx1, cy1, u1, v1,      cr,  cg,  cb, color_a,
-                            cx0, cy0, u0, v0,      cr,  cg,  cb, color_a, cx1, cy1, u1, v1,
-                            cr,  cg,  cb, color_a, cx0, cy1, u0, v1,      cr,  cg,  cb, color_a,
-                        };
+                        float v[6 * 8];
+                        torirs_font_glyph_quad_clipspace(
+                            sx0,
+                            sy0,
+                            sx1,
+                            sy1,
+                            u0,
+                            v0,
+                            u1,
+                            v1,
+                            cr,
+                            cg,
+                            cb,
+                            color_a,
+                            fbw,
+                            fbh,
+                            v);
                         font_verts.insert(font_verts.end(), v, v + 48);
                     }
                 }

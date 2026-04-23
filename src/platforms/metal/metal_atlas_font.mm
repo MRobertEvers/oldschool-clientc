@@ -1,5 +1,7 @@
 // System ObjC/Metal headers must come before any game headers.
 #include "platforms/metal/metal_internal.h"
+#include "platforms/common/torirs_font_glyph_quad.h"
+#include "platforms/common/torirs_sprite_argb_rgba.h"
 
 // ---------------------------------------------------------------------------
 // TORIRS_GFX_FONT_LOAD
@@ -119,19 +121,11 @@ metal_frame_event_font_draw(
                 float u1 = (float)(atlas->glyph_x[c] + gw) * inv_aw;
                 float v1 = (float)(atlas->glyph_y[c] + gh) * inv_ah;
 
-                /* Match pre-batching Metal (git 732d9a97): window logical -> NDC via fbw_font. */
                 const float fw = ctx->fbw_font > 0.0f ? ctx->fbw_font : 1.0f;
                 const float fh = ctx->fbh_font > 0.0f ? ctx->fbh_font : 1.0f;
-                float cx0 = 2.0f * sx0 / fw - 1.0f;
-                float cy0 = 1.0f - 2.0f * sy0 / fh;
-                float cx1 = 2.0f * sx1 / fw - 1.0f;
-                float cy1 = 1.0f - 2.0f * sy1 / fh;
-
-                float vq[6 * 8] = {
-                    cx0, cy0, u0, v0, cr, cg, cb, ca, cx1, cy0, u1, v0, cr, cg, cb, ca,
-                    cx1, cy1, u1, v1, cr, cg, cb, ca, cx0, cy0, u0, v0, cr, cg, cb, ca,
-                    cx1, cy1, u1, v1, cr, cg, cb, ca, cx0, cy1, u0, v1, cr, cg, cb, ca,
-                };
+                float vq[6 * 8];
+                torirs_font_glyph_quad_clipspace(
+                    sx0, sy0, sx1, sy1, u0, v0, u1, v1, cr, cg, cb, ca, fw, fh, vq);
                 if( ctx->bft2d )
                     ctx->bft2d->append_glyph_quad(vq);
             }
@@ -179,17 +173,7 @@ metal_frame_event_batch_sprite_load_end(
         id<MTLTexture> atlasTex = [ctx->device newTextureWithDescriptor:td];
         std::vector<uint8_t>& rgba = ctx->renderer->rgba_scratch;
         rgba.resize((size_t)atlas.w * (size_t)atlas.h * 4u);
-        const uint32_t* src = atlas.pixels;
-        for( int p = 0; p < atlas.w * atlas.h; ++p )
-        {
-            uint32_t pix = src[p];
-            rgba[(size_t)p * 4u + 0u] = (uint8_t)((pix >> 16) & 0xFFu);
-            rgba[(size_t)p * 4u + 1u] = (uint8_t)((pix >> 8) & 0xFFu);
-            rgba[(size_t)p * 4u + 2u] = (uint8_t)(pix & 0xFFu);
-            uint8_t a_hi = (uint8_t)((pix >> 24) & 0xFFu);
-            uint32_t rgb = pix & 0x00FFFFFFu;
-            rgba[(size_t)p * 4u + 3u] = (a_hi != 0) ? a_hi : (rgb != 0u ? 0xFFu : 0u);
-        }
+        torirs_copy_sprite_argb_pixels_to_rgba8(atlas.pixels, rgba.data(), atlas.w * atlas.h);
         [atlasTex replaceRegion:MTLRegionMake2D(0, 0, atlas.w, atlas.h)
                     mipmapLevel:0
                       withBytes:rgba.data()

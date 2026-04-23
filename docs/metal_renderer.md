@@ -231,19 +231,23 @@ flowchart LR
 
 ## 7. Sprites and fonts (2D)
 
+**Indexing:** 2D sprite and font flushes encode **non-indexed** triangle lists (six vertices per quad). [`metal_flush_2d`](../src/platforms/metal/metal_render_context.mm) calls `drawPrimitives` with `vertexCount` equal to the number of **vertices** in the group, not the number of primitives. There is no separate IBO/EBO for UI sprites or fonts; backends that want indexed quads would need an explicit layout change.
+
+**Shared CPU helpers** (also used by the D3D11 SDL renderer for the same conventions): [`torirs_gpu_clipspace.h`](../src/platforms/common/torirs_gpu_clipspace.h) (logical pixel → clip NDC), [`torirs_sprite_argb_rgba.c`](../src/platforms/common/torirs_sprite_argb_rgba.c) (ARGB packed → RGBA8 for uploads), [`torirs_font_glyph_quad.c`](../src/platforms/common/torirs_font_glyph_quad.c) (font glyph quad in clip space), [`torirs_sprite_draw_cpu.h`](../src/platforms/common/torirs_sprite_draw_cpu.h) (inverse-rot fragment constants; Dash `g_cos`/`g_sin`–based rotated dst corners for CPU-rotation paths).
+
 ### 7.1 Sprites
 
 **Load** ([`metal_frame_event_sprite_load`](../src/platforms/metal/metal_atlas_sprite.mm)): If a sprite with the same cache key already exists, release old standalone texture. If an open **sprite** batch is active matching `current_sprite_batch_id`, pixels go to `sprite_cache.add_to_batch`. Otherwise a dedicated `MTLTexture` is created (`MTLPixelFormatRGBA8Unorm`, `MTLStorageModeShared`, `replaceRegion`).
 
 **Unload** — `CFRelease` standalone texture handle, `unload_sprite`.
 
-**Draw** — [`metal_sprite_draw_impl`](../src/platforms/metal/metal_atlas_sprite.mm) requires `uiPipeState`. **src bounding box** must lie inside the sprite; otherwise stderr and return. **Rotated** path: same geometry as D3D11 — `dst_bb_w`×`dst_bb_h` quad rotated around `dst_bb`+`dst_anchor` with UVs from `src_bb`; no per-sprite scissor on rotated draws. Six clip-space+UV vertices are appended to [`BufferedSprite2D`](../src/platforms/common/buffered_sprite_2d.h); at `END_2D` / `CLEAR_RECT`, [`metal_flush_2d`](../src/platforms/metal/metal_render_context.mm) uploads to `spriteQuadBuf` and draws each sprite group when replaying [`Buffered2DOrder`](../src/platforms/common/buffered_2d_order.h) (chunked if over VBO size).
+**Draw** — [`metal_sprite_draw_impl`](../src/platforms/metal/metal_atlas_sprite.mm) requires `uiPipeState`. **src bounding box** must lie inside the sprite; otherwise stderr and return. **Rotated** path: axis-aligned clip-space quad with logical-pixel varyings; fragment shader applies inverse rotation using constants from [`torirs_sprite_inverse_rot_params_from_cmd`](../src/platforms/common/torirs_sprite_draw_cpu.cpp) (D3D11 instead rotates corners on the CPU using [`torirs_sprite_rotated_dst_corners_logical_px`](../src/platforms/common/torirs_sprite_draw_cpu.cpp) so both use the same Dash cosine/sine tables). No per-sprite scissor on rotated draws. Six clip-space+UV vertices are appended to [`BufferedSprite2D`](../src/platforms/common/buffered_sprite_2d.h); at `END_2D` / `CLEAR_RECT`, [`metal_flush_2d`](../src/platforms/metal/metal_render_context.mm) uploads to `spriteQuadBuf` and draws each sprite group when replaying [`Buffered2DOrder`](../src/platforms/common/buffered_2d_order.h) (chunked if over VBO size).
 
 ### 7.2 Fonts
 
 **Load** — Standalone: create `MTLTexture` from `atlas->rgba_pixels` if not cached. **Batch:** [`font_cache.add_to_batch`](../src/platforms/metal/metal_atlas_font.mm) while `current_font_batch_id` matches an open font batch.
 
-**End sprite/font batches** — [`metal_frame_event_batch_sprite_load_end`](file:///Users/mathewevers/Documents/git_repos/3draster/src/platforms/metal/metal_atlas_font.mm) / [`metal_frame_event_batch_font_load_end`](file:///Users/mathewevers/Documents/git_repos/3draster/src/platforms/metal/metal_atlas_font.mm): `finalize_batch`, then upload a packed atlas. Sprite end converts pixels through `rgba` scratch; font end uses **`atlas->pixels` directly** in `replaceRegion` (different from standalone font load which copies from `rgba_pixels`).
+**End sprite/font batches** — [`metal_frame_event_batch_sprite_load_end`](../src/platforms/metal/metal_atlas_font.mm) / [`metal_frame_event_batch_font_load_end`](../src/platforms/metal/metal_atlas_font.mm): `finalize_batch`, then upload a packed atlas. Sprite end converts packed ARGB batch pixels to RGBA8 via [`torirs_copy_sprite_argb_pixels_to_rgba8`](../src/platforms/common/torirs_sprite_argb_rgba.c) into scratch, then `replaceRegion`; font end uses **`atlas->pixels` directly** in `replaceRegion` (different from standalone font load which copies from `rgba_pixels`).
 
 **Draw** — [`metal_frame_event_font_draw`](../src/platforms/metal/metal_atlas_font.mm): expands color tags, builds 6-vertex (two-triangle) quads into [`BufferedFont2D`](../src/platforms/common/buffered_font_2d.h) (8 floats per vertex). `BufferedFont2D::set_font` starts a new draw group when the font/atlas changes; pipeline state is set per group during [`metal_flush_2d`](../src/platforms/metal/metal_render_context.mm).
 
@@ -316,13 +320,17 @@ flowchart TB
 | Model draw, buffer resolve | [src/platforms/metal/metal_draw_model.mm](../src/platforms/metal/metal_draw_model.mm) |
 | Bake, dispatch load, `build_model_instance` | [src/platforms/metal/metal_model_geometry.mm](../src/platforms/metal/metal_model_geometry.mm) |
 | Batch load end/clear, bathed model | [src/platforms/metal/metal_batch3d.mm](../src/platforms/metal/metal_batch3d.mm) |
-| VA/FA batch events, VA patch | [src/platforms/metal/metal_va_fa_events.mm](file:///Users/mathewevers/Documents/git_repos/3draster/src/platforms/metal/metal_va_fa_events.mm) |
+| VA/FA batch events, VA patch | [src/platforms/metal/metal_va_fa_events.mm](../src/platforms/metal/metal_va_fa_events.mm) |
 | Model/animation load/unload | [src/platforms/metal/metal_model_events.mm](../src/platforms/metal/metal_model_events.mm) |
 | World atlas, texture load, batch | [src/platforms/metal/metal_atlas_world.mm](../src/platforms/metal/metal_atlas_world.mm) |
 | Sprites | [src/platforms/metal/metal_atlas_sprite.mm](../src/platforms/metal/metal_atlas_sprite.mm) |
 | Fonts, sprite/font batch | [src/platforms/metal/metal_atlas_font.mm](../src/platforms/metal/metal_atlas_font.mm) |
 | GPU cache template | [src/platforms/gpu_3d_cache.h](../src/platforms/gpu_3d_cache.h) |
 | BFO, draw stream | [src/platforms/common/buffered_face_order.h](../src/platforms/common/buffered_face_order.h) |
+| Logical pixel → clip NDC | [src/platforms/common/torirs_gpu_clipspace.h](../src/platforms/common/torirs_gpu_clipspace.h) |
+| Sprite ARGB → RGBA8 upload | [src/platforms/common/torirs_sprite_argb_rgba.c](../src/platforms/common/torirs_sprite_argb_rgba.c) |
+| Font glyph quad (clip space) | [src/platforms/common/torirs_font_glyph_quad.c](../src/platforms/common/torirs_font_glyph_quad.c) |
+| Sprite inverse-rot params / CPU rotated corners | [src/platforms/common/torirs_sprite_draw_cpu.cpp](../src/platforms/common/torirs_sprite_draw_cpu.cpp) |
 | Vertex / uniform layouts, helpers | [src/platforms/metal/metal_internal.h](../src/platforms/metal/metal_internal.h) |
 | Shaders | [src/Shaders.metal](../src/Shaders.metal) |
 

@@ -1,5 +1,6 @@
 // System ObjC/Metal headers must come before any game headers.
 #include "platforms/metal/metal_internal.h"
+#include "platforms/common/torirs_gpu_clipspace.h"
 
 static int
 metal_2d_inflight_slot(MetalRenderCtx* ctx)
@@ -401,14 +402,10 @@ metal_frame_event_clear_rect(MetalRenderCtx* ctx, const struct ToriRSRenderComma
     const float x1 = (float)(rx + rw);
     const float y1 = (float)(ry + rh);
     float c0x, c0y, c1x, c1y, c2x, c2y, c3x, c3y;
-    c0x = 2.0f * x0 / fbw - 1.0f;
-    c0y = 1.0f - 2.0f * y0 / fbh;
-    c1x = 2.0f * x1 / fbw - 1.0f;
-    c1y = 1.0f - 2.0f * y0 / fbh;
-    c2x = 2.0f * x1 / fbw - 1.0f;
-    c2y = 1.0f - 2.0f * y1 / fbh;
-    c3x = 2.0f * x0 / fbw - 1.0f;
-    c3y = 1.0f - 2.0f * y1 / fbh;
+    torirs_logical_pixel_to_ndc(x0, y0, fbw, fbh, &c0x, &c0y);
+    torirs_logical_pixel_to_ndc(x1, y0, fbw, fbh, &c1x, &c1y);
+    torirs_logical_pixel_to_ndc(x1, y1, fbw, fbh, &c2x, &c2y);
+    torirs_logical_pixel_to_ndc(x0, y1, fbw, fbh, &c3x, &c3y);
 
     const float quad[6 * 4] = {
         c0x, c0y, 0.0f, 0.0f, c1x, c1y, 0.0f, 0.0f, c2x, c2y, 0.0f, 0.0f,

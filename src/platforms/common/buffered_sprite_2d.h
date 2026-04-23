@@ -1,9 +1,9 @@
 #pragma once
 
+#include "platforms/common/buffered_2d_order.h"
+
 #include <cstdint>
 #include <vector>
-
-class Buffered2DOrder;
 
 /** One sprite vertex: clip-space xy + UV (matches UI sprite pipeline). */
 struct SpriteQuadVertex
