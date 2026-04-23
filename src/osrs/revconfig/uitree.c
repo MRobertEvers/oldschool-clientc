@@ -361,6 +361,8 @@ uitree_push_world(
     int32_t parent_index,
     int x,
     int y,
+    int width,
+    int height,
     uint8_t level_mask)
 {
     int32_t idx = push_element(tree, parent_index);
@@ -372,6 +374,8 @@ uitree_push_world(
     component->position.kind = UIPOS_XY;
     component->position.x = x;
     component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
     component->u.world.level_mask = level_mask;
     return idx;
 }

@@ -1,6 +1,8 @@
 // System ObjC/Metal headers must come before any game headers.
 #include "platforms/metal/metal_internal.h"
 
+#include <SDL_metal.h>
+
 // Column-major 4x4 multiply: out = a * b
 static void
 mat4_mul_colmajor(
@@ -289,16 +291,23 @@ metal_clamped_scissor_from_logical_dst_bb(
 void
 sync_drawable_size(struct Platform2_SDL2_Renderer_Metal* renderer)
 {
-    if( !renderer || !renderer->metal_view )
+    if( !renderer || !renderer->metal_view || !renderer->platform || !renderer->platform->window )
         return;
+
+    int w = 0;
+    int h = 0;
+    SDL_Metal_GetDrawableSize(renderer->platform->window, &w, &h);
+    if( w <= 0 || h <= 0 )
+        return;
+
+    renderer->width = w;
+    renderer->height = h;
 
     CAMetalLayer* layer = (__bridge CAMetalLayer*)SDL_Metal_GetLayer(renderer->metal_view);
     if( !layer )
         return;
 
-    CGSize sz = layer.drawableSize;
-    if( sz.width > 0 )
-        renderer->width = (int)sz.width;
-    if( sz.height > 0 )
-        renderer->height = (int)sz.height;
+    CGSize desired = CGSizeMake((CGFloat)w, (CGFloat)h);
+    if( !CGSizeEqualToSize(layer.drawableSize, desired) )
+        layer.drawableSize = desired;
 }

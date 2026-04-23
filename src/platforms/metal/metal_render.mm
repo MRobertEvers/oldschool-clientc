@@ -35,9 +35,6 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
 
         sync_drawable_size(renderer);
 
-        // Resize the depth texture if the drawable size changed
-        layer.drawableSize = CGSizeMake(renderer->width, renderer->height);
-
         id<CAMetalDrawable> drawable = [layer nextDrawable];
         if( !drawable )
         {
@@ -56,7 +53,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         {
             if( renderer->mtl_depth_texture )
             {
-                CFRelease(renderer->mtl_depth_texture);
+                (void)(__bridge_transfer id<MTLTexture>)renderer->mtl_depth_texture;
                 renderer->mtl_depth_texture = nullptr;
             }
             MTLTextureDescriptor* depthTexDesc = [MTLTextureDescriptor
@@ -75,9 +72,11 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
 
         MTLRenderPassDescriptor* rpDesc = [MTLRenderPassDescriptor renderPassDescriptor];
         rpDesc.colorAttachments[0].texture = drawable.texture;
+        /* One clear at pass start. `Load` reuses 2+ frame old drawable contents. 2D is drawn
+           after; the world sub-rect is re-cleared on TORIRS_GFX_BEGIN_3D (synthetic CLEAR_RECT). */
         rpDesc.colorAttachments[0].loadAction = MTLLoadActionClear;
-        rpDesc.colorAttachments[0].storeAction = MTLStoreActionStore;
         rpDesc.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 0.0, 0.0, 1.0);
+        rpDesc.colorAttachments[0].storeAction = MTLStoreActionStore;
         rpDesc.depthAttachment.texture = depthTex;
         rpDesc.depthAttachment.loadAction = MTLLoadActionClear;
         rpDesc.depthAttachment.storeAction = MTLStoreActionDontCare;
@@ -146,6 +145,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
 
         const int slot = renderer->mtl_encode_slot % kMetalInflightFrames;
         renderer->mtl_run_uniform_ring_write_offset[slot] = 0;
+        renderer->mtl_sprite_staging_offset[slot] = 0;
+        renderer->mtl_font_staging_offset[slot] = 0;
         renderer->mtl_draw_stream_ring.begin_slot(slot);
         renderer->mtl_instance_xform_ring.begin_slot(slot);
 
@@ -167,10 +168,10 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         ctx.fontPipeState = renderer->mtl_font_pipeline
                                 ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_font_pipeline
                                 : nil;
-        ctx.clearRectPipeState = renderer->mtl_clear_rect_pipeline
-                                     ? (__bridge id<MTLRenderPipelineState>)
-                                           renderer->mtl_clear_rect_pipeline
-                                     : nil;
+        ctx.clearRectPipeState =
+            renderer->mtl_clear_rect_pipeline
+                ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_clear_rect_pipeline
+                : nil;
         ctx.clearRectDepthPipeState =
             renderer->mtl_clear_rect_depth_pipeline
                 ? (__bridge id<MTLRenderPipelineState>)renderer->mtl_clear_rect_depth_pipeline
@@ -222,11 +223,45 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                 switch( cmd.kind )
                 {
                 case TORIRS_GFX_BEGIN_3D:
+                {
+                    [encoder setViewport:ctx.metalVp];
+                    {
+                        MTLScissorRect wsc = metal_clamped_scissor_from_logical_dst_bb(
+                            renderer->width,
+                            renderer->height,
+                            win_width,
+                            win_height,
+                            logical_vp.x,
+                            logical_vp.y,
+                            logical_vp.width,
+                            logical_vp.height);
+                        [encoder setScissorRect:wsc];
+                    }
+                    /* Match the old full-frame color clear, but only inside the 3D world clip
+                       (logical game viewport). Leaves letterbox / UI outside untouched. */
+                    struct ToriRSRenderCommand world_clear = { 0 };
+                    world_clear.kind = TORIRS_GFX_CLEAR_RECT;
+                    world_clear._clear_rect.x = logical_vp.x;
+                    world_clear._clear_rect.y = logical_vp.y;
+                    world_clear._clear_rect.w = logical_vp.width;
+                    world_clear._clear_rect.h = logical_vp.height;
+                    if( world_clear._clear_rect.w > 0 && world_clear._clear_rect.h > 0 )
+                        metal_frame_event_clear_rect(&ctx, &world_clear);
                     current_pass = kMTLPass3D;
-                    break;
+                }
+                break;
                 case TORIRS_GFX_END_3D:
                     metal_flush_3d(&ctx, &bfo3d_accum);
                     bfo3d_accum.begin_pass();
+                    {
+                        NSUInteger dw =
+                            (NSUInteger)(renderer->width > 0 ? renderer->width : 1);
+                        NSUInteger dh =
+                            (NSUInteger)(renderer->height > 0 ? renderer->height : 1);
+                        MTLScissorRect scMax = { 0, 0, dw, dh };
+                        [encoder setViewport:ctx.spriteVp];
+                        [encoder setScissorRect:scMax];
+                    }
                     current_pass = kMTLPassNone;
                     break;
                 case TORIRS_GFX_BEGIN_2D:
@@ -238,6 +273,15 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                         ctx.b2d_order->begin_pass();
                     ctx.split_sprite_before_next_enqueue = false;
                     ctx.split_font_before_next_set_font = false;
+                    {
+                        NSUInteger dw =
+                            (NSUInteger)(renderer->width > 0 ? renderer->width : 1);
+                        NSUInteger dh =
+                            (NSUInteger)(renderer->height > 0 ? renderer->height : 1);
+                        MTLScissorRect scMax = { 0, 0, dw, dh };
+                        [encoder setViewport:ctx.spriteVp];
+                        [encoder setScissorRect:scMax];
+                    }
                     current_pass = kMTLPass2D;
                     break;
                 case TORIRS_GFX_END_2D:

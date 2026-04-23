@@ -533,6 +533,8 @@ load_component(
     break;
     case UIELEM_BUILTIN_WORLD:
         component_entry->level_mask = parse_paint_levels_mask(load->paint_levels);
+        component_entry->width = load->width;
+        component_entry->height = load->height;
         break;
     case UIELEM_BUILTIN_SPRITE:
     {
@@ -1033,7 +1035,13 @@ load_layout(
         case UIELEM_BUILTIN_WORLD: // "world"
         {
             int32_t idx = uitree_push_world(
-                ui, -1, layout_entry->x, layout_entry->y, component_entry->level_mask);
+                ui,
+                -1,
+                layout_entry->x,
+                layout_entry->y,
+                component_entry->width,
+                component_entry->height,
+                component_entry->level_mask);
             if( layout_entry->always_dirty && idx >= 0 )
                 ui->components[idx].always_dirty = 1;
         }

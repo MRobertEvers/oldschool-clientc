@@ -163,6 +163,13 @@ struct MetalRenderCtx
     int encode_slot = 0;
     /** Next slot in `clearQuadBuf` for `metal_frame_event_clear_rect` (bytes = slot * kSpriteSlotBytes). */
     int clear_rect_slot = 0;
+    /** Deferred world clear: set on BEGIN_3D, fires on first MODEL_DRAW, cancelled on END_3D.
+        Deferring ensures 2D sprites encoded before BEGIN_3D are not erased by the clear. */
+    bool world_clear_pending = false;
+    int world_clear_x = 0;
+    int world_clear_y = 0;
+    int world_clear_w = 0;
+    int world_clear_h = 0;
 };
 
 void

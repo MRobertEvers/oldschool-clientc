@@ -301,11 +301,14 @@ LibToriRS_GameNew(
     return game;
 }
 
-void
-LibToriRS_GameSetWorldViewportSize(
+static void
+game_apply_world_viewport_geometry(
     struct GGame* game,
+    int offset_x,
+    int offset_y,
     int width,
-    int height)
+    int height,
+    bool set_offsets)
 {
     if( !game || !game->view_port )
         return;
@@ -313,17 +316,21 @@ LibToriRS_GameSetWorldViewportSize(
         width = 1;
     if( height < 1 )
         height = 1;
-
+    if( set_offsets )
+    {
+        game->viewport_offset_x = offset_x;
+        game->viewport_offset_y = offset_y;
+    }
     game->view_port->width = width;
     game->view_port->height = height;
     game->view_port->stride = width;
     game->view_port->x_center = width / 2;
     game->view_port->y_center = height / 2;
-
+    if( !game->world || !game->camera )
+        return;
     game->world->cullmap_near_clip_z = game->camera->near_plane_z;
     game->world->cullmap_screen_width = width;
     game->world->cullmap_screen_height = height;
-
     struct ScriptArgs args;
     args = (struct ScriptArgs)
         {
@@ -336,6 +343,26 @@ LibToriRS_GameSetWorldViewportSize(
             },
         };
     script_queue_push(&game->script_queue, &args);
+}
+
+void
+LibToriRS_GameSetWorldViewportSize(
+    struct GGame* game,
+    int width,
+    int height)
+{
+    game_apply_world_viewport_geometry(game, 0, 0, width, height, false);
+}
+
+void
+LibToriRS_GameSetWorldViewportRect(
+    struct GGame* game,
+    int offset_x,
+    int offset_y,
+    int width,
+    int height)
+{
+    game_apply_world_viewport_geometry(game, offset_x, offset_y, width, height, true);
 }
 
 void

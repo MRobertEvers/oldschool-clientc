@@ -56,6 +56,23 @@ metal_frame_event_model_draw(
     MetalRenderCtx* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
+    /* Fire the deferred world-rect clear before the first model of each 3D pass.
+       metal_flush_2d is a no-op if 2D was already flushed; calling it here ensures
+       any lingering buffered 2D is encoded BEFORE the clear overwrites the world area. */
+    if( ctx->world_clear_pending )
+    {
+        metal_flush_2d(ctx);
+        struct ToriRSRenderCommand wc = { 0 };
+        wc.kind = TORIRS_GFX_CLEAR_RECT;
+        wc._clear_rect.x = ctx->world_clear_x;
+        wc._clear_rect.y = ctx->world_clear_y;
+        wc._clear_rect.w = ctx->world_clear_w;
+        wc._clear_rect.h = ctx->world_clear_h;
+        // if( wc._clear_rect.w > 0 && wc._clear_rect.h > 0 )
+        //     metal_frame_event_clear_rect(ctx, &wc);
+        ctx->world_clear_pending = false;
+    }
+
     struct DashModel* model = cmd->_model_draw.model;
     if( !model || !dashmodel_face_colors_a_const(model) || !dashmodel_face_colors_b_const(model) ||
         !dashmodel_face_colors_c_const(model) || !dashmodel_vertices_x_const(model) ||

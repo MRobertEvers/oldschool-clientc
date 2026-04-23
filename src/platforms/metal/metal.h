@@ -96,6 +96,10 @@ struct Platform2_SDL2_Renderer_Metal
     size_t mtl_run_uniform_ring_size[kMetalInflightFrames];
     size_t mtl_run_uniform_ring_write_offset[kMetalInflightFrames];
 
+    /** Per-inflight frame: monotonic byte offset into 2D staging MTLBuffer for multi-pass flushes. */
+    size_t mtl_sprite_staging_offset[kMetalInflightFrames];
+    size_t mtl_font_staging_offset[kMetalInflightFrames];
+
     void* mtl_sprite_quad_buf;
     /** CPU-shared verts for `TORIRS_GFX_CLEAR_RECT` only (fixed small slot count per frame). */
     void* mtl_clear_quad_buf;

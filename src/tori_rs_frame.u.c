@@ -45,7 +45,9 @@ emit_marker(
 }
 
 void
-frame_emit_pass(struct UIFrameState* fiber, enum FramePassKind target)
+frame_emit_pass(
+    struct UIFrameState* fiber,
+    enum FramePassKind target)
 {
     if( !fiber || !fiber->cmds || !fiber->pass || *fiber->pass == target )
         return;
@@ -893,6 +895,37 @@ LibToriRS_FrameBegin(
         uitree_grid_dirty_prepass(
             game->ui_root_buffer, game->mouse_x, game->mouse_y, game->uitree_force_dirty);
 
+    /* 3D clear / projection / cull use `view_port` + offsets; keep them in sync with the
+       `[component:world]` layout rect from static UI (see plan: world INI is source of truth). */
+    if( game->ui_root_buffer && game->view_port )
+    {
+        struct UITree* tree = game->ui_root_buffer;
+        for( uint32_t i = 0; i < tree->component_count; i++ )
+        {
+            struct StaticUIComponent* c = &tree->components[i];
+            if( c->type != UIELEM_BUILTIN_WORLD )
+                continue;
+            if( c->position.kind != UIPOS_XY )
+                continue;
+            if( c->position.width <= 0 || c->position.height <= 0 )
+                break;
+            if( game->viewport_offset_x == c->position.x &&
+                game->viewport_offset_y == c->position.y &&
+                game->view_port->width == c->position.width &&
+                game->view_port->height == c->position.height )
+            {
+                break;
+            }
+            LibToriRS_GameSetWorldViewportRect(
+                game,
+                c->position.x,
+                c->position.y,
+                c->position.width,
+                c->position.height);
+            break;
+        }
+    }
+
     game->frame_pass = FRAME_PASS_NONE;
 
     world_pickset_reset(&game->pickset);
@@ -1328,8 +1361,8 @@ uielem_world_step(
 
     if( !game->sys_painter_buffer )
     {
-        if( game->uiscene_queued_commands )
-            frame_emit_pass(fiber, FRAME_PASS_NONE);
+        // if( game->uiscene_queued_commands )
+        //     frame_emit_pass(fiber, FRAME_PASS_NONE);
         return true;
     }
 

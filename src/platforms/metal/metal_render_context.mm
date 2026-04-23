@@ -1,10 +1,18 @@
 // System ObjC/Metal headers must come before any game headers.
 #include "platforms/metal/metal_internal.h"
 
+static int
+metal_2d_inflight_slot(MetalRenderCtx* ctx)
+{
+    if( !ctx || !ctx->renderer )
+        return 0;
+    return ctx->encode_slot % kMetalInflightFrames;
+}
+
 void
 metal_flush_2d_fonts(MetalRenderCtx* ctx)
 {
-    if( !ctx || !ctx->encoder || !ctx->bft2d || !ctx->fontVbo || !ctx->fontPipeState )
+    if( !ctx || !ctx->encoder || !ctx->bft2d || !ctx->fontVbo || !ctx->fontPipeState || !ctx->renderer )
         return;
     ctx->bft2d->close_open_segment();
     const std::vector<FontDrawGroup>& groups = ctx->bft2d->groups();
@@ -14,11 +22,15 @@ metal_flush_2d_fonts(MetalRenderCtx* ctx)
         return;
     }
 
+    const int s = metal_2d_inflight_slot(ctx);
+    size_t base = ctx->renderer->mtl_font_staging_offset[s];
+    const NSUInteger capBytes = ctx->fontVbo.length;
+    const size_t available = (size_t)capBytes > base ? (size_t)capBytes - base : 0U;
+
     metal_ensure_pipe(ctx, kMTLPipeFont);
 
     const std::vector<float>& fv = ctx->bft2d->verts();
     const float* all = fv.data();
-    const NSUInteger capBytes = ctx->fontVbo.length;
     const size_t total_bytes = fv.size() * sizeof(float);
 
     auto draw_one_group = [&](const FontDrawGroup& g, NSUInteger vbo_byte_offset) {
@@ -34,16 +46,18 @@ metal_flush_2d_fonts(MetalRenderCtx* ctx)
         [ctx->encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:vcount];
     };
 
-    if( total_bytes > 0 && total_bytes <= (size_t)capBytes )
+    if( total_bytes > 0 && total_bytes <= available )
     {
-        memcpy(ctx->fontVbo.contents, all, total_bytes);
+        memcpy((uint8_t*)ctx->fontVbo.contents + base, all, total_bytes);
         for( const FontDrawGroup& g : groups )
-            draw_one_group(g, (NSUInteger)g.first_float * sizeof(float));
+            draw_one_group(
+                g, (NSUInteger)(base + (size_t)g.first_float * sizeof(float)));
+        ctx->renderer->mtl_font_staging_offset[s] = base + total_bytes;
     }
-    else if( total_bytes > (size_t)capBytes )
+    else if( total_bytes > available && total_bytes > 0U )
     {
         static bool s_warned_font_2d_ovf;
-        if( !s_warned_font_2d_ovf )
+        if( !s_warned_font_2d_ovf && total_bytes > (size_t)capBytes )
         {
             fprintf(
                 stderr,
@@ -59,12 +73,13 @@ metal_flush_2d_fonts(MetalRenderCtx* ctx)
             const size_t nbytes = (size_t)g.float_count * sizeof(float);
             if( nbytes == 0 )
                 continue;
-            if( cursor + nbytes > (size_t)capBytes )
+            if( cursor + nbytes > available )
                 break;
-            memcpy((uint8_t*)ctx->fontVbo.contents + cursor, all + g.first_float, nbytes);
-            draw_one_group(g, (NSUInteger)cursor);
+            memcpy((uint8_t*)ctx->fontVbo.contents + base + cursor, all + g.first_float, nbytes);
+            draw_one_group(g, (NSUInteger)(base + cursor));
             cursor += nbytes;
         }
+        ctx->renderer->mtl_font_staging_offset[s] = base + cursor;
     }
 
     ctx->bft2d->begin_pass();
@@ -73,7 +88,7 @@ metal_flush_2d_fonts(MetalRenderCtx* ctx)
 void
 metal_flush_2d_sprites_only(MetalRenderCtx* ctx)
 {
-    if( !ctx || !ctx->encoder || !ctx->bsp2d )
+    if( !ctx || !ctx->encoder || !ctx->bsp2d || !ctx->renderer )
         return;
 
     if( ctx->bsp2d->groups().empty() )
@@ -83,21 +98,25 @@ metal_flush_2d_sprites_only(MetalRenderCtx* ctx)
     if( !ctx->spriteQuadBuf || !ctx->uiPipeState )
         return;
 
+    const int s = metal_2d_inflight_slot(ctx);
+    size_t base = ctx->renderer->mtl_sprite_staging_offset[s];
+    const NSUInteger buf_len = ctx->spriteQuadBuf.length;
+    const size_t available = (size_t)buf_len > base ? (size_t)buf_len - base : 0U;
+
     metal_ensure_pipe(ctx, kMTLPipeUI);
 
     const std::vector<SpriteDrawGroup>& groups = ctx->bsp2d->groups();
     const std::vector<SpriteQuadVertex>& verts = ctx->bsp2d->verts();
     const SpriteQuadVertex* vbase = verts.data();
-    const NSUInteger buf_len = ctx->spriteQuadBuf.length;
     const size_t vert_bytes = verts.size() * sizeof(SpriteQuadVertex);
 
-    if( buf_len == 0 )
+    if( buf_len == 0U )
     {
         ctx->bsp2d->begin_pass();
     }
-    else if( vert_bytes > 0 && vert_bytes <= (size_t)buf_len )
+    else if( vert_bytes > 0U && vert_bytes <= available )
     {
-        memcpy(ctx->spriteQuadBuf.contents, vbase, vert_bytes);
+        memcpy((uint8_t*)ctx->spriteQuadBuf.contents + base, vbase, vert_bytes);
         for( const SpriteDrawGroup& g : groups )
         {
             id<MTLTexture> tex = (__bridge id<MTLTexture>)g.atlas_tex;
@@ -118,8 +137,8 @@ metal_flush_2d_sprites_only(MetalRenderCtx* ctx)
                 [ctx->encoder setScissorRect:sc];
             }
 
-            const NSUInteger byte_off =
-                (NSUInteger)g.first_vertex * sizeof(SpriteQuadVertex);
+            const NSUInteger byte_off = (NSUInteger)(
+                base + (size_t)g.first_vertex * sizeof(SpriteQuadVertex));
             [ctx->encoder setVertexBuffer:ctx->spriteQuadBuf offset:byte_off atIndex:0];
             [ctx->encoder drawPrimitives:MTLPrimitiveTypeTriangle
                              vertexStart:0
@@ -136,12 +155,13 @@ metal_flush_2d_sprites_only(MetalRenderCtx* ctx)
                 [ctx->encoder setScissorRect:scMax];
             }
         }
+        ctx->renderer->mtl_sprite_staging_offset[s] = base + vert_bytes;
         ctx->bsp2d->begin_pass();
     }
-    else if( vert_bytes > (size_t)buf_len )
+    else if( vert_bytes > available && vert_bytes > 0U )
     {
         static bool s_warned_sprite_2d_ovf;
-        if( !s_warned_sprite_2d_ovf )
+        if( !s_warned_sprite_2d_ovf && vert_bytes > (size_t)buf_len )
         {
             fprintf(
                 stderr,
@@ -173,13 +193,15 @@ metal_flush_2d_sprites_only(MetalRenderCtx* ctx)
             }
 
             const size_t nbytes = (size_t)g.vertex_count * sizeof(SpriteQuadVertex);
-            if( cursor + nbytes > (size_t)buf_len )
+            if( cursor + nbytes > available )
                 break;
             memcpy(
-                (uint8_t*)ctx->spriteQuadBuf.contents + cursor,
+                (uint8_t*)ctx->spriteQuadBuf.contents + base + cursor,
                 vbase + g.first_vertex,
                 nbytes);
-            [ctx->encoder setVertexBuffer:ctx->spriteQuadBuf offset:(NSUInteger)cursor atIndex:0];
+            [ctx->encoder setVertexBuffer:ctx->spriteQuadBuf
+                                   offset:(NSUInteger)(base + cursor)
+                                  atIndex:0];
             [ctx->encoder drawPrimitives:MTLPrimitiveTypeTriangle
                              vertexStart:0
                              vertexCount:(NSUInteger)g.vertex_count];
@@ -196,6 +218,7 @@ metal_flush_2d_sprites_only(MetalRenderCtx* ctx)
                 [ctx->encoder setScissorRect:scMax];
             }
         }
+        ctx->renderer->mtl_sprite_staging_offset[s] = base + cursor;
         ctx->bsp2d->begin_pass();
     }
     else
@@ -410,6 +433,9 @@ metal_flush_2d(MetalRenderCtx* ctx)
         return;
     }
 
+    if( !ctx->renderer )
+        return;
+
     if( !ctx->b2d_order || !has_ops )
     {
         static bool s_warned_missing_2d_order;
@@ -427,22 +453,28 @@ metal_flush_2d(MetalRenderCtx* ctx)
         return;
     }
 
+    const int s = metal_2d_inflight_slot(ctx);
+    const size_t base_s0 = ctx->renderer->mtl_sprite_staging_offset[s];
+    const size_t base_f0 = ctx->renderer->mtl_font_staging_offset[s];
+
     const std::vector<SpriteDrawGroup>& sgroups = ctx->bsp2d->groups();
     const std::vector<SpriteQuadVertex>& sverts = ctx->bsp2d->verts();
     const SpriteQuadVertex* svbase = sverts.data();
     const size_t svert_bytes = sverts.size() * sizeof(SpriteQuadVertex);
-    const NSUInteger sbuf_len = ctx->spriteQuadBuf ? ctx->spriteQuadBuf.length : 0;
+    const NSUInteger sbuf_len = ctx->spriteQuadBuf ? ctx->spriteQuadBuf.length : 0U;
 
     const std::vector<FontDrawGroup>& fgroups = ctx->bft2d->groups();
     const std::vector<float>& fverts = ctx->bft2d->verts();
     const float* fall = fverts.data();
     const size_t ftotal_bytes = fverts.size() * sizeof(float);
-    const NSUInteger fbuf_len = ctx->fontVbo ? ctx->fontVbo.length : 0;
+    const NSUInteger fbuf_len = ctx->fontVbo ? ctx->fontVbo.length : 0U;
 
     const bool sprite_ok = !has_sprites ||
-        ( ctx->spriteQuadBuf && svert_bytes > 0 && svert_bytes <= (size_t)sbuf_len );
-    const bool font_ok = !has_fonts || ftotal_bytes == 0 ||
-        ( ctx->fontVbo && ftotal_bytes <= (size_t)fbuf_len );
+        ( ctx->spriteQuadBuf &&
+          (svert_bytes == 0U ||
+              (svert_bytes > 0U && svert_bytes + base_s0 <= (size_t)sbuf_len)) );
+    const bool font_ok = !has_fonts || ftotal_bytes == 0U ||
+        (ctx->fontVbo && ftotal_bytes + base_f0 <= (size_t)fbuf_len);
 
     if( !sprite_ok || !font_ok )
     {
@@ -453,10 +485,13 @@ metal_flush_2d(MetalRenderCtx* ctx)
         return;
     }
 
-    if( svert_bytes > 0 && ctx->spriteQuadBuf )
-        memcpy(ctx->spriteQuadBuf.contents, svbase, svert_bytes);
-    if( ftotal_bytes > 0 && ctx->fontVbo )
-        memcpy(ctx->fontVbo.contents, fall, ftotal_bytes);
+    if( svert_bytes > 0U && ctx->spriteQuadBuf )
+        memcpy(
+            (uint8_t*)ctx->spriteQuadBuf.contents + base_s0,
+            svbase,
+            svert_bytes);
+    if( ftotal_bytes > 0U && ctx->fontVbo )
+        memcpy((uint8_t*)ctx->fontVbo.contents + base_f0, fall, ftotal_bytes);
 
     for( const Tori2DFlushOp& op : ctx->b2d_order->ops() )
     {
@@ -465,8 +500,8 @@ metal_flush_2d(MetalRenderCtx* ctx)
             if( !ctx->bsp2d || op.group_index >= sgroups.size() )
                 continue;
             const SpriteDrawGroup& g = sgroups[op.group_index];
-            const NSUInteger byte_off =
-                (NSUInteger)g.first_vertex * sizeof(SpriteQuadVertex);
+            const NSUInteger byte_off = (NSUInteger)(
+                base_s0 + (size_t)g.first_vertex * sizeof(SpriteQuadVertex));
             metal_draw_one_sprite_group(ctx, g, byte_off);
         }
         else
@@ -474,10 +509,14 @@ metal_flush_2d(MetalRenderCtx* ctx)
             if( !ctx->bft2d || op.group_index >= fgroups.size() )
                 continue;
             const FontDrawGroup& g = fgroups[op.group_index];
-            const NSUInteger byte_off = (NSUInteger)g.first_float * sizeof(float);
+            const NSUInteger byte_off =
+                (NSUInteger)(base_f0 + (size_t)g.first_float * sizeof(float));
             metal_draw_one_font_group(ctx, g, byte_off);
         }
     }
+
+    ctx->renderer->mtl_sprite_staging_offset[s] = base_s0 + svert_bytes;
+    ctx->renderer->mtl_font_staging_offset[s] = base_f0 + ftotal_bytes;
 
     ctx->current_pipe = kMTLPipeNone;
 

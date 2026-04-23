@@ -62,6 +62,8 @@ PlatformImpl2_SDL2_Renderer_Metal_New(
         renderer->mtl_run_uniform_ring[s] = nullptr;
         renderer->mtl_run_uniform_ring_size[s] = 0;
         renderer->mtl_run_uniform_ring_write_offset[s] = 0;
+        renderer->mtl_sprite_staging_offset[s] = 0;
+        renderer->mtl_font_staging_offset[s] = 0;
     }
     renderer->mtl_sprite_quad_buf = nullptr;
     renderer->mtl_clear_quad_buf = nullptr;

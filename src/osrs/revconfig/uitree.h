@@ -238,6 +238,8 @@ uitree_push_world(
     int32_t parent_index,
     int x,
     int y,
+    int width,
+    int height,
     uint8_t level_mask);
 
 int32_t
