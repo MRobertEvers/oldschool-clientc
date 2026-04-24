@@ -82,6 +82,9 @@ struct GPUModelData
     GPUResourceHandle ebo;
     uint32_t vbo_offset;
     uint32_t ebo_offset;
+    // If drawing without sorting.
+    uint32_t element_count;
+
     bool valid = false;
 };
 
@@ -150,7 +153,6 @@ struct BatchQueue
     std::vector<uint16_t> ebo;
 };
 
-// --- ADDED: Texture Data Struct ---
 struct GPUTextureAtlas
 {
     AtlasUVRect uv_region[MAX_TEXTURES];

@@ -5,19 +5,51 @@
 #include <cstring>
 #include <vector>
 
-struct DrawCommand3D
+// This is the data we send to the GPU for EVERY object
+struct DrawModelInstanceData3D
+{
+    uint16_t rotation_r2pi2048;
+    uint16_t padding[3]; // Align to 8 bytes for GPU performance
+};
+
+struct DrawModel3D
 {
     uint16_t model_id;
-    int rotation_r2pi2048;
 
+    // Rotation/position data
+    uint32_t instance_offset;
+
+    // Sorted faces
     uint32_t dynamic_index_offset;
     uint32_t dynamic_index_count;
+
+    DrawModel3D(
+        uint16_t model_id,
+        uint32_t instance_offset,
+        uint32_t dynamic_index_offset,
+        uint32_t dynamic_index_count)
+        : model_id(model_id)
+        , instance_offset(instance_offset)
+        , dynamic_index_offset(dynamic_index_offset)
+        , dynamic_index_count(dynamic_index_count)
+    {}
+
+    static DrawModel3D
+    Create(
+        uint16_t model_id,
+        uint32_t instance_offset,
+        uint32_t dynamic_index_offset,
+        uint32_t dynamic_index_count)
+    {
+        return DrawModel3D(model_id, instance_offset, dynamic_index_offset, dynamic_index_count);
+    }
 };
 
 class Pass3DBuilder2
 {
 private:
-    std::vector<DrawCommand3D> commands;
+    std::vector<DrawModel3D> draw_commands;
+    std::vector<DrawModelInstanceData3D> instance_pool;
 
     // A contiguous pool holding ALL sorted/dynamic indices for the current frame.
     // The backend will upload this entire vector in one swift API call.
@@ -38,10 +70,10 @@ public:
     // - For sorted, transparent geometry: pass the sorted index array.
     void
     AddModelDrawYawOnly(
-        uint16_t modelId,
+        uint16_t model_id,
         int rotation_r2pi2048,
-        uint16_t* sortedIndices = nullptr,
-        uint32_t indexCount = 0);
+        uint16_t* sorted_indices = nullptr,
+        uint32_t index_count = 0);
 
     void
     End3D();
@@ -50,11 +82,20 @@ public:
     void
     ClearAfterSubmit();
 
-    const std::vector<DrawCommand3D>&
+    const std::vector<DrawModel3D>&
     GetCommands() const;
 
     const std::vector<uint16_t>&
     GetDynamicIndices() const;
+
+    const uint32_t
+    GetDynamicIndicesSize() const;
+
+    const std::vector<DrawModelInstanceData3D>&
+    GetInstancePool() const;
+
+    uint32_t
+    GetInstancePoolSize() const;
 
     bool
     HasCommands() const;
@@ -67,14 +108,16 @@ inline void
 Pass3DBuilder2::Begin3D()
 {
     is_building = true;
-    commands.clear();
+    draw_commands.clear();
+    instance_pool.clear();
     indices_pool.clear();
 }
 
 inline Pass3DBuilder2::Pass3DBuilder2()
     : is_building(false)
 {
-    commands.reserve(4096);
+    draw_commands.reserve(4096);
+    instance_pool.reserve(4096);
     indices_pool.reserve(4096 * 16);
 }
 
@@ -83,7 +126,7 @@ inline Pass3DBuilder2::~Pass3DBuilder2()
 
 inline void
 Pass3DBuilder2::AddModelDrawYawOnly(
-    uint16_t modelId,
+    uint16_t model_id,
     int rotation_r2pi2048,
     uint16_t* sorted_indices,
     uint32_t index_count)
@@ -91,15 +134,27 @@ Pass3DBuilder2::AddModelDrawYawOnly(
     if( !is_building )
         return;
 
-    uint32_t offset = 0;
+    // 1. Handle the Rotation (Instance Data)
+    // We store the rotation in a pool. The command will remember where it is.
+    uint32_t instance_offset = static_cast<uint32_t>(instance_pool.size());
+    instance_pool.push_back({ (uint16_t)rotation_r2pi2048 });
+
+    // 2. Handle the Sorted Faces (Index Data)
+    uint32_t index_pool_offset = 0;
     if( sorted_indices != nullptr && index_count > 0 )
     {
-        offset = static_cast<uint32_t>(indices_pool.size());
-        indices_pool.resize(offset + index_count);
-        std::memcpy(indices_pool.data() + offset, sorted_indices, index_count * sizeof(uint16_t));
+        index_pool_offset = static_cast<uint32_t>(indices_pool.size());
+        indices_pool.resize(index_pool_offset + index_count);
+        std::memcpy(
+            indices_pool.data() + index_pool_offset,
+            sorted_indices,
+            index_count * sizeof(uint16_t));
     }
 
-    commands.push_back(DrawCommand3D{ modelId, rotation_r2pi2048, offset, index_count });
+    // 3. Create the Command
+    // We pass the model_id, the location of our rotation, and the location of our indices.
+    draw_commands.push_back(
+        DrawModel3D::Create(model_id, instance_offset, index_pool_offset, index_count));
 }
 
 inline void
@@ -111,14 +166,15 @@ Pass3DBuilder2::End3D()
 inline void
 Pass3DBuilder2::ClearAfterSubmit()
 {
-    commands.clear();
+    draw_commands.clear();
+    instance_pool.clear();
     indices_pool.clear();
 }
 
-inline const std::vector<DrawCommand3D>&
+inline const std::vector<DrawModel3D>&
 Pass3DBuilder2::GetCommands() const
 {
-    return commands;
+    return draw_commands;
 }
 
 inline const std::vector<uint16_t>&
@@ -130,7 +186,7 @@ Pass3DBuilder2::GetDynamicIndices() const
 inline bool
 Pass3DBuilder2::HasCommands() const
 {
-    return !commands.empty();
+    return !draw_commands.empty();
 }
 
 inline bool

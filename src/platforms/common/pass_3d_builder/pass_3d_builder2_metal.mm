@@ -1,68 +1,66 @@
-// System ObjC/Metal headers must come before any game headers.
-#include "platforms/common/buffered_face_order.h"
-#include "platforms/common/pass_3d_builder/pass_3d_builder2.h"
-#include "platforms/gpu_3d_cache.h"
-#include "platforms/metal/metal_internal.h"
+#include "gpu_3d_cache2.h"
+#include "pass_3d_builder2.h"
+#import <Metal/Metal.h>
 
-namespace
-{
-constexpr int kMaxInstancesPerPass = BufferedFaceOrder::kMaxInstancesPerPass;
+#include <cstring>
 
-void
-open_slice_if_needed(
-    std::vector<PassFlushSlice>& slices,
-    void*& cur_vbo,
-    int& cur_chunk,
-    int batch_chunk_index,
-    void* static_vbo,
-    uint32_t stream_pos)
-{
-    if( static_vbo == cur_vbo && batch_chunk_index == cur_chunk )
-        return;
-    if( !slices.empty() )
-    {
-        PassFlushSlice& back = slices.back();
-        back.entry_count = stream_pos - back.entry_offset;
-    }
-    PassFlushSlice s;
-    s.chunk_index = batch_chunk_index;
-    s.vbo_handle = static_vbo;
-    s.entry_offset = stream_pos;
-    s.entry_count = 0;
-    slices.push_back(s);
-    cur_vbo = static_vbo;
-    cur_chunk = batch_chunk_index;
-}
-
-void
-finalize_slices(
-    std::vector<PassFlushSlice>& slices,
-    uint32_t stream_size,
-    bool& finalized)
-{
-    if( finalized || slices.empty() )
-        return;
-    const uint32_t n = stream_size;
-    for( size_t i = 0; i < slices.size(); ++i )
-    {
-        PassFlushSlice& s = slices[i];
-        const uint32_t next_off = (i + 1 < slices.size()) ? slices[i + 1].entry_offset : n;
-        s.entry_count = next_off - s.entry_offset;
-    }
-    finalized = true;
-}
-} // namespace
-
-/**
- * Expand Pass3DBuilder2 commands + indices_pool into one draw stream + instance buffer,
- * then upload with the same single memcpy + slice draw pattern as metal_flush_3d.
- */
 void
 Pass3DBuilder2SubmitMetal(
     Pass3DBuilder2& builder,
-    MetalRenderCtx* ctx,
-    Gpu3DCache<void*>* cache)
+    const GPU3DCache2& cache,
+    id<MTLRenderCommandEncoder> render_command_encoder,
+    id<MTLBuffer> dynamic_instance_buffer, // Holds rotations
+    id<MTLBuffer> dynamic_index_buffer)    // Holds sorted faces
 {
-    if( !ctx || !ctx->encoder || !ctx->renderer || !builder.HasCommands() || !cache )
-        return;
+    // 1. Upload Pools to GPU
+    std::memcpy(
+        [dynamic_instance_buffer contents],
+        builder.GetInstancePool().data(),
+        builder.GetInstancePoolSize());
+    std::memcpy(
+        [dynamic_index_buffer contents],
+        builder.GetDynamicIndices().data(),
+        builder.GetDynamicIndicesSize());
+
+    for( const auto& cmd : builder.GetCommands() )
+    {
+        const auto& model = cache.GetModel(cmd.model_id);
+
+        // 2. Bind the rotation for THIS specific object
+        // We use the instance_offset we saved in the command
+        NSUInteger rotation_offset = cmd.instance_offset * sizeof(DrawModelInstanceData3D);
+        [render_command_encoder
+            setVertexBytes:((uint8_t*)[dynamic_instance_buffer contents] + rotation_offset)
+                    length:sizeof(DrawModelInstanceData3D)
+                   atIndex:1]; // Buffer index 1 is for rotation
+
+        // 3. Bind the Vertex Data
+        [render_command_encoder //
+            setVertexBuffer:(__bridge id<MTLBuffer>)(void*)model.vbo
+                     offset:model.vbo_offset * 14 // 14 bytes per vertex
+                    atIndex:0];
+
+        // 4. Draw using either Sorted or Static Indices
+        if( cmd.dynamic_index_count > 0 )
+        {
+            // DRAW SORTED (Transparency)
+            NSUInteger indexByteOffset = cmd.dynamic_index_offset * sizeof(uint16_t);
+            [renderEncoder //
+                drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                           indexCount:cmd.dynamic_index_count
+                            indexType:MTLIndexTypeUInt16
+                          indexBuffer:dynamicIndexBuffer
+                    indexBufferOffset:indexByteOffset];
+        }
+        else
+        {
+            // DRAW STATIC (Opaque)
+            [render_command_encoder                            //
+                drawIndexedPrimitives:MTLPrimitiveTypeTriangle //
+                           indexCount:model.index_count
+                            indexType:MTLIndexTypeUInt16
+                          indexBuffer:(__bridge id<MTLBuffer>)(void*)model.ebo
+                    indexBufferOffset:model.ebo_offset * sizeof(uint16_t)];
+        }
+    }
 }
