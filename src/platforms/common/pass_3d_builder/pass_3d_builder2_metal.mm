@@ -33,12 +33,13 @@ Pass3DBuilder2SubmitMetal(
     // id<MTLTexture> atlas = (__bridge id<MTLTexture>)(void*)cache.GetAtlasHandle();
     // [renderE ncoder setFragmentTexture:atlas atIndex:0];
 
-    // State Tracking to prevent redundant binding
+    // State Tracking to prevent redundant binding (buffer + interleaved start offset).
     id<MTLBuffer> last_bound_vbo = nil;
+    NSUInteger last_vbo_byte_offset = NSNotFound;
 
     for( const auto& cmd : builder.GetCommands() )
     {
-        const auto& model = cache.GetModel(cmd.model_id);
+        const GPUModelPosedData model = cache.GetModelPose(cmd.model_id, cmd.pose_id);
         if( !model.valid )
             continue;
 
@@ -49,19 +50,18 @@ Pass3DBuilder2SubmitMetal(
                      offset:rotation_offset
                     atIndex:1];
 
-        // 4. Bind Vertex Data (Only if it changed)
+        // 4. Bind Vertex Data (same MTLBuffer can back multiple poses at different offsets)
         id<MTLBuffer> vbo = (__bridge id<MTLBuffer>)(void*)model.vbo;
-        if( vbo != last_bound_vbo )
+        NSUInteger vbo_byte_offset = model.vbo_offset * (VERTEX_ATTRIBUTE_COUNT * sizeof(uint16_t));
+
+        if( vbo != last_bound_vbo || vbo_byte_offset != last_vbo_byte_offset )
         {
-            // Use the constant from your header!
-            // 7 attrs * 2 bytes = 14
-            NSUInteger vbo_byte_offset =
-                model.vbo_offset * (VERTEX_ATTRIBUTE_COUNT * sizeof(uint16_t));
             [render_command_encoder //
                 setVertexBuffer:vbo
                          offset:vbo_byte_offset
                         atIndex:0];
             last_bound_vbo = vbo;
+            last_vbo_byte_offset = vbo_byte_offset;
         }
 
         // 5. Draw

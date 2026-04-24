@@ -7,10 +7,12 @@
 #include <array>
 #include <cassert>
 #include <cstdint>
+#include <cstring>
 #include <vector>
 
 constexpr size_t MAX_3D_ASSETS = 32768;
 constexpr size_t MAX_TEXTURES = 256;
+constexpr size_t MAX_POSE_COUNT = 16;
 
 // 1. x
 // 2. y
@@ -76,34 +78,40 @@ struct AtlasUVRect
 // - Metal: Use CFBridgingRetain/Release to cast id to GPUResourceHandle safely
 typedef uintptr_t GPUResourceHandle;
 
+struct GPUModelPosedData
+{
+    GPUResourceHandle vbo = 0;
+    GPUResourceHandle ebo = 0;
+    uint32_t vbo_offset = 0;
+    uint32_t ebo_offset = 0;
+    // If drawing without sorting.
+    uint32_t element_count = 0;
+    bool valid = false;
+};
+
 struct GPUModelData
 {
-    GPUResourceHandle vbo;
-    GPUResourceHandle ebo;
-    uint32_t vbo_offset;
-    uint32_t ebo_offset;
-    // If drawing without sorting.
-    uint32_t element_count;
-
-    bool valid = false;
+    GPUModelPosedData poses[MAX_POSE_COUNT];
 };
 
 struct BatchedQueueModel
 {
     bool is_va = false;
-    uint16_t model_id = 0;
-    uint16_t va_id = 0;
-    uint16_t fa_id = 0;
-    uint32_t vertex_count = 0;
-    uint32_t vbo_start = 0;
-    uint32_t face_count = 0;
-    uint32_t ebo_start = 0;
+    uint16_t model_id;
+    uint16_t pose_id;
+    uint16_t va_id;
+    uint16_t fa_id;
+    uint32_t vertex_count;
+    uint32_t vbo_start;
+    uint32_t face_count;
+    uint32_t ebo_start;
 
     BatchedQueueModel() = default;
 
     BatchedQueueModel(
         bool is_va,
         uint16_t model_id,
+        uint16_t pose_id,
         uint16_t va_id,
         uint16_t fa_id,
         uint32_t vertex_count,
@@ -112,7 +120,9 @@ struct BatchedQueueModel
         uint32_t ebo_start)
         : is_va(is_va)
         , model_id(model_id)
+        , pose_id(pose_id)
         , va_id(va_id)
+        , fa_id(fa_id)
         , vertex_count(vertex_count)
         , vbo_start(vbo_start)
         , face_count(face_count)
@@ -122,13 +132,14 @@ struct BatchedQueueModel
     static BatchedQueueModel
     CreateModel(
         uint16_t model_id,
+        uint16_t pose_id,
         uint32_t vertex_count,
         uint32_t vertices_start,
         uint32_t face_count,
         uint32_t ebo_start)
     {
         return BatchedQueueModel(
-            false, model_id, 0, 0, vertex_count, vertices_start, face_count, ebo_start);
+            false, model_id, pose_id, 0, 0, vertex_count, vertices_start, face_count, ebo_start);
     }
 
     static BatchedQueueModel
@@ -142,7 +153,7 @@ struct BatchedQueueModel
         uint32_t ebo_start)
     {
         return BatchedQueueModel(
-            true, model_id, va_id, fa_id, vertex_count, vertices_start, face_count, ebo_start);
+            true, model_id, 0, va_id, fa_id, vertex_count, vertices_start, face_count, ebo_start);
     }
 };
 
@@ -176,8 +187,8 @@ private:
     std::vector<BatchQueue> batch_queues;
 
 public:
-    GPU3DCache2();
-    ~GPU3DCache2();
+    GPU3DCache2() = default;
+    ~GPU3DCache2() = default;
 
     void
     InitAtlas(
@@ -207,6 +218,7 @@ public:
     void
     BatchAddModeli16(
         uint16_t model_id,
+        uint16_t pose_id,
         uint32_t vertex_count,
         uint16_t* vertices_x,
         uint16_t* vertices_y,
@@ -222,6 +234,7 @@ public:
     void
     BatchAddModelTexturedi16(
         uint16_t model_id,
+        uint16_t pose_id,
         uint32_t vertex_count,
         uint16_t* vertices_x,
         uint16_t* vertices_y,
@@ -251,9 +264,6 @@ public:
     uint16_t*
     BatchGetEBO();
 
-    const uint8_t*
-    GetAtlasPixelData() const;
-
     uint32_t
     GetAtlasWidth() const;
 
@@ -263,9 +273,26 @@ public:
     bool
     HasBufferedAtlasData() const;
 
-private:
-    BatchedQueueModel*
-    BatchGetModelElement(uint16_t model_id);
+    const std::vector<BatchedQueueModel>&
+    BatchGetTrackingData() const;
+
+    void
+    SetModelPose(
+        uint16_t model_id,
+        uint16_t pose_id,
+        const GPUModelPosedData& data);
+
+    GPUModelPosedData
+    GetModelPose(
+        uint16_t model_id,
+        uint16_t pose_id) const;
+
+    /** Same geometry as pose 0; prefer GetModelPose when using multiple poses. */
+    GPUModelPosedData
+    GetModel(uint16_t model_id) const
+    {
+        return GetModelPose(model_id, 0);
+    }
 };
 
 inline int
@@ -284,6 +311,7 @@ GPU3DCache2::BatchEnd()
 inline void
 GPU3DCache2::BatchAddModeli16(
     uint16_t model_id,
+    uint16_t pose_id,
     uint32_t vertex_count,
     uint16_t* vertices_x,
     uint16_t* vertices_y,
@@ -296,6 +324,7 @@ GPU3DCache2::BatchAddModeli16(
     uint16_t* faces_b_color_hsl16,
     uint16_t* faces_c_color_hsl16)
 {
+    assert(pose_id < MAX_POSE_COUNT);
     BatchQueue& batch_queue = batch_queues.back();
 
     uint16_t color_low, color_high;
@@ -331,12 +360,13 @@ GPU3DCache2::BatchAddModeli16(
 
     batch_queue.batch.push_back(
         BatchedQueueModel::CreateModel(
-            model_id, vertex_count, vbo_element_start, faces_count, ebo_start));
+            model_id, pose_id, vertex_count, vbo_element_start, faces_count, ebo_start));
 }
 
 inline void
 GPU3DCache2::BatchAddModelTexturedi16(
     uint16_t model_id,
+    uint16_t pose_id,
     uint32_t vertex_count,
     uint16_t* vertices_x,
     uint16_t* vertices_y,
@@ -354,6 +384,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
     uint16_t* textured_faces_b,
     uint16_t* textured_faces_c)
 {
+    assert(pose_id < MAX_POSE_COUNT);
     BatchQueue& batch_queue = batch_queues.back();
 
     uint16_t color_low, color_high;
@@ -468,7 +499,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
 
     batch_queue.batch.push_back(
         BatchedQueueModel::CreateModel(
-            model_id, new_vertex_count, vbo_element_start, faces_count, ebo_start));
+            model_id, pose_id, new_vertex_count, vbo_element_start, faces_count, ebo_start));
 }
 
 inline uint16_t*
@@ -589,12 +620,6 @@ GPU3DCache2::LoadTexture128(
     }
 }
 
-inline const uint8_t*
-GPU3DCache2::GetAtlasPixelData() const
-{
-    return atlas.pixel_buffer.data();
-}
-
 inline uint32_t
 GPU3DCache2::GetAtlasWidth() const
 {
@@ -611,6 +636,34 @@ inline bool
 GPU3DCache2::HasBufferedAtlasData() const
 {
     return !atlas.pixel_buffer.empty();
+}
+
+inline const std::vector<BatchedQueueModel>&
+GPU3DCache2::BatchGetTrackingData() const
+{
+    assert(!batch_queues.empty());
+    return batch_queues.back().batch;
+}
+
+inline void
+GPU3DCache2::SetModelPose(
+    uint16_t model_id,
+    uint16_t pose_id,
+    const GPUModelPosedData& data)
+{
+    if( model_id >= MAX_3D_ASSETS || pose_id >= MAX_POSE_COUNT )
+        return;
+    models[model_id].poses[pose_id] = data;
+}
+
+inline GPUModelPosedData
+GPU3DCache2::GetModelPose(
+    uint16_t model_id,
+    uint16_t pose_id) const
+{
+    if( model_id >= MAX_3D_ASSETS || pose_id >= MAX_POSE_COUNT )
+        return {};
+    return models[model_id].poses[pose_id];
 }
 
 #endif

@@ -9,12 +9,36 @@
 struct DrawModelInstanceData3D
 {
     uint16_t rotation_r2pi2048;
-    uint16_t padding[3]; // Align to 8 bytes for GPU performance
+    int32_t x;
+    int32_t y;
+    int32_t z;
+
+    DrawModelInstanceData3D(
+        uint16_t rotation_r2pi2048,
+        int32_t x,
+        int32_t y,
+        int32_t z)
+        : rotation_r2pi2048(rotation_r2pi2048)
+        , x(x)
+        , y(y)
+        , z(z)
+    {}
+
+    static DrawModelInstanceData3D
+    Create(
+        uint16_t rotation_r2pi2048,
+        int32_t x,
+        int32_t y,
+        int32_t z)
+    {
+        return DrawModelInstanceData3D(rotation_r2pi2048, x, y, z);
+    }
 };
 
 struct DrawModel3D
 {
     uint16_t model_id;
+    uint16_t pose_id;
 
     // Rotation/position data
     uint32_t instance_offset;
@@ -25,10 +49,12 @@ struct DrawModel3D
 
     DrawModel3D(
         uint16_t model_id,
+        uint16_t pose_id,
         uint32_t instance_offset,
         uint32_t dynamic_index_offset,
         uint32_t dynamic_index_count)
         : model_id(model_id)
+        , pose_id(pose_id)
         , instance_offset(instance_offset)
         , dynamic_index_offset(dynamic_index_offset)
         , dynamic_index_count(dynamic_index_count)
@@ -37,11 +63,13 @@ struct DrawModel3D
     static DrawModel3D
     Create(
         uint16_t model_id,
+        uint16_t pose_id,
         uint32_t instance_offset,
         uint32_t dynamic_index_offset,
         uint32_t dynamic_index_count)
     {
-        return DrawModel3D(model_id, instance_offset, dynamic_index_offset, dynamic_index_count);
+        return DrawModel3D(
+            model_id, pose_id, instance_offset, dynamic_index_offset, dynamic_index_count);
     }
 };
 
@@ -71,7 +99,11 @@ public:
     void
     AddModelDrawYawOnly(
         uint16_t model_id,
+        int32_t x,
+        int32_t y,
+        int32_t z,
         int rotation_r2pi2048,
+        uint16_t pose_id = 0,
         uint16_t* sorted_indices = nullptr,
         uint32_t index_count = 0);
 
@@ -127,7 +159,11 @@ inline Pass3DBuilder2::~Pass3DBuilder2()
 inline void
 Pass3DBuilder2::AddModelDrawYawOnly(
     uint16_t model_id,
+    int32_t x,
+    int32_t y,
+    int32_t z,
     int rotation_r2pi2048,
+    uint16_t pose_id,
     uint16_t* sorted_indices,
     uint32_t index_count)
 {
@@ -137,7 +173,7 @@ Pass3DBuilder2::AddModelDrawYawOnly(
     // 1. Handle the Rotation (Instance Data)
     // We store the rotation in a pool. The command will remember where it is.
     uint32_t instance_offset = static_cast<uint32_t>(instance_pool.size());
-    instance_pool.push_back({ (uint16_t)rotation_r2pi2048 });
+    instance_pool.push_back(DrawModelInstanceData3D::Create((uint16_t)rotation_r2pi2048, x, y, z));
 
     // 2. Handle the Sorted Faces (Index Data)
     uint32_t index_pool_offset = 0;
@@ -154,7 +190,7 @@ Pass3DBuilder2::AddModelDrawYawOnly(
     // 3. Create the Command
     // We pass the model_id, the location of our rotation, and the location of our indices.
     draw_commands.push_back(
-        DrawModel3D::Create(model_id, instance_offset, index_pool_offset, index_count));
+        DrawModel3D::Create(model_id, pose_id, instance_offset, index_pool_offset, index_count));
 }
 
 inline void

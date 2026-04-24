@@ -38,27 +38,28 @@ GPU3DCache2BatchSubmitMetal(
     GPUResourceHandle vbo_handle = (__bridge_retained void*)batched_vbo;
     GPUResourceHandle ebo_handle = (__bridge_retained void*)batched_ebo;
 
-    // 2. Link the Cache
-    // Iterate through every model we added to this batch and update the global cache
+    // 2. Link the Cache — one GPU pose slot per batched entry (shared VBO/EBO, unique offsets).
     const auto& tracking_data = cache.BatchGetTrackingData();
 
-    GPUModelData model_updated;
+    GPUModelPosedData pose_data;
     for( const BatchedQueueModel& batched_model : tracking_data )
     {
-        model_updated.vbo = vbo_handle;
-        model_updated.ebo = ebo_handle;
+        if( batched_model.pose_id >= MAX_POSE_COUNT )
+            continue;
+
+        pose_data.vbo = vbo_handle;
+        pose_data.ebo = ebo_handle;
 
         // Note: These are index offsets, not byte offsets.
         // The draw loop will multiply them by sizeof(uint16_t).
-        model_updated.vbo_offset = batched_model.vbo_start;
-        model_updated.ebo_offset = batched_model.ebo_start;
+        pose_data.vbo_offset = batched_model.vbo_start;
+        pose_data.ebo_offset = batched_model.ebo_start;
 
         // Faces * 3 = Indices
-        model_updated.element_count = batched_model.face_count * 3;
-        model_updated.valid = true;
+        pose_data.element_count = batched_model.face_count * 3;
+        pose_data.valid = true;
 
-        // Assign to the global cache
-        cache.SetModelData(batched_model.model_id, model_updated);
+        cache.SetModelPose(batched_model.model_id, batched_model.pose_id, pose_data);
     }
 
     // 3. Cleanup CPU Memory
