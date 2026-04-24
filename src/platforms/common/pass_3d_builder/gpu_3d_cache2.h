@@ -1,6 +1,7 @@
 #ifndef GPU_3D_CACHE2_H
 #define GPU_3D_CACHE2_H
 
+#include "dash.h"
 #include "uv_pnm.h"
 
 #include <array>
@@ -14,13 +15,52 @@ constexpr size_t MAX_TEXTURES = 256;
 // 1. x
 // 2. y
 // 3. z
-// 4. u
-// 5. v
-constexpr size_t VERTEX_ATTRIBUTE_COUNT = 5;
+// 4. Color (low)
+// 5. Color (high)
+// 6. u
+// 7. v
+constexpr size_t VERTEX_ATTRIBUTE_COUNT = 7;
 // Assuming 4 bytes per pixel (RGBA8) for a 128x128 texture
 constexpr size_t BYTES_PER_PIXEL = 4;
 constexpr size_t TEXTURE_DIMENSION = 128;
 constexpr size_t BYTES_PER_TEXTURE = TEXTURE_DIMENSION * TEXTURE_DIMENSION * BYTES_PER_PIXEL;
+
+// Safely packs R, G, B, A into two 16-bit integers.
+// Guarantees physical memory layout [R][G][B][A] on ALL CPU architectures.
+inline void
+PackColorTo16BitUniversal(
+    uint8_t r,
+    uint8_t g,
+    uint8_t b,
+    uint8_t a,
+    uint16_t& out_low,
+    uint16_t& out_high)
+{
+    // Define the exact byte order we want in RAM
+    uint8_t low_bytes[2] = { r, g };
+    uint8_t high_bytes[2] = { b, a };
+
+    // Copy those exact bytes directly into the memory of the 16-bit integers
+    std::memcpy(&out_low, low_bytes, 2);
+    std::memcpy(&out_high, high_bytes, 2);
+}
+
+// Packs R, G, B, A (0-255) into two 16-bit integers for a little-endian CPU.
+// Memory output will strictly be: [R] [G] [B] [A]
+inline void
+PackColorTo16Bit(
+    uint16_t color_hsl16,
+    uint16_t& out_low,
+    uint16_t& out_high)
+{
+    uint32_t rgb = dash_hsl16_to_rgb(color_hsl16);
+    uint8_t r = (rgb >> 16) & 0xFF;
+    uint8_t g = (rgb >> 8) & 0xFF;
+    uint8_t b = rgb & 0xFF;
+    uint8_t a = (rgb >> 24) & 0xFF;
+
+    PackColorTo16BitUniversal(r, g, b, a, out_low, out_high);
+}
 
 struct AtlasUVRect
 {
@@ -166,21 +206,10 @@ public:
         uint32_t faces_count,
         uint16_t* faces_a,
         uint16_t* faces_b,
-        uint16_t* faces_c);
-
-    void
-    BatchAddModelVAi16(
-        uint16_t model_id,
-        uint16_t va_id,
-        uint16_t fa_id,
-        uint32_t vertex_count,
-        uint16_t* vertices_x,
-        uint16_t* vertices_y,
-        uint16_t* vertices_z,
-        uint32_t faces_count,
-        uint16_t* faces_a,
-        uint16_t* faces_b,
-        uint16_t* faces_c);
+        uint16_t* faces_c,
+        uint16_t* faces_a_color_hsl16,
+        uint16_t* faces_b_color_hsl16,
+        uint16_t* faces_c_color_hsl16);
 
     void
     BatchAddModelTexturedi16(
@@ -193,6 +222,10 @@ public:
         uint16_t* faces_a,
         uint16_t* faces_b,
         uint16_t* faces_c,
+        uint16_t* faces_a_color_hsl16,
+        uint16_t* faces_b_color_hsl16,
+        uint16_t* faces_c_color_hsl16,
+        uint8_t* faces_textures,
         uint16_t* textured_faces,
         uint16_t* textured_faces_a,
         uint16_t* textured_faces_b,
@@ -250,9 +283,14 @@ GPU3DCache2::BatchAddModeli16(
     uint32_t faces_count,
     uint16_t* faces_a,
     uint16_t* faces_b,
-    uint16_t* faces_c)
+    uint16_t* faces_c,
+    uint16_t* faces_a_color_hsl16,
+    uint16_t* faces_b_color_hsl16,
+    uint16_t* faces_c_color_hsl16)
 {
     BatchQueue& batch_queue = batch_queues.back();
+
+    uint16_t color_low, color_high;
 
     // Track the actual starting VERTEX index, not the element count
     uint32_t vertex_offset = batch_queue.vbo.size() / VERTEX_ATTRIBUTE_COUNT;
@@ -267,6 +305,9 @@ GPU3DCache2::BatchAddModeli16(
         batch_queue.vbo.push_back(vertices_x[i]);
         batch_queue.vbo.push_back(vertices_y[i]);
         batch_queue.vbo.push_back(vertices_z[i]);
+        PackColorTo16Bit(faces_a_color_hsl16[i], color_low, color_high);
+        batch_queue.vbo.push_back(color_low);
+        batch_queue.vbo.push_back(color_high);
         batch_queue.vbo.push_back(0);
         batch_queue.vbo.push_back(0);
     }
@@ -296,6 +337,10 @@ GPU3DCache2::BatchAddModelTexturedi16(
     uint16_t* faces_a,
     uint16_t* faces_b,
     uint16_t* faces_c,
+    uint16_t* faces_a_color_hsl16,
+    uint16_t* faces_b_color_hsl16,
+    uint16_t* faces_c_color_hsl16,
+    uint8_t* faces_textures, // Array mapping each face to a texture ID
     uint16_t* textured_faces,
     uint16_t* textured_faces_a,
     uint16_t* textured_faces_b,
@@ -303,13 +348,15 @@ GPU3DCache2::BatchAddModelTexturedi16(
 {
     BatchQueue& batch_queue = batch_queues.back();
 
+    uint16_t color_low, color_high;
+
     // The starting vertex index for this newly un-indexed mesh
     uint32_t vertex_offset = batch_queue.vbo.size() / VERTEX_ATTRIBUTE_COUNT;
 
     uint32_t vbo_element_start = batch_queue.vbo.size();
     uint32_t ebo_start = batch_queue.ebo.size();
 
-    // FIX: Reserve based on the faces we are expanding, not the original vertex count
+    // Reserve based on the faces we are expanding, not the original vertex count
     uint32_t new_vertex_count = faces_count * 3;
     batch_queue.vbo.reserve(batch_queue.vbo.size() + new_vertex_count * VERTEX_ATTRIBUTE_COUNT);
     batch_queue.ebo.reserve(batch_queue.ebo.size() + faces_count * 3);
@@ -321,8 +368,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
 
     for( int i = 0; i < faces_count; i++ )
     {
-        // FIX: Because we push 3 new vertices per face below,
-        // the indices are strictly sequential.
+        // The indices are strictly sequential.
         batch_queue.ebo.push_back(vertex_offset++);
         batch_queue.ebo.push_back(vertex_offset++);
         batch_queue.ebo.push_back(vertex_offset++);
@@ -362,26 +408,54 @@ GPU3DCache2::BatchAddModelTexturedi16(
             (float)vertices_y[faces_c[i]],
             (float)vertices_z[faces_c[i]]);
 
+        // Fallback to texture 0 if the array is null
+        uint8_t tex_id;
+        if( faces_textures[i] != 0xFF )
+            tex_id = faces_textures[i];
+        else
+            tex_id = 0;
+
+        const AtlasUVRect& atlas_rect = atlas.uv_region[tex_id];
+
+        // Transform the local UVs to the global atlas space
+        float final_u1 = (uv.u1 * atlas_rect.u_scale) + atlas_rect.u_offset;
+        float final_v1 = (uv.v1 * atlas_rect.v_scale) + atlas_rect.v_offset;
+
+        float final_u2 = (uv.u2 * atlas_rect.u_scale) + atlas_rect.u_offset;
+        float final_v2 = (uv.v2 * atlas_rect.v_scale) + atlas_rect.v_offset;
+
+        float final_u3 = (uv.u3 * atlas_rect.u_scale) + atlas_rect.u_offset;
+        float final_v3 = (uv.v3 * atlas_rect.v_scale) + atlas_rect.v_offset;
+
         // Push Vert A
         batch_queue.vbo.push_back(vertices_x[faces_a[i]]);
         batch_queue.vbo.push_back(vertices_y[faces_a[i]]);
         batch_queue.vbo.push_back(vertices_z[faces_a[i]]);
-        batch_queue.vbo.push_back(static_cast<uint16_t>(uv.u1));
-        batch_queue.vbo.push_back(static_cast<uint16_t>(uv.v1));
+        PackColorTo16Bit(faces_a_color_hsl16[i], color_low, color_high);
+        batch_queue.vbo.push_back(color_low);
+        batch_queue.vbo.push_back(color_high);
+        batch_queue.vbo.push_back(static_cast<uint16_t>(final_u1));
+        batch_queue.vbo.push_back(static_cast<uint16_t>(final_v1));
 
         // Push Vert B
         batch_queue.vbo.push_back(vertices_x[faces_b[i]]);
         batch_queue.vbo.push_back(vertices_y[faces_b[i]]);
         batch_queue.vbo.push_back(vertices_z[faces_b[i]]);
-        batch_queue.vbo.push_back(static_cast<uint16_t>(uv.u2));
-        batch_queue.vbo.push_back(static_cast<uint16_t>(uv.v2));
+        PackColorTo16Bit(faces_b_color_hsl16[i], color_low, color_high);
+        batch_queue.vbo.push_back(color_low);
+        batch_queue.vbo.push_back(color_high);
+        batch_queue.vbo.push_back(static_cast<uint16_t>(final_u2));
+        batch_queue.vbo.push_back(static_cast<uint16_t>(final_v2));
 
         // Push Vert C
         batch_queue.vbo.push_back(vertices_x[faces_c[i]]);
         batch_queue.vbo.push_back(vertices_y[faces_c[i]]);
         batch_queue.vbo.push_back(vertices_z[faces_c[i]]);
-        batch_queue.vbo.push_back(static_cast<uint16_t>(uv.u3));
-        batch_queue.vbo.push_back(static_cast<uint16_t>(uv.v3));
+        PackColorTo16Bit(faces_c_color_hsl16[i], color_low, color_high);
+        batch_queue.vbo.push_back(color_low);
+        batch_queue.vbo.push_back(color_high);
+        batch_queue.vbo.push_back(static_cast<uint16_t>(final_u3));
+        batch_queue.vbo.push_back(static_cast<uint16_t>(final_v3));
     }
 
     batch_queue.batch.push_back(
