@@ -31,7 +31,7 @@ Pass3DBuilder2SubmitMetal(
     // 2. Bind the Global Atlas (Common for all models in this pass)
     // We assume the atlas was submitted earlier and its handle is stored in the cache
     // id<MTLTexture> atlas = (__bridge id<MTLTexture>)(void*)cache.GetAtlasHandle();
-    // [renderEncoder setFragmentTexture:atlas atIndex:0];
+    // [renderE ncoder setFragmentTexture:atlas atIndex:0];
 
     // State Tracking to prevent redundant binding
     id<MTLBuffer> last_bound_vbo = nil;
@@ -57,7 +57,7 @@ Pass3DBuilder2SubmitMetal(
             // 7 attrs * 2 bytes = 14
             NSUInteger vbo_byte_offset =
                 model.vbo_offset * (VERTEX_ATTRIBUTE_COUNT * sizeof(uint16_t));
-            [renderEncoder //
+            [render_command_encoder //
                 setVertexBuffer:vbo
                          offset:vbo_byte_offset
                         atIndex:0];
