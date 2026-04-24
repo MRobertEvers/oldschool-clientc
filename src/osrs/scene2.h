@@ -39,7 +39,8 @@ enum Scene2EventType
     SCENE2_EVENT_BATCH_BEGIN = 10,
     SCENE2_EVENT_BATCH_END = 11,
     SCENE2_EVENT_BATCH_CLEAR = 12,
-    /** Pre-baked animated pose ready for upload: (model_gpu_id, anim_id, frame_index). */
+    /** Pre-baked animated pose ready for upload: (model_gpu_id, anim_id, animation_index,
+     * frame_index). */
     SCENE2_EVENT_ANIMATION_LOADED = 13,
     /** Begin batching world texture uploads under `batch_id`. */
     SCENE2_EVENT_TEXTURE_BATCH_BEGIN = 14,
@@ -88,11 +89,13 @@ struct Scene2Event
         {
             uint32_t batch_id;
         } batch;
-        /** ANIMATION_LOADED: pose for (model_gpu_id, anim_id, frame_index). */
+        /** ANIMATION_LOADED: pose for (model_gpu_id, anim_id, animation_index, frame_index). */
         struct
         {
             int model_gpu_id;
             int anim_id;
+            /** 0 = primary animation track, 1 = secondary. */
+            int animation_index;
             int frame_index;
             struct DashModel* model;
             struct DashFrame* frame;
@@ -203,15 +206,28 @@ scene2_element_set_dash_model(
     struct Scene2Element* element,
     struct DashModel* dash_model);
 
+/**
+ * Push one keyframe. If `scene2` is set and the element has a model with a valid
+ * `dash_model_gpu_id`, queues SCENE2_EVENT_ANIMATION_LOADED (primary track,
+ * `animation_index` 0) for the GPU to upload that frame.
+ * `frame_index` is the index of this keyframe within the sequence.
+ */
 void
 scene2_element_push_animation_frame(
+    struct Scene2* scene2,
     struct Scene2Element* element,
+    int anim_id,
+    int frame_index,
     struct DashFrame* dash_frame,
     int length);
 
+/** Like scene2_element_push_animation_frame, secondary track (animation_index 1). */
 void
 scene2_element_push_secondary_animation_frame(
+    struct Scene2* scene2,
     struct Scene2Element* element,
+    int anim_id,
+    int frame_index,
     struct DashFrame* dash_frame,
     int length);
 
@@ -222,6 +238,7 @@ scene2_element_set_framemap(
 
 /**
  * Enqueue a SCENE2_EVENT_ANIMATION_LOADED event for a pre-baked animated pose.
+ * `animation_index`: 0 primary, 1 secondary (GPU cache2 slot).
  * `frame` and `framemap` pointers are stored in the event payload (not copied).
  */
 void
@@ -229,6 +246,7 @@ scene2_element_queue_animation_load(
     struct Scene2* scene2,
     int model_gpu_id,
     int anim_id,
+    int animation_index,
     int frame_index,
     struct DashModel* model,
     struct DashFrame* frame,

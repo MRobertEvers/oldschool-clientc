@@ -1294,15 +1294,16 @@ load_scene_animation(
         if( length == 0 )
             length = animframe->delay;
 
+        struct DashFrame* dash_frame = dashframe_new_from_animframe(animframe);
         if( animation_type == ANIMATION_TYPE_PRIMARY )
         {
             scene2_element_push_animation_frame(
-                element, dashframe_new_from_animframe(animframe), length);
+                world->scene2, element, animation_id, i, dash_frame, length);
         }
         else
         {
             scene2_element_push_secondary_animation_frame(
-                element, dashframe_new_from_animframe(animframe), length);
+                world->scene2, element, animation_id, i, dash_frame, length);
         }
     }
 }

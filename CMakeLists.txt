@@ -266,6 +266,7 @@ if(NOT EMSCRIPTEN)
             src/platforms/metal/metal_draw_model.mm
             src/platforms/metal/metal_va_fa_events.mm
             src/platforms/common/pass_3d_builder/pass_3d_builder2_metal.mm
+            src/platforms/common/pass_3d_builder/gpu_3d_cache2_metal.mm
             src/platforms/metal/metal_render.mm
             src/nuklear/backends/torirs_nk_metal_sdl.mm
         )
@@ -587,6 +588,7 @@ if(NOT EMSCRIPTEN)
             src/platforms/metal/metal_draw_model.mm
             src/platforms/metal/metal_va_fa_events.mm
             src/platforms/common/pass_3d_builder/pass_3d_builder2_metal.mm
+            src/platforms/common/pass_3d_builder/gpu_3d_cache2_metal.mm
             src/platforms/metal/metal_render.mm
             src/nuklear/backends/torirs_nk_metal_sdl.mm
             PROPERTIES COMPILE_FLAGS "-fobjc-arc"

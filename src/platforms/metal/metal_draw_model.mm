@@ -81,6 +81,24 @@ metal_frame_event_model_draw(
         !dashmodel_face_indices_c_const(model) || dashmodel_face_count(model) <= 0 )
         return;
 
+    // v2 fast path: if the model pose is in GPU3DCache2, use Pass3DBuilder2
+    {
+        const int mid_v2 = cmd->_model_draw.model_id;
+        if( mid_v2 > 0 )
+        {
+            const uint8_t pose_id = cmd->_model_draw.pose_id;
+            const GPUModelPosedData pose =
+                ctx->renderer->model_cache2.GetModelPose((uint16_t)mid_v2, pose_id);
+            if( pose.valid )
+            {
+                const struct DashPosition& pos = cmd->_model_draw.position;
+                ctx->renderer->mtl_pass3d_builder.AddModelDrawYawOnly(
+                    (uint16_t)mid_v2, pos.x, pos.y, pos.z, pos.yaw, pose_id);
+                return;
+            }
+        }
+    }
+
     if( !ctx->bfo3d )
         return;
 

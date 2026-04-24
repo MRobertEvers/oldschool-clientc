@@ -1,11 +1,5 @@
-#include "gpu_3d_cache2.h"
+#include "gpu_3d_cache2_metal.h"
 #import <Metal/Metal.h>
-
-struct BatchBuffers
-{
-    id<MTLBuffer> vbo;
-    id<MTLBuffer> ebo;
-};
 
 void
 GPU3DCache2BatchSubmitMetal(
@@ -35,8 +29,8 @@ GPU3DCache2BatchSubmitMetal(
                                  options:MTLResourceStorageModeShared];
 
     // Convert ARC pointers to opaque uintptr_t handles
-    GPUResourceHandle vbo_handle = (__bridge_retained void*)batched_vbo;
-    GPUResourceHandle ebo_handle = (__bridge_retained void*)batched_ebo;
+    GPUResourceHandle vbo_handle = (GPUResourceHandle)(__bridge_retained void*)batched_vbo;
+    GPUResourceHandle ebo_handle = (GPUResourceHandle)(__bridge_retained void*)batched_ebo;
 
     // 2. Link the Cache — one GPU pose slot per batched entry (shared VBO/EBO, unique offsets).
     const auto& tracking_data = cache.BatchGetTrackingData();
@@ -60,6 +54,8 @@ GPU3DCache2BatchSubmitMetal(
         pose_data.valid = true;
 
         cache.SetModelPose(batched_model.model_id, batched_model.pose_id, pose_data);
+        cache.SetModelAnimationOffset(
+            batched_model.model_id, batched_model.animation_index, batched_model.vbo_start);
     }
 
     // 3. Cleanup CPU Memory

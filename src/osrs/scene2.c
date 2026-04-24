@@ -523,24 +523,57 @@ scene2_element_push_frame(
     frames->count++;
 }
 
+static void
+scene2__emit_animation_frame_added(
+    struct Scene2* scene2,
+    struct Scene2Element* element,
+    int anim_id,
+    int animation_index,
+    int frame_index,
+    struct DashFrame* frame)
+{
+    if( !scene2 || !element || !frame || scene2__is_fast(element) )
+        return;
+    struct Scene2ElementFull* u = scene2__as_full(element);
+    if( !u->dash_model || u->dash_model_gpu_id <= 0 )
+        return;
+    scene2_element_queue_animation_load(
+        scene2,
+        u->dash_model_gpu_id,
+        anim_id,
+        animation_index,
+        frame_index,
+        u->dash_model,
+        frame,
+        u->dash_framemap);
+}
+
 void
 scene2_element_push_animation_frame(
+    struct Scene2* scene2,
     struct Scene2Element* element,
+    int anim_id,
+    int frame_index,
     struct DashFrame* dash_frame,
     int length)
 {
     struct Scene2ElementFull* u = scene2__as_full(element);
     scene2_element_push_frame(&u->primary_frames, dash_frame, length);
+    scene2__emit_animation_frame_added(scene2, element, anim_id, 0, frame_index, dash_frame);
 }
 
 void
 scene2_element_push_secondary_animation_frame(
+    struct Scene2* scene2,
     struct Scene2Element* element,
+    int anim_id,
+    int frame_index,
     struct DashFrame* dash_frame,
     int length)
 {
     struct Scene2ElementFull* u = scene2__as_full(element);
     scene2_element_push_frame(&u->secondary_frames, dash_frame, length);
+    scene2__emit_animation_frame_added(scene2, element, anim_id, 1, frame_index, dash_frame);
 }
 
 void
@@ -630,7 +663,7 @@ scene2_element_release(
         scene2_element_clear_frames(&u->primary_frames);
         scene2_element_clear_frames(&u->secondary_frames);
         u->active_anim_id = 0;
-        u->active_frame = 0;
+        u->active_frame_index = 0;
         u->flags_entity = SCENE2_FLAG_VALID | SCENE2_PARENT_NONE;
     }
 
@@ -778,7 +811,7 @@ scene2_element_active_frame(const struct Scene2Element* element)
 {
     if( scene2__is_fast(element) )
         return 0;
-    return scene2__as_full_const(element)->active_frame;
+    return scene2__as_full_const(element)->active_frame_index;
 }
 
 void
@@ -798,7 +831,7 @@ scene2_element_set_active_frame(
 {
     if( scene2__is_fast(element) )
         return;
-    scene2__as_full(element)->active_frame = frame;
+    scene2__as_full(element)->active_frame_index = frame;
 }
 
 struct Scene2Frames*
@@ -1192,6 +1225,7 @@ scene2_element_queue_animation_load(
     struct Scene2* scene2,
     int model_gpu_id,
     int anim_id,
+    int animation_index,
     int frame_index,
     struct DashModel* model,
     struct DashFrame* frame,
@@ -1205,12 +1239,13 @@ scene2_element_queue_animation_load(
             .type    = SCENE2_EVENT_ANIMATION_LOADED,
             .batched = scene2->batch_active,
             .u.animation = {
-                .model_gpu_id = model_gpu_id,
-                .anim_id      = anim_id,
-                .frame_index  = frame_index,
-                .model        = model,
-                .frame        = frame,
-                .framemap     = framemap,
+                .model_gpu_id    = model_gpu_id,
+                .anim_id         = anim_id,
+                .animation_index = animation_index,
+                .frame_index     = frame_index,
+                .model           = model,
+                .frame           = frame,
+                .framemap        = framemap,
             },
         });
 }

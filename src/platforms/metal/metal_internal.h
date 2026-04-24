@@ -305,12 +305,12 @@ metal_flush_batch(MetalRenderCtx* ctx);
 void
 metal_flush_3d(MetalRenderCtx* ctx, BufferedFaceOrder* bfo);
 
-class Pass3DBuilder2;
-void
-Pass3DBuilder2SubmitMetal(
+void Pass3DBuilder2SubmitMetal(
     Pass3DBuilder2& builder,
-    MetalRenderCtx* ctx,
-    Gpu3DCache<void*>* cache);
+    const GPU3DCache2& cache,
+    id<MTLRenderCommandEncoder> render_command_encoder,
+    id<MTLBuffer> dynamic_instance_buffer,
+    id<MTLBuffer> dynamic_index_buffer);
 
 void
 metal_ensure_pipe(MetalRenderCtx* ctx, int desired);

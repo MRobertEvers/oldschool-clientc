@@ -1,8 +1,8 @@
 #ifndef GPU_3D_CACHE2_H
 #define GPU_3D_CACHE2_H
 
-#include "dash.h"
-#include "uv_pnm.h"
+#include "graphics/dash.h"
+#include "graphics/uv_pnm.h"
 
 #include <array>
 #include <cassert>
@@ -89,18 +89,22 @@ struct GPUModelPosedData
     bool valid = false;
 };
 
+#define GPU_MODEL_ANIMATION_NONE_IDX 0
+#define GPU_MODEL_ANIMATION_PRIMARY_IDX 1
+#define GPU_MODEL_ANIMATION_SECONDARY_IDX 2
+
 struct GPUModelData
 {
     GPUModelPosedData poses[MAX_POSE_COUNT];
+    uint32_t animation_offsets[3];
 };
 
 struct BatchedQueueModel
 {
     bool is_va = false;
     uint16_t model_id;
-    uint16_t pose_id;
-    uint16_t va_id;
-    uint16_t fa_id;
+    uint16_t animation_index;
+    uint16_t frame_index;
     uint32_t vertex_count;
     uint32_t vbo_start;
     uint32_t face_count;
@@ -111,18 +115,16 @@ struct BatchedQueueModel
     BatchedQueueModel(
         bool is_va,
         uint16_t model_id,
-        uint16_t pose_id,
-        uint16_t va_id,
-        uint16_t fa_id,
+        uint16_t animation_index,
+        uint16_t frame_index,
         uint32_t vertex_count,
         uint32_t vbo_start,
         uint32_t face_count,
         uint32_t ebo_start)
         : is_va(is_va)
         , model_id(model_id)
-        , pose_id(pose_id)
-        , va_id(va_id)
-        , fa_id(fa_id)
+        , animation_index(animation_index)
+        , frame_index(frame_index)
         , vertex_count(vertex_count)
         , vbo_start(vbo_start)
         , face_count(face_count)
@@ -132,28 +134,22 @@ struct BatchedQueueModel
     static BatchedQueueModel
     CreateModel(
         uint16_t model_id,
-        uint16_t pose_id,
+        uint16_t animation_index,
+        uint16_t frame_index,
         uint32_t vertex_count,
         uint32_t vertices_start,
         uint32_t face_count,
         uint32_t ebo_start)
     {
         return BatchedQueueModel(
-            false, model_id, pose_id, 0, 0, vertex_count, vertices_start, face_count, ebo_start);
-    }
-
-    static BatchedQueueModel
-    CreateVA(
-        uint16_t model_id,
-        uint16_t va_id,
-        uint16_t fa_id,
-        uint32_t vertex_count,
-        uint32_t vertices_start,
-        uint32_t face_count,
-        uint32_t ebo_start)
-    {
-        return BatchedQueueModel(
-            true, model_id, 0, va_id, fa_id, vertex_count, vertices_start, face_count, ebo_start);
+            false,
+            model_id,
+            animation_index,
+            frame_index,
+            vertex_count,
+            vertices_start,
+            face_count,
+            ebo_start);
     }
 };
 
@@ -218,7 +214,8 @@ public:
     void
     BatchAddModeli16(
         uint16_t model_id,
-        uint16_t pose_id,
+        uint16_t animation_index,
+        uint16_t frame_index,
         uint32_t vertex_count,
         uint16_t* vertices_x,
         uint16_t* vertices_y,
@@ -234,7 +231,8 @@ public:
     void
     BatchAddModelTexturedi16(
         uint16_t model_id,
-        uint16_t pose_id,
+        uint16_t animation_index,
+        uint16_t frame_index,
         uint32_t vertex_count,
         uint16_t* vertices_x,
         uint16_t* vertices_y,
@@ -293,6 +291,14 @@ public:
     {
         return GetModelPose(model_id, 0);
     }
+
+    /** Reset all pose slots for a model (call when unloading a batch that contains this model). */
+    void
+    ClearModel(uint16_t model_id)
+    {
+        if( model_id < MAX_3D_ASSETS )
+            models[model_id] = GPUModelData{};
+    }
 };
 
 inline int
@@ -311,7 +317,8 @@ GPU3DCache2::BatchEnd()
 inline void
 GPU3DCache2::BatchAddModeli16(
     uint16_t model_id,
-    uint16_t pose_id,
+    uint16_t animation_index,
+    uint16_t frame_index,
     uint32_t vertex_count,
     uint16_t* vertices_x,
     uint16_t* vertices_y,
@@ -324,7 +331,6 @@ GPU3DCache2::BatchAddModeli16(
     uint16_t* faces_b_color_hsl16,
     uint16_t* faces_c_color_hsl16)
 {
-    assert(pose_id < MAX_POSE_COUNT);
     BatchQueue& batch_queue = batch_queues.back();
 
     uint16_t color_low, color_high;
@@ -360,13 +366,20 @@ GPU3DCache2::BatchAddModeli16(
 
     batch_queue.batch.push_back(
         BatchedQueueModel::CreateModel(
-            model_id, pose_id, vertex_count, vbo_element_start, faces_count, ebo_start));
+            model_id,
+            animation_index,
+            frame_index,
+            vertex_count,
+            vbo_element_start,
+            faces_count,
+            ebo_start));
 }
 
 inline void
 GPU3DCache2::BatchAddModelTexturedi16(
     uint16_t model_id,
-    uint16_t pose_id,
+    uint16_t animation_index,
+    uint16_t frame_index,
     uint32_t vertex_count,
     uint16_t* vertices_x,
     uint16_t* vertices_y,
@@ -384,7 +397,6 @@ GPU3DCache2::BatchAddModelTexturedi16(
     uint16_t* textured_faces_b,
     uint16_t* textured_faces_c)
 {
-    assert(pose_id < MAX_POSE_COUNT);
     BatchQueue& batch_queue = batch_queues.back();
 
     uint16_t color_low, color_high;
@@ -499,7 +511,13 @@ GPU3DCache2::BatchAddModelTexturedi16(
 
     batch_queue.batch.push_back(
         BatchedQueueModel::CreateModel(
-            model_id, pose_id, new_vertex_count, vbo_element_start, faces_count, ebo_start));
+            model_id,
+            animation_index,
+            frame_index,
+            new_vertex_count,
+            vbo_element_start,
+            faces_count,
+            ebo_start));
 }
 
 inline uint16_t*

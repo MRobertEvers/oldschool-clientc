@@ -263,3 +263,65 @@ fragment float4 uiFontFrag(
         discard_fragment();
     return float4(in.color.rgb, a * in.color.a);
 }
+
+// ============================================================
+// v2 3D pass: packed uint16_t vertices + integer instance data
+// ============================================================
+struct ModelVertexV2
+{
+    ushort x;
+    ushort y;
+    ushort z;
+    ushort color_lo; // R | (G << 8)
+    ushort color_hi; // B | (A << 8)
+    ushort u;
+    ushort v;
+};
+
+struct InstanceDataV2
+{
+    int rotation_r2pi2048;
+    int x;
+    int y;
+    int z;
+};
+
+vertex VertexOut vertexShader3DV2(
+    uint vid [[vertex_id]],
+    uint iid [[instance_id]],
+    device const ModelVertexV2* verts [[buffer(0)]],
+    device const InstanceDataV2* instances [[buffer(1)]],
+    constant Uniforms& uniforms [[buffer(2)]])
+{
+    ModelVertexV2 v = verts[vid];
+    InstanceDataV2 inst = instances[iid];
+
+    float vx = (float)as_type<short>(v.x);
+    float vy = (float)as_type<short>(v.y);
+    float vz = (float)as_type<short>(v.z);
+
+    float cr = (float)(v.color_lo & 0xFFu) / 255.0f;
+    float cg = (float)((v.color_lo >> 8u) & 0xFFu) / 255.0f;
+    float cb = (float)(v.color_hi & 0xFFu) / 255.0f;
+    float ca = (float)((v.color_hi >> 8u) & 0xFFu) / 255.0f;
+
+    float angle = (float)inst.rotation_r2pi2048 * (2.0f * M_PI_F / 2048.0f);
+    float cos_yaw = cos(angle);
+    float sin_yaw = sin(angle);
+    float xr = vx * cos_yaw + vz * sin_yaw;
+    float zr = -vx * sin_yaw + vz * cos_yaw;
+
+    float4 worldPos = float4(
+        xr + (float)inst.x,
+        vy + (float)inst.y,
+        zr + (float)inst.z,
+        1.0f);
+
+    VertexOut out;
+    out.position  = uniforms.projectionMatrix * uniforms.modelViewMatrix * worldPos;
+    out.color     = float4(cr, cg, cb, ca);
+    out.texcoord  = float2(0.0f, 0.0f);
+    out.tex_id    = 0xFFFFu; // pure-color path in fragmentShader
+    out.uv_mode   = 0u;
+    return out;
+}

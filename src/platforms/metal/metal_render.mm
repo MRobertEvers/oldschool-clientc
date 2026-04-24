@@ -256,8 +256,23 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                 }
                 break;
                 case TORIRS_GFX_END_3D:
-                    Pass3DBuilder2SubmitMetal(
-                        renderer->mtl_pass3d_builder, &ctx, &renderer->model_cache);
+                    if( renderer->mtl_3d_v2_pipeline &&
+                        renderer->mtl_pass3d_instance_buf &&
+                        renderer->mtl_pass3d_index_buf &&
+                        renderer->mtl_pass3d_builder.HasCommands() )
+                    {
+                        [encoder setRenderPipelineState:
+                            (__bridge id<MTLRenderPipelineState>)renderer->mtl_3d_v2_pipeline];
+                        Pass3DBuilder2SubmitMetal(
+                            renderer->mtl_pass3d_builder,
+                            renderer->model_cache2,
+                            encoder,
+                            (__bridge id<MTLBuffer>)renderer->mtl_pass3d_instance_buf,
+                            (__bridge id<MTLBuffer>)renderer->mtl_pass3d_index_buf);
+                        renderer->mtl_pass3d_builder.ClearAfterSubmit();
+                        // Restore the v1 pipeline for the bfo3d fallback flush below
+                        [encoder setRenderPipelineState:pipeState];
+                    }
                     current_pass = kMTLPassNone;
                     break;
                 case TORIRS_GFX_BEGIN_2D:

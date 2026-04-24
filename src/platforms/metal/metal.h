@@ -3,6 +3,7 @@
 
 #include "platforms/common/gpu_ring_buffer.h"
 #include "platforms/common/pass_3d_builder/pass_3d_builder2.h"
+#include "platforms/common/pass_3d_builder/gpu_3d_cache2.h"
 #include "platforms/gpu_3d_cache.h"
 #include "platforms/gpu_font_cache.h"
 #include "platforms/gpu_sprite_cache.h"
@@ -67,8 +68,23 @@ struct Platform2_SDL2_Renderer_Metal
     GpuTextureCache<void*> texture_cache;
     Gpu3DCache<void*> model_cache;
     Pass3DBuilder2 mtl_pass3d_builder;
+    GPU3DCache2 model_cache2;
     GpuSpriteCache<void*> sprite_cache;
     GpuFontCache<void*> font_cache;
+
+    // v2 3D pipeline persistent resources
+    void* mtl_pass3d_instance_buf = nullptr;
+    void* mtl_pass3d_index_buf    = nullptr;
+    void* mtl_3d_v2_pipeline      = nullptr;
+
+    // Per-batch v2 bookkeeping (batch_id -> retained MTLBuffers + model list)
+    struct MetalCache2BatchEntry
+    {
+        void* vbo = nullptr;
+        void* ebo = nullptr;
+        std::vector<uint16_t> model_ids;
+    };
+    std::unordered_map<uint32_t, MetalCache2BatchEntry> model_cache2_batch_map;
 
     void* mtl_world_texture_array; // legacy / optional second atlas page
 

@@ -34,9 +34,11 @@ struct Scene2ElementFull
     /** Monotonic id from Scene2 when a model is assigned; used in GPU load/unload commands. */
     int dash_model_gpu_id;
     struct DashFramemap* dash_framemap;
+    // Global Id of the animation
     uint16_t active_anim_id;
-    uint8_t active_frame;
-    uint8_t _pad;
+
+    // Small primary = 0, secondary = 1
+    uint8_t active_frame_index;
     struct Scene2Frames primary_frames;
     struct Scene2Frames secondary_frames;
 };

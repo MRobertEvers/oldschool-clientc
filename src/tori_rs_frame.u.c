@@ -607,6 +607,7 @@ queue_static_load_commands(
                 ev->_animation_load.framemap = scene_event.u.animation.framemap;
                 ev->_animation_load.model_gpu_id = scene_event.u.animation.model_gpu_id;
                 ev->_animation_load.anim_id = scene_event.u.animation.anim_id;
+                ev->_animation_load.animation_index = scene_event.u.animation.animation_index;
                 ev->_animation_load.frame_index = scene_event.u.animation.frame_index;
                 continue;
             }
@@ -663,6 +664,12 @@ queue_static_load_commands(
                 if( scene2_element_parent_entity_id(el) != scene_event.u.model.parent_entity_id )
                     continue;
                 uint64_t model_key = model_cache_key_u64(scene2, el);
+                /* For batched loads, assign the next pose slot on this element. */
+                if( scene_event.batched )
+                {
+                    uint8_t next_pose = (uint8_t)((scene2_element_gpu_pose_id(el) + 1u) % 16u);
+                    scene2_element_set_gpu_pose_id(el, next_pose);
+                }
                 struct ToriRSRenderCommand* ev =
                     LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
                 ev->kind = scene_event.batched ? TORIRS_GFX_BATCH3D_MODEL_LOAD
@@ -670,6 +677,7 @@ queue_static_load_commands(
                 ev->_model_load.model = scene_event.u.model.model;
                 ev->_model_load.model_key = model_key;
                 ev->_model_load.model_id = scene_event.u.model.model_id;
+                ev->_model_load.pose_id = (uint8_t)scene2_element_gpu_pose_id(el);
                 continue;
             }
             if( scene_event.type == SCENE2_EVENT_MODEL_UNLOADED )
@@ -925,6 +933,7 @@ entity_player_animate(
     {
         int frame = animation->primary_anim.frame;
         scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
+        scene2_element_set_active_animation_index(scene_element, 0);
         scene2_element_set_active_frame(scene_element, (uint8_t)frame);
         if( frame >= 0 && frame < primary->count )
         {
@@ -935,6 +944,7 @@ entity_player_animate(
     {
         int frame = animation->secondary_anim.frame;
         scene2_element_set_active_anim_id(scene_element, animation->secondary_anim.anim_id);
+        scene2_element_set_active_animation_index(scene_element, 1);
         scene2_element_set_active_frame(scene_element, (uint8_t)frame);
         if( frame >= 0 && frame < secondary->count )
         {
@@ -944,6 +954,7 @@ entity_player_animate(
     else
     {
         scene2_element_set_active_anim_id(scene_element, 0);
+        scene2_element_set_active_animation_index(scene_element, 0);
         scene2_element_set_active_frame(scene_element, 0);
     }
 }
@@ -969,6 +980,7 @@ entity_npc_animate(
     {
         int frame = animation->primary_anim.frame;
         scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
+        scene2_element_set_active_animation_index(scene_element, 0);
         scene2_element_set_active_frame(scene_element, (uint8_t)frame);
         if( frame >= 0 && frame < primary->count )
         {
@@ -979,6 +991,7 @@ entity_npc_animate(
     {
         int frame = animation->secondary_anim.frame;
         scene2_element_set_active_anim_id(scene_element, animation->secondary_anim.anim_id);
+        scene2_element_set_active_animation_index(scene_element, 1);
         scene2_element_set_active_frame(scene_element, (uint8_t)frame);
         if( frame >= 0 && frame < secondary->count )
         {
@@ -988,6 +1001,7 @@ entity_npc_animate(
     else
     {
         scene2_element_set_active_anim_id(scene_element, 0);
+        scene2_element_set_active_animation_index(scene_element, 0);
         scene2_element_set_active_frame(scene_element, 0);
     }
 }
@@ -1018,6 +1032,7 @@ entity_map_build_loc_entity_animate(
         {
             int frame = animation->primary_anim.frame;
             scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
+            scene2_element_set_active_animation_index(scene_element, 0);
             scene2_element_set_active_frame(scene_element, (uint8_t)frame);
             if( frame >= 0 && frame < pf->count )
             {
@@ -1027,6 +1042,7 @@ entity_map_build_loc_entity_animate(
         else
         {
             scene2_element_set_active_anim_id(scene_element, 0);
+            scene2_element_set_active_animation_index(scene_element, 0);
             scene2_element_set_active_frame(scene_element, 0);
         }
     }
@@ -1046,6 +1062,7 @@ entity_map_build_loc_entity_animate(
         {
             int frame = animation->primary_anim.frame;
             scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
+            scene2_element_set_active_animation_index(scene_element, 0);
             scene2_element_set_active_frame(scene_element, (uint8_t)frame);
             if( frame >= 0 && frame < pf2->count )
             {
@@ -1055,6 +1072,7 @@ entity_map_build_loc_entity_animate(
         else
         {
             scene2_element_set_active_anim_id(scene_element, 0);
+            scene2_element_set_active_animation_index(scene_element, 0);
             scene2_element_set_active_frame(scene_element, 0);
         }
     }
@@ -1332,6 +1350,7 @@ next:
             rc->_model_draw.model_key =
                 model_cache_key_u64(game->world->scene2, scene_element);
             rc->_model_draw.model_id = scene2_element_dash_model_gpu_id(scene_element);
+            rc->_model_draw.pose_id = scene2_element_gpu_pose_id(scene_element);
             memcpy(&rc->_model_draw.position, &position, sizeof(struct DashPosition));
         }
     }
@@ -1378,6 +1397,7 @@ next:
             rc->_model_draw.model_key =
                 model_cache_key_u64(game->world->scene2, scene_element);
             rc->_model_draw.model_id = scene2_element_dash_model_gpu_id(scene_element);
+            rc->_model_draw.pose_id = scene2_element_gpu_pose_id(scene_element);
             memcpy(&rc->_model_draw.position, &position, sizeof(struct DashPosition));
         }
     }

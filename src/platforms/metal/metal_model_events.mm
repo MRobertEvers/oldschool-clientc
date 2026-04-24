@@ -63,6 +63,8 @@ metal_frame_event_model_animation_load(
     const int mid = cmd->_animation_load.model_gpu_id;
     const int aid = cmd->_animation_load.anim_id;
     const int fidx = cmd->_animation_load.frame_index;
+    const int anim_slot = cmd->_animation_load.animation_index;
+    (void)anim_slot; /* Reserved for GPU3DCache2 animation_offsets; v1 cache keys on anim_id. */
     if( !cmd->_animation_load.model || mid <= 0 )
         return;
     if( !ctx->renderer->model_cache.get_instance(mid, aid, fidx) )

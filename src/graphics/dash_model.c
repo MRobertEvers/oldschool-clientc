@@ -429,6 +429,8 @@ dashmodel_set_loaded(
 bool
 dashmodel_has_textures(const struct DashModel* m)
 {
+    if( !m )
+        return false;
     return (dashmodel__flags(m) & DASHMODEL_FLAG_HAS_TEXTURES) != 0;
 }
 

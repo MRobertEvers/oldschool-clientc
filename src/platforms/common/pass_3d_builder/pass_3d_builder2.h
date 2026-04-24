@@ -8,13 +8,13 @@
 // This is the data we send to the GPU for EVERY object
 struct DrawModelInstanceData3D
 {
-    uint16_t rotation_r2pi2048;
+    int32_t rotation_r2pi2048;
     int32_t x;
     int32_t y;
     int32_t z;
 
     DrawModelInstanceData3D(
-        uint16_t rotation_r2pi2048,
+        int32_t rotation_r2pi2048,
         int32_t x,
         int32_t y,
         int32_t z)
@@ -26,7 +26,7 @@ struct DrawModelInstanceData3D
 
     static DrawModelInstanceData3D
     Create(
-        uint16_t rotation_r2pi2048,
+        int32_t rotation_r2pi2048,
         int32_t x,
         int32_t y,
         int32_t z)
@@ -173,7 +173,7 @@ Pass3DBuilder2::AddModelDrawYawOnly(
     // 1. Handle the Rotation (Instance Data)
     // We store the rotation in a pool. The command will remember where it is.
     uint32_t instance_offset = static_cast<uint32_t>(instance_pool.size());
-    instance_pool.push_back(DrawModelInstanceData3D::Create((uint16_t)rotation_r2pi2048, x, y, z));
+    instance_pool.push_back(DrawModelInstanceData3D::Create(rotation_r2pi2048, x, y, z));
 
     // 2. Handle the Sorted Faces (Index Data)
     uint32_t index_pool_offset = 0;
@@ -229,6 +229,18 @@ inline bool
 Pass3DBuilder2::HasDynamicIndices() const
 {
     return !indices_pool.empty();
+}
+
+inline const std::vector<DrawModelInstanceData3D>&
+Pass3DBuilder2::GetInstancePool() const
+{
+    return instance_pool;
+}
+
+inline uint32_t
+Pass3DBuilder2::GetInstancePoolSize() const
+{
+    return static_cast<uint32_t>(instance_pool.size());
 }
 
 #endif // PASS_3D_BUILDER2_H

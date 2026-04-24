@@ -84,7 +84,10 @@ PlatformImpl2_SDL2_Renderer_Metal_New(
     renderer->mtl_encode_slot = 0;
     renderer->mtl_frame_semaphore =
         (__bridge_retained void*)dispatch_semaphore_create(kMetalInflightFrames);
-    renderer->texture_cache.init(256, nullptr);
+    renderer->mtl_pass3d_instance_buf = nullptr;
+    renderer->mtl_pass3d_index_buf    = nullptr;
+    renderer->mtl_3d_v2_pipeline      = nullptr;
+    renderer->texture_cache.init(256, nullptr);;
     renderer->model_cache.init(
         Gpu3DCache<void*>::kGpuIdTableSize,
         nullptr,
@@ -278,6 +281,27 @@ PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* ren
         CFRelease(renderer->mtl_pipeline_state);
         renderer->mtl_pipeline_state = nullptr;
     }
+    if( renderer->mtl_3d_v2_pipeline )
+    {
+        CFRelease(renderer->mtl_3d_v2_pipeline);
+        renderer->mtl_3d_v2_pipeline = nullptr;
+    }
+    if( renderer->mtl_pass3d_instance_buf )
+    {
+        CFRelease(renderer->mtl_pass3d_instance_buf);
+        renderer->mtl_pass3d_instance_buf = nullptr;
+    }
+    if( renderer->mtl_pass3d_index_buf )
+    {
+        CFRelease(renderer->mtl_pass3d_index_buf);
+        renderer->mtl_pass3d_index_buf = nullptr;
+    }
+    for( auto& kv : renderer->model_cache2_batch_map )
+    {
+        if( kv.second.vbo ) CFRelease(kv.second.vbo);
+        if( kv.second.ebo ) CFRelease(kv.second.ebo);
+    }
+    renderer->model_cache2_batch_map.clear();
     if( renderer->mtl_command_queue )
     {
         CFRelease(renderer->mtl_command_queue);
@@ -417,6 +441,50 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
         return false;
     }
     renderer->mtl_pipeline_state = (__bridge_retained void*)pipeState;
+
+    // v2 3D pipeline (vertexShader3DV2 + same fragmentShader)
+    id<MTLFunction> v2VertFn = [shaderLibrary newFunctionWithName:@"vertexShader3DV2"];
+    if( v2VertFn )
+    {
+        MTLRenderPipelineDescriptor* v2Desc = [[MTLRenderPipelineDescriptor alloc] init];
+        v2Desc.vertexFunction   = v2VertFn;
+        v2Desc.fragmentFunction = fragFn;
+        v2Desc.vertexDescriptor = nil;
+        v2Desc.colorAttachments[0].pixelFormat                = layer.pixelFormat;
+        v2Desc.colorAttachments[0].blendingEnabled            = YES;
+        v2Desc.colorAttachments[0].rgbBlendOperation          = MTLBlendOperationAdd;
+        v2Desc.colorAttachments[0].sourceRGBBlendFactor       = MTLBlendFactorSourceAlpha;
+        v2Desc.colorAttachments[0].destinationRGBBlendFactor  = MTLBlendFactorOneMinusSourceAlpha;
+        v2Desc.colorAttachments[0].alphaBlendOperation        = MTLBlendOperationAdd;
+        v2Desc.colorAttachments[0].sourceAlphaBlendFactor     = MTLBlendFactorOne;
+        v2Desc.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+        v2Desc.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
+        NSError* v2Err = nil;
+        id<MTLRenderPipelineState> v2Pipe =
+            [device newRenderPipelineStateWithDescriptor:v2Desc error:&v2Err];
+        if( v2Pipe )
+            renderer->mtl_3d_v2_pipeline = (__bridge_retained void*)v2Pipe;
+        else
+            printf(
+                "Metal: v2 3D pipeline failed: %s\n",
+                v2Err ? v2Err.localizedDescription.UTF8String : "unknown");
+    }
+
+    // Persistent per-frame buffers for Pass3DBuilder2SubmitMetal
+    {
+        const size_t inst_bytes = 4096 * sizeof(DrawModelInstanceData3D);
+        id<MTLBuffer> inst_buf =
+            [device newBufferWithLength:(NSUInteger)inst_bytes
+                               options:MTLResourceStorageModeShared];
+        renderer->mtl_pass3d_instance_buf = (__bridge_retained void*)inst_buf;
+    }
+    {
+        const size_t idx_bytes = 65536 * sizeof(uint16_t);
+        id<MTLBuffer> idx_buf =
+            [device newBufferWithLength:(NSUInteger)idx_bytes
+                               options:MTLResourceStorageModeShared];
+        renderer->mtl_pass3d_index_buf = (__bridge_retained void*)idx_buf;
+    }
 
     id<MTLFunction> uiVertFn = [shaderLibrary newFunctionWithName:@"uiSpriteVert"];
     id<MTLFunction> uiFragFn = [shaderLibrary newFunctionWithName:@"uiSpriteFrag"];
