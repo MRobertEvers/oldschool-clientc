@@ -38,6 +38,14 @@ struct MetalUniforms
     float _pad_uniform[3];
 };
 
+/** Padded stride for dynamic uniform offsets (Metal buffer offset alignment). */
+inline size_t
+metal_uniforms_stride_padded()
+{
+    constexpr size_t a = kMetalUniformBufferDynamicAlign;
+    return (sizeof(MetalUniforms) + a - 1u) / a * a;
+}
+
 struct LogicalViewportRect
 {
     int x, y, width, height;
@@ -72,6 +80,8 @@ struct MetalRenderCtx
     /** Next slot in `clearQuadBuf` for `metal_frame_event_clear_rect` (bytes = slot *
      * kSpriteSlotBytes). */
     int clear_rect_slot = 0;
+    /** Last TORIRS_GFX_BEGIN_3D destination rect (window pixels); used for END_3D uniforms. */
+    LogicalViewportRect pass_3d_dst_logical{};
 };
 
 void
@@ -175,7 +185,8 @@ metal_frame_event_clear_rect(
 void
 metal_frame_event_begin_3d(
     MetalRenderCtx* ctx,
-    const LogicalViewportRect* logical_vp);
+    const struct ToriRSRenderCommand* cmd,
+    const LogicalViewportRect* default_logical_vp);
 void
 metal_frame_event_end_3d(MetalRenderCtx* ctx, id<MTLBuffer> uniforms_buffer);
 
@@ -183,13 +194,18 @@ void
 Pass3DBuilder2SubmitMetal(
     Pass3DBuilder2& builder,
     const GPU3DCache2& cache,
+    struct Platform2_SDL2_Renderer_Metal* metal_renderer,
     id<MTLRenderCommandEncoder> render_command_encoder,
     id<MTLBuffer> dynamic_instance_buffer,
     id<MTLBuffer> dynamic_index_buffer,
+    NSUInteger instance_base_bytes,
+    NSUInteger index_base_bytes,
     id<MTLTexture> fragment_atlas_texture,
     id<MTLBuffer> atlas_tiles_buffer,
     id<MTLBuffer> uniforms_buffer,
-    id<MTLSamplerState> fragment_sampler);
+    NSUInteger uniforms_buffer_offset_bytes,
+    id<MTLSamplerState> fragment_sampler,
+    id<MTLDepthStencilState> depth_stencil_state);
 
 void
 metal_cache2_atlas_resources_init(

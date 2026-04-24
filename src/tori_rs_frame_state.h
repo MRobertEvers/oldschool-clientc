@@ -25,4 +25,13 @@ frame_emit_pass(
     struct UIFrameState* fiber,
     enum FramePassKind target);
 
+/** Like transitioning to FRAME_PASS_3D, but TORIRS_GFX_BEGIN_3D carries dst_bb (UI models). */
+void
+frame_emit_pass_3d_with_rect(
+    struct UIFrameState* fiber,
+    int dst_x,
+    int dst_y,
+    int dst_w,
+    int dst_h);
+
 #endif

@@ -26,6 +26,12 @@ struct MetalAtlasTile
 
 static constexpr int kMetalWorldAtlasSize = 2048;
 static constexpr int kMetalInflightFrames = 3;
+/** Max 3D BEGIN/END pairs per encoded frame; uniform ring uses this × padded stride per slot. */
+static constexpr int kMetalMax3dPassesPerFrame = 32;
+/** Metal dynamic buffer offset alignment for uniform bindings. */
+static constexpr size_t kMetalUniformBufferDynamicAlign = 256;
+/** `TORIRS_GFX_MODEL_LOAD` uses one merged VBO/EBO per model under this batch id namespace. */
+static constexpr uint32_t kMetalSoloModelBatchBase = 0xF0000000u;
 
 // Metal objects are stored as void* so this header is valid from plain C++ translation
 // units (e.g. test/sdl2.cpp). The .mm implementation casts them to id<MTL*> internally.
@@ -68,6 +74,14 @@ struct Platform2_SDL2_Renderer_Metal
     uint32_t current_model_batch_id;
 
     void* mtl_frame_semaphore;
+
+    /** Ring slot for this frame's uniform uploads (see metal_render / metal_init). */
+    uint32_t mtl_uniform_frame_slot = 0;
+    /** Sub-slot within `mtl_uniform_frame_slot` for each TORIRS_GFX_END_3D in one frame. */
+    uint32_t mtl_uniform_pass_subslot = 0;
+    /** Byte cursors into mtl_pass3d_instance_buf / mtl_pass3d_index_buf; reset each frame. */
+    size_t mtl_pass3d_inst_upload_ofs = 0;
+    size_t mtl_pass3d_idx_upload_ofs = 0;
 
     /** Scratch RGBA upload (reused by texture paths). */
     std::vector<uint8_t> rgba_scratch;

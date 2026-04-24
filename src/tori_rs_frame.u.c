@@ -43,6 +43,24 @@ emit_marker(
     m->kind = kind;
 }
 
+static void
+emit_begin_3d_with_rect(
+    struct ToriRSRenderCommandBuffer* buf,
+    int x,
+    int y,
+    int w,
+    int h)
+{
+    if( !buf )
+        return;
+    struct ToriRSRenderCommand* m = LibToriRS_RenderCommandBufferEmplaceCommand(buf);
+    m->kind = TORIRS_GFX_BEGIN_3D;
+    m->_begin_3d.x = x;
+    m->_begin_3d.y = y;
+    m->_begin_3d.w = w;
+    m->_begin_3d.h = h;
+}
+
 void
 frame_emit_pass(
     struct UIFrameState* fiber,
@@ -67,12 +85,50 @@ frame_emit_pass(
         emit_marker(fiber->cmds, TORIRS_GFX_BEGIN_2D);
         break;
     case FRAME_PASS_3D:
-        emit_marker(fiber->cmds, TORIRS_GFX_BEGIN_3D);
+    {
+        struct GGame* g = fiber->game;
+        int bx = 0;
+        int by = 0;
+        int bw = 0;
+        int bh = 0;
+        if( g && g->view_port )
+        {
+            bx = g->viewport_offset_x;
+            by = g->viewport_offset_y;
+            bw = g->view_port->width;
+            bh = g->view_port->height;
+        }
+        emit_begin_3d_with_rect(fiber->cmds, bx, by, bw, bh);
         break;
+    }
     default:
         break;
     }
     *fiber->pass = target;
+}
+
+void
+frame_emit_pass_3d_with_rect(
+    struct UIFrameState* fiber,
+    int dst_x,
+    int dst_y,
+    int dst_w,
+    int dst_h)
+{
+    if( !fiber || !fiber->cmds || !fiber->pass )
+        return;
+    if( *fiber->pass == FRAME_PASS_3D )
+        return;
+    switch( *fiber->pass )
+    {
+    case FRAME_PASS_2D:
+        emit_marker(fiber->cmds, TORIRS_GFX_END_2D);
+        break;
+    default:
+        break;
+    }
+    emit_begin_3d_with_rect(fiber->cmds, dst_x, dst_y, dst_w, dst_h);
+    *fiber->pass = FRAME_PASS_3D;
 }
 
 /** Tab sidebar content (RS subtree) only when this tab is selected and no modal owns the sidebar.
@@ -635,24 +691,7 @@ queue_static_load_commands(
                 ev->_batch.batch_id = scene_event.u.batch.batch_id;
                 continue;
             }
-            if( scene_event.type == SCENE2_EVENT_VERTEX_ARRAY_ADDED )
-            {
-                struct ToriRSRenderCommand* cmd =
-                    LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                cmd->kind = TORIRS_GFX_BATCH3D_VERTEX_ARRAY_LOAD;
-                cmd->_vertex_array_load.array_id = scene_event.u.vertex_array.array_id;
-                cmd->_vertex_array_load.array = scene_event.u.vertex_array.array;
-                continue;
-            }
-            if( scene_event.type == SCENE2_EVENT_FACE_ARRAY_ADDED )
-            {
-                struct ToriRSRenderCommand* cmd =
-                    LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                cmd->kind = TORIRS_GFX_BATCH3D_FACE_ARRAY_LOAD;
-                cmd->_face_array_load.array_id = scene_event.u.face_array.array_id;
-                cmd->_face_array_load.array = scene_event.u.face_array.array;
-                continue;
-            }
+
             if( scene_event.type == SCENE2_EVENT_MODEL_LOADED )
             {
                 int eid = scene_event.u.model.element_id;
@@ -663,14 +702,26 @@ queue_static_load_commands(
                     continue;
                 if( scene2_element_parent_entity_id(el) != scene_event.u.model.parent_entity_id )
                     continue;
+                struct DashModel* model = scene_event.u.model.model;
                 uint64_t model_key = model_cache_key_u64(scene2, el);
                 struct ToriRSRenderCommand* ev =
                     LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = scene_event.batched ? TORIRS_GFX_BATCH3D_MODEL_LOAD
-                                               : TORIRS_GFX_MODEL_LOAD;
-                ev->_model_load.model = scene_event.u.model.model;
+                ev->kind =
+                    scene_event.batched ? TORIRS_GFX_BATCH3D_MODEL_LOAD : TORIRS_GFX_MODEL_LOAD;
+                ev->_model_load.model = model;
                 ev->_model_load.model_key = model_key;
-                ev->_model_load.model_id = scene_event.u.model.model_id;
+                ev->_model_load.model_id = scene2_element_dash_model_gpu_id(el);
+
+                if( ev->_model_load.model_id == 6277 )
+                {
+                    int vertex_count = dashmodel_vertex_count(model);
+                    int faces_count = dashmodel_face_count(model);
+                    printf(
+                        "model_load: model_id: %d, vertex_count: %d, faces_count: %d\n",
+                        scene2_element_dash_model_gpu_id(el),
+                        vertex_count,
+                        faces_count);
+                }
                 continue;
             }
             if( scene_event.type == SCENE2_EVENT_MODEL_UNLOADED )
@@ -1340,8 +1391,7 @@ next:
                 LibToriRS_RenderCommandBufferEmplaceCommand(game->uiscene_queued_commands);
             rc->kind = TORIRS_GFX_MODEL_DRAW;
             rc->_model_draw.model = ent_model;
-            rc->_model_draw.model_key =
-                model_cache_key_u64(game->world->scene2, scene_element);
+            rc->_model_draw.model_key = model_cache_key_u64(game->world->scene2, scene_element);
             rc->_model_draw.model_id = scene2_element_dash_model_gpu_id(scene_element);
             rc->_model_draw.use_animation = scene2_element_active_anim_id(scene_element) != 0;
             rc->_model_draw.animation_index = scene2_element_active_animation_index(scene_element);
@@ -1389,8 +1439,7 @@ next:
                 LibToriRS_RenderCommandBufferEmplaceCommand(game->uiscene_queued_commands);
             rc->kind = TORIRS_GFX_MODEL_DRAW;
             rc->_model_draw.model = tile_model;
-            rc->_model_draw.model_key =
-                model_cache_key_u64(game->world->scene2, scene_element);
+            rc->_model_draw.model_key = model_cache_key_u64(game->world->scene2, scene_element);
             rc->_model_draw.model_id = scene2_element_dash_model_gpu_id(scene_element);
             rc->_model_draw.use_animation = scene2_element_active_anim_id(scene_element) != 0;
             rc->_model_draw.animation_index = scene2_element_active_animation_index(scene_element);

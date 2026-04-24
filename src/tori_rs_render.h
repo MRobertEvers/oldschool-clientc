@@ -181,6 +181,14 @@ struct ToriRSRenderCommand
             int w;
             int h;
         } _clear_rect;
+        /** TORIRS_GFX_BEGIN_3D: destination rectangle in window pixels (see frame_emit_pass). */
+        struct
+        {
+            int x;
+            int y;
+            int w;
+            int h;
+        } _begin_3d;
         /** LOAD and UNLOAD use the same payload (array pointer). */
         struct
         {

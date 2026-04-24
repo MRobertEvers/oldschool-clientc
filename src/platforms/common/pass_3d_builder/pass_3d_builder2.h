@@ -5,6 +5,10 @@
 #include <cstring>
 #include <vector>
 
+/** `uint16_t` indices; must match `mtl_pass3d_index_buf` size in Metal init.
+ *  One frame can sort many models × faces × 3; 64Ki entries was too small for world draws. */
+inline constexpr uint32_t kPass3DBuilder2DynamicIndexUInt16Capacity = 1u << 21; // 2_097_152
+
 // This is the data we send to the GPU for EVERY object
 struct DrawModelInstanceData3D
 {

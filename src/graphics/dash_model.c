@@ -454,7 +454,10 @@ dashmodel_vertex_count(const struct DashModel* m)
     switch( dashmodel__type(m) )
     {
     case DASHMODEL_TYPE_GROUND_VA:
-        return dashmodel__as_ground_va_const(m)->vertex_count;
+    {
+        const struct DashModelVAGround* v = dashmodel__as_ground_va_const(m);
+        return v->vertex_count;
+    }
     case DASHMODEL_TYPE_GROUND:
         return dashmodel__as_ground_const(m)->vertex_count;
     case DASHMODEL_TYPE_FULL:

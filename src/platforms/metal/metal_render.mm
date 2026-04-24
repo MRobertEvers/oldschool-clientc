@@ -27,6 +27,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         if( !layer )
         {
             dispatch_semaphore_signal((__bridge dispatch_semaphore_t)renderer->mtl_frame_semaphore);
+            SDL_Delay(1);
             return;
         }
 
@@ -36,8 +37,17 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         if( !drawable )
         {
             dispatch_semaphore_signal((__bridge dispatch_semaphore_t)renderer->mtl_frame_semaphore);
+            /* Without a yield, the game loop spins at 100% CPU when the layer cannot produce a
+               drawable (resize, occlusion, or transient GPU pressure). */
+            SDL_Delay(1);
             return;
         }
+
+        renderer->mtl_uniform_frame_slot =
+            (renderer->mtl_uniform_frame_slot + 1u) % (uint32_t)kMetalInflightFrames;
+        renderer->mtl_uniform_pass_subslot = 0u;
+        renderer->mtl_pass3d_inst_upload_ofs = 0u;
+        renderer->mtl_pass3d_idx_upload_ofs = 0u;
 
         // -----------------------------------------------------------------------
         // Build render pass descriptor with depth attachment
@@ -82,25 +92,6 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
             compute_logical_viewport_rect(win_width, win_height, game);
         const ToriGlViewportPixels gl_vp = compute_gl_world_viewport_rect(
             renderer->width, renderer->height, win_width, win_height, logical_vp);
-
-        const float projection_width = (float)logical_vp.width;
-        const float projection_height = (float)logical_vp.height;
-
-        MetalUniforms uniforms;
-        const float pitch_rad = metal_dash_yaw_to_radians(game->camera_pitch);
-        const float yaw_rad = metal_dash_yaw_to_radians(game->camera_yaw);
-        metal_compute_view_matrix(uniforms.modelViewMatrix, 0.0f, 0.0f, 0.0f, pitch_rad, yaw_rad);
-        metal_compute_projection_matrix(
-            uniforms.projectionMatrix,
-            (90.0f * (float)M_PI) / 180.0f,
-            projection_width,
-            projection_height);
-        metal_remap_projection_opengl_to_metal_z(uniforms.projectionMatrix);
-        uniforms.uClock = (float)(SDL_GetTicks64() / 20);
-        uniforms._pad_uniform[0] = 0.0f;
-        uniforms._pad_uniform[1] = 0.0f;
-        uniforms._pad_uniform[2] = 0.0f;
-        memcpy(unifBuf.contents, &uniforms, sizeof(uniforms));
 
         // -----------------------------------------------------------------------
         // Command buffer + render encoder
@@ -161,12 +152,11 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                 switch( cmd.kind )
                 {
                 case TORIRS_GFX_BEGIN_3D:
-                    metal_frame_event_begin_3d(&ctx, &logical_vp);
+                    metal_frame_event_begin_3d(&ctx, &cmd, &logical_vp);
                     break;
                 case TORIRS_GFX_END_3D:
                     metal_frame_event_end_3d(&ctx, unifBuf);
                     break;
-
                 case TORIRS_GFX_BATCH3D_VERTEX_ARRAY_LOAD:
                     metal_frame_event_batch_vertex_array_load(&ctx, &cmd);
                     break;

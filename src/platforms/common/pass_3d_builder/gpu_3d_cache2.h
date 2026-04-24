@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -21,7 +22,25 @@ constexpr size_t MAX_POSE_COUNT = 16;
 // 5. Color (high)
 // 6. u
 // 7. v
-constexpr size_t VERTEX_ATTRIBUTE_COUNT = 7;
+// 8. tex_id (0xFFFF = untextured; 0..255 for atlas tiles, matches Shaders.metal ModelVertexV2)
+constexpr size_t VERTEX_ATTRIBUTE_COUNT = 8;
+
+/** Pack face-local UV into 0..65535 for Metal fragmentShader tile-local `in.texcoord`. */
+inline uint16_t
+gpu3d_pack_uv_tile01(float u)
+{
+    float fu = u - std::floor(u);
+    if( fu < 0.f )
+        fu = 0.f;
+    else if( fu > 1.f )
+        fu = 1.f;
+    int q = (int)std::lrint(static_cast<double>(fu) * 65535.0);
+    if( q < 0 )
+        q = 0;
+    if( q > 65535 )
+        q = 65535;
+    return static_cast<uint16_t>(q);
+}
 // Assuming 4 bytes per pixel (RGBA8) for a 128x128 texture
 constexpr size_t BYTES_PER_PIXEL = 4;
 constexpr size_t TEXTURE_DIMENSION = 128;
@@ -59,7 +78,9 @@ PackColorTo16Bit(
     uint8_t r = (rgb >> 16) & 0xFF;
     uint8_t g = (rgb >> 8) & 0xFF;
     uint8_t b = rgb & 0xFF;
-    uint8_t a = (rgb >> 24) & 0xFF;
+    // HSL16 palette stores 0x00RRGGBB — the top byte is always 0. Use 255 (fully opaque);
+    // transparency is handled by the fragment shader's texture-alpha discard.
+    uint8_t a = 255;
 
     PackColorTo16BitUniversal(r, g, b, a, out_low, out_high);
 }
@@ -75,13 +96,24 @@ struct AtlasUVRect
 // Opaque handle for GPU resources (Replaces id<MTLBuffer>, ID3D11Buffer*, GLuint, etc.)
 // - OpenGL: Cast GLuint to GPUResourceHandle
 // - DirectX: Cast ID3D11Buffer* or ID3D12Resource* to GPUResourceHandle
-// - Metal: Use CFBridgingRetain/Release to cast id to GPUResourceHandle safely
+// - Metal: retain on `MetalCache2BatchEntry` / other owners; batch pose handles may be __bridge.
 typedef uintptr_t GPUResourceHandle;
 
+/** Platform-specific buffer handles (`MTLBuffer*` / GL name / D3D resource cast to
+ *  `GPUResourceHandle`). Non-owning on Metal when filled from batch submit (`__bridge`); lifetime
+ *  matches the renderer batch entry or standalone owner.
+ *
+ *  **Metal (`Pass3DBuilder2SubmitMetal`)**: when `gpu_batch_id != 0`, VBO/EBO are resolved
+ * **first** from `model_cache2_batch_map`; if the map has no entry, the same non-owning `vbo`/`ebo`
+ * stored here (same pointers as the batch) are used as fallback. When `gpu_batch_id == 0`, only
+ * `vbo`/`ebo` (and offsets) apply. */
 struct GPUModelPosedData
 {
     GPUResourceHandle vbo = 0;
     GPUResourceHandle ebo = 0;
+    /** Non-zero: merged world batch id (Metal: key into `model_cache2_batch_map`; map preferred,
+     *  pose `vbo`/`ebo` fallback). */
+    uint32_t gpu_batch_id = 0;
     uint32_t vbo_offset = 0;
     uint32_t ebo_offset = 0;
     // If drawing without sorting.
@@ -244,7 +276,7 @@ public:
         uint16_t* faces_a_color_hsl16,
         uint16_t* faces_b_color_hsl16,
         uint16_t* faces_c_color_hsl16,
-        uint8_t* faces_textures,
+        int16_t* faces_textures,
         uint16_t* textured_faces,
         uint16_t* textured_faces_a,
         uint16_t* textured_faces_b,
@@ -381,6 +413,14 @@ GPU3DCache2::BatchAddModeli16(
     uint16_t* faces_b_color_hsl16,
     uint16_t* faces_c_color_hsl16)
 {
+    if( model_id == 6277 )
+        printf(
+            "BatchAddModeli16: model_id: %d, vertex_count: %d, faces_count: %d\n",
+            model_id,
+            vertex_count,
+            faces_count);
+    assert(vertex_count < 4096);
+    assert(faces_count < 4096);
     BatchQueue& batch_queue = batch_queues.back();
     const uint32_t pose_index = allocatePoseSlot(model_id, gpu_segment_slot, frame_index);
 
@@ -404,6 +444,7 @@ GPU3DCache2::BatchAddModeli16(
         batch_queue.vbo.push_back(color_high);
         batch_queue.vbo.push_back(0);
         batch_queue.vbo.push_back(0);
+        batch_queue.vbo.push_back(0xFFFFu);
     }
 
     batch_queue.ebo.reserve(batch_queue.ebo.size() + faces_count * 3);
@@ -436,12 +477,19 @@ GPU3DCache2::BatchAddModelTexturedi16(
     uint16_t* faces_a_color_hsl16,
     uint16_t* faces_b_color_hsl16,
     uint16_t* faces_c_color_hsl16,
-    uint8_t* faces_textures, // Array mapping each face to a texture ID
+    int16_t* faces_textures, // Array mapping each face to a texture ID (-1 = no texture)
     uint16_t* textured_faces,
     uint16_t* textured_faces_a,
     uint16_t* textured_faces_b,
     uint16_t* textured_faces_c)
 {
+    printf(
+        "BatchAddModelTexturedi16: model_id: %d, vertex_count: %d, faces_count: %d\n",
+        model_id,
+        vertex_count,
+        faces_count);
+    assert(vertex_count < 4096);
+    assert(faces_count < 4096);
     BatchQueue& batch_queue = batch_queues.back();
     const uint32_t pose_index = allocatePoseSlot(model_id, gpu_segment_slot, frame_index);
 
@@ -462,6 +510,10 @@ GPU3DCache2::BatchAddModelTexturedi16(
     uint32_t tm_vertex = 0;
     uint32_t tn_vertex = 0;
     struct UVFaceCoords uv;
+    // Use signed int16 aliases so negative vertex coords convert to float correctly.
+    const int16_t* sx = reinterpret_cast<const int16_t*>(vertices_x);
+    const int16_t* sy = reinterpret_cast<const int16_t*>(vertices_y);
+    const int16_t* sz = reinterpret_cast<const int16_t*>(vertices_z);
 
     for( int i = 0; i < faces_count; i++ )
     {
@@ -486,43 +538,31 @@ GPU3DCache2::BatchAddModelTexturedi16(
 
         uv_pnm_compute(
             &uv,
-            (float)vertices_x[tp_vertex],
-            (float)vertices_y[tp_vertex],
-            (float)vertices_z[tp_vertex],
-            (float)vertices_x[tm_vertex],
-            (float)vertices_y[tm_vertex],
-            (float)vertices_z[tm_vertex],
-            (float)vertices_x[tn_vertex],
-            (float)vertices_y[tn_vertex],
-            (float)vertices_z[tn_vertex],
-            (float)vertices_x[faces_a[i]],
-            (float)vertices_y[faces_a[i]],
-            (float)vertices_z[faces_a[i]],
-            (float)vertices_x[faces_b[i]],
-            (float)vertices_y[faces_b[i]],
-            (float)vertices_z[faces_b[i]],
-            (float)vertices_x[faces_c[i]],
-            (float)vertices_y[faces_c[i]],
-            (float)vertices_z[faces_c[i]]);
+            (float)sx[tp_vertex],
+            (float)sy[tp_vertex],
+            (float)sz[tp_vertex],
+            (float)sx[tm_vertex],
+            (float)sy[tm_vertex],
+            (float)sz[tm_vertex],
+            (float)sx[tn_vertex],
+            (float)sy[tn_vertex],
+            (float)sz[tn_vertex],
+            (float)sx[faces_a[i]],
+            (float)sy[faces_a[i]],
+            (float)sz[faces_a[i]],
+            (float)sx[faces_b[i]],
+            (float)sy[faces_b[i]],
+            (float)sz[faces_b[i]],
+            (float)sx[faces_c[i]],
+            (float)sy[faces_c[i]],
+            (float)sz[faces_c[i]]);
 
-        // Fallback to texture 0 if the array is null
-        uint8_t tex_id;
-        if( faces_textures[i] != 0xFF )
-            tex_id = faces_textures[i];
+        // -1 (0xFFFF as int16) = face has no texture; fallback to solid color (tex_id 0xFFFF).
+        uint16_t tex_id;
+        if( faces_textures[i] != -1 )
+            tex_id = (uint16_t)faces_textures[i];
         else
-            tex_id = 0;
-
-        const AtlasUVRect& atlas_rect = atlas.uv_region[tex_id];
-
-        // Transform the local UVs to the global atlas space
-        float final_u1 = (uv.u1 * atlas_rect.u_scale) + atlas_rect.u_offset;
-        float final_v1 = (uv.v1 * atlas_rect.v_scale) + atlas_rect.v_offset;
-
-        float final_u2 = (uv.u2 * atlas_rect.u_scale) + atlas_rect.u_offset;
-        float final_v2 = (uv.v2 * atlas_rect.v_scale) + atlas_rect.v_offset;
-
-        float final_u3 = (uv.u3 * atlas_rect.u_scale) + atlas_rect.u_offset;
-        float final_v3 = (uv.v3 * atlas_rect.v_scale) + atlas_rect.v_offset;
+            tex_id = 0xFFFFu;
 
         // Push Vert A
         batch_queue.vbo.push_back(vertices_x[faces_a[i]]);
@@ -531,8 +571,9 @@ GPU3DCache2::BatchAddModelTexturedi16(
         PackColorTo16Bit(faces_a_color_hsl16[i], color_low, color_high);
         batch_queue.vbo.push_back(color_low);
         batch_queue.vbo.push_back(color_high);
-        batch_queue.vbo.push_back(static_cast<uint16_t>(final_u1));
-        batch_queue.vbo.push_back(static_cast<uint16_t>(final_v1));
+        batch_queue.vbo.push_back(gpu3d_pack_uv_tile01(uv.u1));
+        batch_queue.vbo.push_back(gpu3d_pack_uv_tile01(uv.v1));
+        batch_queue.vbo.push_back(tex_id);
 
         // Push Vert B
         batch_queue.vbo.push_back(vertices_x[faces_b[i]]);
@@ -541,8 +582,9 @@ GPU3DCache2::BatchAddModelTexturedi16(
         PackColorTo16Bit(faces_b_color_hsl16[i], color_low, color_high);
         batch_queue.vbo.push_back(color_low);
         batch_queue.vbo.push_back(color_high);
-        batch_queue.vbo.push_back(static_cast<uint16_t>(final_u2));
-        batch_queue.vbo.push_back(static_cast<uint16_t>(final_v2));
+        batch_queue.vbo.push_back(gpu3d_pack_uv_tile01(uv.u2));
+        batch_queue.vbo.push_back(gpu3d_pack_uv_tile01(uv.v2));
+        batch_queue.vbo.push_back(tex_id);
 
         // Push Vert C
         batch_queue.vbo.push_back(vertices_x[faces_c[i]]);
@@ -551,8 +593,9 @@ GPU3DCache2::BatchAddModelTexturedi16(
         PackColorTo16Bit(faces_c_color_hsl16[i], color_low, color_high);
         batch_queue.vbo.push_back(color_low);
         batch_queue.vbo.push_back(color_high);
-        batch_queue.vbo.push_back(static_cast<uint16_t>(final_u3));
-        batch_queue.vbo.push_back(static_cast<uint16_t>(final_v3));
+        batch_queue.vbo.push_back(gpu3d_pack_uv_tile01(uv.u3));
+        batch_queue.vbo.push_back(gpu3d_pack_uv_tile01(uv.v3));
+        batch_queue.vbo.push_back(tex_id);
     }
 
     batch_queue.batch.push_back(

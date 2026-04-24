@@ -2,6 +2,39 @@
 #include "platforms/metal/metal_internal.h"
 #include "platforms/common/pass_3d_builder/gpu_3d_cache2_metal.h"
 
+/** Nearest-neighbor 64×64 RGBA → 128×128 for GPU3DCache2 fixed tile size. */
+static void
+metal_rgba64_nearest_to_128(const uint8_t* src64, uint8_t* dst128)
+{
+    const int S = 64;
+    const int D = 128;
+    for( int y = 0; y < S; ++y )
+    {
+        for( int x = 0; x < S; ++x )
+        {
+            const size_t si = ((size_t)y * (size_t)S + (size_t)x) * 4u;
+            const uint8_t r = src64[si + 0];
+            const uint8_t g = src64[si + 1];
+            const uint8_t b = src64[si + 2];
+            const uint8_t a = src64[si + 3];
+            for( int dy = 0; dy < 2; ++dy )
+            {
+                for( int dx = 0; dx < 2; ++dx )
+                {
+                    const size_t di =
+                        (((size_t)y * 2u + (size_t)dy) * (size_t)D +
+                         ((size_t)x * 2u + (size_t)dx)) *
+                            4u;
+                    dst128[di + 0] = r;
+                    dst128[di + 1] = g;
+                    dst128[di + 2] = b;
+                    dst128[di + 3] = a;
+                }
+            }
+        }
+    }
+}
+
 static void
 metal_write_atlas_tile_slot(
     struct Platform2_SDL2_Renderer_Metal* r,
@@ -118,11 +151,13 @@ metal_frame_event_texture_load(
 
     const int w = tex->width;
     const int h = tex->height;
-    if( w != (int)TEXTURE_DIMENSION || h != (int)TEXTURE_DIMENSION )
+    const bool ok128 = (w == (int)TEXTURE_DIMENSION && h == (int)TEXTURE_DIMENSION);
+    const bool ok64 = (w == 64 && h == 64);
+    if( !ok128 && !ok64 )
     {
         fprintf(
             stderr,
-            "[metal] texture %d: GPU3DCache2 path requires %d×%d (got %d×%d)\n",
+            "[metal] texture %d: GPU3DCache2 path requires %d×%d or 64×64 (got %d×%d)\n",
             tex_id,
             (int)TEXTURE_DIMENSION,
             (int)TEXTURE_DIMENSION,
@@ -147,7 +182,16 @@ metal_frame_event_texture_load(
         rgba[(size_t)p * 4u + 3] = (uint8_t)((pix >> 24) & 0xFF);
     }
 
-    r->model_cache2.LoadTexture128((uint16_t)tex_id, rgba.data());
+    const uint8_t* atlas_pixels = rgba.data();
+    std::vector<uint8_t> upscale128;
+    if( ok64 )
+    {
+        upscale128.resize((size_t)TEXTURE_DIMENSION * (size_t)TEXTURE_DIMENSION * 4u);
+        metal_rgba64_nearest_to_128(rgba.data(), upscale128.data());
+        atlas_pixels = upscale128.data();
+    }
+
+    r->model_cache2.LoadTexture128((uint16_t)tex_id, atlas_pixels);
     metal_write_atlas_tile_slot(r, (uint16_t)tex_id, tex);
 
     metal_cache2_set_atlas_texture_from_cache(r, device);

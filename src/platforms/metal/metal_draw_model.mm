@@ -33,10 +33,12 @@ metal_frame_event_model_draw(
         ctx->game->sys_dash, model, &draw_position, ctx->game->view_port, ctx->game->camera);
     const int* face_order = dash3d_projected_face_order(ctx->game->sys_dash, &face_order_count);
 
-    const uint32_t vbo_base = pose.vbo_offset;
     const int fc = dashmodel_face_count(model);
     const bool textured = dashmodel_has_textures(model);
 
+    /* Dynamic index buffer is uint16. Merged batch vertex indices often exceed 65535, so we store
+     * **local** indices (within this model's VBO slice) and add `pose.vbo_offset` at draw time
+     * via Metal `baseVertex` in Pass3DBuilder2SubmitMetal. */
     static std::vector<uint16_t> g_sorted;
     g_sorted.clear();
     if( face_order_count > 0 && fc > 0 )
@@ -49,7 +51,7 @@ metal_frame_event_model_draw(
                 continue;
             if( textured )
             {
-                const uint32_t b = vbo_base + (uint32_t)f * 3u;
+                const uint32_t b = (uint32_t)f * 3u;
                 g_sorted.push_back((uint16_t)b);
                 g_sorted.push_back((uint16_t)(b + 1u));
                 g_sorted.push_back((uint16_t)(b + 2u));
@@ -59,9 +61,9 @@ metal_frame_event_model_draw(
                 const faceint_t* fa = dashmodel_face_indices_a_const(model);
                 const faceint_t* fb = dashmodel_face_indices_b_const(model);
                 const faceint_t* fc_c = dashmodel_face_indices_c_const(model);
-                g_sorted.push_back((uint16_t)((uint32_t)fa[f] + vbo_base));
-                g_sorted.push_back((uint16_t)((uint32_t)fb[f] + vbo_base));
-                g_sorted.push_back((uint16_t)((uint32_t)fc_c[f] + vbo_base));
+                g_sorted.push_back((uint16_t)fa[f]);
+                g_sorted.push_back((uint16_t)fb[f]);
+                g_sorted.push_back((uint16_t)fc_c[f]);
             }
         }
     }

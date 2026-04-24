@@ -276,6 +276,7 @@ struct ModelVertexV2
     ushort color_hi; // B | (A << 8)
     ushort u;
     ushort v;
+    ushort tex_id;
 };
 
 struct InstanceDataV2
@@ -293,6 +294,7 @@ vertex VertexOut vertexShader3DV2(
     device const InstanceDataV2* instances [[buffer(1)]],
     constant Uniforms& uniforms [[buffer(2)]])
 {
+    // drawIndexedPrimitives: vid is the resolved vertex index from the index buffer.
     ModelVertexV2 v = verts[vid];
     InstanceDataV2 inst = instances[iid];
 
@@ -320,8 +322,8 @@ vertex VertexOut vertexShader3DV2(
     VertexOut out;
     out.position  = uniforms.projectionMatrix * uniforms.modelViewMatrix * worldPos;
     out.color     = float4(cr, cg, cb, ca);
-    out.texcoord  = float2(0.0f, 0.0f);
-    out.tex_id    = 0xFFFFu; // pure-color path in fragmentShader
+    out.texcoord  = float2((float)v.u, (float)v.v) * (1.0f / 65535.0f);
+    out.tex_id    = (uint)v.tex_id;
     out.uv_mode   = 0u;
     return out;
 }

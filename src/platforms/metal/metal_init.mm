@@ -21,6 +21,8 @@ PlatformImpl2_SDL2_Renderer_Metal_New(
     renderer->mtl_cache2_atlas_tiles_buf = nullptr;
     renderer->mtl_frame_semaphore =
         (__bridge_retained void*)dispatch_semaphore_create(kMetalInflightFrames);
+    renderer->mtl_uniform_frame_slot =
+        (uint32_t)(kMetalInflightFrames > 0 ? kMetalInflightFrames - 1 : 0);
     renderer->mtl_pass3d_instance_buf = nullptr;
     renderer->mtl_pass3d_index_buf = nullptr;
     renderer->mtl_3d_v2_pipeline = nullptr;
@@ -84,6 +86,14 @@ PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* ren
         renderer->mtl_device = nullptr;
     }
 
+    if( renderer->mtl_frame_semaphore )
+    {
+        dispatch_semaphore_t sem =
+            (__bridge_transfer dispatch_semaphore_t)renderer->mtl_frame_semaphore;
+        renderer->mtl_frame_semaphore = nullptr;
+        (void)sem;
+    }
+
     if( renderer->metal_view )
     {
         SDL_Metal_DestroyView(renderer->metal_view);
@@ -98,6 +108,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
     struct Platform2_SDL2_Renderer_Metal* renderer,
     struct Platform2_SDL2* platform)
 {
+    // If this returns false after partial setup, the caller must still call Free().
     if( !renderer || !platform || !platform->window )
         return false;
 
@@ -213,15 +224,17 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
                 v2Err ? v2Err.localizedDescription.UTF8String : "unknown");
     }
 
-    // Persistent per-frame buffers for Pass3DBuilder2SubmitMetal
+    // Persistent per-frame buffers for Pass3DBuilder2SubmitMetal (sizes follow
+    // kPass3DBuilder2DynamicIndexUInt16Capacity / worst-case draws per frame).
     {
-        const size_t inst_bytes = 4096 * sizeof(DrawModelInstanceData3D);
+        const size_t inst_bytes = 16384 * sizeof(DrawModelInstanceData3D);
         id<MTLBuffer> inst_buf = [device newBufferWithLength:(NSUInteger)inst_bytes
                                                      options:MTLResourceStorageModeShared];
         renderer->mtl_pass3d_instance_buf = (__bridge_retained void*)inst_buf;
     }
     {
-        const size_t idx_bytes = 65536 * sizeof(uint16_t);
+        const size_t idx_bytes =
+            (size_t)kPass3DBuilder2DynamicIndexUInt16Capacity * sizeof(uint16_t);
         id<MTLBuffer> idx_buf = [device newBufferWithLength:(NSUInteger)idx_bytes
                                                     options:MTLResourceStorageModeShared];
         renderer->mtl_pass3d_index_buf = (__bridge_retained void*)idx_buf;
@@ -277,8 +290,11 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
     id<MTLDepthStencilState> dsState = [device newDepthStencilStateWithDescriptor:dsDesc];
     metal_internal_set_depth_stencil((__bridge_retained void*)dsState);
 
-    // Uniform buffer
-    id<MTLBuffer> unifBuf = [device newBufferWithLength:sizeof(MetalUniforms)
+    // Uniform ring: in-flight frames × max 3D passes × padded stride (dynamic offsets).
+    const NSUInteger uniform_stride = (NSUInteger)metal_uniforms_stride_padded();
+    const NSUInteger uniform_bytes =
+        uniform_stride * (NSUInteger)kMetalMax3dPassesPerFrame * (NSUInteger)kMetalInflightFrames;
+    id<MTLBuffer> unifBuf = [device newBufferWithLength:uniform_bytes
                                                 options:MTLResourceStorageModeShared];
     renderer->mtl_uniform_buffer = (__bridge_retained void*)unifBuf;
 

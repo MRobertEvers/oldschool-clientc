@@ -163,7 +163,12 @@ rs_gfx_model_step(
             return true;
     }
 
-    frame_emit_pass(fiber, FRAME_PASS_3D);
+    frame_emit_pass_3d_with_rect(
+        fiber,
+        component->position.x,
+        component->position.y,
+        component->position.width,
+        component->position.height);
     {
         struct ToriRSRenderCommand* cmd =
             LibToriRS_RenderCommandBufferEmplaceCommand(queued_commands);

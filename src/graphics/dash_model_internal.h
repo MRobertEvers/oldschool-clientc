@@ -165,7 +165,7 @@ dashmodel__is_ground(const void* m)
     return dashmodel__type(m) == DASHMODEL_TYPE_GROUND;
 }
 
-static inline bool
+inline bool
 dashmodel__is_ground_va(const void* m)
 {
     return dashmodel__type(m) == DASHMODEL_TYPE_GROUND_VA;
@@ -228,7 +228,8 @@ static inline const struct DashModelVAGround*
 dashmodel__as_ground_va_const(const void* m)
 {
     assert(dashmodel__is_ground_va(m));
-    return (const struct DashModelVAGround*)m;
+    const struct DashModelVAGround* v = (const struct DashModelVAGround*)m;
+    return v;
 }
 
 static inline struct DashModelFull*
