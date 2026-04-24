@@ -193,6 +193,12 @@ public:
         uint16_t texture_id,
         const void* pixel_data);
 
+    const uint8_t*
+    GetAtlasPixelData() const;
+
+    uint32_t
+    GetAtlasPixelDataSize() const;
+
     int
     BatchBegin();
     void
@@ -526,6 +532,18 @@ GPU3DCache2::InitAtlas(
             atlas.uv_region[i] = { 0.0f, 0.0f, 0.0f, 0.0f };
         }
     }
+}
+
+inline const uint8_t*
+GPU3DCache2::GetAtlasPixelData() const
+{
+    return atlas.pixel_buffer.data();
+}
+
+inline uint32_t
+GPU3DCache2::GetAtlasPixelDataSize() const
+{
+    return atlas.pixel_buffer.size();
 }
 
 inline void

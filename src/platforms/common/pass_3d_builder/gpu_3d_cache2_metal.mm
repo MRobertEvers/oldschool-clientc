@@ -1,10 +1,17 @@
 #include "gpu_3d_cache2.h"
 #import <Metal/Metal.h>
 
+struct BatchBuffers
+{
+    id<MTLBuffer> vbo;
+    id<MTLBuffer> ebo;
+};
+
 void
 GPU3DCache2BatchSubmitMetal(
     GPU3DCache2& cache,
-    id<MTLDevice> metal_device)
+    id<MTLDevice> metal_device,
+    BatchBuffers& out_batch_buffers)
 {
     uint32_t vbo_size = cache.BatchGetVBOSize() * sizeof(uint16_t);
     uint32_t ebo_size = cache.BatchGetEBOSize() * sizeof(uint16_t);
@@ -57,4 +64,41 @@ GPU3DCache2BatchSubmitMetal(
     // 3. Cleanup CPU Memory
     // Now that the GPU has the data and the cache is wired up, we can destroy the std::vectors
     cache.BatchEnd();
+
+    out_batch_buffers.vbo = batched_vbo;
+    out_batch_buffers.ebo = batched_ebo;
+}
+
+id<MTLTexture>
+GPU3DCache2SubmitAtlasMetal(
+    GPU3DCache2& cache,
+    id<MTLDevice> metal_device)
+{
+    if( !cache.HasBufferedAtlasData() )
+        return nil;
+
+    // 1. Describe the Texture (The "Blueprint")
+    MTLTextureDescriptor* texDesc = [MTLTextureDescriptor //
+        texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                     width:cache.GetAtlasWidth()
+                                    height:cache.GetAtlasHeight()
+                                 mipmapped:NO];
+
+    // We want the GPU to be able to read this during rendering
+    texDesc.usage = MTLTextureUsageShaderRead;
+
+    // 2. Create the physical Texture resource
+    id<MTLTexture> atlas_texture = [metal_device //
+        newTextureWithDescriptor:texDesc];
+
+    // 3. Copy the raw bytes from your cache's std::vector into the Texture regions
+    MTLRegion region = MTLRegionMake2D(0, 0, cache.GetAtlasWidth(), cache.GetAtlasHeight());
+
+    [atlas_texture //
+        replaceRegion:region
+          mipmapLevel:0
+            withBytes:cache.GetAtlasPixelData()
+          bytesPerRow:cache.GetAtlasWidth() * 4]; // 4 bytes for RGBA
+
+    return atlas_texture;
 }
