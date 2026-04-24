@@ -38,7 +38,9 @@ struct DrawModelInstanceData3D
 struct DrawModel3D
 {
     uint16_t model_id;
-    uint16_t pose_id;
+    bool use_animation;
+    uint8_t animation_index;
+    uint8_t frame_index;
 
     // Rotation/position data
     uint32_t instance_offset;
@@ -49,12 +51,16 @@ struct DrawModel3D
 
     DrawModel3D(
         uint16_t model_id,
-        uint16_t pose_id,
+        bool use_animation,
+        uint8_t animation_index,
+        uint8_t frame_index,
         uint32_t instance_offset,
         uint32_t dynamic_index_offset,
         uint32_t dynamic_index_count)
         : model_id(model_id)
-        , pose_id(pose_id)
+        , use_animation(use_animation)
+        , animation_index(animation_index)
+        , frame_index(frame_index)
         , instance_offset(instance_offset)
         , dynamic_index_offset(dynamic_index_offset)
         , dynamic_index_count(dynamic_index_count)
@@ -63,13 +69,21 @@ struct DrawModel3D
     static DrawModel3D
     Create(
         uint16_t model_id,
-        uint16_t pose_id,
+        bool use_animation,
+        uint8_t animation_index,
+        uint8_t frame_index,
         uint32_t instance_offset,
         uint32_t dynamic_index_offset,
         uint32_t dynamic_index_count)
     {
         return DrawModel3D(
-            model_id, pose_id, instance_offset, dynamic_index_offset, dynamic_index_count);
+            model_id,
+            use_animation,
+            animation_index,
+            frame_index,
+            instance_offset,
+            dynamic_index_offset,
+            dynamic_index_count);
     }
 };
 
@@ -103,7 +117,9 @@ public:
         int32_t y,
         int32_t z,
         int rotation_r2pi2048,
-        uint16_t pose_id = 0,
+        bool use_animation,
+        uint8_t animation_index,
+        uint8_t frame_index,
         uint16_t* sorted_indices = nullptr,
         uint32_t index_count = 0);
 
@@ -163,7 +179,9 @@ Pass3DBuilder2::AddModelDrawYawOnly(
     int32_t y,
     int32_t z,
     int rotation_r2pi2048,
-    uint16_t pose_id,
+    bool use_animation,
+    uint8_t animation_index,
+    uint8_t frame_index,
     uint16_t* sorted_indices,
     uint32_t index_count)
 {
@@ -190,7 +208,14 @@ Pass3DBuilder2::AddModelDrawYawOnly(
     // 3. Create the Command
     // We pass the model_id, the location of our rotation, and the location of our indices.
     draw_commands.push_back(
-        DrawModel3D::Create(model_id, pose_id, instance_offset, index_pool_offset, index_count));
+        DrawModel3D::Create(
+            model_id,
+            use_animation,
+            animation_index,
+            frame_index,
+            instance_offset,
+            index_pool_offset,
+            index_count));
 }
 
 inline void

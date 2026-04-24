@@ -39,6 +39,8 @@ struct Scene2ElementFull
 
     // Small primary = 0, secondary = 1
     uint8_t active_frame_index;
+    /** Last active animation track for render: 0 primary, 1 secondary. */
+    uint8_t active_animation_index;
     struct Scene2Frames primary_frames;
     struct Scene2Frames secondary_frames;
 };

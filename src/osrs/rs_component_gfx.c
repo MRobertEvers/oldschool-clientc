@@ -171,7 +171,9 @@ rs_gfx_model_step(
         cmd->_model_draw.model = mod;
         cmd->_model_draw.model_key = rs_model_cache_key_u64(game->world->scene2, se);
         cmd->_model_draw.model_id = scene2_element_dash_model_gpu_id(se);
-        cmd->_model_draw.pose_id = scene2_element_gpu_pose_id(se);
+        cmd->_model_draw.use_animation = scene2_element_active_anim_id(se) != 0;
+        cmd->_model_draw.animation_index = scene2_element_active_animation_index(se);
+        cmd->_model_draw.frame_index = scene2_element_active_frame(se);
         memcpy(&cmd->_model_draw.position, &position, sizeof(struct DashPosition));
     }
     return true;

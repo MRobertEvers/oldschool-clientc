@@ -111,8 +111,6 @@ struct ToriRSRenderCommand
             uint64_t model_key;
             /** Scene2-assigned id from MODEL_LOADED; canonical key for renderer model caches. */
             int model_id;
-            /** GPU pose slot index (0..MAX_POSE_COUNT-1) from scene2_element_gpu_pose_id. */
-            uint8_t pose_id;
         } _model_load;
         struct
         {
@@ -150,8 +148,11 @@ struct ToriRSRenderCommand
             /** Same Scene2 id as MODEL_LOAD for this element's current model (see
              * scene2_element_dash_model_gpu_id). */
             int model_id;
-            /** GPU pose slot index from scene2_element_gpu_pose_id; indexes GPU3DCache2 poses[]. */
-            uint8_t pose_id;
+            /** If false, draw bind pose `poses[0]`; if true, use `animation_index` + `frame_index`. */
+            bool use_animation;
+            /** Scene track when animated: 0 = primary, 1 = secondary. */
+            uint8_t animation_index;
+            uint8_t frame_index;
         } _model_draw;
         struct
         {

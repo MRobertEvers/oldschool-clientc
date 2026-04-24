@@ -95,7 +95,11 @@ struct GPUModelPosedData
 
 struct GPUModelData
 {
-    GPUModelPosedData poses[MAX_POSE_COUNT];
+    /** Flat list of baked poses; bind is always `poses[0]`; `animation_offsets[1/2]` index bases.
+     */
+    std::vector<GPUModelPosedData> poses;
+    /** `[0]` is always 0 (bind). `[1]` / `[2]` are starting pose indices for primary / secondary.
+     */
     uint32_t animation_offsets[3];
 };
 
@@ -103,8 +107,8 @@ struct BatchedQueueModel
 {
     bool is_va = false;
     uint16_t model_id;
-    uint16_t animation_index;
-    uint16_t frame_index;
+    /** Absolute index into `GPUModelData::poses` for this merged batch slice. */
+    uint32_t pose_index;
     uint32_t vertex_count;
     uint32_t vbo_start;
     uint32_t face_count;
@@ -115,16 +119,14 @@ struct BatchedQueueModel
     BatchedQueueModel(
         bool is_va,
         uint16_t model_id,
-        uint16_t animation_index,
-        uint16_t frame_index,
+        uint32_t pose_index,
         uint32_t vertex_count,
         uint32_t vbo_start,
         uint32_t face_count,
         uint32_t ebo_start)
         : is_va(is_va)
         , model_id(model_id)
-        , animation_index(animation_index)
-        , frame_index(frame_index)
+        , pose_index(pose_index)
         , vertex_count(vertex_count)
         , vbo_start(vbo_start)
         , face_count(face_count)
@@ -134,22 +136,14 @@ struct BatchedQueueModel
     static BatchedQueueModel
     CreateModel(
         uint16_t model_id,
-        uint16_t animation_index,
-        uint16_t frame_index,
+        uint32_t pose_index,
         uint32_t vertex_count,
         uint32_t vertices_start,
         uint32_t face_count,
         uint32_t ebo_start)
     {
         return BatchedQueueModel(
-            false,
-            model_id,
-            animation_index,
-            frame_index,
-            vertex_count,
-            vertices_start,
-            face_count,
-            ebo_start);
+            false, model_id, pose_index, vertex_count, vertices_start, face_count, ebo_start);
     }
 };
 
@@ -181,6 +175,12 @@ private:
     std::array<GPUModelData, MAX_3D_ASSETS> models;
     GPUTextureAtlas atlas;
     std::vector<BatchQueue> batch_queues;
+
+    uint32_t
+    allocatePoseSlot(
+        uint16_t model_id,
+        uint8_t gpu_segment_slot,
+        uint16_t frame_index);
 
 public:
     GPU3DCache2() = default;
@@ -214,7 +214,7 @@ public:
     void
     BatchAddModeli16(
         uint16_t model_id,
-        uint16_t animation_index,
+        uint8_t gpu_segment_slot,
         uint16_t frame_index,
         uint32_t vertex_count,
         uint16_t* vertices_x,
@@ -231,7 +231,7 @@ public:
     void
     BatchAddModelTexturedi16(
         uint16_t model_id,
-        uint16_t animation_index,
+        uint8_t gpu_segment_slot,
         uint16_t frame_index,
         uint32_t vertex_count,
         uint16_t* vertices_x,
@@ -268,6 +268,9 @@ public:
     uint32_t
     GetAtlasHeight() const;
 
+    const AtlasUVRect&
+    GetAtlasUVRect(uint16_t texture_id) const;
+
     bool
     HasBufferedAtlasData() const;
 
@@ -277,22 +280,31 @@ public:
     void
     SetModelPose(
         uint16_t model_id,
-        uint16_t pose_id,
+        uint32_t pose_index,
         const GPUModelPosedData& data);
 
     GPUModelPosedData
     GetModelPose(
         uint16_t model_id,
-        uint16_t pose_id) const;
+        uint32_t pose_index) const;
 
-    /** Same geometry as pose 0; prefer GetModelPose when using multiple poses. */
+    /** Bind pose when `use_animation` is false; else
+     * `poses[animation_offsets[scene_anim+1]+frame]`. */
+    GPUModelPosedData
+    GetModelPoseForDraw(
+        uint16_t model_id,
+        bool use_animation,
+        int scene_animation_index,
+        int frame_index) const;
+
+    /** Same geometry as bind pose `poses[0]`. */
     GPUModelPosedData
     GetModel(uint16_t model_id) const
     {
-        return GetModelPose(model_id, 0);
+        return GetModelPose(model_id, 0u);
     }
 
-    /** Reset all pose slots for a model (call when unloading a batch that contains this model). */
+    /** Reset poses and segment bases for a model (e.g. batch unload). */
     void
     ClearModel(uint16_t model_id)
     {
@@ -314,10 +326,48 @@ GPU3DCache2::BatchEnd()
     batch_queues.pop_back();
 }
 
+inline uint32_t
+GPU3DCache2::allocatePoseSlot(
+    uint16_t model_id,
+    uint8_t gpu_segment_slot,
+    uint16_t frame_index)
+{
+    if( model_id >= MAX_3D_ASSETS )
+        return 0;
+    GPUModelData& md = models[model_id];
+    if( gpu_segment_slot == GPU_MODEL_ANIMATION_NONE_IDX )
+    {
+        md.animation_offsets[0] = 0;
+        if( md.poses.size() < 1u )
+            md.poses.resize(1u);
+        return 0u;
+    }
+    if( gpu_segment_slot == GPU_MODEL_ANIMATION_PRIMARY_IDX )
+    {
+        if( md.animation_offsets[1] == 0u )
+            md.animation_offsets[1] =
+                (uint32_t)md.poses.size() < 1u ? 0u : (uint32_t)md.poses.size();
+        const uint32_t idx = md.animation_offsets[1] + (uint32_t)frame_index;
+        if( md.poses.size() <= idx )
+            md.poses.resize((size_t)idx + 1u);
+        return idx;
+    }
+    if( gpu_segment_slot == GPU_MODEL_ANIMATION_SECONDARY_IDX )
+    {
+        if( md.animation_offsets[2] == 0u )
+            md.animation_offsets[2] = (uint32_t)md.poses.size();
+        const uint32_t idx = md.animation_offsets[2] + (uint32_t)frame_index;
+        if( md.poses.size() <= idx )
+            md.poses.resize((size_t)idx + 1u);
+        return idx;
+    }
+    return 0u;
+}
+
 inline void
 GPU3DCache2::BatchAddModeli16(
     uint16_t model_id,
-    uint16_t animation_index,
+    uint8_t gpu_segment_slot,
     uint16_t frame_index,
     uint32_t vertex_count,
     uint16_t* vertices_x,
@@ -332,6 +382,7 @@ GPU3DCache2::BatchAddModeli16(
     uint16_t* faces_c_color_hsl16)
 {
     BatchQueue& batch_queue = batch_queues.back();
+    const uint32_t pose_index = allocatePoseSlot(model_id, gpu_segment_slot, frame_index);
 
     uint16_t color_low, color_high;
 
@@ -366,19 +417,13 @@ GPU3DCache2::BatchAddModeli16(
 
     batch_queue.batch.push_back(
         BatchedQueueModel::CreateModel(
-            model_id,
-            animation_index,
-            frame_index,
-            vertex_count,
-            vbo_element_start,
-            faces_count,
-            ebo_start));
+            model_id, pose_index, vertex_count, vbo_element_start, faces_count, ebo_start));
 }
 
 inline void
 GPU3DCache2::BatchAddModelTexturedi16(
     uint16_t model_id,
-    uint16_t animation_index,
+    uint8_t gpu_segment_slot,
     uint16_t frame_index,
     uint32_t vertex_count,
     uint16_t* vertices_x,
@@ -398,6 +443,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
     uint16_t* textured_faces_c)
 {
     BatchQueue& batch_queue = batch_queues.back();
+    const uint32_t pose_index = allocatePoseSlot(model_id, gpu_segment_slot, frame_index);
 
     uint16_t color_low, color_high;
 
@@ -427,9 +473,9 @@ GPU3DCache2::BatchAddModelTexturedi16(
         // Note: uint16_t is unsigned, so -1 becomes 0xFFFF.
         if( textured_faces && textured_faces[i] != 0xFFFF )
         {
-            tp_vertex = textured_faces_a[i];
-            tm_vertex = textured_faces_b[i];
-            tn_vertex = textured_faces_c[i];
+            tp_vertex = textured_faces_a[textured_faces[i]];
+            tm_vertex = textured_faces_b[textured_faces[i]];
+            tn_vertex = textured_faces_c[textured_faces[i]];
         }
         else
         {
@@ -511,13 +557,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
 
     batch_queue.batch.push_back(
         BatchedQueueModel::CreateModel(
-            model_id,
-            animation_index,
-            frame_index,
-            new_vertex_count,
-            vbo_element_start,
-            faces_count,
-            ebo_start));
+            model_id, pose_index, new_vertex_count, vbo_element_start, faces_count, ebo_start));
 }
 
 inline uint16_t*
@@ -650,6 +690,15 @@ GPU3DCache2::GetAtlasHeight() const
     return atlas.atlas_height;
 }
 
+inline const AtlasUVRect&
+GPU3DCache2::GetAtlasUVRect(uint16_t texture_id) const
+{
+    static const AtlasUVRect kEmpty{};
+    if( texture_id >= MAX_TEXTURES )
+        return kEmpty;
+    return atlas.uv_region[texture_id];
+}
+
 inline bool
 GPU3DCache2::HasBufferedAtlasData() const
 {
@@ -666,22 +715,47 @@ GPU3DCache2::BatchGetTrackingData() const
 inline void
 GPU3DCache2::SetModelPose(
     uint16_t model_id,
-    uint16_t pose_id,
+    uint32_t pose_index,
     const GPUModelPosedData& data)
 {
-    if( model_id >= MAX_3D_ASSETS || pose_id >= MAX_POSE_COUNT )
+    if( model_id >= MAX_3D_ASSETS )
         return;
-    models[model_id].poses[pose_id] = data;
+    GPUModelData& md = models[model_id];
+    if( pose_index >= md.poses.size() )
+        md.poses.resize((size_t)pose_index + 1u);
+    md.poses[pose_index] = data;
 }
 
 inline GPUModelPosedData
 GPU3DCache2::GetModelPose(
     uint16_t model_id,
-    uint16_t pose_id) const
+    uint32_t pose_index) const
 {
-    if( model_id >= MAX_3D_ASSETS || pose_id >= MAX_POSE_COUNT )
+    if( model_id >= MAX_3D_ASSETS )
         return {};
-    return models[model_id].poses[pose_id];
+    const GPUModelData& md = models[model_id];
+    if( pose_index >= md.poses.size() )
+        return {};
+    return md.poses[pose_index];
+}
+
+inline GPUModelPosedData
+GPU3DCache2::GetModelPoseForDraw(
+    uint16_t model_id,
+    bool use_animation,
+    int scene_animation_index,
+    int frame_index) const
+{
+    if( model_id >= MAX_3D_ASSETS )
+        return {};
+    if( !use_animation )
+        return GetModelPose(model_id, 0u);
+    if( scene_animation_index < 0 || scene_animation_index > 1 || frame_index < 0 )
+        return {};
+    const GPUModelData& md = models[model_id];
+    const uint32_t base = md.animation_offsets[(size_t)scene_animation_index + 1u];
+    const uint32_t idx = base + (uint32_t)frame_index;
+    return GetModelPose(model_id, idx);
 }
 
 #endif

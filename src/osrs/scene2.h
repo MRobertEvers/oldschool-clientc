@@ -318,6 +318,14 @@ scene2_element_set_active_frame(
     struct Scene2Element* element,
     uint8_t frame);
 
+uint8_t
+scene2_element_active_animation_index(const struct Scene2Element* element);
+
+void
+scene2_element_set_active_animation_index(
+    struct Scene2Element* element,
+    uint8_t index);
+
 struct Scene2Frames*
 scene2_element_primary_frames(struct Scene2Element* element);
 

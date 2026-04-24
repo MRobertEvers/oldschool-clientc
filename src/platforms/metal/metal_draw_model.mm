@@ -1,78 +1,13 @@
 // System ObjC/Metal headers must come before any game headers.
 #include "platforms/metal/metal_internal.h"
 
-bool
-metal_resolve_model_draw_buffers(
-    Gpu3DCache<void*>& cache,
-    int model_gpu_id,
-    Gpu3DCache<void*>::ModelBufferRange* range,
-    MetalDrawBuffersResolved* out)
-{
-    if( !range || !out )
-        return false;
-    const int stride = (int)sizeof(MetalVertex);
-    if( stride <= 0 )
-        return false;
-
-    if( range->fa_gpu_id >= 0 )
-    {
-        Gpu3DCache<void*>::FaceArrayEntry* fa = cache.get_face_array(range->fa_gpu_id);
-        if( !fa )
-            return false;
-        if( fa->batch_id < 0 )
-            return false;
-        void* vbo = cache.get_batch_vbo_for_chunk((uint32_t)fa->batch_id, fa->batch_chunk_index);
-        if( !vbo )
-            return false;
-        out->vbo = vbo;
-        out->batch_chunk_index = fa->batch_chunk_index;
-        out->vertex_index_base = (int)(range->vtx_byte_offset / (uint32_t)stride);
-        out->gpu_face_count = range->face_count;
-        return out->vbo != nullptr;
-    }
-
-    Gpu3DCache<void*>::ModelEntry* entry = cache.get_model_entry(model_gpu_id);
-    if( entry && entry->is_batched && !range->buffer )
-    {
-        void* vbo = cache.get_batch_vbo_for_model(model_gpu_id);
-        if( !vbo )
-            return false;
-        out->vbo = vbo;
-        out->batch_chunk_index = range->batch_chunk_index;
-        out->vertex_index_base = (int)(range->vtx_byte_offset / (uint32_t)stride);
-        out->gpu_face_count = range->face_count;
-        return true;
-    }
-
-    out->vbo = range->buffer;
-    out->batch_chunk_index = -1;
-    out->vertex_index_base = (int)(range->vtx_byte_offset / (uint32_t)stride);
-    out->gpu_face_count = range->face_count;
-    return out->vbo != nullptr;
-}
+#include <vector>
 
 void
 metal_frame_event_model_draw(
     MetalRenderCtx* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
-    /* Fire the deferred world-rect clear before the first model of each 3D pass.
-       metal_flush_2d is a no-op if 2D was already flushed; calling it here ensures
-       any lingering buffered 2D is encoded BEFORE the clear overwrites the world area. */
-    if( ctx->world_clear_pending )
-    {
-        metal_flush_2d(ctx);
-        struct ToriRSRenderCommand wc = { 0 };
-        wc.kind = TORIRS_GFX_CLEAR_RECT;
-        wc._clear_rect.x = ctx->world_clear_x;
-        wc._clear_rect.y = ctx->world_clear_y;
-        wc._clear_rect.w = ctx->world_clear_w;
-        wc._clear_rect.h = ctx->world_clear_h;
-        // if( wc._clear_rect.w > 0 && wc._clear_rect.h > 0 )
-        //     metal_frame_event_clear_rect(ctx, &wc);
-        ctx->world_clear_pending = false;
-    }
-
     struct DashModel* model = cmd->_model_draw.model;
     if( !model || !dashmodel_face_colors_a_const(model) || !dashmodel_face_colors_b_const(model) ||
         !dashmodel_face_colors_c_const(model) || !dashmodel_vertices_x_const(model) ||
@@ -81,92 +16,68 @@ metal_frame_event_model_draw(
         !dashmodel_face_indices_c_const(model) || dashmodel_face_count(model) <= 0 )
         return;
 
-    // v2 fast path: if the model pose is in GPU3DCache2, use Pass3DBuilder2
+    const int mid_v2 = cmd->_model_draw.model_id;
+    if( mid_v2 <= 0 )
+        return;
+
+    const bool use_anim = cmd->_model_draw.use_animation;
+    const uint8_t anim_idx = cmd->_model_draw.animation_index;
+    const uint8_t frame_idx = cmd->_model_draw.frame_index;
+    const GPUModelPosedData pose = ctx->renderer->model_cache2.GetModelPoseForDraw(
+        (uint16_t)mid_v2, use_anim, (int)anim_idx, (int)frame_idx);
+    if( !pose.valid )
+        return;
+
+    struct DashPosition draw_position = cmd->_model_draw.position;
+    int face_order_count = dash3d_prepare_projected_face_order(
+        ctx->game->sys_dash, model, &draw_position, ctx->game->view_port, ctx->game->camera);
+    const int* face_order = dash3d_projected_face_order(ctx->game->sys_dash, &face_order_count);
+
+    const uint32_t vbo_base = pose.vbo_offset;
+    const int fc = dashmodel_face_count(model);
+    const bool textured = dashmodel_has_textures(model);
+
+    static std::vector<uint16_t> g_sorted;
+    g_sorted.clear();
+    if( face_order_count > 0 && fc > 0 )
     {
-        const int mid_v2 = cmd->_model_draw.model_id;
-        if( mid_v2 > 0 )
+        g_sorted.reserve((size_t)face_order_count * 3u);
+        for( int fi = 0; fi < face_order_count; ++fi )
         {
-            const uint8_t pose_id = cmd->_model_draw.pose_id;
-            const GPUModelPosedData pose =
-                ctx->renderer->model_cache2.GetModelPose((uint16_t)mid_v2, pose_id);
-            if( pose.valid )
+            const int f = face_order ? face_order[fi] : fi;
+            if( f < 0 || f >= fc )
+                continue;
+            if( textured )
             {
-                const struct DashPosition& pos = cmd->_model_draw.position;
-                ctx->renderer->mtl_pass3d_builder.AddModelDrawYawOnly(
-                    (uint16_t)mid_v2, pos.x, pos.y, pos.z, pos.yaw, pose_id);
-                return;
+                const uint32_t b = vbo_base + (uint32_t)f * 3u;
+                g_sorted.push_back((uint16_t)b);
+                g_sorted.push_back((uint16_t)(b + 1u));
+                g_sorted.push_back((uint16_t)(b + 2u));
+            }
+            else
+            {
+                const faceint_t* fa = dashmodel_face_indices_a_const(model);
+                const faceint_t* fb = dashmodel_face_indices_b_const(model);
+                const faceint_t* fc_c = dashmodel_face_indices_c_const(model);
+                g_sorted.push_back((uint16_t)((uint32_t)fa[f] + vbo_base));
+                g_sorted.push_back((uint16_t)((uint32_t)fb[f] + vbo_base));
+                g_sorted.push_back((uint16_t)((uint32_t)fc_c[f] + vbo_base));
             }
         }
     }
 
-    if( !ctx->bfo3d )
-        return;
+    const uint32_t idx_count = (uint32_t)g_sorted.size();
+    uint16_t* idx_ptr = idx_count ? g_sorted.data() : nullptr;
 
-    const int mid_draw = cmd->_model_draw.model_id;
-    if( mid_draw <= 0 )
-        return;
-
-    const uint64_t mk = cmd->_model_draw.model_key;
-    int anim_id = 0;
-    int frame_index = 0;
-    torirs_model_cache_key_decode(mk, &anim_id, &frame_index);
-
-    Gpu3DCache<void*>::ModelBufferRange* range =
-        ctx->renderer->model_cache.get_instance(mid_draw, anim_id, frame_index);
-    if( !range )
-    {
-        if( !build_model_instance(
-                ctx->renderer, ctx->device, model, mid_draw, anim_id, frame_index) )
-        {
-            if( anim_id == 0 && frame_index == 0 )
-                return;
-            if( !build_model_instance(ctx->renderer, ctx->device, model, mid_draw, 0, 0) )
-                return;
-            range = ctx->renderer->model_cache.get_instance(mid_draw, 0, 0);
-        }
-        else
-            range = ctx->renderer->model_cache.get_instance(mid_draw, anim_id, frame_index);
-    }
-    if( !range )
-        return;
-
-    MetalDrawBuffersResolved buf = {};
-    if( !metal_resolve_model_draw_buffers(ctx->renderer->model_cache, mid_draw, range, &buf) )
-        return;
-
-    struct DashPosition draw_position = cmd->_model_draw.position;
-
-    Gpu3DAngleEncoding angle_enc = Gpu3DAngleEncoding::DashR2pi2048;
-    if( Gpu3DCache<void*>::ModelEntry* me = ctx->renderer->model_cache.get_model_entry(mid_draw) )
-        angle_enc = me->angle_encoding;
-
-    float cos_yaw = 1.0f;
-    float sin_yaw = 0.0f;
-    switch( angle_enc )
-    {
-    case Gpu3DAngleEncoding::DashR2pi2048:
-    case Gpu3DAngleEncoding::Reserved1:
-    case Gpu3DAngleEncoding::Reserved2:
-    default:
-        metal_prebake_model_yaw_cos_sin(draw_position.yaw, &cos_yaw, &sin_yaw);
-        break;
-    }
-
-    while( !ctx->bfo3d->append_model(
-        ctx->game->sys_dash,
-        model,
-        &draw_position,
-        ctx->game->view_port,
-        ctx->game->camera,
-        buf.batch_chunk_index,
-        buf.vbo,
-        buf.vertex_index_base,
-        buf.gpu_face_count,
-        cos_yaw,
-        sin_yaw,
-        angle_enc) )
-    {
-        metal_flush_3d(ctx, ctx->bfo3d);
-        ctx->bfo3d->begin_pass();
-    }
+    ctx->renderer->mtl_pass3d_builder.AddModelDrawYawOnly(
+        (uint16_t)mid_v2,
+        draw_position.x,
+        draw_position.y,
+        draw_position.z,
+        draw_position.yaw,
+        use_anim,
+        anim_idx,
+        frame_idx,
+        idx_ptr,
+        idx_count);
 }

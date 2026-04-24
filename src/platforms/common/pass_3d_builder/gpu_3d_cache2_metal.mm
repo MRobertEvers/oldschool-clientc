@@ -1,4 +1,5 @@
 #include "gpu_3d_cache2_metal.h"
+
 #import <Metal/Metal.h>
 
 void
@@ -38,9 +39,6 @@ GPU3DCache2BatchSubmitMetal(
     GPUModelPosedData pose_data;
     for( const BatchedQueueModel& batched_model : tracking_data )
     {
-        if( batched_model.pose_id >= MAX_POSE_COUNT )
-            continue;
-
         pose_data.vbo = vbo_handle;
         pose_data.ebo = ebo_handle;
 
@@ -53,9 +51,7 @@ GPU3DCache2BatchSubmitMetal(
         pose_data.element_count = batched_model.face_count * 3;
         pose_data.valid = true;
 
-        cache.SetModelPose(batched_model.model_id, batched_model.pose_id, pose_data);
-        cache.SetModelAnimationOffset(
-            batched_model.model_id, batched_model.animation_index, batched_model.vbo_start);
+        cache.SetModelPose(batched_model.model_id, batched_model.pose_index, pose_data);
     }
 
     // 3. Cleanup CPU Memory

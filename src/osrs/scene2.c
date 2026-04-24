@@ -834,6 +834,24 @@ scene2_element_set_active_frame(
     scene2__as_full(element)->active_frame_index = frame;
 }
 
+uint8_t
+scene2_element_active_animation_index(const struct Scene2Element* element)
+{
+    if( scene2__is_fast(element) )
+        return 0;
+    return scene2__as_full_const(element)->active_animation_index;
+}
+
+void
+scene2_element_set_active_animation_index(
+    struct Scene2Element* element,
+    uint8_t index)
+{
+    if( scene2__is_fast(element) )
+        return;
+    scene2__as_full(element)->active_animation_index = index;
+}
+
 struct Scene2Frames*
 scene2_element_primary_frames(struct Scene2Element* element)
 {

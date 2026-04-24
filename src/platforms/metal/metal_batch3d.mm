@@ -2,35 +2,24 @@
 #include "platforms/common/pass_3d_builder/gpu_3d_cache2_metal.h"
 #include "platforms/metal/metal_internal.h"
 
-// ---------------------------------------------------------------------------
-// TORIRS_GFX_BATCH3D_LOAD_START
-// ---------------------------------------------------------------------------
 void
-metal_frame_event_batch_model_load_start(
+metal_cache2_batch_push_model_mesh(
     MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd)
+    struct DashModel* model,
+    int model_id,
+    uint32_t batch_id,
+    uint8_t gpu_segment_slot,
+    uint16_t frame_index)
 {
-    const uint32_t bid = cmd->_batch.batch_id;
-    ctx->renderer->model_cache.begin_batch(bid);
-    ctx->renderer->current_model_batch_id = bid;
-    // v2: begin a new batch queue and reset pose-assignment counters
-    ctx->renderer->model_cache2.BatchBegin();
-    ctx->renderer->model_cache2_batch_map[bid] =
-        Platform2_SDL2_Renderer_Metal::MetalCache2BatchEntry{};
-}
-
-// ---------------------------------------------------------------------------
-// TORIRS_GFX_BATCH3D_MODEL_LOAD
-// ---------------------------------------------------------------------------
-void
-metal_frame_event_model_batched_load(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd)
-{
-    struct DashModel* model = cmd->_model_load.model;
-    const int model_id = cmd->_model_load.model_id;
-    const uint32_t bid = ctx->renderer->current_model_batch_id;
-    if( !model || model_id <= 0 || bid == 0 )
+    if( !model || model_id <= 0 )
+        return;
+    if( dashmodel__is_ground_va(model) )
+        return;
+    if( !dashmodel_face_colors_a_const(model) || !dashmodel_face_colors_b_const(model) ||
+        !dashmodel_face_colors_c_const(model) || !dashmodel_vertices_x_const(model) ||
+        !dashmodel_vertices_y_const(model) || !dashmodel_vertices_z_const(model) ||
+        !dashmodel_face_indices_a_const(model) || !dashmodel_face_indices_b_const(model) ||
+        !dashmodel_face_indices_c_const(model) || dashmodel_face_count(model) <= 0 )
         return;
 
     const vertexint_t* vertices_x = dashmodel_vertices_x_const(model);
@@ -40,19 +29,20 @@ metal_frame_event_model_batched_load(
     const hsl16_t* face_colors_a = dashmodel_face_colors_a_const(model);
     const hsl16_t* face_colors_b = dashmodel_face_colors_b_const(model);
     const hsl16_t* face_colors_c = dashmodel_face_colors_c_const(model);
-    assert(face_colors_a && face_colors_b && face_colors_c);
 
     const faceint_t* face_indices_a = dashmodel_face_indices_a_const(model);
     const faceint_t* face_indices_b = dashmodel_face_indices_b_const(model);
     const faceint_t* face_indices_c = dashmodel_face_indices_c_const(model);
-    assert(face_indices_a && face_indices_b && face_indices_c);
 
     const int face_count = dashmodel_face_count(model);
     const int vertex_count = dashmodel_vertex_count(model);
 
-    auto it_batch = ctx->renderer->model_cache2_batch_map.find(bid);
-    if( it_batch != ctx->renderer->model_cache2_batch_map.end() )
-        it_batch->second.model_ids.push_back((uint16_t)model_id);
+    if( batch_id != 0 )
+    {
+        auto it_batch = ctx->renderer->model_cache2_batch_map.find(batch_id);
+        if( it_batch != ctx->renderer->model_cache2_batch_map.end() )
+            it_batch->second.model_ids.push_back((uint16_t)model_id);
+    }
 
     if( dashmodel_has_textures(model) )
     {
@@ -64,9 +54,8 @@ metal_frame_event_model_batched_load(
 
         ctx->renderer->model_cache2.BatchAddModelTexturedi16(
             (uint16_t)model_id,
-            (uint16_t)cmd->_model_load.pose_id,
-            0u,
-            0u,
+            gpu_segment_slot,
+            frame_index,
             (uint32_t)vertex_count,
             reinterpret_cast<uint16_t*>(const_cast<vertexint_t*>(vertices_x)),
             reinterpret_cast<uint16_t*>(const_cast<vertexint_t*>(vertices_y)),
@@ -88,9 +77,8 @@ metal_frame_event_model_batched_load(
     {
         ctx->renderer->model_cache2.BatchAddModeli16(
             (uint16_t)model_id,
-            (uint16_t)cmd->_model_load.pose_id,
-            0u,
-            0u,
+            gpu_segment_slot,
+            frame_index,
             (uint32_t)vertex_count,
             reinterpret_cast<uint16_t*>(const_cast<vertexint_t*>(vertices_x)),
             reinterpret_cast<uint16_t*>(const_cast<vertexint_t*>(vertices_y)),
@@ -106,6 +94,38 @@ metal_frame_event_model_batched_load(
 }
 
 // ---------------------------------------------------------------------------
+// TORIRS_GFX_BATCH3D_LOAD_START
+// ---------------------------------------------------------------------------
+void
+metal_frame_event_batch_model_load_start(
+    MetalRenderCtx* ctx,
+    const struct ToriRSRenderCommand* cmd)
+{
+    const uint32_t bid = cmd->_batch.batch_id;
+    ctx->renderer->current_model_batch_id = bid;
+    ctx->renderer->model_cache2.BatchBegin();
+    ctx->renderer->model_cache2_batch_map[bid] =
+        Platform2_SDL2_Renderer_Metal::MetalCache2BatchEntry{};
+}
+
+// ---------------------------------------------------------------------------
+// TORIRS_GFX_BATCH3D_MODEL_LOAD
+// ---------------------------------------------------------------------------
+void
+metal_frame_event_model_batched_load(
+    MetalRenderCtx* ctx,
+    const struct ToriRSRenderCommand* cmd)
+{
+    struct DashModel* model = cmd->_model_load.model;
+    const int model_id = cmd->_model_load.model_id;
+    const uint32_t bid = ctx->renderer->current_model_batch_id;
+    if( !model || model_id <= 0 || bid == 0 )
+        return;
+
+    metal_cache2_batch_push_model_mesh(ctx, model, model_id, bid, GPU_MODEL_ANIMATION_NONE_IDX, 0u);
+}
+
+// ---------------------------------------------------------------------------
 // TORIRS_GFX_BATCH3D_LOAD_END
 // ---------------------------------------------------------------------------
 void
@@ -115,68 +135,16 @@ metal_frame_event_batch_model_load_end(
 {
     const uint32_t bid = cmd->_batch.batch_id;
 
-    // Helper lambda to submit the v2 batch (called on all exit paths)
-    auto submit_v2 = [&]() {
-        BatchBuffers v2bufs{};
-        GPU3DCache2BatchSubmitMetal(ctx->renderer->model_cache2, ctx->device, v2bufs);
-        auto it = ctx->renderer->model_cache2_batch_map.find(bid);
-        if( it != ctx->renderer->model_cache2_batch_map.end() )
-        {
-            it->second.vbo = v2bufs.vbo ? (__bridge_retained void*)v2bufs.vbo : nullptr;
-            it->second.ebo = v2bufs.ebo ? (__bridge_retained void*)v2bufs.ebo : nullptr;
-        }
-    };
-
-    Gpu3DCache<void*>::BatchEntry* batch = ctx->renderer->model_cache.get_batch(bid);
-    if( !batch || !batch->open )
+    BatchBuffers v2bufs{};
+    GPU3DCache2BatchSubmitMetal(ctx->renderer->model_cache2, ctx->device, v2bufs);
+    auto it = ctx->renderer->model_cache2_batch_map.find(bid);
+    if( it != ctx->renderer->model_cache2_batch_map.end() )
     {
-        ctx->renderer->current_model_batch_id = 0;
-        return;
+        it->second.vbo = v2bufs.vbo ? (__bridge_retained void*)v2bufs.vbo : nullptr;
+        it->second.ebo = v2bufs.ebo ? (__bridge_retained void*)v2bufs.ebo : nullptr;
     }
 
-    const int nchunks = ctx->renderer->model_cache.get_batch_chunk_count(bid);
-    if( nchunks <= 0 )
-    {
-        ctx->renderer->model_cache.end_batch(bid);
-        ctx->renderer->current_model_batch_id = 0;
-        submit_v2();
-        return;
-    }
-
-    bool any = false;
-    for( int c = 0; c < nchunks; ++c )
-    {
-        const int vb = ctx->renderer->model_cache.get_chunk_pending_bytes(bid, c);
-        const int ic = ctx->renderer->model_cache.get_chunk_pending_index_count(bid, c);
-        if( vb <= 0 || ic <= 0 )
-            continue;
-        any = true;
-        const void* pv = ctx->renderer->model_cache.get_chunk_pending_verts(bid, c);
-        const uint32_t* pi = ctx->renderer->model_cache.get_chunk_pending_indices(bid, c);
-        id<MTLBuffer> vbo = [ctx->device newBufferWithBytes:pv
-                                                     length:(NSUInteger)vb
-                                                    options:MTLResourceStorageModeShared];
-        id<MTLBuffer> ibo = [ctx->device newBufferWithBytes:pi
-                                                     length:(NSUInteger)ic * sizeof(uint32_t)
-                                                    options:MTLResourceStorageModeShared];
-        ctx->renderer->model_cache.set_chunk_buffers(
-            bid,
-            c,
-            vbo ? (__bridge_retained void*)vbo : nullptr,
-            ibo ? (__bridge_retained void*)ibo : nullptr);
-    }
-    if( !any )
-    {
-        ctx->renderer->model_cache.unload_batch(bid);
-        ctx->renderer->current_model_batch_id = 0;
-        submit_v2();
-        return;
-    }
-    ctx->renderer->model_cache.end_batch(bid);
     ctx->renderer->current_model_batch_id = 0;
-
-    // v2: submit GPU3DCache2 batch and retain the resulting MTLBuffers
-    submit_v2();
 }
 
 // ---------------------------------------------------------------------------
@@ -188,35 +156,80 @@ metal_frame_event_batch_model_clear(
     const struct ToriRSRenderCommand* cmd)
 {
     const uint32_t bid = cmd->_batch.batch_id;
-    auto* batch = ctx->renderer->model_cache.get_batch(bid);
-    if( !batch )
+    auto it = ctx->renderer->model_cache2_batch_map.find(bid);
+    if( it == ctx->renderer->model_cache2_batch_map.end() )
         return;
-    const int n = ctx->renderer->model_cache.get_batch_chunk_count(bid);
-    for( int c = 0; c < n; ++c )
-    {
-        const Gpu3DCache<void*>::BatchChunk* ch =
-            ctx->renderer->model_cache.get_batch_chunk(bid, c);
-        if( !ch )
-            continue;
-        if( ch->vbo )
-            CFRelease(ch->vbo);
-        if( ch->ibo )
-            CFRelease(ch->ibo);
-    }
-    ctx->renderer->model_cache.unload_batch(bid);
+    for( uint16_t mid : it->second.model_ids )
+        ctx->renderer->model_cache2.ClearModel(mid);
+    if( it->second.vbo )
+        CFRelease(it->second.vbo);
+    if( it->second.ebo )
+        CFRelease(it->second.ebo);
+    ctx->renderer->model_cache2_batch_map.erase(it);
+}
 
-    // v2: release retained MTLBuffers and clear poses for all models in this batch
-    {
-        auto it = ctx->renderer->model_cache2_batch_map.find(bid);
-        if( it != ctx->renderer->model_cache2_batch_map.end() )
-        {
-            for( uint16_t mid : it->second.model_ids )
-                ctx->renderer->model_cache2.ClearModel(mid);
-            if( it->second.vbo )
-                CFRelease(it->second.vbo);
-            if( it->second.ebo )
-                CFRelease(it->second.ebo);
-            ctx->renderer->model_cache2_batch_map.erase(it);
-        }
-    }
+// ---------------------------------------------------------------------------
+// TORIRS_GFX_BEGIN_3D / TORIRS_GFX_END_3D
+// ---------------------------------------------------------------------------
+void
+metal_frame_event_begin_3d(MetalRenderCtx* ctx, const LogicalViewportRect* logical_vp)
+{
+    if( !ctx || !ctx->encoder || !ctx->renderer || !logical_vp )
+        return;
+
+    struct Platform2_SDL2_Renderer_Metal* renderer = ctx->renderer;
+    id<MTLRenderCommandEncoder> encoder = ctx->encoder;
+
+    [encoder setViewport:ctx->metalVp];
+    MTLScissorRect wsc = metal_clamped_scissor_from_logical_dst_bb(
+        renderer->width,
+        renderer->height,
+        ctx->win_width,
+        ctx->win_height,
+        logical_vp->x,
+        logical_vp->y,
+        logical_vp->width,
+        logical_vp->height);
+    [encoder setScissorRect:wsc];
+
+    /* Depth clear inside the 3D world clip (logical viewport). Color buffer in
+       that region is unchanged from the pass load clear. */
+    struct ToriRSRenderCommand world_clear = { 0 };
+    world_clear.kind = TORIRS_GFX_CLEAR_RECT;
+    world_clear._clear_rect.x = logical_vp->x;
+    world_clear._clear_rect.y = logical_vp->y;
+    world_clear._clear_rect.w = logical_vp->width;
+    world_clear._clear_rect.h = logical_vp->height;
+    if( world_clear._clear_rect.w > 0 && world_clear._clear_rect.h > 0 )
+        metal_frame_event_clear_rect(ctx, &world_clear);
+
+    renderer->mtl_pass3d_builder.Begin3D();
+}
+
+void
+metal_frame_event_end_3d(MetalRenderCtx* ctx, id<MTLBuffer> uniforms_buffer)
+{
+    if( !ctx || !ctx->encoder || !ctx->renderer )
+        return;
+
+    struct Platform2_SDL2_Renderer_Metal* renderer = ctx->renderer;
+    id<MTLRenderCommandEncoder> encoder = ctx->encoder;
+
+    if( !renderer->mtl_3d_v2_pipeline || !renderer->mtl_pass3d_instance_buf ||
+        !renderer->mtl_pass3d_index_buf || !renderer->mtl_pass3d_builder.HasCommands() )
+        return;
+
+    [encoder
+        setRenderPipelineState:(__bridge id<MTLRenderPipelineState>)renderer->mtl_3d_v2_pipeline];
+    Pass3DBuilder2SubmitMetal(
+        renderer->mtl_pass3d_builder,
+        renderer->model_cache2,
+        encoder,
+        (__bridge id<MTLBuffer>)renderer->mtl_pass3d_instance_buf,
+        (__bridge id<MTLBuffer>)renderer->mtl_pass3d_index_buf,
+        (__bridge id<MTLTexture>)renderer->mtl_cache2_atlas_tex,
+        (__bridge id<MTLBuffer>)renderer->mtl_cache2_atlas_tiles_buf,
+        uniforms_buffer,
+        (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state);
+    renderer->mtl_pass3d_builder.ClearAfterSubmit();
 }

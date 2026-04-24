@@ -9,7 +9,11 @@ Pass3DBuilder2SubmitMetal(
     const GPU3DCache2& cache,
     id<MTLRenderCommandEncoder> render_command_encoder, // Renamed for brevity
     id<MTLBuffer> dynamic_instance_buffer,
-    id<MTLBuffer> dynamic_index_buffer)
+    id<MTLBuffer> dynamic_index_buffer,
+    id<MTLTexture> fragment_atlas_texture,
+    id<MTLBuffer> atlas_tiles_buffer,
+    id<MTLBuffer> uniforms_buffer,
+    id<MTLSamplerState> fragment_sampler)
 {
     if( !builder.HasCommands() )
         return;
@@ -28,10 +32,17 @@ Pass3DBuilder2SubmitMetal(
             builder.GetDynamicIndices().size() * sizeof(uint16_t));
     }
 
-    // 2. Bind the Global Atlas (Common for all models in this pass)
-    // We assume the atlas was submitted earlier and its handle is stored in the cache
-    // id<MTLTexture> atlas = (__bridge id<MTLTexture>)(void*)cache.GetAtlasHandle();
-    // [renderE ncoder setFragmentTexture:atlas atIndex:0];
+    if( uniforms_buffer )
+    {
+        [render_command_encoder setVertexBuffer:uniforms_buffer offset:0 atIndex:2];
+        [render_command_encoder setFragmentBuffer:uniforms_buffer offset:0 atIndex:1];
+    }
+    if( atlas_tiles_buffer )
+        [render_command_encoder setFragmentBuffer:atlas_tiles_buffer offset:0 atIndex:4];
+    if( fragment_atlas_texture )
+        [render_command_encoder setFragmentTexture:fragment_atlas_texture atIndex:0];
+    if( fragment_sampler )
+        [render_command_encoder setFragmentSamplerState:fragment_sampler atIndex:0];
 
     // State Tracking to prevent redundant binding (buffer + interleaved start offset).
     id<MTLBuffer> last_bound_vbo = nil;
@@ -39,7 +50,11 @@ Pass3DBuilder2SubmitMetal(
 
     for( const auto& cmd : builder.GetCommands() )
     {
-        const GPUModelPosedData model = cache.GetModelPose(cmd.model_id, cmd.pose_id);
+        const GPUModelPosedData model = cache.GetModelPoseForDraw(
+            cmd.model_id,
+            cmd.use_animation,
+            (int)cmd.animation_index,
+            (int)cmd.frame_index);
         if( !model.valid )
             continue;
 

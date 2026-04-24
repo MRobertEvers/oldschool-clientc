@@ -207,6 +207,42 @@ compute_gl_world_viewport_rect(
     return rect;
 }
 
+void
+metal_ui_logical_to_ndc(
+    int drawable_w,
+    int drawable_h,
+    int win_w,
+    int win_h,
+    const ToriGlViewportPixels& ui_gl_vp,
+    float xp,
+    float yp,
+    float* ocx,
+    float* ocy)
+{
+    if( !ocx || !ocy )
+        return;
+    if( drawable_w <= 0 || drawable_h <= 0 )
+    {
+        *ocx = *ocy = 0.0f;
+        return;
+    }
+    const int ww = win_w > 0 ? win_w : drawable_w;
+    const int wh = win_h > 0 ? win_h : drawable_h;
+    if( ui_gl_vp.width <= 0 || ui_gl_vp.height <= 0 || ww <= 0 || wh <= 0 )
+    {
+        *ocx = 2.0f * xp / (float)ww - 1.0f;
+        *ocy = 1.0f - 2.0f * yp / (float)wh;
+        return;
+    }
+    const double px =
+        (double)ui_gl_vp.x + (double)xp * (double)ui_gl_vp.width / (double)ww;
+    const double game_top =
+        (double)drawable_h - (double)ui_gl_vp.y - (double)ui_gl_vp.height;
+    const double py_top = game_top + (double)yp * (double)ui_gl_vp.height / (double)wh;
+    *ocx = (float)(2.0 * px / (double)drawable_w - 1.0);
+    *ocy = (float)(1.0 - 2.0 * py_top / (double)drawable_h);
+}
+
 MTLScissorRect
 metal_clamped_scissor_from_logical_dst_bb(
     int fbw,
@@ -274,132 +310,4 @@ sync_drawable_size(struct Platform2_SDL2_Renderer_Metal* renderer)
     CGSize desired = CGSizeMake((CGFloat)w, (CGFloat)h);
     if( !CGSizeEqualToSize(layer.drawableSize, desired) )
         layer.drawableSize = desired;
-}
-
-namespace {
-
-void* g_mtl_depth_stencil = nullptr;
-void* g_mtl_depth_texture = nullptr;
-int g_depth_tex_w = 0;
-int g_depth_tex_h = 0;
-
-void* g_mtl_clear_rect_depth_pipeline = nullptr;
-void* g_mtl_clear_rect_depth_write_ds = nullptr;
-void* g_mtl_clear_quad_buf = nullptr;
-
-} // namespace
-
-void
-metal_internal_set_depth_stencil(void* retained_depth_stencil)
-{
-    if( g_mtl_depth_stencil )
-        CFRelease(g_mtl_depth_stencil);
-    g_mtl_depth_stencil = retained_depth_stencil;
-}
-
-void*
-metal_internal_depth_stencil(void)
-{
-    return g_mtl_depth_stencil;
-}
-
-void
-metal_internal_set_depth_texture(void* retained_depth_texture, int w, int h)
-{
-    if( g_mtl_depth_texture )
-        CFRelease(g_mtl_depth_texture);
-    g_mtl_depth_texture = retained_depth_texture;
-    g_depth_tex_w = w;
-    g_depth_tex_h = h;
-}
-
-void*
-metal_internal_depth_texture(void)
-{
-    return g_mtl_depth_texture;
-}
-
-bool
-metal_internal_depth_texture_matches(int w, int h)
-{
-    return g_mtl_depth_texture != nullptr && g_depth_tex_w == w && g_depth_tex_h == h;
-}
-
-void
-metal_internal_shutdown_depth_pass_resources(void)
-{
-    if( g_mtl_depth_stencil )
-    {
-        CFRelease(g_mtl_depth_stencil);
-        g_mtl_depth_stencil = nullptr;
-    }
-    if( g_mtl_depth_texture )
-    {
-        CFRelease(g_mtl_depth_texture);
-        g_mtl_depth_texture = nullptr;
-    }
-    g_depth_tex_w = 0;
-    g_depth_tex_h = 0;
-}
-
-void
-metal_internal_set_clear_rect_depth_pipeline(void* retained_pipeline)
-{
-    if( g_mtl_clear_rect_depth_pipeline )
-        CFRelease(g_mtl_clear_rect_depth_pipeline);
-    g_mtl_clear_rect_depth_pipeline = retained_pipeline;
-}
-
-void*
-metal_internal_clear_rect_depth_pipeline(void)
-{
-    return g_mtl_clear_rect_depth_pipeline;
-}
-
-void
-metal_internal_set_clear_rect_depth_write_ds(void* retained_ds)
-{
-    if( g_mtl_clear_rect_depth_write_ds )
-        CFRelease(g_mtl_clear_rect_depth_write_ds);
-    g_mtl_clear_rect_depth_write_ds = retained_ds;
-}
-
-void*
-metal_internal_clear_rect_depth_write_ds(void)
-{
-    return g_mtl_clear_rect_depth_write_ds;
-}
-
-void
-metal_internal_set_clear_quad_buf(void* retained_buffer)
-{
-    if( g_mtl_clear_quad_buf )
-        CFRelease(g_mtl_clear_quad_buf);
-    g_mtl_clear_quad_buf = retained_buffer;
-}
-
-void*
-metal_internal_clear_quad_buf(void)
-{
-    return g_mtl_clear_quad_buf;
-}
-
-void
-metal_internal_shutdown_clear_rect_aux_resources(void)
-{
-    if( g_mtl_clear_rect_depth_pipeline )
-    {
-        CFRelease(g_mtl_clear_rect_depth_pipeline);
-        g_mtl_clear_rect_depth_pipeline = nullptr;
-    }
-    if( g_mtl_clear_rect_depth_write_ds )
-    {
-        CFRelease(g_mtl_clear_rect_depth_write_ds);
-        g_mtl_clear_rect_depth_write_ds = nullptr;
-    }
-    if( g_mtl_clear_quad_buf )
-    {
-        CFRelease(g_mtl_clear_quad_buf);
-        g_mtl_clear_quad_buf = nullptr;
-    }
 }

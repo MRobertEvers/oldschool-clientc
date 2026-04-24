@@ -664,12 +664,6 @@ queue_static_load_commands(
                 if( scene2_element_parent_entity_id(el) != scene_event.u.model.parent_entity_id )
                     continue;
                 uint64_t model_key = model_cache_key_u64(scene2, el);
-                /* For batched loads, assign the next pose slot on this element. */
-                if( scene_event.batched )
-                {
-                    uint8_t next_pose = (uint8_t)((scene2_element_gpu_pose_id(el) + 1u) % 16u);
-                    scene2_element_set_gpu_pose_id(el, next_pose);
-                }
                 struct ToriRSRenderCommand* ev =
                     LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
                 ev->kind = scene_event.batched ? TORIRS_GFX_BATCH3D_MODEL_LOAD
@@ -677,7 +671,6 @@ queue_static_load_commands(
                 ev->_model_load.model = scene_event.u.model.model;
                 ev->_model_load.model_key = model_key;
                 ev->_model_load.model_id = scene_event.u.model.model_id;
-                ev->_model_load.pose_id = (uint8_t)scene2_element_gpu_pose_id(el);
                 continue;
             }
             if( scene_event.type == SCENE2_EVENT_MODEL_UNLOADED )
@@ -1350,7 +1343,9 @@ next:
             rc->_model_draw.model_key =
                 model_cache_key_u64(game->world->scene2, scene_element);
             rc->_model_draw.model_id = scene2_element_dash_model_gpu_id(scene_element);
-            rc->_model_draw.pose_id = scene2_element_gpu_pose_id(scene_element);
+            rc->_model_draw.use_animation = scene2_element_active_anim_id(scene_element) != 0;
+            rc->_model_draw.animation_index = scene2_element_active_animation_index(scene_element);
+            rc->_model_draw.frame_index = scene2_element_active_frame(scene_element);
             memcpy(&rc->_model_draw.position, &position, sizeof(struct DashPosition));
         }
     }
@@ -1397,7 +1392,9 @@ next:
             rc->_model_draw.model_key =
                 model_cache_key_u64(game->world->scene2, scene_element);
             rc->_model_draw.model_id = scene2_element_dash_model_gpu_id(scene_element);
-            rc->_model_draw.pose_id = scene2_element_gpu_pose_id(scene_element);
+            rc->_model_draw.use_animation = scene2_element_active_anim_id(scene_element) != 0;
+            rc->_model_draw.animation_index = scene2_element_active_animation_index(scene_element);
+            rc->_model_draw.frame_index = scene2_element_active_frame(scene_element);
             memcpy(&rc->_model_draw.position, &position, sizeof(struct DashPosition));
         }
     }
