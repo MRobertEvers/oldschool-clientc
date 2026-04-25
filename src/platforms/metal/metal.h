@@ -30,7 +30,7 @@ static constexpr int kMetalInflightFrames = 3;
 static constexpr int kMetalMax3dPassesPerFrame = 32;
 /** Metal dynamic buffer offset alignment for uniform bindings. */
 static constexpr size_t kMetalUniformBufferDynamicAlign = 256;
-/** `TORIRS_GFX_MODEL_LOAD` uses one merged VBO/EBO per model under this batch id namespace. */
+/** `TORIRS_GFX_RES_MODEL_LOAD` uses one merged VBO/EBO per model under this batch id namespace. */
 static constexpr uint32_t kMetalSoloModelBatchBase = 0xF0000000u;
 
 // Metal objects are stored as void* so this header is valid from plain C++ translation
@@ -77,7 +77,7 @@ struct Platform2_SDL2_Renderer_Metal
 
     /** Ring slot for this frame's uniform uploads (see metal_render / metal_init). */
     uint32_t mtl_uniform_frame_slot = 0;
-    /** Sub-slot within `mtl_uniform_frame_slot` for each TORIRS_GFX_END_3D in one frame. */
+    /** Sub-slot within `mtl_uniform_frame_slot` for each TORIRS_GFX_STATE_END_3D in one frame. */
     uint32_t mtl_uniform_pass_subslot = 0;
     /** Byte cursors into mtl_pass3d_instance_buf / mtl_pass3d_index_buf; reset each frame. */
     size_t mtl_pass3d_inst_upload_ofs = 0;

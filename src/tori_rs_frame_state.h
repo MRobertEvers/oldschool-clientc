@@ -19,13 +19,14 @@ struct UIFrameState
     enum FramePassKind* pass;
 };
 
-/** Emit TORIRS_GFX BEGIN/END markers only when transitioning between pass kinds. */
+/** Emit TORIRS_GFX_STATE_* BEGIN/END markers only when transitioning between pass kinds. */
 void
 frame_emit_pass(
     struct UIFrameState* fiber,
     enum FramePassKind target);
 
-/** Like transitioning to FRAME_PASS_3D, but TORIRS_GFX_BEGIN_3D carries dst_bb (UI models). */
+/** Like transitioning to FRAME_PASS_3D, but TORIRS_GFX_STATE_BEGIN_3D carries dst_bb (UI models).
+ */
 void
 frame_emit_pass_3d_with_rect(
     struct UIFrameState* fiber,

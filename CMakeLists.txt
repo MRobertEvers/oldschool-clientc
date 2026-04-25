@@ -33,7 +33,7 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-# RelWithDebInfo: embed DWARF in binaries (gdb/lldb). Applies to sdl2, benchmark_project, etc.,
+# RelWithDebInfo: embed DWARF in binaries (gdb/lldb). Applies to sdl2, bench_sdl2, etc.,
 # not only win32 (which also sets -g3 on that target for historical reasons).
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options("$<$<CONFIG:RelWithDebInfo>:-g3;-gdwarf-4;-fno-omit-frame-pointer>")
@@ -260,7 +260,6 @@ if(NOT EMSCRIPTEN)
             src/platforms/metal/metal_atlas_world.mm
             src/platforms/metal/metal_batch3d.mm
             src/platforms/metal/metal_draw_model.mm
-            src/platforms/metal/metal_va_fa_events.mm
             src/platforms/common/pass_3d_builder/pass_3d_builder2_metal.mm
             src/platforms/common/pass_3d_builder/gpu_3d_cache2_metal.mm
             src/platforms/metal/metal_render.mm
@@ -577,7 +576,6 @@ if(NOT EMSCRIPTEN)
             src/platforms/metal/metal_atlas_world.mm
             src/platforms/metal/metal_batch3d.mm
             src/platforms/metal/metal_draw_model.mm
-            src/platforms/metal/metal_va_fa_events.mm
             src/platforms/common/pass_3d_builder/pass_3d_builder2_metal.mm
             src/platforms/common/pass_3d_builder/gpu_3d_cache2_metal.mm
             src/platforms/metal/metal_render.mm
@@ -615,65 +613,6 @@ if(NOT EMSCRIPTEN)
         target_link_options(bench_sdl2 PRIVATE -fsanitize=undefined)
     endif()
 
-    add_executable(interface161_test
-        tools/interface161_test/main.c
-        src/osrs/rscache/tables/component.c
-        src/osrs/rscache/rsbuf.c
-        src/bmp.c
-        src/osrs/rscache/cache.c
-        src/osrs/rscache/disk.c
-        src/osrs/rscache/reference_table.c
-        src/osrs/rscache/archive_decompress.c
-        src/osrs/rscache/compression.c
-        src/osrs/rscache/archive.c
-        src/osrs/rscache/xtea.c
-        src/osrs/rscache/xtea_config.c
-        src/osrs/rscache/filelist.c
-        src/osrs/rscache/bitbuffer.c
-        src/osrs/rscache/tables/string_utils.c
-        src/osrs/rscache/tables/sprites.c
-        src/3rd/bzip/bzip.c
-        src/3rd/miniz/miniz.c
-    )
-    target_include_directories(interface161_test PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-    )
-
-    if(NOT WIN32)
-        target_link_libraries(interface161_test PRIVATE m)
-    endif()
-
-    # --- Benchmark Project: rasterizer benchmark suite ---
-    # Uses SDL2 + Nuklear to benchmark flat, gouraud, and texture rasterizers.
-    # The benchmark_main.c includes rasterizer .u.c files directly.
-    # COMMON_SOURCES provides cache loading, shared tables, Lua, etc.
-    set(BENCH_PROJECT_SOURCES ${COMMON_SOURCES})
-
-    # Remove platform-specific SDL2 glue (benchmark has its own main loop)
-    list(REMOVE_ITEM BENCH_PROJECT_SOURCES
-        src/platforms/common/tori_rs_sdl2_gameinput.c
-        src/platforms/common/tori_rs_sdl2_gameinput_nuklear.cpp
-        src/platforms/common/torirs_nk_sdl_input.cpp
-        src/platforms/common/torirs_nk_ui_bridge.cpp
-        src/platforms/common/torirs_nuklear_debug_panel.cpp
-    )
-    add_executable(benchmark_project
-        ${BENCH_PROJECT_SOURCES}
-        benchmarks/benchmark_project/benchmark_main.c
-    )
-    target_link_libraries(benchmark_project SDL2::SDL2)
-
-    if(WIN32)
-        target_link_libraries(benchmark_project ws2_32 psapi winmm gdi32 user32 kernel32)
-
-        if(MSVC)
-            target_link_options(benchmark_project PRIVATE /SUBSYSTEM:CONSOLE)
-        else()
-            target_link_options(benchmark_project PRIVATE -Wl,-subsystem,console)
-        endif()
-    else()
-        target_link_libraries(benchmark_project m)
-    endif()
 endif()
 
 # --- Emscripten Target ---
@@ -898,7 +837,7 @@ foreach(_t_nk_heap sdl2 bench_sdl2 web_client web_client_native win32)
     endif()
 endforeach()
 
-foreach(_t_bucket_sort sdl2 bench_sdl2 web_client web_client_native win32 benchmark_project)
+foreach(_t_bucket_sort sdl2 bench_sdl2 web_client web_client_native win32)
     if(TARGET ${_t_bucket_sort})
         if(DASH_BUCKET_SORT_MODE STREQUAL "LINKED_LIST")
             target_compile_definitions(${_t_bucket_sort} PRIVATE DASH_BUCKET_SORT_MODE=1)
@@ -911,7 +850,7 @@ foreach(_t_bucket_sort sdl2 bench_sdl2 web_client web_client_native win32 benchm
 endforeach()
 
 # --- Global Properties ---
-foreach(target sdl2 bench_sdl2 web_client web_client_native win32 benchmark_project)
+foreach(target sdl2 bench_sdl2 web_client web_client_native win32)
     if(TARGET ${target})
         target_include_directories(${target} PRIVATE src src/nuklear)
         set_target_properties(${target} PROPERTIES

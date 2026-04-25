@@ -54,7 +54,7 @@ emit_begin_3d_with_rect(
     if( !buf )
         return;
     struct ToriRSRenderCommand* m = LibToriRS_RenderCommandBufferEmplaceCommand(buf);
-    m->kind = TORIRS_GFX_BEGIN_3D;
+    m->kind = TORIRS_GFX_STATE_BEGIN_3D;
     m->_begin_3d.x = x;
     m->_begin_3d.y = y;
     m->_begin_3d.w = w;
@@ -71,10 +71,10 @@ frame_emit_pass(
     switch( *fiber->pass )
     {
     case FRAME_PASS_2D:
-        emit_marker(fiber->cmds, TORIRS_GFX_END_2D);
+        emit_marker(fiber->cmds, TORIRS_GFX_STATE_END_2D);
         break;
     case FRAME_PASS_3D:
-        emit_marker(fiber->cmds, TORIRS_GFX_END_3D);
+        emit_marker(fiber->cmds, TORIRS_GFX_STATE_END_3D);
         break;
     default:
         break;
@@ -82,7 +82,7 @@ frame_emit_pass(
     switch( target )
     {
     case FRAME_PASS_2D:
-        emit_marker(fiber->cmds, TORIRS_GFX_BEGIN_2D);
+        emit_marker(fiber->cmds, TORIRS_GFX_STATE_BEGIN_2D);
         break;
     case FRAME_PASS_3D:
     {
@@ -122,7 +122,7 @@ frame_emit_pass_3d_with_rect(
     switch( *fiber->pass )
     {
     case FRAME_PASS_2D:
-        emit_marker(fiber->cmds, TORIRS_GFX_END_2D);
+        emit_marker(fiber->cmds, TORIRS_GFX_STATE_END_2D);
         break;
     default:
         break;
@@ -374,7 +374,7 @@ queue_texture_load_from_event(
 {
     struct ToriRSRenderCommand* c =
         LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-    c->kind = TORIRS_GFX_TEXTURE_LOAD;
+    c->kind = TORIRS_GFX_RES_TEX_LOAD;
     c->_texture_load.texture_id = texture_id;
     c->_texture_load.texture_nullable = texture_nullable;
 }
@@ -388,7 +388,7 @@ queue_sprite_load_from_event(
 {
     struct ToriRSRenderCommand* c =
         LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-    c->kind = TORIRS_GFX_SPRITE_LOAD;
+    c->kind = TORIRS_GFX_RES_SPRITE_LOAD;
     c->_sprite_load.element_id = element_id;
     c->_sprite_load.atlas_index = atlas_index;
     c->_sprite_load.sprite = sprite;
@@ -403,7 +403,7 @@ queue_sprite_unload_from_event(
 {
     struct ToriRSRenderCommand* c =
         LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-    c->kind = TORIRS_GFX_SPRITE_UNLOAD;
+    c->kind = TORIRS_GFX_RES_SPRITE_UNLOAD;
     c->_sprite_load.element_id = element_id;
     c->_sprite_load.atlas_index = atlas_index;
     c->_sprite_load.sprite = sprite;
@@ -417,7 +417,7 @@ queue_font_load_from_event(
 {
     struct ToriRSRenderCommand* c =
         LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-    c->kind = TORIRS_GFX_FONT_LOAD;
+    c->kind = TORIRS_GFX_RES_FONT_LOAD;
     c->_font_load.font_id = font_id;
     c->_font_load.font = font;
 }
@@ -453,7 +453,7 @@ queue_sprite_draw_from_event(
 
     struct ToriRSRenderCommand* command =
         LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-    command->kind = TORIRS_GFX_SPRITE_DRAW;
+    command->kind = TORIRS_GFX_DRAW_SPRITE;
     command->_sprite_draw.element_id = element_id;
     command->_sprite_draw.atlas_index = atlas_index;
     command->_sprite_draw.sprite = sprite;
@@ -529,7 +529,7 @@ queue_static_ui_minimap_draws(
         frame_emit_pass(fiber, FRAME_PASS_2D);
         struct ToriRSRenderCommand* clr =
             LibToriRS_RenderCommandBufferEmplaceCommand(game->uiscene_queued_commands);
-        clr->kind = TORIRS_GFX_CLEAR_RECT;
+        clr->kind = TORIRS_GFX_STATE_CLEAR_RECT;
         clr->_clear_rect.x = component->position.x;
         clr->_clear_rect.y = component->position.y;
         clr->_clear_rect.w = component->position.width;
@@ -540,7 +540,7 @@ queue_static_ui_minimap_draws(
 
     struct ToriRSRenderCommand* static_mm_draw =
         LibToriRS_RenderCommandBufferEmplaceCommand(game->uiscene_queued_commands);
-    static_mm_draw->kind = TORIRS_GFX_SPRITE_DRAW;
+    static_mm_draw->kind = TORIRS_GFX_DRAW_SPRITE;
     static_mm_draw->_sprite_draw.element_id = component->u.minimap.scene_id;
     static_mm_draw->_sprite_draw.atlas_index = 0;
     static_mm_draw->_sprite_draw.sprite = static_sprite;
@@ -593,7 +593,7 @@ queue_static_ui_minimap_draws(
         int dot_y = (ne_z - lz) * 4 + 2 - (dot->height >> 1);
         struct ToriRSRenderCommand* dotc =
             LibToriRS_RenderCommandBufferEmplaceCommand(game->uiscene_queued_commands);
-        dotc->kind = TORIRS_GFX_SPRITE_DRAW;
+        dotc->kind = TORIRS_GFX_DRAW_SPRITE;
         dotc->_sprite_draw.element_id = component->u.minimap.scene_id;
         dotc->_sprite_draw.atlas_index = 100 + j;
         dotc->_sprite_draw.sprite = dot;
@@ -633,7 +633,7 @@ queue_static_load_commands(
             {
                 struct ToriRSRenderCommand* ev =
                     LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_BATCH_TEXTURE_LOAD_START;
+                ev->kind = TORIRS_GFX_BATCH2D_TEX_BEGIN;
                 ev->_batch.batch_id = scene_event.u.batch.batch_id;
                 continue;
             }
@@ -641,7 +641,7 @@ queue_static_load_commands(
             {
                 struct ToriRSRenderCommand* ev =
                     LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_BATCH_TEXTURE_LOAD_END;
+                ev->kind = TORIRS_GFX_BATCH2D_TEX_END;
                 ev->_batch.batch_id = scene_event.u.batch.batch_id;
                 continue;
             }
@@ -656,8 +656,8 @@ queue_static_load_commands(
             {
                 struct ToriRSRenderCommand* ev =
                     LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = scene_event.batched ? TORIRS_GFX_BATCH3D_MODEL_ANIMATION_LOAD
-                                               : TORIRS_GFX_MODEL_ANIMATION_LOAD;
+                ev->kind =
+                    scene_event.batched ? TORIRS_GFX_BATCH3D_ANIM_ADD : TORIRS_GFX_RES_ANIM_LOAD;
                 ev->_animation_load.model = scene_event.u.animation.model;
                 ev->_animation_load.frame = scene_event.u.animation.frame;
                 ev->_animation_load.framemap = scene_event.u.animation.framemap;
@@ -671,7 +671,7 @@ queue_static_load_commands(
             {
                 struct ToriRSRenderCommand* ev =
                     LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_BATCH3D_LOAD_START;
+                ev->kind = TORIRS_GFX_BATCH3D_BEGIN;
                 ev->_batch.batch_id = scene_event.u.batch.batch_id;
                 continue;
             }
@@ -679,7 +679,7 @@ queue_static_load_commands(
             {
                 struct ToriRSRenderCommand* ev =
                     LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_BATCH3D_LOAD_END;
+                ev->kind = TORIRS_GFX_BATCH3D_END;
                 ev->_batch.batch_id = scene_event.u.batch.batch_id;
                 continue;
             }
@@ -707,7 +707,7 @@ queue_static_load_commands(
                 struct ToriRSRenderCommand* ev =
                     LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
                 ev->kind =
-                    scene_event.batched ? TORIRS_GFX_BATCH3D_MODEL_LOAD : TORIRS_GFX_MODEL_LOAD;
+                    scene_event.batched ? TORIRS_GFX_BATCH3D_MODEL_ADD : TORIRS_GFX_RES_MODEL_LOAD;
                 ev->_model_load.model = model;
                 ev->_model_load.model_key = model_key;
                 ev->_model_load.model_id = scene2_element_dash_model_gpu_id(el);
@@ -718,7 +718,7 @@ queue_static_load_commands(
             {
                 struct ToriRSRenderCommand* ev =
                     LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_MODEL_UNLOAD;
+                ev->kind = TORIRS_GFX_RES_MODEL_UNLOAD;
                 ev->_model_load.model = scene_event.u.model.model;
                 ev->_model_load.model_key = 0;
                 ev->_model_load.model_id = scene_event.u.model.model_id;
@@ -781,28 +781,28 @@ queue_static_load_commands(
             {
                 struct ToriRSRenderCommand* ev =
                     LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_BATCH_SPRITE_LOAD_START;
+                ev->kind = TORIRS_GFX_BATCH2D_SPRITE_BEGIN;
                 ev->_batch.batch_id = ui_event.batch_id;
             }
             else if( ui_event.type == UISCENE_EVENT_BATCH_SPRITE_END )
             {
                 struct ToriRSRenderCommand* ev =
                     LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_BATCH_SPRITE_LOAD_END;
+                ev->kind = TORIRS_GFX_BATCH2D_SPRITE_END;
                 ev->_batch.batch_id = ui_event.batch_id;
             }
             else if( ui_event.type == UISCENE_EVENT_BATCH_FONT_BEGIN )
             {
                 struct ToriRSRenderCommand* ev =
                     LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_BATCH_FONT_LOAD_START;
+                ev->kind = TORIRS_GFX_BATCH2D_FONT_BEGIN;
                 ev->_batch.batch_id = ui_event.batch_id;
             }
             else if( ui_event.type == UISCENE_EVENT_BATCH_FONT_END )
             {
                 struct ToriRSRenderCommand* ev =
                     LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_BATCH_FONT_LOAD_END;
+                ev->kind = TORIRS_GFX_BATCH2D_FONT_END;
                 ev->_batch.batch_id = ui_event.batch_id;
             }
         }
@@ -1327,7 +1327,7 @@ uielem_world_step(
         frame_emit_pass(fiber, FRAME_PASS_2D);
         struct ToriRSRenderCommand* clr =
             LibToriRS_RenderCommandBufferEmplaceCommand(game->uiscene_queued_commands);
-        clr->kind = TORIRS_GFX_CLEAR_RECT;
+        clr->kind = TORIRS_GFX_STATE_CLEAR_RECT;
         clr->_clear_rect.x = game->viewport_offset_x;
         clr->_clear_rect.y = game->viewport_offset_y;
         clr->_clear_rect.w = game->view_port->width;
@@ -1379,7 +1379,7 @@ next:
         {
             struct ToriRSRenderCommand* rc =
                 LibToriRS_RenderCommandBufferEmplaceCommand(game->uiscene_queued_commands);
-            rc->kind = TORIRS_GFX_MODEL_DRAW;
+            rc->kind = TORIRS_GFX_DRAW_MODEL;
             rc->_model_draw.model = ent_model;
             rc->_model_draw.model_key = model_cache_key_u64(game->world->scene2, scene_element);
             rc->_model_draw.model_id = scene2_element_dash_model_gpu_id(scene_element);
@@ -1427,7 +1427,7 @@ next:
         {
             struct ToriRSRenderCommand* rc =
                 LibToriRS_RenderCommandBufferEmplaceCommand(game->uiscene_queued_commands);
-            rc->kind = TORIRS_GFX_MODEL_DRAW;
+            rc->kind = TORIRS_GFX_DRAW_MODEL;
             rc->_model_draw.model = tile_model;
             rc->_model_draw.model_key = model_cache_key_u64(game->world->scene2, scene_element);
             rc->_model_draw.model_id = scene2_element_dash_model_gpu_id(scene_element);
@@ -1494,7 +1494,7 @@ uielem_compass_step(
     {
         struct ToriRSRenderCommand* command =
             LibToriRS_RenderCommandBufferEmplaceCommand(game->uiscene_queued_commands);
-        command->kind = TORIRS_GFX_SPRITE_DRAW;
+        command->kind = TORIRS_GFX_DRAW_SPRITE;
         command->_sprite_draw.element_id = component->u.sprite.scene_id;
         command->_sprite_draw.atlas_index = component->u.sprite.atlas_index;
         command->_sprite_draw.rotated = true;

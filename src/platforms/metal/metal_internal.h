@@ -59,7 +59,7 @@ struct ToriGlViewportPixels
 
 static const NSUInteger kSpriteSlotBytes = 6 * 4 * sizeof(float);
 
-/** Max `TORIRS_GFX_CLEAR_RECT` per frame; vertex slots live in internal clear-quad buffer. */
+/** Max `TORIRS_GFX_STATE_CLEAR_RECT` per frame; vertex slots live in internal clear-quad buffer. */
 inline constexpr int kMetalMaxClearRectsPerFrame = 8;
 
 struct MetalRenderCtx
@@ -80,7 +80,7 @@ struct MetalRenderCtx
     /** Next slot in `clearQuadBuf` for `metal_frame_event_clear_rect` (bytes = slot *
      * kSpriteSlotBytes). */
     int clear_rect_slot = 0;
-    /** Last TORIRS_GFX_BEGIN_3D destination rect (window pixels); used for END_3D uniforms. */
+    /** Last TORIRS_GFX_STATE_BEGIN_3D destination rect (window pixels); used for STATE_END_3D uniforms. */
     LogicalViewportRect pass_3d_dst_logical{};
 };
 
@@ -272,15 +272,6 @@ metal_frame_event_batch_texture_load_end(
     const struct ToriRSRenderCommand* cmd);
 void
 metal_frame_event_model_animation_load(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd);
-
-void
-metal_frame_event_batch_vertex_array_load(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd);
-void
-metal_frame_event_batch_face_array_load(
     MetalRenderCtx* ctx,
     const struct ToriRSRenderCommand* cmd);
 

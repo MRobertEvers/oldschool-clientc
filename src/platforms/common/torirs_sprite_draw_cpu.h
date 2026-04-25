@@ -4,7 +4,7 @@
 #include "tori_rs_render.h"
 
 /**
- * Fill inverse-rotation fragment constants for TORIRS_GFX_SPRITE_DRAW (rotated path).
+ * Fill inverse-rotation fragment constants for TORIRS_GFX_DRAW_SPRITE (rotated path).
  * @param atlas_u0_norm atlas u0 in [0,1], atlas_v0_norm v0 in [0,1] for the sprite subtexture
  * @param tex_w,tex_h backing texture size in pixels
  */

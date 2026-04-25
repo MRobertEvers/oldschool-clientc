@@ -1,7 +1,7 @@
 #ifndef PASS_3D_BUILDER2_H
 #define PASS_3D_BUILDER2_H
 
-#include "platforms/gpu_3d.h"
+#include "platforms/common/gpu_3d.h"
 
 #include <cstdint>
 #include <cstring>
@@ -80,11 +80,11 @@ public:
     Pass3DBuilder2();
     ~Pass3DBuilder2();
 
-    // Called on TORIRS_GFX_BEGIN_3D
+    // Called on TORIRS_GFX_STATE_BEGIN_3D
     void
     Begin3D();
 
-    // Called on TORIRS_GFX_MODEL_DRAW
+    // Called on TORIRS_GFX_DRAW_MODEL
     // - For static, opaque geometry: omit the last two parameters.
     // - For sorted, transparent geometry: pass the sorted index array.
     void

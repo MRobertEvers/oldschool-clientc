@@ -302,19 +302,19 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
     {
         switch( command.kind )
         {
-        case TORIRS_GFX_FONT_LOAD:
-        case TORIRS_GFX_MODEL_LOAD:
-        case TORIRS_GFX_BATCH3D_MODEL_LOAD:
-        case TORIRS_GFX_MODEL_UNLOAD:
+        case TORIRS_GFX_RES_FONT_LOAD:
+        case TORIRS_GFX_RES_MODEL_LOAD:
+        case TORIRS_GFX_BATCH3D_MODEL_ADD:
+        case TORIRS_GFX_RES_MODEL_UNLOAD:
             break;
-        case TORIRS_GFX_TEXTURE_LOAD:
+        case TORIRS_GFX_RES_TEX_LOAD:
         {
             struct DashTexture* texture = command._texture_load.texture_nullable;
             if( game->sys_dash && texture && texture->texels )
                 dash3d_add_texture(game->sys_dash, command._texture_load.texture_id, texture);
         }
         break;
-        case TORIRS_GFX_FONT_DRAW:
+        case TORIRS_GFX_DRAW_FONT:
         {
             struct DashPixFont* f = command._font_draw.font;
             const uint8_t* text = command._font_draw.text;
@@ -360,7 +360,7 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
             }
         }
         break;
-        case TORIRS_GFX_CLEAR_RECT:
+        case TORIRS_GFX_STATE_CLEAR_RECT:
         {
             int cx = command._clear_rect.x;
             int cy = command._clear_rect.y;
@@ -381,7 +381,7 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
                 memset(&pb[row * rw + x0], 0, (size_t)(x1 - x0) * sizeof(int));
         }
         break;
-        case TORIRS_GFX_MODEL_DRAW:
+        case TORIRS_GFX_DRAW_MODEL:
             if( vp_pixels )
                 dash3d_raster_projected_model(
                     game->sys_dash,
@@ -392,7 +392,7 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
                     vp_pixels,
                     false);
             break;
-        case TORIRS_GFX_SPRITE_DRAW:
+        case TORIRS_GFX_DRAW_SPRITE:
         {
             struct DashSprite* sp = command._sprite_draw.sprite;
             if( !sp || !sp->pixels_argb )
@@ -441,23 +441,21 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
             }
         }
         break;
-        case TORIRS_GFX_BEGIN_3D:
-        case TORIRS_GFX_END_3D:
-        case TORIRS_GFX_BEGIN_2D:
-        case TORIRS_GFX_END_2D:
-        case TORIRS_GFX_BATCH3D_LOAD_START:
-        case TORIRS_GFX_BATCH3D_LOAD_END:
+        case TORIRS_GFX_STATE_BEGIN_3D:
+        case TORIRS_GFX_STATE_END_3D:
+        case TORIRS_GFX_STATE_BEGIN_2D:
+        case TORIRS_GFX_STATE_END_2D:
+        case TORIRS_GFX_BATCH3D_BEGIN:
+        case TORIRS_GFX_BATCH3D_END:
         case TORIRS_GFX_BATCH3D_CLEAR:
-        case TORIRS_GFX_BATCH3D_VERTEX_ARRAY_LOAD:
-        case TORIRS_GFX_BATCH3D_FACE_ARRAY_LOAD:
-        case TORIRS_GFX_MODEL_ANIMATION_LOAD:
-        case TORIRS_GFX_BATCH3D_MODEL_ANIMATION_LOAD:
-        case TORIRS_GFX_BATCH_TEXTURE_LOAD_START:
-        case TORIRS_GFX_BATCH_TEXTURE_LOAD_END:
-        case TORIRS_GFX_BATCH_SPRITE_LOAD_START:
-        case TORIRS_GFX_BATCH_SPRITE_LOAD_END:
-        case TORIRS_GFX_BATCH_FONT_LOAD_START:
-        case TORIRS_GFX_BATCH_FONT_LOAD_END:
+        case TORIRS_GFX_RES_ANIM_LOAD:
+        case TORIRS_GFX_BATCH3D_ANIM_ADD:
+        case TORIRS_GFX_BATCH2D_TEX_BEGIN:
+        case TORIRS_GFX_BATCH2D_TEX_END:
+        case TORIRS_GFX_BATCH2D_SPRITE_BEGIN:
+        case TORIRS_GFX_BATCH2D_SPRITE_END:
+        case TORIRS_GFX_BATCH2D_FONT_BEGIN:
+        case TORIRS_GFX_BATCH2D_FONT_END:
             break;
         default:
             break;

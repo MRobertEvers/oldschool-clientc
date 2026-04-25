@@ -53,6 +53,12 @@ metal_cache2_batch_push_model_mesh(
         const faceint_t* textured_faces_b = dashmodel_textured_m_coordinate_const(model);
         const faceint_t* textured_faces_c = dashmodel_textured_n_coordinate_const(model);
 
+        GPU3DCache2UVCalculationMode uv_calculation_mode;
+        if( dashmodel__is_ground_va(model) )
+            uv_calculation_mode = GPU3DCache2UVCalculationMode::FirstFace;
+        else
+            uv_calculation_mode = GPU3DCache2UVCalculationMode::TexturedFaceArray;
+
         ctx->renderer->model_cache2.BatchAddModelTexturedi16(
             (uint16_t)model_id,
             gpu_segment_slot,
@@ -75,7 +81,7 @@ metal_cache2_batch_push_model_mesh(
             reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(textured_faces_b)),
             reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(textured_faces_c)),
             face_infos,
-            dashmodel__is_ground_va(model));
+            uv_calculation_mode);
     }
     else
     {
@@ -100,7 +106,7 @@ metal_cache2_batch_push_model_mesh(
 }
 
 // ---------------------------------------------------------------------------
-// TORIRS_GFX_BATCH3D_LOAD_START
+// TORIRS_GFX_BATCH3D_BEGIN
 // ---------------------------------------------------------------------------
 void
 metal_frame_event_batch_model_load_start(
@@ -115,7 +121,7 @@ metal_frame_event_batch_model_load_start(
 }
 
 // ---------------------------------------------------------------------------
-// TORIRS_GFX_BATCH3D_MODEL_LOAD
+// TORIRS_GFX_BATCH3D_MODEL_ADD
 // ---------------------------------------------------------------------------
 void
 metal_frame_event_model_batched_load(
@@ -132,7 +138,7 @@ metal_frame_event_model_batched_load(
 }
 
 // ---------------------------------------------------------------------------
-// TORIRS_GFX_BATCH3D_LOAD_END
+// TORIRS_GFX_BATCH3D_END
 // ---------------------------------------------------------------------------
 void
 metal_frame_event_batch_model_load_end(
@@ -181,7 +187,7 @@ metal_frame_event_batch_model_clear(
 }
 
 // ---------------------------------------------------------------------------
-// TORIRS_GFX_BEGIN_3D / TORIRS_GFX_END_3D
+// TORIRS_GFX_STATE_BEGIN_3D / TORIRS_GFX_STATE_END_3D
 // ---------------------------------------------------------------------------
 void
 metal_frame_event_begin_3d(
@@ -231,7 +237,7 @@ metal_frame_event_begin_3d(
     /* Depth clear inside the 3D world clip (logical viewport). Color buffer in
        that region is unchanged from the pass load clear. */
     struct ToriRSRenderCommand world_clear = { 0 };
-    world_clear.kind = TORIRS_GFX_CLEAR_RECT;
+    world_clear.kind = TORIRS_GFX_STATE_CLEAR_RECT;
     world_clear._clear_rect.x = pass_lr.x;
     world_clear._clear_rect.y = pass_lr.y;
     world_clear._clear_rect.w = pass_lr.width;
@@ -322,8 +328,7 @@ metal_frame_event_end_3d(
     const NSUInteger inst_base = (NSUInteger)renderer->mtl_pass3d_inst_upload_ofs;
     const NSUInteger idx_base = (NSUInteger)renderer->mtl_pass3d_idx_upload_ofs;
     const size_t inst_bytes =
-        renderer->mtl_pass3d_builder.GetInstancePool().size() *
-        sizeof(GPU3DTransformUniformMetal);
+        renderer->mtl_pass3d_builder.GetInstancePool().size() * sizeof(GPU3DTransformUniformMetal);
     const size_t dyn_n = renderer->mtl_pass3d_builder.GetDynamicIndices().size();
     const size_t dyn_cap = (size_t)kPass3DBuilder2DynamicIndexUInt16Capacity;
     const size_t idx_copy_n =

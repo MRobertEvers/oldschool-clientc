@@ -524,15 +524,15 @@ PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
         {
             switch( cmd.kind )
             {
-            case TORIRS_GFX_FONT_LOAD:
+            case TORIRS_GFX_RES_FONT_LOAD:
                 gl3_font_load(renderer, cmd._font_load.font);
                 break;
 
-            case TORIRS_GFX_FONT_DRAW:
+            case TORIRS_GFX_DRAW_FONT:
                 sprite_cmds.push_back(cmd);
                 break;
 
-            case TORIRS_GFX_TEXTURE_LOAD:
+            case TORIRS_GFX_RES_TEX_LOAD:
             {
                 struct DashTexture* texture = cmd._texture_load.texture_nullable;
                 if( texture && texture->texels )
@@ -550,7 +550,7 @@ PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
                 break;
             }
 
-            case TORIRS_GFX_MODEL_LOAD:
+            case TORIRS_GFX_RES_MODEL_LOAD:
             {
                 struct DashModel* model = cmd._model_load.model;
                 if( !model || !dashmodel_face_colors_a(model) || !dashmodel_face_colors_b(model) ||
@@ -593,7 +593,7 @@ PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
                 break;
             }
 
-            case TORIRS_GFX_MODEL_UNLOAD:
+            case TORIRS_GFX_RES_MODEL_UNLOAD:
             {
                 const int mid = cmd._model_load.model_id;
                 if( mid <= 0 )
@@ -609,7 +609,7 @@ PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
                 break;
             }
 
-            case TORIRS_GFX_CLEAR_RECT:
+            case TORIRS_GFX_STATE_CLEAR_RECT:
             {
                 int rx = cmd._clear_rect.x;
                 int ry = cmd._clear_rect.y;
@@ -632,7 +632,7 @@ PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
                 break;
             }
 
-            case TORIRS_GFX_MODEL_DRAW:
+            case TORIRS_GFX_DRAW_MODEL:
             {
                 struct DashModel* model = cmd._model_draw.model;
                 if( !model || !dashmodel_face_colors_a(model) || !dashmodel_face_colors_b(model) ||
@@ -722,18 +722,16 @@ PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
                 break;
             }
 
-            case TORIRS_GFX_SPRITE_LOAD:
-            case TORIRS_GFX_SPRITE_UNLOAD:
-            case TORIRS_GFX_SPRITE_DRAW:
+            case TORIRS_GFX_RES_SPRITE_LOAD:
+            case TORIRS_GFX_RES_SPRITE_UNLOAD:
+            case TORIRS_GFX_DRAW_SPRITE:
                 sprite_cmds.push_back(cmd);
                 break;
 
-            case TORIRS_GFX_BEGIN_3D:
-            case TORIRS_GFX_END_3D:
-            case TORIRS_GFX_BEGIN_2D:
-            case TORIRS_GFX_END_2D:
-            case TORIRS_GFX_BATCH3D_VERTEX_ARRAY_LOAD:
-            case TORIRS_GFX_BATCH3D_FACE_ARRAY_LOAD:
+            case TORIRS_GFX_STATE_BEGIN_3D:
+            case TORIRS_GFX_STATE_END_3D:
+            case TORIRS_GFX_STATE_BEGIN_2D:
+            case TORIRS_GFX_STATE_END_2D:
                 break;
 
             default:
@@ -748,13 +746,13 @@ PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
     /* Process sprite loads and unloads (update GPU texture cache). */
     for( const auto& sc : sprite_cmds )
     {
-        if( sc.kind == TORIRS_GFX_SPRITE_LOAD )
+        if( sc.kind == TORIRS_GFX_RES_SPRITE_LOAD )
         {
             struct DashSprite* sp = sc._sprite_load.sprite;
             if( sp )
                 pix3dgl_sprite_load(renderer->pix3dgl, sp);
         }
-        else if( sc.kind == TORIRS_GFX_SPRITE_UNLOAD )
+        else if( sc.kind == TORIRS_GFX_RES_SPRITE_UNLOAD )
         {
             struct DashSprite* sp = sc._sprite_load.sprite;
             if( sp )
@@ -767,7 +765,7 @@ PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
 
     for( const auto& sc : sprite_cmds )
     {
-        if( sc.kind == TORIRS_GFX_SPRITE_DRAW )
+        if( sc.kind == TORIRS_GFX_DRAW_SPRITE )
         {
             struct DashSprite* sp = sc._sprite_draw.sprite;
             if( !sp )
@@ -890,7 +888,7 @@ PlatformImpl2_SDL2_Renderer_OpenGL3_Render(
 
         for( const auto& sc : sprite_cmds )
         {
-            if( sc.kind != TORIRS_GFX_FONT_DRAW )
+            if( sc.kind != TORIRS_GFX_DRAW_FONT )
                 continue;
             struct DashPixFont* f = sc._font_draw.font;
             if( !f || !f->atlas || !sc._font_draw.text || f->height2d <= 0 )

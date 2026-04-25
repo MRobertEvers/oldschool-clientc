@@ -1641,12 +1641,12 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
     {
         switch( command.kind )
         {
-        case TORIRS_GFX_TEXTURE_LOAD:
+        case TORIRS_GFX_RES_TEX_LOAD:
         {
             int tex_id = command._texture_load.texture_id;
             struct DashTexture* texture = command._texture_load.texture_nullable;
             {
-                const int kcmd = (int)TORIRS_GFX_TEXTURE_LOAD;
+                const int kcmd = (int)TORIRS_GFX_RES_TEX_LOAD;
                 if( d3d8_should_log_cmd(p, kcmd) )
                 {
                     if( texture && texture->texels )
@@ -1783,12 +1783,12 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_MODEL_LOAD:
+        case TORIRS_GFX_RES_MODEL_LOAD:
         {
             struct DashModel* model = command._model_load.model;
             uint64_t mk = command._model_load.model_key;
             {
-                const int kcmd = (int)TORIRS_GFX_MODEL_LOAD;
+                const int kcmd = (int)TORIRS_GFX_RES_MODEL_LOAD;
                 if( d3d8_should_log_cmd(p, kcmd) )
                 {
                     int fc = model ? dashmodel_face_count(model) : -1;
@@ -1805,11 +1805,11 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_MODEL_UNLOAD:
+        case TORIRS_GFX_RES_MODEL_UNLOAD:
         {
             int mid = command._model_load.model_id;
             {
-                const int kcmd = (int)TORIRS_GFX_MODEL_UNLOAD;
+                const int kcmd = (int)TORIRS_GFX_RES_MODEL_UNLOAD;
                 if( d3d8_should_log_cmd(p, kcmd) )
                 {
                     d3d8_log("cmd MODEL_UNLOAD model_id=%d", mid);
@@ -1835,13 +1835,13 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_BATCH3D_LOAD_START:
+        case TORIRS_GFX_BATCH3D_BEGIN:
         {
             uint32_t bid = command._batch.batch_id;
             if( p->current_batch )
             {
                 d3d8_log(
-                    "BATCH3D_LOAD_START: replacing incomplete batch id=%u",
+                    "BATCH3D_BEGIN: replacing incomplete batch id=%u",
                     (unsigned)p->current_batch->batch_id);
                 d3d8_release_model_batch(p->current_batch);
                 p->current_batch = nullptr;
@@ -1851,7 +1851,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_BATCH3D_MODEL_LOAD:
+        case TORIRS_GFX_BATCH3D_MODEL_ADD:
         {
             struct DashModel* model = command._model_load.model;
             uint64_t mk = command._model_load.model_key;
@@ -1923,7 +1923,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_BATCH3D_LOAD_END:
+        case TORIRS_GFX_BATCH3D_END:
         {
             uint32_t bid = command._batch.batch_id;
             if( !p->current_batch || p->current_batch->batch_id != bid )
@@ -1943,7 +1943,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             if( hrvb != D3D_OK || !vbo )
             {
                 d3d8_log(
-                    "BATCH3D_LOAD_END: CreateVertexBuffer failed hr=0x%08lX",
+                    "BATCH3D_END: CreateVertexBuffer failed hr=0x%08lX",
                     (unsigned long)hrvb);
                 delete batch;
                 break;
@@ -1952,7 +1952,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             HRESULT hvlock = vbo->Lock(0, vbytes, (BYTE**)&vdst, 0);
             if( hvlock != D3D_OK )
             {
-                d3d8_log("BATCH3D_LOAD_END: VBO Lock failed hr=0x%08lX", (unsigned long)hvlock);
+                d3d8_log("BATCH3D_END: VBO Lock failed hr=0x%08lX", (unsigned long)hvlock);
                 vbo->Release();
                 delete batch;
                 break;
@@ -1976,7 +1976,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             {
                 s_batch_end_logs++;
                 d3d8_log(
-                    "BATCH3D_LOAD_END[%u]: batch_id=%u total_vertex_count=%d "
+                    "BATCH3D_END[%u]: batch_id=%u total_vertex_count=%d "
                     "index_count=%zu max_per_model_local_index=%u",
                     s_batch_end_logs,
                     (unsigned)bid,
@@ -1992,7 +1992,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             if( hrib != D3D_OK || !ibo )
             {
                 d3d8_log(
-                    "BATCH3D_LOAD_END: CreateIndexBuffer failed hr=0x%08lX",
+                    "BATCH3D_END: CreateIndexBuffer failed hr=0x%08lX",
                     (unsigned long)hrib);
                 batch->vbo->Release();
                 batch->vbo = nullptr;
@@ -2003,7 +2003,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             HRESULT hilock = ibo->Lock(0, ibytes, (BYTE**)&idst, 0);
             if( hilock != D3D_OK )
             {
-                d3d8_log("BATCH3D_LOAD_END: IBO Lock failed hr=0x%08lX", (unsigned long)hilock);
+                d3d8_log("BATCH3D_END: IBO Lock failed hr=0x%08lX", (unsigned long)hilock);
                 ibo->Release();
                 batch->vbo->Release();
                 batch->vbo = nullptr;
@@ -2048,15 +2048,11 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_BATCH3D_VERTEX_ARRAY_LOAD:
-        case TORIRS_GFX_BATCH3D_FACE_ARRAY_LOAD:
-            break;
-
-        case TORIRS_GFX_SPRITE_LOAD:
+        case TORIRS_GFX_RES_SPRITE_LOAD:
         {
             struct DashSprite* sp = command._sprite_load.sprite;
             {
-                const int kcmd = (int)TORIRS_GFX_SPRITE_LOAD;
+                const int kcmd = (int)TORIRS_GFX_RES_SPRITE_LOAD;
                 if( d3d8_should_log_cmd(p, kcmd) )
                 {
                     d3d8_log(
@@ -2125,10 +2121,10 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_SPRITE_UNLOAD:
+        case TORIRS_GFX_RES_SPRITE_UNLOAD:
         {
             {
-                const int kcmd = (int)TORIRS_GFX_SPRITE_UNLOAD;
+                const int kcmd = (int)TORIRS_GFX_RES_SPRITE_UNLOAD;
                 if( d3d8_should_log_cmd(p, kcmd) )
                 {
                     d3d8_log(
@@ -2151,12 +2147,12 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_FONT_LOAD:
+        case TORIRS_GFX_RES_FONT_LOAD:
         {
             struct DashPixFont* f = command._font_load.font;
             int font_id = command._font_load.font_id;
             {
-                const int kcmd = (int)TORIRS_GFX_FONT_LOAD;
+                const int kcmd = (int)TORIRS_GFX_RES_FONT_LOAD;
                 if( d3d8_should_log_cmd(p, kcmd) )
                 {
                     d3d8_log("cmd FONT_LOAD font_id=%d font=%p", font_id, (void*)f);
@@ -2211,9 +2207,9 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_CLEAR_RECT:
+        case TORIRS_GFX_STATE_CLEAR_RECT:
         {
-            const int kcmd = (int)TORIRS_GFX_CLEAR_RECT;
+            const int kcmd = (int)TORIRS_GFX_STATE_CLEAR_RECT;
             if( d3d8_should_log_cmd(p, kcmd) )
             {
                 d3d8_log(
@@ -2227,7 +2223,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_MODEL_DRAW:
+        case TORIRS_GFX_DRAW_MODEL:
         {
             struct DashModel* model = command._model_draw.model;
             if( !model || !game->sys_dash || !game->view_port || !game->camera )
@@ -2278,7 +2274,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                 break;
 
             {
-                const int kcmd = (int)TORIRS_GFX_MODEL_DRAW;
+                const int kcmd = (int)TORIRS_GFX_DRAW_MODEL;
                 if( d3d8_should_log_cmd(p, kcmd) )
                 {
                     d3d8_log(
@@ -2561,9 +2557,9 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_SPRITE_DRAW:
+        case TORIRS_GFX_DRAW_SPRITE:
         {
-            const int kcmd = (int)TORIRS_GFX_SPRITE_DRAW;
+            const int kcmd = (int)TORIRS_GFX_DRAW_SPRITE;
             if( d3d8_should_log_cmd(p, kcmd) )
             {
                 d3d8_log("cmd SPRITE_DRAW (disabled: 3d-only mode)");
@@ -2692,12 +2688,12 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_FONT_DRAW:
+        case TORIRS_GFX_DRAW_FONT:
         {
             struct DashPixFont* f = command._font_draw.font;
             const uint8_t* text = command._font_draw.text;
             {
-                const int kcmd = (int)TORIRS_GFX_FONT_DRAW;
+                const int kcmd = (int)TORIRS_GFX_DRAW_FONT;
                 if( d3d8_should_log_cmd(p, kcmd) && text )
                 {
                     char preview[48];
@@ -2814,10 +2810,10 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         }
         break;
 
-        case TORIRS_GFX_BEGIN_3D:
-        case TORIRS_GFX_END_3D:
-        case TORIRS_GFX_BEGIN_2D:
-        case TORIRS_GFX_END_2D:
+        case TORIRS_GFX_STATE_BEGIN_3D:
+        case TORIRS_GFX_STATE_END_3D:
+        case TORIRS_GFX_STATE_BEGIN_2D:
+        case TORIRS_GFX_STATE_END_2D:
         case TORIRS_GFX_NONE:
         default:
         {

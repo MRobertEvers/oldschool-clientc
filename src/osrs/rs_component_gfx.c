@@ -49,7 +49,7 @@ queue_sprite_draw(
     int src_anchor_y = sprite->crop_y;
 
     struct ToriRSRenderCommand* c = LibToriRS_RenderCommandBufferEmplaceCommand(buf);
-    c->kind = TORIRS_GFX_SPRITE_DRAW;
+    c->kind = TORIRS_GFX_DRAW_SPRITE;
     c->_sprite_draw.element_id = element_id;
     c->_sprite_draw.atlas_index = atlas_index;
     c->_sprite_draw.sprite = sprite;
@@ -117,7 +117,7 @@ rs_gfx_text_step(
 
     frame_emit_pass(fiber, FRAME_PASS_2D);
     struct ToriRSRenderCommand* c = LibToriRS_RenderCommandBufferEmplaceCommand(queued_commands);
-    c->kind = TORIRS_GFX_FONT_DRAW;
+    c->kind = TORIRS_GFX_DRAW_FONT;
     c->_font_draw.font_id = fid;
     c->_font_draw.font = font;
     c->_font_draw.text = (const uint8_t*)text;
@@ -172,7 +172,7 @@ rs_gfx_model_step(
     {
         struct ToriRSRenderCommand* cmd =
             LibToriRS_RenderCommandBufferEmplaceCommand(queued_commands);
-        cmd->kind = TORIRS_GFX_MODEL_DRAW;
+        cmd->kind = TORIRS_GFX_DRAW_MODEL;
         cmd->_model_draw.model = mod;
         cmd->_model_draw.model_key = rs_model_cache_key_u64(game->world->scene2, se);
         cmd->_model_draw.model_id = scene2_element_dash_model_gpu_id(se);

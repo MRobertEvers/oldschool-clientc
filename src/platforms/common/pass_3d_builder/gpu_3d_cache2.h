@@ -3,7 +3,7 @@
 
 #include "graphics/dash.h"
 #include "graphics/uv_pnm.h"
-#include "platforms/gpu_3d.h"
+#include "platforms/common/gpu_3d.h"
 
 #include <array>
 #include <cassert>
@@ -14,6 +14,12 @@
 constexpr size_t MAX_3D_ASSETS = 32768;
 constexpr size_t MAX_TEXTURES = 256;
 constexpr size_t MAX_POSE_COUNT = 16;
+
+enum class GPU3DCache2UVCalculationMode
+{
+    TexturedFaceArray,
+    FirstFace
+};
 
 inline void
 gpu3d_hsl16_to_float_rgba(
@@ -277,7 +283,8 @@ public:
         uint16_t* textured_faces_b,
         uint16_t* textured_faces_c,
         const int* face_infos_nullable,
-        bool uv_mode_use_first_face);
+        GPU3DCache2UVCalculationMode uv_calculation_mode =
+            GPU3DCache2UVCalculationMode::TexturedFaceArray);
 
     /** Vertex count in `vbo` (each element is one `VertexType`). */
     uint32_t
@@ -570,7 +577,7 @@ GPU3DCache2<VertexType>::BatchAddModelTexturedi16(
     uint16_t* textured_faces_b,
     uint16_t* textured_faces_c,
     const int* face_infos_nullable,
-    bool uv_mode_use_first_face)
+    GPU3DCache2UVCalculationMode uv_calculation_mode)
 {
     assert(faces_count < 4096);
     BatchQueue<VertexType>& batch_queue = batch_queues.back();
@@ -626,7 +633,7 @@ GPU3DCache2<VertexType>::BatchAddModelTexturedi16(
 
         /* P/N/M frame for `uv_pnm_compute`: match `wg1_fill_model_face_vertices_model_local`
          * (ground VA uses face 0 corners for all faces; else textured remap or face i). */
-        if( uv_mode_use_first_face )
+        if( uv_calculation_mode == GPU3DCache2UVCalculationMode::FirstFace )
         {
             tp_vertex = faces_a[0];
             tm_vertex = faces_b[0];

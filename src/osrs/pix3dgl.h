@@ -59,14 +59,14 @@ pix3dgl_begin_2dframe(struct Pix3DGL* pix3dgl);
 void
 pix3dgl_end_2dframe(struct Pix3DGL* pix3dgl);
 
-/** Upload sprite pixel data into the per-sprite GPU texture cache (TORIRS_GFX_SPRITE_LOAD).
+/** Upload sprite pixel data into the per-sprite GPU texture cache (TORIRS_GFX_RES_SPRITE_LOAD).
  *  No-op if the sprite is already cached. */
 void
 pix3dgl_sprite_load(
     struct Pix3DGL* pix3dgl,
     struct DashSprite* sprite);
 
-/** Evict a sprite from the GPU texture cache and free its GL texture (TORIRS_GFX_SPRITE_UNLOAD). */
+/** Evict a sprite from the GPU texture cache and free its GL texture (TORIRS_GFX_RES_SPRITE_UNLOAD). */
 void
 pix3dgl_sprite_unload(
     struct Pix3DGL* pix3dgl,
@@ -161,7 +161,7 @@ pix3dgl_sprite_draw(
     int src_w,
     int src_h);
 
-/** Full TORIRS_GFX_SPRITE_DRAW: `rotated` uses dst_bb_w/h + anchors (D3D11-style quad + UV).
+/** Full TORIRS_GFX_DRAW_SPRITE: `rotated` uses dst_bb_w/h + anchors (D3D11-style quad + UV).
  *  When `use_scissor` is set, `scissor_*` are framebuffer pixel coords for glScissor (x,y
  *  lower-left of box, width, height). */
 void

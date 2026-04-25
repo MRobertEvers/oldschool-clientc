@@ -69,7 +69,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
 
         MTLRenderPassDescriptor* rpDesc = [MTLRenderPassDescriptor renderPassDescriptor];
         rpDesc.colorAttachments[0].texture = drawable.texture;
-        /* One clear at pass start. World sub-rect depth is reset on TORIRS_GFX_BEGIN_3D
+        /* One clear at pass start. World sub-rect depth is reset on TORIRS_GFX_STATE_BEGIN_3D
            (depth-only CLEAR_RECT path).
          */
         rpDesc.colorAttachments[0].loadAction = MTLLoadActionClear;
@@ -151,53 +151,47 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
             {
                 switch( cmd.kind )
                 {
-                case TORIRS_GFX_BEGIN_3D:
+                case TORIRS_GFX_STATE_BEGIN_3D:
                     metal_frame_event_begin_3d(&ctx, &cmd, &logical_vp);
                     break;
-                case TORIRS_GFX_END_3D:
+                case TORIRS_GFX_STATE_END_3D:
                     metal_frame_event_end_3d(&ctx, unifBuf);
                     break;
-                case TORIRS_GFX_BATCH3D_VERTEX_ARRAY_LOAD:
-                    metal_frame_event_batch_vertex_array_load(&ctx, &cmd);
-                    break;
-                case TORIRS_GFX_BATCH3D_FACE_ARRAY_LOAD:
-                    metal_frame_event_batch_face_array_load(&ctx, &cmd);
-                    break;
-                case TORIRS_GFX_CLEAR_RECT:
+                case TORIRS_GFX_STATE_CLEAR_RECT:
                     metal_frame_event_clear_rect(&ctx, &cmd);
                     break;
-                case TORIRS_GFX_TEXTURE_LOAD:
+                case TORIRS_GFX_RES_TEX_LOAD:
                     metal_frame_event_texture_load(&ctx, &cmd);
                     break;
-                case TORIRS_GFX_MODEL_LOAD:
+                case TORIRS_GFX_RES_MODEL_LOAD:
                     metal_frame_event_model_load(&ctx, &cmd);
                     break;
-                case TORIRS_GFX_MODEL_UNLOAD:
+                case TORIRS_GFX_RES_MODEL_UNLOAD:
                     metal_frame_event_model_unload(&ctx, &cmd);
                     break;
-                case TORIRS_GFX_BATCH3D_LOAD_START:
+                case TORIRS_GFX_BATCH3D_BEGIN:
                     metal_frame_event_batch_model_load_start(&ctx, &cmd);
                     break;
-                case TORIRS_GFX_BATCH3D_MODEL_LOAD:
+                case TORIRS_GFX_BATCH3D_MODEL_ADD:
                     metal_frame_event_model_batched_load(&ctx, &cmd);
                     break;
-                case TORIRS_GFX_BATCH3D_LOAD_END:
+                case TORIRS_GFX_BATCH3D_END:
                     metal_frame_event_batch_model_load_end(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_BATCH3D_CLEAR:
                     metal_frame_event_batch_model_clear(&ctx, &cmd);
                     break;
-                case TORIRS_GFX_MODEL_DRAW:
+                case TORIRS_GFX_DRAW_MODEL:
                     metal_frame_event_model_draw(&ctx, &cmd);
                     break;
-                case TORIRS_GFX_BATCH_TEXTURE_LOAD_START:
+                case TORIRS_GFX_BATCH2D_TEX_BEGIN:
                     metal_frame_event_batch_texture_load_start(&ctx, &cmd);
                     break;
-                case TORIRS_GFX_BATCH_TEXTURE_LOAD_END:
+                case TORIRS_GFX_BATCH2D_TEX_END:
                     metal_frame_event_batch_texture_load_end(&ctx, &cmd);
                     break;
-                case TORIRS_GFX_MODEL_ANIMATION_LOAD:
-                case TORIRS_GFX_BATCH3D_MODEL_ANIMATION_LOAD:
+                case TORIRS_GFX_RES_ANIM_LOAD:
+                case TORIRS_GFX_BATCH3D_ANIM_ADD:
                     metal_frame_event_model_animation_load(&ctx, &cmd);
                     break;
 

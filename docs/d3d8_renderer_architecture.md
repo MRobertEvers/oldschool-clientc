@@ -166,7 +166,7 @@ struct DashTexture {
 };
 ```
 
-### Loading (`TORIRS_GFX_TEXTURE_LOAD`)
+### Loading (`TORIRS_GFX_RES_TEX_LOAD`)
 
 1. `CreateTexture(width, height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED)`
 2. `LockRect(mip 0)`, copy `texels` row-by-row into the locked surface, `UnlockRect`.
@@ -213,7 +213,7 @@ Three concrete model subtypes exist: `DashModelFull`, `DashModelGround`, `DashMo
 
 ### GPU Upload (`d3d8_build_model_gpu`)
 
-Called on `TORIRS_GFX_MODEL_LOAD`. Converts the SoA `DashModel` into an unindexed GPU vertex buffer:
+Called on `TORIRS_GFX_RES_MODEL_LOAD`. Converts the SoA `DashModel` into an unindexed GPU vertex buffer:
 
 1. Allocate a `vector<D3D8WorldVertex>` of `face_count × 3` entries.
 2. For each face `f`:
@@ -227,7 +227,7 @@ Called on `TORIRS_GFX_MODEL_LOAD`. Converts the SoA `DashModel` into an unindexe
 
 **Model cache key**: A `uint64_t` that encodes element ID, animation ID, and frame index. The element ID alone is recoverable as `(int)(uint32_t)(key >> 24)`.
 
-### Model Unloading (`TORIRS_GFX_MODEL_UNLOAD`)
+### Model Unloading (`TORIRS_GFX_RES_MODEL_UNLOAD`)
 
 Releases the `IDirect3DVertexBuffer8` and removes the entry from `model_gpu_by_key`.
 
@@ -237,10 +237,10 @@ For scenes where many static models share geometry, a batch flow merges multiple
 
 | Command | Action |
 |---|---|
-| `TORIRS_GFX_BATCH_MODEL_LOAD_START` | Opens accumulation into `current_batch`; allocates a `D3D8ModelBatch` and registers it in `batches_by_id`. |
-| `TORIRS_GFX_BATCH_MODEL_BATCHED_LOAD` | Appends a model's vertex and index data into `current_batch`'s CPU-side staging vectors. |
-| `TORIRS_GFX_BATCH_MODEL_LOAD_END` | Closes accumulation; creates one shared `IDirect3DVertexBuffer8` + `IDirect3DIndexBuffer8` (`D3DPOOL_MANAGED`) from the merged data. |
-| `TORIRS_GFX_BATCH_MODEL_CLEAR` | Releases the VBO, IBO, and `D3D8ModelBatch`; clears `batches_by_id` entry. |
+| `TORIRS_GFX_BATCH3D_BEGIN` | Opens accumulation into `current_batch`; allocates a `D3D8ModelBatch` and registers it in `batches_by_id`. |
+| `TORIRS_GFX_BATCH3D_MODEL_ADD` | Appends a model's vertex and index data into `current_batch`'s CPU-side staging vectors. |
+| `TORIRS_GFX_BATCH3D_END` | Closes accumulation; creates one shared `IDirect3DVertexBuffer8` + `IDirect3DIndexBuffer8` (`D3DPOOL_MANAGED`) from the merged data. |
+| `TORIRS_GFX_BATCH3D_CLEAR` | Releases the VBO, IBO, and `D3D8ModelBatch`; clears `batches_by_id` entry. |
 
 Drawing a batched model uses `SetIndices(ib_ring, vertex_base)` to address a sub-range within the shared VBO via `DrawIndexedPrimitive`.
 
@@ -260,7 +260,7 @@ struct DashSprite {
 };
 ```
 
-### Loading (`TORIRS_GFX_SPRITE_LOAD`)
+### Loading (`TORIRS_GFX_RES_SPRITE_LOAD`)
 
 1. Compute cache key: `(element_id << 32) | atlas_index` → `uint64_t sk`.
 2. `CreateTexture(width, height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED)`.
@@ -269,7 +269,7 @@ struct DashSprite {
 4. Store in `sprite_by_slot[sk]`.
 5. Store `(width, height)` in `sprite_size_by_slot[sk]`.
 
-### Drawing (`TORIRS_GFX_SPRITE_DRAW`)
+### Drawing (`TORIRS_GFX_DRAW_SPRITE`)
 
 Sprites are always drawn in `PASS_2D` using `D3D8UiVertex` (pre-transformed screen coordinates).
 
@@ -286,7 +286,7 @@ Sprites are always drawn in `PASS_2D` using `D3D8UiVertex` (pre-transformed scre
 
 Sprites flush any pending font vertices before drawing (see §Fonts).
 
-### Unloading (`TORIRS_GFX_SPRITE_UNLOAD`)
+### Unloading (`TORIRS_GFX_RES_SPRITE_UNLOAD`)
 
 Releases the `IDirect3DTexture8*` and removes the entry from `sprite_by_slot`.
 
@@ -315,13 +315,13 @@ struct DashPixFont {
 };
 ```
 
-### Loading (`TORIRS_GFX_FONT_LOAD`)
+### Loading (`TORIRS_GFX_RES_FONT_LOAD`)
 
 1. `CreateTexture(atlas_width, atlas_height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED)`.
 2. Lock mip 0, copy `rgba_pixels` row-by-row, `UnlockRect`.
 3. Store in `font_atlas_by_id[font_id]`.
 
-### Drawing (`TORIRS_GFX_FONT_DRAW`)
+### Drawing (`TORIRS_GFX_DRAW_FONT`)
 
 Text rendering is **batched**: glyph quads are accumulated in a `font_verts` vector and flushed together.
 
@@ -386,22 +386,22 @@ No colour clear of the render target — explicit `CLEAR_RECT` commands handle U
 
 | Command | Handler |
 |---|---|
-| `TORIRS_GFX_TEXTURE_LOAD` | `CreateTexture` + `LockRect` + `memcpy` + `UnlockRect`; register with CPU rasterizer |
-| `TORIRS_GFX_MODEL_LOAD` | `d3d8_build_model_gpu` → create VBO |
-| `TORIRS_GFX_MODEL_UNLOAD` | Release VBO, erase from `model_gpu_by_key` |
-| `TORIRS_GFX_BATCH_MODEL_LOAD_START` | Open batch accumulation |
-| `TORIRS_GFX_BATCH_MODEL_BATCHED_LOAD` | Append model to batch staging |
-| `TORIRS_GFX_BATCH_MODEL_LOAD_END` | Finalise batch → create shared VBO + IBO |
-| `TORIRS_GFX_BATCH_MODEL_CLEAR` | Release batch VBO + IBO |
-| `TORIRS_GFX_SPRITE_LOAD` | `CreateTexture` + alpha fixup upload |
-| `TORIRS_GFX_SPRITE_UNLOAD` | Release sprite texture |
-| `TORIRS_GFX_FONT_LOAD` | `CreateTexture` + upload atlas |
-| `TORIRS_GFX_CLEAR_RECT` | `SetViewport(subrect)` + `Clear(D3DCLEAR_TARGET, 0x00000000)` + restore viewport |
-| `TORIRS_GFX_MODEL_DRAW` | See §Model Drawing below |
-| `TORIRS_GFX_SPRITE_DRAW` | `flush_font`, `d3d8_ensure_pass(PASS_2D)`, `DrawPrimitiveUP` |
-| `TORIRS_GFX_FONT_DRAW` | Accumulate glyph quads into `font_verts` |
+| `TORIRS_GFX_RES_TEX_LOAD` | `CreateTexture` + `LockRect` + `memcpy` + `UnlockRect`; register with CPU rasterizer |
+| `TORIRS_GFX_RES_MODEL_LOAD` | `d3d8_build_model_gpu` → create VBO |
+| `TORIRS_GFX_RES_MODEL_UNLOAD` | Release VBO, erase from `model_gpu_by_key` |
+| `TORIRS_GFX_BATCH3D_BEGIN` | Open batch accumulation |
+| `TORIRS_GFX_BATCH3D_MODEL_ADD` | Append model to batch staging |
+| `TORIRS_GFX_BATCH3D_END` | Finalise batch → create shared VBO + IBO |
+| `TORIRS_GFX_BATCH3D_CLEAR` | Release batch VBO + IBO |
+| `TORIRS_GFX_RES_SPRITE_LOAD` | `CreateTexture` + alpha fixup upload |
+| `TORIRS_GFX_RES_SPRITE_UNLOAD` | Release sprite texture |
+| `TORIRS_GFX_RES_FONT_LOAD` | `CreateTexture` + upload atlas |
+| `TORIRS_GFX_STATE_CLEAR_RECT` | `SetViewport(subrect)` + `Clear(D3DCLEAR_TARGET, 0x00000000)` + restore viewport |
+| `TORIRS_GFX_DRAW_MODEL` | See §Model Drawing below |
+| `TORIRS_GFX_DRAW_SPRITE` | `flush_font`, `d3d8_ensure_pass(PASS_2D)`, `DrawPrimitiveUP` |
+| `TORIRS_GFX_DRAW_FONT` | Accumulate glyph quads into `font_verts` |
 
-### 7. Model Drawing (`TORIRS_GFX_MODEL_DRAW`) in Detail
+### 7. Model Drawing (`TORIRS_GFX_DRAW_MODEL`) in Detail
 
 1. Call `dash3d_prepare_projected_face_order(sys_dash, model, position, viewport, camera)` — projects vertices and returns a painter's-algorithm-sorted face index array (back-to-front).
 2. Build a **world matrix**: Y-axis rotation by `draw_position.yaw`, then translation by world `x, y, z`. Set via `SetTransform(D3DTS_WORLD, &world_mat)`.

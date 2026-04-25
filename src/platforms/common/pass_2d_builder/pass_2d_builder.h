@@ -46,7 +46,7 @@ public:
         const SpriteInverseRotParams* inv_rot);
 
     /**
-     * Compute clip-space quad from a TORIRS_GFX_SPRITE_DRAW command and enqueue it.
+     * Compute clip-space quad from a TORIRS_GFX_DRAW_SPRITE command and enqueue it.
      *
      * atlas_tex    — pre-looked-up GPU texture handle for the sprite.
      * tex_w/tex_h  — pixel dimensions of the GPU texture (sprite dims for standalone,
@@ -69,7 +69,7 @@ public:
         float fbh);
 
     /**
-     * Expand a TORIRS_GFX_FONT_DRAW command into glyph quads and append them.
+     * Expand a TORIRS_GFX_DRAW_FONT command into glyph quads and append them.
      *
      * atlas_tex — pre-looked-up GPU texture handle for the font atlas.
      * fbw/fbh   — framebuffer dimensions for logical-pixel → NDC conversion.

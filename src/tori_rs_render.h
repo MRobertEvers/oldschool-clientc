@@ -6,7 +6,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/** UI / command-buffer pass for BEGIN_2D / END_2D / BEGIN_3D / END_3D coalescing. */
+/** UI / command-buffer pass for STATE_BEGIN_2D / STATE_END_2D / STATE_BEGIN_3D / STATE_END_3D
+ * coalescing. */
 enum FramePassKind
 {
     FRAME_PASS_NONE = 0,
@@ -14,57 +15,60 @@ enum FramePassKind
     FRAME_PASS_3D,
 };
 
-enum ToriRSRenderCommandKind
+enum ToriRS_UsageHint
 {
-    TORIRS_GFX_NONE,
-    TORIRS_GFX_FONT_LOAD,
-    TORIRS_GFX_MODEL_LOAD,
-    /** Evict GPU model cache entry; reuses `_model_load` (model_id is the key; model* optional). */
-    TORIRS_GFX_MODEL_UNLOAD,
-    TORIRS_GFX_TEXTURE_LOAD,
-    TORIRS_GFX_SPRITE_LOAD,
-    /* Evict a previously loaded sprite from the GPU texture cache.
-     * Reuses the _sprite_load union payload (element_id + sprite*). */
-    TORIRS_GFX_SPRITE_UNLOAD,
-    TORIRS_GFX_MODEL_DRAW,
-    TORIRS_GFX_SPRITE_DRAW,
-    TORIRS_GFX_FONT_DRAW,
-    /** Clear ARGB destination rectangle to transparent black (0). */
-    TORIRS_GFX_CLEAR_RECT,
-    /** Between BEGIN_3D and END_3D, only MODEL_DRAW will appear. */
-    TORIRS_GFX_BEGIN_3D,
-    TORIRS_GFX_END_3D,
-    /** Between BEGIN_2D and END_2D, only SPRITE_DRAW / FONT_DRAW / CLEAR_RECT. */
-    TORIRS_GFX_BEGIN_2D,
-    TORIRS_GFX_END_2D,
-    /** World rebuild batch: merge model VBO/EBO between START and END. Payload `_batch`. */
-    TORIRS_GFX_BATCH3D_LOAD_START,
-    TORIRS_GFX_BATCH3D_LOAD_END,
-    /** Unload merged batch GPU data for `batch_id`. Payload `_batch`. */
-    TORIRS_GFX_BATCH3D_CLEAR,
-    /** Same as MODEL_LOAD but part of the active batch (merged on capable renderers). */
-    TORIRS_GFX_BATCH3D_MODEL_LOAD,
-    TORIRS_GFX_BATCH3D_VERTEX_ARRAY_LOAD,
-    TORIRS_GFX_BATCH3D_FACE_ARRAY_LOAD,
-    /** Pre-baked animated pose: load (model_gpu_id, anim_id, frame) into the model cache. */
-    TORIRS_GFX_MODEL_ANIMATION_LOAD,
-    /** Same as MODEL_ANIMATION_LOAD but merged into the active world-rebuild batch. */
-    TORIRS_GFX_BATCH3D_MODEL_ANIMATION_LOAD,
-    /** Begin batching sprite atlas uploads under batch_id. Payload `_batch`. */
-    TORIRS_GFX_BATCH_SPRITE_LOAD_START,
-    /** End sprite batch; renderer packs atlas and uploads GPU texture. Payload `_batch`. */
-    TORIRS_GFX_BATCH_SPRITE_LOAD_END,
-    /** Begin batching font atlas uploads under batch_id. Payload `_batch`. */
-    TORIRS_GFX_BATCH_FONT_LOAD_START,
-    /** End font batch; renderer packs atlas and uploads GPU texture. Payload `_batch`. */
-    TORIRS_GFX_BATCH_FONT_LOAD_END,
-    /** Begin batching world texture uploads under batch_id. Payload `_batch`. */
-    TORIRS_GFX_BATCH_TEXTURE_LOAD_START,
-    /** End texture batch; renderer may build a texture array. Payload `_batch`. */
-    TORIRS_GFX_BATCH_TEXTURE_LOAD_END,
+    // "I will never move this."
+    // Batches are implicitly static.
+    TORIRS_USAGE_STATIC,
+    // "I will move this every frame."
+    TORIRS_USAGE_DYNAMIC,
+    // "I am throwing this away after one frame." (e.g., particles)
+    TORIRS_USAGE_STREAM
 };
 
-/** `TORIRS_GFX_SPRITE_DRAW._sprite_draw.blit_dest`: normal UI framebuffer blit. */
+enum ToriRS_GFXCommandKind
+{
+    TORIRS_GFX_NONE = 0,
+
+    // --- STATE ---
+    TORIRS_GFX_STATE_BEGIN_3D,
+    TORIRS_GFX_STATE_END_3D,
+    TORIRS_GFX_STATE_BEGIN_2D,
+    TORIRS_GFX_STATE_END_2D,
+    TORIRS_GFX_STATE_CLEAR_RECT,
+
+    // --- RESOURCES (Assets) ---
+    TORIRS_GFX_RES_MODEL_LOAD,
+    TORIRS_GFX_RES_MODEL_UNLOAD,
+    TORIRS_GFX_RES_ANIM_LOAD,
+    TORIRS_GFX_RES_TEX_LOAD,
+    TORIRS_GFX_RES_SPRITE_LOAD,
+    TORIRS_GFX_RES_SPRITE_UNLOAD,
+    TORIRS_GFX_RES_FONT_LOAD,
+    TORIRS_GFX_RES_FONT_UNLOAD,
+
+    // --- DRAWING ---
+    TORIRS_GFX_DRAW_MODEL,
+    TORIRS_GFX_DRAW_SPRITE,
+    TORIRS_GFX_DRAW_FONT,
+
+    // --- BATCHING (3D) ---
+    TORIRS_GFX_BATCH3D_BEGIN,
+    TORIRS_GFX_BATCH3D_MODEL_ADD,
+    TORIRS_GFX_BATCH3D_ANIM_ADD,
+    TORIRS_GFX_BATCH3D_END,
+    TORIRS_GFX_BATCH3D_CLEAR,
+
+    // --- BATCHING (2D) ---
+    TORIRS_GFX_BATCH2D_TEX_BEGIN,
+    TORIRS_GFX_BATCH2D_TEX_END,
+    TORIRS_GFX_BATCH2D_SPRITE_BEGIN,
+    TORIRS_GFX_BATCH2D_SPRITE_END,
+    TORIRS_GFX_BATCH2D_FONT_BEGIN,
+    TORIRS_GFX_BATCH2D_FONT_END,
+};
+
+/** `TORIRS_GFX_DRAW_SPRITE._sprite_draw.blit_dest`: normal UI framebuffer blit. */
 #define TORIRS_SPRITE_BLIT_FRAME 0
 /** Minimap window: soft3d copies subrect into staging buffer; GL/Metal draw rotated subrect to
  * screen. */
@@ -143,12 +147,13 @@ struct ToriRSRenderCommand
         {
             struct DashModel* model;
             struct DashPosition position;
-            /** Same packing as MODEL_LOAD (`torirs_model_cache_key_decode`). */
+            /** Same packing as RES_MODEL_LOAD (`torirs_model_cache_key_decode`). */
             uint64_t model_key;
-            /** Same Scene2 id as MODEL_LOAD for this element's current model (see
+            /** Same Scene2 id as RES_MODEL_LOAD for this element's current model (see
              * scene2_element_dash_model_gpu_id). */
             int model_id;
-            /** If false, draw bind pose `poses[0]`; if true, use `animation_index` + `frame_index`. */
+            /** If false, draw bind pose `poses[0]`; if true, use `animation_index` + `frame_index`.
+             */
             bool use_animation;
             /** Scene track when animated: 0 = primary, 1 = secondary. */
             uint8_t animation_index;
@@ -181,7 +186,8 @@ struct ToriRSRenderCommand
             int w;
             int h;
         } _clear_rect;
-        /** TORIRS_GFX_BEGIN_3D: destination rectangle in window pixels (see frame_emit_pass). */
+        /** TORIRS_GFX_STATE_BEGIN_3D: destination rectangle in window pixels (see frame_emit_pass).
+         */
         struct
         {
             int x;
@@ -189,23 +195,12 @@ struct ToriRSRenderCommand
             int w;
             int h;
         } _begin_3d;
-        /** LOAD and UNLOAD use the same payload (array pointer). */
-        struct
-        {
-            int array_id;
-            struct DashVertexArray* array;
-        } _vertex_array_load;
-        struct
-        {
-            int array_id;
-            struct DashFaceArray* array;
-        } _face_array_load;
         struct
         {
             uint32_t batch_id;
         } _batch;
         /**
-         * MODEL_ANIMATION_LOAD / BATCH3D_MODEL_ANIMATION_LOAD:
+         * RES_ANIM_LOAD / BATCH3D_ANIM_ADD:
          * Pre-baked animated pose for (model_gpu_id, anim_id, animation_index, frame).
          */
         struct
