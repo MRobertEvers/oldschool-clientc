@@ -472,7 +472,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
 
     // Persistent per-frame buffers for Pass3DBuilder2SubmitMetal
     {
-        const size_t inst_bytes = 4096 * sizeof(InstanceXform);
+        const size_t inst_bytes = 4096 * sizeof(GPU3DTransformUniform);
         id<MTLBuffer> inst_buf =
             [device newBufferWithLength:(NSUInteger)inst_bytes
                                options:MTLResourceStorageModeShared];

@@ -3,7 +3,7 @@
 
 #include "graphics/dash.h"
 #include "graphics/uv_pnm.h"
-#include "platforms/common/mesh_builder/mesh_builder.h"
+#include "platforms/gpu_3d.h"
 
 #include <array>
 #include <cassert>
@@ -168,9 +168,9 @@ struct BatchedQueueModel
 struct BatchQueue
 {
     std::vector<BatchedQueueModel> batch;
-    /** Interleaved [`MeshVertex`](mesh_builder.h) — same layout as `MetalVertexPacked` in
+    /** Interleaved `GPU3DMeshVertex` (platforms/gpu_3d.h); same layout as `MetalVertexPacked` in
      *  `Shaders.metal` / `vertexShader` (indexed, same transform as `vertexShaderStream`). */
-    std::vector<MeshVertex> vbo;
+    std::vector<GPU3DMeshVertex> vbo;
     std::vector<uint16_t> ebo;
 };
 
@@ -275,7 +275,7 @@ public:
         const int* face_infos_nullable,
         bool uv_mode_use_first_face);
 
-    /** Vertex count in `vbo` (each element is one `MeshVertex`). */
+    /** Vertex count in `vbo` (each element is one `GPU3DMeshVertex`). */
     uint32_t
     BatchGetVBOVertexCount();
 
@@ -285,7 +285,7 @@ public:
     uint32_t
     BatchGetEBOSize();
 
-    const MeshVertex*
+    const GPU3DMeshVertex*
     BatchGetVBO() const;
 
     uint16_t*
@@ -448,7 +448,7 @@ GPU3DCache2::BatchAddModeli16(
         {
             for( int k = 0; k < 3; k++ )
             {
-                MeshVertex v{};
+                GPU3DMeshVertex v{};
                 v.position[0] = 0.0f;
                 v.position[1] = 0.0f;
                 v.position[2] = 0.0f;
@@ -486,7 +486,7 @@ GPU3DCache2::BatchAddModeli16(
             gpu3d_hsl16_to_float_rgba(hsl_c, color_c, alpha_float);
         }
 
-        MeshVertex va{};
+        GPU3DMeshVertex va{};
         va.position[0] = (float)vertices_x[face_a];
         va.position[1] = (float)vertices_y[face_a];
         va.position[2] = (float)vertices_z[face_a];
@@ -501,7 +501,7 @@ GPU3DCache2::BatchAddModeli16(
         va.uv_mode = 0u;
         batch_queue.vbo.push_back(va);
 
-        MeshVertex vb{};
+        GPU3DMeshVertex vb{};
         vb.position[0] = (float)vertices_x[face_b];
         vb.position[1] = (float)vertices_y[face_b];
         vb.position[2] = (float)vertices_z[face_b];
@@ -516,7 +516,7 @@ GPU3DCache2::BatchAddModeli16(
         vb.uv_mode = 0u;
         batch_queue.vbo.push_back(vb);
 
-        MeshVertex vc{};
+        GPU3DMeshVertex vc{};
         vc.position[0] = (float)vertices_x[face_c];
         vc.position[1] = (float)vertices_y[face_c];
         vc.position[2] = (float)vertices_z[face_c];
@@ -601,7 +601,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
         {
             for( int k = 0; k < 3; k++ )
             {
-                MeshVertex v{};
+                GPU3DMeshVertex v{};
                 v.position[0] = v.position[1] = v.position[2] = 0.0f;
                 v.position[3] = 1.0f;
                 v.color[0] = v.color[1] = v.color[2] = 0.0f;
@@ -685,7 +685,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
             gpu3d_hsl16_to_float_rgba(hsl_c, color_c, alpha_float);
         }
 
-        MeshVertex va{};
+        GPU3DMeshVertex va{};
         va.position[0] = (float)vertices_x[face_a];
         va.position[1] = (float)vertices_y[face_a];
         va.position[2] = (float)vertices_z[face_a];
@@ -701,7 +701,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
         va.uv_mode = 0u;
         batch_queue.vbo.push_back(va);
 
-        MeshVertex vb{};
+        GPU3DMeshVertex vb{};
         vb.position[0] = (float)vertices_x[face_b];
         vb.position[1] = (float)vertices_y[face_b];
         vb.position[2] = (float)vertices_z[face_b];
@@ -716,7 +716,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
         vb.uv_mode = 0u;
         batch_queue.vbo.push_back(vb);
 
-        MeshVertex vc{};
+        GPU3DMeshVertex vc{};
         vc.position[0] = (float)vertices_x[face_c];
         vc.position[1] = (float)vertices_y[face_c];
         vc.position[2] = (float)vertices_z[face_c];
@@ -737,7 +737,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
             model_id, pose_index, new_vertex_count, vbo_vertex_start, faces_count, ebo_start));
 }
 
-inline const MeshVertex*
+inline const GPU3DMeshVertex*
 GPU3DCache2::BatchGetVBO() const
 {
     return batch_queues.back().vbo.data();

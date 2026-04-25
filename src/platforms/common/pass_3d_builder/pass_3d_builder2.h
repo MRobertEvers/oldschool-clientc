@@ -68,7 +68,7 @@ class Pass3DBuilder2
 {
 private:
     std::vector<DrawModel3D> draw_commands;
-    std::vector<InstanceXform> instance_pool;
+    std::vector<GPU3DTransformUniform> instance_pool;
 
     // A contiguous pool holding ALL sorted/dynamic indices for the current frame.
     // The backend will upload this entire vector in one swift API call.
@@ -116,7 +116,7 @@ public:
     const uint32_t
     GetDynamicIndicesSize() const;
 
-    const std::vector<InstanceXform>&
+    const std::vector<GPU3DTransformUniform>&
     GetInstancePool() const;
 
     uint32_t
@@ -165,11 +165,11 @@ Pass3DBuilder2::AddModelDrawYawOnly(
     if( !is_building )
         return;
 
-    // 1. Instance transform: same `InstanceXform` / `vertexShader` as legacy Metal stream path.
+    // 1. Instance transform: same `GPU3DTransformUniform` / `vertexShader` as legacy Metal stream path.
     uint32_t instance_offset = static_cast<uint32_t>(instance_pool.size());
     const float yaw_rad =
         ((float)rotation_r2pi2048 * 2.0f * (float)M_PI) / 2048.0f;
-    InstanceXform xf = {
+    GPU3DTransformUniform xf = {
         cosf(yaw_rad),
         sinf(yaw_rad),
         (float)x,
@@ -243,7 +243,7 @@ Pass3DBuilder2::HasDynamicIndices() const
     return !indices_pool.empty();
 }
 
-inline const std::vector<InstanceXform>&
+inline const std::vector<GPU3DTransformUniform>&
 Pass3DBuilder2::GetInstancePool() const
 {
     return instance_pool;

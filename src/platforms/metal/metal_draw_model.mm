@@ -33,22 +33,22 @@ metal_frame_event_model_draw(
         ctx->game->sys_dash, model, &draw_position, ctx->game->view_port, ctx->game->camera);
     const int* face_order = dash3d_projected_face_order(ctx->game->sys_dash, &face_order_count);
 
-    const int fc = dashmodel_face_count(model);
+    const int face_count = dashmodel_face_count(model);
 
     /* GPU3DCache2 bakes **three expanded vertices per face** in original face order (textured and
      * untextured). Local indices are `f*3 + {0,1,2}`; `pose.vbo_offset` is the first vertex of this
      * model slice (`Pass3DBuilder2SubmitMetal` `baseVertex`). */
     static std::vector<uint16_t> g_sorted;
     g_sorted.clear();
-    if( face_order_count > 0 && fc > 0 )
+    if( face_order_count > 0 && face_count > 0 )
     {
         g_sorted.reserve((size_t)face_order_count * 3u);
         for( int fi = 0; fi < face_order_count; ++fi )
         {
-            const int f = face_order ? face_order[fi] : fi;
-            if( f < 0 || f >= fc )
+            const int face_index = face_order ? face_order[fi] : fi;
+            if( face_index < 0 || face_index >= face_count )
                 continue;
-            const uint32_t b = (uint32_t)f * 3u;
+            const uint32_t b = (uint32_t)face_index * 3u;
             g_sorted.push_back((uint16_t)b);
             g_sorted.push_back((uint16_t)(b + 1u));
             g_sorted.push_back((uint16_t)(b + 2u));

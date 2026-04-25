@@ -154,7 +154,7 @@ wg1_flush_3d(WebGL1RenderCtx* ctx, BufferedFaceOrder* bfo)
             continue;
         const std::vector<WgVertex>& geom = it->second;
         const std::vector<DrawStreamEntry>& st = bfo->stream();
-        const std::vector<InstanceXform>& inst = bfo->instances();
+        const std::vector<GPU3DTransformUniform>& inst = bfo->instances();
 
         exp.clear();
         exp.reserve((size_t)slice.entry_count * 12u);
@@ -164,7 +164,7 @@ wg1_flush_3d(WebGL1RenderCtx* ctx, BufferedFaceOrder* bfo)
             if( e.instance_id >= inst.size() || e.vertex_index >= geom.size() )
                 continue;
             const WgVertex& v = geom[e.vertex_index];
-            const InstanceXform& xf = inst[e.instance_id];
+            const GPU3DTransformUniform& xf = inst[e.instance_id];
             const float px = v.position[0];
             const float py = v.position[1];
             const float pz = v.position[2];

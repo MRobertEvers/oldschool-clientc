@@ -1,6 +1,7 @@
 #pragma once
 
 #include "graphics/dash.h"
+#include "platforms/gpu_3d.h"
 #include "platforms/gpu_3d_cache.h"
 
 #include <cmath>
@@ -18,20 +19,6 @@ struct DrawStreamEntry
     uint32_t vertex_index;
     uint32_t instance_id;
 };
-
-/** 32 bytes; must match `InstanceXform` in Shaders.metal.
- *  cos_yaw/sin_yaw are CPU-prebaked for Y-axis rotation (projection.u.c / D3D11 xz step); GPU
- *  only applies multiply-add. */
-struct InstanceXform
-{
-    float cos_yaw;
-    float sin_yaw;
-    float x, y, z;
-    uint32_t angle_encoding;
-    int32_t _pad[2];
-};
-
-static_assert(sizeof(InstanceXform) == 32, "InstanceXform size must match Metal shader");
 
 struct PassFlushSlice
 {
@@ -94,13 +81,15 @@ public:
         float sin_yaw,
         Gpu3DAngleEncoding angle_encoding)
     {
-        if( !dash || !model || !position || !view_port || !camera || !static_vbo || gpu_face_count <= 0 )
+        if( !dash || !model || !position || !view_port || !camera || !static_vbo ||
+            gpu_face_count <= 0 )
             return true;
 
         if( (int)instances_.size() >= kMaxInstancesPerPass )
             return false;
 
-        const int prep = dash3d_prepare_projected_face_order(dash, model, position, view_port, camera);
+        const int prep =
+            dash3d_prepare_projected_face_order(dash, model, position, view_port, camera);
         if( prep <= 0 )
             return true;
 
@@ -123,7 +112,7 @@ public:
         if( emit_tris <= 0 )
             return true;
 
-        InstanceXform xf = {
+        GPU3DTransformUniform xf = {
             cos_yaw,
             sin_yaw,
             (float)position->x,
@@ -155,12 +144,13 @@ public:
         {
             std::vector<int> face_copy((size_t)face_count);
             memcpy(face_copy.data(), face_order_scratch_.data(), sizeof(int) * (size_t)face_count);
-            legacy_models_.push_back(AppendedModel{ inst_id,
-                                                    batch_chunk_index,
-                                                    static_vbo,
-                                                    vertex_index_base,
-                                                    gpu_face_count,
-                                                    std::move(face_copy) });
+            legacy_models_.push_back(
+                AppendedModel{ inst_id,
+                               batch_chunk_index,
+                               static_vbo,
+                               vertex_index_base,
+                               gpu_face_count,
+                               std::move(face_copy) });
         }
         return true;
     }
@@ -177,7 +167,7 @@ public:
         return stream_;
     }
 
-    const std::vector<InstanceXform>&
+    const std::vector<GPU3DTransformUniform>&
     instances() const
     {
         return instances_;
@@ -193,8 +183,7 @@ public:
         for( size_t i = 0; i < slices_.size(); ++i )
         {
             PassFlushSlice& s = slices_[i];
-            const uint32_t next_off =
-                (i + 1 < slices_.size()) ? slices_[i + 1].entry_offset : n;
+            const uint32_t next_off = (i + 1 < slices_.size()) ? slices_[i + 1].entry_offset : n;
             s.entry_count = next_off - s.entry_offset;
         }
         finalized_ = true;
@@ -224,7 +213,10 @@ public:
 
 private:
     void
-    open_slice_if_needed(int batch_chunk_index, void* static_vbo, uint32_t stream_pos)
+    open_slice_if_needed(
+        int batch_chunk_index,
+        void* static_vbo,
+        uint32_t stream_pos)
     {
         if( static_vbo == cur_vbo_ && batch_chunk_index == cur_chunk_ )
             return;
@@ -244,7 +236,7 @@ private:
     }
 
     std::vector<DrawStreamEntry> stream_;
-    std::vector<InstanceXform> instances_;
+    std::vector<GPU3DTransformUniform> instances_;
     std::vector<PassFlushSlice> slices_;
     std::vector<AppendedModel> legacy_models_;
     std::vector<int> face_order_scratch_;

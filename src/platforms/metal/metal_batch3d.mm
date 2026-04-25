@@ -322,7 +322,7 @@ metal_frame_event_end_3d(
     const NSUInteger inst_base = (NSUInteger)renderer->mtl_pass3d_inst_upload_ofs;
     const NSUInteger idx_base = (NSUInteger)renderer->mtl_pass3d_idx_upload_ofs;
     const size_t inst_bytes =
-        renderer->mtl_pass3d_builder.GetInstancePool().size() * sizeof(InstanceXform);
+        renderer->mtl_pass3d_builder.GetInstancePool().size() * sizeof(GPU3DTransformUniform);
     const size_t dyn_n = renderer->mtl_pass3d_builder.GetDynamicIndices().size();
     const size_t dyn_cap = (size_t)kPass3DBuilder2DynamicIndexUInt16Capacity;
     const size_t idx_copy_n =

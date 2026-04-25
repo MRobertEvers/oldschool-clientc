@@ -31,7 +31,7 @@ Pass3DBuilder2SubmitMetal(
         [render_command_encoder setDepthStencilState:depth_stencil_state];
 
     const size_t inst_bytes =
-        builder.GetInstancePool().size() * sizeof(InstanceXform);
+        builder.GetInstancePool().size() * sizeof(GPU3DTransformUniform);
     const NSUInteger inst_cap = dynamic_instance_buffer ? dynamic_instance_buffer.length : 0u;
     if( instance_base_bytes + inst_bytes > inst_cap )
     {
@@ -145,7 +145,7 @@ Pass3DBuilder2SubmitMetal(
 
         // 3. Bind Rotation from the Instance Buffer (Fastest path)
         NSUInteger rotation_offset =
-            instance_base_bytes + cmd.instance_offset * sizeof(InstanceXform);
+            instance_base_bytes + cmd.instance_offset * sizeof(GPU3DTransformUniform);
         [render_command_encoder //
             setVertexBuffer:dynamic_instance_buffer
                      offset:rotation_offset

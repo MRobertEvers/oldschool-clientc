@@ -166,7 +166,6 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                 case TORIRS_GFX_CLEAR_RECT:
                     metal_frame_event_clear_rect(&ctx, &cmd);
                     break;
-
                 case TORIRS_GFX_TEXTURE_LOAD:
                     metal_frame_event_texture_load(&ctx, &cmd);
                     break;

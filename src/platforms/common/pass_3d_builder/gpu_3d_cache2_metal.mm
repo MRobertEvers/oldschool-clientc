@@ -1,13 +1,13 @@
 #include "gpu_3d_cache2_metal.h"
 
-#include "platforms/common/mesh_builder/mesh_builder.h"
+#include "platforms/gpu_3d.h"
 #import <Metal/Metal.h>
 
 #include <cstdio>
 
 static_assert(
-    sizeof(MeshVertex) == 44u,
-    "MeshVertex must match Shaders.metal MetalVertexPacked");
+    sizeof(GPU3DMeshVertex) == 44u,
+    "GPU3DMeshVertex must match Shaders.metal MetalVertexPacked");
 
 void
 GPU3DCache2BatchSubmitMetal(
@@ -16,7 +16,7 @@ GPU3DCache2BatchSubmitMetal(
     BatchBuffers& out_batch_buffers,
     uint32_t batch_id)
 {
-    const uint32_t vbo_size = cache.BatchGetVBOVertexCount() * (uint32_t)sizeof(MeshVertex);
+    const uint32_t vbo_size = cache.BatchGetVBOVertexCount() * (uint32_t)sizeof(GPU3DMeshVertex);
     uint32_t ebo_size = cache.BatchGetEBOSize() * sizeof(uint16_t);
 
     if( vbo_size == 0 || ebo_size == 0 )

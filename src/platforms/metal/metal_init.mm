@@ -227,9 +227,10 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
     // Persistent per-frame buffers for Pass3DBuilder2SubmitMetal (sizes follow
     // kPass3DBuilder2DynamicIndexUInt16Capacity / worst-case draws per frame).
     {
-        const size_t inst_bytes = 16384 * sizeof(InstanceXform);
-        id<MTLBuffer> inst_buf = [device newBufferWithLength:(NSUInteger)inst_bytes
-                                                     options:MTLResourceStorageModeShared];
+        const size_t inst_bytes = 16384 * sizeof(GPU3DTransformUniform);
+        id<MTLBuffer> inst_buf = [device //
+            newBufferWithLength:(NSUInteger)inst_bytes
+                        options:MTLResourceStorageModeShared];
         renderer->mtl_pass3d_instance_buf = (__bridge_retained void*)inst_buf;
     }
     {
