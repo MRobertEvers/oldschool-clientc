@@ -1,6 +1,27 @@
 #pragma once
 
+#include <cmath>
 #include <cstdint>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+/** Pack linear RGBA [0,1] into a D3D-style diffuse dword (ARGB, 8 bits per channel). */
+inline uint32_t
+GPU3D_PackDiffuseARGB(
+    float r,
+    float g,
+    float b,
+    float a)
+{
+    auto ch = [](float x) -> uint32_t {
+        const float c = x < 0.f ? 0.f : (x > 1.f ? 1.f : x);
+        return (uint32_t)(c * 255.f + 0.5f);
+    };
+
+    return (ch(a) << 24u) | (ch(r) << 16u) | (ch(g) << 8u) | ch(b);
+}
 
 struct CommonVertex
 {
@@ -48,18 +69,106 @@ struct GPU3DMeshVertexMetal
     }
 };
 
-/** 32 bytes; must match GPU3DTransformUniform in Shaders.metal.
+/**
+ * D3D-friendly world mesh vertex (portable types; no Windows headers).
+ *
+ * Memory order matches the classic fixed-function pack
+ * `D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1` (D3D8/9): xyz, dword ARGB, uv.
+ * The trailing `tex_id` / `uv_mode` pair is a **SHORT2**-sized block (use a vertex
+ * declaration with `D3DDECLTYPE_SHORT2` / HLSL `uint2`/`min16uint2` on TEXCOORD1 or
+ * blend weights — not expressible as extra FVF bits after TEX1 without adding `D3DFVF_TEX2`).
+ */
+struct GPU3DMeshVertexD3D
+{
+    float position[3];
+    uint32_t diffuse; ///< ARGB (`D3DCOLOR`-style packing)
+    float texcoord[2];
+    uint16_t tex_id;
+    uint16_t uv_mode;
+
+    static GPU3DMeshVertexD3D
+    FromCommon(const CommonVertex& v)
+    {
+        GPU3DMeshVertexD3D out{};
+        out.position[0] = v.position[0];
+        out.position[1] = v.position[1];
+        out.position[2] = v.position[2];
+        out.diffuse = GPU3D_PackDiffuseARGB(v.color[0], v.color[1], v.color[2], v.color[3]);
+        out.texcoord[0] = v.texcoord[0];
+        out.texcoord[1] = v.texcoord[1];
+        out.tex_id = v.tex_id;
+        out.uv_mode = v.uv_mode;
+        return out;
+    }
+};
+
+static_assert(
+    sizeof(GPU3DMeshVertexD3D) == 28u,
+    "GPU3DMeshVertexD3D stride for D3D VB");
+
+/** Logical per-draw transform (platform-neutral); map to GPU with
+ *  `GPU3DTransformUniformMetal::FromCommon`. */
+struct GPU3DTransformUniform
+{
+    float x;
+    float y;
+    float z;
+    int32_t rotation_r2pi2048;
+
+    static GPU3DTransformUniform
+    FromYawOnly(
+        int32_t px,
+        int32_t py,
+        int32_t pz,
+        int rotation_r2pi2048)
+    {
+        return GPU3DTransformUniform{
+            (float)px,
+            (float)py,
+            (float)pz,
+            (int32_t)rotation_r2pi2048,
+        };
+    }
+};
+
+/** 32 bytes; must match `GPU3DTransformUniformMetal` in Shaders.metal.
  *  cos_yaw/sin_yaw are CPU-prebaked for Y-axis rotation (projection.u.c / D3D11 xz step); GPU
  *  only applies multiply-add. */
-struct GPU3DTransformUniform
+struct GPU3DTransformUniformMetal
 {
     float cos_yaw;
     float sin_yaw;
     float x, y, z;
     uint32_t angle_encoding;
     int32_t _pad[2];
+
+    static GPU3DTransformUniformMetal
+    FromCommon(const GPU3DTransformUniform& c)
+    {
+        return FromYawOnly((int32_t)c.x, (int32_t)c.y, (int32_t)c.z, (int)c.rotation_r2pi2048);
+    }
+
+    static GPU3DTransformUniformMetal
+    FromYawOnly(
+        int32_t px,
+        int32_t py,
+        int32_t pz,
+        int rotation_r2pi2048)
+    {
+        const float yaw_rad = ((float)rotation_r2pi2048 * 2.0f * (float)M_PI) / 2048.0f;
+        GPU3DTransformUniformMetal out{};
+        out.cos_yaw = cosf(yaw_rad);
+        out.sin_yaw = sinf(yaw_rad);
+        out.x = (float)px;
+        out.y = (float)py;
+        out.z = (float)pz;
+        out.angle_encoding = (uint32_t)rotation_r2pi2048;
+        out._pad[0] = 0;
+        out._pad[1] = 0;
+        return out;
+    }
 };
 
 static_assert(
-    sizeof(GPU3DTransformUniform) == 32,
-    "GPU3DTransformUniform size must match Metal shader");
+    sizeof(GPU3DTransformUniformMetal) == 32,
+    "GPU3DTransformUniformMetal size must match Metal shader");

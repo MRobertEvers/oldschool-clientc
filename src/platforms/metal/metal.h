@@ -49,7 +49,7 @@ struct Platform2_SDL2_Renderer_Metal
     int height;
     bool metal_ready;
 
-    Pass3DBuilder2 mtl_pass3d_builder;
+    Pass3DBuilder2<GPU3DTransformUniformMetal> mtl_pass3d_builder;
     GPU3DCache2<GPU3DMeshVertexMetal> model_cache2;
 
     // v2 3D pipeline persistent resources

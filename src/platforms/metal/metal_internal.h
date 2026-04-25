@@ -199,7 +199,7 @@ metal_frame_event_end_3d(
 
 void
 Pass3DBuilder2SubmitMetal(
-    Pass3DBuilder2& builder,
+    Pass3DBuilder2<GPU3DTransformUniformMetal>& builder,
     const GPU3DCache2<GPU3DMeshVertexMetal>& cache,
     struct Platform2_SDL2_Renderer_Metal* metal_renderer,
     id<MTLRenderCommandEncoder> render_command_encoder,

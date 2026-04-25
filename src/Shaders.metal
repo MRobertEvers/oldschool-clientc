@@ -1,7 +1,7 @@
 #include <metal_stdlib>
 using namespace metal;
 
-// Must match MetalVertex / MetalUniforms / GPU3DTransformUniform / DrawStreamEntry in metal_internal /
+// Must match MetalVertex / MetalUniforms / GPU3DTransformUniformMetal / DrawStreamEntry in metal_internal /
 // gpu_3d.h (C++). C packs float[4] at 4-byte alignment (44 bytes total); use packed_* so
 // indexing matches CPU sizeof(MetalVertex).
 struct MetalVertexPacked {
@@ -12,9 +12,9 @@ struct MetalVertexPacked {
     ushort uv_mode; // 0: OpenGL-style clamp U / fract+inset V. 1: VA dual-fract tile.
 };
 
-/* 32 bytes; must match GPU3DTransformUniform in platforms/gpu_3d.h.
+/* 32 bytes; must match GPU3DTransformUniformMetal in platforms/gpu_3d.h.
  *  cos_yaw/sin_yaw: cosf/sinf(metal_dash_yaw_to_radians(Dash yaw)) on CPU (Metal renderer). */
-struct GPU3DTransformUniform {
+struct GPU3DTransformUniformMetal {
     float cos_yaw;
     float sin_yaw;
     float x;
@@ -53,13 +53,13 @@ struct VertexOut {
 vertex VertexOut vertexShaderStream(
     uint vid [[vertex_id]],
     constant Uniforms& uniforms [[buffer(1)]],
-    device const GPU3DTransformUniform* instances [[buffer(2)]],
+    device const GPU3DTransformUniformMetal* instances [[buffer(2)]],
     device const DrawEntry* stream [[buffer(3)]],
     device const MetalVertexPacked* verts [[buffer(0)]])
 {
     DrawEntry e = stream[vid];
     MetalVertexPacked v = verts[e.vertex_index];
-    GPU3DTransformUniform t = instances[e.instance_id];
+    GPU3DTransformUniformMetal t = instances[e.instance_id];
 
     float3 p = float4(v.position).xyz;
     /* projection.u.c / D3D11 xz yaw; trig was prebaked on CPU into cos_yaw/sin_yaw. */
@@ -77,16 +77,16 @@ vertex VertexOut vertexShaderStream(
 }
 
 /** Pass3DBuilder2 / GPU3DCache2: `drawIndexedPrimitives` + `baseVertex`; `vid` is resolved VBO index.
- *  One `GPU3DTransformUniform` per draw at buffer(2) offset (use `instances[0]`). Same world transform as
+ *  One `GPU3DTransformUniformMetal` per draw at buffer(2) offset (use `instances[0]`). Same world transform as
  *  `vertexShaderStream`. */
 vertex VertexOut vertexShader(
     uint vid [[vertex_id]],
     constant Uniforms& uniforms [[buffer(1)]],
-    device const GPU3DTransformUniform* instances [[buffer(2)]],
+    device const GPU3DTransformUniformMetal* instances [[buffer(2)]],
     device const MetalVertexPacked* verts [[buffer(0)]])
 {
     MetalVertexPacked v = verts[vid];
-    GPU3DTransformUniform t = instances[0];
+    GPU3DTransformUniformMetal t = instances[0];
 
     float3 p = float4(v.position).xyz;
     float xr = p.x * t.cos_yaw + p.z * t.sin_yaw;

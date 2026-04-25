@@ -3,7 +3,6 @@
 
 #include "platforms/gpu_3d.h"
 
-#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -64,11 +63,12 @@ struct DrawModel3D
     }
 };
 
+template<typename InstanceUniformType>
 class Pass3DBuilder2
 {
 private:
     std::vector<DrawModel3D> draw_commands;
-    std::vector<GPU3DTransformUniform> instance_pool;
+    std::vector<InstanceUniformType> instance_pool;
 
     // A contiguous pool holding ALL sorted/dynamic indices for the current frame.
     // The backend will upload this entire vector in one swift API call.
@@ -116,7 +116,7 @@ public:
     const uint32_t
     GetDynamicIndicesSize() const;
 
-    const std::vector<GPU3DTransformUniform>&
+    const std::vector<InstanceUniformType>&
     GetInstancePool() const;
 
     uint32_t
@@ -129,8 +129,9 @@ public:
     HasDynamicIndices() const;
 };
 
+template<typename InstanceUniformType>
 inline void
-Pass3DBuilder2::Begin3D()
+Pass3DBuilder2<InstanceUniformType>::Begin3D()
 {
     is_building = true;
     draw_commands.clear();
@@ -138,7 +139,8 @@ Pass3DBuilder2::Begin3D()
     indices_pool.clear();
 }
 
-inline Pass3DBuilder2::Pass3DBuilder2()
+template<typename InstanceUniformType>
+inline Pass3DBuilder2<InstanceUniformType>::Pass3DBuilder2()
     : is_building(false)
 {
     draw_commands.reserve(4096);
@@ -146,11 +148,13 @@ inline Pass3DBuilder2::Pass3DBuilder2()
     indices_pool.reserve(4096 * 16);
 }
 
-inline Pass3DBuilder2::~Pass3DBuilder2()
+template<typename InstanceUniformType>
+inline Pass3DBuilder2<InstanceUniformType>::~Pass3DBuilder2()
 {}
 
+template<typename InstanceUniformType>
 inline void
-Pass3DBuilder2::AddModelDrawYawOnly(
+Pass3DBuilder2<InstanceUniformType>::AddModelDrawYawOnly(
     uint16_t model_id,
     int32_t x,
     int32_t y,
@@ -165,15 +169,10 @@ Pass3DBuilder2::AddModelDrawYawOnly(
     if( !is_building )
         return;
 
-    // 1. Instance transform: same `GPU3DTransformUniform` / `vertexShader` as legacy Metal stream
-    // path.
+    // 1. Instance transform: `InstanceUniformType` (e.g. `GPU3DTransformUniformMetal`) matches
+    // `vertexShader` buffer(2) layout.
     uint32_t instance_offset = static_cast<uint32_t>(instance_pool.size());
-    const float yaw_rad = ((float)rotation_r2pi2048 * 2.0f * (float)M_PI) / 2048.0f;
-    GPU3DTransformUniform xf = {
-        cosf(yaw_rad), sinf(yaw_rad), (float)x, (float)y, (float)z, (uint32_t)rotation_r2pi2048,
-        { 0, 0 },
-    };
-    instance_pool.push_back(xf);
+    instance_pool.push_back(InstanceUniformType::FromYawOnly(x, y, z, rotation_r2pi2048));
 
     // 2. Handle the Sorted Faces (Index Data)
     uint32_t index_pool_offset = 0;
@@ -200,52 +199,67 @@ Pass3DBuilder2::AddModelDrawYawOnly(
             index_count));
 }
 
+template<typename InstanceUniformType>
 inline void
-Pass3DBuilder2::End3D()
+Pass3DBuilder2<InstanceUniformType>::End3D()
 {
     is_building = false;
 }
 
+template<typename InstanceUniformType>
 inline void
-Pass3DBuilder2::ClearAfterSubmit()
+Pass3DBuilder2<InstanceUniformType>::ClearAfterSubmit()
 {
     draw_commands.clear();
     instance_pool.clear();
     indices_pool.clear();
 }
 
+template<typename InstanceUniformType>
 inline const std::vector<DrawModel3D>&
-Pass3DBuilder2::GetCommands() const
+Pass3DBuilder2<InstanceUniformType>::GetCommands() const
 {
     return draw_commands;
 }
 
+template<typename InstanceUniformType>
 inline const std::vector<uint16_t>&
-Pass3DBuilder2::GetDynamicIndices() const
+Pass3DBuilder2<InstanceUniformType>::GetDynamicIndices() const
 {
     return indices_pool;
 }
 
+template<typename InstanceUniformType>
+inline const uint32_t
+Pass3DBuilder2<InstanceUniformType>::GetDynamicIndicesSize() const
+{
+    return static_cast<uint32_t>(indices_pool.size());
+}
+
+template<typename InstanceUniformType>
 inline bool
-Pass3DBuilder2::HasCommands() const
+Pass3DBuilder2<InstanceUniformType>::HasCommands() const
 {
     return !draw_commands.empty();
 }
 
+template<typename InstanceUniformType>
 inline bool
-Pass3DBuilder2::HasDynamicIndices() const
+Pass3DBuilder2<InstanceUniformType>::HasDynamicIndices() const
 {
     return !indices_pool.empty();
 }
 
-inline const std::vector<GPU3DTransformUniform>&
-Pass3DBuilder2::GetInstancePool() const
+template<typename InstanceUniformType>
+inline const std::vector<InstanceUniformType>&
+Pass3DBuilder2<InstanceUniformType>::GetInstancePool() const
 {
     return instance_pool;
 }
 
+template<typename InstanceUniformType>
 inline uint32_t
-Pass3DBuilder2::GetInstancePoolSize() const
+Pass3DBuilder2<InstanceUniformType>::GetInstancePoolSize() const
 {
     return static_cast<uint32_t>(instance_pool.size());
 }

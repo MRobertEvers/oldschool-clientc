@@ -9,7 +9,7 @@
 
 void
 Pass3DBuilder2SubmitMetal(
-    Pass3DBuilder2& builder,
+    Pass3DBuilder2<GPU3DTransformUniformMetal>& builder,
     const GPU3DCache2<GPU3DMeshVertexMetal>& cache,
     struct Platform2_SDL2_Renderer_Metal* metal_renderer,
     id<MTLRenderCommandEncoder> render_command_encoder, // Renamed for brevity
@@ -30,7 +30,7 @@ Pass3DBuilder2SubmitMetal(
     if( depth_stencil_state )
         [render_command_encoder setDepthStencilState:depth_stencil_state];
 
-    const size_t inst_bytes = builder.GetInstancePool().size() * sizeof(GPU3DTransformUniform);
+    const size_t inst_bytes = builder.GetInstancePool().size() * sizeof(GPU3DTransformUniformMetal);
     const NSUInteger inst_cap = dynamic_instance_buffer ? dynamic_instance_buffer.length : 0u;
     if( instance_base_bytes + inst_bytes > inst_cap )
     {
@@ -144,7 +144,7 @@ Pass3DBuilder2SubmitMetal(
 
         // 3. Bind Rotation from the Instance Buffer (Fastest path)
         NSUInteger rotation_offset =
-            instance_base_bytes + cmd.instance_offset * sizeof(GPU3DTransformUniform);
+            instance_base_bytes + cmd.instance_offset * sizeof(GPU3DTransformUniformMetal);
         [render_command_encoder //
             setVertexBuffer:dynamic_instance_buffer
                      offset:rotation_offset
