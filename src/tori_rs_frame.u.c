@@ -712,16 +712,6 @@ queue_static_load_commands(
                 ev->_model_load.model_key = model_key;
                 ev->_model_load.model_id = scene2_element_dash_model_gpu_id(el);
 
-                if( ev->_model_load.model_id == 6277 )
-                {
-                    int vertex_count = dashmodel_vertex_count(model);
-                    int faces_count = dashmodel_face_count(model);
-                    printf(
-                        "model_load: model_id: %d, vertex_count: %d, faces_count: %d\n",
-                        scene2_element_dash_model_gpu_id(el),
-                        vertex_count,
-                        faces_count);
-                }
                 continue;
             }
             if( scene_event.type == SCENE2_EVENT_MODEL_UNLOADED )

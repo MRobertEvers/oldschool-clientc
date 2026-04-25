@@ -14,9 +14,6 @@ metal_cache2_batch_push_model_mesh(
     if( !model || model_id <= 0 )
         return;
 
-    if( dashmodel__is_ground_va(model) )
-        return;
-
     if( !dashmodel_face_colors_a_const(model) || !dashmodel_face_colors_b_const(model) ||
         !dashmodel_face_colors_c_const(model) || !dashmodel_vertices_x_const(model) ||
         !dashmodel_vertices_y_const(model) || !dashmodel_vertices_z_const(model) ||

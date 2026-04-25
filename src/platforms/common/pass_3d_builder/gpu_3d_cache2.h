@@ -270,8 +270,8 @@ public:
         uint16_t* textured_faces_a,
         uint16_t* textured_faces_b,
         uint16_t* textured_faces_c,
-        const int* face_infos_nullable = nullptr,
-        bool ground_va = false);
+        const int* face_infos_nullable,
+        bool uv_mode_use_first_face);
 
     /** Vertex count in `vbo` (each element is one `MeshVertex`). */
     uint32_t
@@ -411,11 +411,6 @@ GPU3DCache2::BatchAddModeli16(
 {
     (void)vertex_count;
     assert(faces_count < 4096);
-    printf(
-        "BatchAddModeli16: model_id: %d, vertex_count: %d, faces_count: %d\n",
-        model_id,
-        vertex_count,
-        faces_count);
     BatchQueue& batch_queue = batch_queues.back();
     const uint32_t pose_index = allocatePoseSlot(model_id, gpu_segment_slot, frame_index);
 
@@ -558,9 +553,8 @@ GPU3DCache2::BatchAddModelTexturedi16(
     uint16_t* textured_faces_b,
     uint16_t* textured_faces_c,
     const int* face_infos_nullable,
-    bool ground_va)
+    bool uv_mode_use_first_face)
 {
-    assert(vertex_count < 4096);
     assert(faces_count < 4096);
     BatchQueue& batch_queue = batch_queues.back();
     const uint32_t pose_index = allocatePoseSlot(model_id, gpu_segment_slot, frame_index);
@@ -575,9 +569,6 @@ GPU3DCache2::BatchAddModelTexturedi16(
     uint32_t tm_vertex = 0;
     uint32_t tn_vertex = 0;
     struct UVFaceCoords uv;
-
-    const uint16_t uv_mode =
-        (uint16_t)(ground_va ? 1u : 0u); /* kWgVertexUvMode_VaFractTile : Standard */
 
     for( uint32_t i = 0; i < faces_count; i++ )
     {
@@ -615,7 +606,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
 
         /* P/N/M frame for `uv_pnm_compute`: match `wg1_fill_model_face_vertices_model_local`
          * (ground VA uses face 0 corners for all faces; else textured remap or face i). */
-        if( ground_va && faces_count > 0 )
+        if( uv_mode_use_first_face )
         {
             tp_vertex = faces_a[0];
             tm_vertex = faces_b[0];
@@ -698,7 +689,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
         va.texcoord[0] = uv.u1;
         va.texcoord[1] = uv.v1;
         va.tex_id = tex_id;
-        va.uv_mode = uv_mode;
+        va.uv_mode = 0u;
         batch_queue.vbo.push_back(va);
 
         MeshVertex vb{};
@@ -713,7 +704,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
         vb.texcoord[0] = uv.u2;
         vb.texcoord[1] = uv.v2;
         vb.tex_id = tex_id;
-        vb.uv_mode = uv_mode;
+        vb.uv_mode = 0u;
         batch_queue.vbo.push_back(vb);
 
         MeshVertex vc{};
@@ -728,7 +719,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
         vc.texcoord[0] = uv.u3;
         vc.texcoord[1] = uv.v3;
         vc.tex_id = tex_id;
-        vc.uv_mode = uv_mode;
+        vc.uv_mode = 0u;
         batch_queue.vbo.push_back(vc);
     }
 
