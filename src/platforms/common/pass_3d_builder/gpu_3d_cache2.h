@@ -29,17 +29,17 @@ constexpr size_t VERTEX_ATTRIBUTE_COUNT = 8;
 inline uint16_t
 gpu3d_pack_uv_tile01(float u)
 {
-    float fu = u - std::floor(u);
-    if( fu < 0.f )
-        fu = 0.f;
-    else if( fu > 1.f )
-        fu = 1.f;
-    int q = (int)std::lrint(static_cast<double>(fu) * 65535.0);
-    if( q < 0 )
-        q = 0;
-    if( q > 65535 )
-        q = 65535;
-    return static_cast<uint16_t>(q);
+    // float fu = u - std::floor(u);
+    // if( fu < 0.f )
+    //     fu = 0.f;
+    // else if( fu > 1.f )
+    //     fu = 1.f;
+    // int q = (int)std::lrint(static_cast<double>(fu) * 65535.0);
+    // if( q < 0 )
+    //     q = 0;
+    // if( q > 65535 )
+    //     q = 65535;
+    return static_cast<uint16_t>(u);
 }
 // Assuming 4 bytes per pixel (RGBA8) for a 128x128 texture
 constexpr size_t BYTES_PER_PIXEL = 4;
@@ -249,9 +249,9 @@ public:
         uint8_t gpu_segment_slot,
         uint16_t frame_index,
         uint32_t vertex_count,
-        uint16_t* vertices_x,
-        uint16_t* vertices_y,
-        uint16_t* vertices_z,
+        int16_t* vertices_x,
+        int16_t* vertices_y,
+        int16_t* vertices_z,
         uint32_t faces_count,
         uint16_t* faces_a,
         uint16_t* faces_b,
@@ -266,9 +266,9 @@ public:
         uint8_t gpu_segment_slot,
         uint16_t frame_index,
         uint32_t vertex_count,
-        uint16_t* vertices_x,
-        uint16_t* vertices_y,
-        uint16_t* vertices_z,
+        int16_t* vertices_x,
+        int16_t* vertices_y,
+        int16_t* vertices_z,
         uint32_t faces_count,
         uint16_t* faces_a,
         uint16_t* faces_b,
@@ -402,9 +402,9 @@ GPU3DCache2::BatchAddModeli16(
     uint8_t gpu_segment_slot,
     uint16_t frame_index,
     uint32_t vertex_count,
-    uint16_t* vertices_x,
-    uint16_t* vertices_y,
-    uint16_t* vertices_z,
+    int16_t* vertices_x,
+    int16_t* vertices_y,
+    int16_t* vertices_z,
     uint32_t faces_count,
     uint16_t* faces_a,
     uint16_t* faces_b,
@@ -467,9 +467,9 @@ GPU3DCache2::BatchAddModelTexturedi16(
     uint8_t gpu_segment_slot,
     uint16_t frame_index,
     uint32_t vertex_count,
-    uint16_t* vertices_x,
-    uint16_t* vertices_y,
-    uint16_t* vertices_z,
+    int16_t* vertices_x,
+    int16_t* vertices_y,
+    int16_t* vertices_z,
     uint32_t faces_count,
     uint16_t* faces_a,
     uint16_t* faces_b,
