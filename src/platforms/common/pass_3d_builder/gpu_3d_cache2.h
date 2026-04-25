@@ -247,6 +247,7 @@ public:
         uint16_t* faces_a_color_hsl16,
         uint16_t* faces_b_color_hsl16,
         uint16_t* faces_c_color_hsl16,
+        uint8_t* face_alphas,
         const int* face_infos_nullable = nullptr);
 
     void
@@ -265,6 +266,7 @@ public:
         uint16_t* faces_a_color_hsl16,
         uint16_t* faces_b_color_hsl16,
         uint16_t* faces_c_color_hsl16,
+        uint8_t* face_alphas,
         int16_t* faces_textures,
         uint16_t* textured_faces,
         uint16_t* textured_faces_a,
@@ -407,6 +409,7 @@ GPU3DCache2::BatchAddModeli16(
     uint16_t* faces_a_color_hsl16,
     uint16_t* faces_b_color_hsl16,
     uint16_t* faces_c_color_hsl16,
+    uint8_t* face_alphas,
     const int* face_infos_nullable)
 {
     (void)vertex_count;
@@ -417,8 +420,6 @@ GPU3DCache2::BatchAddModeli16(
     const uint32_t vbo_vertex_start = (uint32_t)batch_queue.vbo.size();
     const uint32_t ebo_start = (uint32_t)batch_queue.ebo.size();
     const uint32_t new_vertex_count = faces_count * 3u;
-    batch_queue.vbo.reserve(batch_queue.vbo.size() + (size_t)new_vertex_count);
-    batch_queue.ebo.reserve(batch_queue.ebo.size() + (size_t)faces_count * 3u);
 
     for( uint32_t i = 0; i < faces_count; i++ )
     {
@@ -426,6 +427,12 @@ GPU3DCache2::BatchAddModeli16(
         batch_queue.ebo.push_back((uint16_t)vo);
         batch_queue.ebo.push_back((uint16_t)(vo + 1u));
         batch_queue.ebo.push_back((uint16_t)(vo + 2u));
+
+        uint8_t alpha = 0xFF;
+        if( face_alphas )
+            alpha = 0xFF - face_alphas[i];
+
+        float alpha_float = alpha / 255.0f;
 
         const bool skip_face = (face_infos_nullable && ((face_infos_nullable[(int)i] & 3) == 2)) ||
                                (faces_c_color_hsl16[i] == (uint16_t)DASHHSL16_HIDDEN);
@@ -447,7 +454,7 @@ GPU3DCache2::BatchAddModeli16(
                 v.position[2] = 0.0f;
                 v.position[3] = 1.0f;
                 v.color[0] = v.color[1] = v.color[2] = 0.0f;
-                v.color[3] = 0.0f;
+                v.color[3] = alpha_float;
                 v.texcoord[0] = v.texcoord[1] = 0.0f;
                 v.tex_id = 0xFFFFu;
                 v.uv_mode = 0u;
@@ -460,10 +467,9 @@ GPU3DCache2::BatchAddModeli16(
         const uint16_t hsl_b = faces_b_color_hsl16[i];
         const uint16_t hsl_c = faces_c_color_hsl16[i];
         float color_a[4], color_b[4], color_c[4];
-        constexpr float kAlpha = 1.0f;
         if( hsl_c == (uint16_t)DASHHSL16_FLAT )
         {
-            gpu3d_hsl16_to_float_rgba(hsl_a, color_a, kAlpha);
+            gpu3d_hsl16_to_float_rgba(hsl_a, color_a, alpha_float);
             color_b[0] = color_a[0];
             color_b[1] = color_a[1];
             color_b[2] = color_a[2];
@@ -475,9 +481,9 @@ GPU3DCache2::BatchAddModeli16(
         }
         else
         {
-            gpu3d_hsl16_to_float_rgba(hsl_a, color_a, kAlpha);
-            gpu3d_hsl16_to_float_rgba(hsl_b, color_b, kAlpha);
-            gpu3d_hsl16_to_float_rgba(hsl_c, color_c, kAlpha);
+            gpu3d_hsl16_to_float_rgba(hsl_a, color_a, alpha_float);
+            gpu3d_hsl16_to_float_rgba(hsl_b, color_b, alpha_float);
+            gpu3d_hsl16_to_float_rgba(hsl_c, color_c, alpha_float);
         }
 
         MeshVertex va{};
@@ -547,6 +553,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
     uint16_t* faces_a_color_hsl16,
     uint16_t* faces_b_color_hsl16,
     uint16_t* faces_c_color_hsl16,
+    uint8_t* face_alphas,
     int16_t* faces_textures,
     uint16_t* textured_faces,
     uint16_t* textured_faces_a,
@@ -562,8 +569,6 @@ GPU3DCache2::BatchAddModelTexturedi16(
     const uint32_t vbo_vertex_start = (uint32_t)batch_queue.vbo.size();
     const uint32_t ebo_start = (uint32_t)batch_queue.ebo.size();
     const uint32_t new_vertex_count = faces_count * 3u;
-    batch_queue.vbo.reserve(batch_queue.vbo.size() + (size_t)new_vertex_count);
-    batch_queue.ebo.reserve(batch_queue.ebo.size() + (size_t)faces_count * 3u);
 
     uint32_t tp_vertex = 0;
     uint32_t tm_vertex = 0;
@@ -576,6 +581,11 @@ GPU3DCache2::BatchAddModelTexturedi16(
         batch_queue.ebo.push_back((uint16_t)vbo_offset);
         batch_queue.ebo.push_back((uint16_t)(vbo_offset + 1u));
         batch_queue.ebo.push_back((uint16_t)(vbo_offset + 2u));
+
+        uint8_t alpha = 0xFF;
+        if( face_alphas )
+            alpha = 0xFF - face_alphas[i];
+        float alpha_float = alpha / 255.0f;
 
         const bool skip_face = (face_infos_nullable && ((face_infos_nullable[(int)i] & 3) == 2)) ||
                                (faces_c_color_hsl16[i] == (uint16_t)DASHHSL16_HIDDEN);
@@ -595,7 +605,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
                 v.position[0] = v.position[1] = v.position[2] = 0.0f;
                 v.position[3] = 1.0f;
                 v.color[0] = v.color[1] = v.color[2] = 0.0f;
-                v.color[3] = 0.0f;
+                v.color[3] = alpha_float;
                 v.texcoord[0] = v.texcoord[1] = 0.0f;
                 v.tex_id = 0xFFFFu;
                 v.uv_mode = 0u;
@@ -656,10 +666,9 @@ GPU3DCache2::BatchAddModelTexturedi16(
         const uint16_t hsl_b = faces_b_color_hsl16[i];
         const uint16_t hsl_c = faces_c_color_hsl16[i];
         float color_a[4], color_b[4], color_c[4];
-        constexpr float kAlpha = 1.0f;
         if( hsl_c == (uint16_t)DASHHSL16_FLAT )
         {
-            gpu3d_hsl16_to_float_rgba(hsl_a, color_a, kAlpha);
+            gpu3d_hsl16_to_float_rgba(hsl_a, color_a, alpha_float);
             color_b[0] = color_a[0];
             color_b[1] = color_a[1];
             color_b[2] = color_a[2];
@@ -671,9 +680,9 @@ GPU3DCache2::BatchAddModelTexturedi16(
         }
         else
         {
-            gpu3d_hsl16_to_float_rgba(hsl_a, color_a, kAlpha);
-            gpu3d_hsl16_to_float_rgba(hsl_b, color_b, kAlpha);
-            gpu3d_hsl16_to_float_rgba(hsl_c, color_c, kAlpha);
+            gpu3d_hsl16_to_float_rgba(hsl_a, color_a, alpha_float);
+            gpu3d_hsl16_to_float_rgba(hsl_b, color_b, alpha_float);
+            gpu3d_hsl16_to_float_rgba(hsl_c, color_c, alpha_float);
         }
 
         MeshVertex va{};

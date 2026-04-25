@@ -28,6 +28,7 @@ metal_cache2_batch_push_model_mesh(
     const hsl16_t* face_colors_a = dashmodel_face_colors_a_const(model);
     const hsl16_t* face_colors_b = dashmodel_face_colors_b_const(model);
     const hsl16_t* face_colors_c = dashmodel_face_colors_c_const(model);
+    const uint8_t* face_alphas = dashmodel_face_alphas_const(model);
 
     const faceint_t* face_indices_a = dashmodel_face_indices_a_const(model);
     const faceint_t* face_indices_b = dashmodel_face_indices_b_const(model);
@@ -67,6 +68,7 @@ metal_cache2_batch_push_model_mesh(
             const_cast<uint16_t*>(face_colors_a),
             const_cast<uint16_t*>(face_colors_b),
             const_cast<uint16_t*>(face_colors_c),
+            const_cast<uint8_t*>(face_alphas),
             const_cast<faceint_t*>(faces_textures),
             reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(textured_faces)),
             reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(textured_faces_a)),
@@ -92,6 +94,7 @@ metal_cache2_batch_push_model_mesh(
             const_cast<uint16_t*>(face_colors_a),
             const_cast<uint16_t*>(face_colors_b),
             const_cast<uint16_t*>(face_colors_c),
+            const_cast<uint8_t*>(face_alphas),
             face_infos);
     }
 }
