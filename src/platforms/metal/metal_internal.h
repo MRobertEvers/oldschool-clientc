@@ -154,11 +154,16 @@ metal_internal_set_depth_stencil(void* retained_depth_stencil);
 void*
 metal_internal_depth_stencil(void);
 void
-metal_internal_set_depth_texture(void* retained_depth_texture, int w, int h);
+metal_internal_set_depth_texture(
+    void* retained_depth_texture,
+    int w,
+    int h);
 void*
 metal_internal_depth_texture(void);
 bool
-metal_internal_depth_texture_matches(int w, int h);
+metal_internal_depth_texture_matches(
+    int w,
+    int h);
 void
 metal_internal_shutdown_depth_pass_resources(void);
 
@@ -188,12 +193,14 @@ metal_frame_event_begin_3d(
     const struct ToriRSRenderCommand* cmd,
     const LogicalViewportRect* default_logical_vp);
 void
-metal_frame_event_end_3d(MetalRenderCtx* ctx, id<MTLBuffer> uniforms_buffer);
+metal_frame_event_end_3d(
+    MetalRenderCtx* ctx,
+    id<MTLBuffer> uniforms_buffer);
 
 void
 Pass3DBuilder2SubmitMetal(
     Pass3DBuilder2& builder,
-    const GPU3DCache2& cache,
+    const GPU3DCache2<GPU3DMeshVertexMetal>& cache,
     struct Platform2_SDL2_Renderer_Metal* metal_renderer,
     id<MTLRenderCommandEncoder> render_command_encoder,
     id<MTLBuffer> dynamic_instance_buffer,

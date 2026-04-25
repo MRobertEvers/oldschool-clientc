@@ -1,7 +1,7 @@
 #ifndef PASS_3D_BUILDER2_H
 #define PASS_3D_BUILDER2_H
 
-#include "platforms/common/buffered_face_order.h"
+#include "platforms/gpu_3d.h"
 
 #include <cmath>
 #include <cstdint>
@@ -165,17 +165,12 @@ Pass3DBuilder2::AddModelDrawYawOnly(
     if( !is_building )
         return;
 
-    // 1. Instance transform: same `GPU3DTransformUniform` / `vertexShader` as legacy Metal stream path.
+    // 1. Instance transform: same `GPU3DTransformUniform` / `vertexShader` as legacy Metal stream
+    // path.
     uint32_t instance_offset = static_cast<uint32_t>(instance_pool.size());
-    const float yaw_rad =
-        ((float)rotation_r2pi2048 * 2.0f * (float)M_PI) / 2048.0f;
+    const float yaw_rad = ((float)rotation_r2pi2048 * 2.0f * (float)M_PI) / 2048.0f;
     GPU3DTransformUniform xf = {
-        cosf(yaw_rad),
-        sinf(yaw_rad),
-        (float)x,
-        (float)y,
-        (float)z,
-        (uint32_t)rotation_r2pi2048,
+        cosf(yaw_rad), sinf(yaw_rad), (float)x, (float)y, (float)z, (uint32_t)rotation_r2pi2048,
         { 0, 0 },
     };
     instance_pool.push_back(xf);

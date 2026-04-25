@@ -2,7 +2,7 @@
 using namespace metal;
 
 // Must match MetalVertex / MetalUniforms / GPU3DTransformUniform / DrawStreamEntry in metal_internal /
-// gpu_3d.h + buffered_face_order (C++). C packs float[4] at 4-byte alignment (44 bytes total); use packed_* so
+// gpu_3d.h (C++). C packs float[4] at 4-byte alignment (44 bytes total); use packed_* so
 // indexing matches CPU sizeof(MetalVertex).
 struct MetalVertexPacked {
     packed_float4 position;

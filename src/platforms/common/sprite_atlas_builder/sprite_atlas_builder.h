@@ -26,7 +26,7 @@ struct SpriteAtlasEntry
  * Usage:
  *   SpriteAtlasBuilder b;
  *   b.add_sprite(el, ai, sp->pixels_argb, sp->width, sp->height);
- *   SpriteAtlasBuilderSubmitMetal(b, ctx);   // or WebGL1 variant
+ *   SpriteAtlasBuilderSubmitMetal(b, ctx);
  *
  * Each Submit function converts ARGB→RGBA, creates a GPU texture, and
  * registers the entry with the renderer's GpuSpriteCache.  Entries that

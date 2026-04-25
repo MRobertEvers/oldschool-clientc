@@ -165,12 +165,14 @@ struct BatchedQueueModel
     }
 };
 
+template<typename VertexType>
 struct BatchQueue
 {
     std::vector<BatchedQueueModel> batch;
-    /** Interleaved `GPU3DMeshVertex` (platforms/gpu_3d.h); same layout as `MetalVertexPacked` in
-     *  `Shaders.metal` / `vertexShader` (indexed, same transform as `vertexShaderStream`). */
-    std::vector<GPU3DMeshVertex> vbo;
+    /** Interleaved `VertexType` (see `GPU3DMeshVertex` in platforms/gpu_3d.h); same layout as
+     *  `MetalVertexPacked` in `Shaders.metal` / `vertexShader` (indexed, same transform as
+     *  `vertexShaderStream`). */
+    std::vector<VertexType> vbo;
     std::vector<uint16_t> ebo;
 };
 
@@ -189,12 +191,14 @@ struct GPUTextureAtlas
     uint32_t atlas_height = 0;
 };
 
+/** `VertexType` must provide `static VertexType FromCommon(const CommonVertex&)`. */
+template<typename VertexType>
 class GPU3DCache2
 {
 private:
     std::array<GPUModelData, MAX_3D_ASSETS> models;
     GPUTextureAtlas atlas;
-    std::vector<BatchQueue> batch_queues;
+    std::vector<BatchQueue<VertexType>> batch_queues;
 
     uint32_t
     allocatePoseSlot(
@@ -275,7 +279,7 @@ public:
         const int* face_infos_nullable,
         bool uv_mode_use_first_face);
 
-    /** Vertex count in `vbo` (each element is one `GPU3DMeshVertex`). */
+    /** Vertex count in `vbo` (each element is one `VertexType`). */
     uint32_t
     BatchGetVBOVertexCount();
 
@@ -285,7 +289,7 @@ public:
     uint32_t
     BatchGetEBOSize();
 
-    const GPU3DMeshVertex*
+    const VertexType*
     BatchGetVBO() const;
 
     uint16_t*
@@ -342,21 +346,24 @@ public:
     }
 };
 
+template<typename VertexType>
 inline int
-GPU3DCache2::BatchBegin()
+GPU3DCache2<VertexType>::BatchBegin()
 {
-    batch_queues.push_back(BatchQueue{});
+    batch_queues.push_back(BatchQueue<VertexType>{});
     return 0;
 }
 
+template<typename VertexType>
 inline void
-GPU3DCache2::BatchEnd()
+GPU3DCache2<VertexType>::BatchEnd()
 {
     batch_queues.pop_back();
 }
 
+template<typename VertexType>
 inline uint32_t
-GPU3DCache2::allocatePoseSlot(
+GPU3DCache2<VertexType>::allocatePoseSlot(
     uint16_t model_id,
     uint8_t gpu_segment_slot,
     uint16_t frame_index)
@@ -393,8 +400,9 @@ GPU3DCache2::allocatePoseSlot(
     return 0u;
 }
 
+template<typename VertexType>
 inline void
-GPU3DCache2::BatchAddModeli16(
+GPU3DCache2<VertexType>::BatchAddModeli16(
     uint16_t model_id,
     uint8_t gpu_segment_slot,
     uint16_t frame_index,
@@ -414,7 +422,7 @@ GPU3DCache2::BatchAddModeli16(
 {
     (void)vertex_count;
     assert(faces_count < 4096);
-    BatchQueue& batch_queue = batch_queues.back();
+    BatchQueue<VertexType>& batch_queue = batch_queues.back();
     const uint32_t pose_index = allocatePoseSlot(model_id, gpu_segment_slot, frame_index);
 
     const uint32_t vbo_vertex_start = (uint32_t)batch_queue.vbo.size();
@@ -448,7 +456,7 @@ GPU3DCache2::BatchAddModeli16(
         {
             for( int k = 0; k < 3; k++ )
             {
-                GPU3DMeshVertex v{};
+                CommonVertex v{};
                 v.position[0] = 0.0f;
                 v.position[1] = 0.0f;
                 v.position[2] = 0.0f;
@@ -458,7 +466,7 @@ GPU3DCache2::BatchAddModeli16(
                 v.texcoord[0] = v.texcoord[1] = 0.0f;
                 v.tex_id = 0xFFFFu;
                 v.uv_mode = 0u;
-                batch_queue.vbo.push_back(v);
+                batch_queue.vbo.push_back(VertexType::FromCommon(v));
             }
             continue;
         }
@@ -486,7 +494,7 @@ GPU3DCache2::BatchAddModeli16(
             gpu3d_hsl16_to_float_rgba(hsl_c, color_c, alpha_float);
         }
 
-        GPU3DMeshVertex va{};
+        CommonVertex va{};
         va.position[0] = (float)vertices_x[face_a];
         va.position[1] = (float)vertices_y[face_a];
         va.position[2] = (float)vertices_z[face_a];
@@ -499,9 +507,9 @@ GPU3DCache2::BatchAddModeli16(
         va.texcoord[1] = 0.0f;
         va.tex_id = 0xFFFFu;
         va.uv_mode = 0u;
-        batch_queue.vbo.push_back(va);
+        batch_queue.vbo.push_back(VertexType::FromCommon(va));
 
-        GPU3DMeshVertex vb{};
+        CommonVertex vb{};
         vb.position[0] = (float)vertices_x[face_b];
         vb.position[1] = (float)vertices_y[face_b];
         vb.position[2] = (float)vertices_z[face_b];
@@ -514,9 +522,9 @@ GPU3DCache2::BatchAddModeli16(
         vb.texcoord[1] = 0.0f;
         vb.tex_id = 0xFFFFu;
         vb.uv_mode = 0u;
-        batch_queue.vbo.push_back(vb);
+        batch_queue.vbo.push_back(VertexType::FromCommon(vb));
 
-        GPU3DMeshVertex vc{};
+        CommonVertex vc{};
         vc.position[0] = (float)vertices_x[face_c];
         vc.position[1] = (float)vertices_y[face_c];
         vc.position[2] = (float)vertices_z[face_c];
@@ -529,7 +537,8 @@ GPU3DCache2::BatchAddModeli16(
         vc.texcoord[1] = 0.0f;
         vc.tex_id = 0xFFFFu;
         vc.uv_mode = 0u;
-        batch_queue.vbo.push_back(vc);
+
+        batch_queue.vbo.push_back(VertexType::FromCommon(vc));
     }
 
     batch_queue.batch.push_back(
@@ -537,8 +546,9 @@ GPU3DCache2::BatchAddModeli16(
             model_id, pose_index, new_vertex_count, vbo_vertex_start, faces_count, ebo_start));
 }
 
+template<typename VertexType>
 inline void
-GPU3DCache2::BatchAddModelTexturedi16(
+GPU3DCache2<VertexType>::BatchAddModelTexturedi16(
     uint16_t model_id,
     uint8_t gpu_segment_slot,
     uint16_t frame_index,
@@ -563,7 +573,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
     bool uv_mode_use_first_face)
 {
     assert(faces_count < 4096);
-    BatchQueue& batch_queue = batch_queues.back();
+    BatchQueue<VertexType>& batch_queue = batch_queues.back();
     const uint32_t pose_index = allocatePoseSlot(model_id, gpu_segment_slot, frame_index);
 
     const uint32_t vbo_vertex_start = (uint32_t)batch_queue.vbo.size();
@@ -601,7 +611,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
         {
             for( int k = 0; k < 3; k++ )
             {
-                GPU3DMeshVertex v{};
+                CommonVertex v{};
                 v.position[0] = v.position[1] = v.position[2] = 0.0f;
                 v.position[3] = 1.0f;
                 v.color[0] = v.color[1] = v.color[2] = 0.0f;
@@ -609,7 +619,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
                 v.texcoord[0] = v.texcoord[1] = 0.0f;
                 v.tex_id = 0xFFFFu;
                 v.uv_mode = 0u;
-                batch_queue.vbo.push_back(v);
+                batch_queue.vbo.push_back(VertexType::FromCommon(v));
             }
             continue;
         }
@@ -685,7 +695,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
             gpu3d_hsl16_to_float_rgba(hsl_c, color_c, alpha_float);
         }
 
-        GPU3DMeshVertex va{};
+        CommonVertex va{};
         va.position[0] = (float)vertices_x[face_a];
         va.position[1] = (float)vertices_y[face_a];
         va.position[2] = (float)vertices_z[face_a];
@@ -694,14 +704,14 @@ GPU3DCache2::BatchAddModelTexturedi16(
         va.color[1] = color_a[1];
         va.color[2] = color_a[2];
         va.color[3] = color_a[3];
-        /* Raw floats from `uv_pnm_compute`, same as WebGL `WgVertex` bake (no CPU fract/tile). */
+        /* Raw floats from `uv_pnm_compute` (no CPU fract/tile). */
         va.texcoord[0] = uv.u1;
         va.texcoord[1] = uv.v1;
         va.tex_id = tex_id;
         va.uv_mode = 0u;
-        batch_queue.vbo.push_back(va);
+        batch_queue.vbo.push_back(VertexType::FromCommon(va));
 
-        GPU3DMeshVertex vb{};
+        CommonVertex vb{};
         vb.position[0] = (float)vertices_x[face_b];
         vb.position[1] = (float)vertices_y[face_b];
         vb.position[2] = (float)vertices_z[face_b];
@@ -714,9 +724,9 @@ GPU3DCache2::BatchAddModelTexturedi16(
         vb.texcoord[1] = uv.v2;
         vb.tex_id = tex_id;
         vb.uv_mode = 0u;
-        batch_queue.vbo.push_back(vb);
+        batch_queue.vbo.push_back(VertexType::FromCommon(vb));
 
-        GPU3DMeshVertex vc{};
+        CommonVertex vc{};
         vc.position[0] = (float)vertices_x[face_c];
         vc.position[1] = (float)vertices_y[face_c];
         vc.position[2] = (float)vertices_z[face_c];
@@ -729,7 +739,7 @@ GPU3DCache2::BatchAddModelTexturedi16(
         vc.texcoord[1] = uv.v3;
         vc.tex_id = tex_id;
         vc.uv_mode = 0u;
-        batch_queue.vbo.push_back(vc);
+        batch_queue.vbo.push_back(VertexType::FromCommon(vc));
     }
 
     batch_queue.batch.push_back(
@@ -737,38 +747,44 @@ GPU3DCache2::BatchAddModelTexturedi16(
             model_id, pose_index, new_vertex_count, vbo_vertex_start, faces_count, ebo_start));
 }
 
-inline const GPU3DMeshVertex*
-GPU3DCache2::BatchGetVBO() const
+template<typename VertexType>
+inline const VertexType*
+GPU3DCache2<VertexType>::BatchGetVBO() const
 {
     return batch_queues.back().vbo.data();
 }
 
+template<typename VertexType>
 inline uint16_t*
-GPU3DCache2::BatchGetEBO()
+GPU3DCache2<VertexType>::BatchGetEBO()
 {
     return batch_queues.back().ebo.data();
 }
 
+template<typename VertexType>
 inline uint32_t
-GPU3DCache2::BatchGetVBOVertexCount()
+GPU3DCache2<VertexType>::BatchGetVBOVertexCount()
 {
     return (uint32_t)batch_queues.back().vbo.size();
 }
 
+template<typename VertexType>
 inline uint32_t
-GPU3DCache2::BatchGetVBOSize()
+GPU3DCache2<VertexType>::BatchGetVBOSize()
 {
     return BatchGetVBOVertexCount();
 }
 
+template<typename VertexType>
 inline uint32_t
-GPU3DCache2::BatchGetEBOSize()
+GPU3DCache2<VertexType>::BatchGetEBOSize()
 {
     return batch_queues.back().ebo.size();
 }
 
+template<typename VertexType>
 inline void
-GPU3DCache2::InitAtlas(
+GPU3DCache2<VertexType>::InitAtlas(
     GPUResourceHandle handle,
     uint32_t width,
     uint32_t height)
@@ -806,26 +822,30 @@ GPU3DCache2::InitAtlas(
     }
 }
 
+template<typename VertexType>
 inline const uint8_t*
-GPU3DCache2::GetAtlasPixelData() const
+GPU3DCache2<VertexType>::GetAtlasPixelData() const
 {
     return atlas.pixel_buffer.data();
 }
 
+template<typename VertexType>
 inline uint32_t
-GPU3DCache2::GetAtlasPixelDataSize() const
+GPU3DCache2<VertexType>::GetAtlasPixelDataSize() const
 {
     return atlas.pixel_buffer.size();
 }
 
+template<typename VertexType>
 inline void
-GPU3DCache2::UnloadAtlas()
+GPU3DCache2<VertexType>::UnloadAtlas()
 {
     atlas = GPUTextureAtlas{};
 }
 
+template<typename VertexType>
 inline void
-GPU3DCache2::LoadTexture128(
+GPU3DCache2<VertexType>::LoadTexture128(
     uint16_t texture_id,
     const void* pixel_data)
 {
@@ -861,20 +881,23 @@ GPU3DCache2::LoadTexture128(
     }
 }
 
+template<typename VertexType>
 inline uint32_t
-GPU3DCache2::GetAtlasWidth() const
+GPU3DCache2<VertexType>::GetAtlasWidth() const
 {
     return atlas.atlas_width;
 }
 
+template<typename VertexType>
 inline uint32_t
-GPU3DCache2::GetAtlasHeight() const
+GPU3DCache2<VertexType>::GetAtlasHeight() const
 {
     return atlas.atlas_height;
 }
 
+template<typename VertexType>
 inline const AtlasUVRect&
-GPU3DCache2::GetAtlasUVRect(uint16_t texture_id) const
+GPU3DCache2<VertexType>::GetAtlasUVRect(uint16_t texture_id) const
 {
     static const AtlasUVRect kEmpty{};
     if( texture_id >= MAX_TEXTURES )
@@ -882,21 +905,24 @@ GPU3DCache2::GetAtlasUVRect(uint16_t texture_id) const
     return atlas.uv_region[texture_id];
 }
 
+template<typename VertexType>
 inline bool
-GPU3DCache2::HasBufferedAtlasData() const
+GPU3DCache2<VertexType>::HasBufferedAtlasData() const
 {
     return !atlas.pixel_buffer.empty();
 }
 
+template<typename VertexType>
 inline const std::vector<BatchedQueueModel>&
-GPU3DCache2::BatchGetTrackingData() const
+GPU3DCache2<VertexType>::BatchGetTrackingData() const
 {
     assert(!batch_queues.empty());
     return batch_queues.back().batch;
 }
 
+template<typename VertexType>
 inline void
-GPU3DCache2::SetModelPose(
+GPU3DCache2<VertexType>::SetModelPose(
     uint16_t model_id,
     uint32_t pose_index,
     const GPUModelPosedData& data)
@@ -909,8 +935,9 @@ GPU3DCache2::SetModelPose(
     md.poses[pose_index] = data;
 }
 
+template<typename VertexType>
 inline GPUModelPosedData
-GPU3DCache2::GetModelPose(
+GPU3DCache2<VertexType>::GetModelPose(
     uint16_t model_id,
     uint32_t pose_index) const
 {
@@ -922,8 +949,9 @@ GPU3DCache2::GetModelPose(
     return md.poses[pose_index];
 }
 
+template<typename VertexType>
 inline GPUModelPosedData
-GPU3DCache2::GetModelPoseForDraw(
+GPU3DCache2<VertexType>::GetModelPoseForDraw(
     uint16_t model_id,
     bool use_animation,
     int scene_animation_index,
@@ -940,5 +968,7 @@ GPU3DCache2::GetModelPoseForDraw(
     const uint32_t idx = base + (uint32_t)frame_index;
     return GetModelPose(model_id, idx);
 }
+
+/** World mesh cache: interleaved vertices match `MetalVertexPacked` / `GPU3DMeshVertex`. */
 
 #endif

@@ -20,7 +20,7 @@ struct ToriRSRenderCommand;
  *   b.append_glyph_quad(quad_floats);
  *   b.close_font_segment();
  *   b.enqueue_sprite(atlas_tex, six_verts, nullptr);
- *   Pass2DBuilderSubmitMetal(b, ctx);   // or WebGL1 variant
+ *   Pass2DBuilderSubmitMetal(b, ctx);
  */
 class Pass2DBuilder
 {

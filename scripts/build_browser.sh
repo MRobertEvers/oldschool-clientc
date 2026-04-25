@@ -26,8 +26,8 @@ emcmake cmake -DCMAKE_BUILD_TYPE=Debug ..
 # echo "Building scene_tile_test_imgui_browser..."
 # emmake make scene_tile_test_imgui_browser
 
-echo "Building emscripten_sdl2_webgl1..."
-emmake make emscripten_sdl2_webgl1
+echo "Building web_client (Soft3D)..."
+emmake make web_client
 
 # Copy the cache to the public/cache directory
 echo "Copying cache to public/cache directory..."

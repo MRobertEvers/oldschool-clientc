@@ -50,7 +50,7 @@ struct Platform2_SDL2_Renderer_Metal
     bool metal_ready;
 
     Pass3DBuilder2 mtl_pass3d_builder;
-    GPU3DCache2 model_cache2;
+    GPU3DCache2<GPU3DMeshVertexMetal> model_cache2;
 
     // v2 3D pipeline persistent resources
     void* mtl_pass3d_instance_buf = nullptr;

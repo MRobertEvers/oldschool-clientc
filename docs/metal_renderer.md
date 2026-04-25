@@ -24,7 +24,7 @@ The game and scene layer record a sequence of `ToriRSRenderCommand` values into 
 
 5. **Encoder** — Create `MTLCommandBuffer`, `MTLRenderCommandEncoder` with color clear (opaque black) and depth clear to `1.0`. Set `MTLCullModeNone`. Build [`MTLViewport`](../src/platforms/metal/metal_render.mm) with **Y origin flipped** for the 3D world pass: `metal_origin_y = height - gl_vp.y - gl_vp.height` (Metal’s viewport origin is top-left; the GL-style rect is bottom-up).
 
-6. **Frame / RS integration** — [`LibToriRS_FrameBegin`](../src/tori_rs_frame.u.c), then per-frame **inflight slot** `slot = mtl_encode_slot % kMetalInflightFrames` ([`kMetalInflightFrames = 3`](../src/platforms/metal/metal.h)): reset `mtl_run_uniform_ring_write_offset[slot]`, and call `mtl_draw_stream_ring.begin_slot(slot)` and `mtl_instance_xform_ring.begin_slot(slot)` on the [`GpuRingBuffer`](../src/platforms/metal/metal.h) members.
+6. **Frame / RS integration** — Advance [`mtl_uniform_frame_slot`](../src/platforms/metal/metal.h) (mod [`kMetalInflightFrames`](../src/platforms/metal/metal.h)), reset pass subslot and 3D upload cursors, then [`LibToriRS_FrameBegin`](../src/tori_rs_frame.u.c) (per-frame render-command iteration follows in [`metal_render.mm`](../src/platforms/metal/metal_render.mm)).
 
 7. **Command loop** — [`LibToriRS_FrameNextCommand`](../src/tori_rs_frame.u.c) with `&cmd` until false; dispatch via `switch (cmd.kind)` (see §3).
 
@@ -210,7 +210,7 @@ flowchart LR
     A --> F{"stream_full?"}
     F -->|no| Ok["enqueued"]
     F -->|yes| Flush["metal_flush_3d"]
-    Flush --> Ring["memcpy stream_and_instances to GpuRingBuffer"]
+    Flush --> Ring["upload instance/index data to MTLBuffer"]
     Ring --> Enc["setVertexBuffer 0_to_3_draw"]
     Enc --> D["drawPrimitives triangle_count_equals_stream"]
 ```

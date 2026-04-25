@@ -12,14 +12,14 @@ struct BatchBuffers
 
 void
 GPU3DCache2BatchSubmitMetal(
-    GPU3DCache2& cache,
+    GPU3DCache2<GPU3DMeshVertexMetal>& cache,
     id<MTLDevice> metal_device,
     BatchBuffers& out_batch_buffers,
     uint32_t batch_id);
 
 id<MTLTexture>
 GPU3DCache2SubmitAtlasMetal(
-    GPU3DCache2& cache,
+    GPU3DCache2<GPU3DMeshVertexMetal>& cache,
     id<MTLDevice> metal_device);
 
 #endif // __OBJC__

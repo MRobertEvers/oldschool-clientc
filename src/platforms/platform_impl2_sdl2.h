@@ -63,9 +63,6 @@ bool
 Platform2_SDL2_InitForSoft3D(struct Platform2_SDL2* platform, int screen_width, int screen_height);
 
 #ifdef __EMSCRIPTEN__
-bool
-Platform2_SDL2_InitForWebGL1(struct Platform2_SDL2* platform, int screen_width, int screen_height);
-
 void
 Platform2_SDL2_SyncCanvasCssSize(
     struct Platform2_SDL2* platform,

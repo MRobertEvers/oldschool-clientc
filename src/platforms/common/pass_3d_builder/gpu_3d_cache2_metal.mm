@@ -6,17 +6,18 @@
 #include <cstdio>
 
 static_assert(
-    sizeof(GPU3DMeshVertex) == 44u,
+    sizeof(GPU3DMeshVertexMetal) == 44u,
     "GPU3DMeshVertex must match Shaders.metal MetalVertexPacked");
 
 void
 GPU3DCache2BatchSubmitMetal(
-    GPU3DCache2& cache,
+    GPU3DCache2<GPU3DMeshVertexMetal>& cache,
     id<MTLDevice> metal_device,
     BatchBuffers& out_batch_buffers,
     uint32_t batch_id)
 {
-    const uint32_t vbo_size = cache.BatchGetVBOVertexCount() * (uint32_t)sizeof(GPU3DMeshVertex);
+    const uint32_t vbo_size =
+        cache.BatchGetVBOVertexCount() * (uint32_t)sizeof(GPU3DMeshVertexMetal);
     uint32_t ebo_size = cache.BatchGetEBOSize() * sizeof(uint16_t);
 
     if( vbo_size == 0 || ebo_size == 0 )
@@ -114,7 +115,7 @@ GPU3DCache2BatchSubmitMetal(
 
 id<MTLTexture>
 GPU3DCache2SubmitAtlasMetal(
-    GPU3DCache2& cache,
+    GPU3DCache2<GPU3DMeshVertexMetal>& cache,
     id<MTLDevice> metal_device)
 {
     if( !cache.HasBufferedAtlasData() )

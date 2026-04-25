@@ -25,7 +25,7 @@ struct FontAtlasEntry
  * Usage:
  *   FontAtlasBuilder b;
  *   b.add_font(font_id, atlas->rgba_pixels, atlas->atlas_width, atlas->atlas_height);
- *   FontAtlasBuilderSubmitMetal(b, ctx);   // or WebGL1 variant
+ *   FontAtlasBuilderSubmitMetal(b, ctx);
  *
  * Each Submit function creates a GPU texture from the RGBA data and registers
  * it with the renderer's GpuFontCache.  Entries whose font_id is already

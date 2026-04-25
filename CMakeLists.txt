@@ -747,15 +747,6 @@ if(EMSCRIPTEN)
         src/platforms/platform_impl2_sdl2_port_emscripten.cpp
         src/platforms/platform_impl2_sdl2_renderer_soft3d_shared.cpp
         src/platforms/platform_impl2_sdl2_renderer_soft3d.cpp
-        src/platforms/webgl1/webgl1_init.cpp
-        src/platforms/webgl1/webgl1_render.cpp
-        src/platforms/webgl1/webgl1_math.cpp
-        src/platforms/webgl1/webgl1_shaders.cpp
-        src/platforms/webgl1/webgl1_atlas_world.cpp
-        src/platforms/webgl1/webgl1_model_geometry.cpp
-        src/platforms/webgl1/webgl1_model_dispatch.cpp
-        src/platforms/webgl1/webgl1_flush.cpp
-        src/platforms/webgl1/webgl1_events.cpp
         src/platforms/browser2/luajs_sidecar.c
         src/platforms/browser2/luajs_gametypes.c
         src/platforms/browser2/luajs_archives.c
@@ -768,8 +759,7 @@ if(EMSCRIPTEN)
     target_compile_options(web_client PUBLIC
         -sUSE_SDL=2
 
-        # // These seem to be needed for webgl1 on motorola
-        # // Chrome 85
+        # Chrome 85 / older Wasm engines (Emscripten)
         "-mno-bulk-memory"
         "-mno-reference-types"
         "-mno-mutable-globals"
@@ -792,8 +782,7 @@ if(EMSCRIPTEN)
         -sEXPORTED_RUNTIME_METHODS=${EXPORTED_METHODS_STR}
         --bind
 
-        # // These seem to be needed for webgl1 on motorola
-        # // Chrome 85
+        # Chrome 85 / older Wasm engines
         # -sINITIAL_TABLE=65536
         -sMODULARIZE=0
         -sEXPORT_ES6=0

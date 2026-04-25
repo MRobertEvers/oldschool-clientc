@@ -91,17 +91,6 @@ try {
     if (Test-Path "scene_tile_test_imgui_browser.wasm.map") {
         Copy-Item -Path "scene_tile_test_imgui_browser.wasm.map" -Destination "../public/build/" -Force
     }
-    
-    # Copy emscripten_sdl2_webgl1 version if it exists
-    if (Test-Path "emscripten_sdl2_webgl1.js") {
-        Copy-Item -Path "emscripten_sdl2_webgl1.js" -Destination "../public/build/" -Force
-        Copy-Item -Path "emscripten_sdl2_webgl1.wasm" -Destination "../public/build/" -Force
-        Copy-Item -Path "emscripten_sdl2_webgl1.data" -Destination "../public/build/" -Force
-        Copy-Item -Path "emscripten_sdl2_webgl1.html" -Destination "../public/build/" -Force
-        if (Test-Path "emscripten_sdl2_webgl1.wasm.map") {
-            Copy-Item -Path "emscripten_sdl2_webgl1.wasm.map" -Destination "../public/build/" -Force
-        }
-    }
 
     Write-Host ""
     Write-Host "Build completed successfully!" -ForegroundColor Green

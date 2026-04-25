@@ -10,7 +10,7 @@
 void
 Pass3DBuilder2SubmitMetal(
     Pass3DBuilder2& builder,
-    const GPU3DCache2& cache,
+    const GPU3DCache2<GPU3DMeshVertexMetal>& cache,
     struct Platform2_SDL2_Renderer_Metal* metal_renderer,
     id<MTLRenderCommandEncoder> render_command_encoder, // Renamed for brevity
     id<MTLBuffer> dynamic_instance_buffer,
@@ -30,8 +30,7 @@ Pass3DBuilder2SubmitMetal(
     if( depth_stencil_state )
         [render_command_encoder setDepthStencilState:depth_stencil_state];
 
-    const size_t inst_bytes =
-        builder.GetInstancePool().size() * sizeof(GPU3DTransformUniform);
+    const size_t inst_bytes = builder.GetInstancePool().size() * sizeof(GPU3DTransformUniform);
     const NSUInteger inst_cap = dynamic_instance_buffer ? dynamic_instance_buffer.length : 0u;
     if( instance_base_bytes + inst_bytes > inst_cap )
     {
@@ -168,8 +167,9 @@ Pass3DBuilder2SubmitMetal(
             // Sorted Indexing (Dynamic Pool)
             NSUInteger index_byte_offset =
                 index_base_bytes + cmd.dynamic_index_offset * sizeof(uint16_t);
-            /* Indices are local to this model's merged slice; `GPUModelPosedData::vbo_offset` is the
-             * first vertex of that slice in the batch VBO (see metal_frame_event_model_draw). */
+            /* Indices are local to this model's merged slice; `GPUModelPosedData::vbo_offset` is
+             * the first vertex of that slice in the batch VBO (see metal_frame_event_model_draw).
+             */
             [render_command_encoder //
                 drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                            indexCount:cmd.dynamic_index_count
@@ -177,8 +177,8 @@ Pass3DBuilder2SubmitMetal(
                           indexBuffer:dynamic_index_buffer
                     indexBufferOffset:index_byte_offset
                         instanceCount:1
-                            baseVertex:(NSInteger)model.vbo_offset
-                          baseInstance:0];
+                           baseVertex:(NSInteger)model.vbo_offset
+                         baseInstance:0];
         }
         else
         {
@@ -191,8 +191,8 @@ Pass3DBuilder2SubmitMetal(
                           indexBuffer:ebo
                     indexBufferOffset:ebo_byte_offset
                         instanceCount:1
-                            baseVertex:0
-                          baseInstance:0];
+                           baseVertex:0
+                         baseInstance:0];
         }
     }
 }
