@@ -7,7 +7,6 @@
 
 #include <array>
 #include <cassert>
-#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -15,19 +14,6 @@
 constexpr size_t MAX_3D_ASSETS = 32768;
 constexpr size_t MAX_TEXTURES = 256;
 constexpr size_t MAX_POSE_COUNT = 16;
-
-/** Tile-local 0..1 UV for `fragmentShader` (fract of `uv_pnm` output). Matches float path in
- *  [`webgl1_model_geometry.cpp`](webgl1_model_geometry.cpp). */
-inline float
-gpu3d_tile_local_uv01(float u)
-{
-    float fu = u - std::floor(u);
-    if( fu < 0.f )
-        fu = 0.f;
-    else if( fu > 1.f )
-        fu = 1.f;
-    return fu;
-}
 
 inline void
 gpu3d_hsl16_to_float_rgba(
@@ -576,11 +562,6 @@ GPU3DCache2::BatchAddModelTexturedi16(
 {
     assert(vertex_count < 4096);
     assert(faces_count < 4096);
-    printf(
-        "BatchAddModelTexturedi16: model_id: %d, vertex_count: %d, faces_count: %d\n",
-        model_id,
-        vertex_count,
-        faces_count);
     BatchQueue& batch_queue = batch_queues.back();
     const uint32_t pose_index = allocatePoseSlot(model_id, gpu_segment_slot, frame_index);
 
@@ -632,7 +613,15 @@ GPU3DCache2::BatchAddModelTexturedi16(
             continue;
         }
 
-        if( textured_faces && textured_faces[i] != 0xFFFF )
+        /* P/N/M frame for `uv_pnm_compute`: match `wg1_fill_model_face_vertices_model_local`
+         * (ground VA uses face 0 corners for all faces; else textured remap or face i). */
+        if( ground_va && faces_count > 0 )
+        {
+            tp_vertex = faces_a[0];
+            tm_vertex = faces_b[0];
+            tn_vertex = faces_c[0];
+        }
+        else if( textured_faces && textured_faces[i] != 0xFFFF )
         {
             tp_vertex = textured_faces_a[textured_faces[i]];
             tm_vertex = textured_faces_b[textured_faces[i]];
@@ -705,8 +694,9 @@ GPU3DCache2::BatchAddModelTexturedi16(
         va.color[1] = color_a[1];
         va.color[2] = color_a[2];
         va.color[3] = color_a[3];
-        va.texcoord[0] = gpu3d_tile_local_uv01(uv.u1);
-        va.texcoord[1] = gpu3d_tile_local_uv01(uv.v1);
+        /* Raw floats from `uv_pnm_compute`, same as WebGL `WgVertex` bake (no CPU fract/tile). */
+        va.texcoord[0] = uv.u1;
+        va.texcoord[1] = uv.v1;
         va.tex_id = tex_id;
         va.uv_mode = uv_mode;
         batch_queue.vbo.push_back(va);
@@ -720,8 +710,8 @@ GPU3DCache2::BatchAddModelTexturedi16(
         vb.color[1] = color_b[1];
         vb.color[2] = color_b[2];
         vb.color[3] = color_b[3];
-        vb.texcoord[0] = gpu3d_tile_local_uv01(uv.u2);
-        vb.texcoord[1] = gpu3d_tile_local_uv01(uv.v2);
+        vb.texcoord[0] = uv.u2;
+        vb.texcoord[1] = uv.v2;
         vb.tex_id = tex_id;
         vb.uv_mode = uv_mode;
         batch_queue.vbo.push_back(vb);
@@ -735,8 +725,8 @@ GPU3DCache2::BatchAddModelTexturedi16(
         vc.color[1] = color_c[1];
         vc.color[2] = color_c[2];
         vc.color[3] = color_c[3];
-        vc.texcoord[0] = gpu3d_tile_local_uv01(uv.u3);
-        vc.texcoord[1] = gpu3d_tile_local_uv01(uv.v3);
+        vc.texcoord[0] = uv.u3;
+        vc.texcoord[1] = uv.v3;
         vc.tex_id = tex_id;
         vc.uv_mode = uv_mode;
         batch_queue.vbo.push_back(vc);
