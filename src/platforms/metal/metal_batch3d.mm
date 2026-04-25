@@ -38,6 +38,7 @@ metal_cache2_batch_push_model_mesh(
 
     const int face_count = dashmodel_face_count(model);
     const int vertex_count = dashmodel_vertex_count(model);
+    const int* face_infos = dashmodel_face_infos_const(model);
 
     if( batch_id != 0 )
     {
@@ -59,9 +60,9 @@ metal_cache2_batch_push_model_mesh(
             gpu_segment_slot,
             frame_index,
             (uint32_t)vertex_count,
-            reinterpret_cast<uint16_t*>(const_cast<vertexint_t*>(vertices_x)),
-            reinterpret_cast<uint16_t*>(const_cast<vertexint_t*>(vertices_y)),
-            reinterpret_cast<uint16_t*>(const_cast<vertexint_t*>(vertices_z)),
+            const_cast<vertexint_t*>(vertices_x),
+            const_cast<vertexint_t*>(vertices_y),
+            const_cast<vertexint_t*>(vertices_z),
             (uint32_t)face_count,
             reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(face_indices_a)),
             reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(face_indices_b)),
@@ -73,7 +74,9 @@ metal_cache2_batch_push_model_mesh(
             reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(textured_faces)),
             reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(textured_faces_a)),
             reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(textured_faces_b)),
-            reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(textured_faces_c)));
+            reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(textured_faces_c)),
+            face_infos,
+            dashmodel__is_ground_va(model));
     }
     else
     {
@@ -82,16 +85,17 @@ metal_cache2_batch_push_model_mesh(
             gpu_segment_slot,
             frame_index,
             (uint32_t)vertex_count,
-            reinterpret_cast<uint16_t*>(const_cast<vertexint_t*>(vertices_x)),
-            reinterpret_cast<uint16_t*>(const_cast<vertexint_t*>(vertices_y)),
-            reinterpret_cast<uint16_t*>(const_cast<vertexint_t*>(vertices_z)),
+            const_cast<vertexint_t*>(vertices_x),
+            const_cast<vertexint_t*>(vertices_y),
+            const_cast<vertexint_t*>(vertices_z),
             (uint32_t)face_count,
             reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(face_indices_a)),
             reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(face_indices_b)),
             reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(face_indices_c)),
             const_cast<uint16_t*>(face_colors_a),
             const_cast<uint16_t*>(face_colors_b),
-            const_cast<uint16_t*>(face_colors_c));
+            const_cast<uint16_t*>(face_colors_c),
+            face_infos);
     }
 }
 
@@ -201,13 +205,8 @@ metal_frame_event_begin_3d(
     }
 
     const ToriGlViewportPixels gl_vp = compute_gl_world_viewport_rect(
-        renderer->width,
-        renderer->height,
-        ctx->win_width,
-        ctx->win_height,
-        pass_lr);
-    const double metal_origin_y =
-        (double)renderer->height - (double)gl_vp.y - (double)gl_vp.height;
+        renderer->width, renderer->height, ctx->win_width, ctx->win_height, pass_lr);
+    const double metal_origin_y = (double)renderer->height - (double)gl_vp.y - (double)gl_vp.height;
     ctx->metalVp = (MTLViewport){ .originX = (double)gl_vp.x,
                                   .originY = metal_origin_y,
                                   .width = (double)gl_vp.width,
@@ -270,8 +269,7 @@ metal_frame_event_end_3d(
     }
 
     const size_t uniform_stride = metal_uniforms_stride_padded();
-    const size_t uniform_frame_block =
-        uniform_stride * (size_t)kMetalMax3dPassesPerFrame;
+    const size_t uniform_frame_block = uniform_stride * (size_t)kMetalMax3dPassesPerFrame;
     if( renderer->mtl_uniform_pass_subslot >= (uint32_t)kMetalMax3dPassesPerFrame )
     {
         fprintf(
@@ -283,9 +281,9 @@ metal_frame_event_end_3d(
         return;
     }
 
-    const NSUInteger uniform_ofs = (NSUInteger)(
-        (size_t)renderer->mtl_uniform_frame_slot * uniform_frame_block +
-        (size_t)renderer->mtl_uniform_pass_subslot * uniform_stride);
+    const NSUInteger uniform_ofs =
+        (NSUInteger)((size_t)renderer->mtl_uniform_frame_slot * uniform_frame_block +
+                     (size_t)renderer->mtl_uniform_pass_subslot * uniform_stride);
 
     if( uniforms_buffer && uniform_ofs + sizeof(MetalUniforms) > uniforms_buffer.length )
     {
@@ -301,8 +299,7 @@ metal_frame_event_end_3d(
 
     MetalUniforms uniforms;
     struct GGame* game = ctx->game;
-    const float pitch_rad =
-        game ? metal_dash_yaw_to_radians(game->camera_pitch) : 0.0f;
+    const float pitch_rad = game ? metal_dash_yaw_to_radians(game->camera_pitch) : 0.0f;
     const float yaw_rad = game ? metal_dash_yaw_to_radians(game->camera_yaw) : 0.0f;
     metal_compute_view_matrix(uniforms.modelViewMatrix, 0.0f, 0.0f, 0.0f, pitch_rad, yaw_rad);
     metal_compute_projection_matrix(
@@ -319,21 +316,17 @@ metal_frame_event_end_3d(
     if( uniforms_buffer )
     {
         std::memcpy(
-            (uint8_t*)[uniforms_buffer contents] + uniform_ofs,
-            &uniforms,
-            sizeof(uniforms));
+            (uint8_t*)[uniforms_buffer contents] + uniform_ofs, &uniforms, sizeof(uniforms));
     }
 
     const NSUInteger inst_base = (NSUInteger)renderer->mtl_pass3d_inst_upload_ofs;
     const NSUInteger idx_base = (NSUInteger)renderer->mtl_pass3d_idx_upload_ofs;
     const size_t inst_bytes =
-        renderer->mtl_pass3d_builder.GetInstancePool().size() * sizeof(DrawModelInstanceData3D);
+        renderer->mtl_pass3d_builder.GetInstancePool().size() * sizeof(InstanceXform);
     const size_t dyn_n = renderer->mtl_pass3d_builder.GetDynamicIndices().size();
     const size_t dyn_cap = (size_t)kPass3DBuilder2DynamicIndexUInt16Capacity;
     const size_t idx_copy_n =
-        renderer->mtl_pass3d_builder.HasDynamicIndices()
-            ? (dyn_n < dyn_cap ? dyn_n : dyn_cap)
-            : 0u;
+        renderer->mtl_pass3d_builder.HasDynamicIndices() ? (dyn_n < dyn_cap ? dyn_n : dyn_cap) : 0u;
     const size_t idx_bytes = idx_copy_n * sizeof(uint16_t);
 
     [encoder

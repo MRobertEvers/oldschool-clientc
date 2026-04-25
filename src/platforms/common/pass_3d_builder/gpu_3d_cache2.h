@@ -3,6 +3,7 @@
 
 #include "graphics/dash.h"
 #include "graphics/uv_pnm.h"
+#include "platforms/common/mesh_builder/mesh_builder.h"
 
 #include <array>
 #include <cassert>
@@ -15,31 +16,30 @@ constexpr size_t MAX_3D_ASSETS = 32768;
 constexpr size_t MAX_TEXTURES = 256;
 constexpr size_t MAX_POSE_COUNT = 16;
 
-// 1. x
-// 2. y
-// 3. z
-// 4. Color (low)
-// 5. Color (high)
-// 6. u
-// 7. v
-// 8. tex_id (0xFFFF = untextured; 0..255 for atlas tiles, matches Shaders.metal ModelVertexV2)
-constexpr size_t VERTEX_ATTRIBUTE_COUNT = 8;
-
-/** Pack face-local UV into 0..65535 for Metal fragmentShader tile-local `in.texcoord`. */
-inline uint16_t
-gpu3d_pack_uv_tile01(float u)
+/** Tile-local 0..1 UV for `fragmentShader` (fract of `uv_pnm` output). Matches float path in
+ *  [`webgl1_model_geometry.cpp`](webgl1_model_geometry.cpp). */
+inline float
+gpu3d_tile_local_uv01(float u)
 {
-    // float fu = u - std::floor(u);
-    // if( fu < 0.f )
-    //     fu = 0.f;
-    // else if( fu > 1.f )
-    //     fu = 1.f;
-    // int q = (int)std::lrint(static_cast<double>(fu) * 65535.0);
-    // if( q < 0 )
-    //     q = 0;
-    // if( q > 65535 )
-    //     q = 65535;
-    return static_cast<uint16_t>(u);
+    float fu = u - std::floor(u);
+    if( fu < 0.f )
+        fu = 0.f;
+    else if( fu > 1.f )
+        fu = 1.f;
+    return fu;
+}
+
+inline void
+gpu3d_hsl16_to_float_rgba(
+    uint16_t hsl16,
+    float rgba_out[4],
+    float alpha)
+{
+    const uint32_t rgb = (uint32_t)dash_hsl16_to_rgb((int)(hsl16 & 0xFFFFu));
+    rgba_out[0] = (float)((rgb >> 16) & 0xFFu) / 255.0f;
+    rgba_out[1] = (float)((rgb >> 8) & 0xFFu) / 255.0f;
+    rgba_out[2] = (float)(rgb & 0xFFu) / 255.0f;
+    rgba_out[3] = alpha;
 }
 // Assuming 4 bytes per pixel (RGBA8) for a 128x128 texture
 constexpr size_t BYTES_PER_PIXEL = 4;
@@ -182,7 +182,9 @@ struct BatchedQueueModel
 struct BatchQueue
 {
     std::vector<BatchedQueueModel> batch;
-    std::vector<uint16_t> vbo;
+    /** Interleaved [`MeshVertex`](mesh_builder.h) — same layout as `MetalVertexPacked` in
+     *  `Shaders.metal` / `vertexShader` (indexed, same transform as `vertexShaderStream`). */
+    std::vector<MeshVertex> vbo;
     std::vector<uint16_t> ebo;
 };
 
@@ -258,7 +260,8 @@ public:
         uint16_t* faces_c,
         uint16_t* faces_a_color_hsl16,
         uint16_t* faces_b_color_hsl16,
-        uint16_t* faces_c_color_hsl16);
+        uint16_t* faces_c_color_hsl16,
+        const int* face_infos_nullable = nullptr);
 
     void
     BatchAddModelTexturedi16(
@@ -280,7 +283,13 @@ public:
         uint16_t* textured_faces,
         uint16_t* textured_faces_a,
         uint16_t* textured_faces_b,
-        uint16_t* textured_faces_c);
+        uint16_t* textured_faces_c,
+        const int* face_infos_nullable = nullptr,
+        bool ground_va = false);
+
+    /** Vertex count in `vbo` (each element is one `MeshVertex`). */
+    uint32_t
+    BatchGetVBOVertexCount();
 
     uint32_t
     BatchGetVBOSize();
@@ -288,8 +297,8 @@ public:
     uint32_t
     BatchGetEBOSize();
 
-    uint16_t*
-    BatchGetVBO();
+    const MeshVertex*
+    BatchGetVBO() const;
 
     uint16_t*
     BatchGetEBO();
@@ -411,54 +420,134 @@ GPU3DCache2::BatchAddModeli16(
     uint16_t* faces_c,
     uint16_t* faces_a_color_hsl16,
     uint16_t* faces_b_color_hsl16,
-    uint16_t* faces_c_color_hsl16)
+    uint16_t* faces_c_color_hsl16,
+    const int* face_infos_nullable)
 {
-    if( model_id == 6277 )
-        printf(
-            "BatchAddModeli16: model_id: %d, vertex_count: %d, faces_count: %d\n",
-            model_id,
-            vertex_count,
-            faces_count);
-    assert(vertex_count < 4096);
+    (void)vertex_count;
     assert(faces_count < 4096);
+    printf(
+        "BatchAddModeli16: model_id: %d, vertex_count: %d, faces_count: %d\n",
+        model_id,
+        vertex_count,
+        faces_count);
     BatchQueue& batch_queue = batch_queues.back();
     const uint32_t pose_index = allocatePoseSlot(model_id, gpu_segment_slot, frame_index);
 
-    uint16_t color_low, color_high;
+    const uint32_t vbo_vertex_start = (uint32_t)batch_queue.vbo.size();
+    const uint32_t ebo_start = (uint32_t)batch_queue.ebo.size();
+    const uint32_t new_vertex_count = faces_count * 3u;
+    batch_queue.vbo.reserve(batch_queue.vbo.size() + (size_t)new_vertex_count);
+    batch_queue.ebo.reserve(batch_queue.ebo.size() + (size_t)faces_count * 3u);
 
-    // Track the actual starting VERTEX index, not the element count
-    uint32_t vertex_offset = batch_queue.vbo.size() / VERTEX_ATTRIBUTE_COUNT;
-
-    // Track element starts for your tracking struct if needed
-    uint32_t vbo_element_start = batch_queue.vbo.size();
-    uint32_t ebo_start = batch_queue.ebo.size();
-
-    batch_queue.vbo.reserve(batch_queue.vbo.size() + vertex_count * VERTEX_ATTRIBUTE_COUNT);
-    for( int i = 0; i < vertex_count; i++ )
+    for( uint32_t i = 0; i < faces_count; i++ )
     {
-        batch_queue.vbo.push_back(vertices_x[i]);
-        batch_queue.vbo.push_back(vertices_y[i]);
-        batch_queue.vbo.push_back(vertices_z[i]);
-        PackColorTo16Bit(faces_a_color_hsl16[i], color_low, color_high);
-        batch_queue.vbo.push_back(color_low);
-        batch_queue.vbo.push_back(color_high);
-        batch_queue.vbo.push_back(0);
-        batch_queue.vbo.push_back(0);
-        batch_queue.vbo.push_back(0xFFFFu);
-    }
+        const uint32_t vo = (uint32_t)batch_queue.vbo.size();
+        batch_queue.ebo.push_back((uint16_t)vo);
+        batch_queue.ebo.push_back((uint16_t)(vo + 1u));
+        batch_queue.ebo.push_back((uint16_t)(vo + 2u));
 
-    batch_queue.ebo.reserve(batch_queue.ebo.size() + faces_count * 3);
-    for( int i = 0; i < faces_count; i++ )
-    {
-        // Add the vertex_offset, not the float offset
-        batch_queue.ebo.push_back(faces_a[i] + vertex_offset);
-        batch_queue.ebo.push_back(faces_b[i] + vertex_offset);
-        batch_queue.ebo.push_back(faces_c[i] + vertex_offset);
+        const bool skip_face = (face_infos_nullable && ((face_infos_nullable[(int)i] & 3) == 2)) ||
+                               (faces_c_color_hsl16[i] == (uint16_t)DASHHSL16_HIDDEN);
+
+        const int face_a = (int)faces_a[i];
+        const int face_b = (int)faces_b[i];
+        const int face_c = (int)faces_c[i];
+        const bool bad_idx = face_a < 0 || face_b < 0 || face_c < 0 ||
+                             face_a >= (int)vertex_count || face_b >= (int)vertex_count ||
+                             face_c >= (int)vertex_count;
+
+        if( skip_face || bad_idx )
+        {
+            for( int k = 0; k < 3; k++ )
+            {
+                MeshVertex v{};
+                v.position[0] = 0.0f;
+                v.position[1] = 0.0f;
+                v.position[2] = 0.0f;
+                v.position[3] = 1.0f;
+                v.color[0] = v.color[1] = v.color[2] = 0.0f;
+                v.color[3] = 0.0f;
+                v.texcoord[0] = v.texcoord[1] = 0.0f;
+                v.tex_id = 0xFFFFu;
+                v.uv_mode = 0u;
+                batch_queue.vbo.push_back(v);
+            }
+            continue;
+        }
+
+        const uint16_t hsl_a = faces_a_color_hsl16[i];
+        const uint16_t hsl_b = faces_b_color_hsl16[i];
+        const uint16_t hsl_c = faces_c_color_hsl16[i];
+        float color_a[4], color_b[4], color_c[4];
+        constexpr float kAlpha = 1.0f;
+        if( hsl_c == (uint16_t)DASHHSL16_FLAT )
+        {
+            gpu3d_hsl16_to_float_rgba(hsl_a, color_a, kAlpha);
+            color_b[0] = color_a[0];
+            color_b[1] = color_a[1];
+            color_b[2] = color_a[2];
+            color_b[3] = color_a[3];
+            color_c[0] = color_a[0];
+            color_c[1] = color_a[1];
+            color_c[2] = color_a[2];
+            color_c[3] = color_a[3];
+        }
+        else
+        {
+            gpu3d_hsl16_to_float_rgba(hsl_a, color_a, kAlpha);
+            gpu3d_hsl16_to_float_rgba(hsl_b, color_b, kAlpha);
+            gpu3d_hsl16_to_float_rgba(hsl_c, color_c, kAlpha);
+        }
+
+        MeshVertex va{};
+        va.position[0] = (float)vertices_x[face_a];
+        va.position[1] = (float)vertices_y[face_a];
+        va.position[2] = (float)vertices_z[face_a];
+        va.position[3] = 1.0f;
+        va.color[0] = color_a[0];
+        va.color[1] = color_a[1];
+        va.color[2] = color_a[2];
+        va.color[3] = color_a[3];
+        va.texcoord[0] = 0.0f;
+        va.texcoord[1] = 0.0f;
+        va.tex_id = 0xFFFFu;
+        va.uv_mode = 0u;
+        batch_queue.vbo.push_back(va);
+
+        MeshVertex vb{};
+        vb.position[0] = (float)vertices_x[face_b];
+        vb.position[1] = (float)vertices_y[face_b];
+        vb.position[2] = (float)vertices_z[face_b];
+        vb.position[3] = 1.0f;
+        vb.color[0] = color_b[0];
+        vb.color[1] = color_b[1];
+        vb.color[2] = color_b[2];
+        vb.color[3] = color_b[3];
+        vb.texcoord[0] = 0.0f;
+        vb.texcoord[1] = 0.0f;
+        vb.tex_id = 0xFFFFu;
+        vb.uv_mode = 0u;
+        batch_queue.vbo.push_back(vb);
+
+        MeshVertex vc{};
+        vc.position[0] = (float)vertices_x[face_c];
+        vc.position[1] = (float)vertices_y[face_c];
+        vc.position[2] = (float)vertices_z[face_c];
+        vc.position[3] = 1.0f;
+        vc.color[0] = color_c[0];
+        vc.color[1] = color_c[1];
+        vc.color[2] = color_c[2];
+        vc.color[3] = color_c[3];
+        vc.texcoord[0] = 0.0f;
+        vc.texcoord[1] = 0.0f;
+        vc.tex_id = 0xFFFFu;
+        vc.uv_mode = 0u;
+        batch_queue.vbo.push_back(vc);
     }
 
     batch_queue.batch.push_back(
         BatchedQueueModel::CreateModel(
-            model_id, pose_index, vertex_count, vbo_element_start, faces_count, ebo_start));
+            model_id, pose_index, new_vertex_count, vbo_vertex_start, faces_count, ebo_start));
 }
 
 inline void
@@ -477,52 +566,72 @@ GPU3DCache2::BatchAddModelTexturedi16(
     uint16_t* faces_a_color_hsl16,
     uint16_t* faces_b_color_hsl16,
     uint16_t* faces_c_color_hsl16,
-    int16_t* faces_textures, // Array mapping each face to a texture ID (-1 = no texture)
+    int16_t* faces_textures,
     uint16_t* textured_faces,
     uint16_t* textured_faces_a,
     uint16_t* textured_faces_b,
-    uint16_t* textured_faces_c)
+    uint16_t* textured_faces_c,
+    const int* face_infos_nullable,
+    bool ground_va)
 {
+    assert(vertex_count < 4096);
+    assert(faces_count < 4096);
     printf(
         "BatchAddModelTexturedi16: model_id: %d, vertex_count: %d, faces_count: %d\n",
         model_id,
         vertex_count,
         faces_count);
-    assert(vertex_count < 4096);
-    assert(faces_count < 4096);
     BatchQueue& batch_queue = batch_queues.back();
     const uint32_t pose_index = allocatePoseSlot(model_id, gpu_segment_slot, frame_index);
 
-    uint16_t color_low, color_high;
-
-    // The starting vertex index for this newly un-indexed mesh
-    uint32_t vertex_offset = batch_queue.vbo.size() / VERTEX_ATTRIBUTE_COUNT;
-
-    uint32_t vbo_element_start = batch_queue.vbo.size();
-    uint32_t ebo_start = batch_queue.ebo.size();
-
-    // Reserve based on the faces we are expanding, not the original vertex count
-    uint32_t new_vertex_count = faces_count * 3;
-    batch_queue.vbo.reserve(batch_queue.vbo.size() + new_vertex_count * VERTEX_ATTRIBUTE_COUNT);
-    batch_queue.ebo.reserve(batch_queue.ebo.size() + faces_count * 3);
+    const uint32_t vbo_vertex_start = (uint32_t)batch_queue.vbo.size();
+    const uint32_t ebo_start = (uint32_t)batch_queue.ebo.size();
+    const uint32_t new_vertex_count = faces_count * 3u;
+    batch_queue.vbo.reserve(batch_queue.vbo.size() + (size_t)new_vertex_count);
+    batch_queue.ebo.reserve(batch_queue.ebo.size() + (size_t)faces_count * 3u);
 
     uint32_t tp_vertex = 0;
     uint32_t tm_vertex = 0;
     uint32_t tn_vertex = 0;
     struct UVFaceCoords uv;
-    // Use signed int16 aliases so negative vertex coords convert to float correctly.
-    const int16_t* sx = reinterpret_cast<const int16_t*>(vertices_x);
-    const int16_t* sy = reinterpret_cast<const int16_t*>(vertices_y);
-    const int16_t* sz = reinterpret_cast<const int16_t*>(vertices_z);
 
-    for( int i = 0; i < faces_count; i++ )
+    const uint16_t uv_mode =
+        (uint16_t)(ground_va ? 1u : 0u); /* kWgVertexUvMode_VaFractTile : Standard */
+
+    for( uint32_t i = 0; i < faces_count; i++ )
     {
-        // The indices are strictly sequential.
-        batch_queue.ebo.push_back(vertex_offset++);
-        batch_queue.ebo.push_back(vertex_offset++);
-        batch_queue.ebo.push_back(vertex_offset++);
+        const uint32_t vbo_offset = (uint32_t)batch_queue.vbo.size();
+        batch_queue.ebo.push_back((uint16_t)vbo_offset);
+        batch_queue.ebo.push_back((uint16_t)(vbo_offset + 1u));
+        batch_queue.ebo.push_back((uint16_t)(vbo_offset + 2u));
 
-        // Note: uint16_t is unsigned, so -1 becomes 0xFFFF.
+        const bool skip_face = (face_infos_nullable && ((face_infos_nullable[(int)i] & 3) == 2)) ||
+                               (faces_c_color_hsl16[i] == (uint16_t)DASHHSL16_HIDDEN);
+
+        const int face_a = (int)faces_a[i];
+        const int face_b = (int)faces_b[i];
+        const int face_c = (int)faces_c[i];
+        const bool bad_idx = face_a < 0 || face_b < 0 || face_c < 0 ||
+                             face_a >= (int)vertex_count || face_b >= (int)vertex_count ||
+                             face_c >= (int)vertex_count;
+
+        if( skip_face || bad_idx )
+        {
+            for( int k = 0; k < 3; k++ )
+            {
+                MeshVertex v{};
+                v.position[0] = v.position[1] = v.position[2] = 0.0f;
+                v.position[3] = 1.0f;
+                v.color[0] = v.color[1] = v.color[2] = 0.0f;
+                v.color[3] = 0.0f;
+                v.texcoord[0] = v.texcoord[1] = 0.0f;
+                v.tex_id = 0xFFFFu;
+                v.uv_mode = 0u;
+                batch_queue.vbo.push_back(v);
+            }
+            continue;
+        }
+
         if( textured_faces && textured_faces[i] != 0xFFFF )
         {
             tp_vertex = textured_faces_a[textured_faces[i]];
@@ -538,73 +647,108 @@ GPU3DCache2::BatchAddModelTexturedi16(
 
         uv_pnm_compute(
             &uv,
-            (float)sx[tp_vertex],
-            (float)sy[tp_vertex],
-            (float)sz[tp_vertex],
-            (float)sx[tm_vertex],
-            (float)sy[tm_vertex],
-            (float)sz[tm_vertex],
-            (float)sx[tn_vertex],
-            (float)sy[tn_vertex],
-            (float)sz[tn_vertex],
-            (float)sx[faces_a[i]],
-            (float)sy[faces_a[i]],
-            (float)sz[faces_a[i]],
-            (float)sx[faces_b[i]],
-            (float)sy[faces_b[i]],
-            (float)sz[faces_b[i]],
-            (float)sx[faces_c[i]],
-            (float)sy[faces_c[i]],
-            (float)sz[faces_c[i]]);
+            (float)vertices_x[tp_vertex],
+            (float)vertices_y[tp_vertex],
+            (float)vertices_z[tp_vertex],
+            (float)vertices_x[tm_vertex],
+            (float)vertices_y[tm_vertex],
+            (float)vertices_z[tm_vertex],
+            (float)vertices_x[tn_vertex],
+            (float)vertices_y[tn_vertex],
+            (float)vertices_z[tn_vertex],
+            (float)vertices_x[face_a],
+            (float)vertices_y[face_a],
+            (float)vertices_z[face_a],
+            (float)vertices_x[face_b],
+            (float)vertices_y[face_b],
+            (float)vertices_z[face_b],
+            (float)vertices_x[face_c],
+            (float)vertices_y[face_c],
+            (float)vertices_z[face_c]);
 
-        // -1 (0xFFFF as int16) = face has no texture; fallback to solid color (tex_id 0xFFFF).
         uint16_t tex_id;
         if( faces_textures[i] != -1 )
             tex_id = (uint16_t)faces_textures[i];
         else
             tex_id = 0xFFFFu;
 
-        // Push Vert A
-        batch_queue.vbo.push_back(vertices_x[faces_a[i]]);
-        batch_queue.vbo.push_back(vertices_y[faces_a[i]]);
-        batch_queue.vbo.push_back(vertices_z[faces_a[i]]);
-        PackColorTo16Bit(faces_a_color_hsl16[i], color_low, color_high);
-        batch_queue.vbo.push_back(color_low);
-        batch_queue.vbo.push_back(color_high);
-        batch_queue.vbo.push_back(gpu3d_pack_uv_tile01(uv.u1));
-        batch_queue.vbo.push_back(gpu3d_pack_uv_tile01(uv.v1));
-        batch_queue.vbo.push_back(tex_id);
+        const uint16_t hsl_a = faces_a_color_hsl16[i];
+        const uint16_t hsl_b = faces_b_color_hsl16[i];
+        const uint16_t hsl_c = faces_c_color_hsl16[i];
+        float color_a[4], color_b[4], color_c[4];
+        constexpr float kAlpha = 1.0f;
+        if( hsl_c == (uint16_t)DASHHSL16_FLAT )
+        {
+            gpu3d_hsl16_to_float_rgba(hsl_a, color_a, kAlpha);
+            color_b[0] = color_a[0];
+            color_b[1] = color_a[1];
+            color_b[2] = color_a[2];
+            color_b[3] = color_a[3];
+            color_c[0] = color_a[0];
+            color_c[1] = color_a[1];
+            color_c[2] = color_a[2];
+            color_c[3] = color_a[3];
+        }
+        else
+        {
+            gpu3d_hsl16_to_float_rgba(hsl_a, color_a, kAlpha);
+            gpu3d_hsl16_to_float_rgba(hsl_b, color_b, kAlpha);
+            gpu3d_hsl16_to_float_rgba(hsl_c, color_c, kAlpha);
+        }
 
-        // Push Vert B
-        batch_queue.vbo.push_back(vertices_x[faces_b[i]]);
-        batch_queue.vbo.push_back(vertices_y[faces_b[i]]);
-        batch_queue.vbo.push_back(vertices_z[faces_b[i]]);
-        PackColorTo16Bit(faces_b_color_hsl16[i], color_low, color_high);
-        batch_queue.vbo.push_back(color_low);
-        batch_queue.vbo.push_back(color_high);
-        batch_queue.vbo.push_back(gpu3d_pack_uv_tile01(uv.u2));
-        batch_queue.vbo.push_back(gpu3d_pack_uv_tile01(uv.v2));
-        batch_queue.vbo.push_back(tex_id);
+        MeshVertex va{};
+        va.position[0] = (float)vertices_x[face_a];
+        va.position[1] = (float)vertices_y[face_a];
+        va.position[2] = (float)vertices_z[face_a];
+        va.position[3] = 1.0f;
+        va.color[0] = color_a[0];
+        va.color[1] = color_a[1];
+        va.color[2] = color_a[2];
+        va.color[3] = color_a[3];
+        va.texcoord[0] = gpu3d_tile_local_uv01(uv.u1);
+        va.texcoord[1] = gpu3d_tile_local_uv01(uv.v1);
+        va.tex_id = tex_id;
+        va.uv_mode = uv_mode;
+        batch_queue.vbo.push_back(va);
 
-        // Push Vert C
-        batch_queue.vbo.push_back(vertices_x[faces_c[i]]);
-        batch_queue.vbo.push_back(vertices_y[faces_c[i]]);
-        batch_queue.vbo.push_back(vertices_z[faces_c[i]]);
-        PackColorTo16Bit(faces_c_color_hsl16[i], color_low, color_high);
-        batch_queue.vbo.push_back(color_low);
-        batch_queue.vbo.push_back(color_high);
-        batch_queue.vbo.push_back(gpu3d_pack_uv_tile01(uv.u3));
-        batch_queue.vbo.push_back(gpu3d_pack_uv_tile01(uv.v3));
-        batch_queue.vbo.push_back(tex_id);
+        MeshVertex vb{};
+        vb.position[0] = (float)vertices_x[face_b];
+        vb.position[1] = (float)vertices_y[face_b];
+        vb.position[2] = (float)vertices_z[face_b];
+        vb.position[3] = 1.0f;
+        vb.color[0] = color_b[0];
+        vb.color[1] = color_b[1];
+        vb.color[2] = color_b[2];
+        vb.color[3] = color_b[3];
+        vb.texcoord[0] = gpu3d_tile_local_uv01(uv.u2);
+        vb.texcoord[1] = gpu3d_tile_local_uv01(uv.v2);
+        vb.tex_id = tex_id;
+        vb.uv_mode = uv_mode;
+        batch_queue.vbo.push_back(vb);
+
+        MeshVertex vc{};
+        vc.position[0] = (float)vertices_x[face_c];
+        vc.position[1] = (float)vertices_y[face_c];
+        vc.position[2] = (float)vertices_z[face_c];
+        vc.position[3] = 1.0f;
+        vc.color[0] = color_c[0];
+        vc.color[1] = color_c[1];
+        vc.color[2] = color_c[2];
+        vc.color[3] = color_c[3];
+        vc.texcoord[0] = gpu3d_tile_local_uv01(uv.u3);
+        vc.texcoord[1] = gpu3d_tile_local_uv01(uv.v3);
+        vc.tex_id = tex_id;
+        vc.uv_mode = uv_mode;
+        batch_queue.vbo.push_back(vc);
     }
 
     batch_queue.batch.push_back(
         BatchedQueueModel::CreateModel(
-            model_id, pose_index, new_vertex_count, vbo_element_start, faces_count, ebo_start));
+            model_id, pose_index, new_vertex_count, vbo_vertex_start, faces_count, ebo_start));
 }
 
-inline uint16_t*
-GPU3DCache2::BatchGetVBO()
+inline const MeshVertex*
+GPU3DCache2::BatchGetVBO() const
 {
     return batch_queues.back().vbo.data();
 }
@@ -616,9 +760,15 @@ GPU3DCache2::BatchGetEBO()
 }
 
 inline uint32_t
+GPU3DCache2::BatchGetVBOVertexCount()
+{
+    return (uint32_t)batch_queues.back().vbo.size();
+}
+
+inline uint32_t
 GPU3DCache2::BatchGetVBOSize()
 {
-    return batch_queues.back().vbo.size();
+    return BatchGetVBOVertexCount();
 }
 
 inline uint32_t

@@ -34,11 +34,10 @@ metal_frame_event_model_draw(
     const int* face_order = dash3d_projected_face_order(ctx->game->sys_dash, &face_order_count);
 
     const int fc = dashmodel_face_count(model);
-    const bool textured = dashmodel_has_textures(model);
 
-    /* Dynamic index buffer is uint16. Merged batch vertex indices often exceed 65535, so we store
-     * **local** indices (within this model's VBO slice) and add `pose.vbo_offset` at draw time
-     * via Metal `baseVertex` in Pass3DBuilder2SubmitMetal. */
+    /* GPU3DCache2 bakes **three expanded vertices per face** in original face order (textured and
+     * untextured). Local indices are `f*3 + {0,1,2}`; `pose.vbo_offset` is the first vertex of this
+     * model slice (`Pass3DBuilder2SubmitMetal` `baseVertex`). */
     static std::vector<uint16_t> g_sorted;
     g_sorted.clear();
     if( face_order_count > 0 && fc > 0 )
@@ -49,22 +48,10 @@ metal_frame_event_model_draw(
             const int f = face_order ? face_order[fi] : fi;
             if( f < 0 || f >= fc )
                 continue;
-            if( textured )
-            {
-                const uint32_t b = (uint32_t)f * 3u;
-                g_sorted.push_back((uint16_t)b);
-                g_sorted.push_back((uint16_t)(b + 1u));
-                g_sorted.push_back((uint16_t)(b + 2u));
-            }
-            else
-            {
-                const faceint_t* fa = dashmodel_face_indices_a_const(model);
-                const faceint_t* fb = dashmodel_face_indices_b_const(model);
-                const faceint_t* fc_c = dashmodel_face_indices_c_const(model);
-                g_sorted.push_back((uint16_t)fa[f]);
-                g_sorted.push_back((uint16_t)fb[f]);
-                g_sorted.push_back((uint16_t)fc_c[f]);
-            }
+            const uint32_t b = (uint32_t)f * 3u;
+            g_sorted.push_back((uint16_t)b);
+            g_sorted.push_back((uint16_t)(b + 1u));
+            g_sorted.push_back((uint16_t)(b + 2u));
         }
     }
 

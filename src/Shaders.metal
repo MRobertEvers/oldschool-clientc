@@ -49,7 +49,8 @@ struct VertexOut {
     uint uv_mode [[flat]];
 };
 
-vertex VertexOut vertexShader(
+/** drawPrimitives + per-corner stream: `vid` is sequential; `stream[vid]` selects VBO vertex + instance. */
+vertex VertexOut vertexShaderStream(
     uint vid [[vertex_id]],
     constant Uniforms& uniforms [[buffer(1)]],
     device const InstanceXform* instances [[buffer(2)]],
@@ -62,6 +63,32 @@ vertex VertexOut vertexShader(
 
     float3 p = float4(v.position).xyz;
     /* projection.u.c / D3D11 xz yaw; trig was prebaked on CPU into cos_yaw/sin_yaw. */
+    float xr = p.x * t.cos_yaw + p.z * t.sin_yaw;
+    float zr = -p.x * t.sin_yaw + p.z * t.cos_yaw;
+    float4 worldPos = float4(xr + t.x, p.y + t.y, zr + t.z, 1.0);
+
+    VertexOut out;
+    out.position = uniforms.projectionMatrix * uniforms.modelViewMatrix * worldPos;
+    out.color = float4(v.color);
+    out.texcoord = float2(v.texcoord);
+    out.tex_id = (uint)v.tex_id;
+    out.uv_mode = (uint)v.uv_mode;
+    return out;
+}
+
+/** Pass3DBuilder2 / GPU3DCache2: `drawIndexedPrimitives` + `baseVertex`; `vid` is resolved VBO index.
+ *  One `InstanceXform` per draw at buffer(2) offset (use `instances[0]`). Same world transform as
+ *  `vertexShaderStream`. */
+vertex VertexOut vertexShader(
+    uint vid [[vertex_id]],
+    constant Uniforms& uniforms [[buffer(1)]],
+    device const InstanceXform* instances [[buffer(2)]],
+    device const MetalVertexPacked* verts [[buffer(0)]])
+{
+    MetalVertexPacked v = verts[vid];
+    InstanceXform t = instances[0];
+
+    float3 p = float4(v.position).xyz;
     float xr = p.x * t.cos_yaw + p.z * t.sin_yaw;
     float zr = -p.x * t.sin_yaw + p.z * t.cos_yaw;
     float4 worldPos = float4(xr + t.x, p.y + t.y, zr + t.z, 1.0);
@@ -264,66 +291,3 @@ fragment float4 uiFontFrag(
     return float4(in.color.rgb, a * in.color.a);
 }
 
-// ============================================================
-// v2 3D pass: packed uint16_t vertices + integer instance data
-// ============================================================
-struct ModelVertexV2
-{
-    ushort x;
-    ushort y;
-    ushort z;
-    ushort color_lo; // R | (G << 8)
-    ushort color_hi; // B | (A << 8)
-    ushort u;
-    ushort v;
-    ushort tex_id;
-};
-
-struct InstanceDataV2
-{
-    int rotation_r2pi2048;
-    int x;
-    int y;
-    int z;
-};
-
-vertex VertexOut vertexShader3DV2(
-    uint vid [[vertex_id]],
-    uint iid [[instance_id]],
-    device const ModelVertexV2* verts [[buffer(0)]],
-    device const InstanceDataV2* instances [[buffer(1)]],
-    constant Uniforms& uniforms [[buffer(2)]])
-{
-    // drawIndexedPrimitives: vid is the resolved vertex index from the index buffer.
-    ModelVertexV2 v = verts[vid];
-    InstanceDataV2 inst = instances[iid];
-
-    float vx = (float)as_type<short>(v.x);
-    float vy = (float)as_type<short>(v.y);
-    float vz = (float)as_type<short>(v.z);
-
-    float cr = (float)(v.color_lo & 0xFFu) / 255.0f;
-    float cg = (float)((v.color_lo >> 8u) & 0xFFu) / 255.0f;
-    float cb = (float)(v.color_hi & 0xFFu) / 255.0f;
-    float ca = (float)((v.color_hi >> 8u) & 0xFFu) / 255.0f;
-
-    float angle = (float)inst.rotation_r2pi2048 * (2.0f * M_PI_F / 2048.0f);
-    float cos_yaw = cos(angle);
-    float sin_yaw = sin(angle);
-    float xr = vx * cos_yaw + vz * sin_yaw;
-    float zr = -vx * sin_yaw + vz * cos_yaw;
-
-    float4 worldPos = float4(
-        xr + (float)inst.x,
-        vy + (float)inst.y,
-        zr + (float)inst.z,
-        1.0f);
-
-    VertexOut out;
-    out.position  = uniforms.projectionMatrix * uniforms.modelViewMatrix * worldPos;
-    out.color     = float4(cr, cg, cb, ca);
-    out.texcoord  = float2((float)v.u, (float)v.v) * (1.0f / 65535.0f);
-    out.tex_id    = (uint)v.tex_id;
-    out.uv_mode   = 0u;
-    return out;
-}

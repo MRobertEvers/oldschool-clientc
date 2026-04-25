@@ -31,7 +31,7 @@ Pass3DBuilder2SubmitMetal(
         [render_command_encoder setDepthStencilState:depth_stencil_state];
 
     const size_t inst_bytes =
-        builder.GetInstancePool().size() * sizeof(DrawModelInstanceData3D);
+        builder.GetInstancePool().size() * sizeof(InstanceXform);
     const NSUInteger inst_cap = dynamic_instance_buffer ? dynamic_instance_buffer.length : 0u;
     if( instance_base_bytes + inst_bytes > inst_cap )
     {
@@ -102,7 +102,7 @@ Pass3DBuilder2SubmitMetal(
         }
         [render_command_encoder setVertexBuffer:uniforms_buffer
                                          offset:uniforms_buffer_offset_bytes
-                                        atIndex:2];
+                                        atIndex:1];
         [render_command_encoder setFragmentBuffer:uniforms_buffer
                                            offset:uniforms_buffer_offset_bytes
                                           atIndex:1];
@@ -114,8 +114,7 @@ Pass3DBuilder2SubmitMetal(
     if( fragment_sampler )
         [render_command_encoder setFragmentSamplerState:fragment_sampler atIndex:0];
 
-    // EBO indices are global within each merged batch VBO; bind at byte offset 0 so
-    // vertexShader3DV2 `verts[[vertex_id]]` matches Metal's index-buffer-resolved vertex_id.
+    // EBO: `[[vertex_id]]` is index + baseVertex — `vertexShader` reads `verts[vid]` directly.
     id<MTLBuffer> last_bound_vbo = nil;
 
     for( const auto& cmd : builder.GetCommands() )
@@ -146,11 +145,11 @@ Pass3DBuilder2SubmitMetal(
 
         // 3. Bind Rotation from the Instance Buffer (Fastest path)
         NSUInteger rotation_offset =
-            instance_base_bytes + cmd.instance_offset * sizeof(DrawModelInstanceData3D);
+            instance_base_bytes + cmd.instance_offset * sizeof(InstanceXform);
         [render_command_encoder //
             setVertexBuffer:dynamic_instance_buffer
                      offset:rotation_offset
-                    atIndex:1];
+                    atIndex:2];
 
         // 4. Merged batch VBO (indices are absolute within this buffer)
         if( vbo != last_bound_vbo )

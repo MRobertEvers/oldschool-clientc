@@ -1,8 +1,13 @@
 #include "gpu_3d_cache2_metal.h"
 
+#include "platforms/common/mesh_builder/mesh_builder.h"
 #import <Metal/Metal.h>
 
 #include <cstdio>
+
+static_assert(
+    sizeof(MeshVertex) == 44u,
+    "MeshVertex must match Shaders.metal MetalVertexPacked");
 
 void
 GPU3DCache2BatchSubmitMetal(
@@ -11,7 +16,7 @@ GPU3DCache2BatchSubmitMetal(
     BatchBuffers& out_batch_buffers,
     uint32_t batch_id)
 {
-    uint32_t vbo_size = cache.BatchGetVBOSize() * sizeof(uint16_t);
+    const uint32_t vbo_size = cache.BatchGetVBOVertexCount() * (uint32_t)sizeof(MeshVertex);
     uint32_t ebo_size = cache.BatchGetEBOSize() * sizeof(uint16_t);
 
     if( vbo_size == 0 || ebo_size == 0 )
@@ -23,8 +28,8 @@ GPU3DCache2BatchSubmitMetal(
     // 1. Upload to Metal
     // Use StorageModeShared for unified memory (Apple Silicon/iOS) or Managed for discrete Macs
     id<MTLBuffer> batched_vbo = //
-        [metal_device newBufferWithBytes:cache.BatchGetVBO()
-                                  length:vbo_size
+        [metal_device newBufferWithBytes:(const void*)cache.BatchGetVBO()
+                                  length:(NSUInteger)vbo_size
                                  options:MTLResourceStorageModeShared];
 
     id<MTLBuffer> batched_ebo = //
@@ -48,7 +53,7 @@ GPU3DCache2BatchSubmitMetal(
         return;
     }
 
-    const uint32_t vertex_count = cache.BatchGetVBOSize() / (uint32_t)VERTEX_ATTRIBUTE_COUNT;
+    const uint32_t vertex_count = cache.BatchGetVBOVertexCount();
     const uint16_t* ebo_cpu = cache.BatchGetEBO();
     const uint32_t ebo_index_count = cache.BatchGetEBOSize();
     uint32_t max_index = 0;
@@ -84,8 +89,8 @@ GPU3DCache2BatchSubmitMetal(
         pose_data.ebo = ebo_handle;
         pose_data.gpu_batch_id = batch_id;
 
-        // vbo_start is uint16 offset into interleaved VBO; pose stores first vertex index.
-        pose_data.vbo_offset = batched_model.vbo_start / (uint32_t)VERTEX_ATTRIBUTE_COUNT;
+        // vbo_start is first vertex index of this model slice in the merged VBO.
+        pose_data.vbo_offset = batched_model.vbo_start;
         // ebo_start is first index in uint16 index buffer (triangle list).
         pose_data.ebo_offset = batched_model.ebo_start;
 

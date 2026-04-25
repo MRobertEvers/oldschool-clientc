@@ -1,6 +1,9 @@
 #ifndef PASS_3D_BUILDER2_H
 #define PASS_3D_BUILDER2_H
 
+#include "platforms/common/buffered_face_order.h"
+
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -8,36 +11,6 @@
 /** `uint16_t` indices; must match `mtl_pass3d_index_buf` size in Metal init.
  *  One frame can sort many models × faces × 3; 64Ki entries was too small for world draws. */
 inline constexpr uint32_t kPass3DBuilder2DynamicIndexUInt16Capacity = 1u << 21; // 2_097_152
-
-// This is the data we send to the GPU for EVERY object
-struct DrawModelInstanceData3D
-{
-    int32_t rotation_r2pi2048;
-    int32_t x;
-    int32_t y;
-    int32_t z;
-
-    DrawModelInstanceData3D(
-        int32_t rotation_r2pi2048,
-        int32_t x,
-        int32_t y,
-        int32_t z)
-        : rotation_r2pi2048(rotation_r2pi2048)
-        , x(x)
-        , y(y)
-        , z(z)
-    {}
-
-    static DrawModelInstanceData3D
-    Create(
-        int32_t rotation_r2pi2048,
-        int32_t x,
-        int32_t y,
-        int32_t z)
-    {
-        return DrawModelInstanceData3D(rotation_r2pi2048, x, y, z);
-    }
-};
 
 struct DrawModel3D
 {
@@ -95,7 +68,7 @@ class Pass3DBuilder2
 {
 private:
     std::vector<DrawModel3D> draw_commands;
-    std::vector<DrawModelInstanceData3D> instance_pool;
+    std::vector<InstanceXform> instance_pool;
 
     // A contiguous pool holding ALL sorted/dynamic indices for the current frame.
     // The backend will upload this entire vector in one swift API call.
@@ -143,7 +116,7 @@ public:
     const uint32_t
     GetDynamicIndicesSize() const;
 
-    const std::vector<DrawModelInstanceData3D>&
+    const std::vector<InstanceXform>&
     GetInstancePool() const;
 
     uint32_t
@@ -192,10 +165,20 @@ Pass3DBuilder2::AddModelDrawYawOnly(
     if( !is_building )
         return;
 
-    // 1. Handle the Rotation (Instance Data)
-    // We store the rotation in a pool. The command will remember where it is.
+    // 1. Instance transform: same `InstanceXform` / `vertexShader` as legacy Metal stream path.
     uint32_t instance_offset = static_cast<uint32_t>(instance_pool.size());
-    instance_pool.push_back(DrawModelInstanceData3D::Create(rotation_r2pi2048, x, y, z));
+    const float yaw_rad =
+        ((float)rotation_r2pi2048 * 2.0f * (float)M_PI) / 2048.0f;
+    InstanceXform xf = {
+        cosf(yaw_rad),
+        sinf(yaw_rad),
+        (float)x,
+        (float)y,
+        (float)z,
+        (uint32_t)rotation_r2pi2048,
+        { 0, 0 },
+    };
+    instance_pool.push_back(xf);
 
     // 2. Handle the Sorted Faces (Index Data)
     uint32_t index_pool_offset = 0;
@@ -260,7 +243,7 @@ Pass3DBuilder2::HasDynamicIndices() const
     return !indices_pool.empty();
 }
 
-inline const std::vector<DrawModelInstanceData3D>&
+inline const std::vector<InstanceXform>&
 Pass3DBuilder2::GetInstancePool() const
 {
     return instance_pool;

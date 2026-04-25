@@ -407,7 +407,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
         return false;
     }
 
-    id<MTLFunction> vertFn = [shaderLibrary newFunctionWithName:@"vertexShader"];
+    id<MTLFunction> vertFn = [shaderLibrary newFunctionWithName:@"vertexShaderStream"];
     id<MTLFunction> fragFn = [shaderLibrary newFunctionWithName:@"fragmentShader"];
     if( !vertFn || !fragFn )
     {
@@ -442,8 +442,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
     }
     renderer->mtl_pipeline_state = (__bridge_retained void*)pipeState;
 
-    // v2 3D pipeline (vertexShader3DV2 + same fragmentShader)
-    id<MTLFunction> v2VertFn = [shaderLibrary newFunctionWithName:@"vertexShader3DV2"];
+    // v2 3D pipeline (indexed `vertexShader` + same fragmentShader)
+    id<MTLFunction> v2VertFn = [shaderLibrary newFunctionWithName:@"vertexShader"];
     if( v2VertFn )
     {
         MTLRenderPipelineDescriptor* v2Desc = [[MTLRenderPipelineDescriptor alloc] init];
@@ -472,7 +472,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
 
     // Persistent per-frame buffers for Pass3DBuilder2SubmitMetal
     {
-        const size_t inst_bytes = 4096 * sizeof(DrawModelInstanceData3D);
+        const size_t inst_bytes = 4096 * sizeof(InstanceXform);
         id<MTLBuffer> inst_buf =
             [device newBufferWithLength:(NSUInteger)inst_bytes
                                options:MTLResourceStorageModeShared];
