@@ -2,6 +2,7 @@
 #define PLATFORMS_METAL_METAL_INTERNAL_H
 
 #include "platforms/metal/metal.h"
+#include "platforms/common/gpu_3d.h"
 #include "tori_rs_render.h"
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
@@ -64,25 +65,29 @@ inline constexpr int kMetalMaxClearRectsPerFrame = 8;
 
 struct MetalRenderCtx
 {
-    struct Platform2_SDL2_Renderer_Metal* renderer = nullptr;
+    struct MetalRendererCore* renderer = nullptr;
     struct GGame* game = nullptr;
-    id<MTLDevice> device = nil;
-    id<MTLRenderCommandEncoder> encoder = nil;
-    id<MTLRenderPipelineState> clearRectDepthPipeState = nil;
-    id<MTLDepthStencilState> clearRectDepthDsState = nil;
-    id<MTLDepthStencilState> dsState = nil;
-    id<MTLBuffer> clearQuadBuf = nil;
-    MTLViewport metalVp{};
-    /** Full drawable in pixels (for CLEAR_RECT and restoring scissor). */
-    MTLViewport fullDrawableVp{};
-    int win_width = 0;
-    int win_height = 0;
-    /** Next slot in `clearQuadBuf` for `metal_frame_event_clear_rect` (bytes = slot *
-     * kSpriteSlotBytes). */
-    int clear_rect_slot = 0;
-    /** Last TORIRS_GFX_STATE_BEGIN_3D destination rect (window pixels); used for STATE_END_3D uniforms. */
-    LogicalViewportRect pass_3d_dst_logical{};
 };
+
+/** Read `renderer->pass` as `MTLViewport` (Metal types; use from .mm only). */
+MTLViewport
+metal_pass_get_metal_vp(const struct MetalRendererCore* r);
+
+MTLViewport
+metal_pass_get_full_drawable_vp(const struct MetalRendererCore* r);
+
+void
+metal_pass_set_metal_vp(struct MetalRendererCore* r, MTLViewport v);
+
+void
+metal_pass_set_full_drawable_vp(struct MetalRendererCore* r, MTLViewport v);
+
+/** `LogicalViewportRect` view of `r->pass` 3D destination rect. */
+LogicalViewportRect
+metal_pass_get_pass_3d_dst_logical(const struct MetalRendererCore* r);
+
+void
+metal_pass_set_pass_3d_dst_logical(struct MetalRendererCore* r, const LogicalViewportRect& lr);
 
 void
 metal_compute_view_matrix(
@@ -146,7 +151,7 @@ metal_clamped_scissor_from_logical_dst_bb(
     int dst_h);
 
 void
-sync_drawable_size(struct Platform2_SDL2_Renderer_Metal* renderer);
+sync_drawable_size(Platform2_SDL2_Renderer_Metal* renderer);
 
 /** Main-pass depth stencil + drawable-sized depth texture (single active Metal renderer). */
 void
@@ -195,30 +200,14 @@ metal_frame_event_begin_3d(
 void
 metal_frame_event_end_3d(
     MetalRenderCtx* ctx,
-    id<MTLBuffer> uniforms_buffer);
-
-void
-Pass3DBuilder2SubmitMetal(
-    Pass3DBuilder2<GPU3DTransformUniformMetal>& builder,
-    const GPU3DCache2<GPU3DMeshVertexMetal>& cache,
-    id<MTLRenderCommandEncoder> render_command_encoder,
-    id<MTLBuffer> dynamic_instance_buffer,
-    id<MTLBuffer> dynamic_index_buffer,
-    NSUInteger instance_base_bytes,
-    NSUInteger index_base_bytes,
-    id<MTLTexture> fragment_atlas_texture,
-    id<MTLBuffer> atlas_tiles_buffer,
-    id<MTLBuffer> uniforms_buffer,
-    NSUInteger uniforms_buffer_offset_bytes,
-    id<MTLSamplerState> fragment_sampler,
-    id<MTLDepthStencilState> depth_stencil_state);
+    void* uniforms_buffer);
 
 void
 metal_cache2_atlas_resources_init(
-    struct Platform2_SDL2_Renderer_Metal* r,
+    Platform2_SDL2_Renderer_Metal* r,
     id<MTLDevice> device);
 void
-metal_cache2_atlas_resources_shutdown(struct Platform2_SDL2_Renderer_Metal* r);
+metal_cache2_atlas_resources_shutdown(Platform2_SDL2_Renderer_Metal* r);
 
 void
 metal_frame_event_texture_load(
@@ -232,43 +221,20 @@ void
 metal_frame_event_model_unload(
     MetalRenderCtx* ctx,
     const struct ToriRSRenderCommand* cmd);
+
 void
-metal_frame_event_batch_model_load_start(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd);
-void
-metal_frame_event_model_batched_load(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd);
-/** Append current DashModel mesh into `model_cache2` for an open scene batch (`SceneBatchId`). */
-void
-metal_cache2_batch_push_model_mesh(
-    MetalRenderCtx* ctx,
-    struct DashModel* model,
-    int model_id,
-    SceneBatchId scene_batch_id,
-    uint8_t gpu_segment_slot,
-    uint16_t frame_index);
-void
-metal_frame_event_batch_model_load_end(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd);
-void
-metal_frame_event_batch_model_clear(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd);
-void
-metal_frame_event_model_draw(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd);
-void
-metal_frame_event_batch_texture_load_start(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd);
-void
-metal_frame_event_batch_texture_load_end(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd);
+metal_add_model_draw_scenery(
+    Pass3DBuilder2Metal& builder,
+    const GPU3DCache2<GPU3DMeshVertexMetal>& cache,
+    uint16_t model_id,
+    bool use_animation,
+    uint8_t animation_index,
+    uint8_t frame_index,
+    const uint32_t* sorted_indices,
+    uint32_t index_count);
+
+#include "platforms/metal/events/metal_events.h"
+
 void
 metal_frame_event_model_animation_load(
     MetalRenderCtx* ctx,

@@ -21,7 +21,7 @@ FontAtlasBuilderSubmitMetal(
     FontAtlasBuilder& builder,
     MetalRenderCtx* ctx)
 {
-    if( !ctx || !ctx->device || !ctx->renderer || builder.empty() )
+    if( !ctx || !ctx->renderer || !ctx->renderer->mtl_device || builder.empty() )
         return;
 
     for( const FontAtlasEntry& e : builder.entries() )
@@ -41,7 +41,8 @@ FontAtlasBuilderSubmitMetal(
                                                            mipmapped:NO];
         td.usage = MTLTextureUsageShaderRead;
         td.storageMode = MTLStorageModeShared;
-        id<MTLTexture> tex = [ctx->device newTextureWithDescriptor:td];
+        id<MTLDevice> device = (__bridge id<MTLDevice>)ctx->renderer->mtl_device;
+        id<MTLTexture> tex = [device newTextureWithDescriptor:td];
         if( !tex )
         {
             fprintf(

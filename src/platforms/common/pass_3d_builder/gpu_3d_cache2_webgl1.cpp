@@ -12,21 +12,22 @@ static_assert(sizeof(GPU3DMeshVertexWebGL1) == 48u, "GPU3DMeshVertexWebGL1 strid
 void
 GPU3DCache2BatchSubmitWebGL1(
     GPU3DCache2<GPU3DMeshVertexWebGL1>& cache,
+    const WebGL1BatchBuffer& batch,
     BatchBuffersWebGL1& out_batch_buffers,
-    SceneBatchId scene_batch_id)
+    SceneBatchId scene_batch_id,
+    ToriRS_UsageHint usage_hint)
 {
-    const uint32_t vcount = cache.BatchGetVBOVertexCount();
+    const uint32_t vcount = (uint32_t)batch.vbo.size();
     const uint32_t vbo_bytes = vcount * (uint32_t)sizeof(GPU3DMeshVertexWebGL1);
-    const uint32_t ebo_index_count = cache.BatchGetEBOSize();
+    const uint32_t ebo_index_count = (uint32_t)batch.ebo.size();
     const uint32_t ebo_size = ebo_index_count * sizeof(uint16_t);
 
     if( vbo_bytes == 0 || ebo_size == 0 )
     {
-        cache.BatchEnd();
         return;
     }
 
-    const uint16_t* ebo_cpu = cache.BatchGetEBO();
+    const uint16_t* ebo_cpu = batch.ebo.data();
     uint32_t max_index = 0;
     for( uint32_t i = 0; i < ebo_index_count; ++i )
     {
@@ -39,7 +40,6 @@ GPU3DCache2BatchSubmitWebGL1(
             "GPU3DCache2BatchSubmitWebGL1: EBO index out of range (max_index=%u vertex_count=%u)\n",
             max_index,
             vcount);
-        cache.BatchEnd();
         return;
     }
 
@@ -50,7 +50,6 @@ GPU3DCache2BatchSubmitWebGL1(
     if( vbo == 0 || ebo == 0 )
     {
         fprintf(stderr, "GPU3DCache2BatchSubmitWebGL1: glGenBuffers failed\n");
-        cache.BatchEnd();
         if( vbo )
             glDeleteBuffers(1, &vbo);
         if( ebo )
@@ -59,7 +58,7 @@ GPU3DCache2BatchSubmitWebGL1(
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)vbo_bytes, cache.BatchGetVBO(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)vbo_bytes, batch.vbo.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
@@ -71,8 +70,10 @@ GPU3DCache2BatchSubmitWebGL1(
 
     const GPUBatchId merge_gpu_batch_id = cache.AllocGpuBatchId(scene_batch_id);
 
+    const GPU3DResourcePolicy pose_policy = GPU3DCache2PolicyForUsageHint(usage_hint);
+
     GPUModelPosedData pose_data;
-    for( const BatchedQueueModel& batched_model : cache.BatchGetTrackingData() )
+    for( const BatchedQueueModel& batched_model : batch.tracking )
     {
         pose_data.vbo = vbo_handle;
         pose_data.ebo = ebo_handle;
@@ -82,24 +83,10 @@ GPU3DCache2BatchSubmitWebGL1(
         pose_data.vbo_offset = batched_model.vbo_start;
         pose_data.ebo_offset = batched_model.ebo_start;
         pose_data.element_count = batched_model.face_count * 3;
+        pose_data.policy = pose_policy;
         pose_data.valid = true;
         cache.SetModelPose(batched_model.model_id, batched_model.pose_index, pose_data);
     }
-
-    if( scene_batch_id < kGPU3DCache2MaxSceneBatches )
-    {
-        GPU3DCache2SceneBatchEntry* se = cache.SceneBatchGet(scene_batch_id);
-        if( se )
-        {
-            se->merged_vbo_cpu_snapshot.assign(
-                reinterpret_cast<const uint8_t*>(cache.BatchGetVBO()),
-                reinterpret_cast<const uint8_t*>(cache.BatchGetVBO()) + vbo_bytes);
-            se->merged_vbo_vertex_stride_bytes = (uint32_t)sizeof(GPU3DMeshVertexWebGL1);
-            se->merged_vbo_vertex_count = vcount;
-        }
-    }
-
-    cache.BatchEnd();
 
     out_batch_buffers.vbo = vbo;
     out_batch_buffers.ebo = ebo;

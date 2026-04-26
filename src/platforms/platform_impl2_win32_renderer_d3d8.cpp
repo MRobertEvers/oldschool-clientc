@@ -592,7 +592,8 @@ d3d8_build_model_gpu(
     D3D8Internal* priv,
     IDirect3DDevice8* device,
     const struct DashModel* model,
-    uint64_t model_key)
+    uint64_t model_key,
+    uint8_t usage_hint)
 {
     if( !model || !priv || !device )
     {
@@ -671,8 +672,14 @@ d3d8_build_model_gpu(
 
     const UINT bytes = (UINT)(verts.size() * sizeof(D3D8WorldVertex));
     IDirect3DVertexBuffer8* vbo = nullptr;
-    HRESULT hrvb =
-        device->CreateVertexBuffer(bytes, D3DUSAGE_WRITEONLY, kFvfWorld, D3DPOOL_MANAGED, &vbo);
+    DWORD vb_usage = D3DUSAGE_WRITEONLY;
+    D3DPOOL vb_pool = D3DPOOL_MANAGED;
+    if( usage_hint == TORIRS_USAGE_PLAYER || usage_hint == TORIRS_USAGE_PROJECTILE )
+    {
+        vb_usage |= D3DUSAGE_DYNAMIC;
+        vb_pool = D3DPOOL_DEFAULT;
+    }
+    HRESULT hrvb = device->CreateVertexBuffer(bytes, vb_usage, kFvfWorld, vb_pool, &vbo);
     if( hrvb != D3D_OK )
     {
         d3d8_log(
@@ -742,7 +749,8 @@ d3d8_lookup_or_build_model_gpu(
     D3D8Internal* priv,
     IDirect3DDevice8* device,
     const struct DashModel* model,
-    uint64_t model_key)
+    uint64_t model_key,
+    uint8_t usage_hint)
 {
     if( priv->model_gpu_memo_ptr && priv->model_gpu_memo_key == model_key )
         return priv->model_gpu_memo_ptr;
@@ -753,7 +761,7 @@ d3d8_lookup_or_build_model_gpu(
         priv->model_gpu_memo_ptr = it->second;
         return it->second;
     }
-    return d3d8_build_model_gpu(priv, device, model, model_key);
+    return d3d8_build_model_gpu(priv, device, model, model_key, usage_hint);
 }
 
 static void
@@ -1801,7 +1809,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                 }
             }
             if( model && p->model_gpu_by_key.find(mk) == p->model_gpu_by_key.end() )
-                d3d8_build_model_gpu(p, dev, model, mk);
+                d3d8_build_model_gpu(p, dev, model, mk, command._model_load.usage_hint);
         }
         break;
 
@@ -1936,10 +1944,22 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
                 break;
             }
 
+            const uint8_t batch_usage = command._batch.usage_hint;
+            DWORD vb_usage = D3DUSAGE_WRITEONLY;
+            D3DPOOL vb_pool = D3DPOOL_MANAGED;
+            DWORD ib_usage = D3DUSAGE_WRITEONLY;
+            D3DPOOL ib_pool = D3DPOOL_MANAGED;
+            if( batch_usage == TORIRS_USAGE_PLAYER || batch_usage == TORIRS_USAGE_PROJECTILE )
+            {
+                vb_usage |= D3DUSAGE_DYNAMIC;
+                ib_usage |= D3DUSAGE_DYNAMIC;
+                vb_pool = D3DPOOL_DEFAULT;
+                ib_pool = D3DPOOL_DEFAULT;
+            }
+
             const UINT vbytes = (UINT)(batch->pending_verts.size() * sizeof(D3D8WorldVertex));
             IDirect3DVertexBuffer8* vbo = nullptr;
-            HRESULT hrvb = dev->CreateVertexBuffer(
-                vbytes, D3DUSAGE_WRITEONLY, kFvfWorld, D3DPOOL_MANAGED, &vbo);
+            HRESULT hrvb = dev->CreateVertexBuffer(vbytes, vb_usage, kFvfWorld, vb_pool, &vbo);
             if( hrvb != D3D_OK || !vbo )
             {
                 d3d8_log(
@@ -1987,8 +2007,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
 
             const UINT ibytes = (UINT)(batch->pending_indices.size() * sizeof(uint16_t));
             IDirect3DIndexBuffer8* ibo = nullptr;
-            HRESULT hrib = dev->CreateIndexBuffer(
-                ibytes, D3DUSAGE_WRITEONLY, D3DFMT_INDEX16, D3DPOOL_MANAGED, &ibo);
+            HRESULT hrib = dev->CreateIndexBuffer(ibytes, ib_usage, D3DFMT_INDEX16, ib_pool, &ibo);
             if( hrib != D3D_OK || !ibo )
             {
                 d3d8_log(
@@ -2256,7 +2275,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             }
             if( !gpu )
             {
-                gpu = d3d8_lookup_or_build_model_gpu(p, dev, model, mk_draw);
+                gpu = d3d8_lookup_or_build_model_gpu(p, dev, model, mk_draw, command._model_draw.usage_hint);
                 if( !gpu || !gpu->vbo )
                     break;
             }

@@ -29,39 +29,6 @@ extern "C" {
 
 #include <GLES2/gl2.h>
 
-static bool
-webgl1_dash_model_needs_sorted_face_indices(struct DashModel* model)
-{
-    if( dashmodel_face_priorities(model) )
-        return true;
-    const int fc = dashmodel_face_count(model);
-    const uint8_t* al = dashmodel_face_alphas_const(model);
-    if( !al || fc <= 0 )
-        return false;
-    for( int i = 0; i < fc; ++i )
-    {
-        if( al[i] < 255u )
-            return true;
-    }
-    return false;
-}
-
-static bool
-webgl1_projected_face_order_is_strictly_sequential(
-    const int* face_order,
-    int face_order_count,
-    int face_count)
-{
-    if( !face_order || face_order_count != face_count || face_count <= 0 )
-        return false;
-    for( int fi = 0; fi < face_order_count; ++fi )
-    {
-        if( face_order[fi] != fi )
-            return false;
-    }
-    return true;
-}
-
 static struct nk_context* s_webgl1_nk = nullptr;
 static Uint64 s_webgl1_ui_prev_perf = 0;
 
@@ -110,7 +77,7 @@ webgl1_delete_gl_buffer(GPUResourceHandle h)
 
 static void
 webgl1_write_atlas_tile_slot(
-    struct Platform2_SDL2_Renderer_WebGL1* r,
+    Platform2_SDL2_Renderer_WebGL1* r,
     uint16_t tex_id,
     const struct DashTexture* tex_nullable)
 {
@@ -152,14 +119,14 @@ webgl1_write_atlas_tile_slot(
 }
 
 static void
-webgl1_fill_all_atlas_tiles_default(struct Platform2_SDL2_Renderer_WebGL1* r)
+webgl1_fill_all_atlas_tiles_default(Platform2_SDL2_Renderer_WebGL1* r)
 {
     for( uint16_t i = 0; i < (uint16_t)MAX_TEXTURES; ++i )
         webgl1_write_atlas_tile_slot(r, i, nullptr);
 }
 
 static void
-webgl1_refresh_atlas_texture(struct Platform2_SDL2_Renderer_WebGL1* r)
+webgl1_refresh_atlas_texture(Platform2_SDL2_Renderer_WebGL1* r)
 {
     if( !r )
         return;
@@ -172,7 +139,7 @@ webgl1_refresh_atlas_texture(struct Platform2_SDL2_Renderer_WebGL1* r)
 }
 
 void
-webgl1_atlas_resources_init(struct Platform2_SDL2_Renderer_WebGL1* r)
+webgl1_atlas_resources_init(Platform2_SDL2_Renderer_WebGL1* r)
 {
     if( !r )
         return;
@@ -187,10 +154,14 @@ webgl1_atlas_resources_init(struct Platform2_SDL2_Renderer_WebGL1* r)
     webgl1_fill_all_atlas_tiles_default(r);
     webgl1_refresh_atlas_texture(r);
     r->tiles_dirty = true;
+    if( r->pass3d_dynamic_ibo == 0u )
+    {
+        glGenBuffers(1, &r->pass3d_dynamic_ibo);
+    }
 }
 
 void
-webgl1_atlas_resources_shutdown(struct Platform2_SDL2_Renderer_WebGL1* r)
+webgl1_atlas_resources_shutdown(Platform2_SDL2_Renderer_WebGL1* r)
 {
     if( !r )
         return;
@@ -201,104 +172,10 @@ webgl1_atlas_resources_shutdown(struct Platform2_SDL2_Renderer_WebGL1* r)
     }
     r->tiles_cpu.clear();
     r->model_cache2.UnloadAtlas();
-}
-
-void
-webgl1_cache2_batch_push_model_mesh(
-    WebGL1RenderCtx* ctx,
-    struct DashModel* model,
-    int model_id,
-    SceneBatchId scene_batch_id,
-    uint8_t gpu_segment_slot,
-    uint16_t frame_index)
-{
-    if( !ctx || !ctx->renderer || !model || model_id <= 0 )
-        return;
-
-    if( !dashmodel_face_colors_a_const(model) || !dashmodel_face_colors_b_const(model) ||
-        !dashmodel_face_colors_c_const(model) || !dashmodel_vertices_x_const(model) ||
-        !dashmodel_vertices_y_const(model) || !dashmodel_vertices_z_const(model) ||
-        !dashmodel_face_indices_a_const(model) || !dashmodel_face_indices_b_const(model) ||
-        !dashmodel_face_indices_c_const(model) || dashmodel_face_count(model) <= 0 )
-        return;
-
-    const vertexint_t* vertices_x = dashmodel_vertices_x_const(model);
-    const vertexint_t* vertices_y = dashmodel_vertices_y_const(model);
-    const vertexint_t* vertices_z = dashmodel_vertices_z_const(model);
-
-    const hsl16_t* face_colors_a = dashmodel_face_colors_a_const(model);
-    const hsl16_t* face_colors_b = dashmodel_face_colors_b_const(model);
-    const hsl16_t* face_colors_c = dashmodel_face_colors_c_const(model);
-    const uint8_t* face_alphas = dashmodel_face_alphas_const(model);
-
-    const faceint_t* face_indices_a = dashmodel_face_indices_a_const(model);
-    const faceint_t* face_indices_b = dashmodel_face_indices_b_const(model);
-    const faceint_t* face_indices_c = dashmodel_face_indices_c_const(model);
-
-    const int face_count = dashmodel_face_count(model);
-    const int vertex_count = dashmodel_vertex_count(model);
-    const int* face_infos = dashmodel_face_infos_const(model);
-
-    if( scene_batch_id < kGPU3DCache2MaxSceneBatches )
-        ctx->renderer->model_cache2.SceneBatchAddModel(scene_batch_id, (uint16_t)model_id);
-
-    if( dashmodel_has_textures(model) )
+    if( r->pass3d_dynamic_ibo != 0u )
     {
-        const faceint_t* faces_textures = dashmodel_face_textures_const(model);
-        const faceint_t* textured_faces = dashmodel_face_texture_coords_const(model);
-        const faceint_t* textured_faces_a = dashmodel_textured_p_coordinate_const(model);
-        const faceint_t* textured_faces_b = dashmodel_textured_m_coordinate_const(model);
-        const faceint_t* textured_faces_c = dashmodel_textured_n_coordinate_const(model);
-
-        GPU3DCache2UVCalculationMode uv_calculation_mode;
-        if( dashmodel__is_ground_va(model) )
-            uv_calculation_mode = GPU3DCache2UVCalculationMode::FirstFace;
-        else
-            uv_calculation_mode = GPU3DCache2UVCalculationMode::TexturedFaceArray;
-
-        ctx->renderer->model_cache2.BatchAddModelTexturedi16(
-            (uint16_t)model_id,
-            gpu_segment_slot,
-            frame_index,
-            (uint32_t)vertex_count,
-            const_cast<vertexint_t*>(vertices_x),
-            const_cast<vertexint_t*>(vertices_y),
-            const_cast<vertexint_t*>(vertices_z),
-            (uint32_t)face_count,
-            reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(face_indices_a)),
-            reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(face_indices_b)),
-            reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(face_indices_c)),
-            const_cast<uint16_t*>(face_colors_a),
-            const_cast<uint16_t*>(face_colors_b),
-            const_cast<uint16_t*>(face_colors_c),
-            const_cast<uint8_t*>(face_alphas),
-            const_cast<faceint_t*>(faces_textures),
-            reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(textured_faces)),
-            reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(textured_faces_a)),
-            reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(textured_faces_b)),
-            reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(textured_faces_c)),
-            face_infos,
-            uv_calculation_mode);
-    }
-    else
-    {
-        ctx->renderer->model_cache2.BatchAddModeli16(
-            (uint16_t)model_id,
-            gpu_segment_slot,
-            frame_index,
-            (uint32_t)vertex_count,
-            const_cast<vertexint_t*>(vertices_x),
-            const_cast<vertexint_t*>(vertices_y),
-            const_cast<vertexint_t*>(vertices_z),
-            (uint32_t)face_count,
-            reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(face_indices_a)),
-            reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(face_indices_b)),
-            reinterpret_cast<uint16_t*>(const_cast<faceint_t*>(face_indices_c)),
-            const_cast<uint16_t*>(face_colors_a),
-            const_cast<uint16_t*>(face_colors_b),
-            const_cast<uint16_t*>(face_colors_c),
-            const_cast<uint8_t*>(face_alphas),
-            face_infos);
+        glDeleteBuffers(1, &r->pass3d_dynamic_ibo);
+        r->pass3d_dynamic_ibo = 0u;
     }
 }
 
@@ -309,7 +186,7 @@ webgl1_frame_event_clear_rect(
 {
     if( !ctx || !ctx->renderer || !cmd )
         return;
-    struct Platform2_SDL2_Renderer_WebGL1* r = ctx->renderer;
+    Platform2_SDL2_Renderer_WebGL1* r = ctx->renderer;
     const int rx = cmd->_clear_rect.x;
     const int ry = cmd->_clear_rect.y;
     const int rw = cmd->_clear_rect.w;
@@ -317,7 +194,7 @@ webgl1_frame_event_clear_rect(
     if( rw <= 0 || rh <= 0 )
         return;
 
-    if( ctx->clear_rect_slot >= kWebGL1MaxClearRectsPerFrame )
+    if( ctx->renderer->pass.clear_rect_slot >= kWebGL1MaxClearRectsPerFrame )
     {
         static bool s_warned;
         if( !s_warned )
@@ -330,11 +207,19 @@ webgl1_frame_event_clear_rect(
         }
         return;
     }
-    ctx->clear_rect_slot++;
+    ctx->renderer->pass.clear_rect_slot++;
 
     glViewport(0, 0, r->width, r->height);
     glEnable(GL_SCISSOR_TEST);
-    webgl1_clamped_gl_scissor(r->width, r->height, ctx->win_width, ctx->win_height, rx, ry, rw, rh);
+    webgl1_clamped_gl_scissor(
+        r->width,
+        r->height,
+        ctx->renderer->pass.win_width,
+        ctx->renderer->pass.win_height,
+        rx,
+        ry,
+        rw,
+        rh);
     glDepthMask(GL_TRUE);
     glClearDepthf(1.0f);
     glClear(GL_DEPTH_BUFFER_BIT);
@@ -350,7 +235,7 @@ webgl1_frame_event_begin_3d(
     if( !ctx || !ctx->renderer || !default_logical_vp )
         return;
 
-    struct Platform2_SDL2_Renderer_WebGL1* renderer = ctx->renderer;
+    Platform2_SDL2_Renderer_WebGL1* renderer = ctx->renderer;
 
     LogicalViewportRect pass_lr = *default_logical_vp;
     if( cmd && cmd->_begin_3d.w > 0 && cmd->_begin_3d.h > 0 )
@@ -362,17 +247,21 @@ webgl1_frame_event_begin_3d(
     }
 
     const ToriGlViewportPixels gl_vp = compute_gl_world_viewport_rect(
-        renderer->width, renderer->height, ctx->win_width, ctx->win_height, pass_lr);
-    ctx->pass_3d_dst_logical = pass_lr;
-    ctx->world_gl_vp = gl_vp;
+        renderer->width,
+        renderer->height,
+        ctx->renderer->pass.win_width,
+        ctx->renderer->pass.win_height,
+        pass_lr);
+    ctx->renderer->pass.pass_3d_dst_logical = pass_lr;
+    ctx->renderer->pass.world_gl_vp = gl_vp;
 
     glViewport(gl_vp.x, gl_vp.y, gl_vp.width, gl_vp.height);
     glEnable(GL_SCISSOR_TEST);
     webgl1_clamped_gl_scissor(
         renderer->width,
         renderer->height,
-        ctx->win_width,
-        ctx->win_height,
+        ctx->renderer->pass.win_width,
+        ctx->renderer->pass.win_height,
         pass_lr.x,
         pass_lr.y,
         pass_lr.width,
@@ -391,14 +280,21 @@ webgl1_frame_event_begin_3d(
     webgl1_clamped_gl_scissor(
         renderer->width,
         renderer->height,
-        ctx->win_width,
-        ctx->win_height,
+        ctx->renderer->pass.win_width,
+        ctx->renderer->pass.win_height,
         pass_lr.x,
         pass_lr.y,
         pass_lr.width,
         pass_lr.height);
 
-    renderer->pass3d_builder.Begin3D();
+    if( ctx->game )
+    {
+        renderer->pass3d_builder.Begin();
+    }
+    else
+    {
+        renderer->pass3d_builder.Begin();
+    }
 }
 
 void
@@ -407,29 +303,29 @@ webgl1_frame_event_end_3d(WebGL1RenderCtx* ctx)
     if( !ctx || !ctx->renderer )
         return;
 
-    struct Platform2_SDL2_Renderer_WebGL1* renderer = ctx->renderer;
+    Platform2_SDL2_Renderer_WebGL1* renderer = ctx->renderer;
 
     if( renderer->prog_world3d == 0u )
         return;
 
     if( !renderer->pass3d_builder.HasCommands() )
     {
-        renderer->pass3d_builder.End3D();
+        renderer->pass3d_builder.End();
         return;
     }
 
-    if( renderer->uniform_pass_subslot >= (uint32_t)kWebGL1Max3dPassesPerFrame )
+    if( renderer->pass.uniform_pass_subslot >= (uint32_t)kWebGL1Max3dPassesPerFrame )
     {
         fprintf(
             stderr,
             "webgl1_frame_event_end_3d: more than %d 3D passes in one frame; skipping draw\n",
             kWebGL1Max3dPassesPerFrame);
         renderer->pass3d_builder.ClearAfterSubmit();
-        renderer->pass3d_builder.End3D();
+        renderer->pass3d_builder.End();
         return;
     }
 
-    const LogicalViewportRect& pl = ctx->pass_3d_dst_logical;
+    const LogicalViewportRect& pl = ctx->renderer->pass.pass_3d_dst_logical;
     const float projection_width = (float)pl.width;
     const float projection_height = (float)pl.height;
 
@@ -437,7 +333,13 @@ webgl1_frame_event_end_3d(WebGL1RenderCtx* ctx)
     struct GGame* game = ctx->game;
     const float pitch_rad = game ? webgl1_dash_yaw_to_radians(game->camera_pitch) : 0.0f;
     const float yaw_rad = game ? webgl1_dash_yaw_to_radians(game->camera_yaw) : 0.0f;
-    webgl1_compute_view_matrix(uniforms.modelViewMatrix, 0.0f, 0.0f, 0.0f, pitch_rad, yaw_rad);
+    webgl1_compute_view_matrix(
+        uniforms.modelViewMatrix,
+        game ? (float)game->camera_world_x : 0.0f,
+        game ? (float)game->camera_world_y : 0.0f,
+        game ? (float)game->camera_world_z : 0.0f,
+        pitch_rad,
+        yaw_rad);
     webgl1_compute_projection_matrix(
         uniforms.projectionMatrix,
         (90.0f * (float)M_PI) / 180.0f,
@@ -450,7 +352,6 @@ webgl1_frame_event_end_3d(WebGL1RenderCtx* ctx)
 
     Pass3DBuilder2SubmitWebGL1(
         renderer->pass3d_builder,
-        renderer->model_cache2,
         renderer,
         renderer->prog_world3d,
         renderer->world_locs,
@@ -459,10 +360,10 @@ webgl1_frame_event_end_3d(WebGL1RenderCtx* ctx)
         uniforms.projectionMatrix,
         uniforms.uClock);
 
-    renderer->uniform_pass_subslot += 1u;
+    renderer->pass.uniform_pass_subslot += 1u;
 
     renderer->pass3d_builder.ClearAfterSubmit();
-    renderer->pass3d_builder.End3D();
+    renderer->pass3d_builder.End();
 }
 
 void
@@ -477,7 +378,7 @@ webgl1_frame_event_texture_load(
     if( !tex || !tex->texels || tex_id < 0 || tex_id >= (int)MAX_TEXTURES )
         return;
 
-    struct Platform2_SDL2_Renderer_WebGL1* r = ctx->renderer;
+    Platform2_SDL2_Renderer_WebGL1* r = ctx->renderer;
 
     const int w = tex->width;
     const int h = tex->height;
@@ -551,12 +452,25 @@ webgl1_frame_event_model_load(
     webgl1_delete_gl_buffer(prev.vbo);
     webgl1_delete_gl_buffer(prev.ebo);
 
-    ctx->renderer->model_cache2.BatchBegin();
+    WebGL1BatchBuffer solo{};
+    const GPU3DBakeTransform identity_bake{};
     webgl1_cache2_batch_push_model_mesh(
-        ctx, model, model_id, kSceneBatchSlotNone, GPU_MODEL_ANIMATION_NONE_IDX, 0u);
+        ctx,
+        solo,
+        model,
+        model_id,
+        kSceneBatchSlotNone,
+        GPU_MODEL_ANIMATION_NONE_IDX,
+        0u,
+        identity_bake);
 
     BatchBuffersWebGL1 v2bufs{};
-    GPU3DCache2BatchSubmitWebGL1(ctx->renderer->model_cache2, v2bufs, kSceneBatchSlotNone);
+    GPU3DCache2BatchSubmitWebGL1(
+        ctx->renderer->model_cache2,
+        solo,
+        v2bufs,
+        kSceneBatchSlotNone,
+        (ToriRS_UsageHint)cmd->_model_load.usage_hint);
 
     ctx->renderer->model_cache2.SetStandaloneRetainedBuffers(
         (uint16_t)model_id,
@@ -564,7 +478,6 @@ webgl1_frame_event_model_load(
         (GPUResourceHandle)(uintptr_t)v2bufs.ebo);
     v2bufs.vbo = 0u;
     v2bufs.ebo = 0u;
-    (void)cmd->_model_load.usage_hint;
 }
 
 void
@@ -580,170 +493,6 @@ webgl1_frame_event_model_unload(
     webgl1_delete_gl_buffer(solo.vbo);
     webgl1_delete_gl_buffer(solo.ebo);
     ctx->renderer->model_cache2.ClearModel((uint16_t)mid);
-    (void)cmd->_model_load.usage_hint;
-}
-
-void
-webgl1_frame_event_batch_model_load_start(
-    WebGL1RenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd)
-{
-    const uint32_t bid = cmd->_batch.batch_id;
-    ctx->renderer->current_model_batch_id = bid;
-    ctx->renderer->current_model_batch_active = true;
-    ctx->renderer->model_cache2.BatchBegin();
-    (void)ctx->renderer->model_cache2.SceneBatchBegin(
-        bid, (ToriRS_UsageHint)cmd->_batch.usage_hint);
-}
-
-void
-webgl1_frame_event_model_batched_load(
-    WebGL1RenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd)
-{
-    struct DashModel* model = cmd->_model_load.model;
-    const int model_id = cmd->_model_load.model_id;
-    const uint32_t bid = ctx->renderer->current_model_batch_id;
-    if( !model || model_id <= 0 || !ctx->renderer->current_model_batch_active )
-        return;
-
-    webgl1_cache2_batch_push_model_mesh(
-        ctx, model, model_id, bid, GPU_MODEL_ANIMATION_NONE_IDX, 0u);
-}
-
-void
-webgl1_frame_event_batch_model_load_end(
-    WebGL1RenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd)
-{
-    const uint32_t bid = cmd->_batch.batch_id;
-
-    BatchBuffersWebGL1 v2bufs{};
-    GPU3DCache2BatchSubmitWebGL1(ctx->renderer->model_cache2, v2bufs, bid);
-    GPU3DCache2Resource res{};
-    res.vbo = (GPUResourceHandle)(uintptr_t)v2bufs.vbo;
-    res.ebo = (GPUResourceHandle)(uintptr_t)v2bufs.ebo;
-    res.valid = (v2bufs.vbo != 0u && v2bufs.ebo != 0u);
-    res.policy = GPU3DCache2PolicyForUsageHint((ToriRS_UsageHint)cmd->_batch.usage_hint);
-    ctx->renderer->model_cache2.SceneBatchSetResource(bid, res);
-    v2bufs.vbo = 0u;
-    v2bufs.ebo = 0u;
-
-    ctx->renderer->current_model_batch_id = 0;
-    ctx->renderer->current_model_batch_active = false;
-}
-
-void
-webgl1_frame_event_batch_model_clear(
-    WebGL1RenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd)
-{
-    const uint32_t bid = cmd->_batch.batch_id;
-    GPU3DCache2SceneBatchEntry cleared = ctx->renderer->model_cache2.SceneBatchClear(bid);
-    for( uint16_t mid : cleared.scene_model_ids )
-        ctx->renderer->model_cache2.ClearModel(mid);
-    webgl1_delete_gl_buffer(cleared.resource.vbo);
-    webgl1_delete_gl_buffer(cleared.resource.ebo);
-}
-
-void
-webgl1_frame_event_model_draw(
-    WebGL1RenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd)
-{
-    struct DashModel* model = cmd->_model_draw.model;
-    if( !model || !dashmodel_face_colors_a_const(model) || !dashmodel_face_colors_b_const(model) ||
-        !dashmodel_face_colors_c_const(model) || !dashmodel_vertices_x_const(model) ||
-        !dashmodel_vertices_y_const(model) || !dashmodel_vertices_z_const(model) ||
-        !dashmodel_face_indices_a_const(model) || !dashmodel_face_indices_b_const(model) ||
-        !dashmodel_face_indices_c_const(model) || dashmodel_face_count(model) <= 0 )
-        return;
-
-    const int mid_v2 = cmd->_model_draw.model_id;
-    if( mid_v2 <= 0 )
-        return;
-
-    if( ctx->renderer )
-        ctx->renderer->diag_frame_model_draw_cmds++;
-
-    const bool use_anim = cmd->_model_draw.use_animation;
-    const uint8_t anim_idx = cmd->_model_draw.animation_index;
-    const uint8_t frame_idx = cmd->_model_draw.frame_index;
-    const GPUModelPosedData pose = ctx->renderer->model_cache2.GetModelPoseForDraw(
-        (uint16_t)mid_v2, use_anim, (int)anim_idx, (int)frame_idx);
-    if( !pose.valid || pose.gpu_batch_id == 0u )
-    {
-        if( ctx->renderer )
-            ctx->renderer->diag_frame_pose_invalid_skips++;
-        return;
-    }
-
-    struct DashPosition draw_position = cmd->_model_draw.position;
-    int face_order_count = dash3d_prepare_projected_face_order(
-        ctx->game->sys_dash, model, &draw_position, ctx->game->view_port, ctx->game->camera);
-    const int* face_order = dash3d_projected_face_order(ctx->game->sys_dash, &face_order_count);
-
-    const int face_count = dashmodel_face_count(model);
-
-    bool need_sorted_indices = webgl1_dash_model_needs_sorted_face_indices(model);
-    if( !need_sorted_indices && face_order_count > 0 && face_order &&
-        !webgl1_projected_face_order_is_strictly_sequential(
-            face_order, face_order_count, face_count) )
-        need_sorted_indices = true;
-
-    static std::vector<uint16_t> g_sorted;
-    g_sorted.clear();
-    uint16_t* idx_ptr = nullptr;
-    uint32_t idx_count = 0u;
-
-    if( need_sorted_indices && face_order_count > 0 && face_count > 0 )
-    {
-        g_sorted.reserve((size_t)face_order_count * 3u);
-        for( int fi = 0; fi < face_order_count; ++fi )
-        {
-            const int face_index = face_order ? face_order[fi] : fi;
-            if( face_index < 0 || face_index >= face_count )
-                continue;
-            const uint32_t b = (uint32_t)face_index * 3u;
-            g_sorted.push_back((uint16_t)b);
-            g_sorted.push_back((uint16_t)(b + 1u));
-            g_sorted.push_back((uint16_t)(b + 2u));
-        }
-        idx_count = (uint32_t)g_sorted.size();
-        idx_ptr = idx_count ? g_sorted.data() : nullptr;
-    }
-
-    ctx->renderer->pass3d_builder.AddModelDrawYawOnly(
-        ctx->renderer->model_cache2,
-        (uint16_t)mid_v2,
-        draw_position.x,
-        draw_position.y,
-        draw_position.z,
-        draw_position.yaw,
-        use_anim,
-        anim_idx,
-        frame_idx,
-        idx_ptr,
-        idx_count);
-    (void)cmd->_model_draw.usage_hint;
-}
-
-void
-webgl1_frame_event_batch_texture_load_start(
-    WebGL1RenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd)
-{
-    (void)ctx;
-    (void)cmd;
-}
-
-void
-webgl1_frame_event_batch_texture_load_end(
-    WebGL1RenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd)
-{
-    (void)ctx;
-    (void)cmd;
 }
 
 void
@@ -756,29 +505,41 @@ webgl1_frame_event_model_animation_load(
     if( !cmd->_animation_load.model || mid <= 0 )
         return;
 
-    if( !ctx->renderer->current_model_batch_active )
+    if( !ctx->renderer->pass.current_model_batch_active )
         return;
-    const uint32_t bid = ctx->renderer->current_model_batch_id;
+    const uint32_t bid = ctx->renderer->pass.current_model_batch_id;
 
     struct DashModel* model = cmd->_animation_load.model;
     dashmodel_animate(model, cmd->_animation_load.frame, cmd->_animation_load.framemap);
     const uint8_t gpu_seg = cmd->_animation_load.animation_index == 1
                                 ? GPU_MODEL_ANIMATION_SECONDARY_IDX
                                 : GPU_MODEL_ANIMATION_PRIMARY_IDX;
-    webgl1_cache2_batch_push_model_mesh(ctx, model, mid, bid, gpu_seg, (uint16_t)fidx);
+    const GPU3DBakeTransform abake =
+        ctx->renderer->model_cache2.GetModelBakeTransform((uint16_t)mid);
+    webgl1_cache2_batch_push_model_mesh(
+        ctx,
+        ctx->renderer->batch3d_staging,
+        model,
+        mid,
+        bid,
+        gpu_seg,
+        (uint16_t)fidx,
+        abake);
     (void)cmd->_animation_load.usage_hint;
 }
 
-struct Platform2_SDL2_Renderer_WebGL1*
+Platform2_SDL2_Renderer_WebGL1*
 PlatformImpl2_SDL2_Renderer_WebGL1_New(
     int width,
     int height)
 {
-    return new Platform2_SDL2_Renderer_WebGL1();
+    (void)width;
+    (void)height;
+    return new WebGL1RendererCore();
 }
 
 void
-PlatformImpl2_SDL2_Renderer_WebGL1_Free(struct Platform2_SDL2_Renderer_WebGL1* renderer)
+PlatformImpl2_SDL2_Renderer_WebGL1_Free(Platform2_SDL2_Renderer_WebGL1* renderer)
 {
     if( !renderer )
         return;
@@ -803,7 +564,7 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Free(struct Platform2_SDL2_Renderer_WebGL1* r
 
 bool
 PlatformImpl2_SDL2_Renderer_WebGL1_Init(
-    struct Platform2_SDL2_Renderer_WebGL1* renderer,
+    Platform2_SDL2_Renderer_WebGL1* renderer,
     struct Platform2_SDL2* platform)
 {
     if( !renderer || !platform || !platform->window )
@@ -868,7 +629,7 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Init(
 
 void
 PlatformImpl2_SDL2_Renderer_WebGL1_Render(
-    struct Platform2_SDL2_Renderer_WebGL1* renderer,
+    Platform2_SDL2_Renderer_WebGL1* renderer,
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
 {
@@ -886,7 +647,7 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
     renderer->diag_frame_submitted_model_draws = 0u;
     renderer->diag_frame_dynamic_index_draws = 0u;
 
-    renderer->uniform_pass_subslot = 0u;
+    renderer->pass.uniform_pass_subslot = 0u;
 
     glViewport(0, 0, renderer->width, renderer->height);
     webgl1_gl_bind_default_world_gl_state();
@@ -906,12 +667,13 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
 
     LibToriRS_FrameBegin(game, render_command_buffer);
 
+    renderer->pass.win_width = win_width;
+    renderer->pass.win_height = win_height;
+    renderer->pass.clear_rect_slot = 0;
+
     WebGL1RenderCtx ctx = {};
     ctx.renderer = renderer;
     ctx.game = game;
-    ctx.win_width = win_width;
-    ctx.win_height = win_height;
-    ctx.clear_rect_slot = 0;
 
     {
         struct ToriRSRenderCommand cmd = { 0 };
@@ -929,7 +691,7 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
                 webgl1_frame_event_clear_rect(&ctx, &cmd);
                 break;
             case TORIRS_GFX_RES_TEX_LOAD:
-                webgl1_frame_event_texture_load(&ctx, &cmd);
+                webgl1_event_res_tex_load(&ctx, &cmd);
                 break;
             case TORIRS_GFX_RES_MODEL_LOAD:
                 webgl1_frame_event_model_load(&ctx, &cmd);
@@ -938,25 +700,25 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
                 webgl1_frame_event_model_unload(&ctx, &cmd);
                 break;
             case TORIRS_GFX_BATCH3D_BEGIN:
-                webgl1_frame_event_batch_model_load_start(&ctx, &cmd);
+                webgl1_event_batch3d_begin(&ctx, &cmd);
                 break;
             case TORIRS_GFX_BATCH3D_MODEL_ADD:
-                webgl1_frame_event_model_batched_load(&ctx, &cmd);
+                webgl1_event_batch3d_model_add(&ctx, &cmd);
                 break;
             case TORIRS_GFX_BATCH3D_END:
-                webgl1_frame_event_batch_model_load_end(&ctx, &cmd);
+                webgl1_event_batch3d_end(&ctx, &cmd);
                 break;
             case TORIRS_GFX_BATCH3D_CLEAR:
-                webgl1_frame_event_batch_model_clear(&ctx, &cmd);
+                webgl1_event_batch3d_clear(&ctx, &cmd);
                 break;
             case TORIRS_GFX_DRAW_MODEL:
-                webgl1_frame_event_model_draw(&ctx, &cmd);
+                webgl1_event_draw_model(&ctx, &cmd);
                 break;
             case TORIRS_GFX_BATCH2D_TEX_BEGIN:
-                webgl1_frame_event_batch_texture_load_start(&ctx, &cmd);
+                webgl1_event_batch2d_tex_begin(&ctx, &cmd);
                 break;
             case TORIRS_GFX_BATCH2D_TEX_END:
-                webgl1_frame_event_batch_texture_load_end(&ctx, &cmd);
+                webgl1_event_batch2d_tex_end(&ctx, &cmd);
                 break;
             case TORIRS_GFX_RES_ANIM_LOAD:
             case TORIRS_GFX_BATCH3D_ANIM_ADD:

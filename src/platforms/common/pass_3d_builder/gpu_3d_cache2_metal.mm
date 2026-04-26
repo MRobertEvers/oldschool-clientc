@@ -12,29 +12,30 @@ static_assert(
 void
 GPU3DCache2BatchSubmitMetal(
     GPU3DCache2<GPU3DMeshVertexMetal>& cache,
+    const MetalBatchBuffer& batch,
     id<MTLDevice> metal_device,
     BatchBuffers& out_batch_buffers,
-    SceneBatchId scene_batch_id)
+    SceneBatchId scene_batch_id,
+    ToriRS_UsageHint usage_hint)
 {
     const uint32_t vbo_size =
-        cache.BatchGetVBOVertexCount() * (uint32_t)sizeof(GPU3DMeshVertexMetal);
-    uint32_t ebo_size = cache.BatchGetEBOSize() * sizeof(uint16_t);
+        (uint32_t)batch.vbo.size() * (uint32_t)sizeof(GPU3DMeshVertexMetal);
+    uint32_t ebo_size = (uint32_t)batch.ebo.size() * (uint32_t)sizeof(uint32_t);
 
     if( vbo_size == 0 || ebo_size == 0 )
     {
-        cache.BatchEnd(); // Empty batch, just cleanup
         return;
     }
 
     // 1. Upload to Metal
     // Use StorageModeShared for unified memory (Apple Silicon/iOS) or Managed for discrete Macs
     id<MTLBuffer> batched_vbo = //
-        [metal_device newBufferWithBytes:(const void*)cache.BatchGetVBO()
+        [metal_device newBufferWithBytes:(const void*)batch.vbo.data()
                                   length:(NSUInteger)vbo_size
                                  options:MTLResourceStorageModeShared];
 
     id<MTLBuffer> batched_ebo = //
-        [metal_device newBufferWithBytes:cache.BatchGetEBO()
+        [metal_device newBufferWithBytes:batch.ebo.data()
                                   length:ebo_size
                                  options:MTLResourceStorageModeShared];
 
@@ -48,15 +49,14 @@ GPU3DCache2BatchSubmitMetal(
             batched_ebo,
             vbo_size,
             ebo_size);
-        cache.BatchEnd();
         batched_vbo = nil;
         batched_ebo = nil;
         return;
     }
 
-    const uint32_t vertex_count = cache.BatchGetVBOVertexCount();
-    const uint16_t* ebo_cpu = cache.BatchGetEBO();
-    const uint32_t ebo_index_count = cache.BatchGetEBOSize();
+    const uint32_t vertex_count = (uint32_t)batch.vbo.size();
+    const uint32_t* ebo_cpu = batch.ebo.data();
+    const uint32_t ebo_index_count = (uint32_t)batch.ebo.size();
     uint32_t max_index = 0;
     for( uint32_t i = 0; i < ebo_index_count; ++i )
     {
@@ -69,7 +69,6 @@ GPU3DCache2BatchSubmitMetal(
             "GPU3DCache2BatchSubmitMetal: EBO index out of range (max_index=%u vertex_count=%u)\n",
             max_index,
             vertex_count);
-        cache.BatchEnd();
         batched_vbo = nil;
         batched_ebo = nil;
         return;
@@ -78,12 +77,14 @@ GPU3DCache2BatchSubmitMetal(
     // 2. Link the Cache — one GPU pose slot per batched entry. Pose slots store non-owning
     //    `__bridge void*` handles; the batch map / `BatchBuffers` own +1 via `__bridge_retained`
     //    at hand-off below.
-    const auto& tracking_data = cache.BatchGetTrackingData();
+    const auto& tracking_data = batch.tracking;
 
     const GPUResourceHandle vbo_handle = (GPUResourceHandle)(__bridge void*)batched_vbo;
     const GPUResourceHandle ebo_handle = (GPUResourceHandle)(__bridge void*)batched_ebo;
 
     const GPUBatchId merge_gpu_batch_id = cache.AllocGpuBatchId(scene_batch_id);
+
+    const GPU3DResourcePolicy pose_policy = GPU3DCache2PolicyForUsageHint(usage_hint);
 
     GPUModelPosedData pose_data;
     for( const BatchedQueueModel& batched_model : tracking_data )
@@ -96,32 +97,16 @@ GPU3DCache2BatchSubmitMetal(
 
         // vbo_start is first vertex index of this model slice in the merged VBO.
         pose_data.vbo_offset = batched_model.vbo_start;
-        // ebo_start is first index in uint16 index buffer (triangle list).
+        // ebo_start is first index in uint32 index buffer (triangle list).
         pose_data.ebo_offset = batched_model.ebo_start;
 
         // Faces * 3 = Indices
         pose_data.element_count = batched_model.face_count * 3;
+        pose_data.policy = pose_policy;
         pose_data.valid = true;
 
         cache.SetModelPose(batched_model.model_id, batched_model.pose_index, pose_data);
     }
-
-    if( scene_batch_id < kGPU3DCache2MaxSceneBatches )
-    {
-        GPU3DCache2SceneBatchEntry* se = cache.SceneBatchGet(scene_batch_id);
-        if( se )
-        {
-            se->merged_vbo_cpu_snapshot.assign(
-                reinterpret_cast<const uint8_t*>(cache.BatchGetVBO()),
-                reinterpret_cast<const uint8_t*>(cache.BatchGetVBO()) + vbo_size);
-            se->merged_vbo_vertex_stride_bytes = (uint32_t)sizeof(GPU3DMeshVertexMetal);
-            se->merged_vbo_vertex_count = vertex_count;
-        }
-    }
-
-    // 3. Cleanup CPU Memory
-    // Now that the GPU has the data and the cache is wired up, we can destroy the std::vectors
-    cache.BatchEnd();
 
     /* Transfer ownership to out_batch_buffers before locals go out of scope (ARC + void*). */
     out_batch_buffers.vbo = (__bridge_retained void*)batched_vbo;

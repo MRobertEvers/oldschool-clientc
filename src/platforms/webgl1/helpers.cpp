@@ -227,7 +227,7 @@ webgl1_texture_animation_signed(int animation_direction, int animation_speed)
 }
 
 void
-webgl1_sync_drawable_size(struct Platform2_SDL2_Renderer_WebGL1* renderer)
+webgl1_sync_drawable_size(Platform2_SDL2_Renderer_WebGL1* renderer)
 {
     if( !renderer || !renderer->platform || !renderer->platform->window )
         return;

@@ -112,7 +112,7 @@ set_game_ptr(struct GGame* game)
     // clang-format on
 }
 
-static struct Platform2_SDL2_Renderer_WebGL1* renderer = nullptr;
+static Platform2_SDL2_Renderer_WebGL1* renderer = nullptr;
 
 void
 emscripten_main_loop(void* arg)

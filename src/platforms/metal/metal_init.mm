@@ -1,7 +1,7 @@
 // System ObjC/Metal headers must come before any game headers.
 #include "platforms/metal/metal_internal.h"
 
-struct Platform2_SDL2_Renderer_Metal*
+Platform2_SDL2_Renderer_Metal*
 PlatformImpl2_SDL2_Renderer_Metal_New(
     int width,
     int height)
@@ -16,22 +16,21 @@ PlatformImpl2_SDL2_Renderer_Metal_New(
     renderer->width = width;
     renderer->height = height;
     renderer->metal_ready = false;
-    renderer->current_model_batch_id = 0;
-    renderer->current_model_batch_active = false;
+    renderer->pass.current_model_batch_id = 0;
+    renderer->pass.current_model_batch_active = false;
     renderer->mtl_cache2_atlas_tex = nullptr;
     renderer->mtl_cache2_atlas_tiles_buf = nullptr;
     renderer->mtl_frame_semaphore =
         (__bridge_retained void*)dispatch_semaphore_create(kMetalInflightFrames);
     renderer->mtl_uniform_frame_slot =
         (uint32_t)(kMetalInflightFrames > 0 ? kMetalInflightFrames - 1 : 0);
-    renderer->mtl_pass3d_instance_buf = nullptr;
     renderer->mtl_pass3d_index_buf = nullptr;
     renderer->mtl_3d_v2_pipeline = nullptr;
     return renderer;
 }
 
 void
-PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* renderer)
+PlatformImpl2_SDL2_Renderer_Metal_Free(Platform2_SDL2_Renderer_Metal* renderer)
 {
     if( !renderer )
         return;
@@ -75,11 +74,6 @@ PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* ren
         CFRelease(renderer->mtl_3d_v2_pipeline);
         renderer->mtl_3d_v2_pipeline = nullptr;
     }
-    if( renderer->mtl_pass3d_instance_buf )
-    {
-        CFRelease(renderer->mtl_pass3d_instance_buf);
-        renderer->mtl_pass3d_instance_buf = nullptr;
-    }
     if( renderer->mtl_pass3d_index_buf )
     {
         CFRelease(renderer->mtl_pass3d_index_buf);
@@ -115,7 +109,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* ren
 
 bool
 PlatformImpl2_SDL2_Renderer_Metal_Init(
-    struct Platform2_SDL2_Renderer_Metal* renderer,
+    Platform2_SDL2_Renderer_Metal* renderer,
     struct Platform2_SDL2* platform)
 {
     // If this returns false after partial setup, the caller must still call Free().
@@ -234,18 +228,10 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
                 v2Err ? v2Err.localizedDescription.UTF8String : "unknown");
     }
 
-    // Persistent per-frame buffers for Pass3DBuilder2SubmitMetal (sizes follow
-    // kPass3DBuilder2DynamicIndexUInt16Capacity / worst-case draws per frame).
-    {
-        const size_t inst_bytes = 16384 * sizeof(GPU3DTransformUniformMetal);
-        id<MTLBuffer> inst_buf = [device //
-            newBufferWithLength:(NSUInteger)inst_bytes
-                        options:MTLResourceStorageModeShared];
-        renderer->mtl_pass3d_instance_buf = (__bridge_retained void*)inst_buf;
-    }
+    // Persistent index ring buffer for Pass3DBuilder2SubmitMetal (uint32 indices).
     {
         const size_t idx_bytes =
-            (size_t)kPass3DBuilder2DynamicIndexUInt16Capacity * sizeof(uint16_t);
+            (size_t)kPass3DBuilder2MetalDynamicIndexCapacity * sizeof(uint32_t);
         id<MTLBuffer> idx_buf = [device newBufferWithLength:(NSUInteger)idx_bytes
                                                     options:MTLResourceStorageModeShared];
         renderer->mtl_pass3d_index_buf = (__bridge_retained void*)idx_buf;

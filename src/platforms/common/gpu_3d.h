@@ -211,3 +211,58 @@ struct GPU3DTransformUniformMetal
 static_assert(
     sizeof(GPU3DTransformUniformMetal) == 32,
     "GPU3DTransformUniformMetal size must match Metal shader");
+
+/** Bakes world yaw (Y axis, xz) + translation into scene-batch VBO at load; identity skips work. */
+struct GPU3DBakeTransform
+{
+    float cos_yaw = 1.0f;
+    float sin_yaw = 0.0f;
+    float tx = 0.0f, ty = 0.0f, tz = 0.0f;
+    bool identity = true;
+
+    static GPU3DBakeTransform
+    FromYawTranslate(
+        int32_t world_x,
+        int32_t world_y,
+        int32_t world_z,
+        int32_t yaw_r2pi2048);
+};
+
+inline GPU3DBakeTransform
+GPU3DBakeTransform::FromYawTranslate(
+    int32_t world_x,
+    int32_t world_y,
+    int32_t world_z,
+    int32_t yaw_r2pi2048)
+{
+    GPU3DBakeTransform o{};
+    int32_t ymod = yaw_r2pi2048 % 2048;
+    if( ymod < 0 )
+        ymod += 2048;
+    o.identity = (world_x == 0 && world_y == 0 && world_z == 0 && ymod == 0);
+    if( o.identity )
+        return o;
+    const float yaw_rad = ((float)yaw_r2pi2048 * 2.0f * (float)M_PI) / 2048.0f;
+    o.cos_yaw = cosf(yaw_rad);
+    o.sin_yaw = sinf(yaw_rad);
+    o.tx = (float)world_x;
+    o.ty = (float)world_y;
+    o.tz = (float)world_z;
+    return o;
+}
+
+/** Local space after animation (if any) -> yaw in xz -> world translate. */
+inline void
+GPU3DBakeTransformApplyToPosition(
+    const GPU3DBakeTransform& bk,
+    float& vx,
+    float& vy,
+    float& vz)
+{
+    if( bk.identity )
+        return;
+    const float lx = vx, lz = vz;
+    vx = lx * bk.cos_yaw + lz * bk.sin_yaw + bk.tx;
+    vy = vy + bk.ty;
+    vz = -lx * bk.sin_yaw + lz * bk.cos_yaw + bk.tz;
+}

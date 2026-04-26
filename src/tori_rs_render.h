@@ -115,6 +115,10 @@ struct ToriRSRenderCommand
             int model_id;
             /** `ToriRS_UsageHint` from Scene2 element category / batch semantics. */
             uint8_t usage_hint;
+            /** World-space placement for `TORIRS_GFX_BATCH3D_MODEL_ADD` (batch-bake); zero for
+             * `RES_MODEL_LOAD` / `RES_MODEL_UNLOAD`. */
+            int32_t world_x, world_y, world_z;
+            int32_t world_yaw_r2pi2048;
         } _model_load;
         struct
         {

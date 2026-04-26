@@ -5,16 +5,25 @@
 void
 metal_frame_event_clear_rect(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd)
 {
-    if( !ctx || !ctx->encoder || !cmd || !ctx->renderer )
+    if( !ctx || !ctx->renderer || !cmd )
         return;
 
-    if( !ctx->clearQuadBuf )
-        return;
-    if( !(ctx->clearRectDepthPipeState && ctx->clearRectDepthDsState &&
-          metal_internal_depth_texture()) )
+    id<MTLRenderCommandEncoder> encoder =
+        (__bridge id<MTLRenderCommandEncoder>)ctx->renderer->pass.encoder;
+    if( !encoder )
         return;
 
-    void* cqb_cpu = ctx->clearQuadBuf.contents;
+    id<MTLBuffer> clearQuadBuf = (__bridge id<MTLBuffer>)ctx->renderer->pass.clearQuadBuf;
+    if( !clearQuadBuf )
+        return;
+    id<MTLRenderPipelineState> clearRectDepthPipeState =
+        (__bridge id<MTLRenderPipelineState>)ctx->renderer->pass.clearRectDepthPipeState;
+    id<MTLDepthStencilState> clearRectDepthDsState =
+        (__bridge id<MTLDepthStencilState>)ctx->renderer->pass.clearRectDepthDsState;
+    if( !(clearRectDepthPipeState && clearRectDepthDsState && metal_internal_depth_texture()) )
+        return;
+
+    void* cqb_cpu = clearQuadBuf.contents;
     if( !cqb_cpu )
         return;
 
@@ -25,7 +34,7 @@ metal_frame_event_clear_rect(MetalRenderCtx* ctx, const struct ToriRSRenderComma
     if( rw <= 0 || rh <= 0 )
         return;
 
-    int slot = ctx->clear_rect_slot;
+    int slot = ctx->renderer->pass.clear_rect_slot;
     if( slot >= kMetalMaxClearRectsPerFrame )
     {
         static bool s_warned_clear_slot;
@@ -44,15 +53,17 @@ metal_frame_event_clear_rect(MetalRenderCtx* ctx, const struct ToriRSRenderComma
     MTLScissorRect sc = metal_clamped_scissor_from_logical_dst_bb(
         ctx->renderer->width,
         ctx->renderer->height,
-        ctx->win_width,
-        ctx->win_height,
+        ctx->renderer->pass.win_width,
+        ctx->renderer->pass.win_height,
         rx,
         ry,
         rw,
         rh);
 
-    float fbw = (float)(ctx->win_width > 0 ? ctx->win_width : ctx->renderer->width);
-    float fbh = (float)(ctx->win_height > 0 ? ctx->win_height : ctx->renderer->height);
+    float fbw =
+        (float)(ctx->renderer->pass.win_width > 0 ? ctx->renderer->pass.win_width : ctx->renderer->width);
+    float fbh = (float)(ctx->renderer->pass.win_height > 0 ? ctx->renderer->pass.win_height
+                                                           : ctx->renderer->height);
     if( fbw <= 0.0f )
         fbw = 1.0f;
     if( fbh <= 0.0f )
@@ -74,17 +85,20 @@ metal_frame_event_clear_rect(MetalRenderCtx* ctx, const struct ToriRSRenderComma
     };
 
     memcpy((uint8_t*)cqb_cpu + slot_off, quad, sizeof(quad));
-    ctx->clear_rect_slot++;
+    ctx->renderer->pass.clear_rect_slot++;
 
-    [ctx->encoder setViewport:ctx->fullDrawableVp];
-    [ctx->encoder setScissorRect:sc];
-    [ctx->encoder setDepthStencilState:ctx->clearRectDepthDsState];
-    [ctx->encoder setRenderPipelineState:ctx->clearRectDepthPipeState];
-    [ctx->encoder setCullMode:MTLCullModeNone];
-    [ctx->encoder setVertexBuffer:ctx->clearQuadBuf offset:slot_off atIndex:0];
-    [ctx->encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
-    if( ctx->dsState )
-        [ctx->encoder setDepthStencilState:ctx->dsState];
+    id<MTLDepthStencilState> dsState =
+        (__bridge id<MTLDepthStencilState>)ctx->renderer->pass.dsState;
+
+    [encoder setViewport:metal_pass_get_full_drawable_vp(ctx->renderer)];
+    [encoder setScissorRect:sc];
+    [encoder setDepthStencilState:clearRectDepthDsState];
+    [encoder setRenderPipelineState:clearRectDepthPipeState];
+    [encoder setCullMode:MTLCullModeNone];
+    [encoder setVertexBuffer:clearQuadBuf offset:slot_off atIndex:0];
+    [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+    if( dsState )
+        [encoder setDepthStencilState:dsState];
 
     MTLScissorRect scMax = {
         0,
@@ -92,5 +106,5 @@ metal_frame_event_clear_rect(MetalRenderCtx* ctx, const struct ToriRSRenderComma
         (NSUInteger)(ctx->renderer->width > 0 ? ctx->renderer->width : 1),
         (NSUInteger)(ctx->renderer->height > 0 ? ctx->renderer->height : 1),
     };
-    [ctx->encoder setScissorRect:scMax];
+    [encoder setScissorRect:scMax];
 }

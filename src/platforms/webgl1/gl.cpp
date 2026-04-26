@@ -34,8 +34,6 @@ attribute vec4 a_color;
 attribute vec2 a_texcoord;
 attribute float a_tex_id;
 attribute float a_uv_mode;
-uniform vec4 u_inst0;
-uniform vec4 u_inst1;
 uniform mat4 u_modelViewMatrix;
 uniform mat4 u_projectionMatrix;
 varying vec4 v_color;
@@ -43,12 +41,7 @@ varying vec2 v_texcoord;
 varying float v_tex_id;
 varying float v_uv_mode;
 void main() {
-  vec3 p = a_position.xyz;
-  float c = u_inst0.x;
-  float s = u_inst0.y;
-  float xr = p.x * c + p.z * s;
-  float zr = -p.x * s + p.z * c;
-  vec4 wp = vec4(xr + u_inst0.z, p.y + u_inst0.w, zr + u_inst1.x, 1.0);
+  vec4 wp = vec4(a_position.xyz, 1.0);
   gl_Position = u_projectionMatrix * u_modelViewMatrix * wp;
   v_color = a_color;
   v_texcoord = a_texcoord;
@@ -123,7 +116,7 @@ void main() {
 )";
 
 bool
-webgl1_gl_create_programs(struct Platform2_SDL2_Renderer_WebGL1* r)
+webgl1_gl_create_programs(Platform2_SDL2_Renderer_WebGL1* r)
 {
     if( !r )
         return false;
@@ -162,8 +155,6 @@ webgl1_gl_create_programs(struct Platform2_SDL2_Renderer_WebGL1* r)
     L.a_texcoord = glGetAttribLocation(wp, "a_texcoord");
     L.a_tex_id = glGetAttribLocation(wp, "a_tex_id");
     L.a_uv_mode = glGetAttribLocation(wp, "a_uv_mode");
-    L.u_inst0 = glGetUniformLocation(wp, "u_inst0");
-    L.u_inst1 = glGetUniformLocation(wp, "u_inst1");
     L.u_modelViewMatrix = glGetUniformLocation(wp, "u_modelViewMatrix");
     L.u_projectionMatrix = glGetUniformLocation(wp, "u_projectionMatrix");
     L.u_clock = glGetUniformLocation(wp, "u_clock");
@@ -224,7 +215,7 @@ webgl1_gl_bind_default_world_gl_state(void)
 }
 
 void
-webgl1_gl_destroy_programs(struct Platform2_SDL2_Renderer_WebGL1* r)
+webgl1_gl_destroy_programs(Platform2_SDL2_Renderer_WebGL1* r)
 {
     if( !r )
         return;

@@ -227,7 +227,7 @@ main(
     struct Platform2_SDL2_Renderer_OpenGL3* renderer_opengl3 = NULL;
 #endif
 #if defined(__APPLE__)
-    struct Platform2_SDL2_Renderer_Metal* renderer_metal = NULL;
+    Platform2_SDL2_Renderer_Metal* renderer_metal = NULL;
 #endif
 #if defined(_WIN32) && !defined(TORIRS_NO_D3D11)
     struct Platform2_SDL2_Renderer_D3D11* renderer_d3d11 = NULL;

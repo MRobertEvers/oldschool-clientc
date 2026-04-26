@@ -1,5 +1,6 @@
 #pragma once
 #ifdef __OBJC__
+#include "batch_buffer_metal.h"
 #include "gpu_3d_cache2.h"
 #import <Metal/Metal.h>
 
@@ -13,9 +14,11 @@ struct BatchBuffers
 void
 GPU3DCache2BatchSubmitMetal(
     GPU3DCache2<GPU3DMeshVertexMetal>& cache,
+    const MetalBatchBuffer& batch,
     id<MTLDevice> metal_device,
     BatchBuffers& out_batch_buffers,
-    SceneBatchId scene_batch_id);
+    SceneBatchId scene_batch_id,
+    ToriRS_UsageHint usage_hint);
 
 id<MTLTexture>
 GPU3DCache2SubmitAtlasMetal(

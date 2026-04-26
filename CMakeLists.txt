@@ -255,11 +255,21 @@ if(NOT EMSCRIPTEN)
         list(APPEND SDL2_NATIVE_SOURCES
             src/platforms/metal/metal_helpers.mm
             src/platforms/metal/metal_init.mm
+            src/platforms/metal/metal_renderer_core.mm
             src/platforms/metal/metal_render_context.mm
             src/platforms/metal/metal_model_events.mm
             src/platforms/metal/metal_atlas_world.mm
-            src/platforms/metal/metal_batch3d.mm
-            src/platforms/metal/metal_draw_model.mm
+            src/platforms/metal/metal_pass_3d_begin_end.mm
+            src/platforms/metal/metal_add_model_draw_scenery.mm
+            src/platforms/metal/events/metal_event_batch3d_common.mm
+            src/platforms/metal/events/metal_event_batch3d_begin.mm
+            src/platforms/metal/events/metal_event_batch3d_model_add.mm
+            src/platforms/metal/events/metal_event_batch3d_end.mm
+            src/platforms/metal/events/metal_event_batch3d_clear.mm
+            src/platforms/metal/events/metal_event_draw_model.mm
+            src/platforms/metal/events/metal_event_tex_load.mm
+            src/platforms/metal/events/metal_event_batch2d_tex_begin.mm
+            src/platforms/metal/events/metal_event_batch2d_tex_end.mm
             src/platforms/common/pass_3d_builder/pass_3d_builder2_metal.mm
             src/platforms/common/pass_3d_builder/gpu_3d_cache2_metal.mm
             src/platforms/metal/metal_render.mm
@@ -571,11 +581,21 @@ if(NOT EMSCRIPTEN)
         set_source_files_properties(
             src/platforms/metal/metal_helpers.mm
             src/platforms/metal/metal_init.mm
+            src/platforms/metal/metal_renderer_core.mm
             src/platforms/metal/metal_render_context.mm
             src/platforms/metal/metal_model_events.mm
             src/platforms/metal/metal_atlas_world.mm
-            src/platforms/metal/metal_batch3d.mm
-            src/platforms/metal/metal_draw_model.mm
+            src/platforms/metal/metal_pass_3d_begin_end.mm
+            src/platforms/metal/metal_add_model_draw_scenery.mm
+            src/platforms/metal/events/metal_event_batch3d_common.mm
+            src/platforms/metal/events/metal_event_batch3d_begin.mm
+            src/platforms/metal/events/metal_event_batch3d_model_add.mm
+            src/platforms/metal/events/metal_event_batch3d_end.mm
+            src/platforms/metal/events/metal_event_batch3d_clear.mm
+            src/platforms/metal/events/metal_event_draw_model.mm
+            src/platforms/metal/events/metal_event_tex_load.mm
+            src/platforms/metal/events/metal_event_batch2d_tex_begin.mm
+            src/platforms/metal/events/metal_event_batch2d_tex_end.mm
             src/platforms/common/pass_3d_builder/pass_3d_builder2_metal.mm
             src/platforms/common/pass_3d_builder/gpu_3d_cache2_metal.mm
             src/platforms/metal/metal_render.mm
@@ -685,6 +705,17 @@ if(EMSCRIPTEN)
         src/platforms/platform_impl2_sdl2.cpp
         src/platforms/platform_impl2_sdl2_port_emscripten.cpp
         src/platforms/webgl1/webgl1_render_loop.cpp
+        src/platforms/webgl1/webgl1_renderer_core.cpp
+        src/platforms/webgl1/webgl1_add_model_draw_scenery.cpp
+        src/platforms/webgl1/events/webgl1_event_batch3d_common.cpp
+        src/platforms/webgl1/events/webgl1_event_batch3d_begin.cpp
+        src/platforms/webgl1/events/webgl1_event_batch3d_model_add.cpp
+        src/platforms/webgl1/events/webgl1_event_batch3d_end.cpp
+        src/platforms/webgl1/events/webgl1_event_batch3d_clear.cpp
+        src/platforms/webgl1/events/webgl1_event_draw_model.cpp
+        src/platforms/webgl1/events/webgl1_event_tex_load.cpp
+        src/platforms/webgl1/events/webgl1_event_batch2d_tex_begin.cpp
+        src/platforms/webgl1/events/webgl1_event_batch2d_tex_end.cpp
         src/platforms/webgl1/gl.cpp
         src/platforms/webgl1/helpers.cpp
         src/platforms/common/pass_3d_builder/pass_3d_builder2_webgl1.cpp

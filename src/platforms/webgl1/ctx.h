@@ -3,40 +3,21 @@
 
 #ifdef __EMSCRIPTEN__
 
-#    include "platforms/common/pass_3d_builder/gpu_3d_cache2.h"
+#    include "platforms/webgl1/webgl1_renderer_core.h"
+#    include "platforms/webgl1/events/webgl1_events.h"
+
 #    include "tori_rs_render.h"
 
 #    include <SDL.h>
 #    include <cmath>
 #    include <cstdint>
 
-struct Platform2_SDL2_Renderer_WebGL1;
 struct GGame;
-
-struct LogicalViewportRect
-{
-    int x, y, width, height;
-};
-
-struct ToriGlViewportPixels
-{
-    int x, y, width, height;
-};
 
 struct WebGL1RenderCtx
 {
-    struct Platform2_SDL2_Renderer_WebGL1* renderer = nullptr;
+    struct WebGL1RendererCore* renderer = nullptr;
     struct GGame* game = nullptr;
-    int win_width = 0;
-    int win_height = 0;
-    int full_vp_x = 0;
-    int full_vp_y = 0;
-    int full_vp_w = 0;
-    int full_vp_h = 0;
-    LogicalViewportRect pass_3d_dst_logical{};
-    /** Drawable-pixel viewport for the active 3D pass (y from bottom, GLES convention). */
-    ToriGlViewportPixels world_gl_vp{};
-    int clear_rect_slot = 0;
 };
 
 inline constexpr int kWebGL1MaxClearRectsPerFrame = 8;
@@ -87,15 +68,6 @@ float
 webgl1_texture_animation_signed(int animation_direction, int animation_speed);
 
 void
-webgl1_cache2_batch_push_model_mesh(
-    WebGL1RenderCtx* ctx,
-    struct DashModel* model,
-    int model_id,
-    SceneBatchId scene_batch_id,
-    uint8_t gpu_segment_slot,
-    uint16_t frame_index);
-
-void
 webgl1_frame_event_clear_rect(WebGL1RenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
 void
 webgl1_frame_event_begin_3d(
@@ -111,36 +83,21 @@ webgl1_frame_event_model_load(WebGL1RenderCtx* ctx, const struct ToriRSRenderCom
 void
 webgl1_frame_event_model_unload(WebGL1RenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
 void
-webgl1_frame_event_batch_model_load_start(WebGL1RenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
-void
-webgl1_frame_event_model_batched_load(WebGL1RenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
-void
-webgl1_frame_event_batch_model_load_end(WebGL1RenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
-void
-webgl1_frame_event_batch_model_clear(WebGL1RenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
-void
-webgl1_frame_event_model_draw(WebGL1RenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
-void
-webgl1_frame_event_batch_texture_load_start(WebGL1RenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
-void
-webgl1_frame_event_batch_texture_load_end(WebGL1RenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
-void
 webgl1_frame_event_model_animation_load(WebGL1RenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
 
 bool
-webgl1_gl_create_programs(struct Platform2_SDL2_Renderer_WebGL1* r);
+webgl1_gl_create_programs(Platform2_SDL2_Renderer_WebGL1* r);
 void
-webgl1_gl_destroy_programs(struct Platform2_SDL2_Renderer_WebGL1* r);
+webgl1_gl_destroy_programs(Platform2_SDL2_Renderer_WebGL1* r);
 
 void
-webgl1_atlas_resources_init(struct Platform2_SDL2_Renderer_WebGL1* r);
+webgl1_atlas_resources_init(Platform2_SDL2_Renderer_WebGL1* r);
 void
-webgl1_atlas_resources_shutdown(struct Platform2_SDL2_Renderer_WebGL1* r);
+webgl1_atlas_resources_shutdown(Platform2_SDL2_Renderer_WebGL1* r);
 
 void
-webgl1_sync_drawable_size(struct Platform2_SDL2_Renderer_WebGL1* renderer);
+webgl1_sync_drawable_size(Platform2_SDL2_Renderer_WebGL1* renderer);
 
-/** Match Metal world pass: depth test on (always pass, no write), no cull, alpha blend. */
 void
 webgl1_gl_bind_default_world_gl_state(void);
 

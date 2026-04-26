@@ -1,5 +1,6 @@
 #pragma once
 
+#include "batch_buffer_webgl1.h"
 #include "gpu_3d_cache2.h"
 #include "platforms/common/gpu_3d.h"
 
@@ -18,8 +19,10 @@ struct BatchBuffersWebGL1
 void
 GPU3DCache2BatchSubmitWebGL1(
     GPU3DCache2<GPU3DMeshVertexWebGL1>& cache,
+    const WebGL1BatchBuffer& batch,
     BatchBuffersWebGL1& out_batch_buffers,
-    SceneBatchId scene_batch_id);
+    SceneBatchId scene_batch_id,
+    ToriRS_UsageHint usage_hint);
 
 /** Creates or replaces RGBA atlas texture from cache pixel data. Returns texture name or 0. */
 GLuint

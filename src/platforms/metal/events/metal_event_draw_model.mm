@@ -1,12 +1,11 @@
 // System ObjC/Metal headers must come before any game headers.
+#include "platforms/metal/events/metal_events.h"
 #include "platforms/metal/metal_internal.h"
 
 #include <vector>
 
 void
-metal_frame_event_model_draw(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd)
+metal_event_draw_model(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd)
 {
     struct DashModel* model = cmd->_model_draw.model;
     if( !model || !dashmodel_face_colors_a_const(model) || !dashmodel_face_colors_b_const(model) ||
@@ -17,7 +16,7 @@ metal_frame_event_model_draw(
         return;
 
     const int mid_v2 = cmd->_model_draw.model_id;
-    if( mid_v2 <= 0 )
+    if( mid_v2 <= 0 || !ctx || !ctx->renderer || !ctx->game )
         return;
 
     const bool use_anim = cmd->_model_draw.use_animation;
@@ -27,18 +26,20 @@ metal_frame_event_model_draw(
         (uint16_t)mid_v2, use_anim, (int)anim_idx, (int)frame_idx);
     if( !pose.valid || pose.gpu_batch_id == 0u )
         return;
+    if( (ToriRS_UsageHint)cmd->_model_draw.usage_hint != TORIRS_USAGE_SCENERY ||
+        pose.scene_batch_id >= kGPU3DCache2MaxSceneBatches )
+        return;
 
     struct DashPosition draw_position = cmd->_model_draw.position;
     int face_order_count = dash3d_prepare_projected_face_order(
         ctx->game->sys_dash, model, &draw_position, ctx->game->view_port, ctx->game->camera);
     const int* face_order = dash3d_projected_face_order(ctx->game->sys_dash, &face_order_count);
+    if( face_order_count <= 0 )
+        return;
 
     const int face_count = dashmodel_face_count(model);
 
-    /* GPU3DCache2 bakes **three expanded vertices per face** in original face order (textured and
-     * untextured). Local indices are `f*3 + {0,1,2}`; `pose.vbo_offset` is the first vertex of this
-     * model slice (`Pass3DBuilder2SubmitMetal` `baseVertex`). */
-    static std::vector<uint16_t> g_sorted;
+    static std::vector<uint32_t> g_sorted;
     g_sorted.clear();
     if( face_order_count > 0 && face_count > 0 )
     {
@@ -49,25 +50,23 @@ metal_frame_event_model_draw(
             if( face_index < 0 || face_index >= face_count )
                 continue;
             const uint32_t b = (uint32_t)face_index * 3u;
-            g_sorted.push_back((uint16_t)b);
-            g_sorted.push_back((uint16_t)(b + 1u));
-            g_sorted.push_back((uint16_t)(b + 2u));
+            g_sorted.push_back(b);
+            g_sorted.push_back(b + 1u);
+            g_sorted.push_back(b + 2u);
         }
     }
 
     const uint32_t idx_count = (uint32_t)g_sorted.size();
-    uint16_t* idx_ptr = idx_count ? g_sorted.data() : nullptr;
+    if( idx_count == 0u )
+        return;
 
-    ctx->renderer->mtl_pass3d_builder.AddModelDrawYawOnly(
+    metal_add_model_draw_scenery(
+        ctx->renderer->mtl_pass3d_builder,
         ctx->renderer->model_cache2,
         (uint16_t)mid_v2,
-        draw_position.x,
-        draw_position.y,
-        draw_position.z,
-        draw_position.yaw,
         use_anim,
         anim_idx,
         frame_idx,
-        idx_ptr,
+        g_sorted.data(),
         idx_count);
 }

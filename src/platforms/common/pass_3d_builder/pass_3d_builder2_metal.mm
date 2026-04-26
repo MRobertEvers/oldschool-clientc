@@ -1,68 +1,49 @@
-#include "gpu_3d_cache2.h"
-#include "pass_3d_builder2.h"
-#include "platforms/metal/metal.h"
+#include "pass_3d_builder2_metal.h"
+
 #include "platforms/metal/metal_internal.h"
 #import <Metal/Metal.h>
 
 #include <cstdio>
 #include <cstring>
 
-namespace
+void
+Pass3DBuilder2Metal::AppendSortedDraw(
+    GPUResourceHandle vbo,
+    uint32_t pose_vbo_vertex_offset,
+    const uint32_t* sorted_indices,
+    uint32_t index_count)
 {
+    if( !is_building_ || sorted_indices == nullptr || index_count == 0u )
+        return;
+    if( vbo == 0u )
+        return;
 
-struct MetalResolvedMesh
-{
-    GPUModelPosedData model{};
-    id<MTLBuffer> vbo = nil;
-    id<MTLBuffer> ebo = nil;
-    bool drawable = false;
-};
-
-MetalResolvedMesh
-metal_resolve_mesh_for_cmd(
-    const GPU3DCache2<GPU3DMeshVertexMetal>& cache,
-    const DrawModel3D& cmd)
-{
-    MetalResolvedMesh out;
-    out.model = cache.GetModelPoseForDraw(
-        cmd.model_id, cmd.use_animation, (int)cmd.animation_index, (int)cmd.frame_index);
-    if( !out.model.valid )
-        return out;
-
-    id<MTLBuffer> vbo = nil;
-    id<MTLBuffer> ebo = nil;
-    if( out.model.scene_batch_id < kGPU3DCache2MaxSceneBatches )
+    if( mesh_vbo_ == 0u )
+        mesh_vbo_ = vbo;
+    else if( mesh_vbo_ != vbo )
     {
-        const GPU3DCache2SceneBatchEntry* be = cache.SceneBatchGet(out.model.scene_batch_id);
-        if( be && be->resource.valid )
+        static bool s_warned_mismatch;
+        if( !s_warned_mismatch )
         {
-            vbo = (__bridge id<MTLBuffer>)(void*)be->resource.vbo;
-            ebo = (__bridge id<MTLBuffer>)(void*)be->resource.ebo;
+            fprintf(
+                stderr,
+                "[Pass3DBuilder2Metal] multiple mesh VBOs in one pass; ignoring draws not matching "
+                "first VBO\n");
+            s_warned_mismatch = true;
         }
+        return;
     }
-    if( !vbo )
-        vbo = (__bridge id<MTLBuffer>)(void*)out.model.vbo;
-    if( !ebo )
-        ebo = (__bridge id<MTLBuffer>)(void*)out.model.ebo;
-    if( !vbo || (cmd.dynamic_index_count == 0 && !ebo) )
-        return out;
 
-    out.vbo = vbo;
-    out.ebo = ebo;
-    out.drawable = true;
-    return out;
+    const uint32_t voff = pose_vbo_vertex_offset;
+    for( uint32_t ii = 0; ii < index_count; ++ii )
+        indices_pool_.push_back(voff + sorted_indices[ii]);
 }
-
-} // namespace
 
 void
 Pass3DBuilder2SubmitMetal(
-    Pass3DBuilder2<GPU3DTransformUniformMetal>& builder,
-    const GPU3DCache2<GPU3DMeshVertexMetal>& cache,
-    id<MTLRenderCommandEncoder> render_command_encoder,
-    id<MTLBuffer> dynamic_instance_buffer,
+    Pass3DBuilder2Metal& builder,
+    id<MTLRenderCommandEncoder> enc,
     id<MTLBuffer> dynamic_index_buffer,
-    NSUInteger instance_base_bytes,
     NSUInteger index_base_bytes,
     id<MTLTexture> fragment_atlas_texture,
     id<MTLBuffer> atlas_tiles_buffer,
@@ -75,63 +56,39 @@ Pass3DBuilder2SubmitMetal(
         return;
 
     if( depth_stencil_state )
-        [render_command_encoder setDepthStencilState:depth_stencil_state];
+        [enc setDepthStencilState:depth_stencil_state];
 
-    const size_t inst_bytes = builder.GetInstancePool().size() * sizeof(GPU3DTransformUniformMetal);
-    const NSUInteger inst_cap = dynamic_instance_buffer ? dynamic_instance_buffer.length : 0u;
-    if( instance_base_bytes + inst_bytes > inst_cap )
+    const std::vector<uint32_t>& dix = builder.Indices();
+    const size_t dyn_index_count = dix.size();
+    const size_t dyn_capacity = (size_t)kPass3DBuilder2MetalDynamicIndexCapacity;
+    if( dyn_index_count > dyn_capacity )
     {
         fprintf(
             stderr,
-            "Pass3DBuilder2SubmitMetal: instance upload %zu + base %zu exceeds buffer %u\n",
-            inst_bytes,
-            (size_t)instance_base_bytes,
-            (unsigned)inst_cap);
+            "Pass3DBuilder2SubmitMetal: dynamic index pool %zu exceeds capacity %zu; "
+            "clamping upload, draws past range are skipped\n",
+            dyn_index_count,
+            dyn_capacity);
+    }
+    const size_t copy_n = dyn_index_count < dyn_capacity ? dyn_index_count : dyn_capacity;
+    const size_t idx_bytes = copy_n * sizeof(uint32_t);
+    const NSUInteger idx_cap = dynamic_index_buffer ? dynamic_index_buffer.length : 0u;
+    if( index_base_bytes + idx_bytes > idx_cap )
+    {
+        fprintf(
+            stderr,
+            "Pass3DBuilder2SubmitMetal: index upload %zu + base %zu exceeds buffer %u\n",
+            idx_bytes,
+            (size_t)index_base_bytes,
+            (unsigned)idx_cap);
         return;
     }
-
-    if( inst_bytes > 0u && dynamic_instance_buffer )
+    if( idx_bytes > 0u && dynamic_index_buffer )
     {
         std::memcpy(
-            (uint8_t*)[dynamic_instance_buffer contents] + instance_base_bytes,
-            builder.GetInstancePool().data(),
-            inst_bytes);
-    }
-
-    const size_t dyn_index_count = builder.GetDynamicIndices().size();
-    const size_t dyn_capacity = (size_t)kPass3DBuilder2DynamicIndexUInt16Capacity;
-    size_t copy_n = 0;
-    if( builder.HasDynamicIndices() )
-    {
-        if( dyn_index_count > dyn_capacity )
-        {
-            fprintf(
-                stderr,
-                "Pass3DBuilder2SubmitMetal: dynamic index pool %zu exceeds capacity %zu; "
-                "clamping upload, draws past range are skipped\n",
-                dyn_index_count,
-                dyn_capacity);
-        }
-        copy_n = dyn_index_count < dyn_capacity ? dyn_index_count : dyn_capacity;
-        const size_t idx_bytes = copy_n * sizeof(uint16_t);
-        const NSUInteger idx_cap = dynamic_index_buffer ? dynamic_index_buffer.length : 0u;
-        if( index_base_bytes + idx_bytes > idx_cap )
-        {
-            fprintf(
-                stderr,
-                "Pass3DBuilder2SubmitMetal: index upload %zu + base %zu exceeds buffer %u\n",
-                idx_bytes,
-                (size_t)index_base_bytes,
-                (unsigned)idx_cap);
-            return;
-        }
-        if( idx_bytes > 0u && dynamic_index_buffer )
-        {
-            std::memcpy(
-                (uint8_t*)[dynamic_index_buffer contents] + index_base_bytes,
-                builder.GetDynamicIndices().data(),
-                idx_bytes);
-        }
+            (uint8_t*)[dynamic_index_buffer contents] + index_base_bytes,
+            dix.data(),
+            idx_bytes);
     }
 
     if( uniforms_buffer )
@@ -146,91 +103,32 @@ Pass3DBuilder2SubmitMetal(
                 (unsigned)uni_len);
             return;
         }
-        [render_command_encoder setVertexBuffer:uniforms_buffer
-                                         offset:uniforms_buffer_offset_bytes
-                                        atIndex:1];
-        [render_command_encoder setFragmentBuffer:uniforms_buffer
-                                           offset:uniforms_buffer_offset_bytes
-                                          atIndex:1];
+        [enc setVertexBuffer:uniforms_buffer offset:uniforms_buffer_offset_bytes atIndex:1];
+        [enc setFragmentBuffer:uniforms_buffer offset:uniforms_buffer_offset_bytes atIndex:1];
     }
     if( atlas_tiles_buffer )
-        [render_command_encoder setFragmentBuffer:atlas_tiles_buffer offset:0 atIndex:4];
+        [enc setFragmentBuffer:atlas_tiles_buffer offset:0 atIndex:4];
     if( fragment_atlas_texture )
-        [render_command_encoder setFragmentTexture:fragment_atlas_texture atIndex:0];
+        [enc setFragmentTexture:fragment_atlas_texture atIndex:0];
     if( fragment_sampler )
-        [render_command_encoder setFragmentSamplerState:fragment_sampler atIndex:0];
+        [enc setFragmentSamplerState:fragment_sampler atIndex:0];
 
-    id<MTLBuffer> last_bound_vbo = nil;
+    id<MTLBuffer> mesh_vbo = (__bridge id<MTLBuffer>)(void*)builder.MeshVbo();
+    if( !mesh_vbo )
+        return;
 
-    for( const Pass3DCommandGPUBatch& batch : builder.GetGpuBatches() )
-    {
-        if( batch.draws.empty() )
-            continue;
+    [enc setVertexBuffer:mesh_vbo offset:0 atIndex:0];
 
-        const MetalResolvedMesh batch_head = metal_resolve_mesh_for_cmd(cache, batch.draws[0]);
-        if( !batch_head.drawable || !batch_head.vbo )
-            continue;
+    const NSUInteger total_indices = (NSUInteger)copy_n;
+    if( total_indices == 0u )
+        return;
 
-        if( batch_head.vbo != last_bound_vbo )
-        {
-            [render_command_encoder setVertexBuffer:batch_head.vbo offset:0 atIndex:0];
-            last_bound_vbo = batch_head.vbo;
-        }
-
-        for( const DrawModel3D& cmd : batch.draws )
-        {
-            const MetalResolvedMesh r = metal_resolve_mesh_for_cmd(cache, cmd);
-            if( !r.drawable )
-                continue;
-
-            id<MTLBuffer> vbo = r.vbo;
-            id<MTLBuffer> ebo = r.ebo;
-            const GPUModelPosedData& model = r.model;
-
-            if( vbo != last_bound_vbo )
-            {
-                [render_command_encoder setVertexBuffer:vbo offset:0 atIndex:0];
-                last_bound_vbo = vbo;
-            }
-
-            NSUInteger rotation_offset =
-                instance_base_bytes + cmd.instance_offset * sizeof(GPU3DTransformUniformMetal);
-            [render_command_encoder //
-                setVertexBuffer:dynamic_instance_buffer
-                         offset:rotation_offset
-                        atIndex:2];
-
-            if( cmd.dynamic_index_count > 0 )
-            {
-                const uint64_t end =
-                    (uint64_t)cmd.dynamic_index_offset + (uint64_t)cmd.dynamic_index_count;
-                if( end > dyn_capacity )
-                    continue;
-                NSUInteger index_byte_offset =
-                    index_base_bytes + cmd.dynamic_index_offset * sizeof(uint16_t);
-                [render_command_encoder //
-                    drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                               indexCount:cmd.dynamic_index_count
-                                indexType:MTLIndexTypeUInt16
-                              indexBuffer:dynamic_index_buffer
-                        indexBufferOffset:index_byte_offset
-                            instanceCount:1
-                               baseVertex:(NSInteger)model.vbo_offset
-                             baseInstance:0];
-            }
-            else
-            {
-                NSUInteger ebo_byte_offset = model.ebo_offset * sizeof(uint16_t);
-                [render_command_encoder //
-                    drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                               indexCount:model.element_count
-                                indexType:MTLIndexTypeUInt16
-                              indexBuffer:ebo
-                        indexBufferOffset:ebo_byte_offset
-                            instanceCount:1
-                               baseVertex:0
-                             baseInstance:0];
-            }
-        }
-    }
+    [enc drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                    indexCount:total_indices
+                     indexType:MTLIndexTypeUInt32
+                   indexBuffer:dynamic_index_buffer
+             indexBufferOffset:index_base_bytes
+                 instanceCount:1
+                    baseVertex:0
+                  baseInstance:0];
 }

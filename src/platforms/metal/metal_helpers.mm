@@ -253,7 +253,7 @@ metal_clamped_scissor_from_logical_dst_bb(
 }
 
 void
-sync_drawable_size(struct Platform2_SDL2_Renderer_Metal* renderer)
+sync_drawable_size(Platform2_SDL2_Renderer_Metal* renderer)
 {
     if( !renderer || !renderer->metal_view || !renderer->platform || !renderer->platform->window )
         return;
@@ -402,4 +402,82 @@ metal_internal_shutdown_clear_rect_aux_resources(void)
         CFRelease(g_mtl_clear_quad_buf);
         g_mtl_clear_quad_buf = nullptr;
     }
+}
+
+MTLViewport
+metal_pass_get_metal_vp(const struct MetalRendererCore* r)
+{
+    if( !r )
+        return {};
+    const MetalPassState& p = r->pass;
+    return { .originX = p.metalVp_originX,
+             .originY = p.metalVp_originY,
+             .width = p.metalVp_width,
+             .height = p.metalVp_height,
+             .znear = p.metalVp_znear,
+             .zfar = p.metalVp_zfar };
+}
+
+MTLViewport
+metal_pass_get_full_drawable_vp(const struct MetalRendererCore* r)
+{
+    if( !r )
+        return {};
+    const MetalPassState& p = r->pass;
+    return { .originX = p.fullDrawableVp_originX,
+             .originY = p.fullDrawableVp_originY,
+             .width = p.fullDrawableVp_width,
+             .height = p.fullDrawableVp_height,
+             .znear = p.fullDrawableVp_znear,
+             .zfar = p.fullDrawableVp_zfar };
+}
+
+void
+metal_pass_set_metal_vp(struct MetalRendererCore* r, MTLViewport v)
+{
+    if( !r )
+        return;
+    MetalPassState& p = r->pass;
+    p.metalVp_originX = v.originX;
+    p.metalVp_originY = v.originY;
+    p.metalVp_width = v.width;
+    p.metalVp_height = v.height;
+    p.metalVp_znear = v.znear;
+    p.metalVp_zfar = v.zfar;
+}
+
+void
+metal_pass_set_full_drawable_vp(struct MetalRendererCore* r, MTLViewport v)
+{
+    if( !r )
+        return;
+    MetalPassState& p = r->pass;
+    p.fullDrawableVp_originX = v.originX;
+    p.fullDrawableVp_originY = v.originY;
+    p.fullDrawableVp_width = v.width;
+    p.fullDrawableVp_height = v.height;
+    p.fullDrawableVp_znear = v.znear;
+    p.fullDrawableVp_zfar = v.zfar;
+}
+
+LogicalViewportRect
+metal_pass_get_pass_3d_dst_logical(const struct MetalRendererCore* r)
+{
+    if( !r )
+        return {};
+    return { r->pass.pass_3d_dst_x,
+             r->pass.pass_3d_dst_y,
+             r->pass.pass_3d_dst_w,
+             r->pass.pass_3d_dst_h };
+}
+
+void
+metal_pass_set_pass_3d_dst_logical(struct MetalRendererCore* r, const LogicalViewportRect& lr)
+{
+    if( !r )
+        return;
+    r->pass.pass_3d_dst_x = lr.x;
+    r->pass.pass_3d_dst_y = lr.y;
+    r->pass.pass_3d_dst_w = lr.width;
+    r->pass.pass_3d_dst_h = lr.height;
 }

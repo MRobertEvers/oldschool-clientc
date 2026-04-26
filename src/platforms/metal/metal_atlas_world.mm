@@ -37,7 +37,7 @@ metal_rgba64_nearest_to_128(const uint8_t* src64, uint8_t* dst128)
 
 static void
 metal_write_atlas_tile_slot(
-    struct Platform2_SDL2_Renderer_Metal* r,
+    Platform2_SDL2_Renderer_Metal* r,
     uint16_t tex_id,
     const struct DashTexture* tex_nullable)
 {
@@ -78,7 +78,7 @@ metal_write_atlas_tile_slot(
 }
 
 static void
-metal_fill_all_atlas_tiles_default(struct Platform2_SDL2_Renderer_Metal* r)
+metal_fill_all_atlas_tiles_default(Platform2_SDL2_Renderer_Metal* r)
 {
     for( uint16_t i = 0; i < (uint16_t)MAX_TEXTURES; ++i )
         metal_write_atlas_tile_slot(r, i, nullptr);
@@ -86,7 +86,7 @@ metal_fill_all_atlas_tiles_default(struct Platform2_SDL2_Renderer_Metal* r)
 
 static void
 metal_cache2_set_atlas_texture_from_cache(
-    struct Platform2_SDL2_Renderer_Metal* r,
+    Platform2_SDL2_Renderer_Metal* r,
     id<MTLDevice> device)
 {
     id<MTLTexture> c2atlas = GPU3DCache2SubmitAtlasMetal(r->model_cache2, device);
@@ -98,7 +98,7 @@ metal_cache2_set_atlas_texture_from_cache(
 }
 
 void
-metal_cache2_atlas_resources_init(struct Platform2_SDL2_Renderer_Metal* r, id<MTLDevice> device)
+metal_cache2_atlas_resources_init(Platform2_SDL2_Renderer_Metal* r, id<MTLDevice> device)
 {
     if( !r || !device )
         return;
@@ -119,7 +119,7 @@ metal_cache2_atlas_resources_init(struct Platform2_SDL2_Renderer_Metal* r, id<MT
 }
 
 void
-metal_cache2_atlas_resources_shutdown(struct Platform2_SDL2_Renderer_Metal* r)
+metal_cache2_atlas_resources_shutdown(Platform2_SDL2_Renderer_Metal* r)
 {
     if( !r )
         return;
@@ -145,9 +145,11 @@ metal_frame_event_texture_load(
     struct DashTexture* tex = cmd->_texture_load.texture_nullable;
     if( !tex || !tex->texels || tex_id < 0 || tex_id >= (int)MAX_TEXTURES )
         return;
+    if( !ctx->renderer || !ctx->renderer->mtl_device )
+        return;
 
-    id<MTLDevice> device = ctx->device;
-    struct Platform2_SDL2_Renderer_Metal* r = ctx->renderer;
+    id<MTLDevice> device = (__bridge id<MTLDevice>)ctx->renderer->mtl_device;
+    Platform2_SDL2_Renderer_Metal* r = ctx->renderer;
 
     const int w = tex->width;
     const int h = tex->height;
@@ -195,22 +197,4 @@ metal_frame_event_texture_load(
     metal_write_atlas_tile_slot(r, (uint16_t)tex_id, tex);
 
     metal_cache2_set_atlas_texture_from_cache(r, device);
-}
-
-void
-metal_frame_event_batch_texture_load_start(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd)
-{
-    (void)ctx;
-    (void)cmd;
-}
-
-void
-metal_frame_event_batch_texture_load_end(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd)
-{
-    (void)ctx;
-    (void)cmd;
 }

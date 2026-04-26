@@ -3,7 +3,7 @@
 
 void
 PlatformImpl2_SDL2_Renderer_Metal_Render(
-    struct Platform2_SDL2_Renderer_Metal* renderer,
+    Platform2_SDL2_Renderer_Metal* renderer,
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
 {
@@ -45,9 +45,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
 
         renderer->mtl_uniform_frame_slot =
             (renderer->mtl_uniform_frame_slot + 1u) % (uint32_t)kMetalInflightFrames;
-        renderer->mtl_uniform_pass_subslot = 0u;
-        renderer->mtl_pass3d_inst_upload_ofs = 0u;
-        renderer->mtl_pass3d_idx_upload_ofs = 0u;
+        renderer->pass.mtl_uniform_pass_subslot = 0u;
+        renderer->pass.mtl_pass3d_idx_upload_ofs = 0u;
 
         // -----------------------------------------------------------------------
         // Build render pass descriptor with depth attachment
@@ -122,25 +121,23 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         // -----------------------------------------------------------------------
         LibToriRS_FrameBegin(game, render_command_buffer);
 
+        renderer->pass.encoder = (__bridge void*)encoder;
+        void* clrDepthPipePtr = metal_internal_clear_rect_depth_pipeline();
+        renderer->pass.clearRectDepthPipeState = clrDepthPipePtr;
+        void* clrDepthDsPtr = metal_internal_clear_rect_depth_write_ds();
+        renderer->pass.clearRectDepthDsState = clrDepthDsPtr;
+        renderer->pass.dsState = (__bridge void*)dsState;
+        void* clearQuadPtr = metal_internal_clear_quad_buf();
+        renderer->pass.clearQuadBuf = clearQuadPtr;
+        metal_pass_set_metal_vp(renderer, metalVp);
+        metal_pass_set_full_drawable_vp(renderer, fullDrawableVp);
+        renderer->pass.win_width = win_width;
+        renderer->pass.win_height = win_height;
+        renderer->pass.clear_rect_slot = 0;
+
         MetalRenderCtx ctx = {};
         ctx.renderer = renderer;
         ctx.game = game;
-        ctx.device = device;
-        ctx.encoder = encoder;
-        void* clrDepthPipePtr = metal_internal_clear_rect_depth_pipeline();
-        ctx.clearRectDepthPipeState =
-            clrDepthPipePtr ? (__bridge id<MTLRenderPipelineState>)clrDepthPipePtr : nil;
-        void* clrDepthDsPtr = metal_internal_clear_rect_depth_write_ds();
-        ctx.clearRectDepthDsState =
-            clrDepthDsPtr ? (__bridge id<MTLDepthStencilState>)clrDepthDsPtr : nil;
-        ctx.dsState = dsState;
-        void* clearQuadPtr = metal_internal_clear_quad_buf();
-        ctx.clearQuadBuf = clearQuadPtr ? (__bridge id<MTLBuffer>)clearQuadPtr : nil;
-        ctx.metalVp = metalVp;
-        ctx.fullDrawableVp = fullDrawableVp;
-        ctx.win_width = win_width;
-        ctx.win_height = win_height;
-        ctx.clear_rect_slot = 0;
 
         // -----------------------------------------------------------------------
         // Drain render commands — dispatch each through its named handler
@@ -155,13 +152,13 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     metal_frame_event_begin_3d(&ctx, &cmd, &logical_vp);
                     break;
                 case TORIRS_GFX_STATE_END_3D:
-                    metal_frame_event_end_3d(&ctx, unifBuf);
+                    metal_frame_event_end_3d(&ctx, (__bridge void*)unifBuf);
                     break;
                 case TORIRS_GFX_STATE_CLEAR_RECT:
                     metal_frame_event_clear_rect(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_RES_TEX_LOAD:
-                    metal_frame_event_texture_load(&ctx, &cmd);
+                    metal_event_res_tex_load(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_RES_MODEL_LOAD:
                     metal_frame_event_model_load(&ctx, &cmd);
@@ -170,25 +167,25 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     metal_frame_event_model_unload(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_BATCH3D_BEGIN:
-                    metal_frame_event_batch_model_load_start(&ctx, &cmd);
+                    metal_event_batch3d_begin(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_BATCH3D_MODEL_ADD:
-                    metal_frame_event_model_batched_load(&ctx, &cmd);
+                    metal_event_batch3d_model_add(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_BATCH3D_END:
-                    metal_frame_event_batch_model_load_end(&ctx, &cmd);
+                    metal_event_batch3d_end(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_BATCH3D_CLEAR:
-                    metal_frame_event_batch_model_clear(&ctx, &cmd);
+                    metal_event_batch3d_clear(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_DRAW_MODEL:
-                    metal_frame_event_model_draw(&ctx, &cmd);
+                    metal_event_draw_model(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_BATCH2D_TEX_BEGIN:
-                    metal_frame_event_batch_texture_load_start(&ctx, &cmd);
+                    metal_event_batch2d_tex_begin(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_BATCH2D_TEX_END:
-                    metal_frame_event_batch_texture_load_end(&ctx, &cmd);
+                    metal_event_batch2d_tex_end(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_RES_ANIM_LOAD:
                 case TORIRS_GFX_BATCH3D_ANIM_ADD:
@@ -207,7 +204,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         [cmdBuf presentDrawable:drawable];
 
         // Signal the semaphore when the GPU finishes this frame's work (Bug B fix)
-        struct Platform2_SDL2_Renderer_Metal* captured_renderer = renderer;
+        Platform2_SDL2_Renderer_Metal* captured_renderer = renderer;
         [cmdBuf addCompletedHandler:^(id<MTLCommandBuffer> _Nonnull) {
           dispatch_semaphore_signal(
               (__bridge dispatch_semaphore_t)captured_renderer->mtl_frame_semaphore);

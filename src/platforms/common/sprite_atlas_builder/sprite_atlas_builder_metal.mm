@@ -23,7 +23,7 @@ SpriteAtlasBuilderSubmitMetal(
     SpriteAtlasBuilder& builder,
     MetalRenderCtx* ctx)
 {
-    if( !ctx || !ctx->device || !ctx->renderer || builder.empty() )
+    if( !ctx || !ctx->renderer || !ctx->renderer->mtl_device || builder.empty() )
         return;
 
     std::vector<uint8_t>& rgba = ctx->renderer->rgba_scratch;
@@ -54,7 +54,8 @@ SpriteAtlasBuilderSubmitMetal(
                                                            mipmapped:NO];
         td.usage = MTLTextureUsageShaderRead;
         td.storageMode = MTLStorageModeShared;
-        id<MTLTexture> tex = [ctx->device newTextureWithDescriptor:td];
+        id<MTLDevice> device = (__bridge id<MTLDevice>)ctx->renderer->mtl_device;
+        id<MTLTexture> tex = [device newTextureWithDescriptor:td];
         if( !tex )
         {
             fprintf(

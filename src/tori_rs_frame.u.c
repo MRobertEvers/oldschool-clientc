@@ -724,6 +724,21 @@ queue_static_load_commands(
                 ev->_model_load.model_id = scene2_element_dash_model_gpu_id(el);
                 ev->_model_load.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
                     (enum Scene2ElementCategory)scene_event.u.model.element_category);
+                if( scene_event.batched )
+                {
+                    ev->_model_load.world_x = scene_event.u.model.world_x;
+                    ev->_model_load.world_y = scene_event.u.model.world_y;
+                    ev->_model_load.world_z = scene_event.u.model.world_z;
+                    ev->_model_load.world_yaw_r2pi2048 =
+                        scene_event.u.model.world_yaw_r2pi2048;
+                }
+                else
+                {
+                    ev->_model_load.world_x = 0;
+                    ev->_model_load.world_y = 0;
+                    ev->_model_load.world_z = 0;
+                    ev->_model_load.world_yaw_r2pi2048 = 0;
+                }
 
                 continue;
             }
@@ -737,6 +752,10 @@ queue_static_load_commands(
                 ev->_model_load.model_id = scene_event.u.model.model_id;
                 ev->_model_load.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
                     (enum Scene2ElementCategory)scene_event.u.model.element_category);
+                ev->_model_load.world_x = 0;
+                ev->_model_load.world_y = 0;
+                ev->_model_load.world_z = 0;
+                ev->_model_load.world_yaw_r2pi2048 = 0;
                 continue;
             }
         }

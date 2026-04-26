@@ -76,22 +76,15 @@ vertex VertexOut vertexShaderStream(
     return out;
 }
 
-/** Pass3DBuilder2 / GPU3DCache2: `drawIndexedPrimitives` + `baseVertex`; `vid` is resolved VBO index.
- *  One `GPU3DTransformUniformMetal` per draw at buffer(2) offset (use `instances[0]`). Same world transform as
- *  `vertexShaderStream`. */
+/** Pass3DBuilder2Metal / GPU3DCache2: `drawIndexedPrimitives` + `baseVertex`; `vid` is resolved VBO index.
+ *  Vertices are world-baked at load; camera translation lives in `uniforms.modelViewMatrix`. */
 vertex VertexOut vertexShader(
     uint vid [[vertex_id]],
     constant Uniforms& uniforms [[buffer(1)]],
-    device const GPU3DTransformUniformMetal* instances [[buffer(2)]],
     device const MetalVertexPacked* verts [[buffer(0)]])
 {
     MetalVertexPacked v = verts[vid];
-    GPU3DTransformUniformMetal t = instances[0];
-
-    float3 p = float4(v.position).xyz;
-    float xr = p.x * t.cos_yaw + p.z * t.sin_yaw;
-    float zr = -p.x * t.sin_yaw + p.z * t.cos_yaw;
-    float4 worldPos = float4(xr + t.x, p.y + t.y, zr + t.z, 1.0);
+    float4 worldPos = float4(float4(v.position).xyz, 1.0);
 
     VertexOut out;
     out.position = uniforms.projectionMatrix * uniforms.modelViewMatrix * worldPos;

@@ -132,6 +132,57 @@ scene2_eventbuffer_push(
     scene2->eventbuffer_count++;
 }
 
+static void
+scene2__batch_pending_remove_for_element(
+    struct Scene2* scene2,
+    int element_id)
+{
+    if( !scene2 || scene2->batch_pending_loads_count <= 0 )
+        return;
+    int w = 0;
+    for( int r = 0; r < scene2->batch_pending_loads_count; r++ )
+    {
+        if( scene2->batch_pending_loads[r].element_id == element_id )
+            continue;
+        scene2->batch_pending_loads[w++] = scene2->batch_pending_loads[r];
+    }
+    scene2->batch_pending_loads_count = w;
+}
+
+static bool
+scene2__batch_pending_push(
+    struct Scene2* scene2,
+    int element_id,
+    int parent_entity_id,
+    int model_gpu_id,
+    uint8_t element_category,
+    struct DashModel* model)
+{
+    if( !scene2 )
+        return false;
+    scene2__batch_pending_remove_for_element(scene2, element_id);
+    if( scene2->batch_pending_loads_count >= scene2->batch_pending_loads_capacity )
+    {
+        int ncap = scene2->batch_pending_loads_capacity == 0
+                       ? 256
+                       : scene2->batch_pending_loads_capacity * 2;
+        struct Scene2BatchedModelLoad* nb = realloc(
+            scene2->batch_pending_loads, (size_t)ncap * sizeof(struct Scene2BatchedModelLoad));
+        if( !nb )
+            return false;
+        scene2->batch_pending_loads = nb;
+        scene2->batch_pending_loads_capacity = ncap;
+    }
+    struct Scene2BatchedModelLoad* slot =
+        &scene2->batch_pending_loads[scene2->batch_pending_loads_count++];
+    slot->element_id = element_id;
+    slot->parent_entity_id = parent_entity_id;
+    slot->model_gpu_id = model_gpu_id;
+    slot->element_category = element_category;
+    slot->model = model;
+    return true;
+}
+
 int
 scene2_elements_total(const struct Scene2* scene2)
 {
@@ -245,6 +296,7 @@ scene2_free(struct Scene2* scene2)
     free(scene2->vertex_arrays_deferred_free);
     free(scene2->face_arrays_deferred_free);
     free(scene2->models_deferred_free);
+    free(scene2->batch_pending_loads);
     free(scene2->eventbuffer);
     free(scene2);
 }
@@ -468,6 +520,10 @@ scene2_element_set_dash_model(
                     .model_id = old_model_id,
                     .element_category = model_cat,
                     .model = old,
+                    .world_x = 0,
+                    .world_y = 0,
+                    .world_z = 0,
+                    .world_yaw_r2pi2048 = 0,
                 },
             });
         scene2__defer_model_free(scene2, old);
@@ -496,19 +552,74 @@ scene2_element_set_dash_model(
         else
             scene2__as_full(element)->dash_model_gpu_id = new_id;
 
-        scene2_eventbuffer_push(
-            scene2,
-            (struct Scene2Event){
-                .type = SCENE2_EVENT_MODEL_LOADED,
-                .batched = scene2->batch_active,
-                .u.model = {
-                    .element_id = element_id,
-                    .parent_entity_id = parent_entity_id,
-                    .model_id = new_id,
-                    .element_category = model_cat,
-                    .model = dash_model,
-                },
-            });
+        if( scene2->batch_active )
+        {
+            if( !scene2__batch_pending_push(
+                    scene2,
+                    element_id,
+                    parent_entity_id,
+                    new_id,
+                    model_cat,
+                    dash_model) )
+            {
+                int32_t wx = 0, wy = 0, wz = 0, wyaw = 0;
+                struct DashPosition* wpos = scene2_element_dash_position(element);
+                if( wpos )
+                {
+                    wx = (int32_t)wpos->x;
+                    wy = (int32_t)wpos->y;
+                    wz = (int32_t)wpos->z;
+                    wyaw = (int32_t)wpos->yaw;
+                }
+                scene2_eventbuffer_push(
+                    scene2,
+                    (struct Scene2Event){
+                        .type = SCENE2_EVENT_MODEL_LOADED,
+                        .batched = true,
+                        .u.model = {
+                            .element_id = element_id,
+                            .parent_entity_id = parent_entity_id,
+                            .model_id = new_id,
+                            .element_category = model_cat,
+                            .model = dash_model,
+                            .world_x = wx,
+                            .world_y = wy,
+                            .world_z = wz,
+                            .world_yaw_r2pi2048 = wyaw,
+                        },
+                    });
+            }
+        }
+        else
+        {
+            int32_t wx = 0, wy = 0, wz = 0, wyaw = 0;
+            struct DashPosition* wpos = scene2_element_dash_position(element);
+            if( wpos )
+            {
+                wx = (int32_t)wpos->x;
+                wy = (int32_t)wpos->y;
+                wz = (int32_t)wpos->z;
+                wyaw = (int32_t)wpos->yaw;
+            }
+
+            scene2_eventbuffer_push(
+                scene2,
+                (struct Scene2Event){
+                    .type = SCENE2_EVENT_MODEL_LOADED,
+                    .batched = false,
+                    .u.model = {
+                        .element_id = element_id,
+                        .parent_entity_id = parent_entity_id,
+                        .model_id = new_id,
+                        .element_category = model_cat,
+                        .model = dash_model,
+                        .world_x = wx,
+                        .world_y = wy,
+                        .world_z = wz,
+                        .world_yaw_r2pi2048 = wyaw,
+                    },
+                });
+        }
     }
 }
 
@@ -621,6 +732,9 @@ scene2_element_release(
     int parent_entity_id = scene2_element_parent_entity_id(element);
     const uint8_t released_el_cat = (uint8_t)scene2_element_category(element);
 
+    if( scene2->batch_active )
+        scene2__batch_pending_remove_for_element(scene2, element_id);
+
     if( scene2__is_fast(element) )
     {
         struct Scene2ElementFast* f = scene2__as_fast(element);
@@ -637,6 +751,10 @@ scene2_element_release(
                         .model_id = f->dash_model_gpu_id,
                         .element_category = f->element_category,
                         .model = f->dash_model,
+                        .world_x = 0,
+                        .world_y = 0,
+                        .world_z = 0,
+                        .world_yaw_r2pi2048 = 0,
                     },
                 });
             scene2__defer_model_free(scene2, f->dash_model);
@@ -664,6 +782,10 @@ scene2_element_release(
                         .model_id = u->dash_model_gpu_id,
                         .element_category = u->element_category,
                         .model = u->dash_model,
+                        .world_x = 0,
+                        .world_y = 0,
+                        .world_z = 0,
+                        .world_yaw_r2pi2048 = 0,
                     },
                 });
             scene2__defer_model_free(scene2, u->dash_model);
@@ -1237,6 +1359,9 @@ scene2_batch_begin(struct Scene2* scene2)
         }
     }
     assert(slot >= 0 && "scene2_batch_begin: no free GPU batch slot (increase SCENE2_MAX_GPU_BATCHES?)");
+    assert(
+        scene2->batch_pending_loads_count == 0 &&
+        "scene2_batch_begin: pending model loads from un-ended batch");
     scene2->gpu_batch_slot_live[slot] = true;
     const uint32_t batch_id = (uint32_t)slot;
     scene2->batch_current_id = batch_id;
@@ -1258,6 +1383,52 @@ scene2_batch_end(struct Scene2* scene2)
         return;
     assert(scene2->batch_active && "scene2_batch_end: no active batch");
     uint32_t id = scene2->batch_current_id;
+
+    for( int i = 0; i < scene2->batch_pending_loads_count; i++ )
+    {
+        const struct Scene2BatchedModelLoad* pl = &scene2->batch_pending_loads[i];
+        struct Scene2Element* el = scene2_element_at(scene2, pl->element_id);
+        if( !el || !scene2_element_is_active(el) )
+            continue;
+        struct DashModel* cur = scene2_element_dash_model(el);
+        int cur_gpu_id = 0;
+        if( scene2__is_fast(el) )
+            cur_gpu_id = scene2__as_fast(el)->dash_model_gpu_id;
+        else
+            cur_gpu_id = scene2__as_full(el)->dash_model_gpu_id;
+        if( cur != pl->model || cur_gpu_id != pl->model_gpu_id )
+            continue;
+
+        int32_t wx = 0, wy = 0, wz = 0, wyaw = 0;
+        struct DashPosition* wpos = scene2_element_dash_position(el);
+        if( wpos )
+        {
+            wx = (int32_t)wpos->x;
+            wy = (int32_t)wpos->y;
+            wz = (int32_t)wpos->z;
+            wyaw = (int32_t)wpos->yaw;
+        }
+
+        scene2_eventbuffer_push(
+            scene2,
+            (struct Scene2Event){
+                .type = SCENE2_EVENT_MODEL_LOADED,
+                .batched = true,
+                .u.model = {
+                    .element_id = pl->element_id,
+                    .parent_entity_id = pl->parent_entity_id,
+                    .model_id = pl->model_gpu_id,
+                    .element_category = pl->element_category,
+                    .model = pl->model,
+                    .world_x = wx,
+                    .world_y = wy,
+                    .world_z = wz,
+                    .world_yaw_r2pi2048 = wyaw,
+                },
+            });
+    }
+    scene2->batch_pending_loads_count = 0;
+
     scene2->batch_active = false;
     scene2_eventbuffer_push(
         scene2,

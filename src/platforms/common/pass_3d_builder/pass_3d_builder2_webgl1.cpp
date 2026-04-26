@@ -2,15 +2,82 @@
 
 #ifdef __EMSCRIPTEN__
 
-#    include "gpu_3d_cache2.h"
-#    include "platforms/common/gpu_3d.h"
 #    include "platforms/platform_impl2_sdl2_renderer_webgl1.h"
 
 #    include <GLES2/gl2.h>
 
+#    include <cassert>
+#    include <cstddef>
 #    include <cstdio>
 #    include <cstring>
 #    include <vector>
+
+void
+Pass3DBuilder2WebGL1::Begin()
+{
+    is_building_ = true;
+    indices_pool_.clear();
+    slices_.clear();
+}
+
+void
+Pass3DBuilder2WebGL1::ClearAfterSubmit()
+{
+    indices_pool_.clear();
+    slices_.clear();
+}
+
+void
+Pass3DBuilder2WebGL1::AppendSortedDraw(
+    GPUResourceHandle vbo,
+    uint32_t pose_vbo_vertex_offset,
+    const uint16_t* sorted_indices,
+    uint32_t index_count)
+{
+    if( !is_building_ || sorted_indices == nullptr || index_count == 0u )
+        return;
+    if( vbo == 0u )
+        return;
+
+    const uint32_t voff = pose_vbo_vertex_offset;
+    for( uint32_t ii = 0; ii < index_count; ++ii )
+    {
+        const uint32_t abs_idx = voff + (uint32_t)sorted_indices[ii];
+        if( abs_idx > 0xFFFFu )
+        {
+            static bool s_warned_oob;
+            if( !s_warned_oob )
+            {
+                fprintf(
+                    stderr,
+                    "[Pass3DBuilder2WebGL1] biased index > 65535; skipping scenery draws that "
+                    "overflow uint16 (use Metal or split batches)\n");
+                s_warned_oob = true;
+            }
+            return;
+        }
+    }
+
+    const bool same_vbo_as_last =
+        !slices_.empty() && slices_.back().vbo == vbo && slices_.back().index_count > 0u;
+    if( same_vbo_as_last )
+    {
+        for( uint32_t ii = 0; ii < index_count; ++ii )
+            indices_pool_.push_back((uint16_t)(voff + (uint32_t)sorted_indices[ii]));
+        slices_.back().index_count += index_count;
+        return;
+    }
+
+    const uint32_t slice_off = (uint32_t)indices_pool_.size();
+    for( uint32_t ii = 0; ii < index_count; ++ii )
+        indices_pool_.push_back((uint16_t)(voff + (uint32_t)sorted_indices[ii]));
+
+    Pass3DWebGL1Slice sl{};
+    sl.vbo = vbo;
+    sl.index_offset = slice_off;
+    sl.index_count = index_count;
+    slices_.push_back(sl);
+}
 
 static void
 webgl1_upload_tile_uniforms(
@@ -39,33 +106,38 @@ webgl1_upload_tile_uniforms(
 }
 
 static void
-bind_mesh_attribs_stride48(GLuint mesh_vbo, const WebGL1WorldShaderLocs& L)
+bind_mesh_attribs_stride48_base(GLuint mesh_vbo, const WebGL1WorldShaderLocs& L, intptr_t base_bytes)
 {
     glBindBuffer(GL_ARRAY_BUFFER, mesh_vbo);
     if( L.a_position >= 0 )
     {
         glEnableVertexAttribArray((GLuint)L.a_position);
-        glVertexAttribPointer((GLuint)L.a_position, 4, GL_FLOAT, GL_FALSE, 48, (void*)0);
+        glVertexAttribPointer(
+            (GLuint)L.a_position, 4, GL_FLOAT, GL_FALSE, 48, (void*)(base_bytes + 0));
     }
     if( L.a_color >= 0 )
     {
         glEnableVertexAttribArray((GLuint)L.a_color);
-        glVertexAttribPointer((GLuint)L.a_color, 4, GL_FLOAT, GL_FALSE, 48, (void*)16);
+        glVertexAttribPointer(
+            (GLuint)L.a_color, 4, GL_FLOAT, GL_FALSE, 48, (void*)(base_bytes + 16));
     }
     if( L.a_texcoord >= 0 )
     {
         glEnableVertexAttribArray((GLuint)L.a_texcoord);
-        glVertexAttribPointer((GLuint)L.a_texcoord, 2, GL_FLOAT, GL_FALSE, 48, (void*)32);
+        glVertexAttribPointer(
+            (GLuint)L.a_texcoord, 2, GL_FLOAT, GL_FALSE, 48, (void*)(base_bytes + 32));
     }
     if( L.a_tex_id >= 0 )
     {
         glEnableVertexAttribArray((GLuint)L.a_tex_id);
-        glVertexAttribPointer((GLuint)L.a_tex_id, 1, GL_FLOAT, GL_FALSE, 48, (void*)40);
+        glVertexAttribPointer(
+            (GLuint)L.a_tex_id, 1, GL_FLOAT, GL_FALSE, 48, (void*)(base_bytes + 40));
     }
     if( L.a_uv_mode >= 0 )
     {
         glEnableVertexAttribArray((GLuint)L.a_uv_mode);
-        glVertexAttribPointer((GLuint)L.a_uv_mode, 1, GL_FLOAT, GL_FALSE, 48, (void*)44);
+        glVertexAttribPointer(
+            (GLuint)L.a_uv_mode, 1, GL_FLOAT, GL_FALSE, 48, (void*)(base_bytes + 44));
     }
 }
 
@@ -84,71 +156,10 @@ disable_mesh_attribs(const WebGL1WorldShaderLocs& L)
         glDisableVertexAttribArray((GLuint)L.a_uv_mode);
 }
 
-static void
-webgl1_set_instance_uniforms(const WebGL1WorldShaderLocs& L, const GPU3DTransformUniformMetal& inst)
-{
-    if( L.u_inst0 >= 0 )
-        glUniform4f(L.u_inst0, inst.cos_yaw, inst.sin_yaw, inst.x, inst.y);
-    if( L.u_inst1 >= 0 )
-        glUniform4f(L.u_inst1, inst.z, 0.0f, 0.0f, 0.0f);
-}
-
-namespace
-{
-
-struct WebGLResolvedMesh
-{
-    GPUModelPosedData model{};
-    GLuint vbo = 0u;
-    GLuint ebo = 0u;
-    bool drawable = false;
-};
-
-WebGLResolvedMesh
-webgl1_resolve_static_mesh_for_cmd(
-    const GPU3DCache2<GPU3DMeshVertexWebGL1>& cache,
-    const DrawModel3D& cmd)
-{
-    WebGLResolvedMesh out;
-    if( cmd.dynamic_index_count > 0u )
-        return out;
-
-    out.model = cache.GetModelPoseForDraw(
-        cmd.model_id, cmd.use_animation, (int)cmd.animation_index, (int)cmd.frame_index);
-    if( !out.model.valid )
-        return out;
-
-    GLuint vbo = 0u;
-    GLuint ebo = 0u;
-    if( out.model.scene_batch_id < kGPU3DCache2MaxSceneBatches )
-    {
-        const GPU3DCache2SceneBatchEntry* be = cache.SceneBatchGet(out.model.scene_batch_id);
-        if( be && be->resource.valid )
-        {
-            vbo = (GLuint)(uintptr_t)be->resource.vbo;
-            ebo = (GLuint)(uintptr_t)be->resource.ebo;
-        }
-    }
-    if( vbo == 0u )
-        vbo = (GLuint)(uintptr_t)out.model.vbo;
-    if( ebo == 0u )
-        ebo = (GLuint)(uintptr_t)out.model.ebo;
-    if( vbo == 0u || ebo == 0u )
-        return out;
-
-    out.vbo = vbo;
-    out.ebo = ebo;
-    out.drawable = true;
-    return out;
-}
-
-} // namespace
-
 void
 Pass3DBuilder2SubmitWebGL1(
-    Pass3DBuilder2<GPU3DTransformUniformMetal>& builder,
-    const GPU3DCache2<GPU3DMeshVertexWebGL1>& cache,
-    struct Platform2_SDL2_Renderer_WebGL1* webgl_renderer,
+    Pass3DBuilder2WebGL1& builder,
+    struct WebGL1RendererCore* webgl_renderer,
     GLuint program,
     const WebGL1WorldShaderLocs& locs,
     GLuint fragment_atlas_texture,
@@ -158,8 +169,6 @@ Pass3DBuilder2SubmitWebGL1(
 {
     if( !builder.HasCommands() || program == 0u )
         return;
-
-    const std::vector<GPU3DTransformUniformMetal>& inst_pool = builder.GetInstancePool();
 
     glUseProgram(program);
     if( locs.u_modelViewMatrix >= 0 )
@@ -183,49 +192,41 @@ Pass3DBuilder2SubmitWebGL1(
     glDepthFunc(GL_ALWAYS);
     glDepthMask(GL_FALSE);
 
+    if( webgl_renderer && webgl_renderer->pass3d_dynamic_ibo != 0u && builder.HasDynamicIndices() )
+    {
+        const std::vector<uint16_t>& dix = builder.Indices();
+        const GLsizeiptr idx_bytes = (GLsizeiptr)(dix.size() * sizeof(uint16_t));
+        if( idx_bytes > 0 )
+        {
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, webgl_renderer->pass3d_dynamic_ibo);
+            glBufferData(
+                GL_ELEMENT_ARRAY_BUFFER, idx_bytes, dix.data(), GL_STREAM_DRAW);
+        }
+    }
+
     GLuint last_mesh_vbo = 0u;
 
-    for( const Pass3DCommandGPUBatch& batch : builder.GetGpuBatches() )
+    for( const Pass3DWebGL1Slice& slice : builder.Slices() )
     {
-        if( batch.draws.empty() )
+        const GLuint vbo = (GLuint)(uintptr_t)slice.vbo;
+        if( vbo == 0u || !webgl_renderer || webgl_renderer->pass3d_dynamic_ibo == 0u )
+            continue;
+        if( slice.index_count == 0u )
             continue;
 
-        const WebGLResolvedMesh head = webgl1_resolve_static_mesh_for_cmd(cache, batch.draws[0]);
-        if( !head.drawable )
-            continue;
-
-        bind_mesh_attribs_stride48(head.vbo, locs);
-        last_mesh_vbo = head.vbo;
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, head.ebo);
-
-        for( const DrawModel3D& cmd : batch.draws )
+        if( vbo != last_mesh_vbo )
         {
-            const WebGLResolvedMesh r = webgl1_resolve_static_mesh_for_cmd(cache, cmd);
-            if( !r.drawable )
-                continue;
-
-            if( cmd.instance_offset >= inst_pool.size() )
-                continue;
-
-            if( webgl_renderer )
-                webgl_renderer->diag_frame_submitted_model_draws++;
-
-            if( r.vbo != last_mesh_vbo )
-            {
-                bind_mesh_attribs_stride48(r.vbo, locs);
-                last_mesh_vbo = r.vbo;
-            }
-            if( r.ebo != head.ebo )
-                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r.ebo);
-
-            webgl1_set_instance_uniforms(locs, inst_pool[cmd.instance_offset]);
-
-            glDrawElements(
-                GL_TRIANGLES,
-                (GLsizei)r.model.element_count,
-                GL_UNSIGNED_SHORT,
-                (void*)((size_t)r.model.ebo_offset * sizeof(uint16_t)));
+            bind_mesh_attribs_stride48_base(vbo, locs, 0);
+            last_mesh_vbo = vbo;
         }
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, webgl_renderer->pass3d_dynamic_ibo);
+        webgl_renderer->diag_frame_submitted_model_draws++;
+        webgl_renderer->diag_frame_dynamic_index_draws++;
+        glDrawElements(
+            GL_TRIANGLES,
+            (GLsizei)slice.index_count,
+            GL_UNSIGNED_SHORT,
+            (void*)((size_t)slice.index_offset * sizeof(uint16_t)));
     }
 
     disable_mesh_attribs(locs);

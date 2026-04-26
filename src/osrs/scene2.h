@@ -90,6 +90,11 @@ struct Scene2Event
             uint8_t element_category;
             /** Valid until scene2_flush_deferred_array_frees (deferred dashmodel_free). */
             struct DashModel* model;
+            /** World placement from `scene2_element_dash_position` at load time (r2pi2048 yaw). */
+            int32_t world_x;
+            int32_t world_y;
+            int32_t world_z;
+            int32_t world_yaw_r2pi2048;
         } model;
         struct
         {
@@ -124,6 +129,17 @@ struct Scene2Event
             struct DashFramemap* framemap;
         } animation;
     } u;
+};
+
+/** Deferred `SCENE2_EVENT_MODEL_LOADED` while `scene2->batch_active`: world_xyz is read at
+ * `scene2_batch_end` after callers set `dash_position`. */
+struct Scene2BatchedModelLoad
+{
+    int element_id;
+    int parent_entity_id;
+    int model_gpu_id;
+    uint8_t element_category;
+    struct DashModel* model;
 };
 
 struct Scene2
@@ -182,6 +198,11 @@ struct Scene2
     uint32_t batch_current_id;
     /** Which slots in `gpu_batch_slot_live` are in use (batch ids 0 .. SCENE2_MAX_GPU_BATCHES-1). */
     bool gpu_batch_slot_live[SCENE2_MAX_GPU_BATCHES];
+
+    /** Models assigned during the open batch; `MODEL_LOADED` emitted at `scene2_batch_end`. */
+    struct Scene2BatchedModelLoad* batch_pending_loads;
+    int batch_pending_loads_count;
+    int batch_pending_loads_capacity;
 
     /** World texture batch: wraps all TEXTURE_LOADED events during initial cache load. */
     bool texture_batch_active;
