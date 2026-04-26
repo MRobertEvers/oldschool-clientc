@@ -11,7 +11,6 @@
 #    include <GLES2/gl2.h>
 #    include <SDL.h>
 #    include <cstdint>
-#    include <unordered_map>
 #    include <vector>
 
 extern "C" {
@@ -29,11 +28,8 @@ struct WebGL1AtlasTile
 };
 
 static constexpr int kWebGL1WorldAtlasSize = 2048;
-static constexpr int kWebGL1InflightFrames = 3;
 static constexpr int kWebGL1Max3dPassesPerFrame = 32;
 static constexpr size_t kWebGL1UniformBufferDynamicAlign = 256;
-static constexpr uint32_t kWebGL1SoloModelBatchBase = 0xF0000000u;
-
 struct MetalUniformsWebGL
 {
     float modelViewMatrix[16];
@@ -67,33 +63,24 @@ struct Platform2_SDL2_Renderer_WebGL1
     GLuint prog_clear_depth = 0;
     GLint clear_depth_a_pos = -1;
 
-    GLuint pass3d_instance_buf = 0;
-    GLuint pass3d_index_buf = 0;
-    /** Short-lived index uploads for dynamic draws (rebased indices). */
-    GLuint scratch_idx_buf = 0;
-
-    struct WebGL1Cache2BatchEntry
-    {
-        GLuint vbo = 0;
-        GLuint ebo = 0;
-        std::vector<uint16_t> model_ids;
-    };
-    std::unordered_map<uint32_t, WebGL1Cache2BatchEntry> model_cache2_batch_map;
-
     GLuint cache2_atlas_tex = 0;
     std::vector<WebGL1AtlasTile> tiles_cpu;
     bool tiles_dirty = true;
 
     uint32_t current_model_batch_id = 0;
+    bool current_model_batch_active = false;
 
-    uint32_t uniform_frame_slot = 0;
     uint32_t uniform_pass_subslot = 0;
-    size_t pass3d_inst_upload_ofs = 0;
-    size_t pass3d_idx_upload_ofs = 0;
 
     std::vector<uint8_t> rgba_scratch;
 
     GLuint clear_quad_vbo = 0;
+
+    /** Per-frame diagnostics (reset at start of `PlatformImpl2_SDL2_Renderer_WebGL1_Render`). */
+    uint32_t diag_frame_model_draw_cmds = 0;
+    uint32_t diag_frame_pose_invalid_skips = 0;
+    uint32_t diag_frame_submitted_model_draws = 0;
+    uint32_t diag_frame_dynamic_index_draws = 0;
 };
 
 struct Platform2_SDL2_Renderer_WebGL1*

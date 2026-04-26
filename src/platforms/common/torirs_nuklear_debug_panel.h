@@ -24,6 +24,10 @@ typedef struct TorirsNkDebugPanelParams
     int include_gpu_frame_stats;
     unsigned gpu_model_draws;
     unsigned gpu_tris;
+    /** Optional WebGL1 / extended GPU stats (zero if unused). */
+    unsigned gpu_submitted_model_draws;
+    unsigned gpu_pose_invalid_skips;
+    unsigned gpu_dynamic_index_draws;
 } TorirsNkDebugPanelParams;
 
 #ifdef __cplusplus

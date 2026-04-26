@@ -280,7 +280,8 @@ scene2_push_active(
 int
 scene2_element_acquire_fast(
     struct Scene2* scene2,
-    int parent_entity_id)
+    int parent_entity_id,
+    enum Scene2ElementCategory category)
 {
     if( !scene2 || scene2->fast_free_list == NULL )
     {
@@ -300,6 +301,7 @@ scene2_element_acquire_fast(
     struct Scene2ElementFast* f = scene2__as_fast(element);
     f->flags_entity = SCENE2_FLAG_VALID | SCENE2_FLAG_FAST | SCENE2_FLAG_ACTIVE |
                       scene2_pack_parent(parent_entity_id);
+    f->element_category = (uint8_t)category;
 
     scene2_push_active(scene2, element);
 
@@ -312,6 +314,7 @@ scene2_element_acquire_fast(
             .batched = false,
             .u.element.element_id = element_id,
             .u.element.parent_entity_id = parent_entity_id,
+            .u.element.element_category = (uint8_t)category,
         });
 
     return element_id;
@@ -320,7 +323,8 @@ scene2_element_acquire_fast(
 int
 scene2_element_acquire_full(
     struct Scene2* scene2,
-    int parent_entity_id)
+    int parent_entity_id,
+    enum Scene2ElementCategory category)
 {
     if( !scene2 || scene2->full_free_list == NULL )
     {
@@ -339,6 +343,7 @@ scene2_element_acquire_full(
 
     struct Scene2ElementFull* u = scene2__as_full(element);
     u->flags_entity = SCENE2_FLAG_VALID | SCENE2_FLAG_ACTIVE | scene2_pack_parent(parent_entity_id);
+    u->element_category = (uint8_t)category;
 
     scene2_push_active(scene2, element);
 
@@ -351,6 +356,7 @@ scene2_element_acquire_full(
             .batched = false,
             .u.element.element_id = element_id,
             .u.element.parent_entity_id = parent_entity_id,
+            .u.element.element_category = (uint8_t)category,
         });
 
     return element_id;
@@ -441,6 +447,7 @@ scene2_element_set_dash_model(
 
     int element_id = scene2_element_id_from_ptr(scene2, element);
     int parent_entity_id = scene2_element_parent_entity_id(element);
+    const uint8_t model_cat = (uint8_t)scene2_element_category(element);
 
     if( old && scene2 )
     {
@@ -459,6 +466,7 @@ scene2_element_set_dash_model(
                     .element_id = element_id,
                     .parent_entity_id = parent_entity_id,
                     .model_id = old_model_id,
+                    .element_category = model_cat,
                     .model = old,
                 },
             });
@@ -497,6 +505,7 @@ scene2_element_set_dash_model(
                     .element_id = element_id,
                     .parent_entity_id = parent_entity_id,
                     .model_id = new_id,
+                    .element_category = model_cat,
                     .model = dash_model,
                 },
             });
@@ -543,6 +552,7 @@ scene2__emit_animation_frame_added(
         anim_id,
         animation_index,
         frame_index,
+        (enum Scene2ElementCategory)u->element_category,
         u->dash_model,
         frame,
         u->dash_framemap);
@@ -609,6 +619,7 @@ scene2_element_release(
     }
     assert(scene2_element_is_active(element) && "Element must be active");
     int parent_entity_id = scene2_element_parent_entity_id(element);
+    const uint8_t released_el_cat = (uint8_t)scene2_element_category(element);
 
     if( scene2__is_fast(element) )
     {
@@ -624,6 +635,7 @@ scene2_element_release(
                         .element_id = element_id,
                         .parent_entity_id = parent_entity_id,
                         .model_id = f->dash_model_gpu_id,
+                        .element_category = f->element_category,
                         .model = f->dash_model,
                     },
                 });
@@ -634,6 +646,7 @@ scene2_element_release(
         dashposition_free(f->dash_position);
         f->dash_position = NULL;
         f->flags_entity = SCENE2_FLAG_VALID | SCENE2_FLAG_FAST | SCENE2_PARENT_NONE;
+        f->element_category = (uint8_t)SCENE2_ELEMENT_SCENERY;
     }
     else
     {
@@ -649,6 +662,7 @@ scene2_element_release(
                         .element_id = element_id,
                         .parent_entity_id = parent_entity_id,
                         .model_id = u->dash_model_gpu_id,
+                        .element_category = u->element_category,
                         .model = u->dash_model,
                     },
                 });
@@ -664,7 +678,9 @@ scene2_element_release(
         scene2_element_clear_frames(&u->secondary_frames);
         u->active_anim_id = 0;
         u->active_frame_index = 0;
+        u->active_animation_index = 0;
         u->flags_entity = SCENE2_FLAG_VALID | SCENE2_PARENT_NONE;
+        u->element_category = (uint8_t)SCENE2_ELEMENT_SCENERY;
     }
 
     scene2_splice_out_active(scene2, element);
@@ -696,6 +712,7 @@ scene2_element_release(
             .batched = false,
             .u.element.element_id = element_id,
             .u.element.parent_entity_id = parent_entity_id,
+            .u.element.element_category = released_el_cat,
         });
 }
 
@@ -737,6 +754,16 @@ int
 scene2_element_parent_entity_id(const struct Scene2Element* element)
 {
     return scene2_unpack_parent(scene2__flags_raw(element));
+}
+
+enum Scene2ElementCategory
+scene2_element_category(const struct Scene2Element* element)
+{
+    if( !element )
+        return SCENE2_ELEMENT_SCENERY;
+    if( scene2__is_fast(element) )
+        return (enum Scene2ElementCategory)scene2__as_fast_const(element)->element_category;
+    return (enum Scene2ElementCategory)scene2__as_full_const(element)->element_category;
 }
 
 struct DashModel*
@@ -1187,13 +1214,31 @@ scene2_face_array_at(
 }
 
 void
-scene2_batch_begin(
-    struct Scene2* scene2,
-    uint32_t batch_id)
+scene2_gpu_batches_reset(struct Scene2* scene2)
 {
     if( !scene2 )
         return;
+    memset(scene2->gpu_batch_slot_live, 0, sizeof(scene2->gpu_batch_slot_live));
+}
+
+uint32_t
+scene2_batch_begin(struct Scene2* scene2)
+{
+    if( !scene2 )
+        return SCENE2_GPU_BATCH_SLOT_INVALID;
     assert(!scene2->batch_active && "scene2_batch_begin: nested batch");
+    int slot = -1;
+    for( int i = 0; i < SCENE2_MAX_GPU_BATCHES; i++ )
+    {
+        if( !scene2->gpu_batch_slot_live[i] )
+        {
+            slot = i;
+            break;
+        }
+    }
+    assert(slot >= 0 && "scene2_batch_begin: no free GPU batch slot (increase SCENE2_MAX_GPU_BATCHES?)");
+    scene2->gpu_batch_slot_live[slot] = true;
+    const uint32_t batch_id = (uint32_t)slot;
     scene2->batch_current_id = batch_id;
     scene2->batch_active = true;
     scene2_eventbuffer_push(
@@ -1203,6 +1248,7 @@ scene2_batch_begin(
             .batched = false,
             .u.batch.batch_id = batch_id,
         });
+    return batch_id;
 }
 
 void
@@ -1229,6 +1275,8 @@ scene2_batch_clear(
 {
     if( !scene2 )
         return;
+    if( batch_id < (uint32_t)SCENE2_MAX_GPU_BATCHES )
+        scene2->gpu_batch_slot_live[batch_id] = false;
     scene2_eventbuffer_push(
         scene2,
         (struct Scene2Event){
@@ -1245,6 +1293,7 @@ scene2_element_queue_animation_load(
     int anim_id,
     int animation_index,
     int frame_index,
+    enum Scene2ElementCategory element_category,
     struct DashModel* model,
     struct DashFrame* frame,
     struct DashFramemap* framemap)
@@ -1261,6 +1310,7 @@ scene2_element_queue_animation_load(
                 .anim_id         = anim_id,
                 .animation_index = animation_index,
                 .frame_index     = frame_index,
+                .element_category = (uint8_t)element_category,
                 .model           = model,
                 .frame           = frame,
                 .framemap        = framemap,

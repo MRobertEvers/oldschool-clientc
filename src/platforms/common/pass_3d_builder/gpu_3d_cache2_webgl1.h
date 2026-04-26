@@ -19,7 +19,7 @@ void
 GPU3DCache2BatchSubmitWebGL1(
     GPU3DCache2<GPU3DMeshVertexWebGL1>& cache,
     BatchBuffersWebGL1& out_batch_buffers,
-    uint32_t batch_id);
+    SceneBatchId scene_batch_id);
 
 /** Creates or replaces RGBA atlas texture from cache pixel data. Returns texture name or 0. */
 GLuint

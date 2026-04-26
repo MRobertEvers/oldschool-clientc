@@ -165,7 +165,7 @@ dashmodel__is_ground(const void* m)
     return dashmodel__type(m) == DASHMODEL_TYPE_GROUND;
 }
 
-inline bool
+static inline bool
 dashmodel__is_ground_va(const void* m)
 {
     return dashmodel__type(m) == DASHMODEL_TYPE_GROUND_VA;

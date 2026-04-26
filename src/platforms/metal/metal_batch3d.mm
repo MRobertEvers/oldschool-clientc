@@ -7,7 +7,7 @@ metal_cache2_batch_push_model_mesh(
     MetalRenderCtx* ctx,
     struct DashModel* model,
     int model_id,
-    uint32_t batch_id,
+    SceneBatchId scene_batch_id,
     uint8_t gpu_segment_slot,
     uint16_t frame_index)
 {
@@ -38,12 +38,8 @@ metal_cache2_batch_push_model_mesh(
     const int vertex_count = dashmodel_vertex_count(model);
     const int* face_infos = dashmodel_face_infos_const(model);
 
-    if( batch_id != 0 )
-    {
-        auto it_batch = ctx->renderer->model_cache2_batch_map.find(batch_id);
-        if( it_batch != ctx->renderer->model_cache2_batch_map.end() )
-            it_batch->second.model_ids.push_back((uint16_t)model_id);
-    }
+    if( scene_batch_id < kGPU3DCache2MaxSceneBatches )
+        ctx->renderer->model_cache2.SceneBatchAddModel(scene_batch_id, (uint16_t)model_id);
 
     if( dashmodel_has_textures(model) )
     {
@@ -115,9 +111,10 @@ metal_frame_event_batch_model_load_start(
 {
     const uint32_t bid = cmd->_batch.batch_id;
     ctx->renderer->current_model_batch_id = bid;
+    ctx->renderer->current_model_batch_active = true;
     ctx->renderer->model_cache2.BatchBegin();
-    ctx->renderer->model_cache2_batch_map[bid] =
-        Platform2_SDL2_Renderer_Metal::MetalCache2BatchEntry{};
+    (void)ctx->renderer->model_cache2.SceneBatchBegin(
+        bid, (ToriRS_UsageHint)cmd->_batch.usage_hint);
 }
 
 // ---------------------------------------------------------------------------
@@ -131,7 +128,7 @@ metal_frame_event_model_batched_load(
     struct DashModel* model = cmd->_model_load.model;
     const int model_id = cmd->_model_load.model_id;
     const uint32_t bid = ctx->renderer->current_model_batch_id;
-    if( !model || model_id <= 0 || bid == 0 )
+    if( !model || model_id <= 0 || !ctx->renderer->current_model_batch_active )
         return;
 
     metal_cache2_batch_push_model_mesh(ctx, model, model_id, bid, GPU_MODEL_ANIMATION_NONE_IDX, 0u);
@@ -149,20 +146,17 @@ metal_frame_event_batch_model_load_end(
 
     BatchBuffers v2bufs{};
     GPU3DCache2BatchSubmitMetal(ctx->renderer->model_cache2, ctx->device, v2bufs, bid);
-    auto it = ctx->renderer->model_cache2_batch_map.find(bid);
-    if( it != ctx->renderer->model_cache2_batch_map.end() )
-    {
-        if( it->second.vbo )
-            CFRelease(it->second.vbo);
-        if( it->second.ebo )
-            CFRelease(it->second.ebo);
-        it->second.vbo = v2bufs.vbo;
-        it->second.ebo = v2bufs.ebo;
-        v2bufs.vbo = nullptr;
-        v2bufs.ebo = nullptr;
-    }
+    GPU3DCache2Resource res{};
+    res.vbo = (GPUResourceHandle)(uintptr_t)v2bufs.vbo;
+    res.ebo = (GPUResourceHandle)(uintptr_t)v2bufs.ebo;
+    res.valid = (v2bufs.vbo != nullptr && v2bufs.ebo != nullptr);
+    res.policy = GPU3DCache2PolicyForUsageHint((ToriRS_UsageHint)cmd->_batch.usage_hint);
+    ctx->renderer->model_cache2.SceneBatchSetResource(bid, res);
+    v2bufs.vbo = nullptr;
+    v2bufs.ebo = nullptr;
 
     ctx->renderer->current_model_batch_id = 0;
+    ctx->renderer->current_model_batch_active = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -174,16 +168,13 @@ metal_frame_event_batch_model_clear(
     const struct ToriRSRenderCommand* cmd)
 {
     const uint32_t bid = cmd->_batch.batch_id;
-    auto it = ctx->renderer->model_cache2_batch_map.find(bid);
-    if( it == ctx->renderer->model_cache2_batch_map.end() )
-        return;
-    for( uint16_t mid : it->second.model_ids )
+    GPU3DCache2SceneBatchEntry cleared = ctx->renderer->model_cache2.SceneBatchClear(bid);
+    for( uint16_t mid : cleared.scene_model_ids )
         ctx->renderer->model_cache2.ClearModel(mid);
-    if( it->second.vbo )
-        CFRelease(it->second.vbo);
-    if( it->second.ebo )
-        CFRelease(it->second.ebo);
-    ctx->renderer->model_cache2_batch_map.erase(it);
+    if( cleared.resource.vbo )
+        CFRelease((CFTypeRef)(void*)cleared.resource.vbo);
+    if( cleared.resource.ebo )
+        CFRelease((CFTypeRef)(void*)cleared.resource.ebo);
 }
 
 // ---------------------------------------------------------------------------
@@ -340,7 +331,6 @@ metal_frame_event_end_3d(
     Pass3DBuilder2SubmitMetal(
         renderer->mtl_pass3d_builder,
         renderer->model_cache2,
-        renderer,
         encoder,
         (__bridge id<MTLBuffer>)renderer->mtl_pass3d_instance_buf,
         (__bridge id<MTLBuffer>)renderer->mtl_pass3d_index_buf,

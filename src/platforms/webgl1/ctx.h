@@ -3,6 +3,7 @@
 
 #ifdef __EMSCRIPTEN__
 
+#    include "platforms/common/pass_3d_builder/gpu_3d_cache2.h"
 #    include "tori_rs_render.h"
 
 #    include <SDL.h>
@@ -33,6 +34,8 @@ struct WebGL1RenderCtx
     int full_vp_w = 0;
     int full_vp_h = 0;
     LogicalViewportRect pass_3d_dst_logical{};
+    /** Drawable-pixel viewport for the active 3D pass (y from bottom, GLES convention). */
+    ToriGlViewportPixels world_gl_vp{};
     int clear_rect_slot = 0;
 };
 
@@ -88,7 +91,7 @@ webgl1_cache2_batch_push_model_mesh(
     WebGL1RenderCtx* ctx,
     struct DashModel* model,
     int model_id,
-    uint32_t batch_id,
+    SceneBatchId scene_batch_id,
     uint8_t gpu_segment_slot,
     uint16_t frame_index);
 
@@ -136,6 +139,10 @@ webgl1_atlas_resources_shutdown(struct Platform2_SDL2_Renderer_WebGL1* r);
 
 void
 webgl1_sync_drawable_size(struct Platform2_SDL2_Renderer_WebGL1* renderer);
+
+/** Match Metal world pass: depth test on (always pass, no write), no cull, alpha blend. */
+void
+webgl1_gl_bind_default_world_gl_state(void);
 
 #endif
 #endif

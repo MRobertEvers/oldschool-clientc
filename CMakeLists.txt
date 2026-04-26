@@ -684,8 +684,11 @@ if(EMSCRIPTEN)
         test/browser.cpp
         src/platforms/platform_impl2_sdl2.cpp
         src/platforms/platform_impl2_sdl2_port_emscripten.cpp
-        src/platforms/platform_impl2_sdl2_renderer_soft3d_shared.cpp
-        src/platforms/platform_impl2_sdl2_renderer_soft3d.cpp
+        src/platforms/webgl1/webgl1_render_loop.cpp
+        src/platforms/webgl1/gl.cpp
+        src/platforms/webgl1/helpers.cpp
+        src/platforms/common/pass_3d_builder/pass_3d_builder2_webgl1.cpp
+        src/platforms/common/pass_3d_builder/gpu_3d_cache2_webgl1.cpp
         src/platforms/browser2/luajs_sidecar.c
         src/platforms/browser2/luajs_gametypes.c
         src/platforms/browser2/luajs_archives.c
@@ -706,6 +709,8 @@ if(EMSCRIPTEN)
     )
     target_link_options(web_client PRIVATE
         -sUSE_SDL=2
+        -sMIN_WEBGL_VERSION=1
+        -sMAX_WEBGL_VERSION=1
         -sWASM=1
         -sALLOW_MEMORY_GROWTH=1
 

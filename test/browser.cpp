@@ -1,6 +1,6 @@
 #include "platforms/common/platform_memory.h"
 #include "platforms/platform_impl2_sdl2.h"
-#include "platforms/platform_impl2_sdl2_renderer_soft3d.h"
+#include "platforms/platform_impl2_sdl2_renderer_webgl1.h"
 #include "tori_rs.h"
 
 #include <cassert>
@@ -112,7 +112,7 @@ set_game_ptr(struct GGame* game)
     // clang-format on
 }
 
-static struct Platform2_SDL2_Renderer_Soft3D* renderer = NULL;
+static struct Platform2_SDL2_Renderer_WebGL1* renderer = nullptr;
 
 void
 emscripten_main_loop(void* arg)
@@ -124,7 +124,7 @@ emscripten_main_loop(void* arg)
 
     LibToriRS_NetPump(platform->current_game);
 
-    Platform2_SDL2_PollEvents(platform, NULL, 0);
+    Platform2_SDL2_PollEvents(platform, platform->input, 0);
 
     Platform2_SDL2_RunLuaScripts(platform, platform->current_game);
 
@@ -132,7 +132,7 @@ emscripten_main_loop(void* arg)
 
     if( !renderer )
         return;
-    PlatformImpl2_SDL2_Renderer_Soft3D_Render(
+    PlatformImpl2_SDL2_Renderer_WebGL1_Render(
         renderer, platform->current_game, platform->render_command_buffer);
 
     signal_browser_looped();
@@ -190,10 +190,6 @@ main(
      * All renderers letterbox this to the actual canvas/window size. */
     const int game_width = 765;
     const int game_height = 503;
-    /* Upper bound for world viewport / soft pixel buffer (debug UI can raise view_port up to this). */
-    const int render_max_width = game_width;
-    const int render_max_height = game_height;
-
     platform_get_memory_info(&platform_memory_info);
 
     printf(
@@ -230,32 +226,33 @@ main(
     platform_get_memory_info(&platform_memory_info);
 
     printf(
-        "Pre-InitForSoft3D: Platform memory info: %zu / %zu / %zu\n",
+        "Pre-InitForWebGL1: Platform memory info: %zu / %zu / %zu\n",
         platform_memory_info.heap_used,
         platform_memory_info.heap_total,
         platform_memory_info.heap_peak);
-    if( !Platform2_SDL2_InitForSoft3D(platform, game_width, game_height) )
+    if( !Platform2_SDL2_InitForWebGL1(platform, game_width, game_height) )
     {
-        printf("Failed to initialize SDL window for Soft3D\n");
+        printf("Failed to initialize SDL window for WebGL1\n");
         return 1;
     }
 
     platform_get_memory_info(&platform_memory_info);
 
     printf(
-        "Pre-Renderer_Soft3D_New: Platform memory info: %zu / %zu / %zu\n",
+        "Pre-Renderer_WebGL1_New: Platform memory info: %zu / %zu / %zu\n",
         platform_memory_info.heap_used,
         platform_memory_info.heap_total,
         platform_memory_info.heap_peak);
 
-    renderer = PlatformImpl2_SDL2_Renderer_Soft3D_New(
-        game_width, game_height, render_max_width, render_max_height);
-    if( !renderer || !PlatformImpl2_SDL2_Renderer_Soft3D_Init(renderer, platform) )
+    renderer = PlatformImpl2_SDL2_Renderer_WebGL1_New(game_width, game_height);
+    renderer->width = game_width;
+    renderer->height = game_height;
+    if( !PlatformImpl2_SDL2_Renderer_WebGL1_Init(renderer, platform) )
     {
-        printf("Soft3D renderer init failed\n");
+        printf("WebGL1 renderer init failed\n");
         return 1;
     }
-    printf("Soft3D renderer init succeeded\n");
+    printf("WebGL1 renderer init succeeded\n");
 
     game->iface_view_port->width = game_width;
     game->iface_view_port->height = game_height;
@@ -277,10 +274,6 @@ main(
     /* Keep viewport config identical across renderer backends (same as sdl2.cpp). */
     game->viewport_offset_x = 4;
     game->viewport_offset_y = 4;
-    PlatformImpl2_SDL2_Renderer_Soft3D_SetDashOffset(renderer, 4, 4);
-    renderer->clicked_tile_x = -1;
-    renderer->clicked_tile_z = -1;
-    renderer->clicked_tile_level = -1;
 
     luajs_sidecar_set_callback(luajs_sidecar_callback, platform);
 

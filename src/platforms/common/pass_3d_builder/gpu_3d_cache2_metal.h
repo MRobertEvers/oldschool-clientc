@@ -15,7 +15,7 @@ GPU3DCache2BatchSubmitMetal(
     GPU3DCache2<GPU3DMeshVertexMetal>& cache,
     id<MTLDevice> metal_device,
     BatchBuffers& out_batch_buffers,
-    uint32_t batch_id);
+    SceneBatchId scene_batch_id);
 
 id<MTLTexture>
 GPU3DCache2SubmitAtlasMetal(

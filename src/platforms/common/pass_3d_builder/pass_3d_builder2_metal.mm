@@ -7,12 +7,59 @@
 #include <cstdio>
 #include <cstring>
 
+namespace
+{
+
+struct MetalResolvedMesh
+{
+    GPUModelPosedData model{};
+    id<MTLBuffer> vbo = nil;
+    id<MTLBuffer> ebo = nil;
+    bool drawable = false;
+};
+
+MetalResolvedMesh
+metal_resolve_mesh_for_cmd(
+    const GPU3DCache2<GPU3DMeshVertexMetal>& cache,
+    const DrawModel3D& cmd)
+{
+    MetalResolvedMesh out;
+    out.model = cache.GetModelPoseForDraw(
+        cmd.model_id, cmd.use_animation, (int)cmd.animation_index, (int)cmd.frame_index);
+    if( !out.model.valid )
+        return out;
+
+    id<MTLBuffer> vbo = nil;
+    id<MTLBuffer> ebo = nil;
+    if( out.model.scene_batch_id < kGPU3DCache2MaxSceneBatches )
+    {
+        const GPU3DCache2SceneBatchEntry* be = cache.SceneBatchGet(out.model.scene_batch_id);
+        if( be && be->resource.valid )
+        {
+            vbo = (__bridge id<MTLBuffer>)(void*)be->resource.vbo;
+            ebo = (__bridge id<MTLBuffer>)(void*)be->resource.ebo;
+        }
+    }
+    if( !vbo )
+        vbo = (__bridge id<MTLBuffer>)(void*)out.model.vbo;
+    if( !ebo )
+        ebo = (__bridge id<MTLBuffer>)(void*)out.model.ebo;
+    if( !vbo || (cmd.dynamic_index_count == 0 && !ebo) )
+        return out;
+
+    out.vbo = vbo;
+    out.ebo = ebo;
+    out.drawable = true;
+    return out;
+}
+
+} // namespace
+
 void
 Pass3DBuilder2SubmitMetal(
     Pass3DBuilder2<GPU3DTransformUniformMetal>& builder,
     const GPU3DCache2<GPU3DMeshVertexMetal>& cache,
-    struct Platform2_SDL2_Renderer_Metal* metal_renderer,
-    id<MTLRenderCommandEncoder> render_command_encoder, // Renamed for brevity
+    id<MTLRenderCommandEncoder> render_command_encoder,
     id<MTLBuffer> dynamic_instance_buffer,
     id<MTLBuffer> dynamic_index_buffer,
     NSUInteger instance_base_bytes,
@@ -113,86 +160,77 @@ Pass3DBuilder2SubmitMetal(
     if( fragment_sampler )
         [render_command_encoder setFragmentSamplerState:fragment_sampler atIndex:0];
 
-    // EBO: `[[vertex_id]]` is index + baseVertex — `vertexShader` reads `verts[vid]` directly.
     id<MTLBuffer> last_bound_vbo = nil;
 
-    for( const auto& cmd : builder.GetCommands() )
+    for( const Pass3DCommandGPUBatch& batch : builder.GetGpuBatches() )
     {
-        const GPUModelPosedData model = cache.GetModelPoseForDraw(
-            cmd.model_id, cmd.use_animation, (int)cmd.animation_index, (int)cmd.frame_index);
-        if( !model.valid )
+        if( batch.draws.empty() )
             continue;
 
-        id<MTLBuffer> vbo = nil;
-        id<MTLBuffer> ebo = nil;
-        if( model.gpu_batch_id != 0u && metal_renderer )
-        {
-            const auto it = metal_renderer->model_cache2_batch_map.find(model.gpu_batch_id);
-            if( it != metal_renderer->model_cache2_batch_map.end() && it->second.vbo &&
-                it->second.ebo )
-            {
-                vbo = (__bridge id<MTLBuffer>)it->second.vbo;
-                ebo = (__bridge id<MTLBuffer>)it->second.ebo;
-            }
-        }
-        if( !vbo )
-            vbo = (__bridge id<MTLBuffer>)(void*)model.vbo;
-        if( !ebo )
-            ebo = (__bridge id<MTLBuffer>)(void*)model.ebo;
-        if( !vbo || (cmd.dynamic_index_count == 0 && !ebo) )
+        const MetalResolvedMesh batch_head = metal_resolve_mesh_for_cmd(cache, batch.draws[0]);
+        if( !batch_head.drawable || !batch_head.vbo )
             continue;
 
-        // 3. Bind Rotation from the Instance Buffer (Fastest path)
-        NSUInteger rotation_offset =
-            instance_base_bytes + cmd.instance_offset * sizeof(GPU3DTransformUniformMetal);
-        [render_command_encoder //
-            setVertexBuffer:dynamic_instance_buffer
-                     offset:rotation_offset
-                    atIndex:2];
-
-        // 4. Merged batch VBO (indices are absolute within this buffer)
-        if( vbo != last_bound_vbo )
+        if( batch_head.vbo != last_bound_vbo )
         {
-            [render_command_encoder setVertexBuffer:vbo offset:0 atIndex:0];
-            last_bound_vbo = vbo;
+            [render_command_encoder setVertexBuffer:batch_head.vbo offset:0 atIndex:0];
+            last_bound_vbo = batch_head.vbo;
         }
 
-        // 5. Draw
-        if( cmd.dynamic_index_count > 0 )
+        for( const DrawModel3D& cmd : batch.draws )
         {
-            const uint64_t end =
-                (uint64_t)cmd.dynamic_index_offset + (uint64_t)cmd.dynamic_index_count;
-            if( end > dyn_capacity )
+            const MetalResolvedMesh r = metal_resolve_mesh_for_cmd(cache, cmd);
+            if( !r.drawable )
                 continue;
-            // Sorted Indexing (Dynamic Pool)
-            NSUInteger index_byte_offset =
-                index_base_bytes + cmd.dynamic_index_offset * sizeof(uint16_t);
-            /* Indices are local to this model's merged slice; `GPUModelPosedData::vbo_offset` is
-             * the first vertex of that slice in the batch VBO (see metal_frame_event_model_draw).
-             */
+
+            id<MTLBuffer> vbo = r.vbo;
+            id<MTLBuffer> ebo = r.ebo;
+            const GPUModelPosedData& model = r.model;
+
+            if( vbo != last_bound_vbo )
+            {
+                [render_command_encoder setVertexBuffer:vbo offset:0 atIndex:0];
+                last_bound_vbo = vbo;
+            }
+
+            NSUInteger rotation_offset =
+                instance_base_bytes + cmd.instance_offset * sizeof(GPU3DTransformUniformMetal);
             [render_command_encoder //
-                drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                           indexCount:cmd.dynamic_index_count
-                            indexType:MTLIndexTypeUInt16
-                          indexBuffer:dynamic_index_buffer
-                    indexBufferOffset:index_byte_offset
-                        instanceCount:1
-                           baseVertex:(NSInteger)model.vbo_offset
-                         baseInstance:0];
-        }
-        else
-        {
-            // Static Indexing (Baked Cache)
-            NSUInteger ebo_byte_offset = model.ebo_offset * sizeof(uint16_t);
-            [render_command_encoder //
-                drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                           indexCount:model.element_count
-                            indexType:MTLIndexTypeUInt16
-                          indexBuffer:ebo
-                    indexBufferOffset:ebo_byte_offset
-                        instanceCount:1
-                           baseVertex:0
-                         baseInstance:0];
+                setVertexBuffer:dynamic_instance_buffer
+                         offset:rotation_offset
+                        atIndex:2];
+
+            if( cmd.dynamic_index_count > 0 )
+            {
+                const uint64_t end =
+                    (uint64_t)cmd.dynamic_index_offset + (uint64_t)cmd.dynamic_index_count;
+                if( end > dyn_capacity )
+                    continue;
+                NSUInteger index_byte_offset =
+                    index_base_bytes + cmd.dynamic_index_offset * sizeof(uint16_t);
+                [render_command_encoder //
+                    drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                               indexCount:cmd.dynamic_index_count
+                                indexType:MTLIndexTypeUInt16
+                              indexBuffer:dynamic_index_buffer
+                        indexBufferOffset:index_byte_offset
+                            instanceCount:1
+                               baseVertex:(NSInteger)model.vbo_offset
+                             baseInstance:0];
+            }
+            else
+            {
+                NSUInteger ebo_byte_offset = model.ebo_offset * sizeof(uint16_t);
+                [render_command_encoder //
+                    drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                               indexCount:model.element_count
+                                indexType:MTLIndexTypeUInt16
+                              indexBuffer:ebo
+                        indexBufferOffset:ebo_byte_offset
+                            instanceCount:1
+                               baseVertex:0
+                             baseInstance:0];
+            }
         }
     }
 }

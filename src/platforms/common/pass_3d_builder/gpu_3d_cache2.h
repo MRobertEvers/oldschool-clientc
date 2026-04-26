@@ -4,6 +4,7 @@
 #include "graphics/dash.h"
 #include "graphics/uv_pnm.h"
 #include "platforms/common/gpu_3d.h"
+#include "tori_rs_render.h"
 
 #include <array>
 #include <cassert>
@@ -88,24 +89,182 @@ struct AtlasUVRect
 // Opaque handle for GPU resources (Replaces id<MTLBuffer>, ID3D11Buffer*, GLuint, etc.)
 // - OpenGL: Cast GLuint to GPUResourceHandle
 // - DirectX: Cast ID3D11Buffer* or ID3D12Resource* to GPUResourceHandle
-// - Metal: retain on `MetalCache2BatchEntry` / other owners; batch pose handles may be __bridge.
+// - Metal: retained via `GPU3DCache2` batch lookup / standalone slots; batch pose handles may be
+// __bridge.
 typedef uintptr_t GPUResourceHandle;
+
+/** No merged scene batch: use pose `vbo`/`ebo` (solo model or direct binding). */
+inline constexpr uint32_t kSceneBatchSlotNone = 0xFFFFFFFFu;
+/** Max scene2 world-rebuild batch slots (ids `0 .. kGPU3DCache2MaxSceneBatches-1`). */
+inline constexpr uint32_t kGPU3DCache2MaxSceneBatches = 10u;
+
+/** Scene2 rebuild batch id for lifetime / merged resource ownership (not GPUBatch draw grouping). */
+using SceneBatchId = uint32_t;
+
+/** Backend draw batch id: shared by poses that bind the same merged mesh buffers (see
+ * `AllocGpuBatchId(scene_batch_id)`).
+ * `0` means unset or invalid for routing. */
+using GPUBatchId = uint32_t;
+
+enum class GPU3DGeometryClass : uint8_t
+{
+    StaticWorld,
+    PrebakedAnimated,
+    DynamicComposed,
+    StreamBatch,
+};
+
+enum class GPU3DResourceLifetime : uint8_t
+{
+    Retained,
+    FrameLocal,
+    CommandLocal
+};
+
+enum class GPU3DUpdatePattern : uint8_t
+{
+    Immutable,
+    SelectPrebakedFrame,
+    RewriteOften,
+    AppendOncePerFrame
+};
+
+enum class GPU3DBufferingStrategy : uint8_t
+{
+    None,
+    MultiFrameSlots,
+    Ring
+};
+
+enum class GPU3DDrawAddressing : uint8_t
+{
+    IndexedAbsolute,
+    IndexedLocalToVertexOffset,
+    NonIndexed
+};
+
+enum class GPU3DAllocationDomain : uint8_t
+{
+    Immutable,
+    RetainedAnimated,
+    RewriteArena,
+    FrameStream
+};
+
+struct GPU3DResourcePolicy
+{
+    GPU3DGeometryClass geometry_class = GPU3DGeometryClass::StaticWorld;
+    GPU3DUpdatePattern update_pattern = GPU3DUpdatePattern::Immutable;
+    GPU3DBufferingStrategy buffering = GPU3DBufferingStrategy::None;
+    GPU3DDrawAddressing draw_addressing = GPU3DDrawAddressing::IndexedAbsolute;
+    GPU3DAllocationDomain allocation_domain = GPU3DAllocationDomain::Immutable;
+    uint8_t frame_slot_count = 1;
+};
+
+struct GPU3DCache2Resource
+{
+    GPUResourceHandle vbo = 0;
+    GPUResourceHandle ebo = 0;
+    uint32_t vbo_offset = 0;
+    uint32_t ebo_offset = 0;
+    GPU3DResourcePolicy policy{};
+    GPU3DResourceLifetime lifetime = GPU3DResourceLifetime::Retained;
+    bool valid = false;
+};
+
+struct GPU3DMeshBinding
+{
+    GPUResourceHandle vbo = 0;
+    GPUResourceHandle ebo = 0;
+    uint32_t vertex_byte_offset = 0;
+    uint32_t index_byte_offset = 0;
+    uint32_t base_vertex = 0;
+    uint32_t element_count = 0;
+    GPU3DDrawAddressing addressing = GPU3DDrawAddressing::IndexedAbsolute;
+    GPU3DResourceLifetime lifetime = GPU3DResourceLifetime::Retained;
+    bool valid = false;
+};
+
+inline GPU3DResourcePolicy
+GPU3DCache2PolicyForUsageHint(
+    ToriRS_UsageHint usage_hint,
+    uint8_t frame_slot_count = 1)
+{
+    GPU3DResourcePolicy p;
+    p.frame_slot_count = frame_slot_count;
+    switch( usage_hint )
+    {
+    case TORIRS_USAGE_SCENERY:
+        p.geometry_class = GPU3DGeometryClass::StaticWorld;
+        p.update_pattern = GPU3DUpdatePattern::Immutable;
+        p.buffering = GPU3DBufferingStrategy::None;
+        p.allocation_domain = GPU3DAllocationDomain::Immutable;
+        p.draw_addressing = GPU3DDrawAddressing::IndexedAbsolute;
+        break;
+    case TORIRS_USAGE_NPC:
+        p.geometry_class = GPU3DGeometryClass::PrebakedAnimated;
+        p.update_pattern = GPU3DUpdatePattern::SelectPrebakedFrame;
+        p.buffering = GPU3DBufferingStrategy::None;
+        p.allocation_domain = GPU3DAllocationDomain::RetainedAnimated;
+        p.draw_addressing = GPU3DDrawAddressing::IndexedLocalToVertexOffset;
+        break;
+    case TORIRS_USAGE_PLAYER:
+        p.geometry_class = GPU3DGeometryClass::DynamicComposed;
+        p.update_pattern = GPU3DUpdatePattern::RewriteOften;
+        p.buffering = GPU3DBufferingStrategy::MultiFrameSlots;
+        p.allocation_domain = GPU3DAllocationDomain::RewriteArena;
+        p.draw_addressing = GPU3DDrawAddressing::IndexedAbsolute;
+        break;
+    case TORIRS_USAGE_PROJECTILE:
+        p.geometry_class = GPU3DGeometryClass::StreamBatch;
+        p.update_pattern = GPU3DUpdatePattern::AppendOncePerFrame;
+        p.buffering = GPU3DBufferingStrategy::Ring;
+        p.allocation_domain = GPU3DAllocationDomain::FrameStream;
+        p.draw_addressing = GPU3DDrawAddressing::NonIndexed;
+        break;
+    default:
+        break;
+    }
+    return p;
+}
+
+/** One scene batch slot: merged GPU resources + member scene model ids for unload/clear. */
+struct GPU3DCache2SceneBatchEntry
+{
+    GPU3DCache2Resource resource{};
+    /** Model ids (`DrawModel3D::model_id` / cache slot) belonging to this scene batch. */
+    std::vector<uint16_t> scene_model_ids;
+    /** GPUBatch ids allocated while this slot is valid (`AllocGpuBatchId(scene_batch_id)`). */
+    std::vector<GPUBatchId> gpu_batch_ids;
+    ToriRS_UsageHint usage_hint = TORIRS_USAGE_SCENERY;
+    bool valid = false;
+
+    /** CPU copy of merged batch VBO at submit time (`sizeof(VertexType)` per vertex). Used for
+     *  cross-backend static scenery coalescing (CPU transform + dynamic draw) without GPU readback.
+     */
+    std::vector<uint8_t> merged_vbo_cpu_snapshot{};
+    uint32_t merged_vbo_vertex_stride_bytes = 0u;
+    uint32_t merged_vbo_vertex_count = 0u;
+};
 
 /** Platform-specific buffer handles (`MTLBuffer*` / GL name / D3D resource cast to
  *  `GPUResourceHandle`). Non-owning on Metal when filled from batch submit (`__bridge`); lifetime
  *  matches the renderer batch entry or standalone owner.
  *
- *  **Metal (`Pass3DBuilder2SubmitMetal`)**: when `gpu_batch_id != 0`, VBO/EBO are resolved
- * **first** from `model_cache2_batch_map`; if the map has no entry, the same non-owning `vbo`/`ebo`
- * stored here (same pointers as the batch) are used as fallback. When `gpu_batch_id == 0`, only
- * `vbo`/`ebo` (and offsets) apply. */
+ *  **Metal (`Pass3DBuilder2SubmitMetal`)**: when `scene_batch_id` is in
+ * `0..kGPU3DCache2MaxSceneBatches-1`, VBO/EBO are resolved from `GPU3DCache2::SceneBatchGet`. When
+ * `scene_batch_id == kSceneBatchSlotNone`, only pose `vbo`/`ebo` (and offsets) apply. */
 struct GPUModelPosedData
 {
     GPUResourceHandle vbo = 0;
     GPUResourceHandle ebo = 0;
-    /** Non-zero: merged world batch id (Metal: key into `model_cache2_batch_map`; map preferred,
-     *  pose `vbo`/`ebo` fallback). */
-    uint32_t gpu_batch_id = 0;
+    /** Draw batch id assigned when this pose is uploaded (`AllocGpuBatchId(scene_batch_id)`);
+     * `0` if unset. Solo uploads use `kSceneBatchSlotNone` so ids are not tied to a scene slot. */
+    GPUBatchId gpu_batch_id = 0u;
+    /** `0..kGPU3DCache2MaxSceneBatches-1`: scene2 merged batch slot; `kSceneBatchSlotNone`:
+     * solo/direct.
+     */
+    SceneBatchId scene_batch_id = kSceneBatchSlotNone;
     uint32_t vbo_offset = 0;
     uint32_t ebo_offset = 0;
     // If drawing without sorting.
@@ -206,6 +365,16 @@ private:
     GPUTextureAtlas atlas;
     std::vector<BatchQueue<VertexType>> batch_queues;
 
+    std::array<GPU3DCache2SceneBatchEntry, kGPU3DCache2MaxSceneBatches> scene_batch_lookup_{};
+    std::array<GPUResourceHandle, MAX_3D_ASSETS> standalone_retained_vbo_{};
+    std::array<GPUResourceHandle, MAX_3D_ASSETS> standalone_retained_ebo_{};
+
+    /** Monotonic id for merged mesh uploads; all poses in one `BatchSubmit*` share one id. */
+    uint32_t gpu_batch_id_next_ = 0u;
+
+    void
+    invalidatePosesForSceneBatch(SceneBatchId scene_batch_id);
+
     uint32_t
     allocatePoseSlot(
         uint16_t model_id,
@@ -215,6 +384,13 @@ private:
 public:
     GPU3DCache2() = default;
     ~GPU3DCache2() = default;
+
+    /** Allocate a new GPUBatch id for the next merged mesh upload (one shared VBO/EBO group).
+     * When `scene_batch_id` refers to a valid scene batch slot, the id is recorded there and
+     * poses using that slot are cleared when the slot is cleared/replaced (`SceneBatchClear` /
+     * `SceneBatchBegin` / `SceneBatchReset`). Use `kSceneBatchSlotNone` for solo uploads. */
+    GPUBatchId
+    AllocGpuBatchId(SceneBatchId scene_batch_id);
 
     void
     InitAtlas(
@@ -346,12 +522,77 @@ public:
 
     /** Reset poses and segment bases for a model (e.g. batch unload). */
     void
-    ClearModel(uint16_t model_id)
-    {
-        if( model_id < MAX_3D_ASSETS )
-            models[model_id] = GPUModelData{};
-    }
+    ClearModel(uint16_t model_id);
+
+    bool
+    SceneBatchBegin(
+        SceneBatchId scene_batch_id,
+        ToriRS_UsageHint usage_hint);
+
+    GPU3DCache2SceneBatchEntry*
+    SceneBatchGet(SceneBatchId scene_batch_id);
+
+    const GPU3DCache2SceneBatchEntry*
+    SceneBatchGet(SceneBatchId scene_batch_id) const;
+
+    void
+    SceneBatchAddModel(
+        SceneBatchId scene_batch_id,
+        uint16_t scene_model_id);
+
+    void
+    SceneBatchSetResource(
+        SceneBatchId scene_batch_id,
+        const GPU3DCache2Resource& resource);
+
+    GPU3DCache2SceneBatchEntry
+    SceneBatchClear(SceneBatchId scene_batch_id);
+
+    void
+    SceneBatchReset();
+
+    void
+    SetStandaloneRetainedBuffers(
+        uint16_t model_id,
+        GPUResourceHandle vbo,
+        GPUResourceHandle ebo);
+
+    GPU3DCache2Resource
+    TakeStandaloneRetainedBuffers(uint16_t model_id);
 };
+
+template<typename VertexType>
+inline void
+GPU3DCache2<VertexType>::invalidatePosesForSceneBatch(SceneBatchId scene_batch_id)
+{
+    if( scene_batch_id >= kGPU3DCache2MaxSceneBatches )
+        return;
+    for( uint16_t model_id = 0; model_id < MAX_3D_ASSETS; model_id++ )
+    {
+        GPUModelData& md = models[model_id];
+        for( GPUModelPosedData& pose : md.poses )
+        {
+            if( pose.scene_batch_id == scene_batch_id )
+                pose = GPUModelPosedData{};
+        }
+    }
+}
+
+template<typename VertexType>
+inline GPUBatchId
+GPU3DCache2<VertexType>::AllocGpuBatchId(SceneBatchId scene_batch_id)
+{
+    if( ++gpu_batch_id_next_ == 0u )
+        gpu_batch_id_next_ = 1u;
+    const GPUBatchId id = gpu_batch_id_next_;
+    if( scene_batch_id < kGPU3DCache2MaxSceneBatches )
+    {
+        GPU3DCache2SceneBatchEntry& e = scene_batch_lookup_[scene_batch_id];
+        if( e.valid )
+            e.gpu_batch_ids.push_back(id);
+    }
+    return id;
+}
 
 template<typename VertexType>
 inline int
@@ -974,6 +1215,134 @@ GPU3DCache2<VertexType>::GetModelPoseForDraw(
     const uint32_t base = md.animation_offsets[(size_t)scene_animation_index + 1u];
     const uint32_t idx = base + (uint32_t)frame_index;
     return GetModelPose(model_id, idx);
+}
+
+template<typename VertexType>
+inline void
+GPU3DCache2<VertexType>::ClearModel(uint16_t model_id)
+{
+    if( model_id < MAX_3D_ASSETS )
+    {
+        standalone_retained_vbo_[model_id] = 0;
+        standalone_retained_ebo_[model_id] = 0;
+        models[model_id] = GPUModelData{};
+    }
+}
+
+template<typename VertexType>
+inline bool
+GPU3DCache2<VertexType>::SceneBatchBegin(
+    SceneBatchId scene_batch_id,
+    ToriRS_UsageHint usage_hint)
+{
+    if( scene_batch_id >= kGPU3DCache2MaxSceneBatches )
+        return false;
+    if( scene_batch_lookup_[scene_batch_id].valid )
+        invalidatePosesForSceneBatch(scene_batch_id);
+    scene_batch_lookup_[scene_batch_id] = GPU3DCache2SceneBatchEntry{};
+    scene_batch_lookup_[scene_batch_id].valid = true;
+    scene_batch_lookup_[scene_batch_id].usage_hint = usage_hint;
+    return true;
+}
+
+template<typename VertexType>
+inline GPU3DCache2SceneBatchEntry*
+GPU3DCache2<VertexType>::SceneBatchGet(SceneBatchId scene_batch_id)
+{
+    if( scene_batch_id >= kGPU3DCache2MaxSceneBatches )
+        return nullptr;
+    if( !scene_batch_lookup_[scene_batch_id].valid )
+        return nullptr;
+    return &scene_batch_lookup_[scene_batch_id];
+}
+
+template<typename VertexType>
+inline const GPU3DCache2SceneBatchEntry*
+GPU3DCache2<VertexType>::SceneBatchGet(SceneBatchId scene_batch_id) const
+{
+    if( scene_batch_id >= kGPU3DCache2MaxSceneBatches )
+        return nullptr;
+    if( !scene_batch_lookup_[scene_batch_id].valid )
+        return nullptr;
+    return &scene_batch_lookup_[scene_batch_id];
+}
+
+template<typename VertexType>
+inline void
+GPU3DCache2<VertexType>::SceneBatchAddModel(
+    SceneBatchId scene_batch_id,
+    uint16_t scene_model_id)
+{
+    GPU3DCache2SceneBatchEntry* e = SceneBatchGet(scene_batch_id);
+    if( e )
+        e->scene_model_ids.push_back(scene_model_id);
+}
+
+template<typename VertexType>
+inline void
+GPU3DCache2<VertexType>::SceneBatchSetResource(
+    SceneBatchId scene_batch_id,
+    const GPU3DCache2Resource& resource)
+{
+    GPU3DCache2SceneBatchEntry* e = SceneBatchGet(scene_batch_id);
+    if( !e )
+        return;
+    e->resource = resource;
+    e->resource.valid = (resource.vbo != 0u && resource.ebo != 0u);
+}
+
+template<typename VertexType>
+inline GPU3DCache2SceneBatchEntry
+GPU3DCache2<VertexType>::SceneBatchClear(SceneBatchId scene_batch_id)
+{
+    GPU3DCache2SceneBatchEntry out{};
+    if( scene_batch_id < kGPU3DCache2MaxSceneBatches )
+    {
+        invalidatePosesForSceneBatch(scene_batch_id);
+        out = scene_batch_lookup_[scene_batch_id];
+        scene_batch_lookup_[scene_batch_id] = GPU3DCache2SceneBatchEntry{};
+    }
+    return out;
+}
+
+template<typename VertexType>
+inline void
+GPU3DCache2<VertexType>::SceneBatchReset()
+{
+    for( uint32_t i = 0; i < kGPU3DCache2MaxSceneBatches; i++ )
+    {
+        if( scene_batch_lookup_[i].valid )
+            invalidatePosesForSceneBatch(i);
+        scene_batch_lookup_[i] = GPU3DCache2SceneBatchEntry{};
+    }
+}
+
+template<typename VertexType>
+inline void
+GPU3DCache2<VertexType>::SetStandaloneRetainedBuffers(
+    uint16_t model_id,
+    GPUResourceHandle vbo,
+    GPUResourceHandle ebo)
+{
+    if( model_id >= MAX_3D_ASSETS )
+        return;
+    standalone_retained_vbo_[model_id] = vbo;
+    standalone_retained_ebo_[model_id] = ebo;
+}
+
+template<typename VertexType>
+inline GPU3DCache2Resource
+GPU3DCache2<VertexType>::TakeStandaloneRetainedBuffers(uint16_t model_id)
+{
+    GPU3DCache2Resource r{};
+    if( model_id >= MAX_3D_ASSETS )
+        return r;
+    r.vbo = standalone_retained_vbo_[model_id];
+    r.ebo = standalone_retained_ebo_[model_id];
+    r.valid = (r.vbo != 0u && r.ebo != 0u);
+    standalone_retained_vbo_[model_id] = 0;
+    standalone_retained_ebo_[model_id] = 0;
+    return r;
 }
 
 /** World mesh cache: interleaved vertices match `MetalVertexPacked` / `GPU3DMeshVertex`. */

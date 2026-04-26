@@ -929,7 +929,9 @@ push_rs_from_cache_component(
             game, comp->modelType, comp->model, slots, colors);
         if( !m )
             return;
-        int eid = scene2_element_acquire_full(scene2, -1);
+        enum Scene2ElementCategory mcat =
+            (comp->modelType == 3) ? SCENE2_ELEMENT_PLAYER : SCENE2_ELEMENT_NPC;
+        int eid = scene2_element_acquire_full(scene2, -1, mcat);
         struct Scene2Element* se = scene2_element_at(scene2, eid);
         if( !se )
         {

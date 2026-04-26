@@ -17,6 +17,11 @@ PlatformImpl2_SDL2_Port_Emscripten_InitForSoft3D(
     struct Platform2_SDL2* platform,
     int canvas_width,
     int canvas_height);
+bool
+PlatformImpl2_SDL2_Port_Emscripten_InitForWebGL1(
+    struct Platform2_SDL2* platform,
+    int canvas_width,
+    int canvas_height);
 void
 PlatformImpl2_SDL2_Port_Emscripten_SyncCanvasCssSize(
     struct Platform2_SDL2* platform,

@@ -7,6 +7,7 @@
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
 #include "osrs/scene2.h"
+#include "tori_rs_render.h"
 
 #include <string.h>
 
@@ -180,6 +181,7 @@ rs_gfx_model_step(
         cmd->_model_draw.animation_index = scene2_element_active_animation_index(se);
         cmd->_model_draw.frame_index = scene2_element_active_frame(se);
         memcpy(&cmd->_model_draw.position, &position, sizeof(struct DashPosition));
+        cmd->_model_draw.usage_hint = (uint8_t)scene2_element_category(se);
     }
     return true;
 }

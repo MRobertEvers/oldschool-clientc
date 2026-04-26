@@ -10,6 +10,22 @@ struct Scene2Element;
 struct Scene2ElementFast;
 struct Scene2ElementFull;
 
+/** Max merged world-rebuild GPU batches (ids 0 .. SCENE2_MAX_GPU_BATCHES-1). */
+#define SCENE2_MAX_GPU_BATCHES 10
+
+/** Sentinel: no completed rebuild batch to clear on next begin (not a valid batch slot). */
+#define SCENE2_GPU_BATCH_SLOT_INVALID 0xFFFFFFFFu
+
+/** What kind of scene element this is for GPU/usage classification (matches `ToriRS_UsageHint`
+ * order: SCENERY=0 .. PROJECTILE=3). */
+enum Scene2ElementCategory
+{
+    SCENE2_ELEMENT_SCENERY = 0,
+    SCENE2_ELEMENT_NPC = 1,
+    SCENE2_ELEMENT_PLAYER = 2,
+    SCENE2_ELEMENT_PROJECTILE = 3,
+};
+
 struct Scene2TextureEntry
 {
     int id;
@@ -62,12 +78,16 @@ struct Scene2Event
         {
             int element_id;
             int parent_entity_id;
+            /** `Scene2ElementCategory` at event time. */
+            uint8_t element_category;
         } element;
         struct
         {
             int element_id;
             int parent_entity_id;
             int model_id;
+            /** `Scene2ElementCategory` at event time. */
+            uint8_t element_category;
             /** Valid until scene2_flush_deferred_array_frees (deferred dashmodel_free). */
             struct DashModel* model;
         } model;
@@ -97,6 +117,8 @@ struct Scene2Event
             /** 0 = primary animation track, 1 = secondary. */
             int animation_index;
             int frame_index;
+            /** `Scene2ElementCategory` for the owning element when known. */
+            uint8_t element_category;
             struct DashModel* model;
             struct DashFrame* frame;
             struct DashFramemap* framemap;
@@ -158,6 +180,8 @@ struct Scene2
     /** World rebuild GPU batch: when true, static load events are tagged `batched`. */
     bool batch_active;
     uint32_t batch_current_id;
+    /** Which slots in `gpu_batch_slot_live` are in use (batch ids 0 .. SCENE2_MAX_GPU_BATCHES-1). */
+    bool gpu_batch_slot_live[SCENE2_MAX_GPU_BATCHES];
 
     /** World texture batch: wraps all TEXTURE_LOADED events during initial cache load. */
     bool texture_batch_active;
@@ -179,12 +203,14 @@ scene2_elements_total(const struct Scene2* scene2);
 int
 scene2_element_acquire_fast(
     struct Scene2* scene2,
-    int parent_entity_id);
+    int parent_entity_id,
+    enum Scene2ElementCategory category);
 
 int
 scene2_element_acquire_full(
     struct Scene2* scene2,
-    int parent_entity_id);
+    int parent_entity_id,
+    enum Scene2ElementCategory category);
 
 void
 scene2_element_release(
@@ -248,6 +274,7 @@ scene2_element_queue_animation_load(
     int anim_id,
     int animation_index,
     int frame_index,
+    enum Scene2ElementCategory element_category,
     struct DashModel* model,
     struct DashFrame* frame,
     struct DashFramemap* framemap);
@@ -276,6 +303,10 @@ scene2_element_is_active(const struct Scene2Element* element);
 
 int
 scene2_element_parent_entity_id(const struct Scene2Element* element);
+
+/** Category assigned at acquire (default SCENERY for pool slots before first acquire). */
+enum Scene2ElementCategory
+scene2_element_category(const struct Scene2Element* element);
 
 struct DashModel*
 scene2_element_dash_model(struct Scene2Element* element);
@@ -377,11 +408,14 @@ scene2_face_array_unregister(
     struct Scene2* scene2,
     struct DashFaceArray* face_array);
 
-/** Begin a rebuild batch (world increments `batch_id` each rebuild). Asserts no nested batch. */
+/** Reset batch slot bookkeeping (call at world rebuild start before `scene2_batch_begin`). */
 void
-scene2_batch_begin(
-    struct Scene2* scene2,
-    uint32_t batch_id);
+scene2_gpu_batches_reset(struct Scene2* scene2);
+
+/** Begin a rebuild batch; returns a slot id in `0 .. SCENE2_MAX_GPU_BATCHES-1`. Asserts no nested
+ * batch and that a free slot exists. */
+uint32_t
+scene2_batch_begin(struct Scene2* scene2);
 
 /** End the active batch; emits BATCH_END with current batch id. */
 void

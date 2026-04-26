@@ -2,6 +2,8 @@
 
 #ifdef __EMSCRIPTEN__
 
+#    include "gpu_3d_cache2.h"
+#    include "platforms/common/gpu_3d.h"
 #    include "platforms/platform_impl2_sdl2_renderer_webgl1.h"
 
 #    include <GLES2/gl2.h>
@@ -68,33 +70,7 @@ bind_mesh_attribs_stride48(GLuint mesh_vbo, const WebGL1WorldShaderLocs& L)
 }
 
 static void
-bind_instance_attribs(
-    GLuint inst_buf,
-    size_t instance_byte_offset,
-    const WebGL1WorldShaderLocs& L)
-{
-    glBindBuffer(GL_ARRAY_BUFFER, inst_buf);
-    const void* base = (const void*)instance_byte_offset;
-    if( L.a_inst0 >= 0 )
-    {
-        glEnableVertexAttribArray((GLuint)L.a_inst0);
-        glVertexAttribPointer((GLuint)L.a_inst0, 4, GL_FLOAT, GL_FALSE, 32, base);
-    }
-    if( L.a_inst1 >= 0 )
-    {
-        glEnableVertexAttribArray((GLuint)L.a_inst1);
-        glVertexAttribPointer(
-            (GLuint)L.a_inst1,
-            4,
-            GL_FLOAT,
-            GL_FALSE,
-            32,
-            (const void*)((const uint8_t*)base + 16));
-    }
-}
-
-static void
-disable_world_attribs(const WebGL1WorldShaderLocs& L)
+disable_mesh_attribs(const WebGL1WorldShaderLocs& L)
 {
     if( L.a_position >= 0 )
         glDisableVertexAttribArray((GLuint)L.a_position);
@@ -106,11 +82,67 @@ disable_world_attribs(const WebGL1WorldShaderLocs& L)
         glDisableVertexAttribArray((GLuint)L.a_tex_id);
     if( L.a_uv_mode >= 0 )
         glDisableVertexAttribArray((GLuint)L.a_uv_mode);
-    if( L.a_inst0 >= 0 )
-        glDisableVertexAttribArray((GLuint)L.a_inst0);
-    if( L.a_inst1 >= 0 )
-        glDisableVertexAttribArray((GLuint)L.a_inst1);
 }
+
+static void
+webgl1_set_instance_uniforms(const WebGL1WorldShaderLocs& L, const GPU3DTransformUniformMetal& inst)
+{
+    if( L.u_inst0 >= 0 )
+        glUniform4f(L.u_inst0, inst.cos_yaw, inst.sin_yaw, inst.x, inst.y);
+    if( L.u_inst1 >= 0 )
+        glUniform4f(L.u_inst1, inst.z, 0.0f, 0.0f, 0.0f);
+}
+
+namespace
+{
+
+struct WebGLResolvedMesh
+{
+    GPUModelPosedData model{};
+    GLuint vbo = 0u;
+    GLuint ebo = 0u;
+    bool drawable = false;
+};
+
+WebGLResolvedMesh
+webgl1_resolve_static_mesh_for_cmd(
+    const GPU3DCache2<GPU3DMeshVertexWebGL1>& cache,
+    const DrawModel3D& cmd)
+{
+    WebGLResolvedMesh out;
+    if( cmd.dynamic_index_count > 0u )
+        return out;
+
+    out.model = cache.GetModelPoseForDraw(
+        cmd.model_id, cmd.use_animation, (int)cmd.animation_index, (int)cmd.frame_index);
+    if( !out.model.valid )
+        return out;
+
+    GLuint vbo = 0u;
+    GLuint ebo = 0u;
+    if( out.model.scene_batch_id < kGPU3DCache2MaxSceneBatches )
+    {
+        const GPU3DCache2SceneBatchEntry* be = cache.SceneBatchGet(out.model.scene_batch_id);
+        if( be && be->resource.valid )
+        {
+            vbo = (GLuint)(uintptr_t)be->resource.vbo;
+            ebo = (GLuint)(uintptr_t)be->resource.ebo;
+        }
+    }
+    if( vbo == 0u )
+        vbo = (GLuint)(uintptr_t)out.model.vbo;
+    if( ebo == 0u )
+        ebo = (GLuint)(uintptr_t)out.model.ebo;
+    if( vbo == 0u || ebo == 0u )
+        return out;
+
+    out.vbo = vbo;
+    out.ebo = ebo;
+    out.drawable = true;
+    return out;
+}
+
+} // namespace
 
 void
 Pass3DBuilder2SubmitWebGL1(
@@ -119,74 +151,15 @@ Pass3DBuilder2SubmitWebGL1(
     struct Platform2_SDL2_Renderer_WebGL1* webgl_renderer,
     GLuint program,
     const WebGL1WorldShaderLocs& locs,
-    GLuint dynamic_instance_buffer,
-    GLuint dynamic_index_buffer,
-    size_t instance_base_bytes,
-    size_t index_base_bytes,
     GLuint fragment_atlas_texture,
     const float modelViewMatrix[16],
     const float projectionMatrix[16],
     float u_clock)
 {
-    (void)cache;
     if( !builder.HasCommands() || program == 0u )
         return;
 
-    const size_t inst_bytes = builder.GetInstancePool().size() * sizeof(GPU3DTransformUniformMetal);
-    const size_t inst_cap = (size_t)16384u * sizeof(GPU3DTransformUniformMetal);
-    if( instance_base_bytes + inst_bytes > inst_cap )
-    {
-        fprintf(
-            stderr,
-            "Pass3DBuilder2SubmitWebGL1: instance upload exceeds buffer (%zu + %zu > %zu)\n",
-            instance_base_bytes,
-            inst_bytes,
-            inst_cap);
-        return;
-    }
-
-    if( inst_bytes > 0u && dynamic_instance_buffer )
-    {
-        glBindBuffer(GL_ARRAY_BUFFER, dynamic_instance_buffer);
-        glBufferSubData(
-            GL_ARRAY_BUFFER,
-            (GLintptr)instance_base_bytes,
-            (GLsizeiptr)inst_bytes,
-            builder.GetInstancePool().data());
-    }
-
-    const size_t dyn_index_count = builder.GetDynamicIndices().size();
-    const size_t dyn_capacity = (size_t)kPass3DBuilder2DynamicIndexUInt16Capacity;
-    size_t copy_n = 0;
-    if( builder.HasDynamicIndices() )
-    {
-        if( dyn_index_count > dyn_capacity )
-        {
-            fprintf(
-                stderr,
-                "Pass3DBuilder2SubmitWebGL1: dynamic index pool %zu exceeds capacity %zu\n",
-                dyn_index_count,
-                dyn_capacity);
-        }
-        copy_n = dyn_index_count < dyn_capacity ? dyn_index_count : dyn_capacity;
-        const size_t idx_bytes = copy_n * sizeof(uint16_t);
-        const size_t idx_cap =
-            (size_t)kPass3DBuilder2DynamicIndexUInt16Capacity * sizeof(uint16_t);
-        if( index_base_bytes + idx_bytes > idx_cap )
-        {
-            fprintf(stderr, "Pass3DBuilder2SubmitWebGL1: index upload exceeds buffer\n");
-            return;
-        }
-        if( idx_bytes > 0u && dynamic_index_buffer )
-        {
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, dynamic_index_buffer);
-            glBufferSubData(
-                GL_ELEMENT_ARRAY_BUFFER,
-                (GLintptr)index_base_bytes,
-                (GLsizeiptr)idx_bytes,
-                builder.GetDynamicIndices().data());
-        }
-    }
+    const std::vector<GPU3DTransformUniformMetal>& inst_pool = builder.GetInstancePool();
 
     glUseProgram(program);
     if( locs.u_modelViewMatrix >= 0 )
@@ -212,82 +185,50 @@ Pass3DBuilder2SubmitWebGL1(
 
     GLuint last_mesh_vbo = 0u;
 
-    for( const auto& cmd : builder.GetCommands() )
+    for( const Pass3DCommandGPUBatch& batch : builder.GetGpuBatches() )
     {
-        const GPUModelPosedData model = cache.GetModelPoseForDraw(
-            cmd.model_id, cmd.use_animation, (int)cmd.animation_index, (int)cmd.frame_index);
-        if( !model.valid )
+        if( batch.draws.empty() )
             continue;
 
-        GLuint vbo = 0u;
-        GLuint ebo = 0u;
-        if( model.gpu_batch_id != 0u && webgl_renderer )
-        {
-            const auto it = webgl_renderer->model_cache2_batch_map.find(model.gpu_batch_id);
-            if( it != webgl_renderer->model_cache2_batch_map.end() && it->second.vbo && it->second.ebo )
-            {
-                vbo = it->second.vbo;
-                ebo = it->second.ebo;
-            }
-        }
-        if( vbo == 0u )
-            vbo = (GLuint)(uintptr_t)model.vbo;
-        if( ebo == 0u )
-            ebo = (GLuint)(uintptr_t)model.ebo;
-        if( vbo == 0u || (cmd.dynamic_index_count == 0 && ebo == 0u) )
+        const WebGLResolvedMesh head = webgl1_resolve_static_mesh_for_cmd(cache, batch.draws[0]);
+        if( !head.drawable )
             continue;
 
-        if( vbo != last_mesh_vbo )
-        {
-            bind_mesh_attribs_stride48(vbo, locs);
-            last_mesh_vbo = vbo;
-        }
+        bind_mesh_attribs_stride48(head.vbo, locs);
+        last_mesh_vbo = head.vbo;
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, head.ebo);
 
-        const size_t rotation_offset =
-            instance_base_bytes + (size_t)cmd.instance_offset * sizeof(GPU3DTransformUniformMetal);
-        bind_instance_attribs(dynamic_instance_buffer, rotation_offset, locs);
-
-        if( cmd.dynamic_index_count > 0 )
+        for( const DrawModel3D& cmd : batch.draws )
         {
-            const uint64_t end =
-                (uint64_t)cmd.dynamic_index_offset + (uint64_t)cmd.dynamic_index_count;
-            if( end > dyn_capacity )
+            const WebGLResolvedMesh r = webgl1_resolve_static_mesh_for_cmd(cache, cmd);
+            if( !r.drawable )
                 continue;
-            static std::vector<uint16_t> scratch;
-            scratch.resize((size_t)cmd.dynamic_index_count);
-            const uint16_t* src =
-                builder.GetDynamicIndices().data() + (size_t)cmd.dynamic_index_offset;
-            const uint32_t base = model.vbo_offset;
-            for( uint32_t i = 0; i < cmd.dynamic_index_count; ++i )
-                scratch[i] = (uint16_t)((uint32_t)src[i] + base);
 
-            if( webgl_renderer && webgl_renderer->scratch_idx_buf )
+            if( cmd.instance_offset >= inst_pool.size() )
+                continue;
+
+            if( webgl_renderer )
+                webgl_renderer->diag_frame_submitted_model_draws++;
+
+            if( r.vbo != last_mesh_vbo )
             {
-                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, webgl_renderer->scratch_idx_buf);
-                glBufferSubData(
-                    GL_ELEMENT_ARRAY_BUFFER,
-                    0,
-                    (GLsizeiptr)(scratch.size() * sizeof(uint16_t)),
-                    scratch.data());
-                glDrawElements(
-                    GL_TRIANGLES,
-                    (GLsizei)cmd.dynamic_index_count,
-                    GL_UNSIGNED_SHORT,
-                    (void*)0);
+                bind_mesh_attribs_stride48(r.vbo, locs);
+                last_mesh_vbo = r.vbo;
             }
-        }
-        else
-        {
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+            if( r.ebo != head.ebo )
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r.ebo);
+
+            webgl1_set_instance_uniforms(locs, inst_pool[cmd.instance_offset]);
+
             glDrawElements(
                 GL_TRIANGLES,
-                (GLsizei)model.element_count,
+                (GLsizei)r.model.element_count,
                 GL_UNSIGNED_SHORT,
-                (void*)((size_t)model.ebo_offset * sizeof(uint16_t)));
+                (void*)((size_t)r.model.ebo_offset * sizeof(uint16_t)));
         }
     }
 
-    disable_world_attribs(locs);
+    disable_mesh_attribs(locs);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glUseProgram(0);

@@ -17,6 +17,7 @@ PlatformImpl2_SDL2_Renderer_Metal_New(
     renderer->height = height;
     renderer->metal_ready = false;
     renderer->current_model_batch_id = 0;
+    renderer->current_model_batch_active = false;
     renderer->mtl_cache2_atlas_tex = nullptr;
     renderer->mtl_cache2_atlas_tiles_buf = nullptr;
     renderer->mtl_frame_semaphore =
@@ -37,16 +38,25 @@ PlatformImpl2_SDL2_Renderer_Metal_Free(struct Platform2_SDL2_Renderer_Metal* ren
 
     metal_cache2_atlas_resources_shutdown(renderer);
 
-    for( auto& kv : renderer->model_cache2_batch_map )
+    for( uint32_t bi = 0; bi < kGPU3DCache2MaxSceneBatches; bi++ )
     {
-        for( uint16_t mid : kv.second.model_ids )
+        GPU3DCache2SceneBatchEntry ent = renderer->model_cache2.SceneBatchClear(bi);
+        for( uint16_t mid : ent.scene_model_ids )
             renderer->model_cache2.ClearModel(mid);
-        if( kv.second.vbo )
-            CFRelease(kv.second.vbo);
-        if( kv.second.ebo )
-            CFRelease(kv.second.ebo);
+        if( ent.resource.vbo )
+            CFRelease((CFTypeRef)(void*)ent.resource.vbo);
+        if( ent.resource.ebo )
+            CFRelease((CFTypeRef)(void*)ent.resource.ebo);
     }
-    renderer->model_cache2_batch_map.clear();
+    for( uint32_t mid = 1; mid < MAX_3D_ASSETS; mid++ )
+    {
+        GPU3DCache2Resource solo =
+            renderer->model_cache2.TakeStandaloneRetainedBuffers((uint16_t)mid);
+        if( solo.vbo )
+            CFRelease((CFTypeRef)(void*)solo.vbo);
+        if( solo.ebo )
+            CFRelease((CFTypeRef)(void*)solo.ebo);
+    }
 
     metal_internal_shutdown_clear_rect_aux_resources();
     metal_internal_shutdown_depth_pass_resources();

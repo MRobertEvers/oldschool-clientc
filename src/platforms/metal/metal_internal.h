@@ -201,7 +201,6 @@ void
 Pass3DBuilder2SubmitMetal(
     Pass3DBuilder2<GPU3DTransformUniformMetal>& builder,
     const GPU3DCache2<GPU3DMeshVertexMetal>& cache,
-    struct Platform2_SDL2_Renderer_Metal* metal_renderer,
     id<MTLRenderCommandEncoder> render_command_encoder,
     id<MTLBuffer> dynamic_instance_buffer,
     id<MTLBuffer> dynamic_index_buffer,
@@ -241,13 +240,13 @@ void
 metal_frame_event_model_batched_load(
     MetalRenderCtx* ctx,
     const struct ToriRSRenderCommand* cmd);
-/** Append current DashModel mesh into `model_cache2` for an open batch (`batch_id` from scene). */
+/** Append current DashModel mesh into `model_cache2` for an open scene batch (`SceneBatchId`). */
 void
 metal_cache2_batch_push_model_mesh(
     MetalRenderCtx* ctx,
     struct DashModel* model,
     int model_id,
-    uint32_t batch_id,
+    SceneBatchId scene_batch_id,
     uint8_t gpu_segment_slot,
     uint16_t frame_index);
 void

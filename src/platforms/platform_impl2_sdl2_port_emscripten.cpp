@@ -117,6 +117,49 @@ PlatformImpl2_SDL2_Port_Emscripten_InitForSoft3D(
     return true;
 }
 
+bool
+PlatformImpl2_SDL2_Port_Emscripten_InitForWebGL1(
+    struct Platform2_SDL2* platform,
+    int canvas_width,
+    int canvas_height)
+{
+    if( SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) < 0 )
+    {
+        printf("SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+
+    platform->window = SDL_CreateWindow(
+        "3D Raster - WebGL1",
+        SDL_WINDOWPOS_UNDEFINED,
+        SDL_WINDOWPOS_UNDEFINED,
+        canvas_width,
+        canvas_height,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+    if( !platform->window )
+    {
+        printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    platform->window_width = canvas_width;
+    platform->window_height = canvas_height;
+    platform->drawable_width = canvas_width;
+    platform->drawable_height = canvas_height;
+    platform->game_screen_width = canvas_width;
+    platform->game_screen_height = canvas_height;
+    platform->display_scale = 1.0f;
+    platform->last_frame_time_ticks = SDL_GetTicks64();
+
+    return true;
+}
+
 void
 PlatformImpl2_SDL2_Port_Emscripten_SyncCanvasCssSize(
     struct Platform2_SDL2* platform,

@@ -173,7 +173,9 @@ terrain_element_acquire(
     int tile_id)
 {
     return scene2_element_acquire_fast(
-        world->scene2, (int)entity_unified_id(ENTITY_KIND_MAP_BUILD_TILE, tile_id));
+        world->scene2,
+        (int)entity_unified_id(ENTITY_KIND_MAP_BUILD_TILE, tile_id),
+        SCENE2_ELEMENT_SCENERY);
 }
 
 static inline int

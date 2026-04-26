@@ -32,6 +32,12 @@
 /** Set per `LibToriRS_FrameNextCommand` call for RS model culling. */
 static bool s_frame_project_models;
 
+static enum ToriRS_UsageHint
+torirs_usage_hint_for_scene2_category(enum Scene2ElementCategory category)
+{
+    return (enum ToriRS_UsageHint)(int)category;
+}
+
 static void
 emit_marker(
     struct ToriRSRenderCommandBuffer* buf,
@@ -665,6 +671,8 @@ queue_static_load_commands(
                 ev->_animation_load.anim_id = scene_event.u.animation.anim_id;
                 ev->_animation_load.animation_index = scene_event.u.animation.animation_index;
                 ev->_animation_load.frame_index = scene_event.u.animation.frame_index;
+                ev->_animation_load.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
+                    (enum Scene2ElementCategory)scene_event.u.animation.element_category);
                 continue;
             }
             if( scene_event.type == SCENE2_EVENT_BATCH_BEGIN )
@@ -673,6 +681,7 @@ queue_static_load_commands(
                     LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
                 ev->kind = TORIRS_GFX_BATCH3D_BEGIN;
                 ev->_batch.batch_id = scene_event.u.batch.batch_id;
+                ev->_batch.usage_hint = (uint8_t)TORIRS_USAGE_SCENERY;
                 continue;
             }
             if( scene_event.type == SCENE2_EVENT_BATCH_END )
@@ -681,6 +690,7 @@ queue_static_load_commands(
                     LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
                 ev->kind = TORIRS_GFX_BATCH3D_END;
                 ev->_batch.batch_id = scene_event.u.batch.batch_id;
+                ev->_batch.usage_hint = (uint8_t)TORIRS_USAGE_SCENERY;
                 continue;
             }
             if( scene_event.type == SCENE2_EVENT_BATCH_CLEAR )
@@ -689,6 +699,7 @@ queue_static_load_commands(
                     LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
                 ev->kind = TORIRS_GFX_BATCH3D_CLEAR;
                 ev->_batch.batch_id = scene_event.u.batch.batch_id;
+                ev->_batch.usage_hint = (uint8_t)TORIRS_USAGE_SCENERY;
                 continue;
             }
 
@@ -711,6 +722,8 @@ queue_static_load_commands(
                 ev->_model_load.model = model;
                 ev->_model_load.model_key = model_key;
                 ev->_model_load.model_id = scene2_element_dash_model_gpu_id(el);
+                ev->_model_load.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
+                    (enum Scene2ElementCategory)scene_event.u.model.element_category);
 
                 continue;
             }
@@ -722,6 +735,8 @@ queue_static_load_commands(
                 ev->_model_load.model = scene_event.u.model.model;
                 ev->_model_load.model_key = 0;
                 ev->_model_load.model_id = scene_event.u.model.model_id;
+                ev->_model_load.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
+                    (enum Scene2ElementCategory)scene_event.u.model.element_category);
                 continue;
             }
         }
@@ -1387,6 +1402,8 @@ next:
             rc->_model_draw.animation_index = scene2_element_active_animation_index(scene_element);
             rc->_model_draw.frame_index = scene2_element_active_frame(scene_element);
             memcpy(&rc->_model_draw.position, &position, sizeof(struct DashPosition));
+            rc->_model_draw.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
+                scene2_element_category(scene_element));
         }
     }
     break;
@@ -1435,6 +1452,8 @@ next:
             rc->_model_draw.animation_index = scene2_element_active_animation_index(scene_element);
             rc->_model_draw.frame_index = scene2_element_active_frame(scene_element);
             memcpy(&rc->_model_draw.position, &position, sizeof(struct DashPosition));
+            rc->_model_draw.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
+                scene2_element_category(scene_element));
         }
     }
     break;

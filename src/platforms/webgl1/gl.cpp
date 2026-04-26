@@ -3,8 +3,6 @@
 
 #ifdef __EMSCRIPTEN__
 
-#    include "platforms/common/pass_3d_builder/pass_3d_builder2.h"
-
 #    include <GLES2/gl2.h>
 
 #    include <cstdio>
@@ -36,8 +34,8 @@ attribute vec4 a_color;
 attribute vec2 a_texcoord;
 attribute float a_tex_id;
 attribute float a_uv_mode;
-attribute vec4 a_inst0;
-attribute vec4 a_inst1;
+uniform vec4 u_inst0;
+uniform vec4 u_inst1;
 uniform mat4 u_modelViewMatrix;
 uniform mat4 u_projectionMatrix;
 varying vec4 v_color;
@@ -46,11 +44,11 @@ varying float v_tex_id;
 varying float v_uv_mode;
 void main() {
   vec3 p = a_position.xyz;
-  float c = a_inst0.x;
-  float s = a_inst0.y;
+  float c = u_inst0.x;
+  float s = u_inst0.y;
   float xr = p.x * c + p.z * s;
   float zr = -p.x * s + p.z * c;
-  vec4 wp = vec4(xr + a_inst0.z, p.y + a_inst0.w, zr + a_inst1.x, 1.0);
+  vec4 wp = vec4(xr + u_inst0.z, p.y + u_inst0.w, zr + u_inst1.x, 1.0);
   gl_Position = u_projectionMatrix * u_modelViewMatrix * wp;
   v_color = a_color;
   v_texcoord = a_texcoord;
@@ -70,12 +68,20 @@ uniform vec4 u_tileA[256];
 uniform vec4 u_tileB[256];
 void main() {
   int tid = int(floor(v_tex_id + 0.5));
-  if (tid >= 256) {
+  if (tid < 0 || tid >= 256) {
     gl_FragColor = vec4(v_color.rgb, v_color.a);
     return;
   }
-  vec4 ta = u_tileA[tid];
-  vec4 tb = u_tileB[tid];
+  /* GLSL ES 1.00: uniform arrays may only be indexed by const or loop indices, not by `tid`. */
+  vec4 ta = vec4(0.0);
+  vec4 tb = vec4(0.0);
+  for (int i = 0; i < 256; ++i) {
+    if (i == tid) {
+      ta = u_tileA[i];
+      tb = u_tileB[i];
+      break;
+    }
+  }
   if (ta.z <= 0.0 || ta.w <= 0.0) {
     gl_FragColor = vec4(v_color.rgb, v_color.a);
     return;
@@ -133,8 +139,6 @@ webgl1_gl_create_programs(struct Platform2_SDL2_Renderer_WebGL1* r)
     glBindAttribLocation(wp, 2, "a_texcoord");
     glBindAttribLocation(wp, 3, "a_tex_id");
     glBindAttribLocation(wp, 4, "a_uv_mode");
-    glBindAttribLocation(wp, 5, "a_inst0");
-    glBindAttribLocation(wp, 6, "a_inst1");
     glAttachShader(wp, wvs);
     glAttachShader(wp, wfs);
     glLinkProgram(wp);
@@ -158,8 +162,8 @@ webgl1_gl_create_programs(struct Platform2_SDL2_Renderer_WebGL1* r)
     L.a_texcoord = glGetAttribLocation(wp, "a_texcoord");
     L.a_tex_id = glGetAttribLocation(wp, "a_tex_id");
     L.a_uv_mode = glGetAttribLocation(wp, "a_uv_mode");
-    L.a_inst0 = glGetAttribLocation(wp, "a_inst0");
-    L.a_inst1 = glGetAttribLocation(wp, "a_inst1");
+    L.u_inst0 = glGetUniformLocation(wp, "u_inst0");
+    L.u_inst1 = glGetUniformLocation(wp, "u_inst1");
     L.u_modelViewMatrix = glGetUniformLocation(wp, "u_modelViewMatrix");
     L.u_projectionMatrix = glGetUniformLocation(wp, "u_projectionMatrix");
     L.u_clock = glGetUniformLocation(wp, "u_clock");
@@ -191,28 +195,32 @@ webgl1_gl_create_programs(struct Platform2_SDL2_Renderer_WebGL1* r)
     r->prog_clear_depth = cp;
     r->clear_depth_a_pos = glGetAttribLocation(cp, "a_pos");
 
-    glGenBuffers(1, &r->pass3d_instance_buf);
-    glGenBuffers(1, &r->pass3d_index_buf);
-    glGenBuffers(1, &r->scratch_idx_buf);
     glGenBuffers(1, &r->clear_quad_vbo);
 
-    const size_t inst_bytes = 16384u * sizeof(GPU3DTransformUniformMetal);
-    const size_t idx_bytes =
-        (size_t)kPass3DBuilder2DynamicIndexUInt16Capacity * sizeof(uint16_t);
-    const size_t scratch_idx_bytes = (size_t)(1u << 20) * sizeof(uint16_t);
     const size_t clear_vbo_bytes = (size_t)kWebGL1MaxClearRectsPerFrame * (size_t)kWebGL1SpriteSlotBytes;
 
-    glBindBuffer(GL_ARRAY_BUFFER, r->pass3d_instance_buf);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)inst_bytes, nullptr, GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, r->pass3d_index_buf);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)idx_bytes, nullptr, GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, r->scratch_idx_buf);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)scratch_idx_bytes, nullptr, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, r->clear_quad_vbo);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)clear_vbo_bytes, nullptr, GL_DYNAMIC_DRAW);
+
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+    /* Match Metal `metal_init.mm` world pipeline: depth test on, always pass, no depth write;
+     * no face cull; alpha blend for textured/cutout faces. */
+    webgl1_gl_bind_default_world_gl_state();
 
     return true;
+}
+
+void
+webgl1_gl_bind_default_world_gl_state(void)
+{
+    glDisable(GL_CULL_FACE);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_ALWAYS);
+    glDepthMask(GL_FALSE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 void
@@ -229,21 +237,6 @@ webgl1_gl_destroy_programs(struct Platform2_SDL2_Renderer_WebGL1* r)
     {
         glDeleteProgram(r->prog_clear_depth);
         r->prog_clear_depth = 0;
-    }
-    if( r->pass3d_instance_buf )
-    {
-        glDeleteBuffers(1, &r->pass3d_instance_buf);
-        r->pass3d_instance_buf = 0;
-    }
-    if( r->pass3d_index_buf )
-    {
-        glDeleteBuffers(1, &r->pass3d_index_buf);
-        r->pass3d_index_buf = 0;
-    }
-    if( r->scratch_idx_buf )
-    {
-        glDeleteBuffers(1, &r->scratch_idx_buf);
-        r->scratch_idx_buf = 0;
     }
     if( r->clear_quad_vbo )
     {

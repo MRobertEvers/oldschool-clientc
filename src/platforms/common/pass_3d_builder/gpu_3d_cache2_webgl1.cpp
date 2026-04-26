@@ -13,9 +13,8 @@ void
 GPU3DCache2BatchSubmitWebGL1(
     GPU3DCache2<GPU3DMeshVertexWebGL1>& cache,
     BatchBuffersWebGL1& out_batch_buffers,
-    uint32_t batch_id)
+    SceneBatchId scene_batch_id)
 {
-    (void)batch_id;
     const uint32_t vcount = cache.BatchGetVBOVertexCount();
     const uint32_t vbo_bytes = vcount * (uint32_t)sizeof(GPU3DMeshVertexWebGL1);
     const uint32_t ebo_index_count = cache.BatchGetEBOSize();
@@ -70,17 +69,34 @@ GPU3DCache2BatchSubmitWebGL1(
     const GPUResourceHandle vbo_handle = (GPUResourceHandle)(uintptr_t)vbo;
     const GPUResourceHandle ebo_handle = (GPUResourceHandle)(uintptr_t)ebo;
 
+    const GPUBatchId merge_gpu_batch_id = cache.AllocGpuBatchId(scene_batch_id);
+
     GPUModelPosedData pose_data;
     for( const BatchedQueueModel& batched_model : cache.BatchGetTrackingData() )
     {
         pose_data.vbo = vbo_handle;
         pose_data.ebo = ebo_handle;
-        pose_data.gpu_batch_id = batch_id;
+        pose_data.gpu_batch_id = merge_gpu_batch_id;
+        pose_data.scene_batch_id =
+            (scene_batch_id < kGPU3DCache2MaxSceneBatches) ? scene_batch_id : kSceneBatchSlotNone;
         pose_data.vbo_offset = batched_model.vbo_start;
         pose_data.ebo_offset = batched_model.ebo_start;
         pose_data.element_count = batched_model.face_count * 3;
         pose_data.valid = true;
         cache.SetModelPose(batched_model.model_id, batched_model.pose_index, pose_data);
+    }
+
+    if( scene_batch_id < kGPU3DCache2MaxSceneBatches )
+    {
+        GPU3DCache2SceneBatchEntry* se = cache.SceneBatchGet(scene_batch_id);
+        if( se )
+        {
+            se->merged_vbo_cpu_snapshot.assign(
+                reinterpret_cast<const uint8_t*>(cache.BatchGetVBO()),
+                reinterpret_cast<const uint8_t*>(cache.BatchGetVBO()) + vbo_bytes);
+            se->merged_vbo_vertex_stride_bytes = (uint32_t)sizeof(GPU3DMeshVertexWebGL1);
+            se->merged_vbo_vertex_count = vcount;
+        }
     }
 
     cache.BatchEnd();

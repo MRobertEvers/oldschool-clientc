@@ -14,7 +14,7 @@ GPU3DCache2BatchSubmitMetal(
     GPU3DCache2<GPU3DMeshVertexMetal>& cache,
     id<MTLDevice> metal_device,
     BatchBuffers& out_batch_buffers,
-    uint32_t batch_id)
+    SceneBatchId scene_batch_id)
 {
     const uint32_t vbo_size =
         cache.BatchGetVBOVertexCount() * (uint32_t)sizeof(GPU3DMeshVertexMetal);
@@ -83,12 +83,16 @@ GPU3DCache2BatchSubmitMetal(
     const GPUResourceHandle vbo_handle = (GPUResourceHandle)(__bridge void*)batched_vbo;
     const GPUResourceHandle ebo_handle = (GPUResourceHandle)(__bridge void*)batched_ebo;
 
+    const GPUBatchId merge_gpu_batch_id = cache.AllocGpuBatchId(scene_batch_id);
+
     GPUModelPosedData pose_data;
     for( const BatchedQueueModel& batched_model : tracking_data )
     {
         pose_data.vbo = vbo_handle;
         pose_data.ebo = ebo_handle;
-        pose_data.gpu_batch_id = batch_id;
+        pose_data.gpu_batch_id = merge_gpu_batch_id;
+        pose_data.scene_batch_id =
+            (scene_batch_id < kGPU3DCache2MaxSceneBatches) ? scene_batch_id : kSceneBatchSlotNone;
 
         // vbo_start is first vertex index of this model slice in the merged VBO.
         pose_data.vbo_offset = batched_model.vbo_start;
@@ -100,6 +104,19 @@ GPU3DCache2BatchSubmitMetal(
         pose_data.valid = true;
 
         cache.SetModelPose(batched_model.model_id, batched_model.pose_index, pose_data);
+    }
+
+    if( scene_batch_id < kGPU3DCache2MaxSceneBatches )
+    {
+        GPU3DCache2SceneBatchEntry* se = cache.SceneBatchGet(scene_batch_id);
+        if( se )
+        {
+            se->merged_vbo_cpu_snapshot.assign(
+                reinterpret_cast<const uint8_t*>(cache.BatchGetVBO()),
+                reinterpret_cast<const uint8_t*>(cache.BatchGetVBO()) + vbo_size);
+            se->merged_vbo_vertex_stride_bytes = (uint32_t)sizeof(GPU3DMeshVertexMetal);
+            se->merged_vbo_vertex_count = vertex_count;
+        }
     }
 
     // 3. Cleanup CPU Memory

@@ -69,6 +69,8 @@ world_new(
     assert(scene2_shared != NULL && "World requires caller-owned Scene2");
     struct World* world = malloc(sizeof(struct World));
     memset(world, 0, sizeof(struct World));
+    world->rebuild_prev_batch_id = SCENE2_GPU_BATCH_SLOT_INVALID;
+    world->rebuild_current_batch_id = SCENE2_GPU_BATCH_SLOT_INVALID;
 
     world->scene2 = scene2_shared;
     world->painter = NULL;
@@ -393,10 +395,11 @@ world_rebuild_centerzone_begin(
 
     if( world->scene2 )
     {
-        if( world->rebuild_prev_batch_id != 0 )
+        if( world->rebuild_prev_batch_id != SCENE2_GPU_BATCH_SLOT_INVALID )
             scene2_batch_clear(world->scene2, world->rebuild_prev_batch_id);
-        world->rebuild_batch_id_counter++;
-        scene2_batch_begin(world->scene2, world->rebuild_batch_id_counter);
+        world->rebuild_prev_batch_id = SCENE2_GPU_BATCH_SLOT_INVALID;
+        scene2_gpu_batches_reset(world->scene2);
+        world->rebuild_current_batch_id = scene2_batch_begin(world->scene2);
     }
 
     int zone_padding = scene_size / (2 * 8);
@@ -1134,7 +1137,7 @@ world_rebuild_centerzone_end(struct World* world)
     if( world->scene2 )
     {
         scene2_batch_end(world->scene2);
-        world->rebuild_prev_batch_id = world->rebuild_batch_id_counter;
+        world->rebuild_prev_batch_id = world->rebuild_current_batch_id;
     }
 
     world->load_complete = true;
@@ -1618,7 +1621,9 @@ world_npc_ensure_scene_element(
     if( npc->scene_element2.element_id == -1 )
     {
         npc->scene_element2.element_id = scene2_element_acquire_full(
-            world->scene2, (int)entity_unified_id(ENTITY_KIND_NPC, npc_id));
+            world->scene2,
+            (int)entity_unified_id(ENTITY_KIND_NPC, npc_id),
+            SCENE2_ELEMENT_NPC);
 
         npc->orientation.dst_yaw = 0;
 
@@ -1642,7 +1647,9 @@ world_player_ensure_scene_element(
     if( player->scene_element2.element_id == -1 )
     {
         player->scene_element2.element_id = scene2_element_acquire_full(
-            world->scene2, (int)entity_unified_id(ENTITY_KIND_PLAYER, player_id));
+            world->scene2,
+            (int)entity_unified_id(ENTITY_KIND_PLAYER, player_id),
+            SCENE2_ELEMENT_PLAYER);
 
         // player->orientation.face_entity = -1;
         player->orientation.dst_yaw = 0;

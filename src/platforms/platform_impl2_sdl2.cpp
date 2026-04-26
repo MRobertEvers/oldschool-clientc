@@ -14,6 +14,17 @@ Platform2_SDL2_InitForSoft3D(
     return PlatformImpl2_SDL2_Port_Emscripten_InitForSoft3D(platform, canvas_width, canvas_height);
 }
 
+bool
+Platform2_SDL2_InitForWebGL1(
+    struct Platform2_SDL2* platform,
+    int canvas_width,
+    int canvas_height)
+{
+    if( !Platform2_SDL2_RendererFlagSupported(TORIRS_SDL2_RENDERER_WEBGL1) )
+        return false;
+    return PlatformImpl2_SDL2_Port_Emscripten_InitForWebGL1(platform, canvas_width, canvas_height);
+}
+
 void
 Platform2_SDL2_SyncCanvasCssSize(
     struct Platform2_SDL2* platform,

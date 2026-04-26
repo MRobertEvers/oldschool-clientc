@@ -25,7 +25,7 @@ metal_frame_event_model_draw(
     const uint8_t frame_idx = cmd->_model_draw.frame_index;
     const GPUModelPosedData pose = ctx->renderer->model_cache2.GetModelPoseForDraw(
         (uint16_t)mid_v2, use_anim, (int)anim_idx, (int)frame_idx);
-    if( !pose.valid )
+    if( !pose.valid || pose.gpu_batch_id == 0u )
         return;
 
     struct DashPosition draw_position = cmd->_model_draw.position;
@@ -59,6 +59,7 @@ metal_frame_event_model_draw(
     uint16_t* idx_ptr = idx_count ? g_sorted.data() : nullptr;
 
     ctx->renderer->mtl_pass3d_builder.AddModelDrawYawOnly(
+        ctx->renderer->model_cache2,
         (uint16_t)mid_v2,
         draw_position.x,
         draw_position.y,

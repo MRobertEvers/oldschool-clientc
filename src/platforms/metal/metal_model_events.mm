@@ -25,39 +25,28 @@ metal_frame_event_model_load(
         !dashmodel_face_indices_c_const(model) || dashmodel_face_count(model) <= 0 )
         return;
 
-    const uint32_t solo_bid = kMetalSoloModelBatchBase + (uint32_t)model_id;
-    auto& batch_map = ctx->renderer->model_cache2_batch_map;
-    auto prev = batch_map.find(solo_bid);
-    if( prev != batch_map.end() )
-    {
-        if( prev->second.vbo )
-            CFRelease(prev->second.vbo);
-        if( prev->second.ebo )
-            CFRelease(prev->second.ebo);
-        batch_map.erase(prev);
-    }
+    GPU3DCache2Resource prev = ctx->renderer->model_cache2.TakeStandaloneRetainedBuffers(
+        (uint16_t)model_id);
+    if( prev.vbo )
+        CFRelease((CFTypeRef)(void*)prev.vbo);
+    if( prev.ebo )
+        CFRelease((CFTypeRef)(void*)prev.ebo);
 
-    batch_map[solo_bid] = Platform2_SDL2_Renderer_Metal::MetalCache2BatchEntry{};
     ctx->renderer->model_cache2.BatchBegin();
     metal_cache2_batch_push_model_mesh(
-        ctx, model, model_id, solo_bid, GPU_MODEL_ANIMATION_NONE_IDX, 0u);
+        ctx, model, model_id, kSceneBatchSlotNone, GPU_MODEL_ANIMATION_NONE_IDX, 0u);
 
     BatchBuffers v2bufs{};
-    GPU3DCache2BatchSubmitMetal(ctx->renderer->model_cache2, ctx->device, v2bufs, solo_bid);
+    GPU3DCache2BatchSubmitMetal(
+        ctx->renderer->model_cache2, ctx->device, v2bufs, kSceneBatchSlotNone);
 
-    auto it = batch_map.find(solo_bid);
-    if( it != batch_map.end() )
-    {
-        if( it->second.vbo )
-            CFRelease(it->second.vbo);
-        if( it->second.ebo )
-            CFRelease(it->second.ebo);
-        /* v2bufs already holds +1 from GPU3DCache2BatchSubmitMetal; move, do not retain again. */
-        it->second.vbo = v2bufs.vbo;
-        it->second.ebo = v2bufs.ebo;
-        v2bufs.vbo = nullptr;
-        v2bufs.ebo = nullptr;
-    }
+    ctx->renderer->model_cache2.SetStandaloneRetainedBuffers(
+        (uint16_t)model_id,
+        (GPUResourceHandle)(uintptr_t)v2bufs.vbo,
+        (GPUResourceHandle)(uintptr_t)v2bufs.ebo);
+    v2bufs.vbo = nullptr;
+    v2bufs.ebo = nullptr;
+    (void)cmd->_model_load.usage_hint;
 }
 
 void
@@ -68,18 +57,14 @@ metal_frame_event_model_unload(
     const int mid = cmd->_model_load.model_id;
     if( mid <= 0 )
         return;
-    const uint32_t solo_bid = kMetalSoloModelBatchBase + (uint32_t)mid;
-    auto& batch_map = ctx->renderer->model_cache2_batch_map;
-    auto it = batch_map.find(solo_bid);
-    if( it != batch_map.end() )
-    {
-        if( it->second.vbo )
-            CFRelease(it->second.vbo);
-        if( it->second.ebo )
-            CFRelease(it->second.ebo);
-        batch_map.erase(it);
-    }
+    GPU3DCache2Resource solo = ctx->renderer->model_cache2.TakeStandaloneRetainedBuffers(
+        (uint16_t)mid);
+    if( solo.vbo )
+        CFRelease((CFTypeRef)(void*)solo.vbo);
+    if( solo.ebo )
+        CFRelease((CFTypeRef)(void*)solo.ebo);
     ctx->renderer->model_cache2.ClearModel((uint16_t)mid);
+    (void)cmd->_model_load.usage_hint;
 }
 
 void
@@ -92,9 +77,9 @@ metal_frame_event_model_animation_load(
     if( !cmd->_animation_load.model || mid <= 0 )
         return;
 
-    const uint32_t bid = ctx->renderer->current_model_batch_id;
-    if( bid == 0 )
+    if( !ctx->renderer->current_model_batch_active )
         return;
+    const uint32_t bid = ctx->renderer->current_model_batch_id;
 
     struct DashModel* model = cmd->_animation_load.model;
     dashmodel_animate(model, cmd->_animation_load.frame, cmd->_animation_load.framemap);
@@ -102,4 +87,5 @@ metal_frame_event_model_animation_load(
                                 ? GPU_MODEL_ANIMATION_SECONDARY_IDX
                                 : GPU_MODEL_ANIMATION_PRIMARY_IDX;
     metal_cache2_batch_push_model_mesh(ctx, model, mid, bid, gpu_seg, (uint16_t)fidx);
+    (void)cmd->_animation_load.usage_hint;
 }

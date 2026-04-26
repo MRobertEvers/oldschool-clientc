@@ -82,9 +82,10 @@ struct World
     /** False while a center-zone rebuild is in progress; true after it completes. */
     bool load_complete;
 
-    /** Scene2 GPU batch id for world rebuilds (Metal/D3D8 merged VBO path). */
-    uint32_t rebuild_batch_id_counter;
-    /** Last completed rebuild batch id; cleared via scene2 on next begin. */
+    /** Active world-rebuild GPU batch slot (0..9) between begin/end; `SCENE2_GPU_BATCH_SLOT_INVALID`
+     * when none. */
+    uint32_t rebuild_current_batch_id;
+    /** Last completed rebuild batch slot; cleared via scene2 on next begin. */
     uint32_t rebuild_prev_batch_id;
 
     // Todo: How to organize, these are only used at build time.

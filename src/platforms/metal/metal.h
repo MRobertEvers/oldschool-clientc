@@ -4,7 +4,6 @@
 #include "platforms/common/pass_3d_builder/gpu_3d_cache2.h"
 #include "platforms/common/pass_3d_builder/pass_3d_builder2.h"
 #include "platforms/platform_impl2_sdl2.h"
-#include <unordered_map>
 
 #include <SDL.h>
 #include <cstdint>
@@ -30,9 +29,6 @@ static constexpr int kMetalInflightFrames = 3;
 static constexpr int kMetalMax3dPassesPerFrame = 32;
 /** Metal dynamic buffer offset alignment for uniform bindings. */
 static constexpr size_t kMetalUniformBufferDynamicAlign = 256;
-/** `TORIRS_GFX_RES_MODEL_LOAD` uses one merged VBO/EBO per model under this batch id namespace. */
-static constexpr uint32_t kMetalSoloModelBatchBase = 0xF0000000u;
-
 // Metal objects are stored as void* so this header is valid from plain C++ translation
 // units (e.g. test/sdl2.cpp). The .mm implementation casts them to id<MTL*> internally.
 struct Platform2_SDL2_Renderer_Metal
@@ -55,23 +51,21 @@ struct Platform2_SDL2_Renderer_Metal
     // v2 3D pipeline persistent resources
     void* mtl_pass3d_instance_buf = nullptr;
     void* mtl_pass3d_index_buf = nullptr;
+    /** Dynamic vertex ring for static scenery coalesce (pre-transformed world mesh). */
+    void* mtl_pass3d_coalesce_vtx_buf = nullptr;
     void* mtl_3d_v2_pipeline = nullptr;
 
-    // Per-batch v2 bookkeeping (batch_id -> retained MTLBuffers + model list)
-    struct MetalCache2BatchEntry
-    {
-        void* vbo = nullptr;
-        void* ebo = nullptr;
-        std::vector<uint16_t> model_ids;
-    };
-    std::unordered_map<uint32_t, MetalCache2BatchEntry> model_cache2_batch_map;
+    /** Per-frame diagnostics: static scenery coalesce path (reset in `metal_frame_event_end_3d`). */
+    uint32_t diag_pass3d_coalesce_spans = 0;
+    uint32_t diag_pass3d_coalesce_triangles = 0;
 
     /** GPU3DCache2 grid atlas (128×128 tiles in kMetalWorldAtlasSize²); fragment bind for 3D. */
     void* mtl_cache2_atlas_tex;
     /** Per texture id 0..255: GPU tile metadata matching cache2 UV grid (id<MTLBuffer>). */
     void* mtl_cache2_atlas_tiles_buf;
 
-    uint32_t current_model_batch_id;
+    uint32_t current_model_batch_id = 0;
+    bool current_model_batch_active = false;
 
     void* mtl_frame_semaphore;
 

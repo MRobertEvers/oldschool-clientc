@@ -15,15 +15,13 @@ enum FramePassKind
     FRAME_PASS_3D,
 };
 
+/** Semantic model class for cache/backends (not GL/Metal storage mode). */
 enum ToriRS_UsageHint
 {
-    // "I will never move this."
-    // Batches are implicitly static.
-    TORIRS_USAGE_STATIC,
-    // "I will move this every frame."
-    TORIRS_USAGE_DYNAMIC,
-    // "I am throwing this away after one frame." (e.g., particles)
-    TORIRS_USAGE_STREAM
+    TORIRS_USAGE_SCENERY = 0,
+    TORIRS_USAGE_NPC = 1,
+    TORIRS_USAGE_PLAYER = 2,
+    TORIRS_USAGE_PROJECTILE = 3,
 };
 
 enum ToriRS_GFXCommandKind
@@ -115,6 +113,8 @@ struct ToriRSRenderCommand
             uint64_t model_key;
             /** Scene2-assigned id from MODEL_LOADED; canonical key for renderer model caches. */
             int model_id;
+            /** `ToriRS_UsageHint` from Scene2 element category / batch semantics. */
+            uint8_t usage_hint;
         } _model_load;
         struct
         {
@@ -158,6 +158,8 @@ struct ToriRSRenderCommand
             /** Scene track when animated: 0 = primary, 1 = secondary. */
             uint8_t animation_index;
             uint8_t frame_index;
+            /** `ToriRS_UsageHint` for cache policy / draw grouping. */
+            uint8_t usage_hint;
         } _model_draw;
         struct
         {
@@ -198,6 +200,8 @@ struct ToriRSRenderCommand
         struct
         {
             uint32_t batch_id;
+            /** `ToriRS_UsageHint` for 3D batch begin/end/clear (e.g. world rebuild = SCENERY). */
+            uint8_t usage_hint;
         } _batch;
         /**
          * RES_ANIM_LOAD / BATCH3D_ANIM_ADD:
@@ -213,6 +217,8 @@ struct ToriRSRenderCommand
             /** 0 primary, 1 secondary; indexes GPU3DCache2 animation_offsets when batched. */
             int animation_index;
             int frame_index;
+            /** `ToriRS_UsageHint` from Scene2 animation event. */
+            uint8_t usage_hint;
         } _animation_load;
     };
 };

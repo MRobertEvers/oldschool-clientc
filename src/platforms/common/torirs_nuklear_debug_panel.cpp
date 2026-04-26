@@ -203,6 +203,25 @@ torirs_nk_debug_panel_draw(struct nk_context* nk, struct GGame* game, TorirsNkDe
         {
             nk_labelf(nk, NK_TEXT_LEFT, "Frame model draws: %u", p->gpu_model_draws);
             nk_labelf(nk, NK_TEXT_LEFT, "Frame triangles: %u", p->gpu_tris);
+            if( p->gpu_submitted_model_draws || p->gpu_pose_invalid_skips || p->gpu_dynamic_index_draws ||
+                p->gpu_model_draws )
+            {
+                nk_labelf(
+                    nk,
+                    NK_TEXT_LEFT,
+                    "WebGL GPU submits: %u",
+                    p->gpu_submitted_model_draws);
+                nk_labelf(
+                    nk,
+                    NK_TEXT_LEFT,
+                    "WebGL pose invalid skips: %u",
+                    p->gpu_pose_invalid_skips);
+                nk_labelf(
+                    nk,
+                    NK_TEXT_LEFT,
+                    "WebGL dynamic index draws: %u",
+                    p->gpu_dynamic_index_draws);
+            }
         }
     }
     nk_end(nk);

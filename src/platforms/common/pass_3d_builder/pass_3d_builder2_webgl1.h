@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gpu_3d_cache2.h"
 #include "pass_3d_builder2.h"
 #include "platforms/common/gpu_3d.h"
 
@@ -11,7 +12,7 @@
 
 struct Platform2_SDL2_Renderer_WebGL1;
 
-/** Uniform / attribute locations for world 3D program (stride 48 mesh, stride 32 instance). */
+/** Uniform / attribute locations for world 3D program (stride 48 mesh; per-draw pose in uniforms). */
 struct WebGL1WorldShaderLocs
 {
     GLint a_position = -1;
@@ -19,8 +20,10 @@ struct WebGL1WorldShaderLocs
     GLint a_texcoord = -1;
     GLint a_tex_id = -1;
     GLint a_uv_mode = -1;
-    GLint a_inst0 = -1; ///< vec4: cos_yaw, sin_yaw, x, y
-    GLint a_inst1 = -1; ///< vec4: z, angle_encoding, 0, 0
+    /** vec4(cos_yaw, sin_yaw, x, y) — matches `GPU3DTransformUniformMetal` layout used in Metal. */
+    GLint u_inst0 = -1;
+    /** vec4(z, …); fragment path only needs .x for world z translation. */
+    GLint u_inst1 = -1;
     GLint u_modelViewMatrix = -1;
     GLint u_projectionMatrix = -1;
     GLint u_clock = -1;
@@ -38,10 +41,6 @@ Pass3DBuilder2SubmitWebGL1(
     struct Platform2_SDL2_Renderer_WebGL1* webgl_renderer,
     GLuint program,
     const WebGL1WorldShaderLocs& locs,
-    GLuint dynamic_instance_buffer,
-    GLuint dynamic_index_buffer,
-    size_t instance_base_bytes,
-    size_t index_base_bytes,
     GLuint fragment_atlas_texture,
     const float modelViewMatrix[16],
     const float projectionMatrix[16],
