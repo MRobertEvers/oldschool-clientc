@@ -70,6 +70,45 @@ struct GPU3DMeshVertexMetal
 };
 
 /**
+ * WebGL1 / OpenGL ES 2.0 world mesh vertex: all floats so attributes use `GL_FLOAT`
+ * (`tex_id` / `uv_mode` promoted from `CommonVertex` ushorts). Stride 48 bytes.
+ */
+struct GPU3DMeshVertexWebGL1
+{
+    float position[4];
+    float color[4];
+    float texcoord[2];
+    float tex_id;
+    float uv_mode;
+
+    static GPU3DMeshVertexWebGL1
+    FromCommon(const CommonVertex& v)
+    {
+        GPU3DMeshVertexWebGL1 out{};
+        out.position[0] = v.position[0];
+        out.position[1] = v.position[1];
+        out.position[2] = v.position[2];
+        out.position[3] = v.position[3];
+
+        out.color[0] = v.color[0];
+        out.color[1] = v.color[1];
+        out.color[2] = v.color[2];
+        out.color[3] = v.color[3];
+
+        out.texcoord[0] = v.texcoord[0];
+        out.texcoord[1] = v.texcoord[1];
+
+        out.tex_id = (float)v.tex_id;
+        out.uv_mode = (float)v.uv_mode;
+        return out;
+    }
+};
+
+static_assert(
+    sizeof(GPU3DMeshVertexWebGL1) == 48u,
+    "GPU3DMeshVertexWebGL1 stride for GLES2 VBO");
+
+/**
  * D3D-friendly world mesh vertex (portable types; no Windows headers).
  *
  * Memory order matches the classic fixed-function pack
