@@ -1,0 +1,314 @@
+#include "trspk_webgl1.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+TRSPK_Rect
+trspk_webgl1_full_window_logical_rect(const TRSPK_WebGL1Renderer* r)
+{
+    int32_t w = 1;
+    int32_t h = 1;
+    if( r && r->window_width > 0u && r->window_height > 0u )
+    {
+        w = (int32_t)r->window_width;
+        h = (int32_t)r->window_height;
+    }
+    else if( r && r->width > 0u && r->height > 0u )
+    {
+        w = (int32_t)r->width;
+        h = (int32_t)r->height;
+    }
+    TRSPK_Rect rect = { 0, 0, w, h };
+    if( rect.width <= 0 )
+        rect.width = 1;
+    if( rect.height <= 0 )
+        rect.height = 1;
+    return rect;
+}
+
+#ifdef __EMSCRIPTEN__
+static int32_t
+trspk_webgl1_round_to_i32(double v)
+{
+    return (int32_t)(v >= 0.0 ? v + 0.5 : v - 0.5);
+}
+
+/** GL lower-left full drawable (0,0,fbW,fbH) for viewport/scissor when mapping fails. */
+static TRSPK_Rect
+trspk_webgl1_full_drawable_gl_rect(const TRSPK_WebGL1Renderer* r)
+{
+    TRSPK_Rect rect = { 0, 0, r ? (int32_t)r->width : 1, r ? (int32_t)r->height : 1 };
+    if( rect.width <= 0 )
+        rect.width = 1;
+    if( rect.height <= 0 )
+        rect.height = 1;
+    return rect;
+}
+
+static TRSPK_Rect
+trspk_webgl1_compute_gl_viewport_rect(
+    const TRSPK_WebGL1Renderer* r,
+    const TRSPK_Rect* logical)
+{
+    if( !r || !logical || r->width == 0u || r->height == 0u || r->window_width == 0u ||
+        r->window_height == 0u || logical->width <= 0 || logical->height <= 0 )
+        return trspk_webgl1_full_drawable_gl_rect(r);
+
+    const double sx = (double)r->width / (double)r->window_width;
+    const double sy = (double)r->height / (double)r->window_height;
+    const int32_t scaled_x = trspk_webgl1_round_to_i32((double)logical->x * sx);
+    const int32_t scaled_top_y = trspk_webgl1_round_to_i32((double)logical->y * sy);
+    const int32_t scaled_w = trspk_webgl1_round_to_i32((double)logical->width * sx);
+    const int32_t scaled_h = trspk_webgl1_round_to_i32((double)logical->height * sy);
+
+    int32_t clamped_x = scaled_x < 0 ? 0 : scaled_x;
+    int32_t clamped_top_y = scaled_top_y < 0 ? 0 : scaled_top_y;
+    if( clamped_x >= (int32_t)r->width || clamped_top_y >= (int32_t)r->height )
+        return trspk_webgl1_full_drawable_gl_rect(r);
+
+    int32_t clamped_w = scaled_w;
+    int32_t clamped_h = scaled_h;
+    if( clamped_x + clamped_w > (int32_t)r->width )
+        clamped_w = (int32_t)r->width - clamped_x;
+    if( clamped_top_y + clamped_h > (int32_t)r->height )
+        clamped_h = (int32_t)r->height - clamped_top_y;
+    if( clamped_w <= 0 || clamped_h <= 0 )
+        return trspk_webgl1_full_drawable_gl_rect(r);
+
+    TRSPK_Rect rect;
+    rect.x = clamped_x;
+    rect.y = (int32_t)r->height - (clamped_top_y + clamped_h);
+    rect.width = clamped_w;
+    rect.height = clamped_h;
+    return rect;
+}
+
+static void
+trspk_webgl1_apply_full_scissor(TRSPK_WebGL1Renderer* r)
+{
+    const TRSPK_Rect full = trspk_webgl1_full_drawable_gl_rect(r);
+    glScissor(full.x, full.y, full.width, full.height);
+}
+
+static void
+trspk_webgl1_apply_logical_scissor(
+    TRSPK_WebGL1Renderer* r,
+    const TRSPK_Rect* logical)
+{
+    /* gr is OpenGL lower-left; same as opengl3_clamped_gl_scissor (no second Y flip). */
+    TRSPK_Rect gr = trspk_webgl1_compute_gl_viewport_rect(r, logical);
+    GLint sx = (GLint)gr.x;
+    GLint sy = (GLint)gr.y;
+    GLint sw = (GLint)gr.width;
+    GLint sh = (GLint)gr.height;
+
+    if( sx < 0 )
+    {
+        sw += sx;
+        sx = 0;
+    }
+    if( sy < 0 )
+    {
+        sh += sy;
+        sy = 0;
+    }
+    if( sx + sw > (GLint)r->width )
+        sw = (GLint)r->width - sx;
+    if( sy + sh > (GLint)r->height )
+        sh = (GLint)r->height - sy;
+    if( sw <= 0 || sh <= 0 )
+    {
+        trspk_webgl1_apply_full_scissor(r);
+        return;
+    }
+
+    glScissor(sx, sy, sw, sh);
+}
+
+static void
+trspk_webgl1_apply_pass_viewport(TRSPK_WebGL1Renderer* r)
+{
+    if( !r )
+        return;
+    r->pass_gl_rect = trspk_webgl1_compute_gl_viewport_rect(r, &r->pass_logical_rect);
+    glViewport(r->pass_gl_rect.x, r->pass_gl_rect.y, r->pass_gl_rect.width, r->pass_gl_rect.height);
+    glEnable(GL_SCISSOR_TEST);
+    trspk_webgl1_apply_logical_scissor(r, &r->pass_logical_rect);
+}
+#endif
+
+static bool
+trspk_webgl1_reserve_subdraws(
+    TRSPK_WebGL1PassState* pass,
+    uint32_t need)
+{
+    if( need <= pass->subdraw_cap )
+        return true;
+    uint32_t cap = pass->subdraw_cap ? pass->subdraw_cap : 32u;
+    while( cap < need )
+        cap *= 2u;
+    TRSPK_WebGL1SubDraw* n =
+        (TRSPK_WebGL1SubDraw*)realloc(pass->subdraws, cap * sizeof(TRSPK_WebGL1SubDraw));
+    if( !n )
+        return false;
+    pass->subdraws = n;
+    pass->subdraw_cap = cap;
+    return true;
+}
+
+static bool
+trspk_webgl1_reserve_chunk_indices(
+    TRSPK_WebGL1PassState* pass,
+    uint32_t chunk,
+    uint32_t count)
+{
+    if( count <= pass->chunk_index_caps[chunk] )
+        return true;
+    uint32_t cap = pass->chunk_index_caps[chunk] ? pass->chunk_index_caps[chunk] : 4096u;
+    while( cap < count )
+        cap *= 2u;
+    uint16_t* ni = (uint16_t*)realloc(pass->chunk_index_pools[chunk], sizeof(uint16_t) * cap);
+    if( !ni )
+        return false;
+    pass->chunk_index_pools[chunk] = ni;
+    pass->chunk_index_caps[chunk] = cap;
+    return true;
+}
+
+void
+trspk_webgl1_draw_begin_3d(
+    TRSPK_WebGL1Renderer* r,
+    const TRSPK_Rect* viewport)
+{
+    if( !r )
+        return;
+    for( uint32_t i = 0; i < TRSPK_MAX_WEBGL1_CHUNKS; ++i )
+    {
+        r->pass_state.chunk_has_draws[i] = false;
+        r->pass_state.chunk_index_counts[i] = 0u;
+    }
+    r->pass_state.subdraw_count = 0u;
+#ifdef __EMSCRIPTEN__
+    if( viewport )
+    {
+        r->pass_logical_rect = *viewport;
+        if( r->pass_logical_rect.width <= 0 || r->pass_logical_rect.height <= 0 )
+            r->pass_logical_rect = trspk_webgl1_full_window_logical_rect(r);
+        trspk_webgl1_apply_pass_viewport(r);
+    }
+#else
+    (void)viewport;
+#endif
+}
+
+void
+trspk_webgl1_draw_add_model(
+    TRSPK_WebGL1Renderer* r,
+    const TRSPK_ModelPose* pose,
+    const uint16_t* sorted_indices,
+    uint32_t index_count)
+{
+    if( !r || !pose || !pose->valid || !sorted_indices || index_count == 0u )
+        return;
+    const uint32_t chunk = pose->chunk_index;
+    if( chunk >= TRSPK_MAX_WEBGL1_CHUNKS )
+        return;
+    TRSPK_WebGL1PassState* pass = &r->pass_state;
+    if( !trspk_webgl1_reserve_subdraws(pass, pass->subdraw_count + 1u) )
+        return;
+    const uint32_t start = pass->chunk_index_counts[chunk];
+    if( !trspk_webgl1_reserve_chunk_indices(pass, chunk, start + index_count) )
+        return;
+    for( uint32_t i = 0; i < index_count; ++i )
+    {
+        const uint32_t idx = pose->vbo_offset + (uint32_t)sorted_indices[i];
+        if( idx > 0xFFFFu )
+            return;
+        pass->chunk_index_pools[chunk][start + i] = (uint16_t)idx;
+    }
+    pass->chunk_index_counts[chunk] += index_count;
+    pass->chunk_has_draws[chunk] = true;
+    pass->subdraws[pass->subdraw_count].chunk = (uint8_t)chunk;
+    pass->subdraws[pass->subdraw_count].pool_start = start;
+    pass->subdraws[pass->subdraw_count].index_count = index_count;
+    pass->subdraw_count++;
+}
+
+void
+trspk_webgl1_draw_submit_3d(
+    TRSPK_WebGL1Renderer* r,
+    const TRSPK_Mat4* view,
+    const TRSPK_Mat4* proj)
+{
+    if( !r || !view || !proj )
+        return;
+#ifdef __EMSCRIPTEN__
+
+    trspk_webgl1_apply_pass_viewport(r);
+    glUseProgram(r->prog_world3d);
+    if( r->world_locs.u_modelViewMatrix >= 0 )
+        glUniformMatrix4fv(r->world_locs.u_modelViewMatrix, 1, GL_FALSE, view->m);
+    if( r->world_locs.u_projectionMatrix >= 0 )
+        glUniformMatrix4fv(r->world_locs.u_projectionMatrix, 1, GL_FALSE, proj->m);
+    if( r->world_locs.u_clock >= 0 )
+        glUniform1f(r->world_locs.u_clock, (float)r->frame_clock);
+    trspk_webgl1_upload_tiles(r);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, r->atlas_texture);
+    if( r->world_locs.s_atlas >= 0 )
+        glUniform1i(r->world_locs.s_atlas, 0);
+    glDepthFunc(GL_ALWAYS);
+    glDepthMask(GL_FALSE);
+
+    GLuint last_vbo = 0u;
+    for( uint32_t si = 0; si < r->pass_state.subdraw_count; ++si )
+    {
+        const TRSPK_WebGL1SubDraw* sub = &r->pass_state.subdraws[si];
+        const uint32_t chunk = (uint32_t)sub->chunk;
+        if( chunk >= r->chunk_count || !r->pass_state.chunk_has_draws[chunk] ||
+            sub->index_count == 0u )
+            continue;
+        const GLuint vbo = r->batch_chunk_vbos[chunk];
+        if( vbo == 0u )
+            continue;
+        if( sub->pool_start + sub->index_count > r->pass_state.chunk_index_counts[chunk] )
+            continue;
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r->dynamic_ibo);
+        glBufferData(
+            GL_ELEMENT_ARRAY_BUFFER,
+            (GLsizeiptr)(sub->index_count * sizeof(uint16_t)),
+            r->pass_state.chunk_index_pools[chunk] + sub->pool_start,
+            GL_STREAM_DRAW);
+        if( vbo != last_vbo )
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, vbo);
+            trspk_webgl1_bind_world_attribs(r);
+            last_vbo = vbo;
+        }
+        glDrawElements(GL_TRIANGLES, (GLsizei)sub->index_count, GL_UNSIGNED_SHORT, (void*)0);
+        r->diag_frame_submitted_draws++;
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glUseProgram(0);
+#endif
+    trspk_webgl1_draw_begin_3d(r, NULL);
+    r->pass_state.uniform_pass_subslot++;
+}
+
+void
+trspk_webgl1_draw_clear_rect(
+    TRSPK_WebGL1Renderer* r,
+    const TRSPK_Rect* rect)
+{
+    if( !r || !rect )
+        return;
+#ifdef __EMSCRIPTEN__
+    glEnable(GL_SCISSOR_TEST);
+    trspk_webgl1_apply_logical_scissor(r, rect);
+    glDepthMask(GL_TRUE);
+    glClearDepthf(1.0f);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    trspk_webgl1_apply_full_scissor(r);
+#endif
+}

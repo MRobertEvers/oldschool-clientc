@@ -271,25 +271,19 @@ if(NOT EMSCRIPTEN)
 
     if(APPLE)
         list(APPEND SDL2_NATIVE_SOURCES
-            src/platforms/metal/metal_helpers.mm
-            src/platforms/metal/metal_init.mm
-            src/platforms/metal/metal_renderer_core.mm
-            src/platforms/metal/metal_render_context.mm
-            src/platforms/metal/metal_model_events.mm
-            src/platforms/metal/metal_atlas_world.mm
-            src/platforms/metal/events/metal_event_begin_3d.mm
-            src/platforms/metal/events/metal_event_end_3d.mm
-            src/platforms/metal/metal_add_model_draw_scenery.mm
-            src/platforms/metal/events/metal_event_batch3d_common.mm
-            src/platforms/metal/events/metal_event_batch3d_begin.mm
-            src/platforms/metal/events/metal_event_batch3d_model_add.mm
-            src/platforms/metal/events/metal_event_batch3d_end.mm
-            src/platforms/metal/events/metal_event_batch3d_clear.mm
-            src/platforms/metal/events/metal_event_draw_model.mm
-            src/platforms/metal/events/metal_event_tex_load.mm
-            src/platforms/metal/pass_3d_builder2_metal.mm
-            src/platforms/metal/gpu_3d_cache2_metal.mm
-            src/platforms/metal/metal_render.mm
+            src/platforms/platform_impl2_sdl2_renderer_metal.mm
+            src/platforms/ToriRSPlatformKit/src/tools/trspk_resource_cache.c
+            src/platforms/ToriRSPlatformKit/src/tools/trspk_pass_batch16.c
+            src/platforms/ToriRSPlatformKit/src/tools/trspk_pass_batch32.c
+            src/platforms/ToriRSPlatformKit/src/tools/trspk_cache_model_loader16.c
+            src/platforms/ToriRSPlatformKit/src/tools/trspk_cache_model_loader32.c
+            src/platforms/ToriRSPlatformKit/src/tools/trspk_dash.c
+            src/platforms/ToriRSPlatformKit/src/trspk_math.c
+            src/platforms/ToriRSPlatformKit/src/backends/metal/metal_core.m
+            src/platforms/ToriRSPlatformKit/src/backends/metal/metal_shaders.m
+            src/platforms/ToriRSPlatformKit/src/backends/metal/metal_3d_cache.m
+            src/platforms/ToriRSPlatformKit/src/backends/metal/metal_draw.m
+            src/platforms/ToriRSPlatformKit/src/backends/metal/metal_events.m
         )
     endif()
 
@@ -722,22 +716,19 @@ if(EMSCRIPTEN)
         test/browser.cpp
         src/platforms/platform_impl2_sdl2.cpp
         src/platforms/platform_impl2_sdl2_port_emscripten.cpp
-        src/platforms/webgl1/webgl1_render_loop.cpp
-        src/platforms/webgl1/webgl1_renderer_core.cpp
-        src/platforms/webgl1/webgl1_add_model_draw_scenery.cpp
-        src/platforms/webgl1/events/webgl1_event_batch3d_common.cpp
-        src/platforms/webgl1/events/webgl1_event_batch3d_begin.cpp
-        src/platforms/webgl1/events/webgl1_event_batch3d_model_add.cpp
-        src/platforms/webgl1/events/webgl1_event_batch3d_end.cpp
-        src/platforms/webgl1/events/webgl1_event_batch3d_clear.cpp
-        src/platforms/webgl1/events/webgl1_event_draw_model.cpp
-        src/platforms/webgl1/events/webgl1_event_tex_load.cpp
-        src/platforms/webgl1/events/webgl1_event_batch2d_tex_begin.cpp
-        src/platforms/webgl1/events/webgl1_event_batch2d_tex_end.cpp
-        src/platforms/webgl1/gl.cpp
-        src/platforms/webgl1/helpers.cpp
-        src/platforms/webgl1/pass_3d_builder2_webgl1.cpp
-        src/platforms/webgl1/gpu_3d_cache2_webgl1.cpp
+        src/platforms/platform_impl2_sdl2_renderer_webgl1.cpp
+        src/platforms/ToriRSPlatformKit/src/tools/trspk_resource_cache.c
+        src/platforms/ToriRSPlatformKit/src/tools/trspk_pass_batch16.c
+        src/platforms/ToriRSPlatformKit/src/tools/trspk_pass_batch32.c
+        src/platforms/ToriRSPlatformKit/src/tools/trspk_cache_model_loader16.c
+        src/platforms/ToriRSPlatformKit/src/tools/trspk_cache_model_loader32.c
+        src/platforms/ToriRSPlatformKit/src/tools/trspk_dash.c
+        src/platforms/ToriRSPlatformKit/src/trspk_math.c
+        src/platforms/ToriRSPlatformKit/src/backends/webgl1/webgl1_core.c
+        src/platforms/ToriRSPlatformKit/src/backends/webgl1/webgl1_shaders.c
+        src/platforms/ToriRSPlatformKit/src/backends/webgl1/webgl1_3d_cache.c
+        src/platforms/ToriRSPlatformKit/src/backends/webgl1/webgl1_draw.c
+        src/platforms/ToriRSPlatformKit/src/backends/webgl1/webgl1_events.c
         src/platforms/browser2/luajs_sidecar.c
         src/platforms/browser2/luajs_gametypes.c
         src/platforms/browser2/luajs_archives.c
@@ -906,7 +897,7 @@ endforeach()
 # --- Global Properties ---
 foreach(target sdl2 bench_sdl2 web_client web_client_native win32)
     if(TARGET ${target})
-        target_include_directories(${target} PRIVATE src src/nuklear)
+        target_include_directories(${target} PRIVATE src src/nuklear src/platforms/ToriRSPlatformKit/include)
         set_target_properties(${target} PROPERTIES
             C_STANDARD 11
             CXX_STANDARD 17

@@ -177,7 +177,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/sdl2",
             "args": [
-                "--renderer=opengl3"
+                "--renderer=metal"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",

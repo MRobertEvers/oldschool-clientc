@@ -45,8 +45,7 @@ webgl1_event_draw_model(
             ctx->renderer->diag_frame_pose_invalid_skips++;
         return;
     }
-    if( (ToriRS_UsageHint)cmd->_model_draw.usage_hint != TORIRS_USAGE_SCENERY ||
-        !GPU3DCache2PoseSceneBatchDrawable(pose.scene_batch_id) )
+    if( (ToriRS_UsageHint)cmd->_model_draw.usage_hint != TORIRS_USAGE_SCENERY )
         return;
 
     struct DashPosition draw_position = cmd->_model_draw.position;

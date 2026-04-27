@@ -1,15 +1,17 @@
 #pragma once
 
+#include "platforms/common/gpu_3d.h"
 #include "platforms/common/pass_3d_builder/batch_buffer_webgl1.h"
 #include "platforms/common/pass_3d_builder/gpu_3d_cache2.h"
-#include "platforms/common/gpu_3d.h"
 
 #ifdef __EMSCRIPTEN__
 
-#    include <GLES2/gl2.h>
-#    include <cstdint>
+#include <GLES2/gl2.h>
 
-/** Out-parameters from `GPU3DCache2BatchSubmitWebGL1`: GL buffer names owned by caller / batch map. */
+#include <cstdint>
+
+/** Out-parameters from `GPU3DCache2BatchSubmitWebGL1`: GL buffer names owned by caller / batch map.
+ */
 struct BatchBuffersWebGL1
 {
     GLuint vbo = 0;

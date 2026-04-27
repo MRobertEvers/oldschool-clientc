@@ -7,7 +7,7 @@
 #include <vector>
 
 #ifdef __EMSCRIPTEN__
-#    include <GLES2/gl2.h>
+#include <GLES2/gl2.h>
 #endif
 
 struct WebGL1RendererCore;

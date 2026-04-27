@@ -9,8 +9,6 @@
 #include <cassert>
 #include <cstdint>
 
-/** Expand Dash model faces into `BatchBuffer::{vbo,ebo,tracking}`; `pose_index` from
- *  `GPU3DCache2::AllocatePoseSlot`. */
 template<typename BatchBuffer>
 inline void
 BatchAddModeli16(
