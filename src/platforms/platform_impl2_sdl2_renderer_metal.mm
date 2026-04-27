@@ -3,10 +3,10 @@
 #include "platforms/platform_impl2_sdl2_renderer_metal.h"
 
 #import <QuartzCore/CAMetalLayer.h>
+
 #include <SDL.h>
 
 extern "C" {
-#include "graphics/dash.h"
 #include "osrs/game.h"
 #include "platforms/ToriRSPlatformKit/include/ToriRSPlatformKit/trspk_math.h"
 #include "tori_rs.h"
@@ -53,7 +53,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
     SDL_Metal_GetDrawableSize(platform->window, &drawable_w, &drawable_h);
     renderer->width = drawable_w;
     renderer->height = drawable_h;
-    renderer->trspk = TRSPK_Metal_Init((__bridge void*)layer, (uint32_t)drawable_w, (uint32_t)drawable_h);
+    renderer->trspk =
+        TRSPK_Metal_Init((__bridge void*)layer, (uint32_t)drawable_w, (uint32_t)drawable_h);
     renderer->ready = renderer->trspk != nullptr;
     return renderer->ready;
 }
@@ -95,8 +96,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
     if( win_w > 0 && win_h > 0 && game )
     {
         trspk_pass_logical_from_game(&events.default_pass_logical, win_w, win_h, game);
-        events.has_default_pass_logical = events.default_pass_logical.width > 0 &&
-            events.default_pass_logical.height > 0;
+        events.has_default_pass_logical =
+            events.default_pass_logical.width > 0 && events.default_pass_logical.height > 0;
     }
     LibToriRS_FrameBegin(game, render_command_buffer);
     TRSPK_Metal_FrameBegin(renderer->trspk);
@@ -126,13 +127,12 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
             trspk_metal_event_batch3d_clear(&events, &cmd);
             break;
         case TORIRS_GFX_DRAW_MODEL:
-            renderer->sorted_indices.resize(cmd._model_draw.model ? (size_t)dashmodel_face_count(cmd._model_draw.model) * 3u : 0u);
             trspk_metal_event_draw_model(
                 &events,
                 game,
                 &cmd,
-                renderer->sorted_indices.data(),
-                (uint32_t)renderer->sorted_indices.size());
+                renderer->facebuffer.indices,
+                TRSPK_FACEBUFFER_INDEX_CAPACITY);
             break;
         case TORIRS_GFX_STATE_BEGIN_3D:
             trspk_metal_event_state_begin_3d(&events, &cmd);

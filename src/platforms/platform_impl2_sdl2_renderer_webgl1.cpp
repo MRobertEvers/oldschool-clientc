@@ -10,7 +10,9 @@ extern "C" {
 }
 
 Platform2_SDL2_Renderer_WebGL1*
-PlatformImpl2_SDL2_Renderer_WebGL1_New(int width, int height)
+PlatformImpl2_SDL2_Renderer_WebGL1_New(
+    int width,
+    int height)
 {
     Platform2_SDL2_Renderer_WebGL1* renderer = new Platform2_SDL2_Renderer_WebGL1();
     renderer->width = width;
@@ -86,8 +88,8 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
     {
         trspk_webgl1_compute_default_pass_logical(
             &events.default_pass_logical, win_width, win_height, game);
-        events.has_default_pass_logical = events.default_pass_logical.width > 0 &&
-            events.default_pass_logical.height > 0;
+        events.has_default_pass_logical =
+            events.default_pass_logical.width > 0 && events.default_pass_logical.height > 0;
     }
     else
     {
@@ -125,13 +127,8 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
             trspk_webgl1_event_batch3d_clear(&events, &cmd);
             break;
         case TORIRS_GFX_DRAW_MODEL:
-            renderer->sorted_indices.resize(cmd._model_draw.model ? (size_t)dashmodel_face_count(cmd._model_draw.model) * 3u : 0u);
             trspk_webgl1_event_draw_model(
-                &events,
-                game,
-                &cmd,
-                renderer->sorted_indices.data(),
-                (uint32_t)renderer->sorted_indices.size());
+                &events, game, &cmd, renderer->facebuffer.indices, TRSPK_FACEBUFFER_INDEX_CAPACITY);
             break;
         case TORIRS_GFX_STATE_BEGIN_3D:
             trspk_webgl1_event_state_begin_3d(&events, &cmd);

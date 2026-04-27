@@ -3,12 +3,13 @@
 
 #ifdef __EMSCRIPTEN__
 
-#    include "platforms/ToriRSPlatformKit/src/backends/webgl1/trspk_webgl1.h"
-#    include "platforms/platform_impl2_sdl2.h"
+#include "platforms/ToriRSPlatformKit/src/backends/webgl1/trspk_webgl1.h"
+#include "platforms/ToriRSPlatformKit/src/tools/trspk_facebuffer.h"
+#include "platforms/platform_impl2_sdl2.h"
 
-#    include <SDL.h>
-#    include <stdint.h>
-#    include <vector>
+#include <SDL.h>
+#include <stdint.h>
+#include <vector>
 
 struct Platform2_SDL2_Renderer_WebGL1
 {
@@ -24,11 +25,13 @@ struct Platform2_SDL2_Renderer_WebGL1
     uint32_t diag_frame_pose_invalid_skips = 0;
     uint32_t diag_frame_submitted_model_draws = 0;
     std::vector<uint8_t> rgba_scratch;
-    std::vector<uint16_t> sorted_indices;
+    TRSPK_FaceBuffer16 facebuffer;
 };
 
 Platform2_SDL2_Renderer_WebGL1*
-PlatformImpl2_SDL2_Renderer_WebGL1_New(int width, int height);
+PlatformImpl2_SDL2_Renderer_WebGL1_New(
+    int width,
+    int height);
 
 void
 PlatformImpl2_SDL2_Renderer_WebGL1_Free(Platform2_SDL2_Renderer_WebGL1* renderer);

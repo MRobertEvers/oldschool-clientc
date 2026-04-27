@@ -4,6 +4,7 @@
 #if defined(__APPLE__)
 
 #include "platforms/ToriRSPlatformKit/src/backends/metal/trspk_metal.h"
+#include "platforms/ToriRSPlatformKit/src/tools/trspk_facebuffer.h"
 #include "platforms/platform_impl2_sdl2.h"
 
 #include <SDL.h>
@@ -21,7 +22,7 @@ struct Platform2_SDL2_Renderer_Metal
     uint32_t current_model_batch_id = 0;
     bool current_model_batch_active = false;
     std::vector<uint8_t> rgba_scratch;
-    std::vector<uint32_t> sorted_indices;
+    TRSPK_FaceBuffer32 facebuffer;
 };
 
 Platform2_SDL2_Renderer_Metal*
