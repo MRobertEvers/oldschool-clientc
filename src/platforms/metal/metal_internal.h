@@ -69,6 +69,8 @@ struct MetalRenderCtx
     struct GGame* game = nullptr;
 };
 
+#include "platforms/metal/events/metal_events.h"
+
 /** Read `renderer->pass` as `MTLViewport` (Metal types; use from .mm only). */
 MTLViewport
 metal_pass_get_metal_vp(const struct MetalRendererCore* r);
@@ -188,39 +190,11 @@ void
 metal_internal_shutdown_clear_rect_aux_resources(void);
 
 void
-metal_frame_event_clear_rect(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd);
-
-void
-metal_frame_event_begin_3d(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd,
-    const LogicalViewportRect* default_logical_vp);
-void
-metal_frame_event_end_3d(
-    MetalRenderCtx* ctx,
-    void* uniforms_buffer);
-
-void
 metal_cache2_atlas_resources_init(
     Platform2_SDL2_Renderer_Metal* r,
     id<MTLDevice> device);
 void
 metal_cache2_atlas_resources_shutdown(Platform2_SDL2_Renderer_Metal* r);
-
-void
-metal_frame_event_texture_load(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd);
-void
-metal_frame_event_model_load(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd);
-void
-metal_frame_event_model_unload(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd);
 
 void
 metal_add_model_draw_scenery(
@@ -244,12 +218,5 @@ metal_add_model_draw_scenery_projected_faces(
     const int* face_order,
     int face_order_count,
     int face_count);
-
-#include "platforms/metal/events/metal_events.h"
-
-void
-metal_frame_event_model_animation_load(
-    MetalRenderCtx* ctx,
-    const struct ToriRSRenderCommand* cmd);
 
 #endif

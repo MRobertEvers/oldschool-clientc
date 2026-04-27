@@ -11,7 +11,6 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         !renderer->platform || !renderer->platform->window )
         return;
 
-    // Bug B fix: limit in-flight GPU frames before recording another command buffer.
     dispatch_semaphore_wait(
         (__bridge dispatch_semaphore_t)renderer->mtl_frame_semaphore, DISPATCH_TIME_FOREVER);
 
@@ -147,22 +146,22 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                 switch( cmd.kind )
                 {
                 case TORIRS_GFX_STATE_BEGIN_3D:
-                    metal_frame_event_begin_3d(&ctx, &cmd, &logical_vp);
+                    metal_event_begin_3d(&ctx, &cmd, &logical_vp);
                     break;
                 case TORIRS_GFX_STATE_END_3D:
-                    metal_frame_event_end_3d(&ctx, (__bridge void*)unifBuf);
+                    metal_event_end_3d(&ctx, (__bridge void*)unifBuf);
                     break;
                 case TORIRS_GFX_STATE_CLEAR_RECT:
-                    metal_frame_event_clear_rect(&ctx, &cmd);
+                    metal_event_clear_rect(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_RES_TEX_LOAD:
                     metal_event_res_tex_load(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_RES_MODEL_LOAD:
-                    metal_frame_event_model_load(&ctx, &cmd);
+                    metal_event_model_load(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_RES_MODEL_UNLOAD:
-                    metal_frame_event_model_unload(&ctx, &cmd);
+                    metal_event_model_unload(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_BATCH3D_BEGIN:
                     metal_event_batch3d_begin(&ctx, &cmd);
@@ -180,14 +179,14 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
                     metal_event_draw_model(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_BATCH2D_TEX_BEGIN:
-                    metal_event_batch2d_tex_begin(&ctx, &cmd);
+                    // metal_event_batch2d_tex_begin(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_BATCH2D_TEX_END:
-                    metal_event_batch2d_tex_end(&ctx, &cmd);
+                    // metal_event_batch2d_tex_end(&ctx, &cmd);
                     break;
                 case TORIRS_GFX_RES_ANIM_LOAD:
                 case TORIRS_GFX_BATCH3D_ANIM_ADD:
-                    metal_frame_event_model_animation_load(&ctx, &cmd);
+                    metal_event_model_animation_load(&ctx, &cmd);
                     break;
 
                 default:

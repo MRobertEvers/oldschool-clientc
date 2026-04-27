@@ -1,5 +1,5 @@
-#include "platforms/opengl3/gpu_3d_cache2_opengl3.h"
 #include "platforms/opengl3/events/opengl3_events.h"
+#include "platforms/opengl3/gpu_3d_cache2_opengl3.h"
 #include "platforms/opengl3/opengl3_add_model_draw_scenery.h"
 #include "platforms/opengl3/opengl3_ctx.h"
 #include "platforms/opengl3/opengl3_renderer_core.h"
@@ -36,10 +36,7 @@ opengl3_event_draw_model(
     const bool use_anim = cmd->_model_draw.use_animation;
     const uint8_t anim_idx = cmd->_model_draw.animation_index;
     const uint8_t frame_idx = cmd->_model_draw.frame_index;
-    if( use_anim )
-    {
-        printf("use_anim: %d, anim_idx: %d, frame_idx: %d\n", use_anim, anim_idx, frame_idx);
-    }
+
     const GPUModelPosedData pose = ctx->renderer->model_cache2.GetModelPoseForDraw(
         (uint16_t)mid_v2, use_anim, (int)anim_idx, (int)frame_idx);
     if( !pose.valid || pose.gpu_batch_id == 0u )

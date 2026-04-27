@@ -1,10 +1,12 @@
 // System ObjC/Metal headers must come before any game headers.
-#include "platforms/metal/metal_internal.h"
 #include "platforms/metal/gpu_3d_cache2_metal.h"
+#include "platforms/metal/metal_internal.h"
 
 /** Nearest-neighbor 64×64 RGBA → 128×128 for GPU3DCache2 fixed tile size. */
 static void
-metal_rgba64_nearest_to_128(const uint8_t* src64, uint8_t* dst128)
+metal_rgba64_nearest_to_128(
+    const uint8_t* src64,
+    uint8_t* dst128)
 {
     const int S = 64;
     const int D = 128;
@@ -21,10 +23,9 @@ metal_rgba64_nearest_to_128(const uint8_t* src64, uint8_t* dst128)
             {
                 for( int dx = 0; dx < 2; ++dx )
                 {
-                    const size_t di =
-                        (((size_t)y * 2u + (size_t)dy) * (size_t)D +
-                         ((size_t)x * 2u + (size_t)dx)) *
-                            4u;
+                    const size_t di = (((size_t)y * 2u + (size_t)dy) * (size_t)D +
+                                       ((size_t)x * 2u + (size_t)dx)) *
+                                      4u;
                     dst128[di + 0] = r;
                     dst128[di + 1] = g;
                     dst128[di + 2] = b;
@@ -98,7 +99,9 @@ metal_cache2_set_atlas_texture_from_cache(
 }
 
 void
-metal_cache2_atlas_resources_init(Platform2_SDL2_Renderer_Metal* r, id<MTLDevice> device)
+metal_cache2_atlas_resources_init(
+    Platform2_SDL2_Renderer_Metal* r,
+    id<MTLDevice> device)
 {
     if( !r || !device )
         return;
@@ -106,8 +109,8 @@ metal_cache2_atlas_resources_init(Platform2_SDL2_Renderer_Metal* r, id<MTLDevice
     const size_t tileBytes = MAX_TEXTURES * sizeof(MetalAtlasTile);
     if( !r->mtl_cache2_atlas_tiles_buf )
     {
-        id<MTLBuffer> tb =
-            [device newBufferWithLength:(NSUInteger)tileBytes options:MTLResourceStorageModeShared];
+        id<MTLBuffer> tb = [device newBufferWithLength:(NSUInteger)tileBytes
+                                               options:MTLResourceStorageModeShared];
         if( !tb )
             return;
         r->mtl_cache2_atlas_tiles_buf = (__bridge_retained void*)tb;
@@ -137,7 +140,7 @@ metal_cache2_atlas_resources_shutdown(Platform2_SDL2_Renderer_Metal* r)
 }
 
 void
-metal_frame_event_texture_load(
+metal_event_texture_load(
     MetalRenderCtx* ctx,
     const struct ToriRSRenderCommand* cmd)
 {

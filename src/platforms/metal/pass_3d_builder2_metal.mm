@@ -26,7 +26,8 @@ Pass3DBuilder2Metal::AppendSortedDraw(
         {
             fprintf(
                 stderr,
-                "[Pass3DBuilder2Metal] AppendSortedDraw: would exceed index capacity; skipping draw\n");
+                "[Pass3DBuilder2Metal] AppendSortedDraw: would exceed index capacity; skipping "
+                "draw\n");
             s_warned_cap = true;
         }
         return;
@@ -160,10 +161,7 @@ Pass3DBuilder2SubmitMetal(
     }
     if( idx_bytes > 0u && dynamic_index_buffer )
     {
-        std::memcpy(
-            (uint8_t*)[dynamic_index_buffer contents] + index_base_bytes,
-            dix,
-            idx_bytes);
+        std::memcpy((uint8_t*)[dynamic_index_buffer contents] + index_base_bytes, dix, idx_bytes);
     }
 
     if( uniforms_buffer )

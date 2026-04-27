@@ -1,7 +1,7 @@
 #ifndef PLATFORMS_OPENGL3_OPENGL3_RENDER_H
 #define PLATFORMS_OPENGL3_OPENGL3_RENDER_H
 
-#    include "platforms/opengl3/opengl3_ctx.h"
+#include "platforms/opengl3/opengl3_ctx.h"
 
 struct LogicalViewportRect;
 struct ToriRSRenderCommandBuffer;

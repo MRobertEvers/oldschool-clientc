@@ -11,7 +11,7 @@
  *  - Registers the texture as a standalone font entry in renderer->font_cache.
  *
  * Entries whose font_id is already registered in font_cache are skipped,
- * matching the guard in metal_frame_event_font_load.
+ * matching the guard in metal_event_font_load.
  *
  * GPU resource lifetime: font_cache holds the bridge-retained texture;
  * the cache must be shut down or the entry explicitly unloaded to free it.

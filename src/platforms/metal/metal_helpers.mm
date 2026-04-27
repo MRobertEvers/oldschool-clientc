@@ -1,6 +1,5 @@
 // System ObjC/Metal headers must come before any game headers.
 #include "platforms/metal/metal_internal.h"
-
 #include <SDL_metal.h>
 
 // Column-major 4x4 multiply: out = a * b
@@ -27,7 +26,10 @@ metal_dash_yaw_to_radians(int dash_yaw)
 }
 
 void
-metal_prebake_model_yaw_cos_sin(int dash_yaw, float* cos_out, float* sin_out)
+metal_prebake_model_yaw_cos_sin(
+    int dash_yaw,
+    float* cos_out,
+    float* sin_out)
 {
     if( !cos_out || !sin_out )
         return;
@@ -276,7 +278,8 @@ sync_drawable_size(Platform2_SDL2_Renderer_Metal* renderer)
         layer.drawableSize = desired;
 }
 
-namespace {
+namespace
+{
 
 void* g_mtl_depth_stencil = nullptr;
 void* g_mtl_depth_texture = nullptr;
@@ -304,7 +307,10 @@ metal_internal_depth_stencil(void)
 }
 
 void
-metal_internal_set_depth_texture(void* retained_depth_texture, int w, int h)
+metal_internal_set_depth_texture(
+    void* retained_depth_texture,
+    int w,
+    int h)
 {
     if( g_mtl_depth_texture )
         CFRelease(g_mtl_depth_texture);
@@ -320,7 +326,9 @@ metal_internal_depth_texture(void)
 }
 
 bool
-metal_internal_depth_texture_matches(int w, int h)
+metal_internal_depth_texture_matches(
+    int w,
+    int h)
 {
     return g_mtl_depth_texture != nullptr && g_depth_tex_w == w && g_depth_tex_h == h;
 }
@@ -433,7 +441,9 @@ metal_pass_get_full_drawable_vp(const struct MetalRendererCore* r)
 }
 
 void
-metal_pass_set_metal_vp(struct MetalRendererCore* r, MTLViewport v)
+metal_pass_set_metal_vp(
+    struct MetalRendererCore* r,
+    MTLViewport v)
 {
     if( !r )
         return;
@@ -447,7 +457,9 @@ metal_pass_set_metal_vp(struct MetalRendererCore* r, MTLViewport v)
 }
 
 void
-metal_pass_set_full_drawable_vp(struct MetalRendererCore* r, MTLViewport v)
+metal_pass_set_full_drawable_vp(
+    struct MetalRendererCore* r,
+    MTLViewport v)
 {
     if( !r )
         return;
@@ -465,14 +477,15 @@ metal_pass_get_pass_3d_dst_logical(const struct MetalRendererCore* r)
 {
     if( !r )
         return {};
-    return { r->pass.pass_3d_dst_x,
-             r->pass.pass_3d_dst_y,
-             r->pass.pass_3d_dst_w,
-             r->pass.pass_3d_dst_h };
+    return {
+        r->pass.pass_3d_dst_x, r->pass.pass_3d_dst_y, r->pass.pass_3d_dst_w, r->pass.pass_3d_dst_h
+    };
 }
 
 void
-metal_pass_set_pass_3d_dst_logical(struct MetalRendererCore* r, const LogicalViewportRect& lr)
+metal_pass_set_pass_3d_dst_logical(
+    struct MetalRendererCore* r,
+    const LogicalViewportRect& lr)
 {
     if( !r )
         return;

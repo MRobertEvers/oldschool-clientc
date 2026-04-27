@@ -4,5 +4,5 @@
 void
 metal_event_res_tex_load(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd)
 {
-    metal_frame_event_texture_load(ctx, cmd);
+    metal_event_texture_load(ctx, cmd);
 }

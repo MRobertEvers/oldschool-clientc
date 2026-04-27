@@ -13,7 +13,7 @@
  *
  * Entries whose (element_id, atlas_index) are already registered in
  * sprite_cache are released and replaced, matching the behaviour of
- * metal_frame_event_sprite_load.
+ * metal_event_sprite_load.
  *
  * GPU resource lifetime: the sprite_cache holds the bridge-retained texture;
  * call sprite_cache.unload_sprite() / release the cache entry to free it.

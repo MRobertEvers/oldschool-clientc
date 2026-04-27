@@ -92,7 +92,6 @@ set(COMMON_SOURCES
     src/platforms/common/torirs_sprite_argb_rgba.c
     src/platforms/common/torirs_font_glyph_quad.c
     src/platforms/common/torirs_sprite_draw_cpu.cpp
-    src/platforms/common/pass_2d_builder/pass_2d_builder_draw.cpp
     src/platforms/common/tori_rs_sdl2_gameinput.c
     src/platforms/common/tori_rs_sdl2_gameinput_nuklear.cpp
     src/platforms/common/torirs_nk_sdl_input.cpp
@@ -278,7 +277,8 @@ if(NOT EMSCRIPTEN)
             src/platforms/metal/metal_render_context.mm
             src/platforms/metal/metal_model_events.mm
             src/platforms/metal/metal_atlas_world.mm
-            src/platforms/metal/metal_pass_3d_begin_end.mm
+            src/platforms/metal/events/metal_event_begin_3d.mm
+            src/platforms/metal/events/metal_event_end_3d.mm
             src/platforms/metal/metal_add_model_draw_scenery.mm
             src/platforms/metal/events/metal_event_batch3d_common.mm
             src/platforms/metal/events/metal_event_batch3d_begin.mm
@@ -287,8 +287,6 @@ if(NOT EMSCRIPTEN)
             src/platforms/metal/events/metal_event_batch3d_clear.mm
             src/platforms/metal/events/metal_event_draw_model.mm
             src/platforms/metal/events/metal_event_tex_load.mm
-            src/platforms/metal/events/metal_event_batch2d_tex_begin.mm
-            src/platforms/metal/events/metal_event_batch2d_tex_end.mm
             src/platforms/metal/pass_3d_builder2_metal.mm
             src/platforms/metal/gpu_3d_cache2_metal.mm
             src/platforms/metal/metal_render.mm
@@ -604,7 +602,8 @@ if(NOT EMSCRIPTEN)
             src/platforms/metal/metal_render_context.mm
             src/platforms/metal/metal_model_events.mm
             src/platforms/metal/metal_atlas_world.mm
-            src/platforms/metal/metal_pass_3d_begin_end.mm
+            src/platforms/metal/events/metal_event_begin_3d.mm
+            src/platforms/metal/events/metal_event_end_3d.mm
             src/platforms/metal/metal_add_model_draw_scenery.mm
             src/platforms/metal/events/metal_event_batch3d_common.mm
             src/platforms/metal/events/metal_event_batch3d_begin.mm

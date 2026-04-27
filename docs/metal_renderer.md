@@ -68,29 +68,29 @@ Enum: [`ToriRSRenderCommandKind`](../src/tori_rs_render.h). Dispatch: [`metal_re
 | `TORIRS_GFX_STATE_END_3D` | [`metal_flush_3d`](../src/platforms/metal/metal_render_context.mm) + `bfo3d.begin_pass()` | Flush accumulated 3D; reset BFO for next segment | — |
 | `TORIRS_GFX_STATE_BEGIN_2D` | inline | Clears [`BufferedSprite2D`](../src/platforms/common/buffered_sprite_2d.h), [`BufferedFont2D`](../src/platforms/common/buffered_font_2d.h), and [`Buffered2DOrder`](../src/platforms/common/buffered_2d_order.h); resets interleave split flags | — |
 | `TORIRS_GFX_STATE_END_2D` | [`metal_flush_2d`](../src/platforms/metal/metal_render_context.mm) | Uploads batched verts then replays [`Buffered2DOrder`](../src/platforms/common/buffered_2d_order.h): each op is one sprite group (UI pipe, atlas/scissor) or one font group (font pipe), preserving command-stream order | — |
-| `TORIRS_GFX_STATE_CLEAR_RECT` | [`metal_frame_event_clear_rect`](../src/platforms/metal/metal_render_context.mm) | [`metal_flush_2d`](../src/platforms/metal/metal_render_context.mm) first, then scissored **depth** draw (`torirsClearRectDepthVert` / `mtl_clear_rect_depth_pipeline`, depth write, color write mask none), then scissored **color** quad (`torirsClearRectFrag` / `mtl_clear_rect_pipeline`); verts use `mtl_clear_quad_buf` slots (not `spriteQuadBuf`) | `_clear_rect` |
-| `TORIRS_GFX_RES_MODEL_LOAD` | [`metal_frame_event_model_load`](../src/platforms/metal/metal_model_events.mm) | Load into [`Gpu3DCache`](../src/platforms/gpu_3d_cache.h) if not present | `_model_load` |
-| `TORIRS_GFX_RES_MODEL_UNLOAD` | [`metal_frame_event_model_unload`](../src/platforms/metal/metal_model_events.mm) | Release non-batched GPU buffers; evict cache | `_model_load` (id key) |
-| `TORIRS_GFX_RES_ANIM_LOAD` | [`metal_frame_event_model_animation_load`](../src/platforms/metal/metal_model_events.mm) | Build/register animation frame | `_animation_load` |
-| `TORIRS_GFX_RES_TEX_LOAD` | [`metal_frame_event_texture_load`](../src/platforms/metal/metal_atlas_world.mm) | Copy texels into world RGBA atlas; set tile metadata buffer | `_texture_load` |
-| `TORIRS_GFX_RES_SPRITE_LOAD` | [`metal_frame_event_sprite_load`](../src/platforms/metal/metal_atlas_sprite.mm) | Standalone texture or add to open sprite batch | `_sprite_load` |
-| `TORIRS_GFX_RES_SPRITE_UNLOAD` | [`metal_frame_event_sprite_unload`](../src/platforms/metal/metal_atlas_sprite.mm) | Evict sprite entry; `CFRelease` if standalone | `_sprite_load` |
-| `TORIRS_GFX_RES_FONT_LOAD` | [`metal_frame_event_font_load`](../src/platforms/metal/metal_atlas_font.mm) | Register font atlas: batched pack or standalone `MTLTexture` | `_font_load` |
+| `TORIRS_GFX_STATE_CLEAR_RECT` | [`metal_event_clear_rect`](../src/platforms/metal/metal_render_context.mm) | [`metal_flush_2d`](../src/platforms/metal/metal_render_context.mm) first, then scissored **depth** draw (`torirsClearRectDepthVert` / `mtl_clear_rect_depth_pipeline`, depth write, color write mask none), then scissored **color** quad (`torirsClearRectFrag` / `mtl_clear_rect_pipeline`); verts use `mtl_clear_quad_buf` slots (not `spriteQuadBuf`) | `_clear_rect` |
+| `TORIRS_GFX_RES_MODEL_LOAD` | [`metal_event_model_load`](../src/platforms/metal/metal_model_events.mm) | Load into [`Gpu3DCache`](../src/platforms/gpu_3d_cache.h) if not present | `_model_load` |
+| `TORIRS_GFX_RES_MODEL_UNLOAD` | [`metal_event_model_unload`](../src/platforms/metal/metal_model_events.mm) | Release non-batched GPU buffers; evict cache | `_model_load` (id key) |
+| `TORIRS_GFX_RES_ANIM_LOAD` | [`metal_event_model_animation_load`](../src/platforms/metal/metal_model_events.mm) | Build/register animation frame | `_animation_load` |
+| `TORIRS_GFX_RES_TEX_LOAD` | [`metal_event_texture_load`](../src/platforms/metal/metal_atlas_world.mm) | Copy texels into world RGBA atlas; set tile metadata buffer | `_texture_load` |
+| `TORIRS_GFX_RES_SPRITE_LOAD` | [`metal_event_sprite_load`](../src/platforms/metal/metal_atlas_sprite.mm) | Standalone texture or add to open sprite batch | `_sprite_load` |
+| `TORIRS_GFX_RES_SPRITE_UNLOAD` | [`metal_event_sprite_unload`](../src/platforms/metal/metal_atlas_sprite.mm) | Evict sprite entry; `CFRelease` if standalone | `_sprite_load` |
+| `TORIRS_GFX_RES_FONT_LOAD` | [`metal_event_font_load`](../src/platforms/metal/metal_atlas_font.mm) | Register font atlas: batched pack or standalone `MTLTexture` | `_font_load` |
 | `TORIRS_GFX_RES_FONT_UNLOAD` | `default` → `break` | No-op in this world-encoder drain | — |
-| `TORIRS_GFX_DRAW_MODEL` | [`metal_frame_event_model_draw`](../src/platforms/metal/metal_draw_model.mm) | Append to [`BufferedFaceOrder`](../src/platforms/common/buffered_face_order.h); may flush | `_model_draw` |
-| `TORIRS_GFX_DRAW_SPRITE` | [`metal_frame_event_sprite_draw`](../src/platforms/metal/metal_atlas_sprite.mm) | Append quad to [`BufferedSprite2D`](../src/platforms/common/buffered_sprite_2d.h); records order in [`Buffered2DOrder`](../src/platforms/common/buffered_2d_order.h) (no per-draw flush). Flushed at `TORIRS_GFX_STATE_END_2D` / `TORIRS_GFX_STATE_CLEAR_RECT` via [`metal_flush_2d`](../src/platforms/metal/metal_render_context.mm) in recorded sprite/font order | `_sprite_draw` |
-| `TORIRS_GFX_DRAW_FONT` | [`metal_frame_event_font_draw`](../src/platforms/metal/metal_atlas_font.mm) | Append glyphs to [`BufferedFont2D`](../src/platforms/common/buffered_font_2d.h); each draw ends with `close_open_segment` so order is recorded in [`Buffered2DOrder`](../src/platforms/common/buffered_2d_order.h). Flushed at `TORIRS_GFX_STATE_END_2D` / `TORIRS_GFX_STATE_CLEAR_RECT` | `_font_draw` |
-| `TORIRS_GFX_BATCH3D_BEGIN` | [`metal_frame_event_batch_model_load_start`](../src/platforms/metal/metal_batch3d.mm) | [`Gpu3DCache::begin_batch`](../src/platforms/gpu_3d_cache.h) | `_batch` |
-| `TORIRS_GFX_BATCH3D_MODEL_ADD` | [`metal_frame_event_model_batched_load`](../src/platforms/metal/metal_batch3d.mm) | [`metal_cache2_batch_push_model_mesh`](../src/platforms/metal/metal_batch3d.mm) into the open batch | `_model_load` |
-| `TORIRS_GFX_BATCH3D_ANIM_ADD` | [`metal_frame_event_model_animation_load`](../src/platforms/metal/metal_model_events.mm) | Same handler as `TORIRS_GFX_RES_ANIM_LOAD` (payload differs by producer) | `_animation_load` |
-| `TORIRS_GFX_BATCH3D_END` | [`metal_frame_event_batch_model_load_end`](../src/platforms/metal/metal_batch3d.mm) | `newBufferWithBytes` per chunk; `end_batch` or `unload_batch` | `_batch` |
-| `TORIRS_GFX_BATCH3D_CLEAR` | [`metal_frame_event_batch_model_clear`](../src/platforms/metal/metal_batch3d.mm) | `CFRelease` chunk VBO/IBO; `unload_batch` | `_batch` |
-| `TORIRS_GFX_BATCH2D_TEX_BEGIN` | [`metal_frame_event_batch_texture_load_start`](../src/platforms/metal/metal_atlas_world.mm) | `texture_cache.begin_batch` | `_batch` |
-| `TORIRS_GFX_BATCH2D_TEX_END` | [`metal_frame_event_batch_texture_load_end`](../src/platforms/metal/metal_atlas_world.mm) | `texture_cache.end_batch` | `_batch` |
-| `TORIRS_GFX_BATCH2D_SPRITE_BEGIN` | [`metal_frame_event_batch_sprite_load_start`](../src/platforms/metal/metal_atlas_font.mm) | `sprite_cache.begin_batch` (2048×2048) | `_batch` |
-| `TORIRS_GFX_BATCH2D_SPRITE_END` | [`metal_frame_event_batch_sprite_load_end`](../src/platforms/metal/metal_atlas_font.mm) | Pack atlas, upload `MTLTexture`, `set_batch_atlas_handle` | `_batch` |
-| `TORIRS_GFX_BATCH2D_FONT_BEGIN` | [`metal_frame_event_batch_font_load_start`](../src/platforms/metal/metal_atlas_font.mm) | `font_cache.begin_batch` (1024×1024) | `_batch` |
-| `TORIRS_GFX_BATCH2D_FONT_END` | [`metal_frame_event_batch_font_load_end`](../src/platforms/metal/metal_atlas_font.mm) | Pack atlas, upload, set batch atlas | `_batch` |
+| `TORIRS_GFX_DRAW_MODEL` | [`metal_event_model_draw`](../src/platforms/metal/metal_draw_model.mm) | Append to [`BufferedFaceOrder`](../src/platforms/common/buffered_face_order.h); may flush | `_model_draw` |
+| `TORIRS_GFX_DRAW_SPRITE` | [`metal_event_sprite_draw`](../src/platforms/metal/metal_atlas_sprite.mm) | Append quad to [`BufferedSprite2D`](../src/platforms/common/buffered_sprite_2d.h); records order in [`Buffered2DOrder`](../src/platforms/common/buffered_2d_order.h) (no per-draw flush). Flushed at `TORIRS_GFX_STATE_END_2D` / `TORIRS_GFX_STATE_CLEAR_RECT` via [`metal_flush_2d`](../src/platforms/metal/metal_render_context.mm) in recorded sprite/font order | `_sprite_draw` |
+| `TORIRS_GFX_DRAW_FONT` | [`metal_event_font_draw`](../src/platforms/metal/metal_atlas_font.mm) | Append glyphs to [`BufferedFont2D`](../src/platforms/common/buffered_font_2d.h); each draw ends with `close_open_segment` so order is recorded in [`Buffered2DOrder`](../src/platforms/common/buffered_2d_order.h). Flushed at `TORIRS_GFX_STATE_END_2D` / `TORIRS_GFX_STATE_CLEAR_RECT` | `_font_draw` |
+| `TORIRS_GFX_BATCH3D_BEGIN` | [`metal_event_batch_model_load_start`](../src/platforms/metal/metal_batch3d.mm) | [`Gpu3DCache::begin_batch`](../src/platforms/gpu_3d_cache.h) | `_batch` |
+| `TORIRS_GFX_BATCH3D_MODEL_ADD` | [`metal_event_model_batched_load`](../src/platforms/metal/metal_batch3d.mm) | [`metal_cache2_batch_push_model_mesh`](../src/platforms/metal/metal_batch3d.mm) into the open batch | `_model_load` |
+| `TORIRS_GFX_BATCH3D_ANIM_ADD` | [`metal_event_model_animation_load`](../src/platforms/metal/metal_model_events.mm) | Same handler as `TORIRS_GFX_RES_ANIM_LOAD` (payload differs by producer) | `_animation_load` |
+| `TORIRS_GFX_BATCH3D_END` | [`metal_event_batch_model_load_end`](../src/platforms/metal/metal_batch3d.mm) | `newBufferWithBytes` per chunk; `end_batch` or `unload_batch` | `_batch` |
+| `TORIRS_GFX_BATCH3D_CLEAR` | [`metal_event_batch_model_clear`](../src/platforms/metal/metal_batch3d.mm) | `CFRelease` chunk VBO/IBO; `unload_batch` | `_batch` |
+| `TORIRS_GFX_BATCH2D_TEX_BEGIN` | [`metal_event_batch_texture_load_start`](../src/platforms/metal/metal_atlas_world.mm) | `texture_cache.begin_batch` | `_batch` |
+| `TORIRS_GFX_BATCH2D_TEX_END` | [`metal_event_batch_texture_load_end`](../src/platforms/metal/metal_atlas_world.mm) | `texture_cache.end_batch` | `_batch` |
+| `TORIRS_GFX_BATCH2D_SPRITE_BEGIN` | [`metal_event_batch_sprite_load_start`](../src/platforms/metal/metal_atlas_font.mm) | `sprite_cache.begin_batch` (2048×2048) | `_batch` |
+| `TORIRS_GFX_BATCH2D_SPRITE_END` | [`metal_event_batch_sprite_load_end`](../src/platforms/metal/metal_atlas_font.mm) | Pack atlas, upload `MTLTexture`, `set_batch_atlas_handle` | `_batch` |
+| `TORIRS_GFX_BATCH2D_FONT_BEGIN` | [`metal_event_batch_font_load_start`](../src/platforms/metal/metal_atlas_font.mm) | `font_cache.begin_batch` (1024×1024) | `_batch` |
+| `TORIRS_GFX_BATCH2D_FONT_END` | [`metal_event_batch_font_load_end`](../src/platforms/metal/metal_atlas_font.mm) | Pack atlas, upload, set batch atlas | `_batch` |
 
 **Pass and flush rules**
 
@@ -110,7 +110,7 @@ Enum: [`ToriRSRenderCommandKind`](../src/tori_rs_render.h). Dispatch: [`metal_re
 - **Per-model** [`ModelBufferRange`](../src/platforms/gpu_3d_cache.h): byte offset into a VBO (or into a batch chunk), index range, face metadata, links to batched VA/FA ids when applicable.
 - **Batches**: up to [`kMaxBatches = 64`](../src/platforms/gpu_3d_cache.h) open/closed groups. Each batch has one or more [`BatchChunk`](../src/platforms/gpu_3d_cache.h) entries holding [`BatchLoadBuffer<uint8_t> pending_verts`](../src/platforms/common/batch_load_buffer.h) and [`BatchLoadBuffer<uint32_t> pending_indices`](../src/platforms/common/batch_load_buffer.h). **Chunk rollover** happens in [`roll_chunk_if_needed`](../src/platforms/gpu_3d_cache.h) when vert or index count would exceed per-chunk caps.
 
-**Transfer at batch end:** [`metal_frame_event_batch_model_load_end`](../src/platforms/metal/metal_batch3d.mm) iterates chunks with non-zero pending bytes/indices, builds:
+**Transfer at batch end:** [`metal_event_batch_model_load_end`](../src/platforms/metal/metal_batch3d.mm) iterates chunks with non-zero pending bytes/indices, builds:
 
 ```objc
 [ctx->device newBufferWithBytes:pv length:vb options:MTLResourceStorageModeShared]
@@ -129,7 +129,7 @@ for vertices and the same for the index `uint32_t` array, then [`set_chunk_buffe
 
 **Standalone `build_model_instance`** bakes every face to three [`MetalVertex`](../src/platforms/metal/metal_internal.h) records, then creates VBO+IBO with `newBufferWithBytes` and [`register_instance`](../src/platforms/gpu_3d_cache.h).
 
-**Non-batch `TORIRS_GFX_RES_MODEL_LOAD`** ([`metal_frame_event_model_load`](../src/platforms/metal/metal_model_events.mm)): only calls `metal_dispatch_model_load` if `!get_instance(mid, 0, 0)`; for ground-VA, requires `vertex_array` and `face_array` or returns early; for other models, checks color/vertex/index pointers and positive face count.
+**Non-batch `TORIRS_GFX_RES_MODEL_LOAD`** ([`metal_event_model_load`](../src/platforms/metal/metal_model_events.mm)): only calls `metal_dispatch_model_load` if `!get_instance(mid, 0, 0)`; for ground-VA, requires `vertex_array` and `face_array` or returns early; for other models, checks color/vertex/index pointers and positive face count.
 
 ### 4.3 Batch world rebuild (3D batch commands)
 
@@ -145,19 +145,19 @@ flowchart TD
     Up --> Set["set_chunk_buffers end_batch"]
 ```
 
-- **Batched model add** ([`metal_frame_event_model_batched_load`](../src/platforms/metal/metal_batch3d.mm)): validates `current_model_batch_id`, then [`metal_cache2_batch_push_model_mesh`](../src/platforms/metal/metal_batch3d.mm) to append the model’s vertices/faces into the open batch (textured path passes `dashmodel__is_ground_va(model)` into the cache2 builder).
+- **Batched model add** ([`metal_event_model_batched_load`](../src/platforms/metal/metal_batch3d.mm)): validates `current_model_batch_id`, then [`metal_cache2_batch_push_model_mesh`](../src/platforms/metal/metal_batch3d.mm) to append the model’s vertices/faces into the open batch (textured path passes `dashmodel__is_ground_va(model)` into the cache2 builder).
 
 - **Batch end** special cases: missing batch, `nchunks <= 0`, or `!any` pending data → [`unload_batch`](../src/platforms/gpu_3d_cache.h) and clear `current_model_batch_id`.
 
 ### 4.4 `TORIRS_GFX_BATCH3D_CLEAR` and `TORIRS_GFX_RES_MODEL_UNLOAD`
 
-- [`metal_frame_event_batch_model_clear`](../src/platforms/metal/metal_batch3d.mm) releases each chunk’s VBO/IBO with `CFRelease` and calls `unload_batch`.
+- [`metal_event_batch_model_clear`](../src/platforms/metal/metal_batch3d.mm) releases each chunk’s VBO/IBO with `CFRelease` and calls `unload_batch`.
 
-- [`metal_frame_event_model_unload`](../src/platforms/metal/metal_model_events.mm): for **non-batched** models only, iterates animation frames and `CFRelease` owned VBO/IBO handles, then `unload_model`.
+- [`metal_event_model_unload`](../src/platforms/metal/metal_model_events.mm): for **non-batched** models only, iterates animation frames and `CFRelease` owned VBO/IBO handles, then `unload_model`.
 
 ### 4.5 Animation load
 
-[`metal_frame_event_model_animation_load`](../src/platforms/metal/metal_model_events.mm) calls [`build_model_instance`](../src/platforms/metal/metal_model_geometry.mm) for `(model_gpu_id, anim_id, frame_index)` if that cache slot is empty.
+[`metal_event_model_animation_load`](../src/platforms/metal/metal_model_events.mm) calls [`build_model_instance`](../src/platforms/metal/metal_model_geometry.mm) for `(model_gpu_id, anim_id, frame_index)` if that cache slot is empty.
 
 ---
 
@@ -165,7 +165,7 @@ flowchart TD
 
 ### 5.1 Resolve GPU buffers
 
-[`metal_frame_event_model_draw`](../src/platforms/metal/metal_draw_model.mm) validates model pointers and face/vertex data, decodes `model_key` to `anim_id` and `frame_index` ([`torirs_model_cache_key_decode`](../src/tori_rs_render.h)). It obtains [`ModelBufferRange`](../src/platforms/gpu_3d_cache.h) via `get_instance` or [`build_model_instance`](../src/platforms/metal/metal_model_geometry.mm). **Fallback:** if build fails and anim/frame was non-zero, it retries `(0,0)`; if that still fails, returns.
+[`metal_event_model_draw`](../src/platforms/metal/metal_draw_model.mm) validates model pointers and face/vertex data, decodes `model_key` to `anim_id` and `frame_index` ([`torirs_model_cache_key_decode`](../src/tori_rs_render.h)). It obtains [`ModelBufferRange`](../src/platforms/gpu_3d_cache.h) via `get_instance` or [`build_model_instance`](../src/platforms/metal/metal_model_geometry.mm). **Fallback:** if build fails and anim/frame was non-zero, it retries `(0,0)`; if that still fails, returns.
 
 [`metal_resolve_model_draw_buffers`](../src/platforms/metal/metal_draw_model.mm) sets [`MetalDrawBuffersResolved`](../src/platforms/metal/metal_internal.h):
 
@@ -214,9 +214,9 @@ flowchart LR
 
 ## 6. World textures (`TORIRS_GFX_RES_TEX_LOAD` and batch bookends)
 
-[`metal_frame_event_texture_load`](../src/platforms/metal/metal_atlas_world.mm) ensures [`metal_world_atlas_init`](../src/platforms/metal/metal_atlas_world.mm) (shared RGBA8 texture + `MetalAtlasTile` UBO, [`MetalAtlasTile`](../src/platforms/metal/metal_atlas_world.mm) stride via buffer). Pixels are expanded from game format to RGBA in CPU scratch, then `replaceRegion` into the next **shelf** slot ([`metal_world_atlas_alloc_rect`](../src/platforms/metal/metal_atlas_world.mm)). Tile metadata: UV rect, animation from [`metal_texture_animation_signed`](../src/platforms/metal/metal_internal.h), opacity flag. **Special cases:** `tex_id` not in `0..255` or null texture → return; **atlas full** → stderr, skip; `texture_cache.register_texture` links logical id to atlas.
+[`metal_event_texture_load`](../src/platforms/metal/metal_atlas_world.mm) ensures [`metal_world_atlas_init`](../src/platforms/metal/metal_atlas_world.mm) (shared RGBA8 texture + `MetalAtlasTile` UBO, [`MetalAtlasTile`](../src/platforms/metal/metal_atlas_world.mm) stride via buffer). Pixels are expanded from game format to RGBA in CPU scratch, then `replaceRegion` into the next **shelf** slot ([`metal_world_atlas_alloc_rect`](../src/platforms/metal/metal_atlas_world.mm)). Tile metadata: UV rect, animation from [`metal_texture_animation_signed`](../src/platforms/metal/metal_internal.h), opacity flag. **Special cases:** `tex_id` not in `0..255` or null texture → return; **atlas full** → stderr, skip; `texture_cache.register_texture` links logical id to atlas.
 
-[`metal_frame_event_batch_texture_load_start` / `metal_frame_event_batch_texture_load_end`](../src/platforms/metal/metal_atlas_world.mm) (command kinds `TORIRS_GFX_BATCH2D_TEX_BEGIN` / `TORIRS_GFX_BATCH2D_TEX_END`) only call `texture_cache.begin_batch` / `end_batch` (no direct Metal resource work in that file; batching is in the cache layer).
+[`metal_event_batch_texture_load_start` / `metal_event_batch_texture_load_end`](../src/platforms/metal/metal_atlas_world.mm) (command kinds `TORIRS_GFX_BATCH2D_TEX_BEGIN` / `TORIRS_GFX_BATCH2D_TEX_END`) only call `texture_cache.begin_batch` / `end_batch` (no direct Metal resource work in that file; batching is in the cache layer).
 
 ---
 
@@ -228,7 +228,7 @@ flowchart LR
 
 ### 7.1 Sprites
 
-**Load** ([`metal_frame_event_sprite_load`](../src/platforms/metal/metal_atlas_sprite.mm)): If a sprite with the same cache key already exists, release old standalone texture. If an open **sprite** batch is active matching `current_sprite_batch_id`, pixels go to `sprite_cache.add_to_batch`. Otherwise a dedicated `MTLTexture` is created (`MTLPixelFormatRGBA8Unorm`, `MTLStorageModeShared`, `replaceRegion`).
+**Load** ([`metal_event_sprite_load`](../src/platforms/metal/metal_atlas_sprite.mm)): If a sprite with the same cache key already exists, release old standalone texture. If an open **sprite** batch is active matching `current_sprite_batch_id`, pixels go to `sprite_cache.add_to_batch`. Otherwise a dedicated `MTLTexture` is created (`MTLPixelFormatRGBA8Unorm`, `MTLStorageModeShared`, `replaceRegion`).
 
 **Unload** — `CFRelease` standalone texture handle, `unload_sprite`.
 
@@ -238,9 +238,9 @@ flowchart LR
 
 **Load** — Standalone: create `MTLTexture` from `atlas->rgba_pixels` if not cached. **Batch:** [`font_cache.add_to_batch`](../src/platforms/metal/metal_atlas_font.mm) while `current_font_batch_id` matches an open font batch.
 
-**End sprite/font batches** — [`metal_frame_event_batch_sprite_load_end`](../src/platforms/metal/metal_atlas_font.mm) / [`metal_frame_event_batch_font_load_end`](../src/platforms/metal/metal_atlas_font.mm): `finalize_batch`, then upload a packed atlas. Sprite end converts packed ARGB batch pixels to RGBA8 via [`torirs_copy_sprite_argb_pixels_to_rgba8`](../src/platforms/common/torirs_sprite_argb_rgba.c) into scratch, then `replaceRegion`; font end uses **`atlas->pixels` directly** in `replaceRegion` (different from standalone font load which copies from `rgba_pixels`).
+**End sprite/font batches** — [`metal_event_batch_sprite_load_end`](../src/platforms/metal/metal_atlas_font.mm) / [`metal_event_batch_font_load_end`](../src/platforms/metal/metal_atlas_font.mm): `finalize_batch`, then upload a packed atlas. Sprite end converts packed ARGB batch pixels to RGBA8 via [`torirs_copy_sprite_argb_pixels_to_rgba8`](../src/platforms/common/torirs_sprite_argb_rgba.c) into scratch, then `replaceRegion`; font end uses **`atlas->pixels` directly** in `replaceRegion` (different from standalone font load which copies from `rgba_pixels`).
 
-**Draw** — [`metal_frame_event_font_draw`](../src/platforms/metal/metal_atlas_font.mm): expands color tags, builds 6-vertex (two-triangle) quads into [`BufferedFont2D`](../src/platforms/common/buffered_font_2d.h) (8 floats per vertex). `BufferedFont2D::set_font` starts a new draw group when the font/atlas changes; pipeline state is set per group during [`metal_flush_2d`](../src/platforms/metal/metal_render_context.mm).
+**Draw** — [`metal_event_font_draw`](../src/platforms/metal/metal_atlas_font.mm): expands color tags, builds 6-vertex (two-triangle) quads into [`BufferedFont2D`](../src/platforms/common/buffered_font_2d.h) (8 floats per vertex). `BufferedFont2D::set_font` starts a new draw group when the font/atlas changes; pipeline state is set per group during [`metal_flush_2d`](../src/platforms/metal/metal_render_context.mm).
 
 `TORIRS_GFX_STATE_END_2D` and the final frame flush call [`metal_flush_2d`](../src/platforms/metal/metal_render_context.mm) to submit remaining sprite and font geometry in [`Buffered2DOrder`](../src/platforms/common/buffered_2d_order.h) order.
 

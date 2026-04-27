@@ -18,8 +18,7 @@ GPU3DCache2BatchSubmitMetal(
     SceneBatchId scene_batch_id,
     ToriRS_UsageHint usage_hint)
 {
-    const uint32_t vbo_size =
-        (uint32_t)batch.vbo.size() * (uint32_t)sizeof(GPU3DMeshVertexMetal);
+    const uint32_t vbo_size = (uint32_t)batch.vbo.size() * (uint32_t)sizeof(GPU3DMeshVertexMetal);
     uint32_t ebo_size = (uint32_t)batch.ebo.size() * (uint32_t)sizeof(uint32_t);
 
     if( vbo_size == 0 || ebo_size == 0 )

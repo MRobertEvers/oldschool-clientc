@@ -1,9 +1,11 @@
 // System ObjC/Metal headers must come before any game headers.
-#include "platforms/metal/metal_internal.h"
 #include "platforms/common/torirs_gpu_clipspace.h"
+#include "platforms/metal/metal_internal.h"
 
 void
-metal_frame_event_clear_rect(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd)
+metal_event_clear_rect(
+    MetalRenderCtx* ctx,
+    const struct ToriRSRenderCommand* cmd)
 {
     if( !ctx || !ctx->renderer || !cmd )
         return;
@@ -60,8 +62,8 @@ metal_frame_event_clear_rect(MetalRenderCtx* ctx, const struct ToriRSRenderComma
         rw,
         rh);
 
-    float fbw =
-        (float)(ctx->renderer->pass.win_width > 0 ? ctx->renderer->pass.win_width : ctx->renderer->width);
+    float fbw = (float)(ctx->renderer->pass.win_width > 0 ? ctx->renderer->pass.win_width
+                                                          : ctx->renderer->width);
     float fbh = (float)(ctx->renderer->pass.win_height > 0 ? ctx->renderer->pass.win_height
                                                            : ctx->renderer->height);
     if( fbw <= 0.0f )

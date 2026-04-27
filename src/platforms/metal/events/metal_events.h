@@ -41,6 +41,30 @@ void
 metal_event_res_tex_load(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
 
 void
+metal_event_clear_rect(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
+
+void
+metal_event_begin_3d(
+    MetalRenderCtx* ctx,
+    const struct ToriRSRenderCommand* cmd,
+    const struct LogicalViewportRect* default_logical_vp);
+
+void
+metal_event_end_3d(MetalRenderCtx* ctx, void* uniforms_buffer);
+
+void
+metal_event_texture_load(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
+
+void
+metal_event_model_load(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
+
+void
+metal_event_model_unload(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
+
+void
+metal_event_model_animation_load(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
+
+void
 metal_event_batch2d_tex_begin(MetalRenderCtx* ctx, const struct ToriRSRenderCommand* cmd);
 
 void

@@ -4,7 +4,7 @@
 #include "platforms/metal/metal_internal.h"
 
 void
-metal_frame_event_model_load(
+metal_event_model_load(
     MetalRenderCtx* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
@@ -63,7 +63,7 @@ metal_frame_event_model_load(
 }
 
 void
-metal_frame_event_model_unload(
+metal_event_model_unload(
     MetalRenderCtx* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
@@ -80,7 +80,7 @@ metal_frame_event_model_unload(
 }
 
 void
-metal_frame_event_model_animation_load(
+metal_event_model_animation_load(
     MetalRenderCtx* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
