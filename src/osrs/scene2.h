@@ -142,6 +142,35 @@ struct Scene2BatchedModelLoad
     struct DashModel* model;
 };
 
+enum Scene2BatchDeferKind
+{
+    SCENE2_BATCH_DEFER_MODEL = 0,
+    SCENE2_BATCH_DEFER_ANIM = 1,
+};
+
+/** Deferred `SCENE2_EVENT_ANIMATION_LOADED` while batch_active (interleaved with model ops). */
+struct Scene2BatchedAnimationLoad
+{
+    int model_gpu_id;
+    int anim_id;
+    int animation_index;
+    int frame_index;
+    uint8_t element_category;
+    struct DashModel* model;
+    struct DashFrame* frame;
+    struct DashFramemap* framemap;
+};
+
+struct Scene2BatchDeferredOp
+{
+    enum Scene2BatchDeferKind kind;
+    union
+    {
+        struct Scene2BatchedModelLoad model;
+        struct Scene2BatchedAnimationLoad anim;
+    } u;
+};
+
 struct Scene2
 {
     struct Scene2ElementFast* fast_pool;
@@ -200,10 +229,11 @@ struct Scene2
      */
     bool gpu_batch_slot_live[SCENE2_MAX_GPU_BATCHES];
 
-    /** Models assigned during the open batch; `MODEL_LOADED` emitted at `scene2_batch_end`. */
-    struct Scene2BatchedModelLoad* batch_pending_loads;
-    int batch_pending_loads_count;
-    int batch_pending_loads_capacity;
+    /** Ordered deferred MODEL_LOADED + ANIMATION_LOADED while batch_active; flushed at batch_end.
+     */
+    struct Scene2BatchDeferredOp* batch_deferred_ops;
+    int batch_deferred_ops_count;
+    int batch_deferred_ops_capacity;
 
     /** World texture batch: wraps all TEXTURE_LOADED events during initial cache load. */
     bool texture_batch_active;

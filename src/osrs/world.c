@@ -1621,9 +1621,7 @@ world_npc_ensure_scene_element(
     if( npc->scene_element2.element_id == -1 )
     {
         npc->scene_element2.element_id = scene2_element_acquire_full(
-            world->scene2,
-            (int)entity_unified_id(ENTITY_KIND_NPC, npc_id),
-            SCENE2_ELEMENT_NPC);
+            world->scene2, (int)entity_unified_id(ENTITY_KIND_NPC, npc_id), SCENE2_ELEMENT_NPC);
 
         npc->orientation.dst_yaw = 0;
 

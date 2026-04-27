@@ -132,25 +132,64 @@ scene2_eventbuffer_push(
     scene2->eventbuffer_count++;
 }
 
+/** Remove pending MODEL(E) and ANIM targeting that model's gpu_id from the deferred queue. */
 static void
-scene2__batch_pending_remove_for_element(
+scene2__batch_deferred_remove_model_and_anims_for_element(
     struct Scene2* scene2,
-    int element_id)
+    int element_id,
+    int model_gpu_id_drop_anim)
 {
-    if( !scene2 || scene2->batch_pending_loads_count <= 0 )
+    if( !scene2 || scene2->batch_deferred_ops_count <= 0 )
         return;
     int w = 0;
-    for( int r = 0; r < scene2->batch_pending_loads_count; r++ )
+    for( int r = 0; r < scene2->batch_deferred_ops_count; r++ )
     {
-        if( scene2->batch_pending_loads[r].element_id == element_id )
+        struct Scene2BatchDeferredOp* op = &scene2->batch_deferred_ops[r];
+        if( op->kind == SCENE2_BATCH_DEFER_MODEL &&
+            op->u.model.element_id == element_id )
             continue;
-        scene2->batch_pending_loads[w++] = scene2->batch_pending_loads[r];
+        if( model_gpu_id_drop_anim > 0 && op->kind == SCENE2_BATCH_DEFER_ANIM &&
+            op->u.anim.model_gpu_id == model_gpu_id_drop_anim )
+            continue;
+        scene2->batch_deferred_ops[w++] = *op;
     }
-    scene2->batch_pending_loads_count = w;
+    scene2->batch_deferred_ops_count = w;
+}
+
+/** Before assigning a new model to E during a batch: drop superseded MODEL(E) and its ANIM ops. */
+static void
+scene2__batch_deferred_supersede_element_model(struct Scene2* scene2, int element_id)
+{
+    if( !scene2 || scene2->batch_deferred_ops_count <= 0 )
+        return;
+    int superseded_gpu = -1;
+    for( int i = 0; i < scene2->batch_deferred_ops_count; i++ )
+    {
+        struct Scene2BatchDeferredOp* op = &scene2->batch_deferred_ops[i];
+        if( op->kind == SCENE2_BATCH_DEFER_MODEL && op->u.model.element_id == element_id )
+            superseded_gpu = op->u.model.model_gpu_id;
+    }
+    scene2__batch_deferred_remove_model_and_anims_for_element(
+        scene2, element_id, superseded_gpu > 0 ? superseded_gpu : -1);
 }
 
 static bool
-scene2__batch_pending_push(
+scene2__batch_deferred_grow(struct Scene2* scene2)
+{
+    int ncap = scene2->batch_deferred_ops_capacity == 0
+                   ? 256
+                   : scene2->batch_deferred_ops_capacity * 2;
+    struct Scene2BatchDeferredOp* nb =
+        realloc(scene2->batch_deferred_ops, (size_t)ncap * sizeof(struct Scene2BatchDeferredOp));
+    if( !nb )
+        return false;
+    scene2->batch_deferred_ops = nb;
+    scene2->batch_deferred_ops_capacity = ncap;
+    return true;
+}
+
+static bool
+scene2__batch_deferred_append_model(
     struct Scene2* scene2,
     int element_id,
     int parent_entity_id,
@@ -160,26 +199,30 @@ scene2__batch_pending_push(
 {
     if( !scene2 )
         return false;
-    scene2__batch_pending_remove_for_element(scene2, element_id);
-    if( scene2->batch_pending_loads_count >= scene2->batch_pending_loads_capacity )
-    {
-        int ncap = scene2->batch_pending_loads_capacity == 0
-                       ? 256
-                       : scene2->batch_pending_loads_capacity * 2;
-        struct Scene2BatchedModelLoad* nb = realloc(
-            scene2->batch_pending_loads, (size_t)ncap * sizeof(struct Scene2BatchedModelLoad));
-        if( !nb )
-            return false;
-        scene2->batch_pending_loads = nb;
-        scene2->batch_pending_loads_capacity = ncap;
-    }
-    struct Scene2BatchedModelLoad* slot =
-        &scene2->batch_pending_loads[scene2->batch_pending_loads_count++];
-    slot->element_id = element_id;
-    slot->parent_entity_id = parent_entity_id;
-    slot->model_gpu_id = model_gpu_id;
-    slot->element_category = element_category;
-    slot->model = model;
+    scene2__batch_deferred_supersede_element_model(scene2, element_id);
+    if( scene2->batch_deferred_ops_count >= scene2->batch_deferred_ops_capacity &&
+        !scene2__batch_deferred_grow(scene2) )
+        return false;
+    struct Scene2BatchDeferredOp* slot =
+        &scene2->batch_deferred_ops[scene2->batch_deferred_ops_count++];
+    slot->kind = SCENE2_BATCH_DEFER_MODEL;
+    slot->u.model.element_id = element_id;
+    slot->u.model.parent_entity_id = parent_entity_id;
+    slot->u.model.model_gpu_id = model_gpu_id;
+    slot->u.model.element_category = element_category;
+    slot->u.model.model = model;
+    return true;
+}
+
+static bool
+scene2__batch_deferred_append_anim(struct Scene2* scene2, struct Scene2BatchDeferredOp* anim_op)
+{
+    if( !scene2 )
+        return false;
+    if( scene2->batch_deferred_ops_count >= scene2->batch_deferred_ops_capacity &&
+        !scene2__batch_deferred_grow(scene2) )
+        return false;
+    scene2->batch_deferred_ops[scene2->batch_deferred_ops_count++] = *anim_op;
     return true;
 }
 
@@ -296,7 +339,7 @@ scene2_free(struct Scene2* scene2)
     free(scene2->vertex_arrays_deferred_free);
     free(scene2->face_arrays_deferred_free);
     free(scene2->models_deferred_free);
-    free(scene2->batch_pending_loads);
+    free(scene2->batch_deferred_ops);
     free(scene2->eventbuffer);
     free(scene2);
 }
@@ -554,7 +597,7 @@ scene2_element_set_dash_model(
 
         if( scene2->batch_active )
         {
-            if( !scene2__batch_pending_push(
+            if( !scene2__batch_deferred_append_model(
                     scene2, element_id, parent_entity_id, new_id, model_cat, dash_model) )
             {
                 int32_t wx = 0, wy = 0, wz = 0, wyaw = 0;
@@ -728,7 +771,15 @@ scene2_element_release(
     const uint8_t released_el_cat = (uint8_t)scene2_element_category(element);
 
     if( scene2->batch_active )
-        scene2__batch_pending_remove_for_element(scene2, element_id);
+    {
+        int drop_gpu = 0;
+        if( scene2__is_fast(element) )
+            drop_gpu = scene2__as_fast(element)->dash_model_gpu_id;
+        else
+            drop_gpu = scene2__as_full(element)->dash_model_gpu_id;
+        scene2__batch_deferred_remove_model_and_anims_for_element(
+            scene2, element_id, drop_gpu);
+    }
 
     if( scene2__is_fast(element) )
     {
@@ -1357,8 +1408,8 @@ scene2_batch_begin(struct Scene2* scene2)
         slot >= 0 &&
         "scene2_batch_begin: no free GPU batch slot (increase SCENE2_MAX_GPU_BATCHES?)");
     assert(
-        scene2->batch_pending_loads_count == 0 &&
-        "scene2_batch_begin: pending model loads from un-ended batch");
+        scene2->batch_deferred_ops_count == 0 &&
+        "scene2_batch_begin: pending deferred batch ops from un-ended batch");
     scene2->gpu_batch_slot_live[slot] = true;
     const uint32_t batch_id = (uint32_t)slot;
     scene2->batch_current_id = batch_id;
@@ -1381,50 +1432,74 @@ scene2_batch_end(struct Scene2* scene2)
     assert(scene2->batch_active && "scene2_batch_end: no active batch");
     uint32_t id = scene2->batch_current_id;
 
-    for( int i = 0; i < scene2->batch_pending_loads_count; i++ )
+    for( int i = 0; i < scene2->batch_deferred_ops_count; i++ )
     {
-        const struct Scene2BatchedModelLoad* pl = &scene2->batch_pending_loads[i];
-        struct Scene2Element* el = scene2_element_at(scene2, pl->element_id);
-        if( !el || !scene2_element_is_active(el) )
-            continue;
-        struct DashModel* cur = scene2_element_dash_model(el);
-        int cur_gpu_id = 0;
-        if( scene2__is_fast(el) )
-            cur_gpu_id = scene2__as_fast(el)->dash_model_gpu_id;
-        else
-            cur_gpu_id = scene2__as_full(el)->dash_model_gpu_id;
-        if( cur != pl->model || cur_gpu_id != pl->model_gpu_id )
-            continue;
-
-        int32_t wx = 0, wy = 0, wz = 0, wyaw = 0;
-        struct DashPosition* wpos = scene2_element_dash_position(el);
-        if( wpos )
+        const struct Scene2BatchDeferredOp* dop = &scene2->batch_deferred_ops[i];
+        if( dop->kind == SCENE2_BATCH_DEFER_MODEL )
         {
-            wx = (int32_t)wpos->x;
-            wy = (int32_t)wpos->y;
-            wz = (int32_t)wpos->z;
-            wyaw = (int32_t)wpos->yaw;
-        }
+            const struct Scene2BatchedModelLoad* pl = &dop->u.model;
+            struct Scene2Element* el = scene2_element_at(scene2, pl->element_id);
+            if( !el || !scene2_element_is_active(el) )
+                continue;
+            struct DashModel* cur = scene2_element_dash_model(el);
+            int cur_gpu_id = 0;
+            if( scene2__is_fast(el) )
+                cur_gpu_id = scene2__as_fast(el)->dash_model_gpu_id;
+            else
+                cur_gpu_id = scene2__as_full(el)->dash_model_gpu_id;
+            if( cur != pl->model || cur_gpu_id != pl->model_gpu_id )
+                continue;
 
-        scene2_eventbuffer_push(
-            scene2,
-            (struct Scene2Event){
-                .type = SCENE2_EVENT_MODEL_LOADED,
-                .batched = true,
-                .u.model = {
-                    .element_id = pl->element_id,
-                    .parent_entity_id = pl->parent_entity_id,
-                    .model_id = pl->model_gpu_id,
-                    .element_category = pl->element_category,
-                    .model = pl->model,
-                    .world_x = wx,
-                    .world_y = wy,
-                    .world_z = wz,
-                    .world_yaw_r2pi2048 = wyaw,
-                },
-            });
+            int32_t wx = 0, wy = 0, wz = 0, wyaw = 0;
+            struct DashPosition* wpos = scene2_element_dash_position(el);
+            if( wpos )
+            {
+                wx = (int32_t)wpos->x;
+                wy = (int32_t)wpos->y;
+                wz = (int32_t)wpos->z;
+                wyaw = (int32_t)wpos->yaw;
+            }
+
+            scene2_eventbuffer_push(
+                scene2,
+                (struct Scene2Event){
+                    .type = SCENE2_EVENT_MODEL_LOADED,
+                    .batched = true,
+                    .u.model = {
+                        .element_id = pl->element_id,
+                        .parent_entity_id = pl->parent_entity_id,
+                        .model_id = pl->model_gpu_id,
+                        .element_category = pl->element_category,
+                        .model = pl->model,
+                        .world_x = wx,
+                        .world_y = wy,
+                        .world_z = wz,
+                        .world_yaw_r2pi2048 = wyaw,
+                    },
+                });
+        }
+        else
+        {
+            const struct Scene2BatchedAnimationLoad* pa = &dop->u.anim;
+            scene2_eventbuffer_push(
+                scene2,
+                (struct Scene2Event){
+                    .type = SCENE2_EVENT_ANIMATION_LOADED,
+                    .batched = true,
+                    .u.animation = {
+                        .model_gpu_id = pa->model_gpu_id,
+                        .anim_id = pa->anim_id,
+                        .animation_index = pa->animation_index,
+                        .frame_index = pa->frame_index,
+                        .element_category = pa->element_category,
+                        .model = pa->model,
+                        .frame = pa->frame,
+                        .framemap = pa->framemap,
+                    },
+                });
+        }
     }
-    scene2->batch_pending_loads_count = 0;
+    scene2->batch_deferred_ops_count = 0;
 
     scene2->batch_active = false;
     scene2_eventbuffer_push(
@@ -1468,11 +1543,27 @@ scene2_element_queue_animation_load(
 {
     if( !scene2 )
         return;
+    bool const batched_tag = scene2->batch_active;
+    if( batched_tag )
+    {
+        struct Scene2BatchDeferredOp op = { 0 };
+        op.kind = SCENE2_BATCH_DEFER_ANIM;
+        op.u.anim.model_gpu_id = model_gpu_id;
+        op.u.anim.anim_id = anim_id;
+        op.u.anim.animation_index = animation_index;
+        op.u.anim.frame_index = frame_index;
+        op.u.anim.element_category = (uint8_t)element_category;
+        op.u.anim.model = model;
+        op.u.anim.frame = frame;
+        op.u.anim.framemap = framemap;
+        if( scene2__batch_deferred_append_anim(scene2, &op) )
+            return;
+    }
     scene2_eventbuffer_push(
         scene2,
         (struct Scene2Event){
             .type    = SCENE2_EVENT_ANIMATION_LOADED,
-            .batched = scene2->batch_active,
+            .batched = batched_tag,
             .u.animation = {
                 .model_gpu_id    = model_gpu_id,
                 .anim_id         = anim_id,
