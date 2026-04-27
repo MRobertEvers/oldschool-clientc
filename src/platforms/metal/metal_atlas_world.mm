@@ -1,6 +1,6 @@
 // System ObjC/Metal headers must come before any game headers.
 #include "platforms/metal/metal_internal.h"
-#include "platforms/common/pass_3d_builder/gpu_3d_cache2_metal.h"
+#include "platforms/metal/gpu_3d_cache2_metal.h"
 
 /** Nearest-neighbor 64×64 RGBA → 128×128 for GPU3DCache2 fixed tile size. */
 static void

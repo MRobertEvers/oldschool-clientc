@@ -1,7 +1,7 @@
 #pragma once
 #ifdef __OBJC__
-#include "batch_buffer_metal.h"
-#include "gpu_3d_cache2.h"
+#include "platforms/common/pass_3d_builder/batch_buffer_metal.h"
+#include "platforms/common/pass_3d_builder/gpu_3d_cache2.h"
 #import <Metal/Metal.h>
 
 /** Out-parameters from `GPU3DCache2BatchSubmitMetal`: `vbo`/`ebo` are CF-retained `MTLBuffer*`. */

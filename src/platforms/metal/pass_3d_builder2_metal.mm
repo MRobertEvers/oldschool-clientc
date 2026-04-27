@@ -1,4 +1,4 @@
-#include "pass_3d_builder2_metal.h"
+#include "platforms/metal/pass_3d_builder2_metal.h"
 
 #include "platforms/metal/metal_internal.h"
 #import <Metal/Metal.h>

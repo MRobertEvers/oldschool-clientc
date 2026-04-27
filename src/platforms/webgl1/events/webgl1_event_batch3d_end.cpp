@@ -1,6 +1,6 @@
 #ifdef __EMSCRIPTEN__
 
-#    include "platforms/common/pass_3d_builder/gpu_3d_cache2_webgl1.h"
+#    include "platforms/webgl1/gpu_3d_cache2_webgl1.h"
 #    include "platforms/webgl1/events/webgl1_events.h"
 #    include "platforms/webgl1/ctx.h"
 

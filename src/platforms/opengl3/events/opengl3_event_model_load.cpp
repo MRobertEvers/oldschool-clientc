@@ -1,5 +1,5 @@
 #include "platforms/common/gpu_3d.h"
-#include "platforms/common/pass_3d_builder/gpu_3d_cache2_opengl3.h"
+#include "platforms/opengl3/gpu_3d_cache2_opengl3.h"
 #include "platforms/opengl3/events/opengl3_events.h"
 #include "platforms/opengl3/opengl3_atlas_resources.h"
 #include "platforms/opengl3/opengl3_ctx.h"

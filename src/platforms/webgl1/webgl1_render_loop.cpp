@@ -1,7 +1,7 @@
 #ifdef __EMSCRIPTEN__
 
-#include "platforms/common/pass_3d_builder/gpu_3d_cache2_webgl1.h"
-#include "platforms/common/pass_3d_builder/pass_3d_builder2_webgl1.h"
+#include "platforms/webgl1/gpu_3d_cache2_webgl1.h"
+#include "platforms/webgl1/pass_3d_builder2_webgl1.h"
 #include "platforms/common/torirs_nk_ui_bridge.h"
 #include "platforms/common/torirs_nuklear_debug_panel.h"
 #include "platforms/platform_impl2_sdl2_renderer_webgl1.h"

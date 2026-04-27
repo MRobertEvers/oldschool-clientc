@@ -3,7 +3,7 @@
 
 #include "platforms/common/pass_3d_builder/batch_buffer_metal.h"
 #include "platforms/common/pass_3d_builder/gpu_3d_cache2.h"
-#include "platforms/common/pass_3d_builder/pass_3d_builder2_metal.h"
+#include "platforms/metal/pass_3d_builder2_metal.h"
 #include "platforms/platform_impl2_sdl2.h"
 
 #include <SDL.h>

@@ -1,4 +1,4 @@
-#include "pass_3d_builder2_opengl3.h"
+#include "platforms/opengl3/pass_3d_builder2_opengl3.h"
 
 #include "platforms/opengl3/opengl3_renderer_core.h"
 

@@ -1,4 +1,4 @@
-#include "pass_3d_builder2_webgl1.h"
+#include "platforms/webgl1/pass_3d_builder2_webgl1.h"
 
 #ifdef __EMSCRIPTEN__
 

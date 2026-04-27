@@ -1,5 +1,5 @@
 // System ObjC/Metal headers must come before any game headers.
-#include "platforms/common/pass_3d_builder/gpu_3d_cache2_metal.h"
+#include "platforms/metal/gpu_3d_cache2_metal.h"
 #include "platforms/metal/events/metal_events.h"
 #include "platforms/metal/metal_internal.h"
 

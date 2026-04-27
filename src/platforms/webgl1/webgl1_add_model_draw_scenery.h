@@ -3,7 +3,7 @@
 #ifdef __EMSCRIPTEN__
 
 #    include "platforms/common/pass_3d_builder/gpu_3d_cache2.h"
-#    include "platforms/common/pass_3d_builder/pass_3d_builder2_webgl1.h"
+#    include "platforms/webgl1/pass_3d_builder2_webgl1.h"
 
 void
 webgl1_add_model_draw_scenery(

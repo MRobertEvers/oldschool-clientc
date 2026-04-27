@@ -1,7 +1,7 @@
 #pragma once
 
-#include "batch_buffer_webgl1.h"
-#include "gpu_3d_cache2.h"
+#include "platforms/common/pass_3d_builder/batch_buffer_webgl1.h"
+#include "platforms/common/pass_3d_builder/gpu_3d_cache2.h"
 #include "platforms/common/gpu_3d.h"
 
 #ifdef __EMSCRIPTEN__

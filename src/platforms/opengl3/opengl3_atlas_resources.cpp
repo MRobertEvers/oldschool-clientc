@@ -3,7 +3,7 @@
 #include "platforms/opengl3/opengl3_ctx.h"
 #include "platforms/opengl3/opengl3_renderer_core.h"
 
-#include "platforms/common/pass_3d_builder/gpu_3d_cache2_opengl3.h"
+#include "platforms/opengl3/gpu_3d_cache2_opengl3.h"
 
 #include <cstdio>
 #include <cstring>

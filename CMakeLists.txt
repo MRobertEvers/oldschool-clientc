@@ -265,8 +265,8 @@ if(NOT EMSCRIPTEN)
             src/platforms/opengl3/events/opengl3_event_batch3d_clear.cpp
             src/platforms/opengl3/events/opengl3_event_draw_model.cpp
             src/platforms/opengl3/opengl3_add_model_draw_scenery.cpp
-            src/platforms/common/pass_3d_builder/pass_3d_builder2_opengl3.cpp
-            src/platforms/common/pass_3d_builder/gpu_3d_cache2_opengl3.cpp
+            src/platforms/opengl3/pass_3d_builder2_opengl3.cpp
+            src/platforms/opengl3/gpu_3d_cache2_opengl3.cpp
         )
     endif()
 
@@ -289,8 +289,8 @@ if(NOT EMSCRIPTEN)
             src/platforms/metal/events/metal_event_tex_load.mm
             src/platforms/metal/events/metal_event_batch2d_tex_begin.mm
             src/platforms/metal/events/metal_event_batch2d_tex_end.mm
-            src/platforms/common/pass_3d_builder/pass_3d_builder2_metal.mm
-            src/platforms/common/pass_3d_builder/gpu_3d_cache2_metal.mm
+            src/platforms/metal/pass_3d_builder2_metal.mm
+            src/platforms/metal/gpu_3d_cache2_metal.mm
             src/platforms/metal/metal_render.mm
         )
     endif()
@@ -615,8 +615,8 @@ if(NOT EMSCRIPTEN)
             src/platforms/metal/events/metal_event_tex_load.mm
             src/platforms/metal/events/metal_event_batch2d_tex_begin.mm
             src/platforms/metal/events/metal_event_batch2d_tex_end.mm
-            src/platforms/common/pass_3d_builder/pass_3d_builder2_metal.mm
-            src/platforms/common/pass_3d_builder/gpu_3d_cache2_metal.mm
+            src/platforms/metal/pass_3d_builder2_metal.mm
+            src/platforms/metal/gpu_3d_cache2_metal.mm
             src/platforms/metal/metal_render.mm
             PROPERTIES COMPILE_FLAGS "-fobjc-arc"
         )
@@ -737,8 +737,8 @@ if(EMSCRIPTEN)
         src/platforms/webgl1/events/webgl1_event_batch2d_tex_end.cpp
         src/platforms/webgl1/gl.cpp
         src/platforms/webgl1/helpers.cpp
-        src/platforms/common/pass_3d_builder/pass_3d_builder2_webgl1.cpp
-        src/platforms/common/pass_3d_builder/gpu_3d_cache2_webgl1.cpp
+        src/platforms/webgl1/pass_3d_builder2_webgl1.cpp
+        src/platforms/webgl1/gpu_3d_cache2_webgl1.cpp
         src/platforms/browser2/luajs_sidecar.c
         src/platforms/browser2/luajs_gametypes.c
         src/platforms/browser2/luajs_archives.c

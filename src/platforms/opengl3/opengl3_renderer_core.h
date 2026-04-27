@@ -3,7 +3,7 @@
 
 #    include "platforms/common/pass_3d_builder/batch_buffer_opengl3.h"
 #    include "platforms/common/pass_3d_builder/gpu_3d_cache2.h"
-#    include "platforms/common/pass_3d_builder/pass_3d_builder2_opengl3.h"
+#    include "platforms/opengl3/pass_3d_builder2_opengl3.h"
 #    include "platforms/platform_impl2_sdl2.h"
 
 #    include <SDL.h>

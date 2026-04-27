@@ -5,7 +5,7 @@
 
 #    include "platforms/common/pass_3d_builder/batch_buffer_webgl1.h"
 #    include "platforms/common/pass_3d_builder/gpu_3d_cache2.h"
-#    include "platforms/common/pass_3d_builder/pass_3d_builder2_webgl1.h"
+#    include "platforms/webgl1/pass_3d_builder2_webgl1.h"
 #    include "platforms/platform_impl2_sdl2.h"
 
 #    include <GLES2/gl2.h>

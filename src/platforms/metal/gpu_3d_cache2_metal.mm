@@ -1,4 +1,4 @@
-#include "gpu_3d_cache2_metal.h"
+#include "platforms/metal/gpu_3d_cache2_metal.h"
 
 #include "platforms/common/gpu_3d.h"
 #import <Metal/Metal.h>
