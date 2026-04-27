@@ -158,7 +158,7 @@ metal_frame_event_end_3d(MetalRenderCtx* ctx, void* uniforms_buffer_ptr)
     }
 
     const NSUInteger idx_base = (NSUInteger)renderer->pass.mtl_pass3d_idx_upload_ofs;
-    const size_t dyn_n = renderer->mtl_pass3d_builder.GetDynamicIndices().size();
+    const size_t dyn_n = renderer->mtl_pass3d_builder.IndexCount();
     const size_t dyn_cap = (size_t)kPass3DBuilder2MetalDynamicIndexCapacity;
     const size_t idx_copy_n =
         renderer->mtl_pass3d_builder.HasDynamicIndices() ? (dyn_n < dyn_cap ? dyn_n : dyn_cap) : 0u;

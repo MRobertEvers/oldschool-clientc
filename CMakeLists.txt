@@ -247,7 +247,26 @@ if(NOT EMSCRIPTEN)
     if(NOT WIN32)
         list(APPEND SDL2_NATIVE_SOURCES
             src/platforms/platform_impl2_sdl2_renderer_opengl3.cpp
-            src/osrs/pix3dgl.cpp
+            src/platforms/opengl3/opengl3_helpers.cpp
+            src/platforms/opengl3/opengl3_gl_programs.cpp
+            src/platforms/opengl3/opengl3_atlas_resources.cpp
+            src/platforms/opengl3/opengl3_render.cpp
+            src/platforms/opengl3/events/opengl3_event_clear_rect.cpp
+            src/platforms/opengl3/events/opengl3_event_begin_3d.cpp
+            src/platforms/opengl3/events/opengl3_event_end_3d.cpp
+            src/platforms/opengl3/events/opengl3_event_texture_load.cpp
+            src/platforms/opengl3/events/opengl3_event_res_tex_load.cpp
+            src/platforms/opengl3/events/opengl3_event_model_load.cpp
+            src/platforms/opengl3/events/opengl3_event_model_unload.cpp
+            src/platforms/opengl3/events/opengl3_event_model_animation_load.cpp
+            src/platforms/opengl3/events/opengl3_event_batch3d_begin.cpp
+            src/platforms/opengl3/events/opengl3_event_batch3d_model_add.cpp
+            src/platforms/opengl3/events/opengl3_event_batch3d_end.cpp
+            src/platforms/opengl3/events/opengl3_event_batch3d_clear.cpp
+            src/platforms/opengl3/events/opengl3_event_draw_model.cpp
+            src/platforms/opengl3/opengl3_add_model_draw_scenery.cpp
+            src/platforms/common/pass_3d_builder/pass_3d_builder2_opengl3.cpp
+            src/platforms/common/pass_3d_builder/gpu_3d_cache2_opengl3.cpp
         )
     endif()
 

@@ -18,6 +18,20 @@ Pass3DBuilder2Metal::AppendSortedDraw(
     if( vbo == 0u )
         return;
 
+    const size_t cap = (size_t)kPass3DBuilder2MetalDynamicIndexCapacity;
+    if( index_count_ + (size_t)index_count > cap )
+    {
+        static bool s_warned_cap;
+        if( !s_warned_cap )
+        {
+            fprintf(
+                stderr,
+                "[Pass3DBuilder2Metal] AppendSortedDraw: would exceed index capacity; skipping draw\n");
+            s_warned_cap = true;
+        }
+        return;
+    }
+
     if( mesh_vbo_ == 0u )
         mesh_vbo_ = vbo;
     else if( mesh_vbo_ != vbo )
@@ -35,8 +49,69 @@ Pass3DBuilder2Metal::AppendSortedDraw(
     }
 
     const uint32_t voff = pose_vbo_vertex_offset;
+    uint32_t* dst = indices_.get();
     for( uint32_t ii = 0; ii < index_count; ++ii )
-        indices_pool_.push_back(voff + sorted_indices[ii]);
+        dst[index_count_++] = voff + sorted_indices[ii];
+}
+
+void
+Pass3DBuilder2Metal::AppendProjectedFaceOrder(
+    GPUResourceHandle vbo,
+    uint32_t pose_vbo_vertex_offset,
+    const int* face_order,
+    int face_order_count,
+    int face_count)
+{
+    if( !is_building_ || face_order_count <= 0 || face_count <= 0 )
+        return;
+    if( vbo == 0u )
+        return;
+
+    if( mesh_vbo_ == 0u )
+        mesh_vbo_ = vbo;
+    else if( mesh_vbo_ != vbo )
+    {
+        static bool s_warned_mismatch2;
+        if( !s_warned_mismatch2 )
+        {
+            fprintf(
+                stderr,
+                "[Pass3DBuilder2Metal] multiple mesh VBOs in one pass; ignoring draws not matching "
+                "first VBO\n");
+            s_warned_mismatch2 = true;
+        }
+        return;
+    }
+
+    const size_t cap = (size_t)kPass3DBuilder2MetalDynamicIndexCapacity;
+    const uint32_t voff = pose_vbo_vertex_offset;
+    uint32_t* dst = indices_.get();
+
+    for( int fi = 0; fi < face_order_count; ++fi )
+    {
+        if( index_count_ + 3u > cap )
+        {
+            static bool s_warned_cap2;
+            if( !s_warned_cap2 )
+            {
+                fprintf(
+                    stderr,
+                    "[Pass3DBuilder2Metal] AppendProjectedFaceOrder: index capacity full; "
+                    "truncating remaining faces\n");
+                s_warned_cap2 = true;
+            }
+            break;
+        }
+
+        const int face_index = face_order ? face_order[fi] : fi;
+        if( face_index < 0 || face_index >= face_count )
+            continue;
+
+        const uint32_t b = (uint32_t)face_index * 3u;
+        dst[index_count_++] = voff + b;
+        dst[index_count_++] = voff + b + 1u;
+        dst[index_count_++] = voff + b + 2u;
+    }
 }
 
 void
@@ -58,8 +133,8 @@ Pass3DBuilder2SubmitMetal(
     if( depth_stencil_state )
         [enc setDepthStencilState:depth_stencil_state];
 
-    const std::vector<uint32_t>& dix = builder.Indices();
-    const size_t dyn_index_count = dix.size();
+    const uint32_t* dix = builder.IndexData();
+    const size_t dyn_index_count = builder.IndexCount();
     const size_t dyn_capacity = (size_t)kPass3DBuilder2MetalDynamicIndexCapacity;
     if( dyn_index_count > dyn_capacity )
     {
@@ -87,7 +162,7 @@ Pass3DBuilder2SubmitMetal(
     {
         std::memcpy(
             (uint8_t*)[dynamic_index_buffer contents] + index_base_bytes,
-            dix.data(),
+            dix,
             idx_bytes);
     }
 

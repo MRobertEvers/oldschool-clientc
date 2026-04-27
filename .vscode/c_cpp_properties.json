@@ -23,7 +23,8 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "/opt/homebrew/include/SDL2",
-                "/opt/homebrew/opt/emscripten/libexec/system/include"
+                "/opt/homebrew/opt/emscripten/libexec/system/include",
+                "${workspaceFolder}/src"
             ],
             "defines": [],
             "cStandard": "c17",

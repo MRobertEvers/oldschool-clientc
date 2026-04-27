@@ -101,13 +101,6 @@ metal_frame_event_model_animation_load(
     const GPU3DBakeTransform anim_bake =
         ctx->renderer->model_cache2.GetModelBakeTransform((uint16_t)mid);
     metal_cache2_batch_push_model_mesh(
-        ctx,
-        ctx->renderer->batch3d_staging,
-        model,
-        mid,
-        bid,
-        gpu_seg,
-        (uint16_t)fidx,
-        anim_bake);
+        ctx, ctx->renderer->batch3d_staging, model, mid, bid, gpu_seg, (uint16_t)fidx, anim_bake);
     (void)cmd->_animation_load.usage_hint;
 }

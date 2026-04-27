@@ -37,9 +37,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         if( !drawable )
         {
             dispatch_semaphore_signal((__bridge dispatch_semaphore_t)renderer->mtl_frame_semaphore);
-            /* Without a yield, the game loop spins at 100% CPU when the layer cannot produce a
-               drawable (resize, occlusion, or transient GPU pressure). */
-            SDL_Delay(1);
+
             return;
         }
 

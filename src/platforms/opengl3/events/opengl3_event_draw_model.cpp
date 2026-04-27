@@ -1,9 +1,8 @@
-#ifdef __EMSCRIPTEN__
-
-#include "platforms/common/pass_3d_builder/gpu_3d_cache2.h"
-#include "platforms/webgl1/ctx.h"
-#include "platforms/webgl1/events/webgl1_events.h"
-#include "platforms/webgl1/webgl1_add_model_draw_scenery.h"
+#include "platforms/common/pass_3d_builder/gpu_3d_cache2_opengl3.h"
+#include "platforms/opengl3/events/opengl3_events.h"
+#include "platforms/opengl3/opengl3_add_model_draw_scenery.h"
+#include "platforms/opengl3/opengl3_ctx.h"
+#include "platforms/opengl3/opengl3_renderer_core.h"
 
 #include <vector>
 
@@ -15,8 +14,8 @@ extern "C" {
 }
 
 void
-webgl1_event_draw_model(
-    WebGL1RenderCtx* ctx,
+opengl3_event_draw_model(
+    OpenGL3RenderCtx* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
     struct DashModel* model = cmd->_model_draw.model;
@@ -37,6 +36,10 @@ webgl1_event_draw_model(
     const bool use_anim = cmd->_model_draw.use_animation;
     const uint8_t anim_idx = cmd->_model_draw.animation_index;
     const uint8_t frame_idx = cmd->_model_draw.frame_index;
+    if( use_anim )
+    {
+        printf("use_anim: %d, anim_idx: %d, frame_idx: %d\n", use_anim, anim_idx, frame_idx);
+    }
     const GPUModelPosedData pose = ctx->renderer->model_cache2.GetModelPoseForDraw(
         (uint16_t)mid_v2, use_anim, (int)anim_idx, (int)frame_idx);
     if( !pose.valid || pose.gpu_batch_id == 0u )
@@ -45,8 +48,7 @@ webgl1_event_draw_model(
             ctx->renderer->diag_frame_pose_invalid_skips++;
         return;
     }
-    if( (ToriRS_UsageHint)cmd->_model_draw.usage_hint != TORIRS_USAGE_SCENERY ||
-        !GPU3DCache2PoseSceneBatchDrawable(pose.scene_batch_id) )
+    if( (ToriRS_UsageHint)cmd->_model_draw.usage_hint != TORIRS_USAGE_SCENERY )
         return;
 
     struct DashPosition draw_position = cmd->_model_draw.position;
@@ -58,7 +60,7 @@ webgl1_event_draw_model(
 
     const int face_count = dashmodel_face_count(model);
 
-    static std::vector<uint16_t> g_sorted;
+    static std::vector<uint32_t> g_sorted;
     g_sorted.clear();
     if( face_order_count > 0 && face_count > 0 )
     {
@@ -69,9 +71,9 @@ webgl1_event_draw_model(
             if( face_index < 0 || face_index >= face_count )
                 continue;
             const uint32_t b = (uint32_t)face_index * 3u;
-            g_sorted.push_back((uint16_t)b);
-            g_sorted.push_back((uint16_t)(b + 1u));
-            g_sorted.push_back((uint16_t)(b + 2u));
+            g_sorted.push_back(b);
+            g_sorted.push_back(b + 1u);
+            g_sorted.push_back(b + 2u);
         }
     }
 
@@ -79,7 +81,7 @@ webgl1_event_draw_model(
     if( idx_count == 0u )
         return;
 
-    webgl1_add_model_draw_scenery(
+    opengl3_add_model_draw_scenery(
         ctx->renderer->pass3d_builder,
         ctx->renderer->model_cache2,
         (uint16_t)mid_v2,
@@ -89,5 +91,3 @@ webgl1_event_draw_model(
         g_sorted.data(),
         idx_count);
 }
-
-#endif

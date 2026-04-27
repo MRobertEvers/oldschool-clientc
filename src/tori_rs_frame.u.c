@@ -729,8 +729,7 @@ queue_static_load_commands(
                     ev->_model_load.world_x = scene_event.u.model.world_x;
                     ev->_model_load.world_y = scene_event.u.model.world_y;
                     ev->_model_load.world_z = scene_event.u.model.world_z;
-                    ev->_model_load.world_yaw_r2pi2048 =
-                        scene_event.u.model.world_yaw_r2pi2048;
+                    ev->_model_load.world_yaw_r2pi2048 = scene_event.u.model.world_yaw_r2pi2048;
                 }
                 else
                 {

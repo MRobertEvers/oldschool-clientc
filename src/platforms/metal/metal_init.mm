@@ -131,10 +131,10 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
         return false;
     }
 
-    // Disable vsync (display sync) so presents don't wait for vblank.
+    // Enable vsync (display sync) so presents wait for vblank and frame pacing matches the display.
     // `displaySyncEnabled` is macOS-only and not available on all SDKs, so guard it.
     if( [layer respondsToSelector:@selector(setDisplaySyncEnabled:)] )
-        layer.displaySyncEnabled = NO;
+        layer.displaySyncEnabled = YES;
 
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
     if( !device )

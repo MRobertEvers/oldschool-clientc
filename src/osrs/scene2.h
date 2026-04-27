@@ -196,7 +196,8 @@ struct Scene2
     /** World rebuild GPU batch: when true, static load events are tagged `batched`. */
     bool batch_active;
     uint32_t batch_current_id;
-    /** Which slots in `gpu_batch_slot_live` are in use (batch ids 0 .. SCENE2_MAX_GPU_BATCHES-1). */
+    /** Which slots in `gpu_batch_slot_live` are in use (batch ids 0 .. SCENE2_MAX_GPU_BATCHES-1).
+     */
     bool gpu_batch_slot_live[SCENE2_MAX_GPU_BATCHES];
 
     /** Models assigned during the open batch; `MODEL_LOADED` emitted at `scene2_batch_end`. */

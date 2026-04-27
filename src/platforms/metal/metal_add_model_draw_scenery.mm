@@ -1,8 +1,6 @@
 // System ObjC/Metal headers must come before any game headers.
 #include "platforms/metal/metal_internal.h"
 
-#include <vector>
-
 void
 metal_add_model_draw_scenery(
     Pass3DBuilder2Metal& builder,
@@ -34,4 +32,37 @@ metal_add_model_draw_scenery(
     }
 
     builder.AppendSortedDraw(mesh_vbo, pose.vbo_offset, sorted_indices, index_count);
+}
+
+void
+metal_add_model_draw_scenery_projected_faces(
+    Pass3DBuilder2Metal& builder,
+    const GPU3DCache2<GPU3DMeshVertexMetal>& cache,
+    uint16_t model_id,
+    bool use_animation,
+    uint8_t animation_index,
+    uint8_t frame_index,
+    const int* face_order,
+    int face_order_count,
+    int face_count)
+{
+    if( !builder.IsBuilding() || face_order_count <= 0 || face_count <= 0 )
+        return;
+
+    const GPUModelPosedData pose =
+        cache.GetModelPoseForDraw(model_id, use_animation, (int)animation_index, (int)frame_index);
+    if( !pose.valid || pose.gpu_batch_id == 0u )
+        return;
+    if( pose.scene_batch_id >= kGPU3DCache2MaxSceneBatches )
+        return;
+
+    GPUResourceHandle mesh_vbo = pose.vbo;
+    {
+        const GPU3DCache2SceneBatchEntry* be = cache.SceneBatchGet(pose.scene_batch_id);
+        if( be && be->resource.valid )
+            mesh_vbo = be->resource.vbo;
+    }
+
+    builder.AppendProjectedFaceOrder(
+        mesh_vbo, pose.vbo_offset, face_order, face_order_count, face_count);
 }

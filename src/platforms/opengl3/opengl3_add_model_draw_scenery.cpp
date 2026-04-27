@@ -1,18 +1,15 @@
-#ifdef __EMSCRIPTEN__
-
-#include "platforms/webgl1/webgl1_add_model_draw_scenery.h"
-
-#include "platforms/webgl1/webgl1_renderer_core.h"
+#include "platforms/common/pass_3d_builder/pass_3d_builder2_opengl3.h"
+#include "platforms/opengl3/opengl3_renderer_core.h"
 
 void
-webgl1_add_model_draw_scenery(
-    Pass3DBuilder2WebGL1& builder,
+opengl3_add_model_draw_scenery(
+    Pass3DBuilder2OpenGL3& builder,
     const GPU3DCache2<GPU3DMeshVertexWebGL1>& cache,
     uint16_t model_id,
     bool use_animation,
     uint8_t animation_index,
     uint8_t frame_index,
-    const uint16_t* sorted_indices,
+    const uint32_t* sorted_indices,
     uint32_t index_count)
 {
     if( !builder.IsBuilding() )
@@ -36,5 +33,3 @@ webgl1_add_model_draw_scenery(
 
     builder.AppendSortedDraw(mesh_vbo, pose.vbo_offset, sorted_indices, index_count);
 }
-
-#endif

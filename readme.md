@@ -634,6 +634,7 @@ sudo ../profile.d -c ./scene_tile_test > out.stacks
 
 sudo ../profile.d -c ./main_client > out.stacks
 sudo ../profile.d -c ./sdl2 > out.stacks
+sudo ../profile.d -c "./sdl2 --renderer=metal" > out.stacks
 
 ./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/build_release/out.stacks > out.folded
 ./stackcollapse.pl /Users/matthewevers/Documents/git_repos/3draster/build/out.stacks > out.folded

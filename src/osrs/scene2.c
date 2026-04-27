@@ -555,12 +555,7 @@ scene2_element_set_dash_model(
         if( scene2->batch_active )
         {
             if( !scene2__batch_pending_push(
-                    scene2,
-                    element_id,
-                    parent_entity_id,
-                    new_id,
-                    model_cat,
-                    dash_model) )
+                    scene2, element_id, parent_entity_id, new_id, model_cat, dash_model) )
             {
                 int32_t wx = 0, wy = 0, wz = 0, wyaw = 0;
                 struct DashPosition* wpos = scene2_element_dash_position(element);
@@ -1358,7 +1353,9 @@ scene2_batch_begin(struct Scene2* scene2)
             break;
         }
     }
-    assert(slot >= 0 && "scene2_batch_begin: no free GPU batch slot (increase SCENE2_MAX_GPU_BATCHES?)");
+    assert(
+        slot >= 0 &&
+        "scene2_batch_begin: no free GPU batch slot (increase SCENE2_MAX_GPU_BATCHES?)");
     assert(
         scene2->batch_pending_loads_count == 0 &&
         "scene2_batch_begin: pending model loads from un-ended batch");

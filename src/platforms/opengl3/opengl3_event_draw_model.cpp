@@ -1,10 +1,21 @@
-// System ObjC/Metal headers must come before any game headers.
-#include "platforms/metal/events/metal_events.h"
-#include "platforms/metal/metal_internal.h"
+#include "platforms/common/pass_3d_builder/gpu_3d_cache2_opengl3.h"
+#include "platforms/opengl3/events/opengl3_events.h"
+#include "platforms/opengl3/opengl3_add_model_draw_scenery.h"
+#include "platforms/opengl3/opengl3_ctx.h"
+#include "platforms/opengl3/opengl3_renderer_core.h"
+
+#include <vector>
+
+extern "C" {
+#include "graphics/dash.h"
+#include "graphics/dash_model_internal.h"
+#include "osrs/game.h"
+#include "tori_rs_render.h"
+}
 
 void
-metal_event_draw_model(
-    MetalRenderCtx* ctx,
+opengl3_event_draw_model(
+    OpenGL3RenderCtx* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
     struct DashModel* model = cmd->_model_draw.model;
@@ -19,12 +30,22 @@ metal_event_draw_model(
     if( mid_v2 <= 0 || !ctx || !ctx->renderer || !ctx->game )
         return;
 
+    if( ctx->renderer )
+        ctx->renderer->diag_frame_model_draw_cmds++;
+
     const bool use_anim = cmd->_model_draw.use_animation;
     const uint8_t anim_idx = cmd->_model_draw.animation_index;
     const uint8_t frame_idx = cmd->_model_draw.frame_index;
     const GPUModelPosedData pose = ctx->renderer->model_cache2.GetModelPoseForDraw(
         (uint16_t)mid_v2, use_anim, (int)anim_idx, (int)frame_idx);
     if( !pose.valid || pose.gpu_batch_id == 0u )
+    {
+        if( ctx->renderer )
+            ctx->renderer->diag_frame_pose_invalid_skips++;
+        return;
+    }
+    if( (ToriRS_UsageHint)cmd->_model_draw.usage_hint != TORIRS_USAGE_SCENERY ||
+        pose.scene_batch_id >= kGPU3DCache2MaxSceneBatches )
         return;
 
     struct DashPosition draw_position = cmd->_model_draw.position;
@@ -36,14 +57,34 @@ metal_event_draw_model(
 
     const int face_count = dashmodel_face_count(model);
 
-    metal_add_model_draw_scenery_projected_faces(
-        ctx->renderer->mtl_pass3d_builder,
+    static std::vector<uint32_t> g_sorted;
+    g_sorted.clear();
+    if( face_order_count > 0 && face_count > 0 )
+    {
+        g_sorted.reserve((size_t)face_order_count * 3u);
+        for( int fi = 0; fi < face_order_count; ++fi )
+        {
+            const int face_index = face_order ? face_order[fi] : fi;
+            if( face_index < 0 || face_index >= face_count )
+                continue;
+            const uint32_t b = (uint32_t)face_index * 3u;
+            g_sorted.push_back(b);
+            g_sorted.push_back(b + 1u);
+            g_sorted.push_back(b + 2u);
+        }
+    }
+
+    const uint32_t idx_count = (uint32_t)g_sorted.size();
+    if( idx_count == 0u )
+        return;
+
+    opengl3_add_model_draw_scenery(
+        ctx->renderer->pass3d_builder,
         ctx->renderer->model_cache2,
         (uint16_t)mid_v2,
         use_anim,
         anim_idx,
         frame_idx,
-        face_order,
-        face_order_count,
-        face_count);
+        g_sorted.data(),
+        idx_count);
 }

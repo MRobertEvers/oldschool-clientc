@@ -266,7 +266,8 @@ struct GPUModelData
     /** `[0]` is always 0 (bind). `[1]` / `[2]` are starting pose indices for primary / secondary.
      */
     uint32_t animation_offsets[3];
-    /** World placement last used for batch-bake; animation frames re-apply the same after deform. */
+    /** World placement last used for batch-bake; animation frames re-apply the same after deform.
+     */
     GPU3DBakeTransform model_bake{};
     bool has_model_bake = false;
 };
@@ -417,7 +418,9 @@ public:
         const GPUModelPosedData& data);
 
     void
-    SetModelBakeTransform(uint16_t model_id, const GPU3DBakeTransform& bk);
+    SetModelBakeTransform(
+        uint16_t model_id,
+        const GPU3DBakeTransform& bk);
 
     GPU3DBakeTransform
     GetModelBakeTransform(uint16_t model_id) const;

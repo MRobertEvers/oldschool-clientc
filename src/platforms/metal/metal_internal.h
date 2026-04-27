@@ -233,6 +233,18 @@ metal_add_model_draw_scenery(
     const uint32_t* sorted_indices,
     uint32_t index_count);
 
+void
+metal_add_model_draw_scenery_projected_faces(
+    Pass3DBuilder2Metal& builder,
+    const GPU3DCache2<GPU3DMeshVertexMetal>& cache,
+    uint16_t model_id,
+    bool use_animation,
+    uint8_t animation_index,
+    uint8_t frame_index,
+    const int* face_order,
+    int face_order_count,
+    int face_count);
+
 #include "platforms/metal/events/metal_events.h"
 
 void
