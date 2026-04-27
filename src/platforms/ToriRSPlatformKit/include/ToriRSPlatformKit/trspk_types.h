@@ -62,15 +62,11 @@ typedef struct TRSPK_Vertex
     float uv_mode;
 } TRSPK_Vertex;
 
-typedef void (*TRSPK_VertexConvertFn)(
-    void* dst_vertices,
-    const TRSPK_Vertex* src_vertices,
-    uint32_t vertex_count);
-
-typedef struct TRSPK_VertexFormat
+typedef enum TRSPK_VertexFormat
 {
-    uint32_t stride;
-    TRSPK_VertexConvertFn convert;
+    TRSPK_VERTEX_FORMAT_TRSPK = 0,
+    TRSPK_VERTEX_FORMAT_WEBGL1,
+    TRSPK_VERTEX_FORMAT_METAL
 } TRSPK_VertexFormat;
 
 typedef struct TRSPK_BakeTransform

@@ -7,7 +7,8 @@
 extern "C" {
 #endif
 
-int trspk_batch16_add_model(
+int
+trspk_batch16_add_model(
     TRSPK_Batch16* batch,
     uint16_t model_id,
     uint8_t gpu_segment_slot,
@@ -27,7 +28,8 @@ int trspk_batch16_add_model(
     const int32_t* face_infos,
     const TRSPK_BakeTransform* bake);
 
-int trspk_batch16_add_model_textured(
+int
+trspk_batch16_add_model_textured(
     TRSPK_Batch16* batch,
     uint16_t model_id,
     uint8_t gpu_segment_slot,

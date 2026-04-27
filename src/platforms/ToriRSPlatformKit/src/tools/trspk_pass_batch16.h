@@ -33,7 +33,7 @@ TRSPK_Batch16*
 trspk_batch16_create(
     uint32_t max_vertices,
     uint32_t max_indices,
-    const TRSPK_VertexFormat* vertex_format);
+    TRSPK_VertexFormat vertex_format);
 void
 trspk_batch16_destroy(TRSPK_Batch16* batch);
 void

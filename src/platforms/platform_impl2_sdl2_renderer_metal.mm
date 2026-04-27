@@ -8,6 +8,7 @@
 extern "C" {
 #include "graphics/dash.h"
 #include "osrs/game.h"
+#include "platforms/ToriRSPlatformKit/include/ToriRSPlatformKit/trspk_math.h"
 #include "tori_rs.h"
 #include "tori_rs_render.h"
 }
@@ -75,6 +76,13 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         TRSPK_Metal_Resize(renderer->trspk, (uint32_t)drawable_w, (uint32_t)drawable_h);
     }
 
+    int win_w = renderer->platform->game_screen_width;
+    int win_h = renderer->platform->game_screen_height;
+    if( win_w <= 0 || win_h <= 0 )
+        SDL_GetWindowSize(renderer->platform->window, &win_w, &win_h);
+    if( win_w > 0 && win_h > 0 )
+        TRSPK_Metal_SetWindowSize(renderer->trspk, (uint32_t)win_w, (uint32_t)win_h);
+
     TRSPK_ResourceCache* cache = TRSPK_Metal_GetCache(renderer->trspk);
     TRSPK_Batch32* staging = TRSPK_Metal_GetBatchStaging(renderer->trspk);
     TRSPK_MetalEventContext events = {};
@@ -83,6 +91,13 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
     events.staging = staging;
     events.current_batch_id = renderer->current_model_batch_id;
     events.batch_active = renderer->current_model_batch_active;
+    events.has_default_pass_logical = false;
+    if( win_w > 0 && win_h > 0 && game )
+    {
+        trspk_pass_logical_from_game(&events.default_pass_logical, win_w, win_h, game);
+        events.has_default_pass_logical = events.default_pass_logical.width > 0 &&
+            events.default_pass_logical.height > 0;
+    }
     LibToriRS_FrameBegin(game, render_command_buffer);
     TRSPK_Metal_FrameBegin(renderer->trspk);
 

@@ -1,5 +1,7 @@
 #include "trspk_webgl1.h"
 
+#include "../../../include/ToriRSPlatformKit/trspk_math.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -27,12 +29,6 @@ trspk_webgl1_full_window_logical_rect(const TRSPK_WebGL1Renderer* r)
 }
 
 #ifdef __EMSCRIPTEN__
-static int32_t
-trspk_webgl1_round_to_i32(double v)
-{
-    return (int32_t)(v >= 0.0 ? v + 0.5 : v - 0.5);
-}
-
 /** GL lower-left full drawable (0,0,fbW,fbH) for viewport/scissor when mapping fails. */
 static TRSPK_Rect
 trspk_webgl1_full_drawable_gl_rect(const TRSPK_WebGL1Renderer* r)
@@ -50,36 +46,11 @@ trspk_webgl1_compute_gl_viewport_rect(
     const TRSPK_WebGL1Renderer* r,
     const TRSPK_Rect* logical)
 {
-    if( !r || !logical || r->width == 0u || r->height == 0u || r->window_width == 0u ||
-        r->window_height == 0u || logical->width <= 0 || logical->height <= 0 )
-        return trspk_webgl1_full_drawable_gl_rect(r);
-
-    const double sx = (double)r->width / (double)r->window_width;
-    const double sy = (double)r->height / (double)r->window_height;
-    const int32_t scaled_x = trspk_webgl1_round_to_i32((double)logical->x * sx);
-    const int32_t scaled_top_y = trspk_webgl1_round_to_i32((double)logical->y * sy);
-    const int32_t scaled_w = trspk_webgl1_round_to_i32((double)logical->width * sx);
-    const int32_t scaled_h = trspk_webgl1_round_to_i32((double)logical->height * sy);
-
-    int32_t clamped_x = scaled_x < 0 ? 0 : scaled_x;
-    int32_t clamped_top_y = scaled_top_y < 0 ? 0 : scaled_top_y;
-    if( clamped_x >= (int32_t)r->width || clamped_top_y >= (int32_t)r->height )
-        return trspk_webgl1_full_drawable_gl_rect(r);
-
-    int32_t clamped_w = scaled_w;
-    int32_t clamped_h = scaled_h;
-    if( clamped_x + clamped_w > (int32_t)r->width )
-        clamped_w = (int32_t)r->width - clamped_x;
-    if( clamped_top_y + clamped_h > (int32_t)r->height )
-        clamped_h = (int32_t)r->height - clamped_top_y;
-    if( clamped_w <= 0 || clamped_h <= 0 )
-        return trspk_webgl1_full_drawable_gl_rect(r);
-
-    TRSPK_Rect rect;
-    rect.x = clamped_x;
-    rect.y = (int32_t)r->height - (clamped_top_y + clamped_h);
-    rect.width = clamped_w;
-    rect.height = clamped_h;
+    TRSPK_Rect rect = trspk_webgl1_full_drawable_gl_rect(r);
+    if( !r || !logical )
+        return rect;
+    trspk_logical_rect_to_gl_viewport_pixels(
+        &rect, r->width, r->height, r->window_width, r->window_height, logical);
     return rect;
 }
 

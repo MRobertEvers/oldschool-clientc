@@ -53,6 +53,8 @@ typedef struct TRSPK_MetalRenderer
     uint32_t uniform_frame_slot;
     uint32_t width;
     uint32_t height;
+    uint32_t window_width;
+    uint32_t window_height;
     TRSPK_Rect pass_logical_rect;
     double frame_clock;
     bool ready;
@@ -71,6 +73,8 @@ typedef struct TRSPK_MetalEventContext
     TRSPK_Batch32* staging;
     uint32_t current_batch_id;
     bool batch_active;
+    TRSPK_Rect default_pass_logical;
+    bool has_default_pass_logical;
     uint8_t rgba_scratch
         [TRSPK_TEXTURE_DIMENSION * TRSPK_TEXTURE_DIMENSION * TRSPK_ATLAS_BYTES_PER_PIXEL];
 } TRSPK_MetalEventContext;
@@ -87,6 +91,11 @@ TRSPK_Metal_Resize(
     TRSPK_MetalRenderer* renderer,
     uint32_t width,
     uint32_t height);
+void
+TRSPK_Metal_SetWindowSize(
+    TRSPK_MetalRenderer* renderer,
+    uint32_t window_width,
+    uint32_t window_height);
 void
 TRSPK_Metal_FrameBegin(TRSPK_MetalRenderer* renderer);
 void

@@ -13,39 +13,7 @@ trspk_webgl1_compute_default_pass_logical(
     int window_height,
     const struct GGame* game)
 {
-    if( !out )
-        return;
-    out->x = 0;
-    out->y = 0;
-    out->width = (int32_t)window_width;
-    out->height = (int32_t)window_height;
-    if( window_width <= 0 || window_height <= 0 || !game || !game->view_port )
-        return;
-
-    int x = game->viewport_offset_x;
-    int y = game->viewport_offset_y;
-    int w = game->view_port->width;
-    int h = game->view_port->height;
-    if( w <= 0 || h <= 0 )
-        return;
-
-    if( x < 0 )
-        x = 0;
-    if( y < 0 )
-        y = 0;
-    if( x >= window_width || y >= window_height )
-        return;
-    if( x + w > window_width )
-        w = window_width - x;
-    if( y + h > window_height )
-        h = window_height - y;
-    if( w <= 0 || h <= 0 )
-        return;
-
-    out->x = (int32_t)x;
-    out->y = (int32_t)y;
-    out->width = (int32_t)w;
-    out->height = (int32_t)h;
+    trspk_pass_logical_from_game(out, window_width, window_height, game);
 }
 
 static uint32_t

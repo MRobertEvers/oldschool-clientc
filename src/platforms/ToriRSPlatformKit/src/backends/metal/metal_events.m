@@ -155,7 +155,44 @@ trspk_metal_event_state_begin_3d(TRSPK_MetalEventContext* ctx, const struct Tori
 {
     if( !ctx || !ctx->renderer || !cmd )
         return;
-    TRSPK_Rect rect = { cmd->_begin_3d.x, cmd->_begin_3d.y, cmd->_begin_3d.w, cmd->_begin_3d.h };
+    TRSPK_Rect rect;
+    if( cmd->_begin_3d.w > 0 && cmd->_begin_3d.h > 0 )
+    {
+        rect.x = cmd->_begin_3d.x;
+        rect.y = cmd->_begin_3d.y;
+        rect.width = cmd->_begin_3d.w;
+        rect.height = cmd->_begin_3d.h;
+    }
+    else if(
+        ctx->has_default_pass_logical && ctx->default_pass_logical.width > 0 &&
+        ctx->default_pass_logical.height > 0 )
+    {
+        rect = ctx->default_pass_logical;
+    }
+    else
+    {
+        TRSPK_MetalRenderer* r = ctx->renderer;
+        int32_t w = 1;
+        int32_t h = 1;
+        if( r->window_width > 0u && r->window_height > 0u )
+        {
+            w = (int32_t)r->window_width;
+            h = (int32_t)r->window_height;
+        }
+        else if( r->width > 0u && r->height > 0u )
+        {
+            w = (int32_t)r->width;
+            h = (int32_t)r->height;
+        }
+        rect.x = 0;
+        rect.y = 0;
+        rect.width = w;
+        rect.height = h;
+        if( rect.width <= 0 )
+            rect.width = 1;
+        if( rect.height <= 0 )
+            rect.height = 1;
+    }
     trspk_metal_draw_begin_3d(ctx->renderer, &rect);
 }
 

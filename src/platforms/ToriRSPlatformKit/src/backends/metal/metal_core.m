@@ -1,4 +1,3 @@
-#include "metal_vertex.h"
 #include "trspk_metal.h"
 #import <Metal/Metal.h>
 #import <QuartzCore/CAMetalLayer.h>
@@ -72,7 +71,7 @@ TRSPK_Metal_Init(
     r->width = width;
     r->height = height;
     r->cache = trspk_resource_cache_create();
-    r->batch_staging = trspk_batch32_create(4096u, 12288u, trspk_metal_vertex_format());
+    r->batch_staging = trspk_batch32_create(4096u, 12288u, TRSPK_VERTEX_FORMAT_METAL);
     r->pass_state.index_capacity = TRSPK_METAL_DYNAMIC_INDEX_CAPACITY;
     r->pass_state.index_pool = (uint32_t*)calloc(r->pass_state.index_capacity, sizeof(uint32_t));
     trspk_metal_cache_init_atlas(r, TRSPK_ATLAS_DIMENSION, TRSPK_ATLAS_DIMENSION);
@@ -121,6 +120,18 @@ TRSPK_Metal_Resize(
     r->height = height;
     CAMetalLayer* layer = (__bridge CAMetalLayer*)r->metal_layer;
     layer.drawableSize = CGSizeMake((CGFloat)width, (CGFloat)height);
+}
+
+void
+TRSPK_Metal_SetWindowSize(
+    TRSPK_MetalRenderer* r,
+    uint32_t window_width,
+    uint32_t window_height)
+{
+    if( !r )
+        return;
+    r->window_width = window_width;
+    r->window_height = window_height;
 }
 
 void

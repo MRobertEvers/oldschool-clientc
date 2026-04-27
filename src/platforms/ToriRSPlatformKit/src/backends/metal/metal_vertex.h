@@ -9,14 +9,14 @@
 extern "C" {
 #endif
 
-typedef struct GPU3DMeshVertexMetal
+typedef struct TRSPK_VertexMetal
 {
     float position[4];
     float color[4];
     float texcoord[2];
     uint16_t tex_id;
     uint16_t uv_mode;
-} GPU3DMeshVertexMetal;
+} TRSPK_VertexMetal;
 
 static inline uint16_t
 trspk_metal_vertex_u16(float v)
@@ -34,7 +34,7 @@ trspk_metal_vertex_convert(
     const TRSPK_Vertex* src_vertices,
     uint32_t vertex_count)
 {
-    GPU3DMeshVertexMetal* dst = (GPU3DMeshVertexMetal*)dst_vertices;
+    TRSPK_VertexMetal* dst = (TRSPK_VertexMetal*)dst_vertices;
     for( uint32_t i = 0; i < vertex_count; ++i )
     {
         memcpy(dst[i].position, src_vertices[i].position, sizeof(dst[i].position));
@@ -43,16 +43,6 @@ trspk_metal_vertex_convert(
         dst[i].tex_id = trspk_metal_vertex_u16(src_vertices[i].tex_id);
         dst[i].uv_mode = trspk_metal_vertex_u16(src_vertices[i].uv_mode);
     }
-}
-
-static inline const TRSPK_VertexFormat*
-trspk_metal_vertex_format(void)
-{
-    static const TRSPK_VertexFormat fmt = {
-        (uint32_t)sizeof(GPU3DMeshVertexMetal),
-        trspk_metal_vertex_convert,
-    };
-    return &fmt;
 }
 
 #ifdef __cplusplus

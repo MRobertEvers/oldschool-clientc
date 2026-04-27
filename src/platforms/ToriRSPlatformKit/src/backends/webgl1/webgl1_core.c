@@ -1,5 +1,4 @@
 #include "trspk_webgl1.h"
-#include "webgl1_vertex.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,7 +26,7 @@ trspk_webgl1_alloc(
     r->pass_logical_rect.height = (int32_t)height;
     r->pass_gl_rect = r->pass_logical_rect;
     r->cache = trspk_resource_cache_create();
-    r->batch_staging = trspk_batch16_create(65535u, 65535u, trspk_webgl1_vertex_format());
+    r->batch_staging = trspk_batch16_create(65535u, 65535u, TRSPK_VERTEX_FORMAT_WEBGL1);
     if( !r->cache || !r->batch_staging )
     {
         trspk_resource_cache_destroy(r->cache);

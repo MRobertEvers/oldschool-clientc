@@ -1,6 +1,8 @@
 #include "trspk_metal.h"
 #import <Metal/Metal.h>
 
+#include "../../../include/ToriRSPlatformKit/trspk_math.h"
+
 #include <string.h>
 
 static size_t
@@ -15,11 +17,35 @@ trspk_metal_draw_begin_3d(
     TRSPK_MetalRenderer* r,
     const TRSPK_Rect* viewport)
 {
-    (void)viewport;
     if( !r )
         return;
     if( viewport )
+    {
         r->pass_logical_rect = *viewport;
+        if( r->pass_logical_rect.width <= 0 || r->pass_logical_rect.height <= 0 )
+        {
+            int32_t w = 1;
+            int32_t h = 1;
+            if( r->window_width > 0u && r->window_height > 0u )
+            {
+                w = (int32_t)r->window_width;
+                h = (int32_t)r->window_height;
+            }
+            else if( r->width > 0u && r->height > 0u )
+            {
+                w = (int32_t)r->width;
+                h = (int32_t)r->height;
+            }
+            r->pass_logical_rect.x = 0;
+            r->pass_logical_rect.y = 0;
+            r->pass_logical_rect.width = w;
+            r->pass_logical_rect.height = h;
+            if( r->pass_logical_rect.width <= 0 )
+                r->pass_logical_rect.width = 1;
+            if( r->pass_logical_rect.height <= 0 )
+                r->pass_logical_rect.height = 1;
+        }
+    }
     else
     {
         r->pass_logical_rect.x = 0;
@@ -94,6 +120,55 @@ trspk_metal_draw_submit_3d(
     if( index_offset + index_bytes > [index_buf length] )
         return;
     memcpy((uint8_t*)[index_buf contents] + index_offset, pass->index_pool, index_bytes);
+
+    TRSPK_Rect glvp;
+    trspk_logical_rect_to_gl_viewport_pixels(
+        &glvp, r->width, r->height, r->window_width, r->window_height, &r->pass_logical_rect);
+
+    const double metal_origin_y = (double)r->height - (double)glvp.y - (double)glvp.height;
+    MTLViewport mvp = { .originX = (double)glvp.x,
+                        .originY = metal_origin_y,
+                        .width = (double)glvp.width,
+                        .height = (double)glvp.height,
+                        .znear = 0.0,
+                        .zfar = 1.0 };
+
+    NSInteger msx = (NSInteger)glvp.x;
+    NSInteger msy = (NSInteger)r->height - (NSInteger)glvp.y - (NSInteger)glvp.height;
+    NSInteger msw = (NSInteger)glvp.width;
+    NSInteger msh = (NSInteger)glvp.height;
+    const NSInteger fbw = (NSInteger)r->width;
+    const NSInteger fbh = (NSInteger)r->height;
+    if( msx < 0 )
+    {
+        msw += msx;
+        msx = 0;
+    }
+    if( msy < 0 )
+    {
+        msh += msy;
+        msy = 0;
+    }
+    if( msx + msw > fbw )
+        msw = fbw - msx;
+    if( msy + msh > fbh )
+        msh = fbh - msy;
+    MTLScissorRect scr;
+    if( msw <= 0 || msh <= 0 )
+    {
+        scr = (MTLScissorRect){
+            0u, 0u, (NSUInteger)(fbw > 0 ? fbw : 1), (NSUInteger)(fbh > 0 ? fbh : 1)
+        };
+    }
+    else
+    {
+        scr = (MTLScissorRect){
+            (NSUInteger)msx, (NSUInteger)msy, (NSUInteger)msw, (NSUInteger)msh
+        };
+    }
+
+    [encoder setViewport:mvp];
+    [encoder setScissorRect:scr];
 
     [encoder setRenderPipelineState:pipeline_state];
     [encoder setVertexBuffer:mesh_vbo offset:0 atIndex:0];

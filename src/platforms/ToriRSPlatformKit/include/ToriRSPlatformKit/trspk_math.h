@@ -187,6 +187,29 @@ trspk_dash_yaw_to_radians(int32_t yaw_2048);
 float
 trspk_texture_animation_signed(int animation_direction, int animation_speed);
 
+struct GGame;
+
+/** Logical 3D pass rect from game viewport (same rules as trspk_webgl1_compute_default_pass_logical). */
+void
+trspk_pass_logical_from_game(
+    TRSPK_Rect* out,
+    int window_width,
+    int window_height,
+    const struct GGame* game);
+
+/**
+ * Map logical (window-space top-left) rect to GL viewport pixels (origin lower-left).
+ * On failure or invalid inputs, writes full drawable (0,0,fb_w,fb_h) in GL convention.
+ */
+void
+trspk_logical_rect_to_gl_viewport_pixels(
+    TRSPK_Rect* out_gl_lower_left,
+    uint32_t fb_w,
+    uint32_t fb_h,
+    uint32_t win_w,
+    uint32_t win_h,
+    const TRSPK_Rect* logical);
+
 static inline void
 trspk_compute_view_matrix(
     float out[16],

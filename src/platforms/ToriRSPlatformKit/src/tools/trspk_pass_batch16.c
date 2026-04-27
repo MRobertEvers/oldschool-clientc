@@ -1,30 +1,9 @@
 #include "trspk_pass_batch16.h"
 
+#include "trspk_vertex_format.h"
+
 #include <stdlib.h>
 #include <string.h>
-
-static void
-trspk_batch16_copy_common_vertices(
-    void* dst_vertices,
-    const TRSPK_Vertex* src_vertices,
-    uint32_t vertex_count)
-{
-    memcpy(dst_vertices, src_vertices, sizeof(TRSPK_Vertex) * vertex_count);
-}
-
-static TRSPK_VertexFormat
-trspk_batch16_resolve_vertex_format(const TRSPK_VertexFormat* vertex_format)
-{
-    TRSPK_VertexFormat out;
-    if( vertex_format && vertex_format->stride > 0u && vertex_format->convert )
-        out = *vertex_format;
-    else
-    {
-        out.stride = (uint32_t)sizeof(TRSPK_Vertex);
-        out.convert = trspk_batch16_copy_common_vertices;
-    }
-    return out;
-}
 
 static bool
 trspk_batch16_reserve_chunk(
@@ -90,13 +69,13 @@ TRSPK_Batch16*
 trspk_batch16_create(
     uint32_t max_vertices,
     uint32_t max_indices,
-    const TRSPK_VertexFormat* vertex_format)
+    TRSPK_VertexFormat vertex_format)
 {
     (void)max_vertices;
     (void)max_indices;
     TRSPK_Batch16* batch = (TRSPK_Batch16*)calloc(1u, sizeof(TRSPK_Batch16));
     if( batch )
-        batch->vertex_format = trspk_batch16_resolve_vertex_format(vertex_format);
+        batch->vertex_format = vertex_format;
     return batch;
 }
 
@@ -169,11 +148,19 @@ trspk_batch16_add_mesh(
     const uint32_t vstart = chunk->vertex_count;
     const uint32_t istart = chunk->index_count;
     if( !trspk_batch16_reserve_chunk(
-            chunk, vstart + vertex_count, istart + index_count, batch->vertex_format.stride) ||
+            chunk,
+            vstart + vertex_count,
+            istart + index_count,
+            trspk_vertex_format_stride(batch->vertex_format)) ||
         !trspk_batch16_reserve_entries(batch, batch->entry_count + 1u) )
         return -1;
-    batch->vertex_format.convert(
-        chunk->vertices + (size_t)vstart * batch->vertex_format.stride, vertices, vertex_count);
+
+    trspk_vertex_format_convert(
+        chunk->vertices + (size_t)vstart * trspk_vertex_format_stride(batch->vertex_format),
+        vertices,
+        vertex_count,
+        batch->vertex_format);
+
     for( uint32_t i = 0; i < index_count; ++i )
         chunk->indices[istart + i] = (uint16_t)(vstart + indices[i]);
     chunk->vertex_count += vertex_count;
@@ -232,7 +219,7 @@ trspk_batch16_get_chunk(
     if( out_vertices )
         *out_vertices = c->vertices;
     if( out_vertex_bytes )
-        *out_vertex_bytes = c->vertex_count * batch->vertex_format.stride;
+        *out_vertex_bytes = c->vertex_count * trspk_vertex_format_stride(batch->vertex_format);
     if( out_indices )
         *out_indices = c->indices;
     if( out_index_bytes )

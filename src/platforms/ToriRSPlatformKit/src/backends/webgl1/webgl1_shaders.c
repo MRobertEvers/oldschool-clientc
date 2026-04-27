@@ -193,7 +193,7 @@ void
 trspk_webgl1_bind_world_attribs(TRSPK_WebGL1Renderer* r)
 {
 #ifdef __EMSCRIPTEN__
-    const GLsizei stride = (GLsizei)sizeof(GPU3DMeshVertexWebGL1);
+    const GLsizei stride = (GLsizei)sizeof(TRSPK_VertexWebGL1);
     if( r->world_locs.a_position >= 0 )
     {
         glEnableVertexAttribArray((GLuint)r->world_locs.a_position);

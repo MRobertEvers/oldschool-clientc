@@ -9,14 +9,14 @@
 extern "C" {
 #endif
 
-typedef struct GPU3DMeshVertexWebGL1
+typedef struct TRSPK_VertexWebGL1
 {
     float position[4];
     float color[4];
     float texcoord[2];
     float tex_id;
     float uv_mode;
-} GPU3DMeshVertexWebGL1;
+} TRSPK_VertexWebGL1;
 
 static inline void
 trspk_webgl1_vertex_convert(
@@ -24,7 +24,7 @@ trspk_webgl1_vertex_convert(
     const TRSPK_Vertex* src_vertices,
     uint32_t vertex_count)
 {
-    GPU3DMeshVertexWebGL1* dst = (GPU3DMeshVertexWebGL1*)dst_vertices;
+    TRSPK_VertexWebGL1* dst = (TRSPK_VertexWebGL1*)dst_vertices;
     for( uint32_t i = 0; i < vertex_count; ++i )
     {
         memcpy(dst[i].position, src_vertices[i].position, sizeof(dst[i].position));
@@ -33,16 +33,6 @@ trspk_webgl1_vertex_convert(
         dst[i].tex_id = src_vertices[i].tex_id;
         dst[i].uv_mode = src_vertices[i].uv_mode;
     }
-}
-
-static inline const TRSPK_VertexFormat*
-trspk_webgl1_vertex_format(void)
-{
-    static const TRSPK_VertexFormat fmt = {
-        (uint32_t)sizeof(GPU3DMeshVertexWebGL1),
-        trspk_webgl1_vertex_convert,
-    };
-    return &fmt;
 }
 
 #ifdef __cplusplus
