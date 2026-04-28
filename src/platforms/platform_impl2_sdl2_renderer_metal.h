@@ -19,7 +19,6 @@ struct Platform2_SDL2_Renderer_Metal
     SDL_MetalView metal_view = nullptr;
     TRSPK_MetalRenderer* trspk = nullptr;
     struct TorirsNkMetalUi* nk_ui = nullptr;
-    float nk_metal_last_display_scale = -1.0f;
     Uint64 nk_ui_prev_perf = 0;
     int width = 0;
     int height = 0;

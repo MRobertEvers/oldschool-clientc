@@ -19,6 +19,9 @@ extern "C" {
 #include "tori_rs_render.h"
 }
 
+/** Nuklear layout + font are in SDL window logical pixels; HiDPI is handled by projection/scissor to drawable. */
+static constexpr float kTorirsNkMetalDefaultFontPx = 13.0f;
+
 Platform2_SDL2_Renderer_Metal*
 PlatformImpl2_SDL2_Renderer_Metal_New(
     int width,
@@ -104,10 +107,9 @@ PlatformImpl2_SDL2_Renderer_Metal_Init(
     {
         struct nk_font_atlas* atlas = nullptr;
         torirs_nk_metal_font_stash_begin(renderer->nk_ui, &atlas);
-        nk_font_atlas_add_default(atlas, 13.0f * platform->display_scale, nullptr);
+        nk_font_atlas_add_default(atlas, kTorirsNkMetalDefaultFontPx, nullptr);
         torirs_nk_metal_font_stash_end(renderer->nk_ui);
     }
-    renderer->nk_metal_last_display_scale = platform->display_scale;
     torirs_nk_ui_set_active(torirs_nk_metal_ctx(renderer->nk_ui), nullptr, nullptr);
     renderer->nk_ui_prev_perf = SDL_GetPerformanceCounter();
 
@@ -145,14 +147,6 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
             const float sy = (float)drawable_h / (float)lh;
             renderer->platform->display_scale = sx > sy ? sx : sy;
         }
-    }
-
-    if( renderer->nk_ui
-        && (renderer->nk_metal_last_display_scale < 0.0f
-            || renderer->nk_metal_last_display_scale != renderer->platform->display_scale) )
-    {
-        torirs_nk_metal_rebuild_default_font(renderer->nk_ui, 13.0f * renderer->platform->display_scale);
-        renderer->nk_metal_last_display_scale = renderer->platform->display_scale;
     }
 
     int win_w = renderer->platform->game_screen_width;
