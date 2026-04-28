@@ -1,4 +1,5 @@
 CompileFlags:
+  CompilationDatabase: build/
   Add:
     - -march=native
     - -ftree-vectorizer-verbose=6

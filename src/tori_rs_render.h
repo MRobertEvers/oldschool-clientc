@@ -153,6 +153,8 @@ struct ToriRSRenderCommand
         {
             struct DashModel* model;
             struct DashPosition position;
+            /** World-space placement before camera subtraction; Metal rebakes dynamic meshes. */
+            struct DashPosition world_position;
             /** Same packing as RES_MODEL_LOAD (`torirs_model_cache_key_decode`). */
             uint64_t model_key;
             /** Same Scene2 id as RES_MODEL_LOAD for this element's current model (see

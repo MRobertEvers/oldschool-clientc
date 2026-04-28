@@ -210,11 +210,40 @@ trspk_metal_event_draw_model(
 {
     if( !ctx || !ctx->renderer || !ctx->cache || !game || !cmd )
         return;
-    if (cmd->_model_draw.usage_hint == TORIRS_USAGE_PROJECTILE)
-    {
-        printf("PROJECTILE\n");
 
+    if( cmd->_model_draw.usage_hint == TORIRS_USAGE_PROJECTILE )
+    {
+        TRSPK_BakeTransform bake = trspk_bake_transform_from_yaw_translate(
+            (int32_t)cmd->_model_draw.world_position.x,
+            (int32_t)cmd->_model_draw.world_position.y,
+            (int32_t)cmd->_model_draw.world_position.z,
+            (int32_t)cmd->_model_draw.world_position.yaw);
+        trspk_resource_cache_set_model_bake(
+            ctx->cache, (TRSPK_ModelId)cmd->_model_draw.model_id, &bake);
+        if( cmd->_model_draw.use_animation )
+        {
+            const uint8_t seg = cmd->_model_draw.animation_index == 1 ? TRSPK_GPU_ANIM_SECONDARY_IDX
+                                                                      : TRSPK_GPU_ANIM_PRIMARY_IDX;
+            trspk_metal_dynamic_load_anim(
+                ctx->renderer,
+                (TRSPK_ModelId)cmd->_model_draw.model_id,
+                cmd->_model_draw.model,
+                seg,
+                (uint16_t)cmd->_model_draw.frame_index,
+                TRSPK_USAGE_PROJECTILE,
+                &bake);
+        }
+        else
+        {
+            trspk_metal_dynamic_load_model(
+                ctx->renderer,
+                (TRSPK_ModelId)cmd->_model_draw.model_id,
+                cmd->_model_draw.model,
+                TRSPK_USAGE_PROJECTILE,
+                &bake);
+        }
     }
+
     const TRSPK_ModelPose* pose = trspk_resource_cache_get_pose_for_draw(
         ctx->cache,
         (TRSPK_ModelId)cmd->_model_draw.model_id,

@@ -168,6 +168,17 @@ struct PlayerEntity
     int total_health;
 };
 
+/** Standalone scene2 model (e.g. Lua-spawned projectiles) with no pathing. */
+struct ProjectileEntity
+{
+    int alive;
+    struct EntitySceneElement scene_element2;
+    struct EntityDrawPosition draw_position;
+    struct EntityOrientation orientation;
+    struct EntityAnimation animation;
+    struct EntityVisibleLevel visible_level;
+};
+
 struct MapBuildLocEntity
 {
     int entity_id;
@@ -251,6 +262,7 @@ enum EntityKind
     ENTITY_KIND_NPC = 2,
     ENTITY_KIND_MAP_BUILD_LOC = 3,
     ENTITY_KIND_MAP_BUILD_TILE = 4,
+    ENTITY_KIND_PROJECTILE = 5,
 };
 
 static inline uint32_t

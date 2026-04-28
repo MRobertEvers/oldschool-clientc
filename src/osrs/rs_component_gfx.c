@@ -152,6 +152,8 @@ rs_gfx_model_step(
 
     struct DashPosition position = { 0 };
     memcpy(&position, sepos, sizeof(struct DashPosition));
+    struct DashPosition world_position = { 0 };
+    memcpy(&world_position, sepos, sizeof(struct DashPosition));
     position.x = position.x - game->camera_world_x;
     position.y = position.y - game->camera_world_y;
     position.z = position.z - game->camera_world_z;
@@ -181,6 +183,7 @@ rs_gfx_model_step(
         cmd->_model_draw.animation_index = scene2_element_active_animation_index(se);
         cmd->_model_draw.frame_index = scene2_element_active_frame(se);
         memcpy(&cmd->_model_draw.position, &position, sizeof(struct DashPosition));
+        memcpy(&cmd->_model_draw.world_position, &world_position, sizeof(struct DashPosition));
         cmd->_model_draw.usage_hint = (uint8_t)scene2_element_category(se);
     }
     return true;

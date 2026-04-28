@@ -81,6 +81,7 @@ world_new(
 
     entity_vec_init(&world->players, sizeof(struct PlayerEntity), MAX_PLAYERS);
     entity_vec_init(&world->npcs, sizeof(struct NPCEntity), MAX_NPCS);
+    entity_vec_init(&world->projectiles, sizeof(struct ProjectileEntity), MAX_PROJECTILES);
     entity_vec_init(
         &world->map_build_loc_entities,
         sizeof(struct MapBuildLocEntity),
@@ -118,6 +119,7 @@ world_free(struct World* world)
 
     entity_vec_free(&world->players);
     entity_vec_free(&world->npcs);
+    entity_vec_free(&world->projectiles);
     entity_vec_free(&world->map_build_loc_entities);
     entity_vec_free(&world->map_build_tile_entities);
 
@@ -362,6 +364,81 @@ world_buildcachedat_rebuild_centerzone(
     world_rebuild_centerzone_end(world);
 }
 
+void
+world_cleanup_projectile_entity(
+    struct World* world,
+    int entity_id)
+{
+    if( entity_id < 0 || entity_id >= entity_vec_count(&world->projectiles) )
+        return;
+
+    struct ProjectileEntity* p = world_projectile(world, entity_id);
+    if( p->scene_element2.element_id != -1 )
+    {
+        scene2_element_release(world->scene2, p->scene_element2.element_id);
+        p->scene_element2.element_id = -1;
+    }
+    memset(&p->draw_position, 0, sizeof(struct EntityDrawPosition));
+    memset(&p->orientation, 0, sizeof(struct EntityOrientation));
+    memset(&p->animation, 0, sizeof(struct EntityAnimation));
+    memset(&p->visible_level, 0, sizeof(struct EntityVisibleLevel));
+    p->alive = false;
+}
+
+int
+world_projectile_create(struct World* world)
+{
+    if( !world )
+        return -1;
+
+    int32_t n = entity_vec_count(&world->projectiles);
+    for( int32_t i = 0; i < n; i++ )
+    {
+        struct ProjectileEntity* p = world_projectile(world, i);
+        if( !p->alive )
+        {
+            if( world->active_projectile_count < MAX_PROJECTILES )
+                world->active_projectiles[world->active_projectile_count++] = (int32_t)i;
+            return (int)i;
+        }
+    }
+
+    if( n >= MAX_PROJECTILES )
+        return -1;
+
+    struct ProjectileEntity* p = world_projectile_ensure(world, n);
+    assert(!p->alive);
+    if( world->active_projectile_count < MAX_PROJECTILES )
+        world->active_projectiles[world->active_projectile_count++] = (int32_t)n;
+    return (int)n;
+}
+
+struct ProjectileEntity*
+world_projectile_ensure_scene_element(
+    struct World* world,
+    int projectile_id)
+{
+    struct Scene2Element* element = NULL;
+    struct ProjectileEntity* p = world_projectile_ensure(world, projectile_id);
+
+    p->alive = true;
+    if( p->scene_element2.element_id == -1 )
+    {
+        p->scene_element2.element_id = scene2_element_acquire_full(
+            world->scene2,
+            (int)entity_unified_id(ENTITY_KIND_PROJECTILE, projectile_id),
+            SCENE2_ELEMENT_PROJECTILE);
+
+        p->orientation.dst_yaw = 0;
+
+        element = scene2_element_at(world->scene2, p->scene_element2.element_id);
+        scene2_element_expect(element, "world_projectile_ensure_scene_element");
+        if( !scene2_element_dash_position(element) )
+            scene2_element_set_dash_position_ptr(element, dashposition_new());
+    }
+    return p;
+}
+
 /* =========================================================================
  * Centerzone rebuild stages: _begin / _chunk / _end
  *
@@ -392,7 +469,10 @@ world_rebuild_centerzone_begin(
     struct BuildCacheDat* buildcachedat = world->buildcachedat;
 
     world->load_complete = false;
-    world->spawned_element_count = 0;
+
+    for( int i = 0; i < world->active_projectile_count; i++ )
+        world_cleanup_projectile_entity(world, world->active_projectiles[i]);
+    world->active_projectile_count = 0;
 
     if( world->scene2 )
     {
@@ -1423,6 +1503,45 @@ world_npc_entity_set_animation(
     {
         memset(&npc->animation.secondary_anim, 0, sizeof(struct EntityAnimationStep));
         npc->animation.secondary_anim.anim_id = animation_id;
+    }
+}
+
+void
+world_projectile_entity_set_animation(
+    struct World* world,
+    int projectile_entity_id,
+    int animation_id,
+    int animation_type)
+{
+    struct ProjectileEntity* p = world_projectile(world, projectile_entity_id);
+
+    if( p->scene_element2.element_id == -1 )
+        return;
+
+    struct Scene2Element* element =
+        scene2_element_at(world->scene2, p->scene_element2.element_id);
+    scene2_element_expect(element, "world_projectile_entity_set_animation");
+
+    if( animation_type == ANIMATION_TYPE_PRIMARY )
+    {
+        scene2_element_clear_animation(element);
+    }
+    else
+    {
+        scene2_element_clear_secondary_animation(element);
+    }
+
+    load_scene_animation(world, element, animation_id, animation_type);
+
+    if( animation_type == ANIMATION_TYPE_PRIMARY )
+    {
+        memset(&p->animation.primary_anim, 0, sizeof(struct EntityAnimationStep));
+        p->animation.primary_anim.anim_id = animation_id;
+    }
+    else
+    {
+        memset(&p->animation.secondary_anim, 0, sizeof(struct EntityAnimationStep));
+        p->animation.secondary_anim.anim_id = animation_id;
     }
 }
 

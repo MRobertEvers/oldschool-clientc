@@ -22,24 +22,22 @@ end
 Game.BuildCacheDat.sequences_clear()
 Game.BuildCacheDat.sequences_init_from_config_jagfile()
 
-local needed_baseframes = Game.BuildCacheDat.get_sequence_animbaseframes_ids(seq_id)
+local animbaseframes_count = Game.BuildCacheDat.get_animbaseframes_count_from_versionlist_jagfile()
 local anim_requests = {}
-local anim_indices = {}
-for _, animbaseframes_id in ipairs(needed_baseframes) do
-    if not Game.BuildCacheDat.animbaseframes_cache_has(animbaseframes_id) then
+for i = 0, animbaseframes_count - 1 do
+    if not Game.BuildCacheDat.animbaseframes_cache_has(i) then
         table.insert(anim_requests, {
             table_id = CacheDat.Tables.CACHE_DAT_ANIMATIONS,
-            archive_id = animbaseframes_id,
+            archive_id = i,
             flags = 0,
         })
-        table.insert(anim_indices, animbaseframes_id)
     end
 end
 
 if #anim_requests > 0 then
     local anim_archives = CacheDat.load_archives(anim_requests)
-    for i = 1, #anim_indices do
-        Game.BuildCacheDat.animbaseframes_cache_add(anim_archives[i])
+    for _, archive in ipairs(anim_archives) do
+        Game.BuildCacheDat.animbaseframes_cache_add(archive)
     end
 end
 

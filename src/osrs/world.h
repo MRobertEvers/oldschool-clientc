@@ -27,7 +27,7 @@ struct FlagMap;
 
 #define MAX_PLAYERS 2048
 #define MAX_NPCS 8192
-#define MAX_SPAWNED_ELEMENTS 1024
+#define MAX_PROJECTILES 256
 
 #define MAX_MAP_BUILD_LOC_ENTITIES (16384 >> 1)
 #define MAX_MAP_BUILD_TILE_ENTITIES (50000)
@@ -54,14 +54,17 @@ struct World
 {
     struct EntityVec players;
     struct EntityVec npcs;
+    struct EntityVec projectiles;
     struct EntityVec map_build_loc_entities;
     struct EntityVec map_build_tile_entities;
 
     int32_t active_players[MAX_PLAYERS];
     int32_t active_npcs[MAX_NPCS];
+    int32_t active_projectiles[MAX_PROJECTILES];
     int32_t active_loc_entities[MAX_MAP_BUILD_LOC_ENTITIES];
     int active_player_count;
     int active_npc_count;
+    int active_projectile_count;
     int active_loc_entity_count;
 
     // Painter
@@ -122,10 +125,6 @@ struct World
     struct ContourGroundQueueEntry* contour_ground_queue;
     int contour_ground_queue_count;
     int contour_ground_queue_cap;
-
-    int spawned_element_ids[MAX_SPAWNED_ELEMENTS];
-    int spawned_element_levels[MAX_SPAWNED_ELEMENTS];
-    int spawned_element_count;
 
     struct BuildCacheDat* buildcachedat;
 
@@ -418,6 +417,43 @@ world_npc_ensure(
         n->scene_element2.element_id = -1;
     return n;
 }
+
+static inline struct ProjectileEntity*
+world_projectile(
+    struct World* world,
+    int id)
+{
+    return ENTITY_VEC_AT(world->projectiles, struct ProjectileEntity, id);
+}
+
+static inline struct ProjectileEntity*
+world_projectile_ensure(
+    struct World* world,
+    int id)
+{
+    struct ProjectileEntity* p = ENTITY_VEC_ENSURE(world->projectiles, struct ProjectileEntity, id);
+    if( !p->alive )
+        p->scene_element2.element_id = -1;
+    return p;
+}
+
+int
+world_projectile_create(
+    struct World* world);
+void
+world_cleanup_projectile_entity(
+    struct World* world,
+    int entity_id);
+struct ProjectileEntity*
+world_projectile_ensure_scene_element(
+    struct World* world,
+    int projectile_id);
+void
+world_projectile_entity_set_animation(
+    struct World* world,
+    int projectile_entity_id,
+    int animation_id,
+    int animation_type);
 
 static inline struct MapBuildLocEntity*
 world_loc_entity(

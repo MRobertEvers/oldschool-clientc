@@ -454,12 +454,39 @@ world_cycle_push_npcs(struct World* world)
 }
 
 static void
-world_cycle_push_spawned_elements(struct World* world)
+world_cycle_update_projectiles(
+    struct World* world,
+    int cycles_elapsed)
 {
-    for( int i = 0; i < world->spawned_element_count; i++ )
+    for( int cycle = 0; cycle < cycles_elapsed; cycle++ )
     {
+        for( int i = 0; i < world->active_projectile_count; i++ )
+        {
+            int projectile_id = world->active_projectiles[i];
+            struct ProjectileEntity* p = world_projectile(world, projectile_id);
+            if( !p->alive || p->scene_element2.element_id == -1 )
+                continue;
+            struct Scene2Element* scene_element =
+                scene2_element_at(world->scene2, p->scene_element2.element_id);
+            if( !scene_element )
+                continue;
+            world_cycle_step_element_animations(&p->animation, scene_element, 1);
+        }
+    }
+}
+
+static void
+world_cycle_push_projectiles(struct World* world)
+{
+    for( int i = 0; i < world->active_projectile_count; i++ )
+    {
+        int projectile_id = world->active_projectiles[i];
+        struct ProjectileEntity* p = world_projectile(world, projectile_id);
+        if( !p->alive || p->scene_element2.element_id == -1 )
+            continue;
+
         struct Scene2Element* scene_element =
-            scene2_element_at(world->scene2, world->spawned_element_ids[i]);
+            scene2_element_at(world->scene2, p->scene_element2.element_id);
         if( !scene_element || !scene2_element_is_active(scene_element) )
             continue;
 
@@ -467,14 +494,20 @@ world_cycle_push_spawned_elements(struct World* world)
         if( !position )
             continue;
 
+        int lev = (int)p->visible_level.level;
         painter_add_normal_scenery(
             world->painter,
-            position->x / 128,
-            position->z / 128,
-            world->spawned_element_levels[i],
-            world->spawned_element_ids[i],
+            p->draw_position.x / 128,
+            p->draw_position.z / 128,
+            lev,
+            p->scene_element2.element_id,
             1,
             1);
+        position->yaw = p->orientation.yaw;
+        position->x = p->draw_position.x;
+        position->z = p->draw_position.z;
+        position->y = heightmap_get_interpolated(
+            world->heightmap, p->draw_position.x, p->draw_position.z, lev);
     }
 }
 
@@ -499,15 +532,15 @@ world_cycle(
 
     world_cycle_begin(world);
 
-    world_cycle_push_spawned_elements(world);
-
     world_cycle_update_map_build_loc_entities(world, cycles_elapsed);
 
     world_cycle_update_players(world, cycles_elapsed);
-    world_cycle_push_players(world);
-
     world_cycle_update_npcs(world, cycles_elapsed);
+    world_cycle_update_projectiles(world, cycles_elapsed);
+
+    world_cycle_push_players(world);
     world_cycle_push_npcs(world);
+    world_cycle_push_projectiles(world);
 
     world_cycle_end(world);
 }

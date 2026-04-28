@@ -6,18 +6,13 @@
   "cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json",
   "cpp.default.browse.limitSymbolsToIncludedHeaders": true,
   "cpp.default.browse.databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db",
-  "files.associations": {
-        "*.mm": "objective-cpp",
-        "*.m": "objective-c",
-        "*.h": "objective-cpp" 
-    },
-    // Prevent the two engines from fighting
-    "C_Cpp.intelliSenseEngine": "disabled", 
+  // Prevent the two engines from fighting
+  "C_Cpp.intelliSenseEngine": "disabled", 
   "clangd.arguments": [
       "--background-index",
       "--clang-tidy",
       "--header-insertion=never",
-      "--query-driver=/usr/bin/clang++" 
+      "--query-driver=/usr/bin/**,/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/**,/opt/homebrew/opt/llvm/bin/**"
   ],
   "editor.formatOnSave": true,
   "editor.multiCursorModifier": "alt",
@@ -28,6 +23,9 @@
     "editor.defaultFormatter": "ms-vscode.cpptools"
   },
   "[cpp]": {
+    "editor.defaultFormatter": "ms-vscode.cpptools"
+  },
+  "[objective-cpp]": {
     "editor.defaultFormatter": "ms-vscode.cpptools"
   },
   "terminal.integrated.profiles.windows": {
@@ -285,7 +283,10 @@
     "entity_scenebuild.h": "c",
     "dash_vertexint.h": "c",
     "texture_simd.neon.u.c": "cpp",
-    "pix3d_deob_state.h": "c"
+    "pix3d_deob_state.h": "c",
+    "*.mm": "objective-cpp",
+    "*.m": "objective-c",
+    "*.h": "objective-cpp"
   },
   "[linux]": {
     "C_Cpp.default.configurationName": "Linux",

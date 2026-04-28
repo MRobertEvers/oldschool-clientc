@@ -10,6 +10,7 @@
 #include "osrs/gameproto_exec.h"
 #include "osrs/packets/revpacket_lc245_2.h"
 #include "osrs/rscache/cache_dat.h"
+#include "osrs/heightmap.h"
 #include "osrs/world.h"
 #include "platforms/common/platform_memory.h"
 
@@ -341,74 +342,46 @@ LuaGame_spawn_element(
 
     _light_model_default(dash_model, 0, 0);
 
-    int element_id = scene2_element_acquire_full(game->scene2, 0, SCENE2_ELEMENT_PROJECTILE);
-    struct Scene2Element* element = scene2_element_at(game->scene2, element_id);
-    scene2_element_expect(element, "LuaGame_spawn_element");
-    scene2_element_set_dash_position_ptr(element, dashposition_new());
+    if( !game->world )
+    {
+        dashmodel_free(dash_model);
+        return LuaGameType_NewVoid();
+    }
 
-    struct DashPosition* position = scene2_element_dash_position(element);
-    position->x = world_x;
-    position->z = world_z;
-    position->y = game->world && game->world->heightmap
-                      ? heightmap_get_interpolated(game->world->heightmap, world_x, world_z, level)
-                      : 0;
+    int projectile_id = world_projectile_create(game->world);
+    if( projectile_id < 0 )
+    {
+        dashmodel_free(dash_model);
+        return LuaGameType_NewVoid();
+    }
+
+    struct ProjectileEntity* proj =
+        world_projectile_ensure_scene_element(game->world, projectile_id);
+    proj->draw_position.x = world_x;
+    proj->draw_position.z = world_z;
+    proj->visible_level.level = (uint8_t)level;
+
+    struct Scene2Element* element =
+        scene2_element_at(game->scene2, proj->scene_element2.element_id);
+    scene2_element_expect(element, "LuaGame_spawn_element");
+
+    struct DashPosition* dp = scene2_element_dash_position(element);
+    if( dp )
+    {
+        dp->x = world_x;
+        dp->z = world_z;
+        dp->y = game->world->heightmap
+                    ? heightmap_get_interpolated(game->world->heightmap, world_x, world_z, level)
+                    : 0;
+        dp->yaw = proj->orientation.yaw;
+    }
 
     scene2_element_set_dash_model(game->scene2, element, dash_model);
 
-    if( game->world )
-    {
-        if( game->world->spawned_element_count < MAX_SPAWNED_ELEMENTS )
-        {
-            int idx = game->world->spawned_element_count++;
-            game->world->spawned_element_ids[idx] = element_id;
-            game->world->spawned_element_levels[idx] = level;
-        }
-        if( game->world->painter )
-        {
-            painter_add_normal_scenery(
-                game->world->painter, world_x / 128, world_z / 128, level, element_id, 1, 1);
-        }
-    }
-
     struct CacheDatSequence* sequence = buildcachedat_get_sequence(game->buildcachedat, seq_id);
     if( sequence )
-    {
-        struct DashFramemap* framemap = NULL;
-        for( int i = 0; i < sequence->frame_count; i++ )
-        {
-            struct CacheAnimframe* animframe =
-                buildcachedat_get_animframe(game->buildcachedat, sequence->frames[i]);
-            if( !animframe )
-                continue;
-
-            if( !framemap )
-            {
-                framemap = dashframemap_new_from_animframe(animframe);
-                scene2_element_set_framemap(element, framemap);
-            }
-
-            int length = sequence->delay[i];
-            if( length == 0 )
-                length = animframe->delay;
-
-            scene2_element_push_animation_frame(
-                game->scene2,
-                element,
-                seq_id,
-                i,
-                dashframe_new_from_animframe(animframe),
-                length);
-        }
-
-        struct Scene2Frames* frames = scene2_element_primary_frames(element);
-        if( frames && frames->count > 0 && framemap )
-        {
-            dashmodel_animate(dash_model, frames->frames[0], framemap);
-            scene2_element_set_active_anim_id(element, (uint16_t)seq_id);
-            scene2_element_set_active_animation_index(element, 0);
-            scene2_element_set_active_frame(element, 0);
-        }
-    }
+        world_projectile_entity_set_animation(
+            game->world, projectile_id, seq_id, ANIMATION_TYPE_PRIMARY);
 
     return LuaGameType_NewVoid();
 }

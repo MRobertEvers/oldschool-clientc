@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.7)
 project(RSClient LANGUAGES C CXX)
 
+# clangd/IDE: emit build/compile_commands.json (refreshed when you re-run CMake)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
 check_include_file_cxx("d3d8.h" HAVE_D3D8_H)

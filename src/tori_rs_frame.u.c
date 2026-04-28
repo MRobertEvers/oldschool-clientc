@@ -1067,6 +1067,53 @@ entity_npc_animate(
 }
 
 static void
+entity_projectile_animate(
+    struct World* world,
+    int projectile_entity_id)
+{
+    struct ProjectileEntity* p = world_projectile(world, projectile_entity_id);
+    struct EntityAnimation* animation = &p->animation;
+    struct Scene2Element* scene_element =
+        scene2_element_at(world->scene2, p->scene_element2.element_id);
+    if( !scene_element )
+        return;
+
+    struct Scene2Frames* primary = scene2_element_primary_frames(scene_element);
+    struct Scene2Frames* secondary = scene2_element_secondary_frames(scene_element);
+    struct DashModel* dm = scene2_element_dash_model(scene_element);
+    struct DashFramemap* fm = scene2_element_dash_framemap(scene_element);
+
+    if( animation->primary_anim.anim_id != -1 && primary && primary->count > 0 )
+    {
+        int frame = animation->primary_anim.frame;
+        scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
+        scene2_element_set_active_animation_index(scene_element, 0);
+        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
+        if( frame >= 0 && frame < primary->count )
+        {
+            dashmodel_animate(dm, primary->frames[frame], fm);
+        }
+    }
+    else if( animation->secondary_anim.anim_id != -1 && secondary && secondary->count > 0 )
+    {
+        int frame = animation->secondary_anim.frame;
+        scene2_element_set_active_anim_id(scene_element, animation->secondary_anim.anim_id);
+        scene2_element_set_active_animation_index(scene_element, 1);
+        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
+        if( frame >= 0 && frame < secondary->count )
+        {
+            dashmodel_animate(dm, secondary->frames[frame], fm);
+        }
+    }
+    else
+    {
+        scene2_element_set_active_anim_id(scene_element, 0);
+        scene2_element_set_active_animation_index(scene_element, 0);
+        scene2_element_set_active_frame(scene_element, 0);
+    }
+}
+
+static void
 entity_map_build_loc_entity_animate(
     struct World* world,
     int map_build_loc_entity_id)
@@ -1153,6 +1200,9 @@ entity_animate(
         break;
     case ENTITY_KIND_MAP_BUILD_LOC:
         entity_map_build_loc_entity_animate(world, entity_id_from_uid(entity_uid));
+        break;
+    case ENTITY_KIND_PROJECTILE:
+        entity_projectile_animate(world, entity_id_from_uid(entity_uid));
         break;
     case ENTITY_KIND_MAP_BUILD_TILE:
 
@@ -1385,6 +1435,9 @@ next:
             goto next;
         memcpy(&position, ent_pos, sizeof(struct DashPosition));
 
+        struct DashPosition world_position = { 0 };
+        memcpy(&world_position, ent_pos, sizeof(struct DashPosition));
+
         position.x = position.x - game->camera_world_x;
         position.y = position.y - game->camera_world_y;
         position.z = position.z - game->camera_world_z;
@@ -1413,6 +1466,7 @@ next:
             rc->_model_draw.animation_index = scene2_element_active_animation_index(scene_element);
             rc->_model_draw.frame_index = scene2_element_active_frame(scene_element);
             memcpy(&rc->_model_draw.position, &position, sizeof(struct DashPosition));
+            memcpy(&rc->_model_draw.world_position, &world_position, sizeof(struct DashPosition));
             rc->_model_draw.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
                 scene2_element_category(scene_element));
         }
@@ -1439,6 +1493,9 @@ next:
             goto next;
 
         memcpy(&position, tile_pos, sizeof(struct DashPosition));
+
+        struct DashPosition world_position = { 0 };
+        memcpy(&world_position, tile_pos, sizeof(struct DashPosition));
 
         position.x = position.x - game->camera_world_x;
         position.y = position.y - game->camera_world_y;
@@ -1473,6 +1530,7 @@ next:
             rc->_model_draw.animation_index = scene2_element_active_animation_index(scene_element);
             rc->_model_draw.frame_index = scene2_element_active_frame(scene_element);
             memcpy(&rc->_model_draw.position, &position, sizeof(struct DashPosition));
+            memcpy(&rc->_model_draw.world_position, &world_position, sizeof(struct DashPosition));
             rc->_model_draw.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
                 scene2_element_category(scene_element));
         }
