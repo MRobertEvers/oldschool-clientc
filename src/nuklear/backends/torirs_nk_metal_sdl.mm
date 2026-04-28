@@ -34,6 +34,8 @@ struct TorirsNkMetalUi
     id<MTLTexture> font_texture;
     id<MTLTexture> null_texture;
     id<MTLBuffer> uniform_buffer;
+    /** Depth/stencil for UI: always pass, no write. AGX drivers can fault on `setDepthStencilState:nil`. */
+    id<MTLDepthStencilState> depth_stencil_no_depth;
 
     unsigned max_vertex_bytes;
     unsigned max_index_bytes;
@@ -92,6 +94,102 @@ torirs_nk_metal_proj_matrix(int width, int height, float* out16)
     m[3][0] = (R + L) / (L - R);
     m[3][1] = (T + B) / (B - T);
     memcpy(out16, m, sizeof(m));
+}
+
+/** Reset encoder state after TRSPK 3D draws (viewport, scissor, buffers) so Nuklear is isolated. */
+static void
+torirs_nk_metal_encoder_prepare_for_ui(
+    id<MTLRenderCommandEncoder> enc,
+    int drawable_width,
+    int drawable_height,
+    id<MTLDepthStencilState> depth_stencil_ui)
+{
+    if( !enc || drawable_width <= 0 || drawable_height <= 0 )
+        return;
+
+    MTLViewport nk_vp = {
+        .originX = 0.0,
+        .originY = 0.0,
+        .width = (double)drawable_width,
+        .height = (double)drawable_height,
+        .znear = 0.0,
+        .zfar = 1.0,
+    };
+    [enc setViewport:nk_vp];
+
+    MTLScissorRect full_sc = {
+        0u,
+        0u,
+        (NSUInteger)drawable_width,
+        (NSUInteger)drawable_height,
+    };
+    [enc setScissorRect:full_sc];
+
+    [enc setCullMode:MTLCullModeNone];
+    [enc setTriangleFillMode:MTLTriangleFillModeFill];
+    if( depth_stencil_ui )
+        [enc setDepthStencilState:depth_stencil_ui];
+
+    /* TRSPK world pass binds uniforms/tiles here; clear so captures/debuggers do not see stale
+     * bindings. Nuklear FS only uses texture(0) + sampler(0). */
+    [enc setFragmentBuffer:nil offset:0 atIndex:1];
+    [enc setFragmentBuffer:nil offset:0 atIndex:4];
+}
+
+/** Convert Nuklear clip (window space, top-left origin, y-down) to Metal scissor (drawable pixels, top-left). */
+static int
+torirs_nk_metal_clip_rect_to_scissor(
+    int window_width,
+    int window_height,
+    int drawable_width,
+    int drawable_height,
+    const struct nk_draw_command* cmd,
+    MTLScissorRect* out_sc)
+{
+    if( !cmd || !out_sc || window_width <= 0 || window_height <= 0 || drawable_width <= 0 ||
+        drawable_height <= 0 )
+        return 0;
+
+    const float sx = (float)drawable_width / (float)window_width;
+    const float sy = (float)drawable_height / (float)window_height;
+    const float px = cmd->clip_rect.x * sx;
+    const float py = cmd->clip_rect.y * sy;
+    const float pw = cmd->clip_rect.w * sx;
+    const float ph = cmd->clip_rect.h * sy;
+
+    long x0 = (long)floorf(px);
+    long y0 = (long)floorf(py);
+    long x1 = (long)ceilf(px + pw);
+    long y1 = (long)ceilf(py + ph);
+    long w = x1 - x0;
+    long h = y1 - y0;
+    if( w <= 0 || h <= 0 )
+        return 0;
+
+    const long dw = (long)drawable_width;
+    const long dh = (long)drawable_height;
+    if( x0 < 0 )
+    {
+        w += x0;
+        x0 = 0;
+    }
+    if( y0 < 0 )
+    {
+        h += y0;
+        y0 = 0;
+    }
+    if( x0 + w > dw )
+        w = dw - x0;
+    if( y0 + h > dh )
+        h = dh - y0;
+    if( w <= 0 || h <= 0 )
+        return 0;
+
+    out_sc->x = (NSUInteger)x0;
+    out_sc->y = (NSUInteger)y0;
+    out_sc->width = (NSUInteger)w;
+    out_sc->height = (NSUInteger)h;
+    return 1;
 }
 
 static void
@@ -190,6 +288,11 @@ torirs_nk_metal_init(void* mtl_device, int width, int height, unsigned max_verte
         return NULL;
     }
 
+    MTLDepthStencilDescriptor* dsd = [[MTLDepthStencilDescriptor alloc] init];
+    dsd.depthWriteEnabled = NO;
+    dsd.depthCompareFunction = MTLCompareFunctionAlways;
+    ui->depth_stencil_no_depth = [device newDepthStencilStateWithDescriptor:dsd];
+
     MTLSamplerDescriptor* sd = [MTLSamplerDescriptor new];
     sd.minFilter = MTLSamplerMinMagFilterLinear;
     sd.magFilter = MTLSamplerMinMagFilterLinear;
@@ -233,6 +336,7 @@ torirs_nk_metal_shutdown(struct TorirsNkMetalUi* ui)
     ui->uniform_buffer = nil;
     ui->null_texture = nil;
     ui->font_texture = nil;
+    ui->depth_stencil_no_depth = nil;
     ui->sampler = nil;
     ui->pipeline = nil;
     ui->library = nil;
@@ -281,6 +385,19 @@ torirs_nk_metal_font_stash_end(struct TorirsNkMetalUi* ui)
 }
 
 void
+torirs_nk_metal_rebuild_default_font(struct TorirsNkMetalUi* ui, float font_height_pixels)
+{
+    if( !ui || font_height_pixels <= 0.0f )
+        return;
+    nk_font_atlas_clear(&ui->atlas);
+    ui->font_texture = nil;
+    struct nk_font_atlas* atlas = NULL;
+    torirs_nk_metal_font_stash_begin(ui, &atlas);
+    nk_font_atlas_add_default(atlas, font_height_pixels, NULL);
+    torirs_nk_metal_font_stash_end(ui);
+}
+
+void
 torirs_nk_metal_resize(struct TorirsNkMetalUi* ui, int width, int height)
 {
     if( !ui || width <= 0 || height <= 0 )
@@ -311,15 +428,8 @@ torirs_nk_metal_render(
 
     id<MTLRenderCommandEncoder> enc = (__bridge id<MTLRenderCommandEncoder>)mtl_render_command_encoder;
 
-    /* Nuklear inherits the Metal encoder's scissor from earlier draws; reset so the first NK
-     * clip rect is not intersected with a stale (possibly empty) scissor from the game pass. */
-    {
-        MTLScissorRect full_sc = { 0,
-                                   0,
-                                   (NSUInteger)drawable_width,
-                                   (NSUInteger)drawable_height };
-        [enc setScissorRect:full_sc];
-    }
+    torirs_nk_metal_encoder_prepare_for_ui(
+        enc, drawable_width, drawable_height, ui->depth_stencil_no_depth);
 
     void* vmem = malloc(ui->max_vertex_bytes);
     void* imem = malloc(ui->max_index_bytes);
@@ -377,17 +487,13 @@ torirs_nk_metal_render(
         id<MTLTexture> tex = cmd->texture.ptr ? (__bridge id<MTLTexture>)cmd->texture.ptr : ui->null_texture;
         [enc setFragmentTexture:tex atIndex:0];
 
-        const float sx = (float)drawable_width / (float)window_width;
-        const float sy = (float)drawable_height / (float)window_height;
-        const float px = (float)cmd->clip_rect.x * sx;
-        const float py = (float)cmd->clip_rect.y * sy;
-        const float pw = (float)cmd->clip_rect.w * sx;
-        const float ph = (float)cmd->clip_rect.h * sy;
         MTLScissorRect sc;
-        sc.x = (NSUInteger)px;
-        sc.y = (NSUInteger)((float)drawable_height - py - ph);
-        sc.width = (NSUInteger)(pw > 0.0f ? pw : 0.0f);
-        sc.height = (NSUInteger)(ph > 0.0f ? ph : 0.0f);
+        if( !torirs_nk_metal_clip_rect_to_scissor(
+                window_width, window_height, drawable_width, drawable_height, cmd, &sc) )
+        {
+            index_element_offset += cmd->elem_count;
+            continue;
+        }
         [enc setScissorRect:sc];
 
         [enc drawIndexedPrimitives:MTLPrimitiveTypeTriangle

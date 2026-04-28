@@ -24,6 +24,10 @@ torirs_nk_metal_font_stash_begin(struct TorirsNkMetalUi* ui, struct nk_font_atla
 void
 torirs_nk_metal_font_stash_end(struct TorirsNkMetalUi* ui);
 
+/** Re-bake default font after `display_scale` changes (clears atlas and replaces font texture). */
+void
+torirs_nk_metal_rebuild_default_font(struct TorirsNkMetalUi* ui, float font_height_pixels);
+
 void
 torirs_nk_metal_resize(struct TorirsNkMetalUi* ui, int width, int height);
 

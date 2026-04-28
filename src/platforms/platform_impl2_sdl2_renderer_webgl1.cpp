@@ -2,12 +2,23 @@
 
 #include "platforms/platform_impl2_sdl2_renderer_webgl1.h"
 
+#include "platforms/common/torirs_nk_ui_bridge.h"
+#include "platforms/common/torirs_nuklear_debug_panel.h"
+
+#define TORIRS_NK_SDL_GLES2_IMPLEMENTATION
+#include "nuklear/backends/sdl_opengles2/nuklear_torirs_sdl_gles2.h"
+
+#include <cstdio>
+
 extern "C" {
 #include "graphics/dash.h"
 #include "osrs/game.h"
 #include "tori_rs.h"
 #include "tori_rs_render.h"
 }
+
+static struct nk_context* s_webgl1_nk = nullptr;
+static Uint64 s_webgl1_ui_prev_perf = 0;
 
 Platform2_SDL2_Renderer_WebGL1*
 PlatformImpl2_SDL2_Renderer_WebGL1_New(
@@ -25,10 +36,24 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Free(Platform2_SDL2_Renderer_WebGL1* renderer
 {
     if( !renderer )
         return;
+    if( renderer->platform && renderer->platform->window && renderer->gl_context )
+    {
+        if( SDL_GL_MakeCurrent(renderer->platform->window, renderer->gl_context) == 0 )
+        {
+            if( s_webgl1_nk )
+            {
+                torirs_nk_ui_clear_active();
+                torirs_nk_gles2_shutdown();
+                s_webgl1_nk = nullptr;
+            }
+        }
+    }
     if( renderer->trspk )
         TRSPK_WebGL1_Shutdown(renderer->trspk);
+    renderer->trspk = nullptr;
     if( renderer->gl_context )
         SDL_GL_DeleteContext(renderer->gl_context);
+    renderer->gl_context = nullptr;
     delete renderer;
 }
 
@@ -47,8 +72,34 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Init(
     SDL_GL_GetDrawableSize(platform->window, &renderer->width, &renderer->height);
     renderer->trspk =
         TRSPK_WebGL1_InitWithCurrentContext((uint32_t)renderer->width, (uint32_t)renderer->height);
-    renderer->gl_ready = renderer->trspk && renderer->trspk->ready;
-    return renderer->gl_ready;
+    if( !renderer->trspk || !renderer->trspk->ready )
+    {
+        SDL_GL_DeleteContext(renderer->gl_context);
+        renderer->gl_context = nullptr;
+        return false;
+    }
+
+    s_webgl1_nk = torirs_nk_gles2_init(platform->window);
+    if( !s_webgl1_nk )
+    {
+        fprintf(stderr, "WebGL1: Nuklear GLES2 init failed\n");
+        TRSPK_WebGL1_Shutdown(renderer->trspk);
+        renderer->trspk = nullptr;
+        SDL_GL_DeleteContext(renderer->gl_context);
+        renderer->gl_context = nullptr;
+        return false;
+    }
+    {
+        struct nk_font_atlas* atlas = nullptr;
+        torirs_nk_gles2_font_stash_begin(&atlas);
+        nk_font_atlas_add_default(atlas, 13.0f * platform->display_scale, nullptr);
+        torirs_nk_gles2_font_stash_end();
+    }
+    torirs_nk_ui_set_active(s_webgl1_nk, torirs_nk_gles2_handle_event, torirs_nk_gles2_handle_grab);
+    s_webgl1_ui_prev_perf = SDL_GetPerformanceCounter();
+
+    renderer->gl_ready = true;
+    return true;
 }
 
 void
@@ -160,6 +211,29 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
     renderer->diag_frame_pose_invalid_skips = events.diag_frame_pose_invalid_skips;
     renderer->diag_frame_submitted_model_draws = events.diag_frame_submitted_model_draws;
     TRSPK_WebGL1_FrameEnd(renderer->trspk);
+
+    if( s_webgl1_nk )
+    {
+        double const dt = torirs_nk_ui_frame_delta_sec(&s_webgl1_ui_prev_perf);
+        TorirsNkDebugPanelParams params = {};
+        params.window_title = "Info";
+        params.delta_time_sec = dt;
+        params.view_w_cap = drawable_w;
+        params.view_h_cap = drawable_h;
+        params.sdl_window = renderer->platform->window;
+        params.soft3d = nullptr;
+        params.include_soft3d_extras = 0;
+        params.include_gpu_frame_stats = 1;
+        params.gpu_model_draws = renderer->diag_frame_model_draw_cmds;
+        params.gpu_tris = 0u;
+        params.gpu_submitted_model_draws = renderer->diag_frame_submitted_model_draws;
+        params.gpu_pose_invalid_skips = renderer->diag_frame_pose_invalid_skips;
+        params.gpu_dynamic_index_draws = 0u;
+        torirs_nk_debug_panel_draw(s_webgl1_nk, game, &params);
+        torirs_nk_ui_after_frame(s_webgl1_nk);
+        torirs_nk_gles2_render(NK_ANTI_ALIASING_ON, 512 * 1024, 128 * 1024);
+    }
+
     SDL_GL_SwapWindow(renderer->platform->window);
     LibToriRS_FrameEnd(game);
 }

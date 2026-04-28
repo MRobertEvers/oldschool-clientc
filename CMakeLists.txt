@@ -275,6 +275,7 @@ if(NOT EMSCRIPTEN)
     if(APPLE)
         list(APPEND SDL2_NATIVE_SOURCES
             src/platforms/platform_impl2_sdl2_renderer_metal.mm
+            src/nuklear/backends/torirs_nk_metal_sdl.mm
             src/platforms/ToriRSPlatformKit/src/tools/trspk_resource_cache.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_pass_batch16.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_pass_batch32.c
@@ -599,6 +600,8 @@ if(NOT EMSCRIPTEN)
 
         # Enable ARC only for the Objective-C++ Metal files
         set_source_files_properties(
+            src/platforms/platform_impl2_sdl2_renderer_metal.mm
+            src/nuklear/backends/torirs_nk_metal_sdl.mm
             src/platforms/metal/metal_helpers.mm
             src/platforms/metal/metal_init.mm
             src/platforms/metal/metal_renderer_core.mm
