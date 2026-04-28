@@ -1,6 +1,7 @@
 #include "trspk_resource_cache.h"
 
 #include "../../include/ToriRSPlatformKit/trspk_math.h"
+#include "trspk_lru_model_cache.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -24,6 +25,8 @@ struct TRSPK_ResourceCache
     uint32_t atlas_width;
     uint32_t atlas_height;
     uint32_t atlas_pixel_size;
+    uint32_t lru_capacity;
+    TRSPK_LruModelCache* lru_model;
 };
 
 static bool
@@ -39,11 +42,18 @@ trspk_valid_texture_id(TRSPK_TextureId texture_id)
 }
 
 TRSPK_ResourceCache*
-trspk_resource_cache_create(void)
+trspk_resource_cache_create(uint32_t model_lru_capacity)
 {
     TRSPK_ResourceCache* cache = (TRSPK_ResourceCache*)calloc(1u, sizeof(TRSPK_ResourceCache));
     if( !cache )
         return NULL;
+    cache->lru_capacity = model_lru_capacity;
+    if( model_lru_capacity > 0u )
+    {
+        cache->lru_model = trspk_lru_model_cache_create(model_lru_capacity);
+        if( !cache->lru_model )
+            cache->lru_capacity = 0u;
+    }
     trspk_resource_cache_reset(cache);
     return cache;
 }
@@ -53,6 +63,8 @@ trspk_resource_cache_destroy(TRSPK_ResourceCache* cache)
 {
     if( !cache )
         return;
+    trspk_lru_model_cache_destroy(cache->lru_model);
+    cache->lru_model = NULL;
     free(cache->atlas_pixels);
     free(cache);
 }
@@ -63,7 +75,16 @@ trspk_resource_cache_reset(TRSPK_ResourceCache* cache)
     if( !cache )
         return;
     free(cache->atlas_pixels);
-    memset(cache, 0, sizeof(*cache));
+    cache->atlas_pixels = NULL;
+    if( cache->lru_model )
+        trspk_lru_model_cache_reset(cache->lru_model);
+    {
+        const uint32_t lcap = cache->lru_capacity;
+        TRSPK_LruModelCache* lru = cache->lru_model;
+        memset(cache, 0, sizeof(*cache));
+        cache->lru_model = lru;
+        cache->lru_capacity = lcap;
+    }
     for( uint32_t i = 0; i < TRSPK_MAX_MODELS; ++i )
         cache->models[i].model_bake = trspk_bake_transform_identity();
 }
@@ -164,6 +185,8 @@ trspk_resource_cache_clear_model(
 {
     if( !cache || !trspk_valid_model_id(model_id) )
         return;
+    if( cache->lru_model )
+        trspk_lru_model_cache_evict_model_id(cache->lru_model, model_id);
     memset(&cache->models[model_id], 0, sizeof(cache->models[model_id]));
     cache->models[model_id].model_bake = trspk_bake_transform_identity();
 }
@@ -176,6 +199,8 @@ trspk_resource_cache_set_model_bake(
 {
     if( !cache || !bake || !trspk_valid_model_id(model_id) )
         return;
+    if( cache->lru_model )
+        trspk_lru_model_cache_evict_model_id(cache->lru_model, model_id);
     cache->models[model_id].model_bake = *bake;
     cache->models[model_id].has_model_bake = true;
 }
@@ -404,4 +429,10 @@ const TRSPK_AtlasTile*
 trspk_resource_cache_get_all_tiles(const TRSPK_ResourceCache* cache)
 {
     return cache ? cache->atlas_tiles : NULL;
+}
+
+TRSPK_LruModelCache*
+trspk_resource_cache_lru_model_cache(TRSPK_ResourceCache* cache)
+{
+    return cache ? cache->lru_model : NULL;
 }

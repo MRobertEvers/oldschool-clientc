@@ -73,11 +73,23 @@ typedef struct TRSPK_Vertex
     float uv_mode;
 } TRSPK_Vertex;
 
+typedef enum TRSPK_VertexBufferStatus
+{
+    TRSPK_VERTEX_BUFFER_STATUS_EMPTY = 0,
+    TRSPK_VERTEX_BUFFER_STATUS_READY = 1,
+} TRSPK_VertexBufferStatus;
+
 typedef enum TRSPK_VertexFormat
 {
     TRSPK_VERTEX_FORMAT_TRSPK = 0,
     TRSPK_VERTEX_FORMAT_WEBGL1,
-    TRSPK_VERTEX_FORMAT_METAL
+    TRSPK_VERTEX_FORMAT_METAL,
+    /** SoA: separate float streams (see TRSPK_VertexWebGL1Array in webgl1_vertex.h). */
+    TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY,
+    /** SoA: separate streams (see TRSPK_VertexMetalArray in metal_vertex.h). */
+    TRSPK_VERTEX_FORMAT_METAL_ARRAY,
+    /** Empty / no GPU vertex payload (see TRSPK_VertexBuffer). */
+    TRSPK_VERTEX_FORMAT_NONE
 } TRSPK_VertexFormat;
 
 typedef struct TRSPK_BakeTransform

@@ -7,7 +7,7 @@
   "cpp.default.browse.limitSymbolsToIncludedHeaders": true,
   "cpp.default.browse.databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db",
   // Prevent the two engines from fighting
-  "C_Cpp.intelliSenseEngine": "disabled", 
+  // "C_Cpp.intelliSenseEngine": "disabled", 
   "clangd.arguments": [
       "--background-index",
       "--clang-tidy",

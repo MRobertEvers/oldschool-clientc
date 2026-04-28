@@ -12,6 +12,8 @@ trspk_batch16_reserve_chunk(
     uint32_t indices,
     uint32_t vertex_stride)
 {
+    if( vertex_stride == 0u )
+        return false;
     if( vertices > chunk->vertex_capacity )
     {
         uint32_t cap = chunk->vertex_capacity ? chunk->vertex_capacity : 1024u;

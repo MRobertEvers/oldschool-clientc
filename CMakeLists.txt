@@ -286,6 +286,8 @@ if(NOT EMSCRIPTEN)
             src/platforms/ToriRSPlatformKit/src/tools/trspk_facebuffer.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_cache_model_loader16.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_cache_model_loader32.c
+            src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_buffer.c
+            src/platforms/ToriRSPlatformKit/src/tools/trspk_lru_model_cache.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_dash.c
             src/platforms/ToriRSPlatformKit/src/trspk_math.c
             src/platforms/ToriRSPlatformKit/src/backends/metal/metal_core.m
@@ -739,6 +741,8 @@ if(EMSCRIPTEN)
         src/platforms/ToriRSPlatformKit/src/tools/trspk_facebuffer.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_cache_model_loader16.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_cache_model_loader32.c
+        src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_buffer.c
+        src/platforms/ToriRSPlatformKit/src/tools/trspk_lru_model_cache.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_dash.c
         src/platforms/ToriRSPlatformKit/src/trspk_math.c
         src/platforms/ToriRSPlatformKit/src/backends/webgl1/webgl1_core.c

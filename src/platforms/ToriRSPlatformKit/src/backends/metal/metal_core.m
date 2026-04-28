@@ -70,7 +70,7 @@ TRSPK_Metal_Init(
     r->uniform_frame_slot = TRSPK_METAL_INFLIGHT_FRAMES - 1u;
     r->width = width;
     r->height = height;
-    r->cache = trspk_resource_cache_create();
+    r->cache = trspk_resource_cache_create(0u);
     r->batch_staging = trspk_batch32_create(4096u, 12288u, TRSPK_VERTEX_FORMAT_METAL);
     r->pass_state.index_capacity = TRSPK_METAL_DYNAMIC_INDEX_CAPACITY;
     r->pass_state.index_pool = (uint32_t*)calloc(r->pass_state.index_capacity, sizeof(uint32_t));

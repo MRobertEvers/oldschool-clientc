@@ -1,21 +1,10 @@
+# Flags must be understood by the same Clang that runs clangd (e.g. Apple Clang on
+# macOS). GCC-only options (-ftree-vectorizer-*, -fopt-info-*) break every TU and
+# can crash or restart clangd.
 CompileFlags:
   CompilationDatabase: build/
   Add:
     - -march=native
-    - -ftree-vectorizer-verbose=6
-    - -fopt-info-vec-all
-    - -fopt-info-vec-missed
-    - -fopt-info-loop-all
-    - -fopt-info-slp
-    - -Rpass=vector
-    - -Rpass-missed=vector
-    - -Rpass-analysis=vector
-    - -Rpass=loop
-    - -Rpass-missed=loop
-    - -Rpass-analysis=loop
-    - -Rpass=slp
-    - -Rpass-missed=slp
-    - -Rpass-analysis=slp
     - -D_CRT_SECURE_NO_WARNINGS
     - -D_WINSOCK_DEPRECATED_NO_WARNINGS
     - -D_WIN32_WINNT=0x0A00

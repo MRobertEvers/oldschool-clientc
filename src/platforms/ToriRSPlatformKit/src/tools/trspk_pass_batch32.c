@@ -10,6 +10,11 @@ trspk_batch32_reserve_vertices(
     TRSPK_Batch32* batch,
     uint32_t count)
 {
+    if( !batch )
+        return false;
+    const uint32_t stride = trspk_vertex_format_stride(batch->vertex_format);
+    if( stride == 0u )
+        return false;
     if( count <= batch->vertex_capacity )
         return true;
     uint32_t cap = batch->vertex_capacity ? batch->vertex_capacity : 4096u;

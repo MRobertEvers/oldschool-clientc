@@ -8,9 +8,11 @@ extern "C" {
 #endif
 
 typedef struct TRSPK_ResourceCache TRSPK_ResourceCache;
+typedef struct TRSPK_LruModelCache TRSPK_LruModelCache;
 
+/** @param model_lru_capacity 0 = no CPU mesh LRU; else max cooked-model entries. */
 TRSPK_ResourceCache*
-trspk_resource_cache_create(void);
+trspk_resource_cache_create(uint32_t model_lru_capacity);
 void
 trspk_resource_cache_destroy(TRSPK_ResourceCache* cache);
 void
@@ -64,7 +66,7 @@ void
 trspk_resource_cache_batch_begin(
     TRSPK_ResourceCache* cache,
     TRSPK_BatchId batch_id);
-    
+
 void
 trspk_resource_cache_batch_set_resource(
     TRSPK_ResourceCache* cache,
@@ -132,6 +134,9 @@ trspk_resource_cache_get_atlas_tile(
     TRSPK_TextureId tex_id);
 const TRSPK_AtlasTile*
 trspk_resource_cache_get_all_tiles(const TRSPK_ResourceCache* cache);
+
+TRSPK_LruModelCache*
+trspk_resource_cache_lru_model_cache(TRSPK_ResourceCache* cache);
 
 #ifdef __cplusplus
 }
