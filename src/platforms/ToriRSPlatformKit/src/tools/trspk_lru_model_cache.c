@@ -208,7 +208,10 @@ trspk_lru_model_cache_get_or_emplace_impl(
         trspk_vertex_buffer_free(&built);
         return NULL;
     }
-    if( !built.indices || !trspk_vertex_buffer_has_vertex_payload(&built) )
+    const bool has_indices =
+        (built.index_format == TRSPK_INDEX_FORMAT_U32) ? (built.indices.as_u32 != NULL)
+                                                       : (built.indices.as_u16 != NULL);
+    if( !has_indices || !trspk_vertex_buffer_has_vertex_payload(&built) )
     {
         trspk_vertex_buffer_free(&built);
         return NULL;

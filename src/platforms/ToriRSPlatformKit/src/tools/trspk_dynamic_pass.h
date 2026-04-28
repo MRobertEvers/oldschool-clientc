@@ -1,8 +1,8 @@
 #ifndef TORIRS_PLATFORM_KIT_TRSPK_DYNAMIC_PASS_H
 #define TORIRS_PLATFORM_KIT_TRSPK_DYNAMIC_PASS_H
 
-#include "trspk_pass_batch16.h"
-#include "trspk_pass_batch32.h"
+#include "trspk_batch16.h"
+#include "trspk_batch32.h"
 
 #ifdef __cplusplus
 extern "C" {

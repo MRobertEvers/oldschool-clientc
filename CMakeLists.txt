@@ -277,16 +277,15 @@ if(NOT EMSCRIPTEN)
             src/platforms/platform_impl2_sdl2_renderer_metal.mm
             src/nuklear/backends/torirs_nk_metal_sdl.mm
             src/platforms/ToriRSPlatformKit/src/tools/trspk_resource_cache.c
-            src/platforms/ToriRSPlatformKit/src/tools/trspk_pass_batch16.c
-            src/platforms/ToriRSPlatformKit/src/tools/trspk_pass_batch32.c
+            src/platforms/ToriRSPlatformKit/src/tools/trspk_batch16.c
+            src/platforms/ToriRSPlatformKit/src/tools/trspk_batch32.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_slotmap16.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_slotmap32.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_pass.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_format.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_facebuffer.c
-            src/platforms/ToriRSPlatformKit/src/tools/trspk_cache_model_loader16.c
-            src/platforms/ToriRSPlatformKit/src/tools/trspk_cache_model_loader32.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_buffer.c
+            src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_buffer_lifecycle.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_lru_model_cache.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_dash.c
             src/platforms/ToriRSPlatformKit/src/trspk_math.c
@@ -732,16 +731,15 @@ if(EMSCRIPTEN)
         src/platforms/platform_impl2_sdl2_port_emscripten.cpp
         src/platforms/platform_impl2_sdl2_renderer_webgl1.cpp
         src/platforms/ToriRSPlatformKit/src/tools/trspk_resource_cache.c
-        src/platforms/ToriRSPlatformKit/src/tools/trspk_pass_batch16.c
-        src/platforms/ToriRSPlatformKit/src/tools/trspk_pass_batch32.c
+        src/platforms/ToriRSPlatformKit/src/tools/trspk_batch16.c
+        src/platforms/ToriRSPlatformKit/src/tools/trspk_batch32.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_slotmap16.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_slotmap32.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_pass.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_format.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_facebuffer.c
-        src/platforms/ToriRSPlatformKit/src/tools/trspk_cache_model_loader16.c
-        src/platforms/ToriRSPlatformKit/src/tools/trspk_cache_model_loader32.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_buffer.c
+        src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_buffer_lifecycle.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_lru_model_cache.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_dash.c
         src/platforms/ToriRSPlatformKit/src/trspk_math.c

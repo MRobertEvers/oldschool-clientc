@@ -77,6 +77,8 @@ typedef enum TRSPK_VertexBufferStatus
 {
     TRSPK_VERTEX_BUFFER_STATUS_EMPTY = 0,
     TRSPK_VERTEX_BUFFER_STATUS_READY = 1,
+    /** Vertex/index pointers reference batch storage; do not heap-free. */
+    TRSPK_VERTEX_BUFFER_STATUS_BATCH_VIEW = 2,
 } TRSPK_VertexBufferStatus;
 
 typedef enum TRSPK_VertexFormat
@@ -91,6 +93,12 @@ typedef enum TRSPK_VertexFormat
     /** Empty / no GPU vertex payload (see TRSPK_VertexBuffer). */
     TRSPK_VERTEX_FORMAT_NONE
 } TRSPK_VertexFormat;
+
+typedef enum TRSPK_IndexFormat
+{
+    TRSPK_INDEX_FORMAT_U16 = 0,
+    TRSPK_INDEX_FORMAT_U32 = 1
+} TRSPK_IndexFormat;
 
 typedef struct TRSPK_BakeTransform
 {

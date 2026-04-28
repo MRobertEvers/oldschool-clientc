@@ -1,7 +1,7 @@
 #ifndef TORIRS_PLATFORM_KIT_TRSPK_METAL_H
 #define TORIRS_PLATFORM_KIT_TRSPK_METAL_H
 
-#include "../../tools/trspk_pass_batch32.h"
+#include "../../tools/trspk_batch32.h"
 #include "../../tools/trspk_dynamic_slotmap32.h"
 #include "../../tools/trspk_resource_cache.h"
 

@@ -2,7 +2,7 @@
 #define TORIRS_PLATFORM_KIT_TRSPK_WEBGL1_H
 
 #include "../../tools/trspk_dynamic_slotmap16.h"
-#include "../../tools/trspk_pass_batch16.h"
+#include "../../tools/trspk_batch16.h"
 #include "../../tools/trspk_resource_cache.h"
 
 #include <stdbool.h>

@@ -17,6 +17,8 @@ typedef struct TRSPK_VertexBuffer
 {
     uint32_t vertex_count;
     uint32_t index_count;
+    uint32_t index_base;
+    TRSPK_IndexFormat index_format;
     union
     {
         uint32_t* as_u32;
@@ -42,18 +44,6 @@ bool
 trspk_vertex_buffer_has_vertex_payload(const TRSPK_VertexBuffer* vb);
 
 /**
- * Take ownership of TRSPK vertex buffer and index list; sets format to TRSPK.
- * On success, previous vb contents are cleared. On failure, vb left in NONE.
- */
-bool
-trspk_vertex_buffer_set_trspk_expanded(
-    TRSPK_VertexBuffer* vb,
-    TRSPK_Vertex* vertices_ownership,
-    uint32_t vertex_count,
-    uint32_t* indices_ownership,
-    uint32_t index_count);
-
-/**
  * Convert in place from TRSPK to dst_format. Requires vb->format == TRSPK.
  * dst_format must not be NONE; TRSPK is a no-op.
  */
@@ -61,97 +51,13 @@ bool
 trspk_vertex_buffer_convert_from_trspk(
     TRSPK_VertexBuffer* vb, TRSPK_VertexFormat dst_format);
 
+/**
+ * When uv_mode is FIRST_FACE and per-face arrays are sliced (offset pointers),
+ * pass the mesh-global first triangle corner indices { faces_a[0], faces_b[0], faces_c[0] }
+ * from the unsliced arrays. Otherwise NULL (uses first row of passed face arrays).
+ */
 bool
-trspk_vertex_buffer_from_face_slice_u32_untextured(
-    uint32_t start_face,
-    uint32_t slice_face_count,
-    uint32_t vertex_count,
-    const int16_t* vertices_x,
-    const int16_t* vertices_y,
-    const int16_t* vertices_z,
-    const uint16_t* faces_a,
-    const uint16_t* faces_b,
-    const uint16_t* faces_c,
-    const uint16_t* faces_a_color_hsl16,
-    const uint16_t* faces_b_color_hsl16,
-    const uint16_t* faces_c_color_hsl16,
-    const uint8_t* face_alphas,
-    const int32_t* face_infos,
-    const TRSPK_BakeTransform* bake,
-    TRSPK_VertexBuffer* vb);
-
-bool
-trspk_vertex_buffer_from_face_slice_u32_textured(
-    uint32_t start_face,
-    uint32_t slice_face_count,
-    uint32_t vertex_count,
-    const int16_t* vertices_x,
-    const int16_t* vertices_y,
-    const int16_t* vertices_z,
-    const uint16_t* faces_a,
-    const uint16_t* faces_b,
-    const uint16_t* faces_c,
-    const uint16_t* faces_a_color_hsl16,
-    const uint16_t* faces_b_color_hsl16,
-    const uint16_t* faces_c_color_hsl16,
-    const int16_t* faces_textures,
-    const uint16_t* textured_faces,
-    const uint16_t* textured_faces_a,
-    const uint16_t* textured_faces_b,
-    const uint16_t* textured_faces_c,
-    const uint8_t* face_alphas,
-    const int32_t* face_infos,
-    TRSPK_UVMode uv_mode,
-    const TRSPK_BakeTransform* bake,
-    TRSPK_VertexBuffer* vb);
-
-bool
-trspk_vertex_buffer_from_face_slice_u16_untextured(
-    uint32_t start_face,
-    uint32_t slice_face_count,
-    uint32_t vertex_count,
-    const int16_t* vertices_x,
-    const int16_t* vertices_y,
-    const int16_t* vertices_z,
-    const uint16_t* faces_a,
-    const uint16_t* faces_b,
-    const uint16_t* faces_c,
-    const uint16_t* faces_a_color_hsl16,
-    const uint16_t* faces_b_color_hsl16,
-    const uint16_t* faces_c_color_hsl16,
-    const uint8_t* face_alphas,
-    const int32_t* face_infos,
-    const TRSPK_BakeTransform* bake,
-    TRSPK_VertexBuffer* vb);
-
-bool
-trspk_vertex_buffer_from_face_slice_u16_textured(
-    uint32_t start_face,
-    uint32_t slice_face_count,
-    uint32_t vertex_count,
-    const int16_t* vertices_x,
-    const int16_t* vertices_y,
-    const int16_t* vertices_z,
-    const uint16_t* faces_a,
-    const uint16_t* faces_b,
-    const uint16_t* faces_c,
-    const uint16_t* faces_a_color_hsl16,
-    const uint16_t* faces_b_color_hsl16,
-    const uint16_t* faces_c_color_hsl16,
-    const int16_t* faces_textures,
-    const uint16_t* textured_faces,
-    const uint16_t* textured_faces_a,
-    const uint16_t* textured_faces_b,
-    const uint16_t* textured_faces_c,
-    const uint8_t* face_alphas,
-    const int32_t* face_infos,
-    TRSPK_UVMode uv_mode,
-    const TRSPK_BakeTransform* bake,
-    TRSPK_VertexBuffer* vb);
-
-
-bool
-trspk_vertex_buffer_write_texturedi16(
+trspk_vertex_buffer_write_textured(
     uint32_t vertex_count,
     uint32_t face_count,
     const int16_t* vertices_x,
@@ -175,7 +81,7 @@ trspk_vertex_buffer_write_texturedi16(
     TRSPK_VertexBuffer* dest);
 
 bool
-trspk_vertex_buffer_write_i16(
+trspk_vertex_buffer_write(
     uint32_t vertex_count,
     uint32_t face_count,
     const int16_t* vertices_x,

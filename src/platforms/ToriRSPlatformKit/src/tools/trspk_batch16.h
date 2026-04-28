@@ -1,11 +1,13 @@
-#ifndef TORIRS_PLATFORM_KIT_TRSPK_PASS_BATCH16_H
-#define TORIRS_PLATFORM_KIT_TRSPK_PASS_BATCH16_H
+#ifndef TORIRS_PLATFORM_KIT_TRSPK_BATCH16_H
+#define TORIRS_PLATFORM_KIT_TRSPK_BATCH16_H
 
 #include "../../include/ToriRSPlatformKit/trspk_types.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct TRSPK_VertexBuffer TRSPK_VertexBuffer;
 
 typedef struct TRSPK_Batch16Chunk
 {
@@ -79,6 +81,62 @@ const TRSPK_Batch16Entry*
 trspk_batch16_get_entry(
     const TRSPK_Batch16* batch,
     uint32_t i);
+
+bool
+trspk_batch16_prepare_vertex_buffer(
+    TRSPK_Batch16* batch,
+    TRSPK_VertexBuffer* vb,
+    uint32_t vertex_count,
+    uint32_t index_count,
+    TRSPK_VertexFormat vertex_format);
+
+void
+trspk_batch16_add_model(
+    TRSPK_Batch16* batch,
+    uint16_t model_id,
+    uint8_t gpu_segment_slot,
+    uint16_t frame_index,
+    uint32_t vertex_count,
+    const int16_t* vertices_x,
+    const int16_t* vertices_y,
+    const int16_t* vertices_z,
+    uint32_t face_count,
+    const uint16_t* faces_a,
+    const uint16_t* faces_b,
+    const uint16_t* faces_c,
+    const uint16_t* faces_a_color_hsl16,
+    const uint16_t* faces_b_color_hsl16,
+    const uint16_t* faces_c_color_hsl16,
+    const uint8_t* face_alphas,
+    const int32_t* face_infos,
+    const TRSPK_BakeTransform* bake);
+
+void
+trspk_batch16_add_model_textured(
+    TRSPK_Batch16* batch,
+    uint16_t model_id,
+    uint8_t gpu_segment_slot,
+    uint16_t frame_index,
+    uint32_t vertex_count,
+    const int16_t* vertices_x,
+    const int16_t* vertices_y,
+    const int16_t* vertices_z,
+    uint32_t face_count,
+    const uint16_t* faces_a,
+    const uint16_t* faces_b,
+    const uint16_t* faces_c,
+    const uint16_t* faces_a_color_hsl16,
+    const uint16_t* faces_b_color_hsl16,
+    const uint16_t* faces_c_color_hsl16,
+    const int16_t* faces_textures,
+    const uint16_t* textured_faces,
+    const uint16_t* textured_faces_a,
+    const uint16_t* textured_faces_b,
+    const uint16_t* textured_faces_c,
+    const uint8_t* face_alphas,
+    const int32_t* face_infos,
+    TRSPK_UVMode uv_mode,
+    const TRSPK_BakeTransform* bake);
 
 #ifdef __cplusplus
 }
