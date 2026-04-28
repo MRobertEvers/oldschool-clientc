@@ -2,6 +2,7 @@
 #define TORIRS_PLATFORM_KIT_TRSPK_METAL_H
 
 #include "../../tools/trspk_batch32.h"
+#include "../../tools/trspk_dynamic_pass.h"
 #include "../../tools/trspk_dynamic_slotmap32.h"
 #include "../../tools/trspk_resource_cache.h"
 
@@ -15,6 +16,14 @@ extern "C" {
 #define TRSPK_METAL_MAX_3D_PASSES_PER_FRAME 32u
 #define TRSPK_METAL_DYNAMIC_INDEX_CAPACITY (1u << 21)
 #define TRSPK_METAL_UNIFORM_ALIGN 256u
+
+/**
+ * Pass-state subdraw vbo field: batch/scenery uses the real MTLBuffer* handle.
+ * Dynamic draws store these sentinels so submit always binds the current buffer;
+ * otherwise replace_buffer could free the pointer copied at draw_add_model time.
+ */
+#define TRSPK_METAL_SUBDRAW_VBO_DYNAMIC_NPC ((TRSPK_GPUHandle)3u)
+#define TRSPK_METAL_SUBDRAW_VBO_DYNAMIC_PROJECTILE ((TRSPK_GPUHandle)4u)
 
 typedef struct TRSPK_MetalUniforms
 {
@@ -157,14 +166,14 @@ bool
 trspk_metal_dynamic_init(TRSPK_MetalRenderer* r);
 void
 trspk_metal_dynamic_shutdown(TRSPK_MetalRenderer* r);
-void
+bool
 trspk_metal_dynamic_load_model(
     TRSPK_MetalRenderer* r,
     TRSPK_ModelId model_id,
     struct DashModel* model,
     TRSPK_UsageClass usage_class,
     const TRSPK_BakeTransform* bake);
-void
+bool
 trspk_metal_dynamic_load_anim(
     TRSPK_MetalRenderer* r,
     TRSPK_ModelId model_id,
@@ -173,6 +182,20 @@ trspk_metal_dynamic_load_anim(
     uint16_t frame_index,
     TRSPK_UsageClass usage_class,
     const TRSPK_BakeTransform* bake);
+bool
+trspk_metal_dynamic_store_vertex_buffer(
+    TRSPK_MetalRenderer* r,
+    TRSPK_ModelId model_id,
+    TRSPK_UsageClass usage,
+    uint32_t pose_index,
+    const struct TRSPK_VertexBuffer* vb);
+bool
+trspk_metal_dynamic_store_dynamic_mesh(
+    TRSPK_MetalRenderer* r,
+    TRSPK_ModelId model_id,
+    TRSPK_UsageClass usage,
+    uint32_t pose_index,
+    TRSPK_DynamicMesh* mesh);
 void
 trspk_metal_dynamic_unload_model(
     TRSPK_MetalRenderer* r,

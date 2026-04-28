@@ -1,8 +1,11 @@
 #include "trspk_webgl1.h"
 
 #include "../../tools/trspk_dynamic_pass.h"
+#include "../../tools/trspk_resource_cache.h"
+#include "../../tools/trspk_vertex_buffer.h"
 #include "../../tools/trspk_vertex_format.h"
 
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -153,45 +156,56 @@ trspk_webgl1_dynamic_shutdown(TRSPK_WebGL1Renderer* r)
     r->dynamic_slot_usages = NULL;
 }
 
-static void
-trspk_webgl1_dynamic_store_mesh(
+static bool
+trspk_webgl1_dynamic_upload_interleaved(
     TRSPK_WebGL1Renderer* r,
     TRSPK_ModelId model_id,
-    struct DashModel* model,
     TRSPK_UsageClass usage,
     uint32_t pose_index,
-    const TRSPK_BakeTransform* bake)
+    uint32_t vertex_count,
+    uint32_t index_count,
+    const void* vertices,
+    uint32_t vertex_bytes,
+    const void* indices_u16,
+    uint32_t index_bytes)
 {
-    if( !r || !model || !r->cache || pose_index >= TRSPK_MAX_POSES_PER_MODEL )
-        return;
-    TRSPK_DynamicMesh mesh;
-    if( !trspk_dynamic_mesh_build(model, TRSPK_VERTEX_FORMAT_WEBGL1, bake, &mesh) )
-        return;
+    if( !r || !r->cache || !vertices || !indices_u16 || pose_index >= TRSPK_MAX_POSES_PER_MODEL )
+        return false;
+    if( vertex_count == 0u || index_count == 0u || vertex_bytes == 0u || index_bytes == 0u )
+        return false;
+
+    const uint32_t idx = trspk_webgl1_slot_table_index(model_id, pose_index);
+    const bool had_dynamic_slot = r->dynamic_slot_handles &&
+                                  r->dynamic_slot_handles[idx] != TRSPK_DYNAMIC_SLOT_INVALID;
 
     trspk_webgl1_dynamic_free_pose_slot(r, model_id, pose_index);
 
     TRSPK_DynamicSlotmap16* map = trspk_webgl1_slotmap_for_usage(r, usage);
+    if( !map )
+        return false;
     TRSPK_DynamicSlotHandle handle = TRSPK_DYNAMIC_SLOT_INVALID;
     uint8_t chunk = 0u;
     uint32_t vbo_offset = 0u;
     uint32_t ebo_offset = 0u;
     if( !trspk_dynamic_slotmap16_alloc(
             map,
-            mesh.vertex_count,
-            mesh.index_count,
+            vertex_count,
+            index_count,
             &handle,
             &chunk,
             &vbo_offset,
             &ebo_offset) )
     {
-        trspk_dynamic_mesh_clear(&mesh);
-        return;
+        if( had_dynamic_slot )
+            trspk_resource_cache_invalidate_model_pose(r->cache, model_id, pose_index);
+        return false;
     }
     if( !trspk_webgl1_ensure_chunk(r, usage, chunk) )
     {
         trspk_dynamic_slotmap16_free(map, handle);
-        trspk_dynamic_mesh_clear(&mesh);
-        return;
+        if( had_dynamic_slot )
+            trspk_resource_cache_invalidate_model_pose(r->cache, model_id, pose_index);
+        return false;
     }
 
 #ifdef __EMSCRIPTEN__
@@ -202,14 +216,14 @@ trspk_webgl1_dynamic_store_mesh(
     glBufferSubData(
         GL_ARRAY_BUFFER,
         (GLintptr)((size_t)vbo_offset * stride),
-        (GLsizeiptr)mesh.vertex_bytes,
-        mesh.vertices);
+        (GLsizeiptr)vertex_bytes,
+        vertices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, upload_ebos[chunk]);
     glBufferSubData(
         GL_ELEMENT_ARRAY_BUFFER,
         (GLintptr)((size_t)ebo_offset * sizeof(uint16_t)),
-        (GLsizeiptr)mesh.index_bytes,
-        mesh.indices);
+        (GLsizeiptr)index_bytes,
+        indices_u16);
 #endif
 
     GLuint* vbos = trspk_webgl1_vbos_for_usage(r, usage);
@@ -220,21 +234,123 @@ trspk_webgl1_dynamic_store_mesh(
     pose.ebo = (TRSPK_GPUHandle)ebos[chunk];
     pose.vbo_offset = vbo_offset;
     pose.ebo_offset = ebo_offset;
-    pose.element_count = mesh.index_count;
+    pose.element_count = index_count;
     pose.batch_id = TRSPK_SCENE_BATCH_NONE;
     pose.chunk_index = chunk;
     pose.usage_class = (uint8_t)usage;
     pose.dynamic = true;
     pose.valid = true;
-    trspk_resource_cache_set_model_pose(r->cache, model_id, pose_index, &pose);
+    if( !trspk_resource_cache_set_model_pose(r->cache, model_id, pose_index, &pose) )
+    {
+        trspk_dynamic_slotmap16_free(map, handle);
+        if( had_dynamic_slot )
+            trspk_resource_cache_invalidate_model_pose(r->cache, model_id, pose_index);
+        return false;
+    }
 
-    const uint32_t idx = trspk_webgl1_slot_table_index(model_id, pose_index);
     r->dynamic_slot_handles[idx] = handle;
     r->dynamic_slot_usages[idx] = usage;
-    trspk_dynamic_mesh_clear(&mesh);
+    return true;
 }
 
-void
+static bool
+trspk_webgl1_dynamic_store_mesh(
+    TRSPK_WebGL1Renderer* r,
+    TRSPK_ModelId model_id,
+    struct DashModel* model,
+    TRSPK_UsageClass usage,
+    uint32_t pose_index,
+    const TRSPK_BakeTransform* bake)
+{
+    if( !r || !model || !r->cache || pose_index >= TRSPK_MAX_POSES_PER_MODEL )
+        return false;
+    TRSPK_DynamicMesh mesh;
+    if( !trspk_dynamic_mesh_build(model, TRSPK_VERTEX_FORMAT_WEBGL1, bake, &mesh) )
+        return false;
+
+    const bool ok = trspk_webgl1_dynamic_upload_interleaved(
+        r,
+        model_id,
+        usage,
+        pose_index,
+        mesh.vertex_count,
+        mesh.index_count,
+        mesh.vertices,
+        mesh.vertex_bytes,
+        mesh.indices,
+        mesh.index_bytes);
+    trspk_dynamic_mesh_clear(&mesh);
+    return ok;
+}
+
+bool
+trspk_webgl1_dynamic_store_vertex_buffer(
+    TRSPK_WebGL1Renderer* r,
+    TRSPK_ModelId model_id,
+    TRSPK_UsageClass usage,
+    uint32_t pose_index,
+    const TRSPK_VertexBuffer* vb)
+{
+    if( !vb || vb->format != TRSPK_VERTEX_FORMAT_WEBGL1 ||
+        vb->index_format != TRSPK_INDEX_FORMAT_U32 || !vb->vertices.as_webgl1 ||
+        !vb->indices.as_u32 )
+        return false;
+    const uint32_t ic = vb->index_count;
+    uint16_t* u16i = (uint16_t*)malloc((size_t)ic * sizeof(uint16_t));
+    if( !u16i )
+        return false;
+    for( uint32_t i = 0; i < ic; ++i )
+    {
+        const uint32_t k = vb->indices.as_u32[i];
+        if( k > 0xFFFFu )
+        {
+            free(u16i);
+            return false;
+        }
+        u16i[i] = (uint16_t)k;
+    }
+    const uint32_t stride = trspk_vertex_format_stride(TRSPK_VERTEX_FORMAT_WEBGL1);
+    const bool ok = trspk_webgl1_dynamic_upload_interleaved(
+        r,
+        model_id,
+        usage,
+        pose_index,
+        vb->vertex_count,
+        ic,
+        vb->vertices.as_webgl1,
+        vb->vertex_count * stride,
+        u16i,
+        ic * (uint32_t)sizeof(uint16_t));
+    free(u16i);
+    return ok;
+}
+
+bool
+trspk_webgl1_dynamic_store_dynamic_mesh(
+    TRSPK_WebGL1Renderer* r,
+    TRSPK_ModelId model_id,
+    TRSPK_UsageClass usage,
+    uint32_t pose_index,
+    TRSPK_DynamicMesh* mesh)
+{
+    if( !mesh )
+        return false;
+    const bool ok = trspk_webgl1_dynamic_upload_interleaved(
+        r,
+        model_id,
+        usage,
+        pose_index,
+        mesh->vertex_count,
+        mesh->index_count,
+        mesh->vertices,
+        mesh->vertex_bytes,
+        mesh->indices,
+        mesh->index_bytes);
+    trspk_dynamic_mesh_clear(mesh);
+    return ok;
+}
+
+bool
 trspk_webgl1_dynamic_load_model(
     TRSPK_WebGL1Renderer* r,
     TRSPK_ModelId model_id,
@@ -242,10 +358,10 @@ trspk_webgl1_dynamic_load_model(
     TRSPK_UsageClass usage_class,
     const TRSPK_BakeTransform* bake)
 {
-    trspk_webgl1_dynamic_store_mesh(r, model_id, model, usage_class, 0u, bake);
+    return trspk_webgl1_dynamic_store_mesh(r, model_id, model, usage_class, 0u, bake);
 }
 
-void
+bool
 trspk_webgl1_dynamic_load_anim(
     TRSPK_WebGL1Renderer* r,
     TRSPK_ModelId model_id,
@@ -256,10 +372,10 @@ trspk_webgl1_dynamic_load_anim(
     const TRSPK_BakeTransform* bake)
 {
     if( !r || !r->cache )
-        return;
+        return false;
     const uint32_t pose_index =
         trspk_resource_cache_allocate_pose_slot(r->cache, model_id, segment, frame_index);
-    trspk_webgl1_dynamic_store_mesh(r, model_id, model, usage_class, pose_index, bake);
+    return trspk_webgl1_dynamic_store_mesh(r, model_id, model, usage_class, pose_index, bake);
 }
 
 void

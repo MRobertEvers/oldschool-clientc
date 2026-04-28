@@ -157,6 +157,104 @@ trspk_vertex_buffer_has_vertex_payload(const TRSPK_VertexBuffer* m)
 }
 
 bool
+trspk_vertex_buffer_duplicate(const TRSPK_VertexBuffer* src, TRSPK_VertexBuffer* out)
+{
+    if( !out )
+        return false;
+    trspk_vertex_buffer_free(out);
+    memset(out, 0, sizeof(*out));
+    if( !src || src->status == TRSPK_VERTEX_BUFFER_STATUS_BATCH_VIEW ||
+        !trspk_vertex_buffer_has_vertex_payload(src) )
+        return false;
+    if( !trspk_vertex_buffer_allocate_mesh(
+            out, src->vertex_count, src->index_count, src->format ) )
+        return false;
+    out->index_base = src->index_base;
+    if( src->index_format == TRSPK_INDEX_FORMAT_U32 )
+        memcpy(
+            out->indices.as_u32,
+            src->indices.as_u32,
+            (size_t)src->index_count * sizeof(uint32_t));
+    else if( src->index_format == TRSPK_INDEX_FORMAT_U16 && src->indices.as_u16 )
+    {
+        for( uint32_t i = 0; i < src->index_count; ++i )
+            out->indices.as_u32[i] = (uint32_t)src->indices.as_u16[i];
+    }
+    else
+    {
+        trspk_vertex_buffer_free(out);
+        memset(out, 0, sizeof(*out));
+        return false;
+    }
+
+    const uint32_t n = src->vertex_count;
+    switch( src->format )
+    {
+    case TRSPK_VERTEX_FORMAT_TRSPK:
+        memcpy(
+            out->vertices.as_trspk,
+            src->vertices.as_trspk,
+            (size_t)n * sizeof(TRSPK_Vertex));
+        break;
+    case TRSPK_VERTEX_FORMAT_WEBGL1:
+        memcpy(
+            out->vertices.as_webgl1,
+            src->vertices.as_webgl1,
+            (size_t)n * sizeof(TRSPK_VertexWebGL1));
+        break;
+    case TRSPK_VERTEX_FORMAT_METAL:
+        memcpy(
+            out->vertices.as_metal,
+            src->vertices.as_metal,
+            (size_t)n * sizeof(TRSPK_VertexMetal));
+        break;
+    case TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY:
+    {
+        const TRSPK_VertexWebGL1Array* s = &src->vertices.as_webgl1_array;
+        TRSPK_VertexWebGL1Array* d = &out->vertices.as_webgl1_array;
+        const size_t nf = (size_t)n * sizeof(float);
+        memcpy(d->position_x, s->position_x, nf);
+        memcpy(d->position_y, s->position_y, nf);
+        memcpy(d->position_z, s->position_z, nf);
+        memcpy(d->position_w, s->position_w, nf);
+        memcpy(d->color_r, s->color_r, nf);
+        memcpy(d->color_g, s->color_g, nf);
+        memcpy(d->color_b, s->color_b, nf);
+        memcpy(d->color_a, s->color_a, nf);
+        memcpy(d->texcoord_u, s->texcoord_u, nf);
+        memcpy(d->texcoord_v, s->texcoord_v, nf);
+        memcpy(d->tex_id, s->tex_id, nf);
+        memcpy(d->uv_mode, s->uv_mode, nf);
+        break;
+    }
+    case TRSPK_VERTEX_FORMAT_METAL_ARRAY:
+    {
+        const TRSPK_VertexMetalArray* s = &src->vertices.as_metal_array;
+        TRSPK_VertexMetalArray* d = &out->vertices.as_metal_array;
+        const size_t nf = (size_t)n * sizeof(float);
+        memcpy(d->position_x, s->position_x, nf);
+        memcpy(d->position_y, s->position_y, nf);
+        memcpy(d->position_z, s->position_z, nf);
+        memcpy(d->position_w, s->position_w, nf);
+        memcpy(d->color_r, s->color_r, nf);
+        memcpy(d->color_g, s->color_g, nf);
+        memcpy(d->color_b, s->color_b, nf);
+        memcpy(d->color_a, s->color_a, nf);
+        memcpy(d->texcoord_u, s->texcoord_u, nf);
+        memcpy(d->texcoord_v, s->texcoord_v, nf);
+        memcpy(d->tex_id, s->tex_id, (size_t)n * sizeof(uint16_t));
+        memcpy(d->uv_mode, s->uv_mode, (size_t)n * sizeof(uint16_t));
+        break;
+    }
+    default:
+        trspk_vertex_buffer_free(out);
+        memset(out, 0, sizeof(*out));
+        return false;
+    }
+    return true;
+}
+
+bool
 trspk_vertex_buffer_convert_from_trspk(
     TRSPK_VertexBuffer* m,
     TRSPK_VertexFormat dst_format)

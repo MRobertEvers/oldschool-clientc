@@ -1,5 +1,7 @@
 #include "trspk_webgl1.h"
 
+#include "../../tools/trspk_resource_cache.h"
+
 #ifdef __EMSCRIPTEN__
 #include <GLES2/gl2.h>
 #endif
@@ -149,6 +151,7 @@ trspk_webgl1_cache_batch_clear(
 {
     if( !r || !r->cache )
         return;
+    trspk_resource_cache_invalidate_poses_for_batch(r->cache, batch_id);
     TRSPK_BatchResource old = trspk_resource_cache_batch_clear(r->cache, batch_id);
 #ifdef __EMSCRIPTEN__
     for( uint32_t i = 0; i < old.chunk_count; ++i )

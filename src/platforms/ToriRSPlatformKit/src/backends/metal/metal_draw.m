@@ -111,10 +111,19 @@ trspk_metal_draw_add_model(
         return;
     if( !trspk_metal_reserve_subdraws(pass, pass->subdraw_count + 1u) )
         return;
+    TRSPK_GPUHandle vbo_store;
+    if( pose->dynamic )
+    {
+        vbo_store = pose->usage_class == (uint8_t)TRSPK_USAGE_PROJECTILE
+                        ? TRSPK_METAL_SUBDRAW_VBO_DYNAMIC_PROJECTILE
+                        : TRSPK_METAL_SUBDRAW_VBO_DYNAMIC_NPC;
+    }
+    else
+        vbo_store = pose->vbo;
     const uint32_t start = pass->index_count;
     for( uint32_t i = 0; i < index_count; ++i )
         pass->index_pool[pass->index_count++] = pose->vbo_offset + sorted_indices[i];
-    pass->subdraws[pass->subdraw_count].vbo = vbo;
+    pass->subdraws[pass->subdraw_count].vbo = vbo_store;
     pass->subdraws[pass->subdraw_count].pool_start = start;
     pass->subdraws[pass->subdraw_count].index_count = index_count;
     pass->subdraw_count++;
@@ -241,7 +250,15 @@ trspk_metal_draw_submit_3d(
             run_count += pass->subdraws[run_end].index_count;
             run_end++;
         }
-        id<MTLBuffer> mesh_vbo = (__bridge id<MTLBuffer>)(void*)first->vbo;
+        /* Batch/scenery: first->vbo is the retained batch MTLBuffer*. Dynamic: sentinels —
+         * bind current buffers (replace_buffer may have swapped pointers after draw_add_model). */
+        id<MTLBuffer> mesh_vbo = nil;
+        if( first->vbo == TRSPK_METAL_SUBDRAW_VBO_DYNAMIC_NPC )
+            mesh_vbo = (__bridge id<MTLBuffer>)r->dynamic_npc_vbo;
+        else if( first->vbo == TRSPK_METAL_SUBDRAW_VBO_DYNAMIC_PROJECTILE )
+            mesh_vbo = (__bridge id<MTLBuffer>)r->dynamic_projectile_vbo;
+        else
+            mesh_vbo = (__bridge id<MTLBuffer>)(void*)first->vbo;
         if( mesh_vbo )
         {
             NSUInteger index_buffer_offset = (NSUInteger)(index_offset + (size_t)first->pool_start * sizeof(uint32_t));

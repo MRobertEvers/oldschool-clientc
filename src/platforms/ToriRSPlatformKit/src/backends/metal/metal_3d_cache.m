@@ -1,6 +1,8 @@
 #include "trspk_metal.h"
 #import <Metal/Metal.h>
 
+#include "../../tools/trspk_resource_cache.h"
+
 #include <string.h>
 
 void
@@ -134,6 +136,7 @@ trspk_metal_cache_batch_clear(
 {
     if( !r || !r->cache )
         return;
+    trspk_resource_cache_invalidate_poses_for_batch(r->cache, batch_id);
     TRSPK_BatchResource old = trspk_resource_cache_batch_clear(r->cache, batch_id);
     if( old.vbo )
         CFRelease((void*)old.vbo);

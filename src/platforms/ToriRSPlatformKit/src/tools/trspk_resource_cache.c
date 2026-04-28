@@ -3,6 +3,7 @@
 #include "../../include/ToriRSPlatformKit/trspk_math.h"
 #include "trspk_lru_model_cache.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -113,6 +114,39 @@ trspk_resource_cache_set_model_pose(
     return true;
 }
 
+void
+trspk_resource_cache_invalidate_model_pose(
+    TRSPK_ResourceCache* cache,
+    TRSPK_ModelId model_id,
+    uint32_t pose_index)
+{
+    if( !cache || !trspk_valid_model_id(model_id) || pose_index >= TRSPK_MAX_POSES_PER_MODEL )
+        return;
+    cache->models[model_id].poses[pose_index].valid = false;
+}
+
+void
+trspk_resource_cache_invalidate_poses_for_batch(
+    TRSPK_ResourceCache* cache,
+    TRSPK_BatchId batch_id)
+{
+    if( !cache || batch_id >= TRSPK_MAX_BATCHES )
+        return;
+    for( uint32_t mid = 0u; mid < TRSPK_MAX_MODELS; ++mid )
+    {
+        TRSPK_ModelData* m = &cache->models[mid];
+        for( uint32_t pi = 0u; pi < TRSPK_MAX_POSES_PER_MODEL; ++pi )
+        {
+            TRSPK_ModelPose* p = &m->poses[pi];
+            if( !p->valid || p->dynamic )
+                continue;
+            if( p->batch_id != batch_id )
+                continue;
+            p->valid = false;
+        }
+    }
+}
+
 const TRSPK_ModelPose*
 trspk_resource_cache_get_model_pose(
     const TRSPK_ResourceCache* cache,
@@ -206,10 +240,26 @@ trspk_resource_cache_set_model_bake(
 {
     if( !cache || !bake || !trspk_valid_model_id(model_id) )
         return;
-    if( cache->lru_model )
-        trspk_lru_model_cache_evict_model_id(cache->lru_model, model_id);
     cache->models[model_id].model_bake = *bake;
     cache->models[model_id].has_model_bake = true;
+}
+
+uint32_t
+trspk_resource_cache_get_pose_index_for_draw(
+    const TRSPK_ResourceCache* cache,
+    TRSPK_ModelId model_id,
+    bool use_animation,
+    int scene_animation_index,
+    int frame_index)
+{
+    if( !use_animation )
+        return 0u;
+    if( !cache || !trspk_valid_model_id(model_id) || scene_animation_index < 0 ||
+        scene_animation_index > 1 || frame_index < 0 )
+        return UINT32_MAX;
+    const TRSPK_ModelData* model = &cache->models[model_id];
+    const uint32_t base = model->animation_offsets[(uint32_t)scene_animation_index + 1u];
+    return base + (uint32_t)frame_index;
 }
 
 const TRSPK_BakeTransform*

@@ -31,6 +31,18 @@ trspk_resource_cache_set_model_pose(
     uint32_t pose_index,
     const TRSPK_ModelPose* pose);
 
+void
+trspk_resource_cache_invalidate_model_pose(
+    TRSPK_ResourceCache* cache,
+    TRSPK_ModelId model_id,
+    uint32_t pose_index);
+
+/** Invalidate cached poses tied to a scene batch (GPU buffers released). Skips dynamic poses. */
+void
+trspk_resource_cache_invalidate_poses_for_batch(
+    TRSPK_ResourceCache* cache,
+    TRSPK_BatchId batch_id);
+
 const TRSPK_ModelPose*
 trspk_resource_cache_get_model_pose(
     const TRSPK_ResourceCache* cache,
@@ -62,6 +74,15 @@ trspk_resource_cache_set_model_bake(
     TRSPK_ResourceCache* cache,
     TRSPK_ModelId model_id,
     const TRSPK_BakeTransform* bake);
+
+/** Pose slot index used with set_model_pose / dynamic upload for this draw (UINT32_MAX if invalid). */
+uint32_t
+trspk_resource_cache_get_pose_index_for_draw(
+    const TRSPK_ResourceCache* cache,
+    TRSPK_ModelId model_id,
+    bool use_animation,
+    int scene_animation_index,
+    int frame_index);
 
 const TRSPK_BakeTransform*
 trspk_resource_cache_get_model_bake(

@@ -6,6 +6,39 @@
 #include "osrs/game.h"
 #include "tori_rs_render.h"
 
+#include <string.h>
+
+void
+trspk_dash_fill_model_arrays(struct DashModel* model, TRSPK_ModelArrays* out)
+{
+    if( !out )
+        return;
+    memset(out, 0, sizeof(*out));
+    if( !model )
+        return;
+    out->vertex_count = (uint32_t)dashmodel_vertex_count(model);
+    out->vertices_x = dashmodel_vertices_x_const(model);
+    out->vertices_y = dashmodel_vertices_y_const(model);
+    out->vertices_z = dashmodel_vertices_z_const(model);
+    out->face_count = (uint32_t)dashmodel_face_count(model);
+    out->faces_a = (const uint16_t*)dashmodel_face_indices_a_const(model);
+    out->faces_b = (const uint16_t*)dashmodel_face_indices_b_const(model);
+    out->faces_c = (const uint16_t*)dashmodel_face_indices_c_const(model);
+    out->faces_a_color_hsl16 = dashmodel_face_colors_a_const(model);
+    out->faces_b_color_hsl16 = dashmodel_face_colors_b_const(model);
+    out->faces_c_color_hsl16 = dashmodel_face_colors_c_const(model);
+    out->face_alphas = dashmodel_face_alphas_const(model);
+    out->face_infos = dashmodel_face_infos_const(model);
+    if( dashmodel_has_textures(model) )
+    {
+        out->faces_textures = (const int16_t*)dashmodel_face_textures_const(model);
+        out->textured_faces = (const uint16_t*)dashmodel_face_texture_coords_const(model);
+        out->textured_faces_a = (const uint16_t*)dashmodel_textured_p_coordinate_const(model);
+        out->textured_faces_b = (const uint16_t*)dashmodel_textured_m_coordinate_const(model);
+        out->textured_faces_c = (const uint16_t*)dashmodel_textured_n_coordinate_const(model);
+    }
+}
+
 TRSPK_UVMode
 trspk_dash_uv_mode(struct DashModel* model)
 {

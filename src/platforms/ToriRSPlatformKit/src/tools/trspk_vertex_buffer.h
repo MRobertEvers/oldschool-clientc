@@ -56,6 +56,30 @@ bool
 trspk_vertex_buffer_has_vertex_payload(const TRSPK_VertexBuffer* vb);
 
 /**
+ * Deep copy of a READY mesh (owning indices and vertex storage). Fails for BATCH_VIEW.
+ * On failure, *out is cleared.
+ */
+bool
+trspk_vertex_buffer_duplicate(const TRSPK_VertexBuffer* src, TRSPK_VertexBuffer* out);
+
+/**
+ * Apply position+yaw bake to interleaved vertex positions in place (TRSPK / WEBGL1 / METAL only).
+ * SoA meshes: use trspk_vertex_buffer_bake_array_to_interleaved instead.
+ */
+void
+trspk_vertex_buffer_apply_bake(TRSPK_VertexBuffer* vb, const TRSPK_BakeTransform* bake);
+
+/**
+ * CPU LRU stores SoA (METAL_ARRAY / WEBGL1_ARRAY). This applies world bake and writes
+ * interleaved GPU vertices (METAL / WEBGL1). Indices are copied unchanged.
+ */
+bool
+trspk_vertex_buffer_bake_array_to_interleaved(
+    const TRSPK_VertexBuffer* src_array,
+    const TRSPK_BakeTransform* bake,
+    TRSPK_VertexBuffer* out_interleaved);
+
+/**
  * Convert in place from TRSPK to dst_format. Requires vb->format == TRSPK.
  * dst_format must not be NONE; TRSPK is a no-op.
  */

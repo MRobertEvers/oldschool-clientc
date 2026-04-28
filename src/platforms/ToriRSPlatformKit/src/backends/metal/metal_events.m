@@ -1,10 +1,16 @@
 #include "../../../include/ToriRSPlatformKit/trspk_math.h"
 #include "../../tools/trspk_dash.h"
+#include "../../tools/trspk_dynamic_pass.h"
+#include "../../tools/trspk_lru_model_cache.h"
+#include "../../tools/trspk_resource_cache.h"
+#include "../../tools/trspk_vertex_buffer.h"
 #include "graphics/dash.h"
 #include "graphics/dash_model_internal.h"
 #include "osrs/game.h"
 #include "tori_rs_render.h"
 #include "trspk_metal.h"
+
+#include <string.h>
 
 static TRSPK_UsageClass
 trspk_metal_usage_from_torirs(uint8_t usage)
@@ -79,6 +85,38 @@ trspk_metal_event_res_model_load(
     const TRSPK_UsageClass usage = trspk_metal_usage_from_torirs(cmd->_model_load.usage_hint);
     if( usage == TRSPK_USAGE_SCENERY )
         return;
+
+    trspk_resource_cache_allocate_pose_slot(
+        ctx->cache, (TRSPK_ModelId)cmd->_model_load.model_id, (int)TRSPK_GPU_ANIM_NONE_IDX, 0);
+
+    TRSPK_LruModelCache* lru = trspk_resource_cache_lru_model_cache(ctx->cache);
+    TRSPK_BakeTransform id_bake = trspk_bake_transform_identity();
+    if( lru )
+    {
+        TRSPK_ModelArrays arrays;
+        trspk_dash_fill_model_arrays(cmd->_model_load.model, &arrays);
+        if( arrays.face_count == 0u )
+            return;
+        if( dashmodel_has_textures(cmd->_model_load.model) )
+            trspk_lru_model_cache_get_or_emplace_textured(
+                lru,
+                (TRSPK_ModelId)cmd->_model_load.model_id,
+                TRSPK_GPU_ANIM_NONE_IDX,
+                0u,
+                &arrays,
+                trspk_dash_uv_mode(cmd->_model_load.model),
+                &id_bake);
+        else
+            trspk_lru_model_cache_get_or_emplace_untextured(
+                lru,
+                (TRSPK_ModelId)cmd->_model_load.model_id,
+                TRSPK_GPU_ANIM_NONE_IDX,
+                0u,
+                &arrays,
+                &id_bake);
+        return;
+    }
+
     TRSPK_BakeTransform bake = trspk_bake_transform_from_yaw_translate(
         cmd->_model_load.world_x,
         cmd->_model_load.world_y,
@@ -123,8 +161,45 @@ trspk_metal_event_res_anim_load(
         cmd->_animation_load.model, cmd->_animation_load.frame, cmd->_animation_load.framemap);
     const uint8_t seg = cmd->_animation_load.animation_index == 1 ? TRSPK_GPU_ANIM_SECONDARY_IDX
                                                                   : TRSPK_GPU_ANIM_PRIMARY_IDX;
+
+    trspk_resource_cache_allocate_pose_slot(
+        ctx->cache,
+        (TRSPK_ModelId)cmd->_animation_load.model_gpu_id,
+        seg,
+        (int)cmd->_animation_load.frame_index);
+
+    TRSPK_LruModelCache* lru = trspk_resource_cache_lru_model_cache(ctx->cache);
+    TRSPK_BakeTransform id_bake = trspk_bake_transform_identity();
+    if( lru )
+    {
+        TRSPK_ModelArrays arrays;
+        trspk_dash_fill_model_arrays(cmd->_animation_load.model, &arrays);
+        if( arrays.face_count == 0u )
+            return;
+        if( dashmodel_has_textures(cmd->_animation_load.model) )
+            trspk_lru_model_cache_get_or_emplace_textured(
+                lru,
+                (TRSPK_ModelId)cmd->_animation_load.model_gpu_id,
+                seg,
+                (uint16_t)cmd->_animation_load.frame_index,
+                &arrays,
+                trspk_dash_uv_mode(cmd->_animation_load.model),
+                &id_bake);
+        else
+            trspk_lru_model_cache_get_or_emplace_untextured(
+                lru,
+                (TRSPK_ModelId)cmd->_animation_load.model_gpu_id,
+                seg,
+                (uint16_t)cmd->_animation_load.frame_index,
+                &arrays,
+                &id_bake);
+        return;
+    }
+
     const TRSPK_BakeTransform* bake = trspk_resource_cache_get_model_bake(
         ctx->cache, (TRSPK_ModelId)cmd->_animation_load.model_gpu_id);
+    TRSPK_BakeTransform id_fallback = trspk_bake_transform_identity();
+    const TRSPK_BakeTransform* use_bake = bake ? bake : &id_fallback;
     trspk_metal_dynamic_load_anim(
         ctx->renderer,
         (TRSPK_ModelId)cmd->_animation_load.model_gpu_id,
@@ -132,7 +207,7 @@ trspk_metal_event_res_anim_load(
         seg,
         (uint16_t)cmd->_animation_load.frame_index,
         usage,
-        bake);
+        use_bake);
 }
 
 void
@@ -229,37 +304,70 @@ trspk_metal_event_draw_model(
     if( !ctx || !ctx->renderer || !ctx->cache || !game || !cmd )
         return;
 
-    if( cmd->_model_draw.usage_hint == TORIRS_USAGE_PROJECTILE )
+    const TRSPK_UsageClass draw_usage = trspk_metal_usage_from_torirs(cmd->_model_draw.usage_hint);
+    if( draw_usage != TRSPK_USAGE_SCENERY )
     {
         TRSPK_BakeTransform bake = trspk_bake_transform_from_yaw_translate(
             (int32_t)cmd->_model_draw.world_position.x,
             (int32_t)cmd->_model_draw.world_position.y,
             (int32_t)cmd->_model_draw.world_position.z,
             (int32_t)cmd->_model_draw.world_position.yaw);
-        trspk_resource_cache_set_model_bake(
-            ctx->cache, (TRSPK_ModelId)cmd->_model_draw.model_id, &bake);
+        if( cmd->_model_draw.usage_hint == TORIRS_USAGE_PROJECTILE )
+            trspk_resource_cache_set_model_bake(
+                ctx->cache, (TRSPK_ModelId)cmd->_model_draw.model_id, &bake);
+        uint8_t seg = TRSPK_GPU_ANIM_NONE_IDX;
+        uint16_t frame_i = 0u;
         if( cmd->_model_draw.use_animation )
         {
-            const uint8_t seg = cmd->_model_draw.animation_index == 1 ? TRSPK_GPU_ANIM_SECONDARY_IDX
-                                                                      : TRSPK_GPU_ANIM_PRIMARY_IDX;
-            trspk_metal_dynamic_load_anim(
-                ctx->renderer,
-                (TRSPK_ModelId)cmd->_model_draw.model_id,
-                cmd->_model_draw.model,
-                seg,
-                (uint16_t)cmd->_model_draw.frame_index,
-                TRSPK_USAGE_PROJECTILE,
-                &bake);
+            seg = cmd->_model_draw.animation_index == 1 ? TRSPK_GPU_ANIM_SECONDARY_IDX
+                                                        : TRSPK_GPU_ANIM_PRIMARY_IDX;
+            frame_i = (uint16_t)cmd->_model_draw.frame_index;
         }
-        else
+        const uint32_t pose_ix = trspk_resource_cache_get_pose_index_for_draw(
+            ctx->cache,
+            (TRSPK_ModelId)cmd->_model_draw.model_id,
+            cmd->_model_draw.use_animation,
+            cmd->_model_draw.animation_index,
+            cmd->_model_draw.frame_index);
+        bool did_upload = false;
+        if( pose_ix < TRSPK_MAX_POSES_PER_MODEL )
         {
-            trspk_metal_dynamic_load_model(
-                ctx->renderer,
-                (TRSPK_ModelId)cmd->_model_draw.model_id,
-                cmd->_model_draw.model,
-                TRSPK_USAGE_PROJECTILE,
-                &bake);
+            TRSPK_VertexBuffer baked_vb = { 0 };
+            TRSPK_LruModelCache* lru = trspk_resource_cache_lru_model_cache(ctx->cache);
+            if( lru )
+            {
+                const TRSPK_VertexBuffer* id_mesh = trspk_lru_model_cache_get(
+                    lru, (TRSPK_ModelId)cmd->_model_draw.model_id, seg, frame_i);
+                if( id_mesh &&
+                    trspk_vertex_buffer_bake_array_to_interleaved(id_mesh, &bake, &baked_vb) )
+                {
+                    did_upload = trspk_metal_dynamic_store_vertex_buffer(
+                        ctx->renderer,
+                        (TRSPK_ModelId)cmd->_model_draw.model_id,
+                        draw_usage,
+                        pose_ix,
+                        &baked_vb);
+                }
+                trspk_vertex_buffer_free(&baked_vb);
+            }
+            if( !did_upload && cmd->_model_draw.model )
+            {
+                TRSPK_DynamicMesh dm;
+                memset(&dm, 0, sizeof(dm));
+                if( trspk_dynamic_mesh_build(
+                        cmd->_model_draw.model, TRSPK_VERTEX_FORMAT_METAL, &bake, &dm) )
+                {
+                    did_upload = trspk_metal_dynamic_store_dynamic_mesh(
+                        ctx->renderer,
+                        (TRSPK_ModelId)cmd->_model_draw.model_id,
+                        draw_usage,
+                        pose_ix,
+                        &dm);
+                }
+            }
         }
+        if( !did_upload )
+            return;
     }
 
     const TRSPK_ModelPose* pose = trspk_resource_cache_get_pose_for_draw(

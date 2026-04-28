@@ -3,6 +3,7 @@
 
 #include "../../tools/trspk_dynamic_slotmap16.h"
 #include "../../tools/trspk_batch16.h"
+#include "../../tools/trspk_dynamic_pass.h"
 #include "../../tools/trspk_resource_cache.h"
 
 #include <stdbool.h>
@@ -178,14 +179,14 @@ bool
 trspk_webgl1_dynamic_init(TRSPK_WebGL1Renderer* r);
 void
 trspk_webgl1_dynamic_shutdown(TRSPK_WebGL1Renderer* r);
-void
+bool
 trspk_webgl1_dynamic_load_model(
     TRSPK_WebGL1Renderer* r,
     TRSPK_ModelId model_id,
     struct DashModel* model,
     TRSPK_UsageClass usage_class,
     const TRSPK_BakeTransform* bake);
-void
+bool
 trspk_webgl1_dynamic_load_anim(
     TRSPK_WebGL1Renderer* r,
     TRSPK_ModelId model_id,
@@ -194,6 +195,22 @@ trspk_webgl1_dynamic_load_anim(
     uint16_t frame_index,
     TRSPK_UsageClass usage_class,
     const TRSPK_BakeTransform* bake);
+struct TRSPK_VertexBuffer;
+
+bool
+trspk_webgl1_dynamic_store_vertex_buffer(
+    TRSPK_WebGL1Renderer* r,
+    TRSPK_ModelId model_id,
+    TRSPK_UsageClass usage,
+    uint32_t pose_index,
+    const struct TRSPK_VertexBuffer* vb);
+bool
+trspk_webgl1_dynamic_store_dynamic_mesh(
+    TRSPK_WebGL1Renderer* r,
+    TRSPK_ModelId model_id,
+    TRSPK_UsageClass usage,
+    uint32_t pose_index,
+    TRSPK_DynamicMesh* mesh);
 void
 trspk_webgl1_dynamic_unload_model(
     TRSPK_WebGL1Renderer* r,

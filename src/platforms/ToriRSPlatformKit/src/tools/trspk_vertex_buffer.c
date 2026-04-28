@@ -3,6 +3,123 @@
 #include "../../include/ToriRSPlatformKit/trspk_math.h"
 #include "trspk_vertex_format.h"
 
+#include <string.h>
+
+void
+trspk_vertex_buffer_apply_bake(
+    TRSPK_VertexBuffer* vb,
+    const TRSPK_BakeTransform* bake)
+{
+    if( !vb || !trspk_vertex_buffer_has_vertex_payload(vb) )
+        return;
+    const uint32_t n = vb->vertex_count;
+    switch( vb->format )
+    {
+    case TRSPK_VERTEX_FORMAT_TRSPK:
+        for( uint32_t i = 0; i < n; ++i )
+        {
+            float* p = vb->vertices.as_trspk[i].position;
+            trspk_bake_transform_apply(bake, &p[0], &p[1], &p[2]);
+        }
+        break;
+    case TRSPK_VERTEX_FORMAT_WEBGL1:
+        for( uint32_t i = 0; i < n; ++i )
+        {
+            float* p = vb->vertices.as_webgl1[i].position;
+            trspk_bake_transform_apply(bake, &p[0], &p[1], &p[2]);
+        }
+        break;
+    case TRSPK_VERTEX_FORMAT_METAL:
+        for( uint32_t i = 0; i < n; ++i )
+        {
+            float* p = vb->vertices.as_metal[i].position;
+            trspk_bake_transform_apply(bake, &p[0], &p[1], &p[2]);
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+bool
+trspk_vertex_buffer_bake_array_to_interleaved(
+    const TRSPK_VertexBuffer* src,
+    const TRSPK_BakeTransform* bake,
+    TRSPK_VertexBuffer* out)
+{
+    if( !src || !bake || !out )
+        return false;
+    trspk_vertex_buffer_free(out);
+    memset(out, 0, sizeof(*out));
+    if( !trspk_vertex_buffer_has_vertex_payload(src) )
+        return false;
+    TRSPK_VertexFormat dst_format;
+    if( src->format == TRSPK_VERTEX_FORMAT_METAL_ARRAY )
+        dst_format = TRSPK_VERTEX_FORMAT_METAL;
+    else if( src->format == TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY )
+        dst_format = TRSPK_VERTEX_FORMAT_WEBGL1;
+    else
+        return false;
+    if( src->index_format != TRSPK_INDEX_FORMAT_U32 || !src->indices.as_u32 )
+        return false;
+
+    if( !trspk_vertex_buffer_allocate_mesh(out, src->vertex_count, src->index_count, dst_format) )
+        return false;
+    out->index_base = src->index_base;
+    memcpy(out->indices.as_u32, src->indices.as_u32, (size_t)src->index_count * sizeof(uint32_t));
+
+    const uint32_t n = src->vertex_count;
+    if( src->format == TRSPK_VERTEX_FORMAT_METAL_ARRAY )
+    {
+        const TRSPK_VertexMetalArray* a = &src->vertices.as_metal_array;
+        for( uint32_t i = 0; i < n; ++i )
+        {
+            float x = a->position_x[i];
+            float y = a->position_y[i];
+            float z = a->position_z[i];
+            trspk_bake_transform_apply(bake, &x, &y, &z);
+            TRSPK_VertexMetal* v = &out->vertices.as_metal[i];
+            v->position[0] = x;
+            v->position[1] = y;
+            v->position[2] = z;
+            v->position[3] = a->position_w[i];
+            v->color[0] = a->color_r[i];
+            v->color[1] = a->color_g[i];
+            v->color[2] = a->color_b[i];
+            v->color[3] = a->color_a[i];
+            v->texcoord[0] = a->texcoord_u[i];
+            v->texcoord[1] = a->texcoord_v[i];
+            v->tex_id = a->tex_id[i];
+            v->uv_mode = a->uv_mode[i];
+        }
+    }
+    else
+    {
+        const TRSPK_VertexWebGL1Array* a = &src->vertices.as_webgl1_array;
+        for( uint32_t i = 0; i < n; ++i )
+        {
+            float x = a->position_x[i];
+            float y = a->position_y[i];
+            float z = a->position_z[i];
+            trspk_bake_transform_apply(bake, &x, &y, &z);
+            TRSPK_VertexWebGL1* v = &out->vertices.as_webgl1[i];
+            v->position[0] = x;
+            v->position[1] = y;
+            v->position[2] = z;
+            v->position[3] = a->position_w[i];
+            v->color[0] = a->color_r[i];
+            v->color[1] = a->color_g[i];
+            v->color[2] = a->color_b[i];
+            v->color[3] = a->color_a[i];
+            v->texcoord[0] = a->texcoord_u[i];
+            v->texcoord[1] = a->texcoord_v[i];
+            v->tex_id = a->tex_id[i];
+            v->uv_mode = a->uv_mode[i];
+        }
+    }
+    return true;
+}
+
 static inline void
 write_index(
     TRSPK_VertexBuffer* dest,
