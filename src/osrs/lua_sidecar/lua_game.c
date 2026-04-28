@@ -1,8 +1,10 @@
 #include "lua_game.h"
 
 #include "graphics/dashmap.h"
+#include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
+#include "osrs/dash_utils.h"
 #include "osrs/game.h"
 #include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/gameproto_exec.h"
@@ -309,6 +311,104 @@ LuaGame_rebuild_centerzone_slow(
 
     LibToriRS_WorldMinimapStaticRebuild(game);
     buildcachedat_clear(game->buildcachedat);
+
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaGame_spawn_element(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    int world_x = arg_int(args, 0);
+    int world_z = arg_int(args, 1);
+    int level = arg_int(args, 2);
+    int model_id = arg_int(args, 3);
+    int seq_id = arg_int(args, 4);
+
+    if( !game || !game->scene2 || !game->buildcachedat )
+        return LuaGameType_NewVoid();
+
+    struct CacheModel* cache_model = buildcachedat_get_model(game->buildcachedat, model_id);
+    if( !cache_model )
+        return LuaGameType_NewVoid();
+
+    struct CacheModel* model_copy = model_new_copy(cache_model);
+    struct DashModel* dash_model = dashmodel_new_from_cache_model(model_copy);
+    model_free(model_copy);
+    if( !dash_model )
+        return LuaGameType_NewVoid();
+
+    _light_model_default(dash_model, 0, 0);
+
+    int element_id = scene2_element_acquire_full(game->scene2, 0, SCENE2_ELEMENT_PROJECTILE);
+    struct Scene2Element* element = scene2_element_at(game->scene2, element_id);
+    scene2_element_expect(element, "LuaGame_spawn_element");
+    scene2_element_set_dash_position_ptr(element, dashposition_new());
+
+    struct DashPosition* position = scene2_element_dash_position(element);
+    position->x = world_x;
+    position->z = world_z;
+    position->y = game->world && game->world->heightmap
+                      ? heightmap_get_interpolated(game->world->heightmap, world_x, world_z, level)
+                      : 0;
+
+    scene2_element_set_dash_model(game->scene2, element, dash_model);
+
+    if( game->world )
+    {
+        if( game->world->spawned_element_count < MAX_SPAWNED_ELEMENTS )
+        {
+            int idx = game->world->spawned_element_count++;
+            game->world->spawned_element_ids[idx] = element_id;
+            game->world->spawned_element_levels[idx] = level;
+        }
+        if( game->world->painter )
+        {
+            painter_add_normal_scenery(
+                game->world->painter, world_x / 128, world_z / 128, level, element_id, 1, 1);
+        }
+    }
+
+    struct CacheDatSequence* sequence = buildcachedat_get_sequence(game->buildcachedat, seq_id);
+    if( sequence )
+    {
+        struct DashFramemap* framemap = NULL;
+        for( int i = 0; i < sequence->frame_count; i++ )
+        {
+            struct CacheAnimframe* animframe =
+                buildcachedat_get_animframe(game->buildcachedat, sequence->frames[i]);
+            if( !animframe )
+                continue;
+
+            if( !framemap )
+            {
+                framemap = dashframemap_new_from_animframe(animframe);
+                scene2_element_set_framemap(element, framemap);
+            }
+
+            int length = sequence->delay[i];
+            if( length == 0 )
+                length = animframe->delay;
+
+            scene2_element_push_animation_frame(
+                game->scene2,
+                element,
+                seq_id,
+                i,
+                dashframe_new_from_animframe(animframe),
+                length);
+        }
+
+        struct Scene2Frames* frames = scene2_element_primary_frames(element);
+        if( frames && frames->count > 0 && framemap )
+        {
+            dashmodel_animate(dash_model, frames->frames[0], framemap);
+            scene2_element_set_active_anim_id(element, (uint16_t)seq_id);
+            scene2_element_set_active_animation_index(element, 0);
+            scene2_element_set_active_frame(element, 0);
+        }
+    }
 
     return LuaGameType_NewVoid();
 }

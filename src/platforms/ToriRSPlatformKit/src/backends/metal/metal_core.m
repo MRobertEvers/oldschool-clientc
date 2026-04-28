@@ -74,8 +74,10 @@ TRSPK_Metal_Init(
     r->batch_staging = trspk_batch32_create(4096u, 12288u, TRSPK_VERTEX_FORMAT_METAL);
     r->pass_state.index_capacity = TRSPK_METAL_DYNAMIC_INDEX_CAPACITY;
     r->pass_state.index_pool = (uint32_t*)calloc(r->pass_state.index_capacity, sizeof(uint32_t));
+    const bool dynamic_ready = trspk_metal_dynamic_init(r);
     trspk_metal_cache_init_atlas(r, TRSPK_ATLAS_DIMENSION, TRSPK_ATLAS_DIMENSION);
-    r->ready = r->cache && r->batch_staging && r->pass_state.index_pool && r->pipeline_state;
+    r->ready =
+        r->cache && r->batch_staging && r->pass_state.index_pool && r->pipeline_state && dynamic_ready;
     return r;
 }
 
@@ -104,7 +106,9 @@ TRSPK_Metal_Shutdown(TRSPK_MetalRenderer* r)
         CFRelease(r->frame_semaphore);
     trspk_resource_cache_destroy(r->cache);
     trspk_batch32_destroy(r->batch_staging);
+    trspk_metal_dynamic_shutdown(r);
     free(r->pass_state.index_pool);
+    free(r->pass_state.subdraws);
     free(r);
 }
 
@@ -145,6 +149,7 @@ TRSPK_Metal_FrameBegin(TRSPK_MetalRenderer* r)
     r->pass_state.uniform_pass_subslot = 0u;
     r->pass_state.index_upload_offset = 0u;
     r->pass_state.index_count = 0u;
+    r->pass_state.subdraw_count = 0u;
     CAMetalLayer* layer = (__bridge CAMetalLayer*)r->metal_layer;
     id<CAMetalDrawable> drawable = [layer nextDrawable];
     id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)r->command_queue;

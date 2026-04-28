@@ -724,20 +724,10 @@ queue_static_load_commands(
                 ev->_model_load.model_id = scene2_element_dash_model_gpu_id(el);
                 ev->_model_load.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
                     (enum Scene2ElementCategory)scene_event.u.model.element_category);
-                if( scene_event.batched )
-                {
-                    ev->_model_load.world_x = scene_event.u.model.world_x;
-                    ev->_model_load.world_y = scene_event.u.model.world_y;
-                    ev->_model_load.world_z = scene_event.u.model.world_z;
-                    ev->_model_load.world_yaw_r2pi2048 = scene_event.u.model.world_yaw_r2pi2048;
-                }
-                else
-                {
-                    ev->_model_load.world_x = 0;
-                    ev->_model_load.world_y = 0;
-                    ev->_model_load.world_z = 0;
-                    ev->_model_load.world_yaw_r2pi2048 = 0;
-                }
+                ev->_model_load.world_x = scene_event.u.model.world_x;
+                ev->_model_load.world_y = scene_event.u.model.world_y;
+                ev->_model_load.world_z = scene_event.u.model.world_z;
+                ev->_model_load.world_yaw_r2pi2048 = scene_event.u.model.world_yaw_r2pi2048;
 
                 continue;
             }
@@ -856,6 +846,9 @@ LibToriRS_FrameBegin(
     game->tile_clicked_x = -1;
     game->tile_clicked_z = -1;
     game->tile_clicked_level = -1;
+    game->mouse_tile_x = -1;
+    game->mouse_tile_z = -1;
+    game->mouse_tile_level = -1;
 
     game->camera->pitch = game->camera_pitch;
     game->camera->yaw = game->camera_yaw;
@@ -1455,6 +1448,16 @@ next:
             game->sys_dash, tile_model, &position, game->view_port, game->camera);
         if( cull != DASHCULL_VISIBLE )
             break;
+
+        int mvx = game->mouse_x - game->viewport_offset_x;
+        int mvy = game->mouse_y - game->viewport_offset_y;
+        if( mvx >= 0 && mvy >= 0 &&
+            dash3d_projected_model_contains(game->sys_dash, tile_model, game->view_port, mvx, mvy) )
+        {
+            game->mouse_tile_x = sx;
+            game->mouse_tile_z = sz;
+            game->mouse_tile_level = slevel;
+        }
 
         if( game->uiscene_queued_commands )
             frame_emit_pass(fiber, FRAME_PASS_3D);

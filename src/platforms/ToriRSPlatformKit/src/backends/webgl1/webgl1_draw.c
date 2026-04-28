@@ -199,6 +199,7 @@ trspk_webgl1_draw_add_model(
     }
     pass->chunk_index_counts[chunk] += index_count;
     pass->chunk_has_draws[chunk] = true;
+    pass->subdraws[pass->subdraw_count].vbo = (GLuint)pose->vbo;
     pass->subdraws[pass->subdraw_count].chunk = (uint8_t)chunk;
     pass->subdraws[pass->subdraw_count].pool_start = start;
     pass->subdraws[pass->subdraw_count].index_count = index_count;
@@ -236,10 +237,10 @@ trspk_webgl1_draw_submit_3d(
     {
         const TRSPK_WebGL1SubDraw* sub = &r->pass_state.subdraws[si];
         const uint32_t chunk = (uint32_t)sub->chunk;
-        if( chunk >= r->chunk_count || !r->pass_state.chunk_has_draws[chunk] ||
+        if( chunk >= TRSPK_MAX_WEBGL1_CHUNKS || !r->pass_state.chunk_has_draws[chunk] ||
             sub->index_count == 0u )
             continue;
-        const GLuint vbo = r->batch_chunk_vbos[chunk];
+        const GLuint vbo = sub->vbo;
         if( vbo == 0u )
             continue;
         if( sub->pool_start + sub->index_count > r->pass_state.chunk_index_counts[chunk] )

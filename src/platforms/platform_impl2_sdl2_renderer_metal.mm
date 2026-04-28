@@ -107,6 +107,12 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
     {
         switch( cmd.kind )
         {
+        case TORIRS_GFX_RES_MODEL_LOAD:
+            trspk_metal_event_res_model_load(&events, &cmd);
+            break;
+        case TORIRS_GFX_RES_MODEL_UNLOAD:
+            trspk_metal_event_res_model_unload(&events, &cmd);
+            break;
         case TORIRS_GFX_RES_TEX_LOAD:
             trspk_metal_event_tex_load(&events, &cmd);
             break;
@@ -117,6 +123,8 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
             trspk_metal_event_batch3d_model_add(&events, &cmd);
             break;
         case TORIRS_GFX_RES_ANIM_LOAD:
+            trspk_metal_event_res_anim_load(&events, &cmd);
+            break;
         case TORIRS_GFX_BATCH3D_ANIM_ADD:
             trspk_metal_event_batch3d_anim_add(&events, &cmd);
             break;
@@ -128,11 +136,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
             break;
         case TORIRS_GFX_DRAW_MODEL:
             trspk_metal_event_draw_model(
-                &events,
-                game,
-                &cmd,
-                renderer->facebuffer.indices,
-                TRSPK_FACEBUFFER_INDEX_CAPACITY);
+                &events, game, &cmd, renderer->facebuffer.indices, TRSPK_FACEBUFFER_INDEX_CAPACITY);
             break;
         case TORIRS_GFX_STATE_BEGIN_3D:
             trspk_metal_event_state_begin_3d(&events, &cmd);

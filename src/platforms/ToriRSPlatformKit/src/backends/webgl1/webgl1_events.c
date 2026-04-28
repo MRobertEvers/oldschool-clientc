@@ -6,6 +6,22 @@
 #include "tori_rs_render.h"
 #include "trspk_webgl1.h"
 
+static TRSPK_UsageClass
+trspk_webgl1_usage_from_torirs(uint8_t usage)
+{
+    switch( usage )
+    {
+    case TORIRS_USAGE_NPC:
+        return TRSPK_USAGE_NPC;
+    case TORIRS_USAGE_PLAYER:
+        return TRSPK_USAGE_PLAYER;
+    case TORIRS_USAGE_PROJECTILE:
+        return TRSPK_USAGE_PROJECTILE;
+    default:
+        return TRSPK_USAGE_SCENERY;
+    }
+}
+
 void
 trspk_webgl1_compute_default_pass_logical(
     TRSPK_Rect* out,
@@ -45,6 +61,73 @@ trspk_webgl1_prepare_sorted_indices16(
         out_indices[count++] = (uint16_t)(b + 2u);
     }
     return count;
+}
+
+void
+trspk_webgl1_event_res_model_load(
+    TRSPK_WebGL1EventContext* ctx,
+    const struct ToriRSRenderCommand* cmd)
+{
+    if( !ctx || !ctx->renderer || !ctx->cache || !cmd || !cmd->_model_load.model ||
+        cmd->_model_load.model_id < 0 )
+        return;
+    const TRSPK_UsageClass usage = trspk_webgl1_usage_from_torirs(cmd->_model_load.usage_hint);
+    if( usage == TRSPK_USAGE_SCENERY )
+        return;
+    TRSPK_BakeTransform bake = trspk_bake_transform_from_yaw_translate(
+        cmd->_model_load.world_x,
+        cmd->_model_load.world_y,
+        cmd->_model_load.world_z,
+        cmd->_model_load.world_yaw_r2pi2048);
+    trspk_resource_cache_set_model_bake(
+        ctx->cache, (TRSPK_ModelId)cmd->_model_load.model_id, &bake);
+    trspk_webgl1_dynamic_load_model(
+        ctx->renderer,
+        (TRSPK_ModelId)cmd->_model_load.model_id,
+        cmd->_model_load.model,
+        usage,
+        &bake);
+}
+
+void
+trspk_webgl1_event_res_model_unload(
+    TRSPK_WebGL1EventContext* ctx,
+    const struct ToriRSRenderCommand* cmd)
+{
+    if( !ctx || !ctx->renderer || !cmd || cmd->_model_load.model_id < 0 )
+        return;
+    const TRSPK_UsageClass usage = trspk_webgl1_usage_from_torirs(cmd->_model_load.usage_hint);
+    if( usage == TRSPK_USAGE_SCENERY )
+        trspk_webgl1_cache_unload_model(ctx->renderer, (TRSPK_ModelId)cmd->_model_load.model_id);
+    else
+        trspk_webgl1_dynamic_unload_model(ctx->renderer, (TRSPK_ModelId)cmd->_model_load.model_id);
+}
+
+void
+trspk_webgl1_event_res_anim_load(
+    TRSPK_WebGL1EventContext* ctx,
+    const struct ToriRSRenderCommand* cmd)
+{
+    if( !ctx || !ctx->renderer || !ctx->cache || !cmd || !cmd->_animation_load.model ||
+        cmd->_animation_load.model_gpu_id < 0 )
+        return;
+    const TRSPK_UsageClass usage = trspk_webgl1_usage_from_torirs(cmd->_animation_load.usage_hint);
+    if( usage == TRSPK_USAGE_SCENERY )
+        return;
+    dashmodel_animate(
+        cmd->_animation_load.model, cmd->_animation_load.frame, cmd->_animation_load.framemap);
+    const uint8_t seg = cmd->_animation_load.animation_index == 1 ? TRSPK_GPU_ANIM_SECONDARY_IDX
+                                                                  : TRSPK_GPU_ANIM_PRIMARY_IDX;
+    const TRSPK_BakeTransform* bake = trspk_resource_cache_get_model_bake(
+        ctx->cache, (TRSPK_ModelId)cmd->_animation_load.model_gpu_id);
+    trspk_webgl1_dynamic_load_anim(
+        ctx->renderer,
+        (TRSPK_ModelId)cmd->_animation_load.model_gpu_id,
+        cmd->_animation_load.model,
+        seg,
+        (uint16_t)cmd->_animation_load.frame_index,
+        usage,
+        bake);
 }
 
 void
@@ -187,8 +270,6 @@ trspk_webgl1_event_draw_model(
     if( !ctx || !ctx->renderer || !ctx->cache || !game || !cmd )
         return;
     ctx->diag_frame_model_draw_cmds++;
-    if( cmd->_model_draw.usage_hint != TORIRS_USAGE_SCENERY )
-        return;
     const TRSPK_ModelPose* pose = trspk_resource_cache_get_pose_for_draw(
         ctx->cache,
         (TRSPK_ModelId)cmd->_model_draw.model_id,

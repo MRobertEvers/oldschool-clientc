@@ -685,6 +685,40 @@ LuaBuildCacheDat_model_cache_clear(
 }
 
 struct LuaGameType*
+LuaBuildCacheDat_has_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    return LuaGameType_NewBool(buildcachedat_config_jagfile(buildcachedat) != NULL);
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_has_versionlist_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    return LuaGameType_NewBool(buildcachedat_versionlist_jagfile(buildcachedat) != NULL);
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_get_sequence_animbaseframes_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    int seq_id = arg_int(args, 0);
+    int* ids = NULL;
+    int count =
+        buildcachedat_loader_get_sequence_animbaseframes_ids(buildcachedat, seq_id, &ids);
+    struct LuaGameType* result = LuaGameType_NewIntArray(count);
+    for( int i = 0; i < count; i++ )
+        LuaGameType_IntArrayPush(result, ids[i]);
+    free(ids);
+    return result;
+}
+
+struct LuaGameType*
 LuaBuildCacheDat_scenery_config_load_mapchunk_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)

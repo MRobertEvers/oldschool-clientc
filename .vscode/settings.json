@@ -6,6 +6,19 @@
   "cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json",
   "cpp.default.browse.limitSymbolsToIncludedHeaders": true,
   "cpp.default.browse.databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db",
+  "files.associations": {
+        "*.mm": "objective-cpp",
+        "*.m": "objective-c",
+        "*.h": "objective-cpp" 
+    },
+    // Prevent the two engines from fighting
+    "C_Cpp.intelliSenseEngine": "disabled", 
+  "clangd.arguments": [
+      "--background-index",
+      "--clang-tidy",
+      "--header-insertion=never",
+      "--query-driver=/usr/bin/clang++" 
+  ],
   "editor.formatOnSave": true,
   "editor.multiCursorModifier": "alt",
   "C_Cpp.formatting": "clangFormat",

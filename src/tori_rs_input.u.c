@@ -4,7 +4,10 @@
 #include "tori_rs.h"
 
 static void
-game_map_soft3d_window_mouse_to_buffer(struct GGame* game, int* px, int* py)
+game_map_soft3d_window_mouse_to_buffer(
+    struct GGame* game,
+    int* px,
+    int* py)
 {
     int x = *px;
     int y = *py;
@@ -163,6 +166,25 @@ LibToriRS_GameProcessInput(
         if( game_input_keydown_or_pressed(input, TORIRSK_COMMA) )
         {
             game->cc -= 100;
+        }
+
+        if( game_input_keydown_or_pressed(input, TORIRSK_9) && game->mouse_tile_x != -1 )
+        {
+            int sx = game->mouse_tile_x;
+            int sz = game->mouse_tile_z;
+            int sl = game->mouse_tile_level;
+            struct ScriptArgs args = {
+                .tag = SCRIPT_SPAWN_ELEMENT,
+                .u.spawn_element =
+                    {
+                        .world_x = sx * 128 + 64,
+                        .world_z = sz * 128 + 64,
+                        .world_level = sl,
+                        .model_id = 3081,
+                        .seq_id = 659,
+                    },
+            };
+            script_queue_push(&game->script_queue, &args);
         }
     }
 

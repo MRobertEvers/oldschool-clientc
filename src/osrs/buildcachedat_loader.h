@@ -199,4 +199,10 @@ buildcachedat_loader_scenery_config_get_animbaseframes_ids_mapchunk(
     int mapz,
     int** frame_ids_out);
 
+int
+buildcachedat_loader_get_sequence_animbaseframes_ids(
+    struct BuildCacheDat* buildcachedat,
+    int seq_id,
+    int** ids_out);
+
 #endif

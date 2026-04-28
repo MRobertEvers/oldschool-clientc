@@ -1,6 +1,7 @@
 #ifndef TORIRS_PLATFORM_KIT_TRSPK_WEBGL1_H
 #define TORIRS_PLATFORM_KIT_TRSPK_WEBGL1_H
 
+#include "../../tools/trspk_dynamic_slotmap16.h"
 #include "../../tools/trspk_pass_batch16.h"
 #include "../../tools/trspk_resource_cache.h"
 
@@ -40,6 +41,7 @@ typedef struct TRSPK_WebGL1WorldShaderLocs
  */
 typedef struct TRSPK_WebGL1SubDraw
 {
+    GLuint vbo;
     uint8_t chunk;
     uint32_t pool_start;
     uint32_t index_count;
@@ -71,6 +73,14 @@ typedef struct TRSPK_WebGL1Renderer
     GLuint batch_chunk_vbos[TRSPK_MAX_WEBGL1_CHUNKS];
     GLuint batch_chunk_ebos[TRSPK_MAX_WEBGL1_CHUNKS];
     uint32_t chunk_count;
+    GLuint dynamic_npc_vbos[TRSPK_MAX_WEBGL1_CHUNKS];
+    GLuint dynamic_npc_ebos[TRSPK_MAX_WEBGL1_CHUNKS];
+    GLuint dynamic_projectile_vbos[TRSPK_MAX_WEBGL1_CHUNKS];
+    GLuint dynamic_projectile_ebos[TRSPK_MAX_WEBGL1_CHUNKS];
+    TRSPK_DynamicSlotmap16* dynamic_npc_slotmap;
+    TRSPK_DynamicSlotmap16* dynamic_projectile_slotmap;
+    TRSPK_DynamicSlotHandle* dynamic_slot_handles;
+    TRSPK_UsageClass* dynamic_slot_usages;
     bool tiles_dirty;
     double frame_clock;
     uint32_t diag_frame_submitted_draws;
@@ -81,6 +91,7 @@ typedef struct TRSPK_WebGL1Renderer
     TRSPK_WebGL1PassState pass_state;
 } TRSPK_WebGL1Renderer;
 
+struct DashModel;
 struct GGame;
 struct ToriRSRenderCommand;
 
@@ -163,6 +174,30 @@ void
 trspk_webgl1_cache_unload_model(
     TRSPK_WebGL1Renderer* r,
     TRSPK_ModelId id);
+bool
+trspk_webgl1_dynamic_init(TRSPK_WebGL1Renderer* r);
+void
+trspk_webgl1_dynamic_shutdown(TRSPK_WebGL1Renderer* r);
+void
+trspk_webgl1_dynamic_load_model(
+    TRSPK_WebGL1Renderer* r,
+    TRSPK_ModelId model_id,
+    struct DashModel* model,
+    TRSPK_UsageClass usage_class,
+    const TRSPK_BakeTransform* bake);
+void
+trspk_webgl1_dynamic_load_anim(
+    TRSPK_WebGL1Renderer* r,
+    TRSPK_ModelId model_id,
+    struct DashModel* model,
+    uint8_t segment,
+    uint16_t frame_index,
+    TRSPK_UsageClass usage_class,
+    const TRSPK_BakeTransform* bake);
+void
+trspk_webgl1_dynamic_unload_model(
+    TRSPK_WebGL1Renderer* r,
+    TRSPK_ModelId model_id);
 
 void
 trspk_webgl1_draw_begin_3d(
@@ -207,6 +242,18 @@ trspk_webgl1_compute_projection_matrix(
 
 void
 trspk_webgl1_event_tex_load(
+    TRSPK_WebGL1EventContext* ctx,
+    const struct ToriRSRenderCommand* cmd);
+void
+trspk_webgl1_event_res_model_load(
+    TRSPK_WebGL1EventContext* ctx,
+    const struct ToriRSRenderCommand* cmd);
+void
+trspk_webgl1_event_res_model_unload(
+    TRSPK_WebGL1EventContext* ctx,
+    const struct ToriRSRenderCommand* cmd);
+void
+trspk_webgl1_event_res_anim_load(
     TRSPK_WebGL1EventContext* ctx,
     const struct ToriRSRenderCommand* cmd);
 void

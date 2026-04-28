@@ -392,6 +392,7 @@ world_rebuild_centerzone_begin(
     struct BuildCacheDat* buildcachedat = world->buildcachedat;
 
     world->load_complete = false;
+    world->spawned_element_count = 0;
 
     if( world->scene2 )
     {

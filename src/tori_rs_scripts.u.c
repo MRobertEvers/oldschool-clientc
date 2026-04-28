@@ -87,6 +87,20 @@ script_convert_to_lua(
         LuaGameType_VarTypeArrayPush(
             out->args, LuaGameType_NewInt(item->args.u.load_cullmap.draw_radius));
         break;
+    case SCRIPT_SPAWN_ELEMENT:
+        set_name(out, "game/spawn_element.lua");
+        out->args = LuaGameType_NewVarTypeArraySpread(5);
+        LuaGameType_VarTypeArrayPush(
+            out->args, LuaGameType_NewInt(item->args.u.spawn_element.world_x));
+        LuaGameType_VarTypeArrayPush(
+            out->args, LuaGameType_NewInt(item->args.u.spawn_element.world_z));
+        LuaGameType_VarTypeArrayPush(
+            out->args, LuaGameType_NewInt(item->args.u.spawn_element.world_level));
+        LuaGameType_VarTypeArrayPush(
+            out->args, LuaGameType_NewInt(item->args.u.spawn_element.model_id));
+        LuaGameType_VarTypeArrayPush(
+            out->args, LuaGameType_NewInt(item->args.u.spawn_element.seq_id));
+        break;
     default:
         assert(false && "Unknown script kind");
         break;

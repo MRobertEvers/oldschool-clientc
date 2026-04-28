@@ -3,6 +3,7 @@
 
 #include "../../../include/ToriRSPlatformKit/trspk_math.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 static size_t
@@ -54,7 +55,41 @@ trspk_metal_draw_begin_3d(
         r->pass_logical_rect.height = (int32_t)r->height;
     }
     r->pass_state.index_count = 0u;
-    r->pass_state.scene_vbo = 0u;
+    r->pass_state.subdraw_count = 0u;
+}
+
+static bool
+trspk_metal_reserve_subdraws(
+    TRSPK_MetalPassState* pass,
+    uint32_t count)
+{
+    if( count <= pass->subdraw_capacity )
+        return true;
+    uint32_t cap = pass->subdraw_capacity ? pass->subdraw_capacity : 64u;
+    while( cap < count )
+        cap *= 2u;
+    TRSPK_MetalSubDraw* n =
+        (TRSPK_MetalSubDraw*)realloc(pass->subdraws, sizeof(TRSPK_MetalSubDraw) * cap);
+    if( !n )
+        return false;
+    pass->subdraws = n;
+    pass->subdraw_capacity = cap;
+    return true;
+}
+
+static TRSPK_GPUHandle
+trspk_metal_resolve_pose_vbo(
+    TRSPK_MetalRenderer* r,
+    const TRSPK_ModelPose* pose)
+{
+    if( !r || !pose )
+        return 0u;
+    if( !pose->dynamic )
+        return pose->vbo;
+
+    if( pose->usage_class == (uint8_t)TRSPK_USAGE_PROJECTILE )
+        return (TRSPK_GPUHandle)r->dynamic_projectile_vbo;
+    return (TRSPK_GPUHandle)r->dynamic_npc_vbo;
 }
 
 void
@@ -67,16 +102,22 @@ trspk_metal_draw_add_model(
     if( !r || !pose || !pose->valid || !sorted_indices || index_count == 0u )
         return;
     TRSPK_MetalPassState* pass = &r->pass_state;
-    if( !pass->index_pool )
+    TRSPK_GPUHandle vbo = trspk_metal_resolve_pose_vbo(r, pose);
+    if( vbo == 0u )
         return;
-    if( pass->scene_vbo == 0u )
-        pass->scene_vbo = pose->vbo;
-    if( pass->scene_vbo != pose->vbo )
+    if( !pass->index_pool )
         return;
     if( pass->index_count + index_count > pass->index_capacity )
         return;
+    if( !trspk_metal_reserve_subdraws(pass, pass->subdraw_count + 1u) )
+        return;
+    const uint32_t start = pass->index_count;
     for( uint32_t i = 0; i < index_count; ++i )
         pass->index_pool[pass->index_count++] = pose->vbo_offset + sorted_indices[i];
+    pass->subdraws[pass->subdraw_count].vbo = vbo;
+    pass->subdraws[pass->subdraw_count].pool_start = start;
+    pass->subdraws[pass->subdraw_count].index_count = index_count;
+    pass->subdraw_count++;
 }
 
 void
@@ -85,7 +126,8 @@ trspk_metal_draw_submit_3d(
     const TRSPK_Mat4* view,
     const TRSPK_Mat4* proj)
 {
-    if( !r || !view || !proj || r->pass_state.index_count == 0u )
+    if( !r || !view || !proj || r->pass_state.index_count == 0u ||
+        r->pass_state.subdraw_count == 0u )
         return;
     TRSPK_MetalPassState* pass = &r->pass_state;
     if( !pass->index_pool || pass->uniform_pass_subslot >= TRSPK_METAL_MAX_3D_PASSES_PER_FRAME )
@@ -94,12 +136,11 @@ trspk_metal_draw_submit_3d(
     if( !encoder )
         return;
 
-    id<MTLBuffer> mesh_vbo = (__bridge id<MTLBuffer>)(void*)pass->scene_vbo;
     id<MTLBuffer> index_buf = (__bridge id<MTLBuffer>)r->dynamic_index_buffer;
     id<MTLBuffer> uniform_buf = (__bridge id<MTLBuffer>)r->uniform_buffer;
     id<MTLRenderPipelineState> pipeline_state =
         (__bridge id<MTLRenderPipelineState>)r->pipeline_state;
-    if( !mesh_vbo || !index_buf || !uniform_buf || !pipeline_state )
+    if( !index_buf || !uniform_buf || !pipeline_state )
         return;
 
     const size_t uniform_stride = trspk_metal_uniform_stride();
@@ -171,7 +212,6 @@ trspk_metal_draw_submit_3d(
     [encoder setScissorRect:scr];
 
     [encoder setRenderPipelineState:pipeline_state];
-    [encoder setVertexBuffer:mesh_vbo offset:0 atIndex:0];
     [encoder setVertexBuffer:uniform_buf offset:(NSUInteger)uniform_offset atIndex:1];
     [encoder setFragmentBuffer:uniform_buf offset:(NSUInteger)uniform_offset atIndex:1];
     if( r->atlas_tiles_buffer )
@@ -183,19 +223,45 @@ trspk_metal_draw_submit_3d(
     if( r->sampler_state )
         [encoder setFragmentSamplerState:(__bridge id<MTLSamplerState>)r->sampler_state atIndex:0];
 
-    [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                        indexCount:(NSUInteger)pass->index_count
-                         indexType:MTLIndexTypeUInt32
-                       indexBuffer:index_buf
-                 indexBufferOffset:(NSUInteger)index_offset
-                     instanceCount:1
-                        baseVertex:0
-                      baseInstance:0];
+    uint32_t run_start = 0u;
+    while( run_start < pass->subdraw_count )
+    {
+        const TRSPK_MetalSubDraw* first = &pass->subdraws[run_start];
+        if( first->vbo == 0u || first->index_count == 0u )
+        {
+            run_start++;
+            continue;
+        }
+        uint32_t run_end = run_start + 1u;
+        uint32_t run_count = first->index_count;
+        while( run_end < pass->subdraw_count &&
+               pass->subdraws[run_end].vbo == first->vbo &&
+               pass->subdraws[run_end].pool_start == first->pool_start + run_count )
+        {
+            run_count += pass->subdraws[run_end].index_count;
+            run_end++;
+        }
+        id<MTLBuffer> mesh_vbo = (__bridge id<MTLBuffer>)(void*)first->vbo;
+        if( mesh_vbo )
+        {
+            [encoder setVertexBuffer:mesh_vbo offset:0 atIndex:0];
+            [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                                indexCount:(NSUInteger)run_count
+                                 indexType:MTLIndexTypeUInt32
+                               indexBuffer:index_buf
+                         indexBufferOffset:(NSUInteger)(index_offset + (size_t)first->pool_start *
+                                                                            sizeof(uint32_t))
+                             instanceCount:1
+                                baseVertex:0
+                              baseInstance:0];
+        }
+        run_start = run_end;
+    }
 
     pass->uniform_pass_subslot++;
     pass->index_upload_offset += index_bytes;
     pass->index_count = 0u;
-    pass->scene_vbo = 0u;
+    pass->subdraw_count = 0u;
 }
 
 void

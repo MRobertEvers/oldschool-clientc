@@ -29,9 +29,20 @@ extern "C" {
 #define TRSPK_HSL16_HIDDEN 0xFFFFu
 
 typedef uintptr_t TRSPK_GPUHandle;
+typedef uint32_t TRSPK_DynamicSlotHandle;
 typedef uint16_t TRSPK_ModelId;
 typedef uint16_t TRSPK_TextureId;
 typedef uint8_t TRSPK_BatchId;
+
+#define TRSPK_DYNAMIC_SLOT_INVALID 0xFFFFFFFFu
+
+typedef enum TRSPK_UsageClass
+{
+    TRSPK_USAGE_SCENERY = 0,
+    TRSPK_USAGE_NPC = 1,
+    TRSPK_USAGE_PLAYER = 2,
+    TRSPK_USAGE_PROJECTILE = 3
+} TRSPK_UsageClass;
 
 typedef struct TRSPK_Rect
 {
@@ -124,6 +135,8 @@ typedef struct TRSPK_ModelPose
     uint32_t element_count;
     TRSPK_BatchId batch_id;
     uint8_t chunk_index;
+    uint8_t usage_class;
+    bool dynamic;
     bool valid;
 } TRSPK_ModelPose;
 

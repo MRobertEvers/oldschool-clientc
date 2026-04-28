@@ -27,6 +27,7 @@ struct FlagMap;
 
 #define MAX_PLAYERS 2048
 #define MAX_NPCS 8192
+#define MAX_SPAWNED_ELEMENTS 1024
 
 #define MAX_MAP_BUILD_LOC_ENTITIES (16384 >> 1)
 #define MAX_MAP_BUILD_TILE_ENTITIES (50000)
@@ -121,6 +122,10 @@ struct World
     struct ContourGroundQueueEntry* contour_ground_queue;
     int contour_ground_queue_count;
     int contour_ground_queue_cap;
+
+    int spawned_element_ids[MAX_SPAWNED_ELEMENTS];
+    int spawned_element_levels[MAX_SPAWNED_ELEMENTS];
+    int spawned_element_count;
 
     struct BuildCacheDat* buildcachedat;
 

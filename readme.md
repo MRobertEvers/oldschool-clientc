@@ -1707,3 +1707,20 @@ mrobe@MatthewLenovo MINGW64 /c/Users/mrobe/Documents/git_repos/3d-raster/build-w
 $ strings win32.exe | grep .pdb
 C:\Users\mrobe\Documents\git_repos\3d-raster\build-winxp\win32.pdb
 ```
+
+
+## Air Strike 245
+
+659=strike_travel
+[windstrike_travel]
+model=model_3081_spotanim
+anim=strike_travel
+hasalpha=yes
+ambient=30
+contrast=30
+recol1s=15360
+recol1d=24319
+recol2s=24609
+recol2d=32767
+recol3s=31649
+recol3d=31

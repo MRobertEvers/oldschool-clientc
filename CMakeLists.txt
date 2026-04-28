@@ -275,6 +275,9 @@ if(NOT EMSCRIPTEN)
             src/platforms/ToriRSPlatformKit/src/tools/trspk_resource_cache.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_pass_batch16.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_pass_batch32.c
+            src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_slotmap16.c
+            src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_slotmap32.c
+            src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_pass.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_format.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_facebuffer.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_cache_model_loader16.c
@@ -284,6 +287,7 @@ if(NOT EMSCRIPTEN)
             src/platforms/ToriRSPlatformKit/src/backends/metal/metal_core.m
             src/platforms/ToriRSPlatformKit/src/backends/metal/metal_shaders.m
             src/platforms/ToriRSPlatformKit/src/backends/metal/metal_3d_cache.m
+            src/platforms/ToriRSPlatformKit/src/backends/metal/metal_dynamic_cache.m
             src/platforms/ToriRSPlatformKit/src/backends/metal/metal_draw.m
             src/platforms/ToriRSPlatformKit/src/backends/metal/metal_events.m
         )
@@ -722,6 +726,9 @@ if(EMSCRIPTEN)
         src/platforms/ToriRSPlatformKit/src/tools/trspk_resource_cache.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_pass_batch16.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_pass_batch32.c
+        src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_slotmap16.c
+        src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_slotmap32.c
+        src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_pass.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_format.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_facebuffer.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_cache_model_loader16.c
@@ -731,6 +738,7 @@ if(EMSCRIPTEN)
         src/platforms/ToriRSPlatformKit/src/backends/webgl1/webgl1_core.c
         src/platforms/ToriRSPlatformKit/src/backends/webgl1/webgl1_shaders.c
         src/platforms/ToriRSPlatformKit/src/backends/webgl1/webgl1_3d_cache.c
+        src/platforms/ToriRSPlatformKit/src/backends/webgl1/webgl1_dynamic_cache.c
         src/platforms/ToriRSPlatformKit/src/backends/webgl1/webgl1_draw.c
         src/platforms/ToriRSPlatformKit/src/backends/webgl1/webgl1_events.c
         src/platforms/browser2/luajs_sidecar.c

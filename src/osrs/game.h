@@ -76,6 +76,9 @@ struct GGame
     int tile_clicked_x;
     int tile_clicked_z;
     int tile_clicked_level;
+    int mouse_tile_x;
+    int mouse_tile_z;
+    int mouse_tile_level;
 
     int build_player;
     int cc;

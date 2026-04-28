@@ -431,6 +431,45 @@ buildcachedat_loader_scenery_config_get_animbaseframes_ids_mapchunk(
 }
 
 int
+buildcachedat_loader_get_sequence_animbaseframes_ids(
+    struct BuildCacheDat* buildcachedat,
+    int seq_id,
+    int** ids_out)
+{
+    *ids_out = NULL;
+    struct CacheDatSequence* sequence = buildcachedat_get_sequence(buildcachedat, seq_id);
+    if( !sequence || !sequence->frames )
+        return 0;
+
+    struct Vec* ids = vec_new(sizeof(int), sequence->frame_count);
+    for( int i = 0; i < sequence->frame_count; i++ )
+    {
+        int animbaseframes_id = (sequence->frames[i] >> 16) & 0xFFFF;
+        vec_push(ids, &animbaseframes_id);
+    }
+
+    int count = vec_size(ids);
+    if( count == 0 )
+    {
+        vec_free(ids);
+        return 0;
+    }
+
+    qsort(vec_data(ids), (size_t)count, sizeof(int), int_cmp);
+    count = unique_sorted_int((int*)vec_data(ids), count);
+
+    *ids_out = malloc((size_t)count * sizeof(int));
+    if( !*ids_out )
+    {
+        vec_free(ids);
+        return 0;
+    }
+    memcpy(*ids_out, vec_data(ids), (size_t)count * sizeof(int));
+    vec_free(ids);
+    return count;
+}
+
+int
 buildcachedat_loader_get_all_scenery_locs(
     struct BuildCacheDat* buildcachedat,
     int** loc_ids_out,

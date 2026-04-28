@@ -18,6 +18,7 @@ enum ScriptKind
     SCRIPT_PKT_IF_SETTAB,
     SCRIPT_PKT_UPDATE_INV_FULL,
     SCRIPT_LOAD_CULLMAP,
+    SCRIPT_SPAWN_ELEMENT,
     SCRIPT_COUNT
 };
 
@@ -74,6 +75,15 @@ struct ScriptArgsLoadCullmap
     int draw_radius;
 };
 
+struct ScriptArgsSpawnElement
+{
+    int world_x;
+    int world_z;
+    int world_level;
+    int model_id;
+    int seq_id;
+};
+
 /* Tagged union of all script argument structs (one member per runnable script). */
 struct ScriptArgs
 {
@@ -87,6 +97,7 @@ struct ScriptArgs
         struct ScriptArgsNpcInfo npc_info;
         struct ScriptArgsLc245Packet lc245_packet;
         struct ScriptArgsLoadCullmap load_cullmap;
+        struct ScriptArgsSpawnElement spawn_element;
     } u;
 };
 

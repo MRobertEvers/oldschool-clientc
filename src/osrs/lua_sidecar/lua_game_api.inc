@@ -13,3 +13,4 @@ LUA_API_X(LUA_API_GAME_REBUILD_CENTERZONE_BEGIN, "game_rebuild_centerzone_begin"
 LUA_API_X(LUA_API_GAME_REBUILD_CENTERZONE_CHUNK, "game_rebuild_centerzone_chunk", LUA_DOMAIN_GAME, "rebuild_centerzone_chunk")
 LUA_API_X(LUA_API_GAME_REBUILD_CENTERZONE_END, "game_rebuild_centerzone_end", LUA_DOMAIN_GAME, "rebuild_centerzone_end")
 LUA_API_X(LUA_API_GAME_REBUILD_CENTERZONE_SLOW, "game_rebuild_centerzone_slow", LUA_DOMAIN_GAME, "rebuild_centerzone_slow")
+LUA_API_X(LUA_API_GAME_SPAWN_ELEMENT, "game_spawn_element", LUA_DOMAIN_GAME, "spawn_element")

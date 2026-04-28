@@ -2,6 +2,7 @@
 #define TORIRS_PLATFORM_KIT_TRSPK_METAL_H
 
 #include "../../tools/trspk_pass_batch32.h"
+#include "../../tools/trspk_dynamic_slotmap32.h"
 #include "../../tools/trspk_resource_cache.h"
 
 #include <stddef.h>
@@ -23,6 +24,13 @@ typedef struct TRSPK_MetalUniforms
     float _pad[3];
 } TRSPK_MetalUniforms;
 
+typedef struct TRSPK_MetalSubDraw
+{
+    TRSPK_GPUHandle vbo;
+    uint32_t pool_start;
+    uint32_t index_count;
+} TRSPK_MetalSubDraw;
+
 typedef struct TRSPK_MetalPassState
 {
     void* encoder;
@@ -30,10 +38,12 @@ typedef struct TRSPK_MetalPassState
     void* command_buffer;
     void* depth_stencil_state;
     void* render_pass_descriptor;
-    TRSPK_GPUHandle scene_vbo;
     uint32_t* index_pool;
     uint32_t index_count;
     uint32_t index_capacity;
+    TRSPK_MetalSubDraw* subdraws;
+    uint32_t subdraw_count;
+    uint32_t subdraw_capacity;
     uint32_t uniform_pass_subslot;
     size_t index_upload_offset;
 } TRSPK_MetalPassState;
@@ -60,9 +70,18 @@ typedef struct TRSPK_MetalRenderer
     bool ready;
     TRSPK_ResourceCache* cache;
     TRSPK_Batch32* batch_staging;
+    void* dynamic_npc_vbo;
+    void* dynamic_npc_ebo;
+    void* dynamic_projectile_vbo;
+    void* dynamic_projectile_ebo;
+    TRSPK_DynamicSlotmap32* dynamic_npc_slotmap;
+    TRSPK_DynamicSlotmap32* dynamic_projectile_slotmap;
+    TRSPK_DynamicSlotHandle* dynamic_slot_handles;
+    TRSPK_UsageClass* dynamic_slot_usages;
     TRSPK_MetalPassState pass_state;
 } TRSPK_MetalRenderer;
 
+struct DashModel;
 struct GGame;
 struct ToriRSRenderCommand;
 
@@ -134,6 +153,30 @@ void
 trspk_metal_cache_unload_model(
     TRSPK_MetalRenderer* r,
     TRSPK_ModelId model_id);
+bool
+trspk_metal_dynamic_init(TRSPK_MetalRenderer* r);
+void
+trspk_metal_dynamic_shutdown(TRSPK_MetalRenderer* r);
+void
+trspk_metal_dynamic_load_model(
+    TRSPK_MetalRenderer* r,
+    TRSPK_ModelId model_id,
+    struct DashModel* model,
+    TRSPK_UsageClass usage_class,
+    const TRSPK_BakeTransform* bake);
+void
+trspk_metal_dynamic_load_anim(
+    TRSPK_MetalRenderer* r,
+    TRSPK_ModelId model_id,
+    struct DashModel* model,
+    uint8_t segment,
+    uint16_t frame_index,
+    TRSPK_UsageClass usage_class,
+    const TRSPK_BakeTransform* bake);
+void
+trspk_metal_dynamic_unload_model(
+    TRSPK_MetalRenderer* r,
+    TRSPK_ModelId model_id);
 
 void
 trspk_metal_draw_begin_3d(
@@ -180,6 +223,18 @@ trspk_metal_remap_projection_opengl_to_metal_z(float* proj_colmajor);
 
 void
 trspk_metal_event_tex_load(
+    TRSPK_MetalEventContext* ctx,
+    const struct ToriRSRenderCommand* cmd);
+void
+trspk_metal_event_res_model_load(
+    TRSPK_MetalEventContext* ctx,
+    const struct ToriRSRenderCommand* cmd);
+void
+trspk_metal_event_res_model_unload(
+    TRSPK_MetalEventContext* ctx,
+    const struct ToriRSRenderCommand* cmd);
+void
+trspk_metal_event_res_anim_load(
     TRSPK_MetalEventContext* ctx,
     const struct ToriRSRenderCommand* cmd);
 void

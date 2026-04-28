@@ -84,6 +84,12 @@
         return LuaBuildCacheDat_clear_media_jagfile(bcd, args);
     case LUA_API_BUILDCACHEDAT_CLEAR:
         return LuaBuildCacheDat_clear(bcd, args);
+    case LUA_API_BUILDCACHEDAT_HAS_CONFIG_JAGFILE:
+        return LuaBuildCacheDat_has_config_jagfile(bcd, args);
+    case LUA_API_BUILDCACHEDAT_HAS_VERSIONLIST_JAGFILE:
+        return LuaBuildCacheDat_has_versionlist_jagfile(bcd, args);
+    case LUA_API_BUILDCACHEDAT_GET_SEQUENCE_ANIMBASEFRAMES_IDS:
+        return LuaBuildCacheDat_get_sequence_animbaseframes_ids(bcd, args);
     case LUA_API_BUILDCACHEDAT_SCENERY_CONFIG_LOAD_MAPCHUNK_FROM_CONFIG_JAGFILE:
         return LuaBuildCacheDat_scenery_config_load_mapchunk_from_config_jagfile(bcd, args);
     case LUA_API_BUILDCACHEDAT_SCENERY_CONFIG_GET_MODEL_IDS_MAPCHUNK:
@@ -134,6 +140,8 @@
         return LuaGame_rebuild_centerzone_end(game, args);
     case LUA_API_GAME_REBUILD_CENTERZONE_SLOW:
         return LuaGame_rebuild_centerzone_slow(game, args);
+    case LUA_API_GAME_SPAWN_ELEMENT:
+        return LuaGame_spawn_element(game, args);
     case LUA_API_DASH_LOAD_TEXTURES:
         return LuaDash_load_textures(dash, bcd, game, args);
     case LUA_API_UI_LOAD_REVCONFIG:

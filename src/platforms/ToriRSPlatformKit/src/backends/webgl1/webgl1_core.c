@@ -27,8 +27,9 @@ trspk_webgl1_alloc(
     r->pass_gl_rect = r->pass_logical_rect;
     r->cache = trspk_resource_cache_create();
     r->batch_staging = trspk_batch16_create(65535u, 65535u, TRSPK_VERTEX_FORMAT_WEBGL1);
-    if( !r->cache || !r->batch_staging )
+    if( !trspk_webgl1_dynamic_init(r) || !r->cache || !r->batch_staging )
     {
+        trspk_webgl1_dynamic_shutdown(r);
         trspk_resource_cache_destroy(r->cache);
         trspk_batch16_destroy(r->batch_staging);
         free(r);
@@ -112,6 +113,7 @@ TRSPK_WebGL1_Shutdown(TRSPK_WebGL1Renderer* r)
     for( uint32_t i = 0; i < TRSPK_MAX_WEBGL1_CHUNKS; ++i )
         free(r->pass_state.chunk_index_pools[i]);
     free(r->pass_state.subdraws);
+    trspk_webgl1_dynamic_shutdown(r);
     trspk_resource_cache_destroy(r->cache);
     trspk_batch16_destroy(r->batch_staging);
     free(r);

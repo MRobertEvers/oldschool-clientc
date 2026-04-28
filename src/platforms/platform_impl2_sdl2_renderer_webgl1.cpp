@@ -107,6 +107,12 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
     {
         switch( cmd.kind )
         {
+        case TORIRS_GFX_RES_MODEL_LOAD:
+            trspk_webgl1_event_res_model_load(&events, &cmd);
+            break;
+        case TORIRS_GFX_RES_MODEL_UNLOAD:
+            trspk_webgl1_event_res_model_unload(&events, &cmd);
+            break;
         case TORIRS_GFX_RES_TEX_LOAD:
             trspk_webgl1_event_tex_load(&events, &cmd);
             break;
@@ -117,6 +123,11 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
             trspk_webgl1_event_batch3d_model_add(&events, &cmd);
             break;
         case TORIRS_GFX_RES_ANIM_LOAD:
+            if( cmd._animation_load.usage_hint == TORIRS_USAGE_SCENERY )
+                trspk_webgl1_event_batch3d_anim_add(&events, &cmd);
+            else
+                trspk_webgl1_event_res_anim_load(&events, &cmd);
+            break;
         case TORIRS_GFX_BATCH3D_ANIM_ADD:
             trspk_webgl1_event_batch3d_anim_add(&events, &cmd);
             break;

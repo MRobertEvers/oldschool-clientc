@@ -85,4 +85,9 @@ LuaGame_rebuild_centerzone_slow(
     struct GGame* game,
     struct LuaGameType* args);
 
+struct LuaGameType*
+LuaGame_spawn_element(
+    struct GGame* game,
+    struct LuaGameType* args);
+
 #endif

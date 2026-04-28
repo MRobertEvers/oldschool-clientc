@@ -454,6 +454,31 @@ world_cycle_push_npcs(struct World* world)
 }
 
 static void
+world_cycle_push_spawned_elements(struct World* world)
+{
+    for( int i = 0; i < world->spawned_element_count; i++ )
+    {
+        struct Scene2Element* scene_element =
+            scene2_element_at(world->scene2, world->spawned_element_ids[i]);
+        if( !scene_element || !scene2_element_is_active(scene_element) )
+            continue;
+
+        struct DashPosition* position = scene2_element_dash_position(scene_element);
+        if( !position )
+            continue;
+
+        painter_add_normal_scenery(
+            world->painter,
+            position->x / 128,
+            position->z / 128,
+            world->spawned_element_levels[i],
+            world->spawned_element_ids[i],
+            1,
+            1);
+    }
+}
+
+static void
 world_cycle_begin(struct World* world)
 {
     assert(world && world->painter != NULL);
@@ -473,6 +498,8 @@ world_cycle(
         return;
 
     world_cycle_begin(world);
+
+    world_cycle_push_spawned_elements(world);
 
     world_cycle_update_map_build_loc_entities(world, cycles_elapsed);
 

@@ -214,6 +214,21 @@ LuaBuildCacheDat_model_cache_clear(
     struct LuaGameType* args);
 
 struct LuaGameType*
+LuaBuildCacheDat_has_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_has_versionlist_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_get_sequence_animbaseframes_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
 LuaBuildCacheDat_scenery_config_load_mapchunk_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
