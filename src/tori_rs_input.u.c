@@ -52,9 +52,12 @@ LibToriRS_GameProcessInput(
     // IO
     const int target_input_fps = 50;
     const float time_delta_step = 1.0f / target_input_fps;
+    const int max_ticks_per_frame = 25;
 
     int time_quanta = 0;
-    while( input->time_delta_accumulator_seconds > time_delta_step )
+    while(
+        input->time_delta_accumulator_seconds > time_delta_step &&
+        time_quanta < max_ticks_per_frame )
     {
         time_quanta++;
         input->time_delta_accumulator_seconds -= time_delta_step;

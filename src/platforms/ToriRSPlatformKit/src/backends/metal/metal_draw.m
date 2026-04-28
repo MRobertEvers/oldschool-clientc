@@ -244,13 +244,13 @@ trspk_metal_draw_submit_3d(
         id<MTLBuffer> mesh_vbo = (__bridge id<MTLBuffer>)(void*)first->vbo;
         if( mesh_vbo )
         {
+            NSUInteger index_buffer_offset = (NSUInteger)(index_offset + (size_t)first->pool_start * sizeof(uint32_t));
             [encoder setVertexBuffer:mesh_vbo offset:0 atIndex:0];
             [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                 indexCount:(NSUInteger)run_count
                                  indexType:MTLIndexTypeUInt32
                                indexBuffer:index_buf
-                         indexBufferOffset:(NSUInteger)(index_offset + (size_t)first->pool_start *
-                                                                            sizeof(uint32_t))
+                         indexBufferOffset:index_buffer_offset
                              instanceCount:1
                                 baseVertex:0
                               baseInstance:0];

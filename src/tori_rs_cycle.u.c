@@ -285,19 +285,7 @@ LibToriRS_GameStep(
     /* Scene dynamic elements (players/NPCs) are updated earlier in GameStep so they
      * are always present for rendering even when a script is yielded. */
 
-    // for( int i = 0; i < game->cycles_elapsed; i++ )
-    // {
-    //     game->cycle++;
-
-    //     for( int i = 0; i < game->scene->scenery->elements_length; i++ )
-    //     {
-    //         struct SceneElement* element = scene_element_at(game->scene->scenery, i);
-    //         if( element->animation )
-    //         {
-    //             advance_animation(element->animation, 1);
-    //         }
-    //     }
-    // }
+    game->cycle += game->cycles_elapsed;
     game->cycles_elapsed = 0;
 }
 

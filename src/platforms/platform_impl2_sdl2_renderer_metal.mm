@@ -145,7 +145,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
             trspk_metal_event_state_clear_rect(&events, &cmd);
             break;
         case TORIRS_GFX_STATE_END_3D:
-            trspk_metal_event_state_end_3d(&events, game, (double)(SDL_GetTicks64() / 20u));
+            trspk_metal_event_state_end_3d(&events, game, (double)game->cycle);
             break;
         default:
             break;

@@ -230,9 +230,16 @@ ToriRSLibPlatform_SDL2_GameInput_PollEvents(
     struct GInput* input,
     double time)
 {
-    double time_delta_seconds = time - input->time;
-    input->time_delta_accumulator_seconds += time_delta_seconds;
-    input->time = time;
+    if( input->time == 0.0 )
+    {
+        input->time = time;
+    }
+    else
+    {
+        double time_delta_seconds = time - input->time;
+        input->time_delta_accumulator_seconds += time_delta_seconds;
+        input->time = time;
+    }
     SDL_Event event;
     bool nk_wants_keyboard = ToriRSLibPlatform_SDL2_GameInput_NK_WantCaptureKeyboard();
     bool nk_wants_mouse = ToriRSLibPlatform_SDL2_GameInput_NK_WantCaptureMouse();

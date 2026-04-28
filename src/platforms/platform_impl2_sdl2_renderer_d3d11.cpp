@@ -1280,7 +1280,7 @@ PlatformImpl2_SDL2_Renderer_D3D11_Render(
         projection_width,
         projection_height);
     d3d11_remap_projection_z(uniforms.projectionMatrix);
-    uniforms.uClock = (float)(SDL_GetTicks64() / 20);
+    uniforms.uClock = (float)game->cycle;
     uniforms._pad[0] = 0.0f;
     uniforms._pad[1] = 0.0f;
     uniforms._pad[2] = 0.0f;

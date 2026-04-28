@@ -59,7 +59,7 @@ opengl3_event_end_3d(OpenGL3RenderCtx* ctx)
         (90.0f * (float)M_PI) / 180.0f,
         projection_width > 0.0f ? projection_width : 1.0f,
         projection_height > 0.0f ? projection_height : 1.0f);
-    uniforms.uClock = (float)(SDL_GetTicks64() / 20);
+    uniforms.uClock = game ? (float)game->cycle : 0.0f;
     uniforms._pad_uniform[0] = 0.0f;
     uniforms._pad_uniform[1] = 0.0f;
     uniforms._pad_uniform[2] = 0.0f;

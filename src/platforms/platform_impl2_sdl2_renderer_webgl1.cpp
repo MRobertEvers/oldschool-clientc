@@ -148,7 +148,7 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
             trspk_webgl1_event_state_clear_rect(&events, &cmd);
             break;
         case TORIRS_GFX_STATE_END_3D:
-            trspk_webgl1_event_state_end_3d(&events, game, (double)(SDL_GetTicks64() / 20u));
+            trspk_webgl1_event_state_end_3d(&events, game, (double)game->cycle);
             break;
         default:
             break;

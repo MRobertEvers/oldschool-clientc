@@ -199,6 +199,13 @@ world_cycle_step_animation(
     }
 }
 
+/** Primary/secondary sequence id; 0 = memset/unset, (uint16_t)-1 = cleared via set_animation(-1). */
+static bool
+world_cycle_entity_anim_track_enabled(uint16_t anim_id)
+{
+    return anim_id != 0 && anim_id != (uint16_t)-1;
+}
+
 static void
 world_cycle_step_element_animations(
     struct EntityAnimation* animation,
@@ -210,9 +217,12 @@ world_cycle_step_element_animations(
 
     struct Scene2Frames* primary = scene2_element_primary_frames(scene_element);
     struct Scene2Frames* secondary = scene2_element_secondary_frames(scene_element);
-    if( primary )
+    /* Step only tracks the entity actually uses. Scene2 can still hold stale frame lists for a
+     * cleared slot; stepping those would advance timers twice per 50Hz tick (notably projectiles
+     * that only drive primary). */
+    if( primary && world_cycle_entity_anim_track_enabled(animation->primary_anim.anim_id) )
         world_cycle_step_animation(&animation->primary_anim, primary, cycles_elapsed);
-    if( secondary )
+    if( secondary && world_cycle_entity_anim_track_enabled(animation->secondary_anim.anim_id) )
         world_cycle_step_animation(&animation->secondary_anim, secondary, cycles_elapsed);
 }
 
@@ -458,20 +468,20 @@ world_cycle_update_projectiles(
     struct World* world,
     int cycles_elapsed)
 {
-    for( int cycle = 0; cycle < cycles_elapsed; cycle++ )
+    if( cycles_elapsed <= 0 )
+        return;
+
+    for( int i = 0; i < world->active_projectile_count; i++ )
     {
-        for( int i = 0; i < world->active_projectile_count; i++ )
-        {
-            int projectile_id = world->active_projectiles[i];
-            struct ProjectileEntity* p = world_projectile(world, projectile_id);
-            if( !p->alive || p->scene_element2.element_id == -1 )
-                continue;
-            struct Scene2Element* scene_element =
-                scene2_element_at(world->scene2, p->scene_element2.element_id);
-            if( !scene_element )
-                continue;
-            world_cycle_step_element_animations(&p->animation, scene_element, 1);
-        }
+        int projectile_id = world->active_projectiles[i];
+        struct ProjectileEntity* p = world_projectile(world, projectile_id);
+        if( !p->alive || p->scene_element2.element_id == -1 )
+            continue;
+        struct Scene2Element* scene_element =
+            scene2_element_at(world->scene2, p->scene_element2.element_id);
+        if( !scene_element )
+            continue;
+        world_cycle_step_element_animations(&p->animation, scene_element, cycles_elapsed);
     }
 }
 

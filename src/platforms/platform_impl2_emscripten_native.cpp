@@ -448,9 +448,16 @@ Platform2_Emscripten_Native_PollEvents(struct Platform2_Emscripten_Native* platf
     Platform2_Emscripten_Native_SyncCanvasCssSize(platform, platform->current_game);
 
     double time_s = emscripten_get_now() / 1000.0;
-    double time_delta_seconds = time_s - input->time;
-    input->time_delta_accumulator_seconds += time_delta_seconds;
-    input->time = time_s;
+    if( input->time == 0.0 )
+    {
+        input->time = time_s;
+    }
+    else
+    {
+        double time_delta_seconds = time_s - input->time;
+        input->time_delta_accumulator_seconds += time_delta_seconds;
+        input->time = time_s;
+    }
 
     native_input_ring_drain_to(input);
 

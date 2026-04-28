@@ -773,9 +773,16 @@ Platform2_Win32_PollEvents(
         nk_input_end(nk_ctx);
 
     double time_s = (double)(uint32_t)GetTickCount() / 1000.0;
-    double time_delta_seconds = time_s - input->time;
-    input->time_delta_accumulator_seconds += time_delta_seconds;
-    input->time = time_s;
+    if( input->time == 0.0 )
+    {
+        input->time = time_s;
+    }
+    else
+    {
+        double time_delta_seconds = time_s - input->time;
+        input->time_delta_accumulator_seconds += time_delta_seconds;
+        input->time = time_s;
+    }
 
     win32_input_ring_drain_to(input);
 

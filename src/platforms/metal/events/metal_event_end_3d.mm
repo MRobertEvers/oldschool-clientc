@@ -73,7 +73,7 @@ metal_event_end_3d(
         projection_width > 0.0f ? projection_width : 1.0f,
         projection_height > 0.0f ? projection_height : 1.0f);
     metal_remap_projection_opengl_to_metal_z(uniforms.projectionMatrix);
-    uniforms.uClock = (float)(SDL_GetTicks64() / 20);
+    uniforms.uClock = game ? (float)game->cycle : 0.0f;
     uniforms._pad_uniform[0] = 0.0f;
     uniforms._pad_uniform[1] = 0.0f;
     uniforms._pad_uniform[2] = 0.0f;
