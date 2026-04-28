@@ -39,6 +39,18 @@ typedef struct TRSPK_VertexBuffer
 void
 trspk_vertex_buffer_free(TRSPK_VertexBuffer* vb);
 
+/**
+ * Heap-allocate indices (u32) and vertex storage for a standalone mesh.
+ * On success: status READY, index_base 0, index_format U32.
+ * On failure: leaves vb cleared (safe to retry).
+ */
+bool
+trspk_vertex_buffer_allocate_mesh(
+    TRSPK_VertexBuffer* vb,
+    uint32_t vertex_count,
+    uint32_t index_count,
+    TRSPK_VertexFormat format);
+
 /** True if mesh holds non-NULL vertex storage matching vb->format. */
 bool
 trspk_vertex_buffer_has_vertex_payload(const TRSPK_VertexBuffer* vb);

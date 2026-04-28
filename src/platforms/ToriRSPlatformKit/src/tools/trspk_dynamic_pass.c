@@ -1,8 +1,8 @@
 #include "trspk_dynamic_pass.h"
 
+#include "graphics/dash.h"
 #include "trspk_dash.h"
 #include "trspk_vertex_format.h"
-#include "graphics/dash.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -97,16 +97,15 @@ trspk_dynamic_mesh_build_with_batch32(
     uint32_t index_bytes = 0u;
     trspk_batch32_get_data(batch, &vertices, &vertex_bytes, &indices, &index_bytes);
     const uint32_t stride = trspk_vertex_format_stride(vertex_format);
-    const bool ok = entry &&
-                    trspk_dynamic_mesh_copy(
-                        vertices,
-                        vertex_bytes,
-                        indices,
-                        index_bytes,
-                        stride ? vertex_bytes / stride : 0u,
-                        (uint32_t)(index_bytes / sizeof(uint32_t)),
-                        0u,
-                        out_mesh);
+    const bool ok = entry && trspk_dynamic_mesh_copy(
+                                 vertices,
+                                 vertex_bytes,
+                                 indices,
+                                 index_bytes,
+                                 stride ? vertex_bytes / stride : 0u,
+                                 (uint32_t)(index_bytes / sizeof(uint32_t)),
+                                 0u,
+                                 out_mesh);
     trspk_batch32_destroy(batch);
     return ok;
 }

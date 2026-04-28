@@ -4,6 +4,67 @@
 #include <stdlib.h>
 #include <string.h>
 
+bool
+trspk_vertex_buffer_allocate_mesh(
+    TRSPK_VertexBuffer* vb,
+    uint32_t vertex_count,
+    uint32_t index_count,
+    TRSPK_VertexFormat format)
+{
+    if( !vb || vertex_count == 0u || index_count == 0u || format == TRSPK_VERTEX_FORMAT_NONE )
+        return false;
+
+    trspk_vertex_buffer_free(vb);
+    memset(vb, 0, sizeof(*vb));
+
+    uint32_t* idx = (uint32_t*)malloc((size_t)index_count * sizeof(uint32_t));
+    if( !idx )
+        return false;
+
+    vb->indices.as_u32 = idx;
+    vb->index_format = TRSPK_INDEX_FORMAT_U32;
+    vb->index_base = 0u;
+    vb->index_count = index_count;
+    vb->vertex_count = vertex_count;
+    vb->format = format;
+    vb->status = TRSPK_VERTEX_BUFFER_STATUS_READY;
+
+    switch( format )
+    {
+    case TRSPK_VERTEX_FORMAT_TRSPK:
+        vb->vertices.as_trspk = (TRSPK_Vertex*)malloc((size_t)vertex_count * sizeof(TRSPK_Vertex));
+        if( !vb->vertices.as_trspk )
+            goto fail;
+        return true;
+    case TRSPK_VERTEX_FORMAT_WEBGL1:
+        vb->vertices.as_webgl1 =
+            (TRSPK_VertexWebGL1*)malloc((size_t)vertex_count * sizeof(TRSPK_VertexWebGL1));
+        if( !vb->vertices.as_webgl1 )
+            goto fail;
+        return true;
+    case TRSPK_VERTEX_FORMAT_METAL:
+        vb->vertices.as_metal =
+            (TRSPK_VertexMetal*)malloc((size_t)vertex_count * sizeof(TRSPK_VertexMetal));
+        if( !vb->vertices.as_metal )
+            goto fail;
+        return true;
+    case TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY:
+        if( !trspk_webgl1_vertex_array_alloc(&vb->vertices.as_webgl1_array, vertex_count) )
+            goto fail;
+        return true;
+    case TRSPK_VERTEX_FORMAT_METAL_ARRAY:
+        if( !trspk_metal_vertex_array_alloc(&vb->vertices.as_metal_array, vertex_count) )
+            goto fail;
+        return true;
+    case TRSPK_VERTEX_FORMAT_NONE:
+    default:
+        break;
+    }
+fail:
+    trspk_vertex_buffer_free(vb);
+    return false;
+}
+
 void
 trspk_vertex_buffer_free(TRSPK_VertexBuffer* m)
 {
@@ -79,12 +140,16 @@ trspk_vertex_buffer_has_vertex_payload(const TRSPK_VertexBuffer* m)
     case TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY:
     {
         const TRSPK_VertexWebGL1Array* a = &m->vertices.as_webgl1_array;
-        return a->position && a->color && a->texcoord && a->tex_id && a->uv_mode;
+        return a->position_x && a->position_y && a->position_z && a->position_w && a->color_r &&
+               a->color_g && a->color_b && a->color_a && a->texcoord_u && a->texcoord_v &&
+               a->tex_id && a->uv_mode;
     }
     case TRSPK_VERTEX_FORMAT_METAL_ARRAY:
     {
         const TRSPK_VertexMetalArray* a = &m->vertices.as_metal_array;
-        return a->position && a->color && a->texcoord && a->tex_id && a->uv_mode;
+        return a->position_x && a->position_y && a->position_z && a->position_w && a->color_r &&
+               a->color_g && a->color_b && a->color_a && a->texcoord_u && a->texcoord_v &&
+               a->tex_id && a->uv_mode;
     }
     default:
         return false;

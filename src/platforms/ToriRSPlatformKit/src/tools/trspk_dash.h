@@ -1,8 +1,8 @@
 #ifndef TORIRS_PLATFORM_KIT_TRSPK_DASH_H
 #define TORIRS_PLATFORM_KIT_TRSPK_DASH_H
 
-#include "trspk_cache_model_loader16.h"
-#include "trspk_cache_model_loader32.h"
+#include "trspk_batch16.h"
+#include "trspk_batch32.h"
 
 #ifdef __cplusplus
 extern "C" {

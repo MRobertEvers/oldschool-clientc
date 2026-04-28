@@ -1,6 +1,5 @@
 #include "trspk_lru_model_cache.h"
 
-#include "trspk_cache_model_loader32.h"
 #include "trspk_vertex_buffer.h"
 
 #include <stdlib.h>
@@ -10,11 +9,9 @@ static uint64_t
 trspk_lru_key(
     TRSPK_ModelId model_id,
     uint8_t seg,
-    uint16_t frame,
-    TRSPK_VertexFormat format)
+    uint16_t frame)
 {
-    return (uint64_t)model_id | ((uint64_t)seg << 16) | ((uint64_t)frame << 24) |
-           ((uint64_t)(uint32_t)format << 40);
+    return (uint64_t)model_id | ((uint64_t)seg << 16) | ((uint64_t)frame << 24);
 }
 
 typedef struct TRSPK_LruEntry
@@ -30,18 +27,22 @@ struct TRSPK_LruModelCache
     uint32_t capacity;
     uint32_t used;
     uint64_t clock;
+    TRSPK_VertexFormat vertex_format;
     TRSPK_LruEntry* entries;
 };
 
 TRSPK_LruModelCache*
-trspk_lru_model_cache_create(uint32_t capacity)
+trspk_lru_model_cache_create(
+    uint32_t capacity,
+    TRSPK_VertexFormat vertex_format)
 {
-    if( capacity == 0u )
+    if( capacity == 0u || vertex_format == TRSPK_VERTEX_FORMAT_NONE )
         return NULL;
     TRSPK_LruModelCache* c = (TRSPK_LruModelCache*)calloc(1u, sizeof(TRSPK_LruModelCache));
     if( !c )
         return NULL;
     c->capacity = capacity;
+    c->vertex_format = vertex_format;
     c->entries = (TRSPK_LruEntry*)calloc(capacity, sizeof(TRSPK_LruEntry));
     if( !c->entries )
     {
@@ -49,6 +50,12 @@ trspk_lru_model_cache_create(uint32_t capacity)
         return NULL;
     }
     return c;
+}
+
+TRSPK_VertexFormat
+trspk_lru_model_cache_vertex_format(const TRSPK_LruModelCache* cache)
+{
+    return cache ? cache->vertex_format : TRSPK_VERTEX_FORMAT_NONE;
 }
 
 void
@@ -77,7 +84,9 @@ trspk_lru_model_cache_reset(TRSPK_LruModelCache* cache)
 }
 
 void
-trspk_lru_model_cache_evict_model_id(TRSPK_LruModelCache* cache, TRSPK_ModelId model_id)
+trspk_lru_model_cache_evict_model_id(
+    TRSPK_LruModelCache* cache,
+    TRSPK_ModelId model_id)
 {
     if( !cache || !cache->entries )
         return;
@@ -100,12 +109,11 @@ trspk_lru_model_cache_get(
     TRSPK_LruModelCache* cache,
     TRSPK_ModelId model_id,
     uint8_t gpu_segment_slot,
-    uint16_t frame_index,
-    TRSPK_VertexFormat format)
+    uint16_t frame_index)
 {
-    if( !cache || !cache->entries || format == TRSPK_VERTEX_FORMAT_NONE )
+    if( !cache || !cache->entries || cache->vertex_format == TRSPK_VERTEX_FORMAT_NONE )
         return NULL;
-    const uint64_t want = trspk_lru_key(model_id, gpu_segment_slot, frame_index, format);
+    const uint64_t want = trspk_lru_key(model_id, gpu_segment_slot, frame_index);
     for( uint32_t i = 0; i < cache->capacity; ++i )
     {
         if( !cache->entries[i].in_use || cache->entries[i].key != want )
@@ -122,16 +130,16 @@ trspk_lru_model_cache_get_or_emplace_impl(
     TRSPK_ModelId model_id,
     uint8_t gpu_segment_slot,
     uint16_t frame_index,
-    TRSPK_VertexFormat format,
     const TRSPK_ModelArrays* arrays,
     bool textured,
     TRSPK_UVMode uv_mode,
     const TRSPK_BakeTransform* bake)
 {
     if( !cache || !arrays || arrays->face_count == 0u || !cache->entries ||
-        format == TRSPK_VERTEX_FORMAT_NONE )
+        cache->vertex_format == TRSPK_VERTEX_FORMAT_NONE )
         return NULL;
-    const uint64_t want = trspk_lru_key(model_id, gpu_segment_slot, frame_index, format);
+    const TRSPK_VertexFormat format = cache->vertex_format;
+    const uint64_t want = trspk_lru_key(model_id, gpu_segment_slot, frame_index);
     uint32_t found = cache->capacity;
     uint32_t min_i = 0u;
     uint64_t min_touch = 0u;
@@ -158,17 +166,19 @@ trspk_lru_model_cache_get_or_emplace_impl(
         return &cache->entries[found].mesh;
     }
 
+    const uint32_t corner_count = arrays->face_count * 3u;
     TRSPK_VertexBuffer built = { 0 };
-    built.format = TRSPK_VERTEX_FORMAT_NONE;
+    if( !trspk_vertex_buffer_allocate_mesh(&built, corner_count, corner_count, format) )
+        return NULL;
+
     bool build_ok;
     if( textured )
-        build_ok = trspk_batch32_build_model_textured(
-            &built,
+        build_ok = trspk_vertex_buffer_write_textured(
             arrays->vertex_count,
+            arrays->face_count,
             arrays->vertices_x,
             arrays->vertices_y,
             arrays->vertices_z,
-            arrays->face_count,
             arrays->faces_a,
             arrays->faces_b,
             arrays->faces_c,
@@ -183,15 +193,15 @@ trspk_lru_model_cache_get_or_emplace_impl(
             arrays->face_alphas,
             arrays->face_infos,
             uv_mode,
-            bake);
+            bake,
+            &built);
     else
-        build_ok = trspk_batch32_build_model_untextured(
-            &built,
+        build_ok = trspk_vertex_buffer_write(
             arrays->vertex_count,
+            arrays->face_count,
             arrays->vertices_x,
             arrays->vertices_y,
             arrays->vertices_z,
-            arrays->face_count,
             arrays->faces_a,
             arrays->faces_b,
             arrays->faces_c,
@@ -200,17 +210,16 @@ trspk_lru_model_cache_get_or_emplace_impl(
             arrays->faces_c_color_hsl16,
             arrays->face_alphas,
             arrays->face_infos,
-            bake);
+            bake,
+            &built);
     if( !build_ok )
-        return NULL;
-    if( format != TRSPK_VERTEX_FORMAT_TRSPK && !trspk_vertex_buffer_convert_from_trspk(&built, format) )
     {
         trspk_vertex_buffer_free(&built);
         return NULL;
     }
-    const bool has_indices =
-        (built.index_format == TRSPK_INDEX_FORMAT_U32) ? (built.indices.as_u32 != NULL)
-                                                       : (built.indices.as_u16 != NULL);
+    const bool has_indices = (built.index_format == TRSPK_INDEX_FORMAT_U32)
+                                 ? (built.indices.as_u32 != NULL)
+                                 : (built.indices.as_u16 != NULL);
     if( !has_indices || !trspk_vertex_buffer_has_vertex_payload(&built) )
     {
         trspk_vertex_buffer_free(&built);
@@ -265,7 +274,6 @@ trspk_lru_model_cache_get_or_emplace_untextured(
     TRSPK_ModelId model_id,
     uint8_t gpu_segment_slot,
     uint16_t frame_index,
-    TRSPK_VertexFormat format,
     const TRSPK_ModelArrays* arrays,
     const TRSPK_BakeTransform* bake)
 {
@@ -274,7 +282,6 @@ trspk_lru_model_cache_get_or_emplace_untextured(
         model_id,
         gpu_segment_slot,
         frame_index,
-        format,
         arrays,
         false,
         TRSPK_UV_MODE_TEXTURED_FACE_ARRAY,
@@ -287,11 +294,10 @@ trspk_lru_model_cache_get_or_emplace_textured(
     TRSPK_ModelId model_id,
     uint8_t gpu_segment_slot,
     uint16_t frame_index,
-    TRSPK_VertexFormat format,
     const TRSPK_ModelArrays* arrays,
     TRSPK_UVMode uv_mode,
     const TRSPK_BakeTransform* bake)
 {
     return trspk_lru_model_cache_get_or_emplace_impl(
-        cache, model_id, gpu_segment_slot, frame_index, format, arrays, true, uv_mode, bake);
+        cache, model_id, gpu_segment_slot, frame_index, arrays, true, uv_mode, bake);
 }

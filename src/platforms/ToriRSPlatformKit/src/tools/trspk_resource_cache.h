@@ -10,9 +10,15 @@ extern "C" {
 typedef struct TRSPK_ResourceCache TRSPK_ResourceCache;
 typedef struct TRSPK_LruModelCache TRSPK_LruModelCache;
 
-/** @param model_lru_capacity 0 = no CPU mesh LRU; else max cooked-model entries. */
+/**
+ * @param model_lru_capacity 0 = no CPU mesh LRU; else max cooked-model entries.
+ * @param model_lru_vertex_format layout for LRU entries when capacity > 0; must not be NONE.
+ *        Ignored when model_lru_capacity is 0.
+ */
 TRSPK_ResourceCache*
-trspk_resource_cache_create(uint32_t model_lru_capacity);
+trspk_resource_cache_create(
+    uint32_t model_lru_capacity,
+    TRSPK_VertexFormat model_lru_vertex_format);
 void
 trspk_resource_cache_destroy(TRSPK_ResourceCache* cache);
 void

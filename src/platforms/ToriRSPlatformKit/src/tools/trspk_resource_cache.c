@@ -26,6 +26,7 @@ struct TRSPK_ResourceCache
     uint32_t atlas_height;
     uint32_t atlas_pixel_size;
     uint32_t lru_capacity;
+    TRSPK_VertexFormat lru_vertex_format;
     TRSPK_LruModelCache* lru_model;
 };
 
@@ -42,15 +43,19 @@ trspk_valid_texture_id(TRSPK_TextureId texture_id)
 }
 
 TRSPK_ResourceCache*
-trspk_resource_cache_create(uint32_t model_lru_capacity)
+trspk_resource_cache_create(
+    uint32_t model_lru_capacity,
+    TRSPK_VertexFormat model_lru_vertex_format)
 {
     TRSPK_ResourceCache* cache = (TRSPK_ResourceCache*)calloc(1u, sizeof(TRSPK_ResourceCache));
     if( !cache )
         return NULL;
     cache->lru_capacity = model_lru_capacity;
+    cache->lru_vertex_format = model_lru_vertex_format;
     if( model_lru_capacity > 0u )
     {
-        cache->lru_model = trspk_lru_model_cache_create(model_lru_capacity);
+        cache->lru_model =
+            trspk_lru_model_cache_create(model_lru_capacity, model_lru_vertex_format);
         if( !cache->lru_model )
             cache->lru_capacity = 0u;
     }
@@ -80,10 +85,12 @@ trspk_resource_cache_reset(TRSPK_ResourceCache* cache)
         trspk_lru_model_cache_reset(cache->lru_model);
     {
         const uint32_t lcap = cache->lru_capacity;
+        const TRSPK_VertexFormat lfmt = cache->lru_vertex_format;
         TRSPK_LruModelCache* lru = cache->lru_model;
         memset(cache, 0, sizeof(*cache));
         cache->lru_model = lru;
         cache->lru_capacity = lcap;
+        cache->lru_vertex_format = lfmt;
     }
     for( uint32_t i = 0; i < TRSPK_MAX_MODELS; ++i )
         cache->models[i].model_bake = trspk_bake_transform_identity();
