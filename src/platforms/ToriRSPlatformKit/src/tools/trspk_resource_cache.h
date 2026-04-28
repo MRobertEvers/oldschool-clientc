@@ -64,12 +64,14 @@ void
 trspk_resource_cache_batch_begin(
     TRSPK_ResourceCache* cache,
     TRSPK_BatchId batch_id);
+    
 void
 trspk_resource_cache_batch_set_resource(
     TRSPK_ResourceCache* cache,
     TRSPK_BatchId batch_id,
     TRSPK_GPUHandle vbo,
     TRSPK_GPUHandle ebo);
+
 void
 trspk_resource_cache_batch_set_chunks(
     TRSPK_ResourceCache* cache,
@@ -77,10 +79,12 @@ trspk_resource_cache_batch_set_chunks(
     const TRSPK_GPUHandle* vbos,
     const TRSPK_GPUHandle* ebos,
     uint32_t chunk_count);
+
 const TRSPK_BatchResource*
 trspk_resource_cache_batch_get(
     const TRSPK_ResourceCache* cache,
     TRSPK_BatchId batch_id);
+
 TRSPK_BatchResource
 trspk_resource_cache_batch_clear(
     TRSPK_ResourceCache* cache,
@@ -91,8 +95,10 @@ trspk_resource_cache_init_atlas(
     TRSPK_ResourceCache* cache,
     uint32_t width,
     uint32_t height);
+
 void
 trspk_resource_cache_unload_atlas(TRSPK_ResourceCache* cache);
+
 bool
 trspk_resource_cache_load_texture_128(
     TRSPK_ResourceCache* cache,
@@ -101,12 +107,17 @@ trspk_resource_cache_load_texture_128(
     float anim_u,
     float anim_v,
     bool opaque);
+
 const uint8_t*
 trspk_resource_cache_get_atlas_pixels(const TRSPK_ResourceCache* cache);
+
 uint32_t
-trspk_resource_cache_get_atlas_pixel_size(const TRSPK_ResourceCache* cache);
+trspk_resource_cache_get_atlas_pixel_size(const TRSPK_ResourceCache* 
+cache);
+
 uint32_t
 trspk_resource_cache_get_atlas_width(const TRSPK_ResourceCache* cache);
+
 uint32_t
 trspk_resource_cache_get_atlas_height(const TRSPK_ResourceCache* cache);
 

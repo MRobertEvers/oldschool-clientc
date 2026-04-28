@@ -658,6 +658,7 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
     const LogicalViewportRect logical_vp =
         compute_logical_viewport_rect(win_width, win_height, game);
 
+    Uint64 const frame_work_t0 = SDL_GetPerformanceCounter();
     LibToriRS_FrameBegin(game, render_command_buffer);
 
     renderer->pass.win_width = win_width;
@@ -727,6 +728,7 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
 
     if( s_webgl1_nk )
     {
+        double const frame_work_avg_ms = torirs_nk_ui_frame_work_avg_ms();
         double const dt = torirs_nk_ui_frame_delta_sec(&s_webgl1_ui_prev_perf);
         TorirsNkDebugPanelParams params = {};
         params.window_title = "Info";
@@ -742,9 +744,19 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
         params.gpu_submitted_model_draws = renderer->diag_frame_submitted_model_draws;
         params.gpu_pose_invalid_skips = renderer->diag_frame_pose_invalid_skips;
         params.gpu_dynamic_index_draws = renderer->diag_frame_dynamic_index_draws;
+        if( frame_work_avg_ms >= 0.0 )
+        {
+            params.include_frame_work_timing = 1;
+            params.frame_work_avg_ms = frame_work_avg_ms;
+        }
         torirs_nk_debug_panel_draw(s_webgl1_nk, game, &params);
         torirs_nk_ui_after_frame(s_webgl1_nk);
         torirs_nk_gles2_render(NK_ANTI_ALIASING_ON, 512 * 1024, 128 * 1024);
+        Uint64 const frame_work_t1 = SDL_GetPerformanceCounter();
+        Uint64 const frame_work_freq = SDL_GetPerformanceFrequency();
+        double const frame_work_sec =
+            frame_work_freq ? (double)(frame_work_t1 - frame_work_t0) / (double)frame_work_freq : 0.0;
+        torirs_nk_ui_frame_work_push_sec(frame_work_sec);
     }
 
     SDL_GL_SwapWindow(platform->window);

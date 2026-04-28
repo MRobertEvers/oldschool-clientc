@@ -28,6 +28,9 @@ typedef struct TorirsNkDebugPanelParams
     unsigned gpu_submitted_model_draws;
     unsigned gpu_pose_invalid_skips;
     unsigned gpu_dynamic_index_draws;
+    /** When set, show `frame_work_avg_ms` (rolling avg CPU work, see torirs_nk_ui_frame_work_*). */
+    int include_frame_work_timing;
+    double frame_work_avg_ms;
 } TorirsNkDebugPanelParams;
 
 #ifdef __cplusplus

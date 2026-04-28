@@ -22,6 +22,40 @@ torirs_nk_ui_frame_delta_sec(Uint64* prev_counter)
     return dt > 1e-12 ? dt : 1e-12;
 }
 
+enum
+{
+    kTorirsNkUiFrameWorkRing = 10
+};
+
+static double s_frame_work_buf[kTorirsNkUiFrameWorkRing];
+static unsigned s_frame_work_write_total;
+
+void
+torirs_nk_ui_frame_work_push_sec(double work_sec)
+{
+    if( work_sec < 0.0 )
+        work_sec = 0.0;
+    s_frame_work_buf[s_frame_work_write_total % (unsigned)kTorirsNkUiFrameWorkRing] = work_sec;
+    s_frame_work_write_total++;
+}
+
+double
+torirs_nk_ui_frame_work_avg_ms(void)
+{
+    const unsigned n = s_frame_work_write_total < (unsigned)kTorirsNkUiFrameWorkRing
+        ? s_frame_work_write_total
+        : (unsigned)kTorirsNkUiFrameWorkRing;
+    if( n == 0 )
+        return -1.0;
+    double sum = 0.0;
+    for( unsigned i = 0; i < n; i++ )
+    {
+        const unsigned w = s_frame_work_write_total - n + i;
+        sum += s_frame_work_buf[w % (unsigned)kTorirsNkUiFrameWorkRing];
+    }
+    return (sum / (double)n) * 1000.0;
+}
+
 static struct nk_context* s_ctx;
 static int (*s_handle_sdl_event)(SDL_Event* evt);
 static void (*s_handle_grab)(void);

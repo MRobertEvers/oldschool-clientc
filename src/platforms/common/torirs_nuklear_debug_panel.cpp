@@ -39,6 +39,8 @@ torirs_nk_debug_panel_draw(struct nk_context* nk, struct GGame* game, TorirsNkDe
     {
         nk_layout_row_dynamic(nk, 18, 1);
         nk_labelf(nk, NK_TEXT_LEFT, "%.3f ms/frame (%.2f FPS)", ms_rounded, fps);
+        if( p->include_frame_work_timing && p->frame_work_avg_ms >= 0.0 )
+            nk_labelf(nk, NK_TEXT_LEFT, "Avg CPU work (10f): %.2f ms", p->frame_work_avg_ms);
 
 #if ENABLE_HEAP_INFO
         {

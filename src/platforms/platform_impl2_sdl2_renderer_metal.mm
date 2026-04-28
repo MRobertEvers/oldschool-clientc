@@ -180,8 +180,9 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         events.has_default_pass_logical =
             events.default_pass_logical.width > 0 && events.default_pass_logical.height > 0;
     }
-    LibToriRS_FrameBegin(game, render_command_buffer);
     TRSPK_Metal_FrameBegin(renderer->trspk);
+    Uint64 const frame_work_t0 = SDL_GetPerformanceCounter();
+    LibToriRS_FrameBegin(game, render_command_buffer);
 
     struct ToriRSRenderCommand cmd = { 0 };
     while( LibToriRS_FrameNextCommand(game, render_command_buffer, &cmd, true) )
@@ -240,6 +241,7 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
 
     if( renderer->nk_ui && renderer->trspk->pass_state.encoder )
     {
+        double const frame_work_avg_ms = torirs_nk_ui_frame_work_avg_ms();
         double const frame_dt = torirs_nk_ui_frame_delta_sec(&renderer->nk_ui_prev_perf);
         TorirsNkDebugPanelParams params = {};
         params.window_title = "Info";
@@ -255,6 +257,11 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
         params.gpu_submitted_model_draws = 0u;
         params.gpu_pose_invalid_skips = 0u;
         params.gpu_dynamic_index_draws = 0u;
+        if( frame_work_avg_ms >= 0.0 )
+        {
+            params.include_frame_work_timing = 1;
+            params.frame_work_avg_ms = frame_work_avg_ms;
+        }
         struct nk_context* nk_ctx = torirs_nk_metal_ctx(renderer->nk_ui);
         torirs_nk_debug_panel_draw(nk_ctx, game, &params);
         torirs_nk_ui_after_frame(nk_ctx);
@@ -267,6 +274,12 @@ PlatformImpl2_SDL2_Renderer_Metal_Render(
             drawable_h,
             NK_ANTI_ALIASING_ON);
     }
+
+    Uint64 const frame_work_t1 = SDL_GetPerformanceCounter();
+    Uint64 const frame_work_freq = SDL_GetPerformanceFrequency();
+    double const frame_work_sec =
+        frame_work_freq ? (double)(frame_work_t1 - frame_work_t0) / (double)frame_work_freq : 0.0;
+    torirs_nk_ui_frame_work_push_sec(frame_work_sec);
 
     TRSPK_Metal_FrameEnd(renderer->trspk);
     LibToriRS_FrameEnd(game);

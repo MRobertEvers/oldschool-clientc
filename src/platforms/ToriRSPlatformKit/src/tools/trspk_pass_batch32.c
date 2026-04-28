@@ -140,6 +140,7 @@ trspk_batch32_add_mesh(
         vertices,
         vertex_count,
         batch->vertex_format);
+        
     for( uint32_t i = 0; i < index_count; ++i )
         batch->indices[istart + i] = vstart + indices[i];
     batch->vertex_count += vertex_count;

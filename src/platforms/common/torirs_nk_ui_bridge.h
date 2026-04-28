@@ -42,6 +42,14 @@ torirs_nk_ui_want_capture_mouse_prev(void);
 double
 torirs_nk_ui_frame_delta_sec(Uint64* prev_counter);
 
+/** Rolling buffer: push one frame's CPU work duration (seconds); used by GPU backends for the debug panel. */
+void
+torirs_nk_ui_frame_work_push_sec(double work_sec);
+
+/** Average of last up to 10 pushed samples, in milliseconds; -1.0 if none yet. */
+double
+torirs_nk_ui_frame_work_avg_ms(void);
+
 #ifdef __cplusplus
 }
 #endif
