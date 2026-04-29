@@ -82,7 +82,8 @@ bool
 trspk_vertex_buffer_bake_array_to_interleaved(
     const TRSPK_VertexBuffer* src_array,
     const TRSPK_BakeTransform* bake,
-    TRSPK_VertexBuffer* out_interleaved);
+    TRSPK_VertexBuffer* out_interleaved,
+    double d3d8_frame_clock);
 
 /**
  * Convert in place from TRSPK to dst_format. Requires vb->format == TRSPK.
@@ -119,7 +120,8 @@ trspk_vertex_buffer_write_textured(
     TRSPK_UVCalculationMode uv_calc_mode,
     const TRSPK_ResourceCache* atlas_tile_meta,
     const TRSPK_BakeTransform* bake,
-    TRSPK_VertexBuffer* dest);
+    TRSPK_VertexBuffer* dest,
+    double d3d8_frame_clock);
 
 bool
 trspk_vertex_buffer_write(
@@ -137,7 +139,8 @@ trspk_vertex_buffer_write(
     const uint8_t* face_alphas,
     const int32_t* face_infos,
     const TRSPK_BakeTransform* bake,
-    TRSPK_VertexBuffer* dest);
+    TRSPK_VertexBuffer* dest,
+    double d3d8_frame_clock);
 
 #ifdef __cplusplus
 }

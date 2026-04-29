@@ -4,6 +4,7 @@
 #include "../../../include/ToriRSPlatformKit/trspk_types.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 #include "../../../include/ToriRSPlatformKit/trspk_vertex_soaos_config.h"
 
 #include <stddef.h>
@@ -18,29 +19,31 @@
 extern "C" {
 #endif
 
+/** Interleaved vertex for D3D8 fixed-function: D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1. */
 typedef struct TRSPK_VertexD3D8
 {
-    float position[4];
-    float color[4];
-    float texcoord[2];
-    float tex_id;
-    float uv_mode;
+    float x;
+    float y;
+    float z;
+    uint32_t diffuse;
+    float u;
+    float v;
 } TRSPK_VertexD3D8;
 
 typedef struct TRSPK_VertexD3D8SoaosBlock
 {
-    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float position_x[TRSPK_VERTEX_SIMD_LANES];
-    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float position_y[TRSPK_VERTEX_SIMD_LANES];
-    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float position_z[TRSPK_VERTEX_SIMD_LANES];
-    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float position_w[TRSPK_VERTEX_SIMD_LANES];
-    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float color_r[TRSPK_VERTEX_SIMD_LANES];
-    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float color_g[TRSPK_VERTEX_SIMD_LANES];
-    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float color_b[TRSPK_VERTEX_SIMD_LANES];
-    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float color_a[TRSPK_VERTEX_SIMD_LANES];
-    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float texcoord_u[TRSPK_VERTEX_SIMD_LANES];
-    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float texcoord_v[TRSPK_VERTEX_SIMD_LANES];
-    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float tex_id[TRSPK_VERTEX_SIMD_LANES];
-    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float uv_mode[TRSPK_VERTEX_SIMD_LANES];
+    TRSPK_VERTEX_SOAOS_MEMBER_ALIGN(TRSPK_VERTEX_SOAOS_ALIGNMENT) float position_x[TRSPK_VERTEX_SIMD_LANES];
+    TRSPK_VERTEX_SOAOS_MEMBER_ALIGN(TRSPK_VERTEX_SOAOS_ALIGNMENT) float position_y[TRSPK_VERTEX_SIMD_LANES];
+    TRSPK_VERTEX_SOAOS_MEMBER_ALIGN(TRSPK_VERTEX_SOAOS_ALIGNMENT) float position_z[TRSPK_VERTEX_SIMD_LANES];
+    TRSPK_VERTEX_SOAOS_MEMBER_ALIGN(TRSPK_VERTEX_SOAOS_ALIGNMENT) float position_w[TRSPK_VERTEX_SIMD_LANES];
+    TRSPK_VERTEX_SOAOS_MEMBER_ALIGN(TRSPK_VERTEX_SOAOS_ALIGNMENT) float color_r[TRSPK_VERTEX_SIMD_LANES];
+    TRSPK_VERTEX_SOAOS_MEMBER_ALIGN(TRSPK_VERTEX_SOAOS_ALIGNMENT) float color_g[TRSPK_VERTEX_SIMD_LANES];
+    TRSPK_VERTEX_SOAOS_MEMBER_ALIGN(TRSPK_VERTEX_SOAOS_ALIGNMENT) float color_b[TRSPK_VERTEX_SIMD_LANES];
+    TRSPK_VERTEX_SOAOS_MEMBER_ALIGN(TRSPK_VERTEX_SOAOS_ALIGNMENT) float color_a[TRSPK_VERTEX_SIMD_LANES];
+    TRSPK_VERTEX_SOAOS_MEMBER_ALIGN(TRSPK_VERTEX_SOAOS_ALIGNMENT) float texcoord_u[TRSPK_VERTEX_SIMD_LANES];
+    TRSPK_VERTEX_SOAOS_MEMBER_ALIGN(TRSPK_VERTEX_SOAOS_ALIGNMENT) float texcoord_v[TRSPK_VERTEX_SIMD_LANES];
+    TRSPK_VERTEX_SOAOS_MEMBER_ALIGN(TRSPK_VERTEX_SOAOS_ALIGNMENT) float tex_id[TRSPK_VERTEX_SIMD_LANES];
+    TRSPK_VERTEX_SOAOS_MEMBER_ALIGN(TRSPK_VERTEX_SOAOS_ALIGNMENT) float uv_mode[TRSPK_VERTEX_SIMD_LANES];
 } TRSPK_VertexD3D8SoaosBlock;
 
 typedef struct TRSPK_VertexD3D8Soaos
@@ -77,22 +80,12 @@ trspk_d8_soaos_aligned_free(void* p)
 #endif
 }
 
-static inline void
+void
 trspk_d8_vertex_convert(
     void* dst_vertices,
     const TRSPK_Vertex* src_vertices,
-    uint32_t vertex_count)
-{
-    TRSPK_VertexD3D8* dst = (TRSPK_VertexD3D8*)dst_vertices;
-    for( uint32_t i = 0; i < vertex_count; ++i )
-    {
-        memcpy(dst[i].position, src_vertices[i].position, sizeof(dst[i].position));
-        memcpy(dst[i].color, src_vertices[i].color, sizeof(dst[i].color));
-        memcpy(dst[i].texcoord, src_vertices[i].texcoord, sizeof(dst[i].texcoord));
-        dst[i].tex_id = src_vertices[i].tex_id;
-        dst[i].uv_mode = src_vertices[i].uv_mode;
-    }
-}
+    uint32_t vertex_count,
+    double frame_clock);
 
 static inline void
 trspk_d8_vertex_soaos_free(TRSPK_VertexD3D8Soaos* a)

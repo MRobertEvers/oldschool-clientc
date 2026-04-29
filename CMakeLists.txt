@@ -255,6 +255,7 @@ if(NOT EMSCRIPTEN)
             src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_pass.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_batch_upload.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_format.c
+            src/platforms/ToriRSPlatformKit/src/tools/trspk_d3d8_fvf_bake.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_facebuffer.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_buffer.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_buffer_lifecycle.c
@@ -508,8 +509,8 @@ if(NOT EMSCRIPTEN)
                 src/platforms/ToriRSPlatformKit/src/tools/trspk_lru_model_cache.c
                 src/platforms/ToriRSPlatformKit/src/tools/trspk_dash.c
                 src/platforms/ToriRSPlatformKit/src/trspk_math.c
+                src/platforms/ToriRSPlatformKit/src/tools/trspk_d3d8_fvf_bake.c
                 src/platforms/ToriRSPlatformKit/src/backends/d3d8/d3d8_core.cpp
-                src/platforms/ToriRSPlatformKit/src/backends/d3d8/d3d8_shaders.cpp
                 src/platforms/ToriRSPlatformKit/src/backends/d3d8/d3d8_3d_cache.cpp
                 src/platforms/ToriRSPlatformKit/src/backends/d3d8/d3d8_dynamic_cache.cpp
                 src/platforms/ToriRSPlatformKit/src/backends/d3d8/d3d8_draw.cpp
@@ -750,6 +751,7 @@ if(EMSCRIPTEN)
         src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_pass.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_batch_upload.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_format.c
+        src/platforms/ToriRSPlatformKit/src/tools/trspk_d3d8_fvf_bake.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_facebuffer.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_buffer.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_buffer_lifecycle.c

@@ -27,6 +27,7 @@ trspk_dynamic_mesh_build(
     TRSPK_VertexFormat vertex_format,
     const TRSPK_BakeTransform* bake,
     TRSPK_ResourceCache* resource_cache,
+    double d3d8_vertex_frame_clock,
     TRSPK_DynamicMesh* out_mesh);
 
 void

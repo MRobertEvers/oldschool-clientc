@@ -17,11 +17,6 @@ trspk_d3d8_internal_device(TRSPK_D3D8Renderer* r);
 void*
 trspk_d3d8_internal_d3d(TRSPK_D3D8Renderer* r);
 
-#if defined(_WIN32)
-HRESULT
-trspk_d3d8_world_shaders_create_for_device(TRSPK_D3D8Renderer* r);
-#endif
-
 #ifdef __cplusplus
 }
 #endif

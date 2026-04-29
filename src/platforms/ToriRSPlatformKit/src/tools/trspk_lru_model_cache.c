@@ -197,7 +197,8 @@ trspk_lru_model_cache_get_or_emplace_impl(
             uv_calc_mode,
             atlas_tile_meta,
             bake,
-            &built);
+            &built,
+            0.0);
     else
         build_ok = trspk_vertex_buffer_write(
             arrays->vertex_count,
@@ -214,7 +215,8 @@ trspk_lru_model_cache_get_or_emplace_impl(
             arrays->face_alphas,
             arrays->face_infos,
             bake,
-            &built);
+            &built,
+            0.0);
     if( !build_ok )
     {
         trspk_vertex_buffer_free(&built);

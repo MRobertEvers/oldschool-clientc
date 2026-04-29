@@ -165,7 +165,8 @@ trspk_batch16_add_mesh(
         chunk->vertices + (size_t)vstart * trspk_vertex_format_stride(batch->vertex_format),
         vertices,
         vertex_count,
-        batch->vertex_format);
+        batch->vertex_format,
+        batch->d3d8_vertex_frame_clock);
 
     for( uint32_t i = 0; i < index_count; ++i )
         chunk->indices[istart + i] = (uint16_t)(vstart + indices[i]);
@@ -419,7 +420,8 @@ trspk_batch16_add_model(
             face_alphas,
             face_infos,
             bake,
-            &vb) )
+            &vb,
+            batch->d3d8_vertex_frame_clock) )
     {
         trspk_vertex_buffer_free(&vb);
         return;
@@ -505,7 +507,8 @@ trspk_batch16_add_model_textured(
             uv_calc_mode,
             atlas_tile_meta,
             bake,
-            &vb) )
+            &vb,
+            batch->d3d8_vertex_frame_clock) )
     {
         trspk_vertex_buffer_free(&vb);
         return;

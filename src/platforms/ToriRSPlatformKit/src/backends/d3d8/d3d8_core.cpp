@@ -1,5 +1,5 @@
 /**
- * TRSPK Direct3D 8 device bootstrap: HAL, optional Pure Device, HWND swap chain, Reset hooks.
+ * TRSPK Direct3D 8 device bootstrap: HAL, HWND swap chain, Reset hooks (aligned with legacy Win32 d3d8).
  */
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -66,6 +66,29 @@ trspk_d3d8_release_gpu_defaults(TRSPK_D3D8Renderer* r);
 static bool
 trspk_d3d8_create_dynamic_index_ring(TRSPK_D3D8Renderer* r);
 
+/** Matches legacy d3d8_reset_device depth surface (D16, no MSAA). */
+static bool
+trspk_d3d8_create_depth_stencil_surface(TRSPK_D3D8Renderer* r)
+{
+    if( !r || !r->com_device )
+        return false;
+    if( r->depth_stencil_surf )
+    {
+        reinterpret_cast<IDirect3DSurface8*>((uintptr_t)r->depth_stencil_surf)->Release();
+        r->depth_stencil_surf = 0u;
+    }
+    auto* dev = reinterpret_cast<IDirect3DDevice8*>((uintptr_t)r->com_device);
+    const UINT w = r->width > 0u ? r->width : 1u;
+    const UINT h = r->height > 0u ? r->height : 1u;
+    IDirect3DSurface8* ds = nullptr;
+    const HRESULT hr =
+        dev->CreateDepthStencilSurface(w, h, D3DFMT_D16, D3DMULTISAMPLE_NONE, &ds);
+    if( FAILED(hr) || !ds )
+        return false;
+    r->depth_stencil_surf = (GLuint)(uintptr_t)ds;
+    return true;
+}
+
 static TRSPK_D3D8Renderer*
 trspk_d3d8_alloc(uint32_t width, uint32_t height)
 {
@@ -114,37 +137,35 @@ trspk_d3d8_create_d3d(TRSPK_D3D8Renderer* r, HWND hwnd)
         return false;
     r->com_d3d = (uintptr_t)d3d;
 
+    /* Match legacy platform_impl2 Win32 d3d8_create_device (pre-TRSPK): COPY swap, explicit RGBA backbuffer,
+     * no PURE device, no auto depth-stencil — depth from CreateDepthStencilSurface (see d3d8_reset_device). */
     D3DPRESENT_PARAMETERS pp;
     ZeroMemory(&pp, sizeof(pp));
     pp.Windowed = TRUE;
-    pp.SwapEffect = D3DSWAPEFFECT_DISCARD;
-    pp.BackBufferFormat = D3DFMT_UNKNOWN;
+    pp.SwapEffect = D3DSWAPEFFECT_COPY;
+    pp.BackBufferFormat = D3DFMT_A8R8G8B8;
     pp.hDeviceWindow = hwnd;
-    pp.EnableAutoDepthStencil = TRUE;
-    pp.AutoDepthStencilFormat = D3DFMT_D16;
+    pp.EnableAutoDepthStencil = FALSE;
 
     RECT cr;
     GetClientRect(hwnd, &cr);
     int cw = cr.right - cr.left;
     int ch = cr.bottom - cr.top;
     if( cw <= 0 )
-        cw = (int)r->width;
+        cw = 800;
     if( ch <= 0 )
-        ch = (int)r->height;
+        ch = 600;
     pp.BackBufferWidth = (UINT)cw;
     pp.BackBufferHeight = (UINT)ch;
 
     D3DCAPS8 caps;
     ZeroMemory(&caps, sizeof(caps));
     DWORD create_flags = D3DCREATE_HARDWARE_VERTEXPROCESSING;
-    HRESULT chrr = d3d->GetDeviceCaps(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &caps);
-    if( chrr == D3D_OK && (caps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT) )
+    HRESULT capshr = d3d->GetDeviceCaps(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &caps);
+    if( capshr == D3D_OK )
     {
-        create_flags |= D3DCREATE_PUREDEVICE;
-    }
-    else
-    {
-        create_flags = D3DCREATE_SOFTWARE_VERTEXPROCESSING;
+        if( !(caps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT) )
+            create_flags = D3DCREATE_SOFTWARE_VERTEXPROCESSING;
     }
 
     IDirect3DDevice8* dev = nullptr;
@@ -156,12 +177,26 @@ trspk_d3d8_create_d3d(TRSPK_D3D8Renderer* r, HWND hwnd)
         &pp,
         &dev);
     if( FAILED(hr) || !dev )
+    {
+        d3d->Release();
+        r->com_d3d = 0u;
         return false;
+    }
 
     r->com_device = (uintptr_t)dev;
     r->platform_hwnd = hwnd;
     r->width = pp.BackBufferWidth;
     r->height = pp.BackBufferHeight;
+
+    if( !trspk_d3d8_create_depth_stencil_surface(r) )
+    {
+        dev->Release();
+        r->com_device = 0u;
+        reinterpret_cast<IDirect3D8*>((uintptr_t)r->com_d3d)->Release();
+        r->com_d3d = 0u;
+        return false;
+    }
+
     return true;
 }
 
@@ -184,32 +219,15 @@ TRSPK_D3D8_Init(TRSPK_D3D8_WindowHandle hwnd, uint32_t width, uint32_t height)
         return nullptr;
     }
 
-    if( FAILED(trspk_d3d8_world_shaders_create_for_device(r)) )
+    if( !trspk_d3d8_create_dynamic_index_ring(r) )
     {
         auto* dev = reinterpret_cast<IDirect3DDevice8*>((uintptr_t)r->com_device);
         auto* d3d = reinterpret_cast<IDirect3D8*>((uintptr_t)r->com_d3d);
+        trspk_d3d8_release_gpu_defaults(r);
         if( dev )
             dev->Release();
         if( d3d )
             d3d->Release();
-        r->com_device = 0u;
-        r->com_d3d = 0u;
-        trspk_d3d8_dynamic_shutdown(r);
-        trspk_resource_cache_destroy(r->cache);
-        trspk_batch16_destroy(r->batch_staging);
-        free(r);
-        return nullptr;
-    }
-
-    if( !trspk_d3d8_create_dynamic_index_ring(r) )
-    {
-        auto* dev = reinterpret_cast<IDirect3DDevice8*>((uintptr_t)r->com_device);
-        if( r->prog_world3d )
-            dev->DeleteVertexShader((DWORD)r->prog_world3d);
-        if( r->ps_world3d )
-            dev->DeletePixelShader((DWORD)r->ps_world3d);
-        dev->Release();
-        reinterpret_cast<IDirect3D8*>((uintptr_t)r->com_d3d)->Release();
         r->com_device = 0u;
         r->com_d3d = 0u;
         trspk_d3d8_dynamic_shutdown(r);
@@ -233,10 +251,6 @@ TRSPK_D3D8_Shutdown(TRSPK_D3D8Renderer* r)
     auto* dev = reinterpret_cast<IDirect3DDevice8*>((uintptr_t)r->com_device);
     if( dev )
     {
-        if( r->prog_world3d )
-            dev->DeleteVertexShader((DWORD)r->prog_world3d);
-        if( r->ps_world3d )
-            dev->DeletePixelShader((DWORD)r->ps_world3d);
         trspk_d3d8_release_gpu_defaults(r);
         dev->Release();
     }
@@ -293,16 +307,17 @@ TRSPK_D3D8_TryReset(TRSPK_D3D8Renderer* r)
     D3DPRESENT_PARAMETERS pp;
     ZeroMemory(&pp, sizeof(pp));
     pp.Windowed = TRUE;
-    pp.SwapEffect = D3DSWAPEFFECT_DISCARD;
-    pp.BackBufferFormat = D3DFMT_UNKNOWN;
+    pp.SwapEffect = D3DSWAPEFFECT_COPY;
+    pp.BackBufferFormat = D3DFMT_A8R8G8B8;
     pp.hDeviceWindow = (HWND)r->platform_hwnd;
-    pp.EnableAutoDepthStencil = TRUE;
-    pp.AutoDepthStencilFormat = D3DFMT_D16;
+    pp.EnableAutoDepthStencil = FALSE;
     pp.BackBufferWidth = r->width > 0u ? r->width : 1u;
     pp.BackBufferHeight = r->height > 0u ? r->height : 1u;
 
     HRESULT hr = dev->Reset(&pp);
     if( FAILED(hr) )
+        return false;
+    if( !trspk_d3d8_create_depth_stencil_surface(r) )
         return false;
     if( !trspk_d3d8_create_dynamic_index_ring(r) )
         return false;
@@ -330,6 +345,16 @@ TRSPK_D3D8_FrameBegin(TRSPK_D3D8Renderer* r)
         return;
 
     dev->BeginScene();
+    IDirect3DSurface8* bb = nullptr;
+    if( SUCCEEDED(dev->GetBackBuffer(0, D3DBACKBUFFER_TYPE_MONO, &bb)) && bb )
+    {
+        IDirect3DSurface8* ds =
+            r->depth_stencil_surf
+                ? reinterpret_cast<IDirect3DSurface8*>((uintptr_t)r->depth_stencil_surf)
+                : nullptr;
+        dev->SetRenderTarget(bb, ds);
+        bb->Release();
+    }
     dev->SetRenderState(D3DRS_ZENABLE, TRUE);
     dev->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
     dev->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
@@ -389,7 +414,7 @@ trspk_d3d8_create_dynamic_index_ring(TRSPK_D3D8Renderer* r)
     if( !r || !r->com_device )
         return false;
     auto* dev = reinterpret_cast<IDirect3DDevice8*>((uintptr_t)r->com_device);
-    const UINT bytes = (UINT)(65535u * sizeof(uint16_t));
+    const UINT bytes = (UINT)(65536u * sizeof(uint16_t));
     IDirect3DIndexBuffer8* ib = nullptr;
     HRESULT hr = dev->CreateIndexBuffer(
         bytes,
@@ -408,6 +433,11 @@ trspk_d3d8_release_gpu_defaults(TRSPK_D3D8Renderer* r)
 {
     if( !r || !r->com_device )
         return;
+    if( r->depth_stencil_surf )
+    {
+        reinterpret_cast<IDirect3DSurface8*>((uintptr_t)r->depth_stencil_surf)->Release();
+        r->depth_stencil_surf = 0u;
+    }
     if( r->dynamic_ibo )
     {
         reinterpret_cast<IDirect3DIndexBuffer8*>((uintptr_t)r->dynamic_ibo)->Release();

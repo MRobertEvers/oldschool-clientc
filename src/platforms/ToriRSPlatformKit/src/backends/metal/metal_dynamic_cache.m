@@ -149,7 +149,7 @@ trspk_metal_pass_flush_pending_dynamic_gpu_uploads(TRSPK_MetalRenderer* r)
         const TRSPK_VertexBuffer* id_mesh =
             lru ? trspk_lru_model_cache_get(lru, d->lru_model_id, d->seg, d->frame_i) : NULL;
         if( !id_mesh ||
-            !trspk_vertex_buffer_bake_array_to_interleaved(id_mesh, &d->bake, &baked) ||
+            !trspk_vertex_buffer_bake_array_to_interleaved(id_mesh, &d->bake, &baked, 0.0) ||
             baked.vertex_count != d->vertex_count || baked.index_count != d->index_count ||
             baked.format != TRSPK_VERTEX_FORMAT_METAL ||
             baked.index_format != TRSPK_INDEX_FORMAT_U32 || !baked.vertices.as_metal ||
@@ -436,7 +436,7 @@ trspk_metal_dynamic_store_mesh(
     if( !r || !model || !r->cache || pose_index >= TRSPK_MAX_POSES_PER_MODEL )
         return false;
     TRSPK_DynamicMesh mesh;
-    if( !trspk_dynamic_mesh_build(model, TRSPK_VERTEX_FORMAT_METAL, bake, r->cache, &mesh) )
+    if( !trspk_dynamic_mesh_build(model, TRSPK_VERTEX_FORMAT_METAL, bake, r->cache, 0.0, &mesh) )
         return false;
 
     const bool ok = trspk_metal_dynamic_upload_interleaved(

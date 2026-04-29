@@ -1,6 +1,7 @@
 #include "trspk_vertex_buffer.h"
 
 #include "../../include/ToriRSPlatformKit/trspk_math.h"
+#include "trspk_d3d8_fvf_bake.h"
 #include "trspk_resource_cache.h"
 #include "trspk_vertex_format.h"
 
@@ -11,7 +12,8 @@ static void
 trspk_vertex_buffer_bake_array_to_interleaved_vertices(
     const TRSPK_VertexBuffer* src,
     const TRSPK_BakeTransform* bake,
-    TRSPK_VertexBuffer* out);
+    TRSPK_VertexBuffer* out,
+    double d3d8_frame_clock);
 
 void
 trspk_vertex_buffer_apply_bake(
@@ -47,8 +49,10 @@ trspk_vertex_buffer_apply_bake(
     case TRSPK_VERTEX_FORMAT_D3D8:
         for( uint32_t i = 0; i < n; ++i )
         {
-            float* p = vb->vertices.as_d3d8[i].position;
-            trspk_bake_transform_apply(bake, &p[0], &p[1], &p[2]);
+            float* px = &vb->vertices.as_d3d8[i].x;
+            float* py = &vb->vertices.as_d3d8[i].y;
+            float* pz = &vb->vertices.as_d3d8[i].z;
+            trspk_bake_transform_apply(bake, px, py, pz);
         }
         break;
     default:
@@ -60,7 +64,8 @@ bool
 trspk_vertex_buffer_bake_array_to_interleaved(
     const TRSPK_VertexBuffer* src,
     const TRSPK_BakeTransform* bake,
-    TRSPK_VertexBuffer* out)
+    TRSPK_VertexBuffer* out,
+    double d3d8_frame_clock)
 {
     if( !src || !bake || !out )
         return false;
@@ -85,7 +90,7 @@ trspk_vertex_buffer_bake_array_to_interleaved(
     out->index_base = src->index_base;
     memcpy(out->indices.as_u32, src->indices.as_u32, (size_t)src->index_count * sizeof(uint32_t));
 
-    trspk_vertex_buffer_bake_array_to_interleaved_vertices(src, bake, out);
+    trspk_vertex_buffer_bake_array_to_interleaved_vertices(src, bake, out, d3d8_frame_clock);
     return true;
 }
 
@@ -120,7 +125,8 @@ write_vertex(
     float vv,
     float tex_id_vertex,
     float packed_gpu_uv_mode,
-    const TRSPK_BakeTransform* bake)
+    const TRSPK_BakeTransform* bake,
+    double d3d8_frame_clock)
 {
     float px = x;
     float py = y;
@@ -173,18 +179,17 @@ write_vertex(
             (uint16_t)fmaxf(0.0f, fminf(65535.0f, floorf(packed_gpu_uv_mode + 0.5f)));
         break;
     case TRSPK_VERTEX_FORMAT_D3D8:
-        dest->vertices.as_d3d8[offset].position[0] = px;
-        dest->vertices.as_d3d8[offset].position[1] = py;
-        dest->vertices.as_d3d8[offset].position[2] = pz;
-        dest->vertices.as_d3d8[offset].position[3] = 1.0f;
-        dest->vertices.as_d3d8[offset].color[0] = color[0];
-        dest->vertices.as_d3d8[offset].color[1] = color[1];
-        dest->vertices.as_d3d8[offset].color[2] = color[2];
-        dest->vertices.as_d3d8[offset].color[3] = color[3];
-        dest->vertices.as_d3d8[offset].texcoord[0] = u;
-        dest->vertices.as_d3d8[offset].texcoord[1] = vv;
-        dest->vertices.as_d3d8[offset].tex_id = tex_id_vertex;
-        dest->vertices.as_d3d8[offset].uv_mode = packed_gpu_uv_mode;
+        trspk_d3d8_fvf_from_model_vertex(
+            px,
+            py,
+            pz,
+            color,
+            u,
+            vv,
+            tex_id_vertex,
+            packed_gpu_uv_mode,
+            d3d8_frame_clock,
+            &dest->vertices.as_d3d8[offset]);
         break;
     case TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS:
     {
@@ -224,6 +229,7 @@ write_vertex(
         blk->texcoord_v[lane] = vv;
         blk->tex_id[lane] = tex_id_vertex;
         blk->uv_mode[lane] = packed_gpu_uv_mode;
+        (void)d3d8_frame_clock;
         break;
     }
     case TRSPK_VERTEX_FORMAT_METAL_SOAOS:
@@ -271,7 +277,8 @@ write_hidden_vertex(
         0.0f,
         (float)TRSPK_INVALID_TEXTURE_ID,
         pack,
-        NULL);
+        NULL,
+        0.0);
 }
 
 bool
@@ -297,7 +304,8 @@ trspk_vertex_buffer_write_textured(
     TRSPK_UVCalculationMode uv_calc_mode,
     const TRSPK_ResourceCache* atlas_tile_meta,
     const TRSPK_BakeTransform* bake,
-    TRSPK_VertexBuffer* dest)
+    TRSPK_VertexBuffer* dest,
+    double d3d8_frame_clock)
 {
     for( uint32_t local_face = 0; local_face < face_count; ++local_face )
     {
@@ -415,7 +423,8 @@ trspk_vertex_buffer_write_textured(
             uv.v1,
             tex_vertex,
             packed_gpu,
-            bake);
+            bake,
+            d3d8_frame_clock);
         write_vertex(
             dest,
             (int)face_base_index + 1,
@@ -427,7 +436,8 @@ trspk_vertex_buffer_write_textured(
             uv.v2,
             tex_vertex,
             packed_gpu,
-            bake);
+            bake,
+            d3d8_frame_clock);
         write_vertex(
             dest,
             (int)face_base_index + 2,
@@ -439,7 +449,8 @@ trspk_vertex_buffer_write_textured(
             uv.v3,
             tex_vertex,
             packed_gpu,
-            bake);
+            bake,
+            d3d8_frame_clock);
     }
     return true;
 }
@@ -460,7 +471,8 @@ trspk_vertex_buffer_write(
     const uint8_t* face_alphas,
     const int32_t* face_infos,
     const TRSPK_BakeTransform* bake,
-    TRSPK_VertexBuffer* dest)
+    TRSPK_VertexBuffer* dest,
+    double d3d8_frame_clock)
 {
     for( uint32_t local_face = 0; local_face < face_count; ++local_face )
     {
@@ -517,7 +529,8 @@ trspk_vertex_buffer_write(
             0.0f,
             (float)TRSPK_INVALID_TEXTURE_ID,
             untextured_pack,
-            bake);
+            bake,
+            d3d8_frame_clock);
 
         write_vertex(
             dest,
@@ -530,7 +543,8 @@ trspk_vertex_buffer_write(
             0.0f,
             (float)TRSPK_INVALID_TEXTURE_ID,
             untextured_pack,
-            bake);
+            bake,
+            d3d8_frame_clock);
 
         write_vertex(
             dest,
@@ -543,7 +557,8 @@ trspk_vertex_buffer_write(
             0.0f,
             (float)TRSPK_INVALID_TEXTURE_ID,
             untextured_pack,
-            bake);
+            bake,
+            d3d8_frame_clock);
     }
 
     return true;

@@ -18,24 +18,10 @@ typedef void* TRSPK_D3D8_WindowHandle;
 #endif
 
 typedef uint32_t GLuint;
-typedef int32_t GLint;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef struct TRSPK_D3D8WorldShaderLocs
-{
-    GLint a_position;
-    GLint a_color;
-    GLint a_texcoord;
-    GLint a_tex_id;
-    GLint a_uv_mode;
-    GLint u_modelViewMatrix;
-    GLint u_projectionMatrix;
-    GLint u_clock;
-    GLint s_atlas;
-} TRSPK_D3D8WorldShaderLocs;
 
 /**
  * One model append in scene order. Chunk pools hold concatenated uint16 indices per chunk; each
@@ -90,10 +76,9 @@ typedef struct TRSPK_D3D8Renderer
     uint32_t window_width;
     uint32_t window_height;
     bool ready;
-    GLuint prog_world3d;
-    GLuint ps_world3d;
-    TRSPK_D3D8WorldShaderLocs world_locs;
     GLuint atlas_texture;
+    /** IDirect3DSurface8* — explicit depth-stencil when swap chain has no auto DS (legacy Win32 D3D8 path). */
+    GLuint depth_stencil_surf;
     GLuint dynamic_ibo;
     GLuint batch_chunk_vbos[TRSPK_MAX_WEBGL1_CHUNKS];
     GLuint batch_chunk_ebos[TRSPK_MAX_WEBGL1_CHUNKS];
@@ -313,10 +298,6 @@ trspk_d3d8_draw_clear_rect(
     TRSPK_D3D8Renderer* r,
     const TRSPK_Rect* rect);
 
-GLuint
-trspk_d3d8_create_world_program(TRSPK_D3D8WorldShaderLocs* locs);
-void
-trspk_d3d8_bind_world_attribs(TRSPK_D3D8Renderer* r);
 void
 trspk_d3d8_compute_view_matrix(
     float* out_matrix,

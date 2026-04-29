@@ -263,6 +263,8 @@ trspk_d3d8_event_batch3d_begin(
     ctx->current_batch_id = cmd->_batch.batch_id;
     ctx->batch_active = true;
     trspk_batch16_begin(ctx->staging);
+    if( ctx->renderer )
+        ctx->staging->d3d8_vertex_frame_clock = ctx->renderer->frame_clock;
     trspk_resource_cache_batch_begin(ctx->cache, (TRSPK_BatchId)cmd->_batch.batch_id);
 }
 

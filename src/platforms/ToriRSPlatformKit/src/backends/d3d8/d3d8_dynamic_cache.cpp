@@ -70,6 +70,7 @@ trspk_d3d8_ensure_chunk(
     auto* dev = reinterpret_cast<IDirect3DDevice8*>((uintptr_t)r->com_device);
     if( !dev )
         return false;
+    static const DWORD kFvfWorld = D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1;
     const uint32_t vb_bytes =
         TRSPK_D3D8_DYNAMIC_CHUNK_VERTEX_CAPACITY *
         trspk_vertex_format_stride(TRSPK_VERTEX_FORMAT_D3D8);
@@ -81,7 +82,7 @@ trspk_d3d8_ensure_chunk(
         HRESULT hr = dev->CreateVertexBuffer(
             vb_bytes,
             D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY,
-            0u,
+            kFvfWorld,
             D3DPOOL_DEFAULT,
             &vb);
         if( FAILED(hr) || !vb )
@@ -279,7 +280,8 @@ trspk_d3d8_pass_flush_pending_dynamic_gpu_uploads(TRSPK_D3D8Renderer* r)
         const TRSPK_VertexBuffer* id_mesh =
             lru ? trspk_lru_model_cache_get(lru, d->lru_model_id, d->seg, d->frame_i) : NULL;
         if( !id_mesh ||
-            !trspk_vertex_buffer_bake_array_to_interleaved(id_mesh, &d->bake, &baked) ||
+            !trspk_vertex_buffer_bake_array_to_interleaved(
+                id_mesh, &d->bake, &baked, r->frame_clock) ||
             baked.vertex_count != d->vertex_count || baked.index_count != d->index_count ||
             baked.format != TRSPK_VERTEX_FORMAT_D3D8 ||
             baked.index_format != TRSPK_INDEX_FORMAT_U32 || !baked.vertices.as_d3d8 ||
@@ -748,7 +750,8 @@ trspk_d3d8_dynamic_store_mesh(
     if( !r || !model || !r->cache || pose_index >= TRSPK_MAX_POSES_PER_MODEL )
         return false;
     TRSPK_DynamicMesh mesh;
-    if( !trspk_dynamic_mesh_build(model, TRSPK_VERTEX_FORMAT_D3D8, bake, r->cache, &mesh) )
+    if( !trspk_dynamic_mesh_build(
+            model, TRSPK_VERTEX_FORMAT_D3D8, bake, r->cache, r->frame_clock, &mesh) )
         return false;
 
     const bool ok = trspk_d3d8_dynamic_queue_interleaved(

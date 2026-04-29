@@ -318,7 +318,7 @@ trspk_vertex_buffer_convert_from_trspk(
     void* buf = malloc(bytes);
     if( !buf )
         return false;
-    trspk_vertex_format_convert(buf, src, n, dst_format);
+    trspk_vertex_format_convert(buf, src, n, dst_format, 0.0);
     free(src);
     m->vertices.as_trspk = NULL;
     m->format = dst_format;

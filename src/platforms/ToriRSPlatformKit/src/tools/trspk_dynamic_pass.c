@@ -47,11 +47,13 @@ trspk_dynamic_mesh_build_with_batch16(
     TRSPK_VertexFormat vertex_format,
     const TRSPK_BakeTransform* bake,
     TRSPK_ResourceCache* resource_cache,
+    double d3d8_vertex_frame_clock,
     TRSPK_DynamicMesh* out_mesh)
 {
     TRSPK_Batch16* batch = trspk_batch16_create(65535u, 65535u, vertex_format);
     if( !batch )
         return false;
+    batch->d3d8_vertex_frame_clock = d3d8_vertex_frame_clock;
     trspk_batch16_begin(batch);
     trspk_dash_batch_add_model16(
         batch, model, 1u, TRSPK_GPU_ANIM_NONE_IDX, 0u, bake, resource_cache);
@@ -85,8 +87,10 @@ trspk_dynamic_mesh_build_with_batch32(
     TRSPK_VertexFormat vertex_format,
     const TRSPK_BakeTransform* bake,
     TRSPK_ResourceCache* resource_cache,
+    double d3d8_vertex_frame_clock,
     TRSPK_DynamicMesh* out_mesh)
 {
+    (void)d3d8_vertex_frame_clock;
     TRSPK_Batch32* batch = trspk_batch32_create(4096u, 12288u, vertex_format);
     if( !batch )
         return false;
@@ -120,6 +124,7 @@ trspk_dynamic_mesh_build(
     TRSPK_VertexFormat vertex_format,
     const TRSPK_BakeTransform* bake,
     TRSPK_ResourceCache* resource_cache,
+    double d3d8_vertex_frame_clock,
     TRSPK_DynamicMesh* out_mesh)
 {
     if( out_mesh )
@@ -132,11 +137,21 @@ trspk_dynamic_mesh_build(
     case TRSPK_VERTEX_FORMAT_WEBGL1:
     case TRSPK_VERTEX_FORMAT_D3D8:
         return trspk_dynamic_mesh_build_with_batch16(
-            model, vertex_format, bake, resource_cache, out_mesh);
+            model,
+            vertex_format,
+            bake,
+            resource_cache,
+            d3d8_vertex_frame_clock,
+            out_mesh);
     case TRSPK_VERTEX_FORMAT_TRSPK:
     case TRSPK_VERTEX_FORMAT_METAL:
         return trspk_dynamic_mesh_build_with_batch32(
-            model, vertex_format, bake, resource_cache, out_mesh);
+            model,
+            vertex_format,
+            bake,
+            resource_cache,
+            d3d8_vertex_frame_clock,
+            out_mesh);
     default:
         return false;
     }

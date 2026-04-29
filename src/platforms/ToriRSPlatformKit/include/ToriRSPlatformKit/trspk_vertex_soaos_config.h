@@ -51,4 +51,22 @@
 #define TRSPK_VERTEX_SOAOS_BLOCK_COUNT(n) \
     (((uint32_t)(n) + TRSPK_VERTEX_SOAOS_LANE_MASK) >> TRSPK_VERTEX_SOAOS_BLOCK_SHIFT)
 
+/*
+ * Member alignment for SoAoS lanes: do not use _Alignas here. After windows.h, MinGW
+ * headers can leave _Alignas in a state where _Alignas(N) is misparsed in C++ (e.g.
+ * d3d8_core.cpp). GCC/Clang attribute avoids that; C++11 alignas is the fallback.
+ */
+#if defined(__GNUC__) || defined(__clang__)
+#define TRSPK_VERTEX_SOAOS_MEMBER_ALIGN(N) __attribute__((aligned(N)))
+#elif defined(_MSC_VER)
+#define TRSPK_VERTEX_SOAOS_MEMBER_ALIGN(N) __declspec(align(N))
+#elif defined(__cplusplus) && (__cplusplus >= 201103L)
+#define TRSPK_VERTEX_SOAOS_MEMBER_ALIGN(N) alignas(N)
+#elif defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
+#include <stdalign.h>
+#define TRSPK_VERTEX_SOAOS_MEMBER_ALIGN(N) alignas(N)
+#else
+#error "TRSPK vertex SoAoS needs GCC, Clang, C++11+, or C11"
+#endif
+
 #endif

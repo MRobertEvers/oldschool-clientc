@@ -17,7 +17,8 @@ trspk_vertex_format_convert(
     void* dst_vertices,
     const TRSPK_Vertex* src_vertices,
     uint32_t vertex_count,
-    TRSPK_VertexFormat fmt);
+    TRSPK_VertexFormat fmt,
+    double d3d8_frame_clock);
 
 #ifdef __cplusplus
 }

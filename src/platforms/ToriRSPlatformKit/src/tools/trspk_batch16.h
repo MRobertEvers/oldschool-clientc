@@ -30,6 +30,8 @@ typedef struct TRSPK_Batch16
     uint32_t entry_count;
     uint32_t entry_capacity;
     bool building;
+    /** Baked into D3D8 FVF atlas UVs when writing D3D8/D3D8_SOAOS vertices (see trspk_vertex_buffer_write). */
+    double d3d8_vertex_frame_clock;
 } TRSPK_Batch16;
 
 TRSPK_Batch16*

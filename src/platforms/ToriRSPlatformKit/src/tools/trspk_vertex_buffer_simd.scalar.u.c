@@ -2,11 +2,13 @@ static void
 trspk_vertex_buffer_bake_array_to_interleaved_vertices(
     const TRSPK_VertexBuffer* src,
     const TRSPK_BakeTransform* bake,
-    TRSPK_VertexBuffer* out)
+    TRSPK_VertexBuffer* out,
+    double d3d8_frame_clock)
 {
     const uint32_t n = src->vertex_count;
     if( src->format == TRSPK_VERTEX_FORMAT_METAL_SOAOS )
     {
+        (void)d3d8_frame_clock;
         const TRSPK_VertexMetalSoaos* a = &src->vertices.as_metal_soaos;
         for( uint32_t i = 0; i < n; ++i )
         {
@@ -34,6 +36,7 @@ trspk_vertex_buffer_bake_array_to_interleaved_vertices(
     }
     else if( src->format == TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS )
     {
+        (void)d3d8_frame_clock;
         const TRSPK_VertexWebGL1Soaos* a = &src->vertices.as_webgl1_soaos;
         for( uint32_t i = 0; i < n; ++i )
         {
@@ -62,6 +65,7 @@ trspk_vertex_buffer_bake_array_to_interleaved_vertices(
     else if( src->format == TRSPK_VERTEX_FORMAT_D3D8_SOAOS )
     {
         const TRSPK_VertexD3D8Soaos* a = &src->vertices.as_d3d8_soaos;
+        float color_lin[4];
         for( uint32_t i = 0; i < n; ++i )
         {
             const uint32_t bi = TRSPK_VERTEX_SOAOS_BLOCK_IDX(i);
@@ -71,19 +75,21 @@ trspk_vertex_buffer_bake_array_to_interleaved_vertices(
             float y = blk->position_y[li];
             float z = blk->position_z[li];
             trspk_bake_transform_apply(bake, &x, &y, &z);
-            TRSPK_VertexD3D8* v = &out->vertices.as_d3d8[i];
-            v->position[0] = x;
-            v->position[1] = y;
-            v->position[2] = z;
-            v->position[3] = blk->position_w[li];
-            v->color[0] = blk->color_r[li];
-            v->color[1] = blk->color_g[li];
-            v->color[2] = blk->color_b[li];
-            v->color[3] = blk->color_a[li];
-            v->texcoord[0] = blk->texcoord_u[li];
-            v->texcoord[1] = blk->texcoord_v[li];
-            v->tex_id = blk->tex_id[li];
-            v->uv_mode = blk->uv_mode[li];
+            color_lin[0] = blk->color_r[li];
+            color_lin[1] = blk->color_g[li];
+            color_lin[2] = blk->color_b[li];
+            color_lin[3] = blk->color_a[li];
+            trspk_d3d8_fvf_from_model_vertex(
+                x,
+                y,
+                z,
+                color_lin,
+                blk->texcoord_u[li],
+                blk->texcoord_v[li],
+                blk->tex_id[li],
+                blk->uv_mode[li],
+                d3d8_frame_clock,
+                &out->vertices.as_d3d8[i]);
         }
     }
 }

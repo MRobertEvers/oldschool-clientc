@@ -118,6 +118,7 @@ trspk_d3d8_cache_batch_submit(
         }
     }
 
+    static const DWORD kFvfWorld = D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1;
     for( uint32_t c = 0; c < chunk_count; ++c )
     {
         const void* vertices = nullptr;
@@ -131,7 +132,7 @@ trspk_d3d8_cache_batch_submit(
         HRESULT hrv = dev->CreateVertexBuffer(
             vertex_bytes,
             D3DUSAGE_WRITEONLY,
-            0u,
+            kFvfWorld,
             D3DPOOL_MANAGED,
             &vb);
         if( FAILED(hrv) || !vb )

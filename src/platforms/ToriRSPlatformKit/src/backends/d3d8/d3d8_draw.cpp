@@ -12,6 +12,33 @@
 #include <string.h>
 #include <math.h>
 
+#if defined(_WIN32)
+#include <d3d8types.h>
+
+static void
+trspk_d3d8_colmajor_to_d3dmatrix(const float* cm, D3DMATRIX* m)
+{
+    /* Column-vector math (v' = M * v), same as Metal / GL; D3D8 fixed-function uses row-vector
+     * (v' = v * M), so transpose when loading (legacy platform_impl2_win32_renderer_d3d8). */
+    m->_11 = cm[0];
+    m->_12 = cm[1];
+    m->_13 = cm[2];
+    m->_14 = cm[3];
+    m->_21 = cm[4];
+    m->_22 = cm[5];
+    m->_23 = cm[6];
+    m->_24 = cm[7];
+    m->_31 = cm[8];
+    m->_32 = cm[9];
+    m->_33 = cm[10];
+    m->_34 = cm[11];
+    m->_41 = cm[12];
+    m->_42 = cm[13];
+    m->_43 = cm[14];
+    m->_44 = cm[15];
+}
+#endif
+
 #ifdef TRSPK_WEBGL1_VERBOSE_MERGE
 #include <stdio.h>
 #endif
@@ -201,18 +228,43 @@ trspk_d3d8_draw_submit_3d(
     trspk_d3d8_apply_pass_viewport(r);
 
     auto* dev = reinterpret_cast<IDirect3DDevice8*>((uintptr_t)r->com_device);
-    dev->SetVertexShader((DWORD)r->prog_world3d);
-    dev->SetPixelShader((DWORD)r->ps_world3d);
 
-    dev->SetVertexShaderConstantF(0u, view->m, 4u);
-    dev->SetVertexShaderConstantF(4u, proj->m, 4u);
-    float clk[4] = { (float)r->frame_clock, 0.0f, 0.0f, 0.0f };
-    dev->SetVertexShaderConstantF(8u, clk, 1u);
+    static const DWORD kFvfWorld = D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1;
+    dev->SetVertexShader(kFvfWorld);
+    dev->SetPixelShader(0u);
+
+    D3DMATRIX d3d_view;
+    D3DMATRIX d3d_proj;
+    D3DMATRIX d3d_world;
+    trspk_d3d8_colmajor_to_d3dmatrix(view->m, &d3d_view);
+    trspk_d3d8_colmajor_to_d3dmatrix(proj->m, &d3d_proj);
+    ZeroMemory(&d3d_world, sizeof(d3d_world));
+    d3d_world._11 = d3d_world._22 = d3d_world._33 = d3d_world._44 = 1.0f;
+    dev->SetTransform(D3DTS_WORLD, &d3d_world);
+    dev->SetTransform(D3DTS_VIEW, &d3d_view);
+    dev->SetTransform(D3DTS_PROJECTION, &d3d_proj);
+
+    D3DMATRIX idtex;
+    ZeroMemory(&idtex, sizeof(idtex));
+    idtex._11 = idtex._22 = idtex._33 = idtex._44 = 1.0f;
+    dev->SetTransform(D3DTS_TEXTURE0, &idtex);
+    dev->SetTextureStageState(0u, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
 
     IDirect3DTexture8* atlas =
         r->atlas_texture ? reinterpret_cast<IDirect3DTexture8*>((uintptr_t)r->atlas_texture) :
                            nullptr;
     dev->SetTexture(0u, atlas);
+
+    dev->SetTextureStageState(0u, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    dev->SetTextureStageState(0u, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+    dev->SetTextureStageState(0u, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+    dev->SetTextureStageState(0u, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+    dev->SetTextureStageState(0u, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+    dev->SetTextureStageState(0u, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+    dev->SetTextureStageState(0u, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
+    dev->SetTextureStageState(0u, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
+    dev->SetTextureStageState(0u, D3DTSS_ADDRESSU, D3DTADDRESS_CLAMP);
+    dev->SetTextureStageState(0u, D3DTSS_ADDRESSV, D3DTADDRESS_CLAMP);
 
     dev->SetRenderState(D3DRS_ZENABLE, TRUE);
     dev->SetRenderState(D3DRS_ZFUNC, D3DCMP_ALWAYS);
@@ -221,6 +273,9 @@ trspk_d3d8_draw_submit_3d(
     dev->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
     dev->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
     dev->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+    dev->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
+    dev->SetRenderState(D3DRS_ALPHAREF, 128u);
+    dev->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATEREQUAL);
 
     const UINT stride = (UINT)sizeof(TRSPK_VertexD3D8);
 
@@ -312,13 +367,12 @@ trspk_d3d8_draw_submit_3d(
             auto* vb =
                 reinterpret_cast<IDirect3DVertexBuffer8*>((uintptr_t)vbo_first);
             dev->SetStreamSource(0u, vb, stride);
-            trspk_d3d8_bind_world_attribs(r);
             last_vbo = vbo_first;
         }
 
         auto* ib =
             reinterpret_cast<IDirect3DIndexBuffer8*>((uintptr_t)r->dynamic_ibo);
-        dev->SetIndices(ib);
+        dev->SetIndices(ib, 0u);
 
         uint16_t min_ix = 0xFFFFu;
         uint16_t max_ix = 0u;
@@ -334,6 +388,16 @@ trspk_d3d8_draw_submit_3d(
         const UINT num_vertices =
             (UINT)((max_ix >= min_ix) ? (UINT)(max_ix - min_ix + 1u) : 1u);
 
+#if defined(__MINGW32__) || defined(__MINGW64__)
+        /* MinGW w32api uses a 5-parameter DrawIndexedPrimitive (no BaseVertexIndex). */
+        dev->DrawIndexedPrimitive(
+            D3DPT_TRIANGLELIST,
+            (UINT)min_ix,
+            num_vertices,
+            (UINT)first->pool_start,
+            (UINT)(run_count / 3u));
+#else
+        /* MSVC DirectX 8 SDK: BaseVertexIndex (INT) precedes MinIndex. */
         dev->DrawIndexedPrimitive(
             D3DPT_TRIANGLELIST,
             0,
@@ -341,10 +405,13 @@ trspk_d3d8_draw_submit_3d(
             num_vertices,
             (UINT)first->pool_start,
             (UINT)(run_count / 3u));
+#endif
         r->diag_frame_submitted_draws++;
 
         run_start = run_end;
     }
+
+    dev->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
 #endif
 
     trspk_d3d8_draw_begin_3d(r, NULL);

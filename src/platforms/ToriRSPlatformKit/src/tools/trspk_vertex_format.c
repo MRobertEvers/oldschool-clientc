@@ -34,28 +34,34 @@ trspk_vertex_format_convert(
     void* dst_vertices,
     const TRSPK_Vertex* src_vertices,
     uint32_t vertex_count,
-    TRSPK_VertexFormat fmt)
+    TRSPK_VertexFormat fmt,
+    double d3d8_frame_clock)
 {
     switch( fmt )
     {
     case TRSPK_VERTEX_FORMAT_TRSPK:
+        (void)d3d8_frame_clock;
         memcpy(dst_vertices, src_vertices, (size_t)vertex_count * sizeof(TRSPK_Vertex));
         return;
     case TRSPK_VERTEX_FORMAT_WEBGL1:
+        (void)d3d8_frame_clock;
         trspk_webgl1_vertex_convert(dst_vertices, src_vertices, vertex_count);
         return;
     case TRSPK_VERTEX_FORMAT_METAL:
+        (void)d3d8_frame_clock;
         trspk_metal_vertex_convert(dst_vertices, src_vertices, vertex_count);
         return;
     case TRSPK_VERTEX_FORMAT_D3D8:
-        trspk_d8_vertex_convert(dst_vertices, src_vertices, vertex_count);
+        trspk_d8_vertex_convert(dst_vertices, src_vertices, vertex_count, d3d8_frame_clock);
         return;
     case TRSPK_VERTEX_FORMAT_NONE:
     case TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS:
     case TRSPK_VERTEX_FORMAT_METAL_SOAOS:
     case TRSPK_VERTEX_FORMAT_D3D8_SOAOS:
+        (void)d3d8_frame_clock;
         return;
     default:
+        (void)d3d8_frame_clock;
         memcpy(dst_vertices, src_vertices, (size_t)vertex_count * sizeof(TRSPK_Vertex));
         return;
     }

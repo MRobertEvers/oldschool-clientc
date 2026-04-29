@@ -145,7 +145,8 @@ trspk_batch32_add_mesh(
         batch->vertices + (size_t)vstart * trspk_vertex_format_stride(batch->vertex_format),
         vertices,
         vertex_count,
-        batch->vertex_format);
+        batch->vertex_format,
+        0.0);
 
     for( uint32_t i = 0; i < index_count; ++i )
         batch->indices[istart + i] = vstart + indices[i];
@@ -333,7 +334,8 @@ trspk_batch32_add_model(
             face_alphas,
             face_infos,
             bake,
-            &vb) )
+            &vb,
+            0.0) )
     {
         trspk_vertex_buffer_free(&vb);
         return;
@@ -416,7 +418,8 @@ trspk_batch32_add_model_textured(
             uv_calc_mode,
             atlas_tile_meta,
             bake,
-            &vb) )
+            &vb,
+            0.0) )
     {
         trspk_vertex_buffer_free(&vb);
         return;
