@@ -1,9 +1,8 @@
-#include "trspk_webgl1.h"
-
 #include "../../tools/trspk_dynamic_pass.h"
 #include "../../tools/trspk_resource_cache.h"
 #include "../../tools/trspk_vertex_buffer.h"
 #include "../../tools/trspk_vertex_format.h"
+#include "trspk_webgl1.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -31,8 +30,7 @@ trspk_webgl1_slotmap_for_usage(
 {
     if( !r )
         return NULL;
-    return usage == TRSPK_USAGE_PROJECTILE ? r->dynamic_projectile_slotmap
-                                           : r->dynamic_npc_slotmap;
+    return usage == TRSPK_USAGE_PROJECTILE ? r->dynamic_projectile_slotmap : r->dynamic_npc_slotmap;
 }
 
 static GLuint*
@@ -175,8 +173,8 @@ trspk_webgl1_dynamic_upload_interleaved(
         return false;
 
     const uint32_t idx = trspk_webgl1_slot_table_index(model_id, pose_index);
-    const bool had_dynamic_slot = r->dynamic_slot_handles &&
-                                  r->dynamic_slot_handles[idx] != TRSPK_DYNAMIC_SLOT_INVALID;
+    const bool had_dynamic_slot =
+        r->dynamic_slot_handles && r->dynamic_slot_handles[idx] != TRSPK_DYNAMIC_SLOT_INVALID;
 
     trspk_webgl1_dynamic_free_pose_slot(r, model_id, pose_index);
 
@@ -188,13 +186,7 @@ trspk_webgl1_dynamic_upload_interleaved(
     uint32_t vbo_offset = 0u;
     uint32_t ebo_offset = 0u;
     if( !trspk_dynamic_slotmap16_alloc(
-            map,
-            vertex_count,
-            index_count,
-            &handle,
-            &chunk,
-            &vbo_offset,
-            &ebo_offset) )
+            map, vertex_count, index_count, &handle, &chunk, &vbo_offset, &ebo_offset) )
     {
         if( had_dynamic_slot )
             trspk_resource_cache_invalidate_model_pose(r->cache, model_id, pose_index);
@@ -265,7 +257,7 @@ trspk_webgl1_dynamic_store_mesh(
     if( !r || !model || !r->cache || pose_index >= TRSPK_MAX_POSES_PER_MODEL )
         return false;
     TRSPK_DynamicMesh mesh;
-    if( !trspk_dynamic_mesh_build(model, TRSPK_VERTEX_FORMAT_WEBGL1, bake, &mesh) )
+    if( !trspk_dynamic_mesh_build(model, TRSPK_VERTEX_FORMAT_WEBGL1, bake, r->cache, &mesh) )
         return false;
 
     const bool ok = trspk_webgl1_dynamic_upload_interleaved(

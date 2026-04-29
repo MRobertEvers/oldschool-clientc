@@ -46,13 +46,15 @@ trspk_dynamic_mesh_build_with_batch16(
     struct DashModel* model,
     TRSPK_VertexFormat vertex_format,
     const TRSPK_BakeTransform* bake,
+    TRSPK_ResourceCache* resource_cache,
     TRSPK_DynamicMesh* out_mesh)
 {
     TRSPK_Batch16* batch = trspk_batch16_create(65535u, 65535u, vertex_format);
     if( !batch )
         return false;
     trspk_batch16_begin(batch);
-    trspk_dash_batch_add_model16(batch, model, 1u, TRSPK_GPU_ANIM_NONE_IDX, 0u, bake);
+    trspk_dash_batch_add_model16(
+        batch, model, 1u, TRSPK_GPU_ANIM_NONE_IDX, 0u, bake, resource_cache);
     trspk_batch16_end(batch);
     const bool one_chunk = trspk_batch16_chunk_count(batch) == 1u;
     const TRSPK_Batch16Entry* entry = trspk_batch16_get_entry(batch, 0u);
@@ -82,13 +84,15 @@ trspk_dynamic_mesh_build_with_batch32(
     struct DashModel* model,
     TRSPK_VertexFormat vertex_format,
     const TRSPK_BakeTransform* bake,
+    TRSPK_ResourceCache* resource_cache,
     TRSPK_DynamicMesh* out_mesh)
 {
     TRSPK_Batch32* batch = trspk_batch32_create(4096u, 12288u, vertex_format);
     if( !batch )
         return false;
     trspk_batch32_begin(batch);
-    trspk_dash_batch_add_model32(batch, model, 1u, TRSPK_GPU_ANIM_NONE_IDX, 0u, bake);
+    trspk_dash_batch_add_model32(
+        batch, model, 1u, TRSPK_GPU_ANIM_NONE_IDX, 0u, bake, resource_cache);
     trspk_batch32_end(batch);
     const TRSPK_Batch32Entry* entry = trspk_batch32_get_entry(batch, 0u);
     const void* vertices = NULL;
@@ -115,6 +119,7 @@ trspk_dynamic_mesh_build(
     struct DashModel* model,
     TRSPK_VertexFormat vertex_format,
     const TRSPK_BakeTransform* bake,
+    TRSPK_ResourceCache* resource_cache,
     TRSPK_DynamicMesh* out_mesh)
 {
     if( out_mesh )
@@ -125,10 +130,12 @@ trspk_dynamic_mesh_build(
     switch( vertex_format )
     {
     case TRSPK_VERTEX_FORMAT_WEBGL1:
-        return trspk_dynamic_mesh_build_with_batch16(model, vertex_format, bake, out_mesh);
+        return trspk_dynamic_mesh_build_with_batch16(
+            model, vertex_format, bake, resource_cache, out_mesh);
     case TRSPK_VERTEX_FORMAT_TRSPK:
     case TRSPK_VERTEX_FORMAT_METAL:
-        return trspk_dynamic_mesh_build_with_batch32(model, vertex_format, bake, out_mesh);
+        return trspk_dynamic_mesh_build_with_batch32(
+            model, vertex_format, bake, resource_cache, out_mesh);
     default:
         return false;
     }

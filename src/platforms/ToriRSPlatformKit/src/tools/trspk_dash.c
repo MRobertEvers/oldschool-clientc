@@ -9,7 +9,9 @@
 #include <string.h>
 
 void
-trspk_dash_fill_model_arrays(struct DashModel* model, TRSPK_ModelArrays* out)
+trspk_dash_fill_model_arrays(
+    struct DashModel* model,
+    TRSPK_ModelArrays* out)
 {
     if( !out )
         return;
@@ -101,7 +103,8 @@ trspk_dash_batch_add_model16(
     uint16_t model_id,
     uint8_t segment,
     uint16_t frame_index,
-    const TRSPK_BakeTransform* bake)
+    const TRSPK_BakeTransform* bake,
+    TRSPK_ResourceCache* resource_cache)
 {
     if( !batch || !model || model_id == 0 )
         return;
@@ -138,7 +141,7 @@ trspk_dash_batch_add_model16(
             dashmodel_face_alphas_const(model),
             dashmodel_face_infos_const(model),
             trspk_dash_uv_calculation_mode(model),
-            NULL,
+            resource_cache,
             bake);
     }
     else
@@ -172,7 +175,8 @@ trspk_dash_batch_add_model32(
     uint16_t model_id,
     uint8_t segment,
     uint16_t frame_index,
-    const TRSPK_BakeTransform* bake)
+    const TRSPK_BakeTransform* bake,
+    TRSPK_ResourceCache* resource_cache)
 {
     if( !batch || !model || model_id == 0 )
         return;
@@ -209,7 +213,7 @@ trspk_dash_batch_add_model32(
             dashmodel_face_alphas_const(model),
             dashmodel_face_infos_const(model),
             trspk_dash_uv_calculation_mode(model),
-            NULL,
+            resource_cache,
             bake);
     }
     else

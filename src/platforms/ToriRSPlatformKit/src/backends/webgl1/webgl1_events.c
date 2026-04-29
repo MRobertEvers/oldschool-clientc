@@ -286,7 +286,8 @@ trspk_webgl1_event_batch3d_model_add(
         (uint16_t)cmd->_model_load.model_id,
         TRSPK_GPU_ANIM_NONE_IDX,
         0,
-        &bake);
+        &bake,
+        ctx->cache);
 }
 
 void
@@ -309,7 +310,8 @@ trspk_webgl1_event_batch3d_anim_add(
         (uint16_t)cmd->_animation_load.model_gpu_id,
         seg,
         (uint16_t)cmd->_animation_load.frame_index,
-        bake);
+        bake,
+        ctx->cache);
 }
 
 void
@@ -396,7 +398,11 @@ trspk_webgl1_event_draw_model(
                 TRSPK_DynamicMesh dm;
                 memset(&dm, 0, sizeof(dm));
                 if( trspk_dynamic_mesh_build(
-                        cmd->_model_draw.model, TRSPK_VERTEX_FORMAT_WEBGL1, &bake, &dm) )
+                        cmd->_model_draw.model,
+                        TRSPK_VERTEX_FORMAT_WEBGL1,
+                        &bake,
+                        ctx->cache,
+                        &dm) )
                 {
                     did_upload = trspk_webgl1_dynamic_store_dynamic_mesh(
                         ctx->renderer,

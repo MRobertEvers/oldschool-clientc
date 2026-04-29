@@ -35,7 +35,8 @@ trspk_dash_batch_add_model16(
     uint16_t model_id,
     uint8_t segment,
     uint16_t frame_index,
-    const TRSPK_BakeTransform* bake);
+    const TRSPK_BakeTransform* bake,
+     TRSPK_ResourceCache* resource_cache);
 
 void
 trspk_dash_batch_add_model32(
@@ -44,7 +45,8 @@ trspk_dash_batch_add_model32(
     uint16_t model_id,
     uint8_t segment,
     uint16_t frame_index,
-    const TRSPK_BakeTransform* bake);
+    const TRSPK_BakeTransform* bake,
+    TRSPK_ResourceCache* resource_cache);
 
 uint32_t
 trspk_dash_prepare_sorted_indices(

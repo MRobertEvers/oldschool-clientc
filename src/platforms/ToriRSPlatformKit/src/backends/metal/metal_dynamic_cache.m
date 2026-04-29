@@ -1,10 +1,9 @@
-#include "trspk_metal.h"
-#import <Metal/Metal.h>
-
 #include "../../tools/trspk_dynamic_pass.h"
 #include "../../tools/trspk_resource_cache.h"
 #include "../../tools/trspk_vertex_buffer.h"
 #include "../../tools/trspk_vertex_format.h"
+#include "trspk_metal.h"
+#import <Metal/Metal.h>
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -28,8 +27,7 @@ trspk_metal_slotmap_for_usage(
 {
     if( !r )
         return NULL;
-    return usage == TRSPK_USAGE_PROJECTILE ? r->dynamic_projectile_slotmap
-                                           : r->dynamic_npc_slotmap;
+    return usage == TRSPK_USAGE_PROJECTILE ? r->dynamic_projectile_slotmap : r->dynamic_npc_slotmap;
 }
 
 static void**
@@ -59,8 +57,8 @@ trspk_metal_replace_buffer(
     id<MTLBuffer> old = (__bridge id<MTLBuffer>)*slot;
     if( old && [old length] >= required_bytes )
         return true;
-    id<MTLBuffer> next =
-        [device newBufferWithLength:(NSUInteger)required_bytes options:MTLResourceStorageModeShared];
+    id<MTLBuffer> next = [device newBufferWithLength:(NSUInteger)required_bytes
+                                             options:MTLResourceStorageModeShared];
     if( !next )
         return false;
     if( old )
@@ -179,8 +177,8 @@ trspk_metal_dynamic_upload_interleaved(
         return false;
 
     const uint32_t idx = trspk_metal_slot_table_index(model_id, pose_index);
-    const bool had_dynamic_slot = r->dynamic_slot_handles &&
-                                  r->dynamic_slot_handles[idx] != TRSPK_DYNAMIC_SLOT_INVALID;
+    const bool had_dynamic_slot =
+        r->dynamic_slot_handles && r->dynamic_slot_handles[idx] != TRSPK_DYNAMIC_SLOT_INVALID;
 
     trspk_metal_dynamic_free_pose_slot(r, model_id, pose_index);
 
@@ -209,10 +207,7 @@ trspk_metal_dynamic_upload_interleaved(
     id<MTLBuffer> ebo = (__bridge id<MTLBuffer>)*trspk_metal_ebo_for_usage(r, usage);
     const uint32_t stride = trspk_vertex_format_stride(TRSPK_VERTEX_FORMAT_METAL);
     memcpy((uint8_t*)[vbo contents] + (size_t)vbo_offset * stride, vertices, vertex_bytes);
-    memcpy(
-        (uint8_t*)[ebo contents] + (size_t)ebo_offset * sizeof(uint32_t),
-        indices,
-        index_bytes);
+    memcpy((uint8_t*)[ebo contents] + (size_t)ebo_offset * sizeof(uint32_t), indices, index_bytes);
 
     TRSPK_ModelPose pose;
     memset(&pose, 0, sizeof(pose));
@@ -251,7 +246,7 @@ trspk_metal_dynamic_store_mesh(
     if( !r || !model || !r->cache || pose_index >= TRSPK_MAX_POSES_PER_MODEL )
         return false;
     TRSPK_DynamicMesh mesh;
-    if( !trspk_dynamic_mesh_build(model, TRSPK_VERTEX_FORMAT_METAL, bake, &mesh) )
+    if( !trspk_dynamic_mesh_build(model, TRSPK_VERTEX_FORMAT_METAL, bake, r->cache, &mesh) )
         return false;
 
     const bool ok = trspk_metal_dynamic_upload_interleaved(

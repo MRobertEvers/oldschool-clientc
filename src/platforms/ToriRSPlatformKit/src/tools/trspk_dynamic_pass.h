@@ -26,6 +26,7 @@ trspk_dynamic_mesh_build(
     struct DashModel* model,
     TRSPK_VertexFormat vertex_format,
     const TRSPK_BakeTransform* bake,
+    TRSPK_ResourceCache* resource_cache,
     TRSPK_DynamicMesh* out_mesh);
 
 void
