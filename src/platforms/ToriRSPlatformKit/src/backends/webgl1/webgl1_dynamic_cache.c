@@ -1,4 +1,5 @@
 #include "../../tools/trspk_dynamic_pass.h"
+#include "../../tools/trspk_lru_model_cache.h"
 #include "../../tools/trspk_resource_cache.h"
 #include "../../tools/trspk_vertex_buffer.h"
 #include "../../tools/trspk_vertex_format.h"
@@ -131,9 +132,7 @@ trspk_webgl1_pass_free_pending_dynamic_uploads(TRSPK_WebGL1Renderer* r)
 {
     if( !r )
         return;
-    TRSPK_WebGL1PassState* const pass = &r->pass_state;
-    pass->pending_dynamic_upload_count = 0u;
-    pass->pending_upload_arena_used = 0u;
+    r->deferred_dynamic_bake_count = 0u;
 }
 
 void
@@ -141,125 +140,266 @@ trspk_webgl1_pass_flush_pending_dynamic_gpu_uploads(TRSPK_WebGL1Renderer* r)
 {
     if( !r )
         return;
-    TRSPK_WebGL1PassState* const pass = &r->pass_state;
-#ifdef __EMSCRIPTEN__
-    for( uint32_t i = 0u; i < pass->pending_dynamic_upload_count; ++i )
+    if( !r->cache )
     {
-        TRSPK_WebGL1PendingDynamicGpuUpload* u = &pass->pending_dynamic_uploads[i];
-        GLuint* upload_vbos = trspk_webgl1_vbos_for_usage(r, u->usage);
-        GLuint* upload_ebos = trspk_webgl1_ebos_for_usage(r, u->usage);
-        if( u->chunk >= TRSPK_MAX_WEBGL1_CHUNKS || !u->vertex_copy || !u->index_copy )
+        r->deferred_dynamic_bake_count = 0u;
+        return;
+    }
+#ifdef __EMSCRIPTEN__
+    TRSPK_LruModelCache* lru = trspk_resource_cache_lru_model_cache(r->cache);
+    for( uint32_t i = 0u; i < r->deferred_dynamic_bake_count; ++i )
+    {
+        TRSPK_WebGL1DeferredDynamicBake* d = &r->deferred_dynamic_bakes[i];
+        TRSPK_VertexBuffer baked = { 0 };
+        const TRSPK_VertexBuffer* id_mesh =
+            lru ? trspk_lru_model_cache_get(lru, d->lru_model_id, d->seg, d->frame_i) : NULL;
+        if( !id_mesh ||
+            !trspk_vertex_buffer_bake_array_to_interleaved(id_mesh, &d->bake, &baked) ||
+            baked.vertex_count != d->vertex_count || baked.index_count != d->index_count ||
+            baked.format != TRSPK_VERTEX_FORMAT_WEBGL1 ||
+            baked.index_format != TRSPK_INDEX_FORMAT_U32 || !baked.vertices.as_webgl1 ||
+            !baked.indices.as_u32 )
+        {
+            trspk_vertex_buffer_free(&baked);
+            trspk_resource_cache_invalidate_model_pose(r->cache, d->model_id, d->pose_index);
             continue;
-        glBindBuffer(GL_ARRAY_BUFFER, upload_vbos[u->chunk]);
+        }
+        if( d->chunk >= TRSPK_MAX_WEBGL1_CHUNKS )
+        {
+            trspk_vertex_buffer_free(&baked);
+            trspk_resource_cache_invalidate_model_pose(r->cache, d->model_id, d->pose_index);
+            continue;
+        }
+        if( !trspk_webgl1_ensure_chunk(r, d->usage, d->chunk) )
+        {
+            trspk_vertex_buffer_free(&baked);
+            trspk_resource_cache_invalidate_model_pose(r->cache, d->model_id, d->pose_index);
+            continue;
+        }
+        const uint32_t ic = baked.index_count;
+        if( ic > r->u16_index_scratch_cap )
+        {
+            uint32_t cap = r->u16_index_scratch_cap ? r->u16_index_scratch_cap : 256u;
+            while( cap < ic )
+                cap *= 2u;
+            uint16_t* n = (uint16_t*)realloc(r->u16_index_scratch, (size_t)cap * sizeof(uint16_t));
+            if( !n )
+            {
+                trspk_vertex_buffer_free(&baked);
+                trspk_resource_cache_invalidate_model_pose(r->cache, d->model_id, d->pose_index);
+                continue;
+            }
+            r->u16_index_scratch = n;
+            r->u16_index_scratch_cap = cap;
+        }
+        const uint32_t* const src = baked.indices.as_u32;
+        uint16_t* const u16i = r->u16_index_scratch;
+        bool index_ok = true;
+        for( uint32_t j = 0; j < ic; ++j )
+        {
+            const uint32_t k = src[j];
+            if( k > 0xFFFFu )
+            {
+                index_ok = false;
+                break;
+            }
+            u16i[j] = (uint16_t)k;
+        }
+        if( !index_ok )
+        {
+            trspk_vertex_buffer_free(&baked);
+            trspk_resource_cache_invalidate_model_pose(r->cache, d->model_id, d->pose_index);
+            continue;
+        }
+        const uint32_t stride = trspk_vertex_format_stride(TRSPK_VERTEX_FORMAT_WEBGL1);
+        const uint32_t vbo_byte_off = d->vbo_offset * stride;
+        const uint32_t ebo_byte_off = (uint32_t)((size_t)d->ebo_offset * sizeof(uint16_t));
+        const uint32_t vertex_bytes = baked.vertex_count * stride;
+        const uint32_t index_bytes = ic * (uint32_t)sizeof(uint16_t);
+        GLuint* upload_vbos = trspk_webgl1_vbos_for_usage(r, d->usage);
+        GLuint* upload_ebos = trspk_webgl1_ebos_for_usage(r, d->usage);
+        glBindBuffer(GL_ARRAY_BUFFER, upload_vbos[d->chunk]);
         glBufferSubData(
             GL_ARRAY_BUFFER,
-            (GLintptr)(size_t)u->vbo_byte_offset,
-            (GLsizeiptr)u->vertex_bytes,
-            u->vertex_copy);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, upload_ebos[u->chunk]);
+            (GLintptr)(size_t)vbo_byte_off,
+            (GLsizeiptr)vertex_bytes,
+            baked.vertices.as_webgl1);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, upload_ebos[d->chunk]);
         glBufferSubData(
             GL_ELEMENT_ARRAY_BUFFER,
-            (GLintptr)(size_t)u->ebo_byte_offset,
-            (GLsizeiptr)u->index_bytes,
-            u->index_copy);
+            (GLintptr)(size_t)ebo_byte_off,
+            (GLsizeiptr)index_bytes,
+            u16i);
+        trspk_vertex_buffer_free(&baked);
+    }
+#else
+    for( uint32_t i = 0u; i < r->deferred_dynamic_bake_count; ++i )
+    {
+        TRSPK_WebGL1DeferredDynamicBake* d = &r->deferred_dynamic_bakes[i];
+        trspk_resource_cache_invalidate_model_pose(r->cache, d->model_id, d->pose_index);
     }
 #endif
-    pass->pending_dynamic_upload_count = 0u;
-    pass->pending_upload_arena_used = 0u;
+    r->deferred_dynamic_bake_count = 0u;
 }
 
 static bool
-trspk_webgl1_pass_reserve_pending(
-    TRSPK_WebGL1PassState* pass,
+trspk_webgl1_deferred_reserve(
+    TRSPK_WebGL1Renderer* r,
     uint32_t need)
 {
-    if( need <= pass->pending_dynamic_upload_cap )
+    if( need <= r->deferred_dynamic_bake_cap )
         return true;
-    uint32_t cap = pass->pending_dynamic_upload_cap ? pass->pending_dynamic_upload_cap : 8u;
+    uint32_t cap = r->deferred_dynamic_bake_cap ? r->deferred_dynamic_bake_cap : 8u;
     while( cap < need )
         cap *= 2u;
-    TRSPK_WebGL1PendingDynamicGpuUpload* n = (TRSPK_WebGL1PendingDynamicGpuUpload*)realloc(
-        pass->pending_dynamic_uploads, cap * sizeof(TRSPK_WebGL1PendingDynamicGpuUpload));
+    TRSPK_WebGL1DeferredDynamicBake* n = (TRSPK_WebGL1DeferredDynamicBake*)realloc(
+        r->deferred_dynamic_bakes, cap * sizeof(TRSPK_WebGL1DeferredDynamicBake));
     if( !n )
         return false;
-    pass->pending_dynamic_uploads = n;
-    pass->pending_dynamic_upload_cap = cap;
+    r->deferred_dynamic_bakes = n;
+    r->deferred_dynamic_bake_cap = cap;
     return true;
 }
 
 static bool
-trspk_webgl1_pending_upload_arena_reserve(
-    TRSPK_WebGL1Renderer* r,
-    uint32_t vertex_bytes,
-    uint32_t index_bytes,
-    uint8_t** out_vertex_slot,
-    uint8_t** out_index_slot)
-{
-    TRSPK_WebGL1PassState* const pass = &r->pass_state;
-    const size_t need = (size_t)vertex_bytes + (size_t)index_bytes;
-    size_t new_used = pass->pending_upload_arena_used + need;
-    if( new_used > pass->pending_upload_arena_cap )
-    {
-        size_t cap = pass->pending_upload_arena_cap ? pass->pending_upload_arena_cap : 65536u;
-        while( cap < new_used )
-            cap *= 2u;
-        uint8_t* n = (uint8_t*)realloc(pass->pending_upload_arena, cap);
-        if( !n )
-            return false;
-        pass->pending_upload_arena = n;
-        pass->pending_upload_arena_cap = cap;
-    }
-    uint8_t* base = pass->pending_upload_arena + pass->pending_upload_arena_used;
-    *out_vertex_slot = base;
-    *out_index_slot = base + (size_t)vertex_bytes;
-    pass->pending_upload_arena_used = new_used;
-    return true;
-}
-
-static bool
-trspk_webgl1_pass_enqueue_dynamic_upload(
+trspk_webgl1_dynamic_upload_interleaved(
     TRSPK_WebGL1Renderer* r,
     TRSPK_UsageClass usage,
     uint8_t chunk,
-    uint32_t vbo_byte_offset,
-    uint32_t ebo_byte_offset,
-    uint32_t vertex_bytes,
-    uint32_t index_bytes,
+    uint32_t vbo_offset,
+    uint32_t ebo_offset,
     const void* vertices,
-    const void* indices_u16)
+    uint32_t vertex_bytes,
+    const void* indices_u16,
+    uint32_t index_bytes)
 {
-    TRSPK_WebGL1PassState* const pass = &r->pass_state;
-    if( !trspk_webgl1_pass_reserve_pending(pass, pass->pending_dynamic_upload_count + 1u) )
-        return false;
 #ifdef __EMSCRIPTEN__
-    uint8_t* vc = NULL;
-    uint8_t* ic = NULL;
-    if( !trspk_webgl1_pending_upload_arena_reserve(r, vertex_bytes, index_bytes, &vc, &ic) )
+    if( chunk >= TRSPK_MAX_WEBGL1_CHUNKS || !vertices || !indices_u16 )
         return false;
-    memcpy(vc, vertices, (size_t)vertex_bytes);
-    memcpy(ic, indices_u16, (size_t)index_bytes);
+    GLuint* upload_vbos = trspk_webgl1_vbos_for_usage(r, usage);
+    GLuint* upload_ebos = trspk_webgl1_ebos_for_usage(r, usage);
+    const uint32_t stride = trspk_vertex_format_stride(TRSPK_VERTEX_FORMAT_WEBGL1);
+    const uint32_t vbo_byte_off = vbo_offset * stride;
+    const uint32_t ebo_byte_off = (uint32_t)((size_t)ebo_offset * sizeof(uint16_t));
+    glBindBuffer(GL_ARRAY_BUFFER, upload_vbos[chunk]);
+    glBufferSubData(
+        GL_ARRAY_BUFFER,
+        (GLintptr)(size_t)vbo_byte_off,
+        (GLsizeiptr)vertex_bytes,
+        vertices);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, upload_ebos[chunk]);
+    glBufferSubData(
+        GL_ELEMENT_ARRAY_BUFFER,
+        (GLintptr)(size_t)ebo_byte_off,
+        (GLsizeiptr)index_bytes,
+        indices_u16);
 #else
-    uint8_t* vc = (uint8_t*)malloc((size_t)vertex_bytes);
-    uint8_t* ic = (uint8_t*)malloc((size_t)index_bytes);
-    if( !vc || !ic )
+    (void)r;
+    (void)usage;
+    (void)chunk;
+    (void)vbo_offset;
+    (void)ebo_offset;
+    (void)vertices;
+    (void)vertex_bytes;
+    (void)indices_u16;
+    (void)index_bytes;
+#endif
+    return true;
+}
+
+bool
+trspk_webgl1_dynamic_enqueue_draw_mesh_deferred(
+    TRSPK_WebGL1Renderer* r,
+    TRSPK_ModelId pose_storage_model_id,
+    TRSPK_ModelId lru_model_id,
+    TRSPK_UsageClass usage,
+    uint32_t pose_index,
+    uint8_t gpu_segment_slot,
+    uint16_t frame_index,
+    uint32_t array_vertex_count,
+    uint32_t array_index_count,
+    const TRSPK_BakeTransform* bake)
+{
+    if( !r || !r->cache || !bake || pose_index >= TRSPK_MAX_POSES_PER_MODEL )
+        return false;
+    if( array_vertex_count == 0u || array_index_count == 0u )
+        return false;
+
+    const uint32_t idx = trspk_webgl1_slot_table_index(pose_storage_model_id, pose_index);
+    const bool had_dynamic_slot =
+        r->dynamic_slot_handles && r->dynamic_slot_handles[idx] != TRSPK_DYNAMIC_SLOT_INVALID;
+
+    trspk_webgl1_dynamic_free_pose_slot(r, pose_storage_model_id, pose_index);
+
+    TRSPK_DynamicSlotmap16* map = trspk_webgl1_slotmap_for_usage(r, usage);
+    if( !map )
+        return false;
+    TRSPK_DynamicSlotHandle handle = TRSPK_DYNAMIC_SLOT_INVALID;
+    uint8_t chunk = 0u;
+    uint32_t vbo_offset = 0u;
+    uint32_t ebo_offset = 0u;
+    if( !trspk_dynamic_slotmap16_alloc(
+            map, array_vertex_count, array_index_count, &handle, &chunk, &vbo_offset, &ebo_offset) )
     {
-        free(vc);
-        free(ic);
+        if( had_dynamic_slot )
+            trspk_resource_cache_invalidate_model_pose(r->cache, pose_storage_model_id, pose_index);
         return false;
     }
-    memcpy(vc, vertices, (size_t)vertex_bytes);
-    memcpy(ic, indices_u16, (size_t)index_bytes);
-#endif
-    TRSPK_WebGL1PendingDynamicGpuUpload* u =
-        &pass->pending_dynamic_uploads[pass->pending_dynamic_upload_count++];
-    u->usage = usage;
-    u->chunk = chunk;
-    u->vbo_byte_offset = vbo_byte_offset;
-    u->ebo_byte_offset = ebo_byte_offset;
-    u->vertex_bytes = vertex_bytes;
-    u->index_bytes = index_bytes;
-    u->vertex_copy = vc;
-    u->index_copy = ic;
+    if( !trspk_webgl1_ensure_chunk(r, usage, chunk) )
+    {
+        trspk_dynamic_slotmap16_free(map, handle);
+        if( had_dynamic_slot )
+            trspk_resource_cache_invalidate_model_pose(r->cache, pose_storage_model_id, pose_index);
+        return false;
+    }
+
+    GLuint* vbos = trspk_webgl1_vbos_for_usage(r, usage);
+    GLuint* ebos = trspk_webgl1_ebos_for_usage(r, usage);
+    TRSPK_ModelPose pose;
+    memset(&pose, 0, sizeof(pose));
+    pose.vbo = (TRSPK_GPUHandle)vbos[chunk];
+    pose.ebo = (TRSPK_GPUHandle)ebos[chunk];
+    pose.vbo_offset = vbo_offset;
+    pose.ebo_offset = ebo_offset;
+    pose.element_count = array_index_count;
+    pose.batch_id = TRSPK_SCENE_BATCH_NONE;
+    pose.chunk_index = chunk;
+    pose.usage_class = (uint8_t)usage;
+    pose.dynamic = true;
+    pose.valid = true;
+    if( !trspk_resource_cache_set_model_pose(r->cache, pose_storage_model_id, pose_index, &pose) )
+    {
+        trspk_dynamic_slotmap16_free(map, handle);
+        if( had_dynamic_slot )
+            trspk_resource_cache_invalidate_model_pose(r->cache, pose_storage_model_id, pose_index);
+        return false;
+    }
+
+    r->dynamic_slot_handles[idx] = handle;
+    r->dynamic_slot_usages[idx] = usage;
+
+    if( !trspk_webgl1_deferred_reserve(r, r->deferred_dynamic_bake_count + 1u) )
+    {
+        trspk_dynamic_slotmap16_free(map, handle);
+        r->dynamic_slot_handles[idx] = TRSPK_DYNAMIC_SLOT_INVALID;
+        r->dynamic_slot_usages[idx] = TRSPK_USAGE_SCENERY;
+        trspk_resource_cache_invalidate_model_pose(r->cache, pose_storage_model_id, pose_index);
+        return false;
+    }
+    TRSPK_WebGL1DeferredDynamicBake* q =
+        &r->deferred_dynamic_bakes[r->deferred_dynamic_bake_count++];
+    q->usage = usage;
+    q->model_id = pose_storage_model_id;
+    q->lru_model_id = lru_model_id;
+    q->pose_index = pose_index;
+    q->seg = gpu_segment_slot;
+    q->frame_i = frame_index;
+    q->bake = *bake;
+    q->chunk = chunk;
+    q->vbo_offset = vbo_offset;
+    q->ebo_offset = ebo_offset;
+    q->vertex_count = array_vertex_count;
+    q->index_count = array_index_count;
     return true;
 }
 
@@ -268,6 +408,10 @@ trspk_webgl1_dynamic_shutdown(TRSPK_WebGL1Renderer* r)
 {
     if( !r )
         return;
+    free(r->deferred_dynamic_bakes);
+    r->deferred_dynamic_bakes = NULL;
+    r->deferred_dynamic_bake_count = 0u;
+    r->deferred_dynamic_bake_cap = 0u;
 #ifdef __EMSCRIPTEN__
     for( uint32_t i = 0; i < TRSPK_MAX_WEBGL1_CHUNKS; ++i )
     {
@@ -362,28 +506,21 @@ trspk_webgl1_dynamic_queue_interleaved(
         return false;
     }
 
-#ifdef __EMSCRIPTEN__
+    if( !trspk_webgl1_dynamic_upload_interleaved(
+            r,
+            usage,
+            chunk,
+            vbo_offset,
+            ebo_offset,
+            vertices,
+            vertex_bytes,
+            indices_u16,
+            index_bytes) )
     {
-        const uint32_t stride = trspk_vertex_format_stride(TRSPK_VERTEX_FORMAT_WEBGL1);
-        const uint32_t vbo_byte_off = vbo_offset * stride;
-        const uint32_t ebo_byte_off = (uint32_t)((size_t)ebo_offset * sizeof(uint16_t));
-        if( !trspk_webgl1_pass_enqueue_dynamic_upload(
-                r,
-                usage,
-                chunk,
-                vbo_byte_off,
-                ebo_byte_off,
-                vertex_bytes,
-                index_bytes,
-                vertices,
-                indices_u16) )
-        {
-            trspk_dynamic_slotmap16_free(map, handle);
-            trspk_resource_cache_invalidate_model_pose(r->cache, model_id, pose_index);
-            return false;
-        }
+        trspk_dynamic_slotmap16_free(map, handle);
+        trspk_resource_cache_invalidate_model_pose(r->cache, model_id, pose_index);
+        return false;
     }
-#endif
 
     r->dynamic_slot_handles[idx] = handle;
     r->dynamic_slot_usages[idx] = usage;

@@ -41,8 +41,11 @@ trspk_opengl3_create_world_program(TRSPK_OpenGL3WorldShaderLocs* locs)
     memset(locs, -1, sizeof(*locs));
 
     const char* vs = TRSPK_OGL3_SHADER_VERSION
-                     "uniform mat4 u_modelViewMatrix;\n"
-                     "uniform mat4 u_projectionMatrix;\n"
+                     "layout(std140) uniform TRSPK_UboWorld {\n"
+                     "  mat4 u_modelViewMatrix;\n"
+                     "  mat4 u_projectionMatrix;\n"
+                     "  vec4 u_clock_pad;\n"
+                     "} ubo;\n"
                      "in vec4 a_position;\n"
                      "in vec4 a_color;\n"
                      "in vec2 a_texcoord;\n"
@@ -54,7 +57,7 @@ trspk_opengl3_create_world_program(TRSPK_OpenGL3WorldShaderLocs* locs)
                      "out float v_uv_pack;\n"
                      "void main() {\n"
                      "  vec4 wp = vec4(a_position.xyz, 1.0);\n"
-                     "  gl_Position = u_projectionMatrix * u_modelViewMatrix * wp;\n"
+                     "  gl_Position = ubo.u_projectionMatrix * ubo.u_modelViewMatrix * wp;\n"
                      "  v_color = a_color;\n"
                      "  v_texcoord = a_texcoord;\n"
                      "  v_tex_id = a_tex_id;\n"
@@ -62,11 +65,15 @@ trspk_opengl3_create_world_program(TRSPK_OpenGL3WorldShaderLocs* locs)
                      "}\n";
 
     const char* fs = TRSPK_OGL3_SHADER_VERSION
+                     "layout(std140) uniform TRSPK_UboWorld {\n"
+                     "  mat4 u_modelViewMatrix;\n"
+                     "  mat4 u_projectionMatrix;\n"
+                     "  vec4 u_clock_pad;\n"
+                     "} ubo;\n"
                      "in vec4 v_color;\n"
                      "in vec2 v_texcoord;\n"
                      "in float v_tex_id;\n"
                      "in float v_uv_pack;\n"
-                     "uniform float u_clock;\n"
                      "uniform sampler2D s_atlas;\n"
                      "out vec4 frag_color;\n"
                      "void main() {\n"
@@ -105,7 +112,7 @@ trspk_opengl3_create_world_program(TRSPK_OpenGL3WorldShaderLocs* locs)
                      "  float row = floor(float(atlas_id) / cols);\n"
                      "  vec4 ta = vec4(col * du, row * dv, du, dv);\n"
                      "  vec2 local = v_texcoord;\n"
-                     "  float clk = u_clock;\n"
+                     "  float clk = ubo.u_clock_pad.x;\n"
                      "  if (anim_u > 0.0) local.x += clk * anim_u;\n"
                      "  if (anim_v > 0.0) local.y -= clk * anim_v;\n"
                      "  local.x = clamp(local.x, 0.008, 0.992);\n"
@@ -158,9 +165,11 @@ trspk_opengl3_create_world_program(TRSPK_OpenGL3WorldShaderLocs* locs)
     locs->a_texcoord = trspk_glGetAttribLocation(p, "a_texcoord");
     locs->a_tex_id = trspk_glGetAttribLocation(p, "a_tex_id");
     locs->a_uv_mode = trspk_glGetAttribLocation(p, "a_uv_mode");
-    locs->u_modelViewMatrix = trspk_glGetUniformLocation(p, "u_modelViewMatrix");
-    locs->u_projectionMatrix = trspk_glGetUniformLocation(p, "u_projectionMatrix");
-    locs->u_clock = trspk_glGetUniformLocation(p, "u_clock");
     locs->s_atlas = trspk_glGetUniformLocation(p, "s_atlas");
+    {
+        const TRSPK_GLuint block_ix = trspk_glGetUniformBlockIndex(p, "TRSPK_UboWorld");
+        if( block_ix != GL_INVALID_INDEX )
+            trspk_glUniformBlockBinding(p, block_ix, 0u);
+    }
     return (uint32_t)p;
 }

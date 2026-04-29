@@ -4,8 +4,72 @@
 #include "trspk_opengl3.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+void
+trspk_opengl3_invalidate_draw_state_cache(TRSPK_OpenGL3Renderer* r)
+{
+    if( !r )
+        return;
+    r->state_cache.program = 0u;
+    r->state_cache.texture = 0u;
+    r->state_cache.blend_enabled = false;
+}
+
+static size_t
+trspk_opengl3_uniform_stride(void)
+{
+    return ((sizeof(TRSPK_OpenGL3Uniforms) + TRSPK_OPENGL3_UNIFORM_ALIGN - 1u) /
+            TRSPK_OPENGL3_UNIFORM_ALIGN) *
+           TRSPK_OPENGL3_UNIFORM_ALIGN;
+}
+
+/** `glvp` is already in GL viewport pixel space (origin lower-left). */
+static bool
+trspk_opengl3_prepare_gl_scissor_from_gl_rect(
+    TRSPK_OpenGL3Renderer* r,
+    const TRSPK_Rect* glvp,
+    TRSPK_GLint* sx,
+    TRSPK_GLint* sy,
+    TRSPK_GLint* sw,
+    TRSPK_GLint* sh,
+    bool expand_to_full_fb_if_empty)
+{
+    TRSPK_GLint x = (TRSPK_GLint)glvp->x;
+    TRSPK_GLint y = (TRSPK_GLint)glvp->y;
+    TRSPK_GLint w = (TRSPK_GLint)glvp->width;
+    TRSPK_GLint h = (TRSPK_GLint)glvp->height;
+    if( x < 0 )
+    {
+        w += x;
+        x = 0;
+    }
+    if( y < 0 )
+    {
+        h += y;
+        y = 0;
+    }
+    if( x + w > (TRSPK_GLint)r->width )
+        w = (TRSPK_GLint)r->width - x;
+    if( y + h > (TRSPK_GLint)r->height )
+        h = (TRSPK_GLint)r->height - y;
+    if( w <= 0 || h <= 0 )
+    {
+        if( !expand_to_full_fb_if_empty )
+            return false;
+        x = 0;
+        y = 0;
+        w = (TRSPK_GLint)(r->width > 0u ? r->width : 1u);
+        h = (TRSPK_GLint)(r->height > 0u ? r->height : 1u);
+    }
+    *sx = x;
+    *sy = y;
+    *sw = w;
+    *sh = h;
+    return true;
+}
 
 void
 trspk_opengl3_draw_begin_3d(
@@ -241,10 +305,12 @@ trspk_opengl3_dynamic_world_vao_if_needed(
 {
     if( !r || r->dynamic_ibo == 0u )
         return;
-    const uint32_t stream_rev = usage == TRSPK_USAGE_PROJECTILE ? r->dynamic_projectile_stream_revision
-                                                                : r->dynamic_npc_stream_revision;
-    uint32_t* applied_rev = usage == TRSPK_USAGE_PROJECTILE ? &r->dynamic_vao_applied_revision_projectile
-                                                          : &r->dynamic_vao_applied_revision_npc;
+    const uint32_t stream_rev = usage == TRSPK_USAGE_PROJECTILE
+                                    ? r->dynamic_projectile_stream_revision
+                                    : r->dynamic_npc_stream_revision;
+    uint32_t* applied_rev = usage == TRSPK_USAGE_PROJECTILE
+                                ? &r->dynamic_vao_applied_revision_projectile
+                                : &r->dynamic_vao_applied_revision_npc;
     if( *applied_rev == stream_rev )
         return;
     const uint32_t mesh_vbo =
@@ -272,75 +338,104 @@ trspk_opengl3_draw_submit_3d(
 
     const TRSPK_GLuint ibo = (TRSPK_GLuint)r->dynamic_ibo;
     const TRSPK_GLuint prog = (TRSPK_GLuint)r->prog_world3d;
-    if( ibo == 0u || prog == 0u )
+    if( ibo == 0u || prog == 0u || r->uniform_ubo == 0u )
         return;
 
+    const size_t index_slice_bytes =
+        (size_t)TRSPK_OPENGL3_DYNAMIC_INDEX_CAPACITY * sizeof(uint32_t);
     const size_t index_bytes = (size_t)pass->index_count * sizeof(uint32_t);
-    const size_t index_offset = pass->index_upload_offset;
-    if( index_offset + index_bytes >
-        (size_t)TRSPK_OPENGL3_DYNAMIC_INDEX_CAPACITY * sizeof(uint32_t) )
+    if( pass->index_upload_offset + index_bytes > index_slice_bytes )
         return;
 
-    trspk_glBindVertexArray(0u);
-    trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-    trspk_glBufferSubData(
-        GL_ELEMENT_ARRAY_BUFFER,
-        (TRSPK_GLintptr)index_offset,
-        (TRSPK_GLsizeiptr)index_bytes,
-        pass->index_pool);
+    const size_t index_frame_base = (size_t)r->triple_ring_slot * index_slice_bytes;
+    const size_t index_offset = index_frame_base + pass->index_upload_offset;
+
+    const size_t uniform_stride = trspk_opengl3_uniform_stride();
+    const size_t uniform_frame_span =
+        uniform_stride * (size_t)TRSPK_OPENGL3_MAX_3D_PASSES_PER_FRAME;
+    const size_t uniform_offset = (size_t)r->triple_ring_slot * uniform_frame_span +
+                                  (size_t)pass->uniform_pass_subslot * uniform_stride;
+
+    if( r->dynamic_index_map )
+        memcpy((uint8_t*)r->dynamic_index_map + index_offset, pass->index_pool, index_bytes);
+    else
+    {
+        trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+        trspk_glBufferSubData(
+            GL_ELEMENT_ARRAY_BUFFER,
+            (TRSPK_GLintptr)index_offset,
+            (TRSPK_GLsizeiptr)index_bytes,
+            pass->index_pool);
+        trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0u);
+    }
+
+    {
+        TRSPK_OpenGL3Uniforms scratch;
+        memcpy(scratch.modelViewMatrix, view->m, sizeof(float) * 16u);
+        memcpy(scratch.projectionMatrix, proj->m, sizeof(float) * 16u);
+        scratch.uClock = (float)r->frame_clock;
+        scratch._pad[0] = 0.0f;
+        scratch._pad[1] = 0.0f;
+        scratch._pad[2] = 0.0f;
+        if( r->uniform_buffer_map )
+        {
+            memcpy(
+                (uint8_t*)r->uniform_buffer_map + uniform_offset,
+                &scratch,
+                sizeof(TRSPK_OpenGL3Uniforms));
+        }
+        else
+        {
+            trspk_glBindBuffer(GL_UNIFORM_BUFFER, (TRSPK_GLuint)r->uniform_ubo);
+            trspk_glBufferSubData(
+                GL_UNIFORM_BUFFER,
+                (TRSPK_GLintptr)uniform_offset,
+                (TRSPK_GLsizeiptr)sizeof(TRSPK_OpenGL3Uniforms),
+                &scratch);
+            trspk_glBindBuffer(GL_UNIFORM_BUFFER, 0u);
+        }
+    }
 
     TRSPK_Rect glvp;
     trspk_logical_rect_to_gl_viewport_pixels(
         &glvp, r->width, r->height, r->window_width, r->window_height, &r->pass_logical_rect);
 
-    TRSPK_GLint sx = (TRSPK_GLint)glvp.x;
-    TRSPK_GLint sy = (TRSPK_GLint)glvp.y;
-    TRSPK_GLint sw = (TRSPK_GLint)glvp.width;
-    TRSPK_GLint sh = (TRSPK_GLint)glvp.height;
-
-    if( sx < 0 )
-    {
-        sw += sx;
-        sx = 0;
-    }
-    if( sy < 0 )
-    {
-        sh += sy;
-        sy = 0;
-    }
-    if( sx + sw > (TRSPK_GLint)r->width )
-        sw = (TRSPK_GLint)r->width - sx;
-    if( sy + sh > (TRSPK_GLint)r->height )
-        sh = (TRSPK_GLint)r->height - sy;
-    if( sw <= 0 || sh <= 0 )
-    {
-        sx = 0;
-        sy = 0;
-        sw = (TRSPK_GLint)(r->width > 0u ? r->width : 1u);
-        sh = (TRSPK_GLint)(r->height > 0u ? r->height : 1u);
-    }
+    TRSPK_GLint sx, sy, sw, sh;
+    (void)trspk_opengl3_prepare_gl_scissor_from_gl_rect(r, &glvp, &sx, &sy, &sw, &sh, true);
 
     trspk_glViewport(sx, sy, sw, sh);
+    /* Platform may disable scissor for the frame clear; re-enable before our rect. */
     trspk_glEnable(GL_SCISSOR_TEST);
     trspk_glScissor(sx, sy, sw, sh);
 
-    trspk_glUseProgram(prog);
-    if( r->world_locs.u_modelViewMatrix >= 0 )
-        trspk_glUniformMatrix4fv(
-            (TRSPK_GLint)r->world_locs.u_modelViewMatrix, 1, (TRSPK_GLboolean)0, view->m);
-    if( r->world_locs.u_projectionMatrix >= 0 )
-        trspk_glUniformMatrix4fv(
-            (TRSPK_GLint)r->world_locs.u_projectionMatrix, 1, (TRSPK_GLboolean)0, proj->m);
-    if( r->world_locs.u_clock >= 0 )
-        trspk_glUniform1f((TRSPK_GLint)r->world_locs.u_clock, (TRSPK_GLfloat)r->frame_clock);
-    trspk_glActiveTexture(GL_TEXTURE0);
-    trspk_glBindTexture(GL_TEXTURE_2D, (TRSPK_GLuint)r->atlas_texture);
+    if( r->state_cache.program != r->prog_world3d )
+    {
+        trspk_glUseProgram(prog);
+        r->state_cache.program = r->prog_world3d;
+    }
+    trspk_glBindBufferRange(
+        GL_UNIFORM_BUFFER,
+        0u,
+        (TRSPK_GLuint)r->uniform_ubo,
+        (TRSPK_GLintptr)uniform_offset,
+        (TRSPK_GLsizeiptr)uniform_stride);
+    if( r->state_cache.texture != r->atlas_texture )
+    {
+        trspk_glActiveTexture(GL_TEXTURE0);
+        trspk_glBindTexture(GL_TEXTURE_2D, (TRSPK_GLuint)r->atlas_texture);
+        r->state_cache.texture = r->atlas_texture;
+    }
 
     trspk_glDepthFunc(GL_ALWAYS);
     trspk_glDepthMask((TRSPK_GLboolean)0);
-    trspk_glEnable(GL_BLEND);
-    trspk_glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    if( !r->state_cache.blend_enabled )
+    {
+        trspk_glEnable(GL_BLEND);
+        trspk_glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        r->state_cache.blend_enabled = true;
+    }
 
+    trspk_glBindVertexArray(0u);
     TRSPK_GLuint last_vao = 0u;
     uint32_t run_start = 0u;
     while( run_start < pass->subdraw_count )
@@ -394,7 +489,6 @@ trspk_opengl3_draw_submit_3d(
                 trspk_glBindVertexArray(mesh_vao);
                 last_vao = mesh_vao;
             }
-            trspk_opengl3_bind_world_attribs(&r->world_locs, mesh_vbo);
             trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
             trspk_glDrawElements(
                 GL_TRIANGLES,
@@ -405,8 +499,6 @@ trspk_opengl3_draw_submit_3d(
         }
         run_start = run_end;
     }
-
-    trspk_glDisable(GL_SCISSOR_TEST);
 
     pass->uniform_pass_subslot++;
     pass->index_upload_offset += index_bytes;
@@ -424,25 +516,8 @@ trspk_opengl3_draw_clear_rect(
     TRSPK_Rect gr;
     trspk_logical_rect_to_gl_viewport_pixels(
         &gr, r->width, r->height, r->window_width, r->window_height, rect);
-    TRSPK_GLint sx = (TRSPK_GLint)gr.x;
-    TRSPK_GLint sy = (TRSPK_GLint)gr.y;
-    TRSPK_GLint sw = (TRSPK_GLint)gr.width;
-    TRSPK_GLint sh = (TRSPK_GLint)gr.height;
-    if( sx < 0 )
-    {
-        sw += sx;
-        sx = 0;
-    }
-    if( sy < 0 )
-    {
-        sh += sy;
-        sy = 0;
-    }
-    if( sx + sw > (TRSPK_GLint)r->width )
-        sw = (TRSPK_GLint)r->width - sx;
-    if( sy + sh > (TRSPK_GLint)r->height )
-        sh = (TRSPK_GLint)r->height - sy;
-    if( sw <= 0 || sh <= 0 )
+    TRSPK_GLint sx, sy, sw, sh;
+    if( !trspk_opengl3_prepare_gl_scissor_from_gl_rect(r, &gr, &sx, &sy, &sw, &sh, false) )
         return;
     trspk_glEnable(GL_SCISSOR_TEST);
     trspk_glScissor(sx, sy, sw, sh);

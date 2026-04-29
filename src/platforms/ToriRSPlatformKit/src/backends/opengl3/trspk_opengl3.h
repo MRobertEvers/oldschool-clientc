@@ -16,6 +16,8 @@ extern "C" {
 
 #define TRSPK_OPENGL3_MAX_3D_PASSES_PER_FRAME 32u
 #define TRSPK_OPENGL3_DYNAMIC_INDEX_CAPACITY (1u << 21)
+#define TRSPK_OPENGL3_INFLIGHT_FRAMES 3u
+#define TRSPK_OPENGL3_UNIFORM_ALIGN 256u
 
 /**
  * Pass subdraw `vbo` field: static batches store the real GL buffer name (often small integers
@@ -24,6 +26,22 @@ extern "C" {
  */
 #define TRSPK_OPENGL3_SUBDRAW_VBO_DYNAMIC_NPC ((TRSPK_GPUHandle)UINTPTR_MAX)
 #define TRSPK_OPENGL3_SUBDRAW_VBO_DYNAMIC_PROJECTILE ((TRSPK_GPUHandle)(UINTPTR_MAX - 1u))
+
+/** World 3D UBO layout (std140); matches Metal `TRSPK_MetalUniforms` packing. */
+typedef struct TRSPK_OpenGL3Uniforms
+{
+    float modelViewMatrix[16];
+    float projectionMatrix[16];
+    float uClock;
+    float _pad[3];
+} TRSPK_OpenGL3Uniforms;
+
+typedef struct TRSPK_OpenGL3StateCache
+{
+    uint32_t program;
+    uint32_t texture;
+    bool blend_enabled;
+} TRSPK_OpenGL3StateCache;
 
 /** Staged dynamic mesh bakes; GPU upload in trspk_opengl3_pass_flush_pending_dynamic_gpu_uploads. */
 typedef struct TRSPK_OpenGL3DeferredDynamicBake
@@ -50,9 +68,6 @@ typedef struct TRSPK_OpenGL3WorldShaderLocs
     int32_t a_texcoord;
     int32_t a_tex_id;
     int32_t a_uv_mode;
-    int32_t u_modelViewMatrix;
-    int32_t u_projectionMatrix;
-    int32_t u_clock;
     int32_t s_atlas;
 } TRSPK_OpenGL3WorldShaderLocs;
 
@@ -85,6 +100,12 @@ typedef struct TRSPK_OpenGL3Renderer
 {
     uint32_t prog_world3d;
     TRSPK_OpenGL3WorldShaderLocs world_locs;
+    uint32_t uniform_ubo;
+    void* dynamic_index_map;
+    void* uniform_buffer_map;
+    uint32_t triple_ring_slot;
+    void* ring_inflight_fences[TRSPK_OPENGL3_INFLIGHT_FRAMES];
+    TRSPK_OpenGL3StateCache state_cache;
     uint32_t atlas_texture;
     uint32_t dynamic_ibo;
     uint32_t vao_dynamic_npc;
@@ -293,6 +314,9 @@ void
 trspk_opengl3_draw_clear_rect(
     TRSPK_OpenGL3Renderer* r,
     const TRSPK_Rect* rect);
+/** Call after non-renderer code changes GL program, texture unit 0, or blend state. */
+void
+trspk_opengl3_invalidate_draw_state_cache(TRSPK_OpenGL3Renderer* r);
 
 float
 trspk_opengl3_dash_yaw_to_radians(int dash_yaw);

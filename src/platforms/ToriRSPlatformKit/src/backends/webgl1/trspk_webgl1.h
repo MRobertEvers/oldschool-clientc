@@ -49,18 +49,24 @@ typedef struct TRSPK_WebGL1SubDraw
     uint32_t index_count;
 } TRSPK_WebGL1SubDraw;
 
-/** Staged dynamic mesh bytes; flushed in trspk_webgl1_draw_begin_3d and trspk_webgl1_draw_submit_3d. */
-typedef struct TRSPK_WebGL1PendingDynamicGpuUpload
+/** Staged dynamic draw mesh bakes; GPU upload in trspk_webgl1_pass_flush_pending_dynamic_gpu_uploads. */
+typedef struct TRSPK_WebGL1DeferredDynamicBake
 {
     TRSPK_UsageClass usage;
+    /** Scene2 element id: keys dynamic VBO sub-range and cached pose. */
+    TRSPK_ModelId model_id;
+    /** Scene2 `visual_id`: keys CPU mesh LRU for deferred bake. */
+    TRSPK_ModelId lru_model_id;
+    uint32_t pose_index;
+    uint8_t seg;
+    uint16_t frame_i;
+    TRSPK_BakeTransform bake;
     uint8_t chunk;
-    uint32_t vbo_byte_offset;
-    uint32_t ebo_byte_offset;
-    uint32_t vertex_bytes;
-    uint32_t index_bytes;
-    uint8_t* vertex_copy;
-    uint8_t* index_copy;
-} TRSPK_WebGL1PendingDynamicGpuUpload;
+    uint32_t vbo_offset;
+    uint32_t ebo_offset;
+    uint32_t vertex_count;
+    uint32_t index_count;
+} TRSPK_WebGL1DeferredDynamicBake;
 
 typedef struct TRSPK_WebGL1PassState
 {
@@ -72,13 +78,6 @@ typedef struct TRSPK_WebGL1PassState
     uint32_t subdraw_count;
     uint32_t subdraw_cap;
     uint32_t uniform_pass_subslot;
-    TRSPK_WebGL1PendingDynamicGpuUpload* pending_dynamic_uploads;
-    uint32_t pending_dynamic_upload_count;
-    uint32_t pending_dynamic_upload_cap;
-    /** Bump arena for pending GPU uploads (avoids per-mesh malloc on EMSCRIPTEN). */
-    uint8_t* pending_upload_arena;
-    size_t pending_upload_arena_cap;
-    size_t pending_upload_arena_used;
 } TRSPK_WebGL1PassState;
 
 typedef struct TRSPK_WebGL1Renderer
@@ -128,6 +127,9 @@ typedef struct TRSPK_WebGL1Renderer
     /** Grows once; avoids per-call malloc when converting u32→u16 indices for dynamic uploads. */
     uint16_t* u16_index_scratch;
     uint32_t u16_index_scratch_cap;
+    TRSPK_WebGL1DeferredDynamicBake* deferred_dynamic_bakes;
+    uint32_t deferred_dynamic_bake_count;
+    uint32_t deferred_dynamic_bake_cap;
     TRSPK_WebGL1PassState pass_state;
 } TRSPK_WebGL1Renderer;
 
@@ -246,6 +248,18 @@ trspk_webgl1_dynamic_store_dynamic_mesh(
     TRSPK_UsageClass usage,
     uint32_t pose_index,
     TRSPK_DynamicMesh* mesh);
+bool
+trspk_webgl1_dynamic_enqueue_draw_mesh_deferred(
+    TRSPK_WebGL1Renderer* r,
+    TRSPK_ModelId pose_storage_model_id,
+    TRSPK_ModelId lru_model_id,
+    TRSPK_UsageClass usage,
+    uint32_t pose_index,
+    uint8_t gpu_segment_slot,
+    uint16_t frame_index,
+    uint32_t array_vertex_count,
+    uint32_t array_index_count,
+    const TRSPK_BakeTransform* bake);
 
 void
 trspk_webgl1_pass_free_pending_dynamic_uploads(TRSPK_WebGL1Renderer* r);

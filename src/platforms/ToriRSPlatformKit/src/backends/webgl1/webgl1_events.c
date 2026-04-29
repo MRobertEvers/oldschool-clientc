@@ -361,6 +361,9 @@ trspk_webgl1_event_draw_model(
             (int32_t)cmd->_model_draw.world_position.y,
             (int32_t)cmd->_model_draw.world_position.z,
             (int32_t)cmd->_model_draw.world_position.yaw);
+        if( cmd->_model_draw.usage_hint == TORIRS_USAGE_PROJECTILE )
+            trspk_resource_cache_set_model_bake(
+                ctx->cache, (TRSPK_ModelId)cmd->_model_draw.visual_id, &bake);
         uint8_t seg = TRSPK_GPU_ANIM_NONE_IDX;
         uint16_t frame_i = 0u;
         if( cmd->_model_draw.use_animation )
@@ -375,48 +378,53 @@ trspk_webgl1_event_draw_model(
             cmd->_model_draw.use_animation,
             cmd->_model_draw.animation_index,
             cmd->_model_draw.frame_index);
-        bool did_upload = false;
-        if( pose_ix < TRSPK_MAX_POSES_PER_MODEL )
+        bool did_defer = false;
+        if( pose_ix < TRSPK_MAX_POSES_PER_MODEL && cmd->_model_draw.model )
         {
-            TRSPK_VertexBuffer baked_vb = { 0 };
             TRSPK_LruModelCache* lru = trspk_resource_cache_lru_model_cache(ctx->cache);
             if( lru )
             {
-                const TRSPK_VertexBuffer* id_mesh = trspk_lru_model_cache_get(
-                    lru, layout_id, seg, frame_i);
-                if( id_mesh &&
-                    trspk_vertex_buffer_bake_array_to_interleaved(id_mesh, &bake, &baked_vb) )
+                TRSPK_ModelArrays arrays;
+                trspk_dash_fill_model_arrays(cmd->_model_draw.model, &arrays);
+                if( arrays.face_count != 0u )
                 {
-                    did_upload = trspk_webgl1_dynamic_store_vertex_buffer(
-                        ctx->renderer,
-                        pose_storage_id,
-                        draw_usage,
-                        pose_ix,
-                        &baked_vb);
-                }
-                trspk_vertex_buffer_free(&baked_vb);
-            }
-            if( !did_upload && cmd->_model_draw.model )
-            {
-                TRSPK_DynamicMesh dm;
-                memset(&dm, 0, sizeof(dm));
-                if( trspk_dynamic_mesh_build(
-                        cmd->_model_draw.model,
-                        TRSPK_VERTEX_FORMAT_WEBGL1,
-                        &bake,
-                        ctx->cache,
-                        &dm) )
-                {
-                    did_upload = trspk_webgl1_dynamic_store_dynamic_mesh(
-                        ctx->renderer,
-                        pose_storage_id,
-                        draw_usage,
-                        pose_ix,
-                        &dm);
+                    TRSPK_BakeTransform id_bake = trspk_bake_transform_identity();
+                    if( dashmodel_has_textures(cmd->_model_draw.model) )
+                        trspk_lru_model_cache_get_or_emplace_textured(
+                            lru,
+                            layout_id,
+                            seg,
+                            frame_i,
+                            &arrays,
+                            trspk_dash_uv_calculation_mode(cmd->_model_draw.model),
+                            ctx->cache,
+                            &id_bake);
+                    else
+                        trspk_lru_model_cache_get_or_emplace_untextured(
+                            lru,
+                            layout_id,
+                            seg,
+                            frame_i,
+                            &arrays,
+                            &id_bake);
+                    const TRSPK_VertexBuffer* id_mesh =
+                        trspk_lru_model_cache_get(lru, layout_id, seg, frame_i);
+                    if( id_mesh )
+                        did_defer = trspk_webgl1_dynamic_enqueue_draw_mesh_deferred(
+                            ctx->renderer,
+                            pose_storage_id,
+                            layout_id,
+                            draw_usage,
+                            pose_ix,
+                            seg,
+                            frame_i,
+                            id_mesh->vertex_count,
+                            id_mesh->index_count,
+                            &bake);
                 }
             }
         }
-        if( !did_upload )
+        if( !did_defer )
             return;
     }
 

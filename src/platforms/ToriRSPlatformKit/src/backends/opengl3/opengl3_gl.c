@@ -16,6 +16,13 @@
         field = (Type)p##field;                                                        \
     } while( 0 )
 
+#define O3L_OPT(name, Type, field)                                                     \
+    do                                                                                 \
+    {                                                                                  \
+        void* p##field = SDL_GL_GetProcAddress(#name);                                 \
+        field = p##field ? (Type)p##field : NULL;                                      \
+    } while( 0 )
+
 PFNGLCREATESHADERPROC trspk_glCreateShader;
 PFNGLSHADERSOURCEPROC trspk_glShaderSource;
 PFNGLCOMPILESHADERPROC trspk_glCompileShader;
@@ -70,6 +77,15 @@ PFNGLTEXPARAMETERIPROC trspk_glTexParameteri;
 PFNGLUNIFORM1IPROC trspk_glUniform1i;
 PFNGLUNIFORM1FPROC trspk_glUniform1f;
 PFNGLUNIFORMMATRIX4FVPROC trspk_glUniformMatrix4fv;
+PFNGLBUFFERSTORAGEPROC trspk_glBufferStorage;
+PFNGLMAPBUFFERRANGEPROC trspk_glMapBufferRange;
+PFNGLBINDBUFFERRANGEPROC trspk_glBindBufferRange;
+PFNGLGETUNIFORMBLOCKINDEXPROC trspk_glGetUniformBlockIndex;
+PFNGLUNIFORMBLOCKBINDINGPROC trspk_glUniformBlockBinding;
+TRSPKPFNGLFENCESYNCPROC trspk_glFenceSync;
+TRSPKPFNGLDELETESYNCPROC trspk_glDeleteSync;
+TRSPKPFNGLCLIENTWAITSYNCPROC trspk_glClientWaitSync;
+PFNGLFLUSHPROC trspk_glFlush;
 
 bool
 trspk_opengl3_load_gl_procs(void)
@@ -131,5 +147,14 @@ trspk_opengl3_load_gl_procs(void)
     O3L(glUniform1i, PFNGLUNIFORM1IPROC, trspk_glUniform1i);
     O3L(glUniform1f, PFNGLUNIFORM1FPROC, trspk_glUniform1f);
     O3L(glUniformMatrix4fv, PFNGLUNIFORMMATRIX4FVPROC, trspk_glUniformMatrix4fv);
+    O3L_OPT(glBufferStorage, PFNGLBUFFERSTORAGEPROC, trspk_glBufferStorage);
+    O3L(glMapBufferRange, PFNGLMAPBUFFERRANGEPROC, trspk_glMapBufferRange);
+    O3L(glBindBufferRange, PFNGLBINDBUFFERRANGEPROC, trspk_glBindBufferRange);
+    O3L(glGetUniformBlockIndex, PFNGLGETUNIFORMBLOCKINDEXPROC, trspk_glGetUniformBlockIndex);
+    O3L(glUniformBlockBinding, PFNGLUNIFORMBLOCKBINDINGPROC, trspk_glUniformBlockBinding);
+    O3L(glFenceSync, TRSPKPFNGLFENCESYNCPROC, trspk_glFenceSync);
+    O3L(glDeleteSync, TRSPKPFNGLDELETESYNCPROC, trspk_glDeleteSync);
+    O3L(glClientWaitSync, TRSPKPFNGLCLIENTWAITSYNCPROC, trspk_glClientWaitSync);
+    O3L(glFlush, PFNGLFLUSHPROC, trspk_glFlush);
     return true;
 }

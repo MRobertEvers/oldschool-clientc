@@ -1,7 +1,6 @@
 #include "opengl3_internal.h"
 #include "trspk_opengl3.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -55,21 +54,97 @@ TRSPK_OpenGL3_InitWithCurrentContext(
         TRSPK_OpenGL3_Shutdown(r);
         return NULL;
     }
-    trspk_glUseProgram((TRSPK_GLuint)r->prog_world3d);
-    if( r->world_locs.s_atlas >= 0 )
-        trspk_glUniform1i((TRSPK_GLint)r->world_locs.s_atlas, 0);
 
+    const TRSPK_GLbitfield persist_flags =
+        (TRSPK_GLbitfield)(GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
+    const size_t uniform_stride =
+        ((sizeof(TRSPK_OpenGL3Uniforms) + TRSPK_OPENGL3_UNIFORM_ALIGN - 1u) /
+         TRSPK_OPENGL3_UNIFORM_ALIGN) * TRSPK_OPENGL3_UNIFORM_ALIGN;
+    const TRSPK_GLsizeiptr uniform_total = (TRSPK_GLsizeiptr)(
+        uniform_stride * (size_t)TRSPK_OPENGL3_MAX_3D_PASSES_PER_FRAME *
+        (size_t)TRSPK_OPENGL3_INFLIGHT_FRAMES);
+    const size_t index_slice_bytes =
+        (size_t)TRSPK_OPENGL3_DYNAMIC_INDEX_CAPACITY * sizeof(uint32_t);
+    const TRSPK_GLsizeiptr index_total =
+        (TRSPK_GLsizeiptr)(index_slice_bytes * (size_t)TRSPK_OPENGL3_INFLIGHT_FRAMES);
+
+    TRSPK_GLuint ubo = 0u;
+    trspk_glGenBuffers(1, &ubo);
+    r->uniform_ubo = (uint32_t)ubo;
     TRSPK_GLuint ibo = 0u;
     trspk_glGenBuffers(1, &ibo);
     r->dynamic_ibo = (uint32_t)ibo;
+    r->uniform_buffer_map = NULL;
+    r->dynamic_index_map = NULL;
 
-    trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-    trspk_glBufferData(
-        GL_ELEMENT_ARRAY_BUFFER,
-        (TRSPK_GLsizeiptr)(TRSPK_OPENGL3_DYNAMIC_INDEX_CAPACITY * sizeof(uint32_t)),
-        NULL,
-        GL_DYNAMIC_DRAW);
-    trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0u);
+    bool persistent_ok = false;
+    if( trspk_glBufferStorage && trspk_glMapBufferRange )
+    {
+        trspk_glBindBuffer(GL_UNIFORM_BUFFER, ubo);
+        trspk_glBufferStorage(GL_UNIFORM_BUFFER, uniform_total, NULL, persist_flags);
+        void* um = trspk_glMapBufferRange(
+            GL_UNIFORM_BUFFER, 0, uniform_total, persist_flags);
+        trspk_glBindBuffer(GL_UNIFORM_BUFFER, 0u);
+
+        trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+        trspk_glBufferStorage(GL_ELEMENT_ARRAY_BUFFER, index_total, NULL, persist_flags);
+        void* im = trspk_glMapBufferRange(
+            GL_ELEMENT_ARRAY_BUFFER, 0, index_total, persist_flags);
+        trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0u);
+
+        if( um && im )
+        {
+            r->uniform_buffer_map = um;
+            r->dynamic_index_map = im;
+            persistent_ok = true;
+        }
+        else
+        {
+            if( um )
+            {
+                trspk_glBindBuffer(GL_UNIFORM_BUFFER, ubo);
+                (void)trspk_glUnmapBuffer(GL_UNIFORM_BUFFER);
+                trspk_glBindBuffer(GL_UNIFORM_BUFFER, 0u);
+            }
+            if( im )
+            {
+                trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+                (void)trspk_glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
+                trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0u);
+            }
+            trspk_glDeleteBuffers(1, &ubo);
+            trspk_glDeleteBuffers(1, &ibo);
+            trspk_glGenBuffers(1, &ubo);
+            trspk_glGenBuffers(1, &ibo);
+            r->uniform_ubo = (uint32_t)ubo;
+            r->dynamic_ibo = (uint32_t)ibo;
+        }
+    }
+
+    if( !persistent_ok )
+    {
+        trspk_glBindBuffer(GL_UNIFORM_BUFFER, ubo);
+        trspk_glBufferData(
+            GL_UNIFORM_BUFFER, uniform_total, NULL, (TRSPK_GLenum)GL_DYNAMIC_DRAW);
+        trspk_glBindBuffer(GL_UNIFORM_BUFFER, 0u);
+        trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+        trspk_glBufferData(
+            GL_ELEMENT_ARRAY_BUFFER, index_total, NULL, (TRSPK_GLenum)GL_DYNAMIC_DRAW);
+        trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0u);
+        r->uniform_buffer_map = NULL;
+        r->dynamic_index_map = NULL;
+    }
+
+    trspk_glEnable(GL_SCISSOR_TEST);
+    trspk_glViewport(0, 0, (TRSPK_GLsizei)r->width, (TRSPK_GLsizei)r->height);
+    trspk_glScissor(0, 0, (TRSPK_GLsizei)r->width, (TRSPK_GLsizei)r->height);
+
+    trspk_glUseProgram((TRSPK_GLuint)r->prog_world3d);
+    if( r->world_locs.s_atlas >= 0 )
+        trspk_glUniform1i((TRSPK_GLint)r->world_locs.s_atlas, 0);
+    r->state_cache.program = r->prog_world3d;
+    r->state_cache.texture = 0u;
+    r->state_cache.blend_enabled = false;
 
     TRSPK_GLuint vao_npc = 0u;
     TRSPK_GLuint vao_proj = 0u;
@@ -89,10 +164,13 @@ TRSPK_OpenGL3_InitWithCurrentContext(
     trspk_glBindVertexArray(0u);
 
     trspk_opengl3_cache_init_atlas(r, TRSPK_ATLAS_DIMENSION, TRSPK_ATLAS_DIMENSION);
+    r->state_cache.texture = r->atlas_texture;
+
+    r->triple_ring_slot = TRSPK_OPENGL3_INFLIGHT_FRAMES - 1u;
 
     r->ready =
-        (r->prog_world3d != 0u && r->dynamic_ibo != 0u && r->vao_dynamic_npc != 0u &&
-         r->vao_dynamic_projectile != 0u);
+        (r->prog_world3d != 0u && r->uniform_ubo != 0u && r->dynamic_ibo != 0u &&
+         r->vao_dynamic_npc != 0u && r->vao_dynamic_projectile != 0u);
     if( !r->ready )
     {
         TRSPK_OpenGL3_Shutdown(r);
@@ -108,6 +186,21 @@ TRSPK_OpenGL3_Shutdown(TRSPK_OpenGL3Renderer* r)
         return;
     if( r->prog_world3d )
         trspk_glDeleteProgram((TRSPK_GLuint)r->prog_world3d);
+    for( uint32_t i = 0u; i < TRSPK_OPENGL3_INFLIGHT_FRAMES; ++i )
+    {
+        if( r->ring_inflight_fences[i] )
+        {
+            trspk_glDeleteSync((TRSPK_GLvoid*)r->ring_inflight_fences[i]);
+            r->ring_inflight_fences[i] = NULL;
+        }
+    }
+    if( r->uniform_ubo )
+    {
+        TRSPK_GLuint u = (TRSPK_GLuint)r->uniform_ubo;
+        trspk_glDeleteBuffers(1, &u);
+        r->uniform_ubo = 0u;
+        r->uniform_buffer_map = NULL;
+    }
     if( r->vao_dynamic_npc )
     {
         TRSPK_GLuint v = (TRSPK_GLuint)r->vao_dynamic_npc;
@@ -122,6 +215,8 @@ TRSPK_OpenGL3_Shutdown(TRSPK_OpenGL3Renderer* r)
     {
         TRSPK_GLuint b = (TRSPK_GLuint)r->dynamic_ibo;
         trspk_glDeleteBuffers(1, &b);
+        r->dynamic_ibo = 0u;
+        r->dynamic_index_map = NULL;
     }
     if( r->atlas_texture )
     {
@@ -165,17 +260,39 @@ TRSPK_OpenGL3_FrameBegin(TRSPK_OpenGL3Renderer* r)
 {
     if( !r || !r->ready )
         return;
+    const uint32_t s = (r->triple_ring_slot + 1u) % TRSPK_OPENGL3_INFLIGHT_FRAMES;
+    if( r->ring_inflight_fences[s] )
+    {
+        (void)trspk_glClientWaitSync(
+            (TRSPK_GLvoid*)r->ring_inflight_fences[s],
+            (TRSPK_GLbitfield)GL_SYNC_FLUSH_COMMANDS_BIT,
+            GL_TIMEOUT_IGNORED);
+        trspk_glDeleteSync((TRSPK_GLvoid*)r->ring_inflight_fences[s]);
+        r->ring_inflight_fences[s] = NULL;
+    }
+    r->triple_ring_slot = s;
     r->pass_state.uniform_pass_subslot = 0u;
     r->pass_state.index_upload_offset = 0u;
     r->pass_state.index_count = 0u;
     r->pass_state.subdraw_count = 0u;
     r->diag_frame_submitted_draws = 0u;
+    trspk_opengl3_invalidate_draw_state_cache(r);
 }
 
 void
 TRSPK_OpenGL3_FrameEnd(TRSPK_OpenGL3Renderer* r)
 {
-    (void)r;
+    if( !r || !r->ready )
+        return;
+    const uint32_t s = r->triple_ring_slot;
+    if( r->ring_inflight_fences[s] )
+    {
+        trspk_glDeleteSync((TRSPK_GLvoid*)r->ring_inflight_fences[s]);
+        r->ring_inflight_fences[s] = NULL;
+    }
+    trspk_glFlush();
+    r->ring_inflight_fences[s] = (void*)trspk_glFenceSync(
+        (TRSPK_GLenum)GL_SYNC_GPU_COMMANDS_COMPLETE, (TRSPK_GLbitfield)0);
 }
 
 TRSPK_ResourceCache*

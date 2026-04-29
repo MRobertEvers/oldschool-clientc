@@ -17,6 +17,44 @@ typedef ptrdiff_t TRSPK_GLsizeiptr;
 typedef ptrdiff_t TRSPK_GLintptr;
 typedef float TRSPK_GLfloat;
 typedef void TRSPK_GLvoid;
+typedef uint64_t TRSPK_GLuint64;
+
+#ifndef GL_MAP_WRITE_BIT
+#define GL_MAP_WRITE_BIT 0x0002
+#endif
+#ifndef GL_MAP_PERSISTENT_BIT
+#define GL_MAP_PERSISTENT_BIT 0x0040
+#endif
+#ifndef GL_MAP_COHERENT_BIT
+#define GL_MAP_COHERENT_BIT 0x0080
+#endif
+#ifndef GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT
+#define GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT 0x4000
+#endif
+#ifndef GL_SYNC_GPU_COMMANDS_COMPLETE
+#define GL_SYNC_GPU_COMMANDS_COMPLETE 0x9117
+#endif
+#ifndef GL_SYNC_FLUSH_COMMANDS_BIT
+#define GL_SYNC_FLUSH_COMMANDS_BIT 0x00000001
+#endif
+#ifndef GL_ALREADY_SIGNALED
+#define GL_ALREADY_SIGNALED 0x911A
+#endif
+#ifndef GL_CONDITION_SATISFIED
+#define GL_CONDITION_SATISFIED 0x911C
+#endif
+#ifndef GL_WAIT_FAILED
+#define GL_WAIT_FAILED 0x911D
+#endif
+#ifndef GL_TIMEOUT_IGNORED
+#define GL_TIMEOUT_IGNORED ((TRSPK_GLuint64)0xFFFFFFFFFFFFFFFFull)
+#endif
+#ifndef GL_INVALID_INDEX
+#define GL_INVALID_INDEX 0xFFFFFFFFu
+#endif
+#ifndef GL_UNIFORM_BUFFER
+#define GL_UNIFORM_BUFFER 0x8A11
+#endif
 
 #define TRSPK_GLAPIENTRY
 
@@ -160,6 +198,39 @@ typedef void(TRSPK_GLAPIENTRY* PFNGLUNIFORMMATRIX4FVPROC)(
     TRSPK_GLboolean transpose,
     const TRSPK_GLfloat* value);
 
+typedef void(TRSPK_GLAPIENTRY* PFNGLBUFFERSTORAGEPROC)(
+    TRSPK_GLenum target,
+    TRSPK_GLsizeiptr size,
+    const TRSPK_GLvoid* data,
+    TRSPK_GLbitfield flags);
+typedef TRSPK_GLvoid*(TRSPK_GLAPIENTRY* PFNGLMAPBUFFERRANGEPROC)(
+    TRSPK_GLenum target,
+    TRSPK_GLintptr offset,
+    TRSPK_GLsizeiptr length,
+    TRSPK_GLbitfield access);
+typedef void(TRSPK_GLAPIENTRY* PFNGLBINDBUFFERRANGEPROC)(
+    TRSPK_GLenum target,
+    TRSPK_GLuint index,
+    TRSPK_GLuint buffer,
+    TRSPK_GLintptr offset,
+    TRSPK_GLsizeiptr size);
+typedef TRSPK_GLuint(TRSPK_GLAPIENTRY* PFNGLGETUNIFORMBLOCKINDEXPROC)(
+    TRSPK_GLuint program,
+    const TRSPK_GLchar* uniformBlockName);
+typedef void(TRSPK_GLAPIENTRY* PFNGLUNIFORMBLOCKBINDINGPROC)(
+    TRSPK_GLuint program,
+    TRSPK_GLuint uniformBlockIndex,
+    TRSPK_GLuint uniformBlockBinding);
+typedef TRSPK_GLvoid*(TRSPK_GLAPIENTRY* TRSPKPFNGLFENCESYNCPROC)(
+    TRSPK_GLenum condition,
+    TRSPK_GLbitfield flags);
+typedef void(TRSPK_GLAPIENTRY* TRSPKPFNGLDELETESYNCPROC)(TRSPK_GLvoid* sync);
+typedef TRSPK_GLenum(TRSPK_GLAPIENTRY* TRSPKPFNGLCLIENTWAITSYNCPROC)(
+    TRSPK_GLvoid* sync,
+    TRSPK_GLbitfield flags,
+    TRSPK_GLuint64 timeout);
+typedef void(TRSPK_GLAPIENTRY* PFNGLFLUSHPROC)(void);
+
 extern PFNGLCREATESHADERPROC trspk_glCreateShader;
 extern PFNGLSHADERSOURCEPROC trspk_glShaderSource;
 extern PFNGLCOMPILESHADERPROC trspk_glCompileShader;
@@ -214,6 +285,15 @@ extern PFNGLTEXPARAMETERIPROC trspk_glTexParameteri;
 extern PFNGLUNIFORM1IPROC trspk_glUniform1i;
 extern PFNGLUNIFORM1FPROC trspk_glUniform1f;
 extern PFNGLUNIFORMMATRIX4FVPROC trspk_glUniformMatrix4fv;
+extern PFNGLBUFFERSTORAGEPROC trspk_glBufferStorage;
+extern PFNGLMAPBUFFERRANGEPROC trspk_glMapBufferRange;
+extern PFNGLBINDBUFFERRANGEPROC trspk_glBindBufferRange;
+extern PFNGLGETUNIFORMBLOCKINDEXPROC trspk_glGetUniformBlockIndex;
+extern PFNGLUNIFORMBLOCKBINDINGPROC trspk_glUniformBlockBinding;
+extern TRSPKPFNGLFENCESYNCPROC trspk_glFenceSync;
+extern TRSPKPFNGLDELETESYNCPROC trspk_glDeleteSync;
+extern TRSPKPFNGLCLIENTWAITSYNCPROC trspk_glClientWaitSync;
+extern PFNGLFLUSHPROC trspk_glFlush;
 
 bool
 trspk_opengl3_load_gl_procs(void);
