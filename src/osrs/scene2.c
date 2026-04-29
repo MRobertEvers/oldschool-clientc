@@ -194,6 +194,7 @@ scene2__batch_deferred_append_model(
     int element_id,
     int parent_entity_id,
     int model_gpu_id,
+    int visual_id,
     uint8_t element_category,
     struct DashModel* model)
 {
@@ -209,6 +210,7 @@ scene2__batch_deferred_append_model(
     slot->u.model.element_id = element_id;
     slot->u.model.parent_entity_id = parent_entity_id;
     slot->u.model.model_gpu_id = model_gpu_id;
+    slot->u.model.visual_id = visual_id;
     slot->u.model.element_category = element_category;
     slot->u.model.model = model;
     return true;
@@ -234,6 +236,31 @@ scene2_elements_total(const struct Scene2* scene2)
     if( !scene2 )
         return 0;
     return scene2->fast_count + scene2->full_count;
+}
+
+int
+scene2_allocate_visual_id(
+    struct Scene2* scene2,
+    int model_id)
+{
+    (void)model_id;
+    if( !scene2 )
+        return 0;
+    if( scene2->next_visual_id >= 0x7FFFFFFE )
+        return 0;
+    scene2->next_visual_id++;
+    return scene2->next_visual_id;
+}
+
+static int
+scene2__acquire_resolve_visual_id(
+    struct Scene2* scene2,
+    int visual_id,
+    int model_id)
+{
+    if( visual_id != 0 )
+        return visual_id;
+    return scene2_allocate_visual_id(scene2, model_id);
 }
 
 struct Scene2*
@@ -378,7 +405,9 @@ int
 scene2_element_acquire_fast(
     struct Scene2* scene2,
     int parent_entity_id,
-    enum Scene2ElementCategory category)
+    enum Scene2ElementCategory category,
+    int visual_id,
+    int model_id)
 {
     if( !scene2 || scene2->fast_free_list == NULL )
     {
@@ -399,6 +428,7 @@ scene2_element_acquire_fast(
     f->flags_entity = SCENE2_FLAG_VALID | SCENE2_FLAG_FAST | SCENE2_FLAG_ACTIVE |
                       scene2_pack_parent(parent_entity_id);
     f->element_category = (uint8_t)category;
+    f->visual_id = scene2__acquire_resolve_visual_id(scene2, visual_id, model_id);
 
     scene2_push_active(scene2, element);
 
@@ -421,7 +451,9 @@ int
 scene2_element_acquire_full(
     struct Scene2* scene2,
     int parent_entity_id,
-    enum Scene2ElementCategory category)
+    enum Scene2ElementCategory category,
+    int visual_id,
+    int model_id)
 {
     if( !scene2 || scene2->full_free_list == NULL )
     {
@@ -441,6 +473,7 @@ scene2_element_acquire_full(
     struct Scene2ElementFull* u = scene2__as_full(element);
     u->flags_entity = SCENE2_FLAG_VALID | SCENE2_FLAG_ACTIVE | scene2_pack_parent(parent_entity_id);
     u->element_category = (uint8_t)category;
+    u->visual_id = scene2__acquire_resolve_visual_id(scene2, visual_id, model_id);
 
     scene2_push_active(scene2, element);
 
@@ -549,10 +582,17 @@ scene2_element_set_dash_model(
     if( old && scene2 )
     {
         int old_model_id = 0;
+        int old_visual_id = 0;
         if( scene2__is_fast(element) )
-            old_model_id = scene2__as_fast(element)->dash_model_gpu_id;
+        {
+            old_model_id = scene2__as_fast(element)->element_id;
+            old_visual_id = scene2__as_fast(element)->visual_id;
+        }
         else
-            old_model_id = scene2__as_full(element)->dash_model_gpu_id;
+        {
+            old_model_id = scene2__as_full(element)->element_id;
+            old_visual_id = scene2__as_full(element)->visual_id;
+        }
 
         scene2_eventbuffer_push(
             scene2,
@@ -563,6 +603,7 @@ scene2_element_set_dash_model(
                     .element_id = element_id,
                     .parent_entity_id = parent_entity_id,
                     .model_id = old_model_id,
+                    .visual_id = old_visual_id,
                     .element_category = model_cat,
                     .model = old,
                     .world_x = 0,
@@ -574,17 +615,23 @@ scene2_element_set_dash_model(
         scene2__defer_model_free(scene2, old);
     }
 
+    int elem_visual_id = 0;
+    if( scene2__is_fast(element) )
+        elem_visual_id = scene2__as_fast(element)->visual_id;
+    else
+        elem_visual_id = scene2__as_full(element)->visual_id;
+
     if( scene2__is_fast(element) )
     {
         struct Scene2ElementFast* f = scene2__as_fast(element);
         f->dash_model = dash_model;
-        f->dash_model_gpu_id = 0;
+        f->element_id = 0;
     }
     else
     {
         struct Scene2ElementFull* u = scene2__as_full(element);
         u->dash_model = dash_model;
-        u->dash_model_gpu_id = 0;
+        u->element_id = 0;
     }
 
     if( dash_model && scene2 )
@@ -593,14 +640,20 @@ scene2_element_set_dash_model(
         scene2->next_model_gpu_id++;
         int new_id = scene2->next_model_gpu_id;
         if( scene2__is_fast(element) )
-            scene2__as_fast(element)->dash_model_gpu_id = new_id;
+            scene2__as_fast(element)->element_id = new_id;
         else
-            scene2__as_full(element)->dash_model_gpu_id = new_id;
+            scene2__as_full(element)->element_id = new_id;
 
         if( scene2->batch_active )
         {
             if( !scene2__batch_deferred_append_model(
-                    scene2, element_id, parent_entity_id, new_id, model_cat, dash_model) )
+                    scene2,
+                    element_id,
+                    parent_entity_id,
+                    new_id,
+                    elem_visual_id,
+                    model_cat,
+                    dash_model) )
             {
                 int32_t wx = 0, wy = 0, wz = 0, wyaw = 0;
                 struct DashPosition* wpos = scene2_element_dash_position(element);
@@ -620,6 +673,7 @@ scene2_element_set_dash_model(
                             .element_id = element_id,
                             .parent_entity_id = parent_entity_id,
                             .model_id = new_id,
+                            .visual_id = elem_visual_id,
                             .element_category = model_cat,
                             .model = dash_model,
                             .world_x = wx,
@@ -651,6 +705,7 @@ scene2_element_set_dash_model(
                         .element_id = element_id,
                         .parent_entity_id = parent_entity_id,
                         .model_id = new_id,
+                        .visual_id = elem_visual_id,
                         .element_category = model_cat,
                         .model = dash_model,
                         .world_x = wx,
@@ -695,11 +750,12 @@ scene2__emit_animation_frame_added(
     if( !scene2 || !element || !frame || scene2__is_fast(element) )
         return;
     struct Scene2ElementFull* u = scene2__as_full(element);
-    if( !u->dash_model || u->dash_model_gpu_id <= 0 )
+    if( !u->dash_model || u->element_id <= 0 )
         return;
     scene2_element_queue_animation_load(
         scene2,
-        u->dash_model_gpu_id,
+        u->visual_id,
+        u->element_id,
         anim_id,
         animation_index,
         frame_index,
@@ -776,9 +832,9 @@ scene2_element_release(
     {
         int drop_gpu = 0;
         if( scene2__is_fast(element) )
-            drop_gpu = scene2__as_fast(element)->dash_model_gpu_id;
+            drop_gpu = scene2__as_fast(element)->element_id;
         else
-            drop_gpu = scene2__as_full(element)->dash_model_gpu_id;
+            drop_gpu = scene2__as_full(element)->element_id;
         scene2__batch_deferred_remove_model_and_anims_for_element(scene2, element_id, drop_gpu);
     }
 
@@ -795,7 +851,8 @@ scene2_element_release(
                     .u.model = {
                         .element_id = element_id,
                         .parent_entity_id = parent_entity_id,
-                        .model_id = f->dash_model_gpu_id,
+                        .model_id = f->element_id,
+                        .visual_id = f->visual_id,
                         .element_category = f->element_category,
                         .model = f->dash_model,
                         .world_x = 0,
@@ -807,7 +864,8 @@ scene2_element_release(
             scene2__defer_model_free(scene2, f->dash_model);
         }
         f->dash_model = NULL;
-        f->dash_model_gpu_id = 0;
+        f->element_id = 0;
+        f->visual_id = 0;
         dashposition_free(f->dash_position);
         f->dash_position = NULL;
         f->flags_entity = SCENE2_FLAG_VALID | SCENE2_FLAG_FAST | SCENE2_PARENT_NONE;
@@ -826,7 +884,8 @@ scene2_element_release(
                     .u.model = {
                         .element_id = element_id,
                         .parent_entity_id = parent_entity_id,
-                        .model_id = u->dash_model_gpu_id,
+                        .model_id = u->element_id,
+                        .visual_id = u->visual_id,
                         .element_category = u->element_category,
                         .model = u->dash_model,
                         .world_x = 0,
@@ -838,7 +897,8 @@ scene2_element_release(
             scene2__defer_model_free(scene2, u->dash_model);
         }
         u->dash_model = NULL;
-        u->dash_model_gpu_id = 0;
+        u->element_id = 0;
+        u->visual_id = 0;
         dashposition_free(u->dash_position);
         u->dash_position = NULL;
         dashframemap_free(u->dash_framemap);
@@ -952,13 +1012,23 @@ scene2_element_dash_model_const(const struct Scene2Element* element)
 }
 
 int
-scene2_element_dash_model_gpu_id(const struct Scene2Element* element)
+scene2_element_dash_model_element_id(const struct Scene2Element* element)
 {
     if( !element )
         return 0;
     if( scene2__is_fast(element) )
-        return scene2__as_fast_const(element)->dash_model_gpu_id;
-    return scene2__as_full_const(element)->dash_model_gpu_id;
+        return scene2__as_fast_const(element)->element_id;
+    return scene2__as_full_const(element)->element_id;
+}
+
+int
+scene2_element_visual_id(const struct Scene2Element* element)
+{
+    if( !element )
+        return 0;
+    if( scene2__is_fast(element) )
+        return scene2__as_fast_const(element)->visual_id;
+    return scene2__as_full_const(element)->visual_id;
 }
 
 struct DashPosition*
@@ -1062,6 +1132,20 @@ scene2_element_secondary_frames(struct Scene2Element* element)
     if( scene2__is_fast(element) )
         return NULL;
     return &scene2__as_full(element)->secondary_frames;
+}
+
+struct DashFrame*
+scene2_element_dash_animation_frame(
+    struct Scene2Element* element,
+    uint8_t animation_index,
+    uint8_t frame_index)
+{
+    struct Scene2Frames* sf =
+        animation_index == 0 ? scene2_element_primary_frames(element)
+                             : scene2_element_secondary_frames(element);
+    if( !sf || !sf->frames || (int)frame_index >= sf->count )
+        return NULL;
+    return sf->frames[frame_index];
 }
 
 bool
@@ -1445,9 +1529,9 @@ scene2_batch_end(struct Scene2* scene2)
             struct DashModel* cur = scene2_element_dash_model(el);
             int cur_gpu_id = 0;
             if( scene2__is_fast(el) )
-                cur_gpu_id = scene2__as_fast(el)->dash_model_gpu_id;
+                cur_gpu_id = scene2__as_fast(el)->element_id;
             else
-                cur_gpu_id = scene2__as_full(el)->dash_model_gpu_id;
+                cur_gpu_id = scene2__as_full(el)->element_id;
             if( cur != pl->model || cur_gpu_id != pl->model_gpu_id )
                 continue;
 
@@ -1470,6 +1554,7 @@ scene2_batch_end(struct Scene2* scene2)
                         .element_id = pl->element_id,
                         .parent_entity_id = pl->parent_entity_id,
                         .model_id = pl->model_gpu_id,
+                        .visual_id = pl->visual_id,
                         .element_category = pl->element_category,
                         .model = pl->model,
                         .world_x = wx,
@@ -1489,6 +1574,7 @@ scene2_batch_end(struct Scene2* scene2)
                     .batched = true,
                     .u.animation = {
                         .model_gpu_id = pa->model_gpu_id,
+                        .visual_id = pa->visual_id,
                         .anim_id = pa->anim_id,
                         .animation_index = pa->animation_index,
                         .frame_index = pa->frame_index,
@@ -1533,6 +1619,7 @@ scene2_batch_clear(
 void
 scene2_element_queue_animation_load(
     struct Scene2* scene2,
+    int visual_id,
     int model_gpu_id,
     int anim_id,
     int animation_index,
@@ -1550,6 +1637,7 @@ scene2_element_queue_animation_load(
         struct Scene2BatchDeferredOp op = { 0 };
         op.kind = SCENE2_BATCH_DEFER_ANIM;
         op.u.anim.model_gpu_id = model_gpu_id;
+        op.u.anim.visual_id = visual_id;
         op.u.anim.anim_id = anim_id;
         op.u.anim.animation_index = animation_index;
         op.u.anim.frame_index = frame_index;
@@ -1567,6 +1655,7 @@ scene2_element_queue_animation_load(
             .batched = batched_tag,
             .u.animation = {
                 .model_gpu_id    = model_gpu_id,
+                .visual_id       = visual_id,
                 .anim_id         = anim_id,
                 .animation_index = animation_index,
                 .frame_index     = frame_index,

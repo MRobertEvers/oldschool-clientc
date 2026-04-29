@@ -356,7 +356,7 @@ LuaGame_spawn_element(
     }
 
     struct ProjectileEntity* proj =
-        world_projectile_ensure_scene_element(game->world, projectile_id);
+        world_projectile_ensure_scene_element(game->world, projectile_id, model_id);
     proj->draw_position.x = world_x;
     proj->draw_position.z = world_z;
     proj->visible_level.level = (uint8_t)level;

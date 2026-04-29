@@ -202,6 +202,27 @@ trspk_resource_cache_allocate_pose_slot(
 }
 
 const TRSPK_ModelPose*
+trspk_resource_cache_get_pose_for_instance_draw(
+    const TRSPK_ResourceCache* cache,
+    TRSPK_ModelId layout_model_id,
+    TRSPK_ModelId pose_storage_model_id,
+    bool use_animation,
+    int scene_animation_index,
+    int frame_index)
+{
+    if( !use_animation )
+        return trspk_resource_cache_get_model_pose(cache, pose_storage_model_id, 0u);
+    if( !cache || !trspk_valid_model_id(layout_model_id) ||
+        !trspk_valid_model_id(pose_storage_model_id) || scene_animation_index < 0 ||
+        scene_animation_index > 1 || frame_index < 0 )
+        return NULL;
+    const TRSPK_ModelData* layout = &cache->models[layout_model_id];
+    const uint32_t base = layout->animation_offsets[(uint32_t)scene_animation_index + 1u];
+    return trspk_resource_cache_get_model_pose(
+        cache, pose_storage_model_id, base + (uint32_t)frame_index);
+}
+
+const TRSPK_ModelPose*
 trspk_resource_cache_get_pose_for_draw(
     const TRSPK_ResourceCache* cache,
     TRSPK_ModelId model_id,
@@ -209,14 +230,8 @@ trspk_resource_cache_get_pose_for_draw(
     int scene_animation_index,
     int frame_index)
 {
-    if( !use_animation )
-        return trspk_resource_cache_get_model_pose(cache, model_id, 0u);
-    if( !cache || !trspk_valid_model_id(model_id) || scene_animation_index < 0 ||
-        scene_animation_index > 1 || frame_index < 0 )
-        return NULL;
-    const TRSPK_ModelData* model = &cache->models[model_id];
-    const uint32_t base = model->animation_offsets[(uint32_t)scene_animation_index + 1u];
-    return trspk_resource_cache_get_model_pose(cache, model_id, base + (uint32_t)frame_index);
+    return trspk_resource_cache_get_pose_for_instance_draw(
+        cache, model_id, model_id, use_animation, scene_animation_index, frame_index);
 }
 
 void

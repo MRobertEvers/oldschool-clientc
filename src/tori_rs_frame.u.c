@@ -366,8 +366,8 @@ model_cache_key_u64(
 {
     if( !element || !scene2 )
         return 0;
-    int model_id = scene2_element_dash_model_gpu_id(element);
-    return ((uint64_t)(uint32_t)model_id << 24) |
+    int visual_id = scene2_element_visual_id(element);
+    return ((uint64_t)(uint32_t)visual_id << 24) |
            ((uint64_t)scene2_element_active_anim_id(element) << 8) |
            (uint64_t)scene2_element_active_frame(element);
 }
@@ -667,7 +667,7 @@ queue_static_load_commands(
                 ev->_animation_load.model = scene_event.u.animation.model;
                 ev->_animation_load.frame = scene_event.u.animation.frame;
                 ev->_animation_load.framemap = scene_event.u.animation.framemap;
-                ev->_animation_load.model_gpu_id = scene_event.u.animation.model_gpu_id;
+                ev->_animation_load.visual_id = scene_event.u.animation.visual_id;
                 ev->_animation_load.anim_id = scene_event.u.animation.anim_id;
                 ev->_animation_load.animation_index = scene_event.u.animation.animation_index;
                 ev->_animation_load.frame_index = scene_event.u.animation.frame_index;
@@ -721,7 +721,7 @@ queue_static_load_commands(
                     scene_event.batched ? TORIRS_GFX_BATCH3D_MODEL_ADD : TORIRS_GFX_RES_MODEL_LOAD;
                 ev->_model_load.model = model;
                 ev->_model_load.model_key = model_key;
-                ev->_model_load.model_id = scene2_element_dash_model_gpu_id(el);
+                ev->_model_load.visual_id = scene_event.u.model.visual_id;
                 ev->_model_load.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
                     (enum Scene2ElementCategory)scene_event.u.model.element_category);
                 ev->_model_load.world_x = scene_event.u.model.world_x;
@@ -738,7 +738,7 @@ queue_static_load_commands(
                 ev->kind = TORIRS_GFX_RES_MODEL_UNLOAD;
                 ev->_model_load.model = scene_event.u.model.model;
                 ev->_model_load.model_key = 0;
-                ev->_model_load.model_id = scene_event.u.model.model_id;
+                ev->_model_load.visual_id = scene_event.u.model.visual_id;
                 ev->_model_load.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
                     (enum Scene2ElementCategory)scene_event.u.model.element_category);
                 ev->_model_load.world_x = 0;
@@ -1353,7 +1353,9 @@ next:
             rc->kind = TORIRS_GFX_DRAW_MODEL;
             rc->_model_draw.model = ent_model;
             rc->_model_draw.model_key = model_cache_key_u64(game->world->scene2, scene_element);
-            rc->_model_draw.model_id = scene2_element_dash_model_gpu_id(scene_element);
+            rc->_model_draw.visual_id = scene2_element_visual_id(scene_element);
+            rc->_model_draw.element_id =
+                scene2_element_id(game->world->scene2, scene_element);
             rc->_model_draw.use_animation = scene2_element_active_anim_id(scene_element) != 0;
             rc->_model_draw.animation_index = scene2_element_active_animation_index(scene_element);
             rc->_model_draw.frame_index = scene2_element_active_frame(scene_element);
@@ -1426,7 +1428,9 @@ next:
             rc->kind = TORIRS_GFX_DRAW_MODEL;
             rc->_model_draw.model = tile_model;
             rc->_model_draw.model_key = model_cache_key_u64(game->world->scene2, scene_element);
-            rc->_model_draw.model_id = scene2_element_dash_model_gpu_id(scene_element);
+            rc->_model_draw.visual_id = scene2_element_visual_id(scene_element);
+            rc->_model_draw.element_id =
+                scene2_element_id(game->world->scene2, scene_element);
             rc->_model_draw.use_animation = scene2_element_active_anim_id(scene_element) != 0;
             rc->_model_draw.animation_index = scene2_element_active_animation_index(scene_element);
             rc->_model_draw.frame_index = scene2_element_active_frame(scene_element);

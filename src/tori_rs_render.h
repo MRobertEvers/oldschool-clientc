@@ -83,9 +83,9 @@ torirs_sprite_cache_key(
     return ((uint64_t)(uint32_t)element_id << 32) | (uint64_t)(uint32_t)atlas_index;
 }
 
-/** Match `model_cache_key_u64` / `rs_model_cache_key_u64`: model_id<<24 | anim<<8 | frame. */
+/** Match `model_cache_key_u64` / `rs_model_cache_key_u64`: visual_id<<24 | anim<<8 | frame. */
 static inline int
-torirs_model_id_from_cache_key(uint64_t k)
+torirs_visual_id_from_cache_key(uint64_t k)
 {
     return (int)(uint32_t)(k >> 24);
 }
@@ -110,11 +110,11 @@ struct ToriRSRenderCommand
         struct
         {
             struct DashModel* model;
-            /** Packed: model_id<<24 | anim_id<<8 | frame_index (see torirs_model_cache_key_decode).
+            /** Packed: visual_id<<24 | anim_id<<8 | frame_index (see torirs_model_cache_key_decode).
              */
             uint64_t model_key;
-            /** Scene2-assigned id from MODEL_LOADED; canonical key for renderer model caches. */
-            int model_id;
+            /** Scene2 stable slot from acquire (`scene2_element_visual_id`); TRSPK cache key. */
+            int visual_id;
             /** `ToriRS_UsageHint` from Scene2 element category / batch semantics. */
             uint8_t usage_hint;
             /** World-space placement for `TORIRS_GFX_BATCH3D_MODEL_ADD` (batch-bake); zero for
@@ -157,9 +157,12 @@ struct ToriRSRenderCommand
             struct DashPosition world_position;
             /** Same packing as RES_MODEL_LOAD (`torirs_model_cache_key_decode`). */
             uint64_t model_key;
-            /** Same Scene2 id as RES_MODEL_LOAD for this element's current model (see
-             * scene2_element_dash_model_gpu_id). */
-            int model_id;
+            /** Same Scene2 `visual_id` as RES_MODEL_LOAD for this element's current model. */
+            int visual_id;
+            /** Scene2 element index for this draw instance; used for dynamic GPU pose storage (NPC /
+             * player / projectile). Must match `scene2_element_id` when `usage_hint` is not scenery.
+             */
+            int element_id;
             /** If false, draw bind pose `poses[0]`; if true, use `animation_index` + `frame_index`.
              */
             bool use_animation;
@@ -217,14 +220,14 @@ struct ToriRSRenderCommand
         } _batch;
         /**
          * RES_ANIM_LOAD / BATCH3D_ANIM_ADD:
-         * Pre-baked animated pose for (model_gpu_id, anim_id, animation_index, frame).
+         * Pre-baked animated pose for (visual_id, anim_id, animation_index, frame).
          */
         struct
         {
             struct DashModel* model;
             struct DashFrame* frame;
             struct DashFramemap* framemap;
-            int model_gpu_id;
+            int visual_id;
             int anim_id;
             /** 0 primary, 1 secondary; indexes GPU3DCache2 animation_offsets when batched. */
             int animation_index;

@@ -79,14 +79,14 @@ trspk_metal_event_res_model_load(
     const struct ToriRSRenderCommand* cmd)
 {
     if( !ctx || !ctx->renderer || !ctx->cache || !cmd || !cmd->_model_load.model ||
-        cmd->_model_load.model_id < 0 )
+        cmd->_model_load.visual_id <= 0 )
         return;
     const TRSPK_UsageClass usage = trspk_metal_usage_from_torirs(cmd->_model_load.usage_hint);
     if( usage == TRSPK_USAGE_SCENERY )
         return;
 
     trspk_resource_cache_allocate_pose_slot(
-        ctx->cache, (TRSPK_ModelId)cmd->_model_load.model_id, (int)TRSPK_GPU_ANIM_NONE_IDX, 0);
+        ctx->cache, (TRSPK_ModelId)cmd->_model_load.visual_id, (int)TRSPK_GPU_ANIM_NONE_IDX, 0);
 
     TRSPK_LruModelCache* lru = trspk_resource_cache_lru_model_cache(ctx->cache);
     TRSPK_BakeTransform id_bake = trspk_bake_transform_identity();
@@ -99,7 +99,7 @@ trspk_metal_event_res_model_load(
         if( dashmodel_has_textures(cmd->_model_load.model) )
             trspk_lru_model_cache_get_or_emplace_textured(
                 lru,
-                (TRSPK_ModelId)cmd->_model_load.model_id,
+                (TRSPK_ModelId)cmd->_model_load.visual_id,
                 TRSPK_GPU_ANIM_NONE_IDX,
                 0u,
                 &arrays,
@@ -109,7 +109,7 @@ trspk_metal_event_res_model_load(
         else
             trspk_lru_model_cache_get_or_emplace_untextured(
                 lru,
-                (TRSPK_ModelId)cmd->_model_load.model_id,
+                (TRSPK_ModelId)cmd->_model_load.visual_id,
                 TRSPK_GPU_ANIM_NONE_IDX,
                 0u,
                 &arrays,
@@ -123,10 +123,10 @@ trspk_metal_event_res_model_load(
         cmd->_model_load.world_z,
         cmd->_model_load.world_yaw_r2pi2048);
     trspk_resource_cache_set_model_bake(
-        ctx->cache, (TRSPK_ModelId)cmd->_model_load.model_id, &bake);
+        ctx->cache, (TRSPK_ModelId)cmd->_model_load.visual_id, &bake);
     trspk_metal_dynamic_load_model(
         ctx->renderer,
-        (TRSPK_ModelId)cmd->_model_load.model_id,
+        (TRSPK_ModelId)cmd->_model_load.visual_id,
         cmd->_model_load.model,
         usage,
         &bake);
@@ -137,13 +137,13 @@ trspk_metal_event_res_model_unload(
     TRSPK_MetalEventContext* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
-    if( !ctx || !ctx->renderer || !cmd || cmd->_model_load.model_id < 0 )
+    if( !ctx || !ctx->renderer || !cmd || cmd->_model_load.visual_id <= 0 )
         return;
     const TRSPK_UsageClass usage = trspk_metal_usage_from_torirs(cmd->_model_load.usage_hint);
     if( usage == TRSPK_USAGE_SCENERY )
-        trspk_metal_cache_unload_model(ctx->renderer, (TRSPK_ModelId)cmd->_model_load.model_id);
+        trspk_metal_cache_unload_model(ctx->renderer, (TRSPK_ModelId)cmd->_model_load.visual_id);
     else
-        trspk_metal_dynamic_unload_model(ctx->renderer, (TRSPK_ModelId)cmd->_model_load.model_id);
+        trspk_metal_dynamic_unload_model(ctx->renderer, (TRSPK_ModelId)cmd->_model_load.visual_id);
 }
 
 void
@@ -152,7 +152,7 @@ trspk_metal_event_res_anim_load(
     const struct ToriRSRenderCommand* cmd)
 {
     if( !ctx || !ctx->renderer || !ctx->cache || !cmd || !cmd->_animation_load.model ||
-        cmd->_animation_load.model_gpu_id < 0 )
+        cmd->_animation_load.visual_id <= 0 )
         return;
     const TRSPK_UsageClass usage = trspk_metal_usage_from_torirs(cmd->_animation_load.usage_hint);
     if( usage == TRSPK_USAGE_SCENERY )
@@ -164,7 +164,7 @@ trspk_metal_event_res_anim_load(
 
     trspk_resource_cache_allocate_pose_slot(
         ctx->cache,
-        (TRSPK_ModelId)cmd->_animation_load.model_gpu_id,
+        (TRSPK_ModelId)cmd->_animation_load.visual_id,
         seg,
         (int)cmd->_animation_load.frame_index);
 
@@ -179,7 +179,7 @@ trspk_metal_event_res_anim_load(
         if( dashmodel_has_textures(cmd->_animation_load.model) )
             trspk_lru_model_cache_get_or_emplace_textured(
                 lru,
-                (TRSPK_ModelId)cmd->_animation_load.model_gpu_id,
+                (TRSPK_ModelId)cmd->_animation_load.visual_id,
                 seg,
                 (uint16_t)cmd->_animation_load.frame_index,
                 &arrays,
@@ -189,7 +189,7 @@ trspk_metal_event_res_anim_load(
         else
             trspk_lru_model_cache_get_or_emplace_untextured(
                 lru,
-                (TRSPK_ModelId)cmd->_animation_load.model_gpu_id,
+                (TRSPK_ModelId)cmd->_animation_load.visual_id,
                 seg,
                 (uint16_t)cmd->_animation_load.frame_index,
                 &arrays,
@@ -198,12 +198,12 @@ trspk_metal_event_res_anim_load(
     }
 
     const TRSPK_BakeTransform* bake = trspk_resource_cache_get_model_bake(
-        ctx->cache, (TRSPK_ModelId)cmd->_animation_load.model_gpu_id);
+        ctx->cache, (TRSPK_ModelId)cmd->_animation_load.visual_id);
     TRSPK_BakeTransform id_fallback = trspk_bake_transform_identity();
     const TRSPK_BakeTransform* use_bake = bake ? bake : &id_fallback;
     trspk_metal_dynamic_load_anim(
         ctx->renderer,
-        (TRSPK_ModelId)cmd->_animation_load.model_gpu_id,
+        (TRSPK_ModelId)cmd->_animation_load.visual_id,
         cmd->_animation_load.model,
         seg,
         (uint16_t)cmd->_animation_load.frame_index,
@@ -237,11 +237,11 @@ trspk_metal_event_batch3d_model_add(
         cmd->_model_load.world_z,
         cmd->_model_load.world_yaw_r2pi2048);
     trspk_resource_cache_set_model_bake(
-        ctx->cache, (TRSPK_ModelId)cmd->_model_load.model_id, &bake);
+        ctx->cache, (TRSPK_ModelId)cmd->_model_load.visual_id, &bake);
     trspk_dash_batch_add_model32(
         ctx->staging,
         cmd->_model_load.model,
-        (uint16_t)cmd->_model_load.model_id,
+        (uint16_t)cmd->_model_load.visual_id,
         TRSPK_GPU_ANIM_NONE_IDX,
         0,
         &bake,
@@ -261,11 +261,11 @@ trspk_metal_event_batch3d_anim_add(
     const uint8_t seg = cmd->_animation_load.animation_index == 1 ? TRSPK_GPU_ANIM_SECONDARY_IDX
                                                                   : TRSPK_GPU_ANIM_PRIMARY_IDX;
     const TRSPK_BakeTransform* bake = trspk_resource_cache_get_model_bake(
-        ctx->cache, (TRSPK_ModelId)cmd->_animation_load.model_gpu_id);
+        ctx->cache, (TRSPK_ModelId)cmd->_animation_load.visual_id);
     trspk_dash_batch_add_model32(
         ctx->staging,
         cmd->_animation_load.model,
-        (uint16_t)cmd->_animation_load.model_gpu_id,
+        (uint16_t)cmd->_animation_load.visual_id,
         seg,
         (uint16_t)cmd->_animation_load.frame_index,
         bake,
@@ -308,6 +308,9 @@ trspk_metal_event_draw_model(
         return;
 
     const TRSPK_UsageClass draw_usage = trspk_metal_usage_from_torirs(cmd->_model_draw.usage_hint);
+    const TRSPK_ModelId layout_id = (TRSPK_ModelId)cmd->_model_draw.visual_id;
+    const TRSPK_ModelId pose_storage_id =
+        draw_usage == TRSPK_USAGE_SCENERY ? layout_id : (TRSPK_ModelId)cmd->_model_draw.element_id;
     if( draw_usage != TRSPK_USAGE_SCENERY )
     {
         TRSPK_BakeTransform bake = trspk_bake_transform_from_yaw_translate(
@@ -317,7 +320,7 @@ trspk_metal_event_draw_model(
             (int32_t)cmd->_model_draw.world_position.yaw);
         if( cmd->_model_draw.usage_hint == TORIRS_USAGE_PROJECTILE )
             trspk_resource_cache_set_model_bake(
-                ctx->cache, (TRSPK_ModelId)cmd->_model_draw.model_id, &bake);
+                ctx->cache, (TRSPK_ModelId)cmd->_model_draw.visual_id, &bake);
         uint8_t seg = TRSPK_GPU_ANIM_NONE_IDX;
         uint16_t frame_i = 0u;
         if( cmd->_model_draw.use_animation )
@@ -328,7 +331,7 @@ trspk_metal_event_draw_model(
         }
         const uint32_t pose_ix = trspk_resource_cache_get_pose_index_for_draw(
             ctx->cache,
-            (TRSPK_ModelId)cmd->_model_draw.model_id,
+            layout_id,
             cmd->_model_draw.use_animation,
             cmd->_model_draw.animation_index,
             cmd->_model_draw.frame_index);
@@ -346,7 +349,7 @@ trspk_metal_event_draw_model(
                     if( dashmodel_has_textures(cmd->_model_draw.model) )
                         trspk_lru_model_cache_get_or_emplace_textured(
                             lru,
-                            (TRSPK_ModelId)cmd->_model_draw.model_id,
+                            layout_id,
                             seg,
                             frame_i,
                             &arrays,
@@ -356,17 +359,18 @@ trspk_metal_event_draw_model(
                     else
                         trspk_lru_model_cache_get_or_emplace_untextured(
                             lru,
-                            (TRSPK_ModelId)cmd->_model_draw.model_id,
+                            layout_id,
                             seg,
                             frame_i,
                             &arrays,
                             &id_bake);
-                    const TRSPK_VertexBuffer* id_mesh = trspk_lru_model_cache_get(
-                        lru, (TRSPK_ModelId)cmd->_model_draw.model_id, seg, frame_i);
+                    const TRSPK_VertexBuffer* id_mesh =
+                        trspk_lru_model_cache_get(lru, layout_id, seg, frame_i);
                     if( id_mesh )
                         did_defer = trspk_metal_dynamic_enqueue_draw_mesh_deferred(
                             ctx->renderer,
-                            (TRSPK_ModelId)cmd->_model_draw.model_id,
+                            pose_storage_id,
+                            layout_id,
                             draw_usage,
                             pose_ix,
                             seg,
@@ -381,9 +385,10 @@ trspk_metal_event_draw_model(
             return;
     }
 
-    const TRSPK_ModelPose* pose = trspk_resource_cache_get_pose_for_draw(
+    const TRSPK_ModelPose* pose = trspk_resource_cache_get_pose_for_instance_draw(
         ctx->cache,
-        (TRSPK_ModelId)cmd->_model_draw.model_id,
+        layout_id,
+        pose_storage_id,
         cmd->_model_draw.use_animation,
         cmd->_model_draw.animation_index,
         cmd->_model_draw.frame_index);

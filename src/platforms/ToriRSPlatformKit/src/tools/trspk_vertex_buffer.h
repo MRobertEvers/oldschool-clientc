@@ -31,10 +31,10 @@ typedef struct TRSPK_VertexBuffer
     union
     {
         TRSPK_Vertex* as_trspk;
-        TRSPK_VertexWebGL1Array as_webgl1_array;
+        TRSPK_VertexWebGL1Soaos as_webgl1_soaos;
         TRSPK_VertexWebGL1* as_webgl1;
         TRSPK_VertexMetal* as_metal;
-        TRSPK_VertexMetalArray as_metal_array;
+        TRSPK_VertexMetalSoaos as_metal_soaos;
     } vertices;
 } TRSPK_VertexBuffer;
 
@@ -72,7 +72,7 @@ void
 trspk_vertex_buffer_apply_bake(TRSPK_VertexBuffer* vb, const TRSPK_BakeTransform* bake);
 
 /**
- * CPU LRU stores SoA (METAL_ARRAY / WEBGL1_ARRAY). This applies world bake and writes
+ * CPU LRU stores AoSoA (METAL_SOAOS / WEBGL1_SOAOS). This applies world bake and writes
  * interleaved GPU vertices (METAL / WEBGL1). Indices are copied unchanged.
  */
 bool

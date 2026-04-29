@@ -56,6 +56,21 @@ trspk_resource_cache_allocate_pose_slot(
     int gpu_segment_slot,
     int frame_index);
 
+/**
+ * Resolve pose for drawing: animation slot layout comes from `layout_model_id` (Scene2 visual /
+ * TRSPK model cache id); stored pose data (including dynamic GPU offsets) is read from
+ * `pose_storage_model_id` (Scene2 element id per instance). Use the same id for both when layout and
+ * storage coincide (e.g. scenery batch geometry).
+ */
+const TRSPK_ModelPose*
+trspk_resource_cache_get_pose_for_instance_draw(
+    const TRSPK_ResourceCache* cache,
+    TRSPK_ModelId layout_model_id,
+    TRSPK_ModelId pose_storage_model_id,
+    bool use_animation,
+    int scene_animation_index,
+    int frame_index);
+
 const TRSPK_ModelPose*
 trspk_resource_cache_get_pose_for_draw(
     const TRSPK_ResourceCache* cache,

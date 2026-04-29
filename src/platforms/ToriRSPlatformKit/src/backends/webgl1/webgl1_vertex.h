@@ -2,9 +2,15 @@
 #define TORIRS_PLATFORM_KIT_WEBGL1_VERTEX_H
 
 #include "../../../include/ToriRSPlatformKit/trspk_types.h"
+#include "../../../include/ToriRSPlatformKit/trspk_vertex_soaos_config.h"
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if defined(_WIN32)
+#include <malloc.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,22 +25,55 @@ typedef struct TRSPK_VertexWebGL1
     float uv_mode;
 } TRSPK_VertexWebGL1;
 
-/** Structure-of-arrays layout (one malloc per field). */
-typedef struct TRSPK_VertexWebGL1Array
+typedef struct TRSPK_VertexWebGL1SoaosBlock
 {
-    float* position_x;
-    float* position_y;
-    float* position_z;
-    float* position_w;
-    float* color_r;      
-    float* color_g;      
-    float* color_b;      
-    float* color_a;      
-    float* texcoord_u;   
-    float* texcoord_v;   
-    float* tex_id;      
-    float* uv_mode;     
-} TRSPK_VertexWebGL1Array;
+    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float position_x[TRSPK_VERTEX_SIMD_LANES];
+    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float position_y[TRSPK_VERTEX_SIMD_LANES];
+    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float position_z[TRSPK_VERTEX_SIMD_LANES];
+    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float position_w[TRSPK_VERTEX_SIMD_LANES];
+    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float color_r[TRSPK_VERTEX_SIMD_LANES];
+    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float color_g[TRSPK_VERTEX_SIMD_LANES];
+    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float color_b[TRSPK_VERTEX_SIMD_LANES];
+    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float color_a[TRSPK_VERTEX_SIMD_LANES];
+    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float texcoord_u[TRSPK_VERTEX_SIMD_LANES];
+    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float texcoord_v[TRSPK_VERTEX_SIMD_LANES];
+    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float tex_id[TRSPK_VERTEX_SIMD_LANES];
+    _Alignas(TRSPK_VERTEX_SOAOS_ALIGNMENT) float uv_mode[TRSPK_VERTEX_SIMD_LANES];
+} TRSPK_VertexWebGL1SoaosBlock;
+
+typedef struct TRSPK_VertexWebGL1Soaos
+{
+    uint32_t vertex_count;
+    uint32_t block_count;
+    TRSPK_VertexWebGL1SoaosBlock* blocks;
+} TRSPK_VertexWebGL1Soaos;
+
+static inline void*
+trspk_webgl1_soaos_aligned_alloc(size_t alignment, size_t size)
+{
+    if( size == 0u )
+        return NULL;
+    size_t sz = size;
+    if( (sz % alignment) != 0u )
+        sz = ((sz + alignment - 1u) / alignment) * alignment;
+#if defined(_WIN32)
+    return _aligned_malloc(sz, alignment);
+#else
+    return aligned_alloc(alignment, sz);
+#endif
+}
+
+static inline void
+trspk_webgl1_soaos_aligned_free(void* p)
+{
+    if( !p )
+        return;
+#if defined(_WIN32)
+    _aligned_free(p);
+#else
+    free(p);
+#endif
+}
 
 static inline void
 trspk_webgl1_vertex_convert(
@@ -54,82 +93,63 @@ trspk_webgl1_vertex_convert(
 }
 
 static inline void
-trspk_webgl1_vertex_array_free(TRSPK_VertexWebGL1Array* a)
+trspk_webgl1_vertex_soaos_free(TRSPK_VertexWebGL1Soaos* a)
 {
     if( !a )
         return;
-    free(a->position_x);
-    free(a->position_y);
-    free(a->position_z);
-    free(a->position_w);
-    free(a->color_r);
-    free(a->color_g);
-    free(a->color_b);
-    free(a->color_a);
-    free(a->texcoord_u);
-    free(a->texcoord_v);
-    free(a->tex_id);
-    free(a->uv_mode);
+    trspk_webgl1_soaos_aligned_free(a->blocks);
     memset(a, 0, sizeof(*a));
 }
 
-/** Allocates empty SoA buffers for n vertices; on failure leaves *out cleared. */
 static inline bool
-trspk_webgl1_vertex_array_alloc(TRSPK_VertexWebGL1Array* out, uint32_t n)
+trspk_webgl1_vertex_soaos_alloc(TRSPK_VertexWebGL1Soaos* out, uint32_t n)
 {
     if( !out )
         return false;
     memset(out, 0, sizeof(*out));
     if( n == 0u )
         return true;
-    const size_t nf = (size_t)n;
-    out->position_x = (float*)malloc(nf * sizeof(float));
-    out->position_y = (float*)malloc(nf * sizeof(float));
-    out->position_z = (float*)malloc(nf * sizeof(float));
-    out->position_w = (float*)malloc(nf * sizeof(float));
-    out->color_r = (float*)malloc(nf * sizeof(float));
-    out->color_g = (float*)malloc(nf * sizeof(float));
-    out->color_b = (float*)malloc(nf * sizeof(float));
-    out->color_a = (float*)malloc(nf * sizeof(float));
-    out->texcoord_u = (float*)malloc(nf * sizeof(float));
-    out->texcoord_v = (float*)malloc(nf * sizeof(float));
-    out->tex_id = (float*)malloc(nf * sizeof(float));
-    out->uv_mode = (float*)malloc(nf * sizeof(float));
-    if( !out->position_x || !out->position_y || !out->position_z || !out->position_w || !out->color_r || !out->color_g || !out->color_b || !out->color_a || !out->texcoord_u || !out->texcoord_v || !out->tex_id || !out->uv_mode )
-    {
-        trspk_webgl1_vertex_array_free(out);
+    out->vertex_count = n;
+    const uint32_t bc = TRSPK_VERTEX_SOAOS_BLOCK_COUNT(n);
+    out->block_count = bc;
+    const size_t bytes = (size_t)bc * sizeof(TRSPK_VertexWebGL1SoaosBlock);
+    void* p = trspk_webgl1_soaos_aligned_alloc((size_t)TRSPK_VERTEX_SOAOS_ALIGNMENT, bytes);
+    if( !p )
         return false;
-    }
+    out->blocks = (TRSPK_VertexWebGL1SoaosBlock*)p;
+    memset(out->blocks, 0, bytes);
     return true;
 }
 
-/** Allocates SoA from TRSPK vertices; on failure leaves *out cleared. */
 static inline bool
-trspk_webgl1_vertex_array_from_trspk(
-    TRSPK_VertexWebGL1Array* out,
+trspk_webgl1_vertex_soaos_from_trspk(
+    TRSPK_VertexWebGL1Soaos* out,
     const TRSPK_Vertex* src,
     uint32_t n)
 {
     if( !out || (n > 0u && !src) )
         return false;
-    if( !trspk_webgl1_vertex_array_alloc(out, n) )
+    if( !trspk_webgl1_vertex_soaos_alloc(out, n) )
         return false;
     if( n == 0u )
         return true;
     for( uint32_t i = 0; i < n; ++i )
     {
-        out->position_x[i] = src[i].position[0];
-        out->position_y[i] = src[i].position[1];
-        out->position_z[i] = src[i].position[2];
-        out->position_w[i] = src[i].position[3];
-        out->color_r[i] = src[i].color[0];
-        out->color_g[i] = src[i].color[1];
-        out->color_b[i] = src[i].color[2];
-        out->color_a[i] = src[i].color[3];
-        out->texcoord_u[i] = src[i].texcoord[0];
-        out->texcoord_v[i] = src[i].texcoord[1];
-        out->tex_id[i] = src[i].tex_id;
-        out->uv_mode[i] = src[i].uv_mode;
+        const uint32_t bi = TRSPK_VERTEX_SOAOS_BLOCK_IDX(i);
+        const uint32_t li = TRSPK_VERTEX_SOAOS_LANE_IDX(i);
+        TRSPK_VertexWebGL1SoaosBlock* blk = &out->blocks[bi];
+        blk->position_x[li] = src[i].position[0];
+        blk->position_y[li] = src[i].position[1];
+        blk->position_z[li] = src[i].position[2];
+        blk->position_w[li] = src[i].position[3];
+        blk->color_r[li] = src[i].color[0];
+        blk->color_g[li] = src[i].color[1];
+        blk->color_b[li] = src[i].color[2];
+        blk->color_a[li] = src[i].color[3];
+        blk->texcoord_u[li] = src[i].texcoord[0];
+        blk->texcoord_v[li] = src[i].texcoord[1];
+        blk->tex_id[li] = src[i].tex_id;
+        blk->uv_mode[li] = src[i].uv_mode;
     }
     return true;
 }

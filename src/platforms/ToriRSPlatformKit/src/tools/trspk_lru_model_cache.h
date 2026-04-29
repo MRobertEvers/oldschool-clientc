@@ -16,7 +16,7 @@ typedef struct TRSPK_ResourceCache TRSPK_ResourceCache;
 /**
  * CPU-side LRU of cooked meshes. Each hit stores a heap-owned TRSPK_VertexBuffer
  * (status READY, not BATCH_VIEW). Vertex layout is fixed at create time (vertex_format);
- * get_or_emplace builds in that format (TRSPK, WEBGL1, METAL, WEBGL1_ARRAY, METAL_ARRAY).
+ * get_or_emplace builds in that format (TRSPK, WEBGL1, METAL, WEBGL1_SOAOS, METAL_SOAOS).
  */
 typedef struct TRSPK_LruModelCache TRSPK_LruModelCache;
 

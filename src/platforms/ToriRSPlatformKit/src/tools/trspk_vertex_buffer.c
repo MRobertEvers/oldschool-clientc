@@ -7,6 +7,12 @@
 #include <math.h>
 #include <string.h>
 
+static void
+trspk_vertex_buffer_bake_array_to_interleaved_vertices(
+    const TRSPK_VertexBuffer* src,
+    const TRSPK_BakeTransform* bake,
+    TRSPK_VertexBuffer* out);
+
 void
 trspk_vertex_buffer_apply_bake(
     TRSPK_VertexBuffer* vb,
@@ -56,9 +62,9 @@ trspk_vertex_buffer_bake_array_to_interleaved(
     if( !trspk_vertex_buffer_has_vertex_payload(src) )
         return false;
     TRSPK_VertexFormat dst_format;
-    if( src->format == TRSPK_VERTEX_FORMAT_METAL_ARRAY )
+    if( src->format == TRSPK_VERTEX_FORMAT_METAL_SOAOS )
         dst_format = TRSPK_VERTEX_FORMAT_METAL;
-    else if( src->format == TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY )
+    else if( src->format == TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS )
         dst_format = TRSPK_VERTEX_FORMAT_WEBGL1;
     else
         return false;
@@ -70,55 +76,7 @@ trspk_vertex_buffer_bake_array_to_interleaved(
     out->index_base = src->index_base;
     memcpy(out->indices.as_u32, src->indices.as_u32, (size_t)src->index_count * sizeof(uint32_t));
 
-    const uint32_t n = src->vertex_count;
-    if( src->format == TRSPK_VERTEX_FORMAT_METAL_ARRAY )
-    {
-        const TRSPK_VertexMetalArray* a = &src->vertices.as_metal_array;
-        for( uint32_t i = 0; i < n; ++i )
-        {
-            float x = a->position_x[i];
-            float y = a->position_y[i];
-            float z = a->position_z[i];
-            trspk_bake_transform_apply(bake, &x, &y, &z);
-            TRSPK_VertexMetal* v = &out->vertices.as_metal[i];
-            v->position[0] = x;
-            v->position[1] = y;
-            v->position[2] = z;
-            v->position[3] = a->position_w[i];
-            v->color[0] = a->color_r[i];
-            v->color[1] = a->color_g[i];
-            v->color[2] = a->color_b[i];
-            v->color[3] = a->color_a[i];
-            v->texcoord[0] = a->texcoord_u[i];
-            v->texcoord[1] = a->texcoord_v[i];
-            v->tex_id = a->tex_id[i];
-            v->uv_mode = a->uv_mode[i];
-        }
-    }
-    else
-    {
-        const TRSPK_VertexWebGL1Array* a = &src->vertices.as_webgl1_array;
-        for( uint32_t i = 0; i < n; ++i )
-        {
-            float x = a->position_x[i];
-            float y = a->position_y[i];
-            float z = a->position_z[i];
-            trspk_bake_transform_apply(bake, &x, &y, &z);
-            TRSPK_VertexWebGL1* v = &out->vertices.as_webgl1[i];
-            v->position[0] = x;
-            v->position[1] = y;
-            v->position[2] = z;
-            v->position[3] = a->position_w[i];
-            v->color[0] = a->color_r[i];
-            v->color[1] = a->color_g[i];
-            v->color[2] = a->color_b[i];
-            v->color[3] = a->color_a[i];
-            v->texcoord[0] = a->texcoord_u[i];
-            v->texcoord[1] = a->texcoord_v[i];
-            v->tex_id = a->tex_id[i];
-            v->uv_mode = a->uv_mode[i];
-        }
-    }
+    trspk_vertex_buffer_bake_array_to_interleaved_vertices(src, bake, out);
     return true;
 }
 
@@ -205,35 +163,47 @@ write_vertex(
         dest->vertices.as_metal[offset].uv_mode =
             (uint16_t)fmaxf(0.0f, fminf(65535.0f, floorf(packed_gpu_uv_mode + 0.5f)));
         break;
-    case TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY:
-        dest->vertices.as_webgl1_array.position_x[offset] = px;
-        dest->vertices.as_webgl1_array.position_y[offset] = py;
-        dest->vertices.as_webgl1_array.position_z[offset] = pz;
-        dest->vertices.as_webgl1_array.position_w[offset] = 1.0f;
-        dest->vertices.as_webgl1_array.color_r[offset] = color[0];
-        dest->vertices.as_webgl1_array.color_g[offset] = color[1];
-        dest->vertices.as_webgl1_array.color_b[offset] = color[2];
-        dest->vertices.as_webgl1_array.color_a[offset] = color[3];
-        dest->vertices.as_webgl1_array.texcoord_u[offset] = u;
-        dest->vertices.as_webgl1_array.texcoord_v[offset] = vv;
-        dest->vertices.as_webgl1_array.tex_id[offset] = tex_id_vertex;
-        dest->vertices.as_webgl1_array.uv_mode[offset] = packed_gpu_uv_mode;
+    case TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS:
+    {
+        const uint32_t o = (uint32_t)offset;
+        TRSPK_VertexWebGL1SoaosBlock* blk =
+            &dest->vertices.as_webgl1_soaos.blocks[TRSPK_VERTEX_SOAOS_BLOCK_IDX(o)];
+        const uint32_t lane = TRSPK_VERTEX_SOAOS_LANE_IDX(o);
+        blk->position_x[lane] = px;
+        blk->position_y[lane] = py;
+        blk->position_z[lane] = pz;
+        blk->position_w[lane] = 1.0f;
+        blk->color_r[lane] = color[0];
+        blk->color_g[lane] = color[1];
+        blk->color_b[lane] = color[2];
+        blk->color_a[lane] = color[3];
+        blk->texcoord_u[lane] = u;
+        blk->texcoord_v[lane] = vv;
+        blk->tex_id[lane] = tex_id_vertex;
+        blk->uv_mode[lane] = packed_gpu_uv_mode;
         break;
-    case TRSPK_VERTEX_FORMAT_METAL_ARRAY:
-        dest->vertices.as_metal_array.position_x[offset] = px;
-        dest->vertices.as_metal_array.position_y[offset] = py;
-        dest->vertices.as_metal_array.position_z[offset] = pz;
-        dest->vertices.as_metal_array.position_w[offset] = 1.0f;
-        dest->vertices.as_metal_array.color_r[offset] = color[0];
-        dest->vertices.as_metal_array.color_g[offset] = color[1];
-        dest->vertices.as_metal_array.color_b[offset] = color[2];
-        dest->vertices.as_metal_array.color_a[offset] = color[3];
-        dest->vertices.as_metal_array.texcoord_u[offset] = u;
-        dest->vertices.as_metal_array.texcoord_v[offset] = vv;
-        dest->vertices.as_metal_array.tex_id[offset] = tex_u16;
-        dest->vertices.as_metal_array.uv_mode[offset] =
+    }
+    case TRSPK_VERTEX_FORMAT_METAL_SOAOS:
+    {
+        const uint32_t o = (uint32_t)offset;
+        TRSPK_VertexMetalSoaosBlock* blk =
+            &dest->vertices.as_metal_soaos.blocks[TRSPK_VERTEX_SOAOS_BLOCK_IDX(o)];
+        const uint32_t lane = TRSPK_VERTEX_SOAOS_LANE_IDX(o);
+        blk->position_x[lane] = px;
+        blk->position_y[lane] = py;
+        blk->position_z[lane] = pz;
+        blk->position_w[lane] = 1.0f;
+        blk->color_r[lane] = color[0];
+        blk->color_g[lane] = color[1];
+        blk->color_b[lane] = color[2];
+        blk->color_a[lane] = color[3];
+        blk->texcoord_u[lane] = u;
+        blk->texcoord_v[lane] = vv;
+        blk->tex_id[lane] = tex_u16;
+        blk->uv_mode[lane] =
             (uint16_t)fmaxf(0.0f, fminf(65535.0f, floorf(packed_gpu_uv_mode + 0.5f)));
         break;
+    }
     default:
         break;
     }
@@ -535,3 +505,5 @@ trspk_vertex_buffer_write(
 
     return true;
 }
+
+#include "trspk_vertex_buffer_simd.u.c"

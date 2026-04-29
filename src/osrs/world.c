@@ -416,7 +416,8 @@ world_projectile_create(struct World* world)
 struct ProjectileEntity*
 world_projectile_ensure_scene_element(
     struct World* world,
-    int projectile_id)
+    int projectile_id,
+    int rs_model_id)
 {
     struct Scene2Element* element = NULL;
     struct ProjectileEntity* p = world_projectile_ensure(world, projectile_id);
@@ -427,7 +428,9 @@ world_projectile_ensure_scene_element(
         p->scene_element2.element_id = scene2_element_acquire_full(
             world->scene2,
             (int)entity_unified_id(ENTITY_KIND_PROJECTILE, projectile_id),
-            SCENE2_ELEMENT_PROJECTILE);
+            SCENE2_ELEMENT_PROJECTILE,
+            rs_model_id,
+            rs_model_id);
 
         p->orientation.dst_yaw = 0;
 
@@ -1518,8 +1521,7 @@ world_projectile_entity_set_animation(
     if( p->scene_element2.element_id == -1 )
         return;
 
-    struct Scene2Element* element =
-        scene2_element_at(world->scene2, p->scene_element2.element_id);
+    struct Scene2Element* element = scene2_element_at(world->scene2, p->scene_element2.element_id);
     scene2_element_expect(element, "world_projectile_entity_set_animation");
 
     if( animation_type == ANIMATION_TYPE_PRIMARY )
@@ -1741,7 +1743,11 @@ world_npc_ensure_scene_element(
     if( npc->scene_element2.element_id == -1 )
     {
         npc->scene_element2.element_id = scene2_element_acquire_full(
-            world->scene2, (int)entity_unified_id(ENTITY_KIND_NPC, npc_id), SCENE2_ELEMENT_NPC);
+            world->scene2,
+            (int)entity_unified_id(ENTITY_KIND_NPC, npc_id),
+            SCENE2_ELEMENT_NPC,
+            0,
+            0);
 
         npc->orientation.dst_yaw = 0;
 
@@ -1767,7 +1773,9 @@ world_player_ensure_scene_element(
         player->scene_element2.element_id = scene2_element_acquire_full(
             world->scene2,
             (int)entity_unified_id(ENTITY_KIND_PLAYER, player_id),
-            SCENE2_ELEMENT_PLAYER);
+            SCENE2_ELEMENT_PLAYER,
+            0,
+            0);
 
         // player->orientation.face_entity = -1;
         player->orientation.dst_yaw = 0;

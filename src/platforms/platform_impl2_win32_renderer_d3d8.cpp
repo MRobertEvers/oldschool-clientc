@@ -1815,7 +1815,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
 
         case TORIRS_GFX_RES_MODEL_UNLOAD:
         {
-            int mid = command._model_load.model_id;
+            int mid = command._model_load.visual_id;
             {
                 const int kcmd = (int)TORIRS_GFX_RES_MODEL_UNLOAD;
                 if( d3d8_should_log_cmd(p, kcmd) )
@@ -1881,7 +1881,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             const faceint_t* ftex = dashmodel_face_textures_const(model);
             D3D8BatchModelEntry ent;
             ent.model_key = mk;
-            ent.model_id = command._model_load.model_id;
+            ent.model_id = command._model_load.visual_id;
             ent.vertex_base = p->current_batch->total_vertex_count;
             ent.face_count = fc;
             ent.per_face_raw_tex_id.resize((size_t)fc);

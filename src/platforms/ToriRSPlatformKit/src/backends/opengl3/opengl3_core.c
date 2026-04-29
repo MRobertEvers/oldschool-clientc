@@ -21,7 +21,7 @@ trspk_opengl3_alloc(
     r->pass_logical_rect.y = 0;
     r->pass_logical_rect.width = (int32_t)width;
     r->pass_logical_rect.height = (int32_t)height;
-    r->cache = trspk_resource_cache_create(512u, TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY);
+    r->cache = trspk_resource_cache_create(512u, TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS);
     r->batch_staging = trspk_batch32_create(4096u, 12288u, TRSPK_VERTEX_FORMAT_WEBGL1);
     r->pass_state.index_capacity = TRSPK_OPENGL3_DYNAMIC_INDEX_CAPACITY;
     r->pass_state.index_pool =

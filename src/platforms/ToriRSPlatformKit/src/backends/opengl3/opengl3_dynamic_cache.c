@@ -159,7 +159,7 @@ trspk_opengl3_pass_flush_pending_dynamic_gpu_uploads(TRSPK_OpenGL3Renderer* r)
         TRSPK_OpenGL3DeferredDynamicBake* d = &r->deferred_dynamic_bakes[i];
         TRSPK_VertexBuffer baked = { 0 };
         const TRSPK_VertexBuffer* id_mesh =
-            lru ? trspk_lru_model_cache_get(lru, d->model_id, d->seg, d->frame_i) : NULL;
+            lru ? trspk_lru_model_cache_get(lru, d->lru_model_id, d->seg, d->frame_i) : NULL;
         if( !id_mesh ||
             !trspk_vertex_buffer_bake_array_to_interleaved(id_mesh, &d->bake, &baked) ||
             baked.vertex_count != d->vertex_count || baked.index_count != d->index_count ||
@@ -249,7 +249,8 @@ trspk_opengl3_deferred_reserve(
 bool
 trspk_opengl3_dynamic_enqueue_draw_mesh_deferred(
     TRSPK_OpenGL3Renderer* r,
-    TRSPK_ModelId model_id,
+    TRSPK_ModelId pose_storage_model_id,
+    TRSPK_ModelId lru_model_id,
     TRSPK_UsageClass usage,
     uint32_t pose_index,
     uint8_t gpu_segment_slot,
@@ -263,11 +264,11 @@ trspk_opengl3_dynamic_enqueue_draw_mesh_deferred(
     if( array_vertex_count == 0u || array_index_count == 0u )
         return false;
 
-    const uint32_t idx = trspk_opengl3_slot_table_index(model_id, pose_index);
+    const uint32_t idx = trspk_opengl3_slot_table_index(pose_storage_model_id, pose_index);
     const bool had_dynamic_slot =
         r->dynamic_slot_handles && r->dynamic_slot_handles[idx] != TRSPK_DYNAMIC_SLOT_INVALID;
 
-    trspk_opengl3_dynamic_free_pose_slot(r, model_id, pose_index);
+    trspk_opengl3_dynamic_free_pose_slot(r, pose_storage_model_id, pose_index);
 
     TRSPK_DynamicSlotmap32* map = trspk_opengl3_slotmap_for_usage(r, usage);
     if( !map )
@@ -279,14 +280,14 @@ trspk_opengl3_dynamic_enqueue_draw_mesh_deferred(
             map, array_vertex_count, array_index_count, &handle, &vbo_offset, &ebo_offset) )
     {
         if( had_dynamic_slot )
-            trspk_resource_cache_invalidate_model_pose(r->cache, model_id, pose_index);
+            trspk_resource_cache_invalidate_model_pose(r->cache, pose_storage_model_id, pose_index);
         return false;
     }
     if( !trspk_opengl3_ensure_dynamic_buffers(r, usage) )
     {
         trspk_dynamic_slotmap32_free(map, handle);
         if( had_dynamic_slot )
-            trspk_resource_cache_invalidate_model_pose(r->cache, model_id, pose_index);
+            trspk_resource_cache_invalidate_model_pose(r->cache, pose_storage_model_id, pose_index);
         return false;
     }
     trspk_opengl3_refresh_dynamic_world_vao(r, usage);
@@ -305,11 +306,11 @@ trspk_opengl3_dynamic_enqueue_draw_mesh_deferred(
     pose.usage_class = (uint8_t)usage;
     pose.dynamic = true;
     pose.valid = true;
-    if( !trspk_resource_cache_set_model_pose(r->cache, model_id, pose_index, &pose) )
+    if( !trspk_resource_cache_set_model_pose(r->cache, pose_storage_model_id, pose_index, &pose) )
     {
         trspk_dynamic_slotmap32_free(map, handle);
         if( had_dynamic_slot )
-            trspk_resource_cache_invalidate_model_pose(r->cache, model_id, pose_index);
+            trspk_resource_cache_invalidate_model_pose(r->cache, pose_storage_model_id, pose_index);
         return false;
     }
 
@@ -321,13 +322,14 @@ trspk_opengl3_dynamic_enqueue_draw_mesh_deferred(
         trspk_dynamic_slotmap32_free(map, handle);
         r->dynamic_slot_handles[idx] = TRSPK_DYNAMIC_SLOT_INVALID;
         r->dynamic_slot_usages[idx] = TRSPK_USAGE_SCENERY;
-        trspk_resource_cache_invalidate_model_pose(r->cache, model_id, pose_index);
+        trspk_resource_cache_invalidate_model_pose(r->cache, pose_storage_model_id, pose_index);
         return false;
     }
     TRSPK_OpenGL3DeferredDynamicBake* q =
         &r->deferred_dynamic_bakes[r->deferred_dynamic_bake_count++];
     q->usage = usage;
-    q->model_id = model_id;
+    q->model_id = pose_storage_model_id;
+    q->lru_model_id = lru_model_id;
     q->pose_index = pose_index;
     q->seg = gpu_segment_slot;
     q->frame_i = frame_index;

@@ -303,7 +303,7 @@ scene2_element_set_dash_model(
 
 /**
  * Push one keyframe. If `scene2` is set and the element has a model with a valid
- * `dash_model_gpu_id`, queues SCENE2_EVENT_ANIMATION_LOADED (primary track,
+ * `element_id` (model bind id), queues SCENE2_EVENT_ANIMATION_LOADED (primary track,
  * `animation_index` 0) for the GPU to upload that frame.
  * `frame_index` is the index of this keyframe within the sequence.
  */
@@ -387,7 +387,7 @@ scene2_element_dash_model_const(const struct Scene2Element* element);
 /** Id assigned when a model is set on this element; 0 if none. Used with render MODEL_LOAD/UNLOAD.
  */
 int
-scene2_element_dash_model_gpu_id(const struct Scene2Element* element);
+scene2_element_dash_model_element_id(const struct Scene2Element* element);
 
 /** Per-element visual id from acquire (TRSPK cache slot); 0 if none / skipped. */
 int

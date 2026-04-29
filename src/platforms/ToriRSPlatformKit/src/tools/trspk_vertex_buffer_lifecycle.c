@@ -48,12 +48,12 @@ trspk_vertex_buffer_allocate_mesh(
         if( !vb->vertices.as_metal )
             goto fail;
         return true;
-    case TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY:
-        if( !trspk_webgl1_vertex_array_alloc(&vb->vertices.as_webgl1_array, vertex_count) )
+    case TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS:
+        if( !trspk_webgl1_vertex_soaos_alloc(&vb->vertices.as_webgl1_soaos, vertex_count) )
             goto fail;
         return true;
-    case TRSPK_VERTEX_FORMAT_METAL_ARRAY:
-        if( !trspk_metal_vertex_array_alloc(&vb->vertices.as_metal_array, vertex_count) )
+    case TRSPK_VERTEX_FORMAT_METAL_SOAOS:
+        if( !trspk_metal_vertex_soaos_alloc(&vb->vertices.as_metal_soaos, vertex_count) )
             goto fail;
         return true;
     case TRSPK_VERTEX_FORMAT_NONE:
@@ -105,11 +105,11 @@ trspk_vertex_buffer_free(TRSPK_VertexBuffer* m)
         free(m->vertices.as_metal);
         m->vertices.as_metal = NULL;
         break;
-    case TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY:
-        trspk_webgl1_vertex_array_free(&m->vertices.as_webgl1_array);
+    case TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS:
+        trspk_webgl1_vertex_soaos_free(&m->vertices.as_webgl1_soaos);
         break;
-    case TRSPK_VERTEX_FORMAT_METAL_ARRAY:
-        trspk_metal_vertex_array_free(&m->vertices.as_metal_array);
+    case TRSPK_VERTEX_FORMAT_METAL_SOAOS:
+        trspk_metal_vertex_soaos_free(&m->vertices.as_metal_soaos);
         break;
     case TRSPK_VERTEX_FORMAT_NONE:
         break;
@@ -137,19 +137,15 @@ trspk_vertex_buffer_has_vertex_payload(const TRSPK_VertexBuffer* m)
         return m->vertices.as_webgl1 != NULL;
     case TRSPK_VERTEX_FORMAT_METAL:
         return m->vertices.as_metal != NULL;
-    case TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY:
+    case TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS:
     {
-        const TRSPK_VertexWebGL1Array* a = &m->vertices.as_webgl1_array;
-        return a->position_x && a->position_y && a->position_z && a->position_w && a->color_r &&
-               a->color_g && a->color_b && a->color_a && a->texcoord_u && a->texcoord_v &&
-               a->tex_id && a->uv_mode;
+        const TRSPK_VertexWebGL1Soaos* a = &m->vertices.as_webgl1_soaos;
+        return a->vertex_count > 0u && a->blocks != NULL;
     }
-    case TRSPK_VERTEX_FORMAT_METAL_ARRAY:
+    case TRSPK_VERTEX_FORMAT_METAL_SOAOS:
     {
-        const TRSPK_VertexMetalArray* a = &m->vertices.as_metal_array;
-        return a->position_x && a->position_y && a->position_z && a->position_w && a->color_r &&
-               a->color_g && a->color_b && a->color_a && a->texcoord_u && a->texcoord_v &&
-               a->tex_id && a->uv_mode;
+        const TRSPK_VertexMetalSoaos* a = &m->vertices.as_metal_soaos;
+        return a->vertex_count > 0u && a->blocks != NULL;
     }
     default:
         return false;
@@ -208,42 +204,22 @@ trspk_vertex_buffer_duplicate(const TRSPK_VertexBuffer* src, TRSPK_VertexBuffer*
             src->vertices.as_metal,
             (size_t)n * sizeof(TRSPK_VertexMetal));
         break;
-    case TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY:
+    case TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS:
     {
-        const TRSPK_VertexWebGL1Array* s = &src->vertices.as_webgl1_array;
-        TRSPK_VertexWebGL1Array* d = &out->vertices.as_webgl1_array;
-        const size_t nf = (size_t)n * sizeof(float);
-        memcpy(d->position_x, s->position_x, nf);
-        memcpy(d->position_y, s->position_y, nf);
-        memcpy(d->position_z, s->position_z, nf);
-        memcpy(d->position_w, s->position_w, nf);
-        memcpy(d->color_r, s->color_r, nf);
-        memcpy(d->color_g, s->color_g, nf);
-        memcpy(d->color_b, s->color_b, nf);
-        memcpy(d->color_a, s->color_a, nf);
-        memcpy(d->texcoord_u, s->texcoord_u, nf);
-        memcpy(d->texcoord_v, s->texcoord_v, nf);
-        memcpy(d->tex_id, s->tex_id, nf);
-        memcpy(d->uv_mode, s->uv_mode, nf);
+        const TRSPK_VertexWebGL1Soaos* s = &src->vertices.as_webgl1_soaos;
+        TRSPK_VertexWebGL1Soaos* d = &out->vertices.as_webgl1_soaos;
+        const size_t nb =
+            (size_t)s->block_count * sizeof(TRSPK_VertexWebGL1SoaosBlock);
+        memcpy(d->blocks, s->blocks, nb);
         break;
     }
-    case TRSPK_VERTEX_FORMAT_METAL_ARRAY:
+    case TRSPK_VERTEX_FORMAT_METAL_SOAOS:
     {
-        const TRSPK_VertexMetalArray* s = &src->vertices.as_metal_array;
-        TRSPK_VertexMetalArray* d = &out->vertices.as_metal_array;
-        const size_t nf = (size_t)n * sizeof(float);
-        memcpy(d->position_x, s->position_x, nf);
-        memcpy(d->position_y, s->position_y, nf);
-        memcpy(d->position_z, s->position_z, nf);
-        memcpy(d->position_w, s->position_w, nf);
-        memcpy(d->color_r, s->color_r, nf);
-        memcpy(d->color_g, s->color_g, nf);
-        memcpy(d->color_b, s->color_b, nf);
-        memcpy(d->color_a, s->color_a, nf);
-        memcpy(d->texcoord_u, s->texcoord_u, nf);
-        memcpy(d->texcoord_v, s->texcoord_v, nf);
-        memcpy(d->tex_id, s->tex_id, (size_t)n * sizeof(uint16_t));
-        memcpy(d->uv_mode, s->uv_mode, (size_t)n * sizeof(uint16_t));
+        const TRSPK_VertexMetalSoaos* s = &src->vertices.as_metal_soaos;
+        TRSPK_VertexMetalSoaos* d = &out->vertices.as_metal_soaos;
+        const size_t nb =
+            (size_t)s->block_count * sizeof(TRSPK_VertexMetalSoaosBlock);
+        memcpy(d->blocks, s->blocks, nb);
         break;
     }
     default:
@@ -267,24 +243,24 @@ trspk_vertex_buffer_convert_from_trspk(
         return false;
     const uint32_t n = m->vertex_count;
     TRSPK_Vertex* src = m->vertices.as_trspk;
-    if( dst_format == TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY )
+    if( dst_format == TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS )
     {
-        TRSPK_VertexWebGL1Array soa;
-        if( !trspk_webgl1_vertex_array_from_trspk(&soa, src, n) )
+        TRSPK_VertexWebGL1Soaos soa;
+        if( !trspk_webgl1_vertex_soaos_from_trspk(&soa, src, n) )
             return false;
         free(src);
-        m->vertices.as_webgl1_array = soa;
-        m->format = TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY;
+        m->vertices.as_webgl1_soaos = soa;
+        m->format = TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS;
         return true;
     }
-    if( dst_format == TRSPK_VERTEX_FORMAT_METAL_ARRAY )
+    if( dst_format == TRSPK_VERTEX_FORMAT_METAL_SOAOS )
     {
-        TRSPK_VertexMetalArray soa;
-        if( !trspk_metal_vertex_array_from_trspk(&soa, src, n) )
+        TRSPK_VertexMetalSoaos soa;
+        if( !trspk_metal_vertex_soaos_from_trspk(&soa, src, n) )
             return false;
         free(src);
-        m->vertices.as_metal_array = soa;
-        m->format = TRSPK_VERTEX_FORMAT_METAL_ARRAY;
+        m->vertices.as_metal_soaos = soa;
+        m->format = TRSPK_VERTEX_FORMAT_METAL_SOAOS;
         return true;
     }
     const size_t bytes = (size_t)trspk_vertex_format_stride(dst_format) * (size_t)n;
@@ -309,8 +285,8 @@ trspk_vertex_buffer_convert_from_trspk(
         m->vertices.as_metal = (TRSPK_VertexMetal*)buf;
         break;
     case TRSPK_VERTEX_FORMAT_NONE:
-    case TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY:
-    case TRSPK_VERTEX_FORMAT_METAL_ARRAY:
+    case TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS:
+    case TRSPK_VERTEX_FORMAT_METAL_SOAOS:
     default:
         free(buf);
         m->format = TRSPK_VERTEX_FORMAT_TRSPK;

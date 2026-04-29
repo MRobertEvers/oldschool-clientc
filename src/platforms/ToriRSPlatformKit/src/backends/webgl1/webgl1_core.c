@@ -25,7 +25,7 @@ trspk_webgl1_alloc(
     r->pass_logical_rect.width = (int32_t)width;
     r->pass_logical_rect.height = (int32_t)height;
     r->pass_gl_rect = r->pass_logical_rect;
-    r->cache = trspk_resource_cache_create(512u, TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY);
+    r->cache = trspk_resource_cache_create(512u, TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS);
     r->batch_staging = trspk_batch16_create(65535u, 65535u, TRSPK_VERTEX_FORMAT_WEBGL1);
     if( !trspk_webgl1_dynamic_init(r) || !r->cache || !r->batch_staging )
     {

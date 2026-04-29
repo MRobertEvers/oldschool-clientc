@@ -17,8 +17,8 @@ trspk_vertex_format_stride(TRSPK_VertexFormat fmt)
     case TRSPK_VERTEX_FORMAT_METAL:
         return (uint32_t)sizeof(TRSPK_VertexMetal);
     case TRSPK_VERTEX_FORMAT_NONE:
-    case TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY:
-    case TRSPK_VERTEX_FORMAT_METAL_ARRAY:
+    case TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS:
+    case TRSPK_VERTEX_FORMAT_METAL_SOAOS:
         return 0u;
     default:
         return (uint32_t)sizeof(TRSPK_Vertex);
@@ -44,8 +44,8 @@ trspk_vertex_format_convert(
         trspk_metal_vertex_convert(dst_vertices, src_vertices, vertex_count);
         return;
     case TRSPK_VERTEX_FORMAT_NONE:
-    case TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY:
-    case TRSPK_VERTEX_FORMAT_METAL_ARRAY:
+    case TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS:
+    case TRSPK_VERTEX_FORMAT_METAL_SOAOS:
         return;
     default:
         memcpy(dst_vertices, src_vertices, (size_t)vertex_count * sizeof(TRSPK_Vertex));

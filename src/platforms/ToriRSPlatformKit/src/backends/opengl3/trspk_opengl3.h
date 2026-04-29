@@ -29,7 +29,10 @@ extern "C" {
 typedef struct TRSPK_OpenGL3DeferredDynamicBake
 {
     TRSPK_UsageClass usage;
+    /** Scene2 element id: keys dynamic VBO sub-range and cached pose. */
     TRSPK_ModelId model_id;
+    /** Scene2 `visual_id`: keys CPU mesh LRU for deferred bake. */
+    TRSPK_ModelId lru_model_id;
     uint32_t pose_index;
     uint8_t seg;
     uint16_t frame_i;
@@ -242,7 +245,8 @@ trspk_opengl3_dynamic_reset_pass(TRSPK_OpenGL3Renderer* r);
 bool
 trspk_opengl3_dynamic_enqueue_draw_mesh_deferred(
     TRSPK_OpenGL3Renderer* r,
-    TRSPK_ModelId model_id,
+    TRSPK_ModelId pose_storage_model_id,
+    TRSPK_ModelId lru_model_id,
     TRSPK_UsageClass usage,
     uint32_t pose_index,
     uint8_t gpu_segment_slot,

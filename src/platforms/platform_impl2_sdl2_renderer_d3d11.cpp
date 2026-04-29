@@ -1431,7 +1431,7 @@ PlatformImpl2_SDL2_Renderer_D3D11_Render(
 
             case TORIRS_GFX_RES_MODEL_UNLOAD:
             {
-                const int mid = cmd._model_load.model_id;
+                const int mid = cmd._model_load.visual_id;
                 if( mid <= 0 )
                     break;
                 for( auto it = renderer->model_index_by_key.begin();

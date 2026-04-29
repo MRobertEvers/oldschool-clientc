@@ -86,10 +86,10 @@ typedef enum TRSPK_VertexFormat
     TRSPK_VERTEX_FORMAT_TRSPK = 0,
     TRSPK_VERTEX_FORMAT_WEBGL1,
     TRSPK_VERTEX_FORMAT_METAL,
-    /** SoA: separate float streams (see TRSPK_VertexWebGL1Array in webgl1_vertex.h). */
-    TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY,
-    /** SoA: separate streams (see TRSPK_VertexMetalArray in metal_vertex.h). */
-    TRSPK_VERTEX_FORMAT_METAL_ARRAY,
+    /** AoSoA: aligned blocks (see TRSPK_VertexWebGL1Soaos in webgl1_vertex.h). */
+    TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS,
+    /** AoSoA: aligned blocks (see TRSPK_VertexMetalSoaos in metal_vertex.h). */
+    TRSPK_VERTEX_FORMAT_METAL_SOAOS,
     /** Empty / no GPU vertex payload (see TRSPK_VertexBuffer). */
     TRSPK_VERTEX_FORMAT_NONE
 } TRSPK_VertexFormat;

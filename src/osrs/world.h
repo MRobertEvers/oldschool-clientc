@@ -446,7 +446,8 @@ world_cleanup_projectile_entity(
 struct ProjectileEntity*
 world_projectile_ensure_scene_element(
     struct World* world,
-    int projectile_id);
+    int projectile_id,
+    int rs_model_id);
 void
 world_projectile_entity_set_animation(
     struct World* world,

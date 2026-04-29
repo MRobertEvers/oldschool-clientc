@@ -28,7 +28,10 @@ extern "C" {
 typedef struct TRSPK_MetalDeferredDynamicBake
 {
     TRSPK_UsageClass usage;
+    /** Scene2 element id: keys dynamic VBO sub-range and `TRSPK_ModelPose` in the resource cache. */
     TRSPK_ModelId model_id;
+    /** Scene2 `visual_id` / TRSPK model id: keys the CPU mesh LRU for deferred world baking. */
+    TRSPK_ModelId lru_model_id;
     uint32_t pose_index;
     uint8_t seg;
     uint16_t frame_i;
@@ -224,7 +227,8 @@ trspk_metal_dynamic_reset_pass(TRSPK_MetalRenderer* r);
 bool
 trspk_metal_dynamic_enqueue_draw_mesh_deferred(
     TRSPK_MetalRenderer* r,
-    TRSPK_ModelId model_id,
+    TRSPK_ModelId pose_storage_model_id,
+    TRSPK_ModelId lru_model_id,
     TRSPK_UsageClass usage,
     uint32_t pose_index,
     uint8_t gpu_segment_slot,
