@@ -5,6 +5,7 @@
 #include "../../tools/trspk_batch16.h"
 #include "../../tools/trspk_dynamic_pass.h"
 #include "../../tools/trspk_resource_cache.h"
+#include "../../tools/trspk_dynamic_batch_upload.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -128,10 +129,7 @@ typedef struct TRSPK_WebGL1Renderer
     uint16_t* u16_index_scratch;
     uint32_t u16_index_scratch_cap;
     /** Reused by batched dynamic flush on Emscripten (merge scratch + sort indices + u16 pool). */
-    uint8_t* webgl1_flush_merge_scratch;
-    size_t webgl1_flush_merge_scratch_bytes;
-    uint32_t* webgl1_flush_sort_idx;
-    uint32_t webgl1_flush_sort_idx_cap;
+    TRSPK_DynamicBatchScratch dynamic_flush_batch;
     uint16_t* webgl1_flush_u16_pool;
     size_t webgl1_flush_u16_pool_bytes;
     TRSPK_WebGL1DeferredDynamicBake* deferred_dynamic_bakes;

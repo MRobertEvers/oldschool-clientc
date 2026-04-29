@@ -253,6 +253,7 @@ if(NOT EMSCRIPTEN)
             src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_slotmap16.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_slotmap32.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_pass.c
+            src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_batch_upload.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_format.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_facebuffer.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_buffer.c
@@ -727,6 +728,7 @@ if(EMSCRIPTEN)
         src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_slotmap16.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_slotmap32.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_pass.c
+        src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_batch_upload.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_format.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_facebuffer.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_buffer.c

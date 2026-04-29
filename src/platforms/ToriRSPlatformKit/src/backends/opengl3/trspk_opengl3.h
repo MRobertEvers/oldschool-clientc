@@ -5,6 +5,7 @@
 #include "../../tools/trspk_dynamic_pass.h"
 #include "../../tools/trspk_dynamic_slotmap32.h"
 #include "../../tools/trspk_resource_cache.h"
+#include "../../tools/trspk_dynamic_batch_upload.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -147,10 +148,7 @@ typedef struct TRSPK_OpenGL3Renderer
     size_t dynamic_projectile_vbo_allocated_bytes;
     size_t dynamic_projectile_ebo_allocated_bytes;
     /** Reused by batched dynamic flush (avoids malloc per merged GPU upload). */
-    uint8_t* dynamic_flush_merge_scratch;
-    size_t dynamic_flush_merge_scratch_bytes;
-    uint32_t* dynamic_flush_sort_idx;
-    uint32_t dynamic_flush_sort_idx_cap;
+    TRSPK_DynamicBatchScratch dynamic_flush_batch;
 } TRSPK_OpenGL3Renderer;
 
 struct DashModel;

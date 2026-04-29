@@ -19,32 +19,6 @@ trspk_opengl3_ebo_ptr_for_usage(
     TRSPK_OpenGL3Renderer* r,
     TRSPK_UsageClass usage);
 
-static bool
-ogl3_ensure_merge_scratch(TRSPK_OpenGL3Renderer* r, size_t need)
-{
-    if( r->dynamic_flush_merge_scratch_bytes >= need )
-        return true;
-    void* p = realloc(r->dynamic_flush_merge_scratch, need);
-    if( !p )
-        return false;
-    r->dynamic_flush_merge_scratch = (uint8_t*)p;
-    r->dynamic_flush_merge_scratch_bytes = need;
-    return true;
-}
-
-static bool
-ogl3_ensure_sort_idx(TRSPK_OpenGL3Renderer* r, uint32_t n)
-{
-    if( r->dynamic_flush_sort_idx_cap >= n )
-        return true;
-    void* p = realloc(r->dynamic_flush_sort_idx, (size_t)n * sizeof(uint32_t));
-    if( !p )
-        return false;
-    r->dynamic_flush_sort_idx = (uint32_t*)p;
-    r->dynamic_flush_sort_idx_cap = n;
-    return true;
-}
-
 #define TRSPK_OGL3_DYNAMIC_VERTEX_CAPACITY 4096u
 #define TRSPK_OGL3_DYNAMIC_INDEX_CAPACITY_INITIAL 12288u
 
@@ -59,180 +33,70 @@ typedef struct TRSPK_Ogl3FlushBakedRow
     uint32_t ebo_len_bytes;
 } TRSPK_Ogl3FlushBakedRow;
 
-static void
-trspk_ogl3_flush_sort_indices_by_vbo(
-    uint32_t* idx,
-    int n,
-    const TRSPK_Ogl3FlushBakedRow* rows)
+static uint32_t
+ogl3_flush_key_vbo(void* rows, uint32_t ri)
 {
-    for( int i = 1; i < n; ++i )
-    {
-        const uint32_t key = idx[i];
-        const uint32_t kb = rows[key].vbo_beg_bytes;
-        int j = i - 1;
-        while( j >= 0 && rows[idx[j]].vbo_beg_bytes > kb )
-        {
-            idx[j + 1] = idx[j];
-            --j;
-        }
-        idx[j + 1] = key;
-    }
+    return ((const TRSPK_Ogl3FlushBakedRow*)rows)[ri].vbo_beg_bytes;
+}
+
+static uint32_t
+ogl3_flush_key_ebo(void* rows, uint32_t ri)
+{
+    return ((const TRSPK_Ogl3FlushBakedRow*)rows)[ri].ebo_beg_bytes;
+}
+
+static uint32_t
+ogl3_flush_vbo_beg(void* rows, uint32_t ri)
+{
+    return ((TRSPK_Ogl3FlushBakedRow*)rows)[ri].vbo_beg_bytes;
+}
+
+static uint32_t
+ogl3_flush_vbo_len(void* rows, uint32_t ri)
+{
+    return ((TRSPK_Ogl3FlushBakedRow*)rows)[ri].vbo_len_bytes;
+}
+
+static const void*
+ogl3_flush_vbo_src(void* rows, uint32_t ri)
+{
+    return ((TRSPK_Ogl3FlushBakedRow*)rows)[ri].baked.vertices.as_webgl1;
+}
+
+static uint32_t
+ogl3_flush_ebo_beg(void* rows, uint32_t ri)
+{
+    return ((TRSPK_Ogl3FlushBakedRow*)rows)[ri].ebo_beg_bytes;
+}
+
+static uint32_t
+ogl3_flush_ebo_len(void* rows, uint32_t ri)
+{
+    return ((TRSPK_Ogl3FlushBakedRow*)rows)[ri].ebo_len_bytes;
+}
+
+static const void*
+ogl3_flush_ebo_src(void* rows, uint32_t ri)
+{
+    return ((TRSPK_Ogl3FlushBakedRow*)rows)[ri].baked.indices.as_u32;
 }
 
 static void
-trspk_ogl3_flush_sort_indices_by_ebo(
-    uint32_t* idx,
-    int n,
-    const TRSPK_Ogl3FlushBakedRow* rows)
+ogl3_dynamic_batch_flush_upload(
+    void* ctx,
+    int is_element_array_buffer,
+    uintptr_t buffer_id,
+    intptr_t offset,
+    size_t size,
+    const void* data)
 {
-    for( int i = 1; i < n; ++i )
-    {
-        const uint32_t key = idx[i];
-        const uint32_t kb = rows[key].ebo_beg_bytes;
-        int j = i - 1;
-        while( j >= 0 && rows[idx[j]].ebo_beg_bytes > kb )
-        {
-            idx[j + 1] = idx[j];
-            --j;
-        }
-        idx[j + 1] = key;
-    }
-}
-
-static void
-trspk_ogl3_flush_upload_merged_vbo_runs(
-    TRSPK_OpenGL3Renderer* r,
-    TRSPK_UsageClass usage,
-    TRSPK_Ogl3FlushBakedRow* rows,
-    uint32_t* idx,
-    int n)
-{
-    if( n <= 0 )
-        return;
-    const TRSPK_GLuint buf = (TRSPK_GLuint)*trspk_opengl3_vbo_ptr_for_usage(r, usage);
-    if( buf == 0u )
-        return;
-    int p = 0;
-    while( p < n )
-    {
-        const uint32_t i0 = idx[p];
-        uint32_t run_lo = rows[i0].vbo_beg_bytes;
-        uint32_t run_hi = run_lo + rows[i0].vbo_len_bytes;
-        int q = p + 1;
-        while( q < n )
-        {
-            const uint32_t ij = idx[q];
-            const uint32_t lo = rows[ij].vbo_beg_bytes;
-            const uint32_t hi = lo + rows[ij].vbo_len_bytes;
-            if( lo <= run_hi )
-            {
-                if( hi > run_hi )
-                    run_hi = hi;
-                ++q;
-            }
-            else
-                break;
-        }
-        const size_t total = (size_t)run_hi - (size_t)run_lo;
-        if( q == p + 1 )
-        {
-            const uint32_t ri = idx[p];
-            trspk_glBindBuffer(GL_ARRAY_BUFFER, buf);
-            trspk_glBufferSubData(
-                GL_ARRAY_BUFFER,
-                (TRSPK_GLintptr)rows[ri].vbo_beg_bytes,
-                (TRSPK_GLsizeiptr)rows[ri].vbo_len_bytes,
-                rows[ri].baked.vertices.as_webgl1);
-            trspk_glBindBuffer(GL_ARRAY_BUFFER, 0u);
-        }
-        else
-        {
-            if( !ogl3_ensure_merge_scratch(r, total) )
-                break;
-            uint8_t* scratch = r->dynamic_flush_merge_scratch;
-            for( int t = p; t < q; ++t )
-            {
-                const uint32_t ri = idx[t];
-                memcpy(
-                    scratch + ((size_t)rows[ri].vbo_beg_bytes - (size_t)run_lo),
-                    rows[ri].baked.vertices.as_webgl1,
-                    (size_t)rows[ri].vbo_len_bytes);
-            }
-            trspk_glBindBuffer(GL_ARRAY_BUFFER, buf);
-            trspk_glBufferSubData(
-                GL_ARRAY_BUFFER, (TRSPK_GLintptr)run_lo, (TRSPK_GLsizeiptr)total, scratch);
-            trspk_glBindBuffer(GL_ARRAY_BUFFER, 0u);
-        }
-        p = q;
-    }
-}
-
-static void
-trspk_ogl3_flush_upload_merged_ebo_runs(
-    TRSPK_OpenGL3Renderer* r,
-    TRSPK_UsageClass usage,
-    TRSPK_Ogl3FlushBakedRow* rows,
-    uint32_t* idx,
-    int n)
-{
-    if( n <= 0 )
-        return;
-    const TRSPK_GLuint buf = (TRSPK_GLuint)*trspk_opengl3_ebo_ptr_for_usage(r, usage);
-    if( buf == 0u )
-        return;
-    int p = 0;
-    while( p < n )
-    {
-        const uint32_t i0 = idx[p];
-        uint32_t run_lo = rows[i0].ebo_beg_bytes;
-        uint32_t run_hi = run_lo + rows[i0].ebo_len_bytes;
-        int q = p + 1;
-        while( q < n )
-        {
-            const uint32_t ij = idx[q];
-            const uint32_t lo = rows[ij].ebo_beg_bytes;
-            const uint32_t hi = lo + rows[ij].ebo_len_bytes;
-            if( lo <= run_hi )
-            {
-                if( hi > run_hi )
-                    run_hi = hi;
-                ++q;
-            }
-            else
-                break;
-        }
-        const size_t total = (size_t)run_hi - (size_t)run_lo;
-        if( q == p + 1 )
-        {
-            const uint32_t ri = idx[p];
-            trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buf);
-            trspk_glBufferSubData(
-                GL_ELEMENT_ARRAY_BUFFER,
-                (TRSPK_GLintptr)rows[ri].ebo_beg_bytes,
-                (TRSPK_GLsizeiptr)rows[ri].ebo_len_bytes,
-                rows[ri].baked.indices.as_u32);
-            trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0u);
-        }
-        else
-        {
-            if( !ogl3_ensure_merge_scratch(r, total) )
-                break;
-            uint8_t* scratch = r->dynamic_flush_merge_scratch;
-            for( int t = p; t < q; ++t )
-            {
-                const uint32_t ri = idx[t];
-                memcpy(
-                    scratch + ((size_t)rows[ri].ebo_beg_bytes - (size_t)run_lo),
-                    rows[ri].baked.indices.as_u32,
-                    (size_t)rows[ri].ebo_len_bytes);
-            }
-            trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buf);
-            trspk_glBufferSubData(
-                GL_ELEMENT_ARRAY_BUFFER, (TRSPK_GLintptr)run_lo, (TRSPK_GLsizeiptr)total, scratch);
-            trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0u);
-        }
-        p = q;
-    }
+    (void)ctx;
+    const TRSPK_GLuint buf = (TRSPK_GLuint)buffer_id;
+    const TRSPK_GLenum target =
+        is_element_array_buffer ? GL_ELEMENT_ARRAY_BUFFER : GL_ARRAY_BUFFER;
+    trspk_glBindBuffer(target, buf);
+    trspk_glBufferSubData(target, (TRSPK_GLintptr)offset, (TRSPK_GLsizeiptr)size, data);
+    trspk_glBindBuffer(target, 0u);
 }
 
 /** Single dynamic mesh upload (immediate store path); two GL uploads total. */
@@ -498,7 +362,7 @@ trspk_opengl3_pass_flush_pending_dynamic_gpu_uploads(TRSPK_OpenGL3Renderer* r)
         if( need_prj )
             trspk_opengl3_dynamic_world_vao_if_needed(r, TRSPK_USAGE_PROJECTILE);
 
-        if( !ogl3_ensure_sort_idx(r, (uint32_t)n_ok) )
+        if( !trspk_dynamic_batch_scratch_ensure_sort_idx(&r->dynamic_flush_batch, (uint32_t)n_ok) )
         {
             for( int j = 0; j < n_ok; ++j )
             {
@@ -516,7 +380,7 @@ trspk_opengl3_pass_flush_pending_dynamic_gpu_uploads(TRSPK_OpenGL3Renderer* r)
         }
         else
         {
-            uint32_t* idx = r->dynamic_flush_sort_idx;
+            uint32_t* idx = r->dynamic_flush_batch.sort_idx;
             int c = 0;
             for( int j = 0; j < n_ok; ++j )
             {
@@ -525,10 +389,37 @@ trspk_opengl3_pass_flush_pending_dynamic_gpu_uploads(TRSPK_OpenGL3Renderer* r)
             }
             if( c > 0 )
             {
-                trspk_ogl3_flush_sort_indices_by_vbo(idx, c, rows);
-                trspk_ogl3_flush_upload_merged_vbo_runs(r, TRSPK_USAGE_NPC, rows, idx, c);
-                trspk_ogl3_flush_sort_indices_by_ebo(idx, c, rows);
-                trspk_ogl3_flush_upload_merged_ebo_runs(r, TRSPK_USAGE_NPC, rows, idx, c);
+                const TRSPK_GLuint vbo_gl = (TRSPK_GLuint)*trspk_opengl3_vbo_ptr_for_usage(r, TRSPK_USAGE_NPC);
+                const TRSPK_GLuint ebo_gl = (TRSPK_GLuint)*trspk_opengl3_ebo_ptr_for_usage(r, TRSPK_USAGE_NPC);
+                if( vbo_gl != 0u && ebo_gl != 0u )
+                {
+                    trspk_dynamic_batch_sort_indices_by_u32(rows, idx, c, ogl3_flush_key_vbo);
+                    trspk_dynamic_batch_upload_merged_subdata_runs(
+                        &r->dynamic_flush_batch,
+                        idx,
+                        c,
+                        rows,
+                        ogl3_flush_vbo_beg,
+                        ogl3_flush_vbo_len,
+                        ogl3_flush_vbo_src,
+                        (uintptr_t)vbo_gl,
+                        0,
+                        ogl3_dynamic_batch_flush_upload,
+                        NULL);
+                    trspk_dynamic_batch_sort_indices_by_u32(rows, idx, c, ogl3_flush_key_ebo);
+                    trspk_dynamic_batch_upload_merged_subdata_runs(
+                        &r->dynamic_flush_batch,
+                        idx,
+                        c,
+                        rows,
+                        ogl3_flush_ebo_beg,
+                        ogl3_flush_ebo_len,
+                        ogl3_flush_ebo_src,
+                        (uintptr_t)ebo_gl,
+                        1,
+                        ogl3_dynamic_batch_flush_upload,
+                        NULL);
+                }
             }
             c = 0;
             for( int j = 0; j < n_ok; ++j )
@@ -538,10 +429,39 @@ trspk_opengl3_pass_flush_pending_dynamic_gpu_uploads(TRSPK_OpenGL3Renderer* r)
             }
             if( c > 0 )
             {
-                trspk_ogl3_flush_sort_indices_by_vbo(idx, c, rows);
-                trspk_ogl3_flush_upload_merged_vbo_runs(r, TRSPK_USAGE_PROJECTILE, rows, idx, c);
-                trspk_ogl3_flush_sort_indices_by_ebo(idx, c, rows);
-                trspk_ogl3_flush_upload_merged_ebo_runs(r, TRSPK_USAGE_PROJECTILE, rows, idx, c);
+                const TRSPK_GLuint vbo_gl =
+                    (TRSPK_GLuint)*trspk_opengl3_vbo_ptr_for_usage(r, TRSPK_USAGE_PROJECTILE);
+                const TRSPK_GLuint ebo_gl =
+                    (TRSPK_GLuint)*trspk_opengl3_ebo_ptr_for_usage(r, TRSPK_USAGE_PROJECTILE);
+                if( vbo_gl != 0u && ebo_gl != 0u )
+                {
+                    trspk_dynamic_batch_sort_indices_by_u32(rows, idx, c, ogl3_flush_key_vbo);
+                    trspk_dynamic_batch_upload_merged_subdata_runs(
+                        &r->dynamic_flush_batch,
+                        idx,
+                        c,
+                        rows,
+                        ogl3_flush_vbo_beg,
+                        ogl3_flush_vbo_len,
+                        ogl3_flush_vbo_src,
+                        (uintptr_t)vbo_gl,
+                        0,
+                        ogl3_dynamic_batch_flush_upload,
+                        NULL);
+                    trspk_dynamic_batch_sort_indices_by_u32(rows, idx, c, ogl3_flush_key_ebo);
+                    trspk_dynamic_batch_upload_merged_subdata_runs(
+                        &r->dynamic_flush_batch,
+                        idx,
+                        c,
+                        rows,
+                        ogl3_flush_ebo_beg,
+                        ogl3_flush_ebo_len,
+                        ogl3_flush_ebo_src,
+                        (uintptr_t)ebo_gl,
+                        1,
+                        ogl3_dynamic_batch_flush_upload,
+                        NULL);
+                }
             }
         }
     }
@@ -740,12 +660,7 @@ trspk_opengl3_dynamic_shutdown(TRSPK_OpenGL3Renderer* r)
     r->dynamic_projectile_slotmap = NULL;
     r->dynamic_slot_handles = NULL;
     r->dynamic_slot_usages = NULL;
-    free(r->dynamic_flush_merge_scratch);
-    r->dynamic_flush_merge_scratch = NULL;
-    r->dynamic_flush_merge_scratch_bytes = 0u;
-    free(r->dynamic_flush_sort_idx);
-    r->dynamic_flush_sort_idx = NULL;
-    r->dynamic_flush_sort_idx_cap = 0u;
+    trspk_dynamic_batch_scratch_destroy(&r->dynamic_flush_batch);
 }
 
 static bool
