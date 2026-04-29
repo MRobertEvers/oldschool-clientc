@@ -127,6 +127,13 @@ typedef struct TRSPK_WebGL1Renderer
     /** Grows once; avoids per-call malloc when converting u32→u16 indices for dynamic uploads. */
     uint16_t* u16_index_scratch;
     uint32_t u16_index_scratch_cap;
+    /** Reused by batched dynamic flush on Emscripten (merge scratch + sort indices + u16 pool). */
+    uint8_t* webgl1_flush_merge_scratch;
+    size_t webgl1_flush_merge_scratch_bytes;
+    uint32_t* webgl1_flush_sort_idx;
+    uint32_t webgl1_flush_sort_idx_cap;
+    uint16_t* webgl1_flush_u16_pool;
+    size_t webgl1_flush_u16_pool_bytes;
     TRSPK_WebGL1DeferredDynamicBake* deferred_dynamic_bakes;
     uint32_t deferred_dynamic_bake_count;
     uint32_t deferred_dynamic_bake_cap;

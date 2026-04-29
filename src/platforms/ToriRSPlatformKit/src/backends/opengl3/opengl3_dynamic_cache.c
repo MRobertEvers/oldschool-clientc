@@ -19,6 +19,32 @@ trspk_opengl3_ebo_ptr_for_usage(
     TRSPK_OpenGL3Renderer* r,
     TRSPK_UsageClass usage);
 
+static bool
+ogl3_ensure_merge_scratch(TRSPK_OpenGL3Renderer* r, size_t need)
+{
+    if( r->dynamic_flush_merge_scratch_bytes >= need )
+        return true;
+    void* p = realloc(r->dynamic_flush_merge_scratch, need);
+    if( !p )
+        return false;
+    r->dynamic_flush_merge_scratch = (uint8_t*)p;
+    r->dynamic_flush_merge_scratch_bytes = need;
+    return true;
+}
+
+static bool
+ogl3_ensure_sort_idx(TRSPK_OpenGL3Renderer* r, uint32_t n)
+{
+    if( r->dynamic_flush_sort_idx_cap >= n )
+        return true;
+    void* p = realloc(r->dynamic_flush_sort_idx, (size_t)n * sizeof(uint32_t));
+    if( !p )
+        return false;
+    r->dynamic_flush_sort_idx = (uint32_t*)p;
+    r->dynamic_flush_sort_idx_cap = n;
+    return true;
+}
+
 #define TRSPK_OGL3_DYNAMIC_VERTEX_CAPACITY 4096u
 #define TRSPK_OGL3_DYNAMIC_INDEX_CAPACITY_INITIAL 12288u
 
@@ -108,22 +134,35 @@ trspk_ogl3_flush_upload_merged_vbo_runs(
                 break;
         }
         const size_t total = (size_t)run_hi - (size_t)run_lo;
-        uint8_t* scratch = (uint8_t*)malloc(total);
-        if( !scratch )
-            break;
-        for( int t = p; t < q; ++t )
+        if( q == p + 1 )
         {
-            const uint32_t ri = idx[t];
-            memcpy(
-                scratch + ((size_t)rows[ri].vbo_beg_bytes - (size_t)run_lo),
-                rows[ri].baked.vertices.as_webgl1,
-                (size_t)rows[ri].vbo_len_bytes);
+            const uint32_t ri = idx[p];
+            trspk_glBindBuffer(GL_ARRAY_BUFFER, buf);
+            trspk_glBufferSubData(
+                GL_ARRAY_BUFFER,
+                (TRSPK_GLintptr)rows[ri].vbo_beg_bytes,
+                (TRSPK_GLsizeiptr)rows[ri].vbo_len_bytes,
+                rows[ri].baked.vertices.as_webgl1);
+            trspk_glBindBuffer(GL_ARRAY_BUFFER, 0u);
         }
-        trspk_glBindBuffer(GL_ARRAY_BUFFER, buf);
-        trspk_glBufferSubData(
-            GL_ARRAY_BUFFER, (TRSPK_GLintptr)run_lo, (TRSPK_GLsizeiptr)total, scratch);
-        trspk_glBindBuffer(GL_ARRAY_BUFFER, 0u);
-        free(scratch);
+        else
+        {
+            if( !ogl3_ensure_merge_scratch(r, total) )
+                break;
+            uint8_t* scratch = r->dynamic_flush_merge_scratch;
+            for( int t = p; t < q; ++t )
+            {
+                const uint32_t ri = idx[t];
+                memcpy(
+                    scratch + ((size_t)rows[ri].vbo_beg_bytes - (size_t)run_lo),
+                    rows[ri].baked.vertices.as_webgl1,
+                    (size_t)rows[ri].vbo_len_bytes);
+            }
+            trspk_glBindBuffer(GL_ARRAY_BUFFER, buf);
+            trspk_glBufferSubData(
+                GL_ARRAY_BUFFER, (TRSPK_GLintptr)run_lo, (TRSPK_GLsizeiptr)total, scratch);
+            trspk_glBindBuffer(GL_ARRAY_BUFFER, 0u);
+        }
         p = q;
     }
 }
@@ -163,22 +202,35 @@ trspk_ogl3_flush_upload_merged_ebo_runs(
                 break;
         }
         const size_t total = (size_t)run_hi - (size_t)run_lo;
-        uint8_t* scratch = (uint8_t*)malloc(total);
-        if( !scratch )
-            break;
-        for( int t = p; t < q; ++t )
+        if( q == p + 1 )
         {
-            const uint32_t ri = idx[t];
-            memcpy(
-                scratch + ((size_t)rows[ri].ebo_beg_bytes - (size_t)run_lo),
-                rows[ri].baked.indices.as_u32,
-                (size_t)rows[ri].ebo_len_bytes);
+            const uint32_t ri = idx[p];
+            trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buf);
+            trspk_glBufferSubData(
+                GL_ELEMENT_ARRAY_BUFFER,
+                (TRSPK_GLintptr)rows[ri].ebo_beg_bytes,
+                (TRSPK_GLsizeiptr)rows[ri].ebo_len_bytes,
+                rows[ri].baked.indices.as_u32);
+            trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0u);
         }
-        trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buf);
-        trspk_glBufferSubData(
-            GL_ELEMENT_ARRAY_BUFFER, (TRSPK_GLintptr)run_lo, (TRSPK_GLsizeiptr)total, scratch);
-        trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0u);
-        free(scratch);
+        else
+        {
+            if( !ogl3_ensure_merge_scratch(r, total) )
+                break;
+            uint8_t* scratch = r->dynamic_flush_merge_scratch;
+            for( int t = p; t < q; ++t )
+            {
+                const uint32_t ri = idx[t];
+                memcpy(
+                    scratch + ((size_t)rows[ri].ebo_beg_bytes - (size_t)run_lo),
+                    rows[ri].baked.indices.as_u32,
+                    (size_t)rows[ri].ebo_len_bytes);
+            }
+            trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buf);
+            trspk_glBufferSubData(
+                GL_ELEMENT_ARRAY_BUFFER, (TRSPK_GLintptr)run_lo, (TRSPK_GLsizeiptr)total, scratch);
+            trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0u);
+        }
         p = q;
     }
 }
@@ -446,8 +498,7 @@ trspk_opengl3_pass_flush_pending_dynamic_gpu_uploads(TRSPK_OpenGL3Renderer* r)
         if( need_prj )
             trspk_opengl3_dynamic_world_vao_if_needed(r, TRSPK_USAGE_PROJECTILE);
 
-        uint32_t* idx = (uint32_t*)malloc((size_t)n_ok * sizeof(uint32_t));
-        if( !idx )
+        if( !ogl3_ensure_sort_idx(r, (uint32_t)n_ok) )
         {
             for( int j = 0; j < n_ok; ++j )
             {
@@ -465,6 +516,7 @@ trspk_opengl3_pass_flush_pending_dynamic_gpu_uploads(TRSPK_OpenGL3Renderer* r)
         }
         else
         {
+            uint32_t* idx = r->dynamic_flush_sort_idx;
             int c = 0;
             for( int j = 0; j < n_ok; ++j )
             {
@@ -491,7 +543,6 @@ trspk_opengl3_pass_flush_pending_dynamic_gpu_uploads(TRSPK_OpenGL3Renderer* r)
                 trspk_ogl3_flush_sort_indices_by_ebo(idx, c, rows);
                 trspk_ogl3_flush_upload_merged_ebo_runs(r, TRSPK_USAGE_PROJECTILE, rows, idx, c);
             }
-            free(idx);
         }
     }
 
@@ -689,6 +740,12 @@ trspk_opengl3_dynamic_shutdown(TRSPK_OpenGL3Renderer* r)
     r->dynamic_projectile_slotmap = NULL;
     r->dynamic_slot_handles = NULL;
     r->dynamic_slot_usages = NULL;
+    free(r->dynamic_flush_merge_scratch);
+    r->dynamic_flush_merge_scratch = NULL;
+    r->dynamic_flush_merge_scratch_bytes = 0u;
+    free(r->dynamic_flush_sort_idx);
+    r->dynamic_flush_sort_idx = NULL;
+    r->dynamic_flush_sort_idx_cap = 0u;
 }
 
 static bool

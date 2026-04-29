@@ -104,6 +104,45 @@ typedef struct TRSPK_W1FlushBakedRow
     uint16_t* ib_u16;
 } TRSPK_W1FlushBakedRow;
 
+static bool
+w1_ensure_merge_scratch(TRSPK_WebGL1Renderer* r, size_t need)
+{
+    if( r->webgl1_flush_merge_scratch_bytes >= need )
+        return true;
+    void* p = realloc(r->webgl1_flush_merge_scratch, need);
+    if( !p )
+        return false;
+    r->webgl1_flush_merge_scratch = (uint8_t*)p;
+    r->webgl1_flush_merge_scratch_bytes = need;
+    return true;
+}
+
+static bool
+w1_ensure_sort_idx(TRSPK_WebGL1Renderer* r, uint32_t n)
+{
+    if( r->webgl1_flush_sort_idx_cap >= n )
+        return true;
+    void* p = realloc(r->webgl1_flush_sort_idx, (size_t)n * sizeof(uint32_t));
+    if( !p )
+        return false;
+    r->webgl1_flush_sort_idx = (uint32_t*)p;
+    r->webgl1_flush_sort_idx_cap = n;
+    return true;
+}
+
+static bool
+w1_ensure_u16_pool(TRSPK_WebGL1Renderer* r, size_t need_bytes)
+{
+    if( r->webgl1_flush_u16_pool_bytes >= need_bytes )
+        return true;
+    void* p = realloc(r->webgl1_flush_u16_pool, need_bytes);
+    if( !p )
+        return false;
+    r->webgl1_flush_u16_pool = (uint16_t*)p;
+    r->webgl1_flush_u16_pool_bytes = need_bytes;
+    return true;
+}
+
 static void
 trspk_w1_flush_sort_indices_by_vbo(
     uint32_t* idx,
@@ -180,21 +219,34 @@ trspk_w1_flush_upload_merged_vbo_runs(
                 break;
         }
         const size_t total = (size_t)run_hi - (size_t)run_lo;
-        uint8_t* scratch = (uint8_t*)malloc(total);
-        if( !scratch )
-            break;
-        for( int t = p; t < q; ++t )
+        if( q == p + 1 )
         {
-            const uint32_t ri = idx[t];
-            memcpy(
-                scratch + ((size_t)rows[ri].vbo_beg_bytes - (size_t)run_lo),
-                rows[ri].baked.vertices.as_webgl1,
-                (size_t)rows[ri].vbo_len_bytes);
+            const uint32_t ri = idx[p];
+            glBindBuffer(GL_ARRAY_BUFFER, buf);
+            glBufferSubData(
+                GL_ARRAY_BUFFER,
+                (GLintptr)rows[ri].vbo_beg_bytes,
+                (GLsizeiptr)rows[ri].vbo_len_bytes,
+                rows[ri].baked.vertices.as_webgl1);
+            glBindBuffer(GL_ARRAY_BUFFER, 0u);
         }
-        glBindBuffer(GL_ARRAY_BUFFER, buf);
-        glBufferSubData(GL_ARRAY_BUFFER, (GLintptr)run_lo, (GLsizeiptr)total, scratch);
-        glBindBuffer(GL_ARRAY_BUFFER, 0u);
-        free(scratch);
+        else
+        {
+            if( !w1_ensure_merge_scratch(r, total) )
+                break;
+            uint8_t* scratch = r->webgl1_flush_merge_scratch;
+            for( int t = p; t < q; ++t )
+            {
+                const uint32_t ri = idx[t];
+                memcpy(
+                    scratch + ((size_t)rows[ri].vbo_beg_bytes - (size_t)run_lo),
+                    rows[ri].baked.vertices.as_webgl1,
+                    (size_t)rows[ri].vbo_len_bytes);
+            }
+            glBindBuffer(GL_ARRAY_BUFFER, buf);
+            glBufferSubData(GL_ARRAY_BUFFER, (GLintptr)run_lo, (GLsizeiptr)total, scratch);
+            glBindBuffer(GL_ARRAY_BUFFER, 0u);
+        }
         p = q;
     }
 }
@@ -235,21 +287,34 @@ trspk_w1_flush_upload_merged_ebo_runs(
                 break;
         }
         const size_t total = (size_t)run_hi - (size_t)run_lo;
-        uint8_t* scratch = (uint8_t*)malloc(total);
-        if( !scratch )
-            break;
-        for( int t = p; t < q; ++t )
+        if( q == p + 1 )
         {
-            const uint32_t ri = idx[t];
-            memcpy(
-                scratch + ((size_t)rows[ri].ebo_beg_bytes - (size_t)run_lo),
-                rows[ri].ib_u16,
-                (size_t)rows[ri].ebo_len_bytes);
+            const uint32_t ri = idx[p];
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buf);
+            glBufferSubData(
+                GL_ELEMENT_ARRAY_BUFFER,
+                (GLintptr)rows[ri].ebo_beg_bytes,
+                (GLsizeiptr)rows[ri].ebo_len_bytes,
+                rows[ri].ib_u16);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0u);
         }
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buf);
-        glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, (GLintptr)run_lo, (GLsizeiptr)total, scratch);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0u);
-        free(scratch);
+        else
+        {
+            if( !w1_ensure_merge_scratch(r, total) )
+                break;
+            uint8_t* scratch = r->webgl1_flush_merge_scratch;
+            for( int t = p; t < q; ++t )
+            {
+                const uint32_t ri = idx[t];
+                memcpy(
+                    scratch + ((size_t)rows[ri].ebo_beg_bytes - (size_t)run_lo),
+                    rows[ri].ib_u16,
+                    (size_t)rows[ri].ebo_len_bytes);
+            }
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buf);
+            glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, (GLintptr)run_lo, (GLsizeiptr)total, scratch);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0u);
+        }
         p = q;
     }
 }
@@ -359,6 +424,7 @@ trspk_webgl1_pass_flush_pending_dynamic_gpu_uploads(TRSPK_WebGL1Renderer* r)
         return;
     }
     int n_ok = 0;
+    size_t u16_pool_used = 0u;
 
     for( uint32_t i = 0u; i < n_def; ++i )
     {
@@ -424,14 +490,17 @@ trspk_webgl1_pass_flush_pending_dynamic_gpu_uploads(TRSPK_WebGL1Renderer* r)
             trspk_resource_cache_invalidate_model_pose(r->cache, d->model_id, d->pose_index);
             continue;
         }
-        uint16_t* ib_copy = (uint16_t*)malloc((size_t)ic * sizeof(uint16_t));
-        if( !ib_copy )
+        const size_t ib_bytes = (size_t)ic * sizeof(uint16_t);
+        if( !w1_ensure_u16_pool(r, u16_pool_used + ib_bytes) )
         {
             trspk_vertex_buffer_free(&baked);
             trspk_resource_cache_invalidate_model_pose(r->cache, d->model_id, d->pose_index);
             continue;
         }
-        memcpy(ib_copy, u16i, (size_t)ic * sizeof(uint16_t));
+        uint16_t* const dst =
+            (uint16_t*)((uint8_t*)r->webgl1_flush_u16_pool + u16_pool_used);
+        memcpy(dst, u16i, ib_bytes);
+        u16_pool_used += ib_bytes;
 
         TRSPK_W1FlushBakedRow* row = &rows[n_ok++];
         row->baked = baked;
@@ -441,13 +510,12 @@ trspk_webgl1_pass_flush_pending_dynamic_gpu_uploads(TRSPK_WebGL1Renderer* r)
         row->vbo_len_bytes = baked.vertex_count * stride;
         row->ebo_beg_bytes = (uint32_t)((size_t)d->ebo_offset * sizeof(uint16_t));
         row->ebo_len_bytes = ic * (uint32_t)sizeof(uint16_t);
-        row->ib_u16 = ib_copy;
+        row->ib_u16 = dst;
     }
 
     if( n_ok > 0 )
     {
-        uint32_t* idx = (uint32_t*)malloc((size_t)n_ok * sizeof(uint32_t));
-        if( !idx )
+        if( !w1_ensure_sort_idx(r, (uint32_t)n_ok) )
         {
             for( int j = 0; j < n_ok; ++j )
             {
@@ -466,6 +534,7 @@ trspk_webgl1_pass_flush_pending_dynamic_gpu_uploads(TRSPK_WebGL1Renderer* r)
         }
         else
         {
+            uint32_t* idx = r->webgl1_flush_sort_idx;
             for( int ustep = 0; ustep < 2; ++ustep )
             {
                 const TRSPK_UsageClass usage =
@@ -488,15 +557,11 @@ trspk_webgl1_pass_flush_pending_dynamic_gpu_uploads(TRSPK_WebGL1Renderer* r)
                     trspk_w1_flush_upload_merged_ebo_runs(r, usage, (uint8_t)ch, rows, idx, c);
                 }
             }
-            free(idx);
         }
     }
 
     for( int j = 0; j < n_ok; ++j )
-    {
-        free(rows[j].ib_u16);
         trspk_vertex_buffer_free(&rows[j].baked);
-    }
     free(rows);
 #else
     for( uint32_t i = 0u; i < r->deferred_dynamic_bake_count; ++i )
@@ -687,6 +752,15 @@ trspk_webgl1_dynamic_shutdown(TRSPK_WebGL1Renderer* r)
     r->dynamic_slot_usages = NULL;
     r->u16_index_scratch = NULL;
     r->u16_index_scratch_cap = 0u;
+    free(r->webgl1_flush_merge_scratch);
+    r->webgl1_flush_merge_scratch = NULL;
+    r->webgl1_flush_merge_scratch_bytes = 0u;
+    free(r->webgl1_flush_sort_idx);
+    r->webgl1_flush_sort_idx = NULL;
+    r->webgl1_flush_sort_idx_cap = 0u;
+    free(r->webgl1_flush_u16_pool);
+    r->webgl1_flush_u16_pool = NULL;
+    r->webgl1_flush_u16_pool_bytes = 0u;
 }
 
 static bool
