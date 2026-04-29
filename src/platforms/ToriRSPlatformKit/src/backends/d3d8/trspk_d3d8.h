@@ -26,13 +26,15 @@ extern "C" {
 /**
  * One model append in scene order. Chunk pools hold concatenated uint16 indices per chunk; each
  * subdraw references a contiguous [pool_start, pool_start+index_count) in that chunk's pool.
+ * Indices are model-local (legacy D3D8); IDirect3DDevice8::SetIndices BaseVertexIndex = vbo_offset.
  * Submit walks subdraws in order and merges consecutive entries with the same chunk, same VBO,
- * and contiguous pool_start into one glDrawElements (see opengl3_draw_submit_3d). Re-uploads
- * that chunk's full pool to the dynamic IBO when the active chunk changes (interleaved chunks).
+ * same vbo_offset, and contiguous pool_start into one DrawIndexedPrimitive (see d3d8_draw.cpp).
  */
 typedef struct TRSPK_D3D8SubDraw
 {
     GLuint vbo;
+    /** Chunk VBO byte offset in vertices; D3D8 SetIndices BaseVertexIndex (legacy platform_impl2). */
+    uint32_t vbo_offset;
     uint8_t chunk;
     uint32_t pool_start;
     uint32_t index_count;
@@ -77,8 +79,15 @@ typedef struct TRSPK_D3D8Renderer
     uint32_t window_height;
     bool ready;
     GLuint atlas_texture;
-    /** IDirect3DSurface8* — explicit depth-stencil when swap chain has no auto DS (legacy Win32 D3D8 path). */
+    /** IDirect3DTexture8* — offscreen scene color (RENDERTARGET X8R8G8B8), legacy scene_rt_tex. */
+    GLuint scene_rt_tex;
+    /** IDirect3DSurface8* — level 0 of scene_rt_tex, legacy scene_rt_surf. */
+    GLuint scene_rt_surf;
+    /** IDirect3DSurface8* — depth for scene RT (D16), legacy scene_ds. */
     GLuint depth_stencil_surf;
+    /** Legacy platform_impl2 dash_offset_* for 3D viewport origin inside the scene buffer. */
+    int32_t dash_offset_x;
+    int32_t dash_offset_y;
     GLuint dynamic_ibo;
     GLuint batch_chunk_vbos[TRSPK_MAX_WEBGL1_CHUNKS];
     GLuint batch_chunk_ebos[TRSPK_MAX_WEBGL1_CHUNKS];
@@ -175,8 +184,13 @@ TRSPK_D3D8_SetWindowSize(
     TRSPK_D3D8Renderer* renderer,
     uint32_t width,
     uint32_t height);
+/**
+ * Begins the offscreen scene pass (legacy platform_impl2_win32_renderer_d3d8: SetRenderTarget
+ * scene_rt + scene_ds, default render state, Z-clear in 3D sub-viewport, BeginScene).
+ * `view_w` / `view_h` are the 3D sub-rect size (e.g. game->view_port); if <= 0, uses buffer size.
+ */
 void
-TRSPK_D3D8_FrameBegin(TRSPK_D3D8Renderer* renderer);
+TRSPK_D3D8_FrameBegin(TRSPK_D3D8Renderer* renderer, int view_w, int view_h);
 /** Ends the scene (`EndScene`). Call after optional platform overlays; then `TRSPK_D3D8_Present`. */
 void
 TRSPK_D3D8_FrameEnd(TRSPK_D3D8Renderer* renderer);
@@ -312,6 +326,9 @@ trspk_d3d8_compute_projection_matrix(
     float fov,
     float screen_width,
     float screen_height);
+/** Same OpenGL column-major proj to clip-Z half-range as Metal / legacy Win32 D3D8 (in-place). */
+void
+trspk_d3d8_remap_projection_opengl_to_d3d8_z(float* proj_colmajor);
 
 void
 trspk_d3d8_event_tex_load(

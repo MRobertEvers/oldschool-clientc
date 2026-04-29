@@ -2,6 +2,9 @@
 
 #include "../backends/d3d8/d3d8_vertex.h"
 
+#include "../../include/ToriRSPlatformKit/trspk_types.h"
+#include "graphics/dash.h"
+
 #include <math.h>
 #include <stdint.h>
 
@@ -34,6 +37,18 @@ trspk_d3d8_pack_diffuse_argb(const float color[4])
                       ((uint32_t)(uint8_t)g << 8u) | (uint32_t)(uint8_t)b);
 }
 
+uint32_t
+trspk_d3d8_pack_diffuse_legacy_win32(uint16_t hsl16, float face_alpha)
+{
+    const int rgb = dash_hsl16_to_rgb((int)(hsl16 & 0xFFFFu));
+    const unsigned char rr = (unsigned char)((rgb >> 16) & 0xFF);
+    const unsigned char gg = (unsigned char)((rgb >> 8) & 0xFF);
+    const unsigned char bb = (unsigned char)(rgb & 0xFF);
+    const unsigned char aa = (unsigned char)(face_alpha * 255.0f);
+    return (uint32_t)(((uint32_t)aa << 24u) | ((uint32_t)rr << 16u) | ((uint32_t)gg << 8u) |
+                      (uint32_t)bb);
+}
+
 void
 trspk_d3d8_fvf_from_model_vertex(
     float x,
@@ -61,6 +76,21 @@ trspk_d3d8_fvf_from_model_vertex(
     }
 
     const int raw = (int)floorf(tex_id_f + 0.5f);
+    /* Legacy fill_model_face_vertices_model_local left u,v at 0 for untextured faces while the
+     * device used SetTexture(nullptr) + D3DTOP_SELECTARG2 (diffuse only). TRSPK D3D8 world submit
+     * always binds the atlas and MODULATEs; FVF has no tex_id. Sample the opaque white patch
+     * stamped at the atlas origin in trspk_d3d8_cache_refresh_atlas so diffuse passes through. */
+    const bool textured_face = raw >= 0 && raw != (int)TRSPK_INVALID_TEXTURE_ID;
+    if( !textured_face )
+    {
+        const float dim = (float)TRSPK_ATLAS_DIMENSION;
+        out->u = 0.5f / dim;
+        out->v = 0.5f / dim;
+        (void)u_model;
+        (void)v_model;
+        return;
+    }
+
     int atlas_id;
     if( raw >= 256 )
         atlas_id = raw - 256;
@@ -69,6 +99,8 @@ trspk_d3d8_fvf_from_model_vertex(
     if( atlas_id < 0 || atlas_id >= 256 )
         atlas_id = 0;
 
+    /* Legacy Win32 D3D8 (9c62ec2d fill_model_face_vertices_model_local): shrink UV into tile when
+     * textured (avoids bilinear bleed at edges). */
     const int enc = (int)floorf(uv_mode_pack * 0.5f + 0.5f);
     float anim_u = 0.0f;
     float anim_v = 0.0f;
@@ -92,22 +124,13 @@ trspk_d3d8_fvf_from_model_vertex(
     const float ta_z = du;
     const float ta_w = dv;
 
-    float lx = u_model;
-    float ly = v_model;
+    float lx = u_model * 0.984f + 0.008f;
+    float ly = v_model * 0.984f + 0.008f;
     const float clk = (float)frame_clock;
     if( anim_u > 0.0f )
         lx += clk * anim_u;
     if( anim_v > 0.0f )
         ly -= clk * anim_v;
-    if( lx < 0.008f )
-        lx = 0.008f;
-    if( lx > 0.992f )
-        lx = 0.992f;
-    ly = ly - floorf(ly);
-    if( ly < 0.008f )
-        ly = 0.008f;
-    if( ly > 0.992f )
-        ly = 0.992f;
 
     out->u = ta_x + lx * ta_z;
     out->v = ta_y + ly * ta_w;

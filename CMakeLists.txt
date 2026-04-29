@@ -495,6 +495,7 @@ if(NOT EMSCRIPTEN)
         if(HAVE_D3D8_H)
             list(APPEND WIN32_PLATFORM_SOURCES
                 src/platforms/platform_impl2_win32_renderer_d3d8.cpp
+                src/platforms/platform_impl2_win32_renderer_d3d8legacy.cpp
                 src/platforms/ToriRSPlatformKit/src/tools/trspk_resource_cache.c
                 src/platforms/ToriRSPlatformKit/src/tools/trspk_batch16.c
                 src/platforms/ToriRSPlatformKit/src/tools/trspk_batch32.c
@@ -932,7 +933,7 @@ endforeach()
 # --- Global Properties ---
 foreach(target sdl2 bench_sdl2 web_client web_client_native win32)
     if(TARGET ${target})
-        target_include_directories(${target} PRIVATE src src/nuklear src/platforms/ToriRSPlatformKit/include)
+        target_include_directories(${target} PRIVATE src src/platforms src/nuklear src/platforms/ToriRSPlatformKit/include)
         set_target_properties(${target} PROPERTIES
             C_STANDARD 11
             CXX_STANDARD 17

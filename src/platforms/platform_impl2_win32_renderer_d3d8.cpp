@@ -57,8 +57,8 @@ struct D3D8UiVertex
 
 static const DWORD kFvfUi = D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1;
 
-/** Set true to skip the full-screen Nuklear overlay quad for A/B testing (3D vs overlay). */
-static const bool kSkipNuklearOverlayQuad = false;
+/** Skip the full-screen Nuklear overlay quad while debugging the D3D8 world path. */
+static const bool kSkipNuklearOverlayQuad = true;
 
 static void
 compute_letterbox_dst(int buf_w, int buf_h, int window_w, int window_h, RECT* out_dst)
@@ -552,7 +552,17 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
     renderer->diag_frame_pose_invalid_skips = 0u;
     renderer->diag_frame_submitted_model_draws = 0u;
 
-    TRSPK_D3D8_FrameBegin(renderer->trspk);
+    renderer->trspk->dash_offset_x = renderer->dash_offset_x;
+    renderer->trspk->dash_offset_y = renderer->dash_offset_y;
+
+    int frame_vp_w = game && game->view_port ? game->view_port->width : renderer->width;
+    int frame_vp_h = game && game->view_port ? game->view_port->height : renderer->height;
+    if( frame_vp_w <= 0 )
+        frame_vp_w = renderer->width;
+    if( frame_vp_h <= 0 )
+        frame_vp_h = renderer->height;
+
+    TRSPK_D3D8_FrameBegin(renderer->trspk, frame_vp_w, frame_vp_h);
     LibToriRS_FrameBegin(game, render_command_buffer);
 
     struct ToriRSRenderCommand cmd = {};

@@ -66,28 +66,150 @@ trspk_d3d8_release_gpu_defaults(TRSPK_D3D8Renderer* r);
 static bool
 trspk_d3d8_create_dynamic_index_ring(TRSPK_D3D8Renderer* r);
 
-/** Matches legacy d3d8_reset_device depth surface (D16, no MSAA). */
-static bool
-trspk_d3d8_create_depth_stencil_surface(TRSPK_D3D8Renderer* r)
+static void
+trspk_d3d8_release_scene_render_targets(TRSPK_D3D8Renderer* r)
 {
-    if( !r || !r->com_device )
-        return false;
+    if( !r )
+        return;
+    if( r->scene_rt_surf )
+    {
+        reinterpret_cast<IDirect3DSurface8*>((uintptr_t)r->scene_rt_surf)->Release();
+        r->scene_rt_surf = 0u;
+    }
+    if( r->scene_rt_tex )
+    {
+        reinterpret_cast<IDirect3DTexture8*>((uintptr_t)r->scene_rt_tex)->Release();
+        r->scene_rt_tex = 0u;
+    }
     if( r->depth_stencil_surf )
     {
         reinterpret_cast<IDirect3DSurface8*>((uintptr_t)r->depth_stencil_surf)->Release();
         r->depth_stencil_surf = 0u;
     }
+}
+
+/** Legacy d3d8_reset_device: scene color RT + D16 depth at renderer buffer size. */
+static bool
+trspk_d3d8_create_scene_render_targets(TRSPK_D3D8Renderer* r)
+{
+    if( !r || !r->com_device )
+        return false;
+    trspk_d3d8_release_scene_render_targets(r);
     auto* dev = reinterpret_cast<IDirect3DDevice8*>((uintptr_t)r->com_device);
     const UINT w = r->width > 0u ? r->width : 1u;
     const UINT h = r->height > 0u ? r->height : 1u;
-    IDirect3DSurface8* ds = nullptr;
-    const HRESULT hr =
-        dev->CreateDepthStencilSurface(w, h, D3DFMT_D16, D3DMULTISAMPLE_NONE, &ds);
-    if( FAILED(hr) || !ds )
+    IDirect3DTexture8* tex = nullptr;
+    HRESULT hr = dev->CreateTexture(
+        w, h, 1u, D3DUSAGE_RENDERTARGET, D3DFMT_X8R8G8B8, D3DPOOL_DEFAULT, &tex);
+    if( FAILED(hr) || !tex )
         return false;
+    IDirect3DSurface8* surf = nullptr;
+    hr = tex->GetSurfaceLevel(0u, &surf);
+    if( FAILED(hr) || !surf )
+    {
+        tex->Release();
+        return false;
+    }
+    IDirect3DSurface8* ds = nullptr;
+    hr = dev->CreateDepthStencilSurface(w, h, D3DFMT_D16, D3DMULTISAMPLE_NONE, &ds);
+    if( FAILED(hr) || !ds )
+    {
+        surf->Release();
+        tex->Release();
+        return false;
+    }
+    r->scene_rt_tex = (GLuint)(uintptr_t)tex;
+    r->scene_rt_surf = (GLuint)(uintptr_t)surf;
     r->depth_stencil_surf = (GLuint)(uintptr_t)ds;
     return true;
 }
+
+static void
+trspk_d3d8_apply_default_render_state(IDirect3DDevice8* dev)
+{
+    if( !dev )
+        return;
+    dev->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
+    dev->SetRenderState(D3DRS_ZWRITEENABLE, FALSE);
+    dev->SetRenderState(D3DRS_ZFUNC, D3DCMP_ALWAYS);
+    dev->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+    dev->SetRenderState(D3DRS_LIGHTING, FALSE);
+    dev->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+    dev->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+    dev->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    dev->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
+    dev->SetRenderState(D3DRS_ALPHAREF, 128u);
+    dev->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATEREQUAL);
+
+    dev->SetTextureStageState(0u, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    dev->SetTextureStageState(0u, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+    dev->SetTextureStageState(0u, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+    dev->SetTextureStageState(0u, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+    dev->SetTextureStageState(0u, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+    dev->SetTextureStageState(0u, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+}
+
+static const DWORD kFvfWorld = D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1;
+
+/** After UI / composite draws: avoid leaving kFvfUi + SELECTARG1 bound (would mis-read mesh VBs). */
+static void
+trspk_d3d8_restore_world_draw_state(IDirect3DDevice8* dev)
+{
+    if( !dev )
+        return;
+    dev->SetPixelShader(0u);
+    dev->SetVertexShader(kFvfWorld);
+    dev->SetTexture(0u, nullptr);
+    dev->SetTexture(1u, nullptr);
+    trspk_d3d8_apply_default_render_state(dev);
+    dev->SetTextureStageState(1u, D3DTSS_COLOROP, D3DTOP_DISABLE);
+    dev->SetTextureStageState(1u, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
+    dev->SetRenderState(D3DRS_LIGHTING, FALSE);
+}
+
+static void
+trspk_d3d8_compute_letterbox_dst(int buf_w, int buf_h, int window_w, int window_h, RECT* out_dst)
+{
+    out_dst->left = 0;
+    out_dst->top = 0;
+    out_dst->right = buf_w;
+    out_dst->bottom = buf_h;
+    if( window_w <= 0 || window_h <= 0 )
+        return;
+    const float src_aspect = (float)buf_w / (float)buf_h;
+    const float window_aspect = (float)window_w / (float)window_h;
+    int dst_x = 0;
+    int dst_y = 0;
+    int dst_w = buf_w;
+    int dst_h = buf_h;
+    if( src_aspect > window_aspect )
+    {
+        dst_w = window_w;
+        dst_h = (int)(window_w / src_aspect);
+        dst_x = 0;
+        dst_y = (window_h - dst_h) / 2;
+    }
+    else
+    {
+        dst_h = window_h;
+        dst_w = (int)(window_h * src_aspect);
+        dst_y = 0;
+        dst_x = (window_w - dst_w) / 2;
+    }
+    out_dst->left = dst_x;
+    out_dst->top = dst_y;
+    out_dst->right = dst_x + dst_w;
+    out_dst->bottom = dst_y + dst_h;
+}
+
+struct TRSPK_D3D8UiVertex
+{
+    float x, y, z, rhw;
+    DWORD diffuse;
+    float u, v;
+};
+
+static const DWORD kFvfUi = D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1;
 
 static TRSPK_D3D8Renderer*
 trspk_d3d8_alloc(uint32_t width, uint32_t height)
@@ -185,17 +307,9 @@ trspk_d3d8_create_d3d(TRSPK_D3D8Renderer* r, HWND hwnd)
 
     r->com_device = (uintptr_t)dev;
     r->platform_hwnd = hwnd;
-    r->width = pp.BackBufferWidth;
-    r->height = pp.BackBufferHeight;
-
-    if( !trspk_d3d8_create_depth_stencil_surface(r) )
-    {
-        dev->Release();
-        r->com_device = 0u;
-        reinterpret_cast<IDirect3D8*>((uintptr_t)r->com_d3d)->Release();
-        r->com_d3d = 0u;
-        return false;
-    }
+    /* Keep r->width / r->height as the scene buffer (Init); swap chain uses client area only. */
+    r->window_width = (uint32_t)cw;
+    r->window_height = (uint32_t)ch;
 
     return true;
 }
@@ -212,6 +326,24 @@ TRSPK_D3D8_Init(TRSPK_D3D8_WindowHandle hwnd, uint32_t width, uint32_t height)
         return nullptr;
     if( !trspk_d3d8_create_d3d(r, (HWND)hwnd) )
     {
+        trspk_d3d8_dynamic_shutdown(r);
+        trspk_resource_cache_destroy(r->cache);
+        trspk_batch16_destroy(r->batch_staging);
+        free(r);
+        return nullptr;
+    }
+
+    if( !trspk_d3d8_create_scene_render_targets(r) )
+    {
+        auto* dev = reinterpret_cast<IDirect3DDevice8*>((uintptr_t)r->com_device);
+        auto* d3d = reinterpret_cast<IDirect3D8*>((uintptr_t)r->com_d3d);
+        trspk_d3d8_release_gpu_defaults(r);
+        if( dev )
+            dev->Release();
+        if( d3d )
+            d3d->Release();
+        r->com_device = 0u;
+        r->com_d3d = 0u;
         trspk_d3d8_dynamic_shutdown(r);
         trspk_resource_cache_destroy(r->cache);
         trspk_batch16_destroy(r->batch_staging);
@@ -311,13 +443,23 @@ TRSPK_D3D8_TryReset(TRSPK_D3D8Renderer* r)
     pp.BackBufferFormat = D3DFMT_A8R8G8B8;
     pp.hDeviceWindow = (HWND)r->platform_hwnd;
     pp.EnableAutoDepthStencil = FALSE;
-    pp.BackBufferWidth = r->width > 0u ? r->width : 1u;
-    pp.BackBufferHeight = r->height > 0u ? r->height : 1u;
+    RECT cr;
+    GetClientRect((HWND)r->platform_hwnd, &cr);
+    int cw = cr.right - cr.left;
+    int ch = cr.bottom - cr.top;
+    if( cw <= 0 )
+        cw = 800;
+    if( ch <= 0 )
+        ch = 600;
+    pp.BackBufferWidth = (UINT)cw;
+    pp.BackBufferHeight = (UINT)ch;
 
     HRESULT hr = dev->Reset(&pp);
     if( FAILED(hr) )
         return false;
-    if( !trspk_d3d8_create_depth_stencil_surface(r) )
+    r->window_width = (uint32_t)cw;
+    r->window_height = (uint32_t)ch;
+    if( !trspk_d3d8_create_scene_render_targets(r) )
         return false;
     if( !trspk_d3d8_create_dynamic_index_ring(r) )
         return false;
@@ -327,7 +469,7 @@ TRSPK_D3D8_TryReset(TRSPK_D3D8Renderer* r)
 }
 
 void
-TRSPK_D3D8_FrameBegin(TRSPK_D3D8Renderer* r)
+TRSPK_D3D8_FrameBegin(TRSPK_D3D8Renderer* r, int view_w, int view_h)
 {
     if( !r )
         return;
@@ -341,33 +483,67 @@ TRSPK_D3D8_FrameBegin(TRSPK_D3D8Renderer* r)
     r->diag_frame_merge_outer_skips = 0u;
 
     auto* dev = reinterpret_cast<IDirect3DDevice8*>((uintptr_t)r->com_device);
-    if( !dev )
+    if( !dev || !r->scene_rt_surf || !r->depth_stencil_surf )
         return;
 
-    dev->BeginScene();
-    IDirect3DSurface8* bb = nullptr;
-    if( SUCCEEDED(dev->GetBackBuffer(0, D3DBACKBUFFER_TYPE_MONO, &bb)) && bb )
-    {
-        IDirect3DSurface8* ds =
-            r->depth_stencil_surf
-                ? reinterpret_cast<IDirect3DSurface8*>((uintptr_t)r->depth_stencil_surf)
-                : nullptr;
-        dev->SetRenderTarget(bb, ds);
-        bb->Release();
-    }
-    dev->SetRenderState(D3DRS_ZENABLE, TRUE);
-    dev->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
-    dev->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
+    IDirect3DSurface8* scene_surf =
+        reinterpret_cast<IDirect3DSurface8*>((uintptr_t)r->scene_rt_surf);
+    IDirect3DSurface8* scene_ds =
+        reinterpret_cast<IDirect3DSurface8*>((uintptr_t)r->depth_stencil_surf);
+    HRESULT hr_rt = dev->SetRenderTarget(scene_surf, scene_ds);
+    if( FAILED(hr_rt) )
+        return;
 
-    D3DVIEWPORT8 vp;
-    ZeroMemory(&vp, sizeof(vp));
-    vp.X = 0;
-    vp.Y = 0;
-    vp.Width = r->width > 0u ? r->width : 1u;
-    vp.Height = r->height > 0u ? r->height : 1u;
-    vp.MinZ = 0.0f;
-    vp.MaxZ = 1.0f;
-    dev->SetViewport(&vp);
+    trspk_d3d8_restore_world_draw_state(dev);
+
+    const UINT scene_w = r->width > 0u ? r->width : 1u;
+    const UINT scene_h = r->height > 0u ? r->height : 1u;
+
+    D3DVIEWPORT8 frame_vp_2d;
+    ZeroMemory(&frame_vp_2d, sizeof(frame_vp_2d));
+    frame_vp_2d.X = 0u;
+    frame_vp_2d.Y = 0u;
+    frame_vp_2d.Width = scene_w;
+    frame_vp_2d.Height = scene_h;
+    frame_vp_2d.MinZ = 0.0f;
+    frame_vp_2d.MaxZ = 1.0f;
+    dev->SetViewport(&frame_vp_2d);
+
+    /* Legacy monolith only Z-clears the 3D sub-rect and relies on CLEAR_RECT for color; TRSPK
+     * often leaves most of the scene RT untouched by draws — uncleared color shows as garbage. */
+    dev->Clear(
+        0u, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0u);
+
+    int vp_w = view_w > 0 ? view_w : (int)scene_w;
+    int vp_h = view_h > 0 ? view_h : (int)scene_h;
+
+    DWORD vp3d_x = (DWORD)(r->dash_offset_x > 0 ? r->dash_offset_x : 0);
+    DWORD vp3d_y = (DWORD)(r->dash_offset_y > 0 ? r->dash_offset_y : 0);
+    DWORD vp3d_w = (DWORD)vp_w;
+    DWORD vp3d_h = (DWORD)vp_h;
+    if( (int)(vp3d_x + vp3d_w) > (int)scene_w )
+        vp3d_w = (DWORD)((int)scene_w - (int)vp3d_x);
+    if( (int)(vp3d_y + vp3d_h) > (int)scene_h )
+        vp3d_h = (DWORD)((int)scene_h - (int)vp3d_y);
+    if( (int)vp3d_w < 1 )
+        vp3d_w = 1u;
+    if( (int)vp3d_h < 1 )
+        vp3d_h = 1u;
+
+    D3DVIEWPORT8 frame_vp_3d;
+    ZeroMemory(&frame_vp_3d, sizeof(frame_vp_3d));
+    frame_vp_3d.X = vp3d_x;
+    frame_vp_3d.Y = vp3d_y;
+    frame_vp_3d.Width = vp3d_w;
+    frame_vp_3d.Height = vp3d_h;
+    frame_vp_3d.MinZ = 0.0f;
+    frame_vp_3d.MaxZ = 1.0f;
+
+    dev->SetViewport(&frame_vp_3d);
+    dev->Clear(0u, NULL, D3DCLEAR_ZBUFFER, 0u, 1.0f, 0u);
+    dev->SetViewport(&frame_vp_2d);
+
+    dev->BeginScene();
 }
 
 void
@@ -385,6 +561,89 @@ TRSPK_D3D8_Present(TRSPK_D3D8Renderer* r)
     if( !r || !r->com_device )
         return;
     auto* dev = reinterpret_cast<IDirect3DDevice8*>((uintptr_t)r->com_device);
+    IDirect3DTexture8* scene_tex =
+        r->scene_rt_tex ? reinterpret_cast<IDirect3DTexture8*>((uintptr_t)r->scene_rt_tex) :
+                          nullptr;
+    if( !scene_tex )
+    {
+        dev->Present(NULL, NULL, NULL, NULL);
+        return;
+    }
+
+    IDirect3DSurface8* bb = nullptr;
+    if( FAILED(dev->GetBackBuffer(0u, D3DBACKBUFFER_TYPE_MONO, &bb)) || !bb )
+    {
+        dev->Present(NULL, NULL, NULL, NULL);
+        return;
+    }
+    HRESULT hr_sbb = dev->SetRenderTarget(bb, nullptr);
+    bb->Release();
+    if( FAILED(hr_sbb) )
+    {
+        dev->Present(NULL, NULL, NULL, NULL);
+        return;
+    }
+
+    dev->Clear(0u, NULL, D3DCLEAR_TARGET, 0xFF000000u, 1.0f, 0u);
+
+    RECT cr;
+    int win_w = (int)r->window_width;
+    int win_h = (int)r->window_height;
+    if( r->platform_hwnd && GetClientRect((HWND)r->platform_hwnd, &cr) )
+    {
+        const int cw = cr.right - cr.left;
+        const int ch = cr.bottom - cr.top;
+        if( cw > 0 && ch > 0 )
+        {
+            win_w = cw;
+            win_h = ch;
+        }
+    }
+
+    RECT dst;
+    trspk_d3d8_compute_letterbox_dst(
+        (int)r->width, (int)r->height, win_w, win_h, &dst);
+
+    dev->BeginScene();
+
+    D3DVIEWPORT8 bbvp;
+    ZeroMemory(&bbvp, sizeof(bbvp));
+    bbvp.X = 0u;
+    bbvp.Y = 0u;
+    bbvp.Width = (DWORD)(win_w > 0 ? win_w : 1);
+    bbvp.Height = (DWORD)(win_h > 0 ? win_h : 1);
+    bbvp.MinZ = 0.0f;
+    bbvp.MaxZ = 1.0f;
+    dev->SetViewport(&bbvp);
+
+    dev->SetVertexShader(kFvfUi);
+    dev->SetRenderState(D3DRS_ZENABLE, D3DZB_FALSE);
+    dev->SetTextureStageState(0u, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
+    dev->SetTextureStageState(0u, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
+    dev->SetTextureStageState(0u, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+    dev->SetTextureStageState(0u, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
+    dev->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+    dev->SetTexture(0u, scene_tex);
+    dev->SetTexture(1u, nullptr);
+
+    const float x0 = (float)dst.left;
+    const float y0 = (float)dst.top;
+    const float x1 = (float)dst.right;
+    const float y1 = (float)dst.bottom;
+    const DWORD wcol = 0xFFFFFFFFu;
+    TRSPK_D3D8UiVertex qb[6] = {
+        { x0, y0, 0.0f, 1.0f, wcol, 0.0f, 0.0f },
+        { x1, y0, 0.0f, 1.0f, wcol, 1.0f, 0.0f },
+        { x1, y1, 0.0f, 1.0f, wcol, 1.0f, 1.0f },
+        { x0, y0, 0.0f, 1.0f, wcol, 0.0f, 0.0f },
+        { x1, y1, 0.0f, 1.0f, wcol, 1.0f, 1.0f },
+        { x0, y1, 0.0f, 1.0f, wcol, 0.0f, 1.0f },
+    };
+    dev->DrawPrimitiveUP(D3DPT_TRIANGLELIST, 2u, qb, sizeof(TRSPK_D3D8UiVertex));
+
+    trspk_d3d8_restore_world_draw_state(dev);
+
+    dev->EndScene();
     dev->Present(NULL, NULL, NULL, NULL);
 }
 
@@ -418,7 +677,7 @@ trspk_d3d8_create_dynamic_index_ring(TRSPK_D3D8Renderer* r)
     IDirect3DIndexBuffer8* ib = nullptr;
     HRESULT hr = dev->CreateIndexBuffer(
         bytes,
-        D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY,
+        D3DUSAGE_DYNAMIC,
         D3DFMT_INDEX16,
         D3DPOOL_DEFAULT,
         &ib);
@@ -433,11 +692,7 @@ trspk_d3d8_release_gpu_defaults(TRSPK_D3D8Renderer* r)
 {
     if( !r || !r->com_device )
         return;
-    if( r->depth_stencil_surf )
-    {
-        reinterpret_cast<IDirect3DSurface8*>((uintptr_t)r->depth_stencil_surf)->Release();
-        r->depth_stencil_surf = 0u;
-    }
+    trspk_d3d8_release_scene_render_targets(r);
     if( r->dynamic_ibo )
     {
         reinterpret_cast<IDirect3DIndexBuffer8*>((uintptr_t)r->dynamic_ibo)->Release();

@@ -1,0 +1,34 @@
+#if defined(_WIN32) && defined(TORIRS_HAS_D3D8)
+
+/* Reuse the last known-good monolithic implementation under distinct symbols so
+ * it can coexist with the TRSPK D3D8 backend in the same executable. */
+#define Platform2_Win32_Renderer_D3D8 Platform2_Win32_Renderer_D3D8Legacy
+#define PlatformImpl2_Win32_Renderer_D3D8_New PlatformImpl2_Win32_Renderer_D3D8Legacy_New
+#define PlatformImpl2_Win32_Renderer_D3D8_Free PlatformImpl2_Win32_Renderer_D3D8Legacy_Free
+#define PlatformImpl2_Win32_Renderer_D3D8_Init PlatformImpl2_Win32_Renderer_D3D8Legacy_Init
+#define PlatformImpl2_Win32_Renderer_D3D8_Render PlatformImpl2_Win32_Renderer_D3D8Legacy_Render
+#define PlatformImpl2_Win32_Renderer_D3D8_PresentOrInvalidate \
+    PlatformImpl2_Win32_Renderer_D3D8Legacy_PresentOrInvalidate
+#define PlatformImpl2_Win32_Renderer_D3D8_MarkResizeDirty \
+    PlatformImpl2_Win32_Renderer_D3D8Legacy_MarkResizeDirty
+#define PlatformImpl2_Win32_Renderer_D3D8_SetDashOffset \
+    PlatformImpl2_Win32_Renderer_D3D8Legacy_SetDashOffset
+#define PlatformImpl2_Win32_Renderer_D3D8_SetDynamicPixelSize \
+    PlatformImpl2_Win32_Renderer_D3D8Legacy_SetDynamicPixelSize
+#define PlatformImpl2_Win32_Renderer_D3D8_SetViewportChangedCallback \
+    PlatformImpl2_Win32_Renderer_D3D8Legacy_SetViewportChangedCallback
+
+#include "d3d8_old/platform_impl2_win32_renderer_d3d8.cpp"
+
+#undef PlatformImpl2_Win32_Renderer_D3D8_SetViewportChangedCallback
+#undef PlatformImpl2_Win32_Renderer_D3D8_SetDynamicPixelSize
+#undef PlatformImpl2_Win32_Renderer_D3D8_SetDashOffset
+#undef PlatformImpl2_Win32_Renderer_D3D8_MarkResizeDirty
+#undef PlatformImpl2_Win32_Renderer_D3D8_PresentOrInvalidate
+#undef PlatformImpl2_Win32_Renderer_D3D8_Render
+#undef PlatformImpl2_Win32_Renderer_D3D8_Init
+#undef PlatformImpl2_Win32_Renderer_D3D8_Free
+#undef PlatformImpl2_Win32_Renderer_D3D8_New
+#undef Platform2_Win32_Renderer_D3D8
+
+#endif /* _WIN32 && TORIRS_HAS_D3D8 */

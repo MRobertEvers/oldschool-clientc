@@ -126,7 +126,9 @@ write_vertex(
     float tex_id_vertex,
     float packed_gpu_uv_mode,
     const TRSPK_BakeTransform* bake,
-    double d3d8_frame_clock)
+    double d3d8_frame_clock,
+    int d3d8_diffuse_legacy_win32,
+    uint16_t d3d8_diffuse_hsl16)
 {
     float px = x;
     float py = y;
@@ -190,6 +192,9 @@ write_vertex(
             packed_gpu_uv_mode,
             d3d8_frame_clock,
             &dest->vertices.as_d3d8[offset]);
+        if( d3d8_diffuse_legacy_win32 )
+            dest->vertices.as_d3d8[offset].diffuse =
+                trspk_d3d8_pack_diffuse_legacy_win32(d3d8_diffuse_hsl16, color[3]);
         break;
     case TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS:
     {
@@ -230,6 +235,8 @@ write_vertex(
         blk->tex_id[lane] = tex_id_vertex;
         blk->uv_mode[lane] = packed_gpu_uv_mode;
         (void)d3d8_frame_clock;
+        (void)d3d8_diffuse_legacy_win32;
+        (void)d3d8_diffuse_hsl16;
         break;
     }
     case TRSPK_VERTEX_FORMAT_METAL_SOAOS:
@@ -278,7 +285,9 @@ write_hidden_vertex(
         (float)TRSPK_INVALID_TEXTURE_ID,
         pack,
         NULL,
-        0.0);
+        0.0,
+        0,
+        0u);
 }
 
 bool
@@ -349,6 +358,12 @@ trspk_vertex_buffer_write_textured(
             trspk_hsl16_to_rgba(faces_b_color_hsl16[i], color_b, alpha_float);
             trspk_hsl16_to_rgba(faces_c_color_hsl16[i], color_c, alpha_float);
         }
+
+        uint16_t hsl_a = faces_a_color_hsl16[i];
+        uint16_t hsl_b = faces_b_color_hsl16[i];
+        uint16_t hsl_c = faces_c_color_hsl16[i];
+        if( faces_c_color_hsl16[i] == (uint16_t)TRSPK_HSL16_FLAT )
+            hsl_b = hsl_c = hsl_a;
 
         TRSPK_UVFaceCoords uv = { 0 };
         uint16_t tex_id = TRSPK_INVALID_TEXTURE_ID;
@@ -424,7 +439,9 @@ trspk_vertex_buffer_write_textured(
             tex_vertex,
             packed_gpu,
             bake,
-            d3d8_frame_clock);
+            d3d8_frame_clock,
+            1,
+            hsl_a);
         write_vertex(
             dest,
             (int)face_base_index + 1,
@@ -437,7 +454,9 @@ trspk_vertex_buffer_write_textured(
             tex_vertex,
             packed_gpu,
             bake,
-            d3d8_frame_clock);
+            d3d8_frame_clock,
+            1,
+            hsl_b);
         write_vertex(
             dest,
             (int)face_base_index + 2,
@@ -450,7 +469,9 @@ trspk_vertex_buffer_write_textured(
             tex_vertex,
             packed_gpu,
             bake,
-            d3d8_frame_clock);
+            d3d8_frame_clock,
+            1,
+            hsl_c);
     }
     return true;
 }
@@ -517,6 +538,12 @@ trspk_vertex_buffer_write(
             trspk_hsl16_to_rgba(faces_c_color_hsl16[i], color_c, alpha_float);
         }
 
+        uint16_t hsl_a = faces_a_color_hsl16[i];
+        uint16_t hsl_b = faces_b_color_hsl16[i];
+        uint16_t hsl_c = faces_c_color_hsl16[i];
+        if( faces_c_color_hsl16[i] == (uint16_t)TRSPK_HSL16_FLAT )
+            hsl_b = hsl_c = hsl_a;
+
         const float untextured_pack = trspk_pack_gpu_uv_mode_float(0.0f, 0.0f);
         write_vertex(
             dest,
@@ -530,7 +557,9 @@ trspk_vertex_buffer_write(
             (float)TRSPK_INVALID_TEXTURE_ID,
             untextured_pack,
             bake,
-            d3d8_frame_clock);
+            d3d8_frame_clock,
+            1,
+            hsl_a);
 
         write_vertex(
             dest,
@@ -544,7 +573,9 @@ trspk_vertex_buffer_write(
             (float)TRSPK_INVALID_TEXTURE_ID,
             untextured_pack,
             bake,
-            d3d8_frame_clock);
+            d3d8_frame_clock,
+            1,
+            hsl_b);
 
         write_vertex(
             dest,
@@ -558,7 +589,9 @@ trspk_vertex_buffer_write(
             (float)TRSPK_INVALID_TEXTURE_ID,
             untextured_pack,
             bake,
-            d3d8_frame_clock);
+            d3d8_frame_clock,
+            1,
+            hsl_c);
     }
 
     return true;

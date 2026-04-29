@@ -15,6 +15,13 @@ uint32_t
 trspk_d3d8_pack_diffuse_argb(const float color[4]);
 
 /**
+ * Same DWORD layout as legacy Win32 D3D8 fill_model_face_vertices_model_local (commit 9c62ec2d):
+ * dash_hsl16_to_rgb + byte RGB + alpha = (unsigned char)(face_alpha * 255.0f).
+ */
+uint32_t
+trspk_d3d8_pack_diffuse_legacy_win32(uint16_t hsl16, float face_alpha);
+
+/**
  * Fills TRSPK_VertexD3D8 fixed-function layout (xyz, ARGB diffuse, atlas u,v) from the same
  * inputs the WebGL1 world fragment shader uses (see webgl1_shaders.c kWorldFs).
  */

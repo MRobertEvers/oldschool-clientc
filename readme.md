@@ -67,6 +67,8 @@ Parts of the tree compile the same headers as **both C and C++** (e.g. `test/win
 - **Macros in headers parsed as C++:** avoid MSVC designated-initializer forms in macros where C++ can parse `[` differently (see **`PACKET_DEFINITION`** in `src/osrs/packetin.h` — positional `{ name, code, length }` only).
 - **ToriRSPlatformKit / D3D8 SoAoS:** after `windows.h`, avoid fragile **`_Alignas`** on SoAoS members; use **`TRSPK_VERTEX_SOAOS_MEMBER_ALIGN`** and **plain integer** alignment constants in `trspk_vertex_soaos_config.h` (details in [docs/d3d8_renderer_architecture.md](docs/d3d8_renderer_architecture.md)).
 
+**Win32 D3D8 reference (monolithic baseline):** the last known-good **all-in-one** Win32 D3D8 implementation before the ToriRSPlatformKit split is commit `9c62ec2d` (message: `d3d8 3d working!`). Inspect the tree with `git show 9c62ec2d:src/platforms/platform_impl2_win32_renderer_d3d8.cpp` and compare device setup, fixed-function state (`D3DRS_LIGHTING`, depth, transforms), `SetIndices` base vertex + `DrawIndexedPrimitive`, and batching to `src/platforms/ToriRSPlatformKit/src/backends/d3d8/`.
+
 ### Building - Linux
 
 For linux, install bzip

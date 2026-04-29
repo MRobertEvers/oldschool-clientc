@@ -501,11 +501,13 @@ trspk_d3d8_event_state_end_3d(
     if( !ctx || !ctx->renderer || !game )
         return;
     TRSPK_Mat4 view, proj;
+    /* Legacy platform_impl2_win32_renderer_d3d8: view is rotation-only; camera_x/y/z unused
+     * (d3d8_compute_view_matrix void-casts them). Match that driver-visible transform path. */
     trspk_d3d8_compute_view_matrix(
         view.m,
-        (float)game->camera_world_x,
-        (float)game->camera_world_y,
-        (float)game->camera_world_z,
+        0.0f,
+        0.0f,
+        0.0f,
         trspk_dash_yaw_to_radians(game->camera_pitch),
         trspk_dash_yaw_to_radians(game->camera_yaw));
     const float projection_width = ctx->renderer->pass_logical_rect.width > 0
@@ -516,6 +518,7 @@ trspk_d3d8_event_state_end_3d(
                                         : (float)ctx->renderer->height;
     trspk_d3d8_compute_projection_matrix(
         proj.m, (90.0f * TRSPK_PI) / 180.0f, projection_width, projection_height);
+    trspk_d3d8_remap_projection_opengl_to_d3d8_z(proj.m);
     ctx->renderer->frame_clock = frame_clock;
     trspk_d3d8_draw_submit_3d(ctx->renderer, &view, &proj);
 }

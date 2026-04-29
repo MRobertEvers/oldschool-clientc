@@ -45,6 +45,35 @@ trspk_d3d8_colmajor_to_d3dmatrix(const float* cm, D3DMATRIX* m)
 
 extern "C" {
 
+static void
+trspk_d3d8_mat4_mul_colmajor(const float* a, const float* b, float* out)
+{
+    float r[16];
+    for( int col = 0; col < 4; ++col )
+    {
+        for( int row = 0; row < 4; ++row )
+        {
+            r[col * 4 + row] = a[0 * 4 + row] * b[col * 4 + 0] + a[1 * 4 + row] * b[col * 4 + 1] +
+                               a[2 * 4 + row] * b[col * 4 + 2] + a[3 * 4 + row] * b[col * 4 + 3];
+        }
+    }
+    memcpy(out, r, sizeof(r));
+}
+
+void
+trspk_d3d8_remap_projection_opengl_to_d3d8_z(float* proj_colmajor)
+{
+    if( !proj_colmajor )
+        return;
+    static const float k_clip_z[16] = {
+        1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.5f, 0.0f, 0.0f, 0.0f, 0.5f, 1.0f,
+    };
+    float tmp[16];
+    trspk_d3d8_mat4_mul_colmajor(k_clip_z, proj_colmajor, tmp);
+    memcpy(proj_colmajor, tmp, sizeof(tmp));
+}
+
 TRSPK_Rect
 trspk_d3d8_full_window_logical_rect(const TRSPK_D3D8Renderer* r)
 {
@@ -201,14 +230,17 @@ trspk_d3d8_draw_add_model(
         return;
     for( uint32_t i = 0; i < index_count; ++i )
     {
-        const uint32_t idx = pose->vbo_offset + (uint32_t)sorted_indices[i];
-        if( idx > 0xFFFFu )
+        const uint32_t local = (uint32_t)sorted_indices[i];
+        if( local > 0xFFFFu )
             return;
-        pass->chunk_index_pools[chunk][start + i] = (uint16_t)idx;
+        /* Per-model-local indices; IDirect3DDevice8::SetIndices BaseVertexIndex = vbo_offset
+         * (legacy 9c62ec2d platform_impl2_win32_renderer_d3d8 MODEL_DRAW). */
+        pass->chunk_index_pools[chunk][start + i] = (uint16_t)local;
     }
     pass->chunk_index_counts[chunk] += index_count;
     pass->chunk_has_draws[chunk] = true;
     pass->subdraws[pass->subdraw_count].vbo = (GLuint)pose->vbo;
+    pass->subdraws[pass->subdraw_count].vbo_offset = pose->vbo_offset;
     pass->subdraws[pass->subdraw_count].chunk = (uint8_t)chunk;
     pass->subdraws[pass->subdraw_count].pool_start = start;
     pass->subdraws[pass->subdraw_count].index_count = index_count;
@@ -254,7 +286,11 @@ trspk_d3d8_draw_submit_3d(
         r->atlas_texture ? reinterpret_cast<IDirect3DTexture8*>((uintptr_t)r->atlas_texture) :
                            nullptr;
     dev->SetTexture(0u, atlas);
+    dev->SetTexture(1u, nullptr);
+    dev->SetTextureStageState(1u, D3DTSS_COLOROP, D3DTOP_DISABLE);
+    dev->SetTextureStageState(1u, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
 
+    /* Match legacy 9c62ec2d d3d8_apply_default_render_state + d3d8_ensure_pass(PASS_3D). */
     dev->SetTextureStageState(0u, D3DTSS_COLOROP, D3DTOP_MODULATE);
     dev->SetTextureStageState(0u, D3DTSS_COLORARG1, D3DTA_TEXTURE);
     dev->SetTextureStageState(0u, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
@@ -264,16 +300,17 @@ trspk_d3d8_draw_submit_3d(
     dev->SetTextureStageState(0u, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
     dev->SetTextureStageState(0u, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
     dev->SetTextureStageState(0u, D3DTSS_ADDRESSU, D3DTADDRESS_CLAMP);
-    dev->SetTextureStageState(0u, D3DTSS_ADDRESSV, D3DTADDRESS_CLAMP);
+    dev->SetTextureStageState(0u, D3DTSS_ADDRESSV, D3DTADDRESS_WRAP);
 
-    dev->SetRenderState(D3DRS_ZENABLE, TRUE);
+    dev->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
     dev->SetRenderState(D3DRS_ZFUNC, D3DCMP_ALWAYS);
     dev->SetRenderState(D3DRS_ZWRITEENABLE, FALSE);
+    dev->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+    dev->SetRenderState(D3DRS_LIGHTING, FALSE);
     dev->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
     dev->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
     dev->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-    dev->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
-    dev->SetRenderState(D3DRS_ALPHATESTENABLE, TRUE);
+    dev->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
     dev->SetRenderState(D3DRS_ALPHAREF, 128u);
     dev->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATEREQUAL);
 
@@ -343,6 +380,11 @@ trspk_d3d8_draw_submit_3d(
                 r->diag_frame_merge_break_pool_gap++;
                 break;
             }
+            if( next->vbo_offset != first->vbo_offset )
+            {
+                r->diag_frame_merge_break_vbo++;
+                break;
+            }
             run_count += next->index_count;
             run_end++;
         }
@@ -354,7 +396,9 @@ trspk_d3d8_draw_submit_3d(
             auto* ib =
                 reinterpret_cast<IDirect3DIndexBuffer8*>((uintptr_t)r->dynamic_ibo);
             BYTE* dst = nullptr;
-            if( SUCCEEDED(ib->Lock(0u, chunk_ib_bytes, &dst, D3DLOCK_DISCARD)) && dst )
+            /* D3DLOCK_DISCARD: discard entire dynamic buffer (65536 indices); copy used prefix. */
+            const UINT ib_full_bytes = (UINT)(65536u * sizeof(uint16_t));
+            if( SUCCEEDED(ib->Lock(0u, ib_full_bytes, &dst, D3DLOCK_DISCARD)) && dst )
             {
                 memcpy(dst, pass->chunk_index_pools[chunk], (size_t)chunk_ib_bytes);
                 ib->Unlock();
@@ -372,46 +416,30 @@ trspk_d3d8_draw_submit_3d(
 
         auto* ib =
             reinterpret_cast<IDirect3DIndexBuffer8*>((uintptr_t)r->dynamic_ibo);
-        dev->SetIndices(ib, 0u);
+        /* Legacy MODEL_DRAW: SetIndices(ib_ring, vertex_index_base), model-local indices. */
+        dev->SetIndices(ib, (UINT)first->vbo_offset);
 
-        uint16_t min_ix = 0xFFFFu;
-        uint16_t max_ix = 0u;
+        uint16_t max_local = 0u;
         const uint16_t* pool = pass->chunk_index_pools[chunk];
         for( uint32_t i = 0u; i < run_count; ++i )
         {
             const uint16_t ix = pool[first->pool_start + i];
-            if( ix < min_ix )
-                min_ix = ix;
-            if( ix > max_ix )
-                max_ix = ix;
+            if( ix > max_local )
+                max_local = ix;
         }
-        const UINT num_vertices =
-            (UINT)((max_ix >= min_ix) ? (UINT)(max_ix - min_ix + 1u) : 1u);
+        const UINT num_vertices = (UINT)max_local + 1u;
 
-#if defined(__MINGW32__) || defined(__MINGW64__)
-        /* MinGW w32api uses a 5-parameter DrawIndexedPrimitive (no BaseVertexIndex). */
         dev->DrawIndexedPrimitive(
             D3DPT_TRIANGLELIST,
-            (UINT)min_ix,
+            0u,
             num_vertices,
             (UINT)first->pool_start,
             (UINT)(run_count / 3u));
-#else
-        /* MSVC DirectX 8 SDK: BaseVertexIndex (INT) precedes MinIndex. */
-        dev->DrawIndexedPrimitive(
-            D3DPT_TRIANGLELIST,
-            0,
-            (UINT)min_ix,
-            num_vertices,
-            (UINT)first->pool_start,
-            (UINT)(run_count / 3u));
-#endif
         r->diag_frame_submitted_draws++;
 
         run_start = run_end;
     }
 
-    dev->SetRenderState(D3DRS_ALPHATESTENABLE, FALSE);
 #endif
 
     trspk_d3d8_draw_begin_3d(r, NULL);
@@ -424,9 +452,39 @@ trspk_d3d8_draw_clear_rect(TRSPK_D3D8Renderer* r, const TRSPK_Rect* rect)
     if( !r || !rect || !r->com_device )
         return;
 #if defined(_WIN32)
-    (void)rect;
+    if( rect->width <= 0 || rect->height <= 0 )
+        return;
     auto* dev = reinterpret_cast<IDirect3DDevice8*>((uintptr_t)r->com_device);
-    dev->Clear(0u, NULL, D3DCLEAR_ZBUFFER, 0u, 1.0f, 0u);
+    TRSPK_Rect gl;
+    trspk_logical_rect_to_gl_viewport_pixels(
+        &gl,
+        r->width,
+        r->height,
+        r->window_width > 0u ? r->window_width : r->width,
+        r->window_height > 0u ? r->window_height : r->height,
+        rect);
+    if( gl.width <= 0 || gl.height <= 0 )
+        return;
+    const int32_t fh = (int32_t)(r->height > 0u ? r->height : 1u);
+    const DWORD vx = (DWORD)(gl.x >= 0 ? gl.x : 0);
+    const DWORD vw = (DWORD)(gl.width > 0 ? gl.width : 1);
+    const DWORD vh = (DWORD)(gl.height > 0 ? gl.height : 1);
+    const DWORD vy = (DWORD)(fh - gl.y - (int32_t)vh);
+
+    D3DVIEWPORT8 saved;
+    ZeroMemory(&saved, sizeof(saved));
+    dev->GetViewport(&saved);
+    D3DVIEWPORT8 cvp;
+    ZeroMemory(&cvp, sizeof(cvp));
+    cvp.X = vx;
+    cvp.Y = vy;
+    cvp.Width = vw;
+    cvp.Height = vh;
+    cvp.MinZ = 0.0f;
+    cvp.MaxZ = 1.0f;
+    dev->SetViewport(&cvp);
+    dev->Clear(0u, NULL, D3DCLEAR_TARGET, 0x00000000u, 1.0f, 0u);
+    dev->SetViewport(&saved);
 #endif
 }
 

@@ -16,6 +16,7 @@ extern "C" {
 #include "platforms/platform_impl2_win32_renderer_gdisoft3d.h"
 #if defined(TORIRS_HAS_D3D8)
 #include "platforms/platform_impl2_win32_renderer_d3d8.h"
+#include "platforms/platform_impl2_win32_renderer_d3d8legacy.h"
 #endif
 
 #include <stdio.h>
@@ -25,7 +26,7 @@ extern "C" {
 #define SCREEN_WIDTH 800
 #define SCREEN_HEIGHT 600
 
-/** 0 = GDI Soft3D, 1 = D3D8 (requires TORIRS_HAS_D3D8). */
+/** See ToriRSWin32RendererKind: GDI, D3D8 TRSPK, or D3D8 legacy. */
 static int
 win32_pick_renderer_kind(int argc, char** argv)
 {
@@ -33,9 +34,13 @@ win32_pick_renderer_kind(int argc, char** argv)
     if( env )
     {
         if( strcmp(env, "d3d8") == 0 )
-            return 1;
+            return TORIRS_WIN32_RENDERER_KIND_D3D8;
+        if( strcmp(env, "trspk") == 0 || strcmp(env, "d3d8trspk") == 0 )
+            return TORIRS_WIN32_RENDERER_KIND_D3D8;
+        if( strcmp(env, "d3d8legacy") == 0 || strcmp(env, "legacy") == 0 )
+            return TORIRS_WIN32_RENDERER_KIND_D3D8_LEGACY;
         if( strcmp(env, "gdi") == 0 )
-            return 0;
+            return TORIRS_WIN32_RENDERER_KIND_GDI;
     }
     for( int i = 1; i < argc; ++i )
     {
@@ -43,12 +48,37 @@ win32_pick_renderer_kind(int argc, char** argv)
         {
             const char* v = argv[i] + 11;
             if( strcmp(v, "d3d8") == 0 )
-                return 1;
+                return TORIRS_WIN32_RENDERER_KIND_D3D8;
+            if( strcmp(v, "trspk") == 0 || strcmp(v, "d3d8trspk") == 0 )
+                return TORIRS_WIN32_RENDERER_KIND_D3D8;
+            if( strcmp(v, "d3d8legacy") == 0 || strcmp(v, "legacy") == 0 )
+                return TORIRS_WIN32_RENDERER_KIND_D3D8_LEGACY;
             if( strcmp(v, "gdi") == 0 )
-                return 0;
+                return TORIRS_WIN32_RENDERER_KIND_GDI;
         }
     }
-    return 0;
+#if defined(TORIRS_HAS_D3D8)
+    return TORIRS_WIN32_RENDERER_KIND_D3D8_LEGACY;
+#else
+    return TORIRS_WIN32_RENDERER_KIND_GDI;
+#endif
+}
+
+static const char*
+win32_renderer_kind_name(int kind)
+{
+    switch( kind )
+    {
+    case TORIRS_WIN32_RENDERER_KIND_D3D8:
+        return "d3d8-trspk";
+#if defined(TORIRS_HAS_D3D8)
+    case TORIRS_WIN32_RENDERER_KIND_D3D8_LEGACY:
+        return "d3d8-legacy";
+#endif
+    case TORIRS_WIN32_RENDERER_KIND_GDI:
+    default:
+        return "gdi";
+    }
 }
 
 /** true = StretchDIBits (aspect-fit, default); false = SetDIBitsToDevice (1:1, no scaling). */
@@ -119,7 +149,7 @@ win32_log_renderer_selection(int argc, char** argv, int want_kind)
     fprintf(
         stderr,
         "[win32] resolved requested renderer: %s\n",
-        want_kind == 1 ? "d3d8" : "gdi");
+        win32_renderer_kind_name(want_kind));
     fflush(stderr);
 }
 
@@ -183,12 +213,13 @@ main(
     struct Platform2_Win32_Renderer_GDISoft3D* renderer_gdi = nullptr;
 #if defined(TORIRS_HAS_D3D8)
     struct Platform2_Win32_Renderer_D3D8* renderer_d3d8 = nullptr;
+    struct Platform2_Win32_Renderer_D3D8Legacy* renderer_d3d8legacy = nullptr;
 #endif
 
-    bool using_d3d8 = false;
+    int active_renderer = TORIRS_WIN32_RENDERER_KIND_GDI;
 
 #if defined(TORIRS_HAS_D3D8)
-    if( want_renderer == 1 )
+    if( want_renderer == TORIRS_WIN32_RENDERER_KIND_D3D8 )
     {
         renderer_d3d8 = PlatformImpl2_Win32_Renderer_D3D8_New(
             game_width, game_height, render_max_width, render_max_height);
@@ -196,8 +227,8 @@ main(
         {
             platform->win32_renderer_for_paint = (void*)renderer_d3d8;
             platform->win32_renderer_kind = TORIRS_WIN32_RENDERER_KIND_D3D8;
-            using_d3d8 = true;
-            fprintf(stderr, "[win32] Active renderer: D3D8\n");
+            active_renderer = TORIRS_WIN32_RENDERER_KIND_D3D8;
+            fprintf(stderr, "[win32] Active renderer: D3D8 TRSPK\n");
             fflush(stderr);
         }
         else
@@ -213,15 +244,41 @@ main(
             }
         }
     }
+    else if( want_renderer == TORIRS_WIN32_RENDERER_KIND_D3D8_LEGACY )
+    {
+        renderer_d3d8legacy = PlatformImpl2_Win32_Renderer_D3D8Legacy_New(
+            game_width, game_height, render_max_width, render_max_height);
+        if( renderer_d3d8legacy &&
+            PlatformImpl2_Win32_Renderer_D3D8Legacy_Init(renderer_d3d8legacy, platform) )
+        {
+            platform->win32_renderer_for_paint = (void*)renderer_d3d8legacy;
+            platform->win32_renderer_kind = TORIRS_WIN32_RENDERER_KIND_D3D8_LEGACY;
+            active_renderer = TORIRS_WIN32_RENDERER_KIND_D3D8_LEGACY;
+            fprintf(stderr, "[win32] Active renderer: D3D8 legacy\n");
+            fflush(stderr);
+        }
+        else
+        {
+            fprintf(
+                stderr,
+                "[win32] D3D8 legacy renderer init failed; falling back to GDI Soft3D. "
+                "(Try updating GPU drivers / d3d8.dll.)\n");
+            if( renderer_d3d8legacy )
+            {
+                PlatformImpl2_Win32_Renderer_D3D8Legacy_Free(renderer_d3d8legacy);
+                renderer_d3d8legacy = nullptr;
+            }
+        }
+    }
 #else
-    if( want_renderer == 1 )
+    if( want_renderer == TORIRS_WIN32_RENDERER_KIND_D3D8 )
         fprintf(
             stderr,
             "[win32] D3D8 renderer was requested but this build was compiled without "
             "TORIRS_HAS_D3D8; using GDI Soft3D.\n");
 #endif
 
-    if( !using_d3d8 )
+    if( active_renderer == TORIRS_WIN32_RENDERER_KIND_GDI )
     {
         renderer_gdi = PlatformImpl2_Win32_Renderer_GDISoft3D_New(
             game_width, game_height, render_max_width, render_max_height);
@@ -231,6 +288,8 @@ main(
 #if defined(TORIRS_HAS_D3D8)
             if( renderer_d3d8 )
                 PlatformImpl2_Win32_Renderer_D3D8_Free(renderer_d3d8);
+            if( renderer_d3d8legacy )
+                PlatformImpl2_Win32_Renderer_D3D8Legacy_Free(renderer_d3d8legacy);
 #endif
             if( renderer_gdi )
                 PlatformImpl2_Win32_Renderer_GDISoft3D_Free(renderer_gdi);
@@ -260,10 +319,16 @@ main(
 
     game->viewport_offset_x = 4;
     game->viewport_offset_y = 4;
-    if( using_d3d8 )
+    if( active_renderer == TORIRS_WIN32_RENDERER_KIND_D3D8 )
     {
 #if defined(TORIRS_HAS_D3D8)
         PlatformImpl2_Win32_Renderer_D3D8_SetDashOffset(renderer_d3d8, 4, 4);
+#endif
+    }
+    else if( active_renderer == TORIRS_WIN32_RENDERER_KIND_D3D8_LEGACY )
+    {
+#if defined(TORIRS_HAS_D3D8)
+        PlatformImpl2_Win32_Renderer_D3D8Legacy_SetDashOffset(renderer_d3d8legacy, 4, 4);
 #endif
     }
     else
@@ -294,11 +359,18 @@ main(
 
         LibToriRS_GameStep(game, &input, render_command_buffer);
 
-        if( using_d3d8 )
+        if( active_renderer == TORIRS_WIN32_RENDERER_KIND_D3D8 )
         {
 #if defined(TORIRS_HAS_D3D8)
             PlatformImpl2_Win32_Renderer_D3D8_Render(
                 renderer_d3d8, game, render_command_buffer);
+#endif
+        }
+        else if( active_renderer == TORIRS_WIN32_RENDERER_KIND_D3D8_LEGACY )
+        {
+#if defined(TORIRS_HAS_D3D8)
+            PlatformImpl2_Win32_Renderer_D3D8Legacy_Render(
+                renderer_d3d8legacy, game, render_command_buffer);
 #endif
         }
         else
@@ -315,10 +387,16 @@ main(
     }
     sockstream_cleanup();
 
-    if( using_d3d8 )
+    if( active_renderer == TORIRS_WIN32_RENDERER_KIND_D3D8 )
     {
 #if defined(TORIRS_HAS_D3D8)
         PlatformImpl2_Win32_Renderer_D3D8_Free(renderer_d3d8);
+#endif
+    }
+    else if( active_renderer == TORIRS_WIN32_RENDERER_KIND_D3D8_LEGACY )
+    {
+#if defined(TORIRS_HAS_D3D8)
+        PlatformImpl2_Win32_Renderer_D3D8Legacy_Free(renderer_d3d8legacy);
 #endif
     }
     else

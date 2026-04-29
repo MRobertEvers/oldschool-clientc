@@ -19,13 +19,15 @@
 extern "C" {
 #endif
 
-/** Interleaved vertex for D3D8 fixed-function: D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1. */
+/** Interleaved vertex for D3D8 fixed-function: must match legacy D3D8WorldVertex (9c62ec2d):
+ * D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1 — three floats, DWORD diffuse (A8R8G8B8), two floats
+ * for TEXCOORD0. Same size/field order as IDirect3DDevice8 with kFvfWorld. */
 typedef struct TRSPK_VertexD3D8
 {
     float x;
     float y;
     float z;
-    uint32_t diffuse;
+    uint32_t diffuse; /* same layout as D3DCOLOR / DWORD in legacy Win32 code */
     float u;
     float v;
 } TRSPK_VertexD3D8;

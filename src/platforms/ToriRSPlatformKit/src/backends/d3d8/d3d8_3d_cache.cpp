@@ -76,10 +76,25 @@ trspk_d3d8_cache_refresh_atlas(TRSPK_D3D8Renderer* r)
     const uint32_t src_pitch = width * 4u;
     for( uint32_t y = 0u; y < height; ++y )
     {
-        const uint8_t* src = pixels + (size_t)y * (size_t)src_pitch;
-        uint8_t* dst = reinterpret_cast<uint8_t*>(lr.pBits) + (size_t)y * (size_t)lr.Pitch;
-        memcpy(dst, src, (size_t)src_pitch);
+        const uint8_t* src_row = pixels + (size_t)y * (size_t)src_pitch;
+        uint8_t* dst_row = reinterpret_cast<uint8_t*>(lr.pBits) + (size_t)y * (size_t)lr.Pitch;
+        /* Legacy Win32 D3D8 copied DashTexture texels as int* (ARGB int = B,G,R,A in LE memory).
+         * CPU atlas from trspk_dash_fill_rgba128 is R,G,B,A per pixel — swizzle for A8R8G8B8 lock. */
+        for( uint32_t x = 0u; x < width; ++x )
+        {
+            const uint8_t* s = src_row + (size_t)x * 4u;
+            uint8_t* d = dst_row + (size_t)x * 4u;
+            d[0] = s[2];
+            d[1] = s[1];
+            d[2] = s[0];
+            d[3] = s[3];
+        }
     }
+    /* Opaque white texel at atlas origin for untextured FVF vertices: world draw always uses
+     * MODULATE(TEX0, DIFFUSE) with this atlas bound (legacy untextured path used no texture +
+     * SELECTARG2). See trspk_d3d8_fvf_from_model_vertex untextured branch. */
+    uint8_t* sentinel = reinterpret_cast<uint8_t*>(lr.pBits);
+    sentinel[0] = sentinel[1] = sentinel[2] = sentinel[3] = 255u; /* B,G,R,A */
     tex->UnlockRect(0);
 
     dev->SetTexture(0u, tex);

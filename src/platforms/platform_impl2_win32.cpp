@@ -23,6 +23,7 @@ extern "C" {
 #include "platform_impl2_win32_renderer_gdisoft3d.h"
 #if defined(TORIRS_HAS_D3D8)
 #include "platform_impl2_win32_renderer_d3d8.h"
+#include "platform_impl2_win32_renderer_d3d8legacy.h"
 #endif
 #include "nuklear/torirs_nuklear.h"
 
@@ -353,6 +354,15 @@ Win32_Platform_WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                     cw,
                     ch);
             }
+            else if( platform->win32_renderer_kind == TORIRS_WIN32_RENDERER_KIND_D3D8_LEGACY )
+            {
+                PlatformImpl2_Win32_Renderer_D3D8Legacy_PresentOrInvalidate(
+                    (struct Platform2_Win32_Renderer_D3D8Legacy*)
+                        platform->win32_renderer_for_paint,
+                    hdc,
+                    cw,
+                    ch);
+            }
 #endif
         }
         EndPaint(hwnd, &ps);
@@ -384,6 +394,12 @@ Win32_Platform_WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 {
                     PlatformImpl2_Win32_Renderer_D3D8_MarkResizeDirty(
                         (struct Platform2_Win32_Renderer_D3D8*)platform->win32_renderer_for_paint);
+                }
+                else if( platform->win32_renderer_kind == TORIRS_WIN32_RENDERER_KIND_D3D8_LEGACY )
+                {
+                    PlatformImpl2_Win32_Renderer_D3D8Legacy_MarkResizeDirty(
+                        (struct Platform2_Win32_Renderer_D3D8Legacy*)
+                            platform->win32_renderer_for_paint);
                 }
 #endif
             }
