@@ -46,22 +46,61 @@ trspk_dynamic_batch_scratch_destroy(TRSPK_DynamicBatchScratch* s)
     s->sort_idx_cap = 0u;
 }
 
+static const TRSPK_DynamicBatchFlushRow*
+trspk_dynamic_batch_flush_row(
+    const void* rows_base,
+    size_t row_stride,
+    size_t flush_offset,
+    uint32_t ri)
+{
+    return (const TRSPK_DynamicBatchFlushRow*)(
+        (const uint8_t*)rows_base + (size_t)ri * row_stride + flush_offset);
+}
+
+static uint32_t
+trspk_dynamic_batch_stream_beg(const TRSPK_DynamicBatchFlushRow* d, int stream)
+{
+    return stream == TRSPK_DYNAMIC_BATCH_STREAM_VBO ? d->vbo_beg_bytes : d->ebo_beg_bytes;
+}
+
+static uint32_t
+trspk_dynamic_batch_stream_len(const TRSPK_DynamicBatchFlushRow* d, int stream)
+{
+    return stream == TRSPK_DYNAMIC_BATCH_STREAM_VBO ? d->vbo_len_bytes : d->ebo_len_bytes;
+}
+
+static const void*
+trspk_dynamic_batch_stream_src(const TRSPK_DynamicBatchFlushRow* d, int stream)
+{
+    return stream == TRSPK_DYNAMIC_BATCH_STREAM_VBO ? d->vbo_src : d->ebo_src;
+}
+
 void
-trspk_dynamic_batch_sort_indices_by_u32(
-    void* rows,
+trspk_dynamic_batch_sort_indices_by_stream(
+    const void* rows_base,
+    size_t row_stride,
+    size_t flush_offset,
     uint32_t* idx,
     int n,
-    uint32_t (*key)(void* rows, uint32_t row_i))
+    int stream)
 {
-    if( !rows || !idx || n <= 0 || !key )
+    if( !rows_base || !idx || n <= 0 )
+        return;
+    if( stream != TRSPK_DYNAMIC_BATCH_STREAM_VBO && stream != TRSPK_DYNAMIC_BATCH_STREAM_EBO )
         return;
     for( int i = 1; i < n; ++i )
     {
         const uint32_t key_row = idx[i];
-        const uint32_t kb = key(rows, key_row);
+        const TRSPK_DynamicBatchFlushRow* dk =
+            trspk_dynamic_batch_flush_row(rows_base, row_stride, flush_offset, key_row);
+        const uint32_t kb = trspk_dynamic_batch_stream_beg(dk, stream);
         int j = i - 1;
-        while( j >= 0 && key(rows, idx[j]) > kb )
+        while( j >= 0 )
         {
+            const TRSPK_DynamicBatchFlushRow* dj = trspk_dynamic_batch_flush_row(
+                rows_base, row_stride, flush_offset, idx[j]);
+            if( !(trspk_dynamic_batch_stream_beg(dj, stream) > kb) )
+                break;
             idx[j + 1] = idx[j];
             --j;
         }
@@ -74,29 +113,34 @@ trspk_dynamic_batch_upload_merged_subdata_runs(
     TRSPK_DynamicBatchScratch* scratch,
     uint32_t* idx,
     int n,
-    void* rows,
-    uint32_t (*byte_beg)(void* rows, uint32_t ri),
-    uint32_t (*byte_len)(void* rows, uint32_t ri),
-    const void* (*cpu_src)(void* rows, uint32_t ri),
+    const void* rows_base,
+    size_t row_stride,
+    size_t flush_offset,
+    int stream,
     uintptr_t buffer_id,
-    int is_element_array_buffer,
     TRSPK_DynamicBatchUploadFn upload,
     void* upload_ctx)
 {
-    if( !scratch || !idx || n <= 0 || !rows || !byte_beg || !byte_len || !cpu_src || !upload )
+    if( !scratch || !idx || n <= 0 || !rows_base || !upload )
+        return;
+    if( stream != TRSPK_DYNAMIC_BATCH_STREAM_VBO && stream != TRSPK_DYNAMIC_BATCH_STREAM_EBO )
         return;
     int p = 0;
     while( p < n )
     {
         const uint32_t i0 = idx[p];
-        uint32_t run_lo = byte_beg(rows, i0);
-        uint32_t run_hi = run_lo + byte_len(rows, i0);
+        const TRSPK_DynamicBatchFlushRow* d0 =
+            trspk_dynamic_batch_flush_row(rows_base, row_stride, flush_offset, i0);
+        uint32_t run_lo = trspk_dynamic_batch_stream_beg(d0, stream);
+        uint32_t run_hi = run_lo + trspk_dynamic_batch_stream_len(d0, stream);
         int q = p + 1;
         while( q < n )
         {
             const uint32_t ij = idx[q];
-            const uint32_t lo = byte_beg(rows, ij);
-            const uint32_t hi = lo + byte_len(rows, ij);
+            const TRSPK_DynamicBatchFlushRow* dj =
+                trspk_dynamic_batch_flush_row(rows_base, row_stride, flush_offset, ij);
+            const uint32_t lo = trspk_dynamic_batch_stream_beg(dj, stream);
+            const uint32_t hi = lo + trspk_dynamic_batch_stream_len(dj, stream);
             if( lo <= run_hi )
             {
                 if( hi > run_hi )
@@ -110,13 +154,15 @@ trspk_dynamic_batch_upload_merged_subdata_runs(
         if( q == p + 1 )
         {
             const uint32_t ri = idx[p];
+            const TRSPK_DynamicBatchFlushRow* dr =
+                trspk_dynamic_batch_flush_row(rows_base, row_stride, flush_offset, ri);
             upload(
                 upload_ctx,
-                is_element_array_buffer,
+                stream,
                 buffer_id,
-                (intptr_t)byte_beg(rows, ri),
-                (size_t)byte_len(rows, ri),
-                cpu_src(rows, ri));
+                (intptr_t)trspk_dynamic_batch_stream_beg(dr, stream),
+                (size_t)trspk_dynamic_batch_stream_len(dr, stream),
+                trspk_dynamic_batch_stream_src(dr, stream));
         }
         else
         {
@@ -126,18 +172,15 @@ trspk_dynamic_batch_upload_merged_subdata_runs(
             for( int t = p; t < q; ++t )
             {
                 const uint32_t ri = idx[t];
+                const TRSPK_DynamicBatchFlushRow* dr =
+                    trspk_dynamic_batch_flush_row(rows_base, row_stride, flush_offset, ri);
                 memcpy(
-                    merge_buf + ((size_t)byte_beg(rows, ri) - (size_t)run_lo),
-                    cpu_src(rows, ri),
-                    (size_t)byte_len(rows, ri));
+                    merge_buf + ((size_t)trspk_dynamic_batch_stream_beg(dr, stream) -
+                                 (size_t)run_lo),
+                    trspk_dynamic_batch_stream_src(dr, stream),
+                    (size_t)trspk_dynamic_batch_stream_len(dr, stream));
             }
-            upload(
-                upload_ctx,
-                is_element_array_buffer,
-                buffer_id,
-                (intptr_t)run_lo,
-                total,
-                merge_buf);
+            upload(upload_ctx, stream, buffer_id, (intptr_t)run_lo, total, merge_buf);
         }
         p = q;
     }

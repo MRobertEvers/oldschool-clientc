@@ -9,6 +9,21 @@
 extern "C" {
 #endif
 
+/** Pass to sort / upload helpers: which byte range + CPU source field to use. */
+#define TRSPK_DYNAMIC_BATCH_STREAM_VBO 0
+#define TRSPK_DYNAMIC_BATCH_STREAM_EBO 1
+
+/** Per-row GPU upload metadata; embed at `flush_offset` inside backend flush structs. */
+typedef struct TRSPK_DynamicBatchFlushRow
+{
+    uint32_t vbo_beg_bytes;
+    uint32_t vbo_len_bytes;
+    const void* vbo_src;
+    uint32_t ebo_beg_bytes;
+    uint32_t ebo_len_bytes;
+    const void* ebo_src;
+} TRSPK_DynamicBatchFlushRow;
+
 /** Grow-once merge scratch + sort index buffer for batched buffer subdata flushes. */
 typedef struct TRSPK_DynamicBatchScratch
 {
@@ -25,13 +40,18 @@ trspk_dynamic_batch_scratch_ensure_sort_idx(TRSPK_DynamicBatchScratch* s, uint32
 void
 trspk_dynamic_batch_scratch_destroy(TRSPK_DynamicBatchScratch* s);
 
-/** Sort `idx` (each entry is a row index) by monotonic `key(rows, row_i)`. */
+/**
+ * Sort `idx` (each entry is a row index). `rows_base` points to row 0; each row is `row_stride`
+ * bytes with a `TRSPK_DynamicBatchFlushRow` at `flush_offset` (use offsetof).
+ */
 void
-trspk_dynamic_batch_sort_indices_by_u32(
-    void* rows,
+trspk_dynamic_batch_sort_indices_by_stream(
+    const void* rows_base,
+    size_t row_stride,
+    size_t flush_offset,
     uint32_t* idx,
     int n,
-    uint32_t (*key)(void* rows, uint32_t row_i));
+    int stream);
 
 typedef void (*TRSPK_DynamicBatchUploadFn)(
     void* ctx,
@@ -42,21 +62,20 @@ typedef void (*TRSPK_DynamicBatchUploadFn)(
     const void* data);
 
 /**
- * For sorted `idx`, merge abutting/overlapping [beg, beg+len) runs and upload each run with
- * `upload`. Single-row runs upload from `cpu_src` directly; multi-row runs memcpy into merge
- * scratch then one upload.
+ * For sorted `idx`, merge abutting/overlapping runs on the chosen stream and upload each run.
+ * Single-row runs upload from row CPU source; multi-row runs memcpy into merge scratch then one
+ * upload. `is_element_array_buffer` passed to `upload` equals `stream` (0 = array, 1 = element).
  */
 void
 trspk_dynamic_batch_upload_merged_subdata_runs(
     TRSPK_DynamicBatchScratch* scratch,
     uint32_t* idx,
     int n,
-    void* rows,
-    uint32_t (*byte_beg)(void* rows, uint32_t ri),
-    uint32_t (*byte_len)(void* rows, uint32_t ri),
-    const void* (*cpu_src)(void* rows, uint32_t ri),
+    const void* rows_base,
+    size_t row_stride,
+    size_t flush_offset,
+    int stream,
     uintptr_t buffer_id,
-    int is_element_array_buffer,
     TRSPK_DynamicBatchUploadFn upload,
     void* upload_ctx);
 

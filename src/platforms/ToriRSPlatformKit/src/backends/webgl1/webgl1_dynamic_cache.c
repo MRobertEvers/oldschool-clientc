@@ -6,6 +6,7 @@
 #include "trspk_webgl1.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -94,14 +95,10 @@ trspk_webgl1_ensure_chunk(
 
 typedef struct TRSPK_W1FlushBakedRow
 {
+    TRSPK_DynamicBatchFlushRow gpu;
     TRSPK_VertexBuffer baked;
     TRSPK_UsageClass usage;
     uint8_t chunk;
-    uint32_t vbo_beg_bytes;
-    uint32_t vbo_len_bytes;
-    uint32_t ebo_beg_bytes;
-    uint32_t ebo_len_bytes;
-    uint16_t* ib_u16;
 } TRSPK_W1FlushBakedRow;
 
 static bool
@@ -115,54 +112,6 @@ w1_ensure_u16_pool(TRSPK_WebGL1Renderer* r, size_t need_bytes)
     r->webgl1_flush_u16_pool = (uint16_t*)p;
     r->webgl1_flush_u16_pool_bytes = need_bytes;
     return true;
-}
-
-static uint32_t
-w1_flush_key_vbo(void* rows, uint32_t ri)
-{
-    return ((const TRSPK_W1FlushBakedRow*)rows)[ri].vbo_beg_bytes;
-}
-
-static uint32_t
-w1_flush_key_ebo(void* rows, uint32_t ri)
-{
-    return ((const TRSPK_W1FlushBakedRow*)rows)[ri].ebo_beg_bytes;
-}
-
-static uint32_t
-w1_flush_vbo_beg(void* rows, uint32_t ri)
-{
-    return ((TRSPK_W1FlushBakedRow*)rows)[ri].vbo_beg_bytes;
-}
-
-static uint32_t
-w1_flush_vbo_len(void* rows, uint32_t ri)
-{
-    return ((TRSPK_W1FlushBakedRow*)rows)[ri].vbo_len_bytes;
-}
-
-static const void*
-w1_flush_vbo_src(void* rows, uint32_t ri)
-{
-    return ((TRSPK_W1FlushBakedRow*)rows)[ri].baked.vertices.as_webgl1;
-}
-
-static uint32_t
-w1_flush_ebo_beg(void* rows, uint32_t ri)
-{
-    return ((TRSPK_W1FlushBakedRow*)rows)[ri].ebo_beg_bytes;
-}
-
-static uint32_t
-w1_flush_ebo_len(void* rows, uint32_t ri)
-{
-    return ((TRSPK_W1FlushBakedRow*)rows)[ri].ebo_len_bytes;
-}
-
-static const void*
-w1_flush_ebo_src(void* rows, uint32_t ri)
-{
-    return ((TRSPK_W1FlushBakedRow*)rows)[ri].ib_u16;
 }
 
 static void
@@ -370,11 +319,12 @@ trspk_webgl1_pass_flush_pending_dynamic_gpu_uploads(TRSPK_WebGL1Renderer* r)
         row->baked = baked;
         row->usage = d->usage;
         row->chunk = d->chunk;
-        row->vbo_beg_bytes = d->vbo_offset * stride;
-        row->vbo_len_bytes = baked.vertex_count * stride;
-        row->ebo_beg_bytes = (uint32_t)((size_t)d->ebo_offset * sizeof(uint16_t));
-        row->ebo_len_bytes = ic * (uint32_t)sizeof(uint16_t);
-        row->ib_u16 = dst;
+        row->gpu.vbo_beg_bytes = d->vbo_offset * stride;
+        row->gpu.vbo_len_bytes = baked.vertex_count * stride;
+        row->gpu.vbo_src = baked.vertices.as_webgl1;
+        row->gpu.ebo_beg_bytes = (uint32_t)((size_t)d->ebo_offset * sizeof(uint16_t));
+        row->gpu.ebo_len_bytes = ic * (uint32_t)sizeof(uint16_t);
+        row->gpu.ebo_src = dst;
     }
 
     if( n_ok > 0 )
@@ -388,12 +338,12 @@ trspk_webgl1_pass_flush_pending_dynamic_gpu_uploads(TRSPK_WebGL1Renderer* r)
                     r,
                     row->usage,
                     row->chunk,
-                    row->vbo_beg_bytes / stride,
-                    row->ebo_beg_bytes / (uint32_t)sizeof(uint16_t),
+                    row->gpu.vbo_beg_bytes / stride,
+                    row->gpu.ebo_beg_bytes / (uint32_t)sizeof(uint16_t),
                     row->baked.vertices.as_webgl1,
-                    row->vbo_len_bytes,
-                    row->ib_u16,
-                    row->ebo_len_bytes);
+                    row->gpu.vbo_len_bytes,
+                    row->gpu.ebo_src,
+                    row->gpu.ebo_len_bytes);
             }
         }
         else
@@ -419,30 +369,32 @@ trspk_webgl1_pass_flush_pending_dynamic_gpu_uploads(TRSPK_WebGL1Renderer* r)
                     const GLuint ebo_gl = trspk_webgl1_ebos_for_usage(r, usage)[ch];
                     if( vbo_gl == 0u || ebo_gl == 0u )
                         continue;
-                    trspk_dynamic_batch_sort_indices_by_u32(rows, idx, c, w1_flush_key_vbo);
+                    const size_t row_stride = sizeof(TRSPK_W1FlushBakedRow);
+                    const size_t flush_off = offsetof(TRSPK_W1FlushBakedRow, gpu);
+                    trspk_dynamic_batch_sort_indices_by_stream(
+                        rows, row_stride, flush_off, idx, c, TRSPK_DYNAMIC_BATCH_STREAM_VBO);
                     trspk_dynamic_batch_upload_merged_subdata_runs(
                         &r->dynamic_flush_batch,
                         idx,
                         c,
                         rows,
-                        w1_flush_vbo_beg,
-                        w1_flush_vbo_len,
-                        w1_flush_vbo_src,
+                        row_stride,
+                        flush_off,
+                        TRSPK_DYNAMIC_BATCH_STREAM_VBO,
                         (uintptr_t)vbo_gl,
-                        0,
                         w1_dynamic_batch_flush_upload,
                         NULL);
-                    trspk_dynamic_batch_sort_indices_by_u32(rows, idx, c, w1_flush_key_ebo);
+                    trspk_dynamic_batch_sort_indices_by_stream(
+                        rows, row_stride, flush_off, idx, c, TRSPK_DYNAMIC_BATCH_STREAM_EBO);
                     trspk_dynamic_batch_upload_merged_subdata_runs(
                         &r->dynamic_flush_batch,
                         idx,
                         c,
                         rows,
-                        w1_flush_ebo_beg,
-                        w1_flush_ebo_len,
-                        w1_flush_ebo_src,
+                        row_stride,
+                        flush_off,
+                        TRSPK_DYNAMIC_BATCH_STREAM_EBO,
                         (uintptr_t)ebo_gl,
-                        1,
                         w1_dynamic_batch_flush_upload,
                         NULL);
                 }
