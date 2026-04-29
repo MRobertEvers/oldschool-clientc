@@ -1,5 +1,6 @@
 #include "trspk_lru_model_cache.h"
 
+#include "trspk_resource_cache.h"
 #include "trspk_vertex_buffer.h"
 
 #include <stdlib.h>
@@ -132,7 +133,8 @@ trspk_lru_model_cache_get_or_emplace_impl(
     uint16_t frame_index,
     const TRSPK_ModelArrays* arrays,
     bool textured,
-    TRSPK_UVMode uv_mode,
+    TRSPK_UVCalculationMode uv_calc_mode,
+    const TRSPK_ResourceCache* atlas_tile_meta,
     const TRSPK_BakeTransform* bake)
 {
     if( !cache || !arrays || arrays->face_count == 0u || !cache->entries ||
@@ -192,7 +194,8 @@ trspk_lru_model_cache_get_or_emplace_impl(
             arrays->textured_faces_c,
             arrays->face_alphas,
             arrays->face_infos,
-            uv_mode,
+            uv_calc_mode,
+            atlas_tile_meta,
             bake,
             &built);
     else
@@ -284,7 +287,8 @@ trspk_lru_model_cache_get_or_emplace_untextured(
         frame_index,
         arrays,
         false,
-        TRSPK_UV_MODE_TEXTURED_FACE_ARRAY,
+        TRSPK_UV_CALC_TEXTURED_FACE_ARRAY,
+        NULL,
         bake);
 }
 
@@ -295,9 +299,18 @@ trspk_lru_model_cache_get_or_emplace_textured(
     uint8_t gpu_segment_slot,
     uint16_t frame_index,
     const TRSPK_ModelArrays* arrays,
-    TRSPK_UVMode uv_mode,
+    TRSPK_UVCalculationMode uv_calc_mode,
+    const TRSPK_ResourceCache* atlas_tile_meta,
     const TRSPK_BakeTransform* bake)
 {
     return trspk_lru_model_cache_get_or_emplace_impl(
-        cache, model_id, gpu_segment_slot, frame_index, arrays, true, uv_mode, bake);
+        cache,
+        model_id,
+        gpu_segment_slot,
+        frame_index,
+        arrays,
+        true,
+        uv_calc_mode,
+        atlas_tile_meta,
+        bake);
 }

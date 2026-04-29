@@ -456,7 +456,8 @@ trspk_batch16_add_model_textured(
     const uint16_t* textured_faces_c,
     const uint8_t* face_alphas,
     const int32_t* face_infos,
-    TRSPK_UVMode uv_mode,
+    TRSPK_UVCalculationMode uv_calc_mode,
+    const TRSPK_ResourceCache* atlas_tile_meta,
     const TRSPK_BakeTransform* bake)
 {
     if( !batch || !batch->building || !vertices_x || !vertices_y || !vertices_z || !faces_a ||
@@ -494,7 +495,8 @@ trspk_batch16_add_model_textured(
             textured_faces_c,
             face_alphas,
             face_infos,
-            uv_mode,
+            uv_calc_mode,
+            atlas_tile_meta,
             bake,
             &vb) )
     {

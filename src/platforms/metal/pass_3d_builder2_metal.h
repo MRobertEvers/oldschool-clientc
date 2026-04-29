@@ -112,7 +112,6 @@ Pass3DBuilder2SubmitMetal(
     id<MTLBuffer> dynamic_index_buffer,
     NSUInteger index_base_bytes,
     id<MTLTexture> fragment_atlas_texture,
-    id<MTLBuffer> atlas_tiles_buffer,
     id<MTLBuffer> uniforms_buffer,
     NSUInteger uniforms_buffer_offset_bytes,
     id<MTLSamplerState> fragment_sampler,

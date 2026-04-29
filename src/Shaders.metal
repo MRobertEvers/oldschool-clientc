@@ -9,7 +9,8 @@ struct MetalVertexPacked {
     packed_float4 color;
     packed_float2 texcoord;
     ushort tex_id;
-    ushort uv_mode; // 0: OpenGL-style clamp U / fract+inset V. 1: VA dual-fract tile.
+    /** Animation pack from `trspk_pack_gpu_uv_mode_*` (encodes scroll speeds). */
+    ushort uv_mode;
 };
 
 /* 32 bytes; must match GPU3DTransformUniformMetal in platforms/gpu_3d.h.
@@ -36,17 +37,12 @@ struct Uniforms {
     float4 uClockPad;
 };
 
-struct AtlasTile {
-    float4 uvRect;
-    float4 animOp;
-};
-
 struct VertexOut {
     float4 position [[position]];
     float4 color;
     float2 texcoord;
     uint tex_id [[flat]];
-    uint uv_mode [[flat]];
+    uint uv_pack [[flat]];
 };
 
 /** drawPrimitives + per-corner stream: `vid` is sequential; `stream[vid]` selects VBO vertex + instance. */
@@ -72,7 +68,7 @@ vertex VertexOut vertexShaderStream(
     out.color = float4(v.color);
     out.texcoord = float2(v.texcoord);
     out.tex_id = (uint)v.tex_id;
-    out.uv_mode = (uint)v.uv_mode;
+    out.uv_pack = (uint)v.uv_mode;
     return out;
 }
 
@@ -91,7 +87,7 @@ vertex VertexOut vertexShader(
     out.color = float4(v.color);
     out.texcoord = float2(v.texcoord);
     out.tex_id = (uint)v.tex_id;
-    out.uv_mode = (uint)v.uv_mode;
+    out.uv_pack = (uint)v.uv_mode;
     return out;
 }
 
@@ -99,44 +95,57 @@ fragment float4 fragmentShader(
     VertexOut in [[stage_in]],
     constant Uniforms& uniforms [[buffer(1)]],
     texture2d<float> atlas [[texture(0)]],
-    sampler samp [[sampler(0)]],
-    constant AtlasTile* tiles [[buffer(4)]])
+    sampler samp [[sampler(0)]])
 {
-    if( in.tex_id >= 256u )
-    {
+    uint raw = in.tex_id;
+    uint atlas_id;
+    bool cutout;
+    if( raw >= 256u ) {
+        atlas_id = raw - 256u;
+        cutout = true;
+    } else {
+        atlas_id = raw;
+        cutout = false;
+    }
+    if( atlas_id >= 256u ) {
         return float4(in.color.rgb, in.color.a);
     }
-    AtlasTile t = tiles[in.tex_id];
-    if( t.uvRect.z <= 0.0 || t.uvRect.w <= 0.0 )
-        return float4(in.color.rgb, in.color.a);
+    uint enc = in.uv_pack / 2u;
+    float anim_u = 0.0;
+    float anim_v = 0.0;
+    if( enc > 0u ) {
+        if( enc < 257u ) {
+            uint mag_u = enc - 1u;
+            anim_u = float(mag_u) / 256.0;
+        } else {
+            uint mag_v = enc - 257u;
+            anim_v = float(mag_v) / 256.0;
+        }
+    }
+    constexpr float TEX_DIM = 128.0;
+    constexpr float ATLAS_DIM = 2048.0;
+    constexpr float cols = 16.0;
+    float du = TEX_DIM / ATLAS_DIM;
+    float dv = du;
+    float col = fmod(float(atlas_id), cols);
+    float row = floor(float(atlas_id) / cols);
+    float4 ta = float4(col * du, row * dv, du, dv);
 
     float2 local = in.texcoord;
     const float clk = uniforms.uClockPad.x;
-    if( in.uv_mode == 0u ) {
-        // OpenGL: clamp U, fract+inset V; V scroll with clock minus
-        if( t.animOp.x > 0.0 )
-            local.x += clk * t.animOp.x;
-        if( t.animOp.y > 0.0 )
-            local.y -= clk * t.animOp.y;
-        local.x = clamp(local.x, 0.008, 0.992);
-        local.y = clamp(fract(local.y), 0.008, 0.992);
-    } else {
-        // VA/FA: uv_pnm can exceed 0-1; tile U and V with fract, then inset like mode 0 (atlas margin)
-        if( t.animOp.x > 0.0 )
-            local.x += clk * t.animOp.x;
-        if( t.animOp.y > 0.0 )
-            local.y += clk * t.animOp.y;
-        local.x = clamp(fract(local.x), 0.008, 0.992);
-        local.y = clamp(fract(local.y), 0.008, 0.992);
-    }
-    float2 uv_atlas = t.uvRect.xy + local * t.uvRect.zw;
+    if( anim_u > 0.0 )
+        local.x += clk * anim_u;
+    if( anim_v > 0.0 )
+        local.y -= clk * anim_v;
+    local.x = clamp(local.x, 0.008, 0.992);
+    local.y = clamp(fract(local.y), 0.008, 0.992);
+    float2 uv_atlas = ta.xy + local * ta.zw;
     float4 texColor = atlas.sample(samp, uv_atlas);
 
     float3 finalColor = mix(in.color.rgb, texColor.rgb * in.color.rgb, 1.0);
     float finalAlpha = in.color.a;
 
-    if( t.animOp.z < 0.5 )
-    {
+    if( cutout ) {
         if( texColor.a < 0.5 )
             discard_fragment();
     }

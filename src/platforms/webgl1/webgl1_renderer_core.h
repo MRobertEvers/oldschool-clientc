@@ -90,7 +90,6 @@ struct WebGL1RendererCore
 
     GLuint cache2_atlas_tex = 0;
     std::vector<WebGL1AtlasTile> tiles_cpu;
-    bool tiles_dirty = true;
 
     std::vector<uint8_t> rgba_scratch;
 

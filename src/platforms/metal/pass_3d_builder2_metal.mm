@@ -122,7 +122,6 @@ Pass3DBuilder2SubmitMetal(
     id<MTLBuffer> dynamic_index_buffer,
     NSUInteger index_base_bytes,
     id<MTLTexture> fragment_atlas_texture,
-    id<MTLBuffer> atlas_tiles_buffer,
     id<MTLBuffer> uniforms_buffer,
     NSUInteger uniforms_buffer_offset_bytes,
     id<MTLSamplerState> fragment_sampler,
@@ -179,8 +178,6 @@ Pass3DBuilder2SubmitMetal(
         [enc setVertexBuffer:uniforms_buffer offset:uniforms_buffer_offset_bytes atIndex:1];
         [enc setFragmentBuffer:uniforms_buffer offset:uniforms_buffer_offset_bytes atIndex:1];
     }
-    if( atlas_tiles_buffer )
-        [enc setFragmentBuffer:atlas_tiles_buffer offset:0 atIndex:4];
     if( fragment_atlas_texture )
         [enc setFragmentTexture:fragment_atlas_texture atIndex:0];
     if( fragment_sampler )

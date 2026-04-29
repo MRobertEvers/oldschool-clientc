@@ -39,11 +39,11 @@ trspk_dash_fill_model_arrays(struct DashModel* model, TRSPK_ModelArrays* out)
     }
 }
 
-TRSPK_UVMode
-trspk_dash_uv_mode(struct DashModel* model)
+TRSPK_UVCalculationMode
+trspk_dash_uv_calculation_mode(struct DashModel* model)
 {
-    return dashmodel__is_ground_va(model) ? TRSPK_UV_MODE_FIRST_FACE
-                                          : TRSPK_UV_MODE_TEXTURED_FACE_ARRAY;
+    return dashmodel__is_ground_va(model) ? TRSPK_UV_CALC_FIRST_FACE
+                                          : TRSPK_UV_CALC_TEXTURED_FACE_ARRAY;
 }
 
 void
@@ -137,7 +137,8 @@ trspk_dash_batch_add_model16(
             (const uint16_t*)dashmodel_textured_n_coordinate_const(model),
             dashmodel_face_alphas_const(model),
             dashmodel_face_infos_const(model),
-            trspk_dash_uv_mode(model),
+            trspk_dash_uv_calculation_mode(model),
+            NULL,
             bake);
     }
     else
@@ -207,7 +208,8 @@ trspk_dash_batch_add_model32(
             (const uint16_t*)dashmodel_textured_n_coordinate_const(model),
             dashmodel_face_alphas_const(model),
             dashmodel_face_infos_const(model),
-            trspk_dash_uv_mode(model),
+            trspk_dash_uv_calculation_mode(model),
+            NULL,
             bake);
     }
     else

@@ -16,8 +16,9 @@ struct ToriRSRenderCommand;
 void
 trspk_dash_fill_model_arrays(struct DashModel* model, TRSPK_ModelArrays* out);
 
-TRSPK_UVMode
-trspk_dash_uv_mode(struct DashModel* model);
+/** How CPU builds UVs from PNM for textured meshes (not used by the GPU directly). */
+TRSPK_UVCalculationMode
+trspk_dash_uv_calculation_mode(struct DashModel* model);
 
 void
 trspk_dash_fill_rgba128(

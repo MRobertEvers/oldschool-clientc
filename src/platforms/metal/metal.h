@@ -16,15 +16,6 @@ extern "C" {
 #include "tori_rs.h"
 }
 
-/** GPU world texture tile (matches Shaders.metal AtlasTile layout). */
-struct MetalAtlasTile
-{
-    float u0, v0, du, dv;
-    float anim_u, anim_v;
-    float opaque;
-    float _pad;
-};
-
 static constexpr int kMetalWorldAtlasSize = 2048;
 static constexpr int kMetalInflightFrames = 3;
 /** Max 3D BEGIN/END pairs per encoded frame; uniform ring uses this × padded stride per slot. */
@@ -96,8 +87,6 @@ struct MetalRendererCore
 
     /** GPU3DCache2 grid atlas (128×128 tiles in kMetalWorldAtlasSize²); fragment bind for 3D. */
     void* mtl_cache2_atlas_tex;
-    /** Per texture id 0..255: GPU tile metadata matching cache2 UV grid (id<MTLBuffer>). */
-    void* mtl_cache2_atlas_tiles_buf;
 
     void* mtl_frame_semaphore;
 

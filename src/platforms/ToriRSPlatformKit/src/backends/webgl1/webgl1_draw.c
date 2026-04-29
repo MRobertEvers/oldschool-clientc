@@ -224,7 +224,6 @@ trspk_webgl1_draw_submit_3d(
         glUniformMatrix4fv(r->world_locs.u_projectionMatrix, 1, GL_FALSE, proj->m);
     if( r->world_locs.u_clock >= 0 )
         glUniform1f(r->world_locs.u_clock, (float)r->frame_clock);
-    trspk_webgl1_upload_tiles(r);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, r->atlas_texture);
     if( r->world_locs.s_atlas >= 0 )

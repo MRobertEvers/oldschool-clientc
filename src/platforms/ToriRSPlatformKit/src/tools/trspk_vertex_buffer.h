@@ -12,6 +12,8 @@
 extern "C" {
 #endif
 
+typedef struct TRSPK_ResourceCache TRSPK_ResourceCache;
+
 /** Expanded per-corner mesh (distinct from TRSPK_ModelId). */
 typedef struct TRSPK_VertexBuffer
 {
@@ -88,9 +90,8 @@ trspk_vertex_buffer_convert_from_trspk(
     TRSPK_VertexBuffer* vb, TRSPK_VertexFormat dst_format);
 
 /**
- * When uv_mode is FIRST_FACE and per-face arrays are sliced (offset pointers),
- * pass the mesh-global first triangle corner indices { faces_a[0], faces_b[0], faces_c[0] }
- * from the unsliced arrays. Otherwise NULL (uses first row of passed face arrays).
+ * `uv_calc_mode` selects PNM→UV inputs only. `atlas_tile_meta` may be NULL (defaults: opaque,
+ * no scroll).
  */
 bool
 trspk_vertex_buffer_write_textured(
@@ -112,7 +113,8 @@ trspk_vertex_buffer_write_textured(
     const uint16_t* textured_faces_c,
     const uint8_t* face_alphas,
     const int32_t* face_infos,
-    TRSPK_UVMode uv_mode,
+    TRSPK_UVCalculationMode uv_calc_mode,
+    const TRSPK_ResourceCache* atlas_tile_meta,
     const TRSPK_BakeTransform* bake,
     TRSPK_VertexBuffer* dest);
 

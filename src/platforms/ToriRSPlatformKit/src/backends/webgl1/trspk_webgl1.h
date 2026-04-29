@@ -29,8 +29,6 @@ typedef struct TRSPK_WebGL1WorldShaderLocs
     GLint u_modelViewMatrix;
     GLint u_projectionMatrix;
     GLint u_clock;
-    GLint u_tileA;
-    GLint u_tileB;
     GLint s_atlas;
 } TRSPK_WebGL1WorldShaderLocs;
 
@@ -82,7 +80,6 @@ typedef struct TRSPK_WebGL1Renderer
     TRSPK_DynamicSlotmap16* dynamic_projectile_slotmap;
     TRSPK_DynamicSlotHandle* dynamic_slot_handles;
     TRSPK_UsageClass* dynamic_slot_usages;
-    bool tiles_dirty;
     double frame_clock;
     uint32_t diag_frame_submitted_draws;
     TRSPK_Rect pass_logical_rect;
@@ -158,10 +155,6 @@ trspk_webgl1_cache_load_texture_128(
     bool opaque);
 void
 trspk_webgl1_cache_refresh_atlas(TRSPK_WebGL1Renderer* r);
-bool
-trspk_webgl1_cache_tiles_dirty(TRSPK_WebGL1Renderer* r);
-void
-trspk_webgl1_cache_clear_tiles_dirty(TRSPK_WebGL1Renderer* r);
 void
 trspk_webgl1_cache_batch_submit(
     TRSPK_WebGL1Renderer* r,
@@ -238,8 +231,6 @@ trspk_webgl1_draw_clear_rect(
 
 GLuint
 trspk_webgl1_create_world_program(TRSPK_WebGL1WorldShaderLocs* locs);
-void
-trspk_webgl1_upload_tiles(TRSPK_WebGL1Renderer* r);
 void
 trspk_webgl1_bind_world_attribs(TRSPK_WebGL1Renderer* r);
 void

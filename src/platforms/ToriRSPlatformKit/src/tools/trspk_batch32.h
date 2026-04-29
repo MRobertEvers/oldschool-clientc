@@ -8,6 +8,7 @@ extern "C" {
 #endif
 
 typedef struct TRSPK_VertexBuffer TRSPK_VertexBuffer;
+typedef struct TRSPK_ResourceCache TRSPK_ResourceCache;
 
 typedef struct TRSPK_Batch32
 {
@@ -117,7 +118,8 @@ trspk_batch32_add_model_textured(
     const uint16_t* textured_faces_c,
     const uint8_t* face_alphas,
     const int32_t* face_infos,
-    TRSPK_UVMode uv_mode,
+    TRSPK_UVCalculationMode uv_calc_mode,
+    const TRSPK_ResourceCache* atlas_tile_meta,
     const TRSPK_BakeTransform* bake);
 
 #ifdef __cplusplus

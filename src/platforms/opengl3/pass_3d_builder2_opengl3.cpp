@@ -56,32 +56,6 @@ Pass3DBuilder2OpenGL3::AppendSortedDraw(
 }
 
 static void
-opengl3_upload_tile_uniforms(
-    GLuint program,
-    const OpenGL3WorldShaderLocs& L,
-    const std::vector<OpenGL3AtlasTile>& tiles)
-{
-    if( L.u_tileA < 0 || L.u_tileB < 0 || tiles.size() < (size_t)256 )
-        return;
-    float A[256 * 4];
-    float B[256 * 4];
-    for( int i = 0; i < 256; ++i )
-    {
-        const OpenGL3AtlasTile& t = tiles[(size_t)i];
-        A[i * 4 + 0] = t.u0;
-        A[i * 4 + 1] = t.v0;
-        A[i * 4 + 2] = t.du;
-        A[i * 4 + 3] = t.dv;
-        B[i * 4 + 0] = t.anim_u;
-        B[i * 4 + 1] = t.anim_v;
-        B[i * 4 + 2] = t.opaque;
-        B[i * 4 + 3] = t._pad;
-    }
-    glUniform4fv(L.u_tileA, 256, A);
-    glUniform4fv(L.u_tileB, 256, B);
-}
-
-static void
 bind_mesh_attribs_stride48_base(
     GLuint mesh_vbo,
     const OpenGL3WorldShaderLocs& L,
@@ -159,12 +133,6 @@ Pass3DBuilder2SubmitOpenGL3(
         glUniformMatrix4fv(locs.u_projectionMatrix, 1, GL_FALSE, projectionMatrix);
     if( locs.u_clock >= 0 )
         glUniform1f(locs.u_clock, u_clock);
-
-    if( renderer && renderer->tiles_cpu.size() >= 256u && renderer->tiles_dirty )
-    {
-        opengl3_upload_tile_uniforms(program, locs, renderer->tiles_cpu);
-        renderer->tiles_dirty = false;
-    }
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, fragment_atlas_texture);

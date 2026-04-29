@@ -43,7 +43,7 @@ opengl3_event_texture_load(
         return;
     }
 
-    if( r->tiles_cpu.empty() )
+    if( r->tiles_cpu.size() < (size_t)MAX_TEXTURES )
         opengl3_atlas_resources_init(r);
 
     std::vector<uint8_t>& rgba = r->rgba_scratch;

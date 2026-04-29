@@ -26,10 +26,6 @@ struct WebGL1WorldShaderLocs
     GLint u_projectionMatrix = -1;
     GLint u_clock = -1;
     GLint s_atlas = -1;
-    /** `glUniform4fv(loc, 256, ...)` packed `WebGL1AtlasTile`: u0,v0,du,dv per slot. */
-    GLint u_tileA = -1;
-    /** anim_u, anim_v, opaque, pad per slot. */
-    GLint u_tileB = -1;
 };
 
 /** One contiguous range in the dynamic IBO for draws sharing one mesh VBO. */

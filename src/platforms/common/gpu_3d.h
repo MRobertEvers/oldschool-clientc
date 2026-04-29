@@ -30,7 +30,7 @@ struct CommonVertex
     float texcoord[2]; ///< u, v
 
     uint16_t tex_id;  ///< world atlas tile id (0 = none)
-    uint16_t uv_mode; ///< 0 = standard clamp/fract; 1 = VA fract tile
+    uint16_t uv_mode; ///< packed metadata (CPU); world FS uses clamp-U / fract-V only
 };
 
 /**
@@ -43,7 +43,7 @@ struct GPU3DMeshVertexMetal
     float color[4];    ///< r, g, b, a
     float texcoord[2]; ///< u, v
     uint16_t tex_id;   ///< world atlas tile id (0 = none)
-    uint16_t uv_mode;  ///< 0 = standard clamp/fract; 1 = VA fract tile
+    uint16_t uv_mode;  ///< packed metadata (CPU); world FS uses clamp-U / fract-V only
 
     static GPU3DMeshVertexMetal
     FromCommon(const CommonVertex& v)

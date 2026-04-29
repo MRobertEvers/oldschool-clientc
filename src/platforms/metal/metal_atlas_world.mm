@@ -37,55 +37,6 @@ metal_rgba64_nearest_to_128(
 }
 
 static void
-metal_write_atlas_tile_slot(
-    Platform2_SDL2_Renderer_Metal* r,
-    uint16_t tex_id,
-    const struct DashTexture* tex_nullable)
-{
-    id<MTLBuffer> tilesBuf = (__bridge id<MTLBuffer>)r->mtl_cache2_atlas_tiles_buf;
-    if( !tilesBuf )
-        return;
-    const AtlasUVRect& uv = r->model_cache2.GetAtlasUVRect(tex_id);
-    MetalAtlasTile tile = {};
-    tile.u0 = uv.u_offset;
-    tile.v0 = uv.v_offset;
-    tile.du = uv.u_scale;
-    tile.dv = uv.v_scale;
-    if( tex_nullable )
-    {
-        const float s = metal_texture_animation_signed(
-            tex_nullable->animation_direction, tex_nullable->animation_speed);
-        if( s >= 0.0f )
-        {
-            tile.anim_u = s;
-            tile.anim_v = 0.0f;
-        }
-        else
-        {
-            tile.anim_u = 0.0f;
-            tile.anim_v = -s;
-        }
-        tile.opaque = tex_nullable->opaque ? 1.0f : 0.0f;
-    }
-    else
-    {
-        tile.anim_u = 0.0f;
-        tile.anim_v = 0.0f;
-        tile.opaque = 1.0f;
-    }
-    tile._pad = 0.0f;
-    auto* tiles = (MetalAtlasTile*)tilesBuf.contents;
-    tiles[tex_id] = tile;
-}
-
-static void
-metal_fill_all_atlas_tiles_default(Platform2_SDL2_Renderer_Metal* r)
-{
-    for( uint16_t i = 0; i < (uint16_t)MAX_TEXTURES; ++i )
-        metal_write_atlas_tile_slot(r, i, nullptr);
-}
-
-static void
 metal_cache2_set_atlas_texture_from_cache(
     Platform2_SDL2_Renderer_Metal* r,
     id<MTLDevice> device)
@@ -105,19 +56,11 @@ metal_cache2_atlas_resources_init(
 {
     if( !r || !device )
         return;
-
-    const size_t tileBytes = MAX_TEXTURES * sizeof(MetalAtlasTile);
-    if( !r->mtl_cache2_atlas_tiles_buf )
+    if( !r->model_cache2.HasBufferedAtlasData() )
     {
-        id<MTLBuffer> tb = [device newBufferWithLength:(NSUInteger)tileBytes
-                                               options:MTLResourceStorageModeShared];
-        if( !tb )
-            return;
-        r->mtl_cache2_atlas_tiles_buf = (__bridge_retained void*)tb;
+        r->model_cache2.InitAtlas(
+            0, (uint32_t)kMetalWorldAtlasSize, (uint32_t)kMetalWorldAtlasSize);
     }
-
-    metal_fill_all_atlas_tiles_default(r);
-
     metal_cache2_set_atlas_texture_from_cache(r, device);
 }
 
@@ -126,11 +69,6 @@ metal_cache2_atlas_resources_shutdown(Platform2_SDL2_Renderer_Metal* r)
 {
     if( !r )
         return;
-    if( r->mtl_cache2_atlas_tiles_buf )
-    {
-        CFRelease(r->mtl_cache2_atlas_tiles_buf);
-        r->mtl_cache2_atlas_tiles_buf = nullptr;
-    }
     if( r->mtl_cache2_atlas_tex )
     {
         CFRelease(r->mtl_cache2_atlas_tex);
@@ -171,10 +109,8 @@ metal_event_texture_load(
         return;
     }
 
-    if( !r->mtl_cache2_atlas_tiles_buf )
+    if( !r->model_cache2.HasBufferedAtlasData() )
         metal_cache2_atlas_resources_init(r, device);
-    if( !r->mtl_cache2_atlas_tiles_buf )
-        return;
 
     std::vector<uint8_t>& rgba = r->rgba_scratch;
     rgba.resize((size_t)w * (size_t)h * 4u);
@@ -197,7 +133,5 @@ metal_event_texture_load(
     }
 
     r->model_cache2.LoadTexture128((uint16_t)tex_id, atlas_pixels);
-    metal_write_atlas_tile_slot(r, (uint16_t)tex_id, tex);
-
     metal_cache2_set_atlas_texture_from_cache(r, device);
 }

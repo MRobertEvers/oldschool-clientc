@@ -115,7 +115,6 @@ webgl1_write_atlas_tile_slot(
     }
     tile._pad = 0.0f;
     r->tiles_cpu[(size_t)tex_id] = tile;
-    r->tiles_dirty = true;
 }
 
 static void
@@ -153,7 +152,6 @@ webgl1_atlas_resources_init(Platform2_SDL2_Renderer_WebGL1* r)
     r->tiles_cpu.assign((size_t)MAX_TEXTURES, WebGL1AtlasTile{});
     webgl1_fill_all_atlas_tiles_default(r);
     webgl1_refresh_atlas_texture(r);
-    r->tiles_dirty = true;
     if( r->pass3d_dynamic_ibo == 0u )
     {
         glGenBuffers(1, &r->pass3d_dynamic_ibo);
@@ -397,7 +395,7 @@ webgl1_frame_event_texture_load(
         return;
     }
 
-    if( r->tiles_cpu.empty() )
+    if( r->tiles_cpu.size() < (size_t)MAX_TEXTURES )
         webgl1_atlas_resources_init(r);
 
     std::vector<uint8_t>& rgba = r->rgba_scratch;

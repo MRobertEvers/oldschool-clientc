@@ -110,11 +110,12 @@ typedef struct TRSPK_BakeTransform
     bool identity;
 } TRSPK_BakeTransform;
 
-typedef enum TRSPK_UVMode
+/** Selects how PNM inputs map to per-corner UVs (CPU only; not sent to the GPU). */
+typedef enum TRSPK_UVCalculationMode
 {
-    TRSPK_UV_MODE_TEXTURED_FACE_ARRAY = 0,
-    TRSPK_UV_MODE_FIRST_FACE = 1
-} TRSPK_UVMode;
+    TRSPK_UV_CALC_TEXTURED_FACE_ARRAY = 0,
+    TRSPK_UV_CALC_FIRST_FACE = 1
+} TRSPK_UVCalculationMode;
 
 typedef struct TRSPK_UVFaceCoords
 {

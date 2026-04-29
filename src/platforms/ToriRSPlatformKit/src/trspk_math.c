@@ -5,7 +5,8 @@
 
 /** Keep TRSPK sentinels in sync with graphics/dash_hsl16.h and batch_add_model.h. */
 _Static_assert(
-    (uint32_t)TRSPK_HSL16_FLAT == (uint32_t)DASHHSL16_FLAT, "TRSPK_HSL16_FLAT must match DASHHSL16_FLAT");
+    (uint32_t)TRSPK_HSL16_FLAT == (uint32_t)DASHHSL16_FLAT,
+    "TRSPK_HSL16_FLAT must match DASHHSL16_FLAT");
 _Static_assert(
     (uint32_t)TRSPK_HSL16_HIDDEN == (uint32_t)DASHHSL16_HIDDEN,
     "TRSPK_HSL16_HIDDEN must match DASHHSL16_HIDDEN");
@@ -17,7 +18,9 @@ trspk_dash_yaw_to_radians(int32_t yaw_2048)
 }
 
 float
-trspk_texture_animation_signed(int animation_direction, int animation_speed)
+trspk_texture_animation_signed(
+    int animation_direction,
+    int animation_speed)
 {
     if( animation_direction == 0 )
         return 0.0f;
@@ -25,6 +28,26 @@ trspk_texture_animation_signed(int animation_direction, int animation_speed)
     if( animation_direction == 2 || animation_direction == 4 )
         return speed;
     return -speed;
+}
+
+float
+trspk_pack_gpu_uv_mode_float(float anim_u, float anim_v)
+{
+    unsigned mag_u = (unsigned)fmaxf(0.0f, fminf(255.0f, anim_u * 256.0f + 0.5f));
+    unsigned mag_v = (unsigned)fmaxf(0.0f, fminf(255.0f, anim_v * 256.0f + 0.5f));
+    unsigned enc = 0u;
+    if( mag_u > 0u )
+        enc = 1u + mag_u;
+    else if( mag_v > 0u )
+        enc = 257u + mag_v;
+    return 2.0f * (float)enc;
+}
+
+uint16_t
+trspk_pack_gpu_uv_mode_u16(float anim_u, float anim_v)
+{
+    const float f = trspk_pack_gpu_uv_mode_float(anim_u, anim_v);
+    return (uint16_t)fminf(65535.0f, f + 0.5f);
 }
 
 static int32_t

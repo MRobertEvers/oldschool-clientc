@@ -11,6 +11,8 @@
 extern "C" {
 #endif
 
+typedef struct TRSPK_ResourceCache TRSPK_ResourceCache;
+
 /**
  * CPU-side LRU of cooked meshes. Each hit stores a heap-owned TRSPK_VertexBuffer
  * (status READY, not BATCH_VIEW). Vertex layout is fixed at create time (vertex_format);
@@ -55,7 +57,8 @@ trspk_lru_model_cache_get_or_emplace_textured(
     uint8_t gpu_segment_slot,
     uint16_t frame_index,
     const TRSPK_ModelArrays* arrays,
-    TRSPK_UVMode uv_mode,
+    TRSPK_UVCalculationMode uv_calc_mode,
+    const TRSPK_ResourceCache* atlas_tile_meta,
     const TRSPK_BakeTransform* bake);
 
 #ifdef __cplusplus

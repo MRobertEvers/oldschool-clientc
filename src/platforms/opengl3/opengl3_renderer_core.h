@@ -91,7 +91,6 @@ struct Platform2_SDL2_Renderer_OpenGL3
 
     GLuint cache2_atlas_tex = 0;
     std::vector<OpenGL3AtlasTile> tiles_cpu;
-    bool tiles_dirty = true;
 
     std::vector<uint8_t> rgba_scratch;
 

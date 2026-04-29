@@ -19,7 +19,6 @@ PlatformImpl2_SDL2_Renderer_Metal_New(
     renderer->pass.current_model_batch_id = 0;
     renderer->pass.current_model_batch_active = false;
     renderer->mtl_cache2_atlas_tex = nullptr;
-    renderer->mtl_cache2_atlas_tiles_buf = nullptr;
     renderer->mtl_frame_semaphore =
         (__bridge_retained void*)dispatch_semaphore_create(kMetalInflightFrames);
     renderer->mtl_uniform_frame_slot =

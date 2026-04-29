@@ -187,6 +187,16 @@ trspk_dash_yaw_to_radians(int32_t yaw_2048);
 float
 trspk_texture_animation_signed(int animation_direction, int animation_speed);
 
+/**
+ * Pack optional per-tile scroll metadata for the vertex `uv_mode` channel (world shader uses atlas
+ * uniforms for sampling; fragment UV math is clamp-U / fract-V only).
+ */
+float
+trspk_pack_gpu_uv_mode_float(float anim_u, float anim_v);
+
+uint16_t
+trspk_pack_gpu_uv_mode_u16(float anim_u, float anim_v);
+
 struct GGame;
 
 /** Logical 3D pass rect from game viewport (same rules as trspk_webgl1_compute_default_pass_logical). */

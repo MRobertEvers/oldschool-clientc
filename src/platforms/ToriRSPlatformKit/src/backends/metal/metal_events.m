@@ -104,7 +104,8 @@ trspk_metal_event_res_model_load(
                 TRSPK_GPU_ANIM_NONE_IDX,
                 0u,
                 &arrays,
-                trspk_dash_uv_mode(cmd->_model_load.model),
+                trspk_dash_uv_calculation_mode(cmd->_model_load.model),
+                ctx->cache,
                 &id_bake);
         else
             trspk_lru_model_cache_get_or_emplace_untextured(
@@ -183,7 +184,8 @@ trspk_metal_event_res_anim_load(
                 seg,
                 (uint16_t)cmd->_animation_load.frame_index,
                 &arrays,
-                trspk_dash_uv_mode(cmd->_animation_load.model),
+                trspk_dash_uv_calculation_mode(cmd->_animation_load.model),
+                ctx->cache,
                 &id_bake);
         else
             trspk_lru_model_cache_get_or_emplace_untextured(

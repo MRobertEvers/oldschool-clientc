@@ -221,10 +221,6 @@ trspk_metal_draw_submit_3d(
     [encoder setRenderPipelineState:pipeline_state];
     [encoder setVertexBuffer:uniform_buf offset:(NSUInteger)uniform_offset atIndex:1];
     [encoder setFragmentBuffer:uniform_buf offset:(NSUInteger)uniform_offset atIndex:1];
-    if( r->atlas_tiles_buffer )
-        [encoder setFragmentBuffer:(__bridge id<MTLBuffer>)r->atlas_tiles_buffer
-                            offset:0
-                           atIndex:4];
     if( r->atlas_texture )
         [encoder setFragmentTexture:(__bridge id<MTLTexture>)r->atlas_texture atIndex:0];
     if( r->sampler_state )

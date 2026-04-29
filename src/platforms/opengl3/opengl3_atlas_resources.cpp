@@ -92,7 +92,6 @@ opengl3_write_atlas_tile_slot(
     }
     tile._pad = 0.0f;
     r->tiles_cpu[(size_t)tex_id] = tile;
-    r->tiles_dirty = true;
 }
 
 static void
@@ -128,7 +127,6 @@ opengl3_atlas_resources_init(Platform2_SDL2_Renderer_OpenGL3* r)
     r->tiles_cpu.assign((size_t)MAX_TEXTURES, OpenGL3AtlasTile{});
     opengl3_fill_all_atlas_tiles_default(r);
     opengl3_refresh_atlas_texture(r);
-    r->tiles_dirty = true;
     if( r->pass3d_dynamic_ibo == 0u )
         glGenBuffers(1, &r->pass3d_dynamic_ibo);
     if( r->world_draw_vao == 0u )

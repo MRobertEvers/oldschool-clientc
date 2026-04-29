@@ -67,7 +67,6 @@ typedef struct TRSPK_MetalRenderer
     void* pipeline_state;
     void* sampler_state;
     void* atlas_texture;
-    void* atlas_tiles_buffer;
     void* frame_semaphore;
     uint32_t uniform_frame_slot;
     uint32_t width;

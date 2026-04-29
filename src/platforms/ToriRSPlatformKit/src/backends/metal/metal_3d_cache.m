@@ -14,24 +14,6 @@ trspk_metal_cache_init_atlas(
     if( !r || !r->cache )
         return;
     trspk_resource_cache_init_atlas(r->cache, width, height);
-    id<MTLDevice> device = (__bridge id<MTLDevice>)r->device;
-    if( !device )
-        return;
-    if( !r->atlas_tiles_buffer )
-    {
-        id<MTLBuffer> tiles =
-            [device newBufferWithLength:(NSUInteger)(sizeof(TRSPK_AtlasTile) * TRSPK_MAX_TEXTURES)
-                                options:MTLResourceStorageModeShared];
-        r->atlas_tiles_buffer = (__bridge_retained void*)tiles;
-    }
-    if( r->atlas_tiles_buffer )
-    {
-        id<MTLBuffer> tiles = (__bridge id<MTLBuffer>)r->atlas_tiles_buffer;
-        memcpy(
-            [tiles contents],
-            trspk_resource_cache_get_all_tiles(r->cache),
-            sizeof(TRSPK_AtlasTile) * TRSPK_MAX_TEXTURES);
-    }
     trspk_metal_cache_refresh_atlas(r);
 }
 
@@ -47,14 +29,6 @@ trspk_metal_cache_load_texture_128(
     if( !r || !r->cache )
         return;
     trspk_resource_cache_load_texture_128(r->cache, tex_id, rgba_128x128, anim_u, anim_v, opaque);
-    if( r->atlas_tiles_buffer )
-    {
-        id<MTLBuffer> tiles = (__bridge id<MTLBuffer>)r->atlas_tiles_buffer;
-        memcpy(
-            [tiles contents],
-            trspk_resource_cache_get_all_tiles(r->cache),
-            sizeof(TRSPK_AtlasTile) * TRSPK_MAX_TEXTURES);
-    }
 }
 
 void

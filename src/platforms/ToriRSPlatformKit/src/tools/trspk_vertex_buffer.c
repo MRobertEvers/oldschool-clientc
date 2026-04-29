@@ -1,8 +1,10 @@
 #include "trspk_vertex_buffer.h"
 
 #include "../../include/ToriRSPlatformKit/trspk_math.h"
+#include "trspk_resource_cache.h"
 #include "trspk_vertex_format.h"
 
+#include <math.h>
 #include <string.h>
 
 void
@@ -149,13 +151,15 @@ write_vertex(
     const float color[4],
     float u,
     float vv,
-    uint16_t tex_id,
+    float tex_id_vertex,
+    float packed_gpu_uv_mode,
     const TRSPK_BakeTransform* bake)
 {
     float px = x;
     float py = y;
     float pz = z;
     trspk_bake_transform_apply(bake, &px, &py, &pz);
+    const uint16_t tex_u16 = (uint16_t)fmaxf(0.0f, fminf(65535.0f, floorf(tex_id_vertex + 0.5f)));
     switch( dest->format )
     {
     case TRSPK_VERTEX_FORMAT_TRSPK:
@@ -169,8 +173,8 @@ write_vertex(
         dest->vertices.as_trspk[offset].color[3] = color[3];
         dest->vertices.as_trspk[offset].texcoord[0] = u;
         dest->vertices.as_trspk[offset].texcoord[1] = vv;
-        dest->vertices.as_trspk[offset].tex_id = (float)tex_id;
-        dest->vertices.as_trspk[offset].uv_mode = 0.0f;
+        dest->vertices.as_trspk[offset].tex_id = tex_id_vertex;
+        dest->vertices.as_trspk[offset].uv_mode = packed_gpu_uv_mode;
         break;
     case TRSPK_VERTEX_FORMAT_WEBGL1:
         dest->vertices.as_webgl1[offset].position[0] = px;
@@ -183,8 +187,8 @@ write_vertex(
         dest->vertices.as_webgl1[offset].color[3] = color[3];
         dest->vertices.as_webgl1[offset].texcoord[0] = u;
         dest->vertices.as_webgl1[offset].texcoord[1] = vv;
-        dest->vertices.as_webgl1[offset].tex_id = (float)tex_id;
-        dest->vertices.as_webgl1[offset].uv_mode = 0.0f;
+        dest->vertices.as_webgl1[offset].tex_id = tex_id_vertex;
+        dest->vertices.as_webgl1[offset].uv_mode = packed_gpu_uv_mode;
         break;
     case TRSPK_VERTEX_FORMAT_METAL:
         dest->vertices.as_metal[offset].position[0] = px;
@@ -197,8 +201,9 @@ write_vertex(
         dest->vertices.as_metal[offset].color[3] = color[3];
         dest->vertices.as_metal[offset].texcoord[0] = u;
         dest->vertices.as_metal[offset].texcoord[1] = vv;
-        dest->vertices.as_metal[offset].tex_id = (uint16_t)tex_id;
-        dest->vertices.as_metal[offset].uv_mode = 0u;
+        dest->vertices.as_metal[offset].tex_id = tex_u16;
+        dest->vertices.as_metal[offset].uv_mode =
+            (uint16_t)fmaxf(0.0f, fminf(65535.0f, floorf(packed_gpu_uv_mode + 0.5f)));
         break;
     case TRSPK_VERTEX_FORMAT_WEBGL1_ARRAY:
         dest->vertices.as_webgl1_array.position_x[offset] = px;
@@ -211,8 +216,8 @@ write_vertex(
         dest->vertices.as_webgl1_array.color_a[offset] = color[3];
         dest->vertices.as_webgl1_array.texcoord_u[offset] = u;
         dest->vertices.as_webgl1_array.texcoord_v[offset] = vv;
-        dest->vertices.as_webgl1_array.tex_id[offset] = (float)tex_id;
-        dest->vertices.as_webgl1_array.uv_mode[offset] = 0.0f;
+        dest->vertices.as_webgl1_array.tex_id[offset] = tex_id_vertex;
+        dest->vertices.as_webgl1_array.uv_mode[offset] = packed_gpu_uv_mode;
         break;
     case TRSPK_VERTEX_FORMAT_METAL_ARRAY:
         dest->vertices.as_metal_array.position_x[offset] = px;
@@ -225,8 +230,9 @@ write_vertex(
         dest->vertices.as_metal_array.color_a[offset] = color[3];
         dest->vertices.as_metal_array.texcoord_u[offset] = u;
         dest->vertices.as_metal_array.texcoord_v[offset] = vv;
-        dest->vertices.as_metal_array.tex_id[offset] = (uint16_t)tex_id;
-        dest->vertices.as_metal_array.uv_mode[offset] = 0u;
+        dest->vertices.as_metal_array.tex_id[offset] = tex_u16;
+        dest->vertices.as_metal_array.uv_mode[offset] =
+            (uint16_t)fmaxf(0.0f, fminf(65535.0f, floorf(packed_gpu_uv_mode + 0.5f)));
         break;
     default:
         break;
@@ -240,7 +246,19 @@ write_hidden_vertex(
     float alpha)
 {
     float color[4] = { 0.0f, 0.0f, 0.0f, alpha };
-    write_vertex(dest, offset, 0.0f, 0.0f, 0.0f, color, 0.0f, 0.0f, TRSPK_INVALID_TEXTURE_ID, NULL);
+    const float pack = trspk_pack_gpu_uv_mode_float(0.0f, 0.0f);
+    write_vertex(
+        dest,
+        offset,
+        0.0f,
+        0.0f,
+        0.0f,
+        color,
+        0.0f,
+        0.0f,
+        (float)TRSPK_INVALID_TEXTURE_ID,
+        pack,
+        NULL);
 }
 
 bool
@@ -263,7 +281,8 @@ trspk_vertex_buffer_write_textured(
     const uint16_t* textured_faces_c,
     const uint8_t* face_alphas,
     const int32_t* face_infos,
-    TRSPK_UVMode uv_mode,
+    TRSPK_UVCalculationMode uv_calc_mode,
+    const TRSPK_ResourceCache* atlas_tile_meta,
     const TRSPK_BakeTransform* bake,
     TRSPK_VertexBuffer* dest)
 {
@@ -315,7 +334,7 @@ trspk_vertex_buffer_write_textured(
         uint32_t tp;
         uint32_t tm;
         uint32_t tn;
-        if( uv_mode == TRSPK_UV_MODE_FIRST_FACE )
+        if( uv_calc_mode == TRSPK_UV_CALC_FIRST_FACE )
         {
             tp = (uint32_t)faces_a[0];
             tm = (uint32_t)faces_b[0];
@@ -357,6 +376,21 @@ trspk_vertex_buffer_write_textured(
         if( faces_textures && faces_textures[i] != -1 )
             tex_id = (uint16_t)faces_textures[i];
 
+        float tex_vertex = (float)tex_id;
+        float packed_gpu = trspk_pack_gpu_uv_mode_float(0.0f, 0.0f);
+        if( atlas_tile_meta && tex_id != TRSPK_INVALID_TEXTURE_ID &&
+            (uint32_t)tex_id < TRSPK_MAX_TEXTURES )
+        {
+            const TRSPK_AtlasTile* at =
+                trspk_resource_cache_get_atlas_tile(atlas_tile_meta, (TRSPK_TextureId)tex_id);
+            if( at )
+            {
+                packed_gpu = trspk_pack_gpu_uv_mode_float(at->anim_u, at->anim_v);
+                if( at->opaque < 0.5f )
+                    tex_vertex = (float)tex_id + 256.0f;
+            }
+        }
+
         write_vertex(
             dest,
             (int)face_base_index + 0,
@@ -366,7 +400,8 @@ trspk_vertex_buffer_write_textured(
             color_a,
             uv.u1,
             uv.v1,
-            tex_id,
+            tex_vertex,
+            packed_gpu,
             bake);
         write_vertex(
             dest,
@@ -377,7 +412,8 @@ trspk_vertex_buffer_write_textured(
             color_b,
             uv.u2,
             uv.v2,
-            tex_id,
+            tex_vertex,
+            packed_gpu,
             bake);
         write_vertex(
             dest,
@@ -388,7 +424,8 @@ trspk_vertex_buffer_write_textured(
             color_c,
             uv.u3,
             uv.v3,
-            tex_id,
+            tex_vertex,
+            packed_gpu,
             bake);
     }
     return true;
@@ -455,6 +492,7 @@ trspk_vertex_buffer_write(
             trspk_hsl16_to_rgba(faces_c_color_hsl16[i], color_c, alpha_float);
         }
 
+        const float untextured_pack = trspk_pack_gpu_uv_mode_float(0.0f, 0.0f);
         write_vertex(
             dest,
             (int)face_base_index + 0,
@@ -464,7 +502,8 @@ trspk_vertex_buffer_write(
             color_a,
             0.0f,
             0.0f,
-            TRSPK_INVALID_TEXTURE_ID,
+            (float)TRSPK_INVALID_TEXTURE_ID,
+            untextured_pack,
             bake);
 
         write_vertex(
@@ -476,7 +515,8 @@ trspk_vertex_buffer_write(
             color_b,
             0.0f,
             0.0f,
-            TRSPK_INVALID_TEXTURE_ID,
+            (float)TRSPK_INVALID_TEXTURE_ID,
+            untextured_pack,
             bake);
 
         write_vertex(
@@ -488,7 +528,8 @@ trspk_vertex_buffer_write(
             color_c,
             0.0f,
             0.0f,
-            TRSPK_INVALID_TEXTURE_ID,
+            (float)TRSPK_INVALID_TEXTURE_ID,
+            untextured_pack,
             bake);
     }
 

@@ -101,7 +101,6 @@ metal_event_end_3d(
         (__bridge id<MTLBuffer>)renderer->mtl_pass3d_index_buf,
         idx_base,
         (__bridge id<MTLTexture>)renderer->mtl_cache2_atlas_tex,
-        (__bridge id<MTLBuffer>)renderer->mtl_cache2_atlas_tiles_buf,
         uniforms_buffer,
         uniform_ofs,
         (__bridge id<MTLSamplerState>)renderer->mtl_sampler_state,

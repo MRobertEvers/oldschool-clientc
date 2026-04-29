@@ -39,14 +39,14 @@ uniform mat4 u_projectionMatrix;
 varying vec4 v_color;
 varying vec2 v_texcoord;
 varying float v_tex_id;
-varying float v_uv_mode;
+varying float v_uv_pack;
 void main() {
   vec4 wp = vec4(a_position.xyz, 1.0);
   gl_Position = u_projectionMatrix * u_modelViewMatrix * wp;
   v_color = a_color;
   v_texcoord = a_texcoord;
   v_tex_id = a_tex_id;
-  v_uv_mode = a_uv_mode;
+  v_uv_pack = a_uv_mode;
 }
 )";
 
@@ -54,49 +54,55 @@ static const char kWorldFs[] = R"(precision mediump float;
 varying vec4 v_color;
 varying vec2 v_texcoord;
 varying float v_tex_id;
-varying float v_uv_mode;
+varying float v_uv_pack;
 uniform float u_clock;
 uniform sampler2D s_atlas;
-uniform vec4 u_tileA[256];
-uniform vec4 u_tileB[256];
 void main() {
-  int tid = int(floor(v_tex_id + 0.5));
-  if (tid < 0 || tid >= 256) {
+  int raw = int(floor(v_tex_id + 0.5));
+  int atlas_id;
+  bool cutout;
+  if (raw >= 256) {
+    atlas_id = raw - 256;
+    cutout = true;
+  } else {
+    atlas_id = raw;
+    cutout = false;
+  }
+  if (atlas_id < 0 || atlas_id >= 256) {
     gl_FragColor = vec4(v_color.rgb, v_color.a);
     return;
   }
-  /* GLSL ES 1.00: uniform arrays may only be indexed by const or loop indices, not by `tid`. */
-  vec4 ta = vec4(0.0);
-  vec4 tb = vec4(0.0);
-  for (int i = 0; i < 256; ++i) {
-    if (i == tid) {
-      ta = u_tileA[i];
-      tb = u_tileB[i];
-      break;
+  int enc = int(floor(v_uv_pack * 0.5 + 0.5));
+  float anim_u = 0.0;
+  float anim_v = 0.0;
+  if (enc > 0) {
+    if (enc < 257) {
+      int mag_u = enc - 1;
+      anim_u = float(mag_u) / 256.0;
+    } else {
+      int mag_v = enc - 257;
+      anim_v = float(mag_v) / 256.0;
     }
   }
-  if (ta.z <= 0.0 || ta.w <= 0.0) {
-    gl_FragColor = vec4(v_color.rgb, v_color.a);
-    return;
-  }
+  const float TEX_DIM = 128.0;
+  const float ATLAS_DIM = 2048.0;
+  const float cols = 16.0;
+  float du = TEX_DIM / ATLAS_DIM;
+  float dv = du;
+  float col = mod(float(atlas_id), cols);
+  float row = floor(float(atlas_id) / cols);
+  vec4 ta = vec4(col * du, row * dv, du, dv);
   vec2 local = v_texcoord;
   float clk = u_clock;
-  if (v_uv_mode < 0.5) {
-    if (tb.x > 0.0) local.x += clk * tb.x;
-    if (tb.y > 0.0) local.y -= clk * tb.y;
-    local.x = clamp(local.x, 0.008, 0.992);
-    local.y = clamp(fract(local.y), 0.008, 0.992);
-  } else {
-    if (tb.x > 0.0) local.x += clk * tb.x;
-    if (tb.y > 0.0) local.y += clk * tb.y;
-    local.x = clamp(fract(local.x), 0.008, 0.992);
-    local.y = clamp(fract(local.y), 0.008, 0.992);
-  }
+  if (anim_u > 0.0) local.x += clk * anim_u;
+  if (anim_v > 0.0) local.y -= clk * anim_v;
+  local.x = clamp(local.x, 0.008, 0.992);
+  local.y = clamp(fract(local.y), 0.008, 0.992);
   vec2 uv_atlas = ta.xy + local * ta.zw;
   vec4 texColor = texture2D(s_atlas, uv_atlas);
   vec3 finalColor = mix(v_color.rgb, texColor.rgb * v_color.rgb, 1.0);
   float finalAlpha = v_color.a;
-  if (tb.z < 0.5) {
+  if (cutout) {
     if (texColor.a < 0.5) discard;
   }
   gl_FragColor = vec4(finalColor, finalAlpha);
@@ -159,8 +165,6 @@ webgl1_gl_create_programs(Platform2_SDL2_Renderer_WebGL1* r)
     L.u_projectionMatrix = glGetUniformLocation(wp, "u_projectionMatrix");
     L.u_clock = glGetUniformLocation(wp, "u_clock");
     L.s_atlas = glGetUniformLocation(wp, "s_atlas");
-    L.u_tileA = glGetUniformLocation(wp, "u_tileA");
-    L.u_tileB = glGetUniformLocation(wp, "u_tileB");
 
     GLuint cvs = compile_shader(GL_VERTEX_SHADER, kClearVs);
     GLuint cfs = compile_shader(GL_FRAGMENT_SHADER, kClearFs);

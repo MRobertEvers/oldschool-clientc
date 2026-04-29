@@ -44,64 +44,69 @@ trspk_webgl1_create_world_program(TRSPK_WebGL1WorldShaderLocs* locs)
                      "varying vec4 v_color;\n"
                      "varying vec2 v_texcoord;\n"
                      "varying float v_tex_id;\n"
-                     "varying float v_uv_mode;\n"
+                     "varying float v_uv_pack;\n"
                      "void main() {\n"
                      "  vec4 wp = vec4(a_position.xyz, 1.0);\n"
                      "  gl_Position = u_projectionMatrix * u_modelViewMatrix * wp;\n"
                      "  v_color = a_color;\n"
                      "  v_texcoord = a_texcoord;\n"
                      "  v_tex_id = a_tex_id;\n"
-                     "  v_uv_mode = a_uv_mode;\n"
+                     "  v_uv_pack = a_uv_mode;\n"
                      "}\n";
     const char* fs =
         "precision mediump float;\n"
         "varying vec4 v_color;\n"
         "varying vec2 v_texcoord;\n"
         "varying float v_tex_id;\n"
-        "varying float v_uv_mode;\n"
+        "varying float v_uv_pack;\n"
         "uniform float u_clock;\n"
         "uniform sampler2D s_atlas;\n"
-        "uniform vec4 u_tileA[256];\n"
-        "uniform vec4 u_tileB[256];\n"
         "void main() {\n"
-        "  int tid = int(floor(v_tex_id + 0.5));\n"
-        "  if (tid < 0 || tid >= 256) {\n"
+        "  int raw = int(floor(v_tex_id + 0.5));\n"
+        "  int atlas_id;\n"
+        "  bool cutout;\n"
+        "  if (raw >= 256) {\n"
+        "    atlas_id = raw - 256;\n"
+        "    cutout = true;\n"
+        "  } else {\n"
+        "    atlas_id = raw;\n"
+        "    cutout = false;\n"
+        "  }\n"
+        "  if (atlas_id < 0 || atlas_id >= 256) {\n"
         "    gl_FragColor = vec4(v_color.rgb, v_color.a);\n"
         "    return;\n"
         "  }\n"
-        "  /* GLSL ES 1.00: uniform arrays may only be indexed by const or loop indices, not by "
-        "`tid`. */\n"
-        "  vec4 ta = vec4(0.0);\n"
-        "  vec4 tb = vec4(0.0);\n"
-        "  for (int i = 0; i < 256; ++i) {\n"
-        "    if (i == tid) {\n"
-        "      ta = u_tileA[i];\n"
-        "      tb = u_tileB[i];\n"
-        "      break;\n"
+        "  int enc = int(floor(v_uv_pack * 0.5 + 0.5));\n"
+        "  float anim_u = 0.0;\n"
+        "  float anim_v = 0.0;\n"
+        "  if (enc > 0) {\n"
+        "    if (enc < 257) {\n"
+        "      int mag_u = enc - 1;\n"
+        "      anim_u = float(mag_u) / 256.0;\n"
+        "    } else {\n"
+        "      int mag_v = enc - 257;\n"
+        "      anim_v = float(mag_v) / 256.0;\n"
         "    }\n"
         "  }\n"
-        "  if (ta.z <= 0.0 || ta.w <= 0.0) {\n"
-        "    gl_FragColor = vec4(v_color.rgb, v_color.a);\n"
-        "    return;\n"
-        "  }\n"
+        "  const float TEX_DIM = 128.0;\n"
+        "  const float ATLAS_DIM = 2048.0;\n"
+        "  const float cols = 16.0;\n"
+        "  float du = TEX_DIM / ATLAS_DIM;\n"
+        "  float dv = du;\n"
+        "  float col = mod(float(atlas_id), cols);\n"
+        "  float row = floor(float(atlas_id) / cols);\n"
+        "  vec4 ta = vec4(col * du, row * dv, du, dv);\n"
         "  vec2 local = v_texcoord;\n"
         "  float clk = u_clock;\n"
-        "  if (v_uv_mode < 0.5) {\n"
-        "    if (tb.x > 0.0) local.x += clk * tb.x;\n"
-        "    if (tb.y > 0.0) local.y -= clk * tb.y;\n"
-        "    local.x = clamp(local.x, 0.008, 0.992);\n"
-        "    local.y = clamp(fract(local.y), 0.008, 0.992);\n"
-        "  } else {\n"
-        "    if (tb.x > 0.0) local.x += clk * tb.x;\n"
-        "    if (tb.y > 0.0) local.y += clk * tb.y;\n"
-        "    local.x = clamp(fract(local.x), 0.008, 0.992);\n"
-        "    local.y = clamp(fract(local.y), 0.008, 0.992);\n"
-        "  }\n"
+        "  if (anim_u > 0.0) local.x += clk * anim_u;\n"
+        "  if (anim_v > 0.0) local.y -= clk * anim_v;\n"
+        "  local.x = clamp(local.x, 0.008, 0.992);\n"
+        "  local.y = clamp(fract(local.y), 0.008, 0.992);\n"
         "  vec2 uv_atlas = ta.xy + local * ta.zw;\n"
         "  vec4 texColor = texture2D(s_atlas, uv_atlas);\n"
         "  vec3 finalColor = mix(v_color.rgb, texColor.rgb * v_color.rgb, 1.0);\n"
         "  float finalAlpha = v_color.a;\n"
-        "  if (tb.z < 0.5) {\n"
+        "  if (cutout) {\n"
         "    if (texColor.a < 0.5) discard;\n"
         "  }\n"
         "  gl_FragColor = vec4(finalColor, finalAlpha);\n"
@@ -147,45 +152,11 @@ trspk_webgl1_create_world_program(TRSPK_WebGL1WorldShaderLocs* locs)
     locs->u_modelViewMatrix = glGetUniformLocation(p, "u_modelViewMatrix");
     locs->u_projectionMatrix = glGetUniformLocation(p, "u_projectionMatrix");
     locs->u_clock = glGetUniformLocation(p, "u_clock");
-    locs->u_tileA = glGetUniformLocation(p, "u_tileA");
-    locs->u_tileB = glGetUniformLocation(p, "u_tileB");
     locs->s_atlas = glGetUniformLocation(p, "s_atlas");
     return p;
 #else
     (void)locs;
     return 0u;
-#endif
-}
-
-void
-trspk_webgl1_upload_tiles(TRSPK_WebGL1Renderer* r)
-{
-#ifdef __EMSCRIPTEN__
-    if( !r || !r->tiles_dirty || !r->cache )
-        return;
-    const TRSPK_AtlasTile* tiles = trspk_resource_cache_get_all_tiles(r->cache);
-    if( !tiles )
-        return;
-    float tile_a[TRSPK_MAX_TEXTURES * 4u];
-    float tile_b[TRSPK_MAX_TEXTURES * 4u];
-    for( uint32_t i = 0; i < TRSPK_MAX_TEXTURES; ++i )
-    {
-        tile_a[i * 4u + 0u] = tiles[i].u0;
-        tile_a[i * 4u + 1u] = tiles[i].v0;
-        tile_a[i * 4u + 2u] = tiles[i].du;
-        tile_a[i * 4u + 3u] = tiles[i].dv;
-        tile_b[i * 4u + 0u] = tiles[i].anim_u;
-        tile_b[i * 4u + 1u] = tiles[i].anim_v;
-        tile_b[i * 4u + 2u] = tiles[i].opaque;
-        tile_b[i * 4u + 3u] = 0.0f;
-    }
-    if( r->world_locs.u_tileA >= 0 )
-        glUniform4fv(r->world_locs.u_tileA, TRSPK_MAX_TEXTURES, tile_a);
-    if( r->world_locs.u_tileB >= 0 )
-        glUniform4fv(r->world_locs.u_tileB, TRSPK_MAX_TEXTURES, tile_b);
-    r->tiles_dirty = false;
-#else
-    (void)r;
 #endif
 }
 

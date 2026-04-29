@@ -15,7 +15,6 @@ trspk_webgl1_cache_init_atlas(
     if( !r || !r->cache )
         return;
     trspk_resource_cache_init_atlas(r->cache, width, height);
-    r->tiles_dirty = true;
     trspk_webgl1_cache_refresh_atlas(r);
 }
 
@@ -30,8 +29,7 @@ trspk_webgl1_cache_load_texture_128(
 {
     if( !r || !r->cache )
         return;
-    if( trspk_resource_cache_load_texture_128(r->cache, id, rgba_128x128, anim_u, anim_v, opaque) )
-        r->tiles_dirty = true;
+    (void)trspk_resource_cache_load_texture_128(r->cache, id, rgba_128x128, anim_u, anim_v, opaque);
 }
 
 void
@@ -63,19 +61,6 @@ trspk_webgl1_cache_refresh_atlas(TRSPK_WebGL1Renderer* r)
         GL_UNSIGNED_BYTE,
         pixels);
 #endif
-}
-
-bool
-trspk_webgl1_cache_tiles_dirty(TRSPK_WebGL1Renderer* r)
-{
-    return r ? r->tiles_dirty : false;
-}
-
-void
-trspk_webgl1_cache_clear_tiles_dirty(TRSPK_WebGL1Renderer* r)
-{
-    if( r )
-        r->tiles_dirty = false;
 }
 
 void

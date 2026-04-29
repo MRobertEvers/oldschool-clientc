@@ -100,8 +100,6 @@ TRSPK_Metal_Shutdown(TRSPK_MetalRenderer* r)
         CFRelease(r->sampler_state);
     if( r->atlas_texture )
         CFRelease(r->atlas_texture);
-    if( r->atlas_tiles_buffer )
-        CFRelease(r->atlas_tiles_buffer);
     if( r->frame_semaphore )
         CFRelease(r->frame_semaphore);
     trspk_resource_cache_destroy(r->cache);

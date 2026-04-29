@@ -29,8 +29,6 @@ struct OpenGL3WorldShaderLocs
     GLint u_projectionMatrix = -1;
     GLint u_clock = -1;
     GLint s_atlas = -1;
-    GLint u_tileA = -1;
-    GLint u_tileB = -1;
 };
 
 struct Pass3DOpenGL3Slice
