@@ -2,6 +2,7 @@
 #define TORIRS_PLATFORM_KIT_TRSPK_VERTEX_BUFFER_H
 
 #include "../../include/ToriRSPlatformKit/trspk_types.h"
+#include "../backends/d3d8/d3d8_vertex.h"
 #include "../backends/metal/metal_vertex.h"
 #include "../backends/webgl1/webgl1_vertex.h"
 
@@ -33,6 +34,8 @@ typedef struct TRSPK_VertexBuffer
         TRSPK_Vertex* as_trspk;
         TRSPK_VertexWebGL1Soaos as_webgl1_soaos;
         TRSPK_VertexWebGL1* as_webgl1;
+        TRSPK_VertexD3D8Soaos as_d3d8_soaos;
+        TRSPK_VertexD3D8* as_d3d8;
         TRSPK_VertexMetal* as_metal;
         TRSPK_VertexMetalSoaos as_metal_soaos;
     } vertices;

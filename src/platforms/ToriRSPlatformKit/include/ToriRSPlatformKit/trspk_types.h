@@ -90,6 +90,10 @@ typedef enum TRSPK_VertexFormat
     TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS,
     /** AoSoA: aligned blocks (see TRSPK_VertexMetalSoaos in metal_vertex.h). */
     TRSPK_VERTEX_FORMAT_METAL_SOAOS,
+    /** Interleaved GPU vertex for Direct3D 8 (see TRSPK_VertexD3D8 in d3d8_vertex.h). */
+    TRSPK_VERTEX_FORMAT_D3D8,
+    /** AoSoA: aligned blocks (see TRSPK_VertexD3D8Soaos in d3d8_vertex.h). */
+    TRSPK_VERTEX_FORMAT_D3D8_SOAOS,
     /** Empty / no GPU vertex payload (see TRSPK_VertexBuffer). */
     TRSPK_VERTEX_FORMAT_NONE
 } TRSPK_VertexFormat;

@@ -130,6 +130,7 @@ trspk_dynamic_mesh_build(
     switch( vertex_format )
     {
     case TRSPK_VERTEX_FORMAT_WEBGL1:
+    case TRSPK_VERTEX_FORMAT_D3D8:
         return trspk_dynamic_mesh_build_with_batch16(
             model, vertex_format, bake, resource_cache, out_mesh);
     case TRSPK_VERTEX_FORMAT_TRSPK:

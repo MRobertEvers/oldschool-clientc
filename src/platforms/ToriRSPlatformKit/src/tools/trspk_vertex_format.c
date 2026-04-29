@@ -1,5 +1,6 @@
 #include "trspk_vertex_format.h"
 
+#include "../backends/d3d8/d3d8_vertex.h"
 #include "../backends/metal/metal_vertex.h"
 #include "../backends/webgl1/webgl1_vertex.h"
 
@@ -16,9 +17,12 @@ trspk_vertex_format_stride(TRSPK_VertexFormat fmt)
         return (uint32_t)sizeof(TRSPK_VertexWebGL1);
     case TRSPK_VERTEX_FORMAT_METAL:
         return (uint32_t)sizeof(TRSPK_VertexMetal);
+    case TRSPK_VERTEX_FORMAT_D3D8:
+        return (uint32_t)sizeof(TRSPK_VertexD3D8);
     case TRSPK_VERTEX_FORMAT_NONE:
     case TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS:
     case TRSPK_VERTEX_FORMAT_METAL_SOAOS:
+    case TRSPK_VERTEX_FORMAT_D3D8_SOAOS:
         return 0u;
     default:
         return (uint32_t)sizeof(TRSPK_Vertex);
@@ -43,9 +47,13 @@ trspk_vertex_format_convert(
     case TRSPK_VERTEX_FORMAT_METAL:
         trspk_metal_vertex_convert(dst_vertices, src_vertices, vertex_count);
         return;
+    case TRSPK_VERTEX_FORMAT_D3D8:
+        trspk_d8_vertex_convert(dst_vertices, src_vertices, vertex_count);
+        return;
     case TRSPK_VERTEX_FORMAT_NONE:
     case TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS:
     case TRSPK_VERTEX_FORMAT_METAL_SOAOS:
+    case TRSPK_VERTEX_FORMAT_D3D8_SOAOS:
         return;
     default:
         memcpy(dst_vertices, src_vertices, (size_t)vertex_count * sizeof(TRSPK_Vertex));

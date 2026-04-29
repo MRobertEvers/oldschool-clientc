@@ -266,6 +266,7 @@ trspk_batch16_prepare_vertex_buffer(
     {
     case TRSPK_VERTEX_FORMAT_TRSPK:
     case TRSPK_VERTEX_FORMAT_WEBGL1:
+    case TRSPK_VERTEX_FORMAT_D3D8:
     case TRSPK_VERTEX_FORMAT_METAL:
         break;
     default:
@@ -307,6 +308,9 @@ trspk_batch16_prepare_vertex_buffer(
         break;
     case TRSPK_VERTEX_FORMAT_WEBGL1:
         vb->vertices.as_webgl1 = (TRSPK_VertexWebGL1*)vbase;
+        break;
+    case TRSPK_VERTEX_FORMAT_D3D8:
+        vb->vertices.as_d3d8 = (TRSPK_VertexD3D8*)vbase;
         break;
     case TRSPK_VERTEX_FORMAT_METAL:
         vb->vertices.as_metal = (TRSPK_VertexMetal*)vbase;

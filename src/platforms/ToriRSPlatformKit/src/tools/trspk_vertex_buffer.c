@@ -44,6 +44,13 @@ trspk_vertex_buffer_apply_bake(
             trspk_bake_transform_apply(bake, &p[0], &p[1], &p[2]);
         }
         break;
+    case TRSPK_VERTEX_FORMAT_D3D8:
+        for( uint32_t i = 0; i < n; ++i )
+        {
+            float* p = vb->vertices.as_d3d8[i].position;
+            trspk_bake_transform_apply(bake, &p[0], &p[1], &p[2]);
+        }
+        break;
     default:
         break;
     }
@@ -66,6 +73,8 @@ trspk_vertex_buffer_bake_array_to_interleaved(
         dst_format = TRSPK_VERTEX_FORMAT_METAL;
     else if( src->format == TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS )
         dst_format = TRSPK_VERTEX_FORMAT_WEBGL1;
+    else if( src->format == TRSPK_VERTEX_FORMAT_D3D8_SOAOS )
+        dst_format = TRSPK_VERTEX_FORMAT_D3D8;
     else
         return false;
     if( src->index_format != TRSPK_INDEX_FORMAT_U32 || !src->indices.as_u32 )
@@ -163,11 +172,45 @@ write_vertex(
         dest->vertices.as_metal[offset].uv_mode =
             (uint16_t)fmaxf(0.0f, fminf(65535.0f, floorf(packed_gpu_uv_mode + 0.5f)));
         break;
+    case TRSPK_VERTEX_FORMAT_D3D8:
+        dest->vertices.as_d3d8[offset].position[0] = px;
+        dest->vertices.as_d3d8[offset].position[1] = py;
+        dest->vertices.as_d3d8[offset].position[2] = pz;
+        dest->vertices.as_d3d8[offset].position[3] = 1.0f;
+        dest->vertices.as_d3d8[offset].color[0] = color[0];
+        dest->vertices.as_d3d8[offset].color[1] = color[1];
+        dest->vertices.as_d3d8[offset].color[2] = color[2];
+        dest->vertices.as_d3d8[offset].color[3] = color[3];
+        dest->vertices.as_d3d8[offset].texcoord[0] = u;
+        dest->vertices.as_d3d8[offset].texcoord[1] = vv;
+        dest->vertices.as_d3d8[offset].tex_id = tex_id_vertex;
+        dest->vertices.as_d3d8[offset].uv_mode = packed_gpu_uv_mode;
+        break;
     case TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS:
     {
         const uint32_t o = (uint32_t)offset;
         TRSPK_VertexWebGL1SoaosBlock* blk =
             &dest->vertices.as_webgl1_soaos.blocks[TRSPK_VERTEX_SOAOS_BLOCK_IDX(o)];
+        const uint32_t lane = TRSPK_VERTEX_SOAOS_LANE_IDX(o);
+        blk->position_x[lane] = px;
+        blk->position_y[lane] = py;
+        blk->position_z[lane] = pz;
+        blk->position_w[lane] = 1.0f;
+        blk->color_r[lane] = color[0];
+        blk->color_g[lane] = color[1];
+        blk->color_b[lane] = color[2];
+        blk->color_a[lane] = color[3];
+        blk->texcoord_u[lane] = u;
+        blk->texcoord_v[lane] = vv;
+        blk->tex_id[lane] = tex_id_vertex;
+        blk->uv_mode[lane] = packed_gpu_uv_mode;
+        break;
+    }
+    case TRSPK_VERTEX_FORMAT_D3D8_SOAOS:
+    {
+        const uint32_t o = (uint32_t)offset;
+        TRSPK_VertexD3D8SoaosBlock* blk =
+            &dest->vertices.as_d3d8_soaos.blocks[TRSPK_VERTEX_SOAOS_BLOCK_IDX(o)];
         const uint32_t lane = TRSPK_VERTEX_SOAOS_LANE_IDX(o);
         blk->position_x[lane] = px;
         blk->position_y[lane] = py;

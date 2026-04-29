@@ -494,6 +494,26 @@ if(NOT EMSCRIPTEN)
         if(HAVE_D3D8_H)
             list(APPEND WIN32_PLATFORM_SOURCES
                 src/platforms/platform_impl2_win32_renderer_d3d8.cpp
+                src/platforms/ToriRSPlatformKit/src/tools/trspk_resource_cache.c
+                src/platforms/ToriRSPlatformKit/src/tools/trspk_batch16.c
+                src/platforms/ToriRSPlatformKit/src/tools/trspk_batch32.c
+                src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_slotmap16.c
+                src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_slotmap32.c
+                src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_pass.c
+                src/platforms/ToriRSPlatformKit/src/tools/trspk_dynamic_batch_upload.c
+                src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_format.c
+                src/platforms/ToriRSPlatformKit/src/tools/trspk_facebuffer.c
+                src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_buffer.c
+                src/platforms/ToriRSPlatformKit/src/tools/trspk_vertex_buffer_lifecycle.c
+                src/platforms/ToriRSPlatformKit/src/tools/trspk_lru_model_cache.c
+                src/platforms/ToriRSPlatformKit/src/tools/trspk_dash.c
+                src/platforms/ToriRSPlatformKit/src/trspk_math.c
+                src/platforms/ToriRSPlatformKit/src/backends/d3d8/d3d8_core.cpp
+                src/platforms/ToriRSPlatformKit/src/backends/d3d8/d3d8_shaders.cpp
+                src/platforms/ToriRSPlatformKit/src/backends/d3d8/d3d8_3d_cache.cpp
+                src/platforms/ToriRSPlatformKit/src/backends/d3d8/d3d8_dynamic_cache.cpp
+                src/platforms/ToriRSPlatformKit/src/backends/d3d8/d3d8_draw.cpp
+                src/platforms/ToriRSPlatformKit/src/backends/d3d8/d3d8_events.c
             )
         endif()
 
