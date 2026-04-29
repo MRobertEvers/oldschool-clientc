@@ -4,26 +4,27 @@
 #include <stdint.h>
 
 /* Same dispatch order as trspk_vertex_buffer_simd.u.c */
+/* TRSPK_VERTEX_SOAOS_ALIGNMENT: plain ints (not 16u); _Alignas() rejects unsigned literals on some GCC/MinGW. */
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
 #define TRSPK_VERTEX_SIMD_LANES 4u
 #define TRSPK_VERTEX_SOAOS_BLOCK_SHIFT 2u
-#define TRSPK_VERTEX_SOAOS_ALIGNMENT 16u
+#define TRSPK_VERTEX_SOAOS_ALIGNMENT 16
 #elif defined(__AVX2__) && !defined(AVX2_DISABLED)
 #define TRSPK_VERTEX_SIMD_LANES 8u
 #define TRSPK_VERTEX_SOAOS_BLOCK_SHIFT 3u
-#define TRSPK_VERTEX_SOAOS_ALIGNMENT 32u
+#define TRSPK_VERTEX_SOAOS_ALIGNMENT 32
 #elif defined(__SSE4_1__) && !defined(SSE2_DISABLED)
 #define TRSPK_VERTEX_SIMD_LANES 4u
 #define TRSPK_VERTEX_SOAOS_BLOCK_SHIFT 2u
-#define TRSPK_VERTEX_SOAOS_ALIGNMENT 16u
+#define TRSPK_VERTEX_SOAOS_ALIGNMENT 16
 #elif defined(__SSE2__) && !defined(SSE2_DISABLED)
 #define TRSPK_VERTEX_SIMD_LANES 4u
 #define TRSPK_VERTEX_SOAOS_BLOCK_SHIFT 2u
-#define TRSPK_VERTEX_SOAOS_ALIGNMENT 16u
+#define TRSPK_VERTEX_SOAOS_ALIGNMENT 16
 #else
 #define TRSPK_VERTEX_SIMD_LANES 1u
 #define TRSPK_VERTEX_SOAOS_BLOCK_SHIFT 0u
-#define TRSPK_VERTEX_SOAOS_ALIGNMENT 16u
+#define TRSPK_VERTEX_SOAOS_ALIGNMENT 16
 #endif
 
 /** Lane index: SIMD_LANES is a power of 2. */
