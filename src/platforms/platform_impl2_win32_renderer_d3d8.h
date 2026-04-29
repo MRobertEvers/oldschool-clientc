@@ -9,6 +9,8 @@
 #include <windows.h>
 
 #include "platform_impl2_win32.h"
+#include "platforms/ToriRSPlatformKit/src/backends/d3d8/trspk_d3d8.h"
+#include "platforms/ToriRSPlatformKit/src/tools/trspk_facebuffer.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -17,8 +19,18 @@ struct ToriRSRenderCommandBuffer;
 
 struct Platform2_Win32_Renderer_D3D8
 {
-    /** Opaque GPU/renderer state (see .cpp). */
-    void* _internal;
+    TRSPK_D3D8Renderer* trspk;
+    TRSPK_FaceBuffer16 facebuffer;
+
+    uint32_t current_model_batch_id;
+    bool current_model_batch_active;
+
+    uint32_t diag_frame_model_draw_cmds;
+    uint32_t diag_frame_pose_invalid_skips;
+    uint32_t diag_frame_submitted_model_draws;
+
+    /** IDirect3DTexture8* — full-screen Nuklear overlay; optional if creation fails. */
+    void* nk_overlay_tex;
 
     struct Platform2_Win32* platform;
     int width;

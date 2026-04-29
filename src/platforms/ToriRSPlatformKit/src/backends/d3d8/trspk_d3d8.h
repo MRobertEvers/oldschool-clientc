@@ -192,8 +192,14 @@ TRSPK_D3D8_SetWindowSize(
     uint32_t height);
 void
 TRSPK_D3D8_FrameBegin(TRSPK_D3D8Renderer* renderer);
+/** Ends the scene (`EndScene`). Call after optional platform overlays; then `TRSPK_D3D8_Present`. */
 void
 TRSPK_D3D8_FrameEnd(TRSPK_D3D8Renderer* renderer);
+void
+TRSPK_D3D8_Present(TRSPK_D3D8Renderer* renderer);
+/** IDirect3DDevice8* — do not Release; owned by the renderer. */
+void*
+TRSPK_D3D8_GetDevice(TRSPK_D3D8Renderer* renderer);
 TRSPK_ResourceCache*
 TRSPK_D3D8_GetCache(TRSPK_D3D8Renderer* renderer);
 TRSPK_Batch16*

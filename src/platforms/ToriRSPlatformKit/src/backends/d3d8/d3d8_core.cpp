@@ -352,7 +352,21 @@ TRSPK_D3D8_FrameEnd(TRSPK_D3D8Renderer* r)
         return;
     auto* dev = reinterpret_cast<IDirect3DDevice8*>((uintptr_t)r->com_device);
     dev->EndScene();
+}
+
+void
+TRSPK_D3D8_Present(TRSPK_D3D8Renderer* r)
+{
+    if( !r || !r->com_device )
+        return;
+    auto* dev = reinterpret_cast<IDirect3DDevice8*>((uintptr_t)r->com_device);
     dev->Present(NULL, NULL, NULL, NULL);
+}
+
+void*
+TRSPK_D3D8_GetDevice(TRSPK_D3D8Renderer* r)
+{
+    return r ? (void*)(uintptr_t)r->com_device : nullptr;
 }
 
 TRSPK_ResourceCache*
