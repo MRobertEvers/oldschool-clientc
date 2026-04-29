@@ -199,9 +199,17 @@ uitree_free(struct UITree* tree)
         if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text )
             free((void*)c->u.rs_text.text);
     }
-    uitree_grid_clear(tree);
     free(tree->components);
     free(tree);
+}
+
+void
+uitree_mark_all_dirty(struct UITree* tree)
+{
+    if( !tree )
+        return;
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+        tree->components[i].is_dirty = 1;
 }
 
 void

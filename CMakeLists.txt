@@ -144,7 +144,6 @@ set(COMMON_SOURCES
     src/osrs/revconfig/revconfig.c
     src/osrs/revconfig/revconfig_load.c
     src/osrs/revconfig/uitree.c
-    src/osrs/revconfig/uitree_grid.c
     src/osrs/revconfig/uitree_load.c
     src/osrs/rs_component_gfx.c
     src/osrs/revconfig/uiscene.c

@@ -3,7 +3,6 @@
 #include "trspk_vertex_buffer.h"
 #include "trspk_vertex_format.h"
 
-#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -146,7 +145,9 @@ trspk_batch16_add_mesh(
         index_count == 0u || vertex_count > 65535u )
         return -1;
     TRSPK_Batch16Chunk* chunk = &batch->chunks[batch->current_chunk];
-    if( chunk->vertex_count + vertex_count > 65535u && !trspk_batch16_roll_chunk(batch) )
+    if( (chunk->vertex_count + vertex_count > 65535u ||
+         chunk->index_count + index_count > 65535u) &&
+        !trspk_batch16_roll_chunk(batch) )
         return -1;
     chunk = &batch->chunks[batch->current_chunk];
     const uint32_t vstart = chunk->vertex_count;
@@ -277,8 +278,12 @@ trspk_batch16_prepare_vertex_buffer(
     trspk_vertex_buffer_free(vb);
 
     TRSPK_Batch16Chunk* chunk = &batch->chunks[batch->current_chunk];
-    assert(chunk->vertex_count + vertex_count <= 65535u);
-    assert(chunk->index_count + index_count <= 65535u);
+    if( (chunk->vertex_count + vertex_count > 65535u ||
+         chunk->index_count + index_count > 65535u) &&
+        !trspk_batch16_roll_chunk(batch) )
+        return false;
+    chunk = &batch->chunks[batch->current_chunk];
+
     const uint32_t vstart = chunk->vertex_count;
     const uint32_t istart = chunk->index_count;
     if( !trspk_batch16_reserve_chunk(
@@ -382,15 +387,15 @@ trspk_batch16_add_model(
         return;
 
     const uint32_t corner_count = face_count * 3u;
-    const uint8_t chunk_index = (uint8_t)batch->current_chunk;
-    TRSPK_Batch16Chunk* ch = &batch->chunks[chunk_index];
-    const uint32_t v0 = ch->vertex_count;
-    const uint32_t i0 = ch->index_count;
 
     struct TRSPK_VertexBuffer vb = { 0 };
     if( !trspk_batch16_prepare_vertex_buffer(
             batch, &vb, corner_count, corner_count, batch->vertex_format) )
         return;
+
+    const uint8_t chunk_index = (uint8_t)batch->current_chunk;
+    const uint32_t v0 = batch->chunks[chunk_index].vertex_count;
+    const uint32_t i0 = batch->chunks[chunk_index].index_count;
 
     if( !trspk_vertex_buffer_write(
             vertex_count,
@@ -460,15 +465,15 @@ trspk_batch16_add_model_textured(
         return;
 
     const uint32_t corner_count = face_count * 3u;
-    const uint8_t chunk_index = (uint8_t)batch->current_chunk;
-    TRSPK_Batch16Chunk* ch = &batch->chunks[chunk_index];
-    const uint32_t v0 = ch->vertex_count;
-    const uint32_t i0 = ch->index_count;
 
     struct TRSPK_VertexBuffer vb = { 0 };
     if( !trspk_batch16_prepare_vertex_buffer(
             batch, &vb, corner_count, corner_count, batch->vertex_format) )
         return;
+
+    const uint8_t chunk_index = (uint8_t)batch->current_chunk;
+    const uint32_t v0 = batch->chunks[chunk_index].vertex_count;
+    const uint32_t i0 = batch->chunks[chunk_index].index_count;
 
     if( !trspk_vertex_buffer_write_textured(
             vertex_count,

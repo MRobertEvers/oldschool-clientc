@@ -1,7 +1,6 @@
+#include "../../../include/ToriRSPlatformKit/trspk_math.h"
 #include "trspk_metal.h"
 #import <Metal/Metal.h>
-
-#include "../../../include/ToriRSPlatformKit/trspk_math.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -212,9 +211,8 @@ trspk_metal_draw_submit_3d(
     }
     else
     {
-        scr = (MTLScissorRect){
-            (NSUInteger)msx, (NSUInteger)msy, (NSUInteger)msw, (NSUInteger)msh
-        };
+        scr =
+            (MTLScissorRect){ (NSUInteger)msx, (NSUInteger)msy, (NSUInteger)msw, (NSUInteger)msh };
     }
 
     [encoder setViewport:mvp];
@@ -243,8 +241,7 @@ trspk_metal_draw_submit_3d(
         }
         uint32_t run_end = run_start + 1u;
         uint32_t run_count = first->index_count;
-        while( run_end < pass->subdraw_count &&
-               pass->subdraws[run_end].vbo == first->vbo &&
+        while( run_end < pass->subdraw_count && pass->subdraws[run_end].vbo == first->vbo &&
                pass->subdraws[run_end].pool_start == first->pool_start + run_count )
         {
             run_count += pass->subdraws[run_end].index_count;
@@ -261,7 +258,8 @@ trspk_metal_draw_submit_3d(
             mesh_vbo = (__bridge id<MTLBuffer>)(void*)first->vbo;
         if( mesh_vbo )
         {
-            NSUInteger index_buffer_offset = (NSUInteger)(index_offset + (size_t)first->pool_start * sizeof(uint32_t));
+            NSUInteger index_buffer_offset =
+                (NSUInteger)(index_offset + (size_t)first->pool_start * sizeof(uint32_t));
             [encoder setVertexBuffer:mesh_vbo offset:0 atIndex:0];
             [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                 indexCount:(NSUInteger)run_count

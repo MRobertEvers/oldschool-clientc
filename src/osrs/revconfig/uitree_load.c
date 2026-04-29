@@ -2060,9 +2060,6 @@ uitree_load_ui_from_revconfig(
     }
 
     if( ui )
-        uitree_rebuild_grid(ui);
-
-    if( ui )
         uitree_print_nodes(ui);
 
     dashmap_free(sprite_hmap);

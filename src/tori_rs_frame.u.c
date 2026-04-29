@@ -862,10 +862,8 @@ LibToriRS_FrameBegin(
     if( game->uiscene_queued_commands )
         LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
 
-    /* Dirty prepass: set is_dirty on every component before tree traversal. */
     if( game->ui_root_buffer )
-        uitree_grid_dirty_prepass(
-            game->ui_root_buffer, game->mouse_x, game->mouse_y, game->uitree_force_dirty);
+        uitree_mark_all_dirty(game->ui_root_buffer);
 
     /* 3D clear / projection / cull use `view_port` + offsets; keep them in sync with the
        `[component:world]` layout rect from static UI (see plan: world INI is source of truth). */
@@ -1803,7 +1801,6 @@ void
 LibToriRS_FrameEnd(struct GGame* game)
 {
     game->frame_pass = FRAME_PASS_NONE;
-    game->uitree_force_dirty = false;
     /* Build optionset from pickset for tooltip and context menu (Client.ts menuOption /
      * drawTooltip). */
     if( game->world )

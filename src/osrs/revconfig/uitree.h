@@ -1,8 +1,6 @@
 #ifndef UITREE_H
 #define UITREE_H
 
-#include "uitree_grid.h"
-
 #include <stdint.h>
 
 #define UI_INVENTORY_MAX_ITEMS 128
@@ -80,7 +78,7 @@ struct StaticUIComponent
     enum StaticUIComponentType type;
     /** Layout arg dirty=true in INI; forces this node to always emit draw commands. */
     uint8_t always_dirty;
-    /** Set during the dirty prepass each frame; true if this node should emit draw commands. */
+    /** Set each frame before traversal; true if this node should emit draw commands. */
     uint8_t is_dirty;
     int32_t parent;       /* -1 = root or root-chain node */
     int32_t first_child;  /* -1 = leaf */
@@ -167,8 +165,6 @@ struct UITree
     int32_t root_index; /* first root in root sibling chain; -1 if empty */
     /** Incremented on every `uitree_push_*` / node add; used to invalidate UI dirty caches. */
     uint32_t generation;
-    /** Spatial grid: each tile lists component indices whose bounds overlap that tile. */
-    struct UIGridTile grid[UI_GRID_W * UI_GRID_H];
 };
 
 char const*
@@ -179,6 +175,10 @@ uitree_new(uint32_t hint);
 
 void
 uitree_free(struct UITree* tree);
+
+/** Mark every component dirty for the upcoming frame traversal. */
+void
+uitree_mark_all_dirty(struct UITree* tree);
 
 /** Log every node (index, type, tree links, layout, component_id). */
 void
