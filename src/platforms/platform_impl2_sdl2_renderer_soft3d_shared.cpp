@@ -3,11 +3,10 @@
 #define NK_SDL_RENDERER_SDL_H <SDL.h>
 #define TORIRS_NK_SDL_RENDERER_IMPLEMENTATION
 #include "nuklear/backends/sdl_renderer/nuklear_torirs_sdl_renderer.h"
-#include "platforms/common/torirs_nk_ui_bridge.h"
-#include "platforms/common/torirs_nk_bench_panel.h"
-#include "platforms/common/torirs_nuklear_debug_panel.h"
-
 #include "platform_impl2_sdl2.h"
+#include "platforms/common/torirs_nk_bench_panel.h"
+#include "platforms/common/torirs_nk_ui_bridge.h"
+#include "platforms/common/torirs_nuklear_debug_panel.h"
 
 static SDL_Window*
 soft3d_platform_window(void* platform)
@@ -43,10 +42,15 @@ extern "C" {
 static struct nk_context* s_soft3d_nk;
 static Uint64 s_soft3d_ui_prev_perf;
 
-static void (*s_bench_panel_draw)(struct nk_context*, struct GGame*) = nullptr;
+static void (*s_bench_panel_draw)(
+    struct nk_context*,
+    struct GGame*) = nullptr;
 
 extern "C" void
-torirs_nk_bench_panel_register(void (*draw)(struct nk_context* nk, struct GGame* game))
+torirs_nk_bench_panel_register(
+    void (*draw)(
+        struct nk_context* nk,
+        struct GGame* game))
 {
     s_bench_panel_draw = draw;
 }
@@ -435,6 +439,14 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
         }
         break;
         case TORIRS_GFX_DRAW_MODEL:
+            if( command._model_draw.use_animation && command._model_draw.model &&
+                command._model_draw.animation_frame )
+            {
+                dashmodel_animate(
+                    command._model_draw.model,
+                    command._model_draw.animation_frame,
+                    command._model_draw.animation_framemap);
+            }
             if( vp_pixels )
                 dash3d_raster_projected_model(
                     game->sys_dash,

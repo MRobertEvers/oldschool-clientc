@@ -27,7 +27,7 @@ struct FlagMap;
 
 #define MAX_PLAYERS 2048
 #define MAX_NPCS 8192
-#define MAX_PROJECTILES 256
+#define MAX_PROJECTILES 10000
 
 #define MAX_MAP_BUILD_LOC_ENTITIES (16384 >> 1)
 #define MAX_MAP_BUILD_TILE_ENTITIES (50000)
@@ -86,8 +86,8 @@ struct World
     /** False while a center-zone rebuild is in progress; true after it completes. */
     bool load_complete;
 
-    /** Active world-rebuild GPU batch slot (0..9) between begin/end; `SCENE2_GPU_BATCH_SLOT_INVALID`
-     * when none. */
+    /** Active world-rebuild GPU batch slot (0..9) between begin/end;
+     * `SCENE2_GPU_BATCH_SLOT_INVALID` when none. */
     uint32_t rebuild_current_batch_id;
     /** Last completed rebuild batch slot; cleared via scene2 on next begin. */
     uint32_t rebuild_prev_batch_id;
@@ -438,8 +438,7 @@ world_projectile_ensure(
 }
 
 int
-world_projectile_create(
-    struct World* world);
+world_projectile_create(struct World* world);
 void
 world_cleanup_projectile_entity(
     struct World* world,

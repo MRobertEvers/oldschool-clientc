@@ -294,10 +294,22 @@ trspk_resource_cache_batch_set_resource(
         return;
     cache->batches[batch_id].vbo = vbo;
     cache->batches[batch_id].ebo = ebo;
+    cache->batches[batch_id].world_vao = 0u;
     cache->batches[batch_id].chunk_count = 1u;
     cache->batches[batch_id].chunk_vbos[0] = vbo;
     cache->batches[batch_id].chunk_ebos[0] = ebo;
     cache->batches[batch_id].valid = true;
+}
+
+void
+trspk_resource_cache_batch_set_world_vao(
+    TRSPK_ResourceCache* cache,
+    TRSPK_BatchId batch_id,
+    TRSPK_GPUHandle world_vao)
+{
+    if( !cache || batch_id >= TRSPK_MAX_BATCHES )
+        return;
+    cache->batches[batch_id].world_vao = world_vao;
 }
 
 void

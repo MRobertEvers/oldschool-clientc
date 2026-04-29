@@ -47,6 +47,8 @@ NEON_DISABLED
 
 ```
 emcmake cmake -B build.em -DCMAKE_BUILD_TYPE=Debug
+emcmake cmake .. -DCMAKE_BUILD_TYPE=Release
+emcmake cmake .. -DCMAKE_BUILD_TYPE=Debug
 
 cd build.em
 
@@ -1707,7 +1709,6 @@ mrobe@MatthewLenovo MINGW64 /c/Users/mrobe/Documents/git_repos/3d-raster/build-w
 $ strings win32.exe | grep .pdb
 C:\Users\mrobe\Documents\git_repos\3d-raster\build-winxp\win32.pdb
 ```
-
 
 ## Air Strike 245
 

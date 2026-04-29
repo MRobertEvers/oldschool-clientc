@@ -246,35 +246,7 @@ if(NOT EMSCRIPTEN)
     endif()
 
     if(NOT WIN32)
-        list(APPEND SDL2_NATIVE_SOURCES
-            src/platforms/platform_impl2_sdl2_renderer_opengl3.cpp
-            src/platforms/opengl3/opengl3_helpers.cpp
-            src/platforms/opengl3/opengl3_gl_programs.cpp
-            src/platforms/opengl3/opengl3_atlas_resources.cpp
-            src/platforms/opengl3/opengl3_render.cpp
-            src/platforms/opengl3/events/opengl3_event_clear_rect.cpp
-            src/platforms/opengl3/events/opengl3_event_begin_3d.cpp
-            src/platforms/opengl3/events/opengl3_event_end_3d.cpp
-            src/platforms/opengl3/events/opengl3_event_texture_load.cpp
-            src/platforms/opengl3/events/opengl3_event_res_tex_load.cpp
-            src/platforms/opengl3/events/opengl3_event_model_load.cpp
-            src/platforms/opengl3/events/opengl3_event_model_unload.cpp
-            src/platforms/opengl3/events/opengl3_event_model_animation_load.cpp
-            src/platforms/opengl3/events/opengl3_event_batch3d_begin.cpp
-            src/platforms/opengl3/events/opengl3_event_batch3d_model_add.cpp
-            src/platforms/opengl3/events/opengl3_event_batch3d_end.cpp
-            src/platforms/opengl3/events/opengl3_event_batch3d_clear.cpp
-            src/platforms/opengl3/events/opengl3_event_draw_model.cpp
-            src/platforms/opengl3/opengl3_add_model_draw_scenery.cpp
-            src/platforms/opengl3/pass_3d_builder2_opengl3.cpp
-            src/platforms/opengl3/gpu_3d_cache2_opengl3.cpp
-        )
-    endif()
-
-    if(APPLE)
-        list(APPEND SDL2_NATIVE_SOURCES
-            src/platforms/platform_impl2_sdl2_renderer_metal.mm
-            src/nuklear/backends/torirs_nk_metal_sdl.mm
+        set(TRSPK_PLATFORMKIT_TOOLS
             src/platforms/ToriRSPlatformKit/src/tools/trspk_resource_cache.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_batch16.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_batch32.c
@@ -288,6 +260,24 @@ if(NOT EMSCRIPTEN)
             src/platforms/ToriRSPlatformKit/src/tools/trspk_lru_model_cache.c
             src/platforms/ToriRSPlatformKit/src/tools/trspk_dash.c
             src/platforms/ToriRSPlatformKit/src/trspk_math.c
+        )
+        list(APPEND SDL2_NATIVE_SOURCES
+            src/platforms/platform_impl2_sdl2_renderer_opengl3.cpp
+            ${TRSPK_PLATFORMKIT_TOOLS}
+            src/platforms/ToriRSPlatformKit/src/backends/opengl3/opengl3_gl.c
+            src/platforms/ToriRSPlatformKit/src/backends/opengl3/opengl3_shaders.c
+            src/platforms/ToriRSPlatformKit/src/backends/opengl3/opengl3_core.c
+            src/platforms/ToriRSPlatformKit/src/backends/opengl3/opengl3_3d_cache.c
+            src/platforms/ToriRSPlatformKit/src/backends/opengl3/opengl3_dynamic_cache.c
+            src/platforms/ToriRSPlatformKit/src/backends/opengl3/opengl3_draw.c
+            src/platforms/ToriRSPlatformKit/src/backends/opengl3/opengl3_events.c
+        )
+    endif()
+
+    if(APPLE)
+        list(APPEND SDL2_NATIVE_SOURCES
+            src/platforms/platform_impl2_sdl2_renderer_metal.mm
+            src/nuklear/backends/torirs_nk_metal_sdl.mm
             src/platforms/ToriRSPlatformKit/src/backends/metal/metal_core.m
             src/platforms/ToriRSPlatformKit/src/backends/metal/metal_shaders.m
             src/platforms/ToriRSPlatformKit/src/backends/metal/metal_3d_cache.m
@@ -729,6 +719,8 @@ if(EMSCRIPTEN)
         src/platforms/platform_impl2_sdl2.cpp
         src/platforms/platform_impl2_sdl2_port_emscripten.cpp
         src/platforms/platform_impl2_sdl2_renderer_webgl1.cpp
+        src/platforms/platform_impl2_sdl2_renderer_soft3d_shared.cpp
+        src/platforms/platform_impl2_sdl2_renderer_soft3d.cpp
         src/platforms/ToriRSPlatformKit/src/tools/trspk_resource_cache.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_batch16.c
         src/platforms/ToriRSPlatformKit/src/tools/trspk_batch32.c

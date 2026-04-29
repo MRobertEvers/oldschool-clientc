@@ -1,0 +1,48 @@
+#ifndef TORIRS_PLATFORM_KIT_OPENGL3_NK_GL_ALIASES_H
+#define TORIRS_PLATFORM_KIT_OPENGL3_NK_GL_ALIASES_H
+
+#include <SDL_opengl.h>
+
+#include "opengl3_gl.h"
+
+#define glActiveTexture trspk_glActiveTexture
+#define glAttachShader trspk_glAttachShader
+#define glBindBuffer trspk_glBindBuffer
+#define glBindTexture trspk_glBindTexture
+#define glBindVertexArray trspk_glBindVertexArray
+#define glBlendEquation trspk_glBlendEquation
+#define glBlendFunc trspk_glBlendFunc
+#define glBufferData trspk_glBufferData
+#define glCompileShader trspk_glCompileShader
+#define glCreateProgram trspk_glCreateProgram
+#define glCreateShader trspk_glCreateShader
+#define glDeleteBuffers trspk_glDeleteBuffers
+#define glDeleteProgram trspk_glDeleteProgram
+#define glDeleteShader trspk_glDeleteShader
+#define glDeleteTextures trspk_glDeleteTextures
+#define glDetachShader trspk_glDetachShader
+#define glDisable trspk_glDisable
+#define glDrawElements trspk_glDrawElements
+#define glEnable trspk_glEnable
+#define glEnableVertexAttribArray trspk_glEnableVertexAttribArray
+#define glGenBuffers trspk_glGenBuffers
+#define glGenTextures trspk_glGenTextures
+#define glGenVertexArrays trspk_glGenVertexArrays
+#define glGetAttribLocation trspk_glGetAttribLocation
+#define glGetProgramiv trspk_glGetProgramiv
+#define glGetShaderiv trspk_glGetShaderiv
+#define glGetUniformLocation trspk_glGetUniformLocation
+#define glLinkProgram trspk_glLinkProgram
+#define glMapBuffer trspk_glMapBuffer
+#define glScissor trspk_glScissor
+#define glShaderSource trspk_glShaderSource
+#define glTexImage2D trspk_glTexImage2D
+#define glTexParameteri trspk_glTexParameteri
+#define glUniform1i trspk_glUniform1i
+#define glUniformMatrix4fv trspk_glUniformMatrix4fv
+#define glUnmapBuffer trspk_glUnmapBuffer
+#define glUseProgram trspk_glUseProgram
+#define glVertexAttribPointer trspk_glVertexAttribPointer
+#define glViewport trspk_glViewport
+
+#endif

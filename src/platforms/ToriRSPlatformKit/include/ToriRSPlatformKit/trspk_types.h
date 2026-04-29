@@ -151,6 +151,7 @@ typedef struct TRSPK_ModelPose
 {
     TRSPK_GPUHandle vbo;
     TRSPK_GPUHandle ebo;
+    TRSPK_GPUHandle world_vao;
     uint32_t vbo_offset;
     uint32_t ebo_offset;
     uint32_t element_count;
@@ -165,6 +166,7 @@ typedef struct TRSPK_BatchResource
 {
     TRSPK_GPUHandle vbo;
     TRSPK_GPUHandle ebo;
+    TRSPK_GPUHandle world_vao;
     uint32_t chunk_count;
     TRSPK_GPUHandle chunk_vbos[TRSPK_MAX_WEBGL1_CHUNKS];
     TRSPK_GPUHandle chunk_ebos[TRSPK_MAX_WEBGL1_CHUNKS];

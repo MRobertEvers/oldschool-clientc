@@ -382,6 +382,14 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
         }
         break;
         case TORIRS_GFX_DRAW_MODEL:
+            if( command._model_draw.use_animation && command._model_draw.model &&
+                command._model_draw.animation_frame )
+            {
+                dashmodel_animate(
+                    command._model_draw.model,
+                    command._model_draw.animation_frame,
+                    command._model_draw.animation_framemap);
+            }
             if( vp_pixels )
                 dash3d_raster_projected_model(
                     game->sys_dash,

@@ -19,6 +19,7 @@ trspk_metal_draw_begin_3d(
 {
     if( !r )
         return;
+    trspk_metal_dynamic_reset_pass(r);
     if( viewport )
     {
         r->pass_logical_rect = *viewport;
@@ -134,8 +135,10 @@ trspk_metal_draw_submit_3d(
     const TRSPK_Mat4* view,
     const TRSPK_Mat4* proj)
 {
-    if( !r || !view || !proj || r->pass_state.index_count == 0u ||
-        r->pass_state.subdraw_count == 0u )
+    if( !r || !view || !proj )
+        return;
+    trspk_metal_pass_flush_pending_dynamic_gpu_uploads(r);
+    if( r->pass_state.index_count == 0u || r->pass_state.subdraw_count == 0u )
         return;
     TRSPK_MetalPassState* pass = &r->pass_state;
     if( !pass->index_pool || pass->uniform_pass_subslot >= TRSPK_METAL_MAX_3D_PASSES_PER_FRAME )

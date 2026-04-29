@@ -95,6 +95,10 @@ TRSPK_WebGL1_Shutdown(TRSPK_WebGL1Renderer* r)
 {
     if( !r )
         return;
+    trspk_webgl1_pass_free_pending_dynamic_uploads(r);
+    free(r->pass_state.pending_dynamic_uploads);
+    r->pass_state.pending_dynamic_uploads = NULL;
+    r->pass_state.pending_dynamic_upload_cap = 0u;
 #ifdef __EMSCRIPTEN__
     if( r->prog_world3d )
         glDeleteProgram(r->prog_world3d);
@@ -153,6 +157,12 @@ TRSPK_WebGL1_FrameBegin(TRSPK_WebGL1Renderer* r)
         return;
     r->pass_state.uniform_pass_subslot = 0u;
     r->diag_frame_submitted_draws = 0u;
+    r->diag_frame_pass_subdraws = 0u;
+    r->diag_frame_merge_break_chunk = 0u;
+    r->diag_frame_merge_break_vbo = 0u;
+    r->diag_frame_merge_break_pool_gap = 0u;
+    r->diag_frame_merge_break_next_invalid = 0u;
+    r->diag_frame_merge_outer_skips = 0u;
 #ifdef __EMSCRIPTEN__
     glViewport(0, 0, (GLsizei)r->width, (GLsizei)r->height);
     glDisable(GL_SCISSOR_TEST);

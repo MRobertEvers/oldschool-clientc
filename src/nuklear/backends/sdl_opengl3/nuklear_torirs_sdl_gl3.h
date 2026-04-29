@@ -76,9 +76,9 @@ static struct torirs_nk_gl3_bundle {
 } torirs_nk_gl3__st;
 
 #ifdef __APPLE__
-  #define NK_SHADER_VERSION "#version 150\n"
+  #define NK_SHADER_VERSION "#version 150 core\n"
 #else
-  #define NK_SHADER_VERSION "#version 300 es\n"
+  #define NK_SHADER_VERSION "#version 330 core\n"
 #endif
 NK_API void
 torirs_nk_gl3_device_create(void)
@@ -99,7 +99,6 @@ torirs_nk_gl3_device_create(void)
         "}\n";
     static const GLchar *fragment_shader =
         NK_SHADER_VERSION
-        "precision mediump float;\n"
         "uniform sampler2D Texture;\n"
         "in vec2 Frag_UV;\n"
         "in vec4 Frag_Color;\n"

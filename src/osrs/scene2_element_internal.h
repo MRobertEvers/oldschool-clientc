@@ -20,8 +20,10 @@ struct Scene2ElementFast
     struct Scene2Element* next;
     struct DashModel* dash_model;
     struct DashPosition* dash_position;
-    /** Monotonic id from Scene2 when a model is assigned; used in GPU load/unload commands. */
+    /** Monotonic id from Scene2 when a model is assigned; used with render MODEL_LOAD/UNLOAD. */
     int dash_model_gpu_id;
+    /** Stable per-element id from acquire (TRSPK / cache slot); 0 if not allocated. */
+    int visual_id;
     /** `Scene2ElementCategory`. */
     uint8_t element_category;
 };
@@ -33,8 +35,10 @@ struct Scene2ElementFull
     struct Scene2Element* next;
     struct DashModel* dash_model;
     struct DashPosition* dash_position;
-    /** Monotonic id from Scene2 when a model is assigned; used in GPU load/unload commands. */
+    /** Monotonic id from Scene2 when a model is assigned; used with render MODEL_LOAD/UNLOAD. */
     int dash_model_gpu_id;
+    /** Stable per-element id from acquire (TRSPK / cache slot); 0 if not allocated. */
+    int visual_id;
     /** `Scene2ElementCategory`. */
     uint8_t element_category;
     struct DashFramemap* dash_framemap;

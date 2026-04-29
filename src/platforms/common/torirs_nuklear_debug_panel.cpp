@@ -1,9 +1,8 @@
 #include "torirs_nuklear_debug_panel.h"
 
 #include "nuklear/torirs_nuklear.h"
-
-#include "platforms/platform_impl2_sdl2_renderer_soft3d_shared.h"
 #include "platforms/common/platform_memory.h"
+#include "platforms/platform_impl2_sdl2_renderer_soft3d_shared.h"
 
 #include <SDL.h>
 #include <math.h>
@@ -20,7 +19,10 @@ extern int g_trap_z;
 static int s_soft3d_show_collision_map = 0;
 
 void
-torirs_nk_debug_panel_draw(struct nk_context* nk, struct GGame* game, TorirsNkDebugPanelParams* p)
+torirs_nk_debug_panel_draw(
+    struct nk_context* nk,
+    struct GGame* game,
+    TorirsNkDebugPanelParams* p)
 {
     if( !nk || !game || !p || !p->window_title )
         return;
@@ -53,7 +55,8 @@ torirs_nk_debug_panel_draw(struct nk_context* nk, struct GGame* game, TorirsNkDe
                 if( mem.heap_total > 0 )
                     nk_prog(nk, (nk_size)mem.heap_used, (nk_size)mem.heap_total, NK_FIXED);
                 if( mem.heap_peak > 0 )
-                    nk_labelf(nk, NK_TEXT_LEFT, "Peak: %.1f MB", mem.heap_peak / (1024.0f * 1024.0f));
+                    nk_labelf(
+                        nk, NK_TEXT_LEFT, "Peak: %.1f MB", mem.heap_peak / (1024.0f * 1024.0f));
             }
         }
 #endif
@@ -79,11 +82,7 @@ torirs_nk_debug_panel_draw(struct nk_context* nk, struct GGame* game, TorirsNkDe
                 p->soft3d->pixel_size_dynamic = dyn != 0;
             }
             nk_labelf(
-                nk,
-                NK_TEXT_LEFT,
-                "Render size: %d x %d",
-                p->soft3d->width,
-                p->soft3d->height);
+                nk, NK_TEXT_LEFT, "Render size: %d x %d", p->soft3d->width, p->soft3d->height);
 
             if( game->view_port )
             {
@@ -205,24 +204,35 @@ torirs_nk_debug_panel_draw(struct nk_context* nk, struct GGame* game, TorirsNkDe
         {
             nk_labelf(nk, NK_TEXT_LEFT, "Frame model draws: %u", p->gpu_model_draws);
             nk_labelf(nk, NK_TEXT_LEFT, "Frame triangles: %u", p->gpu_tris);
-            if( p->gpu_submitted_model_draws || p->gpu_pose_invalid_skips || p->gpu_dynamic_index_draws ||
-                p->gpu_model_draws )
+            if( p->gpu_submitted_model_draws || p->gpu_pose_invalid_skips ||
+                p->gpu_dynamic_index_draws || p->gpu_model_draws )
+            {
+                nk_labelf(nk, NK_TEXT_LEFT, "WebGL GPU submits: %u", p->gpu_submitted_model_draws);
+                nk_labelf(
+                    nk, NK_TEXT_LEFT, "WebGL pose invalid skips: %u", p->gpu_pose_invalid_skips);
+                nk_labelf(
+                    nk, NK_TEXT_LEFT, "WebGL dynamic index draws: %u", p->gpu_dynamic_index_draws);
+            }
+            if( p->gpu_gl_pass_subdraws || p->gpu_gl_index_draw_calls ||
+                p->gpu_gl_merge_brk_chunk || p->gpu_gl_merge_brk_vbo || p->gpu_gl_merge_brk_pool ||
+                p->gpu_gl_merge_brk_invalid || p->gpu_gl_merge_outer_skips )
             {
                 nk_labelf(
-                    nk,
-                    NK_TEXT_LEFT,
-                    "WebGL GPU submits: %u",
-                    p->gpu_submitted_model_draws);
+                    nk, NK_TEXT_LEFT, "WGL1 subdraw records (frame): %u", p->gpu_gl_pass_subdraws);
                 nk_labelf(
                     nk,
                     NK_TEXT_LEFT,
-                    "WebGL pose invalid skips: %u",
-                    p->gpu_pose_invalid_skips);
+                    "WGL1 glDrawElements (merged): %u",
+                    p->gpu_gl_index_draw_calls);
                 nk_labelf(
                     nk,
                     NK_TEXT_LEFT,
-                    "WebGL dynamic index draws: %u",
-                    p->gpu_dynamic_index_draws);
+                    "WGL1 merge break: chunk=%u vbo=%u pool=%u invalid=%u outer_skip=%u",
+                    p->gpu_gl_merge_brk_chunk,
+                    p->gpu_gl_merge_brk_vbo,
+                    p->gpu_gl_merge_brk_pool,
+                    p->gpu_gl_merge_brk_invalid,
+                    p->gpu_gl_merge_outer_skips);
             }
         }
     }

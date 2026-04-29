@@ -1,9 +1,12 @@
-#include "trspk_webgl1.h"
-
 #include "../../../include/ToriRSPlatformKit/trspk_math.h"
+#include "trspk_webgl1.h"
 
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef TRSPK_WEBGL1_VERBOSE_MERGE
+#include <stdio.h>
+#endif
 
 TRSPK_Rect
 trspk_webgl1_full_window_logical_rect(const TRSPK_WebGL1Renderer* r)
@@ -153,6 +156,8 @@ trspk_webgl1_draw_begin_3d(
 {
     if( !r )
         return;
+    /* Upload any mesh staged outside draw_submit (e.g. RES_MODEL_LOAD) before resetting pools. */
+    trspk_webgl1_pass_flush_pending_dynamic_gpu_uploads(r);
     for( uint32_t i = 0; i < TRSPK_MAX_WEBGL1_CHUNKS; ++i )
     {
         r->pass_state.chunk_has_draws[i] = false;
@@ -216,6 +221,8 @@ trspk_webgl1_draw_submit_3d(
         return;
 #ifdef __EMSCRIPTEN__
 
+    trspk_webgl1_pass_flush_pending_dynamic_gpu_uploads(r);
+
     trspk_webgl1_apply_pass_viewport(r);
     glUseProgram(r->prog_world3d);
     if( r->world_locs.u_modelViewMatrix >= 0 )
@@ -231,37 +238,114 @@ trspk_webgl1_draw_submit_3d(
     glDepthFunc(GL_ALWAYS);
     glDepthMask(GL_FALSE);
 
+    TRSPK_WebGL1PassState* const pass = &r->pass_state;
+    r->diag_frame_pass_subdraws += pass->subdraw_count;
+
+#ifdef TRSPK_WEBGL1_VERBOSE_MERGE
+    const uint32_t verbose_pass_subdraws = pass->subdraw_count;
+    uint32_t verbose_draws = 0u;
+    const uint32_t snap_outer = r->diag_frame_merge_outer_skips;
+    const uint32_t snap_chunk = r->diag_frame_merge_break_chunk;
+    const uint32_t snap_vbo = r->diag_frame_merge_break_vbo;
+    const uint32_t snap_pool = r->diag_frame_merge_break_pool_gap;
+    const uint32_t snap_inv = r->diag_frame_merge_break_next_invalid;
+#endif
+
     GLuint last_vbo = 0u;
-    for( uint32_t si = 0; si < r->pass_state.subdraw_count; ++si )
+    uint32_t last_ib_chunk = TRSPK_MAX_WEBGL1_CHUNKS;
+
+    uint32_t run_start = 0u;
+    while( run_start < pass->subdraw_count )
     {
-        const TRSPK_WebGL1SubDraw* sub = &r->pass_state.subdraws[si];
-        const uint32_t chunk = (uint32_t)sub->chunk;
-        if( chunk >= TRSPK_MAX_WEBGL1_CHUNKS || !r->pass_state.chunk_has_draws[chunk] ||
-            sub->index_count == 0u )
-            continue;
-        const GLuint vbo = sub->vbo;
-        if( vbo == 0u )
-            continue;
-        if( sub->pool_start + sub->index_count > r->pass_state.chunk_index_counts[chunk] )
-            continue;
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r->dynamic_ibo);
-        glBufferData(
-            GL_ELEMENT_ARRAY_BUFFER,
-            (GLsizeiptr)(sub->index_count * sizeof(uint16_t)),
-            r->pass_state.chunk_index_pools[chunk] + sub->pool_start,
-            GL_STREAM_DRAW);
-        if( vbo != last_vbo )
+        const TRSPK_WebGL1SubDraw* first = &pass->subdraws[run_start];
+        const uint32_t chunk = (uint32_t)first->chunk;
+        if( chunk >= TRSPK_MAX_WEBGL1_CHUNKS || !pass->chunk_has_draws[chunk] ||
+            first->index_count == 0u )
         {
-            glBindBuffer(GL_ARRAY_BUFFER, vbo);
-            trspk_webgl1_bind_world_attribs(r);
-            last_vbo = vbo;
+            r->diag_frame_merge_outer_skips++;
+            run_start++;
+            continue;
         }
-        glDrawElements(GL_TRIANGLES, (GLsizei)sub->index_count, GL_UNSIGNED_SHORT, (void*)0);
+        const GLuint vbo_first = first->vbo;
+        if( vbo_first == 0u )
+        {
+            r->diag_frame_merge_outer_skips++;
+            run_start++;
+            continue;
+        }
+        if( first->pool_start + first->index_count > pass->chunk_index_counts[chunk] )
+        {
+            r->diag_frame_merge_outer_skips++;
+            run_start++;
+            continue;
+        }
+
+        uint32_t run_end = run_start + 1u;
+        uint32_t run_count = first->index_count;
+        while( run_end < pass->subdraw_count )
+        {
+            const TRSPK_WebGL1SubDraw* next = &pass->subdraws[run_end];
+            const uint32_t nc = (uint32_t)next->chunk;
+            if( nc >= TRSPK_MAX_WEBGL1_CHUNKS || !pass->chunk_has_draws[nc] ||
+                next->index_count == 0u || next->vbo == 0u )
+            {
+                r->diag_frame_merge_break_next_invalid++;
+                break;
+            }
+            if( next->pool_start + next->index_count > pass->chunk_index_counts[nc] )
+            {
+                r->diag_frame_merge_break_next_invalid++;
+                break;
+            }
+            if( nc != chunk )
+            {
+                r->diag_frame_merge_break_chunk++;
+                break;
+            }
+            if( next->vbo != vbo_first )
+            {
+                r->diag_frame_merge_break_vbo++;
+                break;
+            }
+            if( next->pool_start != first->pool_start + run_count )
+            {
+                r->diag_frame_merge_break_pool_gap++;
+                break;
+            }
+            run_count += next->index_count;
+            run_end++;
+        }
+
+        if( last_ib_chunk != chunk )
+        {
+            const uint32_t chunk_ib_bytes =
+                pass->chunk_index_counts[chunk] * (uint32_t)sizeof(uint16_t);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r->dynamic_ibo);
+            glBufferData(
+                GL_ELEMENT_ARRAY_BUFFER,
+                (GLsizeiptr)chunk_ib_bytes,
+                pass->chunk_index_pools[chunk],
+                GL_STREAM_DRAW);
+            last_ib_chunk = chunk;
+        }
+
+        if( vbo_first != last_vbo )
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, vbo_first);
+            trspk_webgl1_bind_world_attribs(r);
+            last_vbo = vbo_first;
+        }
+        // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, r->dynamic_ibo);
+        {
+            const size_t ibo_byte_off = (size_t)first->pool_start * sizeof(uint16_t);
+            glDrawElements(
+                GL_TRIANGLES, (GLsizei)run_count, GL_UNSIGNED_SHORT, (void*)ibo_byte_off);
+        }
         r->diag_frame_submitted_draws++;
+
+        run_start = run_end;
     }
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    glUseProgram(0);
+
 #endif
     trspk_webgl1_draw_begin_3d(r, NULL);
     r->pass_state.uniform_pass_subslot++;

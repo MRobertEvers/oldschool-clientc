@@ -168,6 +168,10 @@ struct ToriRSRenderCommand
             uint8_t frame_index;
             /** `ToriRS_UsageHint` for cache policy / draw grouping. */
             uint8_t usage_hint;
+            /** When `use_animation`: pose from Scene2 for CPU rasterizers (`dashmodel_animate`). */
+            struct DashFrame* animation_frame;
+            /** When `use_animation`: shared framemap for vertex animation (may be NULL). */
+            struct DashFramemap* animation_framemap;
         } _model_draw;
         struct
         {

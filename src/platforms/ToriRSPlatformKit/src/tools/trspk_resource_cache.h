@@ -102,6 +102,12 @@ trspk_resource_cache_batch_set_resource(
     TRSPK_GPUHandle ebo);
 
 void
+trspk_resource_cache_batch_set_world_vao(
+    TRSPK_ResourceCache* cache,
+    TRSPK_BatchId batch_id,
+    TRSPK_GPUHandle world_vao);
+
+void
 trspk_resource_cache_batch_set_chunks(
     TRSPK_ResourceCache* cache,
     TRSPK_BatchId batch_id,

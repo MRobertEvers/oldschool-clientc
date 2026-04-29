@@ -145,8 +145,7 @@ scene2__batch_deferred_remove_model_and_anims_for_element(
     for( int r = 0; r < scene2->batch_deferred_ops_count; r++ )
     {
         struct Scene2BatchDeferredOp* op = &scene2->batch_deferred_ops[r];
-        if( op->kind == SCENE2_BATCH_DEFER_MODEL &&
-            op->u.model.element_id == element_id )
+        if( op->kind == SCENE2_BATCH_DEFER_MODEL && op->u.model.element_id == element_id )
             continue;
         if( model_gpu_id_drop_anim > 0 && op->kind == SCENE2_BATCH_DEFER_ANIM &&
             op->u.anim.model_gpu_id == model_gpu_id_drop_anim )
@@ -158,7 +157,9 @@ scene2__batch_deferred_remove_model_and_anims_for_element(
 
 /** Before assigning a new model to E during a batch: drop superseded MODEL(E) and its ANIM ops. */
 static void
-scene2__batch_deferred_supersede_element_model(struct Scene2* scene2, int element_id)
+scene2__batch_deferred_supersede_element_model(
+    struct Scene2* scene2,
+    int element_id)
 {
     if( !scene2 || scene2->batch_deferred_ops_count <= 0 )
         return;
@@ -176,9 +177,8 @@ scene2__batch_deferred_supersede_element_model(struct Scene2* scene2, int elemen
 static bool
 scene2__batch_deferred_grow(struct Scene2* scene2)
 {
-    int ncap = scene2->batch_deferred_ops_capacity == 0
-                   ? 256
-                   : scene2->batch_deferred_ops_capacity * 2;
+    int ncap =
+        scene2->batch_deferred_ops_capacity == 0 ? 256 : scene2->batch_deferred_ops_capacity * 2;
     struct Scene2BatchDeferredOp* nb =
         realloc(scene2->batch_deferred_ops, (size_t)ncap * sizeof(struct Scene2BatchDeferredOp));
     if( !nb )
@@ -215,7 +215,9 @@ scene2__batch_deferred_append_model(
 }
 
 static bool
-scene2__batch_deferred_append_anim(struct Scene2* scene2, struct Scene2BatchDeferredOp* anim_op)
+scene2__batch_deferred_append_anim(
+    struct Scene2* scene2,
+    struct Scene2BatchDeferredOp* anim_op)
 {
     if( !scene2 )
         return false;
@@ -777,8 +779,7 @@ scene2_element_release(
             drop_gpu = scene2__as_fast(element)->dash_model_gpu_id;
         else
             drop_gpu = scene2__as_full(element)->dash_model_gpu_id;
-        scene2__batch_deferred_remove_model_and_anims_for_element(
-            scene2, element_id, drop_gpu);
+        scene2__batch_deferred_remove_model_and_anims_for_element(scene2, element_id, drop_gpu);
     }
 
     if( scene2__is_fast(element) )

@@ -33,10 +33,11 @@ typedef struct TRSPK_WebGL1WorldShaderLocs
 } TRSPK_WebGL1WorldShaderLocs;
 
 /**
- * One model draw in scene order. Chunk pools hold concatenated uint16 indices per chunk; each
+ * One model append in scene order. Chunk pools hold concatenated uint16 indices per chunk; each
  * subdraw references a contiguous [pool_start, pool_start+index_count) in that chunk's pool.
- * Submit must replay subdraws in this order (not a single pass per chunk), which matches the
- * legacy pass_3d builder and fixes painter order when 64k index rolls split a batch.
+ * Submit walks subdraws in order and merges consecutive entries with the same chunk, same VBO,
+ * and contiguous pool_start into one glDrawElements (see opengl3_draw_submit_3d). Re-uploads
+ * that chunk's full pool to the dynamic IBO when the active chunk changes (interleaved chunks).
  */
 typedef struct TRSPK_WebGL1SubDraw
 {
@@ -45,6 +46,19 @@ typedef struct TRSPK_WebGL1SubDraw
     uint32_t pool_start;
     uint32_t index_count;
 } TRSPK_WebGL1SubDraw;
+
+/** Staged dynamic mesh bytes; flushed in trspk_webgl1_draw_begin_3d and trspk_webgl1_draw_submit_3d. */
+typedef struct TRSPK_WebGL1PendingDynamicGpuUpload
+{
+    TRSPK_UsageClass usage;
+    uint8_t chunk;
+    uint32_t vbo_byte_offset;
+    uint32_t ebo_byte_offset;
+    uint32_t vertex_bytes;
+    uint32_t index_bytes;
+    uint8_t* vertex_copy;
+    uint8_t* index_copy;
+} TRSPK_WebGL1PendingDynamicGpuUpload;
 
 typedef struct TRSPK_WebGL1PassState
 {
@@ -56,6 +70,9 @@ typedef struct TRSPK_WebGL1PassState
     uint32_t subdraw_count;
     uint32_t subdraw_cap;
     uint32_t uniform_pass_subslot;
+    TRSPK_WebGL1PendingDynamicGpuUpload* pending_dynamic_uploads;
+    uint32_t pending_dynamic_upload_count;
+    uint32_t pending_dynamic_upload_cap;
 } TRSPK_WebGL1PassState;
 
 typedef struct TRSPK_WebGL1Renderer
@@ -82,6 +99,22 @@ typedef struct TRSPK_WebGL1Renderer
     TRSPK_UsageClass* dynamic_slot_usages;
     double frame_clock;
     uint32_t diag_frame_submitted_draws;
+    /**
+     * Merge / batching diagnostics (reset in TRSPK_WebGL1_FrameBegin). Updated in
+     * trspk_webgl1_draw_submit_3d when __EMSCRIPTEN__. Define TRSPK_WEBGL1_VERBOSE_MERGE for
+     * per-pass stderr logs from that function.
+     */
+    uint32_t diag_frame_pass_subdraws;
+    /** Times merge stopped: next subdraw had a different batch chunk than the run. */
+    uint32_t diag_frame_merge_break_chunk;
+    /** Times merge stopped: next subdraw used a different mesh VBO. */
+    uint32_t diag_frame_merge_break_vbo;
+    /** Times merge stopped: next.pool_start != contiguous end of run (pool order gap). */
+    uint32_t diag_frame_merge_break_pool_gap;
+    /** Times merge stopped: next subdraw invalid or pool bounds check failed. */
+    uint32_t diag_frame_merge_break_next_invalid;
+    /** Subdraw slots skipped at start of a run (invalid first entry). */
+    uint32_t diag_frame_merge_outer_skips;
     TRSPK_Rect pass_logical_rect;
     TRSPK_Rect pass_gl_rect;
     TRSPK_ResourceCache* cache;
@@ -204,6 +237,13 @@ trspk_webgl1_dynamic_store_dynamic_mesh(
     TRSPK_UsageClass usage,
     uint32_t pose_index,
     TRSPK_DynamicMesh* mesh);
+
+void
+trspk_webgl1_pass_free_pending_dynamic_uploads(TRSPK_WebGL1Renderer* r);
+
+void
+trspk_webgl1_pass_flush_pending_dynamic_gpu_uploads(TRSPK_WebGL1Renderer* r);
+
 void
 trspk_webgl1_dynamic_unload_model(
     TRSPK_WebGL1Renderer* r,

@@ -28,6 +28,15 @@ typedef struct TorirsNkDebugPanelParams
     unsigned gpu_submitted_model_draws;
     unsigned gpu_pose_invalid_skips;
     unsigned gpu_dynamic_index_draws;
+    /** WebGL1 world 3D: `glDrawElements` calls after merge (same frame as other gpu_*). */
+    unsigned gpu_gl_index_draw_calls;
+    /** WebGL1: subdraw records accumulated (`draw_add_model`); compare to gpu_gl_index_draw_calls. */
+    unsigned gpu_gl_pass_subdraws;
+    unsigned gpu_gl_merge_brk_chunk;
+    unsigned gpu_gl_merge_brk_vbo;
+    unsigned gpu_gl_merge_brk_pool;
+    unsigned gpu_gl_merge_brk_invalid;
+    unsigned gpu_gl_merge_outer_skips;
     /** When set, show `frame_work_avg_ms` (rolling avg CPU work, see torirs_nk_ui_frame_work_*). */
     int include_frame_work_timing;
     double frame_work_avg_ms;

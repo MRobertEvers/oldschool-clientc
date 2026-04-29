@@ -199,7 +199,8 @@ world_cycle_step_animation(
     }
 }
 
-/** Primary/secondary sequence id; 0 = memset/unset, (uint16_t)-1 = cleared via set_animation(-1). */
+/** Primary/secondary sequence id; 0 = memset/unset, (uint16_t)-1 = cleared via set_animation(-1).
+ */
 static bool
 world_cycle_entity_anim_track_enabled(uint16_t anim_id)
 {
@@ -464,6 +465,18 @@ world_cycle_push_npcs(struct World* world)
 }
 
 static void
+world_cycle_active_projectile_remove_at(
+    struct World* world,
+    int index)
+{
+    int projectile_id = world->active_projectiles[index];
+    world_cleanup_projectile_entity(world, projectile_id);
+    world->active_projectiles[index] =
+        world->active_projectiles[world->active_projectile_count - 1];
+    world->active_projectile_count--;
+}
+
+static void
 world_cycle_update_projectiles(
     struct World* world,
     int cycles_elapsed)
@@ -471,7 +484,7 @@ world_cycle_update_projectiles(
     if( cycles_elapsed <= 0 )
         return;
 
-    for( int i = 0; i < world->active_projectile_count; i++ )
+    for( int i = world->active_projectile_count - 1; i >= 0; i-- )
     {
         int projectile_id = world->active_projectiles[i];
         struct ProjectileEntity* p = world_projectile(world, projectile_id);
@@ -481,6 +494,14 @@ world_cycle_update_projectiles(
             scene2_element_at(world->scene2, p->scene_element2.element_id);
         if( !scene_element )
             continue;
+
+        p->draw_position.x += cycles_elapsed;
+        if( (p->draw_position.x / 128) > 103 )
+        {
+            world_cycle_active_projectile_remove_at(world, i);
+            continue;
+        }
+
         world_cycle_step_element_animations(&p->animation, scene_element, cycles_elapsed);
     }
 }

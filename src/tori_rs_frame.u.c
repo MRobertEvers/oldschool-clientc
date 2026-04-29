@@ -971,6 +971,36 @@ LibToriRS_FrameBegin(
 }
 
 static void
+element_step_animation(
+    struct Scene2Element* scene_element,
+    struct EntityAnimation* animation)
+{
+    struct Scene2Frames* primary = scene2_element_primary_frames(scene_element);
+    struct Scene2Frames* secondary = scene2_element_secondary_frames(scene_element);
+
+    if( animation->primary_anim.anim_id != -1 && primary && primary->count > 0 )
+    {
+        int frame = animation->primary_anim.frame;
+        scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
+        scene2_element_set_active_animation_index(scene_element, 0);
+        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
+    }
+    else if( animation->secondary_anim.anim_id != -1 && secondary && secondary->count > 0 )
+    {
+        int frame = animation->secondary_anim.frame;
+        scene2_element_set_active_anim_id(scene_element, animation->secondary_anim.anim_id);
+        scene2_element_set_active_animation_index(scene_element, 1);
+        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
+    }
+    else
+    {
+        scene2_element_set_active_anim_id(scene_element, 0);
+        scene2_element_set_active_animation_index(scene_element, 0);
+        scene2_element_set_active_frame(scene_element, 0);
+    }
+}
+
+static void
 entity_player_animate(
     struct World* world,
     int player_entity_id)
@@ -982,39 +1012,7 @@ entity_player_animate(
     if( !scene_element )
         return;
 
-    struct Scene2Frames* primary = scene2_element_primary_frames(scene_element);
-    struct Scene2Frames* secondary = scene2_element_secondary_frames(scene_element);
-    struct DashModel* dm = scene2_element_dash_model(scene_element);
-    struct DashFramemap* fm = scene2_element_dash_framemap(scene_element);
-
-    if( animation->primary_anim.anim_id != -1 && primary && primary->count > 0 )
-    {
-        int frame = animation->primary_anim.frame;
-        scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
-        scene2_element_set_active_animation_index(scene_element, 0);
-        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
-        if( frame >= 0 && frame < primary->count )
-        {
-            dashmodel_animate(dm, primary->frames[frame], fm);
-        }
-    }
-    else if( animation->secondary_anim.anim_id != -1 && secondary && secondary->count > 0 )
-    {
-        int frame = animation->secondary_anim.frame;
-        scene2_element_set_active_anim_id(scene_element, animation->secondary_anim.anim_id);
-        scene2_element_set_active_animation_index(scene_element, 1);
-        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
-        if( frame >= 0 && frame < secondary->count )
-        {
-            dashmodel_animate(dm, secondary->frames[frame], fm);
-        }
-    }
-    else
-    {
-        scene2_element_set_active_anim_id(scene_element, 0);
-        scene2_element_set_active_animation_index(scene_element, 0);
-        scene2_element_set_active_frame(scene_element, 0);
-    }
+    element_step_animation(scene_element, animation);
 }
 
 static void
@@ -1029,39 +1027,7 @@ entity_npc_animate(
     if( !scene_element )
         return;
 
-    struct Scene2Frames* primary = scene2_element_primary_frames(scene_element);
-    struct Scene2Frames* secondary = scene2_element_secondary_frames(scene_element);
-    struct DashModel* dm = scene2_element_dash_model(scene_element);
-    struct DashFramemap* fm = scene2_element_dash_framemap(scene_element);
-
-    if( animation->primary_anim.anim_id != -1 && primary && primary->count > 0 )
-    {
-        int frame = animation->primary_anim.frame;
-        scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
-        scene2_element_set_active_animation_index(scene_element, 0);
-        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
-        if( frame >= 0 && frame < primary->count )
-        {
-            dashmodel_animate(dm, primary->frames[frame], fm);
-        }
-    }
-    else if( animation->secondary_anim.anim_id != -1 && secondary && secondary->count > 0 )
-    {
-        int frame = animation->secondary_anim.frame;
-        scene2_element_set_active_anim_id(scene_element, animation->secondary_anim.anim_id);
-        scene2_element_set_active_animation_index(scene_element, 1);
-        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
-        if( frame >= 0 && frame < secondary->count )
-        {
-            dashmodel_animate(dm, secondary->frames[frame], fm);
-        }
-    }
-    else
-    {
-        scene2_element_set_active_anim_id(scene_element, 0);
-        scene2_element_set_active_animation_index(scene_element, 0);
-        scene2_element_set_active_frame(scene_element, 0);
-    }
+    element_step_animation(scene_element, animation);
 }
 
 static void
@@ -1076,39 +1042,7 @@ entity_projectile_animate(
     if( !scene_element )
         return;
 
-    struct Scene2Frames* primary = scene2_element_primary_frames(scene_element);
-    struct Scene2Frames* secondary = scene2_element_secondary_frames(scene_element);
-    struct DashModel* dm = scene2_element_dash_model(scene_element);
-    struct DashFramemap* fm = scene2_element_dash_framemap(scene_element);
-
-    if( animation->primary_anim.anim_id != -1 && primary && primary->count > 0 )
-    {
-        int frame = animation->primary_anim.frame;
-        scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
-        scene2_element_set_active_animation_index(scene_element, 0);
-        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
-        if( frame >= 0 && frame < primary->count )
-        {
-            dashmodel_animate(dm, primary->frames[frame], fm);
-        }
-    }
-    else if( animation->secondary_anim.anim_id != -1 && secondary && secondary->count > 0 )
-    {
-        int frame = animation->secondary_anim.frame;
-        scene2_element_set_active_anim_id(scene_element, animation->secondary_anim.anim_id);
-        scene2_element_set_active_animation_index(scene_element, 1);
-        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
-        if( frame >= 0 && frame < secondary->count )
-        {
-            dashmodel_animate(dm, secondary->frames[frame], fm);
-        }
-    }
-    else
-    {
-        scene2_element_set_active_anim_id(scene_element, 0);
-        scene2_element_set_active_animation_index(scene_element, 0);
-        scene2_element_set_active_frame(scene_element, 0);
-    }
+    element_step_animation(scene_element, animation);
 }
 
 static void
@@ -1129,27 +1063,7 @@ entity_map_build_loc_entity_animate(
             scene2_element_at(world->scene2, map_build_loc_entity->scene_element.element_id);
         scene2_element_expect(scene_element, "entity_map_build_loc_entity_animate primary");
 
-        struct Scene2Frames* pf = scene2_element_primary_frames(scene_element);
-        struct DashModel* dm = scene2_element_dash_model(scene_element);
-        struct DashFramemap* fm = scene2_element_dash_framemap(scene_element);
-
-        if( animation->primary_anim.anim_id != -1 && pf && pf->count > 0 )
-        {
-            int frame = animation->primary_anim.frame;
-            scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
-            scene2_element_set_active_animation_index(scene_element, 0);
-            scene2_element_set_active_frame(scene_element, (uint8_t)frame);
-            if( frame >= 0 && frame < pf->count )
-            {
-                dashmodel_animate(dm, pf->frames[frame], fm);
-            }
-        }
-        else
-        {
-            scene2_element_set_active_anim_id(scene_element, 0);
-            scene2_element_set_active_animation_index(scene_element, 0);
-            scene2_element_set_active_frame(scene_element, 0);
-        }
+        element_step_animation(scene_element, animation);
     }
 
     if( map_build_loc_entity->scene_element_two.element_id != -1 )
@@ -1159,27 +1073,7 @@ entity_map_build_loc_entity_animate(
             scene2_element_at(world->scene2, map_build_loc_entity->scene_element_two.element_id);
         scene2_element_expect(scene_element, "entity_map_build_loc_entity_animate secondary");
 
-        struct Scene2Frames* pf2 = scene2_element_primary_frames(scene_element);
-        struct DashModel* dm2 = scene2_element_dash_model(scene_element);
-        struct DashFramemap* fm2 = scene2_element_dash_framemap(scene_element);
-
-        if( animation->primary_anim.anim_id != -1 && pf2 && pf2->count > 0 )
-        {
-            int frame = animation->primary_anim.frame;
-            scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
-            scene2_element_set_active_animation_index(scene_element, 0);
-            scene2_element_set_active_frame(scene_element, (uint8_t)frame);
-            if( frame >= 0 && frame < pf2->count )
-            {
-                dashmodel_animate(dm2, pf2->frames[frame], fm2);
-            }
-        }
-        else
-        {
-            scene2_element_set_active_anim_id(scene_element, 0);
-            scene2_element_set_active_animation_index(scene_element, 0);
-            scene2_element_set_active_frame(scene_element, 0);
-        }
+        element_step_animation(scene_element, animation);
     }
 }
 
@@ -1467,6 +1361,15 @@ next:
             memcpy(&rc->_model_draw.world_position, &world_position, sizeof(struct DashPosition));
             rc->_model_draw.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
                 scene2_element_category(scene_element));
+            rc->_model_draw.animation_frame =
+                rc->_model_draw.use_animation
+                    ? scene2_element_dash_animation_frame(
+                          scene_element,
+                          rc->_model_draw.animation_index,
+                          rc->_model_draw.frame_index)
+                    : NULL;
+            rc->_model_draw.animation_framemap =
+                rc->_model_draw.use_animation ? scene2_element_dash_framemap(scene_element) : NULL;
         }
     }
     break;
@@ -1531,6 +1434,15 @@ next:
             memcpy(&rc->_model_draw.world_position, &world_position, sizeof(struct DashPosition));
             rc->_model_draw.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
                 scene2_element_category(scene_element));
+            rc->_model_draw.animation_frame =
+                rc->_model_draw.use_animation
+                    ? scene2_element_dash_animation_frame(
+                          scene_element,
+                          rc->_model_draw.animation_index,
+                          rc->_model_draw.frame_index)
+                    : NULL;
+            rc->_model_draw.animation_framemap =
+                rc->_model_draw.use_animation ? scene2_element_dash_framemap(scene_element) : NULL;
         }
     }
     break;

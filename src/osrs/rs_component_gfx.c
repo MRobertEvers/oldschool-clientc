@@ -185,6 +185,13 @@ rs_gfx_model_step(
         memcpy(&cmd->_model_draw.position, &position, sizeof(struct DashPosition));
         memcpy(&cmd->_model_draw.world_position, &world_position, sizeof(struct DashPosition));
         cmd->_model_draw.usage_hint = (uint8_t)scene2_element_category(se);
+        cmd->_model_draw.animation_frame =
+            cmd->_model_draw.use_animation
+                ? scene2_element_dash_animation_frame(
+                      se, cmd->_model_draw.animation_index, cmd->_model_draw.frame_index)
+                : NULL;
+        cmd->_model_draw.animation_framemap =
+            cmd->_model_draw.use_animation ? scene2_element_dash_framemap(se) : NULL;
     }
     return true;
 }

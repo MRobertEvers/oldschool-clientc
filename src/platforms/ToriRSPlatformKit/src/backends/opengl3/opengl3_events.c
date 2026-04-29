@@ -7,12 +7,13 @@
 #include "graphics/dash_model_internal.h"
 #include "osrs/game.h"
 #include "tori_rs_render.h"
-#include "trspk_metal.h"
+#include "opengl3_internal.h"
+#include "trspk_opengl3.h"
 
 #include <string.h>
 
 static TRSPK_UsageClass
-trspk_metal_usage_from_torirs(uint8_t usage)
+trspk_opengl3_usage_from_torirs(uint8_t usage)
 {
     switch( usage )
     {
@@ -28,8 +29,8 @@ trspk_metal_usage_from_torirs(uint8_t usage)
 }
 
 void
-trspk_metal_event_tex_load(
-    TRSPK_MetalEventContext* ctx,
+trspk_opengl3_event_tex_load(
+    TRSPK_OpenGL3EventContext* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
     if( !ctx || !ctx->renderer || !cmd )
@@ -62,26 +63,26 @@ trspk_metal_event_tex_load(
                 anim_v = -s;
             }
         }
-        trspk_metal_cache_load_texture_128(
+        trspk_opengl3_cache_load_texture_128(
             ctx->renderer,
             (TRSPK_TextureId)cmd->_texture_load.texture_id,
             rgba,
             anim_u,
             anim_v,
             tex ? tex->opaque : true);
-        trspk_metal_cache_refresh_atlas(ctx->renderer);
+        trspk_opengl3_cache_refresh_atlas(ctx->renderer);
     }
 }
 
 void
-trspk_metal_event_res_model_load(
-    TRSPK_MetalEventContext* ctx,
+trspk_opengl3_event_res_model_load(
+    TRSPK_OpenGL3EventContext* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
     if( !ctx || !ctx->renderer || !ctx->cache || !cmd || !cmd->_model_load.model ||
         cmd->_model_load.model_id < 0 )
         return;
-    const TRSPK_UsageClass usage = trspk_metal_usage_from_torirs(cmd->_model_load.usage_hint);
+    const TRSPK_UsageClass usage = trspk_opengl3_usage_from_torirs(cmd->_model_load.usage_hint);
     if( usage == TRSPK_USAGE_SCENERY )
         return;
 
@@ -124,7 +125,7 @@ trspk_metal_event_res_model_load(
         cmd->_model_load.world_yaw_r2pi2048);
     trspk_resource_cache_set_model_bake(
         ctx->cache, (TRSPK_ModelId)cmd->_model_load.model_id, &bake);
-    trspk_metal_dynamic_load_model(
+    trspk_opengl3_dynamic_load_model(
         ctx->renderer,
         (TRSPK_ModelId)cmd->_model_load.model_id,
         cmd->_model_load.model,
@@ -133,28 +134,29 @@ trspk_metal_event_res_model_load(
 }
 
 void
-trspk_metal_event_res_model_unload(
-    TRSPK_MetalEventContext* ctx,
+trspk_opengl3_event_res_model_unload(
+    TRSPK_OpenGL3EventContext* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
     if( !ctx || !ctx->renderer || !cmd || cmd->_model_load.model_id < 0 )
         return;
-    const TRSPK_UsageClass usage = trspk_metal_usage_from_torirs(cmd->_model_load.usage_hint);
+    const TRSPK_UsageClass usage = trspk_opengl3_usage_from_torirs(cmd->_model_load.usage_hint);
     if( usage == TRSPK_USAGE_SCENERY )
-        trspk_metal_cache_unload_model(ctx->renderer, (TRSPK_ModelId)cmd->_model_load.model_id);
+        trspk_opengl3_cache_unload_model(ctx->renderer, (TRSPK_ModelId)cmd->_model_load.model_id);
     else
-        trspk_metal_dynamic_unload_model(ctx->renderer, (TRSPK_ModelId)cmd->_model_load.model_id);
+        trspk_opengl3_dynamic_unload_model(ctx->renderer, (TRSPK_ModelId)cmd->_model_load.model_id);
 }
 
 void
-trspk_metal_event_res_anim_load(
-    TRSPK_MetalEventContext* ctx,
+trspk_opengl3_event_res_anim_load(
+    TRSPK_OpenGL3EventContext* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
     if( !ctx || !ctx->renderer || !ctx->cache || !cmd || !cmd->_animation_load.model ||
         cmd->_animation_load.model_gpu_id < 0 )
         return;
-    const TRSPK_UsageClass usage = trspk_metal_usage_from_torirs(cmd->_animation_load.usage_hint);
+    const TRSPK_UsageClass usage =
+        trspk_opengl3_usage_from_torirs(cmd->_animation_load.usage_hint);
     if( usage == TRSPK_USAGE_SCENERY )
         return;
     dashmodel_animate(
@@ -201,7 +203,7 @@ trspk_metal_event_res_anim_load(
         ctx->cache, (TRSPK_ModelId)cmd->_animation_load.model_gpu_id);
     TRSPK_BakeTransform id_fallback = trspk_bake_transform_identity();
     const TRSPK_BakeTransform* use_bake = bake ? bake : &id_fallback;
-    trspk_metal_dynamic_load_anim(
+    trspk_opengl3_dynamic_load_anim(
         ctx->renderer,
         (TRSPK_ModelId)cmd->_animation_load.model_gpu_id,
         cmd->_animation_load.model,
@@ -212,8 +214,8 @@ trspk_metal_event_res_anim_load(
 }
 
 void
-trspk_metal_event_batch3d_begin(
-    TRSPK_MetalEventContext* ctx,
+trspk_opengl3_event_batch3d_begin(
+    TRSPK_OpenGL3EventContext* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
     if( !ctx || !ctx->cache || !ctx->staging || !cmd )
@@ -225,8 +227,8 @@ trspk_metal_event_batch3d_begin(
 }
 
 void
-trspk_metal_event_batch3d_model_add(
-    TRSPK_MetalEventContext* ctx,
+trspk_opengl3_event_batch3d_model_add(
+    TRSPK_OpenGL3EventContext* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
     if( !ctx || !ctx->cache || !ctx->staging || !cmd || !ctx->batch_active )
@@ -249,8 +251,8 @@ trspk_metal_event_batch3d_model_add(
 }
 
 void
-trspk_metal_event_batch3d_anim_add(
-    TRSPK_MetalEventContext* ctx,
+trspk_opengl3_event_batch3d_anim_add(
+    TRSPK_OpenGL3EventContext* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
     if( !ctx || !ctx->cache || !ctx->staging || !cmd || !ctx->batch_active ||
@@ -273,32 +275,32 @@ trspk_metal_event_batch3d_anim_add(
 }
 
 void
-trspk_metal_event_batch3d_end(
-    TRSPK_MetalEventContext* ctx,
+trspk_opengl3_event_batch3d_end(
+    TRSPK_OpenGL3EventContext* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
     if( !ctx || !ctx->renderer || !ctx->staging || !cmd )
         return;
     trspk_batch32_end(ctx->staging);
-    trspk_metal_cache_batch_submit(
+    trspk_opengl3_cache_batch_submit(
         ctx->renderer, (TRSPK_BatchId)cmd->_batch.batch_id, cmd->_batch.usage_hint);
     ctx->current_batch_id = 0;
     ctx->batch_active = false;
 }
 
 void
-trspk_metal_event_batch3d_clear(
-    TRSPK_MetalEventContext* ctx,
+trspk_opengl3_event_batch3d_clear(
+    TRSPK_OpenGL3EventContext* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
     if( !ctx || !ctx->renderer || !cmd )
         return;
-    trspk_metal_cache_batch_clear(ctx->renderer, (TRSPK_BatchId)cmd->_batch.batch_id);
+    trspk_opengl3_cache_batch_clear(ctx->renderer, (TRSPK_BatchId)cmd->_batch.batch_id);
 }
 
 void
-trspk_metal_event_draw_model(
-    TRSPK_MetalEventContext* ctx,
+trspk_opengl3_event_draw_model(
+    TRSPK_OpenGL3EventContext* ctx,
     struct GGame* game,
     const struct ToriRSRenderCommand* cmd,
     uint32_t* sorted_indices_buffer,
@@ -307,7 +309,8 @@ trspk_metal_event_draw_model(
     if( !ctx || !ctx->renderer || !ctx->cache || !game || !cmd )
         return;
 
-    const TRSPK_UsageClass draw_usage = trspk_metal_usage_from_torirs(cmd->_model_draw.usage_hint);
+    const TRSPK_UsageClass draw_usage =
+        trspk_opengl3_usage_from_torirs(cmd->_model_draw.usage_hint);
     if( draw_usage != TRSPK_USAGE_SCENERY )
     {
         TRSPK_BakeTransform bake = trspk_bake_transform_from_yaw_translate(
@@ -364,7 +367,7 @@ trspk_metal_event_draw_model(
                     const TRSPK_VertexBuffer* id_mesh = trspk_lru_model_cache_get(
                         lru, (TRSPK_ModelId)cmd->_model_draw.model_id, seg, frame_i);
                     if( id_mesh )
-                        did_defer = trspk_metal_dynamic_enqueue_draw_mesh_deferred(
+                        did_defer = trspk_opengl3_dynamic_enqueue_draw_mesh_deferred(
                             ctx->renderer,
                             (TRSPK_ModelId)cmd->_model_draw.model_id,
                             draw_usage,
@@ -392,12 +395,12 @@ trspk_metal_event_draw_model(
     const uint32_t count = trspk_dash_prepare_sorted_indices(
         game, cmd->_model_draw.model, cmd, sorted_indices_buffer, buffer_capacity);
     if( count != 0 )
-        trspk_metal_draw_add_model(ctx->renderer, pose, sorted_indices_buffer, count);
+        trspk_opengl3_draw_add_model(ctx->renderer, pose, sorted_indices_buffer, count);
 }
 
 void
-trspk_metal_event_state_begin_3d(
-    TRSPK_MetalEventContext* ctx,
+trspk_opengl3_event_state_begin_3d(
+    TRSPK_OpenGL3EventContext* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
     if( !ctx || !ctx->renderer || !cmd )
@@ -418,7 +421,7 @@ trspk_metal_event_state_begin_3d(
     }
     else
     {
-        TRSPK_MetalRenderer* r = ctx->renderer;
+        TRSPK_OpenGL3Renderer* r = ctx->renderer;
         int32_t w = 1;
         int32_t h = 1;
         if( r->window_width > 0u && r->window_height > 0u )
@@ -440,12 +443,12 @@ trspk_metal_event_state_begin_3d(
         if( rect.height <= 0 )
             rect.height = 1;
     }
-    trspk_metal_draw_begin_3d(ctx->renderer, &rect);
+    trspk_opengl3_draw_begin_3d(ctx->renderer, &rect);
 }
 
 void
-trspk_metal_event_state_clear_rect(
-    TRSPK_MetalEventContext* ctx,
+trspk_opengl3_event_state_clear_rect(
+    TRSPK_OpenGL3EventContext* ctx,
     const struct ToriRSRenderCommand* cmd)
 {
     if( !ctx || !ctx->renderer || !cmd )
@@ -453,34 +456,33 @@ trspk_metal_event_state_clear_rect(
     TRSPK_Rect rect = {
         cmd->_clear_rect.x, cmd->_clear_rect.y, cmd->_clear_rect.w, cmd->_clear_rect.h
     };
-    trspk_metal_draw_clear_rect(ctx->renderer, &rect);
+    trspk_opengl3_draw_clear_rect(ctx->renderer, &rect);
 }
 
 void
-trspk_metal_event_state_end_3d(
-    TRSPK_MetalEventContext* ctx,
+trspk_opengl3_event_state_end_3d(
+    TRSPK_OpenGL3EventContext* ctx,
     struct GGame* game,
     double frame_clock)
 {
     if( !ctx || !ctx->renderer || !game )
         return;
     TRSPK_Mat4 view, proj;
-    trspk_metal_compute_view_matrix(
+    trspk_opengl3_compute_view_matrix(
         view.m,
         (float)game->camera_world_x,
         (float)game->camera_world_y,
         (float)game->camera_world_z,
-        trspk_metal_dash_yaw_to_radians(game->camera_pitch),
-        trspk_metal_dash_yaw_to_radians(game->camera_yaw));
+        trspk_opengl3_dash_yaw_to_radians(game->camera_pitch),
+        trspk_opengl3_dash_yaw_to_radians(game->camera_yaw));
     const float projection_width = ctx->renderer->pass_logical_rect.width > 0
                                        ? (float)ctx->renderer->pass_logical_rect.width
                                        : (float)ctx->renderer->width;
     const float projection_height = ctx->renderer->pass_logical_rect.height > 0
                                         ? (float)ctx->renderer->pass_logical_rect.height
                                         : (float)ctx->renderer->height;
-    trspk_metal_compute_projection_matrix(
+    trspk_opengl3_compute_projection_matrix(
         proj.m, (90.0f * TRSPK_PI) / 180.0f, projection_width, projection_height);
-    trspk_metal_remap_projection_opengl_to_metal_z(proj.m);
     ctx->renderer->frame_clock = frame_clock;
-    trspk_metal_draw_submit_3d(ctx->renderer, &view, &proj);
+    trspk_opengl3_draw_submit_3d(ctx->renderer, &view, &proj);
 }

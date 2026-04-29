@@ -3,6 +3,7 @@
 #include "trspk_vertex_buffer.h"
 #include "trspk_vertex_format.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -278,10 +279,12 @@ trspk_batch16_prepare_vertex_buffer(
     trspk_vertex_buffer_free(vb);
 
     TRSPK_Batch16Chunk* chunk = &batch->chunks[batch->current_chunk];
-    if( (chunk->vertex_count + vertex_count > 65535u ||
-         chunk->index_count + index_count > 65535u) &&
-        !trspk_batch16_roll_chunk(batch) )
-        return false;
+
+    if( (chunk->vertex_count + vertex_count > 65535u || chunk->index_count + index_count > 65535u) )
+    {
+        if( !trspk_batch16_roll_chunk(batch) )
+            return false;
+    }
     chunk = &batch->chunks[batch->current_chunk];
 
     const uint32_t vstart = chunk->vertex_count;

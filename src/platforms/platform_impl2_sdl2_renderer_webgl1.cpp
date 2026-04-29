@@ -231,6 +231,13 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
         params.gpu_submitted_model_draws = renderer->diag_frame_submitted_model_draws;
         params.gpu_pose_invalid_skips = renderer->diag_frame_pose_invalid_skips;
         params.gpu_dynamic_index_draws = 0u;
+        params.gpu_gl_index_draw_calls = renderer->trspk->diag_frame_submitted_draws;
+        params.gpu_gl_pass_subdraws = renderer->trspk->diag_frame_pass_subdraws;
+        params.gpu_gl_merge_brk_chunk = renderer->trspk->diag_frame_merge_break_chunk;
+        params.gpu_gl_merge_brk_vbo = renderer->trspk->diag_frame_merge_break_vbo;
+        params.gpu_gl_merge_brk_pool = renderer->trspk->diag_frame_merge_break_pool_gap;
+        params.gpu_gl_merge_brk_invalid = renderer->trspk->diag_frame_merge_break_next_invalid;
+        params.gpu_gl_merge_outer_skips = renderer->trspk->diag_frame_merge_outer_skips;
         if( frame_work_avg_ms >= 0.0 )
         {
             params.include_frame_work_timing = 1;
@@ -242,7 +249,8 @@ PlatformImpl2_SDL2_Renderer_WebGL1_Render(
         Uint64 const frame_work_t1 = SDL_GetPerformanceCounter();
         Uint64 const frame_work_freq = SDL_GetPerformanceFrequency();
         double const frame_work_sec =
-            frame_work_freq ? (double)(frame_work_t1 - frame_work_t0) / (double)frame_work_freq : 0.0;
+            frame_work_freq ? (double)(frame_work_t1 - frame_work_t0) / (double)frame_work_freq
+                            : 0.0;
         torirs_nk_ui_frame_work_push_sec(frame_work_sec);
     }
 

@@ -86,6 +86,8 @@ struct Scene2Event
             int element_id;
             int parent_entity_id;
             int model_id;
+            /** TRSPK / per-element cache slot from acquire; may be 0 if skipped (e.g. hillskew). */
+            int visual_id;
             /** `Scene2ElementCategory` at event time. */
             uint8_t element_category;
             /** Valid until scene2_flush_deferred_array_frees (deferred dashmodel_free). */
@@ -114,10 +116,11 @@ struct Scene2Event
         {
             uint32_t batch_id;
         } batch;
-        /** ANIMATION_LOADED: pose for (model_gpu_id, anim_id, animation_index, frame_index). */
+        /** ANIMATION_LOADED: pose for (visual_id / model_gpu_id, anim_id, animation_index, frame). */
         struct
         {
             int model_gpu_id;
+            int visual_id;
             int anim_id;
             /** 0 = primary animation track, 1 = secondary. */
             int animation_index;
@@ -138,6 +141,7 @@ struct Scene2BatchedModelLoad
     int element_id;
     int parent_entity_id;
     int model_gpu_id;
+    int visual_id;
     uint8_t element_category;
     struct DashModel* model;
 };
@@ -152,6 +156,7 @@ enum Scene2BatchDeferKind
 struct Scene2BatchedAnimationLoad
 {
     int model_gpu_id;
+    int visual_id;
     int anim_id;
     int animation_index;
     int frame_index;
@@ -216,6 +221,7 @@ struct Scene2
     int next_vertex_array_gpu_id;
     int next_face_array_gpu_id;
     int next_model_gpu_id;
+    int next_visual_id;
 
     /** Models removed via set_dash_model/release; freed after MODEL_UNLOADED events are drained. */
     struct DashModel** models_deferred_free;
@@ -252,17 +258,28 @@ scene2_free(struct Scene2* scene2);
 int
 scene2_elements_total(const struct Scene2* scene2);
 
+/** Next stable visual id for TRSPK (starts at 1). `model_id` is RS archive id for policy (e.g.
+ * hillskew); use 0 when unused. Returns 0 when no slot should be assigned. */
+int
+scene2_allocate_visual_id(
+    struct Scene2* scene2,
+    int model_id);
+
 int
 scene2_element_acquire_fast(
     struct Scene2* scene2,
     int parent_entity_id,
-    enum Scene2ElementCategory category);
+    enum Scene2ElementCategory category,
+    int visual_id,
+    int model_id);
 
 int
 scene2_element_acquire_full(
     struct Scene2* scene2,
     int parent_entity_id,
-    enum Scene2ElementCategory category);
+    enum Scene2ElementCategory category,
+    int visual_id,
+    int model_id);
 
 void
 scene2_element_release(
@@ -322,6 +339,7 @@ scene2_element_set_framemap(
 void
 scene2_element_queue_animation_load(
     struct Scene2* scene2,
+    int visual_id,
     int model_gpu_id,
     int anim_id,
     int animation_index,
@@ -371,6 +389,10 @@ scene2_element_dash_model_const(const struct Scene2Element* element);
 int
 scene2_element_dash_model_gpu_id(const struct Scene2Element* element);
 
+/** Per-element visual id from acquire (TRSPK cache slot); 0 if none / skipped. */
+int
+scene2_element_visual_id(const struct Scene2Element* element);
+
 struct DashPosition*
 scene2_element_dash_position(struct Scene2Element* element);
 
@@ -414,6 +436,13 @@ scene2_element_primary_frames(struct Scene2Element* element);
 
 struct Scene2Frames*
 scene2_element_secondary_frames(struct Scene2Element* element);
+
+/** Current pose `DashFrame*` for (`animation_index`, `frame_index`), or NULL if out of range. */
+struct DashFrame*
+scene2_element_dash_animation_frame(
+    struct Scene2Element* element,
+    uint8_t animation_index,
+    uint8_t frame_index);
 
 bool
 scene2_eventbuffer_is_empty(struct Scene2* scene2);

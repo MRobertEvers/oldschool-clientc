@@ -25,6 +25,20 @@ extern "C" {
 #define TRSPK_METAL_SUBDRAW_VBO_DYNAMIC_NPC ((TRSPK_GPUHandle)3u)
 #define TRSPK_METAL_SUBDRAW_VBO_DYNAMIC_PROJECTILE ((TRSPK_GPUHandle)4u)
 
+typedef struct TRSPK_MetalDeferredDynamicBake
+{
+    TRSPK_UsageClass usage;
+    TRSPK_ModelId model_id;
+    uint32_t pose_index;
+    uint8_t seg;
+    uint16_t frame_i;
+    TRSPK_BakeTransform bake;
+    uint32_t vbo_offset;
+    uint32_t ebo_offset;
+    uint32_t vertex_count;
+    uint32_t index_count;
+} TRSPK_MetalDeferredDynamicBake;
+
 typedef struct TRSPK_MetalUniforms
 {
     float modelViewMatrix[16];
@@ -86,6 +100,9 @@ typedef struct TRSPK_MetalRenderer
     TRSPK_DynamicSlotmap32* dynamic_projectile_slotmap;
     TRSPK_DynamicSlotHandle* dynamic_slot_handles;
     TRSPK_UsageClass* dynamic_slot_usages;
+    TRSPK_MetalDeferredDynamicBake* deferred_dynamic_bakes;
+    uint32_t deferred_dynamic_bake_count;
+    uint32_t deferred_dynamic_bake_cap;
     TRSPK_MetalPassState pass_state;
 } TRSPK_MetalRenderer;
 
@@ -199,6 +216,22 @@ void
 trspk_metal_dynamic_unload_model(
     TRSPK_MetalRenderer* r,
     TRSPK_ModelId model_id);
+
+void
+trspk_metal_pass_flush_pending_dynamic_gpu_uploads(TRSPK_MetalRenderer* r);
+void
+trspk_metal_dynamic_reset_pass(TRSPK_MetalRenderer* r);
+bool
+trspk_metal_dynamic_enqueue_draw_mesh_deferred(
+    TRSPK_MetalRenderer* r,
+    TRSPK_ModelId model_id,
+    TRSPK_UsageClass usage,
+    uint32_t pose_index,
+    uint8_t gpu_segment_slot,
+    uint16_t frame_index,
+    uint32_t array_vertex_count,
+    uint32_t array_index_count,
+    const TRSPK_BakeTransform* bake);
 
 void
 trspk_metal_draw_begin_3d(
