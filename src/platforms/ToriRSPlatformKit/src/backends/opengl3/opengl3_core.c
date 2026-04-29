@@ -24,9 +24,9 @@ trspk_opengl3_alloc(
     r->cache = trspk_resource_cache_create(512u, TRSPK_VERTEX_FORMAT_WEBGL1_SOAOS);
     r->batch_staging = trspk_batch32_create(4096u, 12288u, TRSPK_VERTEX_FORMAT_WEBGL1);
     r->pass_state.index_capacity = TRSPK_OPENGL3_DYNAMIC_INDEX_CAPACITY;
-    r->pass_state.index_pool =
-        (uint32_t*)calloc(r->pass_state.index_capacity, sizeof(uint32_t));
-    if( !trspk_opengl3_dynamic_init(r) || !r->cache || !r->batch_staging || !r->pass_state.index_pool )
+    r->pass_state.index_pool = (uint32_t*)calloc(r->pass_state.index_capacity, sizeof(uint32_t));
+    if( !trspk_opengl3_dynamic_init(r) || !r->cache || !r->batch_staging ||
+        !r->pass_state.index_pool )
     {
         trspk_opengl3_dynamic_shutdown(r);
         trspk_resource_cache_destroy(r->cache);
@@ -82,17 +82,17 @@ TRSPK_OpenGL3_InitWithCurrentContext(
             r->vao_dynamic_npc, &r->world_locs, r->dynamic_npc_vbo, r->dynamic_ibo);
     if( r->dynamic_projectile_vbo != 0u && r->dynamic_ibo != 0u && vao_proj != 0u )
         trspk_opengl3_world_vao_setup(
-            r->vao_dynamic_projectile,
-            &r->world_locs,
-            r->dynamic_projectile_vbo,
-            r->dynamic_ibo);
+            r->vao_dynamic_projectile, &r->world_locs, r->dynamic_projectile_vbo, r->dynamic_ibo);
+    r->dynamic_vao_applied_revision_npc = r->dynamic_npc_stream_revision;
+    r->dynamic_vao_applied_revision_projectile = r->dynamic_projectile_stream_revision;
 
     trspk_glBindVertexArray(0u);
 
     trspk_opengl3_cache_init_atlas(r, TRSPK_ATLAS_DIMENSION, TRSPK_ATLAS_DIMENSION);
 
-    r->ready = (r->prog_world3d != 0u && r->dynamic_ibo != 0u && r->vao_dynamic_npc != 0u &&
-                r->vao_dynamic_projectile != 0u);
+    r->ready =
+        (r->prog_world3d != 0u && r->dynamic_ibo != 0u && r->vao_dynamic_npc != 0u &&
+         r->vao_dynamic_projectile != 0u);
     if( !r->ready )
     {
         TRSPK_OpenGL3_Shutdown(r);

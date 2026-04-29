@@ -7,6 +7,8 @@
 #include "../../tools/trspk_resource_cache.h"
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #ifdef __EMSCRIPTEN__
 #include <GLES2/gl2.h>
@@ -73,6 +75,10 @@ typedef struct TRSPK_WebGL1PassState
     TRSPK_WebGL1PendingDynamicGpuUpload* pending_dynamic_uploads;
     uint32_t pending_dynamic_upload_count;
     uint32_t pending_dynamic_upload_cap;
+    /** Bump arena for pending GPU uploads (avoids per-mesh malloc on EMSCRIPTEN). */
+    uint8_t* pending_upload_arena;
+    size_t pending_upload_arena_cap;
+    size_t pending_upload_arena_used;
 } TRSPK_WebGL1PassState;
 
 typedef struct TRSPK_WebGL1Renderer
@@ -119,6 +125,9 @@ typedef struct TRSPK_WebGL1Renderer
     TRSPK_Rect pass_gl_rect;
     TRSPK_ResourceCache* cache;
     TRSPK_Batch16* batch_staging;
+    /** Grows once; avoids per-call malloc when converting u32→u16 indices for dynamic uploads. */
+    uint16_t* u16_index_scratch;
+    uint32_t u16_index_scratch_cap;
     TRSPK_WebGL1PassState pass_state;
 } TRSPK_WebGL1Renderer;
 

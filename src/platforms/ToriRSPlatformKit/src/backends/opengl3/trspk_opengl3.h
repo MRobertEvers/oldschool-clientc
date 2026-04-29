@@ -111,6 +111,20 @@ typedef struct TRSPK_OpenGL3Renderer
     uint32_t deferred_dynamic_bake_cap;
     TRSPK_OpenGL3PassState pass_state;
     uint32_t diag_frame_submitted_draws;
+    /**
+     * Monotonic per-stream revisions bumped whenever the NPC/projectile VBO or mesh EBO buffer
+     * object is replaced. OpenGL may reuse the same GLuint after glDeleteBuffers; comparing names
+     * is unsafe for skipping VAO refresh — use revisions instead.
+     */
+    uint32_t dynamic_npc_stream_revision;
+    uint32_t dynamic_projectile_stream_revision;
+    /** Last stream_revision applied to each dynamic VAO via world_vao_setup. */
+    uint32_t dynamic_vao_applied_revision_npc;
+    uint32_t dynamic_vao_applied_revision_projectile;
+    size_t dynamic_npc_vbo_allocated_bytes;
+    size_t dynamic_npc_ebo_allocated_bytes;
+    size_t dynamic_projectile_vbo_allocated_bytes;
+    size_t dynamic_projectile_ebo_allocated_bytes;
 } TRSPK_OpenGL3Renderer;
 
 struct DashModel;
@@ -168,6 +182,11 @@ trspk_opengl3_world_vao_setup(
 
 void
 trspk_opengl3_refresh_dynamic_world_vao(
+    TRSPK_OpenGL3Renderer* r,
+    TRSPK_UsageClass usage);
+
+void
+trspk_opengl3_dynamic_world_vao_if_needed(
     TRSPK_OpenGL3Renderer* r,
     TRSPK_UsageClass usage);
 

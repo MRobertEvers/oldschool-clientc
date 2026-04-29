@@ -52,23 +52,22 @@ trspk_opengl3_replace_buffer(
     uint32_t* slot,
     TRSPK_GLenum target,
     size_t required_bytes,
-    TRSPK_GLenum usage)
+    TRSPK_GLenum usage,
+    size_t* allocated_bytes,
+    bool* out_created_new_buffer_object)
 {
-    if( !slot || required_bytes == 0u )
+    if( !slot || required_bytes == 0u || !allocated_bytes )
         return false;
+    if( out_created_new_buffer_object )
+        *out_created_new_buffer_object = false;
     TRSPK_GLuint cur = (TRSPK_GLuint)*slot;
     if( cur != 0u )
     {
-        trspk_glBindBuffer(target, cur);
-        TRSPK_GLint sz = 0;
-        trspk_glGetBufferParameteriv(target, GL_BUFFER_SIZE, &sz);
-        if( (size_t)sz >= required_bytes )
-        {
-            trspk_glBindBuffer(target, 0u);
+        if( *allocated_bytes >= required_bytes )
             return true;
-        }
         trspk_glDeleteBuffers(1, &cur);
         *slot = 0u;
+        *allocated_bytes = 0u;
     }
     TRSPK_GLuint buf = 0u;
     trspk_glGenBuffers(1, &buf);
@@ -76,6 +75,9 @@ trspk_opengl3_replace_buffer(
     trspk_glBufferData(target, (TRSPK_GLsizeiptr)required_bytes, NULL, usage);
     trspk_glBindBuffer(target, 0u);
     *slot = (uint32_t)buf;
+    *allocated_bytes = required_bytes;
+    if( out_created_new_buffer_object )
+        *out_created_new_buffer_object = true;
     return buf != 0u;
 }
 
@@ -93,13 +95,40 @@ trspk_opengl3_ensure_dynamic_buffers(
                           trspk_vertex_format_stride(TRSPK_VERTEX_FORMAT_WEBGL1);
     const size_t ibytes = (size_t)trspk_dynamic_slotmap32_index_capacity(map) * sizeof(uint32_t);
     const TRSPK_GLenum gl_usage = usage == TRSPK_USAGE_PROJECTILE ? GL_STREAM_DRAW : GL_DYNAMIC_DRAW;
-    return trspk_opengl3_replace_buffer(
-               trspk_opengl3_vbo_ptr_for_usage(r, usage), GL_ARRAY_BUFFER, vbytes, gl_usage) &&
-           trspk_opengl3_replace_buffer(
-               trspk_opengl3_ebo_ptr_for_usage(r, usage),
-               GL_ELEMENT_ARRAY_BUFFER,
-               ibytes,
-               gl_usage);
+    size_t* v_alloc =
+        usage == TRSPK_USAGE_PROJECTILE ? &r->dynamic_projectile_vbo_allocated_bytes
+                                        : &r->dynamic_npc_vbo_allocated_bytes;
+    size_t* e_alloc =
+        usage == TRSPK_USAGE_PROJECTILE ? &r->dynamic_projectile_ebo_allocated_bytes
+                                        : &r->dynamic_npc_ebo_allocated_bytes;
+    bool v_new = false;
+    bool e_new = false;
+    const bool v_ok = trspk_opengl3_replace_buffer(
+        trspk_opengl3_vbo_ptr_for_usage(r, usage),
+        GL_ARRAY_BUFFER,
+        vbytes,
+        gl_usage,
+        v_alloc,
+        &v_new);
+    if( !v_ok )
+        return false;
+    const bool e_ok = trspk_opengl3_replace_buffer(
+        trspk_opengl3_ebo_ptr_for_usage(r, usage),
+        GL_ELEMENT_ARRAY_BUFFER,
+        ibytes,
+        gl_usage,
+        e_alloc,
+        &e_new);
+    if( !e_ok )
+        return false;
+    if( v_new || e_new )
+    {
+        if( usage == TRSPK_USAGE_PROJECTILE )
+            r->dynamic_projectile_stream_revision++;
+        else
+            r->dynamic_npc_stream_revision++;
+    }
+    return true;
 }
 
 static void
@@ -177,7 +206,7 @@ trspk_opengl3_pass_flush_pending_dynamic_gpu_uploads(TRSPK_OpenGL3Renderer* r)
             trspk_resource_cache_invalidate_model_pose(r->cache, d->model_id, d->pose_index);
             continue;
         }
-        trspk_opengl3_refresh_dynamic_world_vao(r, d->usage);
+        trspk_opengl3_dynamic_world_vao_if_needed(r, d->usage);
         TRSPK_GLuint vbo = (TRSPK_GLuint)*trspk_opengl3_vbo_ptr_for_usage(r, d->usage);
         TRSPK_GLuint ebo = (TRSPK_GLuint)*trspk_opengl3_ebo_ptr_for_usage(r, d->usage);
         const uint32_t stride = trspk_vertex_format_stride(TRSPK_VERTEX_FORMAT_WEBGL1);
@@ -290,7 +319,7 @@ trspk_opengl3_dynamic_enqueue_draw_mesh_deferred(
             trspk_resource_cache_invalidate_model_pose(r->cache, pose_storage_model_id, pose_index);
         return false;
     }
-    trspk_opengl3_refresh_dynamic_world_vao(r, usage);
+    trspk_opengl3_dynamic_world_vao_if_needed(r, usage);
 
     TRSPK_GLuint vbo_gl = (TRSPK_GLuint)*trspk_opengl3_vbo_ptr_for_usage(r, usage);
     TRSPK_GLuint ebo_gl = (TRSPK_GLuint)*trspk_opengl3_ebo_ptr_for_usage(r, usage);
@@ -378,6 +407,14 @@ trspk_opengl3_dynamic_shutdown(TRSPK_OpenGL3Renderer* r)
     r->dynamic_npc_ebo = 0u;
     r->dynamic_projectile_vbo = 0u;
     r->dynamic_projectile_ebo = 0u;
+    r->dynamic_npc_vbo_allocated_bytes = 0;
+    r->dynamic_npc_ebo_allocated_bytes = 0;
+    r->dynamic_projectile_vbo_allocated_bytes = 0;
+    r->dynamic_projectile_ebo_allocated_bytes = 0;
+    r->dynamic_npc_stream_revision = 0u;
+    r->dynamic_projectile_stream_revision = 0u;
+    r->dynamic_vao_applied_revision_npc = 0u;
+    r->dynamic_vao_applied_revision_projectile = 0u;
     r->dynamic_npc_slotmap = NULL;
     r->dynamic_projectile_slotmap = NULL;
     r->dynamic_slot_handles = NULL;
@@ -428,7 +465,7 @@ trspk_opengl3_dynamic_upload_interleaved(
             trspk_resource_cache_invalidate_model_pose(r->cache, model_id, pose_index);
         return false;
     }
-    trspk_opengl3_refresh_dynamic_world_vao(r, usage);
+    trspk_opengl3_dynamic_world_vao_if_needed(r, usage);
 
     TRSPK_GLuint vbo = (TRSPK_GLuint)*trspk_opengl3_vbo_ptr_for_usage(r, usage);
     TRSPK_GLuint ebo = (TRSPK_GLuint)*trspk_opengl3_ebo_ptr_for_usage(r, usage);

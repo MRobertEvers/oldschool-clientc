@@ -235,6 +235,27 @@ trspk_opengl3_refresh_dynamic_world_vao(
 }
 
 void
+trspk_opengl3_dynamic_world_vao_if_needed(
+    TRSPK_OpenGL3Renderer* r,
+    TRSPK_UsageClass usage)
+{
+    if( !r || r->dynamic_ibo == 0u )
+        return;
+    const uint32_t stream_rev = usage == TRSPK_USAGE_PROJECTILE ? r->dynamic_projectile_stream_revision
+                                                                : r->dynamic_npc_stream_revision;
+    uint32_t* applied_rev = usage == TRSPK_USAGE_PROJECTILE ? &r->dynamic_vao_applied_revision_projectile
+                                                          : &r->dynamic_vao_applied_revision_npc;
+    if( *applied_rev == stream_rev )
+        return;
+    const uint32_t mesh_vbo =
+        usage == TRSPK_USAGE_PROJECTILE ? r->dynamic_projectile_vbo : r->dynamic_npc_vbo;
+    if( mesh_vbo == 0u )
+        return;
+    trspk_opengl3_refresh_dynamic_world_vao(r, usage);
+    *applied_rev = stream_rev;
+}
+
+void
 trspk_opengl3_draw_submit_3d(
     TRSPK_OpenGL3Renderer* r,
     const TRSPK_Mat4* view,

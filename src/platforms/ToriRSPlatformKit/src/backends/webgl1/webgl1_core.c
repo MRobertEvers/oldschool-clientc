@@ -97,8 +97,12 @@ TRSPK_WebGL1_Shutdown(TRSPK_WebGL1Renderer* r)
         return;
     trspk_webgl1_pass_free_pending_dynamic_uploads(r);
     free(r->pass_state.pending_dynamic_uploads);
+    free(r->pass_state.pending_upload_arena);
     r->pass_state.pending_dynamic_uploads = NULL;
+    r->pass_state.pending_upload_arena = NULL;
     r->pass_state.pending_dynamic_upload_cap = 0u;
+    r->pass_state.pending_upload_arena_cap = 0u;
+    r->pass_state.pending_upload_arena_used = 0u;
 #ifdef __EMSCRIPTEN__
     if( r->prog_world3d )
         glDeleteProgram(r->prog_world3d);

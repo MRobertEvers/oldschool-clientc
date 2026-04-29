@@ -132,15 +132,8 @@ trspk_webgl1_pass_free_pending_dynamic_uploads(TRSPK_WebGL1Renderer* r)
     if( !r )
         return;
     TRSPK_WebGL1PassState* const pass = &r->pass_state;
-    for( uint32_t i = 0u; i < pass->pending_dynamic_upload_count; ++i )
-    {
-        TRSPK_WebGL1PendingDynamicGpuUpload* u = &pass->pending_dynamic_uploads[i];
-        free(u->vertex_copy);
-        free(u->index_copy);
-        u->vertex_copy = NULL;
-        u->index_copy = NULL;
-    }
     pass->pending_dynamic_upload_count = 0u;
+    pass->pending_upload_arena_used = 0u;
 }
 
 void
@@ -169,13 +162,10 @@ trspk_webgl1_pass_flush_pending_dynamic_gpu_uploads(TRSPK_WebGL1Renderer* r)
             (GLintptr)(size_t)u->ebo_byte_offset,
             (GLsizeiptr)u->index_bytes,
             u->index_copy);
-        free(u->vertex_copy);
-        free(u->index_copy);
-        u->vertex_copy = NULL;
-        u->index_copy = NULL;
     }
 #endif
     pass->pending_dynamic_upload_count = 0u;
+    pass->pending_upload_arena_used = 0u;
 }
 
 static bool
@@ -198,6 +188,35 @@ trspk_webgl1_pass_reserve_pending(
 }
 
 static bool
+trspk_webgl1_pending_upload_arena_reserve(
+    TRSPK_WebGL1Renderer* r,
+    uint32_t vertex_bytes,
+    uint32_t index_bytes,
+    uint8_t** out_vertex_slot,
+    uint8_t** out_index_slot)
+{
+    TRSPK_WebGL1PassState* const pass = &r->pass_state;
+    const size_t need = (size_t)vertex_bytes + (size_t)index_bytes;
+    size_t new_used = pass->pending_upload_arena_used + need;
+    if( new_used > pass->pending_upload_arena_cap )
+    {
+        size_t cap = pass->pending_upload_arena_cap ? pass->pending_upload_arena_cap : 65536u;
+        while( cap < new_used )
+            cap *= 2u;
+        uint8_t* n = (uint8_t*)realloc(pass->pending_upload_arena, cap);
+        if( !n )
+            return false;
+        pass->pending_upload_arena = n;
+        pass->pending_upload_arena_cap = cap;
+    }
+    uint8_t* base = pass->pending_upload_arena + pass->pending_upload_arena_used;
+    *out_vertex_slot = base;
+    *out_index_slot = base + (size_t)vertex_bytes;
+    pass->pending_upload_arena_used = new_used;
+    return true;
+}
+
+static bool
 trspk_webgl1_pass_enqueue_dynamic_upload(
     TRSPK_WebGL1Renderer* r,
     TRSPK_UsageClass usage,
@@ -212,6 +231,14 @@ trspk_webgl1_pass_enqueue_dynamic_upload(
     TRSPK_WebGL1PassState* const pass = &r->pass_state;
     if( !trspk_webgl1_pass_reserve_pending(pass, pass->pending_dynamic_upload_count + 1u) )
         return false;
+#ifdef __EMSCRIPTEN__
+    uint8_t* vc = NULL;
+    uint8_t* ic = NULL;
+    if( !trspk_webgl1_pending_upload_arena_reserve(r, vertex_bytes, index_bytes, &vc, &ic) )
+        return false;
+    memcpy(vc, vertices, (size_t)vertex_bytes);
+    memcpy(ic, indices_u16, (size_t)index_bytes);
+#else
     uint8_t* vc = (uint8_t*)malloc((size_t)vertex_bytes);
     uint8_t* ic = (uint8_t*)malloc((size_t)index_bytes);
     if( !vc || !ic )
@@ -222,6 +249,7 @@ trspk_webgl1_pass_enqueue_dynamic_upload(
     }
     memcpy(vc, vertices, (size_t)vertex_bytes);
     memcpy(ic, indices_u16, (size_t)index_bytes);
+#endif
     TRSPK_WebGL1PendingDynamicGpuUpload* u =
         &pass->pending_dynamic_uploads[pass->pending_dynamic_upload_count++];
     u->usage = usage;
@@ -257,10 +285,13 @@ trspk_webgl1_dynamic_shutdown(TRSPK_WebGL1Renderer* r)
     trspk_dynamic_slotmap16_destroy(r->dynamic_projectile_slotmap);
     free(r->dynamic_slot_handles);
     free(r->dynamic_slot_usages);
+    free(r->u16_index_scratch);
     r->dynamic_npc_slotmap = NULL;
     r->dynamic_projectile_slotmap = NULL;
     r->dynamic_slot_handles = NULL;
     r->dynamic_slot_usages = NULL;
+    r->u16_index_scratch = NULL;
+    r->u16_index_scratch_cap = 0u;
 }
 
 static bool
@@ -402,21 +433,28 @@ trspk_webgl1_dynamic_store_vertex_buffer(
         !vb->indices.as_u32 )
         return false;
     const uint32_t ic = vb->index_count;
-    uint16_t* u16i = (uint16_t*)malloc((size_t)ic * sizeof(uint16_t));
-    if( !u16i )
-        return false;
+    if( ic > r->u16_index_scratch_cap )
+    {
+        uint32_t cap = r->u16_index_scratch_cap ? r->u16_index_scratch_cap : 256u;
+        while( cap < ic )
+            cap *= 2u;
+        uint16_t* n = (uint16_t*)realloc(r->u16_index_scratch, (size_t)cap * sizeof(uint16_t));
+        if( !n )
+            return false;
+        r->u16_index_scratch = n;
+        r->u16_index_scratch_cap = cap;
+    }
+    uint16_t* const u16i = r->u16_index_scratch;
+    const uint32_t* const src = vb->indices.as_u32;
     for( uint32_t i = 0; i < ic; ++i )
     {
-        const uint32_t k = vb->indices.as_u32[i];
+        const uint32_t k = src[i];
         if( k > 0xFFFFu )
-        {
-            free(u16i);
             return false;
-        }
         u16i[i] = (uint16_t)k;
     }
     const uint32_t stride = trspk_vertex_format_stride(TRSPK_VERTEX_FORMAT_WEBGL1);
-    const bool ok = trspk_webgl1_dynamic_queue_interleaved(
+    return trspk_webgl1_dynamic_queue_interleaved(
         r,
         model_id,
         usage,
@@ -427,8 +465,6 @@ trspk_webgl1_dynamic_store_vertex_buffer(
         vb->vertex_count * stride,
         u16i,
         ic * (uint32_t)sizeof(uint16_t));
-    free(u16i);
-    return ok;
 }
 
 bool
