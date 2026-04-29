@@ -42,6 +42,7 @@ struct PktIfOpenChat
 struct PktIfClose
 {
     /* No payload - closes sidebar, chat, viewport */
+    uint8_t _torirs_empty; /* C requires a member; keep 1-byte layout */
 };
 
 struct PktIfSetTabActive

@@ -97,12 +97,9 @@ struct PacketInDefinition
 };
 
 // #define PACKET_DEFINITION( length) { length }
-// The [name] =  bit is used to ensure that the static array is in the correct order.
-#ifdef __GNUC__
+/* Always use positional struct elements. Lookup is by scanning .code/.name (see packetin_size_*).
+ * Do not use MSVC's [name] = form: MSVC C++ parses `[` as a lambda capture in this context. */
 #define PACKET_DEFINITION(name, code, length) { name, code, length }
-#else
-#define PACKET_DEFINITION(name, code, length) [name] = { name, code, length }
-#endif
 
 // static const struct PacketInDefinition g_packet_in_definitions_dane317[256] = {
 //     [PKTIN_MAP_ANIM] = PACKETIN_DEFINITION(6),

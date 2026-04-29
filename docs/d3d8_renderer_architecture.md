@@ -11,6 +11,12 @@ The file is entirely gated behind `TORIRS_HAS_D3D8`, which CMake sets when `d3d8
 | Static | Links `d3d8.lib` / `dxguid.lib` at link time | `TORIRS_D3D8_STATIC_LINK` |
 | Dynamic | `LoadLibraryA("d3d8.dll")` + `GetProcAddress` at runtime | _(not set)_ |
 
+### Win32 / MinGW: C linkage and vertex headers
+
+`platform_impl2_win32_renderer_d3d8.cpp` is C++. It must include **`windows.h`** before shared **C** headers (`graphics/dash.h`, `osrs/game.h`, `tori_rs.h`, `tori_rs_render.h`) and wrap those includes in **`extern "C" { ... }`** so MinGW does not generate C++-mangled references to symbols defined in `.c` translation units. See the top of that file and the same pattern in `platform_impl2_win32.cpp` / `platform_impl2_win32_renderer_gdisoft3d.cpp`.
+
+ToriRSPlatformKit SoAoS types used by the D3D8 path pull in [`trspk_vertex_soaos_config.h`](../src/platforms/ToriRSPlatformKit/include/ToriRSPlatformKit/trspk_vertex_soaos_config.h) and [`d3d8_vertex.h`](../src/platforms/ToriRSPlatformKit/src/backends/d3d8/d3d8_vertex.h): use **`TRSPK_VERTEX_SOAOS_MEMBER_ALIGN`** and **plain integer** `TRSPK_VERTEX_SOAOS_ALIGNMENT` values (not `16u`), because **`_Alignas`** with unsigned literals or heavy use after `windows.h` can break MinGW when the header is compiled as C++. For **`struct GGame`** and other engine structs shared between C and C++, see the **C vs C++ ABI** section in the [project readme](../readme.md).
+
 **Source files compiled alongside this renderer** (from `COMMON_SOURCES`):
 
 | File | Role |

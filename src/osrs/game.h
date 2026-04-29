@@ -56,6 +56,14 @@ enum GameNetState
     GAME_NET_STATE_GAME,
 };
 
+#define UITREE_TRAVERSAL_STACK_MAX 64
+
+/** File-scope type so MSVC lays out `GGame` identically in C vs C++ (nested struct differed). */
+struct UITraversalFrame
+{
+    int32_t parent_index; /* index of the parent node in ui_root_buffer->components */
+};
+
 struct GGame
 {
     struct ScriptQueue script_queue;
@@ -108,12 +116,7 @@ struct GGame
     struct UIInventoryPool* inv_pool;
     struct RevConfigBuffer* pending_revconfig;
 
-#define UITREE_TRAVERSAL_STACK_MAX 64
     /** Per-level frame state pushed when descending into a child list. */
-    struct UITraversalFrame
-    {
-        int32_t parent_index; /* index of the parent node in ui_root_buffer->components */
-    };
     struct UITraversalFrame uitree_stack[UITREE_TRAVERSAL_STACK_MAX];
     int uitree_stack_top;            /* -1 = empty */
     int32_t uitree_current;          /* uitree node index, -1 when traversal done */

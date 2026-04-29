@@ -211,7 +211,10 @@ struct IFaceRedstoneEntity
 };
 
 struct IFaceMinimapEntity
-{};
+{
+    /* C requires a member; one byte matches empty-struct size in C++ (MSVC / Itanium). */
+    uint8_t _torirs_empty;
+};
 
 struct IFaceCrosshairEntity
 {
@@ -241,10 +244,14 @@ struct IFaceOrbEntity
 
 // Top Left
 struct IFaceTooltipEntity
-{};
+{
+    uint8_t _torirs_empty;
+};
 
 struct IFaceInventoryTabsEntity
-{};
+{
+    uint8_t _torirs_empty;
+};
 
 void
 entity_add_hitmark(

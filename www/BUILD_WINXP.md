@@ -118,6 +118,10 @@ After a successful build, you'll find in `build-winxp/`:
 - `-static-libgcc` - Statically link GCC runtime (no libgcc DLL needed)
 - `-static-libstdc++` - Statically link C++ standard library (no libstdc++ DLL needed)
 
+## Win32 `win32.exe` (MinGW / MSVC)
+
+The `win32` target mixes **C++** (`test/win32.cpp`, platform renderers) with a **C** engine. See **[C vs C++ ABI (shared headers)](../readme.md#c-vs-c-abi-shared-headers)** in the repository readme for **`struct GGame` layout**, linkage, empty structs, and related rules.
+
 ## Troubleshooting
 
 ### "SDL2 not found" during CMake configuration

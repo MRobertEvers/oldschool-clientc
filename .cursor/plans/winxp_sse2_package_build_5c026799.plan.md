@@ -69,7 +69,8 @@ cmake -B build-winxp -G "MinGW Makefiles" \
   -DCMAKE_C_FLAGS="-march=pentium4 -msse2 -mfpmath=sse -D_WIN32_WINNT=0x0501 -DWINVER=0x0501" \
   -DCMAKE_CXX_FLAGS="-march=pentium4 -msse2 -mfpmath=sse -D_WIN32_WINNT=0x0501 -DWINVER=0x0501" \
   -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++ -Wl,--subsystem,console:5.01" \
-  -DENABLE_PACKAGE_BUILD=ON
+  -DENABLE_PACKAGE_BUILD=ON \
+  --fresh
 ```
 
 Key flags:
@@ -86,6 +87,7 @@ If you previously configured with the wrong SDL2, remove the build dir before re
 
 ```bash
 cmake --build build-winxp -j$(nproc)
+cmake --build build-winxp -j$(nproc) --target win32
 cmake --build build-winxp-reldbg -j$(nproc)
 ```
 

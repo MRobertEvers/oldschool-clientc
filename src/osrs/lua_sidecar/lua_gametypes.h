@@ -2,6 +2,7 @@
 #define LUA_GAMETYPES_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 struct LuaGameTypeUserData
 {
@@ -44,7 +45,9 @@ struct LuaGameTypeString
 };
 
 struct LuaGameTypeVoid
-{};
+{
+    uint8_t _torirs_empty;
+};
 
 struct LuaGameTypeVarTypeArray
 {
