@@ -10,8 +10,210 @@
 #include <stdlib.h>
 #include <string.h>
 
+static uint32_t*
+trspk_opengl3_vbo_ptr_for_usage(
+    TRSPK_OpenGL3Renderer* r,
+    TRSPK_UsageClass usage);
+static uint32_t*
+trspk_opengl3_ebo_ptr_for_usage(
+    TRSPK_OpenGL3Renderer* r,
+    TRSPK_UsageClass usage);
+
 #define TRSPK_OGL3_DYNAMIC_VERTEX_CAPACITY 4096u
 #define TRSPK_OGL3_DYNAMIC_INDEX_CAPACITY_INITIAL 12288u
+
+/** One successfully CPU-baked deferred dynamic entry before merged GPU upload. */
+typedef struct TRSPK_Ogl3FlushBakedRow
+{
+    TRSPK_VertexBuffer baked;
+    TRSPK_UsageClass usage;
+    uint32_t vbo_beg_bytes;
+    uint32_t vbo_len_bytes;
+    uint32_t ebo_beg_bytes;
+    uint32_t ebo_len_bytes;
+} TRSPK_Ogl3FlushBakedRow;
+
+static void
+trspk_ogl3_flush_sort_indices_by_vbo(
+    uint32_t* idx,
+    int n,
+    const TRSPK_Ogl3FlushBakedRow* rows)
+{
+    for( int i = 1; i < n; ++i )
+    {
+        const uint32_t key = idx[i];
+        const uint32_t kb = rows[key].vbo_beg_bytes;
+        int j = i - 1;
+        while( j >= 0 && rows[idx[j]].vbo_beg_bytes > kb )
+        {
+            idx[j + 1] = idx[j];
+            --j;
+        }
+        idx[j + 1] = key;
+    }
+}
+
+static void
+trspk_ogl3_flush_sort_indices_by_ebo(
+    uint32_t* idx,
+    int n,
+    const TRSPK_Ogl3FlushBakedRow* rows)
+{
+    for( int i = 1; i < n; ++i )
+    {
+        const uint32_t key = idx[i];
+        const uint32_t kb = rows[key].ebo_beg_bytes;
+        int j = i - 1;
+        while( j >= 0 && rows[idx[j]].ebo_beg_bytes > kb )
+        {
+            idx[j + 1] = idx[j];
+            --j;
+        }
+        idx[j + 1] = key;
+    }
+}
+
+static void
+trspk_ogl3_flush_upload_merged_vbo_runs(
+    TRSPK_OpenGL3Renderer* r,
+    TRSPK_UsageClass usage,
+    TRSPK_Ogl3FlushBakedRow* rows,
+    uint32_t* idx,
+    int n)
+{
+    if( n <= 0 )
+        return;
+    const TRSPK_GLuint buf = (TRSPK_GLuint)*trspk_opengl3_vbo_ptr_for_usage(r, usage);
+    if( buf == 0u )
+        return;
+    int p = 0;
+    while( p < n )
+    {
+        const uint32_t i0 = idx[p];
+        uint32_t run_lo = rows[i0].vbo_beg_bytes;
+        uint32_t run_hi = run_lo + rows[i0].vbo_len_bytes;
+        int q = p + 1;
+        while( q < n )
+        {
+            const uint32_t ij = idx[q];
+            const uint32_t lo = rows[ij].vbo_beg_bytes;
+            const uint32_t hi = lo + rows[ij].vbo_len_bytes;
+            if( lo <= run_hi )
+            {
+                if( hi > run_hi )
+                    run_hi = hi;
+                ++q;
+            }
+            else
+                break;
+        }
+        const size_t total = (size_t)run_hi - (size_t)run_lo;
+        uint8_t* scratch = (uint8_t*)malloc(total);
+        if( !scratch )
+            break;
+        for( int t = p; t < q; ++t )
+        {
+            const uint32_t ri = idx[t];
+            memcpy(
+                scratch + ((size_t)rows[ri].vbo_beg_bytes - (size_t)run_lo),
+                rows[ri].baked.vertices.as_webgl1,
+                (size_t)rows[ri].vbo_len_bytes);
+        }
+        trspk_glBindBuffer(GL_ARRAY_BUFFER, buf);
+        trspk_glBufferSubData(
+            GL_ARRAY_BUFFER, (TRSPK_GLintptr)run_lo, (TRSPK_GLsizeiptr)total, scratch);
+        trspk_glBindBuffer(GL_ARRAY_BUFFER, 0u);
+        free(scratch);
+        p = q;
+    }
+}
+
+static void
+trspk_ogl3_flush_upload_merged_ebo_runs(
+    TRSPK_OpenGL3Renderer* r,
+    TRSPK_UsageClass usage,
+    TRSPK_Ogl3FlushBakedRow* rows,
+    uint32_t* idx,
+    int n)
+{
+    if( n <= 0 )
+        return;
+    const TRSPK_GLuint buf = (TRSPK_GLuint)*trspk_opengl3_ebo_ptr_for_usage(r, usage);
+    if( buf == 0u )
+        return;
+    int p = 0;
+    while( p < n )
+    {
+        const uint32_t i0 = idx[p];
+        uint32_t run_lo = rows[i0].ebo_beg_bytes;
+        uint32_t run_hi = run_lo + rows[i0].ebo_len_bytes;
+        int q = p + 1;
+        while( q < n )
+        {
+            const uint32_t ij = idx[q];
+            const uint32_t lo = rows[ij].ebo_beg_bytes;
+            const uint32_t hi = lo + rows[ij].ebo_len_bytes;
+            if( lo <= run_hi )
+            {
+                if( hi > run_hi )
+                    run_hi = hi;
+                ++q;
+            }
+            else
+                break;
+        }
+        const size_t total = (size_t)run_hi - (size_t)run_lo;
+        uint8_t* scratch = (uint8_t*)malloc(total);
+        if( !scratch )
+            break;
+        for( int t = p; t < q; ++t )
+        {
+            const uint32_t ri = idx[t];
+            memcpy(
+                scratch + ((size_t)rows[ri].ebo_beg_bytes - (size_t)run_lo),
+                rows[ri].baked.indices.as_u32,
+                (size_t)rows[ri].ebo_len_bytes);
+        }
+        trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buf);
+        trspk_glBufferSubData(
+            GL_ELEMENT_ARRAY_BUFFER, (TRSPK_GLintptr)run_lo, (TRSPK_GLsizeiptr)total, scratch);
+        trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0u);
+        free(scratch);
+        p = q;
+    }
+}
+
+/** Single dynamic mesh upload (immediate store path); two GL uploads total. */
+static void
+trspk_opengl3_upload_dynamic_interleaved_ranges(
+    TRSPK_OpenGL3Renderer* r,
+    TRSPK_UsageClass usage,
+    uint32_t vbo_offset_vertices,
+    uint32_t ebo_offset_u32,
+    const void* vertices,
+    uint32_t vertex_bytes,
+    const void* indices,
+    uint32_t index_bytes)
+{
+    trspk_opengl3_dynamic_world_vao_if_needed(r, usage);
+    TRSPK_GLuint vbo = (TRSPK_GLuint)*trspk_opengl3_vbo_ptr_for_usage(r, usage);
+    TRSPK_GLuint ebo = (TRSPK_GLuint)*trspk_opengl3_ebo_ptr_for_usage(r, usage);
+    const uint32_t stride = trspk_vertex_format_stride(TRSPK_VERTEX_FORMAT_WEBGL1);
+    trspk_glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    trspk_glBufferSubData(
+        GL_ARRAY_BUFFER,
+        (TRSPK_GLintptr)((size_t)vbo_offset_vertices * stride),
+        (TRSPK_GLsizeiptr)vertex_bytes,
+        vertices);
+    trspk_glBindBuffer(GL_ARRAY_BUFFER, 0u);
+    trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    trspk_glBufferSubData(
+        GL_ELEMENT_ARRAY_BUFFER,
+        (TRSPK_GLintptr)((size_t)ebo_offset_u32 * sizeof(uint32_t)),
+        (TRSPK_GLsizeiptr)index_bytes,
+        indices);
+    trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0u);
+}
 
 static uint32_t
 trspk_opengl3_slot_table_index(
@@ -94,13 +296,12 @@ trspk_opengl3_ensure_dynamic_buffers(
     const size_t vbytes = (size_t)trspk_dynamic_slotmap32_vertex_capacity(map) *
                           trspk_vertex_format_stride(TRSPK_VERTEX_FORMAT_WEBGL1);
     const size_t ibytes = (size_t)trspk_dynamic_slotmap32_index_capacity(map) * sizeof(uint32_t);
-    const TRSPK_GLenum gl_usage = usage == TRSPK_USAGE_PROJECTILE ? GL_STREAM_DRAW : GL_DYNAMIC_DRAW;
-    size_t* v_alloc =
-        usage == TRSPK_USAGE_PROJECTILE ? &r->dynamic_projectile_vbo_allocated_bytes
-                                        : &r->dynamic_npc_vbo_allocated_bytes;
-    size_t* e_alloc =
-        usage == TRSPK_USAGE_PROJECTILE ? &r->dynamic_projectile_ebo_allocated_bytes
-                                        : &r->dynamic_npc_ebo_allocated_bytes;
+    const TRSPK_GLenum gl_usage =
+        usage == TRSPK_USAGE_PROJECTILE ? GL_STREAM_DRAW : GL_DYNAMIC_DRAW;
+    size_t* v_alloc = usage == TRSPK_USAGE_PROJECTILE ? &r->dynamic_projectile_vbo_allocated_bytes
+                                                      : &r->dynamic_npc_vbo_allocated_bytes;
+    size_t* e_alloc = usage == TRSPK_USAGE_PROJECTILE ? &r->dynamic_projectile_ebo_allocated_bytes
+                                                      : &r->dynamic_npc_ebo_allocated_bytes;
     bool v_new = false;
     bool e_new = false;
     const bool v_ok = trspk_opengl3_replace_buffer(
@@ -182,15 +383,29 @@ trspk_opengl3_pass_flush_pending_dynamic_gpu_uploads(TRSPK_OpenGL3Renderer* r)
             r->deferred_dynamic_bake_count = 0u;
         return;
     }
+    const uint32_t n_def = r->deferred_dynamic_bake_count;
+    if( n_def == 0u )
+        return;
+
     TRSPK_LruModelCache* lru = trspk_resource_cache_lru_model_cache(r->cache);
-    for( uint32_t i = 0u; i < r->deferred_dynamic_bake_count; ++i )
+    const uint32_t stride = trspk_vertex_format_stride(TRSPK_VERTEX_FORMAT_WEBGL1);
+
+    TRSPK_Ogl3FlushBakedRow* rows =
+        (TRSPK_Ogl3FlushBakedRow*)calloc((size_t)n_def, sizeof(TRSPK_Ogl3FlushBakedRow));
+    if( !rows )
+    {
+        r->deferred_dynamic_bake_count = 0u;
+        return;
+    }
+    int n_ok = 0;
+
+    for( uint32_t i = 0u; i < n_def; ++i )
     {
         TRSPK_OpenGL3DeferredDynamicBake* d = &r->deferred_dynamic_bakes[i];
         TRSPK_VertexBuffer baked = { 0 };
         const TRSPK_VertexBuffer* id_mesh =
             lru ? trspk_lru_model_cache_get(lru, d->lru_model_id, d->seg, d->frame_i) : NULL;
-        if( !id_mesh ||
-            !trspk_vertex_buffer_bake_array_to_interleaved(id_mesh, &d->bake, &baked) ||
+        if( !id_mesh || !trspk_vertex_buffer_bake_array_to_interleaved(id_mesh, &d->bake, &baked) ||
             baked.vertex_count != d->vertex_count || baked.index_count != d->index_count ||
             baked.format != TRSPK_VERTEX_FORMAT_WEBGL1 ||
             baked.index_format != TRSPK_INDEX_FORMAT_U32 || !baked.vertices.as_webgl1 ||
@@ -206,28 +421,83 @@ trspk_opengl3_pass_flush_pending_dynamic_gpu_uploads(TRSPK_OpenGL3Renderer* r)
             trspk_resource_cache_invalidate_model_pose(r->cache, d->model_id, d->pose_index);
             continue;
         }
-        trspk_opengl3_dynamic_world_vao_if_needed(r, d->usage);
-        TRSPK_GLuint vbo = (TRSPK_GLuint)*trspk_opengl3_vbo_ptr_for_usage(r, d->usage);
-        TRSPK_GLuint ebo = (TRSPK_GLuint)*trspk_opengl3_ebo_ptr_for_usage(r, d->usage);
-        const uint32_t stride = trspk_vertex_format_stride(TRSPK_VERTEX_FORMAT_WEBGL1);
-        const uint32_t vb_bytes = baked.vertex_count * stride;
-        const uint32_t ib_bytes = baked.index_count * (uint32_t)sizeof(uint32_t);
-        trspk_glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        trspk_glBufferSubData(
-            GL_ARRAY_BUFFER,
-            (TRSPK_GLintptr)((size_t)d->vbo_offset * stride),
-            (TRSPK_GLsizeiptr)vb_bytes,
-            baked.vertices.as_webgl1);
-        trspk_glBindBuffer(GL_ARRAY_BUFFER, 0u);
-        trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-        trspk_glBufferSubData(
-            GL_ELEMENT_ARRAY_BUFFER,
-            (TRSPK_GLintptr)((size_t)d->ebo_offset * sizeof(uint32_t)),
-            (TRSPK_GLsizeiptr)ib_bytes,
-            baked.indices.as_u32);
-        trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0u);
-        trspk_vertex_buffer_free(&baked);
+        TRSPK_Ogl3FlushBakedRow* row = &rows[n_ok++];
+        row->baked = baked;
+        row->usage = d->usage;
+        row->vbo_beg_bytes = d->vbo_offset * stride;
+        row->vbo_len_bytes = baked.vertex_count * stride;
+        row->ebo_beg_bytes = d->ebo_offset * (uint32_t)sizeof(uint32_t);
+        row->ebo_len_bytes = baked.index_count * (uint32_t)sizeof(uint32_t);
     }
+
+    if( n_ok > 0 )
+    {
+        bool need_npc = false;
+        bool need_prj = false;
+        for( int j = 0; j < n_ok; ++j )
+        {
+            if( rows[j].usage == TRSPK_USAGE_PROJECTILE )
+                need_prj = true;
+            else if( rows[j].usage == TRSPK_USAGE_NPC )
+                need_npc = true;
+        }
+        if( need_npc )
+            trspk_opengl3_dynamic_world_vao_if_needed(r, TRSPK_USAGE_NPC);
+        if( need_prj )
+            trspk_opengl3_dynamic_world_vao_if_needed(r, TRSPK_USAGE_PROJECTILE);
+
+        uint32_t* idx = (uint32_t*)malloc((size_t)n_ok * sizeof(uint32_t));
+        if( !idx )
+        {
+            for( int j = 0; j < n_ok; ++j )
+            {
+                trspk_opengl3_dynamic_world_vao_if_needed(r, rows[j].usage);
+                trspk_opengl3_upload_dynamic_interleaved_ranges(
+                    r,
+                    rows[j].usage,
+                    rows[j].vbo_beg_bytes / stride,
+                    rows[j].ebo_beg_bytes / (uint32_t)sizeof(uint32_t),
+                    rows[j].baked.vertices.as_webgl1,
+                    rows[j].vbo_len_bytes,
+                    rows[j].baked.indices.as_u32,
+                    rows[j].ebo_len_bytes);
+            }
+        }
+        else
+        {
+            int c = 0;
+            for( int j = 0; j < n_ok; ++j )
+            {
+                if( rows[j].usage == TRSPK_USAGE_NPC )
+                    idx[c++] = (uint32_t)j;
+            }
+            if( c > 0 )
+            {
+                trspk_ogl3_flush_sort_indices_by_vbo(idx, c, rows);
+                trspk_ogl3_flush_upload_merged_vbo_runs(r, TRSPK_USAGE_NPC, rows, idx, c);
+                trspk_ogl3_flush_sort_indices_by_ebo(idx, c, rows);
+                trspk_ogl3_flush_upload_merged_ebo_runs(r, TRSPK_USAGE_NPC, rows, idx, c);
+            }
+            c = 0;
+            for( int j = 0; j < n_ok; ++j )
+            {
+                if( rows[j].usage == TRSPK_USAGE_PROJECTILE )
+                    idx[c++] = (uint32_t)j;
+            }
+            if( c > 0 )
+            {
+                trspk_ogl3_flush_sort_indices_by_vbo(idx, c, rows);
+                trspk_ogl3_flush_upload_merged_vbo_runs(r, TRSPK_USAGE_PROJECTILE, rows, idx, c);
+                trspk_ogl3_flush_sort_indices_by_ebo(idx, c, rows);
+                trspk_ogl3_flush_upload_merged_ebo_runs(r, TRSPK_USAGE_PROJECTILE, rows, idx, c);
+            }
+            free(idx);
+        }
+    }
+
+    for( int j = 0; j < n_ok; ++j )
+        trspk_vertex_buffer_free(&rows[j].baked);
+    free(rows);
     r->deferred_dynamic_bake_count = 0u;
 }
 
@@ -465,30 +735,14 @@ trspk_opengl3_dynamic_upload_interleaved(
             trspk_resource_cache_invalidate_model_pose(r->cache, model_id, pose_index);
         return false;
     }
-    trspk_opengl3_dynamic_world_vao_if_needed(r, usage);
 
-    TRSPK_GLuint vbo = (TRSPK_GLuint)*trspk_opengl3_vbo_ptr_for_usage(r, usage);
-    TRSPK_GLuint ebo = (TRSPK_GLuint)*trspk_opengl3_ebo_ptr_for_usage(r, usage);
-    const uint32_t stride = trspk_vertex_format_stride(TRSPK_VERTEX_FORMAT_WEBGL1);
-    trspk_glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    trspk_glBufferSubData(
-        GL_ARRAY_BUFFER,
-        (TRSPK_GLintptr)((size_t)vbo_offset * stride),
-        (TRSPK_GLsizeiptr)vertex_bytes,
-        vertices);
-    trspk_glBindBuffer(GL_ARRAY_BUFFER, 0u);
-    trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    trspk_glBufferSubData(
-        GL_ELEMENT_ARRAY_BUFFER,
-        (TRSPK_GLintptr)((size_t)ebo_offset * sizeof(uint32_t)),
-        (TRSPK_GLsizeiptr)index_bytes,
-        indices);
-    trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0u);
+    trspk_opengl3_upload_dynamic_interleaved_ranges(
+        r, usage, vbo_offset, ebo_offset, vertices, vertex_bytes, indices, index_bytes);
 
     TRSPK_ModelPose pose;
     memset(&pose, 0, sizeof(pose));
-    pose.vbo = (TRSPK_GPUHandle)(uintptr_t)vbo;
-    pose.ebo = (TRSPK_GPUHandle)(uintptr_t)ebo;
+    const TRSPK_GLuint vbo = (TRSPK_GLuint)*trspk_opengl3_vbo_ptr_for_usage(r, usage);
+    const TRSPK_GLuint ebo = (TRSPK_GLuint)*trspk_opengl3_ebo_ptr_for_usage(r, usage);
     pose.vbo_offset = vbo_offset;
     pose.ebo_offset = ebo_offset;
     pose.element_count = index_count;
