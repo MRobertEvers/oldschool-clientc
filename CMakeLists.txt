@@ -516,6 +516,8 @@ if(NOT EMSCRIPTEN)
                 src/platforms/ToriRSPlatformKit/src/backends/d3d8/d3d8_dynamic_cache.cpp
                 src/platforms/ToriRSPlatformKit/src/backends/d3d8/d3d8_draw.cpp
                 src/platforms/ToriRSPlatformKit/src/backends/d3d8/d3d8_events.c
+                src/platforms/ToriRSPlatformKit/src/backends/d3d8_fixed/d3d8_fixed_core.cpp
+                src/platforms/ToriRSPlatformKit/src/backends/d3d8_fixed/d3d8_fixed_state.cpp
             )
         endif()
 

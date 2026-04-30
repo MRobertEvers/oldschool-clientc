@@ -78,8 +78,9 @@ trspk_d3d8_cache_refresh_atlas(TRSPK_D3D8Renderer* r)
     {
         const uint8_t* src_row = pixels + (size_t)y * (size_t)src_pitch;
         uint8_t* dst_row = reinterpret_cast<uint8_t*>(lr.pBits) + (size_t)y * (size_t)lr.Pitch;
-        /* Legacy Win32 D3D8 copied DashTexture texels as int* (ARGB int = B,G,R,A in LE memory).
-         * CPU atlas from trspk_dash_fill_rgba128 is R,G,B,A per pixel — swizzle for A8R8G8B8 lock. */
+        /* Legacy Win32 D3D8: DashTexture texels are DWORD ARGB (A in high byte; B,G,R in LE bytes).
+         * trspk_dash_fill_rgba128 gives linear RGBA bytes (R,G,B,A). D3DLOCKED_RECT for
+         * D3DFMT_A8R8G8B8 is B,G,R,A per pixel in memory — map s[0..3] RGBA -> d[0..3] BGRA. */
         for( uint32_t x = 0u; x < width; ++x )
         {
             const uint8_t* s = src_row + (size_t)x * 4u;

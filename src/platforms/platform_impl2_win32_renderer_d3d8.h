@@ -9,8 +9,7 @@
 #include <windows.h>
 
 #include "platform_impl2_win32.h"
-#include "platforms/ToriRSPlatformKit/src/backends/d3d8/trspk_d3d8.h"
-#include "platforms/ToriRSPlatformKit/src/tools/trspk_facebuffer.h"
+#include "platforms/ToriRSPlatformKit/src/backends/d3d8_fixed/trspk_d3d8_fixed.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -19,15 +18,7 @@ struct ToriRSRenderCommandBuffer;
 
 struct Platform2_Win32_Renderer_D3D8
 {
-    TRSPK_D3D8Renderer* trspk;
-    TRSPK_FaceBuffer16 facebuffer;
-
-    uint32_t current_model_batch_id;
-    bool current_model_batch_active;
-
-    uint32_t diag_frame_model_draw_cmds;
-    uint32_t diag_frame_pose_invalid_skips;
-    uint32_t diag_frame_submitted_model_draws;
+    TRSPK_D3D8FixedRenderer* trspk;
 
     /** IDirect3DTexture8* — full-screen Nuklear overlay; optional if creation fails. */
     void* nk_overlay_tex;
@@ -62,6 +53,10 @@ struct Platform2_Win32_Renderer_D3D8
     int present_dst_h;
 
     bool resize_dirty;
+
+    /** Last known HWND client size (swap chain); scene RT stays width/height — legacy p->client_w/h. */
+    uint32_t d3d8_client_w;
+    uint32_t d3d8_client_h;
 
     void* nk_rawfb;
     uint8_t* nk_font_tex_mem;

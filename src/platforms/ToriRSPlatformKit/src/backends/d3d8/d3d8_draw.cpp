@@ -1,5 +1,6 @@
 #include "../../../include/ToriRSPlatformKit/trspk_math.h"
 #include "d3d8_vertex.h"
+#include "osrs/game.h"
 #include "trspk_d3d8.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -117,9 +118,40 @@ trspk_d3d8_compute_gl_viewport_rect(
     TRSPK_Rect rect = trspk_d3d8_full_drawable_gl_rect(r);
     if( !r || !logical )
         return rect;
-    trspk_logical_rect_to_gl_viewport_pixels(
-        &rect, r->width, r->height, r->window_width, r->window_height, logical);
+    /* Offscreen scene RT: logical rects are in scene pixels (legacy frame_vp_*). Use win==fb
+     * so sx=sy=1; r->window_width is only for letterbox in TRSPK_D3D8_Present, not viewport scale. */
+    const uint32_t fbw = r->width > 0u ? r->width : 1u;
+    const uint32_t fbh = r->height > 0u ? r->height : 1u;
+    trspk_logical_rect_to_gl_viewport_pixels(&rect, fbw, fbh, fbw, fbh, logical);
     return rect;
+}
+
+/**
+ * `gl_rect` is from trspk_logical_rect_to_gl_viewport_pixels: **OpenGL viewport convention**
+ * (origin lower-left, Y increases upward). D3D8 D3DVIEWPORT8 uses **top-left** origin (Y down).
+ * Mapping: vp.Y = fb_h - gl_rect.y - gl_rect.height (same as legacy CLEAR_RECT when logical is
+ * top-left: trspk_math converts to GL lower-left first; this step is the single required flip).
+ */
+static void
+trspk_d3d8_fill_viewport8_from_gl_lower_left_rect(
+    D3DVIEWPORT8* vp,
+    int32_t framebuffer_h,
+    const TRSPK_Rect* gl_rect)
+{
+    if( !vp || !gl_rect )
+        return;
+    const int32_t fh = framebuffer_h > 0 ? framebuffer_h : 1;
+    const DWORD vx = (DWORD)(gl_rect->x >= 0 ? gl_rect->x : 0);
+    const DWORD vw = (DWORD)(gl_rect->width > 0 ? gl_rect->width : 1);
+    const DWORD vh = (DWORD)(gl_rect->height > 0 ? gl_rect->height : 1);
+    const DWORD vy = (DWORD)((int32_t)fh - gl_rect->y - (int32_t)vh);
+    ZeroMemory(vp, sizeof(*vp));
+    vp->X = vx;
+    vp->Y = vy;
+    vp->Width = vw;
+    vp->Height = vh;
+    vp->MinZ = 0.0f;
+    vp->MaxZ = 1.0f;
 }
 
 static void
@@ -130,19 +162,8 @@ trspk_d3d8_apply_pass_viewport(TRSPK_D3D8Renderer* r)
     r->pass_gl_rect = trspk_d3d8_compute_gl_viewport_rect(r, &r->pass_logical_rect);
     auto* dev = reinterpret_cast<IDirect3DDevice8*>((uintptr_t)r->com_device);
     const int32_t fh = (int32_t)(r->height > 0u ? r->height : 1u);
-    const DWORD vx = (DWORD)(r->pass_gl_rect.x >= 0 ? r->pass_gl_rect.x : 0);
-    const DWORD vw = (DWORD)(r->pass_gl_rect.width > 0 ? r->pass_gl_rect.width : 1);
-    const DWORD vh = (DWORD)(r->pass_gl_rect.height > 0 ? r->pass_gl_rect.height : 1);
-    const int32_t gl_y = r->pass_gl_rect.y;
-    const DWORD vy = (DWORD)(fh - gl_y - (int32_t)vh);
     D3DVIEWPORT8 vp;
-    ZeroMemory(&vp, sizeof(vp));
-    vp.X = vx;
-    vp.Y = vy;
-    vp.Width = vw;
-    vp.Height = vh;
-    vp.MinZ = 0.0f;
-    vp.MaxZ = 1.0f;
+    trspk_d3d8_fill_viewport8_from_gl_lower_left_rect(&vp, fh, &r->pass_gl_rect);
     dev->SetViewport(&vp);
 }
 #endif
@@ -248,14 +269,30 @@ trspk_d3d8_draw_add_model(
 }
 
 void
-trspk_d3d8_draw_submit_3d(
+trspk_d3d8_draw_submit_3d_ex(
     TRSPK_D3D8Renderer* r,
     const TRSPK_Mat4* view,
-    const TRSPK_Mat4* proj)
+    const TRSPK_Mat4* proj,
+    bool reset_pass_after)
 {
-    if( !r || !view || !proj || !r->com_device )
+    /* Win32 path: single atlas + MODULATE (see trspk_d3d8_fvf_bake). Legacy d3d8_old binds one
+     * IDirect3DTexture8 per raw tex id, toggles COLOROP (MODULATE vs SELECTARG2) and optional
+     * D3DTS_TEXTURE0 scroll per run. TRSPK bakes atlas UVs + untextured sentinel at atlas origin
+     * (trspk_d3d8_cache_refresh_atlas) so MODULATE(TEX0, DIFFUSE) matches diffuse-only for
+     * untextured faces. Legacy toggled ALPHATEST per non-opaque texture; atlas path keeps
+     * ALPHATEST off and relies on texture alpha + SRCALPHA blending (same default state stack). */
+    if( !r || !view || !proj )
         return;
 #if defined(_WIN32)
+    if( !r->com_device )
+    {
+        if( reset_pass_after )
+        {
+            trspk_d3d8_draw_begin_3d(r, NULL);
+            r->pass_state.uniform_pass_subslot++;
+        }
+        return;
+    }
     trspk_d3d8_pass_flush_pending_dynamic_gpu_uploads(r);
     trspk_d3d8_apply_pass_viewport(r);
 
@@ -442,8 +479,20 @@ trspk_d3d8_draw_submit_3d(
 
 #endif
 
-    trspk_d3d8_draw_begin_3d(r, NULL);
-    r->pass_state.uniform_pass_subslot++;
+    if( reset_pass_after )
+    {
+        trspk_d3d8_draw_begin_3d(r, NULL);
+        r->pass_state.uniform_pass_subslot++;
+    }
+}
+
+void
+trspk_d3d8_draw_submit_3d(
+    TRSPK_D3D8Renderer* r,
+    const TRSPK_Mat4* view,
+    const TRSPK_Mat4* proj)
+{
+    trspk_d3d8_draw_submit_3d_ex(r, view, proj, true);
 }
 
 void
@@ -456,37 +505,96 @@ trspk_d3d8_draw_clear_rect(TRSPK_D3D8Renderer* r, const TRSPK_Rect* rect)
         return;
     auto* dev = reinterpret_cast<IDirect3DDevice8*>((uintptr_t)r->com_device);
     TRSPK_Rect gl;
-    trspk_logical_rect_to_gl_viewport_pixels(
-        &gl,
-        r->width,
-        r->height,
-        r->window_width > 0u ? r->window_width : r->width,
-        r->window_height > 0u ? r->window_height : r->height,
-        rect);
+    const uint32_t fbw = r->width > 0u ? r->width : 1u;
+    const uint32_t fbh = r->height > 0u ? r->height : 1u;
+    trspk_logical_rect_to_gl_viewport_pixels(&gl, fbw, fbh, fbw, fbh, rect);
     if( gl.width <= 0 || gl.height <= 0 )
         return;
     const int32_t fh = (int32_t)(r->height > 0u ? r->height : 1u);
-    const DWORD vx = (DWORD)(gl.x >= 0 ? gl.x : 0);
-    const DWORD vw = (DWORD)(gl.width > 0 ? gl.width : 1);
-    const DWORD vh = (DWORD)(gl.height > 0 ? gl.height : 1);
-    const DWORD vy = (DWORD)(fh - gl.y - (int32_t)vh);
 
     D3DVIEWPORT8 saved;
     ZeroMemory(&saved, sizeof(saved));
     dev->GetViewport(&saved);
     D3DVIEWPORT8 cvp;
-    ZeroMemory(&cvp, sizeof(cvp));
-    cvp.X = vx;
-    cvp.Y = vy;
-    cvp.Width = vw;
-    cvp.Height = vh;
-    cvp.MinZ = 0.0f;
-    cvp.MaxZ = 1.0f;
+    trspk_d3d8_fill_viewport8_from_gl_lower_left_rect(&cvp, fh, &gl);
     dev->SetViewport(&cvp);
     dev->Clear(0u, NULL, D3DCLEAR_TARGET, 0x00000000u, 1.0f, 0u);
     dev->SetViewport(&saved);
 #endif
 }
+
+void
+trspk_d3d8_fill_view_proj_for_pass(
+    TRSPK_D3D8Renderer* r,
+    struct GGame* game,
+    TRSPK_Mat4* out_view,
+    TRSPK_Mat4* out_proj)
+{
+    if( !r || !game || !out_view || !out_proj )
+        return;
+    trspk_d3d8_compute_view_matrix(
+        out_view->m,
+        0.0f,
+        0.0f,
+        0.0f,
+        trspk_dash_yaw_to_radians(game->camera_pitch),
+        trspk_dash_yaw_to_radians(game->camera_yaw));
+    /* Legacy d3d8_old uses game->view_port for projection size each frame; pass_logical_rect
+     * only refines the viewport rect (BEGIN_3D), not the lens aspect when view_port is valid. */
+    float projection_width;
+    float projection_height;
+    if( game->view_port && game->view_port->width > 0 && game->view_port->height > 0 )
+    {
+        projection_width = (float)game->view_port->width;
+        projection_height = (float)game->view_port->height;
+    }
+    else if( r->pass_logical_rect.width > 0 && r->pass_logical_rect.height > 0 )
+    {
+        projection_width = (float)r->pass_logical_rect.width;
+        projection_height = (float)r->pass_logical_rect.height;
+    }
+    else
+    {
+        projection_width = (float)r->width;
+        projection_height = (float)r->height;
+    }
+    trspk_d3d8_compute_projection_matrix(
+        out_proj->m, (90.0f * TRSPK_PI) / 180.0f, projection_width, projection_height);
+    trspk_d3d8_remap_projection_opengl_to_d3d8_z(out_proj->m);
+}
+
+#if defined(_WIN32)
+void
+trspk_d3d8_frame_begin_set_transforms(void* device, struct GGame* game, int proj_w, int proj_h)
+{
+    if( !device || !game )
+        return;
+    auto* dev = reinterpret_cast<IDirect3DDevice8*>(device);
+    TRSPK_Mat4 view, proj;
+    const float pw = proj_w > 0 ? (float)proj_w : 1.0f;
+    const float ph = proj_h > 0 ? (float)proj_h : 1.0f;
+    trspk_d3d8_compute_view_matrix(
+        view.m,
+        0.0f,
+        0.0f,
+        0.0f,
+        trspk_dash_yaw_to_radians(game->camera_pitch),
+        trspk_dash_yaw_to_radians(game->camera_yaw));
+    trspk_d3d8_compute_projection_matrix(proj.m, (90.0f * TRSPK_PI) / 180.0f, pw, ph);
+    trspk_d3d8_remap_projection_opengl_to_d3d8_z(proj.m);
+    D3DMATRIX d3d_view, d3d_proj;
+    trspk_d3d8_colmajor_to_d3dmatrix(view.m, &d3d_view);
+    trspk_d3d8_colmajor_to_d3dmatrix(proj.m, &d3d_proj);
+    /* Legacy d3d8_old: VIEW/PROJECTION + tex0 disable only; WORLD set per MODEL_DRAW. */
+    dev->SetTransform(D3DTS_VIEW, &d3d_view);
+    dev->SetTransform(D3DTS_PROJECTION, &d3d_proj);
+    D3DMATRIX idtex;
+    ZeroMemory(&idtex, sizeof(idtex));
+    idtex._11 = idtex._22 = idtex._33 = idtex._44 = 1.0f;
+    dev->SetTransform(D3DTS_TEXTURE0, &idtex);
+    dev->SetTextureStageState(0u, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
+}
+#endif
 
 void
 trspk_d3d8_compute_view_matrix(
@@ -497,6 +605,8 @@ trspk_d3d8_compute_view_matrix(
     float pitch,
     float yaw)
 {
+    /* Translation block (rows 12–14): legacy d3d8_old passes camera 0,0,0 so view has no
+     * translation; trspk_d3d8_fill_view_proj_for_pass / frame_begin_set_transforms use 0,0,0. */
     float cosPitch = cosf(-pitch);
     float sinPitch = sinf(-pitch);
     float cosYaw = cosf(-yaw);

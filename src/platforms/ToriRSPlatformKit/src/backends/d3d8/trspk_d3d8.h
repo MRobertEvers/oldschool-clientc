@@ -188,9 +188,24 @@ TRSPK_D3D8_SetWindowSize(
  * Begins the offscreen scene pass (legacy platform_impl2_win32_renderer_d3d8: SetRenderTarget
  * scene_rt + scene_ds, default render state, Z-clear in 3D sub-viewport, BeginScene).
  * `view_w` / `view_h` are the 3D sub-rect size (e.g. game->view_port); if <= 0, uses buffer size.
+ * When `game` is non-NULL, applies view/proj + texture0 disable after BeginScene (legacy order).
  */
 void
-TRSPK_D3D8_FrameBegin(TRSPK_D3D8Renderer* renderer, int view_w, int view_h);
+TRSPK_D3D8_FrameBegin(
+    TRSPK_D3D8Renderer* renderer,
+    int view_w,
+    int view_h,
+    struct GGame* game);
+
+#if defined(_WIN32)
+/** IDirect3DDevice8* as `device`. Matches legacy post-BeginScene view/proj + tex0 transform off. */
+void
+trspk_d3d8_frame_begin_set_transforms(
+    void* device,
+    struct GGame* game,
+    int proj_w,
+    int proj_h);
+#endif
 /** Ends the scene (`EndScene`). Call after optional platform overlays; then `TRSPK_D3D8_Present`. */
 void
 TRSPK_D3D8_FrameEnd(TRSPK_D3D8Renderer* renderer);
@@ -302,6 +317,24 @@ trspk_d3d8_draw_add_model(
     const TRSPK_ModelPose* pose,
     const uint16_t* sorted_indices,
     uint32_t index_count);
+
+struct GGame;
+
+/** View + projection for the current 3D pass (same math as trspk_d3d8_event_state_end_3d). */
+void
+trspk_d3d8_fill_view_proj_for_pass(
+    TRSPK_D3D8Renderer* r,
+    struct GGame* game,
+    TRSPK_Mat4* out_view,
+    TRSPK_Mat4* out_proj);
+
+/** If reset_pass_after, clears pass_state after submit (legacy-style one flush per call). */
+void
+trspk_d3d8_draw_submit_3d_ex(
+    TRSPK_D3D8Renderer* r,
+    const TRSPK_Mat4* view,
+    const TRSPK_Mat4* proj,
+    bool reset_pass_after);
 void
 trspk_d3d8_draw_submit_3d(
     TRSPK_D3D8Renderer* r,

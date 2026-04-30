@@ -348,6 +348,12 @@ trspk_d3d8_event_draw_model(
     uint16_t* sorted_indices_buffer,
     uint32_t buffer_capacity)
 {
+    /* Legacy d3d8_old MODEL_DRAW: D3DTS_WORLD from draw_position (yaw about Y, translate xyz).
+     * TRSPK applies the same transform in CPU via trspk_bake_transform_apply (see
+     * trspk_bake_transform_from_yaw_translate in trspk_math.h) when building VBs; submit uses
+     * identity WORLD. Algebra matches legacy row-vector world * local for XZ yaw + Y translate.
+     * Legacy also per-run SetTexture / SELECTARG2 / texture-matrix scroll; TRSPK uses one atlas
+     * and baked UVs (trspk_d3d8_draw_submit_3d_ex). */
     if( !ctx || !ctx->renderer || !ctx->cache || !game || !cmd )
         return;
     ctx->diag_frame_model_draw_cmds++;
@@ -446,8 +452,12 @@ trspk_d3d8_event_draw_model(
         game, cmd->_model_draw.model, cmd, sorted_indices_buffer, buffer_capacity);
     if( count != 0 )
     {
+        ctx->renderer->frame_clock = (double)game->cycle;
         trspk_d3d8_draw_add_model(ctx->renderer, pose, sorted_indices_buffer, count);
         ctx->diag_frame_submitted_model_draws++;
+        TRSPK_Mat4 view, proj;
+        trspk_d3d8_fill_view_proj_for_pass(ctx->renderer, game, &view, &proj);
+        trspk_d3d8_draw_submit_3d_ex(ctx->renderer, &view, &proj, true);
     }
 }
 
@@ -500,25 +510,14 @@ trspk_d3d8_event_state_end_3d(
 {
     if( !ctx || !ctx->renderer || !game )
         return;
-    TRSPK_Mat4 view, proj;
-    /* Legacy platform_impl2_win32_renderer_d3d8: view is rotation-only; camera_x/y/z unused
-     * (d3d8_compute_view_matrix void-casts them). Match that driver-visible transform path. */
-    trspk_d3d8_compute_view_matrix(
-        view.m,
-        0.0f,
-        0.0f,
-        0.0f,
-        trspk_dash_yaw_to_radians(game->camera_pitch),
-        trspk_dash_yaw_to_radians(game->camera_yaw));
-    const float projection_width = ctx->renderer->pass_logical_rect.width > 0
-                                       ? (float)ctx->renderer->pass_logical_rect.width
-                                       : (float)ctx->renderer->width;
-    const float projection_height = ctx->renderer->pass_logical_rect.height > 0
-                                        ? (float)ctx->renderer->pass_logical_rect.height
-                                        : (float)ctx->renderer->height;
-    trspk_d3d8_compute_projection_matrix(
-        proj.m, (90.0f * TRSPK_PI) / 180.0f, projection_width, projection_height);
-    trspk_d3d8_remap_projection_opengl_to_d3d8_z(proj.m);
-    ctx->renderer->frame_clock = frame_clock;
-    trspk_d3d8_draw_submit_3d(ctx->renderer, &view, &proj);
+    TRSPK_D3D8Renderer* const r = ctx->renderer;
+    r->frame_clock = frame_clock;
+    if( r->pass_state.subdraw_count > 0u )
+    {
+        TRSPK_Mat4 view, proj;
+        trspk_d3d8_fill_view_proj_for_pass(r, game, &view, &proj);
+        trspk_d3d8_draw_submit_3d_ex(r, &view, &proj, true);
+    }
+    else
+        trspk_d3d8_pass_flush_pending_dynamic_gpu_uploads(r);
 }

@@ -370,6 +370,11 @@ TRSPK_D3D8_Init(TRSPK_D3D8_WindowHandle hwnd, uint32_t width, uint32_t height)
     }
 
     trspk_d3d8_cache_init_atlas(r, TRSPK_ATLAS_DIMENSION, TRSPK_ATLAS_DIMENSION);
+    {
+        auto* idev = reinterpret_cast<IDirect3DDevice8*>((uintptr_t)r->com_device);
+        if( idev )
+            trspk_d3d8_apply_default_render_state(idev);
+    }
     r->ready = true;
     return r;
 }
@@ -469,7 +474,7 @@ TRSPK_D3D8_TryReset(TRSPK_D3D8Renderer* r)
 }
 
 void
-TRSPK_D3D8_FrameBegin(TRSPK_D3D8Renderer* r, int view_w, int view_h)
+TRSPK_D3D8_FrameBegin(TRSPK_D3D8Renderer* r, int view_w, int view_h, struct GGame* game)
 {
     if( !r )
         return;
@@ -494,8 +499,6 @@ TRSPK_D3D8_FrameBegin(TRSPK_D3D8Renderer* r, int view_w, int view_h)
     if( FAILED(hr_rt) )
         return;
 
-    trspk_d3d8_restore_world_draw_state(dev);
-
     const UINT scene_w = r->width > 0u ? r->width : 1u;
     const UINT scene_h = r->height > 0u ? r->height : 1u;
 
@@ -509,10 +512,9 @@ TRSPK_D3D8_FrameBegin(TRSPK_D3D8Renderer* r, int view_w, int view_h)
     frame_vp_2d.MaxZ = 1.0f;
     dev->SetViewport(&frame_vp_2d);
 
-    /* Legacy monolith only Z-clears the 3D sub-rect and relies on CLEAR_RECT for color; TRSPK
-     * often leaves most of the scene RT untouched by draws — uncleared color shows as garbage. */
-    dev->Clear(
-        0u, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0u);
+    /* Legacy d3d8_old: SetViewport(2d) then d3d8_apply_default_render_state + LIGHTING off. */
+    trspk_d3d8_apply_default_render_state(dev);
+    dev->SetRenderState(D3DRS_LIGHTING, FALSE);
 
     int vp_w = view_w > 0 ? view_w : (int)scene_w;
     int vp_h = view_h > 0 ? view_h : (int)scene_h;
@@ -544,6 +546,8 @@ TRSPK_D3D8_FrameBegin(TRSPK_D3D8Renderer* r, int view_w, int view_h)
     dev->SetViewport(&frame_vp_2d);
 
     dev->BeginScene();
+    if( game )
+        trspk_d3d8_frame_begin_set_transforms((void*)dev, game, vp_w, vp_h);
 }
 
 void
@@ -641,7 +645,10 @@ TRSPK_D3D8_Present(TRSPK_D3D8Renderer* r)
     };
     dev->DrawPrimitiveUP(D3DPT_TRIANGLELIST, 2u, qb, sizeof(TRSPK_D3D8UiVertex));
 
-    trspk_d3d8_restore_world_draw_state(dev);
+    /* Legacy letterbox tail: POINT filters + MODULATE only (not full restore_world). */
+    dev->SetTextureStageState(0u, D3DTSS_MAGFILTER, D3DTEXF_POINT);
+    dev->SetTextureStageState(0u, D3DTSS_MINFILTER, D3DTEXF_POINT);
+    dev->SetTextureStageState(0u, D3DTSS_COLOROP, D3DTOP_MODULATE);
 
     dev->EndScene();
     dev->Present(NULL, NULL, NULL, NULL);

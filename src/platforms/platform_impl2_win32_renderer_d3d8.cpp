@@ -57,8 +57,8 @@ struct D3D8UiVertex
 
 static const DWORD kFvfUi = D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1;
 
-/** Skip the full-screen Nuklear overlay quad while debugging the D3D8 world path. */
-static const bool kSkipNuklearOverlayQuad = true;
+/** Match legacy d3d8_old: overlay on so FPS/debug panel matches working renderer. */
+static const bool kSkipNuklearOverlayQuad = false;
 
 static void
 compute_letterbox_dst(int buf_w, int buf_h, int window_w, int window_h, RECT* out_dst)
@@ -114,13 +114,14 @@ d3d8_recreate_nk_overlay_texture(
         return false;
     d3d8_release_nk_overlay_tex(&ren->nk_overlay_tex);
     IDirect3DTexture8* tex = nullptr;
+    /* Legacy d3d8_reset_device nk_overlay: DYNAMIC + DEFAULT pool. */
     HRESULT hr = dev->CreateTexture(
         (UINT)ren->width,
         (UINT)ren->height,
         1,
-        0,
+        D3DUSAGE_DYNAMIC,
         D3DFMT_A8R8G8B8,
-        D3DPOOL_MANAGED,
+        D3DPOOL_DEFAULT,
         &tex);
     if( FAILED(hr) || !tex )
     {
@@ -254,7 +255,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Free(struct Platform2_Win32_Renderer_D3D8* ren
     d3d8_release_nk_overlay_tex(&renderer->nk_overlay_tex);
     if( renderer->trspk )
     {
-        TRSPK_D3D8_Shutdown(renderer->trspk);
+        TRSPK_D3D8Fixed_Shutdown(renderer->trspk);
         renderer->trspk = nullptr;
     }
     free(renderer->nk_pixel_buffer);
@@ -275,13 +276,13 @@ PlatformImpl2_Win32_Renderer_D3D8_Init(
     renderer->platform = platform;
     platform->skip_mouse_transform = 1;
 
-    renderer->trspk = TRSPK_D3D8_Init(
+    renderer->trspk = TRSPK_D3D8Fixed_Init(
         (TRSPK_D3D8_WindowHandle)platform->hwnd,
         (uint32_t)renderer->width,
         (uint32_t)renderer->height);
     if( !renderer->trspk || !renderer->trspk->ready )
     {
-        d3d8_log("D3D8_Init: TRSPK_D3D8_Init failed");
+        d3d8_log("D3D8_Init: TRSPK_D3D8Fixed_Init failed");
         renderer->trspk = nullptr;
         return false;
     }
@@ -294,7 +295,7 @@ PlatformImpl2_Win32_Renderer_D3D8_Init(
     if( !npix )
     {
         d3d8_log("D3D8_Init: realloc(nk_pixel_buffer) failed");
-        TRSPK_D3D8_Shutdown(renderer->trspk);
+        TRSPK_D3D8Fixed_Shutdown(renderer->trspk);
         renderer->trspk = nullptr;
         return false;
     }
@@ -314,9 +315,21 @@ PlatformImpl2_Win32_Renderer_D3D8_Init(
         }
     }
 
-    IDirect3DDevice8* dev = (IDirect3DDevice8*)TRSPK_D3D8_GetDevice(renderer->trspk);
+    IDirect3DDevice8* dev = (IDirect3DDevice8*)TRSPK_D3D8Fixed_GetDevice(renderer->trspk);
     if( dev && !d3d8_recreate_nk_overlay_texture(renderer, dev) )
         d3d8_log("D3D8_Init: nk overlay texture unavailable");
+
+    RECT icr;
+    if( GetClientRect((HWND)platform->hwnd, &icr) )
+    {
+        const int iw = icr.right - icr.left;
+        const int ih = icr.bottom - icr.top;
+        if( iw > 0 && ih > 0 )
+        {
+            renderer->d3d8_client_w = (uint32_t)iw;
+            renderer->d3d8_client_h = (uint32_t)ih;
+        }
+    }
 
     d3d8_log("D3D8_Init: complete ok trspk=%p", (void*)renderer->trspk);
     return true;
@@ -379,8 +392,8 @@ PlatformImpl2_Win32_Renderer_D3D8_PresentOrInvalidate(
         return;
     if( client_w > 0 && client_h > 0 )
     {
-        if( (uint32_t)client_w != renderer->trspk->width ||
-            (uint32_t)client_h != renderer->trspk->height )
+        if( (uint32_t)client_w != renderer->d3d8_client_w ||
+            (uint32_t)client_h != renderer->d3d8_client_h )
             renderer->resize_dirty = true;
     }
 }
@@ -482,26 +495,29 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         game->view_port->stride = renderer->width;
     }
 
-    IDirect3DDevice8* dev = (IDirect3DDevice8*)TRSPK_D3D8_GetDevice(renderer->trspk);
+    IDirect3DDevice8* dev = (IDirect3DDevice8*)TRSPK_D3D8Fixed_GetDevice(renderer->trspk);
     if( !dev )
         return;
 
-    if( renderer->resize_dirty || (uint32_t)window_width != renderer->trspk->width ||
-        (uint32_t)window_height != renderer->trspk->height )
+    /* Legacy: internal scene buffer (renderer->width/height) is fixed; only swap chain + GPU
+     * surfaces follow the HWND client area via d3d8_reset_device / TRSPK_D3D8Fixed_TryReset. */
+    const uint32_t cw = window_width > 0 ? (uint32_t)window_width : 0u;
+    const uint32_t ch = window_height > 0 ? (uint32_t)window_height : 0u;
+    if( renderer->resize_dirty ||
+        (cw > 0u && ch > 0u &&
+         (cw != renderer->d3d8_client_w || ch != renderer->d3d8_client_h)) )
     {
-        TRSPK_D3D8_Resize(renderer->trspk, (uint32_t)window_width, (uint32_t)window_height);
-        renderer->width = (int)renderer->trspk->width;
-        renderer->height = (int)renderer->trspk->height;
-        size_t const pc = (size_t)renderer->width * (size_t)renderer->height;
-        int* npix = (int*)realloc(renderer->nk_pixel_buffer, pc * sizeof(int));
-        if( npix )
+        if( TRSPK_D3D8Fixed_TryReset(renderer->trspk) )
         {
-            renderer->nk_pixel_buffer = npix;
-            memset(renderer->nk_pixel_buffer, 0, pc * sizeof(int));
+            if( cw > 0u && ch > 0u )
+            {
+                renderer->d3d8_client_w = cw;
+                renderer->d3d8_client_h = ch;
+            }
+            if( renderer->nk_font_tex_mem )
+                d3d8_init_or_resize_nk_rawfb(renderer);
+            d3d8_recreate_nk_overlay_texture(renderer, dev);
         }
-        if( renderer->nk_font_tex_mem )
-            d3d8_init_or_resize_nk_rawfb(renderer);
-        d3d8_recreate_nk_overlay_texture(renderer, dev);
         renderer->resize_dirty = false;
     }
 
@@ -510,47 +526,19 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         return;
     if( coop == D3DERR_DEVICENOTRESET )
     {
-        if( !TRSPK_D3D8_TryReset(renderer->trspk) )
+        if( !TRSPK_D3D8Fixed_TryReset(renderer->trspk) )
             return;
-        dev = (IDirect3DDevice8*)TRSPK_D3D8_GetDevice(renderer->trspk);
+        dev = (IDirect3DDevice8*)TRSPK_D3D8Fixed_GetDevice(renderer->trspk);
         if( !dev )
             return;
-        renderer->width = (int)renderer->trspk->width;
-        renderer->height = (int)renderer->trspk->height;
         d3d8_recreate_nk_overlay_texture(renderer, dev);
     }
 
-    int win_width = renderer->platform->game_screen_width;
-    int win_height = renderer->platform->game_screen_height;
-    if( win_width <= 0 || win_height <= 0 )
-    {
-        win_width = window_width;
-        win_height = window_height;
-    }
-    if( win_width > 0 && win_height > 0 )
-        TRSPK_D3D8_SetWindowSize(renderer->trspk, (uint32_t)win_width, (uint32_t)win_height);
-
-    TRSPK_ResourceCache* cache = TRSPK_D3D8_GetCache(renderer->trspk);
-    TRSPK_Batch16* staging = TRSPK_D3D8_GetBatchStaging(renderer->trspk);
-    TRSPK_D3D8EventContext events = {};
-    events.renderer = renderer->trspk;
-    events.cache = cache;
-    events.staging = staging;
-    events.current_batch_id = renderer->current_model_batch_id;
-    events.batch_active = renderer->current_model_batch_active;
-    if( win_width > 0 && win_height > 0 && game )
-    {
-        trspk_d3d8_compute_default_pass_logical(
-            &events.default_pass_logical, win_width, win_height, game);
-        events.has_default_pass_logical =
-            events.default_pass_logical.width > 0 && events.default_pass_logical.height > 0;
-    }
-    else
-        events.has_default_pass_logical = false;
-
-    renderer->diag_frame_model_draw_cmds = 0u;
-    renderer->diag_frame_pose_invalid_skips = 0u;
-    renderer->diag_frame_submitted_model_draws = 0u;
+    /* Logical viewport / letterbox: client pixels (win_w x win_h); scene RT is renderer size. */
+    const int trspk_win_w = window_width > 0 ? window_width : renderer->width;
+    const int trspk_win_h = window_height > 0 ? window_height : renderer->height;
+    if( trspk_win_w > 0 && trspk_win_h > 0 )
+        TRSPK_D3D8Fixed_SetWindowSize(renderer->trspk, (uint32_t)trspk_win_w, (uint32_t)trspk_win_h);
 
     renderer->trspk->dash_offset_x = renderer->dash_offset_x;
     renderer->trspk->dash_offset_y = renderer->dash_offset_y;
@@ -562,8 +550,20 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
     if( frame_vp_h <= 0 )
         frame_vp_h = renderer->height;
 
-    TRSPK_D3D8_FrameBegin(renderer->trspk, frame_vp_w, frame_vp_h);
+    TRSPK_D3D8Fixed_FrameBegin(renderer->trspk, frame_vp_w, frame_vp_h, game);
     LibToriRS_FrameBegin(game, render_command_buffer);
+
+    TRSPK_D3D8Fixed_EventContext ev = {};
+    ev.renderer = renderer->trspk;
+    ev.game = game;
+    ev.platform_renderer = renderer;
+    ev.scene_width = renderer->width;
+    ev.scene_height = renderer->height;
+    ev.window_width = window_width;
+    ev.window_height = window_height;
+    ev.u_clock = renderer->trspk->frame_u_clock;
+    ev.frame_vp_w = renderer->trspk->frame_vp_w;
+    ev.frame_vp_h = renderer->trspk->frame_vp_h;
 
     struct ToriRSRenderCommand cmd = {};
     while( LibToriRS_FrameNextCommand(game, render_command_buffer, &cmd, true) )
@@ -571,62 +571,80 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         switch( cmd.kind )
         {
         case TORIRS_GFX_RES_MODEL_LOAD:
-            trspk_d3d8_event_res_model_load(&events, &cmd);
+            trspk_d3d8_fixed_event_res_model_load(&ev, &cmd);
             break;
         case TORIRS_GFX_RES_MODEL_UNLOAD:
-            trspk_d3d8_event_res_model_unload(&events, &cmd);
+            trspk_d3d8_fixed_event_res_model_unload(&ev, &cmd);
             break;
         case TORIRS_GFX_RES_TEX_LOAD:
-            trspk_d3d8_event_tex_load(&events, &cmd);
+            trspk_d3d8_fixed_event_tex_load(&ev, &cmd);
             break;
         case TORIRS_GFX_BATCH3D_BEGIN:
-            trspk_d3d8_event_batch3d_begin(&events, &cmd);
+            trspk_d3d8_fixed_event_batch3d_begin(&ev, &cmd);
             break;
         case TORIRS_GFX_BATCH3D_MODEL_ADD:
-            trspk_d3d8_event_batch3d_model_add(&events, &cmd);
+            trspk_d3d8_fixed_event_batch3d_model_add(&ev, &cmd);
             break;
         case TORIRS_GFX_RES_ANIM_LOAD:
             if( cmd._animation_load.usage_hint == TORIRS_USAGE_SCENERY )
-                trspk_d3d8_event_batch3d_anim_add(&events, &cmd);
+                trspk_d3d8_fixed_event_batch3d_anim_add(&ev, &cmd);
             else
-                trspk_d3d8_event_res_anim_load(&events, &cmd);
+                trspk_d3d8_fixed_event_res_anim_load(&ev, &cmd);
             break;
         case TORIRS_GFX_BATCH3D_ANIM_ADD:
-            trspk_d3d8_event_batch3d_anim_add(&events, &cmd);
+            trspk_d3d8_fixed_event_batch3d_anim_add(&ev, &cmd);
             break;
         case TORIRS_GFX_BATCH3D_END:
-            trspk_d3d8_event_batch3d_end(&events, &cmd);
+            trspk_d3d8_fixed_event_batch3d_end(&ev, &cmd);
             break;
         case TORIRS_GFX_BATCH3D_CLEAR:
-            trspk_d3d8_event_batch3d_clear(&events, &cmd);
+            trspk_d3d8_fixed_event_batch3d_clear(&ev, &cmd);
             break;
         case TORIRS_GFX_DRAW_MODEL:
-            trspk_d3d8_event_draw_model(
-                &events,
-                game,
-                &cmd,
-                renderer->facebuffer.indices,
-                TRSPK_FACEBUFFER_INDEX_CAPACITY);
+            trspk_d3d8_fixed_event_draw_model(&ev, &cmd);
             break;
         case TORIRS_GFX_STATE_BEGIN_3D:
-            trspk_d3d8_event_state_begin_3d(&events, &cmd);
-            break;
-        case TORIRS_GFX_STATE_CLEAR_RECT:
-            trspk_d3d8_event_state_clear_rect(&events, &cmd);
+            trspk_d3d8_fixed_event_state_begin_3d(&ev, &cmd);
             break;
         case TORIRS_GFX_STATE_END_3D:
-            trspk_d3d8_event_state_end_3d(&events, game, (double)game->cycle);
+            trspk_d3d8_fixed_event_state_end_3d(&ev, &cmd);
+            break;
+        case TORIRS_GFX_STATE_BEGIN_2D:
+            trspk_d3d8_fixed_event_state_begin_2d(&ev, &cmd);
+            break;
+        case TORIRS_GFX_STATE_END_2D:
+            trspk_d3d8_fixed_event_state_end_2d(&ev, &cmd);
+            break;
+        case TORIRS_GFX_STATE_CLEAR_RECT:
+            trspk_d3d8_fixed_event_state_clear_rect(&ev, &cmd);
+            break;
+        case TORIRS_GFX_RES_SPRITE_LOAD:
+            trspk_d3d8_fixed_event_sprite_load(&ev, &cmd);
+            break;
+        case TORIRS_GFX_RES_SPRITE_UNLOAD:
+            trspk_d3d8_fixed_event_sprite_unload(&ev, &cmd);
+            break;
+        case TORIRS_GFX_DRAW_SPRITE:
+            trspk_d3d8_fixed_event_draw_sprite(&ev, &cmd);
+            break;
+        case TORIRS_GFX_RES_FONT_LOAD:
+            trspk_d3d8_fixed_event_font_load(&ev, &cmd);
+            break;
+        case TORIRS_GFX_DRAW_FONT:
+            trspk_d3d8_fixed_event_draw_font(&ev, &cmd);
+            break;
+        case TORIRS_GFX_NONE:
+            trspk_d3d8_fixed_event_none_or_default(&ev, &cmd);
             break;
         default:
+            trspk_d3d8_fixed_event_none_or_default(&ev, &cmd);
             break;
         }
     }
 
-    renderer->current_model_batch_id = events.current_batch_id;
-    renderer->current_model_batch_active = events.batch_active;
-    renderer->diag_frame_model_draw_cmds = events.diag_frame_model_draw_cmds;
-    renderer->diag_frame_pose_invalid_skips = events.diag_frame_pose_invalid_skips;
-    renderer->diag_frame_submitted_model_draws = events.diag_frame_submitted_model_draws;
+    LibToriRS_FrameEnd(game);
+
+    TRSPK_D3D8Fixed_FlushFont(renderer->trspk);
 
     if( !kSkipNuklearOverlayQuad && renderer->nk_rawfb && renderer->nk_overlay_tex )
     {
@@ -675,15 +693,9 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
             nk_labelf(
                 nk,
                 NK_TEXT_LEFT,
-                "TRSPK draws: %u pass_subdr: %u",
-                renderer->trspk->diag_frame_submitted_draws,
-                renderer->trspk->diag_frame_pass_subdraws);
-            nk_labelf(
-                nk,
-                NK_TEXT_LEFT,
-                "Model cmds: %u submitted: %u",
-                renderer->diag_frame_model_draw_cmds,
-                renderer->diag_frame_submitted_model_draws);
+                "D3D8-fixed GPU tris: %u draws:%u",
+                renderer->trspk->diag_frame_pass_subdraws,
+                renderer->trspk->diag_frame_submitted_draws);
             nk_labelf(nk, NK_TEXT_LEFT, "Paint cmd: %d", game->cc);
         }
         nk_end(nk);
@@ -737,15 +749,8 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
         dev->DrawPrimitiveUP(D3DPT_TRIANGLELIST, 2, q, sizeof(D3D8UiVertex));
     }
 
-    TRSPK_D3D8_FrameEnd(renderer->trspk);
-    TRSPK_D3D8_Present(renderer->trspk);
-
-    RECT dst;
-    compute_letterbox_dst(renderer->width, renderer->height, window_width, window_height, &dst);
-    renderer->present_dst_x = dst.left;
-    renderer->present_dst_y = dst.top;
-    renderer->present_dst_w = (int)(dst.right - dst.left);
-    renderer->present_dst_h = (int)(dst.bottom - dst.top);
+    TRSPK_D3D8Fixed_FrameEnd(renderer->trspk);
+    TRSPK_D3D8Fixed_Present(renderer->trspk, window_width, window_height, renderer);
 
     game->soft3d_mouse_from_window = true;
     game->soft3d_present_dst_x = renderer->present_dst_x;
@@ -754,8 +759,6 @@ PlatformImpl2_Win32_Renderer_D3D8_Render(
     game->soft3d_present_dst_h = renderer->present_dst_h;
     game->soft3d_buffer_w = renderer->width;
     game->soft3d_buffer_h = renderer->height;
-
-    LibToriRS_FrameEnd(game);
 }
 
 #endif /* _WIN32 && TORIRS_HAS_D3D8 */
