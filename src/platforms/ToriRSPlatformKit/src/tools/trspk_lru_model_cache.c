@@ -135,7 +135,8 @@ trspk_lru_model_cache_get_or_emplace_impl(
     bool textured,
     TRSPK_UVCalculationMode uv_calc_mode,
     const TRSPK_ResourceCache* atlas_tile_meta,
-    const TRSPK_BakeTransform* bake)
+    const TRSPK_BakeTransform* bake,
+    float d3d8_v_repeat)
 {
     if( !cache || !arrays || arrays->face_count == 0u || !cache->entries ||
         cache->vertex_format == TRSPK_VERTEX_FORMAT_NONE )
@@ -198,7 +199,8 @@ trspk_lru_model_cache_get_or_emplace_impl(
             atlas_tile_meta,
             bake,
             &built,
-            0.0);
+            0.0,
+            d3d8_v_repeat);
     else
         build_ok = trspk_vertex_buffer_write(
             arrays->vertex_count,
@@ -216,7 +218,8 @@ trspk_lru_model_cache_get_or_emplace_impl(
             arrays->face_infos,
             bake,
             &built,
-            0.0);
+            0.0,
+            1.0f);
     if( !build_ok )
     {
         trspk_vertex_buffer_free(&built);
@@ -280,7 +283,8 @@ trspk_lru_model_cache_get_or_emplace_untextured(
     uint8_t gpu_segment_slot,
     uint16_t frame_index,
     const TRSPK_ModelArrays* arrays,
-    const TRSPK_BakeTransform* bake)
+    const TRSPK_BakeTransform* bake,
+    float d3d8_v_repeat)
 {
     return trspk_lru_model_cache_get_or_emplace_impl(
         cache,
@@ -291,7 +295,8 @@ trspk_lru_model_cache_get_or_emplace_untextured(
         false,
         TRSPK_UV_CALC_TEXTURED_FACE_ARRAY,
         NULL,
-        bake);
+        bake,
+        d3d8_v_repeat);
 }
 
 const TRSPK_VertexBuffer*
@@ -303,7 +308,8 @@ trspk_lru_model_cache_get_or_emplace_textured(
     const TRSPK_ModelArrays* arrays,
     TRSPK_UVCalculationMode uv_calc_mode,
     const TRSPK_ResourceCache* atlas_tile_meta,
-    const TRSPK_BakeTransform* bake)
+    const TRSPK_BakeTransform* bake,
+    float d3d8_v_repeat)
 {
     return trspk_lru_model_cache_get_or_emplace_impl(
         cache,
@@ -314,5 +320,6 @@ trspk_lru_model_cache_get_or_emplace_textured(
         true,
         uv_calc_mode,
         atlas_tile_meta,
-        bake);
+        bake,
+        d3d8_v_repeat);
 }

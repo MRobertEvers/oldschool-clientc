@@ -32,6 +32,8 @@ typedef struct TRSPK_Batch16
     bool building;
     /** Baked into D3D8 FVF atlas UVs when writing D3D8/D3D8_SOAOS vertices (see trspk_vertex_buffer_write). */
     double d3d8_vertex_frame_clock;
+    /** V-axis tiling multiplier for D3D8 atlas UV bake. 1.0 = no tiling. d3d8_fixed sets 2.0. */
+    float d3d8_v_repeat;
 } TRSPK_Batch16;
 
 TRSPK_Batch16*

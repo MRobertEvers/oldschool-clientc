@@ -106,7 +106,8 @@ trspk_opengl3_event_res_model_load(
                 &arrays,
                 trspk_dash_uv_calculation_mode(cmd->_model_load.model),
                 ctx->cache,
-                &id_bake);
+                &id_bake,
+                1.0f);
         else
             trspk_lru_model_cache_get_or_emplace_untextured(
                 lru,
@@ -114,7 +115,8 @@ trspk_opengl3_event_res_model_load(
                 TRSPK_GPU_ANIM_NONE_IDX,
                 0u,
                 &arrays,
-                &id_bake);
+                &id_bake,
+                1.0f);
         return;
     }
 
@@ -187,7 +189,8 @@ trspk_opengl3_event_res_anim_load(
                 &arrays,
                 trspk_dash_uv_calculation_mode(cmd->_animation_load.model),
                 ctx->cache,
-                &id_bake);
+                &id_bake,
+                1.0f);
         else
             trspk_lru_model_cache_get_or_emplace_untextured(
                 lru,
@@ -195,7 +198,8 @@ trspk_opengl3_event_res_anim_load(
                 seg,
                 (uint16_t)cmd->_animation_load.frame_index,
                 &arrays,
-                &id_bake);
+                &id_bake,
+                1.0f);
         return;
     }
 
@@ -358,7 +362,8 @@ trspk_opengl3_event_draw_model(
                             &arrays,
                             trspk_dash_uv_calculation_mode(cmd->_model_draw.model),
                             ctx->cache,
-                            &id_bake);
+                            &id_bake,
+                            1.0f);
                     else
                         trspk_lru_model_cache_get_or_emplace_untextured(
                             lru,
@@ -366,7 +371,8 @@ trspk_opengl3_event_draw_model(
                             seg,
                             frame_i,
                             &arrays,
-                            &id_bake);
+                            &id_bake,
+                            1.0f);
                     const TRSPK_VertexBuffer* id_mesh =
                         trspk_lru_model_cache_get(lru, layout_id, seg, frame_i);
                     if( id_mesh )

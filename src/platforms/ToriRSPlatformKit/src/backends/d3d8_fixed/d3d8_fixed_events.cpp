@@ -112,10 +112,11 @@ d3d8_fixed_emplace_and_register(
             lru, visual_id, seg, frame_idx, &arrays,
             trspk_dash_uv_calculation_mode(model),
             (p->tex_mode == D3D8_FIXED_TEX_ATLAS) ? p->cache : nullptr,
-            &id_bake);
+            &id_bake,
+            2.0f);
     else
         vb = trspk_lru_model_cache_get_or_emplace_untextured(
-            lru, visual_id, seg, frame_idx, &arrays, &id_bake);
+            lru, visual_id, seg, frame_idx, &arrays, &id_bake, 2.0f);
 
     if( !vb )
         return;
@@ -329,6 +330,7 @@ trspk_d3d8_fixed_event_batch3d_begin(
 
     trspk_batch16_begin(p->batch_staging);
     p->batch_staging->d3d8_vertex_frame_clock = p->frame_clock;
+    p->batch_staging->d3d8_v_repeat = 2.0f;
     trspk_resource_cache_batch_begin(p->cache, (TRSPK_BatchId)bid);
 
     p->current_batch_id = bid;

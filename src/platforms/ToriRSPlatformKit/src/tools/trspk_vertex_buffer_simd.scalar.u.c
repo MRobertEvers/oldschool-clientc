@@ -89,6 +89,7 @@ trspk_vertex_buffer_bake_array_to_interleaved_vertices(
                 blk->tex_id[li],
                 blk->uv_mode[li],
                 d3d8_frame_clock,
+                1.0f,
                 &out->vertices.as_d3d8[i]);
         }
     }

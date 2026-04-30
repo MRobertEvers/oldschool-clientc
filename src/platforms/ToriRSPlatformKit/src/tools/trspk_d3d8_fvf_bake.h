@@ -36,6 +36,7 @@ trspk_d3d8_fvf_from_model_vertex(
     float tex_id_f,
     float uv_mode_pack,
     double frame_clock,
+    float d3d8_v_repeat,
     TRSPK_VertexD3D8* out);
 
 #ifdef __cplusplus

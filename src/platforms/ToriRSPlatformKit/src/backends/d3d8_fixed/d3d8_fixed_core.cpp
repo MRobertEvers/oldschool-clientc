@@ -15,6 +15,7 @@
 
 #include "d3d8_fixed_internal.h"
 #include "d3d8_fixed_state.h"
+#include "d3d8_fixed_cache.h"
 #include "trspk_d3d8_fixed.h"
 
 #if !defined(TORIRS_D3D8_STATIC_LINK)
@@ -276,6 +277,9 @@ TRSPK_D3D8Fixed_Init(TRSPK_D3D8_WindowHandle hwnd, uint32_t width, uint32_t heig
         free(r);
         return nullptr;
     }
+    trspk_resource_cache_init_atlas(p->cache, TRSPK_ATLAS_DIMENSION, TRSPK_ATLAS_DIMENSION);
+    d3d8_fixed_cache_refresh_atlas(p, p->device);
+
     p->batch_staging = trspk_batch16_create(65535u, 65535u, TRSPK_VERTEX_FORMAT_D3D8);
     if( !p->batch_staging )
     {

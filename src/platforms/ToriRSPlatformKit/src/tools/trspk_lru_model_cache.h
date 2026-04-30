@@ -48,7 +48,8 @@ trspk_lru_model_cache_get_or_emplace_untextured(
     uint8_t gpu_segment_slot,
     uint16_t frame_index,
     const TRSPK_ModelArrays* arrays,
-    const TRSPK_BakeTransform* bake);
+    const TRSPK_BakeTransform* bake,
+    float d3d8_v_repeat);
 
 const TRSPK_VertexBuffer*
 trspk_lru_model_cache_get_or_emplace_textured(
@@ -59,7 +60,8 @@ trspk_lru_model_cache_get_or_emplace_textured(
     const TRSPK_ModelArrays* arrays,
     TRSPK_UVCalculationMode uv_calc_mode,
     const TRSPK_ResourceCache* atlas_tile_meta,
-    const TRSPK_BakeTransform* bake);
+    const TRSPK_BakeTransform* bake,
+    float d3d8_v_repeat);
 
 #ifdef __cplusplus
 }

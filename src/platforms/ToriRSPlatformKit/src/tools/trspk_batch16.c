@@ -79,7 +79,10 @@ trspk_batch16_create(
     (void)max_indices;
     TRSPK_Batch16* batch = (TRSPK_Batch16*)calloc(1u, sizeof(TRSPK_Batch16));
     if( batch )
+    {
         batch->vertex_format = vertex_format;
+        batch->d3d8_v_repeat = 1.0f;
+    }
     return batch;
 }
 
@@ -421,7 +424,8 @@ trspk_batch16_add_model(
             face_infos,
             bake,
             &vb,
-            batch->d3d8_vertex_frame_clock) )
+            batch->d3d8_vertex_frame_clock,
+            1.0f) )
     {
         trspk_vertex_buffer_free(&vb);
         return;
@@ -508,7 +512,8 @@ trspk_batch16_add_model_textured(
             atlas_tile_meta,
             bake,
             &vb,
-            batch->d3d8_vertex_frame_clock) )
+            batch->d3d8_vertex_frame_clock,
+            batch->d3d8_v_repeat) )
     {
         trspk_vertex_buffer_free(&vb);
         return;

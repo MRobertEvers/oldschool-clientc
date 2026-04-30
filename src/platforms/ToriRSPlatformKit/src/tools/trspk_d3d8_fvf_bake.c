@@ -60,6 +60,7 @@ trspk_d3d8_fvf_from_model_vertex(
     float tex_id_f,
     float uv_mode_pack,
     double frame_clock,
+    float d3d8_v_repeat,
     TRSPK_VertexD3D8* out)
 {
     if( !out )
@@ -125,7 +126,8 @@ trspk_d3d8_fvf_from_model_vertex(
     const float ta_w = dv;
 
     float lx = u_model * 0.984f + 0.008f;
-    float ly = v_model * 0.984f + 0.008f;
+    float v_tiled = (d3d8_v_repeat > 1.0f) ? fmodf(v_model * d3d8_v_repeat, 1.0f) : v_model;
+    float ly = v_tiled * 0.984f + 0.008f;
     const float clk = (float)frame_clock;
     if( anim_u > 0.0f )
         lx += clk * anim_u;
@@ -158,6 +160,7 @@ trspk_d8_vertex_convert(
             src_vertices[i].tex_id,
             src_vertices[i].uv_mode,
             frame_clock,
+            1.0f,
             &dst[i]);
     }
 }

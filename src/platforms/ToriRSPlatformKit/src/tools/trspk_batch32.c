@@ -335,7 +335,8 @@ trspk_batch32_add_model(
             face_infos,
             bake,
             &vb,
-            0.0) )
+            0.0,
+            1.0f) )
     {
         trspk_vertex_buffer_free(&vb);
         return;
@@ -419,7 +420,8 @@ trspk_batch32_add_model_textured(
             atlas_tile_meta,
             bake,
             &vb,
-            0.0) )
+            0.0,
+            1.0f) )
     {
         trspk_vertex_buffer_free(&vb);
         return;

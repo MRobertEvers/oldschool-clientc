@@ -121,7 +121,8 @@ trspk_vertex_buffer_write_textured(
     const TRSPK_ResourceCache* atlas_tile_meta,
     const TRSPK_BakeTransform* bake,
     TRSPK_VertexBuffer* dest,
-    double d3d8_frame_clock);
+    double d3d8_frame_clock,
+    float d3d8_v_repeat);
 
 bool
 trspk_vertex_buffer_write(
@@ -140,7 +141,8 @@ trspk_vertex_buffer_write(
     const int32_t* face_infos,
     const TRSPK_BakeTransform* bake,
     TRSPK_VertexBuffer* dest,
-    double d3d8_frame_clock);
+    double d3d8_frame_clock,
+    float d3d8_v_repeat);
 
 #ifdef __cplusplus
 }

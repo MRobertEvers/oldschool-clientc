@@ -127,6 +127,7 @@ write_vertex(
     float packed_gpu_uv_mode,
     const TRSPK_BakeTransform* bake,
     double d3d8_frame_clock,
+    float d3d8_v_repeat,
     int d3d8_diffuse_legacy_win32,
     uint16_t d3d8_diffuse_hsl16)
 {
@@ -191,6 +192,7 @@ write_vertex(
             tex_id_vertex,
             packed_gpu_uv_mode,
             d3d8_frame_clock,
+            d3d8_v_repeat,
             &dest->vertices.as_d3d8[offset]);
         if( d3d8_diffuse_legacy_win32 )
             dest->vertices.as_d3d8[offset].diffuse =
@@ -286,6 +288,7 @@ write_hidden_vertex(
         pack,
         NULL,
         0.0,
+        1.0f,
         0,
         0u);
 }
@@ -314,7 +317,8 @@ trspk_vertex_buffer_write_textured(
     const TRSPK_ResourceCache* atlas_tile_meta,
     const TRSPK_BakeTransform* bake,
     TRSPK_VertexBuffer* dest,
-    double d3d8_frame_clock)
+    double d3d8_frame_clock,
+    float d3d8_v_repeat)
 {
     for( uint32_t local_face = 0; local_face < face_count; ++local_face )
     {
@@ -440,6 +444,7 @@ trspk_vertex_buffer_write_textured(
             packed_gpu,
             bake,
             d3d8_frame_clock,
+            d3d8_v_repeat,
             1,
             hsl_a);
         write_vertex(
@@ -455,6 +460,7 @@ trspk_vertex_buffer_write_textured(
             packed_gpu,
             bake,
             d3d8_frame_clock,
+            d3d8_v_repeat,
             1,
             hsl_b);
         write_vertex(
@@ -470,6 +476,7 @@ trspk_vertex_buffer_write_textured(
             packed_gpu,
             bake,
             d3d8_frame_clock,
+            d3d8_v_repeat,
             1,
             hsl_c);
     }
@@ -493,7 +500,8 @@ trspk_vertex_buffer_write(
     const int32_t* face_infos,
     const TRSPK_BakeTransform* bake,
     TRSPK_VertexBuffer* dest,
-    double d3d8_frame_clock)
+    double d3d8_frame_clock,
+    float d3d8_v_repeat)
 {
     for( uint32_t local_face = 0; local_face < face_count; ++local_face )
     {
@@ -558,6 +566,7 @@ trspk_vertex_buffer_write(
             untextured_pack,
             bake,
             d3d8_frame_clock,
+            1.0f,
             1,
             hsl_a);
 
@@ -574,6 +583,7 @@ trspk_vertex_buffer_write(
             untextured_pack,
             bake,
             d3d8_frame_clock,
+            1.0f,
             1,
             hsl_b);
 
@@ -590,6 +600,7 @@ trspk_vertex_buffer_write(
             untextured_pack,
             bake,
             d3d8_frame_clock,
+            1.0f,
             1,
             hsl_c);
     }
