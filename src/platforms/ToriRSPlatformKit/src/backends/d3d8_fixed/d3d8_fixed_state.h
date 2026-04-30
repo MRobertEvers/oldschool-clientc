@@ -6,6 +6,9 @@
 void
 d3d8_fixed_ensure_pass(D3D8FixedInternal* priv, IDirect3DDevice8* dev, PassKind want);
 
+float
+d3d8_texture_animation_signed(int animation_direction, int animation_speed);
+
 bool
 d3d8_fixed_should_log_cmd(D3D8FixedInternal* p, int kind);
 

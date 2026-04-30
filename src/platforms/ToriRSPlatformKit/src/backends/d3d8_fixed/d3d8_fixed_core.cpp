@@ -10,6 +10,9 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "../../tools/trspk_resource_cache.h"
+#include "../../tools/trspk_batch16.h"
+
 #include "d3d8_fixed_internal.h"
 #include "d3d8_fixed_state.h"
 #include "trspk_d3d8_fixed.h"
@@ -262,6 +265,31 @@ TRSPK_D3D8Fixed_Init(TRSPK_D3D8_WindowHandle hwnd, uint32_t width, uint32_t heig
         free(r);
         return nullptr;
     }
+
+    /* Initialize TRSPK infrastructure. */
+    p->cache = trspk_resource_cache_create(512u, TRSPK_VERTEX_FORMAT_D3D8);
+    if( !p->cache )
+    {
+        trspk_d3d8_fixed_log("Init: trspk_resource_cache_create failed");
+        d3d8_fixed_destroy_internal(p);
+        r->opaque_internal = nullptr;
+        free(r);
+        return nullptr;
+    }
+    p->batch_staging = trspk_batch16_create(65535u, 65535u, TRSPK_VERTEX_FORMAT_D3D8);
+    if( !p->batch_staging )
+    {
+        trspk_d3d8_fixed_log("Init: trspk_batch16_create failed");
+        d3d8_fixed_destroy_internal(p);
+        r->opaque_internal = nullptr;
+        free(r);
+        return nullptr;
+    }
+
+    /* Pre-allocate pass-state buffers to avoid frame-time allocations. */
+    p->pass_state.ib_scratch.reserve(65536);
+    p->pass_state.subdraws.reserve(2048);
+    p->pass_state.worlds.reserve(512);
 
     r->com_device = (uintptr_t)p->device;
     r->com_d3d = (uintptr_t)p->d3d;

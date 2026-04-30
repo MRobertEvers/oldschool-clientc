@@ -18,8 +18,15 @@ struct GGame;
 struct ToriRSRenderCommand;
 struct Platform2_Win32_Renderer_D3D8;
 
+/** Runtime switch between atlas-baked UV mode and legacy per-id texture binding. */
+typedef enum TRSPK_D3D8FixedTextureMode
+{
+    TRSPK_D3D8_FIXED_TEX_ATLAS  = 0, /* Default: TRSPK atlas + baked UVs. */
+    TRSPK_D3D8_FIXED_TEX_PER_ID = 1, /* Legacy: per-id IDirect3DTexture8 binding. */
+} TRSPK_D3D8FixedTextureMode;
+
 /**
- * Win32 D3D8 backend cloned from d3d8_old (per-texture VBOs, IB ring, no TRSPK atlas path).
+ * Win32 D3D8 fixed-function backend with TRSPK atlas + LRU + Batch16 infrastructure.
  * `opaque_internal` holds C++ D3D8FixedInternal.
  */
 typedef struct TRSPK_D3D8FixedRenderer
@@ -189,6 +196,15 @@ void
 trspk_d3d8_fixed_event_none_or_default(
     TRSPK_D3D8Fixed_EventContext* ctx,
     const struct ToriRSRenderCommand* cmd);
+
+/**
+ * Switch between TRSPK atlas mode (default) and legacy per-id texture binding.
+ * Must be called before any resource loads; switching mid-frame is undefined.
+ */
+void
+TRSPK_D3D8Fixed_SetTextureMode(
+    TRSPK_D3D8FixedRenderer* renderer,
+    TRSPK_D3D8FixedTextureMode mode);
 
 #ifdef __cplusplus
 }
