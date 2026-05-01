@@ -348,10 +348,11 @@ main(
 
     while( LibToriRS_GameIsRunning(game) )
     {
-        Platform2_Win32_RunLuaScripts(platform, game);
-
         LibToriRSPlatformC_NetPoll(game->net_shared, login_stream);
         LibToriRS_NetPump(game);
+        LibToriRS_GameNetProcess(game);
+
+        Platform2_Win32_RunLuaScripts(platform, game);
 
         game->tick_ms = (uint64_t)(uint32_t)GetTickCount();
 

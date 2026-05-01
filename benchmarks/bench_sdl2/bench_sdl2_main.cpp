@@ -606,10 +606,11 @@ main(
         /* Rolling avg + report.ini frametime_ms: soft3d LibToriRS_FrameBegin..FrameEnd only
          * (see renderer->last_raster_ms in platform_impl2_sdl2_renderer_soft3d_shared.cpp). */
 
-        Platform2_SDL2_RunLuaScripts(platform, game);
-
         LibToriRSPlatformC_NetPoll(game->net_shared, login_stream);
         LibToriRS_NetPump(game);
+        LibToriRS_GameNetProcess(game);
+
+        Platform2_SDL2_RunLuaScripts(platform, game);
 
         uint64_t timestamp_ms = SDL_GetTicks64();
 

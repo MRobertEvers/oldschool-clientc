@@ -1745,3 +1745,13 @@ recol3d=31
 ```
 python3 -m http.server -b 0.0.0.0 -d . 8000
 ```
+
+## Rendering Features Needed
+
+1. Textures U clamp
+2. Textures V tiling
+3. Texture UV animation (rotating uv coords)
+4. Rotated Sprites
+5. Clipping Rect Per Sprite
+6. Rotated Sprites
+7. Fonts and Text

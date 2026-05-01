@@ -243,6 +243,22 @@ entity_face(
 }
 
 void
+LibToriRS_GameNetProcess(struct GGame* game)
+{
+    while( game->packets_lc245_2 )
+        gameproto_process(game);
+
+    if( game->cycle >= game->next_notimeout_cycle && GAME_NET_STATE_GAME == game->net_state )
+    {
+        game->next_notimeout_cycle = game->cycle + 50;
+        int opcode = 206;
+        uint8_t op_byte = (uint8_t)((opcode + isaac_next(game->random_out)) & 0xff);
+        (void)op_byte;
+        // LibToriRS_NetSend(game, &op_byte, 1);
+    }
+}
+
+void
 LibToriRS_GameStep(
     struct GGame* game,
     struct GInput* input,
@@ -255,8 +271,6 @@ LibToriRS_GameStep(
         game->running = false;
         return;
     }
-
-    gameproto_process(game);
 
     if( game->tick_ms >= game->next_camera_save_ms )
     {
@@ -274,13 +288,6 @@ LibToriRS_GameStep(
      * from start). bufferSize = min(length, 25); start = first path point (route head). */
 
     dash_animate_textures(game->sys_dash, game->cycles_elapsed);
-    if( game->cycle >= game->next_notimeout_cycle && GAME_NET_STATE_GAME == game->net_state )
-    {
-        game->next_notimeout_cycle = game->cycle + 50;
-        int opcode = 206;
-        uint8_t op_byte = (uint8_t)((opcode + isaac_next(game->random_out)) & 0xff);
-        // LibToriRS_NetSend(game, &op_byte, 1);
-    }
 
     /* Scene dynamic elements (players/NPCs) are updated earlier in GameStep so they
      * are always present for rendering even when a script is yielded. */

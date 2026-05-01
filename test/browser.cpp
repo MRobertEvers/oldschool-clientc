@@ -145,6 +145,7 @@ emscripten_main_loop(void* arg)
         return;
 
     LibToriRS_NetPump(platform->current_game);
+    LibToriRS_GameNetProcess(platform->current_game);
 
     Platform2_SDL2_PollEvents(platform, platform->input, 0);
 

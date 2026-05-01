@@ -348,10 +348,11 @@ main(
     int reconnect_requested = 0;
     while( LibToriRS_GameIsRunning(game) )
     {
-        Platform2_SDL2_RunLuaScripts(platform, game);
-
         LibToriRSPlatformC_NetPoll(game->net_shared, login_stream);
         LibToriRS_NetPump(game);
+        LibToriRS_GameNetProcess(game);
+
+        Platform2_SDL2_RunLuaScripts(platform, game);
 
         uint64_t timestamp_ms = SDL_GetTicks64();
 

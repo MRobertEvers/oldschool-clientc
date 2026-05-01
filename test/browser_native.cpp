@@ -120,6 +120,7 @@ emscripten_main_loop_native(void* arg)
         return;
 
     LibToriRS_NetPump(platform->current_game);
+    LibToriRS_GameNetProcess(platform->current_game);
 
     Platform2_Emscripten_Native_PollEvents(platform);
 

@@ -158,6 +158,9 @@ void
 LibToriRS_WorldMinimapStaticRebuild(struct GGame* game);
 
 void
+LibToriRS_GameNetProcess(struct GGame* game);
+
+void
 LibToriRS_GameStep(
     struct GGame* game,
     struct GInput* input,
