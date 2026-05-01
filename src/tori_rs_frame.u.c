@@ -616,6 +616,231 @@ queue_static_ui_minimap_draws(
 }
 
 static void
+queue_static_load_scene2_events(
+    struct Scene2* scene2,
+    struct ToriRSRenderCommandBuffer* render_command_buffer)
+{
+    if( !scene2 )
+        return;
+
+    struct Scene2Event scene_event = { 0 };
+    while( scene2_eventbuffer_pop(scene2, &scene_event) )
+    {
+        switch( scene_event.type )
+        {
+        case SCENE2_EVENT_TEXTURE_BATCH_BEGIN:
+        {
+            struct ToriRSRenderCommand* ev =
+                LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
+            ev->kind = TORIRS_GFX_BATCH2D_TEX_BEGIN;
+            ev->_batch.batch_id = scene_event.u.batch.batch_id;
+            continue;
+        }
+        case SCENE2_EVENT_TEXTURE_BATCH_END:
+        {
+            struct ToriRSRenderCommand* ev =
+                LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
+            ev->kind = TORIRS_GFX_BATCH2D_TEX_END;
+            ev->_batch.batch_id = scene_event.u.batch.batch_id;
+            continue;
+        }
+        case SCENE2_EVENT_TEXTURE_LOADED:
+        {
+            int tex_id = scene_event.u.texture.texture_id;
+            struct DashTexture* texture = scene2_texture_get(scene2, tex_id);
+            queue_texture_load_from_event(render_command_buffer, tex_id, texture);
+            continue;
+        }
+        case SCENE2_EVENT_ANIMATION_LOADED:
+        {
+            struct ToriRSRenderCommand* ev =
+                LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
+            ev->kind = scene_event.batched ? TORIRS_GFX_BATCH3D_ANIM_ADD : TORIRS_GFX_RES_ANIM_LOAD;
+            ev->_animation_load.model = scene_event.u.animation.model;
+            ev->_animation_load.frame = scene_event.u.animation.frame;
+            ev->_animation_load.framemap = scene_event.u.animation.framemap;
+            ev->_animation_load.visual_id = scene_event.u.animation.visual_id;
+            ev->_animation_load.anim_id = scene_event.u.animation.anim_id;
+            ev->_animation_load.animation_index = scene_event.u.animation.animation_index;
+            ev->_animation_load.frame_index = scene_event.u.animation.frame_index;
+            ev->_animation_load.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
+                (enum Scene2ElementCategory)scene_event.u.animation.element_category);
+            continue;
+        }
+        case SCENE2_EVENT_BATCH_BEGIN:
+        {
+            struct ToriRSRenderCommand* ev =
+                LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
+            ev->kind = TORIRS_GFX_BATCH3D_BEGIN;
+            ev->_batch.batch_id = scene_event.u.batch.batch_id;
+            ev->_batch.usage_hint = (uint8_t)TORIRS_USAGE_SCENERY;
+            continue;
+        }
+        case SCENE2_EVENT_BATCH_END:
+        {
+            struct ToriRSRenderCommand* ev =
+                LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
+            ev->kind = TORIRS_GFX_BATCH3D_END;
+            ev->_batch.batch_id = scene_event.u.batch.batch_id;
+            ev->_batch.usage_hint = (uint8_t)TORIRS_USAGE_SCENERY;
+            continue;
+        }
+        case SCENE2_EVENT_BATCH_CLEAR:
+        {
+            struct ToriRSRenderCommand* ev =
+                LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
+            ev->kind = TORIRS_GFX_BATCH3D_CLEAR;
+            ev->_batch.batch_id = scene_event.u.batch.batch_id;
+            ev->_batch.usage_hint = (uint8_t)TORIRS_USAGE_SCENERY;
+            continue;
+        }
+        case SCENE2_EVENT_MODEL_LOADED:
+        {
+            int eid = scene_event.u.model.element_id;
+            if( eid < 0 || eid >= scene2_elements_total(scene2) )
+                continue;
+            struct Scene2Element* el = scene2_element_at(scene2, eid);
+            if( !el || !scene2_element_is_active(el) || !scene2_element_dash_model(el) )
+                continue;
+            if( scene2_element_parent_entity_id(el) != scene_event.u.model.parent_entity_id )
+                continue;
+            struct DashModel* model = scene_event.u.model.model;
+            uint64_t model_key = model_cache_key_u64(scene2, el);
+            struct ToriRSRenderCommand* ev =
+                LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
+            ev->kind =
+                scene_event.batched ? TORIRS_GFX_BATCH3D_MODEL_ADD : TORIRS_GFX_RES_MODEL_LOAD;
+            ev->_model_load.model = model;
+            ev->_model_load.model_key = model_key;
+            ev->_model_load.visual_id = scene_event.u.model.visual_id;
+            ev->_model_load.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
+                (enum Scene2ElementCategory)scene_event.u.model.element_category);
+            ev->_model_load.world_x = scene_event.u.model.world_x;
+            ev->_model_load.world_y = scene_event.u.model.world_y;
+            ev->_model_load.world_z = scene_event.u.model.world_z;
+            ev->_model_load.world_yaw_r2pi2048 = scene_event.u.model.world_yaw_r2pi2048;
+            continue;
+        }
+        case SCENE2_EVENT_MODEL_UNLOADED:
+        {
+            struct ToriRSRenderCommand* ev =
+                LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
+            ev->kind = TORIRS_GFX_RES_MODEL_UNLOAD;
+            ev->_model_load.model = scene_event.u.model.model;
+            ev->_model_load.model_key = 0;
+            ev->_model_load.visual_id = scene_event.u.model.visual_id;
+            ev->_model_load.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
+                (enum Scene2ElementCategory)scene_event.u.model.element_category);
+            ev->_model_load.world_x = 0;
+            ev->_model_load.world_y = 0;
+            ev->_model_load.world_z = 0;
+            ev->_model_load.world_yaw_r2pi2048 = 0;
+            continue;
+        }
+        default:
+            break;
+        }
+    }
+    scene2_flush_deferred_array_frees(scene2);
+}
+
+static void
+queue_static_load_uiscene_events(
+    struct GGame* game,
+    struct ToriRSRenderCommandBuffer* render_command_buffer)
+{
+    if( !game->ui_scene )
+        return;
+
+    struct UISceneEvent ui_event = { 0 };
+    while( uiscene_eventbuffer_pop(game->ui_scene, &ui_event) )
+    {
+        switch( ui_event.type )
+        {
+        case UISCENE_EVENT_ELEMENT_ACQUIRED:
+        {
+            struct UISceneElement* element =
+                uiscene_element_at(game->ui_scene, ui_event.element_id);
+            if( !element || !element->dash_sprites )
+                continue;
+            for( int ai = 0; ai < element->dash_sprites_count; ++ai )
+            {
+                struct DashSprite* sp = element->dash_sprites[ai];
+                if( !sp )
+                    continue;
+                queue_sprite_load_from_event(render_command_buffer, ui_event.element_id, ai, sp);
+            }
+            break;
+        }
+        case UISCENE_EVENT_ELEMENT_RELEASED:
+        {
+            for( int ri = 0; ri < ui_event.released_sprites_count; ri++ )
+            {
+                struct DashSprite* sp = ui_event.released_sprites[ri];
+                if( !sp )
+                    continue;
+                queue_sprite_unload_from_event(render_command_buffer, ui_event.element_id, ri, sp);
+            }
+            if( ui_event.released_sprites )
+            {
+                if( !ui_event.released_sprites_borrowed )
+                {
+                    for( int ri = 0; ri < ui_event.released_sprites_count; ri++ )
+                    {
+                        if( ui_event.released_sprites[ri] )
+                            dashsprite_free(ui_event.released_sprites[ri]);
+                    }
+                }
+                free(ui_event.released_sprites);
+            }
+            break;
+        }
+        case UISCENE_EVENT_FONT_ADDED:
+        {
+            struct DashPixFont* font = uiscene_font_get(game->ui_scene, ui_event.font_id);
+            if( font )
+                queue_font_load_from_event(render_command_buffer, ui_event.font_id, font);
+            break;
+        }
+        case UISCENE_EVENT_BATCH_SPRITE_BEGIN:
+        {
+            struct ToriRSRenderCommand* ev =
+                LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
+            ev->kind = TORIRS_GFX_BATCH2D_SPRITE_BEGIN;
+            ev->_batch.batch_id = ui_event.batch_id;
+            break;
+        }
+        case UISCENE_EVENT_BATCH_SPRITE_END:
+        {
+            struct ToriRSRenderCommand* ev =
+                LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
+            ev->kind = TORIRS_GFX_BATCH2D_SPRITE_END;
+            ev->_batch.batch_id = ui_event.batch_id;
+            break;
+        }
+        case UISCENE_EVENT_BATCH_FONT_BEGIN:
+        {
+            struct ToriRSRenderCommand* ev =
+                LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
+            ev->kind = TORIRS_GFX_BATCH2D_FONT_BEGIN;
+            ev->_batch.batch_id = ui_event.batch_id;
+            break;
+        }
+        case UISCENE_EVENT_BATCH_FONT_END:
+        {
+            struct ToriRSRenderCommand* ev =
+                LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
+            ev->kind = TORIRS_GFX_BATCH2D_FONT_END;
+            ev->_batch.batch_id = ui_event.batch_id;
+            break;
+        }
+        default:
+            break;
+        }
+    }
+}
+
+static void
 queue_static_load_commands(
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer)
@@ -630,206 +855,9 @@ queue_static_load_commands(
      * repopulated every frame, and buildcache/ui event buffers are independent of scene2.
      * When buffers are empty the pop loops are no-ops. */
 
-    if( scene2 )
-    {
-        struct Scene2Event scene_event = { 0 };
-        while( scene2_eventbuffer_pop(scene2, &scene_event) )
-        {
-            if( scene_event.type == SCENE2_EVENT_TEXTURE_BATCH_BEGIN )
-            {
-                struct ToriRSRenderCommand* ev =
-                    LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_BATCH2D_TEX_BEGIN;
-                ev->_batch.batch_id = scene_event.u.batch.batch_id;
-                continue;
-            }
-            if( scene_event.type == SCENE2_EVENT_TEXTURE_BATCH_END )
-            {
-                struct ToriRSRenderCommand* ev =
-                    LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_BATCH2D_TEX_END;
-                ev->_batch.batch_id = scene_event.u.batch.batch_id;
-                continue;
-            }
-            if( scene_event.type == SCENE2_EVENT_TEXTURE_LOADED )
-            {
-                int tex_id = scene_event.u.texture.texture_id;
-                struct DashTexture* texture = scene2_texture_get(scene2, tex_id);
-                queue_texture_load_from_event(render_command_buffer, tex_id, texture);
-                continue;
-            }
-            if( scene_event.type == SCENE2_EVENT_ANIMATION_LOADED )
-            {
-                struct ToriRSRenderCommand* ev =
-                    LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind =
-                    scene_event.batched ? TORIRS_GFX_BATCH3D_ANIM_ADD : TORIRS_GFX_RES_ANIM_LOAD;
-                ev->_animation_load.model = scene_event.u.animation.model;
-                ev->_animation_load.frame = scene_event.u.animation.frame;
-                ev->_animation_load.framemap = scene_event.u.animation.framemap;
-                ev->_animation_load.visual_id = scene_event.u.animation.visual_id;
-                ev->_animation_load.anim_id = scene_event.u.animation.anim_id;
-                ev->_animation_load.animation_index = scene_event.u.animation.animation_index;
-                ev->_animation_load.frame_index = scene_event.u.animation.frame_index;
-                ev->_animation_load.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
-                    (enum Scene2ElementCategory)scene_event.u.animation.element_category);
-                continue;
-            }
-            if( scene_event.type == SCENE2_EVENT_BATCH_BEGIN )
-            {
-                struct ToriRSRenderCommand* ev =
-                    LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_BATCH3D_BEGIN;
-                ev->_batch.batch_id = scene_event.u.batch.batch_id;
-                ev->_batch.usage_hint = (uint8_t)TORIRS_USAGE_SCENERY;
-                continue;
-            }
-            if( scene_event.type == SCENE2_EVENT_BATCH_END )
-            {
-                struct ToriRSRenderCommand* ev =
-                    LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_BATCH3D_END;
-                ev->_batch.batch_id = scene_event.u.batch.batch_id;
-                ev->_batch.usage_hint = (uint8_t)TORIRS_USAGE_SCENERY;
-                continue;
-            }
-            if( scene_event.type == SCENE2_EVENT_BATCH_CLEAR )
-            {
-                struct ToriRSRenderCommand* ev =
-                    LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_BATCH3D_CLEAR;
-                ev->_batch.batch_id = scene_event.u.batch.batch_id;
-                ev->_batch.usage_hint = (uint8_t)TORIRS_USAGE_SCENERY;
-                continue;
-            }
+    queue_static_load_scene2_events(scene2, render_command_buffer);
 
-            if( scene_event.type == SCENE2_EVENT_MODEL_LOADED )
-            {
-                int eid = scene_event.u.model.element_id;
-                if( eid < 0 || eid >= scene2_elements_total(scene2) )
-                    continue;
-                struct Scene2Element* el = scene2_element_at(scene2, eid);
-                if( !el || !scene2_element_is_active(el) || !scene2_element_dash_model(el) )
-                    continue;
-                if( scene2_element_parent_entity_id(el) != scene_event.u.model.parent_entity_id )
-                    continue;
-                struct DashModel* model = scene_event.u.model.model;
-                uint64_t model_key = model_cache_key_u64(scene2, el);
-                struct ToriRSRenderCommand* ev =
-                    LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind =
-                    scene_event.batched ? TORIRS_GFX_BATCH3D_MODEL_ADD : TORIRS_GFX_RES_MODEL_LOAD;
-                ev->_model_load.model = model;
-                ev->_model_load.model_key = model_key;
-                ev->_model_load.visual_id = scene_event.u.model.visual_id;
-                ev->_model_load.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
-                    (enum Scene2ElementCategory)scene_event.u.model.element_category);
-                ev->_model_load.world_x = scene_event.u.model.world_x;
-                ev->_model_load.world_y = scene_event.u.model.world_y;
-                ev->_model_load.world_z = scene_event.u.model.world_z;
-                ev->_model_load.world_yaw_r2pi2048 = scene_event.u.model.world_yaw_r2pi2048;
-
-                continue;
-            }
-            if( scene_event.type == SCENE2_EVENT_MODEL_UNLOADED )
-            {
-                struct ToriRSRenderCommand* ev =
-                    LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_RES_MODEL_UNLOAD;
-                ev->_model_load.model = scene_event.u.model.model;
-                ev->_model_load.model_key = 0;
-                ev->_model_load.visual_id = scene_event.u.model.visual_id;
-                ev->_model_load.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
-                    (enum Scene2ElementCategory)scene_event.u.model.element_category);
-                ev->_model_load.world_x = 0;
-                ev->_model_load.world_y = 0;
-                ev->_model_load.world_z = 0;
-                ev->_model_load.world_yaw_r2pi2048 = 0;
-                continue;
-            }
-        }
-        scene2_flush_deferred_array_frees(scene2);
-    }
-
-    if( game->ui_scene )
-    {
-        struct UISceneEvent ui_event = { 0 };
-        while( uiscene_eventbuffer_pop(game->ui_scene, &ui_event) )
-        {
-            if( ui_event.type == UISCENE_EVENT_ELEMENT_ACQUIRED )
-            {
-                struct UISceneElement* element =
-                    uiscene_element_at(game->ui_scene, ui_event.element_id);
-                if( !element || !element->dash_sprites )
-                    continue;
-                for( int ai = 0; ai < element->dash_sprites_count; ++ai )
-                {
-                    struct DashSprite* sp = element->dash_sprites[ai];
-                    if( !sp )
-                        continue;
-                    queue_sprite_load_from_event(
-                        render_command_buffer, ui_event.element_id, ai, sp);
-                }
-            }
-            else if( ui_event.type == UISCENE_EVENT_ELEMENT_RELEASED )
-            {
-                for( int ri = 0; ri < ui_event.released_sprites_count; ri++ )
-                {
-                    struct DashSprite* sp = ui_event.released_sprites[ri];
-                    if( !sp )
-                        continue;
-                    queue_sprite_unload_from_event(
-                        render_command_buffer, ui_event.element_id, ri, sp);
-                }
-                if( ui_event.released_sprites )
-                {
-                    if( !ui_event.released_sprites_borrowed )
-                    {
-                        for( int ri = 0; ri < ui_event.released_sprites_count; ri++ )
-                        {
-                            if( ui_event.released_sprites[ri] )
-                                dashsprite_free(ui_event.released_sprites[ri]);
-                        }
-                    }
-                    free(ui_event.released_sprites);
-                }
-            }
-            else if( ui_event.type == UISCENE_EVENT_FONT_ADDED )
-            {
-                struct DashPixFont* font = uiscene_font_get(game->ui_scene, ui_event.font_id);
-                if( font )
-                    queue_font_load_from_event(render_command_buffer, ui_event.font_id, font);
-            }
-            else if( ui_event.type == UISCENE_EVENT_BATCH_SPRITE_BEGIN )
-            {
-                struct ToriRSRenderCommand* ev =
-                    LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_BATCH2D_SPRITE_BEGIN;
-                ev->_batch.batch_id = ui_event.batch_id;
-            }
-            else if( ui_event.type == UISCENE_EVENT_BATCH_SPRITE_END )
-            {
-                struct ToriRSRenderCommand* ev =
-                    LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_BATCH2D_SPRITE_END;
-                ev->_batch.batch_id = ui_event.batch_id;
-            }
-            else if( ui_event.type == UISCENE_EVENT_BATCH_FONT_BEGIN )
-            {
-                struct ToriRSRenderCommand* ev =
-                    LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_BATCH2D_FONT_BEGIN;
-                ev->_batch.batch_id = ui_event.batch_id;
-            }
-            else if( ui_event.type == UISCENE_EVENT_BATCH_FONT_END )
-            {
-                struct ToriRSRenderCommand* ev =
-                    LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-                ev->kind = TORIRS_GFX_BATCH2D_FONT_END;
-                ev->_batch.batch_id = ui_event.batch_id;
-            }
-        }
-    }
+    queue_static_load_uiscene_events(game, render_command_buffer);
 }
 
 void
@@ -1354,8 +1382,7 @@ next:
             rc->_model_draw.model = ent_model;
             rc->_model_draw.model_key = model_cache_key_u64(game->world->scene2, scene_element);
             rc->_model_draw.visual_id = scene2_element_visual_id(scene_element);
-            rc->_model_draw.element_id =
-                scene2_element_id(game->world->scene2, scene_element);
+            rc->_model_draw.element_id = scene2_element_id(game->world->scene2, scene_element);
             rc->_model_draw.use_animation = scene2_element_active_anim_id(scene_element) != 0;
             rc->_model_draw.animation_index = scene2_element_active_animation_index(scene_element);
             rc->_model_draw.frame_index = scene2_element_active_frame(scene_element);
@@ -1363,13 +1390,12 @@ next:
             memcpy(&rc->_model_draw.world_position, &world_position, sizeof(struct DashPosition));
             rc->_model_draw.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
                 scene2_element_category(scene_element));
-            rc->_model_draw.animation_frame =
-                rc->_model_draw.use_animation
-                    ? scene2_element_dash_animation_frame(
-                          scene_element,
-                          rc->_model_draw.animation_index,
-                          rc->_model_draw.frame_index)
-                    : NULL;
+            rc->_model_draw.animation_frame = rc->_model_draw.use_animation
+                                                  ? scene2_element_dash_animation_frame(
+                                                        scene_element,
+                                                        rc->_model_draw.animation_index,
+                                                        rc->_model_draw.frame_index)
+                                                  : NULL;
             rc->_model_draw.animation_framemap =
                 rc->_model_draw.use_animation ? scene2_element_dash_framemap(scene_element) : NULL;
         }
@@ -1429,8 +1455,7 @@ next:
             rc->_model_draw.model = tile_model;
             rc->_model_draw.model_key = model_cache_key_u64(game->world->scene2, scene_element);
             rc->_model_draw.visual_id = scene2_element_visual_id(scene_element);
-            rc->_model_draw.element_id =
-                scene2_element_id(game->world->scene2, scene_element);
+            rc->_model_draw.element_id = scene2_element_id(game->world->scene2, scene_element);
             rc->_model_draw.use_animation = scene2_element_active_anim_id(scene_element) != 0;
             rc->_model_draw.animation_index = scene2_element_active_animation_index(scene_element);
             rc->_model_draw.frame_index = scene2_element_active_frame(scene_element);
@@ -1438,13 +1463,12 @@ next:
             memcpy(&rc->_model_draw.world_position, &world_position, sizeof(struct DashPosition));
             rc->_model_draw.usage_hint = (uint8_t)torirs_usage_hint_for_scene2_category(
                 scene2_element_category(scene_element));
-            rc->_model_draw.animation_frame =
-                rc->_model_draw.use_animation
-                    ? scene2_element_dash_animation_frame(
-                          scene_element,
-                          rc->_model_draw.animation_index,
-                          rc->_model_draw.frame_index)
-                    : NULL;
+            rc->_model_draw.animation_frame = rc->_model_draw.use_animation
+                                                  ? scene2_element_dash_animation_frame(
+                                                        scene_element,
+                                                        rc->_model_draw.animation_index,
+                                                        rc->_model_draw.frame_index)
+                                                  : NULL;
             rc->_model_draw.animation_framemap =
                 rc->_model_draw.use_animation ? scene2_element_dash_framemap(scene_element) : NULL;
         }
