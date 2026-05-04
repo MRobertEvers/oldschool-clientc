@@ -28,6 +28,7 @@ extern "C" {
 #include "graphics/dash.h"
 #include "graphics/raster/deob/pix3d_deob_compat.h"
 #include "osrs/game.h"
+#include "osrs/revconfig/uiscene.h"
 #include "osrs/world_option_set.h"
 #include "platforms/common/platform_memory.h"
 #include "tori_rs.h"
@@ -516,6 +517,40 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
         }
     }
     LibToriRS_FrameEnd(game);
+
+    if( game->tile_clicked_x != -1 )
+    {
+        renderer->clicked_tile_x = game->tile_clicked_x;
+        renderer->clicked_tile_z = game->tile_clicked_z;
+        renderer->clicked_tile_level = game->tile_clicked_level;
+        game->tile_clicked_x = -1;
+        game->tile_clicked_z = -1;
+        game->tile_clicked_level = -1;
+    }
+
+    if( game->cross_mode != 0 && game->ui_scene && renderer->pixel_buffer && game->sys_dash &&
+        game->iface_view_port )
+    {
+        int frame_idx = game->cross_cycle / 100;
+        if( game->cross_mode == 2 )
+            frame_idx += 4;
+        if( frame_idx > 7 )
+            frame_idx = 7;
+        struct DashSprite* sp =
+            uiscene_sprite_by_name(game->ui_scene, "cross", frame_idx);
+        if( sp && sp->pixels_argb )
+        {
+            int dx = game->cross_x - 8 - game->viewport_offset_x;
+            int dy = game->cross_y - 8 - game->viewport_offset_y;
+            dash2d_blit_sprite(
+                game->sys_dash,
+                sp,
+                game->iface_view_port,
+                dx,
+                dy,
+                renderer->pixel_buffer);
+        }
+    }
 
     {
         Uint64 const soft3d_t_after = SDL_GetPerformanceCounter();

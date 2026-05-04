@@ -71,9 +71,6 @@ PlatformImpl2_SDL2_Renderer_Soft3D_ProcessServer(
     uint64_t timestamp_ms)
 {
     (void)game;
-    (void)timestamp_ms;
-
-    if( !server )
     {
         return;
     }
@@ -91,10 +88,17 @@ PlatformImpl2_SDL2_Renderer_Soft3D_ProcessServer(
         tile_click.x = renderer->clicked_tile_x;
         tile_click.z = renderer->clicked_tile_z;
 
+        uint8_t pkt[32];
+        int n = prot_tile_click_encode(&tile_click, pkt, (int)sizeof(pkt));
+        if( n > 0 )
+            server_receive(server, pkt, n);
+
         renderer->clicked_tile_x = -1;
         renderer->clicked_tile_z = -1;
         renderer->clicked_tile_level = -1;
     }
+
+    server_step(server, (int)timestamp_ms);
 }
 
 void

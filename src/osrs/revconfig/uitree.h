@@ -304,6 +304,13 @@ uitree_push_sidebar_component(
     int width,
     int height);
 
+/** Detach RS children from a sidebar node (first_child = -1). Orphaned indices remain in the
+ * dense array until a full uitree_free; safe for bounded IF_SETTAB updates. */
+void
+uitree_clear_sidebar_children(
+    struct UITree* tree,
+    int32_t sidebar_idx);
+
 int32_t
 uitree_push_rs_layer(
     struct UITree* tree,

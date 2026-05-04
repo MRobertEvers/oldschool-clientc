@@ -1686,6 +1686,51 @@ uitree_load_inventories_from_revconfig(
 }
 
 void
+uitree_expand_sidebar_for_tab(
+    struct GGame* game,
+    int tabno,
+    int component_id)
+{
+    if( !game || !game->ui_root_buffer || !game->ui_scene || !game->buildcachedat )
+        return;
+
+    struct UITree* ui = game->ui_root_buffer;
+    int32_t sidebar_idx = -1;
+    for( uint32_t i = 0; i < ui->component_count; i++ )
+    {
+        struct StaticUIComponent* c = &ui->components[i];
+        if( c->type == UIELEM_BUILTIN_SIDEBAR && c->u.sidebar.tabno == tabno )
+        {
+            sidebar_idx = (int32_t)i;
+            break;
+        }
+    }
+    if( sidebar_idx < 0 )
+        return;
+
+    uitree_clear_sidebar_children(ui, sidebar_idx);
+
+    struct StaticUIComponent* sb = &ui->components[sidebar_idx];
+    sb->u.sidebar.componentno = component_id;
+    sb->is_dirty = 1;
+
+    if( component_id >= 0 && game->scene2 )
+    {
+        expand_sidebar_rs_tree(
+            game,
+            ui,
+            game->ui_scene,
+            game->scene2,
+            game->buildcachedat,
+            sidebar_idx,
+            component_id,
+            sb->u.sidebar.inv_index);
+    }
+
+    uitree_mark_all_dirty(ui);
+}
+
+void
 uitree_load_ui_from_revconfig(
     struct UITree* ui,
     struct UIScene* ui_scene,

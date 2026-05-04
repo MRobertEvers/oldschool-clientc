@@ -10,6 +10,7 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/game.h"
 #include "osrs/interface_state.h"
+#include "osrs/revconfig/uitree_load.h"
 #include "osrs/player_stats.h"
 #include "osrs/scene2.h"
 #include "osrs/varp_varbit_manager.h"
@@ -587,23 +588,15 @@ gameproto_exec_if_settab(
     int component_id = packet->_if_settab.component_id;
     int tab_id = packet->_if_settab.tab_id;
 
-    struct CacheDatConfigComponent* component =
-        buildcachedat_get_component(game->buildcachedat, component_id);
-
-    if( !component )
-    {
-        printf("IF_SETTAB: Component %d not found\n", component_id);
-        return;
-    }
+    if( component_id == 65535 )
+        component_id = -1;
 
     if( tab_id >= 0 && tab_id < 14 && game->iface )
     {
+        int old = game->iface->tab_interface_id[tab_id];
         game->iface->tab_interface_id[tab_id] = component_id;
-        printf("IF_SETTAB: Set tab %d to component %d\n", tab_id, component_id);
-    }
-    else
-    {
-        printf("IF_SETTAB: Invalid tab_id %d (must be 0-13)\n", tab_id);
+        if( old != component_id )
+            uitree_expand_sidebar_for_tab(game, tab_id, component_id);
     }
 }
 

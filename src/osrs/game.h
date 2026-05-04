@@ -88,6 +88,12 @@ struct GGame
     int mouse_tile_z;
     int mouse_tile_level;
 
+    /** Click cross overlay (Client.ts crossX/crossY/crossMode/crossCycle). */
+    int cross_x;
+    int cross_y;
+    int cross_mode;  /* 0=off, 1=walk (yellow), 2=interact (red) */
+    int cross_cycle; /* 0..399, +20 per frame when mode != 0 */
+
     int build_player;
     int cc;
     bool latched;

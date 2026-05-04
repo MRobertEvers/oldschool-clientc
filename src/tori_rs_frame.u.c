@@ -10,6 +10,7 @@
 #include "osrs/rs_component_gfx.h"
 #include "osrs/rs_component_state.h"
 #include "osrs/scene2.h"
+#include "osrs/world.h"
 #include "osrs/world_options.h"
 #include "tori_rs.h"
 #include "tori_rs_frame_state.h"
@@ -870,6 +871,13 @@ LibToriRS_FrameBegin(
     game->at_ui_render_command_index = 0;
 
     game->interface_consumed_click = 0;
+
+    if( game->cross_mode != 0 )
+    {
+        game->cross_cycle += 20;
+        if( game->cross_cycle >= 400 )
+            game->cross_mode = 0;
+    }
 
     game->tile_clicked_x = -1;
     game->tile_clicked_z = -1;
@@ -1737,6 +1745,122 @@ LibToriRS_FrameNextCommand(
 /* Client.ts ClientProt.MOVE_GAMECLICK = 182 (index 255) */
 #define MOVE_GAMECLICK_OPCODE 182
 
+static struct StaticUIComponent*
+frame_find_builtin(struct GGame* game, enum StaticUIComponentType ty)
+{
+    if( !game->ui_root_buffer )
+        return NULL;
+    for( uint32_t i = 0; i < game->ui_root_buffer->component_count; i++ )
+    {
+        if( game->ui_root_buffer->components[i].type == ty )
+            return &game->ui_root_buffer->components[i];
+    }
+    return NULL;
+}
+
+static bool
+frame_point_in_component_xy(struct StaticUIComponent* c, int px, int py)
+{
+    if( !c || c->position.kind != UIPOS_XY )
+        return false;
+    int x = c->position.x;
+    int y = c->position.y;
+    int w = c->position.width;
+    int h = c->position.height;
+    if( w <= 0 || h <= 0 )
+        return false;
+    return px >= x && px < x + w && py >= y && py < y + h;
+}
+
+static void
+frame_handle_interface_and_world_clicks(struct GGame* game)
+{
+    if( !game->mouse_clicked || !game->iface )
+        return;
+
+    if( game->ui_root_buffer && game->iface->sidebar_interface_id == -1 )
+    {
+        for( uint32_t i = 0; i < game->ui_root_buffer->component_count; i++ )
+        {
+            struct StaticUIComponent* c = &game->ui_root_buffer->components[i];
+            if( c->type != UIELEM_BUILTIN_REDSTONE_TAB )
+                continue;
+            if( !frame_point_in_component_xy(c, game->mouse_clicked_x, game->mouse_clicked_y) )
+                continue;
+            game->iface->selected_tab = c->u.redstone_tab.tabno;
+            game->interface_consumed_click = 1;
+            return;
+        }
+    }
+
+    if( game->interface_consumed_click )
+        return;
+
+    {
+        struct StaticUIComponent* mm = frame_find_builtin(game, UIELEM_BUILTIN_MINIMAP);
+        if( mm && frame_point_in_component_xy(mm, game->mouse_clicked_x, game->mouse_clicked_y) )
+        {
+            int bx = mm->position.x;
+            int by = mm->position.y;
+            int mx = game->mouse_clicked_x;
+            int my = game->mouse_clicked_y;
+            int x = mx - 25 - bx;
+            int y = my - 4 - by;
+            if( x >= 0 && y >= 0 && x < 146 && y < 151 )
+            {
+                x -= 73;
+                y -= 75;
+                int yaw = game->camera_yaw & 0x7ff;
+                int sin_yaw = dash_sin(yaw);
+                int cos_yaw = dash_cos(yaw);
+                int zoomf = 256;
+                sin_yaw = (sin_yaw * zoomf) >> 8;
+                cos_yaw = (cos_yaw * zoomf) >> 8;
+                int rel_x = (y * sin_yaw + x * cos_yaw) >> 11;
+                int rel_y = (y * cos_yaw - x * sin_yaw) >> 11;
+                int pw = game->camera_world_x;
+                int pz = game->camera_world_z;
+                if( game->world )
+                {
+                    struct PlayerEntity* pl = world_player(game->world, ACTIVE_PLAYER_SLOT);
+                    if( pl && pl->alive )
+                    {
+                        pw = pl->draw_position.x;
+                        pz = pl->draw_position.z;
+                    }
+                }
+                int tile_x = (pw + rel_x) >> 7;
+                int tile_z = (pz - rel_y) >> 7;
+                int lvl = (game->mouse_tile_level >= 0) ? game->mouse_tile_level : 0;
+                game->tile_clicked_x = tile_x;
+                game->tile_clicked_z = tile_z;
+                game->tile_clicked_level = lvl;
+                game->cross_x = mx;
+                game->cross_y = my;
+                game->cross_mode = 1;
+                game->cross_cycle = 0;
+                game->interface_consumed_click = 1;
+            }
+            return;
+        }
+    }
+
+    {
+        struct StaticUIComponent* wv = frame_find_builtin(game, UIELEM_BUILTIN_WORLD);
+        if( !wv || !frame_point_in_component_xy(wv, game->mouse_clicked_x, game->mouse_clicked_y) )
+            return;
+        if( game->mouse_tile_x < 0 )
+            return;
+        game->tile_clicked_x = game->mouse_tile_x;
+        game->tile_clicked_z = game->mouse_tile_z;
+        game->tile_clicked_level = game->mouse_tile_level;
+        game->cross_x = game->mouse_clicked_x;
+        game->cross_y = game->mouse_clicked_y;
+        game->cross_mode = 1;
+        game->cross_cycle = 0;
+    }
+}
+
 void
 LibToriRS_FrameEnd(struct GGame* game)
 {
@@ -1748,6 +1872,8 @@ LibToriRS_FrameEnd(struct GGame* game)
         game->option_set.option_count = 0;
         world_options_add_pickset_options(game->world, &game->pickset, &game->option_set);
     }
+
+    frame_handle_interface_and_world_clicks(game);
 }
 
 #endif

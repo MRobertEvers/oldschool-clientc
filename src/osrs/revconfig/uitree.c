@@ -724,3 +724,18 @@ uitree_push_rs_inv(
     }
     return idx;
 }
+
+void
+uitree_clear_sidebar_children(
+    struct UITree* tree,
+    int32_t sidebar_idx)
+{
+    if( !tree || sidebar_idx < 0 || (uint32_t)sidebar_idx >= tree->component_count )
+        return;
+    struct StaticUIComponent* c = &tree->components[sidebar_idx];
+    if( c->type != UIELEM_BUILTIN_SIDEBAR )
+        return;
+    c->first_child = -1;
+    c->is_dirty = 1;
+    tree->generation++;
+}

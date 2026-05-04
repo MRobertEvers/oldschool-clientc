@@ -42,6 +42,14 @@ uitree_load_ui_from_revconfig(
     struct GGame* game,
     struct RevConfigBuffer* revconfig_buffer);
 
+/** Clear sidebar RS subtree and rebuild from component_id (buildcachedat). No-op if no sidebar
+ * node for tabno. component_id < 0 clears only. */
+void
+uitree_expand_sidebar_for_tab(
+    struct GGame* game,
+    int tabno,
+    int component_id);
+
 // /** Push RS `StaticUIComponent` rows and register sprites/models in ui_scene / scene2. */
 // void
 // static_ui_rs_from_buildcachedat(p
