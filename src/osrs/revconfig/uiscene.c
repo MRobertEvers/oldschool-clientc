@@ -1,6 +1,7 @@
 #include "uiscene.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -305,7 +306,18 @@ uiscene_element_at(
     struct UIScene* uiscene,
     int element_id)
 {
+    if( element_id < 0 || element_id >= uiscene->elements_count )
+    {
+        fprintf(
+            stderr,
+            "uiscene_element_at: element_id out of bounds: %d (total: %d)\n",
+            element_id,
+            uiscene->elements_count);
+        abort();
+    }
     assert(element_id >= 0 && element_id < uiscene->elements_count && "Element id out of bounds");
+    if( element_id < 0 || element_id >= uiscene->elements_count )
+        return NULL;
     return &uiscene->elements[element_id];
 }
 
@@ -440,14 +452,13 @@ uiscene_sprite_batch_begin(
     uiscene_eventbuffer_push(
         uiscene,
         (struct UISceneEvent){
-            .type     = UISCENE_EVENT_BATCH_SPRITE_BEGIN,
+            .type = UISCENE_EVENT_BATCH_SPRITE_BEGIN,
             .batch_id = batch_id,
         });
 }
 
 void
-uiscene_sprite_batch_end(
-    struct UIScene* uiscene)
+uiscene_sprite_batch_end(struct UIScene* uiscene)
 {
     if( !uiscene )
         return;
@@ -456,7 +467,7 @@ uiscene_sprite_batch_end(
     uiscene_eventbuffer_push(
         uiscene,
         (struct UISceneEvent){
-            .type     = UISCENE_EVENT_BATCH_SPRITE_END,
+            .type = UISCENE_EVENT_BATCH_SPRITE_END,
             .batch_id = batch_id,
         });
 }
@@ -472,14 +483,13 @@ uiscene_font_batch_begin(
     uiscene_eventbuffer_push(
         uiscene,
         (struct UISceneEvent){
-            .type     = UISCENE_EVENT_BATCH_FONT_BEGIN,
+            .type = UISCENE_EVENT_BATCH_FONT_BEGIN,
             .batch_id = batch_id,
         });
 }
 
 void
-uiscene_font_batch_end(
-    struct UIScene* uiscene)
+uiscene_font_batch_end(struct UIScene* uiscene)
 {
     if( !uiscene )
         return;
@@ -488,7 +498,7 @@ uiscene_font_batch_end(
     uiscene_eventbuffer_push(
         uiscene,
         (struct UISceneEvent){
-            .type     = UISCENE_EVENT_BATCH_FONT_END,
+            .type = UISCENE_EVENT_BATCH_FONT_END,
             .batch_id = batch_id,
         });
 }

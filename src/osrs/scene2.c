@@ -965,6 +965,15 @@ scene2_element_at(
     if( !scene2 )
         return NULL;
     int total = scene2_elements_total(scene2);
+    if( element_id < 0 || element_id >= total )
+    {
+        fprintf(
+            stderr,
+            "scene2_element_at: element_id out of bounds: %d (total: %d)\n",
+            element_id,
+            total);
+        abort();
+    }
     assert(element_id >= 0 && element_id < total && "Element id out of bounds");
     if( element_id < 0 || element_id >= total )
         return NULL;
@@ -1140,9 +1149,8 @@ scene2_element_dash_animation_frame(
     uint8_t animation_index,
     uint8_t frame_index)
 {
-    struct Scene2Frames* sf =
-        animation_index == 0 ? scene2_element_primary_frames(element)
-                             : scene2_element_secondary_frames(element);
+    struct Scene2Frames* sf = animation_index == 0 ? scene2_element_primary_frames(element)
+                                                   : scene2_element_secondary_frames(element);
     if( !sf || !sf->frames || (int)frame_index >= sf->count )
         return NULL;
     return sf->frames[frame_index];

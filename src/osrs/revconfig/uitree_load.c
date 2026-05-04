@@ -378,6 +378,20 @@ load_sprite(
     }
 
     int element_id = uiscene_element_acquire(ui_scene, -1);
+    if( element_id < 0 )
+    {
+        fprintf(
+            stderr,
+            "uitree_load load_sprite: UIScene full; cannot register sprite \"%s\"\n",
+            load->name);
+        for( int i = 0; i < count; i++ )
+        {
+            if( sprites[i] )
+                dashsprite_free(sprites[i]);
+        }
+        free(sprites);
+        return;
+    }
     struct UISceneElement* element = uiscene_element_at(ui_scene, element_id);
     element->dash_sprites = sprites;
     element->dash_sprites_count = count;
@@ -722,6 +736,8 @@ uiscene_attach_sprite_row(
     bool borrowed)
 {
     int eid = uiscene_element_acquire(ui_scene, -1);
+    if( eid < 0 )
+        return -1;
     struct UISceneElement* el = uiscene_element_at(ui_scene, eid);
     if( !el )
         return -1;
@@ -765,6 +781,26 @@ push_rs_from_cache_component(
             int cy = abs_y + comp->childY[i] + ch->y;
             push_rs_from_cache_component(
                 game, ui, ui_scene, scene2, bcd, lid, ch, cx, cy, sidebar_inv_index);
+        }
+    }
+    break;
+    case COMPONENT_TYPE_RECT:
+    {
+        /* Rect is a container with children (same layout as layer; no fill emitted here). */
+        if( !comp->children || !comp->childX || !comp->childY || comp->children_count <= 0 )
+            break;
+        int32_t rid = uitree_push_rs_layer(
+            ui, parent_uitree_idx, comp->id, abs_x, abs_y, comp->width, comp->height);
+        for( int i = 0; i < comp->children_count; i++ )
+        {
+            struct CacheDatConfigComponent* ch =
+                buildcachedat_get_component(bcd, comp->children[i]);
+            if( !ch )
+                continue;
+            int cx = abs_x + comp->childX[i] + ch->x;
+            int cy = abs_y + comp->childY[i] + ch->y;
+            push_rs_from_cache_component(
+                game, ui, ui_scene, scene2, bcd, rid, ch, cx, cy, sidebar_inv_index);
         }
     }
     break;
@@ -1714,7 +1750,7 @@ uitree_expand_sidebar_for_tab(
     sb->u.sidebar.componentno = component_id;
     sb->is_dirty = 1;
 
-    if( component_id >= 0 && game->scene2 )
+    if( component_id >= 0 )
     {
         expand_sidebar_rs_tree(
             game,

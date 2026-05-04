@@ -101,8 +101,9 @@ local function init_ui()
     -- Step 6: Fonts.
     Game.UI.load_fonts(ui_cache_config)
 
-    -- Interface defs are baked into the uitree; free thousands of decoded components from RAM.
-    Game.BuildCacheDat.component_cache_clear()
+    -- Models are baked into Scene2 elements; free decoded models from RAM.
+    -- Component defs (CacheDatConfigComponent) must stay: IF_SETTAB / UPDATE_INV_FULL
+    -- and other runtime packets look them up via buildcachedat_get_component.
     Game.BuildCacheDat.model_cache_clear()
 end
 

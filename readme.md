@@ -1751,7 +1751,7 @@ python3 -m http.server -b 0.0.0.0 -d . 8000
 1. Textures U clamp
 2. Textures V tiling
 3. Texture UV animation (rotating uv coords)
-4. Rotated Sprites
+4. Masked and Rotated Sprites drawn to screen aligned rect.
 5. Clipping Rect Per Sprite
 6. Rotated Sprites
 7. Fonts and Text

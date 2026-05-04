@@ -529,11 +529,11 @@ buildcachedat_clear_internal(struct BuildCacheDat* buildcachedat)
     buildcachedat->npc_hmap = NULL;
     dashmap_free_entries(buildcachedat->npc_models_hmap, free_npc_model_entry);
     buildcachedat->npc_models_hmap = NULL;
-    /* component_hmap: components still needed at runtime; do not free entries or map */
     dashmap_free_entries(buildcachedat->containers_hmap, free_container_entry);
     buildcachedat->containers_hmap = NULL;
-    dashmap_free_entries(buildcachedat->component_hmap, free_component_entry);
-    buildcachedat->component_hmap = NULL;
+    /* Keep component_hmap: decoded interfaces are required after this clear (e.g.
+     * LuaGame_rebuild_centerzone_end -> buildcachedat_clear after world load). IF_SETTAB,
+     * UPDATE_INV_FULL, and uitree_expand_sidebar_for_tab use buildcachedat_get_component. */
 
     filelist_dat_free(buildcachedat->cfg_config_jagfile);
     buildcachedat->cfg_config_jagfile = NULL;

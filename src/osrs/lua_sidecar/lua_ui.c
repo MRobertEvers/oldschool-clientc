@@ -40,7 +40,11 @@ lua_ui_reset_uiscene_and_refs(
         return 0;
 
     int cap = game->ui_scene->elements_count;
-    int new_cap = cap > 512 ? cap : 512;
+    /* RS revconfig + interface sprites (tabs, inv, etc.) need far more than 512 slots once
+     * BuildCacheDat keeps decoded interfaces and uitree expands sidebar content. */
+    int new_cap = cap * 2;
+    if( new_cap < 4096 )
+        new_cap = 4096;
 
     struct UIScene* old = game->ui_scene;
     struct DashPixFont* saved_fonts[UISCENE_FONT_MAX];
