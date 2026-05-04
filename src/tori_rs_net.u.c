@@ -1,10 +1,9 @@
 #ifndef TORI_RS_NET_U_C
 #define TORI_RS_NET_U_C
 
-#include "osrs/gameproto_parse.h"
-#include "osrs/gameproto_revisions.h"
-#include "osrs/loginproto.h"
-#include "osrs/packetbuffer.h"
+#include "osrs/core/revision.h"
+#include "osrs/revs/lc245_2/loginproto_rev245_2.h"
+#include "osrs/core/packetbuffer.h"
 #include "tori_rs.h"
 
 #include <assert.h>
@@ -93,35 +92,11 @@ LibToriRS_NetConnectGame(
     if( !game )
         return;
 
-    packetbuffer_init(game->packet_buffer, game->random_in, GAMEPROTO_REVISION_LC245_2);
+    packetbuffer_init(game->packet_buffer, game->random_in);
     game->net_state = GAME_NET_STATE_GAME;
 
     LibToriRS_NetPush(
         &game->net_shared->game_to_platform, TORI_RS_NET_MSG_CONNECT, (uint8_t*)host, strlen(host));
-}
-
-static void
-push_packet_lc245_2(
-    struct GGame* game,
-    struct RevPacket_LC245_2* packet)
-{
-    struct RevPacket_LC245_2_Item* item = malloc(sizeof(struct RevPacket_LC245_2_Item));
-    memset(item, 0, sizeof(struct RevPacket_LC245_2_Item));
-
-    item->packet = *packet;
-    if( !game->packets_lc245_2 )
-    {
-        game->packets_lc245_2 = item;
-    }
-    else
-    {
-        struct RevPacket_LC245_2_Item* list = game->packets_lc245_2;
-        while( list->next_nullable )
-        {
-            list = list->next_nullable;
-        }
-        list->next_nullable = item;
-    }
 }
 
 static void
@@ -134,18 +109,12 @@ net_process_packets(struct GGame* game)
     // and accumulated the full payload.
     if( packetbuffer_ready(game->packet_buffer) )
     {
-        struct RevPacket_LC245_2 packet;
-        memset(&packet, 0, sizeof(struct RevPacket_LC245_2));
-        int success = 0;
-
-        success = gameproto_parse_lc245_2(
+        revision_parse_and_enqueue(
+            &game->revision,
+            game,
             packetbuffer_packet_type(game->packet_buffer),
             packetbuffer_data(game->packet_buffer),
-            packetbuffer_size(game->packet_buffer),
-            &packet);
-
-        if( success )
-            push_packet_lc245_2(game, &packet);
+            packetbuffer_size(game->packet_buffer));
 
         packetbuffer_reset(game->packet_buffer);
     }

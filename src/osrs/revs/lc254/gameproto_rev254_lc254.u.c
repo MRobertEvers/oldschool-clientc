@@ -2,7 +2,7 @@
 #define GAMEPROTO_LC254_U_C
 
 // clang-format off
-#include "gameproto_packets.u.c"
+#include "osrs/core/gameproto_packets_shared.c"
 // clang-format on
 
 static void

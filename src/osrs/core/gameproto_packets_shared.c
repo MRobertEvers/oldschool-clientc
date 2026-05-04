@@ -1,8 +1,8 @@
 #ifndef GAMEPROTO_PACKETS_U_C
 #define GAMEPROTO_PACKETS_U_C
 
-#include "packetin.h"
-#include "rscache/rsbuf.h"
+#include "osrs/packetin.h"
+#include "osrs/rscache/rsbuf.h"
 
 #define SCENE_TILE_WIDTH 104
 

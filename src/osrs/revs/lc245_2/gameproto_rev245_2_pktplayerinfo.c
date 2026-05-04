@@ -1,4 +1,4 @@
-#include "pkt_player_info.h"
+#include "osrs/revs/lc245_2/gameproto_rev245_2_pktplayerinfo.h"
 
 #include "osrs/rscache/bitbuffer.h"
 #include "osrs/rscache/rsbuf.h"

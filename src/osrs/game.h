@@ -10,10 +10,13 @@
 #include "graphics/dash.h"
 #include "osrs/buildcache.h"
 #include "osrs/buildcachedat.h"
+#include "osrs/core/game_cache_tag.h"
+#include "osrs/core/revision.h"
 #include "osrs/clientscript_vm.h"
 #include "osrs/ginput.h"
-#include "osrs/packetbuffer.h"
-#include "osrs/packets/revpacket_lc245_2.h"
+#include "osrs/core/packetbuffer.h"
+#include "osrs/revs/lc245_2/gameproto_rev245_2_packets.h"
+#include "osrs/revs/lc245_2/revision_lc245_2.h"
 #include "osrs/painters.h"
 #include "osrs/player_stats.h"
 #include "osrs/revconfig/uiscene.h"
@@ -43,12 +46,6 @@ struct RevConfigBuffer;
 
 #define ACTIVE_PLAYER_SLOT 2047
 
-struct RevPacket_LC245_2_Item
-{
-    struct RevPacket_LC245_2 packet;
-
-    struct RevPacket_LC245_2_Item* next_nullable;
-};
 enum GameNetState
 {
     GAME_NET_STATE_DISCONNECTED,
@@ -161,6 +158,8 @@ struct GGame
 
     struct BuildCacheDat* buildcachedat;
     struct BuildCache* buildcache;
+    /** Tagged ownership for BuildCacheDat vs BuildCache (distinct from rscache `struct Cache`). */
+    struct GameCacheTag game_cache_tag;
 
     struct InterfaceState* iface;
 
@@ -180,7 +179,7 @@ struct GGame
     uint64_t next_tick_ms;
     uint64_t next_camera_save_ms;
 
-    struct RevPacket_LC245_2_Item* packets_lc245_2;
+    struct Revision revision;
 
     struct World* world;
     struct WorldPickSet pickset;

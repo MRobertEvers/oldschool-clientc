@@ -1,11 +1,11 @@
-#include "gameproto_exec.h"
+#include "osrs/revs/lc245_2/gameproto_rev245_2_exec.h"
 
-#include "dash_utils.h"
-#include "datatypes/appearances.h"
-#include "datatypes/player_appearance.h"
-#include "game_entity.h"
+#include "osrs/dash_utils.h"
+#include "osrs/datatypes/appearances.h"
+#include "osrs/datatypes/player_appearance.h"
+#include "osrs/game_entity.h"
 #include "graphics/dash.h"
-#include "model_transforms.h"
+#include "osrs/model_transforms.h"
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
 #include "osrs/game.h"
@@ -16,14 +16,14 @@
 #include "osrs/varp_varbit_manager.h"
 #include "osrs/zone_state.h"
 #include "osrs/rscache/tables/maps.h"
-#include "packets/pkt_npc_info.h"
-#include "packets/pkt_player_info.h"
-#include "rscache/bitbuffer.h"
-#include "rscache/rsbuf.h"
-#include "rscache/tables/model.h"
-#include "rscache/tables_dat/config_component.h"
-#include "rscache/tables_dat/config_obj.h"
-#include "world_scenebuild.h"
+#include "osrs/revs/lc245_2/gameproto_rev245_2_pktnpcinfo.h"
+#include "osrs/revs/lc245_2/gameproto_rev245_2_pktplayerinfo.h"
+#include "osrs/rscache/bitbuffer.h"
+#include "osrs/rscache/rsbuf.h"
+#include "osrs/rscache/tables/model.h"
+#include "osrs/rscache/tables_dat/config_component.h"
+#include "osrs/rscache/tables_dat/config_obj.h"
+#include "osrs/world_scenebuild.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -35,7 +35,7 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game);
 static struct PktNpcInfoReader npc_info_reader = { 0 };
 
 void
-gameproto_exec_npc_info_raw(
+gameproto_rev245_2_exec_npc_info_raw(
     struct GGame* game,
     void* data,
     int length)
@@ -43,11 +43,11 @@ gameproto_exec_npc_info_raw(
     struct RevPacket_LC245_2 packet = { 0 };
     packet._npc_info.length = length;
     packet._npc_info.data = data;
-    gameproto_exec_npc_info(game, &packet);
+    gameproto_rev245_2_exec_npc_info(game, &packet);
 }
 
 void
-gameproto_exec_npc_info(
+gameproto_rev245_2_exec_npc_info(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -375,7 +375,7 @@ add_player_info(
 }
 
 void
-gameproto_exec_rebuild_normal(
+gameproto_rev245_2_exec_rebuild_normal(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -404,7 +404,7 @@ gameproto_exec_rebuild_normal(
         dz = new_base_z - game->world->_base_tile_z;
     }
 
-    gameproto_exec_rebuild_normal_world(game->world, packet);
+    gameproto_rev245_2_exec_rebuild_normal_world(game->world, packet);
 
     /* Shift game-level minimap flag (lives on GGame, not World). */
     if( game->minimap_flag_has && (dx || dz) )
@@ -417,7 +417,7 @@ gameproto_exec_rebuild_normal(
 }
 
 void
-gameproto_exec_rebuild_normal_world(
+gameproto_rev245_2_exec_rebuild_normal_world(
     struct World* world,
     struct RevPacket_LC245_2* packet)
 {
@@ -507,7 +507,7 @@ gameproto_exec_rebuild_normal_world(
 }
 
 void
-gameproto_exec_player_info_raw(
+gameproto_rev245_2_exec_player_info_raw(
     struct GGame* game,
     void* data,
     int length)
@@ -520,7 +520,7 @@ gameproto_exec_player_info_raw(
 }
 
 void
-gameproto_exec_player_info(
+gameproto_rev245_2_exec_player_info(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -528,7 +528,7 @@ gameproto_exec_player_info(
 }
 
 void
-gameproto_exec_update_inv_full(
+gameproto_rev245_2_exec_update_inv_full(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -581,7 +581,7 @@ gameproto_exec_update_inv_full(
 }
 
 void
-gameproto_exec_if_settab(
+gameproto_rev245_2_exec_if_settab(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -601,7 +601,7 @@ gameproto_exec_if_settab(
 }
 
 void
-gameproto_exec_if_settab_active(
+gameproto_rev245_2_exec_if_settab_active(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -619,7 +619,7 @@ gameproto_exec_if_settab_active(
 }
 
 void
-gameproto_exec_if_setcolour(
+gameproto_rev245_2_exec_if_setcolour(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -638,7 +638,7 @@ gameproto_exec_if_setcolour(
 }
 
 void
-gameproto_exec_if_sethide(
+gameproto_rev245_2_exec_if_sethide(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -654,7 +654,7 @@ gameproto_exec_if_sethide(
 }
 
 void
-gameproto_exec_if_setobject(
+gameproto_rev245_2_exec_if_setobject(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -679,7 +679,7 @@ gameproto_exec_if_setobject(
 }
 
 void
-gameproto_exec_if_setmodel(
+gameproto_rev245_2_exec_if_setmodel(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -696,7 +696,7 @@ gameproto_exec_if_setmodel(
 }
 
 void
-gameproto_exec_if_setanim(
+gameproto_rev245_2_exec_if_setanim(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -712,7 +712,7 @@ gameproto_exec_if_setanim(
 }
 
 void
-gameproto_exec_if_setplayerhead(
+gameproto_rev245_2_exec_if_setplayerhead(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -736,7 +736,7 @@ gameproto_exec_if_setplayerhead(
 }
 
 void
-gameproto_exec_if_settext(
+gameproto_rev245_2_exec_if_settext(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -758,7 +758,7 @@ gameproto_exec_if_settext(
 }
 
 void
-gameproto_exec_if_setnpchead(
+gameproto_rev245_2_exec_if_setnpchead(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -775,7 +775,7 @@ gameproto_exec_if_setnpchead(
 }
 
 void
-gameproto_exec_if_setposition(
+gameproto_rev245_2_exec_if_setposition(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -793,7 +793,7 @@ gameproto_exec_if_setposition(
 }
 
 void
-gameproto_exec_if_setscrollpos(
+gameproto_rev245_2_exec_if_setscrollpos(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -821,164 +821,164 @@ gameproto_exec_if_setscrollpos(
 }
 
 void
-gameproto_exec_lc245_2(
+gameproto_rev245_2_exec_dispatch(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
     switch( packet->packet_type )
     {
     case PKTIN_LC245_2_REBUILD_NORMAL:
-        gameproto_exec_rebuild_normal(game, packet);
+        gameproto_rev245_2_exec_rebuild_normal(game, packet);
         break;
     case PKTIN_LC245_2_NPC_INFO:
-        gameproto_exec_npc_info(game, packet);
+        gameproto_rev245_2_exec_npc_info(game, packet);
         break;
     case PKTIN_LC245_2_PLAYER_INFO:
-        gameproto_exec_player_info(game, packet);
+        gameproto_rev245_2_exec_player_info(game, packet);
         break;
     case PKTIN_LC245_2_UPDATE_INV_FULL:
-        gameproto_exec_update_inv_full(game, packet);
+        gameproto_rev245_2_exec_update_inv_full(game, packet);
         break;
     case PKTIN_LC245_2_IF_SETTAB:
-        gameproto_exec_if_settab(game, packet);
+        gameproto_rev245_2_exec_if_settab(game, packet);
         break;
     case PKTIN_LC245_2_IF_SETTAB_ACTIVE:
-        gameproto_exec_if_settab_active(game, packet);
+        gameproto_rev245_2_exec_if_settab_active(game, packet);
         break;
     case PKTIN_LC245_2_IF_SETCOLOUR:
-        gameproto_exec_if_setcolour(game, packet);
+        gameproto_rev245_2_exec_if_setcolour(game, packet);
         break;
     case PKTIN_LC245_2_IF_SETHIDE:
-        gameproto_exec_if_sethide(game, packet);
+        gameproto_rev245_2_exec_if_sethide(game, packet);
         break;
     case PKTIN_LC245_2_IF_SETOBJECT:
-        gameproto_exec_if_setobject(game, packet);
+        gameproto_rev245_2_exec_if_setobject(game, packet);
         break;
     case PKTIN_LC245_2_IF_SETMODEL:
-        gameproto_exec_if_setmodel(game, packet);
+        gameproto_rev245_2_exec_if_setmodel(game, packet);
         break;
     case PKTIN_LC245_2_IF_SETANIM:
-        gameproto_exec_if_setanim(game, packet);
+        gameproto_rev245_2_exec_if_setanim(game, packet);
         break;
     case PKTIN_LC245_2_IF_SETPLAYERHEAD:
-        gameproto_exec_if_setplayerhead(game, packet);
+        gameproto_rev245_2_exec_if_setplayerhead(game, packet);
         break;
     case PKTIN_LC245_2_IF_SETTEXT:
-        gameproto_exec_if_settext(game, packet);
+        gameproto_rev245_2_exec_if_settext(game, packet);
         break;
     case PKTIN_LC245_2_IF_SETNPCHEAD:
-        gameproto_exec_if_setnpchead(game, packet);
+        gameproto_rev245_2_exec_if_setnpchead(game, packet);
         break;
     case PKTIN_LC245_2_IF_SETPOSITION:
-        gameproto_exec_if_setposition(game, packet);
+        gameproto_rev245_2_exec_if_setposition(game, packet);
         break;
     case PKTIN_LC245_2_IF_SETSCROLLPOS:
-        gameproto_exec_if_setscrollpos(game, packet);
+        gameproto_rev245_2_exec_if_setscrollpos(game, packet);
         break;
     case PKTIN_LC245_2_IF_OPENCHAT:
-        gameproto_exec_if_openchat(game, packet);
+        gameproto_rev245_2_exec_if_openchat(game, packet);
         break;
     case PKTIN_LC245_2_IF_OPENMAIN:
-        gameproto_exec_if_openmain(game, packet);
+        gameproto_rev245_2_exec_if_openmain(game, packet);
         break;
     case PKTIN_LC245_2_IF_OPENSIDE:
-        gameproto_exec_if_openside(game, packet);
+        gameproto_rev245_2_exec_if_openside(game, packet);
         break;
     case PKTIN_LC245_2_IF_OPENMAIN_SIDE:
-        gameproto_exec_if_openmain_side(game, packet);
+        gameproto_rev245_2_exec_if_openmain_side(game, packet);
         break;
     case PKTIN_LC245_2_IF_CLOSE:
-        gameproto_exec_if_close(game, packet);
+        gameproto_rev245_2_exec_if_close(game, packet);
         break;
     case PKTIN_LC245_2_UPDATE_INV_STOP_TRANSMIT:
-        gameproto_exec_update_inv_stop_transmit(game, packet);
+        gameproto_rev245_2_exec_update_inv_stop_transmit(game, packet);
         break;
     case PKTIN_LC245_2_UPDATE_INV_PARTIAL:
-        gameproto_exec_update_inv_partial(game, packet);
+        gameproto_rev245_2_exec_update_inv_partial(game, packet);
         break;
     case PKTIN_LC245_2_CAM_LOOKAT:
-        gameproto_exec_cam_lookat(game, packet);
+        gameproto_rev245_2_exec_cam_lookat(game, packet);
         break;
     case PKTIN_LC245_2_CAM_MOVETO:
-        gameproto_exec_cam_moveto(game, packet);
+        gameproto_rev245_2_exec_cam_moveto(game, packet);
         break;
     case PKTIN_LC245_2_CAM_SHAKE:
-        gameproto_exec_cam_shake(game, packet);
+        gameproto_rev245_2_exec_cam_shake(game, packet);
         break;
     case PKTIN_LC245_2_CAM_RESET:
-        gameproto_exec_cam_reset(game, packet);
+        gameproto_rev245_2_exec_cam_reset(game, packet);
         break;
     case PKTIN_LC245_2_UNSET_MAP_FLAG:
-        gameproto_exec_unset_map_flag(game, packet);
+        gameproto_rev245_2_exec_unset_map_flag(game, packet);
         break;
     case PKTIN_LC245_2_UPDATE_RUNWEIGHT:
-        gameproto_exec_update_runweight(game, packet);
+        gameproto_rev245_2_exec_update_runweight(game, packet);
         break;
     case PKTIN_LC245_2_UPDATE_RUNENERGY:
-        gameproto_exec_update_runenergy(game, packet);
+        gameproto_rev245_2_exec_update_runenergy(game, packet);
         break;
     case PKTIN_LC245_2_UPDATE_STAT:
-        gameproto_exec_update_stat(game, packet);
+        gameproto_rev245_2_exec_update_stat(game, packet);
         break;
     case PKTIN_LC245_2_HINT_ARROW:
-        gameproto_exec_hint_arrow(game, packet);
+        gameproto_rev245_2_exec_hint_arrow(game, packet);
         break;
     case PKTIN_LC245_2_RESET_ANIMS:
-        gameproto_exec_reset_anims(game, packet);
+        gameproto_rev245_2_exec_reset_anims(game, packet);
         break;
     case PKTIN_LC245_2_UPDATE_PID:
-        gameproto_exec_update_pid(game, packet);
+        gameproto_rev245_2_exec_update_pid(game, packet);
         break;
     case PKTIN_LC245_2_VARP_SMALL:
-        gameproto_exec_varp_small(game, packet);
+        gameproto_rev245_2_exec_varp_small(game, packet);
         break;
     case PKTIN_LC245_2_VARP_LARGE:
-        gameproto_exec_varp_large(game, packet);
+        gameproto_rev245_2_exec_varp_large(game, packet);
         break;
     case PKTIN_LC245_2_RESET_CLIENT_VARCACHE:
-        gameproto_exec_varp_sync(game, packet);
+        gameproto_rev245_2_exec_varp_sync(game, packet);
         break;
     case PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_FOLLOWS:
-        gameproto_exec_update_zone_partial_follows(game, packet);
+        gameproto_rev245_2_exec_update_zone_partial_follows(game, packet);
         break;
     case PKTIN_LC245_2_UPDATE_ZONE_FULL_FOLLOWS:
-        gameproto_exec_update_zone_full_follows(game, packet);
+        gameproto_rev245_2_exec_update_zone_full_follows(game, packet);
         break;
     case PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_ENCLOSED:
-        gameproto_exec_update_zone_partial_enclosed(game, packet);
+        gameproto_rev245_2_exec_update_zone_partial_enclosed(game, packet);
         break;
     case PKTIN_LC245_2_LOC_ANIM:
-        gameproto_exec_loc_anim(game, packet);
+        gameproto_rev245_2_exec_loc_anim(game, packet);
         break;
     case PKTIN_LC245_2_LOC_MERGE:
-        gameproto_exec_loc_merge(game, packet);
+        gameproto_rev245_2_exec_loc_merge(game, packet);
         break;
     case PKTIN_LC245_2_MAP_ANIM:
-        gameproto_exec_map_anim(game, packet);
+        gameproto_rev245_2_exec_map_anim(game, packet);
         break;
     case PKTIN_LC245_2_MAP_PROJANIM:
-        gameproto_exec_map_projanim(game, packet);
+        gameproto_rev245_2_exec_map_projanim(game, packet);
         break;
     case PKTIN_LC245_2_SET_MULTIWAY:
-        gameproto_exec_set_multiway(game, packet);
+        gameproto_rev245_2_exec_set_multiway(game, packet);
         break;
     case PKTIN_LC245_2_OBJ_ADD:
-        gameproto_exec_obj_add(game, packet, game->zone_base_x, game->zone_base_z);
+        gameproto_rev245_2_exec_obj_add(game, packet, game->zone_base_x, game->zone_base_z);
         break;
     case PKTIN_LC245_2_OBJ_DEL:
-        gameproto_exec_obj_del(game, packet);
+        gameproto_rev245_2_exec_obj_del(game, packet);
         break;
     case PKTIN_LC245_2_OBJ_REVEAL:
-        gameproto_exec_obj_reveal(game, packet);
+        gameproto_rev245_2_exec_obj_reveal(game, packet);
         break;
     case PKTIN_LC245_2_OBJ_COUNT:
-        gameproto_exec_obj_count(game, packet);
+        gameproto_rev245_2_exec_obj_count(game, packet);
         break;
     case PKTIN_LC245_2_LOC_ADD_CHANGE:
-        gameproto_exec_loc_add_change(game, packet);
+        gameproto_rev245_2_exec_loc_add_change(game, packet);
         break;
     case PKTIN_LC245_2_LOC_DEL:
-        gameproto_exec_loc_del(game, packet);
+        gameproto_rev245_2_exec_loc_del(game, packet);
         break;
     default:
         break;
@@ -1022,7 +1022,7 @@ game_obj_stacks_ensure(struct GGame* game)
 }
 
 void
-gameproto_exec_obj_add(
+gameproto_rev245_2_exec_obj_add(
     struct GGame* game,
     struct RevPacket_LC245_2* packet,
     int zone_base_x,
@@ -1046,7 +1046,7 @@ gameproto_exec_obj_add(
 }
 
 void
-gameproto_exec_obj_del(
+gameproto_rev245_2_exec_obj_del(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1074,7 +1074,7 @@ gameproto_exec_obj_del(
 }
 
 void
-gameproto_exec_obj_reveal(
+gameproto_rev245_2_exec_obj_reveal(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1084,11 +1084,11 @@ gameproto_exec_obj_reveal(
     add_pkt._obj_add.pos    = packet->_obj_reveal.pos;
     add_pkt._obj_add.obj_id = packet->_obj_reveal.obj_id;
     add_pkt._obj_add.count  = packet->_obj_reveal.count;
-    gameproto_exec_obj_add(game, &add_pkt, game->zone_base_x, game->zone_base_z);
+    gameproto_rev245_2_exec_obj_add(game, &add_pkt, game->zone_base_x, game->zone_base_z);
 }
 
 void
-gameproto_exec_obj_count(
+gameproto_rev245_2_exec_obj_count(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1115,7 +1115,7 @@ gameproto_exec_obj_count(
 }
 
 void
-gameproto_exec_loc_add_change(
+gameproto_rev245_2_exec_loc_add_change(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1148,7 +1148,7 @@ gameproto_exec_loc_add_change(
 }
 
 void
-gameproto_exec_loc_del(
+gameproto_rev245_2_exec_loc_del(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1180,7 +1180,7 @@ gameproto_exec_loc_del(
 }
 
 void
-gameproto_exec_if_openchat(
+gameproto_rev245_2_exec_if_openchat(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1189,7 +1189,7 @@ gameproto_exec_if_openchat(
 }
 
 void
-gameproto_exec_if_openmain(
+gameproto_rev245_2_exec_if_openmain(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1198,7 +1198,7 @@ gameproto_exec_if_openmain(
 }
 
 void
-gameproto_exec_if_openside(
+gameproto_rev245_2_exec_if_openside(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1207,7 +1207,7 @@ gameproto_exec_if_openside(
 }
 
 void
-gameproto_exec_if_openmain_side(
+gameproto_rev245_2_exec_if_openmain_side(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1219,7 +1219,7 @@ gameproto_exec_if_openmain_side(
 }
 
 void
-gameproto_exec_if_close(
+gameproto_rev245_2_exec_if_close(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1233,7 +1233,7 @@ gameproto_exec_if_close(
 }
 
 void
-gameproto_exec_update_inv_stop_transmit(
+gameproto_rev245_2_exec_update_inv_stop_transmit(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1253,7 +1253,7 @@ gameproto_exec_update_inv_stop_transmit(
 }
 
 void
-gameproto_exec_update_inv_partial(
+gameproto_rev245_2_exec_update_inv_partial(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1277,7 +1277,7 @@ gameproto_exec_update_inv_partial(
 }
 
 void
-gameproto_exec_cam_lookat(
+gameproto_rev245_2_exec_cam_lookat(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1291,7 +1291,7 @@ gameproto_exec_cam_lookat(
 }
 
 void
-gameproto_exec_cam_moveto(
+gameproto_rev245_2_exec_cam_moveto(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1305,7 +1305,7 @@ gameproto_exec_cam_moveto(
 }
 
 void
-gameproto_exec_cam_shake(
+gameproto_rev245_2_exec_cam_shake(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1314,7 +1314,7 @@ gameproto_exec_cam_shake(
 }
 
 void
-gameproto_exec_cam_reset(
+gameproto_rev245_2_exec_cam_reset(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1323,7 +1323,7 @@ gameproto_exec_cam_reset(
 }
 
 void
-gameproto_exec_unset_map_flag(
+gameproto_rev245_2_exec_unset_map_flag(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1334,7 +1334,7 @@ gameproto_exec_unset_map_flag(
 }
 
 void
-gameproto_exec_update_runweight(
+gameproto_rev245_2_exec_update_runweight(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1342,7 +1342,7 @@ gameproto_exec_update_runweight(
 }
 
 void
-gameproto_exec_update_runenergy(
+gameproto_rev245_2_exec_update_runenergy(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1350,7 +1350,7 @@ gameproto_exec_update_runenergy(
 }
 
 void
-gameproto_exec_update_stat(
+gameproto_rev245_2_exec_update_stat(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1362,7 +1362,7 @@ gameproto_exec_update_stat(
 }
 
 void
-gameproto_exec_hint_arrow(
+gameproto_rev245_2_exec_hint_arrow(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1373,7 +1373,7 @@ gameproto_exec_hint_arrow(
 }
 
 void
-gameproto_exec_reset_anims(
+gameproto_rev245_2_exec_reset_anims(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1394,7 +1394,7 @@ gameproto_exec_reset_anims(
 }
 
 void
-gameproto_exec_update_pid(
+gameproto_rev245_2_exec_update_pid(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1403,7 +1403,7 @@ gameproto_exec_update_pid(
 }
 
 void
-gameproto_exec_varp_small(
+gameproto_rev245_2_exec_varp_small(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1412,7 +1412,7 @@ gameproto_exec_varp_small(
 }
 
 void
-gameproto_exec_varp_large(
+gameproto_rev245_2_exec_varp_large(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1421,7 +1421,7 @@ gameproto_exec_varp_large(
 }
 
 void
-gameproto_exec_varp_sync(
+gameproto_rev245_2_exec_varp_sync(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1430,7 +1430,7 @@ gameproto_exec_varp_sync(
 }
 
 void
-gameproto_exec_update_zone_partial_follows(
+gameproto_rev245_2_exec_update_zone_partial_follows(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1439,7 +1439,7 @@ gameproto_exec_update_zone_partial_follows(
 }
 
 void
-gameproto_exec_update_zone_full_follows(
+gameproto_rev245_2_exec_update_zone_full_follows(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1448,7 +1448,7 @@ gameproto_exec_update_zone_full_follows(
 }
 
 void
-gameproto_exec_update_zone_partial_enclosed(
+gameproto_rev245_2_exec_update_zone_partial_enclosed(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1457,7 +1457,7 @@ gameproto_exec_update_zone_partial_enclosed(
 }
 
 void
-gameproto_exec_loc_anim(
+gameproto_rev245_2_exec_loc_anim(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1483,7 +1483,7 @@ gameproto_exec_loc_anim(
 }
 
 void
-gameproto_exec_loc_merge(
+gameproto_rev245_2_exec_loc_merge(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1519,7 +1519,7 @@ gameproto_exec_loc_merge(
 }
 
 void
-gameproto_exec_map_anim(
+gameproto_rev245_2_exec_map_anim(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1544,7 +1544,7 @@ gameproto_exec_map_anim(
 }
 
 void
-gameproto_exec_map_projanim(
+gameproto_rev245_2_exec_map_projanim(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
@@ -1572,7 +1572,7 @@ gameproto_exec_map_projanim(
 }
 
 void
-gameproto_exec_set_multiway(
+gameproto_rev245_2_exec_set_multiway(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {

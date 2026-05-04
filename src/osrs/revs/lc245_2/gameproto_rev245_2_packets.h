@@ -2,7 +2,7 @@
 #define PKT_LC245_2_H
 
 #include "osrs/packetin.h"
-#include "pkt_map_rebuild.h"
+#include "osrs/revs/lc245_2/gameproto_rev245_2_pktmaprebuild.h"
 
 // Player info packet is more of a command stream
 // than a fixed format packet

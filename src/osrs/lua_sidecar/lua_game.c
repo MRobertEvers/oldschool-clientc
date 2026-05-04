@@ -7,9 +7,10 @@
 #include "osrs/dash_utils.h"
 #include "osrs/game.h"
 #include "osrs/rscache/tables_dat/config_component.h"
-#include "osrs/gameproto_exec.h"
-#include "osrs/gameproto_parse.h"
-#include "osrs/packets/revpacket_lc245_2.h"
+#include "osrs/revs/lc245_2/gameproto_rev245_2_exec.h"
+#include "osrs/revs/lc245_2/revision_lc245_2.h"
+#include "osrs/revs/lc245_2/gameproto_rev245_2_parse.h"
+#include "osrs/revs/lc245_2/gameproto_rev245_2_packets.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/heightmap.h"
 #include "osrs/world.h"
@@ -46,10 +47,11 @@ LuaGame_pop_next_packet(
     struct LuaGameType* args)
 {
     (void)args;
-    struct RevPacket_LC245_2_Item* item = game->packets_lc245_2;
-    if( !item )
+    struct RevisionLC245_2* rl = (struct RevisionLC245_2*)game->revision.impl;
+    if( !rl || !rl->pending_head )
         return LuaGameType_NewVoid();
-    game->packets_lc245_2 = item->next_nullable;
+    struct RevPacket_LC245_2_Item* item = rl->pending_head;
+    rl->pending_head = item->next_nullable;
     item->next_nullable = NULL;
     struct LuaGameType* out = LuaGameType_NewVarTypeArraySpread(2);
     LuaGameType_VarTypeArrayPush(out, LuaGameType_NewUserData(item));
@@ -66,7 +68,7 @@ LuaGame_exec_packet(
         (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
     if( item )
     {
-        gameproto_exec_lc245_2(game, &item->packet);
+        gameproto_rev245_2_exec_dispatch(game, &item->packet);
         gameproto_free_lc245_2_item(item);
         free(item);
     }

@@ -1,18 +1,23 @@
-#include "gameproto_parse.h"
+#include "osrs/revs/lc245_2/gameproto_rev245_2_parse.h"
 
-#include "packetin.h"
+#include "osrs/core/gameproto_core_parse.h"
+#include "osrs/core/revision.h"
+#include "osrs/revs/lc245_2/revision_lc245_2.h"
+#include "osrs/packetin.h"
 
+#include <assert.h>
 #include <stdlib.h>
-#include "rscache/bitbuffer.h"
-#include "rscache/rsbuf.h"
-#include "wordpack.h"
+#include <string.h>
+#include "osrs/rscache/bitbuffer.h"
+#include "osrs/rscache/rsbuf.h"
+#include "osrs/wordpack.h"
 
 // clang-format off
-#include "gameproto_lc254.u.c"
+#include "osrs/revs/lc254/gameproto_rev254_lc254.u.c"
 // clang-format on
 
 int
-gameproto_parse_lc245_2(
+gameproto_rev245_2_parse(
     int packet_type,
     uint8_t* data,
     int data_size,
@@ -28,9 +33,11 @@ gameproto_parse_lc245_2(
     case PKTIN_LC245_2_REBUILD_NORMAL:
     {
         printf("PKTIN_LC245_2_REBUILD_NORMAL\n");
-        packet->_map_rebuild.zonex = g2(&buffer);
-        packet->_map_rebuild.zonez = g2(&buffer);
-        assert(buffer.position == data_size);
+        gameproto_core_parse_maprebuild8_z16_x16_v1(
+            data,
+            data_size,
+            &packet->_map_rebuild.zonex,
+            &packet->_map_rebuild.zonez);
         return 1;
     }
     case PKTIN_LC245_2_NPC_INFO:
@@ -498,7 +505,7 @@ gameproto_parse_lc245_2(
         packet->_update_zone_partial_follows.base_z = g1(&buffer);
         return 1;
     }
-        printf("[gameproto_parse_lc245_2] Unknown packet type: %d\n", packet_type);
+        printf("[gameproto_rev245_2_parse] Unknown packet type: %d\n", packet_type);
         break;
     }
 
@@ -551,4 +558,30 @@ gameproto_free_lc245_2_item(struct RevPacket_LC245_2_Item* item)
     default:
         break;
     }
+}
+
+static void
+push_packet_lc245_2(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    assert(game && game->revision.kind == REVISION_KIND_LC245_2 && game->revision.impl);
+    gameproto_rev245_2_enqueue((struct RevisionLC245_2*)game->revision.impl, packet);
+}
+
+int
+gameproto_rev245_2_parse_and_enqueue(
+    struct GGame* game,
+    int opcode,
+    uint8_t* data,
+    int n)
+{
+    struct RevPacket_LC245_2 packet;
+    memset(&packet, 0, sizeof(struct RevPacket_LC245_2));
+
+    if( !gameproto_rev245_2_parse(opcode, data, n, &packet) )
+        return 0;
+
+    push_packet_lc245_2(game, &packet);
+    return 1;
 }

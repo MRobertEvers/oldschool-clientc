@@ -3,6 +3,8 @@
 
 #include "tori_rs.h"
 
+#include "osrs/core/revision.h"
+
 #include <assert.h>
 
 static void
@@ -26,7 +28,7 @@ script_convert_to_lua(
         out->args = LuaGameType_NewVoid();
         break;
     case SCRIPT_INIT_UI:
-        set_name(out, "rev245_2/init_ui.lua");
+        set_name(out, revision_lua_init_ui_path(revision_active()));
         out->args = LuaGameType_NewVoid();
         break;
     case SCRIPT_LOAD_SCENE_DAT:
@@ -42,7 +44,7 @@ script_convert_to_lua(
             out->args, LuaGameType_NewInt(item->args.u.load_scene_dat.wz_ne));
         break;
     case SCRIPT_PKT_DISPATCH:
-        set_name(out, "rev245_2/pkt_dispatch.lua");
+        set_name(out, revision_lua_pkt_dispatch_path(revision_active()));
         out->args = LuaGameType_NewVoid();
         break;
     case SCRIPT_LOAD_CULLMAP:

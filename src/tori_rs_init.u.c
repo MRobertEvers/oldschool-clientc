@@ -8,10 +8,13 @@
 #include "osrs/cache_utils.h"
 #include "osrs/clientscript_vm.h"
 #include "osrs/configmap.h"
+#include "osrs/core/game_cache_tag.h"
+#include "osrs/core/revision.h"
+#include "osrs/revs/lc245_2/revision_lc245_2.h"
 #include "osrs/dash_utils.h"
 #include "osrs/gameproto_process.h"
 #include "osrs/interface_state.h"
-#include "osrs/loginproto.h"
+#include "osrs/revs/lc245_2/loginproto_rev245_2.h"
 #include "osrs/lua_scripts.h"
 #include "osrs/minimap.h"
 #include "osrs/player_stats.h"
@@ -123,6 +126,9 @@ LibToriRS_GameNew(
     struct GGame* game = malloc(sizeof(struct GGame));
     memset(game, 0, sizeof(struct GGame));
 
+    game->revision = revision_lc245_2_new();
+    revision_set_active(game->revision);
+
     struct PlatformMemoryInfo mem = { 0 };
     platform_get_memory_info(&mem);
     printf("GameNew: Memory info: %zu / %zu / %zu\n", mem.heap_used, mem.heap_total, mem.heap_peak);
@@ -206,7 +212,8 @@ LibToriRS_GameNew(
     game->camera->fov_rpi2048 = 512;
     game->camera->near_plane_z = 50;
 
-    game->buildcachedat = buildcachedat_new();
+    game->game_cache_tag = game_cache_tag_new_buildcachedat();
+    game->buildcachedat = game_cache_tag_as_buildcachedat(&game->game_cache_tag);
     game->buildcache = NULL;
 
     game->iface = interface_state_new();
@@ -224,7 +231,7 @@ LibToriRS_GameNew(
 
     game->packet_buffer = malloc(sizeof(struct PacketBuffer));
     memset(game->packet_buffer, 0, sizeof(struct PacketBuffer));
-    packetbuffer_init(game->packet_buffer, game->random_in, GAMEPROTO_REVISION_LC245_2);
+    packetbuffer_init(game->packet_buffer, game->random_in);
 
     game->loginproto = NULL; /* created by LibToriRS_NetConnectLogin */
 
@@ -383,7 +390,10 @@ LibToriRS_GameFree(struct GGame* game)
     game->iface = NULL;
 
     if( game->buildcachedat )
-        buildcachedat_free(game->buildcachedat);
+    {
+        game_cache_tag_free(&game->game_cache_tag);
+        game->buildcachedat = NULL;
+    }
     if( game->buildcache )
         buildcache_free(game->buildcache);
 
@@ -437,6 +447,13 @@ LibToriRS_GameFree(struct GGame* game)
     lua_buildcache_free_init_configmaps(game);
 
     script_queue_clear(&game->script_queue);
+
+    {
+        const struct Revision* active = revision_active();
+        if( active && active->kind == REVISION_KIND_LC245_2 && active->impl == game->revision.impl )
+            revision_set_active((struct Revision){ REVISION_KIND_INVALID, NULL });
+    }
+    revision_lc245_2_free(&game->revision);
 
     free(game);
 }

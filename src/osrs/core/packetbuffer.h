@@ -1,8 +1,7 @@
 #ifndef CLIENTSTREAM_H
 #define CLIENTSTREAM_H
 
-#include "gameproto_revisions.h"
-#include "isaac.h"
+#include "osrs/isaac.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -19,7 +18,6 @@ enum PacketBufferState
 
 struct PacketBuffer
 {
-    enum GameProtoRevision revision;
     enum PacketBufferState state;
     struct Isaac* random;
     int packet_type;
@@ -32,8 +30,7 @@ struct PacketBuffer
 void
 packetbuffer_init(
     struct PacketBuffer* packetbuffer,
-    struct Isaac* random,
-    enum GameProtoRevision revision);
+    struct Isaac* random);
 
 int
 packetbuffer_read(

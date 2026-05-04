@@ -1,7 +1,7 @@
-#include "loginproto.h"
+#include "osrs/revs/lc245_2/loginproto_rev245_2.h"
 
 #include "jbase37.h"
-#include "rscache/rsbuf.h"
+#include "osrs/rscache/rsbuf.h"
 
 #include <assert.h>
 #include <stdlib.h>

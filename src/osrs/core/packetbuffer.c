@@ -1,7 +1,8 @@
-#include "packetbuffer.h"
+#include "osrs/core/packetbuffer.h"
 
-#include "packetin.h"
-#include "rscache/rsbuf.h"
+#include "osrs/core/packetin_shared.h"
+#include "osrs/core/revision.h"
+#include "osrs/rscache/rsbuf.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -20,33 +21,14 @@ imin(
 void
 packetbuffer_init(
     struct PacketBuffer* packetbuffer,
-    struct Isaac* random,
-    enum GameProtoRevision revision)
+    struct Isaac* random)
 {
     packetbuffer->state = PKTBUF_AWAITING_PACKET;
-    packetbuffer->revision = revision;
     packetbuffer->random = random;
     packetbuffer->packet_type = 0;
     packetbuffer->packet_length = 0;
     packetbuffer->data = NULL;
     packetbuffer->data_size = 0;
-}
-
-static inline int
-packetsize(
-    enum GameProtoRevision revision,
-    int packet_type)
-{
-    switch( revision )
-    {
-    case GAMEPROTO_REVISION_LC254:
-        return packetin_size_lc254(packet_type);
-    case GAMEPROTO_REVISION_LC245_2:
-        return packetin_size_lc245_2(packet_type);
-    }
-
-    assert(0 && "Random is required for packet buffer");
-    return 0;
 }
 
 int
@@ -76,7 +58,7 @@ packetbuffer_read(
             packet_type = g1(&buffer);
             int isaac_value = isaac_next(packetbuffer->random);
             packet_type = (packet_type - isaac_value) & 0xff;
-            packet_size = packetsize(packetbuffer->revision, packet_type);
+            packet_size = revision_packetin_size(revision_active(), packet_type);
             packetbuffer->packet_type = packet_type;
 
             if( packet_size == PKTIN_LENGTH_VARU8 )
@@ -166,7 +148,7 @@ packetbuffer_reset(struct PacketBuffer* packetbuffer)
     packetbuffer->packet_length = 0;
     packetbuffer->packet_type = 0;
 
-    packetbuffer_init(packetbuffer, packetbuffer->random, packetbuffer->revision);
+    packetbuffer_init(packetbuffer, packetbuffer->random);
 }
 
 int

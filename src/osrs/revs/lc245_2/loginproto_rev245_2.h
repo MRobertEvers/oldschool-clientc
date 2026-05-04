@@ -2,8 +2,8 @@
 #define LOGINPROTO_H
 
 #include "datastruct/ringbuf.h"
-#include "isaac.h"
-#include "rsa.h"
+#include "osrs/isaac.h"
+#include "osrs/rsa.h"
 
 #include <stdint.h>
 

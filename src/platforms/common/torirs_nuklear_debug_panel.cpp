@@ -5,6 +5,7 @@
 #include "platforms/platform_impl2_sdl2_renderer_soft3d_shared.h"
 
 #include <SDL.h>
+#include <assert.h>
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>
@@ -13,6 +14,7 @@
 
 extern "C" {
 #include "tori_rs.h"
+#include "osrs/revs/lc245_2/revision_lc245_2.h"
 extern int g_trap_command;
 extern int g_trap_x;
 extern int g_trap_z;
@@ -267,22 +269,10 @@ torirs_nk_debug_panel_draw(
         static int sim_seq_id   = 0;
         static int sim_spotanim = 0;
 
-        /* Helper: allocate and append a packet to game->packets_lc245_2. */
+        /* Helper: allocate and append a simulated packet to the LC245_2 revision queue. */
         auto simulate_pkt = [&](struct RevPacket_LC245_2* pkt) {
-            struct RevPacket_LC245_2_Item* item =
-                (struct RevPacket_LC245_2_Item*)calloc(1, sizeof(struct RevPacket_LC245_2_Item));
-            item->packet = *pkt;
-            if( !game->packets_lc245_2 )
-            {
-                game->packets_lc245_2 = item;
-            }
-            else
-            {
-                struct RevPacket_LC245_2_Item* list = game->packets_lc245_2;
-                while( list->next_nullable )
-                    list = list->next_nullable;
-                list->next_nullable = item;
-            }
+            assert(game->revision.kind == REVISION_KIND_LC245_2 && game->revision.impl);
+            gameproto_rev245_2_enqueue((struct RevisionLC245_2*)game->revision.impl, pkt);
         };
 
         nk_layout_row_dynamic(nk, 22, 1);

@@ -1,7 +1,7 @@
 #ifndef REV_PACKET_LC245_2_QUERY_C
 #define REV_PACKET_LC245_2_QUERY_C
 
-#include "revpacket_lc245_2_query.h"
+#include "osrs/revs/lc245_2/gameproto_rev245_2_query.h"
 
 void
 revpacket_lc245_2_packet_process(

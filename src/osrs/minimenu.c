@@ -7,7 +7,7 @@
 #include "graphics/dash.h"
 #include "isaac.h"
 #include "osrs/packetout.h"
-#include "osrs/packets/revpacket_lc245_2.h"
+#include "osrs/revs/lc245_2/gameproto_rev245_2_packets.h"
 #include "rscache/tables/config_locs.h"
 
 #include <stdio.h>

@@ -4,7 +4,7 @@
 #include "graphics/lighting.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/dash_utils.h"
-#include "osrs/packetbuffer.h"
+#include "osrs/core/packetbuffer.h"
 #include "osrs/rscache/cache.h"
 #include "osrs/rscache/cache_dat.h"
 
