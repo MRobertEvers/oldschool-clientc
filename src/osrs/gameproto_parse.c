@@ -379,7 +379,125 @@ gameproto_parse_lc245_2(
         assert(buffer.position == data_size);
         return 1;
     }
-    default:
+    case PKTIN_LC245_2_CAM_LOOKAT:
+    {
+        packet->_cam_lookat.local_x = g2(&buffer);
+        packet->_cam_lookat.local_z = g2(&buffer);
+        packet->_cam_lookat.height = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_CAM_MOVETO:
+    {
+        packet->_cam_moveto.local_x = g2(&buffer);
+        packet->_cam_moveto.local_z = g2(&buffer);
+        packet->_cam_moveto.height = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_CAM_SHAKE:
+    {
+        packet->_cam_shake.axis = g1(&buffer);
+        packet->_cam_shake.amplitude = g1(&buffer);
+        packet->_cam_shake.frequency = g1(&buffer);
+        packet->_cam_shake.speed = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_CAM_RESET:
+        /* no payload */
+        return 1;
+    case PKTIN_LC245_2_IF_OPENMAIN:
+    {
+        packet->_if_openmain.component_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_OPENSIDE:
+    {
+        packet->_if_openside.component_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_IF_OPENMAIN_SIDE:
+    {
+        packet->_if_openmain_side.main_component_id = g2(&buffer);
+        packet->_if_openmain_side.side_component_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_HINT_ARROW:
+    {
+        packet->_hint_arrow.type = g1(&buffer);
+        packet->_hint_arrow.id = g2(&buffer);
+        if( packet->_hint_arrow.type >= 3 )
+        {
+            packet->_hint_arrow.z = g2(&buffer);
+            packet->_hint_arrow.height = g1(&buffer);
+        }
+        return 1;
+    }
+    case PKTIN_LC245_2_RESET_ANIMS:
+        /* no payload */
+        return 1;
+    case PKTIN_LC245_2_UPDATE_PID:
+    {
+        packet->_update_pid.local_player_index = g2(&buffer);
+        packet->_update_pid.unused = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_UPDATE_RUNWEIGHT:
+    {
+        packet->_update_runweight.run_weight = g2b(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_UNSET_MAP_FLAG:
+        /* no payload */
+        return 1;
+    case PKTIN_LC245_2_UPDATE_INV_STOP_TRANSMIT:
+    {
+        packet->_update_inv_stop_transmit.component_id = g2(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_UPDATE_INV_PARTIAL:
+    {
+        packet->_update_inv_partial.component_id = g2(&buffer);
+        /* count is derived from remaining bytes; allocate conservatively */
+        int max_entries = (data_size - 2) / 5 + 1;
+        packet->_update_inv_partial.entries =
+            (struct PktUpdateInvPartialEntry*)malloc(max_entries * sizeof(struct PktUpdateInvPartialEntry));
+        int n = 0;
+        while( buffer.position < data_size )
+        {
+            int slot = g1(&buffer);
+            int obj_id_raw = g2(&buffer);
+            int count = g1(&buffer);
+            if( count == 255 )
+                count = g4(&buffer);
+            packet->_update_inv_partial.entries[n].slot = slot;
+            packet->_update_inv_partial.entries[n].obj_id = obj_id_raw - 1;
+            packet->_update_inv_partial.entries[n].count = count;
+            n++;
+        }
+        packet->_update_inv_partial.count = n;
+        return 1;
+    }
+    case PKTIN_LC245_2_SET_MULTIWAY:
+    {
+        packet->_set_multiway.multiway = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_ENCLOSED:
+    {
+        /* Contains sub-zone packets; store the zone base like partial_follows. */
+        packet->_update_zone_partial_follows.base_x = g1(&buffer);
+        packet->_update_zone_partial_follows.base_z = g1(&buffer);
+        return 1;
+    }
         printf("[gameproto_parse_lc245_2] Unknown packet type: %d\n", packet_type);
         break;
     }
@@ -424,6 +542,11 @@ gameproto_free_lc245_2_item(struct RevPacket_LC245_2_Item* item)
     case PKTIN_LC245_2_MESSAGE_PRIVATE:
         free(p->_message_private.text);
         p->_message_private.text = NULL;
+        break;
+    case PKTIN_LC245_2_UPDATE_INV_PARTIAL:
+        free(p->_update_inv_partial.entries);
+        p->_update_inv_partial.entries = NULL;
+        p->_update_inv_partial.count = 0;
         break;
     default:
         break;

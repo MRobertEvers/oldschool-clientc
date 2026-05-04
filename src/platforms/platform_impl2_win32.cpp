@@ -30,7 +30,6 @@ extern "C" {
 extern "C" {
 #include "3rd/lua/lua.h"
 #include "osrs/game.h"
-#include "osrs/gameproto_parse.h"
 #include "osrs/gio_cache_dat.h"
 #include "osrs/lua_sidecar/lua_api.h"
 #include "osrs/lua_sidecar/lua_configfile.h"
@@ -908,13 +907,6 @@ Platform2_Win32_RunLuaScripts(struct Platform2_Win32* platform, struct GGame* ga
         }
 
         LuaCSidecar_GC(platform->lua_sidecar);
-
-        void* pkt_free = script.lc245_packet_item_to_free;
-        if( pkt_free )
-        {
-            gameproto_free_lc245_2_item((struct RevPacket_LC245_2_Item*)pkt_free);
-            free(pkt_free);
-        }
     }
 }
 

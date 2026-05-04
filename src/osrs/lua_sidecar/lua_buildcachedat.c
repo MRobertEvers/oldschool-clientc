@@ -9,6 +9,8 @@
 #include "osrs/packets/pkt_npc_info.h"
 #include "osrs/packets/pkt_player_info.h"
 #include "osrs/rscache/cache_dat.h"
+#include "osrs/rscache/tables/config_locs.h"
+#include "osrs/rscache/tables_dat/config_spotanim.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -871,5 +873,67 @@ LuaBuildCacheDat_clear_media_jagfile(
 {
     (void)args;
     buildcachedat_clear_media_jagfile(buildcachedat);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_get_loc_model_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    int loc_id = arg_int(args, 0);
+
+    struct CacheConfigLocation* loc = buildcachedat_get_config_loc(buildcachedat, loc_id);
+    if( !loc )
+        return LuaGameType_NewIntArray(0);
+
+    /* Collect all unique model IDs across every shape/rotation variant. */
+    struct LuaGameType* result = LuaGameType_NewIntArray(16);
+    for( int s = 0; s < loc->shapes_and_model_count; s++ )
+    {
+        if( !loc->models || !loc->models[s] || !loc->lengths )
+            continue;
+        int len = loc->lengths[s];
+        for( int m = 0; m < len; m++ )
+        {
+            int mid = loc->models[s][m];
+            if( mid > 0 )
+                LuaGameType_IntArrayPush(result, mid);
+        }
+    }
+    return result;
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_get_spotanim_model_id(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    int spotanim_id = arg_int(args, 0);
+    struct CacheDatConfigSpotAnim* s = buildcachedat_get_spotanim(buildcachedat, spotanim_id);
+    if( !s )
+        return LuaGameType_NewInt(0);
+    return LuaGameType_NewInt(s->model);
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_get_spotanim_seq_id(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    int spotanim_id = arg_int(args, 0);
+    struct CacheDatConfigSpotAnim* s = buildcachedat_get_spotanim(buildcachedat, spotanim_id);
+    if( !s )
+        return LuaGameType_NewInt(-1);
+    return LuaGameType_NewInt(s->seq_id);
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_spotanims_init_from_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)args;
+    buildcachedat_loader_spotanims_init_from_config_jagfile(buildcachedat);
     return LuaGameType_NewVoid();
 }

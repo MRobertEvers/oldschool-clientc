@@ -3,8 +3,6 @@
 
 #include <stdint.h>
 
-struct RevPacket_LC245_2_Item;
-
 /* Script kind; one entry per runnable script. */
 enum ScriptKind
 {
@@ -12,11 +10,7 @@ enum ScriptKind
     SCRIPT_INIT_UI,
     SCRIPT_LOAD_SCENE_DAT,
     SCRIPT_LOAD_SCENE,
-    SCRIPT_PKT_REBUILD_NORMAL,
-    SCRIPT_PKT_PLAYER_INFO,
-    SCRIPT_PKT_NPC_INFO,
-    SCRIPT_PKT_IF_SETTAB,
-    SCRIPT_PKT_UPDATE_INV_FULL,
+    SCRIPT_PKT_DISPATCH,
     SCRIPT_LOAD_CULLMAP,
     SCRIPT_SPAWN_ELEMENT,
     SCRIPT_COUNT
@@ -41,29 +35,6 @@ struct ScriptArgsLoadScene
     int wz_ne;
     int size_x;
     int size_z;
-};
-
-struct ScriptArgsRebuildNormal
-{
-    int zonex;
-    int zonez;
-};
-
-struct ScriptArgsPlayerInfo
-{
-    int length;
-    uint8_t* data;
-};
-
-struct ScriptArgsNpcInfo
-{
-    int length;
-    uint8_t* data;
-};
-
-struct ScriptArgsLc245Packet
-{
-    struct RevPacket_LC245_2_Item* item;
 };
 
 struct ScriptArgsLoadCullmap
@@ -92,10 +63,6 @@ struct ScriptArgs
     {
         struct ScriptArgsLoadSceneDat load_scene_dat;
         struct ScriptArgsLoadScene load_scene;
-        struct ScriptArgsRebuildNormal rebuild_normal;
-        struct ScriptArgsPlayerInfo player_info;
-        struct ScriptArgsNpcInfo npc_info;
-        struct ScriptArgsLc245Packet lc245_packet;
         struct ScriptArgsLoadCullmap load_cullmap;
         struct ScriptArgsSpawnElement spawn_element;
     } u;
@@ -105,8 +72,6 @@ struct ScriptArgs
 struct ScriptQueueItem
 {
     struct ScriptArgs args;
-    /** If non-NULL, free with gameproto_free_lc245_2_item + free() after Lua script finishes. */
-    struct RevPacket_LC245_2_Item* lc245_2_packet_to_free;
     struct ScriptQueueItem* next;
 };
 

@@ -298,4 +298,24 @@ LuaBuildCacheDat_clear_media_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
+struct LuaGameType*
+LuaBuildCacheDat_get_loc_model_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_get_spotanim_model_id(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_get_spotanim_seq_id(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_spotanims_init_from_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
 #endif

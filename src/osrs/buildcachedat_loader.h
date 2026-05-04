@@ -138,6 +138,9 @@ void
 buildcachedat_loader_objects_init_from_config_jagfile(struct BuildCacheDat* buildcachedat);
 
 void
+buildcachedat_loader_spotanims_init_from_config_jagfile(struct BuildCacheDat* buildcachedat);
+
+void
 buildcachedat_loader_load_interfaces(
     struct BuildCacheDat* buildcachedat,
     void* data,

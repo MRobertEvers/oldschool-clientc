@@ -19,6 +19,7 @@
 #include "osrs/rscache/tables_dat/config_idk.h"
 #include "osrs/rscache/tables_dat/config_npc.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
+#include "osrs/rscache/tables_dat/config_spotanim.h"
 #include "osrs/rscache/tables_dat/config_textures.h"
 #include "osrs/rscache/tables_dat/pix32.h"
 #include "osrs/rscache/tables_dat/pix8.h"
@@ -1075,6 +1076,8 @@ void
 buildcachedat_loader_idkits_init_from_config_jagfile(struct BuildCacheDat* buildcachedat)
 {
     struct FileListDat* filelist = buildcachedat_config_jagfile(buildcachedat);
+    if( !filelist )
+        return;
 
     int data_file_idx = filelist_dat_find_file_by_name(filelist, "idk.dat");
     assert(data_file_idx != -1 && "Failed to find idk.dat in filelist");
@@ -1120,6 +1123,8 @@ void
 buildcachedat_loader_objects_init_from_config_jagfile(struct BuildCacheDat* buildcachedat)
 {
     struct FileListDat* filelist = buildcachedat_config_jagfile(buildcachedat);
+    if( !filelist )
+        return;
 
     int data_file_idx = filelist_dat_find_file_by_name(filelist, "obj.dat");
     assert(data_file_idx != -1 && "Failed to find obj.dat in filelist");
@@ -1140,6 +1145,41 @@ buildcachedat_loader_objects_init_from_config_jagfile(struct BuildCacheDat* buil
             fi->data + fi->offsets[i], fi->data_size - fi->offsets[i]);
         assert(obj != NULL && "Failed to decode obj");
         buildcachedat_add_obj(buildcachedat, i, obj);
+    }
+
+    filelist_dat_indexed_free(fi);
+}
+
+void
+buildcachedat_loader_spotanims_init_from_config_jagfile(struct BuildCacheDat* buildcachedat)
+{
+    struct FileListDat* filelist = buildcachedat_config_jagfile(buildcachedat);
+    if( !filelist )
+        return;
+
+    int data_file_idx  = filelist_dat_find_file_by_name(filelist, "spotanim.dat");
+    int index_file_idx = filelist_dat_find_file_by_name(filelist, "spotanim.idx");
+
+    if( data_file_idx == -1 || index_file_idx == -1 )
+        return; /* Spotanim tables absent in this cache */
+
+    struct FileListDatIndexed* fi = filelist_dat_indexed_new_from_decode(
+        filelist->files[index_file_idx],
+        filelist->file_sizes[index_file_idx],
+        filelist->files[data_file_idx],
+        filelist->file_sizes[data_file_idx]);
+
+    if( !fi )
+        return;
+
+    buildcachedat_reserve_hmap(buildcachedat->spotanim_hmap, (size_t)fi->offset_count);
+
+    for( int i = 0; i < fi->offset_count; i++ )
+    {
+        struct CacheDatConfigSpotAnim* s = cache_dat_config_spotanim_decode_one(
+            fi->data + fi->offsets[i], fi->data_size - fi->offsets[i]);
+        if( s )
+            buildcachedat_add_spotanim(buildcachedat, i, s);
     }
 
     filelist_dat_indexed_free(fi);

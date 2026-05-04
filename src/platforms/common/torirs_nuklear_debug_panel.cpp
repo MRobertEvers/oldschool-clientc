@@ -5,8 +5,10 @@
 #include "platforms/platform_impl2_sdl2_renderer_soft3d_shared.h"
 
 #include <SDL.h>
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 extern "C" {
@@ -236,5 +238,347 @@ torirs_nk_debug_panel_draw(
             }
         }
     }
+
+    /* ---- Packet sim ---- */
+    if( nk_tree_push(nk, NK_TREE_TAB, "Packet sim", NK_MINIMIZED) )
+    {
+        /* Static simulation state persists across frames. */
+        static int sim_comp_id  = 0x10000001;
+        static int sim_obj_id   = 314;  /* iron ore */
+        static int sim_model_id = 100;
+        static int sim_anim_id  = 0;
+        static int sim_npc_id   = 1;    /* goblin */
+        static int sim_zoom     = 1000;
+        static int sim_hide     = 0;
+        static int sim_cam_lx   = 3222 * 8;
+        static int sim_cam_lz   = 3218 * 8;
+        static int sim_cam_h    = 400;
+        static int sim_cam_axis = 0;
+        static int sim_cam_amp  = 3;
+        static int sim_varp_id  = 0;
+        static int sim_varp_val = 0;
+        static int sim_stat_id  = 0;
+        static int sim_stat_xp  = 0;
+        static int sim_stat_lvl = 1;
+        static int sim_energy   = 100;
+        static int sim_zone_x   = 403;  /* Lumbridge area */
+        static int sim_zone_z   = 403;
+        static int sim_loc_id   = 10;
+        static int sim_seq_id   = 0;
+        static int sim_spotanim = 0;
+
+        /* Helper: allocate and append a packet to game->packets_lc245_2. */
+        auto simulate_pkt = [&](struct RevPacket_LC245_2* pkt) {
+            struct RevPacket_LC245_2_Item* item =
+                (struct RevPacket_LC245_2_Item*)calloc(1, sizeof(struct RevPacket_LC245_2_Item));
+            item->packet = *pkt;
+            if( !game->packets_lc245_2 )
+            {
+                game->packets_lc245_2 = item;
+            }
+            else
+            {
+                struct RevPacket_LC245_2_Item* list = game->packets_lc245_2;
+                while( list->next_nullable )
+                    list = list->next_nullable;
+                list->next_nullable = item;
+            }
+        };
+
+        nk_layout_row_dynamic(nk, 22, 1);
+        nk_label(nk, "-- Interface --", NK_TEXT_LEFT);
+
+        nk_layout_row_dynamic(nk, 22, 2);
+        nk_property_int(nk, "comp_id", 0, &sim_comp_id, 0x7fffffff, 1, 1);
+        nk_property_int(nk, "model_id", 0, &sim_model_id, 65535, 1, 1);
+
+        nk_layout_row_dynamic(nk, 22, 1);
+        if( nk_button_label(nk, "IF_OPENMAIN(comp_id)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_IF_OPENMAIN;
+            pkt._if_openmain.component_id = sim_comp_id;
+            simulate_pkt(&pkt);
+        }
+        if( nk_button_label(nk, "IF_CLOSE") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_IF_CLOSE;
+            simulate_pkt(&pkt);
+        }
+
+        nk_layout_row_dynamic(nk, 22, 2);
+        nk_property_int(nk, "hide", 0, &sim_hide, 1, 1, 1);
+        nk_property_int(nk, "zoom", 1, &sim_zoom, 10000, 1, 1);
+
+        nk_layout_row_dynamic(nk, 22, 1);
+        if( nk_button_label(nk, "IF_SETHIDE(comp_id,hide)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_IF_SETHIDE;
+            pkt._if_sethide.component_id = sim_comp_id;
+            pkt._if_sethide.hide = sim_hide;
+            simulate_pkt(&pkt);
+        }
+        if( nk_button_label(nk, "IF_SETMODEL(comp_id,model_id)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_IF_SETMODEL;
+            pkt._if_setmodel.component_id = sim_comp_id;
+            pkt._if_setmodel.model_id = sim_model_id;
+            simulate_pkt(&pkt);
+        }
+
+        nk_layout_row_dynamic(nk, 22, 2);
+        nk_property_int(nk, "anim_id", 0, &sim_anim_id, 65535, 1, 1);
+        nk_property_int(nk, "obj_id", 0, &sim_obj_id, 65535, 1, 1);
+
+        nk_layout_row_dynamic(nk, 22, 1);
+        if( nk_button_label(nk, "IF_SETANIM(comp_id,anim)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_IF_SETANIM;
+            pkt._if_setanim.component_id = sim_comp_id;
+            pkt._if_setanim.anim_id = sim_anim_id;
+            simulate_pkt(&pkt);
+        }
+        if( nk_button_label(nk, "IF_SETOBJECT(comp_id,obj,zoom)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_IF_SETOBJECT;
+            pkt._if_setobject.component_id = sim_comp_id;
+            pkt._if_setobject.obj_id = sim_obj_id;
+            pkt._if_setobject.zoom = sim_zoom;
+            simulate_pkt(&pkt);
+        }
+
+        nk_layout_row_dynamic(nk, 22, 1);
+        nk_label(nk, "-- Inventory --", NK_TEXT_LEFT);
+
+        nk_layout_row_dynamic(nk, 22, 2);
+        nk_property_int(nk, "slot", 0, &sim_anim_id, 127, 1, 1); /* reuse anim_id as slot */
+        nk_layout_row_dynamic(nk, 22, 1);
+        if( nk_button_label(nk, "UPDATE_INV_PARTIAL(comp,slot,obj,1)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_UPDATE_INV_PARTIAL;
+            pkt._update_inv_partial.component_id = sim_comp_id;
+            pkt._update_inv_partial.count = 1;
+            pkt._update_inv_partial.entries =
+                (struct PktUpdateInvPartialEntry*)calloc(1, sizeof(struct PktUpdateInvPartialEntry));
+            pkt._update_inv_partial.entries[0].slot   = sim_anim_id;
+            pkt._update_inv_partial.entries[0].obj_id = sim_obj_id;
+            pkt._update_inv_partial.entries[0].count  = 1;
+            simulate_pkt(&pkt);
+        }
+
+        nk_layout_row_dynamic(nk, 22, 1);
+        nk_label(nk, "-- Camera --", NK_TEXT_LEFT);
+
+        nk_layout_row_dynamic(nk, 22, 3);
+        nk_property_int(nk, "cam_lx", 0, &sim_cam_lx, 16384, 1, 1);
+        nk_property_int(nk, "cam_lz", 0, &sim_cam_lz, 16384, 1, 1);
+        nk_property_int(nk, "cam_h",  0, &sim_cam_h,  2000,  1, 1);
+
+        nk_layout_row_dynamic(nk, 22, 1);
+        if( nk_button_label(nk, "CAM_LOOKAT(lx,lz,h)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_CAM_LOOKAT;
+            pkt._cam_lookat.local_x = sim_cam_lx;
+            pkt._cam_lookat.local_z = sim_cam_lz;
+            pkt._cam_lookat.height  = sim_cam_h;
+            simulate_pkt(&pkt);
+        }
+        if( nk_button_label(nk, "CAM_MOVETO(lx,lz,h)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_CAM_MOVETO;
+            pkt._cam_moveto.local_x = sim_cam_lx;
+            pkt._cam_moveto.local_z = sim_cam_lz;
+            pkt._cam_moveto.height  = sim_cam_h;
+            simulate_pkt(&pkt);
+        }
+        if( nk_button_label(nk, "CAM_RESET") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_CAM_RESET;
+            simulate_pkt(&pkt);
+        }
+
+        nk_layout_row_dynamic(nk, 22, 2);
+        nk_property_int(nk, "cam_axis", 0, &sim_cam_axis, 3, 1, 1);
+        nk_property_int(nk, "cam_amp",  0, &sim_cam_amp,  20, 1, 1);
+        nk_layout_row_dynamic(nk, 22, 1);
+        if( nk_button_label(nk, "CAM_SHAKE(axis,amp)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_CAM_SHAKE;
+            pkt._cam_shake.axis      = sim_cam_axis;
+            pkt._cam_shake.amplitude = sim_cam_amp;
+            simulate_pkt(&pkt);
+        }
+
+        nk_layout_row_dynamic(nk, 22, 1);
+        nk_label(nk, "-- Vars / Stats --", NK_TEXT_LEFT);
+
+        nk_layout_row_dynamic(nk, 22, 2);
+        nk_property_int(nk, "varp_id",  0, &sim_varp_id,  2047, 1, 1);
+        nk_property_int(nk, "varp_val", INT_MIN, &sim_varp_val, INT_MAX, 1, 1);
+        nk_layout_row_dynamic(nk, 22, 1);
+        if( nk_button_label(nk, "VARP_SMALL(id,val)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_VARP_SMALL;
+            pkt._varp_small.variable = sim_varp_id;
+            pkt._varp_small.value    = sim_varp_val;
+            simulate_pkt(&pkt);
+        }
+
+        nk_layout_row_dynamic(nk, 22, 3);
+        nk_property_int(nk, "stat_id",  0, &sim_stat_id,  24,       1, 1);
+        nk_property_int(nk, "stat_xp",  0, &sim_stat_xp,  200000000, 1, 1);
+        nk_property_int(nk, "stat_lvl", 1, &sim_stat_lvl, 99,       1, 1);
+        nk_layout_row_dynamic(nk, 22, 1);
+        if( nk_button_label(nk, "UPDATE_STAT(id,xp,lvl)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_UPDATE_STAT;
+            pkt._update_stat.stat  = sim_stat_id;
+            pkt._update_stat.xp    = sim_stat_xp;
+            pkt._update_stat.level = sim_stat_lvl;
+            simulate_pkt(&pkt);
+        }
+
+        nk_layout_row_dynamic(nk, 22, 2);
+        nk_property_int(nk, "run_energy", 0, &sim_energy, 100, 1, 1);
+        nk_layout_row_dynamic(nk, 22, 1);
+        if( nk_button_label(nk, "UPDATE_RUNENERGY(val)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_UPDATE_RUNENERGY;
+            pkt._update_run_energy.run_energy = sim_energy;
+            simulate_pkt(&pkt);
+        }
+
+        nk_layout_row_dynamic(nk, 22, 1);
+        nk_label(nk, "-- Zone --", NK_TEXT_LEFT);
+
+        nk_layout_row_dynamic(nk, 22, 2);
+        nk_property_int(nk, "zone_x", 0, &sim_zone_x, 800, 1, 1);
+        nk_property_int(nk, "zone_z", 0, &sim_zone_z, 800, 1, 1);
+
+        nk_layout_row_dynamic(nk, 22, 1);
+        if( nk_button_label(nk, "UPDATE_ZONE_FULL_FOLLOWS(zone_x,zone_z)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_UPDATE_ZONE_FULL_FOLLOWS;
+            pkt._update_zone_full_follows.base_x = sim_zone_x;
+            pkt._update_zone_full_follows.base_z = sim_zone_z;
+            simulate_pkt(&pkt);
+        }
+
+        nk_layout_row_dynamic(nk, 22, 3);
+        nk_property_int(nk, "loc_id",  0, &sim_loc_id,  65535, 1, 1);
+        nk_property_int(nk, "seq_id",  0, &sim_seq_id,  65535, 1, 1);
+        nk_property_int(nk, "spotanim", 0, &sim_spotanim, 65535, 1, 1);
+
+        nk_layout_row_dynamic(nk, 22, 1);
+        if( nk_button_label(nk, "LOC_ADD_CHANGE(pos=0,shape=0,loc_id)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_LOC_ADD_CHANGE;
+            pkt._loc_add_change.pos    = 0;
+            pkt._loc_add_change.info   = 0;
+            pkt._loc_add_change.loc_id = sim_loc_id;
+            simulate_pkt(&pkt);
+        }
+        if( nk_button_label(nk, "LOC_DEL(pos=0,info=0)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_LOC_DEL;
+            pkt._loc_del.pos  = 0;
+            pkt._loc_del.info = 0;
+            simulate_pkt(&pkt);
+        }
+        if( nk_button_label(nk, "LOC_ANIM(pos=0,seq_id)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_LOC_ANIM;
+            pkt._loc_anim.pos    = 0;
+            pkt._loc_anim.seq_id = sim_seq_id;
+            simulate_pkt(&pkt);
+        }
+        if( nk_button_label(nk, "OBJ_ADD(pos=0,obj_id,count=1)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_OBJ_ADD;
+            pkt._obj_add.pos    = 0;
+            pkt._obj_add.obj_id = sim_obj_id;
+            pkt._obj_add.count  = 1;
+            simulate_pkt(&pkt);
+        }
+        if( nk_button_label(nk, "OBJ_DEL(pos=0,obj_id)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_OBJ_DEL;
+            pkt._obj_del.pos    = 0;
+            pkt._obj_del.obj_id = sim_obj_id;
+            simulate_pkt(&pkt);
+        }
+        if( nk_button_label(nk, "MAP_ANIM(pos=0,spotanim,h=0,delay=0)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_MAP_ANIM;
+            pkt._map_anim.pos    = 0;
+            pkt._map_anim.id     = sim_spotanim;
+            pkt._map_anim.height = 0;
+            pkt._map_anim.delay  = 0;
+            simulate_pkt(&pkt);
+        }
+
+        nk_layout_row_dynamic(nk, 22, 1);
+        nk_label(nk, "-- Maps --", NK_TEXT_LEFT);
+
+        nk_layout_row_dynamic(nk, 22, 1);
+        if( nk_button_label(nk, "REBUILD_NORMAL(zone_x, zone_z)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_REBUILD_NORMAL;
+            pkt._map_rebuild.zonex = sim_zone_x;
+            pkt._map_rebuild.zonez = sim_zone_z;
+            simulate_pkt(&pkt);
+        }
+
+        nk_layout_row_dynamic(nk, 22, 1);
+        nk_label(nk, "-- Misc --", NK_TEXT_LEFT);
+
+        nk_layout_row_dynamic(nk, 22, 1);
+        if( nk_button_label(nk, "HINT_ARROW tile(zone_x,zone_z)") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_HINT_ARROW;
+            pkt._hint_arrow.type   = 2; /* tile type */
+            pkt._hint_arrow.id     = sim_zone_x * 8;
+            pkt._hint_arrow.z      = sim_zone_z * 8;
+            pkt._hint_arrow.height = 0;
+            simulate_pkt(&pkt);
+        }
+        if( nk_button_label(nk, "UNSET_MAP_FLAG") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_UNSET_MAP_FLAG;
+            simulate_pkt(&pkt);
+        }
+        if( nk_button_label(nk, "RESET_ANIMS") )
+        {
+            struct RevPacket_LC245_2 pkt = {};
+            pkt.packet_type = PKTIN_LC245_2_RESET_ANIMS;
+            simulate_pkt(&pkt);
+        }
+
+        nk_tree_pop(nk);
+    }
+
     nk_end(nk);
 }

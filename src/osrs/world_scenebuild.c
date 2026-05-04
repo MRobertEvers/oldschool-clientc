@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "datatypes/appearances.h"
+#include "graphics/dash.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/dash_utils.h"
 #include "osrs/model_transforms.h"
@@ -91,7 +92,8 @@ idk_model(
     return merged;
 }
 
-static void
+/** Returns 0 if npc_type has no config (missing id, wrong cache, etc.). */
+static int
 npc_model(
     struct BuildCacheDat* buildcachedat,
     int npc_type,
@@ -102,14 +104,19 @@ npc_model(
     struct CacheModel* copy = NULL;
     struct CacheModel* merged = NULL;
 
+    if( !buildcachedat )
+        return 0;
+
     struct CacheModel* model = buildcachedat_get_npc_model(buildcachedat, npc_type);
     if( model )
     {
         dashmodel_move_from_cache_model(dash_model, model_new_copy(model));
         _light_model_default(dash_model, 0, 0);
-        return;
+        return 1;
     }
     npc = buildcachedat_get_npc(buildcachedat, npc_type);
+    if( !npc )
+        return 0;
 
     int model_count = 0;
     for( int i = 0; i < npc->models_count; i++ )
@@ -138,6 +145,7 @@ npc_model(
 
     dashmodel_move_from_cache_model(dash_model, copy);
     _light_model_default(dash_model, 0, 0);
+    return 1;
 }
 
 static void
@@ -214,11 +222,16 @@ world_scenebuild_npc_entity_set_npc_type(
     scene2_element_expect(element, "world_scenebuild_npc_entity_set_npc_type");
 
     struct DashModel* dash_model = dashmodel_new();
-    npc_model(world->buildcachedat, npc_type, dash_model);
+    if( !npc_model(world->buildcachedat, npc_type, dash_model) )
+    {
+        dashmodel_free(dash_model);
+        return;
+    }
     scene2_element_set_dash_model(world->scene2, element, dash_model);
 
     struct CacheDatConfigNpc* npc_config = buildcachedat_get_npc(world->buildcachedat, npc_type);
-    assert(npc_config && "Npc config must be found");
+    if( !npc_config )
+        return;
     npc->size.x = npc_config->size;
     npc->size.z = npc_config->size;
 

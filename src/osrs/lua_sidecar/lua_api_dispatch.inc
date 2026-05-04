@@ -114,14 +114,10 @@
         return LuaGame_build_scene(game, args);
     case LUA_API_GAME_BUILD_SCENE_CENTERZONE:
         return LuaGame_build_scene_centerzone(game, args);
-    case LUA_API_GAME_EXEC_PKT_PLAYER_INFO:
-        return LuaGame_exec_pkt_player_info(game, args);
-    case LUA_API_GAME_EXEC_PKT_NPC_INFO:
-        return LuaGame_exec_pkt_npc_info(game, args);
-    case LUA_API_GAME_EXEC_PKT_IF_SETTAB:
-        return LuaGame_exec_pkt_if_settab(game, args);
-    case LUA_API_GAME_EXEC_PKT_UPDATE_INV_FULL:
-        return LuaGame_exec_pkt_update_inv_full(game, args);
+    case LUA_API_GAME_POP_NEXT_PACKET:
+        return LuaGame_pop_next_packet(game, args);
+    case LUA_API_GAME_EXEC_PACKET:
+        return LuaGame_exec_packet(game, args);
     case LUA_API_GAME_GET_INV_OBJ_IDS:
         return LuaGame_get_inv_obj_ids(game, args);
     case LUA_API_GAME_LOAD_INTERFACES:
@@ -166,3 +162,39 @@
         return LuaSidecarMisc_save_camera(game, args);
     case LUA_API_MISC_LOAD_CAMERA:
         return LuaSidecarMisc_load_camera(game, args);
+    case LUA_API_GAME_GET_PKT_PLAYER_INFO_DATA:
+        return LuaGame_get_pkt_player_info_data(game, args);
+    case LUA_API_GAME_GET_PKT_PLAYER_INFO_LENGTH:
+        return LuaGame_get_pkt_player_info_length(game, args);
+    case LUA_API_GAME_GET_PKT_NPC_INFO_DATA:
+        return LuaGame_get_pkt_npc_info_data(game, args);
+    case LUA_API_GAME_GET_PKT_NPC_INFO_LENGTH:
+        return LuaGame_get_pkt_npc_info_length(game, args);
+    case LUA_API_GAME_GET_PKT_REBUILD_NORMAL_ZONEX:
+        return LuaGame_get_pkt_rebuild_normal_zonex(game, args);
+    case LUA_API_GAME_GET_PKT_REBUILD_NORMAL_ZONEZ:
+        return LuaGame_get_pkt_rebuild_normal_zonez(game, args);
+    case LUA_API_GAME_GET_PKT_IF_SETOBJECT_OBJ_ID:
+        return LuaGame_get_pkt_if_setobject_obj_id(game, args);
+    case LUA_API_GAME_GET_PKT_IF_SETMODEL_MODEL_ID:
+        return LuaGame_get_pkt_if_setmodel_model_id(game, args);
+    case LUA_API_GAME_GET_PKT_IF_SETANIM_ANIM_ID:
+        return LuaGame_get_pkt_if_setanim_anim_id(game, args);
+    case LUA_API_GAME_GET_PKT_IF_SETNPCHEAD_NPC_ID:
+        return LuaGame_get_pkt_if_setnpchead_npc_id(game, args);
+    case LUA_API_GAME_GET_PKT_UPDATE_INV_PARTIAL_ENTRIES:
+        return LuaGame_get_pkt_update_inv_partial_entries(game, args);
+    case LUA_API_GAME_GET_PKT_LOC_ADD_CHANGE_LOC_ID:
+        return LuaGame_get_pkt_loc_add_change_loc_id(game, args);
+    case LUA_API_GAME_GET_PKT_LOC_ANIM_SEQ_ID:
+        return LuaGame_get_pkt_loc_anim_seq_id(game, args);
+    case LUA_API_GAME_GET_PKT_P_LOCMERGE_LOC_ID:
+        return LuaGame_get_pkt_p_locmerge_loc_id(game, args);
+    case LUA_API_GAME_GET_PKT_OBJ_ADD_OBJ_ID:
+        return LuaGame_get_pkt_obj_add_obj_id(game, args);
+    case LUA_API_GAME_GET_PKT_OBJ_REVEAL_OBJ_ID:
+        return LuaGame_get_pkt_obj_reveal_obj_id(game, args);
+    case LUA_API_GAME_GET_PKT_MAP_ANIM_SPOTANIM_ID:
+        return LuaGame_get_pkt_map_anim_spotanim_id(game, args);
+    case LUA_API_GAME_GET_PKT_MAP_PROJANIM_SPOTANIM_ID:
+        return LuaGame_get_pkt_map_projanim_spotanim_id(game, args);

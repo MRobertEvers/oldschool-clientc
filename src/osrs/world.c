@@ -1359,7 +1359,8 @@ load_scene_animation(
     struct CacheAnimframe* animframe = NULL;
     struct CacheDatSequence* sequence =
         buildcachedat_get_sequence(world->buildcachedat, animation_id);
-    assert(sequence);
+    if( !sequence )
+        return;
 
     for( int i = 0; i < sequence->frame_count; i++ )
     {
@@ -1369,7 +1370,8 @@ load_scene_animation(
         int frame_id = sequence->frames[i];
 
         animframe = buildcachedat_get_animframe(world->buildcachedat, frame_id);
-        assert(animframe);
+        if( !animframe )
+            return;
 
         if( !scene2_element_dash_framemap(element) )
         {

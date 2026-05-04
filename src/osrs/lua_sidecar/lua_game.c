@@ -8,6 +8,7 @@
 #include "osrs/game.h"
 #include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/gameproto_exec.h"
+#include "osrs/gameproto_parse.h"
 #include "osrs/packets/revpacket_lc245_2.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/heightmap.h"
@@ -15,6 +16,7 @@
 #include "platforms/common/platform_memory.h"
 
 #include <assert.h>
+#include <stdlib.h>
 
 /* Forward declaration: defined in tori_rs_minimap.u.c / tori_rs.h. */
 void LibToriRS_WorldMinimapStaticRebuild(struct GGame* game);
@@ -36,6 +38,39 @@ arg_userdata(
 {
     struct LuaGameType* elem = LuaGameType_GetVarTypeArrayAt(args, i);
     return LuaGameType_GetUserData(elem);
+}
+
+struct LuaGameType*
+LuaGame_pop_next_packet(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    (void)args;
+    struct RevPacket_LC245_2_Item* item = game->packets_lc245_2;
+    if( !item )
+        return LuaGameType_NewVoid();
+    game->packets_lc245_2 = item->next_nullable;
+    item->next_nullable = NULL;
+    struct LuaGameType* out = LuaGameType_NewVarTypeArraySpread(2);
+    LuaGameType_VarTypeArrayPush(out, LuaGameType_NewUserData(item));
+    LuaGameType_VarTypeArrayPush(out, LuaGameType_NewInt(item->packet.packet_type));
+    return out;
+}
+
+struct LuaGameType*
+LuaGame_exec_packet(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    struct RevPacket_LC245_2_Item* item =
+        (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    if( item )
+    {
+        gameproto_exec_lc245_2(game, &item->packet);
+        gameproto_free_lc245_2_item(item);
+        free(item);
+    }
+    return LuaGameType_NewVoid();
 }
 
 struct LuaGameType*
@@ -77,52 +112,6 @@ LuaGame_get_heap_usage_mb(
         return LuaGameType_NewFloat(0.0f);
     float mb = (float)((double)mem.heap_used / (1024.0 * 1024.0));
     return LuaGameType_NewFloat(mb);
-}
-
-struct LuaGameType*
-LuaGame_exec_pkt_player_info(
-    struct GGame* game,
-    struct LuaGameType* args)
-{
-    void* data = arg_userdata(args, 0);
-    int length = arg_int(args, 1);
-    gameproto_exec_player_info_raw(game, data, length);
-    return LuaGameType_NewVoid();
-}
-
-struct LuaGameType*
-LuaGame_exec_pkt_npc_info(
-    struct GGame* game,
-    struct LuaGameType* args)
-{
-    void* data = arg_userdata(args, 0);
-    int length = arg_int(args, 1);
-    gameproto_exec_npc_info_raw(game, data, length);
-    return LuaGameType_NewVoid();
-}
-
-struct LuaGameType*
-LuaGame_exec_pkt_if_settab(
-    struct GGame* game,
-    struct LuaGameType* args)
-{
-    struct RevPacket_LC245_2_Item* item =
-        (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
-    if( item )
-        gameproto_exec_if_settab(game, &item->packet);
-    return LuaGameType_NewVoid();
-}
-
-struct LuaGameType*
-LuaGame_exec_pkt_update_inv_full(
-    struct GGame* game,
-    struct LuaGameType* args)
-{
-    struct RevPacket_LC245_2_Item* item =
-        (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
-    if( item )
-        gameproto_exec_update_inv_full(game, &item->packet);
-    return LuaGameType_NewVoid();
 }
 
 struct LuaGameType*
@@ -384,4 +373,159 @@ LuaGame_spawn_element(
             game->world, projectile_id, seq_id, ANIMATION_TYPE_PRIMARY);
 
     return LuaGameType_NewVoid();
+}
+
+/* --- Packet field getters --- */
+
+struct LuaGameType*
+LuaGame_get_pkt_player_info_data(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    return LuaGameType_NewUserData(item ? item->packet._player_info.data : NULL);
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_player_info_length(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    return LuaGameType_NewInt(item ? item->packet._player_info.length : 0);
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_npc_info_data(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    return LuaGameType_NewUserData(item ? item->packet._npc_info.data : NULL);
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_npc_info_length(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    return LuaGameType_NewInt(item ? item->packet._npc_info.length : 0);
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_rebuild_normal_zonex(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    return LuaGameType_NewInt(item ? item->packet._map_rebuild.zonex : 0);
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_rebuild_normal_zonez(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    return LuaGameType_NewInt(item ? item->packet._map_rebuild.zonez : 0);
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_if_setobject_obj_id(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    return LuaGameType_NewInt(item ? item->packet._if_setobject.obj_id : 0);
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_if_setmodel_model_id(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    return LuaGameType_NewInt(item ? item->packet._if_setmodel.model_id : 0);
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_if_setanim_anim_id(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    return LuaGameType_NewInt(item ? item->packet._if_setanim.anim_id : -1);
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_if_setnpchead_npc_id(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    return LuaGameType_NewInt(item ? item->packet._if_setnpchead.npc_id : 0);
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_update_inv_partial_entries(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    if( !item )
+        return LuaGameType_NewIntArray(0);
+    int n = item->packet._update_inv_partial.count;
+    struct LuaGameType* arr = LuaGameType_NewIntArray(n * 2);
+    for( int i = 0; i < n; i++ )
+    {
+        LuaGameType_IntArrayPush(arr, item->packet._update_inv_partial.entries[i].slot);
+        LuaGameType_IntArrayPush(arr, item->packet._update_inv_partial.entries[i].obj_id);
+    }
+    return arr;
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_loc_add_change_loc_id(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    return LuaGameType_NewInt(item ? item->packet._loc_add_change.loc_id : -1);
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_loc_anim_seq_id(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    return LuaGameType_NewInt(item ? item->packet._loc_anim.seq_id : -1);
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_p_locmerge_loc_id(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    return LuaGameType_NewInt(item ? item->packet._loc_merge.loc_id : -1);
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_obj_add_obj_id(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    return LuaGameType_NewInt(item ? (item->packet._obj_add.obj_id & 0x7fff) : -1);
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_obj_reveal_obj_id(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    return LuaGameType_NewInt(item ? (item->packet._obj_reveal.obj_id & 0x7fff) : -1);
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_map_anim_spotanim_id(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    return LuaGameType_NewInt(item ? item->packet._map_anim.id : -1);
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_map_projanim_spotanim_id(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
+    return LuaGameType_NewInt(item ? item->packet._map_projanim.spotanim : -1);
 }

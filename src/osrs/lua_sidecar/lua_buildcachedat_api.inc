@@ -55,3 +55,7 @@ LUA_API_X(LUA_API_BUILDCACHEDAT_MAP_SCENERY_CACHE_CLEAR, "buildcachedat_map_scen
 LUA_API_X(LUA_API_BUILDCACHEDAT_MAP_TERRAIN_CACHE_CLEAR, "buildcachedat_map_terrain_cache_clear", LUA_DOMAIN_BUILDCACHEDAT, "map_terrain_cache_clear")
 LUA_API_X(LUA_API_BUILDCACHEDAT_FLOORTYPES_CLEAR, "buildcachedat_floortypes_clear", LUA_DOMAIN_BUILDCACHEDAT, "floortypes_clear")
 LUA_API_X(LUA_API_BUILDCACHEDAT_OBJECTS_CLEAR, "buildcachedat_objects_clear", LUA_DOMAIN_BUILDCACHEDAT, "objects_clear")
+LUA_API_X(LUA_API_BUILDCACHEDAT_GET_LOC_MODEL_IDS, "buildcachedat_get_loc_model_ids", LUA_DOMAIN_BUILDCACHEDAT, "get_loc_model_ids")
+LUA_API_X(LUA_API_BUILDCACHEDAT_GET_SPOTANIM_MODEL_ID, "buildcachedat_get_spotanim_model_id", LUA_DOMAIN_BUILDCACHEDAT, "get_spotanim_model_id")
+LUA_API_X(LUA_API_BUILDCACHEDAT_GET_SPOTANIM_SEQ_ID, "buildcachedat_get_spotanim_seq_id", LUA_DOMAIN_BUILDCACHEDAT, "get_spotanim_seq_id")
+LUA_API_X(LUA_API_BUILDCACHEDAT_SPOTANIMS_INIT_FROM_CONFIG_JAGFILE, "buildcachedat_spotanims_init_from_config_jagfile", LUA_DOMAIN_BUILDCACHEDAT, "spotanims_init_from_config_jagfile")

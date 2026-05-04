@@ -113,6 +113,12 @@ struct ObjEntry
     struct CacheDatConfigObj* obj;
 };
 
+struct SpotAnimEntry
+{
+    int id;
+    struct CacheDatConfigSpotAnim* spotanim;
+};
+
 struct IdkModelEntry
 {
     int id;
@@ -295,6 +301,8 @@ buildcachedat_init_owning_maps(struct BuildCacheDat* buildcachedat)
         buildcachedat_create_hmap(sizeof(int), sizeof(struct SequenceEntry), cap);
     buildcachedat->idk_hmap = buildcachedat_create_hmap(sizeof(int), sizeof(struct IdkEntry), cap);
     buildcachedat->obj_hmap = buildcachedat_create_hmap(sizeof(int), sizeof(struct ObjEntry), cap);
+    buildcachedat->spotanim_hmap =
+        buildcachedat_create_hmap(sizeof(int), sizeof(struct SpotAnimEntry), cap);
     buildcachedat->idk_models_hmap =
         buildcachedat_create_hmap(sizeof(int), sizeof(struct IdkModelEntry), cap);
     buildcachedat->obj_models_hmap =
@@ -391,6 +399,12 @@ free_obj_entry(void* e)
 {
     cache_dat_config_obj_free(((struct ObjEntry*)e)->obj);
 }
+
+static void
+free_spotanim_entry(void* e)
+{
+    cache_dat_config_spotanim_free(((struct SpotAnimEntry*)e)->spotanim);
+}
 static void
 free_idk_model_entry(void* e)
 {
@@ -461,6 +475,7 @@ buildcachedat_free(struct BuildCacheDat* buildcachedat)
     dashmap_free_entries(buildcachedat->sequences_hmap, free_sequence_entry);
     dashmap_free_entries(buildcachedat->idk_hmap, free_idk_entry);
     dashmap_free_entries(buildcachedat->obj_hmap, free_obj_entry);
+    dashmap_free_entries(buildcachedat->spotanim_hmap, free_spotanim_entry);
     dashmap_free_entries(buildcachedat->idk_models_hmap, free_idk_model_entry);
     dashmap_free_entries(buildcachedat->obj_models_hmap, free_obj_model_entry);
     dashmap_free_entries(buildcachedat->map_terrains_hmap, free_map_terrain_entry);
@@ -502,6 +517,8 @@ buildcachedat_clear_internal(struct BuildCacheDat* buildcachedat)
     buildcachedat->idk_hmap = NULL;
     dashmap_free_entries(buildcachedat->obj_hmap, free_obj_entry);
     buildcachedat->obj_hmap = NULL;
+    dashmap_free_entries(buildcachedat->spotanim_hmap, free_spotanim_entry);
+    buildcachedat->spotanim_hmap = NULL;
     dashmap_free_entries(buildcachedat->idk_models_hmap, free_idk_model_entry);
     buildcachedat->idk_models_hmap = NULL;
     dashmap_free_entries(buildcachedat->obj_models_hmap, free_obj_model_entry);
@@ -1610,4 +1627,34 @@ buildcachedat_get_component_sprite_element_id(
     if( !sprite_entry )
         return -1;
     return sprite_entry->uiscene_element_id;
+}
+void
+buildcachedat_add_spotanim(
+    struct BuildCacheDat* buildcachedat,
+    int spotanim_id,
+    struct CacheDatConfigSpotAnim* spotanim)
+{
+    struct SpotAnimEntry* existing =
+        (struct SpotAnimEntry*)dashmap_search(buildcachedat->spotanim_hmap, &spotanim_id, DASHMAP_FIND);
+    if( existing && existing->spotanim )
+        cache_dat_config_spotanim_free(existing->spotanim);
+
+    struct SpotAnimEntry* entry =
+        (struct SpotAnimEntry*)dashmap_search(buildcachedat->spotanim_hmap, &spotanim_id, DASHMAP_INSERT);
+    assert(entry && "SpotAnim must be insertable into hmap");
+    entry->id = spotanim_id;
+    entry->spotanim = spotanim;
+    buildcachedat_maybe_grow_hmap(buildcachedat->spotanim_hmap);
+}
+
+struct CacheDatConfigSpotAnim*
+buildcachedat_get_spotanim(
+    struct BuildCacheDat* buildcachedat,
+    int spotanim_id)
+{
+    struct SpotAnimEntry* entry =
+        (struct SpotAnimEntry*)dashmap_search(buildcachedat->spotanim_hmap, &spotanim_id, DASHMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->spotanim;
 }

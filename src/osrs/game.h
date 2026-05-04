@@ -180,6 +180,40 @@ struct GGame
     struct WorldPickSet pickset;
     struct WorldOptionSet option_set;
 
+    /* Zone state: set by UPDATE_ZONE_* packets; used by zone sub-packets (OBJ/LOC). */
+    int zone_base_x;
+    int zone_base_z;
+
+    /* Player stats: updated by UPDATE_STAT */
+    int player_stat_xp[PLAYER_STAT_COUNT];
+    int player_stat_level[PLAYER_STAT_COUNT];
+
+    /* Run energy / weight: updated by UPDATE_RUNENERGY / UPDATE_RUNWEIGHT */
+    int run_energy;  /* 0-100 */
+    int run_weight;  /* grams, can be negative (negative = lighter than threshold) */
+
+    /* In-multicombat zone flag: updated by SET_MULTIWAY */
+    int in_multiway;
+
+    /* Minimap flag tile: set by REBUILD_NORMAL carryover, cleared by UNSET_MAP_FLAG */
+    int minimap_flag_x;
+    int minimap_flag_z;
+    int minimap_flag_has;
+
+    /* Hint arrow: set by HINT_ARROW, type 0 = none */
+    int hint_arrow_type;
+    int hint_arrow_entity_id;
+    int hint_arrow_tile_x;
+    int hint_arrow_tile_z;
+
+    /* Zone-packet runtime state (obj_stacks allocated lazily as flat
+     * [MAP_TERRAIN_LEVELS * ZONE_SCENE_SIZE * ZONE_SCENE_SIZE] pointer array).
+     * loc_changes_head: singly-linked list of pending loc-change entries. */
+    struct ObjStackEntry*** obj_stacks;
+    struct LocChangeEntry*  loc_changes_head;
+    struct MapAnimEntry*    map_anims_head;
+    struct MapProjAnimEntry* map_projanims_head;
+
     struct DashGraphics* sys_dash;
     struct PaintersBuffer* sys_painter_buffer;
 

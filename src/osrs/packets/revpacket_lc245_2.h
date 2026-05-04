@@ -254,6 +254,92 @@ struct PktMapAnim
     int delay;  /* g2 */
 };
 
+struct PktCamLookAt
+{
+    int local_x; /* g2 */
+    int local_z; /* g2 */
+    int height;  /* g2 */
+};
+
+struct PktCamMoveTo
+{
+    int local_x; /* g2 */
+    int local_z; /* g2 */
+    int height;  /* g2 */
+};
+
+struct PktCamShake
+{
+    int axis;      /* g1 */
+    int amplitude; /* g1 */
+    int frequency; /* g1 */
+    int speed;     /* g1 */
+};
+
+struct PktIfOpenMain
+{
+    int component_id; /* g2 */
+};
+
+struct PktIfOpenSide
+{
+    int component_id; /* g2 */
+};
+
+struct PktIfOpenOverlay
+{
+    int component_id; /* g2 */
+};
+
+struct PktIfOpenMainSide
+{
+    int main_component_id; /* g2 */
+    int side_component_id; /* g2 */
+};
+
+struct PktHintArrow
+{
+    int type; /* g1: 1=NPC 2=player 3+=tile */
+    int id;   /* g2: entity id or tile x/z depending on type */
+    int z;    /* g2 (tile target only) */
+    int height; /* g1 (tile target only) */
+};
+
+struct PktUpdatePid
+{
+    int local_player_index; /* g2 */
+    int unused;             /* g1 */
+};
+
+struct PktUpdateRunWeight
+{
+    int run_weight; /* g2s: weight in grams */
+};
+
+struct PktUpdateInvStopTransmit
+{
+    int component_id; /* g2 */
+};
+
+struct PktUpdateInvPartialEntry
+{
+    int slot;   /* g1 or g2 (varies) */
+    int obj_id; /* g2 */
+    int count;  /* g1 or g4 */
+};
+
+struct PktUpdateInvPartial
+{
+    int component_id;
+    int count;
+    struct PktUpdateInvPartialEntry* entries; /* heap-allocated, count entries */
+};
+
+struct PktSetMultiway
+{
+    int multiway; /* g1: 1=in multicombat zone */
+};
+
 struct RevPacket_LC245_2
 {
     enum PacketInType_LC245_2 packet_type;
@@ -297,6 +383,19 @@ struct RevPacket_LC245_2
         struct PktLocMerge _loc_merge;
         struct PktMapProjAnim _map_projanim;
         struct PktMapAnim _map_anim;
+        struct PktCamLookAt _cam_lookat;
+        struct PktCamMoveTo _cam_moveto;
+        struct PktCamShake _cam_shake;
+        struct PktIfOpenMain _if_openmain;
+        struct PktIfOpenSide _if_openside;
+        struct PktIfOpenOverlay _if_openoverlay;
+        struct PktIfOpenMainSide _if_openmain_side;
+        struct PktHintArrow _hint_arrow;
+        struct PktUpdatePid _update_pid;
+        struct PktUpdateRunWeight _update_runweight;
+        struct PktUpdateInvStopTransmit _update_inv_stop_transmit;
+        struct PktUpdateInvPartial _update_inv_partial;
+        struct PktSetMultiway _set_multiway;
     };
 };
 

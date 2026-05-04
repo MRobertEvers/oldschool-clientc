@@ -148,6 +148,7 @@ set(COMMON_SOURCES
     src/osrs/rs_component_gfx.c
     src/osrs/revconfig/uiscene.c
     src/osrs/rscache/tables_dat/config_component.c
+    src/osrs/rscache/tables_dat/config_spotanim.c
     src/osrs/interface.c
     src/osrs/interface_state.c
     src/osrs/rs_component_state.c

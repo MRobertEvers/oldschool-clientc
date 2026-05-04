@@ -20,6 +20,7 @@
 #include "osrs/rscache/tables_dat/config_idk.h"
 #include "osrs/rscache/tables_dat/config_npc.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
+#include "osrs/rscache/tables_dat/config_spotanim.h"
 #include "osrs/rscache/tables_dat/config_textures.h"
 #include "osrs/rscache/tables_dat/pix32.h"
 #include "osrs/rscache/tables_dat/pix8.h"
@@ -71,6 +72,7 @@ struct BuildCacheDat
     struct DashMap* obj_hmap;
     struct DashMap* npc_hmap;
     struct DashMap* component_hmap;
+    struct DashMap* spotanim_hmap;
     /** Reftable: sprite name -> UIScene element id. */
     struct DashMap* component_sprites_reftable;
 
@@ -549,5 +551,22 @@ int
 buildcachedat_get_component_sprite_element_id(
     struct BuildCacheDat* buildcachedat,
     const char* sprite_name);
+
+/* --- SpotAnim --- */
+
+void
+buildcachedat_add_spotanim(
+    struct BuildCacheDat* buildcachedat,
+    int spotanim_id,
+    struct CacheDatConfigSpotAnim* spotanim);
+
+struct CacheDatConfigSpotAnim*
+buildcachedat_get_spotanim(
+    struct BuildCacheDat* buildcachedat,
+    int spotanim_id);
+
+/** Load spotanim.dat / spotanim.idx from the config jagfile, if present. */
+void
+buildcachedat_loader_spotanims_init_from_config_jagfile(struct BuildCacheDat* buildcachedat);
 
 #endif

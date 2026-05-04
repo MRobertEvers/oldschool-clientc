@@ -1,7 +1,5 @@
 #include "script_queue.h"
 
-#include "gameproto_parse.h"
-
 #include <stdlib.h>
 #include <string.h>
 
@@ -19,11 +17,6 @@ script_queue_clear(struct ScriptQueue* q)
     while( it )
     {
         struct ScriptQueueItem* next = it->next;
-        if( it->lc245_2_packet_to_free )
-        {
-            gameproto_free_lc245_2_item(it->lc245_2_packet_to_free);
-            free(it->lc245_2_packet_to_free);
-        }
         free(it);
         it = next;
     }

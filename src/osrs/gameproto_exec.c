@@ -10,8 +10,11 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/game.h"
 #include "osrs/interface_state.h"
+#include "osrs/player_stats.h"
 #include "osrs/scene2.h"
+#include "osrs/varp_varbit_manager.h"
 #include "osrs/zone_state.h"
+#include "osrs/rscache/tables/maps.h"
 #include "packets/pkt_npc_info.h"
 #include "packets/pkt_player_info.h"
 #include "rscache/bitbuffer.h"
@@ -23,6 +26,7 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 void
 LibToriRS_WorldMinimapStaticRebuild(struct GGame* game);
@@ -374,115 +378,41 @@ gameproto_exec_rebuild_normal(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
-#define SCENE_WIDTH 104
-    int zone_padding = SCENE_WIDTH / (2 * 8);
-    int zone_center_x = packet->_map_rebuild.zonex;
-    int zone_center_z = packet->_map_rebuild.zonez;
-    int zone_sw_x = zone_center_x - zone_padding;
-    int zone_sw_z = zone_center_z - zone_padding;
+    int zonex = packet->_map_rebuild.zonex;
+    int zonez = packet->_map_rebuild.zonez;
 
-    int levels = MAP_TERRAIN_LEVELS;
+    /* Jagfile + cache lifecycle for configs/versionlist/media is owned by Lua pkt_dispatch
+     * (clear/reload around rebuild). Do not clear buildcachedat here or subsequent PLAYER_INFO /
+     * NPC_INFO in the same script batch lose idk/npc/obj/models/sequences. */
 
-    // /* Client.ts: when scene base changes, update entity coordinates (route + position) */
-    // int prev_base_x = game->scene_base_tile_x;
-    // int prev_base_z = game->scene_base_tile_z;
-    // int new_base_x = zone_sw_x * 8;
-    // int new_base_z = zone_sw_z * 8;
-    // int dx = new_base_x - prev_base_x;
-    // int dz = new_base_z - prev_base_z;
+    /* Compute new base tile to shift game-level state (minimap flag). */
+    int zone_padding = 104 / (2 * 8);
+    int new_base_x = (zonex - zone_padding) * 8;
+    int new_base_z = (zonez - zone_padding) * 8;
+    int dx = 0;
+    int dz = 0;
 
-    // world_buildcachedat_rebuild_centerzone(game->world, zone_center_x, zone_center_z,
-    // SCENE_WIDTH);
+    if( !game->world )
+    {
+        /* First rebuild: create the world. */
+        game->world = world_new(game->buildcachedat, game->scene2);
+    }
+    else
+    {
+        dx = new_base_x - game->world->_base_tile_x;
+        dz = new_base_z - game->world->_base_tile_z;
+    }
 
-    // // game->sys_painter = painter_new(
-    // //     SCENE_WIDTH, SCENE_WIDTH, levels, PAINTER_NEW_CTX_BUCKET | PAINTER_NEW_CTX_DISTMETRIC);
-    // // game->sys_painter_buffer = painter_buffer_new();
-    // // game->sys_minimap =
-    // //     minimap_new(zone_sw_x * 8, zone_sw_z * 8, zone_sw_x * 8 + 104, zone_sw_z * 8 + 104,
-    // //     levels);
-    // // game->scenebuilder = scenebuilder_new_painter(game->sys_painter, game->sys_minimap);
+    gameproto_exec_rebuild_normal_world(game->world, packet);
 
-    // /* REBUILD_NORMAL: zone is in 8-tile units (pkt_rebuild_normal.lua wx_sw = zone_sw_x * 8).
-    //  */
-    // game->scene_base_tile_x = new_base_x;
-    // game->scene_base_tile_z = new_base_z;
+    /* Shift game-level minimap flag (lives on GGame, not World). */
+    if( game->minimap_flag_has && (dx || dz) )
+    {
+        game->minimap_flag_x -= dx;
+        game->minimap_flag_z -= dz;
+    }
 
     LibToriRS_WorldMinimapStaticRebuild(game);
-
-    // /* Clear dynamic zone state on rebuild (Client.ts clears objStacks and locChanges) */
-    // for( int level = 0; level < ZONE_LEVELS; level++ )
-    // {
-    //     for( int x = 0; x < ZONE_SCENE_SIZE; x++ )
-    //     {
-    //         for( int z = 0; z < ZONE_SCENE_SIZE; z++ )
-    //         {
-    //             if( game->obj_stack_elements[level][x][z] )
-    //             {
-    //                 scene_element_free(game->obj_stack_elements[level][x][z]);
-    //                 game->obj_stack_elements[level][x][z] = NULL;
-    //             }
-    //             struct ObjStackEntry* entry = game->obj_stacks[level][x][z];
-    //             while( entry )
-    //             {
-    //                 struct ObjStackEntry* next = entry->next;
-    //                 free(entry);
-    //                 entry = next;
-    //             }
-    //             game->obj_stacks[level][x][z] = NULL;
-    //         }
-    //     }
-    // }
-    // struct LocChangeEntry* loc = game->loc_changes_head;
-    // while( loc )
-    // {
-    //     struct LocChangeEntry* next = loc->next;
-    //     free(loc);
-    //     loc = next;
-    // }
-    // game->loc_changes_head = NULL;
-
-    // game->scene = scenebuilder_load_from_buildcachedat(
-    //     game->scenebuilder,
-    //     zone_sw_x * 8,
-    //     zone_sw_z * 8,
-    //     zone_ne_x * 8,
-    //     zone_ne_z * 8,
-    //     104,
-    //     104,
-    //     game->buildcachedat);
-
-    // /* Client.ts: npc.routeX[j] -= dx; npc.routeZ[j] -= dz; npc.x -= dx*128; npc.z -= dz*128 */
-    // for( int i = 0; i < game->npc_count; i++ )
-    // {
-    //     int npc_id = game->active_npcs[i];
-    //     if( npc_id < 0 )
-    //         continue;
-    //     struct NPCEntity* npc = &game->npcs[npc_id];
-    //     if( !npc->alive )
-    //         continue;
-    //     for( int j = 0; j < 10; j++ )
-    //     {
-    //         npc->pathing.route_x[j] -= dx;
-    //         npc->pathing.route_z[j] -= dz;
-    //     }
-    //     npc->position.x -= dx * 128;
-    //     npc->position.z -= dz * 128;
-    // }
-
-    // /* Client.ts: same for players (iterate all like Client does) */
-    // for( int i = 0; i < MAX_PLAYERS; i++ )
-    // {
-    //     struct PlayerEntity* player = &game->players[i];
-    //     if( !player->alive )
-    //         continue;
-    //     for( int j = 0; j < 10; j++ )
-    //     {
-    //         player->pathing.route_x[j] -= dx;
-    //         player->pathing.route_z[j] -= dz;
-    //     }
-    //     player->position.x -= dx * 128;
-    //     player->position.z -= dz * 128;
-    // }
 }
 
 void
@@ -535,6 +465,44 @@ gameproto_exec_rebuild_normal_world(
         player->draw_position.x -= dx * 128;
         player->draw_position.z -= dz * 128;
     }
+
+    /* Shift loc-entity scene coordinates; discard those now out of bounds. */
+    for( int i = world->active_loc_entity_count - 1; i >= 0; i-- )
+    {
+        int loc_id = world->active_loc_entities[i];
+        if( loc_id < 0 )
+            continue;
+        struct MapBuildLocEntity* loc = world_loc_entity(world, loc_id);
+        int new_sx = (int)loc->scene_coord.sx - dx;
+        int new_sz = (int)loc->scene_coord.sz - dz;
+        if( new_sx < 0 || new_sx >= SCENE_WIDTH || new_sz < 0 || new_sz >= SCENE_WIDTH )
+        {
+            world_cleanup_map_build_loc_entity(world, loc_id);
+        }
+        else
+        {
+            loc->scene_coord.sx = (uint32_t)new_sx;
+            loc->scene_coord.sz = (uint32_t)new_sz;
+        }
+    }
+
+    /* Shift projectile fine-grained draw positions. */
+    for( int i = 0; i < world->active_projectile_count; i++ )
+    {
+        int proj_id = world->active_projectiles[i];
+        if( proj_id < 0 )
+            continue;
+        struct ProjectileEntity* proj = world_projectile(world, proj_id);
+        if( !proj->alive )
+            continue;
+        proj->draw_position.x -= dx * 128;
+        proj->draw_position.z -= dz * 128;
+    }
+
+    /* Update scene base tile. */
+    world->_base_tile_x = new_base_x;
+    world->_base_tile_z = new_base_z;
+#undef SCENE_WIDTH
 }
 
 void
@@ -787,6 +755,7 @@ gameproto_exec_if_settext(
     if( !component )
     {
         free(new_text);
+        packet->_if_settext.text = NULL;
         return;
     }
 
@@ -913,8 +882,95 @@ gameproto_exec_lc245_2(
     case PKTIN_LC245_2_IF_SETSCROLLPOS:
         gameproto_exec_if_setscrollpos(game, packet);
         break;
+    case PKTIN_LC245_2_IF_OPENCHAT:
+        gameproto_exec_if_openchat(game, packet);
+        break;
+    case PKTIN_LC245_2_IF_OPENMAIN:
+        gameproto_exec_if_openmain(game, packet);
+        break;
+    case PKTIN_LC245_2_IF_OPENSIDE:
+        gameproto_exec_if_openside(game, packet);
+        break;
+    case PKTIN_LC245_2_IF_OPENMAIN_SIDE:
+        gameproto_exec_if_openmain_side(game, packet);
+        break;
+    case PKTIN_LC245_2_IF_CLOSE:
+        gameproto_exec_if_close(game, packet);
+        break;
+    case PKTIN_LC245_2_UPDATE_INV_STOP_TRANSMIT:
+        gameproto_exec_update_inv_stop_transmit(game, packet);
+        break;
+    case PKTIN_LC245_2_UPDATE_INV_PARTIAL:
+        gameproto_exec_update_inv_partial(game, packet);
+        break;
+    case PKTIN_LC245_2_CAM_LOOKAT:
+        gameproto_exec_cam_lookat(game, packet);
+        break;
+    case PKTIN_LC245_2_CAM_MOVETO:
+        gameproto_exec_cam_moveto(game, packet);
+        break;
+    case PKTIN_LC245_2_CAM_SHAKE:
+        gameproto_exec_cam_shake(game, packet);
+        break;
+    case PKTIN_LC245_2_CAM_RESET:
+        gameproto_exec_cam_reset(game, packet);
+        break;
+    case PKTIN_LC245_2_UNSET_MAP_FLAG:
+        gameproto_exec_unset_map_flag(game, packet);
+        break;
+    case PKTIN_LC245_2_UPDATE_RUNWEIGHT:
+        gameproto_exec_update_runweight(game, packet);
+        break;
+    case PKTIN_LC245_2_UPDATE_RUNENERGY:
+        gameproto_exec_update_runenergy(game, packet);
+        break;
+    case PKTIN_LC245_2_UPDATE_STAT:
+        gameproto_exec_update_stat(game, packet);
+        break;
+    case PKTIN_LC245_2_HINT_ARROW:
+        gameproto_exec_hint_arrow(game, packet);
+        break;
+    case PKTIN_LC245_2_RESET_ANIMS:
+        gameproto_exec_reset_anims(game, packet);
+        break;
+    case PKTIN_LC245_2_UPDATE_PID:
+        gameproto_exec_update_pid(game, packet);
+        break;
+    case PKTIN_LC245_2_VARP_SMALL:
+        gameproto_exec_varp_small(game, packet);
+        break;
+    case PKTIN_LC245_2_VARP_LARGE:
+        gameproto_exec_varp_large(game, packet);
+        break;
+    case PKTIN_LC245_2_RESET_CLIENT_VARCACHE:
+        gameproto_exec_varp_sync(game, packet);
+        break;
+    case PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_FOLLOWS:
+        gameproto_exec_update_zone_partial_follows(game, packet);
+        break;
+    case PKTIN_LC245_2_UPDATE_ZONE_FULL_FOLLOWS:
+        gameproto_exec_update_zone_full_follows(game, packet);
+        break;
+    case PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_ENCLOSED:
+        gameproto_exec_update_zone_partial_enclosed(game, packet);
+        break;
+    case PKTIN_LC245_2_LOC_ANIM:
+        gameproto_exec_loc_anim(game, packet);
+        break;
+    case PKTIN_LC245_2_LOC_MERGE:
+        gameproto_exec_loc_merge(game, packet);
+        break;
+    case PKTIN_LC245_2_MAP_ANIM:
+        gameproto_exec_map_anim(game, packet);
+        break;
+    case PKTIN_LC245_2_MAP_PROJANIM:
+        gameproto_exec_map_projanim(game, packet);
+        break;
+    case PKTIN_LC245_2_SET_MULTIWAY:
+        gameproto_exec_set_multiway(game, packet);
+        break;
     case PKTIN_LC245_2_OBJ_ADD:
-        // gameproto_exec_obj_add(game, packet, game->zone_base_x, game->zone_base_z);
+        gameproto_exec_obj_add(game, packet, game->zone_base_x, game->zone_base_z);
         break;
     case PKTIN_LC245_2_OBJ_DEL:
         gameproto_exec_obj_del(game, packet);
@@ -941,8 +997,7 @@ zone_tile_x(
     struct GGame* game,
     int pos)
 {
-    return 0;
-    // return game->zone_base_x + ((pos >> 4) & 0x7);
+    return game->zone_base_x + ((pos >> 4) & 0x7);
 }
 
 static int
@@ -950,8 +1005,27 @@ zone_tile_z(
     struct GGame* game,
     int pos)
 {
-    return 0;
-    // return game->zone_base_z + (pos & 0x7);
+    return game->zone_base_z + (pos & 0x7);
+}
+
+/* ---- Zone-state helpers ---- */
+
+static struct ObjStackEntry**
+game_obj_stacks_ensure(struct GGame* game)
+{
+    if( !game->obj_stacks )
+    {
+        int total = MAP_TERRAIN_LEVELS * ZONE_SCENE_SIZE * ZONE_SCENE_SIZE;
+        game->obj_stacks = (struct ObjStackEntry***)
+            calloc(MAP_TERRAIN_LEVELS, sizeof(struct ObjStackEntry**));
+        for( int l = 0; l < MAP_TERRAIN_LEVELS; l++ )
+        {
+            game->obj_stacks[l] = (struct ObjStackEntry**)
+                calloc(ZONE_SCENE_SIZE * ZONE_SCENE_SIZE, sizeof(struct ObjStackEntry*));
+        }
+        (void)total;
+    }
+    return (struct ObjStackEntry**)game->obj_stacks;
 }
 
 void
@@ -961,21 +1035,21 @@ gameproto_exec_obj_add(
     int zone_base_x,
     int zone_base_z)
 {
-    // /* Client.ts: x = baseX + (pos>>4)&7, z = baseZ + pos&7; use directly as scene indices */
-    // int sx = zone_base_x + ((packet->_obj_add.pos >> 4) & 0x7);
-    // int sz = zone_base_z + (packet->_obj_add.pos & 0x7);
-    // int obj_id = packet->_obj_add.obj_id & 0x7fff;
-    // int count = packet->_obj_add.count;
-    // int level = 0; /* TODO: use current level */
+    int sx = zone_base_x + ((packet->_obj_add.pos >> 4) & 0x7);
+    int sz = zone_base_z + (packet->_obj_add.pos & 0x7);
+    int obj_id = packet->_obj_add.obj_id & 0x7fff;
+    int count  = packet->_obj_add.count;
+    int level  = 0;
 
-    // if( sx < 0 || sx >= ZONE_SCENE_SIZE || sz < 0 || sz >= ZONE_SCENE_SIZE )
-    //     return;
+    if( sx < 0 || sx >= ZONE_SCENE_SIZE || sz < 0 || sz >= ZONE_SCENE_SIZE )
+        return;
 
-    // struct ObjStackEntry* entry = malloc(sizeof(struct ObjStackEntry));
-    // entry->obj_id = obj_id;
-    // entry->count = count;
-    // entry->next = game->obj_stacks[level][sx][sz];
-    // game->obj_stacks[level][sx][sz] = entry;
+    game_obj_stacks_ensure(game);
+    struct ObjStackEntry* entry = (struct ObjStackEntry*)malloc(sizeof(struct ObjStackEntry));
+    entry->obj_id = obj_id;
+    entry->count  = count;
+    entry->next   = game->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz];
+    game->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz] = entry;
 }
 
 void
@@ -983,24 +1057,27 @@ gameproto_exec_obj_del(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
-    // int sx = zone_tile_x(game, packet->_obj_del.pos);
-    // int sz = zone_tile_z(game, packet->_obj_del.pos);
-    // int obj_id = packet->_obj_del.obj_id & 0x7fff;
-    // int level = 0;
+    int sx = zone_tile_x(game, packet->_obj_del.pos);
+    int sz = zone_tile_z(game, packet->_obj_del.pos);
+    int obj_id = packet->_obj_del.obj_id & 0x7fff;
+    int level  = 0;
 
-    // if( sx < 0 || sx >= ZONE_SCENE_SIZE || sz < 0 || sz >= ZONE_SCENE_SIZE )
-    //     return;
+    if( !game->obj_stacks )
+        return;
+    if( sx < 0 || sx >= ZONE_SCENE_SIZE || sz < 0 || sz >= ZONE_SCENE_SIZE )
+        return;
 
-    // struct ObjStackEntry** prev = &game->obj_stacks[level][sx][sz];
-    // for( struct ObjStackEntry* e = *prev; e; prev = &e->next, e = e->next )
-    // {
-    //     if( e->obj_id == obj_id )
-    //     {
-    //         *prev = e->next;
-    //         free(e);
-    //         break;
-    //     }
-    // }
+    struct ObjStackEntry** head = &game->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz];
+    for( struct ObjStackEntry* e = *head; e; e = e->next )
+    {
+        if( e->obj_id == obj_id )
+        {
+            *head = e->next;
+            free(e);
+            break;
+        }
+        head = &e->next;
+    }
 }
 
 void
@@ -1009,12 +1086,12 @@ gameproto_exec_obj_reveal(
     struct RevPacket_LC245_2* packet)
 {
     if( packet->_obj_reveal.receiver == ACTIVE_PLAYER_SLOT )
-        return; /* Client.ts: skip if receiver is local player */
+        return;
     struct RevPacket_LC245_2 add_pkt = { 0 };
-    add_pkt._obj_add.pos = packet->_obj_reveal.pos;
+    add_pkt._obj_add.pos    = packet->_obj_reveal.pos;
     add_pkt._obj_add.obj_id = packet->_obj_reveal.obj_id;
-    add_pkt._obj_add.count = packet->_obj_reveal.count;
-    // gameproto_exec_obj_add(game, &add_pkt, game->zone_base_x, game->zone_base_z);
+    add_pkt._obj_add.count  = packet->_obj_reveal.count;
+    gameproto_exec_obj_add(game, &add_pkt, game->zone_base_x, game->zone_base_z);
 }
 
 void
@@ -1022,24 +1099,26 @@ gameproto_exec_obj_count(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
-    int sx = zone_tile_x(game, packet->_obj_count.pos);
-    int sz = zone_tile_z(game, packet->_obj_count.pos);
+    int sx     = zone_tile_x(game, packet->_obj_count.pos);
+    int sz     = zone_tile_z(game, packet->_obj_count.pos);
     int obj_id = packet->_obj_count.obj_id & 0x7fff;
     int old_count = packet->_obj_count.old_count;
     int new_count = packet->_obj_count.new_count;
-    int level = 0;
+    int level  = 0;
 
-    // if( sx < 0 || sx >= ZONE_SCENE_SIZE || sz < 0 || sz >= ZONE_SCENE_SIZE )
-    //     return;
+    if( !game->obj_stacks )
+        return;
+    if( sx < 0 || sx >= ZONE_SCENE_SIZE || sz < 0 || sz >= ZONE_SCENE_SIZE )
+        return;
 
-    // for( struct ObjStackEntry* e = game->obj_stacks[level][sx][sz]; e; e = e->next )
-    // {
-    //     if( e->obj_id == obj_id && e->count == old_count )
-    //     {
-    //         e->count = new_count;
-    //         break;
-    //     }
-    // }
+    for( struct ObjStackEntry* e = game->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz]; e; e = e->next )
+    {
+        if( e->obj_id == obj_id && e->count == old_count )
+        {
+            e->count = new_count;
+            break;
+        }
+    }
 }
 
 void
@@ -1047,35 +1126,32 @@ gameproto_exec_loc_add_change(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
-    int x = zone_tile_x(game, packet->_loc_add_change.pos);
-    int z = zone_tile_z(game, packet->_loc_add_change.pos);
+    int x    = zone_tile_x(game, packet->_loc_add_change.pos);
+    int z    = zone_tile_z(game, packet->_loc_add_change.pos);
     int info = packet->_loc_add_change.info;
     int shape = info >> 2;
     int angle = info & 0x3;
     int loc_id = packet->_loc_add_change.loc_id;
-    /* TODO: resolve layer from LocShape; add to loc_changes_head; apply when models ready */
-    (void)shape;
-    (void)angle;
-    (void)loc_id;
 
-    // if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
-    //     return;
+    if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
+        return;
 
-    // struct LocChangeEntry* entry = malloc(sizeof(struct LocChangeEntry));
-    // entry->level = 0;
-    // entry->x = x;
-    // entry->z = z;
-    // entry->layer = 0; /* TODO: LocShape.of(shape).layer */
-    // entry->old_type = -1;
-    // entry->new_type = loc_id;
-    // entry->old_shape = 0;
-    // entry->new_shape = shape;
-    // entry->old_angle = 0;
-    // entry->new_angle = angle;
-    // entry->start_time = 0;
-    // entry->end_time = -1;
-    // entry->next = game->loc_changes_head;
-    // game->loc_changes_head = entry;
+    struct LocChangeEntry* entry = (struct LocChangeEntry*)malloc(sizeof(struct LocChangeEntry));
+    entry->level     = 0;
+    entry->x         = x;
+    entry->z         = z;
+    entry->layer     = 0; /* Layer from LocShape would require config lookup */
+    entry->old_type  = -1;
+    entry->new_type  = loc_id;
+    entry->old_shape = 0;
+    entry->new_shape = shape;
+    entry->old_angle = 0;
+    entry->new_angle = angle;
+    entry->start_time = 0;
+    entry->end_time   = -1;
+    entry->anim_seq_id = -1;
+    entry->next       = game->loc_changes_head;
+    game->loc_changes_head = entry;
 }
 
 void
@@ -1083,31 +1159,429 @@ gameproto_exec_loc_del(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
-    int x = zone_tile_x(game, packet->_loc_del.pos);
-    int z = zone_tile_z(game, packet->_loc_del.pos);
+    int x    = zone_tile_x(game, packet->_loc_del.pos);
+    int z    = zone_tile_z(game, packet->_loc_del.pos);
     int info = packet->_loc_del.info;
     int shape = info >> 2;
     int angle = info & 0x3;
-    /* TODO: add LocChangeEntry with new_type=-1 to remove */
-    (void)shape;
-    (void)angle;
 
-    // if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
-    //     return;
+    if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
+        return;
 
-    // struct LocChangeEntry* entry = malloc(sizeof(struct LocChangeEntry));
-    // entry->level = 0;
-    // entry->x = x;
-    // entry->z = z;
-    // entry->layer = 0;
-    // entry->old_type = 0; /* TODO: get from scene */
-    // entry->new_type = -1;
-    // entry->old_shape = shape;
-    // entry->new_shape = 0;
-    // entry->old_angle = angle;
-    // entry->new_angle = 0;
-    // entry->start_time = 0;
-    // entry->end_time = -1;
-    // entry->next = game->loc_changes_head;
-    // game->loc_changes_head = entry;
+    struct LocChangeEntry* entry = (struct LocChangeEntry*)malloc(sizeof(struct LocChangeEntry));
+    entry->level     = 0;
+    entry->x         = x;
+    entry->z         = z;
+    entry->layer     = 0;
+    entry->old_type  = 0;
+    entry->new_type  = -1;
+    entry->old_shape = shape;
+    entry->new_shape = 0;
+    entry->old_angle = angle;
+    entry->new_angle = 0;
+    entry->start_time = 0;
+    entry->end_time   = -1;
+    entry->anim_seq_id = -1;
+    entry->next       = game->loc_changes_head;
+    game->loc_changes_head = entry;
+}
+
+void
+gameproto_exec_if_openchat(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    if( game->iface )
+        game->iface->chat_interface_id = packet->_if_openchat.component_id;
+}
+
+void
+gameproto_exec_if_openmain(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    if( game->iface )
+        game->iface->viewport_interface_id = packet->_if_openmain.component_id;
+}
+
+void
+gameproto_exec_if_openside(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    if( game->iface )
+        game->iface->sidebar_interface_id = packet->_if_openside.component_id;
+}
+
+void
+gameproto_exec_if_openmain_side(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    if( game->iface )
+    {
+        game->iface->viewport_interface_id = packet->_if_openmain_side.main_component_id;
+        game->iface->sidebar_interface_id  = packet->_if_openmain_side.side_component_id;
+    }
+}
+
+void
+gameproto_exec_if_close(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)packet;
+    if( game->iface )
+    {
+        game->iface->viewport_interface_id = -1;
+        game->iface->sidebar_interface_id  = -1;
+        game->iface->chat_interface_id     = -1;
+    }
+}
+
+void
+gameproto_exec_update_inv_stop_transmit(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_update_inv_stop_transmit.component_id;
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(game->buildcachedat, component_id);
+    if( !component )
+        return;
+    int max_slots = component->width * component->height;
+    for( int i = 0; i < max_slots; i++ )
+    {
+        if( component->invSlotObjId )
+            component->invSlotObjId[i] = 0;
+        if( component->invSlotObjCount )
+            component->invSlotObjCount[i] = 0;
+    }
+}
+
+void
+gameproto_exec_update_inv_partial(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int component_id = packet->_update_inv_partial.component_id;
+    struct CacheDatConfigComponent* component =
+        buildcachedat_get_component(game->buildcachedat, component_id);
+    if( !component || !component->invSlotObjId || !component->invSlotObjCount )
+        return;
+    int max_slots = component->width * component->height;
+    for( int i = 0; i < packet->_update_inv_partial.count; i++ )
+    {
+        int slot   = packet->_update_inv_partial.entries[i].slot;
+        int obj_id = packet->_update_inv_partial.entries[i].obj_id;
+        int count  = packet->_update_inv_partial.entries[i].count;
+        if( slot >= 0 && slot < max_slots )
+        {
+            component->invSlotObjId[slot]    = obj_id;
+            component->invSlotObjCount[slot] = count;
+        }
+    }
+}
+
+void
+gameproto_exec_cam_lookat(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    if( !game->world )
+        return;
+    int tile_x = game->world->_base_tile_x + packet->_cam_lookat.local_x;
+    int tile_z = game->world->_base_tile_z + packet->_cam_lookat.local_z;
+    game->camera_world_x = tile_x * 128 + 64;
+    game->camera_world_z = tile_z * 128 + 64;
+    game->camera_world_y = -packet->_cam_lookat.height;
+}
+
+void
+gameproto_exec_cam_moveto(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    if( !game->world )
+        return;
+    int tile_x = game->world->_base_tile_x + packet->_cam_moveto.local_x;
+    int tile_z = game->world->_base_tile_z + packet->_cam_moveto.local_z;
+    game->camera_world_x = tile_x * 128 + 64;
+    game->camera_world_z = tile_z * 128 + 64;
+    game->camera_world_y = -packet->_cam_moveto.height;
+}
+
+void
+gameproto_exec_cam_shake(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)game;
+    (void)packet;
+}
+
+void
+gameproto_exec_cam_reset(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)game;
+    (void)packet;
+}
+
+void
+gameproto_exec_unset_map_flag(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)packet;
+    game->minimap_flag_has = 0;
+    game->minimap_flag_x   = 0;
+    game->minimap_flag_z   = 0;
+}
+
+void
+gameproto_exec_update_runweight(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    game->run_weight = packet->_update_runweight.run_weight;
+}
+
+void
+gameproto_exec_update_runenergy(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    game->run_energy = packet->_update_run_energy.run_energy;
+}
+
+void
+gameproto_exec_update_stat(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int stat = packet->_update_stat.stat;
+    if( stat < 0 || stat >= PLAYER_STAT_COUNT )
+        return;
+    game->player_stat_xp[stat]    = packet->_update_stat.xp;
+    game->player_stat_level[stat] = packet->_update_stat.level;
+}
+
+void
+gameproto_exec_hint_arrow(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    game->hint_arrow_type      = packet->_hint_arrow.type;
+    game->hint_arrow_entity_id = packet->_hint_arrow.id;
+    game->hint_arrow_tile_x    = packet->_hint_arrow.id;
+    game->hint_arrow_tile_z    = packet->_hint_arrow.z;
+}
+
+void
+gameproto_exec_reset_anims(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)packet;
+    if( !game->world )
+        return;
+    for( int i = 0; i < game->world->active_npc_count; i++ )
+    {
+        int npc_id = game->world->active_npcs[i];
+        if( npc_id < 0 )
+            continue;
+        struct NPCEntity* npc = world_npc(game->world, npc_id);
+        if( npc && npc->alive )
+            world_npc_entity_set_animation(game->world, npc_id, -1, ANIMATION_TYPE_PRIMARY);
+    }
+    world_player_entity_set_animation(
+        game->world, ACTIVE_PLAYER_SLOT, -1, ANIMATION_TYPE_PRIMARY);
+}
+
+void
+gameproto_exec_update_pid(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)game;
+    (void)packet;
+}
+
+void
+gameproto_exec_varp_small(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    varp_varbit_apply_small(
+        &game->varp_varbit, packet->_varp_small.variable, packet->_varp_small.value);
+}
+
+void
+gameproto_exec_varp_large(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    varp_varbit_apply_large(
+        &game->varp_varbit, packet->_varp_large.variable, packet->_varp_large.value);
+}
+
+void
+gameproto_exec_varp_sync(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)packet;
+    varp_varbit_apply_sync(&game->varp_varbit);
+}
+
+void
+gameproto_exec_update_zone_partial_follows(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    game->zone_base_x = packet->_update_zone_partial_follows.base_x * 8;
+    game->zone_base_z = packet->_update_zone_partial_follows.base_z * 8;
+}
+
+void
+gameproto_exec_update_zone_full_follows(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    game->zone_base_x = packet->_update_zone_full_follows.base_x * 8;
+    game->zone_base_z = packet->_update_zone_full_follows.base_z * 8;
+}
+
+void
+gameproto_exec_update_zone_partial_enclosed(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    game->zone_base_x = packet->_update_zone_partial_follows.base_x * 8;
+    game->zone_base_z = packet->_update_zone_partial_follows.base_z * 8;
+}
+
+void
+gameproto_exec_loc_anim(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int x     = zone_tile_x(game, packet->_loc_anim.pos);
+    int z     = zone_tile_z(game, packet->_loc_anim.pos);
+    int seq_id = packet->_loc_anim.seq_id;
+
+    if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
+        return;
+
+    /* Record as a LocChangeEntry with anim_seq_id for the tick loop to apply. */
+    struct LocChangeEntry* entry = (struct LocChangeEntry*)malloc(sizeof(struct LocChangeEntry));
+    memset(entry, 0, sizeof(*entry));
+    entry->level      = 0;
+    entry->x          = x;
+    entry->z          = z;
+    entry->old_type   = -1;
+    entry->new_type   = -1;
+    entry->end_time   = -1;
+    entry->anim_seq_id = seq_id;
+    entry->next        = game->loc_changes_head;
+    game->loc_changes_head = entry;
+}
+
+void
+gameproto_exec_loc_merge(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    /* LOC_MERGE: add/change with associated player entity merging.
+     * Treated as LOC_ADD_CHANGE with the given loc_id; the pid reference
+     * is stored as start/end time for future entity-attach logic. */
+    int x     = zone_tile_x(game, packet->_loc_merge.pos);
+    int z     = zone_tile_z(game, packet->_loc_merge.pos);
+    int info  = packet->_loc_merge.info;
+    int shape = info >> 2;
+    int angle = info & 0x3;
+    int loc_id = packet->_loc_merge.loc_id;
+
+    if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
+        return;
+
+    struct LocChangeEntry* entry = (struct LocChangeEntry*)malloc(sizeof(struct LocChangeEntry));
+    memset(entry, 0, sizeof(*entry));
+    entry->level      = 0;
+    entry->x          = x;
+    entry->z          = z;
+    entry->old_type   = -1;
+    entry->new_type   = loc_id;
+    entry->old_shape  = 0;
+    entry->new_shape  = shape;
+    entry->old_angle  = 0;
+    entry->new_angle  = angle;
+    entry->start_time = packet->_loc_merge.start;
+    entry->end_time   = packet->_loc_merge.end;
+    entry->anim_seq_id = -1;
+    entry->next        = game->loc_changes_head;
+    game->loc_changes_head = entry;
+}
+
+void
+gameproto_exec_map_anim(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int x        = zone_tile_x(game, packet->_map_anim.pos);
+    int z        = zone_tile_z(game, packet->_map_anim.pos);
+    int spotanim = packet->_map_anim.id;
+    int height   = packet->_map_anim.height;
+    int delay    = packet->_map_anim.delay;
+
+    if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
+        return;
+
+    struct MapAnimEntry* entry = (struct MapAnimEntry*)malloc(sizeof(struct MapAnimEntry));
+    entry->x          = x;
+    entry->z          = z;
+    entry->level      = 0;
+    entry->spotanim_id = spotanim;
+    entry->height     = height;
+    entry->delay      = delay;
+    entry->next       = game->map_anims_head;
+    game->map_anims_head = entry;
+}
+
+void
+gameproto_exec_map_projanim(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int src_x = zone_tile_x(game, packet->_map_projanim.pos);
+    int src_z = zone_tile_z(game, packet->_map_projanim.pos);
+    int dst_x = src_x + packet->_map_projanim.dx_offset;
+    int dst_z = src_z + packet->_map_projanim.dz_offset;
+
+    struct MapProjAnimEntry* entry = (struct MapProjAnimEntry*)malloc(sizeof(struct MapProjAnimEntry));
+    entry->src_x      = src_x;
+    entry->src_z      = src_z;
+    entry->dst_x      = dst_x;
+    entry->dst_z      = dst_z;
+    entry->level      = 0;
+    entry->spotanim_id = packet->_map_projanim.spotanim;
+    entry->src_height = packet->_map_projanim.src_height;
+    entry->dst_height = packet->_map_projanim.dst_height;
+    entry->start_delay = packet->_map_projanim.start_delay;
+    entry->end_delay   = packet->_map_projanim.end_delay;
+    entry->target     = packet->_map_projanim.target;
+    entry->peak       = packet->_map_projanim.peak;
+    entry->arc        = packet->_map_projanim.arc;
+    entry->next       = game->map_projanims_head;
+    game->map_projanims_head = entry;
+}
+
+void
+gameproto_exec_set_multiway(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    game->in_multiway = packet->_set_multiway.multiway;
 }

@@ -275,6 +275,18 @@ export class LuaJSSidecar {
     } catch (err) {
       console.warn("[LuaJSSidecar] failed to preload cachedat.lua:", err);
     }
+    try {
+      const ptPath = "packet_types.lua";
+      const ptContent = await this.fetchOrCached(ptPath);
+      const ptCode =
+        typeof ptContent === "string"
+          ? ptContent
+          : new TextDecoder().decode(ptContent);
+      this._registerModuleInPreload("packet_types", ptCode);
+      console.log("[LuaJSSidecar] packet_types.lua preloaded into package.preload");
+    } catch (err) {
+      console.warn("[LuaJSSidecar] failed to preload packet_types.lua:", err);
+    }
   }
 
   // Entrance point: adds to queue and triggers processing

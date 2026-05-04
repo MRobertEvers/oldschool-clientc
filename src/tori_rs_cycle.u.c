@@ -245,8 +245,7 @@ entity_face(
 void
 LibToriRS_GameNetProcess(struct GGame* game)
 {
-    while( game->packets_lc245_2 )
-        gameproto_process(game);
+    gameproto_process(game);
 
     if( game->cycle >= game->next_notimeout_cycle && GAME_NET_STATE_GAME == game->net_state )
     {

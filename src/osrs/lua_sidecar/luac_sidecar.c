@@ -345,6 +345,15 @@ LuaCSidecar_New(
     /* Pass the FULL path to the preloader */
     preload_module(sidecar->L, "cachedat", platform_path);
 
+    char packet_types_path[512];
+    snprintf(
+        packet_types_path,
+        sizeof(packet_types_path),
+        "%s/%s",
+        LUA_SCRIPTS_DIR,
+        "packet_types.lua");
+    preload_module(sidecar->L, "packet_types", packet_types_path);
+
     create_wasm_object(sidecar->L, sidecar->ctx, sidecar->callback);
 
     return sidecar;

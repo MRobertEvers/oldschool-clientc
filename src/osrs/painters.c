@@ -788,14 +788,20 @@ painter_add_normal_scenery(
     int size_z)
 {
     assert(entity >= 0 && entity < UINT16_MAX);
+    /* Loc configs can yield 0 (bad cache/orientation swap); spans require positive footprint. */
+    if( size_x < 1 )
+        size_x = 1;
+    if( size_z < 1 )
+        size_z = 1;
+    if( size_x > 15 )
+        size_x = 15;
+    if( size_z > 15 )
+        size_z = 15;
+
     int element = painter_push_element(painter);
 
     compute_normal_scenery_spans(painter, sx, sz, slevel, size_x, size_z, element);
 
-    assert(size_x > 0);
-    assert(size_z > 0);
-    assert(size_x < 16);
-    assert(size_z < 16);
     painter->elements[element] = (struct PaintersElement){
         .kind = PNTRELEM_SCENERY,
         .sx = sx,

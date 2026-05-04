@@ -15,22 +15,12 @@ LuaGame_build_scene_centerzone(
     struct LuaGameType* args);
 
 struct LuaGameType*
-LuaGame_exec_pkt_player_info(
+LuaGame_pop_next_packet(
     struct GGame* game,
     struct LuaGameType* args);
 
 struct LuaGameType*
-LuaGame_exec_pkt_npc_info(
-    struct GGame* game,
-    struct LuaGameType* args);
-
-struct LuaGameType*
-LuaGame_exec_pkt_if_settab(
-    struct GGame* game,
-    struct LuaGameType* args);
-
-struct LuaGameType*
-LuaGame_exec_pkt_update_inv_full(
+LuaGame_exec_packet(
     struct GGame* game,
     struct LuaGameType* args);
 
@@ -87,6 +77,98 @@ LuaGame_rebuild_centerzone_slow(
 
 struct LuaGameType*
 LuaGame_spawn_element(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+/* --- Packet field getters (for asset preloading in Lua scripts) --- */
+
+struct LuaGameType*
+LuaGame_get_pkt_player_info_data(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaGame_get_pkt_player_info_length(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaGame_get_pkt_npc_info_data(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaGame_get_pkt_npc_info_length(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaGame_get_pkt_rebuild_normal_zonex(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaGame_get_pkt_rebuild_normal_zonez(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaGame_get_pkt_if_setobject_obj_id(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaGame_get_pkt_if_setmodel_model_id(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaGame_get_pkt_if_setanim_anim_id(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaGame_get_pkt_if_setnpchead_npc_id(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaGame_get_pkt_update_inv_partial_entries(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaGame_get_pkt_loc_add_change_loc_id(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaGame_get_pkt_loc_anim_seq_id(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaGame_get_pkt_p_locmerge_loc_id(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaGame_get_pkt_obj_add_obj_id(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaGame_get_pkt_obj_reveal_obj_id(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaGame_get_pkt_map_anim_spotanim_id(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaGame_get_pkt_map_projanim_spotanim_id(
     struct GGame* game,
     struct LuaGameType* args);
 
