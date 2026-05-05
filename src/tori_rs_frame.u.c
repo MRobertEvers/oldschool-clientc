@@ -1,20 +1,21 @@
 #ifndef TORI_RS_FRAME_U_C
 #define TORI_RS_FRAME_U_C
 
+#include "bmp.h"
 #include "graphics/dash.h"
+#include "osrs/buildcachedat.h"
 #include "osrs/chat.h"
+#include "osrs/core/clientprot_core.h"
 #include "osrs/game.h"
 #include "osrs/interface.h"
 #include "osrs/interface_state.h"
 #include "osrs/minimap.h"
-#include "osrs/revconfig/uiscene.h"
-#include "osrs/revconfig/uitree.h"
-#include "osrs/rs_component_gfx.h"
-#include "osrs/buildcachedat.h"
-#include "osrs/core/clientprot_core.h"
 #include "osrs/minimenu.h"
 #include "osrs/minimenu_game.h"
 #include "osrs/obj_icon.h"
+#include "osrs/revconfig/uiscene.h"
+#include "osrs/revconfig/uitree.h"
+#include "osrs/rs_component_gfx.h"
 #include "osrs/rs_component_state.h"
 #include "osrs/scene2.h"
 #include "osrs/world.h"
@@ -37,6 +38,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#ifndef TORI_DEBUG_MINIMAP_BMP_PATH_MAX
+#define TORI_DEBUG_MINIMAP_BMP_PATH_MAX 512
+#endif
 
 /** Set per `LibToriRS_FrameNextCommand` call for RS model culling. */
 static bool s_frame_project_models;
@@ -454,8 +459,7 @@ rs_ui_layer_push(
     int sh = layer->u.rs_layer.scroll_height;
     int sp = rs_iface_scroll_clamped_for_layer(game, layer->component_id, sh, lh);
     int prev =
-        ui->ui_layer_stack_top >= 0 ? ui->ui_layer_stack[ui->ui_layer_stack_top].scroll_y_total
-                                    : 0;
+        ui->ui_layer_stack_top >= 0 ? ui->ui_layer_stack[ui->ui_layer_stack_top].scroll_y_total : 0;
     struct UILayerFrameEntry* e = &ui->ui_layer_stack[++ui->ui_layer_stack_top];
     e->scroll_y_total = prev + sp;
     e->clip_x = layer->position.x;
@@ -491,7 +495,8 @@ rs_ui_layer_pop(struct GGame* game)
     if( !ui || ui->ui_layer_stack_top < 0 )
         return;
     struct UILayerFrameEntry* e = &ui->ui_layer_stack[ui->ui_layer_stack_top];
-    /* Pop clip before scrollbar: bar is at x+width (outside content clip). Client.ts drawScrollbar. */
+    /* Pop clip before scrollbar: bar is at x+width (outside content clip). Client.ts drawScrollbar.
+     */
     if( game->uiscene_queued_commands )
     {
         struct ToriRSRenderCommand* c =
@@ -509,10 +514,7 @@ rs_ui_layer_pop(struct GGame* game)
             .pass = &game->frame_pass,
         };
         int sp = rs_iface_scroll_clamped_for_layer(
-            game,
-            e->scrollbar_layer_component_id,
-            e->scrollbar_scroll_height,
-            e->clip_h);
+            game, e->scrollbar_layer_component_id, e->scrollbar_scroll_height, e->clip_h);
         rs_ui_layer_emit_scrollbar_at(
             &fiber,
             e->clip_x,
@@ -535,8 +537,7 @@ frame_uitree_should_descend(
     {
         if( c->is_hidden )
             return false;
-        if( c->u.rs_layer.hide &&
-            !interface_component_is_overlay_hovered(game, c->component_id) )
+        if( c->u.rs_layer.hide && !interface_component_is_overlay_hovered(game, c->component_id) )
             return false;
     }
     else if( c->is_hidden )
@@ -752,7 +753,9 @@ queue_sprite_draw_from_event(
 }
 
 static struct DashSprite*
-game_uiscene_sprite_atlas0(struct GGame* game, int element_id)
+game_uiscene_sprite_atlas0(
+    struct GGame* game,
+    int element_id)
 {
     if( !game || !game->ui_scene || element_id < 0 || element_id >= game->ui_scene->elements_count )
         return NULL;
@@ -764,7 +767,10 @@ game_uiscene_sprite_atlas0(struct GGame* game, int element_id)
 
 /** Drawable pixel size for UI sprites (Pix32 cache uses crop vs full buffer). */
 static void
-dashsprite_draw_dims(struct DashSprite const* sp, int* out_w, int* out_h)
+dashsprite_draw_dims(
+    struct DashSprite const* sp,
+    int* out_w,
+    int* out_h)
 {
     if( sp->crop_width > 0 && sp->crop_height > 0 )
     {
@@ -778,6 +784,158 @@ dashsprite_draw_dims(struct DashSprite const* sp, int* out_w, int* out_h)
     }
 }
 
+/** Dot placement shared by TORIRS_GFX emission and TORI_DEBUG_MINIMAP_BMP off-screen composite.
+ * `pivot_x`, `pivot_y`: screen pixel of minimap rotation center (= component top-left + UITree
+ * anchor); must match TORIRS_GFX_DRAW_SPRITE rotated minimap dst_anchor.
+ * World deltas use the same fine units as `camera_world_x` / loc `world_x` (128 per tile).
+ * Projection matches Client.ts minimapDrawDot after scaling: TS uses (world/32) deltas and >>16;
+ * here (world*65536)>>21 == ((world/32)*65536)>>16. */
+struct MinimapDotLayout
+{
+    int ok;
+    int dst_x;
+    int dst_y;
+    int sw;
+    int sh;
+    int src_ix;
+    int src_iy;
+    int src_iw;
+    int src_ih;
+};
+
+static struct MinimapDotLayout
+minimap_compute_dot_layout(
+    struct DashSprite const* sprite,
+    int comp_x,
+    int comp_y,
+    int comp_w,
+    int comp_h,
+    int pivot_x,
+    int pivot_y,
+    int camera_yaw,
+    int ref_wx,
+    int ref_wz,
+    int entity_wx,
+    int entity_wz)
+{
+    struct MinimapDotLayout L = { 0 };
+    if( !sprite )
+        return L;
+
+    int dx = entity_wx - ref_wx;
+    int dz = entity_wz - ref_wz;
+
+    /* Client.ts distance check: dx_ts^2+dz_ts^2 > 6400 with ts = floor(world/32). */
+    int64_t const max_d2 = (int64_t)6400 * 32 * 32;
+    if( (int64_t)dx * dx + (int64_t)dz * dz > max_d2 )
+        return L;
+
+    int yaw = camera_yaw & 0x7ff;
+    int sin_y = dash_sin(yaw);
+    int cos_y = dash_cos(yaw);
+
+    int64_t const rot_x = ((int64_t)dx * (int64_t)cos_y + (int64_t)dz * (int64_t)sin_y) >> 21;
+    int64_t const rot_y = ((int64_t)dz * (int64_t)cos_y - (int64_t)dx * (int64_t)sin_y) >> 21;
+
+    /* TS: plotSprite(..., 83 - rot_y - ...): screen Y decreases as rot_y grows. */
+    int dot_x = pivot_x + (int)rot_x;
+    int dot_y = pivot_y - (int)rot_y;
+
+    int sw = 0;
+    int sh = 0;
+    dashsprite_draw_dims(sprite, &sw, &sh);
+    if( sw <= 0 || sh <= 0 )
+        return L;
+    int half_w = sw / 2;
+    int half_h = sh / 2;
+    int min_cx = comp_x + half_w;
+    int max_cx = comp_x + comp_w - sw + half_w;
+    int min_cy = comp_y + half_h;
+    int max_cy = comp_y + comp_h - sh + half_h;
+    if( min_cx > max_cx || min_cy > max_cy )
+        return L;
+    if( dot_x < min_cx )
+        dot_x = min_cx;
+    if( dot_x > max_cx )
+        dot_x = max_cx;
+    if( dot_y < min_cy )
+        dot_y = min_cy;
+    if( dot_y > max_cy )
+        dot_y = max_cy;
+
+    L.sw = sw;
+    L.sh = sh;
+    L.dst_x = dot_x - half_w;
+    L.dst_y = dot_y - half_h;
+    if( sprite->crop_width > 0 && sprite->crop_height > 0 )
+    {
+        L.src_ix = sprite->crop_x;
+        L.src_iy = sprite->crop_y;
+        L.src_iw = sprite->crop_width;
+        L.src_ih = sprite->crop_height;
+    }
+    else
+    {
+        L.src_ix = 0;
+        L.src_iy = 0;
+        L.src_iw = sprite->width;
+        L.src_ih = sprite->height;
+    }
+    L.ok = 1;
+    return L;
+}
+
+/** Alpha-over `sprite` subrect onto ARGB buffer (debug BMP path). */
+static void
+minimap_debug_blend_subrect(
+    struct DashSprite const* sprite,
+    int src_ix,
+    int src_iy,
+    int src_iw,
+    int src_ih,
+    int dst_x,
+    int dst_y,
+    int* dst,
+    int dst_w,
+    int dst_h)
+{
+    if( !sprite || !sprite->pixels_argb || !dst || dst_w <= 0 || dst_h <= 0 )
+        return;
+    uint32_t const* sp = (uint32_t const*)sprite->pixels_argb;
+    int const spr_w = sprite->width;
+    for( int py = 0; py < src_ih; py++ )
+    {
+        int sy = src_iy + py;
+        int dy = dst_y + py;
+        if( dy < 0 || dy >= dst_h )
+            continue;
+        for( int px = 0; px < src_iw; px++ )
+        {
+            int sx = src_ix + px;
+            int dx = dst_x + px;
+            if( dx < 0 || dx >= dst_w )
+                continue;
+            uint32_t spix = sp[sy * spr_w + (unsigned)sx];
+            int a = (int)((spix >> 24) & 255u);
+            if( a <= 0 )
+                continue;
+            int idx = dy * dst_w + dx;
+            uint32_t dpix = (uint32_t)dst[idx];
+            int dr = (int)((dpix >> 16) & 255u);
+            int dg = (int)((dpix >> 8) & 255u);
+            int db = (int)(dpix & 255u);
+            int sr = (int)((spix >> 16) & 255u);
+            int sg = (int)((spix >> 8) & 255u);
+            int sb = (int)(spix & 255u);
+            int out_r = (sr * a + dr * (255 - a)) / 255;
+            int out_g = (sg * a + dg * (255 - a)) / 255;
+            int out_b = (sb * a + db * (255 - a)) / 255;
+            dst[idx] = (int)(0xFF000000u | ((uint32_t)out_r << 16) | ((uint32_t)out_g << 8) |
+                             (uint32_t)out_b);
+        }
+    }
+}
+
 /* Emit a single 2-pixel-wide dot on the minimap for the entity at world position
  * (entity_world_x, entity_world_z).  Mirrors Client.ts minimapDrawDot 11637-11663.
  *
@@ -786,18 +944,21 @@ dashsprite_draw_dims(struct DashSprite const* sp, int* out_w, int* out_h)
  * comp_x, comp_y: top-left corner of the minimap element in UI viewport space.
  * camera_yaw:  current camera yaw (0–2047 units, full circle).
  * ref_wx, ref_wz: world position (sub-tile units) that the minimap centers on — must match
- *   static minimap texture anchor (here: camera), not necessarily the local player. */
+ *   static minimap texture anchor (here: camera), not necessarily the local player.
+ * pivot_x, pivot_y: rotation center on screen (component position + UITree anchor). */
 static void
 minimap_emit_dot(
-    struct GGame*                    game,
+    struct GGame* game,
     struct ToriRSRenderCommandBuffer* buf,
-    int                               sprite_element_id,
-    int                               sprite_atlas_index,
-    struct DashSprite*                sprite,
+    int sprite_element_id,
+    int sprite_atlas_index,
+    struct DashSprite* sprite,
     int comp_x,
     int comp_y,
     int comp_w,
     int comp_h,
+    int pivot_x,
+    int pivot_y,
     int camera_yaw,
     int ref_wx,
     int ref_wz,
@@ -808,104 +969,80 @@ minimap_emit_dot(
     if( !sprite || !buf )
         return;
 
-    int dx = entity_wx - ref_wx;
-    int dz = entity_wz - ref_wz;
-
-    /* Distance cull: > 6400 world-units (~50 tiles) away. */
-    if( (int64_t)dx * dx + (int64_t)dz * dz >= (int64_t)6400 * 6400 )
+    struct MinimapDotLayout L = minimap_compute_dot_layout(
+        sprite,
+        comp_x,
+        comp_y,
+        comp_w,
+        comp_h,
+        pivot_x,
+        pivot_y,
+        camera_yaw,
+        ref_wx,
+        ref_wz,
+        entity_wx,
+        entity_wz);
+    if( !L.ok )
         return;
-
-    int yaw     = camera_yaw & 0x7ff;
-    /* dash_sin/cos return 65536-scale fixed-point values (like TS Client.SINE * 65536). */
-    int sin_y   = dash_sin(yaw);
-    int cos_y   = dash_cos(yaw);
-
-    /* TS: dotx = 97 + ((dx * cos + dz * sin) >> 16)  with cos scaled by 65536*(256/(zoom+256)).
-     * With default zoom=0 (C constant 256→256/(0+256)=1.0) we get:
-     *   dot_x = center_x + ((dx * cos_y + dz * sin_y) >> 11)
-     * where >>11 matches the click-handler's inverse formula. */
-    int dot_x = 97 + comp_x + ((dx * cos_y + dz * sin_y) >> 11);
-    int dot_y = 78 + comp_y + ((dz * cos_y - dx * sin_y) >> 11);
-
-    /* Clamp using logical drawable size (crop), not full pixmap stride dimensions. */
-    int sw = 0;
-    int sh = 0;
-    dashsprite_draw_dims(sprite, &sw, &sh);
-    if( sw <= 0 || sh <= 0 )
-        return;
-    int half_w = sw / 2;
-    int half_h = sh / 2;
-    int min_cx = comp_x + half_w;
-    int max_cx = comp_x + comp_w - sw + half_w;
-    int min_cy = comp_y + half_h;
-    int max_cy = comp_y + comp_h - sh + half_h;
-    if( min_cx > max_cx || min_cy > max_cy )
-        return;
-    if( dot_x < min_cx )
-        dot_x = min_cx;
-    if( dot_x > max_cx )
-        dot_x = max_cx;
-    if( dot_y < min_cy )
-        dot_y = min_cy;
-    if( dot_y > max_cy )
-        dot_y = max_cy;
 
     struct ToriRSRenderCommand* c = LibToriRS_RenderCommandBufferEmplaceCommand(buf);
-    c->kind                          = TORIRS_GFX_DRAW_SPRITE;
+    c->kind = TORIRS_GFX_DRAW_SPRITE;
     if( sprite_element_id >= 0 )
     {
-        c->_sprite_draw.element_id   = sprite_element_id;
-        c->_sprite_draw.atlas_index  = sprite_atlas_index;
+        c->_sprite_draw.element_id = sprite_element_id;
+        c->_sprite_draw.atlas_index = sprite_atlas_index;
     }
     else
     {
-        c->_sprite_draw.element_id   = -1;
-        c->_sprite_draw.atlas_index  = 200; /* legacy path when sprite not in UIScene */
+        c->_sprite_draw.element_id = -1;
+        c->_sprite_draw.atlas_index = 200; /* legacy path when sprite not in UIScene */
     }
-    c->_sprite_draw.sprite           = sprite;
-    c->_sprite_draw.dst_bb_x         = dot_x - half_w;
-    c->_sprite_draw.dst_bb_y         = dot_y - half_h;
-    c->_sprite_draw.dst_bb_w         = sw;
-    c->_sprite_draw.dst_bb_h         = sh;
-    c->_sprite_draw.rotated          = false;
+    c->_sprite_draw.sprite = sprite;
+    c->_sprite_draw.dst_bb_x = L.dst_x;
+    c->_sprite_draw.dst_bb_y = L.dst_y;
+    c->_sprite_draw.dst_bb_w = L.sw;
+    c->_sprite_draw.dst_bb_h = L.sh;
+    c->_sprite_draw.rotated = false;
     c->_sprite_draw.rotation_r2pi2048 = 0;
     if( sprite->crop_width > 0 && sprite->crop_height > 0 )
     {
-        c->_sprite_draw.src_bb_x = sprite->crop_x;
-        c->_sprite_draw.src_bb_y = sprite->crop_y;
-        c->_sprite_draw.src_bb_w = sprite->crop_width;
-        c->_sprite_draw.src_bb_h = sprite->crop_height;
+        c->_sprite_draw.src_bb_x = L.src_ix;
+        c->_sprite_draw.src_bb_y = L.src_iy;
+        c->_sprite_draw.src_bb_w = L.src_iw;
+        c->_sprite_draw.src_bb_h = L.src_ih;
     }
     else
     {
-        c->_sprite_draw.src_bb_x         = 0;
-        c->_sprite_draw.src_bb_y         = 0;
-        c->_sprite_draw.src_bb_w         = 0;
-        c->_sprite_draw.src_bb_h         = 0;
+        c->_sprite_draw.src_bb_x = 0;
+        c->_sprite_draw.src_bb_y = 0;
+        c->_sprite_draw.src_bb_w = 0;
+        c->_sprite_draw.src_bb_h = 0;
     }
-    c->_sprite_draw.src_anchor_x     = 0;
-    c->_sprite_draw.src_anchor_y     = 0;
-    c->_sprite_draw.dst_anchor_x     = 0;
-    c->_sprite_draw.dst_anchor_y     = 0;
-    c->_sprite_draw.mask_element_id  = -1;
-    c->_sprite_draw.clip_w           = 0;
-    c->_sprite_draw.alpha_mode       = 1;
+    c->_sprite_draw.src_anchor_x = 0;
+    c->_sprite_draw.src_anchor_y = 0;
+    c->_sprite_draw.dst_anchor_x = 0;
+    c->_sprite_draw.dst_anchor_y = 0;
+    c->_sprite_draw.mask_element_id = -1;
+    c->_sprite_draw.clip_w = 0;
+    c->_sprite_draw.alpha_mode = 1;
 }
 
 /** Emit TORIRS_GFX_DRAW_SPRITE for each MINIMAP_RENDER_COMMAND_LOC in `dyn`. */
 static void
 minimap_emit_dynamic_loc_gfx(
-    struct GGame*                    game,
+    struct GGame* game,
     struct ToriRSRenderCommandBuffer* buf,
-    struct Minimap*                 mm,
+    struct Minimap* mm,
     struct MinimapRenderCommandBuffer* dyn,
-    int                               mm_comp_x,
-    int                               mm_comp_y,
-    int                               mm_comp_w,
-    int                               mm_comp_h,
-    int                               mm_cam_yaw,
-    int                               mm_ref_wx,
-    int                               mm_ref_wz)
+    int mm_comp_x,
+    int mm_comp_y,
+    int mm_comp_w,
+    int mm_comp_h,
+    int mm_pivot_x,
+    int mm_pivot_y,
+    int mm_cam_yaw,
+    int mm_ref_wx,
+    int mm_ref_wz)
 {
     struct UITree* uit = game->ui_root_buffer;
     if( !buf || !mm || !dyn )
@@ -948,6 +1085,8 @@ minimap_emit_dynamic_loc_gfx(
             mm_comp_y,
             mm_comp_w,
             mm_comp_h,
+            mm_pivot_x,
+            mm_pivot_y,
             mm_cam_yaw,
             mm_ref_wx,
             mm_ref_wz,
@@ -1047,10 +1186,12 @@ queue_static_ui_minimap_draws(
     static_mm_draw->_sprite_draw.src_anchor_x = anchor_x;
     static_mm_draw->_sprite_draw.src_anchor_y = anchor_y;
 
-    int mm_comp_x  = component->position.x;
-    int mm_comp_y  = component->position.y;
-    int mm_comp_w  = component->position.width;
-    int mm_comp_h  = component->position.height;
+    int mm_comp_x = component->position.x;
+    int mm_comp_y = component->position.y;
+    int mm_comp_w = component->position.width;
+    int mm_comp_h = component->position.height;
+    int const mm_pivot_x = mm_comp_x + component->position.anchor_x;
+    int const mm_pivot_y = mm_comp_y + component->position.anchor_y;
     int mm_cam_yaw = game->camera_yaw;
 
     int const mm_ref_wx = game->camera_world_x;
@@ -1107,12 +1248,242 @@ queue_static_ui_minimap_draws(
             mm_comp_y,
             mm_comp_w,
             mm_comp_h,
+            mm_pivot_x,
+            mm_pivot_y,
             mm_cam_yaw,
             mm_ref_wx,
             mm_ref_wz);
     }
 
     struct UITree* uit = game->ui_root_buffer;
+
+    /* Off-screen composite (rotated static + dots) → BMP when TORI_DEBUG_MINIMAP_BMP is set.
+     * "1" → minimap_debug.bmp (overwrite). Any other non-empty value → that file path. */
+    {
+        // char const* dbg_bmp = getenv("TORI_DEBUG_MINIMAP_BMP");
+        char const* dbg_bmp = "1";
+        if( dbg_bmp && dbg_bmp[0] && static_sprite && static_sprite->pixels_argb && mm_comp_w > 0 &&
+            mm_comp_h > 0 )
+        {
+            int const srw =
+                static_sprite->crop_width > 0 ? static_sprite->crop_width : static_sprite->width;
+            int const srh =
+                static_sprite->crop_height > 0 ? static_sprite->crop_height : static_sprite->height;
+            if( srw > 0 && srh > 0 )
+            {
+                size_t const pix_count = (size_t)mm_comp_w * (size_t)mm_comp_h;
+                int* pix = (int*)calloc(pix_count, sizeof(int));
+                if( pix )
+                {
+                    int const black = (int)0xFF000000u;
+                    for( size_t i = 0; i < pix_count; i++ )
+                        pix[i] = black;
+
+                    dash2d_blit_rotated_ex(
+                        (int*)static_sprite->pixels_argb,
+                        static_sprite->width,
+                        0,
+                        0,
+                        srw,
+                        srh,
+                        anchor_x,
+                        anchor_y,
+                        pix,
+                        mm_comp_w,
+                        mm_comp_h,
+                        0,
+                        0,
+                        mm_comp_w,
+                        mm_comp_h,
+                        component->position.anchor_x,
+                        component->position.anchor_y,
+                        ((game->camera_yaw) & 0x7ff));
+
+                    struct MinimapRenderCommandBuffer* dyn_dbg = game->minimap_dynamic_commands;
+                    if( dyn_dbg && uit )
+                    {
+                        for( int i = 0; i < dyn_dbg->count; i++ )
+                        {
+                            struct MinimapRenderCommand* cmd = &dyn_dbg->commands[i];
+                            if( cmd->kind != MINIMAP_RENDER_COMMAND_LOC )
+                                continue;
+                            int idx = cmd->u.loc.loc_idx;
+                            if( idx < 0 || idx >= mm->locs_count )
+                                continue;
+                            struct MinimapLoc* loc = &mm->locs[idx];
+                            int dot_eid = -1;
+                            switch( loc->type )
+                            {
+                            case MINIMAP_LOC_TYPE_OBJECT:
+                                dot_eid = uit->ui_minimap_mapdots0_element_id;
+                                break;
+                            case MINIMAP_LOC_TYPE_NPC:
+                                dot_eid = uit->ui_minimap_mapdots1_element_id;
+                                break;
+                            case MINIMAP_LOC_TYPE_PLAYER:
+                                dot_eid = uit->ui_minimap_mapdots3_element_id;
+                                break;
+                            default:
+                                break;
+                            }
+                            if( dot_eid < 0 )
+                                continue;
+                            struct DashSprite* spr = game_uiscene_sprite_atlas0(game, dot_eid);
+                            if( !spr )
+                                continue;
+                            struct MinimapDotLayout L = minimap_compute_dot_layout(
+                                spr,
+                                mm_comp_x,
+                                mm_comp_y,
+                                mm_comp_w,
+                                mm_comp_h,
+                                mm_pivot_x,
+                                mm_pivot_y,
+                                mm_cam_yaw,
+                                mm_ref_wx,
+                                mm_ref_wz,
+                                loc->world_x,
+                                loc->world_z);
+                            if( !L.ok )
+                                continue;
+                            minimap_debug_blend_subrect(
+                                spr,
+                                L.src_ix,
+                                L.src_iy,
+                                L.src_iw,
+                                L.src_ih,
+                                L.dst_x - mm_comp_x,
+                                L.dst_y - mm_comp_y,
+                                pix,
+                                mm_comp_w,
+                                mm_comp_h);
+                        }
+                    }
+
+                    if( uit && game->world )
+                    {
+                        if( game->hint_arrow_type != 0 && (game->cycle % 20) < 10 )
+                        {
+                            int const arrow_eid = uit->ui_minimap_mapmarker2_element_id;
+                            struct DashSprite* arrow = game_uiscene_sprite_atlas0(game, arrow_eid);
+                            if( arrow && game->hint_arrow_tile_x >= 0 &&
+                                game->hint_arrow_tile_z >= 0 )
+                            {
+                                struct MinimapDotLayout L = minimap_compute_dot_layout(
+                                    arrow,
+                                    mm_comp_x,
+                                    mm_comp_y,
+                                    mm_comp_w,
+                                    mm_comp_h,
+                                    mm_pivot_x,
+                                    mm_pivot_y,
+                                    mm_cam_yaw,
+                                    mm_ref_wx,
+                                    mm_ref_wz,
+                                    game->hint_arrow_tile_x * 128 + 64,
+                                    game->hint_arrow_tile_z * 128 + 64);
+                                if( L.ok )
+                                    minimap_debug_blend_subrect(
+                                        arrow,
+                                        L.src_ix,
+                                        L.src_iy,
+                                        L.src_iw,
+                                        L.src_ih,
+                                        L.dst_x - mm_comp_x,
+                                        L.dst_y - mm_comp_y,
+                                        pix,
+                                        mm_comp_w,
+                                        mm_comp_h);
+                            }
+                        }
+                        if( game->minimap_flag_has )
+                        {
+                            int const flag_eid = uit->ui_minimap_mapmarker_element_id;
+                            struct DashSprite* flag = game_uiscene_sprite_atlas0(game, flag_eid);
+                            if( flag )
+                            {
+                                struct MinimapDotLayout L = minimap_compute_dot_layout(
+                                    flag,
+                                    mm_comp_x,
+                                    mm_comp_y,
+                                    mm_comp_w,
+                                    mm_comp_h,
+                                    mm_pivot_x,
+                                    mm_pivot_y,
+                                    mm_cam_yaw,
+                                    mm_ref_wx,
+                                    mm_ref_wz,
+                                    game->minimap_flag_x * 128 + 64,
+                                    game->minimap_flag_z * 128 + 64);
+                                if( L.ok )
+                                    minimap_debug_blend_subrect(
+                                        flag,
+                                        L.src_ix,
+                                        L.src_iy,
+                                        L.src_iw,
+                                        L.src_ih,
+                                        L.dst_x - mm_comp_x,
+                                        L.dst_y - mm_comp_y,
+                                        pix,
+                                        mm_comp_w,
+                                        mm_comp_h);
+                            }
+                        }
+                        {
+                            int dx = pl_wx - mm_ref_wx;
+                            int dz = pl_wz - mm_ref_wz;
+                            int yaw = mm_cam_yaw & 0x7ff;
+                            int sin_y = dash_sin(yaw);
+                            int cos_y = dash_cos(yaw);
+                            int64_t const rot_x =
+                                ((int64_t)dx * (int64_t)cos_y + (int64_t)dz * (int64_t)sin_y) >> 21;
+                            int64_t const rot_y =
+                                ((int64_t)dz * (int64_t)cos_y - (int64_t)dx * (int64_t)sin_y) >> 21;
+                            int dot_x = mm_pivot_x + (int)rot_x;
+                            int dot_y = mm_pivot_y - (int)rot_y;
+                            if( dot_x < mm_comp_x + 1 )
+                                dot_x = mm_comp_x + 1;
+                            if( dot_y < mm_comp_y + 1 )
+                                dot_y = mm_comp_y + 1;
+                            if( dot_x > mm_comp_x + mm_comp_w - 2 )
+                                dot_x = mm_comp_x + mm_comp_w - 2;
+                            if( dot_y > mm_comp_y + mm_comp_h - 2 )
+                                dot_y = mm_comp_y + mm_comp_h - 2;
+                            int lx = dot_x - mm_comp_x - 1;
+                            int ly = dot_y - mm_comp_y - 1;
+                            for( int row = 0; row < 3; row++ )
+                            {
+                                for( int col = 0; col < 3; col++ )
+                                {
+                                    int px = lx + col;
+                                    int py = ly + row;
+                                    if( px >= 0 && px < mm_comp_w && py >= 0 && py < mm_comp_h )
+                                        pix[py * mm_comp_w + px] = (int)0xFFFFFFFFu;
+                                }
+                            }
+                        }
+                    }
+
+                    char out_path[TORI_DEBUG_MINIMAP_BMP_PATH_MAX];
+                    if( dbg_bmp[0] == '1' && dbg_bmp[1] == '\0' )
+                        snprintf(out_path, sizeof out_path, "minimap_debug.bmp");
+                    else
+                    {
+                        snprintf(out_path, sizeof out_path, "%s", dbg_bmp);
+                        out_path[sizeof out_path - 1] = '\0';
+                    }
+                    bmp_write_file(out_path, pix, mm_comp_w, mm_comp_h);
+                    fprintf(
+                        stderr,
+                        "[TORI_DEBUG_MINIMAP_BMP] wrote %s (%dx%d)\n",
+                        out_path,
+                        mm_comp_w,
+                        mm_comp_h);
+                    free(pix);
+                }
+            }
+        }
+    }
 
     /* ── Hint arrow, destination flag, local player (not in dynamic loc list). ─ */
     if( !game->world )
@@ -1131,9 +1502,17 @@ queue_static_ui_minimap_draws(
                 arrow_eid,
                 0,
                 arrow,
-                mm_comp_x, mm_comp_y, mm_comp_w, mm_comp_h,
-                mm_cam_yaw, mm_ref_wx, mm_ref_wz,
-                game->hint_arrow_tile_x * 128 + 64, game->hint_arrow_tile_z * 128 + 64);
+                mm_comp_x,
+                mm_comp_y,
+                mm_comp_w,
+                mm_comp_h,
+                mm_pivot_x,
+                mm_pivot_y,
+                mm_cam_yaw,
+                mm_ref_wx,
+                mm_ref_wz,
+                game->hint_arrow_tile_x * 128 + 64,
+                game->hint_arrow_tile_z * 128 + 64);
         }
     }
 
@@ -1150,21 +1529,31 @@ queue_static_ui_minimap_draws(
                 flag_eid,
                 0,
                 flag,
-                mm_comp_x, mm_comp_y, mm_comp_w, mm_comp_h,
-                mm_cam_yaw, mm_ref_wx, mm_ref_wz,
-                game->minimap_flag_x * 128 + 64, game->minimap_flag_z * 128 + 64);
+                mm_comp_x,
+                mm_comp_y,
+                mm_comp_w,
+                mm_comp_h,
+                mm_pivot_x,
+                mm_pivot_y,
+                mm_cam_yaw,
+                mm_ref_wx,
+                mm_ref_wz,
+                game->minimap_flag_x * 128 + 64,
+                game->minimap_flag_z * 128 + 64);
         }
     }
 
     /* Local player: white 3x3 rect at active player (same projection as minimap_emit_dot). */
     {
-        int dx     = pl_wx - mm_ref_wx;
-        int dz     = pl_wz - mm_ref_wz;
-        int yaw    = mm_cam_yaw & 0x7ff;
-        int sin_y  = dash_sin(yaw);
-        int cos_y  = dash_cos(yaw);
-        int dot_x  = mm_comp_x + 97 + ((dx * cos_y + dz * sin_y) >> 11);
-        int dot_y  = mm_comp_y + 78 + ((dz * cos_y - dx * sin_y) >> 11);
+        int dx = pl_wx - mm_ref_wx;
+        int dz = pl_wz - mm_ref_wz;
+        int yaw = mm_cam_yaw & 0x7ff;
+        int sin_y = dash_sin(yaw);
+        int cos_y = dash_cos(yaw);
+        int64_t const rot_x = ((int64_t)dx * (int64_t)cos_y + (int64_t)dz * (int64_t)sin_y) >> 21;
+        int64_t const rot_y = ((int64_t)dz * (int64_t)cos_y - (int64_t)dx * (int64_t)sin_y) >> 21;
+        int dot_x = mm_pivot_x + (int)rot_x;
+        int dot_y = mm_pivot_y - (int)rot_y;
         if( dot_x < mm_comp_x + 1 )
             dot_x = mm_comp_x + 1;
         if( dot_y < mm_comp_y + 1 )
@@ -1175,14 +1564,14 @@ queue_static_ui_minimap_draws(
             dot_y = mm_comp_y + mm_comp_h - 2;
         struct ToriRSRenderCommand* lp_dot =
             LibToriRS_RenderCommandBufferEmplaceCommand(game->uiscene_queued_commands);
-        lp_dot->kind          = TORIRS_GFX_DRAW_RECT;
-        lp_dot->_rect_draw.x  = dot_x - 1;
-        lp_dot->_rect_draw.y  = dot_y - 1;
-        lp_dot->_rect_draw.w  = 3;
-        lp_dot->_rect_draw.h  = 3;
+        lp_dot->kind = TORIRS_GFX_DRAW_RECT;
+        lp_dot->_rect_draw.x = dot_x - 1;
+        lp_dot->_rect_draw.y = dot_y - 1;
+        lp_dot->_rect_draw.w = 3;
+        lp_dot->_rect_draw.h = 3;
         lp_dot->_rect_draw.color_rgb = 0xFFFFFF;
-        lp_dot->_rect_draw.alpha     = 0;
-        lp_dot->_rect_draw.fill      = 1;
+        lp_dot->_rect_draw.alpha = 0;
+        lp_dot->_rect_draw.fill = 1;
     }
 
 mm_done:;
@@ -1661,8 +2050,7 @@ entity_projectile_animate(
     struct World* world,
     int projectile_entity_id)
 {
-    if( projectile_entity_id < 0 ||
-        projectile_entity_id >= entity_vec_count(&world->projectiles) )
+    if( projectile_entity_id < 0 || projectile_entity_id >= entity_vec_count(&world->projectiles) )
         return;
     struct ProjectileEntity* p = world_projectile(world, projectile_entity_id);
     struct EntityAnimation* animation = &p->animation;
@@ -2237,8 +2625,7 @@ uielem_rs_layer_step(
     struct GGame* game = fiber->game;
     if( node->is_hidden )
         return true;
-    if( node->u.rs_layer.hide &&
-        !interface_component_is_overlay_hovered(game, node->component_id) )
+    if( node->u.rs_layer.hide && !interface_component_is_overlay_hovered(game, node->component_id) )
         return true;
     struct StaticUIComponent* component = node;
     assert(component->type == UIELEM_RS_LAYER);
@@ -2295,10 +2682,9 @@ uielem_hover_tooltip_step(
     /* Tooltip source: UITree hover menu when an interface wins over the world layer; otherwise
      * world pick (in viewport) or legacy CacheDat hover line. */
     struct UITree* uit = game->ui_root_buffer;
-    int ui_from_uitree =
-        uit && uit->uitree_optionset.option_count > 0 &&
-        !(uit->hover_node_index >= 0 &&
-          uit->components[uit->hover_node_index].type == UIELEM_BUILTIN_WORLD);
+    int ui_from_uitree = uit && uit->uitree_optionset.option_count > 0 &&
+                         !(uit->hover_node_index >= 0 &&
+                           uit->components[uit->hover_node_index].type == UIELEM_BUILTIN_WORLD);
 
     struct WorldOption temp_option = { 0 };
     struct WorldOption* first_opt = NULL;
@@ -2308,8 +2694,7 @@ uielem_hover_tooltip_step(
     if( ui_from_uitree )
     {
         struct UITreeOptionSet* uos = &uit->uitree_optionset;
-        struct UITreeOption* def =
-            uitree_option_set_get_option(uos, uos->option_count - 1);
+        struct UITreeOption* def = uitree_option_set_get_option(uos, uos->option_count - 1);
         if( uos->option_count > 2 )
             snprintf(
                 tooltip_buf,
@@ -2335,8 +2720,8 @@ uielem_hover_tooltip_step(
                 int ww = c->position.width > 0 ? c->position.width : 512;
                 int wh = c->position.height > 0 ? c->position.height : 334;
 
-                if( game->mouse_x >= wx && game->mouse_x < wx + ww &&
-                    game->mouse_y >= wy && game->mouse_y < wy + wh )
+                if( game->mouse_x >= wx && game->mouse_x < wx + ww && game->mouse_y >= wy &&
+                    game->mouse_y < wy + wh )
                 {
                     in_world = 1;
                     break;
@@ -2349,15 +2734,13 @@ uielem_hover_tooltip_step(
             if( game->option_set.option_count <= 0 )
                 return true;
             minimenu_game_world_ts_default_row(
-                &game->option_set,
-                game->mouse_tile_x,
-                game->mouse_tile_z,
-                &temp_option);
+                &game->option_set, game->mouse_tile_x, game->mouse_tile_z, &temp_option);
             first_opt = &temp_option;
         }
         else
         {
-            if( !interface_hover_tooltip_line(game, temp_option.text, (int)sizeof(temp_option.text)) )
+            if( !interface_hover_tooltip_line(
+                    game, temp_option.text, (int)sizeof(temp_option.text)) )
                 return true;
             first_opt = &temp_option;
         }
@@ -2380,9 +2763,9 @@ uielem_hover_tooltip_step(
         return true;
 
     /* Text pen: `node->position` from [layout] c=hover_tooltip x/y (Client.ts drawFeedback). */
-    int font_id = node->u.hover_tooltip.font_id >= 0 ?
-                  node->u.hover_tooltip.font_id :
-                  buildcachedat_get_font_ref_id(game->buildcachedat, "b12");
+    int font_id = node->u.hover_tooltip.font_id >= 0
+                      ? node->u.hover_tooltip.font_id
+                      : buildcachedat_get_font_ref_id(game->buildcachedat, "b12");
     if( font_id < 0 )
         font_id = buildcachedat_get_font_ref_id(game->buildcachedat, "p11");
     if( font_id < 0 )
@@ -2401,8 +2784,9 @@ uielem_hover_tooltip_step(
         return true;
 
     /* Pen x/y from [layout]: pre-summed client-canvas coords (see rev UI INI comment next to
-     * hover_tooltip). PixFont-style pen_y minus height2d for glyph base_y (TORIRS_GFX_DRAW_FONT). */
-    int pen_x  = node->position.x;
+     * hover_tooltip). PixFont-style pen_y minus height2d for glyph base_y (TORIRS_GFX_DRAW_FONT).
+     */
+    int pen_x = node->position.x;
     int draw_y = node->position.y;
     if( font->height2d > 0 )
         draw_y -= font->height2d;
@@ -2410,16 +2794,17 @@ uielem_hover_tooltip_step(
     frame_emit_pass(fiber, FRAME_PASS_2D);
     /* Client.ts drawStringAntiMacro(..., shadowed: true): black (+1,+1) mask per glyph, then
      * foreground with color tags. One TORIRS_GFX_DRAW_FONT + shadowed; do not use a second
-     * ex_clipped pass here — tags would recolor the "shadow" (e.g. @whi@) and look like double text. */
+     * ex_clipped pass here — tags would recolor the "shadow" (e.g. @whi@) and look like double
+     * text. */
     struct ToriRSRenderCommand* cmd = LibToriRS_RenderCommandBufferEmplaceCommand(fiber->cmds);
-    cmd->kind                 = TORIRS_GFX_DRAW_FONT;
-    cmd->_font_draw.font_id   = font_id;
-    cmd->_font_draw.font      = font;
-    cmd->_font_draw.text      = (const uint8_t*)dst;
-    cmd->_font_draw.x         = pen_x;
-    cmd->_font_draw.y         = draw_y;
+    cmd->kind = TORIRS_GFX_DRAW_FONT;
+    cmd->_font_draw.font_id = font_id;
+    cmd->_font_draw.font = font;
+    cmd->_font_draw.text = (const uint8_t*)dst;
+    cmd->_font_draw.x = pen_x;
+    cmd->_font_draw.y = draw_y;
     cmd->_font_draw.color_rgb = 0xFFFFFF;
-    cmd->_font_draw.shadowed  = 1;
+    cmd->_font_draw.shadowed = 1;
 
     return true;
 }
@@ -2478,27 +2863,27 @@ uielem_crosshair_step(
 
     frame_emit_pass(fiber, FRAME_PASS_2D);
     struct ToriRSRenderCommand* c = LibToriRS_RenderCommandBufferEmplaceCommand(fiber->cmds);
-    c->kind                       = TORIRS_GFX_DRAW_SPRITE;
-    c->_sprite_draw.element_id    = cross_id;
-    c->_sprite_draw.atlas_index   = frame_idx;
-    c->_sprite_draw.sprite        = sp;
-    c->_sprite_draw.dst_bb_x      = game->cross_x - 8 - game->viewport_offset_x;
-    c->_sprite_draw.dst_bb_y      = game->cross_y - 8 - game->viewport_offset_y;
-    c->_sprite_draw.dst_bb_w      = 0;
-    c->_sprite_draw.dst_bb_h      = 0;
-    c->_sprite_draw.rotated       = false;
+    c->kind = TORIRS_GFX_DRAW_SPRITE;
+    c->_sprite_draw.element_id = cross_id;
+    c->_sprite_draw.atlas_index = frame_idx;
+    c->_sprite_draw.sprite = sp;
+    c->_sprite_draw.dst_bb_x = game->cross_x - 8 - game->viewport_offset_x;
+    c->_sprite_draw.dst_bb_y = game->cross_y - 8 - game->viewport_offset_y;
+    c->_sprite_draw.dst_bb_w = 0;
+    c->_sprite_draw.dst_bb_h = 0;
+    c->_sprite_draw.rotated = false;
     c->_sprite_draw.rotation_r2pi2048 = 0;
-    c->_sprite_draw.src_bb_x      = 0;
-    c->_sprite_draw.src_bb_y      = 0;
-    c->_sprite_draw.src_bb_w      = 0;
-    c->_sprite_draw.src_bb_h      = 0;
-    c->_sprite_draw.src_anchor_x  = 0;
-    c->_sprite_draw.src_anchor_y  = 0;
-    c->_sprite_draw.dst_anchor_x  = 0;
-    c->_sprite_draw.dst_anchor_y  = 0;
+    c->_sprite_draw.src_bb_x = 0;
+    c->_sprite_draw.src_bb_y = 0;
+    c->_sprite_draw.src_bb_w = 0;
+    c->_sprite_draw.src_bb_h = 0;
+    c->_sprite_draw.src_anchor_x = 0;
+    c->_sprite_draw.src_anchor_y = 0;
+    c->_sprite_draw.dst_anchor_x = 0;
+    c->_sprite_draw.dst_anchor_y = 0;
     c->_sprite_draw.mask_element_id = -1;
-    c->_sprite_draw.clip_w        = 0;
-    c->_sprite_draw.alpha_mode    = 1;
+    c->_sprite_draw.clip_w = 0;
+    c->_sprite_draw.alpha_mode = 1;
 
     return true;
 }
@@ -2511,7 +2896,7 @@ uielem_chat_messages_step(
     struct GGame* game = fiber->game;
     if( !game || !game->chat || !fiber->cmds )
         return true;
-    
+
     frame_emit_pass(fiber, FRAME_PASS_2D);
     chat_draw_messages(game->chat, game, fiber->cmds, node->u.chat_messages.font_id);
     return true;
@@ -2525,7 +2910,7 @@ uielem_chat_input_step(
     struct GGame* game = fiber->game;
     if( !game || !game->chat || !fiber->cmds )
         return true;
-    
+
     frame_emit_pass(fiber, FRAME_PASS_2D);
     chat_draw_input(game->chat, game, fiber->cmds, node->u.chat_input.font_id);
     return true;
@@ -2539,7 +2924,7 @@ uielem_chat_privacy_step(
     struct GGame* game = fiber->game;
     if( !game || !game->chat || !fiber->cmds )
         return true;
-    
+
     frame_emit_pass(fiber, FRAME_PASS_2D);
     chat_draw_privacy(game->chat, game, fiber->cmds, node->u.chat_privacy.font_id);
     return true;
@@ -2685,7 +3070,9 @@ LibToriRS_FrameNextCommand(
 #define MOVE_GAMECLICK_OPCODE 182
 
 static struct StaticUIComponent*
-frame_find_builtin(struct GGame* game, enum StaticUIComponentType ty)
+frame_find_builtin(
+    struct GGame* game,
+    enum StaticUIComponentType ty)
 {
     if( !game->ui_root_buffer )
         return NULL;
@@ -2698,7 +3085,10 @@ frame_find_builtin(struct GGame* game, enum StaticUIComponentType ty)
 }
 
 static bool
-frame_point_in_component_xy(struct StaticUIComponent* c, int px, int py)
+frame_point_in_component_xy(
+    struct StaticUIComponent* c,
+    int px,
+    int py)
 {
     if( !c || c->position.kind != UIPOS_XY )
         return false;
@@ -2738,11 +3128,7 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
 
     if( !game->interface_consumed_click && game->chat &&
         chat_handle_privacy_strip_click(
-            game->chat,
-            game,
-            game->mouse_clicked_x,
-            game->mouse_clicked_y,
-            1) )
+            game->chat, game, game->mouse_clicked_x, game->mouse_clicked_y, 1) )
     {
         game->interface_consumed_click = 1;
         return;
@@ -2799,8 +3185,18 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
                 int comp_id = -1, client_code = 0, btn_action = 0;
                 int pa = 0, pb = 0, pc = 0;
                 if( root && interface_find_button_click_at(
-                        game, root, root_x, root_y, cx, cy,
-                        &comp_id, &client_code, &btn_action, &pa, &pb, &pc) )
+                                game,
+                                root,
+                                root_x,
+                                root_y,
+                                cx,
+                                cy,
+                                &comp_id,
+                                &client_code,
+                                &btn_action,
+                                &pa,
+                                &pb,
+                                &pc) )
                 {
                     interface_apply_button_click_varp_optimistic(game, comp_id);
                     clientprot_if_button(game, comp_id);
@@ -2810,18 +3206,16 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
         }
 
         /* Viewport region */
-        if( !game->interface_consumed_click &&
-            cx > 4 && cy > 4 && cx < 516 && cy < 338 &&
+        if( !game->interface_consumed_click && cx > 4 && cy > 4 && cx < 516 && cy < 338 &&
             game->iface->viewport_interface_id >= 0 )
         {
-            struct CacheDatConfigComponent* root =
-                buildcachedat_get_component(game->buildcachedat,
-                                            game->iface->viewport_interface_id);
+            struct CacheDatConfigComponent* root = buildcachedat_get_component(
+                game->buildcachedat, game->iface->viewport_interface_id);
             int comp_id = -1, client_code = 0, btn_action = 0;
             int pa = 0, pb = 0, pc = 0;
-            if( root && interface_find_button_click_at(
-                    game, root, 4, 4, cx, cy,
-                    &comp_id, &client_code, &btn_action, &pa, &pb, &pc) )
+            if( root &&
+                interface_find_button_click_at(
+                    game, root, 4, 4, cx, cy, &comp_id, &client_code, &btn_action, &pa, &pb, &pc) )
             {
                 interface_apply_button_click_varp_optimistic(game, comp_id);
                 clientprot_if_button(game, comp_id);
@@ -2841,20 +3235,24 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
             int by = mm->position.y;
             int mx = game->mouse_clicked_x;
             int my = game->mouse_clicked_y;
-            int x = mx - 25 - bx;
-            int y = my - 4 - by;
-            if( x >= 0 && y >= 0 && x < 146 && y < 151 )
+            int const pivot_x = bx + mm->position.anchor_x;
+            int const pivot_y = by + mm->position.anchor_y;
+            int const dpx = mx - pivot_x;
+            int const dpy = my - pivot_y;
+            int const max_off_x = mm->position.width / 2 + 32;
+            int const max_off_y = mm->position.height / 2 + 32;
+            if( dpx >= -max_off_x && dpx <= max_off_x && dpy >= -max_off_y && dpy <= max_off_y )
             {
-                x -= 73;
-                y -= 75;
                 int yaw = game->camera_yaw & 0x7ff;
-                int sin_yaw = dash_sin(yaw);
-                int cos_yaw = dash_cos(yaw);
-                int zoomf = 256;
-                sin_yaw = (sin_yaw * zoomf) >> 8;
-                cos_yaw = (cos_yaw * zoomf) >> 8;
-                int rel_x = (y * sin_yaw + x * cos_yaw) >> 11;
-                int rel_y = (y * cos_yaw - x * sin_yaw) >> 11;
+                int64_t const cos_yaw = dash_cos(yaw);
+                int64_t const sin_yaw = dash_sin(yaw);
+                int64_t const S = 65536;
+                int64_t const num_wx =
+                    ((int64_t)dpx << 21) * cos_yaw + ((int64_t)dpy << 21) * sin_yaw;
+                int64_t const num_wz =
+                    ((int64_t)dpx << 21) * sin_yaw - ((int64_t)dpy << 21) * cos_yaw;
+                int64_t const dwx = num_wx / (S * S);
+                int64_t const dwz = num_wz / (S * S);
                 int pw = game->camera_world_x;
                 int pz = game->camera_world_z;
                 if( game->world )
@@ -2866,20 +3264,20 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
                         pz = pl->draw_position.z;
                     }
                 }
-                int tile_x = (pw + rel_x) >> 7;
-                int tile_z = (pz - rel_y) >> 7;
+                int tile_x = (int)((int64_t)pw + dwx) >> 7;
+                int tile_z = (int)((int64_t)pz - dwz) >> 7;
                 int lvl = (game->mouse_tile_level >= 0) ? game->mouse_tile_level : 0;
-                game->tile_clicked_x     = tile_x;
-                game->tile_clicked_z     = tile_z;
+                game->tile_clicked_x = tile_x;
+                game->tile_clicked_z = tile_z;
                 game->tile_clicked_level = lvl;
                 /* Set minimap flag for the destination marker (task 9 / TS 11596-11599). */
-                game->minimap_flag_x   = tile_x;
-                game->minimap_flag_z   = tile_z;
+                game->minimap_flag_x = tile_x;
+                game->minimap_flag_z = tile_z;
                 game->minimap_flag_has = 1;
-                game->cross_x          = mx;
-                game->cross_y          = my;
-                game->cross_mode       = 1;
-                game->cross_cycle      = 0;
+                game->cross_x = mx;
+                game->cross_y = my;
+                game->cross_mode = 1;
+                game->cross_cycle = 0;
                 game->interface_consumed_click = 1;
             }
             return;
@@ -2892,24 +3290,21 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
             return;
         if( game->mouse_tile_x < 0 )
             return;
-        game->tile_clicked_x     = game->mouse_tile_x;
-        game->tile_clicked_z     = game->mouse_tile_z;
+        game->tile_clicked_x = game->mouse_tile_x;
+        game->tile_clicked_z = game->mouse_tile_z;
         game->tile_clicked_level = game->mouse_tile_level;
-        game->minimap_flag_has   = 0; /* clear destination flag on direct world click */
-        game->cross_x            = game->mouse_clicked_x;
-        game->cross_y            = game->mouse_clicked_y;
-        game->cross_cycle        = 0;
-        
+        game->minimap_flag_has = 0; /* clear destination flag on direct world click */
+        game->cross_x = game->mouse_clicked_x;
+        game->cross_y = game->mouse_clicked_y;
+        game->cross_cycle = 0;
+
         /* Set crosshair color: red if targetable option, yellow if only default options */
-        game->cross_mode = 1;  /* yellow by default */
+        game->cross_mode = 1; /* yellow by default */
         if( game->option_set.option_count > 0 )
         {
             struct WorldOption def;
             minimenu_game_world_ts_default_row(
-                &game->option_set,
-                game->mouse_tile_x,
-                game->mouse_tile_z,
-                &def);
+                &game->option_set, game->mouse_tile_x, game->mouse_tile_z, &def);
             if( def.action != MINIMENU_ACTION_WALK )
                 game->cross_mode = 2; /* red for targetable */
         }
@@ -2934,7 +3329,7 @@ LibToriRS_FrameEnd(struct GGame* game)
     /* Advance the LRU frame counter for obj icon sprites (mirrors ObjType.spriteCache).
      * Called once at the end of every frame so cache_lookup can stamp last_used correctly. */
     obj_icon_cache_tick();
-    
+
     /* Reset scroll_cycle at end of frame to mirror Client.ts maindraw (10524). */
     game->scroll_cycle = 0;
 }

@@ -39,6 +39,74 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
+extern "C" {
+
+/**
+ * Alpha-composite a sprite sub-rectangle to pixel_buffer (same RGB blend as
+ * dash2d_blit_sprite_alpha). dst_x0,dst_y0 are the destination top-left for the
+ * subrect — no extra crop offset (callers pass logical placement, e.g. minimap_emit_dot).
+ */
+static void
+soft3d_blit_sprite_subrect_alpha(
+    struct DashSprite* sprite,
+    struct DashViewPort* view_port,
+    int dst_x0,
+    int dst_y0,
+    int src_x,
+    int src_y,
+    int src_w,
+    int src_h,
+    int blend_alpha,
+    int* pixel_buffer)
+{
+    if( !sprite || !sprite->pixels_argb || !view_port || !pixel_buffer || src_w <= 0 || src_h <= 0 )
+        return;
+    if( src_x < 0 || src_y < 0 || src_x + src_w > sprite->width || src_y + src_h > sprite->height )
+        return;
+
+    uint32_t* src_pixels = sprite->pixels_argb;
+    int sw = sprite->width;
+    int stride = view_port->stride;
+    int cl = view_port->clip_left;
+    int ct = view_port->clip_top;
+    int cr = view_port->clip_right;
+    int cb = view_port->clip_bottom;
+
+    for( int y = 0; y < src_h; y++ )
+    {
+        for( int x = 0; x < src_w; x++ )
+        {
+            uint32_t src_pixel = src_pixels[(src_y + y) * sw + (src_x + x)];
+            if( src_pixel == 0 )
+                continue;
+
+            int dst_x = dst_x0 + x;
+            int dst_y = dst_y0 + y;
+            if( dst_x < cl || dst_x >= cr || dst_y < ct || dst_y >= cb )
+                continue;
+
+            int dst_idx = dst_y * stride + dst_x;
+            int dst_pixel = pixel_buffer[dst_idx];
+
+            int src_r = (src_pixel >> 16) & 0xFF;
+            int src_g = (src_pixel >> 8) & 0xFF;
+            int src_b = src_pixel & 0xFF;
+
+            int dst_r = (dst_pixel >> 16) & 0xFF;
+            int dst_g = (dst_pixel >> 8) & 0xFF;
+            int dst_b = dst_pixel & 0xFF;
+
+            int out_r = (src_r * blend_alpha + dst_r * (256 - blend_alpha)) >> 8;
+            int out_g = (src_g * blend_alpha + dst_g * (256 - blend_alpha)) >> 8;
+            int out_b = (src_b * blend_alpha + dst_b * (256 - blend_alpha)) >> 8;
+
+            pixel_buffer[dst_idx] = (out_r << 16) | (out_g << 8) | out_b;
+        }
+    }
+}
+
+} /* extern "C" */
+
 static struct nk_context* s_soft3d_nk;
 static Uint64 s_soft3d_ui_prev_perf;
 
@@ -517,20 +585,22 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
                 saved_r = vp->clip_right;
                 saved_b = vp->clip_bottom;
                 had_per_clip = true;
-                int cx  = command._sprite_draw.clip_x;
-                int cy  = command._sprite_draw.clip_y;
+                int cx = command._sprite_draw.clip_x;
+                int cy = command._sprite_draw.clip_y;
                 int cxr = cx + command._sprite_draw.clip_w;
                 int cyb = cy + command._sprite_draw.clip_h;
-                dash2d_set_bounds(vp,
-                    cx  > saved_l ? cx  : saved_l,
-                    cy  > saved_t ? cy  : saved_t,
+                dash2d_set_bounds(
+                    vp,
+                    cx > saved_l ? cx : saved_l,
+                    cy > saved_t ? cy : saved_t,
                     cxr < saved_r ? cxr : saved_r,
                     cyb < saved_b ? cyb : saved_b);
             }
 
             /* Feature 4: masked sprite — apply mask alpha to temp copy before blit. */
             struct DashSprite* mask_sp = command._sprite_draw.mask_sprite;
-            bool has_mask = (mask_sp && mask_sp->pixels_argb && command._sprite_draw.mask_element_id >= 0);
+            bool has_mask =
+                (mask_sp && mask_sp->pixels_argb && command._sprite_draw.mask_element_id >= 0);
 
             /* Build a temporary masked pixel buffer if needed. */
             uint32_t* masked_pixels = nullptr;
@@ -557,8 +627,9 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
                                 mask_alpha = (mp >> 24) & 0xff;
                             }
                             uint32_t orig_alpha = (src_pix >> 24) & 0xff;
-                            uint32_t new_alpha  = (orig_alpha * mask_alpha) / 255u;
-                            masked_pixels[py * pw + px] = (src_pix & 0x00ffffffu) | (new_alpha << 24);
+                            uint32_t new_alpha = (orig_alpha * mask_alpha) / 255u;
+                            masked_pixels[py * pw + px] =
+                                (src_pix & 0x00ffffffu) | (new_alpha << 24);
                         }
                     }
                     /* Wire a temporary DashSprite pointing at masked pixels. */
@@ -592,9 +663,48 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
             }
             else
             {
-                /* Feature 8: alpha mode 1 = blend, 0 = opaque (default blit_sprite already
-                 * alpha-composites from the sprite's ARGB data). */
-                if( command._sprite_draw.alpha_mode == 1 )
+                int ix = command._sprite_draw.src_bb_x;
+                int iy = command._sprite_draw.src_bb_y;
+                bool const subrect = command._sprite_draw.src_bb_w > 0 &&
+                                     command._sprite_draw.src_bb_h > 0 && ix >= 0 && iy >= 0 &&
+                                     ix + srw <= sp->width && iy + srh <= sp->height;
+
+                /* Feature 8: alpha mode 1 = blend, 0 = opaque.
+                 * When src_bb is set (minimap dots, cropped UI sprites), dash2d_blit_sprite_alpha
+                 * is wrong: it ignores src_bb and shifts dst by crop twice vs subrect placement.
+                 * Use subrect paths so dst_bb is the on-screen top-left of the drawn subrect. */
+                if( subrect )
+                {
+                    if( command._sprite_draw.alpha_mode == 1 )
+                    {
+                        soft3d_blit_sprite_subrect_alpha(
+                            sp,
+                            vp,
+                            command._sprite_draw.dst_bb_x,
+                            command._sprite_draw.dst_bb_y,
+                            ix,
+                            iy,
+                            srw,
+                            srh,
+                            255,
+                            renderer->pixel_buffer);
+                    }
+                    else
+                    {
+                        dash2d_blit_sprite_subrect(
+                            game->sys_dash,
+                            sp,
+                            vp,
+                            command._sprite_draw.dst_bb_x - sp->crop_x,
+                            command._sprite_draw.dst_bb_y - sp->crop_y,
+                            ix,
+                            iy,
+                            srw,
+                            srh,
+                            renderer->pixel_buffer);
+                    }
+                }
+                else if( command._sprite_draw.alpha_mode == 1 )
                 {
                     dash2d_blit_sprite_alpha(
                         game->sys_dash,
