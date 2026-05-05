@@ -698,6 +698,7 @@ uitree_push_minimenu(
     component->position.y = 0;
     component->position.width = 0;
     component->position.height = 0;
+    component->u.minimenu.font_id = -1;
     return idx;
 }
 
@@ -740,6 +741,7 @@ uitree_push_chat_messages(
     component->position.y = y;
     component->position.width = width;
     component->position.height = height;
+    component->u.chat_messages.font_id = -1;
     return idx;
 }
 
@@ -763,6 +765,7 @@ uitree_push_chat_input(
     component->position.y = y;
     component->position.width = width;
     component->position.height = height;
+    component->u.chat_input.font_id = -1;
     return idx;
 }
 
@@ -786,6 +789,7 @@ uitree_push_chat_privacy(
     component->position.y = y;
     component->position.width = width;
     component->position.height = height;
+    component->u.chat_privacy.font_id = -1;
     return idx;
 }
 

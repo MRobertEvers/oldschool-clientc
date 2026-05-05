@@ -63,23 +63,26 @@ void chat_draw(
     struct GGame*                 game,
     struct ToriRSRenderCommandBuffer* cmdbuf);
 
-/** Draw only chat messages (part of chat_draw). */
+/** Draw only chat messages (part of chat_draw). `preset_font_id` is UIScene font id from UITree load; -1 = resolve at draw time. */
 void chat_draw_messages(
     struct Chat*                  chat,
     struct GGame*                 game,
-    struct ToriRSRenderCommandBuffer* cmdbuf);
+    struct ToriRSRenderCommandBuffer* cmdbuf,
+    int                           preset_font_id);
 
 /** Draw only chat input field (part of chat_draw). */
 void chat_draw_input(
     struct Chat*                  chat,
     struct GGame*                 game,
-    struct ToriRSRenderCommandBuffer* cmdbuf);
+    struct ToriRSRenderCommandBuffer* cmdbuf,
+    int                           preset_font_id);
 
 /** Draw only privacy/chat mode buttons (part of chat_draw). */
 void chat_draw_privacy(
     struct Chat*                  chat,
     struct GGame*                 game,
-    struct ToriRSRenderCommandBuffer* cmdbuf);
+    struct ToriRSRenderCommandBuffer* cmdbuf,
+    int                           preset_font_id);
 
 /** Handle a mouse click inside the chat area (privacy buttons, scrollbar, tabs). */
 void chat_handle_click(

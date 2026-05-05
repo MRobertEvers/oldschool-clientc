@@ -163,19 +163,36 @@ chat_resolve_font(struct GGame* game, int* out_id)
     return NULL;
 }
 
+/* Resolve font: `preset_font_id` is a UIScene id from UITree load (-1 = pick first available). */
+static struct DashPixFont*
+chat_font_for_draw(struct GGame* game, int preset_font_id, int* out_id)
+{
+    if( preset_font_id >= 0 && game && game->ui_scene )
+    {
+        struct DashPixFont* f = uiscene_font_get(game->ui_scene, preset_font_id);
+        if( f )
+        {
+            *out_id = preset_font_id;
+            return f;
+        }
+    }
+    return chat_resolve_font(game, out_id);
+}
+
 /* ── Frame draw ────────────────────────────────────────────────────────── */
 
 void
 chat_draw_messages(
     struct Chat*                      chat,
     struct GGame*                     game,
-    struct ToriRSRenderCommandBuffer* cmdbuf)
+    struct ToriRSRenderCommandBuffer* cmdbuf,
+    int                               preset_font_id)
 {
     if( !chat || !game || !cmdbuf )
         return;
 
     int font_id = -1;
-    struct DashPixFont* font = chat_resolve_font(game, &font_id);
+    struct DashPixFont* font = chat_font_for_draw(game, preset_font_id, &font_id);
     if( !font || chat->message_count <= 0 )
         return;
 
@@ -243,13 +260,14 @@ void
 chat_draw_input(
     struct Chat*                      chat,
     struct GGame*                     game,
-    struct ToriRSRenderCommandBuffer* cmdbuf)
+    struct ToriRSRenderCommandBuffer* cmdbuf,
+    int                               preset_font_id)
 {
     if( !chat || !game || !cmdbuf )
         return;
 
     int font_id = -1;
-    struct DashPixFont* font = chat_resolve_font(game, &font_id);
+    struct DashPixFont* font = chat_font_for_draw(game, preset_font_id, &font_id);
     if( !font )
         return;
 
@@ -267,13 +285,14 @@ void
 chat_draw_privacy(
     struct Chat*                      chat,
     struct GGame*                     game,
-    struct ToriRSRenderCommandBuffer* cmdbuf)
+    struct ToriRSRenderCommandBuffer* cmdbuf,
+    int                               preset_font_id)
 {
     if( !chat || !game || !cmdbuf )
         return;
 
     int font_id = -1;
-    struct DashPixFont* font = chat_resolve_font(game, &font_id);
+    struct DashPixFont* font = chat_font_for_draw(game, preset_font_id, &font_id);
     if( !font )
         return;
 
@@ -308,9 +327,9 @@ chat_draw(
     if( !chat || !game || !cmdbuf )
         return;
 
-    chat_draw_messages(chat, game, cmdbuf);
-    chat_draw_input(chat, game, cmdbuf);
-    chat_draw_privacy(chat, game, cmdbuf);
+    chat_draw_messages(chat, game, cmdbuf, -1);
+    chat_draw_input(chat, game, cmdbuf, -1);
+    chat_draw_privacy(chat, game, cmdbuf, -1);
 }
 
 /* ── Click / input ─────────────────────────────────────────────────────── */

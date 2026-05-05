@@ -2268,16 +2268,13 @@ uielem_minimenu_step(
     struct UIFrameState* fiber,
     struct StaticUIComponent* node)
 {
-    (void)node;
     struct GGame* game = fiber->game;
-    if( !game || !game->ui_scene || !fiber->cmds || !game->buildcachedat )
+    if( !game || !game->ui_scene || !fiber->cmds )
         return true;
     if( !game->minimenu_visible || game->minimenu_option_count <= 0 )
         return true;
 
-    int ov_font_id = buildcachedat_get_font_ref_id(game->buildcachedat, "b12");
-    if( ov_font_id < 0 )
-        ov_font_id = buildcachedat_get_font_ref_id(game->buildcachedat, "p11");
+    int ov_font_id = node->u.minimenu.font_id;
     struct DashPixFont* ov_font = NULL;
     if( ov_font_id >= 0 )
         ov_font = uiscene_font_get(game->ui_scene, ov_font_id);
@@ -2345,7 +2342,7 @@ uielem_chat_messages_step(
         return true;
     
     frame_emit_pass(fiber, FRAME_PASS_2D);
-    chat_draw_messages(game->chat, game, fiber->cmds);
+    chat_draw_messages(game->chat, game, fiber->cmds, node->u.chat_messages.font_id);
     return true;
 }
 
@@ -2359,7 +2356,7 @@ uielem_chat_input_step(
         return true;
     
     frame_emit_pass(fiber, FRAME_PASS_2D);
-    chat_draw_input(game->chat, game, fiber->cmds);
+    chat_draw_input(game->chat, game, fiber->cmds, node->u.chat_input.font_id);
     return true;
 }
 
@@ -2373,7 +2370,7 @@ uielem_chat_privacy_step(
         return true;
     
     frame_emit_pass(fiber, FRAME_PASS_2D);
-    chat_draw_privacy(game->chat, game, fiber->cmds);
+    chat_draw_privacy(game->chat, game, fiber->cmds, node->u.chat_privacy.font_id);
     return true;
 }
 

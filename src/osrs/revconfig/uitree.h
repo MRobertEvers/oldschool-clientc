@@ -174,11 +174,27 @@ struct StaticUIComponent
         } hover_tooltip;
         struct
         {
+            int font_id; /* UIScene font id; resolved at INI load (default b12 then p11). */
+        } minimenu;
+        struct
+        {
             int tabno;
             int componentno;
             int inv_index; /* UIInventoryPool index; -1 if none */
         } sidebar;
 
+        struct
+        {
+            int font_id; /* UIScene font id; resolved at INI load (default first of p11,p12,b12,q8). */
+        } chat_messages;
+        struct
+        {
+            int font_id;
+        } chat_input;
+        struct
+        {
+            int font_id;
+        } chat_privacy;
         struct
         {
             /** Resolved uiscene font id at draw time; may be -1 until lazy resolve. */

@@ -650,16 +650,16 @@ load_component(
     }
     break;
     case UIELEM_BUILTIN_HOVER_TOOLTIP:
+    case UIELEM_BUILTIN_MINIMENU:
+    case UIELEM_BUILTIN_CHAT_MESSAGES:
+    case UIELEM_BUILTIN_CHAT_INPUT:
+    case UIELEM_BUILTIN_CHAT_PRIVACY:
     {
         strncpy(component_entry->font, load->font, sizeof(component_entry->font) - 1);
         component_entry->font[sizeof(component_entry->font) - 1] = '\0';
     }
     break;
-    case UIELEM_BUILTIN_MINIMENU:
     case UIELEM_BUILTIN_CROSSHAIR:
-    case UIELEM_BUILTIN_CHAT_MESSAGES:
-    case UIELEM_BUILTIN_CHAT_INPUT:
-    case UIELEM_BUILTIN_CHAT_PRIVACY:
         break;
     default:
         break;
@@ -1238,6 +1238,44 @@ expand_sidebar_rs_tree(
         game, ui, ui_scene, scene2, bcd, sidebar_idx, root, bx, by, inv_index);
 }
 
+static int
+uitree_load_resolve_minimenu_font_id(struct BuildCacheDat* bcd, char const* ini_font_name)
+{
+    if( bcd && ini_font_name && ini_font_name[0] )
+    {
+        int id = buildcachedat_get_font_ref_id(bcd, ini_font_name);
+        if( id >= 0 )
+            return id;
+    }
+    if( !bcd )
+        return -1;
+    int id = buildcachedat_get_font_ref_id(bcd, "b12");
+    if( id >= 0 )
+        return id;
+    return buildcachedat_get_font_ref_id(bcd, "p11");
+}
+
+static int
+uitree_load_resolve_chat_font_id(struct BuildCacheDat* bcd, char const* ini_font_name)
+{
+    if( bcd && ini_font_name && ini_font_name[0] )
+    {
+        int id = buildcachedat_get_font_ref_id(bcd, ini_font_name);
+        if( id >= 0 )
+            return id;
+    }
+    if( !bcd )
+        return -1;
+    static char const* const fallback[] = { "p11", "p12", "b12", "q8" };
+    for( int i = 0; i < 4; i++ )
+    {
+        int id = buildcachedat_get_font_ref_id(bcd, fallback[i]);
+        if( id >= 0 )
+            return id;
+    }
+    return -1;
+}
+
 static void
 load_layout(
     struct LayoutLoad* load,
@@ -1332,9 +1370,16 @@ load_layout(
         break;
         case UIELEM_BUILTIN_MINIMENU:
         {
+            int font_id = uitree_load_resolve_minimenu_font_id(
+                buildcachedat,
+                component_entry->font[0] != '\0' ? component_entry->font : NULL);
             int32_t idx = uitree_push_minimenu(ui, -1);
-            if( idx >= 0 && layout_entry->always_dirty )
-                ui->components[idx].always_dirty = 1;
+            if( idx >= 0 )
+            {
+                ui->components[idx].u.minimenu.font_id = font_id;
+                if( layout_entry->always_dirty )
+                    ui->components[idx].always_dirty = 1;
+            }
         }
         break;
         case UIELEM_BUILTIN_CROSSHAIR:
@@ -1346,29 +1391,50 @@ load_layout(
         break;
         case UIELEM_BUILTIN_CHAT_MESSAGES:
         {
+            int font_id = uitree_load_resolve_chat_font_id(
+                buildcachedat,
+                component_entry->font[0] != '\0' ? component_entry->font : NULL);
             int32_t idx = uitree_push_chat_messages(
                 ui, -1, layout_entry->x, layout_entry->y,
                 component_entry->width, component_entry->height);
-            if( idx >= 0 && layout_entry->always_dirty )
-                ui->components[idx].always_dirty = 1;
+            if( idx >= 0 )
+            {
+                ui->components[idx].u.chat_messages.font_id = font_id;
+                if( layout_entry->always_dirty )
+                    ui->components[idx].always_dirty = 1;
+            }
         }
         break;
         case UIELEM_BUILTIN_CHAT_INPUT:
         {
+            int font_id = uitree_load_resolve_chat_font_id(
+                buildcachedat,
+                component_entry->font[0] != '\0' ? component_entry->font : NULL);
             int32_t idx = uitree_push_chat_input(
                 ui, -1, layout_entry->x, layout_entry->y,
                 component_entry->width, component_entry->height);
-            if( idx >= 0 && layout_entry->always_dirty )
-                ui->components[idx].always_dirty = 1;
+            if( idx >= 0 )
+            {
+                ui->components[idx].u.chat_input.font_id = font_id;
+                if( layout_entry->always_dirty )
+                    ui->components[idx].always_dirty = 1;
+            }
         }
         break;
         case UIELEM_BUILTIN_CHAT_PRIVACY:
         {
+            int font_id = uitree_load_resolve_chat_font_id(
+                buildcachedat,
+                component_entry->font[0] != '\0' ? component_entry->font : NULL);
             int32_t idx = uitree_push_chat_privacy(
                 ui, -1, layout_entry->x, layout_entry->y,
                 component_entry->width, component_entry->height);
-            if( idx >= 0 && layout_entry->always_dirty )
-                ui->components[idx].always_dirty = 1;
+            if( idx >= 0 )
+            {
+                ui->components[idx].u.chat_privacy.font_id = font_id;
+                if( layout_entry->always_dirty )
+                    ui->components[idx].always_dirty = 1;
+            }
         }
         break;
         case UIELEM_BUILTIN_REDSTONE_TAB:
