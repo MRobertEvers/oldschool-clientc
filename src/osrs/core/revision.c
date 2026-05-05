@@ -1,9 +1,11 @@
 #include "osrs/core/revision.h"
 
+#include "osrs/core/clientprot_core.h"
 #include "osrs/game.h"
-#include "osrs/revs/lc245_2/loginproto_rev245_2.h"
 #include "osrs/packetin.h"
+#include "osrs/revs/lc245_2/clientprot_rev245_2.h"
 #include "osrs/revs/lc245_2/gameproto_rev245_2_parse.h"
+#include "osrs/revs/lc245_2/loginproto_rev245_2.h"
 #include "osrs/revs/lc245_2/revision_lc245_2.h"
 
 #include <assert.h>
@@ -80,7 +82,9 @@ revision_lua_init_ui_path(const struct Revision* rev)
 }
 
 int
-revision_packetin_size(const struct Revision* rev, int opcode)
+revision_packetin_size(
+    const struct Revision* rev,
+    int opcode)
 {
     switch( rev->kind )
     {
@@ -128,7 +132,9 @@ revision_parse_and_enqueue(
 }
 
 bool
-revision_has_pending(const struct Revision* rev, struct GGame* game)
+revision_has_pending(
+    const struct Revision* rev,
+    struct GGame* game)
 {
     (void)rev;
     if( !game )
@@ -136,8 +142,8 @@ revision_has_pending(const struct Revision* rev, struct GGame* game)
     switch( game->revision.kind )
     {
     case REVISION_KIND_LC245_2:
-        return game->revision.impl
-            && gameproto_rev245_2_has_pending((struct RevisionLC245_2*)game->revision.impl);
+        return game->revision.impl &&
+               gameproto_rev245_2_has_pending((struct RevisionLC245_2*)game->revision.impl);
     case REVISION_KIND_LC254:
         return false;
     case REVISION_KIND_OS217:
@@ -149,7 +155,9 @@ revision_has_pending(const struct Revision* rev, struct GGame* game)
 }
 
 void
-revision_drain_pending(const struct Revision* rev, struct GGame* game)
+revision_drain_pending(
+    const struct Revision* rev,
+    struct GGame* game)
 {
     (void)rev;
     if( !game )
@@ -202,7 +210,9 @@ revision_loginproto_new(
 }
 
 void
-revision_loginproto_free(const struct Revision* rev, struct LoginProto* lp)
+revision_loginproto_free(
+    const struct Revision* rev,
+    struct LoginProto* lp)
 {
     switch( rev->kind )
     {
@@ -265,7 +275,9 @@ revision_loginproto_send(
 }
 
 int
-revision_loginproto_poll(const struct Revision* rev, struct LoginProto* lp)
+revision_loginproto_poll(
+    const struct Revision* rev,
+    struct LoginProto* lp)
 {
     switch( rev->kind )
     {
@@ -278,6 +290,28 @@ revision_loginproto_poll(const struct Revision* rev, struct LoginProto* lp)
         (void)lp;
         assert(0 && "revision_loginproto_poll: revision not wired");
         return 0;
+    }
+}
+
+int
+revision_clientprot_emit(
+    const struct Revision* rev,
+    struct RSBuffer* out,
+    struct GGame* game,
+    int kind,
+    void* args)
+{
+    if( !rev || !out || !game )
+        return -1;
+    switch( rev->kind )
+    {
+    case REVISION_KIND_LC245_2:
+        return clientprot_rev245_2_emit(out, game, (enum ClientProtOpKind)kind, args);
+    case REVISION_KIND_LC254:
+    case REVISION_KIND_OS217:
+    case REVISION_KIND_INVALID:
+    default:
+        return -1;
     }
 }
 

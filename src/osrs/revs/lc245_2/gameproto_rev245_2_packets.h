@@ -340,6 +340,51 @@ struct PktSetMultiway
     int multiway; /* g1: 1=in multicombat zone */
 };
 
+struct PktTutFlash
+{
+    int tab_id; /* g1: sidebar tab to flash */
+};
+
+struct PktTutOpen
+{
+    int component_id; /* g2: tutorial interface to open */
+};
+
+struct PktRebootTimer
+{
+    int ticks; /* g2: server reboot countdown in game ticks */
+};
+
+struct PktUpdateFriendList
+{
+    int64_t username; /* g8: base37 */
+    int     world;    /* g1: 0 = offline, else world number */
+};
+
+struct PktUpdateIgnoreList
+{
+    int64_t* usernames; /* heap-alloc; count = data_size / 8 */
+    int      count;
+};
+
+struct PktSynthSound
+{
+    int id;    /* g2 */
+    int loops; /* g1 */
+    int delay; /* g2 */
+};
+
+struct PktMidiSong
+{
+    int id; /* g2 */
+};
+
+struct PktMidiJingle
+{
+    int delay; /* g2 */
+    int id;    /* g2 */
+};
+
 struct RevPacket_LC245_2
 {
     enum PacketInType_LC245_2 packet_type;
@@ -396,6 +441,14 @@ struct RevPacket_LC245_2
         struct PktUpdateInvStopTransmit _update_inv_stop_transmit;
         struct PktUpdateInvPartial _update_inv_partial;
         struct PktSetMultiway _set_multiway;
+        struct PktTutFlash _tut_flash;
+        struct PktTutOpen _tut_open;
+        struct PktRebootTimer _reboot_timer;
+        struct PktUpdateFriendList _update_friendlist;
+        struct PktUpdateIgnoreList _update_ignorelist;
+        struct PktSynthSound _synth_sound;
+        struct PktMidiSong _midi_song;
+        struct PktMidiJingle _midi_jingle;
     };
 };
 

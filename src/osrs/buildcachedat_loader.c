@@ -26,7 +26,7 @@
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene2.h"
 #include "osrs/texture.h"
-#include "osrs/varp_varbit_manager.h"
+#include "osrs/clientscript_vm.h"
 #include "osrs/world.h"
 
 #include <assert.h>
@@ -116,8 +116,8 @@ buildcachedat_loader_init_varp_varbit(
     struct GGame* game)
 {
     struct FileListDat* config_jagfile = buildcachedat_config_jagfile(buildcachedat);
-    if( config_jagfile )
-        varp_varbit_load_from_config_jagfile(&game->varp_varbit, config_jagfile);
+    if( config_jagfile && game->clientscript_vm )
+        clientscript_vm_load_types(game->clientscript_vm, config_jagfile);
 }
 
 void

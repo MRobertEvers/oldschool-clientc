@@ -17,6 +17,9 @@ interface_state_new(void)
     iface->viewport_interface_id = -1;
     iface->chat_interface_id = -1;
     iface->current_hovered_interface_id = -1;
+    iface->over_main_com_id = -1;
+    iface->over_side_com_id = -1;
+    iface->over_chat_com_id = -1;
     iface->selected_area = 0;
     iface->selected_item = 0;
     iface->selected_interface = -1;

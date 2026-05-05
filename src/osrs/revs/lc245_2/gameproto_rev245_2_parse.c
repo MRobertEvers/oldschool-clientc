@@ -505,6 +505,72 @@ gameproto_rev245_2_parse(
         packet->_update_zone_partial_follows.base_z = g1(&buffer);
         return 1;
     }
+    case PKTIN_LC245_2_TUT_FLASH:
+    {
+        packet->_tut_flash.tab_id = g1(&buffer);
+        return 1;
+    }
+    case PKTIN_LC245_2_TUT_OPEN:
+    {
+        packet->_tut_open.component_id = g2(&buffer);
+        return 1;
+    }
+    case PKTIN_LC245_2_LOGOUT:
+    case PKTIN_LC245_2_P_COUNTDIALOG:
+    case PKTIN_LC245_2_FINISH_TRACKING:
+    case PKTIN_LC245_2_ENABLE_TRACKING:
+    case PKTIN_LC245_2_LAST_LOGIN_INFO:
+    {
+        /* Zero-payload or ignored-payload packets; nothing to decode. */
+        return 1;
+    }
+    case PKTIN_LC245_2_UPDATE_REBOOT_TIMER:
+    {
+        packet->_reboot_timer.ticks = g2(&buffer);
+        return 1;
+    }
+    case PKTIN_LC245_2_UPDATE_FRIENDLIST:
+    {
+        packet->_update_friendlist.username = g8(&buffer);
+        packet->_update_friendlist.world    = g1(&buffer);
+        return 1;
+    }
+    case PKTIN_LC245_2_UPDATE_IGNORELIST:
+    {
+        int count = data_size / 8;
+        if( count <= 0 )
+        {
+            packet->_update_ignorelist.usernames = NULL;
+            packet->_update_ignorelist.count     = 0;
+            return 1;
+        }
+        int64_t* names = (int64_t*)malloc((size_t)count * sizeof(int64_t));
+        if( !names )
+            return 0;
+        for( int i = 0; i < count; i++ )
+            names[i] = g8(&buffer);
+        packet->_update_ignorelist.usernames = names;
+        packet->_update_ignorelist.count     = count;
+        return 1;
+    }
+    case PKTIN_LC245_2_SYNTH_SOUND:
+    {
+        packet->_synth_sound.id    = g2(&buffer);
+        packet->_synth_sound.loops = g1(&buffer);
+        packet->_synth_sound.delay = g2(&buffer);
+        return 1;
+    }
+    case PKTIN_LC245_2_MIDI_SONG:
+    {
+        packet->_midi_song.id = g2(&buffer);
+        return 1;
+    }
+    case PKTIN_LC245_2_MIDI_JINGLE:
+    {
+        packet->_midi_jingle.delay = g2(&buffer);
+        packet->_midi_jingle.id    = g2(&buffer);
+        return 1;
+    }
         printf("[gameproto_rev245_2_parse] Unknown packet type: %d\n", packet_type);
         break;
     }
@@ -554,6 +620,11 @@ gameproto_free_lc245_2_item(struct RevPacket_LC245_2_Item* item)
         free(p->_update_inv_partial.entries);
         p->_update_inv_partial.entries = NULL;
         p->_update_inv_partial.count = 0;
+        break;
+    case PKTIN_LC245_2_UPDATE_IGNORELIST:
+        free(p->_update_ignorelist.usernames);
+        p->_update_ignorelist.usernames = NULL;
+        p->_update_ignorelist.count = 0;
         break;
     default:
         break;

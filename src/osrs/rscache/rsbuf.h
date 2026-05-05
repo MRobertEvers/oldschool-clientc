@@ -56,6 +56,17 @@ rsbuf_p4(
 int64_t
 rsbuf_g8(struct RSBuffer* buffer);
 
+void rsbuf_p3    (struct RSBuffer* buffer, int value);
+void rsbuf_p8    (struct RSBuffer* buffer, int64_t value);
+void rsbuf_p1neg (struct RSBuffer* buffer, int value);
+void rsbuf_p1add (struct RSBuffer* buffer, int value);
+void rsbuf_p2add (struct RSBuffer* buffer, int value);
+void rsbuf_p2le  (struct RSBuffer* buffer, int value);
+/** Mark-based size writers: call AFTER the content is written.
+ * @param mark  The position where the size header was reserved (rsbuf_p1/p2 with 0). */
+void rsbuf_psize1(struct RSBuffer* buffer, int mark);
+void rsbuf_psize2(struct RSBuffer* buffer, int mark);
+
 int
 rsbuf_read_usmart(struct RSBuffer* buffer);
 int
@@ -111,6 +122,14 @@ rsbuf_pwrite(
 #define g4(buffer) rsbuf_g4(buffer)
 #define p4(buffer, value) rsbuf_p4(buffer, value)
 #define g8(buffer) rsbuf_g8(buffer)
+#define p3(buffer, value)    rsbuf_p3(buffer, value)
+#define p8(buffer, value)    rsbuf_p8(buffer, value)
+#define p1neg(buffer, value) rsbuf_p1neg(buffer, value)
+#define p1add(buffer, value) rsbuf_p1add(buffer, value)
+#define p2add(buffer, value) rsbuf_p2add(buffer, value)
+#define p2le(buffer, value)  rsbuf_p2le(buffer, value)
+#define psize1(buffer, mark) rsbuf_psize1(buffer, mark)
+#define psize2(buffer, mark) rsbuf_psize2(buffer, mark)
 #define gusmart(buffer) rsbuf_read_usmart(buffer)
 #define gbigsmart(buffer) rsbuf_read_big_smart(buffer)
 #define gushortsmart(buffer) rsbuf_read_unsigned_short_smart(buffer)

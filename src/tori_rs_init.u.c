@@ -29,7 +29,6 @@
 #include "osrs/rscache/tables_dat/configs_dat.h"
 #include "osrs/scene2.h"
 #include "osrs/script_queue.h"
-#include "osrs/varp_varbit_manager.h"
 #include "osrs/zone_state.h"
 #include "tori_rs.h"
 #include "tori_rs_render.h"
@@ -250,6 +249,8 @@ LibToriRS_GameNew(
     game->uitree_stack_top = -1;
     game->uitree_current = -1;
     game->clientscript_vm = clientscript_vm_new();
+    if( game->clientscript_vm )
+        game->clientscript_vm->game_ref = game;
     game->uiscene_queued_commands = LibToriRS_RenderCommandBufferNew(64);
     game->minimap_dynamic_commands = minimap_commands_new(64);
 

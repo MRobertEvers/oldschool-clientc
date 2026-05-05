@@ -3,6 +3,8 @@
 #include "graphics/dash.h"
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
+#include "osrs/clientscript_vm.h"
+#include "osrs/core/clientprot_core.h"
 #include "osrs/dash_utils.h"
 #include "osrs/datatypes/appearances.h"
 #include "osrs/datatypes/player_appearance.h"
@@ -10,7 +12,10 @@
 #include "osrs/game_entity.h"
 #include "osrs/interface_state.h"
 #include "osrs/model_transforms.h"
+#include "osrs/obj_icon.h"
 #include "osrs/player_stats.h"
+#include "osrs/revconfig/uiscene.h"
+#include "osrs/revconfig/uitree.h"
 #include "osrs/revconfig/uitree_load.h"
 #include "osrs/revs/lc245_2/gameproto_rev245_2_pktnpcinfo.h"
 #include "osrs/revs/lc245_2/gameproto_rev245_2_pktplayerinfo.h"
@@ -21,7 +26,6 @@
 #include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
 #include "osrs/scene2.h"
-#include "osrs/varp_varbit_manager.h"
 #include "osrs/world_scenebuild.h"
 #include "osrs/zone_state.h"
 
@@ -423,6 +427,9 @@ gameproto_rev245_2_exec_rebuild_normal(
     }
 
     LibToriRS_WorldMinimapStaticRebuild(game);
+
+    /* Notify server that map build is complete (Client.ts MAP_BUILD_COMPLETE). */
+    clientprot_map_build_complete(game);
 }
 
 void
@@ -536,6 +543,72 @@ gameproto_rev245_2_exec_player_info(
     add_player_info(game, packet);
 }
 
+/**
+ * Update a single UIInventoryItem slot: releases any prior UIScene sprite element,
+ * loads a fresh icon via obj_icon_get, and registers it in the UIScene.
+ *
+ * obj_id_0based: 0-based item id for obj_icon_get; pass 0 to clear the slot.
+ * count: stack count used for multi-stack icon variants (e.g. coins).
+ */
+static void
+inv_sync_load_item_sprite(
+    struct GGame* game,
+    struct UIInventoryItem* item,
+    int obj_id_0based,
+    int count)
+{
+    if( item->scene_id >= 0 && game->ui_scene )
+        uiscene_element_release(game->ui_scene, item->scene_id);
+    item->scene_id = -1;
+    item->atlas_index = 0;
+
+    if( obj_id_0based <= 0 || !game->ui_scene )
+    {
+        item->obj_id = 0;
+        item->obj_count = 0;
+        return;
+    }
+
+    /* Store 1-based so rs_gfx_inv_step's (obj_id > 0) check treats 0 as empty. */
+    item->obj_id = obj_id_0based + 1;
+    item->obj_count = count > 0 ? count : 1;
+
+    struct DashSprite* sp = obj_icon_get(game, obj_id_0based, count > 0 ? count : 1);
+    if( !sp )
+        return;
+
+    struct DashSprite** arr = malloc(sizeof(struct DashSprite*));
+    if( !arr )
+    {
+        dashsprite_free(sp);
+        return;
+    }
+    arr[0] = sp;
+
+    int eid = uiscene_element_acquire(game->ui_scene, -1);
+    if( eid < 0 )
+    {
+        free(arr);
+        dashsprite_free(sp);
+        return;
+    }
+
+    struct UISceneElement* el = uiscene_element_at(game->ui_scene, eid);
+    if( !el )
+    {
+        free(arr);
+        dashsprite_free(sp);
+        uiscene_element_release(game->ui_scene, eid);
+        return;
+    }
+
+    el->dash_sprites = arr;
+    el->dash_sprites_count = 1;
+    el->dash_sprites_borrowed = false;
+    item->scene_id = eid;
+    item->atlas_index = 0;
+}
+
 void
 gameproto_rev245_2_exec_update_inv_full(
     struct GGame* game,
@@ -561,31 +634,46 @@ gameproto_rev245_2_exec_update_inv_full(
 
     int max_slots = component->width * component->height;
 
-    // Update inventory slots with new data
+    /* Update buildcachedat slots (software-raster / interface.c path). */
     for( int i = 0; i < size && i < max_slots; i++ )
     {
-        component->invSlotObjId[i] = packet->_update_inv_full.obj_ids[i];
+        component->invSlotObjId[i]    = packet->_update_inv_full.obj_ids[i];
         component->invSlotObjCount[i] = packet->_update_inv_full.obj_counts[i];
     }
-
-    // Clear remaining slots
     for( int i = size; i < max_slots; i++ )
     {
-        component->invSlotObjId[i] = 0;
+        component->invSlotObjId[i]    = 0;
         component->invSlotObjCount[i] = 0;
     }
 
-    printf("UPDATE_INV_FULL: Updated component %d with %d items\n", component_id, size);
-
-    // Debug: Print first few items to verify
-    printf("UPDATE_INV_FULL: First 5 items in component %d:\n", component_id);
-    for( int i = 0; i < 5 && i < size; i++ )
+    /* Sync UIInventoryPool for the ToriRS / rs_gfx_inv_step render path. */
+    if( game->inv_pool && game->ui_root_buffer )
     {
-        printf(
-            "  Slot %d: ID=%d, Count=%d\n",
-            i,
-            component->invSlotObjId[i],
-            component->invSlotObjCount[i]);
+        int32_t node_idx = -1;
+        int inv_index = uitree_find_inv_index_by_component_id(
+            game->ui_root_buffer, component_id, &node_idx);
+
+        if( inv_index >= 0 && inv_index < game->inv_pool->count )
+        {
+            struct UIInventory* inv = &game->inv_pool->inventories[inv_index];
+            int item_limit = size < UI_INVENTORY_MAX_ITEMS ? size : UI_INVENTORY_MAX_ITEMS;
+
+            for( int i = 0; i < item_limit; i++ )
+            {
+                /* obj_ids[i] is 1-based wire value; obj_icon_get expects 0-based. */
+                int obj_id_wire  = packet->_update_inv_full.obj_ids[i];
+                int obj_id_0base = obj_id_wire > 0 ? obj_id_wire - 1 : 0;
+                int count        = packet->_update_inv_full.obj_counts[i];
+                inv_sync_load_item_sprite(game, &inv->items[i], obj_id_0base, count);
+            }
+            for( int i = item_limit; i < UI_INVENTORY_MAX_ITEMS; i++ )
+                inv_sync_load_item_sprite(game, &inv->items[i], 0, 0);
+
+            inv->item_count = item_limit;
+
+            if( node_idx >= 0 )
+                game->ui_root_buffer->components[node_idx].is_dirty = 1;
+        }
     }
 }
 
@@ -632,15 +720,29 @@ gameproto_rev245_2_exec_if_setcolour(
     int component_id = packet->_if_setcolour.component_id;
     int colour15 = packet->_if_setcolour.colour;
 
-    struct CacheDatConfigComponent* component =
-        buildcachedat_get_component(game->buildcachedat, component_id);
-    if( !component )
+    if( !game->ui_root_buffer )
         return;
+    int32_t idx = uitree_find_by_component_id(game->ui_root_buffer, component_id);
+    if( idx < 0 )
+        return;
+    struct StaticUIComponent* c = &game->ui_root_buffer->components[idx];
 
     int r = (colour15 >> 10) & 0x1f;
     int g = (colour15 >> 5) & 0x1f;
     int b = colour15 & 0x1f;
-    component->colour = (r << 19) | (g << 11) | (b << 3);
+    int rgb = (r << 19) | (g << 11) | (b << 3);
+
+    switch( c->type )
+    {
+    case UIELEM_RS_TEXT:
+        c->u.rs_text.color = rgb;
+        break;
+    case UIELEM_RS_RECT:
+        c->u.rs_rect.color = rgb;
+        break;
+    default:
+        break;
+    }
 }
 
 void
@@ -651,12 +753,8 @@ gameproto_rev245_2_exec_if_sethide(
     int component_id = packet->_if_sethide.component_id;
     int hide_val = packet->_if_sethide.hide;
 
-    struct CacheDatConfigComponent* component =
-        buildcachedat_get_component(game->buildcachedat, component_id);
-    if( !component )
-        return;
-
-    component->hide = (hide_val == 1);
+    if( game->ui_root_buffer )
+        uitree_set_component_hidden(game->ui_root_buffer, component_id, hide_val);
 }
 
 void
@@ -709,12 +807,11 @@ gameproto_rev245_2_exec_if_setanim(
     int component_id = packet->_if_setanim.component_id;
     int anim_id = packet->_if_setanim.anim_id;
 
-    struct CacheDatConfigComponent* component =
-        buildcachedat_get_component(game->buildcachedat, component_id);
-    if( !component )
+    if( !game->ui_root_buffer )
         return;
-
-    component->anim = anim_id;
+    int32_t idx = uitree_find_by_component_id(game->ui_root_buffer, component_id);
+    if( idx >= 0 )
+        game->ui_root_buffer->components[idx].anim_id = anim_id;
 }
 
 void
@@ -749,18 +846,31 @@ gameproto_rev245_2_exec_if_settext(
     int component_id = packet->_if_settext.component_id;
     char* new_text = packet->_if_settext.text;
 
-    struct CacheDatConfigComponent* component =
-        buildcachedat_get_component(game->buildcachedat, component_id);
-    if( !component )
+    if( !game->ui_root_buffer )
     {
         free(new_text);
         packet->_if_settext.text = NULL;
         return;
     }
-
-    free(component->text);
-    component->text = new_text;
-    packet->_if_settext.text = NULL;
+    int32_t idx = uitree_find_by_component_id(game->ui_root_buffer, component_id);
+    if( idx < 0 )
+    {
+        free(new_text);
+        packet->_if_settext.text = NULL;
+        return;
+    }
+    struct StaticUIComponent* c = &game->ui_root_buffer->components[idx];
+    if( c->type == UIELEM_RS_TEXT )
+    {
+        free((void*)c->u.rs_text.text);
+        c->u.rs_text.text = new_text;
+        packet->_if_settext.text = NULL;
+    }
+    else
+    {
+        free(new_text);
+        packet->_if_settext.text = NULL;
+    }
 }
 
 void
@@ -789,13 +899,14 @@ gameproto_rev245_2_exec_if_setposition(
     int x = packet->_if_setposition.x;
     int z = packet->_if_setposition.z;
 
-    struct CacheDatConfigComponent* component =
-        buildcachedat_get_component(game->buildcachedat, component_id);
-    if( !component )
+    if( !game->ui_root_buffer )
         return;
-
-    component->x = x;
-    component->y = z;
+    int32_t idx = uitree_find_by_component_id(game->ui_root_buffer, component_id);
+    if( idx < 0 )
+        return;
+    struct StaticUIComponent* c = &game->ui_root_buffer->components[idx];
+    c->position.x = x;
+    c->position.y = z;
 }
 
 void
@@ -809,22 +920,84 @@ gameproto_rev245_2_exec_if_setscrollpos(
     if( !game->iface || component_id < 0 || component_id >= MAX_IFACE_SCROLL_IDS )
         return;
 
-    struct CacheDatConfigComponent* component =
-        buildcachedat_get_component(game->buildcachedat, component_id);
-    if( !component )
-        return;
-
-    if( component->type == COMPONENT_TYPE_LAYER )
+    /* Clamp using StaticUIComponent scroll data if available. */
+    if( game->ui_root_buffer )
     {
-        if( pos < 0 )
-            pos = 0;
-        int max_scroll = component->scroll - component->height;
-        if( max_scroll > 0 && pos > max_scroll )
-            pos = max_scroll;
+        int32_t idx = uitree_find_by_component_id(game->ui_root_buffer, component_id);
+        if( idx >= 0 )
+        {
+            struct StaticUIComponent* c = &game->ui_root_buffer->components[idx];
+            if( c->type == UIELEM_RS_LAYER )
+            {
+                if( pos < 0 )
+                    pos = 0;
+                int max_scroll = c->u.rs_layer.scroll_height - c->position.height;
+                if( max_scroll > 0 && pos > max_scroll )
+                    pos = max_scroll;
+            }
+        }
     }
 
     game->iface->component_scroll_position[component_id] = pos;
 }
+
+/* Forward declarations for handlers defined after this function. */
+static void
+gameproto_rev245_2_exec_message_game(
+    struct GGame*,
+    struct RevPacket_LC245_2*);
+static void
+gameproto_rev245_2_exec_message_private(
+    struct GGame*,
+    struct RevPacket_LC245_2*);
+static void
+gameproto_rev245_2_exec_chat_filter_settings(
+    struct GGame*,
+    struct RevPacket_LC245_2*);
+static void
+gameproto_rev245_2_exec_tut_flash(
+    struct GGame*,
+    struct RevPacket_LC245_2*);
+static void
+gameproto_rev245_2_exec_tut_open(
+    struct GGame*,
+    struct RevPacket_LC245_2*);
+static void
+gameproto_rev245_2_exec_logout(
+    struct GGame*,
+    struct RevPacket_LC245_2*);
+static void
+gameproto_rev245_2_exec_p_countdialog(
+    struct GGame*,
+    struct RevPacket_LC245_2*);
+static void
+gameproto_rev245_2_exec_reboot_timer(
+    struct GGame*,
+    struct RevPacket_LC245_2*);
+static void
+gameproto_rev245_2_exec_update_friendlist(
+    struct GGame*,
+    struct RevPacket_LC245_2*);
+static void
+gameproto_rev245_2_exec_update_ignorelist(
+    struct GGame*,
+    struct RevPacket_LC245_2*);
+static void
+gameproto_rev245_2_exec_if_openoverlay(
+    struct GGame*,
+    struct RevPacket_LC245_2*);
+static void
+gameproto_rev245_2_exec_synth_sound(
+    struct GGame*,
+    struct RevPacket_LC245_2*);
+static void
+gameproto_rev245_2_exec_midi_song(
+    struct GGame*,
+    struct RevPacket_LC245_2*);
+static void
+gameproto_rev245_2_exec_midi_jingle(
+    struct GGame*,
+    struct RevPacket_LC245_2*);
 
 void
 gameproto_rev245_2_exec_dispatch(
@@ -967,6 +1140,50 @@ gameproto_rev245_2_exec_dispatch(
         break;
     case PKTIN_LC245_2_SET_MULTIWAY:
         gameproto_rev245_2_exec_set_multiway(game, packet);
+        break;
+    case PKTIN_LC245_2_MESSAGE_GAME:
+        gameproto_rev245_2_exec_message_game(game, packet);
+        break;
+    case PKTIN_LC245_2_MESSAGE_PRIVATE:
+        gameproto_rev245_2_exec_message_private(game, packet);
+        break;
+    case PKTIN_LC245_2_CHAT_FILTER_SETTINGS:
+        gameproto_rev245_2_exec_chat_filter_settings(game, packet);
+        break;
+    case PKTIN_LC245_2_TUT_FLASH:
+        gameproto_rev245_2_exec_tut_flash(game, packet);
+        break;
+    case PKTIN_LC245_2_TUT_OPEN:
+        gameproto_rev245_2_exec_tut_open(game, packet);
+        break;
+    case PKTIN_LC245_2_LOGOUT:
+        gameproto_rev245_2_exec_logout(game, packet);
+        break;
+    case PKTIN_LC245_2_P_COUNTDIALOG:
+        gameproto_rev245_2_exec_p_countdialog(game, packet);
+        break;
+    case PKTIN_LC245_2_UPDATE_REBOOT_TIMER:
+        gameproto_rev245_2_exec_reboot_timer(game, packet);
+        break;
+    case PKTIN_LC245_2_UPDATE_FRIENDLIST:
+        gameproto_rev245_2_exec_update_friendlist(game, packet);
+        break;
+    case PKTIN_LC245_2_UPDATE_IGNORELIST:
+        gameproto_rev245_2_exec_update_ignorelist(game, packet);
+        break;
+    case PKTIN_LC245_2_SYNTH_SOUND:
+        gameproto_rev245_2_exec_synth_sound(game, packet);
+        break;
+    case PKTIN_LC245_2_MIDI_SONG:
+        gameproto_rev245_2_exec_midi_song(game, packet);
+        break;
+    case PKTIN_LC245_2_MIDI_JINGLE:
+        gameproto_rev245_2_exec_midi_jingle(game, packet);
+        break;
+    case PKTIN_LC245_2_FINISH_TRACKING:
+    case PKTIN_LC245_2_ENABLE_TRACKING:
+    case PKTIN_LC245_2_LAST_LOGIN_INFO:
+        /* No client state change needed. */
         break;
     case PKTIN_LC245_2_OBJ_ADD:
         gameproto_rev245_2_exec_obj_add(game, packet, game->zone_base_x, game->zone_base_z);
@@ -1240,7 +1457,15 @@ gameproto_rev245_2_exec_if_close(
         game->iface->viewport_interface_id = -1;
         game->iface->sidebar_interface_id = -1;
         game->iface->chat_interface_id = -1;
+
+        /* Clear modal selection state (mirrors Client.ts CLOSE_MODAL clearing). */
+        game->iface->selected_area = 0;
+        game->iface->selected_item = 0;
+        game->iface->selected_interface = -1;
+        game->iface->selected_cycle = 0;
     }
+    /* Release scrollbar drag if any. */
+    game->ui_scrollbar_drag_component_id = -1;
 }
 
 void
@@ -1253,6 +1478,8 @@ gameproto_rev245_2_exec_update_inv_stop_transmit(
         buildcachedat_get_component(game->buildcachedat, component_id);
     if( !component )
         return;
+
+    /* Clear buildcachedat slots (software-raster / interface.c path). */
     int max_slots = component->width * component->height;
     for( int i = 0; i < max_slots; i++ )
     {
@@ -1260,6 +1487,25 @@ gameproto_rev245_2_exec_update_inv_stop_transmit(
             component->invSlotObjId[i] = 0;
         if( component->invSlotObjCount )
             component->invSlotObjCount[i] = 0;
+    }
+
+    /* Clear UIInventoryPool for the ToriRS / rs_gfx_inv_step render path. */
+    if( game->inv_pool && game->ui_root_buffer )
+    {
+        int32_t node_idx = -1;
+        int inv_index = uitree_find_inv_index_by_component_id(
+            game->ui_root_buffer, component_id, &node_idx);
+
+        if( inv_index >= 0 && inv_index < game->inv_pool->count )
+        {
+            struct UIInventory* inv = &game->inv_pool->inventories[inv_index];
+            for( int i = 0; i < UI_INVENTORY_MAX_ITEMS; i++ )
+                inv_sync_load_item_sprite(game, &inv->items[i], 0, 0);
+            inv->item_count = 0;
+
+            if( node_idx >= 0 )
+                game->ui_root_buffer->components[node_idx].is_dirty = 1;
+        }
     }
 }
 
@@ -1274,15 +1520,44 @@ gameproto_rev245_2_exec_update_inv_partial(
     if( !component || !component->invSlotObjId || !component->invSlotObjCount )
         return;
     int max_slots = component->width * component->height;
+
+    /* Update buildcachedat slots (software-raster / interface.c path). */
     for( int i = 0; i < packet->_update_inv_partial.count; i++ )
     {
-        int slot = packet->_update_inv_partial.entries[i].slot;
+        int slot   = packet->_update_inv_partial.entries[i].slot;
         int obj_id = packet->_update_inv_partial.entries[i].obj_id;
-        int count = packet->_update_inv_partial.entries[i].count;
+        int count  = packet->_update_inv_partial.entries[i].count;
         if( slot >= 0 && slot < max_slots )
         {
-            component->invSlotObjId[slot] = obj_id;
+            component->invSlotObjId[slot]    = obj_id;
             component->invSlotObjCount[slot] = count;
+        }
+    }
+
+    /* Sync UIInventoryPool for the ToriRS / rs_gfx_inv_step render path. */
+    if( game->inv_pool && game->ui_root_buffer )
+    {
+        int32_t node_idx = -1;
+        int inv_index = uitree_find_inv_index_by_component_id(
+            game->ui_root_buffer, component_id, &node_idx);
+
+        if( inv_index >= 0 && inv_index < game->inv_pool->count )
+        {
+            struct UIInventory* inv = &game->inv_pool->inventories[inv_index];
+
+            for( int i = 0; i < packet->_update_inv_partial.count; i++ )
+            {
+                int slot   = packet->_update_inv_partial.entries[i].slot;
+                int count  = packet->_update_inv_partial.entries[i].count;
+                /* PARTIAL parse already subtracts 1: obj_id is 0-based (real item id). */
+                int obj_id_0base = packet->_update_inv_partial.entries[i].obj_id;
+
+                if( slot >= 0 && slot < UI_INVENTORY_MAX_ITEMS )
+                    inv_sync_load_item_sprite(game, &inv->items[slot], obj_id_0base, count);
+            }
+
+            if( node_idx >= 0 )
+                game->ui_root_buffer->components[node_idx].is_dirty = 1;
         }
     }
 }
@@ -1417,8 +1692,8 @@ gameproto_rev245_2_exec_varp_small(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
-    varp_varbit_apply_small(
-        &game->varp_varbit, packet->_varp_small.variable, packet->_varp_small.value);
+    clientscript_vm_apply_varp_small(
+        game->clientscript_vm, packet->_varp_small.variable, packet->_varp_small.value);
 }
 
 void
@@ -1426,8 +1701,8 @@ gameproto_rev245_2_exec_varp_large(
     struct GGame* game,
     struct RevPacket_LC245_2* packet)
 {
-    varp_varbit_apply_large(
-        &game->varp_varbit, packet->_varp_large.variable, packet->_varp_large.value);
+    clientscript_vm_apply_varp_large(
+        game->clientscript_vm, packet->_varp_large.variable, packet->_varp_large.value);
 }
 
 void
@@ -1436,7 +1711,7 @@ gameproto_rev245_2_exec_varp_sync(
     struct RevPacket_LC245_2* packet)
 {
     (void)packet;
-    varp_varbit_apply_sync(&game->varp_varbit);
+    clientscript_vm_apply_varp_sync(game->clientscript_vm);
 }
 
 void
@@ -1588,4 +1863,193 @@ gameproto_rev245_2_exec_set_multiway(
     struct RevPacket_LC245_2* packet)
 {
     game->in_multiway = packet->_set_multiway.multiway;
+}
+
+static void
+gameproto_rev245_2_exec_message_game(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    if( packet->_message_game.text )
+        game_add_message(game, 1 /* type: game */, packet->_message_game.text, NULL);
+}
+
+static void
+gameproto_rev245_2_exec_message_private(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    /* PM deduplication: ignore if message_id already seen. */
+    struct Chat* ch = game->chat;
+    int mid = packet->_message_private.message_id;
+    if( ch )
+    {
+        for( int i = 0; i < ch->pm_count; i++ )
+        {
+            if( ch->pm_ids[i] == mid )
+                return;
+        }
+        if( ch->pm_count < 100 )
+            ch->pm_ids[ch->pm_count++] = mid;
+    }
+
+    /* Decode base37 username to a readable string. */
+    char sender[16] = { 0 };
+    int64_t u = packet->_message_private.from;
+    if( u > 0 )
+    {
+        int pos = 0;
+        for( long long i = u; i != 0; i /= 37 )
+        {
+            int c = (int)(i % 37);
+            sender[pos++] = (char)(c == 0 ? '_' : c <= 26 ? 'a' + c - 1 : '0' + c - 27);
+        }
+        /* Reverse */
+        for( int a = 0, b = pos - 1; a < b; a++, b-- )
+        {
+            char tmp = sender[a];
+            sender[a] = sender[b];
+            sender[b] = tmp;
+        }
+        sender[pos] = '\0';
+    }
+
+    if( packet->_message_private.text )
+        game_add_message(game, 3 /* type: private from */, packet->_message_private.text, sender);
+}
+
+static void
+gameproto_rev245_2_exec_chat_filter_settings(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    if( game->chat )
+    {
+        game->chat->chat_public_mode = packet->_chat_filter_settings.chat_public_mode;
+        game->chat->chat_private_mode = packet->_chat_filter_settings.chat_private_mode;
+        game->chat->chat_trade_mode = packet->_chat_filter_settings.chat_trade_mode;
+    }
+}
+
+static void
+gameproto_rev245_2_exec_tut_flash(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    game->tutorial_tab_flash = packet->_tut_flash.tab_id;
+}
+
+static void
+gameproto_rev245_2_exec_tut_open(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    game->tutorial_interface = packet->_tut_open.component_id;
+}
+
+static void
+gameproto_rev245_2_exec_logout(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)packet;
+    game->net_state = GAME_NET_STATE_DISCONNECTED;
+}
+
+static void
+gameproto_rev245_2_exec_p_countdialog(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)packet;
+    /* Signal the UI to open the count input dialog. */
+    if( game->chat )
+        game->chat->dialog_input_open = 1;
+}
+
+static void
+gameproto_rev245_2_exec_reboot_timer(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    game->reboot_timer_ticks = packet->_reboot_timer.ticks;
+}
+
+static void
+gameproto_rev245_2_exec_update_friendlist(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int64_t un = packet->_update_friendlist.username;
+    int world = packet->_update_friendlist.world;
+
+    /* Update existing entry if present. */
+    for( int i = 0; i < game->friend_count; i++ )
+    {
+        if( game->friend_usernames[i] == un )
+        {
+            game->friend_worlds[i] = world;
+            return;
+        }
+    }
+    /* New friend slot. */
+    if( game->friend_count < GAME_SOCIAL_LIST_MAX )
+    {
+        game->friend_usernames[game->friend_count] = un;
+        game->friend_worlds[game->friend_count] = world;
+        game->friend_count++;
+    }
+}
+
+static void
+gameproto_rev245_2_exec_update_ignorelist(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    /* Replace entire ignore list. */
+    int n = packet->_update_ignorelist.count;
+    if( n > GAME_SOCIAL_LIST_MAX )
+        n = GAME_SOCIAL_LIST_MAX;
+    game->ignore_count = n;
+    for( int i = 0; i < n; i++ )
+        game->ignore_usernames[i] = packet->_update_ignorelist.usernames[i];
+}
+
+static void
+gameproto_rev245_2_exec_if_openoverlay(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int cid = if_decode_component_id(packet->_if_openoverlay.component_id);
+    (void)game;
+    (void)cid;
+    /* Overlay interfaces rendered on top of main viewport; stored for draw pass. */
+}
+
+/* Audio stubs: hardware/OS audio not yet integrated. */
+static void
+gameproto_rev245_2_exec_synth_sound(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)game;
+    (void)packet;
+}
+
+static void
+gameproto_rev245_2_exec_midi_song(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)game;
+    (void)packet;
+}
+
+static void
+gameproto_rev245_2_exec_midi_jingle(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    (void)game;
+    (void)packet;
 }

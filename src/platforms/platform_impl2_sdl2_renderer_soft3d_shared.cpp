@@ -28,7 +28,6 @@ extern "C" {
 #include "graphics/dash.h"
 #include "graphics/raster/deob/pix3d_deob_compat.h"
 #include "osrs/game.h"
-#include "osrs/revconfig/uiscene.h"
 #include "osrs/world_option_set.h"
 #include "platforms/common/platform_memory.h"
 #include "tori_rs.h"
@@ -121,6 +120,7 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_New(
 
     renderer->dash_offset_x = 0;
     renderer->dash_offset_y = 0;
+    renderer->soft3d_iface_clip_stack_top = -1;
 
     return renderer;
 }
@@ -356,6 +356,19 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
     Uint64 const soft3d_perf_freq = SDL_GetPerformanceFrequency();
     Uint64 const soft3d_t_frame_start = SDL_GetPerformanceCounter();
 
+    int iface_saved_clip_l = 0;
+    int iface_saved_clip_t = 0;
+    int iface_saved_clip_r = 0;
+    int iface_saved_clip_b = 0;
+    if( game->iface_view_port )
+    {
+        iface_saved_clip_l = game->iface_view_port->clip_left;
+        iface_saved_clip_t = game->iface_view_port->clip_top;
+        iface_saved_clip_r = game->iface_view_port->clip_right;
+        iface_saved_clip_b = game->iface_view_port->clip_bottom;
+    }
+    renderer->soft3d_iface_clip_stack_top = -1;
+
     LibToriRS_FrameBegin(game, render_command_buffer);
     while( LibToriRS_FrameNextCommand(game, render_command_buffer, &command, true) )
     {
@@ -378,20 +391,19 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
             const uint8_t* text = command._font_draw.text;
             if( !f || !text || !renderer->pixel_buffer )
                 break;
-            const int ox = renderer->dash_offset_x;
-            const int oy = renderer->dash_offset_y;
-            const int fx = command._font_draw.x + ox;
-            const int fy = command._font_draw.y + oy;
+            const int fx = command._font_draw.x;
+            const int fy = command._font_draw.y;
             int cl = 0;
             int ct = 0;
             int cr = renderer->width;
             int cb = renderer->height;
-            if( game->view_port )
+            if( game->iface_view_port )
             {
-                cl = ox;
-                ct = oy;
-                cr = ox + game->view_port->width;
-                cb = oy + game->view_port->height;
+                struct DashViewPort* vp = game->iface_view_port;
+                cl = vp->clip_left;
+                ct = vp->clip_top;
+                cr = vp->clip_right;
+                cb = vp->clip_bottom;
                 if( cl < 0 )
                     cl = 0;
                 if( ct < 0 )
@@ -473,6 +485,70 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
 
             if( !game->sys_dash || !game->iface_view_port || !renderer->pixel_buffer )
                 break;
+
+            struct DashViewPort* vp = game->iface_view_port;
+
+            /* Feature 5: per-sprite clip override. Push clip bounds if requested. */
+            bool had_per_clip = false;
+            int saved_l = 0, saved_t = 0, saved_r = 0, saved_b = 0;
+            if( command._sprite_draw.clip_w > 0 )
+            {
+                saved_l = vp->clip_left;
+                saved_t = vp->clip_top;
+                saved_r = vp->clip_right;
+                saved_b = vp->clip_bottom;
+                had_per_clip = true;
+                int cx  = command._sprite_draw.clip_x;
+                int cy  = command._sprite_draw.clip_y;
+                int cxr = cx + command._sprite_draw.clip_w;
+                int cyb = cy + command._sprite_draw.clip_h;
+                dash2d_set_bounds(vp,
+                    cx  > saved_l ? cx  : saved_l,
+                    cy  > saved_t ? cy  : saved_t,
+                    cxr < saved_r ? cxr : saved_r,
+                    cyb < saved_b ? cyb : saved_b);
+            }
+
+            /* Feature 4: masked sprite — apply mask alpha to temp copy before blit. */
+            struct DashSprite* mask_sp = command._sprite_draw.mask_sprite;
+            bool has_mask = (mask_sp && mask_sp->pixels_argb && command._sprite_draw.mask_element_id >= 0);
+
+            /* Build a temporary masked pixel buffer if needed. */
+            uint32_t* masked_pixels = nullptr;
+            struct DashSprite masked_sprite_tmp = {};
+            if( has_mask )
+            {
+                int pw = sp->width;
+                int ph = sp->height;
+                masked_pixels = (uint32_t*)malloc((size_t)(pw * ph) * sizeof(uint32_t));
+                if( masked_pixels )
+                {
+                    /* Copy source pixels, masking alpha from mask sprite. */
+                    int mw = mask_sp->width;
+                    int mh = mask_sp->height;
+                    for( int py = 0; py < ph; py++ )
+                    {
+                        for( int px = 0; px < pw; px++ )
+                        {
+                            uint32_t src_pix = ((uint32_t*)sp->pixels_argb)[py * pw + px];
+                            uint32_t mask_alpha = 0xff;
+                            if( px < mw && py < mh )
+                            {
+                                uint32_t mp = ((uint32_t*)mask_sp->pixels_argb)[py * mw + px];
+                                mask_alpha = (mp >> 24) & 0xff;
+                            }
+                            uint32_t orig_alpha = (src_pix >> 24) & 0xff;
+                            uint32_t new_alpha  = (orig_alpha * mask_alpha) / 255u;
+                            masked_pixels[py * pw + px] = (src_pix & 0x00ffffffu) | (new_alpha << 24);
+                        }
+                    }
+                    /* Wire a temporary DashSprite pointing at masked pixels. */
+                    masked_sprite_tmp = *sp;
+                    masked_sprite_tmp.pixels_argb = masked_pixels;
+                    sp = &masked_sprite_tmp;
+                }
+            }
+
             if( command._sprite_draw.rotated )
             {
                 dash2d_blit_rotated_ex(
@@ -497,13 +573,139 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
             }
             else
             {
-                dash2d_blit_sprite(
-                    game->sys_dash,
-                    sp,
-                    game->iface_view_port,
-                    command._sprite_draw.dst_bb_x,
-                    command._sprite_draw.dst_bb_y,
-                    renderer->pixel_buffer);
+                /* Feature 8: alpha mode 1 = blend, 0 = opaque (default blit_sprite already
+                 * alpha-composites from the sprite's ARGB data). */
+                if( command._sprite_draw.alpha_mode == 1 )
+                {
+                    dash2d_blit_sprite_alpha(
+                        game->sys_dash,
+                        sp,
+                        vp,
+                        command._sprite_draw.dst_bb_x,
+                        command._sprite_draw.dst_bb_y,
+                        255,
+                        renderer->pixel_buffer);
+                }
+                else
+                {
+                    dash2d_blit_sprite(
+                        game->sys_dash,
+                        sp,
+                        vp,
+                        command._sprite_draw.dst_bb_x,
+                        command._sprite_draw.dst_bb_y,
+                        renderer->pixel_buffer);
+                }
+            }
+
+            if( masked_pixels )
+                free(masked_pixels);
+
+            /* Restore per-sprite clip. */
+            if( had_per_clip )
+                dash2d_set_bounds(vp, saved_l, saved_t, saved_r, saved_b);
+        }
+        break;
+        case TORIRS_GFX_STATE_PUSH_CLIP:
+        {
+            struct DashViewPort* vp = game->iface_view_port;
+            if( !vp || renderer->soft3d_iface_clip_stack_top + 1 >= PLATFORM_SOFT3D_CLIP_STACK )
+                break;
+            int x = command._push_clip.x;
+            int y = command._push_clip.y;
+            int w = command._push_clip.w;
+            int h = command._push_clip.h;
+            int xr = x + w;
+            int yb = y + h;
+            int nl = x > vp->clip_left ? x : vp->clip_left;
+            int nt = y > vp->clip_top ? y : vp->clip_top;
+            int nr = xr < vp->clip_right ? xr : vp->clip_right;
+            int nb = yb < vp->clip_bottom ? yb : vp->clip_bottom;
+            int i = ++renderer->soft3d_iface_clip_stack_top;
+            renderer->soft3d_iface_clip_stack_l[i] = vp->clip_left;
+            renderer->soft3d_iface_clip_stack_t[i] = vp->clip_top;
+            renderer->soft3d_iface_clip_stack_r[i] = vp->clip_right;
+            renderer->soft3d_iface_clip_stack_b[i] = vp->clip_bottom;
+            dash2d_set_bounds(vp, nl, nt, nr, nb);
+        }
+        break;
+        case TORIRS_GFX_STATE_POP_CLIP:
+        {
+            struct DashViewPort* vp = game->iface_view_port;
+            if( !vp || renderer->soft3d_iface_clip_stack_top < 0 )
+                break;
+            int i = renderer->soft3d_iface_clip_stack_top--;
+            dash2d_set_bounds(
+                vp,
+                renderer->soft3d_iface_clip_stack_l[i],
+                renderer->soft3d_iface_clip_stack_t[i],
+                renderer->soft3d_iface_clip_stack_r[i],
+                renderer->soft3d_iface_clip_stack_b[i]);
+        }
+        break;
+        case TORIRS_GFX_DRAW_RECT:
+        {
+            struct DashViewPort* vp = game->iface_view_port;
+            int* pb = renderer->pixel_buffer;
+            if( !vp || !pb )
+                break;
+            int x = command._rect_draw.x;
+            int y = command._rect_draw.y;
+            int w = command._rect_draw.w;
+            int h = command._rect_draw.h;
+            int rgb = command._rect_draw.color_rgb;
+            int alpha = command._rect_draw.alpha;
+            uint8_t fill = command._rect_draw.fill;
+            if( w <= 0 || h <= 0 )
+                break;
+            int stride = renderer->width;
+            int x0 = x < vp->clip_left ? vp->clip_left : x;
+            int y0 = y < vp->clip_top ? vp->clip_top : y;
+            int x1 = x + w > vp->clip_right ? vp->clip_right : x + w;
+            int y1 = y + h > vp->clip_bottom ? vp->clip_bottom : y + h;
+            if( x0 >= x1 || y0 >= y1 )
+                break;
+            if( fill )
+            {
+                if( alpha == 0 )
+                {
+                    for( int py = y0; py < y1; py++ )
+                        for( int px = x0; px < x1; px++ )
+                            pb[py * stride + px] = rgb;
+                }
+                else
+                {
+                    int r = (rgb >> 16) & 0xFF;
+                    int g = (rgb >> 8) & 0xFF;
+                    int b = rgb & 0xFF;
+                    for( int py = y0; py < y1; py++ )
+                        for( int px = x0; px < x1; px++ )
+                        {
+                            int idx = py * stride + px;
+                            int existing = pb[idx];
+                            int er = (existing >> 16) & 0xFF, eg = (existing >> 8) & 0xFF,
+                                eb = existing & 0xFF;
+                            int nr = (r * (256 - alpha) + er * alpha) >> 8;
+                            int ng = (g * (256 - alpha) + eg * alpha) >> 8;
+                            int nb = (b * (256 - alpha) + eb * alpha) >> 8;
+                            pb[idx] = (nr << 16) | (ng << 8) | nb;
+                        }
+                }
+            }
+            else
+            {
+                if( y >= vp->clip_top && y < vp->clip_bottom )
+                    for( int px = x0; px < x1; px++ )
+                        pb[y * stride + px] = rgb;
+                if( y + h - 1 >= vp->clip_top && y + h - 1 < vp->clip_bottom )
+                    for( int px = x0; px < x1; px++ )
+                        pb[(y + h - 1) * stride + px] = rgb;
+                if( x >= vp->clip_left && x < vp->clip_right )
+                    for( int py = y0; py < y1; py++ )
+                        pb[py * stride + x] = rgb;
+                if( x + w - 1 >= vp->clip_left && x + w - 1 < vp->clip_right )
+                    for( int py = y0; py < y1; py++ )
+                        pb[py * stride + (x + w - 1)] = rgb;
             }
         }
         break;
@@ -517,6 +719,15 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
         }
     }
     LibToriRS_FrameEnd(game);
+    if( game->iface_view_port )
+    {
+        dash2d_set_bounds(
+            game->iface_view_port,
+            iface_saved_clip_l,
+            iface_saved_clip_t,
+            iface_saved_clip_r,
+            iface_saved_clip_b);
+    }
 
     if( game->tile_clicked_x != -1 )
     {
@@ -526,30 +737,6 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
         game->tile_clicked_x = -1;
         game->tile_clicked_z = -1;
         game->tile_clicked_level = -1;
-    }
-
-    if( game->cross_mode != 0 && game->ui_scene && renderer->pixel_buffer && game->sys_dash &&
-        game->iface_view_port )
-    {
-        int frame_idx = game->cross_cycle / 100;
-        if( game->cross_mode == 2 )
-            frame_idx += 4;
-        if( frame_idx > 7 )
-            frame_idx = 7;
-        struct DashSprite* sp =
-            uiscene_sprite_by_name(game->ui_scene, "cross", frame_idx);
-        if( sp && sp->pixels_argb )
-        {
-            int dx = game->cross_x - 8 - game->viewport_offset_x;
-            int dy = game->cross_y - 8 - game->viewport_offset_y;
-            dash2d_blit_sprite(
-                game->sys_dash,
-                sp,
-                game->iface_view_port,
-                dx,
-                dy,
-                renderer->pixel_buffer);
-        }
     }
 
     {

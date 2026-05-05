@@ -85,8 +85,8 @@ LuaBuildCacheDat_init_varp_varbit_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
-    // struct GGame* game = arg_game(args);
-    // buildcachedat_loader_init_varp_varbit(buildcachedat, game);
+    struct GGame* game = arg_game(args);
+    buildcachedat_loader_init_varp_varbit(buildcachedat, game);
     return LuaGameType_NewVoid();
 }
 

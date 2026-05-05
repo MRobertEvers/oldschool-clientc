@@ -3,23 +3,24 @@
 #include "bmp.h"
 #include "graphics/dash.h"
 #include "graphics/dashmap.h"
+#include "osrs/_light_model_default.u.c"
+#include "osrs/buildcachedat.h"
 #include "osrs/dash_utils.h"
 #include "osrs/entity_scenebuild.h"
 #include "osrs/game.h"
 #include "osrs/obj_icon.h"
+#include "osrs/revconfig/uiscene.h"
 #include "osrs/rscache/tables/model.h"
 #include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/pix32.h"
 #include "osrs/rscache/tables_dat/pix8.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
-#include "osrs/buildcachedat.h"
 #include "osrs/scene2.h"
-#include "osrs/revconfig/uiscene.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <string.h>
 
 struct SpriteEntry
@@ -94,7 +95,8 @@ struct ComponentLoad
     char paint_levels[64];
 };
 
-/** Comma-separated level indices 0-7, optional inclusive ranges "lo-hi" -> bitmask; empty -> 0xF. */
+/** Comma-separated level indices 0-7, optional inclusive ranges "lo-hi" -> bitmask; empty -> 0xF.
+ */
 static uint8_t
 parse_paint_levels_mask(const char* str)
 {
@@ -651,6 +653,11 @@ load_inv(
     strncpy(inv.name, il->name, sizeof(inv.name) - 1);
     inv.name[sizeof(inv.name) - 1] = '\0';
 
+    /* scene_id = 0 is a valid UIScene element ID, so explicitly sentinel all slots to -1
+     * so that inv_sync_load_item_sprite can safely skip unacquired slots. */
+    for( int j = 0; j < UI_INVENTORY_MAX_ITEMS; j++ )
+        inv.items[j].scene_id = -1;
+
     for( int i = 0; i < il->item_count && i < UI_INVENTORY_MAX_ITEMS; i++ )
     {
         int obj_id = il->item_ids[i];
@@ -737,7 +744,11 @@ uiscene_attach_sprite_row(
 {
     int eid = uiscene_element_acquire(ui_scene, -1);
     if( eid < 0 )
+    {
+        fprintf(stderr, "uiscene_attach_sprite_row: UIScene full; cannot register sprite row\n");
+        abort();
         return -1;
+    }
     struct UISceneElement* el = uiscene_element_at(ui_scene, eid);
     if( !el )
         return -1;
@@ -745,6 +756,88 @@ uiscene_attach_sprite_row(
     el->dash_sprites_count = count;
     el->dash_sprites_borrowed = borrowed;
     return eid;
+}
+
+/**
+ * Copy revision-specific fields from a CacheDatConfigComponent into the revision-agnostic
+ * StaticUIComponent at tree->components[node_idx].  Called once per node at load time;
+ * the UITree owns all allocated memory and frees it in uitree_free().
+ */
+static void
+uitree_translate_agnostic_fields(
+    struct UITree*                  tree,
+    int32_t                         node_idx,
+    struct CacheDatConfigComponent* cc)
+{
+    if( node_idx < 0 || (uint32_t)node_idx >= tree->component_count || !cc )
+        return;
+    struct StaticUIComponent* c = &tree->components[node_idx];
+
+    c->button_kind  = (enum UIButtonKind)cc->buttonType;
+    c->click_mask   = cc->targetMask;
+    c->interactable = cc->interactable ? 1 : 0;
+    c->usable       = cc->usable       ? 1 : 0;
+    c->swappable    = cc->swappable    ? 1 : 0;
+    c->draggable    = cc->draggable    ? 1 : 0;
+    c->alpha        = cc->alpha;
+    c->overlayer    = cc->overlayer;
+    c->client_code  = cc->clientCode;
+    c->anim_id      = cc->anim;
+    c->active_anim_id = cc->activeAnim;
+    c->seq_frame    = cc->seqFrame;
+    c->seq_cycle    = cc->seqCycle;
+
+    /* Script bytecode. */
+    int n = cc->scripts_count;
+    c->scripts_count = n;
+    if( n > 0 && cc->scripts && cc->scripts_lengths )
+    {
+        c->scripts = calloc((size_t)n, sizeof(struct UIScriptBytecode));
+        c->script_comparator = calloc((size_t)n, sizeof(uint8_t));
+        c->script_operand    = calloc((size_t)n, sizeof(int));
+        if( c->scripts && c->script_comparator && c->script_operand )
+        {
+            for( int i = 0; i < n; i++ )
+            {
+                int len = cc->scripts_lengths[i];
+                c->scripts[i].len  = len;
+                c->scripts[i].code = NULL;
+                if( len > 0 && cc->scripts[i] )
+                {
+                    c->scripts[i].code = malloc((size_t)len * sizeof(int));
+                    if( c->scripts[i].code )
+                        memcpy(c->scripts[i].code, cc->scripts[i], (size_t)len * sizeof(int));
+                }
+                c->script_comparator[i] =
+                    cc->scriptComparator ? (uint8_t)cc->scriptComparator[i] : 0;
+                c->script_operand[i] =
+                    cc->scriptOperand    ? cc->scriptOperand[i] : 0;
+            }
+        }
+        else
+        {
+            /* Allocation failure: release partial. */
+            if( c->scripts )
+            {
+                for( int i = 0; i < n; i++ ) free(c->scripts[i].code);
+                free(c->scripts);
+            }
+            free(c->script_comparator);
+            free(c->script_operand);
+            c->scripts = NULL; c->script_comparator = NULL; c->script_operand = NULL;
+            c->scripts_count = 0;
+        }
+    }
+
+    /* Inventory right-click option strings. */
+    for( int k = 0; k < 5; k++ )
+    {
+        const char* src = (cc->iop && cc->iop[k]) ? cc->iop[k] : NULL;
+        c->iop[k] = src ? strdup(src) : NULL;
+    }
+    c->option      = cc->option      ? strdup(cc->option)      : NULL;
+    c->target_verb = cc->targetVerb  ? strdup(cc->targetVerb)  : NULL;
+    c->target_text = cc->targetText  ? strdup(cc->targetText)  : NULL;
 }
 
 static void
@@ -763,12 +856,24 @@ push_rs_from_cache_component(
     if( !comp || !bcd || !ui || !ui_scene )
         return;
 
+    if( comp->hide && comp->type != COMPONENT_TYPE_LAYER )
+        return;
+
     switch( comp->type )
     {
     case COMPONENT_TYPE_LAYER:
     {
         int32_t lid = uitree_push_rs_layer(
-            ui, parent_uitree_idx, comp->id, abs_x, abs_y, comp->width, comp->height);
+            ui,
+            parent_uitree_idx,
+            comp->id,
+            comp->scroll,
+            comp->hide ? 1 : 0,
+            abs_x,
+            abs_y,
+            comp->width,
+            comp->height);
+        uitree_translate_agnostic_fields(ui, lid, comp);
         if( !comp->children || !comp->childX || !comp->childY )
             return;
         for( int i = 0; i < comp->children_count; i++ )
@@ -786,22 +891,21 @@ push_rs_from_cache_component(
     break;
     case COMPONENT_TYPE_RECT:
     {
-        /* Rect is a container with children (same layout as layer; no fill emitted here). */
-        if( !comp->children || !comp->childX || !comp->childY || comp->children_count <= 0 )
-            break;
-        int32_t rid = uitree_push_rs_layer(
-            ui, parent_uitree_idx, comp->id, abs_x, abs_y, comp->width, comp->height);
-        for( int i = 0; i < comp->children_count; i++ )
-        {
-            struct CacheDatConfigComponent* ch =
-                buildcachedat_get_component(bcd, comp->children[i]);
-            if( !ch )
-                continue;
-            int cx = abs_x + comp->childX[i] + ch->x;
-            int cy = abs_y + comp->childY[i] + ch->y;
-            push_rs_from_cache_component(
-                game, ui, ui_scene, scene2, bcd, rid, ch, cx, cy, sidebar_inv_index);
-        }
+        int32_t rid = uitree_push_rs_rect(
+            ui,
+            parent_uitree_idx,
+            comp->id,
+            comp->colour,
+            comp->activeColour,
+            comp->overColour,
+            comp->activeOverColour,
+            comp->alpha,
+            comp->fill ? 1 : 0,
+            abs_x,
+            abs_y,
+            comp->width,
+            comp->height);
+        uitree_translate_agnostic_fields(ui, rid, comp);
     }
     break;
     case COMPONENT_TYPE_GRAPHIC:
@@ -855,7 +959,7 @@ push_rs_from_cache_component(
             atlas_a = 1;
         }
 
-        uitree_push_rs_graphic(
+        int32_t gid = uitree_push_rs_graphic(
             ui,
             parent_uitree_idx,
             comp->id,
@@ -867,25 +971,35 @@ push_rs_from_cache_component(
             abs_y,
             comp->width,
             comp->height);
+        uitree_translate_agnostic_fields(ui, gid, comp);
     }
     break;
     case COMPONENT_TYPE_TEXT:
     {
-        int fid = ensure_font_id(ui_scene, bcd, comp->font);
-        char const* tx = comp->text;
-        uitree_push_rs_text(
+        int32_t tid = uitree_push_rs_text(
             ui,
             parent_uitree_idx,
             comp->id,
-            fid,
+            comp->font,
             comp->colour,
+            comp->activeColour,
+            comp->overColour,
+            comp->activeOverColour,
             comp->center ? 1 : 0,
             comp->shadowed ? 1 : 0,
-            tx,
+            comp->text,
+            comp->activeText,
             abs_x,
             abs_y,
             comp->width,
             comp->height);
+        uitree_translate_agnostic_fields(ui, tid, comp);
+        /* Pre-resolve font_id at load time so render steps never touch buildcache. */
+        if( tid >= 0 && (uint32_t)tid < ui->component_count )
+        {
+            int resolved = ensure_font_id(ui_scene, bcd, comp->font);
+            ui->components[tid].u.rs_text.font_id = resolved;
+        }
     }
     break;
     case COMPONENT_TYPE_INV:
@@ -927,7 +1041,7 @@ push_rs_from_cache_component(
                 bg_ai[si] = 0;
             }
         }
-        uitree_push_rs_inv(
+        int32_t iid = uitree_push_rs_inv(
             ui,
             parent_uitree_idx,
             comp->id,
@@ -944,29 +1058,53 @@ push_rs_from_cache_component(
             abs_y,
             comp->width,
             comp->height);
+        uitree_translate_agnostic_fields(ui, iid, comp);
     }
     break;
     case COMPONENT_TYPE_MODEL:
     {
-        if( !game || !scene2 || (comp->modelType != 2 && comp->modelType != 3) )
+        if( !game || !scene2 )
             return;
-        int* slots = NULL;
-        int* colors = NULL;
-        if( comp->modelType == 3 && game->world )
+        struct DashModel* m = NULL;
+        enum Scene2ElementCategory mcat = SCENE2_ELEMENT_SCENERY;
+
+        if( comp->modelType == 1 )
         {
-            struct PlayerEntity* local = world_player(game->world, ACTIVE_PLAYER_SLOT);
-            if( local->alive )
-            {
-                slots = local->appearance.slots;
-                colors = local->appearance.colors;
-            }
+            struct CacheModel* cache_model = buildcachedat_get_model(bcd, comp->model);
+            if( !cache_model )
+                return;
+            struct CacheModel* model_copy = model_new_copy(cache_model);
+            m = dashmodel_new_from_cache_model(model_copy);
+            model_free(model_copy);
+            if( !m )
+                return;
+            _light_model_default(m, 0, 0);
+            mcat = SCENE2_ELEMENT_SCENERY;
         }
-        struct DashModel* m = entity_scenebuild_head_model_for_component(
-            game, comp->modelType, comp->model, slots, colors);
-        if( !m )
+        else if( comp->modelType == 2 || comp->modelType == 3 )
+        {
+            int* slots = NULL;
+            int* colors = NULL;
+            if( comp->modelType == 3 && game->world )
+            {
+                struct PlayerEntity* local = world_player(game->world, ACTIVE_PLAYER_SLOT);
+                if( local->alive )
+                {
+                    slots = local->appearance.slots;
+                    colors = local->appearance.colors;
+                }
+            }
+            m = entity_scenebuild_head_model_for_component(
+                game, comp->modelType, comp->model, slots, colors);
+            if( !m )
+                return;
+            mcat = (comp->modelType == 3) ? SCENE2_ELEMENT_PLAYER : SCENE2_ELEMENT_NPC;
+        }
+        else
+        {
             return;
-        enum Scene2ElementCategory mcat =
-            (comp->modelType == 3) ? SCENE2_ELEMENT_PLAYER : SCENE2_ELEMENT_NPC;
+        }
+
         int eid = scene2_element_acquire_full(scene2, -1, mcat, 0, 0);
         struct Scene2Element* se = scene2_element_at(scene2, eid);
         if( !se )
@@ -983,8 +1121,9 @@ push_rs_from_cache_component(
         memset(pos, 0, sizeof(struct DashPosition));
         scene2_element_set_dash_position_ptr(se, pos);
         scene2_element_set_dash_model(scene2, se, m);
-        uitree_push_rs_model(
+        int32_t mid = uitree_push_rs_model(
             ui, parent_uitree_idx, comp->id, eid, abs_x, abs_y, comp->width, comp->height);
+        uitree_translate_agnostic_fields(ui, mid, comp);
     }
     break;
     default:
@@ -1461,7 +1600,9 @@ uitree_from_revconfig_buildcachedat(
                 load.kind == LOAD_KIND_COMPONENT &&
                 "UICOMPONENT_PAINT_LEVELS field must be within a component item");
             strncpy(
-                load._component.paint_levels, field->value, sizeof(load._component.paint_levels) - 1);
+                load._component.paint_levels,
+                field->value,
+                sizeof(load._component.paint_levels) - 1);
             load._component.paint_levels[sizeof(load._component.paint_levels) - 1] = '\0';
         }
         break;
@@ -1618,8 +1759,7 @@ uitree_from_revconfig_buildcachedat(
                 "UILAYOUT_DIRTY field must be within a layout item");
             const char* v = field->value;
             int truthy = (strcmp(v, "true") == 0) || (strcmp(v, "1") == 0);
-            load._layout.entries[load._layout.entry_count - 1].always_dirty =
-                truthy ? 1u : 0u;
+            load._layout.entries[load._layout.entry_count - 1].always_dirty = truthy ? 1u : 0u;
         }
         break;
         }
@@ -1976,7 +2116,9 @@ uitree_load_ui_from_revconfig(
                 load.kind == LOAD_KIND_COMPONENT &&
                 "UICOMPONENT_PAINT_LEVELS field must be within a component item");
             strncpy(
-                load._component.paint_levels, field->value, sizeof(load._component.paint_levels) - 1);
+                load._component.paint_levels,
+                field->value,
+                sizeof(load._component.paint_levels) - 1);
             load._component.paint_levels[sizeof(load._component.paint_levels) - 1] = '\0';
         }
         break;
@@ -2133,8 +2275,7 @@ uitree_load_ui_from_revconfig(
                 "UILAYOUT_DIRTY field must be within a layout item");
             const char* v = field->value;
             int truthy = (strcmp(v, "true") == 0) || (strcmp(v, "1") == 0);
-            load._layout.entries[load._layout.entry_count - 1].always_dirty =
-                truthy ? 1u : 0u;
+            load._layout.entries[load._layout.entry_count - 1].always_dirty = truthy ? 1u : 0u;
         }
         break;
         }

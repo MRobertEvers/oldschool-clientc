@@ -51,6 +51,10 @@ enum ToriRS_GFXCommandKind
     TORIRS_GFX_DRAW_MODEL,
     TORIRS_GFX_DRAW_SPRITE,
     TORIRS_GFX_DRAW_FONT,
+    TORIRS_GFX_DRAW_RECT,
+
+    TORIRS_GFX_STATE_PUSH_CLIP,
+    TORIRS_GFX_STATE_POP_CLIP,
 
     // --- BATCHING (3D) ---
     TORIRS_GFX_BATCH3D_BEGIN,
@@ -175,6 +179,14 @@ struct ToriRSRenderCommand
             struct DashFrame* animation_frame;
             /** When `use_animation`: shared framemap for vertex animation (may be NULL). */
             struct DashFramemap* animation_framemap;
+
+            /* Feature 3: UV animation offset (in texel coordinates, applied per-draw).
+             * Added to the base texture UV before sampling. */
+            float uv_offset_u;
+            float uv_offset_v;
+
+            /* Feature 8: alpha mode.  0 = opaque, 1 = alpha-blend, 2 = additive. */
+            uint8_t alpha_mode;
         } _model_draw;
         struct
         {
@@ -195,6 +207,24 @@ struct ToriRSRenderCommand
             int dst_anchor_y;
             int src_anchor_x;
             int src_anchor_y;
+
+            /* Feature 4: masked + rotated sprite.
+             * When mask_element_id >= 0, soft3d reads the mask sprite's alpha channel
+             * as a per-pixel blend mask; WebGL1 binds it as a second texture sampler. */
+            int mask_element_id;    /* -1 = no mask */
+            int mask_atlas_index;
+            struct DashSprite* mask_sprite; /* nullable; caller guarantees lifetime */
+
+            /* Feature 5: per-sprite clip rect (in dst / framebuffer space).
+             * When clip_w > 0 the renderer clips this sprite to the given rect
+             * without modifying the global scissor/PUSH_CLIP stack. */
+            int clip_x;
+            int clip_y;
+            int clip_w; /* 0 = no clip override */
+            int clip_h;
+
+            /* Feature 8: alpha mode.  0 = opaque, 1 = alpha-blend, 2 = additive. */
+            uint8_t alpha_mode;
         } _sprite_draw;
         struct
         {
@@ -203,6 +233,23 @@ struct ToriRSRenderCommand
             int w;
             int h;
         } _clear_rect;
+        struct
+        {
+            int x;
+            int y;
+            int w;
+            int h;
+            int color_rgb;
+            int alpha;
+            uint8_t fill;
+        } _rect_draw;
+        struct
+        {
+            int x;
+            int y;
+            int w;
+            int h;
+        } _push_clip;
         /** TORIRS_GFX_STATE_BEGIN_3D: destination rectangle in window pixels (see frame_emit_pass).
          */
         struct

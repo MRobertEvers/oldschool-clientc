@@ -11,6 +11,8 @@
 #include <stdint.h>
 #include <vector>
 
+#define WEBGL1_UI_CLIP_STACK 16
+
 struct Platform2_SDL2_Renderer_WebGL1
 {
     SDL_GLContext gl_context = nullptr;
@@ -26,6 +28,31 @@ struct Platform2_SDL2_Renderer_WebGL1
     uint32_t diag_frame_submitted_model_draws = 0;
     std::vector<uint8_t> rgba_scratch;
     TRSPK_FaceBuffer16 facebuffer;
+
+    /* 2D UI software raster layer — written to by DRAW_SPRITE/FONT/RECT commands,
+     * then uploaded as a GL texture and composited over the 3D scene. */
+    int* ui_pixel_buffer = nullptr;
+    uint8_t* ui_rgba_buffer = nullptr;
+    int ui_buf_width = 0;
+    int ui_buf_height = 0;
+
+    /* Clip stack for PUSH_CLIP / POP_CLIP (mirrors soft3d behaviour). */
+    int ui_clip_stack_top = -1;
+    int ui_clip_stack_l[WEBGL1_UI_CLIP_STACK] = {};
+    int ui_clip_stack_t[WEBGL1_UI_CLIP_STACK] = {};
+    int ui_clip_stack_r[WEBGL1_UI_CLIP_STACK] = {};
+    int ui_clip_stack_b[WEBGL1_UI_CLIP_STACK] = {};
+
+    /* Current clip bounds (kept in sync with stack). */
+    int ui_clip_l = 0, ui_clip_t = 0, ui_clip_r = 0, ui_clip_b = 0;
+
+    /* GL resources for uploading and compositing the 2D UI layer. */
+    GLuint ui2d_texture = 0;
+    GLuint ui2d_prog = 0;
+    GLuint ui2d_vbo = 0;
+    GLint  ui2d_a_pos = -1;
+    GLint  ui2d_a_uv  = -1;
+    GLint  ui2d_u_tex = -1;
 };
 
 Platform2_SDL2_Renderer_WebGL1*

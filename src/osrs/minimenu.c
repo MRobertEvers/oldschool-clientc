@@ -2,13 +2,12 @@
 
 #include "buildcachedat.h"
 #include "collision_map.h"
-#include "colors.h"
 #include "game_entity.h"
 #include "graphics/dash.h"
-#include "isaac.h"
-#include "osrs/packetout.h"
-#include "osrs/revs/lc245_2/gameproto_rev245_2_packets.h"
-#include "rscache/tables/config_locs.h"
+#include "osrs/core/clientprot_core.h"
+#include "tori_rs.h"
+#include "world.h"
+#include "world_option_set.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +15,82 @@
 
 #define ACTIVE_PLAYER_SLOT 2047
 #define MOVE_GAMECLICK_OPCODE 182
+
+/* Row height in pixels for menu option rows (matches Client.ts 15px per row). */
+#define MENU_ROW_HEIGHT 15
+/* Header height: title "Choose Option" row. */
+#define MENU_HEADER_HEIGHT 18
+
+/* Extend a string into the game's ui_frame_text_pool so TORIRS_GFX_DRAW_FONT
+ * can reference it safely across the frame. Returns NULL on failure. */
+static const uint8_t*
+mm_pool_text(struct GGame* game, const char* text)
+{
+    if( !text )
+        return NULL;
+    int len = (int)strlen(text);
+    size_t need = (size_t)len + 1;
+    if( game->ui_frame_text_pool_used + need > game->ui_frame_text_pool_cap )
+    {
+        size_t nc = game->ui_frame_text_pool_cap ? game->ui_frame_text_pool_cap * 2 : 4096u;
+        while( game->ui_frame_text_pool_used + need > nc )
+            nc *= 2;
+        char* nb = (char*)realloc(game->ui_frame_text_pool, nc);
+        if( !nb )
+            return NULL;
+        game->ui_frame_text_pool     = nb;
+        game->ui_frame_text_pool_cap = nc;
+    }
+    char* p = game->ui_frame_text_pool + game->ui_frame_text_pool_used;
+    memcpy(p, text, (size_t)len + 1);
+    game->ui_frame_text_pool_used += need;
+    return (const uint8_t*)p;
+}
+
+/* Emit a filled or outlined rect command. */
+static void
+mm_emit_rect(
+    struct ToriRSRenderCommandBuffer* buf,
+    int x,
+    int y,
+    int w,
+    int h,
+    int color,
+    uint8_t fill)
+{
+    struct ToriRSRenderCommand* c = LibToriRS_RenderCommandBufferEmplaceCommand(buf);
+    c->kind              = TORIRS_GFX_DRAW_RECT;
+    c->_rect_draw.x      = x;
+    c->_rect_draw.y      = y;
+    c->_rect_draw.w      = w;
+    c->_rect_draw.h      = h;
+    c->_rect_draw.color_rgb = color;
+    c->_rect_draw.alpha  = 0;
+    c->_rect_draw.fill   = fill;
+}
+
+/* Emit a font draw command (text must outlive the frame — use mm_pool_text). */
+static void
+mm_emit_text(
+    struct ToriRSRenderCommandBuffer* buf,
+    int font_id,
+    struct DashPixFont* font,
+    const uint8_t* text,
+    int x,
+    int y,
+    int color)
+{
+    if( !font || !text )
+        return;
+    struct ToriRSRenderCommand* c = LibToriRS_RenderCommandBufferEmplaceCommand(buf);
+    c->kind               = TORIRS_GFX_DRAW_FONT;
+    c->_font_draw.font_id  = font_id;
+    c->_font_draw.font     = font;
+    c->_font_draw.text     = text;
+    c->_font_draw.x        = x;
+    c->_font_draw.y        = y;
+    c->_font_draw.color_rgb = color;
+}
 
 bool
 send_move_path_to(
@@ -137,167 +212,129 @@ minimenu_show(
     int click_x,
     int click_y)
 {
-    // game->menu_size = 0;
-    // game->menu_visible = 0;
+    game->minimenu_option_count = 0;
+    game->minimenu_visible = 0;
 
-    // /* Always add Cancel at index 0. Client.ts puts Cancel first. */
-    // for( int i = game->menu_size; i > 0; i-- )
-    // {
-    //     memcpy(game->menu_options[i], game->menu_options[i - 1], MINIMENU_OPTION_LEN);
-    //     game->menu_option_action[i] = game->menu_option_action[i - 1];
-    // }
-    // snprintf(game->menu_options[0], MINIMENU_OPTION_LEN, "Cancel");
-    // game->menu_option_action[0] = -1; /* Cancel = no action */
-    // game->menu_size++;
+    /* Populate from option_set (built by world_options_add_pickset_options at FrameEnd). */
+    struct WorldOptionSet* os = &game->option_set;
+    int n = os->option_count;
+    if( n >= GAME_MINIMENU_MAX_OPTIONS - 1 )
+        n = GAME_MINIMENU_MAX_OPTIONS - 1;
 
-    // /* Reverse options 1..n-1 so order matches Client.ts (Cancel stays at top). */
-    // for( int i = 1, j = game->menu_size - 1; i < j; i++, j-- )
-    // {
-    //     char tmp_opt[MINIMENU_OPTION_LEN];
-    //     memcpy(tmp_opt, game->menu_options[i], MINIMENU_OPTION_LEN);
-    //     memcpy(game->menu_options[i], game->menu_options[j], MINIMENU_OPTION_LEN);
-    //     memcpy(game->menu_options[j], tmp_opt, MINIMENU_OPTION_LEN);
-    //     int tmp_act = game->menu_option_action[i];
-    //     game->menu_option_action[i] = game->menu_option_action[j];
-    //     game->menu_option_action[j] = tmp_act;
-    // }
+    /* Copy options in sorted order (highest-priority first = top of menu). */
+    for( int i = 0; i < n; i++ )
+    {
+        struct WorldOption* opt = world_option_set_get_option(os, i);
+        snprintf(
+            game->minimenu_options[i],
+            GAME_MINIMENU_OPTION_LEN,
+            "%s",
+            opt->text);
+        game->minimenu_option_action[i]  = (int)opt->action;
+        game->minimenu_option_param_a[i] = opt->param_a;
+        game->minimenu_option_param_b[i] = opt->param_b;
+        game->minimenu_option_param_c[i] = opt->param_c;
+    }
 
-    // /* Compute width from "Choose Option" and option strings */
-    // int width = 0;
-    // if( game->pixfont_b12 )
-    // {
-    //     width = string_width(game->pixfont_b12, "Choose Option");
-    //     for( int i = 0; i < game->menu_size; i++ )
-    //     {
-    //         /* Strip @cya@ etc. for width - use raw length as approx */
-    //         int w = string_width(game->pixfont_b12, game->menu_options[i]);
-    //         if( w > width )
-    //             width = w;
-    //     }
-    // }
-    // width += 12;
-    // int height = game->menu_size * 15 + 21;
+    /* Fill Walk-here tile from mouse_tile_x/z (set each frame by the painter). */
+    for( int i = 0; i < n; i++ )
+    {
+        if( game->minimenu_option_action[i] == (int)MINIMENU_ACTION_WALK )
+        {
+            game->minimenu_option_param_a[i] = game->mouse_tile_x;
+            game->minimenu_option_param_b[i] = game->mouse_tile_z;
+            break;
+        }
+    }
 
-    // int vp_w = game->view_port ? game->view_port->width : 512;
-    // int vp_h = game->view_port ? game->view_port->height : 334;
+    /* Always append "Cancel" at the bottom. */
+    snprintf(game->minimenu_options[n], GAME_MINIMENU_OPTION_LEN, "Cancel");
+    game->minimenu_option_action[n]  = (int)MINIMENU_ACTION_CANCEL;
+    game->minimenu_option_param_a[n] = 0;
+    game->minimenu_option_param_b[n] = 0;
+    game->minimenu_option_param_c[n] = 0;
+    n++;
 
-    // /* Position menu: centered at click, above cursor. Client.ts showContextMenu viewport area.
-    // */ int x = click_x - (width / 2); if( x + width > vp_w )
-    //     x = vp_w - width;
-    // if( x < 0 )
-    //     x = 0;
+    game->minimenu_option_count = n;
 
-    // int y = click_y - 11;
-    // if( y + height > vp_h )
-    //     y = vp_h - height;
-    // if( y < 0 )
-    //     y = 0;
+    /* Estimate width from longest option text (8px/char approx). */
+    int width = 120; /* minimum */
+    for( int i = 0; i < n; i++ )
+    {
+        int w = (int)strlen(game->minimenu_options[i]) * 8 + 12;
+        if( w > width )
+            width = w;
+    }
+    int height = n * MENU_ROW_HEIGHT + MENU_HEADER_HEIGHT + 4;
 
-    // game->menu_visible = 1;
-    // game->menu_area = 0;
-    // game->menu_x = x;
-    // game->menu_y = y;
-    // game->menu_width = width;
-    // game->menu_height = game->menu_size * 15 + 22;
+    /* Viewport extents. */
+    int vp_w = game->iface_view_port ? game->iface_view_port->width  : 765;
+    int vp_h = game->iface_view_port ? game->iface_view_port->height : 503;
+
+    /* Position: left-aligned to click, clamped to viewport. */
+    int x = click_x - width / 2;
+    if( x + width > vp_w ) x = vp_w - width;
+    if( x < 0 ) x = 0;
+
+    int y = click_y - 11;
+    if( y + height > vp_h ) y = vp_h - height;
+    if( y < 0 ) y = 0;
+
+    game->minimenu_visible = 1;
+    game->minimenu_x       = x;
+    game->minimenu_y       = y;
+    game->minimenu_width   = width;
+    game->minimenu_height  = height;
 }
 
 void
 minimenu_draw(
     struct GGame* game,
-    int* pixel_buffer,
-    int stride,
-    int clip_l,
-    int clip_t,
-    int clip_r,
-    int clip_b,
-    int offset_x,
-    int offset_y)
+    struct ToriRSRenderCommandBuffer* buf,
+    int font_id,
+    struct DashPixFont* font)
 {
-    // if( !game->menu_visible || !game->pixfont_b12 )
-    //     return;
+    if( !game->minimenu_visible || game->minimenu_option_count <= 0 || !buf )
+        return;
 
-    // int x = game->menu_x + offset_x;
-    // int y = game->menu_y + offset_y;
-    // int w = game->menu_width;
-    // int h = game->menu_height;
+    int x = game->minimenu_x;
+    int y = game->minimenu_y;
+    int w = game->minimenu_width;
+    int h = game->minimenu_height;
+    int n = game->minimenu_option_count;
 
-    // /* Client.ts drawMenu: fill background, black header, border. Use 0xFF prefix for opaque. */
-    // dash2d_fill_rect_clipped(
-    //     pixel_buffer,
-    //     stride,
-    //     x,
-    //     y,
-    //     w,
-    //     h,
-    //     0xFF000000 | OPTIONS_MENU,
-    //     clip_l,
-    //     clip_t,
-    //     clip_r,
-    //     clip_b);
-    // dash2d_fill_rect_clipped(
-    //     pixel_buffer,
-    //     stride,
-    //     x + 1,
-    //     y + 1,
-    //     w - 2,
-    //     16,
-    //     0xFF000000 | BLACK,
-    //     clip_l,
-    //     clip_t,
-    //     clip_r,
-    //     clip_b);
-    // dash2d_draw_rect(pixel_buffer, stride, x + 1, y + 18, w - 2, h - 19, 0xFF000000 | BLACK);
+    /* Background colour (Client.ts OPTIONS_MENU ~= dark olive). */
+    int color_bg     = 0x5F5000;
+    int color_black  = 0x000000;
+    int color_white  = 0xFFFFFF;
+    int color_yellow = 0xFFFF00;
 
-    // dashfont_draw_text_clipped(
-    //     game->pixfont_b12,
-    //     (uint8_t*)"Choose Option",
-    //     x + 3,
-    //     y + 2,
-    //     0xFF000000 | OPTIONS_MENU,
-    //     pixel_buffer,
-    //     stride,
-    //     clip_l,
-    //     clip_t,
-    //     clip_r,
-    //     clip_b);
+    /* Outer background fill. */
+    mm_emit_rect(buf, x, y, w, h, color_bg, 1);
+    /* Black header bar. */
+    mm_emit_rect(buf, x + 1, y + 1, w - 2, MENU_HEADER_HEIGHT - 2, color_black, 1);
+    /* Black body. */
+    mm_emit_rect(buf, x + 1, y + MENU_HEADER_HEIGHT, w - 2, h - MENU_HEADER_HEIGHT - 1, color_black, 1);
 
-    // /* Options: Client.ts order is reversed (menuOption[0] at bottom). Draw top to bottom.
-    //  * Mouse and menu bounds in viewport space for hover highlight. */
-    // int mouse_vp_x = game->mouse_x - offset_x;
-    // int mouse_vp_y = game->mouse_y - offset_y;
-    // int menu_vp_x = game->menu_x;
-    // int menu_vp_y = game->menu_y;
+    /* Header label. */
+    const uint8_t* header_text = mm_pool_text(game, "Choose Option");
+    mm_emit_text(buf, font_id, font, header_text, x + 3, y + 3, color_bg);
 
-    // /* Option rows: header ends at y+18, first row at y+19. Client.ts optionY = y + (n-1-i)*15
-    // + 31.
-    //  * Use y+19 so text sits at top of row (dash font y = top of glyph). */
-    // for( int i = 0; i < game->menu_size; i++ )
-    // {
-    //     int option_y = y + (game->menu_size - 1 - i) * 15 + 19;
-    //     int option_y_vp = menu_vp_y + (game->menu_size - 1 - i) * 15 + 20;
+    /* Mouse position for hover highlight. */
+    int mx = game->mouse_x;
+    int my = game->mouse_y;
 
-    //     /* Hit area: full 15px row from layout. Row spans y+19+(n-1-i)*15 to y+34+(n-1-i)*15. */
-    //     int row_top = menu_vp_y + 19 + (game->menu_size - 1 - i) * 15;
-    //     int row_bot = row_top + 15;
-    //     int rgb = 0xFF000000 | WHITE;
-    //     if( mouse_vp_x > menu_vp_x && mouse_vp_x < menu_vp_x + w && mouse_vp_y > row_top &&
-    //         mouse_vp_y < row_bot )
-    //         rgb = 0xFF000000 | YELLOW;
+    /* Option rows from top to bottom (index 0 = first/top option). */
+    for( int i = 0; i < n; i++ )
+    {
+        int row_top    = y + MENU_HEADER_HEIGHT + i * MENU_ROW_HEIGHT;
+        int row_bot    = row_top + MENU_ROW_HEIGHT;
+        int hovered    = (mx >= x && mx < x + w && my >= row_top && my < row_bot);
+        int text_color = hovered ? color_yellow : color_white;
 
-    //     dashfont_draw_text_clipped_taggable(
-    //         game->pixfont_b12,
-    //         (uint8_t*)game->menu_options[i],
-    //         x + 3,
-    //         option_y,
-    //         rgb,
-    //         pixel_buffer,
-    //         stride,
-    //         clip_l,
-    //         clip_t,
-    //         clip_r,
-    //         clip_b,
-    //         true);
-    // }
+        const uint8_t* opt_text = mm_pool_text(game, game->minimenu_options[i]);
+        mm_emit_text(buf, font_id, font, opt_text, x + 3, row_top + 2, text_color);
+    }
 }
 
 int
@@ -306,34 +343,51 @@ minimenu_click_option(
     int click_x,
     int click_y)
 {
-    // if( !game->menu_visible )
-    //     return -1;
+    if( !game->minimenu_visible )
+        return -1;
 
-    // int menu_x = game->menu_x;
-    // int menu_y = game->menu_y;
-    // int menu_width = game->menu_width;
+    int menu_x = game->minimenu_x;
+    int menu_y = game->minimenu_y;
+    int menu_w = game->minimenu_width;
+    int n      = game->minimenu_option_count;
 
-    // /* Click in viewport coords; menu is in viewport coords. Match draw hit area. */
-    // for( int i = 0; i < game->menu_size; i++ )
-    // {
-    //     int row_top = menu_y + 19 + (game->menu_size - 1 - i) * 15;
-    //     int row_bot = row_top + 15;
-    //     if( click_x > menu_x && click_x < menu_x + menu_width && click_y > row_top &&
-    //         click_y < row_bot )
-    //     {
-    //         return i;
-    //     }
-    // }
+    /* Check each option row. */
+    for( int i = 0; i < n; i++ )
+    {
+        int row_top = menu_y + MENU_HEADER_HEIGHT + i * MENU_ROW_HEIGHT;
+        int row_bot = row_top + MENU_ROW_HEIGHT;
+        if( click_x >= menu_x && click_x < menu_x + menu_w &&
+            click_y >= row_top && click_y < row_bot )
+        {
+            return i;
+        }
+    }
 
-    // /* Click outside menu - hide. Client.ts: if mouse outside menu bounds, menuVisible = false */
-    // if( click_x < menu_x - 10 || click_x > menu_x + menu_width + 10 || click_y < menu_y - 10 ||
-    //     click_y > menu_y + game->menu_height + 10 )
-    // {
-    //     game->menu_visible = 0;
-    //     return -2;
-    // }
+    /* Click in the header area - do nothing, keep open. */
+    if( click_x >= menu_x && click_x < menu_x + menu_w &&
+        click_y >= menu_y && click_y < menu_y + MENU_HEADER_HEIGHT )
+    {
+        return -1;
+    }
 
-    return -1;
+    /* Click outside menu - close it. */
+    game->minimenu_visible = 0;
+    return -2;
+}
+
+/* Move toward entity at (tile_x, tile_z) with the "interact" (red) cross. */
+static void
+mm_move_toward(struct GGame* game, int tile_x, int tile_z)
+{
+    if( tile_x <= 0 && tile_z <= 0 )
+        return;
+    game->tile_clicked_x     = tile_x;
+    game->tile_clicked_z     = tile_z;
+    game->tile_clicked_level = 0;
+    game->cross_mode         = 2;
+    game->cross_x            = game->mouse_clicked_right_x;
+    game->cross_y            = game->mouse_clicked_right_y;
+    game->cross_cycle        = 0;
 }
 
 void
@@ -341,16 +395,146 @@ minimenu_use_option(
     struct GGame* game,
     int option_index)
 {
-    // if( option_index < 0 || option_index >= game->menu_size )
-    //     return;
+    if( option_index < 0 || option_index >= game->minimenu_option_count )
+        return;
 
-    // int action = game->menu_option_action[option_index];
-    // if( action < 0 )
-    //     return; /* Cancel */
+    game->minimenu_visible = 0;
 
-    // /* Walk Here (action 100): handled in frame - find tile and path. */
-    // if( action == 100 )
-    //     return;
+    int action  = game->minimenu_option_action[option_index];
+    int param_a = game->minimenu_option_param_a[option_index];
+    int param_b = game->minimenu_option_param_b[option_index];
+    int param_c = game->minimenu_option_param_c[option_index];
 
-    // game->menu_visible = 0;
+    if( action == (int)MINIMENU_ACTION_CANCEL )
+        return;
+
+    if( action == (int)MINIMENU_ACTION_WALK )
+    {
+        game->tile_clicked_x     = param_a;
+        game->tile_clicked_z     = param_b;
+        game->tile_clicked_level = (game->mouse_tile_level >= 0) ? game->mouse_tile_level : 0;
+        game->cross_x            = game->mouse_clicked_right_x;
+        game->cross_y            = game->mouse_clicked_right_y;
+        game->cross_mode         = 1;
+        game->cross_cycle        = 0;
+        return;
+    }
+
+    /* ── NPC actions ─────────────────────────────────────────────────────────
+     * world_options.c: param_a=npc_slot, param_b=x, param_c=z               */
+    {
+        int which = -1;
+        int base  = action;
+        if( base > (int)MINIMENU_ACTION_PRIORITY_OFFSET )
+            base -= (int)MINIMENU_ACTION_PRIORITY_OFFSET;
+        if( base == (int)MINIMENU_ACTION_OPNPC1 ) which = 1;
+        else if( base == (int)MINIMENU_ACTION_OPNPC2 ) which = 2;
+        else if( base == (int)MINIMENU_ACTION_OPNPC3 ) which = 3;
+        else if( base == (int)MINIMENU_ACTION_OPNPC4 ) which = 4;
+        else if( base == (int)MINIMENU_ACTION_OPNPC5 ) which = 5;
+        if( which >= 0 )
+        {
+            struct CPArgs_OpNpc a = { which, param_a };
+            clientprot_core_emit(game, CLIENTPROT_OP_OPNPC, &a);
+            mm_move_toward(game, param_b, param_c);
+            return;
+        }
+    }
+
+    /* ── LOC actions ─────────────────────────────────────────────────────────
+     * param_a=entity_id, param_b=x, param_c=z                               */
+    {
+        int which = -1;
+        if( action == (int)MINIMENU_ACTION_OPLOC1 ) which = 1;
+        else if( action == (int)MINIMENU_ACTION_OPLOC2 ) which = 2;
+        else if( action == (int)MINIMENU_ACTION_OPLOC3 ) which = 3;
+        else if( action == (int)MINIMENU_ACTION_OPLOC4 ) which = 4;
+        else if( action == (int)MINIMENU_ACTION_OPLOC5 ) which = 5;
+        if( which >= 0 )
+        {
+            struct CPArgs_OpLoc a = { which, param_b, param_c, param_a, 0 };
+            clientprot_core_emit(game, CLIENTPROT_OP_OPLOC, &a);
+            mm_move_toward(game, param_b, param_c);
+            return;
+        }
+    }
+
+    /* ── OBJ (ground item) actions ───────────────────────────────────────────
+     * param_a=obj_id, param_b=x, param_c=z                                  */
+    {
+        int which = -1;
+        if( action == (int)MINIMENU_ACTION_OPOBJ1 ) which = 1;
+        else if( action == (int)MINIMENU_ACTION_OPOBJ2 ) which = 2;
+        else if( action == (int)MINIMENU_ACTION_OPOBJ3 ) which = 3;
+        else if( action == (int)MINIMENU_ACTION_OPOBJ4 ) which = 4;
+        else if( action == (int)MINIMENU_ACTION_OPOBJ5 ) which = 5;
+        if( which >= 0 )
+        {
+            struct CPArgs_OpObj a = { which, param_b, param_c, param_a, 0 };
+            clientprot_core_emit(game, CLIENTPROT_OP_OPOBJ, &a);
+            mm_move_toward(game, param_b, param_c);
+            return;
+        }
+    }
+
+    /* ── Player actions ──────────────────────────────────────────────────────
+     * param_a=player_slot, param_b=x, param_c=z                             */
+    {
+        int which = -1;
+        int base  = action;
+        if( base > (int)MINIMENU_ACTION_PRIORITY_OFFSET )
+            base -= (int)MINIMENU_ACTION_PRIORITY_OFFSET;
+        if( base == (int)MINIMENU_ACTION_OPPLAYER1 ) which = 1;
+        else if( base == (int)MINIMENU_ACTION_OPPLAYER2 ) which = 2;
+        else if( base == (int)MINIMENU_ACTION_OPPLAYER3 ) which = 3;
+        else if( base == (int)MINIMENU_ACTION_OPPLAYER4 ) which = 4;
+        else if( base == (int)MINIMENU_ACTION_OPPLAYER5 ) which = 5;
+        if( which >= 0 )
+        {
+            struct CPArgs_OpPlayer a = { which, param_a };
+            clientprot_core_emit(game, CLIENTPROT_OP_OPPLAYER, &a);
+            mm_move_toward(game, param_b, param_c);
+            return;
+        }
+    }
+
+    /* ── Inventory / held actions ───────────────────────────────────────────*/
+    {
+        int which = -1;
+        if( action == (int)MINIMENU_ACTION_INV_BUTTON1 ) which = 1;
+        else if( action == (int)MINIMENU_ACTION_INV_BUTTON2 ) which = 2;
+        else if( action == (int)MINIMENU_ACTION_INV_BUTTON3 ) which = 3;
+        else if( action == (int)MINIMENU_ACTION_INV_BUTTON4 ) which = 4;
+        else if( action == (int)MINIMENU_ACTION_INV_BUTTON5 ) which = 5;
+        if( which >= 0 )
+        {
+            /* param_a=comp_id, param_b=slot, param_c=obj_id */
+            clientprot_inv_button(game, which, param_a, param_b, param_c);
+            return;
+        }
+    }
+
+    /* ── Interface button ───────────────────────────────────────────────────*/
+    if( action == (int)MINIMENU_ACTION_IF_BUTTON ||
+        action == (int)MINIMENU_ACTION_IF_BUTTON_TOGGLE ||
+        action == (int)MINIMENU_ACTION_IF_BUTTON_SELECT )
+    {
+        clientprot_if_button(game, param_a);
+        return;
+    }
+
+    /* ── Modal / social ─────────────────────────────────────────────────────*/
+    if( action == (int)MINIMENU_ACTION_CLOSE_MODAL )
+    {
+        clientprot_close_modal(game);
+        return;
+    }
+    if( action == (int)MINIMENU_ACTION_RESUME_PAUSEBUTTON )
+    {
+        clientprot_resume_pausebutton(game);
+        return;
+    }
+
+    /* Fallback: if we have entity tile coords, walk toward them. */
+    mm_move_toward(game, param_b, param_c);
 }

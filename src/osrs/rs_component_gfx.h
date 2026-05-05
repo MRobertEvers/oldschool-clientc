@@ -17,6 +17,9 @@ bool
 rs_gfx_text_step(struct UIFrameState* fiber, struct StaticUIComponent* component);
 
 bool
+rs_gfx_rect_step(struct UIFrameState* fiber, struct StaticUIComponent* component);
+
+bool
 rs_gfx_model_step(
     struct UIFrameState* fiber,
     struct StaticUIComponent* component,

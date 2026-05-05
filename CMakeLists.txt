@@ -152,6 +152,7 @@ set(COMMON_SOURCES
     src/osrs/interface.c
     src/osrs/interface_state.c
     src/osrs/rs_component_state.c
+    src/osrs/chat.c
     src/osrs/clientscript_vm.c
     src/osrs/obj_icon.c
     src/osrs/gio_cache_dat.c
@@ -174,11 +175,12 @@ set(COMMON_SOURCES
     src/osrs/script_queue.c
     src/osrs/core/game_cache_tag.c
     src/osrs/core/revision.c
+    src/osrs/core/clientprot_core.c
+    src/osrs/revs/lc245_2/clientprot_rev245_2.c
     src/osrs/core/ui_loader.c
     src/osrs/core/gameproto_core_exec.c
     src/osrs/core/gameproto_core_parse.c
     src/osrs/player_stats.c
-    src/osrs/varp_varbit_manager.c
     src/osrs/revs/lc245_2/gameproto_rev245_2_exec.c
     src/osrs/revs/lc245_2/gameproto_rev245_2_parse.c
     src/osrs/gameproto_process.c
@@ -205,6 +207,7 @@ set(COMMON_SOURCES
     src/osrs/rscache/xtea_config.c
     src/osrs/rsa.c
     src/osrs/rscache/rsbuf.c
+    src/osrs/rscache/rsbuf_isaac.c
     src/osrs/rscache/tables/component.c
     src/osrs/rscache/bitbuffer.c
     src/osrs/rscache/xtea.c

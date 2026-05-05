@@ -48,6 +48,13 @@ struct Platform2_SDL2_Renderer_Soft3D
         int new_height,
         void* userdata);
     void* on_viewport_changed_userdata;
+
+#define PLATFORM_SOFT3D_CLIP_STACK 16
+    int soft3d_iface_clip_stack_top;
+    int soft3d_iface_clip_stack_l[PLATFORM_SOFT3D_CLIP_STACK];
+    int soft3d_iface_clip_stack_t[PLATFORM_SOFT3D_CLIP_STACK];
+    int soft3d_iface_clip_stack_r[PLATFORM_SOFT3D_CLIP_STACK];
+    int soft3d_iface_clip_stack_b[PLATFORM_SOFT3D_CLIP_STACK];
 };
 
 /** Pixel buffer is `width`×`height`; `max_width`/`max_height` only clamp viewport scaling. */

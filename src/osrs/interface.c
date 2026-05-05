@@ -2,6 +2,7 @@
 
 #include "osrs/clientscript_vm.h"
 #include "osrs/interface_state.h"
+#include "osrs/revconfig/uitree.h"
 #include "osrs/revconfig/uiscene.h"
 
 #include "graphics/dash.h"
@@ -10,11 +11,12 @@
 #include "osrs/dash_utils.h"
 #include "osrs/entity_scenebuild.h"
 #include "osrs/minimenu_action.h"
+#include "osrs/core/clientprot_core.h"
 #include "osrs/packetout.h"
 #include "osrs/player_stats.h"
 #include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
-#include "osrs/varp_varbit_manager.h"
+#include "osrs/clientscript_vm.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -536,6 +538,93 @@ interface_find_hovered_interface_id(
     return id;
 }
 
+void
+interface_update_region_hover_ids(struct GGame* game)
+{
+    if( !game || !game->iface )
+        return;
+    struct InterfaceState* iface = game->iface;
+    iface->over_main_com_id = -1;
+    iface->over_side_com_id = -1;
+    iface->over_chat_com_id = -1;
+    iface->current_hovered_interface_id = -1;
+
+    if( !game->buildcachedat )
+        return;
+
+    int mx = game->mouse_x;
+    int my = game->mouse_y;
+
+    /* Region rectangles match Client.ts menu hit-testing (main / sidebar / chat). */
+    if( mx > 4 && my > 4 && mx < 516 && my < 338 && iface->viewport_interface_id >= 0 )
+    {
+        struct CacheDatConfigComponent* root =
+            buildcachedat_get_component(game->buildcachedat, iface->viewport_interface_id);
+        iface->over_main_com_id =
+            interface_find_hovered_interface_id(game, root, 4, 4, mx, my);
+    }
+
+    if( mx > 553 && my > 205 && mx < 743 && my < 466 )
+    {
+        if( iface->sidebar_interface_id >= 0 )
+        {
+            struct CacheDatConfigComponent* root =
+                buildcachedat_get_component(game->buildcachedat, iface->sidebar_interface_id);
+            iface->over_side_com_id =
+                interface_find_hovered_interface_id(game, root, 553, 205, mx, my);
+        }
+        else if( game->ui_root_buffer )
+        {
+            /* Revconfig tab sidebar (expand_sidebar_rs_tree): root at bx,by like uitree_load. */
+            for( uint32_t i = 0; i < game->ui_root_buffer->component_count; i++ )
+            {
+                struct StaticUIComponent* sb = &game->ui_root_buffer->components[i];
+                if( sb->type != UIELEM_BUILTIN_SIDEBAR ||
+                    sb->u.sidebar.tabno != iface->selected_tab )
+                    continue;
+                int compno = sb->u.sidebar.componentno;
+                if( compno < 0 )
+                    continue;
+                struct CacheDatConfigComponent* root =
+                    buildcachedat_get_component(game->buildcachedat, compno);
+                if( !root )
+                    continue;
+                int bx = sb->position.x + root->x;
+                int by = sb->position.y + root->y;
+                iface->over_side_com_id =
+                    interface_find_hovered_interface_id(game, root, bx, by, mx, my);
+                break;
+            }
+        }
+    }
+
+    if( mx > 17 && my > 357 && mx < 426 && my < 453 && iface->chat_interface_id >= 0 )
+    {
+        struct CacheDatConfigComponent* root =
+            buildcachedat_get_component(game->buildcachedat, iface->chat_interface_id);
+        iface->over_chat_com_id =
+            interface_find_hovered_interface_id(game, root, 17, 357, mx, my);
+    }
+
+    /* Aggregate: first region that has a hover wins (main > side > chat). */
+    if( iface->over_main_com_id >= 0 )
+        iface->current_hovered_interface_id = iface->over_main_com_id;
+    else if( iface->over_side_com_id >= 0 )
+        iface->current_hovered_interface_id = iface->over_side_com_id;
+    else
+        iface->current_hovered_interface_id = iface->over_chat_com_id;
+}
+
+bool
+interface_component_is_overlay_hovered(struct GGame* game, int component_id)
+{
+    if( !game || !game->iface || component_id < 0 )
+        return false;
+    struct InterfaceState* i = game->iface;
+    return component_id == i->over_main_com_id || component_id == i->over_side_com_id ||
+           component_id == i->over_chat_com_id;
+}
+
 /* Recursive hit-test for scrollbar; mirrors layer child loop in interface_draw_component.
  * Returns component id of scrollable layer whose scrollbar contains (mouse_x, mouse_y), or -1.
  * On hit, sets *out_scrollbar_y, *out_height, *out_scroll_height for that layer. */
@@ -808,72 +897,73 @@ interface_apply_button_click_varp_optimistic(
     int* script = com->scripts[0];
     int opcode = script[0];
 
+    struct ClientScriptVM* vm = game->clientscript_vm;
+
     if( opcode == 5 )
     {
         /* pushvar {id} */
-        int varp = script[1];
-        int current = varp_varbit_get_varp(&game->varp_varbit, varp);
+        int varp    = script[1];
+        int current = clientscript_vm_get_var(vm, varp);
 
         if( com->buttonType == COMPONENT_BUTTON_TYPE_TOGGLE )
         {
-            varp_varbit_set_varp_optimistic(&game->varp_varbit, varp, 1 - current);
+            clientscript_vm_set_var_optimistic(vm, varp, 1 - current);
         }
         else if( com->buttonType == COMPONENT_BUTTON_TYPE_SELECT && com->scriptOperand )
         {
             int operand = com->scriptOperand[0];
             if( current != operand )
-                varp_varbit_set_varp_optimistic(&game->varp_varbit, varp, operand);
+                clientscript_vm_set_var_optimistic(vm, varp, operand);
         }
     }
     else if( opcode == 14 && com->buttonType == COMPONENT_BUTTON_TYPE_TOGGLE )
     {
         /* push_varbit {varbit} - toggle the varbit's bits in the base varp */
         int varbit_id = script[1];
-        int current = varp_varbit_get_varbit(&game->varp_varbit, varbit_id);
+        if( !vm || varbit_id < 0 || varbit_id >= vm->varbit_count )
+            return;
+        int current = clientscript_vm_get_varbit(vm, varbit_id);
         int new_val = 1 - current;
 
-        struct VarPVarBitManager* mgr = &game->varp_varbit;
-        if( varbit_id < 0 || varbit_id >= mgr->varbit_count )
-            return;
-        const struct VarBitType* vb = &mgr->varbit_types[varbit_id];
-        if( vb->basevar < 0 || vb->basevar >= mgr->varp_count )
+        const struct VarBitType* vb = &vm->varbit_types[varbit_id];
+        if( vb->basevar < 0 || vb->basevar >= vm->varp_count )
             return;
 
         int bit_count = vb->endbit - vb->startbit;
         if( bit_count <= 0 || bit_count >= VARP_VARBIT_READBIT_MAX )
             return;
 
-        int mask = mgr->readbit[bit_count];
-        int base_val = varp_varbit_get_varp(mgr, vb->basevar);
+        int mask    = vm->readbit[bit_count];
+        int base_val = clientscript_vm_get_var(vm, vb->basevar);
         int cleared = base_val & ~(mask << vb->startbit);
         int updated = cleared | ((new_val & mask) << vb->startbit);
-        varp_varbit_set_varp_optimistic(mgr, vb->basevar, updated);
+        clientscript_vm_set_var_optimistic(vm, vb->basevar, updated);
     }
-    else if( opcode == 14 && com->buttonType == COMPONENT_BUTTON_TYPE_SELECT && com->scriptOperand )
+    else if( opcode == 14 && com->buttonType == COMPONENT_BUTTON_TYPE_SELECT &&
+             com->scriptOperand )
     {
         /* push_varbit + SELECT: set varbit to operand */
         int varbit_id = script[1];
+        if( !vm || varbit_id < 0 || varbit_id >= vm->varbit_count )
+            return;
         int operand = com->scriptOperand[0];
-        int current = varp_varbit_get_varbit(&game->varp_varbit, varbit_id);
+        int current = clientscript_vm_get_varbit(vm, varbit_id);
         if( current == operand )
             return;
 
-        struct VarPVarBitManager* mgr = &game->varp_varbit;
-        if( varbit_id < 0 || varbit_id >= mgr->varbit_count )
-            return;
-        const struct VarBitType* vb = &mgr->varbit_types[varbit_id];
-        if( vb->basevar < 0 || vb->basevar >= mgr->varp_count )
+        const struct VarBitType* vb = &vm->varbit_types[varbit_id];
+        if( vb->basevar < 0 || vb->basevar >= vm->varp_count )
             return;
 
         int bit_count = vb->endbit - vb->startbit;
         if( bit_count <= 0 || bit_count >= VARP_VARBIT_READBIT_MAX )
             return;
 
-        int mask = mgr->readbit[bit_count];
-        int base_val = varp_varbit_get_varp(mgr, vb->basevar);
+        int mask    = vm->readbit[bit_count];
+        int base_val = clientscript_vm_get_var(vm, vb->basevar);
         int cleared = base_val & ~(mask << vb->startbit);
         int updated = cleared | ((operand & mask) << vb->startbit);
-        varp_varbit_set_varp_optimistic(mgr, vb->basevar, updated);
+        clientscript_vm_set_var_optimistic(vm, vb->basevar, updated);
     }
 }
 
@@ -951,6 +1041,47 @@ interface_handle_scrollbar_click(
         game->iface->component_scroll_position[component_id] = new_pos;
 }
 
+/* Mirrors Client.ts doScrollbar track/grip drag (lines 10543-10558).
+ * Computes scrollPos so the grip thumb is centred on mouse_y.
+ * gripSize = max(16, height*height/scroll_height) (same formula as drawScrollbar).
+ * gripY    = mouse_y - layer_y - gripSize/2 - 16  (centred; top 16px is up-arrow).
+ * maxY     = height - gripSize - 32                (track length).
+ * scrollPos = (max_scroll * gripY) / maxY, then clamped to [0, max_scroll]. */
+void
+interface_handle_scrollbar_drag(
+    struct GGame* game,
+    int component_id,
+    int layer_y,
+    int height,
+    int scroll_height,
+    int mouse_y)
+{
+    if( !game->iface )
+        return;
+    if( component_id < 0 || component_id >= MAX_IFACE_SCROLL_IDS )
+        return;
+    int max_scroll = scroll_height - height;
+    if( max_scroll <= 0 )
+        return;
+    int grip_size = height * height / scroll_height;
+    if( grip_size < 16 )
+        grip_size = 16;
+    int max_y = height - grip_size - 32;
+    if( max_y <= 0 )
+        return;
+    int grip_y = mouse_y - layer_y - (grip_size / 2) - 16;
+    if( grip_y < 0 )
+        grip_y = 0;
+    if( grip_y > max_y )
+        grip_y = max_y;
+    int new_pos = (int)((long)max_scroll * (long)grip_y / (long)max_y);
+    if( new_pos < 0 )
+        new_pos = 0;
+    if( new_pos > max_scroll )
+        new_pos = max_scroll;
+    game->iface->component_scroll_position[component_id] = new_pos;
+}
+
 void
 interface_draw_component_rect(
     struct GGame* game,
@@ -966,7 +1097,7 @@ interface_draw_component_rect(
     bool active = component->scriptComparator && interface_get_if_active(game, component);
     if( active )
         colour = component->activeColour;
-    bool hovered = (component->id == game->iface->current_hovered_interface_id);
+    bool hovered = interface_component_is_overlay_hovered(game, component->id);
     if( hovered )
     {
         if( active && component->activeOverColour != 0 )
@@ -1027,7 +1158,7 @@ interface_draw_component_text(
         if( component->activeText && component->activeText[0] != '\0' )
             text_src = component->activeText;
     }
-    bool hovered = (component->id == game->iface->current_hovered_interface_id);
+    bool hovered = interface_component_is_overlay_hovered(game, component->id);
     if( hovered )
     {
         if( active && component->activeOverColour != 0 )
@@ -1186,7 +1317,7 @@ interface_draw_scrollbar(
     if( sb1 )
         dash2d_blit_sprite(game->sys_dash, sb1, vp, x, y + height - 16, pixel_buffer);
 
-    /* Draw track (y+16, track_h) clipped to viewport */
+    /* Draw track (y+16, track_h) clipped to viewport — Client.ts SCROLLBAR_TRACK */
     int track_y = y + 16;
     int draw_y0 = track_y < ct ? ct : track_y;
     int draw_y1 = track_y + track_h;
@@ -1195,9 +1326,9 @@ interface_draw_scrollbar(
     for( int py = draw_y0; py < draw_y1; py++ )
         for( int px = x; px < x + 16 && px < cr; px++ )
             if( px >= cl )
-                pixel_buffer[py * stride + px] = 0x4D4233;
+                pixel_buffer[py * stride + px] = 0x23201b;
 
-    /* Draw grip (y+16+grip_y, grip_size) clipped to viewport */
+    /* Grip fill — Client.ts SCROLLBAR_GRIP_FOREGROUND */
     int grip_y0 = y + 16 + grip_y;
     int grip_y1 = grip_y0 + grip_size;
     draw_y0 = grip_y0 < ct ? ct : grip_y0;
@@ -1205,7 +1336,62 @@ interface_draw_scrollbar(
     for( int py = draw_y0; py < draw_y1; py++ )
         for( int px = x; px < x + 16 && px < cr; px++ )
             if( px >= cl )
-                pixel_buffer[py * stride + px] = 0x6D6253;
+                pixel_buffer[py * stride + px] = 0x4d4233;
+
+    /* Bevels on top — Client.ts vline/hline after grip fill */
+    for( int py = grip_y0; py < grip_y0 + grip_size; py++ )
+    {
+        if( py < ct || py >= cb )
+            continue;
+        if( x >= cl && x < cr )
+            pixel_buffer[py * stride + x] = 0x766654;
+        if( x + 1 >= cl && x + 1 < cr )
+            pixel_buffer[py * stride + (x + 1)] = 0x766654;
+        if( x + 15 >= cl && x + 15 < cr )
+            pixel_buffer[py * stride + (x + 15)] = 0x332d25;
+    }
+    if( grip_size > 1 )
+    {
+        for( int py = grip_y0 + 1; py < grip_y0 + grip_size; py++ )
+        {
+            if( py < ct || py >= cb )
+                continue;
+            if( x + 14 >= cl && x + 14 < cr )
+                pixel_buffer[py * stride + (x + 14)] = 0x332d25;
+        }
+    }
+    for( int px = x; px < x + 16 && px < cr; px++ )
+    {
+        if( px < cl )
+            continue;
+        if( grip_y0 >= ct && grip_y0 < cb )
+            pixel_buffer[grip_y0 * stride + px] = 0x766654;
+        if( grip_y0 + 1 >= ct && grip_y0 + 1 < cb )
+            pixel_buffer[(grip_y0 + 1) * stride + px] = 0x766654;
+    }
+    {
+        int yb0 = grip_y0 + grip_size - 1;
+        if( yb0 >= ct && yb0 < cb )
+        {
+            for( int px = x; px < x + 16 && px < cr; px++ )
+            {
+                if( px >= cl )
+                    pixel_buffer[yb0 * stride + px] = 0x332d25;
+            }
+        }
+        if( grip_size > 1 )
+        {
+            int yb1 = grip_y0 + grip_size - 2;
+            if( yb1 >= ct && yb1 < cb )
+            {
+                for( int px = x + 1; px < x + 16 && px < cr; px++ )
+                {
+                    if( px >= cl )
+                        pixel_buffer[yb1 * stride + px] = 0x332d25;
+                }
+            }
+        }
+    }
 }
 
 void
@@ -1627,27 +1813,32 @@ interface_handle_inv_button(
         return;
     }
 
-    // Send packet with Isaac cipher encryption (p1isaac)
-    // Based on Client.ts out.p1isaac() and example at tori_rs_cycle.u.c:788-790
-    // uint32_t encrypted_opcode = (opcode + isaac_next(game->random_out)) & 0xff;
-    // game->outbound_buffer[game->outbound_size++] = encrypted_opcode;
+    if( GAME_NET_STATE_GAME != game->net_state || opcode == 0 )
+        return;
 
-    // // Send payload: p2(obj_id) + p2(slot) + p2(component_id)
-    // // Based on Client.ts lines 9051-9053
-    // game->outbound_buffer[game->outbound_size++] = (obj_id >> 8) & 0xFF;
-    // game->outbound_buffer[game->outbound_size++] = obj_id & 0xFF;
-    // game->outbound_buffer[game->outbound_size++] = (slot >> 8) & 0xFF;
-    // game->outbound_buffer[game->outbound_size++] = slot & 0xFF;
-    // game->outbound_buffer[game->outbound_size++] = (component_id >> 8) & 0xFF;
-    // game->outbound_buffer[game->outbound_size++] = component_id & 0xFF;
-
-    // Update selection state (Client.ts lines 9055-9066)
-    // game->selected_cycle = 0;
-    // game->selected_interface = component_id;
-    // game->selected_item = slot;
-    // game->selected_area = 2; // Sidebar area
-
-    // Check if this component belongs to viewport or chat (would change area)
-    // For now we assume it's in sidebar (area 2)
-    // TODO: Check component->layer against game->viewport_interface_id and game->chat_interface_id
+    /* Map the raw opcode to the canonical which (1-5). */
+    static const int inv_ops[] = {
+        PKTOUT_LC245_2_INV_BUTTON1, PKTOUT_LC245_2_INV_BUTTON2,
+        PKTOUT_LC245_2_INV_BUTTON3, PKTOUT_LC245_2_INV_BUTTON4,
+        PKTOUT_LC245_2_INV_BUTTON5
+    };
+    static const int held_ops[] = {
+        PKTOUT_LC245_2_OPHELD1, PKTOUT_LC245_2_OPHELD2,
+        PKTOUT_LC245_2_OPHELD3, PKTOUT_LC245_2_OPHELD4,
+        PKTOUT_LC245_2_OPHELD5
+    };
+    for( int i = 0; i < 5; i++ )
+    {
+        if( opcode == (uint8_t)inv_ops[i] )
+        {
+            clientprot_inv_button(game, i + 1, component_id, slot, obj_id);
+            return;
+        }
+        if( opcode == (uint8_t)held_ops[i] )
+        {
+            struct CPArgs_OpHeld a = { i + 1, obj_id, slot, component_id };
+            clientprot_core_emit(game, CLIENTPROT_OP_OPHELD, &a);
+            return;
+        }
+    }
 }

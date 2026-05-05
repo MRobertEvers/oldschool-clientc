@@ -4,10 +4,13 @@
 #include "collision_map.h"
 #include "game.h"
 #include "graphics/dash.h"
+#include "tori_rs_render.h"
 
 #include <stdbool.h>
 
-/* Build menu options from hovered_scene_element and show at (click_x, click_y).
+struct ToriRSRenderCommandBuffer;
+
+/* Build menu options from option_set and show at (click_x, click_y) in iface-viewport coords.
  * Client.ts showContextMenu: positions menu, sets menuVisible. */
 void
 minimenu_show(
@@ -15,18 +18,15 @@ minimenu_show(
     int click_x,
     int click_y);
 
-/* Draw menu. Client.ts drawMenu: fill rect, "Choose Option", option strings. */
+/* Emit GFX draw commands (TORIRS_GFX_DRAW_RECT / TORIRS_GFX_DRAW_FONT) into buf.
+ * Must be called inside a STATE_BEGIN_2D block.  Text lifetimes are extended via
+ * game->ui_frame_text_pool (caller resets the pool at FrameBegin). */
 void
 minimenu_draw(
     struct GGame* game,
-    int* pixel_buffer,
-    int stride,
-    int clip_l,
-    int clip_t,
-    int clip_r,
-    int clip_b,
-    int offset_x,
-    int offset_y);
+    struct ToriRSRenderCommandBuffer* buf,
+    int font_id,
+    struct DashPixFont* font);
 
 /* Check if (click_x, click_y) hits a menu option. Returns option index or -1.
  * If click outside menu, hides menu and returns -2. */

@@ -320,20 +320,19 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
             const uint8_t* text = command._font_draw.text;
             if( !f || !text || !renderer->pixel_buffer )
                 break;
-            const int ox = renderer->dash_offset_x;
-            const int oy = renderer->dash_offset_y;
-            const int fx = command._font_draw.x + ox;
-            const int fy = command._font_draw.y + oy;
+            const int fx = command._font_draw.x;
+            const int fy = command._font_draw.y;
             int cl = 0;
             int ct = 0;
             int cr = renderer->width;
             int cb = renderer->height;
-            if( game->view_port )
+            if( game->iface_view_port )
             {
-                cl = ox;
-                ct = oy;
-                cr = ox + game->view_port->width;
-                cb = oy + game->view_port->height;
+                struct DashViewPort* vp = game->iface_view_port;
+                cl = vp->clip_left;
+                ct = vp->clip_top;
+                cr = vp->clip_right;
+                cb = vp->clip_bottom;
                 if( cl < 0 )
                     cl = 0;
                 if( ct < 0 )
@@ -415,6 +414,58 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
 
             if( !game->sys_dash || !game->iface_view_port || !renderer->pixel_buffer )
                 break;
+
+            struct DashViewPort* vp = game->iface_view_port;
+
+            /* Feature 5: per-sprite clip. */
+            int saved_l = 0, saved_t = 0, saved_r = 0, saved_b = 0;
+            bool had_per_clip = false;
+            if( command._sprite_draw.clip_w > 0 )
+            {
+                saved_l = vp->clip_left;  saved_t = vp->clip_top;
+                saved_r = vp->clip_right; saved_b = vp->clip_bottom;
+                had_per_clip = true;
+                int cx  = command._sprite_draw.clip_x;
+                int cy  = command._sprite_draw.clip_y;
+                int cxr = cx + command._sprite_draw.clip_w;
+                int cyb = cy + command._sprite_draw.clip_h;
+                dash2d_set_bounds(vp,
+                    cx  > saved_l ? cx  : saved_l,
+                    cy  > saved_t ? cy  : saved_t,
+                    cxr < saved_r ? cxr : saved_r,
+                    cyb < saved_b ? cyb : saved_b);
+            }
+
+            /* Feature 4: masked sprite. */
+            struct DashSprite* mask_sp = command._sprite_draw.mask_sprite;
+            uint32_t* masked_pixels = NULL;
+            struct DashSprite masked_tmp;
+            if( mask_sp && mask_sp->pixels_argb && command._sprite_draw.mask_element_id >= 0 )
+            {
+                int pw = sp->width, ph = sp->height;
+                masked_pixels = (uint32_t*)malloc((size_t)(pw * ph) * sizeof(uint32_t));
+                if( masked_pixels )
+                {
+                    int mw = mask_sp->width, mh = mask_sp->height;
+                    for( int py = 0; py < ph; py++ )
+                    {
+                        for( int px = 0; px < pw; px++ )
+                        {
+                            uint32_t s = sp->pixels_argb[py * pw + px];
+                            uint32_t ma = (px < mw && py < mh)
+                                ? ((mask_sp->pixels_argb[py * mw + px] >> 24) & 0xffu)
+                                : 0xffu;
+                            uint32_t oa = (s >> 24) & 0xffu;
+                            uint32_t na = (oa * ma) / 255u;
+                            masked_pixels[py * pw + px] = (s & 0x00ffffffu) | (na << 24);
+                        }
+                    }
+                    masked_tmp = *sp;
+                    masked_tmp.pixels_argb = masked_pixels;
+                    sp = &masked_tmp;
+                }
+            }
+
             if( command._sprite_draw.rotated )
             {
                 dash2d_blit_rotated_ex(
@@ -437,16 +488,24 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
                     command._sprite_draw.dst_anchor_y,
                     rot);
             }
+            else if( command._sprite_draw.alpha_mode == 1 )
+            {
+                dash2d_blit_sprite_alpha(
+                    game->sys_dash, sp, vp,
+                    command._sprite_draw.dst_bb_x, command._sprite_draw.dst_bb_y,
+                    255, renderer->pixel_buffer);
+            }
             else
             {
                 dash2d_blit_sprite(
-                    game->sys_dash,
-                    sp,
-                    game->iface_view_port,
-                    command._sprite_draw.dst_bb_x,
-                    command._sprite_draw.dst_bb_y,
+                    game->sys_dash, sp, vp,
+                    command._sprite_draw.dst_bb_x, command._sprite_draw.dst_bb_y,
                     renderer->pixel_buffer);
             }
+
+            free(masked_pixels);
+            if( had_per_clip )
+                dash2d_set_bounds(vp, saved_l, saved_t, saved_r, saved_b);
         }
         break;
         case TORIRS_GFX_STATE_BEGIN_3D:

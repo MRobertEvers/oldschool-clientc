@@ -12,12 +12,14 @@ struct WorldOption
     int param_c;
 };
 
+#define WORLD_OPTION_SET_CAPACITY 64
+
 struct WorldOptionSet
 {
-    struct WorldOption options[20];
+    struct WorldOption options[WORLD_OPTION_SET_CAPACITY];
     int option_count;
 
-    int order[20];
+    int order[WORLD_OPTION_SET_CAPACITY];
 };
 
 static inline struct WorldOption*

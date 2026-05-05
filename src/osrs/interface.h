@@ -85,7 +85,7 @@ interface_draw_scrollbar(
     int stride);
 
 // Find topmost component id that has (overlayer >= 0 || overColour != 0) and contains (mouse_x, mouse_y).
-// Set game->current_hovered_interface_id to this before drawing so hide=true components only draw when hovered.
+// Used by interface_update_region_hover_ids per Client.ts addComponentOptions.
 int
 interface_find_hovered_interface_id(
     struct GGame* game,
@@ -135,7 +135,20 @@ interface_handle_scrollbar_click(
     int scroll_height,
     int click_y);
 
-// Run component script and return result. Uses varp_varbit_manager for opcodes 5,7,13,14.
+/* Continuous grip/track drag: recomputes scrollPos from the current mouse_y position,
+ * centering the grip on the cursor.  Mirrors Client.ts doScrollbar track branch (10543-10558).
+ * layer_y = absolute Y of the layer in screen space, height = layer height, scroll_height =
+ * total scrollable height (> height).  Call every frame while LMB is held over region 2/3. */
+void
+interface_handle_scrollbar_drag(
+    struct GGame* game,
+    int component_id,
+    int layer_y,
+    int height,
+    int scroll_height,
+    int mouse_y);
+
+// Run component script and return result. Uses ClientScriptVM for opcodes 5,7,13,14.
 int
 interface_get_if_var(
     struct GGame* game,
@@ -147,6 +160,14 @@ bool
 interface_get_if_active(
     struct GGame* game,
     struct CacheDatConfigComponent* component);
+
+/** Once per frame: set iface over_* ids from Client.ts region rectangles + interface_find_hovered. */
+void
+interface_update_region_hover_ids(struct GGame* game);
+
+/** True if component_id matches any region overlay hover id (Client.ts TEXT/RECT hovered). */
+bool
+interface_component_is_overlay_hovered(struct GGame* game, int component_id);
 
 // Get default (left-click) action for an inventory slot from menu logic (Client.ts order + sort)
 int

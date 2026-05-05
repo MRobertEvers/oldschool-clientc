@@ -14,6 +14,99 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* ── LRU sprite cache (mirrors ObjType.spriteCache size 200 in Client.ts) ── */
+
+struct ObjIconCacheEntry g_obj_icon_cache[OBJ_ICON_CACHE_SIZE];
+uint32_t                 g_obj_icon_cache_frame = 0;
+static int               s_cache_initialised    = 0;
+
+static void
+cache_init(void)
+{
+    if( s_cache_initialised )
+        return;
+    for( int i = 0; i < OBJ_ICON_CACHE_SIZE; i++ )
+    {
+        g_obj_icon_cache[i].obj_id    = -1;
+        g_obj_icon_cache[i].count     = 0;
+        g_obj_icon_cache[i].sprite    = NULL;
+        g_obj_icon_cache[i].last_used = 0;
+    }
+    s_cache_initialised = 1;
+}
+
+void
+obj_icon_cache_tick(void)
+{
+    g_obj_icon_cache_frame++;
+}
+
+void
+obj_icon_cache_clear(void)
+{
+    cache_init();
+    for( int i = 0; i < OBJ_ICON_CACHE_SIZE; i++ )
+    {
+        if( g_obj_icon_cache[i].sprite )
+        {
+            dashsprite_free(g_obj_icon_cache[i].sprite);
+            g_obj_icon_cache[i].sprite = NULL;
+        }
+        g_obj_icon_cache[i].obj_id    = -1;
+        g_obj_icon_cache[i].last_used = 0;
+    }
+}
+
+/* Returns cached sprite (touching last_used) or NULL on miss. */
+static struct DashSprite*
+cache_lookup(int obj_id, int count)
+{
+    cache_init();
+    for( int i = 0; i < OBJ_ICON_CACHE_SIZE; i++ )
+    {
+        if( g_obj_icon_cache[i].obj_id == obj_id &&
+            g_obj_icon_cache[i].count  == count  &&
+            g_obj_icon_cache[i].sprite != NULL )
+        {
+            g_obj_icon_cache[i].last_used = g_obj_icon_cache_frame;
+            return g_obj_icon_cache[i].sprite;
+        }
+    }
+    return NULL;
+}
+
+/* Evict the LRU entry and store the new sprite.  The cache takes ownership of sprite. */
+static void
+cache_insert(int obj_id, int count, struct DashSprite* sprite)
+{
+    cache_init();
+    /* Find the LRU (lowest last_used) or an empty slot. */
+    int    lru_idx  = 0;
+    uint32_t lru_val = g_obj_icon_cache[0].last_used;
+    for( int i = 1; i < OBJ_ICON_CACHE_SIZE; i++ )
+    {
+        if( g_obj_icon_cache[i].obj_id < 0 )
+        {
+            lru_idx = i;
+            lru_val = 0;
+            break;
+        }
+        if( g_obj_icon_cache[i].last_used < lru_val )
+        {
+            lru_val = g_obj_icon_cache[i].last_used;
+            lru_idx = i;
+        }
+    }
+    /* Free evicted sprite. */
+    if( g_obj_icon_cache[lru_idx].sprite )
+        dashsprite_free(g_obj_icon_cache[lru_idx].sprite);
+
+    g_obj_icon_cache[lru_idx].obj_id    = obj_id;
+    g_obj_icon_cache[lru_idx].count     = count;
+    g_obj_icon_cache[lru_idx].sprite    = sprite;
+    g_obj_icon_cache[lru_idx].last_used = g_obj_icon_cache_frame;
+}
+
 // Helper function to get obj model for inventory icons
 // Based on ObjType.getModel() - applies scaling, recoloring, and calculates normals
 // This is what getIcon() calls (line 403 in ObjType.ts)
@@ -46,10 +139,33 @@ get_obj_inv_model(
     return model;
 }
 
-// Generate a 32x32 icon sprite from an object model
-// Based on ObjType.getIcon() in Client.ts (lines 370-524)
+/* Internal uncached generator – mirrors ObjType.getIcon() in Client.ts lines 370-524. */
+static struct DashSprite*
+obj_icon_generate(
+    struct GGame* game,
+    int obj_id,
+    int count);
+
 struct DashSprite*
 obj_icon_get(
+    struct GGame* game,
+    int obj_id,
+    int count)
+{
+    /* Fast path: LRU cache hit. */
+    struct DashSprite* cached = cache_lookup(obj_id, count);
+    if( cached )
+        return cached;
+
+    /* Cache miss: generate and insert. */
+    struct DashSprite* icon = obj_icon_generate(game, obj_id, count);
+    if( icon )
+        cache_insert(obj_id, count, icon);
+    return icon;
+}
+
+static struct DashSprite*
+obj_icon_generate(
     struct GGame* game,
     int obj_id,
     int count)

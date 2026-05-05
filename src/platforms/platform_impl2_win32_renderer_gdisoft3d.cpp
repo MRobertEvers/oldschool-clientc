@@ -491,20 +491,19 @@ PlatformImpl2_Win32_Renderer_GDISoft3D_Render(
             const uint8_t* text = command._font_draw.text;
             if( !f || !text || !renderer->pixel_buffer )
                 break;
-            const int ox = renderer->dash_offset_x;
-            const int oy = renderer->dash_offset_y;
-            const int fx = command._font_draw.x + ox;
-            const int fy = command._font_draw.y + oy;
+            const int fx = command._font_draw.x;
+            const int fy = command._font_draw.y;
             int cl = 0;
             int ct = 0;
             int cr = renderer->width;
             int cb = renderer->height;
-            if( game->view_port )
+            if( game->iface_view_port )
             {
-                cl = ox;
-                ct = oy;
-                cr = ox + game->view_port->width;
-                cb = oy + game->view_port->height;
+                struct DashViewPort* vp = game->iface_view_port;
+                cl = vp->clip_left;
+                ct = vp->clip_top;
+                cr = vp->clip_right;
+                cb = vp->clip_bottom;
                 if( cl < 0 )
                     cl = 0;
                 if( ct < 0 )

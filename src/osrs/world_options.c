@@ -18,6 +18,8 @@ options_add_loc(
     int entity_id)
 {
     assert(entity_type == ENTITY_KIND_MAP_BUILD_LOC && "Entity type must be map build loc");
+    if( option_set->option_count >= WORLD_OPTION_SET_CAPACITY - 2 )
+        return;
 
     char text[64];
 
@@ -127,6 +129,50 @@ options_npc_combat_level_color_tag(
 }
 
 static void
+options_add_player(
+    struct World* world,
+    struct WorldOptionSet* option_set,
+    int x,
+    int z,
+    int entity_id)
+{
+    if( option_set->option_count >= WORLD_OPTION_SET_CAPACITY - 2 )
+        return;
+
+    struct PlayerEntity* target = world_player(world, entity_id);
+    if( !target || !target->alive )
+        return;
+
+    /* Show up to 5 player actions (Trade/Follow/etc.) — for now just "Walk to" as a
+     * placeholder since full player options require social-list lookups. */
+    char text[64];
+    const char* name = (target->name.name[0] != '\0') ? target->name.name : "Player";
+
+    static const char* const player_opt_names[] = {
+        "Follow", "Trade with", "Report", "Attack", "Req Assist",
+    };
+    static const enum MinimenuAction player_opt_actions[] = {
+        MINIMENU_ACTION_OPPLAYER1,
+        MINIMENU_ACTION_OPPLAYER2,
+        MINIMENU_ACTION_OPPLAYER3,
+        MINIMENU_ACTION_OPPLAYER4,
+        MINIMENU_ACTION_OPPLAYER5,
+    };
+    for( int i = 0; i < 5 && option_set->option_count < WORLD_OPTION_SET_CAPACITY - 1; i++ )
+    {
+        struct WorldOption* opt = &option_set->options[option_set->option_count];
+        memset(opt, 0, sizeof(*opt));
+        snprintf(text, sizeof(text), "%s @whi@ %s", player_opt_names[i], name);
+        strncpy(opt->text, text, sizeof(opt->text));
+        opt->action  = player_opt_actions[i];
+        opt->param_a = entity_id;
+        opt->param_b = x;
+        opt->param_c = z;
+        option_set->option_count++;
+    }
+}
+
+static void
 options_add_npc(
     struct World* world,
     struct WorldOptionSet* option_set,
@@ -137,6 +183,9 @@ options_add_npc(
 {
     assert(entity_type == ENTITY_KIND_NPC && "Entity type must be npc");
 
+    if( option_set->option_count >= WORLD_OPTION_SET_CAPACITY - 2 )
+        return;
+
     char text[64];
     char tooltip[32];
 
@@ -145,12 +194,6 @@ options_add_npc(
     struct WorldOption* option = &option_set->options[option_set->option_count];
     struct PlayerEntity* player = world_player(world, ACTIVE_PLAYER_SLOT);
 
-    if( x == 64 && z == 64 && npc->size.x == 1 && npc->size.z == 1 )
-    {
-        // TODO: Only 1 1x1 npc is drawn on a tile, so
-        // actually need a stack map to get all the npcs on the tile.
-    }
-    else
     {
         char const* color_tag = options_npc_combat_level_color_tag(
             player->visible_level.level, npc->visible_level.level);
@@ -295,7 +338,28 @@ world_options_add_pickset_options(
                 picked_entity->entity_type,
                 picked_entity->entity_id);
             break;
+        case ENTITY_KIND_PLAYER:
+            options_add_player(
+                world,
+                option_set,
+                picked_entity->x,
+                picked_entity->z,
+                picked_entity->entity_id);
+            break;
         }
+    }
+
+    /* Always append "Walk here" as the last (lowest-priority) option (TS 9510-9514). */
+    if( option_set->option_count < WORLD_OPTION_SET_CAPACITY )
+    {
+        struct WorldOption* walk = &option_set->options[option_set->option_count];
+        memset(walk, 0, sizeof(*walk));
+        strncpy(walk->text, "Walk here", sizeof(walk->text));
+        walk->action  = MINIMENU_ACTION_WALK;
+        walk->param_a = 0; /* filled in by minimenu_show from mouse_tile_x/z */
+        walk->param_b = 0;
+        walk->param_c = 0;
+        option_set->option_count++;
     }
 
     // Sort the options

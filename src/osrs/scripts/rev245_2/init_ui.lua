@@ -60,6 +60,8 @@ local function init_ui()
     local ui_cache_config = ui_archives[2]
     Game.UI.parse_revconfig(ui_config, ui_cache_config)
 
+    Game.UI.load_fonts(ui_cache_config)
+
     -- Step 2: Get inventory obj IDs from parsed config.
     local inv_obj_ids = Game.UI.get_revconfig_inv_obj_ids()
 
@@ -97,9 +99,6 @@ local function init_ui()
 
     -- Step 5: Pass 2 - load rest of UI (sprites, components, layouts, RS resolution).
     Game.UI.load_revconfig_ui()
-
-    -- Step 6: Fonts.
-    Game.UI.load_fonts(ui_cache_config)
 
     -- Models are baked into Scene2 elements; free decoded models from RAM.
     -- Component defs (CacheDatConfigComponent) must stay: IF_SETTAB / UPDATE_INV_FULL

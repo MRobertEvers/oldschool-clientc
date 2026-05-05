@@ -112,6 +112,69 @@ rsbuf_g8(struct RSBuffer* buffer)
     return (high << 32) | low;
 }
 
+void
+rsbuf_p3(struct RSBuffer* buffer, int value)
+{
+    buffer->data[buffer->position++] = (int8_t)(value >> 16 & 0xff);
+    buffer->data[buffer->position++] = (int8_t)(value >> 8  & 0xff);
+    buffer->data[buffer->position++] = (int8_t)(value       & 0xff);
+}
+
+void
+rsbuf_p8(struct RSBuffer* buffer, int64_t value)
+{
+    rsbuf_p4(buffer, (int)(value >> 32));
+    rsbuf_p4(buffer, (int)(value & 0xffffffffLL));
+}
+
+/** p1 negated: writes (-value) & 0xff — OSRS obfuscation variant. */
+void
+rsbuf_p1neg(struct RSBuffer* buffer, int value)
+{
+    buffer->data[buffer->position++] = (int8_t)((-value) & 0xff);
+}
+
+/** p1 + 128: writes (value + 128) & 0xff — OSRS obfuscation variant. */
+void
+rsbuf_p1add(struct RSBuffer* buffer, int value)
+{
+    buffer->data[buffer->position++] = (int8_t)((value + 128) & 0xff);
+}
+
+/** p2add: low byte +128 obfuscation. */
+void
+rsbuf_p2add(struct RSBuffer* buffer, int value)
+{
+    buffer->data[buffer->position++] = (int8_t)((value >> 8) & 0xff);
+    buffer->data[buffer->position++] = (int8_t)((value + 128) & 0xff);
+}
+
+/** p2le: little-endian unsigned short. */
+void
+rsbuf_p2le(struct RSBuffer* buffer, int value)
+{
+    buffer->data[buffer->position++] = (int8_t)(value & 0xff);
+    buffer->data[buffer->position++] = (int8_t)((value >> 8) & 0xff);
+}
+
+/** psize1: write the byte count since the marker position as a u8.
+ *  Typical usage: mark = buf->position; rsbuf_p1(buf, 0); ... rsbuf_psize1(buf, mark); */
+void
+rsbuf_psize1(struct RSBuffer* buffer, int mark)
+{
+    int size = (int)buffer->position - mark - 1;
+    buffer->data[mark] = (int8_t)(size & 0xff);
+}
+
+/** psize2: write the byte count since the marker position as a big-endian u16. */
+void
+rsbuf_psize2(struct RSBuffer* buffer, int mark)
+{
+    int size = (int)buffer->position - mark - 2;
+    buffer->data[mark]     = (int8_t)((size >> 8) & 0xff);
+    buffer->data[mark + 1] = (int8_t)(size & 0xff);
+}
+
 int
 rsbuf_read_usmart(struct RSBuffer* buffer)
 {

@@ -4,8 +4,32 @@
 #include "graphics/dash.h"
 #include "osrs/game.h"
 
-// Generate a 32x32 sprite icon for an item
-// Based on ObjType.getIcon() from Client.ts
+#define OBJ_ICON_CACHE_SIZE 200
+
+/** One slot in the LRU sprite cache.  Mirrors ObjType.spriteCache in Client.ts (size 200). */
+struct ObjIconCacheEntry
+{
+    int          obj_id;   /* -1 = empty slot */
+    int          count;
+    struct DashSprite* sprite;
+    uint32_t     last_used; /* monotonic frame counter; 0 = empty */
+};
+
+/** Global LRU sprite cache shared across all inventory draws. */
+extern struct ObjIconCacheEntry g_obj_icon_cache[OBJ_ICON_CACHE_SIZE];
+extern uint32_t                 g_obj_icon_cache_frame;
+
+/** Advance the frame counter (call once per frame). */
+void
+obj_icon_cache_tick(void);
+
+/** Free all cached sprites and reset the cache. */
+void
+obj_icon_cache_clear(void);
+
+// Generate a 32x32 sprite icon for an item. Returns a cached sprite when possible;
+// generates and caches a new one on miss.  The caller must NOT free the returned sprite.
+// Based on ObjType.getIcon() from Client.ts; mirrors ObjType.spriteCache LRU(200).
 struct DashSprite*
 obj_icon_get(
     struct GGame* game,

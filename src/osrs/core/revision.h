@@ -1,6 +1,8 @@
 #ifndef OSRS_CORE_REVISION_H
 #define OSRS_CORE_REVISION_H
 
+#include "osrs/rscache/rsbuf.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -84,6 +86,17 @@ revision_loginproto_send(
 
 int
 revision_loginproto_poll(const struct Revision* rev, struct LoginProto* lp);
+
+/* Outbound packet emission: builds bytes via rsbuf primitives + p1isaac.
+ * @param kind  Cast from enum ClientProtOpKind; int to avoid enum forward-decl in C++.
+ * Returns 0 on success, -1 if the revision or op kind is unknown. */
+int
+revision_clientprot_emit(
+    const struct Revision* rev,
+    struct RSBuffer*       out,
+    struct GGame*          game,
+    int                    kind,
+    void*                  args);
 
 int
 revision_write_move_gameclick(

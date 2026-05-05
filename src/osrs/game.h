@@ -12,6 +12,7 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/core/game_cache_tag.h"
 #include "osrs/core/revision.h"
+#include "osrs/chat.h"
 #include "osrs/clientscript_vm.h"
 #include "osrs/ginput.h"
 #include "osrs/core/packetbuffer.h"
@@ -21,13 +22,13 @@
 #include "osrs/player_stats.h"
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
+#include "tori_rs_frame_state.h"
 #include "osrs/rs_component_state.h"
 #include "osrs/rsa.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene2.h"
 #include "osrs/script_queue.h"
-#include "osrs/varp_varbit_manager.h"
 #include "osrs/world.h"
 #include "osrs/world_option_set.h"
 #include "osrs/zone_state.h"
@@ -143,6 +144,9 @@ struct GGame
     int mouse_clicked_right_y;
     int interface_consumed_click; /* 1 if click was handled by interface (tab, sidebar, etc.) */
     int mouse_button_down;        /* 1 while left button held, 0 on release */
+    /** Increments each game tick while left button is held; reset to 0 on release.
+     * Mirrors Client.ts scrollCycle: scroll delta = scroll_cycle * 4 per tick. */
+    int scroll_cycle;
     int mouse_x;
     int mouse_y;
 
@@ -162,8 +166,14 @@ struct GGame
     struct GameCacheTag game_cache_tag;
 
     struct InterfaceState* iface;
+    struct Chat* chat; /* managed by chat.c; NULL until chat_init() */
 
-    struct VarPVarBitManager varp_varbit;
+    /* Per-frame client settings written by clientscript_vm_drain_clientcodes(). */
+    int settings_brightness;
+    int settings_music_vol;
+    int settings_wave_vol;
+    int settings_one_mouse;
+    int settings_bank;
 
     /* Media filelist kept after cache_media so we can load component sprites when interfaces load
      */
@@ -199,6 +209,22 @@ struct GGame
 
     /* In-multicombat zone flag: updated by SET_MULTIWAY */
     int in_multiway;
+
+    /* Reboot timer: set by UPDATE_REBOOT_TIMER, -1 = not active */
+    int reboot_timer_ticks;
+
+    /* Friend / ignore lists (base37 encoded usernames + online world).
+     * world[i] == 0 means offline.  Counts are the number of populated slots. */
+#define GAME_SOCIAL_LIST_MAX 200
+    int64_t friend_usernames[GAME_SOCIAL_LIST_MAX];
+    int     friend_worlds[GAME_SOCIAL_LIST_MAX];
+    int     friend_count;
+    int64_t ignore_usernames[GAME_SOCIAL_LIST_MAX];
+    int     ignore_count;
+
+    /* Tutorial state: tab flashing + open interface */
+    int tutorial_tab_flash;       /* sidebar tab index to flash, -1 = none */
+    int tutorial_interface;       /* open tutorial interface component_id, -1 = none */
 
     /* Minimap flag tile: set by REBUILD_NORMAL carryover, cleared by UNSET_MAP_FLAG */
     int minimap_flag_x;
@@ -239,6 +265,36 @@ struct GGame
     int soft3d_present_dst_h;
     int soft3d_buffer_w;
     int soft3d_buffer_h;
+
+    /** RS_LAYER scroll/clip stack during LibToriRS_FrameNextCommand traversal (-1 = empty). */
+    struct UILayerFrameEntry ui_layer_stack[UIFRAME_LAYER_STACK_MAX];
+    int ui_layer_stack_top;
+
+    /** Expanded UI text strings for TORIRS_GFX_DRAW_FONT (lifetime through frame). */
+    char* ui_frame_text_pool;
+    size_t ui_frame_text_pool_cap;
+    size_t ui_frame_text_pool_used;
+
+    /** RS scrollbar: iface component id being dragged, or -1. */
+    int ui_scrollbar_drag_component_id;
+
+    /* ── Minimenu (right-click context menu) ──────────────────────────────
+     * Mirrors Client.ts menuVisible / menuOption / menuAction etc.
+     * Populated by world_options_add_pickset_options via option_set at FrameEnd;
+     * rendered and hit-tested by the platform renderer after FrameEnd.          */
+#define GAME_MINIMENU_MAX_OPTIONS 68 /* 64 world options + Walk here + Cancel + 2 spare */
+#define GAME_MINIMENU_OPTION_LEN  80
+    int  minimenu_visible;         /* 1 = show context menu */
+    int  minimenu_x;               /* top-left of menu in iface-viewport coords */
+    int  minimenu_y;
+    int  minimenu_width;
+    int  minimenu_height;
+    int  minimenu_option_count;
+    char minimenu_options[GAME_MINIMENU_MAX_OPTIONS][GAME_MINIMENU_OPTION_LEN];
+    int  minimenu_option_action[GAME_MINIMENU_MAX_OPTIONS]; /* MinimenuAction value */
+    int  minimenu_option_param_a[GAME_MINIMENU_MAX_OPTIONS];
+    int  minimenu_option_param_b[GAME_MINIMENU_MAX_OPTIONS];
+    int  minimenu_option_param_c[GAME_MINIMENU_MAX_OPTIONS];
 };
 
 void

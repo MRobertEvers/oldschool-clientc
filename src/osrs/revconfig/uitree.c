@@ -1,8 +1,132 @@
 #include "uitree.h"
 
+#include "osrs/game.h"
+#include "osrs/interface.h"
+#include "osrs/interface_state.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define UITREE_SCROLLBAR_W 16
+
+static int
+uitree_node_depth(struct UITree* t, int idx)
+{
+    int d = 0;
+    for( ;; )
+    {
+        int p = t->components[idx].parent;
+        if( p < 0 )
+            return d;
+        d++;
+        idx = p;
+    }
+}
+
+static int
+iface_scroll_clamped(struct GGame* game, int component_id, int scroll_height, int layer_h)
+{
+    if( !game->iface || component_id < 0 || component_id >= MAX_IFACE_SCROLL_IDS )
+        return 0;
+    int sp = game->iface->component_scroll_position[component_id];
+    int max_scroll = scroll_height - layer_h;
+    if( max_scroll < 0 )
+        max_scroll = 0;
+    if( sp < 0 )
+        sp = 0;
+    if( sp > max_scroll )
+        sp = max_scroll;
+    return sp;
+}
+
+static int
+scrollbar_hit_region(int local_y, int layer_h, int scroll_pos, int scroll_height)
+{
+    if( scroll_height <= layer_h )
+        return 2;
+    if( local_y < 16 )
+        return 0;
+    if( local_y >= layer_h - 16 )
+        return 1;
+    int track_h = layer_h - 32;
+    if( track_h <= 0 )
+        return 2;
+    int grip_size = (track_h * layer_h) / scroll_height;
+    if( grip_size < 8 )
+        grip_size = 8;
+    if( grip_size > track_h )
+        grip_size = track_h;
+    int range = scroll_height - layer_h;
+    if( range < 0 )
+        range = 0;
+    int grip_y = range > 0 ? ((track_h - grip_size) * scroll_pos) / range : 0;
+    if( grip_y < 0 )
+        grip_y = 0;
+    if( grip_y > track_h - grip_size )
+        grip_y = track_h - grip_size;
+    int rel = local_y - 16;
+    if( rel >= grip_y && rel < grip_y + grip_size )
+        return 3;
+    return 2;
+}
+
+static void
+uitree_visit_scrollbar_candidates(
+    struct GGame* game,
+    struct UITree* t,
+    int idx,
+    int mx,
+    int my,
+    int32_t* best_gutter_idx,
+    int* best_gutter_depth,
+    int32_t* best_layer_idx,
+    int* best_layer_depth)
+{
+    struct StaticUIComponent* c = &t->components[idx];
+    int depth = uitree_node_depth(t, idx);
+
+    if( c->type == UIELEM_RS_LAYER && !c->is_hidden &&
+        (!c->u.rs_layer.hide ||
+         interface_component_is_overlay_hovered(game, c->component_id)) )
+    {
+        int lh = c->position.height;
+        int sh = c->u.rs_layer.scroll_height;
+        int lx = c->position.x;
+        int ly = c->position.y;
+        int lw = c->position.width;
+
+        if( sh > lh && c->component_id >= 0 )
+        {
+            int gx0 = lx + lw;
+            int gx1 = gx0 + UITREE_SCROLLBAR_W;
+            if( mx >= gx0 && mx < gx1 && my >= ly && my < ly + lh && depth > *best_gutter_depth )
+            {
+                *best_gutter_depth = depth;
+                *best_gutter_idx = idx;
+            }
+
+            int rx = lx + lw + UITREE_SCROLLBAR_W;
+            if( mx >= lx && mx < rx && my >= ly && my < ly + lh && depth > *best_layer_depth )
+            {
+                *best_layer_depth = depth;
+                *best_layer_idx = idx;
+            }
+        }
+    }
+
+    for( int ch = c->first_child; ch >= 0; ch = t->components[ch].next_sibling )
+        uitree_visit_scrollbar_candidates(
+            game,
+            t,
+            ch,
+            mx,
+            my,
+            best_gutter_idx,
+            best_gutter_depth,
+            best_layer_idx,
+            best_layer_depth);
+}
 
 static int32_t
 link_under_parent(
@@ -141,6 +265,40 @@ uitree_inv_pool_append(
     return pool->count++;
 }
 
+int32_t
+uitree_find_by_component_id(const struct UITree* tree, int component_id)
+{
+    if( !tree || component_id < 0 )
+        return -1;
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+        if( tree->components[i].component_id == component_id )
+            return (int32_t)i;
+    return -1;
+}
+
+int
+uitree_find_inv_index_by_component_id(
+    const struct UITree* tree,
+    int component_id,
+    int32_t* out_node_idx)
+{
+    if( out_node_idx )
+        *out_node_idx = -1;
+    if( !tree || component_id < 0 )
+        return -1;
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        struct StaticUIComponent const* c = &tree->components[i];
+        if( c->type == UIELEM_RS_INV && c->component_id == component_id )
+        {
+            if( out_node_idx )
+                *out_node_idx = (int32_t)i;
+            return c->u.rs_inv.inv_index;
+        }
+    }
+    return -1;
+}
+
 char const*
 uitree_component_type_str(enum StaticUIComponentType type)
 {
@@ -172,6 +330,8 @@ uitree_component_type_str(enum StaticUIComponentType type)
         return "rs_inv";
     case UIELEM_RS_LAYER:
         return "rs_layer";
+    case UIELEM_RS_RECT:
+        return "rs_rect";
     }
     return "unknown";
 }
@@ -196,8 +356,27 @@ uitree_free(struct UITree* tree)
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
         struct StaticUIComponent* c = &tree->components[i];
-        if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text )
-            free((void*)c->u.rs_text.text);
+        if( c->type == UIELEM_RS_TEXT )
+        {
+            if( c->u.rs_text.text )
+                free((void*)c->u.rs_text.text);
+            if( c->u.rs_text.active_text )
+                free((void*)c->u.rs_text.active_text);
+        }
+        /* Agnostic fields. */
+        if( c->scripts )
+        {
+            for( int s = 0; s < c->scripts_count; s++ )
+                free(c->scripts[s].code);
+            free(c->scripts);
+        }
+        free(c->script_comparator);
+        free(c->script_operand);
+        for( int k = 0; k < 5; k++ )
+            free(c->iop[k]);
+        free(c->option);
+        free(c->target_verb);
+        free(c->target_text);
     }
     free(tree->components);
     free(tree);
@@ -271,11 +450,32 @@ uitree_print_nodes(struct UITree const* tree)
             break;
         case UIELEM_RS_TEXT:
             printf(
-                "       rs_text font_id=%d color=%d center=%d text=%s\n",
+                "       rs_text font_id=%d font_idx=%d colors=%d/%d/%d/%d center=%d text=%s active=%s\n",
                 c->u.rs_text.font_id,
+                c->u.rs_text.font_idx,
                 c->u.rs_text.color,
+                c->u.rs_text.active_color,
+                c->u.rs_text.over_color,
+                c->u.rs_text.active_over_color,
                 c->u.rs_text.center,
-                c->u.rs_text.text ? c->u.rs_text.text : "(null)");
+                c->u.rs_text.text ? c->u.rs_text.text : "(null)",
+                c->u.rs_text.active_text ? c->u.rs_text.active_text : "(null)");
+            break;
+        case UIELEM_RS_LAYER:
+            printf(
+                "       rs_layer scroll_height=%d hide=%d\n",
+                c->u.rs_layer.scroll_height,
+                c->u.rs_layer.hide);
+            break;
+        case UIELEM_RS_RECT:
+            printf(
+                "       rs_rect colors=%d/%d/%d/%d alpha=%d fill=%u\n",
+                c->u.rs_rect.color,
+                c->u.rs_rect.active_color,
+                c->u.rs_rect.over_color,
+                c->u.rs_rect.active_over_color,
+                c->u.rs_rect.alpha,
+                (unsigned)c->u.rs_rect.fill);
             break;
         case UIELEM_RS_MODEL:
             printf("       rs_model scene2_element_id=%d\n", c->u.rs_model.scene2_element_id);
@@ -524,11 +724,28 @@ uitree_push_sidebar_component(
         tree, parent_index, tabno, componentno, inv_index, x, y, width, height);
 }
 
+void
+uitree_set_component_hidden(
+    struct UITree* tree,
+    int component_id,
+    int hidden)
+{
+    if( !tree || component_id < 0 )
+        return;
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        if( tree->components[i].component_id == component_id )
+            tree->components[i].is_hidden = hidden ? 1u : 0u;
+    }
+}
+
 int32_t
 uitree_push_rs_layer(
     struct UITree* tree,
     int32_t parent_index,
     int component_id,
+    int scroll_height,
+    int hide,
     int x,
     int y,
     int width,
@@ -546,7 +763,44 @@ uitree_push_rs_layer(
     component->position.y = y;
     component->position.width = width;
     component->position.height = height;
-    component->u.rs_layer.reserved = 0;
+    component->u.rs_layer.scroll_height = scroll_height;
+    component->u.rs_layer.hide = hide;
+    return idx;
+}
+
+int32_t
+uitree_push_rs_rect(
+    struct UITree* tree,
+    int32_t parent_index,
+    int component_id,
+    int color,
+    int active_color,
+    int over_color,
+    int active_over_color,
+    int alpha,
+    int fill,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+    component->type = UIELEM_RS_RECT;
+    component->component_id = component_id;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.rs_rect.color = color;
+    component->u.rs_rect.active_color = active_color;
+    component->u.rs_rect.over_color = over_color;
+    component->u.rs_rect.active_over_color = active_over_color;
+    component->u.rs_rect.alpha = alpha;
+    component->u.rs_rect.fill = (uint8_t)(fill ? 1u : 0u);
     return idx;
 }
 
@@ -555,28 +809,43 @@ uitree_push_rs_text(
     struct UITree* tree,
     int32_t parent_index,
     int component_id,
-    int font_id,
+    int font_idx,
     int color,
+    int active_color,
+    int over_color,
+    int active_over_color,
     int center,
     int shadowed,
     char const* text,
+    char const* active_text,
     int x,
     int y,
     int width,
     int height)
 {
     char* text_owned = NULL;
+    char* active_owned = NULL;
     if( text )
     {
         text_owned = strdup(text);
         if( !text_owned )
             return -1;
     }
+    if( active_text )
+    {
+        active_owned = strdup(active_text);
+        if( !active_owned )
+        {
+            free(text_owned);
+            return -1;
+        }
+    }
 
     int32_t idx = push_element(tree, parent_index);
     if( idx < 0 )
     {
         free(text_owned);
+        free(active_owned);
         return -1;
     }
     struct StaticUIComponent* component = &tree->components[idx];
@@ -588,11 +857,16 @@ uitree_push_rs_text(
     component->position.y = y;
     component->position.width = width;
     component->position.height = height;
-    component->u.rs_text.font_id = font_id;
+    component->u.rs_text.font_id = -1;
+    component->u.rs_text.font_idx = font_idx;
     component->u.rs_text.color = color;
+    component->u.rs_text.active_color = active_color;
+    component->u.rs_text.over_color = over_color;
+    component->u.rs_text.active_over_color = active_over_color;
     component->u.rs_text.center = center;
     component->u.rs_text.shadowed = shadowed;
     component->u.rs_text.text = text_owned;
+    component->u.rs_text.active_text = active_owned;
     return idx;
 }
 
@@ -738,4 +1012,82 @@ uitree_clear_sidebar_children(
     c->first_child = -1;
     c->is_dirty = 1;
     tree->generation++;
+}
+
+static void
+uitree_run_scrollbar_search(
+    struct GGame* game,
+    int mx,
+    int my,
+    int32_t* best_gutter,
+    int* best_gd,
+    int32_t* best_layer,
+    int* best_ld)
+{
+    struct UITree* t = game->ui_root_buffer;
+    *best_gutter = -1;
+    *best_gd = -1;
+    *best_layer = -1;
+    *best_ld = -1;
+    for( int r = t->root_index; r >= 0; r = t->components[r].next_sibling )
+        uitree_visit_scrollbar_candidates(
+            game, t, r, mx, my, best_gutter, best_gd, best_layer, best_ld);
+}
+
+bool
+uitree_find_scrollbar_at(
+    struct GGame* game,
+    int mouse_x,
+    int mouse_y,
+    struct UITreeScrollbarHit* out)
+{
+    if( !game || !out || !game->ui_root_buffer || !game->iface )
+        return false;
+    int32_t best;
+    int best_d;
+    int32_t best_layer;
+    int best_ld;
+    uitree_run_scrollbar_search(game, mouse_x, mouse_y, &best, &best_d, &best_layer, &best_ld);
+    (void)best_layer;
+    (void)best_ld;
+    if( best < 0 )
+        return false;
+    struct UITree* t = game->ui_root_buffer;
+    struct StaticUIComponent* c = &t->components[best];
+    int lh = c->position.height;
+    int sh = c->u.rs_layer.scroll_height;
+    int sp = iface_scroll_clamped(game, c->component_id, sh, lh);
+    int max_sc = sh - lh;
+    if( max_sc < 0 )
+        max_sc = 0;
+    int local_y = mouse_y - c->position.y;
+    out->layer_idx = best;
+    out->component_id = c->component_id;
+    out->layer_x = c->position.x;
+    out->layer_y = c->position.y;
+    out->layer_width = c->position.width;
+    out->layer_height = lh;
+    out->scroll_height = sh;
+    out->scroll_pos = sp;
+    out->max_scroll = max_sc;
+    out->region = scrollbar_hit_region(local_y, lh, sp, sh);
+    return true;
+}
+
+int32_t
+uitree_innermost_scroll_layer_at(
+    struct GGame* game,
+    int mouse_x,
+    int mouse_y)
+{
+    if( !game || !game->ui_root_buffer )
+        return -1;
+    int32_t best_gutter;
+    int best_gd;
+    int32_t best_layer;
+    int best_ld;
+    uitree_run_scrollbar_search(game, mouse_x, mouse_y, &best_gutter, &best_gd, &best_layer, &best_ld);
+    (void)best_gutter;
+    (void)best_gd;
+    return best_layer;
 }

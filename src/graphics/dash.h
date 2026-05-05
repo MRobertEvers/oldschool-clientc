@@ -168,6 +168,11 @@ struct DashTexture
     bool opaque;
 
     int average_hsl;
+
+    /* Feature 1: U clamp — when true, clamp U coordinate to [0, 1] instead of wrapping. */
+    bool u_clamp;
+    /* Feature 2: V tiling — when true, allow V to wrap (tile) beyond [0, 1]. */
+    bool v_tile;
 };
 
 #define DASH_TEXTURE_MAP_CAPACITY 51

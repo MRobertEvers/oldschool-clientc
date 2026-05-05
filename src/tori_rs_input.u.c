@@ -3,6 +3,11 @@
 
 #include "tori_rs.h"
 
+#include "osrs/core/clientprot_core.h"
+#include "osrs/interface.h"
+#include "osrs/minimenu.h"
+#include "osrs/revconfig/uitree.h"
+
 static void
 game_map_soft3d_window_mouse_to_buffer(
     struct GGame* game,
@@ -200,11 +205,117 @@ LibToriRS_GameProcessInput(
 
     game->mouse_clicked = false;
     game->mouse_clicked_right = false;
-    game->mouse_clicked = false;
+
+    /* Update mouse_button_down; clear scrollbar drag when left button is released. */
+    int left_down = input->mouse_button_states[TORIRSM_LEFT].down;
+    if( game->mouse_button_down && !left_down )
+    {
+        /* Mouse-up: release scrollbar drag and reset scrollCycle. */
+        game->ui_scrollbar_drag_component_id = -1;
+        game->scroll_cycle = 0;
+    }
+    game->mouse_button_down = left_down;
+
+    /* Per-frame scrollbar logic: mirrors Client.ts doScrollbar + scrollCycle.
+     * While the left button is held:
+     *  - arrows (region 0/1): scroll by 4 px per frame (scrollCycle * 4)
+     *  - track/grip (region 2/3) or an active drag id: recompute scrollPos from
+     *    mouse Y each frame (Client.ts 10543–10558).  scrollInputPadding is mirrored
+     *    by keeping game->ui_scrollbar_drag_component_id set while dragging. */
+    if( left_down && game->ui_root_buffer && game->iface &&
+        game->mouse_x >= 0 && game->mouse_y >= 0 )
+    {
+        game->scroll_cycle++;
+
+        /* If already dragging a specific component, continue dragging it even if the
+         * mouse drifts off the scrollbar (mirrors scrollInputPadding ±32px). */
+        if( game->ui_scrollbar_drag_component_id >= 0 )
+        {
+            /* Re-find the scrollbar to get current geometry. */
+            struct UITreeScrollbarHit sb_drag;
+            if( uitree_find_scrollbar_at(game, game->mouse_x, game->mouse_y, &sb_drag) &&
+                sb_drag.component_id == game->ui_scrollbar_drag_component_id )
+            {
+                interface_handle_scrollbar_drag(
+                    game,
+                    sb_drag.component_id,
+                    sb_drag.layer_y,
+                    sb_drag.layer_height,
+                    sb_drag.scroll_height,
+                    game->mouse_y);
+            }
+            else
+            {
+                /* Mouse drifted off; still update by looking up component directly. */
+                struct UITreeScrollbarHit sb_any;
+                if( uitree_find_scrollbar_at(game, game->mouse_x, game->mouse_y, &sb_any) )
+                {
+                    interface_handle_scrollbar_drag(
+                        game,
+                        game->ui_scrollbar_drag_component_id,
+                        sb_any.layer_y,
+                        sb_any.layer_height,
+                        sb_any.scroll_height,
+                        game->mouse_y);
+                }
+            }
+        }
+        else
+        {
+            struct UITreeScrollbarHit sb_hold;
+            if( uitree_find_scrollbar_at(game, game->mouse_x, game->mouse_y, &sb_hold) )
+            {
+                if( sb_hold.region == 0 ) /* up arrow */
+                    interface_handle_scrollbar_arrow_step(
+                        game, sb_hold.component_id, sb_hold.max_scroll, 1, 4);
+                else if( sb_hold.region == 1 ) /* down arrow */
+                    interface_handle_scrollbar_arrow_step(
+                        game, sb_hold.component_id, sb_hold.max_scroll, 0, 4);
+                else if( sb_hold.region == 2 || sb_hold.region == 3 )
+                {
+                    /* Track or grip: engage drag mode and compute position from mouse. */
+                    game->ui_scrollbar_drag_component_id = sb_hold.component_id;
+                    interface_handle_scrollbar_drag(
+                        game,
+                        sb_hold.component_id,
+                        sb_hold.layer_y,
+                        sb_hold.layer_height,
+                        sb_hold.scroll_height,
+                        game->mouse_y);
+                }
+            }
+        }
+    }
+
     for( int i = 0; i < input->event_count; i++ )
     {
         switch( input->events[i].type )
         {
+        case TORIRSEV_MOUSE_WHEEL:
+        {
+            int mx = input->events[i].mouse_wheel.mouse_x;
+            int my = input->events[i].mouse_wheel.mouse_y;
+            int wh = input->events[i].mouse_wheel.wheel;
+            if( game->soft3d_mouse_from_window )
+                game_map_soft3d_window_mouse_to_buffer(game, &mx, &my);
+            if( !game->ui_root_buffer || !game->iface || mx < 0 || my < 0 )
+                break;
+            int32_t layer_idx = uitree_innermost_scroll_layer_at(game, mx, my);
+            if( layer_idx < 0 )
+                break;
+            struct StaticUIComponent* L = &game->ui_root_buffer->components[layer_idx];
+            if( L->component_id < 0 )
+                break;
+            int lh = L->position.height;
+            int sh = L->u.rs_layer.scroll_height;
+            int max_scroll = sh - lh;
+            if( max_scroll <= 0 )
+                break;
+            int up = (wh > 0) ? 1 : 0;
+            interface_handle_scrollbar_arrow_step(
+                game, L->component_id, max_scroll, up, 24);
+        }
+        break;
         case TORIRSEV2_CLICK:
         {
             int button = input->events[i].click.button;
@@ -214,10 +325,72 @@ LibToriRS_GameProcessInput(
                 int cy = input->events[i].click.start_mouse_y;
                 if( game->soft3d_mouse_from_window )
                     game_map_soft3d_window_mouse_to_buffer(game, &cx, &cy);
-                game->mouse_clicked = true;
-                game->mouse_cycle = 0;
-                game->mouse_clicked_x = cx;
-                game->mouse_clicked_y = cy;
+                int consumed_sb = 0;
+                if( game->ui_root_buffer && game->iface && cx >= 0 && cy >= 0 )
+                {
+                    struct UITreeScrollbarHit hit;
+                    if( uitree_find_scrollbar_at(game, cx, cy, &hit) )
+                    {
+                        if( hit.region == 0 )
+                            interface_handle_scrollbar_arrow_step(
+                                game, hit.component_id, hit.max_scroll, 1, 4);
+                        else if( hit.region == 1 )
+                            interface_handle_scrollbar_arrow_step(
+                                game, hit.component_id, hit.max_scroll, 0, 4);
+                        else if( hit.region == 2 )
+                        {
+                            /* Track click: jump scroll position; also begin drag so
+                             * holding continues to track (mirrors TS first frame of drag). */
+                            interface_handle_scrollbar_click(
+                                game,
+                                hit.component_id,
+                                hit.layer_y + 16,
+                                hit.layer_height,
+                                hit.scroll_height,
+                                cy);
+                            game->ui_scrollbar_drag_component_id = hit.component_id;
+                        }
+                        else if( hit.region == 3 )
+                        {
+                            /* Grip click: begin drag immediately. */
+                            game->ui_scrollbar_drag_component_id = hit.component_id;
+                            interface_handle_scrollbar_drag(
+                                game,
+                                hit.component_id,
+                                hit.layer_y,
+                                hit.layer_height,
+                                hit.scroll_height,
+                                cy);
+                        }
+                        consumed_sb = 1;
+                    }
+                }
+                if( consumed_sb )
+                {
+                    game->interface_consumed_click = 1;
+                }
+                else if( game->minimenu_visible )
+                {
+                    /* Dispatch to context menu; close regardless of where click lands. */
+                    int opt = minimenu_click_option(game, cx, cy);
+                    if( opt >= 0 )
+                        minimenu_use_option(game, opt);
+                    /* minimenu_click_option already cleared minimenu_visible for outside clicks.
+                     * For header or option clicks, close explicitly. */
+                    game->minimenu_visible = 0;
+                    game->interface_consumed_click = 1;
+                }
+                else
+                {
+                    game->mouse_clicked = true;
+                    game->mouse_cycle = 0;
+                    game->mouse_clicked_x = cx;
+                    game->mouse_clicked_y = cy;
+
+                    /* Emit mouse-click event to server. */
+                    if( GAME_NET_STATE_GAME == game->net_state )
+                        clientprot_event_mouse_click(game, 1, cx, cy, game->cycle);
+                }
             }
             else if( button == TORIRSM_RIGHT )
             {
@@ -225,10 +398,12 @@ LibToriRS_GameProcessInput(
                 int cy = input->events[i].click.start_mouse_y;
                 if( game->soft3d_mouse_from_window )
                     game_map_soft3d_window_mouse_to_buffer(game, &cx, &cy);
-                game->mouse_clicked_right = true;
-                game->mouse_cycle = 0;
+                game->mouse_clicked_right   = true;
+                game->mouse_cycle           = 0;
                 game->mouse_clicked_right_x = cx;
                 game->mouse_clicked_right_y = cy;
+                /* Open context menu immediately on right-click. */
+                minimenu_show(game, cx, cy);
             }
         }
         break;

@@ -4,7 +4,22 @@
 #include "tori_rs_render.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 
+#define UIFRAME_LAYER_STACK_MAX 16
+
+/** One RS_LAYER frame in the UI traversal: cumulative scroll for descendants + clip rect. */
+struct UILayerFrameEntry
+{
+    int scroll_y_total;
+    int clip_x;
+    int clip_y;
+    int clip_w;
+    int clip_h;
+    /** If set, draw scrollbar after layer content, before POP_CLIP (Client.ts drawInterface order). */
+    int scrollbar_layer_component_id;
+    int scrollbar_scroll_height;
+};
 struct GGame;
 struct ToriRSRenderCommandBuffer;
 

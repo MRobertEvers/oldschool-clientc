@@ -12,6 +12,7 @@
 #include "osrs/gameproto_process.h"
 #include "osrs/interface.h"
 #include "osrs/isaac.h"
+#include "osrs/core/clientprot_core.h"
 #include "osrs/packetout.h"
 #include "osrs/painters.h"
 #include "osrs/rscache/rsbuf.h"
@@ -242,6 +243,74 @@ entity_face(
     // }
 }
 
+/* ── Local try_move implementation ──────────────────────────────────────────
+ * Mirrors Client.ts tryMove (type=0 walk, type=1 minimap) but locally:
+ * - Runs BFS via collision_map_bfs_path
+ * - Loads result into the local player EntityPathing
+ * - Sets game->minimap_flag_x/z to the destination
+ * - Does NOT send any packet to the server (all packet calls are no-ops per guard)
+ *
+ * Returns true if a path was found and loaded.
+ */
+#define GAME_TRY_MOVE_MAX_PATH 25 /* mirrors TS bufferSize = min(length, 25) */
+
+static bool
+game_try_move(
+    struct GGame* game,
+    int dst_tile_x,
+    int dst_tile_z)
+{
+    if( !game->world || !game->world->collision_map )
+        return false;
+
+    struct PlayerEntity* player = world_player(game->world, ACTIVE_PLAYER_SLOT);
+    if( !player || !player->alive )
+        return false;
+
+    /* Current tile from draw_position (same as routeX[0] in TS). */
+    int src_x = player->draw_position.x >> 7;
+    int src_z = player->draw_position.z >> 7;
+
+    /* Clamp destination to collision map bounds. */
+    struct CollisionMap* cm = game->world->collision_map;
+    if( dst_tile_x < 0 || dst_tile_x >= cm->size_x || dst_tile_z < 0 || dst_tile_z >= cm->size_z )
+        return false;
+
+    if( src_x == dst_tile_x && src_z == dst_tile_z )
+        return true;
+
+    int path_x[GAME_TRY_MOVE_MAX_PATH];
+    int path_z[GAME_TRY_MOVE_MAX_PATH];
+
+    int path_len = collision_map_bfs_path(cm, src_x, src_z, dst_tile_x, dst_tile_z, path_x, path_z, GAME_TRY_MOVE_MAX_PATH);
+    if( path_len <= 0 )
+        return false;
+
+    /* Load path into player pathing.  BFS returns path[0] = first step from src,
+     * path[path_len-1] = destination.  entity_pathing_push_xz prepends to route[0],
+     * so we push path[path_len-1] first and path[0] last so that:
+     *   route_x[route_length - 1] = path[0]  (first step processed by update_entity)
+     *   route_x[0]               = path[path_len-1]  (destination, last to process)
+     */
+    player->pathing.route_length = 0;
+    player->pathing.route_x[0] = src_x;
+    player->pathing.route_z[0] = src_z;
+
+    /* Push in reverse (destination first, first-step last). */
+    int push_count = path_len < 10 ? path_len : 9; /* route_length max is 9 steps */
+    for( int i = push_count - 1; i >= 0; i-- )
+    {
+        entity_pathing_push_xz(&player->pathing, path_x[i], path_z[i], PATHSTEP_WALK);
+    }
+
+    /* Update minimap flag to the destination tile. */
+    game->minimap_flag_x = dst_tile_x;
+    game->minimap_flag_z = dst_tile_z;
+    game->minimap_flag_has = 1;
+
+    return true;
+}
+
 void
 LibToriRS_GameNetProcess(struct GGame* game)
 {
@@ -250,10 +319,7 @@ LibToriRS_GameNetProcess(struct GGame* game)
     if( game->cycle >= game->next_notimeout_cycle && GAME_NET_STATE_GAME == game->net_state )
     {
         game->next_notimeout_cycle = game->cycle + 50;
-        int opcode = 206;
-        uint8_t op_byte = (uint8_t)((opcode + isaac_next(game->random_out)) & 0xff);
-        (void)op_byte;
-        // LibToriRS_NetSend(game, &op_byte, 1);
+        clientprot_no_timeout(game);
     }
 }
 
@@ -278,13 +344,19 @@ LibToriRS_GameStep(
 
     LibToriRS_GameProcessInput(game, input);
 
+    /* Terrain tile click: run local BFS and load path into player pathing.
+     * Mirrors Client.ts tryMove(routeTileX[0],routeTileZ[0], x, z, true, ..., type=0/1).
+     * Packets are dropped by clientprot_core_emit guard so nothing reaches the wire. */
+    if( game->tile_clicked_x >= 0 && game->world )
+    {
+        game_try_move(game, game->tile_clicked_x, game->tile_clicked_z);
+        game->tile_clicked_x = -1;
+        game->tile_clicked_z = -1;
+        game->tile_clicked_level = -1;
+    }
+
     if( game->world )
         world_cycle(game->world, game->cycles_elapsed);
-
-    /* Terrain tile click: send MOVE_GAMECLICK. Client.ts tryMove(routeTileX[0], routeTileZ[0],
-     * x, z, 0, ..., true). Payload: p1(size), p1(run), p2(startX+sceneBase), p2(startZ+sceneBase),
-     * then for i=1..bufferSize-1: p1(bfsStepX-startX), p1(bfsStepZ-startZ) (signed byte offset
-     * from start). bufferSize = min(length, 25); start = first path point (route head). */
 
     dash_animate_textures(game->sys_dash, game->cycles_elapsed);
 

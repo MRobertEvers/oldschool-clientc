@@ -1,7 +1,12 @@
 #ifndef UITREE_H
 #define UITREE_H
 
+#include "osrs/clientscript_vm.h"
+
+#include <stdbool.h>
 #include <stdint.h>
+
+struct GGame;
 
 #define UI_INVENTORY_MAX_ITEMS 128
 /** Matches build-cache / interface.c inv slot offset arrays (first 20 slots). */
@@ -9,8 +14,9 @@
 
 struct UIInventoryItem
 {
-    int obj_id;
-    int scene_id; /* UIScene element id for pre-loaded obj icon; -1 if none */
+    int obj_id;       /* 1-based (0 = empty slot) */
+    int obj_count;    /* stack quantity (1 for non-stackable) */
+    int scene_id;     /* UIScene element id for pre-loaded obj icon; -1 if none */
     int atlas_index;
 };
 
@@ -26,6 +32,17 @@ struct UIInventoryPool
     struct UIInventory* inventories;
     int count;
     int capacity;
+};
+
+/** Revision-agnostic button kind (mirrors CacheDatConfigComponentButtonType). */
+enum UIButtonKind {
+    UI_BUTTON_NONE     = 0,
+    UI_BUTTON_OK       = 1,
+    UI_BUTTON_TARGET   = 2,
+    UI_BUTTON_CLOSE    = 3,
+    UI_BUTTON_TOGGLE   = 4,
+    UI_BUTTON_SELECT   = 5,
+    UI_BUTTON_CONTINUE = 6,
 };
 
 /**
@@ -48,6 +65,7 @@ enum StaticUIComponentType
     UIELEM_RS_MODEL = 16,
     UIELEM_RS_INV = 17,
     UIELEM_RS_LAYER = 18,
+    UIELEM_RS_RECT = 19,
 };
 
 enum StaticUIElemPositionKind
@@ -80,12 +98,47 @@ struct StaticUIComponent
     uint8_t always_dirty;
     /** Set each frame before traversal; true if this node should emit draw commands. */
     uint8_t is_dirty;
+    /** Runtime hide from IF_SETHIDE (mirrors CacheDatConfigComponent.hide). */
+    uint8_t is_hidden;
     int32_t parent;       /* -1 = root or root-chain node */
     int32_t first_child;  /* -1 = leaf */
     int32_t next_sibling; /* -1 = last sibling */
     int component_id;     /* CacheDatConfigComponent id for RS nodes; -1 for builtins */
 
     struct StaticUIElemPosition position;
+
+    /* ── Revision-agnostic fields (copied from CacheDatConfigComponent at load time) ── */
+
+    enum UIButtonKind button_kind;
+    int click_mask;          /* targetMask for op/use/swap actions */
+    uint8_t interactable;
+    uint8_t usable;
+    uint8_t swappable;
+    uint8_t draggable;
+
+    /* Script bytecode + comparators (owned by UITree; evaluated by ClientScriptVM). */
+    struct UIScriptBytecode* scripts;   /* [scripts_count]; UITree owns each .code array */
+    int     scripts_count;
+    uint8_t* script_comparator;         /* per-script comparator byte */
+    int*     script_operand;            /* per-script operand int */
+
+    /* Inventory right-click menu strings — UITree-owned heap copies. */
+    char* iop[5];
+    char* option;
+    char* target_verb;
+    char* target_text;
+
+    /* Anim / seq state. */
+    int anim_id;
+    int active_anim_id;
+    int seq_frame;
+    int seq_cycle;
+
+    /* Misc. */
+    int alpha;           /* 0-255 transparency (0=opaque in OSRS convention) */
+    int overlayer;       /* sibling layer index for hover priority */
+    int client_code;     /* 0 if none; matched by VarClientCodeKind on var writes */
+
     union
     {
         struct
@@ -118,12 +171,20 @@ struct StaticUIComponent
 
         struct
         {
+            /** Resolved uiscene font id at draw time; may be -1 until lazy resolve. */
             int font_id;
+            /** OSRS font index 0..3 (p11,p12,b12,q8). */
+            int font_idx;
             int color;
+            int active_color;
+            int over_color;
+            int active_over_color;
             int center;
             int shadowed;
             /** Heap copy; owned by UITree, freed in uitree_free. */
             char const* text;
+            /** Heap copy of activeText; may be NULL. */
+            char const* active_text;
         } rs_text;
         struct
         {
@@ -151,8 +212,20 @@ struct StaticUIComponent
         } rs_inv;
         struct
         {
-            int reserved;
+            /** Total scrollable height (cache `scroll`); viewport is position.height. */
+            int scroll_height;
+            /** Initial hide from cache at build time; use is_hidden for runtime IF_SETHIDE. */
+            int hide;
         } rs_layer;
+        struct
+        {
+            int color;
+            int active_color;
+            int over_color;
+            int active_over_color;
+            int alpha;
+            uint8_t fill;
+        } rs_rect;
 
     } u;
 };
@@ -166,6 +239,26 @@ struct UITree
     /** Incremented on every `uitree_push_*` / node add; used to invalidate UI dirty caches. */
     uint32_t generation;
 };
+
+/**
+ * Linear scan for a node with matching component_id.
+ * Returns the node index, or -1 if not found.
+ * O(N) — call once per IF_SET* packet, never from the render loop.
+ */
+int32_t
+uitree_find_by_component_id(const struct UITree* tree, int component_id);
+
+/**
+ * Linear scan for a UIELEM_RS_INV node matching component_id.
+ * Returns the inv_index from node.u.rs_inv.inv_index, or -1 if not found.
+ * Optionally writes the node array index into out_node_idx (may be NULL).
+ * O(N) — call once per packet, never from the render loop.
+ */
+int
+uitree_find_inv_index_by_component_id(
+    const struct UITree* tree,
+    int component_id,
+    int32_t* out_node_idx);
 
 char const*
 uitree_component_type_str(enum StaticUIComponentType type);
@@ -311,27 +404,56 @@ uitree_clear_sidebar_children(
     struct UITree* tree,
     int32_t sidebar_idx);
 
+/** Stamp hide on every node with matching cache component_id (RS subtree). */
+void
+uitree_set_component_hidden(
+    struct UITree* tree,
+    int component_id,
+    int hidden);
+
 int32_t
 uitree_push_rs_layer(
     struct UITree* tree,
     int32_t parent_index,
     int component_id,
+    int scroll_height,
+    int hide,
     int x,
     int y,
     int width,
     int height);
 
-/** `text` is copied (strdup); safe after buildcachedat component cache is cleared. */
+int32_t
+uitree_push_rs_rect(
+    struct UITree* tree,
+    int32_t parent_index,
+    int component_id,
+    int color,
+    int active_color,
+    int over_color,
+    int active_over_color,
+    int alpha,
+    int fill,
+    int x,
+    int y,
+    int width,
+    int height);
+
+/** `text` / `active_text` copied (strdup); font resolved lazily at draw from font_idx. */
 int32_t
 uitree_push_rs_text(
     struct UITree* tree,
     int32_t parent_index,
     int component_id,
-    int font_id,
+    int font_idx,
     int color,
+    int active_color,
+    int over_color,
+    int active_over_color,
     int center,
     int shadowed,
     char const* text,
+    char const* active_text,
     int x,
     int y,
     int width,
@@ -380,5 +502,34 @@ uitree_push_rs_inv(
     int y,
     int width,
     int height);
+
+/** region: -1=none, 0=arrow_up, 1=arrow_down, 2=track, 3=grip. Needs game->iface for scroll pos. */
+struct UITreeScrollbarHit
+{
+    int32_t layer_idx;
+    int component_id;
+    int layer_x;
+    int layer_y;
+    int layer_width;
+    int layer_height;
+    int scroll_height;
+    int scroll_pos;
+    int max_scroll;
+    int region;
+};
+
+bool
+uitree_find_scrollbar_at(
+    struct GGame* game,
+    int mouse_x,
+    int mouse_y,
+    struct UITreeScrollbarHit* out);
+
+/** Deepest RS_LAYER (by tree depth) under (mx,my) with scroll; -1 if none. */
+int32_t
+uitree_innermost_scroll_layer_at(
+    struct GGame* game,
+    int mouse_x,
+    int mouse_y);
 
 #endif

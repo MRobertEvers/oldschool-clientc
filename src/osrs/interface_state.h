@@ -18,6 +18,11 @@ struct InterfaceState
 
     int current_hovered_interface_id;
 
+    /** Client.ts overMainComId / overSideComId / overChatComId (addComponentOptions regions). */
+    int over_main_com_id;
+    int over_side_com_id;
+    int over_chat_com_id;
+
     int selected_area;
     int selected_item;
     int selected_interface;
