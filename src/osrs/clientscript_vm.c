@@ -371,8 +371,8 @@ clientscript_vm_eval(
             if( vm->game_ref && skill >= 0 && skill < PLAYER_STAT_COUNT )
             {
                 int base_level = player_stats_xp_to_level(vm->game_ref->player_stat_xp[skill]);
-                if( base_level < 98 )
-                    register_val = g_player_level_experience[base_level]
+                if( base_level >= 1 && base_level <= 98 )
+                    register_val = g_player_level_experience[base_level - 1]
                                    - vm->game_ref->player_stat_xp[skill];
                 else
                     register_val = 0;

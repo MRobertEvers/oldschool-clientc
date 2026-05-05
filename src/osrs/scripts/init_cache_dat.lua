@@ -222,6 +222,7 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
 
     print("=== Loading Config (non-scenery tables) ===")
     Game.BuildCacheDat.floortypes_init_from_config_jagfile()
+    Game.BuildCacheDat.init_varp_varbit_from_config_jagfile()
     safe_gc()
 
     print_heap("after non-scenery config init")

@@ -1063,13 +1063,18 @@ interface_handle_scrollbar_drag(
     int max_scroll = scroll_height - height;
     if( max_scroll <= 0 )
         return;
-    int grip_size = height * height / scroll_height;
-    if( grip_size < 16 )
-        grip_size = 16;
-    int max_y = height - grip_size - 32;
+    int track_h = height - 32;
+    if( track_h <= 0 )
+        return;
+    int grip_size = (track_h * height) / scroll_height;
+    if( grip_size < 8 )
+        grip_size = 8;
+    if( grip_size > track_h )
+        grip_size = track_h;
+    int max_y = track_h - grip_size;
     if( max_y <= 0 )
         return;
-    int grip_y = mouse_y - layer_y - (grip_size / 2) - 16;
+    int grip_y = mouse_y - layer_y - 16;
     if( grip_y < 0 )
         grip_y = 0;
     if( grip_y > max_y )

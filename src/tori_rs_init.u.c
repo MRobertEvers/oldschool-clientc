@@ -6,6 +6,7 @@
 #include "3rd/lua/lualib.h"
 #include "graphics/dash.h"
 #include "osrs/cache_utils.h"
+#include "osrs/chat.h"
 #include "osrs/clientscript_vm.h"
 #include "osrs/configmap.h"
 #include "osrs/core/game_cache_tag.h"
@@ -133,6 +134,7 @@ LibToriRS_GameNew(
     printf("GameNew: Memory info: %zu / %zu / %zu\n", mem.heap_used, mem.heap_total, mem.heap_peak);
 
     dash_init();
+    player_stats_init();
 
     game->net_shared = net_shared;
 
@@ -305,6 +307,9 @@ LibToriRS_GameNew(
         script_queue_push(&game->script_queue, &args);
     }
 
+    /* Allocate chat state. */
+    game->chat = chat_new();
+
     return game;
 }
 
@@ -436,6 +441,10 @@ LibToriRS_GameFree(struct GGame* game)
         uitree_free(game->ui_root_buffer);
     if( game->ui_stack )
         uitree_free(game->ui_stack);
+    
+    if( game->chat )
+        chat_free(game->chat);
+    game->chat = NULL;
     if( game->clientscript_vm )
         clientscript_vm_free(game->clientscript_vm);
     if( game->rs_component_state )

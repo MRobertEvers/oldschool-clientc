@@ -59,6 +59,10 @@ enum StaticUIComponentType
     UIELEM_BUILTIN_SPRITE = 7,
     UIELEM_BUILTIN_REDSTONE_TAB = 8,
     UIELEM_BUILTIN_TAB_ICONS = 9,
+    UIELEM_BUILTIN_HOVER_TOOLTIP = 10,
+    UIELEM_BUILTIN_MINIMENU = 11,
+    UIELEM_BUILTIN_CROSSHAIR = 12,
+    UIELEM_BUILTIN_CHAT_MESSAGES = 13,
     //
     UIELEM_RS_TEXT = 14,
     UIELEM_RS_GRAPHIC = 15,
@@ -66,6 +70,8 @@ enum StaticUIComponentType
     UIELEM_RS_INV = 17,
     UIELEM_RS_LAYER = 18,
     UIELEM_RS_RECT = 19,
+    UIELEM_BUILTIN_CHAT_INPUT = 20,
+    UIELEM_BUILTIN_CHAT_PRIVACY = 21,
 };
 
 enum StaticUIElemPositionKind
@@ -162,6 +168,10 @@ struct StaticUIComponent
         {
             uint8_t level_mask;
         } world;
+        struct
+        {
+            int font_id;
+        } hover_tooltip;
         struct
         {
             int tabno;
@@ -358,6 +368,52 @@ uitree_push_minimap(
     int height,
     int anchor_x,
     int anchor_y);
+
+int32_t
+uitree_push_hover_tooltip(
+    struct UITree* tree,
+    int32_t parent_index,
+    int x,
+    int y,
+    int width,
+    int height);
+
+int32_t
+uitree_push_minimenu(
+    struct UITree* tree,
+    int32_t parent_index);
+
+int32_t
+uitree_push_crosshair(
+    struct UITree* tree,
+    int32_t parent_index);
+
+int32_t
+uitree_push_chat_messages(
+    struct UITree* tree,
+    int32_t parent_index,
+    int x,
+    int y,
+    int width,
+    int height);
+
+int32_t
+uitree_push_chat_input(
+    struct UITree* tree,
+    int32_t parent_index,
+    int x,
+    int y,
+    int width,
+    int height);
+
+int32_t
+uitree_push_chat_privacy(
+    struct UITree* tree,
+    int32_t parent_index,
+    int x,
+    int y,
+    int width,
+    int height);
 
 int32_t
 uitree_push_redstone_tab(

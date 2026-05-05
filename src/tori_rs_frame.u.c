@@ -919,52 +919,11 @@ queue_static_ui_minimap_draws(
     static_mm_draw->_sprite_draw.src_anchor_y = anchor_y;
 
     struct MinimapRenderCommandBuffer* dyn = game->minimap_dynamic_commands;
-    if( !dyn )
+    if( dyn )
     {
-        return;
-    }
-    minimap_render_dynamic(mm, sw_x, sw_z, ne_x, ne_z, dyn);
-    for( int j = 0; j < dyn->count; j++ )
-    {
-        if( dyn->commands[j].kind != MINIMAP_RENDER_COMMAND_LOC )
-            continue;
-        int li = dyn->commands[j]._loc.loc_idx;
-        struct DashSprite* dot = NULL;
-        switch( minimap_loc_type(mm, li) )
-        {
-        case MINIMAP_LOC_TYPE_PLAYER:
-            // dot = game->sprite_mapdot0;
-            break;
-        case MINIMAP_LOC_TYPE_NPC:
-            // dot = game->sprite_mapdot1;
-            break;
-        case MINIMAP_LOC_TYPE_OBJECT:
-            // dot = game->sprite_mapdot2;
-            break;
-        default:
-            break;
-        }
-        if( !dot )
-            continue;
-        int lx = mm->locs[li].tile_sx;
-        int lz = mm->locs[li].tile_sz;
-        int dot_x = (lx - sw_x) * 4 + 2 - (dot->width >> 1);
-        int dot_y = (ne_z - lz) * 4 + 2 - (dot->height >> 1);
-        struct ToriRSRenderCommand* dotc =
-            LibToriRS_RenderCommandBufferEmplaceCommand(game->uiscene_queued_commands);
-        dotc->kind = TORIRS_GFX_DRAW_SPRITE;
-        dotc->_sprite_draw.element_id = component->u.minimap.scene_id;
-        dotc->_sprite_draw.atlas_index = 100 + j;
-        dotc->_sprite_draw.sprite = dot;
-        dotc->_sprite_draw.dst_bb_x = dot_x;
-        dotc->_sprite_draw.dst_bb_y = dot_y;
-        dotc->_sprite_draw.dst_bb_w = dot->width;
-        dotc->_sprite_draw.dst_bb_h = dot->height;
-        dotc->_sprite_draw.rotation_r2pi2048 = 0;
-        dotc->_sprite_draw.src_bb_x = 0;
-        dotc->_sprite_draw.src_bb_y = 0;
-        dotc->_sprite_draw.src_bb_w = 0;
-        dotc->_sprite_draw.src_bb_h = 0;
+        /* Dynamic minimap rendering (currently unused; see entity dots below). */
+        minimap_render_dynamic(mm, sw_x, sw_z, ne_x, ne_z, dyn);
+        /* TODO: If minimap_render_dynamic is re-enabled, populate dots and emit sprites. */
     }
 
     /* ── Entity minimap dots (NPCs, players, ground items). ─────────────────
@@ -1007,8 +966,8 @@ queue_static_ui_minimap_draws(
                             game->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz];
                         if( !entry )
                             continue;
-                        int wx = sx * 128 + 64;
-                        int wz = sz * 128 + 64;
+                        int wx = (game->zone_base_x + sx) * 128 + 64;
+                        int wz = (game->zone_base_z + sz) * 128 + 64;
                         minimap_emit_dot(
                             game,
                             game->uiscene_queued_commands,
@@ -1022,7 +981,7 @@ queue_static_ui_minimap_draws(
         }
     }
 
-    /* NPCs (mapdots1). */
+    /* NPCs (mapdots1) — only if their type has minimap enabled. */
     {
         struct DashSprite* dot_npc =
             game->ui_scene ? uiscene_sprite_by_name(game->ui_scene, "mapdots1", 0) : NULL;
@@ -1046,11 +1005,13 @@ queue_static_ui_minimap_draws(
         }
     }
 
-    /* Other players (mapdots2). */
+    /* Other players (mapdots3 for regular, mapdots4 for friends). */
     {
-        struct DashSprite* dot_player =
-            game->ui_scene ? uiscene_sprite_by_name(game->ui_scene, "mapdots2", 0) : NULL;
-        if( dot_player )
+        struct DashSprite* dot_other =
+            game->ui_scene ? uiscene_sprite_by_name(game->ui_scene, "mapdots3", 0) : NULL;
+        struct DashSprite* dot_friend =
+            game->ui_scene ? uiscene_sprite_by_name(game->ui_scene, "mapdots4", 0) : NULL;
+        if( dot_other || dot_friend )
         {
             for( int i = 0; i < game->world->active_player_count; i++ )
             {
@@ -1060,15 +1021,55 @@ queue_static_ui_minimap_draws(
                 struct PlayerEntity* p = world_player(game->world, pid);
                 if( !p || !p->alive )
                     continue;
+                /* TODO: Implement friend differentiation by comparing player names to friend list. */
+                struct DashSprite* dot = dot_other;
+                if( !dot )
+                    continue;
                 minimap_emit_dot(
                     game,
                     game->uiscene_queued_commands,
                     NULL,
-                    dot_player,
+                    dot,
                     mm_comp_x, mm_comp_y, mm_comp_w, mm_comp_h,
                     mm_cam_yaw, pl_wx, pl_wz,
                     p->draw_position.x, p->draw_position.z);
             }
+        }
+    }
+
+    /* Hint arrow — flashes if hint_arrow_type is set and loopCycle % 20 < 10. */
+    if( game->hint_arrow_type != 0 && (game->cycle % 20) < 10 )
+    {
+        struct DashSprite* arrow =
+            game->ui_scene ? uiscene_sprite_by_name(game->ui_scene, "mapmarker2", 0) : NULL;
+        if( arrow && game->hint_arrow_tile_x >= 0 && game->hint_arrow_tile_z >= 0 )
+        {
+            minimap_emit_dot(
+                game,
+                game->uiscene_queued_commands,
+                NULL,
+                arrow,
+                mm_comp_x, mm_comp_y, mm_comp_w, mm_comp_h,
+                mm_cam_yaw, pl_wx, pl_wz,
+                game->hint_arrow_tile_x * 128 + 64, game->hint_arrow_tile_z * 128 + 64);
+        }
+    }
+
+    /* Destination flag (set by minimap click or world click). */
+    if( game->minimap_flag_has )
+    {
+        struct DashSprite* flag =
+            game->ui_scene ? uiscene_sprite_by_name(game->ui_scene, "mapmarker", 0) : NULL;
+        if( flag )
+        {
+            minimap_emit_dot(
+                game,
+                game->uiscene_queued_commands,
+                NULL,
+                flag,
+                mm_comp_x, mm_comp_y, mm_comp_w, mm_comp_h,
+                mm_cam_yaw, pl_wx, pl_wz,
+                game->minimap_flag_x * 128 + 64, game->minimap_flag_z * 128 + 64);
         }
     }
 
@@ -1487,38 +1488,7 @@ LibToriRS_FrameBegin(
      * Advance cross_cycle here (it was updated at the top of FrameBegin only for mode != 0). */
     if( game->cross_mode != 0 && game->ui_scene )
     {
-        int frame_idx = game->cross_cycle / 100;
-        if( game->cross_mode == 2 )
-            frame_idx += 4;
-        if( frame_idx > 7 )
-            frame_idx = 7;
-        struct DashSprite* sp = uiscene_sprite_by_name(game->ui_scene, "cross", frame_idx);
-        if( sp )
-        {
-            struct ToriRSRenderCommand* c =
-                LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-            c->kind                       = TORIRS_GFX_DRAW_SPRITE;
-            c->_sprite_draw.element_id    = -1;
-            c->_sprite_draw.atlas_index   = 0;
-            c->_sprite_draw.sprite        = sp;
-            c->_sprite_draw.dst_bb_x      = game->cross_x - 8 - game->viewport_offset_x;
-            c->_sprite_draw.dst_bb_y      = game->cross_y - 8 - game->viewport_offset_y;
-            c->_sprite_draw.dst_bb_w      = 0;
-            c->_sprite_draw.dst_bb_h      = 0;
-            c->_sprite_draw.rotated       = false;
-            c->_sprite_draw.rotation_r2pi2048 = 0;
-            c->_sprite_draw.src_bb_x      = 0;
-            c->_sprite_draw.src_bb_y      = 0;
-            c->_sprite_draw.src_bb_w      = 0;
-            c->_sprite_draw.src_bb_h      = 0;
-            c->_sprite_draw.src_anchor_x  = 0;
-            c->_sprite_draw.src_anchor_y  = 0;
-            c->_sprite_draw.dst_anchor_x  = 0;
-            c->_sprite_draw.dst_anchor_y  = 0;
-            c->_sprite_draw.mask_element_id = -1;
-            c->_sprite_draw.clip_w        = 0;
-            c->_sprite_draw.alpha_mode    = 1; /* alpha-blend so transparent pixels are correct */
-        }
+        /* Crosshair is now drawn via UIELEM_BUILTIN_CROSSHAIR UITree component. */
     }
 
     /* ── Resolve overlay font (b12; fallback p11). ───────────────────────── */
@@ -1533,67 +1503,10 @@ LibToriRS_FrameBegin(
             ov_font = uiscene_font_get(game->ui_scene, ov_font_id);
     }
 
-    /* ── Overlay: hover feedback line (Client.ts drawFeedback). ─────────────
-     * Emitted when the minimenu is NOT open and option_set has at least one option.
-     * Shows the last (lowest-priority) option text, e.g. "Walk here" or
-     * "Examine Oak tree".  Suffix " / N more options" when N > 1 extra.     */
-    if( !game->minimenu_visible && game->option_set.option_count > 0 && ov_font )
-    {
-        /* Use a stack buffer so we can append the suffix without heap alloc. */
-        static char fb_text[128];
-        int n = game->option_set.option_count;
-        /* Sorted last entry = lowest-priority (Walk here or last examine). */
-        struct WorldOption* last_opt = world_option_set_get_option(&game->option_set, n - 1);
-        if( n > 2 )
-            snprintf(fb_text, sizeof(fb_text), "%s @whi@/ %d more options", last_opt->text, n - 1);
-        else
-            snprintf(fb_text, sizeof(fb_text), "%s", last_opt->text);
-
-        /* Pool the text so the pointer stays valid for the whole frame. */
-        size_t fb_need = strlen(fb_text) + 1;
-        const uint8_t* fb_ptr = NULL;
-        if( game->ui_frame_text_pool_used + fb_need <= game->ui_frame_text_pool_cap )
-        {
-            char* dst = game->ui_frame_text_pool + game->ui_frame_text_pool_used;
-            memcpy(dst, fb_text, fb_need);
-            game->ui_frame_text_pool_used += fb_need;
-            fb_ptr = (const uint8_t*)dst;
-        }
-        else
-        {
-            /* Grow the pool. */
-            size_t nc = game->ui_frame_text_pool_cap ? game->ui_frame_text_pool_cap * 2 : 4096u;
-            while( game->ui_frame_text_pool_used + fb_need > nc )
-                nc *= 2;
-            char* nb = (char*)realloc(game->ui_frame_text_pool, nc);
-            if( nb )
-            {
-                game->ui_frame_text_pool     = nb;
-                game->ui_frame_text_pool_cap = nc;
-                char* dst = nb + game->ui_frame_text_pool_used;
-                memcpy(dst, fb_text, fb_need);
-                game->ui_frame_text_pool_used += fb_need;
-                fb_ptr = (const uint8_t*)dst;
-            }
-        }
-
-        if( fb_ptr )
-        {
-            struct ToriRSRenderCommand* fc =
-                LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
-            fc->kind              = TORIRS_GFX_DRAW_FONT;
-            fc->_font_draw.font_id  = ov_font_id;
-            fc->_font_draw.font     = ov_font;
-            fc->_font_draw.text     = fb_ptr;
-            fc->_font_draw.x        = game->viewport_offset_x + 4;
-            fc->_font_draw.y        = game->viewport_offset_y + 15;
-            fc->_font_draw.color_rgb = 0xFFFFFF; /* white */
-        }
-    }
-
     /* ── Overlay: context menu (right-click minimenu). ───────────────────────
      * Emitted last so it draws on top of everything else.
-     * Text lives in ui_frame_text_pool which is valid for the whole frame.  */
+     * Text lives in ui_frame_text_pool which is valid for the whole frame.
+     * (Hover tooltip is now drawn via UIELEM_BUILTIN_HOVER_TOOLTIP UITree component.) */
     if( game->minimenu_visible && game->minimenu_option_count > 0 )
         minimenu_draw(game, render_command_buffer, ov_font_id, ov_font);
 }
@@ -2267,6 +2180,167 @@ uielem_rs_model_step(
     return rs_gfx_model_step(fiber, component, s_frame_project_models);
 }
 
+static bool
+uielem_hover_tooltip_step(
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
+{
+    struct GGame* game = fiber->game;
+    if( !game || !game->iface || !game->ui_scene || !fiber->cmds )
+        return true;
+    if( game->minimenu_visible )
+        return true;
+
+    /* Determine which option set to use:
+     * - If mouse is in world viewport: use game->option_set (contains world pickset + world options)
+     * - Otherwise: build options from hovered UI component if any */
+    struct WorldOption* first_opt = NULL;
+    struct WorldOption temp_option = { 0 };
+    
+    /* Check if mouse is in world viewport */
+    int in_world = 0;
+    if( game->ui_root_buffer && game->iface )
+    {
+        /* Find world component bounds */
+        for( uint32_t i = 0; i < game->ui_root_buffer->component_count; i++ )
+        {
+            struct StaticUIComponent* c = &game->ui_root_buffer->components[i];
+            if( c->type == UIELEM_BUILTIN_WORLD )
+            {
+                int wx = game->viewport_offset_x;
+                int wy = game->viewport_offset_y;
+                int ww = c->position.width > 0 ? c->position.width : 512;
+                int wh = c->position.height > 0 ? c->position.height : 334;
+                
+                if( game->mouse_x >= wx && game->mouse_x < wx + ww &&
+                    game->mouse_y >= wy && game->mouse_y < wy + wh )
+                {
+                    in_world = 1;
+                    break;
+                }
+            }
+        }
+    }
+    
+    if( in_world )
+    {
+        /* Use world option set */
+        if( game->option_set.option_count <= 0 )
+            return true;
+        first_opt = world_option_set_get_option(&game->option_set, 0);
+    }
+    else
+    {
+        /* Build options from hovered interface region if any */
+        if( game->iface->current_hovered_interface_id < 0 )
+            return true;
+        
+        /* For now, show a simple generic message for non-world hovering.
+         * A full implementation would extract button names from the hovered component. */
+        strncpy(temp_option.text, "[interface]", sizeof(temp_option.text) - 1);
+        temp_option.text[sizeof(temp_option.text) - 1] = '\0';
+        first_opt = &temp_option;
+    }
+    
+    if( !first_opt || !first_opt->text[0] )
+        return true;
+
+    /* Format tooltip text: "Action" or "Action @whi@/ N more options". */
+    static char tooltip_buf[256];
+    if( in_world && game->option_set.option_count > 2 )
+        snprintf(tooltip_buf, sizeof(tooltip_buf), "%s @whi@/ %d more options",
+                 first_opt->text, game->option_set.option_count - 2);
+    else
+        snprintf(tooltip_buf, sizeof(tooltip_buf), "%s", first_opt->text);
+
+    /* Get font: use stored font_id if set, otherwise default to "p11". */
+    int font_id = node->u.hover_tooltip.font_id >= 0 ?
+                  node->u.hover_tooltip.font_id :
+                  buildcachedat_get_font_ref_id(game->buildcachedat, "p11");
+    if( font_id < 0 )
+        return true;
+    struct DashPixFont* font = uiscene_font_get(game->ui_scene, font_id);
+    if( !font )
+        return true;
+
+    /* Pool the text. */
+    size_t text_len = strlen(tooltip_buf) + 1;
+    if( game->ui_frame_text_pool_used + text_len > game->ui_frame_text_pool_cap )
+    {
+        size_t new_cap = game->ui_frame_text_pool_cap ? game->ui_frame_text_pool_cap * 2 : 4096u;
+        while( game->ui_frame_text_pool_used + text_len > new_cap )
+            new_cap *= 2;
+        char* new_pool = (char*)realloc(game->ui_frame_text_pool, new_cap);
+        if( !new_pool )
+            return true;
+        game->ui_frame_text_pool = new_pool;
+        game->ui_frame_text_pool_cap = new_cap;
+    }
+    char* dst = game->ui_frame_text_pool + game->ui_frame_text_pool_used;
+    strcpy(dst, tooltip_buf);
+    game->ui_frame_text_pool_used += text_len;
+
+    frame_emit_pass(fiber, FRAME_PASS_2D);
+    struct ToriRSRenderCommand* cmd = LibToriRS_RenderCommandBufferEmplaceCommand(fiber->cmds);
+    cmd->kind = TORIRS_GFX_DRAW_FONT;
+    cmd->_font_draw.font_id = font_id;
+    cmd->_font_draw.font = font;
+    cmd->_font_draw.text = (const uint8_t*)dst;
+    cmd->_font_draw.x = game->viewport_offset_x + 4;
+    cmd->_font_draw.y = game->viewport_offset_y + 15;
+    cmd->_font_draw.color_rgb = 0xFFFFFF;
+
+    return true;
+}
+
+bool
+uielem_crosshair_step(
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
+{
+    struct GGame* game = fiber->game;
+    if( !game || !game->ui_scene || !fiber->cmds )
+        return true;
+    if( game->cross_mode == 0 )
+        return true;
+
+    int frame_idx = game->cross_cycle / 100;
+    if( game->cross_mode == 2 )
+        frame_idx += 4;
+    if( frame_idx > 7 )
+        frame_idx = 7;
+    
+    struct DashSprite* sp = uiscene_sprite_by_name(game->ui_scene, "cross", frame_idx);
+    if( !sp )
+        return true;
+
+    frame_emit_pass(fiber, FRAME_PASS_2D);
+    struct ToriRSRenderCommand* c = LibToriRS_RenderCommandBufferEmplaceCommand(fiber->cmds);
+    c->kind                       = TORIRS_GFX_DRAW_SPRITE;
+    c->_sprite_draw.element_id    = -1;
+    c->_sprite_draw.atlas_index   = 0;
+    c->_sprite_draw.sprite        = sp;
+    c->_sprite_draw.dst_bb_x      = game->cross_x - 8 - game->viewport_offset_x;
+    c->_sprite_draw.dst_bb_y      = game->cross_y - 8 - game->viewport_offset_y;
+    c->_sprite_draw.dst_bb_w      = 0;
+    c->_sprite_draw.dst_bb_h      = 0;
+    c->_sprite_draw.rotated       = false;
+    c->_sprite_draw.rotation_r2pi2048 = 0;
+    c->_sprite_draw.src_bb_x      = 0;
+    c->_sprite_draw.src_bb_y      = 0;
+    c->_sprite_draw.src_bb_w      = 0;
+    c->_sprite_draw.src_bb_h      = 0;
+    c->_sprite_draw.src_anchor_x  = 0;
+    c->_sprite_draw.src_anchor_y  = 0;
+    c->_sprite_draw.dst_anchor_x  = 0;
+    c->_sprite_draw.dst_anchor_y  = 0;
+    c->_sprite_draw.mask_element_id = -1;
+    c->_sprite_draw.clip_w        = 0;
+    c->_sprite_draw.alpha_mode    = 1;
+
+    return true;
+}
+
 bool
 LibToriRS_FrameNextCommand(
     struct GGame* game,
@@ -2345,6 +2419,18 @@ LibToriRS_FrameNextCommand(
             break;
         case UIELEM_BUILTIN_MINIMAP:
             done = uielem_minimap_step(&fiber, component);
+            break;
+        case UIELEM_BUILTIN_HOVER_TOOLTIP:
+            done = uielem_hover_tooltip_step(&fiber, component);
+            break;
+        case UIELEM_BUILTIN_CROSSHAIR:
+            done = uielem_crosshair_step(&fiber, component);
+            break;
+        case UIELEM_BUILTIN_MINIMENU:
+        case UIELEM_BUILTIN_CHAT_MESSAGES:
+        case UIELEM_BUILTIN_CHAT_INPUT:
+        case UIELEM_BUILTIN_CHAT_PRIVACY:
+            done = true;
             break;
         case UIELEM_BUILTIN_COMPASS:
             done = uielem_compass_step(&fiber, component);
@@ -2586,8 +2672,16 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
         game->minimap_flag_has   = 0; /* clear destination flag on direct world click */
         game->cross_x            = game->mouse_clicked_x;
         game->cross_y            = game->mouse_clicked_y;
-        game->cross_mode         = 1;
         game->cross_cycle        = 0;
+        
+        /* Set crosshair color: red if targetable option, yellow if only default options */
+        game->cross_mode = 1;  /* yellow by default */
+        if( game->option_set.option_count > 0 )
+        {
+            struct WorldOption* first_opt = world_option_set_get_option(&game->option_set, 0);
+            if( first_opt && first_opt->action != MINIMENU_ACTION_WALK )
+                game->cross_mode = 2;  /* red for targetable */
+        }
     }
 }
 
@@ -2608,6 +2702,9 @@ LibToriRS_FrameEnd(struct GGame* game)
     /* Advance the LRU frame counter for obj icon sprites (mirrors ObjType.spriteCache).
      * Called once at the end of every frame so cache_lookup can stamp last_used correctly. */
     obj_icon_cache_tick();
+    
+    /* Reset scroll_cycle at end of frame to mirror Client.ts maindraw (10524). */
+    game->scroll_cycle = 0;
 }
 
 #endif

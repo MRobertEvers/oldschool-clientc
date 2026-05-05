@@ -1322,3 +1322,23 @@ buildcachedat_loader_prepare_scene_centerzone(
      * remain valid through the chunk loop so per-chunk init_scenery_configs calls
      * can decode loc configs.  Do NOT clear jagfiles here. */
 }
+
+void
+buildcachedat_loader_load_component_sprite_lazy(
+    struct BuildCacheDat* buildcachedat,
+    struct UIScene* ui_scene,
+    struct GGame* game,
+    const char* sprite_name)
+{
+    if( !buildcachedat || !ui_scene || !game || !sprite_name || !sprite_name[0] )
+        return;
+    if( !game->media_filelist )
+        return;
+    
+    load_one_component_sprite(
+        buildcachedat,
+        ui_scene,
+        game->media_filelist,
+        game->media_filelist_2d_index_file_idx,
+        sprite_name);
+}

@@ -320,6 +320,14 @@ uitree_component_type_str(enum StaticUIComponentType type)
         return "redstone_tab";
     case UIELEM_BUILTIN_TAB_ICONS:
         return "tab_icons";
+    case UIELEM_BUILTIN_HOVER_TOOLTIP:
+        return "hover_tooltip";
+    case UIELEM_BUILTIN_MINIMENU:
+        return "minimenu";
+    case UIELEM_BUILTIN_CROSSHAIR:
+        return "crosshair";
+    case UIELEM_BUILTIN_CHAT_MESSAGES:
+        return "chat_messages";
     case UIELEM_RS_TEXT:
         return "rs_text";
     case UIELEM_RS_GRAPHIC:
@@ -332,6 +340,10 @@ uitree_component_type_str(enum StaticUIComponentType type)
         return "rs_layer";
     case UIELEM_RS_RECT:
         return "rs_rect";
+    case UIELEM_BUILTIN_CHAT_INPUT:
+        return "chat_input";
+    case UIELEM_BUILTIN_CHAT_PRIVACY:
+        return "chat_privacy";
     }
     return "unknown";
 }
@@ -643,6 +655,137 @@ uitree_push_minimap(
     component->position.height = height;
     component->position.anchor_x = anchor_x;
     component->position.anchor_y = anchor_y;
+    return idx;
+}
+
+int32_t
+uitree_push_hover_tooltip(
+    struct UITree* tree,
+    int32_t parent_index,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_BUILTIN_HOVER_TOOLTIP;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.hover_tooltip.font_id = -1;
+    return idx;
+}
+
+int32_t
+uitree_push_minimenu(
+    struct UITree* tree,
+    int32_t parent_index)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_BUILTIN_MINIMENU;
+    component->position.kind = UIPOS_XY;
+    component->position.x = 0;
+    component->position.y = 0;
+    component->position.width = 0;
+    component->position.height = 0;
+    return idx;
+}
+
+int32_t
+uitree_push_crosshair(
+    struct UITree* tree,
+    int32_t parent_index)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_BUILTIN_CROSSHAIR;
+    component->position.kind = UIPOS_XY;
+    component->position.x = 0;
+    component->position.y = 0;
+    component->position.width = 0;
+    component->position.height = 0;
+    return idx;
+}
+
+int32_t
+uitree_push_chat_messages(
+    struct UITree* tree,
+    int32_t parent_index,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_BUILTIN_CHAT_MESSAGES;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    return idx;
+}
+
+int32_t
+uitree_push_chat_input(
+    struct UITree* tree,
+    int32_t parent_index,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_BUILTIN_CHAT_INPUT;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    return idx;
+}
+
+int32_t
+uitree_push_chat_privacy(
+    struct UITree* tree,
+    int32_t parent_index,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_BUILTIN_CHAT_PRIVACY;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
     return idx;
 }
 

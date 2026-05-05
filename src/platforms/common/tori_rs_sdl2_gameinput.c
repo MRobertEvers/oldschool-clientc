@@ -266,12 +266,10 @@ ToriRSLibPlatform_SDL2_GameInput_PollEvents(
                 push_mouse_move_event(input, &event.motion);
             break;
         case SDL_MOUSEBUTTONDOWN:
-            if( !nk_wants_mouse )
-                push_mouse_down_event(input, &event.button);
+            push_mouse_down_event(input, &event.button);
             break;
         case SDL_MOUSEBUTTONUP:
-            if( !nk_wants_mouse )
-                push_mouse_up_event(input, &event.button);
+            push_mouse_up_event(input, &event.button);
             break;
         case SDL_MOUSEWHEEL:
             if( !nk_wants_mouse )

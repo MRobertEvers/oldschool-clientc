@@ -3,7 +3,7 @@
     case LUA_API_BUILDCACHEDAT_SET_CONFIG_JAGFILE:
         return LuaBuildCacheDat_set_config_jagfile(bcd, args);
     case LUA_API_BUILDCACHEDAT_INIT_VARP_VARBIT_FROM_CONFIG_JAGFILE:
-        return LuaBuildCacheDat_init_varp_varbit_from_config_jagfile(bcd, args);
+        return LuaBuildCacheDat_init_varp_varbit_from_config_jagfile(bcd, game, args);
     case LUA_API_BUILDCACHEDAT_SET_VERSIONLIST_JAGFILE:
         return LuaBuildCacheDat_set_versionlist_jagfile(bcd, args);
     case LUA_API_BUILDCACHEDAT_MAP_TERRAIN_CACHE_ADD:

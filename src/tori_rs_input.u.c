@@ -267,10 +267,10 @@ LibToriRS_GameProcessInput(
             {
                 if( sb_hold.region == 0 ) /* up arrow */
                     interface_handle_scrollbar_arrow_step(
-                        game, sb_hold.component_id, sb_hold.max_scroll, 1, 4);
+                        game, sb_hold.component_id, sb_hold.max_scroll, 1, game->scroll_cycle * 4);
                 else if( sb_hold.region == 1 ) /* down arrow */
                     interface_handle_scrollbar_arrow_step(
-                        game, sb_hold.component_id, sb_hold.max_scroll, 0, 4);
+                        game, sb_hold.component_id, sb_hold.max_scroll, 0, game->scroll_cycle * 4);
                 else if( sb_hold.region == 2 || sb_hold.region == 3 )
                 {
                     /* Track or grip: engage drag mode and compute position from mouse. */
@@ -344,7 +344,7 @@ LibToriRS_GameProcessInput(
                             interface_handle_scrollbar_click(
                                 game,
                                 hit.component_id,
-                                hit.layer_y + 16,
+                                hit.layer_y,
                                 hit.layer_height,
                                 hit.scroll_height,
                                 cy);

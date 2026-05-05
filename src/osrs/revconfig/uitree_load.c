@@ -5,6 +5,7 @@
 #include "graphics/dashmap.h"
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
+#include "osrs/buildcachedat_loader.h"
 #include "osrs/dash_utils.h"
 #include "osrs/entity_scenebuild.h"
 #include "osrs/game.h"
@@ -47,6 +48,7 @@ struct ComponentEntry
     int tabno;
     int componentno;
     char inv[64];
+    char font[64];
     uint8_t level_mask;
 };
 
@@ -93,6 +95,7 @@ struct ComponentLoad
     int componentno;
     char inv[64];
     char paint_levels[64];
+    char font[64];
 };
 
 /** Comma-separated level indices 0-7, optional inclusive ranges "lo-hi" -> bitmask; empty -> 0xF.
@@ -427,6 +430,18 @@ component_type_from_string(const char* str)
         return UIELEM_BUILTIN_TAB_ICONS;
     else if( strcmp(str, "redstone_tab") == 0 )
         return UIELEM_BUILTIN_REDSTONE_TAB;
+    else if( strcmp(str, "hover_tooltip") == 0 )
+        return UIELEM_BUILTIN_HOVER_TOOLTIP;
+    else if( strcmp(str, "minimenu") == 0 )
+        return UIELEM_BUILTIN_MINIMENU;
+    else if( strcmp(str, "crosshair") == 0 )
+        return UIELEM_BUILTIN_CROSSHAIR;
+    else if( strcmp(str, "chat_messages") == 0 )
+        return UIELEM_BUILTIN_CHAT_MESSAGES;
+    else if( strcmp(str, "chat_input") == 0 )
+        return UIELEM_BUILTIN_CHAT_INPUT;
+    else if( strcmp(str, "chat_privacy") == 0 )
+        return UIELEM_BUILTIN_CHAT_PRIVACY;
 
     assert(0 && "Unknown component type");
     return 0;
@@ -634,6 +649,18 @@ load_component(
         component_entry->inv[sizeof(component_entry->inv) - 1] = '\0';
     }
     break;
+    case UIELEM_BUILTIN_HOVER_TOOLTIP:
+    {
+        strncpy(component_entry->font, load->font, sizeof(component_entry->font) - 1);
+        component_entry->font[sizeof(component_entry->font) - 1] = '\0';
+    }
+    break;
+    case UIELEM_BUILTIN_MINIMENU:
+    case UIELEM_BUILTIN_CROSSHAIR:
+    case UIELEM_BUILTIN_CHAT_MESSAGES:
+    case UIELEM_BUILTIN_CHAT_INPUT:
+    case UIELEM_BUILTIN_CHAT_PRIVACY:
+        break;
     default:
         break;
     }
@@ -937,12 +964,15 @@ push_rs_from_cache_component(
             count = 1;
         if( g1 && g1 != g0 )
             count = 2;
-        if( count == 0 )
+        /* Do not substitute activeGraphic for missing graphic — must have distinct sprites
+         * for active/inactive state to work correctly (e.g. lit/unlit prayer icons).
+         * If only activeGraphic exists but graphic is missing, skip drawing entirely. */
+        if( count == 0 || (count == 1 && g1 && !g0) )
             return;
         struct DashSprite** row = malloc((size_t)count * sizeof(struct DashSprite*));
         if( !row )
             return;
-        row[0] = g0 ? g0 : g1;
+        row[0] = g0;
         if( count == 2 )
             row[1] = g1;
         int sid = uiscene_attach_sprite_row(ui_scene, row, count, true);
@@ -1020,7 +1050,13 @@ push_rs_from_cache_component(
                     continue;
                 int ge = buildcachedat_get_component_sprite_element_id(bcd, gname);
                 if( ge < 0 )
-                    continue;
+                {
+                    /* Sprite not yet loaded; try lazy-loading from media. */
+                    buildcachedat_loader_load_component_sprite_lazy(bcd, ui_scene, game, gname);
+                    ge = buildcachedat_get_component_sprite_element_id(bcd, gname);
+                    if( ge < 0 )
+                        continue;
+                }
                 struct UISceneElement* gel = uiscene_element_at(ui_scene, ge);
                 if( !gel || gel->dash_sprites_count <= 0 || !gel->dash_sprites )
                     continue;
@@ -1058,6 +1094,52 @@ push_rs_from_cache_component(
             abs_y,
             comp->width,
             comp->height);
+        
+        /* Pre-fill inventory items from cache component data (e.g., rune icons in magic-book tooltip).
+         * Mirrors gameproto_rev245_2_exec_update_inv_full logic. */
+        if( game && game->inv_pool && sidebar_inv_index >= 0 && sidebar_inv_index < game->inv_pool->count )
+        {
+            struct UIInventory* inv = &game->inv_pool->inventories[sidebar_inv_index];
+            /* invSlotObjId / invSlotObjCount are sized width*height in config_component.c, not
+             * UI_INV_SLOT_OFFSET_MAX (that limit applies to invSlotGraphic / offsets only). */
+            int inv_obj_slots = comp->width * comp->height;
+            if( inv_obj_slots < 0 )
+                inv_obj_slots = 0;
+            if( inv_obj_slots > UI_INVENTORY_MAX_ITEMS )
+                inv_obj_slots = UI_INVENTORY_MAX_ITEMS;
+            for( int si = 0; si < inv_obj_slots; si++ )
+            {
+                if( comp->invSlotObjId && comp->invSlotObjId[si] > 0 )
+                {
+                    int obj_id = comp->invSlotObjId[si] - 1;
+                    int obj_count = comp->invSlotObjCount ? comp->invSlotObjCount[si] : 1;
+                    struct UIInventoryItem* item = &inv->items[si];
+                    item->obj_id = comp->invSlotObjId[si];
+                    item->obj_count = obj_count > 0 ? obj_count : 1;
+                    /* Pre-cache the sprite so it's available during render. */
+                    struct DashSprite* sp = obj_icon_get(game, obj_id, item->obj_count);
+                    if( sp )
+                    {
+                        struct DashSprite** row = malloc(sizeof(struct DashSprite*));
+                        if( row )
+                        {
+                            row[0] = sp;
+                            int sid = uiscene_attach_sprite_row(game->ui_scene, row, 1, true);
+                            if( sid >= 0 )
+                            {
+                                item->scene_id = sid;
+                                item->atlas_index = 0;
+                            }
+                            else
+                            {
+                                free(row);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
         uitree_translate_agnostic_fields(ui, iid, comp);
     }
     break;
@@ -1220,6 +1302,72 @@ load_layout(
                 component_entry->height,
                 component_entry->level_mask);
             if( layout_entry->always_dirty && idx >= 0 )
+                ui->components[idx].always_dirty = 1;
+        }
+        break;
+        case UIELEM_BUILTIN_HOVER_TOOLTIP:
+        {
+            int font_id = -1;
+            if( component_entry->font[0] != '\0' )
+            {
+                font_id = buildcachedat_get_font_ref_id(
+                    buildcachedat,
+                    component_entry->font);
+            }
+            
+            int32_t idx = uitree_push_hover_tooltip(
+                ui,
+                -1,
+                layout_entry->x,
+                layout_entry->y,
+                component_entry->width,
+                component_entry->height);
+            if( idx >= 0 )
+            {
+                ui->components[idx].u.hover_tooltip.font_id = font_id;
+                if( layout_entry->always_dirty )
+                    ui->components[idx].always_dirty = 1;
+            }
+        }
+        break;
+        case UIELEM_BUILTIN_MINIMENU:
+        {
+            int32_t idx = uitree_push_minimenu(ui, -1, 0, 0, 0, 0);
+            if( idx >= 0 && layout_entry->always_dirty )
+                ui->components[idx].always_dirty = 1;
+        }
+        break;
+        case UIELEM_BUILTIN_CROSSHAIR:
+        {
+            int32_t idx = uitree_push_crosshair(ui, -1, 0, 0, 0, 0);
+            if( idx >= 0 && layout_entry->always_dirty )
+                ui->components[idx].always_dirty = 1;
+        }
+        break;
+        case UIELEM_BUILTIN_CHAT_MESSAGES:
+        {
+            int32_t idx = uitree_push_chat_messages(
+                ui, -1, layout_entry->x, layout_entry->y,
+                component_entry->width, component_entry->height);
+            if( idx >= 0 && layout_entry->always_dirty )
+                ui->components[idx].always_dirty = 1;
+        }
+        break;
+        case UIELEM_BUILTIN_CHAT_INPUT:
+        {
+            int32_t idx = uitree_push_chat_input(
+                ui, -1, layout_entry->x, layout_entry->y,
+                component_entry->width, component_entry->height);
+            if( idx >= 0 && layout_entry->always_dirty )
+                ui->components[idx].always_dirty = 1;
+        }
+        break;
+        case UIELEM_BUILTIN_CHAT_PRIVACY:
+        {
+            int32_t idx = uitree_push_chat_privacy(
+                ui, -1, layout_entry->x, layout_entry->y,
+                component_entry->width, component_entry->height);
+            if( idx >= 0 && layout_entry->always_dirty )
                 ui->components[idx].always_dirty = 1;
         }
         break;
@@ -1604,6 +1752,18 @@ uitree_from_revconfig_buildcachedat(
                 field->value,
                 sizeof(load._component.paint_levels) - 1);
             load._component.paint_levels[sizeof(load._component.paint_levels) - 1] = '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_FONT:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "UICOMPONENT_FONT field must be within a component item");
+            strncpy(
+                load._component.font,
+                field->value,
+                sizeof(load._component.font) - 1);
+            load._component.font[sizeof(load._component.font) - 1] = '\0';
         }
         break;
         case RCFIELD_INV_ITEM:
@@ -2120,6 +2280,18 @@ uitree_load_ui_from_revconfig(
                 field->value,
                 sizeof(load._component.paint_levels) - 1);
             load._component.paint_levels[sizeof(load._component.paint_levels) - 1] = '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_FONT:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "UICOMPONENT_FONT field must be within a component item");
+            strncpy(
+                load._component.font,
+                field->value,
+                sizeof(load._component.font) - 1);
+            load._component.font[sizeof(load._component.font) - 1] = '\0';
         }
         break;
         case RCFIELD_INV_ITEM:

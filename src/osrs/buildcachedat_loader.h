@@ -153,6 +153,14 @@ buildcachedat_loader_load_component_sprites_from_media(
     struct BuildCacheDat* buildcachedat,
     struct GGame* game);
 
+/** Lazy-load a single component sprite by name from media filelist. */
+void
+buildcachedat_loader_load_component_sprite_lazy(
+    struct BuildCacheDat* buildcachedat,
+    struct UIScene* ui_scene,
+    struct GGame* game,
+    const char* sprite_name);
+
 void
 buildcachedat_loader_finalize_scene(
     struct BuildCacheDat* buildcachedat,

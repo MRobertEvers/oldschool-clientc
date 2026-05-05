@@ -555,13 +555,11 @@ flowchart TB
 
 ### 9.2 Loading
 
-[`buildcachedat_loader_init_varp_varbit`](src/osrs/buildcachedat_loader.c): Calls [`clientscript_vm_load_types`](src/osrs/clientscript_vm.c) when config jagfile is set — **intended** to run early so VARP packets can apply before scene finalize.
+[`buildcachedat_loader_init_varp_varbit`](src/osrs/buildcachedat_loader.c): Calls [`clientscript_vm_load_types`](src/osrs/clientscript_vm.c) when config jagfile is set — runs during `init_cache_dat.lua` to populate both **varp and varbit metadata** before scene finalize.
 
-**Current `clientscript_vm_load_types` behavior**: Locates `varp.dat`, decodes via [`cache_dat_config_varp_list_new_decode`](src/osrs/rscache/tables_dat/config_varp.h), allocates `varp_types`, `var`, `var_serv`, copies `clientcode` per varp.
+**Current `clientscript_vm_load_types` behavior**: Locates both `varp.dat` and `varbit.dat`, decodes them via [`cache_dat_config_varp_list_new_decode`](src/osrs/rscache/tables_dat/config_varp.h) and inline RSBuffer parsing. Allocates `varp_types`, `var`, `var_serv`, `varbit_types`, and copies `clientcode` per varp. The varbit decoder parses bytecode opcodes (code 1 = VarBitType entry, code 10 = debug name).
 
-**Important implementation gap (document accurately)**:
-
-- `varbit_types` / `varbit_count` are **not populated** in `clientscript_vm_load_types` today (only freed in `clientscript_vm_free`). Therefore [`clientscript_vm_get_varbit`](src/osrs/clientscript_vm.c), bytecode opcode **14**, and [`interface_apply_button_click_varp_optimistic`](src/osrs/interface.c) paths that index `vm->varbit_types` **do not have live varbit metadata from disk** until a loader is added. The **design** is clear; the **wiring** is incomplete.
+**Status**: Both varp and varbit types **are fully populated** and available to bytecode opcodes **5** (pushvar), **13** (testbit), and **14** (push_varbit).
 
 ### 9.3 Setting varp values
 
@@ -583,7 +581,7 @@ return (var[basevar] >> startbit) & readbit[bit_count]
 
 ### 9.5 Bytecode evaluation
 
-[`clientscript_vm_eval`](src/osrs/clientscript_vm.c) (partial): Opcodes include **5** `pushvar`, **7** scaled var, **13** `testbit` on raw varp, **14** `push_varbit`, **20** constant, **15–17** arithmetic mode; stat-related opcodes **stubbed** (return 0).
+[`clientscript_vm_eval`](src/osrs/clientscript_vm.c): Opcodes include **1** `stat_level` (effective/boosted), **2** `stat_base_level` (from XP via `player_stats_xp_to_level`), **3** `stat_xp`, **4** `inv_count`, **5** `pushvar`, **6** `stat_xp_remaining`, **7** scaled var, **13** `testbit` on raw varp, **14** `push_varbit`, **20** constant, **15–17** arithmetic mode. Stat opcodes **1–3** read from `game->player_stat_*` via `vm->game_ref`.
 
 [`clientscript_vm_active`](src/osrs/clientscript_vm.c): For each script, `eval` vs `script_operand[i]` with comparator `script_comparator[i]` (==, !=, &lt;=, &gt;= style encoding).
 

@@ -26,6 +26,7 @@ LuaBuildCacheDat_set_config_jagfile(
 struct LuaGameType*
 LuaBuildCacheDat_init_varp_varbit_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
     struct LuaGameType* args);
 
 struct LuaGameType*
