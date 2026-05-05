@@ -166,7 +166,7 @@ chat_resolve_font(struct GGame* game, int* out_id)
 /* ── Frame draw ────────────────────────────────────────────────────────── */
 
 void
-chat_draw(
+chat_draw_messages(
     struct Chat*                      chat,
     struct GGame*                     game,
     struct ToriRSRenderCommandBuffer* cmdbuf)
@@ -176,16 +176,6 @@ chat_draw(
 
     int font_id = -1;
     struct DashPixFont* font = chat_resolve_font(game, &font_id);
-
-    /* Draw chat input line. */
-    if( font && chat->chat_input[0] != '\0' )
-    {
-        char input_buf[128];
-        snprintf(input_buf, sizeof(input_buf), "> %s", chat->chat_input);
-        emit_text(cmdbuf, font, font_id, input_buf,
-                  CHATINPUT_X, CHATINPUT_Y, 0xFFFFFF);
-    }
-
     if( !font || chat->message_count <= 0 )
         return;
 
@@ -247,6 +237,80 @@ chat_draw(
         int grip_y = sb_y + (chat->chat_scroll_pos * (sb_h - grip_h)) / max_scroll;
         emit_rect(cmdbuf, sb_x + 2, grip_y + 1, 12, grip_h - 2, 0x808080, 255, 1);
     }
+}
+
+void
+chat_draw_input(
+    struct Chat*                      chat,
+    struct GGame*                     game,
+    struct ToriRSRenderCommandBuffer* cmdbuf)
+{
+    if( !chat || !game || !cmdbuf )
+        return;
+
+    int font_id = -1;
+    struct DashPixFont* font = chat_resolve_font(game, &font_id);
+    if( !font )
+        return;
+
+    /* Draw chat input line. */
+    if( chat->chat_input[0] != '\0' )
+    {
+        char input_buf[128];
+        snprintf(input_buf, sizeof(input_buf), "> %s", chat->chat_input);
+        emit_text(cmdbuf, font, font_id, input_buf,
+                  CHATINPUT_X, CHATINPUT_Y, 0xFFFFFF);
+    }
+}
+
+void
+chat_draw_privacy(
+    struct Chat*                      chat,
+    struct GGame*                     game,
+    struct ToriRSRenderCommandBuffer* cmdbuf)
+{
+    if( !chat || !game || !cmdbuf )
+        return;
+
+    int font_id = -1;
+    struct DashPixFont* font = chat_resolve_font(game, &font_id);
+    if( !font )
+        return;
+
+    /* Privacy buttons at bottom. Labels: Public, Private, Trade, Report Abuse.
+     * Based on Client.ts drawPrivacySettings layout. */
+    int privacy_y = 481;
+    int button_height = 12;
+    
+    const char* labels[] = { "Public", "Private", "Trade", "Report" };
+    int button_colors[] = {
+        chat->chat_public_mode ? 0x00FF00 : 0xFFFFFF,
+        chat->chat_private_mode ? 0x00FF00 : 0xFFFFFF,
+        chat->chat_trade_mode ? 0x00FF00 : 0xFFFFFF,
+        0xFFFFFF
+    };
+    
+    int x_positions[] = { CHATINPUT_X, CHATINPUT_X + 120, CHATINPUT_X + 230, CHATINPUT_X + 340 };
+    
+    for( int i = 0; i < 4; i++ )
+    {
+        emit_text(cmdbuf, font, font_id, labels[i],
+                  x_positions[i], privacy_y, button_colors[i]);
+    }
+}
+
+void
+chat_draw(
+    struct Chat*                      chat,
+    struct GGame*                     game,
+    struct ToriRSRenderCommandBuffer* cmdbuf)
+{
+    if( !chat || !game || !cmdbuf )
+        return;
+
+    chat_draw_messages(chat, game, cmdbuf);
+    chat_draw_input(chat, game, cmdbuf);
+    chat_draw_privacy(chat, game, cmdbuf);
 }
 
 /* ── Click / input ─────────────────────────────────────────────────────── */

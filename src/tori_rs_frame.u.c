@@ -2,6 +2,7 @@
 #define TORI_RS_FRAME_U_C
 
 #include "graphics/dash.h"
+#include "osrs/chat.h"
 #include "osrs/game.h"
 #include "osrs/interface.h"
 #include "osrs/interface_state.h"
@@ -2342,6 +2343,48 @@ uielem_crosshair_step(
 }
 
 bool
+uielem_chat_messages_step(
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
+{
+    struct GGame* game = fiber->game;
+    if( !game || !game->chat || !fiber->cmds )
+        return true;
+    
+    frame_emit_pass(fiber, FRAME_PASS_2D);
+    chat_draw_messages(game->chat, game, fiber->cmds);
+    return true;
+}
+
+bool
+uielem_chat_input_step(
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
+{
+    struct GGame* game = fiber->game;
+    if( !game || !game->chat || !fiber->cmds )
+        return true;
+    
+    frame_emit_pass(fiber, FRAME_PASS_2D);
+    chat_draw_input(game->chat, game, fiber->cmds);
+    return true;
+}
+
+bool
+uielem_chat_privacy_step(
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
+{
+    struct GGame* game = fiber->game;
+    if( !game || !game->chat || !fiber->cmds )
+        return true;
+    
+    frame_emit_pass(fiber, FRAME_PASS_2D);
+    chat_draw_privacy(game->chat, game, fiber->cmds);
+    return true;
+}
+
+bool
 LibToriRS_FrameNextCommand(
     struct GGame* game,
     struct ToriRSRenderCommandBuffer* render_command_buffer,
@@ -2428,9 +2471,13 @@ LibToriRS_FrameNextCommand(
             break;
         case UIELEM_BUILTIN_MINIMENU:
         case UIELEM_BUILTIN_CHAT_MESSAGES:
+            done = uielem_chat_messages_step(&fiber, component);
+            break;
         case UIELEM_BUILTIN_CHAT_INPUT:
+            done = uielem_chat_input_step(&fiber, component);
+            break;
         case UIELEM_BUILTIN_CHAT_PRIVACY:
-            done = true;
+            done = uielem_chat_privacy_step(&fiber, component);
             break;
         case UIELEM_BUILTIN_COMPASS:
             done = uielem_compass_step(&fiber, component);

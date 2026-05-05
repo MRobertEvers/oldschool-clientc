@@ -57,8 +57,26 @@ void chat_add(struct Chat* chat, int type, const char* sender, const char* text)
 
 /* ── Frame ─────────────────────────────────────────────────────────────── */
 
-/** Draw the chat overlay over the chatback RS interface area. */
+/** Draw all chat components (messages, input, privacy buttons). */
 void chat_draw(
+    struct Chat*                  chat,
+    struct GGame*                 game,
+    struct ToriRSRenderCommandBuffer* cmdbuf);
+
+/** Draw only chat messages (part of chat_draw). */
+void chat_draw_messages(
+    struct Chat*                  chat,
+    struct GGame*                 game,
+    struct ToriRSRenderCommandBuffer* cmdbuf);
+
+/** Draw only chat input field (part of chat_draw). */
+void chat_draw_input(
+    struct Chat*                  chat,
+    struct GGame*                 game,
+    struct ToriRSRenderCommandBuffer* cmdbuf);
+
+/** Draw only privacy/chat mode buttons (part of chat_draw). */
+void chat_draw_privacy(
     struct Chat*                  chat,
     struct GGame*                 game,
     struct ToriRSRenderCommandBuffer* cmdbuf);
