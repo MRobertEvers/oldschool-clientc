@@ -124,7 +124,8 @@ mm_tor_emit_text(
     const uint8_t* text,
     int x,
     int y,
-    int color_rgb)
+    int color_rgb,
+    int shadowed)
 {
     if( !buf || !font || !text )
         return;
@@ -136,6 +137,7 @@ mm_tor_emit_text(
     c->_font_draw.x         = x;
     c->_font_draw.y         = y;
     c->_font_draw.color_rgb = color_rgb;
+    c->_font_draw.shadowed  = shadowed ? 1u : 0u;
 }
 
 void
@@ -175,7 +177,8 @@ minimenu_translate_commands(
                 cmd->u.text_header.text,
                 cmd->u.text_header.x,
                 cmd->u.text_header.y,
-                cmd->u.text_header.color_rgb);
+                cmd->u.text_header.color_rgb,
+                0);
             break;
         case MINIMENU_RENDER_COMMAND_TEXT_OPTION:
         {
@@ -198,7 +201,8 @@ minimenu_translate_commands(
                 opt_text,
                 cmd->u.text_option.x,
                 cmd->u.text_option.y,
-                text_color);
+                text_color,
+                1);
         }
         break;
         }

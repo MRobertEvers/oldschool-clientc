@@ -270,6 +270,27 @@ uitree_inv_pool_append(
     return pool->count++;
 }
 
+int
+uitree_inv_pool_find_or_append_by_component_id(
+    struct UIInventoryPool* pool,
+    int component_id)
+{
+    char name[72];
+    if( !pool || component_id < 0 )
+        return -1;
+    if( snprintf(name, sizeof(name), "if_%d", component_id) >= (int)sizeof(name) )
+        return -1;
+    int idx = uitree_inv_pool_find_by_name(pool, name);
+    if( idx >= 0 )
+        return idx;
+    struct UIInventory inv = { 0 };
+    strncpy(inv.name, name, sizeof(inv.name) - 1);
+    inv.name[sizeof(inv.name) - 1] = '\0';
+    for( int j = 0; j < UI_INVENTORY_MAX_ITEMS; j++ )
+        inv.items[j].scene_id = -1;
+    return uitree_inv_pool_append(pool, &inv);
+}
+
 int32_t
 uitree_find_by_component_id(const struct UITree* tree, int component_id)
 {
@@ -1254,6 +1275,8 @@ uitree_sidebar_tab_active_pick(struct GGame* game, struct StaticUIComponent* sid
         return false;
     if( !game || !game->iface )
         return false;
+    /* Tab sidebar hidden while IF_OPENSIDE owns the sidebar rect; picking uses
+     * interface_sidebar_overlay_try_fill_uitree_options on build-cache instead of UITree RS_INV. */
     if( game->iface->sidebar_interface_id != -1 )
         return false;
     return game->iface->selected_tab == sidebar->u.sidebar.tabno;
@@ -1482,6 +1505,112 @@ uitree_option_set_sort_ts(struct UITreeOptionSet* os)
     }
 }
 
+/** Shared inventory minimenu lines for RS_INV (UITree) and IF_OPENSIDE cache subtree (Client.ts
+ * addComponentOptions type-2; useMode/targetMode not wired — see Client.ts ~9915). */
+static void
+uitree_fill_inv_slot_common(
+    struct GGame* game,
+    int comp_id,
+    int slot,
+    int obj_def_id,
+    struct CacheDatConfigObj const* obj,
+    uint8_t interactable,
+    uint8_t usable,
+    char const* comp_iop[5],
+    struct UITreeOptionSet* os)
+{
+    (void)game;
+    char const* oname = (obj && obj->name) ? obj->name : "";
+    char line[96];
+    char tbuf[72];
+
+    if( obj )
+    {
+        if( interactable )
+        {
+            for( int op = 4; op >= 3; op-- )
+            {
+                if( obj->iop[op] )
+                {
+                    snprintf(line, sizeof(line), "%s @lre@%s", obj->iop[op], oname);
+                    enum MinimenuAction act =
+                        (op == 4) ? MINIMENU_ACTION_OPHELD5 : MINIMENU_ACTION_OPHELD4;
+                    uitree_opt_append(os, act, line, comp_id, slot, obj_def_id);
+                }
+                else if( op == 4 )
+                {
+                    snprintf(tbuf, sizeof(tbuf), "Drop @lre@%s", oname);
+                    uitree_opt_append(os, MINIMENU_ACTION_OPHELD5, tbuf, comp_id, slot, obj_def_id);
+                }
+            }
+        }
+
+        if( usable )
+        {
+            snprintf(line, sizeof(line), "Use @lre@%s", oname);
+            uitree_opt_append(os, MINIMENU_ACTION_OPHELDT_START, line, comp_id, slot, obj_def_id);
+        }
+
+        if( interactable )
+        {
+            for( int op = 2; op >= 0; op-- )
+            {
+                if( obj->iop[op] )
+                {
+                    snprintf(line, sizeof(line), "%s @lre@%s", obj->iop[op], oname);
+                    enum MinimenuAction act = MINIMENU_ACTION_OPHELD1;
+                    if( op == 1 )
+                        act = MINIMENU_ACTION_OPHELD2;
+                    else if( op == 2 )
+                        act = MINIMENU_ACTION_OPHELD3;
+                    uitree_opt_append(os, act, line, comp_id, slot, obj_def_id);
+                }
+            }
+        }
+
+        for( int op = 4; op >= 0; op-- )
+        {
+            if( !comp_iop[op] || !comp_iop[op][0] )
+                continue;
+            snprintf(line, sizeof(line), "%s @lre@%s", comp_iop[op], oname);
+            enum MinimenuAction act = MINIMENU_ACTION_INV_BUTTON1;
+            if( op == 1 )
+                act = MINIMENU_ACTION_INV_BUTTON2;
+            else if( op == 2 )
+                act = MINIMENU_ACTION_INV_BUTTON3;
+            else if( op == 3 )
+                act = MINIMENU_ACTION_INV_BUTTON4;
+            else if( op == 4 )
+                act = MINIMENU_ACTION_INV_BUTTON5;
+            uitree_opt_append(os, act, line, comp_id, slot, obj_def_id);
+        }
+
+        snprintf(line, sizeof(line), "Examine @lre@%s", oname);
+        uitree_opt_append(os, MINIMENU_ACTION_OPHELD6, line, comp_id, slot, obj_def_id);
+    }
+    else
+    {
+        for( int op = 4; op >= 0; op-- )
+        {
+            if( !comp_iop[op] || !comp_iop[op][0] )
+                continue;
+            enum MinimenuAction act = MINIMENU_ACTION_INV_BUTTON1;
+            if( op == 1 )
+                act = MINIMENU_ACTION_INV_BUTTON2;
+            else if( op == 2 )
+                act = MINIMENU_ACTION_INV_BUTTON3;
+            else if( op == 3 )
+                act = MINIMENU_ACTION_INV_BUTTON4;
+            else if( op == 4 )
+                act = MINIMENU_ACTION_INV_BUTTON5;
+            uitree_opt_append(os, act, comp_iop[op], comp_id, slot, 0);
+        }
+    }
+
+    if( os->option_count > 0 )
+        uitree_option_set_sort_ts(os);
+}
+
 static void
 uitree_fill_simple_component_options(
     struct GGame* game,
@@ -1565,94 +1694,61 @@ uitree_fill_inv_slot_options(
         obj_id > 0 && game->buildcachedat ? buildcachedat_get_obj(game->buildcachedat, obj_id)
                                           : NULL;
 
-    char const* oname = (obj && obj->name) ? obj->name : "";
+    char const* ciop[5];
+    for( int i = 0; i < 5; i++ )
+        ciop[i] = inv->iop[i];
 
-    /* Mirror interface_get_inv_default_action ordering (fields live on StaticUIComponent). */
-    if( obj )
+    uitree_fill_inv_slot_common(
+        game,
+        comp_id,
+        slot,
+        obj_id,
+        obj,
+        inv->interactable,
+        inv->usable,
+        ciop,
+        os);
+}
+
+void
+uitree_fill_inv_slot_options_from_cache_inv(
+    struct GGame* game,
+    struct CacheDatConfigComponent* inv,
+    int slot,
+    struct UITreeOptionSet* os)
+{
+    int obj_def_id = 0;
+    int nslots     = inv->width * inv->height;
+    if( slot >= 0 && slot < nslots && inv->invSlotObjId && slot < UI_INVENTORY_MAX_ITEMS &&
+        inv->invSlotObjId[slot] > 0 )
+        obj_def_id = inv->invSlotObjId[slot] - 1;
+
+    struct CacheDatConfigObj* obj =
+        obj_def_id > 0 && game->buildcachedat ? buildcachedat_get_obj(game->buildcachedat, obj_def_id)
+                                              : NULL;
+
+    char const* ciop[5];
+    if( inv->iop )
     {
-        if( inv->interactable )
-        {
-            for( int op = 4; op >= 3; op-- )
-            {
-                if( obj->iop[op] )
-                {
-                    enum MinimenuAction act =
-                        (op == 4) ? MINIMENU_ACTION_OPHELD5 : MINIMENU_ACTION_OPHELD4;
-                    uitree_opt_append(os, act, obj->iop[op], comp_id, slot, obj_id);
-                }
-                else if( op == 4 )
-                {
-                    char tbuf[64];
-                    snprintf(tbuf, sizeof(tbuf), "Drop @lre@%s", oname);
-                    uitree_opt_append(os, MINIMENU_ACTION_OPHELD5, tbuf, comp_id, slot, obj_id);
-                }
-            }
-        }
-
-        if( inv->usable )
-            uitree_opt_append(os, MINIMENU_ACTION_OPHELDT_START, "Use", comp_id, slot, obj_id);
-
-        if( inv->interactable )
-        {
-            for( int op = 2; op >= 0; op-- )
-            {
-                if( obj->iop[op] )
-                {
-                    enum MinimenuAction act = MINIMENU_ACTION_OPHELD1;
-                    if( op == 1 )
-                        act = MINIMENU_ACTION_OPHELD2;
-                    else if( op == 2 )
-                        act = MINIMENU_ACTION_OPHELD3;
-                    uitree_opt_append(os, act, obj->iop[op], comp_id, slot, obj_id);
-                }
-            }
-        }
-
-        {
-            for( int op = 4; op >= 0; op-- )
-            {
-                if( !inv->iop[op] )
-                    continue;
-                enum MinimenuAction act = MINIMENU_ACTION_INV_BUTTON1;
-                if( op == 1 )
-                    act = MINIMENU_ACTION_INV_BUTTON2;
-                else if( op == 2 )
-                    act = MINIMENU_ACTION_INV_BUTTON3;
-                else if( op == 3 )
-                    act = MINIMENU_ACTION_INV_BUTTON4;
-                else if( op == 4 )
-                    act = MINIMENU_ACTION_INV_BUTTON5;
-                uitree_opt_append(os, act, inv->iop[op], comp_id, slot, obj_id);
-            }
-        }
-
-        {
-            char ex[72];
-            snprintf(ex, sizeof(ex), "Examine @lre@%s", oname);
-            uitree_opt_append(os, MINIMENU_ACTION_OPHELD6, ex, comp_id, slot, obj_id);
-        }
+        for( int i = 0; i < 5; i++ )
+            ciop[i] = inv->iop[i];
     }
     else
     {
-        for( int op = 4; op >= 0; op-- )
-        {
-            if( !inv->iop[op] )
-                continue;
-            enum MinimenuAction act = MINIMENU_ACTION_INV_BUTTON1;
-            if( op == 1 )
-                act = MINIMENU_ACTION_INV_BUTTON2;
-            else if( op == 2 )
-                act = MINIMENU_ACTION_INV_BUTTON3;
-            else if( op == 3 )
-                act = MINIMENU_ACTION_INV_BUTTON4;
-            else if( op == 4 )
-                act = MINIMENU_ACTION_INV_BUTTON5;
-            uitree_opt_append(os, act, inv->iop[op], comp_id, slot, 0);
-        }
+        for( int i = 0; i < 5; i++ )
+            ciop[i] = NULL;
     }
 
-    if( os->option_count > 0 )
-        uitree_option_set_sort_ts(os);
+    uitree_fill_inv_slot_common(
+        game,
+        inv->id,
+        slot,
+        obj_def_id,
+        obj,
+        inv->interactable ? (uint8_t)1 : (uint8_t)0,
+        inv->usable ? (uint8_t)1 : (uint8_t)0,
+        ciop,
+        os);
 }
 
 static void
@@ -1770,6 +1866,9 @@ uitree_sync_hover_option_set(struct GGame* game)
 
     tree->hover_node_index           = -1;
     tree->uitree_optionset.option_count = 0;
+
+    if( interface_sidebar_overlay_try_fill_uitree_options(game, &tree->uitree_optionset) )
+        return;
 
     struct UIPickFrame stack[UIFRAME_LAYER_STACK_MAX];
     int stack_top = -1;

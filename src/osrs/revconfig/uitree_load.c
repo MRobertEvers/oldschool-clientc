@@ -701,11 +701,11 @@ load_inv(
         inv.items[inv.item_count].scene_id = -1;
         inv.items[inv.item_count].atlas_index = 0;
 
-        if( game && ui_scene )
+        if( game && ui_scene && obj_id > 0 )
         {
-            /* INI item= uses same 1-based ids as interface inv slots (see interface_draw). */
-            int obj_lookup = obj_id;
-            struct DashSprite* sp = obj_icon_get(game, obj_lookup, 1);
+            /* INI item= uses 1-based wire ids like invSlotObjId / Client.ts linkObjType; obj_icon_get
+             * expects 0-based (see gameproto UPDATE_INV_FULL + interface_draw). */
+            struct DashSprite* sp = obj_icon_get(game, obj_id - 1, 1);
             if( sp )
             {
                 struct DashSprite** arr = malloc(sizeof(struct DashSprite*));
@@ -951,6 +951,11 @@ push_rs_from_cache_component(
         if( comp->graphic && comp->graphic[0] != '\0' )
         {
             int e0 = buildcachedat_get_component_sprite_element_id(bcd, comp->graphic);
+            if( e0 < 0 && game )
+            {
+                buildcachedat_loader_load_component_sprite_lazy(bcd, ui_scene, game, comp->graphic);
+                e0 = buildcachedat_get_component_sprite_element_id(bcd, comp->graphic);
+            }
             if( e0 >= 0 )
             {
                 struct UISceneElement* el0 = uiscene_element_at(ui_scene, e0);
@@ -961,6 +966,12 @@ push_rs_from_cache_component(
         if( comp->activeGraphic && comp->activeGraphic[0] != '\0' )
         {
             int e1 = buildcachedat_get_component_sprite_element_id(bcd, comp->activeGraphic);
+            if( e1 < 0 && game )
+            {
+                buildcachedat_loader_load_component_sprite_lazy(
+                    bcd, ui_scene, game, comp->activeGraphic);
+                e1 = buildcachedat_get_component_sprite_element_id(bcd, comp->activeGraphic);
+            }
             if( e1 >= 0 )
             {
                 struct UISceneElement* el1 = uiscene_element_at(ui_scene, e1);
@@ -1045,6 +1056,12 @@ push_rs_from_cache_component(
     {
         int bg_sid[UI_INV_SLOT_OFFSET_MAX];
         int bg_ai[UI_INV_SLOT_OFFSET_MAX];
+        int effective_inv_index = sidebar_inv_index;
+        if( effective_inv_index < 0 && game && game->inv_pool )
+        {
+            effective_inv_index =
+                uitree_inv_pool_find_or_append_by_component_id(game->inv_pool, comp->id);
+        }
         for( int si = 0; si < UI_INV_SLOT_OFFSET_MAX; si++ )
         {
             bg_sid[si] = -1;
@@ -1090,7 +1107,7 @@ push_rs_from_cache_component(
             ui,
             parent_uitree_idx,
             comp->id,
-            sidebar_inv_index,
+            effective_inv_index,
             comp->width,
             comp->height,
             comp->marginX,
@@ -1106,9 +1123,10 @@ push_rs_from_cache_component(
         
         /* Pre-fill inventory items from cache component data (e.g., rune icons in magic-book tooltip).
          * Mirrors gameproto_rev245_2_exec_update_inv_full logic. */
-        if( game && game->inv_pool && sidebar_inv_index >= 0 && sidebar_inv_index < game->inv_pool->count )
+        if( game && game->inv_pool && effective_inv_index >= 0 &&
+            effective_inv_index < game->inv_pool->count )
         {
-            struct UIInventory* inv = &game->inv_pool->inventories[sidebar_inv_index];
+            struct UIInventory* inv = &game->inv_pool->inventories[effective_inv_index];
             /* invSlotObjId / invSlotObjCount are sized width*height in config_component.c, not
              * UI_INV_SLOT_OFFSET_MAX (that limit applies to invSlotGraphic / offsets only). */
             int inv_obj_slots = comp->width * comp->height;

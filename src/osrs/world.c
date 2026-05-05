@@ -10,9 +10,19 @@
 #include "world_scenebuild.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifndef WORLD_DEBUG_REBUILD_SCENERY_CULL
+#define WORLD_DEBUG_REBUILD_SCENERY_CULL 0
+#endif
+
+/** Per-chunk loc → painter pipeline; painter span OOB/clip; end histogram. Set -DWORLD_DEBUG_PAINTER_LOC_BUILD=0 to disable. */
+#ifndef WORLD_DEBUG_PAINTER_LOC_BUILD
+#define WORLD_DEBUG_PAINTER_LOC_BUILD 1
+#endif
 
 // clang-format off
 #include "world_scenery.u.c"
@@ -245,6 +255,16 @@ world_to_scene_z(
     return (chunk_z - world->_offset_z) + (mapz - world->_chunk_sw_z) * MAP_TERRAIN_Z;
 }
 
+/** Euclidean `v mod 64` in 0..63 (C `%` can be negative when `v` is negative). */
+static inline int
+world_mod64_euclidean(int v)
+{
+    int r = v % 64;
+    if( r < 0 )
+        r += 64;
+    return r;
+}
+
 struct FlagMap
 {
     int* flags;
@@ -337,6 +357,53 @@ world_print_scene2_dashmodel_heap_stats(struct World* world)
 }
 
 void
+world_rebuild_centerzone_verify_buildcachedat_maps(struct World* world)
+{
+    struct BuildCacheDat* b = world->buildcachedat;
+    int const mx0 = world->_chunk_sw_x;
+    int const mz0 = world->_chunk_sw_z;
+    int const mx1 = world->_chunk_ne_x;
+    int const mz1 = world->_chunk_ne_z;
+
+    for( int mapx = mx0; mapx <= mx1; mapx++ )
+    {
+        for( int mapz = mz0; mapz <= mz1; mapz++ )
+        {
+            struct CacheMapTerrain* t = buildcachedat_get_map_terrain(b, mapx, mapz);
+            if( !t )
+            {
+                fprintf(
+                    stderr,
+                    "world build: missing map terrain for chunk [%d,%d] (expected all chunks in "
+                    "[%d,%d]..[%d,%d] inclusive)\n",
+                    mapx,
+                    mapz,
+                    mx0,
+                    mz0,
+                    mx1,
+                    mz1);
+                abort();
+            }
+            struct CacheMapLocs* s = buildcachedat_get_scenery(b, mapx, mapz);
+            if( !s )
+            {
+                fprintf(
+                    stderr,
+                    "world build: missing map scenery for chunk [%d,%d] (expected all chunks in "
+                    "[%d,%d]..[%d,%d] inclusive)\n",
+                    mapx,
+                    mapz,
+                    mx0,
+                    mz0,
+                    mx1,
+                    mz1);
+                abort();
+            }
+        }
+    }
+}
+
+void
 world_buildcachedat_rebuild_centerzone(
     struct World* world,
     int zone_center_x,
@@ -346,6 +413,7 @@ world_buildcachedat_rebuild_centerzone(
     struct BuildCacheDat* buildcachedat = world->buildcachedat;
 
     world_rebuild_centerzone_begin(world, zone_center_x, zone_center_z, scene_size);
+    world_rebuild_centerzone_verify_buildcachedat_maps(world);
 
     for( int mapx = world->_chunk_sw_x; mapx <= world->_chunk_ne_x; mapx++ )
     {
@@ -488,7 +556,8 @@ world_rebuild_centerzone_begin(
         world->rebuild_current_batch_id = scene2_batch_begin(world->scene2);
     }
 
-    int zone_padding = scene_size / (2 * 8);
+    /* Need (2*padding+1)*8 >= scene_size; smallest padding is ceil((scene_size-8)/16). */
+    int zone_padding = scene_size > 8 ? (scene_size - 8 + 15) / 16 : 0;
     int zone_sw_x = zone_center_x - zone_padding;
     int zone_sw_z = zone_center_z - zone_padding;
     int zone_ne_x = zone_center_x + zone_padding;
@@ -497,8 +566,8 @@ world_rebuild_centerzone_begin(
     int world_sw_x = zone_sw_x * 8;
     int world_sw_z = zone_sw_z * 8;
 
-    world->_offset_x = world_sw_x % 64;
-    world->_offset_z = world_sw_z % 64;
+    world->_offset_x = world_mod64_euclidean(world_sw_x);
+    world->_offset_z = world_mod64_euclidean(world_sw_z);
 
     world->_base_tile_x = zone_sw_x * 8;
     world->_base_tile_z = zone_sw_z * 8;
@@ -802,11 +871,23 @@ world_rebuild_centerzone_chunk_scenery(
     int offset_z;
     struct CacheMapLoc* map_tile = NULL;
     struct CacheConfigLocation* config_loc = NULL;
+#if WORLD_DEBUG_REBUILD_SCENERY_CULL
+    int dbg_entity_culled = 0;
+    int dbg_entity_max_ox = INT_MIN;
+    int dbg_entity_max_oz = INT_MIN;
+#endif
+#if WORLD_DEBUG_PAINTER_LOC_BUILD
+    int dbg_painter_chunk_locs = 0;
+    int dbg_painter_chunk_in_scene = 0;
+#endif
 
     /* ---- Collision map ---- */
     {
         struct CacheMapLocs* map_locs = buildcachedat_get_scenery(buildcachedat, mapx, mapz);
         assert(map_locs && "Map scenery must be found");
+#if WORLD_DEBUG_PAINTER_LOC_BUILD
+        dbg_painter_chunk_locs = map_locs->locs_count;
+#endif
 
         for( int i = 0; i < map_locs->locs_count; i++ )
         {
@@ -1028,15 +1109,52 @@ world_rebuild_centerzone_chunk_scenery(
             offset_x = world_to_scene_x(world, mapx, map_tile->chunk_pos_x);
             offset_z = world_to_scene_z(world, mapz, map_tile->chunk_pos_z);
 
+#if WORLD_DEBUG_REBUILD_SCENERY_CULL
+            if( offset_x >= 0 && offset_z >= 0 && offset_x < scene_size && offset_z < scene_size )
+            {
+                if( offset_x > dbg_entity_max_ox )
+                    dbg_entity_max_ox = offset_x;
+                if( offset_z > dbg_entity_max_oz )
+                    dbg_entity_max_oz = offset_z;
+            }
+            else
+                dbg_entity_culled++;
+#endif
             if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size || offset_z >= scene_size )
                 continue;
 
+#if WORLD_DEBUG_PAINTER_LOC_BUILD
+            dbg_painter_chunk_in_scene++;
+#endif
             struct MapBuildLocEntity* entity = next_map_build_loc_entity(world);
             entity->scene_coord.sx = offset_x;
             entity->scene_coord.sz = offset_z;
             entity->scene_coord.slevel = map_tile->chunk_pos_level;
             scenery_add(world, entity, map_tile, config_loc);
         }
+
+#if WORLD_DEBUG_REBUILD_SCENERY_CULL
+        printf(
+            "[scenery_cull] map=(%d,%d) scene_size=%d entity_culled=%d max_inbounds_ox=%d max_inbounds_oz=%d\n",
+            mapx,
+            mapz,
+            scene_size,
+            dbg_entity_culled,
+            dbg_entity_max_ox == INT_MIN ? -1 : dbg_entity_max_ox,
+            dbg_entity_max_oz == INT_MIN ? -1 : dbg_entity_max_oz);
+#endif
+#if WORLD_DEBUG_PAINTER_LOC_BUILD
+        printf(
+            "[painter_loc_chunk] map=(%d,%d) locs_in_map=%d passed_scene_tile_bounds=%d "
+            "scene_size=%d world_off=(%d,%d)\n",
+            mapx,
+            mapz,
+            dbg_painter_chunk_locs,
+            dbg_painter_chunk_in_scene,
+            scene_size,
+            world->_offset_x,
+            world->_offset_z);
+#endif
     }
 }
 
@@ -1185,6 +1303,67 @@ world_rebuild_centerzone_end(struct World* world)
     world->_build_flag_map = NULL;
 
     painter_mark_static_count(world->painter);
+
+#if WORLD_DEBUG_PAINTER_LOC_BUILD
+    {
+        int const n = painter_element_count(world->painter);
+        int k_scenery = 0;
+        int k_wall_a = 0;
+        int k_wall_b = 0;
+        int k_gdecor = 0;
+        int k_wdecor = 0;
+        int k_gobj = 0;
+        int k_ground = 0;
+        for( int i = 0; i < n; i++ )
+        {
+            struct PaintersElement* el = painter_element_at(world->painter, i);
+            switch( el->kind )
+            {
+            case PNTRELEM_SCENERY:
+                k_scenery++;
+                break;
+            case PNTRELEM_WALL_A:
+                k_wall_a++;
+                break;
+            case PNTRELEM_WALL_B:
+                k_wall_b++;
+                break;
+            case PNTRELEM_GROUND_DECOR:
+                k_gdecor++;
+                break;
+            case PNTRELEM_WALL_DECOR:
+                k_wdecor++;
+                break;
+            case PNTRELEM_GROUND_OBJECT:
+                k_gobj++;
+                break;
+            case PNTRELEM_GROUND:
+                k_ground++;
+                break;
+            default:
+                break;
+            }
+        }
+        printf(
+            "[painter_loc_end] scene=%d chunks=[%d,%d]..[%d,%d] map_build_locs=%d "
+            "painter_elements=%d kind: scenery=%d wall_a=%d wall_b=%d gdecor=%d wdecor=%d gobj=%d "
+            "ground=%d\n",
+            scene_size,
+            world->_chunk_sw_x,
+            world->_chunk_sw_z,
+            world->_chunk_ne_x,
+            world->_chunk_ne_z,
+            world->active_loc_entity_count,
+            n,
+            k_scenery,
+            k_wall_a,
+            k_wall_b,
+            k_gdecor,
+            k_wdecor,
+            k_gobj,
+            k_ground);
+    }
+#endif
 
     /* ---- Allocate build-only structures needed for lighting ---- */
     world->lightmap = lightmap_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);

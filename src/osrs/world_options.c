@@ -130,41 +130,86 @@ options_npc_combat_level_color_tag(
 
 static void
 options_add_player(
+    struct GGame* game,
     struct World* world,
     struct WorldOptionSet* option_set,
     int x,
     int z,
     int entity_id)
 {
-    if( option_set->option_count >= WORLD_OPTION_SET_CAPACITY - 2 )
+    if( !game || option_set->option_count >= WORLD_OPTION_SET_CAPACITY - 2 )
+        return;
+
+    if( entity_id == ACTIVE_PLAYER_SLOT )
         return;
 
     struct PlayerEntity* target = world_player(world, entity_id);
     if( !target || !target->alive )
         return;
 
-    /* Show up to 5 player actions (Trade/Follow/etc.) — for now just "Walk to" as a
-     * placeholder since full player options require social-list lookups. */
-    char text[64];
-    const char* name = (target->name.name[0] != '\0') ? target->name.name : "Player";
+    struct PlayerEntity* local = world_player(world, ACTIVE_PLAYER_SLOT);
+    if( !local || !local->alive )
+        return;
 
-    static const char* const player_opt_names[] = {
-        "Follow", "Trade with", "Report", "Attack", "Req Assist",
-    };
-    static const enum MinimenuAction player_opt_actions[] = {
-        MINIMENU_ACTION_OPPLAYER1,
-        MINIMENU_ACTION_OPPLAYER2,
-        MINIMENU_ACTION_OPPLAYER3,
-        MINIMENU_ACTION_OPPLAYER4,
-        MINIMENU_ACTION_OPPLAYER5,
-    };
-    for( int i = 0; i < 5 && option_set->option_count < WORLD_OPTION_SET_CAPACITY - 1; i++ )
+    /* Client.ts addPlayerOptions: tooltip = name + combatColourCode(...) + '(level-N)' */
+    char tooltip[128];
     {
+        const char* name = (target->name.name[0] != '\0') ? target->name.name : "Player";
+        char const* color_tag = options_npc_combat_level_color_tag(
+            local->visible_level.level, target->visible_level.level);
+        snprintf(
+            tooltip,
+            sizeof(tooltip),
+            "%s%s (level-%d)",
+            name,
+            color_tag,
+            target->visible_level.level);
+    }
+
+    for( int i = 4; i >= 0; i-- )
+    {
+        const char* op = game->player_menu_op[i];
+        if( op[0] == '\0' )
+            continue;
+
+        if( option_set->option_count >= WORLD_OPTION_SET_CAPACITY - 1 )
+            return;
+
+        int is_priority = (strcasecmp(op, "attack") == 0 &&
+                           target->visible_level.level > local->visible_level.level) ||
+                          game->player_menu_op_deprioritize[i];
+
+        enum MinimenuAction base;
+        switch( i )
+        {
+        case 0:
+            base = MINIMENU_ACTION_OPPLAYER1;
+            break;
+        case 1:
+            base = MINIMENU_ACTION_OPPLAYER2;
+            break;
+        case 2:
+            base = MINIMENU_ACTION_OPPLAYER3;
+            break;
+        case 3:
+            base = MINIMENU_ACTION_OPPLAYER4;
+            break;
+        case 4:
+            base = MINIMENU_ACTION_OPPLAYER5;
+            break;
+        default:
+            assert(0 && "Invalid player op slot");
+            base = MINIMENU_ACTION_OPPLAYER1;
+            break;
+        }
+
         struct WorldOption* opt = &option_set->options[option_set->option_count];
         memset(opt, 0, sizeof(*opt));
-        snprintf(text, sizeof(text), "%s @whi@ %s", player_opt_names[i], name);
+
+        char text[64];
+        snprintf(text, sizeof(text), "%s @whi@ %s", op, tooltip);
         strncpy(opt->text, text, sizeof(opt->text));
-        opt->action  = player_opt_actions[i];
+        opt->action = minimenu_action_priority(base, is_priority ? MINIMENU_ACTION_PRIORITY : 0);
         opt->param_a = entity_id;
         opt->param_b = x;
         opt->param_c = z;
@@ -198,8 +243,7 @@ options_add_npc(
         char const* color_tag = options_npc_combat_level_color_tag(
             player->visible_level.level, npc->visible_level.level);
         char* ptr = tooltip;
-        ptr += snprintf(
-            ptr, sizeof(tooltip) - (ptr - tooltip), "%s", npc->name ? npc->name : "");
+        ptr += snprintf(ptr, sizeof(tooltip) - (ptr - tooltip), "%s", npc->name ? npc->name : "");
         if( npc->visible_level.level != 0 )
         {
             ptr += snprintf(
@@ -311,10 +355,14 @@ options_add_npc(
 
 void
 world_options_add_pickset_options(
+    struct GGame* game,
     struct World* world,
     struct WorldPickSet* pickset,
     struct WorldOptionSet* option_set)
 {
+    /* World-only (Client.ts addWorldOptions + Model.picked*). Inventory/bank menus never use
+     * the spatial pickset — they come from UITree + inv_pool via uitree_sync_hover_option_set,
+     * mirroring Client.ts addComponentOptions on IfType (inventory type 2). */
     /* Mirror Client.ts addWorldOptions (9510-9514): Walk here is appended before picked
      * entities so the same bubble-sort as buildMinimenu (2816-2844) applies. */
     if( option_set->option_count < WORLD_OPTION_SET_CAPACITY )
@@ -322,7 +370,7 @@ world_options_add_pickset_options(
         struct WorldOption* walk = &option_set->options[option_set->option_count];
         memset(walk, 0, sizeof(*walk));
         strncpy(walk->text, "Walk here", sizeof(walk->text));
-        walk->action  = MINIMENU_ACTION_WALK;
+        walk->action = MINIMENU_ACTION_WALK;
         walk->param_a = 0;
         walk->param_b = 0;
         walk->param_c = 0;
@@ -354,11 +402,42 @@ world_options_add_pickset_options(
             break;
         case ENTITY_KIND_PLAYER:
             options_add_player(
+                game,
                 world,
                 option_set,
                 picked_entity->x,
                 picked_entity->z,
                 picked_entity->entity_id);
+            break;
+        }
+    }
+
+    /* Client.ts addPlayerOptions: rewrite Walk here to include @whi@ + tooltip for hovered player.
+     */
+    if( game && option_set->option_count > 0 &&
+        option_set->options[0].action == MINIMENU_ACTION_WALK )
+    {
+        for( int pi = 0; pi < pickset->count; pi++ )
+        {
+            struct PickedEntity* pe = &pickset->entities[pi];
+            if( pe->entity_type != ENTITY_KIND_PLAYER )
+                continue;
+            if( pe->entity_id == ACTIVE_PLAYER_SLOT )
+                continue;
+            struct PlayerEntity* t = world_player(world, pe->entity_id);
+            struct PlayerEntity* l = world_player(world, ACTIVE_PLAYER_SLOT);
+            if( !t || !t->alive || !l || !l->alive )
+                continue;
+            char tt[128];
+            const char* nm = (t->name.name[0] != '\0') ? t->name.name : "Player";
+            char const* color_tag =
+                options_npc_combat_level_color_tag(l->visible_level.level, t->visible_level.level);
+            snprintf(tt, sizeof(tt), "%s%s (level-%d)", nm, color_tag, t->visible_level.level);
+            snprintf(
+                option_set->options[0].text,
+                sizeof(option_set->options[0].text),
+                "Walk here @whi@ %s",
+                tt);
             break;
         }
     }

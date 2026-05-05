@@ -57,6 +57,8 @@ enum PacketOutType_LC245_2
     PKTOUT_LC245_2_OPPLAYER2 = 165, // index: 141 - NXT naming
     PKTOUT_LC245_2_OPPLAYER3 = 172, // index: 142 - NXT naming
     PKTOUT_LC245_2_OPPLAYER4 = 54,  // index: 143 - NXT naming
+    /** Client-TS `ClientProt.OPPLAYER5` (index 144). */
+    PKTOUT_LC245_2_OPPLAYER5 = 230,
     PKTOUT_LC245_2_OPPLAYERT = 52,  // index: 148 - NXT naming
     PKTOUT_LC245_2_OPPLAYERU = 210, // index: 149 - NXT naming
 

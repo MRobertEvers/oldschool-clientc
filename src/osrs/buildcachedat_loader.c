@@ -154,7 +154,7 @@ buildcachedat_loader_map_terrain_cache_add(
     int data_size,
     void* data)
 {
-    int map_x = param_b >> 16;
+    int map_x = (param_b >> 16) & 0xFFFF;
     int map_z = param_b & 0xFFFF;
 
     struct CacheMapTerrain* terrain =
@@ -170,7 +170,8 @@ buildcachedat_loader_map_scenery_cache_add_mapid(
     int data_size,
     void* data)
 {
-    int mapx = map_id >> 16;
+    /* Match buildcachedat_loader_map_terrain_cache_add_mapid (low 16 bits each). */
+    int mapx = (map_id >> 16) & 0xFFFF;
     int mapz = map_id & 0xFFFF;
     struct CacheMapLocs* locs = map_locs_new_from_decode(data, data_size);
     locs->_chunk_mapx = mapx;
@@ -186,7 +187,7 @@ buildcachedat_loader_map_scenery_cache_add(
     int data_size,
     void* data)
 {
-    int mapx = param_b >> 16;
+    int mapx = (param_b >> 16) & 0xFFFF;
     int mapz = param_b & 0xFFFF;
     struct CacheMapLocs* locs = map_locs_new_from_decode(data, data_size);
     locs->_chunk_mapx = mapx;

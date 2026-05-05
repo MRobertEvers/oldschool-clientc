@@ -165,6 +165,14 @@ interface_get_if_active(
 void
 interface_update_region_hover_ids(struct GGame* game);
 
+struct UITreeOptionSet;
+
+/** IF_OPENSIDE (sidebar_interface_id): minimenu rows from cache overlay when UITree skips sidebar. */
+bool
+interface_sidebar_overlay_try_fill_uitree_options(
+    struct GGame* game,
+    struct UITreeOptionSet* os);
+
 /** Top option line for UI (non-world) hover tooltip from hovered component cache fields.
  * Returns 1 if `out` was filled, 0 if no tooltip. */
 int
@@ -232,5 +240,11 @@ interface_handle_inv_button(
     int obj_id,
     int slot,
     int component_id);
+
+/** After selecting magic sidebar tab (tab id 6): if `TORI_MAGIC_TAB_IF_BUTTON_COMP` is a
+ * positive integer, send PKTOUT IF_BUTTON with that component id so server scripts can run
+ * `inv_transmit` (or equivalent) for spellbook TYPE_INV panels. World-specific. */
+void
+interface_magic_tab_request_inv_transmit_if_configured(struct GGame* game);
 
 #endif

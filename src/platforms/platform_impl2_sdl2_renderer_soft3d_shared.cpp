@@ -415,18 +415,37 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
             }
             if( cl < cr && ct < cb )
             {
-                dashfont_draw_text_ex_clipped(
-                    f,
-                    (uint8_t*)text,
-                    fx,
-                    fy,
-                    command._font_draw.color_rgb,
-                    renderer->pixel_buffer,
-                    renderer->width,
-                    cl,
-                    ct,
-                    cr,
-                    cb);
+                if( command._font_draw.shadowed )
+                {
+                    dashfont_draw_text_clipped_taggable(
+                        f,
+                        (uint8_t*)text,
+                        fx,
+                        fy,
+                        command._font_draw.color_rgb,
+                        renderer->pixel_buffer,
+                        renderer->width,
+                        cl,
+                        ct,
+                        cr,
+                        cb,
+                        true);
+                }
+                else
+                {
+                    dashfont_draw_text_ex_clipped(
+                        f,
+                        (uint8_t*)text,
+                        fx,
+                        fy,
+                        command._font_draw.color_rgb,
+                        renderer->pixel_buffer,
+                        renderer->width,
+                        cl,
+                        ct,
+                        cr,
+                        cb);
+                }
             }
         }
         break;

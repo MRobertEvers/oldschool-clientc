@@ -2,6 +2,7 @@
 #define TORI_RS_NET_U_C
 
 #include "osrs/core/revision.h"
+#include "osrs/game.h"
 #include "osrs/revs/lc245_2/loginproto_rev245_2.h"
 #include "osrs/core/packetbuffer.h"
 #include "tori_rs.h"
@@ -95,6 +96,8 @@ LibToriRS_NetConnectGame(
     packetbuffer_init(game->packet_buffer, game->random_in);
     game->net_state = GAME_NET_STATE_GAME;
 
+    game_player_menu_ops_reset(game);
+
     LibToriRS_NetPush(
         &game->net_shared->game_to_platform, TORI_RS_NET_MSG_CONNECT, (uint8_t*)host, strlen(host));
 }
@@ -146,6 +149,8 @@ loginproto_drive(struct GGame* game)
 
         printf("[DEBUG] Login successful\n");
         game->loginproto = NULL;
+
+        game_player_menu_ops_reset(game);
     }
     else if( poll_result == LOGINPROTO_ERROR )
     {

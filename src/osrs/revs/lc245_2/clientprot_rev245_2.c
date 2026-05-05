@@ -393,12 +393,13 @@ clientprot_rev245_2_emit(
     case CLIENTPROT_OP_OPPLAYER:
     {
         struct CPArgs_OpPlayer* a = (struct CPArgs_OpPlayer*)args;
-        static const int ops[4] = { PKTOUT_LC245_2_OPPLAYER1,
+        static const int ops[5] = { PKTOUT_LC245_2_OPPLAYER1,
                                     PKTOUT_LC245_2_OPPLAYER2,
                                     PKTOUT_LC245_2_OPPLAYER3,
-                                    PKTOUT_LC245_2_OPPLAYER4 };
+                                    PKTOUT_LC245_2_OPPLAYER4,
+                                    PKTOUT_LC245_2_OPPLAYER5 };
         int idx = a->which - 1;
-        if( idx < 0 || idx > 3 )
+        if( idx < 0 || idx > 4 )
             idx = 0;
         rsbuf_p1isaac(b, g->random_out, ops[idx]);
         p2(b, a->player_slot);

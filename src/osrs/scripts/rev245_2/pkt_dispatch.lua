@@ -38,16 +38,32 @@ local function handle_rebuild_normal(item)
     -- Replace config/versionlist jag handles before loading new archives (was buildcachedat_clear_jagfiles in C).
     Game.BuildCacheDat.clear_config_jagfile()
     Game.BuildCacheDat.clear_versionlist_jagfile()
+    -- Full zone rebuild: evict all cached map squares so we always load every chunk in the grid
+    -- below (stale has_map_* from a prior position must not skip edge squares).
+    Game.BuildCacheDat.clear_map_chunks()
 
-    local zone_padding = math.floor(SCENE_WIDTH / (2 * 8))
+    -- Match world_rebuild_centerzone_begin (world.c): ceil((scene_size-8)/16) so (2*padding+1)*8 >= SCENE_WIDTH.
+    local zone_padding = SCENE_WIDTH > 8 and math.ceil((SCENE_WIDTH - 8) / 16) or 0
     local zonex = Game.Game.get_pkt_rebuild_normal_zonex(item)
     local zonez = Game.Game.get_pkt_rebuild_normal_zonez(item)
 
-    local function world_to_map_chunks(wx_sw, wz_sw, wx_ne, wz_ne)
-        local map_sw_x = math.floor(wx_sw / 64)
-        local map_sw_z = math.floor(wz_sw / 64)
-        local map_ne_x = math.floor(wx_ne / 64)
-        local map_ne_z = math.floor(wz_ne / 64)
+    -- Integer division trunc toward zero (matches C `zone_sw_x / 8`), not Lua math.floor toward -inf.
+    local function trunc_div_toward_zero(a, b)
+        if b < 0 then
+            a, b = -a, -b
+        end
+        if a >= 0 then
+            return math.floor(a / b)
+        end
+        return math.ceil(a / b)
+    end
+
+    -- Same 64x64 map chunk indices as world->_chunk_sw_* / _chunk_ne_* in world_rebuild_centerzone_begin.
+    local function zone_corners_to_map_chunks(zone_sw_x, zone_sw_z, zone_ne_x, zone_ne_z)
+        local map_sw_x = trunc_div_toward_zero(zone_sw_x, 8)
+        local map_sw_z = trunc_div_toward_zero(zone_sw_z, 8)
+        local map_ne_x = trunc_div_toward_zero(zone_ne_x, 8)
+        local map_ne_z = trunc_div_toward_zero(zone_ne_z, 8)
         local chunks = {}
         local chunk_idx = 1
         for x = map_sw_x, map_ne_x do
@@ -63,11 +79,7 @@ local function handle_rebuild_normal(item)
     local zone_sw_z = zonez - zone_padding
     local zone_ne_x = zonex + zone_padding
     local zone_ne_z = zonez + zone_padding
-    local wx_sw = zone_sw_x * 8
-    local wz_sw = zone_sw_z * 8
-    local wx_ne = zone_ne_x * 8
-    local wz_ne = zone_ne_z * 8
-    local chunks = world_to_map_chunks(wx_sw, wz_sw, wx_ne, wz_ne)
+    local chunks = zone_corners_to_map_chunks(zone_sw_x, zone_sw_z, zone_ne_x, zone_ne_z)
 
     local terrain_requests = {}
     local terrain_map_ids = {}

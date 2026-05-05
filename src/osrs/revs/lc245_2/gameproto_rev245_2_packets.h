@@ -323,9 +323,11 @@ struct PktUpdateInvStopTransmit
 
 struct PktUpdateInvPartialEntry
 {
-    int slot;   /* g1 or g2 (varies) */
-    int obj_id; /* g2 */
-    int count;  /* g1 or g4 */
+    int slot; /* g1 */
+    /** After parse in gameproto_rev245_2_parse.c: 0-based object id (wire g2 minus 1); -1 when
+     * wire was 0 (empty). buildcachedat invSlotObjId uses 1-based wire (0 = empty). */
+    int obj_id;
+    int count; /* g1 or g4 when count byte was 255 */
 };
 
 struct PktUpdateInvPartial
@@ -338,6 +340,14 @@ struct PktUpdateInvPartial
 struct PktSetMultiway
 {
     int multiway; /* g1: 1=in multicombat zone */
+};
+
+/** Client.ts SET_PLAYER_OP: g1 index (1..5), g1 priority, gjstr (here: newline-terminated). */
+struct PktSetPlayerOp
+{
+    int     op_index; /* 1..5 */
+    int     priority; /* g1: Client.ts sets deprioritize when priority === 0 */
+    char*   op_text;  /* heap; gstringnewline */
 };
 
 struct PktTutFlash
@@ -441,6 +451,7 @@ struct RevPacket_LC245_2
         struct PktUpdateInvStopTransmit _update_inv_stop_transmit;
         struct PktUpdateInvPartial _update_inv_partial;
         struct PktSetMultiway _set_multiway;
+        struct PktSetPlayerOp _set_player_op;
         struct PktTutFlash _tut_flash;
         struct PktTutOpen _tut_open;
         struct PktRebootTimer _reboot_timer;

@@ -17,4 +17,5 @@ return {
     OBJ_REVEAL = 190,
     MAP_ANIM = 141,
     MAP_PROJANIM = 187,
+    SET_PLAYER_OP = 204,
 }

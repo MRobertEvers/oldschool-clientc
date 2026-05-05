@@ -18,7 +18,9 @@
 #define MAP_UNITS_LEVEL_HEIGHT 240
 #define MAP_UNITS_TILE_HEIGHT_BASIS 8
 
-#define MAPREGIONXZ(x, z) ((x) << 8 | (z))
+/** Hash key for a map region (64x64 tiles): 16 bits mapx, 16 bits mapz — avoids collisions when mapz >= 256. */
+#define MAPREGIONXZ(x, z) \
+    (int)(((uint32_t)((uint32_t)(x) & 0xFFFFu) << 16) | ((uint32_t)(z) & 0xFFFFu))
 
 static inline int
 map_tile_coord_to_chunk_coord(

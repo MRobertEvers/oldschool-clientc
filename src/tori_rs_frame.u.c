@@ -2318,10 +2318,12 @@ uielem_hover_tooltip_step(
     if( !tooltip_buf[0] )
         return true;
 
-    /* Get font: use stored font_id if set, otherwise default to "p11". */
+    /* Text pen: `node->position` from [layout] c=hover_tooltip x/y (Client.ts drawFeedback). */
     int font_id = node->u.hover_tooltip.font_id >= 0 ?
                   node->u.hover_tooltip.font_id :
-                  buildcachedat_get_font_ref_id(game->buildcachedat, "p11");
+                  buildcachedat_get_font_ref_id(game->buildcachedat, "b12");
+    if( font_id < 0 )
+        font_id = buildcachedat_get_font_ref_id(game->buildcachedat, "p11");
     if( font_id < 0 )
         return true;
     struct DashPixFont* font = uiscene_font_get(game->ui_scene, font_id);
@@ -2343,9 +2345,10 @@ uielem_hover_tooltip_step(
     cmd->_font_draw.font_id = font_id;
     cmd->_font_draw.font = font;
     cmd->_font_draw.text = (const uint8_t*)dst;
-    cmd->_font_draw.x = game->viewport_offset_x + 4;
-    cmd->_font_draw.y = game->viewport_offset_y + 15;
+    cmd->_font_draw.x = node->position.x;
+    cmd->_font_draw.y = node->position.y;
     cmd->_font_draw.color_rgb = 0xFFFFFF;
+    cmd->_font_draw.shadowed  = 1;
 
     return true;
 }
@@ -2653,6 +2656,10 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
             if( !frame_point_in_component_xy(c, game->mouse_clicked_x, game->mouse_clicked_y) )
                 continue;
             game->iface->selected_tab = c->u.redstone_tab.tabno;
+            if( c->u.redstone_tab.tabno == 6 )
+            {
+                interface_magic_tab_request_inv_transmit_if_configured(game);
+            }
             game->interface_consumed_click = 1;
             return;
         }
@@ -2830,12 +2837,13 @@ void
 LibToriRS_FrameEnd(struct GGame* game)
 {
     game->frame_pass = FRAME_PASS_NONE;
-    /* Build optionset from pickset for tooltip and context menu (Client.ts menuOption /
-     * drawTooltip). */
+    /* World spatial pick → WorldOptionSet only (Client.ts addWorldOptions). Right-click inventory
+     * lines live in UITree (uitree_sync_hover_option_set); minimenu_game_show merges UITree vs this
+     * set — see minimenu_game_show. */
     if( game->world )
     {
         game->option_set.option_count = 0;
-        world_options_add_pickset_options(game->world, &game->pickset, &game->option_set);
+        world_options_add_pickset_options(game, game->world, &game->pickset, &game->option_set);
     }
 
     frame_handle_interface_and_world_clicks(game);

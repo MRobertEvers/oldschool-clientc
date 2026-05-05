@@ -10,6 +10,7 @@
 #include "osrs/datatypes/player_appearance.h"
 #include "osrs/game.h"
 #include "osrs/game_entity.h"
+#include "osrs/interface.h"
 #include "osrs/interface_state.h"
 #include "osrs/model_transforms.h"
 #include "osrs/obj_icon.h"
@@ -23,6 +24,7 @@
 #include "osrs/rscache/rsbuf.h"
 #include "osrs/rscache/tables/maps.h"
 #include "osrs/rscache/tables/model.h"
+#include "osrs/rscache/tables/string_utils.h"
 #include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
 #include "osrs/scene2.h"
@@ -30,8 +32,14 @@
 #include "osrs/zone_state.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/** RS build scene width/height in tiles (rebuild_normal / world). */
+#define GAMEPROTO_SCENE_WIDTH_TILES 104
+/** Smallest half-width in map squares so (2*padding+1)*8 >= scene_size. */
+#define GAMEPROTO_ZONE_PADDING_FOR_SCENE(S) ((S) > 8 ? (((S)-8) + 15) / 16 : 0)
 
 /** RS protocol uses 65535 (u16 -1) for "no interface" / close overlay. */
 static int
@@ -400,7 +408,7 @@ gameproto_rev245_2_exec_rebuild_normal(
      * NPC_INFO in the same script batch lose idk/npc/obj/models/sequences. */
 
     /* Compute new base tile to shift game-level state (minimap flag). */
-    int zone_padding = 104 / (2 * 8);
+    int zone_padding = GAMEPROTO_ZONE_PADDING_FOR_SCENE(GAMEPROTO_SCENE_WIDTH_TILES);
     int new_base_x = (zonex - zone_padding) * 8;
     int new_base_z = (zonez - zone_padding) * 8;
     int dx = 0;
@@ -437,8 +445,7 @@ gameproto_rev245_2_exec_rebuild_normal_world(
     struct World* world,
     struct RevPacket_LC245_2* packet)
 {
-#define SCENE_WIDTH 104
-    int zone_padding = SCENE_WIDTH / (2 * 8);
+    int zone_padding = GAMEPROTO_ZONE_PADDING_FOR_SCENE(GAMEPROTO_SCENE_WIDTH_TILES);
     int zone_sw_x = packet->_map_rebuild.zonex - zone_padding;
     int zone_sw_z = packet->_map_rebuild.zonez - zone_padding;
 
@@ -450,7 +457,7 @@ gameproto_rev245_2_exec_rebuild_normal_world(
     int dz = new_base_z - prev_base_z;
 
     world_buildcachedat_rebuild_centerzone(
-        world, packet->_map_rebuild.zonex, packet->_map_rebuild.zonez, 104);
+        world, packet->_map_rebuild.zonex, packet->_map_rebuild.zonez, GAMEPROTO_SCENE_WIDTH_TILES);
 
     for( int i = 0; i < world->active_npc_count; i++ )
     {
@@ -483,25 +490,10 @@ gameproto_rev245_2_exec_rebuild_normal_world(
         player->draw_position.z -= dz * 128;
     }
 
-    /* Shift loc-entity scene coordinates; discard those now out of bounds. */
-    for( int i = world->active_loc_entity_count - 1; i >= 0; i-- )
-    {
-        int loc_id = world->active_loc_entities[i];
-        if( loc_id < 0 )
-            continue;
-        struct MapBuildLocEntity* loc = world_loc_entity(world, loc_id);
-        int new_sx = (int)loc->scene_coord.sx - dx;
-        int new_sz = (int)loc->scene_coord.sz - dz;
-        if( new_sx < 0 || new_sx >= SCENE_WIDTH || new_sz < 0 || new_sz >= SCENE_WIDTH )
-        {
-            world_cleanup_map_build_loc_entity(world, loc_id);
-        }
-        else
-        {
-            loc->scene_coord.sx = (uint32_t)new_sx;
-            loc->scene_coord.sz = (uint32_t)new_sz;
-        }
-    }
+    /* Static map loc scene_coord.{sx,sz} are rebuilt by world_buildcachedat_rebuild_centerzone
+     * (world_to_scene_* in the new viewport). Do not shift them by (dx,dz): that delta is in
+     * world base-tile space and does not match scene-local indices; it destroys or culls locs
+     * after every rebuild when the base moves (often misreported as missing edge-chunk locs). */
 
     /* Shift projectile fine-grained draw positions. */
     for( int i = 0; i < world->active_projectile_count; i++ )
@@ -519,7 +511,6 @@ gameproto_rev245_2_exec_rebuild_normal_world(
     /* Update scene base tile. */
     world->_base_tile_x = new_base_x;
     world->_base_tile_z = new_base_z;
-#undef SCENE_WIDTH
 }
 
 void
@@ -546,6 +537,10 @@ gameproto_rev245_2_exec_player_info(
 /**
  * Update a single UIInventoryItem slot: releases any prior UIScene sprite element,
  * loads a fresh icon via obj_icon_get, and registers it in the UIScene.
+ *
+ * The protocol never streams inventory models; only obj ids (via UPDATE_INV_* after the
+ * server transmits a component, e.g. script inv_transmit). Icons are built locally here
+ * (magic spellbook rune stones included).
  *
  * obj_id_0based: 0-based item id for obj_icon_get; pass 0 to clear the slot.
  * count: stack count used for multi-stack icon variants (e.g. coins).
@@ -609,6 +604,12 @@ inv_sync_load_item_sprite(
     item->atlas_index = 0;
 }
 
+/**
+ * Apply PKTIN_LC245_2_UPDATE_INV_FULL: wire carries 1-based obj ids per slot only (no models).
+ * Magic tab spell rows behave like any other TYPE_INV — slots stay empty until the server
+ * transmits those components (then UPDATE_INV_*); we sync buildcachedat and attach local
+ * sprites via inv_sync_load_item_sprite / obj_icon_get.
+ */
 void
 gameproto_rev245_2_exec_update_inv_full(
     struct GGame* game,
@@ -646,14 +647,35 @@ gameproto_rev245_2_exec_update_inv_full(
         component->invSlotObjCount[i] = 0;
     }
 
-    /* Sync UIInventoryPool for the ToriRS / rs_gfx_inv_step render path. */
-    if( game->inv_pool && game->ui_root_buffer )
+    /* Sync UIInventoryPool for the ToriRS / rs_gfx_inv_step + uitree_fill_inv_slot_options.
+     * Use UITree RS_INV inv_index when loaded; else same pool slot as uitree_load
+     * (uitree_inv_pool_find_or_append_by_component_id) so data exists before IF_OPEN. */
+    if( game->inv_pool )
     {
         int32_t node_idx = -1;
-        int inv_index = uitree_find_inv_index_by_component_id(
-            game->ui_root_buffer, component_id, &node_idx);
+        int inv_index    = -1;
+        int from_uitree  = 0;
+        if( game->ui_root_buffer )
+        {
+            inv_index = uitree_find_inv_index_by_component_id(
+                game->ui_root_buffer, component_id, &node_idx);
+            if( inv_index >= 0 )
+                from_uitree = 1;
+        }
+        if( inv_index < 0 )
+            inv_index =
+                uitree_inv_pool_find_or_append_by_component_id(game->inv_pool, component_id);
 
-        if( inv_index >= 0 && inv_index < game->inv_pool->count )
+        if( inv_index < 0 || inv_index >= game->inv_pool->count )
+        {
+            printf(
+                "UPDATE_INV_FULL exec: component_id=%d FAILED to resolve inv pool (inv_index=%d "
+                "pool_count=%d)\n",
+                component_id,
+                inv_index,
+                game->inv_pool->count);
+        }
+        else
         {
             struct UIInventory* inv = &game->inv_pool->inventories[inv_index];
             int item_limit = size < UI_INVENTORY_MAX_ITEMS ? size : UI_INVENTORY_MAX_ITEMS;
@@ -671,8 +693,58 @@ gameproto_rev245_2_exec_update_inv_full(
 
             inv->item_count = item_limit;
 
+            int32_t dirty_idx = -1;
             if( node_idx >= 0 )
+            {
+                dirty_idx = node_idx;
                 game->ui_root_buffer->components[node_idx].is_dirty = 1;
+            }
+            else if( game->ui_root_buffer )
+            {
+                int32_t idx = uitree_find_by_component_id(game->ui_root_buffer, component_id);
+                if( idx >= 0 )
+                {
+                    dirty_idx = idx;
+                    game->ui_root_buffer->components[idx].is_dirty = 1;
+                }
+            }
+
+            printf(
+                "UPDATE_INV_FULL exec: component_id=%d type=%d grid=%dx%d pkt_size=%d "
+                "inv_index=%d pool=\"%s\" sync_src=%s uitree_node_idx=%d dirty_idx=%d\n",
+                component_id,
+                component->type,
+                component->width,
+                component->height,
+                size,
+                inv_index,
+                inv->name[0] ? inv->name : "(unnamed)",
+                from_uitree ? "RS_INV_node" : "if_component_pool",
+                (int)node_idx,
+                (int)dirty_idx);
+            if( !from_uitree && dirty_idx < 0 && game->ui_root_buffer )
+                printf(
+                    "  hint: inventory data is in pool \"%s\" but no UITree node matched "
+                    "component_id yet; open magic tab (IF_SETTAB) so RS_INV binds this pool for "
+                    "drawing.\n",
+                    inv->name[0] ? inv->name : "(unnamed)");
+
+            {
+                int const show = item_limit < 24 ? item_limit : 24;
+                for( int i = 0; i < show; i++ )
+                {
+                    int w = packet->_update_inv_full.obj_ids[i];
+                    int z = w > 0 ? w - 1 : 0;
+                    printf(
+                        "  slot %d: wire=%d 0base=%d cnt=%d -> item.obj_id=%d scene_id=%d\n",
+                        i,
+                        w,
+                        z,
+                        packet->_update_inv_full.obj_counts[i],
+                        inv->items[i].obj_id,
+                        inv->items[i].scene_id);
+                }
+            }
         }
     }
 }
@@ -707,6 +779,10 @@ gameproto_rev245_2_exec_if_settab_active(
         game->iface->selected_tab = tab_id;
         uitree_debug_log_sidebar_state(game, "IF_SETTAB_ACTIVE", tab_id, -1);
         printf("IF_SETTAB_ACTIVE: Set active tab to %d\n", tab_id);
+        if( tab_id == 6 )
+        {
+            interface_magic_tab_request_inv_transmit_if_configured(game);
+        }
     }
     else
     {
@@ -1143,6 +1219,9 @@ gameproto_rev245_2_exec_dispatch(
     case PKTIN_LC245_2_SET_MULTIWAY:
         gameproto_rev245_2_exec_set_multiway(game, packet);
         break;
+    case PKTIN_LC245_2_SET_PLAYER_OP:
+        gameproto_rev245_2_exec_set_player_op(game, packet);
+        break;
     case PKTIN_LC245_2_MESSAGE_GAME:
         gameproto_rev245_2_exec_message_game(game, packet);
         break;
@@ -1493,11 +1572,16 @@ gameproto_rev245_2_exec_update_inv_stop_transmit(
     }
 
     /* Clear UIInventoryPool for the ToriRS / rs_gfx_inv_step render path. */
-    if( game->inv_pool && game->ui_root_buffer )
+    if( game->inv_pool )
     {
         int32_t node_idx = -1;
-        int inv_index = uitree_find_inv_index_by_component_id(
-            game->ui_root_buffer, component_id, &node_idx);
+        int inv_index    = -1;
+        if( game->ui_root_buffer )
+            inv_index = uitree_find_inv_index_by_component_id(
+                game->ui_root_buffer, component_id, &node_idx);
+        if( inv_index < 0 )
+            inv_index =
+                uitree_inv_pool_find_or_append_by_component_id(game->inv_pool, component_id);
 
         if( inv_index >= 0 && inv_index < game->inv_pool->count )
         {
@@ -1508,6 +1592,12 @@ gameproto_rev245_2_exec_update_inv_stop_transmit(
 
             if( node_idx >= 0 )
                 game->ui_root_buffer->components[node_idx].is_dirty = 1;
+            else if( game->ui_root_buffer )
+            {
+                int32_t idx = uitree_find_by_component_id(game->ui_root_buffer, component_id);
+                if( idx >= 0 )
+                    game->ui_root_buffer->components[idx].is_dirty = 1;
+            }
         }
     }
 }
@@ -1524,25 +1614,33 @@ gameproto_rev245_2_exec_update_inv_partial(
         return;
     int max_slots = component->width * component->height;
 
-    /* Update buildcachedat slots (software-raster / interface.c path). */
+    /* Update buildcachedat slots (software-raster / interface.c path).
+     * entries[].obj_id is 0-based (parse subtracts 1 from wire g2); cache stores 1-based wire
+     * like UPDATE_INV_FULL and Client.ts linkObjType — 0 means empty. */
     for( int i = 0; i < packet->_update_inv_partial.count; i++ )
     {
-        int slot   = packet->_update_inv_partial.entries[i].slot;
-        int obj_id = packet->_update_inv_partial.entries[i].obj_id;
-        int count  = packet->_update_inv_partial.entries[i].count;
+        int slot         = packet->_update_inv_partial.entries[i].slot;
+        int obj_id_0base = packet->_update_inv_partial.entries[i].obj_id;
+        int count        = packet->_update_inv_partial.entries[i].count;
         if( slot >= 0 && slot < max_slots )
         {
-            component->invSlotObjId[slot]    = obj_id;
+            component->invSlotObjId[slot] =
+                obj_id_0base < 0 ? 0 : (obj_id_0base + 1);
             component->invSlotObjCount[slot] = count;
         }
     }
 
     /* Sync UIInventoryPool for the ToriRS / rs_gfx_inv_step render path. */
-    if( game->inv_pool && game->ui_root_buffer )
+    if( game->inv_pool )
     {
         int32_t node_idx = -1;
-        int inv_index = uitree_find_inv_index_by_component_id(
-            game->ui_root_buffer, component_id, &node_idx);
+        int inv_index    = -1;
+        if( game->ui_root_buffer )
+            inv_index = uitree_find_inv_index_by_component_id(
+                game->ui_root_buffer, component_id, &node_idx);
+        if( inv_index < 0 )
+            inv_index =
+                uitree_inv_pool_find_or_append_by_component_id(game->inv_pool, component_id);
 
         if( inv_index >= 0 && inv_index < game->inv_pool->count )
         {
@@ -1561,6 +1659,12 @@ gameproto_rev245_2_exec_update_inv_partial(
 
             if( node_idx >= 0 )
                 game->ui_root_buffer->components[node_idx].is_dirty = 1;
+            else if( game->ui_root_buffer )
+            {
+                int32_t idx = uitree_find_by_component_id(game->ui_root_buffer, component_id);
+                if( idx >= 0 )
+                    game->ui_root_buffer->components[idx].is_dirty = 1;
+            }
         }
     }
 }
@@ -1866,6 +1970,30 @@ gameproto_rev245_2_exec_set_multiway(
     struct RevPacket_LC245_2* packet)
 {
     game->in_multiway = packet->_set_multiway.multiway;
+}
+
+void
+gameproto_rev245_2_exec_set_player_op(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet)
+{
+    int idx = packet->_set_player_op.op_index;
+    if( idx < 1 || idx > 5 )
+        return;
+
+    int slot = idx - 1;
+    /* Client.ts: playerOpPriority[index - 1] = priority === 0 */
+    game->player_menu_op_deprioritize[slot] = (packet->_set_player_op.priority == 0);
+
+    char* op = packet->_set_player_op.op_text;
+    if( !op || strcasecmp(op, "null") == 0 )
+    {
+        game->player_menu_op[slot][0] = '\0';
+        return;
+    }
+
+    strncpy(game->player_menu_op[slot], op, sizeof(game->player_menu_op[slot]) - 1);
+    game->player_menu_op[slot][sizeof(game->player_menu_op[slot]) - 1] = '\0';
 }
 
 static void

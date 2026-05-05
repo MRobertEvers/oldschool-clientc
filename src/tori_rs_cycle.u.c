@@ -346,7 +346,7 @@ LibToriRS_GameStep(
 
     /* Terrain tile click: run local BFS and load path into player pathing.
      * Mirrors Client.ts tryMove(routeTileX[0],routeTileZ[0], x, z, true, ..., type=0/1).
-     * Packets are dropped by clientprot_core_emit guard so nothing reaches the wire. */
+     * Movement packets reach the server via clientprot_core_emit (see TORI_DEBUG_PKTOUT). */
     if( game->tile_clicked_x >= 0 && game->world )
     {
         game_try_move(game, game->tile_clicked_x, game->tile_clicked_z);

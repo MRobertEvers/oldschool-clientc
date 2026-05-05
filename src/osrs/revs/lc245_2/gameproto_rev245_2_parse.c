@@ -6,6 +6,7 @@
 #include "osrs/packetin.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "osrs/rscache/bitbuffer.h"
@@ -60,7 +61,6 @@ gameproto_rev245_2_parse(
     }
     case PKTIN_LC245_2_UPDATE_INV_FULL:
     {
-        printf("PKTIN_LC245_2_UPDATE_INV_FULL\n");
         packet->_update_inv_full.component_id = g2(&buffer);
         packet->_update_inv_full.size = g1(&buffer);
 
@@ -78,6 +78,32 @@ gameproto_rev245_2_parse(
                 count = g4(&buffer);
             }
             packet->_update_inv_full.obj_counts[i] = count;
+        }
+
+        {
+            int nz = 0;
+            for( int i = 0; i < packet->_update_inv_full.size; i++ )
+            {
+                if( packet->_update_inv_full.obj_ids[i] > 0 )
+                    nz++;
+            }
+            printf(
+                "PKTIN_LC245_2_UPDATE_INV_FULL component_id=%d size=%d non_zero_slots=%d",
+                packet->_update_inv_full.component_id,
+                packet->_update_inv_full.size,
+                nz);
+            int const max_show = 12;
+            for( int i = 0; i < packet->_update_inv_full.size && i < max_show; i++ )
+            {
+                printf(
+                    " [%d]wire=%d cnt=%d",
+                    i,
+                    packet->_update_inv_full.obj_ids[i],
+                    packet->_update_inv_full.obj_counts[i]);
+            }
+            if( packet->_update_inv_full.size > max_show )
+                printf(" ...(%d more slots)", packet->_update_inv_full.size - max_show);
+            printf("\n");
         }
 
         return 1;
@@ -485,6 +511,7 @@ gameproto_rev245_2_parse(
             if( count == 255 )
                 count = g4(&buffer);
             packet->_update_inv_partial.entries[n].slot = slot;
+            /* 0-based for obj_icon_get / inv_sync; wire 0 (empty) -> -1 */
             packet->_update_inv_partial.entries[n].obj_id = obj_id_raw - 1;
             packet->_update_inv_partial.entries[n].count = count;
             n++;
@@ -496,6 +523,13 @@ gameproto_rev245_2_parse(
     {
         packet->_set_multiway.multiway = g1(&buffer);
         assert(buffer.position == data_size);
+        return 1;
+    }
+    case PKTIN_LC245_2_SET_PLAYER_OP:
+    {
+        packet->_set_player_op.op_index  = g1(&buffer);
+        packet->_set_player_op.priority = g1(&buffer);
+        packet->_set_player_op.op_text   = gstringnewline(&buffer);
         return 1;
     }
     case PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_ENCLOSED:
@@ -571,6 +605,7 @@ gameproto_rev245_2_parse(
         packet->_midi_jingle.id    = g2(&buffer);
         return 1;
     }
+    default:
         printf("[gameproto_rev245_2_parse] Unknown packet type: %d\n", packet_type);
         break;
     }
@@ -611,6 +646,10 @@ gameproto_free_lc245_2_item(struct RevPacket_LC245_2_Item* item)
     case PKTIN_LC245_2_MESSAGE_GAME:
         free(p->_message_game.text);
         p->_message_game.text = NULL;
+        break;
+    case PKTIN_LC245_2_SET_PLAYER_OP:
+        free(p->_set_player_op.op_text);
+        p->_set_player_op.op_text = NULL;
         break;
     case PKTIN_LC245_2_MESSAGE_PRIVATE:
         free(p->_message_private.text);

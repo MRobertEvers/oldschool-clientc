@@ -2,13 +2,169 @@
 
 #include "osrs/core/revision.h"
 #include "osrs/game.h"
+#include "osrs/isaac.h"
 #include "osrs/rscache/rsbuf.h"
 #include "tori_rs.h"
 
+#include <alloca.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* Maximum outbound packet size (generous upper bound). */
 #define CLIENTPROT_SCRATCH_SIZE 2048
+
+/** Matches Client-TS `Packet.pIsaac`: wire[0] == (logical_opcode + isaac_next()) & 0xff.
+ * Logical opcodes are revision-specific (see packetout.h PKTOUT_LC245_2_*); names align with
+ * Client-TS src/io/ClientProt.ts by feature, not necessarily by numeric value. */
+static char const*
+clientprot_kind_name(enum ClientProtOpKind kind)
+{
+    switch( kind )
+    {
+    case CLIENTPROT_OP_NO_TIMEOUT:
+        return "NO_TIMEOUT";
+    case CLIENTPROT_OP_IDLE_TIMER:
+        return "IDLE_TIMER";
+    case CLIENTPROT_OP_EVENT_MOUSE_MOVE:
+        return "EVENT_MOUSE_MOVE";
+    case CLIENTPROT_OP_EVENT_MOUSE_CLICK:
+        return "EVENT_MOUSE_CLICK";
+    case CLIENTPROT_OP_EVENT_APPLET_FOCUS:
+        return "EVENT_APPLET_FOCUS";
+    case CLIENTPROT_OP_EVENT_CAMERA_POSITION:
+        return "EVENT_CAMERA_POSITION";
+    case CLIENTPROT_OP_EVENT_TRACKING:
+        return "EVENT_TRACKING";
+    case CLIENTPROT_OP_MAP_BUILD_COMPLETE:
+        return "MAP_BUILD_COMPLETE";
+    case CLIENTPROT_OP_MOVE_GAMECLICK:
+        return "MOVE_GAMECLICK";
+    case CLIENTPROT_OP_MOVE_MINIMAPCLICK:
+        return "MOVE_MINIMAPCLICK";
+    case CLIENTPROT_OP_MOVE_OPCLICK:
+        return "MOVE_OPCLICK";
+    case CLIENTPROT_OP_CHAT_SETMODE:
+        return "CHAT_SETMODE";
+    case CLIENTPROT_OP_MESSAGE_PUBLIC:
+        return "MESSAGE_PUBLIC";
+    case CLIENTPROT_OP_MESSAGE_PRIVATE:
+        return "MESSAGE_PRIVATE";
+    case CLIENTPROT_OP_CLIENT_CHEAT:
+        return "CLIENT_CHEAT";
+    case CLIENTPROT_OP_RESUME_P_COUNTDIALOG:
+        return "RESUME_P_COUNTDIALOG";
+    case CLIENTPROT_OP_RESUME_PAUSEBUTTON:
+        return "RESUME_PAUSEBUTTON";
+    case CLIENTPROT_OP_INV_BUTTON:
+        return "INV_BUTTON";
+    case CLIENTPROT_OP_INV_BUTTOND:
+        return "INV_BUTTOND";
+    case CLIENTPROT_OP_IF_BUTTON:
+        return "IF_BUTTON";
+    case CLIENTPROT_OP_CLOSE_MODAL:
+        return "CLOSE_MODAL";
+    case CLIENTPROT_OP_OPHELD:
+        return "OPHELD";
+    case CLIENTPROT_OP_OPHELDT:
+        return "OPHELDT";
+    case CLIENTPROT_OP_OPHELDU:
+        return "OPHELDU";
+    case CLIENTPROT_OP_OPLOC:
+        return "OPLOC";
+    case CLIENTPROT_OP_OPLOCT:
+        return "OPLOCT";
+    case CLIENTPROT_OP_OPLOCU:
+        return "OPLOCU";
+    case CLIENTPROT_OP_OPNPC:
+        return "OPNPC";
+    case CLIENTPROT_OP_OPNPCT:
+        return "OPNPCT";
+    case CLIENTPROT_OP_OPNPCU:
+        return "OPNPCU";
+    case CLIENTPROT_OP_OPOBJ:
+        return "OPOBJ";
+    case CLIENTPROT_OP_OPOBJT:
+        return "OPOBJT";
+    case CLIENTPROT_OP_OPOBJU:
+        return "OPOBJU";
+    case CLIENTPROT_OP_OPPLAYER:
+        return "OPPLAYER";
+    case CLIENTPROT_OP_OPPLAYERT:
+        return "OPPLAYERT";
+    case CLIENTPROT_OP_OPPLAYERU:
+        return "OPPLAYERU";
+    case CLIENTPROT_OP_FRIEND_ADD:
+        return "FRIEND_ADD";
+    case CLIENTPROT_OP_FRIEND_DEL:
+        return "FRIEND_DEL";
+    case CLIENTPROT_OP_IGNORE_ADD:
+        return "IGNORE_ADD";
+    case CLIENTPROT_OP_IGNORE_DEL:
+        return "IGNORE_DEL";
+    case CLIENTPROT_OP_IF_PLAYERDESIGN:
+        return "IF_PLAYERDESIGN";
+    case CLIENTPROT_OP_SEND_SNAPSHOT:
+        return "SEND_SNAPSHOT";
+    case CLIENTPROT_OP_TUTORIAL_CLICKSIDE:
+        return "TUTORIAL_CLICKSIDE";
+    case CLIENTPROT_OP_LOGOUT:
+        return "LOGOUT";
+    case CLIENTPROT_OP_REPORT_ABUSE:
+        return "REPORT_ABUSE";
+    default:
+        return "?";
+    }
+}
+
+static int
+clientprot_debug_pkout_enabled(void)
+{
+    static int cached = -1;
+    if( cached >= 0 )
+        return cached;
+    char const* e = getenv("TORI_DEBUG_PKTOUT");
+    cached = (e && e[0] != '\0' && e[0] != '0') ? 1 : 0;
+    return cached;
+}
+
+static void
+clientprot_debug_pkout_print(
+    struct GGame* game,
+    enum ClientProtOpKind kind,
+    uint8_t const* scratch,
+    int len,
+    int isaac_delta_byte)
+{
+    if( len <= 0 )
+        return;
+
+    int inferred_logical = (scratch[0] - isaac_delta_byte + 256) & 0xff;
+
+    printf(
+        "[pkout] kind=%s logical_op=%d wire0=0x%02x isaac_low_byte=0x%02x size=%d "
+        "(packetout.h PKTOUT_LC245_2_*; Client-TS ClientProt.ts uses different numeric ids)\n",
+        clientprot_kind_name(kind),
+        inferred_logical,
+        scratch[0],
+        isaac_delta_byte & 0xff,
+        len);
+
+    if( len > 1 )
+    {
+        fputs("[pkout]   payload:", stdout);
+        int max = len - 1;
+        if( max > 48 )
+            max = 48;
+        for( int i = 1; i <= max; i++ )
+            printf(" %02x", scratch[i]);
+        if( len - 1 > max )
+            fputs(" ...", stdout);
+        fputc('\n', stdout);
+    }
+
+    (void)game;
+}
 
 void
 clientprot_core_emit(
@@ -19,22 +175,38 @@ clientprot_core_emit(
     if( !game )
         return;
 
-    /* Only send NO_TIMEOUT and MAP_BUILD_COMPLETE to the server while the
-     * rest of UI interactions are being stubbed out locally.  All other packet
-     * types go through local-state updates (varp optimistic, try_move, etc.)
-     * but must not reach the wire yet. */
-    if( kind != CLIENTPROT_OP_NO_TIMEOUT && kind != CLIENTPROT_OP_MAP_BUILD_COMPLETE )
-        return;
+    int dbg = clientprot_debug_pkout_enabled();
+    int isaac_delta_byte = 0;
+    struct Isaac* isaac_peek = NULL;
 
-    /* Stack-allocated scratch buffer; avoids any heap for normal packets. */
+    if( dbg && game->random_out )
+    {
+        size_t z = isaac_state_size();
+        void* snap = alloca(z);
+        isaac_get_state(game->random_out, snap);
+        isaac_peek = isaac_from_state(snap);
+        if( isaac_peek )
+            isaac_delta_byte = isaac_next(isaac_peek) & 0xff;
+    }
+
     uint8_t scratch[CLIENTPROT_SCRATCH_SIZE];
     struct RSBuffer b;
     rsbuf_init(&b, (int8_t*)scratch, (int)sizeof(scratch));
 
     const struct Revision* rev = revision_active();
     int rc = revision_clientprot_emit(rev, &b, game, (int)kind, args);
+
+    if( isaac_peek )
+    {
+        isaac_free(isaac_peek);
+        isaac_peek = NULL;
+    }
+
     if( rc != 0 || b.position == 0 )
         return;
+
+    if( dbg )
+        clientprot_debug_pkout_print(game, kind, scratch, (int)b.position, isaac_delta_byte);
 
     LibToriRS_NetSend(game, scratch, (int)b.position);
 }

@@ -281,6 +281,11 @@ gameproto_rev245_2_exec_set_multiway(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
+void
+gameproto_rev245_2_exec_set_player_op(
+    struct GGame* game,
+    struct RevPacket_LC245_2* packet);
+
 /* World-level rebuild helper (entity carryover + base tile update).
  * Used by gameproto_rev245_2_exec_rebuild_normal after Lua preload completes. */
 void

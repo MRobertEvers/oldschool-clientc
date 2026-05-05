@@ -15,7 +15,7 @@
 #include "painters.h"
 #include "scene.h"
 
-#define MAPXZ(mapx, mapz) ((mapx << 16) | mapz)
+#define MAPXZ(mapx, mapz) MAPREGIONXZ((mapx), (mapz))
 
 struct SceneBuilder;
 

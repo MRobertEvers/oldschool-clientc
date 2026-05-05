@@ -151,6 +151,8 @@ struct ToriRSRenderCommand
             int x;
             int y; /* baseline row, same convention as dashfont_draw_text_ex */
             int color_rgb;
+            /** 1: per-glyph black (+1,+1) shadow with color tags (minimenu rows, hover tooltip). */
+            uint8_t shadowed;
         } _font_draw;
 
         struct

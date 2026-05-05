@@ -258,6 +258,9 @@ LuaGame_rebuild_centerzone_end(
     (void)args;
 
     assert(game->world && "world_rebuild_centerzone_begin must be called first");
+    /* Do not verify BuildCacheDat here: init_cache_dat.lua incremental slow rebuild clears
+     * map terrain/scenery after each chunk; cache is intentionally empty at end. Full-grid
+     * verify runs in world_buildcachedat_rebuild_centerzone and LuaGame_rebuild_centerzone_slow. */
     world_rebuild_centerzone_end(game->world);
 
     LibToriRS_WorldMinimapStaticRebuild(game);
@@ -299,6 +302,7 @@ LuaGame_rebuild_centerzone_slow(
         }
     }
 
+    world_rebuild_centerzone_verify_buildcachedat_maps(game->world);
     world_rebuild_centerzone_end(game->world);
 
     LibToriRS_WorldMinimapStaticRebuild(game);

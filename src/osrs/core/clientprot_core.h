@@ -95,7 +95,10 @@ struct CPArgs_ReportAbuse      { int64_t userhash; int type; };
 /* ── Facade ──────────────────────────────────────────────────────────────── */
 
 /** Build the outbound packet and send it via LibToriRS_NetSend.
- * @param args  Points to the matching CPArgs_* struct; NULL for no-payload ops. */
+ * @param args  Points to the matching CPArgs_* struct; NULL for no-payload ops.
+ * With env `TORI_DEBUG_PKTOUT` set (non-empty, not `0`), logs each packet: kind name,
+ * inferred logical opcode (packetout.h PKTOUT_LC245_2_*), wire byte 0, ISAAC term,
+ * size and payload hex — same masking as Client-TS `Packet.pIsaac`. */
 void
 clientprot_core_emit(struct GGame* game, enum ClientProtOpKind kind, void* args);
 

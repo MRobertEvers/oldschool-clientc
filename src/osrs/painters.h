@@ -470,6 +470,10 @@ painter_add_normal_scenery(
 void
 painter_mark_static_count(struct Painter* painter);
 
+/** Element count after world build (walls, scenery, decor, …). For diagnostics only. */
+int
+painter_element_count(struct Painter const* painter);
+
 void
 painter_reset_to_static(struct Painter* painter);
 

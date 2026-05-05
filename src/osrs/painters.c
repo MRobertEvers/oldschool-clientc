@@ -17,6 +17,10 @@
 /* Uncomment to disable all cullmap visibility checks (every tile treated as visible). */
 // #define DISABLE_CULLMAPS 1
 
+#ifndef WORLD_DEBUG_PAINTER_LOC_BUILD
+#define WORLD_DEBUG_PAINTER_LOC_BUILD 1
+#endif
+
 static inline void
 init_painter_tile(
     struct PaintersTile* tile,
@@ -625,6 +629,14 @@ painter_element_at(
     return &painter->elements[element];
 }
 
+int
+painter_element_count(struct Painter const* painter)
+{
+    if( !painter )
+        return 0;
+    return painter->element_count;
+}
+
 void
 painter_tile_set_bridge(
     struct Painter* painter, //
@@ -797,6 +809,38 @@ painter_add_normal_scenery(
         size_x = 15;
     if( size_z > 15 )
         size_z = 15;
+
+#if WORLD_DEBUG_PAINTER_LOC_BUILD
+    {
+        int const w = painter->width;
+        int const h = painter->height;
+        int const oob = (sx < 0 || sz < 0 || sx >= w || sz >= h);
+        int const raw_max_x = sx + size_x - 1;
+        int const raw_max_z = sz + size_z - 1;
+        int const clip_x = raw_max_x > (w - 1);
+        int const clip_z = raw_max_z > (h - 1);
+        if( oob || clip_x || clip_z )
+        {
+            fprintf(
+                stderr,
+                "[painter_loc] normal_scenery OOB=%d CLIP_X=%d CLIP_Z=%d sx=%d sz=%d lvl=%d "
+                "szx=%d szz=%d entity=%d scene=%dx%d raw_corner=(%d,%d)\n",
+                oob,
+                clip_x,
+                clip_z,
+                sx,
+                sz,
+                slevel,
+                size_x,
+                size_z,
+                entity,
+                w,
+                h,
+                raw_max_x,
+                raw_max_z);
+        }
+    }
+#endif
 
     int element = painter_push_element(painter);
 

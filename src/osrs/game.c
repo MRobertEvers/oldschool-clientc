@@ -11,6 +11,18 @@
 #include <string.h>
 
 void
+game_player_menu_ops_reset(struct GGame* game)
+{
+    if( !game )
+        return;
+    for( int i = 0; i < 5; i++ )
+    {
+        game->player_menu_op[i][0] = '\0';
+        game->player_menu_op_deprioritize[i] = false;
+    }
+}
+
+void
 game_add_message(
     struct GGame* game,
     int type,

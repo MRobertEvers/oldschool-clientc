@@ -1,22 +1,20 @@
 #include "interface.h"
 
-#include "osrs/clientscript_vm.h"
-#include "osrs/interface_state.h"
-#include "osrs/revconfig/uitree.h"
-#include "osrs/revconfig/uiscene.h"
-
 #include "graphics/dash.h"
 #include "obj_icon.h"
 #include "osrs/buildcachedat.h"
+#include "osrs/clientscript_vm.h"
+#include "osrs/core/clientprot_core.h"
 #include "osrs/dash_utils.h"
 #include "osrs/entity_scenebuild.h"
+#include "osrs/interface_state.h"
 #include "osrs/minimenu_action.h"
-#include "osrs/core/clientprot_core.h"
 #include "osrs/packetout.h"
 #include "osrs/player_stats.h"
+#include "osrs/revconfig/uiscene.h"
+#include "osrs/revconfig/uitree.h"
 #include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
-#include "osrs/clientscript_vm.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,7 +23,9 @@
 #define INV_MENU_MAX 24
 
 static struct DashPixFont*
-interface_font_from_reftable(struct GGame* game, char const* name)
+interface_font_from_reftable(
+    struct GGame* game,
+    char const* name)
 {
     if( !game || !game->ui_scene || !game->buildcachedat || !name )
         return NULL;
@@ -36,7 +36,9 @@ interface_font_from_reftable(struct GGame* game, char const* name)
 }
 
 static struct DashSprite*
-interface_component_sprite_from_reftable(struct GGame* game, char const* graphic_name)
+interface_component_sprite_from_reftable(
+    struct GGame* game,
+    char const* graphic_name)
 {
     if( !game || !game->ui_scene || !game->buildcachedat || !graphic_name || !graphic_name[0] )
         return NULL;
@@ -449,7 +451,6 @@ interface_draw_component(
     dash2d_set_bounds(view_port, saved_left, saved_top, saved_right, saved_bottom);
 }
 
-
 void
 interface_draw_component_layer(
     struct GGame* game,
@@ -517,7 +518,6 @@ find_hovered_interface_id_recursive(
     }
 }
 
-
 /* Return the hovered component id for the given root and area (root_x, root_y).
  * Used to set game->current_hovered_interface_id before drawing. */
 int
@@ -560,8 +560,7 @@ interface_update_region_hover_ids(struct GGame* game)
     {
         struct CacheDatConfigComponent* root =
             buildcachedat_get_component(game->buildcachedat, iface->viewport_interface_id);
-        iface->over_main_com_id =
-            interface_find_hovered_interface_id(game, root, 4, 4, mx, my);
+        iface->over_main_com_id = interface_find_hovered_interface_id(game, root, 4, 4, mx, my);
     }
 
     if( mx > 553 && my > 205 && mx < 743 && my < 466 )
@@ -602,8 +601,7 @@ interface_update_region_hover_ids(struct GGame* game)
     {
         struct CacheDatConfigComponent* root =
             buildcachedat_get_component(game->buildcachedat, iface->chat_interface_id);
-        iface->over_chat_com_id =
-            interface_find_hovered_interface_id(game, root, 17, 357, mx, my);
+        iface->over_chat_com_id = interface_find_hovered_interface_id(game, root, 17, 357, mx, my);
     }
 
     /* Aggregate: first region that has a hover wins (main > side > chat). */
@@ -615,8 +613,153 @@ interface_update_region_hover_ids(struct GGame* game)
         iface->current_hovered_interface_id = iface->over_chat_com_id;
 }
 
+static int
+interface_inv_slot_index_at_mouse(
+    struct CacheDatConfigComponent* inv,
+    int base_x,
+    int base_y,
+    int mx,
+    int my)
+{
+    if( !inv || inv->type != COMPONENT_TYPE_INV )
+        return -1;
+    int slot = 0;
+    for( int row = 0; row < inv->height; row++ )
+    {
+        for( int col = 0; col < inv->width; col++ )
+        {
+            int slotX = base_x + col * (inv->marginX + 32);
+            int slotY = base_y + row * (inv->marginY + 32);
+            if( slot < 20 && inv->invSlotOffsetX && inv->invSlotOffsetY )
+            {
+                slotX += inv->invSlotOffsetX[slot];
+                slotY += inv->invSlotOffsetY[slot];
+            }
+            if( mx >= slotX && mx < slotX + 32 && my >= slotY && my < slotY + 32 )
+                return slot;
+            slot++;
+        }
+    }
+    return -1;
+}
+
+static bool
+interface_cache_inv_slot_has_menu(
+    struct CacheDatConfigComponent* inv,
+    int slot)
+{
+    int obj_id = 0;
+    int nslots = inv->width * inv->height;
+    if( slot >= 0 && slot < nslots && inv->invSlotObjId && slot < UI_INVENTORY_MAX_ITEMS )
+        obj_id = inv->invSlotObjId[slot] > 0 ? inv->invSlotObjId[slot] - 1 : 0;
+    if( obj_id > 0 )
+        return true;
+    if( inv->iop )
+    {
+        for( int i = 0; i < 5; i++ )
+        {
+            if( inv->iop[i] && inv->iop[i][0] )
+                return true;
+        }
+    }
+    return false;
+}
+
+static bool
+interface_sidebar_overlay_pick_inv_recursive(
+    struct GGame* game,
+    struct CacheDatConfigComponent* component,
+    int abs_x,
+    int abs_y,
+    int scroll_y,
+    int mx,
+    int my,
+    struct CacheDatConfigComponent** out_inv,
+    int* out_slot)
+{
+    if( !game || !game->iface || !game->buildcachedat || !component || !component->children ||
+        !component->childX || !component->childY )
+        return false;
+
+    for( int i = component->children_count - 1; i >= 0; i-- )
+    {
+        int child_id = component->children[i];
+        struct CacheDatConfigComponent* child =
+            buildcachedat_get_component(game->buildcachedat, child_id);
+        if( !child )
+            continue;
+
+        int childX = component->childX[i] + abs_x;
+        int childY = component->childY[i] + abs_y - scroll_y;
+        childX += child->x;
+        childY += child->y;
+
+        if( child->type == COMPONENT_TYPE_LAYER )
+        {
+            int scroll_pos = 0;
+            if( child_id >= 0 && child_id < MAX_IFACE_SCROLL_IDS )
+                scroll_pos = game->iface->component_scroll_position[child_id];
+            int max_scroll = child->scroll - child->height;
+            if( max_scroll < 0 )
+                max_scroll = 0;
+            if( scroll_pos > max_scroll )
+                scroll_pos = max_scroll;
+            if( scroll_pos < 0 )
+                scroll_pos = 0;
+            if( interface_sidebar_overlay_pick_inv_recursive(
+                    game, child, childX, childY, scroll_pos, mx, my, out_inv, out_slot) )
+                return true;
+        }
+        else if( child->type == COMPONENT_TYPE_INV )
+        {
+            int slot = interface_inv_slot_index_at_mouse(child, childX, childY, mx, my);
+            if( slot >= 0 && interface_cache_inv_slot_has_menu(child, slot) )
+            {
+                *out_inv = child;
+                *out_slot = slot;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool
+interface_sidebar_overlay_try_fill_uitree_options(
+    struct GGame* game,
+    struct UITreeOptionSet* os)
+{
+    if( !game || !os || !game->iface || !game->buildcachedat )
+        return false;
+    if( game->iface->sidebar_interface_id < 0 )
+        return false;
+
+    int mx = game->mouse_x;
+    int my = game->mouse_y;
+    if( mx <= 553 || my <= 205 || mx >= 743 || my >= 466 )
+        return false;
+
+    struct CacheDatConfigComponent* root =
+        buildcachedat_get_component(game->buildcachedat, game->iface->sidebar_interface_id);
+    if( !root || root->type != COMPONENT_TYPE_LAYER )
+        return false;
+
+    struct CacheDatConfigComponent* hit_inv = NULL;
+    int slot = -1;
+    if( !interface_sidebar_overlay_pick_inv_recursive(
+            game, root, 553, 205, 0, mx, my, &hit_inv, &slot) ||
+        !hit_inv || slot < 0 )
+        return false;
+
+    uitree_fill_inv_slot_options_from_cache_inv(game, hit_inv, slot, os);
+    return os->option_count > 0;
+}
+
 int
-interface_hover_tooltip_line(struct GGame* game, char* out, int out_cap)
+interface_hover_tooltip_line(
+    struct GGame* game,
+    char* out,
+    int out_cap)
 {
     if( !game || !game->iface || !game->buildcachedat || !out || out_cap <= 0 )
         return 0;
@@ -670,7 +813,9 @@ interface_hover_tooltip_line(struct GGame* game, char* out, int out_cap)
 }
 
 bool
-interface_component_is_overlay_hovered(struct GGame* game, int component_id)
+interface_component_is_overlay_hovered(
+    struct GGame* game,
+    int component_id)
 {
     if( !game || !game->iface || component_id < 0 )
         return false;
@@ -956,7 +1101,7 @@ interface_apply_button_click_varp_optimistic(
     if( opcode == 5 )
     {
         /* pushvar {id} */
-        int varp    = script[1];
+        int varp = script[1];
         int current = clientscript_vm_get_var(vm, varp);
 
         if( com->buttonType == COMPONENT_BUTTON_TYPE_TOGGLE )
@@ -987,14 +1132,13 @@ interface_apply_button_click_varp_optimistic(
         if( bit_count <= 0 || bit_count >= VARP_VARBIT_READBIT_MAX )
             return;
 
-        int mask    = vm->readbit[bit_count];
+        int mask = vm->readbit[bit_count];
         int base_val = clientscript_vm_get_var(vm, vb->basevar);
         int cleared = base_val & ~(mask << vb->startbit);
         int updated = cleared | ((new_val & mask) << vb->startbit);
         clientscript_vm_set_var_optimistic(vm, vb->basevar, updated);
     }
-    else if( opcode == 14 && com->buttonType == COMPONENT_BUTTON_TYPE_SELECT &&
-             com->scriptOperand )
+    else if( opcode == 14 && com->buttonType == COMPONENT_BUTTON_TYPE_SELECT && com->scriptOperand )
     {
         /* push_varbit + SELECT: set varbit to operand */
         int varbit_id = script[1];
@@ -1013,7 +1157,7 @@ interface_apply_button_click_varp_optimistic(
         if( bit_count <= 0 || bit_count >= VARP_VARBIT_READBIT_MAX )
             return;
 
-        int mask    = vm->readbit[bit_count];
+        int mask = vm->readbit[bit_count];
         int base_val = clientscript_vm_get_var(vm, vb->basevar);
         int cleared = base_val & ~(mask << vb->startbit);
         int updated = cleared | ((operand & mask) << vb->startbit);
@@ -1181,8 +1325,7 @@ interface_draw_component_rect(
         int alpha = 256 - (component->alpha & 0xFF);
         if( component->fill )
             fill_rect_alpha_clipped(
-                vp, pixel_buffer, stride, x, y, component->width, component->height, colour,
-                alpha);
+                vp, pixel_buffer, stride, x, y, component->width, component->height, colour, alpha);
         else
             draw_rect_clipped(
                 vp, pixel_buffer, stride, x, y, component->width, component->height, colour);
@@ -1876,16 +2019,16 @@ interface_handle_inv_button(
         return;
 
     /* Map the raw opcode to the canonical which (1-5). */
-    static const int inv_ops[] = {
-        PKTOUT_LC245_2_INV_BUTTON1, PKTOUT_LC245_2_INV_BUTTON2,
-        PKTOUT_LC245_2_INV_BUTTON3, PKTOUT_LC245_2_INV_BUTTON4,
-        PKTOUT_LC245_2_INV_BUTTON5
-    };
-    static const int held_ops[] = {
-        PKTOUT_LC245_2_OPHELD1, PKTOUT_LC245_2_OPHELD2,
-        PKTOUT_LC245_2_OPHELD3, PKTOUT_LC245_2_OPHELD4,
-        PKTOUT_LC245_2_OPHELD5
-    };
+    static const int inv_ops[] = { PKTOUT_LC245_2_INV_BUTTON1,
+                                   PKTOUT_LC245_2_INV_BUTTON2,
+                                   PKTOUT_LC245_2_INV_BUTTON3,
+                                   PKTOUT_LC245_2_INV_BUTTON4,
+                                   PKTOUT_LC245_2_INV_BUTTON5 };
+    static const int held_ops[] = { PKTOUT_LC245_2_OPHELD1,
+                                    PKTOUT_LC245_2_OPHELD2,
+                                    PKTOUT_LC245_2_OPHELD3,
+                                    PKTOUT_LC245_2_OPHELD4,
+                                    PKTOUT_LC245_2_OPHELD5 };
     for( int i = 0; i < 5; i++ )
     {
         if( opcode == (uint8_t)inv_ops[i] )
@@ -1900,4 +2043,25 @@ interface_handle_inv_button(
             return;
         }
     }
+}
+
+void
+interface_magic_tab_request_inv_transmit_if_configured(struct GGame* game)
+{
+    // if( !game )
+    //     return;
+    // char const* e = getenv("TORI_MAGIC_TAB_IF_BUTTON_COMP");
+    // if( !e || !e[0] )
+    //     return;
+    // int cid = atoi(e);
+    // if( cid <= 0 )
+    //     return;
+    // if( GAME_NET_STATE_GAME != game->net_state )
+    //     return;
+    int cid = 1151;
+    printf(
+        "[TORI] magic tab: IF_BUTTON component_id=%d (TORI_MAGIC_TAB_IF_BUTTON_COMP — server "
+        "hook for inv_transmit)\n",
+        cid);
+    clientprot_if_button(game, cid);
 }

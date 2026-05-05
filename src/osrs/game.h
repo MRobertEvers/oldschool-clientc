@@ -217,6 +217,11 @@ struct GGame
     /* In-multicombat zone flag: updated by SET_MULTIWAY */
     int in_multiway;
 
+    /** Per-slot player right-click op labels (Client.ts playerOp / SET_PLAYER_OP). */
+    char player_menu_op[5][64];
+    /** When true, add MINIMENU_ACTION_PRIORITY_OFFSET (Client.ts playerOpPriority). */
+    bool player_menu_op_deprioritize[5];
+
     /* Reboot timer: set by UPDATE_REBOOT_TIMER, -1 = not active */
     int reboot_timer_ticks;
 
@@ -273,6 +278,9 @@ struct GGame
     int soft3d_buffer_w;
     int soft3d_buffer_h;
 };
+
+void
+game_player_menu_ops_reset(struct GGame* game);
 
 void
 game_add_message(

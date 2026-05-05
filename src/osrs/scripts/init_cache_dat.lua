@@ -10,19 +10,30 @@ local function print_heap(label)
     print(string.format("[heap] %-48s %.1f MB", label, mb))
 end
 
+-- Integer division trunc toward zero (matches C `zone_sw_x / 8`), not Lua math.floor toward -inf.
+local function trunc_div_toward_zero(a, b)
+    if b < 0 then
+        a, b = -a, -b
+    end
+    if a >= 0 then
+        return math.floor(a / b)
+    end
+    return math.ceil(a / b)
+end
+
 -- Compute the chunk range that world_rebuild_centerzone_begin / game_build_scene_centerzone
--- will use, matching the C formula: zone_padding = scene_size / 16, chunk = zone / 8.
+-- will use. zone_padding = ceil((scene_size-8)/16) so (2*padding+1)*8 >= scene_size.
 local function zone_to_chunk_range(zone_center_x, zone_center_z, scene_size)
-    local zone_padding = math.floor(scene_size / (2 * 8))
+    local zone_padding = scene_size > 8 and math.ceil((scene_size - 8) / 16) or 0
     local zone_sw_x = zone_center_x - zone_padding
     local zone_sw_z = zone_center_z - zone_padding
     local zone_ne_x = zone_center_x + zone_padding
     local zone_ne_z = zone_center_z + zone_padding
     return
-        math.floor(zone_sw_x / 8),
-        math.floor(zone_sw_z / 8),
-        math.floor(zone_ne_x / 8),
-        math.floor(zone_ne_z / 8)
+        trunc_div_toward_zero(zone_sw_x, 8),
+        trunc_div_toward_zero(zone_sw_z, 8),
+        trunc_div_toward_zero(zone_ne_x, 8),
+        trunc_div_toward_zero(zone_ne_z, 8)
 end
 
 -- Load terrain and scenery for a single chunk into buildcachedat.

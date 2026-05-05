@@ -163,6 +163,12 @@ world_rebuild_centerzone_begin(
     int zone_center_z,
     int scene_size);
 
+/** Abort if any 64x64 map chunk in [_chunk_sw_* .. _chunk_ne_*] is missing terrain or scenery.
+ * Call only when BuildCacheDat still holds the full grid (e.g. after bulk load, not after
+ * incremental Lua rebuild_centerzone_end that clears maps between chunks). */
+void
+world_rebuild_centerzone_verify_buildcachedat_maps(struct World* world);
+
 void
 world_rebuild_centerzone_chunk_terrain(
     struct World* world,

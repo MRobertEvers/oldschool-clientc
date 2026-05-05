@@ -335,6 +335,16 @@ uitree_find_inv_index_by_component_id(
     int component_id,
     int32_t* out_node_idx);
 
+struct CacheDatConfigComponent;
+
+/** Inventory minimenu lines from build-cache inv component (UPDATE_INV_* / IF_OPENSIDE path). */
+void
+uitree_fill_inv_slot_options_from_cache_inv(
+    struct GGame* game,
+    struct CacheDatConfigComponent* inv,
+    int slot,
+    struct UITreeOptionSet* os);
+
 char const*
 uitree_component_type_str(enum StaticUIComponentType type);
 
@@ -369,6 +379,15 @@ int
 uitree_inv_pool_append(
     struct UIInventoryPool* pool,
     struct UIInventory const* inv);
+
+/**
+ * Finds or appends an empty inventory named `if_<component_id>` for RS interface inv
+ * components under sidebars with no named `inv=` (magic spell rows, prayer orbs, etc.).
+ */
+int
+uitree_inv_pool_find_or_append_by_component_id(
+    struct UIInventoryPool* pool,
+    int component_id);
 
 #define STATIC_UI_RELATIVE_FLAG_LEFT 1
 #define STATIC_UI_RELATIVE_FLAG_TOP 2
