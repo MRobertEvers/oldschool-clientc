@@ -27,6 +27,28 @@ struct InterfaceState
     int selected_item;
     int selected_interface;
     int selected_cycle;
+
+    /** Client.ts useMode / targetMode + spell target (inventory right-click). */
+    int inv_use_mode;
+    int inv_target_mode;
+    int inv_sel_obj_id;
+    int inv_sel_slot;
+    int inv_sel_comp_id;
+    char inv_sel_obj_name[64];
+    int inv_target_src_comp_id;
+    int inv_target_mask;
+    char inv_target_op[128];
+
+    /** Client.ts objDragArea / objDragCycles / objGrabThreshold — inventory drag-drop. */
+    int inv_drag_area;
+    int inv_drag_comp_id;
+    int inv_drag_slot;
+    int inv_drag_cycles;
+    int inv_drag_grab_threshold;
+    int inv_drag_grab_x;
+    int inv_drag_grab_y;
+    /** Suppress duplicate primary from TORIRSEV2_CLICK after drag mouse-up handled it. */
+    int inv_suppress_next_left_click;
 };
 
 struct InterfaceState*

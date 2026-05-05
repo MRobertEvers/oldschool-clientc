@@ -13,6 +13,7 @@
 #include "osrs/interface.h"
 #include "osrs/isaac.h"
 #include "osrs/core/clientprot_core.h"
+#include "osrs/ginput.h"
 #include "osrs/packetout.h"
 #include "osrs/painters.h"
 #include "osrs/rscache/rsbuf.h"
@@ -248,7 +249,8 @@ entity_face(
  * - Runs BFS via collision_map_bfs_path
  * - Loads result into the local player EntityPathing
  * - Sets game->minimap_flag_x/z to the destination
- * - Does NOT send any packet to the server (all packet calls are no-ops per guard)
+ * - Emits Client.ts MOVE_GAMECLICK when in game and Isaac outbound is active (unless
+ *   `suppress_move_gameclick_once` is set by a prior MOVE_OPCLICK from minimenu).
  *
  * Returns true if a path was found and loaded.
  */
@@ -258,7 +260,8 @@ static bool
 game_try_move(
     struct GGame* game,
     int dst_tile_x,
-    int dst_tile_z)
+    int dst_tile_z,
+    int run)
 {
     if( !game->world || !game->world->collision_map )
         return false;
@@ -308,6 +311,15 @@ game_try_move(
     game->minimap_flag_z = dst_tile_z;
     game->minimap_flag_has = 1;
 
+    if( game->suppress_move_gameclick_once )
+    {
+        game->suppress_move_gameclick_once = 0;
+    }
+    else if( game->net_state == GAME_NET_STATE_GAME && game->random_out )
+    {
+        clientprot_emit_move_gameclick_path(game, run, path_x, path_z, path_len);
+    }
+
     return true;
 }
 
@@ -346,10 +358,12 @@ LibToriRS_GameStep(
 
     /* Terrain tile click: run local BFS and load path into player pathing.
      * Mirrors Client.ts tryMove(routeTileX[0],routeTileZ[0], x, z, true, ..., type=0/1).
-     * Movement packets reach the server via clientprot_core_emit (see TORI_DEBUG_PKTOUT). */
+     * Movement packets reach the server via clientprot_core_emit (`[pkout]` logs by default;
+     * TORI_DEBUG_PKTOUT=0 silences). */
     if( game->tile_clicked_x >= 0 && game->world )
     {
-        game_try_move(game, game->tile_clicked_x, game->tile_clicked_z);
+        int run = (input && game_input_keydown_or_pressed(input, TORIRSK_SHIFT)) ? 1 : 0;
+        game_try_move(game, game->tile_clicked_x, game->tile_clicked_z, run);
         game->tile_clicked_x = -1;
         game->tile_clicked_z = -1;
         game->tile_clicked_level = -1;

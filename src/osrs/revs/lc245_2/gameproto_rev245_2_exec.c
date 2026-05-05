@@ -4,7 +4,6 @@
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
 #include "osrs/clientscript_vm.h"
-#include "osrs/core/clientprot_core.h"
 #include "osrs/dash_utils.h"
 #include "osrs/datatypes/appearances.h"
 #include "osrs/datatypes/player_appearance.h"
@@ -435,9 +434,6 @@ gameproto_rev245_2_exec_rebuild_normal(
     }
 
     LibToriRS_WorldMinimapStaticRebuild(game);
-
-    /* Notify server that map build is complete (Client.ts MAP_BUILD_COMPLETE). */
-    clientprot_map_build_complete(game);
 }
 
 void
@@ -568,7 +564,13 @@ inv_sync_load_item_sprite(
     item->obj_id = obj_id_0based + 1;
     item->obj_count = count > 0 ? count : 1;
 
-    struct DashSprite* sp = obj_icon_get(game, obj_id_0based, count > 0 ? count : 1);
+    struct DashSprite* cached = obj_icon_get(game, obj_id_0based, count > 0 ? count : 1);
+    if( !cached )
+        return;
+
+    /* UIScene owns and frees sprites on release; obj_icon_get may return a cache pointer that LRU
+     * eviction frees while slots still reference it — clone for exclusive ownership. */
+    struct DashSprite* sp = dashsprite_clone(cached);
     if( !sp )
         return;
 
@@ -1544,6 +1546,15 @@ gameproto_rev245_2_exec_if_close(
         game->iface->selected_item = 0;
         game->iface->selected_interface = -1;
         game->iface->selected_cycle = 0;
+        game->iface->inv_use_mode           = 0;
+        game->iface->inv_target_mode        = 0;
+        game->iface->inv_sel_obj_id         = 0;
+        game->iface->inv_sel_slot           = 0;
+        game->iface->inv_sel_comp_id        = -1;
+        game->iface->inv_sel_obj_name[0]    = '\0';
+        game->iface->inv_target_src_comp_id = -1;
+        game->iface->inv_target_mask        = 0;
+        game->iface->inv_target_op[0]       = '\0';
     }
     /* Release scrollbar drag if any. */
     if( game->ui_root_buffer )

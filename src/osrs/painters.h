@@ -205,7 +205,8 @@ enum PaintersElementKind
 
 struct NormalScenery
 {
-    uint16_t entity;
+    /** Scene2 element index (`scene2_element_acquire_*`); may exceed 65535 when fast pool is large. */
+    int entity;
     uint8_t size_x : 4;
     uint8_t size_z : 4;
 };
@@ -295,19 +296,9 @@ enum PaintersCommandKind
     PNTR_CMD_TERRAIN,
 };
 
-// Want to pack into 64 bits.
-// 16 bits: Need 16 bits for world element idx.
-// 18 bits: x,y 9 bits each = 18 bits (512x512)
-// 3  bits: level (0-7)
-// 4  bits: command (0-15) : scenery or terrain
-
-// Either element or terrain.
-// Entity:
-// - 4  bits: kind = 1, CMD = Entity
-// - 16 bits: world entity idx.
-// Terrain:
-// - 4  bits: kind = 2, CMD = Terrain
-// - 16 bits: terrain x,y,z. (9 bits each)
+// Packed into 32 bits (`uint32_t _packed`).
+// Entity command: 4 bits kind + 28 bits Scene2 element index (supports large fast+full pools).
+// Terrain command: 4 bits kind + 9+9+4 bits tile x/z/level (see `_terrain`).
 struct PaintersElementCommand
 {
     union
@@ -322,7 +313,7 @@ struct PaintersElementCommand
         struct
         {
             uint32_t _bf_kind : 4;
-            uint32_t _bf_entity : 16;
+            uint32_t _bf_entity : 28;
         } _entity;
 
         struct

@@ -89,6 +89,8 @@ struct GGame
     int tile_clicked_x;
     int tile_clicked_z;
     int tile_clicked_level;
+    /** After MOVE_OPCLICK from minimenu, skip one MOVE_GAMECLICK from local `game_try_move`. */
+    int suppress_move_gameclick_once;
     int mouse_tile_x;
     int mouse_tile_z;
     int mouse_tile_level;

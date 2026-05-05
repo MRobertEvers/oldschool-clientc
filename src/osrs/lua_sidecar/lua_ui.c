@@ -1,5 +1,6 @@
 #include "lua_ui.h"
 
+#include "graphics/dash.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
 #include "osrs/game.h"
@@ -211,7 +212,10 @@ LuaUI_resolve_inv_sprites(
                 continue;
 
             int obj_lookup = item->obj_id - 1;
-            struct DashSprite* sp = obj_icon_get(game, obj_lookup, 1);
+            struct DashSprite* cached = obj_icon_get(game, obj_lookup, 1);
+            if( !cached )
+                continue;
+            struct DashSprite* sp = dashsprite_clone(cached);
             if( !sp )
                 continue;
 

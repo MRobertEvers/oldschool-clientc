@@ -313,6 +313,9 @@ struct UITree
     struct UITreeOptionSet uitree_optionset;
     /** UITree node index that produced uitree_optionset, or -1. */
     int32_t hover_node_index;
+    /** Last hover pick for TYPE_INV / sidebar overlay cache inv (-1 = none). */
+    int hover_inv_component_id;
+    int hover_inv_slot;
 };
 
 /**
@@ -678,8 +681,8 @@ uitree_innermost_scroll_layer_at(
     int mouse_x,
     int mouse_y);
 
-/** Hit-test UI under mouse and rebuild tree->uitree_optionset (world layer leaves set empty). */
+/** Hit-test UI at (pick_mx,pick_my) and rebuild tree->uitree_optionset (world leaves stay empty). */
 void
-uitree_sync_hover_option_set(struct GGame* game);
+uitree_sync_hover_option_set(struct GGame* game, int pick_mx, int pick_my);
 
 #endif

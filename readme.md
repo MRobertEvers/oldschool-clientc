@@ -1756,3 +1756,19 @@ python3 -m http.server -b 0.0.0.0 -d . 8000
 6. Fonts and Text
 7. Drawing models with multiple textures
 8. Drawing models with ALPHA.
+
+## Architecture
+
+1. Boundaries around revision specific
+2. Architecture of the UI tree, relation to inventories, sprites, uiscene
+3. scene2 and world relation
+
+### Modules
+
+1. Scene2
+2. World
+3. Minimenu
+4. ClientVM
+5. Minimap
+6. UIScene
+7. BuildCache

@@ -182,10 +182,11 @@ decode_component(
         component->invSlotObjCount = malloc(component->width * component->height * sizeof(int));
         memset(component->invSlotObjCount, 0, component->width * component->height * sizeof(int));
 
-        component->draggable = g1(inb) == 1;
+        /* IfType.ts TYPE_INV: objSwap, objOps, objUse, objReplace */
+        component->swappable    = g1(inb) == 1;
         component->interactable = g1(inb) == 1;
-        component->usable = g1(inb) == 1;
-        component->swappable = g1(inb) == 1;
+        component->usable       = g1(inb) == 1;
+        component->draggable    = g1(inb) == 1;
         component->marginX = g1(inb);
         component->marginY = g1(inb);
 

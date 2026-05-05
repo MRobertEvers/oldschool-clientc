@@ -894,6 +894,10 @@ dashsprite_new_from_argb_owned(
     int width,
     int height);
 
+/** Deep copy of sprite + pixel buffer; caller owns result (dashsprite_free). */
+struct DashSprite*
+dashsprite_clone(struct DashSprite const* src);
+
 void
 dashpix8_free(struct DashPix8* pix8);
 void

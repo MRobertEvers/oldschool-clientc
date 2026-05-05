@@ -3388,6 +3388,28 @@ dashsprite_new_from_argb_owned(
     return sprite;
 }
 
+struct DashSprite*
+dashsprite_clone(struct DashSprite const* src)
+{
+    if( !src || src->width <= 0 || src->height <= 0 || !src->pixels_argb )
+        return NULL;
+    size_t const npx = (size_t)src->width * (size_t)src->height;
+    size_t const nbytes = npx * sizeof(uint32_t);
+    uint32_t* px = (uint32_t*)malloc(nbytes);
+    if( !px )
+        return NULL;
+    memcpy(px, src->pixels_argb, nbytes);
+    struct DashSprite* dst = (struct DashSprite*)malloc(sizeof(struct DashSprite));
+    if( !dst )
+    {
+        free(px);
+        return NULL;
+    }
+    memcpy(dst, src, sizeof(struct DashSprite));
+    dst->pixels_argb = px;
+    return dst;
+}
+
 void
 dashpix8_free(struct DashPix8* pix8)
 {
@@ -3901,10 +3923,18 @@ dashfont_evaluate_tag(const char* tag)
         return YELLOW;
     if( tag[0] == 'r' && tag[1] == 'e' && tag[2] == 'd' )
         return RED;
+    if( tag[0] == 'l' && tag[1] == 'r' && tag[2] == 'e' )
+        return LIGHTRED;
+    if( tag[0] == 'd' && tag[1] == 'r' && tag[2] == 'e' )
+        return DARKRED;
+    if( tag[0] == 'd' && tag[1] == 'b' && tag[2] == 'l' )
+        return DARKBLUE;
     if( tag[0] == 'g' && tag[1] == 'r' && tag[2] == 'e' )
         return GREEN;
     if( tag[0] == 'm' && tag[1] == 'a' && tag[2] == 'g' )
         return MAGENTA;
+    if( tag[0] == 'b' && tag[1] == 'l' && tag[2] == 'u' )
+        return BLUE;
     if( tag[0] == 'b' && tag[1] == 'l' && tag[2] == 'a' )
         return BLACK;
     if( tag[0] == 'o' && tag[1] == 'r' && tag[2] == '1' )
@@ -4060,7 +4090,8 @@ dashfont_draw_text_clipped_taggable(
         return;
     int length = (int)strlen((char*)text);
     int color = default_color_rgb;
-    int shadow_color = 0xFF000000 | BLACK;
+    /* Shadow is never tag-colored; framebuffer stores 0x00RRGGBB (see interface.c shadow pass). */
+    int const shadow_rgb = 0x000000;
     for( int i = 0; i < length; i++ )
     {
         if( text[i] == '@' && i + 5 <= length && text[i + 4] == '@' )
@@ -4101,7 +4132,7 @@ dashfont_draw_text_clipped_taggable(
                     clip_top,
                     clip_right,
                     clip_bottom,
-                    shadow_color);
+                    shadow_rgb);
             }
             int dst_offset = base_y * stride + base_x;
             dashfont_draw_mask_clipped(

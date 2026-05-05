@@ -393,6 +393,8 @@ uitree_new(uint32_t hint)
     tree->ui_minimap_mapdots4_element_id = -1;
     tree->ui_minimap_mapmarker2_element_id = -1;
     tree->ui_minimap_mapmarker_element_id = -1;
+    tree->hover_inv_component_id = -1;
+    tree->hover_inv_slot         = -1;
     return tree;
 }
 
@@ -1414,6 +1416,35 @@ uitree_inv_slot_contains_mouse(
     return false;
 }
 
+/** 0-based object def id: inv_pool first, then cache invSlotObjId (Client.ts linkObjType). */
+static int
+uitree_inv_slot_obj_def_id(struct GGame* game, struct StaticUIComponent* inv, int slot)
+{
+    if( slot < 0 || slot >= UI_INVENTORY_MAX_ITEMS )
+        return 0;
+    int inv_i = inv->u.rs_inv.inv_index;
+    if( game && game->inv_pool && inv_i >= 0 && inv_i < game->inv_pool->count )
+    {
+        int id = game->inv_pool->inventories[inv_i].items[slot].obj_id;
+        /* Pool uses 1-based wire ids (UIInventoryItem); match cache branch and Client.ts linkObjType-1. */
+        if( id > 0 )
+            return id - 1;
+    }
+    int comp_id = inv->component_id >= 0 ? inv->component_id : 0;
+    if( game && game->buildcachedat && comp_id >= 0 )
+    {
+        struct CacheDatConfigComponent* cc =
+            buildcachedat_get_component(game->buildcachedat, comp_id);
+        if( cc && cc->type == COMPONENT_TYPE_INV && cc->invSlotObjId )
+        {
+            int nslots = cc->width * cc->height;
+            if( slot < nslots && cc->invSlotObjId[slot] > 0 )
+                return cc->invSlotObjId[slot] - 1;
+        }
+    }
+    return 0;
+}
+
 static bool
 uitree_inv_slot_has_menu(
     struct GGame* game,
@@ -1422,17 +1453,80 @@ uitree_inv_slot_has_menu(
 {
     if( slot < 0 )
         return false;
-    int obj_id = 0;
-    int inv_i = inv->u.rs_inv.inv_index;
-    if( game && game->inv_pool && inv_i >= 0 && inv_i < game->inv_pool->count &&
-        slot < UI_INVENTORY_MAX_ITEMS )
-        obj_id = game->inv_pool->inventories[inv_i].items[slot].obj_id;
-    if( obj_id > 0 )
+    if( uitree_inv_slot_obj_def_id(game, inv, slot) > 0 )
         return true;
     for( int i = 0; i < 5; i++ )
     {
         if( inv->iop[i] && inv->iop[i][0] )
             return true;
+    }
+    return false;
+}
+
+static int
+uitree_inv_scroll_offset_from_root(struct GGame* game, struct UITree* t, int inv_idx)
+{
+    int layers[32];
+    int nl = 0;
+    int idx = t->components[inv_idx].parent;
+    while( idx >= 0 && nl < 32 )
+    {
+        if( t->components[idx].type == UIELEM_RS_LAYER )
+            layers[nl++] = idx;
+        idx = t->components[idx].parent;
+    }
+    int total = 0;
+    for( int j = nl - 1; j >= 0; j-- )
+    {
+        struct StaticUIComponent* L = &t->components[layers[j]];
+        int lh = L->position.height;
+        int sh = L->u.rs_layer.scroll_height;
+        total += iface_scroll_clamped(game, L->component_id, sh, lh);
+    }
+    return total;
+}
+
+/** Primary pick can return BUILTIN_WORLD when its rect covers UI; prefer deepest RS_INV under cursor. */
+static bool
+uitree_fallback_pick_rs_inv(
+    struct GGame* game,
+    struct UITree* t,
+    int mx,
+    int my,
+    int* out_hit,
+    int* out_slot)
+{
+    int best_depth = -1;
+    int best_i     = -1;
+    int best_slot  = -1;
+    for( uint32_t i = 0; i < t->component_count; i++ )
+    {
+        struct StaticUIComponent* c = &t->components[i];
+        if( c->type != UIELEM_RS_INV || c->is_hidden )
+            continue;
+        if( c->position.kind != UIPOS_XY )
+            continue;
+        int scroll_off = uitree_inv_scroll_offset_from_root(game, t, (int)i);
+        if( !uitree_point_in_component_scr(c, mx, my, scroll_off) )
+            continue;
+        int slot = -1;
+        if( !uitree_inv_slot_contains_mouse(c, mx, my, scroll_off, &slot) )
+            continue;
+        if( !uitree_inv_slot_has_menu(game, c, slot) )
+            continue;
+        int d = uitree_node_depth(t, (int)i);
+        if( d > best_depth )
+        {
+            best_depth = d;
+            best_i     = (int)i;
+            best_slot  = slot;
+        }
+    }
+    if( best_i >= 0 )
+    {
+        *out_hit  = best_i;
+        *out_slot = best_slot;
+        return true;
     }
     return false;
 }
@@ -1477,6 +1571,14 @@ uitree_opt_append(
     return true;
 }
 
+static struct CacheDatConfigComponent*
+uitree_cache_comp(struct GGame* game, int component_id)
+{
+    if( !game || !game->buildcachedat || component_id < 0 )
+        return NULL;
+    return buildcachedat_get_component(game->buildcachedat, component_id);
+}
+
 static void
 uitree_option_set_sort_ts(struct UITreeOptionSet* os)
 {
@@ -1506,7 +1608,8 @@ uitree_option_set_sort_ts(struct UITreeOptionSet* os)
 }
 
 /** Shared inventory minimenu lines for RS_INV (UITree) and IF_OPENSIDE cache subtree (Client.ts
- * addComponentOptions type-2; useMode/targetMode not wired — see Client.ts ~9915). */
+ * addComponentOptions type-2). useMode/targetMode: see uitree_fill_inv_slot_options.
+ * Menu params match Client.ts menuParamA/B/C: obj_def_id, slot, component_id. */
 static void
 uitree_fill_inv_slot_common(
     struct GGame* game,
@@ -1519,10 +1622,11 @@ uitree_fill_inv_slot_common(
     char const* comp_iop[5],
     struct UITreeOptionSet* os)
 {
-    (void)game;
     char const* oname = (obj && obj->name) ? obj->name : "";
     char line[96];
     char tbuf[72];
+    char opi[128];
+    struct CacheDatConfigComponent* inv_cd = uitree_cache_comp(game, comp_id);
 
     if( obj )
     {
@@ -1535,12 +1639,12 @@ uitree_fill_inv_slot_common(
                     snprintf(line, sizeof(line), "%s @lre@%s", obj->iop[op], oname);
                     enum MinimenuAction act =
                         (op == 4) ? MINIMENU_ACTION_OPHELD5 : MINIMENU_ACTION_OPHELD4;
-                    uitree_opt_append(os, act, line, comp_id, slot, obj_def_id);
+                    uitree_opt_append(os, act, line, obj_def_id, slot, comp_id);
                 }
                 else if( op == 4 )
                 {
                     snprintf(tbuf, sizeof(tbuf), "Drop @lre@%s", oname);
-                    uitree_opt_append(os, MINIMENU_ACTION_OPHELD5, tbuf, comp_id, slot, obj_def_id);
+                    uitree_opt_append(os, MINIMENU_ACTION_OPHELD5, tbuf, obj_def_id, slot, comp_id);
                 }
             }
         }
@@ -1548,7 +1652,7 @@ uitree_fill_inv_slot_common(
         if( usable )
         {
             snprintf(line, sizeof(line), "Use @lre@%s", oname);
-            uitree_opt_append(os, MINIMENU_ACTION_OPHELDT_START, line, comp_id, slot, obj_def_id);
+            uitree_opt_append(os, MINIMENU_ACTION_OPHELDT_START, line, obj_def_id, slot, comp_id);
         }
 
         if( interactable )
@@ -1563,7 +1667,7 @@ uitree_fill_inv_slot_common(
                         act = MINIMENU_ACTION_OPHELD2;
                     else if( op == 2 )
                         act = MINIMENU_ACTION_OPHELD3;
-                    uitree_opt_append(os, act, line, comp_id, slot, obj_def_id);
+                    uitree_opt_append(os, act, line, obj_def_id, slot, comp_id);
                 }
             }
         }
@@ -1572,7 +1676,13 @@ uitree_fill_inv_slot_common(
         {
             if( !comp_iop[op] || !comp_iop[op][0] )
                 continue;
-            snprintf(line, sizeof(line), "%s @lre@%s", comp_iop[op], oname);
+            interface_expand_if_text_placeholders(
+                game,
+                inv_cd,
+                comp_iop[op],
+                opi,
+                (int)sizeof(opi));
+            snprintf(line, sizeof(line), "%s @lre@%s", opi, oname);
             enum MinimenuAction act = MINIMENU_ACTION_INV_BUTTON1;
             if( op == 1 )
                 act = MINIMENU_ACTION_INV_BUTTON2;
@@ -1582,11 +1692,11 @@ uitree_fill_inv_slot_common(
                 act = MINIMENU_ACTION_INV_BUTTON4;
             else if( op == 4 )
                 act = MINIMENU_ACTION_INV_BUTTON5;
-            uitree_opt_append(os, act, line, comp_id, slot, obj_def_id);
+            uitree_opt_append(os, act, line, obj_def_id, slot, comp_id);
         }
 
         snprintf(line, sizeof(line), "Examine @lre@%s", oname);
-        uitree_opt_append(os, MINIMENU_ACTION_OPHELD6, line, comp_id, slot, obj_def_id);
+        uitree_opt_append(os, MINIMENU_ACTION_OPHELD6, line, obj_def_id, slot, comp_id);
     }
     else
     {
@@ -1603,7 +1713,13 @@ uitree_fill_inv_slot_common(
                 act = MINIMENU_ACTION_INV_BUTTON4;
             else if( op == 4 )
                 act = MINIMENU_ACTION_INV_BUTTON5;
-            uitree_opt_append(os, act, comp_iop[op], comp_id, slot, 0);
+            interface_expand_if_text_placeholders(
+                game,
+                inv_cd,
+                comp_iop[op],
+                opi,
+                (int)sizeof(opi));
+            uitree_opt_append(os, act, opi, 0, slot, comp_id);
         }
     }
 
@@ -1617,8 +1733,42 @@ uitree_fill_simple_component_options(
     struct StaticUIComponent* c,
     struct UITreeOptionSet* os)
 {
-    (void)game;
     int comp = c->component_id >= 0 ? c->component_id : 0;
+    struct CacheDatConfigComponent* cd =
+        c->component_id >= 0 ? uitree_cache_comp(game, c->component_id) : NULL;
+    char exp[192];
+
+    if( c->button_kind == UI_BUTTON_TARGET && game->iface && game->iface->inv_target_mode == 0 )
+    {
+        char line[96];
+        char prefix[72];
+        prefix[0] = '\0';
+        if( c->target_verb && c->target_verb[0] )
+        {
+            char const* sp = strchr(c->target_verb, ' ');
+            if( sp && sp != c->target_verb )
+            {
+                size_t n = (size_t)(sp - c->target_verb);
+                if( n > sizeof(prefix) - 1 )
+                    n = sizeof(prefix) - 1;
+                memcpy(prefix, c->target_verb, n);
+                prefix[n] = '\0';
+            }
+            else
+                strncpy(prefix, c->target_verb, sizeof(prefix) - 1);
+        }
+        snprintf(
+            line,
+            sizeof(line),
+            "%s @gre@%s",
+            prefix,
+            (c->target_text && c->target_text[0]) ? c->target_text : "");
+        interface_expand_if_text_placeholders(game, cd, line, exp, (int)sizeof(exp));
+        uitree_opt_append(os, MINIMENU_ACTION_TGT_BUTTON, exp, 0, 0, comp);
+        if( os->option_count > 0 )
+            uitree_option_set_sort_ts(os);
+        return;
+    }
 
     if( c->target_verb && c->target_verb[0] )
     {
@@ -1627,11 +1777,18 @@ uitree_fill_simple_component_options(
             snprintf(line, sizeof(line), "%s %s", c->target_verb, c->target_text);
         else
             snprintf(line, sizeof(line), "%s", c->target_verb);
-        uitree_opt_append(os, (enum MinimenuAction)MINIMENU_ACTION_IF_BUTTON, line, comp, 0, 0);
+        interface_expand_if_text_placeholders(game, cd, line, exp, (int)sizeof(exp));
+        uitree_opt_append(os, (enum MinimenuAction)MINIMENU_ACTION_IF_BUTTON, exp, comp, 0, 0);
     }
     else if( c->option && c->option[0] )
     {
-        uitree_opt_append(os, (enum MinimenuAction)MINIMENU_ACTION_IF_BUTTON, c->option, comp, 0, 0);
+        interface_expand_if_text_placeholders(
+            game,
+            cd,
+            c->option,
+            exp,
+            (int)sizeof(exp));
+        uitree_opt_append(os, (enum MinimenuAction)MINIMENU_ACTION_IF_BUTTON, exp, comp, 0, 0);
     }
     else
     {
@@ -1648,7 +1805,13 @@ uitree_fill_simple_component_options(
                 act = MINIMENU_ACTION_INV_BUTTON4;
             else if( i == 4 )
                 act = MINIMENU_ACTION_INV_BUTTON5;
-            uitree_opt_append(os, act, c->iop[i], comp, 0, 0);
+            interface_expand_if_text_placeholders(
+                game,
+                cd,
+                c->iop[i],
+                exp,
+                (int)sizeof(exp));
+            uitree_opt_append(os, act, exp, comp, 0, 0);
         }
     }
 
@@ -1657,10 +1820,16 @@ uitree_fill_simple_component_options(
 
     if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text && c->u.rs_text.text[0] )
     {
+        interface_expand_if_text_placeholders(
+            game,
+            cd,
+            c->u.rs_text.text,
+            exp,
+            (int)sizeof(exp));
         uitree_opt_append(
             os,
             (enum MinimenuAction)MINIMENU_ACTION_IF_BUTTON,
-            c->u.rs_text.text,
+            exp,
             comp,
             0,
             0);
@@ -1684,15 +1853,62 @@ uitree_fill_inv_slot_options(
 {
     int comp_id = inv->component_id >= 0 ? inv->component_id : 0;
 
-    int obj_id = 0;
-    int inv_i    = inv->u.rs_inv.inv_index;
-    if( game->inv_pool && inv_i >= 0 && inv_i < game->inv_pool->count && slot >= 0 &&
-        slot < UI_INVENTORY_MAX_ITEMS )
-        obj_id = game->inv_pool->inventories[inv_i].items[slot].obj_id;
+    int obj_id = uitree_inv_slot_obj_def_id(game, inv, slot);
 
     struct CacheDatConfigObj* obj =
         obj_id > 0 && game->buildcachedat ? buildcachedat_get_obj(game->buildcachedat, obj_id)
                                           : NULL;
+
+    if( game->iface && inv->interactable )
+    {
+        if( game->iface->inv_use_mode )
+        {
+            if( comp_id != game->iface->inv_sel_comp_id || slot != game->iface->inv_sel_slot )
+            {
+                if( obj && obj->name )
+                {
+                    char line[128];
+                    snprintf(
+                        line,
+                        sizeof(line),
+                        "Use %s @lre@%s",
+                        game->iface->inv_sel_obj_name[0] ? game->iface->inv_sel_obj_name : "item",
+                        obj->name);
+                    uitree_opt_append(
+                        os,
+                        MINIMENU_ACTION_USEHELD_ONHELD,
+                        line,
+                        obj_id,
+                        slot,
+                        comp_id);
+                    uitree_option_set_sort_ts(os);
+                }
+            }
+            return;
+        }
+        if( game->iface->inv_target_mode )
+        {
+            if( (game->iface->inv_target_mask & 0x10) == 16 && obj && obj->name )
+            {
+                char line[160];
+                snprintf(
+                    line,
+                    sizeof(line),
+                    "%s @lre@%s",
+                    game->iface->inv_target_op[0] ? game->iface->inv_target_op : "",
+                    obj->name);
+                uitree_opt_append(
+                    os,
+                    MINIMENU_ACTION_TGT_HELD,
+                    line,
+                    obj_id,
+                    slot,
+                    comp_id);
+                uitree_option_set_sort_ts(os);
+            }
+            return;
+        }
+    }
 
     char const* ciop[5];
     for( int i = 0; i < 5; i++ )
@@ -1857,25 +2073,82 @@ uitree_pick_descend(
         (*stack_top)--;
 }
 
+static void
+uitree_debug_log_inv_menu(struct GGame* game, struct UITree* tree, int inv_slot)
+{
+    char const* e = getenv("TORI_DEBUG_INV_MENU");
+    if( !e || e[0] == '\0' || strcmp(e, "0") == 0 || strcmp(e, "false") == 0 )
+        return;
+
+    int hit  = tree->hover_node_index;
+    int nopt = tree->uitree_optionset.option_count;
+    fprintf(
+        stderr,
+        "[TORI_DEBUG_INV_MENU] hover=%d opts=%d inv_slot=%d mx=%d my=%d\n",
+        hit,
+        nopt,
+        inv_slot,
+        game->mouse_x,
+        game->mouse_y);
+    if( hit >= 0 && (uint32_t)hit < tree->component_count )
+    {
+        struct StaticUIComponent* c = &tree->components[hit];
+        fprintf(stderr, "  hit type=%d comp_id=%d\n", (int)c->type, c->component_id);
+        if( c->type == UIELEM_RS_INV && inv_slot >= 0 && game->buildcachedat )
+        {
+            int inv_i = c->u.rs_inv.inv_index;
+            int pool_wire = 0;
+            if( game->inv_pool && inv_i >= 0 && inv_i < game->inv_pool->count &&
+                inv_slot < UI_INVENTORY_MAX_ITEMS )
+                pool_wire = game->inv_pool->inventories[inv_i].items[inv_slot].obj_id;
+            int pool_0base = pool_wire > 0 ? pool_wire - 1 : 0;
+            int cwire = 0;
+            struct CacheDatConfigComponent* cc =
+                buildcachedat_get_component(game->buildcachedat, c->component_id);
+            if( cc && cc->invSlotObjId && inv_slot >= 0 && inv_slot < cc->width * cc->height )
+                cwire = cc->invSlotObjId[inv_slot];
+            fprintf(
+                stderr,
+                "  inv_index=%d pool_obj_wire=%d pool_obj_0base=%d cache_inv_wire=%d\n",
+                inv_i,
+                pool_wire,
+                pool_0base,
+                cwire);
+        }
+    }
+}
+
 void
-uitree_sync_hover_option_set(struct GGame* game)
+uitree_sync_hover_option_set(struct GGame* game, int pick_mx, int pick_my)
 {
     struct UITree* tree = game ? game->ui_root_buffer : NULL;
     if( !game || !tree )
         return;
 
+    int mx = pick_mx;
+    int my = pick_my;
+
     tree->hover_node_index           = -1;
     tree->uitree_optionset.option_count = 0;
+    tree->hover_inv_component_id     = -1;
+    tree->hover_inv_slot             = -1;
 
-    if( interface_sidebar_overlay_try_fill_uitree_options(game, &tree->uitree_optionset) )
+    if( interface_sidebar_overlay_try_fill_uitree_options(
+            game,
+            mx,
+            my,
+            &tree->uitree_optionset,
+            &tree->hover_inv_component_id,
+            &tree->hover_inv_slot) )
+    {
+        uitree_debug_log_inv_menu(game, tree, -1);
         return;
+    }
 
     struct UIPickFrame stack[UIFRAME_LAYER_STACK_MAX];
     int stack_top = -1;
     int hit       = -1;
     int slot      = -1;
-    int mx        = game->mouse_x;
-    int my        = game->mouse_y;
 
     int roots[UITREE_PICK_CHILD_MAX];
     int nr = 0;
@@ -1893,6 +2166,34 @@ uitree_sync_hover_option_set(struct GGame* game)
     tree->hover_node_index = hit;
     if( hit >= 0 )
         uitree_fill_hit_options(game, tree, hit, slot);
+
+    int log_slot = slot;
+    if( hit >= 0 && (uint32_t)hit < tree->component_count &&
+        tree->components[hit].type == UIELEM_RS_INV )
+    {
+        tree->hover_inv_component_id = tree->components[hit].component_id;
+        tree->hover_inv_slot         = slot;
+    }
+
+    if( hit < 0 || ((uint32_t)hit < tree->component_count &&
+                    tree->components[hit].type == UIELEM_BUILTIN_WORLD) )
+    {
+        int fh = -1;
+        int fs = -1;
+        if( uitree_fallback_pick_rs_inv(game, tree, mx, my, &fh, &fs) )
+        {
+            tree->hover_node_index = fh;
+            tree->uitree_optionset.option_count = 0;
+            uitree_fill_hit_options(game, tree, fh, fs);
+            log_slot                   = fs;
+            tree->hover_inv_component_id =
+                (fh >= 0 && (uint32_t)fh < tree->component_count) ? tree->components[fh].component_id
+                                                                    : -1;
+            tree->hover_inv_slot = fs;
+        }
+    }
+
+    uitree_debug_log_inv_menu(game, tree, log_slot);
 }
 
 static void

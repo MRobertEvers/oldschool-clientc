@@ -20,6 +20,8 @@ options_add_loc(
     assert(entity_type == ENTITY_KIND_MAP_BUILD_LOC && "Entity type must be map build loc");
     if( option_set->option_count >= WORLD_OPTION_SET_CAPACITY - 2 )
         return;
+    if( entity_id < 0 || entity_id >= entity_vec_count(&world->map_build_loc_entities) )
+        return;
 
     char text[64];
 

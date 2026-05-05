@@ -233,6 +233,8 @@ world_cycle_advance_map_build_loc_entity_animation(
     int entity_id,
     int cycles_elapsed)
 {
+    if( entity_id < 0 || entity_id >= entity_vec_count(&world->map_build_loc_entities) )
+        return;
     struct MapBuildLocEntity* entity = world_loc_entity(world, entity_id);
     struct Scene2Element* scene_element = NULL;
     if( entity->scene_element.element_id != -1 )

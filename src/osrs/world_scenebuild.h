@@ -18,4 +18,10 @@ world_scenebuild_npc_entity_set_npc_type(
     int npc_entity_id,
     int npc_type);
 
+/** Reload NPC mesh into Scene2 from existing `npc->config_npc_id` without changing metadata. */
+void
+world_scenebuild_npc_entity_reload_scene2_model(
+    struct World* world,
+    int npc_entity_id);
+
 #endif

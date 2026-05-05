@@ -9,7 +9,7 @@
 #include "osrs/entity_scenebuild.h"
 #include "osrs/interface_state.h"
 #include "osrs/minimenu_action.h"
-#include "osrs/packetout.h"
+#include "osrs/minimenu_game.h"
 #include "osrs/player_stats.h"
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
@@ -71,6 +71,60 @@ interface_get_if_active(
     if( !game || !game->clientscript_vm )
         return false;
     return clientscript_vm_if_active(game->clientscript_vm, game, component);
+}
+
+void
+interface_expand_if_text_placeholders(
+    struct GGame* game,
+    struct CacheDatConfigComponent* component,
+    const char* src,
+    char* out,
+    int out_cap)
+{
+    if( !out || out_cap <= 0 )
+        return;
+    if( !src )
+    {
+        out[0] = '\0';
+        return;
+    }
+    if( !game || !component || !strchr(src, '%') )
+    {
+        snprintf(out, (size_t)out_cap, "%s", src);
+        return;
+    }
+
+    int cap = out_cap - 1;
+    int exp_len = 0;
+    for( int i = 0; src[i] != '\0' && exp_len < cap; )
+    {
+        if( src[i] == '%' && src[i + 1] != '\0' )
+        {
+            int script_idx = src[i + 1] - '1';
+            if( script_idx >= 0 && script_idx <= 4 )
+            {
+                int val = interface_get_if_var(game, component, script_idx);
+                char val_buf[16];
+                int n;
+                if( val >= 999999999 )
+                {
+                    val_buf[0] = '*';
+                    val_buf[1] = '\0';
+                    n = 1;
+                }
+                else
+                {
+                    n = snprintf(val_buf, sizeof(val_buf), "%d", val);
+                }
+                for( int j = 0; j < n && val_buf[j] && exp_len < cap; j++ )
+                    out[exp_len++] = val_buf[j];
+                i += 2;
+                continue;
+            }
+        }
+        out[exp_len++] = src[i++];
+    }
+    out[exp_len] = '\0';
 }
 
 /* Fill rect clipped to viewport to prevent scroll layers overdrawing parent. */
@@ -344,6 +398,7 @@ interface_draw_component(
         case COMPONENT_TYPE_GRAPHIC:
             interface_draw_component_graphic(game, component, x, y, pixel_buffer, stride);
             break;
+        case COMPONENT_TYPE_INV_TEXT:
         case COMPONENT_TYPE_INV:
             interface_draw_component_inv(game, component, x, y, pixel_buffer, stride);
             break;
@@ -437,6 +492,7 @@ interface_draw_component(
         case COMPONENT_TYPE_GRAPHIC:
             interface_draw_component_graphic(game, child, childX, childY, pixel_buffer, stride);
             break;
+        case COMPONENT_TYPE_INV_TEXT:
         case COMPONENT_TYPE_INV:
             interface_draw_component_inv(game, child, childX, childY, pixel_buffer, stride);
             break;
@@ -563,14 +619,14 @@ interface_update_region_hover_ids(struct GGame* game)
         iface->over_main_com_id = interface_find_hovered_interface_id(game, root, 4, 4, mx, my);
     }
 
-    if( mx > 553 && my > 205 && mx < 743 && my < 466 )
+    if( iface_point_in_sidebar_overlay(mx, my) )
     {
         if( iface->sidebar_interface_id >= 0 )
         {
             struct CacheDatConfigComponent* root =
                 buildcachedat_get_component(game->buildcachedat, iface->sidebar_interface_id);
-            iface->over_side_com_id =
-                interface_find_hovered_interface_id(game, root, 553, 205, mx, my);
+            iface->over_side_com_id = interface_find_hovered_interface_id(
+                game, root, IFACE_SIDEBAR_X0, IFACE_SIDEBAR_Y0, mx, my);
         }
         else if( game->ui_root_buffer )
         {
@@ -621,7 +677,7 @@ interface_inv_slot_index_at_mouse(
     int mx,
     int my)
 {
-    if( !inv || inv->type != COMPONENT_TYPE_INV )
+    if( !inv || (inv->type != COMPONENT_TYPE_INV && inv->type != COMPONENT_TYPE_INV_TEXT) )
         return -1;
     int slot = 0;
     for( int row = 0; row < inv->height; row++ )
@@ -677,8 +733,7 @@ interface_sidebar_overlay_pick_inv_recursive(
     struct CacheDatConfigComponent** out_inv,
     int* out_slot)
 {
-    if( !game || !game->iface || !game->buildcachedat || !component || !component->children ||
-        !component->childX || !component->childY )
+    if( !game || !game->iface || !game->buildcachedat )
         return false;
 
     for( int i = component->children_count - 1; i >= 0; i-- )
@@ -710,7 +765,7 @@ interface_sidebar_overlay_pick_inv_recursive(
                     game, child, childX, childY, scroll_pos, mx, my, out_inv, out_slot) )
                 return true;
         }
-        else if( child->type == COMPONENT_TYPE_INV )
+        else if( child->type == COMPONENT_TYPE_INV || child->type == COMPONENT_TYPE_INV_TEXT )
         {
             int slot = interface_inv_slot_index_at_mouse(child, childX, childY, mx, my);
             if( slot >= 0 && interface_cache_inv_slot_has_menu(child, slot) )
@@ -724,35 +779,74 @@ interface_sidebar_overlay_pick_inv_recursive(
     return false;
 }
 
+/*
+ * Which build-cache interface root covers the sidebar content area.
+ *
+ * `sidebar_interface_id` is only non-negative after IF_OPENSIDE / IF_OPENMAIN_SIDE (Client.ts
+ * sideModalId). Normal tab UIs stay at -1: each tab's root arrives via IF_SETTAB into
+ * `tab_interface_id[tab]`, and redstone clicks only change `selected_tab` (Client.ts tabLoop /
+ * sideTab) — they do not assign the modal side id.
+ *
+ * This helper mirrors addComponentOptions: modal side if open, else the active tab's overlay.
+ * Without the IF_SETTAB branch, hover/minimenu fallback that walks cache inv under the sidebar
+ * would almost always bail when no IF_OPENSIDE is in effect.
+ */
+static int
+interface_sidebar_overlay_root_component_id(struct InterfaceState const* iface)
+{
+    if( !iface )
+        return -1;
+    if( iface->sidebar_interface_id >= 0 )
+        return iface->sidebar_interface_id;
+    int tab = iface->selected_tab;
+    if( tab >= 0 && tab < 14 )
+        return iface->tab_interface_id[tab];
+    return -1;
+}
+
 bool
 interface_sidebar_overlay_try_fill_uitree_options(
     struct GGame* game,
-    struct UITreeOptionSet* os)
+    int pick_mx,
+    int pick_my,
+    struct UITreeOptionSet* os,
+    int* out_inv_component_id,
+    int* out_inv_slot)
 {
     if( !game || !os || !game->iface || !game->buildcachedat )
         return false;
-    if( game->iface->sidebar_interface_id < 0 )
+
+    int mx = pick_mx;
+    int my = pick_my;
+    if( !iface_point_in_sidebar_overlay(mx, my) )
         return false;
 
-    int mx = game->mouse_x;
-    int my = game->mouse_y;
-    if( mx <= 553 || my <= 205 || mx >= 743 || my >= 466 )
+    int root_id = interface_sidebar_overlay_root_component_id(game->iface);
+    if( root_id < 0 )
         return false;
 
     struct CacheDatConfigComponent* root =
-        buildcachedat_get_component(game->buildcachedat, game->iface->sidebar_interface_id);
+        buildcachedat_get_component(game->buildcachedat, root_id);
     if( !root || root->type != COMPONENT_TYPE_LAYER )
         return false;
 
     struct CacheDatConfigComponent* hit_inv = NULL;
     int slot = -1;
     if( !interface_sidebar_overlay_pick_inv_recursive(
-            game, root, 553, 205, 0, mx, my, &hit_inv, &slot) ||
+            game, root, IFACE_SIDEBAR_X0, IFACE_SIDEBAR_Y0, 0, mx, my, &hit_inv, &slot) ||
         !hit_inv || slot < 0 )
         return false;
 
     uitree_fill_inv_slot_options_from_cache_inv(game, hit_inv, slot, os);
-    return os->option_count > 0;
+    if( os->option_count > 0 )
+    {
+        if( out_inv_component_id )
+            *out_inv_component_id = hit_inv->id;
+        if( out_inv_slot )
+            *out_inv_slot = slot;
+        return true;
+    }
+    return false;
 }
 
 int
@@ -770,17 +864,20 @@ interface_hover_tooltip_line(
     if( !c )
         return 0;
 
+    char tmp[512];
+
     if( c->targetVerb && c->targetVerb[0] )
     {
         if( c->targetText && c->targetText[0] )
-            snprintf(out, (size_t)out_cap, "%s %s", c->targetVerb, c->targetText);
+            snprintf(tmp, sizeof(tmp), "%s %s", c->targetVerb, c->targetText);
         else
-            snprintf(out, (size_t)out_cap, "%s", c->targetVerb);
+            snprintf(tmp, sizeof(tmp), "%s", c->targetVerb);
+        interface_expand_if_text_placeholders(game, c, tmp, out, out_cap);
         return 1;
     }
     if( c->option && c->option[0] )
     {
-        snprintf(out, (size_t)out_cap, "%s", c->option);
+        interface_expand_if_text_placeholders(game, c, c->option, out, out_cap);
         return 1;
     }
     if( c->iop )
@@ -789,14 +886,14 @@ interface_hover_tooltip_line(
         {
             if( c->iop[i] && c->iop[i][0] )
             {
-                snprintf(out, (size_t)out_cap, "%s", c->iop[i]);
+                interface_expand_if_text_placeholders(game, c, c->iop[i], out, out_cap);
                 return 1;
             }
         }
     }
     if( c->type == COMPONENT_TYPE_TEXT && c->text && c->text[0] )
     {
-        snprintf(out, (size_t)out_cap, "%s", c->text);
+        interface_expand_if_text_placeholders(game, c, c->text, out, out_cap);
         return 1;
     }
     if( c->buttonType == COMPONENT_BUTTON_TYPE_CLOSE )
@@ -1397,36 +1494,8 @@ interface_draw_component_text(
             line_buf[line_len] = '\0';
 
             char expanded_buf[512];
-            int exp_len = 0;
-            for( int i = 0; i < line_len && exp_len < 511; i++ )
-            {
-                if( line_buf[i] == '%' && i + 1 < line_len )
-                {
-                    int script_idx = line_buf[i + 1] - '1';
-                    if( script_idx >= 0 && script_idx <= 4 )
-                    {
-                        int val = interface_get_if_var(game, component, script_idx);
-                        char val_buf[16];
-                        int n;
-                        if( val >= 999999999 )
-                        {
-                            val_buf[0] = '*';
-                            val_buf[1] = '\0';
-                            n = 1;
-                        }
-                        else
-                        {
-                            n = snprintf(val_buf, sizeof(val_buf), "%d", val);
-                        }
-                        for( int j = 0; j < n && val_buf[j] && exp_len < 511; j++ )
-                            expanded_buf[exp_len++] = val_buf[j];
-                        i++;
-                        continue;
-                    }
-                }
-                expanded_buf[exp_len++] = line_buf[i];
-            }
-            expanded_buf[exp_len] = '\0';
+            interface_expand_if_text_placeholders(
+                game, component, line_buf, expanded_buf, (int)sizeof(expanded_buf));
 
             int draw_x;
             if( component->center )
@@ -1909,140 +1978,136 @@ interface_check_inv_click(
     return -1;
 }
 
-void
-interface_handle_inv_button(
-    struct GGame* game,
-    int action,
-    int obj_id,
-    int slot,
-    int component_id)
+static bool
+inv_action_eligible_for_drag_handoff(int action)
 {
-    // Based on Client.ts: INV_BUTTON1-5 (component iop) and OPHELD1-5 (object iop)
-    // Component options: 602=INV_BUTTON1, 596=INV_BUTTON2, 22=INV_BUTTON3, 892=INV_BUTTON4,
-    // 415=INV_BUTTON5 Object options:    405=OPHELD1, 38=OPHELD2, 422=OPHELD3, 478=OPHELD4,
-    // 347=OPHELD5
+    if( action == (int)MINIMENU_ACTION_OPHELDT_START )
+        return true;
+    int base = action;
+    if( base > (int)MINIMENU_ACTION_PRIORITY_OFFSET )
+        base -= (int)MINIMENU_ACTION_PRIORITY_OFFSET;
+    if( base == (int)MINIMENU_ACTION_OPHELD6 )
+        return true;
+    if( base == (int)MINIMENU_ACTION_INV_BUTTON1 || base == (int)MINIMENU_ACTION_INV_BUTTON2 ||
+        base == (int)MINIMENU_ACTION_INV_BUTTON3 || base == (int)MINIMENU_ACTION_INV_BUTTON4 ||
+        base == (int)MINIMENU_ACTION_INV_BUTTON5 )
+        return true;
+    if( base == (int)MINIMENU_ACTION_OPHELD1 || base == (int)MINIMENU_ACTION_OPHELD2 ||
+        base == (int)MINIMENU_ACTION_OPHELD3 || base == (int)MINIMENU_ACTION_OPHELD4 ||
+        base == (int)MINIMENU_ACTION_OPHELD5 )
+        return true;
+    return false;
+}
 
-    // Check if this component has inventory options (iop)
-    struct CacheDatConfigComponent* component =
-        buildcachedat_get_component(game->buildcachedat, component_id);
+static int
+interface_inv_drag_area_from_xy(struct GGame* game, int mx, int my)
+{
+    (void)game;
+    if( iface_point_in_sidebar_overlay(mx, my) )
+        return 2;
+    if( mx > 4 && my > 4 && mx < 516 && my < 338 )
+        return 1;
+    if( mx >= 4 && my >= 357 && mx < 516 && my < 503 )
+        return 3;
+    return 2;
+}
 
-    if( component )
-    {
-        printf(
-            "Component found: id=%d, type=%d, iop=%p\n",
-            component->id,
-            component->type,
-            (void*)component->iop);
+void
+interface_inv_try_drag_mouse_down(struct GGame* game, int mx, int my)
+{
+    struct UITreeScrollbarHit sb;
 
-        if( component->iop )
+    if( !game || !game->iface || !game->ui_root_buffer || !game->buildcachedat )
+        return;
+
+    if( uitree_find_scrollbar_at(game, mx, my, &sb) )
+        return;
+
+    uitree_sync_hover_option_set(game, mx, my);
+    if( game->ui_root_buffer->uitree_optionset.option_count <= 0 )
+        return;
+
+    int hc = game->ui_root_buffer->hover_inv_component_id;
+    int hs = game->ui_root_buffer->hover_inv_slot;
+    if( hc < 0 || hs < 0 )
+        return;
+
+    struct CacheDatConfigComponent* cc = buildcachedat_get_component(game->buildcachedat, hc);
+    if( !cc )
+        return;
+
+    int wire = (cc->invSlotObjId && hs >= 0 && hs < cc->width * cc->height) ? cc->invSlotObjId[hs]
+                                                                              : 0;
+    int obj_def = wire > 0 ? wire - 1 : 0;
+
+    int def_act = interface_get_inv_default_action(game, cc, obj_def, hs);
+    if( !inv_action_eligible_for_drag_handoff(def_act) )
+        return;
+    if( !cc->swappable && !cc->draggable )
+        return;
+
+    struct InterfaceState* iface       = game->iface;
+    iface->inv_drag_area               = interface_inv_drag_area_from_xy(game, mx, my);
+    iface->inv_drag_comp_id            = hc;
+    iface->inv_drag_slot               = hs;
+    iface->inv_drag_cycles             = 0;
+    iface->inv_drag_grab_threshold     = 0;
+    iface->inv_drag_grab_x             = mx;
+    iface->inv_drag_grab_y             = my;
+}
+
+void
+interface_inv_drag_tick(struct GGame* game)
+{
+    struct InterfaceState* iface = game ? game->iface : NULL;
+    if( !iface || iface->inv_drag_area == 0 )
+        return;
+
+    iface->inv_drag_cycles++;
+    int gx = iface->inv_drag_grab_x;
+    int gy = iface->inv_drag_grab_y;
+    int mx = game->mouse_x;
+    int my = game->mouse_y;
+    if( mx > gx + 5 || mx < gx - 5 || my > gy + 5 || my < gy - 5 )
+        iface->inv_drag_grab_threshold = 1;
+}
+
+void
+interface_inv_try_drag_mouse_up(struct GGame* game, struct GInput* input)
+{
+    struct InterfaceState* iface = game ? game->iface : NULL;
+    if( !iface || !input || iface->inv_drag_area == 0 )
+        return;
+
+    int grab_x    = iface->inv_drag_grab_x;
+    int grab_y    = iface->inv_drag_grab_y;
+    int comp      = iface->inv_drag_comp_id;
+    int from_slot = iface->inv_drag_slot;
+    int th        = iface->inv_drag_grab_threshold;
+    int cycles    = iface->inv_drag_cycles;
+
+    iface->inv_drag_area           = 0;
+    iface->inv_drag_cycles         = 0;
+    iface->inv_drag_grab_threshold = 0;
+
+        if( th && cycles >= 5 && GAME_NET_STATE_GAME == game->net_state && game->mouse_x >= 0 &&
+            game->mouse_y >= 0 )
         {
-            printf("Component has inventory options:\n");
-            for( int i = 0; i < 5; i++ )
+            uitree_sync_hover_option_set(game, game->mouse_x, game->mouse_y);
+            int to_comp =
+                game->ui_root_buffer ? game->ui_root_buffer->hover_inv_component_id : -1;
+            int to_slot = game->ui_root_buffer ? game->ui_root_buffer->hover_inv_slot : -1;
+            if( to_comp == comp && to_slot >= 0 && from_slot >= 0 && to_slot != from_slot )
             {
-                if( component->iop[i] )
-                    printf("  iop[%d] = %s\n", i, component->iop[i]);
+                int mode = 0;
+                clientprot_inv_button_d(game, comp, from_slot, to_slot, mode);
+                iface->inv_suppress_next_left_click = 1;
+                return;
             }
-        }
-        else
-        {
-            printf("WARNING: Component %d has NO inventory options (iop=NULL)!\n", component_id);
-            printf("The server will likely discard this packet.\n");
-        }
-    }
-
-    uint8_t opcode = 0;
-
-    // Map action to opcode (from ClientProt.ts)
-    if( action == MINIMENU_ACTION_INV_BUTTON1 )
-    {
-        opcode = PKTOUT_LC245_2_INV_BUTTON1; // INV_BUTTON1
-        printf("INV_BUTTON1: obj=%d, slot=%d, component=%d\n", obj_id, slot, component_id);
-    }
-    else if( action == MINIMENU_ACTION_INV_BUTTON2 )
-    {
-        opcode = PKTOUT_LC245_2_INV_BUTTON2; // INV_BUTTON2
-        printf("INV_BUTTON2: obj=%d, slot=%d, component=%d\n", obj_id, slot, component_id);
-    }
-    else if( action == MINIMENU_ACTION_INV_BUTTON3 )
-    {
-        opcode = PKTOUT_LC245_2_INV_BUTTON3; // INV_BUTTON3
-        printf("INV_BUTTON3: obj=%d, slot=%d, component=%d\n", obj_id, slot, component_id);
-    }
-    else if( action == MINIMENU_ACTION_INV_BUTTON4 )
-    {
-        opcode = PKTOUT_LC245_2_INV_BUTTON4; // INV_BUTTON4
-        printf("INV_BUTTON4: obj=%d, slot=%d, component=%d\n", obj_id, slot, component_id);
-    }
-    else if( action == MINIMENU_ACTION_INV_BUTTON5 )
-    {
-        opcode = PKTOUT_LC245_2_INV_BUTTON5; // INV_BUTTON5
-        printf("INV_BUTTON5: obj=%d, slot=%d, component=%d\n", obj_id, slot, component_id);
-    }
-    /* Object options (obj.iop): Wield, Wear, etc. - Client.ts 405/38/422/478/347 block */
-    else if( action == MINIMENU_ACTION_OPHELD1 )
-    {
-        opcode = PKTOUT_LC245_2_OPHELD1; // OPHELD1
-    }
-    else if( action == MINIMENU_ACTION_OPHELD2 )
-    {
-        opcode = PKTOUT_LC245_2_OPHELD2; // OPHELD2
-    }
-    else if( action == MINIMENU_ACTION_OPHELD3 )
-    {
-        opcode = PKTOUT_LC245_2_OPHELD3; // OPHELD3
-    }
-    else if( action == MINIMENU_ACTION_OPHELD4 )
-    {
-        opcode = PKTOUT_LC245_2_OPHELD4; // OPHELD4
-    }
-    else if( action == MINIMENU_ACTION_OPHELD5 )
-    {
-        opcode = PKTOUT_LC245_2_OPHELD5; // OPHELD5 (e.g. Drop)
-    }
-    else if( action == MINIMENU_ACTION_OPHELDT )
-    {
-        /* Use: select item for use-with; no packet (Client.ts 8927-8936) */
-        return;
-    }
-    else if( action == MINIMENU_ACTION_IF_BUTTON )
-    {
-        /* Examine: client-side only, no packet */
-        return;
-    }
-    else
-    {
-        printf("Unknown inventory action: %d\n", action);
-        return;
-    }
-
-    if( GAME_NET_STATE_GAME != game->net_state || opcode == 0 )
-        return;
-
-    /* Map the raw opcode to the canonical which (1-5). */
-    static const int inv_ops[] = { PKTOUT_LC245_2_INV_BUTTON1,
-                                   PKTOUT_LC245_2_INV_BUTTON2,
-                                   PKTOUT_LC245_2_INV_BUTTON3,
-                                   PKTOUT_LC245_2_INV_BUTTON4,
-                                   PKTOUT_LC245_2_INV_BUTTON5 };
-    static const int held_ops[] = { PKTOUT_LC245_2_OPHELD1,
-                                    PKTOUT_LC245_2_OPHELD2,
-                                    PKTOUT_LC245_2_OPHELD3,
-                                    PKTOUT_LC245_2_OPHELD4,
-                                    PKTOUT_LC245_2_OPHELD5 };
-    for( int i = 0; i < 5; i++ )
-    {
-        if( opcode == (uint8_t)inv_ops[i] )
-        {
-            clientprot_inv_button(game, i + 1, component_id, slot, obj_id);
             return;
         }
-        if( opcode == (uint8_t)held_ops[i] )
-        {
-            struct CPArgs_OpHeld a = { i + 1, obj_id, slot, component_id };
-            clientprot_core_emit(game, CLIENTPROT_OP_OPHELD, &a);
-            return;
-        }
-    }
+
+    minimenu_game_use_primary_at(game, input, grab_x, grab_y);
 }
 
 void

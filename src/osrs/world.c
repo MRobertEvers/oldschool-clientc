@@ -11,6 +11,7 @@
 
 #include <assert.h>
 #include <limits.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,9 +20,9 @@
 #define WORLD_DEBUG_REBUILD_SCENERY_CULL 0
 #endif
 
-/** Per-chunk loc → painter pipeline; painter span OOB/clip; end histogram. Set -DWORLD_DEBUG_PAINTER_LOC_BUILD=0 to disable. */
+/** Per-chunk loc → painter pipeline; painter span OOB/clip; end histogram. Set -DWORLD_DEBUG_PAINTER_LOC_BUILD=1 to enable. */
 #ifndef WORLD_DEBUG_PAINTER_LOC_BUILD
-#define WORLD_DEBUG_PAINTER_LOC_BUILD 1
+#define WORLD_DEBUG_PAINTER_LOC_BUILD 0
 #endif
 
 // clang-format off
@@ -532,6 +533,129 @@ world_projectile_ensure_scene_element(
  * Or world_rebuild_centerzone_chunk (terrain+scenery) per chunk for incremental Lua.
  * =========================================================================*/
 
+/** Release Scene2 elements for players/NPCs so dynamic models are not carried across a GPU batch
+ * clear; restored after `scene2_batch_end` via world_restore_scene2_dynamic_entities. */
+static void
+world_rebuild_clear_scene2_dynamic_entities(struct World* world)
+{
+    if( !world || !world->scene2 )
+        return;
+
+    struct PlayerEntity* lp = world_player(world, ACTIVE_PLAYER_SLOT);
+    if( lp->alive && lp->scene_element2.element_id != -1 )
+    {
+        scene2_element_release(world->scene2, lp->scene_element2.element_id);
+        lp->scene_element2.element_id = -1;
+    }
+
+    for( int i = 0; i < world->active_player_count; i++ )
+    {
+        int pid = world->active_players[i];
+        if( pid < 0 || pid == ACTIVE_PLAYER_SLOT )
+            continue;
+        struct PlayerEntity* p = world_player(world, pid);
+        if( p->alive && p->scene_element2.element_id != -1 )
+        {
+            scene2_element_release(world->scene2, p->scene_element2.element_id);
+            p->scene_element2.element_id = -1;
+        }
+    }
+
+    for( int i = 0; i < world->active_npc_count; i++ )
+    {
+        int nid = world->active_npcs[i];
+        if( nid < 0 )
+            continue;
+        struct NPCEntity* n = world_npc(world, nid);
+        if( n->alive && n->scene_element2.element_id != -1 )
+        {
+            scene2_element_release(world->scene2, n->scene_element2.element_id);
+            n->scene_element2.element_id = -1;
+        }
+    }
+}
+
+/** After world geometry batch ends (`batch_active` false): re-bind meshes so MODEL_LOAD uses the
+ * non-batched path and matches renderer caches. */
+static void
+world_restore_scene2_dynamic_entities(struct World* world)
+{
+    if( !world || !world->scene2 )
+        return;
+
+    uint16_t app12[12];
+    uint16_t col5[5];
+
+    struct PlayerEntity* lp = world_player(world, ACTIVE_PLAYER_SLOT);
+    if( lp->alive )
+    {
+        world_player_ensure_scene_element(world, ACTIVE_PLAYER_SLOT);
+        for( int i = 0; i < 12; i++ )
+            app12[i] = (uint16_t)lp->appearance.slots[i];
+        for( int i = 0; i < 5; i++ )
+            col5[i] = (uint16_t)lp->appearance.colors[i];
+        world_scenebuild_player_entity_set_appearance(world, ACTIVE_PLAYER_SLOT, app12, col5);
+        if( lp->animation.primary_anim.anim_id != 0 &&
+            lp->animation.primary_anim.anim_id != (uint16_t)-1 )
+            world_player_entity_set_animation(
+                world,
+                ACTIVE_PLAYER_SLOT,
+                (int)lp->animation.primary_anim.anim_id,
+                ANIMATION_TYPE_PRIMARY);
+        if( lp->animation.secondary_anim.anim_id != 0 &&
+            lp->animation.secondary_anim.anim_id != (uint16_t)-1 )
+            world_player_entity_set_animation(
+                world,
+                ACTIVE_PLAYER_SLOT,
+                (int)lp->animation.secondary_anim.anim_id,
+                ANIMATION_TYPE_SECONDARY);
+    }
+
+    for( int i = 0; i < world->active_player_count; i++ )
+    {
+        int pid = world->active_players[i];
+        if( pid < 0 || pid == ACTIVE_PLAYER_SLOT )
+            continue;
+        struct PlayerEntity* p = world_player(world, pid);
+        if( !p->alive )
+            continue;
+        world_player_ensure_scene_element(world, pid);
+        for( int j = 0; j < 12; j++ )
+            app12[j] = (uint16_t)p->appearance.slots[j];
+        for( int j = 0; j < 5; j++ )
+            col5[j] = (uint16_t)p->appearance.colors[j];
+        world_scenebuild_player_entity_set_appearance(world, pid, app12, col5);
+        if( p->animation.primary_anim.anim_id != 0 &&
+            p->animation.primary_anim.anim_id != (uint16_t)-1 )
+            world_player_entity_set_animation(
+                world, pid, (int)p->animation.primary_anim.anim_id, ANIMATION_TYPE_PRIMARY);
+        if( p->animation.secondary_anim.anim_id != 0 &&
+            p->animation.secondary_anim.anim_id != (uint16_t)-1 )
+            world_player_entity_set_animation(
+                world, pid, (int)p->animation.secondary_anim.anim_id, ANIMATION_TYPE_SECONDARY);
+    }
+
+    for( int i = 0; i < world->active_npc_count; i++ )
+    {
+        int nid = world->active_npcs[i];
+        if( nid < 0 )
+            continue;
+        struct NPCEntity* n = world_npc(world, nid);
+        if( !n->alive )
+            continue;
+        world_npc_ensure_scene_element(world, nid);
+        world_scenebuild_npc_entity_reload_scene2_model(world, nid);
+        if( n->animation.primary_anim.anim_id != 0 &&
+            n->animation.primary_anim.anim_id != (uint16_t)-1 )
+            world_npc_entity_set_animation(
+                world, nid, (int)n->animation.primary_anim.anim_id, ANIMATION_TYPE_PRIMARY);
+        if( n->animation.secondary_anim.anim_id != 0 &&
+            n->animation.secondary_anim.anim_id != (uint16_t)-1 )
+            world_npc_entity_set_animation(
+                world, nid, (int)n->animation.secondary_anim.anim_id, ANIMATION_TYPE_SECONDARY);
+    }
+}
+
 void
 world_rebuild_centerzone_begin(
     struct World* world,
@@ -546,6 +670,8 @@ world_rebuild_centerzone_begin(
     for( int i = 0; i < world->active_projectile_count; i++ )
         world_cleanup_projectile_entity(world, world->active_projectiles[i]);
     world->active_projectile_count = 0;
+
+    world_rebuild_clear_scene2_dynamic_entities(world);
 
     if( world->scene2 )
     {
@@ -642,11 +768,16 @@ world_rebuild_centerzone_begin(
             MAX_MAP_BUILD_TILE_ENTITIES);
         world_prime_map_build_tile_slot0(world);
     }
-    for( int i = 0; i < world->active_loc_entity_count; i++ )
+    /* Release every allocated map-build loc slot (high-water entity_vec count), then reset the vec
+     * logical length so it tracks active_loc_entity_count again. Relying only on active_loc_entities[]
+     * can miss slots if bookkeeping diverges; stale vec count also skewed contour_ground bounds. */
     {
-        world_cleanup_map_build_loc_entity(world, world->active_loc_entities[i]);
+        int loc_slots = entity_vec_count(&world->map_build_loc_entities);
+        for( int i = 0; i < loc_slots; i++ )
+            world_cleanup_map_build_loc_entity(world, i);
+        world->active_loc_entity_count = 0;
+        entity_vec_reset(&world->map_build_loc_entities);
     }
-    world->active_loc_entity_count = 0;
 
     struct PlatformMemoryInfo mem = { 0 };
     platform_get_memory_info(&mem);
@@ -1410,6 +1541,8 @@ world_rebuild_centerzone_end(struct World* world)
         world->rebuild_prev_batch_id = world->rebuild_current_batch_id;
     }
 
+    world_restore_scene2_dynamic_entities(world);
+
     world->load_complete = true;
 }
 
@@ -1418,7 +1551,9 @@ world_cleanup_map_build_loc_entity(
     struct World* world,
     int entity_id)
 {
-    if( entity_id < 0 || entity_id >= entity_vec_count(&world->map_build_loc_entities) )
+    if( entity_id < 0 || entity_id >= MAX_MAP_BUILD_LOC_ENTITIES )
+        return;
+    if( entity_id >= entity_vec_count(&world->map_build_loc_entities) )
         return;
 
     struct MapBuildLocEntity* entity = world_loc_entity(world, entity_id);
@@ -1592,6 +1727,9 @@ world_map_build_loc_entity_set_animation(
     int animation_id)
 {
     if( animation_id == -1 )
+        return;
+    if( map_build_loc_entity_id < 0 ||
+        map_build_loc_entity_id >= entity_vec_count(&world->map_build_loc_entities) )
         return;
 
     struct Scene2Element* element = NULL;
@@ -1986,6 +2124,9 @@ world_map_build_loc_entity_push_action(
     int code,
     char* action)
 {
+    if( map_build_loc_entity_id < 0 ||
+        map_build_loc_entity_id >= entity_vec_count(&world->map_build_loc_entities) )
+        return;
     struct MapBuildLocEntity* entity = world_loc_entity(world, map_build_loc_entity_id);
     assert(entity->action_count < 10);
     if( !entity->actions )

@@ -42,4 +42,8 @@ isaac_get_state(
 struct Isaac*
 isaac_from_state(const void* buf);
 
+/** Log full ISAAC state (verbose; for login / protocol debugging). */
+void
+isaac_debug_print(struct Isaac const* isaac);
+
 #endif

@@ -3,6 +3,7 @@
 
 #include "osrs/core/revision.h"
 #include "osrs/game.h"
+#include "osrs/isaac.h"
 #include "osrs/revs/lc245_2/loginproto_rev245_2.h"
 #include "osrs/core/packetbuffer.h"
 #include "tori_rs.h"
@@ -145,10 +146,19 @@ loginproto_drive(struct GGame* game)
     {
         game->net_state = GAME_NET_STATE_GAME;
 
+        if( game->random_out )
+        {
+            fputs("[DEBUG] random_out ISAAC at login success:\n", stdout);
+            isaac_debug_print(game->random_out);
+        }
+
         loginproto_free(game->loginproto);
 
         printf("[DEBUG] Login successful\n");
         game->loginproto = NULL;
+
+        /* Loginproto re-seeded random_in in place; reset buffer state for game packets. */
+        packetbuffer_init(game->packet_buffer, game->random_in);
 
         game_player_menu_ops_reset(game);
     }

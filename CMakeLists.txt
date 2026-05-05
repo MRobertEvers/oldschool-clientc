@@ -179,6 +179,7 @@ set(COMMON_SOURCES
     src/osrs/core/game_cache_tag.c
     src/osrs/core/revision.c
     src/osrs/core/clientprot_core.c
+    src/osrs/core/clientprot_move_path.c
     src/osrs/revs/lc245_2/clientprot_rev245_2.c
     src/osrs/core/ui_loader.c
     src/osrs/core/gameproto_core_exec.c

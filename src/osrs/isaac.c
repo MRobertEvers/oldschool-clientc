@@ -1,9 +1,13 @@
-
+/*
+ * Matches Client-TS/src/io/Isaac.ts (same sequence as nextInt / isaac_next).
+ */
 
 #include "isaac.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -28,22 +32,23 @@ isaac_scramble(struct Isaac* isaac)
     for( int i = 0; i < 256; i++ )
     {
         uint32_t x = isaac->mem[i];
-        int mem = i & 3;
-        if( mem == 0 )
+
+        switch( i & 3 )
         {
+        case 0:
             isaac->a ^= isaac->a << 13;
-        }
-        else if( mem == 1 )
-        {
+            break;
+        case 1:
             isaac->a ^= (unsigned int)isaac->a >> 6;
-        }
-        else if( mem == 2 )
-        {
+            break;
+        case 2:
             isaac->a ^= isaac->a << 2;
-        }
-        else if( mem == 3 )
-        {
+            break;
+        case 3:
             isaac->a ^= (unsigned int)isaac->a >> 16;
+            break;
+        default:
+            break;
         }
 
         isaac->a += isaac->mem[(i + 128) & 0xff];
@@ -253,4 +258,38 @@ isaac_from_state(const void* buf)
     if( isaac )
         memcpy(isaac, buf, sizeof(struct Isaac));
     return isaac;
+}
+
+void
+isaac_debug_print(struct Isaac const* isaac_c)
+{
+    struct Isaac const* i = isaac_c;
+    if( !i )
+    {
+        fputs("[isaac_debug] (null)\n", stdout);
+        return;
+    }
+
+    printf(
+        "[isaac_debug] count=%d a=%" PRIx32 " b=%" PRIx32 " c=%" PRIx32
+        " (isaac_next returns rsl[count] after count--)\n",
+        i->count,
+        i->a,
+        i->b,
+        i->c);
+
+    fputs("[isaac_debug] rsl[0..31]:", stdout);
+    for( int k = 0; k < 32; k++ )
+        printf(" %" PRIx32, i->rsl[k]);
+    fputc('\n', stdout);
+
+    fputs("[isaac_debug] rsl[224..255]:", stdout);
+    for( int k = 224; k < 256; k++ )
+        printf(" %" PRIx32, i->rsl[k]);
+    fputc('\n', stdout);
+
+    fputs("[isaac_debug] mem[0..31]:", stdout);
+    for( int k = 0; k < 32; k++ )
+        printf(" %" PRIx32, i->mem[k]);
+    fputc('\n', stdout);
 }

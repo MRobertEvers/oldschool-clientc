@@ -29,7 +29,7 @@
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/filelist.h"
 #include "osrs/rscache/tables_dat/configs_dat.h"
-#include "osrs/scene2.h"
+#include "osrs/world.h"
 #include "osrs/script_queue.h"
 #include "osrs/zone_state.h"
 #include "tori_rs.h"
@@ -255,7 +255,7 @@ LibToriRS_GameNew(
     }
 
     game->ui_scene = uiscene_new(256);
-    game->scene2 = scene2_new(20000, 4000);
+    game->scene2 = scene2_new(SCENE2_WORLD_FAST_ELEMENT_CAPACITY, 4000);
     game->ui_root_buffer = uitree_new(64);
     game->ui_stack = uitree_new(64);
     game->inv_pool = uitree_inv_pool_new(32);

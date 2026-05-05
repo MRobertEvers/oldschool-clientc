@@ -799,7 +799,9 @@ painter_add_normal_scenery(
     int size_x,
     int size_z)
 {
-    assert(entity >= 0 && entity < UINT16_MAX);
+    assert(entity >= 0);
+    assert(entity < (1 << 28) && "PaintersElementCommand entity field is 28 bits");
+
     /* Loc configs can yield 0 (bad cache/orientation swap); spans require positive footprint. */
     if( size_x < 1 )
         size_x = 1;

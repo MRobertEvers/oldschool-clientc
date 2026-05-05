@@ -92,4 +92,13 @@ void chat_handle_click(
     int           my,
     int           button);
 
+/** Client.ts chatModeLoop(): privacy strip + report-abuse band; fixed 503×765 coords.
+ * @return 1 if the click was consumed (modes updated / modal closed). */
+int chat_handle_privacy_strip_click(
+    struct Chat*  chat,
+    struct GGame* game,
+    int           mx,
+    int           my,
+    int           button);
+
 #endif /* OSRS_CHAT_H */

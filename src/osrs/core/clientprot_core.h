@@ -11,18 +11,16 @@
 
 struct GGame;
 
+/** Max tiles in one Client.ts tryMove / MOVE_* path segment (matches GAME_TRY_MOVE_MAX_PATH). */
+#define CLIENTPROT_MOVE_PATH_MAX 25
+
 /* ── Op kinds ────────────────────────────────────────────────────────────── */
 
 enum ClientProtOpKind
 {
     CLIENTPROT_OP_NO_TIMEOUT = 0,
     CLIENTPROT_OP_IDLE_TIMER,
-    CLIENTPROT_OP_EVENT_MOUSE_MOVE,
-    CLIENTPROT_OP_EVENT_MOUSE_CLICK,
-    CLIENTPROT_OP_EVENT_APPLET_FOCUS,
-    CLIENTPROT_OP_EVENT_CAMERA_POSITION,
     CLIENTPROT_OP_EVENT_TRACKING,
-    CLIENTPROT_OP_MAP_BUILD_COMPLETE,
     CLIENTPROT_OP_MOVE_GAMECLICK,
     CLIENTPROT_OP_MOVE_MINIMAPCLICK,
     CLIENTPROT_OP_MOVE_OPCLICK,
@@ -56,51 +54,78 @@ enum ClientProtOpKind
     CLIENTPROT_OP_IGNORE_ADD,
     CLIENTPROT_OP_IGNORE_DEL,
     CLIENTPROT_OP_IF_PLAYERDESIGN,
-    CLIENTPROT_OP_SEND_SNAPSHOT,
     CLIENTPROT_OP_TUTORIAL_CLICKSIDE,
-    CLIENTPROT_OP_LOGOUT,
     CLIENTPROT_OP_REPORT_ABUSE,
 };
 
 /* ── Argument structs (one per op needing payload) ───────────────────────── */
 
 struct CPArgs_ChatSetMode      { int pub, priv, trade; };
-struct CPArgs_MovGameClick     { int x, z, run; };
+/** Scene-local tile path: path[0] = first step, path[path_len-1] = destination. */
+struct CPArgs_MovGameClick
+{
+    int run;
+    int path_len;
+    int path_x[CLIENTPROT_MOVE_PATH_MAX];
+    int path_z[CLIENTPROT_MOVE_PATH_MAX];
+};
 struct CPArgs_MovMinimapClick  { int x, z, run; const uint8_t* cam; int cam_n; };
 struct CPArgs_InvButton        { int which; int comp_id; int slot; int obj_id; };
-struct CPArgs_InvButtonD       { int from_comp, from_slot, to_comp, to_slot; };
+/** Client.ts INV_BUTTOND: p2(compId), p2(fromSlot), p2(toSlot), p1(mode). Same component for bank arrange. */
+struct CPArgs_InvButtonD       { int comp_id; int from_slot; int to_slot; int mode; };
 struct CPArgs_IfButton         { int comp_id; };
 struct CPArgs_MessagePublic    { int color, effect; const uint8_t* wp; int n; };
 struct CPArgs_MessagePrivate   { const char* user; const uint8_t* wp; int n; };
 struct CPArgs_ClientCheat      { const char* line; };
 struct CPArgs_OpHeld           { int which; int obj_id, slot, comp_id; };
-struct CPArgs_OpHeldT          { int obj_id, slot, comp_id; int sel_obj_id, sel_slot, sel_comp_id; };
-struct CPArgs_OpHeldU          { int obj_id, slot, comp_id; int g_obj_id; };
+/** Client.ts TGT_HELD: OPHELDT + 4×p2 (obj, slot, comp, targetComId). */
+struct CPArgs_OpHeldT          { int obj_id, slot, comp_id, target_comp_id; };
+/** Client.ts USEHELD_ONHELD: OPHELDU + 6×p2 (dest obj/slot/comp, src obj/slot/comp). */
+struct CPArgs_OpHeldU          { int obj_id, slot, comp_id, src_obj_id, src_slot, src_comp_id; };
 struct CPArgs_OpLoc            { int which; int x, z; int loc_id; int ctrl; };
 struct CPArgs_OpNpc            { int which; int npc_slot; };
 struct CPArgs_OpObj            { int which; int x, z; int obj_id; int ctrl; };
 struct CPArgs_OpPlayer         { int which; int player_slot; };
 struct CPArgs_FriendIgnore     { int64_t userhash; };
-struct CPArgs_EventMouseClick  { int button, x, y, cycle; };
-struct CPArgs_EventCamera      { int yaw, pitch; };
-struct CPArgs_EventBuf         { const uint8_t* buf; int n; };
-struct CPArgs_EventFocus       { int focused; };
 struct CPArgs_TutorialClick    { int tab; };
 struct CPArgs_ResumeCountDlg   { int value; };
 struct CPArgs_PlayerDesign     { const uint8_t* payload; int n; };
-struct CPArgs_Snapshot         { const uint8_t* payload; int n; };
-struct CPArgs_MovOpClick       { int x, z, run; };
+struct CPArgs_MovOpClick
+{
+    int run;
+    int path_len;
+    int path_x[CLIENTPROT_MOVE_PATH_MAX];
+    int path_z[CLIENTPROT_MOVE_PATH_MAX];
+};
 struct CPArgs_ReportAbuse      { int64_t userhash; int type; };
 
 /* ── Facade ──────────────────────────────────────────────────────────────── */
 
 /** Build the outbound packet and send it via LibToriRS_NetSend.
  * @param args  Points to the matching CPArgs_* struct; NULL for no-payload ops.
- * With env `TORI_DEBUG_PKTOUT` set (non-empty, not `0`), logs each packet: kind name,
- * inferred logical opcode (packetout.h PKTOUT_LC245_2_*), wire byte 0, ISAAC term,
- * size and payload hex — same masking as Client-TS `Packet.pIsaac`. */
+ * By default logs each `[pkout]` line (kind, inferred logical opcode vs PKTOUT_LC245_2_*,
+ * wire0, ISAAC low byte, payload hex — same masking as Client-TS `Packet.pIsaac`).
+ * Set env `TORI_DEBUG_PKTOUT=0` to disable. */
 void
 clientprot_core_emit(struct GGame* game, enum ClientProtOpKind kind, void* args);
+
+/** Encode Client.ts MOVE_GAMECLICK from a BFS path (scene tiles). No-op if path_len < 1. */
+void
+clientprot_emit_move_gameclick_path(
+    struct GGame* game,
+    int run,
+    const int* path_x,
+    const int* path_z,
+    int path_len);
+
+/** Encode Client.ts MOVE_OPCLICK from a BFS path (scene tiles). */
+void
+clientprot_emit_move_opclick_path(
+    struct GGame* game,
+    int run,
+    const int* path_x,
+    const int* path_z,
+    int path_len);
 
 /* ── Convenience inline wrappers ─────────────────────────────────────────── */
 
@@ -117,21 +142,9 @@ clientprot_idle_timer(struct GGame* g)
 }
 
 static inline void
-clientprot_map_build_complete(struct GGame* g)
-{
-    clientprot_core_emit(g, CLIENTPROT_OP_MAP_BUILD_COMPLETE, NULL);
-}
-
-static inline void
 clientprot_close_modal(struct GGame* g)
 {
     clientprot_core_emit(g, CLIENTPROT_OP_CLOSE_MODAL, NULL);
-}
-
-static inline void
-clientprot_logout(struct GGame* g)
-{
-    clientprot_core_emit(g, CLIENTPROT_OP_LOGOUT, NULL);
 }
 
 static inline void
@@ -173,17 +186,17 @@ clientprot_inv_button(
 }
 
 static inline void
+clientprot_inv_button_d(struct GGame* g, int comp_id, int from_slot, int to_slot, int mode)
+{
+    struct CPArgs_InvButtonD a = { comp_id, from_slot, to_slot, mode };
+    clientprot_core_emit(g, CLIENTPROT_OP_INV_BUTTOND, &a);
+}
+
+static inline void
 clientprot_if_button(struct GGame* g, int comp_id)
 {
     struct CPArgs_IfButton a = { comp_id };
     clientprot_core_emit(g, CLIENTPROT_OP_IF_BUTTON, &a);
-}
-
-static inline void
-clientprot_move_gameclick(struct GGame* g, int x, int z, int run)
-{
-    struct CPArgs_MovGameClick a = { x, z, run };
-    clientprot_core_emit(g, CLIENTPROT_OP_MOVE_GAMECLICK, &a);
 }
 
 static inline void
@@ -232,27 +245,6 @@ static inline void
 clientprot_resume_pausebutton(struct GGame* g)
 {
     clientprot_core_emit(g, CLIENTPROT_OP_RESUME_PAUSEBUTTON, NULL);
-}
-
-static inline void
-clientprot_event_camera(struct GGame* g, int yaw, int pitch)
-{
-    struct CPArgs_EventCamera a = { yaw, pitch };
-    clientprot_core_emit(g, CLIENTPROT_OP_EVENT_CAMERA_POSITION, &a);
-}
-
-static inline void
-clientprot_event_focus(struct GGame* g, int focused)
-{
-    struct CPArgs_EventFocus a = { focused };
-    clientprot_core_emit(g, CLIENTPROT_OP_EVENT_APPLET_FOCUS, &a);
-}
-
-static inline void
-clientprot_event_mouse_click(struct GGame* g, int button, int x, int y, int cycle)
-{
-    struct CPArgs_EventMouseClick a = { button, x, y, cycle };
-    clientprot_core_emit(g, CLIENTPROT_OP_EVENT_MOUSE_CLICK, &a);
 }
 
 #endif /* OSRS_CORE_CLIENTPROT_CORE_H */

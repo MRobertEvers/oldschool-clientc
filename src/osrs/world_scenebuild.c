@@ -289,3 +289,25 @@ world_scenebuild_npc_entity_set_npc_type(
 
     npc->visible_level.level = npc_config->vislevel;
 }
+
+void
+world_scenebuild_npc_entity_reload_scene2_model(
+    struct World* world,
+    int npc_entity_id)
+{
+    struct NPCEntity* npc = world_npc(world, npc_entity_id);
+    if( npc->config_npc_id < 0 )
+        return;
+
+    struct Scene2Element* element =
+        scene2_element_at(world->scene2, npc->scene_element2.element_id);
+    scene2_element_expect(element, "world_scenebuild_npc_entity_reload_scene2_model");
+
+    struct DashModel* dash_model = dashmodel_new();
+    if( !npc_model(world->buildcachedat, npc->config_npc_id, dash_model) )
+    {
+        dashmodel_free(dash_model);
+        return;
+    }
+    scene2_element_set_dash_model(world->scene2, element, dash_model);
+}

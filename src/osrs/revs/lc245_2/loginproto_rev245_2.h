@@ -34,7 +34,8 @@ struct LoginProto
 
     int await_recv_cnt;
 
-    uint32_t seed[4];
+    /** Session keys (RSA plaintext): signed int32 per Client.ts Int32Array / server g4s(). */
+    int32_t seed[4];
     int32_t jag_checksum[9];
 
     uint8_t tempout[512];

@@ -5,13 +5,51 @@
 #include "collision_map.h"
 #include "game.h"
 #include "minimenu_action.h"
+#include "osrs/buildcachedat.h"
 #include "osrs/core/clientprot_core.h"
+#include "osrs/game_entity.h"
+#include "osrs/ginput.h"
+#include "osrs/interface_state.h"
+#include "osrs/world.h"
 #include "osrs/revconfig/uiscene.h"
+#include "osrs/rscache/tables_dat/config_component.h"
+#include "osrs/rscache/tables_dat/config_obj.h"
 #include "revconfig/uitree.h"
 #include "world_option_set.h"
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <string.h>
+
+/** Client.ts TGT_BUTTON handler: targetOp = prefix + ' ' + targetBase + ' ' + suffix from verb. */
+static void
+iface_inv_build_target_op_full(
+    char* out,
+    size_t cap,
+    char const* verb,
+    char const* base)
+{
+    char pre[64]  = "";
+    char suff[64] = "";
+    if( verb && verb[0] )
+    {
+        char const* sp = strchr(verb, ' ');
+        if( sp )
+        {
+            size_t n = (size_t)(sp - verb);
+            if( n > sizeof(pre) - 1 )
+                n = sizeof(pre) - 1;
+            memcpy(pre, verb, n);
+            pre[n] = '\0';
+            strncpy(suff, sp + 1, sizeof(suff) - 1);
+            suff[sizeof(suff) - 1] = '\0';
+        }
+        else
+            strncpy(pre, verb, sizeof(pre) - 1);
+    }
+    snprintf(out, cap, "%s %s %s", pre, base ? base : "", suff);
+}
 
 /* Client.ts buildMinimenu (2816-2844): bubble >1000 actions toward lower indices. */
 void
@@ -241,25 +279,17 @@ minimenu_game_world_ts_default_row(
     out->param_c = top->param_c;
 }
 
-void
-minimenu_game_show(
+int
+minimenu_game_collect_lines(
     struct GGame* game,
-    int click_x,
-    int click_y)
+    struct MinimenuOptionLine* lines_out,
+    int max_lines)
 {
-    if( !game )
-        return;
-
-    uitree_sync_hover_option_set(game);
-
-    int vp_w = game->iface_view_port ? game->iface_view_port->width  : 765;
-    int vp_h = game->iface_view_port ? game->iface_view_port->height : 503;
+    if( !game || !lines_out || max_lines <= 0 )
+        return 0;
 
     struct UITree* uit = game->ui_root_buffer;
-    int use_uitree =
-        uit && uit->uitree_optionset.option_count > 0 &&
-        !(uit->hover_node_index >= 0 &&
-          uit->components[uit->hover_node_index].type == UIELEM_BUILTIN_WORLD);
+    int use_uitree     = uit && uit->uitree_optionset.option_count > 0;
 
     if( use_uitree )
     {
@@ -286,28 +316,70 @@ minimenu_game_show(
 
         int nlines = uin + 1;
         minimenu_sort_ts_action_order(tmp, nlines);
-
-        struct MinimenuOptionLine lines[MINIMENU_MAX_OPTIONS];
+        if( nlines > max_lines )
+            return 0;
         for( int i = 0; i < nlines; i++ )
-            lines[i] = tmp[nlines - 1 - i];
-
-        minimenu_show(&game->minimenu, lines, nlines, vp_w, vp_h, click_x, click_y);
-        return;
+            lines_out[i] = tmp[nlines - 1 - i];
+        return nlines;
     }
 
     struct MinimenuOptionLine tmp[MINIMENU_MAX_OPTIONS];
     struct WorldOptionSet* os = &game->option_set;
-    int nlines = minimenu_fill_world_ts_menu_lines(
+    int nlines                  = minimenu_fill_world_ts_menu_lines(
         os,
         game->mouse_tile_x,
         game->mouse_tile_z,
         tmp,
         MINIMENU_MAX_OPTIONS);
-
-    /* Client.ts draws option i at (menuNumEntries - 1 - i): index 0 is bottom; we draw 0 at top. */
-    struct MinimenuOptionLine lines[MINIMENU_MAX_OPTIONS];
+    if( nlines > max_lines )
+        return 0;
     for( int i = 0; i < nlines; i++ )
-        lines[i] = tmp[nlines - 1 - i];
+        lines_out[i] = tmp[nlines - 1 - i];
+    return nlines;
+}
+
+int
+minimenu_game_use_primary_at(
+    struct GGame* game,
+    struct GInput* input,
+    int cx,
+    int cy)
+{
+    if( !game || !input )
+        return 0;
+    uitree_sync_hover_option_set(game, cx, cy);
+    struct MinimenuOptionLine lines[MINIMENU_MAX_OPTIONS];
+    int nlines = minimenu_game_collect_lines(game, lines, MINIMENU_MAX_OPTIONS);
+    if( nlines <= 0 )
+        return 0;
+    /* Index 0 = top row = Client.ts doAction(menuNumEntries - 1). */
+    game->minimenu.option_action[0]  = lines[0].action;
+    game->minimenu.option_param_a[0] = lines[0].param_a;
+    game->minimenu.option_param_b[0] = lines[0].param_b;
+    game->minimenu.option_param_c[0] = lines[0].param_c;
+    game->minimenu.option_count      = 1;
+    minimenu_game_use_option(game, input, 0);
+    return 1;
+}
+
+void
+minimenu_game_show(
+    struct GGame* game,
+    int click_x,
+    int click_y)
+{
+    if( !game )
+        return;
+
+    uitree_sync_hover_option_set(game, click_x, click_y);
+
+    int vp_w = game->iface_view_port ? game->iface_view_port->width  : 765;
+    int vp_h = game->iface_view_port ? game->iface_view_port->height : 503;
+
+    struct MinimenuOptionLine lines[MINIMENU_MAX_OPTIONS];
+    int nlines = minimenu_game_collect_lines(game, lines, MINIMENU_MAX_OPTIONS);
+    if( nlines <= 0 )
+        return;
 
     minimenu_show(&game->minimenu, lines, nlines, vp_w, vp_h, click_x, click_y);
 }
@@ -366,6 +438,46 @@ minimenu_game_click_option(
     return minimenu_click_option(&game->minimenu, click_x, click_y);
 }
 
+#define MM_BFS_PATH_MAX 25
+
+static int
+mm_input_run(struct GInput* input)
+{
+    if( input && game_input_keydown_or_pressed(input, TORIRSK_SHIFT) )
+        return 1;
+    return 0;
+}
+
+/** Client.ts tryMove type=2 before OP*: emit MOVE_OPCLICK; set suppress for next `game_try_move`. */
+static void
+mm_emit_opclick_to_tile(
+    struct GGame* game,
+    struct GInput* input,
+    int dst_x,
+    int dst_z)
+{
+    if( !game->world || !game->world->collision_map )
+        return;
+    if( game->net_state != GAME_NET_STATE_GAME || !game->random_out )
+        return;
+
+    struct PlayerEntity* pl = world_player(game->world, ACTIVE_PLAYER_SLOT);
+    if( !pl || !pl->alive )
+        return;
+
+    int sx = pl->draw_position.x >> 7;
+    int sz = pl->draw_position.z >> 7;
+    int path_x[MM_BFS_PATH_MAX];
+    int path_z[MM_BFS_PATH_MAX];
+    int n = collision_map_bfs_path(
+        game->world->collision_map, sx, sz, dst_x, dst_z, path_x, path_z, MM_BFS_PATH_MAX);
+    if( n <= 0 )
+        return;
+
+    clientprot_emit_move_opclick_path(game, mm_input_run(input), path_x, path_z, n);
+    game->suppress_move_gameclick_once = 1;
+}
+
 /* Move toward entity at (tile_x, tile_z) with the "interact" (red) cross. */
 static void
 mm_move_toward(
@@ -389,6 +501,7 @@ mm_move_toward(
 void
 minimenu_game_use_option(
     struct GGame* game,
+    struct GInput* input,
     int option_index)
 {
     if( !game )
@@ -405,6 +518,72 @@ minimenu_game_use_option(
 
     if( action == (int)MINIMENU_ACTION_CANCEL )
         return;
+
+    if( action == (int)MINIMENU_ACTION_OPHELDT_START )
+    {
+        if( !game->iface )
+            return;
+        game->iface->inv_use_mode    = 1;
+        game->iface->inv_target_mode = 0;
+        /* Client.ts addComponentOptions: menuParamA=obj.id, B=slot, C=child.id (USE line). */
+        game->iface->inv_sel_obj_id  = param_a;
+        game->iface->inv_sel_slot    = param_b;
+        game->iface->inv_sel_comp_id = param_c;
+        struct CacheDatConfigObj* o =
+            game->buildcachedat ? buildcachedat_get_obj(game->buildcachedat, param_a) : NULL;
+        snprintf(
+            game->iface->inv_sel_obj_name,
+            sizeof(game->iface->inv_sel_obj_name),
+            "%s",
+            (o && o->name) ? o->name : "item");
+        return;
+    }
+
+    if( action == (int)MINIMENU_ACTION_TGT_BUTTON )
+    {
+        if( !game->iface || !game->buildcachedat )
+            return;
+        int comp = param_c;
+        struct CacheDatConfigComponent* cc =
+            buildcachedat_get_component(game->buildcachedat, comp);
+        game->iface->inv_target_mode        = 1;
+        game->iface->inv_use_mode           = 0;
+        game->iface->inv_target_src_comp_id = comp;
+        game->iface->inv_target_mask        = cc ? cc->targetMask : -1;
+        iface_inv_build_target_op_full(
+            game->iface->inv_target_op,
+            sizeof(game->iface->inv_target_op),
+            cc ? cc->targetVerb : NULL,
+            cc ? cc->targetText : NULL);
+        return;
+    }
+
+    if( action == (int)MINIMENU_ACTION_USEHELD_ONHELD )
+    {
+        if( !game->iface || GAME_NET_STATE_GAME != game->net_state )
+            return;
+        /* menuParam: obj, slot, comp (Client.ts; matches uitree_opt_append for held actions). */
+        struct CPArgs_OpHeldU a = { param_a,
+                                    param_b,
+                                    param_c,
+                                    game->iface->inv_sel_obj_id,
+                                    game->iface->inv_sel_slot,
+                                    game->iface->inv_sel_comp_id };
+        clientprot_core_emit(game, CLIENTPROT_OP_OPHELDU, &a);
+        game->iface->inv_use_mode = 0;
+        return;
+    }
+
+    if( action == (int)MINIMENU_ACTION_TGT_HELD )
+    {
+        if( !game->iface || GAME_NET_STATE_GAME != game->net_state )
+            return;
+        struct CPArgs_OpHeldT a = {
+            param_a, param_b, param_c, game->iface->inv_target_src_comp_id };
+        clientprot_core_emit(game, CLIENTPROT_OP_OPHELDT, &a);
+        game->iface->inv_target_mode = 0;
+        return;
+    }
 
     if( action == (int)MINIMENU_ACTION_WALK )
     {
@@ -436,9 +615,18 @@ minimenu_game_use_option(
             which = 5;
         if( which >= 0 )
         {
+            int tx = param_b;
+            int tz = param_c;
+            struct NPCEntity* npc = world_npc(game->world, param_a);
+            if( npc && npc->alive )
+            {
+                tx = npc->draw_position.x >> 7;
+                tz = npc->draw_position.z >> 7;
+            }
+            mm_emit_opclick_to_tile(game, input, tx, tz);
             struct CPArgs_OpNpc a = { which, param_a };
             clientprot_core_emit(game, CLIENTPROT_OP_OPNPC, &a);
-            mm_move_toward(game, param_b, param_c);
+            mm_move_toward(game, tx, tz);
             return;
         }
     }
@@ -457,6 +645,7 @@ minimenu_game_use_option(
             which = 5;
         if( which >= 0 )
         {
+            mm_emit_opclick_to_tile(game, input, param_b, param_c);
             struct CPArgs_OpLoc a = { which, param_b, param_c, param_a, 0 };
             clientprot_core_emit(game, CLIENTPROT_OP_OPLOC, &a);
             mm_move_toward(game, param_b, param_c);
@@ -478,6 +667,7 @@ minimenu_game_use_option(
             which = 5;
         if( which >= 0 )
         {
+            mm_emit_opclick_to_tile(game, input, param_b, param_c);
             struct CPArgs_OpObj a = { which, param_b, param_c, param_a, 0 };
             clientprot_core_emit(game, CLIENTPROT_OP_OPOBJ, &a);
             mm_move_toward(game, param_b, param_c);
@@ -502,9 +692,18 @@ minimenu_game_use_option(
             which = 5;
         if( which >= 0 )
         {
+            int tx = param_b;
+            int tz = param_c;
+            struct PlayerEntity* tgt = world_player(game->world, param_a);
+            if( tgt && tgt->alive )
+            {
+                tx = tgt->draw_position.x >> 7;
+                tz = tgt->draw_position.z >> 7;
+            }
+            mm_emit_opclick_to_tile(game, input, tx, tz);
             struct CPArgs_OpPlayer a = { which, param_a };
             clientprot_core_emit(game, CLIENTPROT_OP_OPPLAYER, &a);
-            mm_move_toward(game, param_b, param_c);
+            mm_move_toward(game, tx, tz);
             return;
         }
     }
@@ -523,7 +722,7 @@ minimenu_game_use_option(
             which = 5;
         if( which >= 0 )
         {
-            clientprot_inv_button(game, which, param_a, param_b, param_c);
+            clientprot_inv_button(game, which, param_c, param_b, param_a);
             return;
         }
     }
@@ -547,7 +746,7 @@ minimenu_game_use_option(
             which = 6;
         if( which >= 1 && which <= 5 )
         {
-            struct CPArgs_OpHeld a = { which, param_c, param_b, param_a };
+            struct CPArgs_OpHeld a = { which, param_a, param_b, param_c };
             clientprot_core_emit(game, CLIENTPROT_OP_OPHELD, &a);
             return;
         }

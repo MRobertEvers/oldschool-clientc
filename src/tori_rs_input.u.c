@@ -1,12 +1,11 @@
 #ifndef TORI_RS_INPUT_U_C
 #define TORI_RS_INPUT_U_C
 
-#include "tori_rs.h"
-
-#include "osrs/core/clientprot_core.h"
 #include "osrs/interface.h"
+#include "osrs/interface_state.h"
 #include "osrs/minimenu_game.h"
 #include "osrs/revconfig/uitree.h"
+#include "tori_rs.h"
 
 static void
 game_map_soft3d_window_mouse_to_buffer(
@@ -60,9 +59,8 @@ LibToriRS_GameProcessInput(
     const int max_ticks_per_frame = 25;
 
     int time_quanta = 0;
-    while(
-        input->time_delta_accumulator_seconds > time_delta_step &&
-        time_quanta < max_ticks_per_frame )
+    while( input->time_delta_accumulator_seconds > time_delta_step &&
+           time_quanta < max_ticks_per_frame )
     {
         time_quanta++;
         input->time_delta_accumulator_seconds -= time_delta_step;
@@ -206,6 +204,8 @@ LibToriRS_GameProcessInput(
     game->mouse_clicked = false;
     game->mouse_clicked_right = false;
 
+    int prev_lmb = game->mouse_button_down;
+
     /* Update mouse_button_down; clear scrollbar drag when left button is released. */
     int left_down = input->mouse_button_states[TORIRSM_LEFT].down;
     if( game->mouse_button_down && !left_down )
@@ -217,14 +217,25 @@ LibToriRS_GameProcessInput(
     }
     game->mouse_button_down = left_down;
 
+    if( game->ui_root_buffer && game->iface && game->mouse_x >= 0 && game->mouse_y >= 0 )
+    {
+        if( !prev_lmb && left_down )
+            interface_inv_try_drag_mouse_down(game, game->mouse_x, game->mouse_y);
+
+        interface_inv_drag_tick(game);
+
+        if( prev_lmb && !left_down )
+            interface_inv_try_drag_mouse_up(game, input);
+    }
+
     /* Per-frame scrollbar logic: mirrors Client.ts doScrollbar + scrollCycle.
      * While the left button is held:
      *  - arrows (region 0/1): scroll by 4 px per frame (scrollCycle * 4)
      *  - track/grip (region 2/3) or an active drag id: recompute scrollPos from
      *    mouse Y each frame (Client.ts 10543–10558).  scrollInputPadding is mirrored
      *    by keeping game->ui_root_buffer->ui_scrollbar_drag_component_id set while dragging. */
-    if( left_down && game->ui_root_buffer && game->iface &&
-        game->mouse_x >= 0 && game->mouse_y >= 0 )
+    if( left_down && game->ui_root_buffer && game->iface && game->mouse_x >= 0 &&
+        game->mouse_y >= 0 )
     {
         game->scroll_cycle++;
 
@@ -313,8 +324,7 @@ LibToriRS_GameProcessInput(
             if( max_scroll <= 0 )
                 break;
             int up = (wh > 0) ? 1 : 0;
-            interface_handle_scrollbar_arrow_step(
-                game, L->component_id, max_scroll, up, 24);
+            interface_handle_scrollbar_arrow_step(game, L->component_id, max_scroll, up, 24);
         }
         break;
         case TORIRSEV2_CLICK:
@@ -375,11 +385,30 @@ LibToriRS_GameProcessInput(
                     /* Dispatch to context menu; close regardless of where click lands. */
                     int opt = minimenu_game_click_option(game, cx, cy);
                     if( opt >= 0 )
-                        minimenu_game_use_option(game, opt);
-                    /* minimenu_game_click_option already cleared minimenu.visible for outside clicks.
-                     * For header or option clicks, close explicitly. */
+                        minimenu_game_use_option(game, input, opt);
+                    /* minimenu_game_click_option already cleared minimenu.visible for outside
+                     * clicks. For header or option clicks, close explicitly. */
                     game->minimenu.visible = 0;
                     game->interface_consumed_click = 1;
+                }
+                else if( game->iface && game->iface->inv_suppress_next_left_click )
+                {
+                    game->iface->inv_suppress_next_left_click = 0;
+                    game->interface_consumed_click = 1;
+                }
+                else if(
+                    game->ui_root_buffer && game->iface && cx >= 0 && cy >= 0 &&
+                    interface_point_in_ui_inv_primary_region(cx, cy) )
+                {
+                    if( minimenu_game_use_primary_at(game, input, cx, cy) )
+                        game->interface_consumed_click = 1;
+                    else
+                    {
+                        game->mouse_clicked = true;
+                        game->mouse_cycle = 0;
+                        game->mouse_clicked_x = cx;
+                        game->mouse_clicked_y = cy;
+                    }
                 }
                 else
                 {
@@ -387,10 +416,6 @@ LibToriRS_GameProcessInput(
                     game->mouse_cycle = 0;
                     game->mouse_clicked_x = cx;
                     game->mouse_clicked_y = cy;
-
-                    /* Emit mouse-click event to server. */
-                    if( GAME_NET_STATE_GAME == game->net_state )
-                        clientprot_event_mouse_click(game, 1, cx, cy, game->cycle);
                 }
             }
             else if( button == TORIRSM_RIGHT )
@@ -399,8 +424,8 @@ LibToriRS_GameProcessInput(
                 int cy = input->events[i].click.start_mouse_y;
                 if( game->soft3d_mouse_from_window )
                     game_map_soft3d_window_mouse_to_buffer(game, &cx, &cy);
-                game->mouse_clicked_right   = true;
-                game->mouse_cycle           = 0;
+                game->mouse_clicked_right = true;
+                game->mouse_cycle = 0;
                 game->mouse_clicked_right_x = cx;
                 game->mouse_clicked_right_y = cy;
                 /* Open context menu immediately on right-click. */

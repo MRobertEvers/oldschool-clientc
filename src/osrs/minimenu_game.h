@@ -8,6 +8,7 @@
 
 struct CollisionMap;
 struct GGame;
+struct GInput;
 struct WorldOption;
 struct WorldOptionSet;
 
@@ -39,6 +40,22 @@ minimenu_game_show(
     int click_x,
     int click_y);
 
+/** After `uitree_sync_hover_option_set`, builds the same option rows as `minimenu_game_show`. */
+int
+minimenu_game_collect_lines(
+    struct GGame* game,
+    struct MinimenuOptionLine* lines_out,
+    int max_lines);
+
+/** Sync hover at (cx,cy), take primary row (index 0 after TS reversal), dispatch like menu pick.
+ * @return 1 if an option was dispatched or handled (including mode switches), 0 if nothing to do. */
+int
+minimenu_game_use_primary_at(
+    struct GGame* game,
+    struct GInput* input,
+    int cx,
+    int cy);
+
 void
 minimenu_game_enqueue(
     struct GGame* game,
@@ -60,6 +77,7 @@ minimenu_game_click_option(
 void
 minimenu_game_use_option(
     struct GGame* game,
+    struct GInput* input,
     int option_index);
 
 bool

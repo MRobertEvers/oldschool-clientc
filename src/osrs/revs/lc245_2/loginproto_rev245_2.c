@@ -24,13 +24,12 @@ rsbuf_rsaenc(
     return enclen;
 }
 
-// Generate random seed values
+/* First two session keys; match Client.ts Math.floor(Math.random() * 99999999). */
 static void
 generate_seed(int32_t* seed)
 {
-    seed[0] = (rand() % 99999999);
-    seed[1] = (rand() % 99999999);
-    // seed[2] and seed[3] will be set from server_seed
+    seed[0] = (int32_t)(rand() % 99999999);
+    seed[1] = (int32_t)(rand() % 99999999);
 }
 
 struct LoginProto*
@@ -204,13 +203,17 @@ loginproto_poll(struct LoginProto* loginproto)
 
         ringbuf_write(loginproto->out, loginproto->tempout, out.position);
 
-        isaac_seed(loginproto->random_out, loginproto->seed, 4);
+        /* Same order as Client.ts login (Packet.ts): out.random = Isaac(seed); then +50 for
+         * randomIn. Server reference: decryptor = Isaac(seed), encryptor = Isaac(seed+50 per word).
+         * random_out → client→server opcode masking (pairs with server decryptor).
+         * random_in  → server→client opcode masking (pairs with server encryptor). */
+        isaac_seed(loginproto->random_out, (int*)loginproto->seed, 4);
 
         int32_t seed_in[4];
         for( int i = 0; i < 4; i++ )
-            seed_in[i] = loginproto->seed[i] + 50;
+            seed_in[i] = (int32_t)((uint32_t)loginproto->seed[i] + 50u); /* wrap like JS Int32 */
 
-        isaac_seed(loginproto->random_in, seed_in, 4);
+        isaac_seed(loginproto->random_in, (int*)seed_in, 4);
 
         loginproto->state = LOGINPROTO_LOGIN_RESPONSE;
         loginproto->await_recv_cnt = 1;

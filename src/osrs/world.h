@@ -29,8 +29,15 @@ struct FlagMap;
 #define MAX_NPCS 8192
 #define MAX_PROJECTILES 10000
 
-#define MAX_MAP_BUILD_LOC_ENTITIES (16384 >> 1)
+/* Upper bound on scenery loc entities allocated in one center-zone rebuild (all chunks).
+ * Dense maps / large scene radius can exceed 8k; pool matches entity_vec prealloc. */
+#define MAX_MAP_BUILD_LOC_ENTITIES 32768
 #define MAX_MAP_BUILD_TILE_ENTITIES (50000)
+
+/** Scene2 `scene2_element_acquire_fast` pool size: map-build locs and terrain tiles both take fast
+ * slots during center-zone rebuild; keep >= loc + tile caps plus slack for misc fast users. */
+#define SCENE2_WORLD_FAST_ELEMENT_CAPACITY \
+    (MAX_MAP_BUILD_LOC_ENTITIES + MAX_MAP_BUILD_TILE_ENTITIES + 8192)
 
 /** Queued loc for contour-ground pass (see world_contour_ground). */
 struct ContourGroundQueueEntry

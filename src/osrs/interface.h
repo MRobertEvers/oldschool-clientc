@@ -8,6 +8,34 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct GInput;
+
+/** Sidebar overlay rect — matches revconfig sidebar roots (e.g. rev_245_2_ui.ini) & Client.ts. */
+#define IFACE_SIDEBAR_X0 553
+#define IFACE_SIDEBAR_Y0 205
+#define IFACE_SIDEBAR_X1 743
+#define IFACE_SIDEBAR_Y1 466
+
+static inline bool
+iface_point_in_sidebar_overlay(int mx, int my)
+{
+    return mx > IFACE_SIDEBAR_X0 && my > IFACE_SIDEBAR_Y0 && mx < IFACE_SIDEBAR_X1 &&
+           my < IFACE_SIDEBAR_Y1;
+}
+
+/** Main viewport, sidebar, or chat regions where inventory minimenu options exist (Client.ts). */
+static inline bool
+interface_point_in_ui_inv_primary_region(int mx, int my)
+{
+    if( iface_point_in_sidebar_overlay(mx, my) )
+        return true;
+    if( mx > 4 && my > 4 && mx < 516 && my < 338 )
+        return true;
+    if( mx >= 4 && my >= 357 && mx < 516 && my < 503 )
+        return true;
+    return false;
+}
+
 void
 interface_draw_component(
     struct GGame* game,
@@ -161,17 +189,32 @@ interface_get_if_active(
     struct GGame* game,
     struct CacheDatConfigComponent* component);
 
+/** Expand %1..%5 using component client scripts (Client.ts drawInterface + inf). */
+void
+interface_expand_if_text_placeholders(
+    struct GGame* game,
+    struct CacheDatConfigComponent* component,
+    const char* src,
+    char* out,
+    int out_cap);
+
 /** Once per frame: set iface over_* ids from Client.ts region rectangles + interface_find_hovered. */
 void
 interface_update_region_hover_ids(struct GGame* game);
 
 struct UITreeOptionSet;
 
-/** IF_OPENSIDE (sidebar_interface_id): minimenu rows from cache overlay when UITree skips sidebar. */
+/** Sidebar cache inv minimenu when UITree does not supply rows: Client.ts addComponentOptions uses
+ * sideModalId after IF_OPENSIDE, else sideOverlayId[sideTab] from IF_SETTAB — here
+ * sidebar_interface_id / tab_interface_id[selected_tab]. Hit-test: iface_point_in_sidebar_overlay. */
 bool
 interface_sidebar_overlay_try_fill_uitree_options(
     struct GGame* game,
-    struct UITreeOptionSet* os);
+    int pick_mx,
+    int pick_my,
+    struct UITreeOptionSet* os,
+    int* out_inv_component_id,
+    int* out_inv_slot);
 
 /** Top option line for UI (non-world) hover tooltip from hovered component cache fields.
  * Returns 1 if `out` was filled, 0 if no tooltip. */
@@ -232,14 +275,15 @@ interface_check_inv_click(
     int mouse_x,
     int mouse_y);
 
-// Handle inventory button click (sends packet to server)
+/** Client.ts objDragArea: LMB down on swappable inv default row → drag; release completes. */
 void
-interface_handle_inv_button(
-    struct GGame* game,
-    int action,
-    int obj_id,
-    int slot,
-    int component_id);
+interface_inv_try_drag_mouse_down(struct GGame* game, int mx, int my);
+
+void
+interface_inv_drag_tick(struct GGame* game);
+
+void
+interface_inv_try_drag_mouse_up(struct GGame* game, struct GInput* input);
 
 /** After selecting magic sidebar tab (tab id 6): if `TORI_MAGIC_TAB_IF_BUTTON_COMP` is a
  * positive integer, send PKTOUT IF_BUTTON with that component id so server scripts can run

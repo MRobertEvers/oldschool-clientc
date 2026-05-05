@@ -705,23 +705,32 @@ load_inv(
         {
             /* INI item= uses 1-based wire ids like invSlotObjId / Client.ts linkObjType; obj_icon_get
              * expects 0-based (see gameproto UPDATE_INV_FULL + interface_draw). */
-            struct DashSprite* sp = obj_icon_get(game, obj_id - 1, 1);
-            if( sp )
+            struct DashSprite* cached = obj_icon_get(game, obj_id - 1, 1);
+            if( cached )
             {
-                struct DashSprite** arr = malloc(sizeof(struct DashSprite*));
-                if( arr )
+                struct DashSprite* sp = dashsprite_clone(cached);
+                if( sp )
                 {
-                    arr[0] = sp;
-                    int eid = uiscene_element_acquire(ui_scene, -1);
-                    if( eid >= 0 )
+                    struct DashSprite** arr = malloc(sizeof(struct DashSprite*));
+                    if( arr )
                     {
-                        struct UISceneElement* el = uiscene_element_at(ui_scene, eid);
-                        if( el )
+                        arr[0] = sp;
+                        int eid = uiscene_element_acquire(ui_scene, -1);
+                        if( eid >= 0 )
                         {
-                            el->dash_sprites = arr;
-                            el->dash_sprites_count = 1;
-                            el->dash_sprites_borrowed = false;
-                            inv.items[inv.item_count].scene_id = eid;
+                            struct UISceneElement* el = uiscene_element_at(ui_scene, eid);
+                            if( el )
+                            {
+                                el->dash_sprites = arr;
+                                el->dash_sprites_count = 1;
+                                el->dash_sprites_borrowed = false;
+                                inv.items[inv.item_count].scene_id = eid;
+                            }
+                            else
+                            {
+                                free(arr);
+                                dashsprite_free(sp);
+                            }
                         }
                         else
                         {
@@ -730,14 +739,7 @@ load_inv(
                         }
                     }
                     else
-                    {
-                        free(arr);
                         dashsprite_free(sp);
-                    }
-                }
-                else
-                {
-                    dashsprite_free(sp);
                 }
             }
         }
@@ -1052,6 +1054,7 @@ push_rs_from_cache_component(
         }
     }
     break;
+    case COMPONENT_TYPE_INV_TEXT:
     case COMPONENT_TYPE_INV:
     {
         int bg_sid[UI_INV_SLOT_OFFSET_MAX];
@@ -1144,14 +1147,15 @@ push_rs_from_cache_component(
                     item->obj_id = comp->invSlotObjId[si];
                     item->obj_count = obj_count > 0 ? obj_count : 1;
                     /* Pre-cache the sprite so it's available during render. */
-                    struct DashSprite* sp = obj_icon_get(game, obj_id, item->obj_count);
+                    struct DashSprite* cached = obj_icon_get(game, obj_id, item->obj_count);
+                    struct DashSprite* sp = cached ? dashsprite_clone(cached) : NULL;
                     if( sp )
                     {
                         struct DashSprite** row = malloc(sizeof(struct DashSprite*));
                         if( row )
                         {
                             row[0] = sp;
-                            int sid = uiscene_attach_sprite_row(game->ui_scene, row, 1, true);
+                            int sid = uiscene_attach_sprite_row(game->ui_scene, row, 1, false);
                             if( sid >= 0 )
                             {
                                 item->scene_id = sid;
@@ -1159,9 +1163,12 @@ push_rs_from_cache_component(
                             }
                             else
                             {
+                                dashsprite_free(sp);
                                 free(row);
                             }
                         }
+                        else
+                            dashsprite_free(sp);
                     }
                 }
             }

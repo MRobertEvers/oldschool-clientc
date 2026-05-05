@@ -14,9 +14,9 @@
 /* Maximum outbound packet size (generous upper bound). */
 #define CLIENTPROT_SCRATCH_SIZE 2048
 
-/** Matches Client-TS `Packet.pIsaac`: wire[0] == (logical_opcode + isaac_next()) & 0xff.
- * Logical opcodes are revision-specific (see packetout.h PKTOUT_LC245_2_*); names align with
- * Client-TS src/io/ClientProt.ts by feature, not necessarily by numeric value. */
+/** Same masking as Client-TS `Packet.pIsaac`: wire[0] == (logical_opcode + isaac_next()) & 0xff.
+ * `logical_op` is decoded from the wire byte using ISAAC — compare to `packetout.h`
+ * (`revs/lc245_2/packetout_lc245_2.h`) PKTOUT_LC245_2_* (ClientGameProt `id` values). */
 static char const*
 clientprot_kind_name(enum ClientProtOpKind kind)
 {
@@ -26,18 +26,8 @@ clientprot_kind_name(enum ClientProtOpKind kind)
         return "NO_TIMEOUT";
     case CLIENTPROT_OP_IDLE_TIMER:
         return "IDLE_TIMER";
-    case CLIENTPROT_OP_EVENT_MOUSE_MOVE:
-        return "EVENT_MOUSE_MOVE";
-    case CLIENTPROT_OP_EVENT_MOUSE_CLICK:
-        return "EVENT_MOUSE_CLICK";
-    case CLIENTPROT_OP_EVENT_APPLET_FOCUS:
-        return "EVENT_APPLET_FOCUS";
-    case CLIENTPROT_OP_EVENT_CAMERA_POSITION:
-        return "EVENT_CAMERA_POSITION";
     case CLIENTPROT_OP_EVENT_TRACKING:
         return "EVENT_TRACKING";
-    case CLIENTPROT_OP_MAP_BUILD_COMPLETE:
-        return "MAP_BUILD_COMPLETE";
     case CLIENTPROT_OP_MOVE_GAMECLICK:
         return "MOVE_GAMECLICK";
     case CLIENTPROT_OP_MOVE_MINIMAPCLICK:
@@ -104,12 +94,8 @@ clientprot_kind_name(enum ClientProtOpKind kind)
         return "IGNORE_DEL";
     case CLIENTPROT_OP_IF_PLAYERDESIGN:
         return "IF_PLAYERDESIGN";
-    case CLIENTPROT_OP_SEND_SNAPSHOT:
-        return "SEND_SNAPSHOT";
     case CLIENTPROT_OP_TUTORIAL_CLICKSIDE:
         return "TUTORIAL_CLICKSIDE";
-    case CLIENTPROT_OP_LOGOUT:
-        return "LOGOUT";
     case CLIENTPROT_OP_REPORT_ABUSE:
         return "REPORT_ABUSE";
     default:
@@ -124,7 +110,11 @@ clientprot_debug_pkout_enabled(void)
     if( cached >= 0 )
         return cached;
     char const* e = getenv("TORI_DEBUG_PKTOUT");
-    cached = (e && e[0] != '\0' && e[0] != '0') ? 1 : 0;
+    /* Default on; set TORI_DEBUG_PKTOUT=0 to silence [pkout] spam. */
+    if( e && e[0] == '0' && e[1] == '\0' )
+        cached = 0;
+    else
+        cached = 1;
     return cached;
 }
 
@@ -143,7 +133,7 @@ clientprot_debug_pkout_print(
 
     printf(
         "[pkout] kind=%s logical_op=%d wire0=0x%02x isaac_low_byte=0x%02x size=%d "
-        "(packetout.h PKTOUT_LC245_2_*; Client-TS ClientProt.ts uses different numeric ids)\n",
+        "(logical_op vs packetout_lc245_2.h PKTOUT_LC245_2_*)\n",
         clientprot_kind_name(kind),
         inferred_logical,
         scratch[0],

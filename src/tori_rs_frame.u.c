@@ -762,6 +762,22 @@ game_uiscene_sprite_atlas0(struct GGame* game, int element_id)
     return el->dash_sprites[0];
 }
 
+/** Drawable pixel size for UI sprites (Pix32 cache uses crop vs full buffer). */
+static void
+dashsprite_draw_dims(struct DashSprite const* sp, int* out_w, int* out_h)
+{
+    if( sp->crop_width > 0 && sp->crop_height > 0 )
+    {
+        *out_w = sp->crop_width;
+        *out_h = sp->crop_height;
+    }
+    else
+    {
+        *out_w = sp->width;
+        *out_h = sp->height;
+    }
+}
+
 /* Emit a single 2-pixel-wide dot on the minimap for the entity at world position
  * (entity_world_x, entity_world_z).  Mirrors Client.ts minimapDrawDot 11637-11663.
  *
@@ -811,13 +827,28 @@ minimap_emit_dot(
     int dot_x = 97 + comp_x + ((dx * cos_y + dz * sin_y) >> 11);
     int dot_y = 78 + comp_y + ((dz * cos_y - dx * sin_y) >> 11);
 
-    /* Clamp to minimap bounds. */
-    int half_w = sprite->width  / 2;
-    int half_h = sprite->height / 2;
-    if( dot_x < comp_x + half_w || dot_x >= comp_x + comp_w - half_w )
+    /* Clamp using logical drawable size (crop), not full pixmap stride dimensions. */
+    int sw = 0;
+    int sh = 0;
+    dashsprite_draw_dims(sprite, &sw, &sh);
+    if( sw <= 0 || sh <= 0 )
         return;
-    if( dot_y < comp_y + half_h || dot_y >= comp_y + comp_h - half_h )
+    int half_w = sw / 2;
+    int half_h = sh / 2;
+    int min_cx = comp_x + half_w;
+    int max_cx = comp_x + comp_w - sw + half_w;
+    int min_cy = comp_y + half_h;
+    int max_cy = comp_y + comp_h - sh + half_h;
+    if( min_cx > max_cx || min_cy > max_cy )
         return;
+    if( dot_x < min_cx )
+        dot_x = min_cx;
+    if( dot_x > max_cx )
+        dot_x = max_cx;
+    if( dot_y < min_cy )
+        dot_y = min_cy;
+    if( dot_y > max_cy )
+        dot_y = max_cy;
 
     struct ToriRSRenderCommand* c = LibToriRS_RenderCommandBufferEmplaceCommand(buf);
     c->kind                          = TORIRS_GFX_DRAW_SPRITE;
@@ -834,14 +865,24 @@ minimap_emit_dot(
     c->_sprite_draw.sprite           = sprite;
     c->_sprite_draw.dst_bb_x         = dot_x - half_w;
     c->_sprite_draw.dst_bb_y         = dot_y - half_h;
-    c->_sprite_draw.dst_bb_w         = sprite->width;
-    c->_sprite_draw.dst_bb_h         = sprite->height;
+    c->_sprite_draw.dst_bb_w         = sw;
+    c->_sprite_draw.dst_bb_h         = sh;
     c->_sprite_draw.rotated          = false;
     c->_sprite_draw.rotation_r2pi2048 = 0;
-    c->_sprite_draw.src_bb_x         = 0;
-    c->_sprite_draw.src_bb_y         = 0;
-    c->_sprite_draw.src_bb_w         = 0;
-    c->_sprite_draw.src_bb_h         = 0;
+    if( sprite->crop_width > 0 && sprite->crop_height > 0 )
+    {
+        c->_sprite_draw.src_bb_x = sprite->crop_x;
+        c->_sprite_draw.src_bb_y = sprite->crop_y;
+        c->_sprite_draw.src_bb_w = sprite->crop_width;
+        c->_sprite_draw.src_bb_h = sprite->crop_height;
+    }
+    else
+    {
+        c->_sprite_draw.src_bb_x         = 0;
+        c->_sprite_draw.src_bb_y         = 0;
+        c->_sprite_draw.src_bb_w         = 0;
+        c->_sprite_draw.src_bb_h         = 0;
+    }
     c->_sprite_draw.src_anchor_x     = 0;
     c->_sprite_draw.src_anchor_y     = 0;
     c->_sprite_draw.dst_anchor_x     = 0;
@@ -1439,7 +1480,7 @@ LibToriRS_FrameBegin(
     interface_update_region_hover_ids(game);
 
     if( game->ui_root_buffer )
-        uitree_sync_hover_option_set(game);
+        uitree_sync_hover_option_set(game, game->mouse_x, game->mouse_y);
 
     if( game->ui_root_buffer )
         uitree_mark_all_dirty(game->ui_root_buffer);
@@ -1586,6 +1627,8 @@ entity_player_animate(
     struct World* world,
     int player_entity_id)
 {
+    if( player_entity_id < 0 || player_entity_id >= entity_vec_count(&world->players) )
+        return;
     struct PlayerEntity* player = world_player(world, player_entity_id);
     struct EntityAnimation* animation = &player->animation;
     struct Scene2Element* scene_element =
@@ -1601,6 +1644,8 @@ entity_npc_animate(
     struct World* world,
     int npc_entity_id)
 {
+    if( npc_entity_id < 0 || npc_entity_id >= entity_vec_count(&world->npcs) )
+        return;
     struct NPCEntity* npc = world_npc(world, npc_entity_id);
     struct EntityAnimation* animation = &npc->animation;
     struct Scene2Element* scene_element =
@@ -1616,6 +1661,9 @@ entity_projectile_animate(
     struct World* world,
     int projectile_entity_id)
 {
+    if( projectile_entity_id < 0 ||
+        projectile_entity_id >= entity_vec_count(&world->projectiles) )
+        return;
     struct ProjectileEntity* p = world_projectile(world, projectile_entity_id);
     struct EntityAnimation* animation = &p->animation;
     struct Scene2Element* scene_element =
@@ -1631,6 +1679,9 @@ entity_map_build_loc_entity_animate(
     struct World* world,
     int map_build_loc_entity_id)
 {
+    if( map_build_loc_entity_id < 0 ||
+        map_build_loc_entity_id >= entity_vec_count(&world->map_build_loc_entities) )
+        return;
     struct MapBuildLocEntity* map_build_loc_entity =
         world_loc_entity(world, map_build_loc_entity_id);
 
@@ -1697,8 +1748,10 @@ entity_interactable(
         return true;
     case ENTITY_KIND_MAP_BUILD_LOC:
     {
-        struct MapBuildLocEntity* map_build_loc_entity =
-            world_loc_entity(world, entity_id_from_uid(entity_id));
+        int lid = entity_id_from_uid(entity_id);
+        if( lid < 0 || lid >= entity_vec_count(&world->map_build_loc_entities) )
+            return false;
+        struct MapBuildLocEntity* map_build_loc_entity = world_loc_entity(world, lid);
         return map_build_loc_entity->interactable;
     }
     }
@@ -1721,22 +1774,30 @@ entity_coords_from_element(
     {
     case ENTITY_KIND_PLAYER:
     {
-        struct PlayerEntity* player = world_player(world, entity_id_from_uid(entity_uid));
+        int pid = entity_id_from_uid(entity_uid);
+        if( pid < 0 || pid >= entity_vec_count(&world->players) )
+            return;
+        struct PlayerEntity* player = world_player(world, pid);
         coords->x = player->pathing.route_x[0];
         coords->z = player->pathing.route_z[0];
     }
     break;
     case ENTITY_KIND_NPC:
     {
-        struct NPCEntity* npc = world_npc(world, entity_id_from_uid(entity_uid));
+        int nid = entity_id_from_uid(entity_uid);
+        if( nid < 0 || nid >= entity_vec_count(&world->npcs) )
+            return;
+        struct NPCEntity* npc = world_npc(world, nid);
         coords->x = npc->pathing.route_x[0];
         coords->z = npc->pathing.route_z[0];
     }
     break;
     case ENTITY_KIND_MAP_BUILD_LOC:
     {
-        struct MapBuildLocEntity* map_build_loc_entity =
-            world_loc_entity(world, entity_id_from_uid(entity_uid));
+        int lid = entity_id_from_uid(entity_uid);
+        if( lid < 0 || lid >= entity_vec_count(&world->map_build_loc_entities) )
+            return;
+        struct MapBuildLocEntity* map_build_loc_entity = world_loc_entity(world, lid);
         coords->x = map_build_loc_entity->scene_coord.sx;
         coords->z = map_build_loc_entity->scene_coord.sz;
     }
@@ -2339,14 +2400,24 @@ uielem_hover_tooltip_step(
     if( !dst )
         return true;
 
+    /* Pen x/y from [layout]: pre-summed client-canvas coords (see rev UI INI comment next to
+     * hover_tooltip). PixFont-style pen_y minus height2d for glyph base_y (TORIRS_GFX_DRAW_FONT). */
+    int pen_x  = node->position.x;
+    int draw_y = node->position.y;
+    if( font->height2d > 0 )
+        draw_y -= font->height2d;
+
     frame_emit_pass(fiber, FRAME_PASS_2D);
+    /* Client.ts drawStringAntiMacro(..., shadowed: true): black (+1,+1) mask per glyph, then
+     * foreground with color tags. One TORIRS_GFX_DRAW_FONT + shadowed; do not use a second
+     * ex_clipped pass here — tags would recolor the "shadow" (e.g. @whi@) and look like double text. */
     struct ToriRSRenderCommand* cmd = LibToriRS_RenderCommandBufferEmplaceCommand(fiber->cmds);
-    cmd->kind = TORIRS_GFX_DRAW_FONT;
-    cmd->_font_draw.font_id = font_id;
-    cmd->_font_draw.font = font;
-    cmd->_font_draw.text = (const uint8_t*)dst;
-    cmd->_font_draw.x = node->position.x;
-    cmd->_font_draw.y = node->position.y;
+    cmd->kind                 = TORIRS_GFX_DRAW_FONT;
+    cmd->_font_draw.font_id   = font_id;
+    cmd->_font_draw.font      = font;
+    cmd->_font_draw.text      = (const uint8_t*)dst;
+    cmd->_font_draw.x         = pen_x;
+    cmd->_font_draw.y         = draw_y;
     cmd->_font_draw.color_rgb = 0xFFFFFF;
     cmd->_font_draw.shadowed  = 1;
 
@@ -2665,6 +2736,18 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
         }
     }
 
+    if( !game->interface_consumed_click && game->chat &&
+        chat_handle_privacy_strip_click(
+            game->chat,
+            game,
+            game->mouse_clicked_x,
+            game->mouse_clicked_y,
+            1) )
+    {
+        game->interface_consumed_click = 1;
+        return;
+    }
+
     if( game->interface_consumed_click )
         return;
 
@@ -2678,10 +2761,10 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
         int cy = game->mouse_clicked_y;
 
         /* Sidebar region */
-        if( cx > 553 && cy > 205 && cx < 743 && cy < 466 )
+        if( iface_point_in_sidebar_overlay(cx, cy) )
         {
             int root_comp_id = -1;
-            int root_x = 553, root_y = 205;
+            int root_x = IFACE_SIDEBAR_X0, root_y = IFACE_SIDEBAR_Y0;
 
             if( game->iface->sidebar_interface_id >= 0 )
             {

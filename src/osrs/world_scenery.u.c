@@ -1511,6 +1511,8 @@ world_contour_ground_refresh_all_loc_dash_y(struct World* world)
     for( int i = 0; i < world->active_loc_entity_count; i++ )
     {
         int eid = world->active_loc_entities[i];
+        if( eid < 0 || eid >= entity_vec_count(&world->map_build_loc_entities) )
+            continue;
         struct MapBuildLocEntity* entity = world_loc_entity(world, eid);
         int sx = (int)entity->scene_coord.sx;
         int sz = (int)entity->scene_coord.sz;
@@ -1547,12 +1549,11 @@ world_contour_ground(struct World* world)
     int n = world->contour_ground_queue_count;
     if( n > 0 && world->contour_ground_queue )
     {
-        int loc_count = entity_vec_count(&world->map_build_loc_entities);
-
         for( int ri = 0; ri < n; ri++ )
         {
             struct ContourGroundQueueEntry* r = &world->contour_ground_queue[ri];
-            if( r->entity_id < 0 || r->entity_id >= loc_count )
+            if( r->entity_id < 0 ||
+                r->entity_id >= entity_vec_count(&world->map_build_loc_entities) )
                 continue;
 
             struct MapBuildLocEntity* entity = world_loc_entity(world, r->entity_id);
