@@ -67,6 +67,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_INV";
     case RCFIELD_UICOMPONENT_PAINT_LEVELS:
         return "RCFIELD_UICOMPONENT_PAINT_LEVELS";
+    case RCFIELD_UICOMPONENT_FONT:
+        return "RCFIELD_UICOMPONENT_FONT";
     case RCFIELD_INV_ITEM:
         return "RCFIELD_INV_ITEM";
     case RCFIELD_UILAYOUT_COMPONENT:

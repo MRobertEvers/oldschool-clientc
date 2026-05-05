@@ -1332,14 +1332,14 @@ load_layout(
         break;
         case UIELEM_BUILTIN_MINIMENU:
         {
-            int32_t idx = uitree_push_minimenu(ui, -1, 0, 0, 0, 0);
+            int32_t idx = uitree_push_minimenu(ui, -1);
             if( idx >= 0 && layout_entry->always_dirty )
                 ui->components[idx].always_dirty = 1;
         }
         break;
         case UIELEM_BUILTIN_CROSSHAIR:
         {
-            int32_t idx = uitree_push_crosshair(ui, -1, 0, 0, 0, 0);
+            int32_t idx = uitree_push_crosshair(ui, -1);
             if( idx >= 0 && layout_entry->always_dirty )
                 ui->components[idx].always_dirty = 1;
         }

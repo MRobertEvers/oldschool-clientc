@@ -1330,15 +1330,20 @@ buildcachedat_loader_load_component_sprite_lazy(
     struct GGame* game,
     const char* sprite_name)
 {
-    if( !buildcachedat || !ui_scene || !game || !sprite_name || !sprite_name[0] )
+    (void)game;
+    if( !buildcachedat || !ui_scene || !sprite_name || !sprite_name[0] )
         return;
-    if( !game->media_filelist )
+    struct FileListDat* filelist = buildcachedat->cfg_media_jagfile;
+    if( !filelist )
         return;
-    
+    int index_file_idx = filelist_dat_find_file_by_name(filelist, "index.dat");
+    if( index_file_idx < 0 )
+        return;
+
     load_one_component_sprite(
         buildcachedat,
         ui_scene,
-        game->media_filelist,
-        game->media_filelist_2d_index_file_idx,
+        filelist,
+        index_file_idx,
         sprite_name);
 }

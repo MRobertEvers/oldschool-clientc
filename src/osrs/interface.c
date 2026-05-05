@@ -615,6 +615,60 @@ interface_update_region_hover_ids(struct GGame* game)
         iface->current_hovered_interface_id = iface->over_chat_com_id;
 }
 
+int
+interface_hover_tooltip_line(struct GGame* game, char* out, int out_cap)
+{
+    if( !game || !game->iface || !game->buildcachedat || !out || out_cap <= 0 )
+        return 0;
+    int cid = game->iface->current_hovered_interface_id;
+    if( cid < 0 )
+        return 0;
+    struct CacheDatConfigComponent* c = buildcachedat_get_component(game->buildcachedat, cid);
+    if( !c )
+        return 0;
+
+    if( c->targetVerb && c->targetVerb[0] )
+    {
+        if( c->targetText && c->targetText[0] )
+            snprintf(out, (size_t)out_cap, "%s %s", c->targetVerb, c->targetText);
+        else
+            snprintf(out, (size_t)out_cap, "%s", c->targetVerb);
+        return 1;
+    }
+    if( c->option && c->option[0] )
+    {
+        snprintf(out, (size_t)out_cap, "%s", c->option);
+        return 1;
+    }
+    if( c->iop )
+    {
+        for( int i = 0; i < 5; i++ )
+        {
+            if( c->iop[i] && c->iop[i][0] )
+            {
+                snprintf(out, (size_t)out_cap, "%s", c->iop[i]);
+                return 1;
+            }
+        }
+    }
+    if( c->type == COMPONENT_TYPE_TEXT && c->text && c->text[0] )
+    {
+        snprintf(out, (size_t)out_cap, "%s", c->text);
+        return 1;
+    }
+    if( c->buttonType == COMPONENT_BUTTON_TYPE_CLOSE )
+    {
+        snprintf(out, (size_t)out_cap, "Close");
+        return 1;
+    }
+    if( c->buttonType == COMPONENT_BUTTON_TYPE_CONTINUE )
+    {
+        snprintf(out, (size_t)out_cap, "Continue");
+        return 1;
+    }
+    return 0;
+}
+
 bool
 interface_component_is_overlay_hovered(struct GGame* game, int component_id)
 {

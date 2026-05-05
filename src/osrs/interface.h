@@ -165,6 +165,11 @@ interface_get_if_active(
 void
 interface_update_region_hover_ids(struct GGame* game);
 
+/** Top option line for UI (non-world) hover tooltip from hovered component cache fields.
+ * Returns 1 if `out` was filled, 0 if no tooltip. */
+int
+interface_hover_tooltip_line(struct GGame* game, char* out, int out_cap);
+
 /** True if component_id matches any region overlay hover id (Client.ts TEXT/RECT hovered). */
 bool
 interface_component_is_overlay_hovered(struct GGame* game, int component_id);

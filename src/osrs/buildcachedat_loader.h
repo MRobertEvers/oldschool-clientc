@@ -147,13 +147,14 @@ buildcachedat_loader_load_interfaces(
     int data_size);
 
 /** Load sprites for all component graphics (graphic, activeGraphic, invSlotGraphic) from
- * game->media_filelist and register them. No-op if media_filelist is NULL. */
+ * buildcachedat->cfg_media_jagfile and register them. No-op if that filelist is NULL. */
 void
 buildcachedat_loader_load_component_sprites_from_media(
     struct BuildCacheDat* buildcachedat,
     struct GGame* game);
 
-/** Lazy-load a single component sprite by name from media filelist. */
+/** Lazy-load a single component sprite by name from cfg_media_jagfile (same as bulk loader).
+ * `game` is reserved for future use; may be NULL. */
 void
 buildcachedat_loader_load_component_sprite_lazy(
     struct BuildCacheDat* buildcachedat,

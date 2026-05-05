@@ -1484,32 +1484,7 @@ LibToriRS_FrameBegin(
         // }
     }
 
-    /* Overlay: click-cross sprite (yellow = walk, red = interact).
-     * Emitted as a TORIRS_GFX_DRAW_SPRITE command so all renderers handle it uniformly.
-     * Advance cross_cycle here (it was updated at the top of FrameBegin only for mode != 0). */
-    if( game->cross_mode != 0 && game->ui_scene )
-    {
-        /* Crosshair is now drawn via UIELEM_BUILTIN_CROSSHAIR UITree component. */
-    }
-
-    /* ── Resolve overlay font (b12; fallback p11). ───────────────────────── */
-    struct DashPixFont* ov_font   = NULL;
-    int                 ov_font_id = -1;
-    if( game->ui_scene && game->buildcachedat )
-    {
-        ov_font_id = buildcachedat_get_font_ref_id(game->buildcachedat, "b12");
-        if( ov_font_id < 0 )
-            ov_font_id = buildcachedat_get_font_ref_id(game->buildcachedat, "p11");
-        if( ov_font_id >= 0 )
-            ov_font = uiscene_font_get(game->ui_scene, ov_font_id);
-    }
-
-    /* ── Overlay: context menu (right-click minimenu). ───────────────────────
-     * Emitted last so it draws on top of everything else.
-     * Text lives in ui_frame_text_pool which is valid for the whole frame.
-     * (Hover tooltip is now drawn via UIELEM_BUILTIN_HOVER_TOOLTIP UITree component.) */
-    if( game->minimenu_visible && game->minimenu_option_count > 0 )
-        minimenu_draw(game, render_command_buffer, ov_font_id, ov_font);
+    /* Minimenu, crosshair, and hover tooltip are emitted via UITree (see rev_245_2_ui.ini). */
 }
 
 static void
@@ -2232,21 +2207,15 @@ uielem_hover_tooltip_step(
     }
     else
     {
-        /* Build options from hovered interface region if any */
-        if( game->iface->current_hovered_interface_id < 0 )
+        if( !interface_hover_tooltip_line(game, temp_option.text, (int)sizeof(temp_option.text)) )
             return true;
-        
-        /* For now, show a simple generic message for non-world hovering.
-         * A full implementation would extract button names from the hovered component. */
-        strncpy(temp_option.text, "[interface]", sizeof(temp_option.text) - 1);
-        temp_option.text[sizeof(temp_option.text) - 1] = '\0';
         first_opt = &temp_option;
     }
     
     if( !first_opt || !first_opt->text[0] )
         return true;
 
-    /* Format tooltip text: "Action" or "Action @whi@/ N more options". */
+    /* Format tooltip text: "Action" or "Action @whi@/ N more options" (world pickset only). */
     static char tooltip_buf[256];
     if( in_world && game->option_set.option_count > 2 )
         snprintf(tooltip_buf, sizeof(tooltip_buf), "%s @whi@/ %d more options",
@@ -2291,6 +2260,30 @@ uielem_hover_tooltip_step(
     cmd->_font_draw.y = game->viewport_offset_y + 15;
     cmd->_font_draw.color_rgb = 0xFFFFFF;
 
+    return true;
+}
+
+bool
+uielem_minimenu_step(
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
+{
+    (void)node;
+    struct GGame* game = fiber->game;
+    if( !game || !game->ui_scene || !fiber->cmds || !game->buildcachedat )
+        return true;
+    if( !game->minimenu_visible || game->minimenu_option_count <= 0 )
+        return true;
+
+    int ov_font_id = buildcachedat_get_font_ref_id(game->buildcachedat, "b12");
+    if( ov_font_id < 0 )
+        ov_font_id = buildcachedat_get_font_ref_id(game->buildcachedat, "p11");
+    struct DashPixFont* ov_font = NULL;
+    if( ov_font_id >= 0 )
+        ov_font = uiscene_font_get(game->ui_scene, ov_font_id);
+
+    frame_emit_pass(fiber, FRAME_PASS_2D);
+    minimenu_draw(game, fiber->cmds, ov_font_id, ov_font);
     return true;
 }
 
@@ -2470,6 +2463,8 @@ LibToriRS_FrameNextCommand(
             done = uielem_crosshair_step(&fiber, component);
             break;
         case UIELEM_BUILTIN_MINIMENU:
+            done = uielem_minimenu_step(&fiber, component);
+            break;
         case UIELEM_BUILTIN_CHAT_MESSAGES:
             done = uielem_chat_messages_step(&fiber, component);
             break;
