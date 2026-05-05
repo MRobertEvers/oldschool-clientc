@@ -245,7 +245,6 @@ torirs_nk_debug_panel_draw(
                     p->gpu_gl_merge_outer_skips);
             }
         }
-    }
 
     /* ---- Packet sim ---- */
     if( nk_tree_push(nk, NK_TREE_TAB, "Packet sim", NK_MINIMIZED) )
@@ -574,6 +573,7 @@ torirs_nk_debug_panel_draw(
         }
 
         nk_tree_pop(nk);
+    }
     }
 
     nk_end(nk);

@@ -691,6 +691,7 @@ gameproto_rev245_2_exec_if_settab(
         /* Always expand: duplicate IF_SETTAB is common; skipping when old==id left an empty
          * subtree if the first expand ran before interfaces were in buildcachedat. */
         uitree_expand_sidebar_for_tab(game, tab_id, component_id);
+        uitree_debug_log_sidebar_state(game, "IF_SETTAB", tab_id, component_id);
     }
 }
 
@@ -704,6 +705,7 @@ gameproto_rev245_2_exec_if_settab_active(
     if( tab_id >= 0 && tab_id < 14 && game->iface )
     {
         game->iface->selected_tab = tab_id;
+        uitree_debug_log_sidebar_state(game, "IF_SETTAB_ACTIVE", tab_id, -1);
         printf("IF_SETTAB_ACTIVE: Set active tab to %d\n", tab_id);
     }
     else

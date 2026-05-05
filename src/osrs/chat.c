@@ -1,5 +1,6 @@
 #include "chat.h"
 
+#include "graphics/dash.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/game.h"
 #include "osrs/interface_state.h"
@@ -22,6 +23,17 @@
 #define CHATINPUT_Y 459
 #define CHATINPUT_W 500
 #define CHATINPUT_H  12
+
+/* Privacy strip: Client.ts areaBackbase1.draw(0, 453); centreStringTag coords are buffer-local. */
+#define PRIVACY_STRIP_SCREEN_Y 453
+
+/* Client.ts Colour enum (PixFont stores these ints verbatim). */
+#define COL_PRIV_WHITE  0xFFFFFF
+#define COL_PRIV_BLACK  0x000000
+#define COL_PRIV_GREEN  0xFF00
+#define COL_PRIV_YELLOW 0xFFFF00
+#define COL_PRIV_RED    0xFF0000
+#define COL_PRIV_CYAN   0xFFFF
 
 /* ── Message type colours (0xRRGGBB) ────────────────────────────────────── */
 static int
@@ -108,6 +120,29 @@ emit_text(
     c->_font_draw.x        = x;
     c->_font_draw.y        = y;
     c->_font_draw.color_rgb = colour;
+}
+
+/** Matches Client.ts PixFont.centreStringTag(..., shadowed: true): centred on centre_x_screen, local_y as passed to centreStringTag before y -= height2d. */
+static void
+emit_centre_string_tag_shadowed(
+    struct ToriRSRenderCommandBuffer* cmdbuf,
+    struct DashPixFont*               font,
+    int                               font_id,
+    int                               centre_x_screen,
+    int                               local_y,
+    const char*                       text,
+    int                               colour_rgb)
+{
+    if( !cmdbuf || !font || !text || !text[0] )
+        return;
+
+    int h2 = font->height2d > 0 ? font->height2d : 12;
+    int draw_y = PRIVACY_STRIP_SCREEN_Y + local_y - h2;
+    int w      = dashfont_text_width(font, (uint8_t*)(void*)text);
+    int left_x = centre_x_screen - (w / 2);
+
+    emit_text(cmdbuf, font, font_id, text, left_x + 1, draw_y + 1, COL_PRIV_BLACK);
+    emit_text(cmdbuf, font, font_id, text, left_x, draw_y, colour_rgb);
 }
 
 static void
@@ -296,26 +331,61 @@ chat_draw_privacy(
     if( !font )
         return;
 
-    /* Privacy buttons at bottom. Labels: Public, Private, Trade, Report Abuse.
-     * Based on Client.ts drawPrivacySettings layout. */
-    int privacy_y = 481;
-    int button_height = 12;
-    
-    const char* labels[] = { "Public", "Private", "Trade", "Report" };
-    int button_colors[] = {
-        chat->chat_public_mode ? 0x00FF00 : 0xFFFFFF,
-        chat->chat_private_mode ? 0x00FF00 : 0xFFFFFF,
-        chat->chat_trade_mode ? 0x00FF00 : 0xFFFFFF,
-        0xFFFFFF
-    };
-    
-    int x_positions[] = { CHATINPUT_X, CHATINPUT_X + 120, CHATINPUT_X + 230, CHATINPUT_X + 340 };
-    
-    for( int i = 0; i < 4; i++ )
+    /* Mirrors Client.ts redrawPrivacySettings (centreStringTag + Colour.*). */
+    emit_centre_string_tag_shadowed(cmdbuf, font, font_id, 55, 28, "Public chat", COL_PRIV_WHITE);
+
+    int pub_col = COL_PRIV_GREEN;
+    const char* pub_str = "On";
+    if( chat->chat_public_mode == 1 )
     {
-        emit_text(cmdbuf, font, font_id, labels[i],
-                  x_positions[i], privacy_y, button_colors[i]);
+        pub_col = COL_PRIV_YELLOW;
+        pub_str = "Friends";
     }
+    else if( chat->chat_public_mode == 2 )
+    {
+        pub_col = COL_PRIV_RED;
+        pub_str = "Off";
+    }
+    else if( chat->chat_public_mode == 3 )
+    {
+        pub_col = COL_PRIV_CYAN;
+        pub_str = "Hide";
+    }
+    emit_centre_string_tag_shadowed(cmdbuf, font, font_id, 55, 41, pub_str, pub_col);
+
+    emit_centre_string_tag_shadowed(cmdbuf, font, font_id, 184, 28, "Private chat", COL_PRIV_WHITE);
+
+    int priv_col = COL_PRIV_GREEN;
+    const char* priv_str = "On";
+    if( chat->chat_private_mode == 1 )
+    {
+        priv_col = COL_PRIV_YELLOW;
+        priv_str = "Friends";
+    }
+    else if( chat->chat_private_mode == 2 )
+    {
+        priv_col = COL_PRIV_RED;
+        priv_str = "Off";
+    }
+    emit_centre_string_tag_shadowed(cmdbuf, font, font_id, 184, 41, priv_str, priv_col);
+
+    emit_centre_string_tag_shadowed(cmdbuf, font, font_id, 324, 28, "Trade/duel", COL_PRIV_WHITE);
+
+    int trade_col = COL_PRIV_GREEN;
+    const char* trade_str = "On";
+    if( chat->chat_trade_mode == 1 )
+    {
+        trade_col = COL_PRIV_YELLOW;
+        trade_str = "Friends";
+    }
+    else if( chat->chat_trade_mode == 2 )
+    {
+        trade_col = COL_PRIV_RED;
+        trade_str = "Off";
+    }
+    emit_centre_string_tag_shadowed(cmdbuf, font, font_id, 324, 41, trade_str, trade_col);
+
+    emit_centre_string_tag_shadowed(cmdbuf, font, font_id, 458, 33, "Report abuse", COL_PRIV_WHITE);
 }
 
 void

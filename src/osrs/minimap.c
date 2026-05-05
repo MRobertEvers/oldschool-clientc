@@ -76,6 +76,14 @@ minimap_free(struct Minimap* minimap)
     free(minimap);
 }
 
+void
+minimap_clear_locs(struct Minimap* minimap)
+{
+    if( !minimap )
+        return;
+    minimap->locs_count = 0;
+}
+
 static void
 ensure_loc_capacity(
     struct Minimap* minimap,
@@ -93,6 +101,8 @@ minimap_add_loc(
     struct Minimap* minimap,
     int sx,
     int sz,
+    int world_x,
+    int world_z,
     enum MinimapLocType type)
 {
     assert(sx >= 0 && sx < minimap->width);
@@ -103,6 +113,8 @@ minimap_add_loc(
     struct MinimapLoc* loc = &minimap->locs[minimap->locs_count++];
     loc->tile_sx = sx;
     loc->tile_sz = sz;
+    loc->world_x = world_x;
+    loc->world_z = world_z;
     loc->type = type;
 }
 
@@ -186,13 +198,10 @@ push_tile_command(
     int sz)
 {
     ensure_command_capacity(command_buffer, 1);
-    command_buffer->commands[command_buffer->count++] = (struct MinimapRenderCommand){
-        ._tile = {
-            .kind = MINIMAP_RENDER_COMMAND_TILE,
-            .tile_sx = sx,
-            .tile_sz = sz,
-        },
-    };
+    struct MinimapRenderCommand* c = &command_buffer->commands[command_buffer->count++];
+    c->kind = MINIMAP_RENDER_COMMAND_TILE;
+    c->u.tile.tile_sx = sx;
+    c->u.tile.tile_sz = sz;
 }
 
 static void
@@ -201,12 +210,9 @@ push_loc_command(
     int idx)
 {
     ensure_command_capacity(command_buffer, 1);
-    command_buffer->commands[command_buffer->count++] = (struct MinimapRenderCommand){
-        ._loc = {
-            .kind = MINIMAP_RENDER_COMMAND_LOC,
-            .loc_idx = idx,
-        },
-    };
+    struct MinimapRenderCommand* c = &command_buffer->commands[command_buffer->count++];
+    c->kind = MINIMAP_RENDER_COMMAND_LOC;
+    c->u.loc.loc_idx = idx;
 }
 
 void

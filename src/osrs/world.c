@@ -1319,6 +1319,8 @@ world_cleanup_npc_entity(
     memset(&npc->draw_position, 0, sizeof(struct EntityDrawPosition));
     memset(&npc->orientation, 0, sizeof(struct EntityOrientation));
     memset(&npc->animation, 0, sizeof(struct EntityAnimation));
+    npc->config_npc_id = -1;
+    npc->minimap_hidden = false;
     npc->alive = false;
 }
 

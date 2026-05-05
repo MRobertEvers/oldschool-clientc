@@ -132,6 +132,11 @@ struct NPCEntity
     struct EntityAction* actions;
     uint8_t action_count;
 
+    /** NPC config table id from last `world_scenebuild_npc_entity_set_npc_type`; -1 if unset. */
+    int config_npc_id;
+    /** Set from npc config in set_npc_type: hide minimap dot when config minimap is false. */
+    bool minimap_hidden;
+
     /* Client.ts: damage/health for hitsplat and health bar */
     uint8_t damage_values[ENTITY_DAMAGE_SLOTS];
     uint8_t damage_types[ENTITY_DAMAGE_SLOTS];

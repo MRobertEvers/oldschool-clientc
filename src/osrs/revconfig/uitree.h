@@ -2,6 +2,7 @@
 #define UITREE_H
 
 #include "osrs/clientscript_vm.h"
+#include "osrs/revconfig/uitree_optionset.h"
 #include "osrs/revconfig/uitree_textpool.h"
 
 #include <stdbool.h>
@@ -307,6 +308,11 @@ struct UITree
     int ui_minimap_mapdots4_element_id;
     int ui_minimap_mapmarker2_element_id;
     int ui_minimap_mapmarker_element_id;
+
+    /** Per-frame UI hover context menu (distinct from game->option_set / world pick). */
+    struct UITreeOptionSet uitree_optionset;
+    /** UITree node index that produced uitree_optionset, or -1. */
+    int32_t hover_node_index;
 };
 
 /**
@@ -513,11 +519,17 @@ uitree_push_sidebar_component(
     int height);
 
 /** Detach RS children from a sidebar node (first_child = -1). Orphaned indices remain in the
- * dense array until a full uitree_free; safe for bounded IF_SETTAB updates. */
+ * dense array until a full uitree_free; safe for bounded IF_SETTAB updates.
+ * The detached subtree is marked is_hidden so stray iteration cannot draw it. */
 void
 uitree_clear_sidebar_children(
     struct UITree* tree,
     int32_t sidebar_idx);
+
+/** Returns 0 if no duplicate BUILTIN_SIDEBAR tabno in 0..13; else logs to stderr and returns -1.
+ * Revisions may omit wire tabs (e.g. LC245_2 skips 7); missing indices are allowed. */
+int
+uitree_validate_sidebar_tab_layout(struct UITree const* tree);
 
 /** Stamp hide on every node with matching cache component_id (RS subtree). */
 void
@@ -646,5 +658,9 @@ uitree_innermost_scroll_layer_at(
     struct GGame* game,
     int mouse_x,
     int mouse_y);
+
+/** Hit-test UI under mouse and rebuild tree->uitree_optionset (world layer leaves set empty). */
+void
+uitree_sync_hover_option_set(struct GGame* game);
 
 #endif

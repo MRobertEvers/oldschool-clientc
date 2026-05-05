@@ -50,6 +50,15 @@ uitree_expand_sidebar_for_tab(
     int tabno,
     int component_id);
 
+/** When TORI_SIDEBAR_DEBUG is set in the environment, log iface + sidebar UITree slot for tab_id.
+ * component_id is the wire/root id for SETTAB, or -1 for SETTAB_ACTIVE-only logs. */
+void
+uitree_debug_log_sidebar_state(
+    struct GGame* game,
+    char const* where,
+    int tab_id,
+    int component_id);
+
 // /** Push RS `StaticUIComponent` rows and register sprites/models in ui_scene / scene2. */
 // void
 // static_ui_rs_from_buildcachedat(p

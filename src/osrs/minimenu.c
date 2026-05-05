@@ -214,7 +214,7 @@ minimenu_enqueue(
     int h = mm->height;
     int n = mm->option_count;
 
-    int color_bg    = 0x5F5000;
+    int color_bg    = 0x5d5447;
     int color_black = 0x000000;
 
     mm_push_rect(cb, x, y, w, h, color_bg, 1);
@@ -226,7 +226,7 @@ minimenu_enqueue(
         w - 2,
         h - MINIMENU_HEADER_HEIGHT - 1,
         color_black,
-        1);
+        0);
 
     const uint8_t* header_text =
         mm_pool_text(pool_user, pool_text, "Choose Option");

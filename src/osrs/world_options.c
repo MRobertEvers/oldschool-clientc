@@ -315,6 +315,20 @@ world_options_add_pickset_options(
     struct WorldPickSet* pickset,
     struct WorldOptionSet* option_set)
 {
+    /* Mirror Client.ts addWorldOptions (9510-9514): Walk here is appended before picked
+     * entities so the same bubble-sort as buildMinimenu (2816-2844) applies. */
+    if( option_set->option_count < WORLD_OPTION_SET_CAPACITY )
+    {
+        struct WorldOption* walk = &option_set->options[option_set->option_count];
+        memset(walk, 0, sizeof(*walk));
+        strncpy(walk->text, "Walk here", sizeof(walk->text));
+        walk->action  = MINIMENU_ACTION_WALK;
+        walk->param_a = 0;
+        walk->param_b = 0;
+        walk->param_c = 0;
+        option_set->option_count++;
+    }
+
     for( int i = 0; i < pickset->count; i++ )
     {
         struct PickedEntity* picked_entity = &pickset->entities[i];
@@ -349,71 +363,8 @@ world_options_add_pickset_options(
         }
     }
 
-    /* Always append "Walk here" as the last (lowest-priority) option (TS 9510-9514). */
-    if( option_set->option_count < WORLD_OPTION_SET_CAPACITY )
-    {
-        struct WorldOption* walk = &option_set->options[option_set->option_count];
-        memset(walk, 0, sizeof(*walk));
-        strncpy(walk->text, "Walk here", sizeof(walk->text));
-        walk->action  = MINIMENU_ACTION_WALK;
-        walk->param_a = 0; /* filled in by minimenu_game_show from mouse_tile_x/z */
-        walk->param_b = 0;
-        walk->param_c = 0;
-        option_set->option_count++;
-    }
-
-    // Sort the options
-
-    // let sorted: boolean = false;
-    // while (!sorted) {
-    //     sorted = true;
-
-    //     for (let i: number = 0; i < this.menuNumEntries - 1; i++) {
-    //         if (this.menuAction[i] < 1000 && this.menuAction[i + 1] > 1000) {
-    //             const tmp0: string = this.menuOption[i];
-    //             this.menuOption[i] = this.menuOption[i + 1];
-    //             this.menuOption[i + 1] = tmp0;
-
-    //             const tmp1: number = this.menuAction[i];
-    //             this.menuAction[i] = this.menuAction[i + 1];
-    //             this.menuAction[i + 1] = tmp1;
-
-    //             const tmp2: number = this.menuParamB[i];
-    //             this.menuParamB[i] = this.menuParamB[i + 1];
-    //             this.menuParamB[i + 1] = tmp2;
-
-    //             const tmp3: number = this.menuParamC[i];
-    //             this.menuParamC[i] = this.menuParamC[i + 1];
-    //             this.menuParamC[i + 1] = tmp3;
-
-    //             const tmp4: number = this.menuParamA[i];
-    //             this.menuParamA[i] = this.menuParamA[i + 1];
-    //             this.menuParamA[i + 1] = tmp4;
-
-    //             sorted = false;
-    //         }
-    //     }
-    // }
-
+    /* Identity permutation: full [Cancel + world] sort runs in minimenu_game_show
+     * (Client.ts buildMinimenu 2816-2844) so it matches the reference client. */
     for( int i = 0; i < option_set->option_count; i++ )
         option_set->order[i] = i;
-
-    bool sorted = false;
-    while( !sorted )
-    {
-        sorted = true;
-        for( int i = 0; i < option_set->option_count - 1; i++ )
-        {
-            int idx0 = option_set->order[i];
-            int idx1 = option_set->order[i + 1];
-            if( option_set->options[idx0].action < 1000 && option_set->options[idx1].action > 1000 )
-            {
-                sorted = false;
-
-                int tmp = option_set->order[i];
-                option_set->order[i] = option_set->order[i + 1];
-                option_set->order[i + 1] = tmp;
-            }
-        }
-    }
 }

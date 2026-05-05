@@ -221,6 +221,8 @@ world_scenebuild_npc_entity_set_npc_type(
         scene2_element_at(world->scene2, npc->scene_element2.element_id);
     scene2_element_expect(element, "world_scenebuild_npc_entity_set_npc_type");
 
+    npc->config_npc_id = npc_type;
+
     struct DashModel* dash_model = dashmodel_new();
     if( !npc_model(world->buildcachedat, npc_type, dash_model) )
     {
@@ -232,6 +234,7 @@ world_scenebuild_npc_entity_set_npc_type(
     struct CacheDatConfigNpc* npc_config = buildcachedat_get_npc(world->buildcachedat, npc_type);
     if( !npc_config )
         return;
+    npc->minimap_hidden = !npc_config->minimap;
     npc->size.x = npc_config->size;
     npc->size.z = npc_config->size;
 

@@ -9,6 +9,7 @@
 #include "osrs/dash_utils.h"
 #include "osrs/entity_scenebuild.h"
 #include "osrs/game.h"
+#include "osrs/interface_state.h"
 #include "osrs/obj_icon.h"
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/rscache/tables/model.h"
@@ -170,7 +171,7 @@ parse_paint_levels_mask(const char* str)
     return (uint8_t)m;
 }
 
-#define MAX_LAYOUT_ENTRIES 64
+#define MAX_LAYOUT_ENTRIES 128
 
 struct LayoutItem
 {
@@ -1894,10 +1895,20 @@ uitree_from_revconfig_buildcachedat(
             assert(
                 load.kind == LOAD_KIND_LAYOUT &&
                 "UILAYOUT_COMPONENT field must be within a layout item");
+            if( load._layout.entry_count >= MAX_LAYOUT_ENTRIES )
+            {
+                fprintf(
+                    stderr,
+                    "uitree_load: layout exceeds MAX_LAYOUT_ENTRIES (%d); ignoring extra entries\n",
+                    MAX_LAYOUT_ENTRIES);
+                break;
+            }
             strncpy(
                 load._layout.entries[load._layout.entry_count].component,
                 field->value,
                 sizeof(load._layout.entries[load._layout.entry_count].component) - 1);
+            load._layout.entries[load._layout.entry_count].component
+                [sizeof(load._layout.entries[0].component) - 1] = '\0';
             load._layout.entry_count += 1;
         }
         break;
@@ -2042,6 +2053,9 @@ uitree_from_revconfig_buildcachedat(
 
     uitree_resolve_game_uiscene_sprite_ids(game, ui_scene);
 
+    if( ui && uitree_validate_sidebar_tab_layout(ui) != 0 )
+        fprintf(stderr, "uitree_from_revconfig_buildcachedat: sidebar tab layout invalid\n");
+
     if( ui )
         uitree_print_nodes(ui);
 
@@ -2181,6 +2195,57 @@ uitree_expand_sidebar_for_tab(
     }
 
     uitree_mark_all_dirty(ui);
+}
+
+void
+uitree_debug_log_sidebar_state(
+    struct GGame* game,
+    char const* where,
+    int tab_id,
+    int component_id)
+{
+    static int enabled = -1;
+    if( enabled < 0 )
+        enabled = getenv("TORI_SIDEBAR_DEBUG") != NULL ? 1 : 0;
+    if( !enabled || !game || !game->iface || !game->ui_root_buffer )
+        return;
+
+    struct UITree* ui               = game->ui_root_buffer;
+    int32_t sidebar_idx             = -1;
+    int iface_tid                   = -999;
+    int fc                          = -1;
+    int cno                         = -999;
+
+    if( tab_id >= 0 && tab_id < 14 )
+        iface_tid = game->iface->tab_interface_id[tab_id];
+
+    if( tab_id >= 0 && tab_id <= 13 )
+    {
+        for( uint32_t i = 0; i < ui->component_count; i++ )
+        {
+            struct StaticUIComponent* c = &ui->components[i];
+            if( c->type == UIELEM_BUILTIN_SIDEBAR && c->u.sidebar.tabno == tab_id )
+            {
+                sidebar_idx = (int32_t)i;
+                fc          = c->first_child;
+                cno         = c->u.sidebar.componentno;
+                break;
+            }
+        }
+    }
+
+    fprintf(
+        stderr,
+        "[TORI_SIDEBAR_DEBUG] %s tab_id=%d pkt_component_id=%d iface->tab_interface_id[tab]=%d "
+        "uitree_sidebar_idx=%d sidebar.componentno=%d first_child=%d selected_tab=%d\n",
+        where ? where : "?",
+        tab_id,
+        component_id,
+        iface_tid,
+        (int)sidebar_idx,
+        cno,
+        fc,
+        game->iface->selected_tab);
 }
 
 void
@@ -2434,10 +2499,20 @@ uitree_load_ui_from_revconfig(
             assert(
                 load.kind == LOAD_KIND_LAYOUT &&
                 "UILAYOUT_COMPONENT field must be within a layout item");
+            if( load._layout.entry_count >= MAX_LAYOUT_ENTRIES )
+            {
+                fprintf(
+                    stderr,
+                    "uitree_load: layout exceeds MAX_LAYOUT_ENTRIES (%d); ignoring extra entries\n",
+                    MAX_LAYOUT_ENTRIES);
+                break;
+            }
             strncpy(
                 load._layout.entries[load._layout.entry_count].component,
                 field->value,
                 sizeof(load._layout.entries[load._layout.entry_count].component) - 1);
+            load._layout.entries[load._layout.entry_count].component
+                [sizeof(load._layout.entries[0].component) - 1] = '\0';
             load._layout.entry_count += 1;
         }
         break;
@@ -2581,6 +2656,9 @@ uitree_load_ui_from_revconfig(
     }
 
     uitree_resolve_game_uiscene_sprite_ids(game, ui_scene);
+
+    if( ui && uitree_validate_sidebar_tab_layout(ui) != 0 )
+        fprintf(stderr, "uitree_load_ui_from_revconfig: sidebar tab layout invalid\n");
 
     if( ui )
         uitree_print_nodes(ui);

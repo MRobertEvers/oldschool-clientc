@@ -363,6 +363,26 @@ world_cycle_push_players(struct World* world)
         ppos->y = heightmap_get_interpolated(
             world->heightmap, player->draw_position.x, player->draw_position.z, 0);
     }
+
+    if( world->minimap )
+    {
+        for( int i = 0; i < world->active_player_count; i++ )
+        {
+            int player_id = world->active_players[i];
+            if( player_id < 0 || player_id == ACTIVE_PLAYER_SLOT )
+                continue;
+            struct PlayerEntity* p = world_player(world, player_id);
+            if( !p->alive || p->scene_element2.element_id == -1 )
+                continue;
+            int wx = p->draw_position.x;
+            int wz = p->draw_position.z;
+            int sx = wx / 128;
+            int sz = wz / 128;
+            if( sx >= 0 && sx < world->minimap->width && sz >= 0 && sz < world->minimap->height )
+                minimap_add_loc(
+                    world->minimap, sx, sz, wx, wz, MINIMAP_LOC_TYPE_PLAYER);
+        }
+    }
 }
 
 static void
@@ -460,6 +480,18 @@ world_cycle_push_npcs(struct World* world)
             npos->z = npc->draw_position.z;
             npos->y = heightmap_get_interpolated(
                 world->heightmap, npc->draw_position.x, npc->draw_position.z, 0);
+
+            if( world->minimap && !npc->minimap_hidden )
+            {
+                int wx = npc->draw_position.x;
+                int wz = npc->draw_position.z;
+                int sx = wx / 128;
+                int sz = wz / 128;
+                if( sx >= 0 && sx < world->minimap->width && sz >= 0 &&
+                    sz < world->minimap->height )
+                    minimap_add_loc(
+                        world->minimap, sx, sz, wx, wz, MINIMAP_LOC_TYPE_NPC);
+            }
         }
     }
 }
@@ -547,6 +579,8 @@ world_cycle_begin(struct World* world)
 {
     assert(world && world->painter != NULL);
     painter_reset_to_static(world->painter);
+    if( world->minimap )
+        minimap_clear_locs(world->minimap);
 }
 
 static void

@@ -13,6 +13,78 @@
 #include <stdbool.h>
 #include <string.h>
 
+/* Client.ts buildMinimenu (2816-2844): bubble >1000 actions toward lower indices. */
+void
+minimenu_sort_ts_action_order(
+    struct MinimenuOptionLine* lines,
+    int n)
+{
+    for( ;; )
+    {
+        int done = 1;
+        for( int i = 0; i < n - 1; i++ )
+        {
+            if( lines[i].action < 1000 && lines[i + 1].action > 1000 )
+            {
+                struct MinimenuOptionLine t = lines[i];
+                lines[i]         = lines[i + 1];
+                lines[i + 1]     = t;
+                done             = 0;
+            }
+        }
+        if( done )
+            break;
+    }
+}
+
+/* Build [Cancel, ...world options] in TS array order (index 0 = bottom when drawn like Client.ts). */
+static int
+minimenu_fill_world_ts_menu_lines(
+    struct WorldOptionSet* os,
+    int mouse_tile_x,
+    int mouse_tile_z,
+    struct MinimenuOptionLine* tmp,
+    int max_tmp)
+{
+    if( !os || !tmp || max_tmp < 1 )
+        return 0;
+
+    int wn = os->option_count;
+    if( wn > max_tmp - 1 )
+        wn = max_tmp - 1;
+
+    tmp[0].text    = "Cancel";
+    tmp[0].action  = (int)MINIMENU_ACTION_CANCEL;
+    tmp[0].param_a = 0;
+    tmp[0].param_b = 0;
+    tmp[0].param_c = 0;
+
+    for( int i = 0; i < wn; i++ )
+    {
+        struct WorldOption* opt = world_option_set_get_option(os, i);
+        tmp[i + 1].text    = opt->text;
+        tmp[i + 1].action  = (int)opt->action;
+        tmp[i + 1].param_a = opt->param_a;
+        tmp[i + 1].param_b = opt->param_b;
+        tmp[i + 1].param_c = opt->param_c;
+    }
+
+    int nlines = wn + 1;
+    minimenu_sort_ts_action_order(tmp, nlines);
+
+    for( int i = 0; i < nlines; i++ )
+    {
+        if( tmp[i].action == (int)MINIMENU_ACTION_WALK )
+        {
+            tmp[i].param_a = mouse_tile_x;
+            tmp[i].param_b = mouse_tile_z;
+            break;
+        }
+    }
+
+    return nlines;
+}
+
 static const uint8_t*
 minimenu_game_pool_text(
     void* user,
@@ -134,6 +206,38 @@ minimenu_translate_commands(
 }
 
 void
+minimenu_game_world_ts_default_row(
+    struct WorldOptionSet const* os,
+    int mouse_tile_x,
+    int mouse_tile_z,
+    struct WorldOption* out)
+{
+    if( !os || !out )
+        return;
+
+    struct MinimenuOptionLine tmp[MINIMENU_MAX_OPTIONS];
+    int nlines = minimenu_fill_world_ts_menu_lines(
+        (struct WorldOptionSet*)os,
+        mouse_tile_x,
+        mouse_tile_z,
+        tmp,
+        MINIMENU_MAX_OPTIONS);
+
+    memset(out, 0, sizeof(*out));
+    if( nlines <= 0 )
+        return;
+
+    struct MinimenuOptionLine* top = &tmp[nlines - 1];
+    const char* t = top->text ? top->text : "";
+    strncpy(out->text, t, sizeof(out->text) - 1);
+    out->text[sizeof(out->text) - 1] = '\0';
+    out->action  = (enum MinimenuAction)top->action;
+    out->param_a = top->param_a;
+    out->param_b = top->param_b;
+    out->param_c = top->param_c;
+}
+
+void
 minimenu_game_show(
     struct GGame* game,
     int click_x,
@@ -141,43 +245,67 @@ minimenu_game_show(
 {
     if( !game )
         return;
+
+    uitree_sync_hover_option_set(game);
+
     int vp_w = game->iface_view_port ? game->iface_view_port->width  : 765;
     int vp_h = game->iface_view_port ? game->iface_view_port->height : 503;
 
-    struct MinimenuOptionLine lines[MINIMENU_MAX_OPTIONS];
-    struct WorldOptionSet* os = &game->option_set;
-    int n = os->option_count;
-    if( n >= MINIMENU_MAX_OPTIONS - 1 )
-        n = MINIMENU_MAX_OPTIONS - 1;
+    struct UITree* uit = game->ui_root_buffer;
+    int use_uitree =
+        uit && uit->uitree_optionset.option_count > 0 &&
+        !(uit->hover_node_index >= 0 &&
+          uit->components[uit->hover_node_index].type == UIELEM_BUILTIN_WORLD);
 
-    for( int i = 0; i < n; i++ )
+    if( use_uitree )
     {
-        struct WorldOption* opt = world_option_set_get_option(os, i);
-        lines[i].text    = opt->text;
-        lines[i].action  = (int)opt->action;
-        lines[i].param_a = opt->param_a;
-        lines[i].param_b = opt->param_b;
-        lines[i].param_c = opt->param_c;
-    }
+        struct MinimenuOptionLine tmp[MINIMENU_MAX_OPTIONS];
+        int uin = uit->uitree_optionset.option_count;
+        if( uin >= MINIMENU_MAX_OPTIONS - 1 )
+            uin = MINIMENU_MAX_OPTIONS - 1;
 
-    for( int i = 0; i < n; i++ )
-    {
-        if( lines[i].action == (int)MINIMENU_ACTION_WALK )
+        tmp[0].text    = "Cancel";
+        tmp[0].action  = (int)MINIMENU_ACTION_CANCEL;
+        tmp[0].param_a = 0;
+        tmp[0].param_b = 0;
+        tmp[0].param_c = 0;
+
+        for( int i = 0; i < uin; i++ )
         {
-            lines[i].param_a = game->mouse_tile_x;
-            lines[i].param_b = game->mouse_tile_z;
-            break;
+            struct UITreeOption* o = uitree_option_set_get_option(&uit->uitree_optionset, i);
+            tmp[i + 1].text    = o->text;
+            tmp[i + 1].action  = (int)o->action;
+            tmp[i + 1].param_a = o->param_a;
+            tmp[i + 1].param_b = o->param_b;
+            tmp[i + 1].param_c = o->param_c;
         }
+
+        int nlines = uin + 1;
+        minimenu_sort_ts_action_order(tmp, nlines);
+
+        struct MinimenuOptionLine lines[MINIMENU_MAX_OPTIONS];
+        for( int i = 0; i < nlines; i++ )
+            lines[i] = tmp[nlines - 1 - i];
+
+        minimenu_show(&game->minimenu, lines, nlines, vp_w, vp_h, click_x, click_y);
+        return;
     }
 
-    lines[n].text    = "Cancel";
-    lines[n].action  = (int)MINIMENU_ACTION_CANCEL;
-    lines[n].param_a = 0;
-    lines[n].param_b = 0;
-    lines[n].param_c = 0;
-    n++;
+    struct MinimenuOptionLine tmp[MINIMENU_MAX_OPTIONS];
+    struct WorldOptionSet* os = &game->option_set;
+    int nlines = minimenu_fill_world_ts_menu_lines(
+        os,
+        game->mouse_tile_x,
+        game->mouse_tile_z,
+        tmp,
+        MINIMENU_MAX_OPTIONS);
 
-    minimenu_show(&game->minimenu, lines, n, vp_w, vp_h, click_x, click_y);
+    /* Client.ts draws option i at (menuNumEntries - 1 - i): index 0 is bottom; we draw 0 at top. */
+    struct MinimenuOptionLine lines[MINIMENU_MAX_OPTIONS];
+    for( int i = 0; i < nlines; i++ )
+        lines[i] = tmp[nlines - 1 - i];
+
+    minimenu_show(&game->minimenu, lines, nlines, vp_w, vp_h, click_x, click_y);
 }
 
 void
@@ -392,6 +520,36 @@ minimenu_game_use_option(
         if( which >= 0 )
         {
             clientprot_inv_button(game, which, param_a, param_b, param_c);
+            return;
+        }
+    }
+
+    {
+        int which = -1;
+        int base = action;
+        if( base > (int)MINIMENU_ACTION_PRIORITY_OFFSET )
+            base -= (int)MINIMENU_ACTION_PRIORITY_OFFSET;
+        if( base == (int)MINIMENU_ACTION_OPHELD1 )
+            which = 1;
+        else if( base == (int)MINIMENU_ACTION_OPHELD2 )
+            which = 2;
+        else if( base == (int)MINIMENU_ACTION_OPHELD3 )
+            which = 3;
+        else if( base == (int)MINIMENU_ACTION_OPHELD4 )
+            which = 4;
+        else if( base == (int)MINIMENU_ACTION_OPHELD5 )
+            which = 5;
+        else if( base == (int)MINIMENU_ACTION_OPHELD6 )
+            which = 6;
+        if( which >= 1 && which <= 5 )
+        {
+            struct CPArgs_OpHeld a = { which, param_c, param_b, param_a };
+            clientprot_core_emit(game, CLIENTPROT_OP_OPHELD, &a);
+            return;
+        }
+        if( which == 6 )
+        {
+            /* Examine held item — optional server packet depending on revision; keep stub. */
             return;
         }
     }

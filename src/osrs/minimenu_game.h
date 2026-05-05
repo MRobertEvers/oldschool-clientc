@@ -8,6 +8,16 @@
 
 struct CollisionMap;
 struct GGame;
+struct WorldOption;
+struct WorldOptionSet;
+
+/* Default row for closed-menu tooltip / crosshair (Client.ts menuOption[menuNumEntries - 1]). */
+void
+minimenu_game_world_ts_default_row(
+    struct WorldOptionSet const* os,
+    int mouse_tile_x,
+    int mouse_tile_z,
+    struct WorldOption* out);
 
 /* ToriRS bridge: expand high-level minimenu commands from `cb` into `out`. `font` must be
  * non-NULL for option text; option rows are re-pooled via `pool_text` (same contract as enqueue). */

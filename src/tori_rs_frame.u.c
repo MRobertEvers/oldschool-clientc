@@ -751,14 +751,6 @@ queue_sprite_draw_from_event(
     command->_sprite_draw.src_bb_h = src_bb_h;
 }
 
-/* Emit a single 2-pixel-wide dot on the minimap for the entity at world position
- * (entity_world_x, entity_world_z).  Mirrors Client.ts minimapDrawDot 11637-11663.
- *
- * sprite_element_id / sprite_atlas_index: from `GGame` fields filled at UI load; if element id is
- *   -1, draw uses legacy atlas slot 200 (no UIScene binding).
- * comp_x, comp_y: top-left corner of the minimap element in UI viewport space.
- * camera_yaw:  current camera yaw (0–2047 units, full circle).
- * pl_wx, pl_wz: local player world position in sub-tile units (128 per tile). */
 static struct DashSprite*
 game_uiscene_sprite_atlas0(struct GGame* game, int element_id)
 {
@@ -770,6 +762,15 @@ game_uiscene_sprite_atlas0(struct GGame* game, int element_id)
     return el->dash_sprites[0];
 }
 
+/* Emit a single 2-pixel-wide dot on the minimap for the entity at world position
+ * (entity_world_x, entity_world_z).  Mirrors Client.ts minimapDrawDot 11637-11663.
+ *
+ * sprite_element_id / sprite_atlas_index: from `GGame` fields filled at UI load; if element id is
+ *   -1, draw uses legacy atlas slot 200 (no UIScene binding).
+ * comp_x, comp_y: top-left corner of the minimap element in UI viewport space.
+ * camera_yaw:  current camera yaw (0–2047 units, full circle).
+ * ref_wx, ref_wz: world position (sub-tile units) that the minimap centers on — must match
+ *   static minimap texture anchor (here: camera), not necessarily the local player. */
 static void
 minimap_emit_dot(
     struct GGame*                    game,
@@ -782,8 +783,8 @@ minimap_emit_dot(
     int comp_w,
     int comp_h,
     int camera_yaw,
-    int pl_wx,
-    int pl_wz,
+    int ref_wx,
+    int ref_wz,
     int entity_wx,
     int entity_wz)
 {
@@ -791,8 +792,8 @@ minimap_emit_dot(
     if( !sprite || !buf )
         return;
 
-    int dx = entity_wx - pl_wx;
-    int dz = entity_wz - pl_wz;
+    int dx = entity_wx - ref_wx;
+    int dz = entity_wz - ref_wz;
 
     /* Distance cull: > 6400 world-units (~50 tiles) away. */
     if( (int64_t)dx * dx + (int64_t)dz * dz >= (int64_t)6400 * 6400 )
@@ -848,6 +849,70 @@ minimap_emit_dot(
     c->_sprite_draw.mask_element_id  = -1;
     c->_sprite_draw.clip_w           = 0;
     c->_sprite_draw.alpha_mode       = 1;
+}
+
+/** Emit TORIRS_GFX_DRAW_SPRITE for each MINIMAP_RENDER_COMMAND_LOC in `dyn`. */
+static void
+minimap_emit_dynamic_loc_gfx(
+    struct GGame*                    game,
+    struct ToriRSRenderCommandBuffer* buf,
+    struct Minimap*                 mm,
+    struct MinimapRenderCommandBuffer* dyn,
+    int                               mm_comp_x,
+    int                               mm_comp_y,
+    int                               mm_comp_w,
+    int                               mm_comp_h,
+    int                               mm_cam_yaw,
+    int                               mm_ref_wx,
+    int                               mm_ref_wz)
+{
+    struct UITree* uit = game->ui_root_buffer;
+    if( !buf || !mm || !dyn )
+        return;
+
+    for( int i = 0; i < dyn->count; i++ )
+    {
+        struct MinimapRenderCommand* cmd = &dyn->commands[i];
+        if( cmd->kind != MINIMAP_RENDER_COMMAND_LOC )
+            continue;
+        int idx = cmd->u.loc.loc_idx;
+        if( idx < 0 || idx >= mm->locs_count )
+            continue;
+        struct MinimapLoc* loc = &mm->locs[idx];
+        int dot_eid = -1;
+        switch( loc->type )
+        {
+        case MINIMAP_LOC_TYPE_OBJECT:
+            dot_eid = uit ? uit->ui_minimap_mapdots0_element_id : -1;
+            break;
+        case MINIMAP_LOC_TYPE_NPC:
+            dot_eid = uit ? uit->ui_minimap_mapdots1_element_id : -1;
+            break;
+        case MINIMAP_LOC_TYPE_PLAYER:
+            dot_eid = uit ? uit->ui_minimap_mapdots3_element_id : -1;
+            break;
+        default:
+            break;
+        }
+        struct DashSprite* spr = game_uiscene_sprite_atlas0(game, dot_eid);
+        if( !spr )
+            continue;
+        minimap_emit_dot(
+            game,
+            buf,
+            dot_eid,
+            0,
+            spr,
+            mm_comp_x,
+            mm_comp_y,
+            mm_comp_w,
+            mm_comp_h,
+            mm_cam_yaw,
+            mm_ref_wx,
+            mm_ref_wz,
+            loc->world_x,
+            loc->world_z);
+    }
 }
 
 static void
@@ -941,28 +1006,18 @@ queue_static_ui_minimap_draws(
     static_mm_draw->_sprite_draw.src_anchor_x = anchor_x;
     static_mm_draw->_sprite_draw.src_anchor_y = anchor_y;
 
-    struct MinimapRenderCommandBuffer* dyn = game->minimap_dynamic_commands;
-    if( dyn )
-    {
-        /* Dynamic minimap rendering (currently unused; see entity dots below). */
-        minimap_render_dynamic(mm, sw_x, sw_z, ne_x, ne_z, dyn);
-        /* TODO: If minimap_render_dynamic is re-enabled, populate dots and emit sprites. */
-    }
-
-    /* ── Entity minimap dots (NPCs, players, ground items). ─────────────────
-     * Mirrors Client.ts minimapDraw 11529-11603 via the minimapDrawDot helper. */
-    if( !game->world )
-        goto mm_done;
-
     int mm_comp_x  = component->position.x;
     int mm_comp_y  = component->position.y;
     int mm_comp_w  = component->position.width;
     int mm_comp_h  = component->position.height;
     int mm_cam_yaw = game->camera_yaw;
 
-    /* Local player world position. */
-    int pl_wx = game->camera_world_x;
-    int pl_wz = game->camera_world_z;
+    int const mm_ref_wx = game->camera_world_x;
+    int const mm_ref_wz = game->camera_world_z;
+
+    int pl_wx = mm_ref_wx;
+    int pl_wz = mm_ref_wz;
+    if( game->world )
     {
         struct PlayerEntity* lp = world_player(game->world, ACTIVE_PLAYER_SLOT);
         if( lp && lp->alive )
@@ -972,93 +1027,55 @@ queue_static_ui_minimap_draws(
         }
     }
 
-    struct UITree* uit = game->ui_root_buffer;
-
-    /* Ground items (mapdots0 = yellow dot, index 0 in TS). */
+    /* Ground items → minimap locs (drawn via dynamic LOC → GFX pass). */
+    if( game->obj_stacks )
     {
-        int const dot_eid = uit ? uit->ui_minimap_mapdots0_element_id : -1;
-        struct DashSprite* dot_obj = game_uiscene_sprite_atlas0(game, dot_eid);
-        if( dot_obj && game->obj_stacks )
+        int level = 0;
+        if( game->obj_stacks[level] )
         {
-            int level = (game->camera_world_y < 0) ? 0 : 0; /* always level 0 for now */
-            if( game->obj_stacks[level] )
+            for( int sx = 0; sx < ZONE_SCENE_SIZE; sx++ )
             {
-                for( int sx = 0; sx < ZONE_SCENE_SIZE; sx++ )
+                for( int sz = 0; sz < ZONE_SCENE_SIZE; sz++ )
                 {
-                    for( int sz = 0; sz < ZONE_SCENE_SIZE; sz++ )
-                    {
-                        struct ObjStackEntry* entry =
-                            game->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz];
-                        if( !entry )
-                            continue;
-                        int wx = (game->zone_base_x + sx) * 128 + 64;
-                        int wz = (game->zone_base_z + sz) * 128 + 64;
-                        minimap_emit_dot(
-                            game,
-                            game->uiscene_queued_commands,
-                            dot_eid,
-                            0,
-                            dot_obj,
-                            mm_comp_x, mm_comp_y, mm_comp_w, mm_comp_h,
-                            mm_cam_yaw, pl_wx, pl_wz, wx, wz);
-                    }
+                    struct ObjStackEntry* entry =
+                        game->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz];
+                    if( !entry )
+                        continue;
+                    int wx = (game->zone_base_x + sx) * 128 + 64;
+                    int wz = (game->zone_base_z + sz) * 128 + 64;
+                    int tx = wx / 128;
+                    int tz = wz / 128;
+                    if( tx >= 0 && tx < mm->width && tz >= 0 && tz < mm->height )
+                        minimap_add_loc(mm, tx, tz, wx, wz, MINIMAP_LOC_TYPE_OBJECT);
                 }
             }
         }
     }
 
-    /* NPCs (mapdots1) — only if their type has minimap enabled. */
+    struct MinimapRenderCommandBuffer* dyn = game->minimap_dynamic_commands;
+    if( dyn && game->uiscene_queued_commands )
     {
-        int const dot_eid = uit ? uit->ui_minimap_mapdots1_element_id : -1;
-        struct DashSprite* dot_npc = game_uiscene_sprite_atlas0(game, dot_eid);
-        if( dot_npc )
-        {
-            for( int i = 0; i < game->world->active_npc_count; i++ )
-            {
-                int npc_id = game->world->active_npcs[i];
-                struct NPCEntity* npc = world_npc(game->world, npc_id);
-                if( !npc || !npc->alive )
-                    continue;
-                minimap_emit_dot(
-                    game,
-                    game->uiscene_queued_commands,
-                    dot_eid,
-                    0,
-                    dot_npc,
-                    mm_comp_x, mm_comp_y, mm_comp_w, mm_comp_h,
-                    mm_cam_yaw, pl_wx, pl_wz,
-                    npc->draw_position.x, npc->draw_position.z);
-            }
-        }
+        minimap_commands_reset(dyn);
+        minimap_render_dynamic(mm, sw_x, sw_z, ne_x, ne_z, dyn);
+        minimap_emit_dynamic_loc_gfx(
+            game,
+            game->uiscene_queued_commands,
+            mm,
+            dyn,
+            mm_comp_x,
+            mm_comp_y,
+            mm_comp_w,
+            mm_comp_h,
+            mm_cam_yaw,
+            mm_ref_wx,
+            mm_ref_wz);
     }
 
-    /* Other players (mapdots3 for regular, mapdots4 for friends). */
-    {
-        int const e_other = uit ? uit->ui_minimap_mapdots3_element_id : -1;
-        struct DashSprite* dot_other = game_uiscene_sprite_atlas0(game, e_other);
-        if( dot_other )
-        {
-            for( int i = 0; i < game->world->active_player_count; i++ )
-            {
-                int pid = game->world->active_players[i];
-                if( pid == ACTIVE_PLAYER_SLOT )
-                    continue;
-                struct PlayerEntity* p = world_player(game->world, pid);
-                if( !p || !p->alive )
-                    continue;
-                /* TODO: friends — use uit->ui_minimap_mapdots4_element_id + atlas 0 sprite. */
-                minimap_emit_dot(
-                    game,
-                    game->uiscene_queued_commands,
-                    e_other,
-                    0,
-                    dot_other,
-                    mm_comp_x, mm_comp_y, mm_comp_w, mm_comp_h,
-                    mm_cam_yaw, pl_wx, pl_wz,
-                    p->draw_position.x, p->draw_position.z);
-            }
-        }
-    }
+    struct UITree* uit = game->ui_root_buffer;
+
+    /* ── Hint arrow, destination flag, local player (not in dynamic loc list). ─ */
+    if( !game->world )
+        goto mm_done;
 
     /* Hint arrow — flashes if hint_arrow_type is set and loopCycle % 20 < 10. */
     if( game->hint_arrow_type != 0 && (game->cycle % 20) < 10 )
@@ -1074,7 +1091,7 @@ queue_static_ui_minimap_draws(
                 0,
                 arrow,
                 mm_comp_x, mm_comp_y, mm_comp_w, mm_comp_h,
-                mm_cam_yaw, pl_wx, pl_wz,
+                mm_cam_yaw, mm_ref_wx, mm_ref_wz,
                 game->hint_arrow_tile_x * 128 + 64, game->hint_arrow_tile_z * 128 + 64);
         }
     }
@@ -1093,18 +1110,33 @@ queue_static_ui_minimap_draws(
                 0,
                 flag,
                 mm_comp_x, mm_comp_y, mm_comp_w, mm_comp_h,
-                mm_cam_yaw, pl_wx, pl_wz,
+                mm_cam_yaw, mm_ref_wx, mm_ref_wz,
                 game->minimap_flag_x * 128 + 64, game->minimap_flag_z * 128 + 64);
         }
     }
 
-    /* Local player: white 3x3 rect at minimap center (97,78). */
+    /* Local player: white 3x3 rect at active player (same projection as minimap_emit_dot). */
     {
+        int dx     = pl_wx - mm_ref_wx;
+        int dz     = pl_wz - mm_ref_wz;
+        int yaw    = mm_cam_yaw & 0x7ff;
+        int sin_y  = dash_sin(yaw);
+        int cos_y  = dash_cos(yaw);
+        int dot_x  = mm_comp_x + 97 + ((dx * cos_y + dz * sin_y) >> 11);
+        int dot_y  = mm_comp_y + 78 + ((dz * cos_y - dx * sin_y) >> 11);
+        if( dot_x < mm_comp_x + 1 )
+            dot_x = mm_comp_x + 1;
+        if( dot_y < mm_comp_y + 1 )
+            dot_y = mm_comp_y + 1;
+        if( dot_x > mm_comp_x + mm_comp_w - 2 )
+            dot_x = mm_comp_x + mm_comp_w - 2;
+        if( dot_y > mm_comp_y + mm_comp_h - 2 )
+            dot_y = mm_comp_y + mm_comp_h - 2;
         struct ToriRSRenderCommand* lp_dot =
             LibToriRS_RenderCommandBufferEmplaceCommand(game->uiscene_queued_commands);
         lp_dot->kind          = TORIRS_GFX_DRAW_RECT;
-        lp_dot->_rect_draw.x  = mm_comp_x + 97 - 1;
-        lp_dot->_rect_draw.y  = mm_comp_y + 78 - 1;
+        lp_dot->_rect_draw.x  = dot_x - 1;
+        lp_dot->_rect_draw.y  = dot_y - 1;
         lp_dot->_rect_draw.w  = 3;
         lp_dot->_rect_draw.h  = 3;
         lp_dot->_rect_draw.color_rgb = 0xFFFFFF;
@@ -1405,6 +1437,9 @@ LibToriRS_FrameBegin(
         LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
 
     interface_update_region_hover_ids(game);
+
+    if( game->ui_root_buffer )
+        uitree_sync_hover_option_set(game);
 
     if( game->ui_root_buffer )
         uitree_mark_all_dirty(game->ui_root_buffer);
@@ -2196,27 +2231,49 @@ uielem_hover_tooltip_step(
     if( game->minimenu.visible )
         return true;
 
-    /* Determine which option set to use:
-     * - If mouse is in world viewport: use game->option_set (contains world pickset + world options)
-     * - Otherwise: build options from hovered UI component if any */
-    struct WorldOption* first_opt = NULL;
+    /* Tooltip source: UITree hover menu when an interface wins over the world layer; otherwise
+     * world pick (in viewport) or legacy CacheDat hover line. */
+    struct UITree* uit = game->ui_root_buffer;
+    int ui_from_uitree =
+        uit && uit->uitree_optionset.option_count > 0 &&
+        !(uit->hover_node_index >= 0 &&
+          uit->components[uit->hover_node_index].type == UIELEM_BUILTIN_WORLD);
+
     struct WorldOption temp_option = { 0 };
-    
-    /* Check if mouse is in world viewport */
-    int in_world = 0;
-    if( game->ui_root_buffer && game->iface )
+    struct WorldOption* first_opt = NULL;
+
+    static char tooltip_buf[256];
+
+    if( ui_from_uitree )
     {
-        /* Find world component bounds */
-        for( uint32_t i = 0; i < game->ui_root_buffer->component_count; i++ )
+        struct UITreeOptionSet* uos = &uit->uitree_optionset;
+        struct UITreeOption* def =
+            uitree_option_set_get_option(uos, uos->option_count - 1);
+        if( uos->option_count > 2 )
+            snprintf(
+                tooltip_buf,
+                sizeof(tooltip_buf),
+                "%s @whi@/ %d more options",
+                def->text,
+                uos->option_count - 2);
+        else
+            snprintf(tooltip_buf, sizeof(tooltip_buf), "%s", def->text);
+    }
+    else
+    {
+        int in_world = 0;
+        if( game->ui_root_buffer && game->iface )
         {
-            struct StaticUIComponent* c = &game->ui_root_buffer->components[i];
-            if( c->type == UIELEM_BUILTIN_WORLD )
+            for( uint32_t i = 0; i < game->ui_root_buffer->component_count; i++ )
             {
+                struct StaticUIComponent* c = &game->ui_root_buffer->components[i];
+                if( c->type != UIELEM_BUILTIN_WORLD )
+                    continue;
                 int wx = game->viewport_offset_x;
                 int wy = game->viewport_offset_y;
                 int ww = c->position.width > 0 ? c->position.width : 512;
                 int wh = c->position.height > 0 ? c->position.height : 334;
-                
+
                 if( game->mouse_x >= wx && game->mouse_x < wx + ww &&
                     game->mouse_y >= wy && game->mouse_y < wy + wh )
                 {
@@ -2225,32 +2282,41 @@ uielem_hover_tooltip_step(
                 }
             }
         }
-    }
-    
-    if( in_world )
-    {
-        /* Use world option set */
-        if( game->option_set.option_count <= 0 )
-            return true;
-        first_opt = world_option_set_get_option(&game->option_set, 0);
-    }
-    else
-    {
-        if( !interface_hover_tooltip_line(game, temp_option.text, (int)sizeof(temp_option.text)) )
-            return true;
-        first_opt = &temp_option;
-    }
-    
-    if( !first_opt || !first_opt->text[0] )
-        return true;
 
-    /* Format tooltip text: "Action" or "Action @whi@/ N more options" (world pickset only). */
-    static char tooltip_buf[256];
-    if( in_world && game->option_set.option_count > 2 )
-        snprintf(tooltip_buf, sizeof(tooltip_buf), "%s @whi@/ %d more options",
-                 first_opt->text, game->option_set.option_count - 2);
-    else
-        snprintf(tooltip_buf, sizeof(tooltip_buf), "%s", first_opt->text);
+        if( in_world )
+        {
+            if( game->option_set.option_count <= 0 )
+                return true;
+            minimenu_game_world_ts_default_row(
+                &game->option_set,
+                game->mouse_tile_x,
+                game->mouse_tile_z,
+                &temp_option);
+            first_opt = &temp_option;
+        }
+        else
+        {
+            if( !interface_hover_tooltip_line(game, temp_option.text, (int)sizeof(temp_option.text)) )
+                return true;
+            first_opt = &temp_option;
+        }
+
+        if( !first_opt || !first_opt->text[0] )
+            return true;
+
+        if( in_world && game->option_set.option_count > 2 )
+            snprintf(
+                tooltip_buf,
+                sizeof(tooltip_buf),
+                "%s @whi@/ %d more options",
+                first_opt->text,
+                game->option_set.option_count - 2);
+        else
+            snprintf(tooltip_buf, sizeof(tooltip_buf), "%s", first_opt->text);
+    }
+
+    if( !tooltip_buf[0] )
+        return true;
 
     /* Get font: use stored font_id if set, otherwise default to "p11". */
     int font_id = node->u.hover_tooltip.font_id >= 0 ?
@@ -2748,9 +2814,14 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
         game->cross_mode = 1;  /* yellow by default */
         if( game->option_set.option_count > 0 )
         {
-            struct WorldOption* first_opt = world_option_set_get_option(&game->option_set, 0);
-            if( first_opt && first_opt->action != MINIMENU_ACTION_WALK )
-                game->cross_mode = 2;  /* red for targetable */
+            struct WorldOption def;
+            minimenu_game_world_ts_default_row(
+                &game->option_set,
+                game->mouse_tile_x,
+                game->mouse_tile_z,
+                &def);
+            if( def.action != MINIMENU_ACTION_WALK )
+                game->cross_mode = 2; /* red for targetable */
         }
     }
 }

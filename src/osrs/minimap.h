@@ -45,6 +45,8 @@ struct MinimapLoc
 {
     int tile_sx;
     int tile_sz;
+    int world_x;
+    int world_z;
     enum MinimapLocType type;
 };
 
@@ -75,23 +77,19 @@ enum MinimapRenderCommandKind
 
 struct MinimapRenderCommand
 {
+    uint32_t kind;
     union
     {
-        uint32_t kind : 2;
-
         struct
         {
-            uint16_t kind : 2;
-            uint16_t tile_sx : 10;
-            uint16_t tile_sz : 10;
-        } _tile;
-
+            int tile_sx;
+            int tile_sz;
+        } tile;
         struct
         {
-            uint16_t kind : 2;
-            uint16_t loc_idx : 10;
-        } _loc;
-    };
+            int loc_idx;
+        } loc;
+    } u;
 };
 
 struct MinimapRenderCommandBuffer
@@ -114,10 +112,15 @@ void
 minimap_free(struct Minimap* minimap);
 
 void
+minimap_clear_locs(struct Minimap* minimap);
+
+void
 minimap_add_loc(
     struct Minimap* minimap,
     int sx,
     int sz,
+    int world_x,
+    int world_z,
     enum MinimapLocType type);
 
 void
