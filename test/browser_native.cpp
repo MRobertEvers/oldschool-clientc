@@ -1,3 +1,4 @@
+#include "platforms/common/mem_format.h"
 #include "platforms/common/platform_memory.h"
 #include "platforms/platform_impl2_emscripten_native.h"
 #include "platforms/platform_impl2_emscripten_native_renderer_soft3d.h"
@@ -176,11 +177,16 @@ main(
     printf("World size: %zu\n", sizeof(struct World));
     platform_get_memory_info(&platform_memory_info);
 
-    printf(
-        "Pre-Platform_Native_New: Platform memory info: %zu / %zu / %zu\n",
-        platform_memory_info.heap_used,
-        platform_memory_info.heap_total,
-        platform_memory_info.heap_peak);
+    {
+        char mem_line[160];
+        mem_format_heap_triple(
+            mem_line,
+            sizeof mem_line,
+            platform_memory_info.heap_used,
+            platform_memory_info.heap_total,
+            platform_memory_info.heap_peak);
+        printf("Pre-Platform_Native_New: Platform memory info: %s\n", mem_line);
+    }
 
     struct Platform2_Emscripten_Native* platform = Platform2_Emscripten_Native_New();
     if( !platform )
@@ -207,11 +213,16 @@ main(
     platform->secret = 5;
 
     platform_get_memory_info(&platform_memory_info);
-    printf(
-        "Pre-InitForSoft3D: Platform memory info: %zu / %zu / %zu\n",
-        platform_memory_info.heap_used,
-        platform_memory_info.heap_total,
-        platform_memory_info.heap_peak);
+    {
+        char mem_line[160];
+        mem_format_heap_triple(
+            mem_line,
+            sizeof mem_line,
+            platform_memory_info.heap_used,
+            platform_memory_info.heap_total,
+            platform_memory_info.heap_peak);
+        printf("Pre-InitForSoft3D: Platform memory info: %s\n", mem_line);
+    }
 
     if( !Platform2_Emscripten_Native_InitForSoft3D(platform, game_width, game_height) )
     {
@@ -220,11 +231,16 @@ main(
     }
 
     platform_get_memory_info(&platform_memory_info);
-    printf(
-        "Pre-Renderer_Soft3D_New: Platform memory info: %zu / %zu / %zu\n",
-        platform_memory_info.heap_used,
-        platform_memory_info.heap_total,
-        platform_memory_info.heap_peak);
+    {
+        char mem_line[160];
+        mem_format_heap_triple(
+            mem_line,
+            sizeof mem_line,
+            platform_memory_info.heap_used,
+            platform_memory_info.heap_total,
+            platform_memory_info.heap_peak);
+        printf("Pre-Renderer_Soft3D_New: Platform memory info: %s\n", mem_line);
+    }
 
     renderer = PlatformImpl2_Emscripten_Native_Renderer_Soft3D_New(
         game_width, game_height, render_max_width, render_max_height);
@@ -246,11 +262,16 @@ main(
     game->iface_view_port->clip_bottom = game_height;
 
     platform_get_memory_info(&platform_memory_info);
-    printf(
-        "Platform memory info: %zu / %zu / %zu\n",
-        platform_memory_info.heap_used,
-        platform_memory_info.heap_total,
-        platform_memory_info.heap_peak);
+    {
+        char mem_line[160];
+        mem_format_heap_triple(
+            mem_line,
+            sizeof mem_line,
+            platform_memory_info.heap_used,
+            platform_memory_info.heap_total,
+            platform_memory_info.heap_peak);
+        printf("Platform memory info: %s\n", mem_line);
+    }
 
     game->viewport_offset_x = 4;
     game->viewport_offset_y = 4;

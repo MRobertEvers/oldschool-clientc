@@ -13,6 +13,7 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/core/clientprot_core.h"
 #include "osrs/minimenu.h"
+#include "osrs/minimenu_game.h"
 #include "osrs/obj_icon.h"
 #include "osrs/rs_component_state.h"
 #include "osrs/scene2.h"
@@ -273,21 +274,6 @@ uielem_rs_model_is_dirty(
     return node->is_dirty;
 }
 
-static int
-uiscene_find_element_id_by_name(struct UIScene* uiscene, char const* name)
-{
-    if( !uiscene || !name )
-        return -1;
-    for( int i = 0; i < uiscene->elements_count; i++ )
-    {
-        if( !uiscene->elements[i].active )
-            continue;
-        if( strcmp(uiscene->elements[i].name, name) == 0 )
-            return i;
-    }
-    return -1;
-}
-
 static void
 emit_ui_sprite_raw(
     struct ToriRSRenderCommandBuffer* buf,
@@ -390,7 +376,8 @@ rs_ui_layer_emit_scrollbar_at(
     int scroll_pos)
 {
     struct GGame* game = fiber->game;
-    if( !game || !game->ui_scene || !fiber->cmds )
+    struct UITree* ui = game ? game->ui_root_buffer : NULL;
+    if( !game || !game->ui_scene || !fiber->cmds || !ui )
         return;
     int lh = layer_h;
     int sh = scroll_height;
@@ -416,10 +403,20 @@ rs_ui_layer_emit_scrollbar_at(
     int sx = layer_x + layer_w;
     int y0 = layer_y;
     int h = layer_h;
-    struct DashSprite* sb0 = uiscene_sprite_by_name(game->ui_scene, "scrollbar0", 0);
-    struct DashSprite* sb1 = uiscene_sprite_by_name(game->ui_scene, "scrollbar1", 0);
-    int e0 = uiscene_find_element_id_by_name(game->ui_scene, "scrollbar0");
-    int e1 = uiscene_find_element_id_by_name(game->ui_scene, "scrollbar1");
+    int const e0 = ui->ui_scrollbar0_element_id;
+    int const e1 = ui->ui_scrollbar1_element_id;
+    struct UISceneElement* el0 = NULL;
+    struct UISceneElement* el1 = NULL;
+    if( e0 >= 0 && e0 < game->ui_scene->elements_count )
+        el0 = &game->ui_scene->elements[e0];
+    if( e1 >= 0 && e1 < game->ui_scene->elements_count )
+        el1 = &game->ui_scene->elements[e1];
+    struct DashSprite* sb0 = NULL;
+    struct DashSprite* sb1 = NULL;
+    if( el0 && el0->active && el0->dash_sprites && el0->dash_sprites_count > 0 )
+        sb0 = el0->dash_sprites[0];
+    if( el1 && el1->active && el1->dash_sprites && el1->dash_sprites_count > 0 )
+        sb1 = el1->dash_sprites[0];
     frame_emit_pass(fiber, FRAME_PASS_2D);
     if( sb0 && e0 >= 0 )
         emit_ui_sprite_raw(fiber->cmds, e0, 0, sb0, sx, y0);
@@ -450,15 +447,16 @@ rs_ui_layer_push(
     struct StaticUIComponent* layer)
 {
     struct GGame* game = fiber->game;
-    if( !game || !fiber->cmds || game->ui_layer_stack_top + 1 >= UIFRAME_LAYER_STACK_MAX )
+    struct UITree* ui = game ? game->ui_root_buffer : NULL;
+    if( !game || !fiber->cmds || !ui || ui->ui_layer_stack_top + 1 >= UIFRAME_LAYER_STACK_MAX )
         return;
     int lh = layer->position.height;
     int sh = layer->u.rs_layer.scroll_height;
     int sp = rs_iface_scroll_clamped_for_layer(game, layer->component_id, sh, lh);
     int prev =
-        game->ui_layer_stack_top >= 0 ? game->ui_layer_stack[game->ui_layer_stack_top].scroll_y_total
-                                      : 0;
-    struct UILayerFrameEntry* e = &game->ui_layer_stack[++game->ui_layer_stack_top];
+        ui->ui_layer_stack_top >= 0 ? ui->ui_layer_stack[ui->ui_layer_stack_top].scroll_y_total
+                                    : 0;
+    struct UILayerFrameEntry* e = &ui->ui_layer_stack[++ui->ui_layer_stack_top];
     e->scroll_y_total = prev + sp;
     e->clip_x = layer->position.x;
     e->clip_y = layer->position.y;
@@ -489,9 +487,10 @@ rs_ui_layer_push(
 static void
 rs_ui_layer_pop(struct GGame* game)
 {
-    if( !game || game->ui_layer_stack_top < 0 )
+    struct UITree* ui = game ? game->ui_root_buffer : NULL;
+    if( !ui || ui->ui_layer_stack_top < 0 )
         return;
-    struct UILayerFrameEntry* e = &game->ui_layer_stack[game->ui_layer_stack_top];
+    struct UILayerFrameEntry* e = &ui->ui_layer_stack[ui->ui_layer_stack_top];
     /* Pop clip before scrollbar: bar is at x+width (outside content clip). Client.ts drawScrollbar. */
     if( game->uiscene_queued_commands )
     {
@@ -524,7 +523,7 @@ rs_ui_layer_pop(struct GGame* game)
             e->scrollbar_scroll_height,
             sp);
     }
-    game->ui_layer_stack_top--;
+    ui->ui_layer_stack_top--;
 }
 
 static bool
@@ -755,14 +754,28 @@ queue_sprite_draw_from_event(
 /* Emit a single 2-pixel-wide dot on the minimap for the entity at world position
  * (entity_world_x, entity_world_z).  Mirrors Client.ts minimapDrawDot 11637-11663.
  *
+ * sprite_element_id / sprite_atlas_index: from `GGame` fields filled at UI load; if element id is
+ *   -1, draw uses legacy atlas slot 200 (no UIScene binding).
  * comp_x, comp_y: top-left corner of the minimap element in UI viewport space.
  * camera_yaw:  current camera yaw (0–2047 units, full circle).
  * pl_wx, pl_wz: local player world position in sub-tile units (128 per tile). */
+static struct DashSprite*
+game_uiscene_sprite_atlas0(struct GGame* game, int element_id)
+{
+    if( !game || !game->ui_scene || element_id < 0 || element_id >= game->ui_scene->elements_count )
+        return NULL;
+    struct UISceneElement* el = &game->ui_scene->elements[element_id];
+    if( !el->active || !el->dash_sprites || el->dash_sprites_count <= 0 )
+        return NULL;
+    return el->dash_sprites[0];
+}
+
 static void
 minimap_emit_dot(
     struct GGame*                    game,
     struct ToriRSRenderCommandBuffer* buf,
-    struct ToriRSRenderCommand*       base_cmd, /* copy element_id from this */
+    int                               sprite_element_id,
+    int                               sprite_atlas_index,
     struct DashSprite*                sprite,
     int comp_x,
     int comp_y,
@@ -774,6 +787,7 @@ minimap_emit_dot(
     int entity_wx,
     int entity_wz)
 {
+    (void)game;
     if( !sprite || !buf )
         return;
 
@@ -806,8 +820,16 @@ minimap_emit_dot(
 
     struct ToriRSRenderCommand* c = LibToriRS_RenderCommandBufferEmplaceCommand(buf);
     c->kind                          = TORIRS_GFX_DRAW_SPRITE;
-    c->_sprite_draw.element_id       = base_cmd ? base_cmd->_sprite_draw.element_id : -1;
-    c->_sprite_draw.atlas_index      = 200; /* unique atlas slot for dots */
+    if( sprite_element_id >= 0 )
+    {
+        c->_sprite_draw.element_id   = sprite_element_id;
+        c->_sprite_draw.atlas_index  = sprite_atlas_index;
+    }
+    else
+    {
+        c->_sprite_draw.element_id   = -1;
+        c->_sprite_draw.atlas_index  = 200; /* legacy path when sprite not in UIScene */
+    }
     c->_sprite_draw.sprite           = sprite;
     c->_sprite_draw.dst_bb_x         = dot_x - half_w;
     c->_sprite_draw.dst_bb_y         = dot_y - half_h;
@@ -950,10 +972,12 @@ queue_static_ui_minimap_draws(
         }
     }
 
+    struct UITree* uit = game->ui_root_buffer;
+
     /* Ground items (mapdots0 = yellow dot, index 0 in TS). */
     {
-        struct DashSprite* dot_obj =
-            game->ui_scene ? uiscene_sprite_by_name(game->ui_scene, "mapdots0", 0) : NULL;
+        int const dot_eid = uit ? uit->ui_minimap_mapdots0_element_id : -1;
+        struct DashSprite* dot_obj = game_uiscene_sprite_atlas0(game, dot_eid);
         if( dot_obj && game->obj_stacks )
         {
             int level = (game->camera_world_y < 0) ? 0 : 0; /* always level 0 for now */
@@ -972,7 +996,8 @@ queue_static_ui_minimap_draws(
                         minimap_emit_dot(
                             game,
                             game->uiscene_queued_commands,
-                            NULL,
+                            dot_eid,
+                            0,
                             dot_obj,
                             mm_comp_x, mm_comp_y, mm_comp_w, mm_comp_h,
                             mm_cam_yaw, pl_wx, pl_wz, wx, wz);
@@ -984,8 +1009,8 @@ queue_static_ui_minimap_draws(
 
     /* NPCs (mapdots1) — only if their type has minimap enabled. */
     {
-        struct DashSprite* dot_npc =
-            game->ui_scene ? uiscene_sprite_by_name(game->ui_scene, "mapdots1", 0) : NULL;
+        int const dot_eid = uit ? uit->ui_minimap_mapdots1_element_id : -1;
+        struct DashSprite* dot_npc = game_uiscene_sprite_atlas0(game, dot_eid);
         if( dot_npc )
         {
             for( int i = 0; i < game->world->active_npc_count; i++ )
@@ -997,7 +1022,8 @@ queue_static_ui_minimap_draws(
                 minimap_emit_dot(
                     game,
                     game->uiscene_queued_commands,
-                    NULL,
+                    dot_eid,
+                    0,
                     dot_npc,
                     mm_comp_x, mm_comp_y, mm_comp_w, mm_comp_h,
                     mm_cam_yaw, pl_wx, pl_wz,
@@ -1008,11 +1034,9 @@ queue_static_ui_minimap_draws(
 
     /* Other players (mapdots3 for regular, mapdots4 for friends). */
     {
-        struct DashSprite* dot_other =
-            game->ui_scene ? uiscene_sprite_by_name(game->ui_scene, "mapdots3", 0) : NULL;
-        struct DashSprite* dot_friend =
-            game->ui_scene ? uiscene_sprite_by_name(game->ui_scene, "mapdots4", 0) : NULL;
-        if( dot_other || dot_friend )
+        int const e_other = uit ? uit->ui_minimap_mapdots3_element_id : -1;
+        struct DashSprite* dot_other = game_uiscene_sprite_atlas0(game, e_other);
+        if( dot_other )
         {
             for( int i = 0; i < game->world->active_player_count; i++ )
             {
@@ -1022,15 +1046,13 @@ queue_static_ui_minimap_draws(
                 struct PlayerEntity* p = world_player(game->world, pid);
                 if( !p || !p->alive )
                     continue;
-                /* TODO: Implement friend differentiation by comparing player names to friend list. */
-                struct DashSprite* dot = dot_other;
-                if( !dot )
-                    continue;
+                /* TODO: friends — use uit->ui_minimap_mapdots4_element_id + atlas 0 sprite. */
                 minimap_emit_dot(
                     game,
                     game->uiscene_queued_commands,
-                    NULL,
-                    dot,
+                    e_other,
+                    0,
+                    dot_other,
                     mm_comp_x, mm_comp_y, mm_comp_w, mm_comp_h,
                     mm_cam_yaw, pl_wx, pl_wz,
                     p->draw_position.x, p->draw_position.z);
@@ -1041,14 +1063,15 @@ queue_static_ui_minimap_draws(
     /* Hint arrow — flashes if hint_arrow_type is set and loopCycle % 20 < 10. */
     if( game->hint_arrow_type != 0 && (game->cycle % 20) < 10 )
     {
-        struct DashSprite* arrow =
-            game->ui_scene ? uiscene_sprite_by_name(game->ui_scene, "mapmarker2", 0) : NULL;
+        int const arrow_eid = uit ? uit->ui_minimap_mapmarker2_element_id : -1;
+        struct DashSprite* arrow = game_uiscene_sprite_atlas0(game, arrow_eid);
         if( arrow && game->hint_arrow_tile_x >= 0 && game->hint_arrow_tile_z >= 0 )
         {
             minimap_emit_dot(
                 game,
                 game->uiscene_queued_commands,
-                NULL,
+                arrow_eid,
+                0,
                 arrow,
                 mm_comp_x, mm_comp_y, mm_comp_w, mm_comp_h,
                 mm_cam_yaw, pl_wx, pl_wz,
@@ -1059,14 +1082,15 @@ queue_static_ui_minimap_draws(
     /* Destination flag (set by minimap click or world click). */
     if( game->minimap_flag_has )
     {
-        struct DashSprite* flag =
-            game->ui_scene ? uiscene_sprite_by_name(game->ui_scene, "mapmarker", 0) : NULL;
+        int const flag_eid = uit ? uit->ui_minimap_mapmarker_element_id : -1;
+        struct DashSprite* flag = game_uiscene_sprite_atlas0(game, flag_eid);
         if( flag )
         {
             minimap_emit_dot(
                 game,
                 game->uiscene_queued_commands,
-                NULL,
+                flag_eid,
+                0,
                 flag,
                 mm_comp_x, mm_comp_y, mm_comp_w, mm_comp_h,
                 mm_cam_yaw, pl_wx, pl_wz,
@@ -1369,9 +1393,14 @@ LibToriRS_FrameBegin(
     game->uitree_current = (game->ui_root_buffer && game->ui_root_buffer->root_index >= 0)
                                ? game->ui_root_buffer->root_index
                                : -1;
-    game->ui_layer_stack_top = -1;
-    game->ui_frame_text_pool_used = 0;
+    if( game->ui_root_buffer )
+    {
+        game->ui_root_buffer->ui_layer_stack_top = -1;
+        uitree_textpool_reset(&game->ui_root_buffer->text_pool);
+    }
     game->uiscene_command_idx = 0;
+    if( game->minimenu_commands )
+        minimenu_commands_reset(game->minimenu_commands);
     if( game->uiscene_queued_commands )
         LibToriRS_RenderCommandBufferReset(game->uiscene_queued_commands);
 
@@ -2164,7 +2193,7 @@ uielem_hover_tooltip_step(
     struct GGame* game = fiber->game;
     if( !game || !game->iface || !game->ui_scene || !fiber->cmds )
         return true;
-    if( game->minimenu_visible )
+    if( game->minimenu.visible )
         return true;
 
     /* Determine which option set to use:
@@ -2234,21 +2263,13 @@ uielem_hover_tooltip_step(
         return true;
 
     /* Pool the text. */
-    size_t text_len = strlen(tooltip_buf) + 1;
-    if( game->ui_frame_text_pool_used + text_len > game->ui_frame_text_pool_cap )
-    {
-        size_t new_cap = game->ui_frame_text_pool_cap ? game->ui_frame_text_pool_cap * 2 : 4096u;
-        while( game->ui_frame_text_pool_used + text_len > new_cap )
-            new_cap *= 2;
-        char* new_pool = (char*)realloc(game->ui_frame_text_pool, new_cap);
-        if( !new_pool )
-            return true;
-        game->ui_frame_text_pool = new_pool;
-        game->ui_frame_text_pool_cap = new_cap;
-    }
-    char* dst = game->ui_frame_text_pool + game->ui_frame_text_pool_used;
-    strcpy(dst, tooltip_buf);
-    game->ui_frame_text_pool_used += text_len;
+    struct UITree* uit_tt = game->ui_root_buffer;
+    if( !uit_tt )
+        return true;
+    size_t text_len = strlen(tooltip_buf);
+    char* dst = uitree_textpool_push_dup(&uit_tt->text_pool, tooltip_buf, text_len);
+    if( !dst )
+        return true;
 
     frame_emit_pass(fiber, FRAME_PASS_2D);
     struct ToriRSRenderCommand* cmd = LibToriRS_RenderCommandBufferEmplaceCommand(fiber->cmds);
@@ -2271,7 +2292,7 @@ uielem_minimenu_step(
     struct GGame* game = fiber->game;
     if( !game || !game->ui_scene || !fiber->cmds )
         return true;
-    if( !game->minimenu_visible || game->minimenu_option_count <= 0 )
+    if( !game->minimenu.visible || game->minimenu.option_count <= 0 )
         return true;
 
     int ov_font_id = node->u.minimenu.font_id;
@@ -2279,8 +2300,10 @@ uielem_minimenu_step(
     if( ov_font_id >= 0 )
         ov_font = uiscene_font_get(game->ui_scene, ov_font_id);
 
+    minimenu_game_enqueue(game, ov_font_id);
+
     frame_emit_pass(fiber, FRAME_PASS_2D);
-    minimenu_draw(game, fiber->cmds, ov_font_id, ov_font);
+    minimenu_game_translate_commands(game, fiber->cmds, ov_font_id, ov_font);
     return true;
 }
 
@@ -2300,16 +2323,24 @@ uielem_crosshair_step(
         frame_idx += 4;
     if( frame_idx > 7 )
         frame_idx = 7;
-    
-    struct DashSprite* sp = uiscene_sprite_by_name(game->ui_scene, "cross", frame_idx);
+
+    int const cross_id = node->u.crosshair.scene_id;
+    struct UISceneElement* cross_el = NULL;
+    if( cross_id >= 0 && cross_id < game->ui_scene->elements_count )
+        cross_el = &game->ui_scene->elements[cross_id];
+    if( !cross_el || !cross_el->active || !cross_el->dash_sprites )
+        return true;
+    if( frame_idx < 0 || frame_idx >= cross_el->dash_sprites_count )
+        return true;
+    struct DashSprite* sp = cross_el->dash_sprites[frame_idx];
     if( !sp )
         return true;
 
     frame_emit_pass(fiber, FRAME_PASS_2D);
     struct ToriRSRenderCommand* c = LibToriRS_RenderCommandBufferEmplaceCommand(fiber->cmds);
     c->kind                       = TORIRS_GFX_DRAW_SPRITE;
-    c->_sprite_draw.element_id    = -1;
-    c->_sprite_draw.atlas_index   = 0;
+    c->_sprite_draw.element_id    = cross_id;
+    c->_sprite_draw.atlas_index   = frame_idx;
     c->_sprite_draw.sprite        = sp;
     c->_sprite_draw.dst_bb_x      = game->cross_x - 8 - game->viewport_offset_x;
     c->_sprite_draw.dst_bb_y      = game->cross_y - 8 - game->viewport_offset_y;

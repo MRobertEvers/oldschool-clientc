@@ -1465,7 +1465,8 @@ gameproto_rev245_2_exec_if_close(
         game->iface->selected_cycle = 0;
     }
     /* Release scrollbar drag if any. */
-    game->ui_scrollbar_drag_component_id = -1;
+    if( game->ui_root_buffer )
+        game->ui_root_buffer->ui_scrollbar_drag_component_id = -1;
 }
 
 void

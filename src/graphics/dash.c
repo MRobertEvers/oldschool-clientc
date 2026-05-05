@@ -2,6 +2,7 @@
 
 #include "graphics/dash_bench.h"
 #include "graphics/raster/deob/pix3d_deob_compat.h"
+#include "platforms/common/mem_format.h"
 
 // clang-format off
 #include "dash2d_simd.u.c"
@@ -16,6 +17,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -292,7 +294,11 @@ dash_new()
         dash->sparse_c[i] = (faceint_t)(i * 3 + 2);
     }
 
-    printf("Sizeof(struct DashGraphics): %zu\n", sizeof(struct DashGraphics));
+    {
+        char sz[48];
+        mem_format_bytes(sz, sizeof sz, sizeof(struct DashGraphics));
+        printf("Sizeof(struct DashGraphics): %s\n", sz);
+    }
 
     dashtexturemap_init(&dash->texture_map);
 

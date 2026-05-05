@@ -18,6 +18,7 @@
 #include "osrs/revs/lc245_2/loginproto_rev245_2.h"
 #include "osrs/lua_scripts.h"
 #include "osrs/minimap.h"
+#include "osrs/minimenu.h"
 #include "osrs/player_stats.h"
 #include "osrs/revconfig/revconfig_load.h"
 #include "osrs/revconfig/uiscene.h"
@@ -115,6 +116,7 @@ new_render_load_map(
     return dashmap_new(&config, 0);
 }
 
+#include "platforms/common/mem_format.h"
 #include "platforms/common/platform_memory.h"
 
 struct GGame*
@@ -131,7 +133,12 @@ LibToriRS_GameNew(
 
     struct PlatformMemoryInfo mem = { 0 };
     platform_get_memory_info(&mem);
-    printf("GameNew: Memory info: %zu / %zu / %zu\n", mem.heap_used, mem.heap_total, mem.heap_peak);
+    {
+        char mem_line[160];
+        mem_format_heap_triple(
+            mem_line, sizeof mem_line, mem.heap_used, mem.heap_total, mem.heap_peak);
+        printf("GameNew: Memory info: %s\n", mem_line);
+    }
 
     dash_init();
     player_stats_init();
@@ -181,20 +188,22 @@ LibToriRS_GameNew(
     game->sys_dash = dash_new();
 
     platform_get_memory_info(&mem);
-    printf(
-        "GameNew: Memory info after dash_new: %zu / %zu / %zu\n",
-        mem.heap_used,
-        mem.heap_total,
-        mem.heap_peak);
+    {
+        char mem_line[160];
+        mem_format_heap_triple(
+            mem_line, sizeof mem_line, mem.heap_used, mem.heap_total, mem.heap_peak);
+        printf("GameNew: Memory info after dash_new: %s\n", mem_line);
+    }
 
     game->sys_painter_buffer = painter_buffer_new();
 
     platform_get_memory_info(&mem);
-    printf(
-        "GameNew: Memory info after painter_buffer_new: %zu / %zu / %zu\n",
-        mem.heap_used,
-        mem.heap_total,
-        mem.heap_peak);
+    {
+        char mem_line[160];
+        mem_format_heap_triple(
+            mem_line, sizeof mem_line, mem.heap_used, mem.heap_total, mem.heap_peak);
+        printf("GameNew: Memory info after painter_buffer_new: %s\n", mem_line);
+    }
     game->position = malloc(sizeof(struct DashPosition));
     memset(game->position, 0, sizeof(struct DashPosition));
     game->view_port = malloc(sizeof(struct DashViewPort));
@@ -220,11 +229,12 @@ LibToriRS_GameNew(
     game->iface = interface_state_new();
 
     platform_get_memory_info(&mem);
-    printf(
-        "GameNew: Memory info after painter_buffer_new: %zu / %zu / %zu\n",
-        mem.heap_used,
-        mem.heap_total,
-        mem.heap_peak);
+    {
+        char mem_line[160];
+        mem_format_heap_triple(
+            mem_line, sizeof mem_line, mem.heap_used, mem.heap_total, mem.heap_peak);
+        printf("GameNew: Memory info after painter_buffer_new: %s\n", mem_line);
+    }
 
     game->random_in = isaac_new(NULL, 0);
     game->random_out = isaac_new(NULL, 0);
@@ -237,11 +247,12 @@ LibToriRS_GameNew(
     game->loginproto = NULL; /* created by LibToriRS_NetConnectLogin */
 
     platform_get_memory_info(&mem);
-    printf(
-        "GameNew: Memory info pre uiscene_new: %zu / %zu / %zu\n",
-        mem.heap_used,
-        mem.heap_total,
-        mem.heap_peak);
+    {
+        char mem_line[160];
+        mem_format_heap_triple(
+            mem_line, sizeof mem_line, mem.heap_used, mem.heap_total, mem.heap_peak);
+        printf("GameNew: Memory info pre uiscene_new: %s\n", mem_line);
+    }
 
     game->ui_scene = uiscene_new(256);
     game->scene2 = scene2_new(20000, 4000);
@@ -255,13 +266,15 @@ LibToriRS_GameNew(
         game->clientscript_vm->game_ref = game;
     game->uiscene_queued_commands = LibToriRS_RenderCommandBufferNew(64);
     game->minimap_dynamic_commands = minimap_commands_new(64);
+    game->minimenu_commands = minimenu_commands_new(64);
 
     platform_get_memory_info(&mem);
-    printf(
-        "GameNew: Memory info after uiscene_new: %zu / %zu / %zu\n",
-        mem.heap_used,
-        mem.heap_total,
-        mem.heap_peak);
+    {
+        char mem_line[160];
+        mem_format_heap_triple(
+            mem_line, sizeof mem_line, mem.heap_used, mem.heap_total, mem.heap_peak);
+        printf("GameNew: Memory info after uiscene_new: %s\n", mem_line);
+    }
 
     // struct CacheDatConfigComponentList* config_interface_list =
     //     cache_dat_config_component_list_new_decode(file_data, file_data_size);
@@ -453,6 +466,13 @@ LibToriRS_GameFree(struct GGame* game)
     if( game->uiscene_queued_commands )
         LibToriRS_RenderCommandBufferFree(game->uiscene_queued_commands);
     game->uiscene_queued_commands = NULL;
+
+    if( game->minimap_dynamic_commands )
+        minimap_commands_free(game->minimap_dynamic_commands);
+    game->minimap_dynamic_commands = NULL;
+    if( game->minimenu_commands )
+        minimenu_commands_free(game->minimenu_commands);
+    game->minimenu_commands = NULL;
 
     lua_buildcache_free_init_configmaps(game);
 

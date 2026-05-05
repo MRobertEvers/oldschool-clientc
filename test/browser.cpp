@@ -1,3 +1,4 @@
+#include "platforms/common/mem_format.h"
 #include "platforms/common/platform_memory.h"
 #include "platforms/platform_impl2_sdl2.h"
 #include "platforms/platform_impl2_sdl2_renderer_soft3d.h"
@@ -199,11 +200,16 @@ main(
     printf("World size: %d\n", sizeof(struct World));
     platform_get_memory_info(&platform_memory_info);
 
-    printf(
-        "Pre-SDL2_New: Platform memory info: %zu / %zu / %zu\n",
-        platform_memory_info.heap_used,
-        platform_memory_info.heap_total,
-        platform_memory_info.heap_peak);
+    {
+        char mem_line[160];
+        mem_format_heap_triple(
+            mem_line,
+            sizeof mem_line,
+            platform_memory_info.heap_used,
+            platform_memory_info.heap_total,
+            platform_memory_info.heap_peak);
+        printf("Pre-SDL2_New: Platform memory info: %s\n", mem_line);
+    }
 
     struct Platform2_SDL2* platform = Platform2_SDL2_New();
     if( !platform )
@@ -228,21 +234,31 @@ main(
 
     platform_get_memory_info(&platform_memory_info);
 
-    printf(
-        "Pre-NetNewBuffer: Platform memory info: %zu / %zu / %zu\n",
-        platform_memory_info.heap_used,
-        platform_memory_info.heap_total,
-        platform_memory_info.heap_peak);
+    {
+        char mem_line[160];
+        mem_format_heap_triple(
+            mem_line,
+            sizeof mem_line,
+            platform_memory_info.heap_used,
+            platform_memory_info.heap_total,
+            platform_memory_info.heap_peak);
+        printf("Pre-NetNewBuffer: Platform memory info: %s\n", mem_line);
+    }
 
     struct ToriRSNetSharedBuffer* net_shared = LibToriRS_NetNewBuffer();
 
     platform_get_memory_info(&platform_memory_info);
 
-    printf(
-        "Pre-GameNew: Platform memory info: %zu / %zu / %zu\n",
-        platform_memory_info.heap_used,
-        platform_memory_info.heap_total,
-        platform_memory_info.heap_peak);
+    {
+        char mem_line[160];
+        mem_format_heap_triple(
+            mem_line,
+            sizeof mem_line,
+            platform_memory_info.heap_used,
+            platform_memory_info.heap_total,
+            platform_memory_info.heap_peak);
+        printf("Pre-GameNew: Platform memory info: %s\n", mem_line);
+    }
 
     struct GGame* game = LibToriRS_GameNew(net_shared, graphics3d_width, graphics3d_height);
     set_game_ptr(game);
@@ -255,11 +271,16 @@ main(
 
     platform_get_memory_info(&platform_memory_info);
 
-    printf(
-        "Pre-SDL init: Platform memory info: %zu / %zu / %zu\n",
-        platform_memory_info.heap_used,
-        platform_memory_info.heap_total,
-        platform_memory_info.heap_peak);
+    {
+        char mem_line[160];
+        mem_format_heap_triple(
+            mem_line,
+            sizeof mem_line,
+            platform_memory_info.heap_used,
+            platform_memory_info.heap_total,
+            platform_memory_info.heap_peak);
+        printf("Pre-SDL init: Platform memory info: %s\n", mem_line);
+    }
 
     if( use_webgl )
     {
@@ -271,11 +292,16 @@ main(
 
         platform_get_memory_info(&platform_memory_info);
 
-        printf(
-            "Pre-Renderer_WebGL1_New: Platform memory info: %zu / %zu / %zu\n",
-            platform_memory_info.heap_used,
-            platform_memory_info.heap_total,
-            platform_memory_info.heap_peak);
+        {
+            char mem_line[160];
+            mem_format_heap_triple(
+                mem_line,
+                sizeof mem_line,
+                platform_memory_info.heap_used,
+                platform_memory_info.heap_total,
+                platform_memory_info.heap_peak);
+            printf("Pre-Renderer_WebGL1_New: Platform memory info: %s\n", mem_line);
+        }
 
         renderer_webgl = PlatformImpl2_SDL2_Renderer_WebGL1_New(game_width, game_height);
         renderer_webgl->width = game_width;
@@ -297,11 +323,16 @@ main(
 
         platform_get_memory_info(&platform_memory_info);
 
-        printf(
-            "Pre-Renderer_Soft3D_New: Platform memory info: %zu / %zu / %zu\n",
-            platform_memory_info.heap_used,
-            platform_memory_info.heap_total,
-            platform_memory_info.heap_peak);
+        {
+            char mem_line[160];
+            mem_format_heap_triple(
+                mem_line,
+                sizeof mem_line,
+                platform_memory_info.heap_used,
+                platform_memory_info.heap_total,
+                platform_memory_info.heap_peak);
+            printf("Pre-Renderer_Soft3D_New: Platform memory info: %s\n", mem_line);
+        }
 
         renderer_soft3d = PlatformImpl2_SDL2_Renderer_Soft3D_New(
             screen_width_soft, screen_height_soft, game_width, game_height);
@@ -336,11 +367,16 @@ main(
 
     platform_get_memory_info(&platform_memory_info);
 
-    printf(
-        "Platform memory info: %zu / %zu / %zu\n",
-        platform_memory_info.heap_used,
-        platform_memory_info.heap_total,
-        platform_memory_info.heap_peak);
+    {
+        char mem_line[160];
+        mem_format_heap_triple(
+            mem_line,
+            sizeof mem_line,
+            platform_memory_info.heap_used,
+            platform_memory_info.heap_total,
+            platform_memory_info.heap_peak);
+        printf("Platform memory info: %s\n", mem_line);
+    }
     /* Keep viewport config identical across renderer backends (same as sdl2.cpp). */
     game->viewport_offset_x = kViewportInset;
     game->viewport_offset_y = kViewportInset;

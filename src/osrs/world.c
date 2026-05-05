@@ -4,6 +4,8 @@
 #include "datatypes/appearances.h"
 #include "game.h"
 #include "heightmap.h"
+#include "platforms/common/mem_format.h"
+#include "platforms/common/platform_memory.h"
 #include "terrain_shapemap.h"
 #include "world_scenebuild.h"
 
@@ -579,8 +581,12 @@ world_rebuild_centerzone_begin(
 
     struct PlatformMemoryInfo mem = { 0 };
     platform_get_memory_info(&mem);
-    printf(
-        "Pre-Alloc: Memory info: %zu / %zu / %zu\n", mem.heap_used, mem.heap_total, mem.heap_peak);
+    {
+        char mem_line[160];
+        mem_format_heap_triple(
+            mem_line, sizeof mem_line, mem.heap_used, mem.heap_total, mem.heap_peak);
+        printf("Pre-Alloc: Memory info: %s\n", mem_line);
+    }
 
     world->painter = painter_new(
         scene_size,
@@ -606,11 +612,12 @@ world_rebuild_centerzone_begin(
 
     struct PlatformMemoryInfo mem2 = { 0 };
     platform_get_memory_info(&mem2);
-    printf(
-        "Post-Alloc: Memory info: %zu / %zu / %zu\n",
-        mem2.heap_used,
-        mem2.heap_total,
-        mem2.heap_peak);
+    {
+        char mem_line[160];
+        mem_format_heap_triple(
+            mem_line, sizeof mem_line, mem2.heap_used, mem2.heap_total, mem2.heap_peak);
+        printf("Post-Alloc: Memory info: %s\n", mem_line);
+    }
 
     int chunk_sw_x = zone_sw_x / 8;
     int chunk_sw_z = zone_sw_z / 8;

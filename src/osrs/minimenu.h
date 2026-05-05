@@ -1,66 +1,112 @@
 #ifndef MINIMENU_H
 #define MINIMENU_H
 
-#include "collision_map.h"
-#include "game.h"
-#include "graphics/dash.h"
-#include "tori_rs_render.h"
+#include "minimenu_state.h"
 
-#include <stdbool.h>
+#include <stdint.h>
 
-struct ToriRSRenderCommandBuffer;
+/** Built-in minimenu layout (matches Client.ts). */
+#define MINIMENU_ROW_HEIGHT 15
+#define MINIMENU_HEADER_HEIGHT 18
 
-/* Build menu options from option_set and show at (click_x, click_y) in iface-viewport coords.
- * Client.ts showContextMenu: positions menu, sets menuVisible. */
+/** One row from the host (e.g. game) before `minimenu_show` copies into `MinimenuState`. */
+struct MinimenuOptionLine
+{
+    const char* text; /* UTF-8; copied into state; must live until `minimenu_show` returns */
+    int action;
+    int param_a;
+    int param_b;
+    int param_c;
+};
+
+/** Host provides UTF-8 pinning for draw commands; pointer valid for the rest of the frame. */
+typedef const uint8_t* (*MinimenuPoolTextFn)(
+    void* pool_user,
+    const char* utf8);
+
+enum MinimenuRenderCommandKind
+{
+    MINIMENU_RENDER_COMMAND_RECT = 0,
+    MINIMENU_RENDER_COMMAND_TEXT_HEADER,
+    MINIMENU_RENDER_COMMAND_TEXT_OPTION,
+};
+
+struct MinimenuRenderCommand
+{
+    enum MinimenuRenderCommandKind kind;
+    union
+    {
+        struct
+        {
+            int x;
+            int y;
+            int w;
+            int h;
+            int color_rgb;
+            uint8_t fill;
+        } rect;
+        struct
+        {
+            int font_id;
+            const uint8_t* text;
+            int x;
+            int y;
+            int color_rgb;
+        } text_header;
+        struct
+        {
+            int font_id;
+            int option_index;
+            int x;
+            int y;
+        } text_option;
+    } u;
+};
+
+struct MinimenuRenderCommandBuffer
+{
+    struct MinimenuRenderCommand* commands;
+    int count;
+    int capacity;
+};
+
+struct MinimenuRenderCommandBuffer*
+minimenu_commands_new(int hint);
+
 void
-minimenu_show(
-    struct GGame* game,
-    int click_x,
-    int click_y);
+minimenu_commands_free(struct MinimenuRenderCommandBuffer* command_buffer);
 
-/* Emit GFX draw commands (TORIRS_GFX_DRAW_RECT / TORIRS_GFX_DRAW_FONT) into buf.
- * Must be called inside a STATE_BEGIN_2D block.  Text lifetimes are extended via
- * game->ui_frame_text_pool (caller resets the pool at FrameBegin). */
 void
-minimenu_draw(
-    struct GGame* game,
-    struct ToriRSRenderCommandBuffer* buf,
-    int font_id,
-    struct DashPixFont* font);
+minimenu_commands_reset(struct MinimenuRenderCommandBuffer* command_buffer);
 
-/* Check if (click_x, click_y) hits a menu option. Returns option index or -1.
- * If click outside menu, hides menu and returns -2. */
-int
-minimenu_click_option(
-    struct GGame* game,
-    int click_x,
-    int click_y);
-
-/* Execute the selected menu option (send packet). Called after minimenu_click_option returns >= 0.
+/* Record minimenu geometry/text into `cb`. Strings must live until translate; pool via `pool_text`.
  */
 void
-minimenu_use_option(
-    struct GGame* game,
-    int option_index);
+minimenu_enqueue(
+    struct MinimenuRenderCommandBuffer* cb,
+    struct MinimenuState const* mm,
+    void* pool_user,
+    MinimenuPoolTextFn pool_text,
+    int font_id);
 
-/* BFS path to dest and send MOVE_GAMECLICK if path exists. Returns true if waypoints >= 0. */
-bool
-send_move_path_to(
-    struct GGame* game,
-    struct CollisionMap* cm,
-    int src_local_x,
-    int src_local_z,
-    int dest_local_x,
-    int dest_local_z);
+/* Copy `lines[0..line_count-1]` into state (host supplies full list, e.g. world options + Cancel).
+ */
+void
+minimenu_show(
+    struct MinimenuState* mm,
+    struct MinimenuOptionLine const* lines,
+    int line_count,
+    int iface_viewport_w,
+    int iface_viewport_h,
+    int click_x,
+    int click_y);
 
-/* BFS path to dest and send MOVE_OPCLICK (tile click) if path exists. Returns true if waypoints >= 0. */
-bool
-send_move_opclick_to(
-    struct GGame* game,
-    struct CollisionMap* cm,
-    int src_local_x,
-    int src_local_z,
-    int dest_local_x,
-    int dest_local_z);
+/* Check if (click_x, click_y) hits a menu option. Returns option index or -1.
+ * If click outside menu, sets mm->visible = 0 and returns -2. */
+int
+minimenu_click_option(
+    struct MinimenuState* mm,
+    int click_x,
+    int click_y);
 
 #endif

@@ -2,8 +2,10 @@
 #define UITREE_H
 
 #include "osrs/clientscript_vm.h"
+#include "osrs/revconfig/uitree_textpool.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 struct GGame;
@@ -178,6 +180,11 @@ struct StaticUIComponent
         } minimenu;
         struct
         {
+            /** UIScene element id for the `cross` sprite atlas (frames 0..7); resolved at load. */
+            int scene_id;
+        } crosshair;
+        struct
+        {
             int tabno;
             int componentno;
             int inv_index; /* UIInventoryPool index; -1 if none */
@@ -256,6 +263,21 @@ struct StaticUIComponent
     } u;
 };
 
+#define UIFRAME_LAYER_STACK_MAX 16
+
+/** One RS_LAYER frame in the UI traversal: cumulative scroll for descendants + clip rect. */
+struct UILayerFrameEntry
+{
+    int scroll_y_total;
+    int clip_x;
+    int clip_y;
+    int clip_w;
+    int clip_h;
+    /** If set, draw scrollbar after layer content, before POP_CLIP (Client.ts drawInterface order). */
+    int scrollbar_layer_component_id;
+    int scrollbar_scroll_height;
+};
+
 struct UITree
 {
     struct StaticUIComponent* components;
@@ -264,6 +286,27 @@ struct UITree
     int32_t root_index; /* first root in root sibling chain; -1 if empty */
     /** Incremented on every `uitree_push_*` / node add; used to invalidate UI dirty caches. */
     uint32_t generation;
+
+    /** RS_LAYER scroll/clip stack during LibToriRS_FrameNextCommand traversal (-1 = empty). */
+    struct UILayerFrameEntry ui_layer_stack[UIFRAME_LAYER_STACK_MAX];
+    int ui_layer_stack_top;
+
+    /** Expanded UI text strings for TORIRS_GFX_DRAW_FONT (lifetime through frame). */
+    struct UITreeTextPool text_pool;
+
+    /** RS scrollbar: iface component id being dragged, or -1. */
+    int ui_scrollbar_drag_component_id;
+    /** UIScene element ids for `scrollbar0` / `scrollbar1` caps; set when UI loads, -1 if missing. */
+    int ui_scrollbar0_element_id;
+    int ui_scrollbar1_element_id;
+
+    /** Minimap overlay sprites (rev cache names); resolved at UI load, -1 if missing. */
+    int ui_minimap_mapdots0_element_id;
+    int ui_minimap_mapdots1_element_id;
+    int ui_minimap_mapdots3_element_id;
+    int ui_minimap_mapdots4_element_id;
+    int ui_minimap_mapmarker2_element_id;
+    int ui_minimap_mapmarker_element_id;
 };
 
 /**

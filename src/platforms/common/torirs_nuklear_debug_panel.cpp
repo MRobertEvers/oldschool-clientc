@@ -1,6 +1,7 @@
 #include "torirs_nuklear_debug_panel.h"
 
 #include "nuklear/torirs_nuklear.h"
+#include "platforms/common/mem_format.h"
 #include "platforms/common/platform_memory.h"
 #include "platforms/platform_impl2_sdl2_renderer_soft3d_shared.h"
 
@@ -53,14 +54,19 @@ torirs_nk_debug_panel_draw(
             struct PlatformMemoryInfo mem = {};
             if( platform_get_memory_info(&mem) )
             {
-                float used_mb = mem.heap_used / (1024.0f * 1024.0f);
-                float total_mb = mem.heap_total / (1024.0f * 1024.0f);
-                nk_labelf(nk, NK_TEXT_LEFT, "Heap: %.1f / %.1f MB", used_mb, total_mb);
+                char used_b[48];
+                char total_b[48];
+                char peak_b[48];
+                mem_format_bytes(used_b, sizeof used_b, mem.heap_used);
+                mem_format_bytes(total_b, sizeof total_b, mem.heap_total);
+                nk_labelf(nk, NK_TEXT_LEFT, "Heap: %s / %s", used_b, total_b);
                 if( mem.heap_total > 0 )
                     nk_prog(nk, (nk_size)mem.heap_used, (nk_size)mem.heap_total, NK_FIXED);
                 if( mem.heap_peak > 0 )
-                    nk_labelf(
-                        nk, NK_TEXT_LEFT, "Peak: %.1f MB", mem.heap_peak / (1024.0f * 1024.0f));
+                {
+                    mem_format_bytes(peak_b, sizeof peak_b, mem.heap_peak);
+                    nk_labelf(nk, NK_TEXT_LEFT, "Peak: %s", peak_b);
+                }
             }
         }
 #endif

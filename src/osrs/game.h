@@ -29,6 +29,7 @@
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene2.h"
 #include "osrs/script_queue.h"
+#include "osrs/minimenu_state.h"
 #include "osrs/world.h"
 #include "osrs/world_option_set.h"
 #include "osrs/zone_state.h"
@@ -40,6 +41,7 @@
 
 struct FileListDat;
 struct MinimapRenderCommandBuffer;
+struct MinimenuRenderCommandBuffer;
 struct ToriRSRenderCommandBuffer;
 struct InterfaceState;
 struct UIInventoryPool;
@@ -78,6 +80,11 @@ struct GGame
     enum FramePassKind frame_pass;
 
     struct MinimapRenderCommandBuffer* minimap_dynamic_commands;
+    /** High-level minimenu rects/text; translated to ToriRS in `minimenu_game_translate_commands`. */
+    struct MinimenuRenderCommandBuffer* minimenu_commands;
+    /** Right-click menu: mirrors Client.ts menuVisible / options; iface-viewport coords.
+     * Populated by minimenu_game_show from option_set; hit-tested after FrameEnd. */
+    struct MinimenuState minimenu;
 
     int tile_clicked_x;
     int tile_clicked_z;
@@ -265,36 +272,6 @@ struct GGame
     int soft3d_present_dst_h;
     int soft3d_buffer_w;
     int soft3d_buffer_h;
-
-    /** RS_LAYER scroll/clip stack during LibToriRS_FrameNextCommand traversal (-1 = empty). */
-    struct UILayerFrameEntry ui_layer_stack[UIFRAME_LAYER_STACK_MAX];
-    int ui_layer_stack_top;
-
-    /** Expanded UI text strings for TORIRS_GFX_DRAW_FONT (lifetime through frame). */
-    char* ui_frame_text_pool;
-    size_t ui_frame_text_pool_cap;
-    size_t ui_frame_text_pool_used;
-
-    /** RS scrollbar: iface component id being dragged, or -1. */
-    int ui_scrollbar_drag_component_id;
-
-    /* ── Minimenu (right-click context menu) ──────────────────────────────
-     * Mirrors Client.ts menuVisible / menuOption / menuAction etc.
-     * Populated by world_options_add_pickset_options via option_set at FrameEnd;
-     * rendered and hit-tested by the platform renderer after FrameEnd.          */
-#define GAME_MINIMENU_MAX_OPTIONS 68 /* 64 world options + Walk here + Cancel + 2 spare */
-#define GAME_MINIMENU_OPTION_LEN  80
-    int  minimenu_visible;         /* 1 = show context menu */
-    int  minimenu_x;               /* top-left of menu in iface-viewport coords */
-    int  minimenu_y;
-    int  minimenu_width;
-    int  minimenu_height;
-    int  minimenu_option_count;
-    char minimenu_options[GAME_MINIMENU_MAX_OPTIONS][GAME_MINIMENU_OPTION_LEN];
-    int  minimenu_option_action[GAME_MINIMENU_MAX_OPTIONS]; /* MinimenuAction value */
-    int  minimenu_option_param_a[GAME_MINIMENU_MAX_OPTIONS];
-    int  minimenu_option_param_b[GAME_MINIMENU_MAX_OPTIONS];
-    int  minimenu_option_param_c[GAME_MINIMENU_MAX_OPTIONS];
 };
 
 void

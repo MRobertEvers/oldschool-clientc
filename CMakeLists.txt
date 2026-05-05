@@ -92,6 +92,7 @@ set(COMMON_SOURCES
     src/datastruct/ringbuf.c
     src/platforms/common/sockstream.c
     src/platforms/common/platform_memory.c
+    src/platforms/common/mem_format.c
     src/platforms/common/torirs_sprite_argb_rgba.c
     src/platforms/common/torirs_font_glyph_quad.c
     src/platforms/common/torirs_sprite_draw_cpu.cpp
@@ -134,6 +135,7 @@ set(COMMON_SOURCES
     src/osrs/cache_utils.c
     src/osrs/minimap.c
     src/osrs/minimenu.c
+    src/osrs/minimenu_game.c
     src/osrs/model_transforms.c
     src/osrs/texture.c
     src/osrs/collision_map.c
@@ -144,6 +146,7 @@ set(COMMON_SOURCES
     src/osrs/revconfig/revconfig.c
     src/osrs/revconfig/revconfig_load.c
     src/osrs/revconfig/uitree.c
+    src/osrs/revconfig/uitree_textpool.c
     src/osrs/revconfig/uitree_load.c
     src/osrs/rs_component_gfx.c
     src/osrs/revconfig/uiscene.c

@@ -356,7 +356,7 @@ world_options_add_pickset_options(
         memset(walk, 0, sizeof(*walk));
         strncpy(walk->text, "Walk here", sizeof(walk->text));
         walk->action  = MINIMENU_ACTION_WALK;
-        walk->param_a = 0; /* filled in by minimenu_show from mouse_tile_x/z */
+        walk->param_a = 0; /* filled in by minimenu_game_show from mouse_tile_x/z */
         walk->param_b = 0;
         walk->param_c = 0;
         option_set->option_count++;

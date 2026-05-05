@@ -129,6 +129,10 @@ uiscene_sprite_by_name(
     const char* name,
     int atlas_index);
 
+/** First active element whose `name` matches; returns element id or -1. */
+int
+uiscene_element_id_by_name(struct UIScene* uiscene, const char* name);
+
 bool
 uiscene_eventbuffer_is_empty(struct UIScene* uiscene);
 

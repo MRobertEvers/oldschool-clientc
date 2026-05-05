@@ -356,7 +356,17 @@ uitree_new(uint32_t hint)
     if( !tree )
         return NULL;
     memset(tree, 0, sizeof(struct UITree));
-    tree->root_index = -1;
+    tree->root_index               = -1;
+    tree->ui_layer_stack_top       = -1;
+    tree->ui_scrollbar_drag_component_id = -1;
+    tree->ui_scrollbar0_element_id = -1;
+    tree->ui_scrollbar1_element_id = -1;
+    tree->ui_minimap_mapdots0_element_id = -1;
+    tree->ui_minimap_mapdots1_element_id = -1;
+    tree->ui_minimap_mapdots3_element_id = -1;
+    tree->ui_minimap_mapdots4_element_id = -1;
+    tree->ui_minimap_mapmarker2_element_id = -1;
+    tree->ui_minimap_mapmarker_element_id = -1;
     return tree;
 }
 
@@ -390,6 +400,7 @@ uitree_free(struct UITree* tree)
         free(c->target_verb);
         free(c->target_text);
     }
+    uitree_textpool_free(&tree->text_pool);
     free(tree->components);
     free(tree);
 }
@@ -718,6 +729,7 @@ uitree_push_crosshair(
     component->position.y = 0;
     component->position.width = 0;
     component->position.height = 0;
+    component->u.crosshair.scene_id = -1;
     return idx;
 }
 

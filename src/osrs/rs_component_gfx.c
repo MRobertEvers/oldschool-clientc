@@ -75,9 +75,10 @@ queue_sprite_draw(
 static int
 uiframe_scroll_y_total(struct GGame* game)
 {
-    if( !game || game->ui_layer_stack_top < 0 )
+    struct UITree* ui = game ? game->ui_root_buffer : NULL;
+    if( !ui || ui->ui_layer_stack_top < 0 )
         return 0;
-    return game->ui_layer_stack[game->ui_layer_stack_top].scroll_y_total;
+    return ui->ui_layer_stack[ui->ui_layer_stack_top].scroll_y_total;
 }
 
 static bool
@@ -90,9 +91,10 @@ uiframe_cull_box(
 {
     if( w <= 0 || h <= 0 )
         return true;
-    if( !game || game->ui_layer_stack_top < 0 )
+    struct UITree* ui = game ? game->ui_root_buffer : NULL;
+    if( !ui || ui->ui_layer_stack_top < 0 )
         return false;
-    struct UILayerFrameEntry* e = &game->ui_layer_stack[game->ui_layer_stack_top];
+    struct UILayerFrameEntry* e = &ui->ui_layer_stack[ui->ui_layer_stack_top];
     int x1 = x + w;
     int y1 = y + h;
     int ex0 = e->clip_x;
@@ -197,24 +199,12 @@ rs_gfx_graphic_step(
 static uint8_t*
 rs_pool_dup_zterm(struct GGame* game, char const* buf, int len)
 {
-    if( !game || len < 0 )
+    struct UITree* ui = game ? game->ui_root_buffer : NULL;
+    if( !ui || len < 0 )
         return NULL;
-    size_t need = (size_t)len + 1;
-    if( game->ui_frame_text_pool_used + need > game->ui_frame_text_pool_cap )
-    {
-        size_t nc = game->ui_frame_text_pool_cap ? game->ui_frame_text_pool_cap * 2 : 4096u;
-        while( game->ui_frame_text_pool_used + need > nc )
-            nc *= 2;
-        char* nb = (char*)realloc(game->ui_frame_text_pool, nc);
-        if( !nb )
-            return NULL;
-        game->ui_frame_text_pool = nb;
-        game->ui_frame_text_pool_cap = nc;
-    }
-    char* p = game->ui_frame_text_pool + game->ui_frame_text_pool_used;
-    memcpy(p, buf, (size_t)len);
-    p[len] = '\0';
-    game->ui_frame_text_pool_used += need;
+    char* p = uitree_textpool_push_dup(&ui->text_pool, buf, (size_t)len);
+    if( !p )
+        return NULL;
     return (uint8_t*)p;
 }
 

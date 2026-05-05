@@ -41,6 +41,9 @@ struct ComponentEntry
     int sprite_id_active;
     int sprite_index_active;
     int id;
+    /** Default position from component INI when [layout] omits x/y for this component. */
+    int def_x;
+    int def_y;
     int width;
     int height;
     int anchor_x;
@@ -87,6 +90,9 @@ struct ComponentLoad
     char type[64];
     char sprite[64];
     char sprite_active[64];
+    /** Parsed from component INI `x=` / `y=` (revconfig maps these to UILAYOUT_* opcodes). */
+    int def_x;
+    int def_y;
     int width;
     int height;
     int anchor_x;
@@ -540,6 +546,8 @@ load_component(
     component_entry->sprite_index_active = 0;
 
     strncpy(component_entry->name, load->name, sizeof(component_entry->name) - 1);
+    component_entry->def_x = load->def_x;
+    component_entry->def_y = load->def_y;
 
     switch( type )
     {
@@ -1295,6 +1303,13 @@ load_layout(
         layout_entry = &load->entries[i];
         component_entry = dashmap_search(component_hmap, layout_entry->component, DASHMAP_FIND);
         assert(component_entry && "Component for layout entry not found in hmap");
+        int lx = layout_entry->x;
+        int ly = layout_entry->y;
+        if( lx == 0 && ly == 0 )
+        {
+            lx = component_entry->def_x;
+            ly = component_entry->def_y;
+        }
         switch( component_entry->type )
         {
         case UIELEM_BUILTIN_COMPASS:
@@ -1304,8 +1319,8 @@ load_layout(
                 -1,
                 component_entry->sprite_id,
                 component_entry->sprite_index,
-                layout_entry->x,
-                layout_entry->y,
+                lx,
+                ly,
                 component_entry->width,
                 component_entry->height,
                 component_entry->anchor_x,
@@ -1319,8 +1334,8 @@ load_layout(
             int32_t idx = uitree_push_minimap(
                 ui,
                 -1,
-                layout_entry->x,
-                layout_entry->y,
+                lx,
+                ly,
                 component_entry->width,
                 component_entry->height,
                 component_entry->anchor_x,
@@ -1334,8 +1349,8 @@ load_layout(
             int32_t idx = uitree_push_world(
                 ui,
                 -1,
-                layout_entry->x,
-                layout_entry->y,
+                lx,
+                ly,
                 component_entry->width,
                 component_entry->height,
                 component_entry->level_mask);
@@ -1356,8 +1371,8 @@ load_layout(
             int32_t idx = uitree_push_hover_tooltip(
                 ui,
                 -1,
-                layout_entry->x,
-                layout_entry->y,
+                lx,
+                ly,
                 component_entry->width,
                 component_entry->height);
             if( idx >= 0 )
@@ -1385,8 +1400,13 @@ load_layout(
         case UIELEM_BUILTIN_CROSSHAIR:
         {
             int32_t idx = uitree_push_crosshair(ui, -1);
-            if( idx >= 0 && layout_entry->always_dirty )
-                ui->components[idx].always_dirty = 1;
+            if( idx >= 0 )
+            {
+                ui->components[idx].u.crosshair.scene_id =
+                    uiscene_element_id_by_name(ui_scene, "cross");
+                if( layout_entry->always_dirty )
+                    ui->components[idx].always_dirty = 1;
+            }
         }
         break;
         case UIELEM_BUILTIN_CHAT_MESSAGES:
@@ -1395,8 +1415,7 @@ load_layout(
                 buildcachedat,
                 component_entry->font[0] != '\0' ? component_entry->font : NULL);
             int32_t idx = uitree_push_chat_messages(
-                ui, -1, layout_entry->x, layout_entry->y,
-                component_entry->width, component_entry->height);
+                ui, -1, lx, ly, component_entry->width, component_entry->height);
             if( idx >= 0 )
             {
                 ui->components[idx].u.chat_messages.font_id = font_id;
@@ -1411,8 +1430,7 @@ load_layout(
                 buildcachedat,
                 component_entry->font[0] != '\0' ? component_entry->font : NULL);
             int32_t idx = uitree_push_chat_input(
-                ui, -1, layout_entry->x, layout_entry->y,
-                component_entry->width, component_entry->height);
+                ui, -1, lx, ly, component_entry->width, component_entry->height);
             if( idx >= 0 )
             {
                 ui->components[idx].u.chat_input.font_id = font_id;
@@ -1427,8 +1445,7 @@ load_layout(
                 buildcachedat,
                 component_entry->font[0] != '\0' ? component_entry->font : NULL);
             int32_t idx = uitree_push_chat_privacy(
-                ui, -1, layout_entry->x, layout_entry->y,
-                component_entry->width, component_entry->height);
+                ui, -1, lx, ly, component_entry->width, component_entry->height);
             if( idx >= 0 )
             {
                 ui->components[idx].u.chat_privacy.font_id = font_id;
@@ -1447,8 +1464,8 @@ load_layout(
                 component_entry->sprite_index,
                 component_entry->sprite_id_active,
                 component_entry->sprite_index_active,
-                layout_entry->x,
-                layout_entry->y,
+                lx,
+                ly,
                 component_entry->width,
                 component_entry->height);
             if( layout_entry->always_dirty && idx >= 0 )
@@ -1466,8 +1483,8 @@ load_layout(
                 component_entry->tabno,
                 component_entry->componentno,
                 inv_index,
-                layout_entry->x,
-                layout_entry->y,
+                lx,
+                ly,
                 component_entry->width,
                 component_entry->height);
             if( layout_entry->always_dirty && sidx >= 0 )
@@ -1511,8 +1528,8 @@ load_layout(
                     -1,
                     component_entry->sprite_id,
                     component_entry->sprite_index,
-                    layout_entry->x,
-                    layout_entry->y,
+                    lx,
+                    ly,
                     component_entry->width,
                     component_entry->height);
             }
@@ -1597,6 +1614,28 @@ on_itemname(
         strncpy(load->_inv.name, value, sizeof(load->_inv.name) - 1);
         break;
     }
+}
+
+static void
+uitree_resolve_game_uiscene_sprite_ids(struct GGame* game, struct UIScene* ui_scene)
+{
+    if( !game || !ui_scene || !game->ui_root_buffer )
+        return;
+    struct UITree* ui                 = game->ui_root_buffer;
+    ui->ui_scrollbar0_element_id      = uiscene_element_id_by_name(ui_scene, "scrollbar0");
+    ui->ui_scrollbar1_element_id      = uiscene_element_id_by_name(ui_scene, "scrollbar1");
+    ui->ui_minimap_mapdots0_element_id =
+        uiscene_element_id_by_name(ui_scene, "mapdots0");
+    ui->ui_minimap_mapdots1_element_id =
+        uiscene_element_id_by_name(ui_scene, "mapdots1");
+    ui->ui_minimap_mapdots3_element_id =
+        uiscene_element_id_by_name(ui_scene, "mapdots3");
+    ui->ui_minimap_mapdots4_element_id =
+        uiscene_element_id_by_name(ui_scene, "mapdots4");
+    ui->ui_minimap_mapmarker2_element_id =
+        uiscene_element_id_by_name(ui_scene, "mapmarker2");
+    ui->ui_minimap_mapmarker_element_id =
+        uiscene_element_id_by_name(ui_scene, "mapmarker");
 }
 
 void
@@ -1864,6 +1903,11 @@ uitree_from_revconfig_buildcachedat(
         break;
         case RCFIELD_UILAYOUT_X:
         {
+            if( load.kind == LOAD_KIND_COMPONENT )
+            {
+                load._component.def_x = atoi(field->value);
+                break;
+            }
             assert(
                 load._layout.entry_count > 0 &&
                 "UILAYOUT_X field must come after a UILAYOUT_COMPONENT field");
@@ -1874,6 +1918,11 @@ uitree_from_revconfig_buildcachedat(
         break;
         case RCFIELD_UILAYOUT_Y:
         {
+            if( load.kind == LOAD_KIND_COMPONENT )
+            {
+                load._component.def_y = atoi(field->value);
+                break;
+            }
             assert(
                 load._layout.entry_count > 0 &&
                 "UILAYOUT_X field must come after a UILAYOUT_COMPONENT field");
@@ -1990,6 +2039,8 @@ uitree_from_revconfig_buildcachedat(
         break;
         }
     }
+
+    uitree_resolve_game_uiscene_sprite_ids(game, ui_scene);
 
     if( ui )
         uitree_print_nodes(ui);
@@ -2392,6 +2443,11 @@ uitree_load_ui_from_revconfig(
         break;
         case RCFIELD_UILAYOUT_X:
         {
+            if( load.kind == LOAD_KIND_COMPONENT )
+            {
+                load._component.def_x = atoi(field->value);
+                break;
+            }
             assert(
                 load._layout.entry_count > 0 &&
                 "UILAYOUT_X field must come after a UILAYOUT_COMPONENT field");
@@ -2402,6 +2458,11 @@ uitree_load_ui_from_revconfig(
         break;
         case RCFIELD_UILAYOUT_Y:
         {
+            if( load.kind == LOAD_KIND_COMPONENT )
+            {
+                load._component.def_y = atoi(field->value);
+                break;
+            }
             assert(
                 load._layout.entry_count > 0 &&
                 "UILAYOUT_X field must come after a UILAYOUT_COMPONENT field");
@@ -2518,6 +2579,8 @@ uitree_load_ui_from_revconfig(
         break;
         }
     }
+
+    uitree_resolve_game_uiscene_sprite_ids(game, ui_scene);
 
     if( ui )
         uitree_print_nodes(ui);

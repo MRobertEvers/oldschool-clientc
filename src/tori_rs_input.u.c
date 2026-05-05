@@ -5,7 +5,7 @@
 
 #include "osrs/core/clientprot_core.h"
 #include "osrs/interface.h"
-#include "osrs/minimenu.h"
+#include "osrs/minimenu_game.h"
 #include "osrs/revconfig/uitree.h"
 
 static void
@@ -211,7 +211,8 @@ LibToriRS_GameProcessInput(
     if( game->mouse_button_down && !left_down )
     {
         /* Mouse-up: release scrollbar drag and reset scrollCycle. */
-        game->ui_scrollbar_drag_component_id = -1;
+        if( game->ui_root_buffer )
+            game->ui_root_buffer->ui_scrollbar_drag_component_id = -1;
         game->scroll_cycle = 0;
     }
     game->mouse_button_down = left_down;
@@ -221,7 +222,7 @@ LibToriRS_GameProcessInput(
      *  - arrows (region 0/1): scroll by 4 px per frame (scrollCycle * 4)
      *  - track/grip (region 2/3) or an active drag id: recompute scrollPos from
      *    mouse Y each frame (Client.ts 10543–10558).  scrollInputPadding is mirrored
-     *    by keeping game->ui_scrollbar_drag_component_id set while dragging. */
+     *    by keeping game->ui_root_buffer->ui_scrollbar_drag_component_id set while dragging. */
     if( left_down && game->ui_root_buffer && game->iface &&
         game->mouse_x >= 0 && game->mouse_y >= 0 )
     {
@@ -229,12 +230,12 @@ LibToriRS_GameProcessInput(
 
         /* If already dragging a specific component, continue dragging it even if the
          * mouse drifts off the scrollbar (mirrors scrollInputPadding ±32px). */
-        if( game->ui_scrollbar_drag_component_id >= 0 )
+        if( game->ui_root_buffer->ui_scrollbar_drag_component_id >= 0 )
         {
             /* Re-find the scrollbar to get current geometry. */
             struct UITreeScrollbarHit sb_drag;
             if( uitree_find_scrollbar_at(game, game->mouse_x, game->mouse_y, &sb_drag) &&
-                sb_drag.component_id == game->ui_scrollbar_drag_component_id )
+                sb_drag.component_id == game->ui_root_buffer->ui_scrollbar_drag_component_id )
             {
                 interface_handle_scrollbar_drag(
                     game,
@@ -252,7 +253,7 @@ LibToriRS_GameProcessInput(
                 {
                     interface_handle_scrollbar_drag(
                         game,
-                        game->ui_scrollbar_drag_component_id,
+                        game->ui_root_buffer->ui_scrollbar_drag_component_id,
                         sb_any.layer_y,
                         sb_any.layer_height,
                         sb_any.scroll_height,
@@ -274,7 +275,7 @@ LibToriRS_GameProcessInput(
                 else if( sb_hold.region == 2 || sb_hold.region == 3 )
                 {
                     /* Track or grip: engage drag mode and compute position from mouse. */
-                    game->ui_scrollbar_drag_component_id = sb_hold.component_id;
+                    game->ui_root_buffer->ui_scrollbar_drag_component_id = sb_hold.component_id;
                     interface_handle_scrollbar_drag(
                         game,
                         sb_hold.component_id,
@@ -348,12 +349,12 @@ LibToriRS_GameProcessInput(
                                 hit.layer_height,
                                 hit.scroll_height,
                                 cy);
-                            game->ui_scrollbar_drag_component_id = hit.component_id;
+                            game->ui_root_buffer->ui_scrollbar_drag_component_id = hit.component_id;
                         }
                         else if( hit.region == 3 )
                         {
                             /* Grip click: begin drag immediately. */
-                            game->ui_scrollbar_drag_component_id = hit.component_id;
+                            game->ui_root_buffer->ui_scrollbar_drag_component_id = hit.component_id;
                             interface_handle_scrollbar_drag(
                                 game,
                                 hit.component_id,
@@ -369,15 +370,15 @@ LibToriRS_GameProcessInput(
                 {
                     game->interface_consumed_click = 1;
                 }
-                else if( game->minimenu_visible )
+                else if( game->minimenu.visible )
                 {
                     /* Dispatch to context menu; close regardless of where click lands. */
-                    int opt = minimenu_click_option(game, cx, cy);
+                    int opt = minimenu_game_click_option(game, cx, cy);
                     if( opt >= 0 )
-                        minimenu_use_option(game, opt);
-                    /* minimenu_click_option already cleared minimenu_visible for outside clicks.
+                        minimenu_game_use_option(game, opt);
+                    /* minimenu_game_click_option already cleared minimenu.visible for outside clicks.
                      * For header or option clicks, close explicitly. */
-                    game->minimenu_visible = 0;
+                    game->minimenu.visible = 0;
                     game->interface_consumed_click = 1;
                 }
                 else
@@ -403,7 +404,7 @@ LibToriRS_GameProcessInput(
                 game->mouse_clicked_right_x = cx;
                 game->mouse_clicked_right_y = cy;
                 /* Open context menu immediately on right-click. */
-                minimenu_show(game, cx, cy);
+                minimenu_game_show(game, cx, cy);
             }
         }
         break;

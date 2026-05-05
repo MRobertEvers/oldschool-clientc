@@ -343,6 +343,22 @@ uiscene_sprite_by_name(
     return NULL;
 }
 
+int
+uiscene_element_id_by_name(struct UIScene* uiscene, const char* name)
+{
+    if( !uiscene || !name )
+        return -1;
+    for( int i = 0; i < uiscene->elements_count; i++ )
+    {
+        struct UISceneElement* e = &uiscene->elements[i];
+        if( !e->active )
+            continue;
+        if( strcmp(e->name, name) == 0 )
+            return i;
+    }
+    return -1;
+}
+
 bool
 uiscene_eventbuffer_is_empty(struct UIScene* uiscene)
 {
