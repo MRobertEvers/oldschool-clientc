@@ -99,9 +99,7 @@ npc_model(
     int npc_type,
     struct DashModel* dash_model)
 {
-    struct GameCacheNpc* npc = NULL;
     struct GameCacheModel* models[20];
-    struct GameCacheModel* copy = NULL;
     struct GameCacheModel* merged = NULL;
 
     if( !gc )
@@ -114,7 +112,7 @@ npc_model(
         _light_model_default(dash_model, 0, 0);
         return 1;
     }
-    npc = gamecache_get_npc(gc, npc_type);
+    struct GameCacheNpc* npc = gamecache_get_npc(gc, npc_type);
     if( !npc )
         return 0;
 
@@ -136,14 +134,12 @@ npc_model(
 
     gamecache_add_npc_model(gc, npc_type, merged);
 
-    copy = gamecache_model_new_copy(merged);
-
     for( int i = 0; i < npc->recol_count; i++ )
     {
-        gamecache_model_transform_recolor(copy, npc->recol_s[i], npc->recol_d[i]);
+        gamecache_model_transform_recolor(merged, npc->recol_s[i], npc->recol_d[i]);
     }
 
-    dashmodel_move_from_gamecache_model(dash_model, copy);
+    dashmodel_move_from_gamecache_model(dash_model, gamecache_model_new_copy(merged));
     _light_model_default(dash_model, 0, 0);
     return 1;
 }
@@ -153,7 +149,8 @@ player_appearance_model(
     struct GameCache* gc,
     uint16_t* appearances,
     uint16_t* colors,
-    struct DashModel* dash_model)
+    struct DashModel* dash_model,
+    struct EntityAnimationStep const* primary_anim)
 {
     // assert(dash_model && !dash_model->loaded && "Dash model must be provided");
     assert(dash_model && "Dash model must be provided");
@@ -162,10 +159,35 @@ player_appearance_model(
     struct AppearanceOp op;
     int model_count = 0;
     struct GameCacheModel* models[12];
+    uint16_t effective[12];
+    for( int i = 0; i < 12; i++ )
+    {
+        effective[i] = appearances[i];
+    }
+    (void)colors;
+    if( gc && gc->sequences_hmap && primary_anim )
+    {
+        uint16_t anim_id = primary_anim->anim_id;
+        if( anim_id != 0 && anim_id != (uint16_t)-1 && primary_anim->delay == 0 )
+        {
+            struct GameCacheSequence* seq = gamecache_get_sequence(gc, (int)anim_id);
+            if( seq )
+            {
+                if( seq->replaceheldright >= 0 )
+                {
+                    effective[3] = (uint16_t)seq->replaceheldright;
+                }
+                if( seq->replaceheldleft >= 0 )
+                {
+                    effective[5] = (uint16_t)seq->replaceheldleft;
+                }
+            }
+        }
+    }
     for( int i = 0; i < 12; i++ )
     {
         model = NULL;
-        appearances_decode(&op, appearances, i);
+        appearances_decode(&op, effective, i);
         switch( op.kind )
         {
         case APPEARANCE_KIND_IDK:
@@ -205,7 +227,12 @@ world_scenebuild_player_entity_set_appearance(
     scene2_element_expect(element, "world_scenebuild_player_entity_set_appearance");
 
     struct DashModel* dash_model = dashmodel_new();
-    player_appearance_model(world->gamecache, appearances, colors, dash_model);
+    player_appearance_model(
+        world->gamecache,
+        appearances,
+        colors,
+        dash_model,
+        &player->animation.primary_anim);
 
     scene2_element_set_dash_model(world->scene2, element, dash_model);
 }

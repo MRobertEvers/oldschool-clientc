@@ -4,6 +4,7 @@
 #include "graphics/dash.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/chat.h"
+#include "osrs/collisionmap_overlay_draw.h"
 #include "osrs/entity_pathing_draw.h"
 #include "osrs/game.h"
 #include "osrs/gamenet_send.h"
@@ -1709,17 +1710,22 @@ element_step_animation(
     struct Scene2Frames* primary = scene2_element_primary_frames(scene_element);
     struct Scene2Frames* secondary = scene2_element_secondary_frames(scene_element);
 
-    if( animation->primary_anim.anim_id != -1 && primary && primary->count > 0 )
+    uint16_t primary_id = animation->primary_anim.anim_id;
+    uint16_t secondary_id = animation->secondary_anim.anim_id;
+    bool primary_active = primary_id != 0 && primary_id != (uint16_t)-1;
+    bool secondary_active = secondary_id != 0 && secondary_id != (uint16_t)-1;
+
+    if( primary_active && primary && primary->count > 0 )
     {
         int frame = animation->primary_anim.frame;
-        scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
+        scene2_element_set_active_anim_id(scene_element, primary_id);
         scene2_element_set_active_animation_index(scene_element, 0);
         scene2_element_set_active_frame(scene_element, (uint8_t)frame);
     }
-    else if( animation->secondary_anim.anim_id != -1 && secondary && secondary->count > 0 )
+    else if( secondary_active && secondary && secondary->count > 0 )
     {
         int frame = animation->secondary_anim.frame;
-        scene2_element_set_active_anim_id(scene_element, animation->secondary_anim.anim_id);
+        scene2_element_set_active_anim_id(scene_element, secondary_id);
         scene2_element_set_active_animation_index(scene_element, 1);
         scene2_element_set_active_frame(scene_element, (uint8_t)frame);
     }
@@ -2462,6 +2468,11 @@ world_done:
         {
             frame_emit_pass(fiber, FRAME_PASS_2D);
             entity_pathing_draw_emit(game, game->uiscene_queued_commands);
+        }
+        if( game->debug_collisionmap_overlay )
+        {
+            frame_emit_pass(fiber, FRAME_PASS_2D);
+            collisionmap_overlay_draw_emit(game, game->uiscene_queued_commands);
         }
         frame_emit_pass(fiber, FRAME_PASS_NONE);
     }

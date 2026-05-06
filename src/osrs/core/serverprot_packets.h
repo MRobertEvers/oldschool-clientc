@@ -148,17 +148,19 @@ struct PktServerProt_ChatFilterSettings_v1
     int chat_trade_mode;   /* g1 */
 };
 
-/* Zone packets: position = base_x + (pos>>4)&7, base_z + pos&7. Base set by UPDATE_ZONE_* */
+/* Zone packets: tile = base + subtile, where base is the SW tile of the 8×8 zone.
+ * base_x/base_z are the raw g1 wire bytes used directly as scene tile coordinates
+ * (multiples of 8, in [0, ZONE_SCENE_SIZE)); do NOT scale them by 8. */
 struct PktServerProt_UpdateZonePartialFollows_v1
 {
-    int base_x; /* g1: zone base for subsequent zone packets */
-    int base_z; /* g1 */
+    int base_x; /* g1: SW tile X of zone (raw, already tile-aligned) */
+    int base_z; /* g1: SW tile Z of zone */
 };
 
 struct PktServerProt_UpdateZoneFullFollows_v1
 {
-    int base_x; /* g1 */
-    int base_z; /* g1 */
+    int base_x; /* g1: SW tile X of zone (raw, already tile-aligned) */
+    int base_z; /* g1: SW tile Z of zone */
 };
 
 struct PktServerProt_LocAddChange_v1

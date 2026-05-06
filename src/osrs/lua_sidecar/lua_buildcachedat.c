@@ -51,6 +51,9 @@ LuaBuildCacheDat_map_scenery_cache_add(
     struct CacheDatArchive* archive = arg_userdata(args, 0);
     int map_id = arg_int(args, 1);
 
+    if( !archive )
+        return LuaGameType_NewVoid();
+
     buildcachedat_loader_map_scenery_cache_add_mapid(
         buildcachedat, map_id, archive->data_size, archive->data);
     cache_dat_archive_free(archive);
@@ -110,6 +113,9 @@ LuaBuildCacheDat_map_terrain_cache_add(
 {
     struct CacheDatArchive* archive = arg_userdata(args, 0);
     int map_id = arg_int(args, 1);
+
+    if( !archive )
+        return LuaGameType_NewVoid();
 
     buildcachedat_loader_map_terrain_cache_add_mapid(
         buildcachedat, map_id, archive->data_size, archive->data);
@@ -477,6 +483,39 @@ LuaBuildCacheDat_get_player_appearance_ids_from_packet(
 }
 
 struct LuaGameType*
+LuaBuildCacheDat_get_player_info_sequence_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)buildcachedat;
+    void* data = arg_userdata(args, 0);
+    int length = arg_int(args, 1);
+
+    static struct PktServerProt_PlayerInfoReader_v1 reader;
+    reader.extended_count = 0;
+    reader.current_op = 0;
+    reader.max_ops = 2048;
+    struct PktServerProt_PlayerInfo_v1_Op ops[2048];
+
+    struct PktServerProt_PlayerInfo_v1 pkt;
+    pkt.data = data;
+    pkt.length = length;
+    int count = pkt_player_info_reader_read(&reader, &pkt, ops, 2048);
+
+    struct LuaGameType* result = LuaGameType_NewIntArray(32);
+    for( int i = 0; i < count; i++ )
+    {
+        if( ops[i].kind != PKT_SERVER_PROT_PLAYER_INFO_V1_OP_SEQUENCE )
+            continue;
+        uint16_t seq_id = ops[i]._sequence.sequence_id;
+        if( seq_id == 65535 )
+            continue;
+        LuaGameType_IntArrayPush(result, (int)seq_id);
+    }
+    return result;
+}
+
+struct LuaGameType*
 LuaBuildCacheDat_get_npc_ids_from_packet(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
@@ -714,6 +753,22 @@ LuaBuildCacheDat_get_sequence_animbaseframes_ids(
     int* ids = NULL;
     int count =
         buildcachedat_loader_get_sequence_animbaseframes_ids(buildcachedat, seq_id, &ids);
+    struct LuaGameType* result = LuaGameType_NewIntArray(count);
+    for( int i = 0; i < count; i++ )
+        LuaGameType_IntArrayPush(result, ids[i]);
+    free(ids);
+    return result;
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_get_sequence_held_obj_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    int seq_id = arg_int(args, 0);
+    int* ids = NULL;
+    int count =
+        buildcachedat_loader_get_sequence_held_obj_ids(buildcachedat, seq_id, &ids);
     struct LuaGameType* result = LuaGameType_NewIntArray(count);
     for( int i = 0; i < count; i++ )
         LuaGameType_IntArrayPush(result, ids[i]);

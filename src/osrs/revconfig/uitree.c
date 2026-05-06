@@ -876,6 +876,25 @@ uitree_push_chat_privacy(
 }
 
 int32_t
+uitree_push_collisionmap_overlay(
+    struct UITree* tree,
+    int32_t parent_index)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_BUILTIN_COLLISIONMAP_OVERLAY;
+    component->position.kind = UIPOS_XY;
+    component->position.x = 0;
+    component->position.y = 0;
+    component->position.width = 0;
+    component->position.height = 0;
+    return idx;
+}
+
+int32_t
 uitree_push_redstone_tab(
     struct UITree* tree,
     int32_t parent_index,

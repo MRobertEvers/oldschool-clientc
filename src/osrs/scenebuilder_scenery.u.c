@@ -1684,32 +1684,38 @@ scenery_add(
         break;
     }
 
-    /* Collision map for pathfinding (BFS). Must match Client-TS ClientBuild.addLoc() and
-     * CollisionMap: Client: only updates collision when loc.blockwalk (C: config_loc->clip_type !=
-     * 0). GROUND_DECOR(22) -> blockGround(x,z) [Client also requires loc.active]
-     *   CENTREPIECE_STRAIGHT/DIAGONAL = SCENERY(10)/SCENERY_DIAGIONAL(11) -> addLoc
-     *   WALL_STRAIGHT(0)/DIAGONAL_CORNER(1)/L(2)/SQUARE_CORNER(3) -> addWall
-     *   WALL_DIAGONAL(9), ROOF_*, SCENERY* -> addLoc
-     *   LocAngle: 0=WEST, 1=NORTH, 2=EAST, 3=SOUTH (same as map_loc->orientation & 0x3)
+    /* Collision map for pathfinding (BFS). Must match Client-TS ClientBuild.loadLocations:
+     * cmap = collisions[currentLevel] where currentLevel = level - (mapl[1] & LinkBelow).
+     * offset.level is cache placement level; collision writes use collision_level (may differ).
+     * GROUND_DECOR -> blockGround when blockwalk && active (is_interactive).
+     * Walls / centrepiece / roof -> addWall / addLoc when blocks_walk != 0.
      */
     if( scene )
     {
-        struct CollisionMap* cm = scene->collision_maps[offset.level];
+        int collision_level = map_loc->chunk_pos_level;
+        if( tile_in_bounds_from_sw(terrain_grid, offset.x, offset.z, 1) )
+        {
+            const struct CacheMapFloor* l1 =
+                tile_from_sw_origin(terrain_grid, offset.x, offset.z, 1);
+            if( (l1->settings & FLOFLAG_LINK_BELOW) != 0 )
+                collision_level--;
+        }
+
+        struct CollisionMap* cm = NULL;
+        if( collision_level >= 0 && collision_level < COLLISION_LEVELS )
+            cm = scene->collision_maps[collision_level];
+
         if( cm )
         {
             enum CollisionLocAngle angle = (enum CollisionLocAngle)(map_loc->orientation & 0x3);
             int blockrange = config_loc->blocks_projectiles ? 1 : 0;
-            int size_x = config_loc->size_x;
-            int size_z = config_loc->size_z;
+            /* Use outer size_x/size_z (includes buildcachedat==NULL 1x1 rule for old revs). */
 
             switch( map_loc->shape_select )
             {
-            case LOC_SHAPE_FLOOR_DECORATION: /* Client: LocShape.GROUND_DECOR -> blockGround */
+            case LOC_SHAPE_FLOOR_DECORATION: /* Client: blockGround when blockwalk && active */
             {
-                // Seen in OS1. LC254 only has true and false.
-                // The default for Ground Decor is to NOT block walk.
-                // The default for other locs is to block walk.
-                if( config_loc->blocks_walk == 1 )
+                if( config_loc->blocks_walk != 0 && config_loc->is_interactive )
                     collision_map_add_floor(cm, offset.x, offset.z);
                 break;
             }
@@ -1756,16 +1762,10 @@ scenery_add(
                 break;
             }
             case LOC_SHAPE_SCENERY_DIAGIONAL:
-                /* Client-TS uses same addLoc(x, z, loc.width, loc.length, angle) for both
-                 * CENTREPIECE_STRAIGHT and CENTREPIECE_DIAGONAL. Diagonal only adds yaw for
-                 * rendering. Use 1x1 so diagonal blocks only the placement tile; full (sx,sz)
-                 * can over-block and break pathfinding. */
-                {
-                    if( config_loc->blocks_walk != 0 )
-                        collision_map_add_loc(
-                            cm, offset.x, offset.z, size_x, size_z, angle, blockrange);
-                    break;
-                }
+                /* Same addLoc footprint as CENTREPIECE_STRAIGHT (ClientBuild). */
+                if( config_loc->blocks_walk != 0 )
+                    collision_map_add_loc(cm, offset.x, offset.z, size_x, size_z, angle, blockrange);
+                break;
             case LOC_SHAPE_ROOF_SLOPED:
             case LOC_SHAPE_ROOF_SLOPED_OUTER_CORNER:
             case LOC_SHAPE_ROOF_SLOPED_INNER_CORNER:

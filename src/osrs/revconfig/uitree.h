@@ -75,6 +75,7 @@ enum StaticUIComponentType
     UIELEM_RS_RECT = 19,
     UIELEM_BUILTIN_CHAT_INPUT = 20,
     UIELEM_BUILTIN_CHAT_PRIVACY = 21,
+    UIELEM_BUILTIN_COLLISIONMAP_OVERLAY = 22,
 };
 
 enum StaticUIElemPositionKind
@@ -474,6 +475,11 @@ uitree_push_minimenu(
 
 int32_t
 uitree_push_crosshair(
+    struct UITree* tree,
+    int32_t parent_index);
+
+int32_t
+uitree_push_collisionmap_overlay(
     struct UITree* tree,
     int32_t parent_index);
 

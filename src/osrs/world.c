@@ -25,6 +25,9 @@
 #define WORLD_DEBUG_PAINTER_LOC_BUILD 0
 #endif
 
+static void world_player_entity_refresh_scene2_appearance_mesh(struct World* world,
+                                                               int player_entity_id);
+
 // clang-format off
 #include "world_scenery.u.c"
 #include "world_terrain.u.c"
@@ -61,6 +64,30 @@ next_map_build_loc_entity(struct World* world)
     }
     fprintf(stderr, "next_map_build_loc_entity: exceeded MAX_MAP_BUILD_LOC_ENTITIES\n");
     abort();
+}
+
+int
+world_map_build_loc_entity_allocate_at_scene(
+    struct World* world,
+    int sx,
+    int sz,
+    int slevel)
+{
+    if( world->active_loc_entity_count >= MAX_MAP_BUILD_LOC_ENTITIES )
+        return -1;
+
+    int entity_id = world->active_loc_entity_count;
+    struct MapBuildLocEntity* loc = world_loc_entity_ensure(world, entity_id);
+    init_map_build_loc_entity(loc, entity_id);
+    world->active_loc_entities[world->active_loc_entity_count] = entity_id;
+    world->active_loc_entity_count++;
+
+    loc->scene_coord.sx = (uint32_t)sx;
+    loc->scene_coord.sz = (uint32_t)sz;
+    loc->scene_coord.slevel = (uint32_t)slevel;
+    loc->loc_type_id = -1;
+
+    return entity_id;
 }
 
 /** Slot 0 would otherwise match `entity_id != id` never (0==0) while still all-zero from pool. */
@@ -742,14 +769,16 @@ world_restore_scene2_dynamic_entities(struct World* world)
                 world,
                 ACTIVE_PLAYER_SLOT,
                 (int)lp->animation.primary_anim.anim_id,
-                ANIMATION_TYPE_PRIMARY);
+                ANIMATION_TYPE_PRIMARY,
+                lp->animation.primary_anim.delay);
         if( lp->animation.secondary_anim.anim_id != 0 &&
             lp->animation.secondary_anim.anim_id != (uint16_t)-1 )
             world_player_entity_set_animation(
                 world,
                 ACTIVE_PLAYER_SLOT,
                 (int)lp->animation.secondary_anim.anim_id,
-                ANIMATION_TYPE_SECONDARY);
+                ANIMATION_TYPE_SECONDARY,
+                0);
     }
 
     for( int i = 0; i < world->active_player_count; i++ )
@@ -769,11 +798,13 @@ world_restore_scene2_dynamic_entities(struct World* world)
         if( p->animation.primary_anim.anim_id != 0 &&
             p->animation.primary_anim.anim_id != (uint16_t)-1 )
             world_player_entity_set_animation(
-                world, pid, (int)p->animation.primary_anim.anim_id, ANIMATION_TYPE_PRIMARY);
+                world, pid, (int)p->animation.primary_anim.anim_id, ANIMATION_TYPE_PRIMARY,
+                p->animation.primary_anim.delay);
         if( p->animation.secondary_anim.anim_id != 0 &&
             p->animation.secondary_anim.anim_id != (uint16_t)-1 )
             world_player_entity_set_animation(
-                world, pid, (int)p->animation.secondary_anim.anim_id, ANIMATION_TYPE_SECONDARY);
+                world, pid, (int)p->animation.secondary_anim.anim_id, ANIMATION_TYPE_SECONDARY,
+                0);
     }
 
     for( int i = 0; i < world->active_npc_count; i++ )
@@ -1023,6 +1054,17 @@ world_rebuild_centerzone_chunk_terrain(
                     {
                         flag_map_set(
                             world->_build_flag_map, offset_x, offset_z, level, tile->settings);
+                        /* Match ClientBuild.finishBuild: trueLevel = level - (mapl[1] has LinkBelow).
+                         * C only maintains collision[0]; only apply when trueLevel == 0. */
+                        if( (tile->settings & FLOFLAG_BLOCK) != 0 )
+                        {
+                            int level1_settings =
+                                map_terrain->tiles[MAP_TILE_COORD(tile_x, tile_z, 1)].settings;
+                            int has_link_below = (level1_settings & FLOFLAG_LINK_BELOW) != 0;
+                            int true_level = level - (has_link_below ? 1 : 0);
+                            if( true_level == 0 )
+                                collision_map_add_floor(world->collision_map, offset_x, offset_z);
+                        }
                     }
                 }
             }
@@ -1159,6 +1201,9 @@ world_rebuild_centerzone_chunk_scenery(
     {
         struct GameCacheMapLocs* map_locs = gamecache_get_scenery(gamecache, mapx, mapz);
         assert(map_locs && "Map scenery must be found");
+        struct GameCacheTerrainChunk* map_terrain_col =
+            gamecache_get_map_terrain(gamecache, mapx, mapz);
+        assert(map_terrain_col && "Map terrain must be found for collision level (LinkBelow)");
 #if WORLD_DEBUG_PAINTER_LOC_BUILD
         dbg_painter_chunk_locs = map_locs->locs_count;
 #endif
@@ -1173,19 +1218,34 @@ world_rebuild_centerzone_chunk_scenery(
             if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size || offset_z >= scene_size )
                 continue;
 
+            /* ClientBuild.loadLocations: currentLevel = level - (mapl[1][stx][stz] & LinkBelow).
+             * We only maintain world->collision_map for CURRENT_LEVEL (ground pathfinding). */
+            {
+                int l1_settings = map_terrain_col
+                                      ->tiles[MAP_TILE_COORD(
+                                          map_tile->chunk_pos_x, map_tile->chunk_pos_z, 1)]
+                                      .settings;
+                int collision_level = map_tile->chunk_pos_level -
+                                      (((l1_settings & FLOFLAG_LINK_BELOW) != 0) ? 1 : 0);
+                if( collision_level != CURRENT_LEVEL )
+                    continue;
+            }
+
             config_loc = gamecache_get_config_loc(gamecache, map_tile->loc_id);
             assert(config_loc && "Config location must be found");
 
             int size_x = config_loc->size_x;
             int size_z = config_loc->size_z;
-            int angle = map_tile->orientation;
+            /* Match scenebuilder / Client: wall+loc angle is low 2 bits only. */
+            int angle = map_tile->orientation & 0x3;
             int blockrange = config_loc->blocks_projectiles ? 1 : 0;
 
             switch( map_tile->shape_select )
             {
             case LOC_SHAPE_FLOOR_DECORATION:
             {
-                if( config_loc->blocks_walk == 1 )
+                /* Client: blockGround only when loc.blockwalk && loc.active (is_interactive). */
+                if( config_loc->blocks_walk != 0 && config_loc->is_interactive )
                     collision_map_add_floor(world->collision_map, offset_x, offset_z);
                 break;
             }
@@ -1715,6 +1775,240 @@ world_cleanup_map_build_loc_entity(
 }
 
 void
+world_loc_entity_reload_model(
+    struct World* world,
+    int entity_id,
+    int new_loc_id,
+    int new_shape,
+    int new_angle)
+{
+    if( entity_id < 0 || entity_id >= entity_vec_count(&world->map_build_loc_entities) )
+        return;
+
+    struct MapBuildLocEntity* entity = world_loc_entity(world, entity_id);
+
+    struct GameCacheLoc* config_loc =
+        gamecache_get_config_loc(world->gamecache, new_loc_id);
+    if( !config_loc )
+        return;
+
+    bool animated = config_loc->seq_id != -1;
+
+    /* After LOC_DEL the Scene2 slots were released; acquire before loading models. */
+    if( entity->scene_element.element_id < 0 )
+        entity->scene_element.element_id =
+            scenery_element_acquire(world, entity_id, animated);
+    if( entity->scene_element.element_id < 0 )
+        return;
+
+    bool needs_secondary = ( new_shape == LOC_SHAPE_WALL_TWO_SIDES ||
+                               new_shape == LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE );
+
+    if( needs_secondary )
+    {
+        if( entity->scene_element_two.element_id < 0 )
+            entity->scene_element_two.element_id =
+                scenery_element_acquire(world, entity_id, animated);
+        if( entity->scene_element_two.element_id < 0 )
+            return;
+    }
+    else if( entity->scene_element_two.element_id >= 0 )
+    {
+        scene2_element_release(world->scene2, entity->scene_element_two.element_id);
+        entity->scene_element_two.element_id = -1;
+        memset(&entity->animation_two, 0, sizeof(entity->animation_two));
+    }
+
+    int size_x = config_loc->size_x;
+    int size_z = config_loc->size_z;
+    if( new_angle == 1 || new_angle == 3 )
+    {
+        int tmp = size_x;
+        size_x = size_z;
+        size_z = tmp;
+    }
+
+    struct GameCacheMapLoc map_tile = { 0 };
+    map_tile.loc_id = new_loc_id;
+    map_tile.shape_select = new_shape;
+    map_tile.orientation = new_angle;
+
+    if( new_shape == LOC_SHAPE_WALL_TWO_SIDES )
+    {
+        int orientation = new_angle & 0x3;
+        int rotation = orientation + 4;
+        int next_rotation = ( rotation + 1 ) & 0x3;
+
+        world_load_scenery_model(
+            world,
+            entity,
+            &map_tile,
+            &entity->scene_coord,
+            &entity->scene_element,
+            LOC_SHAPE_WALL_TWO_SIDES,
+            rotation,
+            1,
+            1,
+            config_loc);
+        world_load_scenery_model(
+            world,
+            entity,
+            &map_tile,
+            &entity->scene_coord,
+            &entity->scene_element_two,
+            LOC_SHAPE_WALL_TWO_SIDES,
+            next_rotation,
+            1,
+            1,
+            config_loc);
+        scenery_element_position_init(
+            world, entity, &entity->scene_coord, &entity->scene_element, 1, 1);
+        scenery_element_position_init(
+            world, entity, &entity->scene_coord, &entity->scene_element_two, 1, 1);
+        world_map_build_loc_entity_set_animation(world, entity_id, config_loc->seq_id);
+        if( world->painter )
+            painter_sync_map_build_loc_elements(
+                world->painter,
+                entity->scene_element.element_id,
+                entity->scene_element_two.element_id,
+                new_shape,
+                new_angle);
+        return;
+    }
+
+    if( new_shape == LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE )
+    {
+        int outside_rotation = config_loc->seq_id != -1 ? 0 : map_tile.orientation;
+        int outside_orientation = map_tile.orientation;
+        int inside_rotation = config_loc->seq_id != -1 ? 0 : ( outside_orientation + 2 ) & 0x3;
+        int inside_orientation = ( outside_orientation + 2 ) & 0x3;
+
+        world_load_scenery_model(
+            world,
+            entity,
+            &map_tile,
+            &entity->scene_coord,
+            &entity->scene_element,
+            LOC_SHAPE_WALL_DECOR_INSIDE,
+            outside_rotation,
+            1,
+            1,
+            config_loc);
+        world_load_scenery_model(
+            world,
+            entity,
+            &map_tile,
+            &entity->scene_coord,
+            &entity->scene_element_two,
+            LOC_SHAPE_WALL_DECOR_INSIDE,
+            inside_rotation,
+            1,
+            1,
+            config_loc);
+        world_map_build_loc_entity_set_animation(world, entity_id, config_loc->seq_id);
+        scenery_element_position_init(
+            world, entity, &entity->scene_coord, &entity->scene_element, 1, 1);
+        scenery_element_position_init(
+            world, entity, &entity->scene_coord, &entity->scene_element_two, 1, 1);
+
+        struct Scene2Element* scene_element =
+            scene2_element_at(world->scene2, entity->scene_element.element_id);
+        if( scene_element )
+        {
+            struct DashPosition* dp = scene2_element_dash_position(scene_element);
+            if( dp )
+            {
+                dp->yaw += WALL_DECOR_YAW_ADJUST;
+                if( config_loc->seq_id != -1 )
+                    dp->yaw += 512 * outside_orientation;
+                dp->yaw %= 2048;
+            }
+        }
+        scene_element =
+            scene2_element_at(world->scene2, entity->scene_element_two.element_id);
+        if( scene_element )
+        {
+            struct DashPosition* dp = scene2_element_dash_position(scene_element);
+            if( dp )
+            {
+                dp->yaw += WALL_DECOR_YAW_ADJUST;
+                if( config_loc->seq_id != -1 )
+                    dp->yaw += 512 * inside_orientation;
+                dp->yaw %= 2048;
+            }
+        }
+        if( world->painter )
+            painter_sync_map_build_loc_elements(
+                world->painter,
+                entity->scene_element.element_id,
+                entity->scene_element_two.element_id,
+                new_shape,
+                new_angle);
+        return;
+    }
+
+    int load_rotation = new_angle;
+    if( ( new_shape == LOC_SHAPE_SCENERY || new_shape == LOC_SHAPE_SCENERY_DIAGIONAL ) &&
+         config_loc->seq_id != -1 )
+        load_rotation = 0;
+
+    /* scenery_add_normal always loads models under LOC_SHAPE_SCENERY and applies diagonal yaw (+256)
+     * when map_tile.shape_select is LOC_SHAPE_SCENERY_DIAGIONAL; shape 11 has no separate row in
+     * config_loc->shapes — using 11 here fails model lookup. */
+    int model_shape = new_shape;
+    if( new_shape == LOC_SHAPE_SCENERY || new_shape == LOC_SHAPE_SCENERY_DIAGIONAL )
+        model_shape = LOC_SHAPE_SCENERY;
+
+    world_load_scenery_model(
+        world,
+        entity,
+        &map_tile,
+        &entity->scene_coord,
+        &entity->scene_element,
+        model_shape,
+        load_rotation,
+        size_x,
+        size_z,
+        config_loc);
+
+    if( new_shape == LOC_SHAPE_SCENERY || new_shape == LOC_SHAPE_SCENERY_DIAGIONAL )
+        world_map_build_loc_entity_set_animation(world, entity_id, config_loc->seq_id);
+
+    scenery_element_position_init(
+        world,
+        entity,
+        &entity->scene_coord,
+        &entity->scene_element,
+        size_x,
+        size_z);
+
+    struct Scene2Element* se = scene2_element_at(world->scene2, entity->scene_element.element_id);
+    if( se )
+    {
+        struct DashPosition* dp = scene2_element_dash_position(se);
+        if( dp )
+        {
+            int yaw = 0;
+            if( new_shape == 11 )
+                yaw += 256;
+            if( config_loc->seq_id != -1 )
+                yaw += 512 * new_angle;
+            else
+                yaw = 512 * new_angle;
+            dp->yaw = yaw % 2048;
+        }
+    }
+
+    if( world->painter )
+        painter_sync_map_build_loc_elements(
+            world->painter,
+            entity->scene_element.element_id,
+            entity->scene_element_two.element_id,
+            new_shape,
+            new_angle);
+}
+
+void
 world_cleanup_map_build_tile_entity(
     struct World* world,
     int entity_id)
@@ -1799,6 +2093,11 @@ world_player_entity_set_appearance(
     world_scenebuild_player_entity_set_appearance(
         world, player_entity_id, appearance->appearance, appearance->color);
 
+    for( int i = 0; i < 12; i++ )
+        player->appearance.slots[i] = appearance->appearance[i];
+    for( int i = 0; i < 5; i++ )
+        player->appearance.colors[i] = appearance->color[i];
+
     struct PassiveAnimationInfo passive_animations = {
         .readyanim = appearance->readyanim,
         .walkanim = appearance->walkanim,
@@ -1813,6 +2112,21 @@ world_player_entity_set_appearance(
 
     strncpy(player->name.name, appearance->name, sizeof(player->name.name));
     player->visible_level.level = appearance->combat_level;
+}
+
+static void
+world_player_entity_refresh_scene2_appearance_mesh(struct World* world, int player_entity_id)
+{
+    struct PlayerEntity* player = world_player(world, player_entity_id);
+    if( !player->alive || player->scene_element2.element_id == -1 )
+        return;
+    uint16_t app12[12];
+    uint16_t col5[5];
+    for( int i = 0; i < 12; i++ )
+        app12[i] = (uint16_t)player->appearance.slots[i];
+    for( int i = 0; i < 5; i++ )
+        col5[i] = (uint16_t)player->appearance.colors[i];
+    world_scenebuild_player_entity_set_appearance(world, player_entity_id, app12, col5);
 }
 
 static void
@@ -1866,6 +2180,49 @@ load_scene_animation(
     }
 }
 
+/** Client.ts `RestartMode` for `SeqType.duplicatebehaviour`. */
+#define WORLD_SEQ_RESTART_RESET      1
+#define WORLD_SEQ_RESTART_RESETLOOP  2
+
+static bool
+world_player_primary_track_active(uint16_t anim_id)
+{
+    return anim_id != 0 && anim_id != (uint16_t)-1;
+}
+
+static bool
+world_player_seq_held_equal(
+    struct GameCacheSequence const* a,
+    struct GameCacheSequence const* b)
+{
+    if( !a && !b )
+        return true;
+    if( !a || !b )
+        return false;
+    return a->replaceheldleft == b->replaceheldleft && a->replaceheldright == b->replaceheldright;
+}
+
+static void
+world_player_sync_primary_pose_from_entity(struct World* world, int player_entity_id)
+{
+    struct PlayerEntity* player = world_player(world, player_entity_id);
+    struct Scene2Element* scene_element =
+        scene2_element_at(world->scene2, player->scene_element2.element_id);
+    if( !scene_element )
+        return;
+    struct EntityAnimation* animation = &player->animation;
+    struct Scene2Frames* primary = scene2_element_primary_frames(scene_element);
+
+    if( world_player_primary_track_active(animation->primary_anim.anim_id) && primary &&
+        primary->count > 0 )
+    {
+        int frame = animation->primary_anim.frame;
+        scene2_element_set_active_anim_id(scene_element, animation->primary_anim.anim_id);
+        scene2_element_set_active_animation_index(scene_element, 0);
+        scene2_element_set_active_frame(scene_element, (uint8_t)frame);
+    }
+}
+
 void
 world_map_build_loc_entity_set_animation(
     struct World* world,
@@ -1910,7 +2267,8 @@ world_player_entity_set_animation(
     struct World* world,
     int player_entity_id,
     int animation_id,
-    int animation_type)
+    int animation_type,
+    uint8_t primary_start_delay)
 {
     struct PlayerEntity* player = world_player(world, player_entity_id);
 
@@ -1921,27 +2279,78 @@ world_player_entity_set_animation(
         scene2_element_at(world->scene2, player->scene_element2.element_id);
     scene2_element_expect(element, "world_player_entity_set_animation");
 
-    if( animation_type == ANIMATION_TYPE_PRIMARY )
-    {
-        scene2_element_clear_animation(element);
-    }
-    else
+    if( animation_type != ANIMATION_TYPE_PRIMARY )
     {
         scene2_element_clear_secondary_animation(element);
-    }
-
-    load_scene_animation(world, element, animation_id, animation_type);
-
-    if( animation_type == ANIMATION_TYPE_PRIMARY )
-    {
-        memset(&player->animation.primary_anim, 0, sizeof(struct EntityAnimationStep));
-        player->animation.primary_anim.anim_id = animation_id;
-    }
-    else
-    {
+        load_scene_animation(world, element, animation_id, animation_type);
         memset(&player->animation.secondary_anim, 0, sizeof(struct EntityAnimationStep));
-        player->animation.secondary_anim.anim_id = animation_id;
+        player->animation.secondary_anim.anim_id =
+            animation_id < 0 ? (uint16_t)-1 : (uint16_t)animation_id;
+        return;
     }
+
+    /* Primary: mirror Client.ts getPlayerExtendedDecode ANIM (priority, duplicate behaviour). */
+    if( animation_id < 0 )
+    {
+        scene2_element_clear_animation(element);
+        memset(&player->animation.primary_anim, 0, sizeof(struct EntityAnimationStep));
+        player->animation.primary_anim.anim_id = (uint16_t)-1;
+        world_player_entity_refresh_scene2_appearance_mesh(world, player_entity_id);
+        return;
+    }
+
+    struct GameCacheSequence* new_seq = gamecache_get_sequence(world->gamecache, animation_id);
+    if( !new_seq )
+        return;
+
+    uint16_t cur_id = player->animation.primary_anim.anim_id;
+    bool cur_on = world_player_primary_track_active(cur_id);
+
+    struct GameCacheSequence* old_seq = NULL;
+    if( cur_on )
+        old_seq = gamecache_get_sequence(world->gamecache, (int)cur_id);
+
+    if( old_seq && new_seq->priority < old_seq->priority )
+        return;
+
+    /* Same sequence id already playing: do not clear/reload frames (avoids mesh/anim jitter). */
+    if( cur_on && (int)cur_id == animation_id )
+    {
+        player->animation.primary_anim.loop = 0;
+
+        int mode = new_seq->duplicate_behavior;
+        if( mode == WORLD_SEQ_RESTART_RESET )
+        {
+            uint8_t prev_delay = player->animation.primary_anim.delay;
+            player->animation.primary_anim.frame = 0;
+            player->animation.primary_anim.cycle = 0;
+            player->animation.primary_anim.delay = primary_start_delay;
+            player->animation.primary_anim.anim_id = (uint16_t)animation_id;
+            world_player_sync_primary_pose_from_entity(world, player_entity_id);
+            if( prev_delay != primary_start_delay )
+                world_player_entity_refresh_scene2_appearance_mesh(world, player_entity_id);
+        }
+        /* RESETLOOP and other modes: Client only clears primaryAnimLoop (done above). */
+        return;
+    }
+
+    scene2_element_clear_animation(element);
+
+    /* Update entity state before any mesh refresh so player_appearance_model
+       sees the new sequence's held overrides (replaceheldleft/right). */
+    memset(&player->animation.primary_anim, 0, sizeof(struct EntityAnimationStep));
+    player->animation.primary_anim.anim_id = (uint16_t)animation_id;
+    player->animation.primary_anim.delay = primary_start_delay;
+
+    /* Refresh mesh before pushing frames so GPU uploads target the final DashModel. */
+    if( !world_player_seq_held_equal(old_seq, new_seq) )
+        world_player_entity_refresh_scene2_appearance_mesh(world, player_entity_id);
+
+    load_scene_animation(world, element, animation_id, ANIMATION_TYPE_PRIMARY);
+
+    /* Immediately sync scene2 active anim/frame so element_step_animation never
+       sees primary_frames populated but active_anim_id still at the old value. */
+    world_player_sync_primary_pose_from_entity(world, player_entity_id);
 }
 
 void

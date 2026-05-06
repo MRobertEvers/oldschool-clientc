@@ -237,6 +237,26 @@ world_cleanup_map_build_loc_entity(
     struct World* world,
     int entity_id);
 
+/** Allocate a new map-build loc entity at scene (sx, sz, slevel) for dynamic LOC_ADD_CHANGE
+ * when the tile had no static loc. Returns entity_id or -1 if the loc pool is full. */
+int
+world_map_build_loc_entity_allocate_at_scene(
+    struct World* world,
+    int sx,
+    int sz,
+    int slevel);
+
+/** Reload the primary Scene2 DashModel for an existing loc entity from a new loc config.
+ * Leaves scene_element.element_id unchanged; replaces only the DashModel and yaw.
+ * No-op if entity_id is out of range or scene element is unacquired. */
+void
+world_loc_entity_reload_model(
+    struct World* world,
+    int entity_id,
+    int new_loc_id,
+    int new_shape,
+    int new_angle);
+
 void
 world_cleanup_map_build_tile_entity(
     struct World* world,
@@ -272,7 +292,8 @@ world_player_entity_set_animation(
     struct World* world,
     int player_entity_id,
     int animation_id,
-    int animation_type);
+    int animation_type,
+    uint8_t primary_start_delay);
 
 void
 world_npc_entity_set_animation(

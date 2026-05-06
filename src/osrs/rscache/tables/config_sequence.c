@@ -1007,6 +1007,11 @@ config_dat_sequence_decode_inplace(
 {
     struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
 
+    /* Callers often memset the struct to 0; -1 means "do not override held slots" (Client-TS
+     * SeqType default). */
+    def->replaceheldleft = -1;
+    def->replaceheldright = -1;
+
     while( true )
     {
         int opcode = g1(&buffer);
@@ -1064,11 +1069,25 @@ config_dat_sequence_decode_inplace(
             def->priority = g1(&buffer);
             break;
         case 6:
-            def->replaceheldleft = g2(&buffer);
-            break;
+        {
+            int v = g2(&buffer);
+            if( v == 65535 )
+            {
+                v = -1;
+            }
+            def->replaceheldleft = v;
+        }
+        break;
         case 7:
-            def->replaceheldright = g2(&buffer);
-            break;
+        {
+            int v = g2(&buffer);
+            if( v == 65535 )
+            {
+                v = -1;
+            }
+            def->replaceheldright = v;
+        }
+        break;
         case 8:
             def->maxloops = g1(&buffer);
             break;

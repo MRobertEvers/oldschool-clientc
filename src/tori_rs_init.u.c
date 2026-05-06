@@ -129,6 +129,7 @@ LibToriRS_GameNew(
     struct GGame* game = malloc(sizeof(struct GGame));
     memset(game, 0, sizeof(struct GGame));
     game->debug_entity_pathing = true;
+    game->debug_collisionmap_overlay = false;
 
     minimenu_regions_default(&game->minimenu_regions);
 

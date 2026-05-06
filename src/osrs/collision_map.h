@@ -110,6 +110,31 @@ collision_map_add_wall(
     enum CollisionLocAngle angle,
     int blockrange);
 
+void
+collision_map_remove_floor(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z);
+
+void
+collision_map_remove_loc(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z,
+    int size_x,
+    int size_z,
+    enum CollisionLocAngle angle,
+    int blockrange);
+
+void
+collision_map_remove_wall(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z,
+    int shape,
+    enum CollisionLocAngle angle,
+    int blockrange);
+
 /* BFS pathfinding: fill path_x, path_z with up to max_path steps from (src_x,src_z) to
  * (dst_x,dst_z). Returns number of steps (excluding start); -1 if no path. path[0] = first step
  * toward dest. */

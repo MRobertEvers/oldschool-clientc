@@ -106,6 +106,15 @@ buildcachedat_loader_cache_textures(
 void
 buildcachedat_loader_sequences_init_from_config_jagfile(struct BuildCacheDat* buildcachedat);
 
+/** Returns obj IDs (0-based ObjType id) referenced by replaceheldleft / replaceheldright of
+ *  sequence seq_id. Only slots with values >= 0x200 (worn-object overrides) contribute.
+ *  Caller must free(*obj_ids_out). Returns 0 and NULL when none or not found. */
+int
+buildcachedat_loader_get_sequence_held_obj_ids(
+    struct BuildCacheDat* buildcachedat,
+    int seq_id,
+    int** obj_ids_out);
+
 int
 buildcachedat_loader_get_animbaseframes_count_from_versionlist_jagfile(
     struct BuildCacheDat* buildcachedat);

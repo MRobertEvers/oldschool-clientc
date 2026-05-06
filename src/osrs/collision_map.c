@@ -226,6 +226,138 @@ collision_map_add_wall(
         collision_map_add_wall(cm, tile_x, tile_z, shape, angle, 0);
 }
 
+void
+collision_map_remove_floor(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z)
+{
+    collision_map_remove(cm, tile_x, tile_z, COLL_FLAG_FLOOR);
+}
+
+void
+collision_map_remove_loc(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z,
+    int size_x,
+    int size_z,
+    enum CollisionLocAngle angle,
+    int blockrange)
+{
+    int flags = COLL_FLAG_LOC;
+    if( blockrange )
+        flags |= COLL_FLAG_LOC_PROJ_BLOCKER;
+
+    if( angle == COLL_ANGLE_NORTH || angle == COLL_ANGLE_SOUTH )
+    {
+        int tmp = size_x;
+        size_x = size_z;
+        size_z = tmp;
+    }
+
+    for( int tx = tile_x; tx < tile_x + size_x; tx++ )
+    {
+        for( int tz = tile_z; tz < tile_z + size_z; tz++ )
+            collision_map_remove(cm, tx, tz, flags);
+    }
+}
+
+void
+collision_map_remove_wall(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z,
+    int shape,
+    enum CollisionLocAngle angle,
+    int blockrange)
+{
+    int west = blockrange ? COLL_FLAG_WALL_WEST_PROJ : COLL_FLAG_WALL_WEST;
+    int east = blockrange ? COLL_FLAG_WALL_EAST_PROJ : COLL_FLAG_WALL_EAST;
+    int north = blockrange ? COLL_FLAG_WALL_NORTH_PROJ : COLL_FLAG_WALL_NORTH;
+    int south = blockrange ? COLL_FLAG_WALL_SOUTH_PROJ : COLL_FLAG_WALL_SOUTH;
+    int nw = blockrange ? COLL_FLAG_WALL_NORTH_WEST_PROJ : COLL_FLAG_WALL_NORTH_WEST;
+    int se = blockrange ? COLL_FLAG_WALL_SOUTH_EAST_PROJ : COLL_FLAG_WALL_SOUTH_EAST;
+    int ne = blockrange ? COLL_FLAG_WALL_NORTH_EAST_PROJ : COLL_FLAG_WALL_NORTH_EAST;
+    int sw = blockrange ? COLL_FLAG_WALL_SOUTH_WEST_PROJ : COLL_FLAG_WALL_SOUTH_WEST;
+
+    if( shape == LOC_SHAPE_WALL_SINGLE_SIDE )
+    {
+        if( angle == COLL_ANGLE_WEST )
+        {
+            collision_map_remove(cm, tile_x, tile_z, west);
+            collision_map_remove(cm, tile_x - 1, tile_z, east);
+        }
+        else if( angle == COLL_ANGLE_NORTH )
+        {
+            collision_map_remove(cm, tile_x, tile_z, north);
+            collision_map_remove(cm, tile_x, tile_z + 1, south);
+        }
+        else if( angle == COLL_ANGLE_EAST )
+        {
+            collision_map_remove(cm, tile_x, tile_z, east);
+            collision_map_remove(cm, tile_x + 1, tile_z, west);
+        }
+        else if( angle == COLL_ANGLE_SOUTH )
+        {
+            collision_map_remove(cm, tile_x, tile_z, south);
+            collision_map_remove(cm, tile_x, tile_z - 1, north);
+        }
+    }
+    else if( shape == LOC_SHAPE_WALL_TRI_CORNER || shape == LOC_SHAPE_WALL_RECT_CORNER )
+    {
+        if( angle == COLL_ANGLE_WEST )
+        {
+            collision_map_remove(cm, tile_x, tile_z, nw);
+            collision_map_remove(cm, tile_x - 1, tile_z + 1, se);
+        }
+        else if( angle == COLL_ANGLE_NORTH )
+        {
+            collision_map_remove(cm, tile_x, tile_z, ne);
+            collision_map_remove(cm, tile_x + 1, tile_z + 1, sw);
+        }
+        else if( angle == COLL_ANGLE_EAST )
+        {
+            collision_map_remove(cm, tile_x, tile_z, se);
+            collision_map_remove(cm, tile_x + 1, tile_z - 1, nw);
+        }
+        else if( angle == COLL_ANGLE_SOUTH )
+        {
+            collision_map_remove(cm, tile_x, tile_z, sw);
+            collision_map_remove(cm, tile_x - 1, tile_z - 1, ne);
+        }
+    }
+    else if( shape == LOC_SHAPE_WALL_TWO_SIDES )
+    {
+        if( angle == COLL_ANGLE_WEST )
+        {
+            collision_map_remove(cm, tile_x, tile_z, north | west);
+            collision_map_remove(cm, tile_x - 1, tile_z, east);
+            collision_map_remove(cm, tile_x, tile_z + 1, south);
+        }
+        else if( angle == COLL_ANGLE_NORTH )
+        {
+            collision_map_remove(cm, tile_x, tile_z, north | east);
+            collision_map_remove(cm, tile_x, tile_z + 1, south);
+            collision_map_remove(cm, tile_x + 1, tile_z, west);
+        }
+        else if( angle == COLL_ANGLE_EAST )
+        {
+            collision_map_remove(cm, tile_x, tile_z, south | east);
+            collision_map_remove(cm, tile_x + 1, tile_z, west);
+            collision_map_remove(cm, tile_x, tile_z - 1, north);
+        }
+        else if( angle == COLL_ANGLE_SOUTH )
+        {
+            collision_map_remove(cm, tile_x, tile_z, south | west);
+            collision_map_remove(cm, tile_x, tile_z - 1, north);
+            collision_map_remove(cm, tile_x - 1, tile_z, east);
+        }
+    }
+    if( blockrange )
+        collision_map_remove_wall(cm, tile_x, tile_z, shape, angle, 0);
+}
+
 int
 collision_map_bfs_path(
     struct CollisionMap* cm,

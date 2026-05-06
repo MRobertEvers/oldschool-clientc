@@ -78,7 +78,9 @@ struct CacheDatSequence
     int* walkmerge;
     bool stretches;
     int priority;
+    /** -1 = do not override appearance slot 5 (left hand); else raw slot value (see ClientPlayer). */
     int replaceheldleft;
+    /** -1 = do not override appearance slot 3 (right hand); else raw slot value. */
     int replaceheldright;
     int maxloops;
     int preanim_move;

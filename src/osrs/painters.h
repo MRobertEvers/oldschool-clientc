@@ -513,6 +513,16 @@ painter_add_normal_scenery(
 void
 painter_mark_static_count(struct Painter* painter);
 
+/** After dynamic LOC_ADD_CHANGE reloads Scene2 meshes, refresh wall / wall-decor culling sides so
+ * painter near/far wall visibility matches the new orientation (must match scenery_add_*). */
+void
+painter_sync_map_build_loc_elements(
+    struct Painter* painter,
+    int primary_scene_element_id,
+    int secondary_scene_element_id,
+    int shape_select,
+    int orientation);
+
 /** Element count after world build (walls, scenery, decor, …). For diagnostics only. */
 int
 painter_element_count(struct Painter const* painter);

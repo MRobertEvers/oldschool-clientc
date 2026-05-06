@@ -90,6 +90,10 @@
         return LuaBuildCacheDat_has_versionlist_jagfile(bcd, args);
     case LUA_API_BUILDCACHEDAT_GET_SEQUENCE_ANIMBASEFRAMES_IDS:
         return LuaBuildCacheDat_get_sequence_animbaseframes_ids(bcd, args);
+    case LUA_API_BUILDCACHEDAT_GET_SEQUENCE_HELD_OBJ_IDS:
+        return LuaBuildCacheDat_get_sequence_held_obj_ids(bcd, args);
+    case LUA_API_BUILDCACHEDAT_GET_PLAYER_INFO_SEQUENCE_IDS:
+        return LuaBuildCacheDat_get_player_info_sequence_ids(bcd, args);
     case LUA_API_BUILDCACHEDAT_SCENERY_CONFIG_LOAD_MAPCHUNK_FROM_CONFIG_JAGFILE:
         return LuaBuildCacheDat_scenery_config_load_mapchunk_from_config_jagfile(bcd, args);
     case LUA_API_BUILDCACHEDAT_SCENERY_CONFIG_GET_MODEL_IDS_MAPCHUNK:

@@ -2,6 +2,8 @@
 
 #include "painters_i.h"
 
+#include "rscache/tables/config_locs.h"
+
 #include <assert.h>
 #include <limits.h>
 #include <stdbool.h>
@@ -864,6 +866,127 @@ void
 painter_mark_static_count(struct Painter* painter)
 {
     painter->static_element_count = painter->element_count;
+}
+
+static bool
+sync_scene_id_matches_u16(int scene_element_id, uint16_t stored_entity)
+{
+    if( scene_element_id < 0 || scene_element_id > 65535 )
+        return false;
+    return stored_entity == (uint16_t)scene_element_id;
+}
+
+void
+painter_sync_map_build_loc_elements(
+    struct Painter* painter,
+    int primary_scene_element_id,
+    int secondary_scene_element_id,
+    int shape_select,
+    int orientation)
+{
+    if( !painter )
+        return;
+
+    /* Same tables as world_scenery.u.c ROTATION_WALL_* — painter uses these for wall culling masks.
+     */
+    static const uint8_t ROT_WALL[] = {
+        WALL_SIDE_WEST,
+        WALL_SIDE_NORTH,
+        WALL_SIDE_EAST,
+        WALL_SIDE_SOUTH,
+    };
+    static const uint8_t ROT_CORNER[] = {
+        WALL_CORNER_NORTHWEST,
+        WALL_CORNER_NORTHEAST,
+        WALL_CORNER_SOUTHEAST,
+        WALL_CORNER_SOUTHWEST,
+    };
+
+    int o = orientation & 3;
+
+    uint8_t wall_pri = 0;
+    uint8_t wall_sec = 0;
+    uint8_t decor_pri = 0;
+    uint8_t decor_sec = 0;
+    uint8_t decor_tf_pri = 0;
+    uint8_t decor_tf_sec = 0;
+    bool set_wall_pri = false;
+    bool set_wall_sec = false;
+    bool set_decor_pri = false;
+    bool set_decor_sec = false;
+
+    switch( shape_select )
+    {
+    case LOC_SHAPE_WALL_SINGLE_SIDE:
+        wall_pri = ROT_WALL[o];
+        set_wall_pri = true;
+        break;
+    case LOC_SHAPE_WALL_TRI_CORNER:
+    case LOC_SHAPE_WALL_RECT_CORNER:
+        wall_pri = ROT_CORNER[o];
+        set_wall_pri = true;
+        break;
+    case LOC_SHAPE_WALL_TWO_SIDES:
+        wall_pri = ROT_WALL[o];
+        wall_sec = ROT_WALL[( o + 1 ) & 3];
+        set_wall_pri = true;
+        set_wall_sec = true;
+        break;
+    case LOC_SHAPE_WALL_DECOR_INSIDE:
+    case LOC_SHAPE_WALL_DECOR_OUTSIDE:
+        decor_pri = ROT_WALL[o];
+        set_decor_pri = true;
+        decor_tf_pri = 0;
+        break;
+    case LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE:
+    case LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE:
+        decor_pri = ROT_CORNER[o];
+        set_decor_pri = true;
+        decor_tf_pri = THROUGHWALL;
+        break;
+    case LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE:
+        decor_pri = ROT_CORNER[o];
+        decor_sec = ROT_CORNER[( o + 2 ) & 3];
+        set_decor_pri = true;
+        set_decor_sec = true;
+        decor_tf_pri = THROUGHWALL;
+        decor_tf_sec = THROUGHWALL;
+        break;
+    default:
+        break;
+    }
+
+    if( !set_wall_pri && !set_wall_sec && !set_decor_pri && !set_decor_sec )
+        return;
+
+    for( int i = 0; i < painter->static_element_count; i++ )
+    {
+        struct PaintersElement* el = &painter->elements[i];
+
+        if( set_wall_pri &&
+            ( el->kind == PNTRELEM_WALL_A || el->kind == PNTRELEM_WALL_B ) &&
+            sync_scene_id_matches_u16(primary_scene_element_id, el->_wall.entity) )
+            el->_wall.side = wall_pri;
+
+        if( set_wall_sec &&
+            ( el->kind == PNTRELEM_WALL_A || el->kind == PNTRELEM_WALL_B ) &&
+            sync_scene_id_matches_u16(secondary_scene_element_id, el->_wall.entity) )
+            el->_wall.side = wall_sec;
+
+        if( set_decor_pri && el->kind == PNTRELEM_WALL_DECOR &&
+            sync_scene_id_matches_u16(primary_scene_element_id, el->_wall_decor.entity) )
+        {
+            el->_wall_decor._bf_side = decor_pri;
+            el->_wall_decor._bf_through_wall_flags = decor_tf_pri;
+        }
+
+        if( set_decor_sec && el->kind == PNTRELEM_WALL_DECOR &&
+            sync_scene_id_matches_u16(secondary_scene_element_id, el->_wall_decor.entity) )
+        {
+            el->_wall_decor._bf_side = decor_sec;
+            el->_wall_decor._bf_through_wall_flags = decor_tf_sec;
+        }
+    }
 }
 
 void

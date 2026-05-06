@@ -36,4 +36,34 @@ entity_scenebuild_head_model_for_component(
     int* slots,
     int* colors);
 
+/** Apply a LOC_ADD_CHANGE to the scene: find the existing MapBuildLocEntity at (sx,sz) with
+ * matching layer, swap its model and collision.  loc_id < 0 removes the loc visually. */
+void
+entity_scenebuild_loc_apply_change(
+    struct GGame* game,
+    int sx,
+    int sz,
+    int shape,
+    int angle,
+    int loc_id);
+
+/** Apply a LOC_DEL: equivalent to entity_scenebuild_loc_apply_change with loc_id = -1. */
+void
+entity_scenebuild_loc_apply_del(
+    struct GGame* game,
+    int sx,
+    int sz,
+    int shape,
+    int angle);
+
+/** Apply a LOC_ANIM: find the existing MapBuildLocEntity at (sx,sz) with matching layer and
+ * start the given animation sequence. */
+void
+entity_scenebuild_loc_apply_anim(
+    struct GGame* game,
+    int sx,
+    int sz,
+    int shape,
+    int seq_id);
+
 #endif

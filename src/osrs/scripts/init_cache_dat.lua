@@ -43,7 +43,11 @@ local function load_chunk_map_scenery_and_terrain(mapx, mapz)
         local terrain_archive = CacheDat.load_archive(
             CacheDat.Tables.CACHE_DAT_MAPS, map_id,
             CacheDat.ArchiveIdFlags.MAP_TERRAIN)
-        Game.BuildCacheDat.map_terrain_cache_add(terrain_archive, map_id)
+        if terrain_archive then
+            Game.BuildCacheDat.map_terrain_cache_add(terrain_archive, map_id)
+        else
+            print(string.format("map_terrain missing for (%d,%d) - skipping", mapx, mapz))
+        end
     end
 
     if not Game.BuildCacheDat.has_map_scenery(mapx, mapz) then
@@ -51,7 +55,11 @@ local function load_chunk_map_scenery_and_terrain(mapx, mapz)
         local scenery_archive = CacheDat.load_archive(
             CacheDat.Tables.CACHE_DAT_MAPS, map_id,
             CacheDat.ArchiveIdFlags.MAP_SCENERY)
-        Game.BuildCacheDat.map_scenery_cache_add(scenery_archive, map_id)
+        if scenery_archive then
+            Game.BuildCacheDat.map_scenery_cache_add(scenery_archive, map_id)
+        else
+            print(string.format("map_scenery missing for (%d,%d) - skipping", mapx, mapz))
+        end
     end
 end
 

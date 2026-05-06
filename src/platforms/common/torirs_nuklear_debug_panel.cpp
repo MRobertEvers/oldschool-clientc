@@ -21,7 +21,6 @@ extern int g_trap_x;
 extern int g_trap_z;
 }
 
-static int s_soft3d_show_collision_map = 0;
 
 void
 torirs_nk_debug_panel_draw(
@@ -179,7 +178,11 @@ torirs_nk_debug_panel_draw(
                 nk_label(nk, "Clicked Tile: None", NK_TEXT_LEFT);
             }
 
-            nk_checkbox_label(nk, "Show collision map", &s_soft3d_show_collision_map);
+            {
+                int show_cm = game->debug_collisionmap_overlay ? 1 : 0;
+                nk_checkbox_label(nk, "Show collision map", &show_cm);
+                game->debug_collisionmap_overlay = show_cm != 0;
+            }
             nk_label(nk, "Interface System:", NK_TEXT_LEFT);
         }
         else

@@ -726,6 +726,49 @@ buildcachedat_loader_sequences_init_from_config_jagfile(struct BuildCacheDat* bu
 }
 
 int
+buildcachedat_loader_get_sequence_held_obj_ids(
+    struct BuildCacheDat* buildcachedat,
+    int seq_id,
+    int** obj_ids_out)
+{
+    *obj_ids_out = NULL;
+    struct CacheDatSequence* seq = buildcachedat_get_sequence(buildcachedat, seq_id);
+    if( !seq )
+        return 0;
+
+    int tmp[2];
+    int count = 0;
+    int candidates[2] = { seq->replaceheldleft, seq->replaceheldright };
+    for( int i = 0; i < 2; i++ )
+    {
+        int v = candidates[i];
+        if( v < 0x200 )
+            continue;
+        int oid = v - 0x200;
+        int dup = 0;
+        for( int j = 0; j < count; j++ )
+        {
+            if( tmp[j] == oid )
+            {
+                dup = 1;
+                break;
+            }
+        }
+        if( !dup )
+            tmp[count++] = oid;
+    }
+
+    if( count == 0 )
+        return 0;
+
+    *obj_ids_out = malloc((size_t)count * sizeof(int));
+    if( !*obj_ids_out )
+        return 0;
+    memcpy(*obj_ids_out, tmp, (size_t)count * sizeof(int));
+    return count;
+}
+
+int
 buildcachedat_loader_get_animbaseframes_count_from_versionlist_jagfile(
     struct BuildCacheDat* buildcachedat)
 {

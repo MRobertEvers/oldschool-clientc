@@ -363,9 +363,8 @@ serverprot_netrev245_2_parse(
     }
     case PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_ENCLOSED:
     {
-        packet->packet_type = SERVERPROT_UPDATE_ZONE_PARTIAL_ENCLOSED_V1;
-        /* Same wire layout as partial follows; distinguish via packet_type. */
-        return serverprot_core_parse_update_zone_partial_follows_v1(data, data_size, packet);
+        /* Handled by serverprot_netrev245_2_parse_and_enqueue directly; should not reach here. */
+        return 0;
     }
     case PKTIN_LC245_2_TUT_FLASH:
     {
@@ -496,6 +495,131 @@ push_packet_lc245_2(
     gameproto_rev245_2_enqueue((struct RevisionLC245_2*)game->revision.impl, packet);
 }
 
+/* Return payload size (bytes AFTER the inner opcode byte) for zone sub-packet opcodes.
+ * Inner zone sub-opcodes use the same byte values as the rev245_2 outer standalone packet
+ * opcodes (PKTIN_LC245_2_*), not the rev254 / ServerProt.ts values. */
+static int
+zone_inner_payload_size(int zone_opcode)
+{
+    switch( zone_opcode )
+    {
+    case PKTIN_LC245_2_LOC_ADD_CHANGE: return 4;  /* pos(1)+info(1)+id(2) */
+    case PKTIN_LC245_2_LOC_DEL:        return 2;  /* pos(1)+info(1) */
+    case PKTIN_LC245_2_LOC_ANIM:       return 4;  /* pos(1)+info(1)+seq(2) */
+    case PKTIN_LC245_2_LOC_MERGE:      return 14;
+    case PKTIN_LC245_2_OBJ_ADD:        return 5;  /* pos(1)+id(2)+cnt(2) */
+    case PKTIN_LC245_2_OBJ_DEL:        return 3;  /* pos(1)+id(2) */
+    case PKTIN_LC245_2_OBJ_REVEAL:     return 7;
+    case PKTIN_LC245_2_OBJ_COUNT:      return 7;
+    case PKTIN_LC245_2_MAP_ANIM:       return 6;
+    case PKTIN_LC245_2_MAP_PROJANIM:   return 15;
+    default:  return -1;
+    }
+}
+
+/* Parse one inner zone sub-packet and populate *out. Returns 1 on success, 0 on unknown opcode. */
+static int
+parse_zone_inner(
+    int zone_opcode,
+    uint8_t* data,
+    int n,
+    struct RevServerProtPacket* out)
+{
+    switch( zone_opcode )
+    {
+    case PKTIN_LC245_2_LOC_ADD_CHANGE:
+        out->packet_type = SERVERPROT_LOC_ADD_CHANGE_V1;
+        return serverprot_core_parse_loc_add_change_v1(data, n, out);
+    case PKTIN_LC245_2_LOC_DEL:
+        out->packet_type = SERVERPROT_LOC_DEL_V1;
+        return serverprot_core_parse_loc_del_v1(data, n, out);
+    case PKTIN_LC245_2_LOC_ANIM:
+        out->packet_type = SERVERPROT_LOC_ANIM_V1;
+        return serverprot_core_parse_loc_anim_v1(data, n, out);
+    case PKTIN_LC245_2_LOC_MERGE:
+        out->packet_type = SERVERPROT_LOC_MERGE_V1;
+        return serverprot_core_parse_loc_merge_v1(data, n, out);
+    case PKTIN_LC245_2_OBJ_ADD:
+        out->packet_type = SERVERPROT_OBJ_ADD_V1;
+        return serverprot_core_parse_obj_add_v1(data, n, out);
+    case PKTIN_LC245_2_OBJ_DEL:
+        out->packet_type = SERVERPROT_OBJ_DEL_V1;
+        return serverprot_core_parse_obj_del_v1(data, n, out);
+    case PKTIN_LC245_2_OBJ_REVEAL:
+        out->packet_type = SERVERPROT_OBJ_REVEAL_V1;
+        return serverprot_core_parse_obj_reveal_v1(data, n, out);
+    case PKTIN_LC245_2_OBJ_COUNT:
+        out->packet_type = SERVERPROT_OBJ_COUNT_V1;
+        return serverprot_core_parse_obj_count_v1(data, n, out);
+    case PKTIN_LC245_2_MAP_ANIM:
+        out->packet_type = SERVERPROT_MAP_ANIM_V1;
+        return serverprot_core_parse_map_anim_v1(data, n, out);
+    case PKTIN_LC245_2_MAP_PROJANIM:
+        out->packet_type = SERVERPROT_MAP_PROJANIM_V1;
+        return serverprot_core_parse_map_projanim_v1(data, n, out);
+    default:
+        printf("[zone_enclosed] unknown inner opcode: %d\n", zone_opcode);
+        return 0;
+    }
+}
+
+/* Fan-out an UPDATE_ZONE_PARTIAL_ENCLOSED payload: enqueue the base header packet first
+ * (so exec sets zone_base_x/z), then parse and enqueue each inner zone sub-packet. */
+static int
+serverprot_netrev245_2_parse_zone_enclosed(
+    struct GGame* game,
+    uint8_t* data,
+    int n)
+{
+    if( n < 2 )
+        return 0;
+
+    /* Enqueue the header so the exec sets zone_base_* before inner packets execute. */
+    struct RevServerProtPacket base_pkt;
+    memset(&base_pkt, 0, sizeof(base_pkt));
+    base_pkt.packet_type = SERVERPROT_UPDATE_ZONE_PARTIAL_ENCLOSED_V1;
+    base_pkt.u.update_zone_partial_follows_v1.base_x = data[0];
+    base_pkt.u.update_zone_partial_follows_v1.base_z = data[1];
+    push_packet_lc245_2(game, &base_pkt);
+
+    int pos = 2;
+    while( pos < n )
+    {
+        int zone_opcode = (uint8_t)data[pos++];
+        int payload_size = zone_inner_payload_size(zone_opcode);
+        if( payload_size < 0 )
+        {
+            printf("[zone_enclosed] unknown opcode %d at pos %d, aborting inner loop\n",
+                zone_opcode, pos - 1);
+            break;
+        }
+        if( pos + payload_size > n )
+        {
+            printf("[zone_enclosed] truncated inner packet opcode=%d need=%d have=%d\n",
+                zone_opcode, payload_size, n - pos);
+            break;
+        }
+
+        struct RevServerProtPacket inner_pkt;
+        memset(&inner_pkt, 0, sizeof(inner_pkt));
+        if( parse_zone_inner(zone_opcode, data + pos, payload_size, &inner_pkt) )
+        {
+            if( zone_opcode == PKTIN_LC245_2_LOC_ADD_CHANGE
+                || zone_opcode == PKTIN_LC245_2_LOC_DEL )
+            {
+                printf(
+                    "[zone_loc] ENCLOSED queued inner opcode=%d (after header sets zone_base)\n",
+                    zone_opcode);
+            }
+            push_packet_lc245_2(game, &inner_pkt);
+        }
+
+        pos += payload_size;
+    }
+
+    return 1;
+}
+
 int
 serverprot_netrev245_2_parse_and_enqueue(
     struct GGame* game,
@@ -503,6 +627,11 @@ serverprot_netrev245_2_parse_and_enqueue(
     uint8_t* data,
     int n)
 {
+    /* UPDATE_ZONE_PARTIAL_ENCLOSED carries nested zone sub-packets; fan them out individually
+     * so each inner packet goes through the normal exec path with the correct zone base. */
+    if( opcode == PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_ENCLOSED )
+        return serverprot_netrev245_2_parse_zone_enclosed(game, data, n);
+
     struct RevServerProtPacket packet;
     memset(&packet, 0, sizeof(struct RevServerProtPacket));
 

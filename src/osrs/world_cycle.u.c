@@ -186,14 +186,16 @@ yaw_turn:;
 anim:;
 }
 
-static void
+/** Returns true when a non-wrapping sequence finished (caller should clear primary track). */
+static bool
 world_cycle_step_animation(
     struct EntityAnimationStep* animation_step,
     struct Scene2Frames* frames,
-    int cycles_elapsed)
+    int cycles_elapsed,
+    bool wrap_at_end)
 {
     if( !animation_step || !frames || frames->count == 0 )
-        return;
+        return false;
 
     assert(frames->lengths != NULL);
     assert(frames->frames != NULL);
@@ -202,6 +204,8 @@ world_cycle_step_animation(
     {
         if( animation_step->frame >= frames->count )
         {
+            if( !wrap_at_end )
+                return true;
             animation_step->frame = 0;
             animation_step->cycle = 0;
         }
@@ -214,11 +218,14 @@ world_cycle_step_animation(
 
             if( animation_step->frame >= frames->count )
             {
+                if( !wrap_at_end )
+                    return true;
                 animation_step->frame = 0;
                 animation_step->cycle = 0;
             }
         }
     }
+    return false;
 }
 
 /** Primary/secondary sequence id; 0 = memset/unset, (uint16_t)-1 = cleared via set_animation(-1).
@@ -229,24 +236,29 @@ world_cycle_entity_anim_track_enabled(uint16_t anim_id)
     return anim_id != 0 && anim_id != (uint16_t)-1;
 }
 
-static void
+static bool
 world_cycle_step_element_animations(
     struct EntityAnimation* animation,
     struct Scene2Element* scene_element,
-    int cycles_elapsed)
+    int cycles_elapsed,
+    bool primary_wrap)
 {
     if( !animation )
-        return;
+        return false;
 
     struct Scene2Frames* primary = scene2_element_primary_frames(scene_element);
     struct Scene2Frames* secondary = scene2_element_secondary_frames(scene_element);
+    bool primary_done = false;
     /* Step only tracks the entity actually uses. Scene2 can still hold stale frame lists for a
      * cleared slot; stepping those would advance timers twice per 50Hz tick (notably projectiles
      * that only drive primary). */
     if( primary && world_cycle_entity_anim_track_enabled(animation->primary_anim.anim_id) )
-        world_cycle_step_animation(&animation->primary_anim, primary, cycles_elapsed);
+        primary_done = world_cycle_step_animation(
+            &animation->primary_anim, primary, cycles_elapsed, primary_wrap);
     if( secondary && world_cycle_entity_anim_track_enabled(animation->secondary_anim.anim_id) )
-        world_cycle_step_animation(&animation->secondary_anim, secondary, cycles_elapsed);
+        (void)world_cycle_step_animation(
+            &animation->secondary_anim, secondary, cycles_elapsed, true);
+    return primary_done;
 }
 
 static void
@@ -263,14 +275,16 @@ world_cycle_advance_map_build_loc_entity_animation(
     {
         scene_element = scene2_element_at(world->scene2, entity->scene_element.element_id);
         scene2_element_expect(scene_element, "world_cycle map_build_loc primary");
-        world_cycle_step_element_animations(&entity->animation, scene_element, cycles_elapsed);
+        world_cycle_step_element_animations(
+            &entity->animation, scene_element, cycles_elapsed, true);
     }
 
     if( entity->scene_element_two.element_id != -1 )
     {
         scene_element = scene2_element_at(world->scene2, entity->scene_element_two.element_id);
         scene2_element_expect(scene_element, "world_cycle map_build_loc secondary");
-        world_cycle_step_element_animations(&entity->animation_two, scene_element, cycles_elapsed);
+        world_cycle_step_element_animations(
+            &entity->animation_two, scene_element, cycles_elapsed, true);
     }
 }
 
@@ -307,11 +321,11 @@ world_cycle_update_player_movement_and_animation(
     int seqId = update_entity_movement_and_animation(world, &info);
     if( seqId == -1 )
     {
-        world_player_entity_set_animation(world, player_id, -1, ANIMATION_TYPE_SECONDARY);
+        world_player_entity_set_animation(world, player_id, -1, ANIMATION_TYPE_SECONDARY, 0);
     }
     else if( seqId != info.animation->secondary_anim.anim_id )
     {
-        world_player_entity_set_animation(world, player_id, seqId, ANIMATION_TYPE_SECONDARY);
+        world_player_entity_set_animation(world, player_id, seqId, ANIMATION_TYPE_SECONDARY, 0);
     }
 }
 
@@ -325,7 +339,24 @@ world_cycle_advance_player_animation(
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, player->scene_element2.element_id);
     scene2_element_expect(scene_element, "world_cycle_advance_player_animation");
-    world_cycle_step_element_animations(&player->animation, scene_element, cycles_elapsed);
+
+    if( world_cycle_entity_anim_track_enabled(player->animation.primary_anim.anim_id) &&
+        player->animation.primary_anim.delay > 0 )
+    {
+        for( int i = 0; i < cycles_elapsed; i++ )
+        {
+            if( player->animation.primary_anim.delay == 0 )
+                break;
+            player->animation.primary_anim.delay--;
+            if( player->animation.primary_anim.delay == 0 )
+                world_player_entity_refresh_scene2_appearance_mesh(world, player_id);
+        }
+        return;
+    }
+
+    if( world_cycle_step_element_animations(
+            &player->animation, scene_element, cycles_elapsed, false) )
+        world_player_entity_set_animation(world, player_id, -1, ANIMATION_TYPE_PRIMARY, 0);
 }
 
 static void
@@ -448,7 +479,9 @@ world_cycle_advance_npc_animation(
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, npc->scene_element2.element_id);
     scene2_element_expect(scene_element, "world_cycle_advance_npc_animation");
-    world_cycle_step_element_animations(&npc->animation, scene_element, cycles_elapsed);
+    if( world_cycle_step_element_animations(
+            &npc->animation, scene_element, cycles_elapsed, false) )
+        world_npc_entity_set_animation(world, npc_id, -1, ANIMATION_TYPE_PRIMARY);
 }
 
 static void
@@ -562,7 +595,8 @@ world_cycle_update_projectiles(
             continue;
         }
 
-        world_cycle_step_element_animations(&p->animation, scene_element, cycles_elapsed);
+        world_cycle_step_element_animations(
+            &p->animation, scene_element, cycles_elapsed, true);
     }
 }
 

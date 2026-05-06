@@ -200,7 +200,12 @@ function M.rebuild_normal_v1(item)
     if #terrain_requests > 0 then
         local terrain_archives = CacheDat.load_archives(terrain_requests)
         for i, map_id in ipairs(terrain_map_ids) do
-            Game.BuildCacheDat.map_terrain_cache_add(terrain_archives[i], map_id)
+            if terrain_archives[i] then
+                Game.BuildCacheDat.map_terrain_cache_add(terrain_archives[i], map_id)
+            else
+                print(string.format("map_terrain missing for map_id 0x%08x (%d,%d) - skipping",
+                    map_id, map_id >> 16, map_id & 0xFFFF))
+            end
         end
     end
 
@@ -223,7 +228,12 @@ function M.rebuild_normal_v1(item)
     if #scenery_requests > 0 then
         local scenery_archives = CacheDat.load_archives(scenery_requests)
         for i, map_id in ipairs(scenery_map_ids) do
-            Game.BuildCacheDat.map_scenery_cache_add(scenery_archives[i], map_id)
+            if scenery_archives[i] then
+                Game.BuildCacheDat.map_scenery_cache_add(scenery_archives[i], map_id)
+            else
+                print(string.format("map_scenery missing for map_id 0x%08x (%d,%d) - skipping",
+                    map_id, map_id >> 16, map_id & 0xFFFF))
+            end
         end
     end
 
@@ -314,6 +324,20 @@ function M.player_info_v1(item)
         sources[#sources + 1] = { Game.BuildCacheDat.get_obj_head_model_ids, obj_id, 0 }
     end
     M.load_models_from_sources(sources)
+
+    -- Load animation frames and held-item wear models for any sequence ops in this packet.
+    ensure_sequences_loaded()
+    local seq_ids = Game.BuildCacheDat.get_player_info_sequence_ids(data, length)
+    local held_sources = {}
+    for _, seq_id in ipairs(seq_ids) do
+        M.load_anims_for_seq(seq_id)
+        local held_obj_ids = Game.BuildCacheDat.get_sequence_held_obj_ids(seq_id)
+        for _, obj_id in ipairs(held_obj_ids) do
+            held_sources[#held_sources + 1] = { Game.BuildCacheDat.get_obj_model_ids, obj_id }
+            held_sources[#held_sources + 1] = { Game.BuildCacheDat.get_obj_head_model_ids, obj_id, 0 }
+        end
+    end
+    M.load_models_from_sources(held_sources)
 
     Game.Game.exec_packet(item)
 end

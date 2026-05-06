@@ -267,7 +267,14 @@ LibToriRS_GameProcessInput(
         if( game->mouse.buttons[TORIRSM_LEFT].press_this_frame )
             interface_inv_try_drag_mouse_down(game, mx, my);
 
-        interface_inv_drag_tick(game);
+        /* Client.ts increments objDragCycles once per mainloop tick, and GameShell
+         * runs up to ~50 ticks per second regardless of render frame rate.  The C
+         * port calls GameProcessInput once per rendered frame, so we advance the
+         * cycle counter by time_quanta (the number of logical 1/50s ticks that
+         * elapsed this frame) to keep the >= 5 threshold consistent with TS. */
+        int const n_drag_ticks = time_quanta > 0 ? time_quanta : 1;
+        for( int i = 0; i < n_drag_ticks; i++ )
+            interface_inv_drag_tick(game);
 
         if( game->mouse.buttons[TORIRSM_LEFT].release_this_frame )
             interface_inv_try_drag_mouse_up(game, input);

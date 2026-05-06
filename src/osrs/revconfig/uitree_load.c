@@ -466,6 +466,8 @@ component_type_from_string(const char* str)
         return UIELEM_BUILTIN_CHAT_INPUT;
     else if( strcmp(str, "chat_privacy") == 0 )
         return UIELEM_BUILTIN_CHAT_PRIVACY;
+    else if( strcmp(str, "collisionmap_overlay") == 0 )
+        return UIELEM_BUILTIN_COLLISIONMAP_OVERLAY;
 
     assert(0 && "Unknown component type");
     return 0;
@@ -1590,6 +1592,13 @@ load_layout(
                 if( layout_entry->always_dirty )
                     ui->components[idx].always_dirty = 1;
             }
+        }
+        break;
+        case UIELEM_BUILTIN_COLLISIONMAP_OVERLAY:
+        {
+            uitree_push_collisionmap_overlay(ui, -1);
+            if( game )
+                game->debug_collisionmap_overlay = true;
         }
         break;
         case UIELEM_BUILTIN_REDSTONE_TAB:

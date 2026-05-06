@@ -122,6 +122,9 @@ struct GGame
     /** When true, world step emits TORIRS_GFX_DRAW_LINE path overlays (Soft3D handles draw).
      * Defaults to true in LibToriRS_GameNew; set false to disable. */
     bool debug_entity_pathing;
+    /** When true, world step emits TORIRS_GFX_DRAW_LINE collision map edges at terrain height.
+     * Enabled by [component:collisionmap_overlay] in the UI INI; toggled via Nuklear debug panel. */
+    bool debug_collisionmap_overlay;
     /** Most recently sent BFS walk path (scene-local tiles); length==0 when none. */
     struct GameSentPath sent_path;
 

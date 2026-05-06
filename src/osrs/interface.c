@@ -2329,9 +2329,34 @@ interface_inv_try_drag_mouse_up(struct GGame* game, struct GInput* input)
     iface->inv_drag_cycles         = 0;
     iface->inv_drag_grab_threshold = 0;
 
-    if( th && cycles >= 5 && GAME_NET_STATE_GAME == game->net_state && game->mouse.cursor_x >= 0 &&
-        game->mouse.cursor_y >= 0 )
     {
+        char const* dbg = getenv("TORI_DEBUG_INV_DRAG");
+        if( dbg && dbg[0] && strcmp(dbg, "0") != 0 )
+            fprintf(
+                stderr,
+                "[TORI_DEBUG_INV_DRAG] mouse_up: th=%d cycles=%d net_state=%d "
+                "comp=%d from_slot=%d grab=(%d,%d)\n",
+                th,
+                cycles,
+                (int)game->net_state,
+                comp,
+                from_slot,
+                grab_x,
+                grab_y);
+    }
+
+    /* Gesture qualified as a drag (moved far enough, held long enough).
+     * GAME_NET_STATE_GAME mirrors Client.ts implicit assumption: INV_BUTTOND is
+     * only meaningful while connected.  If not in-game we absorb the release
+     * silently rather than falling through to fire the primary item action (which
+     * would be wrong — the user was visually dragging, not clicking). */
+    if( th && cycles >= 5 )
+    {
+        if( GAME_NET_STATE_GAME != game->net_state )
+            return;
+        if( game->mouse.cursor_x < 0 || game->mouse.cursor_y < 0 )
+            return;
+
         uitree_sync_hover_option_set(game, game->mouse.cursor_x, game->mouse.cursor_y);
         int to_comp =
             game->ui_root_buffer ? game->ui_root_buffer->hover_inv_component_id : -1;
@@ -2359,6 +2384,9 @@ interface_inv_try_drag_mouse_up(struct GGame* game, struct GInput* input)
         return;
     }
 
+    /* Gesture did not qualify as drag (no threshold / too fast): treat as a
+     * regular left-click at the original grab position, matching Client.ts
+     * which falls through to doAction(menuNumEntries-1) in that case. */
     minimenu_game_use_primary_at(game, input, grab_x, grab_y);
 }
 

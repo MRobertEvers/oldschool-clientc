@@ -227,6 +227,11 @@ dup_sequence(struct CacheDatSequence const* s)
             memcpy(d->delay, s->delay, (size_t)s->frame_count * sizeof(int));
         }
     }
+    d->replaceheldleft = s->replaceheldleft;
+    d->replaceheldright = s->replaceheldright;
+    /* Client.ts: priority defaults to 5 when not present in seq.dat (struct was zeroed). */
+    d->priority = s->priority != 0 ? s->priority : 5;
+    d->duplicate_behavior = s->duplicate_behavior;
     /* iframes and walkmerge dropped */
     return d;
 }

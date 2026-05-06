@@ -158,7 +158,8 @@ gamenet_rev245_2_exec_npc_info_v1(
             world_npc_entity_path_push_step(
                 game->world,
                 npc_id,
-                op->kind == PKT_SERVER_PROT_NPC_INFO_V1_OPBITS_RUNDIR ? PATHSTEP_RUN : PATHSTEP_WALK,
+                op->kind == PKT_SERVER_PROT_NPC_INFO_V1_OPBITS_RUNDIR ? PATHSTEP_RUN
+                                                                      : PATHSTEP_WALK,
                 direction);
             break;
         }
@@ -237,7 +238,10 @@ player_info_apply_ops_v1(
     struct PlayerEntity* active_player = world_player(game->world, ACTIVE_PLAYER_SLOT);
 
     int count = pkt_player_info_reader_read(
-        &player_info_reader, (struct PktServerProt_PlayerInfo_v1*)&packet->u.player_info_v1, ops, 2048);
+        &player_info_reader,
+        (struct PktServerProt_PlayerInfo_v1*)&packet->u.player_info_v1,
+        ops,
+        2048);
     int player_id = -1;
 
     struct PlayerEntity* player = NULL;
@@ -294,7 +298,8 @@ player_info_apply_ops_v1(
             world_player_entity_path_push_step(
                 game->world,
                 player_id,
-                op->kind == PKT_SERVER_PROT_PLAYER_INFO_V1_OPBITS_RUNDIR ? PATHSTEP_RUN : PATHSTEP_WALK,
+                op->kind == PKT_SERVER_PROT_PLAYER_INFO_V1_OPBITS_RUNDIR ? PATHSTEP_RUN
+                                                                         : PATHSTEP_WALK,
                 direction);
             break;
         }
@@ -359,7 +364,8 @@ player_info_apply_ops_v1(
             if( seq_id == 65535 )
                 seq_id = -1;
             world_player_entity_set_animation(
-                game->world, player_id, seq_id, ANIMATION_TYPE_PRIMARY);
+                game->world, player_id, seq_id, ANIMATION_TYPE_PRIMARY,
+                op->_sequence.delay);
             break;
         }
         case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_DAMAGE:
@@ -404,8 +410,7 @@ player_info_apply_ops_v1(
         {
             if( game->chat && op->_chat.text )
             {
-                const char* sender =
-                    (player && player->name.name[0]) ? player->name.name : "";
+                const char* sender = (player && player->name.name[0]) ? player->name.name : "";
                 chat_add(game->chat, game, op->_chat.type, sender, (const char*)op->_chat.text);
             }
             free(op->_chat.text);
@@ -478,7 +483,10 @@ gamenet_rev245_2_exec_rebuild_normal_world_v1(
     int dz = new_base_z - prev_base_z;
 
     world_buildcachedat_rebuild_centerzone(
-        world, packet->u.map_rebuild_v1.zonex, packet->u.map_rebuild_v1.zonez, GAMEPROTO_SCENE_WIDTH_TILES);
+        world,
+        packet->u.map_rebuild_v1.zonex,
+        packet->u.map_rebuild_v1.zonez,
+        GAMEPROTO_SCENE_WIDTH_TILES);
 
     for( int i = 0; i < world->active_npc_count; i++ )
     {
@@ -1441,27 +1449,32 @@ gamenet_rev245_2_exec_loc_add_change_v1(
     int info = packet->u.loc_add_change_v1.info;
     int shape = info >> 2;
     int angle = info & 0x3;
-    int loc_id = packet->u.loc_add_change_v1.loc_id;
+    /* Wire loc id may set high bits (same convention as OBJ); cache keys are 15-bit ids. */
+    int loc_id = packet->u.loc_add_change_v1.loc_id & 0x7fff;
+
+    printf(
+        "[zone_loc] LOC_ADD_CHANGE zone_base=(%d,%d) pos=%02x tile=(%d,%d) shape=%d angle=%d "
+        "loc_id=%d\n",
+        game->zone_base_x,
+        game->zone_base_z,
+        packet->u.loc_add_change_v1.pos,
+        x,
+        z,
+        shape,
+        angle,
+        loc_id);
 
     if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
+    {
+        printf(
+            "[zone_loc] LOC_ADD_CHANGE OOB skipped tile=(%d,%d) (need valid zone_base before this "
+            "packet)\n",
+            x,
+            z);
         return;
+    }
 
-    struct LocChangeEntry* entry = (struct LocChangeEntry*)malloc(sizeof(struct LocChangeEntry));
-    entry->level = 0;
-    entry->x = x;
-    entry->z = z;
-    entry->layer = 0; /* Layer from LocShape would require config lookup */
-    entry->old_type = -1;
-    entry->new_type = loc_id;
-    entry->old_shape = 0;
-    entry->new_shape = shape;
-    entry->old_angle = 0;
-    entry->new_angle = angle;
-    entry->start_time = 0;
-    entry->end_time = -1;
-    entry->anim_seq_id = -1;
-    entry->next = game->loc_changes_head;
-    game->loc_changes_head = entry;
+    entity_scenebuild_loc_apply_change(game, x, z, shape, angle, loc_id);
 }
 
 void
@@ -1475,25 +1488,23 @@ gamenet_rev245_2_exec_loc_del_v1(
     int shape = info >> 2;
     int angle = info & 0x3;
 
-    if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
-        return;
+    printf(
+        "[zone_loc] LOC_DEL zone_base=(%d,%d) pos=%02x tile=(%d,%d) shape=%d angle=%d\n",
+        game->zone_base_x,
+        game->zone_base_z,
+        packet->u.loc_del_v1.pos,
+        x,
+        z,
+        shape,
+        angle);
 
-    struct LocChangeEntry* entry = (struct LocChangeEntry*)malloc(sizeof(struct LocChangeEntry));
-    entry->level = 0;
-    entry->x = x;
-    entry->z = z;
-    entry->layer = 0;
-    entry->old_type = 0;
-    entry->new_type = -1;
-    entry->old_shape = shape;
-    entry->new_shape = 0;
-    entry->old_angle = angle;
-    entry->new_angle = 0;
-    entry->start_time = 0;
-    entry->end_time = -1;
-    entry->anim_seq_id = -1;
-    entry->next = game->loc_changes_head;
-    game->loc_changes_head = entry;
+    if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
+    {
+        printf("[zone_loc] LOC_DEL OOB skipped tile=(%d,%d)\n", x, z);
+        return;
+    }
+
+    entity_scenebuild_loc_apply_del(game, x, z, shape, angle);
 }
 
 void
@@ -1502,7 +1513,8 @@ gamenet_rev245_2_exec_if_openchat_v1(
     struct RevServerProtPacket* packet)
 {
     if( game->iface )
-        game->iface->chat_interface_id = if_decode_component_id(packet->u.if_openchat_v1.component_id);
+        game->iface->chat_interface_id =
+            if_decode_component_id(packet->u.if_openchat_v1.component_id);
 }
 
 void
@@ -1800,7 +1812,8 @@ gamenet_rev245_2_exec_reset_anims_v1(
         if( npc && npc->alive )
             world_npc_entity_set_animation(game->world, npc_id, -1, ANIMATION_TYPE_PRIMARY);
     }
-    world_player_entity_set_animation(game->world, ACTIVE_PLAYER_SLOT, -1, ANIMATION_TYPE_PRIMARY);
+    world_player_entity_set_animation(game->world, ACTIVE_PLAYER_SLOT, -1, ANIMATION_TYPE_PRIMARY,
+                                      0);
 }
 
 void
@@ -1844,8 +1857,12 @@ gamenet_rev245_2_exec_update_zone_partial_follows_v1(
     struct GGame* game,
     struct RevServerProtPacket* packet)
 {
-    game->zone_base_x = packet->u.update_zone_partial_follows_v1.base_x * 8;
-    game->zone_base_z = packet->u.update_zone_partial_follows_v1.base_z * 8;
+    game->zone_base_x = packet->u.update_zone_partial_follows_v1.base_x;
+    game->zone_base_z = packet->u.update_zone_partial_follows_v1.base_z;
+    printf(
+        "[zone_loc] UPDATE_ZONE_PARTIAL_FOLLOWS zone_base=(%d,%d)\n",
+        game->zone_base_x,
+        game->zone_base_z);
 }
 
 void
@@ -1853,8 +1870,41 @@ gamenet_rev245_2_exec_update_zone_full_follows_v1(
     struct GGame* game,
     struct RevServerProtPacket* packet)
 {
-    game->zone_base_x = packet->u.update_zone_full_follows_v1.base_x * 8;
-    game->zone_base_z = packet->u.update_zone_full_follows_v1.base_z * 8;
+    int bx = packet->u.update_zone_full_follows_v1.base_x;
+    int bz = packet->u.update_zone_full_follows_v1.base_z;
+    game->zone_base_x = bx;
+    game->zone_base_z = bz;
+    printf(
+        "[zone_loc] UPDATE_ZONE_FULL_FOLLOWS zone_base=(%d,%d) clear_ground_obj_8x8\n",
+        bx,
+        bz);
+
+    /* Clear any stale ground-object stacks in the refreshed 8×8 zone, mirroring Client.ts. */
+    struct World* w = game->world;
+    if( !w || !w->obj_stacks )
+        return;
+
+    int level = 0;
+    for( int sx = bx; sx < bx + 8; sx++ )
+    {
+        for( int sz = bz; sz < bz + 8; sz++ )
+        {
+            if( sx < 0 || sx >= ZONE_SCENE_SIZE || sz < 0 || sz >= ZONE_SCENE_SIZE )
+                continue;
+
+            struct ObjStackEntry** cell = &w->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz];
+            struct ObjStackEntry* e = *cell;
+            while( e )
+            {
+                struct ObjStackEntry* next = e->next;
+                free(e);
+                e = next;
+            }
+            *cell = NULL;
+
+            entity_scenebuild_obj_stack_update_tile(game, level, sx, sz);
+        }
+    }
 }
 
 void
@@ -1862,8 +1912,12 @@ gamenet_rev245_2_exec_update_zone_partial_enclosed_v1(
     struct GGame* game,
     struct RevServerProtPacket* packet)
 {
-    game->zone_base_x = packet->u.update_zone_partial_follows_v1.base_x * 8;
-    game->zone_base_z = packet->u.update_zone_partial_follows_v1.base_z * 8;
+    game->zone_base_x = packet->u.update_zone_partial_follows_v1.base_x;
+    game->zone_base_z = packet->u.update_zone_partial_follows_v1.base_z;
+    printf(
+        "[zone_loc] UPDATE_ZONE_PARTIAL_ENCLOSED header zone_base=(%d,%d) (inner packets follow)\n",
+        game->zone_base_x,
+        game->zone_base_z);
 }
 
 void
@@ -1873,23 +1927,14 @@ gamenet_rev245_2_exec_loc_anim_v1(
 {
     int x = zone_tile_x(game, packet->u.loc_anim_v1.pos);
     int z = zone_tile_z(game, packet->u.loc_anim_v1.pos);
+    int info = packet->u.loc_anim_v1.info;
+    int shape = info >> 2;
     int seq_id = packet->u.loc_anim_v1.seq_id;
 
     if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
         return;
 
-    /* Record as a LocChangeEntry with anim_seq_id for the tick loop to apply. */
-    struct LocChangeEntry* entry = (struct LocChangeEntry*)malloc(sizeof(struct LocChangeEntry));
-    memset(entry, 0, sizeof(*entry));
-    entry->level = 0;
-    entry->x = x;
-    entry->z = z;
-    entry->old_type = -1;
-    entry->new_type = -1;
-    entry->end_time = -1;
-    entry->anim_seq_id = seq_id;
-    entry->next = game->loc_changes_head;
-    game->loc_changes_head = entry;
+    entity_scenebuild_loc_apply_anim(game, x, z, shape, seq_id);
 }
 
 void
@@ -1897,35 +1942,19 @@ gamenet_rev245_2_exec_loc_merge_v1(
     struct GGame* game,
     struct RevServerProtPacket* packet)
 {
-    /* LOC_MERGE: add/change with associated player entity merging.
-     * Treated as LOC_ADD_CHANGE with the given loc_id; the pid reference
-     * is stored as start/end time for future entity-attach logic. */
+    /* LOC_MERGE: treat as LOC_ADD_CHANGE for visual/collision purposes.
+     * Player-entity merging is a future follow-up. */
     int x = zone_tile_x(game, packet->u.loc_merge_v1.pos);
     int z = zone_tile_z(game, packet->u.loc_merge_v1.pos);
     int info = packet->u.loc_merge_v1.info;
     int shape = info >> 2;
     int angle = info & 0x3;
-    int loc_id = packet->u.loc_merge_v1.loc_id;
+    int loc_id = packet->u.loc_merge_v1.loc_id & 0x7fff;
 
     if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
         return;
 
-    struct LocChangeEntry* entry = (struct LocChangeEntry*)malloc(sizeof(struct LocChangeEntry));
-    memset(entry, 0, sizeof(*entry));
-    entry->level = 0;
-    entry->x = x;
-    entry->z = z;
-    entry->old_type = -1;
-    entry->new_type = loc_id;
-    entry->old_shape = 0;
-    entry->new_shape = shape;
-    entry->old_angle = 0;
-    entry->new_angle = angle;
-    entry->start_time = packet->u.loc_merge_v1.start;
-    entry->end_time = packet->u.loc_merge_v1.end;
-    entry->anim_seq_id = -1;
-    entry->next = game->loc_changes_head;
-    game->loc_changes_head = entry;
+    entity_scenebuild_loc_apply_change(game, x, z, shape, angle, loc_id);
 }
 
 void
@@ -2020,7 +2049,8 @@ gamenet_rev245_2_exec_message_game_v1(
     struct RevServerProtPacket* packet)
 {
     if( packet->u.message_game_v1.text )
-        game_add_message(game, 0 /* Client.ts type 0 game/system */, packet->u.message_game_v1.text, NULL);
+        game_add_message(
+            game, 0 /* Client.ts type 0 game/system */, packet->u.message_game_v1.text, NULL);
 }
 
 static void
@@ -2064,7 +2094,8 @@ gamenet_rev245_2_exec_message_private_v1(
     }
 
     if( packet->u.message_private_v1.text )
-        game_add_message(game, 3 /* type: private from */, packet->u.message_private_v1.text, sender);
+        game_add_message(
+            game, 3 /* type: private from */, packet->u.message_private_v1.text, sender);
 }
 
 static void

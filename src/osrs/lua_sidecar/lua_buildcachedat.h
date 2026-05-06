@@ -230,6 +230,16 @@ LuaBuildCacheDat_get_sequence_animbaseframes_ids(
     struct LuaGameType* args);
 
 struct LuaGameType*
+LuaBuildCacheDat_get_sequence_held_obj_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_get_player_info_sequence_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
 LuaBuildCacheDat_scenery_config_load_mapchunk_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
