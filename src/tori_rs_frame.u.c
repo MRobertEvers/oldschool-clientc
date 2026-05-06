@@ -2827,6 +2827,34 @@ frame_point_in_component_xy(
     return px >= x && px < x + w && py >= y && py < y + h;
 }
 
+/** Client.ts tabLoop(): bottom sidebar icon row (sideOverlayId[7..13]) before chatModeLoop. */
+static bool
+frame_try_ts_bottom_sidebar_tabs(struct GGame* game, int mx, int my)
+{
+    struct InterfaceState* iface = game->iface;
+    if( !iface )
+        return false;
+
+#define TAB_BOTTOM_HIT(x0, x1, y0, y1, tab_idx)                                             \
+    if( (mx) >= (x0) && (mx) <= (x1) && (my) >= (y0) && (my) < (y1) &&                       \
+         iface->tab_interface_id[(tab_idx)] >= 0 )                                          \
+    {                                                                                       \
+        iface->selected_tab = (tab_idx);                                                    \
+        return true;                                                                        \
+    }
+
+    TAB_BOTTOM_HIT(540, 574, 466, 502, 7);
+    TAB_BOTTOM_HIT(572, 602, 466, 503, 8);
+    TAB_BOTTOM_HIT(599, 629, 466, 503, 9);
+    TAB_BOTTOM_HIT(627, 671, 467, 502, 10);
+    TAB_BOTTOM_HIT(669, 699, 466, 503, 11);
+    TAB_BOTTOM_HIT(696, 726, 466, 503, 12);
+    TAB_BOTTOM_HIT(724, 758, 466, 502, 13);
+#undef TAB_BOTTOM_HIT
+
+    return false;
+}
+
 static void
 frame_handle_interface_and_world_clicks(struct GGame* game)
 {
@@ -2850,6 +2878,13 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
             game->interface_consumed_click = 1;
             return;
         }
+    }
+
+    if( !game->interface_consumed_click &&
+        frame_try_ts_bottom_sidebar_tabs(game, game->mouse_clicked_x, game->mouse_clicked_y) )
+    {
+        game->interface_consumed_click = 1;
+        return;
     }
 
     if( !game->interface_consumed_click && game->chat &&

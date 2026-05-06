@@ -1,5 +1,6 @@
 -- Single dispatcher: drain game packet queue, preload assets per type, then exec via Game.Game.exec_packet.
 local CacheDat = require("cachedat")
+local RevCache = require("rev245_2_cache")
 local PKT = require("packet_types")
 
 local SCENE_WIDTH = 104
@@ -176,27 +177,7 @@ local function handle_rebuild_normal(item)
         Game.GameCache.convert_loc_configs_chunk_from_buildcachedat(chunk.x, chunk.z)
     end
 
-    local models_to_load = Game.BuildCacheDat.get_all_unique_scenery_model_ids()
-    local model_requests = {}
-    local models_needed = {}
-    for _, model_id in ipairs(models_to_load) do
-        if not Game.BuildCacheDat.model_cache_has(model_id) then
-            table.insert(model_requests, {
-                table_id = CacheDat.Tables.CACHE_DAT_MODELS,
-                archive_id = model_id,
-                flags = 0,
-            })
-            table.insert(models_needed, model_id)
-        end
-    end
-    if #model_requests > 0 then
-        local model_archives = CacheDat.load_archives(model_requests)
-        for i, model_id in ipairs(models_needed) do
-            Game.BuildCacheDat.model_cache_add(model_archives[i], model_id)
-        end
-    end
-
-    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+    RevCache.load_models(Game.BuildCacheDat.get_all_unique_scenery_model_ids())
 
     Game.Game.exec_packet(item)
 
@@ -220,56 +201,16 @@ local function handle_player_info(item)
     Game.GameCache.convert_objs_from_buildcachedat()
 
     local idk_ids, obj_ids = Game.BuildCacheDat.get_player_appearance_ids_from_packet(data, length)
-    local seen = {}
-    local queued_model_ids = {}
-
-    local function queue_unique(model_id)
-        if not model_id or model_id == 0 then
-            return
-        end
-        if seen[model_id] then
-            return
-        end
-        seen[model_id] = true
-        table.insert(queued_model_ids, model_id)
-    end
-
+    local sources = {}
     for _, idk_id in ipairs(idk_ids) do
-        for _, model_id in ipairs(Game.BuildCacheDat.get_idk_model_ids(idk_id)) do
-            queue_unique(model_id)
-        end
-        for _, model_id in ipairs(Game.BuildCacheDat.get_idk_head_model_ids(idk_id)) do
-            queue_unique(model_id)
-        end
+        sources[#sources + 1] = { Game.BuildCacheDat.get_idk_model_ids,      idk_id }
+        sources[#sources + 1] = { Game.BuildCacheDat.get_idk_head_model_ids, idk_id }
     end
     for _, obj_id in ipairs(obj_ids) do
-        for _, model_id in ipairs(Game.BuildCacheDat.get_obj_model_ids(obj_id)) do
-            queue_unique(model_id)
-        end
-        for _, model_id in ipairs(Game.BuildCacheDat.get_obj_head_model_ids(obj_id, 0)) do
-            queue_unique(model_id)
-        end
+        sources[#sources + 1] = { Game.BuildCacheDat.get_obj_model_ids,      obj_id    }
+        sources[#sources + 1] = { Game.BuildCacheDat.get_obj_head_model_ids, obj_id, 0 }
     end
-
-    local model_requests = {}
-    local models_needed = {}
-    for _, model_id in ipairs(queued_model_ids) do
-        if not Game.BuildCacheDat.model_cache_has(model_id) then
-            table.insert(
-                model_requests,
-                { table_id = CacheDat.Tables.CACHE_DAT_MODELS, archive_id = model_id, flags = 0 }
-            )
-            table.insert(models_needed, model_id)
-        end
-    end
-    if #model_requests > 0 then
-        local model_archives = CacheDat.load_archives(model_requests)
-        for i, model_id in ipairs(models_needed) do
-            Game.BuildCacheDat.model_cache_add(model_archives[i], model_id)
-        end
-    end
-
-    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+    RevCache.load_models_from_sources(sources)
 
     Game.Game.exec_packet(item)
 end
@@ -289,50 +230,12 @@ local function handle_npc_info(item)
     Game.GameCache.convert_npcs_from_buildcachedat()
 
     local npc_ids = Game.BuildCacheDat.get_npc_ids_from_packet(data, length)
-
-    local seen = {}
-    local queued_model_ids = {}
-
-    local function queue_unique(model_id)
-        if not model_id or model_id == 0 then
-            return
-        end
-        if seen[model_id] then
-            return
-        end
-        seen[model_id] = true
-        table.insert(queued_model_ids, model_id)
-    end
-
+    local sources = {}
     for _, npc_id in ipairs(npc_ids) do
-        for _, model_id in ipairs(Game.BuildCacheDat.get_npc_model_ids(npc_id)) do
-            queue_unique(model_id)
-        end
-        for _, model_id in ipairs(Game.BuildCacheDat.get_npc_head_model_ids(npc_id)) do
-            queue_unique(model_id)
-        end
+        sources[#sources + 1] = { Game.BuildCacheDat.get_npc_model_ids,      npc_id }
+        sources[#sources + 1] = { Game.BuildCacheDat.get_npc_head_model_ids, npc_id }
     end
-
-    local model_requests = {}
-    local models_needed = {}
-    for _, model_id in ipairs(queued_model_ids) do
-        if not Game.BuildCacheDat.model_cache_has(model_id) then
-            table.insert(model_requests, {
-                table_id = CacheDat.Tables.CACHE_DAT_MODELS,
-                archive_id = model_id,
-                flags = 0,
-            })
-            table.insert(models_needed, model_id)
-        end
-    end
-    if #model_requests > 0 then
-        local model_archives = CacheDat.load_archives(model_requests)
-        for i, model_id in ipairs(models_needed) do
-            Game.BuildCacheDat.model_cache_add(model_archives[i], model_id)
-        end
-    end
-
-    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+    RevCache.load_models_from_sources(sources)
 
     Game.Game.exec_packet(item)
 end
@@ -347,36 +250,11 @@ local function handle_update_inv_full(item)
     ensure_objects_loaded()
 
     local obj_ids = Game.Game.get_inv_obj_ids(item)
-    local seen = {}
-    local models_to_load = {}
-    local models_needed = {}
-
+    local sources = {}
     for _, oid in ipairs(obj_ids) do
-        local actual_obj_id = oid - 1
-        local model_ids = Game.BuildCacheDat.get_obj_model_ids(actual_obj_id)
-        for _, model_id in ipairs(model_ids) do
-            if model_id ~= 0 and not seen[model_id] then
-                seen[model_id] = true
-                if not Game.BuildCacheDat.model_cache_has(model_id) then
-                    table.insert(models_to_load, {
-                        table_id = CacheDat.Tables.CACHE_DAT_MODELS,
-                        archive_id = model_id,
-                        flags = 0,
-                    })
-                    table.insert(models_needed, model_id)
-                end
-            end
-        end
+        sources[#sources + 1] = { Game.BuildCacheDat.get_obj_model_ids, oid - 1 }
     end
-
-    if #models_to_load > 0 then
-        local archives = CacheDat.load_archives(models_to_load)
-        for i, model_id in ipairs(models_needed) do
-            Game.BuildCacheDat.model_cache_add(archives[i], model_id)
-        end
-    end
-
-    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+    RevCache.load_models_from_sources(sources)
 
     Game.Game.exec_packet(item)
 end
@@ -386,39 +264,10 @@ local function handle_if_setobject(item)
     ensure_objects_loaded()
 
     local obj_id = Game.Game.get_pkt_if_setobject_obj_id(item)
-    local seen = {}
-    local model_requests = {}
-    local models_needed = {}
-
-    local function maybe_load(model_id)
-        if model_id ~= 0 and not seen[model_id] then
-            seen[model_id] = true
-            if not Game.BuildCacheDat.model_cache_has(model_id) then
-                table.insert(model_requests, {
-                    table_id = CacheDat.Tables.CACHE_DAT_MODELS,
-                    archive_id = model_id,
-                    flags = 0,
-                })
-                table.insert(models_needed, model_id)
-            end
-        end
-    end
-
-    for _, mid in ipairs(Game.BuildCacheDat.get_obj_model_ids(obj_id)) do
-        maybe_load(mid)
-    end
-    for _, mid in ipairs(Game.BuildCacheDat.get_obj_head_model_ids(obj_id, 0)) do
-        maybe_load(mid)
-    end
-
-    if #model_requests > 0 then
-        local archives = CacheDat.load_archives(model_requests)
-        for i, model_id in ipairs(models_needed) do
-            Game.BuildCacheDat.model_cache_add(archives[i], model_id)
-        end
-    end
-
-    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+    RevCache.load_models_from_sources({
+        { Game.BuildCacheDat.get_obj_model_ids,      obj_id    },
+        { Game.BuildCacheDat.get_obj_head_model_ids, obj_id, 0 },
+    })
 
     Game.Game.exec_packet(item)
 end
@@ -426,40 +275,14 @@ end
 local function handle_if_setmodel(item)
     ensure_interfaces_loaded()
     local model_id = Game.Game.get_pkt_if_setmodel_model_id(item)
-    if model_id and model_id > 0 and not Game.BuildCacheDat.model_cache_has(model_id) then
-        local archive = CacheDat.load_archive(CacheDat.Tables.CACHE_DAT_MODELS, model_id, 0)
-        Game.BuildCacheDat.model_cache_add(archive, model_id)
-    end
-    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+    RevCache.load_models({ model_id })
     Game.Game.exec_packet(item)
 end
 
 local function handle_if_setanim(item)
     ensure_interfaces_loaded()
     ensure_sequences_loaded()
-
-    local anim_id = Game.Game.get_pkt_if_setanim_anim_id(item)
-    if anim_id and anim_id >= 0 then
-        local frame_ids = Game.BuildCacheDat.get_sequence_animbaseframes_ids(anim_id)
-        local anim_requests = {}
-        for _, fid in ipairs(frame_ids) do
-            if not Game.BuildCacheDat.animbaseframes_cache_has(fid) then
-                table.insert(anim_requests, {
-                    table_id = CacheDat.Tables.CACHE_DAT_ANIMATIONS,
-                    archive_id = fid,
-                    flags = 0,
-                })
-            end
-        end
-        if #anim_requests > 0 then
-            local archives = CacheDat.load_archives(anim_requests)
-            for _, archive in ipairs(archives) do
-                Game.BuildCacheDat.animbaseframes_cache_add(archive)
-            end
-        end
-        Game.GameCache.convert_animbaseframes_from_buildcachedat()
-    end
-
+    RevCache.load_anims_for_seq(Game.Game.get_pkt_if_setanim_anim_id(item))
     Game.Game.exec_packet(item)
 end
 
@@ -471,37 +294,7 @@ end
 local function handle_if_setnpchead(item)
     ensure_interfaces_loaded()
     local npc_id = Game.Game.get_pkt_if_setnpchead_npc_id(item)
-    local seen = {}
-    local model_requests = {}
-    local models_needed = {}
-
-    local function maybe_load(model_id)
-        if model_id and model_id > 0 and not seen[model_id] then
-            seen[model_id] = true
-            if not Game.BuildCacheDat.model_cache_has(model_id) then
-                table.insert(model_requests, {
-                    table_id = CacheDat.Tables.CACHE_DAT_MODELS,
-                    archive_id = model_id,
-                    flags = 0,
-                })
-                table.insert(models_needed, model_id)
-            end
-        end
-    end
-
-    for _, mid in ipairs(Game.BuildCacheDat.get_npc_model_ids(npc_id)) do
-        maybe_load(mid)
-    end
-
-    if #model_requests > 0 then
-        local archives = CacheDat.load_archives(model_requests)
-        for i, model_id in ipairs(models_needed) do
-            Game.BuildCacheDat.model_cache_add(archives[i], model_id)
-        end
-    end
-
-    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
-
+    RevCache.load_models(Game.BuildCacheDat.get_npc_model_ids(npc_id))
     Game.Game.exec_packet(item)
 end
 
@@ -510,302 +303,67 @@ local function handle_update_inv_partial(item)
     ensure_objects_loaded()
 
     local entries = Game.Game.get_pkt_update_inv_partial_entries(item)
-    local seen = {}
-    local model_requests = {}
-    local models_needed = {}
-
-    local function maybe_load(model_id)
-        if model_id and model_id > 0 and not seen[model_id] then
-            seen[model_id] = true
-            if not Game.BuildCacheDat.model_cache_has(model_id) then
-                table.insert(model_requests, {
-                    table_id = CacheDat.Tables.CACHE_DAT_MODELS,
-                    archive_id = model_id,
-                    flags = 0,
-                })
-                table.insert(models_needed, model_id)
-            end
-        end
-    end
-
+    local sources = {}
     for i = 1, #entries, 2 do
         local obj_id = entries[i + 1]
         if obj_id and obj_id > 0 then
-            for _, mid in ipairs(Game.BuildCacheDat.get_obj_model_ids(obj_id)) do
-                maybe_load(mid)
-            end
+            sources[#sources + 1] = { Game.BuildCacheDat.get_obj_model_ids, obj_id }
         end
     end
-
-    if #model_requests > 0 then
-        local archives = CacheDat.load_archives(model_requests)
-        for i, model_id in ipairs(models_needed) do
-            Game.BuildCacheDat.model_cache_add(archives[i], model_id)
-        end
-    end
-
-    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+    RevCache.load_models_from_sources(sources)
 
     Game.Game.exec_packet(item)
 end
 
 local function handle_loc_add_change(item)
     local loc_id = Game.Game.get_pkt_loc_add_change_loc_id(item)
-    local seen = {}
-    local model_requests = {}
-    local models_needed = {}
-
-    local function maybe_load(model_id)
-        if model_id and model_id > 0 and not seen[model_id] then
-            seen[model_id] = true
-            if not Game.BuildCacheDat.model_cache_has(model_id) then
-                table.insert(model_requests, {
-                    table_id = CacheDat.Tables.CACHE_DAT_MODELS,
-                    archive_id = model_id,
-                    flags = 0,
-                })
-                table.insert(models_needed, model_id)
-            end
-        end
-    end
-
     if loc_id >= 0 then
-        for _, mid in ipairs(Game.BuildCacheDat.get_loc_model_ids(loc_id)) do
-            maybe_load(mid)
-        end
+        RevCache.load_models(Game.BuildCacheDat.get_loc_model_ids(loc_id))
     end
-
-    if #model_requests > 0 then
-        local archives = CacheDat.load_archives(model_requests)
-        for i, model_id in ipairs(models_needed) do
-            Game.BuildCacheDat.model_cache_add(archives[i], model_id)
-        end
-    end
-
-    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
-
     Game.Game.exec_packet(item)
 end
 
 local function handle_loc_anim(item)
     ensure_sequences_loaded()
-
-    local seq_id = Game.Game.get_pkt_loc_anim_seq_id(item)
-    if seq_id and seq_id >= 0 then
-        local frame_ids = Game.BuildCacheDat.get_sequence_animbaseframes_ids(seq_id)
-        local anim_requests = {}
-        for _, fid in ipairs(frame_ids) do
-            if not Game.BuildCacheDat.animbaseframes_cache_has(fid) then
-                table.insert(anim_requests, {
-                    table_id = CacheDat.Tables.CACHE_DAT_ANIMATIONS,
-                    archive_id = fid,
-                    flags = 0,
-                })
-            end
-        end
-        if #anim_requests > 0 then
-            local archives = CacheDat.load_archives(anim_requests)
-            for _, archive in ipairs(archives) do
-                Game.BuildCacheDat.animbaseframes_cache_add(archive)
-            end
-        end
-        Game.GameCache.convert_animbaseframes_from_buildcachedat()
-    end
-
+    RevCache.load_anims_for_seq(Game.Game.get_pkt_loc_anim_seq_id(item))
     Game.Game.exec_packet(item)
 end
 
 local function handle_loc_merge(item)
     local loc_id = Game.Game.get_pkt_p_locmerge_loc_id(item)
-    local seen = {}
-    local model_requests = {}
-    local models_needed = {}
-
-    local function maybe_load(model_id)
-        if model_id and model_id > 0 and not seen[model_id] then
-            seen[model_id] = true
-            if not Game.BuildCacheDat.model_cache_has(model_id) then
-                table.insert(model_requests, {
-                    table_id = CacheDat.Tables.CACHE_DAT_MODELS,
-                    archive_id = model_id,
-                    flags = 0,
-                })
-                table.insert(models_needed, model_id)
-            end
-        end
-    end
-
     if loc_id >= 0 then
-        for _, mid in ipairs(Game.BuildCacheDat.get_loc_model_ids(loc_id)) do
-            maybe_load(mid)
-        end
+        RevCache.load_models(Game.BuildCacheDat.get_loc_model_ids(loc_id))
     end
-
-    if #model_requests > 0 then
-        local archives = CacheDat.load_archives(model_requests)
-        for i, model_id in ipairs(models_needed) do
-            Game.BuildCacheDat.model_cache_add(archives[i], model_id)
-        end
-    end
-
-    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
-
     Game.Game.exec_packet(item)
 end
 
 local function handle_obj_add(item)
     ensure_objects_loaded()
-
     local obj_id = Game.Game.get_pkt_obj_add_obj_id(item)
-    local seen = {}
-    local model_requests = {}
-    local models_needed = {}
-
-    local function maybe_load(model_id)
-        if model_id and model_id > 0 and not seen[model_id] then
-            seen[model_id] = true
-            if not Game.BuildCacheDat.model_cache_has(model_id) then
-                table.insert(model_requests, {
-                    table_id = CacheDat.Tables.CACHE_DAT_MODELS,
-                    archive_id = model_id,
-                    flags = 0,
-                })
-                table.insert(models_needed, model_id)
-            end
-        end
-    end
-
     if obj_id >= 0 then
-        for _, mid in ipairs(Game.BuildCacheDat.get_obj_model_ids(obj_id)) do
-            maybe_load(mid)
-        end
+        RevCache.load_models(Game.BuildCacheDat.get_obj_model_ids(obj_id))
     end
-
-    if #model_requests > 0 then
-        local archives = CacheDat.load_archives(model_requests)
-        for i, model_id in ipairs(models_needed) do
-            Game.BuildCacheDat.model_cache_add(archives[i], model_id)
-        end
-    end
-
-    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
-
     Game.Game.exec_packet(item)
 end
 
 local function handle_obj_reveal(item)
     ensure_objects_loaded()
-
     local obj_id = Game.Game.get_pkt_obj_reveal_obj_id(item)
-    local seen = {}
-    local model_requests = {}
-    local models_needed = {}
-
-    local function maybe_load(model_id)
-        if model_id and model_id > 0 and not seen[model_id] then
-            seen[model_id] = true
-            if not Game.BuildCacheDat.model_cache_has(model_id) then
-                table.insert(model_requests, {
-                    table_id = CacheDat.Tables.CACHE_DAT_MODELS,
-                    archive_id = model_id,
-                    flags = 0,
-                })
-                table.insert(models_needed, model_id)
-            end
-        end
-    end
-
     if obj_id >= 0 then
-        for _, mid in ipairs(Game.BuildCacheDat.get_obj_model_ids(obj_id)) do
-            maybe_load(mid)
-        end
+        RevCache.load_models(Game.BuildCacheDat.get_obj_model_ids(obj_id))
     end
-
-    if #model_requests > 0 then
-        local archives = CacheDat.load_archives(model_requests)
-        for i, model_id in ipairs(models_needed) do
-            Game.BuildCacheDat.model_cache_add(archives[i], model_id)
-        end
-    end
-
-    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
-
     Game.Game.exec_packet(item)
 end
 
 local function handle_map_anim(item)
     ensure_sequences_loaded()
-
-    local spotanim_id = Game.Game.get_pkt_map_anim_spotanim_id(item)
-    local model_id = Game.BuildCacheDat.get_spotanim_model_id(spotanim_id)
-    if model_id and model_id > 0 and not Game.BuildCacheDat.model_cache_has(model_id) then
-        local archive = CacheDat.load_archive(CacheDat.Tables.CACHE_DAT_MODELS, model_id, 0)
-        Game.BuildCacheDat.model_cache_add(archive, model_id)
-    end
-
-    local seq_id = Game.BuildCacheDat.get_spotanim_seq_id(spotanim_id)
-    if seq_id and seq_id >= 0 then
-        local frame_ids = Game.BuildCacheDat.get_sequence_animbaseframes_ids(seq_id)
-        local anim_requests = {}
-        for _, fid in ipairs(frame_ids) do
-            if not Game.BuildCacheDat.animbaseframes_cache_has(fid) then
-                table.insert(anim_requests, {
-                    table_id = CacheDat.Tables.CACHE_DAT_ANIMATIONS,
-                    archive_id = fid,
-                    flags = 0,
-                })
-            end
-        end
-        if #anim_requests > 0 then
-            local archives = CacheDat.load_archives(anim_requests)
-            for _, archive in ipairs(archives) do
-                Game.BuildCacheDat.animbaseframes_cache_add(archive)
-            end
-        end
-    end
-
-    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
-    Game.GameCache.convert_animbaseframes_from_buildcachedat()
-    Game.GameCache.convert_spotanims_from_buildcachedat()
-
+    RevCache.load_spotanim(Game.Game.get_pkt_map_anim_spotanim_id(item))
     Game.Game.exec_packet(item)
 end
 
 local function handle_map_projanim(item)
     ensure_sequences_loaded()
-
-    local spotanim_id = Game.Game.get_pkt_map_projanim_spotanim_id(item)
-    local model_id = Game.BuildCacheDat.get_spotanim_model_id(spotanim_id)
-    if model_id and model_id > 0 and not Game.BuildCacheDat.model_cache_has(model_id) then
-        local archive = CacheDat.load_archive(CacheDat.Tables.CACHE_DAT_MODELS, model_id, 0)
-        Game.BuildCacheDat.model_cache_add(archive, model_id)
-    end
-
-    local seq_id = Game.BuildCacheDat.get_spotanim_seq_id(spotanim_id)
-    if seq_id and seq_id >= 0 then
-        local frame_ids = Game.BuildCacheDat.get_sequence_animbaseframes_ids(seq_id)
-        local anim_requests = {}
-        for _, fid in ipairs(frame_ids) do
-            if not Game.BuildCacheDat.animbaseframes_cache_has(fid) then
-                table.insert(anim_requests, {
-                    table_id = CacheDat.Tables.CACHE_DAT_ANIMATIONS,
-                    archive_id = fid,
-                    flags = 0,
-                })
-            end
-        end
-        if #anim_requests > 0 then
-            local archives = CacheDat.load_archives(anim_requests)
-            for _, archive in ipairs(archives) do
-                Game.BuildCacheDat.animbaseframes_cache_add(archive)
-            end
-        end
-    end
-
-    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
-    Game.GameCache.convert_animbaseframes_from_buildcachedat()
-    Game.GameCache.convert_spotanims_from_buildcachedat()
-
+    RevCache.load_spotanim(Game.Game.get_pkt_map_projanim_spotanim_id(item))
     Game.Game.exec_packet(item)
 end
 

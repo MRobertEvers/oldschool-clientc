@@ -11,6 +11,7 @@
 #include "osrs/entity_scenebuild.h"
 #include "osrs/game.h"
 #include "osrs/interface_state.h"
+#include "osrs/minimenu_regions.h"
 #include "osrs/obj_icon.h"
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/rscache/tables/model.h"
@@ -57,6 +58,7 @@ struct ComponentEntry
     uint8_t level_mask;
     struct ChatUILayout chat_layout;
     uint16_t chat_geom_mask;
+    struct MinimenuIniRegions minimenu_regions;
 };
 
 enum SpriteLoad_AtlasMode
@@ -108,6 +110,12 @@ struct ComponentLoad
     char font[64];
     struct ChatUILayout chat_geom;
     uint16_t chat_geom_mask;
+    char minimenu_region_viewport[64];
+    char minimenu_region_sidebar[64];
+    char minimenu_region_chat[64];
+    char minimenu_place_viewport_max[64];
+    char minimenu_place_sidebar_max[64];
+    char minimenu_place_chat_max[64];
 };
 
 /** Comma-separated level indices 0-7, optional inclusive ranges "lo-hi" -> bitmask; empty -> 0xF.
@@ -665,11 +673,25 @@ load_component(
     }
     break;
     case UIELEM_BUILTIN_HOVER_TOOLTIP:
-    case UIELEM_BUILTIN_MINIMENU:
     case UIELEM_BUILTIN_CHAT_PRIVACY:
     {
         strncpy(component_entry->font, load->font, sizeof(component_entry->font) - 1);
         component_entry->font[sizeof(component_entry->font) - 1] = '\0';
+    }
+    break;
+    case UIELEM_BUILTIN_MINIMENU:
+    {
+        strncpy(component_entry->font, load->font, sizeof(component_entry->font) - 1);
+        component_entry->font[sizeof(component_entry->font) - 1] = '\0';
+        minimenu_regions_default(&component_entry->minimenu_regions);
+        minimenu_regions_merge_ini(
+            &component_entry->minimenu_regions,
+            load->minimenu_region_viewport[0] ? load->minimenu_region_viewport : NULL,
+            load->minimenu_region_sidebar[0] ? load->minimenu_region_sidebar : NULL,
+            load->minimenu_region_chat[0] ? load->minimenu_region_chat : NULL,
+            load->minimenu_place_viewport_max[0] ? load->minimenu_place_viewport_max : NULL,
+            load->minimenu_place_sidebar_max[0] ? load->minimenu_place_sidebar_max : NULL,
+            load->minimenu_place_chat_max[0] ? load->minimenu_place_chat_max : NULL);
     }
     break;
     case UIELEM_BUILTIN_CHAT_MESSAGES:
@@ -1480,6 +1502,8 @@ load_layout(
                 if( layout_entry->always_dirty )
                     ui->components[idx].always_dirty = 1;
             }
+            if( game )
+                game->minimenu_regions = component_entry->minimenu_regions;
         }
         break;
         case UIELEM_BUILTIN_CROSSHAIR:
@@ -2066,6 +2090,84 @@ uitree_from_revconfig_buildcachedat(
                 "CHAT_INPUT_LINE_Y_LOCAL field must be within a component item");
             load._component.chat_geom.input_line_y_local = atoi(field->value);
             load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_INPUT_LINE_Y_LOCAL;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_MINIMENU_REGION_VIEWPORT:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "MINIMENU_REGION_VIEWPORT field must be within a component item");
+            strncpy(
+                load._component.minimenu_region_viewport,
+                field->value,
+                sizeof(load._component.minimenu_region_viewport) - 1);
+            load._component.minimenu_region_viewport[sizeof(load._component.minimenu_region_viewport) -
+                                                   1] = '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_MINIMENU_REGION_SIDEBAR:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "MINIMENU_REGION_SIDEBAR field must be within a component item");
+            strncpy(
+                load._component.minimenu_region_sidebar,
+                field->value,
+                sizeof(load._component.minimenu_region_sidebar) - 1);
+            load._component.minimenu_region_sidebar[sizeof(load._component.minimenu_region_sidebar) -
+                                                   1] = '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_MINIMENU_REGION_CHAT:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "MINIMENU_REGION_CHAT field must be within a component item");
+            strncpy(
+                load._component.minimenu_region_chat,
+                field->value,
+                sizeof(load._component.minimenu_region_chat) - 1);
+            load._component.minimenu_region_chat[sizeof(load._component.minimenu_region_chat) - 1] =
+                '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_MINIMENU_PLACE_VIEWPORT_MAX:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "MINIMENU_PLACE_VIEWPORT_MAX field must be within a component item");
+            strncpy(
+                load._component.minimenu_place_viewport_max,
+                field->value,
+                sizeof(load._component.minimenu_place_viewport_max) - 1);
+            load._component.minimenu_place_viewport_max
+                [sizeof(load._component.minimenu_place_viewport_max) - 1] = '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_MINIMENU_PLACE_SIDEBAR_MAX:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "MINIMENU_PLACE_SIDEBAR_MAX field must be within a component item");
+            strncpy(
+                load._component.minimenu_place_sidebar_max,
+                field->value,
+                sizeof(load._component.minimenu_place_sidebar_max) - 1);
+            load._component.minimenu_place_sidebar_max
+                [sizeof(load._component.minimenu_place_sidebar_max) - 1] = '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_MINIMENU_PLACE_CHAT_MAX:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "MINIMENU_PLACE_CHAT_MAX field must be within a component item");
+            strncpy(
+                load._component.minimenu_place_chat_max,
+                field->value,
+                sizeof(load._component.minimenu_place_chat_max) - 1);
+            load._component.minimenu_place_chat_max[sizeof(load._component.minimenu_place_chat_max) -
+                                                    1] = '\0';
         }
         break;
         case RCFIELD_INV_ITEM:
@@ -2758,6 +2860,84 @@ uitree_load_ui_from_revconfig(
                 "CHAT_INPUT_LINE_Y_LOCAL field must be within a component item");
             load._component.chat_geom.input_line_y_local = atoi(field->value);
             load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_INPUT_LINE_Y_LOCAL;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_MINIMENU_REGION_VIEWPORT:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "MINIMENU_REGION_VIEWPORT field must be within a component item");
+            strncpy(
+                load._component.minimenu_region_viewport,
+                field->value,
+                sizeof(load._component.minimenu_region_viewport) - 1);
+            load._component.minimenu_region_viewport[sizeof(load._component.minimenu_region_viewport) -
+                                                   1] = '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_MINIMENU_REGION_SIDEBAR:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "MINIMENU_REGION_SIDEBAR field must be within a component item");
+            strncpy(
+                load._component.minimenu_region_sidebar,
+                field->value,
+                sizeof(load._component.minimenu_region_sidebar) - 1);
+            load._component.minimenu_region_sidebar[sizeof(load._component.minimenu_region_sidebar) -
+                                                   1] = '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_MINIMENU_REGION_CHAT:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "MINIMENU_REGION_CHAT field must be within a component item");
+            strncpy(
+                load._component.minimenu_region_chat,
+                field->value,
+                sizeof(load._component.minimenu_region_chat) - 1);
+            load._component.minimenu_region_chat[sizeof(load._component.minimenu_region_chat) - 1] =
+                '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_MINIMENU_PLACE_VIEWPORT_MAX:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "MINIMENU_PLACE_VIEWPORT_MAX field must be within a component item");
+            strncpy(
+                load._component.minimenu_place_viewport_max,
+                field->value,
+                sizeof(load._component.minimenu_place_viewport_max) - 1);
+            load._component.minimenu_place_viewport_max
+                [sizeof(load._component.minimenu_place_viewport_max) - 1] = '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_MINIMENU_PLACE_SIDEBAR_MAX:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "MINIMENU_PLACE_SIDEBAR_MAX field must be within a component item");
+            strncpy(
+                load._component.minimenu_place_sidebar_max,
+                field->value,
+                sizeof(load._component.minimenu_place_sidebar_max) - 1);
+            load._component.minimenu_place_sidebar_max
+                [sizeof(load._component.minimenu_place_sidebar_max) - 1] = '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_MINIMENU_PLACE_CHAT_MAX:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "MINIMENU_PLACE_CHAT_MAX field must be within a component item");
+            strncpy(
+                load._component.minimenu_place_chat_max,
+                field->value,
+                sizeof(load._component.minimenu_place_chat_max) - 1);
+            load._component.minimenu_place_chat_max[sizeof(load._component.minimenu_place_chat_max) -
+                                                    1] = '\0';
         }
         break;
         case RCFIELD_INV_ITEM:

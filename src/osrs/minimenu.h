@@ -1,6 +1,7 @@
 #ifndef MINIMENU_H
 #define MINIMENU_H
 
+#include "minimenu_regions.h"
 #include "minimenu_state.h"
 
 #include <stdint.h>
@@ -98,6 +99,7 @@ minimenu_show(
     int line_count,
     int iface_viewport_w,
     int iface_viewport_h,
+    const struct MinimenuIniRegions* regions,
     int click_x,
     int click_y);
 

@@ -129,6 +129,8 @@ LibToriRS_GameNew(
     struct GGame* game = malloc(sizeof(struct GGame));
     memset(game, 0, sizeof(struct GGame));
 
+    minimenu_regions_default(&game->minimenu_regions);
+
     game->revision = revision_lc245_2_new();
     revision_set_active(game->revision);
 

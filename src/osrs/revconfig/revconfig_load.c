@@ -121,6 +121,18 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_CHAT_LINE_H;
     else if( strcmp(key, "chat_input_line_y_local") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_CHAT_INPUT_LINE_Y_LOCAL;
+    else if( strcmp(key, "minimenu_region_viewport") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_MINIMENU_REGION_VIEWPORT;
+    else if( strcmp(key, "minimenu_region_sidebar") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_MINIMENU_REGION_SIDEBAR;
+    else if( strcmp(key, "minimenu_region_chat") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_MINIMENU_REGION_CHAT;
+    else if( strcmp(key, "minimenu_place_viewport_max") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_MINIMENU_PLACE_VIEWPORT_MAX;
+    else if( strcmp(key, "minimenu_place_sidebar_max") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_MINIMENU_PLACE_SIDEBAR_MAX;
+    else if( strcmp(key, "minimenu_place_chat_max") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_MINIMENU_PLACE_CHAT_MAX;
     else if( strcmp(key, "item") == 0 && strcmp(s_ini_item_type, "inv") == 0 )
         kind = RCFIELD_INV_ITEM;
     else if( strcmp(key, "sprite_active") == 0 && strcmp(s_ini_item_type, "component") == 0 )

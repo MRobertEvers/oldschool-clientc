@@ -5,11 +5,16 @@
 #define MINIMENU_MAX_OPTIONS 68
 #define MINIMENU_OPTION_LEN  80
 
-/** Right-click context menu state (iface-viewport coordinates for x/y/width/height). */
+/** Right-click context menu state (canvas coords for x/y/width/height). */
 struct MinimenuState
 {
     int  visible; /* 1 = show context menu */
-    int  x;       /* top-left in iface-viewport coords */
+    /** Client.ts menuArea: 0 = main viewport, 1 = sidebar, 2 = chatbox (openMenu hit-test offsets). */
+    int  menu_area;
+    /** Canvas origin for menu-local ↔ canvas transforms (drawMinimenu / mouseLoop). */
+    int  origin_x;
+    int  origin_y;
+    int  x;       /* top-left on canvas */
     int  y;
     int  width;
     int  height;

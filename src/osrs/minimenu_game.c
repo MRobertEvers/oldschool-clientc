@@ -194,10 +194,8 @@ minimenu_translate_commands(
         return;
     (void)font_id;
 
-    int mx     = mouse_x;
-    int my     = mouse_y;
-    int menu_x = mm->x;
-    int menu_w = mm->width;
+    int mx = mouse_x;
+    int my = mouse_y;
 
     for( int i = 0; i < cb->count; i++ )
     {
@@ -223,10 +221,13 @@ minimenu_translate_commands(
             int opt_i = cmd->u.text_option.option_index;
             if( opt_i < 0 || opt_i >= mm->option_count )
                 break;
-            int row_top = mm->y + MINIMENU_HEADER_HEIGHT + opt_i * MINIMENU_ROW_HEIGHT;
-            int row_bot = row_top + MINIMENU_ROW_HEIGHT;
+            int ox = mm->origin_x;
+            (void)mm->origin_y;
+            int lx    = mx - ox;
+            int mx0   = mm->x - ox;
+            int opt_y = mm->y + opt_i * MINIMENU_ROW_HEIGHT + 31;
             int hovered =
-                (mx >= menu_x && mx < menu_x + menu_w && my >= row_top && my < row_bot);
+                lx > mx0 && lx < mx0 + mm->width && my > opt_y - 13 && my < opt_y + 3;
             int text_color = hovered ? 0xFFFF00 : 0xFFFFFF;
             const uint8_t* opt_text =
                 pool_text(pool_user, (const char*)mm->options[opt_i]);
@@ -381,7 +382,15 @@ minimenu_game_show(
     if( nlines <= 0 )
         return;
 
-    minimenu_show(&game->minimenu, lines, nlines, vp_w, vp_h, click_x, click_y);
+    minimenu_show(
+        &game->minimenu,
+        lines,
+        nlines,
+        vp_w,
+        vp_h,
+        &game->minimenu_regions,
+        click_x,
+        click_y);
 }
 
 void
@@ -587,10 +596,15 @@ minimenu_game_use_option(
 
     if( action == (int)MINIMENU_ACTION_WALK )
     {
-        game->tile_clicked_x     = param_a;
-        game->tile_clicked_z     = param_b;
-        game->tile_clicked_level =
+        int tx = game->mouse_tile_x;
+        int tz = game->mouse_tile_z;
+        int lvl =
             (game->mouse_tile_level >= 0) ? game->mouse_tile_level : 0;
+        if( tx < 0 || tz < 0 )
+            return;
+        game->tile_clicked_x     = tx;
+        game->tile_clicked_z     = tz;
+        game->tile_clicked_level = lvl;
         game->cross_x     = game->mouse_clicked_right_x;
         game->cross_y     = game->mouse_clicked_right_y;
         game->cross_mode  = 1;

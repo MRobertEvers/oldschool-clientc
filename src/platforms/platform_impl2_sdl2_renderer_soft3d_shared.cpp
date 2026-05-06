@@ -859,15 +859,18 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
             iface_saved_clip_b);
     }
 
-    if( game->tile_clicked_x != -1 )
-    {
+    /* Reflect tile target for debug HUD; movement consumes tile_clicked in LibToriRS_GameStep.
+     * Do not clear game->tile_clicked here — FrameBegin resets each frame; clearing here prevented
+     * the next GameStep from seeing clicks produced at FrameEnd. */
+    if( game->tile_clicked_x >= 0 )
         renderer->clicked_tile_x = game->tile_clicked_x;
+    else
+        renderer->clicked_tile_x = -1;
+    if( game->tile_clicked_z >= 0 )
         renderer->clicked_tile_z = game->tile_clicked_z;
-        renderer->clicked_tile_level = game->tile_clicked_level;
-        game->tile_clicked_x = -1;
-        game->tile_clicked_z = -1;
-        game->tile_clicked_level = -1;
-    }
+    else
+        renderer->clicked_tile_z = -1;
+    renderer->clicked_tile_level = game->tile_clicked_level;
 
     {
         Uint64 const soft3d_t_after = SDL_GetPerformanceCounter();

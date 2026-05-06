@@ -30,6 +30,7 @@
 #include "osrs/rscache/tables_dat/pixfont.h"
 #include "osrs/scene2.h"
 #include "osrs/script_queue.h"
+#include "osrs/minimenu_regions.h"
 #include "osrs/minimenu_state.h"
 #include "osrs/world.h"
 #include "osrs/world_option_set.h"
@@ -88,6 +89,8 @@ struct GGame
     /** Right-click menu: mirrors Client.ts menuVisible / options; iface-viewport coords.
      * Populated by minimenu_game_show from option_set; hit-tested after FrameEnd. */
     struct MinimenuState minimenu;
+    /** From `[component:minimenu]` UI INI (openMenu regions + placement clamps). */
+    struct MinimenuIniRegions minimenu_regions;
 
     int tile_clicked_x;
     int tile_clicked_z;
