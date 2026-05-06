@@ -1486,6 +1486,26 @@ frame_point_in_world_builtin_xy(
     return false;
 }
 
+/** Screen coords for world 3D pick: mouse-down while a click is pending (matches crosshair),
+ *  otherwise live cursor (ginput sets mouse_x/y to mouse-up after CLICK). */
+static void
+frame_world_pick_pointer_xy(
+    struct GGame* game,
+    int* out_px,
+    int* out_py)
+{
+    if( game->mouse_clicked && game->mouse_clicked_x >= 0 && game->mouse_clicked_y >= 0 )
+    {
+        *out_px = game->mouse_clicked_x;
+        *out_py = game->mouse_clicked_y;
+    }
+    else
+    {
+        *out_px = game->mouse_x;
+        *out_py = game->mouse_y;
+    }
+}
+
 /** 3D tile/entity pick only when UITree hover is the world panel (or fallback rect match). */
 static bool
 frame_world_pick_allowed(struct GGame* game)
@@ -1500,7 +1520,10 @@ frame_world_pick_allowed(struct GGame* game)
     if( h >= 0 && (uint32_t)h < tree->component_count )
         return tree->components[h].type == UIELEM_BUILTIN_WORLD;
 
-    return frame_point_in_world_builtin_xy(game, game->mouse_x, game->mouse_y);
+    int px = 0;
+    int py = 0;
+    frame_world_pick_pointer_xy(game, &px, &py);
+    return frame_point_in_world_builtin_xy(game, px, py);
 }
 
 void
@@ -1611,8 +1634,8 @@ LibToriRS_FrameBegin(
         uint64_t dt_paint3_ns;
         uint64_t dt_paint4_ns;
 
-        painter_paint_world3d(painter, buffer, camera_sx, camera_sz, camera_slevel);
-        // painter_paint_bucket(painter, buffer, camera_sx, camera_sz, camera_slevel);
+        // painter_paint_world3d(painter, buffer, camera_sx, camera_sz, camera_slevel);
+        painter_paint_bucket(painter, buffer, camera_sx, camera_sz, camera_slevel);
         // if( (rand() & 1) == 0 )
         // {
         //     clock_gettime(CLOCK_MONOTONIC, &t0);
@@ -2071,8 +2094,11 @@ next:
         /* Mouse-pick: if cursor is over this entity's projected bounds, add it to pickset. */
         if( frame_world_pick_allowed(game) )
         {
-            int mvx = game->mouse_x - game->viewport_offset_x;
-            int mvy = game->mouse_y - game->viewport_offset_y;
+            int ppx = 0;
+            int ppy = 0;
+            frame_world_pick_pointer_xy(game, &ppx, &ppy);
+            int mvx = ppx - game->viewport_offset_x;
+            int mvy = ppy - game->viewport_offset_y;
             uint32_t ent_uid = (uint32_t)scene2_element_parent_entity_id(scene_element);
             if( mvx >= 0 && mvy >= 0 && entity_interactable(game->world, (int)ent_uid) &&
                 dash3d_projected_model_contains(
@@ -2152,8 +2178,11 @@ next:
         if( cull != DASHCULL_VISIBLE )
             break;
 
-        int mvx = game->mouse_x - game->viewport_offset_x;
-        int mvy = game->mouse_y - game->viewport_offset_y;
+        int ppx = 0;
+        int ppy = 0;
+        frame_world_pick_pointer_xy(game, &ppx, &ppy);
+        int mvx = ppx - game->viewport_offset_x;
+        int mvy = ppy - game->viewport_offset_y;
         if( frame_world_pick_allowed(game) && mvx >= 0 && mvy >= 0 &&
             dash3d_projected_model_contains(game->sys_dash, tile_model, game->view_port, mvx, mvy) )
         {
