@@ -466,7 +466,7 @@ gamenet_parse → revision_serverprot_parse → serverprot_netrev245_2_parse_and
              → RevisionLC245_2::pending_head queue
 ```
 
-[`serverprot_netrev245_2_parse_and_enqueue`](src/osrs/revs/lc245_2/serverprot_netrev245_2_parse.c): `serverprot_netrev245_2_parse` fills `struct RevPacket_LC245_2` (calling `serverprot_core_parse_xxx_v1` pure deserializers for each opcode), then `gameproto_rev245_2_enqueue` appends to **`RevisionLC245_2::pending_head`** linked list.
+[`serverprot_netrev245_2_parse_and_enqueue`](src/osrs/revs/lc245_2/serverprot_netrev245_2_parse.c): `serverprot_netrev245_2_parse` fills `struct RevServerProtPacket` (calling `serverprot_core_parse_xxx_v1` pure deserializers for each opcode), then `gameproto_rev245_2_enqueue` appends to **`RevisionLC245_2::pending_head`** linked list.
 
 [`serverprot_core_parse_xxx_v1`](src/osrs/core/serverprot_core_parse.c): Pure byte→struct deserializers. **Zero GGame knowledge.** Stable across any revision sharing the same wire layout.
 
@@ -526,7 +526,7 @@ sequenceDiagram
   P->>NP: raw_bytes
   NP->>PB: packetbuffer_read_ISAAC_in
   PB->>R: opcode_plus_payload
-  R->>Q: enqueue_RevPacket
+  R->>Q: enqueue_RevServerProtPacket
   Note over Q,L: GameNetProcess pushes SCRIPT_PKT_DISPATCH
   L->>Q: pop_next_packet
   L->>E: exec_packet_or_handler

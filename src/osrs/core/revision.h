@@ -41,7 +41,9 @@ const char*
 revision_lua_init_ui_path(const struct Revision* rev);
 
 int
-revision_packetin_size(const struct Revision* rev, int opcode);
+revision_packetin_size(
+    const struct Revision* rev,
+    int opcode);
 
 /** Route one inbound packet byte-buffer to the correct rev deserializer + enqueue. */
 int
@@ -53,11 +55,15 @@ revision_serverprot_parse(
     int n);
 
 bool
-revision_has_pending(const struct Revision* rev, struct GGame* game);
+revision_has_pending(
+    const struct Revision* rev,
+    struct GGame* game);
 
 /** Drain the pending inbound queue, calling gamenet_exec for each packet. */
 void
-revision_gamenet_exec_drain(const struct Revision* rev, struct GGame* game);
+revision_gamenet_exec_drain(
+    const struct Revision* rev,
+    struct GGame* game);
 
 struct LoginProto*
 revision_loginproto_new(
@@ -70,7 +76,9 @@ revision_loginproto_new(
     int32_t* jag_checksum);
 
 void
-revision_loginproto_free(const struct Revision* rev, struct LoginProto* lp);
+revision_loginproto_free(
+    const struct Revision* rev,
+    struct LoginProto* lp);
 
 int
 revision_loginproto_recv(
@@ -87,6 +95,8 @@ revision_loginproto_send(
     int out_size);
 
 int
-revision_loginproto_poll(const struct Revision* rev, struct LoginProto* lp);
+revision_loginproto_poll(
+    const struct Revision* rev,
+    struct LoginProto* lp);
 
 #endif

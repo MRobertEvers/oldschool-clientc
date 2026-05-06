@@ -28,8 +28,8 @@
 #include "osrs/rscache/tables/sprites.h"
 #include "osrs/rscache/tables/textures.h"
 #include "osrs/texture.h"
-#include "osrs/revs/lc245_2/gameproto_rev245_2_pktnpcinfo.h"
-#include "osrs/revs/lc245_2/gameproto_rev245_2_pktplayerinfo.h"
+#include "osrs/core/serverprot_pkt_npcinfo.h"
+#include "osrs/core/serverprot_pkt_playerinfo.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -1366,15 +1366,15 @@ l_gameproto_get_npc_ids_from_packet(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
     (void)game;
-    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
 
-    static struct PktNpcInfoReader reader;
+    static struct PktNpcInfoReaderV1 reader;
     reader.extended_count = 0;
     reader.current_op = 0;
     reader.max_ops = 2048;
-    struct PktNpcInfoOp ops[2048];
+    struct PktNpcInfoOpV1 ops[2048];
     int count =
-        pkt_npc_info_reader_read(&reader, (struct PktNpcInfo*)&item->packet._npc_info, ops, 2048);
+        pkt_npc_info_reader_read(&reader, (struct PktNpcInfoV1*)&item->packet.u.npc_info_v1, ops, 2048);
 
     lua_newtable(L);
     int idx = 0;
@@ -1394,7 +1394,7 @@ static int
 l_gamenet_rev245_2_exec_npc_info_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
-    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
 
     gamenet_rev245_2_exec_npc_info_v1(game, &item->packet);
     return 0;
@@ -1403,10 +1403,10 @@ l_gamenet_rev245_2_exec_npc_info_v1(lua_State* L)
 static int
 l_gameproto_get_rebuild_bounds(lua_State* L)
 {
-    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
 
-    lua_pushinteger(L, item->packet._map_rebuild.zonex);
-    lua_pushinteger(L, item->packet._map_rebuild.zonez);
+    lua_pushinteger(L, item->packet.u.map_rebuild_v1.zonex);
+    lua_pushinteger(L, item->packet.u.map_rebuild_v1.zonez);
     return 2;
 }
 
@@ -1414,7 +1414,7 @@ static int
 l_gamenet_rev245_2_exec_rebuild_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
-    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
 
     gamenet_rev245_2_exec_rebuild_normal_v1(game, &item->packet);
     return 0;
@@ -1423,16 +1423,16 @@ l_gamenet_rev245_2_exec_rebuild_v1(lua_State* L)
 static int
 l_gameproto_get_player_appearance_ids(lua_State* L)
 {
-    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
 
-    static struct PktPlayerInfoReader reader;
+    static struct PktPlayerInfoReaderV1 reader;
     reader.extended_count = 0;
     reader.current_op = 0;
     reader.max_ops = 2048;
-    struct PktPlayerInfoOp ops[2048];
+    struct PktPlayerInfoOpV1 ops[2048];
 
     int count = pkt_player_info_reader_read(
-        &reader, (struct PktPlayerInfo*)&item->packet._player_info, ops, 2048);
+        &reader, (struct PktPlayerInfoV1*)&item->packet.u.player_info_v1, ops, 2048);
 
     lua_newtable(L); /* idk_ids */
     lua_newtable(L); /* obj_ids */
@@ -1471,7 +1471,7 @@ static int
 l_gamenet_rev245_2_exec_player_info_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
-    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
 
     gamenet_rev245_2_exec_player_info_v1(game, &item->packet);
     return 0;
@@ -1480,13 +1480,13 @@ l_gamenet_rev245_2_exec_player_info_v1(lua_State* L)
 static int
 l_gameproto_get_inv_obj_ids(lua_State* L)
 {
-    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
 
     lua_newtable(L);
     int idx = 0;
-    for( int i = 0; i < item->packet._update_inv_full.size; i++ )
+    for( int i = 0; i < item->packet.u.update_inv_full_v1.size; i++ )
     {
-        int obj_id = item->packet._update_inv_full.obj_ids[i];
+        int obj_id = item->packet.u.update_inv_full_v1.obj_ids[i];
         if( obj_id > 0 )
         {
             idx++;
@@ -1501,7 +1501,7 @@ static int
 l_gamenet_rev245_2_exec_update_inv_full_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
-    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
 
     gamenet_rev245_2_exec_update_inv_full_v1(game, &item->packet);
     return 0;
@@ -1510,10 +1510,10 @@ l_gamenet_rev245_2_exec_update_inv_full_v1(lua_State* L)
 static int
 l_gameproto_get_if_settab_data(lua_State* L)
 {
-    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
 
-    lua_pushinteger(L, item->packet._if_settab.component_id);
-    lua_pushinteger(L, item->packet._if_settab.tab_id);
+    lua_pushinteger(L, item->packet.u.if_settab_v1.component_id);
+    lua_pushinteger(L, item->packet.u.if_settab_v1.tab_id);
     return 2;
 }
 
@@ -1521,7 +1521,7 @@ static int
 l_gamenet_rev245_2_exec_if_settab_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
-    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
 
     gamenet_rev245_2_exec_if_settab_v1(game, &item->packet);
     return 0;
@@ -1530,10 +1530,10 @@ l_gamenet_rev245_2_exec_if_settab_v1(lua_State* L)
 static int
 l_gameproto_get_if_setnpchead_data(lua_State* L)
 {
-    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
 
-    lua_pushinteger(L, item->packet._if_setnpchead.component_id);
-    lua_pushinteger(L, item->packet._if_setnpchead.npc_id);
+    lua_pushinteger(L, item->packet.u.if_setnpchead_v1.component_id);
+    lua_pushinteger(L, item->packet.u.if_setnpchead_v1.npc_id);
     return 2;
 }
 
@@ -1541,7 +1541,7 @@ static int
 l_gamenet_rev245_2_exec_if_setnpchead_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
-    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
 
     gamenet_rev245_2_exec_if_setnpchead_v1(game, &item->packet);
     return 0;
@@ -1551,7 +1551,7 @@ static int
 l_gamenet_rev245_2_exec_if_setplayerhead_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
-    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
 
     gamenet_rev245_2_exec_if_setplayerhead_v1(game, &item->packet);
     return 0;
@@ -1560,9 +1560,9 @@ l_gamenet_rev245_2_exec_if_setplayerhead_v1(lua_State* L)
 static int
 l_gameproto_get_obj_add_data(lua_State* L)
 {
-    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
-    lua_pushinteger(L, item->packet._obj_add.obj_id & 0x7fff);
-    lua_pushinteger(L, item->packet._obj_add.count);
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
+    lua_pushinteger(L, item->packet.u.obj_add_v1.obj_id & 0x7fff);
+    lua_pushinteger(L, item->packet.u.obj_add_v1.count);
     return 2;
 }
 
@@ -1570,7 +1570,7 @@ static int
 l_gamenet_rev245_2_exec_obj_add_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
-    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
     int zone_base_x = luaL_checkinteger(L, 2);
     int zone_base_z = luaL_checkinteger(L, 3);
     gamenet_rev245_2_exec_obj_add_v1(game, &item->packet, zone_base_x, zone_base_z);
@@ -1580,9 +1580,9 @@ l_gamenet_rev245_2_exec_obj_add_v1(lua_State* L)
 static int
 l_gameproto_get_loc_add_change_data(lua_State* L)
 {
-    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
-    lua_pushinteger(L, item->packet._loc_add_change.loc_id);
-    lua_pushinteger(L, item->packet._loc_add_change.info >> 2); /* shape */
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
+    lua_pushinteger(L, item->packet.u.loc_add_change_v1.loc_id);
+    lua_pushinteger(L, item->packet.u.loc_add_change_v1.info >> 2); /* shape */
     return 2;
 }
 
@@ -1590,7 +1590,7 @@ static int
 l_gamenet_rev245_2_exec_loc_add_change_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
-    struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
     gamenet_rev245_2_exec_loc_add_change_v1(game, &item->packet);
     return 0;
 }

@@ -6,8 +6,8 @@
 #include "osrs/datatypes/appearances.h"
 #include "osrs/datatypes/player_appearance.h"
 #include "osrs/game.h"
-#include "osrs/revs/lc245_2/gameproto_rev245_2_pktnpcinfo.h"
-#include "osrs/revs/lc245_2/gameproto_rev245_2_pktplayerinfo.h"
+#include "osrs/core/serverprot_pkt_npcinfo.h"
+#include "osrs/core/serverprot_pkt_playerinfo.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables_dat/config_spotanim.h"
@@ -434,13 +434,13 @@ LuaBuildCacheDat_get_player_appearance_ids_from_packet(
     struct LuaGameType* idk_ids = LuaGameType_NewIntArray(10);
     struct LuaGameType* obj_ids = LuaGameType_NewIntArray(10);
 
-    static struct PktPlayerInfoReader reader;
+    static struct PktPlayerInfoReaderV1 reader;
     reader.extended_count = 0;
     reader.current_op = 0;
     reader.max_ops = 2048;
-    struct PktPlayerInfoOp ops[2048];
+    struct PktPlayerInfoOpV1 ops[2048];
 
-    struct PktPlayerInfo pkt;
+    struct PktPlayerInfoV1 pkt;
     pkt.data = data;
     pkt.length = length;
     int count = pkt_player_info_reader_read(&reader, &pkt, ops, 2048);
@@ -484,15 +484,15 @@ LuaBuildCacheDat_get_npc_ids_from_packet(
     void* data = arg_userdata(args, 0);
     int length = arg_int(args, 1);
 
-    struct PktNpcInfo pkt;
+    struct PktNpcInfoV1 pkt;
     pkt.data = data;
     pkt.length = length;
 
-    static struct PktNpcInfoReader reader;
+    static struct PktNpcInfoReaderV1 reader;
     reader.extended_count = 0;
     reader.current_op = 0;
     reader.max_ops = 2048;
-    struct PktNpcInfoOp ops[2048];
+    struct PktNpcInfoOpV1 ops[2048];
     int count = pkt_npc_info_reader_read(&reader, &pkt, ops, 2048);
 
     struct LuaGameType* result = LuaGameType_NewIntArray(count);

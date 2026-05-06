@@ -3,12 +3,13 @@
 
 /* gamenet_rev245_2_send — outbound net-revision gateway for LC245_2.
  *
- * Each function is a one-line shim that calls gamenet_core_send_xxx_v1().
- * This is the single source of truth for which v1 hydrator is used for each
- * op on this network revision.
+ * Each function resolves PKTOUT_LC245_2_* wire opcodes (including multi-op
+ * families like INV_BUTTON1..5) and passes that opcode into
+ * gamenet_core_send_xxx_v1().  Core and clientprot stay revision-agnostic.
  *
- * If a future revision uses a different wire format, add gamenet_rev254_send_xxx
- * that calls gamenet_core_send_xxx_v2() instead; no other files change.
+ * If a future revision uses different opcodes or payloads, add
+ * gamenet_rev254_send_xxx that passes the correct opcode / calls _v2 hydrators;
+ * gamenet_send.c dispatches by revision as today.
  */
 
 #include <stdint.h>

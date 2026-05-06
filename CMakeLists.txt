@@ -188,7 +188,6 @@ set(COMMON_SOURCES
     src/osrs/revs/lc245_2/gamenet_rev245_2_send.c
     src/osrs/core/ui_loader.c
     src/osrs/core/gameproto_core_exec.c
-    src/osrs/core/gameproto_core_parse.c
     src/osrs/player_stats.c
     src/osrs/revs/lc245_2/gamenet_rev245_2_exec.c
     src/osrs/revs/lc245_2/serverprot_netrev245_2_parse.c
@@ -202,8 +201,8 @@ set(COMMON_SOURCES
     src/osrs/revs/lc245_2/loginproto_rev245_2.c
     src/osrs/datatypes/appearances.c
     src/osrs/datatypes/player_appearance.c
-    src/osrs/revs/lc245_2/gameproto_rev245_2_pktplayerinfo.c
-    src/osrs/revs/lc245_2/gameproto_rev245_2_pktnpcinfo.c
+    src/osrs/core/serverprot_pkt_playerinfo.c
+    src/osrs/core/serverprot_pkt_npcinfo.c
     src/osrs/core/packetbuffer.c
     src/osrs/rscache/compression.c
     src/osrs/rscache/tables/string_utils.c
@@ -223,7 +222,6 @@ set(COMMON_SOURCES
     src/osrs/rscache/tables/component.c
     src/osrs/rscache/bitbuffer.c
     src/osrs/rscache/xtea.c
-    src/osrs/revs/lc245_2/gameproto_rev245_2_query.c
     src/osrs/revs/lc245_2/revision_lc245_2.c
     src/osrs/entity_scenebuild.c
     src/osrs/lua_sidecar/luac_sidecar_cachedat.c

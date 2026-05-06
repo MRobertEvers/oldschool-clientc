@@ -17,7 +17,7 @@
 #include "osrs/clientscript_vm.h"
 #include "osrs/ginput.h"
 #include "osrs/core/packetbuffer.h"
-#include "osrs/revs/lc245_2/gameproto_rev245_2_packets.h"
+#include "osrs/core/serverprot_packets.h"
 #include "osrs/revs/lc245_2/revision_lc245_2.h"
 #include "osrs/painters.h"
 #include "osrs/player_stats.h"

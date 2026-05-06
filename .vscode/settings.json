@@ -286,7 +286,11 @@
     "pix3d_deob_state.h": "c",
     "*.mm": "objective-cpp",
     "*.m": "objective-c",
-    "gamecache.h": "c"
+    "gamecache.h": "c",
+    "revision_lc245_2.h": "c",
+    "serverprot_v1.h": "c",
+    "revision.h": "c",
+    "serverprot.h": "c"
   },
   "[linux]": {
     "C_Cpp.default.configurationName": "Linux",

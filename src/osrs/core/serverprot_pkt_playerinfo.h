@@ -1,10 +1,10 @@
-#ifndef PKT_PLAYER_INFO_H
-#define PKT_PLAYER_INFO_H
+#ifndef OSRS_CORE_SERVERPROT_PKT_PLAYERINFO_H
+#define OSRS_CORE_SERVERPROT_PKT_PLAYERINFO_H
 
 #include <stdbool.h>
 #include <stdint.h>
 
-enum PktPlayerInfoOpKind
+enum PktPlayerInfoOpKindV1
 {
     PKT_PLAYER_INFO_OP_NONE = 0,
     PKT_PLAYER_INFO_OP_SET_LOCAL_PLAYER,
@@ -40,7 +40,7 @@ enum PktPlayerInfoOpKind
 
 };
 
-struct PktPlayerInfo_LocalXZLevel
+struct PktPlayerInfoV1_LocalXZLevel
 {
     int16_t x;
     int16_t z;
@@ -48,36 +48,36 @@ struct PktPlayerInfo_LocalXZLevel
     bool jump;
 };
 
-struct PktPlayerInfo_DeltaXZ
+struct PktPlayerInfoV1_DeltaXZ
 {
     int16_t dx;
     int16_t dz;
     bool jump;
 };
 
-struct PktPlayerInfo_Appearance
+struct PktPlayerInfoV1_Appearance
 {
     uint8_t* appearance;
     int len;
 };
 
-struct PktPlayerInfo_Sequence
+struct PktPlayerInfoV1_Sequence
 {
     uint16_t sequence_id;
     uint8_t delay;
 };
 
-struct PktPlayerInfo_FaceEntity
+struct PktPlayerInfoV1_FaceEntity
 {
     int32_t entity_id;
 };
 
-struct PktPlayerInfo_Say
+struct PktPlayerInfoV1_Say
 {
     char* text;
 };
 
-struct PktPlayerInfo_Damage
+struct PktPlayerInfoV1_Damage
 {
     uint8_t damage_type;
     uint8_t damage;
@@ -85,14 +85,14 @@ struct PktPlayerInfo_Damage
     uint8_t total_health;
 };
 
-struct PktPlayerInfo_FaceCoord
+struct PktPlayerInfoV1_FaceCoord
 {
     int32_t entity_id;
     int16_t x;
     int16_t z;
 };
 
-struct PktPlayerInfo_Chat
+struct PktPlayerInfoV1_Chat
 {
     char username[13];
     uint16_t color;
@@ -101,13 +101,13 @@ struct PktPlayerInfo_Chat
     uint8_t* text; // Wordpack Unpack
 };
 
-struct PktPlayerInfo_SpotAnim
+struct PktPlayerInfoV1_SpotAnim
 {
     int32_t spotanim_id;
     int32_t delay;
 };
 
-struct PktPlayerInfo_ExactMove
+struct PktPlayerInfoV1_ExactMove
 {
     uint8_t forcemove_start_x;
     uint8_t forcemove_start_z;
@@ -118,7 +118,7 @@ struct PktPlayerInfo_ExactMove
     uint8_t forcemove_facedirection;
 };
 
-struct PktPlayerInfo_Damage2
+struct PktPlayerInfoV1_Damage2
 {
     uint8_t damage;
     uint8_t damage_type;
@@ -126,35 +126,35 @@ struct PktPlayerInfo_Damage2
     uint8_t total_health;
 };
 
-struct PktPlayerInfoOp
+struct PktPlayerInfoOpV1
 {
-    enum PktPlayerInfoOpKind kind;
+    enum PktPlayerInfoOpKindV1 kind;
 
     union
     {
         uint64_t _bitvalue;
-        struct PktPlayerInfo_Appearance _appearance;
-        struct PktPlayerInfo_Sequence _sequence;
-        struct PktPlayerInfo_FaceEntity _face_entity;
-        struct PktPlayerInfo_Say _say;
-        struct PktPlayerInfo_Damage _damage;
-        struct PktPlayerInfo_FaceCoord _face_coord;
-        struct PktPlayerInfo_Chat _chat;
-        struct PktPlayerInfo_SpotAnim _spotanim;
-        struct PktPlayerInfo_ExactMove _exactmove;
-        struct PktPlayerInfo_Damage2 _damage2;
-        struct PktPlayerInfo_LocalXZLevel _local_xz_level;
-        struct PktPlayerInfo_DeltaXZ _delta_xz;
+        struct PktPlayerInfoV1_Appearance _appearance;
+        struct PktPlayerInfoV1_Sequence _sequence;
+        struct PktPlayerInfoV1_FaceEntity _face_entity;
+        struct PktPlayerInfoV1_Say _say;
+        struct PktPlayerInfoV1_Damage _damage;
+        struct PktPlayerInfoV1_FaceCoord _face_coord;
+        struct PktPlayerInfoV1_Chat _chat;
+        struct PktPlayerInfoV1_SpotAnim _spotanim;
+        struct PktPlayerInfoV1_ExactMove _exactmove;
+        struct PktPlayerInfoV1_Damage2 _damage2;
+        struct PktPlayerInfoV1_LocalXZLevel _local_xz_level;
+        struct PktPlayerInfoV1_DeltaXZ _delta_xz;
     };
 };
 
-struct PktPlayerInfo
+struct PktPlayerInfoV1
 {
     int length;
     uint8_t* data;
 };
 
-struct PktPlayerInfoReader
+struct PktPlayerInfoReaderV1
 {
     uint16_t extended_queue[2048];
     int extended_count;
@@ -168,9 +168,9 @@ struct PktPlayerInfoReader
 
 int
 pkt_player_info_reader_read(
-    struct PktPlayerInfoReader* reader,
-    struct PktPlayerInfo* pkt,
-    struct PktPlayerInfoOp* ops,
+    struct PktPlayerInfoReaderV1* reader,
+    struct PktPlayerInfoV1* pkt,
+    struct PktPlayerInfoOpV1* ops,
     int ops_capacity);
 
-#endif
+#endif /* OSRS_CORE_SERVERPROT_PKT_PLAYERINFO_H */

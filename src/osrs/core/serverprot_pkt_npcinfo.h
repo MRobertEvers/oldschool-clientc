@@ -1,10 +1,10 @@
-#ifndef PKT_NPC_INFO_H
-#define PKT_NPC_INFO_H
+#ifndef OSRS_CORE_SERVERPROT_PKT_NPCINFO_H
+#define OSRS_CORE_SERVERPROT_PKT_NPCINFO_H
 
 #include <stdbool.h>
 #include <stdint.h>
 
-enum PktNpcInfoOpKind
+enum PktNpcInfoOpKindV1
 {
     PKT_NPC_INFO_OP_NONE = 0,
     // This is the offset in the active player map.
@@ -37,36 +37,36 @@ enum PktNpcInfoOpKind
 
 };
 
-struct PktNpcInfo_DeltaXZ
+struct PktNpcInfoV1_DeltaXZ
 {
     int16_t x;
     int16_t z;
     bool jump;
 };
 
-struct PktNpcInfo_Sequence
+struct PktNpcInfoV1_Sequence
 {
     uint16_t sequence_id;
     uint8_t delay;
 };
 
-struct PktNpcInfo_FaceEntity
+struct PktNpcInfoV1_FaceEntity
 {
     int32_t entity_id;
 };
 
-struct PktNpcInfo_FaceCoord
+struct PktNpcInfoV1_FaceCoord
 {
     int16_t x;
     int16_t z;
 };
 
-struct PktNpcInfo_Say
+struct PktNpcInfoV1_Say
 {
     char* text;
 };
 
-struct PktNpcInfo_Damage
+struct PktNpcInfoV1_Damage
 {
     uint8_t damage_type;
     uint8_t damage;
@@ -74,7 +74,7 @@ struct PktNpcInfo_Damage
     uint8_t total_health;
 };
 
-struct PktNpcInfo_Damage2
+struct PktNpcInfoV1_Damage2
 {
     int32_t entity_id;
     uint8_t damage;
@@ -82,36 +82,36 @@ struct PktNpcInfo_Damage2
     uint8_t total_health;
 };
 
-struct PktNpcInfo_Rundir
+struct PktNpcInfoV1_Rundir
 {
     int32_t rundir_one;
     int32_t rundir_two;
 };
 
-struct PktNpcInfoOp
+struct PktNpcInfoOpV1
 {
-    enum PktNpcInfoOpKind kind;
+    enum PktNpcInfoOpKindV1 kind;
 
     union
     {
         uint64_t _bitvalue;
-        struct PktNpcInfo_Sequence _sequence;
-        struct PktNpcInfo_FaceEntity _face_entity;
-        struct PktNpcInfo_FaceCoord _face_coord;
-        struct PktNpcInfo_Damage _damage;
-        struct PktNpcInfo_Damage2 _damage2;
-        struct PktNpcInfo_Rundir _rundir;
-        struct PktNpcInfo_DeltaXZ _delta_xz;
+        struct PktNpcInfoV1_Sequence _sequence;
+        struct PktNpcInfoV1_FaceEntity _face_entity;
+        struct PktNpcInfoV1_FaceCoord _face_coord;
+        struct PktNpcInfoV1_Damage _damage;
+        struct PktNpcInfoV1_Damage2 _damage2;
+        struct PktNpcInfoV1_Rundir _rundir;
+        struct PktNpcInfoV1_DeltaXZ _delta_xz;
     };
 };
 
-struct PktNpcInfo
+struct PktNpcInfoV1
 {
     int length;
     uint8_t* data;
 };
 
-struct PktNpcInfoReader
+struct PktNpcInfoReaderV1
 {
     uint16_t extended_queue[2048];
     int extended_count;
@@ -125,9 +125,9 @@ struct PktNpcInfoReader
 
 int
 pkt_npc_info_reader_read(
-    struct PktNpcInfoReader* reader,
-    struct PktNpcInfo* pkt,
-    struct PktNpcInfoOp* ops,
+    struct PktNpcInfoReaderV1* reader,
+    struct PktNpcInfoV1* pkt,
+    struct PktNpcInfoOpV1* ops,
     int ops_capacity);
 
-#endif
+#endif /* OSRS_CORE_SERVERPROT_PKT_NPCINFO_H */

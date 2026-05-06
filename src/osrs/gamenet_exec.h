@@ -11,9 +11,9 @@
  */
 
 struct GGame;
-struct RevPacket_LC245_2;
+struct RevServerProtPacket;
 
 void
-gamenet_exec(struct GGame* game, struct RevPacket_LC245_2* packet);
+gamenet_exec(struct GGame* game, struct RevServerProtPacket* packet);
 
 #endif /* OSRS_GAMENET_EXEC_H */

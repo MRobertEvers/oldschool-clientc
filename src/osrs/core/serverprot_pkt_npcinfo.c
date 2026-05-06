@@ -1,4 +1,4 @@
-#include "osrs/revs/lc245_2/gameproto_rev245_2_pktnpcinfo.h"
+#include "osrs/core/serverprot_pkt_npcinfo.h"
 
 #include "osrs/rscache/bitbuffer.h"
 #include "osrs/rscache/rsbuf.h"
@@ -16,10 +16,10 @@
 #define MASK_SPOTANIM 0x40
 #define MASK_FACE_COORD 0x80
 
-static struct PktNpcInfoOp*
+static struct PktNpcInfoOpV1*
 next_op(
-    struct PktNpcInfoReader* reader,
-    struct PktNpcInfoOp* ops,
+    struct PktNpcInfoReaderV1* reader,
+    struct PktNpcInfoOpV1* ops,
     int ops_capacity)
 {
     assert(reader->current_op < ops_capacity);
@@ -28,7 +28,7 @@ next_op(
 
 static void
 push_op_add_npc_new_opbits_pid(
-    struct PktNpcInfoOp* op,
+    struct PktNpcInfoOpV1* op,
     int player_id)
 {
     op->kind = PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID;
@@ -37,7 +37,7 @@ push_op_add_npc_new_opbits_pid(
 
 static void
 push_op_add_npc_old_opbits_idx(
-    struct PktNpcInfoOp* op,
+    struct PktNpcInfoOpV1* op,
     int npc_idx)
 {
     op->kind = PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX;
@@ -46,7 +46,7 @@ push_op_add_npc_old_opbits_idx(
 
 static void
 push_op_set_npc_opbits_idx(
-    struct PktNpcInfoOp* op,
+    struct PktNpcInfoOpV1* op,
     int npc_idx)
 {
     op->kind = PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX;
@@ -55,7 +55,7 @@ push_op_set_npc_opbits_idx(
 
 static void
 push_op_clear_npc_opbits_idx(
-    struct PktNpcInfoOp* op,
+    struct PktNpcInfoOpV1* op,
     int npc_idx)
 {
     op->kind = PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX;
@@ -64,7 +64,7 @@ push_op_clear_npc_opbits_idx(
 
 static void
 push_op_bits_count_reset(
-    struct PktNpcInfoOp* op,
+    struct PktNpcInfoOpV1* op,
     int count)
 {
     op->kind = PKT_NPC_INFO_OPBITS_COUNT_RESET;
@@ -73,7 +73,7 @@ push_op_bits_count_reset(
 
 static void
 push_bits_npc_type(
-    struct PktNpcInfoOp* op,
+    struct PktNpcInfoOpV1* op,
     int npc_type)
 {
     op->kind = PKT_NPC_INFO_OPBITS_NPCTYPE;
@@ -82,7 +82,7 @@ push_bits_npc_type(
 
 static void
 push_bits_info(
-    struct PktNpcInfoOp* op,
+    struct PktNpcInfoOpV1* op,
     int info)
 {
     op->kind = PKT_NPC_INFO_OPBITS_INFO;
@@ -90,7 +90,7 @@ push_bits_info(
 }
 static void
 push_bits_walkdir(
-    struct PktNpcInfoOp* op,
+    struct PktNpcInfoOpV1* op,
     int walkdir)
 {
     op->kind = PKT_NPC_INFO_OPBITS_WALKDIR;
@@ -99,7 +99,7 @@ push_bits_walkdir(
 
 static void
 push_bits_rundir(
-    struct PktNpcInfoOp* op,
+    struct PktNpcInfoOpV1* op,
     int rundir)
 {
     op->kind = PKT_NPC_INFO_OPBITS_RUNDIR;
@@ -108,7 +108,7 @@ push_bits_rundir(
 
 static void
 push_op_delta_xz(
-    struct PktNpcInfoOp* op,
+    struct PktNpcInfoOpV1* op,
     int x,
     int z,
     bool jump)
@@ -121,7 +121,7 @@ push_op_delta_xz(
 
 static void
 push_op_sequence(
-    struct PktNpcInfoOp* op,
+    struct PktNpcInfoOpV1* op,
     int sequence_id,
     int delay)
 {
@@ -132,7 +132,7 @@ push_op_sequence(
 
 static void
 push_op_face_entity(
-    struct PktNpcInfoOp* op,
+    struct PktNpcInfoOpV1* op,
     int entity_id)
 {
     op->kind = PKT_NPC_INFO_OP_FACE_ENTITY;
@@ -141,7 +141,7 @@ push_op_face_entity(
 
 static void
 push_op_face_coord(
-    struct PktNpcInfoOp* op,
+    struct PktNpcInfoOpV1* op,
     int target_x,
     int target_z)
 {
@@ -152,7 +152,7 @@ push_op_face_coord(
 
 static void
 push_op_damage(
-    struct PktNpcInfoOp* op,
+    struct PktNpcInfoOpV1* op,
     int damage_type,
     int damage,
     int health,
@@ -167,9 +167,9 @@ push_op_damage(
 
 int
 pkt_npc_info_reader_read(
-    struct PktNpcInfoReader* reader,
-    struct PktNpcInfo* pkt,
-    struct PktNpcInfoOp* ops,
+    struct PktNpcInfoReaderV1* reader,
+    struct PktNpcInfoV1* pkt,
+    struct PktNpcInfoOpV1* ops,
     int ops_capacity)
 {
     reader->current_op = 0;
@@ -383,5 +383,6 @@ pkt_npc_info_reader_read(
         }
     }
 
+    (void)appearance_buf;
     return reader->current_op;
 }

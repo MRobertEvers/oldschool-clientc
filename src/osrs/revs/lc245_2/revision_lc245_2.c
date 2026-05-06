@@ -26,7 +26,7 @@ revision_lc245_2_free(struct Revision* rev)
 
     while( self->pending_head )
     {
-        struct RevPacket_LC245_2_Item* item = self->pending_head;
+        struct RevServerProtPacket_Item* item = self->pending_head;
         self->pending_head = item->next_nullable;
         gameproto_free_lc245_2_item(item);
         free(item);
@@ -46,12 +46,12 @@ gameproto_rev245_2_has_pending(struct RevisionLC245_2* self)
 void
 gameproto_rev245_2_enqueue(
     struct RevisionLC245_2* self,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     assert(self && packet);
 
-    struct RevPacket_LC245_2_Item* item = malloc(sizeof(struct RevPacket_LC245_2_Item));
-    memset(item, 0, sizeof(struct RevPacket_LC245_2_Item));
+    struct RevServerProtPacket_Item* item = malloc(sizeof(struct RevServerProtPacket_Item));
+    memset(item, 0, sizeof(struct RevServerProtPacket_Item));
 
     item->packet = *packet;
     if( !self->pending_head )
@@ -60,7 +60,7 @@ gameproto_rev245_2_enqueue(
     }
     else
     {
-        struct RevPacket_LC245_2_Item* list = self->pending_head;
+        struct RevServerProtPacket_Item* list = self->pending_head;
         while( list->next_nullable )
         {
             list = list->next_nullable;
@@ -79,7 +79,7 @@ gameproto_rev245_2_drain_pending(
 
     while( self->pending_head )
     {
-        struct RevPacket_LC245_2_Item* item = self->pending_head;
+        struct RevServerProtPacket_Item* item = self->pending_head;
         self->pending_head = item->next_nullable;
         item->next_nullable = NULL;
 

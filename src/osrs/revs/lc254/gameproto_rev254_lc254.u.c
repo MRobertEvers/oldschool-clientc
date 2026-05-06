@@ -1,10 +1,6 @@
 #ifndef GAMEPROTO_LC254_U_C
 #define GAMEPROTO_LC254_U_C
 
-// clang-format off
-#include "osrs/core/gameproto_packets_shared.c"
-// clang-format on
-
 static void
 lc254_process(
     struct GGame* game,
@@ -15,8 +11,11 @@ lc254_process(
     switch( packet_type )
     {
     case PKTIN_LC254_REBUILD_NORMAL:
-        gameproto_packet_maprebuild8_z16_x16(game, data, data_size);
+    {
+        int zonex, zonez;
+        serverprot_core_parse_maprebuild_v1(data, data_size, &zonex, &zonez);
         break;
+    }
     default:
         break;
     }

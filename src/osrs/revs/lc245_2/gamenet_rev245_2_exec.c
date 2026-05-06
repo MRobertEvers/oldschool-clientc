@@ -4,10 +4,13 @@
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
 #include "osrs/clientscript_vm.h"
+#include "osrs/core/serverprot.h"
+#include "osrs/core/serverprot_pkt_npcinfo.h"
+#include "osrs/core/serverprot_pkt_playerinfo.h"
 #include "osrs/dash_utils.h"
-#include "osrs/entity_scenebuild.h"
 #include "osrs/datatypes/appearances.h"
 #include "osrs/datatypes/player_appearance.h"
+#include "osrs/entity_scenebuild.h"
 #include "osrs/game.h"
 #include "osrs/game_entity.h"
 #include "osrs/interface.h"
@@ -18,8 +21,6 @@
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
 #include "osrs/revconfig/uitree_load.h"
-#include "osrs/revs/lc245_2/gameproto_rev245_2_pktnpcinfo.h"
-#include "osrs/revs/lc245_2/gameproto_rev245_2_pktplayerinfo.h"
 #include "osrs/rscache/bitbuffer.h"
 #include "osrs/rscache/rsbuf.h"
 #include "osrs/rscache/tables/maps.h"
@@ -39,7 +40,7 @@
 /** RS build scene width/height in tiles (rebuild_normal / world). */
 #define GAMEPROTO_SCENE_WIDTH_TILES 104
 /** Smallest half-width in map squares so (2*padding+1)*8 >= scene_size. */
-#define GAMEPROTO_ZONE_PADDING_FOR_SCENE(S) ((S) > 8 ? (((S)-8) + 15) / 16 : 0)
+#define GAMEPROTO_ZONE_PADDING_FOR_SCENE(S) ((S) > 8 ? (((S) - 8) + 15) / 16 : 0)
 
 /** RS protocol uses 65535 (u16 -1) for "no interface" / close overlay. */
 static int
@@ -53,7 +54,7 @@ if_decode_component_id(int raw)
 void
 LibToriRS_WorldMinimapStaticRebuild(struct GGame* game);
 
-static struct PktNpcInfoReader npc_info_reader = { 0 };
+static struct PktNpcInfoReaderV1 npc_info_reader = { 0 };
 
 void
 gamenet_rev245_2_exec_npc_info_raw_v1(
@@ -61,23 +62,24 @@ gamenet_rev245_2_exec_npc_info_raw_v1(
     void* data,
     int length)
 {
-    struct RevPacket_LC245_2 packet = { 0 };
-    packet._npc_info.length = length;
-    packet._npc_info.data = data;
+    struct RevServerProtPacket packet = { 0 };
+    packet.packet_type = SERVERPROT_NPC_INFO_V1;
+    packet.u.npc_info_v1.length = length;
+    packet.u.npc_info_v1.data = data;
     gamenet_rev245_2_exec_npc_info_v1(game, &packet);
 }
 
 void
 gamenet_rev245_2_exec_npc_info_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     npc_info_reader.extended_count = 0;
     npc_info_reader.current_op = 0;
     npc_info_reader.max_ops = 2048;
-    struct PktNpcInfoOp ops[2048];
+    struct PktNpcInfoOpV1 ops[2048];
     int count = pkt_npc_info_reader_read(
-        &npc_info_reader, (struct PktNpcInfo*)&packet->_npc_info, ops, 2048);
+        &npc_info_reader, (struct PktNpcInfoV1*)&packet->u.npc_info_v1, ops, 2048);
 
     struct PlayerEntity* player = world_player(game->world, ACTIVE_PLAYER_SLOT);
     if( !player->alive )
@@ -90,7 +92,7 @@ gamenet_rev245_2_exec_npc_info_v1(
     struct NPCEntity* npc = NULL;
     for( int i = 0; i < count; i++ )
     {
-        struct PktNpcInfoOp* op = &ops[i];
+        struct PktNpcInfoOpV1* op = &ops[i];
 
         if( npc_id != -1 )
         {
@@ -215,26 +217,26 @@ gamenet_rev245_2_exec_npc_info_v1(
     }
 }
 
-static struct PktPlayerInfoReader player_info_reader = { 0 };
+static struct PktPlayerInfoReaderV1 player_info_reader = { 0 };
 
-void
-add_player_info(
+static void
+player_info_apply_ops_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     struct BitBuffer buf;
     struct RSBuffer rsbuf;
-    rsbuf_init(&rsbuf, packet->_player_info.data, packet->_player_info.length);
+    rsbuf_init(&rsbuf, packet->u.player_info_v1.data, packet->u.player_info_v1.length);
     bitbuffer_init_from_rsbuf(&buf, &rsbuf);
     bits(&buf);
 
-    struct PktPlayerInfoOp ops[2048];
+    struct PktPlayerInfoOpV1 ops[2048];
 
     struct SceneElement* scene_element = NULL;
     struct PlayerEntity* active_player = world_player(game->world, ACTIVE_PLAYER_SLOT);
 
     int count = pkt_player_info_reader_read(
-        &player_info_reader, (struct PktPlayerInfo*)&packet->_player_info, ops, 2048);
+        &player_info_reader, (struct PktPlayerInfoV1*)&packet->u.player_info_v1, ops, 2048);
     int player_id = -1;
 
     struct PlayerEntity* player = NULL;
@@ -242,7 +244,7 @@ add_player_info(
     game->world->active_player_count = 0;
     for( int i = 0; i < count; i++ )
     {
-        struct PktPlayerInfoOp* op = &ops[i];
+        struct PktPlayerInfoOpV1* op = &ops[i];
 
         player =
             (player_id >= 0) ? world_player_ensure_scene_element(game->world, player_id) : NULL;
@@ -398,10 +400,10 @@ add_player_info(
 void
 gamenet_rev245_2_exec_rebuild_normal_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int zonex = packet->_map_rebuild.zonex;
-    int zonez = packet->_map_rebuild.zonez;
+    int zonex = packet->u.map_rebuild_v1.zonex;
+    int zonez = packet->u.map_rebuild_v1.zonez;
 
     /* Jagfile + cache lifecycle for configs/versionlist/media is owned by Lua pkt_dispatch
      * (clear/reload around rebuild). Do not clear buildcachedat here or subsequent PLAYER_INFO /
@@ -440,11 +442,11 @@ gamenet_rev245_2_exec_rebuild_normal_v1(
 void
 gamenet_rev245_2_exec_rebuild_normal_world_v1(
     struct World* world,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     int zone_padding = GAMEPROTO_ZONE_PADDING_FOR_SCENE(GAMEPROTO_SCENE_WIDTH_TILES);
-    int zone_sw_x = packet->_map_rebuild.zonex - zone_padding;
-    int zone_sw_z = packet->_map_rebuild.zonez - zone_padding;
+    int zone_sw_x = packet->u.map_rebuild_v1.zonex - zone_padding;
+    int zone_sw_z = packet->u.map_rebuild_v1.zonez - zone_padding;
 
     int prev_base_x = world->_base_tile_x;
     int prev_base_z = world->_base_tile_z;
@@ -454,7 +456,7 @@ gamenet_rev245_2_exec_rebuild_normal_world_v1(
     int dz = new_base_z - prev_base_z;
 
     world_buildcachedat_rebuild_centerzone(
-        world, packet->_map_rebuild.zonex, packet->_map_rebuild.zonez, GAMEPROTO_SCENE_WIDTH_TILES);
+        world, packet->u.map_rebuild_v1.zonex, packet->u.map_rebuild_v1.zonez, GAMEPROTO_SCENE_WIDTH_TILES);
 
     for( int i = 0; i < world->active_npc_count; i++ )
     {
@@ -516,19 +518,19 @@ gamenet_rev245_2_exec_player_info_raw_v1(
     void* data,
     int length)
 {
-    struct RevPacket_LC245_2 packet = { 0 };
-    packet.packet_type = PKTIN_LC245_2_PLAYER_INFO;
-    packet._player_info.data = data;
-    packet._player_info.length = length;
-    add_player_info(game, &packet);
+    struct RevServerProtPacket packet = { 0 };
+    packet.packet_type = SERVERPROT_PLAYER_INFO_V1;
+    packet.u.player_info_v1.data = data;
+    packet.u.player_info_v1.length = length;
+    player_info_apply_ops_v1(game, &packet);
 }
 
 void
 gamenet_rev245_2_exec_player_info_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    add_player_info(game, packet);
+    player_info_apply_ops_v1(game, packet);
 }
 
 /**
@@ -616,13 +618,12 @@ inv_sync_load_item_sprite(
 void
 gamenet_rev245_2_exec_update_inv_full_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int component_id = packet->_update_inv_full.component_id;
-    int size = packet->_update_inv_full.size;
+    int component_id = packet->u.update_inv_full_v1.component_id;
+    int size = packet->u.update_inv_full_v1.size;
 
-    struct GameCacheComponent* component =
-        gamecache_get_component(game->gamecache, component_id);
+    struct GameCacheComponent* component = gamecache_get_component(game->gamecache, component_id);
 
     if( !component )
     {
@@ -641,12 +642,12 @@ gamenet_rev245_2_exec_update_inv_full_v1(
     /* Update buildcachedat slots (software-raster / interface.c path). */
     for( int i = 0; i < size && i < max_slots; i++ )
     {
-        component->invSlotObjId[i]    = packet->_update_inv_full.obj_ids[i];
-        component->invSlotObjCount[i] = packet->_update_inv_full.obj_counts[i];
+        component->invSlotObjId[i] = packet->u.update_inv_full_v1.obj_ids[i];
+        component->invSlotObjCount[i] = packet->u.update_inv_full_v1.obj_counts[i];
     }
     for( int i = size; i < max_slots; i++ )
     {
-        component->invSlotObjId[i]    = 0;
+        component->invSlotObjId[i] = 0;
         component->invSlotObjCount[i] = 0;
     }
 
@@ -656,8 +657,8 @@ gamenet_rev245_2_exec_update_inv_full_v1(
     if( game->inv_pool )
     {
         int32_t node_idx = -1;
-        int inv_index    = -1;
-        int from_uitree  = 0;
+        int inv_index = -1;
+        int from_uitree = 0;
         if( game->ui_root_buffer )
         {
             inv_index = uitree_find_inv_index_by_component_id(
@@ -686,9 +687,9 @@ gamenet_rev245_2_exec_update_inv_full_v1(
             for( int i = 0; i < item_limit; i++ )
             {
                 /* obj_ids[i] is 1-based wire value; obj_icon_get expects 0-based. */
-                int obj_id_wire  = packet->_update_inv_full.obj_ids[i];
+                int obj_id_wire = packet->u.update_inv_full_v1.obj_ids[i];
                 int obj_id_0base = obj_id_wire > 0 ? obj_id_wire - 1 : 0;
-                int count        = packet->_update_inv_full.obj_counts[i];
+                int count = packet->u.update_inv_full_v1.obj_counts[i];
                 inv_sync_load_item_sprite(game, &inv->items[i], obj_id_0base, count);
             }
             for( int i = item_limit; i < UI_INVENTORY_MAX_ITEMS; i++ )
@@ -736,14 +737,14 @@ gamenet_rev245_2_exec_update_inv_full_v1(
                 int const show = item_limit < 24 ? item_limit : 24;
                 for( int i = 0; i < show; i++ )
                 {
-                    int w = packet->_update_inv_full.obj_ids[i];
+                    int w = packet->u.update_inv_full_v1.obj_ids[i];
                     int z = w > 0 ? w - 1 : 0;
                     printf(
                         "  slot %d: wire=%d 0base=%d cnt=%d -> item.obj_id=%d scene_id=%d\n",
                         i,
                         w,
                         z,
-                        packet->_update_inv_full.obj_counts[i],
+                        packet->u.update_inv_full_v1.obj_counts[i],
                         inv->items[i].obj_id,
                         inv->items[i].scene_id);
                 }
@@ -755,10 +756,10 @@ gamenet_rev245_2_exec_update_inv_full_v1(
 void
 gamenet_rev245_2_exec_if_settab_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int component_id = if_decode_component_id(packet->_if_settab.component_id);
-    int tab_id = packet->_if_settab.tab_id;
+    int component_id = if_decode_component_id(packet->u.if_settab_v1.component_id);
+    int tab_id = packet->u.if_settab_v1.tab_id;
 
     if( tab_id >= 0 && tab_id < 14 && game->iface )
     {
@@ -773,9 +774,9 @@ gamenet_rev245_2_exec_if_settab_v1(
 void
 gamenet_rev245_2_exec_if_settab_active_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int tab_id = packet->_if_settab_active.tab_id;
+    int tab_id = packet->u.if_settab_active_v1.tab_id;
 
     if( tab_id >= 0 && tab_id < 14 && game->iface )
     {
@@ -796,10 +797,10 @@ gamenet_rev245_2_exec_if_settab_active_v1(
 void
 gamenet_rev245_2_exec_if_setcolour_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int component_id = packet->_if_setcolour.component_id;
-    int colour15 = packet->_if_setcolour.colour;
+    int component_id = packet->u.if_setcolour_v1.component_id;
+    int colour15 = packet->u.if_setcolour_v1.colour;
 
     if( !game->ui_root_buffer )
         return;
@@ -829,10 +830,10 @@ gamenet_rev245_2_exec_if_setcolour_v1(
 void
 gamenet_rev245_2_exec_if_sethide_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int component_id = packet->_if_sethide.component_id;
-    int hide_val = packet->_if_sethide.hide;
+    int component_id = packet->u.if_sethide_v1.component_id;
+    int hide_val = packet->u.if_sethide_v1.hide;
 
     if( game->ui_root_buffer )
         uitree_set_component_hidden(game->ui_root_buffer, component_id, hide_val);
@@ -841,14 +842,13 @@ gamenet_rev245_2_exec_if_sethide_v1(
 void
 gamenet_rev245_2_exec_if_setobject_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int component_id = packet->_if_setobject.component_id;
-    int obj_id = packet->_if_setobject.obj_id;
-    int zoom = packet->_if_setobject.zoom;
+    int component_id = packet->u.if_setobject_v1.component_id;
+    int obj_id = packet->u.if_setobject_v1.obj_id;
+    int zoom = packet->u.if_setobject_v1.zoom;
 
-    struct GameCacheComponent* component =
-        gamecache_get_component(game->gamecache, component_id);
+    struct GameCacheComponent* component = gamecache_get_component(game->gamecache, component_id);
     if( !component )
         return;
 
@@ -866,13 +866,12 @@ gamenet_rev245_2_exec_if_setobject_v1(
 void
 gamenet_rev245_2_exec_if_setmodel_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int component_id = packet->_if_setmodel.component_id;
-    int model_id = packet->_if_setmodel.model_id;
+    int component_id = packet->u.if_setmodel_v1.component_id;
+    int model_id = packet->u.if_setmodel_v1.model_id;
 
-    struct GameCacheComponent* component =
-        gamecache_get_component(game->gamecache, component_id);
+    struct GameCacheComponent* component = gamecache_get_component(game->gamecache, component_id);
     if( !component )
         return;
 
@@ -883,10 +882,10 @@ gamenet_rev245_2_exec_if_setmodel_v1(
 void
 gamenet_rev245_2_exec_if_setanim_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int component_id = packet->_if_setanim.component_id;
-    int anim_id = packet->_if_setanim.anim_id;
+    int component_id = packet->u.if_setanim_v1.component_id;
+    int anim_id = packet->u.if_setanim_v1.anim_id;
 
     if( !game->ui_root_buffer )
         return;
@@ -898,12 +897,11 @@ gamenet_rev245_2_exec_if_setanim_v1(
 void
 gamenet_rev245_2_exec_if_setplayerhead_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int component_id = packet->_if_setplayerhead.component_id;
+    int component_id = packet->u.if_setplayerhead_v1.component_id;
 
-    struct GameCacheComponent* component =
-        gamecache_get_component(game->gamecache, component_id);
+    struct GameCacheComponent* component = gamecache_get_component(game->gamecache, component_id);
     if( !component )
         return;
 
@@ -922,22 +920,22 @@ gamenet_rev245_2_exec_if_setplayerhead_v1(
 void
 gamenet_rev245_2_exec_if_settext_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int component_id = packet->_if_settext.component_id;
-    char* new_text = packet->_if_settext.text;
+    int component_id = packet->u.if_settext_v1.component_id;
+    char* new_text = packet->u.if_settext_v1.text;
 
     if( !game->ui_root_buffer )
     {
         free(new_text);
-        packet->_if_settext.text = NULL;
+        packet->u.if_settext_v1.text = NULL;
         return;
     }
     int32_t idx = uitree_find_by_component_id(game->ui_root_buffer, component_id);
     if( idx < 0 )
     {
         free(new_text);
-        packet->_if_settext.text = NULL;
+        packet->u.if_settext_v1.text = NULL;
         return;
     }
     struct StaticUIComponent* c = &game->ui_root_buffer->components[idx];
@@ -945,25 +943,24 @@ gamenet_rev245_2_exec_if_settext_v1(
     {
         free((void*)c->u.rs_text.text);
         c->u.rs_text.text = new_text;
-        packet->_if_settext.text = NULL;
+        packet->u.if_settext_v1.text = NULL;
     }
     else
     {
         free(new_text);
-        packet->_if_settext.text = NULL;
+        packet->u.if_settext_v1.text = NULL;
     }
 }
 
 void
 gamenet_rev245_2_exec_if_setnpchead_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int component_id = packet->_if_setnpchead.component_id;
-    int npc_id = packet->_if_setnpchead.npc_id;
+    int component_id = packet->u.if_setnpchead_v1.component_id;
+    int npc_id = packet->u.if_setnpchead_v1.npc_id;
 
-    struct GameCacheComponent* component =
-        gamecache_get_component(game->gamecache, component_id);
+    struct GameCacheComponent* component = gamecache_get_component(game->gamecache, component_id);
     if( !component )
         return;
 
@@ -974,11 +971,11 @@ gamenet_rev245_2_exec_if_setnpchead_v1(
 void
 gamenet_rev245_2_exec_if_setposition_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int component_id = packet->_if_setposition.component_id;
-    int x = packet->_if_setposition.x;
-    int z = packet->_if_setposition.z;
+    int component_id = packet->u.if_setposition_v1.component_id;
+    int x = packet->u.if_setposition_v1.x;
+    int z = packet->u.if_setposition_v1.z;
 
     if( !game->ui_root_buffer )
         return;
@@ -993,10 +990,10 @@ gamenet_rev245_2_exec_if_setposition_v1(
 void
 gamenet_rev245_2_exec_if_setscrollpos_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int component_id = packet->_if_setscrollpos.component_id;
-    int pos = packet->_if_setscrollpos.pos;
+    int component_id = packet->u.if_setscrollpos_v1.component_id;
+    int pos = packet->u.if_setscrollpos_v1.pos;
 
     if( !game->iface || component_id < 0 || component_id >= MAX_IFACE_SCROLL_IDS )
         return;
@@ -1026,265 +1023,265 @@ gamenet_rev245_2_exec_if_setscrollpos_v1(
 static void
 gamenet_rev245_2_exec_message_game_v1(
     struct GGame*,
-    struct RevPacket_LC245_2*);
+    struct RevServerProtPacket*);
 static void
 gamenet_rev245_2_exec_message_private_v1(
     struct GGame*,
-    struct RevPacket_LC245_2*);
+    struct RevServerProtPacket*);
 static void
 gamenet_rev245_2_exec_chat_filter_settings_v1(
     struct GGame*,
-    struct RevPacket_LC245_2*);
+    struct RevServerProtPacket*);
 static void
 gamenet_rev245_2_exec_tut_flash_v1(
     struct GGame*,
-    struct RevPacket_LC245_2*);
+    struct RevServerProtPacket*);
 static void
 gamenet_rev245_2_exec_tut_open_v1(
     struct GGame*,
-    struct RevPacket_LC245_2*);
+    struct RevServerProtPacket*);
 static void
 gamenet_rev245_2_exec_logout_v1(
     struct GGame*,
-    struct RevPacket_LC245_2*);
+    struct RevServerProtPacket*);
 static void
 gamenet_rev245_2_exec_p_countdialog_v1(
     struct GGame*,
-    struct RevPacket_LC245_2*);
+    struct RevServerProtPacket*);
 static void
 gamenet_rev245_2_exec_reboot_timer_v1(
     struct GGame*,
-    struct RevPacket_LC245_2*);
+    struct RevServerProtPacket*);
 static void
 gamenet_rev245_2_exec_update_friendlist_v1(
     struct GGame*,
-    struct RevPacket_LC245_2*);
+    struct RevServerProtPacket*);
 static void
 gamenet_rev245_2_exec_update_ignorelist_v1(
     struct GGame*,
-    struct RevPacket_LC245_2*);
+    struct RevServerProtPacket*);
 static void
 gamenet_rev245_2_exec_if_openoverlay_v1(
     struct GGame*,
-    struct RevPacket_LC245_2*);
+    struct RevServerProtPacket*);
 static void
 gamenet_rev245_2_exec_synth_sound_v1(
     struct GGame*,
-    struct RevPacket_LC245_2*);
+    struct RevServerProtPacket*);
 static void
 gamenet_rev245_2_exec_midi_song_v1(
     struct GGame*,
-    struct RevPacket_LC245_2*);
+    struct RevServerProtPacket*);
 static void
 gamenet_rev245_2_exec_midi_jingle_v1(
     struct GGame*,
-    struct RevPacket_LC245_2*);
+    struct RevServerProtPacket*);
 
 void
 gamenet_rev245_2_exec_dispatch_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     switch( packet->packet_type )
     {
-    case PKTIN_LC245_2_REBUILD_NORMAL:
+    case SERVERPROT_REBUILD_NORMAL_V1:
         gamenet_rev245_2_exec_rebuild_normal_v1(game, packet);
         break;
-    case PKTIN_LC245_2_NPC_INFO:
+    case SERVERPROT_NPC_INFO_V1:
         gamenet_rev245_2_exec_npc_info_v1(game, packet);
         break;
-    case PKTIN_LC245_2_PLAYER_INFO:
+    case SERVERPROT_PLAYER_INFO_V1:
         gamenet_rev245_2_exec_player_info_v1(game, packet);
         break;
-    case PKTIN_LC245_2_UPDATE_INV_FULL:
+    case SERVERPROT_UPDATE_INV_FULL_V1:
         gamenet_rev245_2_exec_update_inv_full_v1(game, packet);
         break;
-    case PKTIN_LC245_2_IF_SETTAB:
+    case SERVERPROT_IF_SETTAB_V1:
         gamenet_rev245_2_exec_if_settab_v1(game, packet);
         break;
-    case PKTIN_LC245_2_IF_SETTAB_ACTIVE:
+    case SERVERPROT_IF_SETTAB_ACTIVE_V1:
         gamenet_rev245_2_exec_if_settab_active_v1(game, packet);
         break;
-    case PKTIN_LC245_2_IF_SETCOLOUR:
+    case SERVERPROT_IF_SETCOLOUR_V1:
         gamenet_rev245_2_exec_if_setcolour_v1(game, packet);
         break;
-    case PKTIN_LC245_2_IF_SETHIDE:
+    case SERVERPROT_IF_SETHIDE_V1:
         gamenet_rev245_2_exec_if_sethide_v1(game, packet);
         break;
-    case PKTIN_LC245_2_IF_SETOBJECT:
+    case SERVERPROT_IF_SETOBJECT_V1:
         gamenet_rev245_2_exec_if_setobject_v1(game, packet);
         break;
-    case PKTIN_LC245_2_IF_SETMODEL:
+    case SERVERPROT_IF_SETMODEL_V1:
         gamenet_rev245_2_exec_if_setmodel_v1(game, packet);
         break;
-    case PKTIN_LC245_2_IF_SETANIM:
+    case SERVERPROT_IF_SETANIM_V1:
         gamenet_rev245_2_exec_if_setanim_v1(game, packet);
         break;
-    case PKTIN_LC245_2_IF_SETPLAYERHEAD:
+    case SERVERPROT_IF_SETPLAYERHEAD_V1:
         gamenet_rev245_2_exec_if_setplayerhead_v1(game, packet);
         break;
-    case PKTIN_LC245_2_IF_SETTEXT:
+    case SERVERPROT_IF_SETTEXT_V1:
         gamenet_rev245_2_exec_if_settext_v1(game, packet);
         break;
-    case PKTIN_LC245_2_IF_SETNPCHEAD:
+    case SERVERPROT_IF_SETNPCHEAD_V1:
         gamenet_rev245_2_exec_if_setnpchead_v1(game, packet);
         break;
-    case PKTIN_LC245_2_IF_SETPOSITION:
+    case SERVERPROT_IF_SETPOSITION_V1:
         gamenet_rev245_2_exec_if_setposition_v1(game, packet);
         break;
-    case PKTIN_LC245_2_IF_SETSCROLLPOS:
+    case SERVERPROT_IF_SETSCROLLPOS_V1:
         gamenet_rev245_2_exec_if_setscrollpos_v1(game, packet);
         break;
-    case PKTIN_LC245_2_IF_OPENCHAT:
+    case SERVERPROT_IF_OPENCHAT_V1:
         gamenet_rev245_2_exec_if_openchat_v1(game, packet);
         break;
-    case PKTIN_LC245_2_IF_OPENMAIN:
+    case SERVERPROT_IF_OPENMAIN_V1:
         gamenet_rev245_2_exec_if_openmain_v1(game, packet);
         break;
-    case PKTIN_LC245_2_IF_OPENSIDE:
+    case SERVERPROT_IF_OPENSIDE_V1:
         gamenet_rev245_2_exec_if_openside_v1(game, packet);
         break;
-    case PKTIN_LC245_2_IF_OPENMAIN_SIDE:
+    case SERVERPROT_IF_OPENMAIN_SIDE_V1:
         gamenet_rev245_2_exec_if_openmain_side_v1(game, packet);
         break;
-    case PKTIN_LC245_2_IF_CLOSE:
+    case SERVERPROT_IF_CLOSE_V1:
         gamenet_rev245_2_exec_if_close_v1(game, packet);
         break;
-    case PKTIN_LC245_2_UPDATE_INV_STOP_TRANSMIT:
+    case SERVERPROT_UPDATE_INV_STOP_TRANSMIT_V1:
         gamenet_rev245_2_exec_update_inv_stop_transmit_v1(game, packet);
         break;
-    case PKTIN_LC245_2_UPDATE_INV_PARTIAL:
+    case SERVERPROT_UPDATE_INV_PARTIAL_V1:
         gamenet_rev245_2_exec_update_inv_partial_v1(game, packet);
         break;
-    case PKTIN_LC245_2_CAM_LOOKAT:
+    case SERVERPROT_CAM_LOOKAT_V1:
         gamenet_rev245_2_exec_cam_lookat_v1(game, packet);
         break;
-    case PKTIN_LC245_2_CAM_MOVETO:
+    case SERVERPROT_CAM_MOVETO_V1:
         gamenet_rev245_2_exec_cam_moveto_v1(game, packet);
         break;
-    case PKTIN_LC245_2_CAM_SHAKE:
+    case SERVERPROT_CAM_SHAKE_V1:
         gamenet_rev245_2_exec_cam_shake_v1(game, packet);
         break;
-    case PKTIN_LC245_2_CAM_RESET:
+    case SERVERPROT_CAM_RESET_V1:
         gamenet_rev245_2_exec_cam_reset_v1(game, packet);
         break;
-    case PKTIN_LC245_2_UNSET_MAP_FLAG:
+    case SERVERPROT_UNSET_MAP_FLAG_V1:
         gamenet_rev245_2_exec_unset_map_flag_v1(game, packet);
         break;
-    case PKTIN_LC245_2_UPDATE_RUNWEIGHT:
+    case SERVERPROT_UPDATE_RUNWEIGHT_V1:
         gamenet_rev245_2_exec_update_runweight_v1(game, packet);
         break;
-    case PKTIN_LC245_2_UPDATE_RUNENERGY:
+    case SERVERPROT_UPDATE_RUNENERGY_V1:
         gamenet_rev245_2_exec_update_runenergy_v1(game, packet);
         break;
-    case PKTIN_LC245_2_UPDATE_STAT:
+    case SERVERPROT_UPDATE_STAT_V1:
         gamenet_rev245_2_exec_update_stat_v1(game, packet);
         break;
-    case PKTIN_LC245_2_HINT_ARROW:
+    case SERVERPROT_HINT_ARROW_V1:
         gamenet_rev245_2_exec_hint_arrow_v1(game, packet);
         break;
-    case PKTIN_LC245_2_RESET_ANIMS:
+    case SERVERPROT_RESET_ANIMS_V1:
         gamenet_rev245_2_exec_reset_anims_v1(game, packet);
         break;
-    case PKTIN_LC245_2_UPDATE_PID:
+    case SERVERPROT_UPDATE_PID_V1:
         gamenet_rev245_2_exec_update_pid_v1(game, packet);
         break;
-    case PKTIN_LC245_2_VARP_SMALL:
+    case SERVERPROT_VARP_SMALL_V1:
         gamenet_rev245_2_exec_varp_small_v1(game, packet);
         break;
-    case PKTIN_LC245_2_VARP_LARGE:
+    case SERVERPROT_VARP_LARGE_V1:
         gamenet_rev245_2_exec_varp_large_v1(game, packet);
         break;
-    case PKTIN_LC245_2_RESET_CLIENT_VARCACHE:
+    case SERVERPROT_VARP_SYNC_V1:
         gamenet_rev245_2_exec_varp_sync_v1(game, packet);
         break;
-    case PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_FOLLOWS:
+    case SERVERPROT_UPDATE_ZONE_PARTIAL_FOLLOWS_V1:
         gamenet_rev245_2_exec_update_zone_partial_follows_v1(game, packet);
         break;
-    case PKTIN_LC245_2_UPDATE_ZONE_FULL_FOLLOWS:
+    case SERVERPROT_UPDATE_ZONE_FULL_FOLLOWS_V1:
         gamenet_rev245_2_exec_update_zone_full_follows_v1(game, packet);
         break;
-    case PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_ENCLOSED:
+    case SERVERPROT_UPDATE_ZONE_PARTIAL_ENCLOSED_V1:
         gamenet_rev245_2_exec_update_zone_partial_enclosed_v1(game, packet);
         break;
-    case PKTIN_LC245_2_LOC_ANIM:
+    case SERVERPROT_LOC_ANIM_V1:
         gamenet_rev245_2_exec_loc_anim_v1(game, packet);
         break;
-    case PKTIN_LC245_2_LOC_MERGE:
+    case SERVERPROT_LOC_MERGE_V1:
         gamenet_rev245_2_exec_loc_merge_v1(game, packet);
         break;
-    case PKTIN_LC245_2_MAP_ANIM:
+    case SERVERPROT_MAP_ANIM_V1:
         gamenet_rev245_2_exec_map_anim_v1(game, packet);
         break;
-    case PKTIN_LC245_2_MAP_PROJANIM:
+    case SERVERPROT_MAP_PROJANIM_V1:
         gamenet_rev245_2_exec_map_projanim_v1(game, packet);
         break;
-    case PKTIN_LC245_2_SET_MULTIWAY:
+    case SERVERPROT_SET_MULTIWAY_V1:
         gamenet_rev245_2_exec_set_multiway_v1(game, packet);
         break;
-    case PKTIN_LC245_2_SET_PLAYER_OP:
+    case SERVERPROT_SET_PLAYER_OP_V1:
         gamenet_rev245_2_exec_set_player_op_v1(game, packet);
         break;
-    case PKTIN_LC245_2_MESSAGE_GAME:
+    case SERVERPROT_MESSAGE_GAME_V1:
         gamenet_rev245_2_exec_message_game_v1(game, packet);
         break;
-    case PKTIN_LC245_2_MESSAGE_PRIVATE:
+    case SERVERPROT_MESSAGE_PRIVATE_V1:
         gamenet_rev245_2_exec_message_private_v1(game, packet);
         break;
-    case PKTIN_LC245_2_CHAT_FILTER_SETTINGS:
+    case SERVERPROT_CHAT_FILTER_SETTINGS_V1:
         gamenet_rev245_2_exec_chat_filter_settings_v1(game, packet);
         break;
-    case PKTIN_LC245_2_TUT_FLASH:
+    case SERVERPROT_TUT_FLASH_V1:
         gamenet_rev245_2_exec_tut_flash_v1(game, packet);
         break;
-    case PKTIN_LC245_2_TUT_OPEN:
+    case SERVERPROT_TUT_OPEN_V1:
         gamenet_rev245_2_exec_tut_open_v1(game, packet);
         break;
-    case PKTIN_LC245_2_LOGOUT:
+    case SERVERPROT_LOGOUT_V1:
         gamenet_rev245_2_exec_logout_v1(game, packet);
         break;
-    case PKTIN_LC245_2_P_COUNTDIALOG:
+    case SERVERPROT_P_COUNTDIALOG_V1:
         gamenet_rev245_2_exec_p_countdialog_v1(game, packet);
         break;
-    case PKTIN_LC245_2_UPDATE_REBOOT_TIMER:
+    case SERVERPROT_UPDATE_REBOOT_TIMER_V1:
         gamenet_rev245_2_exec_reboot_timer_v1(game, packet);
         break;
-    case PKTIN_LC245_2_UPDATE_FRIENDLIST:
+    case SERVERPROT_UPDATE_FRIENDLIST_V1:
         gamenet_rev245_2_exec_update_friendlist_v1(game, packet);
         break;
-    case PKTIN_LC245_2_UPDATE_IGNORELIST:
+    case SERVERPROT_UPDATE_IGNORELIST_V1:
         gamenet_rev245_2_exec_update_ignorelist_v1(game, packet);
         break;
-    case PKTIN_LC245_2_SYNTH_SOUND:
+    case SERVERPROT_SYNTH_SOUND_V1:
         gamenet_rev245_2_exec_synth_sound_v1(game, packet);
         break;
-    case PKTIN_LC245_2_MIDI_SONG:
+    case SERVERPROT_MIDI_SONG_V1:
         gamenet_rev245_2_exec_midi_song_v1(game, packet);
         break;
-    case PKTIN_LC245_2_MIDI_JINGLE:
+    case SERVERPROT_MIDI_JINGLE_V1:
         gamenet_rev245_2_exec_midi_jingle_v1(game, packet);
         break;
-    case PKTIN_LC245_2_FINISH_TRACKING:
-    case PKTIN_LC245_2_ENABLE_TRACKING:
-    case PKTIN_LC245_2_LAST_LOGIN_INFO:
+    case SERVERPROT_FINISH_TRACKING_V1:
+    case SERVERPROT_ENABLE_TRACKING_V1:
+    case SERVERPROT_LAST_LOGIN_INFO_V1:
         /* No client state change needed. */
         break;
-    case PKTIN_LC245_2_OBJ_ADD:
+    case SERVERPROT_OBJ_ADD_V1:
         gamenet_rev245_2_exec_obj_add_v1(game, packet, game->zone_base_x, game->zone_base_z);
         break;
-    case PKTIN_LC245_2_OBJ_DEL:
+    case SERVERPROT_OBJ_DEL_V1:
         gamenet_rev245_2_exec_obj_del_v1(game, packet);
         break;
-    case PKTIN_LC245_2_OBJ_REVEAL:
+    case SERVERPROT_OBJ_REVEAL_V1:
         gamenet_rev245_2_exec_obj_reveal_v1(game, packet);
         break;
-    case PKTIN_LC245_2_OBJ_COUNT:
+    case SERVERPROT_OBJ_COUNT_V1:
         gamenet_rev245_2_exec_obj_count_v1(game, packet);
         break;
-    case PKTIN_LC245_2_LOC_ADD_CHANGE:
+    case SERVERPROT_LOC_ADD_CHANGE_V1:
         gamenet_rev245_2_exec_loc_add_change_v1(game, packet);
         break;
-    case PKTIN_LC245_2_LOC_DEL:
+    case SERVERPROT_LOC_DEL_V1:
         gamenet_rev245_2_exec_loc_del_v1(game, packet);
         break;
     default:
@@ -1313,14 +1310,14 @@ zone_tile_z(
 void
 gamenet_rev245_2_exec_obj_add_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet,
+    struct RevServerProtPacket* packet,
     int zone_base_x,
     int zone_base_z)
 {
-    int sx = zone_base_x + ((packet->_obj_add.pos >> 4) & 0x7);
-    int sz = zone_base_z + (packet->_obj_add.pos & 0x7);
-    int obj_id = packet->_obj_add.obj_id & 0x7fff;
-    int count = packet->_obj_add.count;
+    int sx = zone_base_x + ((packet->u.obj_add_v1.pos >> 4) & 0x7);
+    int sz = zone_base_z + (packet->u.obj_add_v1.pos & 0x7);
+    int obj_id = packet->u.obj_add_v1.obj_id & 0x7fff;
+    int count = packet->u.obj_add_v1.count;
     int level = 0;
 
     if( sx < 0 || sx >= ZONE_SCENE_SIZE || sz < 0 || sz >= ZONE_SCENE_SIZE )
@@ -1341,11 +1338,11 @@ gamenet_rev245_2_exec_obj_add_v1(
 void
 gamenet_rev245_2_exec_obj_del_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int sx = zone_tile_x(game, packet->_obj_del.pos);
-    int sz = zone_tile_z(game, packet->_obj_del.pos);
-    int obj_id = packet->_obj_del.obj_id & 0x7fff;
+    int sx = zone_tile_x(game, packet->u.obj_del_v1.pos);
+    int sz = zone_tile_z(game, packet->u.obj_del_v1.pos);
+    int obj_id = packet->u.obj_del_v1.obj_id & 0x7fff;
     int level = 0;
 
     if( !game->world || !game->world->obj_stacks )
@@ -1371,27 +1368,27 @@ gamenet_rev245_2_exec_obj_del_v1(
 void
 gamenet_rev245_2_exec_obj_reveal_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    if( packet->_obj_reveal.receiver == ACTIVE_PLAYER_SLOT )
+    if( packet->u.obj_reveal_v1.receiver == ACTIVE_PLAYER_SLOT )
         return;
-    struct RevPacket_LC245_2 add_pkt = { 0 };
-    add_pkt._obj_add.pos = packet->_obj_reveal.pos;
-    add_pkt._obj_add.obj_id = packet->_obj_reveal.obj_id;
-    add_pkt._obj_add.count = packet->_obj_reveal.count;
+    struct RevServerProtPacket add_pkt = { 0 };
+    add_pkt.u.obj_add_v1.pos = packet->u.obj_reveal_v1.pos;
+    add_pkt.u.obj_add_v1.obj_id = packet->u.obj_reveal_v1.obj_id;
+    add_pkt.u.obj_add_v1.count = packet->u.obj_reveal_v1.count;
     gamenet_rev245_2_exec_obj_add_v1(game, &add_pkt, game->zone_base_x, game->zone_base_z);
 }
 
 void
 gamenet_rev245_2_exec_obj_count_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int sx = zone_tile_x(game, packet->_obj_count.pos);
-    int sz = zone_tile_z(game, packet->_obj_count.pos);
-    int obj_id = packet->_obj_count.obj_id & 0x7fff;
-    int old_count = packet->_obj_count.old_count;
-    int new_count = packet->_obj_count.new_count;
+    int sx = zone_tile_x(game, packet->u.obj_count_v1.pos);
+    int sz = zone_tile_z(game, packet->u.obj_count_v1.pos);
+    int obj_id = packet->u.obj_count_v1.obj_id & 0x7fff;
+    int old_count = packet->u.obj_count_v1.old_count;
+    int new_count = packet->u.obj_count_v1.new_count;
     int level = 0;
 
     if( !game->world || !game->world->obj_stacks )
@@ -1415,14 +1412,14 @@ gamenet_rev245_2_exec_obj_count_v1(
 void
 gamenet_rev245_2_exec_loc_add_change_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int x = zone_tile_x(game, packet->_loc_add_change.pos);
-    int z = zone_tile_z(game, packet->_loc_add_change.pos);
-    int info = packet->_loc_add_change.info;
+    int x = zone_tile_x(game, packet->u.loc_add_change_v1.pos);
+    int z = zone_tile_z(game, packet->u.loc_add_change_v1.pos);
+    int info = packet->u.loc_add_change_v1.info;
     int shape = info >> 2;
     int angle = info & 0x3;
-    int loc_id = packet->_loc_add_change.loc_id;
+    int loc_id = packet->u.loc_add_change_v1.loc_id;
 
     if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
         return;
@@ -1448,11 +1445,11 @@ gamenet_rev245_2_exec_loc_add_change_v1(
 void
 gamenet_rev245_2_exec_loc_del_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int x = zone_tile_x(game, packet->_loc_del.pos);
-    int z = zone_tile_z(game, packet->_loc_del.pos);
-    int info = packet->_loc_del.info;
+    int x = zone_tile_x(game, packet->u.loc_del_v1.pos);
+    int z = zone_tile_z(game, packet->u.loc_del_v1.pos);
+    int info = packet->u.loc_del_v1.info;
     int shape = info >> 2;
     int angle = info & 0x3;
 
@@ -1480,50 +1477,50 @@ gamenet_rev245_2_exec_loc_del_v1(
 void
 gamenet_rev245_2_exec_if_openchat_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     if( game->iface )
-        game->iface->chat_interface_id = if_decode_component_id(packet->_if_openchat.component_id);
+        game->iface->chat_interface_id = if_decode_component_id(packet->u.if_openchat_v1.component_id);
 }
 
 void
 gamenet_rev245_2_exec_if_openmain_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     if( game->iface )
         game->iface->viewport_interface_id =
-            if_decode_component_id(packet->_if_openmain.component_id);
+            if_decode_component_id(packet->u.if_openmain_v1.component_id);
 }
 
 void
 gamenet_rev245_2_exec_if_openside_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     if( game->iface )
         game->iface->sidebar_interface_id =
-            if_decode_component_id(packet->_if_openside.component_id);
+            if_decode_component_id(packet->u.if_openside_v1.component_id);
 }
 
 void
 gamenet_rev245_2_exec_if_openmain_side_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     if( game->iface )
     {
         game->iface->viewport_interface_id =
-            if_decode_component_id(packet->_if_openmain_side.main_component_id);
+            if_decode_component_id(packet->u.if_openmain_side_v1.main_component_id);
         game->iface->sidebar_interface_id =
-            if_decode_component_id(packet->_if_openmain_side.side_component_id);
+            if_decode_component_id(packet->u.if_openmain_side_v1.side_component_id);
     }
 }
 
 void
 gamenet_rev245_2_exec_if_close_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     (void)packet;
     if( game->iface )
@@ -1537,15 +1534,15 @@ gamenet_rev245_2_exec_if_close_v1(
         game->iface->selected_item = 0;
         game->iface->selected_interface = -1;
         game->iface->selected_cycle = 0;
-        game->iface->inv_use_mode           = 0;
-        game->iface->inv_target_mode        = 0;
-        game->iface->inv_sel_obj_id         = 0;
-        game->iface->inv_sel_slot           = 0;
-        game->iface->inv_sel_comp_id        = -1;
-        game->iface->inv_sel_obj_name[0]    = '\0';
+        game->iface->inv_use_mode = 0;
+        game->iface->inv_target_mode = 0;
+        game->iface->inv_sel_obj_id = 0;
+        game->iface->inv_sel_slot = 0;
+        game->iface->inv_sel_comp_id = -1;
+        game->iface->inv_sel_obj_name[0] = '\0';
         game->iface->inv_target_src_comp_id = -1;
-        game->iface->inv_target_mask        = 0;
-        game->iface->inv_target_op[0]       = '\0';
+        game->iface->inv_target_mask = 0;
+        game->iface->inv_target_op[0] = '\0';
     }
     /* Release scrollbar drag if any. */
     if( game->ui_root_buffer )
@@ -1555,11 +1552,10 @@ gamenet_rev245_2_exec_if_close_v1(
 void
 gamenet_rev245_2_exec_update_inv_stop_transmit_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int component_id = packet->_update_inv_stop_transmit.component_id;
-    struct GameCacheComponent* component =
-        gamecache_get_component(game->gamecache, component_id);
+    int component_id = packet->u.update_inv_stop_transmit_v1.component_id;
+    struct GameCacheComponent* component = gamecache_get_component(game->gamecache, component_id);
     if( !component )
         return;
 
@@ -1577,7 +1573,7 @@ gamenet_rev245_2_exec_update_inv_stop_transmit_v1(
     if( game->inv_pool )
     {
         int32_t node_idx = -1;
-        int inv_index    = -1;
+        int inv_index = -1;
         if( game->ui_root_buffer )
             inv_index = uitree_find_inv_index_by_component_id(
                 game->ui_root_buffer, component_id, &node_idx);
@@ -1607,11 +1603,10 @@ gamenet_rev245_2_exec_update_inv_stop_transmit_v1(
 void
 gamenet_rev245_2_exec_update_inv_partial_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int component_id = packet->_update_inv_partial.component_id;
-    struct GameCacheComponent* component =
-        gamecache_get_component(game->gamecache, component_id);
+    int component_id = packet->u.update_inv_partial_v1.component_id;
+    struct GameCacheComponent* component = gamecache_get_component(game->gamecache, component_id);
     if( !component || !component->invSlotObjId || !component->invSlotObjCount )
         return;
     int max_slots = component->width * component->height;
@@ -1619,15 +1614,14 @@ gamenet_rev245_2_exec_update_inv_partial_v1(
     /* Update buildcachedat slots (software-raster / interface.c path).
      * entries[].obj_id is 0-based (parse subtracts 1 from wire g2); cache stores 1-based wire
      * like UPDATE_INV_FULL and Client.ts linkObjType — 0 means empty. */
-    for( int i = 0; i < packet->_update_inv_partial.count; i++ )
+    for( int i = 0; i < packet->u.update_inv_partial_v1.count; i++ )
     {
-        int slot         = packet->_update_inv_partial.entries[i].slot;
-        int obj_id_0base = packet->_update_inv_partial.entries[i].obj_id;
-        int count        = packet->_update_inv_partial.entries[i].count;
+        int slot = packet->u.update_inv_partial_v1.entries[i].slot;
+        int obj_id_0base = packet->u.update_inv_partial_v1.entries[i].obj_id;
+        int count = packet->u.update_inv_partial_v1.entries[i].count;
         if( slot >= 0 && slot < max_slots )
         {
-            component->invSlotObjId[slot] =
-                obj_id_0base < 0 ? 0 : (obj_id_0base + 1);
+            component->invSlotObjId[slot] = obj_id_0base < 0 ? 0 : (obj_id_0base + 1);
             component->invSlotObjCount[slot] = count;
         }
     }
@@ -1636,7 +1630,7 @@ gamenet_rev245_2_exec_update_inv_partial_v1(
     if( game->inv_pool )
     {
         int32_t node_idx = -1;
-        int inv_index    = -1;
+        int inv_index = -1;
         if( game->ui_root_buffer )
             inv_index = uitree_find_inv_index_by_component_id(
                 game->ui_root_buffer, component_id, &node_idx);
@@ -1648,12 +1642,12 @@ gamenet_rev245_2_exec_update_inv_partial_v1(
         {
             struct UIInventory* inv = &game->inv_pool->inventories[inv_index];
 
-            for( int i = 0; i < packet->_update_inv_partial.count; i++ )
+            for( int i = 0; i < packet->u.update_inv_partial_v1.count; i++ )
             {
-                int slot   = packet->_update_inv_partial.entries[i].slot;
-                int count  = packet->_update_inv_partial.entries[i].count;
+                int slot = packet->u.update_inv_partial_v1.entries[i].slot;
+                int count = packet->u.update_inv_partial_v1.entries[i].count;
                 /* PARTIAL parse already subtracts 1: obj_id is 0-based (real item id). */
-                int obj_id_0base = packet->_update_inv_partial.entries[i].obj_id;
+                int obj_id_0base = packet->u.update_inv_partial_v1.entries[i].obj_id;
 
                 if( slot >= 0 && slot < UI_INVENTORY_MAX_ITEMS )
                     inv_sync_load_item_sprite(game, &inv->items[slot], obj_id_0base, count);
@@ -1674,35 +1668,35 @@ gamenet_rev245_2_exec_update_inv_partial_v1(
 void
 gamenet_rev245_2_exec_cam_lookat_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     if( !game->world )
         return;
-    int tile_x = game->world->_base_tile_x + packet->_cam_lookat.local_x;
-    int tile_z = game->world->_base_tile_z + packet->_cam_lookat.local_z;
+    int tile_x = game->world->_base_tile_x + packet->u.cam_lookat_v1.local_x;
+    int tile_z = game->world->_base_tile_z + packet->u.cam_lookat_v1.local_z;
     game->camera_world_x = tile_x * 128 + 64;
     game->camera_world_z = tile_z * 128 + 64;
-    game->camera_world_y = -packet->_cam_lookat.height;
+    game->camera_world_y = -packet->u.cam_lookat_v1.height;
 }
 
 void
 gamenet_rev245_2_exec_cam_moveto_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     if( !game->world )
         return;
-    int tile_x = game->world->_base_tile_x + packet->_cam_moveto.local_x;
-    int tile_z = game->world->_base_tile_z + packet->_cam_moveto.local_z;
+    int tile_x = game->world->_base_tile_x + packet->u.cam_moveto_v1.local_x;
+    int tile_z = game->world->_base_tile_z + packet->u.cam_moveto_v1.local_z;
     game->camera_world_x = tile_x * 128 + 64;
     game->camera_world_z = tile_z * 128 + 64;
-    game->camera_world_y = -packet->_cam_moveto.height;
+    game->camera_world_y = -packet->u.cam_moveto_v1.height;
 }
 
 void
 gamenet_rev245_2_exec_cam_shake_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     (void)game;
     (void)packet;
@@ -1711,7 +1705,7 @@ gamenet_rev245_2_exec_cam_shake_v1(
 void
 gamenet_rev245_2_exec_cam_reset_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     (void)game;
     (void)packet;
@@ -1720,7 +1714,7 @@ gamenet_rev245_2_exec_cam_reset_v1(
 void
 gamenet_rev245_2_exec_unset_map_flag_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     (void)packet;
     game->minimap_flag_has = 0;
@@ -1731,46 +1725,46 @@ gamenet_rev245_2_exec_unset_map_flag_v1(
 void
 gamenet_rev245_2_exec_update_runweight_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    game->run_weight = packet->_update_runweight.run_weight;
+    game->run_weight = packet->u.update_runweight_v1.run_weight;
 }
 
 void
 gamenet_rev245_2_exec_update_runenergy_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    game->run_energy = packet->_update_run_energy.run_energy;
+    game->run_energy = packet->u.update_run_energy_v1.run_energy;
 }
 
 void
 gamenet_rev245_2_exec_update_stat_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int stat = packet->_update_stat.stat;
+    int stat = packet->u.update_stat_v1.stat;
     if( stat < 0 || stat >= PLAYER_STAT_COUNT )
         return;
-    game->player_stat_xp[stat] = packet->_update_stat.xp;
-    game->player_stat_level[stat] = packet->_update_stat.level;
+    game->player_stat_xp[stat] = packet->u.update_stat_v1.xp;
+    game->player_stat_level[stat] = packet->u.update_stat_v1.level;
 }
 
 void
 gamenet_rev245_2_exec_hint_arrow_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    game->hint_arrow_type = packet->_hint_arrow.type;
-    game->hint_arrow_entity_id = packet->_hint_arrow.id;
-    game->hint_arrow_tile_x = packet->_hint_arrow.id;
-    game->hint_arrow_tile_z = packet->_hint_arrow.z;
+    game->hint_arrow_type = packet->u.hint_arrow_v1.type;
+    game->hint_arrow_entity_id = packet->u.hint_arrow_v1.id;
+    game->hint_arrow_tile_x = packet->u.hint_arrow_v1.id;
+    game->hint_arrow_tile_z = packet->u.hint_arrow_v1.z;
 }
 
 void
 gamenet_rev245_2_exec_reset_anims_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     (void)packet;
     if( !game->world )
@@ -1790,7 +1784,7 @@ gamenet_rev245_2_exec_reset_anims_v1(
 void
 gamenet_rev245_2_exec_update_pid_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     (void)game;
     (void)packet;
@@ -1799,25 +1793,25 @@ gamenet_rev245_2_exec_update_pid_v1(
 void
 gamenet_rev245_2_exec_varp_small_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     clientscript_vm_apply_varp_small(
-        game->clientscript_vm, packet->_varp_small.variable, packet->_varp_small.value);
+        game->clientscript_vm, packet->u.varp_small_v1.variable, packet->u.varp_small_v1.value);
 }
 
 void
 gamenet_rev245_2_exec_varp_large_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     clientscript_vm_apply_varp_large(
-        game->clientscript_vm, packet->_varp_large.variable, packet->_varp_large.value);
+        game->clientscript_vm, packet->u.varp_large_v1.variable, packet->u.varp_large_v1.value);
 }
 
 void
 gamenet_rev245_2_exec_varp_sync_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     (void)packet;
     clientscript_vm_apply_varp_sync(game->clientscript_vm);
@@ -1826,38 +1820,38 @@ gamenet_rev245_2_exec_varp_sync_v1(
 void
 gamenet_rev245_2_exec_update_zone_partial_follows_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    game->zone_base_x = packet->_update_zone_partial_follows.base_x * 8;
-    game->zone_base_z = packet->_update_zone_partial_follows.base_z * 8;
+    game->zone_base_x = packet->u.update_zone_partial_follows_v1.base_x * 8;
+    game->zone_base_z = packet->u.update_zone_partial_follows_v1.base_z * 8;
 }
 
 void
 gamenet_rev245_2_exec_update_zone_full_follows_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    game->zone_base_x = packet->_update_zone_full_follows.base_x * 8;
-    game->zone_base_z = packet->_update_zone_full_follows.base_z * 8;
+    game->zone_base_x = packet->u.update_zone_full_follows_v1.base_x * 8;
+    game->zone_base_z = packet->u.update_zone_full_follows_v1.base_z * 8;
 }
 
 void
 gamenet_rev245_2_exec_update_zone_partial_enclosed_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    game->zone_base_x = packet->_update_zone_partial_follows.base_x * 8;
-    game->zone_base_z = packet->_update_zone_partial_follows.base_z * 8;
+    game->zone_base_x = packet->u.update_zone_partial_follows_v1.base_x * 8;
+    game->zone_base_z = packet->u.update_zone_partial_follows_v1.base_z * 8;
 }
 
 void
 gamenet_rev245_2_exec_loc_anim_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int x = zone_tile_x(game, packet->_loc_anim.pos);
-    int z = zone_tile_z(game, packet->_loc_anim.pos);
-    int seq_id = packet->_loc_anim.seq_id;
+    int x = zone_tile_x(game, packet->u.loc_anim_v1.pos);
+    int z = zone_tile_z(game, packet->u.loc_anim_v1.pos);
+    int seq_id = packet->u.loc_anim_v1.seq_id;
 
     if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
         return;
@@ -1879,17 +1873,17 @@ gamenet_rev245_2_exec_loc_anim_v1(
 void
 gamenet_rev245_2_exec_loc_merge_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     /* LOC_MERGE: add/change with associated player entity merging.
      * Treated as LOC_ADD_CHANGE with the given loc_id; the pid reference
      * is stored as start/end time for future entity-attach logic. */
-    int x = zone_tile_x(game, packet->_loc_merge.pos);
-    int z = zone_tile_z(game, packet->_loc_merge.pos);
-    int info = packet->_loc_merge.info;
+    int x = zone_tile_x(game, packet->u.loc_merge_v1.pos);
+    int z = zone_tile_z(game, packet->u.loc_merge_v1.pos);
+    int info = packet->u.loc_merge_v1.info;
     int shape = info >> 2;
     int angle = info & 0x3;
-    int loc_id = packet->_loc_merge.loc_id;
+    int loc_id = packet->u.loc_merge_v1.loc_id;
 
     if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
         return;
@@ -1905,8 +1899,8 @@ gamenet_rev245_2_exec_loc_merge_v1(
     entry->new_shape = shape;
     entry->old_angle = 0;
     entry->new_angle = angle;
-    entry->start_time = packet->_loc_merge.start;
-    entry->end_time = packet->_loc_merge.end;
+    entry->start_time = packet->u.loc_merge_v1.start;
+    entry->end_time = packet->u.loc_merge_v1.end;
     entry->anim_seq_id = -1;
     entry->next = game->loc_changes_head;
     game->loc_changes_head = entry;
@@ -1915,13 +1909,13 @@ gamenet_rev245_2_exec_loc_merge_v1(
 void
 gamenet_rev245_2_exec_map_anim_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int x = zone_tile_x(game, packet->_map_anim.pos);
-    int z = zone_tile_z(game, packet->_map_anim.pos);
-    int spotanim = packet->_map_anim.id;
-    int height = packet->_map_anim.height;
-    int delay = packet->_map_anim.delay;
+    int x = zone_tile_x(game, packet->u.map_anim_v1.pos);
+    int z = zone_tile_z(game, packet->u.map_anim_v1.pos);
+    int spotanim = packet->u.map_anim_v1.id;
+    int height = packet->u.map_anim_v1.height;
+    int delay = packet->u.map_anim_v1.delay;
 
     if( x < 0 || x >= ZONE_SCENE_SIZE || z < 0 || z >= ZONE_SCENE_SIZE )
         return;
@@ -1940,12 +1934,12 @@ gamenet_rev245_2_exec_map_anim_v1(
 void
 gamenet_rev245_2_exec_map_projanim_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int src_x = zone_tile_x(game, packet->_map_projanim.pos);
-    int src_z = zone_tile_z(game, packet->_map_projanim.pos);
-    int dst_x = src_x + packet->_map_projanim.dx_offset;
-    int dst_z = src_z + packet->_map_projanim.dz_offset;
+    int src_x = zone_tile_x(game, packet->u.map_projanim_v1.pos);
+    int src_z = zone_tile_z(game, packet->u.map_projanim_v1.pos);
+    int dst_x = src_x + packet->u.map_projanim_v1.dx_offset;
+    int dst_z = src_z + packet->u.map_projanim_v1.dz_offset;
 
     struct MapProjAnimEntry* entry =
         (struct MapProjAnimEntry*)malloc(sizeof(struct MapProjAnimEntry));
@@ -1954,14 +1948,14 @@ gamenet_rev245_2_exec_map_projanim_v1(
     entry->dst_x = dst_x;
     entry->dst_z = dst_z;
     entry->level = 0;
-    entry->spotanim_id = packet->_map_projanim.spotanim;
-    entry->src_height = packet->_map_projanim.src_height;
-    entry->dst_height = packet->_map_projanim.dst_height;
-    entry->start_delay = packet->_map_projanim.start_delay;
-    entry->end_delay = packet->_map_projanim.end_delay;
-    entry->target = packet->_map_projanim.target;
-    entry->peak = packet->_map_projanim.peak;
-    entry->arc = packet->_map_projanim.arc;
+    entry->spotanim_id = packet->u.map_projanim_v1.spotanim;
+    entry->src_height = packet->u.map_projanim_v1.src_height;
+    entry->dst_height = packet->u.map_projanim_v1.dst_height;
+    entry->start_delay = packet->u.map_projanim_v1.start_delay;
+    entry->end_delay = packet->u.map_projanim_v1.end_delay;
+    entry->target = packet->u.map_projanim_v1.target;
+    entry->peak = packet->u.map_projanim_v1.peak;
+    entry->arc = packet->u.map_projanim_v1.arc;
     entry->next = game->map_projanims_head;
     game->map_projanims_head = entry;
 }
@@ -1969,25 +1963,25 @@ gamenet_rev245_2_exec_map_projanim_v1(
 void
 gamenet_rev245_2_exec_set_multiway_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    game->in_multiway = packet->_set_multiway.multiway;
+    game->in_multiway = packet->u.set_multiway_v1.multiway;
 }
 
 void
 gamenet_rev245_2_exec_set_player_op_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int idx = packet->_set_player_op.op_index;
+    int idx = packet->u.set_player_op_v1.op_index;
     if( idx < 1 || idx > 5 )
         return;
 
     int slot = idx - 1;
     /* Client.ts: playerOpPriority[index - 1] = priority === 0 */
-    game->player_menu_op_deprioritize[slot] = (packet->_set_player_op.priority == 0);
+    game->player_menu_op_deprioritize[slot] = (packet->u.set_player_op_v1.priority == 0);
 
-    char* op = packet->_set_player_op.op_text;
+    char* op = packet->u.set_player_op_v1.op_text;
     if( !op || strcasecmp(op, "null") == 0 )
     {
         game->player_menu_op[slot][0] = '\0';
@@ -2001,20 +1995,20 @@ gamenet_rev245_2_exec_set_player_op_v1(
 static void
 gamenet_rev245_2_exec_message_game_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    if( packet->_message_game.text )
-        game_add_message(game, 1 /* type: game */, packet->_message_game.text, NULL);
+    if( packet->u.message_game_v1.text )
+        game_add_message(game, 1 /* type: game */, packet->u.message_game_v1.text, NULL);
 }
 
 static void
 gamenet_rev245_2_exec_message_private_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     /* PM deduplication: ignore if message_id already seen. */
     struct Chat* ch = game->chat;
-    int mid = packet->_message_private.message_id;
+    int mid = packet->u.message_private_v1.message_id;
     if( ch )
     {
         for( int i = 0; i < ch->pm_count; i++ )
@@ -2028,7 +2022,7 @@ gamenet_rev245_2_exec_message_private_v1(
 
     /* Decode base37 username to a readable string. */
     char sender[16] = { 0 };
-    int64_t u = packet->_message_private.from;
+    int64_t u = packet->u.message_private_v1.from;
     if( u > 0 )
     {
         int pos = 0;
@@ -2047,43 +2041,43 @@ gamenet_rev245_2_exec_message_private_v1(
         sender[pos] = '\0';
     }
 
-    if( packet->_message_private.text )
-        game_add_message(game, 3 /* type: private from */, packet->_message_private.text, sender);
+    if( packet->u.message_private_v1.text )
+        game_add_message(game, 3 /* type: private from */, packet->u.message_private_v1.text, sender);
 }
 
 static void
 gamenet_rev245_2_exec_chat_filter_settings_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     if( game->chat )
     {
-        game->chat->chat_public_mode = packet->_chat_filter_settings.chat_public_mode;
-        game->chat->chat_private_mode = packet->_chat_filter_settings.chat_private_mode;
-        game->chat->chat_trade_mode = packet->_chat_filter_settings.chat_trade_mode;
+        game->chat->chat_public_mode = packet->u.chat_filter_settings_v1.chat_public_mode;
+        game->chat->chat_private_mode = packet->u.chat_filter_settings_v1.chat_private_mode;
+        game->chat->chat_trade_mode = packet->u.chat_filter_settings_v1.chat_trade_mode;
     }
 }
 
 static void
 gamenet_rev245_2_exec_tut_flash_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    game->tutorial_tab_flash = packet->_tut_flash.tab_id;
+    game->tutorial_tab_flash = packet->u.tut_flash_v1.tab_id;
 }
 
 static void
 gamenet_rev245_2_exec_tut_open_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    game->tutorial_interface = packet->_tut_open.component_id;
+    game->tutorial_interface = packet->u.tut_open_v1.component_id;
 }
 
 static void
 gamenet_rev245_2_exec_logout_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     (void)packet;
     game->net_state = GAME_NET_STATE_DISCONNECTED;
@@ -2092,7 +2086,7 @@ gamenet_rev245_2_exec_logout_v1(
 static void
 gamenet_rev245_2_exec_p_countdialog_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     (void)packet;
     /* Signal the UI to open the count input dialog. */
@@ -2103,18 +2097,18 @@ gamenet_rev245_2_exec_p_countdialog_v1(
 static void
 gamenet_rev245_2_exec_reboot_timer_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    game->reboot_timer_ticks = packet->_reboot_timer.ticks;
+    game->reboot_timer_ticks = packet->u.reboot_timer_v1.ticks;
 }
 
 static void
 gamenet_rev245_2_exec_update_friendlist_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int64_t un = packet->_update_friendlist.username;
-    int world = packet->_update_friendlist.world;
+    int64_t un = packet->u.update_friendlist_v1.username;
+    int world = packet->u.update_friendlist_v1.world;
 
     /* Update existing entry if present. */
     for( int i = 0; i < game->friend_count; i++ )
@@ -2137,23 +2131,23 @@ gamenet_rev245_2_exec_update_friendlist_v1(
 static void
 gamenet_rev245_2_exec_update_ignorelist_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     /* Replace entire ignore list. */
-    int n = packet->_update_ignorelist.count;
+    int n = packet->u.update_ignorelist_v1.count;
     if( n > GAME_SOCIAL_LIST_MAX )
         n = GAME_SOCIAL_LIST_MAX;
     game->ignore_count = n;
     for( int i = 0; i < n; i++ )
-        game->ignore_usernames[i] = packet->_update_ignorelist.usernames[i];
+        game->ignore_usernames[i] = packet->u.update_ignorelist_v1.usernames[i];
 }
 
 static void
 gamenet_rev245_2_exec_if_openoverlay_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
-    int cid = if_decode_component_id(packet->_if_openoverlay.component_id);
+    int cid = if_decode_component_id(packet->u.if_openoverlay_v1.component_id);
     (void)game;
     (void)cid;
     /* Overlay interfaces rendered on top of main viewport; stored for draw pass. */
@@ -2163,7 +2157,7 @@ gamenet_rev245_2_exec_if_openoverlay_v1(
 static void
 gamenet_rev245_2_exec_synth_sound_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     (void)game;
     (void)packet;
@@ -2172,7 +2166,7 @@ gamenet_rev245_2_exec_synth_sound_v1(
 static void
 gamenet_rev245_2_exec_midi_song_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     (void)game;
     (void)packet;
@@ -2181,7 +2175,7 @@ gamenet_rev245_2_exec_midi_song_v1(
 static void
 gamenet_rev245_2_exec_midi_jingle_v1(
     struct GGame* game,
-    struct RevPacket_LC245_2* packet)
+    struct RevServerProtPacket* packet)
 {
     (void)game;
     (void)packet;

@@ -1,9 +1,10 @@
 #include "gamecache_from_buildcachedat.h"
 
-#include "osrs/buildcachedat.h"
 #include "gamecache.h"
+#include "osrs/buildcachedat.h"
 
 /* rscache includes kept here only -- the exclusive bridge between rscache and GameCache types. */
+#include "graphics/dash.h"
 #include "osrs/rscache/tables/config_floortype.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/config_sequence.h"
@@ -15,8 +16,6 @@
 #include "osrs/rscache/tables_dat/config_npc.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
 #include "osrs/rscache/tables_dat/config_spotanim.h"
-
-#include "graphics/dash.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -699,20 +698,26 @@ dup_model_from_cache(struct CacheModel const* m)
     if( m->textured_p_coordinate )
     {
         d->textured_p_coordinate = malloc((size_t)m->textured_face_count * sizeof(uint16_t));
-        memcpy(d->textured_p_coordinate, m->textured_p_coordinate,
-               (size_t)m->textured_face_count * sizeof(uint16_t));
+        memcpy(
+            d->textured_p_coordinate,
+            m->textured_p_coordinate,
+            (size_t)m->textured_face_count * sizeof(uint16_t));
     }
     if( m->textured_m_coordinate )
     {
         d->textured_m_coordinate = malloc((size_t)m->textured_face_count * sizeof(uint16_t));
-        memcpy(d->textured_m_coordinate, m->textured_m_coordinate,
-               (size_t)m->textured_face_count * sizeof(uint16_t));
+        memcpy(
+            d->textured_m_coordinate,
+            m->textured_m_coordinate,
+            (size_t)m->textured_face_count * sizeof(uint16_t));
     }
     if( m->textured_n_coordinate )
     {
         d->textured_n_coordinate = malloc((size_t)m->textured_face_count * sizeof(uint16_t));
-        memcpy(d->textured_n_coordinate, m->textured_n_coordinate,
-               (size_t)m->textured_face_count * sizeof(uint16_t));
+        memcpy(
+            d->textured_n_coordinate,
+            m->textured_n_coordinate,
+            (size_t)m->textured_face_count * sizeof(uint16_t));
     }
     if( m->face_textures )
     {
@@ -722,15 +727,18 @@ dup_model_from_cache(struct CacheModel const* m)
     if( m->face_texture_coords )
     {
         d->face_texture_coords = malloc((size_t)m->face_count * sizeof(int16_t));
-        memcpy(d->face_texture_coords, m->face_texture_coords,
-               (size_t)m->face_count * sizeof(int16_t));
+        memcpy(
+            d->face_texture_coords,
+            m->face_texture_coords,
+            (size_t)m->face_count * sizeof(int16_t));
     }
     if( m->textureRenderTypes )
     {
-        d->textureRenderTypes =
-            malloc((size_t)m->textured_face_count * sizeof(unsigned char));
-        memcpy(d->textureRenderTypes, m->textureRenderTypes,
-               (size_t)m->textured_face_count * sizeof(unsigned char));
+        d->textureRenderTypes = malloc((size_t)m->textured_face_count * sizeof(unsigned char));
+        memcpy(
+            d->textureRenderTypes,
+            m->textureRenderTypes,
+            (size_t)m->textured_face_count * sizeof(unsigned char));
     }
     /* _ids[10] and rotated dropped */
     return d;
@@ -776,8 +784,8 @@ dup_loc(struct CacheConfigLocation const* src)
     {
         d->retextures_from = malloc((size_t)src->retexture_count * sizeof(int));
         d->retextures_to = malloc((size_t)src->retexture_count * sizeof(int));
-        memcpy(d->retextures_from, src->retextures_from,
-               (size_t)src->retexture_count * sizeof(int));
+        memcpy(
+            d->retextures_from, src->retextures_from, (size_t)src->retexture_count * sizeof(int));
         memcpy(d->retextures_to, src->retextures_to, (size_t)src->retexture_count * sizeof(int));
     }
     d->mirrored = src->mirrored;
@@ -825,7 +833,9 @@ dup_loc(struct CacheConfigLocation const* src)
  * -------------------------------------------------------------------------*/
 
 void
-gamecache_convert_reftables_from_buildcachedat(struct GameCache* gc, struct BuildCacheDat* bcd)
+gamecache_convert_reftables_from_buildcachedat(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd)
 {
     if( !gc || !bcd )
         return;
@@ -890,7 +900,9 @@ gamecache_convert_reftables_from_buildcachedat(struct GameCache* gc, struct Buil
 }
 
 void
-gamecache_convert_floortypes_from_buildcachedat(struct GameCache* gc, struct BuildCacheDat* bcd)
+gamecache_convert_floortypes_from_buildcachedat(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd)
 {
     if( !gc || !bcd || !bcd->flotype_hmap )
         return;
@@ -906,7 +918,9 @@ gamecache_convert_floortypes_from_buildcachedat(struct GameCache* gc, struct Bui
 }
 
 void
-gamecache_convert_sequences_from_buildcachedat(struct GameCache* gc, struct BuildCacheDat* bcd)
+gamecache_convert_sequences_from_buildcachedat(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd)
 {
     if( !gc || !bcd || !bcd->sequences_hmap )
         return;
@@ -922,7 +936,9 @@ gamecache_convert_sequences_from_buildcachedat(struct GameCache* gc, struct Buil
 }
 
 void
-gamecache_convert_animbaseframes_from_buildcachedat(struct GameCache* gc, struct BuildCacheDat* bcd)
+gamecache_convert_animbaseframes_from_buildcachedat(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd)
 {
     if( !gc || !bcd || !bcd->animbaseframes_hmap )
         return;
@@ -953,7 +969,9 @@ gamecache_convert_animbaseframes_from_buildcachedat(struct GameCache* gc, struct
 }
 
 void
-gamecache_convert_npcs_from_buildcachedat(struct GameCache* gc, struct BuildCacheDat* bcd)
+gamecache_convert_npcs_from_buildcachedat(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd)
 {
     if( !gc || !bcd || !bcd->npc_hmap )
         return;
@@ -969,7 +987,9 @@ gamecache_convert_npcs_from_buildcachedat(struct GameCache* gc, struct BuildCach
 }
 
 void
-gamecache_convert_objs_from_buildcachedat(struct GameCache* gc, struct BuildCacheDat* bcd)
+gamecache_convert_objs_from_buildcachedat(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd)
 {
     if( !gc || !bcd || !bcd->obj_hmap )
         return;
@@ -985,7 +1005,9 @@ gamecache_convert_objs_from_buildcachedat(struct GameCache* gc, struct BuildCach
 }
 
 void
-gamecache_convert_idks_from_buildcachedat(struct GameCache* gc, struct BuildCacheDat* bcd)
+gamecache_convert_idks_from_buildcachedat(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd)
 {
     if( !gc || !bcd || !bcd->idk_hmap )
         return;
@@ -1001,7 +1023,9 @@ gamecache_convert_idks_from_buildcachedat(struct GameCache* gc, struct BuildCach
 }
 
 void
-gamecache_convert_spotanims_from_buildcachedat(struct GameCache* gc, struct BuildCacheDat* bcd)
+gamecache_convert_spotanims_from_buildcachedat(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd)
 {
     if( !gc || !bcd || !bcd->spotanim_hmap )
         return;
@@ -1017,7 +1041,9 @@ gamecache_convert_spotanims_from_buildcachedat(struct GameCache* gc, struct Buil
 }
 
 void
-gamecache_convert_components_from_buildcachedat(struct GameCache* gc, struct BuildCacheDat* bcd)
+gamecache_convert_components_from_buildcachedat(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd)
 {
     if( !gc || !bcd || !bcd->component_hmap )
         return;
@@ -1114,7 +1140,9 @@ gamecache_convert_models_chunk_from_buildcachedat(
 }
 
 void
-gamecache_convert_npc_models_from_buildcachedat(struct GameCache* gc, struct BuildCacheDat* bcd)
+gamecache_convert_npc_models_from_buildcachedat(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd)
 {
     if( !gc || !bcd || !bcd->npc_models_hmap )
         return;
@@ -1130,7 +1158,9 @@ gamecache_convert_npc_models_from_buildcachedat(struct GameCache* gc, struct Bui
 }
 
 void
-gamecache_convert_obj_models_from_buildcachedat(struct GameCache* gc, struct BuildCacheDat* bcd)
+gamecache_convert_obj_models_from_buildcachedat(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd)
 {
     if( !gc || !bcd || !bcd->obj_models_hmap )
         return;
@@ -1146,7 +1176,9 @@ gamecache_convert_obj_models_from_buildcachedat(struct GameCache* gc, struct Bui
 }
 
 void
-gamecache_convert_idk_models_from_buildcachedat(struct GameCache* gc, struct BuildCacheDat* bcd)
+gamecache_convert_idk_models_from_buildcachedat(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd)
 {
     if( !gc || !bcd || !bcd->idk_models_hmap )
         return;
@@ -1162,7 +1194,9 @@ gamecache_convert_idk_models_from_buildcachedat(struct GameCache* gc, struct Bui
 }
 
 void
-gamecache_convert_all_from_buildcachedat(struct GameCache* gc, struct BuildCacheDat* bcd)
+gamecache_convert_all_from_buildcachedat(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd)
 {
     if( !gc || !bcd )
         return;

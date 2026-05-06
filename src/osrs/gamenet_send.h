@@ -7,9 +7,9 @@
  * formats, or revision is required.  Each function dispatches through:
  *
  *   gamenet_send_xxx(game, ...)
- *     -> gamenet_rev245_2_send_xxx(game, ...)   [net-rev gateway]
- *     -> gamenet_core_send_xxx_v1(game, ...)    [hydrator: GGame -> wire struct]
- *     -> clientprot_send_xxx_v1(buf, isaac, &w) [pure serializer: struct -> bytes]
+ *     -> gamenet_rev245_2_send_xxx(game, ...)     [PKTOUT_LC245_2_* -> opcode]
+ *     -> gamenet_core_send_xxx_v1(game, opcode, ...) [hydrator: GGame -> WireOut]
+ *     -> clientprot_send_xxx_v1(buf, isaac, opcode, &w) [bytes only]
  */
 
 #include "osrs/core/revision.h"

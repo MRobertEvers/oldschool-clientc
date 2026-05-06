@@ -24,6 +24,8 @@ const char*
 ui_loader_cache_ini_path(const struct UILoader* u);
 
 void
-ui_loader_load(const struct UILoader* u, struct GGame* game);
+ui_loader_load(
+    const struct UILoader* u,
+    struct GGame* game);
 
 #endif

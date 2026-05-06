@@ -3,12 +3,12 @@
 #include "osrs/core/revision.h"
 #include "osrs/game.h"
 #include "osrs/revs/lc245_2/gamenet_rev245_2_exec.h"
-#include "osrs/revs/lc245_2/gameproto_rev245_2_packets.h"
+
 
 #include <assert.h>
 
 void
-gamenet_exec(struct GGame* game, struct RevPacket_LC245_2* packet)
+gamenet_exec(struct GGame* game, struct RevServerProtPacket* packet)
 {
     if( !game || !packet )
         return;
