@@ -324,7 +324,7 @@ struct PktUpdateInvStopTransmit
 struct PktUpdateInvPartialEntry
 {
     int slot; /* g1 */
-    /** After parse in gameproto_rev245_2_parse.c: 0-based object id (wire g2 minus 1); -1 when
+    /** After parse in serverprot_netrev245_2_parse.c: 0-based object id (wire g2 minus 1); -1 when
      * wire was 0 (empty). buildcachedat invSlotObjId uses 1-based wire (0 = empty). */
     int obj_id;
     int count; /* g1 or g4 when count byte was 255 */

@@ -14,7 +14,7 @@
 #include "osrs/core/revision.h"
 #include "osrs/revs/lc245_2/revision_lc245_2.h"
 #include "osrs/dash_utils.h"
-#include "osrs/gameproto_process.h"
+#include "osrs/gamenet_process.h"
 #include "osrs/interface_state.h"
 #include "osrs/revs/lc245_2/loginproto_rev245_2.h"
 #include "osrs/lua_scripts.h"

@@ -3,6 +3,7 @@
 
 #include "osrs/core/revision.h"
 #include "osrs/game.h"
+#include "osrs/gamenet_parse.h"
 #include "osrs/isaac.h"
 #include "osrs/revs/lc245_2/loginproto_rev245_2.h"
 #include "osrs/core/packetbuffer.h"
@@ -106,22 +107,7 @@ LibToriRS_NetConnectGame(
 static void
 net_process_packets(struct GGame* game)
 {
-    if( !game || !game->packet_buffer )
-        return;
-
-    // The PacketBuffer has internally handled ISAAC decryption of the opcode
-    // and accumulated the full payload.
-    if( packetbuffer_ready(game->packet_buffer) )
-    {
-        revision_parse_and_enqueue(
-            &game->revision,
-            game,
-            packetbuffer_packet_type(game->packet_buffer),
-            packetbuffer_data(game->packet_buffer),
-            packetbuffer_size(game->packet_buffer));
-
-        packetbuffer_reset(game->packet_buffer);
-    }
+    gamenet_parse(game);
 }
 
 static void

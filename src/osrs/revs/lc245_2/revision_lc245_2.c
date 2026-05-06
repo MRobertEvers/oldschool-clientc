@@ -1,8 +1,8 @@
 #include "osrs/revs/lc245_2/revision_lc245_2.h"
 
 #include "osrs/game.h"
-#include "osrs/revs/lc245_2/gameproto_rev245_2_exec.h"
-#include "osrs/revs/lc245_2/gameproto_rev245_2_parse.h"
+#include "osrs/revs/lc245_2/gamenet_rev245_2_exec.h"
+#include "osrs/revs/lc245_2/serverprot_netrev245_2_parse.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -83,7 +83,7 @@ gameproto_rev245_2_drain_pending(
         self->pending_head = item->next_nullable;
         item->next_nullable = NULL;
 
-        gameproto_rev245_2_exec_dispatch(game, &item->packet);
+        gamenet_rev245_2_exec_dispatch_v1(game, &item->packet);
         gameproto_free_lc245_2_item(item);
         free(item);
     }

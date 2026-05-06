@@ -1,12 +1,21 @@
-#ifndef GAMEPROTO_H
-#define GAMEPROTO_H
+#ifndef SERVERPROT_NETREV245_2_PARSE_H
+#define SERVERPROT_NETREV245_2_PARSE_H
+
+/* serverprot_netrev245_2_parse — inbound opcode switch + deserializer for LC245_2.
+ *
+ * Translates raw inbound packet bytes (opcode + payload) into typed
+ * RevPacket_LC245_2 structs and enqueues them on the revision's pending queue.
+ *
+ * Zero GGame state mutation here; that happens in gamenet_rev245_2_exec.
+ * Renamed from gameproto_rev245_2_parse.{c,h}.
+ */
 
 #include "osrs/game.h"
 #include "osrs/gameproto_revisions.h"
 #include "osrs/revs/lc245_2/gameproto_rev245_2_packets.h"
 
 int
-gameproto_rev245_2_parse(
+serverprot_netrev245_2_parse(
     int packet_type,
     uint8_t* data,
     int data_size,
@@ -14,7 +23,7 @@ gameproto_rev245_2_parse(
 
 /** Parse one inbound game packet and enqueue on `game->revision` (LC245_2). */
 int
-gameproto_rev245_2_parse_and_enqueue(
+serverprot_netrev245_2_parse_and_enqueue(
     struct GGame* game,
     int opcode,
     uint8_t* data,

@@ -8,9 +8,9 @@
 #include "osrs/dash_utils.h"
 #include "osrs/game.h"
 #include "osrs/rscache/tables_dat/config_component.h"
-#include "osrs/revs/lc245_2/gameproto_rev245_2_exec.h"
+#include "osrs/revs/lc245_2/gamenet_rev245_2_exec.h"
 #include "osrs/revs/lc245_2/revision_lc245_2.h"
-#include "osrs/revs/lc245_2/gameproto_rev245_2_parse.h"
+#include "osrs/revs/lc245_2/serverprot_netrev245_2_parse.h"
 #include "osrs/revs/lc245_2/gameproto_rev245_2_packets.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/heightmap.h"
@@ -69,7 +69,7 @@ LuaGame_exec_packet(
         (struct RevPacket_LC245_2_Item*)arg_userdata(args, 0);
     if( item )
     {
-        gameproto_rev245_2_exec_dispatch(game, &item->packet);
+        gamenet_rev245_2_exec_dispatch_v1(game, &item->packet);
         gameproto_free_lc245_2_item(item);
         free(item);
     }

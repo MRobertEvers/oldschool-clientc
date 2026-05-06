@@ -1,6 +1,6 @@
-#include "osrs/revs/lc245_2/gameproto_rev245_2_parse.h"
+#include "osrs/revs/lc245_2/serverprot_netrev245_2_parse.h"
 
-#include "osrs/core/gameproto_core_parse.h"
+#include "osrs/core/serverprot_core_parse.h"
 #include "osrs/core/revision.h"
 #include "osrs/revs/lc245_2/revision_lc245_2.h"
 #include "osrs/packetin.h"
@@ -18,7 +18,7 @@
 // clang-format on
 
 int
-gameproto_rev245_2_parse(
+serverprot_netrev245_2_parse(
     int packet_type,
     uint8_t* data,
     int data_size,
@@ -34,7 +34,7 @@ gameproto_rev245_2_parse(
     case PKTIN_LC245_2_REBUILD_NORMAL:
     {
         printf("PKTIN_LC245_2_REBUILD_NORMAL\n");
-        gameproto_core_parse_maprebuild8_z16_x16_v1(
+        serverprot_core_parse_maprebuild_v1(
             data,
             data_size,
             &packet->_map_rebuild.zonex,
@@ -110,26 +110,26 @@ gameproto_rev245_2_parse(
     }
     case PKTIN_LC245_2_IF_SETTAB:
     {
-        packet->_if_settab.component_id = g2(&buffer);
-        packet->_if_settab.tab_id = g1(&buffer);
-        printf(
-            "PKTIN_LC245_2_IF_SETTAB: component_id=%d, tab_id=%d\n",
-            packet->_if_settab.component_id,
-            packet->_if_settab.tab_id);
-        assert(buffer.position == data_size);
+        struct WireIn_IfSettab_v1 w;
+        serverprot_core_parse_if_settab_v1(data, data_size, &w);
+        packet->_if_settab.component_id = w.component_id;
+        packet->_if_settab.tab_id       = w.tab_id;
+        printf("PKTIN_LC245_2_IF_SETTAB: component_id=%d, tab_id=%d\n",
+            w.component_id, w.tab_id);
         return 1;
     }
     case PKTIN_LC245_2_IF_OPENCHAT:
     {
-        packet->_if_openchat.component_id = g2(&buffer);
-        printf("PKTIN_LC245_2_IF_OPENCHAT: component_id=%d\n", packet->_if_openchat.component_id);
-        assert(buffer.position == data_size);
+        struct WireIn_IfOpen_v1 w;
+        serverprot_core_parse_if_open_v1(data, data_size, &w);
+        packet->_if_openchat.component_id = w.component_id;
+        printf("PKTIN_LC245_2_IF_OPENCHAT: component_id=%d\n", w.component_id);
         return 1;
     }
     case PKTIN_LC245_2_IF_CLOSE:
     {
         printf("PKTIN_LC245_2_IF_CLOSE\n");
-        assert(buffer.position == data_size);
+        serverprot_core_parse_if_close_v1(data, data_size);
         return 1;
     }
     case PKTIN_LC245_2_IF_SETTAB_ACTIVE:
@@ -141,24 +141,20 @@ gameproto_rev245_2_parse(
     }
     case PKTIN_LC245_2_VARP_SMALL:
     {
-        packet->_varp_small.variable = g2(&buffer);
-        packet->_varp_small.value = g1b(&buffer);
-        printf(
-            "PKTIN_LC245_2_VARP_SMALL: variable=%d value=%d\n",
-            packet->_varp_small.variable,
-            packet->_varp_small.value);
-        assert(buffer.position == data_size);
+        struct WireIn_VarpSmall_v1 w;
+        serverprot_core_parse_varp_small_v1(data, data_size, &w);
+        packet->_varp_small.variable = w.variable;
+        packet->_varp_small.value    = w.value;
+        printf("PKTIN_LC245_2_VARP_SMALL: variable=%d value=%d\n", w.variable, w.value);
         return 1;
     }
     case PKTIN_LC245_2_VARP_LARGE:
     {
-        packet->_varp_large.variable = g2(&buffer);
-        packet->_varp_large.value = g4(&buffer);
-        printf(
-            "PKTIN_LC245_2_VARP_LARGE: variable=%d value=%d\n",
-            packet->_varp_large.variable,
-            packet->_varp_large.value);
-        assert(buffer.position == data_size);
+        struct WireIn_VarpLarge_v1 w;
+        serverprot_core_parse_varp_large_v1(data, data_size, &w);
+        packet->_varp_large.variable = w.variable;
+        packet->_varp_large.value    = w.value;
+        printf("PKTIN_LC245_2_VARP_LARGE: variable=%d value=%d\n", w.variable, w.value);
         return 1;
     }
     case PKTIN_LC245_2_RESET_CLIENT_VARCACHE:
@@ -166,86 +162,99 @@ gameproto_rev245_2_parse(
         return 1;
     case PKTIN_LC245_2_UPDATE_STAT:
     {
-        packet->_update_stat.stat = g1(&buffer);
-        packet->_update_stat.xp = g4(&buffer);
-        packet->_update_stat.level = g1(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_UpdateStat_v1 w;
+        serverprot_core_parse_update_stat_v1(data, data_size, &w);
+        packet->_update_stat.stat  = w.stat;
+        packet->_update_stat.xp    = w.xp;
+        packet->_update_stat.level = w.level;
         return 1;
     }
     case PKTIN_LC245_2_UPDATE_RUNENERGY:
     {
-        packet->_update_run_energy.run_energy = g1(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_UpdateRunenergy_v1 w;
+        serverprot_core_parse_update_runenergy_v1(data, data_size, &w);
+        packet->_update_run_energy.run_energy = w.run_energy;
         return 1;
     }
     case PKTIN_LC245_2_IF_SETCOLOUR:
     {
-        packet->_if_setcolour.component_id = g2(&buffer);
-        packet->_if_setcolour.colour = g2(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_IfSetcolour_v1 w;
+        serverprot_core_parse_if_setcolour_v1(data, data_size, &w);
+        packet->_if_setcolour.component_id = w.component_id;
+        packet->_if_setcolour.colour       = w.colour;
         return 1;
     }
     case PKTIN_LC245_2_IF_SETHIDE:
     {
-        packet->_if_sethide.component_id = g2(&buffer);
-        packet->_if_sethide.hide = g1(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_IfSethide_v1 w;
+        serverprot_core_parse_if_sethide_v1(data, data_size, &w);
+        packet->_if_sethide.component_id = w.component_id;
+        packet->_if_sethide.hide         = w.hide;
         return 1;
     }
     case PKTIN_LC245_2_IF_SETOBJECT:
     {
-        packet->_if_setobject.component_id = g2(&buffer);
-        packet->_if_setobject.obj_id = g2(&buffer);
-        packet->_if_setobject.zoom = g2(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_IfSetobject_v1 w;
+        serverprot_core_parse_if_setobject_v1(data, data_size, &w);
+        packet->_if_setobject.component_id = w.component_id;
+        packet->_if_setobject.obj_id       = w.obj_id;
+        packet->_if_setobject.zoom         = w.zoom;
         return 1;
     }
     case PKTIN_LC245_2_IF_SETMODEL:
     {
-        packet->_if_setmodel.component_id = g2(&buffer);
-        packet->_if_setmodel.model_id = g2(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_IfSetmodel_v1 w;
+        serverprot_core_parse_if_setmodel_v1(data, data_size, &w);
+        packet->_if_setmodel.component_id = w.component_id;
+        packet->_if_setmodel.model_id     = w.model_id;
         return 1;
     }
     case PKTIN_LC245_2_IF_SETANIM:
     {
-        packet->_if_setanim.component_id = g2(&buffer);
-        packet->_if_setanim.anim_id = g2(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_IfSetanim_v1 w;
+        serverprot_core_parse_if_setanim_v1(data, data_size, &w);
+        packet->_if_setanim.component_id = w.component_id;
+        packet->_if_setanim.anim_id      = w.anim_id;
         return 1;
     }
     case PKTIN_LC245_2_IF_SETPLAYERHEAD:
     {
-        packet->_if_setplayerhead.component_id = g2(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_IfSetplayerhead_v1 w;
+        serverprot_core_parse_if_setplayerhead_v1(data, data_size, &w);
+        packet->_if_setplayerhead.component_id = w.component_id;
         return 1;
     }
     case PKTIN_LC245_2_IF_SETTEXT:
     {
-        packet->_if_settext.component_id = g2(&buffer);
-        packet->_if_settext.text = gstringnewline(&buffer);
+        struct WireIn_IfSettext_v1 w;
+        serverprot_core_parse_if_settext_v1(data, data_size, &w);
+        packet->_if_settext.component_id = w.component_id;
+        packet->_if_settext.text         = w.text;
         return 1;
     }
     case PKTIN_LC245_2_IF_SETNPCHEAD:
     {
-        packet->_if_setnpchead.component_id = g2(&buffer);
-        packet->_if_setnpchead.npc_id = g2(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_IfSetnpchead_v1 w;
+        serverprot_core_parse_if_setnpchead_v1(data, data_size, &w);
+        packet->_if_setnpchead.component_id = w.component_id;
+        packet->_if_setnpchead.npc_id       = w.npc_id;
         return 1;
     }
     case PKTIN_LC245_2_IF_SETPOSITION:
     {
-        packet->_if_setposition.component_id = g2(&buffer);
-        packet->_if_setposition.x = g2b(&buffer);
-        packet->_if_setposition.z = g2b(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_IfSetposition_v1 w;
+        serverprot_core_parse_if_setposition_v1(data, data_size, &w);
+        packet->_if_setposition.component_id = w.component_id;
+        packet->_if_setposition.x            = w.x;
+        packet->_if_setposition.z            = w.z;
         return 1;
     }
     case PKTIN_LC245_2_IF_SETSCROLLPOS:
     {
-        packet->_if_setscrollpos.component_id = g2(&buffer);
-        packet->_if_setscrollpos.pos = g2(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_IfSetscrollpos_v1 w;
+        serverprot_core_parse_if_setscrollpos_v1(data, data_size, &w);
+        packet->_if_setscrollpos.component_id = w.component_id;
+        packet->_if_setscrollpos.pos          = w.pos;
         return 1;
     }
     case PKTIN_LC245_2_MESSAGE_GAME:
@@ -276,218 +285,223 @@ gameproto_rev245_2_parse(
     case PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_FOLLOWS:
     {
         printf("PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_FOLLOWS\n");
-        packet->_update_zone_partial_follows.base_x = g1(&buffer);
-        packet->_update_zone_partial_follows.base_z = g1(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_UpdateZone_v1 w;
+        serverprot_core_parse_update_zone_v1(data, data_size, &w);
+        packet->_update_zone_partial_follows.base_x = w.base_x;
+        packet->_update_zone_partial_follows.base_z = w.base_z;
         return 1;
     }
     case PKTIN_LC245_2_UPDATE_ZONE_FULL_FOLLOWS:
     {
         printf("PKTIN_LC245_2_UPDATE_ZONE_FULL_FOLLOWS\n");
-        packet->_update_zone_full_follows.base_x = g1(&buffer);
-        packet->_update_zone_full_follows.base_z = g1(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_UpdateZone_v1 w;
+        serverprot_core_parse_update_zone_v1(data, data_size, &w);
+        packet->_update_zone_full_follows.base_x = w.base_x;
+        packet->_update_zone_full_follows.base_z = w.base_z;
         return 1;
     }
     case PKTIN_LC245_2_LOC_ADD_CHANGE:
     {
         printf("PKTIN_LC245_2_LOC_ADD_CHANGE\n");
-        packet->_loc_add_change.pos = g1(&buffer);
-        packet->_loc_add_change.info = g1(&buffer);
-        packet->_loc_add_change.loc_id = g2(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_LocAddChange_v1 w;
+        serverprot_core_parse_loc_add_change_v1(data, data_size, &w);
+        packet->_loc_add_change.pos    = w.pos;
+        packet->_loc_add_change.info   = w.info;
+        packet->_loc_add_change.loc_id = w.loc_id;
         return 1;
     }
     case PKTIN_LC245_2_LOC_DEL:
     {
         printf("PKTIN_LC245_2_LOC_DEL\n");
-        packet->_loc_del.pos = g1(&buffer);
-        packet->_loc_del.info = g1(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_LocDel_v1 w;
+        serverprot_core_parse_loc_del_v1(data, data_size, &w);
+        packet->_loc_del.pos  = w.pos;
+        packet->_loc_del.info = w.info;
         return 1;
     }
     case PKTIN_LC245_2_LOC_ANIM:
     {
         printf("PKTIN_LC245_2_LOC_ANIM\n");
-        packet->_loc_anim.pos = g1(&buffer);
-        packet->_loc_anim.info = g1(&buffer);
-        packet->_loc_anim.seq_id = g2(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_LocAnim_v1 w;
+        serverprot_core_parse_loc_anim_v1(data, data_size, &w);
+        packet->_loc_anim.pos    = w.pos;
+        packet->_loc_anim.info   = w.info;
+        packet->_loc_anim.seq_id = w.seq_id;
         return 1;
     }
     case PKTIN_LC245_2_OBJ_ADD:
     {
-        packet->_obj_add.pos = g1(&buffer);
-        packet->_obj_add.obj_id = g2(&buffer);
-        packet->_obj_add.count = g2(&buffer);
-        printf(
-            "PKTIN_LC245_2_OBJ_ADD: pos=%d, obj_id=%d, count=%d\n",
-            packet->_obj_add.pos,
-            packet->_obj_add.obj_id,
-            packet->_obj_add.count);
-        assert(buffer.position == data_size);
+        struct WireIn_ObjAdd_v1 w;
+        serverprot_core_parse_obj_add_v1(data, data_size, &w);
+        packet->_obj_add.pos    = w.pos;
+        packet->_obj_add.obj_id = w.obj_id;
+        packet->_obj_add.count  = w.count;
+        printf("PKTIN_LC245_2_OBJ_ADD: pos=%d, obj_id=%d, count=%d\n",
+            w.pos, w.obj_id, w.count);
         return 1;
     }
     case PKTIN_LC245_2_OBJ_DEL:
     {
-        packet->_obj_del.pos = g1(&buffer);
-        packet->_obj_del.obj_id = g2(&buffer);
-        printf(
-            "PKTIN_LC245_2_OBJ_DEL: pos=%d, obj_id=%d\n",
-            packet->_obj_del.pos,
-            packet->_obj_del.obj_id);
-        assert(buffer.position == data_size);
+        struct WireIn_ObjDel_v1 w;
+        serverprot_core_parse_obj_del_v1(data, data_size, &w);
+        packet->_obj_del.pos    = w.pos;
+        packet->_obj_del.obj_id = w.obj_id;
+        printf("PKTIN_LC245_2_OBJ_DEL: pos=%d, obj_id=%d\n", w.pos, w.obj_id);
         return 1;
     }
     case PKTIN_LC245_2_OBJ_REVEAL:
     {
-        packet->_obj_reveal.pos = g1(&buffer);
-        packet->_obj_reveal.obj_id = g2(&buffer);
-        packet->_obj_reveal.count = g2(&buffer);
-        packet->_obj_reveal.receiver = g2(&buffer);
-        printf(
-            "PKTIN_LC245_2_OBJ_REVEAL: pos=%d, obj_id=%d, count=%d, receiver=%d\n",
-            packet->_obj_reveal.pos,
-            packet->_obj_reveal.obj_id,
-            packet->_obj_reveal.count,
-            packet->_obj_reveal.receiver);
-        assert(buffer.position == data_size);
+        struct WireIn_ObjReveal_v1 w;
+        serverprot_core_parse_obj_reveal_v1(data, data_size, &w);
+        packet->_obj_reveal.pos      = w.pos;
+        packet->_obj_reveal.obj_id   = w.obj_id;
+        packet->_obj_reveal.count    = w.count;
+        packet->_obj_reveal.receiver = w.receiver;
+        printf("PKTIN_LC245_2_OBJ_REVEAL: pos=%d, obj_id=%d, count=%d, receiver=%d\n",
+            w.pos, w.obj_id, w.count, w.receiver);
         return 1;
     }
     case PKTIN_LC245_2_OBJ_COUNT:
     {
-        packet->_obj_count.pos = g1(&buffer);
-        packet->_obj_count.obj_id = g2(&buffer);
-        packet->_obj_count.old_count = g2(&buffer);
-        packet->_obj_count.new_count = g2(&buffer);
-        printf(
-            "PKTIN_LC245_2_OBJ_COUNT: pos=%d, obj_id=%d, old_count=%d, new_count=%d\n",
-            packet->_obj_count.pos,
-            packet->_obj_count.obj_id,
-            packet->_obj_count.old_count,
-            packet->_obj_count.new_count);
-        assert(buffer.position == data_size);
+        struct WireIn_ObjCount_v1 w;
+        serverprot_core_parse_obj_count_v1(data, data_size, &w);
+        packet->_obj_count.pos       = w.pos;
+        packet->_obj_count.obj_id    = w.obj_id;
+        packet->_obj_count.old_count = w.old_count;
+        packet->_obj_count.new_count = w.new_count;
+        printf("PKTIN_LC245_2_OBJ_COUNT: pos=%d, obj_id=%d, old_count=%d, new_count=%d\n",
+            w.pos, w.obj_id, w.old_count, w.new_count);
         return 1;
     }
     case PKTIN_LC245_2_LOC_MERGE:
     {
         printf("PKTIN_LC245_2_LOC_MERGE\n");
-        packet->_loc_merge.pos = g1(&buffer);
-        packet->_loc_merge.info = g1(&buffer);
-        packet->_loc_merge.loc_id = g2(&buffer);
-        packet->_loc_merge.start = g2(&buffer);
-        packet->_loc_merge.end = g2(&buffer);
-        packet->_loc_merge.pid = g2(&buffer);
-        packet->_loc_merge.east = g1b(&buffer);
-        packet->_loc_merge.south = g1b(&buffer);
-        packet->_loc_merge.west = g1b(&buffer);
-        packet->_loc_merge.north = g1b(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_LocMerge_v1 w;
+        serverprot_core_parse_loc_merge_v1(data, data_size, &w);
+        packet->_loc_merge.pos    = w.pos;
+        packet->_loc_merge.info   = w.info;
+        packet->_loc_merge.loc_id = w.loc_id;
+        packet->_loc_merge.start  = w.start;
+        packet->_loc_merge.end    = w.end;
+        packet->_loc_merge.pid    = w.pid;
+        packet->_loc_merge.east   = w.east;
+        packet->_loc_merge.south  = w.south;
+        packet->_loc_merge.west   = w.west;
+        packet->_loc_merge.north  = w.north;
         return 1;
     }
     case PKTIN_LC245_2_MAP_PROJANIM:
     {
         printf("PKTIN_LC245_2_MAP_PROJANIM\n");
-        packet->_map_projanim.pos = g1(&buffer);
-        packet->_map_projanim.dx_offset = g1b(&buffer);
-        packet->_map_projanim.dz_offset = g1b(&buffer);
-        packet->_map_projanim.target = g2b(&buffer);
-        packet->_map_projanim.spotanim = g2(&buffer);
-        packet->_map_projanim.src_height = g1(&buffer);
-        packet->_map_projanim.dst_height = g1(&buffer);
-        packet->_map_projanim.start_delay = g2(&buffer);
-        packet->_map_projanim.end_delay = g2(&buffer);
-        packet->_map_projanim.peak = g1(&buffer);
-        packet->_map_projanim.arc = g1(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_MapProjAnim_v1 w;
+        serverprot_core_parse_map_projanim_v1(data, data_size, &w);
+        packet->_map_projanim.pos         = w.pos;
+        packet->_map_projanim.dx_offset   = w.dx_offset;
+        packet->_map_projanim.dz_offset   = w.dz_offset;
+        packet->_map_projanim.target      = w.target;
+        packet->_map_projanim.spotanim    = w.spotanim;
+        packet->_map_projanim.src_height  = w.src_height;
+        packet->_map_projanim.dst_height  = w.dst_height;
+        packet->_map_projanim.start_delay = w.start_delay;
+        packet->_map_projanim.end_delay   = w.end_delay;
+        packet->_map_projanim.peak        = w.peak;
+        packet->_map_projanim.arc         = w.arc;
         return 1;
     }
     case PKTIN_LC245_2_MAP_ANIM:
     {
         printf("PKTIN_LC245_2_MAP_ANIM\n");
-        packet->_map_anim.pos = g1(&buffer);
-        packet->_map_anim.id = g2(&buffer);
-        packet->_map_anim.height = g1(&buffer);
-        packet->_map_anim.delay = g2(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_MapAnim_v1 w;
+        serverprot_core_parse_map_anim_v1(data, data_size, &w);
+        packet->_map_anim.pos    = w.pos;
+        packet->_map_anim.id     = w.id;
+        packet->_map_anim.height = w.height;
+        packet->_map_anim.delay  = w.delay;
         return 1;
     }
     case PKTIN_LC245_2_CAM_LOOKAT:
     {
-        packet->_cam_lookat.local_x = g2(&buffer);
-        packet->_cam_lookat.local_z = g2(&buffer);
-        packet->_cam_lookat.height = g2(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_CamLookAt_v1 w;
+        serverprot_core_parse_cam_lookat_v1(data, data_size, &w);
+        packet->_cam_lookat.local_x = w.local_x;
+        packet->_cam_lookat.local_z = w.local_z;
+        packet->_cam_lookat.height  = w.height;
         return 1;
     }
     case PKTIN_LC245_2_CAM_MOVETO:
     {
-        packet->_cam_moveto.local_x = g2(&buffer);
-        packet->_cam_moveto.local_z = g2(&buffer);
-        packet->_cam_moveto.height = g2(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_CamMoveTo_v1 w;
+        serverprot_core_parse_cam_moveto_v1(data, data_size, &w);
+        packet->_cam_moveto.local_x = w.local_x;
+        packet->_cam_moveto.local_z = w.local_z;
+        packet->_cam_moveto.height  = w.height;
         return 1;
     }
     case PKTIN_LC245_2_CAM_SHAKE:
     {
-        packet->_cam_shake.axis = g1(&buffer);
-        packet->_cam_shake.amplitude = g1(&buffer);
-        packet->_cam_shake.frequency = g1(&buffer);
-        packet->_cam_shake.speed = g1(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_CamShake_v1 w;
+        serverprot_core_parse_cam_shake_v1(data, data_size, &w);
+        packet->_cam_shake.axis       = w.axis;
+        packet->_cam_shake.amplitude  = w.amplitude;
+        packet->_cam_shake.frequency  = w.frequency;
+        packet->_cam_shake.speed      = w.speed;
         return 1;
     }
     case PKTIN_LC245_2_CAM_RESET:
-        /* no payload */
+        serverprot_core_parse_cam_reset_v1(data, data_size);
         return 1;
     case PKTIN_LC245_2_IF_OPENMAIN:
     {
-        packet->_if_openmain.component_id = g2(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_IfOpen_v1 w;
+        serverprot_core_parse_if_open_v1(data, data_size, &w);
+        packet->_if_openmain.component_id = w.component_id;
         return 1;
     }
     case PKTIN_LC245_2_IF_OPENSIDE:
     {
-        packet->_if_openside.component_id = g2(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_IfOpen_v1 w;
+        serverprot_core_parse_if_open_v1(data, data_size, &w);
+        packet->_if_openside.component_id = w.component_id;
         return 1;
     }
     case PKTIN_LC245_2_IF_OPENMAIN_SIDE:
     {
-        packet->_if_openmain_side.main_component_id = g2(&buffer);
-        packet->_if_openmain_side.side_component_id = g2(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_IfOpenMainSide_v1 w;
+        serverprot_core_parse_if_open_main_side_v1(data, data_size, &w);
+        packet->_if_openmain_side.main_component_id = w.main_component_id;
+        packet->_if_openmain_side.side_component_id = w.side_component_id;
         return 1;
     }
     case PKTIN_LC245_2_HINT_ARROW:
     {
-        packet->_hint_arrow.type = g1(&buffer);
-        packet->_hint_arrow.id = g2(&buffer);
-        if( packet->_hint_arrow.type >= 3 )
-        {
-            packet->_hint_arrow.z = g2(&buffer);
-            packet->_hint_arrow.height = g1(&buffer);
-        }
+        struct WireIn_HintArrow_v1 w;
+        serverprot_core_parse_hint_arrow_v1(data, data_size, &w);
+        packet->_hint_arrow.type   = w.type;
+        packet->_hint_arrow.id     = w.id;
+        packet->_hint_arrow.z      = w.z;
+        packet->_hint_arrow.height = w.height;
         return 1;
     }
     case PKTIN_LC245_2_RESET_ANIMS:
-        /* no payload */
+        serverprot_core_parse_reset_anims_v1(data, data_size);
         return 1;
     case PKTIN_LC245_2_UPDATE_PID:
     {
-        packet->_update_pid.local_player_index = g2(&buffer);
-        packet->_update_pid.unused = g1(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_UpdatePid_v1 w;
+        serverprot_core_parse_update_pid_v1(data, data_size, &w);
+        packet->_update_pid.local_player_index = w.local_player_index;
+        packet->_update_pid.unused             = w.unused;
         return 1;
     }
     case PKTIN_LC245_2_UPDATE_RUNWEIGHT:
     {
-        packet->_update_runweight.run_weight = g2b(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_UpdateRunweight_v1 w;
+        serverprot_core_parse_update_runweight_v1(data, data_size, &w);
+        packet->_update_runweight.run_weight = w.run_weight;
         return 1;
     }
     case PKTIN_LC245_2_UNSET_MAP_FLAG:
-        /* no payload */
+        serverprot_core_parse_unset_map_flag_v1(data, data_size);
         return 1;
     case PKTIN_LC245_2_UPDATE_INV_STOP_TRANSMIT:
     {
@@ -521,22 +535,27 @@ gameproto_rev245_2_parse(
     }
     case PKTIN_LC245_2_SET_MULTIWAY:
     {
-        packet->_set_multiway.multiway = g1(&buffer);
-        assert(buffer.position == data_size);
+        struct WireIn_SetMultiway_v1 w;
+        serverprot_core_parse_set_multiway_v1(data, data_size, &w);
+        packet->_set_multiway.multiway = w.multiway;
         return 1;
     }
     case PKTIN_LC245_2_SET_PLAYER_OP:
     {
-        packet->_set_player_op.op_index  = g1(&buffer);
-        packet->_set_player_op.priority = g1(&buffer);
-        packet->_set_player_op.op_text   = gstringnewline(&buffer);
+        struct WireIn_SetPlayerOp_v1 w;
+        serverprot_core_parse_set_player_op_v1(data, data_size, &w);
+        packet->_set_player_op.op_index  = w.op_index;
+        packet->_set_player_op.priority  = w.priority;
+        packet->_set_player_op.op_text   = w.op_text;
         return 1;
     }
     case PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_ENCLOSED:
     {
         /* Contains sub-zone packets; store the zone base like partial_follows. */
-        packet->_update_zone_partial_follows.base_x = g1(&buffer);
-        packet->_update_zone_partial_follows.base_z = g1(&buffer);
+        struct WireIn_UpdateZone_v1 w;
+        serverprot_core_parse_update_zone_v1(data, data_size, &w);
+        packet->_update_zone_partial_follows.base_x = w.base_x;
+        packet->_update_zone_partial_follows.base_z = w.base_z;
         return 1;
     }
     case PKTIN_LC245_2_TUT_FLASH:
@@ -606,7 +625,7 @@ gameproto_rev245_2_parse(
         return 1;
     }
     default:
-        printf("[gameproto_rev245_2_parse] Unknown packet type: %d\n", packet_type);
+        printf("[serverprot_netrev245_2_parse] Unknown packet type: %d\n", packet_type);
         break;
     }
 
@@ -680,7 +699,7 @@ push_packet_lc245_2(
 }
 
 int
-gameproto_rev245_2_parse_and_enqueue(
+serverprot_netrev245_2_parse_and_enqueue(
     struct GGame* game,
     int opcode,
     uint8_t* data,
@@ -689,7 +708,7 @@ gameproto_rev245_2_parse_and_enqueue(
     struct RevPacket_LC245_2 packet;
     memset(&packet, 0, sizeof(struct RevPacket_LC245_2));
 
-    if( !gameproto_rev245_2_parse(opcode, data, n, &packet) )
+    if( !serverprot_netrev245_2_parse(opcode, data, n, &packet) )
         return 0;
 
     push_packet_lc245_2(game, &packet);

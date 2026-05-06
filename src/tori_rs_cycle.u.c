@@ -9,10 +9,10 @@
 #include "osrs/dash_utils.h"
 #include "osrs/game.h"
 #include "osrs/game_entity.h"
-#include "osrs/gameproto_process.h"
+#include "osrs/gamenet_process.h"
 #include "osrs/interface.h"
 #include "osrs/isaac.h"
-#include "osrs/core/clientprot_core.h"
+#include "osrs/gamenet_send.h"
 #include "osrs/ginput.h"
 #include "osrs/packetout.h"
 #include "osrs/painters.h"
@@ -317,7 +317,7 @@ game_try_move(
     }
     else if( game->net_state == GAME_NET_STATE_GAME && game->random_out )
     {
-        clientprot_emit_move_gameclick_path(game, run, path_x, path_z, path_len);
+        gamenet_send_move_gameclick(game, run, path_x, path_z, path_len);
     }
 
     return true;
@@ -326,12 +326,12 @@ game_try_move(
 void
 LibToriRS_GameNetProcess(struct GGame* game)
 {
-    gameproto_process(game);
+    gamenet_process(game);
 
     if( game->cycle >= game->next_notimeout_cycle && GAME_NET_STATE_GAME == game->net_state )
     {
         game->next_notimeout_cycle = game->cycle + 50;
-        clientprot_no_timeout(game);
+        gamenet_send_no_timeout(game);
     }
 }
 
@@ -358,7 +358,7 @@ LibToriRS_GameStep(
 
     /* Terrain tile click: run local BFS and load path into player pathing.
      * Mirrors Client.ts tryMove(routeTileX[0],routeTileZ[0], x, z, true, ..., type=0/1).
-     * Movement packets reach the server via clientprot_core_emit (`[pkout]` logs by default;
+     * Movement packets reach the server via gamenet_send_move_gameclick (`[pkout]` logs by default;
      * TORI_DEBUG_PKTOUT=0 silences). */
     if( game->tile_clicked_x >= 0 && game->world )
     {

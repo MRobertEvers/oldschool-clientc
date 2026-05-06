@@ -4,7 +4,7 @@
 #include "graphics/dash.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/chat.h"
-#include "osrs/core/clientprot_core.h"
+#include "osrs/gamenet_send.h"
 #include "osrs/game.h"
 #include "osrs/interface.h"
 #include "osrs/interface_state.h"
@@ -2960,7 +2960,7 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
                                 &pc) )
                 {
                     interface_apply_button_click_varp_optimistic(game, comp_id);
-                    clientprot_if_button(game, comp_id);
+                    gamenet_send_if_button(game, comp_id);
                     game->interface_consumed_click = 1;
                 }
             }
@@ -2979,7 +2979,7 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
                     game, root, 4, 4, cx, cy, &comp_id, &client_code, &btn_action, &pa, &pb, &pc) )
             {
                 interface_apply_button_click_varp_optimistic(game, comp_id);
-                clientprot_if_button(game, comp_id);
+                gamenet_send_if_button(game, comp_id);
                 game->interface_consumed_click = 1;
             }
         }

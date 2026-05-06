@@ -1,6 +1,6 @@
 #include "game.h"
 
-#include "osrs/core/clientprot_core.h"
+#include "osrs/gamenet_send.h"
 #include "osrs/ginput.h"
 #include "osrs/interface_state.h"
 #include "osrs/lua_sidecar/lua_gametypes.h"
@@ -97,7 +97,7 @@ game_chat_submit_public(struct GGame* game)
     struct RSBuffer wb;
     rsbuf_init(&wb, stack, (int)sizeof(stack));
     wordpack_pack(&wb, ch->chat_input);
-    clientprot_message_public(
+    gamenet_send_message_public(
         game, 0, 0, (uint8_t*)wb.data, (int)wb.position);
 }
 

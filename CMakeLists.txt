@@ -182,14 +182,20 @@ set(COMMON_SOURCES
     src/osrs/core/revision.c
     src/osrs/core/clientprot_core.c
     src/osrs/core/clientprot_move_path.c
-    src/osrs/revs/lc245_2/clientprot_rev245_2.c
+    src/osrs/core/clientprot_send.c
+    src/osrs/core/gamenet_core_send.c
+    src/osrs/core/serverprot_core_parse.c
+    src/osrs/revs/lc245_2/gamenet_rev245_2_send.c
     src/osrs/core/ui_loader.c
     src/osrs/core/gameproto_core_exec.c
     src/osrs/core/gameproto_core_parse.c
     src/osrs/player_stats.c
-    src/osrs/revs/lc245_2/gameproto_rev245_2_exec.c
-    src/osrs/revs/lc245_2/gameproto_rev245_2_parse.c
-    src/osrs/gameproto_process.c
+    src/osrs/revs/lc245_2/gamenet_rev245_2_exec.c
+    src/osrs/revs/lc245_2/serverprot_netrev245_2_parse.c
+    src/osrs/gamenet_exec.c
+    src/osrs/gamenet_parse.c
+    src/osrs/gamenet_process.c
+    src/osrs/gamenet_send.c
     src/osrs/game.c
     src/osrs/game_entity.c
     src/osrs/wordpack.c

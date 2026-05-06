@@ -1,295 +1,295 @@
-#ifndef GAMEPROTO_EXEC_H
-#define GAMEPROTO_EXEC_H
+#ifndef GAMENET_REV245_2_EXEC_H
+#define GAMENET_REV245_2_EXEC_H
 
 #include "osrs/game.h"
 #include "osrs/revs/lc245_2/gameproto_rev245_2_packets.h"
 #include "osrs/world.h"
 
 void
-gameproto_rev245_2_exec_dispatch(
+gamenet_rev245_2_exec_dispatch_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_npc_info_raw(
+gamenet_rev245_2_exec_npc_info_raw_v1(
     struct GGame* game,
     void* data,
     int length);
 
 void
-gameproto_rev245_2_exec_npc_info(
+gamenet_rev245_2_exec_npc_info_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_rebuild_normal(
+gamenet_rev245_2_exec_rebuild_normal_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_player_info_raw(
+gamenet_rev245_2_exec_player_info_raw_v1(
     struct GGame* game,
     void* data,
     int length);
 
 void
-gameproto_rev245_2_exec_player_info(
+gamenet_rev245_2_exec_player_info_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_update_inv_full(
+gamenet_rev245_2_exec_update_inv_full_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_if_settab(
+gamenet_rev245_2_exec_if_settab_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_if_settab_active(
+gamenet_rev245_2_exec_if_settab_active_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_if_setcolour(
+gamenet_rev245_2_exec_if_setcolour_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_if_sethide(
+gamenet_rev245_2_exec_if_sethide_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_if_setobject(
+gamenet_rev245_2_exec_if_setobject_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_if_setmodel(
+gamenet_rev245_2_exec_if_setmodel_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_if_setanim(
+gamenet_rev245_2_exec_if_setanim_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_if_setplayerhead(
+gamenet_rev245_2_exec_if_setplayerhead_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_if_settext(
+gamenet_rev245_2_exec_if_settext_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_if_setnpchead(
+gamenet_rev245_2_exec_if_setnpchead_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_if_setposition(
+gamenet_rev245_2_exec_if_setposition_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_if_setscrollpos(
+gamenet_rev245_2_exec_if_setscrollpos_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_obj_add(
+gamenet_rev245_2_exec_obj_add_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet,
     int zone_base_x,
     int zone_base_z);
 
 void
-gameproto_rev245_2_exec_obj_del(
+gamenet_rev245_2_exec_obj_del_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_obj_reveal(
+gamenet_rev245_2_exec_obj_reveal_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_obj_count(
+gamenet_rev245_2_exec_obj_count_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_loc_add_change(
+gamenet_rev245_2_exec_loc_add_change_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_loc_del(
+gamenet_rev245_2_exec_loc_del_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 /* --- New exec functions --- */
 
 void
-gameproto_rev245_2_exec_if_openchat(
+gamenet_rev245_2_exec_if_openchat_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_if_openmain(
+gamenet_rev245_2_exec_if_openmain_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_if_openside(
+gamenet_rev245_2_exec_if_openside_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_if_openmain_side(
+gamenet_rev245_2_exec_if_openmain_side_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_if_close(
+gamenet_rev245_2_exec_if_close_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_update_inv_stop_transmit(
+gamenet_rev245_2_exec_update_inv_stop_transmit_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_update_inv_partial(
+gamenet_rev245_2_exec_update_inv_partial_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_cam_lookat(
+gamenet_rev245_2_exec_cam_lookat_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_cam_moveto(
+gamenet_rev245_2_exec_cam_moveto_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_cam_shake(
+gamenet_rev245_2_exec_cam_shake_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_cam_reset(
+gamenet_rev245_2_exec_cam_reset_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_unset_map_flag(
+gamenet_rev245_2_exec_unset_map_flag_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_update_runweight(
+gamenet_rev245_2_exec_update_runweight_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_update_runenergy(
+gamenet_rev245_2_exec_update_runenergy_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_update_stat(
+gamenet_rev245_2_exec_update_stat_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_hint_arrow(
+gamenet_rev245_2_exec_hint_arrow_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_reset_anims(
+gamenet_rev245_2_exec_reset_anims_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_update_pid(
+gamenet_rev245_2_exec_update_pid_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_varp_small(
+gamenet_rev245_2_exec_varp_small_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_varp_large(
+gamenet_rev245_2_exec_varp_large_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_varp_sync(
+gamenet_rev245_2_exec_varp_sync_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_update_zone_partial_follows(
+gamenet_rev245_2_exec_update_zone_partial_follows_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_update_zone_full_follows(
+gamenet_rev245_2_exec_update_zone_full_follows_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_update_zone_partial_enclosed(
+gamenet_rev245_2_exec_update_zone_partial_enclosed_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_loc_anim(
+gamenet_rev245_2_exec_loc_anim_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_loc_merge(
+gamenet_rev245_2_exec_loc_merge_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_map_anim(
+gamenet_rev245_2_exec_map_anim_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_map_projanim(
+gamenet_rev245_2_exec_map_projanim_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_set_multiway(
+gamenet_rev245_2_exec_set_multiway_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 void
-gameproto_rev245_2_exec_set_player_op(
+gamenet_rev245_2_exec_set_player_op_v1(
     struct GGame* game,
     struct RevPacket_LC245_2* packet);
 
 /* World-level rebuild helper (entity carryover + base tile update).
- * Used by gameproto_rev245_2_exec_rebuild_normal after Lua preload completes. */
+ * Used by gamenet_rev245_2_exec_rebuild_normal after Lua preload completes. */
 void
-gameproto_rev245_2_exec_rebuild_normal_world(
+gamenet_rev245_2_exec_rebuild_normal_world_v1(
     struct World* world,
     struct RevPacket_LC245_2* packet);
 

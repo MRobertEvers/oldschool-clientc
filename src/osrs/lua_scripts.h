@@ -14,7 +14,7 @@
 #include "osrs/cache_utils.h"
 #include "osrs/configmap.h"
 #include "osrs/game.h"
-#include "osrs/revs/lc245_2/gameproto_rev245_2_exec.h"
+#include "osrs/revs/lc245_2/gamenet_rev245_2_exec.h"
 #include "osrs/minimap.h"
 #include "osrs/painters.h"
 #include "osrs/rscache/filelist.h"
@@ -1391,12 +1391,12 @@ l_gameproto_get_npc_ids_from_packet(lua_State* L)
 }
 
 static int
-l_gameproto_rev245_2_exec_npc_info(lua_State* L)
+l_gamenet_rev245_2_exec_npc_info_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
     struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
 
-    gameproto_rev245_2_exec_npc_info(game, &item->packet);
+    gamenet_rev245_2_exec_npc_info_v1(game, &item->packet);
     return 0;
 }
 
@@ -1411,12 +1411,12 @@ l_gameproto_get_rebuild_bounds(lua_State* L)
 }
 
 static int
-l_gameproto_rev245_2_exec_rebuild(lua_State* L)
+l_gamenet_rev245_2_exec_rebuild_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
     struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
 
-    gameproto_rev245_2_exec_rebuild_normal(game, &item->packet);
+    gamenet_rev245_2_exec_rebuild_normal_v1(game, &item->packet);
     return 0;
 }
 
@@ -1468,12 +1468,12 @@ l_gameproto_get_player_appearance_ids(lua_State* L)
 }
 
 static int
-l_gameproto_rev245_2_exec_player_info(lua_State* L)
+l_gamenet_rev245_2_exec_player_info_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
     struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
 
-    gameproto_rev245_2_exec_player_info(game, &item->packet);
+    gamenet_rev245_2_exec_player_info_v1(game, &item->packet);
     return 0;
 }
 
@@ -1498,12 +1498,12 @@ l_gameproto_get_inv_obj_ids(lua_State* L)
 }
 
 static int
-l_gameproto_rev245_2_exec_update_inv_full(lua_State* L)
+l_gamenet_rev245_2_exec_update_inv_full_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
     struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
 
-    gameproto_rev245_2_exec_update_inv_full(game, &item->packet);
+    gamenet_rev245_2_exec_update_inv_full_v1(game, &item->packet);
     return 0;
 }
 
@@ -1518,12 +1518,12 @@ l_gameproto_get_if_settab_data(lua_State* L)
 }
 
 static int
-l_gameproto_rev245_2_exec_if_settab(lua_State* L)
+l_gamenet_rev245_2_exec_if_settab_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
     struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
 
-    gameproto_rev245_2_exec_if_settab(game, &item->packet);
+    gamenet_rev245_2_exec_if_settab_v1(game, &item->packet);
     return 0;
 }
 
@@ -1538,22 +1538,22 @@ l_gameproto_get_if_setnpchead_data(lua_State* L)
 }
 
 static int
-l_gameproto_rev245_2_exec_if_setnpchead(lua_State* L)
+l_gamenet_rev245_2_exec_if_setnpchead_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
     struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
 
-    gameproto_rev245_2_exec_if_setnpchead(game, &item->packet);
+    gamenet_rev245_2_exec_if_setnpchead_v1(game, &item->packet);
     return 0;
 }
 
 static int
-l_gameproto_rev245_2_exec_if_setplayerhead(lua_State* L)
+l_gamenet_rev245_2_exec_if_setplayerhead_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
     struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
 
-    gameproto_rev245_2_exec_if_setplayerhead(game, &item->packet);
+    gamenet_rev245_2_exec_if_setplayerhead_v1(game, &item->packet);
     return 0;
 }
 
@@ -1567,13 +1567,13 @@ l_gameproto_get_obj_add_data(lua_State* L)
 }
 
 static int
-l_gameproto_rev245_2_exec_obj_add(lua_State* L)
+l_gamenet_rev245_2_exec_obj_add_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
     struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
     int zone_base_x = luaL_checkinteger(L, 2);
     int zone_base_z = luaL_checkinteger(L, 3);
-    gameproto_rev245_2_exec_obj_add(game, &item->packet, zone_base_x, zone_base_z);
+    gamenet_rev245_2_exec_obj_add_v1(game, &item->packet, zone_base_x, zone_base_z);
     return 0;
 }
 
@@ -1587,11 +1587,11 @@ l_gameproto_get_loc_add_change_data(lua_State* L)
 }
 
 static int
-l_gameproto_rev245_2_exec_loc_add_change(lua_State* L)
+l_gamenet_rev245_2_exec_loc_add_change_v1(lua_State* L)
 {
     struct GGame* game = (struct GGame*)lua_touserdata(L, lua_upvalueindex(1));
     struct RevPacket_LC245_2_Item* item = (struct RevPacket_LC245_2_Item*)lua_touserdata(L, 1);
-    gameproto_rev245_2_exec_loc_add_change(game, &item->packet);
+    gamenet_rev245_2_exec_loc_add_change_v1(game, &item->packet);
     return 0;
 }
 
@@ -1635,23 +1635,23 @@ l_gameproto_get_local_player_appearance_ids(lua_State* L)
 
 static const luaL_Reg gameproto_funcs[] = {
     { "get_npc_ids_from_packet",         l_gameproto_get_npc_ids_from_packet         },
-    { "exec_npc_info",                   l_gameproto_rev245_2_exec_npc_info                   },
+    { "exec_npc_info",                   l_gamenet_rev245_2_exec_npc_info_v1                   },
     { "get_rebuild_bounds",              l_gameproto_get_rebuild_bounds              },
-    { "exec_rebuild",                    l_gameproto_rev245_2_exec_rebuild                    },
+    { "exec_rebuild",                    l_gamenet_rev245_2_exec_rebuild_v1                    },
     { "get_player_appearance_ids",       l_gameproto_get_player_appearance_ids       },
-    { "exec_player_info",                l_gameproto_rev245_2_exec_player_info                },
+    { "exec_player_info",                l_gamenet_rev245_2_exec_player_info_v1                },
     { "get_inv_obj_ids",                 l_gameproto_get_inv_obj_ids                 },
-    { "exec_update_inv_full",            l_gameproto_rev245_2_exec_update_inv_full            },
+    { "exec_update_inv_full",            l_gamenet_rev245_2_exec_update_inv_full_v1            },
     { "get_if_settab_data",              l_gameproto_get_if_settab_data              },
-    { "exec_if_settab",                  l_gameproto_rev245_2_exec_if_settab                  },
+    { "exec_if_settab",                  l_gamenet_rev245_2_exec_if_settab_v1                  },
     { "get_if_setnpchead_data",          l_gameproto_get_if_setnpchead_data          },
-    { "exec_if_setnpchead",              l_gameproto_rev245_2_exec_if_setnpchead              },
-    { "exec_if_setplayerhead",           l_gameproto_rev245_2_exec_if_setplayerhead           },
+    { "exec_if_setnpchead",              l_gamenet_rev245_2_exec_if_setnpchead_v1              },
+    { "exec_if_setplayerhead",           l_gamenet_rev245_2_exec_if_setplayerhead_v1           },
     { "get_local_player_appearance_ids", l_gameproto_get_local_player_appearance_ids },
     { "get_obj_add_data",                l_gameproto_get_obj_add_data                },
-    { "exec_obj_add",                    l_gameproto_rev245_2_exec_obj_add                    },
+    { "exec_obj_add",                    l_gamenet_rev245_2_exec_obj_add_v1                    },
     { "get_loc_add_change_data",         l_gameproto_get_loc_add_change_data         },
-    { "exec_loc_add_change",             l_gameproto_rev245_2_exec_loc_add_change             },
+    { "exec_loc_add_change",             l_gamenet_rev245_2_exec_loc_add_change_v1             },
     { NULL,                              NULL                                        }
 };
 

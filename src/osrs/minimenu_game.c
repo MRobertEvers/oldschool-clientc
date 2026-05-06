@@ -6,7 +6,7 @@
 #include "game.h"
 #include "minimenu_action.h"
 #include "osrs/buildcachedat.h"
-#include "osrs/core/clientprot_core.h"
+#include "osrs/gamenet_send.h"
 #include "osrs/game_entity.h"
 #include "osrs/ginput.h"
 #include "osrs/interface_state.h"
@@ -483,7 +483,7 @@ mm_emit_opclick_to_tile(
     if( n <= 0 )
         return;
 
-    clientprot_emit_move_opclick_path(game, mm_input_run(input), path_x, path_z, n);
+    gamenet_send_move_opclick(game, mm_input_run(input), path_x, path_z, n);
     game->suppress_move_gameclick_once = 1;
 }
 
@@ -572,13 +572,11 @@ minimenu_game_use_option(
         if( !game->iface || GAME_NET_STATE_GAME != game->net_state )
             return;
         /* menuParam: obj, slot, comp (Client.ts; matches uitree_opt_append for held actions). */
-        struct CPArgs_OpHeldU a = { param_a,
-                                    param_b,
-                                    param_c,
-                                    game->iface->inv_sel_obj_id,
-                                    game->iface->inv_sel_slot,
-                                    game->iface->inv_sel_comp_id };
-        clientprot_core_emit(game, CLIENTPROT_OP_OPHELDU, &a);
+        gamenet_send_opheldu(game,
+            param_a, param_b, param_c,
+            game->iface->inv_sel_obj_id,
+            game->iface->inv_sel_slot,
+            game->iface->inv_sel_comp_id);
         game->iface->inv_use_mode = 0;
         return;
     }
@@ -587,9 +585,8 @@ minimenu_game_use_option(
     {
         if( !game->iface || GAME_NET_STATE_GAME != game->net_state )
             return;
-        struct CPArgs_OpHeldT a = {
-            param_a, param_b, param_c, game->iface->inv_target_src_comp_id };
-        clientprot_core_emit(game, CLIENTPROT_OP_OPHELDT, &a);
+        gamenet_send_opheldt(game,
+            param_a, param_b, param_c, game->iface->inv_target_src_comp_id);
         game->iface->inv_target_mode = 0;
         return;
     }
@@ -638,8 +635,7 @@ minimenu_game_use_option(
                 tz = npc->draw_position.z >> 7;
             }
             mm_emit_opclick_to_tile(game, input, tx, tz);
-            struct CPArgs_OpNpc a = { which, param_a };
-            clientprot_core_emit(game, CLIENTPROT_OP_OPNPC, &a);
+            gamenet_send_opnpc(game, which, param_a);
             mm_move_toward(game, tx, tz);
             return;
         }
@@ -660,8 +656,7 @@ minimenu_game_use_option(
         if( which >= 0 )
         {
             mm_emit_opclick_to_tile(game, input, param_b, param_c);
-            struct CPArgs_OpLoc a = { which, param_b, param_c, param_a, 0 };
-            clientprot_core_emit(game, CLIENTPROT_OP_OPLOC, &a);
+            gamenet_send_oploc(game, which, param_b, param_c, param_a, 0);
             mm_move_toward(game, param_b, param_c);
             return;
         }
@@ -682,8 +677,7 @@ minimenu_game_use_option(
         if( which >= 0 )
         {
             mm_emit_opclick_to_tile(game, input, param_b, param_c);
-            struct CPArgs_OpObj a = { which, param_b, param_c, param_a, 0 };
-            clientprot_core_emit(game, CLIENTPROT_OP_OPOBJ, &a);
+            gamenet_send_opobj(game, which, param_b, param_c, param_a, 0);
             mm_move_toward(game, param_b, param_c);
             return;
         }
@@ -715,8 +709,7 @@ minimenu_game_use_option(
                 tz = tgt->draw_position.z >> 7;
             }
             mm_emit_opclick_to_tile(game, input, tx, tz);
-            struct CPArgs_OpPlayer a = { which, param_a };
-            clientprot_core_emit(game, CLIENTPROT_OP_OPPLAYER, &a);
+            gamenet_send_opplayer(game, which, param_a);
             mm_move_toward(game, tx, tz);
             return;
         }
@@ -736,7 +729,7 @@ minimenu_game_use_option(
             which = 5;
         if( which >= 0 )
         {
-            clientprot_inv_button(game, which, param_c, param_b, param_a);
+            gamenet_send_inv_button(game, which, param_c, param_b, param_a);
             return;
         }
     }
@@ -760,8 +753,7 @@ minimenu_game_use_option(
             which = 6;
         if( which >= 1 && which <= 5 )
         {
-            struct CPArgs_OpHeld a = { which, param_a, param_b, param_c };
-            clientprot_core_emit(game, CLIENTPROT_OP_OPHELD, &a);
+            gamenet_send_opheld(game, which, param_a, param_b, param_c);
             return;
         }
         if( which == 6 )
@@ -775,18 +767,18 @@ minimenu_game_use_option(
         action == (int)MINIMENU_ACTION_IF_BUTTON_TOGGLE ||
         action == (int)MINIMENU_ACTION_IF_BUTTON_SELECT )
     {
-        clientprot_if_button(game, param_a);
+        gamenet_send_if_button(game, param_a);
         return;
     }
 
     if( action == (int)MINIMENU_ACTION_CLOSE_MODAL )
     {
-        clientprot_close_modal(game);
+        gamenet_send_close_modal(game);
         return;
     }
     if( action == (int)MINIMENU_ACTION_RESUME_PAUSEBUTTON )
     {
-        clientprot_resume_pausebutton(game);
+        gamenet_send_resume_pausebutton(game);
         return;
     }
 

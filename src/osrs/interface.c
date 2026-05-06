@@ -4,7 +4,7 @@
 #include "obj_icon.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/clientscript_vm.h"
-#include "osrs/core/clientprot_core.h"
+#include "osrs/gamenet_send.h"
 #include "osrs/dash_utils.h"
 #include "osrs/entity_scenebuild.h"
 #include "osrs/interface_state.h"
@@ -2100,7 +2100,7 @@ interface_inv_try_drag_mouse_up(struct GGame* game, struct GInput* input)
             if( to_comp == comp && to_slot >= 0 && from_slot >= 0 && to_slot != from_slot )
             {
                 int mode = 0;
-                clientprot_inv_button_d(game, comp, from_slot, to_slot, mode);
+                gamenet_send_inv_button_d(game, comp, from_slot, to_slot, mode);
                 iface->inv_suppress_next_left_click = 1;
                 return;
             }
@@ -2128,5 +2128,5 @@ interface_magic_tab_request_inv_transmit_if_configured(struct GGame* game)
         "[TORI] magic tab: IF_BUTTON component_id=%d (TORI_MAGIC_TAB_IF_BUTTON_COMP — server "
         "hook for inv_transmit)\n",
         cid);
-    clientprot_if_button(game, cid);
+    gamenet_send_if_button(game, cid);
 }

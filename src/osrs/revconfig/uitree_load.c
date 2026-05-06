@@ -1175,7 +1175,7 @@ push_rs_from_cache_component(
             comp->height);
         
         /* Pre-fill inventory items from cache component data (e.g., rune icons in magic-book tooltip).
-         * Mirrors gameproto_rev245_2_exec_update_inv_full logic. */
+         * Mirrors gamenet_rev245_2_exec_update_inv_full_v1 logic. */
         if( game && game->inv_pool && effective_inv_index >= 0 &&
             effective_inv_index < game->inv_pool->count )
         {

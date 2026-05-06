@@ -44,7 +44,7 @@ script_convert_to_lua(
             out->args, LuaGameType_NewInt(item->args.u.load_scene_dat.wz_ne));
         break;
     case SCRIPT_PKT_DISPATCH:
-        set_name(out, revision_lua_pkt_dispatch_path(revision_active()));
+        set_name(out, revision_lua_cacherev_load_path(revision_active()));
         out->args = LuaGameType_NewVoid();
         break;
     case SCRIPT_LOAD_CULLMAP:

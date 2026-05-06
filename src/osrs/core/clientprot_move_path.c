@@ -1,10 +1,6 @@
 #include "clientprot_move_path.h"
 
-#include "osrs/core/clientprot_core.h"
-#include "osrs/game.h"
 #include "osrs/rscache/rsbuf.h"
-
-#include <string.h>
 
 /* BFS path len is capped at 25; corner count is bounded by ~26. */
 #define MOVE_PATH_CORNER_MAX 32
@@ -105,50 +101,4 @@ clientprot_move_path_write_subpacket(
         p1(b, corners_x[i] - start_x);
         p1(b, corners_z[i] - start_z);
     }
-}
-
-void
-clientprot_emit_move_gameclick_path(
-    struct GGame* game,
-    int run,
-    const int* path_x,
-    const int* path_z,
-    int path_len)
-{
-    if( !game || path_len < 1 || !path_x || !path_z )
-        return;
-    if( game->net_state != GAME_NET_STATE_GAME || !game->random_out )
-        return;
-
-    struct CPArgs_MovGameClick a;
-    memset(&a, 0, sizeof(a));
-    a.run = run ? 1 : 0;
-    int copy = path_len > CLIENTPROT_MOVE_PATH_MAX ? CLIENTPROT_MOVE_PATH_MAX : path_len;
-    memcpy(a.path_x, path_x, (size_t)copy * sizeof(int));
-    memcpy(a.path_z, path_z, (size_t)copy * sizeof(int));
-    a.path_len = copy;
-    clientprot_core_emit(game, CLIENTPROT_OP_MOVE_GAMECLICK, &a);
-}
-
-void
-clientprot_emit_move_opclick_path(
-    struct GGame* game,
-    int run,
-    const int* path_x,
-    const int* path_z,
-    int path_len)
-{
-    if( !game || path_len < 1 || !path_x || !path_z )
-        return;
-    if( game->net_state != GAME_NET_STATE_GAME || !game->random_out )
-        return;
-
-    struct CPArgs_MovOpClick a;
-    memset(&a, 0, sizeof(a));
-    a.run = run ? 1 : 0;
-    int copy = path_len > CLIENTPROT_MOVE_PATH_MAX ? CLIENTPROT_MOVE_PATH_MAX : path_len;
-    memcpy(a.path_x, path_x, (size_t)copy * sizeof(int));
-    memcpy(a.path_z, path_z, (size_t)copy * sizeof(int));
-    a.path_len = copy;
-    clientprot_core_emit(game, CLIENTPROT_OP_MOVE_OPCLICK, &a);
 }

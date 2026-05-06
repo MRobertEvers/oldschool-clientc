@@ -1787,3 +1787,17 @@ gamenet_send_trymove -> gamenet_revX_send_trymove (dispatches to the right core 
 For inbound
 
 gamenet_parse -> serverprot_netrevX_parse -> serverprot_core_parse (v1, v2 etc) -> queue for lua -> [in Lua] lua_cacherevX_load(packet) -> gamenet_exec(packet)
+
+**STATUS: IMPLEMENTED (all phases 0–7 complete).**
+
+Key files:
+- `src/osrs/gamenet_send.h` / `gamenet_send.c` — outbound intent layer (~38 typed entry points)
+- `src/osrs/revs/lc245_2/gamenet_rev245_2_send.{c,h}` — net-rev gateway (LC245_2)
+- `src/osrs/core/gamenet_core_send.{c,h}` — data hydrators (`GGame` → `WireOut_Xxx_v1`)
+- `src/osrs/core/clientprot_send.{c,h}` — pure byte serializers (zero `GGame`)
+- `src/osrs/gamenet_parse.{c,h}` — inbound listener
+- `src/osrs/revs/lc245_2/serverprot_netrev245_2_parse.{c,h}` — opcode switch
+- `src/osrs/core/serverprot_core_parse.{c,h}` — pure byte deserializers
+- `src/osrs/revs/lc245_2/gamenet_rev245_2_exec.{c,h}` — state mutation (formerly `gameproto_rev245_2_exec`)
+- `src/osrs/gamenet_exec.{c,h}` — thin exec dispatcher wrapper
+- `src/osrs/scripts/rev245_2/lua_cacherev245_2_load.lua` — cache hydrator in Lua

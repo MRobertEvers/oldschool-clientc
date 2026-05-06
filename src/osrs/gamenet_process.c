@@ -1,11 +1,11 @@
-#include "gameproto_process.h"
+#include "gamenet_process.h"
 
 #include "osrs/core/revision.h"
 #include "osrs/game.h"
 #include "osrs/script_queue.h"
 
 void
-gameproto_process(struct GGame* game)
+gamenet_process(struct GGame* game)
 {
     if( !revision_has_pending(&game->revision, game) )
         return;

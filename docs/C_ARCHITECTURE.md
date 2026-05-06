@@ -28,7 +28,7 @@ For UI-focused behavior, see also [UI_SYSTEM.md](UI_SYSTEM.md).
 [`src/osrs/game.h`](src/osrs/game.h) defines `struct GGame`, the central aggregate for client state:
 
 - **Networking**: `RingBuf* netin`, `ToriRSNetSharedBuffer* net_shared`, `PacketBuffer* packet_buffer`, `Isaac* random_in` / `random_out`, `enum GameNetState net_state`, login fields.
-- **Revision**: `struct Revision revision` — dispatches packet sizes, parse/enqueue, login proto, outbound client protocol, Lua script paths (`revision_lua_pkt_dispatch_path`, `revision_lua_init_ui_path`).
+- **Revision**: `struct Revision revision` — dispatches packet sizes, `revision_serverprot_parse`, login proto, outbound client protocol, Lua script paths (`revision_lua_cacherev_load_path`, `revision_lua_init_ui_path`).
 - **Caches**: `BuildCacheDat*`, `BuildCache*`, `struct GameCacheTag game_cache_tag`.
 - **World**: `World* world`, `WorldPickSet pickset`, `WorldOptionSet option_set`, zone and social lists, stats, hint arrow, etc.
 - **Graphics / layout**: `DashGraphics* sys_dash`, `PaintersBuffer* sys_painter_buffer`, `DashViewPort* view_port` (3D world sub-rect), `DashViewPort* iface_view_port` (full UI framebuffer semantics), `DashCamera* camera`, camera integers, soft3d present/mouse mapping fields.
@@ -278,8 +278,8 @@ Called from [`LibToriRS_GameStep`](src/tori_rs_cycle.u.c) when `game->world` is 
 - [`buildcachedat_loader.c`](src/osrs/buildcachedat_loader.c): Map terrain/scenery, objects, sequences, interfaces, varp init, etc.
 - Lua [`LuaGame_build_scene`](src/osrs/lua_sidecar/lua_game.c) → `buildcachedat_loader_finalize_scene`.
 - [`LuaGame_build_scene_centerzone`](src/osrs/lua_sidecar/lua_game.c) → `buildcachedat_loader_finalize_scene_centerzone`.
-- [`src/osrs/scripts/rev245_2/pkt_dispatch.lua`](src/osrs/scripts/rev245_2/pkt_dispatch.lua): `REBUILD_NORMAL` and related flows request cache data, then call into C to finalize scenes.
-- Packet execution: [`gameproto_rev245_2_exec.c`](src/osrs/revs/lc245_2/gameproto_rev245_2_exec.c) (large) — zone updates, entities, interfaces, varps, etc.
+- [`src/osrs/scripts/rev245_2/lua_cacherev245_2_load.lua`](src/osrs/scripts/rev245_2/lua_cacherev245_2_load.lua): `REBUILD_NORMAL` and related flows request cache data, then call into C to finalize scenes.
+- Packet execution: [`gamenet_rev245_2_exec.c`](src/osrs/revs/lc245_2/gamenet_rev245_2_exec.c) (large) — zone updates, entities, interfaces, varps, etc.
 
 ### 5.4 Painter → 3D draws
 
@@ -329,7 +329,7 @@ Tests such as [`test/sdl2.cpp`](test/sdl2.cpp) use:
 2. `LibToriRS_GameNetProcess(game)`
 3. `LibToriRS_GameStep(game, input, render_command_buffer)`
 
-**`LibToriRS_GameNetProcess`** ([`tori_rs_cycle.u.c`](src/tori_rs_cycle.u.c)): `gameproto_process(game)` which, if [`revision_has_pending`](src/osrs/core/revision.c), pushes **`SCRIPT_PKT_DISPATCH`** to `script_queue`. Periodically `clientprot_no_timeout` in game state.
+**`LibToriRS_GameNetProcess`** ([`tori_rs_cycle.u.c`](src/tori_rs_cycle.u.c)): `gamenet_process(game)` which, if [`revision_has_pending`](src/osrs/core/revision.c), pushes **`SCRIPT_PKT_DISPATCH`** to `script_queue`. Periodically `gamenet_send_no_timeout` in game state.
 
 **`LibToriRS_GameStep`**: Quit handling, `LibToriRS_GameProcessInput`, `world_cycle`, `dash_animate_textures`, `game->cycle += cycles_elapsed`.
 
@@ -365,7 +365,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TB
-  GP[gameproto_process]
+  GP[gamenet_process]
   SQ[ScriptQueue]
   POP[LuaScriptQueuePop]
   RUN[LuaCSidecar_RunScript]
@@ -456,17 +456,25 @@ flowchart TB
 - Length from [`revision_packetin_size`](src/osrs/core/revision.c) (e.g. `packetin_size_lc245_2`); supports fixed, var-u8, var-u16 payloads.
 - Allocates `packetbuffer->data`, accumulates payload; when complete, [`packetbuffer_ready`](src/osrs/core/packetbuffer.h) is true.
 
-[`net_process_packets`](src/tori_rs_net.u.c): Calls [`revision_parse_and_enqueue`](src/osrs/core/revision.c) with opcode + payload.
+[`net_process_packets`](src/tori_rs_net.u.c): Calls [`gamenet_parse(game)`](src/osrs/gamenet_parse.c) which delegates to [`revision_serverprot_parse`](src/osrs/core/revision.c) with opcode + payload.
 
-### 8.2 Parse and enqueue (LC245_2)
+### 8.2 Parse and enqueue (LC245_2) — four-layer inbound pipeline
 
-[`gameproto_rev245_2_parse_and_enqueue`](src/osrs/revs/lc245_2/gameproto_rev245_2_parse.c): [`gameproto_rev245_2_parse`](src/osrs/revs/lc245_2/gameproto_rev245_2_parse.c) fills `struct RevPacket_LC245_2`, then [`gameproto_rev245_2_enqueue`](src/osrs/revs/lc245_2/revision_lc245_2.c) appends to **`RevisionLC245_2::pending_head`** linked list.
+```
+gamenet_parse → revision_serverprot_parse → serverprot_netrev245_2_parse_and_enqueue
+             → serverprot_netrev245_2_parse (opcode switch) → serverprot_core_parse_xxx_v1
+             → RevisionLC245_2::pending_head queue
+```
+
+[`serverprot_netrev245_2_parse_and_enqueue`](src/osrs/revs/lc245_2/serverprot_netrev245_2_parse.c): `serverprot_netrev245_2_parse` fills `struct RevPacket_LC245_2` (calling `serverprot_core_parse_xxx_v1` pure deserializers for each opcode), then `gameproto_rev245_2_enqueue` appends to **`RevisionLC245_2::pending_head`** linked list.
+
+[`serverprot_core_parse_xxx_v1`](src/osrs/core/serverprot_core_parse.c): Pure byte→struct deserializers. **Zero GGame knowledge.** Stable across any revision sharing the same wire layout.
 
 ### 8.3 Game thread: Lua-driven drain
 
-[`gameproto_process`](src/osrs/gameproto_process.c): If `revision_has_pending(&game->revision, game)`, push `struct ScriptArgs { .tag = SCRIPT_PKT_DISPATCH }`.
+[`gamenet_process`](src/osrs/gamenet_process.c): If `revision_has_pending(&game->revision, game)`, push `struct ScriptArgs { .tag = SCRIPT_PKT_DISPATCH }`.
 
-[`pkt_dispatch.lua`](src/osrs/scripts/rev245_2/pkt_dispatch.lua) loop:
+[`lua_cacherev245_2_load.lua`](src/osrs/scripts/rev245_2/lua_cacherev245_2_load.lua) loop:
 
 ```lua
 local item, ptype = Game.Game.pop_next_packet()
@@ -475,21 +483,34 @@ local item, ptype = Game.Game.pop_next_packet()
 [`LuaGame_pop_next_packet`](src/osrs/lua_sidecar/lua_game.c): **Pops head** off `pending_head`, returns userdata + opcode to Lua.
 
 - Handlers in Lua may prefetch archives, then call C build helpers.
-- Fallback: `Game.Game.exec_packet(item)` → [`LuaGame_exec_packet`](src/osrs/lua_sidecar/lua_game.c) → [`gameproto_rev245_2_exec_dispatch`](src/osrs/revs/lc245_2/gameproto_rev245_2_exec.h), frees packet storage.
+- Fallback: `Game.Game.exec_packet(item)` → [`LuaGame_exec_packet`](src/osrs/lua_sidecar/lua_game.c) → [`gamenet_rev245_2_exec_dispatch_v1`](src/osrs/revs/lc245_2/gamenet_rev245_2_exec.h), frees packet storage.
 
 ### 8.4 Bulk C API (not the live drain path)
 
-[`revision_drain_pending`](src/osrs/core/revision.c) → [`gameproto_rev245_2_drain_pending`](src/osrs/revs/lc245_2/revision_lc245_2.c): Walks the whole queue in C and runs exec for each. **The running client uses Lua `pop_next_packet` instead**; the bulk API remains for tooling or future wiring.
+[`revision_gamenet_exec_drain`](src/osrs/core/revision.c) → [`gameproto_rev245_2_drain_pending`](src/osrs/revs/lc245_2/revision_lc245_2.c): Walks the whole queue in C and runs exec for each. **The running client uses Lua `pop_next_packet` instead**; the bulk API remains for tooling or future wiring.
 
-### 8.5 Outbound
+### 8.5 Outbound — four-layer outbound pipeline
+
+```
+gamenet_send_xxx → gamenet_rev245_2_send_xxx → gamenet_core_send_xxx_v1
+                → clientprot_send_xxx_v1 (pure serializer) → LibToriRS_NetSend
+```
+
+[`gamenet_send_xxx`](src/osrs/gamenet_send.h): Intent layer; typed per-op entry points. Dispatches on `revision_active()->kind`.
+
+[`gamenet_rev245_2_send_xxx`](src/osrs/revs/lc245_2/gamenet_rev245_2_send.c): Net-revision gateway; thin shims to `gamenet_core_send_xxx_v1`.
+
+[`gamenet_core_send_xxx_v1`](src/osrs/core/gamenet_core_send.c): Data hydrator; gathers fields from `GGame`, builds `WireOut_Xxx_v1`, calls `clientprot_send_xxx_v1`.
+
+[`clientprot_send_xxx_v1`](src/osrs/core/clientprot_send.c): Pure serializer. **Zero GGame.** Writes raw encrypted bytes to `RSBuffer` using `rsbuf_p1isaac`.
 
 [`rsbuf_p1isaac`](src/osrs/rscache/rsbuf_isaac.c): Writes opcode as `(opcode + isaac_next(isaac_out)) & 0xff`.
 
-[`revision_clientprot_emit`](src/osrs/core/revision.c) and [`clientprot_rev245_2.c`](src/osrs/revs/lc245_2/clientprot_rev245_2.c); [`LibToriRS_NetSend`](src/tori_rs_net.u.c) enqueues bytes to the platform **game_to_platform** ring.
+[`LibToriRS_NetSend`](src/tori_rs_net.u.c): Enqueues bytes to the platform **game_to_platform** ring.
 
 ### 8.6 Other Lua entry scripts
 
-[`script_convert_to_lua`](src/tori_rs_scripts.u.c): Maps queue tags to filenames; revision-dependent paths from `revision_lua_pkt_dispatch_path` / `revision_lua_init_ui_path` ([`revision.c`](src/osrs/core/revision.c)).
+[`script_convert_to_lua`](src/tori_rs_scripts.u.c): Maps queue tags to filenames; revision-dependent paths from `revision_lua_cacherev_load_path` / `revision_lua_init_ui_path` ([`revision.c`](src/osrs/core/revision.c)).
 
 ### Diagram: network ingress
 
@@ -685,14 +706,14 @@ flowchart TD
 | RS draw steps | `src/osrs/rs_component_gfx.c` |
 | World | `src/osrs/world.h`, `world.c`, `world_cycle.u.c` |
 | Frame | `src/tori_rs_frame.u.c` |
-| Cycle / net hook | `src/tori_rs_cycle.u.c`, `gameproto_process.c` |
+| Cycle / net hook | `src/tori_rs_cycle.u.c`, `gamenet_process.c` |
 | Net I/O | `src/tori_rs_net.u.c`, `core/packetbuffer.c` |
 | Revision | `src/osrs/core/revision.c`, `revs/lc245_2/*` |
 | Client VM | `src/osrs/clientscript_vm.h`, `clientscript_vm.c` |
 | Render commands | `src/tori_rs_render.h` |
 | Soft3D | `src/platforms/platform_impl2_sdl2_renderer_soft3d_shared.cpp` |
 | WebGL1 | `src/platforms/platform_impl2_sdl2_renderer_webgl1.cpp` |
-| Lua dispatch | `src/osrs/scripts/rev245_2/pkt_dispatch.lua`, `lua_sidecar/lua_game.c` |
+| Lua dispatch | `src/osrs/scripts/rev245_2/lua_cacherev245_2_load.lua`, `lua_sidecar/lua_game.c` |
 
 ---
 

@@ -2,7 +2,7 @@
 
 #include "graphics/dash.h"
 #include "osrs/buildcachedat.h"
-#include "osrs/core/clientprot_core.h"
+#include "osrs/gamenet_send.h"
 #include "osrs/game.h"
 #include "osrs/interface_state.h"
 #include "osrs/revconfig/uiscene.h"
@@ -623,27 +623,27 @@ chat_handle_privacy_strip_click(
     if( mx >= 6 && mx <= 106 )
     {
         chat->chat_public_mode = (chat->chat_public_mode + 1) % 4;
-        clientprot_chat_setmode(
+        gamenet_send_chat_setmode(
             game, chat->chat_public_mode, chat->chat_private_mode, chat->chat_trade_mode);
         return 1;
     }
     if( mx >= 135 && mx <= 235 )
     {
         chat->chat_private_mode = (chat->chat_private_mode + 1) % 3;
-        clientprot_chat_setmode(
+        gamenet_send_chat_setmode(
             game, chat->chat_public_mode, chat->chat_private_mode, chat->chat_trade_mode);
         return 1;
     }
     if( mx >= 273 && mx <= 373 )
     {
         chat->chat_trade_mode = (chat->chat_trade_mode + 1) % 3;
-        clientprot_chat_setmode(
+        gamenet_send_chat_setmode(
             game, chat->chat_public_mode, chat->chat_private_mode, chat->chat_trade_mode);
         return 1;
     }
     if( mx >= 412 && mx <= 512 )
     {
-        clientprot_close_modal(game);
+        gamenet_send_close_modal(game);
         /* TS then opens CC_REPORT_INPUT layer; not wired in this client yet. */
         return 1;
     }

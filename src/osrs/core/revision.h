@@ -35,7 +35,7 @@ const char*
 revision_name(const struct Revision* rev);
 
 const char*
-revision_lua_pkt_dispatch_path(const struct Revision* rev);
+revision_lua_cacherev_load_path(const struct Revision* rev);
 
 const char*
 revision_lua_init_ui_path(const struct Revision* rev);
@@ -43,8 +43,9 @@ revision_lua_init_ui_path(const struct Revision* rev);
 int
 revision_packetin_size(const struct Revision* rev, int opcode);
 
+/** Route one inbound packet byte-buffer to the correct rev deserializer + enqueue. */
 int
-revision_parse_and_enqueue(
+revision_serverprot_parse(
     const struct Revision* rev,
     struct GGame* game,
     int opcode,
@@ -54,8 +55,9 @@ revision_parse_and_enqueue(
 bool
 revision_has_pending(const struct Revision* rev, struct GGame* game);
 
+/** Drain the pending inbound queue, calling gamenet_exec for each packet. */
 void
-revision_drain_pending(const struct Revision* rev, struct GGame* game);
+revision_gamenet_exec_drain(const struct Revision* rev, struct GGame* game);
 
 struct LoginProto*
 revision_loginproto_new(
@@ -86,42 +88,5 @@ revision_loginproto_send(
 
 int
 revision_loginproto_poll(const struct Revision* rev, struct LoginProto* lp);
-
-/* Outbound packet emission: builds bytes via rsbuf primitives + p1isaac.
- * @param kind  Cast from enum ClientProtOpKind; int to avoid enum forward-decl in C++.
- * Returns 0 on success, -1 if the revision or op kind is unknown. */
-int
-revision_clientprot_emit(
-    const struct Revision* rev,
-    struct RSBuffer*       out,
-    struct GGame*          game,
-    int                    kind,
-    void*                  args);
-
-int
-revision_write_move_gameclick(
-    const struct Revision* rev,
-    uint8_t* out,
-    int cap,
-    int x,
-    int z,
-    int run);
-
-int
-revision_write_if_button(
-    const struct Revision* rev,
-    uint8_t* out,
-    int cap,
-    int component_id);
-
-int
-revision_write_inv_action(
-    const struct Revision* rev,
-    uint8_t* out,
-    int cap,
-    int opcode_byte,
-    int component_id,
-    int slot,
-    int obj_id);
 
 #endif
