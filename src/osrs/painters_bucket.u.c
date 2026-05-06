@@ -237,7 +237,7 @@ painter_paint_bucket(
 
         tile = &painter->tiles[e_tile];
         w->in_heap[e_tile] = 0;
-        
+
         tile_paint = tile_paint_at_idx(painter, e_tile);
         int tile_sx = tile->sx;
         int tile_sz = tile->sz;
@@ -472,7 +472,7 @@ painter_paint_bucket(
             element = &painter->elements[si];
             assert(element->kind == PNTRELEM_SCENERY);
 
-            int el_slevel = (int)element->slevel;
+            int cache_level = (int)element->slevel;
             int min_tile_x = (int)element->sx;
             int min_tile_z = (int)element->sz;
             int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
@@ -503,7 +503,9 @@ painter_paint_bucket(
                         all_base = 0;
                         break;
                     }
-                    struct TilePaint* u = tile_paint_at(painter, ox, oz, el_slevel);
+                    int grid_slot = painter_grid_slot_for_cache_level(
+                        cache_level, painter_column_has_link_below(painter, ox, oz));
+                    struct TilePaint* u = tile_paint_at(painter, ox, oz, grid_slot);
                     if( u->step < PAINT_STEP_GROUND )
                     {
                         all_base = 0;
@@ -529,7 +531,7 @@ painter_paint_bucket(
             assert(element->kind == PNTRELEM_SCENERY);
             push_command_entity(buffer, element->_scenery.entity);
 
-            int el_slevel = (int)element->slevel;
+            int cache_level_push = (int)element->slevel;
             int min_tile_x = (int)element->sx;
             int min_tile_z = (int)element->sz;
             int max_tile_x = min_tile_x + element->_scenery.size_x - 1;
@@ -552,7 +554,9 @@ painter_paint_bucket(
                     {
                         if( ox < 0 || oz < 0 || ox >= painter->width || oz >= painter->height )
                             continue;
-                        bucket_push_tile(w, painter_coord_idx(painter, ox, oz, el_slevel));
+                        int grid_slot = painter_grid_slot_for_cache_level(
+                            cache_level_push, painter_column_has_link_below(painter, ox, oz));
+                        bucket_push_tile(w, painter_coord_idx(painter, ox, oz, grid_slot));
                         some_drawn = 1;
                     }
                 }

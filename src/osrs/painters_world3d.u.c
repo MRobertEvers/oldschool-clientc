@@ -745,7 +745,10 @@ painter_paint_world3d(
                 {
                     for( int lz = fp_min_z; lz <= fp_max_z; lz++ )
                     {
-                        int oidx = painter_coord_idx(painter, lx, lz, grid_level);
+                        int g = painter_grid_slot_for_cache_level(
+                            (int)element->slevel,
+                            painter_column_has_link_below(painter, lx, lz));
+                        int oidx = painter_coord_idx(painter, lx, lz, g);
                         if( W3(painter)->paints[oidx].draw_front )
                         {
                             wp->draw_primaries = 1;
@@ -835,7 +838,10 @@ painter_paint_world3d(
                     {
                         for( int lz = occ_min_z; lz <= occ_max_z; lz++ )
                         {
-                            int occ = painter_coord_idx(painter, lx, lz, grid_level);
+                            int g = painter_grid_slot_for_cache_level(
+                                (int)element->slevel,
+                                painter_column_has_link_below(painter, lx, lz));
+                            int occ = painter_coord_idx(painter, lx, lz, g);
                             if( occ != tile_idx && W3(painter)->paints[occ].draw_back )
                                 w3d_link_push(painter, occ);
                         }

@@ -5,10 +5,10 @@
 
 #include "painters.h"
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-
 
 enum TilePaintStep
 {
@@ -47,7 +47,8 @@ struct Painter
     /** Bit offset for current (pitch,yaw) slice: pcull_bit_index(pitch_idx, yaw_idx, 0, 0, ...). */
     size_t cull_camera_key;
 
-    /** Bitmask: bit s set => level s participates in paint (0-3 for MAP_TERRAIN_LEVELS). Default 0xF. */
+    /** Bitmask: bit s set => level s participates in paint (0-3 for MAP_TERRAIN_LEVELS). Default
+     * 0xF. */
     uint8_t level_mask;
     /** Lowest set bit in level_mask; 0 when mask is all bits or unset. */
     uint8_t min_level;
@@ -87,6 +88,36 @@ tile_excluded_by_bridge_or_draw_mask(
     if( (tile_flags & PAINTERS_TILE_FLAG_BRIDGE) != 0 )
         return true;
     return (draw_mask & (1u << tile_slevel)) == 0;
+}
+
+/**
+ * Same condition as Client-TS checking mapl[1][x][z] & MapFlag.LinkBelow for level remapping,
+ * but painter draw paths do not read floor flags (VisBelow/LinkBelow are baked at world build).
+ * bridge_tile is set on the surface tile only when world_rebuild_centerzone_end applied LinkBelow
+ * push-down for that column, so it is the local signal without threading flag maps into painters.
+ */
+static inline bool
+painter_column_has_link_below(
+    struct Painter* painter,
+    int sx,
+    int sz)
+{
+    return painter_tile_at(painter, sx, sz, 0)->bridge_tile != -1;
+}
+
+/**
+ * Map cache terrain level (chunk_pos_level / element.slevel) to painter vertical grid slot after
+ * world bridge push-down — must match world_rebuild_centerzone_end + scenebuilder bridge loops.
+ */
+static inline int
+painter_grid_slot_for_cache_level(
+    int cache_level,
+    bool column_link_below)
+{
+    assert(cache_level >= 0 && cache_level <= 3);
+    if( !column_link_below )
+        return cache_level;
+    return cache_level == 0 ? 3 : (cache_level - 1);
 }
 
 #endif

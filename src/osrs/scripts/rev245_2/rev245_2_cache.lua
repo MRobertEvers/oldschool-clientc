@@ -183,8 +183,11 @@ function M.rebuild_normal_v1(item)
 
     local terrain_requests = {}
     local terrain_map_ids = {}
+    local terrain_chunks_to_load = {}
     for _, chunk in ipairs(chunks) do
         if not Game.BuildCacheDat.has_map_terrain(chunk.x, chunk.z) then
+            terrain_chunks_to_load[#terrain_chunks_to_load + 1] =
+                string.format("(%d,%d)", chunk.x, chunk.z)
             local map_id = (chunk.x << 16) | chunk.z
             table.insert(terrain_requests, {
                 table_id = CacheDat.Tables.CACHE_DAT_MAPS,
@@ -203,8 +206,11 @@ function M.rebuild_normal_v1(item)
 
     local scenery_requests = {}
     local scenery_map_ids = {}
+    local scenery_chunks_to_load = {}
     for _, chunk in ipairs(chunks) do
         if not Game.BuildCacheDat.has_map_scenery(chunk.x, chunk.z) then
+            scenery_chunks_to_load[#scenery_chunks_to_load + 1] =
+                string.format("(%d,%d)", chunk.x, chunk.z)
             local map_id = (chunk.x << 16) | chunk.z
             table.insert(scenery_requests, {
                 table_id = CacheDat.Tables.CACHE_DAT_MAPS,
@@ -300,11 +306,11 @@ function M.player_info_v1(item)
     local idk_ids, obj_ids = Game.BuildCacheDat.get_player_appearance_ids_from_packet(data, length)
     local sources = {}
     for _, idk_id in ipairs(idk_ids) do
-        sources[#sources + 1] = { Game.BuildCacheDat.get_idk_model_ids,      idk_id }
+        sources[#sources + 1] = { Game.BuildCacheDat.get_idk_model_ids, idk_id }
         sources[#sources + 1] = { Game.BuildCacheDat.get_idk_head_model_ids, idk_id }
     end
     for _, obj_id in ipairs(obj_ids) do
-        sources[#sources + 1] = { Game.BuildCacheDat.get_obj_model_ids,      obj_id    }
+        sources[#sources + 1] = { Game.BuildCacheDat.get_obj_model_ids, obj_id }
         sources[#sources + 1] = { Game.BuildCacheDat.get_obj_head_model_ids, obj_id, 0 }
     end
     M.load_models_from_sources(sources)
@@ -328,7 +334,7 @@ function M.npc_info_v1(item)
     local npc_ids = Game.BuildCacheDat.get_npc_ids_from_packet(data, length)
     local sources = {}
     for _, npc_id in ipairs(npc_ids) do
-        sources[#sources + 1] = { Game.BuildCacheDat.get_npc_model_ids,      npc_id }
+        sources[#sources + 1] = { Game.BuildCacheDat.get_npc_model_ids, npc_id }
         sources[#sources + 1] = { Game.BuildCacheDat.get_npc_head_model_ids, npc_id }
     end
     M.load_models_from_sources(sources)
@@ -361,7 +367,7 @@ function M.if_setobject_v1(item)
 
     local obj_id = Game.Game.get_pkt_if_setobject_obj_id(item)
     M.load_models_from_sources({
-        { Game.BuildCacheDat.get_obj_model_ids,      obj_id    },
+        { Game.BuildCacheDat.get_obj_model_ids,      obj_id },
         { Game.BuildCacheDat.get_obj_head_model_ids, obj_id, 0 },
     })
 

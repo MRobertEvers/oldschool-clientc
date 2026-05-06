@@ -1,6 +1,6 @@
 ---
 name: Painters git archaeology
-overview: Treat **loc/scenery span calculation** as the primary hypothesis: match **[`World.setSprite`](Client-TS/src/dash3d/World.ts)** (lines ~1233–1260) to **[`compute_normal_scenery_spans`](src/osrs/painters.c)** for footprint edge bits. Separately, ensure the **vertical index** used for **`painter_tile_at`** when registering spans matches what the client uses for **`levelTiles[level]`** — after **LinkBelow** push-down, that may be **painter grid level**, not raw **`chunk_pos_level`**. VisBelow (**`getVisBelowLevel`**) maps to **`Square.drawLevel`** / packed **slevel** and must **not** replace the stack index used for span attachment the way TS keeps **`setSprite(..., level, ...)`** on **cache level** while **`setLayer`** stores draw tier.
+overview: Focus on the **interaction of VisBelow (0x08) and LinkBelow (0x02)** — in **[`ClientBuild.getVisBelowLevel`](Client-TS/src/dash3d/ClientBuild.ts)** they are **one formula**: VisBelow on that cache tile forces draw tier **0**; else, if the column has LinkBelow on **cache level 1**, non-zero cache levels map to **level−1** for draw tier. That matches **[`map_floor_vis_below_draw_level`](src/osrs/rscache/tables/maps.h)** + **`ce4af6f3`** per-grid **src** mapping. **Loc spans** should still match **[`World.setSprite`](Client-TS/src/dash3d/World.ts)** bit-for-bit; the likely bug is using **cache `chunk_pos_level`** for **`painter_tile_at`** when **LinkBelow** has already **moved** that floor’s content to a **different painter grid slot**, while **VisBelow** only affects **packed slevel** / **draw_mask** — wrong combo breaks span adjacency on bridge+vis columns.
 todos:
   - id: verify-span-bits
     content: Diff Client-TS World.setSprite span loop vs compute_normal_scenery_spans (tx/tz edge tests ↔ SPAN_FLAG_*); confirm identical bitmask semantics
@@ -10,6 +10,9 @@ todos:
     status: pending
   - id: confirm-visbelow-separation
     content: Confirm TS stores VisBelow on tile.drawLevel while sprites stay on levelTiles[cacheLevel]; C should attach spans to tiles keyed like TS level index, not draw-only slevel
+    status: pending
+  - id: repro-both-flags
+    content: Repro on map columns with LinkBelow@L1 and VisBelow on at least one floor; compare draw_level pass vs loc span grid index (cache vs painter grid) for the same (x,z)
     status: pending
 isProject: false
 ---
@@ -32,7 +35,7 @@ These correspond to the same compass edges as **`SPAN_FLAG_WEST/NORTH/EAST/SOUTH
 
 Sprites are stored on **`this.levelTiles[level][tx][tz]`** — **cache/stack index `level`**, not **`drawLevel`**.
 
-**VisBelow:** **[`ClientBuild`](Client-TS/src/dash3d/ClientBuild.ts)** calls **`world.setLayer(level, stx, stz, this.getVisBelowLevel(level, stx, stz))`** (~327). That sets **`Square.drawLevel`** only; it does **not** move the sprite to a different **`levelTiles[…]`** index.
+**VisBelow + LinkBelow (same function in TS):** [`getVisBelowLevel`](Client-TS/src/dash3d/ClientBuild.ts) (~1111–1116) — if **VisBelow** on **`(level, stx, stz)`** → return **0**; else if **level > 0** and **`mapl[1][stx][stz] & LinkBelow`** → return **level − 1**; else return **level**. So “vis below” and “link below” are **not independent** for draw tier: LinkBelow on L1 is the **precondition** for the **level−1** branch. **[`ClientBuild`](Client-TS/src/dash3d/ClientBuild.ts)** then calls **`world.setLayer(level, stx, stz, getVisBelowLevel(...))`** (~327), which only sets **`Square.drawLevel`**; it does **not** change **`levelTiles[level]`** for sprite storage.
 
 ## C implementation today
 
@@ -41,13 +44,15 @@ Sprites are stored on **`this.levelTiles[level][tx][tz]`** — **cache/stack ind
 
 So **per-tile span bit math** should already match **Client.ts** if naming/conventions align.
 
-## Most probable gap (VisBelow + LinkBelow + spans)
+## Most probable gap (VisBelow **and** LinkBelow **together** + spans)
 
-**Packed `slevel` on `PaintersTile`** (VisBelow / **`map_floor_vis_below_draw_level`**) controls **draw_mask participation**, per **[`ce4af6f3`](https://github.com/)** and **[`painters.h`](src/osrs/painters.h)** packed_meta docs.
+Two different concepts must stay straight:
 
-**Hypothesis:** **`painter_tile_at(painter, x, z, loc_level)`** in **`compute_normal_scenery_spans`** must use the same **vertical index** as the client’s **`levelTiles[level]`** for that loc after **bridge push-down**. If **LinkBelow** permutes **which painter grid slot** holds **cache level L** terrain (see **`world_rebuild_centerzone_end`** in [`world.c`](src/osrs/world.c)), then **`chunk_pos_level`** may no longer equal **painter `grid_level`** for span registration — scenery nodes get chained off the **wrong PaintersTile**, so **span waits / ordering** break even when **bit patterns** match TS and **`painter_paint_world3d`** still looks acceptable in some cases.
+1. **Draw tier / visibility** — **`getVisBelowLevel`** vs **`map_floor_vis_below_draw_level`** (+ **`ce4af6f3`** **`src`** mapping per grid slot after push-down). Handles **VisBelow** overriding LinkBelow’s **level−1** reduction on specific tiles, and sets packed **`slevel`** for **`draw_mask`**.
 
-**Concrete check:** invert the **`src` ↔ grid `g`** mapping from **`ce4af6f3`** / **`scenebuilder_apply_vis_below_draw_levels`**: given **cache level** at a column, compute **grid index `g`**; compare to **`loc_level`** passed into **`painter_add_normal_scenery`**.
+2. **Where spans attach in the painter grid** — **`compute_normal_scenery_spans`** uses **`painter_tile_at(..., loc_level)`** with **`loc_level = chunk_pos_level`**. After **`world_rebuild_centerzone_end`** LinkBelow **copies** tiles between **grid** indices; **cache level L** terrain may live at **grid g ≠ L**. That mismatch hurts most when **both** flags matter: e.g. bridge column (**LinkBelow**) plus a floor forcing draw tier 0 (**VisBelow**) — inclusion may look fixed (**ce4af6f3**) while **scenery links** still target tiles by **cache index**.
+
+**Concrete check:** For **`(sx,sz)`** with **`mapl[1]&LinkBelow`**, invert **`src` ↔ grid `g`** from **`ce4af6f3`**: map **`chunk_pos_level` → g** for **`painter_tile_at`** in **`compute_normal_scenery_spans`** / **`painter_add_normal_scenery`**, and confirm it matches how **`levelTiles[cacheLevel]`** is interpreted relative to the client’s **pushDown** ordering for that column.
 
 ## Related commits (span / level semantics)
 

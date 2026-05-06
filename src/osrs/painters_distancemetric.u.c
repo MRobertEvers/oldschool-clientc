@@ -649,9 +649,11 @@ painter_paint_distancemetric(
                 {
                     for( int other_tile_z = min_tile_z; other_tile_z <= max_tile_z; other_tile_z++ )
                     {
+                        bool link = painter_column_has_link_below(painter, other_tile_x, other_tile_z);
+                        int g = painter_grid_slot_for_cache_level((int)element->slevel, link);
                         other_paint = tile_paint_at_idx(
                             painter,
-                            painter_coord_idx(painter, other_tile_x, other_tile_z, grid_level));
+                            painter_coord_idx(painter, other_tile_x, other_tile_z, g));
 
                         if( other_paint->step <= PAINT_STEP_GROUND )
                         {
@@ -741,8 +743,13 @@ painter_paint_distancemetric(
                     for( int other_tile_z = start_z; other_tile_z != end_z + step_z;
                          other_tile_z += step_z )
                     {
-                        int other_idx =
-                            painter_coord_idx(painter, other_tile_x, other_tile_z, grid_level);
+                        int other_idx = painter_coord_idx(
+                            painter,
+                            other_tile_x,
+                            other_tile_z,
+                            painter_grid_slot_for_cache_level(
+                                (int)element->slevel,
+                                painter_column_has_link_below(painter, other_tile_x, other_tile_z)));
                         other_paint = tile_paint_at_idx(painter, other_idx);
 
                         painter_push_queue_dist(painter, other_idx);
