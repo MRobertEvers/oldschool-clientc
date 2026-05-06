@@ -222,8 +222,8 @@ serverprot_core_parse_if_settab_v1(
 {
     struct RSBuffer b;
     rsbuf_init(&b, (int8_t*)data, n);
-        out->u.if_settab_v1.component_id = g2(&b);
-        out->u.if_settab_v1.tab_id = g1(&b);
+    out->u.if_settab_v1.component_id = g2(&b);
+    out->u.if_settab_v1.tab_id = g1(&b);
     assert(b.position == n);
     return 1;
 }
@@ -235,8 +235,8 @@ serverprot_core_parse_if_setcolour_v1(
 {
     struct RSBuffer b;
     rsbuf_init(&b, (int8_t*)data, n);
-        out->u.if_setcolour_v1.component_id = g2(&b);
-        out->u.if_setcolour_v1.colour = g2(&b);
+    out->u.if_setcolour_v1.component_id = g2(&b);
+    out->u.if_setcolour_v1.colour = g2(&b);
     assert(b.position == n);
     return 1;
 }
@@ -248,8 +248,8 @@ serverprot_core_parse_if_sethide_v1(
 {
     struct RSBuffer b;
     rsbuf_init(&b, (int8_t*)data, n);
-        out->u.if_sethide_v1.component_id = g2(&b);
-        out->u.if_sethide_v1.hide = g1(&b);
+    out->u.if_sethide_v1.component_id = g2(&b);
+    out->u.if_sethide_v1.hide = g1(&b);
     assert(b.position == n);
     return 1;
 }
@@ -261,9 +261,9 @@ serverprot_core_parse_if_setobject_v1(
 {
     struct RSBuffer b;
     rsbuf_init(&b, (int8_t*)data, n);
-        out->u.if_setobject_v1.component_id = g2(&b);
-        out->u.if_setobject_v1.obj_id = g2(&b);
-        out->u.if_setobject_v1.zoom = g2(&b);
+    out->u.if_setobject_v1.component_id = g2(&b);
+    out->u.if_setobject_v1.obj_id = g2(&b);
+    out->u.if_setobject_v1.zoom = g2(&b);
     assert(b.position == n);
     return 1;
 }
@@ -275,8 +275,8 @@ serverprot_core_parse_if_setmodel_v1(
 {
     struct RSBuffer b;
     rsbuf_init(&b, (int8_t*)data, n);
-        out->u.if_setmodel_v1.component_id = g2(&b);
-        out->u.if_setmodel_v1.model_id = g2(&b);
+    out->u.if_setmodel_v1.component_id = g2(&b);
+    out->u.if_setmodel_v1.model_id = g2(&b);
     assert(b.position == n);
     return 1;
 }
@@ -288,8 +288,8 @@ serverprot_core_parse_if_setanim_v1(
 {
     struct RSBuffer b;
     rsbuf_init(&b, (int8_t*)data, n);
-        out->u.if_setanim_v1.component_id = g2(&b);
-        out->u.if_setanim_v1.anim_id = g2(&b);
+    out->u.if_setanim_v1.component_id = g2(&b);
+    out->u.if_setanim_v1.anim_id = g2(&b);
     assert(b.position == n);
     return 1;
 }
@@ -301,7 +301,7 @@ serverprot_core_parse_if_setplayerhead_v1(
 {
     struct RSBuffer b;
     rsbuf_init(&b, (int8_t*)data, n);
-        out->u.if_setplayerhead_v1.component_id = g2(&b);
+    out->u.if_setplayerhead_v1.component_id = g2(&b);
     assert(b.position == n);
     return 1;
 }
@@ -665,7 +665,7 @@ serverprot_core_parse_update_inv_full_v1(
     int n,
     struct RevServerProtPacket* out)
 {
-    struct PktServerProtUpdateInvFullV1* p = &out->u.update_inv_full_v1;
+    struct PktServerProt_UpdateInvFull_v1* p = &out->u.update_inv_full_v1;
     struct RSBuffer b;
     rsbuf_init(&b, (int8_t*)data, n);
     p->component_id = g2(&b);
@@ -702,12 +702,12 @@ serverprot_core_parse_update_inv_partial_v1(
     int n,
     struct RevServerProtPacket* out)
 {
-    struct PktServerProtUpdateInvPartialV1* p = &out->u.update_inv_partial_v1;
+    struct PktServerProt_UpdateInvPartial_v1* p = &out->u.update_inv_partial_v1;
     struct RSBuffer b;
     rsbuf_init(&b, (int8_t*)data, n);
     p->component_id = g2(&b);
     int max_entries = (n - 2) / 5 + 1;
-    p->entries = malloc(max_entries * sizeof(struct PktServerProtUpdateInvPartialEntryV1));
+    p->entries = malloc(max_entries * sizeof(struct PktServerProt_UpdateInvPartialEntry_v1));
     int count = 0;
     while( b.position < n )
     {
@@ -804,7 +804,7 @@ serverprot_core_parse_update_ignorelist_v1(
     int n,
     struct RevServerProtPacket* out)
 {
-    struct PktServerProtUpdateIgnoreListV1* p = &out->u.update_ignorelist_v1;
+    struct PktServerProt_UpdateIgnoreList_v1* p = &out->u.update_ignorelist_v1;
     int count = n / 8;
     if( count <= 0 )
     {

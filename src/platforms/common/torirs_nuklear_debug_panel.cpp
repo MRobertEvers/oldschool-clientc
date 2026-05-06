@@ -360,7 +360,7 @@ torirs_nk_debug_panel_draw(
             pkt.u.update_inv_partial_v1.component_id = sim_comp_id;
             pkt.u.update_inv_partial_v1.count = 1;
             pkt.u.update_inv_partial_v1.entries =
-                (struct PktServerProtUpdateInvPartialEntryV1*)calloc(1, sizeof(struct PktServerProtUpdateInvPartialEntryV1));
+                (struct PktServerProt_UpdateInvPartialEntry_v1*)calloc(1, sizeof(struct PktServerProt_UpdateInvPartialEntry_v1));
             pkt.u.update_inv_partial_v1.entries[0].slot   = sim_anim_id;
             pkt.u.update_inv_partial_v1.entries[0].obj_id = sim_obj_id;
             pkt.u.update_inv_partial_v1.entries[0].count  = 1;

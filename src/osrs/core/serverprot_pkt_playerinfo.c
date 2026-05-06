@@ -19,10 +19,10 @@
 #define MASK_EXACT_MOVE 0x200
 #define MASK_DAMAGE2 0x400
 
-static struct PktPlayerInfoOpV1*
+static struct PktServerProt_PlayerInfo_v1_Op*
 next_op(
-    struct PktPlayerInfoReaderV1* reader,
-    struct PktPlayerInfoOpV1* ops,
+    struct PktServerProt_PlayerInfoReader_v1* reader,
+    struct PktServerProt_PlayerInfo_v1_Op* ops,
     int ops_capacity)
 {
     assert(reader->current_op < ops_capacity);
@@ -30,91 +30,91 @@ next_op(
 }
 
 static void
-push_op_set_local_player(struct PktPlayerInfoOpV1* op)
+push_op_set_local_player(struct PktServerProt_PlayerInfo_v1_Op* op)
 {
-    op->kind = PKT_PLAYER_INFO_OP_SET_LOCAL_PLAYER;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OP_SET_LOCAL_PLAYER;
 }
 
 static void
 push_op_bits_count_reset(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     int count)
 {
-    op->kind = PKT_PLAYER_INFO_OPBITS_COUNT_RESET;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OPBITS_COUNT_RESET;
     op->_bitvalue = count;
 }
 
 static void
 push_op_add_player_new_opbits_pid(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     int player_id)
 {
-    op->kind = PKT_PLAYER_INFO_OP_ADD_PLAYER_NEW_OPBITS_PID;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OP_ADD_PLAYER_NEW_OPBITS_PID;
     op->_bitvalue = player_id;
 }
 
 static void
 push_op_add_player_old_opbits_idx(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     int player_idx)
 {
-    op->kind = PKT_PLAYER_INFO_OP_ADD_PLAYER_OLD_OPBITS_IDX;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OP_ADD_PLAYER_OLD_OPBITS_IDX;
     op->_bitvalue = player_idx;
 }
 
 static void
 push_op_set_player_opbits_idx(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     int player_idx)
 {
-    op->kind = PKT_PLAYER_INFO_OP_SET_PLAYER_OPBITS_IDX;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OP_SET_PLAYER_OPBITS_IDX;
     op->_bitvalue = player_idx;
 }
 
 static void
 push_op_clear_player_opbits_idx(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     int player_idx)
 {
-    op->kind = PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OP_CLEAR_PLAYER_OPBITS_IDX;
     op->_bitvalue = player_idx;
 }
 
 static void
 push_bits_info(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     int info)
 {
-    op->kind = PKT_PLAYER_INFO_OPBITS_INFO;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OPBITS_INFO;
     op->_bitvalue = info;
 }
 static void
 push_bits_walkdir(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     int walkdir)
 {
-    op->kind = PKT_PLAYER_INFO_OPBITS_WALKDIR;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OPBITS_WALKDIR;
     op->_bitvalue = walkdir;
 }
 
 static void
 push_bits_rundir(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     int rundir)
 {
-    op->kind = PKT_PLAYER_INFO_OPBITS_RUNDIR;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OPBITS_RUNDIR;
     op->_bitvalue = rundir;
 }
 
 static void
 push_op_local_xz_level(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     int x,
     int z,
     int level,
     bool jump)
 {
-    op->kind = PKT_PLAYER_INFO_OP_LOCAL_XZLEVEL;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OP_LOCAL_XZLEVEL;
     op->_local_xz_level.x = x;
     op->_local_xz_level.z = z;
     op->_local_xz_level.level = level;
@@ -123,12 +123,12 @@ push_op_local_xz_level(
 
 static void
 push_op_delta_xz(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     int dx,
     int dz,
     bool jump)
 {
-    op->kind = PKT_PLAYER_INFO_OP_DELTA_XZ;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OP_DELTA_XZ;
     op->_delta_xz.dx = dx;
     op->_delta_xz.dz = dz;
     op->_delta_xz.jump = jump;
@@ -136,53 +136,53 @@ push_op_delta_xz(
 
 static void
 push_op_appearance(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     uint8_t* appearance_buf,
     int len)
 {
-    op->kind = PKT_PLAYER_INFO_OP_APPEARANCE;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OP_APPEARANCE;
     op->_appearance.appearance = appearance_buf;
     op->_appearance.len = len;
 }
 
 static void
 push_op_sequence(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     uint16_t sequence_id,
     uint8_t delay)
 {
-    op->kind = PKT_PLAYER_INFO_OP_SEQUENCE;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OP_SEQUENCE;
     op->_sequence.sequence_id = sequence_id;
     op->_sequence.delay = delay;
 }
 
 static void
 push_op_face_entity(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     int entity_id)
 {
-    op->kind = PKT_PLAYER_INFO_OP_FACE_ENTITY;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OP_FACE_ENTITY;
     op->_face_entity.entity_id = entity_id;
 }
 
 static void
 push_op_say(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     char* chat_message)
 {
-    op->kind = PKT_PLAYER_INFO_OP_SAY;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OP_SAY;
     op->_say.text = chat_message;
 }
 
 static void
 push_op_damage(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     int damage_type,
     int damage,
     int health,
     int total_health)
 {
-    op->kind = PKT_PLAYER_INFO_OP_DAMAGE;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OP_DAMAGE;
     op->_damage.damage_type = damage_type;
     op->_damage.damage = damage;
     op->_damage.health = health;
@@ -191,13 +191,13 @@ push_op_damage(
 
 static void
 push_op_damage2(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     int damage,
     int damage_type,
     int health,
     int total_health)
 {
-    op->kind = PKT_PLAYER_INFO_OP_DAMAGE2;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OP_DAMAGE2;
     op->_damage2.damage = damage;
     op->_damage2.damage_type = damage_type;
     op->_damage2.health = health;
@@ -206,11 +206,11 @@ push_op_damage2(
 
 static void
 push_op_face_coord(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     int target_x,
     int target_z)
 {
-    op->kind = PKT_PLAYER_INFO_OP_FACE_COORD;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OP_FACE_COORD;
     op->_face_coord.entity_id = -1;
     op->_face_coord.x = (int16_t)target_x;
     op->_face_coord.z = (int16_t)target_z;
@@ -218,20 +218,20 @@ push_op_face_coord(
 
 static void
 push_op_spotanim(
-    struct PktPlayerInfoOpV1* op,
+    struct PktServerProt_PlayerInfo_v1_Op* op,
     int spotanim_id,
     int height_delay)
 {
-    op->kind = PKT_PLAYER_INFO_OP_SPOTANIM;
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OP_SPOTANIM;
     op->_spotanim.spotanim_id = spotanim_id;
     op->_spotanim.delay = height_delay; /* Client.ts: height = >>16, cycleDelay = &0xffff */
 }
 
 int
 pkt_player_info_reader_read(
-    struct PktPlayerInfoReaderV1* reader,
-    struct PktPlayerInfoV1* pkt,
-    struct PktPlayerInfoOpV1* ops,
+    struct PktServerProt_PlayerInfoReader_v1* reader,
+    struct PktServerProt_PlayerInfo_v1* pkt,
+    struct PktServerProt_PlayerInfo_v1_Op* ops,
     int ops_capacity)
 {
     reader->current_op = 0;

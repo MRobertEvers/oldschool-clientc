@@ -1368,19 +1368,19 @@ l_gameproto_get_npc_ids_from_packet(lua_State* L)
     (void)game;
     struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
 
-    static struct PktNpcInfoReaderV1 reader;
+    static struct PktServerProt_NpcInfoReader_v1 reader;
     reader.extended_count = 0;
     reader.current_op = 0;
     reader.max_ops = 2048;
-    struct PktNpcInfoOpV1 ops[2048];
+    struct PktServerProt_NpcInfo_v1_Op ops[2048];
     int count =
-        pkt_npc_info_reader_read(&reader, (struct PktNpcInfoV1*)&item->packet.u.npc_info_v1, ops, 2048);
+        pkt_npc_info_reader_read(&reader, (struct PktServerProt_NpcInfo_v1*)&item->packet.u.npc_info_v1, ops, 2048);
 
     lua_newtable(L);
     int idx = 0;
     for( int i = 0; i < count; i++ )
     {
-        if( ops[i].kind == PKT_NPC_INFO_OPBITS_NPCTYPE )
+        if( ops[i].kind == PKT_SERVER_PROT_NPC_INFO_V1_OPBITS_NPCTYPE )
         {
             idx++;
             lua_pushinteger(L, ops[i]._bitvalue);
@@ -1425,14 +1425,14 @@ l_gameproto_get_player_appearance_ids(lua_State* L)
 {
     struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)lua_touserdata(L, 1);
 
-    static struct PktPlayerInfoReaderV1 reader;
+    static struct PktServerProt_PlayerInfoReader_v1 reader;
     reader.extended_count = 0;
     reader.current_op = 0;
     reader.max_ops = 2048;
-    struct PktPlayerInfoOpV1 ops[2048];
+    struct PktServerProt_PlayerInfo_v1_Op ops[2048];
 
     int count = pkt_player_info_reader_read(
-        &reader, (struct PktPlayerInfoV1*)&item->packet.u.player_info_v1, ops, 2048);
+        &reader, (struct PktServerProt_PlayerInfo_v1*)&item->packet.u.player_info_v1, ops, 2048);
 
     lua_newtable(L); /* idk_ids */
     lua_newtable(L); /* obj_ids */
@@ -1441,7 +1441,7 @@ l_gameproto_get_player_appearance_ids(lua_State* L)
 
     for( int i = 0; i < count; i++ )
     {
-        if( ops[i].kind != PKT_PLAYER_INFO_OP_APPEARANCE )
+        if( ops[i].kind != PKT_SERVER_PROT_PLAYER_INFO_V1_OP_APPEARANCE )
             continue;
         struct PlayerAppearance appearance;
         player_appearance_decode(

@@ -54,7 +54,7 @@ if_decode_component_id(int raw)
 void
 LibToriRS_WorldMinimapStaticRebuild(struct GGame* game);
 
-static struct PktNpcInfoReaderV1 npc_info_reader = { 0 };
+static struct PktServerProt_NpcInfoReader_v1 npc_info_reader = { 0 };
 
 void
 gamenet_rev245_2_exec_npc_info_raw_v1(
@@ -77,9 +77,9 @@ gamenet_rev245_2_exec_npc_info_v1(
     npc_info_reader.extended_count = 0;
     npc_info_reader.current_op = 0;
     npc_info_reader.max_ops = 2048;
-    struct PktNpcInfoOpV1 ops[2048];
+    struct PktServerProt_NpcInfo_v1_Op ops[2048];
     int count = pkt_npc_info_reader_read(
-        &npc_info_reader, (struct PktNpcInfoV1*)&packet->u.npc_info_v1, ops, 2048);
+        &npc_info_reader, (struct PktServerProt_NpcInfo_v1*)&packet->u.npc_info_v1, ops, 2048);
 
     struct PlayerEntity* player = world_player(game->world, ACTIVE_PLAYER_SLOT);
     if( !player->alive )
@@ -92,7 +92,7 @@ gamenet_rev245_2_exec_npc_info_v1(
     struct NPCEntity* npc = NULL;
     for( int i = 0; i < count; i++ )
     {
-        struct PktNpcInfoOpV1* op = &ops[i];
+        struct PktServerProt_NpcInfo_v1_Op* op = &ops[i];
 
         if( npc_id != -1 )
         {
@@ -105,7 +105,7 @@ gamenet_rev245_2_exec_npc_info_v1(
 
         switch( op->kind )
         {
-        case PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID:
+        case PKT_SERVER_PROT_NPC_INFO_V1_OP_ADD_NPC_NEW_OPBITS_PID:
         {
             npc_id = op->_bitvalue;
             game->world->active_npcs[game->world->active_npc_count] = npc_id;
@@ -113,7 +113,7 @@ gamenet_rev245_2_exec_npc_info_v1(
 
             break;
         }
-        case PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX:
+        case PKT_SERVER_PROT_NPC_INFO_V1_OP_ADD_NPC_OLD_OPBITS_IDX:
         {
             assert(op->_bitvalue >= game->world->active_npc_count);
             npc_id = game->world->active_npcs[op->_bitvalue];
@@ -122,12 +122,12 @@ gamenet_rev245_2_exec_npc_info_v1(
 
             break;
         }
-        case PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX:
+        case PKT_SERVER_PROT_NPC_INFO_V1_OP_SET_NPC_OPBITS_IDX:
         {
             npc_id = game->world->active_npcs[op->_bitvalue];
             break;
         }
-        case PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX:
+        case PKT_SERVER_PROT_NPC_INFO_V1_OP_CLEAR_NPC_OPBITS_IDX:
         {
             npc_id = game->world->active_npcs[op->_bitvalue];
             game->world->active_npcs[op->_bitvalue] = -1;
@@ -135,7 +135,7 @@ gamenet_rev245_2_exec_npc_info_v1(
             npc_id = -1;
             break;
         }
-        case PKT_NPC_INFO_OPBITS_COUNT_RESET:
+        case PKT_SERVER_PROT_NPC_INFO_V1_OPBITS_COUNT_RESET:
         {
             for( int idx = op->_bitvalue; idx < prev_count; idx++ )
             {
@@ -144,29 +144,29 @@ gamenet_rev245_2_exec_npc_info_v1(
             }
             break;
         }
-        case PKT_NPC_INFO_OP_DELTA_XZ:
+        case PKT_SERVER_PROT_NPC_INFO_V1_OP_DELTA_XZ:
         {
             world_npc_entity_path_jump_relative_to_active(
                 game->world, npc_id, false, op->_delta_xz.x, op->_delta_xz.z);
             break;
         }
-        case PKT_NPC_INFO_OPBITS_WALKDIR:
-        case PKT_NPC_INFO_OPBITS_RUNDIR:
+        case PKT_SERVER_PROT_NPC_INFO_V1_OPBITS_WALKDIR:
+        case PKT_SERVER_PROT_NPC_INFO_V1_OPBITS_RUNDIR:
         {
             int direction = op->_bitvalue;
             world_npc_entity_path_push_step(
                 game->world,
                 npc_id,
-                op->kind == PKT_NPC_INFO_OPBITS_RUNDIR ? PATHSTEP_RUN : PATHSTEP_WALK,
+                op->kind == PKT_SERVER_PROT_NPC_INFO_V1_OPBITS_RUNDIR ? PATHSTEP_RUN : PATHSTEP_WALK,
                 direction);
             break;
         }
-        case PKT_NPC_INFO_OPBITS_NPCTYPE:
+        case PKT_SERVER_PROT_NPC_INFO_V1_OPBITS_NPCTYPE:
         {
             world_scenebuild_npc_entity_set_npc_type(game->world, npc_id, op->_bitvalue);
             break;
         }
-        case PKT_NPC_INFO_OP_FACE_ENTITY:
+        case PKT_SERVER_PROT_NPC_INFO_V1_OP_FACE_ENTITY:
         {
             if( !npc )
                 break;
@@ -177,7 +177,7 @@ gamenet_rev245_2_exec_npc_info_v1(
             // printf("npc_face_entity: %d\n", entity_id);
             break;
         }
-        case PKT_NPC_INFO_OP_FACE_COORD:
+        case PKT_SERVER_PROT_NPC_INFO_V1_OP_FACE_COORD:
         {
             if( !npc )
                 break;
@@ -189,7 +189,7 @@ gamenet_rev245_2_exec_npc_info_v1(
             //     npc->orientation.face_square_z);
             break;
         }
-        case PKT_NPC_INFO_OP_SEQUENCE:
+        case PKT_SERVER_PROT_NPC_INFO_V1_OP_SEQUENCE:
         {
             if( !npc )
                 break;
@@ -199,7 +199,7 @@ gamenet_rev245_2_exec_npc_info_v1(
             world_npc_entity_set_animation(game->world, npc_id, seq_id, ANIMATION_TYPE_PRIMARY);
             break;
         }
-        case PKT_NPC_INFO_OP_DAMAGE:
+        case PKT_SERVER_PROT_NPC_INFO_V1_OP_DAMAGE:
         {
             // entity_add_hitmark(
             //     npc->damage_values,
@@ -217,7 +217,7 @@ gamenet_rev245_2_exec_npc_info_v1(
     }
 }
 
-static struct PktPlayerInfoReaderV1 player_info_reader = { 0 };
+static struct PktServerProt_PlayerInfoReader_v1 player_info_reader = { 0 };
 
 static void
 player_info_apply_ops_v1(
@@ -230,13 +230,13 @@ player_info_apply_ops_v1(
     bitbuffer_init_from_rsbuf(&buf, &rsbuf);
     bits(&buf);
 
-    struct PktPlayerInfoOpV1 ops[2048];
+    struct PktServerProt_PlayerInfo_v1_Op ops[2048];
 
     struct SceneElement* scene_element = NULL;
     struct PlayerEntity* active_player = world_player(game->world, ACTIVE_PLAYER_SLOT);
 
     int count = pkt_player_info_reader_read(
-        &player_info_reader, (struct PktPlayerInfoV1*)&packet->u.player_info_v1, ops, 2048);
+        &player_info_reader, (struct PktServerProt_PlayerInfo_v1*)&packet->u.player_info_v1, ops, 2048);
     int player_id = -1;
 
     struct PlayerEntity* player = NULL;
@@ -244,38 +244,38 @@ player_info_apply_ops_v1(
     game->world->active_player_count = 0;
     for( int i = 0; i < count; i++ )
     {
-        struct PktPlayerInfoOpV1* op = &ops[i];
+        struct PktServerProt_PlayerInfo_v1_Op* op = &ops[i];
 
         player =
             (player_id >= 0) ? world_player_ensure_scene_element(game->world, player_id) : NULL;
 
         switch( op->kind )
         {
-        case PKT_PLAYER_INFO_OP_SET_LOCAL_PLAYER:
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_SET_LOCAL_PLAYER:
         {
             player_id = ACTIVE_PLAYER_SLOT;
             break;
         }
-        case PKT_PLAYER_INFO_OP_ADD_PLAYER_OLD_OPBITS_IDX:
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_ADD_PLAYER_OLD_OPBITS_IDX:
         {
             player_id = game->world->active_players[op->_bitvalue];
             game->world->active_players[game->world->active_player_count] = player_id;
             game->world->active_player_count += 1;
             break;
         }
-        case PKT_PLAYER_INFO_OP_ADD_PLAYER_NEW_OPBITS_PID:
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_ADD_PLAYER_NEW_OPBITS_PID:
         {
             player_id = op->_bitvalue;
             game->world->active_players[game->world->active_player_count] = player_id;
             game->world->active_player_count += 1;
             break;
         }
-        case PKT_PLAYER_INFO_OP_SET_PLAYER_OPBITS_IDX:
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_SET_PLAYER_OPBITS_IDX:
         {
             player_id = game->world->active_players[op->_bitvalue];
             break;
         }
-        case PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX:
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_CLEAR_PLAYER_OPBITS_IDX:
         {
             player_id = game->world->active_players[op->_bitvalue];
             world_cleanup_player_entity(game->world, player_id);
@@ -283,8 +283,8 @@ player_info_apply_ops_v1(
             player_id = -1;
             break;
         }
-        case PKT_PLAYER_INFO_OPBITS_WALKDIR:
-        case PKT_PLAYER_INFO_OPBITS_RUNDIR:
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OPBITS_WALKDIR:
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OPBITS_RUNDIR:
         {
             if( !player )
                 break;
@@ -293,11 +293,11 @@ player_info_apply_ops_v1(
             world_player_entity_path_push_step(
                 game->world,
                 player_id,
-                op->kind == PKT_PLAYER_INFO_OPBITS_RUNDIR ? PATHSTEP_RUN : PATHSTEP_WALK,
+                op->kind == PKT_SERVER_PROT_PLAYER_INFO_V1_OPBITS_RUNDIR ? PATHSTEP_RUN : PATHSTEP_WALK,
                 direction);
             break;
         }
-        case PKT_PLAYER_INFO_OP_DELTA_XZ:
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_DELTA_XZ:
         {
             if( !player )
                 break;
@@ -306,7 +306,7 @@ player_info_apply_ops_v1(
                 game->world, player_id, op->_delta_xz.jump, op->_delta_xz.dx, op->_delta_xz.dz);
             break;
         }
-        case PKT_PLAYER_INFO_OP_LOCAL_XZLEVEL:
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_LOCAL_XZLEVEL:
         {
             if( !player )
                 break;
@@ -320,7 +320,7 @@ player_info_apply_ops_v1(
 
             break;
         }
-        case PKT_PLAYER_INFO_OP_APPEARANCE:
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_APPEARANCE:
         {
             if( player_id < 0 )
                 break;
@@ -330,7 +330,7 @@ player_info_apply_ops_v1(
             world_player_entity_set_appearance(game->world, player_id, &appearance);
         }
         break;
-        case PKT_PLAYER_INFO_OP_FACE_ENTITY:
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_FACE_ENTITY:
         {
             if( !player )
                 break;
@@ -341,7 +341,7 @@ player_info_apply_ops_v1(
 
             break;
         }
-        case PKT_PLAYER_INFO_OP_FACE_COORD:
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_FACE_COORD:
         {
             if( !player )
                 break;
@@ -349,7 +349,7 @@ player_info_apply_ops_v1(
             // player->orientation.face_square_z = (int)op->_face_coord.z;
             break;
         }
-        case PKT_PLAYER_INFO_OP_SEQUENCE:
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_SEQUENCE:
         {
             if( !player )
                 break;
@@ -361,7 +361,7 @@ player_info_apply_ops_v1(
                 game->world, player_id, seq_id, ANIMATION_TYPE_PRIMARY);
             break;
         }
-        case PKT_PLAYER_INFO_OP_DAMAGE:
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_DAMAGE:
         {
             if( !player )
                 break;
@@ -377,7 +377,7 @@ player_info_apply_ops_v1(
             player->total_health = op->_damage.total_health;
             break;
         }
-        case PKT_PLAYER_INFO_OP_DAMAGE2:
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_DAMAGE2:
         {
             if( !player )
                 break;

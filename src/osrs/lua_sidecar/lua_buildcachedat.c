@@ -434,13 +434,13 @@ LuaBuildCacheDat_get_player_appearance_ids_from_packet(
     struct LuaGameType* idk_ids = LuaGameType_NewIntArray(10);
     struct LuaGameType* obj_ids = LuaGameType_NewIntArray(10);
 
-    static struct PktPlayerInfoReaderV1 reader;
+    static struct PktServerProt_PlayerInfoReader_v1 reader;
     reader.extended_count = 0;
     reader.current_op = 0;
     reader.max_ops = 2048;
-    struct PktPlayerInfoOpV1 ops[2048];
+    struct PktServerProt_PlayerInfo_v1_Op ops[2048];
 
-    struct PktPlayerInfoV1 pkt;
+    struct PktServerProt_PlayerInfo_v1 pkt;
     pkt.data = data;
     pkt.length = length;
     int count = pkt_player_info_reader_read(&reader, &pkt, ops, 2048);
@@ -450,7 +450,7 @@ LuaBuildCacheDat_get_player_appearance_ids_from_packet(
 
     for( int i = 0; i < count; i++ )
     {
-        if( ops[i].kind != PKT_PLAYER_INFO_OP_APPEARANCE )
+        if( ops[i].kind != PKT_SERVER_PROT_PLAYER_INFO_V1_OP_APPEARANCE )
             continue;
         struct PlayerAppearance appearance;
         player_appearance_decode(
@@ -484,21 +484,21 @@ LuaBuildCacheDat_get_npc_ids_from_packet(
     void* data = arg_userdata(args, 0);
     int length = arg_int(args, 1);
 
-    struct PktNpcInfoV1 pkt;
+    struct PktServerProt_NpcInfo_v1 pkt;
     pkt.data = data;
     pkt.length = length;
 
-    static struct PktNpcInfoReaderV1 reader;
+    static struct PktServerProt_NpcInfoReader_v1 reader;
     reader.extended_count = 0;
     reader.current_op = 0;
     reader.max_ops = 2048;
-    struct PktNpcInfoOpV1 ops[2048];
+    struct PktServerProt_NpcInfo_v1_Op ops[2048];
     int count = pkt_npc_info_reader_read(&reader, &pkt, ops, 2048);
 
     struct LuaGameType* result = LuaGameType_NewIntArray(count);
     for( int i = 0; i < count; i++ )
     {
-        if( ops[i].kind == PKT_NPC_INFO_OPBITS_NPCTYPE )
+        if( ops[i].kind == PKT_SERVER_PROT_NPC_INFO_V1_OPBITS_NPCTYPE )
         {
             LuaGameType_IntArrayPush(result, ops[i]._bitvalue);
         }
