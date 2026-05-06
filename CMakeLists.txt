@@ -104,6 +104,8 @@ set(COMMON_SOURCES
     src/nuklear/nuklear_impl.c
     src/osrs/ginput.c
     src/osrs/buildcachedat.c
+    src/osrs/gamecache/gamecache.c
+    src/osrs/gamecache/gamecache_from_buildcachedat.c
     src/osrs/isaac.c
     src/osrs/buildcachedat_loader.c
     src/osrs/buildcache.c
@@ -223,6 +225,7 @@ set(COMMON_SOURCES
     src/osrs/lua_sidecar/lua_dash.c
     src/osrs/lua_sidecar/lua_sidecar_misc.c
     src/osrs/lua_sidecar/lua_game.c
+    src/osrs/lua_sidecar/lua_gamecache.c
     src/osrs/lua_sidecar/lua_ui.c
     src/osrs/lua_sidecar/lua_gametypes.c
     src/osrs/lua_sidecar/luac_gametypes.c

@@ -2471,9 +2471,9 @@ uielem_hover_tooltip_step(
     /* Text pen: `node->position` from [layout] c=hover_tooltip x/y (Client.ts drawFeedback). */
     int font_id = node->u.hover_tooltip.font_id >= 0
                       ? node->u.hover_tooltip.font_id
-                      : buildcachedat_get_font_ref_id(game->buildcachedat, "b12");
+                      : gamecache_get_font_ref_id(game->gamecache, "b12");
     if( font_id < 0 )
-        font_id = buildcachedat_get_font_ref_id(game->buildcachedat, "p11");
+        font_id = gamecache_get_font_ref_id(game->gamecache, "p11");
     if( font_id < 0 )
         return true;
     struct DashPixFont* font = uiscene_font_get(game->ui_scene, font_id);
@@ -2893,8 +2893,8 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
                     int compno = sb->u.sidebar.componentno;
                     if( compno < 0 )
                         continue;
-                    struct CacheDatConfigComponent* sroot =
-                        buildcachedat_get_component(game->buildcachedat, compno);
+                    struct GameCacheComponent* sroot =
+                        gamecache_get_component(game->gamecache, compno);
                     if( !sroot )
                         continue;
                     root_comp_id = compno;
@@ -2906,8 +2906,8 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
 
             if( root_comp_id >= 0 )
             {
-                struct CacheDatConfigComponent* root =
-                    buildcachedat_get_component(game->buildcachedat, root_comp_id);
+                struct GameCacheComponent* root =
+                    gamecache_get_component(game->gamecache, root_comp_id);
                 int comp_id = -1, client_code = 0, btn_action = 0;
                 int pa = 0, pb = 0, pc = 0;
                 if( root && interface_find_button_click_at(
@@ -2935,8 +2935,8 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
         if( !game->interface_consumed_click && cx > 4 && cy > 4 && cx < 516 && cy < 338 &&
             game->iface->viewport_interface_id >= 0 )
         {
-            struct CacheDatConfigComponent* root = buildcachedat_get_component(
-                game->buildcachedat, game->iface->viewport_interface_id);
+            struct GameCacheComponent* root = gamecache_get_component(
+                game->gamecache, game->iface->viewport_interface_id);
             int comp_id = -1, client_code = 0, btn_action = 0;
             int pa = 0, pb = 0, pc = 0;
             if( root &&

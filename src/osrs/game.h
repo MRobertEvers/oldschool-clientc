@@ -10,6 +10,7 @@
 #include "graphics/dash.h"
 #include "osrs/buildcache.h"
 #include "osrs/buildcachedat.h"
+#include "osrs/gamecache/gamecache.h"
 #include "osrs/core/game_cache_tag.h"
 #include "osrs/core/revision.h"
 #include "osrs/chat.h"
@@ -172,6 +173,7 @@ struct GGame
     int camera_rotation_speed;
 
     struct BuildCacheDat* buildcachedat;
+    struct GameCache* gamecache;
     struct BuildCache* buildcache;
     /** Tagged ownership for BuildCacheDat vs BuildCache (distinct from rscache `struct Cache`). */
     struct GameCacheTag game_cache_tag;

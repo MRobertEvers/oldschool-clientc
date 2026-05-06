@@ -417,7 +417,7 @@ gameproto_rev245_2_exec_rebuild_normal(
     if( !game->world )
     {
         /* First rebuild: create the world. */
-        game->world = world_new(game->buildcachedat, game->scene2);
+        game->world = world_new(game->gamecache, game->scene2);
     }
     else
     {
@@ -621,8 +621,8 @@ gameproto_rev245_2_exec_update_inv_full(
     int component_id = packet->_update_inv_full.component_id;
     int size = packet->_update_inv_full.size;
 
-    struct CacheDatConfigComponent* component =
-        buildcachedat_get_component(game->buildcachedat, component_id);
+    struct GameCacheComponent* component =
+        gamecache_get_component(game->gamecache, component_id);
 
     if( !component )
     {
@@ -847,12 +847,12 @@ gameproto_rev245_2_exec_if_setobject(
     int obj_id = packet->_if_setobject.obj_id;
     int zoom = packet->_if_setobject.zoom;
 
-    struct CacheDatConfigComponent* component =
-        buildcachedat_get_component(game->buildcachedat, component_id);
+    struct GameCacheComponent* component =
+        gamecache_get_component(game->gamecache, component_id);
     if( !component )
         return;
 
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
+    struct GameCacheObj* obj = gamecache_get_obj(game->gamecache, obj_id);
     if( !obj )
         return;
 
@@ -871,8 +871,8 @@ gameproto_rev245_2_exec_if_setmodel(
     int component_id = packet->_if_setmodel.component_id;
     int model_id = packet->_if_setmodel.model_id;
 
-    struct CacheDatConfigComponent* component =
-        buildcachedat_get_component(game->buildcachedat, component_id);
+    struct GameCacheComponent* component =
+        gamecache_get_component(game->gamecache, component_id);
     if( !component )
         return;
 
@@ -902,8 +902,8 @@ gameproto_rev245_2_exec_if_setplayerhead(
 {
     int component_id = packet->_if_setplayerhead.component_id;
 
-    struct CacheDatConfigComponent* component =
-        buildcachedat_get_component(game->buildcachedat, component_id);
+    struct GameCacheComponent* component =
+        gamecache_get_component(game->gamecache, component_id);
     if( !component )
         return;
 
@@ -962,8 +962,8 @@ gameproto_rev245_2_exec_if_setnpchead(
     int component_id = packet->_if_setnpchead.component_id;
     int npc_id = packet->_if_setnpchead.npc_id;
 
-    struct CacheDatConfigComponent* component =
-        buildcachedat_get_component(game->buildcachedat, component_id);
+    struct GameCacheComponent* component =
+        gamecache_get_component(game->gamecache, component_id);
     if( !component )
         return;
 
@@ -1558,8 +1558,8 @@ gameproto_rev245_2_exec_update_inv_stop_transmit(
     struct RevPacket_LC245_2* packet)
 {
     int component_id = packet->_update_inv_stop_transmit.component_id;
-    struct CacheDatConfigComponent* component =
-        buildcachedat_get_component(game->buildcachedat, component_id);
+    struct GameCacheComponent* component =
+        gamecache_get_component(game->gamecache, component_id);
     if( !component )
         return;
 
@@ -1610,8 +1610,8 @@ gameproto_rev245_2_exec_update_inv_partial(
     struct RevPacket_LC245_2* packet)
 {
     int component_id = packet->_update_inv_partial.component_id;
-    struct CacheDatConfigComponent* component =
-        buildcachedat_get_component(game->buildcachedat, component_id);
+    struct GameCacheComponent* component =
+        gamecache_get_component(game->gamecache, component_id);
     if( !component || !component->invSlotObjId || !component->invSlotObjCount )
         return;
     int max_slots = component->width * component->height;

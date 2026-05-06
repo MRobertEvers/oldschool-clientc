@@ -198,3 +198,37 @@
         return LuaGame_get_pkt_map_anim_spotanim_id(game, args);
     case LUA_API_GAME_GET_PKT_MAP_PROJANIM_SPOTANIM_ID:
         return LuaGame_get_pkt_map_projanim_spotanim_id(game, args);
+    case LUA_API_GAMECACHE_CONVERT_ALL_FROM_BUILDCACHEDAT:
+        return LuaGameCache_convert_all_from_buildcachedat(game, args);
+    case LUA_API_GAMECACHE_CONVERT_REFTABLES_FROM_BUILDCACHEDAT:
+        return LuaGameCache_convert_reftables_from_buildcachedat(game, args);
+    case LUA_API_GAMECACHE_CONVERT_FLOORTYPES_FROM_BUILDCACHEDAT:
+        return LuaGameCache_convert_floortypes_from_buildcachedat(game, args);
+    case LUA_API_GAMECACHE_CONVERT_SEQUENCES_FROM_BUILDCACHEDAT:
+        return LuaGameCache_convert_sequences_from_buildcachedat(game, args);
+    case LUA_API_GAMECACHE_CONVERT_ANIMBASEFRAMES_FROM_BUILDCACHEDAT:
+        return LuaGameCache_convert_animbaseframes_from_buildcachedat(game, args);
+    case LUA_API_GAMECACHE_CONVERT_NPCS_FROM_BUILDCACHEDAT:
+        return LuaGameCache_convert_npcs_from_buildcachedat(game, args);
+    case LUA_API_GAMECACHE_CONVERT_OBJS_FROM_BUILDCACHEDAT:
+        return LuaGameCache_convert_objs_from_buildcachedat(game, args);
+    case LUA_API_GAMECACHE_CONVERT_IDKS_FROM_BUILDCACHEDAT:
+        return LuaGameCache_convert_idks_from_buildcachedat(game, args);
+    case LUA_API_GAMECACHE_CONVERT_SPOTANIMS_FROM_BUILDCACHEDAT:
+        return LuaGameCache_convert_spotanims_from_buildcachedat(game, args);
+    case LUA_API_GAMECACHE_CONVERT_COMPONENTS_FROM_BUILDCACHEDAT:
+        return LuaGameCache_convert_components_from_buildcachedat(game, args);
+    case LUA_API_GAMECACHE_CONVERT_MAP_TERRAIN_CHUNK_FROM_BUILDCACHEDAT:
+        return LuaGameCache_convert_map_terrain_chunk_from_buildcachedat(game, args);
+    case LUA_API_GAMECACHE_CONVERT_SCENERY_CHUNK_FROM_BUILDCACHEDAT:
+        return LuaGameCache_convert_scenery_chunk_from_buildcachedat(game, args);
+    case LUA_API_GAMECACHE_CONVERT_LOC_CONFIGS_CHUNK_FROM_BUILDCACHEDAT:
+        return LuaGameCache_convert_loc_configs_chunk_from_buildcachedat(game, args);
+    case LUA_API_GAMECACHE_CONVERT_MODELS_CHUNK_FROM_BUILDCACHEDAT:
+        return LuaGameCache_convert_models_chunk_from_buildcachedat(game, args);
+    case LUA_API_GAMECACHE_CONVERT_NPC_MODELS_FROM_BUILDCACHEDAT:
+        return LuaGameCache_convert_npc_models_from_buildcachedat(game, args);
+    case LUA_API_GAMECACHE_CONVERT_OBJ_MODELS_FROM_BUILDCACHEDAT:
+        return LuaGameCache_convert_obj_models_from_buildcachedat(game, args);
+    case LUA_API_GAMECACHE_CONVERT_IDK_MODELS_FROM_BUILDCACHEDAT:
+        return LuaGameCache_convert_idk_models_from_buildcachedat(game, args);

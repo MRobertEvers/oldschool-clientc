@@ -338,13 +338,13 @@ uitree_find_inv_index_by_component_id(
     int component_id,
     int32_t* out_node_idx);
 
-struct CacheDatConfigComponent;
+struct GameCacheComponent;
 
 /** Inventory minimenu lines from build-cache inv component (UPDATE_INV_* / IF_OPENSIDE path). */
 void
 uitree_fill_inv_slot_options_from_cache_inv(
     struct GGame* game,
-    struct CacheDatConfigComponent* inv,
+    struct GameCacheComponent* inv,
     int slot,
     struct UITreeOptionSet* os);
 

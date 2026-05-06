@@ -6,6 +6,7 @@
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
+#include "osrs/gamecache/gamecache.h"
 #include "osrs/dash_utils.h"
 #include "osrs/entity_scenebuild.h"
 #include "osrs/game.h"
@@ -535,8 +536,9 @@ load_component(
     struct DashMap* component_hmap,
     struct UITree* ui,
     struct UIScene* ui_scene,
-    struct BuildCacheDat* buildcachedat)
+    struct GameCache* gamecache_unused)
 {
+    (void)gamecache_unused;
     enum StaticUIComponentType type = component_type_from_string(load->type);
     struct ComponentEntry* component_entry = NULL;
 
@@ -778,7 +780,7 @@ load_inv(
 static int
 ensure_font_id(
     struct UIScene* ui_scene,
-    struct BuildCacheDat* bcd,
+    struct GameCache* bcd,
     int font_idx)
 {
     static char const* const font_names[] = { "p11", "p12", "b12", "q8" };
@@ -789,7 +791,7 @@ ensure_font_id(
     int fid = uiscene_font_find_id(ui_scene, nm);
     if( fid >= 0 )
         return fid;
-    int ref_id = buildcachedat_get_font_ref_id(bcd, nm);
+    int ref_id = gamecache_get_font_ref_id(bcd, nm);
     if( ref_id < 0 )
         return -1;
     struct DashPixFont* f = uiscene_font_get(ui_scene, ref_id);
@@ -823,7 +825,7 @@ uiscene_attach_sprite_row(
 }
 
 /**
- * Copy revision-specific fields from a CacheDatConfigComponent into the revision-agnostic
+ * Copy revision-specific fields from a GameCacheComponent into the revision-agnostic
  * StaticUIComponent at tree->components[node_idx].  Called once per node at load time;
  * the UITree owns all allocated memory and frees it in uitree_free().
  */
@@ -831,7 +833,7 @@ static void
 uitree_translate_agnostic_fields(
     struct UITree*                  tree,
     int32_t                         node_idx,
-    struct CacheDatConfigComponent* cc)
+    struct GameCacheComponent* cc)
 {
     if( node_idx < 0 || (uint32_t)node_idx >= tree->component_count || !cc )
         return;
@@ -910,9 +912,9 @@ push_rs_from_cache_component(
     struct UITree* ui,
     struct UIScene* ui_scene,
     struct Scene2* scene2,
-    struct BuildCacheDat* bcd,
+    struct GameCache* bcd,
     int32_t parent_uitree_idx,
-    struct CacheDatConfigComponent* comp,
+    struct GameCacheComponent* comp,
     int abs_x,
     int abs_y,
     int sidebar_inv_index)
@@ -942,8 +944,8 @@ push_rs_from_cache_component(
             return;
         for( int i = 0; i < comp->children_count; i++ )
         {
-            struct CacheDatConfigComponent* ch =
-                buildcachedat_get_component(bcd, comp->children[i]);
+            struct GameCacheComponent* ch =
+                gamecache_get_component(bcd, comp->children[i]);
             if( !ch )
                 continue;
             int cx = abs_x + comp->childX[i] + ch->x;
@@ -978,11 +980,11 @@ push_rs_from_cache_component(
         struct DashSprite* g1 = NULL;
         if( comp->graphic && comp->graphic[0] != '\0' )
         {
-            int e0 = buildcachedat_get_component_sprite_element_id(bcd, comp->graphic);
+            int e0 = gamecache_get_component_sprite_element_id(bcd, comp->graphic);
             if( e0 < 0 && game )
             {
-                buildcachedat_loader_load_component_sprite_lazy(bcd, ui_scene, game, comp->graphic);
-                e0 = buildcachedat_get_component_sprite_element_id(bcd, comp->graphic);
+                buildcachedat_loader_load_component_sprite_lazy(game->buildcachedat, ui_scene, game, comp->graphic);
+                e0 = gamecache_get_component_sprite_element_id(bcd, comp->graphic);
             }
             if( e0 >= 0 )
             {
@@ -993,12 +995,12 @@ push_rs_from_cache_component(
         }
         if( comp->activeGraphic && comp->activeGraphic[0] != '\0' )
         {
-            int e1 = buildcachedat_get_component_sprite_element_id(bcd, comp->activeGraphic);
+            int e1 = gamecache_get_component_sprite_element_id(bcd, comp->activeGraphic);
             if( e1 < 0 && game )
             {
                 buildcachedat_loader_load_component_sprite_lazy(
-                    bcd, ui_scene, game, comp->activeGraphic);
-                e1 = buildcachedat_get_component_sprite_element_id(bcd, comp->activeGraphic);
+                    game->buildcachedat, ui_scene, game, comp->activeGraphic);
+                e1 = gamecache_get_component_sprite_element_id(bcd, comp->activeGraphic);
             }
             if( e1 >= 0 )
             {
@@ -1103,12 +1105,12 @@ push_rs_from_cache_component(
                 char const* gname = comp->invSlotGraphic[si];
                 if( !gname || gname[0] == '\0' )
                     continue;
-                int ge = buildcachedat_get_component_sprite_element_id(bcd, gname);
+                int ge = gamecache_get_component_sprite_element_id(bcd, gname);
                 if( ge < 0 )
                 {
                     /* Sprite not yet loaded; try lazy-loading from media. */
-                    buildcachedat_loader_load_component_sprite_lazy(bcd, ui_scene, game, gname);
-                    ge = buildcachedat_get_component_sprite_element_id(bcd, gname);
+                    buildcachedat_loader_load_component_sprite_lazy(game->buildcachedat, ui_scene, game, gname);
+                    ge = gamecache_get_component_sprite_element_id(bcd, gname);
                     if( ge < 0 )
                         continue;
                 }
@@ -1212,12 +1214,12 @@ push_rs_from_cache_component(
 
         if( comp->modelType == 1 )
         {
-            struct CacheModel* cache_model = buildcachedat_get_model(bcd, comp->model);
+            struct GameCacheModel* cache_model = gamecache_get_model(bcd, comp->model);
             if( !cache_model )
                 return;
-            struct CacheModel* model_copy = model_new_copy(cache_model);
-            m = dashmodel_new_from_cache_model(model_copy);
-            model_free(model_copy);
+            struct GameCacheModel* model_copy = gamecache_model_new_copy(cache_model);
+            m = dashmodel_new_from_gamecache_model(model_copy);
+            gamecache_model_free(model_copy);
             if( !m )
                 return;
             _light_model_default(m, 0, 0);
@@ -1279,7 +1281,7 @@ expand_sidebar_rs_tree(
     struct UITree* ui,
     struct UIScene* ui_scene,
     struct Scene2* scene2,
-    struct BuildCacheDat* bcd,
+    struct GameCache* bcd,
     int32_t sidebar_idx,
     int component_no,
     int inv_index)
@@ -1287,7 +1289,7 @@ expand_sidebar_rs_tree(
     if( !bcd || component_no < 0 || sidebar_idx < 0 ||
         (uint32_t)sidebar_idx >= ui->component_count )
         return;
-    struct CacheDatConfigComponent* root = buildcachedat_get_component(bcd, component_no);
+    struct GameCacheComponent* root = gamecache_get_component(bcd, component_no);
     if( !root )
         return;
     int sx = ui->components[sidebar_idx].position.x;
@@ -1299,28 +1301,28 @@ expand_sidebar_rs_tree(
 }
 
 static int
-uitree_load_resolve_minimenu_font_id(struct BuildCacheDat* bcd, char const* ini_font_name)
+uitree_load_resolve_minimenu_font_id(struct GameCache* bcd, char const* ini_font_name)
 {
     if( bcd && ini_font_name && ini_font_name[0] )
     {
-        int id = buildcachedat_get_font_ref_id(bcd, ini_font_name);
+        int id = gamecache_get_font_ref_id(bcd, ini_font_name);
         if( id >= 0 )
             return id;
     }
     if( !bcd )
         return -1;
-    int id = buildcachedat_get_font_ref_id(bcd, "b12");
+    int id = gamecache_get_font_ref_id(bcd, "b12");
     if( id >= 0 )
         return id;
-    return buildcachedat_get_font_ref_id(bcd, "p11");
+    return gamecache_get_font_ref_id(bcd, "p11");
 }
 
 static int
-uitree_load_resolve_chat_font_id(struct BuildCacheDat* bcd, char const* ini_font_name)
+uitree_load_resolve_chat_font_id(struct GameCache* bcd, char const* ini_font_name)
 {
     if( bcd && ini_font_name && ini_font_name[0] )
     {
-        int id = buildcachedat_get_font_ref_id(bcd, ini_font_name);
+        int id = gamecache_get_font_ref_id(bcd, ini_font_name);
         if( id >= 0 )
             return id;
     }
@@ -1329,7 +1331,7 @@ uitree_load_resolve_chat_font_id(struct BuildCacheDat* bcd, char const* ini_font
     static char const* const fallback[] = { "p11", "p12", "b12", "q8" };
     for( int i = 0; i < 4; i++ )
     {
-        int id = buildcachedat_get_font_ref_id(bcd, fallback[i]);
+        int id = gamecache_get_font_ref_id(bcd, fallback[i]);
         if( id >= 0 )
             return id;
     }
@@ -1343,7 +1345,7 @@ load_layout(
     struct UITree* ui,
     struct UIScene* ui_scene,
     struct Scene2* scene2,
-    struct BuildCacheDat* buildcachedat,
+    struct GameCache* buildcachedat,
     struct UIInventoryPool* inv_pool,
     struct GGame* game)
 {
@@ -1415,7 +1417,7 @@ load_layout(
             int font_id = -1;
             if( component_entry->font[0] != '\0' )
             {
-                font_id = buildcachedat_get_font_ref_id(
+                font_id = gamecache_get_font_ref_id(
                     buildcachedat,
                     component_entry->font);
             }
@@ -1632,21 +1634,28 @@ load_item(
     struct UITree* ui,
     struct UIScene* ui_scene,
     struct Scene2* scene2,
-    struct BuildCacheDat* buildcachedat,
     struct UIInventoryPool* inv_pool,
     struct GGame* game)
 {
     switch( load->kind )
     {
     case LOAD_KIND_SPRITE:
-        load_sprite(&load->_sprite, sprite_hmap, ui, ui_scene, buildcachedat);
+        load_sprite(&load->_sprite, sprite_hmap, ui, ui_scene, game->buildcachedat);
         break;
     case LOAD_KIND_COMPONENT:
-        load_component(&load->_component, sprite_hmap, component_hmap, ui, ui_scene, buildcachedat);
+        load_component(
+            &load->_component, sprite_hmap, component_hmap, ui, ui_scene, game->gamecache);
         break;
     case LOAD_KIND_LAYOUT:
         load_layout(
-            &load->_layout, component_hmap, ui, ui_scene, scene2, buildcachedat, inv_pool, game);
+            &load->_layout,
+            component_hmap,
+            ui,
+            ui_scene,
+            scene2,
+            game->gamecache,
+            inv_pool,
+            game);
         break;
     case LOAD_KIND_INV:
         load_inv(&load->_inv, inv_pool, game, ui_scene);
@@ -1709,7 +1718,6 @@ uitree_from_revconfig_buildcachedat(
     struct UITree* ui,
     struct UIScene* ui_scene,
     struct Scene2* scene2,
-    struct BuildCacheDat* buildcachedat,
     struct UIInventoryPool* inv_pool,
     struct GGame* game,
     struct RevConfigBuffer* revconfig_buffer)
@@ -1762,7 +1770,6 @@ uitree_from_revconfig_buildcachedat(
                 ui,
                 ui_scene,
                 scene2,
-                buildcachedat,
                 inv_pool,
                 game);
             load.kind = LOAD_KIND_NONE;
@@ -2313,7 +2320,7 @@ uitree_expand_sidebar_for_tab(
     int tabno,
     int component_id)
 {
-    if( !game || !game->ui_root_buffer || !game->ui_scene || !game->buildcachedat )
+    if( !game || !game->ui_root_buffer || !game->ui_scene || !game->gamecache )
         return;
 
     struct UITree* ui = game->ui_root_buffer;
@@ -2343,7 +2350,7 @@ uitree_expand_sidebar_for_tab(
             ui,
             game->ui_scene,
             game->scene2,
-            game->buildcachedat,
+            game->gamecache,
             sidebar_idx,
             component_id,
             sb->u.sidebar.inv_index);
@@ -2408,7 +2415,6 @@ uitree_load_ui_from_revconfig(
     struct UITree* ui,
     struct UIScene* ui_scene,
     struct Scene2* scene2,
-    struct BuildCacheDat* buildcachedat,
     struct UIInventoryPool* inv_pool,
     struct GGame* game,
     struct RevConfigBuffer* revconfig_buffer)
@@ -2456,7 +2462,6 @@ uitree_load_ui_from_revconfig(
                     ui,
                     ui_scene,
                     scene2,
-                    buildcachedat,
                     inv_pool,
                     game);
             load.kind = LOAD_KIND_NONE;

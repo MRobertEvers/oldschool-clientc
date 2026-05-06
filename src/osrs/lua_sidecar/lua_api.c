@@ -4,6 +4,7 @@
 #include "lua_dash.h"
 #include "lua_game.h"
 #include "lua_sidecar_misc.h"
+#include "lua_gamecache.h"
 #include "lua_ui.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/game.h"
@@ -27,6 +28,7 @@ static const char* const k_lua_api_full[LUA_API__COUNT] = {
 #include "lua_dash_api.inc"
 #include "lua_ui_api.inc"
 #include "lua_sidecar_misc_api.inc"
+#include "lua_gamecache_api.inc"
 #undef LUA_API_X
 };
 
@@ -38,6 +40,7 @@ static const char* const k_lua_api_suffix[LUA_API__COUNT] = {
 #include "lua_dash_api.inc"
 #include "lua_ui_api.inc"
 #include "lua_sidecar_misc_api.inc"
+#include "lua_gamecache_api.inc"
 #undef LUA_API_X
 };
 
@@ -49,6 +52,7 @@ static const signed char k_lua_api_dom[LUA_API__COUNT] = {
 #include "lua_dash_api.inc"
 #include "lua_ui_api.inc"
 #include "lua_sidecar_misc_api.inc"
+#include "lua_gamecache_api.inc"
 #undef LUA_API_X
 };
 

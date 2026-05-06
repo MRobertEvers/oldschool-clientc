@@ -81,6 +81,14 @@ end
 local function load_scenery_configs_mapchunk(mapx, mapz)
     Game.BuildCacheDat.scenery_config_load_mapchunk_from_config_jagfile(mapx, mapz)
 end
+
+local function load_scenery_models(chunk_sw_x, chunk_sw_z, chunk_ne_x, chunk_ne_z)
+    for mapx = chunk_sw_x, chunk_ne_x do
+        for mapz = chunk_sw_z, chunk_ne_z do
+            load_scenery_models_mapchunk(mapx, mapz)
+        end
+    end
+end
 -- ---------------------------------------------------------------------------
 -- world_rebuild_centerzone_slow
 --
@@ -95,6 +103,7 @@ local function world_rebuild_centerzone_slow(zone_center_x, zone_center_z, scene
 
     -- Sequences are stored in an continuous blob and cannot be decoded by id.
     Game.BuildCacheDat.sequences_init_from_config_jagfile()
+    Game.GameCache.convert_sequences_from_buildcachedat()
 
 
     print(string.format(
@@ -111,8 +120,13 @@ local function world_rebuild_centerzone_slow(zone_center_x, zone_center_z, scene
 
             load_chunk_map_scenery_and_terrain(mapx, mapz)
 
+            Game.GameCache.convert_map_terrain_chunk_from_buildcachedat(mapx, mapz)
+            Game.GameCache.convert_scenery_chunk_from_buildcachedat(mapx, mapz)
+
             load_scenery_configs_mapchunk(mapx, mapz)
+            Game.GameCache.convert_loc_configs_chunk_from_buildcachedat(mapx, mapz)
             load_scenery_models_mapchunk(mapx, mapz)
+            Game.GameCache.convert_models_chunk_from_buildcachedat(mapx, mapz)
 
             safe_gc()
             print_heap("after animations + GC")
@@ -158,7 +172,7 @@ local function world_rebuild_centerzone(zone_center_x, zone_center_z, scene_size
     -- Load all terrain and scenery upfront.
     for mapx = chunk_sw_x, chunk_ne_x do
         for mapz = chunk_sw_z, chunk_ne_z do
-            load_chunk_map_data(mapx, mapz)
+            load_chunk_map_scenery_and_terrain(mapx, mapz)
         end
     end
     safe_gc()
@@ -170,9 +184,11 @@ local function world_rebuild_centerzone(zone_center_x, zone_center_z, scene_size
     safe_gc()
     print_heap("after scenery config init + clear config jagfile")
 
-    load_scenery_models()
+    load_scenery_models(chunk_sw_x, chunk_sw_z, chunk_ne_x, chunk_ne_z)
     safe_gc()
     print_heap("after bulk model load")
+
+    Game.GameCache.convert_all_from_buildcachedat()
 
     -- Build the scene in one monolithic C call.
     Game.Game.build_scene_centerzone(zone_center_x, zone_center_z, scene_size)
@@ -185,6 +201,7 @@ local function global_load_textures()
         CacheDat.ConfigDatKind.CONFIG_DAT_TEXTURES)
     Game.BuildCacheDat.cache_textures(texture_sprites_ptr)
     Game.Dash.load_textures()
+    Game.GameCache.convert_reftables_from_buildcachedat()
 end
 
 local function global_load_animations()
@@ -205,6 +222,7 @@ local function global_load_animations()
             Game.BuildCacheDat.animbaseframes_cache_add(archive)
         end
     end
+    Game.GameCache.convert_animbaseframes_from_buildcachedat()
 end
 
 
@@ -234,6 +252,7 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     print("=== Loading Config (non-scenery tables) ===")
     Game.BuildCacheDat.floortypes_init_from_config_jagfile()
     Game.BuildCacheDat.init_varp_varbit_from_config_jagfile()
+    Game.GameCache.convert_floortypes_from_buildcachedat()
     safe_gc()
 
     print_heap("after non-scenery config init")

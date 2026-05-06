@@ -5,9 +5,9 @@
 #include "entity_vec.h"
 #include "game_entity.h"
 #include "osrs/blendmap.h"
-#include "osrs/buildcachedat.h"
 #include "osrs/collision_map.h"
 #include "osrs/datatypes/player_appearance.h"
+#include "osrs/gamecache/gamecache.h"
 #include "osrs/heightmap.h"
 #include "osrs/lightmap.h"
 #include "osrs/minimap.h"
@@ -145,7 +145,7 @@ struct World
     int contour_ground_queue_count;
     int contour_ground_queue_cap;
 
-    struct BuildCacheDat* buildcachedat;
+    struct GameCache* gamecache;
 
     /** Terrain: pointers to shared geometry per level. With scene2, Scene2 owns the arrays
      * (register/unregister); these are non-owning. Without scene2, world frees them. */
@@ -156,7 +156,7 @@ struct World
 
 struct World*
 world_new(
-    struct BuildCacheDat* buildcachedat,
+    struct GameCache* gamecache,
     struct Scene2* scene2_shared);
 
 void

@@ -140,30 +140,30 @@ scenery_element_position_init(
  */
 static void
 apply_transforms(
-    struct CacheConfigLocation* loc,
-    struct CacheModel* model,
+    struct GameCacheLoc* loc,
+    struct GameCacheModel* model,
     int orientation,
     int old_revision)
 {
     // This should never be called on a shared model.
-    assert((model->_flags & CMODEL_FLAG_SHARED) == 0);
+    assert((model->_flags & GAMECACHE_MODEL_FLAG_SHARED) == 0);
 
     for( int i = 0; i < loc->recolor_count; i++ )
     {
-        model_transform_recolor(model, loc->recolors_from[i], loc->recolors_to[i]);
+        gamecache_model_transform_recolor(model, loc->recolors_from[i], loc->recolors_to[i]);
 
         // From rsmapviewer
         // const retexture =
         // locType.cacheInfo.game === "runescape" && locType.cacheInfo.revision <= 464;
         if( old_revision )
         {
-            model_transform_retexture(model, loc->recolors_from[i], loc->recolors_to[i]);
+            gamecache_model_transform_retexture(model, loc->recolors_from[i], loc->recolors_to[i]);
         }
     }
 
     for( int i = 0; i < loc->retexture_count; i++ )
     {
-        model_transform_retexture(model, loc->retextures_from[i], loc->retextures_to[i]);
+        gamecache_model_transform_retexture(model, loc->retextures_from[i], loc->retextures_to[i]);
     }
 
     bool mirrored = (loc->mirrored != (orientation > 3));
@@ -173,16 +173,16 @@ apply_transforms(
     // TODO: handle the other contoured ground types.
 
     if( mirrored )
-        model_transform_mirror(model);
+        gamecache_model_transform_mirror(model);
 
     if( oriented )
-        model_transform_orient(model, orientation);
+        gamecache_model_transform_orient(model, orientation);
 
     if( scaled )
-        model_transform_scale(model, loc->resize_x, loc->resize_z, loc->resize_height);
+        gamecache_model_transform_scale(model, loc->resize_x, loc->resize_z, loc->resize_height);
 
     if( translated )
-        model_transform_translate(model, loc->offset_x, loc->offset_y, loc->offset_z);
+        gamecache_model_transform_translate(model, loc->offset_x, loc->offset_y, loc->offset_z);
 
     // if( hillskewed )
     //     model_transform_hillskew(model, sw_height, se_height, ne_height, nw_height);
@@ -192,20 +192,20 @@ static void
 world_load_scenery_model(
     struct World* world,
     struct MapBuildLocEntity* entity,
-    struct CacheMapLoc* map_tile,
+    struct GameCacheMapLoc* map_tile,
     struct EntitySceneCoord* entity_scene_coord,
     struct EntitySceneElement* entity_scene_element,
     int shape_select,
     int rotation,
     int size_x,
     int size_z,
-    struct CacheConfigLocation* config_loc)
+    struct GameCacheLoc* config_loc)
 {
     /* Snapshot before model work: heavy alloc may grow entity_vec and invalidate
      * entity_scene_element if it pointed into reallocated storage. */
     const int element_id = entity_scene_element->element_id;
 
-    struct CacheModel* model = NULL;
+    struct GameCacheModel* model = NULL;
 
     if( entity_scene_element->element_id < 0 )
     {
@@ -219,7 +219,7 @@ world_load_scenery_model(
     int model_ids[10];
     int model_ids_count = 0;
 
-    struct CacheModel* models[10];
+    struct GameCacheModel* models[10];
     int models_count = 0;
 
     int* shapes = config_loc->shapes;
@@ -238,7 +238,7 @@ world_load_scenery_model(
             int model_id = model_id_sets[0][i];
             assert(model_id);
 
-            model = buildcachedat_get_model(world->buildcachedat, model_id);
+            model = gamecache_get_model(world->gamecache, model_id);
             if( !model )
                 printf("Model not found: %d\n", model_id);
             assert(model);
@@ -263,7 +263,7 @@ world_load_scenery_model(
                     int model_id = model_id_sets[i][j];
                     assert(model_id);
 
-                    model = buildcachedat_get_model(world->buildcachedat, model_id);
+                    model = gamecache_get_model(world->gamecache, model_id);
                     if( !model )
                         printf("Model not found: %d\n", model_id);
                     assert(model);
@@ -286,11 +286,11 @@ world_load_scenery_model(
 
     if( models_count > 1 )
     {
-        model = model_new_merge(models, models_count);
+        model = gamecache_model_new_merge(models, models_count);
     }
     else
     {
-        model = model_new_copy(models[0]);
+        model = gamecache_model_new_copy(models[0]);
     }
 
     struct DashModel* dash_model = NULL;
@@ -298,8 +298,8 @@ world_load_scenery_model(
 
     apply_transforms(config_loc, model, rotation, true);
 
-    dash_model = dashmodel_new_from_cache_model(model);
-    model_free(model);
+    dash_model = dashmodel_new_from_gamecache_model(model);
+    gamecache_model_free(model);
 
     scene_element = scene2_element_at(world->scene2, element_id);
     if( !scene_element )
@@ -349,7 +349,7 @@ static void
 scenery_init_from_config_loc(
     struct World* world,
     struct MapBuildLocEntity* entity,
-    struct CacheConfigLocation* config_loc)
+    struct GameCacheLoc* config_loc)
 {
     entity->interactable = config_loc->is_interactive;
 
@@ -373,8 +373,8 @@ static void
 scenery_add_wall_single(
     struct World* world,
     struct MapBuildLocEntity* entity,
-    struct CacheMapLoc* map_tile,
-    struct CacheConfigLocation* config_loc)
+    struct GameCacheMapLoc* map_tile,
+    struct GameCacheLoc* config_loc)
 {
     entity->scene_element.element_id =
         scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
@@ -449,8 +449,8 @@ static void
 scenery_add_wall_tri_corner(
     struct World* world,
     struct MapBuildLocEntity* entity,
-    struct CacheMapLoc* map_tile,
-    struct CacheConfigLocation* config_loc)
+    struct GameCacheMapLoc* map_tile,
+    struct GameCacheLoc* config_loc)
 {
     entity->scene_element.element_id =
         scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
@@ -524,8 +524,8 @@ static void
 scenery_add_wall_two_sides(
     struct World* world,
     struct MapBuildLocEntity* entity,
-    struct CacheMapLoc* map_tile,
-    struct CacheConfigLocation* config_loc)
+    struct GameCacheMapLoc* map_tile,
+    struct GameCacheLoc* config_loc)
 {
     entity->scene_element.element_id =
         scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
@@ -637,8 +637,8 @@ static void
 scenery_add_wall_rect_corner(
     struct World* world,
     struct MapBuildLocEntity* entity,
-    struct CacheMapLoc* map_tile,
-    struct CacheConfigLocation* config_loc)
+    struct GameCacheMapLoc* map_tile,
+    struct GameCacheLoc* config_loc)
 {
     entity->scene_element.element_id =
         scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
@@ -711,8 +711,8 @@ static void
 scenery_add_wall_decor_inside(
     struct World* world,
     struct MapBuildLocEntity* entity,
-    struct CacheMapLoc* map_tile,
-    struct CacheConfigLocation* config_loc)
+    struct GameCacheMapLoc* map_tile,
+    struct GameCacheLoc* config_loc)
 {
     entity->scene_element.element_id =
         scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
@@ -788,8 +788,8 @@ static void
 scenery_add_wall_decor_outside(
     struct World* world,
     struct MapBuildLocEntity* entity,
-    struct CacheMapLoc* map_tile,
-    struct CacheConfigLocation* config_loc)
+    struct GameCacheMapLoc* map_tile,
+    struct GameCacheLoc* config_loc)
 {
     entity->scene_element.element_id =
         scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
@@ -867,8 +867,8 @@ static void
 scenery_add_wall_decor_diagonal_outside(
     struct World* world,
     struct MapBuildLocEntity* entity,
-    struct CacheMapLoc* map_tile,
-    struct CacheConfigLocation* config_loc)
+    struct GameCacheMapLoc* map_tile,
+    struct GameCacheLoc* config_loc)
 {
     entity->scene_element.element_id =
         scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
@@ -950,8 +950,8 @@ static void
 scenery_add_wall_decor_diagonal_inside(
     struct World* world,
     struct MapBuildLocEntity* entity,
-    struct CacheMapLoc* map_tile,
-    struct CacheConfigLocation* config_loc)
+    struct GameCacheMapLoc* map_tile,
+    struct GameCacheLoc* config_loc)
 {
     entity->scene_element.element_id =
         scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
@@ -1031,8 +1031,8 @@ static void
 scenery_add_wall_decor_diagonal_double(
     struct World* world,
     struct MapBuildLocEntity* entity,
-    struct CacheMapLoc* map_tile,
-    struct CacheConfigLocation* config_loc)
+    struct GameCacheMapLoc* map_tile,
+    struct GameCacheLoc* config_loc)
 {
     entity->scene_element.element_id =
         scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
@@ -1172,8 +1172,8 @@ static void
 scenery_add_wall_diagonal(
     struct World* world,
     struct MapBuildLocEntity* entity,
-    struct CacheMapLoc* map_tile,
-    struct CacheConfigLocation* config_loc)
+    struct GameCacheMapLoc* map_tile,
+    struct GameCacheLoc* config_loc)
 {
     entity->scene_element.element_id =
         scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
@@ -1237,8 +1237,8 @@ static void
 scenery_add_normal(
     struct World* world,
     struct MapBuildLocEntity* entity,
-    struct CacheMapLoc* map_tile,
-    struct CacheConfigLocation* config_loc)
+    struct GameCacheMapLoc* map_tile,
+    struct GameCacheLoc* config_loc)
 {
     entity->scene_element.element_id =
         scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
@@ -1330,8 +1330,8 @@ static void
 scenery_add_roof(
     struct World* world,
     struct MapBuildLocEntity* entity,
-    struct CacheMapLoc* map_tile,
-    struct CacheConfigLocation* config_loc)
+    struct GameCacheMapLoc* map_tile,
+    struct GameCacheLoc* config_loc)
 {
     entity->scene_element.element_id =
         scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
@@ -1386,8 +1386,8 @@ static void
 scenery_add_floor_decoration(
     struct World* world,
     struct MapBuildLocEntity* entity,
-    struct CacheMapLoc* map_tile,
-    struct CacheConfigLocation* config_loc)
+    struct GameCacheMapLoc* map_tile,
+    struct GameCacheLoc* config_loc)
 {
     entity->scene_element.element_id =
         scenery_element_acquire(world, entity->entity_id, config_loc->seq_id != -1);
@@ -1442,8 +1442,8 @@ static void
 scenery_add(
     struct World* world,
     struct MapBuildLocEntity* entity,
-    struct CacheMapLoc* map_tile,
-    struct CacheConfigLocation* config_loc)
+    struct GameCacheMapLoc* map_tile,
+    struct GameCacheLoc* config_loc)
 {
     scenery_init_from_config_loc(world, entity, config_loc);
 
@@ -1562,8 +1562,8 @@ world_contour_ground(struct World* world)
             if( ese->element_id < 0 )
                 continue;
 
-            struct CacheConfigLocation* config_loc =
-                buildcachedat_get_config_loc(world->buildcachedat, r->loc_id);
+            struct GameCacheLoc* config_loc =
+                gamecache_get_config_loc(world->gamecache, r->loc_id);
             if( !config_loc || config_loc->contour_ground_type == 0 )
                 continue;
 

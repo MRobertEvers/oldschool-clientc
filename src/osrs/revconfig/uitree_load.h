@@ -2,6 +2,7 @@
 #define UITREE_LOAD_H
 
 #include "osrs/buildcachedat.h"
+#include "osrs/gamecache/gamecache.h"
 #include "revconfig.h"
 #include "uiscene.h"
 #include "uitree.h"
@@ -14,7 +15,6 @@ uitree_from_revconfig_buildcachedat(
     struct UITree* ui,
     struct UIScene* ui_scene,
     struct Scene2* scene2,
-    struct BuildCacheDat* buildcachedat,
     struct UIInventoryPool* inv_pool,
     struct GGame* game,
     struct RevConfigBuffer* revconfig_buffer);
@@ -37,7 +37,6 @@ uitree_load_ui_from_revconfig(
     struct UITree* ui,
     struct UIScene* ui_scene,
     struct Scene2* scene2,
-    struct BuildCacheDat* buildcachedat,
     struct UIInventoryPool* inv_pool,
     struct GGame* game,
     struct RevConfigBuffer* revconfig_buffer);

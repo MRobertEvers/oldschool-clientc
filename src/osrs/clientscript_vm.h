@@ -161,19 +161,19 @@ clientscript_vm_active(
  * Legacy shims — kept for callers that still pass CacheDatConfigComponent* during
  * the ui_agnostic_translation transition.  Will be removed once that todo is done.
  */
-struct CacheDatConfigComponent;
+struct GameCacheComponent;
 
 int
 clientscript_vm_if_var(
     struct ClientScriptVM* vm,
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct GameCacheComponent* component,
     int script_id);
 
 bool
 clientscript_vm_if_active(
     struct ClientScriptVM* vm,
     struct GGame* game,
-    struct CacheDatConfigComponent* component);
+    struct GameCacheComponent* component);
 
 #endif /* CLIENTSCRIPT_VM_H */

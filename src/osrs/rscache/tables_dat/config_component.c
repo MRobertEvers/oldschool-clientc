@@ -22,6 +22,7 @@ init_component(struct CacheDatConfigComponent* component)
     component->overlayer = -1;
     component->scriptComparator = NULL;
     component->scriptOperand = NULL;
+    component->script_comparator_count = 0;
     component->scripts = NULL;
     component->scripts_count = 0;
     component->scripts_lengths = NULL;
@@ -111,6 +112,7 @@ decode_component(
     int comparatorCount = g1(inb);
     if( comparatorCount > 0 )
     {
+        component->script_comparator_count = comparatorCount;
         component->scriptComparator = malloc(comparatorCount * sizeof(int));
         memset(component->scriptComparator, 0, comparatorCount * sizeof(int));
         component->scriptOperand = malloc(comparatorCount * sizeof(int));

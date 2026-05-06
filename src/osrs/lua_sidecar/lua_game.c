@@ -4,6 +4,7 @@
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
+#include "osrs/gamecache/gamecache.h"
 #include "osrs/dash_utils.h"
 #include "osrs/game.h"
 #include "osrs/rscache/tables_dat/config_component.h"
@@ -175,7 +176,7 @@ LuaGame_get_interface_model_ids(
     struct LuaGameType* args)
 {
     (void)args;
-    if( !game || !game->buildcachedat || !game->buildcachedat->component_hmap )
+    if( !game || !game->gamecache || !game->gamecache->component_hmap )
         return LuaGameType_NewIntArray(0);
 
     enum
@@ -185,13 +186,13 @@ LuaGame_get_interface_model_ids(
     int tmp[kMaxIds];
     int n = 0;
 
-    struct DashMapIter* it = buildcachedat_component_iter_new(game->buildcachedat);
+    struct DashMapIter* it = gamecache_component_iter_new(game->gamecache);
     if( !it )
         return LuaGameType_NewIntArray(0);
 
     int cid = 0;
-    struct CacheDatConfigComponent* c = NULL;
-    while( (c = buildcachedat_component_iter_next(it, &cid)) != NULL )
+    struct GameCacheComponent* c = NULL;
+    while( (c = gamecache_component_iter_next(it, &cid)) != NULL )
     {
         if( c->type != COMPONENT_TYPE_MODEL || c->modelType != 1 )
             continue;
@@ -265,6 +266,8 @@ LuaGame_rebuild_centerzone_end(
 
     LibToriRS_WorldMinimapStaticRebuild(game);
     buildcachedat_clear(game->buildcachedat);
+    if( game->gamecache )
+        gamecache_clear(game->gamecache);
 
     return LuaGameType_NewVoid();
 }
@@ -307,6 +310,8 @@ LuaGame_rebuild_centerzone_slow(
 
     LibToriRS_WorldMinimapStaticRebuild(game);
     buildcachedat_clear(game->buildcachedat);
+    if( game->gamecache )
+        gamecache_clear(game->gamecache);
 
     return LuaGameType_NewVoid();
 }
@@ -322,16 +327,16 @@ LuaGame_spawn_element(
     int model_id = arg_int(args, 3);
     int seq_id = arg_int(args, 4);
 
-    if( !game || !game->scene2 || !game->buildcachedat )
+    if( !game || !game->scene2 || !game->gamecache )
         return LuaGameType_NewVoid();
 
-    struct CacheModel* cache_model = buildcachedat_get_model(game->buildcachedat, model_id);
+    struct GameCacheModel* cache_model = gamecache_get_model(game->gamecache, model_id);
     if( !cache_model )
         return LuaGameType_NewVoid();
 
-    struct CacheModel* model_copy = model_new_copy(cache_model);
-    struct DashModel* dash_model = dashmodel_new_from_cache_model(model_copy);
-    model_free(model_copy);
+    struct GameCacheModel* model_copy = gamecache_model_new_copy(cache_model);
+    struct DashModel* dash_model = dashmodel_new_from_gamecache_model(model_copy);
+    gamecache_model_free(model_copy);
     if( !dash_model )
         return LuaGameType_NewVoid();
 
@@ -373,7 +378,7 @@ LuaGame_spawn_element(
 
     scene2_element_set_dash_model(game->scene2, element, dash_model);
 
-    struct CacheDatSequence* sequence = buildcachedat_get_sequence(game->buildcachedat, seq_id);
+    struct GameCacheSequence* sequence = gamecache_get_sequence(game->gamecache, seq_id);
     if( sequence )
         world_projectile_entity_set_animation(
             game->world, projectile_id, seq_id, ANIMATION_TYPE_PRIMARY);

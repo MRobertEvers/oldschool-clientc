@@ -6,5 +6,6 @@ export const luaApiDomainMaps = [
   new Map([["load_textures", 93]]),
   new Map([["load_revconfig", 94], ["load_fonts", 95], ["load_rs_components", 96], ["resolve_inv_sprites", 97], ["parse_revconfig", 98], ["get_revconfig_inv_obj_ids", 99], ["load_revconfig_inventories", 100], ["load_revconfig_ui", 101]]),
   new Map([["read_cullmap_from_blob", 102], ["save_camera", 103], ["load_camera", 104]]),
+  new Map([["convert_all_from_buildcachedat", 105], ["convert_reftables_from_buildcachedat", 106], ["convert_floortypes_from_buildcachedat", 107], ["convert_sequences_from_buildcachedat", 108], ["convert_animbaseframes_from_buildcachedat", 109], ["convert_npcs_from_buildcachedat", 110], ["convert_objs_from_buildcachedat", 111], ["convert_idks_from_buildcachedat", 112], ["convert_spotanims_from_buildcachedat", 113], ["convert_components_from_buildcachedat", 114], ["convert_map_terrain_chunk_from_buildcachedat", 115], ["convert_scenery_chunk_from_buildcachedat", 116], ["convert_loc_configs_chunk_from_buildcachedat", 117], ["convert_models_chunk_from_buildcachedat", 118], ["convert_npc_models_from_buildcachedat", 119], ["convert_obj_models_from_buildcachedat", 120], ["convert_idk_models_from_buildcachedat", 121]]),
 ];
 

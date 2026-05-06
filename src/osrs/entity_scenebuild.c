@@ -5,7 +5,7 @@
 #include "datatypes/player_appearance.h"
 #include "graphics/dash.h"
 #include "osrs/_light_model_default.u.c"
-#include "osrs/buildcachedat.h"
+#include "osrs/gamecache/gamecache.h"
 #include "osrs/game.h"
 #include "osrs/heightmap.h"
 #include "osrs/model_transforms.h"
@@ -24,45 +24,45 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static struct CacheModel*
+static struct GameCacheModel*
 idk_model(
     struct GGame* game,
     int idk_id)
 {
-    struct CacheModel* idk_model = buildcachedat_get_idk_model(game->buildcachedat, idk_id);
+    struct GameCacheModel* idk_model = gamecache_get_idk_model(game->gamecache, idk_id);
     if( idk_model )
     {
         return idk_model;
     }
 
-    struct CacheDatConfigIdk* idk = buildcachedat_get_idk(game->buildcachedat, idk_id);
+    struct GameCacheIdk* idk = gamecache_get_idk(game->gamecache, idk_id);
     if( !idk )
     {
         return NULL;
     }
 
-    struct CacheModel* models[12] = { 0 };
+    struct GameCacheModel* models[12] = { 0 };
     int model_count = 0;
     for( int i = 0; i < idk->models_count; i++ )
     {
-        models[model_count] = buildcachedat_get_model(game->buildcachedat, idk->models[i]);
+        models[model_count] = gamecache_get_model(game->gamecache, idk->models[i]);
         model_count++;
     }
 
-    struct CacheModel* merged = model_new_merge(models, model_count);
-    buildcachedat_add_idk_model(game->buildcachedat, idk_id, merged);
+    struct GameCacheModel* merged = gamecache_model_new_merge(models, model_count);
+    gamecache_add_idk_model(game->gamecache, idk_id, merged);
     return merged;
 }
 
 /* Ground object model (obj->model) for world-rendered items. Uses countobj for stack
- * variations (e.g. coin stacks). Returns CacheModel*; caller must not free (cached). */
-static struct CacheModel*
+ * variations (e.g. coin stacks). Returns GameCacheModel*; caller must not free (cached). */
+static struct GameCacheModel*
 obj_ground_model(
     struct GGame* game,
     int obj_id,
     int count)
 {
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
+    struct GameCacheObj* obj = gamecache_get_obj(game->gamecache, obj_id);
     if( !obj )
         return NULL;
 
@@ -84,60 +84,60 @@ obj_ground_model(
     if( obj->model == 0 || obj->model == -1 )
         return NULL;
 
-    struct CacheModel* model = buildcachedat_get_model(game->buildcachedat, obj->model);
+    struct GameCacheModel* model = gamecache_get_model(game->gamecache, obj->model);
     if( !model )
         return NULL;
 
-    struct CacheModel* copy = model_new_copy(model);
+    struct GameCacheModel* copy = gamecache_model_new_copy(model);
     for( int i = 0; i < obj->recol_count; i++ )
-        model_transform_recolor(copy, obj->recol_s[i], obj->recol_d[i]);
+        gamecache_model_transform_recolor(copy, obj->recol_s[i], obj->recol_d[i]);
     return copy;
 }
 
-static struct CacheModel*
+static struct GameCacheModel*
 obj_model(
     struct GGame* game,
     int obj_id)
 {
-    struct CacheModel* obj_model = buildcachedat_get_obj_model(game->buildcachedat, obj_id);
+    struct GameCacheModel* obj_model = gamecache_get_obj_model(game->gamecache, obj_id);
     if( obj_model )
     {
         return obj_model;
     }
 
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
+    struct GameCacheObj* obj = gamecache_get_obj(game->gamecache, obj_id);
     if( !obj )
     {
         return NULL;
     }
-    struct CacheModel* models[12] = { 0 };
+    struct GameCacheModel* models[12] = { 0 };
     int model_count = 0;
 
     if( obj->manwear != -1 )
     {
-        models[model_count] = buildcachedat_get_model(game->buildcachedat, obj->manwear);
+        models[model_count] = gamecache_get_model(game->gamecache, obj->manwear);
         assert(models[model_count] && "Model must be found");
         model_count++;
     }
     if( obj->manwear2 != -1 )
     {
-        models[model_count] = buildcachedat_get_model(game->buildcachedat, obj->manwear2);
+        models[model_count] = gamecache_get_model(game->gamecache, obj->manwear2);
         assert(models[model_count] && "Model must be found");
         model_count++;
     }
     if( obj->manwear3 != -1 )
     {
-        models[model_count] = buildcachedat_get_model(game->buildcachedat, obj->manwear3);
+        models[model_count] = gamecache_get_model(game->gamecache, obj->manwear3);
         assert(models[model_count] && "Model must be found");
         model_count++;
     }
 
-    struct CacheModel* merged = model_new_merge(models, model_count);
-    buildcachedat_add_obj_model(game->buildcachedat, obj_id, merged);
+    struct GameCacheModel* merged = gamecache_model_new_merge(models, model_count);
+    gamecache_add_obj_model(game->gamecache, obj_id, merged);
 
     for( int i = 0; i < obj->recol_count; i++ )
     {
-        model_transform_recolor(merged, obj->recol_s[i], obj->recol_d[i]);
+        gamecache_model_transform_recolor(merged, obj->recol_s[i], obj->recol_d[i]);
     }
 
     return merged;
@@ -150,7 +150,7 @@ obj_stack_sort_key(
     struct GGame* game,
     struct ObjStackEntry* e)
 {
-    struct CacheDatConfigObj* o = buildcachedat_get_obj(game->buildcachedat, e->obj_id);
+    struct GameCacheObj* o = gamecache_get_obj(game->gamecache, e->obj_id);
     if( !o )
         return 0;
     int64_t c = (int64_t)o->cost;
@@ -254,7 +254,7 @@ entity_scenebuild_obj_stack_update_tile(
     ent->scene_coord.sz = (uint32_t)psz;
     ent->scene_coord.slevel = (uint32_t)(level & 0xf);
 
-    struct CacheModel* cm = obj_ground_model(game, head->obj_id, head->count);
+    struct GameCacheModel* cm = obj_ground_model(game, head->obj_id, head->count);
     if( !cm )
     {
         world_cleanup_obj_stack_entity(w, eid);
@@ -280,7 +280,7 @@ entity_scenebuild_obj_stack_update_tile(
 
     if( !scene2_element_dash_model(se) )
         scene2_element_set_dash_model(w->scene2, se, dashmodel_new());
-    dashmodel_move_from_cache_model(scene2_element_dash_model(se), cm);
+    dashmodel_move_from_gamecache_model(scene2_element_dash_model(se), cm);
     _light_model_default(scene2_element_dash_model(se), 0, 0);
 
     if( !scene2_element_dash_position(se) )
@@ -305,11 +305,11 @@ player_appearance_model(
 {
     // assert(dash_model && !dash_model->loaded && "Dash model must be provided");
     assert(dash_model && "Dash model must be provided");
-    struct CacheModel* model = NULL;
-    struct CacheModel* merged = NULL;
+    struct GameCacheModel* model = NULL;
+    struct GameCacheModel* merged = NULL;
     struct AppearanceOp op;
     int model_count = 0;
-    struct CacheModel* models[12];
+    struct GameCacheModel* models[12];
     for( int i = 0; i < 12; i++ )
     {
         model = NULL;
@@ -332,11 +332,11 @@ player_appearance_model(
         }
     }
 
-    merged = model_new_merge(models, model_count);
+    merged = gamecache_model_new_merge(models, model_count);
     assert(merged->vertices_x && "Merged model must have vertices");
     assert(merged->vertices_y && "Merged model must have vertices");
     assert(merged->vertices_z && "Merged model must have vertices");
-    dashmodel_move_from_cache_model(dash_model, merged);
+    dashmodel_move_from_gamecache_model(dash_model, merged);
     _light_model_default(dash_model, 0, 0);
 }
 
@@ -376,46 +376,46 @@ npc_model(
     int npc_type,
     struct DashModel* dash_model)
 {
-    struct CacheDatConfigNpc* npc = NULL;
-    struct CacheModel* models[20];
-    struct CacheModel* copy = NULL;
-    struct CacheModel* merged = NULL;
+    struct GameCacheNpc* npc = NULL;
+    struct GameCacheModel* models[20];
+    struct GameCacheModel* copy = NULL;
+    struct GameCacheModel* merged = NULL;
 
-    struct CacheModel* model = buildcachedat_get_npc_model(game->buildcachedat, npc_type);
+    struct GameCacheModel* model = gamecache_get_npc_model(game->gamecache, npc_type);
     if( model )
     {
-        dashmodel_move_from_cache_model(dash_model, model_new_copy(model));
+        dashmodel_move_from_gamecache_model(dash_model, gamecache_model_new_copy(model));
         _light_model_default(dash_model, 0, 0);
         return;
     }
-    npc = buildcachedat_get_npc(game->buildcachedat, npc_type);
+    npc = gamecache_get_npc(game->gamecache, npc_type);
 
     int model_count = 0;
     for( int i = 0; i < npc->models_count; i++ )
     {
-        struct CacheModel* got_model = buildcachedat_get_model(game->buildcachedat, npc->models[i]);
+        struct GameCacheModel* got_model = gamecache_get_model(game->gamecache, npc->models[i]);
         assert(got_model && "Model must be found");
 
         models[model_count] = got_model;
         model_count++;
     }
 
-    merged = model_new_merge(models, model_count);
+    merged = gamecache_model_new_merge(models, model_count);
 
     assert(merged->vertices_x && "Merged model must have vertices");
     assert(merged->vertices_y && "Merged model must have vertices");
     assert(merged->vertices_z && "Merged model must have vertices");
 
-    buildcachedat_add_npc_model(game->buildcachedat, npc_type, merged);
+    gamecache_add_npc_model(game->gamecache, npc_type, merged);
 
-    copy = model_new_copy(merged);
+    copy = gamecache_model_new_copy(merged);
 
     for( int i = 0; i < npc->recol_count; i++ )
     {
-        model_transform_recolor(copy, npc->recol_s[i], npc->recol_d[i]);
+        gamecache_model_transform_recolor(copy, npc->recol_s[i], npc->recol_d[i]);
     }
 
-    dashmodel_move_from_cache_model(dash_model, copy);
+    dashmodel_move_from_gamecache_model(dash_model, copy);
     _light_model_default(dash_model, 0, 0);
 }
 
@@ -423,25 +423,25 @@ npc_model(
  * Client.ts: IdkType.getHeadModel(), ObjType.getHeadModel(), NpcType.getHeadModel(),
  * ClientPlayer.getHeadModel() */
 
-static struct CacheModel*
+static struct GameCacheModel*
 idk_head_model(
     struct GGame* game,
     int idk_id)
 {
-    struct CacheDatConfigIdk* idk = buildcachedat_get_idk(game->buildcachedat, idk_id);
+    struct GameCacheIdk* idk = gamecache_get_idk(game->gamecache, idk_id);
     if( !idk )
     {
         printf("idk_head_model: idk_id=%d not found in buildcachedat\n", idk_id);
         return NULL;
     }
 
-    struct CacheModel* models[5] = { 0 };
+    struct GameCacheModel* models[5] = { 0 };
     int model_count = 0;
     for( int i = 0; i < 5; i++ )
     {
         if( idk->heads[i] != -1 && idk->heads[i] != 0 )
         {
-            struct CacheModel* m = buildcachedat_get_model(game->buildcachedat, idk->heads[i]);
+            struct GameCacheModel* m = gamecache_get_model(game->gamecache, idk->heads[i]);
             if( m )
                 models[model_count++] = m;
             else
@@ -458,19 +458,19 @@ idk_head_model(
         return NULL;
     }
 
-    struct CacheModel* merged = model_new_merge(models, model_count);
+    struct GameCacheModel* merged = gamecache_model_new_merge(models, model_count);
     for( int i = 0; i < 10 && idk->recol_s[i] != 0; i++ )
-        model_transform_recolor(merged, idk->recol_s[i], idk->recol_d[i]);
+        gamecache_model_transform_recolor(merged, idk->recol_s[i], idk->recol_d[i]);
     return merged;
 }
 
-static struct CacheModel*
+static struct GameCacheModel*
 obj_head_model(
     struct GGame* game,
     int obj_id,
     int gender)
 {
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
+    struct GameCacheObj* obj = gamecache_get_obj(game->gamecache, obj_id);
     if( !obj )
     {
         printf("obj_head_model: obj_id=%d not found in buildcachedat\n", obj_id);
@@ -486,7 +486,7 @@ obj_head_model(
         return NULL;
     }
 
-    struct CacheModel* m1 = buildcachedat_get_model(game->buildcachedat, head1);
+    struct GameCacheModel* m1 = gamecache_get_model(game->gamecache, head1);
     if( !m1 )
     {
         printf("obj_head_model: obj_id=%d head model %d not loaded\n", obj_id, head1);
@@ -495,30 +495,30 @@ obj_head_model(
 
     if( head2 != -1 )
     {
-        struct CacheModel* m2 = buildcachedat_get_model(game->buildcachedat, head2);
+        struct GameCacheModel* m2 = gamecache_get_model(game->gamecache, head2);
         if( m2 )
         {
-            struct CacheModel* models[2] = { m1, m2 };
-            m1 = model_new_merge(models, 2);
+            struct GameCacheModel* models[2] = { m1, m2 };
+            m1 = gamecache_model_new_merge(models, 2);
         }
     }
 
     for( int i = 0; i < obj->recol_count; i++ )
-        model_transform_recolor(m1, obj->recol_s[i], obj->recol_d[i]);
+        gamecache_model_transform_recolor(m1, obj->recol_s[i], obj->recol_d[i]);
 
     return m1;
 }
 
 /* Build player head model from appearance (ClientPlayer.getHeadModel).
  * Uses slots as uint16_t appearance values. */
-static struct CacheModel*
+static struct GameCacheModel*
 player_head_model(
     struct GGame* game,
     int* slots,
     int* colors)
 {
     struct AppearanceOp op;
-    struct CacheModel* models[12] = { 0 };
+    struct GameCacheModel* models[12] = { 0 };
     int model_count = 0;
     for( int i = 0; i < 12; i++ )
     {
@@ -526,7 +526,7 @@ player_head_model(
         for( int j = 0; j < 12; j++ )
             appearance_storage[j] = (uint16_t)slots[j];
         appearances_decode(&op, appearance_storage, i);
-        struct CacheModel* model = NULL;
+        struct GameCacheModel* model = NULL;
         switch( op.kind )
         {
         case APPEARANCE_KIND_IDK:
@@ -544,19 +544,19 @@ player_head_model(
     if( model_count == 0 )
         return NULL;
 
-    struct CacheModel* merged = model_new_merge(models, model_count);
+    struct GameCacheModel* merged = gamecache_model_new_merge(models, model_count);
     /* TODO: apply colors (recol_s/recol_d from design) for hair, torso, etc. */
     (void)colors;
     return merged;
 }
 
 /* Build NPC head model from npc type (NpcType.getHeadModel). */
-static struct CacheModel*
+static struct GameCacheModel*
 npc_head_model(
     struct GGame* game,
     int npc_type)
 {
-    struct CacheDatConfigNpc* npc = buildcachedat_get_npc(game->buildcachedat, npc_type);
+    struct GameCacheNpc* npc = gamecache_get_npc(game->gamecache, npc_type);
     if( !npc )
     {
         printf("npc_head_model: npc_type=%d not found in buildcachedat\n", npc_type);
@@ -568,13 +568,13 @@ npc_head_model(
         return NULL;
     }
 
-    struct CacheModel* models[16] = { 0 };
+    struct GameCacheModel* models[16] = { 0 };
     int model_count = 0;
     for( int i = 0; i < npc->heads_count; i++ )
     {
         if( npc->heads[i] != -1 )
         {
-            struct CacheModel* m = buildcachedat_get_model(game->buildcachedat, npc->heads[i]);
+            struct GameCacheModel* m = gamecache_get_model(game->gamecache, npc->heads[i]);
             if( m )
                 models[model_count++] = m;
             else
@@ -591,9 +591,9 @@ npc_head_model(
         return NULL;
     }
 
-    struct CacheModel* merged = model_new_merge(models, model_count);
+    struct GameCacheModel* merged = gamecache_model_new_merge(models, model_count);
     for( int i = 0; i < npc->recol_count; i++ )
-        model_transform_recolor(merged, npc->recol_s[i], npc->recol_d[i]);
+        gamecache_model_transform_recolor(merged, npc->recol_s[i], npc->recol_d[i]);
 
     return merged;
 }
@@ -607,7 +607,7 @@ entity_scenebuild_head_model_for_component(
     int* slots,
     int* colors)
 {
-    struct CacheModel* cache = NULL;
+    struct GameCacheModel* cache = NULL;
     if( model_type == 2 )
         cache = npc_head_model(game, model_id);
     else if( model_type == 3 && slots )
@@ -616,7 +616,7 @@ entity_scenebuild_head_model_for_component(
     if( !cache )
         return NULL;
 
-    struct DashModel* dash = dashmodel_new_from_cache_model(cache);
+    struct DashModel* dash = dashmodel_new_from_gamecache_model(cache);
     if( dash )
         _light_model_default(dash, 0, 0);
     return dash;

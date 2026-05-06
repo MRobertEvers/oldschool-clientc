@@ -1277,7 +1277,7 @@ buildcachedat_loader_finalize_scene(
     if( game->world )
         world_free(game->world);
 
-    game->world = world_new(buildcachedat, game->scene2);
+    game->world = world_new(game->gamecache, game->scene2);
 
     buildcachedat_clear_jagfiles(buildcachedat);
 
@@ -1299,7 +1299,7 @@ buildcachedat_loader_finalize_scene_centerzone(
     if( game->world )
         world_free(game->world);
 
-    game->world = world_new(buildcachedat, game->scene2);
+    game->world = world_new(game->gamecache, game->scene2);
 
     buildcachedat_clear_jagfiles(buildcachedat);
 
@@ -1318,7 +1318,7 @@ buildcachedat_loader_prepare_scene_centerzone(
     if( game->world )
         world_free(game->world);
 
-    game->world = world_new(buildcachedat, game->scene2);
+    game->world = world_new(game->gamecache, game->scene2);
     /* Jagfile lifecycle is managed by the caller (Lua).  The config jagfile must
      * remain valid through the chunk loop so per-chunk init_scenery_configs calls
      * can decode loc configs.  Do NOT clear jagfiles here. */

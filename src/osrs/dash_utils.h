@@ -9,6 +9,8 @@
 #include "osrs/rscache/tables_dat/pix32.h"
 #include "osrs/rscache/tables_dat/pix8.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
+#include "osrs/gamecache/gamecache_model.h"
+#include "osrs/gamecache/gamecache_animframe.h"
 
 struct CacheFrame;
 struct CacheFramemap;
@@ -52,5 +54,21 @@ struct DashModelBones*
 dashmodel_bones_new(
     const uint8_t* bone_map,
     int bone_count);
+
+/* GameCache path variants -- operate on GameCacheModel / GameCacheAnimframe. */
+
+struct DashModel*
+dashmodel_new_from_gamecache_model(struct GameCacheModel* model);
+
+void
+dashmodel_move_from_gamecache_model(
+    struct DashModel* dash_model,
+    struct GameCacheModel* model);
+
+struct DashFrame*
+dashframe_new_from_gamecache_animframe(struct GameCacheAnimframe* animframe);
+
+struct DashFramemap*
+dashframemap_new_from_gamecache_animframe(struct GameCacheAnimframe* animframe);
 
 #endif

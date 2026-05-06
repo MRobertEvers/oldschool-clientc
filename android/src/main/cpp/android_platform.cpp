@@ -1072,11 +1072,11 @@ scene_new_from_map(
     int y);
 struct TexturesCache*
 textures_cache_new(struct Cache* cache);
-struct BuildCacheDat;
+struct GameCache;
 struct Scene2;
 struct World*
 world_new(
-    struct BuildCacheDat* buildcachedat,
+    struct GameCache* gamecache,
     struct Scene2* scene2_shared);
 struct FrustrumCullmap*
 frustrum_cullmap_new(

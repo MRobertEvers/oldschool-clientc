@@ -2,6 +2,8 @@
 
 #include "graphics/dash_model_internal.h"
 #include "osrs/rscache/tables/model.h"
+#include "osrs/gamecache/gamecache_model.h"
+#include "osrs/gamecache/gamecache_animframe.h"
 
 #include <assert.h>
 #include <math.h>
@@ -422,4 +424,212 @@ dashmodel_bones_new(
     modelbones_free(model_bones);
 
     return bones;
+}
+
+/* ---------------------------------------------------------------------------
+ * GameCache path variants
+ * -------------------------------------------------------------------------*/
+
+void
+dashmodel_move_from_gamecache_model(struct DashModel* dash_model, struct GameCacheModel* model)
+{
+    assert(dash_model && model);
+    struct DashModelFull* dm = (struct DashModelFull*)(void*)dash_model;
+    assert((dm->flags & DASHMODEL_FLAG_VALID) != 0);
+    assert(dashmodel__is_full_layout(dash_model));
+
+    if( model->vertex_count > 0 && model->vertices_x && model->vertices_y && model->vertices_z )
+    {
+        dashmodel_set_vertices_i32(
+            dash_model, model->vertex_count, model->vertices_x, model->vertices_y,
+            model->vertices_z);
+        free(model->vertices_x);
+        free(model->vertices_y);
+        free(model->vertices_z);
+        model->vertices_x = NULL;
+        model->vertices_y = NULL;
+        model->vertices_z = NULL;
+    }
+
+    if( model->face_count > 0 && model->face_indices_a && model->face_indices_b &&
+        model->face_indices_c )
+    {
+        dashmodel_set_face_indices_i32(
+            dash_model, model->face_count, model->face_indices_a, model->face_indices_b,
+            model->face_indices_c);
+        free(model->face_indices_a);
+        free(model->face_indices_b);
+        free(model->face_indices_c);
+        model->face_indices_a = NULL;
+        model->face_indices_b = NULL;
+        model->face_indices_c = NULL;
+    }
+
+    int fc = model->face_count;
+    if( model->face_colors && fc > 0 )
+    {
+        dashmodel_set_face_colors_flat(dash_model, model->face_colors, fc);
+        free(model->face_colors);
+        model->face_colors = NULL;
+    }
+
+    if( fc > 0 )
+        dashmodel_alloc_lit_face_colors_zero(dash_model, fc);
+
+    if( model->face_alphas && fc > 0 )
+    {
+        dashmodel_set_face_alphas(dash_model, model->face_alphas, fc);
+        free(model->face_alphas);
+        model->face_alphas = NULL;
+    }
+
+    if( model->face_infos && fc > 0 )
+    {
+        int* infos = (int*)malloc((size_t)fc * sizeof(int));
+        for( int i = 0; i < fc; i++ )
+            infos[i] = model->face_infos[i];
+        dashmodel_set_face_infos(dash_model, infos, fc);
+        free(infos);
+        free(model->face_infos);
+        model->face_infos = NULL;
+    }
+
+    if( model->face_priorities && fc > 0 )
+    {
+        int* prios = (int*)malloc((size_t)fc * sizeof(int));
+        for( int i = 0; i < fc; i++ )
+            prios[i] = model->face_priorities[i];
+        dashmodel_set_face_priorities(dash_model, prios, fc);
+        free(prios);
+        free(model->face_priorities);
+        model->face_priorities = NULL;
+    }
+
+    int tfc = model->textured_face_count;
+    const bool had_per_face_tex_coords = (fc > 0 && model->face_texture_coords != NULL);
+    faceint_t* tp = NULL;
+    faceint_t* tm = NULL;
+    faceint_t* tn = NULL;
+    if( tfc > 0 && model->textured_p_coordinate && model->textured_m_coordinate &&
+        model->textured_n_coordinate )
+    {
+        tp = (faceint_t*)malloc((size_t)tfc * sizeof(faceint_t));
+        tm = (faceint_t*)malloc((size_t)tfc * sizeof(faceint_t));
+        tn = (faceint_t*)malloc((size_t)tfc * sizeof(faceint_t));
+        for( int i = 0; i < tfc; i++ )
+        {
+            tp[i] = (faceint_t)model->textured_p_coordinate[i];
+            tm[i] = (faceint_t)model->textured_m_coordinate[i];
+            tn[i] = (faceint_t)model->textured_n_coordinate[i];
+        }
+        free(model->textured_p_coordinate);
+        free(model->textured_m_coordinate);
+        free(model->textured_n_coordinate);
+        model->textured_p_coordinate = NULL;
+        model->textured_m_coordinate = NULL;
+        model->textured_n_coordinate = NULL;
+    }
+
+    faceint_t* ftc_arr = NULL;
+    if( fc > 0 && model->face_texture_coords )
+    {
+        ftc_arr = (faceint_t*)malloc((size_t)fc * sizeof(faceint_t));
+        for( int i = 0; i < fc; i++ )
+            ftc_arr[i] = (faceint_t)model->face_texture_coords[i];
+        free(model->face_texture_coords);
+        model->face_texture_coords = NULL;
+    }
+
+    dashmodel_set_texture_coords(dash_model, tfc, tp, tm, tn, ftc_arr, fc);
+    free(tp);
+    free(tm);
+    free(tn);
+    free(ftc_arr);
+
+    if( fc > 0 && model->face_textures )
+    {
+        dashmodel_set_face_textures_i16(dash_model, model->face_textures, fc);
+        free(model->face_textures);
+        model->face_textures = NULL;
+    }
+
+    dashmodel_set_has_textures(dash_model, (tfc > 0 || had_per_face_tex_coords));
+
+    dm->normals = NULL;
+    dm->merged_normals = NULL;
+
+    if( model->vertex_bone_map )
+        dm->vertex_bones = dashmodel_bones_new(model->vertex_bone_map, model->vertex_count);
+    if( model->face_bone_map )
+        dm->face_bones = dashmodel_bones_new(model->face_bone_map, model->face_count);
+
+    dashmodel_set_bounds_cylinder(dash_model);
+    dashmodel_set_loaded(dash_model, true);
+}
+
+struct DashModel*
+dashmodel_new_from_gamecache_model(struct GameCacheModel* model)
+{
+    struct DashModel* dash_model = dashmodelfull_new();
+    if( !dash_model )
+        return NULL;
+    dashmodel_move_from_gamecache_model(dash_model, model);
+    return dash_model;
+}
+
+struct DashFrame*
+dashframe_new_from_gamecache_animframe(struct GameCacheAnimframe* animframe)
+{
+    struct DashFrame* dashframe = malloc(sizeof(struct DashFrame));
+    memset(dashframe, 0, sizeof(struct DashFrame));
+    dashframe->_id = animframe->id;
+    dashframe->framemap_id = -1;
+    dashframe->translator_count = animframe->length;
+
+    dashframe->index_frame_ids = malloc((size_t)animframe->length * sizeof(int16_t));
+    memcpy(dashframe->index_frame_ids, animframe->groups,
+           (size_t)animframe->length * sizeof(int16_t));
+
+    dashframe->translator_arg_x = malloc((size_t)animframe->length * sizeof(int16_t));
+    memcpy(dashframe->translator_arg_x, animframe->x,
+           (size_t)animframe->length * sizeof(int16_t));
+
+    dashframe->translator_arg_y = malloc((size_t)animframe->length * sizeof(int16_t));
+    memcpy(dashframe->translator_arg_y, animframe->y,
+           (size_t)animframe->length * sizeof(int16_t));
+
+    dashframe->translator_arg_z = malloc((size_t)animframe->length * sizeof(int16_t));
+    memcpy(dashframe->translator_arg_z, animframe->z,
+           (size_t)animframe->length * sizeof(int16_t));
+
+    dashframe->showing = true;
+    return dashframe;
+}
+
+struct DashFramemap*
+dashframemap_new_from_gamecache_animframe(struct GameCacheAnimframe* animframe)
+{
+    struct DashFramemap* dashframemap = malloc(sizeof(struct DashFramemap));
+    memset(dashframemap, 0, sizeof(struct DashFramemap));
+    dashframemap->id = animframe->id;
+    dashframemap->length = animframe->base->length;
+
+    dashframemap->bone_groups =
+        malloc((size_t)animframe->base->length * sizeof(uint8_t*));
+    dashframemap->bone_groups_lengths =
+        malloc((size_t)animframe->base->length * sizeof(uint16_t));
+    dashframemap->types = malloc((size_t)animframe->base->length * sizeof(uint8_t));
+    memcpy(dashframemap->bone_groups_lengths, animframe->base->label_counts,
+           (size_t)animframe->base->length * sizeof(uint16_t));
+    memcpy(dashframemap->types, animframe->base->types,
+           (size_t)animframe->base->length * sizeof(uint8_t));
+
+    for( int i = 0; i < animframe->base->length; i++ )
+    {
+        int count = animframe->base->label_counts[i];
+        dashframemap->bone_groups[i] = malloc((size_t)count * sizeof(uint8_t));
+        memcpy(dashframemap->bone_groups[i], animframe->base->labels[i],
+               (size_t)count * sizeof(uint8_t));
+    }
+    return dashframemap;
 }

@@ -3,6 +3,7 @@
 #include "graphics/dash.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
+#include "osrs/gamecache/gamecache.h"
 #include "osrs/game.h"
 #include "osrs/lua_sidecar/lua_configfile.h"
 #include "osrs/obj_icon.h"
@@ -121,7 +122,6 @@ LuaUI_load_revconfig(
             game->ui_root_buffer,
             game->ui_scene,
             game->scene2,
-            buildcachedat,
             game->inv_pool,
             game,
             buf);
@@ -137,13 +137,13 @@ LuaUI_load_fonts(
     struct LuaGameType* args)
 {
     (void)args;
-    if( !game || !game->ui_scene || !buildcachedat )
+    if( !game || !game->ui_scene || !buildcachedat || !game->gamecache )
         return LuaGameType_NewVoid();
 
-    struct DashMapIter* iter = buildcachedat_iter_new_fonts_reftable(buildcachedat);
+    struct DashMapIter* iter = gamecache_iter_new_fonts_reftable(game->gamecache);
     char name_buf[BUILDCACHEDAT_FONT_NAME_MAX + 1];
     int ref_slot = 0;
-    while( buildcachedat_iter_next_font_ref(iter, name_buf, (int)sizeof(name_buf), &ref_slot) )
+    while( gamecache_iter_next_font_ref(iter, name_buf, (int)sizeof(name_buf), &ref_slot) )
     {
         struct DashPixFont* font = uiscene_font_get(game->ui_scene, ref_slot);
         if( font )
@@ -158,7 +158,7 @@ LuaUI_load_fonts(
         char const* nm = required_fonts[i];
         if( uiscene_font_find_id(game->ui_scene, nm) >= 0 )
             continue;
-        int sid = buildcachedat_get_font_ref_id(buildcachedat, nm);
+        int sid = gamecache_get_font_ref_id(game->gamecache, nm);
         if( sid < 0 )
             continue;
         struct DashPixFont* f = uiscene_font_get(game->ui_scene, sid);
@@ -356,7 +356,6 @@ LuaUI_load_revconfig_ui(
         game->ui_root_buffer,
         game->ui_scene,
         game->scene2,
-        buildcachedat,
         game->inv_pool,
         game,
         game->pending_revconfig);

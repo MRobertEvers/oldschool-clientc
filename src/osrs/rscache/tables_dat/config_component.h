@@ -106,6 +106,7 @@ struct CacheDatConfigComponent
     int overlayer;
     int* scriptComparator;
     int* scriptOperand;
+    int script_comparator_count;
     int* invSlotObjId;
     int* invSlotObjCount;
     int seqFrame;

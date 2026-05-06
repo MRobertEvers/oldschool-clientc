@@ -143,6 +143,7 @@ create_wasm_object(
     push_domain_proxy(L, wasm_ctx, callback, LUA_DOMAIN_DASH, "Dash");
     push_domain_proxy(L, wasm_ctx, callback, LUA_DOMAIN_UI, "UI");
     push_domain_proxy(L, wasm_ctx, callback, LUA_DOMAIN_MISC, "Misc");
+    push_domain_proxy(L, wasm_ctx, callback, LUA_DOMAIN_GAMECACHE, "GameCache");
 
     lua_setglobal(L, "Game");
     return 1;

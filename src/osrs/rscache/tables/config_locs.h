@@ -173,6 +173,10 @@ config_locs_free(struct CacheConfigLocation* loc);
 void
 config_locs_free_inplace(struct CacheConfigLocation* loc);
 
+/** Deep-copy decoded loc config (ownership transferred to caller). */
+struct CacheConfigLocation*
+config_locs_dup(struct CacheConfigLocation const* loc);
+
 #define CONFIG_LOC_DECODE_DAT2 0
 #define CONFIG_LOC_DECODE_DAT 1
 

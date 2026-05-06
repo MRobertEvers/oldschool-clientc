@@ -110,10 +110,10 @@ cache_insert(int obj_id, int count, struct DashSprite* sprite)
 // Helper function to get obj model for inventory icons
 // Based on ObjType.getModel() - applies scaling, recoloring, and calculates normals
 // This is what getIcon() calls (line 403 in ObjType.ts)
-static struct CacheModel*
+static struct GameCacheModel*
 get_obj_inv_model(
     struct GGame* game,
-    struct CacheDatConfigObj* obj)
+    struct GameCacheObj* obj)
 {
     // For inventory icons, we use getModel() which includes scaling and normals
     if( obj->model == 0 || obj->model == -1 )
@@ -121,7 +121,7 @@ get_obj_inv_model(
         return NULL;
     }
 
-    struct CacheModel* model = buildcachedat_get_model(game->buildcachedat, obj->model);
+    struct GameCacheModel* model = gamecache_get_model(game->gamecache, obj->model);
     if( !model )
     {
         // printf("get_obj_inv_model: Could not load model %d\n", obj->model);
@@ -173,7 +173,7 @@ obj_icon_generate(
     // obj_id is already 0-indexed (caller subtracts 1 from stored value)
 
     // Get the object configuration
-    struct CacheDatConfigObj* obj = buildcachedat_get_obj(game->buildcachedat, obj_id);
+    struct GameCacheObj* obj = gamecache_get_obj(game->gamecache, obj_id);
     if( !obj )
     {
         printf("obj_icon_get: Could not find obj %d in buildcachedat\n", obj_id);
@@ -200,7 +200,7 @@ obj_icon_generate(
     }
 
     // Get or create the model for this object
-    struct CacheModel* model = get_obj_inv_model(game, obj);
+    struct GameCacheModel* model = get_obj_inv_model(game, obj);
     if( !model )
     {
         printf(
@@ -270,15 +270,15 @@ obj_icon_generate(
     position.y = 0; // Temporary
     position.z = 0; // Temporary
 
-    // Convert CacheModel to DashModel using the proper utility function
-    // IMPORTANT: Make a copy first! dashmodel_new_from_cache_model moves ownership
+    // Convert GameCacheModel to DashModel using the proper utility function
+    // IMPORTANT: Make a copy first! dashmodel_new_from_gamecache_model moves ownership
     // and would invalidate the cached model. See entity_scenebuild.c:219 for reference.
-    struct CacheModel* model_copy = model_new_copy(model);
+    struct GameCacheModel* model_copy = gamecache_model_new_copy(model);
     for( int i = 0; i < obj->recol_count; i++ )
     {
-        model_transform_recolor(model_copy, obj->recol_s[i], obj->recol_d[i]);
+        gamecache_model_transform_recolor(model_copy, obj->recol_s[i], obj->recol_d[i]);
     }
-    struct DashModel* dash_model = dashmodel_new_from_cache_model(model_copy);
+    struct DashModel* dash_model = dashmodel_new_from_gamecache_model(model_copy);
 
     if( !dash_model )
     {

@@ -537,13 +537,13 @@ clientscript_vm_active(
     return true;
 }
 
-/* ── Legacy shims (CacheDatConfigComponent* overloads) ────────────────── */
+/* ── Legacy shims (GameCacheComponent* overloads) ────────────────── */
 
 int
 clientscript_vm_if_var(
     struct ClientScriptVM*          vm,
     struct GGame*                   game,
-    struct CacheDatConfigComponent* component,
+    struct GameCacheComponent* component,
     int                             script_id)
 {
     (void)game;
@@ -567,7 +567,7 @@ bool
 clientscript_vm_if_active(
     struct ClientScriptVM*          vm,
     struct GGame*                   game,
-    struct CacheDatConfigComponent* component)
+    struct GameCacheComponent* component)
 {
     (void)game;
     if( !component->scriptComparator || !component->scriptOperand ||

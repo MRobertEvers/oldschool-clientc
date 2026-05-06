@@ -15,6 +15,7 @@ INC_FILES = [
     "lua_dash_api.inc",
     "lua_ui_api.inc",
     "lua_sidecar_misc_api.inc",
+    "lua_gamecache_api.inc",
 ]
 
 ROW_RE = __import__("re").compile(
@@ -51,6 +52,7 @@ DOM_MAP = {
     "LUA_DOMAIN_DASH": 2,
     "LUA_DOMAIN_UI": 3,
     "LUA_DOMAIN_MISC": 4,
+    "LUA_DOMAIN_GAMECACHE": 5,
 }
 
 
@@ -77,7 +79,7 @@ def id_to_full(keys: list[tuple[str, int]], eid: int) -> str:
 
 def emit_js_maps() -> str:
     rows = parse_rows_full()
-    by_dom: list[list[tuple[str, int]]] = [[] for _ in range(5)]
+    by_dom: list[list[tuple[str, int]]] = [[] for _ in range(6)]
     for i, (_eid, _full, dom_s, suf) in enumerate(rows):
         api_id = i + 1
         d = DOM_MAP[dom_s]
@@ -87,7 +89,7 @@ def emit_js_maps() -> str:
         "/** @type {readonly Map<string, number>[]} */",
         "export const luaApiDomainMaps = [",
     ]
-    for d in range(5):
+    for d in range(6):
         pairs = ", ".join(f'["{k}", {v}]' for k, v in by_dom[d])
         lines.append(f"  new Map([{pairs}]),")
     lines.append("];")

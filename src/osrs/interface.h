@@ -39,7 +39,7 @@ interface_point_in_ui_inv_primary_region(int mx, int my)
 void
 interface_draw_component(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct GameCacheComponent* component,
     int x,
     int y,
     int scroll_y,
@@ -49,7 +49,7 @@ interface_draw_component(
 void
 interface_draw_component_layer(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct GameCacheComponent* component,
     int x,
     int y,
     int scroll_y,
@@ -59,7 +59,7 @@ interface_draw_component_layer(
 void
 interface_draw_component_rect(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct GameCacheComponent* component,
     int x,
     int y,
     int* pixel_buffer,
@@ -68,7 +68,7 @@ interface_draw_component_rect(
 void
 interface_draw_component_text(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct GameCacheComponent* component,
     int x,
     int y,
     int* pixel_buffer,
@@ -77,7 +77,7 @@ interface_draw_component_text(
 void
 interface_draw_component_graphic(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct GameCacheComponent* component,
     int x,
     int y,
     int* pixel_buffer,
@@ -86,7 +86,7 @@ interface_draw_component_graphic(
 void
 interface_draw_component_inv(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct GameCacheComponent* component,
     int x,
     int y,
     int* pixel_buffer,
@@ -95,7 +95,7 @@ interface_draw_component_inv(
 void
 interface_draw_component_model(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct GameCacheComponent* component,
     int x,
     int y,
     int* pixel_buffer,
@@ -117,7 +117,7 @@ interface_draw_scrollbar(
 int
 interface_find_hovered_interface_id(
     struct GGame* game,
-    struct CacheDatConfigComponent* root,
+    struct GameCacheComponent* root,
     int root_x,
     int root_y,
     int mouse_x,
@@ -128,7 +128,7 @@ interface_find_hovered_interface_id(
 int
 interface_find_scrollbar_at(
     struct GGame* game,
-    struct CacheDatConfigComponent* root,
+    struct GameCacheComponent* root,
     int root_x,
     int root_y,
     int mouse_x,
@@ -180,20 +180,20 @@ interface_handle_scrollbar_drag(
 int
 interface_get_if_var(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct GameCacheComponent* component,
     int script_id);
 
 // Return whether component passes script comparator check (Client.ts getIfActive).
 bool
 interface_get_if_active(
     struct GGame* game,
-    struct CacheDatConfigComponent* component);
+    struct GameCacheComponent* component);
 
 /** Expand %1..%5 using component client scripts (Client.ts drawInterface + inf). */
 void
 interface_expand_if_text_placeholders(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct GameCacheComponent* component,
     const char* src,
     char* out,
     int out_cap);
@@ -229,7 +229,7 @@ interface_component_is_overlay_hovered(struct GGame* game, int component_id);
 int
 interface_get_inv_default_action(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct GameCacheComponent* component,
     int obj_id,
     int slot);
 
@@ -253,7 +253,7 @@ interface_apply_button_click_varp_optimistic(
 int
 interface_find_button_click_at(
     struct GGame* game,
-    struct CacheDatConfigComponent* root,
+    struct GameCacheComponent* root,
     int root_x,
     int root_y,
     int mouse_x,
@@ -269,7 +269,7 @@ interface_find_button_click_at(
 int
 interface_check_inv_click(
     struct GGame* game,
-    struct CacheDatConfigComponent* component,
+    struct GameCacheComponent* component,
     int x,
     int y,
     int mouse_x,

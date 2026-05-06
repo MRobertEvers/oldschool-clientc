@@ -252,9 +252,9 @@ chat_resolve_font(
     for( int i = 0; i < 4; i++ )
     {
         int fid = uiscene_font_find_id(game->ui_scene, names[i]);
-        if( fid < 0 && game->buildcachedat )
+        if( fid < 0 && game->gamecache )
         {
-            int ref = buildcachedat_get_font_ref_id(game->buildcachedat, names[i]);
+            int ref = gamecache_get_font_ref_id(game->gamecache, names[i]);
             if( ref >= 0 )
             {
                 struct DashPixFont* f = uiscene_font_get(game->ui_scene, ref);

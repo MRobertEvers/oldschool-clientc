@@ -529,8 +529,8 @@ minimenu_game_use_option(
         game->iface->inv_sel_obj_id  = param_a;
         game->iface->inv_sel_slot    = param_b;
         game->iface->inv_sel_comp_id = param_c;
-        struct CacheDatConfigObj* o =
-            game->buildcachedat ? buildcachedat_get_obj(game->buildcachedat, param_a) : NULL;
+        struct GameCacheObj* o =
+            game->gamecache ? gamecache_get_obj(game->gamecache, param_a) : NULL;
         snprintf(
             game->iface->inv_sel_obj_name,
             sizeof(game->iface->inv_sel_obj_name),
@@ -541,11 +541,11 @@ minimenu_game_use_option(
 
     if( action == (int)MINIMENU_ACTION_TGT_BUTTON )
     {
-        if( !game->iface || !game->buildcachedat )
+        if( !game->iface || !game->gamecache )
             return;
         int comp = param_c;
-        struct CacheDatConfigComponent* cc =
-            buildcachedat_get_component(game->buildcachedat, comp);
+        struct GameCacheComponent* cc =
+            gamecache_get_component(game->gamecache, comp);
         game->iface->inv_target_mode        = 1;
         game->iface->inv_use_mode           = 0;
         game->iface->inv_target_src_comp_id = comp;

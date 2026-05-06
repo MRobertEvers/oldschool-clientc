@@ -1,5 +1,7 @@
 #include "bmp.h"
 #include "osrs/buildcachedat.h"
+#include "osrs/game.h"
+#include "osrs/gamecache/gamecache.h"
 #include "revconfig.h"
 #include "revconfig_load.h"
 #include "uiscene.h"
@@ -8,6 +10,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 int
 main()
@@ -24,6 +27,10 @@ main()
     revconfig_load_fields_from_ini(filename_ui, buffer);
 
     struct BuildCacheDat* buildcachedat = buildcachedat_new();
+    struct GGame game_stub;
+    memset(&game_stub, 0, sizeof(game_stub));
+    game_stub.buildcachedat = buildcachedat;
+    game_stub.gamecache = gamecache_new();
     struct CacheDat* cache_dat = cache_dat_new_from_directory("../cache254");
 
     struct CacheDatArchive* archive =
@@ -38,7 +45,7 @@ main()
     struct UITree* ui = uitree_new(16);
     struct UIInventoryPool* inv_pool = uitree_inv_pool_new(8);
     uitree_from_revconfig_buildcachedat(
-        ui, ui_scene, NULL, buildcachedat, inv_pool, NULL, buffer);
+        ui, ui_scene, NULL, inv_pool, &game_stub, buffer);
     uitree_inv_pool_free(inv_pool);
 
     struct DashGraphics* dash = dash_new();
@@ -92,6 +99,9 @@ main()
     bmp_write_file("output.bmp", pixels, 1024, 1024);
 
     free(pixels);
+
+    gamecache_free(game_stub.gamecache);
+    buildcachedat_free(buildcachedat);
 
     return 0;
 }

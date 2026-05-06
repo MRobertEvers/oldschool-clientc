@@ -7,6 +7,7 @@
 #include "graphics/dash.h"
 #include "osrs/cache_utils.h"
 #include "osrs/chat.h"
+#include "osrs/gamecache/gamecache.h"
 #include "osrs/clientscript_vm.h"
 #include "osrs/configmap.h"
 #include "osrs/core/game_cache_tag.h"
@@ -224,6 +225,7 @@ LibToriRS_GameNew(
 
     game->game_cache_tag = game_cache_tag_new_buildcachedat();
     game->buildcachedat = game_cache_tag_as_buildcachedat(&game->game_cache_tag);
+    game->gamecache = gamecache_new();
     game->buildcache = NULL;
 
     game->iface = interface_state_new();
@@ -407,6 +409,12 @@ LibToriRS_GameFree(struct GGame* game)
 
     interface_state_free(game->iface);
     game->iface = NULL;
+
+    if( game->gamecache )
+    {
+        gamecache_free(game->gamecache);
+        game->gamecache = NULL;
+    }
 
     if( game->buildcachedat )
     {

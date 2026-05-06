@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static void
@@ -707,4 +708,174 @@ decode_loc(
             loc->is_interactive = true;
         }
     }
+}
+
+static void
+params_dup(struct Params* dst, struct Params const* src)
+{
+    memset(dst, 0, sizeof(*dst));
+    if( !src || src->count <= 0 )
+        return;
+
+    dst->count = src->count;
+    dst->capacity = src->capacity;
+    dst->keys = malloc((size_t)src->capacity * sizeof(int));
+    dst->values = malloc((size_t)src->capacity * sizeof(void*));
+    dst->is_string = malloc((size_t)src->capacity * sizeof(bool));
+    if( !dst->keys || !dst->values || !dst->is_string )
+    {
+        free(dst->keys);
+        free(dst->values);
+        free(dst->is_string);
+        memset(dst, 0, sizeof(*dst));
+        return;
+    }
+
+    memcpy(dst->keys, src->keys, (size_t)src->count * sizeof(int));
+    memcpy(dst->is_string, src->is_string, (size_t)src->count * sizeof(bool));
+
+    for( int i = 0; i < src->count; i++ )
+    {
+        if( !src->values[i] )
+        {
+            dst->values[i] = NULL;
+            continue;
+        }
+        if( src->is_string[i] )
+            dst->values[i] = strdup((char*)src->values[i]);
+        else
+        {
+            dst->values[i] = malloc(sizeof(int));
+            if( dst->values[i] )
+                *(int*)dst->values[i] = *(int const*)src->values[i];
+        }
+    }
+}
+
+struct CacheConfigLocation*
+config_locs_dup(struct CacheConfigLocation const* src)
+{
+    if( !src )
+        return NULL;
+
+    struct CacheConfigLocation* dst = malloc(sizeof(struct CacheConfigLocation));
+    if( !dst )
+        return NULL;
+
+    memcpy(dst, src, sizeof(struct CacheConfigLocation));
+
+    dst->name = src->name ? strdup(src->name) : NULL;
+    dst->desc = src->desc ? strdup(src->desc) : NULL;
+    for( int i = 0; i < 10; i++ )
+        dst->actions[i] = src->actions[i] ? strdup(src->actions[i]) : NULL;
+
+    dst->shapes = NULL;
+    if( src->shapes && src->shapes_and_model_count > 0 )
+    {
+        dst->shapes = malloc((size_t)src->shapes_and_model_count * sizeof(int));
+        if( dst->shapes )
+            memcpy(dst->shapes, src->shapes, (size_t)src->shapes_and_model_count * sizeof(int));
+    }
+
+    dst->lengths = NULL;
+    if( src->lengths && src->shapes_and_model_count > 0 )
+    {
+        dst->lengths = malloc((size_t)src->shapes_and_model_count * sizeof(int));
+        if( dst->lengths )
+            memcpy(dst->lengths, src->lengths, (size_t)src->shapes_and_model_count * sizeof(int));
+    }
+
+    dst->models = NULL;
+    if( src->models && src->lengths && src->shapes_and_model_count > 0 )
+    {
+        dst->models = calloc((size_t)src->shapes_and_model_count, sizeof(int*));
+        if( dst->models )
+        {
+            for( int i = 0; i < src->shapes_and_model_count; i++ )
+            {
+                int len = src->lengths[i];
+                if( src->models[i] && len > 0 )
+                {
+                    dst->models[i] = malloc((size_t)len * sizeof(int));
+                    if( dst->models[i] )
+                        memcpy(dst->models[i], src->models[i], (size_t)len * sizeof(int));
+                }
+            }
+        }
+    }
+
+    dst->recolors_from = NULL;
+    dst->recolors_to = NULL;
+    if( src->recolor_count > 0 && src->recolors_from && src->recolors_to )
+    {
+        dst->recolors_from = malloc((size_t)src->recolor_count * sizeof(int));
+        dst->recolors_to = malloc((size_t)src->recolor_count * sizeof(int));
+        if( dst->recolors_from && dst->recolors_to )
+        {
+            memcpy(dst->recolors_from, src->recolors_from, (size_t)src->recolor_count * sizeof(int));
+            memcpy(dst->recolors_to, src->recolors_to, (size_t)src->recolor_count * sizeof(int));
+        }
+    }
+
+    dst->retextures_from = NULL;
+    dst->retextures_to = NULL;
+    if( src->retexture_count > 0 && src->retextures_from && src->retextures_to )
+    {
+        dst->retextures_from = malloc((size_t)src->retexture_count * sizeof(int));
+        dst->retextures_to = malloc((size_t)src->retexture_count * sizeof(int));
+        if( dst->retextures_from && dst->retextures_to )
+        {
+            memcpy(
+                dst->retextures_from, src->retextures_from, (size_t)src->retexture_count * sizeof(int));
+            memcpy(dst->retextures_to, src->retextures_to, (size_t)src->retexture_count * sizeof(int));
+        }
+    }
+
+    dst->transforms = NULL;
+    if( src->transform_count > 0 && src->transforms )
+    {
+        dst->transforms = malloc((size_t)src->transform_count * sizeof(int));
+        if( dst->transforms )
+            memcpy(dst->transforms, src->transforms, (size_t)src->transform_count * sizeof(int));
+    }
+
+    dst->ambient_sound_ids = NULL;
+    if( src->ambient_sound_id_count > 0 && src->ambient_sound_ids )
+    {
+        dst->ambient_sound_ids = malloc((size_t)src->ambient_sound_id_count * sizeof(int));
+        if( dst->ambient_sound_ids )
+            memcpy(
+                dst->ambient_sound_ids,
+                src->ambient_sound_ids,
+                (size_t)src->ambient_sound_id_count * sizeof(int));
+    }
+
+    dst->random_seq_ids = NULL;
+    dst->random_seq_delays = NULL;
+    if( src->random_seq_id_count > 0 && src->random_seq_ids && src->random_seq_delays )
+    {
+        dst->random_seq_ids = malloc((size_t)src->random_seq_id_count * sizeof(int));
+        dst->random_seq_delays = malloc((size_t)src->random_seq_id_count * sizeof(int));
+        if( dst->random_seq_ids && dst->random_seq_delays )
+        {
+            memcpy(dst->random_seq_ids, src->random_seq_ids, (size_t)src->random_seq_id_count * sizeof(int));
+            memcpy(
+                dst->random_seq_delays,
+                src->random_seq_delays,
+                (size_t)src->random_seq_id_count * sizeof(int));
+        }
+    }
+
+    dst->campaign_ids = NULL;
+    if( src->campaign_id_count > 0 && src->campaign_ids )
+    {
+        dst->campaign_ids = malloc((size_t)src->campaign_id_count * sizeof(int));
+        if( dst->campaign_ids )
+            memcpy(dst->campaign_ids, src->campaign_ids, (size_t)src->campaign_id_count * sizeof(int));
+    }
+
+    memset(&dst->param_values, 0, sizeof(dst->param_values));
+    params_dup(&dst->param_values, &src->param_values);
+
+    return dst;
 }

@@ -1431,10 +1431,10 @@ uitree_inv_slot_obj_def_id(struct GGame* game, struct StaticUIComponent* inv, in
             return id - 1;
     }
     int comp_id = inv->component_id >= 0 ? inv->component_id : 0;
-    if( game && game->buildcachedat && comp_id >= 0 )
+    if( game && game->gamecache && comp_id >= 0 )
     {
-        struct CacheDatConfigComponent* cc =
-            buildcachedat_get_component(game->buildcachedat, comp_id);
+        struct GameCacheComponent* cc =
+            gamecache_get_component(game->gamecache, comp_id);
         if( cc && cc->type == COMPONENT_TYPE_INV && cc->invSlotObjId )
         {
             int nslots = cc->width * cc->height;
@@ -1571,12 +1571,12 @@ uitree_opt_append(
     return true;
 }
 
-static struct CacheDatConfigComponent*
+static struct GameCacheComponent*
 uitree_cache_comp(struct GGame* game, int component_id)
 {
-    if( !game || !game->buildcachedat || component_id < 0 )
+    if( !game || !game->gamecache || component_id < 0 )
         return NULL;
-    return buildcachedat_get_component(game->buildcachedat, component_id);
+    return gamecache_get_component(game->gamecache, component_id);
 }
 
 static void
@@ -1616,7 +1616,7 @@ uitree_fill_inv_slot_common(
     int comp_id,
     int slot,
     int obj_def_id,
-    struct CacheDatConfigObj const* obj,
+    struct GameCacheObj const* obj,
     uint8_t interactable,
     uint8_t usable,
     char const* comp_iop[5],
@@ -1626,7 +1626,7 @@ uitree_fill_inv_slot_common(
     char line[96];
     char tbuf[72];
     char opi[128];
-    struct CacheDatConfigComponent* inv_cd = uitree_cache_comp(game, comp_id);
+    struct GameCacheComponent* inv_cd = uitree_cache_comp(game, comp_id);
 
     if( obj )
     {
@@ -1734,7 +1734,7 @@ uitree_fill_simple_component_options(
     struct UITreeOptionSet* os)
 {
     int comp = c->component_id >= 0 ? c->component_id : 0;
-    struct CacheDatConfigComponent* cd =
+    struct GameCacheComponent* cd =
         c->component_id >= 0 ? uitree_cache_comp(game, c->component_id) : NULL;
     char exp[192];
 
@@ -1862,8 +1862,8 @@ uitree_fill_inv_slot_options(
 
     int obj_id = uitree_inv_slot_obj_def_id(game, inv, slot);
 
-    struct CacheDatConfigObj* obj =
-        obj_id > 0 && game->buildcachedat ? buildcachedat_get_obj(game->buildcachedat, obj_id)
+    struct GameCacheObj* obj =
+        obj_id > 0 && game->gamecache ? gamecache_get_obj(game->gamecache, obj_id)
                                           : NULL;
 
     if( game->iface && inv->interactable )
@@ -1936,7 +1936,7 @@ uitree_fill_inv_slot_options(
 void
 uitree_fill_inv_slot_options_from_cache_inv(
     struct GGame* game,
-    struct CacheDatConfigComponent* inv,
+    struct GameCacheComponent* inv,
     int slot,
     struct UITreeOptionSet* os)
 {
@@ -1946,8 +1946,8 @@ uitree_fill_inv_slot_options_from_cache_inv(
         inv->invSlotObjId[slot] > 0 )
         obj_def_id = inv->invSlotObjId[slot] - 1;
 
-    struct CacheDatConfigObj* obj =
-        obj_def_id > 0 && game->buildcachedat ? buildcachedat_get_obj(game->buildcachedat, obj_def_id)
+    struct GameCacheObj* obj =
+        obj_def_id > 0 && game->gamecache ? gamecache_get_obj(game->gamecache, obj_def_id)
                                               : NULL;
 
     char const* ciop[5];
@@ -2101,7 +2101,7 @@ uitree_debug_log_inv_menu(struct GGame* game, struct UITree* tree, int inv_slot)
     {
         struct StaticUIComponent* c = &tree->components[hit];
         fprintf(stderr, "  hit type=%d comp_id=%d\n", (int)c->type, c->component_id);
-        if( c->type == UIELEM_RS_INV && inv_slot >= 0 && game->buildcachedat )
+        if( c->type == UIELEM_RS_INV && inv_slot >= 0 && game->gamecache )
         {
             int inv_i = c->u.rs_inv.inv_index;
             int pool_wire = 0;
@@ -2110,8 +2110,8 @@ uitree_debug_log_inv_menu(struct GGame* game, struct UITree* tree, int inv_slot)
                 pool_wire = game->inv_pool->inventories[inv_i].items[inv_slot].obj_id;
             int pool_0base = pool_wire > 0 ? pool_wire - 1 : 0;
             int cwire = 0;
-            struct CacheDatConfigComponent* cc =
-                buildcachedat_get_component(game->buildcachedat, c->component_id);
+            struct GameCacheComponent* cc =
+                gamecache_get_component(game->gamecache, c->component_id);
             if( cc && cc->invSlotObjId && inv_slot >= 0 && inv_slot < cc->width * cc->height )
                 cwire = cc->invSlotObjId[inv_slot];
             fprintf(

@@ -13,6 +13,7 @@ local function ensure_interfaces_loaded()
         )
         Game.Game.load_interfaces(archive)
         Game.Game.load_component_sprites()
+        Game.GameCache.convert_components_from_buildcachedat()
         _G.interfaces_loaded_flag = true
     end
 end
@@ -23,6 +24,7 @@ local function ensure_objects_loaded()
         return
     end
     Game.BuildCacheDat.objects_init_from_config_jagfile()
+    Game.GameCache.convert_objs_from_buildcachedat()
     _G.objects_loaded_flag = true
 end
 
@@ -31,6 +33,7 @@ local function ensure_sequences_loaded()
         return
     end
     Game.BuildCacheDat.sequences_init_from_config_jagfile()
+    Game.GameCache.convert_sequences_from_buildcachedat()
     _G.sequences_loaded_flag = true
 end
 
@@ -121,6 +124,11 @@ local function handle_rebuild_normal(item)
         end
     end
 
+    for _, chunk in ipairs(chunks) do
+        Game.GameCache.convert_map_terrain_chunk_from_buildcachedat(chunk.x, chunk.z)
+        Game.GameCache.convert_scenery_chunk_from_buildcachedat(chunk.x, chunk.z)
+    end
+
     local jagfiles = CacheDat.load_archives({
         {
             table_id = CacheDat.Tables.CACHE_DAT_CONFIGS,
@@ -154,12 +162,19 @@ local function handle_rebuild_normal(item)
                 Game.BuildCacheDat.animbaseframes_cache_add(archive)
             end
         end
+        Game.GameCache.convert_animbaseframes_from_buildcachedat()
     end
 
     Game.BuildCacheDat.sequences_init_from_config_jagfile()
     _G.sequences_loaded_flag = true
+    Game.GameCache.convert_sequences_from_buildcachedat()
     Game.BuildCacheDat.floortypes_init_from_config_jagfile()
+    Game.GameCache.convert_floortypes_from_buildcachedat()
     Game.BuildCacheDat.init_scenery_configs_from_config_jagfile()
+
+    for _, chunk in ipairs(chunks) do
+        Game.GameCache.convert_loc_configs_chunk_from_buildcachedat(chunk.x, chunk.z)
+    end
 
     local models_to_load = Game.BuildCacheDat.get_all_unique_scenery_model_ids()
     local model_requests = {}
@@ -181,6 +196,8 @@ local function handle_rebuild_normal(item)
         end
     end
 
+    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+
     Game.Game.exec_packet(item)
 
     -- Let ensure_objects_loaded / ensure_sequences_loaded run again for packets after rebuild in this batch.
@@ -199,6 +216,8 @@ local function handle_player_info(item)
 
     Game.BuildCacheDat.idkits_init_from_config_jagfile()
     Game.BuildCacheDat.objects_init_from_config_jagfile()
+    Game.GameCache.convert_idks_from_buildcachedat()
+    Game.GameCache.convert_objs_from_buildcachedat()
 
     local idk_ids, obj_ids = Game.BuildCacheDat.get_player_appearance_ids_from_packet(data, length)
     local seen = {}
@@ -250,6 +269,8 @@ local function handle_player_info(item)
         end
     end
 
+    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+
     Game.Game.exec_packet(item)
 end
 
@@ -264,6 +285,8 @@ local function handle_npc_info(item)
 
     -- Loads idk.dat + npc.dat; C needs npc configs before PKT_NPC_INFO_OPBITS_NPCTYPE / npc_model.
     Game.BuildCacheDat.idkits_init_from_config_jagfile()
+    Game.GameCache.convert_idks_from_buildcachedat()
+    Game.GameCache.convert_npcs_from_buildcachedat()
 
     local npc_ids = Game.BuildCacheDat.get_npc_ids_from_packet(data, length)
 
@@ -309,6 +332,8 @@ local function handle_npc_info(item)
         end
     end
 
+    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+
     Game.Game.exec_packet(item)
 end
 
@@ -351,6 +376,8 @@ local function handle_update_inv_full(item)
         end
     end
 
+    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+
     Game.Game.exec_packet(item)
 end
 
@@ -391,6 +418,8 @@ local function handle_if_setobject(item)
         end
     end
 
+    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+
     Game.Game.exec_packet(item)
 end
 
@@ -401,6 +430,7 @@ local function handle_if_setmodel(item)
         local archive = CacheDat.load_archive(CacheDat.Tables.CACHE_DAT_MODELS, model_id, 0)
         Game.BuildCacheDat.model_cache_add(archive, model_id)
     end
+    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
     Game.Game.exec_packet(item)
 end
 
@@ -427,6 +457,7 @@ local function handle_if_setanim(item)
                 Game.BuildCacheDat.animbaseframes_cache_add(archive)
             end
         end
+        Game.GameCache.convert_animbaseframes_from_buildcachedat()
     end
 
     Game.Game.exec_packet(item)
@@ -468,6 +499,8 @@ local function handle_if_setnpchead(item)
             Game.BuildCacheDat.model_cache_add(archives[i], model_id)
         end
     end
+
+    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
 
     Game.Game.exec_packet(item)
 end
@@ -511,6 +544,8 @@ local function handle_update_inv_partial(item)
         end
     end
 
+    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+
     Game.Game.exec_packet(item)
 end
 
@@ -547,6 +582,8 @@ local function handle_loc_add_change(item)
         end
     end
 
+    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+
     Game.Game.exec_packet(item)
 end
 
@@ -572,6 +609,7 @@ local function handle_loc_anim(item)
                 Game.BuildCacheDat.animbaseframes_cache_add(archive)
             end
         end
+        Game.GameCache.convert_animbaseframes_from_buildcachedat()
     end
 
     Game.Game.exec_packet(item)
@@ -609,6 +647,8 @@ local function handle_loc_merge(item)
             Game.BuildCacheDat.model_cache_add(archives[i], model_id)
         end
     end
+
+    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
 
     Game.Game.exec_packet(item)
 end
@@ -648,6 +688,8 @@ local function handle_obj_add(item)
         end
     end
 
+    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+
     Game.Game.exec_packet(item)
 end
 
@@ -686,6 +728,8 @@ local function handle_obj_reveal(item)
         end
     end
 
+    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+
     Game.Game.exec_packet(item)
 end
 
@@ -720,6 +764,10 @@ local function handle_map_anim(item)
         end
     end
 
+    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+    Game.GameCache.convert_animbaseframes_from_buildcachedat()
+    Game.GameCache.convert_spotanims_from_buildcachedat()
+
     Game.Game.exec_packet(item)
 end
 
@@ -753,6 +801,10 @@ local function handle_map_projanim(item)
             end
         end
     end
+
+    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+    Game.GameCache.convert_animbaseframes_from_buildcachedat()
+    Game.GameCache.convert_spotanims_from_buildcachedat()
 
     Game.Game.exec_packet(item)
 end

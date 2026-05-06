@@ -210,7 +210,7 @@ world_obj_stacks_free_all(struct World* world)
 
 struct World*
 world_new(
-    struct BuildCacheDat* buildcachedat,
+    struct GameCache* gamecache,
     struct Scene2* scene2_shared)
 {
     assert(scene2_shared != NULL && "World requires caller-owned Scene2");
@@ -224,7 +224,7 @@ world_new(
     world->collision_map = NULL;
     world->heightmap = NULL;
     world->minimap = NULL;
-    world->buildcachedat = buildcachedat;
+    world->gamecache = gamecache;
 
     entity_vec_init(&world->players, sizeof(struct PlayerEntity), MAX_PLAYERS);
     entity_vec_init(&world->npcs, sizeof(struct NPCEntity), MAX_NPCS);
@@ -501,7 +501,7 @@ world_print_scene2_dashmodel_heap_stats(struct World* world)
 void
 world_rebuild_centerzone_verify_buildcachedat_maps(struct World* world)
 {
-    struct BuildCacheDat* b = world->buildcachedat;
+    struct GameCache* b = world->gamecache;
     int const mx0 = world->_chunk_sw_x;
     int const mz0 = world->_chunk_sw_z;
     int const mx1 = world->_chunk_ne_x;
@@ -511,7 +511,7 @@ world_rebuild_centerzone_verify_buildcachedat_maps(struct World* world)
     {
         for( int mapz = mz0; mapz <= mz1; mapz++ )
         {
-            struct CacheMapTerrain* t = buildcachedat_get_map_terrain(b, mapx, mapz);
+            struct GameCacheTerrainChunk* t = gamecache_get_map_terrain(b, mapx, mapz);
             if( !t )
             {
                 fprintf(
@@ -526,7 +526,7 @@ world_rebuild_centerzone_verify_buildcachedat_maps(struct World* world)
                     mz1);
                 abort();
             }
-            struct CacheMapLocs* s = buildcachedat_get_scenery(b, mapx, mapz);
+            struct GameCacheMapLocs* s = gamecache_get_scenery(b, mapx, mapz);
             if( !s )
             {
                 fprintf(
@@ -552,7 +552,7 @@ world_buildcachedat_rebuild_centerzone(
     int zone_center_z,
     int scene_size)
 {
-    struct BuildCacheDat* buildcachedat = world->buildcachedat;
+    struct GameCache* gamecache = world->gamecache;
 
     world_rebuild_centerzone_begin(world, zone_center_x, zone_center_z, scene_size);
     world_rebuild_centerzone_verify_buildcachedat_maps(world);
@@ -804,7 +804,7 @@ world_rebuild_centerzone_begin(
     int zone_center_z,
     int scene_size)
 {
-    struct BuildCacheDat* buildcachedat = world->buildcachedat;
+    struct GameCache* gamecache = world->gamecache;
 
     world->load_complete = false;
 
@@ -979,7 +979,7 @@ world_rebuild_centerzone_begin(
 
     printf("world_rebuild_centerzone_begin: done\n");
 
-    (void)buildcachedat;
+    (void)gamecache;
 }
 
 void
@@ -988,15 +988,15 @@ world_rebuild_centerzone_chunk_terrain(
     int mapx,
     int mapz)
 {
-    struct BuildCacheDat* buildcachedat = world->buildcachedat;
+    struct GameCache* gamecache = world->gamecache;
     int scene_size = world->_scene_size;
     int offset_x;
     int offset_z;
 
     /* ---- Heightmap + flag_map ---- */
     {
-        struct CacheMapTerrain* map_terrain =
-            buildcachedat_get_map_terrain(buildcachedat, mapx, mapz);
+        struct GameCacheTerrainChunk* map_terrain =
+            gamecache_get_map_terrain(gamecache, mapx, mapz);
         assert(map_terrain && "Map terrain must be found");
 
         for( int tile_x = 0; tile_x < MAP_TERRAIN_X; tile_x++ )
@@ -1009,7 +1009,7 @@ world_rebuild_centerzone_chunk_terrain(
                 for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
                 {
                     int chunk_index = MAP_TILE_COORD(tile_x, tile_z, level);
-                    struct CacheMapFloor* tile = &map_terrain->tiles_xyz[chunk_index];
+                    struct GameCacheFloorTile* tile = &map_terrain->tiles[chunk_index];
                     int height = tile->height;
 
                     if( offset_x >= 0 && offset_z >= 0 && offset_x <= scene_size &&
@@ -1042,12 +1042,12 @@ world_rebuild_centerzone_chunk_terrain(
                         offset_z >= scene_size )
                         continue;
 
-                    struct CacheMapFloor* tile2 =
-                        &map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_z, level)];
+                    struct GameCacheFloorTile* tile2 =
+                        &map_terrain->tiles[MAP_TILE_COORD(tile_x, tile_z, level)];
                     if( tile2->underlay_id > 0 )
                     {
-                        struct CacheConfigOverlay* flotype =
-                            buildcachedat_get_flotype(buildcachedat, tile2->underlay_id - 1);
+                        struct GameCacheOverlay* flotype =
+                            gamecache_get_flotype(gamecache, tile2->underlay_id - 1);
                         assert(flotype && "Flotype must be found");
 
                         blendmap_set_underlay_rgb(
@@ -1071,16 +1071,16 @@ world_rebuild_centerzone_chunk_terrain(
                         offset_z >= scene_size )
                         continue;
 
-                    struct CacheMapFloor* tile2 =
-                        &map_terrain->tiles_xyz[MAP_TILE_COORD(tile_x, tile_z, level)];
+                    struct GameCacheFloorTile* tile2 =
+                        &map_terrain->tiles[MAP_TILE_COORD(tile_x, tile_z, level)];
 
                     int overlay_id = tile2->overlay_id - 1;
                     int underlay_id = tile2->underlay_id - 1;
 
                     if( overlay_id != -1 )
                     {
-                        struct CacheConfigOverlay* flotype =
-                            buildcachedat_get_flotype(buildcachedat, overlay_id);
+                        struct GameCacheOverlay* flotype =
+                            gamecache_get_flotype(gamecache, overlay_id);
                         assert(flotype && "Flotype must be found");
 
                         overlaymap_set_tile_rgb(
@@ -1139,12 +1139,12 @@ world_rebuild_centerzone_chunk_scenery(
     int mapx,
     int mapz)
 {
-    struct BuildCacheDat* buildcachedat = world->buildcachedat;
+    struct GameCache* gamecache = world->gamecache;
     int scene_size = world->_scene_size;
     int offset_x;
     int offset_z;
-    struct CacheMapLoc* map_tile = NULL;
-    struct CacheConfigLocation* config_loc = NULL;
+    struct GameCacheMapLoc* map_tile = NULL;
+    struct GameCacheLoc* config_loc = NULL;
 #if WORLD_DEBUG_REBUILD_SCENERY_CULL
     int dbg_entity_culled = 0;
     int dbg_entity_max_ox = INT_MIN;
@@ -1157,7 +1157,7 @@ world_rebuild_centerzone_chunk_scenery(
 
     /* ---- Collision map ---- */
     {
-        struct CacheMapLocs* map_locs = buildcachedat_get_scenery(buildcachedat, mapx, mapz);
+        struct GameCacheMapLocs* map_locs = gamecache_get_scenery(gamecache, mapx, mapz);
         assert(map_locs && "Map scenery must be found");
 #if WORLD_DEBUG_PAINTER_LOC_BUILD
         dbg_painter_chunk_locs = map_locs->locs_count;
@@ -1173,7 +1173,7 @@ world_rebuild_centerzone_chunk_scenery(
             if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size || offset_z >= scene_size )
                 continue;
 
-            config_loc = buildcachedat_get_config_loc(buildcachedat, map_tile->loc_id);
+            config_loc = gamecache_get_config_loc(gamecache, map_tile->loc_id);
             assert(config_loc && "Config location must be found");
 
             int size_x = config_loc->size_x;
@@ -1313,7 +1313,7 @@ world_rebuild_centerzone_chunk_scenery(
             if( offset_x < 0 || offset_z < 0 || offset_x >= scene_size || offset_z >= scene_size )
                 continue;
 
-            config_loc = buildcachedat_get_config_loc(buildcachedat, map_tile->loc_id);
+            config_loc = gamecache_get_config_loc(gamecache, map_tile->loc_id);
 
             int level = map_tile->chunk_pos_level;
             if( config_loc->map_scene_id != -1 )
@@ -1377,7 +1377,7 @@ world_rebuild_centerzone_chunk_scenery(
         for( int i = 0; i < map_locs->locs_count; i++ )
         {
             map_tile = &map_locs->locs[i];
-            config_loc = buildcachedat_get_config_loc(buildcachedat, map_tile->loc_id);
+            config_loc = gamecache_get_config_loc(gamecache, map_tile->loc_id);
             assert(config_loc && "Config location must be found");
 
             offset_x = world_to_scene_x(world, mapx, map_tile->chunk_pos_x);
@@ -1445,7 +1445,7 @@ world_rebuild_centerzone_chunk(
 void
 world_rebuild_centerzone_end(struct World* world)
 {
-    struct BuildCacheDat* buildcachedat = world->buildcachedat;
+    struct GameCache* gamecache = world->gamecache;
     int scene_size = world->_scene_size;
 
     world_contour_ground(world);
@@ -1822,9 +1822,9 @@ load_scene_animation(
     if( animation_id == -1 )
         return;
 
-    struct CacheAnimframe* animframe = NULL;
-    struct CacheDatSequence* sequence =
-        buildcachedat_get_sequence(world->buildcachedat, animation_id);
+    struct GameCacheAnimframe* animframe = NULL;
+    struct GameCacheSequence* sequence =
+        gamecache_get_sequence(world->gamecache, animation_id);
     if( !sequence )
         return;
 
@@ -1835,13 +1835,13 @@ load_scene_animation(
         //     the second 2 bytes are the frame file ID
         int frame_id = sequence->frames[i];
 
-        animframe = buildcachedat_get_animframe(world->buildcachedat, frame_id);
+        animframe = gamecache_get_animframe(world->gamecache, frame_id);
         if( !animframe )
             return;
 
         if( !scene2_element_dash_framemap(element) )
         {
-            scene2_element_set_framemap(element, dashframemap_new_from_animframe(animframe));
+            scene2_element_set_framemap(element, dashframemap_new_from_gamecache_animframe(animframe));
         }
 
         // From Client-TS 245.2
@@ -1849,7 +1849,7 @@ load_scene_animation(
         if( length == 0 )
             length = animframe->delay;
 
-        struct DashFrame* dash_frame = dashframe_new_from_animframe(animframe);
+        struct DashFrame* dash_frame = dashframe_new_from_gamecache_animframe(animframe);
         if( animation_type == ANIMATION_TYPE_PRIMARY )
         {
             scene2_element_push_animation_frame(
