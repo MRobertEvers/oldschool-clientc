@@ -500,7 +500,7 @@ gamenet_send_xxx → gamenet_rev245_2_send_xxx → gamenet_core_send_xxx_v1
 
 [`gamenet_rev245_2_send_xxx`](src/osrs/revs/lc245_2/gamenet_rev245_2_send.c): Net-revision gateway; thin shims to `gamenet_core_send_xxx_v1`.
 
-[`gamenet_core_send_xxx_v1`](src/osrs/core/gamenet_core_send.c): Data hydrator; gathers fields from `GGame`, builds `WireOut_Xxx_v1`, calls `clientprot_send_xxx_v1`.
+[`gamenet_core_send_xxx_v1`](src/osrs/core/gamenet_core_send.c): Data hydrator; gathers fields from `GGame`, builds `PktClientProt_Xxx_v1`, calls `clientprot_send_xxx_v1`.
 
 [`clientprot_send_xxx_v1`](src/osrs/core/clientprot_send.c): Pure serializer. **Zero GGame.** Writes raw encrypted bytes to `RSBuffer` using `rsbuf_p1isaac`.
 

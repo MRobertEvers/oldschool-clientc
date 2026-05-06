@@ -665,7 +665,7 @@ serverprot_core_parse_update_inv_full_v1(
     int n,
     struct RevServerProtPacket* out)
 {
-    struct PktUpdateInvFullV1* p = &out->u.update_inv_full_v1;
+    struct PktServerProtUpdateInvFullV1* p = &out->u.update_inv_full_v1;
     struct RSBuffer b;
     rsbuf_init(&b, (int8_t*)data, n);
     p->component_id = g2(&b);
@@ -702,12 +702,12 @@ serverprot_core_parse_update_inv_partial_v1(
     int n,
     struct RevServerProtPacket* out)
 {
-    struct PktUpdateInvPartialV1* p = &out->u.update_inv_partial_v1;
+    struct PktServerProtUpdateInvPartialV1* p = &out->u.update_inv_partial_v1;
     struct RSBuffer b;
     rsbuf_init(&b, (int8_t*)data, n);
     p->component_id = g2(&b);
     int max_entries = (n - 2) / 5 + 1;
-    p->entries = malloc(max_entries * sizeof(struct PktUpdateInvPartialEntryV1));
+    p->entries = malloc(max_entries * sizeof(struct PktServerProtUpdateInvPartialEntryV1));
     int count = 0;
     while( b.position < n )
     {
@@ -804,7 +804,7 @@ serverprot_core_parse_update_ignorelist_v1(
     int n,
     struct RevServerProtPacket* out)
 {
-    struct PktUpdateIgnoreListV1* p = &out->u.update_ignorelist_v1;
+    struct PktServerProtUpdateIgnoreListV1* p = &out->u.update_ignorelist_v1;
     int count = n / 8;
     if( count <= 0 )
     {

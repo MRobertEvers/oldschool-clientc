@@ -5,7 +5,7 @@
  *
  * Per-op _v1 functions gather all data needed for the wire packet from GGame
  * (world base tiles, player state, ISAAC cipher, etc.), build a typed
- * WireOut_*_v1 struct, and call the matching clientprot_send_xxx_v1().
+ * PktClientProt_*_v1 struct, and call the matching clientprot_send_xxx_v1().
  *
  * The first `opcode` argument to each _v1 entry point is the revision-specific
  * obfuscated client packet id (e.g. PKTOUT_LC245_2_*).  The revision gateway
@@ -26,7 +26,7 @@ struct GGame;
 
 #define GAMENET_CORE_SEND_MOVE_PATH_MAX 25
 
-struct WireOut_MoveGameClick_v1
+struct PktClientProt_MoveGameClick_v1
 {
     int run;
     int path_len;
@@ -36,7 +36,7 @@ struct WireOut_MoveGameClick_v1
     int base_z;
 };
 
-struct WireOut_MoveMinimapClick_v1
+struct PktClientProt_MoveMinimapClick_v1
 {
     int x;
     int z;
@@ -45,7 +45,7 @@ struct WireOut_MoveMinimapClick_v1
     int cam_n;
 };
 
-struct WireOut_MoveOpClick_v1
+struct PktClientProt_MoveOpClick_v1
 {
     int run;
     int path_len;
@@ -55,75 +55,75 @@ struct WireOut_MoveOpClick_v1
     int base_z;
 };
 
-struct WireOut_ChatSetMode_v1
+struct PktClientProt_ChatSetMode_v1
 {
     int pub;
     int priv;
     int trade;
 };
-struct WireOut_MessagePublic_v1
+struct PktClientProt_MessagePublic_v1
 {
     int color;
     int effect;
     const uint8_t* wp;
     int n;
 };
-struct WireOut_MessagePrivate_v1
+struct PktClientProt_MessagePrivate_v1
 {
     const char* user;
     const uint8_t* wp;
     int n;
 };
-struct WireOut_ClientCheat_v1
+struct PktClientProt_ClientCheat_v1
 {
     const char* line;
 };
-struct WireOut_ResumeCntDlg_v1
+struct PktClientProt_ResumeCntDlg_v1
 {
     int value;
 };
 
-struct WireOut_InvButton_v1
+struct PktClientProt_InvButton_v1
 {
     int comp_id;
     int slot;
     int obj_id;
 };
-struct WireOut_InvButtonD_v1
+struct PktClientProt_InvButtonD_v1
 {
     int comp_id;
     int from_slot;
     int to_slot;
     int mode;
 };
-struct WireOut_IfButton_v1
+struct PktClientProt_IfButton_v1
 {
     int comp_id;
 };
-struct WireOut_PlayerDesign_v1
+struct PktClientProt_PlayerDesign_v1
 {
     const uint8_t* payload;
     int n;
 };
-struct WireOut_TutorialClick_v1
+struct PktClientProt_TutorialClick_v1
 {
     int tab;
 };
 
-struct WireOut_OpHeld_v1
+struct PktClientProt_OpHeld_v1
 {
     int obj_id;
     int slot;
     int comp_id;
 };
-struct WireOut_OpHeldT_v1
+struct PktClientProt_OpHeldT_v1
 {
     int obj_id;
     int slot;
     int comp_id;
     int target_comp_id;
 };
-struct WireOut_OpHeldU_v1
+struct PktClientProt_OpHeldU_v1
 {
     int obj_id;
     int slot;
@@ -133,34 +133,34 @@ struct WireOut_OpHeldU_v1
     int src_comp_id;
 };
 
-struct WireOut_OpLoc_v1
+struct PktClientProt_OpLoc_v1
 {
     int wire_x;
     int wire_z;
     int loc_id;
     int ctrl;
 };
-struct WireOut_OpNpc_v1
+struct PktClientProt_OpNpc_v1
 {
     int npc_slot;
 };
-struct WireOut_OpObj_v1
+struct PktClientProt_OpObj_v1
 {
     int wire_x;
     int wire_z;
     int obj_id;
     int ctrl;
 };
-struct WireOut_OpPlayer_v1
+struct PktClientProt_OpPlayer_v1
 {
     int player_slot;
 };
 
-struct WireOut_FriendIgnore_v1
+struct PktClientProt_FriendIgnore_v1
 {
     int64_t userhash;
 };
-struct WireOut_ReportAbuse_v1
+struct PktClientProt_ReportAbuse_v1
 {
     int64_t userhash;
     int type;

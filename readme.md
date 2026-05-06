@@ -1793,7 +1793,7 @@ gamenet_parse -> serverprot_netrevX_parse -> serverprot_core_parse (v1, v2 etc) 
 Key files:
 - `src/osrs/gamenet_send.h` / `gamenet_send.c` — outbound intent layer (~38 typed entry points)
 - `src/osrs/revs/lc245_2/gamenet_rev245_2_send.{c,h}` — net-rev gateway (LC245_2)
-- `src/osrs/core/gamenet_core_send.{c,h}` — data hydrators (`GGame` → `WireOut_Xxx_v1`)
+- `src/osrs/core/gamenet_core_send.{c,h}` — data hydrators (`GGame` → `PktClientProt_Xxx_v1`)
 - `src/osrs/core/clientprot_send.{c,h}` — pure byte serializers (zero `GGame`)
 - `src/osrs/gamenet_parse.{c,h}` — inbound listener
 - `src/osrs/revs/lc245_2/serverprot_netrev245_2_parse.{c,h}` — opcode switch
