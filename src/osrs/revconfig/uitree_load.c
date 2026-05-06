@@ -1301,37 +1301,65 @@ expand_sidebar_rs_tree(
 }
 
 static int
-uitree_load_resolve_minimenu_font_id(struct GameCache* bcd, char const* ini_font_name)
+uitree_load_resolve_minimenu_font_id(
+    struct UIScene* ui_scene,
+    struct GameCache* gc,
+    char const* ini_font_name)
 {
-    if( bcd && ini_font_name && ini_font_name[0] )
+    int id = -1;
+    if( gc && ini_font_name && ini_font_name[0] )
     {
-        int id = gamecache_get_font_ref_id(bcd, ini_font_name);
-        if( id >= 0 )
-            return id;
+        id = gamecache_get_font_ref_id(gc, ini_font_name);
+        if( id < 0 && ui_scene )
+            id = uiscene_font_find_id(ui_scene, ini_font_name);
     }
-    if( !bcd )
-        return -1;
-    int id = gamecache_get_font_ref_id(bcd, "b12");
     if( id >= 0 )
         return id;
-    return gamecache_get_font_ref_id(bcd, "p11");
+
+    if( gc )
+    {
+        id = gamecache_get_font_ref_id(gc, "b12");
+        if( id < 0 && ui_scene )
+            id = uiscene_font_find_id(ui_scene, "b12");
+    }
+    else if( ui_scene )
+        id = uiscene_font_find_id(ui_scene, "b12");
+    if( id >= 0 )
+        return id;
+
+    if( gc )
+    {
+        id = gamecache_get_font_ref_id(gc, "p11");
+        if( id < 0 && ui_scene )
+            id = uiscene_font_find_id(ui_scene, "p11");
+    }
+    else if( ui_scene )
+        id = uiscene_font_find_id(ui_scene, "p11");
+    return id;
 }
 
 static int
-uitree_load_resolve_chat_font_id(struct GameCache* bcd, char const* ini_font_name)
+uitree_load_resolve_chat_font_id(
+    struct UIScene* ui_scene,
+    struct GameCache* gc,
+    char const* ini_font_name)
 {
-    if( bcd && ini_font_name && ini_font_name[0] )
+    int id = -1;
+    if( gc && ini_font_name && ini_font_name[0] )
     {
-        int id = gamecache_get_font_ref_id(bcd, ini_font_name);
-        if( id >= 0 )
-            return id;
+        id = gamecache_get_font_ref_id(gc, ini_font_name);
+        if( id < 0 && ui_scene )
+            id = uiscene_font_find_id(ui_scene, ini_font_name);
     }
-    if( !bcd )
-        return -1;
+    if( id >= 0 )
+        return id;
+
     static char const* const fallback[] = { "p11", "p12", "b12", "q8" };
     for( int i = 0; i < 4; i++ )
     {
-        int id = gamecache_get_font_ref_id(bcd, fallback[i]);
+        id = gc ? gamecache_get_font_ref_id(gc, fallback[i]) : -1;
+        if( id < 0 && ui_scene )
+            id = uiscene_font_find_id(ui_scene, fallback[i]);
         if( id >= 0 )
             return id;
     }
@@ -1420,6 +1448,8 @@ load_layout(
                 font_id = gamecache_get_font_ref_id(
                     buildcachedat,
                     component_entry->font);
+                if( font_id < 0 && ui_scene )
+                    font_id = uiscene_font_find_id(ui_scene, component_entry->font);
             }
             
             int32_t idx = uitree_push_hover_tooltip(
@@ -1440,6 +1470,7 @@ load_layout(
         case UIELEM_BUILTIN_MINIMENU:
         {
             int font_id = uitree_load_resolve_minimenu_font_id(
+                ui_scene,
                 buildcachedat,
                 component_entry->font[0] != '\0' ? component_entry->font : NULL);
             int32_t idx = uitree_push_minimenu(ui, -1);
@@ -1466,6 +1497,7 @@ load_layout(
         case UIELEM_BUILTIN_CHAT_MESSAGES:
         {
             int font_id = uitree_load_resolve_chat_font_id(
+                ui_scene,
                 buildcachedat,
                 component_entry->font[0] != '\0' ? component_entry->font : NULL);
             int32_t idx = uitree_push_chat_messages(
@@ -1486,6 +1518,7 @@ load_layout(
         case UIELEM_BUILTIN_CHAT_INPUT:
         {
             int font_id = uitree_load_resolve_chat_font_id(
+                ui_scene,
                 buildcachedat,
                 component_entry->font[0] != '\0' ? component_entry->font : NULL);
             int32_t idx = uitree_push_chat_input(
@@ -1510,6 +1543,7 @@ load_layout(
         case UIELEM_BUILTIN_CHAT_PRIVACY:
         {
             int font_id = uitree_load_resolve_chat_font_id(
+                ui_scene,
                 buildcachedat,
                 component_entry->font[0] != '\0' ? component_entry->font : NULL);
             int32_t idx = uitree_push_chat_privacy(

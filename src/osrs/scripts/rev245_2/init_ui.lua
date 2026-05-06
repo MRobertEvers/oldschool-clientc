@@ -15,12 +15,17 @@ local function init_ui()
     local title_jagfile = CacheDat.load_archive(CacheDat.Tables.CACHE_DAT_CONFIGS,
         CacheDat.ConfigDatKind.CONFIG_DAT_TITLE_AND_FONTS, 0)
     Game.BuildCacheDat.cache_title(title_jagfile)
+    -- Fonts land in BuildCacheDat first; UITree load (below) resolves font_ids via GameCache.
+    -- init_cache_dat.lua runs later, so sync reftables now or chat/minimenu get font_id=-1.
+    Game.GameCache.convert_reftables_from_buildcachedat()
 
     local interfaces_archive = CacheDat.load_archive(
         CacheDat.Tables.CACHE_DAT_CONFIGS,
         CacheDat.ConfigDatKind.CONFIG_DAT_INTERFACES, 0)
     Game.Game.load_interfaces(interfaces_archive)
     Game.Game.load_component_sprites()
+    -- RS interface defs live in BuildCacheDat; IF_SETTAB / uitree read GameCache (gamecache_get_component).
+    Game.GameCache.convert_components_from_buildcachedat()
     _G.interfaces_loaded_flag = true
 
     -- Interface MODEL components (modelType 1) need raw models in BuildCacheDat.

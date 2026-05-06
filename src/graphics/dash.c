@@ -3782,7 +3782,10 @@ dashfont_text_width_taggable(
     {
         if( text[i] == '@' && i + 5 <= length && text[i + 4] == '@' )
         {
-            i += 4;
+            if( i + 6 <= length && text[i + 5] == ' ' )
+                i += 5;
+            else
+                i += 4;
             continue;
         }
         uint8_t code_point = text[i];
@@ -4099,7 +4102,11 @@ dashfont_draw_text_clipped_taggable(
             int new_color = dashfont_evaluate_tag((char*)&text[i + 1]);
             if( new_color >= 0 )
                 color = 0xFF000000 | new_color;
-            i += 4;
+            /* Match dashfont_draw_text_ex_clipped: skip optional space after tag (RS PixFont). */
+            if( i + 6 <= length && text[i + 5] == ' ' )
+                i += 5;
+            else
+                i += 4;
             continue;
         }
         uint8_t code_point = text[i];
