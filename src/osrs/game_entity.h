@@ -197,8 +197,8 @@ struct MapBuildLocEntity
     uint16_t place_size_z;
     struct EntityAction* actions;
     uint8_t action_count;
-    char name[1];
-    char description[1];
+    struct EntityName name;
+    struct EntityDescription description;
     bool interactable;
 };
 

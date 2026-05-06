@@ -926,6 +926,8 @@ gamecache_convert_animbaseframes_from_buildcachedat(struct GameCache* gc, struct
 {
     if( !gc || !bcd || !bcd->animbaseframes_hmap )
         return;
+
+    /* Convert animbaseframes data. */
     struct DashMapIter* it = dashmap_iter_new(bcd->animbaseframes_hmap);
     struct GCAnimbaseframesEntry* e;
     while( (e = (struct GCAnimbaseframesEntry*)dashmap_iter_next(it)) )
@@ -935,6 +937,19 @@ gamecache_convert_animbaseframes_from_buildcachedat(struct GameCache* gc, struct
             gamecache_add_animbaseframes(gc, e->id, ab);
     }
     dashmap_iter_free(it);
+
+    /* Also sync the animframe reftable: it is populated alongside the animbaseframes
+     * archives (in buildcachedat_animbaseframes_cache_add) but was not yet present
+     * when gamecache_convert_reftables_from_buildcachedat ran during texture load.
+     * gamecache_add_animframe_ref uses INSERT (idempotent -- safe to call again). */
+    if( bcd->animframes_reftable )
+    {
+        it = dashmap_iter_new(bcd->animframes_reftable);
+        struct GCAnimframeRefEntry* ae;
+        while( (ae = (struct GCAnimframeRefEntry*)dashmap_iter_next(it)) )
+            gamecache_add_animframe_ref(gc, ae->id, ae->animbaseframes_id, ae->frame_index);
+        dashmap_iter_free(it);
+    }
 }
 
 void
