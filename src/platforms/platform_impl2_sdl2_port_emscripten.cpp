@@ -218,7 +218,10 @@ PlatformImpl2_SDL2_Port_Emscripten_PollEvents(
         int mx = 0;
         int my = 0;
         SDL_GetMouseState(&mx, &my);
-        transform_mouse_coordinates(mx, my, &poll_input->mouse_state.x, &poll_input->mouse_state.y, platform);
+        int gx = 0, gy = 0;
+        transform_mouse_coordinates(mx, my, &gx, &gy, platform);
+        poll_input->raw_mouse.cursor_x = gx;
+        poll_input->raw_mouse.cursor_y = gy;
     }
 }
 

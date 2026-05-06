@@ -275,6 +275,10 @@ interface_check_inv_click(
     int mouse_x,
     int mouse_y);
 
+/** Client.ts drawInterface: dx/dy from grab with ±5 deadzone; inv_drag_cycles < 5 → (0,0). */
+void
+interface_inv_drag_delta(struct GGame* game, int* out_dx, int* out_dy);
+
 /** Client.ts objDragArea: LMB down on swappable inv default row → drag; release completes. */
 void
 interface_inv_try_drag_mouse_down(struct GGame* game, int mx, int my);

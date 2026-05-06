@@ -37,7 +37,8 @@ queue_sprite_draw(
     int atlas_index,
     struct DashSprite* sprite,
     int x,
-    int y)
+    int y,
+    uint8_t sprite_blend_alpha)
 {
     if( !buf || !sprite )
         return;
@@ -70,6 +71,11 @@ queue_sprite_draw(
     c->_sprite_draw.src_bb_w = src_bb_w;
     c->_sprite_draw.src_bb_h = src_bb_h;
     c->_sprite_draw.rotated = false;
+    if( sprite_blend_alpha != 0 )
+    {
+        c->_sprite_draw.alpha_mode         = 1;
+        c->_sprite_draw.sprite_blend_alpha = sprite_blend_alpha;
+    }
 }
 
 static int
@@ -192,7 +198,7 @@ rs_gfx_graphic_step(
     if( uiframe_cull_box(game, draw_x, draw_y, cull_w, cull_h) )
         return true;
     frame_emit_pass(fiber, FRAME_PASS_2D);
-    queue_sprite_draw(queued_commands, sid, ai, sp, draw_x, draw_y);
+    queue_sprite_draw(queued_commands, sid, ai, sp, draw_x, draw_y, 0);
     return true;
 }
 
@@ -569,8 +575,23 @@ rs_gfx_inv_step(
                                 struct DashSprite* sp = el->dash_sprites[ai];
                                 if( sp )
                                 {
+                                    uint8_t blend = 0;
+                                    int draw_x    = slot_x;
+                                    int draw_y    = slot_y;
+                                    struct InterfaceState* iface = game->iface;
+                                    if( iface && iface->inv_drag_area != 0 &&
+                                        iface->inv_drag_comp_id == component->component_id &&
+                                        iface->inv_drag_slot == i )
+                                    {
+                                        blend = 128;
+                                        int dx, dy;
+                                        interface_inv_drag_delta(game, &dx, &dy);
+                                        draw_x += dx;
+                                        draw_y += dy;
+                                    }
                                     frame_emit_pass(fiber, FRAME_PASS_2D);
-                                    queue_sprite_draw(queued_commands, it->scene_id, ai, sp, slot_x, slot_y);
+                                    queue_sprite_draw(
+                                        queued_commands, it->scene_id, ai, sp, draw_x, draw_y, blend);
                                 }
                             }
                         }
@@ -591,7 +612,7 @@ rs_gfx_inv_step(
                     if( bg_sp )
                     {
                         frame_emit_pass(fiber, FRAME_PASS_2D);
-                        queue_sprite_draw(queued_commands, bg_sid, bg_ai, bg_sp, slot_x, slot_y);
+                        queue_sprite_draw(queued_commands, bg_sid, bg_ai, bg_sp, slot_x, slot_y, 0);
                     }
                 }
             }

@@ -207,6 +207,23 @@ ui_draw_line(
     int y1,
     int color_rgb);
 
+/** Bresenham line clipped to [clip_l, clip_r) x [clip_t, clip_b) intersect [0, buf_w) x [0, buf_h). */
+void
+ui_draw_line_clipped(
+    int* pixel_buffer,
+    int stride,
+    int buf_w,
+    int buf_h,
+    int clip_l,
+    int clip_t,
+    int clip_r,
+    int clip_b,
+    int x0,
+    int y0,
+    int x1,
+    int y1,
+    int color_rgb);
+
 void
 ui_draw_rect_outline(
     int* pixel_buffer,

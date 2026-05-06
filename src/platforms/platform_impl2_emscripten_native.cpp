@@ -309,8 +309,8 @@ native_on_wheel(int /*eventType*/, const EmscriptenWheelEvent* e, void* userData
     if( !platform || !platform->canvas_ready )
         return EM_FALSE;
 
-    int gx = platform->input ? platform->input->mouse_state.x : 0;
-    int gy = platform->input ? platform->input->mouse_state.y : 0;
+    int gx = platform->input ? platform->input->raw_mouse.cursor_x : 0;
+    int gy = platform->input ? platform->input->raw_mouse.cursor_y : 0;
 
     struct GameInputEvent ev;
     memset(&ev, 0, sizeof(ev));
@@ -464,7 +464,10 @@ Platform2_Emscripten_Native_PollEvents(struct Platform2_Emscripten_Native* platf
     {
         int mx = platform->tracked_mouse_x;
         int my = platform->tracked_mouse_y;
-        transform_mouse_coordinates(mx, my, &input->mouse_state.x, &input->mouse_state.y, platform);
+        int gx = 0, gy = 0;
+        transform_mouse_coordinates(mx, my, &gx, &gy, platform);
+        input->raw_mouse.cursor_x = gx;
+        input->raw_mouse.cursor_y = gy;
     }
 }
 

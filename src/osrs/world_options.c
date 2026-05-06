@@ -28,49 +28,59 @@ options_add_loc(
     struct MapBuildLocEntity* map_build_loc_entity = world_loc_entity(world, entity_id);
     struct WorldOption* option = NULL;
 
-    for( int i = 4; i >= 0; i-- )
+    /* Loc actions are packed (world_map_build_loc_entity_push_action); .code is config slot 0..9.
+     * OPLOC packets only support slots 0..4; scan packed rows per slot so slot 0 (code==0) works. */
+    for( int slot = 4; slot >= 0; slot-- )
     {
-        if( map_build_loc_entity->actions && map_build_loc_entity->actions[i].code != 0 )
+        if( !map_build_loc_entity->actions )
+            break;
+
+        struct EntityAction const* row = NULL;
+        for( int j = 0; j < map_build_loc_entity->action_count; j++ )
         {
-            option = &option_set->options[option_set->option_count];
-            memset(option, 0, sizeof(*option));
-
-            snprintf(
-                text,
-                sizeof(text),
-                "%s @cya@ %s",
-                map_build_loc_entity->actions[i].name,
-                map_build_loc_entity->name.name);
-
-            strncpy(option->text, text, sizeof(option->text));
-            option->param_a = entity_id;
-            option->param_b = x;
-            option->param_c = z;
-
-            switch( i )
+            struct EntityAction const* a = &map_build_loc_entity->actions[j];
+            if( (int)a->code == slot && a->name[0] != '\0' )
             {
-            case 0:
-                option->action = MINIMENU_ACTION_OPLOC1;
-                break;
-            case 1:
-                option->action = MINIMENU_ACTION_OPLOC2;
-                break;
-            case 2:
-                option->action = MINIMENU_ACTION_OPLOC3;
-                break;
-            case 3:
-                option->action = MINIMENU_ACTION_OPLOC4;
-                break;
-            case 4:
-                option->action = MINIMENU_ACTION_OPLOC5;
-                break;
-            default:
-                assert(0 && "Invalid action index");
+                row = a;
                 break;
             }
-
-            option_set->option_count += 1;
         }
+        if( !row )
+            continue;
+
+        option = &option_set->options[option_set->option_count];
+        memset(option, 0, sizeof(*option));
+
+        snprintf(text, sizeof(text), "%s @cya@ %s", row->name, map_build_loc_entity->name.name);
+
+        strncpy(option->text, text, sizeof(option->text));
+        option->param_a = entity_id;
+        option->param_b = x;
+        option->param_c = z;
+
+        switch( slot )
+        {
+        case 0:
+            option->action = MINIMENU_ACTION_OPLOC1;
+            break;
+        case 1:
+            option->action = MINIMENU_ACTION_OPLOC2;
+            break;
+        case 2:
+            option->action = MINIMENU_ACTION_OPLOC3;
+            break;
+        case 3:
+            option->action = MINIMENU_ACTION_OPLOC4;
+            break;
+        case 4:
+            option->action = MINIMENU_ACTION_OPLOC5;
+            break;
+        default:
+            assert(0 && "Invalid loc op slot");
+            break;
+        }
+
+        option_set->option_count += 1;
     }
 
     option = &option_set->options[option_set->option_count];

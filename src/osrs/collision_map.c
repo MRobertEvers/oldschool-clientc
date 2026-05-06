@@ -1,5 +1,7 @@
 #include "collision_map.h"
 
+#include "osrs/rscache/tables/config_locs.h"
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -431,6 +433,258 @@ collision_map_bfs_path(
     }
 
     /* Reverse into path_x, path_z so path[0] = first step from src */
+    int n = path_len < max_path ? path_len : max_path;
+    for( int i = 0; i < n; i++ )
+    {
+        path_x[i] = tmp_x[n - 1 - i];
+        path_z[i] = tmp_z[n - 1 - i];
+    }
+
+    free(bfs_direction);
+    free(bfs_cost);
+    free(bfs_step_x);
+    free(bfs_step_z);
+    return n;
+}
+
+/* Client.ts CollisionMap.testLoc with forceapproach=0 (all sides approachable).
+ * Returns 1 if (x,z) is inside or adjacent to the footprint at (dst_x,dst_z) of size (w x h)
+ * without a blocking wall on the approach side. */
+static int
+test_loc_arrival(
+    struct CollisionMap* cm,
+    int x,
+    int z,
+    int dst_x,
+    int dst_z,
+    int w,
+    int h)
+{
+    int max_x = dst_x + w - 1;
+    int max_z = dst_z + h - 1;
+    if( x >= dst_x && x <= max_x && z >= dst_z && z <= max_z )
+        return 1;
+    int idx = collision_map_index(x, z);
+    if( x == dst_x - 1 && z >= dst_z && z <= max_z &&
+        !(cm->flags[idx] & COLL_FLAG_WALL_EAST) )
+        return 1;
+    if( x == max_x + 1 && z >= dst_z && z <= max_z &&
+        !(cm->flags[idx] & COLL_FLAG_WALL_WEST) )
+        return 1;
+    if( z == dst_z - 1 && x >= dst_x && x <= max_x &&
+        !(cm->flags[idx] & COLL_FLAG_WALL_NORTH) )
+        return 1;
+    if( z == max_z + 1 && x >= dst_x && x <= max_x &&
+        !(cm->flags[idx] & COLL_FLAG_WALL_SOUTH) )
+        return 1;
+    return 0;
+}
+
+int
+collision_map_bfs_path_loc(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    int shape_select,
+    int loc_w,
+    int loc_h,
+    int* path_x,
+    int* path_z,
+    int max_path)
+{
+    /* For SCENERY / FLOOR_DECORATION shapes use testLoc arrival (Client.ts interactWithLoc
+     * centrepiece path: tryMove with width/height, locShape=0, forceapproach=0).
+     * All other shapes use exact-tile arrival (same as collision_map_bfs_path). */
+    int use_loc_arrival = (shape_select == LOC_SHAPE_SCENERY ||
+                           shape_select == LOC_SHAPE_SCENERY_DIAGIONAL ||
+                           shape_select == LOC_SHAPE_FLOOR_DECORATION) &&
+                          loc_w > 0 && loc_h > 0;
+
+    /* If loc arrival is not applicable, delegate directly. */
+    if( !use_loc_arrival )
+        return collision_map_bfs_path(cm, src_x, src_z, dst_x, dst_z, path_x, path_z, max_path);
+
+    const int scene_width = cm->size_x;
+    const int scene_length = cm->size_z;
+    const int buf_size = scene_width * scene_length;
+
+    int* bfs_direction = (int*)malloc((size_t)buf_size * sizeof(int));
+    int* bfs_cost = (int*)malloc((size_t)buf_size * sizeof(int));
+    int* bfs_step_x = (int*)malloc((size_t)buf_size * sizeof(int));
+    int* bfs_step_z = (int*)malloc((size_t)buf_size * sizeof(int));
+    if( !bfs_direction || !bfs_cost || !bfs_step_x || !bfs_step_z )
+    {
+        free(bfs_direction);
+        free(bfs_cost);
+        free(bfs_step_x);
+        free(bfs_step_z);
+        return -1;
+    }
+
+    memset(bfs_direction, 0, (size_t)buf_size * sizeof(int));
+    for( int i = 0; i < buf_size; i++ )
+        bfs_cost[i] = 99999999;
+
+    int src_idx = src_x * cm->size_z + src_z;
+    bfs_direction[src_idx] = 99;
+    bfs_cost[src_idx] = 0;
+
+    int steps = 0;
+    int length = 0;
+    bfs_step_x[steps] = src_x;
+    bfs_step_z[steps++] = src_z;
+
+    int arrived = 0;
+    int end_x = src_x, end_z = src_z;
+    int* flags = cm->flags;
+
+    while( length != steps )
+    {
+        int x = bfs_step_x[length];
+        int z = bfs_step_z[length];
+        length = (length + 1) % buf_size;
+
+        if( test_loc_arrival(cm, x, z, dst_x, dst_z, loc_w, loc_h) )
+        {
+            arrived = 1;
+            end_x = x;
+            end_z = z;
+            break;
+        }
+
+        int next_cost = bfs_cost[x * cm->size_z + z] + 1;
+        int idx = 0;
+        if( collision_map_can_step_west(cm, x, z) )
+        {
+            idx = collision_map_index(x - 1, z);
+            if( bfs_direction[idx] == 0 )
+            {
+                bfs_step_x[steps] = x - 1;
+                bfs_step_z[steps] = z;
+                steps = (steps + 1) % buf_size;
+                bfs_direction[idx] = DIR_EAST;
+                bfs_cost[idx] = next_cost;
+            }
+        }
+        if( collision_map_can_step_east(cm, x, z) )
+        {
+            idx = collision_map_index(x + 1, z);
+            if( bfs_direction[idx] == 0 )
+            {
+                bfs_step_x[steps] = x + 1;
+                bfs_step_z[steps] = z;
+                steps = (steps + 1) % buf_size;
+                bfs_direction[idx] = DIR_WEST;
+                bfs_cost[idx] = next_cost;
+            }
+        }
+        if( collision_map_can_step_south(cm, x, z) )
+        {
+            idx = collision_map_index(x, z - 1);
+            if( bfs_direction[idx] == 0 )
+            {
+                bfs_step_x[steps] = x;
+                bfs_step_z[steps] = z - 1;
+                steps = (steps + 1) % buf_size;
+                bfs_direction[idx] = DIR_NORTH;
+                bfs_cost[idx] = next_cost;
+            }
+        }
+        if( collision_map_can_step_north(cm, x, z) )
+        {
+            idx = collision_map_index(x, z + 1);
+            if( bfs_direction[idx] == 0 )
+            {
+                bfs_step_x[steps] = x;
+                bfs_step_z[steps] = z + 1;
+                steps = (steps + 1) % buf_size;
+                bfs_direction[idx] = DIR_SOUTH;
+                bfs_cost[idx] = next_cost;
+            }
+        }
+        if( collision_map_can_step_diagonal_south_west(cm, x, z) )
+        {
+            idx = collision_map_index(x - 1, z - 1);
+            if( bfs_direction[idx] == 0 )
+            {
+                bfs_step_x[steps] = x - 1;
+                bfs_step_z[steps] = z - 1;
+                steps = (steps + 1) % buf_size;
+                bfs_direction[idx] = DIR_NORTH_EAST;
+                bfs_cost[idx] = next_cost;
+            }
+        }
+        if( collision_map_can_step_diagonal_south_east(cm, x, z) )
+        {
+            idx = collision_map_index(x + 1, z - 1);
+            if( bfs_direction[idx] == 0 )
+            {
+                bfs_step_x[steps] = x + 1;
+                bfs_step_z[steps] = z - 1;
+                steps = (steps + 1) % buf_size;
+                bfs_direction[idx] = DIR_NORTH_WEST;
+                bfs_cost[idx] = next_cost;
+            }
+        }
+        if( collision_map_can_step_diagonal_north_west(cm, x, z) )
+        {
+            idx = collision_map_index(x - 1, z + 1);
+            if( bfs_direction[idx] == 0 )
+            {
+                bfs_step_x[steps] = x - 1;
+                bfs_step_z[steps] = z + 1;
+                steps = (steps + 1) % buf_size;
+                bfs_direction[idx] = DIR_SOUTH_EAST;
+                bfs_cost[idx] = next_cost;
+            }
+        }
+        if( collision_map_can_step_diagonal_north_east(cm, x, z) )
+        {
+            idx = collision_map_index(x + 1, z + 1);
+            if( bfs_direction[idx] == 0 )
+            {
+                bfs_step_x[steps] = x + 1;
+                bfs_step_z[steps] = z + 1;
+                steps = (steps + 1) % buf_size;
+                bfs_direction[idx] = DIR_SOUTH_WEST;
+                bfs_cost[idx] = next_cost;
+            }
+        }
+    }
+
+    if( !arrived )
+    {
+        free(bfs_direction);
+        free(bfs_cost);
+        free(bfs_step_x);
+        free(bfs_step_z);
+        return -1;
+    }
+
+    int trace_x = end_x, trace_z = end_z;
+    int path_len = 0;
+    int tmp_x[256], tmp_z[256];
+    assert(max_path <= 256);
+
+    while( path_len < max_path && (trace_x != src_x || trace_z != src_z) )
+    {
+        int dir = bfs_direction[trace_x * cm->size_z + trace_z];
+        tmp_x[path_len] = trace_x;
+        tmp_z[path_len] = trace_z;
+        path_len++;
+
+        if( (dir & DIR_EAST) != 0 )
+            trace_x++;
+        else if( (dir & DIR_WEST) != 0 )
+            trace_x--;
+        if( (dir & DIR_NORTH) != 0 )
+            trace_z++;
+        else if( (dir & DIR_SOUTH) != 0 )
+            trace_z--;
+    }
+
     int n = path_len < max_path ? path_len : max_path;
     for( int i = 0; i < n; i++ )
     {

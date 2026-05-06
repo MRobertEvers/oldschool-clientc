@@ -130,6 +130,134 @@ ui_draw_line(
     }
 }
 
+static bool
+ui_clip_edge_lb(double p, double q, double* u1, double* u2)
+{
+    if( p == 0.0 )
+        return q >= 0.0;
+    double r = q / p;
+    if( p < 0.0 )
+    {
+        if( r > *u2 )
+            return false;
+        if( r > *u1 )
+            *u1 = r;
+    }
+    else
+    {
+        if( r < *u1 )
+            return false;
+        if( r < *u2 )
+            *u2 = r;
+    }
+    return true;
+}
+
+static bool
+ui_liang_barsky_clip_i(
+    int xmin,
+    int xmax,
+    int ymin,
+    int ymax,
+    int x0,
+    int y0,
+    int x1,
+    int y1,
+    int* ox0,
+    int* oy0,
+    int* ox1,
+    int* oy1)
+{
+    const double dx = (double)(x1 - x0);
+    const double dy = (double)(y1 - y0);
+    double u1 = 0.0;
+    double u2 = 1.0;
+
+    if( !ui_clip_edge_lb(-dx, (double)(x0 - xmin), &u1, &u2) )
+        return false;
+    if( !ui_clip_edge_lb(dx, (double)(xmax - x0), &u1, &u2) )
+        return false;
+    if( !ui_clip_edge_lb(-dy, (double)(y0 - ymin), &u1, &u2) )
+        return false;
+    if( !ui_clip_edge_lb(dy, (double)(ymax - y0), &u1, &u2) )
+        return false;
+    if( u1 > u2 )
+        return false;
+
+    *ox0 = (int)floor(x0 + u1 * dx + 0.5);
+    *oy0 = (int)floor(y0 + u1 * dy + 0.5);
+    *ox1 = (int)floor(x0 + u2 * dx + 0.5);
+    *oy1 = (int)floor(y0 + u2 * dy + 0.5);
+    return true;
+}
+
+void
+ui_draw_line_clipped(
+    int* pixel_buffer,
+    int stride,
+    int buf_w,
+    int buf_h,
+    int clip_l,
+    int clip_t,
+    int clip_r,
+    int clip_b,
+    int x0,
+    int y0,
+    int x1,
+    int y1,
+    int color_rgb)
+{
+    if( !pixel_buffer || buf_w <= 0 || buf_h <= 0 || stride < buf_w )
+        return;
+    if( clip_r <= clip_l || clip_b <= clip_t )
+        return;
+
+    int xl = clip_l > 0 ? clip_l : 0;
+    int yt = clip_t > 0 ? clip_t : 0;
+    int xr = clip_r < buf_w ? clip_r : buf_w;
+    int yb = clip_b < buf_h ? clip_b : buf_h;
+    if( xr <= xl || yb <= yt )
+        return;
+
+    int xmin = xl;
+    int xmax = xr - 1;
+    int ymin = yt;
+    int ymax = yb - 1;
+
+    int cx0 = 0;
+    int cy0 = 0;
+    int cx1 = 0;
+    int cy1 = 0;
+    if( !ui_liang_barsky_clip_i(xmin, xmax, ymin, ymax, x0, y0, x1, y1, &cx0, &cy0, &cx1, &cy1) )
+        return;
+
+    int dx = abs(cx1 - cx0);
+    int dy = abs(cy1 - cy0);
+    int sx = cx0 < cx1 ? 1 : -1;
+    int sy = cy0 < cy1 ? 1 : -1;
+    int err = dx - dy;
+    int px = cx0;
+    int py = cy0;
+    for( ;; )
+    {
+        if( px >= xl && px < xr && py >= yt && py < yb )
+            pixel_buffer[py * stride + px] = color_rgb;
+        if( px == cx1 && py == cy1 )
+            break;
+        int e2 = 2 * err;
+        if( e2 > -dy )
+        {
+            err -= dy;
+            px += sx;
+        }
+        if( e2 < dx )
+        {
+            err += dx;
+            py += sy;
+        }
+    }
+}
+
 void
 ui_draw_rect_outline(
     int* pixel_buffer,

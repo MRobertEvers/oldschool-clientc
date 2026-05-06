@@ -128,8 +128,7 @@ LibToriRS_GameNew(
 {
     struct GGame* game = malloc(sizeof(struct GGame));
     memset(game, 0, sizeof(struct GGame));
-    game->mouse_clicked_end_x = -1;
-    game->mouse_clicked_end_y = -1;
+    game->debug_entity_pathing = true;
 
     minimenu_regions_default(&game->minimenu_regions);
 
@@ -191,6 +190,7 @@ LibToriRS_GameNew(
     game->latched = false;
 
     game->sys_dash = dash_new();
+    game->tile_hover_overlay_model = dashmodel_new();
 
     platform_get_memory_info(&mem);
     {
@@ -430,6 +430,11 @@ LibToriRS_GameFree(struct GGame* game)
 
     if( game->sys_dash )
         dash_free(game->sys_dash);
+    if( game->tile_hover_overlay_model )
+    {
+        dashmodel_free(game->tile_hover_overlay_model);
+        game->tile_hover_overlay_model = NULL;
+    }
     if( game->sys_painter_buffer )
     {
         free(game->sys_painter_buffer->commands);

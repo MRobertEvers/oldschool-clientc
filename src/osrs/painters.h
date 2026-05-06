@@ -1,6 +1,7 @@
 #ifndef PAINTERS_H
 #define PAINTERS_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 /**
@@ -406,6 +407,57 @@ painter_tile_at(
     int sx,
     int sz,
     int slevel);
+
+/**
+ * True when (sx, sz) had FLOFLAG_LINK_BELOW on cache level 1, so world_rebuild_centerzone_end
+ * push-down moved cache-l1 content into painter grid slot 0 (bridge surface). Detected via the
+ * bridge_tile back-pointer set on the surface tile by painter_tile_set_bridge — same condition
+ * as Client-TS checking mapl[1][x][z] & MapFlag.LinkBelow, without threading flag maps through
+ * the painter at draw time.
+ *
+ * Caller must ensure (sx, sz) is in [0, painter->width) x [0, painter->height); painter_tile_at
+ * asserts on out-of-range coordinates.
+ */
+static inline bool
+painter_column_has_link_below(
+    struct Painter* painter,
+    int sx,
+    int sz)
+{
+    return painter_tile_at(painter, sx, sz, 0)->bridge_tile != -1;
+}
+
+/**
+ * Map cache terrain level (chunk_pos_level / element.slevel) to painter vertical grid slot after
+ * world bridge push-down — must match world_rebuild_centerzone_end + scenebuilder bridge loops.
+ */
+static inline int
+painter_grid_slot_for_cache_level(
+    int cache_level,
+    bool column_link_below)
+{
+    if( cache_level < 0 )
+        cache_level = 0;
+    if( cache_level > 3 )
+        cache_level = 3;
+    if( !column_link_below )
+        return cache_level;
+    return cache_level == 0 ? 3 : (cache_level - 1);
+}
+
+/**
+ * Bump an entity's base level so its painter slevel and heightmap lookup land on the bridge
+ * surface for LinkBelow columns. Mirrors Client-TS getAvH (level + 1 when level < 3 and the
+ * column has LinkBelow on cache l1). Returns base_level unchanged when the column has no bridge
+ * or when base_level is already at the top cache level.
+ */
+static inline int
+entity_cache_level_for_column(
+    int base_level,
+    bool column_link_below)
+{
+    return (column_link_below && base_level < 3) ? base_level + 1 : base_level;
+}
 
 struct PaintersElement*
 painter_element_at(

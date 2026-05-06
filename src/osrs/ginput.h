@@ -158,19 +158,35 @@ struct GameInputKeyState
     double down_timestamp;
 };
 
-struct GameInputMouseButtonState
+/**
+ * Per-button mouse state for one mouse button.
+ * "press" coords are the position where the button was last pressed down (persistent until next
+ * press). "click" coords are valid only during the frame when click_this_frame is true (the
+ * matching mousedown + mouseup pair that completed this frame).
+ */
+struct MouseButtonState
 {
-    bool pressed;
-    bool down;
-    double down_timestamp;
-    int x;
-    int y;
+    bool   down;               /* currently held */
+    bool   press_this_frame;   /* went down this frame */
+    bool   release_this_frame; /* went up this frame */
+    bool   click_this_frame;   /* a full press+release pair completed this frame */
+    int    press_x, press_y;   /* persistent: game coords of last mousedown */
+    int    release_x, release_y; /* persistent: game coords of last mouseup */
+    int    click_press_x,   click_press_y;   /* valid only when click_this_frame */
+    int    click_release_x, click_release_y; /* valid only when click_this_frame */
+    double press_timestamp;
 };
 
-struct GameInputMouseState
+/**
+ * Snapshot of mouse state for one coordinate space (window or game/buffer).
+ * GInput.raw_mouse holds raw window-pixel coords.
+ * GGame.mouse holds transformed game-buffer coords.
+ */
+struct MouseSnapshot
 {
-    int x;
-    int y;
+    int cursor_x, cursor_y; /* live cursor; -1,-1 if outside the viewport */
+    int wheel_delta;         /* accumulated wheel scroll this frame (+up, -down) */
+    struct MouseButtonState buttons[TORIRSM_COUNT];
 };
 
 struct GInput
@@ -186,8 +202,9 @@ struct GInput
     double time_delta_accumulator_seconds;
     double time;
 
-    struct GameInputMouseState mouse_state;
-    struct GameInputMouseButtonState mouse_button_states[TORIRSM_COUNT];
+    /** Raw window-pixel coordinates. Updated by platform event handlers. */
+    struct MouseSnapshot raw_mouse;
+
     struct GameInputKeyState key_states[TORIRSK_COUNT];
 };
 

@@ -300,7 +300,7 @@ clientprot_send_oploc_v1(
     p2(b, w->wire_x);
     p2(b, w->wire_z);
     p2(b, w->loc_id);
-    p1(b, w->ctrl ? 1 : 0);
+    (void)w->ctrl;
 }
 
 void
@@ -314,7 +314,7 @@ clientprot_send_oploct_v1(
     p2(b, w->wire_x);
     p2(b, w->wire_z);
     p2(b, w->loc_id);
-    p1(b, w->ctrl ? 1 : 0);
+    (void)w->ctrl;
 }
 
 void
@@ -455,7 +455,7 @@ clientprot_send_oploct_target_v1(
     p2(b, w->wire_x);
     p2(b, w->wire_z);
     p2(b, w->loc_id);
-    p1(b, w->ctrl ? 1 : 0);
+    (void)w->ctrl;
     p2(b, target_comp_id);
 }
 

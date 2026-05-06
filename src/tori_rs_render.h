@@ -52,6 +52,7 @@ enum ToriRS_GFXCommandKind
     TORIRS_GFX_DRAW_SPRITE,
     TORIRS_GFX_DRAW_FONT,
     TORIRS_GFX_DRAW_RECT,
+    TORIRS_GFX_DRAW_LINE,
 
     TORIRS_GFX_STATE_PUSH_CLIP,
     TORIRS_GFX_STATE_POP_CLIP,
@@ -227,6 +228,9 @@ struct ToriRSRenderCommand
 
             /* Feature 8: alpha mode.  0 = opaque, 1 = alpha-blend, 2 = additive. */
             uint8_t alpha_mode;
+            /** When alpha_mode==1: blend strength 1–255 for soft3d CPU blit
+             * (`dash2d_blit_sprite_alpha` / `soft3d_blit_sprite_subrect_alpha`). 0 = default 255. */
+            uint8_t sprite_blend_alpha;
         } _sprite_draw;
         struct
         {
@@ -245,6 +249,15 @@ struct ToriRSRenderCommand
             int alpha;
             uint8_t fill;
         } _rect_draw;
+        /** Framebuffer pixel coords (same space as TORIRS_GFX_DRAW_RECT). */
+        struct
+        {
+            int x0;
+            int y0;
+            int x1;
+            int y1;
+            int color_rgb;
+        } _line_draw;
         struct
         {
             int x;
@@ -313,5 +326,13 @@ LibToriRS_RenderCommandBufferAt(
 
 int
 LibToriRS_RenderCommandBufferCount(struct ToriRSRenderCommandBuffer* buffer);
+
+/** When alpha_mode==1: strength for soft3d sprite blit; 0 ⇒ 255. Other renderers may ignore. */
+static inline int
+torirs_sprite_draw_blend_u8(const struct ToriRSRenderCommand* cmd)
+{
+    uint8_t b = cmd->_sprite_draw.sprite_blend_alpha;
+    return b ? (int)b : 255;
+}
 
 #endif

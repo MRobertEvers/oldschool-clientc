@@ -18,16 +18,18 @@ on_mousedown(
     struct GameInputEvent* ev)
 {
     push_event(input, ev);
-    struct GameInputEvent_MouseDown* event = &ev->mouse_down;
-    input->mouse_button_states[event->button].pressed = true;
-    input->mouse_button_states[event->button].down_timestamp = input->time;
-    input->mouse_button_states[event->button].down = true;
-    input->mouse_button_states[event->button].x = event->mouse_x;
-    input->mouse_button_states[event->button].y = event->mouse_y;
-    /* Match on_mousemove: keep mouse_state aligned with hardware when no MOTION was queued
-     * (soft3D skips SDL_GetMouseState refresh each poll). */
-    input->mouse_state.x = event->mouse_x;
-    input->mouse_state.y = event->mouse_y;
+    int btn = ev->mouse_down.button;
+    int mx  = ev->mouse_down.mouse_x;
+    int my  = ev->mouse_down.mouse_y;
+
+    input->raw_mouse.cursor_x       = mx;
+    input->raw_mouse.cursor_y       = my;
+
+    input->raw_mouse.buttons[btn].press_x         = mx;
+    input->raw_mouse.buttons[btn].press_y         = my;
+    input->raw_mouse.buttons[btn].press_timestamp = input->time;
+    input->raw_mouse.buttons[btn].down            = true;
+    input->raw_mouse.buttons[btn].press_this_frame = true;
 }
 
 static void
@@ -36,26 +38,38 @@ on_mouseup(
     struct GameInputEvent* ev)
 {
     push_event(input, ev);
-    struct GameInputEvent_MouseUp* event = &ev->mouse_up;
-    input->mouse_state.x = event->mouse_x;
-    input->mouse_state.y = event->mouse_y;
+    int btn = ev->mouse_up.button;
+    int mx  = ev->mouse_up.mouse_x;
+    int my  = ev->mouse_up.mouse_y;
 
-    struct GameInputEvent synthetic_event;
-    if( input->mouse_button_states[event->button].down )
+    input->raw_mouse.cursor_x = mx;
+    input->raw_mouse.cursor_y = my;
+
+    input->raw_mouse.buttons[btn].release_x         = mx;
+    input->raw_mouse.buttons[btn].release_y         = my;
+    input->raw_mouse.buttons[btn].release_this_frame = true;
+
+    if( input->raw_mouse.buttons[btn].down )
     {
-        synthetic_event.type = TORIRSEV2_CLICK;
-        synthetic_event.click.button = event->button;
-        synthetic_event.click.start_mouse_x = input->mouse_button_states[event->button].x;
-        synthetic_event.click.start_mouse_y = input->mouse_button_states[event->button].y;
-        synthetic_event.click.end_mouse_x = event->mouse_x;
-        synthetic_event.click.end_mouse_y = event->mouse_y;
-        push_event(input, &synthetic_event);
+        input->raw_mouse.buttons[btn].click_this_frame  = true;
+        input->raw_mouse.buttons[btn].click_press_x    = input->raw_mouse.buttons[btn].press_x;
+        input->raw_mouse.buttons[btn].click_press_y    = input->raw_mouse.buttons[btn].press_y;
+        input->raw_mouse.buttons[btn].click_release_x  = mx;
+        input->raw_mouse.buttons[btn].click_release_y  = my;
+
+        /* Synthetic CLICK event for any queue-based consumers. */
+        struct GameInputEvent synthetic;
+        synthetic.type               = TORIRSEV2_CLICK;
+        synthetic.click.button       = btn;
+        synthetic.click.start_mouse_x = input->raw_mouse.buttons[btn].press_x;
+        synthetic.click.start_mouse_y = input->raw_mouse.buttons[btn].press_y;
+        synthetic.click.end_mouse_x  = mx;
+        synthetic.click.end_mouse_y  = my;
+        push_event(input, &synthetic);
     }
 
-    input->mouse_button_states[event->button].down = false;
-    input->mouse_button_states[event->button].down_timestamp = 0.0f;
-    input->mouse_button_states[event->button].x = 0;
-    input->mouse_button_states[event->button].y = 0;
+    input->raw_mouse.buttons[btn].down            = false;
+    input->raw_mouse.buttons[btn].press_timestamp = 0.0;
 }
 
 static void
@@ -64,9 +78,8 @@ on_mousemove(
     struct GameInputEvent* ev)
 {
     push_event(input, ev);
-    struct GameInputEvent_MouseMove* event = &ev->mouse_move;
-    input->mouse_state.x = event->x;
-    input->mouse_state.y = event->y;
+    input->raw_mouse.cursor_x = ev->mouse_move.x;
+    input->raw_mouse.cursor_y = ev->mouse_move.y;
 }
 
 static void
@@ -75,6 +88,10 @@ on_mousewheel(
     struct GameInputEvent* ev)
 {
     push_event(input, ev);
+    /* Accumulate wheel delta; cursor is updated to the wheel event position. */
+    input->raw_mouse.wheel_delta += ev->mouse_wheel.wheel;
+    input->raw_mouse.cursor_x    = ev->mouse_wheel.mouse_x;
+    input->raw_mouse.cursor_y    = ev->mouse_wheel.mouse_y;
 }
 
 static void
@@ -84,8 +101,8 @@ on_keydown(
 {
     push_event(input, ev);
     struct GameInputEvent_KeyDown* event = &ev->key_down;
-    input->key_states[event->key].pressed = true;
-    input->key_states[event->key].down = true;
+    input->key_states[event->key].pressed        = true;
+    input->key_states[event->key].down           = true;
     input->key_states[event->key].down_timestamp = input->time;
 }
 
@@ -96,16 +113,22 @@ on_keyup(
 {
     push_event(input, ev);
     struct GameInputEvent_KeyUp* event = &ev->key_up;
-    input->key_states[event->key].pressed = false;
-    input->key_states[event->key].down = false;
+    input->key_states[event->key].pressed        = false;
+    input->key_states[event->key].down           = false;
     input->key_states[event->key].down_timestamp = 0.0f;
 }
 
 void
 game_input_process_events(struct GInput* input)
 {
+    /* Clear per-frame flags before processing new events. */
     for( int i = 0; i < TORIRSM_COUNT; i++ )
-        input->mouse_button_states[i].pressed = false;
+    {
+        input->raw_mouse.buttons[i].press_this_frame   = false;
+        input->raw_mouse.buttons[i].release_this_frame = false;
+        input->raw_mouse.buttons[i].click_this_frame   = false;
+    }
+    input->raw_mouse.wheel_delta = 0;
     for( int i = 0; i < TORIRSK_COUNT; i++ )
         input->key_states[i].pressed = false;
 
@@ -152,6 +175,6 @@ game_input_keydown_or_pressed(
 void
 game_input_frame_reset(struct GInput* input)
 {
-    input->event_count = 0;
+    input->event_count    = 0;
     input->in_event_count = 0;
 }

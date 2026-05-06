@@ -28,6 +28,7 @@ extern "C" {
 #include "graphics/dash.h"
 #include "graphics/raster/deob/pix3d_deob_compat.h"
 #include "osrs/game.h"
+#include "osrs/ui.h"
 #include "osrs/world_option_set.h"
 #include "platforms/common/platform_memory.h"
 #include "tori_rs.h"
@@ -686,7 +687,7 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
                             iy,
                             srw,
                             srh,
-                            255,
+                            torirs_sprite_draw_blend_u8(&command),
                             renderer->pixel_buffer);
                     }
                     else
@@ -712,7 +713,7 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
                         vp,
                         command._sprite_draw.dst_bb_x,
                         command._sprite_draw.dst_bb_y,
-                        255,
+                        torirs_sprite_draw_blend_u8(&command),
                         renderer->pixel_buffer);
                 }
                 else
@@ -837,6 +838,33 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
                     for( int py = y0; py < y1; py++ )
                         pb[py * stride + (x + w - 1)] = rgb;
             }
+        }
+        break;
+        case TORIRS_GFX_DRAW_LINE:
+        {
+            struct DashViewPort* vp = game->iface_view_port;
+            int* pb = renderer->pixel_buffer;
+            if( !vp || !pb )
+                break;
+            int x0 = command._line_draw.x0;
+            int y0 = command._line_draw.y0;
+            int x1 = command._line_draw.x1;
+            int y1 = command._line_draw.y1;
+            int rgb = command._line_draw.color_rgb;
+            ui_draw_line_clipped(
+                pb,
+                renderer->width,
+                renderer->width,
+                renderer->height,
+                vp->clip_left,
+                vp->clip_top,
+                vp->clip_right,
+                vp->clip_bottom,
+                x0,
+                y0,
+                x1,
+                y1,
+                rgb);
         }
         break;
         case TORIRS_GFX_STATE_BEGIN_3D:

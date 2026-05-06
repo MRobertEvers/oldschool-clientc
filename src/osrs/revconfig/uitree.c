@@ -2096,8 +2096,8 @@ uitree_debug_log_inv_menu(struct GGame* game, struct UITree* tree, int inv_slot)
         hit,
         nopt,
         inv_slot,
-        game->mouse_x,
-        game->mouse_y);
+        game->mouse.cursor_x,
+        game->mouse.cursor_y);
     if( hit >= 0 && (uint32_t)hit < tree->component_count )
     {
         struct StaticUIComponent* c = &tree->components[hit];

@@ -143,6 +143,8 @@ set(COMMON_SOURCES
     src/osrs/collision_map.c
     src/osrs/world_pickset.c
     src/osrs/world_options.c
+    src/osrs/entity_pathing_draw.c
+    src/osrs/ui.c
     src/osrs/rscache/filelist.c
     src/osrs/rscache/archive.c
     src/osrs/revconfig/revconfig.c

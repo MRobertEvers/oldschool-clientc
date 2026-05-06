@@ -124,6 +124,25 @@ collision_map_bfs_path(
     int* path_z,
     int max_path);
 
+/* BFS pathfinding toward a loc footprint. Same return convention as collision_map_bfs_path.
+ * shape_select / loc_w / loc_h drive arrival: for SCENERY and FLOOR_DECORATION shapes the
+ * player is considered "arrived" when adjacent to any tile in the (loc_w x loc_h) footprint
+ * rooted at (dst_x, dst_z) with no blocking wall on the approach side (Client.ts testLoc,
+ * forceapproach=0). All other shapes fall back to exact-tile arrival. */
+int
+collision_map_bfs_path_loc(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    int shape_select,
+    int loc_w,
+    int loc_h,
+    int* path_x,
+    int* path_z,
+    int max_path);
+
 static inline int
 collision_map_index(
     int x,

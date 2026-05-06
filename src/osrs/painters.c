@@ -783,7 +783,9 @@ compute_normal_scenery_spans(
                 span_flags |= SPAN_FLAG_NORTH;
             }
 
-            tile = painter_tile_at(painter, x, z, loc_level);
+            int g = painter_grid_slot_for_cache_level(
+                loc_level, painter_column_has_link_below(painter, x, z));
+            tile = painter_tile_at(painter, x, z, g);
             scenery_prepend(painter, tile, (int16_t)element, (uint8_t)span_flags);
         }
     }
@@ -880,11 +882,12 @@ painter_reset_to_static(struct Painter* painter)
         {
             for( int z = 0; z < size_z; z++ )
             {
-                tile = painter_tile_at(
-                    painter,
-                    painter->elements[i].sx + x,
-                    painter->elements[i].sz + z,
-                    painter->elements[i].slevel);
+                int tx = painter->elements[i].sx + x;
+                int tz = painter->elements[i].sz + z;
+                int g = painter_grid_slot_for_cache_level(
+                    painter->elements[i].slevel,
+                    painter_column_has_link_below(painter, tx, tz));
+                tile = painter_tile_at(painter, tx, tz, g);
                 tile_remove_scenery_element(painter, tile, i);
             }
         }
@@ -903,7 +906,9 @@ painter_add_wall(
     int wall_ab,
     int side)
 {
-    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
+    int g = painter_grid_slot_for_cache_level(
+        slevel, painter_column_has_link_below(painter, sx, sz));
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, g);
     enum PaintersElementKind kind;
     int element = painter_push_element(painter);
 
@@ -945,7 +950,9 @@ painter_add_wall_decor(
     int side,
     int through_wall_flags)
 {
-    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
+    int g = painter_grid_slot_for_cache_level(
+        slevel, painter_column_has_link_below(painter, sx, sz));
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, g);
     int element = painter_push_element(painter);
 
     switch( wall_ab )
@@ -984,7 +991,9 @@ painter_add_ground_decor(
     int slevel,
     int entity)
 {
-    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
+    int g = painter_grid_slot_for_cache_level(
+        slevel, painter_column_has_link_below(painter, sx, sz));
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, g);
     int element = painter_push_element(painter);
 
     assert(tile->ground_decor == -1);
@@ -1009,7 +1018,9 @@ painter_add_ground_object(
     int entity,
     int bottom_middle_top)
 {
-    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
+    int g = painter_grid_slot_for_cache_level(
+        slevel, painter_column_has_link_below(painter, sx, sz));
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, g);
     int element = painter_push_element(painter);
 
     switch( bottom_middle_top )

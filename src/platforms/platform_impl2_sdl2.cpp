@@ -341,11 +341,12 @@ Platform2_SDL2_PollEvents(
          * report logical pixel coordinates even on HiDPI displays. */
         int ww = 0, wh = 0;
         SDL_GetWindowSize(platform->window, &ww, &wh);
-        sdl2_transform_mouse_coordinates(
-            mx, my,
-            &input->mouse_state.x, &input->mouse_state.y,
-            ww, wh,
-            platform->game_screen_width, platform->game_screen_height);
+        int gx = 0, gy = 0;
+        sdl2_transform_mouse_coordinates(mx, my, &gx, &gy, ww, wh,
+                                         platform->game_screen_width,
+                                         platform->game_screen_height);
+        input->raw_mouse.cursor_x = gx;
+        input->raw_mouse.cursor_y = gy;
     }
 }
 

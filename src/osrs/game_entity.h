@@ -187,6 +187,9 @@ struct ProjectileEntity
 struct MapBuildLocEntity
 {
     int entity_id;
+    int loc_type_id;
+    uint8_t shape_select;
+    uint8_t orientation;
     struct EntitySceneElement scene_element;
     struct EntitySceneElement scene_element_two;
     struct EntityAnimation animation;

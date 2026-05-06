@@ -8,6 +8,13 @@
 #include "osrs/revconfig/uitree.h"
 #include "tori_rs.h"
 
+/* -------------------------------------------------------------------------
+ * Coordinate transform: window pixels → game/buffer pixels.
+ * For soft3D backends, the game blits a smaller buffer into a letterboxed
+ * destination rect inside the window; we map the click into buffer space.
+ * For hardware backends, SDL already reports logical (game-coord) pixels.
+ * --------------------------------------------------------------------- */
+
 static void
 game_map_soft3d_window_mouse_to_buffer(
     struct GGame* game,
@@ -49,15 +56,84 @@ game_map_soft3d_window_mouse_to_buffer(
         *py = bh - 1;
 }
 
+/** Transform one point from window coords to game/buffer coords. */
+static void
+mouse_window_to_game(struct GGame* game, int wx, int wy, int* gx, int* gy)
+{
+    *gx = wx;
+    *gy = wy;
+    if( game->soft3d_mouse_from_window )
+        game_map_soft3d_window_mouse_to_buffer(game, gx, gy);
+}
+
+/**
+ * Populate game->mouse (game/buffer coords) from input->raw_mouse (window coords).
+ * Called once per frame at the start of LibToriRS_GameProcessInput.
+ *
+ * Cursor: always transformed.
+ * Persistent press/release coords: transformed on the frame they occur.
+ * Per-frame click/press/release coords: transformed when the flag is set.
+ */
+static void
+game_mouse_capture(struct GGame* game, struct GInput* input)
+{
+    /* Cursor */
+    mouse_window_to_game(
+        game,
+        input->raw_mouse.cursor_x,
+        input->raw_mouse.cursor_y,
+        &game->mouse.cursor_x,
+        &game->mouse.cursor_y);
+
+    /* Wheel */
+    game->mouse.wheel_delta = input->raw_mouse.wheel_delta;
+
+    for( int b = 0; b < TORIRSM_COUNT; b++ )
+    {
+        struct MouseButtonState const* src = &input->raw_mouse.buttons[b];
+        struct MouseButtonState*       dst = &game->mouse.buttons[b];
+
+        dst->down              = src->down;
+        dst->press_this_frame  = src->press_this_frame;
+        dst->release_this_frame = src->release_this_frame;
+        dst->click_this_frame  = src->click_this_frame;
+        dst->press_timestamp   = src->press_timestamp;
+
+        if( src->press_this_frame )
+        {
+            mouse_window_to_game(game, src->press_x, src->press_y, &dst->press_x, &dst->press_y);
+        }
+        if( src->release_this_frame )
+        {
+            mouse_window_to_game(
+                game, src->release_x, src->release_y, &dst->release_x, &dst->release_y);
+        }
+        if( src->click_this_frame )
+        {
+            mouse_window_to_game(
+                game,
+                src->click_press_x,
+                src->click_press_y,
+                &dst->click_press_x,
+                &dst->click_press_y);
+            mouse_window_to_game(
+                game,
+                src->click_release_x,
+                src->click_release_y,
+                &dst->click_release_x,
+                &dst->click_release_y);
+        }
+    }
+}
+
 void
 LibToriRS_GameProcessInput(
     struct GGame* game,
     struct GInput* input)
 {
-    // IO
-    const int target_input_fps = 50;
-    const float time_delta_step = 1.0f / target_input_fps;
-    const int max_ticks_per_frame = 25;
+    const int   target_input_fps   = 50;
+    const float time_delta_step    = 1.0f / target_input_fps;
+    const int   max_ticks_per_frame = 25;
 
     int time_quanta = 0;
     while( input->time_delta_accumulator_seconds > time_delta_step &&
@@ -72,110 +148,77 @@ LibToriRS_GameProcessInput(
 
     game_input_process_events(input);
 
+    /* Populate game->mouse (game-coord snapshot) from raw window-coord snapshot. */
+    game_mouse_capture(game, input);
+
     game_chat_process_input(game, input);
 
     for( int i = 0; i < time_quanta; i++ )
+    {
+        if( !game_chat_is_typing(game) )
         {
-            // if( game->mouse_cycle < 400 && game->mouse_cycle != -1 )
-            // {
-            //     game->mouse_cycle += 20;
-            //     if( game->mouse_cycle >= 400 )
-            //         game->mouse_cycle = -1;
-            // }
-
-            if( !game_chat_is_typing(game) )
+            if( game_input_keydown_or_pressed(input, TORIRSK_W) )
             {
+                game->camera_world_x -=
+                    (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
+                game->camera_world_z +=
+                    (dash_cos(game->camera_yaw) * game->camera_movement_speed) >> 16;
+            }
 
-                if( game_input_keydown_or_pressed(input, TORIRSK_W) )
-        {
-            game->camera_world_x -=
-                (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
-            game->camera_world_z +=
-                (dash_cos(game->camera_yaw) * game->camera_movement_speed) >> 16;
-        }
+            if( game_input_keydown_or_pressed(input, TORIRSK_S) )
+            {
+                game->camera_world_x +=
+                    (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
+                game->camera_world_z -=
+                    (dash_cos(game->camera_yaw) * game->camera_movement_speed) >> 16;
+            }
 
-                if( game_input_keydown_or_pressed(input, TORIRSK_S) )
-        {
-            game->camera_world_x +=
-                (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
-            game->camera_world_z -=
-                (dash_cos(game->camera_yaw) * game->camera_movement_speed) >> 16;
-        }
+            if( game_input_keydown_or_pressed(input, TORIRSK_A) )
+            {
+                game->camera_world_x -=
+                    (dash_cos(game->camera_yaw) * game->camera_movement_speed) >> 16;
+                game->camera_world_z -=
+                    (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
+            }
 
-        if( game_input_keydown_or_pressed(input, TORIRSK_A) )
-        {
-            game->camera_world_x -=
-                (dash_cos(game->camera_yaw) * game->camera_movement_speed) >> 16;
-            game->camera_world_z -=
-                (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
-        }
+            if( game_input_keydown_or_pressed(input, TORIRSK_D) )
+            {
+                game->camera_world_x +=
+                    (dash_cos(game->camera_yaw) * game->camera_movement_speed) >> 16;
+                game->camera_world_z +=
+                    (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
+            }
 
-        if( game_input_keydown_or_pressed(input, TORIRSK_D) )
-        {
-            game->camera_world_x +=
-                (dash_cos(game->camera_yaw) * game->camera_movement_speed) >> 16;
-            game->camera_world_z +=
-                (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
-        }
+            if( game_input_keydown_or_pressed(input, TORIRSK_R) )
+                game->camera_world_y -= game->camera_movement_speed;
+            if( game_input_keydown_or_pressed(input, TORIRSK_F) )
+                game->camera_world_y += game->camera_movement_speed;
 
-        if( game_input_keydown_or_pressed(input, TORIRSK_R) )
-        {
-            game->camera_world_y -= game->camera_movement_speed;
-        }
-        if( game_input_keydown_or_pressed(input, TORIRSK_F) )
-        {
-            game->camera_world_y += game->camera_movement_speed;
-        }
+            if( game_input_keydown_or_pressed(input, TORIRSK_UP) )
+                game->camera_pitch = (game->camera_pitch + game->camera_rotation_speed) % 2048;
+            if( game_input_keydown_or_pressed(input, TORIRSK_DOWN) )
+                game->camera_pitch =
+                    (game->camera_pitch - game->camera_rotation_speed + 2048) % 2048;
 
-        if( game_input_keydown_or_pressed(input, TORIRSK_UP) )
-        {
-            game->camera_pitch = (game->camera_pitch + game->camera_rotation_speed) % 2048;
-        }
-        if( game_input_keydown_or_pressed(input, TORIRSK_DOWN) )
-        {
-            game->camera_pitch = (game->camera_pitch - game->camera_rotation_speed + 2048) % 2048;
-        }
+            if( game_input_keydown_or_pressed(input, TORIRSK_LEFT) )
+                game->camera_yaw = (game->camera_yaw + game->camera_rotation_speed) % 2048;
+            if( game_input_keydown_or_pressed(input, TORIRSK_RIGHT) )
+                game->camera_yaw =
+                    (game->camera_yaw - game->camera_rotation_speed + 2048) % 2048;
 
-        if( game_input_keydown_or_pressed(input, TORIRSK_LEFT) )
-        {
-            game->camera_yaw = (game->camera_yaw + game->camera_rotation_speed) % 2048;
-        }
-        if( game_input_keydown_or_pressed(input, TORIRSK_RIGHT) )
-        {
-            game->camera_yaw = (game->camera_yaw - game->camera_rotation_speed + 2048) % 2048;
-        }
-
-        if( game_input_keydown_or_pressed(input, TORIRSK_SPACE) )
-        {
-            game->cc = 0;
-        }
-
-        if( game_input_keydown_or_pressed(input, TORIRSK_I) )
-        {
-            game->latched = !game->latched;
-        }
-
-        if( game_input_keydown_or_pressed(input, TORIRSK_J) )
-        {
-            game->cc += 1;
-        }
-
-        if( game_input_keydown_or_pressed(input, TORIRSK_K) )
-        {
-            game->cc -= 1;
-        }
-
-        if( game_input_keydown_or_pressed(input, TORIRSK_L) )
-        {
-            game->cc += 100;
-        }
-
-        if( game_input_keydown_or_pressed(input, TORIRSK_COMMA) )
-        {
-            game->cc -= 100;
-        }
-
-            } /* !game_chat_is_typing */
+            if( game_input_keydown_or_pressed(input, TORIRSK_SPACE) )
+                game->cc = 0;
+            if( game_input_keydown_or_pressed(input, TORIRSK_I) )
+                game->latched = !game->latched;
+            if( game_input_keydown_or_pressed(input, TORIRSK_J) )
+                game->cc += 1;
+            if( game_input_keydown_or_pressed(input, TORIRSK_K) )
+                game->cc -= 1;
+            if( game_input_keydown_or_pressed(input, TORIRSK_L) )
+                game->cc += 100;
+            if( game_input_keydown_or_pressed(input, TORIRSK_COMMA) )
+                game->cc -= 100;
+        } /* !game_chat_is_typing */
 
         if( game_input_keydown_or_pressed(input, TORIRSK_9) && game->mouse_tile_x != -1 )
         {
@@ -186,11 +229,11 @@ LibToriRS_GameProcessInput(
                 .tag = SCRIPT_SPAWN_ELEMENT,
                 .u.spawn_element =
                     {
-                        .world_x = sx * 128 + 64,
-                        .world_z = sz * 128 + 64,
+                        .world_x     = sx * 128 + 64,
+                        .world_z     = sz * 128 + 64,
                         .world_level = sl,
-                        .model_id = 3081,
-                        .seq_id = 659,
+                        .model_id    = 3081,
+                        .seq_id      = 659,
                     },
             };
             script_queue_push(&game->script_queue, &args);
@@ -206,7 +249,7 @@ LibToriRS_GameProcessInput(
         if( game->chat && game->chat->chat_typing_active )
         {
             game->chat->chat_typing_active = 0;
-            game->chat->chat_input[0] = '\0';
+            game->chat->chat_input[0]      = '\0';
         }
         else
         {
@@ -214,61 +257,41 @@ LibToriRS_GameProcessInput(
         }
     }
 
-    game->mouse_x = input->mouse_state.x;
-    game->mouse_y = input->mouse_state.y;
-    if( game->soft3d_mouse_from_window )
+    /* ---- Inventory drag: press/release edge detection ---- */
+    bool const left_down = game->mouse.buttons[TORIRSM_LEFT].down;
+    int  const mx        = game->mouse.cursor_x;
+    int  const my        = game->mouse.cursor_y;
+
+    if( game->ui_root_buffer && game->iface && mx >= 0 && my >= 0 )
     {
-        game_map_soft3d_window_mouse_to_buffer(game, &game->mouse_x, &game->mouse_y);
+        if( game->mouse.buttons[TORIRSM_LEFT].press_this_frame )
+            interface_inv_try_drag_mouse_down(game, mx, my);
+
+        interface_inv_drag_tick(game);
+
+        if( game->mouse.buttons[TORIRSM_LEFT].release_this_frame )
+            interface_inv_try_drag_mouse_up(game, input);
     }
 
-    game->mouse_clicked = false;
-    game->mouse_clicked_end_x = -1;
-    game->mouse_clicked_end_y = -1;
-    game->mouse_clicked_right = false;
-
-    int prev_lmb = game->mouse_button_down;
-
-    /* Update mouse_button_down; clear scrollbar drag when left button is released. */
-    int left_down = input->mouse_button_states[TORIRSM_LEFT].down;
-    if( game->mouse_button_down && !left_down )
+    /* ---- Release: clear scrollbar drag and scroll cycle ---- */
+    if( game->mouse.buttons[TORIRSM_LEFT].release_this_frame )
     {
-        /* Mouse-up: release scrollbar drag and reset scrollCycle. */
         if( game->ui_root_buffer )
             game->ui_root_buffer->ui_scrollbar_drag_component_id = -1;
         game->scroll_cycle = 0;
     }
-    game->mouse_button_down = left_down;
 
-    if( game->ui_root_buffer && game->iface && game->mouse_x >= 0 && game->mouse_y >= 0 )
-    {
-        if( !prev_lmb && left_down )
-            interface_inv_try_drag_mouse_down(game, game->mouse_x, game->mouse_y);
-
-        interface_inv_drag_tick(game);
-
-        if( prev_lmb && !left_down )
-            interface_inv_try_drag_mouse_up(game, input);
-    }
-
-    /* Per-frame scrollbar logic: mirrors Client.ts doScrollbar + scrollCycle.
-     * While the left button is held:
-     *  - arrows (region 0/1): scroll by 4 px per frame (scrollCycle * 4)
-     *  - track/grip (region 2/3) or an active drag id: recompute scrollPos from
-     *    mouse Y each frame (Client.ts 10543–10558).  scrollInputPadding is mirrored
-     *    by keeping game->ui_root_buffer->ui_scrollbar_drag_component_id set while dragging. */
-    if( left_down && game->ui_root_buffer && game->iface && game->mouse_x >= 0 &&
-        game->mouse_y >= 0 )
+    /* ---- Held-button scrollbar ---- */
+    if( left_down && game->ui_root_buffer && game->iface && mx >= 0 && my >= 0 )
     {
         game->scroll_cycle++;
 
-        /* If already dragging a specific component, continue dragging it even if the
-         * mouse drifts off the scrollbar (mirrors scrollInputPadding ±32px). */
         if( game->ui_root_buffer->ui_scrollbar_drag_component_id >= 0 )
         {
-            /* Re-find the scrollbar to get current geometry. */
             struct UITreeScrollbarHit sb_drag;
-            if( uitree_find_scrollbar_at(game, game->mouse_x, game->mouse_y, &sb_drag) &&
-                sb_drag.component_id == game->ui_root_buffer->ui_scrollbar_drag_component_id )
+            if( uitree_find_scrollbar_at(game, mx, my, &sb_drag) &&
+                sb_drag.component_id ==
+                    game->ui_root_buffer->ui_scrollbar_drag_component_id )
             {
                 interface_handle_scrollbar_drag(
                     game,
@@ -276,13 +299,12 @@ LibToriRS_GameProcessInput(
                     sb_drag.layer_y,
                     sb_drag.layer_height,
                     sb_drag.scroll_height,
-                    game->mouse_y);
+                    my);
             }
             else
             {
-                /* Mouse drifted off; still update by looking up component directly. */
                 struct UITreeScrollbarHit sb_any;
-                if( uitree_find_scrollbar_at(game, game->mouse_x, game->mouse_y, &sb_any) )
+                if( uitree_find_scrollbar_at(game, mx, my, &sb_any) )
                 {
                     interface_handle_scrollbar_drag(
                         game,
@@ -290,24 +312,23 @@ LibToriRS_GameProcessInput(
                         sb_any.layer_y,
                         sb_any.layer_height,
                         sb_any.scroll_height,
-                        game->mouse_y);
+                        my);
                 }
             }
         }
         else
         {
             struct UITreeScrollbarHit sb_hold;
-            if( uitree_find_scrollbar_at(game, game->mouse_x, game->mouse_y, &sb_hold) )
+            if( uitree_find_scrollbar_at(game, mx, my, &sb_hold) )
             {
-                if( sb_hold.region == 0 ) /* up arrow */
+                if( sb_hold.region == 0 )
                     interface_handle_scrollbar_arrow_step(
                         game, sb_hold.component_id, sb_hold.max_scroll, 1, game->scroll_cycle * 4);
-                else if( sb_hold.region == 1 ) /* down arrow */
+                else if( sb_hold.region == 1 )
                     interface_handle_scrollbar_arrow_step(
                         game, sb_hold.component_id, sb_hold.max_scroll, 0, game->scroll_cycle * 4);
                 else if( sb_hold.region == 2 || sb_hold.region == 3 )
                 {
-                    /* Track or grip: engage drag mode and compute position from mouse. */
                     game->ui_root_buffer->ui_scrollbar_drag_component_id = sb_hold.component_id;
                     interface_handle_scrollbar_drag(
                         game,
@@ -315,158 +336,113 @@ LibToriRS_GameProcessInput(
                         sb_hold.layer_y,
                         sb_hold.layer_height,
                         sb_hold.scroll_height,
-                        game->mouse_y);
+                        my);
                 }
             }
         }
     }
 
-    for( int i = 0; i < input->event_count; i++ )
+    /* ---- Wheel scrollbar ---- */
+    if( game->mouse.wheel_delta != 0 && game->ui_root_buffer && game->iface && mx >= 0 &&
+        my >= 0 )
     {
-        switch( input->events[i].type )
+        int32_t layer_idx = uitree_innermost_scroll_layer_at(game, mx, my);
+        if( layer_idx >= 0 )
         {
-        case TORIRSEV_MOUSE_WHEEL:
-        {
-            int mx = input->events[i].mouse_wheel.mouse_x;
-            int my = input->events[i].mouse_wheel.mouse_y;
-            int wh = input->events[i].mouse_wheel.wheel;
-            if( game->soft3d_mouse_from_window )
-                game_map_soft3d_window_mouse_to_buffer(game, &mx, &my);
-            if( !game->ui_root_buffer || !game->iface || mx < 0 || my < 0 )
-                break;
-            int32_t layer_idx = uitree_innermost_scroll_layer_at(game, mx, my);
-            if( layer_idx < 0 )
-                break;
             struct StaticUIComponent* L = &game->ui_root_buffer->components[layer_idx];
-            if( L->component_id < 0 )
-                break;
-            int lh = L->position.height;
-            int sh = L->u.rs_layer.scroll_height;
-            int max_scroll = sh - lh;
-            if( max_scroll <= 0 )
-                break;
-            int up = (wh > 0) ? 1 : 0;
-            interface_handle_scrollbar_arrow_step(game, L->component_id, max_scroll, up, 24);
+            if( L->component_id >= 0 )
+            {
+                int lh        = L->position.height;
+                int sh        = L->u.rs_layer.scroll_height;
+                int max_scroll = sh - lh;
+                if( max_scroll > 0 )
+                {
+                    int up = (game->mouse.wheel_delta > 0) ? 1 : 0;
+                    interface_handle_scrollbar_arrow_step(
+                        game, L->component_id, max_scroll, up, 24);
+                }
+            }
         }
-        break;
-        case TORIRSEV2_CLICK:
+    }
+
+    /* ---- Left click dispatch ---- */
+    if( game->mouse.buttons[TORIRSM_LEFT].click_this_frame )
+    {
+        int cx = game->mouse.buttons[TORIRSM_LEFT].click_press_x;
+        int cy = game->mouse.buttons[TORIRSM_LEFT].click_press_y;
+
+        int consumed_sb = 0;
+        if( game->ui_root_buffer && game->iface && cx >= 0 && cy >= 0 )
         {
-            int button = input->events[i].click.button;
-            if( button == TORIRSM_LEFT )
+            struct UITreeScrollbarHit hit;
+            if( uitree_find_scrollbar_at(game, cx, cy, &hit) )
             {
-                int cx = input->events[i].click.start_mouse_x;
-                int cy = input->events[i].click.start_mouse_y;
-                if( game->soft3d_mouse_from_window )
-                    game_map_soft3d_window_mouse_to_buffer(game, &cx, &cy);
-                int ex = input->events[i].click.end_mouse_x;
-                int ey = input->events[i].click.end_mouse_y;
-                if( game->soft3d_mouse_from_window )
-                    game_map_soft3d_window_mouse_to_buffer(game, &ex, &ey);
-                int consumed_sb = 0;
-                if( game->ui_root_buffer && game->iface && cx >= 0 && cy >= 0 )
+                if( hit.region == 0 )
+                    interface_handle_scrollbar_arrow_step(
+                        game, hit.component_id, hit.max_scroll, 1, 4);
+                else if( hit.region == 1 )
+                    interface_handle_scrollbar_arrow_step(
+                        game, hit.component_id, hit.max_scroll, 0, 4);
+                else if( hit.region == 2 )
                 {
-                    struct UITreeScrollbarHit hit;
-                    if( uitree_find_scrollbar_at(game, cx, cy, &hit) )
-                    {
-                        if( hit.region == 0 )
-                            interface_handle_scrollbar_arrow_step(
-                                game, hit.component_id, hit.max_scroll, 1, 4);
-                        else if( hit.region == 1 )
-                            interface_handle_scrollbar_arrow_step(
-                                game, hit.component_id, hit.max_scroll, 0, 4);
-                        else if( hit.region == 2 )
-                        {
-                            /* Track click: jump scroll position; also begin drag so
-                             * holding continues to track (mirrors TS first frame of drag). */
-                            interface_handle_scrollbar_click(
-                                game,
-                                hit.component_id,
-                                hit.layer_y,
-                                hit.layer_height,
-                                hit.scroll_height,
-                                cy);
-                            game->ui_root_buffer->ui_scrollbar_drag_component_id = hit.component_id;
-                        }
-                        else if( hit.region == 3 )
-                        {
-                            /* Grip click: begin drag immediately. */
-                            game->ui_root_buffer->ui_scrollbar_drag_component_id = hit.component_id;
-                            interface_handle_scrollbar_drag(
-                                game,
-                                hit.component_id,
-                                hit.layer_y,
-                                hit.layer_height,
-                                hit.scroll_height,
-                                cy);
-                        }
-                        consumed_sb = 1;
-                    }
+                    interface_handle_scrollbar_click(
+                        game,
+                        hit.component_id,
+                        hit.layer_y,
+                        hit.layer_height,
+                        hit.scroll_height,
+                        cy);
+                    game->ui_root_buffer->ui_scrollbar_drag_component_id = hit.component_id;
                 }
-                if( consumed_sb )
+                else if( hit.region == 3 )
                 {
-                    game->interface_consumed_click = 1;
+                    game->ui_root_buffer->ui_scrollbar_drag_component_id = hit.component_id;
+                    interface_handle_scrollbar_drag(
+                        game,
+                        hit.component_id,
+                        hit.layer_y,
+                        hit.layer_height,
+                        hit.scroll_height,
+                        cy);
                 }
-                else if( game->minimenu.visible )
-                {
-                    /* Dispatch to context menu; close regardless of where click lands. */
-                    int opt = minimenu_game_click_option(game, cx, cy);
-                    if( opt >= 0 )
-                        minimenu_game_use_option(game, input, opt);
-                    /* minimenu_game_click_option already cleared minimenu.visible for outside
-                     * clicks. For header or option clicks, close explicitly. */
-                    game->minimenu.visible = 0;
-                    game->interface_consumed_click = 1;
-                }
-                else if( game->iface && game->iface->inv_suppress_next_left_click )
-                {
-                    game->iface->inv_suppress_next_left_click = 0;
-                    game->interface_consumed_click = 1;
-                }
-                else if(
-                    game->ui_root_buffer && game->iface && cx >= 0 && cy >= 0 &&
-                    interface_point_in_ui_inv_primary_region(cx, cy) &&
-                    !chat_builtin_click_is_chrome(game, cx, cy) )
-                {
-                    if( minimenu_game_use_primary_at(game, input, cx, cy) )
-                        game->interface_consumed_click = 1;
-                    else
-                    {
-                        game->mouse_clicked = true;
-                        game->mouse_cycle = 0;
-                        game->mouse_clicked_x = cx;
-                        game->mouse_clicked_y = cy;
-                        game->mouse_clicked_end_x = ex;
-                        game->mouse_clicked_end_y = ey;
-                    }
-                }
-                else
-                {
-                    game->mouse_clicked = true;
-                    game->mouse_cycle = 0;
-                    game->mouse_clicked_x = cx;
-                    game->mouse_clicked_y = cy;
-                    game->mouse_clicked_end_x = ex;
-                    game->mouse_clicked_end_y = ey;
-                }
-            }
-            else if( button == TORIRSM_RIGHT )
-            {
-                int cx = input->events[i].click.start_mouse_x;
-                int cy = input->events[i].click.start_mouse_y;
-                if( game->soft3d_mouse_from_window )
-                    game_map_soft3d_window_mouse_to_buffer(game, &cx, &cy);
-                game->mouse_clicked_right = true;
-                game->mouse_cycle = 0;
-                game->mouse_clicked_right_x = cx;
-                game->mouse_clicked_right_y = cy;
-                /* Open context menu immediately on right-click. */
-                minimenu_game_show(game, cx, cy);
+                consumed_sb = 1;
             }
         }
-        break;
-        default:
-            break;
+
+        if( consumed_sb )
+        {
+            game->interface_consumed_click = 1;
         }
+        else if( game->minimenu.visible )
+        {
+            int opt = minimenu_game_click_option(game, cx, cy);
+            if( opt >= 0 )
+                minimenu_game_use_option(game, input, opt);
+            game->minimenu.visible         = 0;
+            game->interface_consumed_click = 1;
+        }
+        else if( game->iface && game->iface->inv_suppress_next_left_click )
+        {
+            game->iface->inv_suppress_next_left_click = 0;
+            game->interface_consumed_click            = 1;
+        }
+        else if( game->ui_root_buffer && game->iface && cx >= 0 && cy >= 0 &&
+                 interface_point_in_ui_inv_primary_region(cx, cy) &&
+                 !chat_builtin_click_is_chrome(game, cx, cy) )
+        {
+            if( minimenu_game_use_primary_at(game, input, cx, cy) )
+                game->interface_consumed_click = 1;
+        }
+        /* else: world/minimap click is handled in FrameEnd via game->mouse state */
+    }
+
+    /* ---- Right click: show context menu ---- */
+    if( game->mouse.buttons[TORIRSM_RIGHT].click_this_frame )
+    {
+        int cx = game->mouse.buttons[TORIRSM_RIGHT].click_press_x;
+        int cy = game->mouse.buttons[TORIRSM_RIGHT].click_press_y;
+        game->mouse_cycle = 0;
+        minimenu_game_show(game, cx, cy);
     }
 
     game_input_frame_reset(input);

@@ -438,8 +438,8 @@ minimenu_game_translate_commands(
         out,
         font_id,
         draw_font,
-        game->mouse_x,
-        game->mouse_y);
+        game->mouse.cursor_x,
+        game->mouse.cursor_y);
 }
 
 int
@@ -480,14 +480,81 @@ mm_emit_opclick_to_tile(
     if( !pl || !pl->alive )
         return;
 
-    int sx = pl->draw_position.x >> 7;
-    int sz = pl->draw_position.z >> 7;
+    /* Client.ts: srcX = localPlayer.routeX[0] */
+    int sx = pl->pathing.route_x[0];
+    int sz = pl->pathing.route_z[0];
     int path_x[MM_BFS_PATH_MAX];
     int path_z[MM_BFS_PATH_MAX];
     int n = collision_map_bfs_path(
         game->world->collision_map, sx, sz, dst_x, dst_z, path_x, path_z, MM_BFS_PATH_MAX);
     if( n <= 0 )
         return;
+
+    {
+        int save = n < GAME_SENT_PATH_MAX ? n : GAME_SENT_PATH_MAX;
+        game->sent_path.length = save;
+        for( int i = 0; i < save; i++ )
+        {
+            game->sent_path.tile_x[i] = (uint8_t)path_x[i];
+            game->sent_path.tile_z[i] = (uint8_t)path_z[i];
+        }
+    }
+
+    gamenet_send_move_opclick(game, mm_input_run(input), path_x, path_z, n);
+    game->suppress_move_gameclick_once = 1;
+}
+
+/** Client.ts interactWithLoc tryMove: loc-aware MOVE_OPCLICK using collision_map_bfs_path_loc.
+ * For SCENERY / FLOOR_DECORATION shapes the BFS accepts arrival at any unblocked adjacent tile
+ * of the loc footprint (testLoc, forceapproach=0). Other shapes use exact-tile fallback. */
+static void
+mm_emit_opclick_to_loc(
+    struct GGame* game,
+    struct GInput* input,
+    const struct MapBuildLocEntity* loc,
+    int dst_x,
+    int dst_z)
+{
+    if( !game->world || !game->world->collision_map )
+        return;
+    if( game->net_state != GAME_NET_STATE_GAME || !game->random_out )
+        return;
+
+    struct PlayerEntity* pl = world_player(game->world, ACTIVE_PLAYER_SLOT);
+    if( !pl || !pl->alive )
+        return;
+
+    int sx = pl->pathing.route_x[0];
+    int sz = pl->pathing.route_z[0];
+    int path_x[MM_BFS_PATH_MAX];
+    int path_z[MM_BFS_PATH_MAX];
+    int loc_w = loc ? (int)loc->place_size_x : 1;
+    int loc_h = loc ? (int)loc->place_size_z : 1;
+    int shape = loc ? (int)loc->shape_select : 0;
+    int n = collision_map_bfs_path_loc(
+        game->world->collision_map,
+        sx,
+        sz,
+        dst_x,
+        dst_z,
+        shape,
+        loc_w > 0 ? loc_w : 1,
+        loc_h > 0 ? loc_h : 1,
+        path_x,
+        path_z,
+        MM_BFS_PATH_MAX);
+    if( n <= 0 )
+        return;
+
+    {
+        int save = n < GAME_SENT_PATH_MAX ? n : GAME_SENT_PATH_MAX;
+        game->sent_path.length = save;
+        for( int i = 0; i < save; i++ )
+        {
+            game->sent_path.tile_x[i] = (uint8_t)path_x[i];
+            game->sent_path.tile_z[i] = (uint8_t)path_z[i];
+        }
+    }
 
     gamenet_send_move_opclick(game, mm_input_run(input), path_x, path_z, n);
     game->suppress_move_gameclick_once = 1;
@@ -508,9 +575,14 @@ mm_move_toward(
     game->tile_clicked_z     = tile_z;
     game->tile_clicked_level = 0;
     game->cross_mode         = 2;
-    game->cross_x            = game->mouse_clicked_right_x;
-    game->cross_y            = game->mouse_clicked_right_y;
-    game->cross_cycle        = 0;
+    /*
+     * Anchor the crosshair to the right-click press position (where the context menu opened).
+     * This is correct: the user right-clicked an entity, the menu appeared, and "Walk here" /
+     * interact was chosen — the cross should mark where the right-click was, not a stale coord.
+     */
+    game->cross_x     = game->mouse.buttons[TORIRSM_RIGHT].press_x;
+    game->cross_y     = game->mouse.buttons[TORIRSM_RIGHT].press_y;
+    game->cross_cycle = 0;
 }
 
 /** Mirror Client.ts `doAction`: strip priority (+2000) before opcode dispatch. */
@@ -638,17 +710,20 @@ minimenu_game_use_option(
 
     if( base == (int)MINIMENU_ACTION_WALK )
     {
-        int tx = game->mouse_tile_x;
-        int tz = game->mouse_tile_z;
-        int lvl =
-            (game->mouse_tile_level >= 0) ? game->mouse_tile_level : 0;
+        int tx  = game->mouse_tile_x;
+        int tz  = game->mouse_tile_z;
+        int lvl = (game->mouse_tile_level >= 0) ? game->mouse_tile_level : 0;
         if( tx < 0 || tz < 0 )
             return;
         game->tile_clicked_x     = tx;
         game->tile_clicked_z     = tz;
         game->tile_clicked_level = lvl;
-        game->cross_x     = game->mouse_clicked_right_x;
-        game->cross_y     = game->mouse_clicked_right_y;
+        /*
+         * "Walk here" from the context menu: anchor the cross to where the right-click opened
+         * the menu, not the stale mouse_clicked_right_x/y that never resets.
+         */
+        game->cross_x     = game->mouse.buttons[TORIRSM_RIGHT].press_x;
+        game->cross_y     = game->mouse.buttons[TORIRSM_RIGHT].press_y;
         game->cross_mode  = 1;
         game->cross_cycle = 0;
         return;
@@ -750,10 +825,13 @@ minimenu_game_use_option(
     }
 
     if( base == (int)MINIMENU_ACTION_OPLOCT && game->iface &&
-        GAME_NET_STATE_GAME == game->net_state )
+        GAME_NET_STATE_GAME == game->net_state && game->world )
     {
-        int lid = mm_loc_obj_wire_id(game, param_a);
-        mm_emit_opclick_to_tile(game, input, param_b, param_c);
+        if( param_a < 0 || param_a >= entity_vec_count(&game->world->map_build_loc_entities) )
+            return;
+        struct MapBuildLocEntity* loc = world_loc_entity(game->world, param_a);
+        int lid = loc ? loc->loc_type_id : mm_loc_obj_wire_id(game, param_a);
+        mm_emit_opclick_to_loc(game, input, loc, param_b, param_c);
         gamenet_send_oploct_target(
             game,
             param_b,
@@ -768,12 +846,15 @@ minimenu_game_use_option(
 
     if( base == (int)MINIMENU_ACTION_OPLOCU )
     {
-        if( !game->iface || GAME_NET_STATE_GAME != game->net_state )
+        if( !game->iface || GAME_NET_STATE_GAME != game->net_state || !game->world )
+            return;
+        if( param_a < 0 || param_a >= entity_vec_count(&game->world->map_build_loc_entities) )
             return;
         int oc = 0, sl = 0, sc = 0;
         mm_held_iface_triple(game->iface, &oc, &sl, &sc);
-        int lid = mm_loc_obj_wire_id(game, param_a);
-        mm_emit_opclick_to_tile(game, input, param_b, param_c);
+        struct MapBuildLocEntity* loc = world_loc_entity(game->world, param_a);
+        int lid = loc ? loc->loc_type_id : mm_loc_obj_wire_id(game, param_a);
+        mm_emit_opclick_to_loc(game, input, loc, param_b, param_c);
         gamenet_send_oplocu_use(game, param_b, param_c, lid, oc, sl, sc);
         mm_move_toward(game, param_b, param_c);
         game->iface->inv_use_mode = 0;
@@ -792,11 +873,19 @@ minimenu_game_use_option(
             which = 4;
         else if( base == (int)MINIMENU_ACTION_OPLOC5 )
             which = 5;
-        if( which >= 0 )
+        if( which >= 0 && game->world )
         {
-            mm_emit_opclick_to_tile(game, input, param_b, param_c);
-            gamenet_send_oploc(game, which, param_b, param_c, param_a, 0);
-            mm_move_toward(game, param_b, param_c);
+            if( param_a >= 0 &&
+                param_a < entity_vec_count(&game->world->map_build_loc_entities) )
+            {
+                struct MapBuildLocEntity* loc = world_loc_entity(game->world, param_a);
+                if( loc )
+                {
+                    mm_emit_opclick_to_loc(game, input, loc, param_b, param_c);
+                    gamenet_send_oploc(game, which, param_b, param_c, loc->loc_type_id, 0);
+                    mm_move_toward(game, param_b, param_c);
+                }
+            }
             return;
         }
     }

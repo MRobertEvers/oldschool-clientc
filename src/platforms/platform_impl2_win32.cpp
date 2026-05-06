@@ -807,12 +807,15 @@ Platform2_Win32_PollEvents(
         int my = platform->tracked_mouse_y;
         if( platform->skip_mouse_transform )
         {
-            input->mouse_state.x = mx;
-            input->mouse_state.y = my;
+            input->raw_mouse.cursor_x = mx;
+            input->raw_mouse.cursor_y = my;
         }
         else
         {
-            transform_mouse_coordinates(mx, my, &input->mouse_state.x, &input->mouse_state.y, platform);
+            int gx = 0, gy = 0;
+            transform_mouse_coordinates(mx, my, &gx, &gy, platform);
+            input->raw_mouse.cursor_x = gx;
+            input->raw_mouse.cursor_y = gy;
         }
     }
 

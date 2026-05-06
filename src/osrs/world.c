@@ -1404,6 +1404,9 @@ world_rebuild_centerzone_chunk_scenery(
             entity->scene_coord.sx = offset_x;
             entity->scene_coord.sz = offset_z;
             entity->scene_coord.slevel = map_tile->chunk_pos_level;
+            entity->loc_type_id = map_tile->loc_id;
+            entity->shape_select = (uint8_t)map_tile->shape_select;
+            entity->orientation = (uint8_t)map_tile->orientation;
             scenery_add(world, entity, map_tile, config_loc);
         }
 

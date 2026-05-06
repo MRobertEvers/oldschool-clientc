@@ -80,8 +80,8 @@ example_ui_update(struct GGame* game)
     }
 
     // Update mouse position from game
-    g_ui->mouse_x = game->mouse_x;
-    g_ui->mouse_y = game->mouse_y;
+    g_ui->mouse_x = game->mouse.cursor_x;
+    g_ui->mouse_y = game->mouse.cursor_y;
 }
 
 /**

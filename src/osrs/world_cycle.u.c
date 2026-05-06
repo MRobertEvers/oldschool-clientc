@@ -18,6 +18,28 @@ struct EntityAnimationInfo
     int size_z;
 };
 
+/**
+ * Bump base_level by 1 when the column at (draw_x, draw_z) is a LinkBelow bridge so the entity
+ * lands on the bridge surface — both painter element slevel (for painter_grid_slot_for_cache_level
+ * downstream) and heightmap lookup (mirrors Client-TS getAvH groundh[level+1]). Falls back to
+ * base_level when the painter is not yet built or the tile is out of scene bounds.
+ */
+static int
+world_cycle_entity_cache_level(
+    struct World* world,
+    int draw_x,
+    int draw_z,
+    int base_level)
+{
+    int sx = draw_x / 128;
+    int sz = draw_z / 128;
+    if( !world->painter || sx < 0 || sz < 0 || sx >= world->_scene_size ||
+        sz >= world->_scene_size )
+        return base_level;
+    return entity_cache_level_for_column(
+        base_level, painter_column_has_link_below(world->painter, sx, sz));
+}
+
 static int
 update_entity_movement_and_animation(
     struct World* world,
@@ -347,11 +369,14 @@ world_cycle_push_players(struct World* world)
     {
         entity_calculate_painter_padding(world, &player->draw_position, 60, &padding);
 
+        int slevel = world_cycle_entity_cache_level(
+            world, player->draw_position.x, player->draw_position.z, 0);
+
         painter_add_normal_scenery(
             world->painter,
             padding.x_sw,
             padding.z_sw,
-            0,
+            slevel,
             player->scene_element2.element_id,
             padding.x_size,
             padding.z_size);
@@ -363,7 +388,7 @@ world_cycle_push_players(struct World* world)
         ppos->x = player->draw_position.x;
         ppos->z = player->draw_position.z;
         ppos->y = heightmap_get_interpolated(
-            world->heightmap, player->draw_position.x, player->draw_position.z, 0);
+            world->heightmap, player->draw_position.x, player->draw_position.z, slevel);
     }
 
     if( world->minimap )
@@ -464,11 +489,14 @@ world_cycle_push_npcs(struct World* world)
             int padding_size = 60 + (npc->size.x - 1) * 64;
             entity_calculate_painter_padding(world, &npc->draw_position, padding_size, &padding);
 
+            int slevel = world_cycle_entity_cache_level(
+                world, npc->draw_position.x, npc->draw_position.z, 0);
+
             painter_add_normal_scenery(
                 world->painter,
                 padding.x_sw,
                 padding.z_sw,
-                0,
+                slevel,
                 npc->scene_element2.element_id,
                 padding.x_size,
                 padding.z_size);
@@ -480,7 +508,7 @@ world_cycle_push_npcs(struct World* world)
             npos->x = npc->draw_position.x;
             npos->z = npc->draw_position.z;
             npos->y = heightmap_get_interpolated(
-                world->heightmap, npc->draw_position.x, npc->draw_position.z, 0);
+                world->heightmap, npc->draw_position.x, npc->draw_position.z, slevel);
 
             if( world->minimap && !npc->minimap_hidden )
             {
@@ -557,7 +585,8 @@ world_cycle_push_projectiles(struct World* world)
         if( !position )
             continue;
 
-        int lev = (int)p->visible_level.level;
+        int lev = world_cycle_entity_cache_level(
+            world, p->draw_position.x, p->draw_position.z, (int)p->visible_level.level);
         painter_add_normal_scenery(
             world->painter,
             p->draw_position.x / 128,
@@ -601,8 +630,11 @@ world_cycle_push_obj_stack_entities(struct World* world)
         if( psx < 0 || psz < 0 || psx >= world->_scene_size || psz >= world->_scene_size )
             continue;
 
+        bool link = painter_column_has_link_below(world->painter, psx, psz);
+        int slevel = entity_cache_level_for_column(e->level, link);
+
         painter_add_ground_object(
-            world->painter, psx, psz, e->level, e->scene_element.element_id, GROUND_OBJECT_BOTTOM);
+            world->painter, psx, psz, slevel, e->scene_element.element_id, GROUND_OBJECT_BOTTOM);
 
         struct DashPosition* pos = scene2_element_dash_position(se);
         if( pos && world->heightmap )
@@ -611,7 +643,7 @@ world_cycle_push_obj_stack_entities(struct World* world)
             int wz = e->world_tile_z * 128 + 64;
             pos->x = wx;
             pos->z = wz;
-            pos->y = heightmap_get_interpolated(world->heightmap, wx, wz, e->level);
+            pos->y = heightmap_get_interpolated(world->heightmap, wx, wz, slevel);
         }
 
         if( world->minimap )

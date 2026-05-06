@@ -114,7 +114,7 @@ torirs_nk_debug_panel_draw(
                     LibToriRS_GameSetWorldViewportSize(game, w, h);
             }
 
-            nk_labelf(nk, NK_TEXT_LEFT, "Mouse (game x, y): %d, %d", game->mouse_x, game->mouse_y);
+            nk_labelf(nk, NK_TEXT_LEFT, "Mouse (game x, y): %d, %d", game->mouse.cursor_x, game->mouse.cursor_y);
             if( p->sdl_window )
             {
                 int mx = 0, my = 0;
@@ -191,7 +191,7 @@ torirs_nk_debug_panel_draw(
                 game->camera_world_x,
                 game->camera_world_y,
                 game->camera_world_z);
-            nk_labelf(nk, NK_TEXT_LEFT, "Mouse: %d %d", game->mouse_x, game->mouse_y);
+            nk_labelf(nk, NK_TEXT_LEFT, "Mouse: %d %d", game->mouse.cursor_x, game->mouse.cursor_y);
             if( game->view_port )
             {
                 int w = game->view_port->width;

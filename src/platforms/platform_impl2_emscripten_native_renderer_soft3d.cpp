@@ -493,7 +493,7 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
                 dash2d_blit_sprite_alpha(
                     game->sys_dash, sp, vp,
                     command._sprite_draw.dst_bb_x, command._sprite_draw.dst_bb_y,
-                    255, renderer->pixel_buffer);
+                    torirs_sprite_draw_blend_u8(&command), renderer->pixel_buffer);
             }
             else
             {

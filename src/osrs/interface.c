@@ -608,8 +608,8 @@ interface_update_region_hover_ids(struct GGame* game)
     if( !game->gamecache )
         return;
 
-    int mx = game->mouse_x;
-    int my = game->mouse_y;
+    int mx = game->mouse.cursor_x;
+    int my = game->mouse.cursor_y;
 
     /* Region rectangles match Client.ts menu hit-testing (main / sidebar / chat). */
     if( mx > 4 && my > 4 && mx < 516 && my < 338 && iface->viewport_interface_id >= 0 )
@@ -776,6 +776,94 @@ interface_sidebar_overlay_pick_inv_recursive(
             }
         }
     }
+    return false;
+}
+
+/** Hit-test TYPE_INV / TYPE_INV_TEXT under (mx,my) for a layer root at (root_x, root_y).
+ * Same geometry as interface_sidebar_overlay_pick_inv_recursive (Client.ts regions). */
+static bool
+interface_cache_pick_inv_in_layer_root(
+    struct GGame* game,
+    struct GameCacheComponent* root,
+    int root_x,
+    int root_y,
+    int mx,
+    int my,
+    struct GameCacheComponent** out_inv,
+    int* out_slot)
+{
+    if( !root || root->type != COMPONENT_TYPE_LAYER || !out_inv || !out_slot )
+        return false;
+    return interface_sidebar_overlay_pick_inv_recursive(
+        game, root, root_x, root_y, 0, mx, my, out_inv, out_slot);
+}
+
+/** Cache-tree inv under cursor: main viewport (4,4), sidebar overlay, tab sidebar, chat. */
+static bool
+interface_cache_pick_inv_at_screen(
+    struct GGame* game,
+    int mx,
+    int my,
+    struct GameCacheComponent** out_inv,
+    int* out_slot)
+{
+    struct InterfaceState* iface = game ? game->iface : NULL;
+    if( !game || !iface || !game->gamecache || !out_inv || !out_slot )
+        return false;
+    *out_inv = NULL;
+    *out_slot = -1;
+
+    if( mx > 4 && my > 4 && mx < 516 && my < 338 && iface->viewport_interface_id >= 0 )
+    {
+        struct GameCacheComponent* root =
+            gamecache_get_component(game->gamecache, iface->viewport_interface_id);
+        if( interface_cache_pick_inv_in_layer_root(game, root, 4, 4, mx, my, out_inv, out_slot) )
+            return true;
+    }
+
+    if( iface_point_in_sidebar_overlay(mx, my) )
+    {
+        if( iface->sidebar_interface_id >= 0 )
+        {
+            struct GameCacheComponent* root =
+                gamecache_get_component(game->gamecache, iface->sidebar_interface_id);
+            if( interface_cache_pick_inv_in_layer_root(
+                    game, root, IFACE_SIDEBAR_X0, IFACE_SIDEBAR_Y0, mx, my, out_inv, out_slot) )
+                return true;
+        }
+        else if( game->ui_root_buffer )
+        {
+            for( uint32_t i = 0; i < game->ui_root_buffer->component_count; i++ )
+            {
+                struct StaticUIComponent* sb = &game->ui_root_buffer->components[i];
+                if( sb->type != UIELEM_BUILTIN_SIDEBAR ||
+                    sb->u.sidebar.tabno != iface->selected_tab )
+                    continue;
+                int compno = sb->u.sidebar.componentno;
+                if( compno < 0 )
+                    continue;
+                struct GameCacheComponent* root =
+                    gamecache_get_component(game->gamecache, compno);
+                if( !root )
+                    continue;
+                int bx = sb->position.x + root->x;
+                int by = sb->position.y + root->y;
+                if( interface_cache_pick_inv_in_layer_root(
+                        game, root, bx, by, mx, my, out_inv, out_slot) )
+                    return true;
+                break;
+            }
+        }
+    }
+
+    if( mx > 17 && my > 357 && mx < 426 && my < 453 && iface->chat_interface_id >= 0 )
+    {
+        struct GameCacheComponent* root =
+            gamecache_get_component(game->gamecache, iface->chat_interface_id);
+        if( interface_cache_pick_inv_in_layer_root(game, root, 17, 357, mx, my, out_inv, out_slot) )
+            return true;
+    }
+
     return false;
 }
 
@@ -1732,11 +1820,31 @@ interface_draw_component_inv(
 
                 if( icon )
                 {
+                    struct InterfaceState* iface = game->iface;
+                    bool is_drag_slot =
+                        (iface->inv_drag_area != 0 && iface->inv_drag_comp_id == component->id &&
+                         iface->inv_drag_slot == slot);
                     bool is_selected =
-                        (game->iface->selected_area != 0 && game->iface->selected_item == slot &&
-                         game->iface->selected_interface == component->id);
+                        (iface->selected_area != 0 && iface->selected_item == slot &&
+                         iface->selected_interface == component->id);
 
-                    if( is_selected )
+                    int dx = 0;
+                    int dy = 0;
+                    if( is_drag_slot )
+                        interface_inv_drag_delta(game, &dx, &dy);
+
+                    if( is_drag_slot )
+                    {
+                        dash2d_blit_sprite_alpha(
+                            game->sys_dash,
+                            icon,
+                            game->iface_view_port,
+                            slotX + dx,
+                            slotY + dy,
+                            128,
+                            pixel_buffer);
+                    }
+                    else if( is_selected )
                     {
                         dash2d_blit_sprite_alpha(
                             game->sys_dash,
@@ -1777,16 +1885,16 @@ interface_draw_component_inv(
                         dashfont_draw_text(
                             p11,
                             (uint8_t*)count_str,
-                            slotX + 1,
-                            slotY + 10,
+                            slotX + dx + 1,
+                            slotY + 10 + dy,
                             0x000000,
                             pixel_buffer,
                             stride);
                         dashfont_draw_text(
                             p11,
                             (uint8_t*)count_str,
-                            slotX,
-                            slotY + 9,
+                            slotX + dx,
+                            slotY + 9 + dy,
                             0xFFFF00,
                             pixel_buffer,
                             stride);
@@ -2013,27 +2121,73 @@ interface_inv_drag_area_from_xy(struct GGame* game, int mx, int my)
 }
 
 void
+interface_inv_drag_delta(struct GGame* game, int* out_dx, int* out_dy)
+{
+    if( !out_dx || !out_dy )
+        return;
+    *out_dx = 0;
+    *out_dy = 0;
+    if( !game || !game->iface || game->iface->inv_drag_area == 0 )
+        return;
+
+    int dx = game->mouse.cursor_x - game->iface->inv_drag_grab_x;
+    int dy = game->mouse.cursor_y - game->iface->inv_drag_grab_y;
+    if( dx < 5 && dx > -5 )
+        dx = 0;
+    if( dy < 5 && dy > -5 )
+        dy = 0;
+    if( game->iface->inv_drag_cycles < 5 )
+    {
+        dx = 0;
+        dy = 0;
+    }
+    *out_dx = dx;
+    *out_dy = dy;
+}
+
+void
 interface_inv_try_drag_mouse_down(struct GGame* game, int mx, int my)
 {
     struct UITreeScrollbarHit sb;
 
-    if( !game || !game->iface || !game->ui_root_buffer || !game->gamecache )
+    if( !game || !game->iface || !game->gamecache )
         return;
 
-    if( uitree_find_scrollbar_at(game, mx, my, &sb) )
+    if( game->ui_root_buffer && uitree_find_scrollbar_at(game, mx, my, &sb) )
         return;
 
-    uitree_sync_hover_option_set(game, mx, my);
-    if( game->ui_root_buffer->uitree_optionset.option_count <= 0 )
-        return;
+    if( game->ui_root_buffer )
+        uitree_sync_hover_option_set(game, mx, my);
 
-    int hc = game->ui_root_buffer->hover_inv_component_id;
-    int hs = game->ui_root_buffer->hover_inv_slot;
-    if( hc < 0 || hs < 0 )
-        return;
+    int hc = -1;
+    int hs = -1;
+    if( game->ui_root_buffer )
+    {
+        hc = game->ui_root_buffer->hover_inv_component_id;
+        hs = game->ui_root_buffer->hover_inv_slot;
+    }
 
-    struct GameCacheComponent* cc = gamecache_get_component(game->gamecache, hc);
+    struct GameCacheComponent* cc = NULL;
+    if( hc >= 0 && hs >= 0 )
+    {
+        cc = gamecache_get_component(game->gamecache, hc);
+        if( cc && cc->type != COMPONENT_TYPE_INV && cc->type != COMPONENT_TYPE_INV_TEXT )
+            cc = NULL;
+    }
+
     if( !cc )
+    {
+        struct GameCacheComponent* picked = NULL;
+        int picked_slot = -1;
+        if( !interface_cache_pick_inv_at_screen(game, mx, my, &picked, &picked_slot) || !picked ||
+            picked_slot < 0 )
+            return;
+        cc = picked;
+        hc = picked->id;
+        hs = picked_slot;
+    }
+
+    if( !cc || hs < 0 )
         return;
 
     int wire = (cc->invSlotObjId && hs >= 0 && hs < cc->width * cc->height) ? cc->invSlotObjId[hs]
@@ -2066,10 +2220,95 @@ interface_inv_drag_tick(struct GGame* game)
     iface->inv_drag_cycles++;
     int gx = iface->inv_drag_grab_x;
     int gy = iface->inv_drag_grab_y;
-    int mx = game->mouse_x;
-    int my = game->mouse_y;
+    int mx = game->mouse.cursor_x;
+    int my = game->mouse.cursor_y;
     if( mx > gx + 5 || mx < gx - 5 || my > gy + 5 || my < gy - 5 )
         iface->inv_drag_grab_threshold = 1;
+}
+
+/**
+ * Client.ts inventory drag-drop prediction: swap or replace slots locally, mirror TS `objReplace`
+ * / `swapSlots`, then server confirms via UPDATE_INV_*.
+ * Bank insert (mode 1 + CC_BANKMODE 206) is not wired yet — always send mode 0 except forcing 0
+ * when destination slot is empty (Client.ts).
+ */
+static void
+interface_inv_client_predict_drag(
+    struct GGame* game,
+    int comp_id,
+    int from_slot,
+    int to_slot,
+    int* out_mode)
+{
+    if( !out_mode )
+        return;
+    *out_mode = 0;
+
+    if( !game || !game->gamecache )
+        return;
+
+    struct GameCacheComponent* cc = gamecache_get_component(game->gamecache, comp_id);
+    if( !cc || !cc->invSlotObjId || !cc->invSlotObjCount )
+        return;
+
+    int nslots = cc->width * cc->height;
+    if( nslots <= 0 || from_slot < 0 || to_slot < 0 || from_slot >= nslots || to_slot >= nslots )
+        return;
+
+    /* Client.ts: dst empty forces mode 0 (overrides bank insert mode). */
+    if( cc->invSlotObjId[to_slot] <= 0 )
+        *out_mode = 0;
+
+    if( cc->draggable )
+    {
+        cc->invSlotObjId[to_slot]     = cc->invSlotObjId[from_slot];
+        cc->invSlotObjCount[to_slot] = cc->invSlotObjCount[from_slot];
+        cc->invSlotObjId[from_slot]     = 0;
+        cc->invSlotObjCount[from_slot] = 0;
+    }
+    else
+    {
+        int tmp_id  = cc->invSlotObjId[from_slot];
+        int tmp_cnt = cc->invSlotObjCount[from_slot];
+        cc->invSlotObjId[from_slot]     = cc->invSlotObjId[to_slot];
+        cc->invSlotObjCount[from_slot]  = cc->invSlotObjCount[to_slot];
+        cc->invSlotObjId[to_slot]       = tmp_id;
+        cc->invSlotObjCount[to_slot]    = tmp_cnt;
+    }
+
+    if( !game->inv_pool || !game->ui_root_buffer || from_slot >= UI_INVENTORY_MAX_ITEMS ||
+        to_slot >= UI_INVENTORY_MAX_ITEMS )
+        return;
+
+    int32_t node_idx = -1;
+    int inv_index =
+        uitree_find_inv_index_by_component_id(game->ui_root_buffer, comp_id, &node_idx);
+    if( inv_index < 0 || inv_index >= game->inv_pool->count )
+        return;
+
+    struct UIInventory* inv       = &game->inv_pool->inventories[inv_index];
+    struct UIInventoryItem* it_a  = &inv->items[from_slot];
+    struct UIInventoryItem* it_b  = &inv->items[to_slot];
+
+    if( cc->draggable )
+    {
+        if( it_b->scene_id >= 0 && game->ui_scene )
+            uiscene_element_release(game->ui_scene, it_b->scene_id);
+        *it_b = *it_a;
+        it_a->obj_id      = 0;
+        it_a->obj_count   = 0;
+        it_a->scene_id    = -1;
+        it_a->atlas_index = 0;
+    }
+    else
+    {
+        struct UIInventoryItem tmp = *it_a;
+        *it_a                         = *it_b;
+        *it_b                         = tmp;
+    }
+
+    if( node_idx >= 0 && (uint32_t)node_idx < game->ui_root_buffer->component_count )
+        game->ui_root_buffer->components[node_idx].is_dirty = 1;
 }
 
 void
@@ -2090,22 +2329,35 @@ interface_inv_try_drag_mouse_up(struct GGame* game, struct GInput* input)
     iface->inv_drag_cycles         = 0;
     iface->inv_drag_grab_threshold = 0;
 
-        if( th && cycles >= 5 && GAME_NET_STATE_GAME == game->net_state && game->mouse_x >= 0 &&
-            game->mouse_y >= 0 )
+    if( th && cycles >= 5 && GAME_NET_STATE_GAME == game->net_state && game->mouse.cursor_x >= 0 &&
+        game->mouse.cursor_y >= 0 )
+    {
+        uitree_sync_hover_option_set(game, game->mouse.cursor_x, game->mouse.cursor_y);
+        int to_comp =
+            game->ui_root_buffer ? game->ui_root_buffer->hover_inv_component_id : -1;
+        int to_slot = game->ui_root_buffer ? game->ui_root_buffer->hover_inv_slot : -1;
+        if( (to_comp < 0 || to_slot < 0) && game->gamecache )
         {
-            uitree_sync_hover_option_set(game, game->mouse_x, game->mouse_y);
-            int to_comp =
-                game->ui_root_buffer ? game->ui_root_buffer->hover_inv_component_id : -1;
-            int to_slot = game->ui_root_buffer ? game->ui_root_buffer->hover_inv_slot : -1;
-            if( to_comp == comp && to_slot >= 0 && from_slot >= 0 && to_slot != from_slot )
+            struct GameCacheComponent* p = NULL;
+            int ps = -1;
+            if( interface_cache_pick_inv_at_screen(
+                    game, game->mouse.cursor_x, game->mouse.cursor_y, &p, &ps) &&
+                p && ps >= 0 )
             {
-                int mode = 0;
-                gamenet_send_inv_button_d(game, comp, from_slot, to_slot, mode);
-                iface->inv_suppress_next_left_click = 1;
-                return;
+                to_comp = p->id;
+                to_slot = ps;
             }
+        }
+        if( to_comp == comp && to_slot >= 0 && from_slot >= 0 && to_slot != from_slot )
+        {
+            int mode = 0;
+            interface_inv_client_predict_drag(game, comp, from_slot, to_slot, &mode);
+            gamenet_send_inv_button_d(game, comp, from_slot, to_slot, mode);
+            iface->inv_suppress_next_left_click = 1;
             return;
         }
+        return;
+    }
 
     minimenu_game_use_primary_at(game, input, grab_x, grab_y);
 }

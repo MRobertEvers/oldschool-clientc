@@ -53,6 +53,15 @@ struct RevConfigBuffer;
 
 #define ACTIVE_PLAYER_SLOT 2047
 
+#define GAME_SENT_PATH_MAX 25
+
+struct GameSentPath
+{
+    int     length;
+    uint8_t tile_x[GAME_SENT_PATH_MAX];
+    uint8_t tile_z[GAME_SENT_PATH_MAX];
+};
+
 enum GameNetState
 {
     GAME_NET_STATE_DISCONNECTED,
@@ -110,6 +119,11 @@ struct GGame
     int build_player;
     int cc;
     bool latched;
+    /** When true, world step emits TORIRS_GFX_DRAW_LINE path overlays (Soft3D handles draw).
+     * Defaults to true in LibToriRS_GameNew; set false to disable. */
+    bool debug_entity_pathing;
+    /** Most recently sent BFS walk path (scene-local tiles); length==0 when none. */
+    struct GameSentPath sent_path;
 
     struct RingBuf* netin;
 
@@ -152,23 +166,14 @@ struct GGame
 
     int next_rebuild;
 
+    /** Per-frame mouse input state in game/buffer coordinates (transform applied). */
+    struct MouseSnapshot mouse;
+
     int mouse_cycle;
-    int mouse_clicked;
-    int mouse_clicked_x;
-    int mouse_clicked_y;
-    /** Left-click release position (mapped); mouseup coords — see TORIRSEV2_CLICK end_mouse_*. */
-    int mouse_clicked_end_x;
-    int mouse_clicked_end_y;
-    int mouse_clicked_right;
-    int mouse_clicked_right_x;
-    int mouse_clicked_right_y;
     int interface_consumed_click; /* 1 if click was handled by interface (tab, sidebar, etc.) */
-    int mouse_button_down;        /* 1 while left button held, 0 on release */
     /** Increments each game tick while left button is held; reset to 0 on release.
      * Mirrors Client.ts scrollCycle: scroll delta = scroll_cycle * 4 per tick. */
     int scroll_cycle;
-    int mouse_x;
-    int mouse_y;
 
     int camera_world_x;
     int camera_world_y;
@@ -273,6 +278,17 @@ struct GGame
 
     struct DashGraphics* sys_dash;
     struct PaintersBuffer* sys_painter_buffer;
+
+    /** Scratch for tile hover convex hull (projected points + hull output). */
+    float tile_hover_scratch[32];
+    /** Dynamic flat mesh: convex hull of hovered tile footprint, drawn after world 3D. */
+    struct DashModel* tile_hover_overlay_model;
+    /** Per-frame: tile hover overlay pass already attempted (see uielem_world_step). */
+    bool tile_hover_overlay_emitted;
+    /** Per-frame: tile_hover_overlay_model contains a valid hull built this frame. */
+    bool tile_hover_hull_buffered;
+    /** Camera-relative position of the hovered tile's SW corner (model-local origin). */
+    struct DashPosition tile_hover_overlay_pos;
 
     struct DashPosition* position;
     struct DashViewPort* view_port;

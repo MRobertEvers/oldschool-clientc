@@ -4,6 +4,7 @@
 #include "graphics/dash.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/chat.h"
+#include "osrs/entity_pathing_draw.h"
 #include "osrs/game.h"
 #include "osrs/gamenet_send.h"
 #include "osrs/interface.h"
@@ -39,7 +40,9 @@
 #include <string.h>
 #include <time.h>
 
-/** Set per `LibToriRS_FrameNextCommand` call for RS model culling. */
+#include "graphics/convex_hull.u.c"
+
+#include "osrs/heightmap.h"
 static bool s_frame_project_models;
 
 static enum ToriRS_UsageHint
@@ -446,11 +449,11 @@ rs_ui_layer_pop(struct GGame* game)
         game->uiscene_queued_commands )
     {
         struct UIFrameState fiber = {
-            .game = game,
-            .cmds = game->uiscene_queued_commands,
-            .mouse_x = game->mouse_x,
-            .mouse_y = game->mouse_y,
-            .pass = &game->frame_pass,
+            .game    = game,
+            .cmds    = game->uiscene_queued_commands,
+            .mouse_x = game->mouse.cursor_x,
+            .mouse_y = game->mouse.cursor_y,
+            .pass    = &game->frame_pass,
         };
         int sp = rs_iface_scroll_clamped_for_layer(
             game, e->scrollbar_layer_component_id, e->scrollbar_scroll_height, e->clip_h);
@@ -1486,24 +1489,37 @@ frame_point_in_world_builtin_xy(
     return false;
 }
 
-/** Screen coords for world 3D pick: mouse-down while a click is pending (matches crosshair),
- *  otherwise live cursor (ginput sets mouse_x/y to mouse-up after CLICK). */
+/**
+ * Screen coords for world 3D pick: use the click press position when a click fired this frame
+ * (ensures the pickset matches the crosshair anchor), otherwise the live cursor.
+ */
 static void
 frame_world_pick_pointer_xy(
     struct GGame* game,
     int* out_px,
     int* out_py)
 {
-    if( game->mouse_clicked && game->mouse_clicked_x >= 0 && game->mouse_clicked_y >= 0 )
+    if( game->mouse.buttons[TORIRSM_LEFT].click_this_frame )
     {
-        *out_px = game->mouse_clicked_x;
-        *out_py = game->mouse_clicked_y;
+        *out_px = game->mouse.buttons[TORIRSM_LEFT].click_press_x;
+        *out_py = game->mouse.buttons[TORIRSM_LEFT].click_press_y;
     }
     else
     {
-        *out_px = game->mouse_x;
-        *out_py = game->mouse_y;
+        *out_px = game->mouse.cursor_x;
+        *out_py = game->mouse.cursor_y;
     }
+}
+
+/** Live cursor for terrain tile hover (`mouse_tile_*` and hull overlay). */
+static void
+frame_world_hover_pointer_xy(
+    struct GGame* game,
+    int* out_px,
+    int* out_py)
+{
+    *out_px = game->mouse.cursor_x;
+    *out_py = game->mouse.cursor_y;
 }
 
 /** 3D tile/entity pick only when UITree hover is the world panel (or fallback rect match). */
@@ -1520,10 +1536,8 @@ frame_world_pick_allowed(struct GGame* game)
     if( h >= 0 && (uint32_t)h < tree->component_count )
         return tree->components[h].type == UIELEM_BUILTIN_WORLD;
 
-    int px = 0;
-    int py = 0;
-    frame_world_pick_pointer_xy(game, &px, &py);
-    return frame_point_in_world_builtin_xy(game, px, py);
+    /* Fallback: check whether the live cursor is inside the world panel rect. */
+    return frame_point_in_world_builtin_xy(game, game->mouse.cursor_x, game->mouse.cursor_y);
 }
 
 void
@@ -1550,6 +1564,8 @@ LibToriRS_FrameBegin(
     game->mouse_tile_x = -1;
     game->mouse_tile_z = -1;
     game->mouse_tile_level = -1;
+    game->tile_hover_overlay_emitted = false;
+    game->tile_hover_hull_buffered = false;
 
     game->camera->pitch = game->camera_pitch;
     game->camera->yaw = game->camera_yaw;
@@ -1573,7 +1589,7 @@ LibToriRS_FrameBegin(
     interface_update_region_hover_ids(game);
 
     if( game->ui_root_buffer )
-        uitree_sync_hover_option_set(game, game->mouse_x, game->mouse_y);
+        uitree_sync_hover_option_set(game, game->mouse.cursor_x, game->mouse.cursor_y);
 
     if( game->ui_root_buffer )
         uitree_mark_all_dirty(game->ui_root_buffer);
@@ -2010,6 +2026,216 @@ uielem_sprite_step(
     return true;
 }
 
+/** Visual id reserved for tile hover overlay (not from Scene2). */
+enum
+{
+    TILE_HOVER_OVERLAY_VISUAL_ID = 0x7e500001,
+    TILE_HOVER_HULL_MAX_VERTS = 4,
+    TILE_HOVER_MAX_FACES = TILE_HOVER_HULL_MAX_VERTS - 2
+};
+
+/**
+ * Called from PNTR_CMD_TERRAIN when the hovered tile is identified.
+ *
+ * Uses dash3d_project_point (read-only; never touches dash->screen_vertices_*) to project the 4
+ * tile corners, computes the convex hull, and populates game->tile_hover_overlay_model with
+ * model-LOCAL vertices (relative to the tile's SW corner).  The SW-corner camera-relative
+ * position is saved to game->tile_hover_overlay_pos so frame_tile_hover_overlay_emit can call
+ * dash3d_project_model with the right offset — matching the same convention used by terrain tiles.
+ *
+ * Using model-local vertices keeps model_min_depth small (~tile half-diagonal, ≈90) so that
+ * screen_vertices_z values (also small, relative to the model center) yield depth_avg < 1500
+ * in the bucket sort.  Face winding is reversed vs. the convex-hull CCW order (math Y-up) so
+ * the triangles are CCW in screen space (Y-down), passing the bucket-sort's back-face cull.
+ */
+static void
+frame_tile_hover_overlay_buffer(struct GGame* game, int sx, int sz, int lvl)
+{
+    if( !game->tile_hover_overlay_model || !game->world || !game->world->heightmap ||
+        !game->sys_dash || !game->view_port || !game->camera )
+        return;
+
+    struct HeightmapHeights heights = { 0 };
+    heightmap_get_heights(game->world->heightmap, sx, sz, lvl, &heights);
+
+    /* Camera-relative world coords of each corner (SW=0, SE=1, NE=2, NW=3). */
+    int32_t rel_x[4] = {
+        sx * 128 - game->camera_world_x,
+        (sx + 1) * 128 - game->camera_world_x,
+        (sx + 1) * 128 - game->camera_world_x,
+        sx * 128 - game->camera_world_x,
+    };
+    int32_t rel_y[4] = {
+        (int32_t)heights.sw_height - game->camera_world_y,
+        (int32_t)heights.se_height - game->camera_world_y,
+        (int32_t)heights.ne_height - game->camera_world_y,
+        (int32_t)heights.nw_height - game->camera_world_y,
+    };
+    int32_t rel_z[4] = {
+        sz * 128 - game->camera_world_z,
+        sz * 128 - game->camera_world_z,
+        (sz + 1) * 128 - game->camera_world_z,
+        (sz + 1) * 128 - game->camera_world_z,
+    };
+
+    /* Model position = camera-relative SW corner.  Vertices stored relative to this origin. */
+    struct DashPosition pos = { 0 };
+    pos.x = rel_x[0];
+    pos.y = rel_y[0];
+    pos.z = rel_z[0];
+
+    float* in_px = game->tile_hover_scratch;
+    float* in_py = game->tile_hover_scratch + 8;
+    float* out_hx = game->tile_hover_scratch + 16;
+    float* out_hy = game->tile_hover_scratch + 24;
+
+    int orig_idx[4];
+    int n_ok = 0;
+    for( int i = 0; i < 4; i++ )
+    {
+        if( rel_x[i] < -32768 || rel_x[i] > 32767 || rel_y[i] < -32768 || rel_y[i] > 32767 ||
+            rel_z[i] < -32768 || rel_z[i] > 32767 )
+            return;
+
+        int scr_x = 0;
+        int scr_y = 0;
+        if( !dash3d_project_point(
+                game->sys_dash, rel_x[i], rel_y[i], rel_z[i], game->view_port, game->camera,
+                &scr_x, &scr_y) )
+            continue;
+        orig_idx[n_ok] = i;
+        in_px[n_ok] = (float)scr_x;
+        in_py[n_ok] = (float)scr_y;
+        n_ok++;
+    }
+
+    if( n_ok < 3 )
+        return;
+
+    size_t hull_n = compute_convex_hull(in_px, in_py, (size_t)n_ok, out_hx, out_hy);
+    if( hull_n < 3 )
+        return;
+
+    int32_t hull_vx[TILE_HOVER_HULL_MAX_VERTS];
+    int32_t hull_vy[TILE_HOVER_HULL_MAX_VERTS];
+    int32_t hull_vz[TILE_HOVER_HULL_MAX_VERTS];
+    int hv = 0;
+    for( size_t hi = 0; hi < hull_n; hi++ )
+    {
+        int best_j = -1;
+        float best_d = 1e30f;
+        for( int j = 0; j < n_ok; j++ )
+        {
+            float dx = out_hx[hi] - in_px[j];
+            float dy = out_hy[hi] - in_py[j];
+            float d = dx * dx + dy * dy;
+            if( d < best_d )
+            {
+                best_d = d;
+                best_j = j;
+            }
+        }
+        if( best_j < 0 || best_d > 25.0f )
+            return;
+        int ci = orig_idx[best_j];
+        /* Model-local coords: offset from SW corner so vertices are small (0..128 in X/Z). */
+        hull_vx[hv] = rel_x[ci] - pos.x;
+        hull_vy[hv] = rel_y[ci] - pos.y;
+        hull_vz[hv] = rel_z[ci] - pos.z;
+        hv++;
+    }
+
+    int face_count = hv - 2;
+    if( face_count < 1 || face_count > TILE_HOVER_MAX_FACES )
+        return;
+
+    int16_t face_ia[TILE_HOVER_MAX_FACES];
+    int16_t face_ib[TILE_HOVER_MAX_FACES];
+    int16_t face_ic[TILE_HOVER_MAX_FACES];
+    for( int f = 0; f < face_count; f++ )
+    {
+        face_ia[f] = 0;
+        /* Swap B and C to get CCW winding in screen-space (Y-down), which is the opposite of
+         * the CCW-in-math-coords (Y-up) order returned by the convex hull algorithm. */
+        face_ib[f] = (int16_t)(f + 2);
+        face_ic[f] = (int16_t)(f + 1);
+    }
+
+    hsl16_t hull_hsl = (hsl16_t)(uint16_t)0xAF26u;
+    uint16_t hsl_a[TILE_HOVER_MAX_FACES];
+    uint16_t hsl_b[TILE_HOVER_MAX_FACES];
+    uint16_t hsl_c[TILE_HOVER_MAX_FACES];
+    alphaint_t face_alpha[TILE_HOVER_MAX_FACES];
+    int32_t face_tex[TILE_HOVER_MAX_FACES];
+    for( int f = 0; f < face_count; f++ )
+    {
+        hsl_a[f] = (uint16_t)hull_hsl;
+        hsl_b[f] = (uint16_t)hull_hsl;
+        hsl_c[f] = (uint16_t)hull_hsl;
+        face_alpha[f] = (alphaint_t)115;
+        face_tex[f] = -1;
+    }
+
+    struct DashModel* m = game->tile_hover_overlay_model;
+    dashmodel_set_vertices_i32(m, hv, hull_vx, hull_vy, hull_vz);
+    dashmodel_set_face_indices_i16(m, face_count, face_ia, face_ib, face_ic);
+    dashmodel_set_face_colors_i16(m, hsl_a, hsl_b, hsl_c);
+    dashmodel_set_face_alphas(m, face_alpha, face_count);
+    dashmodel_set_face_textures_i32(m, face_tex, face_count);
+    dashmodel_set_bounds_cylinder(m);
+    dashmodel_set_loaded(m, true);
+
+    game->tile_hover_overlay_pos = pos;
+    game->tile_hover_hull_buffered = true;
+}
+
+/**
+ * Called from world_done (in its own uielem_world_step iteration, after every terrain DRAW_MODEL
+ * has been drained by the platform).  Projects the pre-built overlay model using the stored
+ * tile position and queues one TORIRS_GFX_DRAW_MODEL command.  Returns true iff queued.
+ */
+static bool
+frame_tile_hover_overlay_emit(struct UIFrameState* fiber, struct GGame* game)
+{
+    if( !fiber || !game->uiscene_queued_commands || !game->tile_hover_overlay_model ||
+        !game->tile_hover_hull_buffered || !game->sys_dash ||
+        !game->view_port || !game->camera )
+        return false;
+
+    struct DashModel* m = game->tile_hover_overlay_model;
+    struct DashPosition pos = game->tile_hover_overlay_pos;
+    struct DashPosition world_pos = { 0 };
+
+    int cull = dash3d_project_model(game->sys_dash, m, &pos, game->view_port, game->camera);
+    if( cull != DASHCULL_VISIBLE )
+        return false;
+
+    frame_emit_pass(fiber, FRAME_PASS_3D);
+    {
+        struct ToriRSRenderCommand* rc =
+            LibToriRS_RenderCommandBufferEmplaceCommand(game->uiscene_queued_commands);
+        memset(rc, 0, sizeof(*rc));
+        rc->kind = TORIRS_GFX_DRAW_MODEL;
+        rc->_model_draw.model = m;
+        rc->_model_draw.model_key =
+            ((uint64_t)(uint32_t)game->cycle << 32) ^ (uint64_t)(uintptr_t)m ^ 0x54494c48u;
+        rc->_model_draw.visual_id = TILE_HOVER_OVERLAY_VISUAL_ID;
+        rc->_model_draw.element_id = -1;
+        rc->_model_draw.use_animation = false;
+        rc->_model_draw.animation_index = 0;
+        rc->_model_draw.frame_index = 0;
+        memcpy(&rc->_model_draw.position, &pos, sizeof(pos));
+        memcpy(&rc->_model_draw.world_position, &world_pos, sizeof(world_pos));
+        rc->_model_draw.usage_hint = (uint8_t)TORIRS_USAGE_SCENERY;
+        rc->_model_draw.animation_frame = NULL;
+        rc->_model_draw.animation_framemap = NULL;
+        rc->_model_draw.uv_offset_u = 0.f;
+        rc->_model_draw.uv_offset_v = 0.f;
+        rc->_model_draw.alpha_mode = 1;
+    }
+    return true;
+}
+
 static bool
 uielem_world_step(
     struct UIFrameState* fiber,
@@ -2051,11 +2277,7 @@ uielem_world_step(
 
 next:
     if( game->at_painters_command_index >= cap )
-    {
-        if( game->uiscene_queued_commands )
-            frame_emit_pass(fiber, FRAME_PASS_NONE);
-        return true;
-    }
+        goto world_done;
 
     cmd = &game->sys_painter_buffer->commands[game->at_painters_command_index];
 
@@ -2180,7 +2402,7 @@ next:
 
         int ppx = 0;
         int ppy = 0;
-        frame_world_pick_pointer_xy(game, &ppx, &ppy);
+        frame_world_hover_pointer_xy(game, &ppx, &ppy);
         int mvx = ppx - game->viewport_offset_x;
         int mvy = ppy - game->viewport_offset_y;
         if( frame_world_pick_allowed(game) && mvx >= 0 && mvy >= 0 &&
@@ -2189,6 +2411,7 @@ next:
             game->mouse_tile_x = sx;
             game->mouse_tile_z = sz;
             game->mouse_tile_level = slevel;
+            frame_tile_hover_overlay_buffer(game, sx, sz, slevel);
         }
 
         if( game->uiscene_queued_commands )
@@ -2224,12 +2447,25 @@ next:
         break;
     }
 
+    return false;
+
+world_done:
+    if( game->uiscene_queued_commands )
     {
-        bool done = game->at_painters_command_index >= cap;
-        if( done && game->uiscene_queued_commands )
-            frame_emit_pass(fiber, FRAME_PASS_NONE);
-        return done;
+        if( !game->tile_hover_overlay_emitted )
+        {
+            game->tile_hover_overlay_emitted = true;
+            if( frame_tile_hover_overlay_emit(fiber, game) )
+                return false;
+        }
+        if( game->debug_entity_pathing )
+        {
+            frame_emit_pass(fiber, FRAME_PASS_2D);
+            entity_pathing_draw_emit(game, game->uiscene_queued_commands);
+        }
+        frame_emit_pass(fiber, FRAME_PASS_NONE);
     }
+    return true;
 }
 
 static bool
@@ -2444,8 +2680,8 @@ uielem_hover_tooltip_step(
                 int ww = c->position.width > 0 ? c->position.width : 512;
                 int wh = c->position.height > 0 ? c->position.height : 334;
 
-                if( game->mouse_x >= wx && game->mouse_x < wx + ww && game->mouse_y >= wy &&
-                    game->mouse_y < wy + wh )
+                if( game->mouse.cursor_x >= wx && game->mouse.cursor_x < wx + ww &&
+                    game->mouse.cursor_y >= wy && game->mouse.cursor_y < wy + wh )
                 {
                     in_world = 1;
                     break;
@@ -2701,11 +2937,11 @@ LibToriRS_FrameNextCommand(
             if( game->uiscene_queued_commands && game->frame_pass != FRAME_PASS_NONE )
             {
                 struct UIFrameState fiber = {
-                    .game = game,
-                    .cmds = game->uiscene_queued_commands,
-                    .mouse_x = game->mouse_x,
-                    .mouse_y = game->mouse_y,
-                    .pass = &game->frame_pass,
+                    .game    = game,
+                    .cmds    = game->uiscene_queued_commands,
+                    .mouse_x = game->mouse.cursor_x,
+                    .mouse_y = game->mouse.cursor_y,
+                    .pass    = &game->frame_pass,
                 };
                 frame_emit_pass(&fiber, FRAME_PASS_NONE);
                 continue;
@@ -2723,11 +2959,11 @@ LibToriRS_FrameNextCommand(
         component = &game->ui_root_buffer->components[cur];
 
         struct UIFrameState fiber = {
-            .game = game,
-            .cmds = game->uiscene_queued_commands,
-            .mouse_x = game->mouse_x,
-            .mouse_y = game->mouse_y,
-            .pass = &game->frame_pass,
+            .game    = game,
+            .cmds    = game->uiscene_queued_commands,
+            .mouse_x = game->mouse.cursor_x,
+            .mouse_y = game->mouse.cursor_y,
+            .pass    = &game->frame_pass,
         };
         switch( component->type )
         {
@@ -2863,31 +3099,38 @@ frame_try_ts_bottom_sidebar_tabs(
     return false;
 }
 
+/**
+ * Return the game-coord position to anchor the crosshair for a left-click action.
+ * Uses the click press position (mousedown coords) which matches the tile pick.
+ */
 static void
 frame_cross_xy_from_cursor(
     struct GGame* game,
     int* out_x,
     int* out_y)
 {
-    /* Align with 3D pick / game->mouse_x (ginput now refreshes mouse_state on button events).
-     * Prefer explicit click-down coords when set; never use release-only — that diverged from tile
-     * hittest for left-click. */
-    int sx = game->mouse_clicked_x;
-    int sy = game->mouse_clicked_y;
-    if( sx < 0 || sy < 0 )
-    {
-        sx = game->mouse_x;
-        sy = game->mouse_y;
-    }
-    *out_x = sx;
-    *out_y = sy;
+    *out_x = game->mouse.buttons[TORIRSM_LEFT].click_press_x;
+    *out_y = game->mouse.buttons[TORIRSM_LEFT].click_press_y;
+}
+
+/** Set the click crosshair to the current left-click press position and start the animation. */
+static void
+game_cross_set(struct GGame* game, int mode)
+{
+    game->cross_x     = game->mouse.buttons[TORIRSM_LEFT].click_press_x;
+    game->cross_y     = game->mouse.buttons[TORIRSM_LEFT].click_press_y;
+    game->cross_mode  = mode;
+    game->cross_cycle = 0;
 }
 
 static void
 frame_handle_interface_and_world_clicks(struct GGame* game)
 {
-    if( !game->mouse_clicked || !game->iface )
+    if( !game->mouse.buttons[TORIRSM_LEFT].click_this_frame || !game->iface )
         return;
+
+    int const cx = game->mouse.buttons[TORIRSM_LEFT].click_press_x;
+    int const cy = game->mouse.buttons[TORIRSM_LEFT].click_press_y;
 
     if( game->ui_root_buffer && game->iface->sidebar_interface_id == -1 )
     {
@@ -2896,7 +3139,7 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
             struct StaticUIComponent* c = &game->ui_root_buffer->components[i];
             if( c->type != UIELEM_BUILTIN_REDSTONE_TAB )
                 continue;
-            if( !frame_point_in_component_xy(c, game->mouse_clicked_x, game->mouse_clicked_y) )
+            if( !frame_point_in_component_xy(c, cx, cy) )
                 continue;
             game->iface->selected_tab = c->u.redstone_tab.tabno;
             if( c->u.redstone_tab.tabno == 6 )
@@ -2909,23 +3152,21 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
     }
 
     if( !game->interface_consumed_click &&
-        frame_try_ts_bottom_sidebar_tabs(game, game->mouse_clicked_x, game->mouse_clicked_y) )
+        frame_try_ts_bottom_sidebar_tabs(game, cx, cy) )
     {
         game->interface_consumed_click = 1;
         return;
     }
 
     if( !game->interface_consumed_click && game->chat &&
-        chat_handle_privacy_strip_click(
-            game->chat, game, game->mouse_clicked_x, game->mouse_clicked_y, 1) )
+        chat_handle_privacy_strip_click(game->chat, game, cx, cy, 1) )
     {
         game->interface_consumed_click = 1;
         return;
     }
 
     if( !game->interface_consumed_click && game->chat &&
-        chat_try_begin_typing_click(
-            game->chat, game, game->mouse_clicked_x, game->mouse_clicked_y) )
+        chat_try_begin_typing_click(game->chat, game, cx, cy) )
     {
         game->interface_consumed_click = 1;
         return;
@@ -2940,9 +3181,6 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
      * reflects the change immediately even though we don't send a real packet. */
     if( game->buildcachedat && game->iface )
     {
-        int cx = game->mouse_clicked_x;
-        int cy = game->mouse_clicked_y;
-
         /* Sidebar region */
         if( iface_point_in_sidebar_overlay(cx, cy) )
         {
@@ -2982,18 +3220,8 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
                 int comp_id = -1, client_code = 0, btn_action = 0;
                 int pa = 0, pb = 0, pc = 0;
                 if( root && interface_find_button_click_at(
-                                game,
-                                root,
-                                root_x,
-                                root_y,
-                                cx,
-                                cy,
-                                &comp_id,
-                                &client_code,
-                                &btn_action,
-                                &pa,
-                                &pb,
-                                &pc) )
+                                game, root, root_x, root_y, cx, cy,
+                                &comp_id, &client_code, &btn_action, &pa, &pb, &pc) )
                 {
                     interface_apply_button_click_varp_optimistic(game, comp_id);
                     gamenet_send_if_button(game, comp_id);
@@ -3026,17 +3254,14 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
 
     {
         struct StaticUIComponent* mm = frame_find_builtin(game, UIELEM_BUILTIN_MINIMAP);
-        if( mm && frame_point_in_component_xy(mm, game->mouse_clicked_x, game->mouse_clicked_y) )
+        if( mm && frame_point_in_component_xy(mm, cx, cy) )
         {
             int bx = mm->position.x;
             int by = mm->position.y;
-            int mx = 0;
-            int my = 0;
-            frame_cross_xy_from_cursor(game, &mx, &my);
             int const pivot_x = bx + mm->position.anchor_x;
             int const pivot_y = by + mm->position.anchor_y;
-            int const dpx = mx - pivot_x;
-            int const dpy = my - pivot_y;
+            int const dpx     = cx - pivot_x;
+            int const dpy     = cy - pivot_y;
             int const max_off_x = mm->position.width / 2 + 32;
             int const max_off_y = mm->position.height / 2 + 32;
             if( dpx >= -max_off_x && dpx <= max_off_x && dpy >= -max_off_y && dpy <= max_off_y )
@@ -3065,17 +3290,14 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
                 int tile_x = (int)((int64_t)pw + dwx) >> 7;
                 int tile_z = (int)((int64_t)pz - dwz) >> 7;
                 int lvl = (game->mouse_tile_level >= 0) ? game->mouse_tile_level : 0;
-                game->tile_clicked_x = tile_x;
-                game->tile_clicked_z = tile_z;
+                game->tile_clicked_x     = tile_x;
+                game->tile_clicked_z     = tile_z;
                 game->tile_clicked_level = lvl;
-                /* Set minimap flag for the destination marker (task 9 / TS 11596-11599). */
-                game->minimap_flag_x = tile_x;
-                game->minimap_flag_z = tile_z;
+                /* Set minimap flag for the destination marker. */
+                game->minimap_flag_x   = tile_x;
+                game->minimap_flag_z   = tile_z;
                 game->minimap_flag_has = 1;
-                game->cross_x = mx;
-                game->cross_y = my;
-                game->cross_mode = 1;
-                game->cross_cycle = 0;
+                game_cross_set(game, 1);
                 game->interface_consumed_click = 1;
             }
             return;
@@ -3084,23 +3306,17 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
 
     {
         struct StaticUIComponent* wv = frame_find_builtin(game, UIELEM_BUILTIN_WORLD);
-        if( !wv || !frame_point_in_component_xy(wv, game->mouse_clicked_x, game->mouse_clicked_y) )
+        if( !wv || !frame_point_in_component_xy(wv, cx, cy) )
             return;
-        int sx = 0;
-        int sy = 0;
-        frame_cross_xy_from_cursor(game, &sx, &sy);
-        game->cross_x = sx;
-        game->cross_y = sy;
-        game->cross_cycle = 0;
-        game->cross_mode = 1; /* yellow by default */
+        game_cross_set(game, 1); /* yellow by default */
 
         if( game->mouse_tile_x < 0 )
             return;
 
-        game->tile_clicked_x = game->mouse_tile_x;
-        game->tile_clicked_z = game->mouse_tile_z;
+        game->tile_clicked_x     = game->mouse_tile_x;
+        game->tile_clicked_z     = game->mouse_tile_z;
         game->tile_clicked_level = game->mouse_tile_level;
-        game->minimap_flag_has = 0; /* clear destination flag on direct world click */
+        game->minimap_flag_has   = 0; /* clear destination flag on direct world click */
 
         /* Red if targetable option, yellow if only default options */
         if( game->option_set.option_count > 0 )
