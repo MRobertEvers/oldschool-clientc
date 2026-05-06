@@ -209,6 +209,19 @@ struct MapBuildTileEntity
     struct EntitySceneCoord scene_coord;
 };
 
+/** One ground-item stack per scene tile (level, world_tile_x, world_tile_z); model = top entry. */
+struct ObjStackEntity
+{
+    int entity_id;
+    int alive;
+    struct EntitySceneElement scene_element;
+    struct EntitySceneCoord scene_coord;
+    int level;
+    /** World tile indices (same space as zone OBJ packet sx/sz). */
+    int world_tile_x;
+    int world_tile_z;
+};
+
 struct IFaceRedstoneEntity
 {
     struct EntitySprite inactive_sprite;
@@ -275,6 +288,7 @@ enum EntityKind
     ENTITY_KIND_MAP_BUILD_LOC = 3,
     ENTITY_KIND_MAP_BUILD_TILE = 4,
     ENTITY_KIND_PROJECTILE = 5,
+    ENTITY_KIND_OBJ_STACK = 6,
 };
 
 static inline uint32_t

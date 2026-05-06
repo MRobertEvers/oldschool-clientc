@@ -1,7 +1,6 @@
 #ifndef TORI_RS_FRAME_U_C
 #define TORI_RS_FRAME_U_C
 
-#include "bmp.h"
 #include "graphics/dash.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/chat.h"
@@ -38,10 +37,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-#ifndef TORI_DEBUG_MINIMAP_BMP_PATH_MAX
-#define TORI_DEBUG_MINIMAP_BMP_PATH_MAX 512
-#endif
 
 /** Set per `LibToriRS_FrameNextCommand` call for RS model culling. */
 static bool s_frame_project_models;
@@ -784,7 +779,7 @@ dashsprite_draw_dims(
     }
 }
 
-/** Dot placement shared by TORIRS_GFX emission and TORI_DEBUG_MINIMAP_BMP off-screen composite.
+/** Dot placement for minimap TORIRS_GFX_DRAW_SPRITE dots.
  * `pivot_x`, `pivot_y`: screen pixel of minimap rotation center (= component top-left + UITree
  * anchor); must match TORIRS_GFX_DRAW_SPRITE rotated minimap dst_anchor.
  * World deltas use the same fine units as `camera_world_x` / loc `world_x` (128 per tile).
@@ -883,57 +878,6 @@ minimap_compute_dot_layout(
     }
     L.ok = 1;
     return L;
-}
-
-/** Alpha-over `sprite` subrect onto ARGB buffer (debug BMP path). */
-static void
-minimap_debug_blend_subrect(
-    struct DashSprite const* sprite,
-    int src_ix,
-    int src_iy,
-    int src_iw,
-    int src_ih,
-    int dst_x,
-    int dst_y,
-    int* dst,
-    int dst_w,
-    int dst_h)
-{
-    if( !sprite || !sprite->pixels_argb || !dst || dst_w <= 0 || dst_h <= 0 )
-        return;
-    uint32_t const* sp = (uint32_t const*)sprite->pixels_argb;
-    int const spr_w = sprite->width;
-    for( int py = 0; py < src_ih; py++ )
-    {
-        int sy = src_iy + py;
-        int dy = dst_y + py;
-        if( dy < 0 || dy >= dst_h )
-            continue;
-        for( int px = 0; px < src_iw; px++ )
-        {
-            int sx = src_ix + px;
-            int dx = dst_x + px;
-            if( dx < 0 || dx >= dst_w )
-                continue;
-            uint32_t spix = sp[sy * spr_w + (unsigned)sx];
-            int a = (int)((spix >> 24) & 255u);
-            if( a <= 0 )
-                continue;
-            int idx = dy * dst_w + dx;
-            uint32_t dpix = (uint32_t)dst[idx];
-            int dr = (int)((dpix >> 16) & 255u);
-            int dg = (int)((dpix >> 8) & 255u);
-            int db = (int)(dpix & 255u);
-            int sr = (int)((spix >> 16) & 255u);
-            int sg = (int)((spix >> 8) & 255u);
-            int sb = (int)(spix & 255u);
-            int out_r = (sr * a + dr * (255 - a)) / 255;
-            int out_g = (sg * a + dg * (255 - a)) / 255;
-            int out_b = (sb * a + db * (255 - a)) / 255;
-            dst[idx] = (int)(0xFF000000u | ((uint32_t)out_r << 16) | ((uint32_t)out_g << 8) |
-                             (uint32_t)out_b);
-        }
-    }
 }
 
 /* Emit a single 2-pixel-wide dot on the minimap for the entity at world position
@@ -1209,30 +1153,7 @@ queue_static_ui_minimap_draws(
         }
     }
 
-    /* Ground items → minimap locs (drawn via dynamic LOC → GFX pass). */
-    if( game->obj_stacks )
-    {
-        int level = 0;
-        if( game->obj_stacks[level] )
-        {
-            for( int sx = 0; sx < ZONE_SCENE_SIZE; sx++ )
-            {
-                for( int sz = 0; sz < ZONE_SCENE_SIZE; sz++ )
-                {
-                    struct ObjStackEntry* entry =
-                        game->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz];
-                    if( !entry )
-                        continue;
-                    int wx = (game->zone_base_x + sx) * 128 + 64;
-                    int wz = (game->zone_base_z + sz) * 128 + 64;
-                    int tx = wx / 128;
-                    int tz = wz / 128;
-                    if( tx >= 0 && tx < mm->width && tz >= 0 && tz < mm->height )
-                        minimap_add_loc(mm, tx, tz, wx, wz, MINIMAP_LOC_TYPE_OBJECT);
-                }
-            }
-        }
-    }
+    /* Ground items: minimap dots from world_cycle (world->obj_stacks / ObjStackEntity). */
 
     struct MinimapRenderCommandBuffer* dyn = game->minimap_dynamic_commands;
     if( dyn && game->uiscene_queued_commands )
@@ -1256,234 +1177,6 @@ queue_static_ui_minimap_draws(
     }
 
     struct UITree* uit = game->ui_root_buffer;
-
-    /* Off-screen composite (rotated static + dots) → BMP when TORI_DEBUG_MINIMAP_BMP is set.
-     * "1" → minimap_debug.bmp (overwrite). Any other non-empty value → that file path. */
-    {
-        // char const* dbg_bmp = getenv("TORI_DEBUG_MINIMAP_BMP");
-        char const* dbg_bmp = "1";
-        if( dbg_bmp && dbg_bmp[0] && static_sprite && static_sprite->pixels_argb && mm_comp_w > 0 &&
-            mm_comp_h > 0 )
-        {
-            int const srw =
-                static_sprite->crop_width > 0 ? static_sprite->crop_width : static_sprite->width;
-            int const srh =
-                static_sprite->crop_height > 0 ? static_sprite->crop_height : static_sprite->height;
-            if( srw > 0 && srh > 0 )
-            {
-                size_t const pix_count = (size_t)mm_comp_w * (size_t)mm_comp_h;
-                int* pix = (int*)calloc(pix_count, sizeof(int));
-                if( pix )
-                {
-                    int const black = (int)0xFF000000u;
-                    for( size_t i = 0; i < pix_count; i++ )
-                        pix[i] = black;
-
-                    dash2d_blit_rotated_ex(
-                        (int*)static_sprite->pixels_argb,
-                        static_sprite->width,
-                        0,
-                        0,
-                        srw,
-                        srh,
-                        anchor_x,
-                        anchor_y,
-                        pix,
-                        mm_comp_w,
-                        mm_comp_h,
-                        0,
-                        0,
-                        mm_comp_w,
-                        mm_comp_h,
-                        component->position.anchor_x,
-                        component->position.anchor_y,
-                        ((game->camera_yaw) & 0x7ff));
-
-                    struct MinimapRenderCommandBuffer* dyn_dbg = game->minimap_dynamic_commands;
-                    if( dyn_dbg && uit )
-                    {
-                        for( int i = 0; i < dyn_dbg->count; i++ )
-                        {
-                            struct MinimapRenderCommand* cmd = &dyn_dbg->commands[i];
-                            if( cmd->kind != MINIMAP_RENDER_COMMAND_LOC )
-                                continue;
-                            int idx = cmd->u.loc.loc_idx;
-                            if( idx < 0 || idx >= mm->locs_count )
-                                continue;
-                            struct MinimapLoc* loc = &mm->locs[idx];
-                            int dot_eid = -1;
-                            switch( loc->type )
-                            {
-                            case MINIMAP_LOC_TYPE_OBJECT:
-                                dot_eid = uit->ui_minimap_mapdots0_element_id;
-                                break;
-                            case MINIMAP_LOC_TYPE_NPC:
-                                dot_eid = uit->ui_minimap_mapdots1_element_id;
-                                break;
-                            case MINIMAP_LOC_TYPE_PLAYER:
-                                dot_eid = uit->ui_minimap_mapdots3_element_id;
-                                break;
-                            default:
-                                break;
-                            }
-                            if( dot_eid < 0 )
-                                continue;
-                            struct DashSprite* spr = game_uiscene_sprite_atlas0(game, dot_eid);
-                            if( !spr )
-                                continue;
-                            struct MinimapDotLayout L = minimap_compute_dot_layout(
-                                spr,
-                                mm_comp_x,
-                                mm_comp_y,
-                                mm_comp_w,
-                                mm_comp_h,
-                                mm_pivot_x,
-                                mm_pivot_y,
-                                mm_cam_yaw,
-                                mm_ref_wx,
-                                mm_ref_wz,
-                                loc->world_x,
-                                loc->world_z);
-                            if( !L.ok )
-                                continue;
-                            minimap_debug_blend_subrect(
-                                spr,
-                                L.src_ix,
-                                L.src_iy,
-                                L.src_iw,
-                                L.src_ih,
-                                L.dst_x - mm_comp_x,
-                                L.dst_y - mm_comp_y,
-                                pix,
-                                mm_comp_w,
-                                mm_comp_h);
-                        }
-                    }
-
-                    if( uit && game->world )
-                    {
-                        if( game->hint_arrow_type != 0 && (game->cycle % 20) < 10 )
-                        {
-                            int const arrow_eid = uit->ui_minimap_mapmarker2_element_id;
-                            struct DashSprite* arrow = game_uiscene_sprite_atlas0(game, arrow_eid);
-                            if( arrow && game->hint_arrow_tile_x >= 0 &&
-                                game->hint_arrow_tile_z >= 0 )
-                            {
-                                struct MinimapDotLayout L = minimap_compute_dot_layout(
-                                    arrow,
-                                    mm_comp_x,
-                                    mm_comp_y,
-                                    mm_comp_w,
-                                    mm_comp_h,
-                                    mm_pivot_x,
-                                    mm_pivot_y,
-                                    mm_cam_yaw,
-                                    mm_ref_wx,
-                                    mm_ref_wz,
-                                    game->hint_arrow_tile_x * 128 + 64,
-                                    game->hint_arrow_tile_z * 128 + 64);
-                                if( L.ok )
-                                    minimap_debug_blend_subrect(
-                                        arrow,
-                                        L.src_ix,
-                                        L.src_iy,
-                                        L.src_iw,
-                                        L.src_ih,
-                                        L.dst_x - mm_comp_x,
-                                        L.dst_y - mm_comp_y,
-                                        pix,
-                                        mm_comp_w,
-                                        mm_comp_h);
-                            }
-                        }
-                        if( game->minimap_flag_has )
-                        {
-                            int const flag_eid = uit->ui_minimap_mapmarker_element_id;
-                            struct DashSprite* flag = game_uiscene_sprite_atlas0(game, flag_eid);
-                            if( flag )
-                            {
-                                struct MinimapDotLayout L = minimap_compute_dot_layout(
-                                    flag,
-                                    mm_comp_x,
-                                    mm_comp_y,
-                                    mm_comp_w,
-                                    mm_comp_h,
-                                    mm_pivot_x,
-                                    mm_pivot_y,
-                                    mm_cam_yaw,
-                                    mm_ref_wx,
-                                    mm_ref_wz,
-                                    game->minimap_flag_x * 128 + 64,
-                                    game->minimap_flag_z * 128 + 64);
-                                if( L.ok )
-                                    minimap_debug_blend_subrect(
-                                        flag,
-                                        L.src_ix,
-                                        L.src_iy,
-                                        L.src_iw,
-                                        L.src_ih,
-                                        L.dst_x - mm_comp_x,
-                                        L.dst_y - mm_comp_y,
-                                        pix,
-                                        mm_comp_w,
-                                        mm_comp_h);
-                            }
-                        }
-                        {
-                            int dx = pl_wx - mm_ref_wx;
-                            int dz = pl_wz - mm_ref_wz;
-                            int yaw = mm_cam_yaw & 0x7ff;
-                            int sin_y = dash_sin(yaw);
-                            int cos_y = dash_cos(yaw);
-                            int64_t const rot_x =
-                                ((int64_t)dx * (int64_t)cos_y + (int64_t)dz * (int64_t)sin_y) >> 21;
-                            int64_t const rot_y =
-                                ((int64_t)dz * (int64_t)cos_y - (int64_t)dx * (int64_t)sin_y) >> 21;
-                            int dot_x = mm_pivot_x + (int)rot_x;
-                            int dot_y = mm_pivot_y - (int)rot_y;
-                            if( dot_x < mm_comp_x + 1 )
-                                dot_x = mm_comp_x + 1;
-                            if( dot_y < mm_comp_y + 1 )
-                                dot_y = mm_comp_y + 1;
-                            if( dot_x > mm_comp_x + mm_comp_w - 2 )
-                                dot_x = mm_comp_x + mm_comp_w - 2;
-                            if( dot_y > mm_comp_y + mm_comp_h - 2 )
-                                dot_y = mm_comp_y + mm_comp_h - 2;
-                            int lx = dot_x - mm_comp_x - 1;
-                            int ly = dot_y - mm_comp_y - 1;
-                            for( int row = 0; row < 3; row++ )
-                            {
-                                for( int col = 0; col < 3; col++ )
-                                {
-                                    int px = lx + col;
-                                    int py = ly + row;
-                                    if( px >= 0 && px < mm_comp_w && py >= 0 && py < mm_comp_h )
-                                        pix[py * mm_comp_w + px] = (int)0xFFFFFFFFu;
-                                }
-                            }
-                        }
-                    }
-
-                    char out_path[TORI_DEBUG_MINIMAP_BMP_PATH_MAX];
-                    if( dbg_bmp[0] == '1' && dbg_bmp[1] == '\0' )
-                        snprintf(out_path, sizeof out_path, "minimap_debug.bmp");
-                    else
-                    {
-                        snprintf(out_path, sizeof out_path, "%s", dbg_bmp);
-                        out_path[sizeof out_path - 1] = '\0';
-                    }
-                    bmp_write_file(out_path, pix, mm_comp_w, mm_comp_h);
-                    fprintf(
-                        stderr,
-                        "[TORI_DEBUG_MINIMAP_BMP] wrote %s (%dx%d)\n",
-                        out_path,
-                        mm_comp_w,
-                        mm_comp_h);
-                    free(pix);
-                }
-            }
-        }
-    }
 
     /* ── Hint arrow, destination flag, local player (not in dynamic loc list). ─ */
     if( !game->world )
@@ -2117,7 +1810,8 @@ entity_animate(
         entity_projectile_animate(world, entity_id_from_uid(entity_uid));
         break;
     case ENTITY_KIND_MAP_BUILD_TILE:
-
+    case ENTITY_KIND_OBJ_STACK:
+        return;
     default:
         return;
     }
@@ -2142,6 +1836,8 @@ entity_interactable(
         struct MapBuildLocEntity* map_build_loc_entity = world_loc_entity(world, lid);
         return map_build_loc_entity->interactable;
     }
+    case ENTITY_KIND_OBJ_STACK:
+        return false;
     }
     return false;
 }
@@ -2188,6 +1884,16 @@ entity_coords_from_element(
         struct MapBuildLocEntity* map_build_loc_entity = world_loc_entity(world, lid);
         coords->x = map_build_loc_entity->scene_coord.sx;
         coords->z = map_build_loc_entity->scene_coord.sz;
+    }
+    break;
+    case ENTITY_KIND_OBJ_STACK:
+    {
+        int oid = entity_id_from_uid(entity_uid);
+        if( oid < 0 || oid >= entity_vec_count(&world->obj_stack_entities) )
+            return;
+        struct ObjStackEntity* ost = world_obj_stack_entity(world, oid);
+        coords->x = ost->world_tile_x;
+        coords->z = ost->world_tile_z;
     }
     break;
     }

@@ -809,21 +809,28 @@ scene2_element_release(
     struct Scene2* scene2,
     int element_id)
 {
-    if( element_id == -1 )
+    /* Pool indices are never negative; anything < 0 is bogus bookkeeping (not just -1). */
+    if( element_id < 0 )
         return;
     if( !scene2 )
         return;
 
-    struct Scene2Element* element = scene2_element_at(scene2, element_id);
-    if( !element )
+    int total = scene2_elements_total(scene2);
+    if( element_id >= total )
     {
         fprintf(
             stderr,
-            "scene2_element_release: invalid element_id=%d (total=%d)\n",
+            "scene2_element_release: ignoring out-of-range element_id=%d (total=%d)\n",
             element_id,
-            scene2_elements_total(scene2));
-        abort();
+            total);
+        return;
     }
+
+    struct Scene2Element* element;
+    if( element_id < scene2->fast_count )
+        element = (struct Scene2Element*)&scene2->fast_pool[element_id];
+    else
+        element = (struct Scene2Element*)&scene2->full_pool[element_id - scene2->fast_count];
     assert(scene2_element_is_active(element) && "Element must be active");
     int parent_entity_id = scene2_element_parent_entity_id(element);
     const uint8_t released_el_cat = (uint8_t)scene2_element_category(element);

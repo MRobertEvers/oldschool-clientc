@@ -251,10 +251,7 @@ struct GGame
     int hint_arrow_tile_x;
     int hint_arrow_tile_z;
 
-    /* Zone-packet runtime state (obj_stacks allocated lazily as flat
-     * [MAP_TERRAIN_LEVELS * ZONE_SCENE_SIZE * ZONE_SCENE_SIZE] pointer array).
-     * loc_changes_head: singly-linked list of pending loc-change entries. */
-    struct ObjStackEntry*** obj_stacks;
+    /* Zone-packet runtime state (loc_changes, map anims — obj_stacks live on World). */
     struct LocChangeEntry*  loc_changes_head;
     struct MapAnimEntry*    map_anims_head;
     struct MapProjAnimEntry* map_projanims_head;

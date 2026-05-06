@@ -213,7 +213,7 @@ struct NormalScenery
 
 struct GroundObject
 {
-    uint16_t entity;
+    int entity;
 };
 
 enum WallSide

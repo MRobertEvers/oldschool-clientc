@@ -74,6 +74,140 @@ world_prime_map_build_tile_slot0(struct World* world)
     e->entity_id = 0;
 }
 
+static void
+world_obj_stack_entity_remove_from_active(
+    struct World* world,
+    int entity_id)
+{
+    for( int i = 0; i < world->active_obj_stack_entity_count; i++ )
+    {
+        if( world->active_obj_stack_entities[i] == entity_id )
+        {
+            world->active_obj_stack_entities[i] =
+                world->active_obj_stack_entities[world->active_obj_stack_entity_count - 1];
+            world->active_obj_stack_entity_count--;
+            return;
+        }
+    }
+}
+
+void
+world_cleanup_obj_stack_entity(
+    struct World* world,
+    int entity_id)
+{
+    if( entity_id < 0 || entity_id >= entity_vec_count(&world->obj_stack_entities) )
+        return;
+
+    struct ObjStackEntity* e = world_obj_stack_entity(world, entity_id);
+    if( e->alive )
+        world_obj_stack_entity_remove_from_active(world, entity_id);
+    if( world->scene2 )
+        scene2_element_release(world->scene2, e->scene_element.element_id);
+    e->scene_element.element_id = -1;
+    memset(&e->scene_coord, 0, sizeof(struct EntitySceneCoord));
+    e->alive = 0;
+    e->level = 0;
+    e->world_tile_x = 0;
+    e->world_tile_z = 0;
+}
+
+int
+world_obj_stack_entity_create(struct World* world)
+{
+    if( !world )
+        return -1;
+
+    int32_t n = entity_vec_count(&world->obj_stack_entities);
+    for( int32_t i = 0; i < n; i++ )
+    {
+        struct ObjStackEntity* e = world_obj_stack_entity(world, i);
+        if( !e->alive )
+        {
+            if( world->scene2 )
+                scene2_element_release(world->scene2, e->scene_element.element_id);
+            e->scene_element.element_id = -1;
+            if( world->active_obj_stack_entity_count < MAX_OBJ_STACK_ENTITIES )
+                world->active_obj_stack_entities[world->active_obj_stack_entity_count++] =
+                    (int32_t)i;
+            e->alive = 1;
+            e->entity_id = (int)i;
+            return (int)i;
+        }
+    }
+
+    if( n >= MAX_OBJ_STACK_ENTITIES )
+        return -1;
+
+    struct ObjStackEntity* e = world_obj_stack_entity_ensure(world, n);
+    memset(e, 0, sizeof(*e));
+    e->entity_id = (int)n;
+    e->scene_element.element_id = -1;
+    e->alive = 1;
+    if( world->active_obj_stack_entity_count < MAX_OBJ_STACK_ENTITIES )
+        world->active_obj_stack_entities[world->active_obj_stack_entity_count++] = (int32_t)n;
+    return (int)n;
+}
+
+void
+world_obj_stacks_ensure(struct World* world)
+{
+    if( world->obj_stacks )
+        return;
+
+    world->obj_stacks =
+        (struct ObjStackEntry***)calloc(MAP_TERRAIN_LEVELS, sizeof(struct ObjStackEntry**));
+    for( int l = 0; l < MAP_TERRAIN_LEVELS; l++ )
+    {
+        world->obj_stacks[l] = (struct ObjStackEntry**)calloc(
+            ZONE_SCENE_SIZE * ZONE_SCENE_SIZE, sizeof(struct ObjStackEntry*));
+    }
+
+    int ntile = MAP_TERRAIN_LEVELS * ZONE_SCENE_SIZE * ZONE_SCENE_SIZE;
+    world->obj_stack_entity_by_tile = (int32_t*)malloc(sizeof(int32_t) * (size_t)ntile);
+    for( int i = 0; i < ntile; i++ )
+        world->obj_stack_entity_by_tile[i] = -1;
+}
+
+void
+world_obj_stacks_free_all(struct World* world)
+{
+    if( !world )
+        return;
+
+    int nent = entity_vec_count(&world->obj_stack_entities);
+    for( int i = 0; i < nent; i++ )
+        world_cleanup_obj_stack_entity(world, i);
+    world->active_obj_stack_entity_count = 0;
+
+    if( world->obj_stacks )
+    {
+        for( int l = 0; l < MAP_TERRAIN_LEVELS; l++ )
+        {
+            if( !world->obj_stacks[l] )
+                continue;
+            for( int t = 0; t < ZONE_SCENE_SIZE * ZONE_SCENE_SIZE; t++ )
+            {
+                struct ObjStackEntry* e = world->obj_stacks[l][t];
+                while( e )
+                {
+                    struct ObjStackEntry* next = e->next;
+                    free(e);
+                    e = next;
+                }
+                world->obj_stacks[l][t] = NULL;
+            }
+            free(world->obj_stacks[l]);
+            world->obj_stacks[l] = NULL;
+        }
+        free(world->obj_stacks);
+        world->obj_stacks = NULL;
+    }
+
+    free(world->obj_stack_entity_by_tile);
+    world->obj_stack_entity_by_tile = NULL;
+}
+
 struct World*
 world_new(
     struct BuildCacheDat* buildcachedat,
@@ -103,6 +237,10 @@ world_new(
         &world->map_build_tile_entities,
         sizeof(struct MapBuildTileEntity),
         MAX_MAP_BUILD_TILE_ENTITIES);
+    entity_vec_init(
+        &world->obj_stack_entities,
+        sizeof(struct ObjStackEntity),
+        MAX_OBJ_STACK_ENTITIES);
 
     world_prime_map_build_tile_slot0(world);
 
@@ -135,6 +273,9 @@ world_free(struct World* world)
     entity_vec_free(&world->projectiles);
     entity_vec_free(&world->map_build_loc_entities);
     entity_vec_free(&world->map_build_tile_entities);
+
+    world_obj_stacks_free_all(world);
+    entity_vec_free(&world->obj_stack_entities);
 
     painters_cullmap_free(world->cullmap);
     world->cullmap = NULL;
@@ -670,6 +811,8 @@ world_rebuild_centerzone_begin(
     for( int i = 0; i < world->active_projectile_count; i++ )
         world_cleanup_projectile_entity(world, world->active_projectiles[i]);
     world->active_projectile_count = 0;
+
+    world_obj_stacks_free_all(world);
 
     world_rebuild_clear_scene2_dynamic_entities(world);
 

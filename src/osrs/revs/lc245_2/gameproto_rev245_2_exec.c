@@ -5,6 +5,7 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/clientscript_vm.h"
 #include "osrs/dash_utils.h"
+#include "osrs/entity_scenebuild.h"
 #include "osrs/datatypes/appearances.h"
 #include "osrs/datatypes/player_appearance.h"
 #include "osrs/game.h"
@@ -1309,24 +1310,6 @@ zone_tile_z(
 
 /* ---- Zone-state helpers ---- */
 
-static struct ObjStackEntry**
-game_obj_stacks_ensure(struct GGame* game)
-{
-    if( !game->obj_stacks )
-    {
-        int total = MAP_TERRAIN_LEVELS * ZONE_SCENE_SIZE * ZONE_SCENE_SIZE;
-        game->obj_stacks =
-            (struct ObjStackEntry***)calloc(MAP_TERRAIN_LEVELS, sizeof(struct ObjStackEntry**));
-        for( int l = 0; l < MAP_TERRAIN_LEVELS; l++ )
-        {
-            game->obj_stacks[l] = (struct ObjStackEntry**)calloc(
-                ZONE_SCENE_SIZE * ZONE_SCENE_SIZE, sizeof(struct ObjStackEntry*));
-        }
-        (void)total;
-    }
-    return (struct ObjStackEntry**)game->obj_stacks;
-}
-
 void
 gameproto_rev245_2_exec_obj_add(
     struct GGame* game,
@@ -1342,13 +1325,17 @@ gameproto_rev245_2_exec_obj_add(
 
     if( sx < 0 || sx >= ZONE_SCENE_SIZE || sz < 0 || sz >= ZONE_SCENE_SIZE )
         return;
+    if( !game->world )
+        return;
 
-    game_obj_stacks_ensure(game);
+    world_obj_stacks_ensure(game->world);
     struct ObjStackEntry* entry = (struct ObjStackEntry*)malloc(sizeof(struct ObjStackEntry));
     entry->obj_id = obj_id;
     entry->count = count;
-    entry->next = game->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz];
-    game->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz] = entry;
+    entry->next = game->world->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz];
+    game->world->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz] = entry;
+
+    entity_scenebuild_obj_stack_update_tile(game, level, sx, sz);
 }
 
 void
@@ -1361,12 +1348,12 @@ gameproto_rev245_2_exec_obj_del(
     int obj_id = packet->_obj_del.obj_id & 0x7fff;
     int level = 0;
 
-    if( !game->obj_stacks )
+    if( !game->world || !game->world->obj_stacks )
         return;
     if( sx < 0 || sx >= ZONE_SCENE_SIZE || sz < 0 || sz >= ZONE_SCENE_SIZE )
         return;
 
-    struct ObjStackEntry** head = &game->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz];
+    struct ObjStackEntry** head = &game->world->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz];
     for( struct ObjStackEntry* e = *head; e; e = e->next )
     {
         if( e->obj_id == obj_id )
@@ -1377,6 +1364,8 @@ gameproto_rev245_2_exec_obj_del(
         }
         head = &e->next;
     }
+
+    entity_scenebuild_obj_stack_update_tile(game, level, sx, sz);
 }
 
 void
@@ -1405,12 +1394,12 @@ gameproto_rev245_2_exec_obj_count(
     int new_count = packet->_obj_count.new_count;
     int level = 0;
 
-    if( !game->obj_stacks )
+    if( !game->world || !game->world->obj_stacks )
         return;
     if( sx < 0 || sx >= ZONE_SCENE_SIZE || sz < 0 || sz >= ZONE_SCENE_SIZE )
         return;
 
-    for( struct ObjStackEntry* e = game->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz]; e;
+    for( struct ObjStackEntry* e = game->world->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz]; e;
          e = e->next )
     {
         if( e->obj_id == obj_id && e->count == old_count )
@@ -1419,6 +1408,8 @@ gameproto_rev245_2_exec_obj_count(
             break;
         }
     }
+
+    entity_scenebuild_obj_stack_update_tile(game, level, sx, sz);
 }
 
 void

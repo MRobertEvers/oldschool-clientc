@@ -7,7 +7,9 @@
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
 #include "osrs/game.h"
+#include "osrs/heightmap.h"
 #include "osrs/model_transforms.h"
+#include "osrs/world.h"
 #include "osrs/world_scenebuild.h"
 #include "osrs/zone_state.h"
 #include "rscache/tables/model.h"
@@ -141,6 +143,52 @@ obj_model(
     return merged;
 }
 
+#define OBJ_STACK_SORT_CAP 128
+
+static int64_t
+obj_stack_sort_key(
+    struct GGame* game,
+    struct ObjStackEntry* e)
+{
+    struct CacheDatConfigObj* o = buildcachedat_get_obj(game->buildcachedat, e->obj_id);
+    if( !o )
+        return 0;
+    int64_t c = (int64_t)o->cost;
+    if( o->stackable )
+        c *= (int64_t)(e->count + 1);
+    return c;
+}
+
+/** Client.ts sortObjStacks: highest cost first (stackable: cost * (count+1)). */
+static void
+obj_stack_sort_head(
+    struct GGame* game,
+    struct ObjStackEntry** head_out)
+{
+    struct ObjStackEntry* list = *head_out;
+    if( !list || !list->next )
+        return;
+
+    struct ObjStackEntry* arr[OBJ_STACK_SORT_CAP];
+    int n = 0;
+    for( struct ObjStackEntry* e = list; e && n < OBJ_STACK_SORT_CAP; e = e->next )
+        arr[n++] = e;
+
+    for( int i = 0; i < n; i++ )
+        for( int j = i + 1; j < n; j++ )
+            if( obj_stack_sort_key(game, arr[j]) > obj_stack_sort_key(game, arr[i]) )
+            {
+                struct ObjStackEntry* t = arr[i];
+                arr[i] = arr[j];
+                arr[j] = t;
+            }
+
+    for( int i = 0; i < n - 1; i++ )
+        arr[i]->next = arr[i + 1];
+    arr[n - 1]->next = NULL;
+    *head_out = arr[0];
+}
+
 /** Update or create the SceneElement for the top obj at (level, sx, sz). Client.ts sortObjStacks:
  * top by cost (stackable: cost *= count+1). Call after obj_add, obj_del, obj_count. */
 void
@@ -150,7 +198,103 @@ entity_scenebuild_obj_stack_update_tile(
     int sx,
     int sz)
 {
-    // struct ObjStackEntry* head = game->obj_stacks[level][sx][sz];
+    if( !game || !game->world )
+        return;
+
+    struct World* w = game->world;
+    if( !w->obj_stacks || !w->obj_stack_entity_by_tile )
+        return;
+    if( level < 0 || level >= MAP_TERRAIN_LEVELS )
+        return;
+    if( sx < 0 || sx >= ZONE_SCENE_SIZE || sz < 0 || sz >= ZONE_SCENE_SIZE )
+        return;
+
+    struct ObjStackEntry** head_cell = &w->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz];
+    obj_stack_sort_head(game, head_cell);
+    struct ObjStackEntry* head = *head_cell;
+    int tflat = world_obj_stack_tile_flat(level, sx, sz);
+
+    if( !head )
+    {
+        int eid = w->obj_stack_entity_by_tile[tflat];
+        if( eid >= 0 )
+        {
+            world_cleanup_obj_stack_entity(w, eid);
+            w->obj_stack_entity_by_tile[tflat] = -1;
+        }
+        return;
+    }
+
+    int eid = w->obj_stack_entity_by_tile[tflat];
+    if( eid < 0 )
+    {
+        eid = world_obj_stack_entity_create(w);
+        if( eid < 0 )
+            return;
+        w->obj_stack_entity_by_tile[tflat] = eid;
+    }
+
+    struct ObjStackEntity* ent = world_obj_stack_entity(w, eid);
+    ent->world_tile_x = sx;
+    ent->world_tile_z = sz;
+    ent->level = level;
+    ent->entity_id = eid;
+
+    int psx = sx - w->_base_tile_x;
+    int psz = sz - w->_base_tile_z;
+    if( psx < 0 )
+        psx = 0;
+    if( psz < 0 )
+        psz = 0;
+    if( psx > 511 )
+        psx = 511;
+    if( psz > 511 )
+        psz = 511;
+    ent->scene_coord.sx = (uint32_t)psx;
+    ent->scene_coord.sz = (uint32_t)psz;
+    ent->scene_coord.slevel = (uint32_t)(level & 0xf);
+
+    struct CacheModel* cm = obj_ground_model(game, head->obj_id, head->count);
+    if( !cm )
+    {
+        world_cleanup_obj_stack_entity(w, eid);
+        w->obj_stack_entity_by_tile[tflat] = -1;
+        return;
+    }
+
+    int total_el = scene2_elements_total(w->scene2);
+    int sid = ent->scene_element.element_id;
+    if( sid < 0 || sid >= total_el )
+    {
+        ent->scene_element.element_id = scene2_element_acquire_fast(
+            w->scene2,
+            (int)entity_unified_id(ENTITY_KIND_OBJ_STACK, eid),
+            SCENE2_ELEMENT_SCENERY,
+            0,
+            0);
+        sid = ent->scene_element.element_id;
+    }
+
+    struct Scene2Element* se = scene2_element_at(w->scene2, sid);
+    scene2_element_expect(se, "entity_scenebuild_obj_stack_update_tile");
+
+    if( !scene2_element_dash_model(se) )
+        scene2_element_set_dash_model(w->scene2, se, dashmodel_new());
+    dashmodel_move_from_cache_model(scene2_element_dash_model(se), cm);
+    _light_model_default(scene2_element_dash_model(se), 0, 0);
+
+    if( !scene2_element_dash_position(se) )
+        scene2_element_set_dash_position_ptr(se, dashposition_new());
+    struct DashPosition* pos = scene2_element_dash_position(se);
+    int wx = sx * 128 + 64;
+    int wz = sz * 128 + 64;
+    pos->x = wx;
+    pos->z = wz;
+    pos->yaw = 0;
+    if( w->heightmap )
+        pos->y = heightmap_get_interpolated(w->heightmap, wx, wz, level);
+    else
+        pos->y = 0;
 }
 
 static void

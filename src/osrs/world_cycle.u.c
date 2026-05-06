@@ -381,8 +381,7 @@ world_cycle_push_players(struct World* world)
             int sx = wx / 128;
             int sz = wz / 128;
             if( sx >= 0 && sx < world->minimap->width && sz >= 0 && sz < world->minimap->height )
-                minimap_add_loc(
-                    world->minimap, sx, sz, wx, wz, MINIMAP_LOC_TYPE_PLAYER);
+                minimap_add_loc(world->minimap, sx, sz, wx, wz, MINIMAP_LOC_TYPE_PLAYER);
         }
     }
 }
@@ -491,8 +490,7 @@ world_cycle_push_npcs(struct World* world)
                 int sz = wz / 128;
                 if( sx >= 0 && sx < world->minimap->width && sz >= 0 &&
                     sz < world->minimap->height )
-                    minimap_add_loc(
-                        world->minimap, sx, sz, wx, wz, MINIMAP_LOC_TYPE_NPC);
+                    minimap_add_loc(world->minimap, sx, sz, wx, wz, MINIMAP_LOC_TYPE_NPC);
             }
         }
     }
@@ -577,6 +575,59 @@ world_cycle_push_projectiles(struct World* world)
 }
 
 static void
+world_cycle_push_obj_stack_entities(struct World* world)
+{
+    if( !world->painter )
+        return;
+
+    for( int i = 0; i < world->active_obj_stack_entity_count; i++ )
+    {
+        int eid = (int)world->active_obj_stack_entities[i];
+        struct ObjStackEntity* e = world_obj_stack_entity(world, eid);
+        if( !e->alive )
+            continue;
+
+        int sid = e->scene_element.element_id;
+        int total_el = scene2_elements_total(world->scene2);
+        if( sid < 0 || sid >= total_el )
+            continue;
+
+        struct Scene2Element* se = scene2_element_at(world->scene2, sid);
+        if( !se || !scene2_element_is_active(se) )
+            continue;
+
+        int psx = e->world_tile_x - world->_base_tile_x;
+        int psz = e->world_tile_z - world->_base_tile_z;
+        if( psx < 0 || psz < 0 || psx >= world->_scene_size || psz >= world->_scene_size )
+            continue;
+
+        painter_add_ground_object(
+            world->painter, psx, psz, e->level, e->scene_element.element_id, GROUND_OBJECT_BOTTOM);
+
+        struct DashPosition* pos = scene2_element_dash_position(se);
+        if( pos && world->heightmap )
+        {
+            int wx = e->world_tile_x * 128 + 64;
+            int wz = e->world_tile_z * 128 + 64;
+            pos->x = wx;
+            pos->z = wz;
+            pos->y = heightmap_get_interpolated(world->heightmap, wx, wz, e->level);
+        }
+
+        if( world->minimap )
+        {
+            int wx = e->world_tile_x * 128 + 64;
+            int wz = e->world_tile_z * 128 + 64;
+            int mtx = wx / 128;
+            int mtz = wz / 128;
+            if( mtx >= 0 && mtx < world->minimap->width && mtz >= 0 &&
+                mtz < world->minimap->height )
+                minimap_add_loc(world->minimap, mtx, mtz, wx, wz, MINIMAP_LOC_TYPE_OBJECT);
+        }
+    }
+}
+
+static void
 world_cycle_begin(struct World* world)
 {
     assert(world && world->painter != NULL);
@@ -608,6 +659,7 @@ world_cycle(
     world_cycle_push_players(world);
     world_cycle_push_npcs(world);
     world_cycle_push_projectiles(world);
+    world_cycle_push_obj_stack_entities(world);
 
     world_cycle_end(world);
 }

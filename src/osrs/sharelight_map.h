@@ -6,7 +6,8 @@
 
 struct SharelightMapElement
 {
-    int16_t element_idx;
+    /** Scene2 pool index (`scene2_element_at`); must fit fast+full pools (often >32k). */
+    int32_t element_idx;
     uint8_t size_x;
     uint8_t size_z;
 

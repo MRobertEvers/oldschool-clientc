@@ -1772,3 +1772,18 @@ python3 -m http.server -b 0.0.0.0 -d . 8000
 5. Minimap
 6. UIScene
 7. BuildCache
+
+### Network Rev (X) Cache Rev
+
+Inbound -> [serverprot_revx_parse] -> [switch (pkt) serverprot_parse_<x>_v1,v2 etc]
+-> [dispatch_q lua net <x>_v1,v2] -> [dispatch_q lua switch(cache_rev) <x>_v1,v2] -> [serverprot_exec_<x>_v1,v2 switch(cache_rev) cache_exec_revx]
+
+Outbound Intent -> [gameproto_exec_<trymove>] -> [switch (net_rev) gameproto_exec_revx_<trymove>] -> [clientprot_revx_send]
+
+For outbound
+
+gamenet_send_trymove -> gamenet_revX_send_trymove (dispatches to the right core version based on the net version) -> gamenet_core_send_trymove_v1 (handles gathering the data from the game needed for the clientprot) -> clientprot_send_trymove_v1 (builds the packet and queues it for the network)
+
+For inbound
+
+gamenet_parse -> serverprot_netrevX_parse -> serverprot_core_parse (v1, v2 etc) -> queue for lua -> [in Lua] lua_cacherevX_load(packet) -> gamenet_exec(packet)

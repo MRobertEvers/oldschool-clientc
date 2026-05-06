@@ -17,6 +17,7 @@
 #include "osrs/shademap.h"
 #include "osrs/sharelight_map.h"
 #include "osrs/terrain_shapemap.h"
+#include "osrs/zone_state.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -34,10 +35,13 @@ struct FlagMap;
 #define MAX_MAP_BUILD_LOC_ENTITIES 32768
 #define MAX_MAP_BUILD_TILE_ENTITIES (50000)
 
+/** Max ground-item stack entities (one per occupied scene tile, all levels). */
+#define MAX_OBJ_STACK_ENTITIES 32768
+
 /** Scene2 `scene2_element_acquire_fast` pool size: map-build locs and terrain tiles both take fast
  * slots during center-zone rebuild; keep >= loc + tile caps plus slack for misc fast users. */
 #define SCENE2_WORLD_FAST_ELEMENT_CAPACITY \
-    (MAX_MAP_BUILD_LOC_ENTITIES + MAX_MAP_BUILD_TILE_ENTITIES + 8192)
+    (MAX_MAP_BUILD_LOC_ENTITIES + MAX_MAP_BUILD_TILE_ENTITIES + MAX_OBJ_STACK_ENTITIES + 8192)
 
 /** Queued loc for contour-ground pass (see world_contour_ground). */
 struct ContourGroundQueueEntry
@@ -64,15 +68,23 @@ struct World
     struct EntityVec projectiles;
     struct EntityVec map_build_loc_entities;
     struct EntityVec map_build_tile_entities;
+    struct EntityVec obj_stack_entities;
 
     int32_t active_players[MAX_PLAYERS];
     int32_t active_npcs[MAX_NPCS];
     int32_t active_projectiles[MAX_PROJECTILES];
     int32_t active_loc_entities[MAX_MAP_BUILD_LOC_ENTITIES];
+    int32_t active_obj_stack_entities[MAX_OBJ_STACK_ENTITIES];
     int active_player_count;
     int active_npc_count;
     int active_projectile_count;
     int active_loc_entity_count;
+    int active_obj_stack_entity_count;
+
+    /** Zone ground items: lazy [level][sx*ZONE_SCENE_SIZE+sz] linked lists (see zone_state.h). */
+    struct ObjStackEntry*** obj_stacks;
+    /** Flat index level*ZONE^2+sx*ZONE+sz → obj_stack entity id or -1. */
+    int32_t* obj_stack_entity_by_tile;
 
     // Painter
     struct Painter* painter;
@@ -467,6 +479,47 @@ world_projectile_entity_set_animation(
     int projectile_entity_id,
     int animation_id,
     int animation_type);
+
+void
+world_obj_stacks_ensure(struct World* world);
+
+/** Free all ObjStackEntry chains and grid; release all obj-stack Scene2 entities. */
+void
+world_obj_stacks_free_all(struct World* world);
+
+void
+world_cleanup_obj_stack_entity(
+    struct World* world,
+    int entity_id);
+
+/** Acquire or recycle an ObjStackEntity slot; registers in active_obj_stack_entities. */
+int
+world_obj_stack_entity_create(struct World* world);
+
+static inline struct ObjStackEntity*
+world_obj_stack_entity(
+    struct World* world,
+    int id)
+{
+    return ENTITY_VEC_AT(world->obj_stack_entities, struct ObjStackEntity, id);
+}
+
+static inline struct ObjStackEntity*
+world_obj_stack_entity_ensure(
+    struct World* world,
+    int id)
+{
+    return ENTITY_VEC_ENSURE(world->obj_stack_entities, struct ObjStackEntity, id);
+}
+
+static inline int
+world_obj_stack_tile_flat(
+    int level,
+    int sx,
+    int sz)
+{
+    return level * (ZONE_SCENE_SIZE * ZONE_SCENE_SIZE) + sx * ZONE_SCENE_SIZE + sz;
+}
 
 static inline struct MapBuildLocEntity*
 world_loc_entity(
