@@ -128,6 +128,8 @@ LibToriRS_GameNew(
 {
     struct GGame* game = malloc(sizeof(struct GGame));
     memset(game, 0, sizeof(struct GGame));
+    game->mouse_clicked_end_x = -1;
+    game->mouse_clicked_end_y = -1;
 
     minimenu_regions_default(&game->minimenu_regions);
 

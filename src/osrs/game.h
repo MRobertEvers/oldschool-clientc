@@ -116,6 +116,8 @@ struct GGame
     struct ToriRSNetSharedBuffer* net_shared;
 
     enum GameNetState net_state;
+    /** From login response code 2 (Client.ts staffmodlevel); used for @cr1@/@cr2@ chat sender prefix. */
+    int staff_mod_level;
     char login_username[64];
     char login_password[64];
     struct PacketBuffer* packet_buffer;
@@ -154,6 +156,9 @@ struct GGame
     int mouse_clicked;
     int mouse_clicked_x;
     int mouse_clicked_y;
+    /** Left-click release position (mapped); mouseup coords — see TORIRSEV2_CLICK end_mouse_*. */
+    int mouse_clicked_end_x;
+    int mouse_clicked_end_y;
     int mouse_clicked_right;
     int mouse_clicked_right_x;
     int mouse_clicked_right_y;
@@ -308,6 +313,10 @@ game_chat_process_input(struct GGame* game, struct GInput* input);
 
 bool
 game_chat_is_typing(struct GGame const* game);
+
+/** True when Enter / public chat input is allowed (in game, no chat IF, no minimenu, etc.). */
+bool
+game_chat_public_input_eligible(struct GGame const* game);
 
 void
 game_npc_add(

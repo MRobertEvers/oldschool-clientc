@@ -110,6 +110,14 @@
         return LuaBuildCacheDat_floortypes_clear(bcd, args);
     case LUA_API_BUILDCACHEDAT_OBJECTS_CLEAR:
         return LuaBuildCacheDat_objects_clear(bcd, args);
+    case LUA_API_BUILDCACHEDAT_GET_LOC_MODEL_IDS:
+        return LuaBuildCacheDat_get_loc_model_ids(bcd, args);
+    case LUA_API_BUILDCACHEDAT_GET_SPOTANIM_MODEL_ID:
+        return LuaBuildCacheDat_get_spotanim_model_id(bcd, args);
+    case LUA_API_BUILDCACHEDAT_GET_SPOTANIM_SEQ_ID:
+        return LuaBuildCacheDat_get_spotanim_seq_id(bcd, args);
+    case LUA_API_BUILDCACHEDAT_SPOTANIMS_INIT_FROM_CONFIG_JAGFILE:
+        return LuaBuildCacheDat_spotanims_init_from_config_jagfile(bcd, args);
     case LUA_API_GAME_BUILD_SCENE:
         return LuaGame_build_scene(game, args);
     case LUA_API_GAME_BUILD_SCENE_CENTERZONE:

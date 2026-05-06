@@ -158,6 +158,7 @@ set(COMMON_SOURCES
     src/osrs/interface_state.c
     src/osrs/rs_component_state.c
     src/osrs/chat.c
+    src/osrs/ui_scrollbar_emit.c
     src/osrs/clientscript_vm.c
     src/osrs/obj_icon.c
     src/osrs/gio_cache_dat.c

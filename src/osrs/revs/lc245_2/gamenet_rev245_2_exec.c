@@ -3,6 +3,7 @@
 #include "graphics/dash.h"
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
+#include "osrs/chat.h"
 #include "osrs/clientscript_vm.h"
 #include "osrs/core/serverprot.h"
 #include "osrs/core/serverprot_pkt_npcinfo.h"
@@ -393,6 +394,27 @@ player_info_apply_ops_v1(
             player->total_health = op->_damage2.total_health;
             break;
         }
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_SAY:
+        {
+            free(op->_say.text);
+            op->_say.text = NULL;
+            break;
+        }
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_CHAT:
+        {
+            if( game->chat && op->_chat.text )
+            {
+                const char* sender =
+                    (player && player->name.name[0]) ? player->name.name : "";
+                chat_add(game->chat, game, op->_chat.type, sender, (const char*)op->_chat.text);
+            }
+            free(op->_chat.text);
+            op->_chat.text = NULL;
+            break;
+        }
+        case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_EXACT_MOVE:
+            /* Decoded for wire alignment; world/route not applied yet. */
+            break;
         }
     }
 }
@@ -1998,7 +2020,7 @@ gamenet_rev245_2_exec_message_game_v1(
     struct RevServerProtPacket* packet)
 {
     if( packet->u.message_game_v1.text )
-        game_add_message(game, 1 /* type: game */, packet->u.message_game_v1.text, NULL);
+        game_add_message(game, 0 /* Client.ts type 0 game/system */, packet->u.message_game_v1.text, NULL);
 }
 
 static void

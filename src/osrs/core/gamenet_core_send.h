@@ -156,6 +156,14 @@ struct PktClientProt_OpPlayer_v1
     int player_slot;
 };
 
+/** Extra payload after OPLOCU base (Client.ts USEHELD_ONLOC): held component triple. */
+struct PktClientProt_OpHeldSourceInv_v1
+{
+    int obj_comp_id;
+    int slot;
+    int sel_comp_id;
+};
+
 struct PktClientProt_FriendIgnore_v1
 {
     int64_t userhash;
@@ -335,6 +343,25 @@ gamenet_core_send_oplocu_v1(
     int x,
     int z,
     int loc_id);
+void
+gamenet_core_send_oploct_target_v1(
+    struct GGame* g,
+    int opcode,
+    int x,
+    int z,
+    int loc_id,
+    int ctrl,
+    int target_comp_id);
+void
+gamenet_core_send_oplocu_use_v1(
+    struct GGame* g,
+    int opcode,
+    int x,
+    int z,
+    int loc_id,
+    int obj_comp_id,
+    int slot,
+    int sel_comp_id);
 
 /* World ops: npc */
 void
@@ -352,6 +379,20 @@ gamenet_core_send_opnpcu_v1(
     struct GGame* g,
     int opcode,
     int npc_slot);
+void
+gamenet_core_send_opnpct_target_v1(
+    struct GGame* g,
+    int opcode,
+    int npc_slot,
+    int target_comp_id);
+void
+gamenet_core_send_opnpcu_use_v1(
+    struct GGame* g,
+    int opcode,
+    int npc_slot,
+    int obj_comp_id,
+    int slot,
+    int sel_comp_id);
 
 /* World ops: obj */
 void
@@ -377,6 +418,24 @@ gamenet_core_send_opobju_v1(
     int x,
     int z,
     int obj_id);
+void
+gamenet_core_send_opobjt_spell_v1(
+    struct GGame* g,
+    int opcode,
+    int x,
+    int z,
+    int obj_id,
+    int target_comp_id);
+void
+gamenet_core_send_opobju_use_v1(
+    struct GGame* g,
+    int opcode,
+    int x,
+    int z,
+    int obj_id,
+    int obj_comp_id,
+    int slot,
+    int sel_comp_id);
 
 /* World ops: player */
 void
@@ -394,6 +453,20 @@ gamenet_core_send_opplayeru_v1(
     struct GGame* g,
     int opcode,
     int player_slot);
+void
+gamenet_core_send_opplayert_target_v1(
+    struct GGame* g,
+    int opcode,
+    int player_slot,
+    int target_comp_id);
+void
+gamenet_core_send_opplayeru_use_v1(
+    struct GGame* g,
+    int opcode,
+    int player_slot,
+    int obj_comp_id,
+    int slot,
+    int sel_comp_id);
 
 /* Social */
 void

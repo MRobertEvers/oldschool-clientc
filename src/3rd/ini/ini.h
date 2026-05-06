@@ -49,7 +49,8 @@ struct INIElement
 
         struct
         {
-            char name[24];
+            /* Revconfig uses descriptive keys (e.g. minimenu_place_viewport_max). */
+            char name[48];
             char value[128];
         } _keyval;
     };

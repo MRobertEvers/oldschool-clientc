@@ -24,6 +24,10 @@ on_mousedown(
     input->mouse_button_states[event->button].down = true;
     input->mouse_button_states[event->button].x = event->mouse_x;
     input->mouse_button_states[event->button].y = event->mouse_y;
+    /* Match on_mousemove: keep mouse_state aligned with hardware when no MOTION was queued
+     * (soft3D skips SDL_GetMouseState refresh each poll). */
+    input->mouse_state.x = event->mouse_x;
+    input->mouse_state.y = event->mouse_y;
 }
 
 static void
@@ -33,6 +37,8 @@ on_mouseup(
 {
     push_event(input, ev);
     struct GameInputEvent_MouseUp* event = &ev->mouse_up;
+    input->mouse_state.x = event->mouse_x;
+    input->mouse_state.y = event->mouse_y;
 
     struct GameInputEvent synthetic_event;
     if( input->mouse_button_states[event->button].down )

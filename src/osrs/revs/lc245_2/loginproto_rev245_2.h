@@ -16,6 +16,8 @@ enum LoginProtoState
     LOGINPROTO_SEND_CONNECT = 0,
     LOGINPROTO_SEND_CREDENTIALS,
     LOGINPROTO_LOGIN_RESPONSE,
+    /** After login response byte 2: read staff mod + mouse-tracked (Client.ts). */
+    LOGINPROTO_LOGIN_RESPONSE_EXTRA,
     LOGINPROTO_SUCCESS,
 };
 
@@ -33,6 +35,9 @@ struct LoginProto
     struct RingBuf* in;
 
     int await_recv_cnt;
+
+    /** Set from login response when code == 2 (first extra byte). */
+    int staff_mod_level;
 
     /** Session keys (RSA plaintext): signed int32 per Client.ts Int32Array / server g4s(). */
     int32_t seed[4];

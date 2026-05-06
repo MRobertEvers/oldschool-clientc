@@ -230,16 +230,34 @@ loginproto_poll(struct LoginProto* loginproto)
         int8_t reply_byte = g1(&in);
 
         loginproto->await_recv_cnt = 0;
-        if( reply_byte == 2 || reply_byte == 18 || reply_byte == 19 )
+        if( reply_byte == 2 )
         {
+            /* Client.ts: staffmodlevel, then mouseTracked — same two bytes. */
+            loginproto->staff_mod_level = 0;
+            loginproto->state = LOGINPROTO_LOGIN_RESPONSE_EXTRA;
+            loginproto->await_recv_cnt = 2;
+            return LOGINPROTO_AWAIT_RECV;
+        }
+        if( reply_byte == 18 || reply_byte == 19 )
+        {
+            loginproto->staff_mod_level = 0;
             loginproto->state = LOGINPROTO_SUCCESS;
             return LOGINPROTO_SUCCESS;
         }
-        else
-        {
-            loginproto->state = LOGINPROTO_ERROR;
+        loginproto->state = LOGINPROTO_ERROR;
+        return LOGINPROTO_AWAIT_RECV;
+    }
+    case LOGINPROTO_LOGIN_RESPONSE_EXTRA:
+    {
+        if( ringbuf_used(loginproto->in) < 2 )
             return LOGINPROTO_AWAIT_RECV;
-        }
+
+        uint8_t extra[2];
+        ringbuf_read(loginproto->in, extra, 2);
+        loginproto->staff_mod_level = (int)extra[0];
+        loginproto->await_recv_cnt = 0;
+        loginproto->state = LOGINPROTO_SUCCESS;
+        return LOGINPROTO_SUCCESS;
     }
     }
 

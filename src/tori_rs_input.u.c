@@ -1,6 +1,7 @@
 #ifndef TORI_RS_INPUT_U_C
 #define TORI_RS_INPUT_U_C
 
+#include "osrs/chat.h"
 #include "osrs/interface.h"
 #include "osrs/interface_state.h"
 #include "osrs/minimenu_game.h"
@@ -221,6 +222,8 @@ LibToriRS_GameProcessInput(
     }
 
     game->mouse_clicked = false;
+    game->mouse_clicked_end_x = -1;
+    game->mouse_clicked_end_y = -1;
     game->mouse_clicked_right = false;
 
     int prev_lmb = game->mouse_button_down;
@@ -355,6 +358,10 @@ LibToriRS_GameProcessInput(
                 int cy = input->events[i].click.start_mouse_y;
                 if( game->soft3d_mouse_from_window )
                     game_map_soft3d_window_mouse_to_buffer(game, &cx, &cy);
+                int ex = input->events[i].click.end_mouse_x;
+                int ey = input->events[i].click.end_mouse_y;
+                if( game->soft3d_mouse_from_window )
+                    game_map_soft3d_window_mouse_to_buffer(game, &ex, &ey);
                 int consumed_sb = 0;
                 if( game->ui_root_buffer && game->iface && cx >= 0 && cy >= 0 )
                 {
@@ -417,7 +424,8 @@ LibToriRS_GameProcessInput(
                 }
                 else if(
                     game->ui_root_buffer && game->iface && cx >= 0 && cy >= 0 &&
-                    interface_point_in_ui_inv_primary_region(cx, cy) )
+                    interface_point_in_ui_inv_primary_region(cx, cy) &&
+                    !chat_builtin_click_is_chrome(game, cx, cy) )
                 {
                     if( minimenu_game_use_primary_at(game, input, cx, cy) )
                         game->interface_consumed_click = 1;
@@ -427,6 +435,8 @@ LibToriRS_GameProcessInput(
                         game->mouse_cycle = 0;
                         game->mouse_clicked_x = cx;
                         game->mouse_clicked_y = cy;
+                        game->mouse_clicked_end_x = ex;
+                        game->mouse_clicked_end_y = ey;
                     }
                 }
                 else
@@ -435,6 +445,8 @@ LibToriRS_GameProcessInput(
                     game->mouse_cycle = 0;
                     game->mouse_clicked_x = cx;
                     game->mouse_clicked_y = cy;
+                    game->mouse_clicked_end_x = ex;
+                    game->mouse_clicked_end_y = ey;
                 }
             }
             else if( button == TORIRSM_RIGHT )
@@ -457,10 +469,7 @@ LibToriRS_GameProcessInput(
         }
     }
 
-    if( time_quanta > 0 )
-    {
-        game_input_frame_reset(input);
-    }
+    game_input_frame_reset(input);
 }
 
 #endif

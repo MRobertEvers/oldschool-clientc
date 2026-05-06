@@ -75,6 +75,8 @@ char*
 rsbuf_read_string_null_terminated(struct RSBuffer* buffer);
 char*
 rsbuf_read_string_newline_terminated(struct RSBuffer* buffer);
+char*
+rsbuf_read_string_newline_or_end(struct RSBuffer* buffer);
 
 int
 rsbuf_read_unsigned_int_smart_short_compat(struct RSBuffer* buffer);
@@ -137,6 +139,7 @@ rsbuf_pwrite(
 
 #define gcstring(buffer) rsbuf_read_string_null_terminated(buffer)
 #define gstringnewline(buffer) rsbuf_read_string_newline_terminated(buffer)
+#define gstringnewlineorend(buffer) rsbuf_read_string_newline_or_end(buffer)
 #define pjstr(buffer, str, terminator) rsbuf_pjstr(buffer, str, terminator)
 
 #define gparams(buffer, params) rsbuf_read_params(buffer, params)

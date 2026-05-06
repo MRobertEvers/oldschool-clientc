@@ -44,6 +44,8 @@ LibToriRS_NetConnectLogin(
     if( !game )
         return;
 
+    game->staff_mod_level = 0;
+
     if( username )
     {
         size_t ulen = strlen(username);
@@ -130,6 +132,11 @@ loginproto_drive(struct GGame* game)
 
     if( poll_result == LOGINPROTO_SUCCESS )
     {
+        if( game->loginproto )
+            game->staff_mod_level = game->loginproto->staff_mod_level;
+        else
+            game->staff_mod_level = 0;
+
         game->net_state = GAME_NET_STATE_GAME;
 
         if( game->random_out )

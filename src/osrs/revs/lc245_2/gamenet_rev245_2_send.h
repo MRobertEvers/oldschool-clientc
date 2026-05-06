@@ -64,22 +64,56 @@ void gamenet_rev245_2_send_oploc(
     struct GGame* g, int which, int x, int z, int loc_id, int ctrl);
 void gamenet_rev245_2_send_oploct(struct GGame* g, int x, int z, int loc_id, int ctrl);
 void gamenet_rev245_2_send_oplocu(struct GGame* g, int x, int z, int loc_id);
+void gamenet_rev245_2_send_oploct_target(
+    struct GGame* g, int x, int z, int loc_id, int ctrl, int target_comp_id);
+void gamenet_rev245_2_send_oplocu_use(
+    struct GGame* g,
+    int x,
+    int z,
+    int loc_id,
+    int obj_comp_id,
+    int slot,
+    int sel_comp_id);
 
 /* ── World ops: npc ──────────────────────────────────────────────────────── */
 void gamenet_rev245_2_send_opnpc(struct GGame* g, int which, int npc_slot);
 void gamenet_rev245_2_send_opnpct(struct GGame* g, int npc_slot);
 void gamenet_rev245_2_send_opnpcu(struct GGame* g, int npc_slot);
+void gamenet_rev245_2_send_opnpct_target(struct GGame* g, int npc_slot, int target_comp_id);
+void gamenet_rev245_2_send_opnpcu_use(
+    struct GGame* g,
+    int npc_slot,
+    int obj_comp_id,
+    int slot,
+    int sel_comp_id);
 
 /* ── World ops: obj ──────────────────────────────────────────────────────── */
 void gamenet_rev245_2_send_opobj(
     struct GGame* g, int which, int x, int z, int obj_id, int ctrl);
 void gamenet_rev245_2_send_opobjt(struct GGame* g, int x, int z, int obj_id, int ctrl);
 void gamenet_rev245_2_send_opobju(struct GGame* g, int x, int z, int obj_id);
+void gamenet_rev245_2_send_opobjt_spell(
+    struct GGame* g, int x, int z, int obj_id, int target_comp_id);
+void gamenet_rev245_2_send_opobju_use(
+    struct GGame* g,
+    int x,
+    int z,
+    int obj_id,
+    int obj_comp_id,
+    int slot,
+    int sel_comp_id);
 
 /* ── World ops: player ───────────────────────────────────────────────────── */
 void gamenet_rev245_2_send_opplayer(struct GGame* g, int which, int player_slot);
 void gamenet_rev245_2_send_opplayert(struct GGame* g, int player_slot);
 void gamenet_rev245_2_send_opplayeru(struct GGame* g, int player_slot);
+void gamenet_rev245_2_send_opplayert_target(struct GGame* g, int player_slot, int target_comp_id);
+void gamenet_rev245_2_send_opplayeru_use(
+    struct GGame* g,
+    int player_slot,
+    int obj_comp_id,
+    int slot,
+    int sel_comp_id);
 
 /* ── Social ──────────────────────────────────────────────────────────────── */
 void gamenet_rev245_2_send_friend_add(struct GGame* g, int64_t userhash);

@@ -333,7 +333,7 @@ rs_gfx_text_step(
             int draw_x = base_x;
             if( component->u.rs_text.center )
             {
-                int text_w = dashfont_text_width(font, pooled);
+                int text_w = dashfont_text_width_taggable(font, pooled);
                 draw_x = base_x + (pw / 2) - (text_w / 2);
             }
 

@@ -8,6 +8,7 @@
 #include "osrs/painters_cullmap_baked_path.h"
 #include "osrs/rscache/rsbuf.h"
 #include "osrs/wordpack.h"
+#include "osrs/world.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -86,6 +87,92 @@ game_chat_key_to_char(int key, int shift)
     return '\0';
 }
 
+/** @return 1 if @a pfx (length n) was at the start of @a s and was removed. */
+static int
+game_chat_strip_if(char* s, char const* pfx)
+{
+    size_t n = strlen(pfx);
+    if( strncmp(s, pfx, n) != 0 )
+        return 0;
+    memmove(s, s + n, strlen(s + n) + 1);
+    return 1;
+}
+
+/** Client.ts public chat: colour + optional wave/scroll ( MESSAGE_PUBLIC before WordPack ). */
+static void
+game_chat_parse_public_style(char* line, int* colour, int* effect)
+{
+    *colour = 0;
+    *effect = 0;
+    if( game_chat_strip_if(line, "yellow:") )
+        *colour = 0;
+    else if( game_chat_strip_if(line, "red:") )
+        *colour = 1;
+    else if( game_chat_strip_if(line, "green:") )
+        *colour = 2;
+    else if( game_chat_strip_if(line, "cyan:") )
+        *colour = 3;
+    else if( game_chat_strip_if(line, "purple:") )
+        *colour = 4;
+    else if( game_chat_strip_if(line, "white:") )
+        *colour = 5;
+    else if( game_chat_strip_if(line, "flash1:") )
+        *colour = 6;
+    else if( game_chat_strip_if(line, "flash2:") )
+        *colour = 7;
+    else if( game_chat_strip_if(line, "flash3:") )
+        *colour = 8;
+    else if( game_chat_strip_if(line, "glow1:") )
+        *colour = 9;
+    else if( game_chat_strip_if(line, "glow2:") )
+        *colour = 10;
+    else if( game_chat_strip_if(line, "glow3:") )
+        *colour = 11;
+
+    if( game_chat_strip_if(line, "wave:") )
+        *effect = 1;
+    if( game_chat_strip_if(line, "scroll:") )
+        *effect = 2;
+}
+
+/** JString.toSentenceCase — lower entire string, then capitalise first letter after . ! or start. */
+static void
+game_chat_sentence_case(char* s)
+{
+    for( char* p = s; *p; p++ )
+    {
+        if( *p >= 'A' && *p <= 'Z' )
+            *p = (char)(*p - 'A' + 'a');
+    }
+    int punctuation = 1;
+    for( char* p = s; *p; p++ )
+    {
+        char c = *p;
+        if( punctuation && c >= 'a' && c <= 'z' )
+        {
+            *p = (char)(c - 'a' + 'A');
+            punctuation = 0;
+        }
+        if( c == '.' || c == '!' )
+            punctuation = 1;
+    }
+}
+
+static void
+game_chat_trim_edges(char* s)
+{
+    char* p = s;
+    while( *p == ' ' || *p == '\t' )
+        p++;
+    if( p != s )
+        memmove(s, p, strlen(p) + 1);
+    size_t L = strlen(s);
+    while( L > 0 && (s[L - 1] == ' ' || s[L - 1] == '\t') )
+    {
+        s[--L] = '\0';
+    }
+}
+
 static void
 game_chat_submit_public(struct GGame* game)
 {
@@ -93,12 +180,63 @@ game_chat_submit_public(struct GGame* game)
     if( !ch || !ch->chat_input[0] )
         return;
 
+    if( strncmp(ch->chat_input, "::", 2) == 0 )
+    {
+        gamenet_send_client_cheat(game, ch->chat_input);
+        return;
+    }
+
+    char line[80];
+    strncpy(line, ch->chat_input, sizeof(line) - 1);
+    line[sizeof(line) - 1] = '\0';
+
+    int colour;
+    int effect;
+    game_chat_parse_public_style(line, &colour, &effect);
+
     int8_t stack[512];
     struct RSBuffer wb;
     rsbuf_init(&wb, stack, (int)sizeof(stack));
-    wordpack_pack(&wb, ch->chat_input);
+    wordpack_pack(&wb, line);
     gamenet_send_message_public(
-        game, 0, 0, (uint8_t*)wb.data, (int)wb.position);
+        game, colour, effect, (uint8_t*)wb.data, (int)wb.position);
+
+    if( !game->world )
+        return;
+    struct PlayerEntity* lp = world_player(game->world, ACTIVE_PLAYER_SLOT);
+    if( !lp || !lp->alive || !lp->name.name[0] )
+        return;
+
+    char display[256];
+    strncpy(display, line, sizeof(display) - 1);
+    display[sizeof(display) - 1] = '\0';
+    game_chat_sentence_case(display);
+    game_chat_trim_edges(display);
+    if( !display[0] )
+        return;
+
+    char sender[32];
+    if( game->staff_mod_level == 2 )
+        snprintf(sender, sizeof(sender), "@cr2@%s", lp->name.name);
+    else if( game->staff_mod_level == 1 )
+        snprintf(sender, sizeof(sender), "@cr1@%s", lp->name.name);
+    else
+    {
+        strncpy(sender, lp->name.name, sizeof(sender) - 1);
+        sender[sizeof(sender) - 1] = '\0';
+    }
+
+    game_add_message(game, 2, display, sender);
+}
+
+bool
+game_chat_public_input_eligible(struct GGame const* game)
+{
+    if( !game || !game->chat || !game->iface )
+        return false;
+    struct Chat const* ch = game->chat;
+    return game->net_state == GAME_NET_STATE_GAME && game->iface->chat_interface_id < 0 &&
+           !game->minimenu.visible && !ch->social_input_open && !ch->dialog_input_open;
 }
 
 void
@@ -108,9 +246,7 @@ game_chat_process_input(struct GGame* game, struct GInput* input)
         return;
 
     struct Chat* ch = game->chat;
-    int eligible = game->net_state == GAME_NET_STATE_GAME && game->iface &&
-                   game->iface->chat_interface_id < 0 && !game->minimenu.visible &&
-                   !ch->social_input_open && !ch->dialog_input_open;
+    int eligible = game_chat_public_input_eligible(game);
 
     int shift = input->key_states[TORIRSK_SHIFT].down;
 

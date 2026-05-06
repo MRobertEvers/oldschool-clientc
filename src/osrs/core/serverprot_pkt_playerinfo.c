@@ -2,22 +2,45 @@
 
 #include "osrs/rscache/bitbuffer.h"
 #include "osrs/rscache/rsbuf.h"
+#include "osrs/wordpack.h"
 
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define MASK_APPEARANCE 0x01
-#define MASK_SEQUENCE 0x02
-#define MASK_FACE_ENTITY 0x04
-#define MASK_SAY 0x08
-#define MASK_DAMAGE 0x10
-#define MASK_FACE_COORD 0x20
-#define MASK_CHAT 0x40
-#define MASK_BIG_UPDATE 0x80
-#define MASK_SPOTANIM 0x100
-#define MASK_EXACT_MOVE 0x200
-#define MASK_DAMAGE2 0x400
+/* Bit masks match Client-TS PlayerUpdate (ClientPlayer.ts). */
+#define MASK_APPEARANCE 0x01  /* PlayerUpdate.APPEARANCE */
+#define MASK_SEQUENCE 0x02    /* PlayerUpdate.ANIM */
+#define MASK_FACE_ENTITY 0x04 /* PlayerUpdate.FACEENTITY */
+#define MASK_SAY 0x08         /* PlayerUpdate.SAY */
+#define MASK_DAMAGE 0x10      /* PlayerUpdate.HITMARK */
+#define MASK_FACE_COORD 0x20  /* PlayerUpdate.FACESQUARE */
+#define MASK_CHAT 0x40        /* PlayerUpdate.CHAT */
+#define MASK_BIG_UPDATE 0x80  /* PlayerUpdate.BIG_UPDATE */
+#define MASK_SPOTANIM 0x100   /* PlayerUpdate.SPOTANIM */
+#define MASK_EXACT_MOVE 0x200 /* PlayerUpdate.EXACTMOVE */
+#define MASK_DAMAGE2 0x400    /* PlayerUpdate.HITMARK2 */
+
+static void
+push_op_exact_move(
+    struct PktServerProt_PlayerInfo_v1_Op* op,
+    uint8_t start_x,
+    uint8_t start_z,
+    uint8_t end_x,
+    uint8_t end_z,
+    uint16_t move_end_raw,
+    uint16_t move_start_raw,
+    uint8_t facing)
+{
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OP_EXACT_MOVE;
+    op->_exactmove.forcemove_start_x = start_x;
+    op->_exactmove.forcemove_start_z = start_z;
+    op->_exactmove.forcemove_end_x = end_x;
+    op->_exactmove.forcemove_end_z = end_z;
+    op->_exactmove.forcemove_startcycle = move_start_raw;
+    op->_exactmove.forcemove_endcycle = move_end_raw;
+    op->_exactmove.forcemove_facedirection = facing;
+}
 
 static struct PktServerProt_PlayerInfo_v1_Op*
 next_op(
@@ -175,6 +198,21 @@ push_op_say(
 }
 
 static void
+push_op_chat(
+    struct PktServerProt_PlayerInfo_v1_Op* op,
+    int colour_effect,
+    int type,
+    int length,
+    char* text)
+{
+    op->kind = PKT_SERVER_PROT_PLAYER_INFO_V1_OP_CHAT;
+    op->_chat.color = (uint16_t)colour_effect;
+    op->_chat.type = (uint8_t)type;
+    op->_chat.length = (uint8_t)length;
+    op->_chat.text = (uint8_t*)text;
+}
+
+static void
 push_op_damage(
     struct PktServerProt_PlayerInfo_v1_Op* op,
     int damage_type,
@@ -299,10 +337,6 @@ pkt_player_info_reader_read(
         break;
         }
     }
-    else
-    {
-        push_bits_info(next_op(reader, ops, ops_capacity), info);
-    }
 
     // Player Old Vis
     int new_idx = 0;
@@ -362,8 +396,9 @@ pkt_player_info_reader_read(
         }
     }
 
-    // Player New Vis: each entry needs 11 (pid) + 5 (dx) + 5 (dz) + 1 (jump) + 1 (ext) = 23 bits
-    while( ((buf.byte_position * 8) + buf.bit_offset + 23) <= pkt->length * 8 )
+    /* Player New Vis — Client.ts getPlayerNewVis: while (bitPos + 10 < size * 8).
+     * Guarantees 11 bits before each iteration; non-terminator body reads 23 bits total. */
+    while( (buf.byte_position * 8) + buf.bit_offset + 10 < pkt->length * 8 )
     {
         int player_id = gbits(&buf, 11);
         if( player_id == 2047 )
@@ -411,14 +446,13 @@ pkt_player_info_reader_read(
         if( rsbuf.position >= pkt->length )
             break;
         int mask = g1(&rsbuf);
-        if( (mask & MASK_BIG_UPDATE) != 0 && rsbuf.position < pkt->length )
+        if( (mask & MASK_BIG_UPDATE) != 0 )
         {
             mask += g1(&rsbuf) << 8;
         }
 
-        // Info
+        /* Info — order matches Client.ts getPlayerExtendedDecode */
 
-        // Appearance
         if( (mask & MASK_APPEARANCE) != 0 )
         {
             int len = g1(&rsbuf);
@@ -431,7 +465,7 @@ pkt_player_info_reader_read(
 
         if( (mask & MASK_SEQUENCE) != 0 )
         {
-            /* Client.ts PlayerUpdate.ANIM: seqId = buf.g2(), 65535 -> -1; delay = buf.g1() */
+            /* PlayerUpdate.ANIM: seqId = g2(), delay = g1() */
             int seq_raw = g2(&rsbuf);
             uint16_t sequence_id = (uint16_t)(seq_raw & 0xFFFF);
             uint8_t delay = (uint8_t)g1(&rsbuf);
@@ -446,14 +480,15 @@ pkt_player_info_reader_read(
 
         if( (mask & MASK_SAY) != 0 )
         {
-            char* chat_message = gstringnewline(&rsbuf);
+            char* chat_message = gstringnewlineorend(&rsbuf);
             push_op_say(next_op(reader, ops, ops_capacity), chat_message);
         }
 
         if( (mask & MASK_DAMAGE) != 0 )
         {
-            int damage_type = g1(&rsbuf);
+            /* PlayerUpdate.HITMARK: damage, damageType, health, totalHealth */
             int damage = g1(&rsbuf);
+            int damage_type = g1(&rsbuf);
             int health = g1(&rsbuf);
             int total_health = g1(&rsbuf);
             push_op_damage(
@@ -469,24 +504,18 @@ pkt_player_info_reader_read(
 
         if( (mask & MASK_CHAT) != 0 )
         {
-            // const colourEffect: number = buf.g2();
-            // const type: number = buf.g1();
-            // const length: number = buf.g1();
             int colour_effect = g2(&rsbuf);
             int type = g1(&rsbuf);
             int length = g1(&rsbuf);
-            (void)colour_effect;
-            (void)type;
-            (void)length;
-            // push_op_chat(next_op(reader, ops, ops_capacity), colour_effect, type, length);
+            char* chat_text = wordpack_unpack(&rsbuf, length);
+            push_op_chat(
+                next_op(reader, ops, ops_capacity), colour_effect, type, length, chat_text);
         }
 
-        /* MASK_BIG_UPDATE: already consumed at mask read (lines 436-438); extends mask to 16 bits.
-         * No additional fields to decode here. */
+        /* MASK_BIG_UPDATE: mask second byte only; no payload here. */
 
         if( (mask & MASK_SPOTANIM) != 0 )
         {
-            /* Client.ts 8062-8077: spotanimId = g2(), heightDelay = g4() */
             int spotanim_id = g2(&rsbuf);
             int height_delay = g4(&rsbuf);
             push_op_spotanim(next_op(reader, ops, ops_capacity), spotanim_id, height_delay);
@@ -494,7 +523,16 @@ pkt_player_info_reader_read(
 
         if( (mask & MASK_EXACT_MOVE) != 0 )
         {
-            assert(0);
+            /* PlayerUpdate.EXACTMOVE — Client.ts getPlayerExtendedDecode */
+            uint8_t sx = (uint8_t)g1(&rsbuf);
+            uint8_t sz = (uint8_t)g1(&rsbuf);
+            uint8_t ex = (uint8_t)g1(&rsbuf);
+            uint8_t ez = (uint8_t)g1(&rsbuf);
+            uint16_t move_end = (uint16_t)g2(&rsbuf);
+            uint16_t move_start = (uint16_t)g2(&rsbuf);
+            uint8_t facing = (uint8_t)g1(&rsbuf);
+            push_op_exact_move(
+                next_op(reader, ops, ops_capacity), sx, sz, ex, ez, move_end, move_start, facing);
         }
 
         if( (mask & MASK_DAMAGE2) != 0 )

@@ -4,6 +4,8 @@
 #include "osrs/rscache/rsbuf.h"
 #include "osrs/rscache/rsbuf_isaac.h"
 
+#include <string.h>
+
 /* Pure serializers: bytes only, zero GGame knowledge.
  * The opcode value is supplied by the caller (gamenet_core_send_*_v1),
  * which receives it from the revision-specific gateway. */
@@ -134,12 +136,12 @@ clientprot_send_message_public_v1(
 {
     rsbuf_p1isaac(b, isaac, opcode);
     int mark = (int)b->position;
-    p2(b, 0);
+    p1(b, 0);
     p1(b, w->color);
     p1(b, w->effect);
     if( w->wp && w->n > 0 )
         rsbuf_pwrite(b, w->wp, w->n);
-    psize2(b, mark);
+    psize1(b, mark);
 }
 
 void
@@ -151,14 +153,14 @@ clientprot_send_message_private_v1(
 {
     rsbuf_p1isaac(b, isaac, opcode);
     int mark = (int)b->position;
-    p2(b, 0);
+    p1(b, 0);
     if( w->user )
         pjstr(b, w->user, 0);
     else
         p1(b, 0);
     if( w->wp && w->n > 0 )
         rsbuf_pwrite(b, w->wp, w->n);
-    psize2(b, mark);
+    psize1(b, mark);
 }
 
 void
@@ -169,13 +171,12 @@ clientprot_send_client_cheat_v1(
     const struct PktClientProt_ClientCheat_v1* w)
 {
     rsbuf_p1isaac(b, isaac, opcode);
-    int mark = (int)b->position;
-    p2(b, 0);
-    if( w->line )
-        pjstr(b, w->line, 0);
-    else
-        p1(b, 0);
-    psize2(b, mark);
+    /* Client.ts: p1(chatInput.length - 2 + 1) then pjstr(chatInput.substring(2)).
+     * w->line is the full "::body" string; body starts at +2.
+     * pjstr appends a newline (byte 10), so wire length = strlen(body) + 1. */
+    const char* body = (w->line && strlen(w->line) >= 2) ? w->line + 2 : "";
+    p1(b, (int)(strlen(body) + 1));
+    pjstr(b, body, 10);
 }
 
 /* ── Interface buttons ───────────────────────────────────────────────────── */
@@ -440,6 +441,129 @@ clientprot_send_opplayeru_v1(
 {
     rsbuf_p1isaac(b, isaac, opcode);
     p2(b, w->player_slot);
+}
+
+void
+clientprot_send_oploct_target_v1(
+    struct RSBuffer* b,
+    struct Isaac* isaac,
+    int opcode,
+    const struct PktClientProt_OpLoc_v1* w,
+    int target_comp_id)
+{
+    rsbuf_p1isaac(b, isaac, opcode);
+    p2(b, w->wire_x);
+    p2(b, w->wire_z);
+    p2(b, w->loc_id);
+    p1(b, w->ctrl ? 1 : 0);
+    p2(b, target_comp_id);
+}
+
+void
+clientprot_send_oplocu_use_v1(
+    struct RSBuffer* b,
+    struct Isaac* isaac,
+    int opcode,
+    const struct PktClientProt_OpLoc_v1* w,
+    const struct PktClientProt_OpHeldSourceInv_v1* src)
+{
+    rsbuf_p1isaac(b, isaac, opcode);
+    p2(b, w->wire_x);
+    p2(b, w->wire_z);
+    p2(b, w->loc_id);
+    p2(b, src->obj_comp_id);
+    p2(b, src->slot);
+    p2(b, src->sel_comp_id);
+}
+
+void
+clientprot_send_opnpct_target_v1(
+    struct RSBuffer* b,
+    struct Isaac* isaac,
+    int opcode,
+    const struct PktClientProt_OpNpc_v1* w,
+    int target_comp_id)
+{
+    rsbuf_p1isaac(b, isaac, opcode);
+    p2(b, w->npc_slot);
+    p2(b, target_comp_id);
+}
+
+void
+clientprot_send_opnpcu_use_v1(
+    struct RSBuffer* b,
+    struct Isaac* isaac,
+    int opcode,
+    const struct PktClientProt_OpNpc_v1* w,
+    const struct PktClientProt_OpHeldSourceInv_v1* src)
+{
+    rsbuf_p1isaac(b, isaac, opcode);
+    p2(b, w->npc_slot);
+    p2(b, src->obj_comp_id);
+    p2(b, src->slot);
+    p2(b, src->sel_comp_id);
+}
+
+void
+clientprot_send_opobjt_spell_v1(
+    struct RSBuffer* b,
+    struct Isaac* isaac,
+    int opcode,
+    int wire_x,
+    int wire_z,
+    int obj_id,
+    int target_comp_id)
+{
+    rsbuf_p1isaac(b, isaac, opcode);
+    p2(b, wire_x);
+    p2(b, wire_z);
+    p2(b, obj_id);
+    p2(b, target_comp_id);
+}
+
+void
+clientprot_send_opobju_use_v1(
+    struct RSBuffer* b,
+    struct Isaac* isaac,
+    int opcode,
+    const struct PktClientProt_OpObj_v1* w,
+    const struct PktClientProt_OpHeldSourceInv_v1* src)
+{
+    rsbuf_p1isaac(b, isaac, opcode);
+    p2(b, w->wire_x);
+    p2(b, w->wire_z);
+    p2(b, w->obj_id);
+    p2(b, src->obj_comp_id);
+    p2(b, src->slot);
+    p2(b, src->sel_comp_id);
+}
+
+void
+clientprot_send_opplayert_target_v1(
+    struct RSBuffer* b,
+    struct Isaac* isaac,
+    int opcode,
+    const struct PktClientProt_OpPlayer_v1* w,
+    int target_comp_id)
+{
+    rsbuf_p1isaac(b, isaac, opcode);
+    p2(b, w->player_slot);
+    p2(b, target_comp_id);
+}
+
+void
+clientprot_send_opplayeru_use_v1(
+    struct RSBuffer* b,
+    struct Isaac* isaac,
+    int opcode,
+    const struct PktClientProt_OpPlayer_v1* w,
+    const struct PktClientProt_OpHeldSourceInv_v1* src)
+{
+    rsbuf_p1isaac(b, isaac, opcode);
+    p2(b, w->player_slot);
+    p2(b, src->obj_comp_id);
+    p2(b, src->slot);
+    p2(b, src->sel_comp_id);
 }
 
 /* ── Social ──────────────────────────────────────────────────────────────── */

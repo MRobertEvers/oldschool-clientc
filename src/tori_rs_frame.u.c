@@ -4,8 +4,8 @@
 #include "graphics/dash.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/chat.h"
-#include "osrs/gamenet_send.h"
 #include "osrs/game.h"
+#include "osrs/gamenet_send.h"
 #include "osrs/interface.h"
 #include "osrs/interface_state.h"
 #include "osrs/minimap.h"
@@ -17,6 +17,7 @@
 #include "osrs/rs_component_gfx.h"
 #include "osrs/rs_component_state.h"
 #include "osrs/scene2.h"
+#include "osrs/ui_scrollbar_emit.h"
 #include "osrs/world.h"
 #include "osrs/world_options.h"
 #include "osrs/zone_state.h"
@@ -376,69 +377,12 @@ rs_ui_layer_emit_scrollbar_at(
     int scroll_pos)
 {
     struct GGame* game = fiber->game;
-    struct UITree* ui = game ? game->ui_root_buffer : NULL;
-    if( !game || !game->ui_scene || !fiber->cmds || !ui )
+    (void)layer_component_id;
+    if( !game || !fiber->cmds )
         return;
-    int lh = layer_h;
-    int sh = scroll_height;
-    if( sh <= lh || lh < 32 )
-        return;
-    int track_h = lh - 32;
-    if( track_h <= 0 )
-        return;
-    int grip_size = (track_h * lh) / sh;
-    if( grip_size < 8 )
-        grip_size = 8;
-    if( grip_size > track_h )
-        grip_size = track_h;
-    int range = sh - lh;
-    if( range < 0 )
-        range = 0;
-    int grip_y = range > 0 ? ((track_h - grip_size) * scroll_pos) / range : 0;
-    if( grip_y < 0 )
-        grip_y = 0;
-    if( grip_y > track_h - grip_size )
-        grip_y = track_h - grip_size;
-
-    int sx = layer_x + layer_w;
-    int y0 = layer_y;
-    int h = layer_h;
-    int const e0 = ui->ui_scrollbar0_element_id;
-    int const e1 = ui->ui_scrollbar1_element_id;
-    struct UISceneElement* el0 = NULL;
-    struct UISceneElement* el1 = NULL;
-    if( e0 >= 0 && e0 < game->ui_scene->elements_count )
-        el0 = &game->ui_scene->elements[e0];
-    if( e1 >= 0 && e1 < game->ui_scene->elements_count )
-        el1 = &game->ui_scene->elements[e1];
-    struct DashSprite* sb0 = NULL;
-    struct DashSprite* sb1 = NULL;
-    if( el0 && el0->active && el0->dash_sprites && el0->dash_sprites_count > 0 )
-        sb0 = el0->dash_sprites[0];
-    if( el1 && el1->active && el1->dash_sprites && el1->dash_sprites_count > 0 )
-        sb1 = el1->dash_sprites[0];
     frame_emit_pass(fiber, FRAME_PASS_2D);
-    if( sb0 && e0 >= 0 )
-        emit_ui_sprite_raw(fiber->cmds, e0, 0, sb0, sx, y0);
-    if( sb1 && e1 >= 0 )
-        emit_ui_sprite_raw(fiber->cmds, e1, 0, sb1, sx, y0 + h - 16);
-    /* Client.ts drawScrollbar / SCROLLBAR_* */
-    emit_ui_fill_rect(fiber->cmds, sx, y0 + 16, 16, h - 32, 0x23201b, 0, 1u);
-    {
-        int gt = y0 + 16 + grip_y;
-        struct ToriRSRenderCommandBuffer* buf = fiber->cmds;
-        emit_ui_fill_rect(buf, sx, gt, 16, grip_size, 0x4d4233, 0, 1u);
-        emit_ui_fill_rect(buf, sx, gt, 1, grip_size, 0x766654, 0, 1u);
-        emit_ui_fill_rect(buf, sx + 1, gt, 1, grip_size, 0x766654, 0, 1u);
-        emit_ui_fill_rect(buf, sx, gt, 16, 1, 0x766654, 0, 1u);
-        emit_ui_fill_rect(buf, sx, gt + 1, 16, 1, 0x766654, 0, 1u);
-        emit_ui_fill_rect(buf, sx + 15, gt, 1, grip_size, 0x332d25, 0, 1u);
-        if( grip_size > 1 )
-            emit_ui_fill_rect(buf, sx + 14, gt + 1, 1, grip_size - 1, 0x332d25, 0, 1u);
-        emit_ui_fill_rect(buf, sx, gt + grip_size - 1, 16, 1, 0x332d25, 0, 1u);
-        if( grip_size > 1 )
-            emit_ui_fill_rect(buf, sx + 1, gt + grip_size - 2, 15, 1, 0x332d25, 0, 1u);
-    }
+    ui_emit_scrollbar_commands(
+        fiber->cmds, game, layer_x + layer_w, layer_y, layer_h, scroll_height, scroll_pos);
 }
 
 static void
@@ -1515,6 +1459,50 @@ queue_static_load_commands(
     queue_static_load_uiscene_events(game, render_command_buffer);
 }
 
+/** True if `(px,py)` lies inside the `[component:world]` layout rect (first match in tree). */
+static bool
+frame_point_in_world_builtin_xy(
+    struct GGame* game,
+    int px,
+    int py)
+{
+    if( !game || !game->ui_root_buffer )
+        return false;
+    for( uint32_t i = 0; i < game->ui_root_buffer->component_count; i++ )
+    {
+        struct StaticUIComponent* c = &game->ui_root_buffer->components[i];
+        if( c->type != UIELEM_BUILTIN_WORLD )
+            continue;
+        if( c->position.kind != UIPOS_XY )
+            continue;
+        int x = c->position.x;
+        int y = c->position.y;
+        int w = c->position.width;
+        int h = c->position.height;
+        if( w <= 0 || h <= 0 )
+            continue;
+        return px >= x && px < x + w && py >= y && py < y + h;
+    }
+    return false;
+}
+
+/** 3D tile/entity pick only when UITree hover is the world panel (or fallback rect match). */
+static bool
+frame_world_pick_allowed(struct GGame* game)
+{
+    if( !game || !game->ui_root_buffer )
+        return false;
+    if( game->minimenu.visible )
+        return false;
+
+    struct UITree* tree = game->ui_root_buffer;
+    int h = tree->hover_node_index;
+    if( h >= 0 && (uint32_t)h < tree->component_count )
+        return tree->components[h].type == UIELEM_BUILTIN_WORLD;
+
+    return frame_point_in_world_builtin_xy(game, game->mouse_x, game->mouse_y);
+}
+
 void
 LibToriRS_FrameBegin(
     struct GGame* game,
@@ -1623,8 +1611,8 @@ LibToriRS_FrameBegin(
         uint64_t dt_paint3_ns;
         uint64_t dt_paint4_ns;
 
-        // painter_paint_world3d(painter, buffer, camera_sx, camera_sz, camera_slevel);
-        painter_paint_bucket(painter, buffer, camera_sx, camera_sz, camera_slevel);
+        painter_paint_world3d(painter, buffer, camera_sx, camera_sz, camera_slevel);
+        // painter_paint_bucket(painter, buffer, camera_sx, camera_sz, camera_slevel);
         // if( (rand() & 1) == 0 )
         // {
         //     clock_gettime(CLOCK_MONOTONIC, &t0);
@@ -2081,6 +2069,7 @@ next:
         entity_animate(game->world, scene2_element_parent_entity_id(scene_element));
 
         /* Mouse-pick: if cursor is over this entity's projected bounds, add it to pickset. */
+        if( frame_world_pick_allowed(game) )
         {
             int mvx = game->mouse_x - game->viewport_offset_x;
             int mvy = game->mouse_y - game->viewport_offset_y;
@@ -2165,7 +2154,7 @@ next:
 
         int mvx = game->mouse_x - game->viewport_offset_x;
         int mvy = game->mouse_y - game->viewport_offset_y;
-        if( mvx >= 0 && mvy >= 0 &&
+        if( frame_world_pick_allowed(game) && mvx >= 0 && mvy >= 0 &&
             dash3d_projected_model_contains(game->sys_dash, tile_model, game->view_port, mvx, mvy) )
         {
             game->mouse_tile_x = sx;
@@ -2573,8 +2562,8 @@ uielem_crosshair_step(
     c->_sprite_draw.element_id = cross_id;
     c->_sprite_draw.atlas_index = frame_idx;
     c->_sprite_draw.sprite = sp;
-    c->_sprite_draw.dst_bb_x = game->cross_x - 8 - game->viewport_offset_x;
-    c->_sprite_draw.dst_bb_y = game->cross_y - 8 - game->viewport_offset_y;
+    c->_sprite_draw.dst_bb_x = game->cross_x - node->u.crosshair.hotspot_offset;
+    c->_sprite_draw.dst_bb_y = game->cross_y - node->u.crosshair.hotspot_offset;
     c->_sprite_draw.dst_bb_w = 0;
     c->_sprite_draw.dst_bb_h = 0;
     c->_sprite_draw.rotated = false;
@@ -2607,14 +2596,7 @@ uielem_chat_messages_step(
 
     frame_emit_pass(fiber, FRAME_PASS_2D);
     chat_draw_messages(
-        game->chat,
-        game,
-        fiber->cmds,
-        node->u.chat_messages.font_id,
-        -1,
-        -1,
-        -1,
-        -1);
+        game->chat, game, fiber->cmds, node->u.chat_messages.font_id, -1, -1, -1, -1);
     return true;
 }
 
@@ -2630,13 +2612,7 @@ uielem_chat_input_step(
         return true;
 
     frame_emit_pass(fiber, FRAME_PASS_2D);
-    chat_draw_input(
-        game->chat,
-        game,
-        fiber->cmds,
-        node->u.chat_input.font_id,
-        -1,
-        -1);
+    chat_draw_input(game->chat, game, fiber->cmds, node->u.chat_input.font_id, -1, -1);
     return true;
 }
 
@@ -2829,18 +2805,21 @@ frame_point_in_component_xy(
 
 /** Client.ts tabLoop(): bottom sidebar icon row (sideOverlayId[7..13]) before chatModeLoop. */
 static bool
-frame_try_ts_bottom_sidebar_tabs(struct GGame* game, int mx, int my)
+frame_try_ts_bottom_sidebar_tabs(
+    struct GGame* game,
+    int mx,
+    int my)
 {
     struct InterfaceState* iface = game->iface;
     if( !iface )
         return false;
 
-#define TAB_BOTTOM_HIT(x0, x1, y0, y1, tab_idx)                                             \
-    if( (mx) >= (x0) && (mx) <= (x1) && (my) >= (y0) && (my) < (y1) &&                       \
-         iface->tab_interface_id[(tab_idx)] >= 0 )                                          \
-    {                                                                                       \
-        iface->selected_tab = (tab_idx);                                                    \
-        return true;                                                                        \
+#define TAB_BOTTOM_HIT(x0, x1, y0, y1, tab_idx)                                                    \
+    if( (mx) >= (x0) && (mx) <= (x1) && (my) >= (y0) && (my) < (y1) &&                             \
+        iface->tab_interface_id[(tab_idx)] >= 0 )                                                  \
+    {                                                                                              \
+        iface->selected_tab = (tab_idx);                                                           \
+        return true;                                                                               \
     }
 
     TAB_BOTTOM_HIT(540, 574, 466, 502, 7);
@@ -2853,6 +2832,26 @@ frame_try_ts_bottom_sidebar_tabs(struct GGame* game, int mx, int my)
 #undef TAB_BOTTOM_HIT
 
     return false;
+}
+
+static void
+frame_cross_xy_from_cursor(
+    struct GGame* game,
+    int* out_x,
+    int* out_y)
+{
+    /* Align with 3D pick / game->mouse_x (ginput now refreshes mouse_state on button events).
+     * Prefer explicit click-down coords when set; never use release-only — that diverged from tile
+     * hittest for left-click. */
+    int sx = game->mouse_clicked_x;
+    int sy = game->mouse_clicked_y;
+    if( sx < 0 || sy < 0 )
+    {
+        sx = game->mouse_x;
+        sy = game->mouse_y;
+    }
+    *out_x = sx;
+    *out_y = sy;
 }
 
 static void
@@ -2890,6 +2889,14 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
     if( !game->interface_consumed_click && game->chat &&
         chat_handle_privacy_strip_click(
             game->chat, game, game->mouse_clicked_x, game->mouse_clicked_y, 1) )
+    {
+        game->interface_consumed_click = 1;
+        return;
+    }
+
+    if( !game->interface_consumed_click && game->chat &&
+        chat_try_begin_typing_click(
+            game->chat, game, game->mouse_clicked_x, game->mouse_clicked_y) )
     {
         game->interface_consumed_click = 1;
         return;
@@ -2970,8 +2977,8 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
         if( !game->interface_consumed_click && cx > 4 && cy > 4 && cx < 516 && cy < 338 &&
             game->iface->viewport_interface_id >= 0 )
         {
-            struct GameCacheComponent* root = gamecache_get_component(
-                game->gamecache, game->iface->viewport_interface_id);
+            struct GameCacheComponent* root =
+                gamecache_get_component(game->gamecache, game->iface->viewport_interface_id);
             int comp_id = -1, client_code = 0, btn_action = 0;
             int pa = 0, pb = 0, pc = 0;
             if( root &&
@@ -2994,8 +3001,9 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
         {
             int bx = mm->position.x;
             int by = mm->position.y;
-            int mx = game->mouse_clicked_x;
-            int my = game->mouse_clicked_y;
+            int mx = 0;
+            int my = 0;
+            frame_cross_xy_from_cursor(game, &mx, &my);
             int const pivot_x = bx + mm->position.anchor_x;
             int const pivot_y = by + mm->position.anchor_y;
             int const dpx = mx - pivot_x;
@@ -3049,18 +3057,23 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
         struct StaticUIComponent* wv = frame_find_builtin(game, UIELEM_BUILTIN_WORLD);
         if( !wv || !frame_point_in_component_xy(wv, game->mouse_clicked_x, game->mouse_clicked_y) )
             return;
+        int sx = 0;
+        int sy = 0;
+        frame_cross_xy_from_cursor(game, &sx, &sy);
+        game->cross_x = sx;
+        game->cross_y = sy;
+        game->cross_cycle = 0;
+        game->cross_mode = 1; /* yellow by default */
+
         if( game->mouse_tile_x < 0 )
             return;
+
         game->tile_clicked_x = game->mouse_tile_x;
         game->tile_clicked_z = game->mouse_tile_z;
         game->tile_clicked_level = game->mouse_tile_level;
         game->minimap_flag_has = 0; /* clear destination flag on direct world click */
-        game->cross_x = game->mouse_clicked_x;
-        game->cross_y = game->mouse_clicked_y;
-        game->cross_cycle = 0;
 
-        /* Set crosshair color: red if targetable option, yellow if only default options */
-        game->cross_mode = 1; /* yellow by default */
+        /* Red if targetable option, yellow if only default options */
         if( game->option_set.option_count > 0 )
         {
             struct WorldOption def;

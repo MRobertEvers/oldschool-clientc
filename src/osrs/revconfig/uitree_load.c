@@ -59,6 +59,8 @@ struct ComponentEntry
     struct ChatUILayout chat_layout;
     uint16_t chat_geom_mask;
     struct MinimenuIniRegions minimenu_regions;
+    /** Resolved from INI `hotspot_offset` for [component:crosshair]; default 8. */
+    int crosshair_hotspot_offset;
 };
 
 enum SpriteLoad_AtlasMode
@@ -116,6 +118,8 @@ struct ComponentLoad
     char minimenu_place_viewport_max[64];
     char minimenu_place_sidebar_max[64];
     char minimenu_place_chat_max[64];
+    int crosshair_hotspot_offset;
+    uint8_t crosshair_hotspot_offset_set;
 };
 
 /** Comma-separated level indices 0-7, optional inclusive ranges "lo-hi" -> bitmask; empty -> 0xF.
@@ -719,7 +723,13 @@ load_component(
     }
     break;
     case UIELEM_BUILTIN_CROSSHAIR:
-        break;
+    {
+        int ho = 8;
+        if( load->crosshair_hotspot_offset_set )
+            ho = load->crosshair_hotspot_offset;
+        component_entry->crosshair_hotspot_offset = ho;
+    }
+    break;
     default:
         break;
     }
@@ -1513,6 +1523,8 @@ load_layout(
             {
                 ui->components[idx].u.crosshair.scene_id =
                     uiscene_element_id_by_name(ui_scene, "cross");
+                ui->components[idx].u.crosshair.hotspot_offset =
+                    component_entry->crosshair_hotspot_offset;
                 if( layout_entry->always_dirty )
                     ui->components[idx].always_dirty = 1;
             }
@@ -2168,6 +2180,15 @@ uitree_from_revconfig_buildcachedat(
                 sizeof(load._component.minimenu_place_chat_max) - 1);
             load._component.minimenu_place_chat_max[sizeof(load._component.minimenu_place_chat_max) -
                                                     1] = '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CROSSHAIR_HOTSPOT_OFFSET:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CROSSHAIR_HOTSPOT_OFFSET field must be within a component item");
+            load._component.crosshair_hotspot_offset = atoi(field->value);
+            load._component.crosshair_hotspot_offset_set = 1;
         }
         break;
         case RCFIELD_INV_ITEM:
@@ -2938,6 +2959,15 @@ uitree_load_ui_from_revconfig(
                 sizeof(load._component.minimenu_place_chat_max) - 1);
             load._component.minimenu_place_chat_max[sizeof(load._component.minimenu_place_chat_max) -
                                                     1] = '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CROSSHAIR_HOTSPOT_OFFSET:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CROSSHAIR_HOTSPOT_OFFSET field must be within a component item");
+            load._component.crosshair_hotspot_offset = atoi(field->value);
+            load._component.crosshair_hotspot_offset_set = 1;
         }
         break;
         case RCFIELD_INV_ITEM:

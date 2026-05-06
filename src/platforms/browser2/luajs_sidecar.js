@@ -287,6 +287,18 @@ export class LuaJSSidecar {
     } catch (err) {
       console.warn("[LuaJSSidecar] failed to preload packet_types.lua:", err);
     }
+    try {
+      const rcPath = "rev245_2/rev245_2_cache.lua";
+      const rcContent = await this.fetchOrCached(rcPath);
+      const rcCode =
+        typeof rcContent === "string"
+          ? rcContent
+          : new TextDecoder().decode(rcContent);
+      this._registerModuleInPreload("rev245_2_cache", rcCode);
+      console.log("[LuaJSSidecar] rev245_2_cache.lua preloaded into package.preload");
+    } catch (err) {
+      console.warn("[LuaJSSidecar] failed to preload rev245_2_cache.lua:", err);
+    }
   }
 
   // Entrance point: adds to queue and triggers processing

@@ -2,9 +2,14 @@
 #define MINIMENU_ACTION_H
 
 #include <stdint.h>
-// Taken from Client-TS Lostcity rev 254
-// These are just randomized numbers.
-// They are converted to serverprot codes before being sent to the network
+/* Opaque action ids (Lost City / Client-TS style). Converted to wire opcodes in gamenet_*. 
+ * Priority: add MINIMENU_ACTION_PRIORITY_OFFSET (2000) for "default" / walk-here sort (see
+ * minimenu_action_priority). Client.ts doAction strips +2000 once before dispatch.
+ *
+ * Parity with Client-TS `MiniMenuAction.ts` (numeric values should match; names may differ):
+ *  - TGT_BUTTON in TS (274) == OPHELDT_SELECT here (spell target on IF button).
+ *  - USEHELD_ONHELD in TS (398) == OPHELDU (packet name); this header also has
+ *    USEHELD_ONHELD=812 for UITree "Use X on Y" inv row (internal label only). */
 
 enum MinimenuAction
 {
@@ -54,12 +59,16 @@ enum MinimenuAction
     MINIMENU_ACTION_OPHELD5 = 100,
     MINIMENU_ACTION_OPHELD6 = 1328,
     MINIMENU_ACTION_OPHELDT_START = 102,
+    /** Same numeric token as Client.ts `TGT_BUTTON` (spell → interface component). */
     MINIMENU_ACTION_OPHELDT_SELECT = 274,
     MINIMENU_ACTION_OPHELDT = 563,
+    /** Same numeric token as Client.ts `USEHELD_ONHELD` / OPHELDU packet. */
     MINIMENU_ACTION_OPHELDU = 398,
 
+    /** UITree uses this label for "Use item on item"; numeric id differs from OPHELDU/398. */
     MINIMENU_ACTION_USEHELD_ONHELD = 812,
     MINIMENU_ACTION_TGT_HELD       = 649,
+    /** UITree spell-target row on IF buttons (`uitree_fill_simple_component_options`). */
     MINIMENU_ACTION_TGT_BUTTON     = 418,
 
     MINIMENU_ACTION_INV_BUTTON1 = 582,

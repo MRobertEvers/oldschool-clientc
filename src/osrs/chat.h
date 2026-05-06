@@ -76,7 +76,7 @@ struct Chat
     int chat_private_mode;
     int chat_trade_mode;
 
-    /** Enter toggles typing; blocks game movement keys while true. */
+    /** Enter toggles typing; click on input row focuses (see chat_try_begin_typing_click). */
     int chat_typing_active;
 
     /* clientcode side-effects written by clientscript_vm_drain_clientcodes */
@@ -97,6 +97,11 @@ struct Chat
     /* PM deduplication (privateMessageIds, Client.ts 460) */
     int pm_ids[100];
     int pm_count;
+
+    /* Frame-stable formatted strings for TORIRS_GFX_DRAW_FONT (pointer lifetime per-frame). */
+    char font_draw_line_scratch[CHAT_MESSAGE_CAP][288];
+    char font_draw_input_prefix[72];
+    char font_draw_input_tail[96];
 };
 
 /* ── Lifecycle ─────────────────────────────────────────────────────────── */
@@ -175,5 +180,16 @@ chat_handle_privacy_strip_click(
     int mx,
     int my,
     int button);
+
+/** Click on the chat input row (same geometry as chat_draw_input). Returns 1 if consumed. */
+int
+chat_try_begin_typing_click(struct Chat* chat, struct GGame* game, int mx, int my);
+
+/** Returns non-zero when (mx,my) falls within the built-in chat chrome (messages, input row,
+ *  privacy strip) and no server chat interface is currently open.  Used by the input layer to
+ *  bypass the minimenu primary path so that frame_handle_interface_and_world_clicks can reach
+ *  chat_handle_privacy_strip_click / chat_try_begin_typing_click. */
+int
+chat_builtin_click_is_chrome(struct GGame const* game, int mx, int my);
 
 #endif /* OSRS_CHAT_H */

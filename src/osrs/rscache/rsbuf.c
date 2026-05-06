@@ -278,6 +278,40 @@ rsbuf_read_string_newline_terminated(struct RSBuffer* buffer)
     return read_string(buffer, 0x0a);
 }
 
+/** Like Client-TS Packet.gjstr: raw bytes until 0x0a or end of buffer (no 128–159 remap). */
+char*
+rsbuf_read_string_newline_or_end(struct RSBuffer* buffer)
+{
+    uint32_t start = buffer->position;
+
+    while( buffer->position < (uint32_t)buffer->size )
+    {
+        unsigned char b = (unsigned char)buffer->data[buffer->position];
+        if( b == 0x0a )
+        {
+            buffer->position++;
+            break;
+        }
+        buffer->position++;
+    }
+
+    uint32_t after = buffer->position;
+    int n = (int)(after - start);
+    if( n > 0 && (unsigned char)buffer->data[after - 1] == 0x0a )
+    {
+        n--;
+    }
+
+    char* out = malloc((size_t)n + 1);
+    if( !out )
+        return NULL;
+
+    if( n > 0 )
+        memcpy(out, buffer->data + start, (size_t)n);
+    out[n] = '\0';
+    return out;
+}
+
 int
 rsbuf_read_unsigned_int_smart_short_compat(struct RSBuffer* buffer)
 {

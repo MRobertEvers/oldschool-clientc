@@ -799,6 +799,7 @@ uitree_push_crosshair(
     component->position.width = 0;
     component->position.height = 0;
     component->u.crosshair.scene_id = -1;
+    component->u.crosshair.hotspot_offset = 8;
     return idx;
 }
 

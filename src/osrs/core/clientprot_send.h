@@ -233,6 +233,66 @@ clientprot_send_opplayeru_v1(
     int opcode,
     const struct PktClientProt_OpPlayer_v1* w);
 
+/* Extended world ops (Client.ts spell / use-on-target trailing fields). */
+void
+clientprot_send_oploct_target_v1(
+    struct RSBuffer* b,
+    struct Isaac* isaac,
+    int opcode,
+    const struct PktClientProt_OpLoc_v1* w,
+    int target_comp_id);
+void
+clientprot_send_oplocu_use_v1(
+    struct RSBuffer* b,
+    struct Isaac* isaac,
+    int opcode,
+    const struct PktClientProt_OpLoc_v1* w,
+    const struct PktClientProt_OpHeldSourceInv_v1* src);
+void
+clientprot_send_opnpct_target_v1(
+    struct RSBuffer* b,
+    struct Isaac* isaac,
+    int opcode,
+    const struct PktClientProt_OpNpc_v1* w,
+    int target_comp_id);
+void
+clientprot_send_opnpcu_use_v1(
+    struct RSBuffer* b,
+    struct Isaac* isaac,
+    int opcode,
+    const struct PktClientProt_OpNpc_v1* w,
+    const struct PktClientProt_OpHeldSourceInv_v1* src);
+void
+clientprot_send_opobjt_spell_v1(
+    struct RSBuffer* b,
+    struct Isaac* isaac,
+    int opcode,
+    int wire_x,
+    int wire_z,
+    int obj_id,
+    int target_comp_id);
+void
+clientprot_send_opobju_use_v1(
+    struct RSBuffer* b,
+    struct Isaac* isaac,
+    int opcode,
+    const struct PktClientProt_OpObj_v1* w,
+    const struct PktClientProt_OpHeldSourceInv_v1* src);
+void
+clientprot_send_opplayert_target_v1(
+    struct RSBuffer* b,
+    struct Isaac* isaac,
+    int opcode,
+    const struct PktClientProt_OpPlayer_v1* w,
+    int target_comp_id);
+void
+clientprot_send_opplayeru_use_v1(
+    struct RSBuffer* b,
+    struct Isaac* isaac,
+    int opcode,
+    const struct PktClientProt_OpPlayer_v1* w,
+    const struct PktClientProt_OpHeldSourceInv_v1* src);
+
 /* Social */
 void
 clientprot_send_friend_add_v1(

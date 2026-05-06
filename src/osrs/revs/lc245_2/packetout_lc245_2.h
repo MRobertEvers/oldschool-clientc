@@ -59,6 +59,8 @@ enum PacketOutType_LC245_2
     PKTOUT_LC245_2_OPPLAYER2 = 165, /* 141 - NXT naming */
     PKTOUT_LC245_2_OPPLAYER3 = 172, /* 142 - NXT naming */
     PKTOUT_LC245_2_OPPLAYER4 = 54,  /* 143 - NXT naming */
+    /** Index 144 (ClientProt OPPLAYER5); verify wire id against LC245 capture — LC254 uses 230. */
+    PKTOUT_LC245_2_OPPLAYER5 = 230,
     PKTOUT_LC245_2_OPPLAYERT = 52,  /* 148 - NXT naming */
     PKTOUT_LC245_2_OPPLAYERU = 210, /* 149 - NXT naming */
 

@@ -355,6 +355,15 @@ LuaCSidecar_New(
         "packet_types.lua");
     preload_module(sidecar->L, "packet_types", packet_types_path);
 
+    char rev245_2_cache_path[512];
+    snprintf(
+        rev245_2_cache_path,
+        sizeof(rev245_2_cache_path),
+        "%s/%s",
+        LUA_SCRIPTS_DIR,
+        "rev245_2/rev245_2_cache.lua");
+    preload_module(sidecar->L, "rev245_2_cache", rev245_2_cache_path);
+
     create_wasm_object(sidecar->L, sidecar->ctx, sidecar->callback);
 
     return sidecar;

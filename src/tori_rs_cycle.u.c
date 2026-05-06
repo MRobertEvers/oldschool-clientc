@@ -263,45 +263,87 @@ game_try_move(
     int dst_tile_z,
     int run)
 {
+    int const base_x = (game && game->world) ? game->world->_base_tile_x : 0;
+    int const base_z = (game && game->world) ? game->world->_base_tile_z : 0;
+    int const wire_dst_x = dst_tile_x + base_x;
+    int const wire_dst_z = dst_tile_z + base_z;
+
+    fprintf(
+        stderr,
+        "[try_move] enter scene_dst=(%d,%d) wire_dst=(%d,%d) run=%d\n",
+        dst_tile_x,
+        dst_tile_z,
+        wire_dst_x,
+        wire_dst_z,
+        run);
+
     if( !game->world || !game->world->collision_map )
+    {
+        fprintf(stderr, "[try_move] skip: no_world_or_collision_map\n");
         return false;
+    }
 
     struct PlayerEntity* player = world_player(game->world, ACTIVE_PLAYER_SLOT);
     if( !player || !player->alive )
+    {
+        fprintf(stderr, "[try_move] skip: no_player\n");
         return false;
+    }
 
     /* Current tile from draw_position (same as routeX[0] in TS). */
     int src_x = player->draw_position.x >> 7;
     int src_z = player->draw_position.z >> 7;
+    fprintf(
+        stderr,
+        "[try_move] scene_src=(%d,%d) wire_src=(%d,%d)\n",
+        src_x,
+        src_z,
+        src_x + base_x,
+        src_z + base_z);
 
     /* Clamp destination to collision map bounds. */
     struct CollisionMap* cm = game->world->collision_map;
     if( dst_tile_x < 0 || dst_tile_x >= cm->size_x || dst_tile_z < 0 || dst_tile_z >= cm->size_z )
+    {
+        fprintf(
+            stderr,
+            "[try_move] skip: dst_out_of_bounds cm_size=(%d,%d)\n",
+            cm->size_x,
+            cm->size_z);
         return false;
+    }
 
     if( src_x == dst_tile_x && src_z == dst_tile_z )
+    {
+        fprintf(stderr, "[try_move] ok: already_at_dst (no path, no packet)\n");
         return true;
+    }
 
     int path_x[GAME_TRY_MOVE_MAX_PATH];
     int path_z[GAME_TRY_MOVE_MAX_PATH];
 
     int path_len = collision_map_bfs_path(cm, src_x, src_z, dst_tile_x, dst_tile_z, path_x, path_z, GAME_TRY_MOVE_MAX_PATH);
+    fprintf(stderr, "[try_move] bfs path_len=%d\n", path_len);
     if( path_len <= 0 )
+    {
+        fprintf(stderr, "[try_move] skip: no_path\n");
         return false;
+    }
 
     /* Load path into player pathing.  BFS returns path[0] = first step from src,
-     * path[path_len-1] = destination.  entity_pathing_push_xz prepends to route[0],
-     * so we push path[path_len-1] first and path[0] last so that:
-     *   route_x[route_length - 1] = path[0]  (first step processed by update_entity)
-     *   route_x[0]               = path[path_len-1]  (destination, last to process)
+     * path[path_len-1] = destination.  entity_pathing_push_xz prepends to route[0].
+     * Push forward (first step first, destination last) so that after all prepends:
+     *   route_x[route_length - 1] = path[0]  (next step, consumed first by update_entity)
+     *   route_x[0]               = path[path_len-1]  (destination, consumed last)
+     * This matches Client.ts tryMove → routeMove invariant (routeX[routeLength-1] = next tile).
      */
     player->pathing.route_length = 0;
     player->pathing.route_x[0] = src_x;
     player->pathing.route_z[0] = src_z;
 
-    /* Push in reverse (destination first, first-step last). */
+    /* Push forward (first step first, destination last). */
     int push_count = path_len < 10 ? path_len : 9; /* route_length max is 9 steps */
-    for( int i = push_count - 1; i >= 0; i-- )
+    for( int i = 0; i < push_count; i++ )
     {
         entity_pathing_push_xz(&player->pathing, path_x[i], path_z[i], PATHSTEP_WALK);
     }
@@ -313,11 +355,34 @@ game_try_move(
 
     if( game->suppress_move_gameclick_once )
     {
+        fprintf(
+            stderr,
+            "[try_move] ok: path_loaded path_len=%d first_scene=(%d,%d) skip_send: suppress_move_gameclick_once\n",
+            path_len,
+            path_x[0],
+            path_z[0]);
         game->suppress_move_gameclick_once = 0;
     }
     else if( game->net_state == GAME_NET_STATE_GAME && game->random_out )
     {
+        fprintf(
+            stderr,
+            "[try_move] ok: path_len=%d first_scene=(%d,%d) sending MOVE_GAMECLICK\n",
+            path_len,
+            path_x[0],
+            path_z[0]);
         gamenet_send_move_gameclick(game, run, path_x, path_z, path_len);
+    }
+    else
+    {
+        fprintf(
+            stderr,
+            "[try_move] ok: path_loaded path_len=%d first_scene=(%d,%d) skip_send: net_state=%d random_out=%p\n",
+            path_len,
+            path_x[0],
+            path_z[0],
+            (int)game->net_state,
+            (void*)game->random_out);
     }
 
     return true;

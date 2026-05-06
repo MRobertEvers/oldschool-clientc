@@ -4,6 +4,7 @@
 
 #include "collision_map.h"
 #include "game.h"
+#include "osrs/chat.h"
 #include "minimenu_action.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/gamenet_send.h"
@@ -167,13 +168,18 @@ mm_tor_emit_text(
 {
     if( !buf || !font || !text )
         return;
+    /* Client.ts drawString / drawStringTag pen_y; TORIRS_GFX_DRAW_FONT expects pen_y - height2d
+     * (see rev_245_2_ui.ini, uielem_hover_tooltip_step, rs_component_gfx). */
+    int draw_y = y;
+    if( font->height2d > 0 )
+        draw_y -= font->height2d;
     struct ToriRSRenderCommand* c = LibToriRS_RenderCommandBufferEmplaceCommand(buf);
     c->kind                 = TORIRS_GFX_DRAW_FONT;
     c->_font_draw.font_id   = font_id;
     c->_font_draw.font      = font;
     c->_font_draw.text      = text;
     c->_font_draw.x         = x;
-    c->_font_draw.y         = y;
+    c->_font_draw.y         = draw_y;
     c->_font_draw.color_rgb = color_rgb;
     c->_font_draw.shadowed  = shadowed ? 1u : 0u;
 }
@@ -507,6 +513,42 @@ mm_move_toward(
     game->cross_cycle        = 0;
 }
 
+/** Mirror Client.ts `doAction`: strip priority (+2000) before opcode dispatch. */
+static int
+mm_menu_action_norm(int action)
+{
+    if( action >= (int)MINIMENU_ACTION_PRIORITY_OFFSET )
+        return action - (int)MINIMENU_ACTION_PRIORITY_OFFSET;
+    return action;
+}
+
+/** Client.ts held triple on OPLOCU / OPNPCU / OPOBJU / OPPLAYERU (objComId, slot, selComId). */
+static void
+mm_held_iface_triple(struct InterfaceState* iface, int* obj_comp, int* slot, int* sel_comp)
+{
+    int root = 0;
+    if( iface )
+    {
+        root = iface->sidebar_interface_id ? iface->sidebar_interface_id
+                                           : iface->viewport_interface_id;
+    }
+    if( obj_comp )
+        *obj_comp = root;
+    if( slot )
+        *slot = iface ? iface->inv_sel_slot : 0;
+    if( sel_comp )
+        *sel_comp = iface ? iface->inv_sel_comp_id : 0;
+}
+
+/** Client passes full scene typecode in param_a when using item on loc/obj from world pick. */
+static int
+mm_loc_obj_wire_id(struct GGame* game, int param_a)
+{
+    if( game && game->iface && game->iface->inv_use_mode && param_a >= (1 << 14) )
+        return (param_a >> 14) & 0x7fff;
+    return param_a;
+}
+
 void
 minimenu_game_use_option(
     struct GGame* game,
@@ -524,11 +566,12 @@ minimenu_game_use_option(
     int param_a = game->minimenu.option_param_a[option_index];
     int param_b = game->minimenu.option_param_b[option_index];
     int param_c = game->minimenu.option_param_c[option_index];
+    int base    = mm_menu_action_norm(action);
 
-    if( action == (int)MINIMENU_ACTION_CANCEL )
+    if( base == (int)MINIMENU_ACTION_CANCEL )
         return;
 
-    if( action == (int)MINIMENU_ACTION_OPHELDT_START )
+    if( base == (int)MINIMENU_ACTION_OPHELDT_START )
     {
         if( !game->iface )
             return;
@@ -548,7 +591,8 @@ minimenu_game_use_option(
         return;
     }
 
-    if( action == (int)MINIMENU_ACTION_TGT_BUTTON )
+    if( base == (int)MINIMENU_ACTION_TGT_BUTTON ||
+        base == (int)MINIMENU_ACTION_OPHELDT_SELECT )
     {
         if( !game->iface || !game->gamecache )
             return;
@@ -567,7 +611,8 @@ minimenu_game_use_option(
         return;
     }
 
-    if( action == (int)MINIMENU_ACTION_USEHELD_ONHELD )
+    if( base == (int)MINIMENU_ACTION_USEHELD_ONHELD ||
+        base == (int)MINIMENU_ACTION_OPHELDU )
     {
         if( !game->iface || GAME_NET_STATE_GAME != game->net_state )
             return;
@@ -581,7 +626,7 @@ minimenu_game_use_option(
         return;
     }
 
-    if( action == (int)MINIMENU_ACTION_TGT_HELD )
+    if( base == (int)MINIMENU_ACTION_TGT_HELD )
     {
         if( !game->iface || GAME_NET_STATE_GAME != game->net_state )
             return;
@@ -591,7 +636,7 @@ minimenu_game_use_option(
         return;
     }
 
-    if( action == (int)MINIMENU_ACTION_WALK )
+    if( base == (int)MINIMENU_ACTION_WALK )
     {
         int tx = game->mouse_tile_x;
         int tz = game->mouse_tile_z;
@@ -611,9 +656,6 @@ minimenu_game_use_option(
 
     {
         int which = -1;
-        int base  = action;
-        if( base > (int)MINIMENU_ACTION_PRIORITY_OFFSET )
-            base -= (int)MINIMENU_ACTION_PRIORITY_OFFSET;
         if( base == (int)MINIMENU_ACTION_OPNPC1 )
             which = 1;
         else if( base == (int)MINIMENU_ACTION_OPNPC2 )
@@ -641,17 +683,114 @@ minimenu_game_use_option(
         }
     }
 
+    if( base == (int)MINIMENU_ACTION_OPNPC6 && game->chat )
+    {
+        struct NPCEntity* npc = world_npc(game->world, param_a);
+        char buf[320];
+        if( npc && npc->name )
+        {
+            if( npc->description && npc->description[0] )
+                snprintf(buf, sizeof(buf), "%s", npc->description);
+            else
+                snprintf(buf, sizeof(buf), "It's a %s.", npc->name);
+            chat_add(game->chat, game, 0, "", buf);
+        }
+        return;
+    }
+
+    if( base == (int)MINIMENU_ACTION_OPNPCT )
+    {
+        struct NPCEntity* npc = world_npc(game->world, param_a);
+        if( npc && npc->alive && game->iface &&
+            GAME_NET_STATE_GAME == game->net_state )
+        {
+            int tx = npc->draw_position.x >> 7;
+            int tz = npc->draw_position.z >> 7;
+            mm_emit_opclick_to_tile(game, input, tx, tz);
+            gamenet_send_opnpct_target(
+                game, param_a, game->iface->inv_target_src_comp_id);
+            mm_move_toward(game, tx, tz);
+            game->iface->inv_target_mode = 0;
+        }
+        return;
+    }
+
+    if( base == (int)MINIMENU_ACTION_OPNPCU )
+    {
+        if( !game->iface || GAME_NET_STATE_GAME != game->net_state )
+            return;
+        int oc = 0, sl = 0, sc = 0;
+        mm_held_iface_triple(game->iface, &oc, &sl, &sc);
+        struct NPCEntity* npc = world_npc(game->world, param_a);
+        if( npc && npc->alive )
+        {
+            int tx = npc->draw_position.x >> 7;
+            int tz = npc->draw_position.z >> 7;
+            mm_emit_opclick_to_tile(game, input, tx, tz);
+            mm_move_toward(game, tx, tz);
+        }
+        gamenet_send_opnpcu_use(game, param_a, oc, sl, sc);
+        game->iface->inv_use_mode = 0;
+        return;
+    }
+
+    if( base == (int)MINIMENU_ACTION_OPLOC6 && game->chat && game->world )
+    {
+        struct MapBuildLocEntity* loc = world_loc_entity(game->world, param_a);
+        char buf[320];
+        if( loc && loc->name.name[0] )
+        {
+            if( loc->description.description[0] )
+                snprintf(buf, sizeof(buf), "%s", loc->description.description);
+            else
+                snprintf(buf, sizeof(buf), "It's a %s.", loc->name.name);
+            chat_add(game->chat, game, 0, "", buf);
+        }
+        return;
+    }
+
+    if( base == (int)MINIMENU_ACTION_OPLOCT && game->iface &&
+        GAME_NET_STATE_GAME == game->net_state )
+    {
+        int lid = mm_loc_obj_wire_id(game, param_a);
+        mm_emit_opclick_to_tile(game, input, param_b, param_c);
+        gamenet_send_oploct_target(
+            game,
+            param_b,
+            param_c,
+            lid,
+            0,
+            game->iface->inv_target_src_comp_id);
+        mm_move_toward(game, param_b, param_c);
+        game->iface->inv_target_mode = 0;
+        return;
+    }
+
+    if( base == (int)MINIMENU_ACTION_OPLOCU )
+    {
+        if( !game->iface || GAME_NET_STATE_GAME != game->net_state )
+            return;
+        int oc = 0, sl = 0, sc = 0;
+        mm_held_iface_triple(game->iface, &oc, &sl, &sc);
+        int lid = mm_loc_obj_wire_id(game, param_a);
+        mm_emit_opclick_to_tile(game, input, param_b, param_c);
+        gamenet_send_oplocu_use(game, param_b, param_c, lid, oc, sl, sc);
+        mm_move_toward(game, param_b, param_c);
+        game->iface->inv_use_mode = 0;
+        return;
+    }
+
     {
         int which = -1;
-        if( action == (int)MINIMENU_ACTION_OPLOC1 )
+        if( base == (int)MINIMENU_ACTION_OPLOC1 )
             which = 1;
-        else if( action == (int)MINIMENU_ACTION_OPLOC2 )
+        else if( base == (int)MINIMENU_ACTION_OPLOC2 )
             which = 2;
-        else if( action == (int)MINIMENU_ACTION_OPLOC3 )
+        else if( base == (int)MINIMENU_ACTION_OPLOC3 )
             which = 3;
-        else if( action == (int)MINIMENU_ACTION_OPLOC4 )
+        else if( base == (int)MINIMENU_ACTION_OPLOC4 )
             which = 4;
-        else if( action == (int)MINIMENU_ACTION_OPLOC5 )
+        else if( base == (int)MINIMENU_ACTION_OPLOC5 )
             which = 5;
         if( which >= 0 )
         {
@@ -662,17 +801,56 @@ minimenu_game_use_option(
         }
     }
 
+    if( base == (int)MINIMENU_ACTION_OPOBJ6 && game->chat && game->gamecache )
+    {
+        struct GameCacheObj* o = gamecache_get_obj(game->gamecache, param_a);
+        char buf[320];
+        if( o && o->name )
+            snprintf(buf, sizeof(buf), "It's a %s.", o->name);
+        else
+            buf[0] = '\0';
+        if( buf[0] )
+            chat_add(game->chat, game, 0, "", buf);
+        return;
+    }
+
+    if( base == (int)MINIMENU_ACTION_OPOBJT && game->iface &&
+        GAME_NET_STATE_GAME == game->net_state )
+    {
+        int oid = mm_loc_obj_wire_id(game, param_a);
+        mm_emit_opclick_to_tile(game, input, param_b, param_c);
+        gamenet_send_opobjt_spell(
+            game, param_b, param_c, oid, game->iface->inv_target_src_comp_id);
+        mm_move_toward(game, param_b, param_c);
+        game->iface->inv_target_mode = 0;
+        return;
+    }
+
+    if( base == (int)MINIMENU_ACTION_OPOBJU )
+    {
+        if( !game->iface || GAME_NET_STATE_GAME != game->net_state )
+            return;
+        int oc = 0, sl = 0, sc = 0;
+        mm_held_iface_triple(game->iface, &oc, &sl, &sc);
+        int oid = mm_loc_obj_wire_id(game, param_a);
+        mm_emit_opclick_to_tile(game, input, param_b, param_c);
+        gamenet_send_opobju_use(game, param_b, param_c, oid, oc, sl, sc);
+        mm_move_toward(game, param_b, param_c);
+        game->iface->inv_use_mode = 0;
+        return;
+    }
+
     {
         int which = -1;
-        if( action == (int)MINIMENU_ACTION_OPOBJ1 )
+        if( base == (int)MINIMENU_ACTION_OPOBJ1 )
             which = 1;
-        else if( action == (int)MINIMENU_ACTION_OPOBJ2 )
+        else if( base == (int)MINIMENU_ACTION_OPOBJ2 )
             which = 2;
-        else if( action == (int)MINIMENU_ACTION_OPOBJ3 )
+        else if( base == (int)MINIMENU_ACTION_OPOBJ3 )
             which = 3;
-        else if( action == (int)MINIMENU_ACTION_OPOBJ4 )
+        else if( base == (int)MINIMENU_ACTION_OPOBJ4 )
             which = 4;
-        else if( action == (int)MINIMENU_ACTION_OPOBJ5 )
+        else if( base == (int)MINIMENU_ACTION_OPOBJ5 )
             which = 5;
         if( which >= 0 )
         {
@@ -683,11 +861,44 @@ minimenu_game_use_option(
         }
     }
 
+    if( base == (int)MINIMENU_ACTION_OPPLAYERT && game->iface &&
+        GAME_NET_STATE_GAME == game->net_state )
+    {
+        struct PlayerEntity* tgt = world_player(game->world, param_a);
+        if( tgt && tgt->alive )
+        {
+            int tx = tgt->draw_position.x >> 7;
+            int tz = tgt->draw_position.z >> 7;
+            mm_emit_opclick_to_tile(game, input, tx, tz);
+            mm_move_toward(game, tx, tz);
+        }
+        gamenet_send_opplayert_target(
+            game, param_a, game->iface->inv_target_src_comp_id);
+        game->iface->inv_target_mode = 0;
+        return;
+    }
+
+    if( base == (int)MINIMENU_ACTION_OPPLAYERU )
+    {
+        if( !game->iface || GAME_NET_STATE_GAME != game->net_state )
+            return;
+        int oc = 0, sl = 0, sc = 0;
+        mm_held_iface_triple(game->iface, &oc, &sl, &sc);
+        struct PlayerEntity* tgt = world_player(game->world, param_a);
+        if( tgt && tgt->alive )
+        {
+            int tx = tgt->draw_position.x >> 7;
+            int tz = tgt->draw_position.z >> 7;
+            mm_emit_opclick_to_tile(game, input, tx, tz);
+            mm_move_toward(game, tx, tz);
+        }
+        gamenet_send_opplayeru_use(game, param_a, oc, sl, sc);
+        game->iface->inv_use_mode = 0;
+        return;
+    }
+
     {
         int which = -1;
-        int base = action;
-        if( base > (int)MINIMENU_ACTION_PRIORITY_OFFSET )
-            base -= (int)MINIMENU_ACTION_PRIORITY_OFFSET;
         if( base == (int)MINIMENU_ACTION_OPPLAYER1 )
             which = 1;
         else if( base == (int)MINIMENU_ACTION_OPPLAYER2 )
@@ -717,15 +928,15 @@ minimenu_game_use_option(
 
     {
         int which = -1;
-        if( action == (int)MINIMENU_ACTION_INV_BUTTON1 )
+        if( base == (int)MINIMENU_ACTION_INV_BUTTON1 )
             which = 1;
-        else if( action == (int)MINIMENU_ACTION_INV_BUTTON2 )
+        else if( base == (int)MINIMENU_ACTION_INV_BUTTON2 )
             which = 2;
-        else if( action == (int)MINIMENU_ACTION_INV_BUTTON3 )
+        else if( base == (int)MINIMENU_ACTION_INV_BUTTON3 )
             which = 3;
-        else if( action == (int)MINIMENU_ACTION_INV_BUTTON4 )
+        else if( base == (int)MINIMENU_ACTION_INV_BUTTON4 )
             which = 4;
-        else if( action == (int)MINIMENU_ACTION_INV_BUTTON5 )
+        else if( base == (int)MINIMENU_ACTION_INV_BUTTON5 )
             which = 5;
         if( which >= 0 )
         {
@@ -736,9 +947,6 @@ minimenu_game_use_option(
 
     {
         int which = -1;
-        int base = action;
-        if( base > (int)MINIMENU_ACTION_PRIORITY_OFFSET )
-            base -= (int)MINIMENU_ACTION_PRIORITY_OFFSET;
         if( base == (int)MINIMENU_ACTION_OPHELD1 )
             which = 1;
         else if( base == (int)MINIMENU_ACTION_OPHELD2 )
@@ -763,20 +971,20 @@ minimenu_game_use_option(
         }
     }
 
-    if( action == (int)MINIMENU_ACTION_IF_BUTTON ||
-        action == (int)MINIMENU_ACTION_IF_BUTTON_TOGGLE ||
-        action == (int)MINIMENU_ACTION_IF_BUTTON_SELECT )
+    if( base == (int)MINIMENU_ACTION_IF_BUTTON ||
+        base == (int)MINIMENU_ACTION_IF_BUTTON_TOGGLE ||
+        base == (int)MINIMENU_ACTION_IF_BUTTON_SELECT )
     {
         gamenet_send_if_button(game, param_a);
         return;
     }
 
-    if( action == (int)MINIMENU_ACTION_CLOSE_MODAL )
+    if( base == (int)MINIMENU_ACTION_CLOSE_MODAL )
     {
         gamenet_send_close_modal(game);
         return;
     }
-    if( action == (int)MINIMENU_ACTION_RESUME_PAUSEBUTTON )
+    if( base == (int)MINIMENU_ACTION_RESUME_PAUSEBUTTON )
     {
         gamenet_send_resume_pausebutton(game);
         return;

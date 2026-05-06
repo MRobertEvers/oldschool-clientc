@@ -263,6 +263,38 @@ static inline void gamenet_send_oplocu(struct GGame* g, int x, int z, int loc_id
     }
 }
 
+static inline void gamenet_send_oploct_target(
+    struct GGame* g,
+    int x,
+    int z,
+    int loc_id,
+    int ctrl,
+    int target_comp_id)
+{
+    switch( revision_active()->kind ) {
+    case REVISION_KIND_LC245_2:
+        gamenet_rev245_2_send_oploct_target(g, x, z, loc_id, ctrl, target_comp_id); break;
+    default: break;
+    }
+}
+
+static inline void gamenet_send_oplocu_use(
+    struct GGame* g,
+    int x,
+    int z,
+    int loc_id,
+    int obj_comp_id,
+    int slot,
+    int sel_comp_id)
+{
+    switch( revision_active()->kind ) {
+    case REVISION_KIND_LC245_2:
+        gamenet_rev245_2_send_oplocu_use(
+            g, x, z, loc_id, obj_comp_id, slot, sel_comp_id); break;
+    default: break;
+    }
+}
+
 /* ── World ops: npc ──────────────────────────────────────────────────────── */
 
 static inline void gamenet_send_opnpc(struct GGame* g, int which, int npc_slot)
@@ -285,6 +317,30 @@ static inline void gamenet_send_opnpcu(struct GGame* g, int npc_slot)
 {
     switch( revision_active()->kind ) {
     case REVISION_KIND_LC245_2: gamenet_rev245_2_send_opnpcu(g, npc_slot); break;
+    default: break;
+    }
+}
+
+static inline void gamenet_send_opnpct_target(
+    struct GGame* g, int npc_slot, int target_comp_id)
+{
+    switch( revision_active()->kind ) {
+    case REVISION_KIND_LC245_2:
+        gamenet_rev245_2_send_opnpct_target(g, npc_slot, target_comp_id); break;
+    default: break;
+    }
+}
+
+static inline void gamenet_send_opnpcu_use(
+    struct GGame* g,
+    int npc_slot,
+    int obj_comp_id,
+    int slot,
+    int sel_comp_id)
+{
+    switch( revision_active()->kind ) {
+    case REVISION_KIND_LC245_2:
+        gamenet_rev245_2_send_opnpcu_use(g, npc_slot, obj_comp_id, slot, sel_comp_id); break;
     default: break;
     }
 }
@@ -317,6 +373,33 @@ static inline void gamenet_send_opobju(struct GGame* g, int x, int z, int obj_id
     }
 }
 
+static inline void gamenet_send_opobjt_spell(
+    struct GGame* g, int x, int z, int obj_id, int target_comp_id)
+{
+    switch( revision_active()->kind ) {
+    case REVISION_KIND_LC245_2:
+        gamenet_rev245_2_send_opobjt_spell(g, x, z, obj_id, target_comp_id); break;
+    default: break;
+    }
+}
+
+static inline void gamenet_send_opobju_use(
+    struct GGame* g,
+    int x,
+    int z,
+    int obj_id,
+    int obj_comp_id,
+    int slot,
+    int sel_comp_id)
+{
+    switch( revision_active()->kind ) {
+    case REVISION_KIND_LC245_2:
+        gamenet_rev245_2_send_opobju_use(
+            g, x, z, obj_id, obj_comp_id, slot, sel_comp_id); break;
+    default: break;
+    }
+}
+
 /* ── World ops: player ───────────────────────────────────────────────────── */
 
 static inline void gamenet_send_opplayer(struct GGame* g, int which, int player_slot)
@@ -339,6 +422,31 @@ static inline void gamenet_send_opplayeru(struct GGame* g, int player_slot)
 {
     switch( revision_active()->kind ) {
     case REVISION_KIND_LC245_2: gamenet_rev245_2_send_opplayeru(g, player_slot); break;
+    default: break;
+    }
+}
+
+static inline void gamenet_send_opplayert_target(
+    struct GGame* g, int player_slot, int target_comp_id)
+{
+    switch( revision_active()->kind ) {
+    case REVISION_KIND_LC245_2:
+        gamenet_rev245_2_send_opplayert_target(g, player_slot, target_comp_id); break;
+    default: break;
+    }
+}
+
+static inline void gamenet_send_opplayeru_use(
+    struct GGame* g,
+    int player_slot,
+    int obj_comp_id,
+    int slot,
+    int sel_comp_id)
+{
+    switch( revision_active()->kind ) {
+    case REVISION_KIND_LC245_2:
+        gamenet_rev245_2_send_opplayeru_use(
+            g, player_slot, obj_comp_id, slot, sel_comp_id); break;
     default: break;
     }
 }

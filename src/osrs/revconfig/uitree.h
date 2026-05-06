@@ -183,6 +183,8 @@ struct StaticUIComponent
         {
             /** UIScene element id for the `cross` sprite atlas (frames 0..7); resolved at load. */
             int scene_id;
+            /** Pixels subtracted from click x/y for sprite top-left; from INI `hotspot_offset` (default 8). */
+            int hotspot_offset;
         } crosshair;
         struct
         {

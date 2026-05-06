@@ -70,7 +70,8 @@ void gamenet_rev245_2_send_inv_button(
         PKTOUT_LC245_2_INV_BUTTON5
     };
     int idx = which - 1;
-    if( idx < 0 || idx > 4 ) idx = 0;
+    if( idx < 0 || idx > 4 )
+        return;
     gamenet_core_send_inv_button_v1(g, ops[idx], comp_id, slot, obj_id);
 }
 void gamenet_rev245_2_send_inv_button_d(
@@ -98,7 +99,8 @@ void gamenet_rev245_2_send_opheld(
         PKTOUT_LC245_2_OPHELD5
     };
     int idx = which - 1;
-    if( idx < 0 || idx > 4 ) idx = 0;
+    if( idx < 0 || idx > 4 )
+        return;
     gamenet_core_send_opheld_v1(g, ops[idx], obj_id, slot, comp_id);
 }
 void gamenet_rev245_2_send_opheldt(
@@ -123,7 +125,8 @@ void gamenet_rev245_2_send_oploc(
         PKTOUT_LC245_2_OPLOC5
     };
     int idx = which - 1;
-    if( idx < 0 || idx > 4 ) idx = 0;
+    if( idx < 0 || idx > 4 )
+        return;
     gamenet_core_send_oploc_v1(g, ops[idx], x, z, loc_id, ctrl);
 }
 void gamenet_rev245_2_send_oploct(struct GGame* g, int x, int z, int loc_id, int ctrl) {
@@ -131,6 +134,24 @@ void gamenet_rev245_2_send_oploct(struct GGame* g, int x, int z, int loc_id, int
 }
 void gamenet_rev245_2_send_oplocu(struct GGame* g, int x, int z, int loc_id) {
     gamenet_core_send_oplocu_v1(g, PKTOUT_LC245_2_OPLOCU, x, z, loc_id);
+}
+void gamenet_rev245_2_send_oploct_target(
+    struct GGame* g, int x, int z, int loc_id, int ctrl, int target_comp_id)
+{
+    gamenet_core_send_oploct_target_v1(
+        g, PKTOUT_LC245_2_OPLOCT, x, z, loc_id, ctrl, target_comp_id);
+}
+void gamenet_rev245_2_send_oplocu_use(
+    struct GGame* g,
+    int x,
+    int z,
+    int loc_id,
+    int obj_comp_id,
+    int slot,
+    int sel_comp_id)
+{
+    gamenet_core_send_oplocu_use_v1(
+        g, PKTOUT_LC245_2_OPLOCU, x, z, loc_id, obj_comp_id, slot, sel_comp_id);
 }
 
 /* ── World ops: npc ──────────────────────────────────────────────────────── */
@@ -143,7 +164,8 @@ void gamenet_rev245_2_send_opnpc(struct GGame* g, int which, int npc_slot)
         PKTOUT_LC245_2_OPNPC5
     };
     int idx = which - 1;
-    if( idx < 0 || idx > 4 ) idx = 0;
+    if( idx < 0 || idx > 4 )
+        return;
     gamenet_core_send_opnpc_v1(g, ops[idx], npc_slot);
 }
 void gamenet_rev245_2_send_opnpct(struct GGame* g, int npc_slot) {
@@ -151,6 +173,21 @@ void gamenet_rev245_2_send_opnpct(struct GGame* g, int npc_slot) {
 }
 void gamenet_rev245_2_send_opnpcu(struct GGame* g, int npc_slot) {
     gamenet_core_send_opnpcu_v1(g, PKTOUT_LC245_2_OPNPCU, npc_slot);
+}
+void gamenet_rev245_2_send_opnpct_target(
+    struct GGame* g, int npc_slot, int target_comp_id)
+{
+    gamenet_core_send_opnpct_target_v1(g, PKTOUT_LC245_2_OPNPCT, npc_slot, target_comp_id);
+}
+void gamenet_rev245_2_send_opnpcu_use(
+    struct GGame* g,
+    int npc_slot,
+    int obj_comp_id,
+    int slot,
+    int sel_comp_id)
+{
+    gamenet_core_send_opnpcu_use_v1(
+        g, PKTOUT_LC245_2_OPNPCU, npc_slot, obj_comp_id, slot, sel_comp_id);
 }
 
 /* ── World ops: obj ──────────────────────────────────────────────────────── */
@@ -164,7 +201,8 @@ void gamenet_rev245_2_send_opobj(
         PKTOUT_LC245_2_OPOBJ5
     };
     int idx = which - 1;
-    if( idx < 0 || idx > 4 ) idx = 0;
+    if( idx < 0 || idx > 4 )
+        return;
     gamenet_core_send_opobj_v1(g, ops[idx], x, z, obj_id, ctrl);
 }
 void gamenet_rev245_2_send_opobjt(struct GGame* g, int x, int z, int obj_id, int ctrl) {
@@ -173,16 +211,36 @@ void gamenet_rev245_2_send_opobjt(struct GGame* g, int x, int z, int obj_id, int
 void gamenet_rev245_2_send_opobju(struct GGame* g, int x, int z, int obj_id) {
     gamenet_core_send_opobju_v1(g, PKTOUT_LC245_2_OPOBJU, x, z, obj_id);
 }
+void gamenet_rev245_2_send_opobjt_spell(
+    struct GGame* g, int x, int z, int obj_id, int target_comp_id)
+{
+    gamenet_core_send_opobjt_spell_v1(
+        g, PKTOUT_LC245_2_OPBJT, x, z, obj_id, target_comp_id);
+}
+void gamenet_rev245_2_send_opobju_use(
+    struct GGame* g,
+    int x,
+    int z,
+    int obj_id,
+    int obj_comp_id,
+    int slot,
+    int sel_comp_id)
+{
+    gamenet_core_send_opobju_use_v1(
+        g, PKTOUT_LC245_2_OPOBJU, x, z, obj_id, obj_comp_id, slot, sel_comp_id);
+}
 
 /* ── World ops: player ───────────────────────────────────────────────────── */
 
 void gamenet_rev245_2_send_opplayer(struct GGame* g, int which, int player_slot)
 {
-    static const int ops[4] = {
+    static const int ops[5] = {
         PKTOUT_LC245_2_OPPLAYER1, PKTOUT_LC245_2_OPPLAYER2,
-        PKTOUT_LC245_2_OPPLAYER3, PKTOUT_LC245_2_OPPLAYER4
+        PKTOUT_LC245_2_OPPLAYER3, PKTOUT_LC245_2_OPPLAYER4,
+        PKTOUT_LC245_2_OPPLAYER5
     };
-    if( which < 1 || which > 4 ) return;
+    if( which < 1 || which > 5 )
+        return;
     gamenet_core_send_opplayer_v1(g, ops[which - 1], player_slot);
 }
 void gamenet_rev245_2_send_opplayert(struct GGame* g, int player_slot) {
@@ -190,6 +248,22 @@ void gamenet_rev245_2_send_opplayert(struct GGame* g, int player_slot) {
 }
 void gamenet_rev245_2_send_opplayeru(struct GGame* g, int player_slot) {
     gamenet_core_send_opplayeru_v1(g, PKTOUT_LC245_2_OPPLAYERU, player_slot);
+}
+void gamenet_rev245_2_send_opplayert_target(
+    struct GGame* g, int player_slot, int target_comp_id)
+{
+    gamenet_core_send_opplayert_target_v1(
+        g, PKTOUT_LC245_2_OPPLAYERT, player_slot, target_comp_id);
+}
+void gamenet_rev245_2_send_opplayeru_use(
+    struct GGame* g,
+    int player_slot,
+    int obj_comp_id,
+    int slot,
+    int sel_comp_id)
+{
+    gamenet_core_send_opplayeru_use_v1(
+        g, PKTOUT_LC245_2_OPPLAYERU, player_slot, obj_comp_id, slot, sel_comp_id);
 }
 
 /* ── Social ──────────────────────────────────────────────────────────────── */

@@ -1,11 +1,13 @@
 #include "chat.h"
 
 #include "graphics/dash.h"
+#include "jbase37.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/gamenet_send.h"
 #include "osrs/game.h"
 #include "osrs/interface_state.h"
 #include "osrs/revconfig/uiscene.h"
+#include "osrs/ui_scrollbar_emit.h"
 #include "tori_rs_render.h"
 
 #include <stdio.h>
@@ -25,14 +27,15 @@ chat_layout_builtin(struct ChatUILayout* out)
 {
     if( !out )
         return;
-    /* Matches Client.ts drawChat + areaChatback.draw(17,357). */
+    /* Matches Client.ts drawChat + areaChatback.draw(17,357).
+     * Scrollback bottom pen is local y=70 (chatScrollPos + 70 − line*14); separator hline at 77. */
     out->chatback_screen_x = 17;
     out->chatback_screen_y = 357;
     out->clip_w = 463;
     out->clip_h = 77;
     out->text_x_local = 4;
     out->scrollbar_x_local = 463;
-    out->separator_y_local = 77;
+    out->separator_y_local = 77; /* bottom_pen_local = separator_y_local − 7 → 70 */
     out->separator_w = 479;
     out->line_h = 14;
     out->input_line_y_local = 90;
@@ -92,28 +95,12 @@ chat_layout_line_h(struct GGame const* game)
 #define COL_PRIV_RED 0xFF0000
 #define COL_PRIV_CYAN 0xFFFF
 
-/* ── Message type colours (0xRRGGBB) ────────────────────────────────────── */
-static int
-chat_type_colour(int type)
-{
-    switch( type )
-    {
-    case 1:
-        return 0xFFFF00; /* game message */
-    case 2:
-        return 0xFF0000; /* trade request */
-    case 3:
-        return 0xFF00FF; /* private from */
-    case 4:
-        return 0xC000FF; /* private to */
-    case 5:
-        return 0xFF6000; /* modlevel chat */
-    case 7:
-        return 0x00FFFF; /* clan chat */
-    default:
-        return 0xFFFFFF; /* public */
-    }
-}
+/* Client.ts drawChat message fragment colours (Colour.ts / literals). */
+#define COL_CHAT_BLACK 0x000000
+#define COL_CHAT_BLUE 0x0000FF   /* Colour.BLUE in TS is 0xff → full RGB blue */
+#define COL_CHAT_DARKRED 0x800000 /* Colour.DARKRED */
+#define COL_CHAT_TRADE_PURPLE 0x800080
+#define COL_CHAT_DUEL_BROWN 0x7e3200
 
 /* ── Lifecycle ─────────────────────────────────────────────────────────── */
 
@@ -161,10 +148,7 @@ chat_add(
         strncpy(chat->messages[0].text, text, sizeof(chat->messages[0].text) - 1);
     else
         chat->messages[0].text[0] = '\0';
-
-    /* Update scroll height to reflect new message. */
-    int lh = chat_layout_line_h(game);
-    chat->chat_scroll_height = chat->message_count * lh;
+    /* chat_scroll_height: recomputed in chat_draw_messages (filters + Client.ts +7). */
 }
 
 /* ── Helpers ───────────────────────────────────────────────────────────── */
@@ -189,6 +173,7 @@ emit_text(
     c->_font_draw.x = x;
     c->_font_draw.y = y;
     c->_font_draw.color_rgb = colour;
+    c->_font_draw.shadowed = 0;
 }
 
 /** Matches Client.ts PixFont.centreStringTag(..., shadowed: true): centred on centre_x_screen,
@@ -208,7 +193,7 @@ emit_centre_string_tag_shadowed(
 
     int h2 = font->height2d > 0 ? font->height2d : 12;
     int draw_y = PRIVACY_STRIP_SCREEN_Y + local_y - h2;
-    int w = dashfont_text_width(font, (uint8_t*)(void*)text);
+    int w = dashfont_text_width_taggable(font, (uint8_t*)(void*)text);
     int left_x = centre_x_screen - (w / 2);
 
     emit_text(cmdbuf, font, font_id, text, left_x + 1, draw_y + 1, COL_PRIV_BLACK);
@@ -294,6 +279,196 @@ chat_font_for_draw(
     return chat_resolve_font(game, out_id);
 }
 
+/** Strip @cr1@/@cr2@ mod prefixes (Client.ts drawChat). */
+static void
+chat_strip_mod_prefix(const char* user, char* out, size_t out_cap, int* mod_level)
+{
+    if( mod_level )
+        *mod_level = 0;
+    if( !out || out_cap == 0 )
+        return;
+    out[0] = '\0';
+    if( !user || !user[0] )
+        return;
+
+    const char* p = user;
+    if( strncmp(p, "@cr1@", 5) == 0 )
+    {
+        if( mod_level )
+            *mod_level = 1;
+        p += 5;
+    }
+    else if( strncmp(p, "@cr2@", 5) == 0 )
+    {
+        if( mod_level )
+            *mod_level = 2;
+        p += 5;
+    }
+    strncpy(out, p, out_cap - 1);
+    out[out_cap - 1] = '\0';
+}
+
+static int
+chat_sender_is_friend_or_self(struct GGame* g, const char* sender)
+{
+    if( !g || !sender || !sender[0] )
+        return 0;
+    uint64_t h = strtobase37(sender);
+    for( int i = 0; i < g->friend_count; i++ )
+    {
+        if( (uint64_t)g->friend_usernames[i] == h )
+            return 1;
+    }
+    char self[64];
+    game_chat_input_screen_name(g, self, sizeof(self));
+    if( strtobase37(self) == h )
+        return 1;
+    return 0;
+}
+
+/** Mirrors Client.ts drawChat visibility (chat modes + split private + friend checks). */
+static int
+chat_message_should_show(
+    struct GGame* g,
+    struct Chat* ch,
+    int type,
+    const char* sender_display)
+{
+    if( !ch )
+        return 1;
+
+    int pub  = ch->chat_public_mode;
+    int priv = ch->chat_private_mode;
+    int tr   = ch->chat_trade_mode;
+    int sp   = ch->split_private;
+
+    switch( type )
+    {
+    case 0:
+        return 1;
+    case 1:
+        return 1;
+    case 2:
+        return pub == 0 || (pub == 1 && chat_sender_is_friend_or_self(g, sender_display));
+    case 3:
+    case 7:
+        if( sp != 0 )
+            return 0;
+        if( type == 7 )
+            return 1;
+        return priv == 0 || (priv == 1 && chat_sender_is_friend_or_self(g, sender_display));
+    case 4:
+        return tr == 0 || (tr == 1 && chat_sender_is_friend_or_self(g, sender_display));
+    case 5:
+        return sp == 0 && priv < 2;
+    case 6:
+        return sp == 0 && priv < 2;
+    case 8:
+        return tr == 0 || (tr == 1 && chat_sender_is_friend_or_self(g, sender_display));
+    default:
+        return 1;
+    }
+}
+
+/** Client.ts drawChat: multi-fragment colours per message type. */
+static void
+chat_emit_message_line(
+    struct ToriRSRenderCommandBuffer* cmdbuf,
+    struct DashPixFont* font,
+    int font_id,
+    int text_x,
+    int y,
+    struct ChatMessage* m,
+    char* scratch,
+    size_t scratch_cap)
+{
+    char display_sender[16];
+    int mod_level = 0;
+    chat_strip_mod_prefix(m->user, display_sender, sizeof(display_sender), &mod_level);
+
+    const char* msg = m->text;
+    int type = m->type;
+
+    /* PixFont.drawString subtracts height2d from pen_y; dashfont/TORIRS_GFX_DRAW_FONT does not. */
+    int draw_y = y;
+    if( font->height2d > 0 )
+        draw_y -= font->height2d;
+
+    switch( type )
+    {
+    case 0:
+        emit_text(cmdbuf, font, font_id, msg, text_x, draw_y, COL_CHAT_BLACK);
+        break;
+
+    case 1:
+    case 2:
+    {
+        int x = text_x;
+        if( mod_level > 0 )
+            x += 14;
+        int n = snprintf(scratch, scratch_cap, "%s:", display_sender);
+        if( n > 0 && (size_t)n < scratch_cap )
+        {
+            emit_text(cmdbuf, font, font_id, scratch, x, draw_y, COL_CHAT_BLACK);
+            x += dashfont_text_width(font, (uint8_t*)display_sender) + 8;
+        }
+        emit_text(cmdbuf, font, font_id, msg, x, draw_y, COL_CHAT_BLUE);
+        break;
+    }
+
+    case 3:
+    case 7:
+    {
+        static const char kFrom[] = "From ";
+        int x = text_x;
+        emit_text(cmdbuf, font, font_id, kFrom, x, draw_y, COL_CHAT_BLACK);
+        x += dashfont_text_width(font, (uint8_t*)kFrom);
+        if( mod_level > 0 )
+            x += 14;
+        int n = snprintf(scratch, scratch_cap, "%s:", display_sender);
+        if( n > 0 && (size_t)n < scratch_cap )
+        {
+            emit_text(cmdbuf, font, font_id, scratch, x, draw_y, COL_CHAT_BLACK);
+            x += dashfont_text_width(font, (uint8_t*)display_sender) + 8;
+        }
+        emit_text(cmdbuf, font, font_id, msg, x, draw_y, COL_CHAT_DARKRED);
+        break;
+    }
+
+    case 4:
+        snprintf(scratch, scratch_cap, "%s %s", display_sender, msg);
+        emit_text(cmdbuf, font, font_id, scratch, text_x, draw_y, COL_CHAT_TRADE_PURPLE);
+        break;
+
+    case 5:
+        emit_text(cmdbuf, font, font_id, msg, text_x, draw_y, COL_CHAT_DARKRED);
+        break;
+
+    case 6:
+    {
+        char to_pre[24];
+        snprintf(to_pre, sizeof(to_pre), "To %s", display_sender);
+        int n = snprintf(scratch, scratch_cap, "To %s:", display_sender);
+        if( n > 0 && (size_t)n < scratch_cap )
+        {
+            emit_text(cmdbuf, font, font_id, scratch, text_x, draw_y, COL_CHAT_BLACK);
+            int msg_x = text_x + dashfont_text_width(font, (uint8_t*)to_pre) + 12;
+            emit_text(cmdbuf, font, font_id, msg, msg_x, draw_y, COL_CHAT_DARKRED);
+        }
+        break;
+    }
+
+    case 8:
+        snprintf(scratch, scratch_cap, "%s %s", display_sender, msg);
+        emit_text(cmdbuf, font, font_id, scratch, text_x, draw_y, COL_CHAT_DUEL_BROWN);
+        break;
+
+    default:
+        emit_text(cmdbuf, font, font_id, msg, text_x, draw_y, COL_CHAT_BLACK);
+        break;
+    }
+}
+
 /* ── Frame draw ────────────────────────────────────────────────────────── */
 
 void
@@ -337,66 +512,82 @@ chat_draw_messages(
 
     int font_id = -1;
     struct DashPixFont* font = chat_font_for_draw(game, preset_font_id, &font_id);
-    if( !font || chat->message_count <= 0 )
+    if( !font )
+        goto draw_separator;
+
+    if( chat->message_count <= 0 )
         goto draw_separator;
 
     int cfg_line_h = chat_layout_line_h(game);
     int line_h = font->height2d > 0 ? font->height2d : cfg_line_h;
 
-    /* Compute the visible range given scroll position. */
-    int scroll = chat->chat_scroll_pos;
-    int first_line = scroll / line_h; /* index into messages[] (0=newest) */
-    int visible = msg_h / line_h;
-
-    /* Messages are stored newest-first; draw from bottom up. */
-    int draw_bottom_y = msg_top_y + msg_h;
-
-    for( int i = 0; i < visible; i++ )
+    int visible_msg_idx[CHAT_MESSAGE_CAP];
+    int visible_count = 0;
+    for( int mi = 0; mi < chat->message_count; mi++ )
     {
-        int msg_idx = first_line + i;
-        if( msg_idx >= chat->message_count )
-            break;
-        struct ChatMessage* m = &chat->messages[msg_idx];
-        if( !m->text[0] )
+        struct ChatMessage* mm = &chat->messages[mi];
+        if( !mm->text[0] )
             continue;
+        char sender_disp[16];
+        int mod_tmp;
+        chat_strip_mod_prefix(mm->user, sender_disp, sizeof(sender_disp), &mod_tmp);
+        if( !chat_message_should_show(game, chat, mm->type, sender_disp) )
+            continue;
+        visible_msg_idx[visible_count++] = mi;
+    }
 
-        int y = draw_bottom_y - (i + 1) * line_h;
+    int const scroll_extra = 7;
+    chat->chat_scroll_height = visible_count * line_h + scroll_extra;
+    if( chat->chat_scroll_height < 78 )
+        chat->chat_scroll_height = 78;
 
-        char line[288];
-        if( m->user[0] )
-        {
-            int used = snprintf(line, sizeof(line), "%s: %s", m->user, m->text);
-            (void)used;
-        }
+    int max_scroll_pre = chat->chat_scroll_height - msg_h;
+    if( max_scroll_pre < 0 )
+        max_scroll_pre = 0;
+    if( chat->chat_scroll_pos > max_scroll_pre )
+        chat->chat_scroll_pos = max_scroll_pre;
+
+    int scroll        = chat->chat_scroll_pos;
+    int first_line    = scroll / line_h;
+    int visible_lines = msg_h / line_h;
+
+    /* Client.ts drawChat: y = chatScrollPos + 70 − line*14 (chatback-local pen).
+     * 70 tracks separator_y_local − 7 (hline at 77). vi is newest-first index. */
+    int bottom_pen_local_off = 0;
+    if( use_client_pack )
+        bottom_pen_local_off = lay.separator_y_local - 7;
+
+    for( int i = 0; i < visible_lines; i++ )
+    {
+        int vi = first_line + i;
+        if( vi >= visible_count )
+            break;
+        int msg_idx = visible_msg_idx[vi];
+        struct ChatMessage* m = &chat->messages[msg_idx];
+
+        int pen_y;
+        if( use_client_pack )
+            pen_y = lay.chatback_screen_y + scroll + bottom_pen_local_off - vi * line_h;
         else
         {
-            strncpy(line, m->text, sizeof(line) - 1);
-            line[sizeof(line) - 1] = '\0';
+            int draw_bottom_y = msg_top_y + msg_h;
+            pen_y = draw_bottom_y - (i + 1) * line_h;
         }
 
-        /* Client.ts drawChat: single drawString per fragment, no drop shadow. */
-        emit_text(cmdbuf, font, font_id, line, text_x, y, chat_type_colour(m->type));
+        char* scratch = chat->font_draw_line_scratch[msg_idx];
+        chat_emit_message_line(cmdbuf, font, font_id, text_x, pen_y, m, scratch, 288);
     }
 
-    /* Scrollbar (Client.ts x=463 local → screen). */
-    if( chat->chat_scroll_height > msg_h )
-    {
-        int sb_y = msg_top_y;
-        int sb_h = msg_h;
-
-        /* Track background. */
-        emit_rect(cmdbuf, sb_x, sb_y, 16, sb_h, 0x000000, 128, 1);
-
-        /* Grip. */
-        int max_scroll = chat->chat_scroll_height - msg_h;
-        if( max_scroll <= 0 )
-            max_scroll = 1;
-        int grip_h = (sb_h * msg_h) / chat->chat_scroll_height;
-        if( grip_h < 8 )
-            grip_h = 8;
-        int grip_y = sb_y + (chat->chat_scroll_pos * (sb_h - grip_h)) / max_scroll;
-        emit_rect(cmdbuf, sb_x + 2, grip_y + 1, 12, grip_h - 2, 0x808080, 255, 1);
-    }
+    /* Scrollbar (Client.ts x=463 local → screen); matches layer/interface emit path. */
+    if( chat->chat_scroll_height > msg_h && msg_h >= 32 )
+        ui_emit_scrollbar_commands(
+            cmdbuf,
+            game,
+            sb_x,
+            msg_top_y,
+            msg_h,
+            chat->chat_scroll_height,
+            chat->chat_scroll_pos);
 
 draw_separator:
     /* Client.ts Pix2D.hline(0, 77, 479, BLACK) in chatback-local space. */
@@ -449,20 +640,18 @@ chat_draw_input(
     /* Client.ts: drawString(username + ':', …); drawString(chatInput + '*', …) — no shadow. */
     char username[64];
     game_chat_input_screen_name(game, username, sizeof(username));
-    char prefix[72];
-    snprintf(prefix, sizeof(prefix), "%s:", username);
+    snprintf(chat->font_draw_input_prefix, sizeof(chat->font_draw_input_prefix), "%s:", username);
 
-    emit_text(cmdbuf, font, font_id, prefix, label_x, draw_y, 0x000000);
+    emit_text(cmdbuf, font, font_id, chat->font_draw_input_prefix, label_x, draw_y, 0x000000);
 
     char prefix_sp[80];
-    snprintf(prefix_sp, sizeof(prefix_sp), "%s ", prefix);
+    snprintf(prefix_sp, sizeof(prefix_sp), "%s ", chat->font_draw_input_prefix);
     int wid_sp = dashfont_text_width(font, (uint8_t*)prefix_sp);
     int input_x =
         use_client_pack ? (lay.chatback_screen_x + wid_sp + 6) : (label_x + wid_sp + 6);
 
-    char tail[96];
-    snprintf(tail, sizeof(tail), "%s*", chat->chat_input);
-    emit_text(cmdbuf, font, font_id, tail, input_x, draw_y, 0x0000FF);
+    snprintf(chat->font_draw_input_tail, sizeof(chat->font_draw_input_tail), "%s*", chat->chat_input);
+    emit_text(cmdbuf, font, font_id, chat->font_draw_input_tail, input_x, draw_y, 0x0000FF);
 }
 
 void
@@ -603,6 +792,31 @@ chat_handle_click(
 }
 
 int
+chat_try_begin_typing_click(struct Chat* chat, struct GGame* game, int mx, int my)
+{
+    if( !chat || !game )
+        return 0;
+    if( !game_chat_public_input_eligible(game) )
+        return 0;
+
+    struct ChatUILayout lay;
+    chat_layout_from_game(game, &lay);
+    int const input_pen_y = lay.chatback_screen_y + lay.input_line_y_local;
+    int const line_h      = chat_layout_line_h(game);
+    int const y0          = input_pen_y - line_h - 2;
+    int const y1          = input_pen_y + 6;
+    int const x0          = lay.chatback_screen_x;
+    int const x1          = lay.chatback_screen_x + lay.separator_w;
+
+    if( mx >= x0 && mx < x1 && my >= y0 && my < y1 )
+    {
+        chat->chat_typing_active = 1;
+        return 1;
+    }
+    return 0;
+}
+
+int
 chat_handle_privacy_strip_click(
     struct Chat* chat,
     struct GGame* game,
@@ -648,4 +862,19 @@ chat_handle_privacy_strip_click(
         return 1;
     }
     return 0;
+}
+
+int
+chat_builtin_click_is_chrome(struct GGame const* game, int mx, int my)
+{
+    if( !game || !game->iface || game->iface->chat_interface_id >= 0 )
+        return 0;
+    struct ChatUILayout lay;
+    chat_layout_from_game(game, &lay);
+    int x0 = lay.chatback_screen_x;
+    int x1 = lay.chatback_screen_x + lay.separator_w;
+    int y0 = lay.chatback_screen_y;
+    /* Bottom edge matches chat_handle_privacy_strip_click's upper bound (my <= 499). */
+    int y1 = 499;
+    return mx >= x0 && mx < x1 && my >= y0 && my <= y1;
 }

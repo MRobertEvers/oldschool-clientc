@@ -133,6 +133,8 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_MINIMENU_PLACE_SIDEBAR_MAX;
     else if( strcmp(key, "minimenu_place_chat_max") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_MINIMENU_PLACE_CHAT_MAX;
+    else if( strcmp(key, "hotspot_offset") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CROSSHAIR_HOTSPOT_OFFSET;
     else if( strcmp(key, "item") == 0 && strcmp(s_ini_item_type, "inv") == 0 )
         kind = RCFIELD_INV_ITEM;
     else if( strcmp(key, "sprite_active") == 0 && strcmp(s_ini_item_type, "component") == 0 )
