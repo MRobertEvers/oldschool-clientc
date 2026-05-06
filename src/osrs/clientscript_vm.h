@@ -8,24 +8,27 @@ struct GGame;
 struct FileListDat;
 
 /* Matches integer clientcode field in varp.dat; zero-or-unknown = NONE. */
-enum VarClientCodeKind {
-    VAR_CLIENTCODE_NONE             = 0,
-    VAR_CLIENTCODE_BRIGHTNESS       = 1,  /* colortable update */
-    VAR_CLIENTCODE_MUSIC_VOLUME     = 3,  /* midi volume       */
-    VAR_CLIENTCODE_WAVE_VOLUME      = 4,  /* wave/sfx volume   */
-    VAR_CLIENTCODE_ONE_MOUSE        = 7,  /* one-button mouse  */
-    VAR_CLIENTCODE_CHAT_EFFECTS     = 9,
+enum VarClientCodeKind
+{
+    VAR_CLIENTCODE_NONE = 0,
+    VAR_CLIENTCODE_BRIGHTNESS = 1,   /* colortable update */
+    VAR_CLIENTCODE_MUSIC_VOLUME = 3, /* midi volume       */
+    VAR_CLIENTCODE_WAVE_VOLUME = 4,  /* wave/sfx volume   */
+    VAR_CLIENTCODE_ONE_MOUSE = 7,    /* one-button mouse  */
+    VAR_CLIENTCODE_CHAT_EFFECTS = 9,
     VAR_CLIENTCODE_SPLIT_PRIVATE_CHAT = 10,
-    VAR_CLIENTCODE_BANK_ARRANGE     = 11,
+    VAR_CLIENTCODE_BANK_ARRANGE = 11,
 };
 
 /** Varp config entry owned by ClientScriptVM. */
-struct VarPType {
+struct VarPType
+{
     enum VarClientCodeKind clientcode;
 };
 
 /** Varbit config entry: bit range [startbit, endbit) within var[basevar]. */
-struct VarBitType {
+struct VarBitType
+{
     int basevar;
     int startbit;
     int endbit;
@@ -35,9 +38,10 @@ struct VarBitType {
 #define CLIENT_VM_DIRTY_VARP_QUEUE 64
 
 /** Revision-agnostic bytecode for a single component script. */
-struct UIScriptBytecode {
+struct UIScriptBytecode
+{
     int* code; /* word stream */
-    int  len;
+    int len;
 };
 
 /**
@@ -46,13 +50,16 @@ struct UIScriptBytecode {
  * Clientcode side-effects are communicated to the game loop via the dirty_varps queue
  * (no function pointers; drained once per frame by clientscript_vm_drain_clientcodes).
  */
-struct ClientScriptVM {
+struct ClientScriptVM
+{
     /* Non-owning back-reference to GGame for opcode evaluation (stats, inventory, coords). */
     struct GGame* game_ref;
 
     /* Type tables loaded from config jagfile. */
-    struct VarPType*   varp_types;   int varp_count;
-    struct VarBitType* varbit_types; int varbit_count;
+    struct VarPType* varp_types;
+    int varp_count;
+    struct VarBitType* varbit_types;
+    int varbit_count;
 
     /* Runtime values. */
     int* var;      /* current (client-side) values */
@@ -72,27 +79,50 @@ struct ClientScriptVM {
 
 /* ── Lifecycle ─────────────────────────────────────────────────────────── */
 
-struct ClientScriptVM* clientscript_vm_new(void);
-void                   clientscript_vm_free(struct ClientScriptVM* vm);
+struct ClientScriptVM*
+clientscript_vm_new(void);
+
+void
+clientscript_vm_free(struct ClientScriptVM* vm);
 
 /** Load varp types from varp.dat in config_jagfile; allocates var/var_serv arrays. */
-bool clientscript_vm_load_types(
+bool
+clientscript_vm_load_types(
     struct ClientScriptVM* vm,
-    struct FileListDat*    config_jagfile);
+    struct FileListDat* config_jagfile);
 
 /* ── Var / varbit read ─────────────────────────────────────────────────── */
 
-int clientscript_vm_get_var(const struct ClientScriptVM* vm, int id);
-int clientscript_vm_get_varbit(const struct ClientScriptVM* vm, int id);
+int
+clientscript_vm_get_var(
+    const struct ClientScriptVM* vm,
+    int id);
+int
+clientscript_vm_get_varbit(
+    const struct ClientScriptVM* vm,
+    int id);
 
 /* ── Network packet handlers (append changed ids to dirty queue) ─────── */
 
-void clientscript_vm_apply_varp_small(struct ClientScriptVM* vm, int variable, int value);
-void clientscript_vm_apply_varp_large(struct ClientScriptVM* vm, int variable, int value);
-void clientscript_vm_apply_varp_sync(struct ClientScriptVM* vm);
+void
+clientscript_vm_apply_varp_small(
+    struct ClientScriptVM* vm,
+    int variable,
+    int value);
+void
+clientscript_vm_apply_varp_large(
+    struct ClientScriptVM* vm,
+    int variable,
+    int value);
+void
+clientscript_vm_apply_varp_sync(struct ClientScriptVM* vm);
 
 /** Optimistic local update (button toggle/select before server ACK). */
-void clientscript_vm_set_var_optimistic(struct ClientScriptVM* vm, int variable, int value);
+void
+clientscript_vm_set_var_optimistic(
+    struct ClientScriptVM* vm,
+    int variable,
+    int value);
 
 /* ── Frame drain ───────────────────────────────────────────────────────── */
 
@@ -101,13 +131,17 @@ void clientscript_vm_set_var_optimistic(struct ClientScriptVM* vm, int variable,
  * Drains dirty_varps and dispatches clientcode side-effects into GGame/Chat fields.
  * No function pointers; pure switch on enum VarClientCodeKind.
  */
-void clientscript_vm_drain_clientcodes(struct ClientScriptVM* vm, struct GGame* game);
+void
+clientscript_vm_drain_clientcodes(
+    struct ClientScriptVM* vm,
+    struct GGame* game);
 
 /* ── Script evaluation (component scripts) ────────────────────────────── */
 
 /** Evaluate script `script_id` on a UIScriptBytecode array; returns accumulated value. */
-int clientscript_vm_eval(
-    struct ClientScriptVM*        vm,
+int
+clientscript_vm_eval(
+    struct ClientScriptVM* vm,
     const struct UIScriptBytecode* script);
 
 /**
@@ -115,12 +149,13 @@ int clientscript_vm_eval(
  * whether the component is "active" (all comparisons pass).
  * Signature is revision-agnostic: takes raw arrays from StaticUIComponent.
  */
-bool clientscript_vm_active(
-    struct ClientScriptVM*        vm,
+bool
+clientscript_vm_active(
+    struct ClientScriptVM* vm,
     const struct UIScriptBytecode* scripts,
-    int                            scripts_count,
-    const uint8_t*                 script_comparator,
-    const int*                     script_operand);
+    int scripts_count,
+    const uint8_t* script_comparator,
+    const int* script_operand);
 
 /*
  * Legacy shims — kept for callers that still pass CacheDatConfigComponent* during
@@ -128,15 +163,17 @@ bool clientscript_vm_active(
  */
 struct CacheDatConfigComponent;
 
-int  clientscript_vm_if_var(
-    struct ClientScriptVM*        vm,
-    struct GGame*                 game,
+int
+clientscript_vm_if_var(
+    struct ClientScriptVM* vm,
+    struct GGame* game,
     struct CacheDatConfigComponent* component,
-    int                           script_id);
+    int script_id);
 
-bool clientscript_vm_if_active(
-    struct ClientScriptVM*        vm,
-    struct GGame*                 game,
+bool
+clientscript_vm_if_active(
+    struct ClientScriptVM* vm,
+    struct GGame* game,
     struct CacheDatConfigComponent* component);
 
 #endif /* CLIENTSCRIPT_VM_H */

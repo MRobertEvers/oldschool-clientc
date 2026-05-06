@@ -54,6 +54,8 @@ struct ComponentEntry
     char inv[64];
     char font[64];
     uint8_t level_mask;
+    struct ChatUILayout chat_layout;
+    uint16_t chat_geom_mask;
 };
 
 enum SpriteLoad_AtlasMode
@@ -103,6 +105,8 @@ struct ComponentLoad
     char inv[64];
     char paint_levels[64];
     char font[64];
+    struct ChatUILayout chat_geom;
+    uint16_t chat_geom_mask;
 };
 
 /** Comma-separated level indices 0-7, optional inclusive ranges "lo-hi" -> bitmask; empty -> 0xF.
@@ -660,12 +664,34 @@ load_component(
     break;
     case UIELEM_BUILTIN_HOVER_TOOLTIP:
     case UIELEM_BUILTIN_MINIMENU:
-    case UIELEM_BUILTIN_CHAT_MESSAGES:
-    case UIELEM_BUILTIN_CHAT_INPUT:
     case UIELEM_BUILTIN_CHAT_PRIVACY:
     {
         strncpy(component_entry->font, load->font, sizeof(component_entry->font) - 1);
         component_entry->font[sizeof(component_entry->font) - 1] = '\0';
+    }
+    break;
+    case UIELEM_BUILTIN_CHAT_MESSAGES:
+    {
+        strncpy(component_entry->font, load->font, sizeof(component_entry->font) - 1);
+        component_entry->font[sizeof(component_entry->font) - 1] = '\0';
+        chat_layout_builtin(&component_entry->chat_layout);
+        chat_layout_apply_mask(
+            &component_entry->chat_layout,
+            &load->chat_geom,
+            load->chat_geom_mask);
+        component_entry->chat_geom_mask = load->chat_geom_mask;
+    }
+    break;
+    case UIELEM_BUILTIN_CHAT_INPUT:
+    {
+        strncpy(component_entry->font, load->font, sizeof(component_entry->font) - 1);
+        component_entry->font[sizeof(component_entry->font) - 1] = '\0';
+        memset(&component_entry->chat_layout, 0, sizeof(component_entry->chat_layout));
+        chat_layout_apply_mask(
+            &component_entry->chat_layout,
+            &load->chat_geom,
+            load->chat_geom_mask);
+        component_entry->chat_geom_mask = load->chat_geom_mask;
     }
     break;
     case UIELEM_BUILTIN_CROSSHAIR:
@@ -1448,6 +1474,11 @@ load_layout(
                 if( layout_entry->always_dirty )
                     ui->components[idx].always_dirty = 1;
             }
+            if( game )
+            {
+                game->chat_layout = component_entry->chat_layout;
+                game->chat_layout_valid = 1;
+            }
         }
         break;
         case UIELEM_BUILTIN_CHAT_INPUT:
@@ -1462,6 +1493,15 @@ load_layout(
                 ui->components[idx].u.chat_input.font_id = font_id;
                 if( layout_entry->always_dirty )
                     ui->components[idx].always_dirty = 1;
+            }
+            if( game &&
+                (component_entry->chat_geom_mask & CHAT_LAYOUT_BIT_INPUT_LINE_Y_LOCAL) )
+            {
+                if( !game->chat_layout_valid )
+                    chat_layout_builtin(&game->chat_layout);
+                game->chat_layout.input_line_y_local =
+                    component_entry->chat_layout.input_line_y_local;
+                game->chat_layout_valid = 1;
             }
         }
         break;
@@ -1895,6 +1935,96 @@ uitree_from_revconfig_buildcachedat(
                 field->value,
                 sizeof(load._component.font) - 1);
             load._component.font[sizeof(load._component.font) - 1] = '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHATBACK_SCREEN_X:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHATBACK_SCREEN_X field must be within a component item");
+            load._component.chat_geom.chatback_screen_x = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_CHATBACK_SCREEN_X;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHATBACK_SCREEN_Y:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHATBACK_SCREEN_Y field must be within a component item");
+            load._component.chat_geom.chatback_screen_y = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_CHATBACK_SCREEN_Y;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHAT_CLIP_W:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHAT_CLIP_W field must be within a component item");
+            load._component.chat_geom.clip_w = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_CLIP_W;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHAT_CLIP_H:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHAT_CLIP_H field must be within a component item");
+            load._component.chat_geom.clip_h = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_CLIP_H;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHAT_TEXT_X_LOCAL:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHAT_TEXT_X_LOCAL field must be within a component item");
+            load._component.chat_geom.text_x_local = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_TEXT_X_LOCAL;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHAT_SCROLLBAR_X_LOCAL:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHAT_SCROLLBAR_X_LOCAL field must be within a component item");
+            load._component.chat_geom.scrollbar_x_local = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_SCROLLBAR_X_LOCAL;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHAT_SEPARATOR_Y_LOCAL:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHAT_SEPARATOR_Y_LOCAL field must be within a component item");
+            load._component.chat_geom.separator_y_local = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_SEPARATOR_Y_LOCAL;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHAT_SEPARATOR_W:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHAT_SEPARATOR_W field must be within a component item");
+            load._component.chat_geom.separator_w = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_SEPARATOR_W;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHAT_LINE_H:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHAT_LINE_H field must be within a component item");
+            load._component.chat_geom.line_h = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_LINE_H;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHAT_INPUT_LINE_Y_LOCAL:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHAT_INPUT_LINE_Y_LOCAL field must be within a component item");
+            load._component.chat_geom.input_line_y_local = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_INPUT_LINE_Y_LOCAL;
         }
         break;
         case RCFIELD_INV_ITEM:
@@ -2499,6 +2629,96 @@ uitree_load_ui_from_revconfig(
                 field->value,
                 sizeof(load._component.font) - 1);
             load._component.font[sizeof(load._component.font) - 1] = '\0';
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHATBACK_SCREEN_X:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHATBACK_SCREEN_X field must be within a component item");
+            load._component.chat_geom.chatback_screen_x = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_CHATBACK_SCREEN_X;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHATBACK_SCREEN_Y:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHATBACK_SCREEN_Y field must be within a component item");
+            load._component.chat_geom.chatback_screen_y = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_CHATBACK_SCREEN_Y;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHAT_CLIP_W:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHAT_CLIP_W field must be within a component item");
+            load._component.chat_geom.clip_w = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_CLIP_W;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHAT_CLIP_H:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHAT_CLIP_H field must be within a component item");
+            load._component.chat_geom.clip_h = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_CLIP_H;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHAT_TEXT_X_LOCAL:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHAT_TEXT_X_LOCAL field must be within a component item");
+            load._component.chat_geom.text_x_local = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_TEXT_X_LOCAL;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHAT_SCROLLBAR_X_LOCAL:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHAT_SCROLLBAR_X_LOCAL field must be within a component item");
+            load._component.chat_geom.scrollbar_x_local = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_SCROLLBAR_X_LOCAL;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHAT_SEPARATOR_Y_LOCAL:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHAT_SEPARATOR_Y_LOCAL field must be within a component item");
+            load._component.chat_geom.separator_y_local = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_SEPARATOR_Y_LOCAL;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHAT_SEPARATOR_W:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHAT_SEPARATOR_W field must be within a component item");
+            load._component.chat_geom.separator_w = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_SEPARATOR_W;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHAT_LINE_H:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHAT_LINE_H field must be within a component item");
+            load._component.chat_geom.line_h = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_LINE_H;
+        }
+        break;
+        case RCFIELD_UICOMPONENT_CHAT_INPUT_LINE_Y_LOCAL:
+        {
+            assert(
+                load.kind == LOAD_KIND_COMPONENT &&
+                "CHAT_INPUT_LINE_Y_LOCAL field must be within a component item");
+            load._component.chat_geom.input_line_y_local = atoi(field->value);
+            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_INPUT_LINE_Y_LOCAL;
         }
         break;
         case RCFIELD_INV_ITEM:

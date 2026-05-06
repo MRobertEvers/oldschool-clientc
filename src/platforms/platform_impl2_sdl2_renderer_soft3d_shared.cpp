@@ -796,13 +796,8 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
                 break;
             if( fill )
             {
-                if( alpha == 0 )
-                {
-                    for( int py = y0; py < y1; py++ )
-                        for( int px = x0; px < x1; px++ )
-                            pb[py * stride + px] = rgb;
-                }
-                else
+                /* Match WebGL: only 1..254 blends; 0 and >=255 are opaque replacement. */
+                if( alpha > 0 && alpha < 255 )
                 {
                     int r = (rgb >> 16) & 0xFF;
                     int g = (rgb >> 8) & 0xFF;
@@ -819,6 +814,12 @@ PlatformImpl2_SDL2_Renderer_Soft3DShared_Render(
                             int nb = (b * (256 - alpha) + eb * alpha) >> 8;
                             pb[idx] = (nr << 16) | (ng << 8) | nb;
                         }
+                }
+                else
+                {
+                    for( int py = y0; py < y1; py++ )
+                        for( int px = x0; px < x1; px++ )
+                            pb[py * stride + px] = rgb;
                 }
             }
             else

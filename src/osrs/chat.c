@@ -12,29 +12,85 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ── Chat area geometry (matches Client.ts / RS2 layout) ─────────────────── */
-#define CHAT_X       7
-#define CHAT_Y     342
-#define CHAT_W     504
-#define CHAT_H      75   /* scrollable message area height */
-#define CHAT_LINE_H  14  /* pixel height per message line  */
-#define CHAT_MAX_VISIBLE (CHAT_H / CHAT_LINE_H)
-
-#define CHATINPUT_X  7
+/* Legacy fallbacks when UITree passes explicit positive rects (unused by frame path). */
+#define CHAT_X 7
+#define CHAT_Y 342
+#define CHAT_W 504
+#define CHAT_H 75
+#define CHATINPUT_X 7
 #define CHATINPUT_Y 459
-#define CHATINPUT_W 500
-#define CHATINPUT_H  12
+
+void
+chat_layout_builtin(struct ChatUILayout* out)
+{
+    if( !out )
+        return;
+    /* Matches Client.ts drawChat + areaChatback.draw(17,357). */
+    out->chatback_screen_x = 17;
+    out->chatback_screen_y = 357;
+    out->clip_w = 463;
+    out->clip_h = 77;
+    out->text_x_local = 4;
+    out->scrollbar_x_local = 463;
+    out->separator_y_local = 77;
+    out->separator_w = 479;
+    out->line_h = 14;
+    out->input_line_y_local = 90;
+}
+
+void
+chat_layout_apply_mask(struct ChatUILayout* dst, struct ChatUILayout const* patch, unsigned mask)
+{
+    if( !dst || !patch )
+        return;
+    if( mask & CHAT_LAYOUT_BIT_CHATBACK_SCREEN_X )
+        dst->chatback_screen_x = patch->chatback_screen_x;
+    if( mask & CHAT_LAYOUT_BIT_CHATBACK_SCREEN_Y )
+        dst->chatback_screen_y = patch->chatback_screen_y;
+    if( mask & CHAT_LAYOUT_BIT_CLIP_W )
+        dst->clip_w = patch->clip_w;
+    if( mask & CHAT_LAYOUT_BIT_CLIP_H )
+        dst->clip_h = patch->clip_h;
+    if( mask & CHAT_LAYOUT_BIT_TEXT_X_LOCAL )
+        dst->text_x_local = patch->text_x_local;
+    if( mask & CHAT_LAYOUT_BIT_SCROLLBAR_X_LOCAL )
+        dst->scrollbar_x_local = patch->scrollbar_x_local;
+    if( mask & CHAT_LAYOUT_BIT_SEPARATOR_Y_LOCAL )
+        dst->separator_y_local = patch->separator_y_local;
+    if( mask & CHAT_LAYOUT_BIT_SEPARATOR_W )
+        dst->separator_w = patch->separator_w;
+    if( mask & CHAT_LAYOUT_BIT_LINE_H )
+        dst->line_h = patch->line_h;
+    if( mask & CHAT_LAYOUT_BIT_INPUT_LINE_Y_LOCAL )
+        dst->input_line_y_local = patch->input_line_y_local;
+}
+
+void
+chat_layout_from_game(struct GGame const* game, struct ChatUILayout* out)
+{
+    chat_layout_builtin(out);
+    if( game && game->chat_layout_valid )
+        *out = game->chat_layout;
+}
+
+int
+chat_layout_line_h(struct GGame const* game)
+{
+    struct ChatUILayout L;
+    chat_layout_from_game(game, &L);
+    return L.line_h > 0 ? L.line_h : 14;
+}
 
 /* Privacy strip: Client.ts areaBackbase1.draw(0, 453); centreStringTag coords are buffer-local. */
 #define PRIVACY_STRIP_SCREEN_Y 453
 
 /* Client.ts Colour enum (PixFont stores these ints verbatim). */
-#define COL_PRIV_WHITE  0xFFFFFF
-#define COL_PRIV_BLACK  0x000000
-#define COL_PRIV_GREEN  0xFF00
+#define COL_PRIV_WHITE 0xFFFFFF
+#define COL_PRIV_BLACK 0x000000
+#define COL_PRIV_GREEN 0xFF00
 #define COL_PRIV_YELLOW 0xFFFF00
-#define COL_PRIV_RED    0xFF0000
-#define COL_PRIV_CYAN   0xFFFF
+#define COL_PRIV_RED 0xFF0000
+#define COL_PRIV_CYAN 0xFFFF
 
 /* ── Message type colours (0xRRGGBB) ────────────────────────────────────── */
 static int
@@ -42,13 +98,20 @@ chat_type_colour(int type)
 {
     switch( type )
     {
-    case 1:  return 0xFFFF00; /* game message */
-    case 2:  return 0xFF0000; /* trade request */
-    case 3:  return 0xFF00FF; /* private from */
-    case 4:  return 0xC000FF; /* private to */
-    case 5:  return 0xFF6000; /* modlevel chat */
-    case 7:  return 0x00FFFF; /* clan chat */
-    default: return 0xFFFFFF; /* public */
+    case 1:
+        return 0xFFFF00; /* game message */
+    case 2:
+        return 0xFF0000; /* trade request */
+    case 3:
+        return 0xFF00FF; /* private from */
+    case 4:
+        return 0xC000FF; /* private to */
+    case 5:
+        return 0xFF6000; /* modlevel chat */
+    case 7:
+        return 0x00FFFF; /* clan chat */
+    default:
+        return 0xFFFFFF; /* public */
     }
 }
 
@@ -72,7 +135,12 @@ chat_free(struct Chat* chat)
 /* ── Message ring ──────────────────────────────────────────────────────── */
 
 void
-chat_add(struct Chat* chat, int type, const char* sender, const char* text)
+chat_add(
+    struct Chat* chat,
+    struct GGame const* game,
+    int type,
+    const char* sender,
+    const char* text)
 {
     if( !chat )
         return;
@@ -83,8 +151,7 @@ chat_add(struct Chat* chat, int type, const char* sender, const char* text)
         chat->message_count = n + 1;
 
     /* Shift ring down: [0] is newest. */
-    memmove(&chat->messages[1], &chat->messages[0],
-            (size_t)n * sizeof(struct ChatMessage));
+    memmove(&chat->messages[1], &chat->messages[0], (size_t)n * sizeof(struct ChatMessage));
     chat->messages[0].type = type;
     if( sender )
         strncpy(chat->messages[0].user, sender, sizeof(chat->messages[0].user) - 1);
@@ -96,7 +163,8 @@ chat_add(struct Chat* chat, int type, const char* sender, const char* text)
         chat->messages[0].text[0] = '\0';
 
     /* Update scroll height to reflect new message. */
-    chat->chat_scroll_height = chat->message_count * CHAT_LINE_H;
+    int lh = chat_layout_line_h(game);
+    chat->chat_scroll_height = chat->message_count * lh;
 }
 
 /* ── Helpers ───────────────────────────────────────────────────────────── */
@@ -104,42 +172,43 @@ chat_add(struct Chat* chat, int type, const char* sender, const char* text)
 static void
 emit_text(
     struct ToriRSRenderCommandBuffer* buf,
-    struct DashPixFont*               font,
-    int                               font_id,
-    const char*                       text,
-    int                               x,
-    int                               y,
-    int                               colour)
+    struct DashPixFont* font,
+    int font_id,
+    const char* text,
+    int x,
+    int y,
+    int colour)
 {
     if( !buf || !font || !text || !text[0] )
         return;
     struct ToriRSRenderCommand* c = LibToriRS_RenderCommandBufferEmplaceCommand(buf);
-    c->kind                = TORIRS_GFX_DRAW_FONT;
-    c->_font_draw.font_id  = font_id;
-    c->_font_draw.font     = font;
-    c->_font_draw.text     = (uint8_t*)text;
-    c->_font_draw.x        = x;
-    c->_font_draw.y        = y;
+    c->kind = TORIRS_GFX_DRAW_FONT;
+    c->_font_draw.font_id = font_id;
+    c->_font_draw.font = font;
+    c->_font_draw.text = (uint8_t*)text;
+    c->_font_draw.x = x;
+    c->_font_draw.y = y;
     c->_font_draw.color_rgb = colour;
 }
 
-/** Matches Client.ts PixFont.centreStringTag(..., shadowed: true): centred on centre_x_screen, local_y as passed to centreStringTag before y -= height2d. */
+/** Matches Client.ts PixFont.centreStringTag(..., shadowed: true): centred on centre_x_screen,
+ * local_y as passed to centreStringTag before y -= height2d. */
 static void
 emit_centre_string_tag_shadowed(
     struct ToriRSRenderCommandBuffer* cmdbuf,
-    struct DashPixFont*               font,
-    int                               font_id,
-    int                               centre_x_screen,
-    int                               local_y,
-    const char*                       text,
-    int                               colour_rgb)
+    struct DashPixFont* font,
+    int font_id,
+    int centre_x_screen,
+    int local_y,
+    const char* text,
+    int colour_rgb)
 {
     if( !cmdbuf || !font || !text || !text[0] )
         return;
 
     int h2 = font->height2d > 0 ? font->height2d : 12;
     int draw_y = PRIVACY_STRIP_SCREEN_Y + local_y - h2;
-    int w      = dashfont_text_width(font, (uint8_t*)(void*)text);
+    int w = dashfont_text_width(font, (uint8_t*)(void*)text);
     int left_x = centre_x_screen - (w / 2);
 
     emit_text(cmdbuf, font, font_id, text, left_x + 1, draw_y + 1, COL_PRIV_BLACK);
@@ -149,25 +218,32 @@ emit_centre_string_tag_shadowed(
 static void
 emit_rect(
     struct ToriRSRenderCommandBuffer* buf,
-    int x, int y, int w, int h,
-    int colour, int alpha, uint8_t fill)
+    int x,
+    int y,
+    int w,
+    int h,
+    int colour,
+    int alpha,
+    uint8_t fill)
 {
     if( !buf || w <= 0 || h <= 0 )
         return;
     struct ToriRSRenderCommand* c = LibToriRS_RenderCommandBufferEmplaceCommand(buf);
-    c->kind              = TORIRS_GFX_DRAW_RECT;
-    c->_rect_draw.x      = x;
-    c->_rect_draw.y      = y;
-    c->_rect_draw.w      = w;
-    c->_rect_draw.h      = h;
+    c->kind = TORIRS_GFX_DRAW_RECT;
+    c->_rect_draw.x = x;
+    c->_rect_draw.y = y;
+    c->_rect_draw.w = w;
+    c->_rect_draw.h = h;
     c->_rect_draw.color_rgb = colour;
-    c->_rect_draw.alpha  = alpha;
-    c->_rect_draw.fill   = fill;
+    c->_rect_draw.alpha = alpha;
+    c->_rect_draw.fill = fill;
 }
 
 /* Resolve the first available font from the UIScene. */
 static struct DashPixFont*
-chat_resolve_font(struct GGame* game, int* out_id)
+chat_resolve_font(
+    struct GGame* game,
+    int* out_id)
 {
     if( !game || !game->ui_scene )
         return NULL;
@@ -201,7 +277,10 @@ chat_resolve_font(struct GGame* game, int* out_id)
 
 /* Resolve font: `preset_font_id` is a UIScene id from UITree load (-1 = pick first available). */
 static struct DashPixFont*
-chat_font_for_draw(struct GGame* game, int preset_font_id, int* out_id)
+chat_font_for_draw(
+    struct GGame* game,
+    int preset_font_id,
+    int* out_id)
 {
     if( preset_font_id >= 0 && game && game->ui_scene )
     {
@@ -219,28 +298,58 @@ chat_font_for_draw(struct GGame* game, int preset_font_id, int* out_id)
 
 void
 chat_draw_messages(
-    struct Chat*                      chat,
-    struct GGame*                     game,
+    struct Chat* chat,
+    struct GGame* game,
     struct ToriRSRenderCommandBuffer* cmdbuf,
-    int                               preset_font_id)
+    int preset_font_id,
+    int area_x,
+    int area_y,
+    int area_w,
+    int area_h)
 {
     if( !chat || !game || !cmdbuf )
         return;
 
+    int use_client_pack = (area_x < 0 && area_y < 0 && area_w < 0 && area_h < 0);
+
+    struct ChatUILayout lay;
+    chat_layout_from_game(game, &lay);
+
+    int text_x;
+    int msg_top_y;
+    int msg_h;
+    int sb_x;
+
+    if( use_client_pack )
+    {
+        text_x = lay.chatback_screen_x + lay.text_x_local;
+        msg_top_y = lay.chatback_screen_y;
+        msg_h = lay.clip_h;
+        sb_x = lay.chatback_screen_x + lay.scrollbar_x_local;
+    }
+    else
+    {
+        text_x = area_x >= 0 ? area_x : CHAT_X;
+        msg_top_y = area_y >= 0 ? area_y : CHAT_Y;
+        msg_h = area_h > 0 ? area_h : CHAT_H;
+        sb_x = text_x + (area_w > 0 ? area_w : CHAT_W) - 16;
+    }
+
     int font_id = -1;
     struct DashPixFont* font = chat_font_for_draw(game, preset_font_id, &font_id);
     if( !font || chat->message_count <= 0 )
-        return;
+        goto draw_separator;
 
-    int line_h = font->height2d > 0 ? font->height2d : CHAT_LINE_H;
+    int cfg_line_h = chat_layout_line_h(game);
+    int line_h = font->height2d > 0 ? font->height2d : cfg_line_h;
 
     /* Compute the visible range given scroll position. */
     int scroll = chat->chat_scroll_pos;
     int first_line = scroll / line_h; /* index into messages[] (0=newest) */
-    int visible    = CHAT_H / line_h;
+    int visible = msg_h / line_h;
 
     /* Messages are stored newest-first; draw from bottom up. */
-    int draw_bottom_y = CHAT_Y + CHAT_H;
+    int draw_bottom_y = msg_top_y + msg_h;
 
     for( int i = 0; i < visible; i++ )
     {
@@ -265,39 +374,47 @@ chat_draw_messages(
             line[sizeof(line) - 1] = '\0';
         }
 
-        /* Shadow. */
-        emit_text(cmdbuf, font, font_id, line, CHAT_X + 1, y + 1, 0x000000);
-        emit_text(cmdbuf, font, font_id, line, CHAT_X, y, chat_type_colour(m->type));
+        /* Client.ts drawChat: single drawString per fragment, no drop shadow. */
+        emit_text(cmdbuf, font, font_id, line, text_x, y, chat_type_colour(m->type));
     }
 
-    /* Scrollbar (right side of chat area). */
-    if( chat->chat_scroll_height > CHAT_H )
+    /* Scrollbar (Client.ts x=463 local → screen). */
+    if( chat->chat_scroll_height > msg_h )
     {
-        int sb_x = CHAT_X + CHAT_W - 16;
-        int sb_y = CHAT_Y;
-        int sb_h = CHAT_H;
+        int sb_y = msg_top_y;
+        int sb_h = msg_h;
 
         /* Track background. */
         emit_rect(cmdbuf, sb_x, sb_y, 16, sb_h, 0x000000, 128, 1);
 
         /* Grip. */
-        int max_scroll = chat->chat_scroll_height - CHAT_H;
+        int max_scroll = chat->chat_scroll_height - msg_h;
         if( max_scroll <= 0 )
             max_scroll = 1;
-        int grip_h = (sb_h * CHAT_H) / chat->chat_scroll_height;
+        int grip_h = (sb_h * msg_h) / chat->chat_scroll_height;
         if( grip_h < 8 )
             grip_h = 8;
         int grip_y = sb_y + (chat->chat_scroll_pos * (sb_h - grip_h)) / max_scroll;
         emit_rect(cmdbuf, sb_x + 2, grip_y + 1, 12, grip_h - 2, 0x808080, 255, 1);
     }
+
+draw_separator:
+    /* Client.ts Pix2D.hline(0, 77, 479, BLACK) in chatback-local space. */
+    if( use_client_pack )
+    {
+        int sep_y = lay.chatback_screen_y + lay.separator_y_local;
+        emit_rect(cmdbuf, lay.chatback_screen_x, sep_y, lay.separator_w, 1, 0x000000, 255, 1);
+    }
 }
 
 void
 chat_draw_input(
-    struct Chat*                      chat,
-    struct GGame*                     game,
+    struct Chat* chat,
+    struct GGame* game,
     struct ToriRSRenderCommandBuffer* cmdbuf,
-    int                               preset_font_id)
+    int preset_font_id,
+    int pen_x,
+    int pen_y)
 {
     if( !chat || !game || !cmdbuf )
         return;
@@ -307,22 +424,53 @@ chat_draw_input(
     if( !font )
         return;
 
-    /* Draw chat input line. */
-    if( chat->chat_input[0] != '\0' )
+    int use_client_pack = (pen_x < 0 && pen_y < 0);
+    struct ChatUILayout lay;
+    chat_layout_from_game(game, &lay);
+
+    int label_x;
+    int input_pen_y;
+
+    if( use_client_pack )
     {
-        char input_buf[128];
-        snprintf(input_buf, sizeof(input_buf), "> %s", chat->chat_input);
-        emit_text(cmdbuf, font, font_id, input_buf,
-                  CHATINPUT_X, CHATINPUT_Y, 0xFFFFFF);
+        label_x = lay.chatback_screen_x + lay.text_x_local;
+        input_pen_y = lay.chatback_screen_y + lay.input_line_y_local;
     }
+    else
+    {
+        label_x = pen_x >= 0 ? pen_x : CHATINPUT_X;
+        input_pen_y = pen_y >= 0 ? pen_y : CHATINPUT_Y;
+    }
+
+    int draw_y = input_pen_y;
+    if( font->height2d > 0 )
+        draw_y -= font->height2d;
+
+    /* Client.ts: drawString(username + ':', …); drawString(chatInput + '*', …) — no shadow. */
+    char username[64];
+    game_chat_input_screen_name(game, username, sizeof(username));
+    char prefix[72];
+    snprintf(prefix, sizeof(prefix), "%s:", username);
+
+    emit_text(cmdbuf, font, font_id, prefix, label_x, draw_y, 0x000000);
+
+    char prefix_sp[80];
+    snprintf(prefix_sp, sizeof(prefix_sp), "%s ", prefix);
+    int wid_sp = dashfont_text_width(font, (uint8_t*)prefix_sp);
+    int input_x =
+        use_client_pack ? (lay.chatback_screen_x + wid_sp + 6) : (label_x + wid_sp + 6);
+
+    char tail[96];
+    snprintf(tail, sizeof(tail), "%s*", chat->chat_input);
+    emit_text(cmdbuf, font, font_id, tail, input_x, draw_y, 0x0000FF);
 }
 
 void
 chat_draw_privacy(
-    struct Chat*                      chat,
-    struct GGame*                     game,
+    struct Chat* chat,
+    struct GGame* game,
     struct ToriRSRenderCommandBuffer* cmdbuf,
-    int                               preset_font_id)
+    int preset_font_id)
 {
     if( !chat || !game || !cmdbuf )
         return;
@@ -391,15 +539,15 @@ chat_draw_privacy(
 
 void
 chat_draw(
-    struct Chat*                      chat,
-    struct GGame*                     game,
+    struct Chat* chat,
+    struct GGame* game,
     struct ToriRSRenderCommandBuffer* cmdbuf)
 {
     if( !chat || !game || !cmdbuf )
         return;
 
-    chat_draw_messages(chat, game, cmdbuf, -1);
-    chat_draw_input(chat, game, cmdbuf, -1);
+    chat_draw_messages(chat, game, cmdbuf, -1, -1, -1, -1, -1);
+    chat_draw_input(chat, game, cmdbuf, -1, -1, -1);
     chat_draw_privacy(chat, game, cmdbuf, -1);
 }
 
@@ -407,37 +555,43 @@ chat_draw(
 
 void
 chat_handle_click(
-    struct Chat*  chat,
+    struct Chat* chat,
     struct GGame* game,
-    int           mx,
-    int           my,
-    int           button)
+    int mx,
+    int my,
+    int button)
 {
     if( !chat || !game || button != 1 /* left */ )
         return;
 
-    /* Scrollbar arrows / track (right side of chat area). */
-    int sb_x = CHAT_X + CHAT_W - 16;
-    if( mx >= sb_x && mx < sb_x + 16 && my >= CHAT_Y && my < CHAT_Y + CHAT_H )
+    /* Client.ts chatback layout (matches drawScrollbar + message clip). */
+    struct ChatUILayout lay;
+    chat_layout_from_game(game, &lay);
+    int const sb_x = lay.chatback_screen_x + lay.scrollbar_x_local;
+    int const sb_y = lay.chatback_screen_y;
+    int const sb_h = lay.clip_h;
+    int const step = chat_layout_line_h(game);
+
+    if( mx >= sb_x && mx < sb_x + 16 && my >= sb_y && my < sb_y + sb_h )
     {
-        int rel_y = my - CHAT_Y;
-        int max_scroll = chat->chat_scroll_height - CHAT_H;
+        int rel_y = my - sb_y;
+        int max_scroll = chat->chat_scroll_height - sb_h;
         if( max_scroll <= 0 )
             return;
 
         /* Up arrow zone at top 16px, down arrow at bottom 16px. */
         if( rel_y < 16 )
         {
-            chat->chat_scroll_pos -= CHAT_LINE_H;
+            chat->chat_scroll_pos -= step;
         }
-        else if( rel_y >= CHAT_H - 16 )
+        else if( rel_y >= sb_h - 16 )
         {
-            chat->chat_scroll_pos += CHAT_LINE_H;
+            chat->chat_scroll_pos += step;
         }
         else
         {
             /* Drag to position on track. */
-            int track_h = CHAT_H - 32;
+            int track_h = sb_h - 32;
             if( track_h > 0 )
                 chat->chat_scroll_pos = ((rel_y - 16) * max_scroll) / track_h;
         }
@@ -450,11 +604,11 @@ chat_handle_click(
 
 int
 chat_handle_privacy_strip_click(
-    struct Chat*  chat,
+    struct Chat* chat,
     struct GGame* game,
-    int           mx,
-    int           my,
-    int           button)
+    int mx,
+    int my,
+    int button)
 {
     if( !chat || !game || button != 1 /* left */ )
         return 0;

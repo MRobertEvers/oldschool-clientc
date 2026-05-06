@@ -1816,7 +1816,10 @@ uitree_fill_simple_component_options(
     }
 
     if( os->option_count > 0 )
+    {
+        uitree_option_set_sort_ts(os);
         return;
+    }
 
     if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text && c->u.rs_text.text[0] )
     {
@@ -1833,6 +1836,7 @@ uitree_fill_simple_component_options(
             comp,
             0,
             0);
+        uitree_option_set_sort_ts(os);
         return;
     }
 
@@ -1842,6 +1846,9 @@ uitree_fill_simple_component_options(
         uitree_opt_append(os, MINIMENU_ACTION_RESUME_PAUSEBUTTON, "Continue", comp, 0, 0);
     else if( uitree_is_clickable_button_ui(c) )
         uitree_opt_append(os, MINIMENU_ACTION_IF_BUTTON, "Ok", comp, 0, 0);
+
+    if( os->option_count > 0 )
+        uitree_option_set_sort_ts(os);
 }
 
 static void

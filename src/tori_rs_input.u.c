@@ -71,16 +71,21 @@ LibToriRS_GameProcessInput(
 
     game_input_process_events(input);
 
-    for( int i = 0; i < time_quanta; i++ )
-    {
-        // if( game->mouse_cycle < 400 && game->mouse_cycle != -1 )
-        // {
-        //     game->mouse_cycle += 20;
-        //     if( game->mouse_cycle >= 400 )
-        //         game->mouse_cycle = -1;
-        // }
+    game_chat_process_input(game, input);
 
-        if( game_input_keydown_or_pressed(input, TORIRSK_W) )
+    for( int i = 0; i < time_quanta; i++ )
+        {
+            // if( game->mouse_cycle < 400 && game->mouse_cycle != -1 )
+            // {
+            //     game->mouse_cycle += 20;
+            //     if( game->mouse_cycle >= 400 )
+            //         game->mouse_cycle = -1;
+            // }
+
+            if( !game_chat_is_typing(game) )
+            {
+
+                if( game_input_keydown_or_pressed(input, TORIRSK_W) )
         {
             game->camera_world_x -=
                 (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
@@ -88,7 +93,7 @@ LibToriRS_GameProcessInput(
                 (dash_cos(game->camera_yaw) * game->camera_movement_speed) >> 16;
         }
 
-        if( game_input_keydown_or_pressed(input, TORIRSK_S) )
+                if( game_input_keydown_or_pressed(input, TORIRSK_S) )
         {
             game->camera_world_x +=
                 (dash_sin(game->camera_yaw) * game->camera_movement_speed) >> 16;
@@ -139,11 +144,6 @@ LibToriRS_GameProcessInput(
             game->camera_yaw = (game->camera_yaw - game->camera_rotation_speed + 2048) % 2048;
         }
 
-        if( input->quit || game_input_keydown_or_pressed(input, TORIRSK_ESCAPE) )
-        {
-            game->running = false;
-        }
-
         if( game_input_keydown_or_pressed(input, TORIRSK_SPACE) )
         {
             game->cc = 0;
@@ -174,6 +174,8 @@ LibToriRS_GameProcessInput(
             game->cc -= 100;
         }
 
+            } /* !game_chat_is_typing */
+
         if( game_input_keydown_or_pressed(input, TORIRSK_9) && game->mouse_tile_x != -1 )
         {
             int sx = game->mouse_tile_x;
@@ -191,6 +193,23 @@ LibToriRS_GameProcessInput(
                     },
             };
             script_queue_push(&game->script_queue, &args);
+        }
+    }
+
+    if( input->quit )
+    {
+        game->running = false;
+    }
+    else if( game_input_keydown_or_pressed(input, TORIRSK_ESCAPE) )
+    {
+        if( game->chat && game->chat->chat_typing_active )
+        {
+            game->chat->chat_typing_active = 0;
+            game->chat->chat_input[0] = '\0';
+        }
+        else
+        {
+            game->running = false;
         }
     }
 

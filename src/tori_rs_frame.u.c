@@ -2602,9 +2602,19 @@ uielem_chat_messages_step(
     struct GGame* game = fiber->game;
     if( !game || !game->chat || !fiber->cmds )
         return true;
+    if( game->iface && game->iface->chat_interface_id >= 0 )
+        return true;
 
     frame_emit_pass(fiber, FRAME_PASS_2D);
-    chat_draw_messages(game->chat, game, fiber->cmds, node->u.chat_messages.font_id);
+    chat_draw_messages(
+        game->chat,
+        game,
+        fiber->cmds,
+        node->u.chat_messages.font_id,
+        -1,
+        -1,
+        -1,
+        -1);
     return true;
 }
 
@@ -2616,9 +2626,17 @@ uielem_chat_input_step(
     struct GGame* game = fiber->game;
     if( !game || !game->chat || !fiber->cmds )
         return true;
+    if( game->iface && game->iface->chat_interface_id >= 0 )
+        return true;
 
     frame_emit_pass(fiber, FRAME_PASS_2D);
-    chat_draw_input(game->chat, game, fiber->cmds, node->u.chat_input.font_id);
+    chat_draw_input(
+        game->chat,
+        game,
+        fiber->cmds,
+        node->u.chat_input.font_id,
+        -1,
+        -1);
     return true;
 }
 
@@ -2629,6 +2647,8 @@ uielem_chat_privacy_step(
 {
     struct GGame* game = fiber->game;
     if( !game || !game->chat || !fiber->cmds )
+        return true;
+    if( game->iface && game->iface->chat_interface_id >= 0 )
         return true;
 
     frame_emit_pass(fiber, FRAME_PASS_2D);

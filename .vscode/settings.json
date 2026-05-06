@@ -286,7 +286,6 @@
     "pix3d_deob_state.h": "c",
     "*.mm": "objective-cpp",
     "*.m": "objective-c",
-    "*.h": "objective-cpp"
   },
   "[linux]": {
     "C_Cpp.default.configurationName": "Linux",

@@ -37,9 +37,11 @@
 #include "world_pickset.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 struct FileListDat;
+struct GInput;
 struct MinimapRenderCommandBuffer;
 struct MinimenuRenderCommandBuffer;
 struct ToriRSRenderCommandBuffer;
@@ -176,6 +178,9 @@ struct GGame
 
     struct InterfaceState* iface;
     struct Chat* chat; /* managed by chat.c; NULL until chat_init() */
+    /** From rev INI [component:chat_messages] (+ optional chat_input_line_y from chat_input). */
+    struct ChatUILayout chat_layout;
+    int chat_layout_valid;
 
     /* Per-frame client settings written by clientscript_vm_drain_clientcodes(). */
     int settings_brightness;
@@ -287,6 +292,17 @@ game_add_message(
     int type,
     const char* text,
     const char* sender);
+
+/** Fill display name for chat input line (local player or login username). */
+void
+game_chat_input_screen_name(struct GGame* game, char* out, size_t cap);
+
+/** Keyboard/chat buffer (Enter to open/send, printable keys while open). */
+void
+game_chat_process_input(struct GGame* game, struct GInput* input);
+
+bool
+game_chat_is_typing(struct GGame const* game);
 
 void
 game_npc_add(

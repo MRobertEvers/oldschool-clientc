@@ -101,6 +101,26 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_PAINT_LEVELS;
     else if( strcmp(key, "font") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_FONT;
+    else if( strcmp(key, "chatback_screen_x") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHATBACK_SCREEN_X;
+    else if( strcmp(key, "chatback_screen_y") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHATBACK_SCREEN_Y;
+    else if( strcmp(key, "chat_clip_w") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_CLIP_W;
+    else if( strcmp(key, "chat_clip_h") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_CLIP_H;
+    else if( strcmp(key, "chat_text_x_local") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_TEXT_X_LOCAL;
+    else if( strcmp(key, "chat_scrollbar_x_local") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_SCROLLBAR_X_LOCAL;
+    else if( strcmp(key, "chat_separator_y_local") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_SEPARATOR_Y_LOCAL;
+    else if( strcmp(key, "chat_separator_w") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_SEPARATOR_W;
+    else if( strcmp(key, "chat_line_h") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_LINE_H;
+    else if( strcmp(key, "chat_input_line_y_local") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_CHAT_INPUT_LINE_Y_LOCAL;
     else if( strcmp(key, "item") == 0 && strcmp(s_ini_item_type, "inv") == 0 )
         kind = RCFIELD_INV_ITEM;
     else if( strcmp(key, "sprite_active") == 0 && strcmp(s_ini_item_type, "component") == 0 )
