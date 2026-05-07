@@ -20,10 +20,10 @@
 int
 main()
 {
-    const char* filename_cache = UITREE_LOAD_TEST_ROOT
-        "/src/osrs/revconfig/configs/rev_245_2/rev_245_2_cache.ini";
-    char const* filename_ui = UITREE_LOAD_TEST_ROOT
-        "/src/osrs/revconfig/configs/rev_245_2/rev_245_2_ui.ini";
+    const char* filename_cache =
+        UITREE_LOAD_TEST_ROOT "/src/osrs/revconfig/configs/rev_245_2/rev_245_2_cache.ini";
+    char const* filename_ui =
+        UITREE_LOAD_TEST_ROOT "/src/osrs/revconfig/configs/rev_245_2/rev_245_2_ui.ini";
 
     struct RevConfigBuffer* buffer = revconfig_buffer_new(16);
     uint32_t field_count = 0;
@@ -36,8 +36,7 @@ main()
     memset(&game_stub, 0, sizeof(game_stub));
     game_stub.buildcachedat = buildcachedat;
     game_stub.gamecache = gamecache_new();
-    struct CacheDat* cache_dat =
-        cache_dat_new_from_directory(UITREE_LOAD_TEST_ROOT "/cache254");
+    struct CacheDat* cache_dat = cache_dat_new_from_directory(UITREE_LOAD_TEST_ROOT "/cache254");
 
     struct CacheDatArchive* archive =
         cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_MEDIA_2D_GRAPHICS);

@@ -6,11 +6,17 @@
 struct UITree;
 struct UIScene;
 struct UIInventoryPool;
-struct GGame;
 struct RevConfigBuffer;
+struct BuildCacheDat;
+struct GameCache;
+struct DashGraphics;
+struct GGame;
 
 /** Max distinct GameCache component ids reported in one UITREE_ASSET_INTERFACE request. */
 #define UITREE_MAX_INTERFACE_REQUESTS 128
+
+/** Max asset requests emitted in one UITREE_LOADER_NEEDS_ASSET pause. */
+#define UITREE_LOADER_MAX_PENDING_ASSETS 16
 
 /**
  * Status returned by uitree_loader_step().
@@ -50,6 +56,15 @@ enum UITreeLoaderAssetKind
 struct UITreeLoaderAssetRequest
 {
     enum UITreeLoaderAssetKind kind;
+    /**
+     * Filled by game_uitree_load_exec_* after the loader pauses on UITREE_LOADER_NEEDS_ASSET.
+     * The loader zeroes the whole struct when it emits a request; these stay 0 until exec runs.
+     */
+    struct
+    {
+        int uiscene_element_id;
+        int inv_pool_index;
+    } game_binding;
     union
     {
         /** UITREE_ASSET_SPRITE: logical sprite name from the INI (informational only). */
@@ -80,43 +95,32 @@ struct UITreeLoaderAssetRequest
  * Incremental UITree loader.  Create with uitree_loader_new(), drive with
  * uitree_loader_step(), and free with uitree_loader_free() when DONE or ERROR.
  *
- * The struct is opaque to callers; only the status and pending_asset fields are
- * accessed through uitree_loader_step() / uitree_loader_pending_asset().
+ * The struct is opaque to callers; status and pending asset requests are read via
+ * uitree_loader_step() / uitree_loader_pending_assets().
  */
 struct UITreeLoader;
 
-/**
- * Allocate a new loader for the given revconfig buffer.  All pointer arguments
- * are borrowed (not owned); the caller must keep them alive until uitree_loader_free().
- * Returns NULL on allocation failure.
- */
 struct UITreeLoader*
 uitree_loader_new(
     struct UITree* ui,
-    struct UIScene* ui_scene,
-    struct UIInventoryPool* inv_pool,
-    struct GGame* game,
     struct RevConfigBuffer* revconfig_buffer);
 
-/**
- * Advance the loader.  Processes revconfig fields until the item is complete,
- * an asset is needed, or all fields have been consumed.
- *
- * - UITREE_LOADER_RUNNING     : internal fields were accumulated; call again.
- * - UITREE_LOADER_NEEDS_ASSET : paused; call uitree_loader_pending_asset(), supply
- *                               the asset, then call step() again.
- * - UITREE_LOADER_DONE        : tree fully built; free the loader.
- * - UITREE_LOADER_ERROR       : allocation failure or invalid state; free the loader.
- */
 enum UITreeLoaderStatus
 uitree_loader_step(struct UITreeLoader* loader);
 
 /**
- * Returns the asset request that caused the last UITREE_LOADER_NEEDS_ASSET result.
- * Only valid when the most recent step() returned UITREE_LOADER_NEEDS_ASSET.
+ * Number of pending asset requests when the most recent step() returned
+ * UITREE_LOADER_NEEDS_ASSET (otherwise 0).
  */
-struct UITreeLoaderAssetRequest
-uitree_loader_pending_asset(const struct UITreeLoader* loader);
+int
+uitree_loader_pending_asset_count(const struct UITreeLoader* loader);
+
+/**
+ * Pointer to the loader-owned pending request array; valid length is
+ * uitree_loader_pending_asset_count(). Invalid after the next uitree_loader_step().
+ */
+const struct UITreeLoaderAssetRequest*
+uitree_loader_pending_assets(const struct UITreeLoader* loader);
 
 /**
  * Free the loader.  Does NOT free the UITree, UIScene, etc. (those are borrowed).

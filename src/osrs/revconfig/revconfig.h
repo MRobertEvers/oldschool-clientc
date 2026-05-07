@@ -60,7 +60,8 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_MINIMENU_PLACE_VIEWPORT_MAX,
     RCFIELD_UICOMPONENT_MINIMENU_PLACE_SIDEBAR_MAX,
     RCFIELD_UICOMPONENT_MINIMENU_PLACE_CHAT_MAX,
-    /** Pixels subtracted from click x/y to place cross sprite top-left (see [component:crosshair]). */
+    /** Pixels subtracted from click x/y to place cross sprite top-left (see [component:crosshair]).
+     */
     RCFIELD_UICOMPONENT_CROSSHAIR_HOTSPOT_OFFSET,
     RCFIELD_INV_ITEM,
     RCFIELD_UILAYOUT_COMPONENT,

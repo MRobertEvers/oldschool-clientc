@@ -82,7 +82,8 @@ enum StaticUIComponentType
     UIELEM_BUILTIN_CHAT_DIALOG = 23,
     /** IF_OPENSIDE / IF_OPENMAIN_SIDE: RS subtree parent over sidebar overlay rect. */
     UIELEM_BUILTIN_SIDEBAR_OVERLAY = 24,
-    /** IF_OPENOVERLAY / IF_OPENMAIN viewport modal: RS subtree over world rect (Client.ts mainOverlayId). */
+    /** IF_OPENOVERLAY / IF_OPENMAIN viewport modal: RS subtree over world rect (Client.ts
+       mainOverlayId). */
     UIELEM_BUILTIN_VIEWPORT_OVERLAY = 25,
     /** TYPE_INV_TEXT: text labels per slot; uses same `u.rs_inv` grid as UIELEM_RS_INV. */
     UIELEM_RS_INV_TEXT = 26,
@@ -457,7 +458,9 @@ uitree_print_nodes(struct UITree const* tree);
 
 /** DFS-print node with matching `component_id` and descendants to stderr (debug). */
 void
-uitree_debug_log_subtree_for_component_id(struct UITree const* tree, int component_id);
+uitree_debug_log_subtree_for_component_id(
+    struct UITree const* tree,
+    int component_id);
 
 struct UIInventoryPool*
 uitree_inv_pool_new(int capacity);
@@ -793,7 +796,8 @@ uitree_push_rs_inv(
     int width,
     int height);
 
-/** Same grid as `uitree_push_rs_inv` but `type` is UIELEM_RS_INV_TEXT; set inv_text_* after push. */
+/** Same grid as `uitree_push_rs_inv` but `type` is UIELEM_RS_INV_TEXT; set inv_text_* after push.
+ */
 int32_t
 uitree_push_rs_inv_text(
     struct UITree* tree,

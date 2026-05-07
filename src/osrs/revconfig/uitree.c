@@ -12,6 +12,7 @@
 #include "osrs/minimenu_action.h"
 #include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>

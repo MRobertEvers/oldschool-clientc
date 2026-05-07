@@ -152,9 +152,11 @@ set(COMMON_SOURCES
     src/osrs/revconfig/revconfig.c
     src/osrs/revconfig/revconfig_load.c
     src/osrs/revconfig/uitree.c
+    src/osrs/revconfig/revconfig_builder.c
     src/osrs/revconfig/uitree_textpool.c
     src/osrs/revconfig/uitree_load.c
     src/osrs/revconfig/uitree_loader.c
+    src/osrs/revconfig/game_uitree_load_exec.c
     src/osrs/rs_component_gfx.c
     src/osrs/revconfig/uiscene.c
     src/osrs/rscache/tables_dat/config_component.c

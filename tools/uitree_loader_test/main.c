@@ -1,8 +1,8 @@
 /*
  * uitree_loader_test — C driver for the incremental UITree loader.
  *
- * Mirrors init_ui.lua — UITreeLoader + uitree_loader_step(), fulfilling sprite /
- * interface / model requests from BuildCacheDat. RS models use `game.ui_scene`; optional
+ * Mirrors init_ui.lua — UITreeLoader + uitree_loader_step(), then game_uitree_load_exec_*
+ * for each UITREE_LOADER_NEEDS_ASSET request. RS models use `game.ui_scene`; optional
  * BMP composites drawable nodes. Scene2 is still used in this harness for texture loading only.
  *
  * `--component=N` affects BMP output only (which subtree is drawn at canvas origin and how
@@ -41,6 +41,7 @@
 #include "osrs/interface.h"
 #include "osrs/interface_state.h"
 #include "osrs/obj_icon.h"
+#include "osrs/revconfig/game_uitree_load_exec.h"
 #include "osrs/revconfig/revconfig.h"
 #include "osrs/revconfig/revconfig_load.h"
 #include "osrs/revconfig/uiscene.h"
@@ -1802,7 +1803,8 @@ uitree_loader_test_write_sprite_bmp(
                 fprintf(
                     stderr,
                     "uitree_loader_test: BMP RS_MODEL not rendered — component_id=%d uitree_idx=%d "
-                    "modelType=%d model_id=%d uiscene_element_id=%d (no UIScene model slot; missing "
+                    "modelType=%d model_id=%d uiscene_element_id=%d (no UIScene model slot; "
+                    "missing "
                     "model data or acquire failed)\n",
                     c->component_id,
                     uitree_i,
@@ -2245,13 +2247,22 @@ main(
     int bmp_ok = 1;
 
     /* ── Create incremental loader (rev UI INI drives UITreeLoader) ─────── */
-    loader = uitree_loader_new(ui, ui_scene, inv_pool, &game_stub, revconfig);
+    loader = uitree_loader_new(ui, revconfig);
     if( !loader )
     {
         fprintf(stderr, "uitree_loader_test: out of memory creating loader\n");
         goto cleanup;
     }
     printf("uitree_loader_test: loader created, beginning step loop\n");
+
+    const struct UITreeLoaderHost uitree_host = {
+        .buildcachedat = buildcachedat,
+        .gamecache = gamecache,
+        .ui_scene = ui_scene,
+        .inv_pool = inv_pool,
+        .sys_dash = game_stub.sys_dash,
+        .game = &game_stub,
+    };
 
     /* RS TEXT needs UIScene fonts; BMP model raster needs Scene2 textures (copied to a fresh
      * DashGraphics in uitree_loader_test_write_sprite_bmp). init_ui.lua / init_cache_dat.lua.
@@ -2267,7 +2278,7 @@ main(
 
     for( ; step_count < max_steps; step_count++ )
     {
-        enum UITreeLoaderStatus status = uitree_loader_step(loader);
+        enum UITreeLoaderStatus status = uitree_loader_step(loader, &uitree_host);
 
         if( status == UITREE_LOADER_RUNNING )
             continue; /* more items to process — keep going */
@@ -2287,65 +2298,102 @@ main(
         }
 
         /* UITREE_LOADER_NEEDS_ASSET */
-        struct UITreeLoaderAssetRequest req = uitree_loader_pending_asset(loader);
-
-        switch( req.kind )
+        int npc = uitree_loader_pending_asset_count(loader);
+        const struct UITreeLoaderAssetRequest* preqs = uitree_loader_pending_assets(loader);
+        for( int pi = 0; pi < npc; pi++ )
         {
-        case UITREE_ASSET_SPRITE:
-            if( !media_loaded )
+            struct UITreeLoaderAssetRequest req = preqs[pi];
+            enum GameUitreeLoadExecResult exec_res;
+
+            switch( req.kind )
             {
-                printf(
-                    "[loader] needs sprite '%s' — loading 2D media jagfile\n", req.u.sprite.name);
-                load_media_jagfile(cache_dat, buildcachedat);
-                media_loaded = 1;
-            }
-            else
-            {
+            case UITREE_ASSET_SPRITE:
+                exec_res = game_uitree_load_exec_sprite(&game_stub, &req);
+                break;
+            case UITREE_ASSET_INTERFACE:
+                exec_res = game_uitree_load_exec_interface(&game_stub, &req);
+                break;
+            case UITREE_ASSET_MODEL:
+                exec_res = game_uitree_load_exec_model(&game_stub, &req);
+                break;
+            case UITREE_ASSET_FONT:
+                exec_res = game_uitree_load_exec_font(&game_stub, &req);
+                break;
+            default:
                 fprintf(
                     stderr,
-                    "uitree_loader_test: sprite '%s' still missing after media load\n",
-                    req.u.sprite.name);
+                    "uitree_loader_test: unexpected asset kind %d, stopping\n",
+                    (int)req.kind);
                 goto done_loop;
             }
-            break;
 
-        case UITREE_ASSET_INTERFACE:
-            if( !interfaces_loaded )
+            switch( exec_res )
             {
-                printf("[loader] needs interface component(s):");
-                for( int ci = 0; ci < req.u.interface_file.count; ci++ )
-                    printf(" %d", req.u.interface_file.component_ids[ci]);
-                printf(" — loading interfaces\n");
-                load_interfaces(cache_dat, buildcachedat, gamecache);
-                interfaces_loaded = 1;
-            }
-            else
-            {
+            case GAME_UITREE_EXEC_OK:
+                break;
+
+            case GAME_UITREE_EXEC_NEED_2D_MEDIA:
+                if( !media_loaded )
+                {
+                    printf(
+                        "[loader] needs sprite '%s' — loading 2D media jagfile\n",
+                        req.u.sprite.name);
+                    load_media_jagfile(cache_dat, buildcachedat);
+                    media_loaded = 1;
+                }
+                else
+                {
+                    fprintf(
+                        stderr,
+                        "uitree_loader_test: sprite '%s' still missing after media load\n",
+                        req.u.sprite.name);
+                    goto done_loop;
+                }
+                break;
+
+            case GAME_UITREE_EXEC_NEED_INTERFACES:
+                if( !interfaces_loaded )
+                {
+                    printf("[loader] needs interface component(s):");
+                    for( int ci = 0; ci < req.u.interface_file.count; ci++ )
+                        printf(" %d", req.u.interface_file.component_ids[ci]);
+                    printf(" — loading interfaces\n");
+                    load_interfaces(cache_dat, buildcachedat, gamecache);
+                    interfaces_loaded = 1;
+                }
+                else
+                {
+                    fprintf(
+                        stderr,
+                        "uitree_loader_test: component(s) still missing after interface load:");
+                    for( int ci = 0; ci < req.u.interface_file.count; ci++ )
+                        fprintf(stderr, " %d", req.u.interface_file.component_ids[ci]);
+                    fprintf(stderr, "\n");
+                    goto done_loop;
+                }
+                break;
+
+            case GAME_UITREE_EXEC_NEED_MODEL:
+                printf(
+                    "[loader] needs model id %d — loading from cache dat\n", req.u.model.model_id);
+                load_model_archive(cache_dat, buildcachedat, gamecache, req.u.model.model_id);
+                break;
+
+            case GAME_UITREE_EXEC_NEED_FONT:
                 fprintf(
-                    stderr, "uitree_loader_test: component(s) still missing after interface load:");
-                for( int ci = 0; ci < req.u.interface_file.count; ci++ )
-                    fprintf(stderr, " %d", req.u.interface_file.component_ids[ci]);
-                fprintf(stderr, "\n");
+                    stderr,
+                    "uitree_loader_test: font asset '%s' not implemented in this harness\n",
+                    req.u.font.name);
+                goto done_loop;
+
+            case GAME_UITREE_EXEC_ERROR:
+            default:
+                fprintf(
+                    stderr,
+                    "uitree_loader_test: game_uitree_load_exec failed for asset kind %d\n",
+                    (int)req.kind);
                 goto done_loop;
             }
-            break;
-
-        case UITREE_ASSET_MODEL:
-            printf("[loader] needs model id %d — loading from cache dat\n", req.u.model.model_id);
-            load_model_archive(cache_dat, buildcachedat, gamecache, req.u.model.model_id);
-            break;
-
-        case UITREE_ASSET_FONT:
-            fprintf(
-                stderr,
-                "uitree_loader_test: font asset '%s' not implemented in this harness\n",
-                req.u.font.name);
-            goto done_loop;
-
-        default:
-            fprintf(
-                stderr, "uitree_loader_test: unexpected asset kind %d, stopping\n", (int)req.kind);
-            goto done_loop;
         }
     }
 done_loop:

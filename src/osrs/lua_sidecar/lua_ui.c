@@ -363,9 +363,6 @@ LuaUI_load_revconfig_ui(
      * step_loader() drives it to completion. */
     game->pending_uitree_loader = uitree_loader_new(
         game->ui_root_buffer,
-        game->ui_scene,
-        game->inv_pool,
-        game,
         game->pending_revconfig);
 
     if( !game->pending_uitree_loader )
@@ -375,6 +372,66 @@ LuaUI_load_revconfig_ui(
     }
 
     return LuaGameType_NewVoid();
+}
+
+/** VarTypeArray { kind_string, payload } for one UITreeLoaderAssetRequest. */
+static struct LuaGameType*
+LuaUI_asset_descriptor_from_request(const struct UITreeLoaderAssetRequest* req)
+{
+    struct LuaGameType* arr = LuaGameType_NewVarTypeArray(2);
+
+    static const char* kind_names[] = {
+        [UITREE_ASSET_NONE]      = "none",
+        [UITREE_ASSET_SPRITE]    = "sprite",
+        [UITREE_ASSET_INTERFACE] = "interface",
+        [UITREE_ASSET_MODEL]     = "model",
+        [UITREE_ASSET_FONT]      = "font",
+    };
+    int kind_idx = (int)req->kind;
+    const char* kind_name =
+        (kind_idx >= 0 && kind_idx < (int)(sizeof(kind_names) / sizeof(kind_names[0])))
+            ? kind_names[kind_idx]
+            : "unknown";
+
+    LuaGameType_VarTypeArrayPush(
+        arr, LuaGameType_NewString((char*)kind_name, (int)strlen(kind_name)));
+
+    switch( req->kind )
+    {
+    case UITREE_ASSET_SPRITE:
+        LuaGameType_VarTypeArrayPush(
+            arr,
+            LuaGameType_NewString(req->u.sprite.name, (int)strlen(req->u.sprite.name)));
+        break;
+    case UITREE_ASSET_INTERFACE:
+    {
+        int n = req->u.interface_file.count;
+        if( n <= 0 )
+        {
+            LuaGameType_VarTypeArrayPush(arr, LuaGameType_NewInt(0));
+            break;
+        }
+        struct LuaGameType* id_arr = LuaGameType_NewVarTypeArray(n);
+        for( int i = 0; i < n; i++ )
+            LuaGameType_VarTypeArrayPush(
+                id_arr, LuaGameType_NewInt(req->u.interface_file.component_ids[i]));
+        LuaGameType_VarTypeArrayPush(arr, id_arr);
+        break;
+    }
+    case UITREE_ASSET_MODEL:
+        LuaGameType_VarTypeArrayPush(arr, LuaGameType_NewInt(req->u.model.model_id));
+        break;
+    case UITREE_ASSET_FONT:
+        LuaGameType_VarTypeArrayPush(
+            arr,
+            LuaGameType_NewString(req->u.font.name, (int)strlen(req->u.font.name)));
+        break;
+    default:
+        LuaGameType_VarTypeArrayPush(arr, LuaGameType_NewInt(0));
+        break;
+    }
+
+    return arr;
 }
 
 struct LuaGameType*
@@ -389,11 +446,20 @@ LuaUI_step_loader(
     if( !game || !game->pending_uitree_loader )
         return LuaGameType_NewVoid(); /* nil — loader not active */
 
+    const struct UITreeLoaderHost uitree_host = {
+        .buildcachedat = game->buildcachedat,
+        .gamecache     = game->gamecache,
+        .ui_scene      = game->ui_scene,
+        .inv_pool      = game->inv_pool,
+        .sys_dash      = game->sys_dash,
+        .game          = game,
+    };
+
     /* Drain the loader until it needs an asset or finishes. */
     enum UITreeLoaderStatus status;
     do
     {
-        status = uitree_loader_step(game->pending_uitree_loader);
+        status = uitree_loader_step(game->pending_uitree_loader, &uitree_host);
     } while( status == UITREE_LOADER_RUNNING );
 
     if( status == UITREE_LOADER_DONE )
@@ -427,64 +493,20 @@ LuaUI_step_loader(
         return LuaGameType_NewString(err_str, (int)(sizeof(err_str) - 1));
     }
 
-    /* UITREE_LOADER_NEEDS_ASSET — return descriptor to Lua. */
-    struct UITreeLoaderAssetRequest req =
-        uitree_loader_pending_asset(game->pending_uitree_loader);
+    /* UITREE_LOADER_NEEDS_ASSET — return descriptor(s) to Lua.
+     * One request: VarTypeArray { kind_string, payload } (unchanged shape for Lua).
+     * Several: outer VarTypeArray of those pairs. */
+    int n = uitree_loader_pending_asset_count(game->pending_uitree_loader);
+    const struct UITreeLoaderAssetRequest* reqs =
+        uitree_loader_pending_assets(game->pending_uitree_loader);
+    if( !reqs || n <= 0 )
+        return LuaGameType_NewVarTypeArray(0);
 
-    /* Return a VarTypeArray: { kind_string, name_or_id_or_ids }
-     * Lua reads result[1] for kind and result[2] for the identifier:
-     * string (sprite/font), int (model), or VarTypeArray of ints (interface batch). */
-    struct LuaGameType* arr = LuaGameType_NewVarTypeArray(2);
+    if( n == 1 )
+        return LuaUI_asset_descriptor_from_request(&reqs[0]);
 
-    static const char* kind_names[] = {
-        [UITREE_ASSET_NONE]      = "none",
-        [UITREE_ASSET_SPRITE]    = "sprite",
-        [UITREE_ASSET_INTERFACE] = "interface",
-        [UITREE_ASSET_MODEL]     = "model",
-        [UITREE_ASSET_FONT]      = "font",
-    };
-    int kind_idx = (int)req.kind;
-    const char* kind_name =
-        (kind_idx >= 0 && kind_idx < (int)(sizeof(kind_names) / sizeof(kind_names[0])))
-            ? kind_names[kind_idx]
-            : "unknown";
-
-    LuaGameType_VarTypeArrayPush(
-        arr, LuaGameType_NewString((char*)kind_name, (int)strlen(kind_name)));
-
-    switch( req.kind )
-    {
-    case UITREE_ASSET_SPRITE:
-        LuaGameType_VarTypeArrayPush(
-            arr,
-            LuaGameType_NewString(req.u.sprite.name, (int)strlen(req.u.sprite.name)));
-        break;
-    case UITREE_ASSET_INTERFACE:
-    {
-        int n = req.u.interface_file.count;
-        if( n <= 0 )
-        {
-            LuaGameType_VarTypeArrayPush(arr, LuaGameType_NewInt(0));
-            break;
-        }
-        struct LuaGameType* id_arr = LuaGameType_NewVarTypeArray(n);
-        for( int i = 0; i < n; i++ )
-            LuaGameType_VarTypeArrayPush(
-                id_arr, LuaGameType_NewInt(req.u.interface_file.component_ids[i]));
-        LuaGameType_VarTypeArrayPush(arr, id_arr);
-        break;
-    }
-    case UITREE_ASSET_MODEL:
-        LuaGameType_VarTypeArrayPush(arr, LuaGameType_NewInt(req.u.model.model_id));
-        break;
-    case UITREE_ASSET_FONT:
-        LuaGameType_VarTypeArrayPush(
-            arr, LuaGameType_NewString(req.u.font.name, (int)strlen(req.u.font.name)));
-        break;
-    default:
-        LuaGameType_VarTypeArrayPush(arr, LuaGameType_NewInt(0));
-        break;
-    }
-
-    return arr;
+    struct LuaGameType* outer = LuaGameType_NewVarTypeArray(n);
+    for( int i = 0; i < n; i++ )
+        LuaGameType_VarTypeArrayPush(outer, LuaUI_asset_descriptor_from_request(&reqs[i]));
+    return outer;
 }

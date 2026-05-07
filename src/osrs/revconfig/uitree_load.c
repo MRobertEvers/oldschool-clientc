@@ -19,6 +19,7 @@
 #include "osrs/rscache/tables_dat/pix32.h"
 #include "osrs/rscache/tables_dat/pix8.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
+#include "uitree_load_bridge.h"
 #include "uitree_load_private.h"
 #include "uitree_loader.h"
 
@@ -1326,7 +1327,7 @@ push_rs_from_cache_component(
         if( comp->graphic && comp->graphic[0] != '\0' )
         {
             int e0 = uitree_resolve_component_sprite_uiscene_element(game, bcd, comp->graphic);
-            if( e0 < 0 && game )
+            if( e0 < 0 && game && !out_req )
             {
                 buildcachedat_loader_load_component_sprite_lazy(
                     game->buildcachedat, ui_scene, game, comp->graphic);
@@ -1343,7 +1344,7 @@ push_rs_from_cache_component(
         {
             int e1 =
                 uitree_resolve_component_sprite_uiscene_element(game, bcd, comp->activeGraphic);
-            if( e1 < 0 && game )
+            if( e1 < 0 && game && !out_req )
             {
                 buildcachedat_loader_load_component_sprite_lazy(
                     game->buildcachedat, ui_scene, game, comp->activeGraphic);
@@ -1508,6 +1509,13 @@ push_rs_from_cache_component(
                 int ge = uitree_resolve_component_sprite_uiscene_element(game, bcd, gname);
                 if( ge < 0 )
                 {
+                    if( out_req )
+                    {
+                        out_req->kind = UITREE_ASSET_SPRITE;
+                        strncpy(out_req->u.sprite.name, gname, sizeof(out_req->u.sprite.name) - 1);
+                        out_req->u.sprite.name[sizeof(out_req->u.sprite.name) - 1] = '\0';
+                        return -1;
+                    }
                     /* Sprite not yet loaded; try lazy-loading from media. */
                     buildcachedat_loader_load_component_sprite_lazy(
                         game->buildcachedat, ui_scene, game, gname);
@@ -2358,26 +2366,38 @@ uitree_from_revconfig_buildcachedat(
      * In this legacy call-path all assets are expected to be pre-loaded, so the
      * loader should never return UITREE_LOADER_NEEDS_ASSET.  If it does, we log
      * and stop early (tree will be incomplete). */
-    struct UITreeLoader* loader = uitree_loader_new(ui, ui_scene, inv_pool, game, revconfig_buffer);
+    struct UITreeLoader* loader = uitree_loader_new(ui, revconfig_buffer);
     if( !loader )
     {
         fprintf(stderr, "uitree_from_revconfig_buildcachedat: out of memory\n");
         return;
     }
 
+    const struct UITreeLoaderHost host = {
+        .buildcachedat = game->buildcachedat,
+        .gamecache = game->gamecache,
+        .ui_scene = ui_scene,
+        .inv_pool = inv_pool,
+        .sys_dash = game->sys_dash,
+        .game = game,
+    };
+
     enum UITreeLoaderStatus status;
-    while( (status = uitree_loader_step(loader)) == UITREE_LOADER_RUNNING )
+    while( (status = uitree_loader_step(loader, &host)) == UITREE_LOADER_RUNNING )
         ; /* drain */
 
     if( status == UITREE_LOADER_NEEDS_ASSET )
     {
-        struct UITreeLoaderAssetRequest req = uitree_loader_pending_asset(loader);
-        (void)req;
-        fprintf(
-            stderr,
-            "uitree_from_revconfig_buildcachedat: asset not pre-loaded (kind=%d), "
-            "tree may be incomplete\n",
-            req.kind);
+        int npc = uitree_loader_pending_asset_count(loader);
+        const struct UITreeLoaderAssetRequest* reqs = uitree_loader_pending_assets(loader);
+        for( int pi = 0; pi < npc; pi++ )
+        {
+            fprintf(
+                stderr,
+                "uitree_from_revconfig_buildcachedat: asset not pre-loaded (kind=%d), "
+                "tree may be incomplete\n",
+                (int)reqs[pi].kind);
+        }
     }
 
     uitree_loader_free(loader);
@@ -3287,8 +3307,8 @@ uitree_load_ui_from_revconfig(
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
- * uitree_impl_* — non-static wrappers called by uitree_loader.c.
- * These have access to the static helpers defined above.
+ * uitree_impl_* — non-static wrappers used inside uitree_load.c; uitree_loader.c
+ * calls the thin uitree_load_* bridge declared in uitree_load_bridge.h.
  * ───────────────────────────────────────────────────────────────────────────── */
 
 uint32_t
@@ -3439,6 +3459,7 @@ uitree_impl_load_item(
     struct UITree* ui,
     struct UIScene* ui_scene,
     struct UIInventoryPool* inv_pool,
+    struct BuildCacheDat* buildcachedat,
     struct GGame* game,
     struct UITreeLoaderAssetRequest* out_req)
 {
@@ -3446,7 +3467,7 @@ uitree_impl_load_item(
     {
     case LOAD_KIND_SPRITE:
         return uitree_impl_load_sprite(
-            &load->_sprite, sprite_hmap, ui, ui_scene, game->buildcachedat, out_req);
+            &load->_sprite, sprite_hmap, ui, ui_scene, buildcachedat, out_req);
     case LOAD_KIND_COMPONENT:
         return uitree_impl_load_component(
             &load->_component, sprite_hmap, component_hmap, ui, ui_scene, game->gamecache, out_req);
@@ -3458,4 +3479,44 @@ uitree_impl_load_item(
     default:
         return 0;
     }
+}
+
+/* ── uitree_load_bridge.h — implementations for uitree_loader.c ───────────── */
+
+uint32_t
+uitree_load_parse_item_kind(const char* str)
+{
+    return uitree_impl_load_kind(str);
+}
+
+void
+uitree_load_bind_item_name(
+    struct CurrentLoad* load,
+    const char* value)
+{
+    uitree_impl_on_itemname(load, value);
+}
+
+void
+uitree_load_finalize_uiscene_ids(
+    struct GGame* game,
+    struct UIScene* ui_scene)
+{
+    uitree_impl_resolve_game_uiscene_sprite_ids(game, ui_scene);
+}
+
+int
+uitree_load_commit_revconfig_item(
+    struct CurrentLoad* load,
+    struct DashMap* sprite_hmap,
+    struct DashMap* component_hmap,
+    struct UITree* ui,
+    struct UIScene* ui_scene,
+    struct UIInventoryPool* inv_pool,
+    struct BuildCacheDat* buildcachedat,
+    struct GGame* game,
+    struct UITreeLoaderAssetRequest* out_req)
+{
+    return uitree_impl_load_item(
+        load, sprite_hmap, component_hmap, ui, ui_scene, inv_pool, buildcachedat, game, out_req);
 }
