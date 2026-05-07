@@ -75,10 +75,6 @@ enum RevConfigFieldKind
     RCFIELD_UILAYOUT_BOTTOM,
     RCFIELD_UILAYOUT_RIGHT,
     RCFIELD_UILAYOUT_DIRTY,
-    /** `[magic_tab:*]` sidebar tab index that selects spellbook (LC245 default 6). */
-    RCFIELD_MAGIC_TAB_SPELLBOOK_SIDEBAR_TABNO,
-    /** `[magic_tab:*]` IF_BUTTON component id for server inv_transmit; 0 = disabled. */
-    RCFIELD_MAGIC_TAB_INV_TRANSMIT_IF_BUTTON_COMP,
     RCFIELD_UILAYOUT_NULL,
 };
 

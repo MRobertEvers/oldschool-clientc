@@ -149,12 +149,6 @@ push_field_from_ini_kv(
         kind = RCFIELD_UILAYOUT_BOTTOM;
     else if( strcmp(key, "dirty") == 0 && strcmp(s_ini_item_type, "layout") == 0 )
         kind = RCFIELD_UILAYOUT_DIRTY;
-    else if( strcmp(key, "spellbook_sidebar_tabno") == 0 &&
-             strcmp(s_ini_item_type, "magic_tab") == 0 )
-        kind = RCFIELD_MAGIC_TAB_SPELLBOOK_SIDEBAR_TABNO;
-    else if( strcmp(key, "inv_transmit_if_button_comp") == 0 &&
-             strcmp(s_ini_item_type, "magic_tab") == 0 )
-        kind = RCFIELD_MAGIC_TAB_INV_TRANSMIT_IF_BUTTON_COMP;
     else if( strcmp(key, "table") == 0 )
         kind = RCFIELD_CACHE_TABLE;
     else if( strcmp(key, "archive") == 0 )

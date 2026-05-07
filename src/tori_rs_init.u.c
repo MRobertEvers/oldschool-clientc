@@ -236,8 +236,6 @@ LibToriRS_GameNew(
     game->buildcache = NULL;
 
     game->iface = interface_state_new();
-    game->magic_tab_spellbook_sidebar_tabno    = 6;
-    game->magic_tab_inv_transmit_if_button_comp = 0;
 
     platform_get_memory_info(&mem);
     {

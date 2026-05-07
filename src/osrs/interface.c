@@ -2512,14 +2512,3 @@ interface_inv_try_drag_mouse_up(struct GGame* game, struct GInput* input)
      * which falls through to doAction(menuNumEntries-1) in that case. */
     minimenu_game_use_primary_at(game, input, grab_x, grab_y);
 }
-
-void
-interface_magic_tab_request_inv_transmit_if_configured(struct GGame* game)
-{
-    if( !game || GAME_NET_STATE_GAME != game->net_state )
-        return;
-    int cid = game->magic_tab_inv_transmit_if_button_comp;
-    if( cid <= 0 )
-        return;
-    gamenet_send_if_button(game, cid);
-}

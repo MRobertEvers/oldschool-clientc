@@ -210,11 +210,6 @@ struct GGame
     struct ChatUILayout chat_layout;
     int chat_layout_valid;
 
-    /** From `[magic_tab:*]` UI INI; spellbook redstone tab (default 6 in LibToriRS_GameNew). */
-    int magic_tab_spellbook_sidebar_tabno;
-    /** From `[magic_tab:*]`; PKTOUT IF_BUTTON for inv_transmit; 0 = do not send. */
-    int magic_tab_inv_transmit_if_button_comp;
-
     /* Per-frame client settings written by clientscript_vm_drain_clientcodes(). */
     int settings_brightness;
     int settings_music_vol;

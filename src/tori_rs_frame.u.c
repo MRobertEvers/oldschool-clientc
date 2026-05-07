@@ -3320,10 +3320,6 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
             if( !frame_point_in_component_xy(c, cx, cy) )
                 continue;
             game->iface->selected_tab = c->u.redstone_tab.tabno;
-            if( c->u.redstone_tab.tabno == game->magic_tab_spellbook_sidebar_tabno )
-            {
-                interface_magic_tab_request_inv_transmit_if_configured(game);
-            }
             game->interface_consumed_click = 1;
             return;
         }

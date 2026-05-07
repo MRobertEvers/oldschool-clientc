@@ -293,10 +293,4 @@ interface_inv_drag_tick(struct GGame* game);
 void
 interface_inv_try_drag_mouse_up(struct GGame* game, struct GInput* input);
 
-/** After selecting the spellbook sidebar tab (`magic_tab_spellbook_sidebar_tabno` from UI INI
- * `[magic_tab:*]`): if `magic_tab_inv_transmit_if_button_comp` > 0, send PKTOUT IF_BUTTON so the
- * server can run `inv_transmit` for spellbook TYPE_INV panels. */
-void
-interface_magic_tab_request_inv_transmit_if_configured(struct GGame* game);
-
 #endif

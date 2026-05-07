@@ -14,7 +14,6 @@
 #include "osrs/entity_scenebuild.h"
 #include "osrs/game.h"
 #include "osrs/game_entity.h"
-#include "osrs/interface.h"
 #include "osrs/interface_state.h"
 #include "osrs/model_transforms.h"
 #include "osrs/obj_icon.h"
@@ -901,10 +900,6 @@ gamenet_rev245_2_exec_if_settab_active_v1(
         game->iface->selected_tab = tab_id;
         uitree_debug_log_sidebar_state(game, "IF_SETTAB_ACTIVE", tab_id, -1);
         printf("IF_SETTAB_ACTIVE: Set active tab to %d\n", tab_id);
-        if( tab_id == game->magic_tab_spellbook_sidebar_tabno )
-        {
-            interface_magic_tab_request_inv_transmit_if_configured(game);
-        }
     }
     else
     {

@@ -220,16 +220,7 @@ enum LoadKind
     LOAD_KIND_SPRITE,
     LOAD_KIND_COMPONENT,
     LOAD_KIND_LAYOUT,
-    LOAD_KIND_INV,
-    LOAD_KIND_MAGIC_TAB
-};
-
-struct MagicTabLoad
-{
-    int spellbook_sidebar_tabno;
-    int inv_transmit_if_button_comp;
-    uint8_t has_spellbook_sidebar_tabno;
-    uint8_t has_inv_transmit_if_button_comp;
+    LOAD_KIND_INV
 };
 
 struct InvLoad
@@ -248,7 +239,6 @@ struct CurrentLoad
         struct ComponentLoad _component;
         struct LayoutLoad _layout;
         struct InvLoad _inv;
-        struct MagicTabLoad _magic_tab;
     };
 };
 
@@ -1894,8 +1884,6 @@ load_kind(const char* str)
         return LOAD_KIND_LAYOUT;
     else if( strcmp(str, "inv") == 0 )
         return LOAD_KIND_INV;
-    else if( strcmp(str, "magic_tab") == 0 )
-        return LOAD_KIND_MAGIC_TAB;
     return LOAD_KIND_NONE;
 }
 
@@ -1926,16 +1914,6 @@ load_item(
     case LOAD_KIND_INV:
         load_inv(&load->_inv, inv_pool, game, ui_scene);
         break;
-    case LOAD_KIND_MAGIC_TAB:
-        if( game )
-        {
-            struct MagicTabLoad const* m = &load->_magic_tab;
-            if( m->has_spellbook_sidebar_tabno )
-                game->magic_tab_spellbook_sidebar_tabno = m->spellbook_sidebar_tabno;
-            if( m->has_inv_transmit_if_button_comp )
-                game->magic_tab_inv_transmit_if_button_comp = m->inv_transmit_if_button_comp;
-        }
-        break;
 
     default:
     {
@@ -1963,8 +1941,6 @@ on_itemname(
         break;
     case LOAD_KIND_INV:
         strncpy(load->_inv.name, value, sizeof(load->_inv.name) - 1);
-        break;
-    case LOAD_KIND_MAGIC_TAB:
         break;
     }
 }
@@ -2042,8 +2018,6 @@ uitree_from_revconfig_buildcachedat(
             load.kind = (enum LoadKind)k;
             if( load.kind == LOAD_KIND_INV )
                 memset(&load._inv, 0, sizeof(load._inv));
-            else if( load.kind == LOAD_KIND_MAGIC_TAB )
-                memset(&load._magic_tab, 0, sizeof(load._magic_tab));
         }
         break;
         case RCFIELD_ITEMNAME:
@@ -2576,24 +2550,6 @@ uitree_from_revconfig_buildcachedat(
             load._layout.entries[load._layout.entry_count - 1].always_dirty = truthy ? 1u : 0u;
         }
         break;
-        case RCFIELD_MAGIC_TAB_SPELLBOOK_SIDEBAR_TABNO:
-        {
-            assert(
-                load.kind == LOAD_KIND_MAGIC_TAB &&
-                "MAGIC_TAB_SPELLBOOK_SIDEBAR_TABNO must be within [magic_tab:*]");
-            load._magic_tab.spellbook_sidebar_tabno = atoi(field->value);
-            load._magic_tab.has_spellbook_sidebar_tabno = 1;
-        }
-        break;
-        case RCFIELD_MAGIC_TAB_INV_TRANSMIT_IF_BUTTON_COMP:
-        {
-            assert(
-                load.kind == LOAD_KIND_MAGIC_TAB &&
-                "MAGIC_TAB_INV_TRANSMIT_IF_BUTTON_COMP must be within [magic_tab:*]");
-            load._magic_tab.inv_transmit_if_button_comp = atoi(field->value);
-            load._magic_tab.has_inv_transmit_if_button_comp = 1;
-        }
-        break;
         }
     }
 
@@ -2676,8 +2632,6 @@ uitree_load_inventories_from_revconfig(
             load.kind = (enum LoadKind)k;
             if( load.kind == LOAD_KIND_INV )
                 memset(&load._inv, 0, sizeof(load._inv));
-            else if( load.kind == LOAD_KIND_MAGIC_TAB )
-                memset(&load._magic_tab, 0, sizeof(load._magic_tab));
         }
         break;
         case RCFIELD_ITEMNAME:
@@ -2687,30 +2641,8 @@ uitree_load_inventories_from_revconfig(
         case RCFIELD_ITEMDONE:
             if( load.kind == LOAD_KIND_INV )
                 load_inv(&load._inv, inv_pool, game, ui_scene);
-            else if( load.kind == LOAD_KIND_MAGIC_TAB && game )
-            {
-                struct MagicTabLoad const* m = &load._magic_tab;
-                if( m->has_spellbook_sidebar_tabno )
-                    game->magic_tab_spellbook_sidebar_tabno = m->spellbook_sidebar_tabno;
-                if( m->has_inv_transmit_if_button_comp )
-                    game->magic_tab_inv_transmit_if_button_comp = m->inv_transmit_if_button_comp;
-            }
             load.kind = LOAD_KIND_NONE;
             memset(&load, 0, sizeof(load));
-            break;
-        case RCFIELD_MAGIC_TAB_SPELLBOOK_SIDEBAR_TABNO:
-            if( load.kind == LOAD_KIND_MAGIC_TAB )
-            {
-                load._magic_tab.spellbook_sidebar_tabno = atoi(field->value);
-                load._magic_tab.has_spellbook_sidebar_tabno = 1;
-            }
-            break;
-        case RCFIELD_MAGIC_TAB_INV_TRANSMIT_IF_BUTTON_COMP:
-            if( load.kind == LOAD_KIND_MAGIC_TAB )
-            {
-                load._magic_tab.inv_transmit_if_button_comp = atoi(field->value);
-                load._magic_tab.has_inv_transmit_if_button_comp = 1;
-            }
             break;
         case RCFIELD_INV_ITEM:
             if( load.kind == LOAD_KIND_INV && load._inv.item_count < UI_INVENTORY_MAX_ITEMS )
@@ -2970,8 +2902,6 @@ uitree_load_ui_from_revconfig(
             load.kind = (enum LoadKind)k;
             if( load.kind == LOAD_KIND_INV )
                 memset(&load._inv, 0, sizeof(load._inv));
-            else if( load.kind == LOAD_KIND_MAGIC_TAB )
-                memset(&load._magic_tab, 0, sizeof(load._magic_tab));
         }
         break;
         case RCFIELD_ITEMNAME:
@@ -3503,24 +3433,6 @@ uitree_load_ui_from_revconfig(
             const char* v = field->value;
             int truthy = (strcmp(v, "true") == 0) || (strcmp(v, "1") == 0);
             load._layout.entries[load._layout.entry_count - 1].always_dirty = truthy ? 1u : 0u;
-        }
-        break;
-        case RCFIELD_MAGIC_TAB_SPELLBOOK_SIDEBAR_TABNO:
-        {
-            assert(
-                load.kind == LOAD_KIND_MAGIC_TAB &&
-                "MAGIC_TAB_SPELLBOOK_SIDEBAR_TABNO must be within [magic_tab:*]");
-            load._magic_tab.spellbook_sidebar_tabno = atoi(field->value);
-            load._magic_tab.has_spellbook_sidebar_tabno = 1;
-        }
-        break;
-        case RCFIELD_MAGIC_TAB_INV_TRANSMIT_IF_BUTTON_COMP:
-        {
-            assert(
-                load.kind == LOAD_KIND_MAGIC_TAB &&
-                "MAGIC_TAB_INV_TRANSMIT_IF_BUTTON_COMP must be within [magic_tab:*]");
-            load._magic_tab.inv_transmit_if_button_comp = atoi(field->value);
-            load._magic_tab.has_inv_transmit_if_button_comp = 1;
         }
         break;
         }
