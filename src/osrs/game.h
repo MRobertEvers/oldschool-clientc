@@ -177,7 +177,8 @@ struct GGame
     struct MouseSnapshot mouse;
 
     int mouse_cycle;
-    int interface_consumed_click; /* 1 if click was handled by interface (tab, sidebar, etc.) */
+    int interface_consumed_click; /* GameProcessInput resets each step; set when minimenu/iface eats the
+                                   click so FrameEnd skips duplicate world walk (see tori_rs_input). */
     /** Increments each game tick while left button is held; reset to 0 on release.
      * Mirrors Client.ts scrollCycle: scroll delta = scroll_cycle * 4 per tick. */
     int scroll_cycle;

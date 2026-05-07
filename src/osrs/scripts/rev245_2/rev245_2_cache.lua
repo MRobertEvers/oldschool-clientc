@@ -469,11 +469,6 @@ end
 
 function M.if_openchat_v1(item)
     ensure_interfaces_loaded()
-    local com = Game.Game.get_pkt_if_openchat_component_id(item)
-    if Game.BuildCacheDat.has_config_jagfile() and com and com >= 0 then
-        -- RS chat expand uses gamecache_get_component(root); ensure defs mirrored from buildcache.
-        Game.GameCache.convert_components_from_buildcachedat()
-    end
     M.preload_local_player_head_models()
     Game.Game.exec_packet(item)
 end

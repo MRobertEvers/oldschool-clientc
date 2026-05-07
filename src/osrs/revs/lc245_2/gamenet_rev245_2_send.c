@@ -339,8 +339,7 @@ gamenet_rev245_2_send_opobj(
     int which,
     int x,
     int z,
-    int obj_id,
-    int ctrl)
+    int obj_id)
 {
     static const int ops[5] = { PKTOUT_LC245_2_OPOBJ1,
                                 PKTOUT_LC245_2_OPOBJ2,
@@ -350,17 +349,16 @@ gamenet_rev245_2_send_opobj(
     int idx = which - 1;
     if( idx < 0 || idx > 4 )
         return;
-    gamenet_core_send_opobj_v1(g, ops[idx], x, z, obj_id, ctrl);
+    gamenet_core_send_opobj_v1(g, ops[idx], x, z, obj_id);
 }
 void
 gamenet_rev245_2_send_opobjt(
     struct GGame* g,
     int x,
     int z,
-    int obj_id,
-    int ctrl)
+    int obj_id)
 {
-    gamenet_core_send_opobjt_v1(g, PKTOUT_LC245_2_OPBJT, x, z, obj_id, ctrl);
+    gamenet_core_send_opobjt_v1(g, PKTOUT_LC245_2_OPBJT, x, z, obj_id);
 }
 void
 gamenet_rev245_2_send_opobju(

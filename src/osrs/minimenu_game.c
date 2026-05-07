@@ -455,6 +455,95 @@ minimenu_game_click_option(
 
 #define MM_BFS_PATH_MAX 25
 
+/** Shared tile-to-tile BFS → MOVE_OPCLICK + suppress next MOVE_GAMECLICK (Client.ts tryMove type 2). */
+static bool
+mm_emit_move_opclick_simple(
+    struct GGame* game,
+    struct CollisionMap* cm,
+    int run,
+    int sx,
+    int sz,
+    int dx,
+    int dz)
+{
+    if( !game || !cm )
+        return false;
+    if( game->net_state != GAME_NET_STATE_GAME || !game->random_out )
+        return false;
+
+    struct PlayerEntity* pl =
+        game->world ? world_player(game->world, ACTIVE_PLAYER_SLOT) : NULL;
+    if( !pl || !pl->alive )
+        return false;
+
+    if( dx < 0 || dz < 0 || dx >= cm->size_x || dz >= cm->size_z )
+        return false;
+
+    int path_x[MM_BFS_PATH_MAX];
+    int path_z[MM_BFS_PATH_MAX];
+    int n = collision_map_bfs_path(cm, sx, sz, dx, dz, path_x, path_z, MM_BFS_PATH_MAX);
+    if( n <= 0 )
+        return false;
+
+    {
+        int save = n < GAME_SENT_PATH_MAX ? n : GAME_SENT_PATH_MAX;
+        game->sent_path.length = save;
+        for( int i = 0; i < save; i++ )
+        {
+            game->sent_path.tile_x[i] = (uint8_t)path_x[i];
+            game->sent_path.tile_z[i] = (uint8_t)path_z[i];
+        }
+    }
+
+    gamenet_send_move_opclick(game, run, path_x, path_z, n);
+    game->suppress_move_gameclick_once = 1;
+    return true;
+}
+
+/** Tile-to-tile BFS → MOVE_GAMECLICK (no suppress flag). */
+static bool
+mm_emit_move_gameclick_simple(
+    struct GGame* game,
+    struct CollisionMap* cm,
+    int run,
+    int sx,
+    int sz,
+    int dx,
+    int dz)
+{
+    if( !game || !cm )
+        return false;
+    if( game->net_state != GAME_NET_STATE_GAME || !game->random_out )
+        return false;
+
+    struct PlayerEntity* pl =
+        game->world ? world_player(game->world, ACTIVE_PLAYER_SLOT) : NULL;
+    if( !pl || !pl->alive )
+        return false;
+
+    if( dx < 0 || dz < 0 || dx >= cm->size_x || dz >= cm->size_z )
+        return false;
+
+    int path_x[MM_BFS_PATH_MAX];
+    int path_z[MM_BFS_PATH_MAX];
+    int n = collision_map_bfs_path(cm, sx, sz, dx, dz, path_x, path_z, MM_BFS_PATH_MAX);
+    if( n <= 0 )
+        return false;
+
+    {
+        int save = n < GAME_SENT_PATH_MAX ? n : GAME_SENT_PATH_MAX;
+        game->sent_path.length = save;
+        for( int i = 0; i < save; i++ )
+        {
+            game->sent_path.tile_x[i] = (uint8_t)path_x[i];
+            game->sent_path.tile_z[i] = (uint8_t)path_z[i];
+        }
+    }
+
+    gamenet_send_move_gameclick(game, run, path_x, path_z, n);
+    return true;
+}
+
 static int
 mm_input_run(struct GInput* input)
 {
@@ -473,8 +562,6 @@ mm_emit_opclick_to_tile(
 {
     if( !game->world || !game->world->collision_map )
         return;
-    if( game->net_state != GAME_NET_STATE_GAME || !game->random_out )
-        return;
 
     struct PlayerEntity* pl = world_player(game->world, ACTIVE_PLAYER_SLOT);
     if( !pl || !pl->alive )
@@ -483,25 +570,8 @@ mm_emit_opclick_to_tile(
     /* Client.ts: srcX = localPlayer.routeX[0] */
     int sx = pl->pathing.route_x[0];
     int sz = pl->pathing.route_z[0];
-    int path_x[MM_BFS_PATH_MAX];
-    int path_z[MM_BFS_PATH_MAX];
-    int n = collision_map_bfs_path(
-        game->world->collision_map, sx, sz, dst_x, dst_z, path_x, path_z, MM_BFS_PATH_MAX);
-    if( n <= 0 )
-        return;
-
-    {
-        int save = n < GAME_SENT_PATH_MAX ? n : GAME_SENT_PATH_MAX;
-        game->sent_path.length = save;
-        for( int i = 0; i < save; i++ )
-        {
-            game->sent_path.tile_x[i] = (uint8_t)path_x[i];
-            game->sent_path.tile_z[i] = (uint8_t)path_z[i];
-        }
-    }
-
-    gamenet_send_move_opclick(game, mm_input_run(input), path_x, path_z, n);
-    game->suppress_move_gameclick_once = 1;
+    (void)mm_emit_move_opclick_simple(
+        game, game->world->collision_map, mm_input_run(input), sx, sz, dst_x, dst_z);
 }
 
 /** Client.ts tryMove(..., entity.routeX[0], routeZ[0], false, 1, 1, 0, 0, 0, 2): MOVE_OPCLICK
@@ -1015,7 +1085,7 @@ minimenu_game_use_option(
         if( which >= 0 )
         {
             mm_emit_opclick_to_tile(game, input, param_b, param_c);
-            gamenet_send_opobj(game, which, param_b, param_c, param_a, 0);
+            gamenet_send_opobj(game, which, param_b, param_c, param_a);
             mm_move_toward(game, param_b, param_c);
             return;
         }
@@ -1183,13 +1253,9 @@ minimenu_game_send_move_path_to(
     int dest_local_x,
     int dest_local_z)
 {
-    (void)game;
-    (void)cm;
-    (void)src_local_x;
-    (void)src_local_z;
-    (void)dest_local_x;
-    (void)dest_local_z;
-    return true;
+    /* run=0; callers needing shift-run should extend API or route via minimenu + input. */
+    return mm_emit_move_gameclick_simple(
+        game, cm, 0, src_local_x, src_local_z, dest_local_x, dest_local_z);
 }
 
 bool
@@ -1201,11 +1267,6 @@ minimenu_game_send_move_opclick_to(
     int dest_local_x,
     int dest_local_z)
 {
-    (void)game;
-    (void)cm;
-    (void)src_local_x;
-    (void)src_local_z;
-    (void)dest_local_x;
-    (void)dest_local_z;
-    return true;
+    return mm_emit_move_opclick_simple(
+        game, cm, 0, src_local_x, src_local_z, dest_local_x, dest_local_z);
 }

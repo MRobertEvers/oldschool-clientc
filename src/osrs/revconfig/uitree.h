@@ -78,6 +78,8 @@ enum StaticUIComponentType
     UIELEM_BUILTIN_COLLISIONMAP_OVERLAY = 22,
     /** IF_OPENCHAT: RS subtree parent; children rebuilt from gamecache (same pattern as sidebar). */
     UIELEM_BUILTIN_CHAT_DIALOG = 23,
+    /** IF_OPENSIDE / IF_OPENMAIN_SIDE: RS subtree parent over sidebar overlay rect. */
+    UIELEM_BUILTIN_SIDEBAR_OVERLAY = 24,
 };
 
 enum StaticUIElemPositionKind
@@ -212,6 +214,10 @@ struct StaticUIComponent
         {
             int reserved;
         } chat_dialog;
+        struct
+        {
+            int reserved;
+        } sidebar_overlay;
         struct
         {
             /** Resolved uiscene font id at draw time; may be -1 until lazy resolve. */
@@ -530,6 +536,15 @@ uitree_push_builtin_chat_dialog(
     int height);
 
 int32_t
+uitree_push_builtin_sidebar_overlay(
+    struct UITree* tree,
+    int32_t parent_index,
+    int x,
+    int y,
+    int width,
+    int height);
+
+int32_t
 uitree_push_redstone_tab(
     struct UITree* tree,
     int32_t parent_index,
@@ -579,6 +594,11 @@ void
 uitree_clear_chat_dialog_children(
     struct UITree* tree,
     int32_t chat_dialog_idx);
+
+void
+uitree_clear_sidebar_overlay_children(
+    struct UITree* tree,
+    int32_t sidebar_overlay_idx);
 
 /** Returns 0 if no duplicate BUILTIN_SIDEBAR tabno in 0..13; else logs to stderr and returns -1.
  * Revisions may omit wire tabs (e.g. LC245_2 skips 7); missing indices are allowed. */

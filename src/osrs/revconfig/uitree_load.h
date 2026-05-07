@@ -45,6 +45,10 @@ uitree_load_ui_from_revconfig(
 void
 uitree_expand_chat_dialog_for_interface(struct GGame* game, int component_id);
 
+/** Rebuild IF_OPENSIDE interface under UIELEM_BUILTIN_SIDEBAR_OVERLAY. component_id < 0 clears only. */
+void
+uitree_expand_sidebar_overlay_for_interface(struct GGame* game, int component_id);
+
 /** Clear sidebar RS subtree and rebuild from component_id (buildcachedat). No-op if no sidebar
  * node for tabno. component_id < 0 clears only. */
 void

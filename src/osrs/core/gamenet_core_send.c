@@ -645,12 +645,11 @@ gamenet_core_send_opobj_v1(
     int opcode,
     int x,
     int z,
-    int obj_id,
-    int ctrl)
+    int obj_id)
 {
     if( !g || !g->random_out )
         return;
-    struct PktClientProt_OpObj_v1 w = { wire_x(g, x), wire_z(g, z), obj_id, ctrl };
+    struct PktClientProt_OpObj_v1 w = { wire_x(g, x), wire_z(g, z), obj_id };
     uint8_t scratch[GAMENET_CORE_SCRATCH_SIZE];
     struct RSBuffer b;
     rsbuf_init(&b, (int8_t*)scratch, sizeof(scratch));
@@ -664,12 +663,11 @@ gamenet_core_send_opobjt_v1(
     int opcode,
     int x,
     int z,
-    int obj_id,
-    int ctrl)
+    int obj_id)
 {
     if( !g || !g->random_out )
         return;
-    struct PktClientProt_OpObj_v1 w = { wire_x(g, x), wire_z(g, z), obj_id, ctrl };
+    struct PktClientProt_OpObj_v1 w = { wire_x(g, x), wire_z(g, z), obj_id };
     uint8_t scratch[GAMENET_CORE_SCRATCH_SIZE];
     struct RSBuffer b;
     rsbuf_init(&b, (int8_t*)scratch, sizeof(scratch));
@@ -687,7 +685,7 @@ gamenet_core_send_opobju_v1(
 {
     if( !g || !g->random_out )
         return;
-    struct PktClientProt_OpObj_v1 w = { wire_x(g, x), wire_z(g, z), obj_id, 0 };
+    struct PktClientProt_OpObj_v1 w = { wire_x(g, x), wire_z(g, z), obj_id };
     uint8_t scratch[GAMENET_CORE_SCRATCH_SIZE];
     struct RSBuffer b;
     rsbuf_init(&b, (int8_t*)scratch, sizeof(scratch));
@@ -733,7 +731,7 @@ gamenet_core_send_opobju_use_v1(
 {
     if( !g || !g->random_out )
         return;
-    struct PktClientProt_OpObj_v1 w = { wire_x(g, x), wire_z(g, z), obj_id, 0 };
+    struct PktClientProt_OpObj_v1 w = { wire_x(g, x), wire_z(g, z), obj_id };
     struct PktClientProt_OpHeldSourceInv_v1 src   = { obj_comp_id, slot, sel_comp_id };
     uint8_t scratch[GAMENET_CORE_SCRATCH_SIZE];
     struct RSBuffer b;

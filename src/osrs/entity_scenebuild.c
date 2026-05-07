@@ -59,14 +59,17 @@ idk_model(
 }
 
 /* Ground object model (obj->model) for world-rendered items. Uses countobj for stack
- * variations (e.g. coin stacks). Returns GameCacheModel*; caller must not free (cached). */
+ * variations (e.g. coin stacks). Returns a heap copy consumed by dashmodel_move_from_gamecache_model.
+ */
 static struct GameCacheModel*
-obj_ground_model(
-    struct GGame* game,
+obj_ground_model_gc(
+    struct GameCache* gc,
     int obj_id,
     int count)
 {
-    struct GameCacheObj* obj = gamecache_get_obj(game->gamecache, obj_id);
+    if( !gc )
+        return NULL;
+    struct GameCacheObj* obj = gamecache_get_obj(gc, obj_id);
     if( !obj )
         return NULL;
 
@@ -82,13 +85,13 @@ obj_ground_model(
             }
         }
         if( countobj_id != -1 )
-            return obj_ground_model(game, countobj_id, 1);
+            return obj_ground_model_gc(gc, countobj_id, 1);
     }
 
     if( obj->model == 0 || obj->model == -1 )
         return NULL;
 
-    struct GameCacheModel* model = gamecache_get_model(game->gamecache, obj->model);
+    struct GameCacheModel* model = gamecache_get_model(gc, obj->model);
     if( !model )
         return NULL;
 
@@ -96,6 +99,17 @@ obj_ground_model(
     for( int i = 0; i < obj->recol_count; i++ )
         gamecache_model_transform_recolor(copy, obj->recol_s[i], obj->recol_d[i]);
     return copy;
+}
+
+static struct GameCacheModel*
+obj_ground_model(
+    struct GGame* game,
+    int obj_id,
+    int count)
+{
+    if( !game || !game->gamecache )
+        return NULL;
+    return obj_ground_model_gc(game->gamecache, obj_id, count);
 }
 
 static struct GameCacheModel*
@@ -149,10 +163,10 @@ obj_model(
 
 static int64_t
 obj_stack_sort_key(
-    struct GGame* game,
+    struct GameCache* gc,
     struct ObjStackEntry* e)
 {
-    struct GameCacheObj* o = gamecache_get_obj(game->gamecache, e->obj_id);
+    struct GameCacheObj* o = gamecache_get_obj(gc, e->obj_id);
     if( !o )
         return 0;
     int64_t c = (int64_t)o->cost;
@@ -163,7 +177,7 @@ obj_stack_sort_key(
 
 static void
 obj_stack_move_top_to_front(
-    struct GGame* game,
+    struct GameCache* gc,
     struct ObjStackEntry** head_out)
 {
     struct ObjStackEntry* list = *head_out;
@@ -171,10 +185,10 @@ obj_stack_move_top_to_front(
         return;
 
     struct ObjStackEntry* top = list;
-    int64_t top_key = obj_stack_sort_key(game, top);
+    int64_t top_key = obj_stack_sort_key(gc, top);
     for( struct ObjStackEntry* e = list->next; e; e = e->next )
     {
-        int64_t k = obj_stack_sort_key(game, e);
+        int64_t k = obj_stack_sort_key(gc, e);
         if( k > top_key )
         {
             top_key = k;
@@ -249,7 +263,7 @@ entity_scenebuild_obj_stack_update_tile(
         return;
 
     struct ObjStackEntry** head_cell = &w->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz];
-    obj_stack_move_top_to_front(game, head_cell);
+    obj_stack_move_top_to_front(game->gamecache, head_cell);
     struct ObjStackEntry* head = *head_cell;
     int tflat = world_obj_stack_tile_flat(level, sx, sz);
 
@@ -337,6 +351,102 @@ entity_scenebuild_obj_stack_update_tile(
         pos->z = wz;
         pos->yaw = 0;
         pos->y = ground_y;
+    }
+}
+
+/** Each frame: re-sort stack, refresh DashModel from cache, Y from heightmap — mirrors
+ * world_scenebuild_npc_entity_reload_scene2_model before painter emit. */
+void
+entity_scenebuild_obj_stack_reload_scene2_for_active_entity(
+    struct World* w,
+    struct GameCache* gc,
+    int eid)
+{
+    if( !w || !gc || !w->scene2 || !w->obj_stacks || !w->obj_stack_entity_by_tile )
+        return;
+    if( eid < 0 || eid >= entity_vec_count(&w->obj_stack_entities) )
+        return;
+
+    struct ObjStackEntity* ent = world_obj_stack_entity(w, eid);
+    if( !ent->alive )
+        return;
+
+    int level = ent->level;
+    int sx    = ent->world_tile_x;
+    int sz    = ent->world_tile_z;
+    if( level < 0 || level >= MAP_TERRAIN_LEVELS || sx < 0 || sz < 0 || sx >= ZONE_SCENE_SIZE ||
+        sz >= ZONE_SCENE_SIZE )
+        return;
+
+    int tflat = world_obj_stack_tile_flat(level, sx, sz);
+    if( w->obj_stack_entity_by_tile[tflat] != eid )
+        return;
+
+    struct ObjStackEntry** head_cell = &w->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz];
+    obj_stack_move_top_to_front(gc, head_cell);
+    struct ObjStackEntry* head = *head_cell;
+
+    if( !head )
+    {
+        world_cleanup_obj_stack_entity(w, eid);
+        w->obj_stack_entity_by_tile[tflat] = -1;
+        return;
+    }
+
+    struct ObjStackEntry* bottom_e = NULL;
+    struct ObjStackEntry* middle_e = NULL;
+    obj_stack_pick_bottom_middle(head, &bottom_e, &middle_e);
+    struct ObjStackEntry* layer_entry[3] = { bottom_e, middle_e, head };
+
+    int wx = sx * 128 + 64;
+    int wz = sz * 128 + 64;
+    int ground_y = w->heightmap ? heightmap_get_interpolated(w->heightmap, wx, wz, level) : 0;
+
+    for( int layer = 0; layer < 3; layer++ )
+    {
+        struct ObjStackEntry* entry = layer_entry[layer];
+        if( !entry )
+        {
+            obj_stack_scene_release_layer(w, ent, layer);
+            continue;
+        }
+
+        struct GameCacheModel* cm = obj_ground_model_gc(gc, entry->obj_id, entry->count);
+        if( !cm )
+        {
+            world_cleanup_obj_stack_entity(w, eid);
+            w->obj_stack_entity_by_tile[tflat] = -1;
+            return;
+        }
+
+        int total_el = scene2_elements_total(w->scene2);
+        int sid      = ent->scene_element[layer].element_id;
+        if( sid < 0 || sid >= total_el )
+        {
+            ent->scene_element[layer].element_id = scene2_element_acquire_fast(
+                w->scene2,
+                (int)entity_obj_stack_unified_id(eid, layer),
+                SCENE2_ELEMENT_SCENERY,
+                0,
+                0);
+            sid = ent->scene_element[layer].element_id;
+        }
+
+        struct Scene2Element* se = scene2_element_at(w->scene2, sid);
+        scene2_element_expect(se, "entity_scenebuild_obj_stack_reload_scene2_for_active_entity");
+
+        if( !scene2_element_dash_model(se) )
+            scene2_element_set_dash_model(w->scene2, se, dashmodel_new());
+        dashmodel_move_from_gamecache_model(scene2_element_dash_model(se), cm);
+        _light_model_default(scene2_element_dash_model(se), 0, 0);
+
+        if( !scene2_element_dash_position(se) )
+            scene2_element_set_dash_position_ptr(se, dashposition_new());
+        struct DashPosition* pos = scene2_element_dash_position(se);
+        pos->x   = wx;
+        pos->z   = wz;
+        pos->yaw = 0;
+        pos->y   = ground_y;
     }
 }
 

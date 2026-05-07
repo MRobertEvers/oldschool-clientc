@@ -480,6 +480,8 @@ component_type_from_string(const char* str)
         return UIELEM_BUILTIN_COLLISIONMAP_OVERLAY;
     else if( strcmp(str, "chat_dialog") == 0 )
         return UIELEM_BUILTIN_CHAT_DIALOG;
+    else if( strcmp(str, "sidebar_overlay") == 0 )
+        return UIELEM_BUILTIN_SIDEBAR_OVERLAY;
 
     assert(0 && "Unknown component type");
     return 0;
@@ -743,6 +745,10 @@ load_component(
     case UIELEM_BUILTIN_CHAT_DIALOG:
         component_entry->width = load->width > 0 ? load->width : 409;
         component_entry->height = load->height > 0 ? load->height : 96;
+        break;
+    case UIELEM_BUILTIN_SIDEBAR_OVERLAY:
+        component_entry->width = load->width > 0 ? load->width : 190;
+        component_entry->height = load->height > 0 ? load->height : 261;
         break;
     default:
         break;
@@ -1445,6 +1451,31 @@ expand_chat_dialog_rs_tree(
         game, ui, ui_scene, scene2, bcd, chat_dialog_idx, root, bx, by, inv_index);
 }
 
+static void
+expand_sidebar_overlay_rs_tree(
+    struct GGame* game,
+    struct UITree* ui,
+    struct UIScene* ui_scene,
+    struct Scene2* scene2,
+    struct GameCache* bcd,
+    int32_t sidebar_overlay_idx,
+    int component_no,
+    int inv_index)
+{
+    if( !bcd || component_no < 0 || sidebar_overlay_idx < 0 ||
+        (uint32_t)sidebar_overlay_idx >= ui->component_count )
+        return;
+    struct GameCacheComponent* root = gamecache_get_component(bcd, component_no);
+    if( !root )
+        return;
+    int sx = ui->components[sidebar_overlay_idx].position.x;
+    int sy = ui->components[sidebar_overlay_idx].position.y;
+    int bx = sx + root->x;
+    int by = sy + root->y;
+    push_rs_from_cache_component(
+        game, ui, ui_scene, scene2, bcd, sidebar_overlay_idx, root, bx, by, inv_index);
+}
+
 static int
 uitree_load_resolve_minimenu_font_id(
     struct UIScene* ui_scene,
@@ -1639,6 +1670,14 @@ load_layout(
         case UIELEM_BUILTIN_CHAT_DIALOG:
         {
             int32_t idx = uitree_push_builtin_chat_dialog(
+                ui, -1, lx, ly, component_entry->width, component_entry->height);
+            if( layout_entry->always_dirty && idx >= 0 )
+                ui->components[idx].always_dirty = 1;
+        }
+        break;
+        case UIELEM_BUILTIN_SIDEBAR_OVERLAY:
+        {
+            int32_t idx = uitree_push_builtin_sidebar_overlay(
                 ui, -1, lx, ly, component_entry->width, component_entry->height);
             if( layout_entry->always_dirty && idx >= 0 )
                 ui->components[idx].always_dirty = 1;
@@ -2654,6 +2693,19 @@ uitree_find_chat_dialog_builtin(struct UITree* ui)
     return -1;
 }
 
+static int32_t
+uitree_find_sidebar_overlay_builtin(struct UITree* ui)
+{
+    if( !ui )
+        return -1;
+    for( uint32_t i = 0; i < ui->component_count; i++ )
+    {
+        if( ui->components[i].type == UIELEM_BUILTIN_SIDEBAR_OVERLAY )
+            return (int32_t)i;
+    }
+    return -1;
+}
+
 void
 uitree_expand_chat_dialog_for_interface(
     struct GGame* game,
@@ -2676,6 +2728,31 @@ uitree_expand_chat_dialog_for_interface(
     }
 
     ui->components[cd_idx].is_dirty = 1;
+    uitree_mark_all_dirty(ui);
+}
+
+void
+uitree_expand_sidebar_overlay_for_interface(
+    struct GGame* game,
+    int component_id)
+{
+    if( !game || !game->ui_root_buffer || !game->ui_scene || !game->gamecache )
+        return;
+
+    struct UITree* ui = game->ui_root_buffer;
+    int32_t so_idx = uitree_find_sidebar_overlay_builtin(ui);
+    if( so_idx < 0 )
+        return;
+
+    uitree_clear_sidebar_overlay_children(ui, so_idx);
+
+    if( component_id >= 0 )
+    {
+        expand_sidebar_overlay_rs_tree(
+            game, ui, game->ui_scene, game->scene2, game->gamecache, so_idx, component_id, -1);
+    }
+
+    ui->components[so_idx].is_dirty = 1;
     uitree_mark_all_dirty(ui);
 }
 

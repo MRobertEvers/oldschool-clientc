@@ -209,15 +209,13 @@ gamenet_rev245_2_send_opobj(
     int which,
     int x,
     int z,
-    int obj_id,
-    int ctrl);
+    int obj_id);
 void
 gamenet_rev245_2_send_opobjt(
     struct GGame* g,
     int x,
     int z,
-    int obj_id,
-    int ctrl);
+    int obj_id);
 void
 gamenet_rev245_2_send_opobju(
     struct GGame* g,

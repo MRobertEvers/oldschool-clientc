@@ -380,7 +380,6 @@ clientprot_send_opobj_v1(
     p2(b, w->wire_x);
     p2(b, w->wire_z);
     p2(b, w->obj_id);
-    p1(b, w->ctrl ? 1 : 0);
 }
 
 void
@@ -394,7 +393,6 @@ clientprot_send_opobjt_v1(
     p2(b, w->wire_x);
     p2(b, w->wire_z);
     p2(b, w->obj_id);
-    p1(b, w->ctrl ? 1 : 0);
 }
 
 void

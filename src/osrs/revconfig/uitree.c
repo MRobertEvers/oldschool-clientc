@@ -374,6 +374,8 @@ uitree_component_type_str(enum StaticUIComponentType type)
         return "collisionmap_overlay";
     case UIELEM_BUILTIN_CHAT_DIALOG:
         return "chat_dialog";
+    case UIELEM_BUILTIN_SIDEBAR_OVERLAY:
+        return "sidebar_overlay";
     }
     return "unknown";
 }
@@ -904,6 +906,30 @@ uitree_push_builtin_chat_dialog(
 }
 
 int32_t
+uitree_push_builtin_sidebar_overlay(
+    struct UITree* tree,
+    int32_t parent_index,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_BUILTIN_SIDEBAR_OVERLAY;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.sidebar_overlay.reserved = 0;
+    return idx;
+}
+
+int32_t
 uitree_push_collisionmap_overlay(
     struct UITree* tree,
     int32_t parent_index)
@@ -1316,6 +1342,23 @@ uitree_clear_chat_dialog_children(
         return;
     struct StaticUIComponent* c = &tree->components[chat_dialog_idx];
     if( c->type != UIELEM_BUILTIN_CHAT_DIALOG )
+        return;
+    if( c->first_child >= 0 )
+        uitree_subtree_set_hidden_r(tree, c->first_child, 1u);
+    c->first_child = -1;
+    c->is_dirty = 1;
+    tree->generation++;
+}
+
+void
+uitree_clear_sidebar_overlay_children(
+    struct UITree* tree,
+    int32_t sidebar_overlay_idx)
+{
+    if( !tree || sidebar_overlay_idx < 0 || (uint32_t)sidebar_overlay_idx >= tree->component_count )
+        return;
+    struct StaticUIComponent* c = &tree->components[sidebar_overlay_idx];
+    if( c->type != UIELEM_BUILTIN_SIDEBAR_OVERLAY )
         return;
     if( c->first_child >= 0 )
         uitree_subtree_set_hidden_r(tree, c->first_child, 1u);
@@ -1835,6 +1878,35 @@ uitree_fill_simple_component_options(
         return;
     }
 
+    /* CLOSE / CONTINUE before target_verb / option / RS_TEXT fallback: pause-dialog continue
+     * must send RESUME_PAUSEBUTTON (Client.ts PAUSE_BUTTON), not IF_BUTTON on the label text. */
+    if( c->button_kind == UI_BUTTON_CLOSE )
+    {
+        uitree_opt_append(os, MINIMENU_ACTION_CLOSE_MODAL, "Close", comp, 0, 0);
+        if( os->option_count > 0 )
+            uitree_option_set_sort_ts(os);
+        return;
+    }
+    if( c->button_kind == UI_BUTTON_CONTINUE )
+    {
+        char const* disp = "Continue";
+        if( c->option && c->option[0] )
+        {
+            interface_expand_if_text_placeholders(game, cd, c->option, exp, (int)sizeof(exp));
+            disp = exp;
+        }
+        else if( c->type == UIELEM_RS_TEXT && c->u.rs_text.text && c->u.rs_text.text[0] )
+        {
+            interface_expand_if_text_placeholders(
+                game, cd, c->u.rs_text.text, exp, (int)sizeof(exp));
+            disp = exp;
+        }
+        uitree_opt_append(os, MINIMENU_ACTION_RESUME_PAUSEBUTTON, disp, comp, 0, 0);
+        if( os->option_count > 0 )
+            uitree_option_set_sort_ts(os);
+        return;
+    }
+
     if( c->target_verb && c->target_verb[0] )
     {
         char line[96];
@@ -1905,11 +1977,7 @@ uitree_fill_simple_component_options(
         return;
     }
 
-    if( c->button_kind == UI_BUTTON_CLOSE )
-        uitree_opt_append(os, MINIMENU_ACTION_CLOSE_MODAL, "Close", comp, 0, 0);
-    else if( c->button_kind == UI_BUTTON_CONTINUE )
-        uitree_opt_append(os, MINIMENU_ACTION_RESUME_PAUSEBUTTON, "Continue", comp, 0, 0);
-    else if( uitree_is_clickable_button_ui(c) )
+    if( uitree_is_clickable_button_ui(c) )
         uitree_opt_append(os, MINIMENU_ACTION_IF_BUTTON, "Ok", comp, 0, 0);
 
     if( os->option_count > 0 )
@@ -2079,6 +2147,10 @@ uitree_pick_descend(
 
     if( c->type == UIELEM_BUILTIN_CHAT_DIALOG &&
         (!game->iface || game->iface->chat_interface_id < 0) )
+        return;
+
+    if( c->type == UIELEM_BUILTIN_SIDEBAR_OVERLAY &&
+        (!game->iface || game->iface->sidebar_interface_id < 0) )
         return;
 
     bool pushed_layer = false;

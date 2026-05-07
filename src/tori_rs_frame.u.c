@@ -492,6 +492,8 @@ frame_uitree_should_descend(
         return frame_sidebar_tab_active(game, c);
     if( c->type == UIELEM_BUILTIN_CHAT_DIALOG )
         return game->iface && game->iface->chat_interface_id >= 0;
+    if( c->type == UIELEM_BUILTIN_SIDEBAR_OVERLAY )
+        return game->iface && game->iface->sidebar_interface_id >= 0;
     return true;
 }
 
@@ -1553,8 +1555,6 @@ LibToriRS_FrameBegin(
     game->at_render_command_index = 0;
     game->at_ui_render_command_index = 0;
 
-    game->interface_consumed_click = 0;
-
     if( game->cross_mode != 0 )
     {
         game->cross_cycle += 20;
@@ -2030,6 +2030,27 @@ uielem_builtin_chat_dialog_step(
     assert(node->type == UIELEM_BUILTIN_CHAT_DIALOG);
     (void)game;
     /* IF_OPENCHAT subtree is drawn by RS children under this builtin (expand_chat_dialog_rs_tree). */
+    return true;
+}
+
+static inline bool
+uielem_builtin_sidebar_overlay_is_dirty(
+    struct UIFrameState const* fiber,
+    struct StaticUIComponent const* node)
+{
+    (void)fiber;
+    return node->is_dirty;
+}
+
+static bool
+uielem_builtin_sidebar_overlay_step(
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
+{
+    if( !uielem_builtin_sidebar_overlay_is_dirty(fiber, node) )
+        return true;
+    assert(node->type == UIELEM_BUILTIN_SIDEBAR_OVERLAY);
+    /* IF_OPENSIDE subtree: RS children under this builtin (expand_sidebar_overlay_rs_tree). */
     return true;
 }
 
@@ -3108,6 +3129,9 @@ LibToriRS_FrameNextCommand(
         case UIELEM_BUILTIN_CHAT_DIALOG:
             done = uielem_builtin_chat_dialog_step(&fiber, component);
             break;
+        case UIELEM_BUILTIN_SIDEBAR_OVERLAY:
+            done = uielem_builtin_sidebar_overlay_step(&fiber, component);
+            break;
         case UIELEM_RS_GRAPHIC:
             done = uielem_rs_graphic_step(&fiber, component, cur);
             break;
@@ -3205,8 +3229,8 @@ frame_try_ts_bottom_sidebar_tabs(
 }
 
 /**
- * Return the game-coord position to anchor the crosshair for a left-click action.
- * Uses the click press position (mousedown coords) which matches the tile pick.
+ * Game-coord anchor for the walk/interact crosshair: same rule as world 3D pick
+ * (see frame_world_pick_pointer_xy).
  */
 static void
 frame_cross_xy_from_cursor(
@@ -3214,16 +3238,14 @@ frame_cross_xy_from_cursor(
     int* out_x,
     int* out_y)
 {
-    *out_x = game->mouse.buttons[TORIRSM_LEFT].click_press_x;
-    *out_y = game->mouse.buttons[TORIRSM_LEFT].click_press_y;
+    frame_world_pick_pointer_xy(game, out_x, out_y);
 }
 
-/** Set the click crosshair to the current left-click press position and start the animation. */
+/** Set the click crosshair and start the animation (coords match world tile pick). */
 static void
 game_cross_set(struct GGame* game, int mode)
 {
-    game->cross_x     = game->mouse.buttons[TORIRSM_LEFT].click_press_x;
-    game->cross_y     = game->mouse.buttons[TORIRSM_LEFT].click_press_y;
+    frame_cross_xy_from_cursor(game, &game->cross_x, &game->cross_y);
     game->cross_mode  = mode;
     game->cross_cycle = 0;
 }
@@ -3256,28 +3278,33 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
         }
     }
 
-    if( !game->interface_consumed_click &&
+    /* Snapshot from LibToriRS_GameProcessInput (minimenu/scroll/etc.); clear the live field so
+     * FrameEnd dispatch below only sees flags set by this function, not stale input state. */
+    int const consumed_from_input = game->interface_consumed_click;
+    game->interface_consumed_click = 0;
+
+    if( !consumed_from_input &&
         frame_try_ts_bottom_sidebar_tabs(game, cx, cy) )
     {
         game->interface_consumed_click = 1;
         return;
     }
 
-    if( !game->interface_consumed_click && game->chat &&
+    if( !consumed_from_input && game->chat &&
         chat_handle_privacy_strip_click(game->chat, game, cx, cy, 1) )
     {
         game->interface_consumed_click = 1;
         return;
     }
 
-    if( !game->interface_consumed_click && game->chat &&
+    if( !consumed_from_input && game->chat &&
         chat_try_begin_typing_click(game->chat, game, cx, cy) )
     {
         game->interface_consumed_click = 1;
         return;
     }
 
-    if( game->interface_consumed_click )
+    if( consumed_from_input )
         return;
 
     /* UI button click dispatch (sidebar / viewport / chat).
@@ -3467,6 +3494,11 @@ LibToriRS_FrameEnd(struct GGame* game)
     }
 
     frame_handle_interface_and_world_clicks(game);
+
+    /* Click consumption is only meaningful between GameProcessInput and this FrameEnd pass.
+     * Clear after dispatch so the flag never leaks into later work in the same frame or any
+     * code path that might render without a fresh LibToriRS_GameProcessInput. */
+    game->interface_consumed_click = 0;
 
     /* Advance the LRU frame counter for obj icon sprites (mirrors ObjType.spriteCache).
      * Called once at the end of every frame so cache_lookup can stamp last_used correctly. */

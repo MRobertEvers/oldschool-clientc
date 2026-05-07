@@ -3,6 +3,8 @@
 
 #include "osrs/world.h"
 
+#include "osrs/entity_scenebuild.h"
+
 #include <math.h>
 
 // clang-format off
@@ -726,6 +728,10 @@ world_cycle_push_obj_stack_entities(struct World* world)
         struct ObjStackEntity* e = world_obj_stack_entity(world, eid);
         if( !e->alive )
             continue;
+
+        if( world->gamecache )
+            entity_scenebuild_obj_stack_reload_scene2_for_active_entity(
+                world, world->gamecache, eid);
 
         /* scene-local tile indices (same space as zone OBJ sx/sz), not world->_base_tile_* */
         int psx = e->world_tile_x;

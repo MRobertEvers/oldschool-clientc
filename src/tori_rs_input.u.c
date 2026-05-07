@@ -151,6 +151,11 @@ LibToriRS_GameProcessInput(
     /* Populate game->mouse (game-coord snapshot) from raw window-coord snapshot. */
     game_mouse_capture(game, input);
 
+    /* Fresh each GameStep. Must NOT be cleared in LibToriRS_FrameBegin: minimenu / iface may set
+     * this during GameProcessInput and FrameEnd must see it to avoid duplicating the same left
+     * click as a world walk (MOVE_GAMECLICK after MOVE_OPCLICK). */
+    game->interface_consumed_click = 0;
+
     game_chat_process_input(game, input);
 
     for( int i = 0; i < time_quanta; i++ )

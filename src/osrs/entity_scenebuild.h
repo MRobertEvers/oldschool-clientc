@@ -26,6 +26,16 @@ entity_scenebuild_obj_stack_update_tile(
     int sx,
     int sz);
 
+struct GameCache;
+struct World;
+
+/** Per-frame: refresh obj-stack Scene2 meshes from cache (mirrors NPC reload before painter). */
+void
+entity_scenebuild_obj_stack_reload_scene2_for_active_entity(
+    struct World* world,
+    struct GameCache* gamecache,
+    int obj_stack_entity_id);
+
 /* Get head model for interface MODEL component (chat head). model_type 2=NPC, 3=player.
  * For player, slots and colors from entity appearance. Caller must dashmodel_free result. */
 struct DashModel*

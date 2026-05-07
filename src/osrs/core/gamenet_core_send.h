@@ -154,7 +154,6 @@ struct PktClientProt_OpObj_v1
     int wire_x;
     int wire_z;
     int obj_id;
-    int ctrl;
 };
 struct PktClientProt_OpPlayer_v1
 {
@@ -407,16 +406,14 @@ gamenet_core_send_opobj_v1(
     int opcode,
     int x,
     int z,
-    int obj_id,
-    int ctrl);
+    int obj_id);
 void
 gamenet_core_send_opobjt_v1(
     struct GGame* g,
     int opcode,
     int x,
     int z,
-    int obj_id,
-    int ctrl);
+    int obj_id);
 void
 gamenet_core_send_opobju_v1(
     struct GGame* g,

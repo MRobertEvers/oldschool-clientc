@@ -90,35 +90,50 @@ gamecache_component_in_subtree(
     return 0;
 }
 
-/** IF_SETNPCHEAD / IF_SETPLAYERHEAD: refresh RS_MODEL; re-expand chat dialog if subtree has no node yet. */
+/** IF_SETNPCHEAD / IF_SETPLAYERHEAD: refresh RS_MODEL; re-expand chat/sidebar overlay if subtree has no node yet. */
 static void
 uitree_refresh_chat_model_after_head_packet(struct GGame* game, int component_id)
 {
     uitree_rs_model_refresh_from_gamecache(game, component_id);
-    if( !game->iface || game->iface->chat_interface_id < 0 || !game->ui_root_buffer || !game->gamecache )
-        return;
-    if( !gamecache_component_in_subtree(
+
+    if( game->iface && game->iface->chat_interface_id >= 0 && game->ui_root_buffer && game->gamecache &&
+        gamecache_component_in_subtree(
             game->gamecache, game->iface->chat_interface_id, component_id, 64) )
-        return;
-
-    int32_t idx = uitree_find_by_component_id(game->ui_root_buffer, component_id);
-    int need_expand =
-        (idx < 0 || (uint32_t)idx >= game->ui_root_buffer->component_count ||
-         game->ui_root_buffer->components[idx].type != UIELEM_RS_MODEL);
-    if( !need_expand )
-        return;
-
-    if( tori_chat_if_debug_enabled() )
     {
-        fprintf(
-            stderr,
-            "[TORI_CHAT_IF] head packet re-expand chat root=%d for id=%d\n",
-            game->iface->chat_interface_id,
-            component_id);
+        int32_t idx = uitree_find_by_component_id(game->ui_root_buffer, component_id);
+        int need_expand =
+            (idx < 0 || (uint32_t)idx >= game->ui_root_buffer->component_count ||
+             game->ui_root_buffer->components[idx].type != UIELEM_RS_MODEL);
+        if( need_expand )
+        {
+            if( tori_chat_if_debug_enabled() )
+            {
+                fprintf(
+                    stderr,
+                    "[TORI_CHAT_IF] head packet re-expand chat root=%d for id=%d\n",
+                    game->iface->chat_interface_id,
+                    component_id);
+            }
+
+            uitree_expand_chat_dialog_for_interface(game, game->iface->chat_interface_id);
+            uitree_rs_model_refresh_from_gamecache(game, component_id);
+        }
     }
 
-    uitree_expand_chat_dialog_for_interface(game, game->iface->chat_interface_id);
-    uitree_rs_model_refresh_from_gamecache(game, component_id);
+    if( game->iface && game->iface->sidebar_interface_id >= 0 && game->ui_root_buffer && game->gamecache &&
+        gamecache_component_in_subtree(
+            game->gamecache, game->iface->sidebar_interface_id, component_id, 64) )
+    {
+        int32_t idx = uitree_find_by_component_id(game->ui_root_buffer, component_id);
+        int need_expand =
+            (idx < 0 || (uint32_t)idx >= game->ui_root_buffer->component_count ||
+             game->ui_root_buffer->components[idx].type != UIELEM_RS_MODEL);
+        if( need_expand )
+        {
+            uitree_expand_sidebar_overlay_for_interface(game, game->iface->sidebar_interface_id);
+            uitree_rs_model_refresh_from_gamecache(game, component_id);
+        }
+    }
 }
 
 void
@@ -1031,7 +1046,7 @@ gamenet_rev245_2_exec_if_settext_v1(
     struct GGame* game,
     struct RevServerProtPacket* packet)
 {
-    int component_id = packet->u.if_settext_v1.component_id;
+    int component_id = if_decode_component_id(packet->u.if_settext_v1.component_id);
     char* new_text = packet->u.if_settext_v1.text;
 
     if( !game )
@@ -1052,11 +1067,13 @@ gamenet_rev245_2_exec_if_settext_v1(
             new_text ? (int)strlen(new_text) : -1);
     }
 
-    /* Always mirror into gamecache so IF_OPENCHAT / re-expand reads fresh strings. */
-    if( game->gamecache )
+    /* Mirror into gamecache for any known component. IF_OPENCHAT rebuilds the chat uitree from
+     * cache; if we only updated UIELEM_RS_TEXT and skipped cache (e.g. type mismatch), re-expand
+     * would restore template text ("Name", "line 1", …). */
+    if( game->gamecache && component_id >= 0 )
     {
         struct GameCacheComponent* gc = gamecache_get_component(game->gamecache, component_id);
-        if( gc && gc->type == COMPONENT_TYPE_TEXT )
+        if( gc )
         {
             if( gc->text )
                 free(gc->text);
@@ -1099,6 +1116,13 @@ gamenet_rev245_2_exec_if_settext_v1(
                 component_id);
         }
         uitree_expand_chat_dialog_for_interface(game, game->iface->chat_interface_id);
+    }
+
+    if( !did_ui && game->iface && game->iface->sidebar_interface_id >= 0 && game->gamecache &&
+        gamecache_component_in_subtree(
+            game->gamecache, game->iface->sidebar_interface_id, component_id, 64) )
+    {
+        uitree_expand_sidebar_overlay_for_interface(game, game->iface->sidebar_interface_id);
     }
 
     free(new_text);
@@ -1644,6 +1668,7 @@ gamenet_rev245_2_exec_if_openchat_v1(
     game->iface->sidebar_interface_id = -1;
     game->iface->viewport_interface_id = -1;
     game->iface->chat_interface_id = com;
+    uitree_expand_sidebar_overlay_for_interface(game, -1);
     uitree_expand_chat_dialog_for_interface(game, com);
     if( tori_chat_if_debug_enabled() )
     {
@@ -1686,6 +1711,7 @@ gamenet_rev245_2_exec_if_openside_v1(
         }
         game->iface->sidebar_interface_id =
             if_decode_component_id(packet->u.if_openside_v1.component_id);
+        uitree_expand_sidebar_overlay_for_interface(game, game->iface->sidebar_interface_id);
     }
 }
 
@@ -1705,6 +1731,7 @@ gamenet_rev245_2_exec_if_openmain_side_v1(
             if_decode_component_id(packet->u.if_openmain_side_v1.main_component_id);
         game->iface->sidebar_interface_id =
             if_decode_component_id(packet->u.if_openmain_side_v1.side_component_id);
+        uitree_expand_sidebar_overlay_for_interface(game, game->iface->sidebar_interface_id);
     }
 }
 
@@ -1736,6 +1763,7 @@ gamenet_rev245_2_exec_if_close_v1(
         game->iface->inv_target_op[0] = '\0';
     }
     uitree_expand_chat_dialog_for_interface(game, -1);
+    uitree_expand_sidebar_overlay_for_interface(game, -1);
     if( tori_chat_if_debug_enabled() )
         fprintf(stderr, "[TORI_CHAT_IF] IF_CLOSE cleared modals + chat uitree\n");
     /* Release scrollbar drag if any. */
