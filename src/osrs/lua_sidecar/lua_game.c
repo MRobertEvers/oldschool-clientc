@@ -23,6 +23,24 @@
 /* Forward declaration: defined in tori_rs_minimap.u.c / tori_rs.h. */
 void LibToriRS_WorldMinimapStaticRebuild(struct GGame* game);
 
+/** Append model archive id if valid and not already in tmp[0..n). Updates n; capped by max_n. */
+static void
+push_unique_interface_model_id(int* tmp, int* n_out, int max_n, int mid)
+{
+    if( mid < 0 )
+        return;
+    int n = *n_out;
+    for( int i = 0; i < n; i++ )
+    {
+        if( tmp[i] == mid )
+            return;
+    }
+    if( n >= max_n )
+        return;
+    tmp[n++] = mid;
+    *n_out = n;
+}
+
 /* Helper: get int at args[i]. args must be VarTypeArray. */
 static int
 arg_int(
@@ -194,25 +212,12 @@ LuaGame_get_interface_model_ids(
     struct GameCacheComponent* c = NULL;
     while( (c = gamecache_component_iter_next(it, &cid)) != NULL )
     {
-        if( c->type != COMPONENT_TYPE_MODEL || c->modelType != 1 )
+        if( c->type != COMPONENT_TYPE_MODEL )
             continue;
-        int mid = c->model;
-        if( mid < 0 )
-            continue;
-        int dup = 0;
-        for( int i = 0; i < n; i++ )
-        {
-            if( tmp[i] == mid )
-            {
-                dup = 1;
-                break;
-            }
-        }
-        if( dup )
-            continue;
-        if( n >= kMaxIds )
-            break;
-        tmp[n++] = mid;
+        if( c->modelType == 1 )
+            push_unique_interface_model_id(tmp, &n, kMaxIds, c->model);
+        if( c->activeModelType == 1 )
+            push_unique_interface_model_id(tmp, &n, kMaxIds, c->activeModel);
     }
     dashmap_iter_free(it);
 

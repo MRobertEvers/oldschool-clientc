@@ -691,17 +691,16 @@ mm_move_toward(
         return;
     if( tile_x <= 0 && tile_z <= 0 )
         return;
+    game->pending_walk_cross_after_move = false;
     game->tile_clicked_x     = tile_x;
     game->tile_clicked_z     = tile_z;
     game->tile_clicked_level = 0;
     game->cross_mode         = 2;
     /*
-     * Anchor the crosshair to the right-click press position (where the context menu opened).
-     * This is correct: the user right-clicked an entity, the menu appeared, and "Walk here" /
-     * interact was chosen — the cross should mark where the right-click was, not a stale coord.
+     * Client.ts doAction: crossX/Y = mouseClickX/Y (activating click — menu row is left-click).
      */
-    game->cross_x     = game->mouse.buttons[TORIRSM_RIGHT].press_x;
-    game->cross_y     = game->mouse.buttons[TORIRSM_RIGHT].press_y;
+    game->cross_x     = game->mouse.buttons[TORIRSM_LEFT].click_press_x;
+    game->cross_y     = game->mouse.buttons[TORIRSM_LEFT].click_press_y;
     game->cross_cycle = 0;
 }
 
@@ -827,7 +826,8 @@ minimenu_game_use_option(
         return;
     }
 
-    if( base == (int)MINIMENU_ACTION_TGT_HELD )
+    if( base == (int)MINIMENU_ACTION_TGT_HELD ||
+        base == (int)MINIMENU_ACTION_OPHELDT )
     {
         if( !game->iface || GAME_NET_STATE_GAME != game->net_state )
             return;
@@ -855,14 +855,9 @@ minimenu_game_use_option(
         game->tile_clicked_x     = tx;
         game->tile_clicked_z     = tz;
         game->tile_clicked_level = lvl;
-        /*
-         * "Walk here" from the context menu: anchor the cross to where the right-click opened
-         * the menu, not the stale mouse_clicked_right_x/y that never resets.
-         */
-        game->cross_x     = game->mouse.buttons[TORIRSM_RIGHT].press_x;
-        game->cross_y     = game->mouse.buttons[TORIRSM_RIGHT].press_y;
-        game->cross_mode  = 1;
-        game->cross_cycle = 0;
+        game->tile_click_anchor_x          = game->mouse.buttons[TORIRSM_LEFT].click_press_x;
+        game->tile_click_anchor_y          = game->mouse.buttons[TORIRSM_LEFT].click_press_y;
+        game->pending_walk_cross_after_move = true;
         return;
     }
 
@@ -1258,7 +1253,16 @@ minimenu_game_use_option(
         return;
     }
 
-    mm_move_toward(game, param_b, param_c);
+    /* Client.ts doAction: social / chat rows — no crossMode (report/friends/message/trade UI). */
+    if( base == (int)MINIMENU_ACTION_FRIENDLIST_ADD ||
+        base == (int)MINIMENU_ACTION_IGNORELIST_ADD ||
+        base == (int)MINIMENU_ACTION_FRIENDLIST_DEL ||
+        base == (int)MINIMENU_ACTION_IGNORELIST_DEL ||
+        base == (int)MINIMENU_ACTION_MESSAGE_PRIVATE ||
+        base == (int)MINIMENU_ACTION_REPORT_ABUSE ||
+        base == (int)MINIMENU_ACTION_OPPLAYER_TRADEREQ ||
+        base == (int)MINIMENU_ACTION_OPPLAYER_DUELREQ )
+        return;
 }
 
 bool

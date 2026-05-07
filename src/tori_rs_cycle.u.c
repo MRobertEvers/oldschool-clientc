@@ -256,6 +256,21 @@ entity_face(
  */
 #define GAME_TRY_MOVE_MAX_PATH 25 /* mirrors TS bufferSize = min(length, 25) */
 
+/** Client.ts: yellow walk cross only after successful tryMove; uses tile_click_anchor_*. */
+static void
+game_apply_walk_cross_on_success(struct GGame* game)
+{
+    if( !game->pending_walk_cross_after_move )
+        return;
+    game->cross_mode  = 1;
+    game->cross_cycle = 0;
+    game->cross_x     = game->tile_click_anchor_x;
+    game->cross_y     = game->tile_click_anchor_y;
+    game->pending_walk_cross_after_move = false;
+    game->tile_click_anchor_x           = -1;
+    game->tile_click_anchor_y           = -1;
+}
+
 static bool
 game_try_move(
     struct GGame* game,
@@ -279,7 +294,10 @@ game_try_move(
         return false;
 
     if( src_x == dst_tile_x && src_z == dst_tile_z )
+    {
+        game_apply_walk_cross_on_success(game);
         return true;
+    }
 
     int path_x[GAME_TRY_MOVE_MAX_PATH];
     int path_z[GAME_TRY_MOVE_MAX_PATH];
@@ -316,6 +334,7 @@ game_try_move(
         gamenet_send_move_gameclick(game, run, path_x, path_z, path_len);
     }
 
+    game_apply_walk_cross_on_success(game);
     return true;
 }
 
@@ -361,7 +380,15 @@ LibToriRS_GameStep(
     if( game->tile_clicked_x >= 0 && game->world )
     {
         int run = (input && game_input_keydown_or_pressed(input, TORIRSK_SHIFT)) ? 1 : 0;
-        game_try_move(game, game->tile_clicked_x, game->tile_clicked_z, run);
+        if( !game_try_move(game, game->tile_clicked_x, game->tile_clicked_z, run) )
+        {
+            if( game->pending_walk_cross_after_move )
+            {
+                game->pending_walk_cross_after_move = false;
+                game->tile_click_anchor_x = -1;
+                game->tile_click_anchor_y = -1;
+            }
+        }
         game->tile_clicked_x = -1;
         game->tile_clicked_z = -1;
         game->tile_clicked_level = -1;

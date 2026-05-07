@@ -128,6 +128,8 @@ LibToriRS_GameNew(
 {
     struct GGame* game = malloc(sizeof(struct GGame));
     memset(game, 0, sizeof(struct GGame));
+    game->tile_click_anchor_x = -1;
+    game->tile_click_anchor_y = -1;
     game->hitmarks_uiscene_element_id = -1;
     game->hitsplat_damage_font_id = -1;
     game->debug_entity_pathing = true;

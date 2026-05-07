@@ -444,6 +444,10 @@ uitree_chat_head_dashmodel_for_frame(
 void
 uitree_print_nodes(struct UITree const* tree);
 
+/** DFS-print node with matching `component_id` and descendants to stderr (debug). */
+void
+uitree_debug_log_subtree_for_component_id(struct UITree const* tree, int component_id);
+
 struct UIInventoryPool*
 uitree_inv_pool_new(int capacity);
 

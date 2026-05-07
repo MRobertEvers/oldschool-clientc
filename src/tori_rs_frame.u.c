@@ -1569,6 +1569,9 @@ LibToriRS_FrameBegin(
     game->tile_clicked_x = -1;
     game->tile_clicked_z = -1;
     game->tile_clicked_level = -1;
+    game->tile_click_anchor_x = -1;
+    game->tile_click_anchor_y = -1;
+    game->pending_walk_cross_after_move = false;
     game->mouse_tile_x = -1;
     game->mouse_tile_z = -1;
     game->mouse_tile_level = -1;
@@ -2793,27 +2796,6 @@ uielem_hover_tooltip_step(
     static char tooltip_buf[256];
     tooltip_buf[0] = '\0';
 
-    if( game->iface )
-    {
-        int nopt = uit ? uit->uitree_optionset.option_count : 0;
-        if( game->iface->inv_use_mode && nopt < 2 )
-        {
-            snprintf(
-                tooltip_buf,
-                sizeof(tooltip_buf),
-                "Use %s with...",
-                game->iface->inv_sel_obj_name[0] ? game->iface->inv_sel_obj_name : "item");
-        }
-        else if( game->iface->inv_target_mode && nopt < 2 &&
-                 game->iface->inv_target_op[0] )
-        {
-            snprintf(tooltip_buf, sizeof(tooltip_buf), "%s...", game->iface->inv_target_op);
-        }
-    }
-
-    if( tooltip_buf[0] )
-        goto emit_hover_tooltip_font;
-
     int ui_from_uitree = uit && uit->uitree_optionset.option_count > 0 &&
                          !(uit->hover_node_index >= 0 &&
                            uit->components[uit->hover_node_index].type == UIELEM_BUILTIN_WORLD);
@@ -2859,85 +2841,106 @@ uielem_hover_tooltip_step(
             }
         }
 
+        first_opt = NULL;
         if( in_world )
         {
-            if( game->option_set.option_count <= 0 )
-                return true;
-            minimenu_game_world_ts_default_row(
-                &game->option_set, game->mouse_tile_x, game->mouse_tile_z, &temp_option);
-            first_opt = &temp_option;
+            if( game->option_set.option_count > 0 )
+            {
+                minimenu_game_world_ts_default_row(
+                    &game->option_set, game->mouse_tile_x, game->mouse_tile_z, &temp_option);
+                if( temp_option.text[0] )
+                    first_opt = &temp_option;
+            }
         }
         else
         {
-            if( !interface_hover_tooltip_line(
+            if( interface_hover_tooltip_line(
                     game, temp_option.text, (int)sizeof(temp_option.text)) )
-                return true;
-            first_opt = &temp_option;
+                first_opt = &temp_option;
         }
 
-        if( !first_opt || !first_opt->text[0] )
-            return true;
+        if( first_opt && first_opt->text[0] )
+        {
+            if( in_world && game->option_set.option_count > 2 )
+                snprintf(
+                    tooltip_buf,
+                    sizeof(tooltip_buf),
+                    "%s @whi@/ %d more options",
+                    first_opt->text,
+                    game->option_set.option_count - 2);
+            else
+                snprintf(tooltip_buf, sizeof(tooltip_buf), "%s", first_opt->text);
+        }
+    }
 
-        if( in_world && game->option_set.option_count > 2 )
+    /* Client.ts drawFeedback: generic only when no primary hover row (Cancel-only equivalent). */
+    if( !tooltip_buf[0] && game->iface )
+    {
+        if( game->iface->inv_use_mode )
+        {
             snprintf(
                 tooltip_buf,
                 sizeof(tooltip_buf),
-                "%s @whi@/ %d more options",
-                first_opt->text,
-                game->option_set.option_count - 2);
-        else
-            snprintf(tooltip_buf, sizeof(tooltip_buf), "%s", first_opt->text);
+                "Use %s with...",
+                game->iface->inv_sel_obj_name[0] ? game->iface->inv_sel_obj_name : "item");
+        }
+        else if( game->iface->inv_target_mode && game->iface->inv_target_op[0] )
+        {
+            snprintf(tooltip_buf, sizeof(tooltip_buf), "%s...", game->iface->inv_target_op);
+        }
     }
 
     if( !tooltip_buf[0] )
         return true;
 
 emit_hover_tooltip_font:
-    /* Text pen: `node->position` from [layout] c=hover_tooltip x/y (Client.ts drawFeedback). */
-    int font_id = node->u.hover_tooltip.font_id >= 0
-                      ? node->u.hover_tooltip.font_id
-                      : gamecache_get_font_ref_id(game->gamecache, "b12");
-    if( font_id < 0 )
-        font_id = gamecache_get_font_ref_id(game->gamecache, "p11");
-    if( font_id < 0 )
-        return true;
-    struct DashPixFont* font = uiscene_font_get(game->ui_scene, font_id);
-    if( !font )
-        return true;
+    {
+        /* Text pen: `node->position` from [layout] c=hover_tooltip x/y (Client.ts drawFeedback). */
+        int font_id = node->u.hover_tooltip.font_id >= 0
+                          ? node->u.hover_tooltip.font_id
+                          : gamecache_get_font_ref_id(game->gamecache, "b12");
+        if( font_id < 0 )
+            font_id = gamecache_get_font_ref_id(game->gamecache, "p11");
+        if( font_id < 0 )
+            return true;
+        struct DashPixFont* font = uiscene_font_get(game->ui_scene, font_id);
+        if( !font )
+            return true;
 
-    /* Pool the text. */
-    struct UITree* uit_tt = game->ui_root_buffer;
-    if( !uit_tt )
+        /* Pool the text. */
+        struct UITree* uit_tt = game->ui_root_buffer;
+        if( !uit_tt )
+            return true;
+        size_t text_len = strlen(tooltip_buf);
+        char* dst = uitree_textpool_push_dup(&uit_tt->text_pool, tooltip_buf, text_len);
+        if( !dst )
+            return true;
+
+        /* Pen x/y from [layout]: pre-summed client-canvas coords (see rev UI INI comment next to
+         * hover_tooltip). PixFont-style pen_y minus height2d for glyph base_y (TORIRS_GFX_DRAW_FONT).
+         */
+        int pen_x = node->position.x;
+        int draw_y = node->position.y;
+        if( font->height2d > 0 )
+            draw_y -= font->height2d;
+
+        frame_emit_pass(fiber, FRAME_PASS_2D);
+        /* Client.ts drawStringAntiMacro(..., shadowed: true): black (+1,+1) mask per glyph, then
+         * foreground with color tags. One TORIRS_GFX_DRAW_FONT + shadowed; do not use a second
+         * ex_clipped pass here — tags would recolor the "shadow" (e.g. @whi@) and look like double
+         * text. */
+        struct ToriRSRenderCommand* cmd = LibToriRS_RenderCommandBufferEmplaceCommand(fiber->cmds);
+        cmd->kind = TORIRS_GFX_DRAW_FONT;
+        cmd->_font_draw.font_id = font_id;
+        cmd->_font_draw.font = font;
+        cmd->_font_draw.text = (const uint8_t*)dst;
+        cmd->_font_draw.x = pen_x;
+        cmd->_font_draw.y = draw_y;
+        cmd->_font_draw.color_rgb = 0xFFFFFF;
+        cmd->_font_draw.shadowed = 1;
+
         return true;
-    size_t text_len = strlen(tooltip_buf);
-    char* dst = uitree_textpool_push_dup(&uit_tt->text_pool, tooltip_buf, text_len);
-    if( !dst )
-        return true;
-
-    /* Pen x/y from [layout]: pre-summed client-canvas coords (see rev UI INI comment next to
-     * hover_tooltip). PixFont-style pen_y minus height2d for glyph base_y (TORIRS_GFX_DRAW_FONT).
-     */
-    int pen_x = node->position.x;
-    int draw_y = node->position.y;
-    if( font->height2d > 0 )
-        draw_y -= font->height2d;
-
-    frame_emit_pass(fiber, FRAME_PASS_2D);
-    /* Client.ts drawStringAntiMacro(..., shadowed: true): black (+1,+1) mask per glyph, then
-     * foreground with color tags. One TORIRS_GFX_DRAW_FONT + shadowed; do not use a second
-     * ex_clipped pass here — tags would recolor the "shadow" (e.g. @whi@) and look like double
-     * text. */
-    struct ToriRSRenderCommand* cmd = LibToriRS_RenderCommandBufferEmplaceCommand(fiber->cmds);
-    cmd->kind = TORIRS_GFX_DRAW_FONT;
-    cmd->_font_draw.font_id = font_id;
-    cmd->_font_draw.font = font;
-    cmd->_font_draw.text = (const uint8_t*)dst;
-    cmd->_font_draw.x = pen_x;
-    cmd->_font_draw.y = draw_y;
-    cmd->_font_draw.color_rgb = 0xFFFFFF;
-    cmd->_font_draw.shadowed = 1;
-
-    return true;
+    }
 }
 
 bool
@@ -3279,28 +3282,6 @@ frame_try_ts_bottom_sidebar_tabs(
     return false;
 }
 
-/**
- * Game-coord anchor for the walk/interact crosshair: same rule as world 3D pick
- * (see frame_world_pick_pointer_xy).
- */
-static void
-frame_cross_xy_from_cursor(
-    struct GGame* game,
-    int* out_x,
-    int* out_y)
-{
-    frame_world_pick_pointer_xy(game, out_x, out_y);
-}
-
-/** Set the click crosshair and start the animation (coords match world tile pick). */
-static void
-game_cross_set(struct GGame* game, int mode)
-{
-    frame_cross_xy_from_cursor(game, &game->cross_x, &game->cross_y);
-    game->cross_mode  = mode;
-    game->cross_cycle = 0;
-}
-
 static void
 frame_handle_interface_and_world_clicks(struct GGame* game)
 {
@@ -3353,30 +3334,6 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
 
     if( consumed_from_input )
     {
-        /* Suppress duplicate tile_click / MOVE_GAMECLICK, but still move the walk cross to this
-         * left press when it lands in world or minimap aim — otherwise the sprite stays at the
-         * last minimenu anchor (often right-click). Skip when a menu row actually ran use_option
-         * (that path sets cross_x/y intentionally, e.g. right-press anchor). */
-        if( !game->minimenu_used_option_this_left_click )
-        {
-            struct StaticUIComponent* mm = frame_find_builtin(game, UIELEM_BUILTIN_MINIMAP);
-            if( mm && frame_point_in_component_xy(mm, cx, cy) )
-            {
-                int bx = mm->position.x;
-                int by = mm->position.y;
-                int const pivot_x = bx + mm->position.anchor_x;
-                int const pivot_y = by + mm->position.anchor_y;
-                int const dpx     = cx - pivot_x;
-                int const dpy     = cy - pivot_y;
-                int const max_off_x = mm->position.width / 2 + 32;
-                int const max_off_y = mm->position.height / 2 + 32;
-                if( dpx >= -max_off_x && dpx <= max_off_x && dpy >= -max_off_y && dpy <= max_off_y )
-                    game_cross_set(game, 1);
-            }
-            struct StaticUIComponent* wv = frame_find_builtin(game, UIELEM_BUILTIN_WORLD);
-            if( wv && frame_point_in_component_xy(wv, cx, cy) )
-                game_cross_set(game, 1);
-        }
         return;
     }
 
@@ -3520,7 +3477,9 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
                 game->minimap_flag_x   = tile_x;
                 game->minimap_flag_z   = tile_z;
                 game->minimap_flag_has = 1;
-                game_cross_set(game, 1);
+                game->tile_click_anchor_x            = cx;
+                game->tile_click_anchor_y            = cy;
+                game->pending_walk_cross_after_move  = true;
                 game->interface_consumed_click = 1;
             }
             return;
@@ -3558,10 +3517,6 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
                     game->minimenu.option_count      = 1;
                     minimenu_game_use_option(game, game->torirs_step_input, 0);
                     game->minimenu_used_option_this_left_click = true;
-                    /* Examine: doAction does not set crossMode 2 — yellow like ground walk feedback. */
-                    if( dispatch_norm == (int)MINIMENU_ACTION_OPNPC6 ||
-                        dispatch_norm == (int)MINIMENU_ACTION_OPOBJ6 )
-                        game_cross_set(game, 1);
                     return;
                 }
             }
@@ -3570,7 +3525,9 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
         if( game->mouse_tile_x < 0 )
             return;
 
-        game_cross_set(game, 1);
+        game->tile_click_anchor_x            = cx;
+        game->tile_click_anchor_y            = cy;
+        game->pending_walk_cross_after_move  = true;
 
         game->tile_clicked_x     = game->mouse_tile_x;
         game->tile_clicked_z     = game->mouse_tile_z;

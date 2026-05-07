@@ -27,6 +27,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define UITREE_DEBUG_SUBTREE_COMPONENT_ID 1151
+
+/** Log watch-id subtree only when that node exists (avoids spam per expand / load). */
+static void
+uitree_load_debug_log_subtree_watch_id(struct UITree* ui)
+{
+    if( !ui )
+        return;
+    if( uitree_find_by_component_id(ui, UITREE_DEBUG_SUBTREE_COMPONENT_ID) < 0 )
+        return;
+    uitree_debug_log_subtree_for_component_id(ui, UITREE_DEBUG_SUBTREE_COMPONENT_ID);
+}
+
 struct SpriteEntry
 {
     char name[64]; // Key must be first field and fixed size for DashMap
@@ -1423,6 +1436,7 @@ expand_sidebar_rs_tree(
     int by = sy + root->y;
     push_rs_from_cache_component(
         game, ui, ui_scene, scene2, bcd, sidebar_idx, root, bx, by, inv_index);
+    uitree_load_debug_log_subtree_watch_id(ui);
 }
 
 static void
@@ -1448,6 +1462,7 @@ expand_chat_dialog_rs_tree(
     int by = sy + root->y;
     push_rs_from_cache_component(
         game, ui, ui_scene, scene2, bcd, chat_dialog_idx, root, bx, by, inv_index);
+    uitree_load_debug_log_subtree_watch_id(ui);
 }
 
 static void
@@ -1473,6 +1488,7 @@ expand_sidebar_overlay_rs_tree(
     int by = sy + root->y;
     push_rs_from_cache_component(
         game, ui, ui_scene, scene2, bcd, sidebar_overlay_idx, root, bx, by, inv_index);
+    uitree_load_debug_log_subtree_watch_id(ui);
 }
 
 static void
@@ -1498,6 +1514,7 @@ expand_viewport_overlay_rs_tree(
     int by = sy + root->y;
     push_rs_from_cache_component(
         game, ui, ui_scene, scene2, bcd, viewport_overlay_idx, root, bx, by, inv_index);
+    uitree_load_debug_log_subtree_watch_id(ui);
 }
 
 static int
@@ -2559,7 +2576,10 @@ uitree_from_revconfig_buildcachedat(
         fprintf(stderr, "uitree_from_revconfig_buildcachedat: sidebar tab layout invalid\n");
 
     if( ui )
+    {
         uitree_print_nodes(ui);
+        uitree_load_debug_log_subtree_watch_id(ui);
+    }
 
     dashmap_free(sprite_hmap);
     dashmap_free(component_hmap);
@@ -3444,7 +3464,10 @@ uitree_load_ui_from_revconfig(
         fprintf(stderr, "uitree_load_ui_from_revconfig: sidebar tab layout invalid\n");
 
     if( ui )
+    {
         uitree_print_nodes(ui);
+        uitree_load_debug_log_subtree_watch_id(ui);
+    }
 
     dashmap_free(sprite_hmap);
     dashmap_free(component_hmap);

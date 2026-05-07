@@ -104,6 +104,11 @@ struct GGame
     int tile_clicked_x;
     int tile_clicked_z;
     int tile_clicked_level;
+    /** Screen coords for yellow walk cross after successful `game_try_move` (Client.ts mouseClick). */
+    int tile_click_anchor_x;
+    int tile_click_anchor_y;
+    /** When true, `game_try_move` success shows yellow cross from tile_click_anchor_* (walk only). */
+    bool pending_walk_cross_after_move;
     /** After MOVE_OPCLICK from minimenu, skip one MOVE_GAMECLICK from local `game_try_move`. */
     int suppress_move_gameclick_once;
     int mouse_tile_x;

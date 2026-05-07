@@ -28,7 +28,7 @@ local function init_ui()
     Game.GameCache.convert_components_from_buildcachedat()
     _G.interfaces_loaded_flag = true
 
-    -- Interface MODEL components (modelType 1) need raw models in BuildCacheDat.
+    -- Interface MODEL components (fixed model ids: modelType 1 and activeModelType 1) in BuildCacheDat.
     local model_ids = Game.Game.get_interface_model_ids()
     local model_requests = {}
     local models_needed = {}
@@ -99,12 +99,21 @@ local function init_ui()
         end
     end
 
+    -- uitree / gamecache_get_model read models from GameCache; mirror BuildCacheDat model blob once.
+    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
+
     -- Step 4: Pass 1 - load inventories (sprites from now-cached models).
     Game.UI.load_revconfig_inventories()
 
     -- Step 5: Pass 2 - load rest of UI (sprites, components, layouts, RS resolution).
     -- Fixed-layout builtins from rev_245_2_ui.ini (world, viewport_overlay, sidebar_overlay, …)
     -- are instantiated here into game.ui_root_buffer.
+    -- RS MODEL sequence precache (matches rev245_2_cache ensure_sequences_loaded).
+    if not _G.sequences_loaded_flag and Game.BuildCacheDat.has_config_jagfile() then
+        Game.BuildCacheDat.sequences_init_from_config_jagfile()
+        Game.GameCache.convert_sequences_from_buildcachedat()
+        _G.sequences_loaded_flag = true
+    end
     Game.UI.load_revconfig_ui()
 
     -- Models are baked into Scene2 elements; free decoded models from RAM.

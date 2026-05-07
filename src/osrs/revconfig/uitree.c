@@ -623,6 +623,57 @@ uitree_print_nodes(struct UITree const* tree)
     }
 }
 
+static void
+uitree_debug_log_subtree_rec(struct UITree const* tree, int32_t idx, int depth)
+{
+    if( !tree || idx < 0 || (uint32_t)idx >= tree->component_count )
+        return;
+    struct StaticUIComponent const* c = &tree->components[idx];
+    fprintf(stderr, "[uitree_subtree] ");
+    for( int i = 0; i < depth * 2; i++ )
+        fputc(' ', stderr);
+    fprintf(
+        stderr,
+        "[%d] type=%s parent=%d first_child=%d next_sibling=%d component_id=%d "
+        "pos kind=%d xy=(%d,%d) wh=(%d,%d)\n",
+        (int)idx,
+        uitree_component_type_str(c->type),
+        (int)c->parent,
+        (int)c->first_child,
+        (int)c->next_sibling,
+        (int)c->component_id,
+        (int)c->position.kind,
+        c->position.x,
+        c->position.y,
+        c->position.width,
+        c->position.height);
+    for( int32_t ch = c->first_child; ch >= 0; ch = tree->components[ch].next_sibling )
+        uitree_debug_log_subtree_rec(tree, ch, depth + 1);
+}
+
+void
+uitree_debug_log_subtree_for_component_id(struct UITree const* tree, int component_id)
+{
+    if( !tree || component_id < 0 )
+        return;
+    int32_t root = uitree_find_by_component_id(tree, component_id);
+    if( root < 0 )
+    {
+        fprintf(
+            stderr,
+            "[uitree_subtree] component_id=%d not found in UITree (%u nodes)\n",
+            component_id,
+            tree->component_count);
+        return;
+    }
+    fprintf(
+        stderr,
+        "[uitree_subtree] subtree for component_id=%d root_index=%d\n",
+        component_id,
+        (int)root);
+    uitree_debug_log_subtree_rec(tree, root, 0);
+}
+
 int32_t
 uitree_push_sprite_xy(
     struct UITree* tree,
@@ -2066,7 +2117,7 @@ uitree_fill_inv_slot_options(
                     snprintf(
                         line,
                         sizeof(line),
-                        "Use %s @lre@%s",
+                        "Use %s with @lre@%s",
                         game->iface->inv_sel_obj_name[0] ? game->iface->inv_sel_obj_name : "item",
                         obj->name);
                     uitree_opt_append(
