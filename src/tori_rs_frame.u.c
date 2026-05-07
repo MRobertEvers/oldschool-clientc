@@ -15,6 +15,7 @@
 #include "osrs/minimenu.h"
 #include "osrs/minimenu_action.h"
 #include "osrs/minimenu_game.h"
+#include "osrs/minimenu_state.h"
 #include "osrs/obj_icon.h"
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
@@ -1562,13 +1563,6 @@ LibToriRS_FrameBegin(
     game->at_painters_command_index = 0;
     game->at_render_command_index = 0;
     game->at_ui_render_command_index = 0;
-
-    if( game->cross_mode != 0 )
-    {
-        game->cross_cycle += 20;
-        if( game->cross_cycle >= 400 )
-            game->cross_mode = 0;
-    }
 
     game->tile_clicked_x = -1;
     game->tile_clicked_z = -1;
@@ -3493,32 +3487,38 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
         if( !wv || !frame_point_in_component_xy(wv, cx, cy) )
             return;
 
-        /* Client.ts mouseLoop (~8607): menu closed + menuNumEntries>0 → doAction(menuNumEntries-1).
-         * Default row = menuOption[last] after buildMinimenu bubble-sort (same as
-         * minimenu_game_world_ts_default_row → tmp[last] after minimenu_sort_ts_action_order).
-         * doAction strips priority (+2000) once before comparing opcodes (8796–8798); use
-         * minimenu_action_norm_dispatch for WALK vs interact — priority NPC rows must dispatch. */
-        if( game->option_set.option_count > 0 && game->torirs_step_input )
+        /* Client.ts buildMinimenu (2772–2777): viewport adds addWorldOptions() only when
+         * mainModalId === -1; with an NPC dialogue modal it uses addComponentOptions(mainModal)
+         * instead — no world Walk row in menuNumEntries. mouseLoop (~8607) then doAction(last)
+         * targets modal/interface rows. Match that by uitree_sync_hover_option_set(click) +
+         * minimenu_game_collect_lines (same pipeline as minimenu_game_use_primary_at): UITree wins
+         * over raw option_set when the click hits dialogue/widgets. */
+        if( game->torirs_step_input )
         {
-            struct WorldOption def;
-            minimenu_game_world_ts_default_row(
-                &game->option_set, game->mouse_tile_x, game->mouse_tile_z, &def);
-            int const dispatch_norm = minimenu_action_norm_dispatch((int)def.action);
-            if( dispatch_norm != (int)MINIMENU_ACTION_WALK )
+            uitree_sync_hover_option_set(game, cx, cy);
+            struct MinimenuOptionLine lines[MINIMENU_MAX_OPTIONS];
+            int const nlines =
+                minimenu_game_collect_lines(game, lines, MINIMENU_MAX_OPTIONS);
+            if( nlines > 0 )
             {
-                game->minimenu.option_action[0]  = (int)def.action;
-                game->minimenu.option_param_a[0] = def.param_a;
-                game->minimenu.option_param_b[0] = def.param_b;
-                game->minimenu.option_param_c[0] = def.param_c;
-                game->minimenu.option_count      = 1;
-                minimenu_game_use_option(game, game->torirs_step_input, 0);
-                game->minimenu_used_option_this_left_click = true;
-                /* Examine (OP_NPC6 / OP_OBJ6): doAction does not set crossMode 2; Client keeps yellow
-                 * from World.groundX tryMove — yellow cross here. */
-                if( dispatch_norm == (int)MINIMENU_ACTION_OPNPC6 ||
-                    dispatch_norm == (int)MINIMENU_ACTION_OPOBJ6 )
-                    game_cross_set(game, 1);
-                return;
+                struct MinimenuOptionLine const* prim = &lines[0];
+                int const dispatch_norm =
+                    minimenu_action_norm_dispatch(prim->action);
+                if( dispatch_norm != (int)MINIMENU_ACTION_WALK )
+                {
+                    game->minimenu.option_action[0]  = prim->action;
+                    game->minimenu.option_param_a[0] = prim->param_a;
+                    game->minimenu.option_param_b[0] = prim->param_b;
+                    game->minimenu.option_param_c[0] = prim->param_c;
+                    game->minimenu.option_count      = 1;
+                    minimenu_game_use_option(game, game->torirs_step_input, 0);
+                    game->minimenu_used_option_this_left_click = true;
+                    /* Examine: doAction does not set crossMode 2 — yellow like ground walk feedback. */
+                    if( dispatch_norm == (int)MINIMENU_ACTION_OPNPC6 ||
+                        dispatch_norm == (int)MINIMENU_ACTION_OPOBJ6 )
+                        game_cross_set(game, 1);
+                    return;
+                }
             }
         }
 

@@ -1064,6 +1064,7 @@ uitree_rs_model_refresh_from_gamecache(struct GGame* game, int component_id)
     if( old_eid >= 0 )
         scene2_element_release(game->scene2, old_eid);
     c->u.rs_model.scene2_element_id = -1;
+    c->u.rs_model.rs_model_cached_sequence_id = -1;
 
     c->anim_id        = comp->anim;
     c->active_anim_id = comp->activeAnim;
@@ -1081,6 +1082,8 @@ uitree_rs_model_refresh_from_gamecache(struct GGame* game, int component_id)
         build_rs_scene2_element_for_model_component(game, game->scene2, game->gamecache, comp);
     if( eid >= 0 )
         c->u.rs_model.scene2_element_id = eid;
+    if( eid >= 0 )
+        uitree_rs_model_ensure_sequence_precached(game, c);
     c->is_dirty = 1;
 }
 

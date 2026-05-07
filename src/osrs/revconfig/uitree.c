@@ -12,6 +12,7 @@
 #include "osrs/minimenu_action.h"
 #include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
+#include "osrs/scene2.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -1252,6 +1253,7 @@ uitree_push_rs_model(
     component->position.width = width;
     component->position.height = height;
     component->u.rs_model.scene2_element_id = scene2_element_id;
+    component->u.rs_model.rs_model_cached_sequence_id = -1;
     return idx;
 }
 
@@ -2259,6 +2261,192 @@ uitree_debug_log_inv_menu(
     }
 }
 
+/** Client.ts addComponentOptions on build-cache IfType for viewport main modal when mouse is in
+ * root bounds — shared by uitree_fill_viewport_modal_options_from_cache. */
+static void
+uitree_append_cache_button_options(
+    struct GGame* game,
+    struct GameCacheComponent* child,
+    struct UITreeOptionSet* os)
+{
+    char exp[192];
+
+    if( child->buttonType == COMPONENT_BUTTON_TYPE_OK )
+    {
+        char const* raw = NULL;
+        if( child->text && child->text[0] )
+            raw = child->text;
+        else if( child->option && child->option[0] )
+            raw = child->option;
+        if( !raw )
+            return;
+        interface_expand_if_text_placeholders(game, child, raw, exp, (int)sizeof(exp));
+        uitree_opt_append(os, MINIMENU_ACTION_IF_BUTTON, exp, child->id, 0, 0);
+    }
+    else if( child->buttonType == COMPONENT_BUTTON_TYPE_TARGET && game->iface &&
+             game->iface->inv_target_mode == 0 )
+    {
+        char line[96];
+        char prefix[72];
+        prefix[0] = '\0';
+        if( child->targetVerb && child->targetVerb[0] )
+        {
+            char const* sp = strchr(child->targetVerb, ' ');
+            if( sp && sp != child->targetVerb )
+            {
+                size_t n = (size_t)(sp - child->targetVerb);
+                if( n > sizeof(prefix) - 1 )
+                    n = sizeof(prefix) - 1;
+                memcpy(prefix, child->targetVerb, n);
+                prefix[n] = '\0';
+            }
+            else
+                strncpy(prefix, child->targetVerb, sizeof(prefix) - 1);
+        }
+        snprintf(
+            line,
+            sizeof(line),
+            "%s @gre@%s",
+            prefix,
+            (child->targetText && child->targetText[0]) ? child->targetText : "");
+        interface_expand_if_text_placeholders(game, child, line, exp, (int)sizeof(exp));
+        uitree_opt_append(os, MINIMENU_ACTION_TGT_BUTTON, exp, 0, 0, child->id);
+    }
+    else if( child->buttonType == COMPONENT_BUTTON_TYPE_CLOSE )
+    {
+        uitree_opt_append(os, MINIMENU_ACTION_CLOSE_MODAL, "Close", child->id, 0, 0);
+    }
+    else if( child->buttonType == COMPONENT_BUTTON_TYPE_TOGGLE && child->text &&
+             child->text[0] )
+    {
+        interface_expand_if_text_placeholders(game, child, child->text, exp, (int)sizeof(exp));
+        uitree_opt_append(os, MINIMENU_ACTION_IF_BUTTON_TOGGLE, exp, child->id, 0, 0);
+    }
+    else if( child->buttonType == COMPONENT_BUTTON_TYPE_SELECT && child->text &&
+             child->text[0] )
+    {
+        interface_expand_if_text_placeholders(game, child, child->text, exp, (int)sizeof(exp));
+        uitree_opt_append(os, MINIMENU_ACTION_IF_BUTTON_SELECT, exp, child->id, 0, 0);
+    }
+    else if( child->buttonType == COMPONENT_BUTTON_TYPE_CONTINUE )
+    {
+        char const* disp = NULL;
+        if( child->option && child->option[0] )
+        {
+            interface_expand_if_text_placeholders(
+                game, child, child->option, exp, (int)sizeof(exp));
+            disp = exp;
+        }
+        else if( child->text && child->text[0] )
+        {
+            interface_expand_if_text_placeholders(
+                game, child, child->text, exp, (int)sizeof(exp));
+            disp = exp;
+        }
+        else
+            disp = "Continue";
+        uitree_opt_append(os, MINIMENU_ACTION_RESUME_PAUSEBUTTON, disp, child->id, 0, 0);
+    }
+}
+
+static void
+uitree_add_component_options_cache_rec(
+    struct GGame* game,
+    struct GameCacheComponent* com,
+    int mx,
+    int my,
+    int x,
+    int y,
+    int scroll_y,
+    struct UITreeOptionSet* os)
+{
+    if( !game || !game->iface || !game->gamecache || !com || !os )
+        return;
+    if( com->type != COMPONENT_TYPE_LAYER || !com->children || !com->childX || !com->childY ||
+        com->hide || mx < x || my < y || mx > x + com->width || my > y + com->height )
+        return;
+
+    for( int i = 0; i < com->children_count; i++ )
+    {
+        int child_id = com->children[i];
+        struct GameCacheComponent* child =
+            gamecache_get_component(game->gamecache, child_id);
+        if( !child || child->hide )
+            continue;
+
+        int childX = com->childX[i] + x;
+        int childY = com->childY[i] + y - scroll_y;
+        childX += child->x;
+        childY += child->y;
+
+        if( child->type == COMPONENT_TYPE_LAYER )
+        {
+            int scroll_pos = 0;
+            if( child_id >= 0 && child_id < MAX_IFACE_SCROLL_IDS )
+                scroll_pos = game->iface->component_scroll_position[child_id];
+            int max_scroll = child->scroll - child->height;
+            if( max_scroll < 0 )
+                max_scroll = 0;
+            if( scroll_pos > max_scroll )
+                scroll_pos = max_scroll;
+            if( scroll_pos < 0 )
+                scroll_pos = 0;
+            uitree_add_component_options_cache_rec(
+                game, child, mx, my, childX, childY, scroll_pos, os);
+        }
+        else if( child->type == COMPONENT_TYPE_INV )
+        {
+            int slot            = 0;
+            int const nslots    = child->width * child->height;
+            bool filled_inv_row = false;
+            for( int row = 0; row < child->height && !filled_inv_row; row++ )
+            {
+                for( int col = 0; col < child->width && !filled_inv_row; col++ )
+                {
+                    int slotX = childX + col * (child->marginX + 32);
+                    int slotY = childY + row * (child->marginY + 32);
+                    if( slot < 20 && child->invSlotOffsetX && child->invSlotOffsetY )
+                    {
+                        slotX += child->invSlotOffsetX[slot];
+                        slotY += child->invSlotOffsetY[slot];
+                    }
+                    if( mx >= slotX && my >= slotY && mx < slotX + 32 && my < slotY + 32 &&
+                        child->invSlotObjId && slot < nslots && child->invSlotObjId[slot] > 0 )
+                    {
+                        uitree_fill_inv_slot_options_from_cache_inv(game, child, slot, os);
+                        filled_inv_row = true;
+                    }
+                    slot++;
+                }
+            }
+        }
+        else if( mx >= childX && my >= childY && mx < childX + child->width &&
+                 my < childY + child->height )
+            uitree_append_cache_button_options(game, child, os);
+    }
+}
+
+static void
+uitree_fill_viewport_modal_options_from_cache(
+    struct GGame* game,
+    int mx,
+    int my,
+    struct UITreeOptionSet* os)
+{
+    if( !game || !game->iface || !game->gamecache || !os )
+        return;
+    int root_id = game->iface->viewport_interface_id;
+    if( root_id < 0 )
+        return;
+    struct GameCacheComponent* root =
+        gamecache_get_component(game->gamecache, root_id);
+    if( !root )
+        return;
+    uitree_add_component_options_cache_rec(game, root, mx, my, 4, 4, 0, os);
+    if( os->option_count > 0 )
+        uitree_option_set_sort_ts(os);
+}
+
 void
 uitree_sync_hover_option_set(
     struct GGame* game,
@@ -2334,6 +2522,22 @@ uitree_sync_hover_option_set(
                                                ? tree->components[fh].component_id
                                                : -1;
             tree->hover_inv_slot = fs;
+        }
+    }
+
+    /* Client.ts buildMinimenu (2772–2777): when mainModalId !== -1 the viewport adds only
+     * addComponentOptions(mainModal), not addWorldOptions. UITree pick often lands on
+     * UIELEM_BUILTIN_WORLD with no rows — rebuild lines from build-cache root at viewport (4,4). */
+    if( game->iface && game->iface->viewport_interface_id >= 0 && mx > 4 && my > 4 &&
+        mx < 516 && my < 338 )
+    {
+        bool hit_world =
+            hit >= 0 && (uint32_t)hit < tree->component_count &&
+            tree->components[hit].type == UIELEM_BUILTIN_WORLD;
+        if( hit_world || tree->uitree_optionset.option_count == 0 )
+        {
+            tree->uitree_optionset.option_count = 0;
+            uitree_fill_viewport_modal_options_from_cache(game, mx, my, &tree->uitree_optionset);
         }
     }
 
@@ -2448,6 +2652,185 @@ uitree_interface_resolved_sequence_id(
     return -1;
 }
 
+static struct GameCacheComponent*
+uitree_rs_model_get_gcc(struct GGame* game, struct StaticUIComponent* c)
+{
+    if( !game || !game->gamecache || !c || c->component_id < 0 )
+        return NULL;
+    return gamecache_get_component(game->gamecache, c->component_id);
+}
+
+static int
+uitree_rs_model_resolve_sequence_id(
+    struct GGame* game,
+    struct StaticUIComponent* c,
+    struct GameCacheComponent* gcc)
+{
+    int sequence_id = -1;
+    if( gcc && (gcc->modelType == 2 || gcc->modelType == 3) && game->clientscript_vm )
+    {
+        bool active = clientscript_vm_if_active(game->clientscript_vm, game, gcc);
+        int mt = gcc->modelType;
+        int mid = gcc->model;
+        if( active && gcc->activeModelType != 0 )
+        {
+            mt = gcc->activeModelType;
+            mid = gcc->activeModel;
+        }
+        sequence_id = uitree_interface_resolved_sequence_id(game, gcc, active, mt, mid);
+    }
+    else
+    {
+        struct ClientScriptVM* vm = game->clientscript_vm;
+        bool active = clientscript_vm_active(
+            vm, c->scripts, c->scripts_count, c->script_comparator, c->script_operand);
+        sequence_id = active ? c->active_anim_id : c->anim_id;
+
+        if( sequence_id < 0 && gcc )
+        {
+            if( gcc->modelType == 2 && game->gamecache )
+            {
+                struct GameCacheNpc* npc = gamecache_get_npc(game->gamecache, gcc->model);
+                if( npc )
+                    sequence_id = npc->readyanim;
+            }
+            else if( gcc->modelType == 3 && game->world )
+            {
+                struct PlayerEntity* local = world_player(game->world, ACTIVE_PLAYER_SLOT);
+                if( local && local->alive )
+                    sequence_id = local->animation.readyanim;
+            }
+        }
+    }
+    return sequence_id;
+}
+
+static void
+uitree_rs_model_clear_scene2_animation(struct GGame* game, struct StaticUIComponent* c)
+{
+    if( !game || !game->scene2 || !c || c->u.rs_model.scene2_element_id < 0 )
+        return;
+    struct Scene2Element* el =
+        scene2_element_at(game->scene2, c->u.rs_model.scene2_element_id);
+    if( !el || !scene2_element_primary_frames(el) )
+        return;
+    scene2_element_clear_animation(el);
+    scene2_element_clear_secondary_animation(el);
+    scene2_element_clear_framemap(el);
+}
+
+/** Mirrors world load_scene_animation: bake primary + secondary DashFrames + one shared framemap. */
+static void
+uitree_rs_model_precache_sequence_on_scene2(
+    struct GGame* game,
+    struct StaticUIComponent* c,
+    int sequence_id,
+    struct GameCacheSequence* seq)
+{
+    if( !game || !game->scene2 || !game->gamecache || !c || !seq ||
+        c->u.rs_model.scene2_element_id < 0 )
+        return;
+    struct Scene2Element* el =
+        scene2_element_at(game->scene2, c->u.rs_model.scene2_element_id);
+    if( !el || !scene2_element_primary_frames(el) )
+        return;
+
+    scene2_element_clear_animation(el);
+    scene2_element_clear_secondary_animation(el);
+    scene2_element_clear_framemap(el);
+
+    for( int i = 0; i < seq->frame_count; i++ )
+    {
+        int frame_id = seq->frames[i];
+        struct GameCacheAnimframe* animframe = gamecache_get_animframe(game->gamecache, frame_id);
+        if( !animframe )
+            return;
+
+        if( !scene2_element_dash_framemap(el) )
+        {
+            scene2_element_set_framemap(
+                el, dashframemap_new_from_gamecache_animframe(animframe));
+        }
+
+        int length = seq->delay ? seq->delay[i] : 0;
+        if( length == 0 )
+            length = animframe->delay;
+        if( length <= 0 )
+            length = 1;
+
+        struct DashFrame* dash_frame = dashframe_new_from_gamecache_animframe(animframe);
+        scene2_element_push_animation_frame(
+            game->scene2, el, sequence_id, i, dash_frame, length);
+    }
+
+    for( int i = 0; i < seq->frame_count; i++ )
+    {
+        int primary_frame_id = seq->frames[i];
+        struct GameCacheAnimframe* primary_af =
+            gamecache_get_animframe(game->gamecache, primary_frame_id);
+        if( !primary_af )
+            return;
+
+        int sid = (seq->iframes && seq->iframes[i] >= 0) ? seq->iframes[i] : -1;
+        struct DashFrame* secondary_frame = NULL;
+        if( sid >= 0 )
+        {
+            struct GameCacheAnimframe* iframe_af = gamecache_get_animframe(game->gamecache, sid);
+            if( !iframe_af )
+                return;
+            secondary_frame = dashframe_new_from_gamecache_animframe(iframe_af);
+        }
+        else
+            secondary_frame = dashframe_new_from_gamecache_animframe(primary_af);
+
+        int length = seq->delay ? seq->delay[i] : 0;
+        if( length == 0 )
+            length = primary_af->delay;
+        if( length <= 0 )
+            length = 1;
+
+        scene2_element_push_secondary_animation_frame(
+            game->scene2, el, sequence_id, i, secondary_frame, length);
+    }
+}
+
+void
+uitree_rs_model_ensure_sequence_precached(struct GGame* game, struct StaticUIComponent* c)
+{
+    if( !game || !c || c->type != UIELEM_RS_MODEL )
+        return;
+
+    struct GameCacheComponent* gcc = uitree_rs_model_get_gcc(game, c);
+    int sequence_id = uitree_rs_model_resolve_sequence_id(game, c, gcc);
+
+    if( sequence_id < 0 || !game->gamecache || !game->gamecache->sequences_hmap )
+    {
+        uitree_rs_model_clear_scene2_animation(game, c);
+        c->u.rs_model.rs_model_cached_sequence_id = -1;
+        return;
+    }
+
+    struct GameCacheSequence* seq = gamecache_get_sequence(game->gamecache, sequence_id);
+    if( !seq || seq->frame_count <= 0 || !seq->frames )
+    {
+        uitree_rs_model_clear_scene2_animation(game, c);
+        c->u.rs_model.rs_model_cached_sequence_id = -1;
+        return;
+    }
+
+    if( c->u.rs_model.scene2_element_id < 0 )
+    {
+        c->u.rs_model.rs_model_cached_sequence_id = -1;
+        return;
+    }
+
+    if( sequence_id == c->u.rs_model.rs_model_cached_sequence_id )
+        return;
+
+    uitree_rs_model_precache_sequence_on_scene2(game, c, sequence_id, seq);
+    c->u.rs_model.rs_model_cached_sequence_id = sequence_id;
+}
+
 static void
 uitree_dashmodel_apply_animframe_by_id(
     struct GGame* game,
@@ -2474,16 +2857,37 @@ uitree_interface_apply_sequence_keyframe_to_model(
     struct GGame* game,
     struct DashModel* model,
     struct GameCacheSequence* seq,
-    int frame_index)
+    int frame_index,
+    struct StaticUIComponent* rs_model_ui_comp_nullable)
 {
     if( !game || !model || !seq || frame_index < 0 || frame_index >= seq->frame_count ||
         !seq->frames )
         return;
 
 #if TORIRS_DISABLE_INTERFACE_MODEL_ANIM
-    (void)frame_index;
+    (void)rs_model_ui_comp_nullable;
     return;
 #endif
+
+    if( rs_model_ui_comp_nullable && game->scene2 &&
+        rs_model_ui_comp_nullable->u.rs_model.scene2_element_id >= 0 )
+    {
+        struct Scene2Element* el = scene2_element_at(
+            game->scene2, rs_model_ui_comp_nullable->u.rs_model.scene2_element_id);
+        struct DashFramemap* fm = el ? scene2_element_dash_framemap(el) : NULL;
+        if( el && fm && scene2_element_primary_frames(el) )
+        {
+            struct DashFrame* p =
+                scene2_element_dash_animation_frame(el, 0, (uint8_t)frame_index);
+            if( p )
+                dashmodel_animate(model, p, fm);
+            struct DashFrame* s =
+                scene2_element_dash_animation_frame(el, 1, (uint8_t)frame_index);
+            if( s )
+                dashmodel_animate(model, s, fm);
+            return;
+        }
+    }
 
     uitree_dashmodel_apply_animframe_by_id(game, model, seq->frames[frame_index]);
     int sid = seq->iframes ? seq->iframes[frame_index] : -1;
@@ -2524,47 +2928,11 @@ uitree_step_rs_model_sequence_one(
     if( !game || !c || cycles_elapsed <= 0 )
         return;
 
-    struct GameCacheComponent* gcc = NULL;
-    if( c->component_id >= 0 && game->gamecache )
-        gcc = gamecache_get_component(game->gamecache, c->component_id);
+    struct GameCacheComponent* gcc = uitree_rs_model_get_gcc(game, c);
 
-    int sequence_id = -1;
+    uitree_rs_model_ensure_sequence_precached(game, c);
 
-    if( gcc && (gcc->modelType == 2 || gcc->modelType == 3) && game->clientscript_vm )
-    {
-        bool active = clientscript_vm_if_active(game->clientscript_vm, game, gcc);
-        int mt = gcc->modelType;
-        int mid = gcc->model;
-        if( active && gcc->activeModelType != 0 )
-        {
-            mt = gcc->activeModelType;
-            mid = gcc->activeModel;
-        }
-        sequence_id = uitree_interface_resolved_sequence_id(game, gcc, active, mt, mid);
-    }
-    else
-    {
-        struct ClientScriptVM* vm = game->clientscript_vm;
-        bool active = clientscript_vm_active(
-            vm, c->scripts, c->scripts_count, c->script_comparator, c->script_operand);
-        sequence_id = active ? c->active_anim_id : c->anim_id;
-
-        if( sequence_id < 0 && gcc )
-        {
-            if( gcc->modelType == 2 && game->gamecache )
-            {
-                struct GameCacheNpc* npc = gamecache_get_npc(game->gamecache, gcc->model);
-                if( npc )
-                    sequence_id = npc->readyanim;
-            }
-            else if( gcc->modelType == 3 && game->world )
-            {
-                struct PlayerEntity* local = world_player(game->world, ACTIVE_PLAYER_SLOT);
-                if( local && local->alive )
-                    sequence_id = local->animation.readyanim;
-            }
-        }
-    }
+    int sequence_id = uitree_rs_model_resolve_sequence_id(game, c, gcc);
 
     if( sequence_id < 0 || !game->gamecache || !game->gamecache->sequences_hmap )
         return;
@@ -2651,6 +3019,8 @@ uitree_chat_head_dashmodel_for_frame(
     if( !head )
         return NULL;
 
+    uitree_rs_model_ensure_sequence_precached(game, ui_comp);
+
     int sequence_id = uitree_interface_resolved_sequence_id(game, gcc, active, mt, mid);
     if( sequence_id >= 0 && game->gamecache->sequences_hmap )
     {
@@ -2662,7 +3032,7 @@ uitree_chat_head_dashmodel_for_frame(
                 fi = 0;
             if( fi >= seq->frame_count )
                 fi %= seq->frame_count;
-            uitree_interface_apply_sequence_keyframe_to_model(game, head, seq, fi);
+            uitree_interface_apply_sequence_keyframe_to_model(game, head, seq, fi, ui_comp);
         }
     }
 

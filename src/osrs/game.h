@@ -114,7 +114,7 @@ struct GGame
     int cross_x;
     int cross_y;
     int cross_mode;  /* 0=off, 1=walk (yellow), 2=interact (red) */
-    int cross_cycle; /* 0..399, +20 per frame when mode != 0 */
+    int cross_cycle; /* +20 per client cycle while mode != 0; >=400 clears mode (see GameStep) */
 
     int build_player;
     int cc;

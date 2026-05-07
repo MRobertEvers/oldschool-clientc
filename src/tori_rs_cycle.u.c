@@ -374,6 +374,15 @@ LibToriRS_GameStep(
 
     dash_animate_textures(game->sys_dash, game->cycles_elapsed);
 
+    /* Click cross overlay: Client.ts increments crossCycle after worldUpdateNum++ (once per
+     * logical tick), not each draw — advance by cycles_elapsed so animation matches game rate. */
+    if( game->cross_mode != 0 && game->cycles_elapsed > 0 )
+    {
+        game->cross_cycle += 20 * game->cycles_elapsed;
+        if( game->cross_cycle >= 400 )
+            game->cross_mode = 0;
+    }
+
     /* Scene dynamic elements (players/NPCs) are updated earlier in GameStep so they
      * are always present for rendering even when a script is yielded. */
 

@@ -2128,7 +2128,9 @@ interface_draw_component_model(
         if( seq && seq->frame_count > 0 && seq->frames )
         {
             int frame_i = (game->cycle / 5) % seq->frame_count;
-            uitree_interface_apply_sequence_keyframe_to_model(game, head_model, seq, frame_i);
+            /* No UITree StaticUIComponent — per-call DashFrame alloc fallback (NULL). */
+            uitree_interface_apply_sequence_keyframe_to_model(
+                game, head_model, seq, frame_i, NULL);
         }
     }
 

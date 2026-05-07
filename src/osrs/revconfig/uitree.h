@@ -254,6 +254,8 @@ struct StaticUIComponent
             int model_zoom;
             int model_xan;
             int model_yan;
+            /** Last sequence id baked into scene2_element animation buffers; -1 = none / stale. */
+            int rs_model_cached_sequence_id;
         } rs_model;
         struct
         {
@@ -395,6 +397,13 @@ uitree_step_rs_model_animations(
     struct GGame* game,
     int cycles_elapsed);
 
+/** Ensure RS_MODEL Scene2 element holds DashFrame/DashFramemap for the currently resolved sequence.
+ * Call after refresh or when scripts may have changed sequence binding. */
+void
+uitree_rs_model_ensure_sequence_precached(
+    struct GGame* game,
+    struct StaticUIComponent* c);
+
 struct GameCacheSequence;
 struct DashModel;
 
@@ -407,13 +416,16 @@ uitree_interface_resolved_sequence_id(
     int effective_model_type,
     int effective_model_id);
 
-/** Client getTempModel: primary seq.frames[] then seq.iframes[] morph. */
+/** Client getTempModel: primary seq.frames[] then seq.iframes[] morph.
+ * When `rs_model_ui_comp` is non-NULL and its Scene2 element has precached frames, uses those;
+ * otherwise allocates frames per call (legacy path). */
 void
 uitree_interface_apply_sequence_keyframe_to_model(
     struct GGame* game,
     struct DashModel* model,
     struct GameCacheSequence* seq,
-    int frame_index);
+    int frame_index,
+    struct StaticUIComponent* rs_model_ui_comp_nullable);
 
 /** Fresh chat-head DashModel for soft3d (model1/2, dual iframe, lighting). Caller frees. */
 struct DashModel*
