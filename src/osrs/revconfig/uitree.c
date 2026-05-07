@@ -637,7 +637,10 @@ uitree_print_nodes(struct UITree const* tree)
 }
 
 static void
-uitree_debug_log_subtree_rec(struct UITree const* tree, int32_t idx, int depth)
+uitree_debug_log_subtree_rec(
+    struct UITree const* tree,
+    int32_t idx,
+    int depth)
 {
     if( !tree || idx < 0 || (uint32_t)idx >= tree->component_count )
         return;
@@ -665,26 +668,28 @@ uitree_debug_log_subtree_rec(struct UITree const* tree, int32_t idx, int depth)
 }
 
 void
-uitree_debug_log_subtree_for_component_id(struct UITree const* tree, int component_id)
+uitree_debug_log_subtree_for_component_id(
+    struct UITree const* tree,
+    int component_id)
 {
-    if( !tree || component_id < 0 )
-        return;
-    int32_t root = uitree_find_by_component_id(tree, component_id);
-    if( root < 0 )
-    {
-        fprintf(
-            stderr,
-            "[uitree_subtree] component_id=%d not found in UITree (%u nodes)\n",
-            component_id,
-            tree->component_count);
-        return;
-    }
-    fprintf(
-        stderr,
-        "[uitree_subtree] subtree for component_id=%d root_index=%d\n",
-        component_id,
-        (int)root);
-    uitree_debug_log_subtree_rec(tree, root, 0);
+    // if( !tree || component_id < 0 )
+    //     return;
+    // int32_t root = uitree_find_by_component_id(tree, component_id);
+    // if( root < 0 )
+    // {
+    //     fprintf(
+    //         stderr,
+    //         "[uitree_subtree] component_id=%d not found in UITree (%u nodes)\n",
+    //         component_id,
+    //         tree->component_count);
+    //     return;
+    // }
+    // fprintf(
+    //     stderr,
+    //     "[uitree_subtree] subtree for component_id=%d root_index=%d\n",
+    //     component_id,
+    //     (int)root);
+    // uitree_debug_log_subtree_rec(tree, root, 0);
 }
 
 int32_t
@@ -1562,7 +1567,8 @@ uitree_clear_viewport_overlay_children(
     struct UITree* tree,
     int32_t viewport_overlay_idx)
 {
-    if( !tree || viewport_overlay_idx < 0 || (uint32_t)viewport_overlay_idx >= tree->component_count )
+    if( !tree || viewport_overlay_idx < 0 ||
+        (uint32_t)viewport_overlay_idx >= tree->component_count )
         return;
     struct StaticUIComponent* c = &tree->components[viewport_overlay_idx];
     if( c->type != UIELEM_BUILTIN_VIEWPORT_OVERLAY )
@@ -2294,8 +2300,7 @@ uitree_fill_inv_slot_options(
                         "Use %s with @lre@%s",
                         game->iface->inv_sel_obj_name[0] ? game->iface->inv_sel_obj_name : "item",
                         obj->name);
-                    uitree_opt_append(
-                        os, MINIMENU_ACTION_OPHELDU, line, obj_id, slot, comp_id);
+                    uitree_opt_append(os, MINIMENU_ACTION_OPHELDU, line, obj_id, slot, comp_id);
                     uitree_option_set_sort_ts(os);
                 }
             }
@@ -2560,8 +2565,9 @@ uitree_append_cache_button_options(
         interface_expand_if_text_placeholders(game, child, raw, exp, (int)sizeof(exp));
         uitree_opt_append(os, MINIMENU_ACTION_IF_BUTTON, exp, child->id, 0, 0);
     }
-    else if( child->buttonType == COMPONENT_BUTTON_TYPE_TARGET && game->iface &&
-             game->iface->inv_target_mode == 0 )
+    else if(
+        child->buttonType == COMPONENT_BUTTON_TYPE_TARGET && game->iface &&
+        game->iface->inv_target_mode == 0 )
     {
         char line[96];
         char prefix[72];
@@ -2593,14 +2599,12 @@ uitree_append_cache_button_options(
     {
         uitree_opt_append(os, MINIMENU_ACTION_CLOSE_MODAL, "Close", child->id, 0, 0);
     }
-    else if( child->buttonType == COMPONENT_BUTTON_TYPE_TOGGLE && child->text &&
-             child->text[0] )
+    else if( child->buttonType == COMPONENT_BUTTON_TYPE_TOGGLE && child->text && child->text[0] )
     {
         interface_expand_if_text_placeholders(game, child, child->text, exp, (int)sizeof(exp));
         uitree_opt_append(os, MINIMENU_ACTION_IF_BUTTON_TOGGLE, exp, child->id, 0, 0);
     }
-    else if( child->buttonType == COMPONENT_BUTTON_TYPE_SELECT && child->text &&
-             child->text[0] )
+    else if( child->buttonType == COMPONENT_BUTTON_TYPE_SELECT && child->text && child->text[0] )
     {
         interface_expand_if_text_placeholders(game, child, child->text, exp, (int)sizeof(exp));
         uitree_opt_append(os, MINIMENU_ACTION_IF_BUTTON_SELECT, exp, child->id, 0, 0);
@@ -2616,8 +2620,7 @@ uitree_append_cache_button_options(
         }
         else if( child->text && child->text[0] )
         {
-            interface_expand_if_text_placeholders(
-                game, child, child->text, exp, (int)sizeof(exp));
+            interface_expand_if_text_placeholders(game, child, child->text, exp, (int)sizeof(exp));
             disp = exp;
         }
         else
@@ -2646,8 +2649,7 @@ uitree_add_component_options_cache_rec(
     for( int i = 0; i < com->children_count; i++ )
     {
         int child_id = com->children[i];
-        struct GameCacheComponent* child =
-            gamecache_get_component(game->gamecache, child_id);
+        struct GameCacheComponent* child = gamecache_get_component(game->gamecache, child_id);
         if( !child || child->hide )
             continue;
 
@@ -2673,8 +2675,8 @@ uitree_add_component_options_cache_rec(
         }
         else if( child->type == COMPONENT_TYPE_INV )
         {
-            int slot            = 0;
-            int const nslots    = child->width * child->height;
+            int slot = 0;
+            int const nslots = child->width * child->height;
             bool filled_inv_row = false;
             for( int row = 0; row < child->height && !filled_inv_row; row++ )
             {
@@ -2697,8 +2699,9 @@ uitree_add_component_options_cache_rec(
                 }
             }
         }
-        else if( mx >= childX && my >= childY && mx < childX + child->width &&
-                 my < childY + child->height )
+        else if(
+            mx >= childX && my >= childY && mx < childX + child->width &&
+            my < childY + child->height )
             uitree_append_cache_button_options(game, child, os);
     }
 }
@@ -2715,8 +2718,7 @@ uitree_fill_viewport_modal_options_from_cache(
     int root_id = game->iface->viewport_interface_id;
     if( root_id < 0 )
         return;
-    struct GameCacheComponent* root =
-        gamecache_get_component(game->gamecache, root_id);
+    struct GameCacheComponent* root = gamecache_get_component(game->gamecache, root_id);
     if( !root )
         return;
     uitree_add_component_options_cache_rec(game, root, mx, my, 4, 4, 0, os);
@@ -2806,12 +2808,11 @@ uitree_sync_hover_option_set(
     /* Client.ts buildMinimenu (2772–2777): when mainModalId !== -1 the viewport adds only
      * addComponentOptions(mainModal), not addWorldOptions. UITree pick often lands on
      * UIELEM_BUILTIN_WORLD with no rows — rebuild lines from build-cache root at viewport (4,4). */
-    if( game->iface && game->iface->viewport_interface_id >= 0 && mx > 4 && my > 4 &&
-        mx < 516 && my < 338 )
+    if( game->iface && game->iface->viewport_interface_id >= 0 && mx > 4 && my > 4 && mx < 516 &&
+        my < 338 )
     {
-        bool hit_world =
-            hit >= 0 && (uint32_t)hit < tree->component_count &&
-            tree->components[hit].type == UIELEM_BUILTIN_WORLD;
+        bool hit_world = hit >= 0 && (uint32_t)hit < tree->component_count &&
+                         tree->components[hit].type == UIELEM_BUILTIN_WORLD;
         if( hit_world || tree->uitree_optionset.option_count == 0 )
         {
             tree->uitree_optionset.option_count = 0;
@@ -2931,7 +2932,9 @@ uitree_interface_resolved_sequence_id(
 }
 
 static struct GameCacheComponent*
-uitree_rs_model_get_gcc(struct GGame* game, struct StaticUIComponent* c)
+uitree_rs_model_get_gcc(
+    struct GGame* game,
+    struct StaticUIComponent* c)
 {
     if( !game || !game->gamecache || !c || c->component_id < 0 )
         return NULL;
@@ -2984,12 +2987,13 @@ uitree_rs_model_resolve_sequence_id(
 }
 
 static void
-uitree_rs_model_clear_scene2_animation(struct GGame* game, struct StaticUIComponent* c)
+uitree_rs_model_clear_scene2_animation(
+    struct GGame* game,
+    struct StaticUIComponent* c)
 {
     if( !game || !game->scene2 || !c || c->u.rs_model.scene2_element_id < 0 )
         return;
-    struct Scene2Element* el =
-        scene2_element_at(game->scene2, c->u.rs_model.scene2_element_id);
+    struct Scene2Element* el = scene2_element_at(game->scene2, c->u.rs_model.scene2_element_id);
     if( !el || !scene2_element_primary_frames(el) )
         return;
     scene2_element_clear_animation(el);
@@ -2997,7 +3001,8 @@ uitree_rs_model_clear_scene2_animation(struct GGame* game, struct StaticUICompon
     scene2_element_clear_framemap(el);
 }
 
-/** Mirrors world load_scene_animation: bake primary + secondary DashFrames + one shared framemap. */
+/** Mirrors world load_scene_animation: bake primary + secondary DashFrames + one shared framemap.
+ */
 static void
 uitree_rs_model_precache_sequence_on_scene2(
     struct GGame* game,
@@ -3008,8 +3013,7 @@ uitree_rs_model_precache_sequence_on_scene2(
     if( !game || !game->scene2 || !game->gamecache || !c || !seq ||
         c->u.rs_model.scene2_element_id < 0 )
         return;
-    struct Scene2Element* el =
-        scene2_element_at(game->scene2, c->u.rs_model.scene2_element_id);
+    struct Scene2Element* el = scene2_element_at(game->scene2, c->u.rs_model.scene2_element_id);
     if( !el || !scene2_element_primary_frames(el) )
         return;
 
@@ -3026,8 +3030,7 @@ uitree_rs_model_precache_sequence_on_scene2(
 
         if( !scene2_element_dash_framemap(el) )
         {
-            scene2_element_set_framemap(
-                el, dashframemap_new_from_gamecache_animframe(animframe));
+            scene2_element_set_framemap(el, dashframemap_new_from_gamecache_animframe(animframe));
         }
 
         int length = seq->delay ? seq->delay[i] : 0;
@@ -3037,8 +3040,7 @@ uitree_rs_model_precache_sequence_on_scene2(
             length = 1;
 
         struct DashFrame* dash_frame = dashframe_new_from_gamecache_animframe(animframe);
-        scene2_element_push_animation_frame(
-            game->scene2, el, sequence_id, i, dash_frame, length);
+        scene2_element_push_animation_frame(game->scene2, el, sequence_id, i, dash_frame, length);
     }
 
     for( int i = 0; i < seq->frame_count; i++ )
@@ -3073,7 +3075,9 @@ uitree_rs_model_precache_sequence_on_scene2(
 }
 
 void
-uitree_rs_model_ensure_sequence_precached(struct GGame* game, struct StaticUIComponent* c)
+uitree_rs_model_ensure_sequence_precached(
+    struct GGame* game,
+    struct StaticUIComponent* c)
 {
     if( !game || !c || c->type != UIELEM_RS_MODEL )
         return;
@@ -3155,12 +3159,10 @@ uitree_interface_apply_sequence_keyframe_to_model(
         struct DashFramemap* fm = el ? scene2_element_dash_framemap(el) : NULL;
         if( el && fm && scene2_element_primary_frames(el) )
         {
-            struct DashFrame* p =
-                scene2_element_dash_animation_frame(el, 0, (uint8_t)frame_index);
+            struct DashFrame* p = scene2_element_dash_animation_frame(el, 0, (uint8_t)frame_index);
             if( p )
                 dashmodel_animate(model, p, fm);
-            struct DashFrame* s =
-                scene2_element_dash_animation_frame(el, 1, (uint8_t)frame_index);
+            struct DashFrame* s = scene2_element_dash_animation_frame(el, 1, (uint8_t)frame_index);
             if( s )
                 dashmodel_animate(model, s, fm);
             return;

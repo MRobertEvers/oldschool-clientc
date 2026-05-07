@@ -162,6 +162,19 @@ buildcachedat_loader_load_component_sprites_from_media(
     struct BuildCacheDat* buildcachedat,
     struct GGame* game);
 
+/** Load Dash sprites for every `graphic` / `activeGraphic` / `invSlotGraphic[*]` referenced by
+ * `interface_root_component_id` and its GameCache descendants (same paths as bulk
+ * `load_component_sprites_from_media`, but scoped). Intended for IF_SETTAB after interfaces
+ * exist so UITree push sees UIScene rows; pair with `gamecache_convert_reftables_from_buildcachedat`.
+ */
+void
+buildcachedat_loader_ensure_component_graphics_for_gamecache_interface(
+    struct BuildCacheDat* buildcachedat,
+    struct UIScene* ui_scene,
+    struct GGame* game,
+    struct GameCache* gc,
+    int interface_root_component_id);
+
 /** Lazy-load a single component sprite by name from cfg_media_jagfile (same as bulk loader).
  * `game` is reserved for future use; may be NULL. */
 void

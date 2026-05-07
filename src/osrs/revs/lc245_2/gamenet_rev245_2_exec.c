@@ -3,6 +3,7 @@
 #include "graphics/dash.h"
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
+#include "osrs/buildcachedat_loader.h"
 #include "osrs/chat.h"
 #include "osrs/clientscript_vm.h"
 #include "osrs/core/serverprot.h"
@@ -21,6 +22,7 @@
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
 #include "osrs/revconfig/uitree_load.h"
+#include "osrs/gamecache/gamecache_from_buildcachedat.h"
 #include "osrs/rscache/bitbuffer.h"
 #include "osrs/rscache/rsbuf.h"
 #include "osrs/rscache/tables/maps.h"
@@ -296,6 +298,16 @@ gamenet_rev245_2_exec_npc_info_v1(
             npc->combat_cycle = game->cycle + 400;
             npc->health = op->_damage.health;
             npc->total_health = op->_damage.total_health;
+            break;
+        }
+        case PKT_SERVER_PROT_NPC_INFO_V1_OP_CHANGE_NPC_TYPE:
+        {
+            world_scenebuild_npc_entity_set_npc_type(game->world, npc_id, (int)op->_bitvalue);
+            break;
+        }
+        case PKT_SERVER_PROT_NPC_INFO_V1_OP_SPOTANIM:
+        {
+            /* Packet decoded in pkt_npc_info_reader_read; NPC spotanim draw not wired yet. */
             break;
         }
         }
@@ -881,9 +893,32 @@ gamenet_rev245_2_exec_if_settab_v1(
     if( tab_id >= 0 && tab_id < 14 && game->iface )
     {
         game->iface->tab_interface_id[tab_id] = component_id;
+        /* Eagerly load Dash sprites for this IF subtree into UIScene + BuildCacheDat reftable, then
+         * sync GameCache name->element_id (same as init_ui after load_component_sprites). IF_SETTAB
+         * can arrive without a prior full bulk sprite pass for this interface's graphics. */
+        if( component_id >= 0 && game->buildcachedat && game->ui_scene && game->gamecache )
+        {
+            buildcachedat_loader_ensure_component_graphics_for_gamecache_interface(
+                game->buildcachedat,
+                game->ui_scene,
+                game,
+                game->gamecache,
+                component_id);
+            gamecache_convert_reftables_from_buildcachedat(game->gamecache, game->buildcachedat);
+        }
         /* Always expand: duplicate IF_SETTAB is common; skipping when old==id left an empty
          * subtree if the first expand ran before interfaces were in buildcachedat. */
         uitree_expand_sidebar_for_tab(game, tab_id, component_id);
+        /* Expand may lazy-load sprites or rely on BuildCacheDat models; merge into GameCache and
+         * rebuild Scene2 elements for RS_MODEL leaves (first expand often ran with missing models). */
+        if( component_id >= 0 && game->buildcachedat && game->gamecache )
+        {
+            gamecache_convert_models_chunk_from_buildcachedat(
+                game->gamecache, game->buildcachedat, 0, 0);
+            gamecache_convert_reftables_from_buildcachedat(game->gamecache, game->buildcachedat);
+        }
+        if( component_id >= 0 )
+            uitree_rs_model_refresh_subtree_for_gamecache_root(game, component_id);
         uitree_debug_log_sidebar_state(game, "IF_SETTAB", tab_id, component_id);
     }
 }

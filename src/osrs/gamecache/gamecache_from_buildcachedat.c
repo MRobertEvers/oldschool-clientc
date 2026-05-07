@@ -402,8 +402,63 @@ dup_npc(struct CacheDatConfigNpc const* n)
     return d;
 }
 
+/** ObjType.genCert() — merge template + link into noted bank-note defs (Client.ts ObjType.ts). */
+static void
+gamecache_obj_apply_gen_cert(
+    struct GameCacheObj*              d,
+    struct BuildCacheDat*             bcd,
+    struct CacheDatConfigObj const* o)
+{
+    if( !d || !bcd || o->certtemplate < 0 )
+        return;
+
+    struct CacheDatConfigObj* tmpl = buildcachedat_get_obj(bcd, o->certtemplate);
+    struct CacheDatConfigObj* link = buildcachedat_get_obj(bcd, o->certlink);
+    if( !tmpl || !link )
+        return;
+
+    d->model  = tmpl->model;
+    d->zoom2d = tmpl->zoom2d;
+    d->xan2d  = tmpl->xan2d;
+    d->yan2d  = tmpl->yan2d;
+    d->zan2d  = tmpl->zan2d;
+    d->xof2d  = tmpl->xof2d;
+    d->yof2d  = tmpl->yof2d;
+
+    free(d->recol_s);
+    free(d->recol_d);
+    d->recol_s     = NULL;
+    d->recol_d     = NULL;
+    d->recol_count = 0;
+    if( tmpl->recol_count > 0 && tmpl->recol_s && tmpl->recol_d )
+    {
+        d->recol_count = tmpl->recol_count;
+        d->recol_s     = malloc((size_t)tmpl->recol_count * sizeof(int));
+        d->recol_d     = malloc((size_t)tmpl->recol_count * sizeof(int));
+        if( d->recol_s && d->recol_d )
+        {
+            memcpy(d->recol_s, tmpl->recol_s, (size_t)tmpl->recol_count * sizeof(int));
+            memcpy(d->recol_d, tmpl->recol_d, (size_t)tmpl->recol_count * sizeof(int));
+        }
+        else
+        {
+            free(d->recol_s);
+            free(d->recol_d);
+            d->recol_s = d->recol_d = NULL;
+            d->recol_count = 0;
+        }
+    }
+
+    free(d->name);
+    d->name      = link->name ? strdup(link->name) : NULL;
+    d->cost      = link->cost;
+    d->stackable = 1;
+}
+
 static struct GameCacheObj*
-dup_obj(struct CacheDatConfigObj const* o)
+dup_obj(
+    struct BuildCacheDat*             bcd,
+    struct CacheDatConfigObj const* o)
 {
     struct GameCacheObj* d = malloc(sizeof(*d));
     if( !d )
@@ -433,6 +488,9 @@ dup_obj(struct CacheDatConfigObj const* o)
     d->ambient = o->ambient;
     d->contrast = o->contrast;
 
+    d->certlink     = o->certlink;
+    d->certtemplate = o->certtemplate;
+
     if( o->recol_count > 0 && o->recol_s && o->recol_d )
     {
         d->recol_s = malloc((size_t)o->recol_count * sizeof(int));
@@ -449,6 +507,8 @@ dup_obj(struct CacheDatConfigObj const* o)
     }
     for( int i = 0; i < 5; i++ )
         d->iop[i] = o->iop[i] ? strdup(o->iop[i]) : NULL;
+
+    gamecache_obj_apply_gen_cert(d, bcd, o);
     /* op[5], desc, and non-consumed fields dropped */
     return d;
 }
@@ -1023,7 +1083,7 @@ gamecache_convert_objs_from_buildcachedat(
     struct GCObjEntry* e;
     while( (e = (struct GCObjEntry*)dashmap_iter_next(it)) )
     {
-        struct GameCacheObj* o = dup_obj(e->obj);
+        struct GameCacheObj* o = dup_obj(bcd, e->obj);
         if( o )
             gamecache_add_obj(gc, e->id, o);
     }

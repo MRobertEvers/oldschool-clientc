@@ -416,6 +416,11 @@ function M.npc_info_v1(item)
 end
 
 function M.if_settab_v1(item)
+    -- C gamenet also runs `buildcachedat_loader_ensure_component_graphics_for_gamecache_interface`
+    -- + `gamecache_convert_reftables_from_buildcachedat` before `uitree_expand_sidebar_for_tab`.
+    -- C path (`gamenet_rev245_2_exec_if_settab_v1` -> `uitree_expand_sidebar_for_tab`) uses
+    -- `gamecache_get_component` + UIScene sprite rows; require interfaces + `load_component_sprites`
+    -- + `convert_components_from_buildcachedat` before `Game.Game.exec_packet`.
     ensure_interfaces_loaded()
     Game.Game.exec_packet(item)
 end

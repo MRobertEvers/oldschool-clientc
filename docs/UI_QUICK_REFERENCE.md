@@ -294,6 +294,16 @@ if (button == 1) {
 }
 ```
 
+## UITree subtree diagnostics (LC245_2 / prayer IF 1151)
+
+When a sidebar RS subtree looks incomplete compared to `tools/uitree_loader_test`:
+
+- **`TORI_UITREE_SUBTREE_STATS`** — set to `1` to trace `push_rs_from_cache_component` skip counters for root component **1151** (watch id in `uitree_load.c`), or set to another decimal id for that root only. Logs one summary line per `expand_*` / `uitree_load_single_component_tree_from_gamecache`.
+- **`TORI_UITREE_TRAVERSE_STATS`** — logs frame traversal gate reasons for the **1151** `UIELEM_BUILTIN_SIDEBAR` builtin (tab vs modal vs `first_child`) and logs UITree stack overflow if depth hits `UITREE_TRAVERSAL_STACK_MAX`.
+- **RS_GRAPHIC in-game vs `uitree_loader_test` BMP:** the frame path culls against the current `RS_LAYER` clip rect (`uiframe_cull_box`). Layers with **zero width or height** in the interface cache no longer treat that as a full reject (matches BMP behavior). Hidden `UIELEM_RS_GRAPHIC` nodes are skipped in `rs_gfx_graphic_step` like RS_TEXT.
+
+Together with `uitree_debug_log_subtree_for_component_id` output, this separates **load-time drops** (hide / missing gamecache child / graphic sprite / deferred model) from **frame-time skips** (wrong tab, modal sidebar, stack depth).
+
 ## 💡 Tips
 
 1. **Load sprites early** - Load all UI sprites during initialization

@@ -31,6 +31,74 @@
 
 #define UITREE_DEBUG_SUBTREE_COMPONENT_ID 1151
 
+/** `TORI_UITREE_SUBTREE_STATS`: unset = off; "1"/"yes" = stats for component
+ * `UITREE_DEBUG_SUBTREE_COMPONENT_ID`; else decimal = that root component id. */
+static int
+uitree_subtree_stats_env_root_id(void)
+{
+    static int cached = -999;
+    if( cached != -999 )
+        return cached;
+    const char* e = getenv("TORI_UITREE_SUBTREE_STATS");
+    if( !e || e[0] == '\0' )
+    {
+        cached = 0;
+        return cached;
+    }
+    if( strcmp( e, "1" ) == 0 )
+        cached = UITREE_DEBUG_SUBTREE_COMPONENT_ID;
+    else
+        cached = (int)strtol( e, NULL, 10 );
+    return cached;
+}
+
+struct uitree_push_rs_stats
+{
+    unsigned skip_hide_nonlayer;
+    unsigned skip_layer_no_child_tables;
+    unsigned skip_child_missing_gc;
+    unsigned skip_graphic_no_sprite;
+    unsigned skip_graphic_attach_fail;
+    unsigned skip_model_no_game;
+    unsigned model_pushed_scene2_deferred;
+    unsigned skip_default_type;
+    unsigned nodes_pushed;
+};
+
+static void
+uitree_push_rs_stats_note_push(struct uitree_push_rs_stats* st, int32_t idx)
+{
+    if( st && idx >= 0 )
+        st->nodes_pushed++;
+}
+
+static void
+uitree_push_rs_stats_flush(
+    struct uitree_push_rs_stats const* st,
+    char const* where,
+    int root_component_id)
+{
+    if( !st )
+        return;
+    fprintf(
+        stderr,
+        "[uitree_push_rs_stats] where=%s root_component_id=%d nodes_pushed=%u "
+        "skip_hide_nonlayer=%u skip_layer_no_child_tables=%u skip_child_missing_gc=%u "
+        "skip_graphic_no_sprite=%u skip_graphic_attach_fail=%u skip_model_no_game=%u "
+        "model_pushed_scene2_deferred=%u skip_default_type=%u\n",
+        where ? where : "?",
+        root_component_id,
+        st->nodes_pushed,
+        st->skip_hide_nonlayer,
+        st->skip_layer_no_child_tables,
+        st->skip_child_missing_gc,
+        st->skip_graphic_no_sprite,
+        st->skip_graphic_attach_fail,
+        st->skip_model_no_game,
+        st->model_pushed_scene2_deferred,
+        st->skip_default_type);
+}
+
 /** Log watch-id subtree only when that node exists (avoids spam per expand / load). */
 static void
 uitree_load_debug_log_subtree_watch_id(struct UITree* ui)
@@ -954,7 +1022,99 @@ uitree_rs_model_refresh_from_gamecache(struct GGame* game, int component_id)
     c->is_dirty = 1;
 }
 
+static void
+uitree_rs_model_refresh_subtree_dfs(
+    struct GGame* game,
+    struct GameCache* gc,
+    struct GameCacheComponent* comp,
+    int depth_left)
+{
+    if( !game || !gc || !comp || depth_left <= 0 )
+        return;
+    if( comp->type == COMPONENT_TYPE_MODEL && comp->modelType != 0 )
+        uitree_rs_model_refresh_from_gamecache(game, comp->id);
+    if( !comp->children || comp->children_count <= 0 )
+        return;
+    for( int i = 0; i < comp->children_count; i++ )
+    {
+        struct GameCacheComponent* ch = gamecache_get_component(gc, comp->children[i]);
+        if( ch )
+            uitree_rs_model_refresh_subtree_dfs(game, gc, ch, depth_left - 1);
+    }
+}
+
+void
+uitree_rs_model_refresh_subtree_for_gamecache_root(struct GGame* game, int root_component_id)
+{
+    if( !game || !game->gamecache || root_component_id < 0 )
+        return;
+    struct GameCacheComponent* root = gamecache_get_component(game->gamecache, root_component_id);
+    if( !root )
+        return;
+    uitree_rs_model_refresh_subtree_dfs(game, game->gamecache, root, 512);
+}
+
 /** TYPE_INV_TEXT often sits next to TYPE_INV; server UPDATE_INV_FULL targets the INV id only. */
+
+/** DFS from interface node `node_id` (a layer child or nested layer). Ranks TYPE_INV peers:
+ * rank 2 = exact width/height match, rank 1 = same slot count only. Skips the INV_TEXT node
+ * `inv_text_id`. Only recurses into COMPONENT_TYPE_LAYER (only type with children in cache). */
+static void
+layer_subtree_rank_best_inv(
+    struct GameCache* bcd,
+    int node_id,
+    int inv_text_id,
+    int want_w,
+    int want_h,
+    int want_slots,
+    int depth,
+    int max_depth,
+    struct GameCacheComponent** best,
+    int* best_rank)
+{
+    if( depth > max_depth || node_id < 0 )
+        return;
+    struct GameCacheComponent* n = gamecache_get_component(bcd, node_id);
+    if( !n || n->id == inv_text_id )
+        return;
+
+    if( n->type == COMPONENT_TYPE_INV )
+    {
+        int rank = 0;
+        if( n->width == want_w && n->height == want_h )
+            rank = 2;
+        else if( want_slots > 0 && n->width * n->height == want_slots )
+            rank = 1;
+        if( rank > *best_rank )
+        {
+            *best_rank = rank;
+            *best      = n;
+        }
+        if( *best_rank >= 2 )
+            return;
+    }
+
+    if( n->type == COMPONENT_TYPE_LAYER && n->children && n->children_count > 0 )
+    {
+        for( int i = 0; i < n->children_count; i++ )
+        {
+            layer_subtree_rank_best_inv(
+                bcd,
+                n->children[i],
+                inv_text_id,
+                want_w,
+                want_h,
+                want_slots,
+                depth + 1,
+                max_depth,
+                best,
+                best_rank);
+            if( *best_rank >= 2 )
+                return;
+        }
+    }
+}
+
 static struct GameCacheComponent*
 layer_find_peer_type_inv(
     struct GameCache* bcd,
@@ -965,18 +1125,81 @@ layer_find_peer_type_inv(
         return NULL;
     if( inv_text->type != COMPONENT_TYPE_INV_TEXT )
         return NULL;
+
+    int want_slots = inv_text->width * inv_text->height;
+
+    /* Fast path: direct TYPE_INV sibling with exact grid (common case). */
     for( int i = 0; i < layer->children_count; i++ )
     {
         int chid = layer->children[i];
         struct GameCacheComponent* ch = gamecache_get_component(bcd, chid);
         if( !ch || ch->id == inv_text->id )
             continue;
-        if( ch->type != COMPONENT_TYPE_INV )
-            continue;
-        if( ch->width == inv_text->width && ch->height == inv_text->height )
+        if( ch->type == COMPONENT_TYPE_INV && ch->width == inv_text->width &&
+            ch->height == inv_text->height )
             return ch;
     }
-    return NULL;
+
+    /* Nested layers (INV inside inner layer) or same slot count with different width/height. */
+    struct GameCacheComponent* best = NULL;
+    int best_rank = 0;
+    for( int i = 0; i < layer->children_count; i++ )
+    {
+        int chid = layer->children[i];
+        struct GameCacheComponent* ch = gamecache_get_component(bcd, chid);
+        if( !ch || ch->id == inv_text->id )
+            continue;
+        layer_subtree_rank_best_inv(
+            bcd,
+            chid,
+            inv_text->id,
+            inv_text->width,
+            inv_text->height,
+            want_slots,
+            0,
+            32,
+            &best,
+            &best_rank);
+        if( best_rank >= 2 )
+            return best;
+    }
+    return best;
+}
+
+/** Local layer search first, then DFS from interface root so INV + INV_TEXT can sit in sibling
+ * inner layers under the same tab root. */
+static struct GameCacheComponent*
+interface_find_peer_type_inv(
+    struct GameCache* bcd,
+    struct GameCacheComponent const* ifc_root,
+    struct GameCacheComponent const* layer_parent,
+    struct GameCacheComponent const* inv_text)
+{
+    if( !bcd || !inv_text || inv_text->type != COMPONENT_TYPE_INV_TEXT )
+        return NULL;
+    if( layer_parent && layer_parent->type == COMPONENT_TYPE_LAYER )
+    {
+        struct GameCacheComponent* p = layer_find_peer_type_inv(bcd, layer_parent, inv_text);
+        if( p )
+            return p;
+    }
+    if( !ifc_root )
+        return NULL;
+    int want_slots = inv_text->width * inv_text->height;
+    struct GameCacheComponent* best = NULL;
+    int best_rank = 0;
+    layer_subtree_rank_best_inv(
+        bcd,
+        ifc_root->id,
+        inv_text->id,
+        inv_text->width,
+        inv_text->height,
+        want_slots,
+        0,
+        64,
+        &best,
+        &best_rank);
+    return best;
 }
 
 /** Named component sprite -> UIScene element id. Lazy loads register on BuildCacheDat only;
@@ -1010,13 +1233,19 @@ push_rs_from_cache_component(
     int abs_x,
     int abs_y,
     int sidebar_inv_index,
-    struct GameCacheComponent* layer_parent_comp)
+    struct GameCacheComponent* layer_parent_comp,
+    struct GameCacheComponent* ifc_root_for_inv_peer,
+    struct uitree_push_rs_stats* push_rs_stats)
 {
     if( !comp || !bcd || !ui || !ui_scene )
         return;
 
     if( comp->hide && comp->type != COMPONENT_TYPE_LAYER )
+    {
+        if( push_rs_stats )
+            push_rs_stats->skip_hide_nonlayer++;
         return;
+    }
 
     /* `uitree_load_single_component_tree_from_gamecache` calls with parent_uitree_idx==-1 and
      * abs_x=abs_y=0. Fold the root component's IF offset (comp->x/y). Expand_* callers pass
@@ -1044,17 +1273,38 @@ push_rs_from_cache_component(
             comp->width,
             comp->height);
         uitree_translate_agnostic_fields(ui, lid, comp);
+        uitree_push_rs_stats_note_push(push_rs_stats, lid);
         if( !comp->children || !comp->childX || !comp->childY )
+        {
+            if( push_rs_stats )
+                push_rs_stats->skip_layer_no_child_tables++;
             return;
+        }
         for( int i = 0; i < comp->children_count; i++ )
         {
             struct GameCacheComponent* ch = gamecache_get_component(bcd, comp->children[i]);
             if( !ch )
+            {
+                if( push_rs_stats )
+                    push_rs_stats->skip_child_missing_gc++;
                 continue;
+            }
             int cx = px + comp->childX[i] + ch->x;
             int cy = py + comp->childY[i] + ch->y;
             push_rs_from_cache_component(
-                game, ui, ui_scene, scene2, bcd, lid, ch, cx, cy, sidebar_inv_index, comp);
+                game,
+                ui,
+                ui_scene,
+                scene2,
+                bcd,
+                lid,
+                ch,
+                cx,
+                cy,
+                sidebar_inv_index,
+                comp,
+                ifc_root_for_inv_peer,
+                push_rs_stats);
         }
     }
     break;
@@ -1075,6 +1325,7 @@ push_rs_from_cache_component(
             comp->width,
             comp->height);
         uitree_translate_agnostic_fields(ui, rid, comp);
+        uitree_push_rs_stats_note_push(push_rs_stats, rid);
     }
     break;
     case COMPONENT_TYPE_GRAPHIC:
@@ -1122,10 +1373,18 @@ push_rs_from_cache_component(
          * for active/inactive state to work correctly (e.g. lit/unlit prayer icons).
          * If only activeGraphic exists but graphic is missing, skip drawing entirely. */
         if( count == 0 || (count == 1 && g1 && !g0) )
+        {
+            if( push_rs_stats )
+                push_rs_stats->skip_graphic_no_sprite++;
             return;
+        }
         struct DashSprite** row = malloc((size_t)count * sizeof(struct DashSprite*));
         if( !row )
+        {
+            if( push_rs_stats )
+                push_rs_stats->skip_graphic_no_sprite++;
             return;
+        }
         row[0] = g0;
         if( count == 2 )
             row[1] = g1;
@@ -1133,6 +1392,8 @@ push_rs_from_cache_component(
         if( sid < 0 )
         {
             free(row);
+            if( push_rs_stats )
+                push_rs_stats->skip_graphic_attach_fail++;
             return;
         }
         int sid_a = -1;
@@ -1156,6 +1417,7 @@ push_rs_from_cache_component(
             comp->width,
             comp->height);
         uitree_translate_agnostic_fields(ui, gid, comp);
+        uitree_push_rs_stats_note_push(push_rs_stats, gid);
     }
     break;
     case COMPONENT_TYPE_TEXT:
@@ -1178,6 +1440,7 @@ push_rs_from_cache_component(
             comp->width,
             comp->height);
         uitree_translate_agnostic_fields(ui, tid, comp);
+        uitree_push_rs_stats_note_push(push_rs_stats, tid);
         /* Pre-resolve font_id at load time so render steps never touch buildcache. */
         if( tid >= 0 && (uint32_t)tid < ui->component_count )
         {
@@ -1191,9 +1454,9 @@ push_rs_from_cache_component(
     {
         struct GameCacheComponent* inv_text_peer = NULL;
         struct GameCacheComponent* inv_pool_key_comp = comp;
-        if( comp->type == COMPONENT_TYPE_INV_TEXT && sidebar_inv_index < 0 && layer_parent_comp &&
-            layer_parent_comp->type == COMPONENT_TYPE_LAYER )
-            inv_text_peer = layer_find_peer_type_inv(bcd, layer_parent_comp, comp);
+        if( comp->type == COMPONENT_TYPE_INV_TEXT && sidebar_inv_index < 0 )
+            inv_text_peer =
+                interface_find_peer_type_inv(bcd, ifc_root_for_inv_peer, layer_parent_comp, comp);
         if( inv_text_peer )
             inv_pool_key_comp = inv_text_peer;
 
@@ -1339,6 +1602,7 @@ push_rs_from_cache_component(
         }
 
         uitree_translate_agnostic_fields(ui, iid, comp);
+        uitree_push_rs_stats_note_push(push_rs_stats, iid);
         if( comp->type == COMPONENT_TYPE_INV_TEXT && iid >= 0 &&
             (uint32_t)iid < ui->component_count )
         {
@@ -1357,19 +1621,38 @@ push_rs_from_cache_component(
     break;
     case COMPONENT_TYPE_MODEL:
     {
-        if( !game || !scene2 )
+        if( !game )
+        {
+            if( push_rs_stats )
+                push_rs_stats->skip_model_no_game++;
             return;
+        }
         int eid = -1;
-        if( comp->modelType != 0 )
+        if( scene2 && comp->modelType != 0 )
             eid = build_rs_scene2_element_for_model_component(game, scene2, bcd, comp);
+        else if( push_rs_stats && comp->modelType != 0 && !scene2 )
+            push_rs_stats->model_pushed_scene2_deferred++;
         int32_t mid = uitree_push_rs_model(
             ui, parent_uitree_idx, comp->id, eid, px, py, comp->width, comp->height);
         uitree_translate_agnostic_fields(ui, mid, comp);
+        uitree_push_rs_stats_note_push(push_rs_stats, mid);
     }
     break;
     default:
+        if( push_rs_stats )
+            push_rs_stats->skip_default_type++;
         break;
     }
+}
+
+/** Non-NULL when `TORI_UITREE_SUBTREE_STATS` matches `root_id` (see `uitree_subtree_stats_env_root_id`). */
+static struct uitree_push_rs_stats*
+uitree_push_rs_stats_buf_if_tracing(int root_id, struct uitree_push_rs_stats* out_buf)
+{
+    if( !out_buf || uitree_subtree_stats_env_root_id() != root_id || root_id < 0 )
+        return NULL;
+    memset( out_buf, 0, sizeof( *out_buf ) );
+    return out_buf;
 }
 
 int
@@ -1388,8 +1671,13 @@ uitree_load_single_component_tree_from_gamecache(
     struct GameCacheComponent* root = gamecache_get_component(gamecache, component_root_id);
     if( !root )
         return -1;
+    struct uitree_push_rs_stats st;
+    struct uitree_push_rs_stats* pst =
+        uitree_push_rs_stats_buf_if_tracing( component_root_id, &st );
     push_rs_from_cache_component(
-        game, ui, ui_scene, scene2, gamecache, -1, root, 0, 0, -1, NULL);
+        game, ui, ui_scene, scene2, gamecache, -1, root, 0, 0, -1, NULL, root, pst);
+    if( pst )
+        uitree_push_rs_stats_flush( pst, "uitree_load_single_component_tree_from_gamecache", component_root_id );
     uitree_load_debug_log_subtree_watch_id(ui);
     return 0;
 }
@@ -1415,8 +1703,12 @@ expand_sidebar_rs_tree(
     int sy = ui->components[sidebar_idx].position.y;
     int bx = sx + root->x;
     int by = sy + root->y;
+    struct uitree_push_rs_stats st;
+    struct uitree_push_rs_stats* pst = uitree_push_rs_stats_buf_if_tracing( component_no, &st );
     push_rs_from_cache_component(
-        game, ui, ui_scene, scene2, bcd, sidebar_idx, root, bx, by, inv_index, NULL);
+        game, ui, ui_scene, scene2, bcd, sidebar_idx, root, bx, by, inv_index, NULL, root, pst);
+    if( pst )
+        uitree_push_rs_stats_flush( pst, "expand_sidebar_rs_tree", component_no );
     uitree_load_debug_log_subtree_watch_id(ui);
 }
 
@@ -1441,8 +1733,12 @@ expand_chat_dialog_rs_tree(
     int sy = ui->components[chat_dialog_idx].position.y;
     int bx = sx + root->x;
     int by = sy + root->y;
+    struct uitree_push_rs_stats st;
+    struct uitree_push_rs_stats* pst = uitree_push_rs_stats_buf_if_tracing( component_no, &st );
     push_rs_from_cache_component(
-        game, ui, ui_scene, scene2, bcd, chat_dialog_idx, root, bx, by, inv_index, NULL);
+        game, ui, ui_scene, scene2, bcd, chat_dialog_idx, root, bx, by, inv_index, NULL, root, pst);
+    if( pst )
+        uitree_push_rs_stats_flush( pst, "expand_chat_dialog_rs_tree", component_no );
     uitree_load_debug_log_subtree_watch_id(ui);
 }
 
@@ -1467,8 +1763,12 @@ expand_sidebar_overlay_rs_tree(
     int sy = ui->components[sidebar_overlay_idx].position.y;
     int bx = sx + root->x;
     int by = sy + root->y;
+    struct uitree_push_rs_stats st;
+    struct uitree_push_rs_stats* pst = uitree_push_rs_stats_buf_if_tracing( component_no, &st );
     push_rs_from_cache_component(
-        game, ui, ui_scene, scene2, bcd, sidebar_overlay_idx, root, bx, by, inv_index, NULL);
+        game, ui, ui_scene, scene2, bcd, sidebar_overlay_idx, root, bx, by, inv_index, NULL, root, pst);
+    if( pst )
+        uitree_push_rs_stats_flush( pst, "expand_sidebar_overlay_rs_tree", component_no );
     uitree_load_debug_log_subtree_watch_id(ui);
 }
 
@@ -1493,8 +1793,12 @@ expand_viewport_overlay_rs_tree(
     int sy = ui->components[viewport_overlay_idx].position.y;
     int bx = sx + root->x;
     int by = sy + root->y;
+    struct uitree_push_rs_stats st;
+    struct uitree_push_rs_stats* pst = uitree_push_rs_stats_buf_if_tracing( component_no, &st );
     push_rs_from_cache_component(
-        game, ui, ui_scene, scene2, bcd, viewport_overlay_idx, root, bx, by, inv_index, NULL);
+        game, ui, ui_scene, scene2, bcd, viewport_overlay_idx, root, bx, by, inv_index, NULL, root, pst);
+    if( pst )
+        uitree_push_rs_stats_flush( pst, "expand_viewport_overlay_rs_tree", component_no );
     uitree_load_debug_log_subtree_watch_id(ui);
 }
 
@@ -2253,6 +2557,21 @@ uitree_expand_sidebar_for_tab(
             sidebar_idx,
             component_id,
             sb->u.sidebar.inv_index);
+    }
+
+    if( game->iface && component_id == UITREE_DEBUG_SUBTREE_COMPONENT_ID &&
+        ( getenv( "TORI_UITREE_SUBTREE_STATS" ) != NULL || getenv( "TORI_UITREE_TRAVERSE_STATS" ) != NULL ) )
+    {
+        fprintf(
+            stderr,
+            "[uitree_expand_sidebar_for_tab] tabno=%d component_id=%d iface.selected_tab=%d "
+            "iface.sidebar_interface_id=%d sidebar_inv_index=%d sidebar_builtin_first_child=%d\n",
+            tabno,
+            component_id,
+            game->iface->selected_tab,
+            game->iface->sidebar_interface_id,
+            sb->u.sidebar.inv_index,
+            (int)sb->first_child );
     }
 
     uitree_mark_all_dirty(ui);

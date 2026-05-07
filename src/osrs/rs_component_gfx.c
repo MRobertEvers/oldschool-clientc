@@ -104,6 +104,10 @@ uiframe_cull_box(
     if( !ui || ui->ui_layer_stack_top < 0 )
         return false;
     struct UILayerFrameEntry* e = &ui->ui_layer_stack[ui->ui_layer_stack_top];
+    /* Degenerate RS_LAYER clip (width/height 0 in cache) would reject all boxes; BMP path has no
+     * per-layer cull — treat as uncullable so RS_GRAPHIC still draws like uitree_loader_test. */
+    if( e->clip_w <= 0 || e->clip_h <= 0 )
+        return false;
     int x1 = x + w;
     int y1 = y + h;
     int ex0 = e->clip_x;
@@ -150,9 +154,11 @@ rs_gfx_graphic_step(
     struct ToriRSRenderCommandBuffer* queued_commands = fiber->cmds;
     if( !game || !component || !game->ui_scene || !queued_commands )
         return true;
+    if( component->is_hidden )
+        return true;
 
-    /* Active / hover: Client.ts drawInterface TYPE_GRAPHIC uses graphic2 when getIfActive *or*
-     * when the component receives overlay hover (e.g. small info sprite via overlayer target). */
+    /* TYPE_GRAPHIC activeGraphic: script if-active only (not mouse hover; hover is for TEXT/RECT
+     * overColour via interface_component_overlay_hover_for_draw). */
     struct ClientScriptVM* vm = game->clientscript_vm;
     bool active = clientscript_vm_active(
         vm,
@@ -160,11 +166,9 @@ rs_gfx_graphic_step(
         component->scripts_count,
         component->script_comparator,
         component->script_operand);
-    bool hovered =
-        game->iface && interface_component_overlay_hover_for_draw(game, component->component_id);
 
     int sid, ai;
-    if( (active || hovered) && component->u.rs_graphic.scene_id_active >= 0 )
+    if( active && component->u.rs_graphic.scene_id_active >= 0 )
     {
         sid = component->u.rs_graphic.scene_id_active;
         ai  = component->u.rs_graphic.atlas_index_active;
@@ -732,6 +736,35 @@ rs_inv_text_format_nice(char* out, int cap, int amount)
     return snprintf(out, (size_t)cap, " %s", comma);
 }
 
+/** When INV_TEXT has no load-time peer, find a RS_INV in the UITree sharing the same inv_pool
+ * index and slot grid so UPDATE_INV_* gamecache rows can still be read. */
+static int
+inv_text_pick_fallback_inv_cache_cid(
+    struct GGame* game,
+    struct StaticUIComponent const* inv_text,
+    int want_slots)
+{
+    struct UITree* t = game ? game->ui_root_buffer : NULL;
+    if( !t || !inv_text || inv_text->type != UIELEM_RS_INV_TEXT )
+        return -1;
+    int inv_i = inv_text->u.rs_inv.inv_index;
+    int self_id = inv_text->component_id;
+    for( uint32_t i = 0; i < t->component_count; i++ )
+    {
+        struct StaticUIComponent const* c = &t->components[i];
+        if( c->type != UIELEM_RS_INV || c->is_hidden )
+            continue;
+        if( c->component_id == self_id )
+            continue;
+        if( c->u.rs_inv.inv_index != inv_i )
+            continue;
+        if( want_slots > 0 && c->u.rs_inv.cols * c->u.rs_inv.rows != want_slots )
+            continue;
+        return c->component_id;
+    }
+    return -1;
+}
+
 static void
 inv_text_wire_obj_count(
     struct GGame* game,
@@ -769,6 +802,24 @@ inv_text_wire_obj_count(
                 *out_count = cc->invSlotObjCount[slot] > 0 ? cc->invSlotObjCount[slot] : 1;
         }
     }
+    if( *out_wire <= 0 && component->inv_text_peer_inv_component_id < 0 && game &&
+        game->gamecache && game->ui_root_buffer )
+    {
+        int want_slots = component->u.rs_inv.cols * component->u.rs_inv.rows;
+        int alt = inv_text_pick_fallback_inv_cache_cid(game, component, want_slots);
+        if( alt >= 0 && alt != cid )
+        {
+            struct GameCacheComponent* cc = gamecache_get_component(game->gamecache, alt);
+            if( cc && cc->invSlotObjId &&
+                (cc->type == COMPONENT_TYPE_INV || cc->type == COMPONENT_TYPE_INV_TEXT) &&
+                slot >= 0 && slot < cc->width * cc->height )
+            {
+                *out_wire = cc->invSlotObjId[slot];
+                if( cc->invSlotObjCount )
+                    *out_count = cc->invSlotObjCount[slot] > 0 ? cc->invSlotObjCount[slot] : 1;
+            }
+        }
+    }
 }
 
 bool
@@ -784,6 +835,26 @@ rs_gfx_inv_text_step(
         return true;
     if( component->type != UIELEM_RS_INV_TEXT )
         return true;
+
+    const char* inv_dbg = getenv( "TORI_INV_TEXT_DEBUG" );
+    if( inv_dbg && inv_dbg[0] != '\0' && strcmp( inv_dbg, "0" ) != 0 )
+    {
+        int w0 = 0;
+        int c0 = 1;
+        inv_text_wire_obj_count(game, component, 0, &w0, &c0);
+        fprintf(
+            stderr,
+            "[TORI_INV_TEXT_DEBUG] comp_id=%d inv_index=%d peer_inv_id=%d font_id=%d rows=%d "
+            "cols=%d slot0_wire=%d slot0_count=%d\n",
+            component->component_id,
+            component->u.rs_inv.inv_index,
+            component->inv_text_peer_inv_component_id,
+            component->inv_text_font_id,
+            component->u.rs_inv.rows,
+            component->u.rs_inv.cols,
+            w0,
+            c0);
+    }
 
     int fid = component->inv_text_font_id;
     if( fid < 0 )

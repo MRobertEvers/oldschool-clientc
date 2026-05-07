@@ -395,6 +395,24 @@ append_obj_def_model_ids_recursive(
                 buildcachedat, result, cid, depth + 1, visited, visited_count + 1);
         }
     }
+
+    /* Noted items (obj.dat codes 97/98): ObjType.genCert pulls visuals from certtemplate and the
+     * real item from certlink; obj_icon_get needs both meshes in GameCache (see gamecache_get_model
+     * in obj_icon.c). Without this, UPDATE_INV / init_ui prefetch skips those archives. */
+    if( obj->certtemplate != -1 )
+    {
+        if( obj->certtemplate >= 0 )
+            append_obj_def_model_ids_recursive(
+                buildcachedat,
+                result,
+                obj->certtemplate,
+                depth + 1,
+                visited,
+                visited_count + 1);
+        if( obj->certlink >= 0 )
+            append_obj_def_model_ids_recursive(
+                buildcachedat, result, obj->certlink, depth + 1, visited, visited_count + 1);
+    }
 }
 
 struct LuaGameType*

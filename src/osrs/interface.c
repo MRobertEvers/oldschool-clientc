@@ -1881,14 +1881,11 @@ interface_draw_component_graphic(
     int* pixel_buffer,
     int stride)
 {
-    /* Client.ts drawInterface TYPE_GRAPHIC: graphic2/activeGraphic when getIfActive or overlay hover. */
+    /* TYPE_GRAPHIC: activeGraphic only when getIfActive (not region hover). */
     char const* graphic_name = component->graphic;
     if( component->activeGraphic && component->activeGraphic[0] != '\0' )
     {
-        bool if_active =
-            component->scriptComparator && interface_get_if_active(game, component);
-        bool hovered = interface_component_overlay_hover_for_draw(game, component->id);
-        if( if_active || hovered )
+        if( component->scriptComparator && interface_get_if_active(game, component) )
             graphic_name = component->activeGraphic;
     }
 

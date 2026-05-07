@@ -33,6 +33,10 @@ struct GameCacheObj
     int* countco;
     int countobj_count;
 
+    /** Bank note / certificate (-1 if not a noted item). Mirrored from obj.dat; overlay uses certlink. */
+    int certlink;
+    int certtemplate;
+
     int ambient;
     int contrast;
 

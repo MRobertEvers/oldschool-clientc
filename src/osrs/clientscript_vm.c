@@ -279,6 +279,8 @@ clientscript_vm_eval(
 {
     if( !script || !script->code || script->len <= 0 )
         return -2;
+    if( !vm )
+        return -2;
 
     int acc        = 0;
     int pc         = 0;
@@ -520,6 +522,8 @@ clientscript_vm_active(
     const uint8_t*                 script_comparator,
     const int*                     script_operand)
 {
+    if( !vm )
+        return false;
     if( !scripts || scripts_count <= 0 || !script_comparator || !script_operand )
         return false;
 

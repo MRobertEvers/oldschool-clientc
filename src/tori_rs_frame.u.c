@@ -490,6 +490,69 @@ rs_ui_layer_pop(struct GGame* game)
     ui->ui_layer_stack_top--;
 }
 
+/** Prayer IF (LC245_2) — matches `UITREE_DEBUG_SUBTREE_COMPONENT_ID` in `uitree_load.c`. */
+#ifndef TORI_UITREE_DIAG_PRAYER_COMPONENT_ID
+#define TORI_UITREE_DIAG_PRAYER_COMPONENT_ID 1151
+#endif
+
+/** When `TORI_UITREE_TRAVERSE_STATS` is set: log gate reasons for the prayer sidebar builtin (once
+ * per state change) so load vs frame traversal mismatches are visible next to `TORI_UITREE_SUBTREE_STATS`. */
+static void
+frame_uitree_traverse_diag_prayer_sidebar(
+    struct GGame* game,
+    struct StaticUIComponent* c,
+    bool descend_into_children)
+{
+    static int enabled = -1;
+    if( enabled < 0 )
+        enabled = getenv( "TORI_UITREE_TRAVERSE_STATS" ) != NULL ? 1 : 0;
+    if( !enabled || !game || !game->iface )
+        return;
+    if( c->type != UIELEM_BUILTIN_SIDEBAR ||
+        c->u.sidebar.componentno != TORI_UITREE_DIAG_PRAYER_COMPONENT_ID )
+        return;
+
+    const char* why = "ok";
+    if( !c->is_dirty )
+        why = "not_dirty";
+    else if( c->is_hidden )
+        why = "builtin_is_hidden";
+    else if( c->first_child < 0 )
+        why = "no_first_child";
+    else if( !game->iface )
+        why = "no_iface";
+    else if( game->iface->sidebar_interface_id != -1 )
+        why = "modal_owns_sidebar_rect";
+    else if( game->iface->selected_tab != c->u.sidebar.tabno )
+        why = "wrong_selected_tab";
+    else if( !descend_into_children )
+        why = "unexpected_should_descend_false";
+
+    static char prev_why[48];
+    static int prev_fc = -99999;
+    static int prev_sel = -99999;
+    static int prev_ssid = -99999;
+    if( strcmp( prev_why, why ) == 0 && prev_fc == c->first_child &&
+        prev_sel == game->iface->selected_tab && prev_ssid == game->iface->sidebar_interface_id )
+        return;
+    snprintf( prev_why, sizeof( prev_why ), "%s", why );
+    prev_fc = c->first_child;
+    prev_sel = game->iface->selected_tab;
+    prev_ssid = game->iface->sidebar_interface_id;
+
+    fprintf(
+        stderr,
+        "[uitree_traverse_diag] prayer_sidebar tabno=%d componentno=%d first_child=%d "
+        "iface.selected_tab=%d iface.sidebar_interface_id=%d descend_children=%d why=%s\n",
+        c->u.sidebar.tabno,
+        c->u.sidebar.componentno,
+        (int)c->first_child,
+        game->iface->selected_tab,
+        game->iface->sidebar_interface_id,
+        descend_into_children ? 1 : 0,
+        why );
+}
+
 static bool
 frame_uitree_should_descend(
     struct GGame* game,
@@ -526,10 +589,19 @@ frame_uitree_advance_after_step(
     struct StaticUIComponent* c = &t->components[stepped_index];
 
     /* Only descend into children when the node was dirty; skip entire subtree otherwise. */
-    if( c->is_dirty && frame_uitree_should_descend(game, c) )
+    bool descend = c->is_dirty && frame_uitree_should_descend( game, c );
+    frame_uitree_traverse_diag_prayer_sidebar( game, c, descend );
+    if( descend )
     {
         if( game->uitree_stack_top + 1 >= UITREE_TRAVERSAL_STACK_MAX )
         {
+            if( getenv( "TORI_UITREE_TRAVERSE_STATS" ) != NULL )
+                fprintf(
+                    stderr,
+                    "[uitree_traverse_diag] uitree_stack overflow at UITREE_TRAVERSAL_STACK_MAX=%d "
+                    "stepped_index=%d\n",
+                    UITREE_TRAVERSAL_STACK_MAX,
+                    (int)stepped_index );
             game->uitree_current = -1;
             return;
         }

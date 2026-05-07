@@ -239,8 +239,9 @@ interface_hover_tooltip_line(struct GGame* game, char* out, int out_cap);
 bool
 interface_component_is_overlay_hovered(struct GGame* game, int component_id);
 
-/** True for overlay-driven activeGraphic / overColour when either `component_id` matches `over_*`,
- * or gamecache `overlayer` on this component equals a region overlay id (spellbook / IF remap). */
+/** True when region hover should affect TEXT/RECT draw (overColour): `component_id` matches
+ * `over_*`, or gamecache `overlayer` equals a region hover id (IF remap). Not used for
+ * TYPE_GRAPHIC activeGraphic (script if-active only). */
 bool
 interface_component_overlay_hover_for_draw(struct GGame* game, int component_id);
 

@@ -78,6 +78,12 @@ uitree_expand_sidebar_for_tab(
 void
 uitree_rs_model_refresh_from_gamecache(struct GGame* game, int component_id);
 
+/** DFS from `root_component_id` in GameCache: refresh every descendant MODEL component that has a
+ * matching UIELEM_RS_MODEL (e.g. after IF_SETTAB expand once GameCache models / UIScene sprites
+ * catch up). */
+void
+uitree_rs_model_refresh_subtree_for_gamecache_root(struct GGame* game, int root_component_id);
+
 /** When TORI_SIDEBAR_DEBUG is set in the environment, log iface + sidebar UITree slot for tab_id.
  * component_id is the wire/root id for SETTAB, or -1 for SETTAB_ACTIVE-only logs. */
 void

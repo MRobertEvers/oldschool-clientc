@@ -6,10 +6,11 @@
 #include "model_transforms.h"
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
-#include "osrs/rscache/tables_dat/config_obj.h"
+#include "osrs/gamecache/gamecache_obj.h"
 #include "rscache/tables/model.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -139,12 +140,26 @@ get_obj_inv_model(
     return model;
 }
 
-/* Internal uncached generator – mirrors ObjType.getIcon() in Client.ts lines 370-524. */
+/* Internal uncached generator – mirrors ObjType.getSprite() in ObjType.ts. */
 static struct DashSprite*
 obj_icon_generate(
     struct GGame* game,
     int obj_id,
     int count);
+
+/** Cert overlay sprite: ObjType.getSprite(id, count, -1) — 1.5x zoom, no LRU cache, no shadow pass. */
+static struct DashSprite*
+obj_icon_generate_cert_inner(
+    struct GGame* game,
+    int obj_id,
+    int count);
+
+/** Raster one obj icon; cert_inner selects outlineRgb==-1 semantics (inner linked icon). */
+static struct DashSprite*
+obj_icon_raster_uncached(
+    struct GGame* game,
+    struct GameCacheObj* obj,
+    int cert_inner);
 
 struct DashSprite*
 obj_icon_get(
@@ -165,63 +180,54 @@ obj_icon_get(
 }
 
 static struct DashSprite*
-obj_icon_generate(
+obj_icon_generate_cert_inner(
     struct GGame* game,
     int obj_id,
     int count)
 {
-    // obj_id is already 0-indexed (caller subtracts 1 from stored value)
-
-    // Get the object configuration
     struct GameCacheObj* obj = gamecache_get_obj(game->gamecache, obj_id);
     if( !obj )
-    {
-        printf("obj_icon_get: Could not find obj %d in buildcachedat\n", obj_id);
         return NULL;
-    }
 
-    // Handle count-based object variations (e.g., coin stacks)
     if( obj->countobj && obj->countco && count > 1 )
     {
         int countobj_id = -1;
         for( int i = 0; i < obj->countobj_count && i < 10; i++ )
         {
             if( count >= obj->countco[i] && obj->countco[i] != 0 )
-            {
                 countobj_id = obj->countobj[i];
-            }
         }
-
         if( countobj_id != -1 )
-        {
-            // printf("  Using count variant: %d -> %d (count=%d)\n", obj_id, countobj_id, count);
-            return obj_icon_get(game, countobj_id, 1);
-        }
+            return obj_icon_generate_cert_inner(game, countobj_id, 1);
     }
 
-    // Get or create the model for this object
+    return obj_icon_raster_uncached(game, obj, 1);
+}
+
+static struct DashSprite*
+obj_icon_raster_uncached(
+    struct GGame* game,
+    struct GameCacheObj* obj,
+    int cert_inner)
+{
     struct GameCacheModel* model = get_obj_inv_model(game, obj);
     if( !model )
     {
         printf(
-            "obj_icon_get: Could not get inventory model for obj %d (model id: %d)\n",
-            obj_id,
+            "obj_icon_get: Could not get inventory model for obj (model id: %d)\n",
             obj->model);
         return NULL;
     }
 
-    // Create a 32x32 sprite for the icon
     struct DashSprite* icon = (struct DashSprite*)malloc(sizeof(struct DashSprite));
     memset(icon, 0, sizeof(struct DashSprite));
 
     icon->width = 32;
     icon->height = 32;
-    icon->pixels_argb = (int*)malloc(32 * 32 * sizeof(int));
+    icon->pixels_argb = (uint32_t*)malloc(32 * 32 * sizeof(uint32_t));
 
-    // Clear the icon buffer to black/transparent
-    memset(icon->pixels_argb, 0, 32 * 32 * sizeof(int));
+    memset(icon->pixels_argb, 0, 32 * 32 * sizeof(uint32_t));
 
-    // Setup viewport for 32x32 rendering (matching Pix2D.bind)
     struct DashViewPort view_port;
     view_port.width = 32;
     view_port.height = 32;
@@ -229,55 +235,41 @@ obj_icon_generate(
     view_port.clip_top = 0;
     view_port.clip_right = 32;
     view_port.clip_bottom = 32;
-    view_port.x_center = 16; // Center of 32x32
+    view_port.x_center = 16;
     view_port.y_center = 16;
     view_port.stride = 32;
 
-    // Setup camera for orthographic-style projection (matching Pix3D.init2D)
     struct DashCamera camera;
     memset(&camera, 0, sizeof(camera));
-    camera.pitch = obj->xan2d; // eyePitch from drawSimple - this is the camera pitch!
+    camera.pitch = obj->xan2d;
     camera.yaw = 0;
     camera.roll = 0;
-    camera.fov_rpi2048 = 512; // Orthographic-like FOV
-    camera.near_plane_z = 1;  // Very close near plane to prevent culling
+    camera.fov_rpi2048 = 512;
+    camera.near_plane_z = 1;
 
-    // Calculate zoom (matching ObjType.ts lines 435-440)
-    // outlineRgb is 0 for normal icons, so no zoom modification
     int zoom = obj->zoom2d;
     if( zoom == 0 )
         zoom = 2000;
+    if( cert_inner )
+        zoom = (zoom * 3) >> 1;
 
-    // Get sin/cos tables for eyePitch rotation
     extern int g_sin_table[2048];
     extern int g_cos_table[2048];
 
-    // Calculate eye position from zoom and xan2d (matching ObjType.ts lines 442-443)
     int sinPitch = (g_sin_table[obj->xan2d] * zoom) >> 16;
     int cosPitch = (g_cos_table[obj->xan2d] * zoom) >> 16;
 
-    // Position for rendering (matching drawSimple parameters on line 445)
     struct DashPosition position = { 0 };
-    position.pitch = 0;         // pitch parameter in drawSimple
-    position.yaw = obj->yan2d;  // yaw parameter in drawSimple
-    position.roll = obj->zan2d; // roll parameter in drawSimple
+    position.pitch = 0;
+    position.yaw = obj->yan2d;
+    position.roll = obj->zan2d;
+    position.x = obj->xof2d;
+    position.y = 0;
+    position.z = 0;
 
-    // Scene position (eye position in drawSimple)
-    position.x = obj->xof2d; // eyeX parameter in drawSimple
-    // eyeY = sinPitch + (model.minY / 2) + obj.yof2d - but we need model first
-    // eyeZ = cosPitch + obj.yof2d
-    // We'll calculate these after getting the model
-    position.y = 0; // Temporary
-    position.z = 0; // Temporary
-
-    // Convert GameCacheModel to DashModel using the proper utility function
-    // IMPORTANT: Make a copy first! dashmodel_new_from_gamecache_model moves ownership
-    // and would invalidate the cached model. See entity_scenebuild.c:219 for reference.
     struct GameCacheModel* model_copy = gamecache_model_new_copy(model);
     for( int i = 0; i < obj->recol_count; i++ )
-    {
         gamecache_model_transform_recolor(model_copy, obj->recol_s[i], obj->recol_d[i]);
-    }
     struct DashModel* dash_model = dashmodel_new_from_gamecache_model(model_copy);
 
     if( !dash_model )
@@ -288,66 +280,31 @@ obj_icon_generate(
         return NULL;
     }
 
-    // Calculate normals and apply lighting (matching ObjType.ts line 332)
-    // calculateNormals(ambient + 64, contrast + 768, -50, -10, -50, true)
-    // In C, this is done via _light_model_default with ambient and contrast from config
     dashmodel_alloc_normals(dash_model);
     _light_model_default(dash_model, obj->contrast, obj->ambient);
-    // printf("  Normals and lighting calculated\n");
 
-    // Now calculate eyeY and eyeZ using model.minY (matching ObjType.ts line 445)
-    // eyeY = sinPitch + (model.minY / 2) + obj.yof2d
-    // eyeZ = cosPitch + obj.yof2d
     const struct DashBoundsCylinder* bc = dashmodel_bounds_cylinder_const(dash_model);
     int model_min_y = -bc->min_y;
     position.y = sinPitch + (model_min_y / 2) + obj->yof2d;
     position.z = cosPitch + obj->yof2d;
 
-    // printf(
-    //     "  Position: x=%d, y=%d, z=%d (sinPitch=%d, cosPitch=%d, model_min_y=%d)\n",
-    //     position.x,
-    //     position.y,
-    //     position.z,
-    //     sinPitch,
-    //     cosPitch,
-    //     model_min_y);
-
-    // Project and raster the model (matching model.drawSimple)
-    // Use dash3d_project_model6 for full 6DOF support (pitch, yaw, roll)
     int cull = dash3d_project_model6(game->sys_dash, dash_model, &position, &view_port, &camera);
 
     if( cull == DASHCULL_VISIBLE )
     {
         dash3d_raster_projected_model(
-            game->sys_dash, dash_model, &position, &view_port, &camera, icon->pixels_argb, true);
+            game->sys_dash,
+            dash_model,
+            &position,
+            &view_port,
+            &camera,
+            (int*)icon->pixels_argb,
+            true);
     }
     else
     {
         printf("  Warning: Model culled during projection (cull=%d)\n", cull);
     }
-
-    // Post-processing: Draw outline (matching ObjType.ts lines 448-464)
-    // First pass: mark outline pixels as 1
-    // for( int x = 31; x >= 0; x-- )
-    // {
-    //     for( int y = 31; y >= 0; y-- )
-    //     {
-    //         int idx = x + y * 32;
-    //         if( icon->pixels_argb[idx] != 0 )
-    //         {
-    //             continue;
-    //         }
-
-    //         // Check neighbors to detect edges
-    //         if( (x > 0 && icon->pixels_argb[idx - 1] > 1) ||
-    //             (y > 0 && icon->pixels_argb[idx - 32] > 1) ||
-    //             (x < 31 && icon->pixels_argb[idx + 1] > 1) ||
-    //             (y < 31 && icon->pixels_argb[idx + 32] > 1) )
-    //         {
-    //             icon->pixels_argb[idx] = 1;
-    //         }
-    //     }
-    // }
 
     for( int x = 31; x >= 0; x-- )
     {
@@ -357,47 +314,91 @@ obj_icon_generate(
                 continue;
 
             if( x > 0 && icon->pixels_argb[(x - 1) + y * 32] > 1 )
-            {
                 icon->pixels_argb[x + y * 32] = 1;
-            }
             else if( y > 0 && icon->pixels_argb[x + (y - 1) * 32] > 1 )
-            {
                 icon->pixels_argb[x + y * 32] = 1;
-            }
             else if( x < 31 && icon->pixels_argb[x + 1 + y * 32] > 1 )
-            {
                 icon->pixels_argb[x + y * 32] = 1;
-            }
             else if( y < 31 && icon->pixels_argb[x + (y + 1) * 32] > 1 )
-            {
                 icon->pixels_argb[x + y * 32] = 1;
-            }
         }
     }
-    // Draw shadow (matching ObjType.ts lines 485-492)
-    // Shadow is drawn at bottom-right diagonal
 
-    // draw shadow
-    for( int x = 31; x >= 0; x-- )
+    if( !cert_inner )
     {
-        for( int y = 31; y >= 0; y-- )
+        for( int x = 31; x >= 0; x-- )
         {
-            if( icon->pixels_argb[x + y * 32] == 0 && x > 0 && y > 0 &&
-                icon->pixels_argb[(x - 1) + (y - 1) * 32] > 0 )
+            for( int y = 31; y >= 0; y-- )
             {
-                icon->pixels_argb[x + y * 32] = 1;
+                if( icon->pixels_argb[x + y * 32] == 0 && x > 0 && y > 0 &&
+                    icon->pixels_argb[(x - 1) + (y - 1) * 32] > 0 )
+                    icon->pixels_argb[x + y * 32] = 1;
             }
         }
     }
-    // Clean up the dash model
-    dashmodel_free(dash_model);
 
-    // // DEBUG: Save sprite to BMP file
-    // char filename[256];
-    // snprintf(filename, sizeof(filename), "debug_obj_%d_count_%d.bmp", obj_id, count);
-    // bmp_write_file(filename, icon->pixels_argb, 32, 32);
-    // printf("  Saved sprite to: %s\n", filename);
-    // printf("========================================\n\n");
+    dashmodel_free(dash_model);
+    return icon;
+}
+
+static struct DashSprite*
+obj_icon_generate(
+    struct GGame* game,
+    int obj_id,
+    int count)
+{
+    struct GameCacheObj* obj = gamecache_get_obj(game->gamecache, obj_id);
+    if( !obj )
+    {
+        printf("obj_icon_get: Could not find obj %d in buildcachedat\n", obj_id);
+        return NULL;
+    }
+
+    if( obj->countobj && obj->countco && count > 1 )
+    {
+        int countobj_id = -1;
+        for( int i = 0; i < obj->countobj_count && i < 10; i++ )
+        {
+            if( count >= obj->countco[i] && obj->countco[i] != 0 )
+                countobj_id = obj->countobj[i];
+        }
+
+        if( countobj_id != -1 )
+            return obj_icon_get(game, countobj_id, 1);
+    }
+
+    struct DashSprite* linked = NULL;
+    if( obj->certtemplate != -1 )
+    {
+        linked = obj_icon_generate_cert_inner(game, obj->certlink, 10);
+        if( !linked )
+            return NULL;
+    }
+
+    struct DashSprite* icon = obj_icon_raster_uncached(game, obj, 0);
+    if( !icon )
+    {
+        if( linked )
+            dashsprite_free(linked);
+        return NULL;
+    }
+
+    if( linked )
+    {
+        struct DashViewPort overlay_vp;
+        overlay_vp.width = 32;
+        overlay_vp.height = 32;
+        overlay_vp.clip_left = 0;
+        overlay_vp.clip_top = 0;
+        overlay_vp.clip_right = 32;
+        overlay_vp.clip_bottom = 32;
+        overlay_vp.x_center = 16;
+        overlay_vp.y_center = 16;
+        overlay_vp.stride = 32;
+        dash2d_blit_sprite_alpha(
+            game->sys_dash, linked, &overlay_vp, 0, 0, 256, (int*)icon->pixels_argb);
+        dashsprite_free(linked);
+    }
 
     return icon;
 }

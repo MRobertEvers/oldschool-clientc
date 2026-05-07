@@ -33,6 +33,7 @@ enum PktServerProt_NpcInfo_v1_OpKind
     PKT_SERVER_PROT_NPC_INFO_V1_OP_DAMAGE2,
     PKT_SERVER_PROT_NPC_INFO_V1_OP_FACE_COORD,
     PKT_SERVER_PROT_NPC_INFO_V1_OP_CHAT,
+    PKT_SERVER_PROT_NPC_INFO_V1_OP_CHANGE_NPC_TYPE,
     PKT_SERVER_PROT_NPC_INFO_V1_OP_SPOTANIM
 
 };
@@ -82,6 +83,13 @@ struct PktServerProt_NpcInfo_v1_Damage2
     uint8_t total_health;
 };
 
+struct PktServerProt_NpcInfo_v1_SpotAnim
+{
+    int32_t spotanim_id;
+    /** Raw g4: height in high 16 bits, cycle delay in low 16 (see Client.ts getNpcPosExtended). */
+    int32_t delay;
+};
+
 struct PktServerProt_NpcInfo_v1_Rundir
 {
     int32_t rundir_one;
@@ -102,6 +110,7 @@ struct PktServerProt_NpcInfo_v1_Op
         struct PktServerProt_NpcInfo_v1_Damage2 _damage2;
         struct PktServerProt_NpcInfo_v1_Rundir _rundir;
         struct PktServerProt_NpcInfo_v1_DeltaXZ _delta_xz;
+        struct PktServerProt_NpcInfo_v1_SpotAnim _spotanim;
     };
 };
 

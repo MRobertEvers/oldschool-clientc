@@ -1534,8 +1534,7 @@ uitree_loader_test_write_sprite_bmp(
             bool hovered = uitree_loader_test_bmp_overlay_hovered_for_graphic(game, ui, uitree_i);
             int sid = c->u.rs_graphic.scene_id;
             int ai  = c->u.rs_graphic.atlas_index;
-            int use_active_row =
-                (active || hovered) && c->u.rs_graphic.scene_id_active >= 0 ? 1 : 0;
+            int use_active_row = active && c->u.rs_graphic.scene_id_active >= 0 ? 1 : 0;
             if( use_active_row )
             {
                 sid = c->u.rs_graphic.scene_id_active;

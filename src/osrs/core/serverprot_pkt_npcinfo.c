@@ -151,6 +151,24 @@ push_op_face_coord(
 }
 
 static void
+push_op_change_npc_type(struct PktServerProt_NpcInfo_v1_Op* op, int npc_type_id)
+{
+    op->kind = PKT_SERVER_PROT_NPC_INFO_V1_OP_CHANGE_NPC_TYPE;
+    op->_bitvalue = (uint64_t)(uint32_t)npc_type_id;
+}
+
+static void
+push_op_spotanim(
+    struct PktServerProt_NpcInfo_v1_Op* op,
+    int spotanim_id,
+    int height_delay)
+{
+    op->kind = PKT_SERVER_PROT_NPC_INFO_V1_OP_SPOTANIM;
+    op->_spotanim.spotanim_id = spotanim_id;
+    op->_spotanim.delay = height_delay;
+}
+
+static void
 push_op_damage(
     struct PktServerProt_NpcInfo_v1_Op* op,
     int damage_type,
@@ -367,12 +385,15 @@ pkt_npc_info_reader_read(
 
         if( (mask & MASK_CHANGE_TYPE) != 0 )
         {
-            assert(0);
+            int npc_type_id = g2(&rsbuf);
+            push_op_change_npc_type(next_op(reader, ops, ops_capacity), npc_type_id);
         }
 
         if( (mask & MASK_SPOTANIM) != 0 )
         {
-            assert(0);
+            int spotanim_id = g2(&rsbuf);
+            int height_delay = g4(&rsbuf);
+            push_op_spotanim(next_op(reader, ops, ops_capacity), spotanim_id, height_delay);
         }
 
         if( (mask & MASK_FACE_COORD) != 0 )

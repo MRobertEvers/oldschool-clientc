@@ -28,6 +28,7 @@
 #include "osrs/texture.h"
 #include "osrs/clientscript_vm.h"
 #include "osrs/world.h"
+#include "osrs/gamecache/gamecache_component.h"
 
 #include <assert.h>
 
@@ -1062,6 +1063,64 @@ load_one_component_sprite(
         else
             dashsprite_free(sprite);
     }
+}
+
+/** Same slot count as `buildcachedat_loader_load_component_sprites_from_media` invSlotGraphic loop. */
+#define BCD_LOADER_INV_SLOT_GRAPHIC_MAX 20
+
+static void
+ensure_gamecache_component_graphics_recursive(
+    struct BuildCacheDat* buildcachedat,
+    struct UIScene* ui_scene,
+    struct GGame* game,
+    struct GameCache* gc,
+    struct GameCacheComponent* comp,
+    int depth_left)
+{
+    if( !buildcachedat || !ui_scene || !gc || !comp || depth_left <= 0 )
+        return;
+    if( comp->graphic && comp->graphic[0] != '\0' )
+        buildcachedat_loader_load_component_sprite_lazy(
+            buildcachedat, ui_scene, game, comp->graphic);
+    if( comp->activeGraphic && comp->activeGraphic[0] != '\0' )
+        buildcachedat_loader_load_component_sprite_lazy(
+            buildcachedat, ui_scene, game, comp->activeGraphic);
+    if( comp->invSlotGraphic )
+    {
+        for( int i = 0; i < BCD_LOADER_INV_SLOT_GRAPHIC_MAX; i++ )
+        {
+            char const* g = comp->invSlotGraphic[i];
+            if( g && g[0] != '\0' )
+                buildcachedat_loader_load_component_sprite_lazy(buildcachedat, ui_scene, game, g);
+        }
+    }
+    if( !comp->children || comp->children_count <= 0 )
+        return;
+    for( int i = 0; i < comp->children_count; i++ )
+    {
+        struct GameCacheComponent* ch = gamecache_get_component(gc, comp->children[i]);
+        if( !ch )
+            continue;
+        ensure_gamecache_component_graphics_recursive(
+            buildcachedat, ui_scene, game, gc, ch, depth_left - 1);
+    }
+}
+
+void
+buildcachedat_loader_ensure_component_graphics_for_gamecache_interface(
+    struct BuildCacheDat* buildcachedat,
+    struct UIScene* ui_scene,
+    struct GGame* game,
+    struct GameCache* gc,
+    int interface_root_component_id)
+{
+    if( !buildcachedat || !ui_scene || !gc || interface_root_component_id < 0 )
+        return;
+    struct GameCacheComponent* root = gamecache_get_component(gc, interface_root_component_id);
+    if( !root )
+        return;
+    ensure_gamecache_component_graphics_recursive(
+        buildcachedat, ui_scene, game, gc, root, 512);
 }
 
 void

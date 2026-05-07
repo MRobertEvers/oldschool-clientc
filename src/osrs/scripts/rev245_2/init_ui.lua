@@ -55,6 +55,8 @@ local function init_ui()
         CacheDat.ConfigDatKind.CONFIG_DAT_CONFIGS, 0)
     Game.BuildCacheDat.set_config_jagfile(config_jagfile)
     Game.BuildCacheDat.objects_init_from_config_jagfile()
+    -- Mirror ObjType.genCert into GameCache before any obj lookups / inv model prefetch.
+    Game.GameCache.convert_objs_from_buildcachedat()
 
     -- Step 1: Parse INI config files (stores RevConfigBuffer on game).
     local ui_archives = CacheDat.load_config_files({
@@ -160,6 +162,11 @@ local function init_ui()
         end
         loader_result = Game.UI.step_loader()
     end
+
+    -- UITree loader may add models only to BuildCacheDat during step_loader ("model" kind).
+    -- Copy them into GameCache before model_cache_clear drops the decoded blobs, or RS_MODEL
+    -- (e.g. IF_SETTAB / sidebar) will see gamecache_get_model == nil.
+    Game.GameCache.convert_models_chunk_from_buildcachedat(0, 0)
 
     -- Models are baked into Scene2 elements; free decoded models from RAM.
     -- Component defs (CacheDatConfigComponent) must stay: IF_SETTAB / UPDATE_INV_FULL
