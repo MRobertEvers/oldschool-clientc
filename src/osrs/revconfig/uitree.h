@@ -84,6 +84,8 @@ enum StaticUIComponentType
     UIELEM_BUILTIN_SIDEBAR_OVERLAY = 24,
     /** IF_OPENOVERLAY / IF_OPENMAIN viewport modal: RS subtree over world rect (Client.ts mainOverlayId). */
     UIELEM_BUILTIN_VIEWPORT_OVERLAY = 25,
+    /** TYPE_INV_TEXT: text labels per slot; uses same `u.rs_inv` grid as UIELEM_RS_INV. */
+    UIELEM_RS_INV_TEXT = 26,
 };
 
 enum StaticUIElemPositionKind
@@ -294,6 +296,14 @@ struct StaticUIComponent
         } rs_rect;
 
     } u;
+
+    /** When `type == UIELEM_RS_INV_TEXT` (Client.ts TYPE_INV_TEXT); ignored otherwise. */
+    int inv_text_font_id;
+    int inv_text_color;
+    int inv_text_center;
+    int inv_text_shadowed;
+    /** TYPE_INV sibling under the same layer: shares inv_pool + server slot updates. -1 = none. */
+    int32_t inv_text_peer_inv_component_id;
 };
 
 #define UIFRAME_LAYER_STACK_MAX 16
@@ -363,7 +373,7 @@ uitree_find_by_component_id(
     int component_id);
 
 /**
- * Linear scan for a UIELEM_RS_INV node matching component_id.
+ * Linear scan for a UIELEM_RS_INV or UIELEM_RS_INV_TEXT node matching component_id.
  * Returns the inv_index from node.u.rs_inv.inv_index, or -1 if not found.
  * Optionally writes the node array index into out_node_idx (may be NULL).
  * O(N) — call once per packet, never from the render loop.
@@ -765,6 +775,26 @@ uitree_push_rs_model(
 
 int32_t
 uitree_push_rs_inv(
+    struct UITree* tree,
+    int32_t parent_index,
+    int component_id,
+    int inv_index,
+    int cols,
+    int rows,
+    int margin_x,
+    int margin_y,
+    int const* inv_slot_offset_x,
+    int const* inv_slot_offset_y,
+    int const* inv_slot_bg_scene_id,
+    int const* inv_slot_bg_atlas_index,
+    int x,
+    int y,
+    int width,
+    int height);
+
+/** Same grid as `uitree_push_rs_inv` but `type` is UIELEM_RS_INV_TEXT; set inv_text_* after push. */
+int32_t
+uitree_push_rs_inv_text(
     struct UITree* tree,
     int32_t parent_index,
     int component_id,

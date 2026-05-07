@@ -28,4 +28,7 @@ rs_gfx_model_step(
 bool
 rs_gfx_inv_step(struct UIFrameState* fiber, struct StaticUIComponent* component);
 
+bool
+rs_gfx_inv_text_step(struct UIFrameState* fiber, struct StaticUIComponent* component);
+
 #endif

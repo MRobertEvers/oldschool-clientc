@@ -713,24 +713,6 @@ mm_menu_action_norm(int action)
     return action;
 }
 
-/** Client.ts held triple on OPLOCU / OPNPCU / OPOBJU / OPPLAYERU (objComId, slot, selComId). */
-static void
-mm_held_iface_triple(struct InterfaceState* iface, int* obj_comp, int* slot, int* sel_comp)
-{
-    int root = 0;
-    if( iface )
-    {
-        root = iface->sidebar_interface_id ? iface->sidebar_interface_id
-                                           : iface->viewport_interface_id;
-    }
-    if( obj_comp )
-        *obj_comp = root;
-    if( slot )
-        *slot = iface ? iface->inv_sel_slot : 0;
-    if( sel_comp )
-        *sel_comp = iface ? iface->inv_sel_comp_id : 0;
-}
-
 /** Client passes full scene typecode in param_a when using item on loc/obj from world pick. */
 static int
 mm_loc_obj_wire_id(struct GGame* game, int param_a)
@@ -940,8 +922,10 @@ minimenu_game_use_option(
     {
         if( !game->iface || GAME_NET_STATE_GAME != game->net_state )
             return;
-        int oc = 0, sl = 0, sc = 0;
-        mm_held_iface_triple(game->iface, &oc, &sl, &sc);
+        /* Client.ts USEHELD_ONNPC: p2(objComId), p2(slot), p2(comId) — objComId is inv_sel_obj_id. */
+        int const src_obj = game->iface->inv_sel_obj_id;
+        int const src_slot = game->iface->inv_sel_slot;
+        int const src_comp = game->iface->inv_sel_comp_id;
         struct NPCEntity* npc = world_npc(game->world, param_a);
         struct CollisionMap* cm =
             game->world ? game->world->collision_map : NULL;
@@ -957,7 +941,7 @@ minimenu_game_use_option(
             mm_emit_opclick_to_entity_footprint(game, input, tx, tz, 1, 1);
             mm_move_toward(game, tx, tz);
         }
-        gamenet_send_opnpcu_use(game, param_a, oc, sl, sc);
+        gamenet_send_opnpcu_use(game, param_a, src_obj, src_slot, src_comp);
         game->iface->inv_use_mode = 0;
         return;
     }
@@ -1003,12 +987,14 @@ minimenu_game_use_option(
             return;
         if( param_a < 0 || param_a >= entity_vec_count(&game->world->map_build_loc_entities) )
             return;
-        int oc = 0, sl = 0, sc = 0;
-        mm_held_iface_triple(game->iface, &oc, &sl, &sc);
+        /* Client.ts USEHELD_ONLOC: after base OPLOCU, p2(objComId), p2(slot), p2(comId). */
+        int const src_obj = game->iface->inv_sel_obj_id;
+        int const src_slot = game->iface->inv_sel_slot;
+        int const src_comp = game->iface->inv_sel_comp_id;
         struct MapBuildLocEntity* loc = world_loc_entity(game->world, param_a);
         int lid = loc ? loc->loc_type_id : mm_loc_obj_wire_id(game, param_a);
         mm_emit_opclick_to_loc(game, input, loc, param_b, param_c);
-        gamenet_send_oplocu_use(game, param_b, param_c, lid, oc, sl, sc);
+        gamenet_send_oplocu_use(game, param_b, param_c, lid, src_obj, src_slot, src_comp);
         mm_move_toward(game, param_b, param_c);
         game->iface->inv_use_mode = 0;
         return;
@@ -1072,11 +1058,13 @@ minimenu_game_use_option(
     {
         if( !game->iface || GAME_NET_STATE_GAME != game->net_state )
             return;
-        int oc = 0, sl = 0, sc = 0;
-        mm_held_iface_triple(game->iface, &oc, &sl, &sc);
+        /* Client.ts USEHELD_ONOBJ: p2(objComId), p2(slot), p2(comId) after tile + ground obj id. */
+        int const src_obj = game->iface->inv_sel_obj_id;
+        int const src_slot = game->iface->inv_sel_slot;
+        int const src_comp = game->iface->inv_sel_comp_id;
         int oid = mm_loc_obj_wire_id(game, param_a);
         mm_emit_opclick_to_tile(game, input, param_b, param_c);
-        gamenet_send_opobju_use(game, param_b, param_c, oid, oc, sl, sc);
+        gamenet_send_opobju_use(game, param_b, param_c, oid, src_obj, src_slot, src_comp);
         mm_move_toward(game, param_b, param_c);
         game->iface->inv_use_mode = 0;
         return;
@@ -1131,8 +1119,10 @@ minimenu_game_use_option(
     {
         if( !game->iface || GAME_NET_STATE_GAME != game->net_state )
             return;
-        int oc = 0, sl = 0, sc = 0;
-        mm_held_iface_triple(game->iface, &oc, &sl, &sc);
+        /* Client.ts USEHELD_ONPLAYER: p2(objComId), p2(slot), p2(comId). */
+        int const src_obj = game->iface->inv_sel_obj_id;
+        int const src_slot = game->iface->inv_sel_slot;
+        int const src_comp = game->iface->inv_sel_comp_id;
         struct PlayerEntity* tgt = world_player(game->world, param_a);
         struct CollisionMap* cm =
             game->world ? game->world->collision_map : NULL;
@@ -1148,7 +1138,7 @@ minimenu_game_use_option(
             mm_emit_opclick_to_entity_footprint(game, input, tx, tz, 1, 1);
             mm_move_toward(game, tx, tz);
         }
-        gamenet_send_opplayeru_use(game, param_a, oc, sl, sc);
+        gamenet_send_opplayeru_use(game, param_a, src_obj, src_slot, src_comp);
         game->iface->inv_use_mode = 0;
         return;
     }

@@ -534,7 +534,7 @@ main(
 {
     const char* cache_dir = NULL;
     const char* out_path = "interface161_out.bmp";
-    int iface = 161;
+    int iface = 1151;
     int want_sprites = 0;
     int mount_count = 0;
     struct MountSpec mounts[MAX_MOUNTS];

@@ -241,6 +241,7 @@ options_add_obj_stack(
 
 static void
 options_add_loc(
+    struct GGame* game,
     struct World* world,
     struct WorldOptionSet* option_set,
     int x,
@@ -257,6 +258,51 @@ options_add_loc(
     char text[64];
 
     struct MapBuildLocEntity* map_build_loc_entity = world_loc_entity(world, entity_id);
+    if( !map_build_loc_entity )
+        return;
+
+    struct InterfaceState* iface = game ? game->iface : NULL;
+    if( iface && iface->inv_use_mode )
+    {
+        if( option_set->option_count >= WORLD_OPTION_SET_CAPACITY - 1 )
+            return;
+        struct WorldOption* opt = &option_set->options[option_set->option_count];
+        memset(opt, 0, sizeof(*opt));
+        snprintf(
+            opt->text,
+            sizeof(opt->text),
+            "Use %s with @cya@%s",
+            iface->inv_sel_obj_name[0] ? iface->inv_sel_obj_name : "item",
+            map_build_loc_entity->name.name);
+        opt->action  = MINIMENU_ACTION_OPLOCU;
+        opt->param_a = entity_id;
+        opt->param_b = x;
+        opt->param_c = z;
+        option_set->option_count += 1;
+        return;
+    }
+    if( iface && iface->inv_target_mode )
+    {
+        if( (iface->inv_target_mask & 0x4) == 0 )
+            return;
+        if( option_set->option_count >= WORLD_OPTION_SET_CAPACITY - 1 )
+            return;
+        struct WorldOption* opt = &option_set->options[option_set->option_count];
+        memset(opt, 0, sizeof(*opt));
+        snprintf(
+            opt->text,
+            sizeof(opt->text),
+            "%s @cya@%s",
+            iface->inv_target_op[0] ? iface->inv_target_op : "",
+            map_build_loc_entity->name.name);
+        opt->action  = MINIMENU_ACTION_OPLOCT;
+        opt->param_a = entity_id;
+        opt->param_b = x;
+        opt->param_c = z;
+        option_set->option_count += 1;
+        return;
+    }
+
     struct WorldOption* option = NULL;
 
     /* Loc actions are packed (world_map_build_loc_entity_push_action); .code is config slot 0..9.
@@ -409,6 +455,48 @@ options_add_player(
             target->visible_level.level);
     }
 
+    struct InterfaceState* iface = game->iface;
+    if( iface && iface->inv_use_mode )
+    {
+        if( option_set->option_count >= WORLD_OPTION_SET_CAPACITY - 1 )
+            return;
+        struct WorldOption* opt = &option_set->options[option_set->option_count];
+        memset(opt, 0, sizeof(*opt));
+        snprintf(
+            opt->text,
+            sizeof(opt->text),
+            "Use %s with @whi@%s",
+            iface->inv_sel_obj_name[0] ? iface->inv_sel_obj_name : "item",
+            tooltip);
+        opt->action  = MINIMENU_ACTION_OPPLAYERU;
+        opt->param_a = entity_id;
+        opt->param_b = x;
+        opt->param_c = z;
+        option_set->option_count++;
+        return;
+    }
+    if( iface && iface->inv_target_mode )
+    {
+        if( (iface->inv_target_mask & 0x8) == 0 )
+            return;
+        if( option_set->option_count >= WORLD_OPTION_SET_CAPACITY - 1 )
+            return;
+        struct WorldOption* opt = &option_set->options[option_set->option_count];
+        memset(opt, 0, sizeof(*opt));
+        snprintf(
+            opt->text,
+            sizeof(opt->text),
+            "%s @whi@%s",
+            iface->inv_target_op[0] ? iface->inv_target_op : "",
+            tooltip);
+        opt->action  = MINIMENU_ACTION_OPPLAYERT;
+        opt->param_a = entity_id;
+        opt->param_b = x;
+        opt->param_c = z;
+        option_set->option_count++;
+        return;
+    }
+
     for( int i = 4; i >= 0; i-- )
     {
         const char* op = game->player_menu_op[i];
@@ -462,6 +550,7 @@ options_add_player(
 
 static void
 options_add_npc(
+    struct GGame* game,
     struct World* world,
     struct WorldOptionSet* option_set,
     int x,
@@ -475,12 +564,85 @@ options_add_npc(
         return;
 
     char text[64];
-    char tooltip[32];
+    char tooltip[128];
 
     struct NPCEntity* npc = world_npc(world, entity_id);
+    if( !npc || !npc->alive )
+        return;
+
+    struct PlayerEntity* player = world_player(world, ACTIVE_PLAYER_SLOT);
+    if( !player || !player->alive )
+        return;
+
+    struct InterfaceState* iface = game ? game->iface : NULL;
+    if( iface && iface->inv_use_mode )
+    {
+        if( option_set->option_count >= WORLD_OPTION_SET_CAPACITY - 1 )
+            return;
+        char const* color_tag = options_npc_combat_level_color_tag(
+            player->visible_level.level, npc->visible_level.level);
+        char* ptr = tooltip;
+        ptr += snprintf(ptr, sizeof(tooltip) - (ptr - tooltip), "%s", npc->name ? npc->name : "");
+        if( npc->visible_level.level != 0 )
+        {
+            ptr += snprintf(
+                ptr,
+                sizeof(tooltip) - (ptr - tooltip),
+                " %s (level-%d)",
+                color_tag,
+                npc->visible_level.level);
+        }
+        struct WorldOption* opt = &option_set->options[option_set->option_count];
+        memset(opt, 0, sizeof(*opt));
+        snprintf(
+            opt->text,
+            sizeof(opt->text),
+            "Use %s with @yel@%s",
+            iface->inv_sel_obj_name[0] ? iface->inv_sel_obj_name : "item",
+            tooltip);
+        opt->action  = MINIMENU_ACTION_OPNPCU;
+        opt->param_a = entity_id;
+        opt->param_b = x;
+        opt->param_c = z;
+        option_set->option_count += 1;
+        return;
+    }
+    if( iface && iface->inv_target_mode )
+    {
+        if( (iface->inv_target_mask & 0x2) == 0 )
+            return;
+        if( option_set->option_count >= WORLD_OPTION_SET_CAPACITY - 1 )
+            return;
+        char const* color_tag = options_npc_combat_level_color_tag(
+            player->visible_level.level, npc->visible_level.level);
+        char* ptr = tooltip;
+        ptr += snprintf(ptr, sizeof(tooltip) - (ptr - tooltip), "%s", npc->name ? npc->name : "");
+        if( npc->visible_level.level != 0 )
+        {
+            ptr += snprintf(
+                ptr,
+                sizeof(tooltip) - (ptr - tooltip),
+                " %s (level-%d)",
+                color_tag,
+                npc->visible_level.level);
+        }
+        struct WorldOption* opt = &option_set->options[option_set->option_count];
+        memset(opt, 0, sizeof(*opt));
+        snprintf(
+            opt->text,
+            sizeof(opt->text),
+            "%s @yel@%s",
+            iface->inv_target_op[0] ? iface->inv_target_op : "",
+            tooltip);
+        opt->action  = MINIMENU_ACTION_OPNPCT;
+        opt->param_a = entity_id;
+        opt->param_b = x;
+        opt->param_c = z;
+        option_set->option_count += 1;
+        return;
+    }
 
     struct WorldOption* option = &option_set->options[option_set->option_count];
-    struct PlayerEntity* player = world_player(world, ACTIVE_PLAYER_SLOT);
 
     {
         char const* color_tag = options_npc_combat_level_color_tag(
@@ -606,18 +768,22 @@ world_options_add_pickset_options(
     /* World-only (Client.ts addWorldOptions + Model.picked*). Inventory/bank menus never use
      * the spatial pickset — they come from UITree + inv_pool via uitree_sync_hover_option_set,
      * mirroring Client.ts addComponentOptions on IfType (inventory type 2). */
-    /* Mirror Client.ts addWorldOptions (9510-9514): Walk here is appended before picked
-     * entities so the same bubble-sort as buildMinimenu (2816-2844) applies. */
-    if( option_set->option_count < WORLD_OPTION_SET_CAPACITY )
+    /* Mirror Client.ts addWorldOptions (9508-9514): Walk here only when not in use/target mode. */
     {
-        struct WorldOption* walk = &option_set->options[option_set->option_count];
-        memset(walk, 0, sizeof(*walk));
-        strncpy(walk->text, "Walk here", sizeof(walk->text));
-        walk->action = MINIMENU_ACTION_WALK;
-        walk->param_a = 0;
-        walk->param_b = 0;
-        walk->param_c = 0;
-        option_set->option_count++;
+        struct InterfaceState* iface = game ? game->iface : NULL;
+        int add_walk =
+            iface ? (!iface->inv_use_mode && !iface->inv_target_mode) : 1;
+        if( add_walk && option_set->option_count < WORLD_OPTION_SET_CAPACITY )
+        {
+            struct WorldOption* walk = &option_set->options[option_set->option_count];
+            memset(walk, 0, sizeof(*walk));
+            strncpy(walk->text, "Walk here", sizeof(walk->text));
+            walk->action = MINIMENU_ACTION_WALK;
+            walk->param_a = 0;
+            walk->param_b = 0;
+            walk->param_c = 0;
+            option_set->option_count++;
+        }
     }
 
     for( int i = 0; i < pickset->count; i++ )
@@ -627,6 +793,7 @@ world_options_add_pickset_options(
         {
         case ENTITY_KIND_MAP_BUILD_LOC:
             options_add_loc(
+                game,
                 world,
                 option_set,
                 picked_entity->x,
@@ -636,6 +803,7 @@ world_options_add_pickset_options(
             break;
         case ENTITY_KIND_NPC:
             options_add_npc(
+                game,
                 world,
                 option_set,
                 picked_entity->x,

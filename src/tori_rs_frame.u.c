@@ -272,6 +272,15 @@ uielem_rs_inv_is_dirty(
 }
 
 static inline bool
+uielem_rs_inv_text_is_dirty(
+    struct UIFrameState const* fiber,
+    struct StaticUIComponent const* node)
+{
+    (void)fiber;
+    return node->is_dirty;
+}
+
+static inline bool
 uielem_rs_layer_is_dirty(
     struct UIFrameState const* fiber,
     struct StaticUIComponent const* node)
@@ -2727,6 +2736,18 @@ uielem_rs_inv_step(
 }
 
 static bool
+uielem_rs_inv_text_step(
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
+{
+    if( !uielem_rs_inv_text_is_dirty(fiber, node) )
+        return true;
+    struct StaticUIComponent* component = node;
+    assert(component->type == UIELEM_RS_INV_TEXT);
+    return rs_gfx_inv_text_step(fiber, component);
+}
+
+static bool
 uielem_rs_layer_step(
     struct UIFrameState* fiber,
     struct StaticUIComponent* node)
@@ -3200,6 +3221,9 @@ LibToriRS_FrameNextCommand(
             break;
         case UIELEM_RS_INV:
             done = uielem_rs_inv_step(&fiber, component);
+            break;
+        case UIELEM_RS_INV_TEXT:
+            done = uielem_rs_inv_text_step(&fiber, component);
             break;
         case UIELEM_RS_RECT:
             done = uielem_rs_rect_step(&fiber, component);

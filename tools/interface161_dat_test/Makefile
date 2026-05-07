@@ -2,13 +2,9 @@
 ROOT := $(abspath ../..)
 BUILD ?= $(ROOT)/build
 
-.PHONY: all clean interface161_dat_test
+.PHONY: all clean
 
 all:
-	@mkdir -p "$(BUILD)"
-	@cd "$(BUILD)" && cmake "$(ROOT)" && cmake --build . --target interface161_test
-
-interface161_dat_test:
 	@mkdir -p "$(BUILD)"
 	@cd "$(BUILD)" && cmake "$(ROOT)" && cmake --build . --target interface161_dat_test
 

@@ -154,6 +154,7 @@ set(COMMON_SOURCES
     src/osrs/revconfig/uitree.c
     src/osrs/revconfig/uitree_textpool.c
     src/osrs/revconfig/uitree_load.c
+    src/osrs/revconfig/uitree_loader.c
     src/osrs/rs_component_gfx.c
     src/osrs/revconfig/uiscene.c
     src/osrs/rscache/tables_dat/config_component.c
@@ -329,6 +330,53 @@ if(NOT EMSCRIPTEN)
     if(WIN32)
         target_compile_definitions(bench_sdl2 PRIVATE TORIRS_NO_D3D11=1)
     endif()
+
+    # Standalone interface BMP tools (minimal rscache link; no SDL / Lua)
+    set(INTERFACE161_DAT_TEST_SOURCES
+        tools/interface161_dat_test/main.c
+        src/bmp.c
+        src/osrs/rscache/cache_dat.c
+        src/osrs/rscache/disk.c
+        src/osrs/rscache/archive.c
+        src/osrs/rscache/tables/string_utils.c
+        src/osrs/rscache/archive_decompress.c
+        src/osrs/rscache/compression.c
+        src/3rd/bzip/bzip.c
+        src/3rd/miniz/miniz.c
+        src/osrs/rscache/xtea.c
+        src/osrs/rscache/rsbuf.c
+        src/osrs/rscache/filelist.c
+        src/osrs/rscache/tables_dat/config_component.c
+        src/osrs/rscache/tables_dat/config_versionlist_mapsquare.c
+        src/osrs/rscache/tables_dat/pix32.c
+        src/osrs/rscache/tables_dat/pix8.c
+    )
+    add_executable(interface161_dat_test ${INTERFACE161_DAT_TEST_SOURCES})
+    target_include_directories(interface161_dat_test PRIVATE src)
+    set_target_properties(interface161_dat_test PROPERTIES C_STANDARD 11)
+
+    set(INTERFACE161_TEST_SOURCES
+        tools/interface161_test/main.c
+        src/bmp.c
+        src/osrs/rscache/cache.c
+        src/osrs/rscache/disk.c
+        src/osrs/rscache/archive.c
+        src/osrs/rscache/tables/string_utils.c
+        src/osrs/rscache/archive_decompress.c
+        src/osrs/rscache/compression.c
+        src/3rd/bzip/bzip.c
+        src/3rd/miniz/miniz.c
+        src/osrs/rscache/xtea.c
+        src/osrs/rscache/xtea_config.c
+        src/osrs/rscache/reference_table.c
+        src/osrs/rscache/rsbuf.c
+        src/osrs/rscache/filelist.c
+        src/osrs/rscache/tables/component.c
+        src/osrs/rscache/tables/sprites.c
+    )
+    add_executable(interface161_test ${INTERFACE161_TEST_SOURCES})
+    target_include_directories(interface161_test PRIVATE src)
+    set_target_properties(interface161_test PROPERTIES C_STANDARD 11)
 
     if(ENABLE_PACKAGE_BUILD)
         target_compile_definitions(bench_sdl2 PRIVATE
@@ -958,7 +1006,7 @@ foreach(_t_bucket_sort sdl2 bench_sdl2 web_client web_client_native win32)
 endforeach()
 
 # --- Global Properties ---
-foreach(target sdl2 bench_sdl2 web_client web_client_native win32)
+foreach(target sdl2 bench_sdl2 web_client web_client_native win32 interface161_test interface161_dat_test)
     if(TARGET ${target})
         target_include_directories(${target} PRIVATE src src/platforms src/nuklear src/platforms/ToriRSPlatformKit/include)
         set_target_properties(${target} PROPERTIES

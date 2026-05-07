@@ -6,7 +6,9 @@
 #include "osrs/clientscript_vm.h"
 #include "osrs/dash_utils.h"
 #include "osrs/game.h"
+#include "osrs/gamecache/gamecache.h"
 #include "osrs/interface_state.h"
+#include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/interface.h"
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
@@ -149,7 +151,8 @@ rs_gfx_graphic_step(
     if( !game || !component || !game->ui_scene || !queued_commands )
         return true;
 
-    /* Active-state branch: use active sprite when VM says component is active. */
+    /* Active / hover: Client.ts drawInterface TYPE_GRAPHIC uses graphic2 when getIfActive *or*
+     * when the component receives overlay hover (e.g. small info sprite via overlayer target). */
     struct ClientScriptVM* vm = game->clientscript_vm;
     bool active = clientscript_vm_active(
         vm,
@@ -157,9 +160,11 @@ rs_gfx_graphic_step(
         component->scripts_count,
         component->script_comparator,
         component->script_operand);
+    bool hovered =
+        game->iface && interface_component_overlay_hover_for_draw(game, component->component_id);
 
     int sid, ai;
-    if( active && component->u.rs_graphic.scene_id_active >= 0 )
+    if( (active || hovered) && component->u.rs_graphic.scene_id_active >= 0 )
     {
         sid = component->u.rs_graphic.scene_id_active;
         ai  = component->u.rs_graphic.atlas_index_active;
@@ -259,7 +264,7 @@ rs_gfx_text_step(
             text_src = component->u.rs_text.active_text;
     }
     bool hovered =
-        game->iface && interface_component_is_overlay_hovered(game, component->component_id);
+        game->iface && interface_component_overlay_hover_for_draw(game, component->component_id);
     if( hovered )
     {
         if( active && component->u.rs_text.active_over_color != 0 )
@@ -403,7 +408,7 @@ rs_gfx_rect_step(
     if( active )
         colour = component->u.rs_rect.active_color;
     bool hovered =
-        game->iface && interface_component_is_overlay_hovered(game, component->component_id);
+        game->iface && interface_component_overlay_hover_for_draw(game, component->component_id);
     if( hovered )
     {
         if( active && component->u.rs_rect.active_over_color != 0 )
@@ -659,6 +664,232 @@ rs_gfx_inv_step(
                         queue_sprite_draw(queued_commands, bg_sid, bg_ai, bg_sp, slot_x, slot_y, 0);
                     }
                 }
+            }
+        }
+    }
+
+    return true;
+}
+
+/** Client.ts `niceNumber`: comma groups then optional @cya@ / @gre@ prefixes (10509–10519). */
+static void
+rs_inv_text_comma_groups(char* dst, int cap, char const* num_digits)
+{
+    if( !dst || cap < 2 || !num_digits )
+    {
+        if( dst && cap > 0 )
+            dst[0] = '\0';
+        return;
+    }
+    int len = (int)strlen(num_digits);
+    if( len <= 0 )
+    {
+        dst[0] = '\0';
+        return;
+    }
+    int lead = ((len - 1) % 3) + 1;
+    int di = 0;
+    int pos = 0;
+    for( int i = 0; i < lead && pos < len && di + 1 < cap; i++ )
+        dst[di++] = num_digits[pos++];
+    while( pos < len )
+    {
+        if( di + 1 >= cap )
+            break;
+        dst[di++] = ',';
+        for( int k = 0; k < 3 && pos < len && di + 1 < cap; k++ )
+            dst[di++] = num_digits[pos++];
+    }
+    dst[di] = '\0';
+}
+
+/** Writes niceNumber into `out` (includes leading space per Client.ts). Returns written length. */
+static int
+rs_inv_text_format_nice(char* out, int cap, int amount)
+{
+    char num[24];
+    int nd = snprintf(num, sizeof(num), "%d", amount);
+    if( nd <= 0 || nd >= (int)sizeof(num) || cap < 4 )
+        return 0;
+    char comma[40];
+    rs_inv_text_comma_groups(comma, (int)sizeof(comma), num);
+    int cl = (int)strlen(comma);
+    if( cl > 8 )
+    {
+        return snprintf(
+            out,
+            (size_t)cap,
+            " @gre@%.*s million @whi@(%s)",
+            cl - 8,
+            comma,
+            comma);
+    }
+    if( cl > 4 )
+    {
+        return snprintf(
+            out, (size_t)cap, " @cya@%.*sK @whi@(%s)", cl - 4, comma, comma);
+    }
+    return snprintf(out, (size_t)cap, " %s", comma);
+}
+
+static void
+inv_text_wire_obj_count(
+    struct GGame* game,
+    struct StaticUIComponent* component,
+    int slot,
+    int* out_wire,
+    int* out_count)
+{
+    *out_wire = 0;
+    *out_count = 1;
+    int inv_i = component->u.rs_inv.inv_index;
+    if( game && game->inv_pool && inv_i >= 0 && inv_i < game->inv_pool->count && slot >= 0 &&
+        slot < UI_INVENTORY_MAX_ITEMS )
+    {
+        struct UIInventoryItem* it = &game->inv_pool->inventories[inv_i].items[slot];
+        if( it->obj_id > 0 )
+        {
+            *out_wire = it->obj_id;
+            *out_count = it->obj_count > 0 ? it->obj_count : 1;
+            return;
+        }
+    }
+    int cid = component->component_id;
+    if( component->inv_text_peer_inv_component_id >= 0 )
+        cid = component->inv_text_peer_inv_component_id;
+    if( game && game->gamecache && cid >= 0 )
+    {
+        struct GameCacheComponent* cc = gamecache_get_component(game->gamecache, cid);
+        if( cc && cc->invSlotObjId &&
+            (cc->type == COMPONENT_TYPE_INV || cc->type == COMPONENT_TYPE_INV_TEXT) &&
+            slot >= 0 && slot < cc->width * cc->height )
+        {
+            *out_wire = cc->invSlotObjId[slot];
+            if( cc->invSlotObjCount )
+                *out_count = cc->invSlotObjCount[slot] > 0 ? cc->invSlotObjCount[slot] : 1;
+        }
+    }
+}
+
+bool
+rs_gfx_inv_text_step(
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* component)
+{
+    struct GGame* game = fiber->game;
+    struct ToriRSRenderCommandBuffer* queued_commands = fiber->cmds;
+    if( !game || !component || !game->ui_scene || !queued_commands || !game->ui_root_buffer )
+        return true;
+    if( component->is_hidden )
+        return true;
+    if( component->type != UIELEM_RS_INV_TEXT )
+        return true;
+
+    int fid = component->inv_text_font_id;
+    if( fid < 0 )
+        return true;
+    struct DashPixFont* font = uiscene_font_get(game->ui_scene, fid);
+    if( !font )
+        return true;
+
+    int cols = component->u.rs_inv.cols;
+    int rows = component->u.rs_inv.rows;
+    int margin_x = component->u.rs_inv.margin_x;
+    int margin_y = component->u.rs_inv.margin_y;
+    if( cols <= 0 )
+        cols = 4;
+    int const cell_w = 115;
+    int const cell_h = 12;
+    int scroll_off = uiframe_scroll_y_total(game);
+    int base_x = component->position.x;
+    int base_y = component->position.y - scroll_off;
+    int pw = component->position.width;
+    int colour = component->inv_text_color;
+
+    int slot = 0;
+    for( int row = 0; row < rows; row++ )
+    {
+        for( int col = 0; col < cols; col++, slot++ )
+        {
+            int text_x = base_x + col * (margin_x + cell_w);
+            int text_y = base_y + row * (margin_y + cell_h);
+            if( slot < UI_INV_SLOT_OFFSET_MAX )
+            {
+                text_x += component->u.rs_inv.inv_slot_offset_x[slot];
+                text_y += component->u.rs_inv.inv_slot_offset_y[slot];
+            }
+
+            if( uiframe_cull_box(game, text_x, text_y, cell_w, cell_h) )
+                continue;
+
+            int wire = 0;
+            int count = 1;
+            inv_text_wire_obj_count(game, component, slot, &wire, &count);
+            if( wire <= 0 )
+                continue;
+
+            int obj_def = wire - 1;
+            struct GameCacheObj* obj =
+                game->gamecache ? gamecache_get_obj(game->gamecache, obj_def) : NULL;
+            char const* name = (obj && obj->name && obj->name[0]) ? obj->name : "";
+            char line_buf[512];
+            int ln = snprintf(line_buf, sizeof(line_buf), "%s", name);
+            if( ln < 0 || ln >= (int)sizeof(line_buf) )
+                continue;
+
+            if( obj && (obj->stackable || count != 1) )
+            {
+                char nice[128];
+                int nn = rs_inv_text_format_nice(nice, (int)sizeof(nice), count);
+                if( nn > 0 && ln + 2 + nn < (int)sizeof(line_buf) )
+                {
+                    memcpy(line_buf + ln, " x", 2);
+                    ln += 2;
+                    memcpy(line_buf + ln, nice, (size_t)nn);
+                    ln += nn;
+                    line_buf[ln] = '\0';
+                }
+            }
+
+            if( ln <= 0 )
+                continue;
+
+            uint8_t* pooled = rs_pool_dup_zterm(game, line_buf, ln);
+            if( !pooled )
+                continue;
+
+            int draw_x = text_x;
+            if( component->inv_text_center )
+            {
+                int text_w = dashfont_text_width_taggable(font, pooled);
+                draw_x = text_x + (pw / 2) - (text_w / 2);
+            }
+
+            int draw_y = text_y;
+
+            frame_emit_pass(fiber, FRAME_PASS_2D);
+            if( component->inv_text_shadowed )
+            {
+                struct ToriRSRenderCommand* sh =
+                    LibToriRS_RenderCommandBufferEmplaceCommand(queued_commands);
+                sh->kind = TORIRS_GFX_DRAW_FONT;
+                sh->_font_draw.font_id = fid;
+                sh->_font_draw.font = font;
+                sh->_font_draw.text = pooled;
+                sh->_font_draw.x = draw_x + 1;
+                sh->_font_draw.y = draw_y + 1;
+                sh->_font_draw.color_rgb = 0;
+            }
+            {
+                struct ToriRSRenderCommand* c =
+                    LibToriRS_RenderCommandBufferEmplaceCommand(queued_commands);
+                c->kind = TORIRS_GFX_DRAW_FONT;
+                c->_font_draw.font_id = fid;
+                c->_font_draw.font = font;
+                c->_font_draw.text = pooled;
+                c->_font_draw.x = draw_x;
+                c->_font_draw.y = draw_y;
+                c->_font_draw.color_rgb = colour;
             }
         }
     }

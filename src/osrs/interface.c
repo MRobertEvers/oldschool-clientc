@@ -6,6 +6,7 @@
 #include "osrs/clientscript_vm.h"
 #include "osrs/gamenet_send.h"
 #include "osrs/ginput.h"
+#include "osrs/gamecache/gamecache.h"
 #include "osrs/dash_utils.h"
 #include "osrs/entity_scenebuild.h"
 #include "osrs/interface_state.h"
@@ -512,12 +513,19 @@ interface_find_hovered_interface_id(
     int mouse_x,
     int mouse_y)
 {
-    if( !root || root->type != COMPONENT_TYPE_LAYER )
-        return -1;
-    if( !game->iface )
+    if( !root || !game->iface )
         return -1;
     int id = -1;
-    find_hovered_interface_id_recursive(game, root, root_x, root_y, 0, mouse_x, mouse_y, &id);
+    if( root->type == COMPONENT_TYPE_LAYER )
+    {
+        find_hovered_interface_id_recursive(game, root, root_x, root_y, 0, mouse_x, mouse_y, &id);
+        return id;
+    }
+    /* Single non-layer root (e.g. lone RECT): matches uitree_load_single_component_tree_from_gamecache
+     * placement at (root_x, root_y) without an extra wrapping layer. */
+    if( (root->overlayer >= 0 || root->overColour != 0) && mouse_x >= root_x && mouse_y >= root_y &&
+        mouse_x < root_x + root->width && mouse_y < root_y + root->height )
+        id = (root->overlayer >= 0) ? root->overlayer : root->id;
     return id;
 }
 
@@ -587,13 +595,24 @@ interface_update_region_hover_ids(struct GGame* game)
         iface->over_chat_com_id = interface_find_hovered_interface_id(game, root, 17, 357, mx, my);
     }
 
+    interface_sync_aggregate_hovered_interface_id(game);
+}
+
+void
+interface_sync_aggregate_hovered_interface_id(struct GGame* game)
+{
+    if( !game || !game->iface )
+        return;
+    struct InterfaceState* iface = game->iface;
     /* Aggregate: first region that has a hover wins (main > side > chat). */
     if( iface->over_main_com_id >= 0 )
         iface->current_hovered_interface_id = iface->over_main_com_id;
     else if( iface->over_side_com_id >= 0 )
         iface->current_hovered_interface_id = iface->over_side_com_id;
-    else
+    else if( iface->over_chat_com_id >= 0 )
         iface->current_hovered_interface_id = iface->over_chat_com_id;
+    else
+        iface->current_hovered_interface_id = -1;
 }
 
 static int
@@ -1069,6 +1088,25 @@ interface_component_is_overlay_hovered(
     struct InterfaceState* i = game->iface;
     return component_id == i->over_main_com_id || component_id == i->over_side_com_id ||
            component_id == i->over_chat_com_id;
+}
+
+bool
+interface_component_overlay_hover_for_draw(
+    struct GGame* game,
+    int component_id)
+{
+    if( !game || !game->iface || component_id < 0 )
+        return false;
+    if( interface_component_is_overlay_hovered(game, component_id) )
+        return true;
+    if( !game->gamecache )
+        return false;
+    struct GameCacheComponent* gc = gamecache_get_component(game->gamecache, component_id);
+    if( !gc || gc->overlayer < 0 )
+        return false;
+    struct InterfaceState* i = game->iface;
+    return gc->overlayer == i->over_main_com_id || gc->overlayer == i->over_side_com_id ||
+           gc->overlayer == i->over_chat_com_id;
 }
 
 /* Recursive hit-test for scrollbar; mirrors layer child loop in interface_draw_component.
@@ -1566,7 +1604,7 @@ interface_draw_component_rect(
     bool active = component->scriptComparator && interface_get_if_active(game, component);
     if( active )
         colour = component->activeColour;
-    bool hovered = interface_component_is_overlay_hovered(game, component->id);
+    bool hovered = interface_component_overlay_hover_for_draw(game, component->id);
     if( hovered )
     {
         if( active && component->activeOverColour != 0 )
@@ -1626,7 +1664,7 @@ interface_draw_component_text(
         if( component->activeText && component->activeText[0] != '\0' )
             text_src = component->activeText;
     }
-    bool hovered = interface_component_is_overlay_hovered(game, component->id);
+    bool hovered = interface_component_overlay_hover_for_draw(game, component->id);
     if( hovered )
     {
         if( active && component->activeOverColour != 0 )
@@ -1843,12 +1881,15 @@ interface_draw_component_graphic(
     int* pixel_buffer,
     int stride)
 {
-    /* Client.ts 10417-10423: getIfActive -> graphic2/activeGraphic, else graphic */
+    /* Client.ts drawInterface TYPE_GRAPHIC: graphic2/activeGraphic when getIfActive or overlay hover. */
     char const* graphic_name = component->graphic;
-    if( component->scriptComparator && interface_get_if_active(game, component) &&
-        component->activeGraphic && component->activeGraphic[0] != '\0' )
+    if( component->activeGraphic && component->activeGraphic[0] != '\0' )
     {
-        graphic_name = component->activeGraphic;
+        bool if_active =
+            component->scriptComparator && interface_get_if_active(game, component);
+        bool hovered = interface_component_overlay_hover_for_draw(game, component->id);
+        if( if_active || hovered )
+            graphic_name = component->activeGraphic;
     }
 
     if( !graphic_name )
@@ -1862,6 +1903,171 @@ interface_draw_component_graphic(
     dash2d_blit_sprite(game->sys_dash, sprite, game->iface_view_port, x, y, pixel_buffer);
 }
 
+static void
+if_inv_text_comma_groups(char* dst, int cap, char const* num_digits)
+{
+    if( !dst || cap < 2 || !num_digits )
+    {
+        if( dst && cap > 0 )
+            dst[0] = '\0';
+        return;
+    }
+    int len = (int)strlen(num_digits);
+    if( len <= 0 )
+    {
+        dst[0] = '\0';
+        return;
+    }
+    int lead = ((len - 1) % 3) + 1;
+    int di = 0;
+    int pos = 0;
+    for( int i = 0; i < lead && pos < len && di + 1 < cap; i++ )
+        dst[di++] = num_digits[pos++];
+    while( pos < len )
+    {
+        if( di + 1 >= cap )
+            break;
+        dst[di++] = ',';
+        for( int k = 0; k < 3 && pos < len && di + 1 < cap; k++ )
+            dst[di++] = num_digits[pos++];
+    }
+    dst[di] = '\0';
+}
+
+static int
+if_inv_text_format_nice(char* out, int cap, int amount)
+{
+    char num[24];
+    int nd = snprintf(num, sizeof(num), "%d", amount);
+    if( nd <= 0 || nd >= (int)sizeof(num) || cap < 4 )
+        return 0;
+    char comma[40];
+    if_inv_text_comma_groups(comma, (int)sizeof(comma), num);
+    int cl = (int)strlen(comma);
+    if( cl > 8 )
+    {
+        return snprintf(
+            out,
+            (size_t)cap,
+            " @gre@%.*s million @whi@(%s)",
+            cl - 8,
+            comma,
+            comma);
+    }
+    if( cl > 4 )
+    {
+        return snprintf(
+            out, (size_t)cap, " @cya@%.*sK @whi@(%s)", cl - 4, comma, comma);
+    }
+    return snprintf(out, (size_t)cap, " %s", comma);
+}
+
+void
+interface_draw_component_inv_text(
+    struct GGame* game,
+    struct GameCacheComponent* component,
+    int x,
+    int y,
+    int* pixel_buffer,
+    int stride)
+{
+    if( !game->iface || !game->gamecache )
+        return;
+    if( !component->invSlotObjId || !component->invSlotObjCount )
+        return;
+
+    static char const* font_names[] = { "p11", "p12", "b12", "q8" };
+    int fidx = component->font;
+    if( fidx < 0 || fidx > 3 )
+        fidx = 1;
+    struct DashPixFont* font = interface_font_from_reftable(game, font_names[fidx]);
+    if( !font )
+        return;
+
+    struct DashViewPort* vp = game->iface_view_port;
+    int cl = vp->clip_left;
+    int ct = vp->clip_top;
+    int cr = vp->clip_right;
+    int cb = vp->clip_bottom;
+    int colour = component->colour;
+    int const cell_w = 115;
+    int const cell_h = 12;
+    int cols = component->width;
+    int rows = component->height;
+    int margin_x = component->marginX;
+    int margin_y = component->marginY;
+    int pw = component->width;
+
+    int slot = 0;
+    for( int row = 0; row < rows; row++ )
+    {
+        for( int col = 0; col < cols; col++, slot++ )
+        {
+            int text_x = x + col * (margin_x + cell_w);
+            int text_y = y + row * (margin_y + cell_h);
+            if( slot < 20 && component->invSlotOffsetX && component->invSlotOffsetY )
+            {
+                text_x += component->invSlotOffsetX[slot];
+                text_y += component->invSlotOffsetY[slot];
+            }
+
+            int wire = component->invSlotObjId[slot];
+            if( wire <= 0 )
+                continue;
+
+            int obj_def = wire - 1;
+            int count = component->invSlotObjCount[slot];
+            if( count <= 0 )
+                count = 1;
+
+            struct GameCacheObj* obj = gamecache_get_obj(game->gamecache, obj_def);
+            char const* name = (obj && obj->name && obj->name[0]) ? obj->name : "";
+            char line_buf[512];
+            int ln = snprintf(line_buf, sizeof(line_buf), "%s", name);
+            if( ln < 0 || ln >= (int)sizeof(line_buf) )
+                continue;
+
+            if( obj && (obj->stackable || count != 1) )
+            {
+                char nice[128];
+                int nn = if_inv_text_format_nice(nice, (int)sizeof(nice), count);
+                if( nn > 0 && ln + 2 + nn < (int)sizeof(line_buf) )
+                {
+                    memcpy(line_buf + ln, " x", 2);
+                    ln += 2;
+                    memcpy(line_buf + ln, nice, (size_t)nn);
+                    ln += nn;
+                    line_buf[ln] = '\0';
+                }
+            }
+
+            if( ln <= 0 )
+                continue;
+
+            int draw_x = text_x;
+            if( component->center )
+            {
+                int text_w = dashfont_text_width_taggable(font, (uint8_t*)line_buf);
+                draw_x = text_x + (pw / 2) - (text_w / 2);
+            }
+
+            dashfont_draw_text_clipped_taggable(
+                font,
+                (uint8_t*)line_buf,
+                draw_x,
+                text_y,
+                colour,
+                pixel_buffer,
+                stride,
+                cl,
+                ct,
+                cr,
+                cb,
+                component->shadowed);
+        }
+    }
+}
+
 void
 interface_draw_component_inv(
     struct GGame* game,
@@ -1873,6 +2079,11 @@ interface_draw_component_inv(
 {
     if( !game->iface || !game->gamecache )
         return;
+    if( component->type == COMPONENT_TYPE_INV_TEXT )
+    {
+        interface_draw_component_inv_text(game, component, x, y, pixel_buffer, stride);
+        return;
+    }
     if( !component->invSlotObjId || !component->invSlotObjCount )
         return;
 

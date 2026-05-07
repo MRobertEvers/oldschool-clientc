@@ -83,3 +83,23 @@ make -C tools/interface161_test
 ```bash
 node tools/interface161_test/run_interfaces_1_500.mjs /path/to/cache [--out-dir DIR] [--binary PATH]
 ```
+
+---
+
+## `interface161_dat_test/`
+
+Same raster idea as `interface161_test`, but for a legacy **`main_file_cache.dat`** cache: loads `CONFIG_DAT_INTERFACES`, decodes the `data` blob, and draws the subtree rooted at **`--iface`** (a **component id** in that table, not a dat2 `CACHE_INTERFACES` archive index).
+
+**Build:**
+
+```bash
+cmake --build build --target interface161_dat_test
+# or:
+make -C tools/interface161_dat_test
+```
+
+**Batch export** (`run_components_1_500.mjs` loops component ids 1..500; many may fail if empty):
+
+```bash
+node tools/interface161_dat_test/run_components_1_500.mjs /path/to/dat/cache [--sprites] [--out-dir DIR] [--binary PATH]
+```

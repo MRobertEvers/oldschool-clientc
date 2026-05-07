@@ -41,6 +41,19 @@ uitree_load_ui_from_revconfig(
     struct GGame* game,
     struct RevConfigBuffer* revconfig_buffer);
 
+/** Build `ui` from a single RS interface root in `gamecache` (children recurse like sidebar expand).
+ * `ui` must be empty (`component_count == 0`). Root is placed at absolute (0,0).
+ * Returns 0 on success, -1 if `component_root_id` is missing from `gamecache` or arguments are invalid,
+ * -2 if `ui` is not empty. */
+int
+uitree_load_single_component_tree_from_gamecache(
+    struct GGame* game,
+    struct UITree* ui,
+    struct UIScene* ui_scene,
+    struct Scene2* scene2,
+    struct GameCache* gamecache,
+    int component_root_id);
+
 /** Rebuild IF_OPENCHAT interface under UIELEM_BUILTIN_CHAT_DIALOG. component_id < 0 clears only. */
 void
 uitree_expand_chat_dialog_for_interface(struct GGame* game, int component_id);

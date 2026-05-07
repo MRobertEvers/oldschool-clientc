@@ -338,7 +338,8 @@ uitree_find_inv_index_by_component_id(
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
         struct StaticUIComponent const* c = &tree->components[i];
-        if( c->type == UIELEM_RS_INV && c->component_id == component_id )
+        if( (c->type == UIELEM_RS_INV || c->type == UIELEM_RS_INV_TEXT) &&
+            c->component_id == component_id )
         {
             if( out_node_idx )
                 *out_node_idx = (int32_t)i;
@@ -385,6 +386,8 @@ uitree_component_type_str(enum StaticUIComponentType type)
         return "rs_model";
     case UIELEM_RS_INV:
         return "rs_inv";
+    case UIELEM_RS_INV_TEXT:
+        return "rs_inv_text";
     case UIELEM_RS_LAYER:
         return "rs_layer";
     case UIELEM_RS_RECT:
@@ -544,6 +547,7 @@ uitree_print_nodes(struct UITree const* tree)
         switch( c->type )
         {
         case UIELEM_RS_INV:
+        case UIELEM_RS_INV_TEXT:
             printf(
                 "       rs_inv inv_index=%d cols=%d rows=%d margin=(%d,%d)\n",
                 c->u.rs_inv.inv_index,
@@ -551,6 +555,15 @@ uitree_print_nodes(struct UITree const* tree)
                 c->u.rs_inv.rows,
                 c->u.rs_inv.margin_x,
                 c->u.rs_inv.margin_y);
+            if( c->type == UIELEM_RS_INV_TEXT )
+            {
+                printf(
+                    "       rs_inv_text font_id=%d color=%d center=%d shadow=%d\n",
+                    c->inv_text_font_id,
+                    c->inv_text_color,
+                    c->inv_text_center,
+                    c->inv_text_shadowed);
+            }
             for( int si = 0; si < UI_INV_SLOT_OFFSET_MAX; si++ )
             {
                 if( c->u.rs_inv.inv_slot_bg_scene_id[si] >= 0 )
@@ -1403,6 +1416,80 @@ uitree_push_rs_inv(
     return idx;
 }
 
+int32_t
+uitree_push_rs_inv_text(
+    struct UITree* tree,
+    int32_t parent_index,
+    int component_id,
+    int inv_index,
+    int cols,
+    int rows,
+    int margin_x,
+    int margin_y,
+    int const* inv_slot_offset_x,
+    int const* inv_slot_offset_y,
+    int const* inv_slot_bg_scene_id,
+    int const* inv_slot_bg_atlas_index,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_RS_INV_TEXT;
+    component->component_id = component_id;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.rs_inv.inv_index = inv_index;
+    component->u.rs_inv.cols = cols;
+    component->u.rs_inv.rows = rows;
+    component->u.rs_inv.margin_x = margin_x;
+    component->u.rs_inv.margin_y = margin_y;
+    if( inv_slot_offset_x && inv_slot_offset_y )
+    {
+        memcpy(
+            component->u.rs_inv.inv_slot_offset_x,
+            inv_slot_offset_x,
+            (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
+        memcpy(
+            component->u.rs_inv.inv_slot_offset_y,
+            inv_slot_offset_y,
+            (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
+    }
+    if( inv_slot_bg_scene_id && inv_slot_bg_atlas_index )
+    {
+        memcpy(
+            component->u.rs_inv.inv_slot_bg_scene_id,
+            inv_slot_bg_scene_id,
+            (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
+        memcpy(
+            component->u.rs_inv.inv_slot_bg_atlas_index,
+            inv_slot_bg_atlas_index,
+            (size_t)UI_INV_SLOT_OFFSET_MAX * sizeof(int));
+    }
+    else
+    {
+        for( int i = 0; i < UI_INV_SLOT_OFFSET_MAX; i++ )
+        {
+            component->u.rs_inv.inv_slot_bg_scene_id[i] = -1;
+            component->u.rs_inv.inv_slot_bg_atlas_index[i] = 0;
+        }
+    }
+    component->inv_text_font_id = -1;
+    component->inv_text_color = 0;
+    component->inv_text_center = 0;
+    component->inv_text_shadowed = 0;
+    component->inv_text_peer_inv_component_id = -1;
+    return idx;
+}
+
 /** Orphaned RS nodes stay in the dense array; hide the whole subtree so any stray visit skips draw.
  */
 static void
@@ -1651,6 +1738,44 @@ uitree_inv_slot_contains_mouse(
     return false;
 }
 
+static bool
+uitree_inv_text_slot_contains_mouse(
+    struct StaticUIComponent* inv,
+    int mx,
+    int my,
+    int scroll_off,
+    int* out_slot)
+{
+    int cols = inv->u.rs_inv.cols > 0 ? inv->u.rs_inv.cols : 4;
+    int rows = inv->u.rs_inv.rows;
+    int margin_x = inv->u.rs_inv.margin_x;
+    int margin_y = inv->u.rs_inv.margin_y;
+    int base_x = inv->position.x;
+    int base_y = inv->position.y - scroll_off;
+    int const cell_w = 115;
+    int const cell_h = 12;
+    int i = 0;
+    for( int row = 0; row < rows; row++ )
+    {
+        for( int col = 0; col < cols; col++, i++ )
+        {
+            int slot_x = base_x + col * (margin_x + cell_w);
+            int slot_y = base_y + row * (margin_y + cell_h);
+            if( i < UI_INV_SLOT_OFFSET_MAX )
+            {
+                slot_x += inv->u.rs_inv.inv_slot_offset_x[i];
+                slot_y += inv->u.rs_inv.inv_slot_offset_y[i];
+            }
+            if( mx >= slot_x && mx < slot_x + cell_w && my >= slot_y && my < slot_y + cell_h )
+            {
+                *out_slot = i;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 /** 0-based object def id: inv_pool first, then cache invSlotObjId (Client.ts linkObjType). */
 static int
 uitree_inv_slot_obj_def_id(
@@ -1670,10 +1795,13 @@ uitree_inv_slot_obj_def_id(
             return id - 1;
     }
     int comp_id = inv->component_id >= 0 ? inv->component_id : 0;
+    if( inv->type == UIELEM_RS_INV_TEXT && inv->inv_text_peer_inv_component_id >= 0 )
+        comp_id = inv->inv_text_peer_inv_component_id;
     if( game && game->gamecache && comp_id >= 0 )
     {
         struct GameCacheComponent* cc = gamecache_get_component(game->gamecache, comp_id);
-        if( cc && cc->type == COMPONENT_TYPE_INV && cc->invSlotObjId )
+        if( cc && (cc->type == COMPONENT_TYPE_INV || cc->type == COMPONENT_TYPE_INV_TEXT) &&
+            cc->invSlotObjId )
         {
             int nslots = cc->width * cc->height;
             if( slot < nslots && cc->invSlotObjId[slot] > 0 )
@@ -1744,7 +1872,7 @@ uitree_fallback_pick_rs_inv(
     for( uint32_t i = 0; i < t->component_count; i++ )
     {
         struct StaticUIComponent* c = &t->components[i];
-        if( c->type != UIELEM_RS_INV || c->is_hidden )
+        if( (c->type != UIELEM_RS_INV && c->type != UIELEM_RS_INV_TEXT) || c->is_hidden )
             continue;
         if( c->position.kind != UIPOS_XY )
             continue;
@@ -1752,7 +1880,12 @@ uitree_fallback_pick_rs_inv(
         if( !uitree_point_in_component_scr(c, mx, my, scroll_off) )
             continue;
         int slot = -1;
-        if( !uitree_inv_slot_contains_mouse(c, mx, my, scroll_off, &slot) )
+        bool in_slot = false;
+        if( c->type == UIELEM_RS_INV_TEXT )
+            in_slot = uitree_inv_text_slot_contains_mouse(c, mx, my, scroll_off, &slot);
+        else
+            in_slot = uitree_inv_slot_contains_mouse(c, mx, my, scroll_off, &slot);
+        if( !in_slot )
             continue;
         if( !uitree_inv_slot_has_menu(game, c, slot) )
             continue;
@@ -1871,6 +2004,47 @@ uitree_fill_inv_slot_common(
     char tbuf[72];
     char opi[128];
     struct GameCacheComponent* inv_cd = uitree_cache_comp(game, comp_id);
+
+    if( game && game->iface && interactable )
+    {
+        struct InterfaceState* iface = game->iface;
+        if( iface->inv_use_mode )
+        {
+            if( comp_id != iface->inv_sel_comp_id || slot != iface->inv_sel_slot )
+            {
+                if( obj && obj->name && obj->name[0] )
+                {
+                    char uline[128];
+                    snprintf(
+                        uline,
+                        sizeof(uline),
+                        "Use %s with @lre@%s",
+                        iface->inv_sel_obj_name[0] ? iface->inv_sel_obj_name : "item",
+                        obj->name);
+                    uitree_opt_append(
+                        os, MINIMENU_ACTION_OPHELDU, uline, obj_def_id, slot, comp_id);
+                    uitree_option_set_sort_ts(os);
+                }
+            }
+            return;
+        }
+        if( iface->inv_target_mode )
+        {
+            if( (iface->inv_target_mask & 0x10) == 16 && obj && obj->name && obj->name[0] )
+            {
+                char tline[160];
+                snprintf(
+                    tline,
+                    sizeof(tline),
+                    "%s @lre@%s",
+                    iface->inv_target_op[0] ? iface->inv_target_op : "",
+                    obj->name);
+                uitree_opt_append(os, MINIMENU_ACTION_TGT_HELD, tline, obj_def_id, slot, comp_id);
+                uitree_option_set_sort_ts(os);
+            }
+            return;
+        }
+    }
 
     if( obj )
     {
@@ -2206,7 +2380,7 @@ uitree_fill_hit_options(
     if( c->type == UIELEM_BUILTIN_WORLD )
         return;
 
-    if( c->type == UIELEM_RS_INV && inv_slot >= 0 )
+    if( (c->type == UIELEM_RS_INV || c->type == UIELEM_RS_INV_TEXT) && inv_slot >= 0 )
         uitree_fill_inv_slot_options(game, c, inv_slot, os);
     else
         uitree_fill_simple_component_options(game, c, os);
@@ -2286,11 +2460,15 @@ uitree_pick_descend(
         return;
     }
 
-    if( c->type == UIELEM_RS_INV )
+    if( c->type == UIELEM_RS_INV || c->type == UIELEM_RS_INV_TEXT )
     {
         int slot = -1;
-        if( uitree_inv_slot_contains_mouse(c, mx, my, scroll_for_hit, &slot) &&
-            uitree_inv_slot_has_menu(game, c, slot) )
+        bool in_slot = false;
+        if( c->type == UIELEM_RS_INV_TEXT )
+            in_slot = uitree_inv_text_slot_contains_mouse(c, mx, my, scroll_for_hit, &slot);
+        else
+            in_slot = uitree_inv_slot_contains_mouse(c, mx, my, scroll_for_hit, &slot);
+        if( in_slot && uitree_inv_slot_has_menu(game, c, slot) )
         {
             *out_hit = idx;
             *out_slot = slot;
@@ -2335,7 +2513,8 @@ uitree_debug_log_inv_menu(
     {
         struct StaticUIComponent* c = &tree->components[hit];
         fprintf(stderr, "  hit type=%d comp_id=%d\n", (int)c->type, c->component_id);
-        if( c->type == UIELEM_RS_INV && inv_slot >= 0 && game->gamecache )
+        if( (c->type == UIELEM_RS_INV || c->type == UIELEM_RS_INV_TEXT) && inv_slot >= 0 &&
+            game->gamecache )
         {
             int inv_i = c->u.rs_inv.inv_index;
             int pool_wire = 0;
@@ -2599,7 +2778,8 @@ uitree_sync_hover_option_set(
 
     int log_slot = slot;
     if( hit >= 0 && (uint32_t)hit < tree->component_count &&
-        tree->components[hit].type == UIELEM_RS_INV )
+        (tree->components[hit].type == UIELEM_RS_INV ||
+         tree->components[hit].type == UIELEM_RS_INV_TEXT) )
     {
         tree->hover_inv_component_id = tree->components[hit].component_id;
         tree->hover_inv_slot = slot;

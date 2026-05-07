@@ -6,3 +6,4 @@ LUA_API_X(LUA_API_UI_PARSE_REVCONFIG, "ui_parse_revconfig", LUA_DOMAIN_UI, "pars
 LUA_API_X(LUA_API_UI_GET_REVCONFIG_INV_OBJ_IDS, "ui_get_revconfig_inv_obj_ids", LUA_DOMAIN_UI, "get_revconfig_inv_obj_ids")
 LUA_API_X(LUA_API_UI_LOAD_REVCONFIG_INVENTORIES, "ui_load_revconfig_inventories", LUA_DOMAIN_UI, "load_revconfig_inventories")
 LUA_API_X(LUA_API_UI_LOAD_REVCONFIG_UI, "ui_load_revconfig_ui", LUA_DOMAIN_UI, "load_revconfig_ui")
+LUA_API_X(LUA_API_UI_STEP_LOADER, "ui_step_loader", LUA_DOMAIN_UI, "step_loader")

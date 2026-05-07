@@ -103,6 +103,7 @@ struct CacheDatConfigComponent
     int scripts_count;
     int* scripts_lengths;
     int alpha;
+    // Layer drawn when the mouse is hovering.
     int overlayer;
     int* scriptComparator;
     int* scriptOperand;

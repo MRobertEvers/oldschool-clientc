@@ -114,7 +114,52 @@ local function init_ui()
         Game.GameCache.convert_sequences_from_buildcachedat()
         _G.sequences_loaded_flag = true
     end
+
+    -- Create the incremental UITree loader (replaces the old synchronous call).
     Game.UI.load_revconfig_ui()
+
+    -- Step the loader in a loop, fulfilling any on-demand asset requests.
+    local loader_result = Game.UI.step_loader()
+    while loader_result ~= nil do
+        local kind = loader_result[1]
+        print("kind: " .. tostring(kind))
+        if kind == "sprite" then
+            -- 2D media jagfile needed (not yet loaded).
+            local mj = CacheDat.load_archive(
+                CacheDat.Tables.CACHE_DAT_CONFIGS,
+                CacheDat.ConfigDatKind.CONFIG_DAT_MEDIA_2D_GRAPHICS, 0)
+            Game.BuildCacheDat.set_2d_media_jagfile(mj)
+        elseif kind == "interface" then
+            -- Interface components needed (e.g., layout siblings reference missing roots).
+            -- loader_result[2] may be a batch array of component ids; load full archive once.
+            if not _G.interfaces_loaded_flag then
+                local iface_archive = CacheDat.load_archive(
+                    CacheDat.Tables.CACHE_DAT_CONFIGS,
+                    CacheDat.ConfigDatKind.CONFIG_DAT_INTERFACES, 0)
+                Game.Game.load_interfaces(iface_archive)
+                Game.Game.load_component_sprites()
+                Game.GameCache.convert_components_from_buildcachedat()
+                _G.interfaces_loaded_flag = true
+            end
+        elseif kind == "model" then
+            -- A specific model is needed for a model component.
+            local model_id = loader_result[2]
+            if not Game.BuildCacheDat.model_cache_has(model_id) then
+                local archives = CacheDat.load_archives({
+                    {
+                        table_id = CacheDat.Tables.CACHE_DAT_MODELS,
+                        archive_id = model_id,
+                        flags = 0
+                    },
+                })
+                Game.BuildCacheDat.model_cache_add(archives[1], model_id)
+            end
+        else
+            print("UITreeLoader: unexpected asset kind: " .. tostring(kind))
+            break
+        end
+        loader_result = Game.UI.step_loader()
+    end
 
     -- Models are baked into Scene2 elements; free decoded models from RAM.
     -- Component defs (CacheDatConfigComponent) must stay: IF_SETTAB / UPDATE_INV_FULL

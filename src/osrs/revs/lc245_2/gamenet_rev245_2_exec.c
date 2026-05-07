@@ -932,6 +932,9 @@ gamenet_rev245_2_exec_if_setcolour_v1(
     case UIELEM_RS_TEXT:
         c->u.rs_text.color = rgb;
         break;
+    case UIELEM_RS_INV_TEXT:
+        c->inv_text_color = rgb;
+        break;
     case UIELEM_RS_RECT:
         c->u.rs_rect.color = rgb;
         break;

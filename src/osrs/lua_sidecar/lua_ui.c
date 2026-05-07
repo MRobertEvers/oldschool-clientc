@@ -12,6 +12,7 @@
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
 #include "osrs/revconfig/uitree_load.h"
+#include "osrs/revconfig/uitree_loader.h"
 #include "osrs/rs_component_state.h"
 #include "osrs/world.h"
 #include "tori_rs.h"
@@ -341,6 +342,7 @@ LuaUI_load_revconfig_ui(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
 {
+    (void)buildcachedat;
     (void)args;
     if( !game || !game->pending_revconfig || !game->ui_root_buffer || !game->ui_scene )
     {
@@ -352,7 +354,16 @@ LuaUI_load_revconfig_ui(
         return LuaGameType_NewVoid();
     }
 
-    uitree_load_ui_from_revconfig(
+    /* Free any stale loader from a previous (possibly interrupted) load. */
+    if( game->pending_uitree_loader )
+    {
+        uitree_loader_free(game->pending_uitree_loader);
+        game->pending_uitree_loader = NULL;
+    }
+
+    /* Create the incremental loader.  The revconfig buffer is consumed here;
+     * step_loader() drives it to completion. */
+    game->pending_uitree_loader = uitree_loader_new(
         game->ui_root_buffer,
         game->ui_scene,
         game->scene2,
@@ -360,11 +371,123 @@ LuaUI_load_revconfig_ui(
         game,
         game->pending_revconfig);
 
-    revconfig_buffer_free(game->pending_revconfig);
-    game->pending_revconfig = NULL;
-
-    if( game->world && game->world->minimap )
-        LibToriRS_WorldMinimapStaticRebuild(game);
+    if( !game->pending_uitree_loader )
+    {
+        revconfig_buffer_free(game->pending_revconfig);
+        game->pending_revconfig = NULL;
+    }
 
     return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaUI_step_loader(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)buildcachedat;
+    (void)args;
+
+    if( !game || !game->pending_uitree_loader )
+        return LuaGameType_NewVoid(); /* nil — loader not active */
+
+    /* Drain the loader until it needs an asset or finishes. */
+    enum UITreeLoaderStatus status;
+    do
+    {
+        status = uitree_loader_step(game->pending_uitree_loader);
+    } while( status == UITREE_LOADER_RUNNING );
+
+    if( status == UITREE_LOADER_DONE )
+    {
+        uitree_loader_free(game->pending_uitree_loader);
+        game->pending_uitree_loader = NULL;
+
+        /* Free the revconfig buffer now that loading is complete. */
+        if( game->pending_revconfig )
+        {
+            revconfig_buffer_free(game->pending_revconfig);
+            game->pending_revconfig = NULL;
+        }
+
+        if( game->world && game->world->minimap )
+            LibToriRS_WorldMinimapStaticRebuild(game);
+
+        return LuaGameType_NewVoid(); /* nil — done */
+    }
+
+    if( status == UITREE_LOADER_ERROR )
+    {
+        uitree_loader_free(game->pending_uitree_loader);
+        game->pending_uitree_loader = NULL;
+        if( game->pending_revconfig )
+        {
+            revconfig_buffer_free(game->pending_revconfig);
+            game->pending_revconfig = NULL;
+        }
+        static char err_str[] = "error";
+        return LuaGameType_NewString(err_str, (int)(sizeof(err_str) - 1));
+    }
+
+    /* UITREE_LOADER_NEEDS_ASSET — return descriptor to Lua. */
+    struct UITreeLoaderAssetRequest req =
+        uitree_loader_pending_asset(game->pending_uitree_loader);
+
+    /* Return a VarTypeArray: { kind_string, name_or_id_or_ids }
+     * Lua reads result[1] for kind and result[2] for the identifier:
+     * string (sprite/font), int (model), or VarTypeArray of ints (interface batch). */
+    struct LuaGameType* arr = LuaGameType_NewVarTypeArray(2);
+
+    static const char* kind_names[] = {
+        [UITREE_ASSET_NONE]      = "none",
+        [UITREE_ASSET_SPRITE]    = "sprite",
+        [UITREE_ASSET_INTERFACE] = "interface",
+        [UITREE_ASSET_MODEL]     = "model",
+        [UITREE_ASSET_FONT]      = "font",
+    };
+    int kind_idx = (int)req.kind;
+    const char* kind_name =
+        (kind_idx >= 0 && kind_idx < (int)(sizeof(kind_names) / sizeof(kind_names[0])))
+            ? kind_names[kind_idx]
+            : "unknown";
+
+    LuaGameType_VarTypeArrayPush(
+        arr, LuaGameType_NewString((char*)kind_name, (int)strlen(kind_name)));
+
+    switch( req.kind )
+    {
+    case UITREE_ASSET_SPRITE:
+        LuaGameType_VarTypeArrayPush(
+            arr,
+            LuaGameType_NewString(req.u.sprite.name, (int)strlen(req.u.sprite.name)));
+        break;
+    case UITREE_ASSET_INTERFACE:
+    {
+        int n = req.u.interface_file.count;
+        if( n <= 0 )
+        {
+            LuaGameType_VarTypeArrayPush(arr, LuaGameType_NewInt(0));
+            break;
+        }
+        struct LuaGameType* id_arr = LuaGameType_NewVarTypeArray(n);
+        for( int i = 0; i < n; i++ )
+            LuaGameType_VarTypeArrayPush(
+                id_arr, LuaGameType_NewInt(req.u.interface_file.component_ids[i]));
+        LuaGameType_VarTypeArrayPush(arr, id_arr);
+        break;
+    }
+    case UITREE_ASSET_MODEL:
+        LuaGameType_VarTypeArrayPush(arr, LuaGameType_NewInt(req.u.model.model_id));
+        break;
+    case UITREE_ASSET_FONT:
+        LuaGameType_VarTypeArrayPush(
+            arr, LuaGameType_NewString(req.u.font.name, (int)strlen(req.u.font.name)));
+        break;
+    default:
+        LuaGameType_VarTypeArrayPush(arr, LuaGameType_NewInt(0));
+        break;
+    }
+
+    return arr;
 }

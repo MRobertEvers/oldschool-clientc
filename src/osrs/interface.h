@@ -93,6 +93,15 @@ interface_draw_component_inv(
     int stride);
 
 void
+interface_draw_component_inv_text(
+    struct GGame* game,
+    struct GameCacheComponent* component,
+    int x,
+    int y,
+    int* pixel_buffer,
+    int stride);
+
+void
 interface_draw_component_model(
     struct GGame* game,
     struct GameCacheComponent* component,
@@ -113,6 +122,7 @@ interface_draw_scrollbar(
     int stride);
 
 // Find topmost component id that has (overlayer >= 0 || overColour != 0) and contains (mouse_x, mouse_y).
+// Root may be COMPONENT_TYPE_LAYER (walks children) or a single non-layer component at (root_x, root_y).
 // Used by interface_update_region_hover_ids per Client.ts addComponentOptions.
 int
 interface_find_hovered_interface_id(
@@ -202,6 +212,10 @@ interface_expand_if_text_placeholders(
 void
 interface_update_region_hover_ids(struct GGame* game);
 
+/** Recompute iface->current_hovered_interface_id from over_main / over_side / over_chat (main > side > chat). */
+void
+interface_sync_aggregate_hovered_interface_id(struct GGame* game);
+
 struct UITreeOptionSet;
 
 /** Sidebar cache inv minimenu when UITree does not supply rows: Client.ts addComponentOptions uses
@@ -224,6 +238,11 @@ interface_hover_tooltip_line(struct GGame* game, char* out, int out_cap);
 /** True if component_id matches any region overlay hover id (Client.ts TEXT/RECT hovered). */
 bool
 interface_component_is_overlay_hovered(struct GGame* game, int component_id);
+
+/** True for overlay-driven activeGraphic / overColour when either `component_id` matches `over_*`,
+ * or gamecache `overlayer` on this component equals a region overlay id (spellbook / IF remap). */
+bool
+interface_component_overlay_hover_for_draw(struct GGame* game, int component_id);
 
 // Get default (left-click) action for an inventory slot from menu logic (Client.ts order + sort)
 int

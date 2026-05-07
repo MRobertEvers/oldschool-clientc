@@ -1,4 +1,6 @@
 #include "uitree_load.h"
+#include "uitree_load_private.h"
+#include "uitree_loader.h"
 
 #include "bmp.h"
 #include "graphics/dash.h"
@@ -40,100 +42,8 @@ uitree_load_debug_log_subtree_watch_id(struct UITree* ui)
     uitree_debug_log_subtree_for_component_id(ui, UITREE_DEBUG_SUBTREE_COMPONENT_ID);
 }
 
-struct SpriteEntry
-{
-    char name[64]; // Key must be first field and fixed size for DashMap
-    struct DashSprite** sprites;
-    int count;
-    int id;
-};
-
-struct ComponentEntry
-{
-    char name[64]; // Key must be first field and fixed size for DashMap
-    enum StaticUIComponentType type;
-    int sprite_id;
-    int sprite_index;
-    int sprite_id_active;
-    int sprite_index_active;
-    int id;
-    /** Default position from component INI when [layout] omits x/y for this component. */
-    int def_x;
-    int def_y;
-    int width;
-    int height;
-    int anchor_x;
-    int anchor_y;
-    int tabno;
-    int componentno;
-    char inv[64];
-    char font[64];
-    uint8_t level_mask;
-    struct ChatUILayout chat_layout;
-    uint16_t chat_geom_mask;
-    struct MinimenuIniRegions minimenu_regions;
-    /** Resolved from INI `hotspot_offset` for [component:crosshair]; default 8. */
-    int crosshair_hotspot_offset;
-};
-
-enum SpriteLoad_AtlasMode
-{
-    SPRITELOAD_ATLAS_MODE_INDEX,
-    SPRITELOAD_ATLAS_MODE_COUNT,
-};
-
-struct SpriteLoad
-{
-    char name[64];
-    char table[64];
-    char archive[64];
-    char container[64];
-    char index_filename[64];
-    char data_filename[64];
-    char format[16];
-
-    enum SpriteLoad_AtlasMode atlas_mode;
-    int atlas_index;
-    int atlas_count;
-
-    char transforms[5][32];
-    int transform_count;
-
-    int crop_x;
-    int crop_y;
-    int crop_width;
-    int crop_height;
-};
-
-struct ComponentLoad
-{
-    char name[64];
-    char type[64];
-    char sprite[64];
-    char sprite_active[64];
-    /** Parsed from component INI `x=` / `y=` (revconfig maps these to UILAYOUT_* opcodes). */
-    int def_x;
-    int def_y;
-    int width;
-    int height;
-    int anchor_x;
-    int anchor_y;
-    int tabno;
-    int componentno;
-    char inv[64];
-    char paint_levels[64];
-    char font[64];
-    struct ChatUILayout chat_geom;
-    uint16_t chat_geom_mask;
-    char minimenu_region_viewport[64];
-    char minimenu_region_sidebar[64];
-    char minimenu_region_chat[64];
-    char minimenu_place_viewport_max[64];
-    char minimenu_place_sidebar_max[64];
-    char minimenu_place_chat_max[64];
-    int crosshair_hotspot_offset;
-    uint8_t crosshair_hotspot_offset_set;
-};
+/* SpriteEntry, ComponentEntry, SpriteLoad_AtlasMode, SpriteLoad, ComponentLoad
+ * are now defined in uitree_load_private.h */
 
 /** Comma-separated level indices 0-7, optional inclusive ranges "lo-hi" -> bitmask; empty -> 0xF.
  */
@@ -201,59 +111,8 @@ parse_paint_levels_mask(const char* str)
     return (uint8_t)m;
 }
 
-#define MAX_LAYOUT_ENTRIES 128
-
-struct LayoutItem
-{
-    char component[64];
-    int x;
-    int y;
-    int flags;
-    int top;
-    int right;
-    int bottom;
-    int left;
-    int width;
-    int height;
-    int anchor_x;
-    int anchor_y;
-    uint8_t always_dirty;
-};
-
-struct LayoutLoad
-{
-    char name[64];
-    struct LayoutItem entries[MAX_LAYOUT_ENTRIES];
-    int entry_count;
-};
-
-enum LoadKind
-{
-    LOAD_KIND_NONE,
-    LOAD_KIND_SPRITE,
-    LOAD_KIND_COMPONENT,
-    LOAD_KIND_LAYOUT,
-    LOAD_KIND_INV
-};
-
-struct InvLoad
-{
-    char name[64];
-    int item_ids[UI_INVENTORY_MAX_ITEMS];
-    int item_count;
-};
-
-struct CurrentLoad
-{
-    enum LoadKind kind;
-    union
-    {
-        struct SpriteLoad _sprite;
-        struct ComponentLoad _component;
-        struct LayoutLoad _layout;
-        struct InvLoad _inv;
-    };
-};
+/* MAX_LAYOUT_ENTRIES, LayoutItem, LayoutLoad, LoadKind, InvLoad, CurrentLoad
+ * are now defined in uitree_load_private.h */
 
 static struct DashSprite*
 load_sprite_pix8(
@@ -873,7 +732,6 @@ uiscene_attach_sprite_row(
     if( eid < 0 )
     {
         fprintf(stderr, "uiscene_attach_sprite_row: UIScene full; cannot register sprite row\n");
-        abort();
         return -1;
     }
     struct UISceneElement* el = uiscene_element_at(ui_scene, eid);
@@ -1096,6 +954,50 @@ uitree_rs_model_refresh_from_gamecache(struct GGame* game, int component_id)
     c->is_dirty = 1;
 }
 
+/** TYPE_INV_TEXT often sits next to TYPE_INV; server UPDATE_INV_FULL targets the INV id only. */
+static struct GameCacheComponent*
+layer_find_peer_type_inv(
+    struct GameCache* bcd,
+    struct GameCacheComponent const* layer,
+    struct GameCacheComponent const* inv_text)
+{
+    if( !bcd || !layer || !inv_text || layer->type != COMPONENT_TYPE_LAYER || !layer->children )
+        return NULL;
+    if( inv_text->type != COMPONENT_TYPE_INV_TEXT )
+        return NULL;
+    for( int i = 0; i < layer->children_count; i++ )
+    {
+        int chid = layer->children[i];
+        struct GameCacheComponent* ch = gamecache_get_component(bcd, chid);
+        if( !ch || ch->id == inv_text->id )
+            continue;
+        if( ch->type != COMPONENT_TYPE_INV )
+            continue;
+        if( ch->width == inv_text->width && ch->height == inv_text->height )
+            return ch;
+    }
+    return NULL;
+}
+
+/** Named component sprite -> UIScene element id. Lazy loads register on BuildCacheDat only;
+ * gamecache is updated when Lua runs `gamecache_convert_reftables_from_buildcachedat`, so
+ * standalone / harness paths fall back to buildcachedat after lazy load. */
+static int
+uitree_resolve_component_sprite_uiscene_element(
+    struct GGame* game,
+    struct GameCache* gc,
+    const char* sprite_name)
+{
+    if( !sprite_name || sprite_name[0] == '\0' )
+        return -1;
+    int e = gamecache_get_component_sprite_element_id(gc, sprite_name);
+    if( e >= 0 )
+        return e;
+    if( game && game->buildcachedat )
+        return buildcachedat_get_component_sprite_element_id(game->buildcachedat, sprite_name);
+    return -1;
+}
+
 static void
 push_rs_from_cache_component(
     struct GGame* game,
@@ -1107,13 +1009,25 @@ push_rs_from_cache_component(
     struct GameCacheComponent* comp,
     int abs_x,
     int abs_y,
-    int sidebar_inv_index)
+    int sidebar_inv_index,
+    struct GameCacheComponent* layer_parent_comp)
 {
     if( !comp || !bcd || !ui || !ui_scene )
         return;
 
     if( comp->hide && comp->type != COMPONENT_TYPE_LAYER )
         return;
+
+    /* `uitree_load_single_component_tree_from_gamecache` calls with parent_uitree_idx==-1 and
+     * abs_x=abs_y=0. Fold the root component's IF offset (comp->x/y). Expand_* callers pass
+     * parent>=0 with abs already including root->x (e.g. bx=sx+root->x) — do not add twice. */
+    int px = abs_x;
+    int py = abs_y;
+    if( parent_uitree_idx < 0 )
+    {
+        px = abs_x + comp->x;
+        py = abs_y + comp->y;
+    }
 
     switch( comp->type )
     {
@@ -1125,8 +1039,8 @@ push_rs_from_cache_component(
             comp->id,
             comp->scroll,
             comp->hide ? 1 : 0,
-            abs_x,
-            abs_y,
+            px,
+            py,
             comp->width,
             comp->height);
         uitree_translate_agnostic_fields(ui, lid, comp);
@@ -1137,10 +1051,10 @@ push_rs_from_cache_component(
             struct GameCacheComponent* ch = gamecache_get_component(bcd, comp->children[i]);
             if( !ch )
                 continue;
-            int cx = abs_x + comp->childX[i] + ch->x;
-            int cy = abs_y + comp->childY[i] + ch->y;
+            int cx = px + comp->childX[i] + ch->x;
+            int cy = py + comp->childY[i] + ch->y;
             push_rs_from_cache_component(
-                game, ui, ui_scene, scene2, bcd, lid, ch, cx, cy, sidebar_inv_index);
+                game, ui, ui_scene, scene2, bcd, lid, ch, cx, cy, sidebar_inv_index, comp);
         }
     }
     break;
@@ -1156,8 +1070,8 @@ push_rs_from_cache_component(
             comp->activeOverColour,
             comp->alpha,
             comp->fill ? 1 : 0,
-            abs_x,
-            abs_y,
+            px,
+            py,
             comp->width,
             comp->height);
         uitree_translate_agnostic_fields(ui, rid, comp);
@@ -1169,12 +1083,12 @@ push_rs_from_cache_component(
         struct DashSprite* g1 = NULL;
         if( comp->graphic && comp->graphic[0] != '\0' )
         {
-            int e0 = gamecache_get_component_sprite_element_id(bcd, comp->graphic);
+            int e0 = uitree_resolve_component_sprite_uiscene_element(game, bcd, comp->graphic);
             if( e0 < 0 && game )
             {
                 buildcachedat_loader_load_component_sprite_lazy(
                     game->buildcachedat, ui_scene, game, comp->graphic);
-                e0 = gamecache_get_component_sprite_element_id(bcd, comp->graphic);
+                e0 = uitree_resolve_component_sprite_uiscene_element(game, bcd, comp->graphic);
             }
             if( e0 >= 0 )
             {
@@ -1185,12 +1099,12 @@ push_rs_from_cache_component(
         }
         if( comp->activeGraphic && comp->activeGraphic[0] != '\0' )
         {
-            int e1 = gamecache_get_component_sprite_element_id(bcd, comp->activeGraphic);
+            int e1 = uitree_resolve_component_sprite_uiscene_element(game, bcd, comp->activeGraphic);
             if( e1 < 0 && game )
             {
                 buildcachedat_loader_load_component_sprite_lazy(
                     game->buildcachedat, ui_scene, game, comp->activeGraphic);
-                e1 = gamecache_get_component_sprite_element_id(bcd, comp->activeGraphic);
+                e1 = uitree_resolve_component_sprite_uiscene_element(game, bcd, comp->activeGraphic);
             }
             if( e1 >= 0 )
             {
@@ -1237,8 +1151,8 @@ push_rs_from_cache_component(
             0,
             sid_a,
             atlas_a,
-            abs_x,
-            abs_y,
+            px,
+            py,
             comp->width,
             comp->height);
         uitree_translate_agnostic_fields(ui, gid, comp);
@@ -1259,8 +1173,8 @@ push_rs_from_cache_component(
             comp->shadowed ? 1 : 0,
             comp->text,
             comp->activeText,
-            abs_x,
-            abs_y,
+            px,
+            py,
             comp->width,
             comp->height);
         uitree_translate_agnostic_fields(ui, tid, comp);
@@ -1275,13 +1189,21 @@ push_rs_from_cache_component(
     case COMPONENT_TYPE_INV_TEXT:
     case COMPONENT_TYPE_INV:
     {
+        struct GameCacheComponent* inv_text_peer = NULL;
+        struct GameCacheComponent* inv_pool_key_comp = comp;
+        if( comp->type == COMPONENT_TYPE_INV_TEXT && sidebar_inv_index < 0 && layer_parent_comp &&
+            layer_parent_comp->type == COMPONENT_TYPE_LAYER )
+            inv_text_peer = layer_find_peer_type_inv(bcd, layer_parent_comp, comp);
+        if( inv_text_peer )
+            inv_pool_key_comp = inv_text_peer;
+
         int bg_sid[UI_INV_SLOT_OFFSET_MAX];
         int bg_ai[UI_INV_SLOT_OFFSET_MAX];
         int effective_inv_index = sidebar_inv_index;
         if( effective_inv_index < 0 && game && game->inv_pool )
         {
-            effective_inv_index =
-                uitree_inv_pool_find_or_append_by_component_id(game->inv_pool, comp->id);
+            effective_inv_index = uitree_inv_pool_find_or_append_by_component_id(
+                game->inv_pool, inv_pool_key_comp->id);
         }
         for( int si = 0; si < UI_INV_SLOT_OFFSET_MAX; si++ )
         {
@@ -1295,13 +1217,13 @@ push_rs_from_cache_component(
                 char const* gname = comp->invSlotGraphic[si];
                 if( !gname || gname[0] == '\0' )
                     continue;
-                int ge = gamecache_get_component_sprite_element_id(bcd, gname);
+                int ge = uitree_resolve_component_sprite_uiscene_element(game, bcd, gname);
                 if( ge < 0 )
                 {
                     /* Sprite not yet loaded; try lazy-loading from media. */
                     buildcachedat_loader_load_component_sprite_lazy(
                         game->buildcachedat, ui_scene, game, gname);
-                    ge = gamecache_get_component_sprite_element_id(bcd, gname);
+                    ge = uitree_resolve_component_sprite_uiscene_element(game, bcd, gname);
                     if( ge < 0 )
                         continue;
                 }
@@ -1325,29 +1247,51 @@ push_rs_from_cache_component(
                 bg_ai[si] = 0;
             }
         }
-        int32_t iid = uitree_push_rs_inv(
-            ui,
-            parent_uitree_idx,
-            comp->id,
-            effective_inv_index,
-            comp->width,
-            comp->height,
-            comp->marginX,
-            comp->marginY,
-            comp->invSlotOffsetX,
-            comp->invSlotOffsetY,
-            bg_sid,
-            bg_ai,
-            abs_x,
-            abs_y,
-            comp->width,
-            comp->height);
+        int32_t iid = (comp->type == COMPONENT_TYPE_INV_TEXT)
+                          ? uitree_push_rs_inv_text(
+                                ui,
+                                parent_uitree_idx,
+                                comp->id,
+                                effective_inv_index,
+                                comp->width,
+                                comp->height,
+                                comp->marginX,
+                                comp->marginY,
+                                comp->invSlotOffsetX,
+                                comp->invSlotOffsetY,
+                                bg_sid,
+                                bg_ai,
+                                px,
+                                py,
+                                comp->width,
+                                comp->height)
+                          : uitree_push_rs_inv(
+                                ui,
+                                parent_uitree_idx,
+                                comp->id,
+                                effective_inv_index,
+                                comp->width,
+                                comp->height,
+                                comp->marginX,
+                                comp->marginY,
+                                comp->invSlotOffsetX,
+                                comp->invSlotOffsetY,
+                                bg_sid,
+                                bg_ai,
+                                px,
+                                py,
+                                comp->width,
+                                comp->height);
 
         /* Pre-fill inventory items from cache component data (e.g., rune icons in magic-book
          * tooltip). Mirrors gamenet_rev245_2_exec_update_inv_full_v1 logic. */
         if( game && game->inv_pool && effective_inv_index >= 0 &&
             effective_inv_index < game->inv_pool->count )
         {
+            struct GameCacheComponent* prefill_src = comp;
+            if( comp->type == COMPONENT_TYPE_INV_TEXT && inv_text_peer )
+                prefill_src = inv_text_peer;
+
             struct UIInventory* inv = &game->inv_pool->inventories[effective_inv_index];
             /* invSlotObjId / invSlotObjCount are sized width*height in config_component.c, not
              * UI_INV_SLOT_OFFSET_MAX (that limit applies to invSlotGraphic / offsets only). */
@@ -1358,12 +1302,13 @@ push_rs_from_cache_component(
                 inv_obj_slots = UI_INVENTORY_MAX_ITEMS;
             for( int si = 0; si < inv_obj_slots; si++ )
             {
-                if( comp->invSlotObjId && comp->invSlotObjId[si] > 0 )
+                if( prefill_src->invSlotObjId && prefill_src->invSlotObjId[si] > 0 )
                 {
-                    int obj_id = comp->invSlotObjId[si] - 1;
-                    int obj_count = comp->invSlotObjCount ? comp->invSlotObjCount[si] : 1;
+                    int obj_id = prefill_src->invSlotObjId[si] - 1;
+                    int obj_count =
+                        prefill_src->invSlotObjCount ? prefill_src->invSlotObjCount[si] : 1;
                     struct UIInventoryItem* item = &inv->items[si];
-                    item->obj_id = comp->invSlotObjId[si];
+                    item->obj_id = prefill_src->invSlotObjId[si];
                     item->obj_count = obj_count > 0 ? obj_count : 1;
                     /* Pre-cache the sprite so it's available during render. */
                     struct DashSprite* cached = obj_icon_get(game, obj_id, item->obj_count);
@@ -1394,6 +1339,20 @@ push_rs_from_cache_component(
         }
 
         uitree_translate_agnostic_fields(ui, iid, comp);
+        if( comp->type == COMPONENT_TYPE_INV_TEXT && iid >= 0 &&
+            (uint32_t)iid < ui->component_count )
+        {
+            ui->components[iid].inv_text_peer_inv_component_id =
+                inv_text_peer ? inv_text_peer->id : -1;
+            if( ui_scene && bcd )
+            {
+                int resolved = ensure_font_id(ui_scene, bcd, comp->font);
+                ui->components[iid].inv_text_font_id = resolved;
+                ui->components[iid].inv_text_color = comp->colour;
+                ui->components[iid].inv_text_center = comp->center ? 1 : 0;
+                ui->components[iid].inv_text_shadowed = comp->shadowed ? 1 : 0;
+            }
+        }
     }
     break;
     case COMPONENT_TYPE_MODEL:
@@ -1404,13 +1363,35 @@ push_rs_from_cache_component(
         if( comp->modelType != 0 )
             eid = build_rs_scene2_element_for_model_component(game, scene2, bcd, comp);
         int32_t mid = uitree_push_rs_model(
-            ui, parent_uitree_idx, comp->id, eid, abs_x, abs_y, comp->width, comp->height);
+            ui, parent_uitree_idx, comp->id, eid, px, py, comp->width, comp->height);
         uitree_translate_agnostic_fields(ui, mid, comp);
     }
     break;
     default:
         break;
     }
+}
+
+int
+uitree_load_single_component_tree_from_gamecache(
+    struct GGame* game,
+    struct UITree* ui,
+    struct UIScene* ui_scene,
+    struct Scene2* scene2,
+    struct GameCache* gamecache,
+    int component_root_id)
+{
+    if( !game || !ui || !ui_scene || !gamecache || component_root_id < 0 )
+        return -1;
+    if( ui->component_count != 0 )
+        return -2;
+    struct GameCacheComponent* root = gamecache_get_component(gamecache, component_root_id);
+    if( !root )
+        return -1;
+    push_rs_from_cache_component(
+        game, ui, ui_scene, scene2, gamecache, -1, root, 0, 0, -1, NULL);
+    uitree_load_debug_log_subtree_watch_id(ui);
+    return 0;
 }
 
 static void
@@ -1435,7 +1416,7 @@ expand_sidebar_rs_tree(
     int bx = sx + root->x;
     int by = sy + root->y;
     push_rs_from_cache_component(
-        game, ui, ui_scene, scene2, bcd, sidebar_idx, root, bx, by, inv_index);
+        game, ui, ui_scene, scene2, bcd, sidebar_idx, root, bx, by, inv_index, NULL);
     uitree_load_debug_log_subtree_watch_id(ui);
 }
 
@@ -1461,7 +1442,7 @@ expand_chat_dialog_rs_tree(
     int bx = sx + root->x;
     int by = sy + root->y;
     push_rs_from_cache_component(
-        game, ui, ui_scene, scene2, bcd, chat_dialog_idx, root, bx, by, inv_index);
+        game, ui, ui_scene, scene2, bcd, chat_dialog_idx, root, bx, by, inv_index, NULL);
     uitree_load_debug_log_subtree_watch_id(ui);
 }
 
@@ -1487,7 +1468,7 @@ expand_sidebar_overlay_rs_tree(
     int bx = sx + root->x;
     int by = sy + root->y;
     push_rs_from_cache_component(
-        game, ui, ui_scene, scene2, bcd, sidebar_overlay_idx, root, bx, by, inv_index);
+        game, ui, ui_scene, scene2, bcd, sidebar_overlay_idx, root, bx, by, inv_index, NULL);
     uitree_load_debug_log_subtree_watch_id(ui);
 }
 
@@ -1513,7 +1494,7 @@ expand_viewport_overlay_rs_tree(
     int bx = sx + root->x;
     int by = sy + root->y;
     push_rs_from_cache_component(
-        game, ui, ui_scene, scene2, bcd, viewport_overlay_idx, root, bx, by, inv_index);
+        game, ui, ui_scene, scene2, bcd, viewport_overlay_idx, root, bx, by, inv_index, NULL);
     uitree_load_debug_log_subtree_watch_id(ui);
 }
 
@@ -2000,592 +1981,36 @@ uitree_from_revconfig_buildcachedat(
     struct GGame* game,
     struct RevConfigBuffer* revconfig_buffer)
 {
-    struct CurrentLoad load = { 0 };
-
-    if( ui )
+    /* Reimplemented as a simple synchronous loop over the incremental loader.
+     * In this legacy call-path all assets are expected to be pre-loaded, so the
+     * loader should never return UITREE_LOADER_NEEDS_ASSET.  If it does, we log
+     * and stop early (tree will be incomplete). */
+    struct UITreeLoader* loader =
+        uitree_loader_new(ui, ui_scene, scene2, inv_pool, game, revconfig_buffer);
+    if( !loader )
     {
-        ui->component_count = 0;
-        ui->root_index = -1;
+        fprintf(stderr, "uitree_from_revconfig_buildcachedat: out of memory\n");
+        return;
     }
 
-    struct DashMapConfig sprite_config = {
-        .buffer = malloc(1024 * sizeof(struct SpriteEntry)),
-        .buffer_size = 1024 * sizeof(struct SpriteEntry),
-        .key_size = 64, // Max sprite name length
-        .entry_size = sizeof(struct SpriteEntry),
-    };
-    struct DashMap* sprite_hmap = dashmap_new(&sprite_config, 0);
+    enum UITreeLoaderStatus status;
+    while( (status = uitree_loader_step(loader)) == UITREE_LOADER_RUNNING )
+        ; /* drain */
 
-    struct DashMapConfig component_config = {
-        .buffer = malloc(1024 * sizeof(struct ComponentEntry)),
-        .buffer_size = 1024 * sizeof(struct ComponentEntry),
-        .key_size = 64, // Max component name length
-        .entry_size = sizeof(struct ComponentEntry),
-    };
-    struct DashMap* component_hmap = dashmap_new(&component_config, 0);
-
-    for( uint32_t i = 0; i < revconfig_buffer->field_count; i++ )
+    if( status == UITREE_LOADER_NEEDS_ASSET )
     {
-        struct RevConfigField* field = &revconfig_buffer->fields[i];
-        switch( field->kind )
-        {
-        case RCFIELD_ITEMTYPE:
-        {
-            uint32_t k = load_kind(field->value);
-            load.kind = (enum LoadKind)k;
-            if( load.kind == LOAD_KIND_INV )
-                memset(&load._inv, 0, sizeof(load._inv));
-        }
-        break;
-        case RCFIELD_ITEMNAME:
-            on_itemname(&load, field->value);
-            break;
-        case RCFIELD_ITEMDONE:
-            load_item(&load, sprite_hmap, component_hmap, ui, ui_scene, scene2, inv_pool, game);
-            load.kind = LOAD_KIND_NONE;
-            memset(&load, 0, sizeof(load));
-            break;
-        case RCFIELD_CACHE_TABLE:
-            strncpy(load._sprite.table, field->value, sizeof(load._sprite.table) - 1);
-            break;
-        case RCFIELD_CACHE_ARCHIVE:
-            strncpy(load._sprite.archive, field->value, sizeof(load._sprite.archive) - 1);
-            break;
-        case RCFIELD_CACHE_CONTAINER:
-            strncpy(load._sprite.container, field->value, sizeof(load._sprite.container) - 1);
-            break;
-        case RCFIELD_CACHE_INDEX_FILENAME:
-            strncpy(
-                load._sprite.index_filename, field->value, sizeof(load._sprite.index_filename) - 1);
-            break;
-        case RCFIELD_CACHE_DATA_FILENAME:
-            strncpy(
-                load._sprite.data_filename, field->value, sizeof(load._sprite.data_filename) - 1);
-            break;
-        case RCFIELD_CACHE_FORMAT:
-            strncpy(load._sprite.format, field->value, sizeof(load._sprite.format) - 1);
-            break;
-        case RCFIELD_CACHE_ATLAS_INDEX:
-            load._sprite.atlas_mode = SPRITELOAD_ATLAS_MODE_INDEX;
-            load._sprite.atlas_index = atoi(field->value);
-            break;
-        case RCFIELD_CACHE_ATLAS_COUNT:
-            load._sprite.atlas_mode = SPRITELOAD_ATLAS_MODE_COUNT;
-            load._sprite.atlas_count = atoi(field->value);
-            break;
-        case RCFIELD_CACHE_TRANSFORM:
-            if( load._sprite.transform_count < 5 )
-            {
-                strncpy(
-                    load._sprite.transforms[load._sprite.transform_count],
-                    field->value,
-                    sizeof(load._sprite.transforms[load._sprite.transform_count]) - 1);
-                load._sprite.transform_count++;
-            }
-            else
-            {
-                assert(0 && "Too many transforms specified for sprite");
-            }
-            break;
-        case RCFIELD_CACHE_CROP_X:
-        {
-            assert(
-                load.kind == LOAD_KIND_SPRITE && "CACHE_CROP_X field must be within a sprite item");
-            load._sprite.crop_x = atoi(field->value);
-        }
-        break;
-        case RCFIELD_CACHE_CROP_Y:
-        {
-            assert(
-                load.kind == LOAD_KIND_SPRITE && "CACHE_CROP_Y field must be within a sprite item");
-            load._sprite.crop_y = atoi(field->value);
-        }
-        break;
-        case RCFIELD_CACHE_CROP_WIDTH:
-        {
-            assert(
-                load.kind == LOAD_KIND_SPRITE &&
-                "CACHE_CROP_WIDTH field must be within a sprite item");
-            load._sprite.crop_width = atoi(field->value);
-        }
-        break;
-        case RCFIELD_CACHE_CROP_HEIGHT:
-        {
-            assert(
-                load.kind == LOAD_KIND_SPRITE &&
-                "CACHE_CROP_HEIGHT field must be within a sprite item");
-            load._sprite.crop_height = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UICOMPONENT_TYPE:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "UICOMPONENT_TYPE field must be within a component item");
-            strncpy(load._component.type, field->value, sizeof(load._component.type) - 1);
-        }
-        break;
-        case RCFIELD_UICOMPONENT_SPRITE:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "UICOMPONENT_SPRITE field must be within a component item");
-            strncpy(load._component.sprite, field->value, sizeof(load._component.sprite) - 1);
-        }
-        break;
-        case RCFIELD_UICOMPONENT_WIDTH:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "UICOMPONENT_WIDTH field must be within a component item");
-            load._component.width = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UICOMPONENT_HEIGHT:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "UICOMPONENT_HEIGHT field must be within a component item");
-            load._component.height = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UICOMPONENT_ANCHOR_X:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "UICOMPONENT_ANCHOR_X field must be within a component item");
-            load._component.anchor_x = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UICOMPONENT_ANCHOR_Y:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "UICOMPONENT_ANCHOR_Y field must be within a component item");
-            load._component.anchor_y = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UICOMPONENT_TABNO:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "UICOMPONENT_TABNO field must be within a component item");
-            load._component.tabno = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UICOMPONENT_COMPONENTNO:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "UICOMPONENT_COMPONENTNO field must be within a component item");
-            load._component.componentno = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UICOMPONENT_INV:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "UICOMPONENT_INV field must be within a component item");
-            strncpy(load._component.inv, field->value, sizeof(load._component.inv) - 1);
-            load._component.inv[sizeof(load._component.inv) - 1] = '\0';
-        }
-        break;
-        case RCFIELD_UICOMPONENT_PAINT_LEVELS:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "UICOMPONENT_PAINT_LEVELS field must be within a component item");
-            strncpy(
-                load._component.paint_levels,
-                field->value,
-                sizeof(load._component.paint_levels) - 1);
-            load._component.paint_levels[sizeof(load._component.paint_levels) - 1] = '\0';
-        }
-        break;
-        case RCFIELD_UICOMPONENT_FONT:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "UICOMPONENT_FONT field must be within a component item");
-            strncpy(load._component.font, field->value, sizeof(load._component.font) - 1);
-            load._component.font[sizeof(load._component.font) - 1] = '\0';
-        }
-        break;
-        case RCFIELD_UICOMPONENT_CHATBACK_SCREEN_X:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "CHATBACK_SCREEN_X field must be within a component item");
-            load._component.chat_geom.chatback_screen_x = atoi(field->value);
-            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_CHATBACK_SCREEN_X;
-        }
-        break;
-        case RCFIELD_UICOMPONENT_CHATBACK_SCREEN_Y:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "CHATBACK_SCREEN_Y field must be within a component item");
-            load._component.chat_geom.chatback_screen_y = atoi(field->value);
-            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_CHATBACK_SCREEN_Y;
-        }
-        break;
-        case RCFIELD_UICOMPONENT_CHAT_CLIP_W:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "CHAT_CLIP_W field must be within a component item");
-            load._component.chat_geom.clip_w = atoi(field->value);
-            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_CLIP_W;
-        }
-        break;
-        case RCFIELD_UICOMPONENT_CHAT_CLIP_H:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "CHAT_CLIP_H field must be within a component item");
-            load._component.chat_geom.clip_h = atoi(field->value);
-            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_CLIP_H;
-        }
-        break;
-        case RCFIELD_UICOMPONENT_CHAT_TEXT_X_LOCAL:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "CHAT_TEXT_X_LOCAL field must be within a component item");
-            load._component.chat_geom.text_x_local = atoi(field->value);
-            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_TEXT_X_LOCAL;
-        }
-        break;
-        case RCFIELD_UICOMPONENT_CHAT_SCROLLBAR_X_LOCAL:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "CHAT_SCROLLBAR_X_LOCAL field must be within a component item");
-            load._component.chat_geom.scrollbar_x_local = atoi(field->value);
-            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_SCROLLBAR_X_LOCAL;
-        }
-        break;
-        case RCFIELD_UICOMPONENT_CHAT_SEPARATOR_Y_LOCAL:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "CHAT_SEPARATOR_Y_LOCAL field must be within a component item");
-            load._component.chat_geom.separator_y_local = atoi(field->value);
-            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_SEPARATOR_Y_LOCAL;
-        }
-        break;
-        case RCFIELD_UICOMPONENT_CHAT_SEPARATOR_W:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "CHAT_SEPARATOR_W field must be within a component item");
-            load._component.chat_geom.separator_w = atoi(field->value);
-            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_SEPARATOR_W;
-        }
-        break;
-        case RCFIELD_UICOMPONENT_CHAT_LINE_H:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "CHAT_LINE_H field must be within a component item");
-            load._component.chat_geom.line_h = atoi(field->value);
-            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_LINE_H;
-        }
-        break;
-        case RCFIELD_UICOMPONENT_CHAT_INPUT_LINE_Y_LOCAL:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "CHAT_INPUT_LINE_Y_LOCAL field must be within a component item");
-            load._component.chat_geom.input_line_y_local = atoi(field->value);
-            load._component.chat_geom_mask |= CHAT_LAYOUT_BIT_INPUT_LINE_Y_LOCAL;
-        }
-        break;
-        case RCFIELD_UICOMPONENT_MINIMENU_REGION_VIEWPORT:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "MINIMENU_REGION_VIEWPORT field must be within a component item");
-            strncpy(
-                load._component.minimenu_region_viewport,
-                field->value,
-                sizeof(load._component.minimenu_region_viewport) - 1);
-            load._component
-                .minimenu_region_viewport[sizeof(load._component.minimenu_region_viewport) - 1] =
-                '\0';
-        }
-        break;
-        case RCFIELD_UICOMPONENT_MINIMENU_REGION_SIDEBAR:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "MINIMENU_REGION_SIDEBAR field must be within a component item");
-            strncpy(
-                load._component.minimenu_region_sidebar,
-                field->value,
-                sizeof(load._component.minimenu_region_sidebar) - 1);
-            load._component
-                .minimenu_region_sidebar[sizeof(load._component.minimenu_region_sidebar) - 1] =
-                '\0';
-        }
-        break;
-        case RCFIELD_UICOMPONENT_MINIMENU_REGION_CHAT:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "MINIMENU_REGION_CHAT field must be within a component item");
-            strncpy(
-                load._component.minimenu_region_chat,
-                field->value,
-                sizeof(load._component.minimenu_region_chat) - 1);
-            load._component.minimenu_region_chat[sizeof(load._component.minimenu_region_chat) - 1] =
-                '\0';
-        }
-        break;
-        case RCFIELD_UICOMPONENT_MINIMENU_PLACE_VIEWPORT_MAX:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "MINIMENU_PLACE_VIEWPORT_MAX field must be within a component item");
-            strncpy(
-                load._component.minimenu_place_viewport_max,
-                field->value,
-                sizeof(load._component.minimenu_place_viewport_max) - 1);
-            load._component.minimenu_place_viewport_max
-                [sizeof(load._component.minimenu_place_viewport_max) - 1] = '\0';
-        }
-        break;
-        case RCFIELD_UICOMPONENT_MINIMENU_PLACE_SIDEBAR_MAX:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "MINIMENU_PLACE_SIDEBAR_MAX field must be within a component item");
-            strncpy(
-                load._component.minimenu_place_sidebar_max,
-                field->value,
-                sizeof(load._component.minimenu_place_sidebar_max) - 1);
-            load._component.minimenu_place_sidebar_max
-                [sizeof(load._component.minimenu_place_sidebar_max) - 1] = '\0';
-        }
-        break;
-        case RCFIELD_UICOMPONENT_MINIMENU_PLACE_CHAT_MAX:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "MINIMENU_PLACE_CHAT_MAX field must be within a component item");
-            strncpy(
-                load._component.minimenu_place_chat_max,
-                field->value,
-                sizeof(load._component.minimenu_place_chat_max) - 1);
-            load._component
-                .minimenu_place_chat_max[sizeof(load._component.minimenu_place_chat_max) - 1] =
-                '\0';
-        }
-        break;
-        case RCFIELD_UICOMPONENT_CROSSHAIR_HOTSPOT_OFFSET:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "CROSSHAIR_HOTSPOT_OFFSET field must be within a component item");
-            load._component.crosshair_hotspot_offset = atoi(field->value);
-            load._component.crosshair_hotspot_offset_set = 1;
-        }
-        break;
-        case RCFIELD_INV_ITEM:
-        {
-            assert(load.kind == LOAD_KIND_INV && "INV_ITEM field must be within an inv item");
-            if( load._inv.item_count < UI_INVENTORY_MAX_ITEMS )
-                load._inv.item_ids[load._inv.item_count++] = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UICOMPONENT_SPRITE_ACTIVE:
-        {
-            assert(
-                load.kind == LOAD_KIND_COMPONENT &&
-                "UICOMPONENT_SPRITE_ACTIVE field must be within a component item");
-            strncpy(
-                load._component.sprite_active,
-                field->value,
-                sizeof(load._component.sprite_active) - 1);
-        }
-        break;
-        case RCFIELD_UILAYOUT_COMPONENT:
-        {
-            assert(
-                load.kind == LOAD_KIND_LAYOUT &&
-                "UILAYOUT_COMPONENT field must be within a layout item");
-            if( load._layout.entry_count >= MAX_LAYOUT_ENTRIES )
-            {
-                fprintf(
-                    stderr,
-                    "uitree_load: layout exceeds MAX_LAYOUT_ENTRIES (%d); ignoring extra entries\n",
-                    MAX_LAYOUT_ENTRIES);
-                break;
-            }
-            strncpy(
-                load._layout.entries[load._layout.entry_count].component,
-                field->value,
-                sizeof(load._layout.entries[load._layout.entry_count].component) - 1);
-            load._layout.entries[load._layout.entry_count]
-                .component[sizeof(load._layout.entries[0].component) - 1] = '\0';
-            load._layout.entry_count += 1;
-        }
-        break;
-        case RCFIELD_UILAYOUT_X:
-        {
-            if( load.kind == LOAD_KIND_COMPONENT )
-            {
-                load._component.def_x = atoi(field->value);
-                break;
-            }
-            assert(
-                load._layout.entry_count > 0 &&
-                "UILAYOUT_X field must come after a UILAYOUT_COMPONENT field");
-            assert(
-                load.kind == LOAD_KIND_LAYOUT && "UILAYOUT_X field must be within a layout item");
-            load._layout.entries[load._layout.entry_count - 1].x = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UILAYOUT_Y:
-        {
-            if( load.kind == LOAD_KIND_COMPONENT )
-            {
-                load._component.def_y = atoi(field->value);
-                break;
-            }
-            assert(
-                load._layout.entry_count > 0 &&
-                "UILAYOUT_X field must come after a UILAYOUT_COMPONENT field");
-            assert(
-                load.kind == LOAD_KIND_LAYOUT && "UILAYOUT_Y field must be within a layout item");
-            load._layout.entries[load._layout.entry_count - 1].y = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UILAYOUT_WIDTH:
-        {
-            assert(
-                load._layout.entry_count > 0 &&
-                "UILAYOUT_WIDTH field must come after a UILAYOUT_COMPONENT field");
-            assert(
-                load.kind == LOAD_KIND_LAYOUT &&
-                "UILAYOUT_WIDTH field must be within a layout item");
-            load._layout.entries[load._layout.entry_count - 1].width = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UILAYOUT_HEIGHT:
-        {
-            assert(
-                load._layout.entry_count > 0 &&
-                "UILAYOUT_HEIGHT field must come after a UILAYOUT_COMPONENT field");
-            assert(
-                load.kind == LOAD_KIND_LAYOUT &&
-                "UILAYOUT_HEIGHT field must be within a layout item");
-            load._layout.entries[load._layout.entry_count - 1].height = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UILAYOUT_ANCHOR_X:
-        {
-            assert(
-                load._layout.entry_count > 0 &&
-                "UILAYOUT_ANCHOR_X field must come after a UILAYOUT_COMPONENT field");
-            assert(
-                load.kind == LOAD_KIND_LAYOUT &&
-                "UILAYOUT_ANCHOR_X field must be within a layout item");
-            load._layout.entries[load._layout.entry_count - 1].anchor_x = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UILAYOUT_ANCHOR_Y:
-        {
-            assert(
-                load._layout.entry_count > 0 &&
-                "UILAYOUT_ANCHOR_Y field must come after a UILAYOUT_COMPONENT field");
-            assert(
-                load.kind == LOAD_KIND_LAYOUT &&
-                "UILAYOUT_ANCHOR_Y field must be within a layout item");
-            load._layout.entries[load._layout.entry_count - 1].anchor_y = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UILAYOUT_TOP:
-        {
-            assert(
-                load._layout.entry_count > 0 &&
-                "UILAYOUT_X field must come after a UILAYOUT_COMPONENT field");
-            assert(
-                load.kind == LOAD_KIND_LAYOUT && "UILAYOUT_TOP field must be within a layout item");
-            load._layout.entries[load._layout.entry_count - 1].flags = STATIC_UI_RELATIVE_FLAG_TOP;
-            load._layout.entries[load._layout.entry_count - 1].top = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UILAYOUT_LEFT:
-        {
-            assert(
-                load._layout.entry_count > 0 &&
-                "UILAYOUT_X field must come after a UILAYOUT_COMPONENT field");
-            assert(
-                load.kind == LOAD_KIND_LAYOUT &&
-                "UILAYOUT_LEFT field must be within a layout item");
-            load._layout.entries[load._layout.entry_count - 1].flags = STATIC_UI_RELATIVE_FLAG_LEFT;
-            load._layout.entries[load._layout.entry_count - 1].left = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UILAYOUT_BOTTOM:
-        {
-            assert(
-                load._layout.entry_count > 0 &&
-                "UILAYOUT_X field must come after a UILAYOUT_COMPONENT field");
-            assert(
-                load.kind == LOAD_KIND_LAYOUT &&
-                "UILAYOUT_BOTTOM field must be within a layout item");
-            load._layout.entries[load._layout.entry_count - 1].flags =
-                STATIC_UI_RELATIVE_FLAG_BOTTOM;
-            load._layout.entries[load._layout.entry_count - 1].bottom = atoi(field->value);
-        }
-        break;
-        case RCFIELD_UILAYOUT_RIGHT:
-        {
-            assert(
-                load._layout.entry_count > 0 &&
-                "UILAYOUT_X field must come after a UILAYOUT_COMPONENT field");
-            assert(
-                load.kind == LOAD_KIND_LAYOUT &&
-                "UILAYOUT_RIGHT field must be within a layout item");
-            load._layout.entries[load._layout.entry_count - 1].flags =
-                STATIC_UI_RELATIVE_FLAG_RIGHT;
-            load._layout.entries[load._layout.entry_count - 1].right = atoi(field->value);
-            break;
-        }
-        case RCFIELD_UILAYOUT_DIRTY:
-        {
-            assert(
-                load._layout.entry_count > 0 &&
-                "UILAYOUT_DIRTY must come after a UILAYOUT_COMPONENT field");
-            assert(
-                load.kind == LOAD_KIND_LAYOUT &&
-                "UILAYOUT_DIRTY field must be within a layout item");
-            const char* v = field->value;
-            int truthy = (strcmp(v, "true") == 0) || (strcmp(v, "1") == 0);
-            load._layout.entries[load._layout.entry_count - 1].always_dirty = truthy ? 1u : 0u;
-        }
-        break;
-        }
+        struct UITreeLoaderAssetRequest req = uitree_loader_pending_asset(loader);
+        (void)req;
+        fprintf(
+            stderr,
+            "uitree_from_revconfig_buildcachedat: asset not pre-loaded (kind=%d), "
+            "tree may be incomplete\n",
+            req.kind);
     }
 
-    uitree_resolve_game_uiscene_sprite_ids(game, ui_scene);
-
-    if( ui && uitree_validate_sidebar_tab_layout(ui) != 0 )
-        fprintf(stderr, "uitree_from_revconfig_buildcachedat: sidebar tab layout invalid\n");
-
-    if( ui )
-    {
-        uitree_print_nodes(ui);
-        uitree_load_debug_log_subtree_watch_id(ui);
-    }
-
-    dashmap_free(sprite_hmap);
-    dashmap_free(component_hmap);
-    free(sprite_config.buffer);
-    free(component_config.buffer);
+    uitree_loader_free(loader);
 }
+
 
 int
 uitree_revconfig_collect_inv_obj_ids(
@@ -3473,4 +2898,179 @@ uitree_load_ui_from_revconfig(
     dashmap_free(component_hmap);
     free(sprite_config.buffer);
     free(component_config.buffer);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * uitree_impl_* — non-static wrappers called by uitree_loader.c.
+ * These have access to the static helpers defined above.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+uint32_t
+uitree_impl_load_kind(const char* str)
+{
+    return load_kind(str);
+}
+
+void
+uitree_impl_on_itemname(struct CurrentLoad* load, const char* value)
+{
+    on_itemname(load, value);
+}
+
+void
+uitree_impl_resolve_game_uiscene_sprite_ids(struct GGame* game, struct UIScene* ui_scene)
+{
+    uitree_resolve_game_uiscene_sprite_ids(game, ui_scene);
+}
+
+int
+uitree_impl_load_sprite(
+    struct SpriteLoad*               load,
+    struct DashMap*                  sprite_hmap,
+    struct UITree*                   ui,
+    struct UIScene*                  ui_scene,
+    struct BuildCacheDat*            buildcachedat,
+    struct UITreeLoaderAssetRequest* out_req)
+{
+    if( !buildcachedat || !buildcachedat->cfg_media_jagfile )
+    {
+        if( out_req )
+        {
+            out_req->kind = UITREE_ASSET_SPRITE;
+            strncpy(out_req->u.sprite.name, load->name, sizeof(out_req->u.sprite.name) - 1);
+            out_req->u.sprite.name[sizeof(out_req->u.sprite.name) - 1] = '\0';
+        }
+        return -1;
+    }
+    load_sprite(load, sprite_hmap, ui, ui_scene, buildcachedat);
+    return 0;
+}
+
+int
+uitree_impl_load_component(
+    struct ComponentLoad*            load,
+    struct DashMap*                  sprite_hmap,
+    struct DashMap*                  component_hmap,
+    struct UITree*                   ui,
+    struct UIScene*                  ui_scene,
+    struct GameCache*                gamecache,
+    struct UITreeLoaderAssetRequest* out_req)
+{
+    (void)out_req;
+    load_component(load, sprite_hmap, component_hmap, ui, ui_scene, gamecache);
+    return 0;
+}
+
+int
+uitree_impl_load_layout(
+    struct LayoutLoad*               load,
+    struct DashMap*                  component_hmap,
+    struct UITree*                   ui,
+    struct UIScene*                  ui_scene,
+    struct Scene2*                   scene2,
+    struct GameCache*                gamecache,
+    struct UIInventoryPool*          inv_pool,
+    struct GGame*                    game,
+    struct UITreeLoaderAssetRequest* out_req)
+{
+    /* Before expanding RS subtrees, verify that the required gamecache components
+     * are available for any sidebar/overlay entries.  If any are missing, pause
+     * so the caller can load the interface archive first. */
+    if( gamecache )
+    {
+        int missing_component_ids[UITREE_MAX_INTERFACE_REQUESTS];
+        int missing_count = 0;
+
+        for( int i = 0; i < load->entry_count; i++ )
+        {
+            struct ComponentEntry* ce =
+                dashmap_search(component_hmap, load->entries[i].component, DASHMAP_FIND);
+            if( !ce )
+                continue;
+            if( (ce->type == UIELEM_BUILTIN_SIDEBAR ||
+                 ce->type == UIELEM_BUILTIN_CHAT_DIALOG ||
+                 ce->type == UIELEM_BUILTIN_SIDEBAR_OVERLAY ||
+                 ce->type == UIELEM_BUILTIN_VIEWPORT_OVERLAY) &&
+                ce->componentno > 0 )
+            {
+                struct GameCacheComponent* root =
+                    gamecache_get_component(gamecache, ce->componentno);
+                if( !root )
+                {
+                    int cid = ce->componentno;
+                    int dup = 0;
+                    for( int j = 0; j < missing_count; j++ )
+                    {
+                        if( missing_component_ids[j] == cid )
+                        {
+                            dup = 1;
+                            break;
+                        }
+                    }
+                    if( !dup && missing_count < UITREE_MAX_INTERFACE_REQUESTS )
+                        missing_component_ids[missing_count++] = cid;
+                }
+            }
+        }
+
+        if( missing_count > 0 )
+        {
+            if( out_req )
+            {
+                out_req->kind = UITREE_ASSET_INTERFACE;
+                memcpy(out_req->u.interface_file.component_ids,
+                       missing_component_ids,
+                       (size_t)missing_count * sizeof(int));
+                out_req->u.interface_file.count = missing_count;
+            }
+            return -1;
+        }
+    }
+    load_layout(load, component_hmap, ui, ui_scene, scene2, gamecache, inv_pool, game);
+    return 0;
+}
+
+int
+uitree_impl_load_inv(
+    struct InvLoad*                  il,
+    struct UIInventoryPool*          inv_pool,
+    struct GGame*                    game,
+    struct UIScene*                  ui_scene,
+    struct UITreeLoaderAssetRequest* out_req)
+{
+    (void)out_req;
+    load_inv(il, inv_pool, game, ui_scene);
+    return 0;
+}
+
+int
+uitree_impl_load_item(
+    struct CurrentLoad*              load,
+    struct DashMap*                  sprite_hmap,
+    struct DashMap*                  component_hmap,
+    struct UITree*                   ui,
+    struct UIScene*                  ui_scene,
+    struct Scene2*                   scene2,
+    struct UIInventoryPool*          inv_pool,
+    struct GGame*                    game,
+    struct UITreeLoaderAssetRequest* out_req)
+{
+    switch( load->kind )
+    {
+    case LOAD_KIND_SPRITE:
+        return uitree_impl_load_sprite(
+            &load->_sprite, sprite_hmap, ui, ui_scene, game->buildcachedat, out_req);
+    case LOAD_KIND_COMPONENT:
+        return uitree_impl_load_component(
+            &load->_component, sprite_hmap, component_hmap, ui, ui_scene, game->gamecache,
+            out_req);
+    case LOAD_KIND_LAYOUT:
+        return uitree_impl_load_layout(
+            &load->_layout, component_hmap, ui, ui_scene, scene2, game->gamecache, inv_pool,
+            game, out_req);
+    case LOAD_KIND_INV:
+        return uitree_impl_load_inv(&load->_inv, inv_pool, game, ui_scene, out_req);
+    default:
+        return 0;
+    }
 }

@@ -1176,6 +1176,8 @@ gamecache_convert_models_chunk_from_buildcachedat(
     struct GCModelEntry* e;
     while( (e = (struct GCModelEntry*)dashmap_iter_next(it)) )
     {
+        if( gamecache_get_model(gc, e->id) )
+            continue;
         struct GameCacheModel* m = dup_model_from_cache(e->model);
         if( m )
             gamecache_add_model(gc, e->id, m);

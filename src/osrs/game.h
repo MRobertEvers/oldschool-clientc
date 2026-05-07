@@ -23,6 +23,7 @@
 #include "osrs/player_stats.h"
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
+#include "osrs/revconfig/uitree_loader.h"
 #include "tori_rs_frame_state.h"
 #include "osrs/rs_component_state.h"
 #include "osrs/rsa.h"
@@ -147,6 +148,9 @@ struct GGame
     struct Isaac* random_in;
     struct Isaac* random_out;
     struct rsa rsa;
+
+    /** Incremental UITree loader active during init_ui.lua's step-loop; NULL when idle. */
+    struct UITreeLoader* pending_uitree_loader;
 
     struct UIScene* ui_scene;
     /** Scene2 used for world 3D; textures load here before world exists. world->scene2 points here.

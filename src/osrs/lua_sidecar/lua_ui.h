@@ -54,4 +54,21 @@ LuaUI_load_revconfig_ui(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
+/**
+ * Step the pending UITreeLoader once.
+ *
+ * Returns a userdata array describing the needed asset when status is
+ * UITREE_LOADER_NEEDS_ASSET:
+ *   [0] = string kind tag ("sprite", "interface", "model", "font")
+ *   [1] = string name / int id (kind-dependent)
+ *
+ * Returns nil when the loader is DONE or not active.
+ * Returns the string "error" on loader error.
+ */
+struct LuaGameType*
+LuaUI_step_loader(
+    struct GGame* game,
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
 #endif

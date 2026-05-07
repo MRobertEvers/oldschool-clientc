@@ -172,6 +172,8 @@
         return LuaUI_load_revconfig_inventories(game, bcd, args);
     case LUA_API_UI_LOAD_REVCONFIG_UI:
         return LuaUI_load_revconfig_ui(game, bcd, args);
+    case LUA_API_UI_STEP_LOADER:
+        return LuaUI_step_loader(game, bcd, args);
     case LUA_API_MISC_READ_CULLMAP_FROM_BLOB:
         return LuaSidecarMisc_read_cullmap_from_blob(game, args);
     case LUA_API_MISC_SAVE_CAMERA:
