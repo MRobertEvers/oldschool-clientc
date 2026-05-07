@@ -16,6 +16,7 @@ local handlers = {
     [PKT.IF_SETMODEL_V1]        = RevCache.if_setmodel_v1,
     [PKT.IF_SETANIM_V1]         = RevCache.if_setanim_v1,
     [PKT.IF_SETPLAYERHEAD_V1]   = RevCache.if_setplayerhead_v1,
+    [PKT.IF_OPENCHAT_V1]        = RevCache.if_openchat_v1,
     [PKT.IF_SETNPCHEAD_V1]      = RevCache.if_setnpchead_v1,
     [PKT.UPDATE_INV_PARTIAL_V1] = RevCache.update_inv_partial_v1,
     [PKT.LOC_ADD_CHANGE_V1]     = RevCache.loc_add_change_v1,

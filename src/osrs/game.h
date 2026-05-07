@@ -161,6 +161,10 @@ struct GGame
 
     int uiscene_command_idx;
 
+    /** Set in uitree_resolve_game_uiscene_sprite_ids after cache INI load; -1 = unresolved. */
+    int hitmarks_uiscene_element_id;
+    int hitsplat_damage_font_id;
+
     int cycles_elapsed;
     int cycle;
     int next_notimeout_cycle;
@@ -200,6 +204,11 @@ struct GGame
     struct ChatUILayout chat_layout;
     int chat_layout_valid;
 
+    /** From `[magic_tab:*]` UI INI; spellbook redstone tab (default 6 in LibToriRS_GameNew). */
+    int magic_tab_spellbook_sidebar_tabno;
+    /** From `[magic_tab:*]`; PKTOUT IF_BUTTON for inv_transmit; 0 = do not send. */
+    int magic_tab_inv_transmit_if_button_comp;
+
     /* Per-frame client settings written by clientscript_vm_drain_clientcodes(). */
     int settings_brightness;
     int settings_music_vol;
@@ -230,6 +239,8 @@ struct GGame
     /* Zone state: set by UPDATE_ZONE_* packets; used by zone sub-packets (OBJ/LOC). */
     int zone_base_x;
     int zone_base_z;
+    /** Terrain plane 0..3 for local player (PLAYER_INFO local XZ+level); zone LOC uses this. */
+    uint8_t local_player_plane;
 
     /* Player stats: updated by UPDATE_STAT */
     int player_stat_xp[PLAYER_STAT_COUNT];

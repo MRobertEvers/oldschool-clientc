@@ -138,6 +138,9 @@ struct World
     int _offset_x;
     int _offset_z;
 
+    /** Client.ts selfSlot: UPDATE_PID `local_player_index`; -1 until received. */
+    int local_player_server_slot;
+
     /** Temporary bridge-flag map; allocated in world_rebuild_centerzone_begin, freed in _end. */
     struct FlagMap* _build_flag_map;
 
@@ -181,12 +184,6 @@ world_rebuild_centerzone_begin(
     int zone_center_x,
     int zone_center_z,
     int scene_size);
-
-/** Abort if any 64x64 map chunk in [_chunk_sw_* .. _chunk_ne_*] is missing terrain or scenery.
- * Call only when BuildCacheDat still holds the full grid (e.g. after bulk load, not after
- * incremental Lua rebuild_centerzone_end that clears maps between chunks). */
-void
-world_rebuild_centerzone_verify_buildcachedat_maps(struct World* world);
 
 void
 world_rebuild_centerzone_chunk_terrain(
@@ -256,6 +253,15 @@ world_loc_entity_reload_model(
     int new_loc_id,
     int new_shape,
     int new_angle);
+
+/** After map-build loc Scene2 reload: set painter wall / wall-decor culling sides for this shape
+ * (same side rules as world_scenery). No-op for shapes that do not use wall_* painter slots. */
+void
+world_loc_painter_set_map_build_loc(
+    struct World* world,
+    const struct MapBuildLocEntity* entity,
+    int shape_select,
+    int orientation);
 
 void
 world_cleanup_map_build_tile_entity(

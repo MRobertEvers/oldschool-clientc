@@ -1123,6 +1123,24 @@ gamecache_convert_loc_configs_chunk_from_buildcachedat(
 }
 
 void
+gamecache_convert_one_loc_config_from_buildcachedat(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd,
+    int loc_id)
+{
+    if( !gc || !bcd )
+        return;
+    if( gamecache_get_config_loc(gc, loc_id) )
+        return;
+    struct CacheConfigLocation* src = buildcachedat_get_config_loc(bcd, loc_id);
+    if( !src )
+        return;
+    struct GameCacheLoc* d = dup_loc(src);
+    if( d )
+        gamecache_add_config_loc(gc, loc_id, d);
+}
+
+void
 gamecache_convert_models_chunk_from_buildcachedat(
     struct GameCache* gc,
     struct BuildCacheDat* bcd,

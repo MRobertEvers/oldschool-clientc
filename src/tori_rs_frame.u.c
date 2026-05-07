@@ -5,6 +5,7 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/chat.h"
 #include "osrs/collisionmap_overlay_draw.h"
+#include "osrs/entity_hitsplat_emit.h"
 #include "osrs/entity_pathing_draw.h"
 #include "osrs/game.h"
 #include "osrs/gamenet_send.h"
@@ -489,6 +490,8 @@ frame_uitree_should_descend(
         return false;
     if( c->type == UIELEM_BUILTIN_SIDEBAR )
         return frame_sidebar_tab_active(game, c);
+    if( c->type == UIELEM_BUILTIN_CHAT_DIALOG )
+        return game->iface && game->iface->chat_interface_id >= 0;
     return true;
 }
 
@@ -1870,7 +1873,14 @@ entity_interactable(
         return map_build_loc_entity->interactable;
     }
     case ENTITY_KIND_OBJ_STACK:
-        return false;
+    {
+        int payload = entity_id_from_uid((uint32_t)entity_id);
+        int eid     = entity_obj_stack_eid_from_uid_payload(payload);
+        if( eid < 0 || eid >= entity_vec_count(&world->obj_stack_entities) )
+            return false;
+        struct ObjStackEntity* ost = world_obj_stack_entity(world, eid);
+        return ost && ost->alive;
+    }
     }
     return false;
 }
@@ -1921,7 +1931,8 @@ entity_coords_from_element(
     break;
     case ENTITY_KIND_OBJ_STACK:
     {
-        int oid = entity_id_from_uid(entity_uid);
+        int oid =
+            entity_obj_stack_eid_from_uid_payload(entity_id_from_uid((uint32_t)entity_uid));
         if( oid < 0 || oid >= entity_vec_count(&world->obj_stack_entities) )
             return;
         struct ObjStackEntity* ost = world_obj_stack_entity(world, oid);
@@ -1996,6 +2007,29 @@ uielem_builtin_sidebar_step(
         return true;
 
     /* Active tab: panel is drawn by RS child nodes under this builtin. */
+    return true;
+}
+
+static inline bool
+uielem_builtin_chat_dialog_is_dirty(
+    struct UIFrameState const* fiber,
+    struct StaticUIComponent const* node)
+{
+    (void)fiber;
+    return node->is_dirty;
+}
+
+static bool
+uielem_builtin_chat_dialog_step(
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
+{
+    if( !uielem_builtin_chat_dialog_is_dirty(fiber, node) )
+        return true;
+    struct GGame* game = fiber->game;
+    assert(node->type == UIELEM_BUILTIN_CHAT_DIALOG);
+    (void)game;
+    /* IF_OPENCHAT subtree is drawn by RS children under this builtin (expand_chat_dialog_rs_tree). */
     return true;
 }
 
@@ -2317,7 +2351,8 @@ next:
         if( cull != DASHCULL_VISIBLE )
             break;
 
-        entity_animate(game->world, scene2_element_parent_entity_id(scene_element));
+        uint32_t ent_uid = (uint32_t)scene2_element_parent_entity_id(scene_element);
+        entity_animate(game->world, (int)ent_uid);
 
         /* Mouse-pick: if cursor is over this entity's projected bounds, add it to pickset. */
         if( frame_world_pick_allowed(game) )
@@ -2327,7 +2362,6 @@ next:
             frame_world_pick_pointer_xy(game, &ppx, &ppy);
             int mvx = ppx - game->viewport_offset_x;
             int mvy = ppy - game->viewport_offset_y;
-            uint32_t ent_uid = (uint32_t)scene2_element_parent_entity_id(scene_element);
             if( mvx >= 0 && mvy >= 0 && entity_interactable(game->world, (int)ent_uid) &&
                 dash3d_projected_model_contains(
                     game->sys_dash, ent_model, game->view_port, mvx, mvy) )
@@ -2340,6 +2374,61 @@ next:
                     coords.z,
                     (int)entity_kind_from_uid(ent_uid),
                     entity_id_from_uid(ent_uid));
+            }
+        }
+
+        /* Terrain-only mouse_tile_* misses thin ground items; refresh from live cursor + entity. */
+        if( frame_world_pick_allowed(game) )
+        {
+            int hpx = 0;
+            int hpy = 0;
+            frame_world_hover_pointer_xy(game, &hpx, &hpy);
+            int hmvx = hpx - game->viewport_offset_x;
+            int hmvy = hpy - game->viewport_offset_y;
+            if( hmvx >= 0 && hmvy >= 0 && entity_interactable(game->world, (int)ent_uid) &&
+                dash3d_projected_model_contains(
+                    game->sys_dash, ent_model, game->view_port, hmvx, hmvy) )
+            {
+                enum EntityKind ek = entity_kind_from_uid(ent_uid);
+                if( ek == ENTITY_KIND_PLAYER || ek == ENTITY_KIND_NPC || ek == ENTITY_KIND_MAP_BUILD_LOC ||
+                    ek == ENTITY_KIND_OBJ_STACK )
+                {
+                    struct EntityCoords coords = { -9999, -9999 };
+                    entity_coords_from_element(game->world, (int)ent_uid, &coords);
+                    if( !(coords.x == -9999 && coords.z == -9999) )
+                    {
+                        game->mouse_tile_x = coords.x;
+                        game->mouse_tile_z = coords.z;
+                        if( ek == ENTITY_KIND_OBJ_STACK )
+                        {
+                            int oid = entity_obj_stack_eid_from_uid_payload(
+                                entity_id_from_uid(ent_uid));
+                            if( oid >= 0 && oid < entity_vec_count(&game->world->obj_stack_entities) )
+                            {
+                                struct ObjStackEntity* ost = world_obj_stack_entity(game->world, oid);
+                                if( ost && ost->alive && ost->level >= 0 &&
+                                    ost->level < MAP_TERRAIN_LEVELS )
+                                    game->mouse_tile_level = ost->level;
+                            }
+                        }
+                        else if( ek == ENTITY_KIND_MAP_BUILD_LOC )
+                        {
+                            int lid = entity_id_from_uid(ent_uid);
+                            if( lid >= 0 && lid < entity_vec_count(&game->world->map_build_loc_entities) )
+                            {
+                                struct MapBuildLocEntity* loc = world_loc_entity(game->world, lid);
+                                if( loc )
+                                    game->mouse_tile_level = (int)loc->scene_coord.slevel;
+                            }
+                        }
+                        else if( game->mouse_tile_level < 0 || game->mouse_tile_level >= MAP_TERRAIN_LEVELS )
+                            game->mouse_tile_level = (game->camera_world_y / 240);
+                        if( game->mouse_tile_level < 0 )
+                            game->mouse_tile_level = 0;
+                        if( game->mouse_tile_level >= MAP_TERRAIN_LEVELS )
+                            game->mouse_tile_level = MAP_TERRAIN_LEVELS - 1;
+                    }
+                }
             }
         }
 
@@ -2469,6 +2558,8 @@ world_done:
             frame_emit_pass(fiber, FRAME_PASS_2D);
             entity_pathing_draw_emit(game, game->uiscene_queued_commands);
         }
+        frame_emit_pass(fiber, FRAME_PASS_2D);
+        entity_hitsplat_emit(game, game->uiscene_queued_commands);
         if( game->debug_collisionmap_overlay )
         {
             frame_emit_pass(fiber, FRAME_PASS_2D);
@@ -3014,6 +3105,9 @@ LibToriRS_FrameNextCommand(
         case UIELEM_BUILTIN_SIDEBAR:
             done = uielem_builtin_sidebar_step(&fiber, component);
             break;
+        case UIELEM_BUILTIN_CHAT_DIALOG:
+            done = uielem_builtin_chat_dialog_step(&fiber, component);
+            break;
         case UIELEM_RS_GRAPHIC:
             done = uielem_rs_graphic_step(&fiber, component, cur);
             break;
@@ -3153,7 +3247,7 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
             if( !frame_point_in_component_xy(c, cx, cy) )
                 continue;
             game->iface->selected_tab = c->u.redstone_tab.tabno;
-            if( c->u.redstone_tab.tabno == 6 )
+            if( c->u.redstone_tab.tabno == game->magic_tab_spellbook_sidebar_tabno )
             {
                 interface_magic_tab_request_inv_transmit_if_configured(game);
             }
@@ -3235,7 +3329,7 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
                                 &comp_id, &client_code, &btn_action, &pa, &pb, &pc) )
                 {
                     interface_apply_button_click_varp_optimistic(game, comp_id);
-                    gamenet_send_if_button(game, comp_id);
+                    interface_dispatch_button_action(game, comp_id, btn_action);
                     game->interface_consumed_click = 1;
                 }
             }
@@ -3254,7 +3348,25 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
                     game, root, 4, 4, cx, cy, &comp_id, &client_code, &btn_action, &pa, &pb, &pc) )
             {
                 interface_apply_button_click_varp_optimistic(game, comp_id);
-                gamenet_send_if_button(game, comp_id);
+                interface_dispatch_button_action(game, comp_id, btn_action);
+                game->interface_consumed_click = 1;
+            }
+        }
+
+        /* Chat region (IF_OPENCHAT): Client.ts drawInterface @ (0,0) in chat pixmap -> screen (17,357). */
+        if( !game->interface_consumed_click && cx > 17 && cy > 357 && cx < 426 && cy < 453 &&
+            game->iface->chat_interface_id >= 0 )
+        {
+            struct GameCacheComponent* root =
+                gamecache_get_component(game->gamecache, game->iface->chat_interface_id);
+            int comp_id = -1, client_code = 0, btn_action = 0;
+            int pa = 0, pb = 0, pc = 0;
+            if( root &&
+                interface_find_button_click_at(
+                    game, root, 17, 357, cx, cy, &comp_id, &client_code, &btn_action, &pa, &pb, &pc) )
+            {
+                interface_apply_button_click_varp_optimistic(game, comp_id);
+                interface_dispatch_button_action(game, comp_id, btn_action);
                 game->interface_consumed_click = 1;
             }
         }

@@ -26,7 +26,7 @@ gamenet_rev245_2_send_event_tracking(struct GGame* g);
 void
 gamenet_rev245_2_send_close_modal(struct GGame* g);
 void
-gamenet_rev245_2_send_resume_pausebutton(struct GGame* g);
+gamenet_rev245_2_send_resume_pausebutton(struct GGame* g, int comp_id);
 void
 gamenet_rev245_2_send_resume_p_countdialog(
     struct GGame* g,

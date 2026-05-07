@@ -128,6 +128,8 @@ LibToriRS_GameNew(
 {
     struct GGame* game = malloc(sizeof(struct GGame));
     memset(game, 0, sizeof(struct GGame));
+    game->hitmarks_uiscene_element_id = -1;
+    game->hitsplat_damage_font_id = -1;
     game->debug_entity_pathing = true;
     game->debug_collisionmap_overlay = false;
 
@@ -234,6 +236,8 @@ LibToriRS_GameNew(
     game->buildcache = NULL;
 
     game->iface = interface_state_new();
+    game->magic_tab_spellbook_sidebar_tabno    = 6;
+    game->magic_tab_inv_transmit_if_button_comp = 0;
 
     platform_get_memory_info(&mem);
     {

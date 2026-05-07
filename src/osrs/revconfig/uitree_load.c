@@ -6,10 +6,10 @@
 #include "osrs/_light_model_default.u.c"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
-#include "osrs/gamecache/gamecache.h"
 #include "osrs/dash_utils.h"
 #include "osrs/entity_scenebuild.h"
 #include "osrs/game.h"
+#include "osrs/gamecache/gamecache.h"
 #include "osrs/interface_state.h"
 #include "osrs/minimenu_regions.h"
 #include "osrs/obj_icon.h"
@@ -220,7 +220,16 @@ enum LoadKind
     LOAD_KIND_SPRITE,
     LOAD_KIND_COMPONENT,
     LOAD_KIND_LAYOUT,
-    LOAD_KIND_INV
+    LOAD_KIND_INV,
+    LOAD_KIND_MAGIC_TAB
+};
+
+struct MagicTabLoad
+{
+    int spellbook_sidebar_tabno;
+    int inv_transmit_if_button_comp;
+    uint8_t has_spellbook_sidebar_tabno;
+    uint8_t has_inv_transmit_if_button_comp;
 };
 
 struct InvLoad
@@ -239,6 +248,7 @@ struct CurrentLoad
         struct ComponentLoad _component;
         struct LayoutLoad _layout;
         struct InvLoad _inv;
+        struct MagicTabLoad _magic_tab;
     };
 };
 
@@ -468,6 +478,8 @@ component_type_from_string(const char* str)
         return UIELEM_BUILTIN_CHAT_PRIVACY;
     else if( strcmp(str, "collisionmap_overlay") == 0 )
         return UIELEM_BUILTIN_COLLISIONMAP_OVERLAY;
+    else if( strcmp(str, "chat_dialog") == 0 )
+        return UIELEM_BUILTIN_CHAT_DIALOG;
 
     assert(0 && "Unknown component type");
     return 0;
@@ -706,9 +718,7 @@ load_component(
         component_entry->font[sizeof(component_entry->font) - 1] = '\0';
         chat_layout_builtin(&component_entry->chat_layout);
         chat_layout_apply_mask(
-            &component_entry->chat_layout,
-            &load->chat_geom,
-            load->chat_geom_mask);
+            &component_entry->chat_layout, &load->chat_geom, load->chat_geom_mask);
         component_entry->chat_geom_mask = load->chat_geom_mask;
     }
     break;
@@ -718,9 +728,7 @@ load_component(
         component_entry->font[sizeof(component_entry->font) - 1] = '\0';
         memset(&component_entry->chat_layout, 0, sizeof(component_entry->chat_layout));
         chat_layout_apply_mask(
-            &component_entry->chat_layout,
-            &load->chat_geom,
-            load->chat_geom_mask);
+            &component_entry->chat_layout, &load->chat_geom, load->chat_geom_mask);
         component_entry->chat_geom_mask = load->chat_geom_mask;
     }
     break;
@@ -732,6 +740,10 @@ load_component(
         component_entry->crosshair_hotspot_offset = ho;
     }
     break;
+    case UIELEM_BUILTIN_CHAT_DIALOG:
+        component_entry->width = load->width > 0 ? load->width : 409;
+        component_entry->height = load->height > 0 ? load->height : 96;
+        break;
     default:
         break;
     }
@@ -765,8 +777,8 @@ load_inv(
 
         if( game && ui_scene && obj_id > 0 )
         {
-            /* INI item= uses 1-based wire ids like invSlotObjId / Client.ts linkObjType; obj_icon_get
-             * expects 0-based (see gameproto UPDATE_INV_FULL + interface_draw). */
+            /* INI item= uses 1-based wire ids like invSlotObjId / Client.ts linkObjType;
+             * obj_icon_get expects 0-based (see gameproto UPDATE_INV_FULL + interface_draw). */
             struct DashSprite* cached = obj_icon_get(game, obj_id - 1, 1);
             if( cached )
             {
@@ -865,27 +877,27 @@ uiscene_attach_sprite_row(
  */
 static void
 uitree_translate_agnostic_fields(
-    struct UITree*                  tree,
-    int32_t                         node_idx,
+    struct UITree* tree,
+    int32_t node_idx,
     struct GameCacheComponent* cc)
 {
     if( node_idx < 0 || (uint32_t)node_idx >= tree->component_count || !cc )
         return;
     struct StaticUIComponent* c = &tree->components[node_idx];
 
-    c->button_kind  = (enum UIButtonKind)cc->buttonType;
-    c->click_mask   = cc->targetMask;
+    c->button_kind = (enum UIButtonKind)cc->buttonType;
+    c->click_mask = cc->targetMask;
     c->interactable = cc->interactable ? 1 : 0;
-    c->usable       = cc->usable       ? 1 : 0;
-    c->swappable    = cc->swappable    ? 1 : 0;
-    c->draggable    = cc->draggable    ? 1 : 0;
-    c->alpha        = cc->alpha;
-    c->overlayer    = cc->overlayer;
-    c->client_code  = cc->clientCode;
-    c->anim_id      = cc->anim;
+    c->usable = cc->usable ? 1 : 0;
+    c->swappable = cc->swappable ? 1 : 0;
+    c->draggable = cc->draggable ? 1 : 0;
+    c->alpha = cc->alpha;
+    c->overlayer = cc->overlayer;
+    c->client_code = cc->clientCode;
+    c->anim_id = cc->anim;
     c->active_anim_id = cc->activeAnim;
-    c->seq_frame    = cc->seqFrame;
-    c->seq_cycle    = cc->seqCycle;
+    c->seq_frame = cc->seqFrame;
+    c->seq_cycle = cc->seqCycle;
 
     /* Script bytecode. */
     int n = cc->scripts_count;
@@ -894,13 +906,13 @@ uitree_translate_agnostic_fields(
     {
         c->scripts = calloc((size_t)n, sizeof(struct UIScriptBytecode));
         c->script_comparator = calloc((size_t)n, sizeof(uint8_t));
-        c->script_operand    = calloc((size_t)n, sizeof(int));
+        c->script_operand = calloc((size_t)n, sizeof(int));
         if( c->scripts && c->script_comparator && c->script_operand )
         {
             for( int i = 0; i < n; i++ )
             {
                 int len = cc->scripts_lengths[i];
-                c->scripts[i].len  = len;
+                c->scripts[i].len = len;
                 c->scripts[i].code = NULL;
                 if( len > 0 && cc->scripts[i] )
                 {
@@ -910,8 +922,7 @@ uitree_translate_agnostic_fields(
                 }
                 c->script_comparator[i] =
                     cc->scriptComparator ? (uint8_t)cc->scriptComparator[i] : 0;
-                c->script_operand[i] =
-                    cc->scriptOperand    ? cc->scriptOperand[i] : 0;
+                c->script_operand[i] = cc->scriptOperand ? cc->scriptOperand[i] : 0;
             }
         }
         else
@@ -919,12 +930,15 @@ uitree_translate_agnostic_fields(
             /* Allocation failure: release partial. */
             if( c->scripts )
             {
-                for( int i = 0; i < n; i++ ) free(c->scripts[i].code);
+                for( int i = 0; i < n; i++ )
+                    free(c->scripts[i].code);
                 free(c->scripts);
             }
             free(c->script_comparator);
             free(c->script_operand);
-            c->scripts = NULL; c->script_comparator = NULL; c->script_operand = NULL;
+            c->scripts = NULL;
+            c->script_comparator = NULL;
+            c->script_operand = NULL;
             c->scripts_count = 0;
         }
     }
@@ -935,9 +949,133 @@ uitree_translate_agnostic_fields(
         const char* src = (cc->iop && cc->iop[k]) ? cc->iop[k] : NULL;
         c->iop[k] = src ? strdup(src) : NULL;
     }
-    c->option      = cc->option      ? strdup(cc->option)      : NULL;
-    c->target_verb = cc->targetVerb  ? strdup(cc->targetVerb)  : NULL;
-    c->target_text = cc->targetText  ? strdup(cc->targetText)  : NULL;
+    c->option = cc->option ? strdup(cc->option) : NULL;
+    c->target_verb = cc->targetVerb ? strdup(cc->targetVerb) : NULL;
+    c->target_text = cc->targetText ? strdup(cc->targetText) : NULL;
+
+    if( c->type == UIELEM_RS_MODEL )
+    {
+        c->u.rs_model.model_zoom = cc->zoom;
+        c->u.rs_model.model_xan = cc->xan;
+        c->u.rs_model.model_yan = cc->yan;
+    }
+}
+
+/** Build Scene2 element for RS_MODEL from GameCacheComponent; returns element id or -1. */
+static int
+build_rs_scene2_element_for_model_component(
+    struct GGame* game,
+    struct Scene2* scene2,
+    struct GameCache* bcd,
+    struct GameCacheComponent* comp)
+{
+    if( !game || !scene2 || !bcd || !comp )
+        return -1;
+
+    struct DashModel* m               = NULL;
+    enum Scene2ElementCategory mcat = SCENE2_ELEMENT_SCENERY;
+
+    if( comp->modelType == 1 )
+    {
+        struct GameCacheModel* cache_model = gamecache_get_model(bcd, comp->model);
+        if( !cache_model )
+            return -1;
+        struct GameCacheModel* model_copy = gamecache_model_new_copy(cache_model);
+        m = dashmodel_new_from_gamecache_model(model_copy);
+        gamecache_model_free(model_copy);
+        if( !m )
+            return -1;
+        _light_model_default(m, 0, 0);
+        mcat = SCENE2_ELEMENT_SCENERY;
+    }
+    else if( comp->modelType == 2 || comp->modelType == 3 )
+    {
+        int* slots = NULL;
+        int* colors = NULL;
+        if( comp->modelType == 3 && game->world )
+        {
+            struct PlayerEntity* local = world_player(game->world, ACTIVE_PLAYER_SLOT);
+            if( local->alive )
+            {
+                slots  = local->appearance.slots;
+                colors = local->appearance.colors;
+            }
+        }
+        m = entity_scenebuild_head_model_for_component(
+            game, comp->modelType, comp->model, slots, colors);
+        if( !m )
+            return -1;
+        mcat = (comp->modelType == 3) ? SCENE2_ELEMENT_PLAYER : SCENE2_ELEMENT_NPC;
+    }
+    else if( comp->modelType == 4 )
+    {
+        m = obj_icon_new_dash_model_for_obj(game, comp->model);
+        if( !m )
+            return -1;
+        mcat = SCENE2_ELEMENT_SCENERY;
+    }
+    else
+        return -1;
+
+    int eid = scene2_element_acquire_full(scene2, -1, mcat, 0, 0);
+    struct Scene2Element* se = scene2_element_at(scene2, eid);
+    if( !se )
+    {
+        dashmodel_free(m);
+        return -1;
+    }
+    struct DashPosition* pos = dashposition_new();
+    if( !pos )
+    {
+        dashmodel_free(m);
+        scene2_element_release(scene2, eid);
+        return -1;
+    }
+    memset(pos, 0, sizeof(struct DashPosition));
+    scene2_element_set_dash_position_ptr(se, pos);
+    scene2_element_set_dash_model(scene2, se, m);
+    return eid;
+}
+
+void
+uitree_rs_model_refresh_from_gamecache(struct GGame* game, int component_id)
+{
+    if( !game || !game->ui_root_buffer || !game->scene2 || !game->gamecache )
+        return;
+
+    int32_t idx = uitree_find_by_component_id(game->ui_root_buffer, component_id);
+    if( idx < 0 )
+        return;
+    struct StaticUIComponent* c = &game->ui_root_buffer->components[idx];
+    if( c->type != UIELEM_RS_MODEL )
+        return;
+
+    struct GameCacheComponent* comp = gamecache_get_component(game->gamecache, component_id);
+    if( !comp || comp->type != COMPONENT_TYPE_MODEL )
+        return;
+
+    int old_eid = c->u.rs_model.scene2_element_id;
+    if( old_eid >= 0 )
+        scene2_element_release(game->scene2, old_eid);
+    c->u.rs_model.scene2_element_id = -1;
+
+    c->anim_id        = comp->anim;
+    c->active_anim_id = comp->activeAnim;
+    c->u.rs_model.model_zoom = comp->zoom;
+    c->u.rs_model.model_xan  = comp->xan;
+    c->u.rs_model.model_yan  = comp->yan;
+
+    if( comp->modelType == 0 )
+    {
+        c->is_dirty = 1;
+        return;
+    }
+
+    int eid =
+        build_rs_scene2_element_for_model_component(game, game->scene2, game->gamecache, comp);
+    if( eid >= 0 )
+        c->u.rs_model.scene2_element_id = eid;
+    c->is_dirty = 1;
 }
 
 static void
@@ -978,8 +1116,7 @@ push_rs_from_cache_component(
             return;
         for( int i = 0; i < comp->children_count; i++ )
         {
-            struct GameCacheComponent* ch =
-                gamecache_get_component(bcd, comp->children[i]);
+            struct GameCacheComponent* ch = gamecache_get_component(bcd, comp->children[i]);
             if( !ch )
                 continue;
             int cx = abs_x + comp->childX[i] + ch->x;
@@ -1017,7 +1154,8 @@ push_rs_from_cache_component(
             int e0 = gamecache_get_component_sprite_element_id(bcd, comp->graphic);
             if( e0 < 0 && game )
             {
-                buildcachedat_loader_load_component_sprite_lazy(game->buildcachedat, ui_scene, game, comp->graphic);
+                buildcachedat_loader_load_component_sprite_lazy(
+                    game->buildcachedat, ui_scene, game, comp->graphic);
                 e0 = gamecache_get_component_sprite_element_id(bcd, comp->graphic);
             }
             if( e0 >= 0 )
@@ -1143,7 +1281,8 @@ push_rs_from_cache_component(
                 if( ge < 0 )
                 {
                     /* Sprite not yet loaded; try lazy-loading from media. */
-                    buildcachedat_loader_load_component_sprite_lazy(game->buildcachedat, ui_scene, game, gname);
+                    buildcachedat_loader_load_component_sprite_lazy(
+                        game->buildcachedat, ui_scene, game, gname);
                     ge = gamecache_get_component_sprite_element_id(bcd, gname);
                     if( ge < 0 )
                         continue;
@@ -1185,9 +1324,9 @@ push_rs_from_cache_component(
             abs_y,
             comp->width,
             comp->height);
-        
-        /* Pre-fill inventory items from cache component data (e.g., rune icons in magic-book tooltip).
-         * Mirrors gamenet_rev245_2_exec_update_inv_full_v1 logic. */
+
+        /* Pre-fill inventory items from cache component data (e.g., rune icons in magic-book
+         * tooltip). Mirrors gamenet_rev245_2_exec_update_inv_full_v1 logic. */
         if( game && game->inv_pool && effective_inv_index >= 0 &&
             effective_inv_index < game->inv_pool->count )
         {
@@ -1235,7 +1374,7 @@ push_rs_from_cache_component(
                 }
             }
         }
-        
+
         uitree_translate_agnostic_fields(ui, iid, comp);
     }
     break;
@@ -1243,62 +1382,9 @@ push_rs_from_cache_component(
     {
         if( !game || !scene2 )
             return;
-        struct DashModel* m = NULL;
-        enum Scene2ElementCategory mcat = SCENE2_ELEMENT_SCENERY;
-
-        if( comp->modelType == 1 )
-        {
-            struct GameCacheModel* cache_model = gamecache_get_model(bcd, comp->model);
-            if( !cache_model )
-                return;
-            struct GameCacheModel* model_copy = gamecache_model_new_copy(cache_model);
-            m = dashmodel_new_from_gamecache_model(model_copy);
-            gamecache_model_free(model_copy);
-            if( !m )
-                return;
-            _light_model_default(m, 0, 0);
-            mcat = SCENE2_ELEMENT_SCENERY;
-        }
-        else if( comp->modelType == 2 || comp->modelType == 3 )
-        {
-            int* slots = NULL;
-            int* colors = NULL;
-            if( comp->modelType == 3 && game->world )
-            {
-                struct PlayerEntity* local = world_player(game->world, ACTIVE_PLAYER_SLOT);
-                if( local->alive )
-                {
-                    slots = local->appearance.slots;
-                    colors = local->appearance.colors;
-                }
-            }
-            m = entity_scenebuild_head_model_for_component(
-                game, comp->modelType, comp->model, slots, colors);
-            if( !m )
-                return;
-            mcat = (comp->modelType == 3) ? SCENE2_ELEMENT_PLAYER : SCENE2_ELEMENT_NPC;
-        }
-        else
-        {
-            return;
-        }
-
-        int eid = scene2_element_acquire_full(scene2, -1, mcat, 0, 0);
-        struct Scene2Element* se = scene2_element_at(scene2, eid);
-        if( !se )
-        {
-            dashmodel_free(m);
-            return;
-        }
-        struct DashPosition* pos = dashposition_new();
-        if( !pos )
-        {
-            dashmodel_free(m);
-            return;
-        }
-        memset(pos, 0, sizeof(struct DashPosition));
-        scene2_element_set_dash_position_ptr(se, pos);
-        scene2_element_set_dash_model(scene2, se, m);
+        int eid = -1;
+        if( comp->modelType != 0 )
+            eid = build_rs_scene2_element_for_model_component(game, scene2, bcd, comp);
         int32_t mid = uitree_push_rs_model(
             ui, parent_uitree_idx, comp->id, eid, abs_x, abs_y, comp->width, comp->height);
         uitree_translate_agnostic_fields(ui, mid, comp);
@@ -1332,6 +1418,31 @@ expand_sidebar_rs_tree(
     int by = sy + root->y;
     push_rs_from_cache_component(
         game, ui, ui_scene, scene2, bcd, sidebar_idx, root, bx, by, inv_index);
+}
+
+static void
+expand_chat_dialog_rs_tree(
+    struct GGame* game,
+    struct UITree* ui,
+    struct UIScene* ui_scene,
+    struct Scene2* scene2,
+    struct GameCache* bcd,
+    int32_t chat_dialog_idx,
+    int component_no,
+    int inv_index)
+{
+    if( !bcd || component_no < 0 || chat_dialog_idx < 0 ||
+        (uint32_t)chat_dialog_idx >= ui->component_count )
+        return;
+    struct GameCacheComponent* root = gamecache_get_component(bcd, component_no);
+    if( !root )
+        return;
+    int sx = ui->components[chat_dialog_idx].position.x;
+    int sy = ui->components[chat_dialog_idx].position.y;
+    int bx = sx + root->x;
+    int by = sy + root->y;
+    push_rs_from_cache_component(
+        game, ui, ui_scene, scene2, bcd, chat_dialog_idx, root, bx, by, inv_index);
 }
 
 static int
@@ -1479,20 +1590,13 @@ load_layout(
             int font_id = -1;
             if( component_entry->font[0] != '\0' )
             {
-                font_id = gamecache_get_font_ref_id(
-                    buildcachedat,
-                    component_entry->font);
+                font_id = gamecache_get_font_ref_id(buildcachedat, component_entry->font);
                 if( font_id < 0 && ui_scene )
                     font_id = uiscene_font_find_id(ui_scene, component_entry->font);
             }
-            
+
             int32_t idx = uitree_push_hover_tooltip(
-                ui,
-                -1,
-                lx,
-                ly,
-                component_entry->width,
-                component_entry->height);
+                ui, -1, lx, ly, component_entry->width, component_entry->height);
             if( idx >= 0 )
             {
                 ui->components[idx].u.hover_tooltip.font_id = font_id;
@@ -1532,6 +1636,14 @@ load_layout(
             }
         }
         break;
+        case UIELEM_BUILTIN_CHAT_DIALOG:
+        {
+            int32_t idx = uitree_push_builtin_chat_dialog(
+                ui, -1, lx, ly, component_entry->width, component_entry->height);
+            if( layout_entry->always_dirty && idx >= 0 )
+                ui->components[idx].always_dirty = 1;
+        }
+        break;
         case UIELEM_BUILTIN_CHAT_MESSAGES:
         {
             int font_id = uitree_load_resolve_chat_font_id(
@@ -1567,8 +1679,7 @@ load_layout(
                 if( layout_entry->always_dirty )
                     ui->components[idx].always_dirty = 1;
             }
-            if( game &&
-                (component_entry->chat_geom_mask & CHAT_LAYOUT_BIT_INPUT_LINE_Y_LOCAL) )
+            if( game && (component_entry->chat_geom_mask & CHAT_LAYOUT_BIT_INPUT_LINE_Y_LOCAL) )
             {
                 if( !game->chat_layout_valid )
                     chat_layout_builtin(&game->chat_layout);
@@ -1702,6 +1813,8 @@ load_kind(const char* str)
         return LOAD_KIND_LAYOUT;
     else if( strcmp(str, "inv") == 0 )
         return LOAD_KIND_INV;
+    else if( strcmp(str, "magic_tab") == 0 )
+        return LOAD_KIND_MAGIC_TAB;
     return LOAD_KIND_NONE;
 }
 
@@ -1727,17 +1840,20 @@ load_item(
         break;
     case LOAD_KIND_LAYOUT:
         load_layout(
-            &load->_layout,
-            component_hmap,
-            ui,
-            ui_scene,
-            scene2,
-            game->gamecache,
-            inv_pool,
-            game);
+            &load->_layout, component_hmap, ui, ui_scene, scene2, game->gamecache, inv_pool, game);
         break;
     case LOAD_KIND_INV:
         load_inv(&load->_inv, inv_pool, game, ui_scene);
+        break;
+    case LOAD_KIND_MAGIC_TAB:
+        if( game )
+        {
+            struct MagicTabLoad const* m = &load->_magic_tab;
+            if( m->has_spellbook_sidebar_tabno )
+                game->magic_tab_spellbook_sidebar_tabno = m->spellbook_sidebar_tabno;
+            if( m->has_inv_transmit_if_button_comp )
+                game->magic_tab_inv_transmit_if_button_comp = m->inv_transmit_if_button_comp;
+        }
         break;
 
     default:
@@ -1767,29 +1883,38 @@ on_itemname(
     case LOAD_KIND_INV:
         strncpy(load->_inv.name, value, sizeof(load->_inv.name) - 1);
         break;
+    case LOAD_KIND_MAGIC_TAB:
+        break;
     }
 }
 
 static void
-uitree_resolve_game_uiscene_sprite_ids(struct GGame* game, struct UIScene* ui_scene)
+uitree_resolve_game_uiscene_sprite_ids(
+    struct GGame* game,
+    struct UIScene* ui_scene)
 {
     if( !game || !ui_scene || !game->ui_root_buffer )
         return;
-    struct UITree* ui                 = game->ui_root_buffer;
-    ui->ui_scrollbar0_element_id      = uiscene_element_id_by_name(ui_scene, "scrollbar0");
-    ui->ui_scrollbar1_element_id      = uiscene_element_id_by_name(ui_scene, "scrollbar1");
-    ui->ui_minimap_mapdots0_element_id =
-        uiscene_element_id_by_name(ui_scene, "mapdots0");
-    ui->ui_minimap_mapdots1_element_id =
-        uiscene_element_id_by_name(ui_scene, "mapdots1");
-    ui->ui_minimap_mapdots3_element_id =
-        uiscene_element_id_by_name(ui_scene, "mapdots3");
-    ui->ui_minimap_mapdots4_element_id =
-        uiscene_element_id_by_name(ui_scene, "mapdots4");
-    ui->ui_minimap_mapmarker2_element_id =
-        uiscene_element_id_by_name(ui_scene, "mapmarker2");
-    ui->ui_minimap_mapmarker_element_id =
-        uiscene_element_id_by_name(ui_scene, "mapmarker");
+    struct UITree* ui = game->ui_root_buffer;
+    ui->ui_scrollbar0_element_id = uiscene_element_id_by_name(ui_scene, "scrollbar0");
+    ui->ui_scrollbar1_element_id = uiscene_element_id_by_name(ui_scene, "scrollbar1");
+    ui->ui_minimap_mapdots0_element_id = uiscene_element_id_by_name(ui_scene, "mapdots0");
+    ui->ui_minimap_mapdots1_element_id = uiscene_element_id_by_name(ui_scene, "mapdots1");
+    ui->ui_minimap_mapdots3_element_id = uiscene_element_id_by_name(ui_scene, "mapdots3");
+    ui->ui_minimap_mapdots4_element_id = uiscene_element_id_by_name(ui_scene, "mapdots4");
+    ui->ui_minimap_mapmarker2_element_id = uiscene_element_id_by_name(ui_scene, "mapmarker2");
+    ui->ui_minimap_mapmarker_element_id = uiscene_element_id_by_name(ui_scene, "mapmarker");
+
+    game->hitmarks_uiscene_element_id = uiscene_element_id_by_name(ui_scene, "hitmarks");
+
+    {
+        int fid = -1;
+        if( game->gamecache )
+            fid = gamecache_get_font_ref_id(game->gamecache, "p11");
+        if( fid < 0 )
+            fid = uiscene_font_find_id(ui_scene, "p11");
+        game->hitsplat_damage_font_id = fid;
+    }
 }
 
 void
@@ -1836,21 +1961,15 @@ uitree_from_revconfig_buildcachedat(
             load.kind = (enum LoadKind)k;
             if( load.kind == LOAD_KIND_INV )
                 memset(&load._inv, 0, sizeof(load._inv));
+            else if( load.kind == LOAD_KIND_MAGIC_TAB )
+                memset(&load._magic_tab, 0, sizeof(load._magic_tab));
         }
         break;
         case RCFIELD_ITEMNAME:
             on_itemname(&load, field->value);
             break;
         case RCFIELD_ITEMDONE:
-            load_item(
-                &load,
-                sprite_hmap,
-                component_hmap,
-                ui,
-                ui_scene,
-                scene2,
-                inv_pool,
-                game);
+            load_item(&load, sprite_hmap, component_hmap, ui, ui_scene, scene2, inv_pool, game);
             load.kind = LOAD_KIND_NONE;
             memset(&load, 0, sizeof(load));
             break;
@@ -2016,10 +2135,7 @@ uitree_from_revconfig_buildcachedat(
             assert(
                 load.kind == LOAD_KIND_COMPONENT &&
                 "UICOMPONENT_FONT field must be within a component item");
-            strncpy(
-                load._component.font,
-                field->value,
-                sizeof(load._component.font) - 1);
+            strncpy(load._component.font, field->value, sizeof(load._component.font) - 1);
             load._component.font[sizeof(load._component.font) - 1] = '\0';
         }
         break;
@@ -2122,8 +2238,9 @@ uitree_from_revconfig_buildcachedat(
                 load._component.minimenu_region_viewport,
                 field->value,
                 sizeof(load._component.minimenu_region_viewport) - 1);
-            load._component.minimenu_region_viewport[sizeof(load._component.minimenu_region_viewport) -
-                                                   1] = '\0';
+            load._component
+                .minimenu_region_viewport[sizeof(load._component.minimenu_region_viewport) - 1] =
+                '\0';
         }
         break;
         case RCFIELD_UICOMPONENT_MINIMENU_REGION_SIDEBAR:
@@ -2135,8 +2252,9 @@ uitree_from_revconfig_buildcachedat(
                 load._component.minimenu_region_sidebar,
                 field->value,
                 sizeof(load._component.minimenu_region_sidebar) - 1);
-            load._component.minimenu_region_sidebar[sizeof(load._component.minimenu_region_sidebar) -
-                                                   1] = '\0';
+            load._component
+                .minimenu_region_sidebar[sizeof(load._component.minimenu_region_sidebar) - 1] =
+                '\0';
         }
         break;
         case RCFIELD_UICOMPONENT_MINIMENU_REGION_CHAT:
@@ -2187,8 +2305,9 @@ uitree_from_revconfig_buildcachedat(
                 load._component.minimenu_place_chat_max,
                 field->value,
                 sizeof(load._component.minimenu_place_chat_max) - 1);
-            load._component.minimenu_place_chat_max[sizeof(load._component.minimenu_place_chat_max) -
-                                                    1] = '\0';
+            load._component
+                .minimenu_place_chat_max[sizeof(load._component.minimenu_place_chat_max) - 1] =
+                '\0';
         }
         break;
         case RCFIELD_UICOMPONENT_CROSSHAIR_HOTSPOT_OFFSET:
@@ -2235,8 +2354,8 @@ uitree_from_revconfig_buildcachedat(
                 load._layout.entries[load._layout.entry_count].component,
                 field->value,
                 sizeof(load._layout.entries[load._layout.entry_count].component) - 1);
-            load._layout.entries[load._layout.entry_count].component
-                [sizeof(load._layout.entries[0].component) - 1] = '\0';
+            load._layout.entries[load._layout.entry_count]
+                .component[sizeof(load._layout.entries[0].component) - 1] = '\0';
             load._layout.entry_count += 1;
         }
         break;
@@ -2374,6 +2493,24 @@ uitree_from_revconfig_buildcachedat(
             const char* v = field->value;
             int truthy = (strcmp(v, "true") == 0) || (strcmp(v, "1") == 0);
             load._layout.entries[load._layout.entry_count - 1].always_dirty = truthy ? 1u : 0u;
+        }
+        break;
+        case RCFIELD_MAGIC_TAB_SPELLBOOK_SIDEBAR_TABNO:
+        {
+            assert(
+                load.kind == LOAD_KIND_MAGIC_TAB &&
+                "MAGIC_TAB_SPELLBOOK_SIDEBAR_TABNO must be within [magic_tab:*]");
+            load._magic_tab.spellbook_sidebar_tabno = atoi(field->value);
+            load._magic_tab.has_spellbook_sidebar_tabno = 1;
+        }
+        break;
+        case RCFIELD_MAGIC_TAB_INV_TRANSMIT_IF_BUTTON_COMP:
+        {
+            assert(
+                load.kind == LOAD_KIND_MAGIC_TAB &&
+                "MAGIC_TAB_INV_TRANSMIT_IF_BUTTON_COMP must be within [magic_tab:*]");
+            load._magic_tab.inv_transmit_if_button_comp = atoi(field->value);
+            load._magic_tab.has_inv_transmit_if_button_comp = 1;
         }
         break;
         }
@@ -2458,6 +2595,8 @@ uitree_load_inventories_from_revconfig(
             load.kind = (enum LoadKind)k;
             if( load.kind == LOAD_KIND_INV )
                 memset(&load._inv, 0, sizeof(load._inv));
+            else if( load.kind == LOAD_KIND_MAGIC_TAB )
+                memset(&load._magic_tab, 0, sizeof(load._magic_tab));
         }
         break;
         case RCFIELD_ITEMNAME:
@@ -2467,8 +2606,30 @@ uitree_load_inventories_from_revconfig(
         case RCFIELD_ITEMDONE:
             if( load.kind == LOAD_KIND_INV )
                 load_inv(&load._inv, inv_pool, game, ui_scene);
+            else if( load.kind == LOAD_KIND_MAGIC_TAB && game )
+            {
+                struct MagicTabLoad const* m = &load._magic_tab;
+                if( m->has_spellbook_sidebar_tabno )
+                    game->magic_tab_spellbook_sidebar_tabno = m->spellbook_sidebar_tabno;
+                if( m->has_inv_transmit_if_button_comp )
+                    game->magic_tab_inv_transmit_if_button_comp = m->inv_transmit_if_button_comp;
+            }
             load.kind = LOAD_KIND_NONE;
             memset(&load, 0, sizeof(load));
+            break;
+        case RCFIELD_MAGIC_TAB_SPELLBOOK_SIDEBAR_TABNO:
+            if( load.kind == LOAD_KIND_MAGIC_TAB )
+            {
+                load._magic_tab.spellbook_sidebar_tabno = atoi(field->value);
+                load._magic_tab.has_spellbook_sidebar_tabno = 1;
+            }
+            break;
+        case RCFIELD_MAGIC_TAB_INV_TRANSMIT_IF_BUTTON_COMP:
+            if( load.kind == LOAD_KIND_MAGIC_TAB )
+            {
+                load._magic_tab.inv_transmit_if_button_comp = atoi(field->value);
+                load._magic_tab.has_inv_transmit_if_button_comp = 1;
+            }
             break;
         case RCFIELD_INV_ITEM:
             if( load.kind == LOAD_KIND_INV && load._inv.item_count < UI_INVENTORY_MAX_ITEMS )
@@ -2478,6 +2639,44 @@ uitree_load_inventories_from_revconfig(
             break;
         }
     }
+}
+
+static int32_t
+uitree_find_chat_dialog_builtin(struct UITree* ui)
+{
+    if( !ui )
+        return -1;
+    for( uint32_t i = 0; i < ui->component_count; i++ )
+    {
+        if( ui->components[i].type == UIELEM_BUILTIN_CHAT_DIALOG )
+            return (int32_t)i;
+    }
+    return -1;
+}
+
+void
+uitree_expand_chat_dialog_for_interface(
+    struct GGame* game,
+    int component_id)
+{
+    if( !game || !game->ui_root_buffer || !game->ui_scene || !game->gamecache )
+        return;
+
+    struct UITree* ui = game->ui_root_buffer;
+    int32_t cd_idx = uitree_find_chat_dialog_builtin(ui);
+    if( cd_idx < 0 )
+        return;
+
+    uitree_clear_chat_dialog_children(ui, cd_idx);
+
+    if( component_id >= 0 )
+    {
+        expand_chat_dialog_rs_tree(
+            game, ui, game->ui_scene, game->scene2, game->gamecache, cd_idx, component_id, -1);
+    }
+
+    ui->components[cd_idx].is_dirty = 1;
+    uitree_mark_all_dirty(ui);
 }
 
 void
@@ -2538,11 +2737,11 @@ uitree_debug_log_sidebar_state(
     if( !enabled || !game || !game->iface || !game->ui_root_buffer )
         return;
 
-    struct UITree* ui               = game->ui_root_buffer;
-    int32_t sidebar_idx             = -1;
-    int iface_tid                   = -999;
-    int fc                          = -1;
-    int cno                         = -999;
+    struct UITree* ui = game->ui_root_buffer;
+    int32_t sidebar_idx = -1;
+    int iface_tid = -999;
+    int fc = -1;
+    int cno = -999;
 
     if( tab_id >= 0 && tab_id < 14 )
         iface_tid = game->iface->tab_interface_id[tab_id];
@@ -2555,8 +2754,8 @@ uitree_debug_log_sidebar_state(
             if( c->type == UIELEM_BUILTIN_SIDEBAR && c->u.sidebar.tabno == tab_id )
             {
                 sidebar_idx = (int32_t)i;
-                fc          = c->first_child;
-                cno         = c->u.sidebar.componentno;
+                fc = c->first_child;
+                cno = c->u.sidebar.componentno;
                 break;
             }
         }
@@ -2614,6 +2813,8 @@ uitree_load_ui_from_revconfig(
             load.kind = (enum LoadKind)k;
             if( load.kind == LOAD_KIND_INV )
                 memset(&load._inv, 0, sizeof(load._inv));
+            else if( load.kind == LOAD_KIND_MAGIC_TAB )
+                memset(&load._magic_tab, 0, sizeof(load._magic_tab));
         }
         break;
         case RCFIELD_ITEMNAME:
@@ -2621,15 +2822,7 @@ uitree_load_ui_from_revconfig(
             break;
         case RCFIELD_ITEMDONE:
             if( load.kind != LOAD_KIND_INV )
-                load_item(
-                    &load,
-                    sprite_hmap,
-                    component_hmap,
-                    ui,
-                    ui_scene,
-                    scene2,
-                    inv_pool,
-                    game);
+                load_item(&load, sprite_hmap, component_hmap, ui, ui_scene, scene2, inv_pool, game);
             load.kind = LOAD_KIND_NONE;
             memset(&load, 0, sizeof(load));
             break;
@@ -2795,10 +2988,7 @@ uitree_load_ui_from_revconfig(
             assert(
                 load.kind == LOAD_KIND_COMPONENT &&
                 "UICOMPONENT_FONT field must be within a component item");
-            strncpy(
-                load._component.font,
-                field->value,
-                sizeof(load._component.font) - 1);
+            strncpy(load._component.font, field->value, sizeof(load._component.font) - 1);
             load._component.font[sizeof(load._component.font) - 1] = '\0';
         }
         break;
@@ -2901,8 +3091,9 @@ uitree_load_ui_from_revconfig(
                 load._component.minimenu_region_viewport,
                 field->value,
                 sizeof(load._component.minimenu_region_viewport) - 1);
-            load._component.minimenu_region_viewport[sizeof(load._component.minimenu_region_viewport) -
-                                                   1] = '\0';
+            load._component
+                .minimenu_region_viewport[sizeof(load._component.minimenu_region_viewport) - 1] =
+                '\0';
         }
         break;
         case RCFIELD_UICOMPONENT_MINIMENU_REGION_SIDEBAR:
@@ -2914,8 +3105,9 @@ uitree_load_ui_from_revconfig(
                 load._component.minimenu_region_sidebar,
                 field->value,
                 sizeof(load._component.minimenu_region_sidebar) - 1);
-            load._component.minimenu_region_sidebar[sizeof(load._component.minimenu_region_sidebar) -
-                                                   1] = '\0';
+            load._component
+                .minimenu_region_sidebar[sizeof(load._component.minimenu_region_sidebar) - 1] =
+                '\0';
         }
         break;
         case RCFIELD_UICOMPONENT_MINIMENU_REGION_CHAT:
@@ -2966,8 +3158,9 @@ uitree_load_ui_from_revconfig(
                 load._component.minimenu_place_chat_max,
                 field->value,
                 sizeof(load._component.minimenu_place_chat_max) - 1);
-            load._component.minimenu_place_chat_max[sizeof(load._component.minimenu_place_chat_max) -
-                                                    1] = '\0';
+            load._component
+                .minimenu_place_chat_max[sizeof(load._component.minimenu_place_chat_max) - 1] =
+                '\0';
         }
         break;
         case RCFIELD_UICOMPONENT_CROSSHAIR_HOTSPOT_OFFSET:
@@ -3014,8 +3207,8 @@ uitree_load_ui_from_revconfig(
                 load._layout.entries[load._layout.entry_count].component,
                 field->value,
                 sizeof(load._layout.entries[load._layout.entry_count].component) - 1);
-            load._layout.entries[load._layout.entry_count].component
-                [sizeof(load._layout.entries[0].component) - 1] = '\0';
+            load._layout.entries[load._layout.entry_count]
+                .component[sizeof(load._layout.entries[0].component) - 1] = '\0';
             load._layout.entry_count += 1;
         }
         break;
@@ -3153,6 +3346,24 @@ uitree_load_ui_from_revconfig(
             const char* v = field->value;
             int truthy = (strcmp(v, "true") == 0) || (strcmp(v, "1") == 0);
             load._layout.entries[load._layout.entry_count - 1].always_dirty = truthy ? 1u : 0u;
+        }
+        break;
+        case RCFIELD_MAGIC_TAB_SPELLBOOK_SIDEBAR_TABNO:
+        {
+            assert(
+                load.kind == LOAD_KIND_MAGIC_TAB &&
+                "MAGIC_TAB_SPELLBOOK_SIDEBAR_TABNO must be within [magic_tab:*]");
+            load._magic_tab.spellbook_sidebar_tabno = atoi(field->value);
+            load._magic_tab.has_spellbook_sidebar_tabno = 1;
+        }
+        break;
+        case RCFIELD_MAGIC_TAB_INV_TRANSMIT_IF_BUTTON_COMP:
+        {
+            assert(
+                load.kind == LOAD_KIND_MAGIC_TAB &&
+                "MAGIC_TAB_INV_TRANSMIT_IF_BUTTON_COMP must be within [magic_tab:*]");
+            load._magic_tab.inv_transmit_if_button_comp = atoi(field->value);
+            load._magic_tab.has_inv_transmit_if_button_comp = 1;
         }
         break;
         }

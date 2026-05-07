@@ -79,6 +79,13 @@ gamecache_convert_loc_configs_chunk_from_buildcachedat(
     int mapx,
     int mapz);
 
+/** Copy one decoded loc config from BuildCacheDat into GameCache if missing. */
+void
+gamecache_convert_one_loc_config_from_buildcachedat(
+    struct GameCache* gamecache,
+    struct BuildCacheDat* buildcachedat,
+    int loc_id);
+
 /** Merge all decoded models currently in BuildCacheDat into GameCache. mapx/mapz unused (reserved).
  */
 void

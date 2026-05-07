@@ -136,6 +136,55 @@ local function ensure_sequences_loaded()
     _G.sequences_loaded_flag = true
 end
 
+-- Decode loc.dat row + mirror into GameCache + preload models/anims for dynamic LOC packets.
+local function ensure_loc_config_and_assets(loc_id)
+    if not loc_id or loc_id < 0 then
+        return
+    end
+    if not Game.BuildCacheDat.has_config_jagfile() then
+        return
+    end
+    Game.BuildCacheDat.scenery_config_load_loc_from_config_jagfile(loc_id)
+    Game.GameCache.convert_one_loc_config_from_buildcachedat(loc_id)
+    M.load_models(Game.BuildCacheDat.get_loc_model_ids(loc_id))
+    ensure_sequences_loaded()
+    local seq_id = Game.BuildCacheDat.get_loc_seq_id(loc_id)
+    if seq_id and seq_id >= 0 then
+        M.load_anims_for_seq(seq_id)
+    end
+end
+
+-- Preload idk/obj mesh + head models for the local player's current appearance.
+-- Used before IF_OPENCHAT / IF_SETPLAYERHEAD so chat MODEL type 3 can resolve
+-- `gamecache_get_model` (same asset work as player_info_v1, from live slots).
+function M.preload_local_player_head_models()
+    if not Game.BuildCacheDat.has_config_jagfile() then
+        return
+    end
+    Game.BuildCacheDat.idkits_init_from_config_jagfile()
+    Game.BuildCacheDat.objects_init_from_config_jagfile()
+    Game.GameCache.convert_idks_from_buildcachedat()
+    Game.GameCache.convert_objs_from_buildcachedat()
+
+    local slots = Game.Game.get_local_player_appearance_slots()
+    if not slots or #slots == 0 then
+        return
+    end
+    local sources = {}
+    for _, a in ipairs(slots) do
+        if a >= 0x100 and a < 0x200 then
+            local idk_id = a - 0x100
+            sources[#sources + 1] = { Game.BuildCacheDat.get_idk_model_ids, idk_id }
+            sources[#sources + 1] = { Game.BuildCacheDat.get_idk_head_model_ids, idk_id }
+        elseif a >= 0x200 then
+            local obj_id = a - 0x200
+            sources[#sources + 1] = { Game.BuildCacheDat.get_obj_model_ids, obj_id }
+            sources[#sources + 1] = { Game.BuildCacheDat.get_obj_head_model_ids, obj_id, 0 }
+        end
+    end
+    M.load_models_from_sources(sources)
+end
+
 -- ── Per-packet handlers ──────────────────────────────────────────────────────
 
 local SCENE_WIDTH = 104
@@ -414,13 +463,25 @@ end
 
 function M.if_setplayerhead_v1(item)
     ensure_interfaces_loaded()
+    M.preload_local_player_head_models()
+    Game.Game.exec_packet(item)
+end
+
+function M.if_openchat_v1(item)
+    ensure_interfaces_loaded()
+    local com = Game.Game.get_pkt_if_openchat_component_id(item)
+    if Game.BuildCacheDat.has_config_jagfile() and com and com >= 0 then
+        -- RS chat expand uses gamecache_get_component(root); ensure defs mirrored from buildcache.
+        Game.GameCache.convert_components_from_buildcachedat()
+    end
+    M.preload_local_player_head_models()
     Game.Game.exec_packet(item)
 end
 
 function M.if_setnpchead_v1(item)
     ensure_interfaces_loaded()
     local npc_id = Game.Game.get_pkt_if_setnpchead_npc_id(item)
-    M.load_models(Game.BuildCacheDat.get_npc_model_ids(npc_id))
+    M.load_models(Game.BuildCacheDat.get_npc_head_model_ids(npc_id))
     Game.Game.exec_packet(item)
 end
 
@@ -442,10 +503,7 @@ function M.update_inv_partial_v1(item)
 end
 
 function M.loc_add_change_v1(item)
-    local loc_id = Game.Game.get_pkt_loc_add_change_loc_id(item)
-    if loc_id >= 0 then
-        M.load_models(Game.BuildCacheDat.get_loc_model_ids(loc_id))
-    end
+    ensure_loc_config_and_assets(Game.Game.get_pkt_loc_add_change_loc_id(item))
     Game.Game.exec_packet(item)
 end
 
@@ -456,10 +514,7 @@ function M.loc_anim_v1(item)
 end
 
 function M.loc_merge_v1(item)
-    local loc_id = Game.Game.get_pkt_p_locmerge_loc_id(item)
-    if loc_id >= 0 then
-        M.load_models(Game.BuildCacheDat.get_loc_model_ids(loc_id))
-    end
+    ensure_loc_config_and_assets(Game.Game.get_pkt_p_locmerge_loc_id(item))
     Game.Game.exec_packet(item)
 end
 

@@ -245,6 +245,11 @@ LuaBuildCacheDat_scenery_config_load_mapchunk_from_config_jagfile(
     struct LuaGameType* args);
 
 struct LuaGameType*
+LuaBuildCacheDat_scenery_config_load_loc_from_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
 LuaBuildCacheDat_scenery_config_get_model_ids_mapchunk(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
@@ -311,6 +316,11 @@ LuaBuildCacheDat_clear_media_jagfile(
 
 struct LuaGameType*
 LuaBuildCacheDat_get_loc_model_ids(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_get_loc_seq_id(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 

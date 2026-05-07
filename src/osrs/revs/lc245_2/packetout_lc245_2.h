@@ -81,7 +81,7 @@ enum PacketOutType_LC245_2
     PKTOUT_LC245_2_INV_BUTTON5 = 242, /* 194 - NXT has "IF_BUTTON5" but for our interface system */
 
     PKTOUT_LC245_2_IF_BUTTON = 177,            /* 200 - NXT naming */
-    PKTOUT_LC245_2_RESUME_PAUSEBUTTON = 239,   /* 201 - NXT naming */
+    PKTOUT_LC245_2_RESUME_PAUSEBUTTON = 239, /* 201 - NXT naming */
     PKTOUT_LC245_2_CLOSE_MODAL = 245,          /* 202 - NXT naming */
     PKTOUT_LC245_2_RESUME_P_COUNTDIALOG = 241, /* 203 - NXT naming */
     PKTOUT_LC245_2_TUTORIAL_CLICKSIDE = 243,   /* 204 */

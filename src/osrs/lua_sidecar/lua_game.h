@@ -172,4 +172,16 @@ LuaGame_get_pkt_map_projanim_spotanim_id(
     struct GGame* game,
     struct LuaGameType* args);
 
+/** Local player `appearance.slots[12]` for chat head prefetch; empty if not alive. */
+struct LuaGameType*
+LuaGame_get_local_player_appearance_slots(
+    struct GGame* game,
+    struct LuaGameType* args);
+
+/** IF_OPENCHAT: decoded root component id, or -1 when wire value is 65535. */
+struct LuaGameType*
+LuaGame_get_pkt_if_openchat_component_id(
+    struct GGame* game,
+    struct LuaGameType* args);
+
 #endif

@@ -76,6 +76,8 @@ enum StaticUIComponentType
     UIELEM_BUILTIN_CHAT_INPUT = 20,
     UIELEM_BUILTIN_CHAT_PRIVACY = 21,
     UIELEM_BUILTIN_COLLISIONMAP_OVERLAY = 22,
+    /** IF_OPENCHAT: RS subtree parent; children rebuilt from gamecache (same pattern as sidebar). */
+    UIELEM_BUILTIN_CHAT_DIALOG = 23,
 };
 
 enum StaticUIElemPositionKind
@@ -208,6 +210,10 @@ struct StaticUIComponent
         } chat_privacy;
         struct
         {
+            int reserved;
+        } chat_dialog;
+        struct
+        {
             /** Resolved uiscene font id at draw time; may be -1 until lazy resolve. */
             int font_id;
             /** OSRS font index 0..3 (p11,p12,b12,q8). */
@@ -233,6 +239,10 @@ struct StaticUIComponent
         struct
         {
             int scene2_element_id;
+            /** From GameCacheComponent zoom/xan/yan; TYPE_MODEL / IF_SETOBJECT framing (Client.ts). */
+            int model_zoom;
+            int model_xan;
+            int model_yan;
         } rs_model;
         struct
         {
@@ -511,6 +521,15 @@ uitree_push_chat_privacy(
     int height);
 
 int32_t
+uitree_push_builtin_chat_dialog(
+    struct UITree* tree,
+    int32_t parent_index,
+    int x,
+    int y,
+    int width,
+    int height);
+
+int32_t
 uitree_push_redstone_tab(
     struct UITree* tree,
     int32_t parent_index,
@@ -555,6 +574,11 @@ void
 uitree_clear_sidebar_children(
     struct UITree* tree,
     int32_t sidebar_idx);
+
+void
+uitree_clear_chat_dialog_children(
+    struct UITree* tree,
+    int32_t chat_dialog_idx);
 
 /** Returns 0 if no duplicate BUILTIN_SIDEBAR tabno in 0..13; else logs to stderr and returns -1.
  * Revisions may omit wire tabs (e.g. LC245_2 skips 7); missing indices are allowed. */

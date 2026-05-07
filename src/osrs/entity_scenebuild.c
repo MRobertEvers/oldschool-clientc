@@ -6,14 +6,15 @@
 #include "graphics/dash.h"
 #include "osrs/_light_model_default.u.c"
 #include "osrs/collision_map.h"
-#include "osrs/gamecache/gamecache.h"
 #include "osrs/game.h"
+#include "osrs/gamecache/gamecache.h"
 #include "osrs/heightmap.h"
 #include "osrs/model_transforms.h"
 #include "osrs/world.h"
 #include "osrs/world_scenebuild.h"
 #include "osrs/zone_state.h"
 #include "rscache/tables/config_locs.h"
+#include "rscache/tables/maps.h"
 #include "rscache/tables/model.h"
 #include "rscache/tables_dat/config_idk.h"
 #include "rscache/tables_dat/config_npc.h"
@@ -146,8 +147,6 @@ obj_model(
     return merged;
 }
 
-#define OBJ_STACK_SORT_CAP 128
-
 static int64_t
 obj_stack_sort_key(
     struct GGame* game,
@@ -162,9 +161,8 @@ obj_stack_sort_key(
     return c;
 }
 
-/** Client.ts sortObjStacks: highest cost first (stackable: cost * (count+1)). */
 static void
-obj_stack_sort_head(
+obj_stack_move_top_to_front(
     struct GGame* game,
     struct ObjStackEntry** head_out)
 {
@@ -172,28 +170,66 @@ obj_stack_sort_head(
     if( !list || !list->next )
         return;
 
-    struct ObjStackEntry* arr[OBJ_STACK_SORT_CAP];
-    int n = 0;
-    for( struct ObjStackEntry* e = list; e && n < OBJ_STACK_SORT_CAP; e = e->next )
-        arr[n++] = e;
+    struct ObjStackEntry* top = list;
+    int64_t top_key = obj_stack_sort_key(game, top);
+    for( struct ObjStackEntry* e = list->next; e; e = e->next )
+    {
+        int64_t k = obj_stack_sort_key(game, e);
+        if( k > top_key )
+        {
+            top_key = k;
+            top = e;
+        }
+    }
 
-    for( int i = 0; i < n; i++ )
-        for( int j = i + 1; j < n; j++ )
-            if( obj_stack_sort_key(game, arr[j]) > obj_stack_sort_key(game, arr[i]) )
-            {
-                struct ObjStackEntry* t = arr[i];
-                arr[i] = arr[j];
-                arr[j] = t;
-            }
+    if( top == list )
+        return;
 
-    for( int i = 0; i < n - 1; i++ )
-        arr[i]->next = arr[i + 1];
-    arr[n - 1]->next = NULL;
-    *head_out = arr[0];
+    struct ObjStackEntry* prev = list;
+    while( prev->next != top )
+        prev = prev->next;
+    prev->next = top->next;
+    top->next = list;
+    *head_out = top;
 }
 
-/** Update or create the SceneElement for the top obj at (level, sx, sz). Client.ts sortObjStacks:
- * top by cost (stackable: cost *= count+1). Call after obj_add, obj_del, obj_count. */
+/** Client.ts showObject: bottom = first distinct obj_id after top; middle = next distinct. */
+static void
+obj_stack_pick_bottom_middle(
+    struct ObjStackEntry* head,
+    struct ObjStackEntry** bottom_out,
+    struct ObjStackEntry** middle_out)
+{
+    *bottom_out = NULL;
+    *middle_out = NULL;
+    if( !head )
+        return;
+
+    int top_id = head->obj_id;
+    for( struct ObjStackEntry* obj = head; obj; obj = obj->next )
+    {
+        if( obj->obj_id != top_id && !*bottom_out )
+            *bottom_out = obj;
+
+        if( obj->obj_id != top_id && *bottom_out && obj->obj_id != (*bottom_out)->obj_id &&
+            !*middle_out )
+            *middle_out = obj;
+    }
+}
+
+static void
+obj_stack_scene_release_layer(
+    struct World* w,
+    struct ObjStackEntity* ent,
+    int layer)
+{
+    if( ent->scene_element[layer].element_id >= 0 && w->scene2 )
+        scene2_element_release(w->scene2, ent->scene_element[layer].element_id);
+    ent->scene_element[layer].element_id = -1;
+}
+
+/** Update Scene2 for dropped items at (level, sx, sz). Client.ts showObject + World.setObj:
+ * move highest-cost entry to front; bottom/middle = next distinct obj_ids; three painter layers. */
 void
 entity_scenebuild_obj_stack_update_tile(
     struct GGame* game,
@@ -213,7 +249,7 @@ entity_scenebuild_obj_stack_update_tile(
         return;
 
     struct ObjStackEntry** head_cell = &w->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz];
-    obj_stack_sort_head(game, head_cell);
+    obj_stack_move_top_to_front(game, head_cell);
     struct ObjStackEntry* head = *head_cell;
     int tflat = world_obj_stack_tile_flat(level, sx, sz);
 
@@ -227,6 +263,11 @@ entity_scenebuild_obj_stack_update_tile(
         }
         return;
     }
+
+    struct ObjStackEntry* bottom_e = NULL;
+    struct ObjStackEntry* middle_e = NULL;
+    obj_stack_pick_bottom_middle(head, &bottom_e, &middle_e);
+    struct ObjStackEntry* layer_entry[3] = { bottom_e, middle_e, head };
 
     int eid = w->obj_stack_entity_by_tile[tflat];
     if( eid < 0 )
@@ -243,61 +284,60 @@ entity_scenebuild_obj_stack_update_tile(
     ent->level = level;
     ent->entity_id = eid;
 
-    int psx = sx - w->_base_tile_x;
-    int psz = sz - w->_base_tile_z;
-    if( psx < 0 )
-        psx = 0;
-    if( psz < 0 )
-        psz = 0;
-    if( psx > 511 )
-        psx = 511;
-    if( psz > 511 )
-        psz = 511;
-    ent->scene_coord.sx = (uint32_t)psx;
-    ent->scene_coord.sz = (uint32_t)psz;
+    ent->scene_coord.sx = (uint32_t)sx;
+    ent->scene_coord.sz = (uint32_t)sz;
     ent->scene_coord.slevel = (uint32_t)(level & 0xf);
 
-    struct GameCacheModel* cm = obj_ground_model(game, head->obj_id, head->count);
-    if( !cm )
-    {
-        world_cleanup_obj_stack_entity(w, eid);
-        w->obj_stack_entity_by_tile[tflat] = -1;
-        return;
-    }
-
-    int total_el = scene2_elements_total(w->scene2);
-    int sid = ent->scene_element.element_id;
-    if( sid < 0 || sid >= total_el )
-    {
-        ent->scene_element.element_id = scene2_element_acquire_fast(
-            w->scene2,
-            (int)entity_unified_id(ENTITY_KIND_OBJ_STACK, eid),
-            SCENE2_ELEMENT_SCENERY,
-            0,
-            0);
-        sid = ent->scene_element.element_id;
-    }
-
-    struct Scene2Element* se = scene2_element_at(w->scene2, sid);
-    scene2_element_expect(se, "entity_scenebuild_obj_stack_update_tile");
-
-    if( !scene2_element_dash_model(se) )
-        scene2_element_set_dash_model(w->scene2, se, dashmodel_new());
-    dashmodel_move_from_gamecache_model(scene2_element_dash_model(se), cm);
-    _light_model_default(scene2_element_dash_model(se), 0, 0);
-
-    if( !scene2_element_dash_position(se) )
-        scene2_element_set_dash_position_ptr(se, dashposition_new());
-    struct DashPosition* pos = scene2_element_dash_position(se);
     int wx = sx * 128 + 64;
     int wz = sz * 128 + 64;
-    pos->x = wx;
-    pos->z = wz;
-    pos->yaw = 0;
-    if( w->heightmap )
-        pos->y = heightmap_get_interpolated(w->heightmap, wx, wz, level);
-    else
-        pos->y = 0;
+    int ground_y = w->heightmap ? heightmap_get_interpolated(w->heightmap, wx, wz, level) : 0;
+
+    for( int layer = 0; layer < 3; layer++ )
+    {
+        struct ObjStackEntry* entry = layer_entry[layer];
+        if( !entry )
+        {
+            obj_stack_scene_release_layer(w, ent, layer);
+            continue;
+        }
+
+        struct GameCacheModel* cm = obj_ground_model(game, entry->obj_id, entry->count);
+        if( !cm )
+        {
+            world_cleanup_obj_stack_entity(w, eid);
+            w->obj_stack_entity_by_tile[tflat] = -1;
+            return;
+        }
+
+        int total_el = scene2_elements_total(w->scene2);
+        int sid = ent->scene_element[layer].element_id;
+        if( sid < 0 || sid >= total_el )
+        {
+            ent->scene_element[layer].element_id = scene2_element_acquire_fast(
+                w->scene2,
+                (int)entity_obj_stack_unified_id(eid, layer),
+                SCENE2_ELEMENT_SCENERY,
+                0,
+                0);
+            sid = ent->scene_element[layer].element_id;
+        }
+
+        struct Scene2Element* se = scene2_element_at(w->scene2, sid);
+        scene2_element_expect(se, "entity_scenebuild_obj_stack_update_tile");
+
+        if( !scene2_element_dash_model(se) )
+            scene2_element_set_dash_model(w->scene2, se, dashmodel_new());
+        dashmodel_move_from_gamecache_model(scene2_element_dash_model(se), cm);
+        _light_model_default(scene2_element_dash_model(se), 0, 0);
+
+        if( !scene2_element_dash_position(se) )
+            scene2_element_set_dash_position_ptr(se, dashposition_new());
+        struct DashPosition* pos = scene2_element_dash_position(se);
+        pos->x = wx;
+        pos->z = wz;
+        pos->yaw = 0;
+        pos->y = ground_y;
+    }
 }
 
 static void
@@ -324,8 +364,7 @@ player_appearance_model(
         uint16_t anim_id = primary_anim->anim_id;
         if( anim_id != 0 && anim_id != (uint16_t)-1 && primary_anim->delay == 0 )
         {
-            struct GameCacheSequence* seq =
-                gamecache_get_sequence(game->gamecache, (int)anim_id);
+            struct GameCacheSequence* seq = gamecache_get_sequence(game->gamecache, (int)anim_id);
             if( seq )
             {
                 if( seq->replaceheldright >= 0 )
@@ -385,6 +424,7 @@ entity_scenebuild_player_change_appearance(
         player->appearance.slots[i] = appearance->appearance[i];
     for( int i = 0; i < 5; i++ )
         player->appearance.colors[i] = appearance->color[i];
+    player->appearance.gender = appearance->gender;
 
     player->animation.readyanim = appearance->readyanim;
     player->animation.turnanim = appearance->turnanim;
@@ -397,7 +437,10 @@ entity_scenebuild_player_change_appearance(
     if( !scene2_element_dash_model(scene_element) )
         scene2_element_set_dash_model(game->world->scene2, scene_element, dashmodel_new());
     player_appearance_model(
-        game, appearance, &player->animation.primary_anim, scene2_element_dash_model(scene_element));
+        game,
+        appearance,
+        &player->animation.primary_anim,
+        scene2_element_dash_model(scene_element));
 }
 
 static void
@@ -461,12 +504,14 @@ idk_head_model(
         return NULL;
     }
 
-    struct GameCacheModel* models[5] = { 0 };
+    struct GameCacheModel* models[10] = { 0 };
     int model_count = 0;
-    for( int i = 0; i < 5; i++ )
+    int head_id_count = 0;
+    for( int i = 0; i < 10; i++ )
     {
         if( idk->heads[i] != -1 && idk->heads[i] != 0 )
         {
+            head_id_count++;
             struct GameCacheModel* m = gamecache_get_model(game->gamecache, idk->heads[i]);
             if( m )
                 models[model_count++] = m;
@@ -480,7 +525,9 @@ idk_head_model(
     }
     if( model_count == 0 )
     {
-        printf("idk_head_model: idk_id=%d no head models could be loaded\n", idk_id);
+        /* Normal for body/legs idks with no head opcodes in idk.dat (ClientPlayer.getHeadModel). */
+        if( head_id_count > 0 )
+            printf("idk_head_model: idk_id=%d no head models could be loaded\n", idk_id);
         return NULL;
     }
 
@@ -508,7 +555,7 @@ obj_head_model(
 
     if( head1 == -1 )
     {
-        printf("obj_head_model: obj_id=%d has no head model (manhead=-1)\n", obj_id);
+        /* ObjType.getHeadModelNoCheck: no head mesh for this gender — not an error. */
         return NULL;
     }
 
@@ -543,6 +590,9 @@ player_head_model(
     int* slots,
     int* colors)
 {
+    struct PlayerEntity* local = world_player(game->world, ACTIVE_PLAYER_SLOT);
+    int gender = (local && (local->appearance.gender & 1) == 1) ? 1 : 0;
+
     struct AppearanceOp op;
     struct GameCacheModel* models[12] = { 0 };
     int model_count = 0;
@@ -559,7 +609,7 @@ player_head_model(
             model = idk_head_model(game, op.id);
             break;
         case APPEARANCE_KIND_OBJ:
-            model = obj_head_model(game, op.id, 0);
+            model = obj_head_model(game, op.id, gender);
             break;
         default:
             break;
@@ -671,6 +721,7 @@ loc_shape_layer(int shape)
 static int
 loc_entity_find_for_zone_packet(
     struct World* w,
+    int level,
     int sx,
     int sz,
     int packet_shape)
@@ -683,7 +734,8 @@ loc_entity_find_for_zone_packet(
         if( eid < 0 )
             continue;
         struct MapBuildLocEntity* e = world_loc_entity(w, eid);
-        if( (int)e->scene_coord.sx != sx || (int)e->scene_coord.sz != sz )
+        if( (int)e->scene_coord.sx != sx || (int)e->scene_coord.sz != sz ||
+            (int)e->scene_coord.slevel != level )
             continue;
 
         if( loc_shape_layer(e->shape_select) == want_layer )
@@ -757,8 +809,7 @@ loc_entity_collision_update(
                 collision_map_remove_loc(
                     w->collision_map, sx, sz, size_x, size_z, angle, blockrange);
             else
-                collision_map_add_loc(
-                    w->collision_map, sx, sz, size_x, size_z, angle, blockrange);
+                collision_map_add_loc(w->collision_map, sx, sz, size_x, size_z, angle, blockrange);
         }
         break;
     default:
@@ -779,7 +830,11 @@ entity_scenebuild_loc_apply_change(
         return;
 
     struct World* w = game->world;
-    int eid = loc_entity_find_for_zone_packet(w, sx, sz, shape);
+    int plane = (int)game->local_player_plane;
+    if( plane < 0 || plane >= MAP_TERRAIN_LEVELS )
+        plane = 0;
+
+    int eid = loc_entity_find_for_zone_packet(w, plane, sx, sz, shape);
     int spawned = 0;
 
     if( eid < 0 && loc_id >= 0 )
@@ -795,12 +850,13 @@ entity_scenebuild_loc_apply_change(
                 sz);
             return;
         }
-        eid = world_map_build_loc_entity_allocate_at_scene(w, sx, sz, 0);
+        eid = world_map_build_loc_entity_allocate_at_scene(w, sx, sz, plane);
         if( eid < 0 )
         {
-            printf("[zone_loc] loc_apply_change skip MapBuildLocEntity pool full tile=(%d,%d)\n",
-                   sx,
-                   sz);
+            printf(
+                "[zone_loc] loc_apply_change skip MapBuildLocEntity pool full tile=(%d,%d)\n",
+                sx,
+                sz);
             return;
         }
         spawned = 1;
@@ -826,8 +882,7 @@ entity_scenebuild_loc_apply_change(
     struct MapBuildLocEntity* entity = world_loc_entity(w, eid);
 
     /* Remove old collision. */
-    struct GameCacheLoc* old_config =
-        gamecache_get_config_loc(w->gamecache, entity->loc_type_id);
+    struct GameCacheLoc* old_config = gamecache_get_config_loc(w->gamecache, entity->loc_type_id);
     if( old_config )
         loc_entity_collision_update(
             w, sx, sz, entity->shape_select, entity->orientation, old_config, true);
@@ -840,8 +895,7 @@ entity_scenebuild_loc_apply_change(
         entity->scene_element.element_id = -1;
         entity->scene_element_two.element_id = -1;
         entity->loc_type_id = -1;
-        printf(
-            "[zone_loc] loc_apply_change DEL done eid=%d tile=(%d,%d)\n", eid, sx, sz);
+        printf("[zone_loc] loc_apply_change DEL done eid=%d tile=(%d,%d)\n", eid, sx, sz);
         return;
     }
 
@@ -888,7 +942,11 @@ entity_scenebuild_loc_apply_anim(
         return;
 
     struct World* w = game->world;
-    int eid = loc_entity_find_for_zone_packet(w, sx, sz, shape);
+    int plane = (int)game->local_player_plane;
+    if( plane < 0 || plane >= MAP_TERRAIN_LEVELS )
+        plane = 0;
+
+    int eid = loc_entity_find_for_zone_packet(w, plane, sx, sz, shape);
     if( eid < 0 )
         return;
 

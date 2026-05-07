@@ -49,6 +49,10 @@ enum ServerProt
     SERVERPROT_VARP_SMALL_V1                   = 28,
     SERVERPROT_VARP_LARGE_V1                   = 29,
     SERVERPROT_VARP_SYNC_V1                    = 30,
+    /* Zone LOC packets (and zone OBJ): wire layout has no terrain plane. The reference client
+     * applies them on `minusedlevel` from the local PLAYER_INFO block (teleport-style update
+     * carries 2-bit level). Here PLAYER_INFO_V1 updates GGame.local_player_plane; LOC_* handlers
+     * use that when resolving MapBuildLocEntity / spawns. */
     SERVERPROT_UPDATE_ZONE_PARTIAL_FOLLOWS_V1  = 31,
     SERVERPROT_UPDATE_ZONE_FULL_FOLLOWS_V1     = 32,
     SERVERPROT_UPDATE_ZONE_PARTIAL_ENCLOSED_V1 = 33,

@@ -2,6 +2,7 @@
 
 #include "bmp.h"
 #include "graphics/dash.h"
+#include "graphics/dash_math.h"
 #include "osrs/clientscript_vm.h"
 #include "osrs/dash_utils.h"
 #include "osrs/game.h"
@@ -475,6 +476,19 @@ rs_gfx_model_step(
     memcpy(&position, sepos, sizeof(struct DashPosition));
     struct DashPosition world_position = { 0 };
     memcpy(&world_position, sepos, sizeof(struct DashPosition));
+
+    {
+        int zm = component->u.rs_model.model_zoom;
+        if( zm <= 0 )
+            zm = 2000;
+        int xa = component->u.rs_model.model_xan & 2047;
+        int ya = component->u.rs_model.model_yan & 2047;
+        position.pitch = xa;
+        position.yaw   = ya;
+        position.y += (dash_sin(xa) * zm) >> 16;
+        position.z += (dash_cos(xa) * zm) >> 16;
+    }
+
     position.x = position.x - game->camera_world_x;
     position.y = position.y - game->camera_world_y;
     position.z = position.z - game->camera_world_z;

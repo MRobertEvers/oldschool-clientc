@@ -82,6 +82,11 @@ struct PktClientProt_ResumeCntDlg_v1
 {
     int value;
 };
+/** Payload after opcode for RESUME_PAUSEBUTTON (Client.ts: pIsaac then p2(component)). */
+struct PktClientProt_ResumePauseButton_v1
+{
+    int comp_id;
+};
 
 struct PktClientProt_InvButton_v1
 {
@@ -196,7 +201,8 @@ gamenet_core_send_close_modal_v1(
 void
 gamenet_core_send_resume_pausebutton_v1(
     struct GGame* g,
-    int opcode);
+    int opcode,
+    int comp_id);
 void
 gamenet_core_send_resume_p_countdialog_v1(
     struct GGame* g,

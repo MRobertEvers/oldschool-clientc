@@ -129,6 +129,10 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UILAYOUT_RIGHT";
     case RCFIELD_UILAYOUT_DIRTY:
         return "RCFIELD_UILAYOUT_DIRTY";
+    case RCFIELD_MAGIC_TAB_SPELLBOOK_SIDEBAR_TABNO:
+        return "RCFIELD_MAGIC_TAB_SPELLBOOK_SIDEBAR_TABNO";
+    case RCFIELD_MAGIC_TAB_INV_TRANSMIT_IF_BUTTON_COMP:
+        return "RCFIELD_MAGIC_TAB_INV_TRANSMIT_IF_BUTTON_COMP";
     default:
         return "UNKNOWN";
     }

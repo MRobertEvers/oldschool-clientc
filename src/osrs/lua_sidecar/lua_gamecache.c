@@ -184,6 +184,19 @@ LuaGameCache_convert_loc_configs_chunk_from_buildcachedat(
 }
 
 struct LuaGameType*
+LuaGameCache_convert_one_loc_config_from_buildcachedat(
+    struct GGame* game,
+    struct LuaGameType* args)
+{
+    int loc_id = arg_int(args, 0);
+    if( !game || !game->gamecache || !game->buildcachedat )
+        return void_result();
+    gamecache_convert_one_loc_config_from_buildcachedat(
+        game->gamecache, game->buildcachedat, loc_id);
+    return void_result();
+}
+
+struct LuaGameType*
 LuaGameCache_convert_models_chunk_from_buildcachedat(
     struct GGame* game,
     struct LuaGameType* args)

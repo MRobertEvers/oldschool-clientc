@@ -2,8 +2,6 @@
 
 #include "painters_i.h"
 
-#include "rscache/tables/config_locs.h"
-
 #include <assert.h>
 #include <limits.h>
 #include <stdbool.h>
@@ -863,13 +861,84 @@ painter_add_normal_scenery(
 }
 
 void
+painter_remove_normal_scenery_by_scene_entity(
+    struct Painter* painter,
+    int scene_element_id)
+{
+    if( !painter || scene_element_id < 0 )
+        return;
+
+    for( int i = 0; i < painter->element_count; i++ )
+    {
+        struct PaintersElement* el = &painter->elements[i];
+        if( el->kind != PNTRELEM_SCENERY )
+            continue;
+        if( el->_scenery.entity != scene_element_id )
+            continue;
+
+        int loc_x = el->sx;
+        int loc_z = el->sz;
+        int loc_level = el->slevel;
+        int footprint_x = el->_scenery.size_x < 1 ? 1 : el->_scenery.size_x;
+        int footprint_z = el->_scenery.size_z < 1 ? 1 : el->_scenery.size_z;
+
+        int max_tile_x = loc_x + footprint_x - 1;
+        int max_tile_z = loc_z + footprint_z - 1;
+        if( max_tile_x >= painter->width )
+            max_tile_x = painter->width - 1;
+        if( max_tile_z >= painter->height )
+            max_tile_z = painter->height - 1;
+
+        for( int x = loc_x; x <= max_tile_x; x++ )
+        {
+            for( int z = loc_z; z <= max_tile_z; z++ )
+            {
+                int g = painter_grid_slot_for_cache_level(
+                    loc_level, painter_column_has_link_below(painter, x, z));
+                struct PaintersTile* tile = painter_tile_at(painter, x, z, g);
+                tile_remove_scenery_element(painter, tile, i);
+            }
+        }
+    }
+}
+
+void
+painter_remove_ground_decor_by_scene_entity(
+    struct Painter* painter,
+    int scene_element_id)
+{
+    if( !painter || scene_element_id < 0 )
+        return;
+
+    for( int i = 0; i < painter->element_count; i++ )
+    {
+        struct PaintersElement* el = &painter->elements[i];
+        if( el->kind != PNTRELEM_GROUND_DECOR )
+            continue;
+        if( el->_ground_decor.entity != scene_element_id )
+            continue;
+
+        int sx = el->sx;
+        int sz = el->sz;
+        int slevel = el->slevel;
+        int g = painter_grid_slot_for_cache_level(
+            slevel, painter_column_has_link_below(painter, sx, sz));
+        struct PaintersTile* tile = painter_tile_at(painter, sx, sz, g);
+        if( tile->ground_decor == i )
+            tile->ground_decor = -1;
+    }
+}
+
+void
 painter_mark_static_count(struct Painter* painter)
 {
     painter->static_element_count = painter->element_count;
 }
 
 static bool
-sync_scene_id_matches_u16(int scene_element_id, uint16_t stored_entity)
+map_build_scene_id_matches_u16(
+    int scene_element_id,
+    uint16_t stored_entity)
 {
     if( scene_element_id < 0 || scene_element_id > 65535 )
         return false;
@@ -877,114 +946,518 @@ sync_scene_id_matches_u16(int scene_element_id, uint16_t stored_entity)
 }
 
 void
-painter_sync_map_build_loc_elements(
+painter_set_wall_single_side(
     struct Painter* painter,
-    int primary_scene_element_id,
-    int secondary_scene_element_id,
-    int shape_select,
-    int orientation)
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
+    int scene_element_id,
+    uint8_t wall_side)
 {
     if( !painter )
         return;
 
-    /* Same tables as world_scenery.u.c ROTATION_WALL_* — painter uses these for wall culling masks.
-     */
-    static const uint8_t ROT_WALL[] = {
-        WALL_SIDE_WEST,
-        WALL_SIDE_NORTH,
-        WALL_SIDE_EAST,
-        WALL_SIDE_SOUTH,
-    };
-    static const uint8_t ROT_CORNER[] = {
-        WALL_CORNER_NORTHWEST,
-        WALL_CORNER_NORTHEAST,
-        WALL_CORNER_SOUTHEAST,
-        WALL_CORNER_SOUTHWEST,
-    };
-
-    int o = orientation & 3;
-
-    uint8_t wall_pri = 0;
-    uint8_t wall_sec = 0;
-    uint8_t decor_pri = 0;
-    uint8_t decor_sec = 0;
-    uint8_t decor_tf_pri = 0;
-    uint8_t decor_tf_sec = 0;
-    bool set_wall_pri = false;
-    bool set_wall_sec = false;
-    bool set_decor_pri = false;
-    bool set_decor_sec = false;
-
-    switch( shape_select )
+    if( tile_sx >= 0 && tile_sz >= 0 && tile_sx < painter->width && tile_sz < painter->height )
     {
-    case LOC_SHAPE_WALL_SINGLE_SIDE:
-        wall_pri = ROT_WALL[o];
-        set_wall_pri = true;
-        break;
-    case LOC_SHAPE_WALL_TRI_CORNER:
-    case LOC_SHAPE_WALL_RECT_CORNER:
-        wall_pri = ROT_CORNER[o];
-        set_wall_pri = true;
-        break;
-    case LOC_SHAPE_WALL_TWO_SIDES:
-        wall_pri = ROT_WALL[o];
-        wall_sec = ROT_WALL[( o + 1 ) & 3];
-        set_wall_pri = true;
-        set_wall_sec = true;
-        break;
-    case LOC_SHAPE_WALL_DECOR_INSIDE:
-    case LOC_SHAPE_WALL_DECOR_OUTSIDE:
-        decor_pri = ROT_WALL[o];
-        set_decor_pri = true;
-        decor_tf_pri = 0;
-        break;
-    case LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE:
-    case LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE:
-        decor_pri = ROT_CORNER[o];
-        set_decor_pri = true;
-        decor_tf_pri = THROUGHWALL;
-        break;
-    case LOC_SHAPE_WALL_DECOR_DIAGONAL_DOUBLE:
-        decor_pri = ROT_CORNER[o];
-        decor_sec = ROT_CORNER[( o + 2 ) & 3];
-        set_decor_pri = true;
-        set_decor_sec = true;
-        decor_tf_pri = THROUGHWALL;
-        decor_tf_sec = THROUGHWALL;
-        break;
-    default:
-        break;
-    }
-
-    if( !set_wall_pri && !set_wall_sec && !set_decor_pri && !set_decor_sec )
-        return;
-
-    for( int i = 0; i < painter->static_element_count; i++ )
-    {
-        struct PaintersElement* el = &painter->elements[i];
-
-        if( set_wall_pri &&
-            ( el->kind == PNTRELEM_WALL_A || el->kind == PNTRELEM_WALL_B ) &&
-            sync_scene_id_matches_u16(primary_scene_element_id, el->_wall.entity) )
-            el->_wall.side = wall_pri;
-
-        if( set_wall_sec &&
-            ( el->kind == PNTRELEM_WALL_A || el->kind == PNTRELEM_WALL_B ) &&
-            sync_scene_id_matches_u16(secondary_scene_element_id, el->_wall.entity) )
-            el->_wall.side = wall_sec;
-
-        if( set_decor_pri && el->kind == PNTRELEM_WALL_DECOR &&
-            sync_scene_id_matches_u16(primary_scene_element_id, el->_wall_decor.entity) )
+        int g = painter_grid_slot_for_cache_level(
+            tile_slevel, painter_column_has_link_below(painter, tile_sx, tile_sz));
+        struct PaintersTile* t = painter_tile_at(painter, tile_sx, tile_sz, g);
+        if( t->wall_a >= 0 )
         {
-            el->_wall_decor._bf_side = decor_pri;
-            el->_wall_decor._bf_through_wall_flags = decor_tf_pri;
+            struct PaintersElement* wel = &painter->elements[t->wall_a];
+            if( ( wel->kind == PNTRELEM_WALL_A || wel->kind == PNTRELEM_WALL_B ) &&
+                map_build_scene_id_matches_u16(scene_element_id, wel->_wall.entity) )
+                wel->_wall.side = wall_side;
         }
 
-        if( set_decor_sec && el->kind == PNTRELEM_WALL_DECOR &&
-            sync_scene_id_matches_u16(secondary_scene_element_id, el->_wall_decor.entity) )
+        int bt = t->bridge_tile;
+        int tiles_total = painter->width * painter->height * painter->levels;
+        if( bt >= 0 && bt < tiles_total )
         {
-            el->_wall_decor._bf_side = decor_sec;
-            el->_wall_decor._bf_through_wall_flags = decor_tf_sec;
+            struct PaintersTile* bt_tile = &painter->tiles[bt];
+            if( bt_tile->wall_a >= 0 )
+            {
+                struct PaintersElement* wel = &painter->elements[bt_tile->wall_a];
+                if( ( wel->kind == PNTRELEM_WALL_A || wel->kind == PNTRELEM_WALL_B ) &&
+                    map_build_scene_id_matches_u16(scene_element_id, wel->_wall.entity) )
+                    wel->_wall.side = wall_side;
+            }
+        }
+    }
+
+    for( int i = 0; i < painter->element_count; i++ )
+    {
+        struct PaintersElement* el = &painter->elements[i];
+        if( (el->kind == PNTRELEM_WALL_A || el->kind == PNTRELEM_WALL_B) &&
+            map_build_scene_id_matches_u16(scene_element_id, el->_wall.entity) )
+            el->_wall.side = wall_side;
+    }
+}
+
+void
+painter_set_wall_tri_corner(
+    struct Painter* painter,
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
+    int scene_element_id,
+    uint8_t corner_side)
+{
+    painter_set_wall_single_side(
+        painter, tile_sx, tile_sz, tile_slevel, scene_element_id, corner_side);
+}
+
+void
+painter_set_wall_rect_corner(
+    struct Painter* painter,
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
+    int scene_element_id,
+    uint8_t corner_side)
+{
+    painter_set_wall_single_side(
+        painter, tile_sx, tile_sz, tile_slevel, scene_element_id, corner_side);
+}
+
+void
+painter_set_wall_two_sides(
+    struct Painter* painter,
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
+    int primary_scene_element_id,
+    int secondary_scene_element_id,
+    uint8_t wall_side_a,
+    uint8_t wall_side_b)
+{
+    if( !painter )
+        return;
+
+    if( tile_sx >= 0 && tile_sz >= 0 && tile_sx < painter->width && tile_sz < painter->height )
+    {
+        int g = painter_grid_slot_for_cache_level(
+            tile_slevel, painter_column_has_link_below(painter, tile_sx, tile_sz));
+        struct PaintersTile* t = painter_tile_at(painter, tile_sx, tile_sz, g);
+        if( t->wall_a >= 0 )
+        {
+            struct PaintersElement* wel = &painter->elements[t->wall_a];
+            if( wel->kind == PNTRELEM_WALL_A || wel->kind == PNTRELEM_WALL_B )
+            {
+                if( map_build_scene_id_matches_u16(primary_scene_element_id, wel->_wall.entity) )
+                    wel->_wall.side = wall_side_a;
+                else if( map_build_scene_id_matches_u16(
+                             secondary_scene_element_id, wel->_wall.entity) )
+                    wel->_wall.side = wall_side_b;
+            }
+        }
+        if( t->wall_b >= 0 )
+        {
+            struct PaintersElement* wel = &painter->elements[t->wall_b];
+            if( wel->kind == PNTRELEM_WALL_A || wel->kind == PNTRELEM_WALL_B )
+            {
+                if( map_build_scene_id_matches_u16(primary_scene_element_id, wel->_wall.entity) )
+                    wel->_wall.side = wall_side_a;
+                else if( map_build_scene_id_matches_u16(
+                             secondary_scene_element_id, wel->_wall.entity) )
+                    wel->_wall.side = wall_side_b;
+            }
+        }
+
+        int bt = t->bridge_tile;
+        int tiles_total = painter->width * painter->height * painter->levels;
+        if( bt >= 0 && bt < tiles_total )
+        {
+            struct PaintersTile* bt_tile = &painter->tiles[bt];
+            if( bt_tile->wall_a >= 0 )
+            {
+                struct PaintersElement* wel = &painter->elements[bt_tile->wall_a];
+                if( wel->kind == PNTRELEM_WALL_A || wel->kind == PNTRELEM_WALL_B )
+                {
+                    if( map_build_scene_id_matches_u16(primary_scene_element_id, wel->_wall.entity) )
+                        wel->_wall.side = wall_side_a;
+                    else if( map_build_scene_id_matches_u16(
+                                 secondary_scene_element_id, wel->_wall.entity) )
+                        wel->_wall.side = wall_side_b;
+                }
+            }
+            if( bt_tile->wall_b >= 0 )
+            {
+                struct PaintersElement* wel = &painter->elements[bt_tile->wall_b];
+                if( wel->kind == PNTRELEM_WALL_A || wel->kind == PNTRELEM_WALL_B )
+                {
+                    if( map_build_scene_id_matches_u16(primary_scene_element_id, wel->_wall.entity) )
+                        wel->_wall.side = wall_side_a;
+                    else if( map_build_scene_id_matches_u16(
+                                 secondary_scene_element_id, wel->_wall.entity) )
+                        wel->_wall.side = wall_side_b;
+                }
+            }
+        }
+    }
+
+    for( int i = 0; i < painter->element_count; i++ )
+    {
+        struct PaintersElement* el = &painter->elements[i];
+        if( (el->kind == PNTRELEM_WALL_A || el->kind == PNTRELEM_WALL_B) &&
+            map_build_scene_id_matches_u16(primary_scene_element_id, el->_wall.entity) )
+            el->_wall.side = wall_side_a;
+        if( (el->kind == PNTRELEM_WALL_A || el->kind == PNTRELEM_WALL_B) &&
+            map_build_scene_id_matches_u16(secondary_scene_element_id, el->_wall.entity) )
+            el->_wall.side = wall_side_b;
+    }
+}
+
+void
+painter_set_wall_decor_inside(
+    struct Painter* painter,
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
+    int scene_element_id,
+    uint8_t decor_side)
+{
+    if( !painter )
+        return;
+
+    if( tile_sx >= 0 && tile_sz >= 0 && tile_sx < painter->width && tile_sz < painter->height )
+    {
+        int g = painter_grid_slot_for_cache_level(
+            tile_slevel, painter_column_has_link_below(painter, tile_sx, tile_sz));
+        struct PaintersTile* t = painter_tile_at(painter, tile_sx, tile_sz, g);
+        if( t->wall_decor_a >= 0 )
+        {
+            struct PaintersElement* wel = &painter->elements[t->wall_decor_a];
+            if( wel->kind == PNTRELEM_WALL_DECOR &&
+                map_build_scene_id_matches_u16(scene_element_id, wel->_wall_decor.entity) )
+            {
+                wel->_wall_decor._bf_side = decor_side;
+                wel->_wall_decor._bf_through_wall_flags = 0;
+            }
+        }
+
+        int bt = t->bridge_tile;
+        int tiles_total = painter->width * painter->height * painter->levels;
+        if( bt >= 0 && bt < tiles_total )
+        {
+            struct PaintersTile* bt_tile = &painter->tiles[bt];
+            if( bt_tile->wall_decor_a >= 0 )
+            {
+                struct PaintersElement* wel = &painter->elements[bt_tile->wall_decor_a];
+                if( wel->kind == PNTRELEM_WALL_DECOR &&
+                    map_build_scene_id_matches_u16(scene_element_id, wel->_wall_decor.entity) )
+                {
+                    wel->_wall_decor._bf_side = decor_side;
+                    wel->_wall_decor._bf_through_wall_flags = 0;
+                }
+            }
+        }
+    }
+
+    for( int i = 0; i < painter->element_count; i++ )
+    {
+        struct PaintersElement* el = &painter->elements[i];
+        if( el->kind == PNTRELEM_WALL_DECOR &&
+            map_build_scene_id_matches_u16(scene_element_id, el->_wall_decor.entity) )
+        {
+            el->_wall_decor._bf_side = decor_side;
+            el->_wall_decor._bf_through_wall_flags = 0;
+        }
+    }
+}
+
+void
+painter_set_wall_decor_outside(
+    struct Painter* painter,
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
+    int scene_element_id,
+    uint8_t decor_side)
+{
+    if( !painter )
+        return;
+
+    if( tile_sx >= 0 && tile_sz >= 0 && tile_sx < painter->width && tile_sz < painter->height )
+    {
+        int g = painter_grid_slot_for_cache_level(
+            tile_slevel, painter_column_has_link_below(painter, tile_sx, tile_sz));
+        struct PaintersTile* t = painter_tile_at(painter, tile_sx, tile_sz, g);
+        if( t->wall_decor_a >= 0 )
+        {
+            struct PaintersElement* wel = &painter->elements[t->wall_decor_a];
+            if( wel->kind == PNTRELEM_WALL_DECOR &&
+                map_build_scene_id_matches_u16(scene_element_id, wel->_wall_decor.entity) )
+            {
+                wel->_wall_decor._bf_side = decor_side;
+                wel->_wall_decor._bf_through_wall_flags = 0;
+            }
+        }
+
+        int bt = t->bridge_tile;
+        int tiles_total = painter->width * painter->height * painter->levels;
+        if( bt >= 0 && bt < tiles_total )
+        {
+            struct PaintersTile* bt_tile = &painter->tiles[bt];
+            if( bt_tile->wall_decor_a >= 0 )
+            {
+                struct PaintersElement* wel = &painter->elements[bt_tile->wall_decor_a];
+                if( wel->kind == PNTRELEM_WALL_DECOR &&
+                    map_build_scene_id_matches_u16(scene_element_id, wel->_wall_decor.entity) )
+                {
+                    wel->_wall_decor._bf_side = decor_side;
+                    wel->_wall_decor._bf_through_wall_flags = 0;
+                }
+            }
+        }
+    }
+
+    for( int i = 0; i < painter->element_count; i++ )
+    {
+        struct PaintersElement* el = &painter->elements[i];
+        if( el->kind == PNTRELEM_WALL_DECOR &&
+            map_build_scene_id_matches_u16(scene_element_id, el->_wall_decor.entity) )
+        {
+            el->_wall_decor._bf_side = decor_side;
+            el->_wall_decor._bf_through_wall_flags = 0;
+        }
+    }
+}
+
+void
+painter_set_wall_decor_diagonal_outside(
+    struct Painter* painter,
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
+    int scene_element_id,
+    uint8_t decor_side)
+{
+    if( !painter )
+        return;
+
+    if( tile_sx >= 0 && tile_sz >= 0 && tile_sx < painter->width && tile_sz < painter->height )
+    {
+        int g = painter_grid_slot_for_cache_level(
+            tile_slevel, painter_column_has_link_below(painter, tile_sx, tile_sz));
+        struct PaintersTile* t = painter_tile_at(painter, tile_sx, tile_sz, g);
+        if( t->wall_decor_a >= 0 )
+        {
+            struct PaintersElement* wel = &painter->elements[t->wall_decor_a];
+            if( wel->kind == PNTRELEM_WALL_DECOR &&
+                map_build_scene_id_matches_u16(scene_element_id, wel->_wall_decor.entity) )
+            {
+                wel->_wall_decor._bf_side = decor_side;
+                wel->_wall_decor._bf_through_wall_flags = (uint8_t)THROUGHWALL;
+            }
+        }
+
+        int bt = t->bridge_tile;
+        int tiles_total = painter->width * painter->height * painter->levels;
+        if( bt >= 0 && bt < tiles_total )
+        {
+            struct PaintersTile* bt_tile = &painter->tiles[bt];
+            if( bt_tile->wall_decor_a >= 0 )
+            {
+                struct PaintersElement* wel = &painter->elements[bt_tile->wall_decor_a];
+                if( wel->kind == PNTRELEM_WALL_DECOR &&
+                    map_build_scene_id_matches_u16(scene_element_id, wel->_wall_decor.entity) )
+                {
+                    wel->_wall_decor._bf_side = decor_side;
+                    wel->_wall_decor._bf_through_wall_flags = (uint8_t)THROUGHWALL;
+                }
+            }
+        }
+    }
+
+    for( int i = 0; i < painter->element_count; i++ )
+    {
+        struct PaintersElement* el = &painter->elements[i];
+        if( el->kind == PNTRELEM_WALL_DECOR &&
+            map_build_scene_id_matches_u16(scene_element_id, el->_wall_decor.entity) )
+        {
+            el->_wall_decor._bf_side = decor_side;
+            el->_wall_decor._bf_through_wall_flags = (uint8_t)THROUGHWALL;
+        }
+    }
+}
+
+void
+painter_set_wall_decor_diagonal_inside(
+    struct Painter* painter,
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
+    int scene_element_id,
+    uint8_t decor_side)
+{
+    if( !painter )
+        return;
+
+    if( tile_sx >= 0 && tile_sz >= 0 && tile_sx < painter->width && tile_sz < painter->height )
+    {
+        int g = painter_grid_slot_for_cache_level(
+            tile_slevel, painter_column_has_link_below(painter, tile_sx, tile_sz));
+        struct PaintersTile* t = painter_tile_at(painter, tile_sx, tile_sz, g);
+        if( t->wall_decor_a >= 0 )
+        {
+            struct PaintersElement* wel = &painter->elements[t->wall_decor_a];
+            if( wel->kind == PNTRELEM_WALL_DECOR &&
+                map_build_scene_id_matches_u16(scene_element_id, wel->_wall_decor.entity) )
+            {
+                wel->_wall_decor._bf_side = decor_side;
+                wel->_wall_decor._bf_through_wall_flags = (uint8_t)THROUGHWALL;
+            }
+        }
+
+        int bt = t->bridge_tile;
+        int tiles_total = painter->width * painter->height * painter->levels;
+        if( bt >= 0 && bt < tiles_total )
+        {
+            struct PaintersTile* bt_tile = &painter->tiles[bt];
+            if( bt_tile->wall_decor_a >= 0 )
+            {
+                struct PaintersElement* wel = &painter->elements[bt_tile->wall_decor_a];
+                if( wel->kind == PNTRELEM_WALL_DECOR &&
+                    map_build_scene_id_matches_u16(scene_element_id, wel->_wall_decor.entity) )
+                {
+                    wel->_wall_decor._bf_side = decor_side;
+                    wel->_wall_decor._bf_through_wall_flags = (uint8_t)THROUGHWALL;
+                }
+            }
+        }
+    }
+
+    for( int i = 0; i < painter->element_count; i++ )
+    {
+        struct PaintersElement* el = &painter->elements[i];
+        if( el->kind == PNTRELEM_WALL_DECOR &&
+            map_build_scene_id_matches_u16(scene_element_id, el->_wall_decor.entity) )
+        {
+            el->_wall_decor._bf_side = decor_side;
+            el->_wall_decor._bf_through_wall_flags = (uint8_t)THROUGHWALL;
+        }
+    }
+}
+
+void
+painter_set_wall_decor_diagonal_double(
+    struct Painter* painter,
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
+    int primary_scene_element_id,
+    int secondary_scene_element_id,
+    uint8_t decor_side_outside,
+    uint8_t decor_side_inside)
+{
+    if( !painter )
+        return;
+
+    if( tile_sx >= 0 && tile_sz >= 0 && tile_sx < painter->width && tile_sz < painter->height )
+    {
+        int g = painter_grid_slot_for_cache_level(
+            tile_slevel, painter_column_has_link_below(painter, tile_sx, tile_sz));
+        struct PaintersTile* t = painter_tile_at(painter, tile_sx, tile_sz, g);
+        if( t->wall_decor_a >= 0 )
+        {
+            struct PaintersElement* wel = &painter->elements[t->wall_decor_a];
+            if( wel->kind == PNTRELEM_WALL_DECOR )
+            {
+                if( map_build_scene_id_matches_u16(
+                        primary_scene_element_id, wel->_wall_decor.entity) )
+                {
+                    wel->_wall_decor._bf_side = decor_side_outside;
+                    wel->_wall_decor._bf_through_wall_flags = (uint8_t)THROUGHWALL;
+                }
+                else if( map_build_scene_id_matches_u16(
+                             secondary_scene_element_id, wel->_wall_decor.entity) )
+                {
+                    wel->_wall_decor._bf_side = decor_side_inside;
+                    wel->_wall_decor._bf_through_wall_flags = (uint8_t)THROUGHWALL;
+                }
+            }
+        }
+        if( t->wall_decor_b >= 0 )
+        {
+            struct PaintersElement* wel = &painter->elements[t->wall_decor_b];
+            if( wel->kind == PNTRELEM_WALL_DECOR )
+            {
+                if( map_build_scene_id_matches_u16(
+                        primary_scene_element_id, wel->_wall_decor.entity) )
+                {
+                    wel->_wall_decor._bf_side = decor_side_outside;
+                    wel->_wall_decor._bf_through_wall_flags = (uint8_t)THROUGHWALL;
+                }
+                else if( map_build_scene_id_matches_u16(
+                             secondary_scene_element_id, wel->_wall_decor.entity) )
+                {
+                    wel->_wall_decor._bf_side = decor_side_inside;
+                    wel->_wall_decor._bf_through_wall_flags = (uint8_t)THROUGHWALL;
+                }
+            }
+        }
+
+        int bt = t->bridge_tile;
+        int tiles_total = painter->width * painter->height * painter->levels;
+        if( bt >= 0 && bt < tiles_total )
+        {
+            struct PaintersTile* bt_tile = &painter->tiles[bt];
+            if( bt_tile->wall_decor_a >= 0 )
+            {
+                struct PaintersElement* wel = &painter->elements[bt_tile->wall_decor_a];
+                if( wel->kind == PNTRELEM_WALL_DECOR )
+                {
+                    if( map_build_scene_id_matches_u16(
+                            primary_scene_element_id, wel->_wall_decor.entity) )
+                    {
+                        wel->_wall_decor._bf_side = decor_side_outside;
+                        wel->_wall_decor._bf_through_wall_flags = (uint8_t)THROUGHWALL;
+                    }
+                    else if( map_build_scene_id_matches_u16(
+                                 secondary_scene_element_id, wel->_wall_decor.entity) )
+                    {
+                        wel->_wall_decor._bf_side = decor_side_inside;
+                        wel->_wall_decor._bf_through_wall_flags = (uint8_t)THROUGHWALL;
+                    }
+                }
+            }
+            if( bt_tile->wall_decor_b >= 0 )
+            {
+                struct PaintersElement* wel = &painter->elements[bt_tile->wall_decor_b];
+                if( wel->kind == PNTRELEM_WALL_DECOR )
+                {
+                    if( map_build_scene_id_matches_u16(
+                            primary_scene_element_id, wel->_wall_decor.entity) )
+                    {
+                        wel->_wall_decor._bf_side = decor_side_outside;
+                        wel->_wall_decor._bf_through_wall_flags = (uint8_t)THROUGHWALL;
+                    }
+                    else if( map_build_scene_id_matches_u16(
+                                 secondary_scene_element_id, wel->_wall_decor.entity) )
+                    {
+                        wel->_wall_decor._bf_side = decor_side_inside;
+                        wel->_wall_decor._bf_through_wall_flags = (uint8_t)THROUGHWALL;
+                    }
+                }
+            }
+        }
+    }
+
+    for( int i = 0; i < painter->element_count; i++ )
+    {
+        struct PaintersElement* el = &painter->elements[i];
+        if( el->kind == PNTRELEM_WALL_DECOR &&
+            map_build_scene_id_matches_u16(primary_scene_element_id, el->_wall_decor.entity) )
+        {
+            el->_wall_decor._bf_side = decor_side_outside;
+            el->_wall_decor._bf_through_wall_flags = (uint8_t)THROUGHWALL;
+        }
+        if( el->kind == PNTRELEM_WALL_DECOR &&
+            map_build_scene_id_matches_u16(secondary_scene_element_id, el->_wall_decor.entity) )
+        {
+            el->_wall_decor._bf_side = decor_side_inside;
+            el->_wall_decor._bf_through_wall_flags = (uint8_t)THROUGHWALL;
         }
     }
 }
@@ -1008,10 +1481,23 @@ painter_reset_to_static(struct Painter* painter)
                 int tx = painter->elements[i].sx + x;
                 int tz = painter->elements[i].sz + z;
                 int g = painter_grid_slot_for_cache_level(
-                    painter->elements[i].slevel,
-                    painter_column_has_link_below(painter, tx, tz));
+                    painter->elements[i].slevel, painter_column_has_link_below(painter, tx, tz));
                 tile = painter_tile_at(painter, tx, tz, g);
                 tile_remove_scenery_element(painter, tile, i);
+            }
+        }
+    }
+
+    for( int slevel = 0; slevel < painter->levels; slevel++ )
+    {
+        for( int sz = 0; sz < painter->height; sz++ )
+        {
+            for( int sx = 0; sx < painter->width; sx++ )
+            {
+                tile = painter_tile_at(painter, sx, sz, slevel);
+                tile->ground_object_bottom = -1;
+                tile->ground_object_middle = -1;
+                tile->ground_object_top = -1;
             }
         }
     }
@@ -1029,8 +1515,8 @@ painter_add_wall(
     int wall_ab,
     int side)
 {
-    int g = painter_grid_slot_for_cache_level(
-        slevel, painter_column_has_link_below(painter, sx, sz));
+    int g =
+        painter_grid_slot_for_cache_level(slevel, painter_column_has_link_below(painter, sx, sz));
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, g);
     enum PaintersElementKind kind;
     int element = painter_push_element(painter);
@@ -1073,8 +1559,8 @@ painter_add_wall_decor(
     int side,
     int through_wall_flags)
 {
-    int g = painter_grid_slot_for_cache_level(
-        slevel, painter_column_has_link_below(painter, sx, sz));
+    int g =
+        painter_grid_slot_for_cache_level(slevel, painter_column_has_link_below(painter, sx, sz));
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, g);
     int element = painter_push_element(painter);
 
@@ -1114,8 +1600,8 @@ painter_add_ground_decor(
     int slevel,
     int entity)
 {
-    int g = painter_grid_slot_for_cache_level(
-        slevel, painter_column_has_link_below(painter, sx, sz));
+    int g =
+        painter_grid_slot_for_cache_level(slevel, painter_column_has_link_below(painter, sx, sz));
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, g);
     int element = painter_push_element(painter);
 
@@ -1141,8 +1627,8 @@ painter_add_ground_object(
     int entity,
     int bottom_middle_top)
 {
-    int g = painter_grid_slot_for_cache_level(
-        slevel, painter_column_has_link_below(painter, sx, sz));
+    int g =
+        painter_grid_slot_for_cache_level(slevel, painter_column_has_link_below(painter, sx, sz));
     struct PaintersTile* tile = painter_tile_at(painter, sx, sz, g);
     int element = painter_push_element(painter);
 
@@ -1217,6 +1703,27 @@ push_command_entity(
             ._bf_entity = entity,
         },
     };
+}
+
+void
+painters_emit_ground_objects(
+    struct Painter* painter,
+    struct PaintersTile* tile,
+    struct PaintersBuffer* buffer)
+{
+    int16_t const layers[3] = {
+        tile->ground_object_bottom,
+        tile->ground_object_middle,
+        tile->ground_object_top,
+    };
+    for( int i = 0; i < 3; i++ )
+    {
+        if( layers[i] == -1 )
+            continue;
+        struct PaintersElement* element = &painter->elements[layers[i]];
+        assert(element->kind == PNTRELEM_GROUND_OBJECT);
+        push_command_entity(buffer, element->_ground_object.entity);
+    }
 }
 
 static inline void

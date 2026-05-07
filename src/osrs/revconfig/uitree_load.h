@@ -41,6 +41,10 @@ uitree_load_ui_from_revconfig(
     struct GGame* game,
     struct RevConfigBuffer* revconfig_buffer);
 
+/** Rebuild IF_OPENCHAT interface under UIELEM_BUILTIN_CHAT_DIALOG. component_id < 0 clears only. */
+void
+uitree_expand_chat_dialog_for_interface(struct GGame* game, int component_id);
+
 /** Clear sidebar RS subtree and rebuild from component_id (buildcachedat). No-op if no sidebar
  * node for tabno. component_id < 0 clears only. */
 void
@@ -48,6 +52,10 @@ uitree_expand_sidebar_for_tab(
     struct GGame* game,
     int tabno,
     int component_id);
+
+/** Rebuild Scene2 model for a UIELEM_RS_MODEL node after IF_SETOBJECT / IF_SETMODEL / head packets. */
+void
+uitree_rs_model_refresh_from_gamecache(struct GGame* game, int component_id);
 
 /** When TORI_SIDEBAR_DEBUG is set in the environment, log iface + sidebar UITree slot for tab_id.
  * component_id is the wire/root id for SETTAB, or -1 for SETTAB_ACTIVE-only logs. */

@@ -165,7 +165,26 @@ serverprot_netrev245_2_parse(
     case PKTIN_LC245_2_IF_SETTEXT:
     {
         packet->packet_type = SERVERPROT_IF_SETTEXT_V1;
-        return serverprot_core_parse_if_settext_v1(data, data_size, packet);
+        if( !serverprot_core_parse_if_settext_v1(data, data_size, packet) )
+            return 0;
+        {
+            char const* e = getenv("TORI_CHAT_IF_DEBUG");
+            int const dbg = e && e[0] != '\0' && strcmp(e, "0") != 0;
+            char const* t = packet->u.if_settext_v1.text;
+            size_t const len = t ? strlen(t) : 0;
+            printf(
+                "PKTIN_LC245_2_IF_SETTEXT: component_id=%d len=%zu\n",
+                packet->u.if_settext_v1.component_id,
+                len);
+            if( dbg && t )
+            {
+                int n = (int)len;
+                if( n > 120 )
+                    n = 120;
+                fprintf(stderr, "  [TORI_CHAT_IF] text: %.*s%s\n", n, t, len > 120 ? "..." : "");
+            }
+        }
+        return 1;
     }
     case PKTIN_LC245_2_IF_SETNPCHEAD:
     {

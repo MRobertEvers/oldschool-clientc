@@ -36,6 +36,10 @@ obj_icon_get(
     int obj_id,
     int count);
 
+/** DashModel for interface TYPE_MODEL modelType 4 (IF_SETOBJECT); caller frees via Scene2 release. */
+struct DashModel*
+obj_icon_new_dash_model_for_obj(struct GGame* game, int obj_id_0based);
+
 // Render a head model to a buffer (for chat/interface MODEL components).
 // Client.ts drawInterface: model.drawSimple(0, yan, 0, xan, 0, eyeY, eyeZ)
 // zoom/xan/yan from component. Does not free dash_model.

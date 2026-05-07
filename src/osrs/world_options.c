@@ -3,10 +3,241 @@
 #include "game.h"
 #include "game_entity.h"
 #include "minimenu_action.h"
+#include "osrs/gamecache/gamecache.h"
+#include "osrs/interface_state.h"
 #include "rscache/tables/string_utils.h"
 
 #include <assert.h>
 #include <string.h>
+
+/** Max ground items per tile to enumerate for minimenu (tail→head); excess oldest are skipped. */
+#define WORLD_OPTIONS_OBJ_STACK_LIST_MAX 128
+
+static void
+options_add_obj_stack_at_tile(
+    struct GGame* game,
+    struct World* world,
+    struct WorldOptionSet* option_set,
+    int sx,
+    int sz,
+    int level)
+{
+    if( !game || !world || !option_set || !game->gamecache )
+        return;
+    if( level < 0 || level >= MAP_TERRAIN_LEVELS )
+        return;
+    if( sx < 0 || sx >= ZONE_SCENE_SIZE || sz < 0 || sz >= ZONE_SCENE_SIZE )
+        return;
+    if( !world->obj_stacks || !world->obj_stacks[level] )
+        return;
+
+    struct ObjStackEntry* head = world->obj_stacks[level][sx * ZONE_SCENE_SIZE + sz];
+    if( !head )
+        return;
+
+    int total = 0;
+    for( struct ObjStackEntry* e = head; e; e = e->next )
+        total++;
+
+    struct ObjStackEntry* forward[WORLD_OPTIONS_OBJ_STACK_LIST_MAX];
+    int n = 0;
+    int skip = total > WORLD_OPTIONS_OBJ_STACK_LIST_MAX ? total - WORLD_OPTIONS_OBJ_STACK_LIST_MAX : 0;
+    for( struct ObjStackEntry* e = head; e; e = e->next )
+    {
+        if( skip > 0 )
+        {
+            skip--;
+            continue;
+        }
+        if( n >= WORLD_OPTIONS_OBJ_STACK_LIST_MAX )
+            break;
+        forward[n++] = e;
+    }
+
+    struct InterfaceState* iface = game->iface;
+
+    for( int li = n - 1; li >= 0; li-- )
+    {
+        struct ObjStackEntry* entry = forward[li];
+        struct GameCacheObj* o = gamecache_get_obj(game->gamecache, entry->obj_id);
+        if( !o || !o->name || !o->name[0] )
+            continue;
+        if( option_set->option_count >= WORLD_OPTION_SET_CAPACITY - 1 )
+            return;
+
+        if( iface && iface->inv_use_mode )
+        {
+            struct WorldOption* opt = &option_set->options[option_set->option_count];
+            memset(opt, 0, sizeof(*opt));
+            snprintf(
+                opt->text,
+                sizeof(opt->text),
+                "Use %s with @lre@%s",
+                iface->inv_sel_obj_name[0] ? iface->inv_sel_obj_name : "",
+                o->name);
+            opt->action  = MINIMENU_ACTION_OPOBJU;
+            opt->param_a = entry->obj_id;
+            opt->param_b = sx;
+            opt->param_c = sz;
+            option_set->option_count += 1;
+        }
+        else if( iface && iface->inv_target_mode )
+        {
+            if( (iface->inv_target_mask & 0x1) == 0 )
+                continue;
+            struct WorldOption* opt = &option_set->options[option_set->option_count];
+            memset(opt, 0, sizeof(*opt));
+            snprintf(
+                opt->text,
+                sizeof(opt->text),
+                "%s @lre@%s",
+                iface->inv_target_op[0] ? iface->inv_target_op : "",
+                o->name);
+            opt->action  = MINIMENU_ACTION_OPOBJT;
+            opt->param_a = entry->obj_id;
+            opt->param_b = sx;
+            opt->param_c = sz;
+            option_set->option_count += 1;
+        }
+        else
+        {
+            for( int op = 4; op >= 0; op-- )
+            {
+                if( option_set->option_count >= WORLD_OPTION_SET_CAPACITY - 1 )
+                    return;
+                char const* opname = o->iop[op];
+                if( opname && opname[0] != '\0' )
+                {
+                    struct WorldOption* opt = &option_set->options[option_set->option_count];
+                    memset(opt, 0, sizeof(*opt));
+                    snprintf(opt->text, sizeof(opt->text), "%s @lre@%s", opname, o->name);
+                    switch( op )
+                    {
+                    case 0:
+                        opt->action = MINIMENU_ACTION_OPOBJ1;
+                        break;
+                    case 1:
+                        opt->action = MINIMENU_ACTION_OPOBJ2;
+                        break;
+                    case 2:
+                        opt->action = MINIMENU_ACTION_OPOBJ3;
+                        break;
+                    case 3:
+                        opt->action = MINIMENU_ACTION_OPOBJ4;
+                        break;
+                    case 4:
+                        opt->action = MINIMENU_ACTION_OPOBJ5;
+                        break;
+                    default:
+                        opt->action = MINIMENU_ACTION_OPOBJ1;
+                        break;
+                    }
+                    opt->param_a = entry->obj_id;
+                    opt->param_b = sx;
+                    opt->param_c = sz;
+                    option_set->option_count += 1;
+                }
+                else if( op == 2 )
+                {
+                    struct WorldOption* opt = &option_set->options[option_set->option_count];
+                    memset(opt, 0, sizeof(*opt));
+                    snprintf(opt->text, sizeof(opt->text), "Take @lre@%s", o->name);
+                    opt->action  = MINIMENU_ACTION_OPOBJ3;
+                    opt->param_a = entry->obj_id;
+                    opt->param_b = sx;
+                    opt->param_c = sz;
+                    option_set->option_count += 1;
+                }
+            }
+
+            if( option_set->option_count >= WORLD_OPTION_SET_CAPACITY - 1 )
+                return;
+            struct WorldOption* opt = &option_set->options[option_set->option_count];
+            memset(opt, 0, sizeof(*opt));
+            snprintf(opt->text, sizeof(opt->text), "Examine @lre@%s", o->name);
+            opt->action  = MINIMENU_ACTION_OPOBJ6;
+            opt->param_a = entry->obj_id;
+            opt->param_b = sx;
+            opt->param_c = sz;
+            option_set->option_count += 1;
+        }
+    }
+}
+
+/** Zone OBJ packets may only populate level 0 while terrain hover uses another plane — scan
+ * obj_stack_entity_by_tile / obj_stacks so Take/Examine rows match data (plan: hover lookup). */
+static int
+world_options_resolve_obj_stack_level(
+    struct World* world,
+    int sx,
+    int sz,
+    int hint_level)
+{
+    if( !world || !world->obj_stacks || !world->obj_stack_entity_by_tile )
+        return (hint_level >= 0 && hint_level < MAP_TERRAIN_LEVELS) ? hint_level : 0;
+
+    for( int lev = 0; lev < MAP_TERRAIN_LEVELS; lev++ )
+    {
+        int flat = world_obj_stack_tile_flat(lev, sx, sz);
+        int eid  = world->obj_stack_entity_by_tile[flat];
+        if( eid >= 0 && eid < entity_vec_count(&world->obj_stack_entities) )
+        {
+            struct ObjStackEntity* ost = world_obj_stack_entity(world, eid);
+            if( ost && ost->alive )
+                return (ost->level >= 0 && ost->level < MAP_TERRAIN_LEVELS) ? ost->level : lev;
+        }
+    }
+
+    for( int lev = 0; lev < MAP_TERRAIN_LEVELS; lev++ )
+    {
+        if( !world->obj_stacks[lev] )
+            continue;
+        struct ObjStackEntry* head = world->obj_stacks[lev][sx * ZONE_SCENE_SIZE + sz];
+        if( head )
+            return lev;
+    }
+
+    if( hint_level >= 0 && hint_level < MAP_TERRAIN_LEVELS )
+        return hint_level;
+    return 0;
+}
+
+/** Client.ts addWorldOptions entityType === 3; dedupe when multiple stack layers hit pickset. */
+static void
+options_add_obj_stack(
+    struct GGame* game,
+    struct World* world,
+    struct WorldPickSet* pickset,
+    int pick_index,
+    struct WorldOptionSet* option_set)
+{
+    if( !pickset || pick_index < 0 || pick_index >= pickset->count )
+        return;
+
+    struct PickedEntity* picked_entity = &pickset->entities[pick_index];
+    assert(picked_entity->entity_type == ENTITY_KIND_OBJ_STACK && "Entity type must be obj stack");
+
+    for( int j = 0; j < pick_index; j++ )
+    {
+        if( pickset->entities[j].entity_type == ENTITY_KIND_OBJ_STACK &&
+            pickset->entities[j].x == picked_entity->x &&
+            pickset->entities[j].z == picked_entity->z )
+            return;
+    }
+
+    int hint = (game && game->mouse_tile_level >= 0 && game->mouse_tile_level < MAP_TERRAIN_LEVELS)
+                   ? game->mouse_tile_level
+                   : 0;
+    int lev =
+        world_options_resolve_obj_stack_level(world, picked_entity->x, picked_entity->z, hint);
+    options_add_obj_stack_at_tile(
+        game,
+        world,
+        option_set,
+        picked_entity->x,
+        picked_entity->z,
+        lev);
+}
 
 static void
 options_add_loc(
@@ -420,6 +651,9 @@ world_options_add_pickset_options(
                 picked_entity->x,
                 picked_entity->z,
                 picked_entity->entity_id);
+            break;
+        case ENTITY_KIND_OBJ_STACK:
+            options_add_obj_stack(game, world, pickset, i, option_set);
             break;
         }
     }

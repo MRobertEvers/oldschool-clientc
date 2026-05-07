@@ -370,6 +370,10 @@ uitree_component_type_str(enum StaticUIComponentType type)
         return "chat_input";
     case UIELEM_BUILTIN_CHAT_PRIVACY:
         return "chat_privacy";
+    case UIELEM_BUILTIN_COLLISIONMAP_OVERLAY:
+        return "collisionmap_overlay";
+    case UIELEM_BUILTIN_CHAT_DIALOG:
+        return "chat_dialog";
     }
     return "unknown";
 }
@@ -876,6 +880,30 @@ uitree_push_chat_privacy(
 }
 
 int32_t
+uitree_push_builtin_chat_dialog(
+    struct UITree* tree,
+    int32_t parent_index,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_BUILTIN_CHAT_DIALOG;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.chat_dialog.reserved = 0;
+    return idx;
+}
+
+int32_t
 uitree_push_collisionmap_overlay(
     struct UITree* tree,
     int32_t parent_index)
@@ -1271,6 +1299,23 @@ uitree_clear_sidebar_children(
         return;
     struct StaticUIComponent* c = &tree->components[sidebar_idx];
     if( c->type != UIELEM_BUILTIN_SIDEBAR )
+        return;
+    if( c->first_child >= 0 )
+        uitree_subtree_set_hidden_r(tree, c->first_child, 1u);
+    c->first_child = -1;
+    c->is_dirty = 1;
+    tree->generation++;
+}
+
+void
+uitree_clear_chat_dialog_children(
+    struct UITree* tree,
+    int32_t chat_dialog_idx)
+{
+    if( !tree || chat_dialog_idx < 0 || (uint32_t)chat_dialog_idx >= tree->component_count )
+        return;
+    struct StaticUIComponent* c = &tree->components[chat_dialog_idx];
+    if( c->type != UIELEM_BUILTIN_CHAT_DIALOG )
         return;
     if( c->first_child >= 0 )
         uitree_subtree_set_hidden_r(tree, c->first_child, 1u);
@@ -2030,6 +2075,10 @@ uitree_pick_descend(
         return;
 
     if( c->type == UIELEM_BUILTIN_SIDEBAR && !uitree_sidebar_tab_active_pick(game, c) )
+        return;
+
+    if( c->type == UIELEM_BUILTIN_CHAT_DIALOG &&
+        (!game->iface || game->iface->chat_interface_id < 0) )
         return;
 
     bool pushed_layer = false;

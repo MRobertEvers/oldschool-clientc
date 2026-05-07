@@ -331,6 +331,55 @@ buildcachedat_loader_scenery_config_load_mapchunk_from_config_jagfile(
     filelist_dat_indexed_free(filelist_indexed);
 }
 
+void
+buildcachedat_loader_scenery_config_load_loc_from_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    int loc_id)
+{
+    struct FileListDat* config_jagfile = buildcachedat_config_jagfile(buildcachedat);
+    if( !config_jagfile )
+        return;
+    if( loc_id < 0 )
+        return;
+    if( buildcachedat_get_config_loc(buildcachedat, loc_id) )
+        return;
+
+    int data_file_idx = filelist_dat_find_file_by_name(config_jagfile, "loc.dat");
+    int index_file_idx = filelist_dat_find_file_by_name(config_jagfile, "loc.idx");
+
+    if( data_file_idx == -1 || index_file_idx == -1 )
+        return;
+
+    struct FileListDatIndexed* filelist_indexed = filelist_dat_indexed_new_from_decode(
+        config_jagfile->files[index_file_idx],
+        config_jagfile->file_sizes[index_file_idx],
+        config_jagfile->files[data_file_idx],
+        config_jagfile->file_sizes[data_file_idx]);
+
+    if( loc_id >= filelist_indexed->offset_count )
+    {
+        filelist_dat_indexed_free(filelist_indexed);
+        return;
+    }
+
+    struct CacheConfigLocation* config_loc = malloc(sizeof(struct CacheConfigLocation));
+    memset(config_loc, 0, sizeof(struct CacheConfigLocation));
+
+    int offset = filelist_indexed->offsets[loc_id];
+
+    config_locs_decode_inplace(
+        config_loc,
+        filelist_indexed->data + offset,
+        filelist_indexed->data_size - offset,
+        CONFIG_LOC_DECODE_DAT);
+
+    config_loc->_id = loc_id;
+
+    buildcachedat_add_config_loc(buildcachedat, loc_id, config_loc);
+
+    filelist_dat_indexed_free(filelist_indexed);
+}
+
 int
 buildcachedat_loader_scenery_config_get_model_ids_mapchunk(
     struct BuildCacheDat* buildcachedat,

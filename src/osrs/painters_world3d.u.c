@@ -294,12 +294,7 @@ painter_w3d_emit_ground_pass(
         push_command_entity(buffer, element->_ground_decor.entity);
     }
 
-    if( tile->ground_object_bottom != -1 )
-    {
-        element = &painter->elements[tile->ground_object_bottom];
-        assert(element->kind == PNTRELEM_GROUND_OBJECT);
-        push_command_entity(buffer, element->_ground_object.entity);
-    }
+    painters_emit_ground_objects(painter, tile, buffer);
 
     if( tile->wall_decor_a != -1 )
     {

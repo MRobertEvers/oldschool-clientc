@@ -44,6 +44,9 @@ struct LuaGameType*
 LuaGameCache_convert_loc_configs_chunk_from_buildcachedat(struct GGame* game, struct LuaGameType* args);
 
 struct LuaGameType*
+LuaGameCache_convert_one_loc_config_from_buildcachedat(struct GGame* game, struct LuaGameType* args);
+
+struct LuaGameType*
 LuaGameCache_convert_models_chunk_from_buildcachedat(struct GGame* game, struct LuaGameType* args);
 
 struct LuaGameType*

@@ -30,3 +30,5 @@ LUA_API_X(LUA_API_GAME_GET_PKT_OBJ_ADD_OBJ_ID, "game_get_pkt_obj_add_obj_id", LU
 LUA_API_X(LUA_API_GAME_GET_PKT_OBJ_REVEAL_OBJ_ID, "game_get_pkt_obj_reveal_obj_id", LUA_DOMAIN_GAME, "get_pkt_obj_reveal_obj_id")
 LUA_API_X(LUA_API_GAME_GET_PKT_MAP_ANIM_SPOTANIM_ID, "game_get_pkt_map_anim_spotanim_id", LUA_DOMAIN_GAME, "get_pkt_map_anim_spotanim_id")
 LUA_API_X(LUA_API_GAME_GET_PKT_MAP_PROJANIM_SPOTANIM_ID, "game_get_pkt_map_projanim_spotanim_id", LUA_DOMAIN_GAME, "get_pkt_map_projanim_spotanim_id")
+LUA_API_X(LUA_API_GAME_GET_LOCAL_PLAYER_APPEARANCE_SLOTS, "game_get_local_player_appearance_slots", LUA_DOMAIN_GAME, "get_local_player_appearance_slots")
+LUA_API_X(LUA_API_GAME_GET_PKT_IF_OPENCHAT_COMPONENT_ID, "game_get_pkt_if_openchat_component_id", LUA_DOMAIN_GAME, "get_pkt_if_openchat_component_id")

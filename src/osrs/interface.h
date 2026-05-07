@@ -247,6 +247,10 @@ interface_apply_button_click_varp_optimistic(
     struct GGame* game,
     int component_id);
 
+/** After `interface_find_button_click_at`: send IF_BUTTON, CLOSE_MODAL, or RESUME_PAUSEBUTTON. */
+void
+interface_dispatch_button_action(struct GGame* game, int component_id, int btn_action);
+
 // Find clickable button at (mouse_x, mouse_y). Returns 1 if found, 0 else.
 // Matches buttonType (OK/TOGGLE/SELECT/CLOSE/CONTINUE) or clientCode > 0.
 // Sets *out_component_id, *out_client_code, *out_button_action, and menu params.
@@ -289,9 +293,9 @@ interface_inv_drag_tick(struct GGame* game);
 void
 interface_inv_try_drag_mouse_up(struct GGame* game, struct GInput* input);
 
-/** After selecting magic sidebar tab (tab id 6): if `TORI_MAGIC_TAB_IF_BUTTON_COMP` is a
- * positive integer, send PKTOUT IF_BUTTON with that component id so server scripts can run
- * `inv_transmit` (or equivalent) for spellbook TYPE_INV panels. World-specific. */
+/** After selecting the spellbook sidebar tab (`magic_tab_spellbook_sidebar_tabno` from UI INI
+ * `[magic_tab:*]`): if `magic_tab_inv_transmit_if_button_comp` > 0, send PKTOUT IF_BUTTON so the
+ * server can run `inv_transmit` for spellbook TYPE_INV panels. */
 void
 interface_magic_tab_request_inv_transmit_if_configured(struct GGame* game);
 

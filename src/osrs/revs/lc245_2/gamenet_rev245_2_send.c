@@ -30,9 +30,9 @@ gamenet_rev245_2_send_close_modal(struct GGame* g)
     gamenet_core_send_close_modal_v1(g, PKTOUT_LC245_2_CLOSE_MODAL);
 }
 void
-gamenet_rev245_2_send_resume_pausebutton(struct GGame* g)
+gamenet_rev245_2_send_resume_pausebutton(struct GGame* g, int comp_id)
 {
-    gamenet_core_send_resume_pausebutton_v1(g, PKTOUT_LC245_2_RESUME_PAUSEBUTTON);
+    gamenet_core_send_resume_pausebutton_v1(g, PKTOUT_LC245_2_RESUME_PAUSEBUTTON, comp_id);
 }
 void
 gamenet_rev245_2_send_resume_p_countdialog(

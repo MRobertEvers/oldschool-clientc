@@ -350,6 +350,53 @@ LuaBuildCacheDat_get_idk_head_model_ids(
     return result;
 }
 
+/** Ground / inventory mesh ids for one obj.dat row; recurses into countobj variants (coin stacks)
+ * so Lua prefetch matches C obj_ground_model. */
+static void
+append_obj_def_model_ids_recursive(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* result,
+    int obj_id,
+    int depth,
+    int* visited,
+    int visited_count)
+{
+    if( depth > 16 || obj_id < 0 )
+        return;
+    for( int i = 0; i < visited_count; i++ )
+    {
+        if( visited[i] == obj_id )
+            return;
+    }
+    if( visited_count >= 32 )
+        return;
+
+    struct CacheDatConfigObj* obj = buildcachedat_get_obj(buildcachedat, obj_id);
+    if( !obj )
+        return;
+
+    visited[visited_count] = obj_id;
+
+    if( obj->model != -1 )
+        LuaGameType_IntArrayPush(result, obj->model);
+    if( obj->manwear != -1 )
+        LuaGameType_IntArrayPush(result, obj->manwear);
+    if( obj->manwear2 != -1 )
+        LuaGameType_IntArrayPush(result, obj->manwear2);
+    if( obj->manwear3 != -1 )
+        LuaGameType_IntArrayPush(result, obj->manwear3);
+
+    if( obj->countobj && obj->countco && obj->countobj_count > 0 )
+    {
+        for( int i = 0; i < obj->countobj_count; i++ )
+        {
+            int cid = obj->countobj[i];
+            append_obj_def_model_ids_recursive(
+                buildcachedat, result, cid, depth + 1, visited, visited_count + 1);
+        }
+    }
+}
+
 struct LuaGameType*
 LuaBuildCacheDat_get_obj_model_ids(
     struct BuildCacheDat* buildcachedat,
@@ -361,15 +408,9 @@ LuaBuildCacheDat_get_obj_model_ids(
     if( !obj )
         return LuaGameType_NewIntArray(0);
 
-    struct LuaGameType* result = LuaGameType_NewIntArray(4);
-    if( obj->model != -1 )
-        LuaGameType_IntArrayPush(result, obj->model);
-    if( obj->manwear != -1 )
-        LuaGameType_IntArrayPush(result, obj->manwear);
-    if( obj->manwear2 != -1 )
-        LuaGameType_IntArrayPush(result, obj->manwear2);
-    if( obj->manwear3 != -1 )
-        LuaGameType_IntArrayPush(result, obj->manwear3);
+    struct LuaGameType* result = LuaGameType_NewIntArray(32);
+    int visited[32];
+    append_obj_def_model_ids_recursive(buildcachedat, result, obj_id, 0, visited, 0);
     return result;
 }
 
@@ -789,6 +830,16 @@ LuaBuildCacheDat_scenery_config_load_mapchunk_from_config_jagfile(
 }
 
 struct LuaGameType*
+LuaBuildCacheDat_scenery_config_load_loc_from_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    int loc_id = arg_int(args, 0);
+    buildcachedat_loader_scenery_config_load_loc_from_config_jagfile(buildcachedat, loc_id);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
 LuaBuildCacheDat_scenery_config_get_model_ids_mapchunk(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args)
@@ -958,6 +1009,18 @@ LuaBuildCacheDat_get_loc_model_ids(
         }
     }
     return result;
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_get_loc_seq_id(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    int loc_id = arg_int(args, 0);
+    struct CacheConfigLocation* loc = buildcachedat_get_config_loc(buildcachedat, loc_id);
+    if( !loc )
+        return LuaGameType_NewInt(-1);
+    return LuaGameType_NewInt(loc->seq_id);
 }
 
 struct LuaGameType*

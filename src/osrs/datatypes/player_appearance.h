@@ -5,6 +5,8 @@
 
 struct PlayerAppearance
 {
+    /** First byte of appearance block (0 = male, 1 = female in OSRS client). */
+    int gender;
     uint16_t appearance[12];
     uint16_t color[5];
     char name[13];

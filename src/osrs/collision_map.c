@@ -613,34 +613,24 @@ test_loc_arrival(
 }
 
 int
-collision_map_bfs_path_loc(
+collision_map_bfs_path_entity(
     struct CollisionMap* cm,
     int src_x,
     int src_z,
     int dst_x,
     int dst_z,
-    int shape_select,
-    int loc_w,
-    int loc_h,
+    int footprint_w,
+    int footprint_h,
     int* path_x,
     int* path_z,
     int max_path)
 {
-    /* For SCENERY / FLOOR_DECORATION shapes use testLoc arrival (Client.ts interactWithLoc
-     * centrepiece path: tryMove with width/height, locShape=0, forceapproach=0).
-     * All other shapes use exact-tile arrival (same as collision_map_bfs_path). */
-    int use_loc_arrival = (shape_select == LOC_SHAPE_SCENERY ||
-                           shape_select == LOC_SHAPE_SCENERY_DIAGIONAL ||
-                           shape_select == LOC_SHAPE_FLOOR_DECORATION) &&
-                          loc_w > 0 && loc_h > 0;
+    if( !cm || !path_x || !path_z || max_path <= 0 )
+        return -1;
+    if( footprint_w <= 0 || footprint_h <= 0 )
+        return -1;
 
-    /* If loc arrival is not applicable, delegate directly. */
-    if( !use_loc_arrival )
-        return collision_map_bfs_path(cm, src_x, src_z, dst_x, dst_z, path_x, path_z, max_path);
-
-    const int scene_width = cm->size_x;
-    const int scene_length = cm->size_z;
-    const int buf_size = scene_width * scene_length;
+    const int buf_size = cm->size_x * cm->size_z;
 
     int* bfs_direction = (int*)malloc((size_t)buf_size * sizeof(int));
     int* bfs_cost = (int*)malloc((size_t)buf_size * sizeof(int));
@@ -670,7 +660,6 @@ collision_map_bfs_path_loc(
 
     int arrived = 0;
     int end_x = src_x, end_z = src_z;
-    int* flags = cm->flags;
 
     while( length != steps )
     {
@@ -678,7 +667,7 @@ collision_map_bfs_path_loc(
         int z = bfs_step_z[length];
         length = (length + 1) % buf_size;
 
-        if( test_loc_arrival(cm, x, z, dst_x, dst_z, loc_w, loc_h) )
+        if( test_loc_arrival(cm, x, z, dst_x, dst_z, footprint_w, footprint_h) )
         {
             arrived = 1;
             end_x = x;
@@ -829,4 +818,34 @@ collision_map_bfs_path_loc(
     free(bfs_step_x);
     free(bfs_step_z);
     return n;
+}
+
+int
+collision_map_bfs_path_loc(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    int shape_select,
+    int loc_w,
+    int loc_h,
+    int* path_x,
+    int* path_z,
+    int max_path)
+{
+    /* For SCENERY / FLOOR_DECORATION shapes use testLoc arrival (Client.ts interactWithLoc
+     * centrepiece path: tryMove with width/height, locShape=0, forceapproach=0).
+     * All other shapes use exact-tile arrival (same as collision_map_bfs_path). */
+    int use_loc_arrival = (shape_select == LOC_SHAPE_SCENERY ||
+                           shape_select == LOC_SHAPE_SCENERY_DIAGIONAL ||
+                           shape_select == LOC_SHAPE_FLOOR_DECORATION) &&
+                          loc_w > 0 && loc_h > 0;
+
+    /* If loc arrival is not applicable, delegate directly. */
+    if( !use_loc_arrival )
+        return collision_map_bfs_path(cm, src_x, src_z, dst_x, dst_z, path_x, path_z, max_path);
+
+    return collision_map_bfs_path_entity(
+        cm, src_x, src_z, dst_x, dst_z, loc_w, loc_h, path_x, path_z, max_path);
 }

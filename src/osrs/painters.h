@@ -510,18 +510,109 @@ painter_add_normal_scenery(
     int size_x,
     int size_y);
 
+/** Drop prior registration from tile scenery chains (matches footprint when added). */
+void
+painter_remove_normal_scenery_by_scene_entity(
+    struct Painter* painter,
+    int scene_element_id);
+
+/** Clear tile ground_decor slot if it references this Scene2 element. */
+void
+painter_remove_ground_decor_by_scene_entity(
+    struct Painter* painter,
+    int scene_element_id);
+
 void
 painter_mark_static_count(struct Painter* painter);
 
-/** After dynamic LOC_ADD_CHANGE reloads Scene2 meshes, refresh wall / wall-decor culling sides so
- * painter near/far wall visibility matches the new orientation (must match scenery_add_*). */
+/** Per registration style: set wall / wall-decor culling sides after Scene2 mesh reload.
+ * Callers pass precomputed side bytes (same values as painter_add_wall / painter_add_wall_decor).
+ * Each function updates the scene tile + bridge underpass + any matching elements by Scene2 id. */
+
 void
-painter_sync_map_build_loc_elements(
+painter_set_wall_single_side(
     struct Painter* painter,
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
+    int scene_element_id,
+    uint8_t wall_side);
+
+void
+painter_set_wall_tri_corner(
+    struct Painter* painter,
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
+    int scene_element_id,
+    uint8_t corner_side);
+
+void
+painter_set_wall_rect_corner(
+    struct Painter* painter,
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
+    int scene_element_id,
+    uint8_t corner_side);
+
+void
+painter_set_wall_two_sides(
+    struct Painter* painter,
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
     int primary_scene_element_id,
     int secondary_scene_element_id,
-    int shape_select,
-    int orientation);
+    uint8_t wall_side_a,
+    uint8_t wall_side_b);
+
+void
+painter_set_wall_decor_inside(
+    struct Painter* painter,
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
+    int scene_element_id,
+    uint8_t decor_side);
+
+void
+painter_set_wall_decor_outside(
+    struct Painter* painter,
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
+    int scene_element_id,
+    uint8_t decor_side);
+
+void
+painter_set_wall_decor_diagonal_outside(
+    struct Painter* painter,
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
+    int scene_element_id,
+    uint8_t decor_side);
+
+void
+painter_set_wall_decor_diagonal_inside(
+    struct Painter* painter,
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
+    int scene_element_id,
+    uint8_t decor_side);
+
+void
+painter_set_wall_decor_diagonal_double(
+    struct Painter* painter,
+    int tile_sx,
+    int tile_sz,
+    int tile_slevel,
+    int primary_scene_element_id,
+    int secondary_scene_element_id,
+    uint8_t decor_side_outside,
+    uint8_t decor_side_inside);
 
 /** Element count after world build (walls, scenery, decor, …). For diagnostics only. */
 int
@@ -581,6 +672,13 @@ struct PaintersBuffer
     int command_count;
     int command_capacity;
 };
+
+/** Emit ground-object paint commands bottom → middle → top (matches Client.ts World draw order). */
+void
+painters_emit_ground_objects(
+    struct Painter* painter,
+    struct PaintersTile* tile,
+    struct PaintersBuffer* buffer);
 
 struct PaintersBuffer*
 painter_buffer_new();

@@ -65,10 +65,10 @@ static inline void gamenet_send_close_modal(struct GGame* g)
     }
 }
 
-static inline void gamenet_send_resume_pausebutton(struct GGame* g)
+static inline void gamenet_send_resume_pausebutton(struct GGame* g, int comp_id)
 {
     switch( revision_active()->kind ) {
-    case REVISION_KIND_LC245_2: gamenet_rev245_2_send_resume_pausebutton(g); break;
+    case REVISION_KIND_LC245_2: gamenet_rev245_2_send_resume_pausebutton(g, comp_id); break;
     default: break;
     }
 }

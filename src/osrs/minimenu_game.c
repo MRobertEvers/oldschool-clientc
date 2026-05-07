@@ -504,6 +504,56 @@ mm_emit_opclick_to_tile(
     game->suppress_move_gameclick_once = 1;
 }
 
+/** Client.ts tryMove(..., entity.routeX[0], routeZ[0], false, 1, 1, 0, 0, 0, 2): MOVE_OPCLICK
+ * with testLoc 1x1 arrival (adjacent or on footprint at route tile). */
+static void
+mm_emit_opclick_to_entity_footprint(
+    struct GGame* game,
+    struct GInput* input,
+    int dst_route_x,
+    int dst_route_z,
+    int footprint_w,
+    int footprint_h)
+{
+    if( !game->world || !game->world->collision_map )
+        return;
+    if( game->net_state != GAME_NET_STATE_GAME || !game->random_out )
+        return;
+
+    struct PlayerEntity* pl = world_player(game->world, ACTIVE_PLAYER_SLOT);
+    if( !pl || !pl->alive )
+        return;
+
+    struct CollisionMap* cm = game->world->collision_map;
+    if( dst_route_x < 0 || dst_route_z < 0 || dst_route_x >= cm->size_x ||
+        dst_route_z >= cm->size_z )
+        return;
+
+    int sx = pl->pathing.route_x[0];
+    int sz = pl->pathing.route_z[0];
+    int path_x[MM_BFS_PATH_MAX];
+    int path_z[MM_BFS_PATH_MAX];
+    int fw = footprint_w > 0 ? footprint_w : 1;
+    int fh = footprint_h > 0 ? footprint_h : 1;
+    int n = collision_map_bfs_path_entity(
+        cm, sx, sz, dst_route_x, dst_route_z, fw, fh, path_x, path_z, MM_BFS_PATH_MAX);
+    if( n <= 0 )
+        return;
+
+    {
+        int save = n < GAME_SENT_PATH_MAX ? n : GAME_SENT_PATH_MAX;
+        game->sent_path.length = save;
+        for( int i = 0; i < save; i++ )
+        {
+            game->sent_path.tile_x[i] = (uint8_t)path_x[i];
+            game->sent_path.tile_z[i] = (uint8_t)path_z[i];
+        }
+    }
+
+    gamenet_send_move_opclick(game, mm_input_run(input), path_x, path_z, n);
+    game->suppress_move_gameclick_once = 1;
+}
+
 /** Client.ts interactWithLoc tryMove: loc-aware MOVE_OPCLICK using collision_map_bfs_path_loc.
  * For SCENERY / FLOOR_DECORATION shapes the BFS accepts arrival at any unblocked adjacent tile
  * of the loc footprint (testLoc, forceapproach=0). Other shapes use exact-tile fallback. */
@@ -746,12 +796,19 @@ minimenu_game_use_option(
             int tx = param_b;
             int tz = param_c;
             struct NPCEntity* npc = world_npc(game->world, param_a);
-            if( npc && npc->alive )
+            struct CollisionMap* cm =
+                game->world ? game->world->collision_map : NULL;
+            if( npc && npc->alive && cm )
             {
-                tx = npc->draw_position.x >> 7;
-                tz = npc->draw_position.z >> 7;
+                tx = (int)npc->pathing.route_x[0];
+                tz = (int)npc->pathing.route_z[0];
+                if( tx < 0 || tz < 0 || tx >= cm->size_x || tz >= cm->size_z )
+                {
+                    tx = npc->draw_position.x >> 7;
+                    tz = npc->draw_position.z >> 7;
+                }
             }
-            mm_emit_opclick_to_tile(game, input, tx, tz);
+            mm_emit_opclick_to_entity_footprint(game, input, tx, tz, 1, 1);
             gamenet_send_opnpc(game, which, param_a);
             mm_move_toward(game, tx, tz);
             return;
@@ -776,12 +833,19 @@ minimenu_game_use_option(
     if( base == (int)MINIMENU_ACTION_OPNPCT )
     {
         struct NPCEntity* npc = world_npc(game->world, param_a);
-        if( npc && npc->alive && game->iface &&
+        struct CollisionMap* cm =
+            game->world ? game->world->collision_map : NULL;
+        if( npc && npc->alive && game->iface && cm &&
             GAME_NET_STATE_GAME == game->net_state )
         {
-            int tx = npc->draw_position.x >> 7;
-            int tz = npc->draw_position.z >> 7;
-            mm_emit_opclick_to_tile(game, input, tx, tz);
+            int tx = (int)npc->pathing.route_x[0];
+            int tz = (int)npc->pathing.route_z[0];
+            if( tx < 0 || tz < 0 || tx >= cm->size_x || tz >= cm->size_z )
+            {
+                tx = npc->draw_position.x >> 7;
+                tz = npc->draw_position.z >> 7;
+            }
+            mm_emit_opclick_to_entity_footprint(game, input, tx, tz, 1, 1);
             gamenet_send_opnpct_target(
                 game, param_a, game->iface->inv_target_src_comp_id);
             mm_move_toward(game, tx, tz);
@@ -797,11 +861,18 @@ minimenu_game_use_option(
         int oc = 0, sl = 0, sc = 0;
         mm_held_iface_triple(game->iface, &oc, &sl, &sc);
         struct NPCEntity* npc = world_npc(game->world, param_a);
-        if( npc && npc->alive )
+        struct CollisionMap* cm =
+            game->world ? game->world->collision_map : NULL;
+        if( npc && npc->alive && cm )
         {
-            int tx = npc->draw_position.x >> 7;
-            int tz = npc->draw_position.z >> 7;
-            mm_emit_opclick_to_tile(game, input, tx, tz);
+            int tx = (int)npc->pathing.route_x[0];
+            int tz = (int)npc->pathing.route_z[0];
+            if( tx < 0 || tz < 0 || tx >= cm->size_x || tz >= cm->size_z )
+            {
+                tx = npc->draw_position.x >> 7;
+                tz = npc->draw_position.z >> 7;
+            }
+            mm_emit_opclick_to_entity_footprint(game, input, tx, tz, 1, 1);
             mm_move_toward(game, tx, tz);
         }
         gamenet_send_opnpcu_use(game, param_a, oc, sl, sc);
@@ -954,11 +1025,18 @@ minimenu_game_use_option(
         GAME_NET_STATE_GAME == game->net_state )
     {
         struct PlayerEntity* tgt = world_player(game->world, param_a);
-        if( tgt && tgt->alive )
+        struct CollisionMap* cm =
+            game->world ? game->world->collision_map : NULL;
+        if( tgt && tgt->alive && cm )
         {
-            int tx = tgt->draw_position.x >> 7;
-            int tz = tgt->draw_position.z >> 7;
-            mm_emit_opclick_to_tile(game, input, tx, tz);
+            int tx = (int)tgt->pathing.route_x[0];
+            int tz = (int)tgt->pathing.route_z[0];
+            if( tx < 0 || tz < 0 || tx >= cm->size_x || tz >= cm->size_z )
+            {
+                tx = tgt->draw_position.x >> 7;
+                tz = tgt->draw_position.z >> 7;
+            }
+            mm_emit_opclick_to_entity_footprint(game, input, tx, tz, 1, 1);
             mm_move_toward(game, tx, tz);
         }
         gamenet_send_opplayert_target(
@@ -974,11 +1052,18 @@ minimenu_game_use_option(
         int oc = 0, sl = 0, sc = 0;
         mm_held_iface_triple(game->iface, &oc, &sl, &sc);
         struct PlayerEntity* tgt = world_player(game->world, param_a);
-        if( tgt && tgt->alive )
+        struct CollisionMap* cm =
+            game->world ? game->world->collision_map : NULL;
+        if( tgt && tgt->alive && cm )
         {
-            int tx = tgt->draw_position.x >> 7;
-            int tz = tgt->draw_position.z >> 7;
-            mm_emit_opclick_to_tile(game, input, tx, tz);
+            int tx = (int)tgt->pathing.route_x[0];
+            int tz = (int)tgt->pathing.route_z[0];
+            if( tx < 0 || tz < 0 || tx >= cm->size_x || tz >= cm->size_z )
+            {
+                tx = tgt->draw_position.x >> 7;
+                tz = tgt->draw_position.z >> 7;
+            }
+            mm_emit_opclick_to_entity_footprint(game, input, tx, tz, 1, 1);
             mm_move_toward(game, tx, tz);
         }
         gamenet_send_opplayeru_use(game, param_a, oc, sl, sc);
@@ -1003,12 +1088,19 @@ minimenu_game_use_option(
             int tx = param_b;
             int tz = param_c;
             struct PlayerEntity* tgt = world_player(game->world, param_a);
-            if( tgt && tgt->alive )
+            struct CollisionMap* cm =
+                game->world ? game->world->collision_map : NULL;
+            if( tgt && tgt->alive && cm )
             {
-                tx = tgt->draw_position.x >> 7;
-                tz = tgt->draw_position.z >> 7;
+                tx = (int)tgt->pathing.route_x[0];
+                tz = (int)tgt->pathing.route_z[0];
+                if( tx < 0 || tz < 0 || tx >= cm->size_x || tz >= cm->size_z )
+                {
+                    tx = tgt->draw_position.x >> 7;
+                    tz = tgt->draw_position.z >> 7;
+                }
             }
-            mm_emit_opclick_to_tile(game, input, tx, tz);
+            mm_emit_opclick_to_entity_footprint(game, input, tx, tz, 1, 1);
             gamenet_send_opplayer(game, which, param_a);
             mm_move_toward(game, tx, tz);
             return;
@@ -1075,7 +1167,7 @@ minimenu_game_use_option(
     }
     if( base == (int)MINIMENU_ACTION_RESUME_PAUSEBUTTON )
     {
-        gamenet_send_resume_pausebutton(game);
+        gamenet_send_resume_pausebutton(game, param_a);
         return;
     }
 

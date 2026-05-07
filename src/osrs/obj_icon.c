@@ -402,6 +402,29 @@ obj_icon_generate(
     return icon;
 }
 
+struct DashModel*
+obj_icon_new_dash_model_for_obj(struct GGame* game, int obj_id_0based)
+{
+    if( !game || !game->gamecache )
+        return NULL;
+    struct GameCacheObj* obj = gamecache_get_obj(game->gamecache, obj_id_0based);
+    if( !obj )
+        return NULL;
+    struct GameCacheModel* cache_model = get_obj_inv_model(game, obj);
+    if( !cache_model )
+        return NULL;
+    struct GameCacheModel* model_copy = gamecache_model_new_copy(cache_model);
+    if( !model_copy )
+        return NULL;
+    struct DashModel* m = dashmodel_new_from_gamecache_model(model_copy);
+    gamecache_model_free(model_copy);
+    if( !m )
+        return NULL;
+    dashmodel_alloc_normals(m);
+    _light_model_default(m, obj->contrast, obj->ambient);
+    return m;
+}
+
 void
 head_model_render(
     struct GGame* game,

@@ -305,7 +305,6 @@ LuaGame_rebuild_centerzone_slow(
         }
     }
 
-    world_rebuild_centerzone_verify_buildcachedat_maps(game->world);
     world_rebuild_centerzone_end(game->world);
 
     LibToriRS_WorldMinimapStaticRebuild(game);
@@ -539,4 +538,48 @@ LuaGame_get_pkt_map_projanim_spotanim_id(struct GGame* game, struct LuaGameType*
     (void)game;
     struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)arg_userdata(args, 0);
     return LuaGameType_NewInt(item ? item->packet.u.map_projanim_v1.spotanim : -1);
+}
+
+struct LuaGameType*
+LuaGame_get_local_player_appearance_slots(struct GGame* game, struct LuaGameType* args)
+{
+    (void)args;
+    if( !game || !game->world )
+        return LuaGameType_NewIntArray(0);
+
+    struct PlayerEntity* local = world_player(game->world, ACTIVE_PLAYER_SLOT);
+    if( !local )
+        return LuaGameType_NewIntArray(0);
+    if( !local->alive )
+    {
+        int any = 0;
+        for( int i = 0; i < 12; i++ )
+        {
+            if( local->appearance.slots[i] != 0 )
+            {
+                any = 1;
+                break;
+            }
+        }
+        if( !any )
+            return LuaGameType_NewIntArray(0);
+    }
+
+    struct LuaGameType* arr = LuaGameType_NewIntArray(12);
+    for( int i = 0; i < 12; i++ )
+        LuaGameType_IntArrayPush(arr, local->appearance.slots[i]);
+    return arr;
+}
+
+struct LuaGameType*
+LuaGame_get_pkt_if_openchat_component_id(struct GGame* game, struct LuaGameType* args)
+{
+    (void)game;
+    struct RevServerProtPacket_Item* item = (struct RevServerProtPacket_Item*)arg_userdata(args, 0);
+    if( !item )
+        return LuaGameType_NewInt(-1);
+    int raw = item->packet.u.if_openchat_v1.component_id;
+    if( raw == 65535 )
+        return LuaGameType_NewInt(-1);
+    return LuaGameType_NewInt(raw);
 }

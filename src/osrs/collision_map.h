@@ -168,6 +168,21 @@ collision_map_bfs_path_loc(
     int* path_z,
     int max_path);
 
+/* Client.ts tryMove toward NPC/player: testLoc footprint arrival (forceapproach=0), same BFS as
+ * scenery branch of collision_map_bfs_path_loc. footprint_w/h >= 1 (typically 1x1). */
+int
+collision_map_bfs_path_entity(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    int footprint_w,
+    int footprint_h,
+    int* path_x,
+    int* path_z,
+    int max_path);
+
 static inline int
 collision_map_index(
     int x,

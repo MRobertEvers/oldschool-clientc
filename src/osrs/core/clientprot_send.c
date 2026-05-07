@@ -52,9 +52,11 @@ void
 clientprot_send_resume_pausebutton_v1(
     struct RSBuffer* b,
     struct Isaac* isaac,
-    int opcode)
+    int opcode,
+    const struct PktClientProt_ResumePauseButton_v1* w)
 {
     rsbuf_p1isaac(b, isaac, opcode);
+    p2(b, w->comp_id);
 }
 
 void

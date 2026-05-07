@@ -206,6 +206,14 @@ buildcachedat_loader_scenery_config_load_mapchunk_from_config_jagfile(
     int mapx,
     int mapz);
 
+/** Decode one loc row from loc.dat/loc.idx into BuildCacheDat (for dynamic LOC_ADD_CHANGE ids not
+ * referenced by loaded map scenery). No-op if config jagfile unset, loc already decoded, or
+ * loc_id out of range. */
+void
+buildcachedat_loader_scenery_config_load_loc_from_config_jagfile(
+    struct BuildCacheDat* buildcachedat,
+    int loc_id);
+
 int
 buildcachedat_loader_scenery_config_get_model_ids_mapchunk(
     struct BuildCacheDat* buildcachedat,

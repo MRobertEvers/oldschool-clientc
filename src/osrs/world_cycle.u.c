@@ -3,6 +3,8 @@
 
 #include "osrs/world.h"
 
+#include <math.h>
+
 // clang-format off
 #include "world_painter.u.c"
 // clang-format on
@@ -40,6 +42,79 @@ world_cycle_entity_cache_level(
         base_level, painter_column_has_link_below(world->painter, sx, sz));
 }
 
+/** Client.ts entityFace (after routeMove): sets dst_yaw from face_entity / face_square. */
+static void
+world_cycle_entity_face(struct World* world, struct EntityAnimationInfo* info)
+{
+    struct EntityOrientation* o = info->orientation;
+    if( o->turnspeed == 0 )
+        return;
+
+    int x = info->draw_position->x;
+    int z = info->draw_position->z;
+    int fe = o->face_entity;
+
+    if( fe >= 0 && fe < 32768 )
+    {
+        if( fe < MAX_NPCS )
+        {
+            struct NPCEntity* t = world_npc(world, fe);
+            if( t->alive )
+            {
+                int dx = x - t->draw_position.x;
+                int dz = z - t->draw_position.z;
+                if( dx != 0 || dz != 0 )
+                {
+                    double ang = atan2((double)dx, (double)dz);
+                    o->dst_yaw = (uint16_t)((int)(ang * 325.949) & 0x7ff);
+                }
+            }
+        }
+    }
+    else if( fe >= 32768 )
+    {
+        int k = fe - 32768;
+        int pid = -1;
+        if( world->local_player_server_slot >= 0 && k == world->local_player_server_slot )
+            pid = ACTIVE_PLAYER_SLOT;
+        else if( k >= 0 && k < world->active_player_count )
+            pid = world->active_players[k];
+        else if( k >= 0 && k < MAX_PLAYERS )
+            pid = k;
+
+        if( pid >= 0 )
+        {
+            struct PlayerEntity* t = world_player(world, pid);
+            if( t->alive )
+            {
+                int dx = x - t->draw_position.x;
+                int dz = z - t->draw_position.z;
+                if( dx != 0 || dz != 0 )
+                {
+                    double ang = atan2((double)dx, (double)dz);
+                    o->dst_yaw = (uint16_t)((int)(ang * 325.949) & 0x7ff);
+                }
+            }
+        }
+    }
+
+    if( (o->face_square_x != 0 || o->face_square_z != 0) &&
+        info->pathing->route_length == 0 )
+    {
+        int bx = world->_base_tile_x;
+        int bz = world->_base_tile_z;
+        int dx = x - (int)(o->face_square_x - bx - bx) * 64;
+        int dz = z - (int)(o->face_square_z - bz - bz) * 64;
+        if( dx != 0 || dz != 0 )
+        {
+            double ang = atan2((double)dx, (double)dz);
+            o->dst_yaw = (uint16_t)((int)(ang * 325.949) & 0x7ff);
+        }
+        o->face_square_x = 0;
+        o->face_square_z = 0;
+    }
+}
+
 static int
 update_entity_movement_and_animation(
     struct World* world,
@@ -48,11 +123,7 @@ update_entity_movement_and_animation(
     int seqId = info->animation->readyanim;
     int route_length = info->pathing->route_length;
     if( route_length == 0 )
-    {
-        /* Client.ts entityFace: when idle, still turn toward face_entity */
-        // entity_face(game, view, player);
-        goto yaw_turn;
-    }
+        goto before_yaw;
 
     int x = info->draw_position->x;
     int z = info->draw_position->z;
@@ -63,11 +134,9 @@ update_entity_movement_and_animation(
     {
         info->draw_position->x = dstX;
         info->draw_position->z = dstZ;
+        world_cycle_entity_face(world, info);
         return -1;
     }
-
-    /* face_entity takes priority over pathing yaw: set dst_yaw from target first */
-    // entity_face(game, view, player);
 
     /* Only use pathing direction when face_entity did not set dst_yaw */
     if( x < dstX )
@@ -160,17 +229,25 @@ update_entity_movement_and_animation(
             info->pathing->route_length = 0;
     }
 
+before_yaw:;
+    world_cycle_entity_face(world, info);
+
 yaw_turn:;
+    int ts = (int)info->orientation->turnspeed;
     int remainingYaw = (info->orientation->dst_yaw - info->orientation->yaw) & 0x7ff;
-    if( remainingYaw != 0 )
+    if( ts != 0 && remainingYaw != 0 )
     {
-        if( remainingYaw < 32 || remainingYaw > 2016 )
+        if( remainingYaw < ts || remainingYaw > 2048 - ts )
             info->orientation->yaw = info->orientation->dst_yaw;
-        else if( remainingYaw > 1024 )
-            info->orientation->yaw -= 32;
         else
-            info->orientation->yaw += 32;
-        info->orientation->yaw &= 0x7ff;
+        {
+            int y = (int)info->orientation->yaw;
+            if( remainingYaw > 1024 )
+                y -= ts;
+            else
+                y += ts;
+            info->orientation->yaw = (uint16_t)(y & 0x7ff);
+        }
 
         if( seqId == info->animation->readyanim &&
             info->orientation->yaw != info->orientation->dst_yaw )
@@ -650,45 +727,56 @@ world_cycle_push_obj_stack_entities(struct World* world)
         if( !e->alive )
             continue;
 
-        int sid = e->scene_element.element_id;
-        int total_el = scene2_elements_total(world->scene2);
-        if( sid < 0 || sid >= total_el )
-            continue;
-
-        struct Scene2Element* se = scene2_element_at(world->scene2, sid);
-        if( !se || !scene2_element_is_active(se) )
-            continue;
-
-        int psx = e->world_tile_x - world->_base_tile_x;
-        int psz = e->world_tile_z - world->_base_tile_z;
+        /* scene-local tile indices (same space as zone OBJ sx/sz), not world->_base_tile_* */
+        int psx = e->world_tile_x;
+        int psz = e->world_tile_z;
         if( psx < 0 || psz < 0 || psx >= world->_scene_size || psz >= world->_scene_size )
             continue;
 
         bool link = painter_column_has_link_below(world->painter, psx, psz);
         int slevel = entity_cache_level_for_column(e->level, link);
 
-        painter_add_ground_object(
-            world->painter, psx, psz, slevel, e->scene_element.element_id, GROUND_OBJECT_BOTTOM);
+        bool minimap_done = false;
 
-        struct DashPosition* pos = scene2_element_dash_position(se);
-        if( pos && world->heightmap )
+        for( int layer = 0; layer < 3; layer++ )
         {
-            int wx = e->world_tile_x * 128 + 64;
-            int wz = e->world_tile_z * 128 + 64;
-            pos->x = wx;
-            pos->z = wz;
-            pos->y = heightmap_get_interpolated(world->heightmap, wx, wz, slevel);
-        }
+            int sid = e->scene_element[layer].element_id;
+            int total_el = scene2_elements_total(world->scene2);
+            if( sid < 0 || sid >= total_el )
+                continue;
 
-        if( world->minimap )
-        {
-            int wx = e->world_tile_x * 128 + 64;
-            int wz = e->world_tile_z * 128 + 64;
-            int mtx = wx / 128;
-            int mtz = wz / 128;
-            if( mtx >= 0 && mtx < world->minimap->width && mtz >= 0 &&
-                mtz < world->minimap->height )
-                minimap_add_loc(world->minimap, mtx, mtz, wx, wz, MINIMAP_LOC_TYPE_OBJECT);
+            struct Scene2Element* se = scene2_element_at(world->scene2, sid);
+            if( !se || !scene2_element_is_active(se) )
+                continue;
+
+            painter_add_ground_object(
+                world->painter, psx, psz, slevel, sid, layer);
+
+            if( world->heightmap )
+            {
+                struct DashPosition* pos = scene2_element_dash_position(se);
+                if( pos )
+                {
+                    int wx = e->world_tile_x * 128 + 64;
+                    int wz = e->world_tile_z * 128 + 64;
+                    pos->x = wx;
+                    pos->z = wz;
+                    pos->y = heightmap_get_interpolated(
+                        world->heightmap, wx, wz, slevel);
+                }
+            }
+
+            if( world->minimap && !minimap_done )
+            {
+                int wx = e->world_tile_x * 128 + 64;
+                int wz = e->world_tile_z * 128 + 64;
+                int mtx = wx / 128;
+                int mtz = wz / 128;
+                if( mtx >= 0 && mtx < world->minimap->width && mtz >= 0 &&
+                    mtz < world->minimap->height )
+                    minimap_add_loc(world->minimap, mtx, mtz, wx, wz, MINIMAP_LOC_TYPE_OBJECT);
+                minimap_done = true;
+            }
         }
     }
 }

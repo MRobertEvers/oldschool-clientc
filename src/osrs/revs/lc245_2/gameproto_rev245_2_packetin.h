@@ -61,6 +61,8 @@ enum PacketInType_LC245_2
     PKTIN_LC245_2_SYNTH_SOUND = 209,
     PKTIN_LC245_2_MIDI_SONG = 96,
     PKTIN_LC245_2_MIDI_JINGLE = 39,
+    /* UPDATE_ZONE_* / zone LOC (and OBJ): no level on the wire — same implicit plane as the
+     * official client’s `minusedlevel` (from local PLAYER_INFO XZ+level); see GGame.local_player_plane. */
     PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_FOLLOWS = 203,
     PKTIN_LC245_2_UPDATE_ZONE_FULL_FOLLOWS = 140,
     PKTIN_LC245_2_UPDATE_ZONE_PARTIAL_ENCLOSED = 15,

@@ -420,15 +420,15 @@ scenery_add_wall_single(
         WALL_A,
         ROTATION_WALL_TYPE[orientation]);
 
-    decor_buildmap_set_wall_offset(
-        world->decor_buildmap,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        config_loc->wall_width);
+    if( world->decor_buildmap )
+        decor_buildmap_set_wall_offset(
+            world->decor_buildmap,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            config_loc->wall_width);
 
-    if( config_loc->shadowed )
-    {
+    if( config_loc->shadowed && world->shademap )
         shademap2_set_wall(
             world->shademap,
             entity->scene_coord.sx,
@@ -436,19 +436,19 @@ scenery_add_wall_single(
             entity->scene_coord.slevel,
             orientation,
             50);
-    }
 
-    sharelight_map_push(
-        world->sharelight_map,
-        config_loc->sharelight != 0,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        1,
-        1,
-        config_loc->ambient,
-        config_loc->contrast);
+    if( world->sharelight_map )
+        sharelight_map_push(
+            world->sharelight_map,
+            config_loc->sharelight != 0,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
 }
 
 static void
@@ -496,15 +496,16 @@ scenery_add_wall_tri_corner(
         WALL_A,
         ROTATION_WALL_CORNER_TYPE[orientation]);
 
-    decor_buildmap_set_wall_offset(
-        world->decor_buildmap,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        config_loc->wall_width);
+    if( world->decor_buildmap )
+        decor_buildmap_set_wall_offset(
+            world->decor_buildmap,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            config_loc->wall_width);
 
     /* Shademap */
-    if( config_loc->shadowed )
+    if( config_loc->shadowed && world->shademap )
         shademap2_set_wall_corner(
             world->shademap,
             entity->scene_coord.sx,
@@ -513,17 +514,18 @@ scenery_add_wall_tri_corner(
             orientation,
             50);
 
-    sharelight_map_push(
-        world->sharelight_map,
-        config_loc->sharelight != 0,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        1,
-        1,
-        config_loc->ambient,
-        config_loc->contrast);
+    if( world->sharelight_map )
+        sharelight_map_push(
+            world->sharelight_map,
+            config_loc->sharelight != 0,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
 }
 
 static void
@@ -607,36 +609,40 @@ scenery_add_wall_two_sides(
         WALL_B,
         ROTATION_WALL_TYPE[next_orientation]);
 
-    decor_buildmap_set_wall_offset(
-        world->decor_buildmap,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        config_loc->wall_width);
+    if( world->decor_buildmap )
+        decor_buildmap_set_wall_offset(
+            world->decor_buildmap,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            config_loc->wall_width);
 
-    sharelight_map_push(
-        world->sharelight_map,
-        config_loc->sharelight != 0,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        1,
-        1,
-        config_loc->ambient,
-        config_loc->contrast);
+    if( world->sharelight_map )
+    {
+        sharelight_map_push(
+            world->sharelight_map,
+            config_loc->sharelight != 0,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
 
-    sharelight_map_push(
-        world->sharelight_map,
-        config_loc->sharelight != 0,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element_two.element_id,
-        1,
-        1,
-        config_loc->ambient,
-        config_loc->contrast);
+        sharelight_map_push(
+            world->sharelight_map,
+            config_loc->sharelight != 0,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element_two.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+    }
 }
 
 static void
@@ -684,14 +690,15 @@ scenery_add_wall_rect_corner(
         WALL_A,
         ROTATION_WALL_CORNER_TYPE[orientation]);
 
-    decor_buildmap_set_wall_offset(
-        world->decor_buildmap,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        config_loc->wall_width);
+    if( world->decor_buildmap )
+        decor_buildmap_set_wall_offset(
+            world->decor_buildmap,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            config_loc->wall_width);
 
-    if( config_loc->shadowed )
+    if( config_loc->shadowed && world->shademap )
         shademap2_set_wall_corner(
             world->shademap,
             entity->scene_coord.sx,
@@ -700,17 +707,18 @@ scenery_add_wall_rect_corner(
             orientation,
             50);
 
-    sharelight_map_push(
-        world->sharelight_map,
-        config_loc->sharelight != 0,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        1,
-        1,
-        config_loc->ambient,
-        config_loc->contrast);
+    if( world->sharelight_map )
+        sharelight_map_push(
+            world->sharelight_map,
+            config_loc->sharelight != 0,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
 }
 
 static void
@@ -768,26 +776,28 @@ scenery_add_wall_decor_inside(
         ROTATION_WALL_TYPE[orientation],
         0);
 
-    decor_buildmap_add_element(
-        world->decor_buildmap,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        orientation,
-        DECOR_DISPLACEMENT_KIND_STRAIGHT);
+    if( world->decor_buildmap )
+        decor_buildmap_add_element(
+            world->decor_buildmap,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            orientation,
+            DECOR_DISPLACEMENT_KIND_STRAIGHT);
 
-    sharelight_map_push(
-        world->sharelight_map,
-        config_loc->sharelight != 0,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        1,
-        1,
-        config_loc->ambient,
-        config_loc->contrast);
+    if( world->sharelight_map )
+        sharelight_map_push(
+            world->sharelight_map,
+            config_loc->sharelight != 0,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
 }
 
 static void
@@ -846,26 +856,28 @@ scenery_add_wall_decor_outside(
         ROTATION_WALL_TYPE[orientation],
         0);
 
-    decor_buildmap_add_element(
-        world->decor_buildmap,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        orientation,
-        DECOR_DISPLACEMENT_KIND_STRAIGHT_ONWALL_OFFSET);
+    if( world->decor_buildmap )
+        decor_buildmap_add_element(
+            world->decor_buildmap,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            orientation,
+            DECOR_DISPLACEMENT_KIND_STRAIGHT_ONWALL_OFFSET);
 
-    sharelight_map_push(
-        world->sharelight_map,
-        config_loc->sharelight != 0,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        1,
-        1,
-        config_loc->ambient,
-        config_loc->contrast);
+    if( world->sharelight_map )
+        sharelight_map_push(
+            world->sharelight_map,
+            config_loc->sharelight != 0,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
 }
 
 // Lumbridge shield
@@ -928,26 +940,28 @@ scenery_add_wall_decor_diagonal_outside(
         ROTATION_WALL_CORNER_TYPE[orientation],
         THROUGHWALL);
 
-    decor_buildmap_add_element(
-        world->decor_buildmap,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        orientation,
-        DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET);
+    if( world->decor_buildmap )
+        decor_buildmap_add_element(
+            world->decor_buildmap,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            orientation,
+            DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET);
 
-    sharelight_map_push(
-        world->sharelight_map,
-        config_loc->sharelight != 0,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        1,
-        1,
-        config_loc->ambient,
-        config_loc->contrast);
+    if( world->sharelight_map )
+        sharelight_map_push(
+            world->sharelight_map,
+            config_loc->sharelight != 0,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
 }
 
 // Lumbridge sconce
@@ -1011,26 +1025,28 @@ scenery_add_wall_decor_diagonal_inside(
         ROTATION_WALL_CORNER_TYPE[orientation],
         THROUGHWALL);
 
-    decor_buildmap_add_element(
-        world->decor_buildmap,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        orientation,
-        DECOR_DISPLACEMENT_KIND_DIAGONAL);
+    if( world->decor_buildmap )
+        decor_buildmap_add_element(
+            world->decor_buildmap,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            orientation,
+            DECOR_DISPLACEMENT_KIND_DIAGONAL);
 
-    sharelight_map_push(
-        world->sharelight_map,
-        config_loc->sharelight != 0,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        1,
-        1,
-        config_loc->ambient,
-        config_loc->contrast);
+    if( world->sharelight_map )
+        sharelight_map_push(
+            world->sharelight_map,
+            config_loc->sharelight != 0,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
 }
 
 static void
@@ -1133,45 +1149,51 @@ scenery_add_wall_decor_diagonal_double(
         ROTATION_WALL_CORNER_TYPE[inside_orientation],
         THROUGHWALL);
 
-    decor_buildmap_add_element(
-        world->decor_buildmap,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        outside_orientation,
-        DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET);
-    decor_buildmap_add_element(
-        world->decor_buildmap,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element_two.element_id,
-        inside_orientation,
-        DECOR_DISPLACEMENT_KIND_DIAGONAL);
+    if( world->decor_buildmap )
+    {
+        decor_buildmap_add_element(
+            world->decor_buildmap,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            outside_orientation,
+            DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET);
+        decor_buildmap_add_element(
+            world->decor_buildmap,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element_two.element_id,
+            inside_orientation,
+            DECOR_DISPLACEMENT_KIND_DIAGONAL);
+    }
 
-    sharelight_map_push(
-        world->sharelight_map,
-        config_loc->sharelight != 0,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        1,
-        1,
-        config_loc->ambient,
-        config_loc->contrast);
-    sharelight_map_push(
-        world->sharelight_map,
-        config_loc->sharelight != 0,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element_two.element_id,
-        1,
-        1,
-        config_loc->ambient,
-        config_loc->contrast);
+    if( world->sharelight_map )
+    {
+        sharelight_map_push(
+            world->sharelight_map,
+            config_loc->sharelight != 0,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+        sharelight_map_push(
+            world->sharelight_map,
+            config_loc->sharelight != 0,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element_two.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
+    }
 }
 
 static void
@@ -1219,24 +1241,26 @@ scenery_add_wall_diagonal(
         1,
         1);
 
-    decor_buildmap_set_wall_offset(
-        world->decor_buildmap,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        config_loc->wall_width);
+    if( world->decor_buildmap )
+        decor_buildmap_set_wall_offset(
+            world->decor_buildmap,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            config_loc->wall_width);
 
-    sharelight_map_push(
-        world->sharelight_map,
-        config_loc->sharelight != 0,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        1,
-        1,
-        config_loc->ambient,
-        config_loc->contrast);
+    if( world->sharelight_map )
+        sharelight_map_push(
+            world->sharelight_map,
+            config_loc->sharelight != 0,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
 }
 
 static void
@@ -1309,7 +1333,7 @@ scenery_add_normal(
     int shade = size_x * size_z * 11;
     if( shade > 30 )
         shade = 30;
-    if( config_loc->shadowed )
+    if( config_loc->shadowed && world->shademap )
         shademap2_set_sized(
             world->shademap,
             entity->scene_coord.sx,
@@ -1319,17 +1343,18 @@ scenery_add_normal(
             size_z,
             shade);
 
-    sharelight_map_push(
-        world->sharelight_map,
-        config_loc->sharelight != 0,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        size_x,
-        size_z,
-        config_loc->ambient,
-        config_loc->contrast);
+    if( world->sharelight_map )
+        sharelight_map_push(
+            world->sharelight_map,
+            config_loc->sharelight != 0,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            size_x,
+            size_z,
+            config_loc->ambient,
+            config_loc->contrast);
 }
 
 static void
@@ -1375,17 +1400,18 @@ scenery_add_roof(
         1,
         1);
 
-    sharelight_map_push(
-        world->sharelight_map,
-        config_loc->sharelight != 0,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        1,
-        1,
-        config_loc->ambient,
-        config_loc->contrast);
+    if( world->sharelight_map )
+        sharelight_map_push(
+            world->sharelight_map,
+            config_loc->sharelight != 0,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
 }
 
 static void
@@ -1431,17 +1457,18 @@ scenery_add_floor_decoration(
         entity->scene_coord.slevel,
         entity->scene_element.element_id);
 
-    sharelight_map_push(
-        world->sharelight_map,
-        config_loc->sharelight != 0,
-        entity->scene_coord.sx,
-        entity->scene_coord.sz,
-        entity->scene_coord.slevel,
-        entity->scene_element.element_id,
-        1,
-        1,
-        config_loc->ambient,
-        config_loc->contrast);
+    if( world->sharelight_map )
+        sharelight_map_push(
+            world->sharelight_map,
+            config_loc->sharelight != 0,
+            entity->scene_coord.sx,
+            entity->scene_coord.sz,
+            entity->scene_coord.slevel,
+            entity->scene_element.element_id,
+            1,
+            1,
+            config_loc->ambient,
+            config_loc->contrast);
 }
 
 static void

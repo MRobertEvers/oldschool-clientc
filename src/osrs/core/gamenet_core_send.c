@@ -119,14 +119,16 @@ gamenet_core_send_close_modal_v1(
 void
 gamenet_core_send_resume_pausebutton_v1(
     struct GGame* g,
-    int opcode)
+    int opcode,
+    int comp_id)
 {
     if( !g || !g->random_out )
         return;
     uint8_t scratch[GAMENET_CORE_SCRATCH_SIZE];
     struct RSBuffer b;
     rsbuf_init(&b, (int8_t*)scratch, sizeof(scratch));
-    clientprot_send_resume_pausebutton_v1(&b, g->random_out, opcode);
+    struct PktClientProt_ResumePauseButton_v1 w = { comp_id };
+    clientprot_send_resume_pausebutton_v1(&b, g->random_out, opcode, &w);
     gamenet_core_net_send(g, &b, "RESUME_PAUSEBUTTON", NULL);
 }
 

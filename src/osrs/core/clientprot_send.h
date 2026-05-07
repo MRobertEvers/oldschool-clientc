@@ -47,7 +47,8 @@ void
 clientprot_send_resume_pausebutton_v1(
     struct RSBuffer* b,
     struct Isaac* isaac,
-    int opcode);
+    int opcode,
+    const struct PktClientProt_ResumePauseButton_v1* w);
 void
 clientprot_send_resume_p_countdialog_v1(
     struct RSBuffer* b,

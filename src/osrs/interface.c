@@ -1350,6 +1350,25 @@ interface_apply_button_click_varp_optimistic(
     }
 }
 
+void
+interface_dispatch_button_action(struct GGame* game, int component_id, int btn_action)
+{
+    if( !game )
+        return;
+    switch( btn_action )
+    {
+    case IF_BUTTON_ACTION_CLOSE_MODAL:
+        gamenet_send_close_modal(game);
+        break;
+    case IF_BUTTON_ACTION_RESUME_PAUSEBUTTON:
+        gamenet_send_resume_pausebutton(game, component_id);
+        break;
+    default:
+        gamenet_send_if_button(game, component_id);
+        break;
+    }
+}
+
 /* Client.ts handleScrollInput (9825-9831): up arrow scrollPosition -= dragCycles*4, down +=
  * dragCycles*4. step = rate (4) * game_cycles for hold scrolling. */
 #define SCROLLBAR_ARROW_DELTA 4
@@ -2393,20 +2412,10 @@ interface_inv_try_drag_mouse_up(struct GGame* game, struct GInput* input)
 void
 interface_magic_tab_request_inv_transmit_if_configured(struct GGame* game)
 {
-    // if( !game )
-    //     return;
-    // char const* e = getenv("TORI_MAGIC_TAB_IF_BUTTON_COMP");
-    // if( !e || !e[0] )
-    //     return;
-    // int cid = atoi(e);
-    // if( cid <= 0 )
-    //     return;
-    // if( GAME_NET_STATE_GAME != game->net_state )
-    //     return;
-    int cid = 1151;
-    printf(
-        "[TORI] magic tab: IF_BUTTON component_id=%d (TORI_MAGIC_TAB_IF_BUTTON_COMP — server "
-        "hook for inv_transmit)\n",
-        cid);
+    if( !game || GAME_NET_STATE_GAME != game->net_state )
+        return;
+    int cid = game->magic_tab_inv_transmit_if_button_comp;
+    if( cid <= 0 )
+        return;
     gamenet_send_if_button(game, cid);
 }

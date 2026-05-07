@@ -52,6 +52,75 @@ if_decode_component_id(int raw)
     return raw;
 }
 
+/** Set `TORI_CHAT_IF_DEBUG=1` for stderr logs on IF_OPENCHAT / IF_SETTEXT / IF_CLOSE chat paths. */
+static int
+tori_chat_if_debug_enabled(void)
+{
+    static int v = -1;
+    if( v < 0 )
+    {
+        char const* e = getenv("TORI_CHAT_IF_DEBUG");
+        v = (e && e[0] != '\0' && strcmp(e, "0") != 0) ? 1 : 0;
+    }
+    return v;
+}
+
+/** True if `needle` is `root_id` or a descendant in the gamecache component tree. */
+static int
+gamecache_component_in_subtree(
+    struct GameCache* gc,
+    int root_id,
+    int needle,
+    int depth_left)
+{
+    if( !gc || needle < 0 || root_id < 0 )
+        return 0;
+    if( root_id == needle )
+        return 1;
+    if( depth_left <= 0 )
+        return 0;
+    struct GameCacheComponent* p = gamecache_get_component(gc, root_id);
+    if( !p || !p->children || p->children_count <= 0 )
+        return 0;
+    for( int i = 0; i < p->children_count; i++ )
+    {
+        if( gamecache_component_in_subtree(gc, p->children[i], needle, depth_left - 1) )
+            return 1;
+    }
+    return 0;
+}
+
+/** IF_SETNPCHEAD / IF_SETPLAYERHEAD: refresh RS_MODEL; re-expand chat dialog if subtree has no node yet. */
+static void
+uitree_refresh_chat_model_after_head_packet(struct GGame* game, int component_id)
+{
+    uitree_rs_model_refresh_from_gamecache(game, component_id);
+    if( !game->iface || game->iface->chat_interface_id < 0 || !game->ui_root_buffer || !game->gamecache )
+        return;
+    if( !gamecache_component_in_subtree(
+            game->gamecache, game->iface->chat_interface_id, component_id, 64) )
+        return;
+
+    int32_t idx = uitree_find_by_component_id(game->ui_root_buffer, component_id);
+    int need_expand =
+        (idx < 0 || (uint32_t)idx >= game->ui_root_buffer->component_count ||
+         game->ui_root_buffer->components[idx].type != UIELEM_RS_MODEL);
+    if( !need_expand )
+        return;
+
+    if( tori_chat_if_debug_enabled() )
+    {
+        fprintf(
+            stderr,
+            "[TORI_CHAT_IF] head packet re-expand chat root=%d for id=%d\n",
+            game->iface->chat_interface_id,
+            component_id);
+    }
+
+    uitree_expand_chat_dialog_for_interface(game, game->iface->chat_interface_id);
+    uitree_rs_model_refresh_from_gamecache(game, component_id);
+}
+
 void
 LibToriRS_WorldMinimapStaticRebuild(struct GGame* game);
 
@@ -175,20 +244,18 @@ gamenet_rev245_2_exec_npc_info_v1(
             int entity_id = (int)op->_face_entity.entity_id;
             if( entity_id == 65535 )
                 entity_id = -1;
-            // npc->orientation.face_entity = entity_id;
-            // printf("npc_face_entity: %d\n", entity_id);
+            world_npc_face_entity(game->world, npc_id, entity_id);
             break;
         }
         case PKT_SERVER_PROT_NPC_INFO_V1_OP_FACE_COORD:
         {
             if( !npc )
                 break;
-            // npc->orientation.face_square_x = (int)op->_face_coord.x;
-            // npc->orientation.face_square_z = (int)op->_face_coord.z;
-            // printf(
-            //     "npc_face_coord: %d, %d\n",
-            //     npc->orientation.face_square_x,
-            //     npc->orientation.face_square_z);
+            world_npc_face_coord(
+                game->world,
+                npc_id,
+                (int)op->_face_coord.x,
+                (int)op->_face_coord.z);
             break;
         }
         case PKT_SERVER_PROT_NPC_INFO_V1_OP_SEQUENCE:
@@ -203,13 +270,15 @@ gamenet_rev245_2_exec_npc_info_v1(
         }
         case PKT_SERVER_PROT_NPC_INFO_V1_OP_DAMAGE:
         {
-            // entity_add_hitmark(
-            //     npc->damage_values,
-            //     npc->damage_types,
-            //     npc->damage_cycles,
-            //     game->cycle,
-            //     op->_damage.damage_type,
-            //     op->_damage.damage);
+            if( !npc )
+                break;
+            entity_add_hitmark(
+                npc->damage_values,
+                npc->damage_types,
+                npc->damage_cycles,
+                game->cycle,
+                op->_damage.damage_type,
+                op->_damage.damage);
             npc->combat_cycle = game->cycle + 400;
             npc->health = op->_damage.health;
             npc->total_health = op->_damage.total_health;
@@ -317,6 +386,8 @@ player_info_apply_ops_v1(
             if( !player )
                 break;
 
+            game->local_player_plane = (uint8_t)(op->_local_xz_level.level & 0x3u);
+
             world_player_entity_path_jump(
                 game->world,
                 player_id,
@@ -343,16 +414,18 @@ player_info_apply_ops_v1(
             int entity_id = (int)op->_face_entity.entity_id;
             if( entity_id == 65535 )
                 entity_id = -1;
-            // player->orientation.face_entity = entity_id;
-
+            world_player_face_entity(game->world, player_id, entity_id);
             break;
         }
         case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_FACE_COORD:
         {
             if( !player )
                 break;
-            // player->orientation.face_square_x = (int)op->_face_coord.x;
-            // player->orientation.face_square_z = (int)op->_face_coord.z;
+            world_player_face_coord(
+                game->world,
+                player_id,
+                (int)op->_face_coord.x,
+                (int)op->_face_coord.z);
             break;
         }
         case PKT_SERVER_PROT_PLAYER_INFO_V1_OP_SEQUENCE:
@@ -813,7 +886,7 @@ gamenet_rev245_2_exec_if_settab_active_v1(
         game->iface->selected_tab = tab_id;
         uitree_debug_log_sidebar_state(game, "IF_SETTAB_ACTIVE", tab_id, -1);
         printf("IF_SETTAB_ACTIVE: Set active tab to %d\n", tab_id);
-        if( tab_id == 6 )
+        if( tab_id == game->magic_tab_spellbook_sidebar_tabno )
         {
             interface_magic_tab_request_inv_transmit_if_configured(game);
         }
@@ -891,6 +964,8 @@ gamenet_rev245_2_exec_if_setobject_v1(
     component->xan = obj->xan2d;
     component->yan = obj->yan2d;
     component->zoom = (obj->zoom2d * 100) / zoom;
+
+    uitree_rs_model_refresh_from_gamecache(game, component_id);
 }
 
 void
@@ -907,6 +982,8 @@ gamenet_rev245_2_exec_if_setmodel_v1(
 
     component->modelType = 1;
     component->model = model_id;
+
+    uitree_rs_model_refresh_from_gamecache(game, component_id);
 }
 
 void
@@ -945,6 +1022,8 @@ gamenet_rev245_2_exec_if_setplayerhead_v1(
     component->modelType = 3;
     component->model =
         (slots[8] << 6) + (slots[0] << 12) + (colors[0] << 24) + (colors[4] << 18) + slots[11];
+
+    uitree_refresh_chat_model_after_head_packet(game, component_id);
 }
 
 void
@@ -955,31 +1034,75 @@ gamenet_rev245_2_exec_if_settext_v1(
     int component_id = packet->u.if_settext_v1.component_id;
     char* new_text = packet->u.if_settext_v1.text;
 
+    if( !game )
+    {
+        free(new_text);
+        packet->u.if_settext_v1.text = NULL;
+        return;
+    }
+
+    if( tori_chat_if_debug_enabled() )
+    {
+        int const chat_root = game && game->iface ? game->iface->chat_interface_id : -1;
+        fprintf(
+            stderr,
+            "[TORI_CHAT_IF] IF_SETTEXT exec id=%d chat_root=%d text_len=%d\n",
+            component_id,
+            chat_root,
+            new_text ? (int)strlen(new_text) : -1);
+    }
+
+    /* Always mirror into gamecache so IF_OPENCHAT / re-expand reads fresh strings. */
+    if( game->gamecache )
+    {
+        struct GameCacheComponent* gc = gamecache_get_component(game->gamecache, component_id);
+        if( gc && gc->type == COMPONENT_TYPE_TEXT )
+        {
+            if( gc->text )
+                free(gc->text);
+            gc->text = new_text ? strdup(new_text) : NULL;
+        }
+    }
+
     if( !game->ui_root_buffer )
     {
         free(new_text);
         packet->u.if_settext_v1.text = NULL;
         return;
     }
+
     int32_t idx = uitree_find_by_component_id(game->ui_root_buffer, component_id);
-    if( idx < 0 )
+    int did_ui = 0;
+    if( idx >= 0 )
     {
-        free(new_text);
-        packet->u.if_settext_v1.text = NULL;
-        return;
+        struct StaticUIComponent* c = &game->ui_root_buffer->components[idx];
+        if( c->type == UIELEM_RS_TEXT )
+        {
+            if( c->u.rs_text.text )
+                free((void*)c->u.rs_text.text);
+            c->u.rs_text.text = new_text ? strdup(new_text) : NULL;
+            c->is_dirty = 1;
+            did_ui = 1;
+        }
     }
-    struct StaticUIComponent* c = &game->ui_root_buffer->components[idx];
-    if( c->type == UIELEM_RS_TEXT )
+
+    if( !did_ui && game->iface && game->iface->chat_interface_id >= 0 && game->gamecache &&
+        gamecache_component_in_subtree(
+            game->gamecache, game->iface->chat_interface_id, component_id, 64) )
     {
-        free((void*)c->u.rs_text.text);
-        c->u.rs_text.text = new_text;
-        packet->u.if_settext_v1.text = NULL;
+        if( tori_chat_if_debug_enabled() )
+        {
+            fprintf(
+                stderr,
+                "[TORI_CHAT_IF] IF_SETTEXT re-expand chat root=%d for id=%d\n",
+                game->iface->chat_interface_id,
+                component_id);
+        }
+        uitree_expand_chat_dialog_for_interface(game, game->iface->chat_interface_id);
     }
-    else
-    {
-        free(new_text);
-        packet->u.if_settext_v1.text = NULL;
-    }
+
+    free(new_text);
+    packet->u.if_settext_v1.text = NULL;
 }
 
 void
@@ -996,6 +1119,8 @@ gamenet_rev245_2_exec_if_setnpchead_v1(
 
     component->modelType = 2;
     component->model = npc_id;
+
+    uitree_refresh_chat_model_after_head_packet(game, component_id);
 }
 
 void
@@ -1512,9 +1637,22 @@ gamenet_rev245_2_exec_if_openchat_v1(
     struct GGame* game,
     struct RevServerProtPacket* packet)
 {
-    if( game->iface )
-        game->iface->chat_interface_id =
-            if_decode_component_id(packet->u.if_openchat_v1.component_id);
+    if( !game->iface )
+        return;
+    int const com = if_decode_component_id(packet->u.if_openchat_v1.component_id);
+    /* Client.ts IF_OPENCHAT: clears side modal and main modal; chat owns the stack. */
+    game->iface->sidebar_interface_id = -1;
+    game->iface->viewport_interface_id = -1;
+    game->iface->chat_interface_id = com;
+    uitree_expand_chat_dialog_for_interface(game, com);
+    if( tori_chat_if_debug_enabled() )
+    {
+        fprintf(
+            stderr,
+            "[TORI_CHAT_IF] IF_OPENCHAT decoded=%d raw_wire=%d\n",
+            com,
+            (int)packet->u.if_openchat_v1.component_id);
+    }
 }
 
 void
@@ -1523,8 +1661,15 @@ gamenet_rev245_2_exec_if_openmain_v1(
     struct RevServerProtPacket* packet)
 {
     if( game->iface )
+    {
+        if( game->iface->chat_interface_id >= 0 )
+        {
+            game->iface->chat_interface_id = -1;
+            uitree_expand_chat_dialog_for_interface(game, -1);
+        }
         game->iface->viewport_interface_id =
             if_decode_component_id(packet->u.if_openmain_v1.component_id);
+    }
 }
 
 void
@@ -1533,8 +1678,15 @@ gamenet_rev245_2_exec_if_openside_v1(
     struct RevServerProtPacket* packet)
 {
     if( game->iface )
+    {
+        if( game->iface->chat_interface_id >= 0 )
+        {
+            game->iface->chat_interface_id = -1;
+            uitree_expand_chat_dialog_for_interface(game, -1);
+        }
         game->iface->sidebar_interface_id =
             if_decode_component_id(packet->u.if_openside_v1.component_id);
+    }
 }
 
 void
@@ -1544,6 +1696,11 @@ gamenet_rev245_2_exec_if_openmain_side_v1(
 {
     if( game->iface )
     {
+        if( game->iface->chat_interface_id >= 0 )
+        {
+            game->iface->chat_interface_id = -1;
+            uitree_expand_chat_dialog_for_interface(game, -1);
+        }
         game->iface->viewport_interface_id =
             if_decode_component_id(packet->u.if_openmain_side_v1.main_component_id);
         game->iface->sidebar_interface_id =
@@ -1578,6 +1735,9 @@ gamenet_rev245_2_exec_if_close_v1(
         game->iface->inv_target_mask = 0;
         game->iface->inv_target_op[0] = '\0';
     }
+    uitree_expand_chat_dialog_for_interface(game, -1);
+    if( tori_chat_if_debug_enabled() )
+        fprintf(stderr, "[TORI_CHAT_IF] IF_CLOSE cleared modals + chat uitree\n");
     /* Release scrollbar drag if any. */
     if( game->ui_root_buffer )
         game->ui_root_buffer->ui_scrollbar_drag_component_id = -1;
@@ -1821,8 +1981,8 @@ gamenet_rev245_2_exec_update_pid_v1(
     struct GGame* game,
     struct RevServerProtPacket* packet)
 {
-    (void)game;
-    (void)packet;
+    if( game && game->world )
+        game->world->local_player_server_slot = packet->u.update_pid_v1.local_player_index;
 }
 
 void

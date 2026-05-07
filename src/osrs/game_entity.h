@@ -76,6 +76,13 @@ struct EntityOrientation
 {
     uint16_t yaw;
     uint16_t dst_yaw;
+    /** -1 = none; else PlayerUpdate/NpcUpdate FACEENTITY encoding (<32768 NPC index, >=32768 player). */
+    int32_t face_entity;
+    /** Absolute tile coords from FACESQUARE; cleared after applied (Client.ts). */
+    int16_t face_square_x;
+    int16_t face_square_z;
+    /** 0 = skip entityFace (Client.ts); default 32. */
+    uint16_t turnspeed;
 };
 
 struct EntityName
@@ -140,7 +147,7 @@ struct NPCEntity
     /* Client.ts: damage/health for hitsplat and health bar */
     uint8_t damage_values[ENTITY_DAMAGE_SLOTS];
     uint8_t damage_types[ENTITY_DAMAGE_SLOTS];
-    uint8_t damage_cycles[ENTITY_DAMAGE_SLOTS];
+    int damage_cycles[ENTITY_DAMAGE_SLOTS];
     int combat_cycle;
     int health;
     int total_health;
@@ -150,6 +157,8 @@ struct PlayerAppearanceSlots
 {
     int slots[12];
     int colors[5];
+    /** Mirrored from PLAYER_INFO appearance blob; used for obj chat heads. */
+    int gender;
 };
 
 struct PlayerEntity
@@ -212,15 +221,16 @@ struct MapBuildTileEntity
     struct EntitySceneCoord scene_coord;
 };
 
-/** One ground-item stack per scene tile (level, world_tile_x, world_tile_z); model = top entry. */
+/** One ground-item stack per scene tile (level, world_tile_x, world_tile_z).
+ * scene_element[i] is indexed by GROUND_OBJECT_BOTTOM (0) / MIDDLE (1) / TOP (2). */
 struct ObjStackEntity
 {
     int entity_id;
     int alive;
-    struct EntitySceneElement scene_element;
+    struct EntitySceneElement scene_element[3];
     struct EntitySceneCoord scene_coord;
     int level;
-    /** World tile indices (same space as zone OBJ packet sx/sz). */
+    /** Scene-local tile indices (same space as zone OBJ packet sx/sz, 0..scene-1). */
     int world_tile_x;
     int world_tile_z;
 };
@@ -313,6 +323,23 @@ static inline int
 entity_id_from_uid(uint32_t unified_id)
 {
     return unified_id & 0x0FFFFFFF;
+}
+
+/** Packed into unified id payload (low 28 bits): eid * stride + layer (0..2). */
+#define ENTITY_OBJ_STACK_UID_STRIDE 4
+
+static inline uint32_t
+entity_obj_stack_unified_id(int obj_stack_eid, int ground_layer)
+{
+    return entity_unified_id(
+        ENTITY_KIND_OBJ_STACK,
+        obj_stack_eid * ENTITY_OBJ_STACK_UID_STRIDE + ground_layer);
+}
+
+static inline int
+entity_obj_stack_eid_from_uid_payload(int payload)
+{
+    return payload / ENTITY_OBJ_STACK_UID_STRIDE;
 }
 
 #define PATHSTEP_RUN 1

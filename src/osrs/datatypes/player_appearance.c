@@ -13,6 +13,7 @@ player_appearance_decode(
     struct RSBuffer rsbuf;
     rsbuf_init(&rsbuf, buf, len);
     int gender = g1(&rsbuf);
+    appearance->gender = gender;
     int head_icon = g1(&rsbuf);
 
     for( int i = 0; i < 12; i++ )
