@@ -3,8 +3,94 @@
 extern "C" {
 #include "graphics/dash.h"
 #include "osrs/game.h"
+#include "osrs/gamecache/gamecache.h"
+#include "osrs/obj_icon.h"
+#include "osrs/revconfig/uitree.h"
+#include "osrs/rscache/tables_dat/config_component.h"
+#include "osrs/scene2.h"
 #include "tori_rs.h"
 #include "tori_rs_render.h"
+
+static int
+soft3d_try_interface_chat_head_raster(
+    struct GGame* game,
+    struct ToriRSRenderCommand const* cmd,
+    int widget_rx,
+    int widget_ry,
+    int widget_rw,
+    int widget_rh,
+    int fbw,
+    int fbh,
+    int* pixel_buffer)
+{
+    if( !game || !cmd || !pixel_buffer || !game->world || !game->world->scene2 || !cmd->_model_draw.model ||
+        cmd->_model_draw.element_id < 0 )
+        return 0;
+
+    struct Scene2Element* se =
+        scene2_element_at(game->world->scene2, cmd->_model_draw.element_id);
+    if( !se || scene2_element_parent_entity_id(se) >= 0 )
+        return 0;
+
+    struct UITree* uit = game->ui_root_buffer;
+    if( !uit )
+        return 0;
+
+    struct StaticUIComponent* ui_comp = NULL;
+    for( uint32_t i = 0; i < uit->component_count; i++ )
+    {
+        struct StaticUIComponent* c = &uit->components[i];
+        if( c->type != UIELEM_RS_MODEL )
+            continue;
+        if( c->u.rs_model.scene2_element_id != cmd->_model_draw.element_id )
+            continue;
+        ui_comp = c;
+        break;
+    }
+    if( !ui_comp || !game->gamecache )
+        return 0;
+
+    struct GameCacheComponent* gcc = gamecache_get_component(game->gamecache, ui_comp->component_id);
+    if( !gcc || gcc->type != COMPONENT_TYPE_MODEL )
+        return 0;
+    if( gcc->modelType != 2 && gcc->modelType != 3 )
+        return 0;
+
+    int const region = 128; /* sync with interface_draw_component_model region_size */
+    int cx          = widget_rx + widget_rw / 2;
+    int cy          = widget_ry + widget_rh / 2;
+    int rx2         = cx - region / 2;
+    int ry2         = cy - region / 2;
+    int rw          = region;
+    int rh          = region;
+
+    if( rx2 < 0 )
+    {
+        rw += rx2;
+        rx2 = 0;
+    }
+    if( ry2 < 0 )
+    {
+        rh += ry2;
+        ry2 = 0;
+    }
+    if( rx2 + rw > fbw )
+        rw = fbw - rx2;
+    if( ry2 + rh > fbh )
+        rh = fbh - ry2;
+    if( rw <= 0 || rh <= 0 )
+        return 0;
+
+    int zm = ui_comp->u.rs_model.model_zoom;
+    if( zm <= 0 )
+        zm = 2000;
+    int xa = ui_comp->u.rs_model.model_xan & 2047;
+    int ya = ui_comp->u.rs_model.model_yan & 2047;
+
+    head_model_render_to_region(
+        game, cmd->_model_draw.model, pixel_buffer, fbw, rx2, ry2, rw, rh, zm, xa, ya);
+    return 1;
+}
 }
 
 #include <emscripten.h>
@@ -297,6 +383,12 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
     /* Readme "FrameStart" — timing covers FrameBegin + command drain + FrameEnd. */
     double const soft3d_t_frame_start_ms = emscripten_get_now();
 
+    int soft3d_ui3d_top        = -1;
+    int soft3d_ui3d_stack_x[8];
+    int soft3d_ui3d_stack_y[8];
+    int soft3d_ui3d_stack_w[8];
+    int soft3d_ui3d_stack_h[8];
+
     LibToriRS_FrameBegin(game, render_command_buffer);
     while( LibToriRS_FrameNextCommand(game, render_command_buffer, &command, true) )
     {
@@ -389,15 +481,128 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
                     command._model_draw.animation_frame,
                     command._model_draw.animation_framemap);
             }
-            if( vp_pixels )
-                dash3d_raster_projected_model(
-                    game->sys_dash,
-                    command._model_draw.model,
-                    &command._model_draw.position,
-                    game->view_port,
-                    game->camera,
-                    vp_pixels,
-                    false);
+            if( !renderer->pixel_buffer || !game->sys_dash )
+                break;
+
+            {
+                int fbw = renderer->width;
+                int fbh = renderer->height;
+                int rx = 0;
+                int ry = 0;
+                int rwid = 0;
+                int rhgt = 0;
+                int have_ui_rect = 0;
+                if( soft3d_ui3d_top >= 0 )
+                {
+                    rx = soft3d_ui3d_stack_x[soft3d_ui3d_top];
+                    ry = soft3d_ui3d_stack_y[soft3d_ui3d_top];
+                    rwid = soft3d_ui3d_stack_w[soft3d_ui3d_top];
+                    rhgt = soft3d_ui3d_stack_h[soft3d_ui3d_top];
+                    if( rx < 0 )
+                    {
+                        rwid += rx;
+                        rx = 0;
+                    }
+                    if( ry < 0 )
+                    {
+                        rhgt += ry;
+                        ry = 0;
+                    }
+                    if( rx + rwid > fbw )
+                        rwid = fbw - rx;
+                    if( ry + rhgt > fbh )
+                        rhgt = fbh - ry;
+                    have_ui_rect = rwid > 0 && rhgt > 0;
+                }
+
+                if( have_ui_rect &&
+                    soft3d_try_interface_chat_head_raster(
+                        game, &command, rx, ry, rwid, rhgt, fbw, fbh, renderer->pixel_buffer) )
+                {
+                    break;
+                }
+            }
+
+            if( !game->camera )
+                break;
+
+            if( renderer->pixel_buffer && game->sys_dash )
+            {
+                struct DashPosition draw_pos = command._model_draw.position;
+                struct DashViewPort* vp_use    = game->view_port;
+                int* dst_pixels                = vp_pixels;
+                if( soft3d_ui3d_top >= 0 )
+                {
+                    int rx   = soft3d_ui3d_stack_x[soft3d_ui3d_top];
+                    int ry   = soft3d_ui3d_stack_y[soft3d_ui3d_top];
+                    int rwid = soft3d_ui3d_stack_w[soft3d_ui3d_top];
+                    int rhgt = soft3d_ui3d_stack_h[soft3d_ui3d_top];
+                    int fbw  = renderer->width;
+                    int fbh  = renderer->height;
+                    if( rx < 0 )
+                    {
+                        rwid += rx;
+                        rx = 0;
+                    }
+                    if( ry < 0 )
+                    {
+                        rhgt += ry;
+                        ry = 0;
+                    }
+                    if( rx + rwid > fbw )
+                        rwid = fbw - rx;
+                    if( ry + rhgt > fbh )
+                        rhgt = fbh - ry;
+                    if( rwid > 0 && rhgt > 0 )
+                    {
+                        static struct DashViewPort soft3d_ui_vp;
+                        soft3d_ui_vp.width        = rwid;
+                        soft3d_ui_vp.height       = rhgt;
+                        soft3d_ui_vp.clip_left    = 0;
+                        soft3d_ui_vp.clip_top     = 0;
+                        soft3d_ui_vp.clip_right   = rwid;
+                        soft3d_ui_vp.clip_bottom  = rhgt;
+                        soft3d_ui_vp.x_center     = rwid / 2;
+                        soft3d_ui_vp.y_center     = rhgt / 2;
+                        soft3d_ui_vp.stride       = fbw;
+                        vp_use                    = &soft3d_ui_vp;
+                        dst_pixels                = renderer->pixel_buffer + ry * fbw + rx;
+                        if( game->world && game->world->scene2 &&
+                            command._model_draw.element_id >= 0 )
+                        {
+                            struct Scene2Element* se = scene2_element_at(
+                                game->world->scene2, command._model_draw.element_id);
+                            if( se && scene2_element_parent_entity_id(se) < 0 )
+                            {
+                                draw_pos.x += game->camera_world_x;
+                                draw_pos.y += game->camera_world_y;
+                                draw_pos.z += game->camera_world_z;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        dst_pixels = NULL;
+                    }
+                }
+                else if( vp_pixels )
+                {
+                    dst_pixels = vp_pixels;
+                }
+                else
+                {
+                    dst_pixels = NULL;
+                }
+                if( dst_pixels && vp_use )
+                    dash3d_raster_projected_model(
+                        game->sys_dash,
+                        command._model_draw.model,
+                        &draw_pos,
+                        vp_use,
+                        game->camera,
+                        dst_pixels,
+                        false);
+            }
             break;
         case TORIRS_GFX_DRAW_SPRITE:
         {
@@ -509,7 +714,19 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
         }
         break;
         case TORIRS_GFX_STATE_BEGIN_3D:
+            if( command._begin_3d.w > 0 && command._begin_3d.h > 0 && soft3d_ui3d_top + 1 < 8 )
+            {
+                ++soft3d_ui3d_top;
+                soft3d_ui3d_stack_x[soft3d_ui3d_top] = command._begin_3d.x;
+                soft3d_ui3d_stack_y[soft3d_ui3d_top] = command._begin_3d.y;
+                soft3d_ui3d_stack_w[soft3d_ui3d_top] = command._begin_3d.w;
+                soft3d_ui3d_stack_h[soft3d_ui3d_top] = command._begin_3d.h;
+            }
+            break;
         case TORIRS_GFX_STATE_END_3D:
+            if( soft3d_ui3d_top >= 0 )
+                --soft3d_ui3d_top;
+            break;
         case TORIRS_GFX_STATE_BEGIN_2D:
         case TORIRS_GFX_STATE_END_2D:
         case TORIRS_GFX_BATCH3D_BEGIN:

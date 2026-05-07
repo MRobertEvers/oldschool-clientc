@@ -495,10 +495,16 @@ rs_gfx_model_step(
 
     if( project_models )
     {
-        int cull =
-            dash3d_project_model(game->sys_dash, mod, &position, game->view_port, game->camera);
-        if( cull != DASHCULL_VISIBLE )
-            return true;
+        /* UITree MODEL (chat heads, etc.): Scene2 parent -1, zero sepos — world frustum cull always
+         * rejects; soft3d applies BEGIN_3D rect + camera_world undo at raster time. */
+        bool const ui_scene2 = scene2_element_parent_entity_id(se) < 0;
+        if( !ui_scene2 )
+        {
+            int cull =
+                dash3d_project_model(game->sys_dash, mod, &position, game->view_port, game->camera);
+            if( cull != DASHCULL_VISIBLE )
+                return true;
+        }
     }
 
     frame_emit_pass_3d_with_rect(

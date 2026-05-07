@@ -139,17 +139,24 @@ frame_emit_pass_3d_with_rect(
     if( !fiber || !fiber->cmds || !fiber->pass )
         return;
     if( *fiber->pass == FRAME_PASS_3D )
-        return;
-    switch( *fiber->pass )
     {
-    case FRAME_PASS_2D:
-        emit_marker(fiber->cmds, TORIRS_GFX_STATE_END_2D);
-        break;
-    default:
-        break;
+        /* Already in a 3D pass: close the previous sub-rect so the next BEGIN_3D pushes the right
+         * dst_bb (soft3d stack pop/push; consecutive RS_MODEL children each need their own rect). */
+        emit_marker(fiber->cmds, TORIRS_GFX_STATE_END_3D);
+    }
+    else
+    {
+        switch( *fiber->pass )
+        {
+        case FRAME_PASS_2D:
+            emit_marker(fiber->cmds, TORIRS_GFX_STATE_END_2D);
+            break;
+        default:
+            break;
+        }
+        *fiber->pass = FRAME_PASS_3D;
     }
     emit_begin_3d_with_rect(fiber->cmds, dst_x, dst_y, dst_w, dst_h);
-    *fiber->pass = FRAME_PASS_3D;
 }
 
 /** Tab sidebar content (RS subtree) only when this tab is selected and no modal owns the sidebar.
@@ -3305,7 +3312,33 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
     }
 
     if( consumed_from_input )
+    {
+        /* Suppress duplicate tile_click / MOVE_GAMECLICK, but still move the walk cross to this
+         * left press when it lands in world or minimap aim — otherwise the sprite stays at the
+         * last minimenu anchor (often right-click). Skip when a menu row actually ran use_option
+         * (that path sets cross_x/y intentionally, e.g. right-press anchor). */
+        if( !game->minimenu_used_option_this_left_click )
+        {
+            struct StaticUIComponent* mm = frame_find_builtin(game, UIELEM_BUILTIN_MINIMAP);
+            if( mm && frame_point_in_component_xy(mm, cx, cy) )
+            {
+                int bx = mm->position.x;
+                int by = mm->position.y;
+                int const pivot_x = bx + mm->position.anchor_x;
+                int const pivot_y = by + mm->position.anchor_y;
+                int const dpx     = cx - pivot_x;
+                int const dpy     = cy - pivot_y;
+                int const max_off_x = mm->position.width / 2 + 32;
+                int const max_off_y = mm->position.height / 2 + 32;
+                if( dpx >= -max_off_x && dpx <= max_off_x && dpy >= -max_off_y && dpy <= max_off_y )
+                    game_cross_set(game, 1);
+            }
+            struct StaticUIComponent* wv = frame_find_builtin(game, UIELEM_BUILTIN_WORLD);
+            if( wv && frame_point_in_component_xy(wv, cx, cy) )
+                game_cross_set(game, 1);
+        }
         return;
+    }
 
     /* UI button click dispatch (sidebar / viewport / chat).
      * Mirror Client.ts mouseLoop → doAction → IF_BUTTON path.

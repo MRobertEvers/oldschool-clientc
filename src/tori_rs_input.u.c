@@ -154,7 +154,8 @@ LibToriRS_GameProcessInput(
     /* Fresh each GameStep. Must NOT be cleared in LibToriRS_FrameBegin: minimenu / iface may set
      * this during GameProcessInput and FrameEnd must see it to avoid duplicating the same left
      * click as a world walk (MOVE_GAMECLICK after MOVE_OPCLICK). */
-    game->interface_consumed_click = 0;
+    game->interface_consumed_click            = 0;
+    game->minimenu_used_option_this_left_click = false;
 
     game_chat_process_input(game, input);
 
@@ -427,11 +428,24 @@ LibToriRS_GameProcessInput(
         }
         else if( game->minimenu.visible )
         {
+            /* minimenu_click_option returns -2 when the press is outside the menu rect (and closes
+             * the menu). That click must still reach FrameEnd for world/minimap + crosshair.
+             * Returns -2 from inside the box but missing all rows: consume so we do not walk. */
+            int const menu_x = game->minimenu.x;
+            int const menu_y = game->minimenu.y;
+            int const menu_w = game->minimenu.width;
+            int const menu_h = game->minimenu.height;
+            int const click_outside_menu =
+                (cx < menu_x || cx >= menu_x + menu_w || cy < menu_y || cy >= menu_y + menu_h);
             int opt = minimenu_game_click_option(game, cx, cy);
             if( opt >= 0 )
+            {
                 minimenu_game_use_option(game, input, opt);
-            game->minimenu.visible         = 0;
-            game->interface_consumed_click = 1;
+                game->minimenu_used_option_this_left_click = true;
+            }
+            game->minimenu.visible = 0;
+            if( opt >= 0 || opt == -1 || !click_outside_menu )
+                game->interface_consumed_click = 1;
         }
         else if( game->iface && game->iface->inv_suppress_next_left_click )
         {
