@@ -10,26 +10,31 @@
 static void
 uiscene_event_discard_payload(struct UISceneEvent* ev)
 {
-    if( !ev || ev->type != UISCENE_EVENT_ELEMENT_RELEASED )
+    if( !ev )
         return;
-    if( !ev->released_sprites || ev->released_sprites_count <= 0 )
+    if( ev->type == UISCENE_EVENT_ELEMENT_RELEASED )
     {
-        free(ev->released_sprites);
+        if( ev->released_sprites && ev->released_sprites_count > 0 )
+        {
+            for( int i = 0; i < ev->released_sprites_count; i++ )
+            {
+                if( ev->released_sprites[i] )
+                    dashsprite_free(ev->released_sprites[i]);
+            }
+            free(ev->released_sprites);
+        }
+        else
+            free(ev->released_sprites);
         ev->released_sprites = NULL;
         ev->released_sprites_count = 0;
         return;
     }
-    if( !ev->released_sprites_borrowed )
+    if( ev->type == UISCENE_EVENT_MODEL_UNLOAD )
     {
-        for( int i = 0; i < ev->released_sprites_count; i++ )
-        {
-            if( ev->released_sprites[i] )
-                dashsprite_free(ev->released_sprites[i]);
-        }
+        if( ev->model )
+            dashmodel_free(ev->model);
+        ev->model = NULL;
     }
-    free(ev->released_sprites);
-    ev->released_sprites = NULL;
-    ev->released_sprites_count = 0;
 }
 
 static void
@@ -130,13 +135,15 @@ uiscene_free(struct UIScene* uiscene)
         struct UISceneElement* elem = &uiscene->elements[i];
         if( elem->dash_sprites )
         {
-            if( !elem->dash_sprites_borrowed )
+            for( int j = 0; j < elem->dash_sprites_count; j++ )
             {
-                for( int j = 0; j < elem->dash_sprites_count; j++ )
+                if( elem->dash_sprites[j] )
                     dashsprite_free(elem->dash_sprites[j]);
             }
             free(elem->dash_sprites);
         }
+        if( elem->dash_model )
+            dashmodel_free(elem->dash_model);
     }
     for( int i = 0; i < uiscene->font_count; i++ )
     {
@@ -159,6 +166,7 @@ uiscene_element_acquire(
     struct UISceneElement* element = uiscene->free_list;
     element->active = true;
     element->parent_entity_id = parent_entity_id;
+    element->dash_model = NULL;
 
     uiscene->free_list = element->next;
 
@@ -189,7 +197,6 @@ uiscene_element_acquire_with_sprites(
     int parent_entity_id,
     struct DashSprite** sprites,
     int sprites_count,
-    bool borrowed,
     const char* name)
 {
     if( uiscene->free_len == 0 )
@@ -213,7 +220,7 @@ uiscene_element_acquire_with_sprites(
 
     element->dash_sprites = sprites;
     element->dash_sprites_count = sprites_count;
-    element->dash_sprites_borrowed = borrowed;
+    element->dash_model = NULL;
 
     if( name )
     {
@@ -234,6 +241,64 @@ uiscene_element_acquire_with_sprites(
     return element->id;
 }
 
+int
+uiscene_element_acquire_with_model(
+    struct UIScene* uiscene,
+    int parent_entity_id,
+    struct DashModel* model,
+    const char* name)
+{
+    if( uiscene->free_len == 0 || !model )
+        return -1;
+
+    struct UISceneElement* element = uiscene->free_list;
+    element->active = true;
+    element->parent_entity_id = parent_entity_id;
+
+    uiscene->free_list = element->next;
+
+    element->next = uiscene->active_list;
+    element->prev = NULL;
+    if( uiscene->active_list != NULL )
+        uiscene->active_list->prev = element;
+
+    uiscene->active_list = element;
+
+    uiscene->active_len++;
+    uiscene->free_len--;
+
+    element->dash_sprites = NULL;
+    element->dash_sprites_count = 0;
+    element->dash_model = model;
+
+    if( name )
+    {
+        strncpy(element->name, name, sizeof(element->name) - 1);
+        element->name[sizeof(element->name) - 1] = '\0';
+    }
+    else
+        element->name[0] = '\0';
+
+    uiscene_eventbuffer_push(
+        uiscene,
+        (struct UISceneEvent){
+            .type = UISCENE_EVENT_ELEMENT_ACQUIRED,
+            .element_id = element->id,
+            .parent_entity_id = parent_entity_id,
+        });
+
+    uiscene_eventbuffer_push(
+        uiscene,
+        (struct UISceneEvent){
+            .type = UISCENE_EVENT_MODEL_LOAD,
+            .element_id = element->id,
+            .parent_entity_id = parent_entity_id,
+            .model = model,
+        });
+
+    return element->id;
+}
+
 void
 uiscene_element_release(
     struct UIScene* uiscene,
@@ -246,7 +311,6 @@ uiscene_element_release(
     assert(element->active && "Element must be active");
     int parent_entity_id = element->parent_entity_id;
 
-    bool borrowed = element->dash_sprites_borrowed;
     int n = element->dash_sprites_count;
     struct DashSprite** snap = NULL;
     if( n > 0 && element->dash_sprites )
@@ -254,7 +318,7 @@ uiscene_element_release(
         snap = malloc((size_t)n * sizeof(struct DashSprite*));
         if( snap )
             memcpy(snap, element->dash_sprites, (size_t)n * sizeof(struct DashSprite*));
-        else if( !borrowed )
+        else
         {
             for( int i = 0; i < n; i++ )
             {
@@ -269,7 +333,9 @@ uiscene_element_release(
 
     element->dash_sprites = NULL;
     element->dash_sprites_count = 0;
-    element->dash_sprites_borrowed = false;
+
+    struct DashModel* model_snap = element->dash_model;
+    element->dash_model = NULL;
 
     element->active = false;
     element->parent_entity_id = -1;
@@ -289,6 +355,18 @@ uiscene_element_release(
     uiscene->active_len--;
     uiscene->free_len++;
 
+    if( model_snap )
+    {
+        uiscene_eventbuffer_push(
+            uiscene,
+            (struct UISceneEvent){
+                .type = UISCENE_EVENT_MODEL_UNLOAD,
+                .element_id = element_id,
+                .parent_entity_id = parent_entity_id,
+                .model = model_snap,
+            });
+    }
+
     uiscene_eventbuffer_push(
         uiscene,
         (struct UISceneEvent){
@@ -297,7 +375,6 @@ uiscene_element_release(
             .parent_entity_id = parent_entity_id,
             .released_sprites = snap,
             .released_sprites_count = snap ? n : 0,
-            .released_sprites_borrowed = borrowed,
         });
 }
 
@@ -319,6 +396,19 @@ uiscene_element_at(
     if( element_id < 0 || element_id >= uiscene->elements_count )
         return NULL;
     return &uiscene->elements[element_id];
+}
+
+struct DashModel*
+uiscene_element_dash_model(
+    struct UIScene* uiscene,
+    int element_id)
+{
+    if( !uiscene || element_id < 0 || element_id >= uiscene->elements_count )
+        return NULL;
+    struct UISceneElement* e = &uiscene->elements[element_id];
+    if( !e->active )
+        return NULL;
+    return e->dash_model;
 }
 
 struct DashSprite*
@@ -344,7 +434,9 @@ uiscene_sprite_by_name(
 }
 
 int
-uiscene_element_id_by_name(struct UIScene* uiscene, const char* name)
+uiscene_element_id_by_name(
+    struct UIScene* uiscene,
+    const char* name)
 {
     if( !uiscene || !name )
         return -1;

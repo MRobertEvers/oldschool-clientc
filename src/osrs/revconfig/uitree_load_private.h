@@ -8,12 +8,12 @@
  * src/osrs/revconfig/.
  */
 
+#include "graphics/dash.h"
+#include "graphics/dashmap.h"
 #include "osrs/chat.h"
 #include "osrs/minimenu_regions.h"
 #include "osrs/revconfig/uitree.h"
 #include "osrs/revconfig/uitree_loader.h"
-#include "graphics/dash.h"
-#include "graphics/dashmap.h"
 
 #include <stdint.h>
 
@@ -130,10 +130,10 @@ struct CurrentLoad
     enum LoadKind kind;
     union
     {
-        struct SpriteLoad    _sprite;
+        struct SpriteLoad _sprite;
         struct ComponentLoad _component;
-        struct LayoutLoad    _layout;
-        struct InvLoad       _inv;
+        struct LayoutLoad _layout;
+        struct InvLoad _inv;
     };
 };
 
@@ -185,84 +185,92 @@ struct GGame;
 /**
  * Identify the load-kind from an INI type string.
  */
-uint32_t uitree_impl_load_kind(const char* str);
+uint32_t
+uitree_impl_load_kind(const char* str);
 
 /**
  * Dispatch the current item name into the appropriate load accumulator.
  */
-void uitree_impl_on_itemname(struct CurrentLoad* load, const char* value);
+void
+uitree_impl_on_itemname(
+    struct CurrentLoad* load,
+    const char* value);
 
 /**
  * Attempt to load a sprite item from the 2D media jagfile.
  * Returns 0 on success, -1 when an asset is needed (fills *out_req).
  */
-int uitree_impl_load_sprite(
-    struct SpriteLoad*             load,
-    struct DashMap*                sprite_hmap,
-    struct UITree*                 ui,
-    struct UIScene*                ui_scene,
-    struct BuildCacheDat*          buildcachedat,
+int
+uitree_impl_load_sprite(
+    struct SpriteLoad* load,
+    struct DashMap* sprite_hmap,
+    struct UITree* ui,
+    struct UIScene* ui_scene,
+    struct BuildCacheDat* buildcachedat,
     struct UITreeLoaderAssetRequest* out_req);
 
 /**
  * Attempt to process a component definition item.
  * Returns 0 on success, -1 when an asset is needed (fills *out_req).
  */
-int uitree_impl_load_component(
-    struct ComponentLoad*          load,
-    struct DashMap*                sprite_hmap,
-    struct DashMap*                component_hmap,
-    struct UITree*                 ui,
-    struct UIScene*                ui_scene,
-    struct GameCache*              gamecache,
+int
+uitree_impl_load_component(
+    struct ComponentLoad* load,
+    struct DashMap* sprite_hmap,
+    struct DashMap* component_hmap,
+    struct UITree* ui,
+    struct UIScene* ui_scene,
+    struct GameCache* gamecache,
     struct UITreeLoaderAssetRequest* out_req);
 
 /**
  * Attempt to process a layout item (may expand RS subtrees from gamecache).
  * Returns 0 on success, -1 when an asset is needed (fills *out_req).
  */
-int uitree_impl_load_layout(
-    struct LayoutLoad*             load,
-    struct DashMap*                component_hmap,
-    struct UITree*                 ui,
-    struct UIScene*                ui_scene,
-    struct Scene2*                 scene2,
-    struct GameCache*              gamecache,
-    struct UIInventoryPool*        inv_pool,
-    struct GGame*                  game,
+int
+uitree_impl_load_layout(
+    struct LayoutLoad* load,
+    struct DashMap* component_hmap,
+    struct UITree* ui,
+    struct UIScene* ui_scene,
+    struct GameCache* gamecache,
+    struct UIInventoryPool* inv_pool,
+    struct GGame* game,
     struct UITreeLoaderAssetRequest* out_req);
 
 /**
  * Attempt to process an inventory item.
  * Returns 0 on success, -1 when an asset is needed (fills *out_req).
  */
-int uitree_impl_load_inv(
-    struct InvLoad*                il,
-    struct UIInventoryPool*        inv_pool,
-    struct GGame*                  game,
-    struct UIScene*                ui_scene,
+int
+uitree_impl_load_inv(
+    struct InvLoad* il,
+    struct UIInventoryPool* inv_pool,
+    struct GGame* game,
+    struct UIScene* ui_scene,
     struct UITreeLoaderAssetRequest* out_req);
 
 /**
  * Dispatch a completed CurrentLoad to the appropriate typed loader.
  * Returns 0 on success, -1 when an asset is needed (fills *out_req).
  */
-int uitree_impl_load_item(
-    struct CurrentLoad*            load,
-    struct DashMap*                sprite_hmap,
-    struct DashMap*                component_hmap,
-    struct UITree*                 ui,
-    struct UIScene*                ui_scene,
-    struct Scene2*                 scene2,
-    struct UIInventoryPool*        inv_pool,
-    struct GGame*                  game,
+int
+uitree_impl_load_item(
+    struct CurrentLoad* load,
+    struct DashMap* sprite_hmap,
+    struct DashMap* component_hmap,
+    struct UITree* ui,
+    struct UIScene* ui_scene,
+    struct UIInventoryPool* inv_pool,
+    struct GGame* game,
     struct UITreeLoaderAssetRequest* out_req);
 
 /**
  * Wire named UIScene elements (scrollbars, minimap dots, etc.) to GGame fields.
  */
-void uitree_impl_resolve_game_uiscene_sprite_ids(
-    struct GGame*   game,
+void
+uitree_impl_resolve_game_uiscene_sprite_ids(
+    struct GGame* game,
     struct UIScene* ui_scene);
 
 #endif /* UITREE_LOAD_PRIVATE_H */

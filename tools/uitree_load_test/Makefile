@@ -1,16 +1,16 @@
-# Standalone uitree_loader_test build (no CMake target).
-# Mirrors CMake COMMON_SOURCES .c list (minus SDL-only .cpp / tori_rs_sdl2_gameinput.c)
-# plus bundled Lua, test main, and uitree_loader.c.
+# Standalone uitree_load_test build (no CMake target).
+# Same object list as tools/uitree_loader_test but main is uitree_load_test.c
+# (calls uitree_from_revconfig_buildcachedat directly).
 
 ROOT := $(abspath ../..)
-OUT  := $(ROOT)/tools/uitree_loader_test/uitree_loader_test
-OBJDIR := $(ROOT)/tools/uitree_loader_test/obj
+OUT  := $(ROOT)/tools/uitree_load_test/uitree_load_test
+OBJDIR := $(ROOT)/tools/uitree_load_test/obj
 
 CC ?= cc
 CFLAGS := -std=c11 -g -O1 -Wall -D_DARWIN_C_SOURCE
 CPPFLAGS := -I$(ROOT)/src -I$(ROOT)/src/platforms -I$(ROOT)/src/nuklear \
 	-I$(ROOT)/src/platforms/ToriRSPlatformKit/include \
-	-DUITREE_LOADER_TEST_ROOT=\"$(ROOT)\" \
+	-DUITREE_LOAD_TEST_ROOT=\"$(ROOT)\" \
 	-DDASH_BUCKET_SORT_MODE=0
 LDFLAGS := -lm
 
@@ -184,7 +184,7 @@ C_COMMON := \
 	3rd/ini/ini.c
 
 COMMON_SRCS := $(addprefix $(ROOT)/src/,$(C_COMMON))
-TEST_MAIN := $(ROOT)/tools/uitree_loader_test/main.c
+TEST_MAIN := $(ROOT)/tools/uitree_load_test/uitree_load_test.c
 UITREE_LOADER := $(ROOT)/src/osrs/revconfig/uitree_loader.c
 
 SRCS := $(TEST_MAIN) $(UITREE_LOADER) $(COMMON_SRCS) $(LUA_SRCS)

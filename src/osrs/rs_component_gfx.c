@@ -12,26 +12,12 @@
 #include "osrs/interface.h"
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
-#include "osrs/scene2.h"
 #include "tori_rs_frame_state.h"
 #include "tori_rs_render.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-
-static uint64_t
-rs_model_cache_key_u64(
-    struct Scene2* scene2,
-    struct Scene2Element const* element)
-{
-    if( !element || !scene2 )
-        return 0;
-    int visual_id = scene2_element_visual_id(element);
-    return ((uint64_t)(uint32_t)visual_id << 24) |
-           ((uint64_t)scene2_element_active_anim_id(element) << 8) |
-           (uint64_t)scene2_element_active_frame(element);
-}
 
 static void
 queue_sprite_draw(
@@ -452,39 +438,21 @@ rs_gfx_model_step(
 {
     struct GGame* game = fiber->game;
     struct ToriRSRenderCommandBuffer* queued_commands = fiber->cmds;
-    if( !game || !component || !game->world || !game->world->scene2 || !queued_commands )
-        return true;
-    int eid = component->u.rs_model.scene2_element_id;
-    if( eid < 0 )
-        return true;
-    struct Scene2Element* se = scene2_element_at(game->world->scene2, eid);
-    if( !se )
+    if( !game || !component || !queued_commands )
         return true;
 
-    /* Active/inactive switch: mirrors TS drawInterface TYPE_MODEL path (10424-10458).
-     * When active, use active_anim_id (modelAnim2); when inactive, use anim_id (modelAnim). */
-    {
-        struct ClientScriptVM* vm = game->clientscript_vm;
-        bool active = clientscript_vm_active(
-            vm,
-            component->scripts,
-            component->scripts_count,
-            component->script_comparator,
-            component->script_operand);
-        int desired_anim = active ? component->active_anim_id : component->anim_id;
-        if( desired_anim >= 0 )
-            scene2_element_set_active_anim_id(se, (uint16_t)desired_anim);
-    }
-
-    struct DashModel* mod = scene2_element_dash_model(se);
-    struct DashPosition* sepos = scene2_element_dash_position(se);
-    if( !mod || !sepos )
+    int eid = component->u.rs_model.scene_id;
+    if( eid < 0 || !game->ui_scene )
         return true;
+
+    struct DashModel* mod = uiscene_element_dash_model(game->ui_scene, eid);
+    if( !mod )
+        return true;
+
+    (void)project_models;
 
     struct DashPosition position = { 0 };
-    memcpy(&position, sepos, sizeof(struct DashPosition));
     struct DashPosition world_position = { 0 };
-    memcpy(&world_position, sepos, sizeof(struct DashPosition));
 
     {
         int zm = component->u.rs_model.model_zoom;
@@ -502,19 +470,8 @@ rs_gfx_model_step(
     position.y = position.y - game->camera_world_y;
     position.z = position.z - game->camera_world_z;
 
-    if( project_models )
-    {
-        /* UITree MODEL (chat heads, etc.): Scene2 parent -1, zero sepos — world frustum cull always
-         * rejects; soft3d applies BEGIN_3D rect + camera_world undo at raster time. */
-        bool const ui_scene2 = scene2_element_parent_entity_id(se) < 0;
-        if( !ui_scene2 )
-        {
-            int cull =
-                dash3d_project_model(game->sys_dash, mod, &position, game->view_port, game->camera);
-            if( cull != DASHCULL_VISIBLE )
-                return true;
-        }
-    }
+    uint64_t const model_key = uiscene_model_cache_key(eid);
+    int const visual_id = torirs_visual_id_from_cache_key(model_key);
 
     frame_emit_pass_3d_with_rect(
         fiber,
@@ -527,22 +484,17 @@ rs_gfx_model_step(
             LibToriRS_RenderCommandBufferEmplaceCommand(queued_commands);
         cmd->kind = TORIRS_GFX_DRAW_MODEL;
         cmd->_model_draw.model = mod;
-        cmd->_model_draw.model_key = rs_model_cache_key_u64(game->world->scene2, se);
-        cmd->_model_draw.visual_id = scene2_element_visual_id(se);
+        cmd->_model_draw.model_key = model_key;
+        cmd->_model_draw.visual_id = visual_id;
         cmd->_model_draw.element_id = eid;
-        cmd->_model_draw.use_animation = scene2_element_active_anim_id(se) != 0;
-        cmd->_model_draw.animation_index = scene2_element_active_animation_index(se);
-        cmd->_model_draw.frame_index = scene2_element_active_frame(se);
+        cmd->_model_draw.use_animation = false;
+        cmd->_model_draw.animation_index = 0;
+        cmd->_model_draw.frame_index = 0;
         memcpy(&cmd->_model_draw.position, &position, sizeof(struct DashPosition));
         memcpy(&cmd->_model_draw.world_position, &world_position, sizeof(struct DashPosition));
-        cmd->_model_draw.usage_hint = (uint8_t)scene2_element_category(se);
-        cmd->_model_draw.animation_frame =
-            cmd->_model_draw.use_animation
-                ? scene2_element_dash_animation_frame(
-                      se, cmd->_model_draw.animation_index, cmd->_model_draw.frame_index)
-                : NULL;
-        cmd->_model_draw.animation_framemap =
-            cmd->_model_draw.use_animation ? scene2_element_dash_framemap(se) : NULL;
+        cmd->_model_draw.usage_hint = (uint8_t)TORIRS_USAGE_SCENERY;
+        cmd->_model_draw.animation_frame = NULL;
+        cmd->_model_draw.animation_framemap = NULL;
     }
     return true;
 }

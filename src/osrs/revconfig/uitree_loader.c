@@ -1,12 +1,12 @@
 #include "uitree_loader.h"
-#include "uitree_load_private.h"
 
 #include "graphics/dashmap.h"
-#include "osrs/revconfig/revconfig.h"
-#include "osrs/revconfig/uitree.h"
-#include "osrs/revconfig/uiscene.h"
-#include "osrs/revconfig/uitree_load.h"
 #include "osrs/game.h"
+#include "osrs/revconfig/revconfig.h"
+#include "osrs/revconfig/uiscene.h"
+#include "osrs/revconfig/uitree.h"
+#include "osrs/revconfig/uitree_load.h"
+#include "uitree_load_private.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -18,57 +18,51 @@
 
 struct UITreeLoader
 {
-    enum UITreeLoaderStatus        status;
+    enum UITreeLoaderStatus status;
     struct UITreeLoaderAssetRequest pending_asset;
 
     /* Borrowed references — not owned, must outlive the loader. */
-    struct UITree*          ui;
-    struct UIScene*         ui_scene;
-    struct Scene2*          scene2;
-    struct UIInventoryPool* inv_pool;
-    struct GGame*           game;
+    struct UITree* ui;
     struct RevConfigBuffer* revconfig_buffer;
 
     /* Iteration state. */
-    uint32_t        field_index; /* next field to process */
-    struct CurrentLoad load;     /* accumulator for the current INI item */
+    uint32_t field_index;    /* next field to process */
+    struct CurrentLoad load; /* accumulator for the current INI item */
 
     /* Hashmaps — owned by loader, freed in uitree_loader_free(). */
     struct DashMap* sprite_hmap;
     struct DashMap* component_hmap;
-    void*           sprite_hmap_buffer;
-    void*           component_hmap_buffer;
+    void* sprite_hmap_buffer;
+    void* component_hmap_buffer;
 };
 
 /* ── Allocation ─────────────────────────────────────────────────────────────── */
 
 struct UITreeLoader*
 uitree_loader_new(
-    struct UITree*          ui,
-    struct UIScene*         ui_scene,
-    struct Scene2*          scene2,
+    struct UITree* ui,
+    struct UIScene* ui_scene,
     struct UIInventoryPool* inv_pool,
-    struct GGame*           game,
+    struct GGame* game,
     struct RevConfigBuffer* revconfig_buffer)
 {
     struct UITreeLoader* loader = calloc(1, sizeof(*loader));
     if( !loader )
         return NULL;
 
-    loader->status          = UITREE_LOADER_RUNNING;
-    loader->ui              = ui;
-    loader->ui_scene        = ui_scene;
-    loader->scene2          = scene2;
-    loader->inv_pool        = inv_pool;
-    loader->game            = game;
+    loader->status = UITREE_LOADER_RUNNING;
+    loader->ui = ui;
+    loader->ui_scene = ui_scene;
+    loader->inv_pool = inv_pool;
+    loader->game = game;
     loader->revconfig_buffer = revconfig_buffer;
-    loader->field_index     = 0;
+    loader->field_index = 0;
 
     /* Reset the UITree to empty before starting. */
     if( ui )
     {
         ui->component_count = 0;
-        ui->root_index      = -1;
+        ui->root_index = -1;
     }
 
     /* Allocate hashmaps. */
@@ -88,18 +82,18 @@ uitree_loader_new(
     }
 
     struct DashMapConfig sprite_cfg = {
-        .buffer      = loader->sprite_hmap_buffer,
+        .buffer = loader->sprite_hmap_buffer,
         .buffer_size = 1024 * sizeof(struct SpriteEntry),
-        .key_size    = 64,
-        .entry_size  = sizeof(struct SpriteEntry),
+        .key_size = 64,
+        .entry_size = sizeof(struct SpriteEntry),
     };
     loader->sprite_hmap = dashmap_new(&sprite_cfg, 0);
 
     struct DashMapConfig component_cfg = {
-        .buffer      = loader->component_hmap_buffer,
+        .buffer = loader->component_hmap_buffer,
         .buffer_size = 1024 * sizeof(struct ComponentEntry),
-        .key_size    = 64,
-        .entry_size  = sizeof(struct ComponentEntry),
+        .key_size = 64,
+        .entry_size = sizeof(struct ComponentEntry),
     };
     loader->component_hmap = dashmap_new(&component_cfg, 0);
 
@@ -123,8 +117,7 @@ uitree_loader_step(struct UITreeLoader* loader)
 {
     if( !loader )
         return UITREE_LOADER_ERROR;
-    if( loader->status == UITREE_LOADER_DONE ||
-        loader->status == UITREE_LOADER_ERROR )
+    if( loader->status == UITREE_LOADER_DONE || loader->status == UITREE_LOADER_ERROR )
         return loader->status;
 
     struct RevConfigBuffer* buf = loader->revconfig_buffer;
@@ -165,7 +158,6 @@ uitree_loader_step(struct UITreeLoader* loader)
                 loader->component_hmap,
                 loader->ui,
                 loader->ui_scene,
-                loader->scene2,
                 loader->inv_pool,
                 loader->game,
                 &req);
@@ -176,7 +168,7 @@ uitree_loader_step(struct UITreeLoader* loader)
                  * field_index is NOT advanced — the next call to step() will
                  * retry this same RCFIELD_ITEMDONE entry. */
                 loader->pending_asset = req;
-                loader->status        = UITREE_LOADER_NEEDS_ASSET;
+                loader->status = UITREE_LOADER_NEEDS_ASSET;
                 return UITREE_LOADER_NEEDS_ASSET;
             }
 
@@ -193,51 +185,60 @@ uitree_loader_step(struct UITreeLoader* loader)
 
         /* ── Sprite fields ──────────────────────────────────────────────── */
         case RCFIELD_CACHE_TABLE:
-            strncpy(loader->load._sprite.table, field->value,
-                    sizeof(loader->load._sprite.table) - 1);
+            strncpy(
+                loader->load._sprite.table, field->value, sizeof(loader->load._sprite.table) - 1);
             loader->field_index++;
             break;
         case RCFIELD_CACHE_ARCHIVE:
-            strncpy(loader->load._sprite.archive, field->value,
-                    sizeof(loader->load._sprite.archive) - 1);
+            strncpy(
+                loader->load._sprite.archive,
+                field->value,
+                sizeof(loader->load._sprite.archive) - 1);
             loader->field_index++;
             break;
         case RCFIELD_CACHE_CONTAINER:
-            strncpy(loader->load._sprite.container, field->value,
-                    sizeof(loader->load._sprite.container) - 1);
+            strncpy(
+                loader->load._sprite.container,
+                field->value,
+                sizeof(loader->load._sprite.container) - 1);
             loader->field_index++;
             break;
         case RCFIELD_CACHE_INDEX_FILENAME:
-            strncpy(loader->load._sprite.index_filename, field->value,
-                    sizeof(loader->load._sprite.index_filename) - 1);
+            strncpy(
+                loader->load._sprite.index_filename,
+                field->value,
+                sizeof(loader->load._sprite.index_filename) - 1);
             loader->field_index++;
             break;
         case RCFIELD_CACHE_DATA_FILENAME:
-            strncpy(loader->load._sprite.data_filename, field->value,
-                    sizeof(loader->load._sprite.data_filename) - 1);
+            strncpy(
+                loader->load._sprite.data_filename,
+                field->value,
+                sizeof(loader->load._sprite.data_filename) - 1);
             loader->field_index++;
             break;
         case RCFIELD_CACHE_FORMAT:
-            strncpy(loader->load._sprite.format, field->value,
-                    sizeof(loader->load._sprite.format) - 1);
+            strncpy(
+                loader->load._sprite.format, field->value, sizeof(loader->load._sprite.format) - 1);
             loader->field_index++;
             break;
         case RCFIELD_CACHE_ATLAS_INDEX:
-            loader->load._sprite.atlas_mode  = SPRITELOAD_ATLAS_MODE_INDEX;
+            loader->load._sprite.atlas_mode = SPRITELOAD_ATLAS_MODE_INDEX;
             loader->load._sprite.atlas_index = atoi(field->value);
             loader->field_index++;
             break;
         case RCFIELD_CACHE_ATLAS_COUNT:
-            loader->load._sprite.atlas_mode  = SPRITELOAD_ATLAS_MODE_COUNT;
+            loader->load._sprite.atlas_mode = SPRITELOAD_ATLAS_MODE_COUNT;
             loader->load._sprite.atlas_count = atoi(field->value);
             loader->field_index++;
             break;
         case RCFIELD_CACHE_TRANSFORM:
             if( loader->load._sprite.transform_count < 5 )
             {
-                strncpy(loader->load._sprite.transforms[loader->load._sprite.transform_count],
-                        field->value,
-                        sizeof(loader->load._sprite.transforms[0]) - 1);
+                strncpy(
+                    loader->load._sprite.transforms[loader->load._sprite.transform_count],
+                    field->value,
+                    sizeof(loader->load._sprite.transforms[0]) - 1);
                 loader->load._sprite.transform_count++;
             }
             loader->field_index++;
@@ -261,18 +262,24 @@ uitree_loader_step(struct UITreeLoader* loader)
 
         /* ── Component fields ───────────────────────────────────────────── */
         case RCFIELD_UICOMPONENT_TYPE:
-            strncpy(loader->load._component.type, field->value,
-                    sizeof(loader->load._component.type) - 1);
+            strncpy(
+                loader->load._component.type,
+                field->value,
+                sizeof(loader->load._component.type) - 1);
             loader->field_index++;
             break;
         case RCFIELD_UICOMPONENT_SPRITE:
-            strncpy(loader->load._component.sprite, field->value,
-                    sizeof(loader->load._component.sprite) - 1);
+            strncpy(
+                loader->load._component.sprite,
+                field->value,
+                sizeof(loader->load._component.sprite) - 1);
             loader->field_index++;
             break;
         case RCFIELD_UICOMPONENT_SPRITE_ACTIVE:
-            strncpy(loader->load._component.sprite_active, field->value,
-                    sizeof(loader->load._component.sprite_active) - 1);
+            strncpy(
+                loader->load._component.sprite_active,
+                field->value,
+                sizeof(loader->load._component.sprite_active) - 1);
             loader->field_index++;
             break;
         case RCFIELD_UICOMPONENT_WIDTH:
@@ -300,18 +307,22 @@ uitree_loader_step(struct UITreeLoader* loader)
             loader->field_index++;
             break;
         case RCFIELD_UICOMPONENT_INV:
-            strncpy(loader->load._component.inv, field->value,
-                    sizeof(loader->load._component.inv) - 1);
+            strncpy(
+                loader->load._component.inv, field->value, sizeof(loader->load._component.inv) - 1);
             loader->field_index++;
             break;
         case RCFIELD_UICOMPONENT_PAINT_LEVELS:
-            strncpy(loader->load._component.paint_levels, field->value,
-                    sizeof(loader->load._component.paint_levels) - 1);
+            strncpy(
+                loader->load._component.paint_levels,
+                field->value,
+                sizeof(loader->load._component.paint_levels) - 1);
             loader->field_index++;
             break;
         case RCFIELD_UICOMPONENT_FONT:
-            strncpy(loader->load._component.font, field->value,
-                    sizeof(loader->load._component.font) - 1);
+            strncpy(
+                loader->load._component.font,
+                field->value,
+                sizeof(loader->load._component.font) - 1);
             loader->field_index++;
             break;
         case RCFIELD_UICOMPONENT_CHATBACK_SCREEN_X:
@@ -365,33 +376,45 @@ uitree_loader_step(struct UITreeLoader* loader)
             loader->field_index++;
             break;
         case RCFIELD_UICOMPONENT_MINIMENU_REGION_VIEWPORT:
-            strncpy(loader->load._component.minimenu_region_viewport, field->value,
-                    sizeof(loader->load._component.minimenu_region_viewport) - 1);
+            strncpy(
+                loader->load._component.minimenu_region_viewport,
+                field->value,
+                sizeof(loader->load._component.minimenu_region_viewport) - 1);
             loader->field_index++;
             break;
         case RCFIELD_UICOMPONENT_MINIMENU_REGION_SIDEBAR:
-            strncpy(loader->load._component.minimenu_region_sidebar, field->value,
-                    sizeof(loader->load._component.minimenu_region_sidebar) - 1);
+            strncpy(
+                loader->load._component.minimenu_region_sidebar,
+                field->value,
+                sizeof(loader->load._component.minimenu_region_sidebar) - 1);
             loader->field_index++;
             break;
         case RCFIELD_UICOMPONENT_MINIMENU_REGION_CHAT:
-            strncpy(loader->load._component.minimenu_region_chat, field->value,
-                    sizeof(loader->load._component.minimenu_region_chat) - 1);
+            strncpy(
+                loader->load._component.minimenu_region_chat,
+                field->value,
+                sizeof(loader->load._component.minimenu_region_chat) - 1);
             loader->field_index++;
             break;
         case RCFIELD_UICOMPONENT_MINIMENU_PLACE_VIEWPORT_MAX:
-            strncpy(loader->load._component.minimenu_place_viewport_max, field->value,
-                    sizeof(loader->load._component.minimenu_place_viewport_max) - 1);
+            strncpy(
+                loader->load._component.minimenu_place_viewport_max,
+                field->value,
+                sizeof(loader->load._component.minimenu_place_viewport_max) - 1);
             loader->field_index++;
             break;
         case RCFIELD_UICOMPONENT_MINIMENU_PLACE_SIDEBAR_MAX:
-            strncpy(loader->load._component.minimenu_place_sidebar_max, field->value,
-                    sizeof(loader->load._component.minimenu_place_sidebar_max) - 1);
+            strncpy(
+                loader->load._component.minimenu_place_sidebar_max,
+                field->value,
+                sizeof(loader->load._component.minimenu_place_sidebar_max) - 1);
             loader->field_index++;
             break;
         case RCFIELD_UICOMPONENT_MINIMENU_PLACE_CHAT_MAX:
-            strncpy(loader->load._component.minimenu_place_chat_max, field->value,
-                    sizeof(loader->load._component.minimenu_place_chat_max) - 1);
+            strncpy(
+                loader->load._component.minimenu_place_chat_max,
+                field->value,
+                sizeof(loader->load._component.minimenu_place_chat_max) - 1);
             loader->field_index++;
             break;
         case RCFIELD_UICOMPONENT_CROSSHAIR_HOTSPOT_OFFSET:
@@ -403,8 +426,7 @@ uitree_loader_step(struct UITreeLoader* loader)
         /* ── Inventory item field ───────────────────────────────────────── */
         case RCFIELD_INV_ITEM:
             if( loader->load._inv.item_count < UI_INVENTORY_MAX_ITEMS )
-                loader->load._inv.item_ids[loader->load._inv.item_count++] =
-                    atoi(field->value);
+                loader->load._inv.item_ids[loader->load._inv.item_count++] = atoi(field->value);
             loader->field_index++;
             break;
 
@@ -413,16 +435,18 @@ uitree_loader_step(struct UITreeLoader* loader)
         {
             if( loader->load._layout.entry_count >= MAX_LAYOUT_ENTRIES )
             {
-                fprintf(stderr,
-                        "uitree_loader: layout exceeds MAX_LAYOUT_ENTRIES (%d);"
-                        " ignoring extra entries\n",
-                        MAX_LAYOUT_ENTRIES);
+                fprintf(
+                    stderr,
+                    "uitree_loader: layout exceeds MAX_LAYOUT_ENTRIES (%d);"
+                    " ignoring extra entries\n",
+                    MAX_LAYOUT_ENTRIES);
                 loader->field_index++;
                 break;
             }
-            strncpy(loader->load._layout.entries[loader->load._layout.entry_count].component,
-                    field->value,
-                    sizeof(loader->load._layout.entries[0].component) - 1);
+            strncpy(
+                loader->load._layout.entries[loader->load._layout.entry_count].component,
+                field->value,
+                sizeof(loader->load._layout.entries[0].component) - 1);
             loader->load._layout.entry_count++;
             loader->field_index++;
         }
@@ -522,11 +546,10 @@ uitree_loader_step(struct UITreeLoader* loader)
         case RCFIELD_UILAYOUT_DIRTY:
             if( loader->load._layout.entry_count > 0 )
             {
-                const char* v   = field->value;
-                int         truthy =
-                    (strcmp(v, "true") == 0) || (strcmp(v, "1") == 0);
-                loader->load._layout.entries[loader->load._layout.entry_count - 1]
-                    .always_dirty = truthy ? 1u : 0u;
+                const char* v = field->value;
+                int truthy = (strcmp(v, "true") == 0) || (strcmp(v, "1") == 0);
+                loader->load._layout.entries[loader->load._layout.entry_count - 1].always_dirty =
+                    truthy ? 1u : 0u;
             }
             loader->field_index++;
             break;

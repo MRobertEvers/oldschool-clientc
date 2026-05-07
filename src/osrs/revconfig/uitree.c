@@ -12,8 +12,6 @@
 #include "osrs/minimenu_action.h"
 #include "osrs/rscache/tables_dat/config_component.h"
 #include "osrs/rscache/tables_dat/config_obj.h"
-#include "osrs/scene2.h"
-
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -615,7 +613,7 @@ uitree_print_nodes(struct UITree const* tree)
                 (unsigned)c->u.rs_rect.fill);
             break;
         case UIELEM_RS_MODEL:
-            printf("       rs_model scene2_element_id=%d\n", c->u.rs_model.scene2_element_id);
+            printf("       rs_model scene_id=%d\n", c->u.rs_model.scene_id);
             break;
         case UIELEM_BUILTIN_SPRITE:
             printf(
@@ -1329,7 +1327,7 @@ uitree_push_rs_model(
     struct UITree* tree,
     int32_t parent_index,
     int component_id,
-    int scene2_element_id,
+    int scene_id,
     int x,
     int y,
     int width,
@@ -1347,7 +1345,7 @@ uitree_push_rs_model(
     component->position.y = y;
     component->position.width = width;
     component->position.height = height;
-    component->u.rs_model.scene2_element_id = scene2_element_id;
+    component->u.rs_model.scene_id = scene_id;
     component->u.rs_model.rs_model_cached_sequence_id = -1;
     return idx;
 }
@@ -2986,94 +2984,6 @@ uitree_rs_model_resolve_sequence_id(
     return sequence_id;
 }
 
-static void
-uitree_rs_model_clear_scene2_animation(
-    struct GGame* game,
-    struct StaticUIComponent* c)
-{
-    if( !game || !game->scene2 || !c || c->u.rs_model.scene2_element_id < 0 )
-        return;
-    struct Scene2Element* el = scene2_element_at(game->scene2, c->u.rs_model.scene2_element_id);
-    if( !el || !scene2_element_primary_frames(el) )
-        return;
-    scene2_element_clear_animation(el);
-    scene2_element_clear_secondary_animation(el);
-    scene2_element_clear_framemap(el);
-}
-
-/** Mirrors world load_scene_animation: bake primary + secondary DashFrames + one shared framemap.
- */
-static void
-uitree_rs_model_precache_sequence_on_scene2(
-    struct GGame* game,
-    struct StaticUIComponent* c,
-    int sequence_id,
-    struct GameCacheSequence* seq)
-{
-    if( !game || !game->scene2 || !game->gamecache || !c || !seq ||
-        c->u.rs_model.scene2_element_id < 0 )
-        return;
-    struct Scene2Element* el = scene2_element_at(game->scene2, c->u.rs_model.scene2_element_id);
-    if( !el || !scene2_element_primary_frames(el) )
-        return;
-
-    scene2_element_clear_animation(el);
-    scene2_element_clear_secondary_animation(el);
-    scene2_element_clear_framemap(el);
-
-    for( int i = 0; i < seq->frame_count; i++ )
-    {
-        int frame_id = seq->frames[i];
-        struct GameCacheAnimframe* animframe = gamecache_get_animframe(game->gamecache, frame_id);
-        if( !animframe )
-            return;
-
-        if( !scene2_element_dash_framemap(el) )
-        {
-            scene2_element_set_framemap(el, dashframemap_new_from_gamecache_animframe(animframe));
-        }
-
-        int length = seq->delay ? seq->delay[i] : 0;
-        if( length == 0 )
-            length = animframe->delay;
-        if( length <= 0 )
-            length = 1;
-
-        struct DashFrame* dash_frame = dashframe_new_from_gamecache_animframe(animframe);
-        scene2_element_push_animation_frame(game->scene2, el, sequence_id, i, dash_frame, length);
-    }
-
-    for( int i = 0; i < seq->frame_count; i++ )
-    {
-        int primary_frame_id = seq->frames[i];
-        struct GameCacheAnimframe* primary_af =
-            gamecache_get_animframe(game->gamecache, primary_frame_id);
-        if( !primary_af )
-            return;
-
-        int sid = (seq->iframes && seq->iframes[i] >= 0) ? seq->iframes[i] : -1;
-        struct DashFrame* secondary_frame = NULL;
-        if( sid >= 0 )
-        {
-            struct GameCacheAnimframe* iframe_af = gamecache_get_animframe(game->gamecache, sid);
-            if( !iframe_af )
-                return;
-            secondary_frame = dashframe_new_from_gamecache_animframe(iframe_af);
-        }
-        else
-            secondary_frame = dashframe_new_from_gamecache_animframe(primary_af);
-
-        int length = seq->delay ? seq->delay[i] : 0;
-        if( length == 0 )
-            length = primary_af->delay;
-        if( length <= 0 )
-            length = 1;
-
-        scene2_element_push_secondary_animation_frame(
-            game->scene2, el, sequence_id, i, secondary_frame, length);
-    }
-}
-
 void
 uitree_rs_model_ensure_sequence_precached(
     struct GGame* game,
@@ -3087,7 +2997,6 @@ uitree_rs_model_ensure_sequence_precached(
 
     if( sequence_id < 0 || !game->gamecache || !game->gamecache->sequences_hmap )
     {
-        uitree_rs_model_clear_scene2_animation(game, c);
         c->u.rs_model.rs_model_cached_sequence_id = -1;
         return;
     }
@@ -3095,12 +3004,11 @@ uitree_rs_model_ensure_sequence_precached(
     struct GameCacheSequence* seq = gamecache_get_sequence(game->gamecache, sequence_id);
     if( !seq || seq->frame_count <= 0 || !seq->frames )
     {
-        uitree_rs_model_clear_scene2_animation(game, c);
         c->u.rs_model.rs_model_cached_sequence_id = -1;
         return;
     }
 
-    if( c->u.rs_model.scene2_element_id < 0 )
+    if( c->u.rs_model.scene_id < 0 )
     {
         c->u.rs_model.rs_model_cached_sequence_id = -1;
         return;
@@ -3109,7 +3017,6 @@ uitree_rs_model_ensure_sequence_precached(
     if( sequence_id == c->u.rs_model.rs_model_cached_sequence_id )
         return;
 
-    uitree_rs_model_precache_sequence_on_scene2(game, c, sequence_id, seq);
     c->u.rs_model.rs_model_cached_sequence_id = sequence_id;
 }
 
@@ -3150,24 +3057,6 @@ uitree_interface_apply_sequence_keyframe_to_model(
     (void)rs_model_ui_comp_nullable;
     return;
 #endif
-
-    if( rs_model_ui_comp_nullable && game->scene2 &&
-        rs_model_ui_comp_nullable->u.rs_model.scene2_element_id >= 0 )
-    {
-        struct Scene2Element* el = scene2_element_at(
-            game->scene2, rs_model_ui_comp_nullable->u.rs_model.scene2_element_id);
-        struct DashFramemap* fm = el ? scene2_element_dash_framemap(el) : NULL;
-        if( el && fm && scene2_element_primary_frames(el) )
-        {
-            struct DashFrame* p = scene2_element_dash_animation_frame(el, 0, (uint8_t)frame_index);
-            if( p )
-                dashmodel_animate(model, p, fm);
-            struct DashFrame* s = scene2_element_dash_animation_frame(el, 1, (uint8_t)frame_index);
-            if( s )
-                dashmodel_animate(model, s, fm);
-            return;
-        }
-    }
 
     uitree_dashmodel_apply_animframe_by_id(game, model, seq->frames[frame_index]);
     int sid = seq->iframes ? seq->iframes[frame_index] : -1;

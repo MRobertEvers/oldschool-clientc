@@ -79,7 +79,7 @@ LibToriRS_WorldMinimapStaticRebuild(struct GGame* game)
     sprites_array[0] = sp;
 
     int id = uiscene_element_acquire_with_sprites(
-        game->ui_scene, -1, sprites_array, 1, false, "minimap_static");
+        game->ui_scene, -1, sprites_array, 1, "minimap_static");
     if( id < 0 )
     {
         dashsprite_free(sp);

@@ -25,7 +25,6 @@ test_uiscene_attach_sprite(struct GGame* game, struct DashSprite* sprite)
     row[0] = sprite;
     el->dash_sprites = row;
     el->dash_sprites_count = 1;
-    el->dash_sprites_borrowed = false;
     return eid;
 }
 

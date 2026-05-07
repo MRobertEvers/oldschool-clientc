@@ -124,6 +124,25 @@
             ]
         },
         {
+            "name": "(lldb) Debug uitree_loader_test",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${fileDirname}/uitree_loader_test",
+            "args": [
+                "--cache",
+                "${workspaceFolder}/cache254",
+                "--bmp",
+                "${workspaceFolder}/tools/uitree_loader_test/uitree_loader_out.bmp",
+                "--component",
+                "1151"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
+        {
             "name": "(lldb) Debug Current File with ./a.out",
             "type": "cppdbg",
             "request": "launch",

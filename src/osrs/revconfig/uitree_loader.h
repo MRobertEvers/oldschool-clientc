@@ -5,7 +5,6 @@
 
 struct UITree;
 struct UIScene;
-struct Scene2;
 struct UIInventoryPool;
 struct GGame;
 struct RevConfigBuffer;
@@ -51,7 +50,8 @@ enum UITreeLoaderAssetKind
 struct UITreeLoaderAssetRequest
 {
     enum UITreeLoaderAssetKind kind;
-    union {
+    union
+    {
         /** UITREE_ASSET_SPRITE: logical sprite name from the INI (informational only). */
         struct
         {
@@ -92,11 +92,10 @@ struct UITreeLoader;
  */
 struct UITreeLoader*
 uitree_loader_new(
-    struct UITree*          ui,
-    struct UIScene*         ui_scene,
-    struct Scene2*          scene2,
+    struct UITree* ui,
+    struct UIScene* ui_scene,
     struct UIInventoryPool* inv_pool,
-    struct GGame*           game,
+    struct GGame* game,
     struct RevConfigBuffer* revconfig_buffer);
 
 /**

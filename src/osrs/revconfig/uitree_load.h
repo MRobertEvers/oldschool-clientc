@@ -7,14 +7,12 @@
 #include "uiscene.h"
 #include "uitree.h"
 
-struct Scene2;
 struct GGame;
 
 void
 uitree_from_revconfig_buildcachedat(
     struct UITree* ui,
     struct UIScene* ui_scene,
-    struct Scene2* scene2,
     struct UIInventoryPool* inv_pool,
     struct GGame* game,
     struct RevConfigBuffer* revconfig_buffer);
@@ -36,35 +34,37 @@ void
 uitree_load_ui_from_revconfig(
     struct UITree* ui,
     struct UIScene* ui_scene,
-    struct Scene2* scene2,
     struct UIInventoryPool* inv_pool,
     struct GGame* game,
     struct RevConfigBuffer* revconfig_buffer);
 
-/** Build `ui` from a single RS interface root in `gamecache` (children recurse like sidebar expand).
- * `ui` must be empty (`component_count == 0`). Root is placed at absolute (0,0).
- * Returns 0 on success, -1 if `component_root_id` is missing from `gamecache` or arguments are invalid,
- * -2 if `ui` is not empty. */
 int
 uitree_load_single_component_tree_from_gamecache(
     struct GGame* game,
     struct UITree* ui,
     struct UIScene* ui_scene,
-    struct Scene2* scene2,
     struct GameCache* gamecache,
     int component_root_id);
 
 /** Rebuild IF_OPENCHAT interface under UIELEM_BUILTIN_CHAT_DIALOG. component_id < 0 clears only. */
 void
-uitree_expand_chat_dialog_for_interface(struct GGame* game, int component_id);
+uitree_expand_chat_dialog_for_interface(
+    struct GGame* game,
+    int component_id);
 
-/** Rebuild IF_OPENSIDE interface under UIELEM_BUILTIN_SIDEBAR_OVERLAY. component_id < 0 clears only. */
+/** Rebuild IF_OPENSIDE interface under UIELEM_BUILTIN_SIDEBAR_OVERLAY. component_id < 0 clears
+ * only. */
 void
-uitree_expand_sidebar_overlay_for_interface(struct GGame* game, int component_id);
+uitree_expand_sidebar_overlay_for_interface(
+    struct GGame* game,
+    int component_id);
 
-/** Rebuild IF_OPENOVERLAY interface under UIELEM_BUILTIN_VIEWPORT_OVERLAY. component_id < 0 clears only. */
+/** Rebuild IF_OPENOVERLAY interface under UIELEM_BUILTIN_VIEWPORT_OVERLAY. component_id < 0 clears
+ * only. */
 void
-uitree_expand_viewport_overlay_for_interface(struct GGame* game, int component_id);
+uitree_expand_viewport_overlay_for_interface(
+    struct GGame* game,
+    int component_id);
 
 /** Clear sidebar RS subtree and rebuild from component_id (buildcachedat). No-op if no sidebar
  * node for tabno. component_id < 0 clears only. */
@@ -74,15 +74,21 @@ uitree_expand_sidebar_for_tab(
     int tabno,
     int component_id);
 
-/** Rebuild Scene2 model for a UIELEM_RS_MODEL node after IF_SETOBJECT / IF_SETMODEL / head packets. */
+/** Rebuild UIScene model slot for a UIELEM_RS_MODEL node after IF_SETOBJECT / IF_SETMODEL / head
+ * packets.
+ */
 void
-uitree_rs_model_refresh_from_gamecache(struct GGame* game, int component_id);
+uitree_rs_model_refresh_from_gamecache(
+    struct GGame* game,
+    int component_id);
 
 /** DFS from `root_component_id` in GameCache: refresh every descendant MODEL component that has a
  * matching UIELEM_RS_MODEL (e.g. after IF_SETTAB expand once GameCache models / UIScene sprites
  * catch up). */
 void
-uitree_rs_model_refresh_subtree_for_gamecache_root(struct GGame* game, int root_component_id);
+uitree_rs_model_refresh_subtree_for_gamecache_root(
+    struct GGame* game,
+    int root_component_id);
 
 /** When TORI_SIDEBAR_DEBUG is set in the environment, log iface + sidebar UITree slot for tab_id.
  * component_id is the wire/root id for SETTAB, or -1 for SETTAB_ACTIVE-only logs. */

@@ -1461,15 +1461,53 @@ queue_static_load_uiscene_events(
         {
             struct UISceneElement* element =
                 uiscene_element_at(game->ui_scene, ui_event.element_id);
-            if( !element || !element->dash_sprites )
-                continue;
-            for( int ai = 0; ai < element->dash_sprites_count; ++ai )
+            if( element->dash_sprites )
             {
-                struct DashSprite* sp = element->dash_sprites[ai];
-                if( !sp )
-                    continue;
-                queue_sprite_load_from_event(render_command_buffer, ui_event.element_id, ai, sp);
+                for( int ai = 0; ai < element->dash_sprites_count; ++ai )
+                {
+                    struct DashSprite* sp = element->dash_sprites[ai];
+                    if( !sp )
+                        continue;
+                    queue_sprite_load_from_event(render_command_buffer, ui_event.element_id, ai, sp);
+                }
             }
+            break;
+        }
+        case UISCENE_EVENT_MODEL_LOAD:
+        {
+            if( !ui_event.model )
+                break;
+            const uint64_t mk = uiscene_model_cache_key(ui_event.element_id);
+            struct ToriRSRenderCommand* ev =
+                LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
+            ev->kind = TORIRS_GFX_RES_MODEL_LOAD;
+            ev->_model_load.model = ui_event.model;
+            ev->_model_load.model_key = mk;
+            ev->_model_load.visual_id = torirs_visual_id_from_cache_key(mk);
+            ev->_model_load.usage_hint = (uint8_t)TORIRS_USAGE_SCENERY;
+            ev->_model_load.world_x = 0;
+            ev->_model_load.world_y = 0;
+            ev->_model_load.world_z = 0;
+            ev->_model_load.world_yaw_r2pi2048 = 0;
+            break;
+        }
+        case UISCENE_EVENT_MODEL_UNLOAD:
+        {
+            if( !ui_event.model )
+                break;
+            const uint64_t mk = uiscene_model_cache_key(ui_event.element_id);
+            struct ToriRSRenderCommand* mev =
+                LibToriRS_RenderCommandBufferEmplaceCommand(render_command_buffer);
+            mev->kind = TORIRS_GFX_RES_MODEL_UNLOAD;
+            mev->_model_load.model = ui_event.model;
+            mev->_model_load.model_key = 0;
+            mev->_model_load.visual_id = torirs_visual_id_from_cache_key(mk);
+            mev->_model_load.usage_hint = (uint8_t)TORIRS_USAGE_SCENERY;
+            mev->_model_load.world_x = 0;
+            mev->_model_load.world_y = 0;
+            mev->_model_load.world_z = 0;
+            mev->_model_load.world_yaw_r2pi2048 = 0;
+            dashmodel_free(ui_event.model);
             break;
         }
         case UISCENE_EVENT_ELEMENT_RELEASED:
@@ -1483,13 +1521,10 @@ queue_static_load_uiscene_events(
             }
             if( ui_event.released_sprites )
             {
-                if( !ui_event.released_sprites_borrowed )
+                for( int ri = 0; ri < ui_event.released_sprites_count; ri++ )
                 {
-                    for( int ri = 0; ri < ui_event.released_sprites_count; ri++ )
-                    {
-                        if( ui_event.released_sprites[ri] )
-                            dashsprite_free(ui_event.released_sprites[ri]);
-                    }
+                    if( ui_event.released_sprites[ri] )
+                        dashsprite_free(ui_event.released_sprites[ri]);
                 }
                 free(ui_event.released_sprites);
             }

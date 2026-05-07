@@ -1,6 +1,4 @@
 #include "uitree_load.h"
-#include "uitree_load_private.h"
-#include "uitree_loader.h"
 
 #include "bmp.h"
 #include "graphics/dash.h"
@@ -21,7 +19,8 @@
 #include "osrs/rscache/tables_dat/pix32.h"
 #include "osrs/rscache/tables_dat/pix8.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
-#include "osrs/scene2.h"
+#include "uitree_load_private.h"
+#include "uitree_loader.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -45,10 +44,10 @@ uitree_subtree_stats_env_root_id(void)
         cached = 0;
         return cached;
     }
-    if( strcmp( e, "1" ) == 0 )
+    if( strcmp(e, "1") == 0 )
         cached = UITREE_DEBUG_SUBTREE_COMPONENT_ID;
     else
-        cached = (int)strtol( e, NULL, 10 );
+        cached = (int)strtol(e, NULL, 10);
     return cached;
 }
 
@@ -60,13 +59,14 @@ struct uitree_push_rs_stats
     unsigned skip_graphic_no_sprite;
     unsigned skip_graphic_attach_fail;
     unsigned skip_model_no_game;
-    unsigned model_pushed_scene2_deferred;
     unsigned skip_default_type;
     unsigned nodes_pushed;
 };
 
 static void
-uitree_push_rs_stats_note_push(struct uitree_push_rs_stats* st, int32_t idx)
+uitree_push_rs_stats_note_push(
+    struct uitree_push_rs_stats* st,
+    int32_t idx)
 {
     if( st && idx >= 0 )
         st->nodes_pushed++;
@@ -85,7 +85,7 @@ uitree_push_rs_stats_flush(
         "[uitree_push_rs_stats] where=%s root_component_id=%d nodes_pushed=%u "
         "skip_hide_nonlayer=%u skip_layer_no_child_tables=%u skip_child_missing_gc=%u "
         "skip_graphic_no_sprite=%u skip_graphic_attach_fail=%u skip_model_no_game=%u "
-        "model_pushed_scene2_deferred=%u skip_default_type=%u\n",
+        "skip_default_type=%u\n",
         where ? where : "?",
         root_component_id,
         st->nodes_pushed,
@@ -95,7 +95,6 @@ uitree_push_rs_stats_flush(
         st->skip_graphic_no_sprite,
         st->skip_graphic_attach_fail,
         st->skip_model_no_game,
-        st->model_pushed_scene2_deferred,
         st->skip_default_type);
 }
 
@@ -739,7 +738,6 @@ load_inv(
                             {
                                 el->dash_sprites = arr;
                                 el->dash_sprites_count = 1;
-                                el->dash_sprites_borrowed = false;
                                 inv.items[inv.item_count].scene_id = eid;
                             }
                             else
@@ -788,13 +786,12 @@ ensure_font_id(
     return uiscene_font_add(ui_scene, nm, f);
 }
 
-/** Attach `count` sprites to a new UIScene element; `borrowed` if owned by BuildCacheDat. */
+/** Attach `count` sprites to a new UIScene element; UIScene owns `row` and each sprite pointer. */
 static int
 uiscene_attach_sprite_row(
     struct UIScene* ui_scene,
     struct DashSprite** row,
-    int count,
-    bool borrowed)
+    int count)
 {
     int eid = uiscene_element_acquire(ui_scene, -1);
     if( eid < 0 )
@@ -807,7 +804,6 @@ uiscene_attach_sprite_row(
         return -1;
     el->dash_sprites = row;
     el->dash_sprites_count = count;
-    el->dash_sprites_borrowed = borrowed;
     return eid;
 }
 
@@ -902,32 +898,29 @@ uitree_translate_agnostic_fields(
     }
 }
 
-/** Build Scene2 element for RS_MODEL from GameCacheComponent; returns element id or -1. */
-static int
-build_rs_scene2_element_for_model_component(
+/** Build owned DashModel for a MODEL GameCacheComponent (UITree registers on UIScene). */
+static struct DashModel*
+uitree_rs_dashmodel_for_model_component(
     struct GGame* game,
-    struct Scene2* scene2,
     struct GameCache* bcd,
     struct GameCacheComponent* comp)
 {
-    if( !game || !scene2 || !bcd || !comp )
-        return -1;
+    if( !game || !bcd || !comp )
+        return NULL;
 
-    struct DashModel* m               = NULL;
-    enum Scene2ElementCategory mcat = SCENE2_ELEMENT_SCENERY;
+    struct DashModel* m = NULL;
 
     if( comp->modelType == 1 )
     {
         struct GameCacheModel* cache_model = gamecache_get_model(bcd, comp->model);
         if( !cache_model )
-            return -1;
+            return NULL;
         struct GameCacheModel* model_copy = gamecache_model_new_copy(cache_model);
         m = dashmodel_new_from_gamecache_model(model_copy);
         gamecache_model_free(model_copy);
         if( !m )
-            return -1;
+            return NULL;
         _light_model_default(m, 0, 0);
-        mcat = SCENE2_ELEMENT_SCENERY;
     }
     else if( comp->modelType == 2 || comp->modelType == 3 )
     {
@@ -936,52 +929,35 @@ build_rs_scene2_element_for_model_component(
         if( comp->modelType == 3 && game->world )
         {
             struct PlayerEntity* local = world_player(game->world, ACTIVE_PLAYER_SLOT);
-            if( local->alive )
+            if( local && local->alive )
             {
-                slots  = local->appearance.slots;
+                slots = local->appearance.slots;
                 colors = local->appearance.colors;
             }
         }
         m = entity_scenebuild_head_model_for_component(
             game, comp->modelType, comp->model, slots, colors);
         if( !m )
-            return -1;
-        mcat = (comp->modelType == 3) ? SCENE2_ELEMENT_PLAYER : SCENE2_ELEMENT_NPC;
+            return NULL;
     }
     else if( comp->modelType == 4 )
     {
         m = obj_icon_new_dash_model_for_obj(game, comp->model);
         if( !m )
-            return -1;
-        mcat = SCENE2_ELEMENT_SCENERY;
+            return NULL;
     }
     else
-        return -1;
+        return NULL;
 
-    int eid = scene2_element_acquire_full(scene2, -1, mcat, 0, 0);
-    struct Scene2Element* se = scene2_element_at(scene2, eid);
-    if( !se )
-    {
-        dashmodel_free(m);
-        return -1;
-    }
-    struct DashPosition* pos = dashposition_new();
-    if( !pos )
-    {
-        dashmodel_free(m);
-        scene2_element_release(scene2, eid);
-        return -1;
-    }
-    memset(pos, 0, sizeof(struct DashPosition));
-    scene2_element_set_dash_position_ptr(se, pos);
-    scene2_element_set_dash_model(scene2, se, m);
-    return eid;
+    return m;
 }
 
 void
-uitree_rs_model_refresh_from_gamecache(struct GGame* game, int component_id)
+uitree_rs_model_refresh_from_gamecache(
+    struct GGame* game,
+    int component_id)
 {
-    if( !game || !game->ui_root_buffer || !game->scene2 || !game->gamecache )
+    if( !game || !game->ui_root_buffer || !game->ui_scene || !game->gamecache )
         return;
 
     int32_t idx = uitree_find_by_component_id(game->ui_root_buffer, component_id);
@@ -995,17 +971,17 @@ uitree_rs_model_refresh_from_gamecache(struct GGame* game, int component_id)
     if( !comp || comp->type != COMPONENT_TYPE_MODEL )
         return;
 
-    int old_eid = c->u.rs_model.scene2_element_id;
-    if( old_eid >= 0 )
-        scene2_element_release(game->scene2, old_eid);
-    c->u.rs_model.scene2_element_id = -1;
+    int old_sid = c->u.rs_model.scene_id;
+    if( old_sid >= 0 )
+        uiscene_element_release(game->ui_scene, old_sid);
+    c->u.rs_model.scene_id = -1;
     c->u.rs_model.rs_model_cached_sequence_id = -1;
 
-    c->anim_id        = comp->anim;
+    c->anim_id = comp->anim;
     c->active_anim_id = comp->activeAnim;
     c->u.rs_model.model_zoom = comp->zoom;
-    c->u.rs_model.model_xan  = comp->xan;
-    c->u.rs_model.model_yan  = comp->yan;
+    c->u.rs_model.model_xan = comp->xan;
+    c->u.rs_model.model_yan = comp->yan;
 
     if( comp->modelType == 0 )
     {
@@ -1013,12 +989,23 @@ uitree_rs_model_refresh_from_gamecache(struct GGame* game, int component_id)
         return;
     }
 
-    int eid =
-        build_rs_scene2_element_for_model_component(game, game->scene2, game->gamecache, comp);
-    if( eid >= 0 )
-        c->u.rs_model.scene2_element_id = eid;
-    if( eid >= 0 )
-        uitree_rs_model_ensure_sequence_precached(game, c);
+    struct DashModel* m = uitree_rs_dashmodel_for_model_component(game, game->gamecache, comp);
+    if( !m )
+    {
+        c->is_dirty = 1;
+        return;
+    }
+
+    int sid = uiscene_element_acquire_with_model(game->ui_scene, -1, m, NULL);
+    if( sid < 0 )
+    {
+        dashmodel_free(m);
+        c->is_dirty = 1;
+        return;
+    }
+
+    c->u.rs_model.scene_id = sid;
+    uitree_rs_model_ensure_sequence_precached(game, c);
     c->is_dirty = 1;
 }
 
@@ -1044,7 +1031,9 @@ uitree_rs_model_refresh_subtree_dfs(
 }
 
 void
-uitree_rs_model_refresh_subtree_for_gamecache_root(struct GGame* game, int root_component_id)
+uitree_rs_model_refresh_subtree_for_gamecache_root(
+    struct GGame* game,
+    int root_component_id)
 {
     if( !game || !game->gamecache || root_component_id < 0 )
         return;
@@ -1088,7 +1077,7 @@ layer_subtree_rank_best_inv(
         if( rank > *best_rank )
         {
             *best_rank = rank;
-            *best      = n;
+            *best = n;
         }
         if( *best_rank >= 2 )
             return;
@@ -1221,12 +1210,11 @@ uitree_resolve_component_sprite_uiscene_element(
     return -1;
 }
 
-static void
+static int
 push_rs_from_cache_component(
     struct GGame* game,
     struct UITree* ui,
     struct UIScene* ui_scene,
-    struct Scene2* scene2,
     struct GameCache* bcd,
     int32_t parent_uitree_idx,
     struct GameCacheComponent* comp,
@@ -1235,16 +1223,17 @@ push_rs_from_cache_component(
     int sidebar_inv_index,
     struct GameCacheComponent* layer_parent_comp,
     struct GameCacheComponent* ifc_root_for_inv_peer,
-    struct uitree_push_rs_stats* push_rs_stats)
+    struct uitree_push_rs_stats* push_rs_stats,
+    struct UITreeLoaderAssetRequest* out_req)
 {
     if( !comp || !bcd || !ui || !ui_scene )
-        return;
+        return 0;
 
     if( comp->hide && comp->type != COMPONENT_TYPE_LAYER )
     {
         if( push_rs_stats )
             push_rs_stats->skip_hide_nonlayer++;
-        return;
+        return 0;
     }
 
     /* `uitree_load_single_component_tree_from_gamecache` calls with parent_uitree_idx==-1 and
@@ -1278,7 +1267,7 @@ push_rs_from_cache_component(
         {
             if( push_rs_stats )
                 push_rs_stats->skip_layer_no_child_tables++;
-            return;
+            return 0;
         }
         for( int i = 0; i < comp->children_count; i++ )
         {
@@ -1291,11 +1280,10 @@ push_rs_from_cache_component(
             }
             int cx = px + comp->childX[i] + ch->x;
             int cy = py + comp->childY[i] + ch->y;
-            push_rs_from_cache_component(
+            int prc = push_rs_from_cache_component(
                 game,
                 ui,
                 ui_scene,
-                scene2,
                 bcd,
                 lid,
                 ch,
@@ -1304,7 +1292,10 @@ push_rs_from_cache_component(
                 sidebar_inv_index,
                 comp,
                 ifc_root_for_inv_peer,
-                push_rs_stats);
+                push_rs_stats,
+                out_req);
+            if( prc != 0 )
+                return prc;
         }
     }
     break;
@@ -1350,12 +1341,14 @@ push_rs_from_cache_component(
         }
         if( comp->activeGraphic && comp->activeGraphic[0] != '\0' )
         {
-            int e1 = uitree_resolve_component_sprite_uiscene_element(game, bcd, comp->activeGraphic);
+            int e1 =
+                uitree_resolve_component_sprite_uiscene_element(game, bcd, comp->activeGraphic);
             if( e1 < 0 && game )
             {
                 buildcachedat_loader_load_component_sprite_lazy(
                     game->buildcachedat, ui_scene, game, comp->activeGraphic);
-                e1 = uitree_resolve_component_sprite_uiscene_element(game, bcd, comp->activeGraphic);
+                e1 =
+                    uitree_resolve_component_sprite_uiscene_element(game, bcd, comp->activeGraphic);
             }
             if( e1 >= 0 )
             {
@@ -1374,27 +1367,59 @@ push_rs_from_cache_component(
          * If only activeGraphic exists but graphic is missing, skip drawing entirely. */
         if( count == 0 || (count == 1 && g1 && !g0) )
         {
+            if( out_req )
+            {
+                const char* req_name = NULL;
+                if( comp->graphic && comp->graphic[0] && !g0 )
+                    req_name = comp->graphic;
+                else if( comp->activeGraphic && comp->activeGraphic[0] && !g1 )
+                    req_name = comp->activeGraphic;
+                if( req_name )
+                {
+                    out_req->kind = UITREE_ASSET_SPRITE;
+                    strncpy(out_req->u.sprite.name, req_name, sizeof(out_req->u.sprite.name) - 1);
+                    out_req->u.sprite.name[sizeof(out_req->u.sprite.name) - 1] = '\0';
+                    return -1;
+                }
+            }
             if( push_rs_stats )
                 push_rs_stats->skip_graphic_no_sprite++;
-            return;
+            return 0;
         }
         struct DashSprite** row = malloc((size_t)count * sizeof(struct DashSprite*));
         if( !row )
         {
             if( push_rs_stats )
                 push_rs_stats->skip_graphic_no_sprite++;
-            return;
+            return 0;
         }
-        row[0] = g0;
+        row[0] = dashsprite_clone(g0);
+        if( !row[0] )
+        {
+            free(row);
+            if( push_rs_stats )
+                push_rs_stats->skip_graphic_no_sprite++;
+            return 0;
+        }
         if( count == 2 )
-            row[1] = g1;
-        int sid = uiscene_attach_sprite_row(ui_scene, row, count, true);
+        {
+            row[1] = dashsprite_clone(g1);
+            if( !row[1] )
+            {
+                dashsprite_free(row[0]);
+                free(row);
+                if( push_rs_stats )
+                    push_rs_stats->skip_graphic_no_sprite++;
+                return 0;
+            }
+        }
+        int sid = uiscene_attach_sprite_row(ui_scene, row, count);
         if( sid < 0 )
         {
             free(row);
             if( push_rs_stats )
                 push_rs_stats->skip_graphic_attach_fail++;
-            return;
+            return 0;
         }
         int sid_a = -1;
         int atlas_a = 0;
@@ -1496,11 +1521,17 @@ push_rs_from_cache_component(
                 struct DashSprite* sp = gel->dash_sprites[0];
                 if( !sp )
                     continue;
+                struct DashSprite* sp_copy = dashsprite_clone(sp);
+                if( !sp_copy )
+                    continue;
                 struct DashSprite** row = malloc(sizeof(struct DashSprite*));
                 if( !row )
+                {
+                    dashsprite_free(sp_copy);
                     continue;
-                row[0] = sp;
-                int sid = uiscene_attach_sprite_row(ui_scene, row, 1, true);
+                }
+                row[0] = sp_copy;
+                int sid = uiscene_attach_sprite_row(ui_scene, row, 1);
                 if( sid < 0 )
                 {
                     free(row);
@@ -1510,41 +1541,40 @@ push_rs_from_cache_component(
                 bg_ai[si] = 0;
             }
         }
-        int32_t iid = (comp->type == COMPONENT_TYPE_INV_TEXT)
-                          ? uitree_push_rs_inv_text(
-                                ui,
-                                parent_uitree_idx,
-                                comp->id,
-                                effective_inv_index,
-                                comp->width,
-                                comp->height,
-                                comp->marginX,
-                                comp->marginY,
-                                comp->invSlotOffsetX,
-                                comp->invSlotOffsetY,
-                                bg_sid,
-                                bg_ai,
-                                px,
-                                py,
-                                comp->width,
-                                comp->height)
-                          : uitree_push_rs_inv(
-                                ui,
-                                parent_uitree_idx,
-                                comp->id,
-                                effective_inv_index,
-                                comp->width,
-                                comp->height,
-                                comp->marginX,
-                                comp->marginY,
-                                comp->invSlotOffsetX,
-                                comp->invSlotOffsetY,
-                                bg_sid,
-                                bg_ai,
-                                px,
-                                py,
-                                comp->width,
-                                comp->height);
+        int32_t iid = (comp->type == COMPONENT_TYPE_INV_TEXT) ? uitree_push_rs_inv_text(
+                                                                    ui,
+                                                                    parent_uitree_idx,
+                                                                    comp->id,
+                                                                    effective_inv_index,
+                                                                    comp->width,
+                                                                    comp->height,
+                                                                    comp->marginX,
+                                                                    comp->marginY,
+                                                                    comp->invSlotOffsetX,
+                                                                    comp->invSlotOffsetY,
+                                                                    bg_sid,
+                                                                    bg_ai,
+                                                                    px,
+                                                                    py,
+                                                                    comp->width,
+                                                                    comp->height)
+                                                              : uitree_push_rs_inv(
+                                                                    ui,
+                                                                    parent_uitree_idx,
+                                                                    comp->id,
+                                                                    effective_inv_index,
+                                                                    comp->width,
+                                                                    comp->height,
+                                                                    comp->marginX,
+                                                                    comp->marginY,
+                                                                    comp->invSlotOffsetX,
+                                                                    comp->invSlotOffsetY,
+                                                                    bg_sid,
+                                                                    bg_ai,
+                                                                    px,
+                                                                    py,
+                                                                    comp->width,
+                                                                    comp->height);
 
         /* Pre-fill inventory items from cache component data (e.g., rune icons in magic-book
          * tooltip). Mirrors gamenet_rev245_2_exec_update_inv_full_v1 logic. */
@@ -1582,7 +1612,7 @@ push_rs_from_cache_component(
                         if( row )
                         {
                             row[0] = sp;
-                            int sid = uiscene_attach_sprite_row(game->ui_scene, row, 1, false);
+                            int sid = uiscene_attach_sprite_row(game->ui_scene, row, 1);
                             if( sid >= 0 )
                             {
                                 item->scene_id = sid;
@@ -1625,15 +1655,30 @@ push_rs_from_cache_component(
         {
             if( push_rs_stats )
                 push_rs_stats->skip_model_no_game++;
-            return;
+            return 0;
         }
-        int eid = -1;
-        if( scene2 && comp->modelType != 0 )
-            eid = build_rs_scene2_element_for_model_component(game, scene2, bcd, comp);
-        else if( push_rs_stats && comp->modelType != 0 && !scene2 )
-            push_rs_stats->model_pushed_scene2_deferred++;
+        if( comp->modelType == 1 && comp->model >= 0 && !gamecache_get_model(bcd, comp->model) )
+        {
+            if( out_req )
+            {
+                out_req->kind = UITREE_ASSET_MODEL;
+                out_req->u.model.model_id = comp->model;
+            }
+            return -1;
+        }
+        int scene_id = -1;
+        if( comp->modelType != 0 )
+        {
+            struct DashModel* m = uitree_rs_dashmodel_for_model_component(game, bcd, comp);
+            if( m )
+            {
+                scene_id = uiscene_element_acquire_with_model(ui_scene, -1, m, NULL);
+                if( scene_id < 0 )
+                    dashmodel_free(m);
+            }
+        }
         int32_t mid = uitree_push_rs_model(
-            ui, parent_uitree_idx, comp->id, eid, px, py, comp->width, comp->height);
+            ui, parent_uitree_idx, comp->id, scene_id, px, py, comp->width, comp->height);
         uitree_translate_agnostic_fields(ui, mid, comp);
         uitree_push_rs_stats_note_push(push_rs_stats, mid);
     }
@@ -1643,15 +1688,19 @@ push_rs_from_cache_component(
             push_rs_stats->skip_default_type++;
         break;
     }
+    return 0;
 }
 
-/** Non-NULL when `TORI_UITREE_SUBTREE_STATS` matches `root_id` (see `uitree_subtree_stats_env_root_id`). */
+/** Non-NULL when `TORI_UITREE_SUBTREE_STATS` matches `root_id` (see
+ * `uitree_subtree_stats_env_root_id`). */
 static struct uitree_push_rs_stats*
-uitree_push_rs_stats_buf_if_tracing(int root_id, struct uitree_push_rs_stats* out_buf)
+uitree_push_rs_stats_buf_if_tracing(
+    int root_id,
+    struct uitree_push_rs_stats* out_buf)
 {
     if( !out_buf || uitree_subtree_stats_env_root_id() != root_id || root_id < 0 )
         return NULL;
-    memset( out_buf, 0, sizeof( *out_buf ) );
+    memset(out_buf, 0, sizeof(*out_buf));
     return out_buf;
 }
 
@@ -1660,7 +1709,6 @@ uitree_load_single_component_tree_from_gamecache(
     struct GGame* game,
     struct UITree* ui,
     struct UIScene* ui_scene,
-    struct Scene2* scene2,
     struct GameCache* gamecache,
     int component_root_id)
 {
@@ -1672,44 +1720,45 @@ uitree_load_single_component_tree_from_gamecache(
     if( !root )
         return -1;
     struct uitree_push_rs_stats st;
-    struct uitree_push_rs_stats* pst =
-        uitree_push_rs_stats_buf_if_tracing( component_root_id, &st );
+    struct uitree_push_rs_stats* pst = uitree_push_rs_stats_buf_if_tracing(component_root_id, &st);
     push_rs_from_cache_component(
-        game, ui, ui_scene, scene2, gamecache, -1, root, 0, 0, -1, NULL, root, pst);
+        game, ui, ui_scene, gamecache, -1, root, 0, 0, -1, NULL, root, pst, NULL);
     if( pst )
-        uitree_push_rs_stats_flush( pst, "uitree_load_single_component_tree_from_gamecache", component_root_id );
+        uitree_push_rs_stats_flush(
+            pst, "uitree_load_single_component_tree_from_gamecache", component_root_id);
     uitree_load_debug_log_subtree_watch_id(ui);
     return 0;
 }
 
-static void
+static int
 expand_sidebar_rs_tree(
     struct GGame* game,
     struct UITree* ui,
     struct UIScene* ui_scene,
-    struct Scene2* scene2,
     struct GameCache* bcd,
     int32_t sidebar_idx,
     int component_no,
-    int inv_index)
+    int inv_index,
+    struct UITreeLoaderAssetRequest* out_req)
 {
     if( !bcd || component_no < 0 || sidebar_idx < 0 ||
         (uint32_t)sidebar_idx >= ui->component_count )
-        return;
+        return 0;
     struct GameCacheComponent* root = gamecache_get_component(bcd, component_no);
     if( !root )
-        return;
+        return 0;
     int sx = ui->components[sidebar_idx].position.x;
     int sy = ui->components[sidebar_idx].position.y;
     int bx = sx + root->x;
     int by = sy + root->y;
     struct uitree_push_rs_stats st;
-    struct uitree_push_rs_stats* pst = uitree_push_rs_stats_buf_if_tracing( component_no, &st );
-    push_rs_from_cache_component(
-        game, ui, ui_scene, scene2, bcd, sidebar_idx, root, bx, by, inv_index, NULL, root, pst);
+    struct uitree_push_rs_stats* pst = uitree_push_rs_stats_buf_if_tracing(component_no, &st);
+    int rc = push_rs_from_cache_component(
+        game, ui, ui_scene, bcd, sidebar_idx, root, bx, by, inv_index, NULL, root, pst, out_req);
     if( pst )
-        uitree_push_rs_stats_flush( pst, "expand_sidebar_rs_tree", component_no );
+        uitree_push_rs_stats_flush(pst, "expand_sidebar_rs_tree", component_no);
     uitree_load_debug_log_subtree_watch_id(ui);
+    return rc;
 }
 
 static void
@@ -1717,7 +1766,6 @@ expand_chat_dialog_rs_tree(
     struct GGame* game,
     struct UITree* ui,
     struct UIScene* ui_scene,
-    struct Scene2* scene2,
     struct GameCache* bcd,
     int32_t chat_dialog_idx,
     int component_no,
@@ -1734,11 +1782,11 @@ expand_chat_dialog_rs_tree(
     int bx = sx + root->x;
     int by = sy + root->y;
     struct uitree_push_rs_stats st;
-    struct uitree_push_rs_stats* pst = uitree_push_rs_stats_buf_if_tracing( component_no, &st );
+    struct uitree_push_rs_stats* pst = uitree_push_rs_stats_buf_if_tracing(component_no, &st);
     push_rs_from_cache_component(
-        game, ui, ui_scene, scene2, bcd, chat_dialog_idx, root, bx, by, inv_index, NULL, root, pst);
+        game, ui, ui_scene, bcd, chat_dialog_idx, root, bx, by, inv_index, NULL, root, pst, NULL);
     if( pst )
-        uitree_push_rs_stats_flush( pst, "expand_chat_dialog_rs_tree", component_no );
+        uitree_push_rs_stats_flush(pst, "expand_chat_dialog_rs_tree", component_no);
     uitree_load_debug_log_subtree_watch_id(ui);
 }
 
@@ -1747,7 +1795,6 @@ expand_sidebar_overlay_rs_tree(
     struct GGame* game,
     struct UITree* ui,
     struct UIScene* ui_scene,
-    struct Scene2* scene2,
     struct GameCache* bcd,
     int32_t sidebar_overlay_idx,
     int component_no,
@@ -1764,11 +1811,23 @@ expand_sidebar_overlay_rs_tree(
     int bx = sx + root->x;
     int by = sy + root->y;
     struct uitree_push_rs_stats st;
-    struct uitree_push_rs_stats* pst = uitree_push_rs_stats_buf_if_tracing( component_no, &st );
+    struct uitree_push_rs_stats* pst = uitree_push_rs_stats_buf_if_tracing(component_no, &st);
     push_rs_from_cache_component(
-        game, ui, ui_scene, scene2, bcd, sidebar_overlay_idx, root, bx, by, inv_index, NULL, root, pst);
+        game,
+        ui,
+        ui_scene,
+        bcd,
+        sidebar_overlay_idx,
+        root,
+        bx,
+        by,
+        inv_index,
+        NULL,
+        root,
+        pst,
+        NULL);
     if( pst )
-        uitree_push_rs_stats_flush( pst, "expand_sidebar_overlay_rs_tree", component_no );
+        uitree_push_rs_stats_flush(pst, "expand_sidebar_overlay_rs_tree", component_no);
     uitree_load_debug_log_subtree_watch_id(ui);
 }
 
@@ -1777,7 +1836,6 @@ expand_viewport_overlay_rs_tree(
     struct GGame* game,
     struct UITree* ui,
     struct UIScene* ui_scene,
-    struct Scene2* scene2,
     struct GameCache* bcd,
     int32_t viewport_overlay_idx,
     int component_no,
@@ -1794,11 +1852,23 @@ expand_viewport_overlay_rs_tree(
     int bx = sx + root->x;
     int by = sy + root->y;
     struct uitree_push_rs_stats st;
-    struct uitree_push_rs_stats* pst = uitree_push_rs_stats_buf_if_tracing( component_no, &st );
+    struct uitree_push_rs_stats* pst = uitree_push_rs_stats_buf_if_tracing(component_no, &st);
     push_rs_from_cache_component(
-        game, ui, ui_scene, scene2, bcd, viewport_overlay_idx, root, bx, by, inv_index, NULL, root, pst);
+        game,
+        ui,
+        ui_scene,
+        bcd,
+        viewport_overlay_idx,
+        root,
+        bx,
+        by,
+        inv_index,
+        NULL,
+        root,
+        pst,
+        NULL);
     if( pst )
-        uitree_push_rs_stats_flush( pst, "expand_viewport_overlay_rs_tree", component_no );
+        uitree_push_rs_stats_flush(pst, "expand_viewport_overlay_rs_tree", component_no);
     uitree_load_debug_log_subtree_watch_id(ui);
 }
 
@@ -1868,16 +1938,16 @@ uitree_load_resolve_chat_font_id(
     return -1;
 }
 
-static void
+static int
 load_layout(
     struct LayoutLoad* load,
     struct DashMap* component_hmap,
     struct UITree* ui,
     struct UIScene* ui_scene,
-    struct Scene2* scene2,
     struct GameCache* buildcachedat,
     struct UIInventoryPool* inv_pool,
-    struct GGame* game)
+    struct GGame* game,
+    struct UITreeLoaderAssetRequest* out_req)
 {
     struct LayoutItem* layout_entry = NULL;
     struct ComponentEntry* component_entry = NULL;
@@ -2120,17 +2190,17 @@ load_layout(
                 component_entry->height);
             if( layout_entry->always_dirty && sidx >= 0 )
                 ui->components[sidx].always_dirty = 1;
-            expand_sidebar_rs_tree(
-                game,
-                ui,
-                ui_scene,
-                scene2,
-                buildcachedat,
-                sidx,
-                component_entry->componentno,
-                inv_index);
+            if( expand_sidebar_rs_tree(
+                    game,
+                    ui,
+                    ui_scene,
+                    buildcachedat,
+                    sidx,
+                    component_entry->componentno,
+                    inv_index,
+                    out_req) != 0 )
+                return -1;
         }
-        break;
         case UIELEM_BUILTIN_CHAT:
         case UIELEM_BUILTIN_TAB_ICONS: // "builtin_tab_icons"
 
@@ -2173,6 +2243,7 @@ load_layout(
             break;
         }
     }
+    return 0;
 }
 
 static uint32_t
@@ -2196,7 +2267,6 @@ load_item(
     struct DashMap* component_hmap,
     struct UITree* ui,
     struct UIScene* ui_scene,
-    struct Scene2* scene2,
     struct UIInventoryPool* inv_pool,
     struct GGame* game)
 {
@@ -2211,7 +2281,7 @@ load_item(
         break;
     case LOAD_KIND_LAYOUT:
         load_layout(
-            &load->_layout, component_hmap, ui, ui_scene, scene2, game->gamecache, inv_pool, game);
+            &load->_layout, component_hmap, ui, ui_scene, game->gamecache, inv_pool, game, NULL);
         break;
     case LOAD_KIND_INV:
         load_inv(&load->_inv, inv_pool, game, ui_scene);
@@ -2280,7 +2350,6 @@ void
 uitree_from_revconfig_buildcachedat(
     struct UITree* ui,
     struct UIScene* ui_scene,
-    struct Scene2* scene2,
     struct UIInventoryPool* inv_pool,
     struct GGame* game,
     struct RevConfigBuffer* revconfig_buffer)
@@ -2289,8 +2358,7 @@ uitree_from_revconfig_buildcachedat(
      * In this legacy call-path all assets are expected to be pre-loaded, so the
      * loader should never return UITREE_LOADER_NEEDS_ASSET.  If it does, we log
      * and stop early (tree will be incomplete). */
-    struct UITreeLoader* loader =
-        uitree_loader_new(ui, ui_scene, scene2, inv_pool, game, revconfig_buffer);
+    struct UITreeLoader* loader = uitree_loader_new(ui, ui_scene, inv_pool, game, revconfig_buffer);
     if( !loader )
     {
         fprintf(stderr, "uitree_from_revconfig_buildcachedat: out of memory\n");
@@ -2314,7 +2382,6 @@ uitree_from_revconfig_buildcachedat(
 
     uitree_loader_free(loader);
 }
-
 
 int
 uitree_revconfig_collect_inv_obj_ids(
@@ -2460,7 +2527,7 @@ uitree_expand_chat_dialog_for_interface(
     if( component_id >= 0 )
     {
         expand_chat_dialog_rs_tree(
-            game, ui, game->ui_scene, game->scene2, game->gamecache, cd_idx, component_id, -1);
+            game, ui, game->ui_scene, game->gamecache, cd_idx, component_id, -1);
     }
 
     ui->components[cd_idx].is_dirty = 1;
@@ -2485,7 +2552,7 @@ uitree_expand_sidebar_overlay_for_interface(
     if( component_id >= 0 )
     {
         expand_sidebar_overlay_rs_tree(
-            game, ui, game->ui_scene, game->scene2, game->gamecache, so_idx, component_id, -1);
+            game, ui, game->ui_scene, game->gamecache, so_idx, component_id, -1);
     }
 
     ui->components[so_idx].is_dirty = 1;
@@ -2510,7 +2577,7 @@ uitree_expand_viewport_overlay_for_interface(
     if( component_id >= 0 )
     {
         expand_viewport_overlay_rs_tree(
-            game, ui, game->ui_scene, game->scene2, game->gamecache, vo_idx, component_id, -1);
+            game, ui, game->ui_scene, game->gamecache, vo_idx, component_id, -1);
     }
 
     ui->components[vo_idx].is_dirty = 1;
@@ -2552,15 +2619,16 @@ uitree_expand_sidebar_for_tab(
             game,
             ui,
             game->ui_scene,
-            game->scene2,
             game->gamecache,
             sidebar_idx,
             component_id,
-            sb->u.sidebar.inv_index);
+            sb->u.sidebar.inv_index,
+            NULL);
     }
 
     if( game->iface && component_id == UITREE_DEBUG_SUBTREE_COMPONENT_ID &&
-        ( getenv( "TORI_UITREE_SUBTREE_STATS" ) != NULL || getenv( "TORI_UITREE_TRAVERSE_STATS" ) != NULL ) )
+        (getenv("TORI_UITREE_SUBTREE_STATS") != NULL ||
+         getenv("TORI_UITREE_TRAVERSE_STATS") != NULL) )
     {
         fprintf(
             stderr,
@@ -2571,7 +2639,7 @@ uitree_expand_sidebar_for_tab(
             game->iface->selected_tab,
             game->iface->sidebar_interface_id,
             sb->u.sidebar.inv_index,
-            (int)sb->first_child );
+            (int)sb->first_child);
     }
 
     uitree_mark_all_dirty(ui);
@@ -2632,7 +2700,6 @@ void
 uitree_load_ui_from_revconfig(
     struct UITree* ui,
     struct UIScene* ui_scene,
-    struct Scene2* scene2,
     struct UIInventoryPool* inv_pool,
     struct GGame* game,
     struct RevConfigBuffer* revconfig_buffer)
@@ -2673,7 +2740,7 @@ uitree_load_ui_from_revconfig(
             break;
         case RCFIELD_ITEMDONE:
             if( load.kind != LOAD_KIND_INV )
-                load_item(&load, sprite_hmap, component_hmap, ui, ui_scene, scene2, inv_pool, game);
+                load_item(&load, sprite_hmap, component_hmap, ui, ui_scene, inv_pool, game);
             load.kind = LOAD_KIND_NONE;
             memset(&load, 0, sizeof(load));
             break;
@@ -3231,24 +3298,28 @@ uitree_impl_load_kind(const char* str)
 }
 
 void
-uitree_impl_on_itemname(struct CurrentLoad* load, const char* value)
+uitree_impl_on_itemname(
+    struct CurrentLoad* load,
+    const char* value)
 {
     on_itemname(load, value);
 }
 
 void
-uitree_impl_resolve_game_uiscene_sprite_ids(struct GGame* game, struct UIScene* ui_scene)
+uitree_impl_resolve_game_uiscene_sprite_ids(
+    struct GGame* game,
+    struct UIScene* ui_scene)
 {
     uitree_resolve_game_uiscene_sprite_ids(game, ui_scene);
 }
 
 int
 uitree_impl_load_sprite(
-    struct SpriteLoad*               load,
-    struct DashMap*                  sprite_hmap,
-    struct UITree*                   ui,
-    struct UIScene*                  ui_scene,
-    struct BuildCacheDat*            buildcachedat,
+    struct SpriteLoad* load,
+    struct DashMap* sprite_hmap,
+    struct UITree* ui,
+    struct UIScene* ui_scene,
+    struct BuildCacheDat* buildcachedat,
     struct UITreeLoaderAssetRequest* out_req)
 {
     if( !buildcachedat || !buildcachedat->cfg_media_jagfile )
@@ -3267,12 +3338,12 @@ uitree_impl_load_sprite(
 
 int
 uitree_impl_load_component(
-    struct ComponentLoad*            load,
-    struct DashMap*                  sprite_hmap,
-    struct DashMap*                  component_hmap,
-    struct UITree*                   ui,
-    struct UIScene*                  ui_scene,
-    struct GameCache*                gamecache,
+    struct ComponentLoad* load,
+    struct DashMap* sprite_hmap,
+    struct DashMap* component_hmap,
+    struct UITree* ui,
+    struct UIScene* ui_scene,
+    struct GameCache* gamecache,
     struct UITreeLoaderAssetRequest* out_req)
 {
     (void)out_req;
@@ -3282,14 +3353,13 @@ uitree_impl_load_component(
 
 int
 uitree_impl_load_layout(
-    struct LayoutLoad*               load,
-    struct DashMap*                  component_hmap,
-    struct UITree*                   ui,
-    struct UIScene*                  ui_scene,
-    struct Scene2*                   scene2,
-    struct GameCache*                gamecache,
-    struct UIInventoryPool*          inv_pool,
-    struct GGame*                    game,
+    struct LayoutLoad* load,
+    struct DashMap* component_hmap,
+    struct UITree* ui,
+    struct UIScene* ui_scene,
+    struct GameCache* gamecache,
+    struct UIInventoryPool* inv_pool,
+    struct GGame* game,
     struct UITreeLoaderAssetRequest* out_req)
 {
     /* Before expanding RS subtrees, verify that the required gamecache components
@@ -3306,8 +3376,7 @@ uitree_impl_load_layout(
                 dashmap_search(component_hmap, load->entries[i].component, DASHMAP_FIND);
             if( !ce )
                 continue;
-            if( (ce->type == UIELEM_BUILTIN_SIDEBAR ||
-                 ce->type == UIELEM_BUILTIN_CHAT_DIALOG ||
+            if( (ce->type == UIELEM_BUILTIN_SIDEBAR || ce->type == UIELEM_BUILTIN_CHAT_DIALOG ||
                  ce->type == UIELEM_BUILTIN_SIDEBAR_OVERLAY ||
                  ce->type == UIELEM_BUILTIN_VIEWPORT_OVERLAY) &&
                 ce->componentno > 0 )
@@ -3337,24 +3406,24 @@ uitree_impl_load_layout(
             if( out_req )
             {
                 out_req->kind = UITREE_ASSET_INTERFACE;
-                memcpy(out_req->u.interface_file.component_ids,
-                       missing_component_ids,
-                       (size_t)missing_count * sizeof(int));
+                memcpy(
+                    out_req->u.interface_file.component_ids,
+                    missing_component_ids,
+                    (size_t)missing_count * sizeof(int));
                 out_req->u.interface_file.count = missing_count;
             }
             return -1;
         }
     }
-    load_layout(load, component_hmap, ui, ui_scene, scene2, gamecache, inv_pool, game);
-    return 0;
+    return load_layout(load, component_hmap, ui, ui_scene, gamecache, inv_pool, game, out_req);
 }
 
 int
 uitree_impl_load_inv(
-    struct InvLoad*                  il,
-    struct UIInventoryPool*          inv_pool,
-    struct GGame*                    game,
-    struct UIScene*                  ui_scene,
+    struct InvLoad* il,
+    struct UIInventoryPool* inv_pool,
+    struct GGame* game,
+    struct UIScene* ui_scene,
     struct UITreeLoaderAssetRequest* out_req)
 {
     (void)out_req;
@@ -3364,14 +3433,13 @@ uitree_impl_load_inv(
 
 int
 uitree_impl_load_item(
-    struct CurrentLoad*              load,
-    struct DashMap*                  sprite_hmap,
-    struct DashMap*                  component_hmap,
-    struct UITree*                   ui,
-    struct UIScene*                  ui_scene,
-    struct Scene2*                   scene2,
-    struct UIInventoryPool*          inv_pool,
-    struct GGame*                    game,
+    struct CurrentLoad* load,
+    struct DashMap* sprite_hmap,
+    struct DashMap* component_hmap,
+    struct UITree* ui,
+    struct UIScene* ui_scene,
+    struct UIInventoryPool* inv_pool,
+    struct GGame* game,
     struct UITreeLoaderAssetRequest* out_req)
 {
     switch( load->kind )
@@ -3381,12 +3449,10 @@ uitree_impl_load_item(
             &load->_sprite, sprite_hmap, ui, ui_scene, game->buildcachedat, out_req);
     case LOAD_KIND_COMPONENT:
         return uitree_impl_load_component(
-            &load->_component, sprite_hmap, component_hmap, ui, ui_scene, game->gamecache,
-            out_req);
+            &load->_component, sprite_hmap, component_hmap, ui, ui_scene, game->gamecache, out_req);
     case LOAD_KIND_LAYOUT:
         return uitree_impl_load_layout(
-            &load->_layout, component_hmap, ui, ui_scene, scene2, game->gamecache, inv_pool,
-            game, out_req);
+            &load->_layout, component_hmap, ui, ui_scene, game->gamecache, inv_pool, game, out_req);
     case LOAD_KIND_INV:
         return uitree_impl_load_inv(&load->_inv, inv_pool, game, ui_scene, out_req);
     default:

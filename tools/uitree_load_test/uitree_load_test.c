@@ -2,23 +2,28 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/game.h"
 #include "osrs/gamecache/gamecache.h"
-#include "revconfig.h"
-#include "revconfig_load.h"
-#include "uiscene.h"
-#include "uitree.h"
-#include "uitree_load.h"
+#include "osrs/revconfig/revconfig.h"
+#include "osrs/revconfig/revconfig_load.h"
+#include "osrs/revconfig/uiscene.h"
+#include "osrs/revconfig/uitree.h"
+#include "osrs/revconfig/uitree_load.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef UITREE_LOAD_TEST_ROOT
+#define UITREE_LOAD_TEST_ROOT "../.."
+#endif
+
 int
 main()
 {
-    const char* filename_cache = "../src/osrs/revconfig/"
-                                 "configs/rev_245_2/rev_245_2_cache.ini";
-    char const* filename_ui = "../src/osrs/revconfig/"
-                              "configs/rev_245_2/rev_245_2_ui.ini";
+    const char* filename_cache = UITREE_LOAD_TEST_ROOT
+        "/src/osrs/revconfig/configs/rev_245_2/rev_245_2_cache.ini";
+    char const* filename_ui = UITREE_LOAD_TEST_ROOT
+        "/src/osrs/revconfig/configs/rev_245_2/rev_245_2_ui.ini";
 
     struct RevConfigBuffer* buffer = revconfig_buffer_new(16);
     uint32_t field_count = 0;
@@ -31,7 +36,8 @@ main()
     memset(&game_stub, 0, sizeof(game_stub));
     game_stub.buildcachedat = buildcachedat;
     game_stub.gamecache = gamecache_new();
-    struct CacheDat* cache_dat = cache_dat_new_from_directory("../cache254");
+    struct CacheDat* cache_dat =
+        cache_dat_new_from_directory(UITREE_LOAD_TEST_ROOT "/cache254");
 
     struct CacheDatArchive* archive =
         cache_dat_archive_new_load(cache_dat, CACHE_DAT_CONFIGS, CONFIG_DAT_MEDIA_2D_GRAPHICS);
@@ -44,8 +50,7 @@ main()
     struct UIScene* ui_scene = uiscene_new(128);
     struct UITree* ui = uitree_new(16);
     struct UIInventoryPool* inv_pool = uitree_inv_pool_new(8);
-    uitree_from_revconfig_buildcachedat(
-        ui, ui_scene, NULL, inv_pool, &game_stub, buffer);
+    uitree_from_revconfig_buildcachedat(ui, ui_scene, inv_pool, &game_stub, buffer);
     uitree_inv_pool_free(inv_pool);
 
     struct DashGraphics* dash = dash_new();

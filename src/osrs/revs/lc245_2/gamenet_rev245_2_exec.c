@@ -733,7 +733,6 @@ inv_sync_load_item_sprite(
 
     el->dash_sprites = arr;
     el->dash_sprites_count = 1;
-    el->dash_sprites_borrowed = false;
     item->scene_id = eid;
     item->atlas_index = 0;
 }

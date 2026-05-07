@@ -6,8 +6,8 @@ extern "C" {
 #include "osrs/gamecache/gamecache.h"
 #include "osrs/obj_icon.h"
 #include "osrs/revconfig/uitree.h"
+#include "osrs/revconfig/uiscene.h"
 #include "osrs/rscache/tables_dat/config_component.h"
-#include "osrs/scene2.h"
 #include "tori_rs.h"
 #include "tori_rs_render.h"
 
@@ -23,13 +23,12 @@ soft3d_try_interface_chat_head_raster(
     int fbh,
     int* pixel_buffer)
 {
-    if( !game || !cmd || !pixel_buffer || !game->world || !game->world->scene2 || !cmd->_model_draw.model ||
-        cmd->_model_draw.element_id < 0 )
+    if( !game || !cmd || !pixel_buffer || !cmd->_model_draw.model ||
+        cmd->_model_draw.element_id < 0 || !game->ui_scene )
         return 0;
 
-    struct Scene2Element* se =
-        scene2_element_at(game->world->scene2, cmd->_model_draw.element_id);
-    if( !se || scene2_element_parent_entity_id(se) >= 0 )
+    if( uiscene_element_dash_model(game->ui_scene, cmd->_model_draw.element_id) !=
+        cmd->_model_draw.model )
         return 0;
 
     struct UITree* uit = game->ui_root_buffer;
@@ -42,7 +41,7 @@ soft3d_try_interface_chat_head_raster(
         struct StaticUIComponent* c = &uit->components[i];
         if( c->type != UIELEM_RS_MODEL )
             continue;
-        if( c->u.rs_model.scene2_element_id != cmd->_model_draw.element_id )
+        if( c->u.rs_model.scene_id != cmd->_model_draw.element_id )
             continue;
         ui_comp = c;
         break;
@@ -574,17 +573,12 @@ PlatformImpl2_Emscripten_Native_Renderer_Soft3D_Render(
                         soft3d_ui_vp.stride       = fbw;
                         vp_use                    = &soft3d_ui_vp;
                         dst_pixels                = renderer->pixel_buffer + ry * fbw + rx;
-                        if( game->world && game->world->scene2 &&
-                            command._model_draw.element_id >= 0 )
+                        int vk = torirs_visual_id_from_cache_key(command._model_draw.model_key);
+                        if( (vk & UISCENE_MODEL_CACHE_VISUAL_TAG) != 0 )
                         {
-                            struct Scene2Element* se = scene2_element_at(
-                                game->world->scene2, command._model_draw.element_id);
-                            if( se && scene2_element_parent_entity_id(se) < 0 )
-                            {
-                                draw_pos.x += game->camera_world_x;
-                                draw_pos.y += game->camera_world_y;
-                                draw_pos.z += game->camera_world_z;
-                            }
+                            draw_pos.x += game->camera_world_x;
+                            draw_pos.y += game->camera_world_y;
+                            draw_pos.z += game->camera_world_z;
                         }
                     }
                     else

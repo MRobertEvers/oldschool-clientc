@@ -20,6 +20,10 @@ enum UISceneEventType
     UISCENE_EVENT_BATCH_FONT_BEGIN = 6,
     /** End font batch; consumer packs atlas and uploads GPU texture. */
     UISCENE_EVENT_BATCH_FONT_END = 7,
+    /** GPU should load `model` for `element_id` (still owned by the element until release). */
+    UISCENE_EVENT_MODEL_LOAD = 8,
+    /** GPU should unload `model`; UIScene no longer holds it — consumer frees after unload. */
+    UISCENE_EVENT_MODEL_UNLOAD = 9,
 };
 
 struct UISceneEvent
@@ -30,10 +34,13 @@ struct UISceneEvent
     int font_id;
     uint32_t batch_id; ///< For BATCH_SPRITE_BEGIN/END and BATCH_FONT_BEGIN/END
     /** ELEMENT_RELEASED only: snapshot of sprite pointers (malloc'd); consumer frees array +
-     * DashSprites when released_sprites_borrowed is false. */
+     * DashSprites after unload. */
     struct DashSprite** released_sprites;
     int released_sprites_count;
-    bool released_sprites_borrowed;
+    /** MODEL_LOAD / MODEL_UNLOAD: DashModel pointer. LOAD: still owned by the element. UNLOAD:
+     * ownership passed to the consumer (free after RES_MODEL_UNLOAD or if the event is discarded).
+     */
+    struct DashModel* model;
 };
 
 struct UISceneElement
@@ -47,8 +54,7 @@ struct UISceneElement
     char name[64];
     struct DashSprite** dash_sprites;
     int dash_sprites_count;
-    /** If true, dash_sprites are not owned by this element (e.g. pointers into another element). */
-    bool dash_sprites_borrowed;
+    struct DashModel* dash_model;
 };
 
 #define UISCENE_FONT_MAX 16
@@ -85,6 +91,23 @@ struct UIScene
     uint32_t active_font_batch_id;
 };
 
+/** High bit of the `visual_id` portion of `model_key` for UIScene-hosted models (disjoint from
+ * Scene2 TRSPK visual ids). Requires `element_id` in [0, 0x7FFFFF]. */
+#define UISCENE_MODEL_CACHE_VISUAL_TAG ((int)(1u << 23))
+
+/** Static bind-pose key: anim_id and frame_index zero. See `torirs_model_cache_key_decode`. */
+static inline uint64_t
+uiscene_model_cache_key(int element_id)
+{
+    if( element_id < 0 )
+        return 0;
+    unsigned el = (unsigned)element_id;
+    if( el > 0x7FFFFFu )
+        el = 0x7FFFFFu;
+    const int visual = UISCENE_MODEL_CACHE_VISUAL_TAG | (int)el;
+    return ((uint64_t)(uint32_t)visual << 24);
+}
+
 struct UIScene*
 uiscene_new(int size);
 
@@ -100,8 +123,8 @@ uiscene_element_acquire(
 
 /** Acquires an element AND assigns dash_sprites/name BEFORE pushing the ELEMENT_ACQUIRED event.
  *  This eliminates the window where a consumer can observe the element with dash_sprites==NULL.
- *  - sprites: caller-owned array; ownership transfers (UIScene takes the pointer as-is, will free
- *    via free()/dashsprite_free unless `borrowed` is true).
+ *  - sprites: caller transfers ownership of the pointer array and each non-NULL DashSprite
+ *    (UIScene frees them on release / scene free).
  *  - name: optional, may be NULL; truncated to 63 chars. */
 int
 uiscene_element_acquire_with_sprites(
@@ -109,7 +132,15 @@ uiscene_element_acquire_with_sprites(
     int parent_entity_id,
     struct DashSprite** sprites,
     int sprites_count,
-    bool borrowed,
+    const char* name);
+
+/** Like `uiscene_element_acquire_with_sprites` but attaches a single DashModel before
+ * ELEMENT_ACQUIRED. Caller transfers ownership of `model`. */
+int
+uiscene_element_acquire_with_model(
+    struct UIScene* uiscene,
+    int parent_entity_id,
+    struct DashModel* model,
     const char* name);
 
 void
@@ -122,6 +153,12 @@ uiscene_element_at(
     struct UIScene* uiscene,
     int element_id);
 
+/** Active element's model or NULL (inactive / out of range). */
+struct DashModel*
+uiscene_element_dash_model(
+    struct UIScene* uiscene,
+    int element_id);
+
 /** First active element whose `name` matches; sprite at atlas_index or NULL. */
 struct DashSprite*
 uiscene_sprite_by_name(
@@ -131,7 +168,9 @@ uiscene_sprite_by_name(
 
 /** First active element whose `name` matches; returns element id or -1. */
 int
-uiscene_element_id_by_name(struct UIScene* uiscene, const char* name);
+uiscene_element_id_by_name(
+    struct UIScene* uiscene,
+    const char* name);
 
 bool
 uiscene_eventbuffer_is_empty(struct UIScene* uiscene);

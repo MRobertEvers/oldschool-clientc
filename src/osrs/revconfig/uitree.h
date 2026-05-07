@@ -256,13 +256,14 @@ struct StaticUIComponent
         } rs_graphic;
         struct
         {
-            int scene2_element_id;
+            /** UIScene element holding `DashModel` (from uitree load / refresh). */
+            int scene_id;
             /** From GameCacheComponent zoom/xan/yan; TYPE_MODEL / IF_SETOBJECT framing (Client.ts).
              */
             int model_zoom;
             int model_xan;
             int model_yan;
-            /** Last sequence id baked into scene2_element animation buffers; -1 = none / stale. */
+            /** Last resolved sequence id for interface stepping; -1 = none. */
             int rs_model_cached_sequence_id;
         } rs_model;
         struct
@@ -767,7 +768,7 @@ uitree_push_rs_model(
     struct UITree* tree,
     int32_t parent_index,
     int component_id,
-    int scene2_element_id,
+    int scene_id,
     int x,
     int y,
     int width,

@@ -122,7 +122,6 @@ LuaUI_load_revconfig(
         uitree_from_revconfig_buildcachedat(
             game->ui_root_buffer,
             game->ui_scene,
-            game->scene2,
             game->inv_pool,
             game,
             buf);
@@ -246,7 +245,6 @@ LuaUI_resolve_inv_sprites(
 
             el->dash_sprites = arr;
             el->dash_sprites_count = 1;
-            el->dash_sprites_borrowed = false;
             item->scene_id = eid;
             item->atlas_index = 0;
         }
@@ -366,7 +364,6 @@ LuaUI_load_revconfig_ui(
     game->pending_uitree_loader = uitree_loader_new(
         game->ui_root_buffer,
         game->ui_scene,
-        game->scene2,
         game->inv_pool,
         game,
         game->pending_revconfig);

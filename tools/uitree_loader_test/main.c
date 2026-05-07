@@ -1,13 +1,12 @@
 /*
  * uitree_loader_test — C driver for the incremental UITree loader.
  *
- * Without `--component`: mirrors init_ui.lua — UITreeLoader + uitree_loader_step(),
- * fulfilling sprite / interface / model requests from BuildCacheDat. RS models use
- * `game.scene2`; optional BMP composites drawable nodes.
+ * Mirrors init_ui.lua — UITreeLoader + uitree_loader_step(), fulfilling sprite /
+ * interface / model requests from BuildCacheDat. RS models use `game.ui_scene`; optional
+ * BMP composites drawable nodes. Scene2 is still used in this harness for texture loading only.
  *
- * With `--component=N`: skips rev_245_2_ui.ini and the incremental loader; loads 2D
- * media + interfaces from cache, then builds a UITree consisting only of RS interface
- * root `N` from gamecache (same expansion as in-game sidebar/chat), rooted at (0,0).
+ * `--component=N` affects BMP output only (which subtree is drawn at canvas origin and how
+ * hover is interpreted); the UITree is always built from rev config via the loader.
  *
  * Usage:
  *   uitree_loader_test [OPTIONS]
@@ -16,18 +15,14 @@
  *   --cache=DIR, --cache-dir=DIR   Cache dat directory (default: ../../cache254).
  *   --bmp=PATH, --output=PATH      Output BMP (default:
  * <repo>/tools/uitree_loader_test/uitree_loader_out.bmp).
- *   --component=N                  RS interface root `component_id`: UITree is only that subtree
- * from gamecache (no rev UI INI / loader). BMP draws only that subtree (preorder), translated so
- * the root sits at (0,0) on the canvas. Duplicate `component_id` rows prefer `UIELEM_RS_LAYER` as
- * the BMP subtree root. A lone TEXT/MODEL/GRAPHIC row is valid (`draw_order_len=1`). For a
- * hide `LAYER` with gamecache children that never appear in the UITree, non-LAYER `hide=1` rows
- * are omitted at load — pin a parent IF root (e.g. 1151) instead of only that layer (e.g. 1199).
+ *   --component=N                  RS `component_id` for BMP: draw only that subtree (preorder),
+ * root at (0,0). Duplicate ids prefer `UIELEM_RS_LAYER`. Lone TEXT/MODEL/GRAPHIC is one node.
  *   --hover=x,y                    BMP hover + marker; with `--component`, subtree-local
  *                                    (default 27,37).
  *   -v, --verbose                  Dump BMP draw order to stderr (large).
  *   --hover-debug                  Pick vs bounds, overlay ids, COVERED geometry hits (stderr).
- *   --overlayer-debug              BMP `over_*`, hide-chain, overlay append, each RS_GRAPHIC (stderr).
- *   -h, --help                     Print help and exit.
+ *   --overlayer-debug              BMP `over_*`, hide-chain, overlay append, each RS_GRAPHIC
+ * (stderr). -h, --help                     Print help and exit.
  *
  * Forms `--key=value` and `--key value` (value must not start with `-`) are accepted.
  *
@@ -82,8 +77,7 @@ struct uitree_loader_test_cli
     const char* cache_dir;
     const char* bmp_path;
     char bmp_path_buf[512];
-    /** RS `component_id` for standalone `--component` mode; < 0 = use incremental loader + full
-     * UITree. */
+    /** RS `component_id` for BMP subtree pinning; < 0 = full UITree in BMP. */
     int bmp_subtree_component_id;
     /** If set, print full BMP node list (can be huge) to stderr. */
     int verbose;
@@ -123,12 +117,10 @@ cli_print_usage(FILE* fp)
         "  --cache=DIR, --cache-dir=DIR   Cache dat directory (default: %s).\n"
         "  --bmp=PATH, --output=PATH      Output BMP path (default under "
         "tools/uitree_loader_test/).\n"
-        "  --component=N                  RS component_id: UITree = that interface only "
-        "(gamecache);\n"
-        "                                  BMP draws that subtree (preorder), root at (0,0); "
-        "duplicate ids prefer RS_LAYER row.\n"
-        "                                  Lone TEXT/MODEL is one node (expected). Empty hide "
-        "LAYER: use parent IF root.\n"
+        "  --component=N                  BMP only: RS component_id subtree (preorder), root at "
+        "(0,0);\n"
+        "                                  duplicate ids prefer RS_LAYER. Full UITree still comes "
+        "from the loader.\n"
         "  --hover=x,y                  BMP hover + marker (default 27,37); with --component, "
         "IF-local.\n"
         "  -v, --verbose                  Print BMP draw-order listing to stderr (large).\n"
@@ -200,6 +192,12 @@ static int32_t
 uitree_loader_test_find_component_idx_prefer_rs_layer(
     const struct UITree* ui,
     int component_id);
+
+static void
+load_interfaces(
+    struct CacheDat*,
+    struct BuildCacheDat*,
+    struct GameCache*);
 
 static const char*
 uitree_loader_test_elem_type_name(int ty)
@@ -285,8 +283,7 @@ uitree_loader_test_log_hover_debug(
 
     int32_t subroot = -1;
     if( subtree_component_id >= 0 )
-        subroot =
-            uitree_loader_test_find_component_idx_prefer_rs_layer(ui, subtree_component_id);
+        subroot = uitree_loader_test_find_component_idx_prefer_rs_layer(ui, subtree_component_id);
 
     int hit_lines = 0;
     const int hit_cap = 256;
@@ -930,10 +927,10 @@ uitree_loader_test_hide_layer_released_by_overlay_target(
  * on a hidden layer yields a blank BMP). */
 static int
 uitree_loader_test_bmp_suppressed_by_rs_layer_hide(
-    struct GGame* const         game,
+    struct GGame* const game,
     const struct UITree* const ui,
-    int32_t                     node_idx,
-    int                         only_component_id)
+    int32_t node_idx,
+    int only_component_id)
 {
     if( !ui || node_idx < 0 || (uint32_t)node_idx >= ui->component_count )
         return 0;
@@ -1005,6 +1002,74 @@ uitree_loader_test_find_component_idx_prefer_rs_layer(
     return fallback;
 }
 
+/** Rev INI leaves `componentno=-1` on sidebar builtins; RS interfaces appear after SETTAB-style
+ * expands. For BMP `--component`, push the subtree from gamecache if missing after static load.
+ * Ensures full interfaces archive is in gamecache when incremental loading skipped that IF. */
+static void
+uitree_loader_test_materialize_component_for_bmp(
+    struct GGame* game,
+    struct CacheDat* cache_dat,
+    struct BuildCacheDat* buildcachedat,
+    int component_id)
+{
+    struct UITree* ui = game ? game->ui_root_buffer : NULL;
+    if( !game || !ui || !game->gamecache || component_id < 0 )
+        return;
+    if( uitree_loader_test_find_component_idx_prefer_rs_layer(ui, component_id) >= 0 )
+        return;
+    if( uitree_find_by_component_id(ui, component_id) >= 0 )
+        return;
+
+    if( !gamecache_get_component(game->gamecache, component_id) )
+    {
+        if( cache_dat && buildcachedat )
+        {
+            printf(
+                "uitree_loader_test: BMP component_id=%d not in gamecache yet — loading full "
+                "interfaces archive\n",
+                component_id);
+            load_interfaces(cache_dat, buildcachedat, game->gamecache);
+        }
+        if( !gamecache_get_component(game->gamecache, component_id) )
+        {
+            fprintf(
+                stderr,
+                "uitree_loader_test: BMP component_id=%d missing from gamecache after interface "
+                "load (unknown id or cache)\n",
+                component_id);
+            return;
+        }
+    }
+
+    printf(
+        "uitree_loader_test: BMP requested component_id=%d — expanding into UITree (runtime "
+        "SETTAB/IF_OPEN-style)\n",
+        component_id);
+
+    for( int tab = 0; tab < 14; tab++ )
+    {
+        uitree_expand_sidebar_for_tab(game, tab, component_id);
+        if( uitree_loader_test_find_component_idx_prefer_rs_layer(ui, component_id) >= 0 )
+            return;
+        if( uitree_find_by_component_id(ui, component_id) >= 0 )
+            return;
+    }
+
+    uitree_expand_sidebar_overlay_for_interface(game, component_id);
+    if( uitree_loader_test_find_component_idx_prefer_rs_layer(ui, component_id) >= 0 )
+        return;
+    if( uitree_find_by_component_id(ui, component_id) >= 0 )
+        return;
+
+    uitree_expand_viewport_overlay_for_interface(game, component_id);
+    if( uitree_loader_test_find_component_idx_prefer_rs_layer(ui, component_id) >= 0 )
+        return;
+    if( uitree_find_by_component_id(ui, component_id) >= 0 )
+        return;
+
+    uitree_expand_chat_dialog_for_interface(game, component_id);
+}
+
 /** `over_*` may match an rs_layer id while activeGraphic lives on a child with a different id. */
 static int
 uitree_loader_test_bmp_overlay_hovered_for_graphic(
@@ -1027,12 +1092,13 @@ uitree_loader_test_bmp_overlay_hovered_for_graphic(
     return 0;
 }
 
-/** Stderr: each hide-flagged RS_LAYER ancestor of `node_idx` and whether BMP treats it as released. */
+/** Stderr: each hide-flagged RS_LAYER ancestor of `node_idx` and whether BMP treats it as released.
+ */
 static void
 uitree_loader_test_overlayer_debug_log_hide_chain(
-    struct GGame* const         game,
+    struct GGame* const game,
     const struct UITree* const ui,
-    int                         node_idx)
+    int node_idx)
 {
     if( !game || !ui || node_idx < 0 || (uint32_t)node_idx >= ui->component_count )
         return;
@@ -1041,8 +1107,7 @@ uitree_loader_test_overlayer_debug_log_hide_chain(
         const struct StaticUIComponent* a = &ui->components[p];
         if( a->type != UIELEM_RS_LAYER || !a->u.rs_layer.hide )
             continue;
-        int rel_self =
-            game->iface && interface_component_is_overlay_hovered(game, a->component_id);
+        int rel_self = game->iface && interface_component_is_overlay_hovered(game, a->component_id);
         int rel_tgt = uitree_loader_test_hide_layer_released_by_overlay_target(game, ui, p);
         fprintf(
             stderr,
@@ -1091,8 +1156,8 @@ uitree_loader_test_bmp_stderr_singleton_no_pixels(
     {
     case UIELEM_RS_TEXT:
     {
-        int                 fid = c->u.rs_text.font_id;
-        struct DashPixFont* f   = NULL;
+        int fid = c->u.rs_text.font_id;
+        struct DashPixFont* f = NULL;
         if( ui_scene && fid >= 0 )
             f = uiscene_font_get(ui_scene, fid);
         fprintf(
@@ -1111,12 +1176,12 @@ uitree_loader_test_bmp_stderr_singleton_no_pixels(
                                     : NULL;
         fprintf(
             stderr,
-            "  RS_MODEL: scene2_element_id=%d; gamecache modelType=%d model=%d (type 0 has no "
-            "Scene2 element; 2/3/4 need player/npc/obj context in this harness). scene2=%s.\n",
-            c->u.rs_model.scene2_element_id,
+            "  RS_MODEL: uiscene_element_id=%d; gamecache modelType=%d model=%d (type 0 has no "
+            "model; 2/3/4 need player/npc/obj context in this harness). ui_scene=%s.\n",
+            c->u.rs_model.scene_id,
             gc ? gc->modelType : -1,
             gc ? gc->model : -1,
-            game && game->scene2 ? "ok" : "null");
+            game && game->ui_scene ? "ok" : "null");
     }
     break;
     case UIELEM_RS_GRAPHIC:
@@ -1194,7 +1259,7 @@ uitree_loader_test_write_sprite_bmp(
                     gcm->hide ? 1 : 0,
                     (gcm->graphic && gcm->graphic[0] != '\0') ? gcm->graphic : "(null)",
                     (gcm->activeGraphic && gcm->activeGraphic[0] != '\0') ? gcm->activeGraphic
-                                                                         : "(null)");
+                                                                          : "(null)");
             else
                 fprintf(
                     stderr,
@@ -1289,9 +1354,7 @@ uitree_loader_test_write_sprite_bmp(
                         {
                             if( overlayer_debug )
                                 fprintf(
-                                    stderr,
-                                    "[overlayer-debug]   over_%s: (unset)\n",
-                                    oid_name[oi]);
+                                    stderr, "[overlayer-debug]   over_%s: (unset)\n", oid_name[oi]);
                             continue;
                         }
                         int32_t root_first = uitree_find_by_component_id(ui, oid);
@@ -1378,7 +1441,7 @@ uitree_loader_test_write_sprite_bmp(
         struct Scene2* s2 = game->scene2;
         for( int ti = 0; ti < s2->textures_count; ti++ )
         {
-            int                 tid = s2->textures[ti].id;
+            int tid = s2->textures[ti].id;
             struct DashTexture* tex = s2->textures[ti].texture;
             if( tex )
                 dash3d_add_texture(dash, tid, tex);
@@ -1431,8 +1494,8 @@ uitree_loader_test_write_sprite_bmp(
     /* Pass 1: rects + 2D sprites + RS text (same preorder as draw order). */
     for( int k = 0; k < order_count; k++ )
     {
-        int                       uitree_i = order[k];
-        struct StaticUIComponent* c        = &ui->components[uitree_i];
+        int uitree_i = order[k];
+        struct StaticUIComponent* c = &ui->components[uitree_i];
         if( c->is_hidden )
         {
             if( overlayer_debug && c->type == UIELEM_RS_GRAPHIC )
@@ -1443,8 +1506,8 @@ uitree_loader_test_write_sprite_bmp(
                     c->component_id);
             continue;
         }
-        int suppressed =
-            uitree_loader_test_bmp_suppressed_by_rs_layer_hide(game, ui, uitree_i, only_component_id);
+        int suppressed = uitree_loader_test_bmp_suppressed_by_rs_layer_hide(
+            game, ui, uitree_i, only_component_id);
         if( overlayer_debug && c->type == UIELEM_RS_GRAPHIC )
         {
             fprintf(
@@ -1515,8 +1578,9 @@ uitree_loader_test_write_sprite_bmp(
                 clientscript_vm_active(
                     vm, c->scripts, c->scripts_count, c->script_comparator, c->script_operand);
             int self_ov =
-                game->iface &&
-                interface_component_overlay_hover_for_draw(game, c->component_id) ? 1 : 0;
+                game->iface && interface_component_overlay_hover_for_draw(game, c->component_id)
+                    ? 1
+                    : 0;
             int first_anc_overlay_layer_id = -1;
             if( game->iface )
             {
@@ -1533,12 +1597,12 @@ uitree_loader_test_write_sprite_bmp(
             }
             bool hovered = uitree_loader_test_bmp_overlay_hovered_for_graphic(game, ui, uitree_i);
             int sid = c->u.rs_graphic.scene_id;
-            int ai  = c->u.rs_graphic.atlas_index;
+            int ai = c->u.rs_graphic.atlas_index;
             int use_active_row = active && c->u.rs_graphic.scene_id_active >= 0 ? 1 : 0;
             if( use_active_row )
             {
                 sid = c->u.rs_graphic.scene_id_active;
-                ai  = c->u.rs_graphic.atlas_index_active;
+                ai = c->u.rs_graphic.atlas_index_active;
             }
             int blit_ok = uitree_loader_test_blit_sprite_from_scene(
                 dash,
@@ -1578,8 +1642,8 @@ uitree_loader_test_write_sprite_bmp(
                 continue;
 
             struct ClientScriptVM* vm = game->clientscript_vm;
-            int                   colour   = c->u.rs_text.color;
-            char const*         text_src = c->u.rs_text.text;
+            int colour = c->u.rs_text.color;
+            char const* text_src = c->u.rs_text.text;
             bool active =
                 vm &&
                 clientscript_vm_active(
@@ -1603,8 +1667,8 @@ uitree_loader_test_write_sprite_bmp(
 
             int base_x = c->position.x + dx;
             int base_y = c->position.y + dy + font->height2d;
-            int pw     = c->position.width > 0 ? c->position.width : 1;
-            int ph     = c->position.height > 0 ? c->position.height : 1;
+            int pw = c->position.width > 0 ? c->position.width : 1;
+            int ph = c->position.height > 0 ? c->position.height : 1;
 
             int clip_l = c->position.x + dx;
             int clip_t = c->position.y + dy;
@@ -1681,8 +1745,7 @@ uitree_loader_test_write_sprite_bmp(
                     int draw_x = base_x;
                     if( c->u.rs_text.center )
                     {
-                        int text_w = dashfont_text_width_taggable(
-                            font, (uint8_t*)pooled);
+                        int text_w = dashfont_text_width_taggable(font, (uint8_t*)pooled);
                         draw_x = base_x + (pw / 2) - (text_w / 2);
                     }
 
@@ -1717,11 +1780,12 @@ uitree_loader_test_write_sprite_bmp(
         game->cycle = 0;
         for( int k = 0; k < order_count; k++ )
         {
-            int                       uitree_i = order[k];
-            struct StaticUIComponent* c        = &ui->components[uitree_i];
+            int uitree_i = order[k];
+            struct StaticUIComponent* c = &ui->components[uitree_i];
             if( c->is_hidden || c->type != UIELEM_RS_MODEL )
                 continue;
-            if( uitree_loader_test_bmp_suppressed_by_rs_layer_hide(game, ui, uitree_i, only_component_id) )
+            if( uitree_loader_test_bmp_suppressed_by_rs_layer_hide(
+                    game, ui, uitree_i, only_component_id) )
                 continue;
 
             uitree_rs_model_ensure_sequence_precached(game, c);
@@ -1730,16 +1794,16 @@ uitree_loader_test_write_sprite_bmp(
             if( game->gamecache )
                 gcm = gamecache_get_component(game->gamecache, c->component_id);
             int model_type = (gcm && gcm->type == COMPONENT_TYPE_MODEL) ? gcm->modelType : 0;
-            int model_id   = (gcm && gcm->type == COMPONENT_TYPE_MODEL) ? gcm->model : -1;
+            int model_id = (gcm && gcm->type == COMPONENT_TYPE_MODEL) ? gcm->model : -1;
 
-            int eid = c->u.rs_model.scene2_element_id;
+            int eid = c->u.rs_model.scene_id;
             if( model_type != 0 && eid < 0 )
             {
                 fprintf(
                     stderr,
                     "uitree_loader_test: BMP RS_MODEL not rendered — component_id=%d uitree_idx=%d "
-                    "modelType=%d model_id=%d scene2_element_id=%d (no Scene2 element; missing "
-                    "model data or build_rs_scene2_element_for_model_component failed)\n",
+                    "modelType=%d model_id=%d uiscene_element_id=%d (no UIScene model slot; missing "
+                    "model data or acquire failed)\n",
                     c->component_id,
                     uitree_i,
                     model_type,
@@ -1747,28 +1811,16 @@ uitree_loader_test_write_sprite_bmp(
                     eid);
                 continue;
             }
-            if( eid < 0 )
+            if( eid < 0 || !game->ui_scene )
                 continue;
 
-            struct Scene2Element* se = scene2_element_at(game->scene2, eid);
-            if( !se )
-            {
-                fprintf(
-                    stderr,
-                    "uitree_loader_test: BMP RS_MODEL not rendered — component_id=%d uitree_idx=%d "
-                    "scene2_element_id=%d invalid (scene2_element_at returned NULL)\n",
-                    c->component_id,
-                    uitree_i,
-                    eid);
-                continue;
-            }
-            struct DashModel* mod = scene2_element_dash_model(se);
+            struct DashModel* mod = uiscene_element_dash_model(game->ui_scene, eid);
             if( !mod )
             {
                 fprintf(
                     stderr,
                     "uitree_loader_test: BMP RS_MODEL not rendered — component_id=%d uitree_idx=%d "
-                    "scene2_element_id=%d has no DashModel\n",
+                    "uiscene_element_id=%d has no DashModel\n",
                     c->component_id,
                     uitree_i,
                     eid);
@@ -1807,8 +1859,7 @@ uitree_loader_test_write_sprite_bmp(
     else
     {
         fprintf(
-            stderr,
-            "uitree_loader_test: BMP pass2 skipped all RS_MODEL (game->scene2 is NULL)\n");
+            stderr, "uitree_loader_test: BMP pass2 skipped all RS_MODEL (game->scene2 is NULL)\n");
     }
 
     uitree_loader_test_bmp_stderr_singleton_no_pixels(
@@ -2009,18 +2060,18 @@ load_model_archive(
     printf("[loader] loaded model %d into buildcache + gamecache\n", model_id);
 }
 
-/** `--component` mode skips the loader asset loop; IF models must be in gamecache before
- * `uitree_load_single_component_tree_from_gamecache` builds Scene2 elements:
- * - modelType 1: `comp->model` is a raw model id.
- * - modelType 4: IF_SETOBJECT-style obj icon — `comp->model` is a gamecache obj id; load that
- *   obj's inventory `model` mesh (same as `obj_icon_new_dash_model_for_obj`). */
+/** After materializing an RS subtree for BMP, load mesh models referenced by TYPE_MODEL rows and
+ * rebuild Scene2 DashModels (matches init_ui.lua model prefetch + IF expand). */
 static void
-uitree_loader_test_preload_type1_models_in_component_subtree(
+uitree_loader_test_ensure_rs_models_for_gamecache_root(
+    struct GGame* game,
     struct CacheDat* cache_dat,
     struct BuildCacheDat* buildcachedat,
     struct GameCache* gamecache,
     int root_component_id)
 {
+    if( !game || !cache_dat || !buildcachedat || !gamecache || root_component_id < 0 )
+        return;
     struct GameCacheComponent* root = gamecache_get_component(gamecache, root_component_id);
     if( !root )
         return;
@@ -2028,7 +2079,6 @@ uitree_loader_test_preload_type1_models_in_component_subtree(
     struct GameCacheComponent* stack[8192];
     int sp = 0;
     int guard = 0;
-
     stack[sp++] = root;
     while( sp > 0 && guard++ < 200000 )
     {
@@ -2036,45 +2086,16 @@ uitree_loader_test_preload_type1_models_in_component_subtree(
         if( !comp )
             continue;
 
-        if( comp->type == COMPONENT_TYPE_MODEL && comp->modelType == 1 && comp->model >= 0 &&
-            !gamecache_get_model(gamecache, comp->model) )
+        if( comp->type == COMPONENT_TYPE_MODEL )
         {
-            load_model_archive(cache_dat, buildcachedat, gamecache, comp->model);
-            if( !gamecache_get_model(gamecache, comp->model) )
+            if( comp->modelType == 1 && comp->model >= 0 &&
+                !gamecache_get_model(gamecache, comp->model) )
+                load_model_archive(cache_dat, buildcachedat, gamecache, comp->model);
+            else if( comp->modelType == 4 && comp->model >= 0 )
             {
-                fprintf(
-                    stderr,
-                    "uitree_loader_test: model id %d still not loaded after archive attempt "
-                    "(interface component_id=%d, modelType=1)\n",
-                    comp->model,
-                    comp->id);
-            }
-        }
-        else if( comp->type == COMPONENT_TYPE_MODEL && comp->modelType == 4 && comp->model >= 0 )
-        {
-            struct GameCacheObj* obj = gamecache_get_obj(gamecache, comp->model);
-            if( !obj )
-            {
-                fprintf(
-                    stderr,
-                    "uitree_loader_test: RS_MODEL modelType=4 component_id=%d obj_id=%d not in "
-                    "gamecache (objects from config jag may be missing)\n",
-                    comp->id,
-                    comp->model);
-            }
-            else if( obj->model > 0 && !gamecache_get_model(gamecache, obj->model) )
-            {
-                load_model_archive(cache_dat, buildcachedat, gamecache, obj->model);
-                if( !gamecache_get_model(gamecache, obj->model) )
-                {
-                    fprintf(
-                        stderr,
-                        "uitree_loader_test: obj_id=%d inventory model id %d failed to load "
-                        "(component_id=%d, modelType=4)\n",
-                        comp->model,
-                        obj->model,
-                        comp->id);
-                }
+                struct GameCacheObj* obj = gamecache_get_obj(gamecache, comp->model);
+                if( obj && obj->model > 0 && !gamecache_get_model(gamecache, obj->model) )
+                    load_model_archive(cache_dat, buildcachedat, gamecache, obj->model);
             }
         }
 
@@ -2089,6 +2110,8 @@ uitree_loader_test_preload_type1_models_in_component_subtree(
             }
         }
     }
+
+    uitree_rs_model_refresh_subtree_for_gamecache_root(game, root_component_id);
 }
 
 /* ── Main ───────────────────────────────────────────────────────────────────── */
@@ -2145,14 +2168,7 @@ main(
         return 1;
     }
     revconfig_load_fields_from_ini(filename_cache, revconfig);
-    if( cli.bmp_subtree_component_id < 0 )
-        revconfig_load_fields_from_ini(filename_ui, revconfig);
-    else
-        fprintf(
-            stdout,
-            "uitree_loader_test: skipping rev UI INI (--component=%d: UITree from gamecache "
-            "only)\n",
-            cli.bmp_subtree_component_id);
+    revconfig_load_fields_from_ini(filename_ui, revconfig);
     printf("uitree_loader_test: loaded %u revconfig fields\n", revconfig->field_count);
 
     struct BuildCacheDat* buildcachedat = NULL;
@@ -2228,173 +2244,119 @@ main(
 
     int bmp_ok = 1;
 
-    if( cli.bmp_subtree_component_id >= 0 )
+    /* ── Create incremental loader (rev UI INI drives UITreeLoader) ─────── */
+    loader = uitree_loader_new(ui, ui_scene, inv_pool, &game_stub, revconfig);
+    if( !loader )
     {
-        printf(
-            "uitree_loader_test: standalone mode — loading media + interfaces, then RS root %d\n",
-            cli.bmp_subtree_component_id);
-        load_media_jagfile(cache_dat, buildcachedat);
-        uitree_loader_test_load_title_fonts(cache_dat, buildcachedat, gamecache, ui_scene);
-        load_interfaces(cache_dat, buildcachedat, gamecache);
-        uitree_loader_test_load_textures(cache_dat, buildcachedat, gamecache, ui_scene2);
-        uitree_loader_test_preload_type1_models_in_component_subtree(
-            cache_dat, buildcachedat, gamecache, cli.bmp_subtree_component_id);
-
-        int lrc = uitree_load_single_component_tree_from_gamecache(
-            &game_stub, ui, ui_scene, ui_scene2, gamecache, cli.bmp_subtree_component_id);
-        if( lrc == -2 )
-        {
-            fprintf(
-                stderr,
-                "uitree_loader_test: internal error: UITree not empty before single-component "
-                "load\n");
-            goto done_loop;
-        }
-        if( lrc != 0 )
-        {
-            fprintf(
-                stderr,
-                "uitree_loader_test: no gamecache interface root with component_id=%d "
-                "(check id and that interfaces loaded)\n",
-                cli.bmp_subtree_component_id);
-            goto done_loop;
-        }
-        if( ui->component_count <= 1u )
-        {
-            struct GameCacheComponent* gchk =
-                gamecache_get_component(gamecache, cli.bmp_subtree_component_id);
-            if( gchk && gchk->type == COMPONENT_TYPE_LAYER )
-            {
-                fprintf(
-                    stderr,
-                    "uitree_loader_test: note: --component=%d is a single LAYER in the UITree "
-                    "(%u node).\n",
-                    cli.bmp_subtree_component_id,
-                    ui->component_count);
-                if( gchk->children_count > 0 )
-                    fprintf(
-                        stderr,
-                        "  gamecache lists %d children, but non-LAYER rows with hide=1 are not "
-                        "inserted into the UITree; use a parent interface root if you expected a "
-                        "full subtree.\n",
-                        gchk->children_count);
-                else
-                    fprintf(stderr, "  gamecache: this layer has no children.\n");
-            }
-        }
+        fprintf(stderr, "uitree_loader_test: out of memory creating loader\n");
+        goto cleanup;
     }
-    else
+    printf("uitree_loader_test: loader created, beginning step loop\n");
+
+    /* RS TEXT needs UIScene fonts; BMP model raster needs Scene2 textures (copied to a fresh
+     * DashGraphics in uitree_loader_test_write_sprite_bmp). init_ui.lua / init_cache_dat.lua.
+     */
+    uitree_loader_test_load_title_fonts(cache_dat, buildcachedat, gamecache, ui_scene);
+    uitree_loader_test_load_textures(cache_dat, buildcachedat, gamecache, ui_scene2);
+
+    /* ── Driver loop ─────────────────────────────────────────────────────── */
+    int media_loaded = 0;
+    int interfaces_loaded = 0;
+    int step_count = 0;
+    int max_steps = 1000000; /* safety */
+
+    for( ; step_count < max_steps; step_count++ )
     {
-        /* ── Create incremental loader (rev UI INI drives UITreeLoader) ─────── */
-        loader = uitree_loader_new(ui, ui_scene, ui_scene2, inv_pool, &game_stub, revconfig);
-        if( !loader )
+        enum UITreeLoaderStatus status = uitree_loader_step(loader);
+
+        if( status == UITREE_LOADER_RUNNING )
+            continue; /* more items to process — keep going */
+
+        if( status == UITREE_LOADER_DONE )
         {
-            fprintf(stderr, "uitree_loader_test: out of memory creating loader\n");
-            goto cleanup;
+            printf("uitree_loader_test: loader DONE after %d steps\n", step_count + 1);
+            uitree_loader_free(loader);
+            loader = NULL;
+            break;
         }
-        printf("uitree_loader_test: loader created, beginning step loop\n");
 
-        /* RS TEXT needs UIScene fonts; BMP model raster needs Scene2 textures (copied to a fresh
-         * DashGraphics in uitree_loader_test_write_sprite_bmp). init_ui.lua / init_cache_dat.lua. */
-        uitree_loader_test_load_title_fonts(cache_dat, buildcachedat, gamecache, ui_scene);
-        uitree_loader_test_load_textures(cache_dat, buildcachedat, gamecache, ui_scene2);
-
-        /* ── Driver loop ─────────────────────────────────────────────────────── */
-        int media_loaded = 0;
-        int interfaces_loaded = 0;
-        int step_count = 0;
-        int max_steps = 1000000; /* safety */
-
-        for( ; step_count < max_steps; step_count++ )
+        if( status == UITREE_LOADER_ERROR )
         {
-            enum UITreeLoaderStatus status = uitree_loader_step(loader);
+            fprintf(stderr, "uitree_loader_test: loader ERROR after %d steps\n", step_count);
+            break;
+        }
 
-            if( status == UITREE_LOADER_RUNNING )
-                continue; /* more items to process — keep going */
+        /* UITREE_LOADER_NEEDS_ASSET */
+        struct UITreeLoaderAssetRequest req = uitree_loader_pending_asset(loader);
 
-            if( status == UITREE_LOADER_DONE )
+        switch( req.kind )
+        {
+        case UITREE_ASSET_SPRITE:
+            if( !media_loaded )
             {
-                printf("uitree_loader_test: loader DONE after %d steps\n", step_count + 1);
-                uitree_loader_free(loader);
-                loader = NULL;
-                break;
-            }
-
-            if( status == UITREE_LOADER_ERROR )
-            {
-                fprintf(stderr, "uitree_loader_test: loader ERROR after %d steps\n", step_count);
-                break;
-            }
-
-            /* UITREE_LOADER_NEEDS_ASSET */
-            struct UITreeLoaderAssetRequest req = uitree_loader_pending_asset(loader);
-
-            switch( req.kind )
-            {
-            case UITREE_ASSET_SPRITE:
-                if( !media_loaded )
-                {
-                    printf(
-                        "[loader] needs sprite '%s' — loading 2D media jagfile\n",
-                        req.u.sprite.name);
-                    load_media_jagfile(cache_dat, buildcachedat);
-                    media_loaded = 1;
-                }
-                else
-                {
-                    fprintf(
-                        stderr,
-                        "uitree_loader_test: sprite '%s' still missing after media load\n",
-                        req.u.sprite.name);
-                    goto done_loop;
-                }
-                break;
-
-            case UITREE_ASSET_INTERFACE:
-                if( !interfaces_loaded )
-                {
-                    printf("[loader] needs interface component(s):");
-                    for( int ci = 0; ci < req.u.interface_file.count; ci++ )
-                        printf(" %d", req.u.interface_file.component_ids[ci]);
-                    printf(" — loading interfaces\n");
-                    load_interfaces(cache_dat, buildcachedat, gamecache);
-                    interfaces_loaded = 1;
-                }
-                else
-                {
-                    fprintf(
-                        stderr,
-                        "uitree_loader_test: component(s) still missing after interface load:");
-                    for( int ci = 0; ci < req.u.interface_file.count; ci++ )
-                        fprintf(stderr, " %d", req.u.interface_file.component_ids[ci]);
-                    fprintf(stderr, "\n");
-                    goto done_loop;
-                }
-                break;
-
-            case UITREE_ASSET_MODEL:
                 printf(
-                    "[loader] needs model id %d — loading from cache dat\n", req.u.model.model_id);
-                load_model_archive(cache_dat, buildcachedat, gamecache, req.u.model.model_id);
-                break;
-
-            case UITREE_ASSET_FONT:
+                    "[loader] needs sprite '%s' — loading 2D media jagfile\n", req.u.sprite.name);
+                load_media_jagfile(cache_dat, buildcachedat);
+                media_loaded = 1;
+            }
+            else
+            {
                 fprintf(
                     stderr,
-                    "uitree_loader_test: font asset '%s' not implemented in this harness\n",
-                    req.u.font.name);
-                goto done_loop;
-
-            default:
-                fprintf(
-                    stderr,
-                    "uitree_loader_test: unexpected asset kind %d, stopping\n",
-                    (int)req.kind);
+                    "uitree_loader_test: sprite '%s' still missing after media load\n",
+                    req.u.sprite.name);
                 goto done_loop;
             }
+            break;
+
+        case UITREE_ASSET_INTERFACE:
+            if( !interfaces_loaded )
+            {
+                printf("[loader] needs interface component(s):");
+                for( int ci = 0; ci < req.u.interface_file.count; ci++ )
+                    printf(" %d", req.u.interface_file.component_ids[ci]);
+                printf(" — loading interfaces\n");
+                load_interfaces(cache_dat, buildcachedat, gamecache);
+                interfaces_loaded = 1;
+            }
+            else
+            {
+                fprintf(
+                    stderr, "uitree_loader_test: component(s) still missing after interface load:");
+                for( int ci = 0; ci < req.u.interface_file.count; ci++ )
+                    fprintf(stderr, " %d", req.u.interface_file.component_ids[ci]);
+                fprintf(stderr, "\n");
+                goto done_loop;
+            }
+            break;
+
+        case UITREE_ASSET_MODEL:
+            printf("[loader] needs model id %d — loading from cache dat\n", req.u.model.model_id);
+            load_model_archive(cache_dat, buildcachedat, gamecache, req.u.model.model_id);
+            break;
+
+        case UITREE_ASSET_FONT:
+            fprintf(
+                stderr,
+                "uitree_loader_test: font asset '%s' not implemented in this harness\n",
+                req.u.font.name);
+            goto done_loop;
+
+        default:
+            fprintf(
+                stderr, "uitree_loader_test: unexpected asset kind %d, stopping\n", (int)req.kind);
+            goto done_loop;
         }
     }
 done_loop:
+
+    if( cli.bmp_subtree_component_id >= 0 && ui && gamecache )
+    {
+        // uitree_loader_test_materialize_component_for_bmp(
+        //     &game_stub, cache_dat, buildcachedat, cli.bmp_subtree_component_id);
+        // uitree_loader_test_ensure_rs_models_for_gamecache_root(
+        //     &game_stub, cache_dat, buildcachedat, gamecache, cli.bmp_subtree_component_id);
+    }
 
     /* ── Validate result ─────────────────────────────────────────────────── */
     printf("uitree_loader_test: UITree component count = %d\n", ui->component_count);
@@ -2421,8 +2383,8 @@ done_loop:
         int pin_pick_y = 0;
         if( cli.bmp_subtree_component_id >= 0 )
         {
-            int32_t rr =
-                uitree_loader_test_find_component_idx_prefer_rs_layer(ui, cli.bmp_subtree_component_id);
+            int32_t rr = uitree_loader_test_find_component_idx_prefer_rs_layer(
+                ui, cli.bmp_subtree_component_id);
             if( rr < 0 )
                 rr = uitree_find_by_component_id(ui, cli.bmp_subtree_component_id);
             if( rr >= 0 )
@@ -2453,42 +2415,39 @@ done_loop:
             game_stub.iface->over_main_com_id =
                 interface_find_hovered_interface_id(&game_stub, gc_root, rx, ry, pick_mx, pick_my);
             /* Pinning a hidden TYPE_LAYER subtree: mouse may miss children in IF space; still set
-             * overlay id so BMP hide-release + activeGraphic path match in-game hover on that layer. */
+             * overlay id so BMP hide-release + activeGraphic path match in-game hover on that
+             * layer. */
             if( game_stub.iface->over_main_com_id < 0 && gc_root &&
                 gc_root->type == COMPONENT_TYPE_LAYER && gc_root->hide )
                 game_stub.iface->over_main_com_id = cli.bmp_subtree_component_id;
             interface_sync_aggregate_hovered_interface_id(&game_stub);
         }
         uitree_sync_hover_option_set(&game_stub, pick_mx, pick_my);
-        /* Full UITree: region hover often leaves all `over_*` unset; do not set `over_main` to the
-         * UITree hit id alone — use gamecache `overlayer` like `interface_find_hovered_interface_id`
-         * (spell row -> overlay layer id). */
-        if( game_stub.iface && cli.bmp_subtree_component_id < 0 )
+        /* When region hover leaves over_* unset, derive over_main from UITree hover + gamecache
+         * overlayer (spell row -> overlay layer). Applies to full UITree and --component BMP. */
+        if( game_stub.iface && game_stub.iface->over_main_com_id < 0 )
         {
-            if( game_stub.iface->over_main_com_id < 0 )
+            int32_t hi = ui->hover_node_index;
+            if( hi >= 0 && (uint32_t)hi < ui->component_count )
             {
-                int32_t hi = ui->hover_node_index;
-                if( hi >= 0 && (uint32_t)hi < ui->component_count )
+                int const hit_cid = ui->components[hi].component_id;
+                int over = hit_cid;
+                if( game_stub.gamecache )
                 {
-                    int const hit_cid = ui->components[hi].component_id;
-                    int         over  = hit_cid;
-                    if( game_stub.gamecache )
-                    {
-                        struct GameCacheComponent* gch =
-                            gamecache_get_component(game_stub.gamecache, hit_cid);
-                        if( gch && gch->overlayer >= 0 )
-                            over = gch->overlayer;
-                    }
-                    game_stub.iface->over_main_com_id = over;
-                    if( cli.overlayer_debug )
-                        fprintf(
-                            stderr,
-                            "[overlayer-debug] full-UITree over_main: hover_node_idx=%d hit_cid=%d "
-                            "gamecache_overlayer -> over_main=%d\n",
-                            (int)hi,
-                            hit_cid,
-                            over);
+                    struct GameCacheComponent* gch =
+                        gamecache_get_component(game_stub.gamecache, hit_cid);
+                    if( gch && gch->overlayer >= 0 )
+                        over = gch->overlayer;
                 }
+                game_stub.iface->over_main_com_id = over;
+                if( cli.overlayer_debug )
+                    fprintf(
+                        stderr,
+                        "[overlayer-debug] over_main fallback: hover_node_idx=%d hit_cid=%d "
+                        "gamecache_overlayer -> over_main=%d\n",
+                        (int)hi,
+                        hit_cid,
+                        over);
             }
             interface_sync_aggregate_hovered_interface_id(&game_stub);
         }
