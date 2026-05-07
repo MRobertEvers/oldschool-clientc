@@ -167,6 +167,11 @@ serverprot_core_parse_if_open_main_side_v1(
     int n,
     struct RevServerProtPacket* out);
 int
+serverprot_core_parse_if_open_overlay_v1(
+    uint8_t* data,
+    int n,
+    struct RevServerProtPacket* out);
+int
 serverprot_core_parse_if_close_v1(
     uint8_t* data,
     int n,

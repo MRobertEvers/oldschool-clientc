@@ -21,8 +21,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define INV_MENU_MAX 24
-
 static struct DashPixFont*
 interface_font_from_reftable(
     struct GGame* game,
@@ -254,10 +252,9 @@ blit_subsprite_clipped(
     }
 }
 
-/* Build menu options in same order as Client.ts handleInterfaceInput (inv slot),
- * then sort exactly as Client.ts (2498-2522): swap when [i] < 1000 && [i+1] > 1000
- * so primaries move right. Left-click uses useMenuOption(menuSize - 1) so default
- * is the last option after sort = actions[n-1].
+/* Default primary row matches `minimenu_game_collect_lines`: UITree inv options (from
+ * uitree_fill_inv_slot_options_from_cache_inv) are sorted, then Cancel is prepended and the
+ * full array is sorted again — Client.ts buildMinimenu includes Cancel in the same bubble pass.
  */
 int
 interface_get_inv_default_action(
@@ -266,111 +263,40 @@ interface_get_inv_default_action(
     int obj_id,
     int slot)
 {
-    struct GameCacheObj* obj = gamecache_get_obj(game->gamecache, obj_id);
-    int actions[INV_MENU_MAX];
-    int n = 0;
+    (void)obj_id;
+    if( !game || !child || !game->gamecache )
+        return (int)MINIMENU_ACTION_CANCEL;
 
-    if( !obj )
-        return MINIMENU_ACTION_CANCEL;
+    struct UITreeOptionSet os;
+    memset(&os, 0, sizeof(os));
+    uitree_fill_inv_slot_options_from_cache_inv(game, child, slot, &os);
+    if( os.option_count <= 0 )
+        return (int)MINIMENU_ACTION_CANCEL;
 
-    /* No obj selected, no spell: same order as Client.ts 10064-10152 */
-    /* 1. child.interactable: obj.iop op 4, 3 (Drop / op3); else if op===4 add Drop */
-    if( child->interactable )
+    int uin = os.option_count;
+    if( uin > UITREE_OPTION_SET_CAPACITY )
+        uin = UITREE_OPTION_SET_CAPACITY;
+
+    struct MinimenuOptionLine tmp[UITREE_OPTION_SET_CAPACITY + 1];
+    tmp[0].text    = "Cancel";
+    tmp[0].action  = (int)MINIMENU_ACTION_CANCEL;
+    tmp[0].param_a = 0;
+    tmp[0].param_b = 0;
+    tmp[0].param_c = 0;
+
+    for( int i = 0; i < uin; i++ )
     {
-        for( int op = 4; op >= 3; op-- )
-        {
-            if( obj->iop[op] )
-            {
-                actions[n++] = (op == 4) ? MINIMENU_ACTION_OPHELD5 : MINIMENU_ACTION_OPHELD4;
-                if( n >= INV_MENU_MAX )
-                    goto done;
-            }
-            else if( op == 4 )
-            {
-                actions[n++] = MINIMENU_ACTION_OPHELD5; /* Drop @lre@ obj.name */
-                if( n >= INV_MENU_MAX )
-                    goto done;
-            }
-        }
+        struct UITreeOption* o = uitree_option_set_get_option(&os, i);
+        tmp[i + 1].text    = (const char*)o->text;
+        tmp[i + 1].action  = (int)o->action;
+        tmp[i + 1].param_a = o->param_a;
+        tmp[i + 1].param_b = o->param_b;
+        tmp[i + 1].param_c = o->param_c;
     }
 
-    /* 2. child.usable: Use */
-    if( child->usable )
-    {
-        actions[n++] = MINIMENU_ACTION_OPHELDT_START;
-        if( n >= INV_MENU_MAX )
-            goto done;
-    }
-
-    /* 3. child.interactable && obj.iop: op 2, 1, 0 (e.g. Wield, Wear) */
-    if( child->interactable )
-    {
-        for( int op = 2; op >= 0; op-- )
-        {
-            if( obj->iop[op] )
-            {
-                if( op == 0 )
-                    actions[n++] = MINIMENU_ACTION_OPHELD1;
-                else if( op == 1 )
-                    actions[n++] = MINIMENU_ACTION_OPHELD2;
-                else
-                    actions[n++] = MINIMENU_ACTION_OPHELD3;
-                if( n >= INV_MENU_MAX )
-                    goto done;
-            }
-        }
-    }
-
-    /* 4. child.iop: component inventory options op 4 down to 0 */
-    if( child->iop )
-    {
-        for( int op = 4; op >= 0; op-- )
-        {
-            if( child->iop[op] )
-            {
-                if( op == 0 )
-                    actions[n++] = MINIMENU_ACTION_INV_BUTTON1;
-                else if( op == 1 )
-                    actions[n++] = MINIMENU_ACTION_INV_BUTTON2;
-                else if( op == 2 )
-                    actions[n++] = MINIMENU_ACTION_INV_BUTTON3;
-                else if( op == 3 )
-                    actions[n++] = MINIMENU_ACTION_INV_BUTTON4;
-                else
-                    actions[n++] = MINIMENU_ACTION_INV_BUTTON5;
-                if( n >= INV_MENU_MAX )
-                    goto done;
-            }
-        }
-    }
-
-    /* 5. Examine (always last added) */
-    actions[n++] = MINIMENU_ACTION_OPHELD6;
-
-done:
-    if( n == 0 )
-        return MINIMENU_ACTION_INV_BUTTON1;
-
-    /* Sort: same as Client.ts 2498-2522 - swap when [i] < 1000 && [i+1] > 1000 */
-    for( ;; )
-    {
-        int done_sort = 1;
-        for( int i = 0; i < n - 1; i++ )
-        {
-            if( actions[i] < 1000 && actions[i + 1] > 1000 )
-            {
-                int t = actions[i];
-                actions[i] = actions[i + 1];
-                actions[i + 1] = t;
-                done_sort = 0;
-            }
-        }
-        if( done_sort )
-            break;
-    }
-
-    /* Left-click uses useMenuOption(menuSize - 1) -> last option after sort */
-    return actions[n - 1];
+    int nlines = uin + 1;
+    minimenu_sort_ts_action_order(tmp, nlines);
+    return tmp[nlines - 1].action;
 }
 
 void

@@ -339,6 +339,11 @@ serverprot_netrev245_2_parse(
         packet->packet_type = SERVERPROT_IF_OPENMAIN_SIDE_V1;
         return serverprot_core_parse_if_open_main_side_v1(data, data_size, packet);
     }
+    case PKTIN_LC245_2_IF_OPENOVERLAY:
+    {
+        packet->packet_type = SERVERPROT_IF_OPENOVERLAY_V1;
+        return serverprot_core_parse_if_open_overlay_v1(data, data_size, packet);
+    }
     case PKTIN_LC245_2_HINT_ARROW:
     {
         packet->packet_type = SERVERPROT_HINT_ARROW_V1;

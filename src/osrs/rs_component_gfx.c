@@ -612,6 +612,30 @@ rs_gfx_inv_step(
                                     frame_emit_pass(fiber, FRAME_PASS_2D);
                                     queue_sprite_draw(
                                         queued_commands, it->scene_id, ai, sp, draw_x, draw_y, blend);
+                                    if( iface && iface->inv_use_mode &&
+                                        iface->inv_sel_comp_id == component->component_id &&
+                                        iface->inv_sel_slot == i )
+                                    {
+                                        int rx = slot_x;
+                                        int ry = slot_y;
+                                        if( iface->inv_drag_area != 0 &&
+                                            iface->inv_drag_comp_id == component->component_id &&
+                                            iface->inv_drag_slot == i )
+                                        {
+                                            rx = draw_x;
+                                            ry = draw_y;
+                                        }
+                                        int const o = 0xFFFFFF;
+                                        int const a = 255;
+                                        queue_rect_draw(
+                                            queued_commands, rx, ry, 32, 1, o, a, 1);
+                                        queue_rect_draw(
+                                            queued_commands, rx, ry + 31, 32, 1, o, a, 1);
+                                        queue_rect_draw(
+                                            queued_commands, rx, ry, 1, 32, o, a, 1);
+                                        queue_rect_draw(
+                                            queued_commands, rx + 31, ry, 1, 32, o, a, 1);
+                                    }
                                 }
                             }
                         }

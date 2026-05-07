@@ -103,6 +103,8 @@ local function init_ui()
     Game.UI.load_revconfig_inventories()
 
     -- Step 5: Pass 2 - load rest of UI (sprites, components, layouts, RS resolution).
+    -- Fixed-layout builtins from rev_245_2_ui.ini (world, viewport_overlay, sidebar_overlay, …)
+    -- are instantiated here into game.ui_root_buffer.
     Game.UI.load_revconfig_ui()
 
     -- Models are baked into Scene2 elements; free decoded models from RAM.

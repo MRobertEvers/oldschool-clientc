@@ -7,9 +7,8 @@
  * minimenu_action_priority). Client.ts doAction strips +2000 once before dispatch.
  *
  * Parity with Client-TS `MiniMenuAction.ts` (numeric values should match; names may differ):
- *  - TGT_BUTTON in TS (274) == OPHELDT_SELECT here (spell target on IF button).
- *  - USEHELD_ONHELD in TS (398) == OPHELDU (packet name); this header also has
- *    USEHELD_ONHELD=812 for UITree "Use X on Y" inv row (internal label only). */
+ *  - TGT_BUTTON in TS (274) == OPHELDT_SELECT (spell target on IF button).
+ *  - USEHELD_ONHELD in TS (398) == OPHELDU (inventory "use on" + packet). */
 
 enum MinimenuAction
 {
@@ -65,11 +64,9 @@ enum MinimenuAction
     /** Same numeric token as Client.ts `USEHELD_ONHELD` / OPHELDU packet. */
     MINIMENU_ACTION_OPHELDU = 398,
 
-    /** UITree uses this label for "Use item on item"; numeric id differs from OPHELDU/398. */
-    MINIMENU_ACTION_USEHELD_ONHELD = 812,
-    MINIMENU_ACTION_TGT_HELD       = 649,
-    /** UITree spell-target row on IF buttons (`uitree_fill_simple_component_options`). */
-    MINIMENU_ACTION_TGT_BUTTON     = 418,
+    MINIMENU_ACTION_TGT_HELD = 649,
+    /** Legacy alias; spell rows use OPHELDT_SELECT (274) to match Client sort. */
+    MINIMENU_ACTION_TGT_BUTTON = 418,
 
     MINIMENU_ACTION_INV_BUTTON1 = 582,
     MINIMENU_ACTION_INV_BUTTON2 = 113,

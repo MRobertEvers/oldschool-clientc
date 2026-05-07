@@ -49,6 +49,10 @@ uitree_expand_chat_dialog_for_interface(struct GGame* game, int component_id);
 void
 uitree_expand_sidebar_overlay_for_interface(struct GGame* game, int component_id);
 
+/** Rebuild IF_OPENOVERLAY interface under UIELEM_BUILTIN_VIEWPORT_OVERLAY. component_id < 0 clears only. */
+void
+uitree_expand_viewport_overlay_for_interface(struct GGame* game, int component_id);
+
 /** Clear sidebar RS subtree and rebuild from component_id (buildcachedat). No-op if no sidebar
  * node for tabno. component_id < 0 clears only. */
 void

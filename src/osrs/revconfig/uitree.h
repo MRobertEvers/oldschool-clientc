@@ -82,6 +82,8 @@ enum StaticUIComponentType
     UIELEM_BUILTIN_CHAT_DIALOG = 23,
     /** IF_OPENSIDE / IF_OPENMAIN_SIDE: RS subtree parent over sidebar overlay rect. */
     UIELEM_BUILTIN_SIDEBAR_OVERLAY = 24,
+    /** IF_OPENOVERLAY / IF_OPENMAIN viewport modal: RS subtree over world rect (Client.ts mainOverlayId). */
+    UIELEM_BUILTIN_VIEWPORT_OVERLAY = 25,
 };
 
 enum StaticUIElemPositionKind
@@ -222,6 +224,10 @@ struct StaticUIComponent
         {
             int reserved;
         } sidebar_overlay;
+        struct
+        {
+            int reserved;
+        } viewport_overlay;
         struct
         {
             /** Resolved uiscene font id at draw time; may be -1 until lazy resolve. */
@@ -599,6 +605,15 @@ uitree_push_builtin_sidebar_overlay(
     int height);
 
 int32_t
+uitree_push_builtin_viewport_overlay(
+    struct UITree* tree,
+    int32_t parent_index,
+    int x,
+    int y,
+    int width,
+    int height);
+
+int32_t
 uitree_push_redstone_tab(
     struct UITree* tree,
     int32_t parent_index,
@@ -653,6 +668,11 @@ void
 uitree_clear_sidebar_overlay_children(
     struct UITree* tree,
     int32_t sidebar_overlay_idx);
+
+void
+uitree_clear_viewport_overlay_children(
+    struct UITree* tree,
+    int32_t viewport_overlay_idx);
 
 /** Returns 0 if no duplicate BUILTIN_SIDEBAR tabno in 0..13; else logs to stderr and returns -1.
  * Revisions may omit wire tabs (e.g. LC245_2 skips 7); missing indices are allowed. */

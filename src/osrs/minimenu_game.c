@@ -761,7 +761,17 @@ minimenu_game_use_option(
     int base    = mm_menu_action_norm(action);
 
     if( base == (int)MINIMENU_ACTION_CANCEL )
+    {
+        if( game->iface )
+        {
+            game->iface->inv_use_mode          = 0;
+            game->iface->inv_target_mode       = 0;
+            game->iface->inv_sel_obj_name[0]   = '\0';
+            game->iface->inv_target_op[0]      = '\0';
+            game->iface->inv_target_src_comp_id = 0;
+        }
         return;
+    }
 
     if( base == (int)MINIMENU_ACTION_OPHELDT_START )
     {
@@ -803,8 +813,7 @@ minimenu_game_use_option(
         return;
     }
 
-    if( base == (int)MINIMENU_ACTION_USEHELD_ONHELD ||
-        base == (int)MINIMENU_ACTION_OPHELDU )
+    if( base == (int)MINIMENU_ACTION_OPHELDU )
     {
         if( !game->iface || GAME_NET_STATE_GAME != game->net_state )
             return;
@@ -830,6 +839,14 @@ minimenu_game_use_option(
 
     if( base == (int)MINIMENU_ACTION_WALK )
     {
+        if( game->iface )
+        {
+            game->iface->inv_use_mode           = 0;
+            game->iface->inv_target_mode        = 0;
+            game->iface->inv_sel_obj_name[0]    = '\0';
+            game->iface->inv_target_op[0]       = '\0';
+            game->iface->inv_target_src_comp_id = 0;
+        }
         int tx  = game->mouse_tile_x;
         int tz  = game->mouse_tile_z;
         int lvl = (game->mouse_tile_level >= 0) ? game->mouse_tile_level : 0;

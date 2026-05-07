@@ -503,6 +503,8 @@ frame_uitree_should_descend(
         return game->iface && game->iface->chat_interface_id >= 0;
     if( c->type == UIELEM_BUILTIN_SIDEBAR_OVERLAY )
         return game->iface && game->iface->sidebar_interface_id >= 0;
+    if( c->type == UIELEM_BUILTIN_VIEWPORT_OVERLAY )
+        return game->iface && game->iface->viewport_interface_id >= 0;
     return true;
 }
 
@@ -2056,6 +2058,27 @@ uielem_builtin_sidebar_overlay_step(
     return true;
 }
 
+static inline bool
+uielem_builtin_viewport_overlay_is_dirty(
+    struct UIFrameState const* fiber,
+    struct StaticUIComponent const* node)
+{
+    (void)fiber;
+    return node->is_dirty;
+}
+
+static bool
+uielem_builtin_viewport_overlay_step(
+    struct UIFrameState* fiber,
+    struct StaticUIComponent* node)
+{
+    if( !uielem_builtin_viewport_overlay_is_dirty(fiber, node) )
+        return true;
+    assert(node->type == UIELEM_BUILTIN_VIEWPORT_OVERLAY);
+    /* IF_OPENOVERLAY / IF_OPENMAIN subtree (expand_viewport_overlay_rs_tree). */
+    return true;
+}
+
 static bool
 uielem_sprite_step(
     struct UIFrameState* fiber,
@@ -2767,14 +2790,36 @@ uielem_hover_tooltip_step(
     /* Tooltip source: UITree hover menu when an interface wins over the world layer; otherwise
      * world pick (in viewport) or legacy CacheDat hover line. */
     struct UITree* uit = game->ui_root_buffer;
+    static char tooltip_buf[256];
+    tooltip_buf[0] = '\0';
+
+    if( game->iface )
+    {
+        int nopt = uit ? uit->uitree_optionset.option_count : 0;
+        if( game->iface->inv_use_mode && nopt < 2 )
+        {
+            snprintf(
+                tooltip_buf,
+                sizeof(tooltip_buf),
+                "Use %s with...",
+                game->iface->inv_sel_obj_name[0] ? game->iface->inv_sel_obj_name : "item");
+        }
+        else if( game->iface->inv_target_mode && nopt < 2 &&
+                 game->iface->inv_target_op[0] )
+        {
+            snprintf(tooltip_buf, sizeof(tooltip_buf), "%s...", game->iface->inv_target_op);
+        }
+    }
+
+    if( tooltip_buf[0] )
+        goto emit_hover_tooltip_font;
+
     int ui_from_uitree = uit && uit->uitree_optionset.option_count > 0 &&
                          !(uit->hover_node_index >= 0 &&
                            uit->components[uit->hover_node_index].type == UIELEM_BUILTIN_WORLD);
 
     struct WorldOption temp_option = { 0 };
     struct WorldOption* first_opt = NULL;
-
-    static char tooltip_buf[256];
 
     if( ui_from_uitree )
     {
@@ -2847,6 +2892,7 @@ uielem_hover_tooltip_step(
     if( !tooltip_buf[0] )
         return true;
 
+emit_hover_tooltip_font:
     /* Text pen: `node->position` from [layout] c=hover_tooltip x/y (Client.ts drawFeedback). */
     int font_id = node->u.hover_tooltip.font_id >= 0
                       ? node->u.hover_tooltip.font_id
@@ -3133,6 +3179,9 @@ LibToriRS_FrameNextCommand(
             break;
         case UIELEM_BUILTIN_SIDEBAR_OVERLAY:
             done = uielem_builtin_sidebar_overlay_step(&fiber, component);
+            break;
+        case UIELEM_BUILTIN_VIEWPORT_OVERLAY:
+            done = uielem_builtin_viewport_overlay_step(&fiber, component);
             break;
         case UIELEM_RS_GRAPHIC:
             done = uielem_rs_graphic_step(&fiber, component, cur);

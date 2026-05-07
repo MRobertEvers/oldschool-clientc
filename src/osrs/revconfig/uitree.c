@@ -399,6 +399,8 @@ uitree_component_type_str(enum StaticUIComponentType type)
         return "chat_dialog";
     case UIELEM_BUILTIN_SIDEBAR_OVERLAY:
         return "sidebar_overlay";
+    case UIELEM_BUILTIN_VIEWPORT_OVERLAY:
+        return "viewport_overlay";
     }
     return "unknown";
 }
@@ -954,6 +956,30 @@ uitree_push_builtin_sidebar_overlay(
 }
 
 int32_t
+uitree_push_builtin_viewport_overlay(
+    struct UITree* tree,
+    int32_t parent_index,
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    int32_t idx = push_element(tree, parent_index);
+    if( idx < 0 )
+        return -1;
+    struct StaticUIComponent* component = &tree->components[idx];
+
+    component->type = UIELEM_BUILTIN_VIEWPORT_OVERLAY;
+    component->position.kind = UIPOS_XY;
+    component->position.x = x;
+    component->position.y = y;
+    component->position.width = width;
+    component->position.height = height;
+    component->u.viewport_overlay.reserved = 0;
+    return idx;
+}
+
+int32_t
 uitree_push_collisionmap_overlay(
     struct UITree* tree,
     int32_t parent_index)
@@ -1385,6 +1411,23 @@ uitree_clear_sidebar_overlay_children(
         return;
     struct StaticUIComponent* c = &tree->components[sidebar_overlay_idx];
     if( c->type != UIELEM_BUILTIN_SIDEBAR_OVERLAY )
+        return;
+    if( c->first_child >= 0 )
+        uitree_subtree_set_hidden_r(tree, c->first_child, 1u);
+    c->first_child = -1;
+    c->is_dirty = 1;
+    tree->generation++;
+}
+
+void
+uitree_clear_viewport_overlay_children(
+    struct UITree* tree,
+    int32_t viewport_overlay_idx)
+{
+    if( !tree || viewport_overlay_idx < 0 || (uint32_t)viewport_overlay_idx >= tree->component_count )
+        return;
+    struct StaticUIComponent* c = &tree->components[viewport_overlay_idx];
+    if( c->type != UIELEM_BUILTIN_VIEWPORT_OVERLAY )
         return;
     if( c->first_child >= 0 )
         uitree_subtree_set_hidden_r(tree, c->first_child, 1u);
@@ -1906,7 +1949,7 @@ uitree_fill_simple_component_options(
             prefix,
             (c->target_text && c->target_text[0]) ? c->target_text : "");
         interface_expand_if_text_placeholders(game, cd, line, exp, (int)sizeof(exp));
-        uitree_opt_append(os, MINIMENU_ACTION_TGT_BUTTON, exp, 0, 0, comp);
+        uitree_opt_append(os, MINIMENU_ACTION_OPHELDT_SELECT, exp, 0, 0, comp);
         if( os->option_count > 0 )
             uitree_option_set_sort_ts(os);
         return;
@@ -2027,7 +2070,7 @@ uitree_fill_inv_slot_options(
                         game->iface->inv_sel_obj_name[0] ? game->iface->inv_sel_obj_name : "item",
                         obj->name);
                     uitree_opt_append(
-                        os, MINIMENU_ACTION_USEHELD_ONHELD, line, obj_id, slot, comp_id);
+                        os, MINIMENU_ACTION_OPHELDU, line, obj_id, slot, comp_id);
                     uitree_option_set_sort_ts(os);
                 }
             }
@@ -2143,6 +2186,10 @@ uitree_pick_descend(
 
     if( c->type == UIELEM_BUILTIN_SIDEBAR_OVERLAY &&
         (!game->iface || game->iface->sidebar_interface_id < 0) )
+        return;
+
+    if( c->type == UIELEM_BUILTIN_VIEWPORT_OVERLAY &&
+        (!game->iface || game->iface->viewport_interface_id < 0) )
         return;
 
     bool pushed_layer = false;
@@ -2310,7 +2357,7 @@ uitree_append_cache_button_options(
             prefix,
             (child->targetText && child->targetText[0]) ? child->targetText : "");
         interface_expand_if_text_placeholders(game, child, line, exp, (int)sizeof(exp));
-        uitree_opt_append(os, MINIMENU_ACTION_TGT_BUTTON, exp, 0, 0, child->id);
+        uitree_opt_append(os, MINIMENU_ACTION_OPHELDT_SELECT, exp, 0, 0, child->id);
     }
     else if( child->buttonType == COMPONENT_BUTTON_TYPE_CLOSE )
     {

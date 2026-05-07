@@ -504,6 +504,18 @@ dashmodel_move_from_gamecache_model(struct DashModel* dash_model, struct GameCac
         free(model->face_priorities);
         model->face_priorities = NULL;
     }
+    else if( fc > 0 )
+    {
+        assert(
+            model->model_priority != 255 &&
+            "dashmodel_move_from_gamecache_model: faces need face_priorities or model_priority!=255");
+        int* prios = (int*)malloc((size_t)fc * sizeof(int));
+        int u = (int)model->model_priority;
+        for( int i = 0; i < fc; i++ )
+            prios[i] = u;
+        dashmodel_set_face_priorities(dash_model, prios, fc);
+        free(prios);
+    }
 
     int tfc = model->textured_face_count;
     const bool had_per_face_tex_coords = (fc > 0 && model->face_texture_coords != NULL);

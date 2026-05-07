@@ -816,6 +816,8 @@ entity_scenebuild_head_model_for_component_lights(
         return NULL;
 
     struct DashModel* dash = dashmodel_new_from_gamecache_model(cache);
+    if( dash && dashmodel_face_count(dash) > 0 )
+        assert(dashmodel_face_priorities(dash) != NULL);
     if( dash && apply_default_light )
         _light_model_default(dash, 0, 0);
     return dash;

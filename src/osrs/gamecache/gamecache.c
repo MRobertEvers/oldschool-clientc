@@ -1611,6 +1611,17 @@ gamecache_model_new_copy(struct GameCacheModel* model)
         memcpy(copy->face_priorities, model->face_priorities,
                (size_t)model->face_count * sizeof(uint8_t));
     }
+    else if( model->face_count > 0 )
+    {
+        assert(
+            model->model_priority != 255 &&
+            "gamecache_model_new_copy: faces exist but no face_priorities and model_priority==255");
+        copy->face_priorities = (uint8_t*)malloc((size_t)model->face_count * sizeof(uint8_t));
+        memset(
+            copy->face_priorities,
+            model->model_priority,
+            (size_t)model->face_count * sizeof(uint8_t));
+    }
     if( model->face_colors )
     {
         copy->face_colors = (uint16_t*)malloc((size_t)model->face_count * sizeof(uint16_t));
@@ -1703,7 +1714,6 @@ gamecache_model_new_merge(struct GameCacheModel** models, int model_count)
     int face_count = 0;
     int textured_face_count = 0;
 
-    bool has_face_prios = false;
     bool has_face_infos = false;
     bool has_face_colors = false;
     bool has_face_alphas = false;
@@ -1719,8 +1729,6 @@ gamecache_model_new_merge(struct GameCacheModel** models, int model_count)
         face_count += models[i]->face_count;
         textured_face_count += models[i]->textured_face_count;
 
-        if( models[i]->face_priorities || models[i]->model_priority )
-            has_face_prios = true;
         if( models[i]->face_infos )
             has_face_infos = true;
         if( models[i]->face_colors )
@@ -1752,7 +1760,7 @@ gamecache_model_new_merge(struct GameCacheModel** models, int model_count)
         GCM_ALLOC_ZERO(out->face_alphas, uint8_t, face_count);
     if( has_face_infos )
         GCM_ALLOC_ZERO(out->face_infos, uint8_t, face_count);
-    if( has_face_prios )
+    if( face_count > 0 )
         GCM_ALLOC_ZERO(out->face_priorities, uint8_t, face_count);
     if( has_face_colors )
         GCM_ALLOC_ZERO(out->face_colors, uint16_t, face_count);
@@ -1783,10 +1791,12 @@ gamecache_model_new_merge(struct GameCacheModel** models, int model_count)
                 out->face_infos[out->face_count] = models[i]->face_infos[j];
             if( out->face_priorities )
             {
+                uint8_t fp = 0;
                 if( models[i]->face_priorities )
-                    out->face_priorities[out->face_count] = models[i]->face_priorities[j];
-                else if( models[i]->model_priority )
-                    out->face_priorities[out->face_count] = models[i]->model_priority;
+                    fp = models[i]->face_priorities[j];
+                else if( models[i]->model_priority != 0 && models[i]->model_priority != 255 )
+                    fp = models[i]->model_priority;
+                out->face_priorities[out->face_count] = fp;
             }
             if( out->face_colors && models[i]->face_colors )
                 out->face_colors[out->face_count] = models[i]->face_colors[j];

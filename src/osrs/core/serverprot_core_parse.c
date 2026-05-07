@@ -415,6 +415,19 @@ serverprot_core_parse_if_open_main_side_v1(
     return 1;
 }
 int
+serverprot_core_parse_if_open_overlay_v1(
+    uint8_t* data,
+    int n,
+    struct RevServerProtPacket* out)
+{
+    struct RSBuffer b;
+    rsbuf_init(&b, (int8_t*)data, n);
+    out->u.if_openoverlay_v1.component_id = g2(&b);
+    assert(b.position == n);
+
+    return 1;
+}
+int
 serverprot_core_parse_if_close_v1(
     uint8_t* data,
     int n,

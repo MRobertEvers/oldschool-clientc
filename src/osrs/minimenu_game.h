@@ -12,6 +12,12 @@ struct GInput;
 struct WorldOption;
 struct WorldOptionSet;
 
+/** Client.ts buildMinimenu (2816-2844): bubble when [i]<1000 && [i+1]>1000. */
+void
+minimenu_sort_ts_action_order(
+    struct MinimenuOptionLine* lines,
+    int n);
+
 /* Default row for closed-menu tooltip / crosshair (Client.ts menuOption[menuNumEntries - 1]). */
 void
 minimenu_game_world_ts_default_row(

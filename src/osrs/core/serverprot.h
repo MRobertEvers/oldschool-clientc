@@ -91,6 +91,7 @@ enum ServerProt
     SERVERPROT_FINISH_TRACKING_V1              = 66,
     SERVERPROT_ENABLE_TRACKING_V1              = 67,
     SERVERPROT_LAST_LOGIN_INFO_V1              = 68,
+    SERVERPROT_IF_OPENOVERLAY_V1               = 69,
 };
 
 #endif

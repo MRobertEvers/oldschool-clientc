@@ -1323,6 +1323,9 @@ gamenet_rev245_2_exec_dispatch_v1(
     case SERVERPROT_IF_OPENMAIN_SIDE_V1:
         gamenet_rev245_2_exec_if_openmain_side_v1(game, packet);
         break;
+    case SERVERPROT_IF_OPENOVERLAY_V1:
+        gamenet_rev245_2_exec_if_openoverlay_v1(game, packet);
+        break;
     case SERVERPROT_IF_CLOSE_V1:
         gamenet_rev245_2_exec_if_close_v1(game, packet);
         break;
@@ -1669,6 +1672,7 @@ gamenet_rev245_2_exec_if_openchat_v1(
     game->iface->viewport_interface_id = -1;
     game->iface->chat_interface_id = com;
     uitree_expand_sidebar_overlay_for_interface(game, -1);
+    uitree_expand_viewport_overlay_for_interface(game, -1);
     uitree_expand_chat_dialog_for_interface(game, com);
     if( tori_chat_if_debug_enabled() )
     {
@@ -1694,6 +1698,8 @@ gamenet_rev245_2_exec_if_openmain_v1(
         }
         game->iface->viewport_interface_id =
             if_decode_component_id(packet->u.if_openmain_v1.component_id);
+        uitree_expand_viewport_overlay_for_interface(
+            game, game->iface->viewport_interface_id);
     }
 }
 
@@ -1732,6 +1738,8 @@ gamenet_rev245_2_exec_if_openmain_side_v1(
         game->iface->sidebar_interface_id =
             if_decode_component_id(packet->u.if_openmain_side_v1.side_component_id);
         uitree_expand_sidebar_overlay_for_interface(game, game->iface->sidebar_interface_id);
+        uitree_expand_viewport_overlay_for_interface(
+            game, game->iface->viewport_interface_id);
     }
 }
 
@@ -1764,6 +1772,7 @@ gamenet_rev245_2_exec_if_close_v1(
     }
     uitree_expand_chat_dialog_for_interface(game, -1);
     uitree_expand_sidebar_overlay_for_interface(game, -1);
+    uitree_expand_viewport_overlay_for_interface(game, -1);
     if( tori_chat_if_debug_enabled() )
         fprintf(stderr, "[TORI_CHAT_IF] IF_CLOSE cleared modals + chat uitree\n");
     /* Release scrollbar drag if any. */
@@ -2388,10 +2397,11 @@ gamenet_rev245_2_exec_if_openoverlay_v1(
     struct GGame* game,
     struct RevServerProtPacket* packet)
 {
-    int cid = if_decode_component_id(packet->u.if_openoverlay_v1.component_id);
-    (void)game;
-    (void)cid;
-    /* Overlay interfaces rendered on top of main viewport; stored for draw pass. */
+    if( !game || !game->iface )
+        return;
+    int const cid = if_decode_component_id(packet->u.if_openoverlay_v1.component_id);
+    game->iface->viewport_interface_id = cid;
+    uitree_expand_viewport_overlay_for_interface(game, cid);
 }
 
 /* Audio stubs: hardware/OS audio not yet integrated. */

@@ -705,6 +705,14 @@ dup_model_from_cache(struct CacheModel const* m)
         d->face_priorities = malloc((size_t)m->face_count * sizeof(uint8_t));
         memcpy(d->face_priorities, m->face_priorities, (size_t)m->face_count * sizeof(uint8_t));
     }
+    else if( m->face_count > 0 )
+    {
+        assert(
+            m->model_priority != 255 &&
+            "buildcachedat model: faces without face_priorities but model_priority==255");
+        d->face_priorities = malloc((size_t)m->face_count * sizeof(uint8_t));
+        memset(d->face_priorities, m->model_priority, (size_t)m->face_count * sizeof(uint8_t));
+    }
     if( m->face_colors )
     {
         d->face_colors = malloc((size_t)m->face_count * sizeof(uint16_t));

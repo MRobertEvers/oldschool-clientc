@@ -78,4 +78,5 @@ return {
     FINISH_TRACKING_V1              = 66,
     ENABLE_TRACKING_V1              = 67,
     LAST_LOGIN_INFO_V1              = 68,
+    IF_OPENOVERLAY_V1               = 69,
 }
