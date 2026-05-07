@@ -442,6 +442,9 @@ head_model_render(
     if( zoom == 0 )
         zoom = 2000;
 
+    /* Depth sort buckets use bounds_cylinder — update after pose morph (see head_model_render_to_region). */
+    dashmodel_set_bounds_cylinder(dash_model);
+
     extern int g_sin_table[2048];
     extern int g_cos_table[2048];
 
@@ -508,6 +511,10 @@ head_model_render_to_region(
 
     if( zoom == 0 )
         zoom = 2000;
+
+    /* Face depth buckets use bounds_cylinder.min_z_depth_any_rotation; refresh after animate so
+     * bucket_sort matches deformed vertices (chat heads morph each frame). */
+    dashmodel_set_bounds_cylinder(dash_model);
 
     extern int g_sin_table[2048];
     extern int g_cos_table[2048];

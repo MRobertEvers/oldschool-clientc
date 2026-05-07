@@ -12,7 +12,7 @@
 #define PATHING_LINE_COLOR_SENT 0x0000FF
 
 /** Base ground slice for path Y; bumped to base+1 per-endpoint when the column has LinkBelow,
- * matching world_cycle_push_players / push_npcs (Client-TS getAvH groundh[level+1]). */
+ * matching world_cycle_push_dynamic_scenery / entity cache level (Client-TS getAvH groundh[level+1]). */
 #define PATHING_DRAW_BASE_LEVEL 0
 
 static bool

@@ -131,6 +131,9 @@ LibToriRS_GameProcessInput(
     struct GGame* game,
     struct GInput* input)
 {
+    /* Same-frame pointer for FrameEnd (closed-menu primary-at-click); matches input driving this step. */
+    game->torirs_step_input = input;
+
     const int   target_input_fps   = 50;
     const float time_delta_step    = 1.0f / target_input_fps;
     const int   max_ticks_per_frame = 25;
@@ -268,22 +271,24 @@ LibToriRS_GameProcessInput(
     int  const mx        = game->mouse.cursor_x;
     int  const my        = game->mouse.cursor_y;
 
-    if( game->ui_root_buffer && game->iface && mx >= 0 && my >= 0 )
+    if( game->iface )
     {
-        if( game->mouse.buttons[TORIRSM_LEFT].press_this_frame )
-            interface_inv_try_drag_mouse_down(game, mx, my);
-
-        /* Client.ts increments objDragCycles once per mainloop tick, and GameShell
-         * runs up to ~50 ticks per second regardless of render frame rate.  The C
-         * port calls GameProcessInput once per rendered frame, so we advance the
-         * cycle counter by time_quanta (the number of logical 1/50s ticks that
-         * elapsed this frame) to keep the >= 5 threshold consistent with TS. */
+        /* Continue/end drag even when mapped cursor is -1 (outside letterbox); otherwise
+         * inv_drag_cycles / mouse-up never run and inv_drag_area sticks across frames. */
         int const n_drag_ticks = time_quanta > 0 ? time_quanta : 1;
-        for( int i = 0; i < n_drag_ticks; i++ )
-            interface_inv_drag_tick(game);
+        if( game->iface->inv_drag_area != 0 )
+        {
+            for( int i = 0; i < n_drag_ticks; i++ )
+                interface_inv_drag_tick(game);
 
-        if( game->mouse.buttons[TORIRSM_LEFT].release_this_frame )
-            interface_inv_try_drag_mouse_up(game, input);
+            if( game->mouse.buttons[TORIRSM_LEFT].release_this_frame )
+                interface_inv_try_drag_mouse_up(game, input);
+        }
+
+        /* Starting a drag still requires valid buffer coords for slot pick. */
+        if( game->ui_root_buffer && mx >= 0 && my >= 0 &&
+            game->mouse.buttons[TORIRSM_LEFT].press_this_frame )
+            interface_inv_try_drag_mouse_down(game, mx, my);
     }
 
     /* ---- Release: clear scrollbar drag and scroll cycle ---- */

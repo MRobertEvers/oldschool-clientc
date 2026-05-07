@@ -28,6 +28,7 @@ struct GameCacheNpc
 
     int minimap;
     int vislevel;
+    bool alwaysontop;
 };
 
 #endif

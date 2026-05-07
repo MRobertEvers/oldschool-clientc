@@ -1011,6 +1011,7 @@ config_dat_sequence_decode_inplace(
      * SeqType default). */
     def->replaceheldleft = -1;
     def->replaceheldright = -1;
+    def->loops           = -1;
 
     while( true )
     {

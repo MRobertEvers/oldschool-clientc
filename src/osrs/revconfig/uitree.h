@@ -17,9 +17,9 @@ struct GGame;
 
 struct UIInventoryItem
 {
-    int obj_id;       /* 1-based (0 = empty slot) */
-    int obj_count;    /* stack quantity (1 for non-stackable) */
-    int scene_id;     /* UIScene element id for pre-loaded obj icon; -1 if none */
+    int obj_id;    /* 1-based (0 = empty slot) */
+    int obj_count; /* stack quantity (1 for non-stackable) */
+    int scene_id;  /* UIScene element id for pre-loaded obj icon; -1 if none */
     int atlas_index;
 };
 
@@ -38,13 +38,14 @@ struct UIInventoryPool
 };
 
 /** Revision-agnostic button kind (mirrors CacheDatConfigComponentButtonType). */
-enum UIButtonKind {
-    UI_BUTTON_NONE     = 0,
-    UI_BUTTON_OK       = 1,
-    UI_BUTTON_TARGET   = 2,
-    UI_BUTTON_CLOSE    = 3,
-    UI_BUTTON_TOGGLE   = 4,
-    UI_BUTTON_SELECT   = 5,
+enum UIButtonKind
+{
+    UI_BUTTON_NONE = 0,
+    UI_BUTTON_OK = 1,
+    UI_BUTTON_TARGET = 2,
+    UI_BUTTON_CLOSE = 3,
+    UI_BUTTON_TOGGLE = 4,
+    UI_BUTTON_SELECT = 5,
     UI_BUTTON_CONTINUE = 6,
 };
 
@@ -76,7 +77,8 @@ enum StaticUIComponentType
     UIELEM_BUILTIN_CHAT_INPUT = 20,
     UIELEM_BUILTIN_CHAT_PRIVACY = 21,
     UIELEM_BUILTIN_COLLISIONMAP_OVERLAY = 22,
-    /** IF_OPENCHAT: RS subtree parent; children rebuilt from gamecache (same pattern as sidebar). */
+    /** IF_OPENCHAT: RS subtree parent; children rebuilt from gamecache (same pattern as sidebar).
+     */
     UIELEM_BUILTIN_CHAT_DIALOG = 23,
     /** IF_OPENSIDE / IF_OPENMAIN_SIDE: RS subtree parent over sidebar overlay rect. */
     UIELEM_BUILTIN_SIDEBAR_OVERLAY = 24,
@@ -124,17 +126,17 @@ struct StaticUIComponent
     /* ── Revision-agnostic fields (copied from CacheDatConfigComponent at load time) ── */
 
     enum UIButtonKind button_kind;
-    int click_mask;          /* targetMask for op/use/swap actions */
+    int click_mask; /* targetMask for op/use/swap actions */
     uint8_t interactable;
     uint8_t usable;
     uint8_t swappable;
     uint8_t draggable;
 
     /* Script bytecode + comparators (owned by UITree; evaluated by ClientScriptVM). */
-    struct UIScriptBytecode* scripts;   /* [scripts_count]; UITree owns each .code array */
-    int     scripts_count;
-    uint8_t* script_comparator;         /* per-script comparator byte */
-    int*     script_operand;            /* per-script operand int */
+    struct UIScriptBytecode* scripts; /* [scripts_count]; UITree owns each .code array */
+    int scripts_count;
+    uint8_t* script_comparator; /* per-script comparator byte */
+    int* script_operand;        /* per-script operand int */
 
     /* Inventory right-click menu strings — UITree-owned heap copies. */
     char* iop[5];
@@ -149,9 +151,9 @@ struct StaticUIComponent
     int seq_cycle;
 
     /* Misc. */
-    int alpha;           /* 0-255 transparency (0=opaque in OSRS convention) */
-    int overlayer;       /* sibling layer index for hover priority */
-    int client_code;     /* 0 if none; matched by VarClientCodeKind on var writes */
+    int alpha;       /* 0-255 transparency (0=opaque in OSRS convention) */
+    int overlayer;   /* sibling layer index for hover priority */
+    int client_code; /* 0 if none; matched by VarClientCodeKind on var writes */
 
     union
     {
@@ -188,7 +190,8 @@ struct StaticUIComponent
         {
             /** UIScene element id for the `cross` sprite atlas (frames 0..7); resolved at load. */
             int scene_id;
-            /** Pixels subtracted from click x/y for sprite top-left; from INI `hotspot_offset` (default 8). */
+            /** Pixels subtracted from click x/y for sprite top-left; from INI `hotspot_offset`
+             * (default 8). */
             int hotspot_offset;
         } crosshair;
         struct
@@ -200,7 +203,8 @@ struct StaticUIComponent
 
         struct
         {
-            int font_id; /* UIScene font id; resolved at INI load (default first of p11,p12,b12,q8). */
+            int font_id; /* UIScene font id; resolved at INI load (default first of p11,p12,b12,q8).
+                          */
         } chat_messages;
         struct
         {
@@ -245,7 +249,8 @@ struct StaticUIComponent
         struct
         {
             int scene2_element_id;
-            /** From GameCacheComponent zoom/xan/yan; TYPE_MODEL / IF_SETOBJECT framing (Client.ts). */
+            /** From GameCacheComponent zoom/xan/yan; TYPE_MODEL / IF_SETOBJECT framing (Client.ts).
+             */
             int model_zoom;
             int model_xan;
             int model_yan;
@@ -293,7 +298,8 @@ struct UILayerFrameEntry
     int clip_y;
     int clip_w;
     int clip_h;
-    /** If set, draw scrollbar after layer content, before POP_CLIP (Client.ts drawInterface order). */
+    /** If set, draw scrollbar after layer content, before POP_CLIP (Client.ts drawInterface order).
+     */
     int scrollbar_layer_component_id;
     int scrollbar_scroll_height;
 };
@@ -316,7 +322,8 @@ struct UITree
 
     /** RS scrollbar: iface component id being dragged, or -1. */
     int ui_scrollbar_drag_component_id;
-    /** UIScene element ids for `scrollbar0` / `scrollbar1` caps; set when UI loads, -1 if missing. */
+    /** UIScene element ids for `scrollbar0` / `scrollbar1` caps; set when UI loads, -1 if missing.
+     */
     int ui_scrollbar0_element_id;
     int ui_scrollbar1_element_id;
 
@@ -343,7 +350,9 @@ struct UITree
  * O(N) — call once per IF_SET* packet, never from the render loop.
  */
 int32_t
-uitree_find_by_component_id(const struct UITree* tree, int component_id);
+uitree_find_by_component_id(
+    const struct UITree* tree,
+    int component_id);
 
 /**
  * Linear scan for a UIELEM_RS_INV node matching component_id.
@@ -379,6 +388,39 @@ uitree_free(struct UITree* tree);
 /** Mark every component dirty for the upcoming frame traversal. */
 void
 uitree_mark_all_dirty(struct UITree* tree);
+
+/** Advance seq_frame/seq_cycle for UIELEM_RS_MODEL (Client.ts animateInterface cadence). */
+void
+uitree_step_rs_model_animations(
+    struct GGame* game,
+    int cycles_elapsed);
+
+struct GameCacheSequence;
+struct DashModel;
+
+/** Client IfType: seq id from modelAnim/modelAnim2 + readyanim for resolved head mesh. */
+int
+uitree_interface_resolved_sequence_id(
+    struct GGame* game,
+    struct GameCacheComponent* gcc,
+    bool active,
+    int effective_model_type,
+    int effective_model_id);
+
+/** Client getTempModel: primary seq.frames[] then seq.iframes[] morph. */
+void
+uitree_interface_apply_sequence_keyframe_to_model(
+    struct GGame* game,
+    struct DashModel* model,
+    struct GameCacheSequence* seq,
+    int frame_index);
+
+/** Fresh chat-head DashModel for soft3d (model1/2, dual iframe, lighting). Caller frees. */
+struct DashModel*
+uitree_chat_head_dashmodel_for_frame(
+    struct GGame* game,
+    struct GameCacheComponent* gcc,
+    struct StaticUIComponent* ui_comp);
 
 /** Log every node (index, type, tree links, layout, component_id). */
 void
@@ -733,8 +775,12 @@ uitree_innermost_scroll_layer_at(
     int mouse_x,
     int mouse_y);
 
-/** Hit-test UI at (pick_mx,pick_my) and rebuild tree->uitree_optionset (world leaves stay empty). */
+/** Hit-test UI at (pick_mx,pick_my) and rebuild tree->uitree_optionset (world leaves stay empty).
+ */
 void
-uitree_sync_hover_option_set(struct GGame* game, int pick_mx, int pick_my);
+uitree_sync_hover_option_set(
+    struct GGame* game,
+    int pick_mx,
+    int pick_my);
 
 #endif

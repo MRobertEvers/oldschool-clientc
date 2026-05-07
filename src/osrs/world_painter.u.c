@@ -3,6 +3,8 @@
 
 #include "osrs/world.h"
 
+#include <stdint.h>
+
 struct PainterPadding
 {
     int x_sw;
@@ -15,32 +17,36 @@ entity_calculate_painter_padding(
     struct World* world,
     struct EntityDrawPosition* draw_position,
     int draw_padding,
+    uint16_t yaw,
+    bool forward_padding,
     struct PainterPadding* size)
 {
+    (void)world;
     int x0 = draw_position->x - draw_padding;
     int z0 = draw_position->z - draw_padding;
     int x1 = draw_position->x + draw_padding;
     int z1 = draw_position->z + draw_padding;
 
-    // if( forwardPadding )
-    // {
-    //     if( yaw > 640 && yaw < 1408 )
-    //     {
-    //         z1 += 128;
-    //     }
-    //     if( yaw > 1152 && yaw < 1920 )
-    //     {
-    //         x1 += 128;
-    //     }
-    //     if( yaw > 1664 || yaw < 384 )
-    //     {
-    //         z0 -= 128;
-    //     }
-    //     if( yaw > 128 && yaw < 896 )
-    //     {
-    //         x0 -= 128;
-    //     }
-    // }
+    if( forward_padding )
+    {
+        int y = (int)yaw;
+        if( y > 640 && y < 1408 )
+        {
+            z1 += 128;
+        }
+        if( y > 1152 && y < 1920 )
+        {
+            x1 += 128;
+        }
+        if( y > 1664 || y < 384 )
+        {
+            z0 -= 128;
+        }
+        if( y > 128 && y < 896 )
+        {
+            x0 -= 128;
+        }
+    }
 
     x0 = (x0 / 128) | 0;
     z0 = (z0 / 128) | 0;

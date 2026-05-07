@@ -339,6 +339,8 @@ LibToriRS_GameStep(
 {
     struct GameTask* task = NULL;
 
+    game->torirs_step_input = input;
+
     if( input->quit )
     {
         game->running = false;
@@ -367,6 +369,8 @@ LibToriRS_GameStep(
 
     if( game->world )
         world_cycle(game->world, game->cycles_elapsed);
+
+    uitree_step_rs_model_animations(game, game->cycles_elapsed);
 
     dash_animate_textures(game->sys_dash, game->cycles_elapsed);
 

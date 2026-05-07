@@ -115,4 +115,13 @@ minimenu_action_priority(
     }
 }
 
+/** Client.ts doAction: if action >= _PRIORITY (2000), subtract 2000 once before opcode dispatch. */
+static inline int
+minimenu_action_norm_dispatch(int action)
+{
+    if( action >= (int)MINIMENU_ACTION_PRIORITY_OFFSET )
+        return action - (int)MINIMENU_ACTION_PRIORITY_OFFSET;
+    return action;
+}
+
 #endif

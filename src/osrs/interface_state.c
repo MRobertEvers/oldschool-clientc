@@ -40,6 +40,8 @@ interface_state_new(void)
     iface->inv_drag_grab_threshold = 0;
     iface->inv_drag_grab_x         = 0;
     iface->inv_drag_grab_y         = 0;
+    iface->inv_drag_last_good_x    = -1;
+    iface->inv_drag_last_good_y    = -1;
     iface->inv_suppress_next_left_click = 0;
     return iface;
 }

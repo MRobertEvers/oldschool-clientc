@@ -181,6 +181,9 @@ struct GGame
                                    click so FrameEnd skips duplicate world walk (see tori_rs_input). */
     /** True after minimenu_game_use_option for this left click; keeps RS cross anchor for menu actions. */
     bool minimenu_used_option_this_left_click;
+    /** Each LibToriRS_GameStep assigns this; FrameEnd may call minimenu_game_use_option (Client.ts
+     * closed-menu primary-at-click). Valid until the next GameStep. */
+    struct GInput* torirs_step_input;
     /** Increments each game tick while left button is held; reset to 0 on release.
      * Mirrors Client.ts scrollCycle: scroll delta = scroll_cycle * 4 per tick. */
     int scroll_cycle;

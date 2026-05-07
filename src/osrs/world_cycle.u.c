@@ -44,6 +44,35 @@ world_cycle_entity_cache_level(
         base_level, painter_column_has_link_below(world->painter, sx, sz));
 }
 
+/** Client.ts tileLastOccupiedCycle: centered 1x1 entities skip addDynamic when tile claimed this
+ * scene_cycle. Returns true when the caller should skip painter registration. */
+static bool
+world_cycle_tile_center_skip_duplicate(
+    struct World* world,
+    int wx,
+    int wz,
+    bool is_npc,
+    int npc_size_x)
+{
+    if( (wx & 0x7f) != 64 || (wz & 0x7f) != 64 )
+        return false;
+    if( is_npc && npc_size_x != 1 )
+        return false;
+
+    int stx = wx >> 7;
+    int stz = wz >> 7;
+    int ss = world->_scene_size;
+    if( !world->tile_last_occupied_scene_cycle || stx < 0 || stz < 0 || stx >= ss ||
+        stz >= ss )
+        return false;
+
+    int idx = stz * ss + stx;
+    if( world->tile_last_occupied_scene_cycle[idx] == world->scene_cycle )
+        return true;
+    world->tile_last_occupied_scene_cycle[idx] = world->scene_cycle;
+    return false;
+}
+
 /** Client.ts entityFace (after routeMove): sets dst_yaw from face_entity / face_square. */
 static void
 world_cycle_entity_face(struct World* world, struct EntityAnimationInfo* info)
@@ -419,6 +448,8 @@ world_cycle_advance_player_animation(
         scene2_element_at(world->scene2, player->scene_element2.element_id);
     scene2_element_expect(scene_element, "world_cycle_advance_player_animation");
 
+    player->needs_forward_draw_padding = false;
+
     if( world_cycle_entity_anim_track_enabled(player->animation.primary_anim.anim_id) &&
         player->animation.primary_anim.delay > 0 )
     {
@@ -436,6 +467,16 @@ world_cycle_advance_player_animation(
     if( world_cycle_step_element_animations(
             &player->animation, scene_element, cycles_elapsed, false) )
         world_player_entity_set_animation(world, player_id, -1, ANIMATION_TYPE_PRIMARY, 0);
+
+    if( world->gamecache &&
+        world_cycle_entity_anim_track_enabled(player->animation.primary_anim.anim_id) &&
+        player->animation.primary_anim.delay == 0 )
+    {
+        struct GameCacheSequence* seq = gamecache_get_sequence(
+            world->gamecache, (int)player->animation.primary_anim.anim_id);
+        if( seq )
+            player->needs_forward_draw_padding = seq->stretches;
+    }
 }
 
 static void
@@ -469,18 +510,45 @@ world_cycle_update_players(
 }
 
 static void
-world_cycle_push_players(struct World* world)
+world_cycle_minimap_one_player(struct World* world, struct PlayerEntity* p)
 {
+    if( !world->minimap )
+        return;
+    int wx = p->draw_position.x;
+    int wz = p->draw_position.z;
+    int sx = wx / 128;
+    int sz = wz / 128;
+    if( sx >= 0 && sx < world->minimap->width && sz >= 0 && sz < world->minimap->height )
+        minimap_add_loc(world->minimap, sx, sz, wx, wz, MINIMAP_LOC_TYPE_PLAYER);
+}
+
+/** Client.ts addPlayers: register one player with painter + DashPosition when not skipped. */
+static void
+world_cycle_push_one_player_painter(
+    struct World* world,
+    int player_id,
+    bool minimap_dot)
+{
+    struct PlayerEntity* player = world_player(world, player_id);
     struct Scene2Element* scene_element = NULL;
-    struct PlayerEntity* player = world_player(world, ACTIVE_PLAYER_SLOT);
     struct PainterPadding padding = { 0 };
 
-    if( player->alive && player->scene_element2.element_id != -1 )
-    {
-        entity_calculate_painter_padding(world, &player->draw_position, 60, &padding);
+    if( !player->alive || player->scene_element2.element_id == -1 )
+        return;
 
-        int slevel = world_cycle_entity_cache_level(
-            world, player->draw_position.x, player->draw_position.z, 0);
+    int wx = player->draw_position.x;
+    int wz = player->draw_position.z;
+    if( !world_cycle_tile_center_skip_duplicate(world, wx, wz, false, 0) )
+    {
+        entity_calculate_painter_padding(
+            world,
+            &player->draw_position,
+            60,
+            player->orientation.yaw,
+            player->needs_forward_draw_padding,
+            &padding);
+
+        int slevel = world_cycle_entity_cache_level(world, wx, wz, 0);
 
         painter_add_normal_scenery(
             world->painter,
@@ -492,32 +560,115 @@ world_cycle_push_players(struct World* world)
             padding.z_size);
 
         scene_element = scene2_element_at(world->scene2, player->scene_element2.element_id);
-        scene2_element_expect(scene_element, "world_cycle_push_players");
+        scene2_element_expect(scene_element, "world_cycle_push_one_player_painter");
         struct DashPosition* ppos = scene2_element_dash_position(scene_element);
         ppos->yaw = player->orientation.yaw;
-        ppos->x = player->draw_position.x;
-        ppos->z = player->draw_position.z;
-        ppos->y = heightmap_get_interpolated(
-            world->heightmap, player->draw_position.x, player->draw_position.z, slevel);
+        ppos->x = wx;
+        ppos->z = wz;
+        ppos->y = heightmap_get_interpolated(world->heightmap, wx, wz, slevel);
     }
 
-    if( world->minimap )
+    if( minimap_dot )
+        world_cycle_minimap_one_player(world, player);
+}
+
+/** Client.ts addNpcs(alwaysontop): one NPC pass with tile-center dedup for size-1. */
+static void
+world_cycle_push_one_npc_painter(
+    struct World* world,
+    int npc_id,
+    bool want_alwaysontop_pass)
+{
+    struct NPCEntity* npc = world_npc(world, npc_id);
+    struct Scene2Element* scene_element = NULL;
+    struct PainterPadding padding = { 0 };
+
+    if( !npc->alive || npc->scene_element2.element_id == -1 )
+        return;
+
+    struct GameCacheNpc* cfg =
+        world->gamecache ? gamecache_get_npc(world->gamecache, npc->config_npc_id) : NULL;
+    bool alwaysontop = cfg && cfg->alwaysontop;
+    if( want_alwaysontop_pass != alwaysontop )
+        return;
+
+    int wx = npc->draw_position.x;
+    int wz = npc->draw_position.z;
+    if( world_cycle_tile_center_skip_duplicate(world, wx, wz, true, (int)npc->size.x) )
+        return;
+
+    int padding_size = 60 + (npc->size.x - 1) * 64;
+    entity_calculate_painter_padding(
+        world,
+        &npc->draw_position,
+        padding_size,
+        npc->orientation.yaw,
+        npc->needs_forward_draw_padding,
+        &padding);
+
+    int slevel = world_cycle_entity_cache_level(world, wx, wz, 0);
+
+    painter_add_normal_scenery(
+        world->painter,
+        padding.x_sw,
+        padding.z_sw,
+        slevel,
+        npc->scene_element2.element_id,
+        padding.x_size,
+        padding.z_size);
+
+    scene_element = scene2_element_at(world->scene2, npc->scene_element2.element_id);
+    scene2_element_expect(scene_element, "world_cycle_push_one_npc_painter");
+    struct DashPosition* npos = scene2_element_dash_position(scene_element);
+    npos->yaw = npc->orientation.yaw;
+    npos->x = wx;
+    npos->z = wz;
+    npos->y = heightmap_get_interpolated(world->heightmap, wx, wz, slevel);
+
+    if( world->minimap && !npc->minimap_hidden )
     {
-        for( int i = 0; i < world->active_player_count; i++ )
-        {
-            int player_id = world->active_players[i];
-            if( player_id < 0 || player_id == ACTIVE_PLAYER_SLOT )
-                continue;
-            struct PlayerEntity* p = world_player(world, player_id);
-            if( !p->alive || p->scene_element2.element_id == -1 )
-                continue;
-            int wx = p->draw_position.x;
-            int wz = p->draw_position.z;
-            int sx = wx / 128;
-            int sz = wz / 128;
-            if( sx >= 0 && sx < world->minimap->width && sz >= 0 && sz < world->minimap->height )
-                minimap_add_loc(world->minimap, sx, sz, wx, wz, MINIMAP_LOC_TYPE_PLAYER);
-        }
+        int sx = wx / 128;
+        int sz = wz / 128;
+        if( sx >= 0 && sx < world->minimap->width && sz >= 0 && sz < world->minimap->height )
+            minimap_add_loc(world->minimap, sx, sz, wx, wz, MINIMAP_LOC_TYPE_NPC);
+    }
+}
+
+/** Client.ts gameDrawMain order: sceneCycle++, local players, alwaysontop NPCs, remote players,
+ * other NPCs. */
+static void
+world_cycle_push_dynamic_scenery(struct World* world)
+{
+    world->scene_cycle++;
+
+    /* 1) Local player */
+    world_cycle_push_one_player_painter(world, ACTIVE_PLAYER_SLOT, false);
+
+    /* 2) alwaysontop NPCs */
+    for( int i = 0; i < world->active_npc_count; i++ )
+    {
+        int npc_id = world->active_npcs[i];
+        if( npc_id == -1 )
+            continue;
+        world_cycle_push_one_npc_painter(world, npc_id, true);
+    }
+
+    /* 3) Remote players */
+    for( int i = 0; i < world->active_player_count; i++ )
+    {
+        int player_id = world->active_players[i];
+        if( player_id < 0 || player_id == ACTIVE_PLAYER_SLOT )
+            continue;
+        world_cycle_push_one_player_painter(world, player_id, true);
+    }
+
+    /* 4) Remaining NPCs */
+    for( int i = 0; i < world->active_npc_count; i++ )
+    {
+        int npc_id = world->active_npcs[i];
+        if( npc_id == -1 )
+            continue;
+        world_cycle_push_one_npc_painter(world, npc_id, false);
     }
 }
 
@@ -558,9 +709,22 @@ world_cycle_advance_npc_animation(
     struct Scene2Element* scene_element =
         scene2_element_at(world->scene2, npc->scene_element2.element_id);
     scene2_element_expect(scene_element, "world_cycle_advance_npc_animation");
+
+    npc->needs_forward_draw_padding = false;
+
     if( world_cycle_step_element_animations(
             &npc->animation, scene_element, cycles_elapsed, false) )
         world_npc_entity_set_animation(world, npc_id, -1, ANIMATION_TYPE_PRIMARY);
+
+    if( world->gamecache &&
+        world_cycle_entity_anim_track_enabled(npc->animation.primary_anim.anim_id) &&
+        npc->animation.primary_anim.delay == 0 )
+    {
+        struct GameCacheSequence* seq = gamecache_get_sequence(
+            world->gamecache, (int)npc->animation.primary_anim.anim_id);
+        if( seq )
+            npc->needs_forward_draw_padding = seq->stretches;
+    }
 }
 
 static void
@@ -580,57 +744,6 @@ world_cycle_update_npcs(
             {
                 world_cycle_update_npc_movement_and_animation(world, npc_id);
                 world_cycle_advance_npc_animation(world, npc_id, 1);
-            }
-        }
-    }
-}
-
-static void
-world_cycle_push_npcs(struct World* world)
-{
-    struct Scene2Element* scene_element = NULL;
-    for( int i = 0; i < world->active_npc_count; i++ )
-    {
-        int npc_id = world->active_npcs[i];
-        if( npc_id == -1 )
-            continue;
-        struct NPCEntity* npc = world_npc(world, npc_id);
-        if( npc->alive && npc->scene_element2.element_id != -1 )
-        {
-            struct PainterPadding padding = { 0 };
-            int padding_size = 60 + (npc->size.x - 1) * 64;
-            entity_calculate_painter_padding(world, &npc->draw_position, padding_size, &padding);
-
-            int slevel = world_cycle_entity_cache_level(
-                world, npc->draw_position.x, npc->draw_position.z, 0);
-
-            painter_add_normal_scenery(
-                world->painter,
-                padding.x_sw,
-                padding.z_sw,
-                slevel,
-                npc->scene_element2.element_id,
-                padding.x_size,
-                padding.z_size);
-
-            scene_element = scene2_element_at(world->scene2, npc->scene_element2.element_id);
-            scene2_element_expect(scene_element, "world_cycle_push_npcs");
-            struct DashPosition* npos = scene2_element_dash_position(scene_element);
-            npos->yaw = npc->orientation.yaw;
-            npos->x = npc->draw_position.x;
-            npos->z = npc->draw_position.z;
-            npos->y = heightmap_get_interpolated(
-                world->heightmap, npc->draw_position.x, npc->draw_position.z, slevel);
-
-            if( world->minimap && !npc->minimap_hidden )
-            {
-                int wx = npc->draw_position.x;
-                int wz = npc->draw_position.z;
-                int sx = wx / 128;
-                int sz = wz / 128;
-                if( sx >= 0 && sx < world->minimap->width && sz >= 0 &&
-                    sz < world->minimap->height )
-                    minimap_add_loc(world->minimap, sx, sz, wx, wz, MINIMAP_LOC_TYPE_NPC);
             }
         }
     }
@@ -816,8 +929,7 @@ world_cycle(
     world_cycle_update_npcs(world, cycles_elapsed);
     world_cycle_update_projectiles(world, cycles_elapsed);
 
-    world_cycle_push_players(world);
-    world_cycle_push_npcs(world);
+    world_cycle_push_dynamic_scenery(world);
     world_cycle_push_projectiles(world);
     world_cycle_push_obj_stack_entities(world);
 

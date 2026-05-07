@@ -87,10 +87,13 @@ soft3d_try_interface_chat_head_raster(
     if( gcc->modelType != 2 && gcc->modelType != 3 )
         return 0;
 
-    /* sync with interface_draw_component_model region_size */
-    int const region = 128;
-    int cx          = widget_rx + widget_rw / 2;
-    int cy          = widget_ry + widget_rh / 2;
+    int const region = 128; /* sync with interface_draw_component_model region_size */
+    /* Match interface_draw_component_model: center using GameCacheComponent width/height from
+     * widget top-left when cache defines them (BEGIN_3D layout size may differ). */
+    int cw = gcc->width > 0 ? gcc->width : widget_rw;
+    int ch = gcc->height > 0 ? gcc->height : widget_rh;
+    int cx          = widget_rx + cw / 2;
+    int cy          = widget_ry + ch / 2;
     int rx2         = cx - region / 2;
     int ry2         = cy - region / 2;
     int rw          = region;
@@ -119,8 +122,13 @@ soft3d_try_interface_chat_head_raster(
     int xa = ui_comp->u.rs_model.model_xan & 2047;
     int ya = ui_comp->u.rs_model.model_yan & 2047;
 
+    struct DashModel* head_rw = uitree_chat_head_dashmodel_for_frame(game, gcc, ui_comp);
+    if( !head_rw )
+        return 0;
+
     head_model_render_to_region(
-        game, cmd->_model_draw.model, pixel_buffer, fbw, rx2, ry2, rw, rh, zm, xa, ya);
+        game, head_rw, pixel_buffer, fbw, rx2, ry2, rw, rh, zm, xa, ya);
+    dashmodel_free(head_rw);
     return 1;
 }
 }

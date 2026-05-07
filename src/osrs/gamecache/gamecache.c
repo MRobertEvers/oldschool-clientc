@@ -313,6 +313,7 @@ gamecache_sequence_free(struct GameCacheSequence* seq)
         return;
     free(seq->frames);
     free(seq->delay);
+    free(seq->iframes);
     free(seq);
 }
 

@@ -214,6 +214,7 @@ dup_sequence(struct CacheDatSequence const* s)
     d->frame_count = s->frame_count;
     d->frames = NULL;
     d->delay = NULL;
+    d->iframes = NULL;
     if( s->frame_count > 0 )
     {
         if( s->frames )
@@ -226,13 +227,23 @@ dup_sequence(struct CacheDatSequence const* s)
             d->delay = malloc((size_t)s->frame_count * sizeof(int));
             memcpy(d->delay, s->delay, (size_t)s->frame_count * sizeof(int));
         }
+        if( s->iframes )
+        {
+            d->iframes = malloc((size_t)s->frame_count * sizeof(int));
+            memcpy(d->iframes, s->iframes, (size_t)s->frame_count * sizeof(int));
+        }
+        else
+            d->iframes = NULL;
     }
+    else
+        d->iframes = NULL;
     d->replaceheldleft = s->replaceheldleft;
     d->replaceheldright = s->replaceheldright;
+    d->loops = s->loops;
     /* Client.ts: priority defaults to 5 when not present in seq.dat (struct was zeroed). */
     d->priority = s->priority != 0 ? s->priority : 5;
     d->duplicate_behavior = s->duplicate_behavior;
-    /* iframes and walkmerge dropped */
+    d->stretches = s->stretches;
     return d;
 }
 
@@ -363,6 +374,7 @@ dup_npc(struct CacheDatConfigNpc const* n)
     d->walkanim_l = n->walkanim_l;
     d->minimap = (int)n->minimap;
     d->vislevel = n->vislevel;
+    d->alwaysontop = n->alwaysontop;
     d->models_count = n->models_count;
     d->heads_count = n->heads_count;
     d->recol_count = n->recol_count;
@@ -513,7 +525,8 @@ dup_component(struct CacheDatConfigComponent const* c)
     d->seqCycle = c->seqCycle;
     d->children_count = c->children_count;
     d->scripts_count = c->scripts_count;
-    /* activeModelType and activeModel dropped */
+    d->activeModelType = c->activeModelType;
+    d->activeModel    = c->activeModel;
     d->anim = c->anim;
     d->activeAnim = c->activeAnim;
     d->zoom = c->zoom;

@@ -319,6 +319,8 @@ world_free(struct World* world)
 
     painters_cullmap_free(world->cullmap);
     world->cullmap = NULL;
+    free(world->tile_last_occupied_scene_cycle);
+    world->tile_last_occupied_scene_cycle = NULL;
     painter_free(world->painter);
     collision_map_free(world->collision_map);
     heightmap_free(world->heightmap);
@@ -970,6 +972,30 @@ world_rebuild_centerzone_begin(
     world->_chunk_ne_x = chunk_ne_x;
     world->_chunk_ne_z = chunk_ne_z;
     world->_scene_size = scene_size;
+
+    {
+        size_t occ_cells = (size_t)scene_size * (size_t)scene_size;
+        int32_t* occ = realloc(
+            world->tile_last_occupied_scene_cycle, occ_cells * sizeof(int32_t));
+        if( !occ && occ_cells > 0 )
+        {
+            fprintf(
+                stderr,
+                "world_rebuild_centerzone_begin: OOM tile_last_occupied_scene_cycle %zu cells\n",
+                occ_cells);
+            free(world->tile_last_occupied_scene_cycle);
+            world->tile_last_occupied_scene_cycle = NULL;
+        }
+        else
+        {
+            world->tile_last_occupied_scene_cycle = occ;
+            if( world->tile_last_occupied_scene_cycle && occ_cells > 0 )
+                memset(
+                    world->tile_last_occupied_scene_cycle,
+                    0,
+                    occ_cells * sizeof(int32_t));
+        }
+    }
 
     /* Allocate the flag map used for bridge detection; stored on world until _end. */
     world->_build_flag_map = flag_map_new(scene_size, scene_size, MAP_TERRAIN_LEVELS);

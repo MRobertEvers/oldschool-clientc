@@ -5,6 +5,7 @@
 #include "osrs/buildcachedat.h"
 #include "osrs/clientscript_vm.h"
 #include "osrs/gamenet_send.h"
+#include "osrs/ginput.h"
 #include "osrs/dash_utils.h"
 #include "osrs/entity_scenebuild.h"
 #include "osrs/interface_state.h"
@@ -721,8 +722,10 @@ interface_cache_inv_slot_has_menu(
     return false;
 }
 
+/** Client.ts assigns hoveredSlot from cell geometry even when the slot is empty; menu picks
+ * filter empty slots via interface_cache_inv_slot_has_menu — drag-drop needs geometry only. */
 static bool
-interface_sidebar_overlay_pick_inv_recursive(
+interface_sidebar_overlay_pick_inv_recursive_impl(
     struct GGame* game,
     struct GameCacheComponent* component,
     int abs_x,
@@ -731,7 +734,8 @@ interface_sidebar_overlay_pick_inv_recursive(
     int mx,
     int my,
     struct GameCacheComponent** out_inv,
-    int* out_slot)
+    int* out_slot,
+    bool require_menu_on_slot)
 {
     if( !game || !game->iface || !game->gamecache )
         return false;
@@ -761,14 +765,24 @@ interface_sidebar_overlay_pick_inv_recursive(
                 scroll_pos = max_scroll;
             if( scroll_pos < 0 )
                 scroll_pos = 0;
-            if( interface_sidebar_overlay_pick_inv_recursive(
-                    game, child, childX, childY, scroll_pos, mx, my, out_inv, out_slot) )
+            if( interface_sidebar_overlay_pick_inv_recursive_impl(
+                    game,
+                    child,
+                    childX,
+                    childY,
+                    scroll_pos,
+                    mx,
+                    my,
+                    out_inv,
+                    out_slot,
+                    require_menu_on_slot) )
                 return true;
         }
         else if( child->type == COMPONENT_TYPE_INV || child->type == COMPONENT_TYPE_INV_TEXT )
         {
             int slot = interface_inv_slot_index_at_mouse(child, childX, childY, mx, my);
-            if( slot >= 0 && interface_cache_inv_slot_has_menu(child, slot) )
+            if( slot >= 0 &&
+                (!require_menu_on_slot || interface_cache_inv_slot_has_menu(child, slot)) )
             {
                 *out_inv = child;
                 *out_slot = slot;
@@ -776,6 +790,128 @@ interface_sidebar_overlay_pick_inv_recursive(
             }
         }
     }
+    return false;
+}
+
+static bool
+interface_sidebar_overlay_pick_inv_recursive(
+    struct GGame* game,
+    struct GameCacheComponent* component,
+    int abs_x,
+    int abs_y,
+    int scroll_y,
+    int mx,
+    int my,
+    struct GameCacheComponent** out_inv,
+    int* out_slot)
+{
+    return interface_sidebar_overlay_pick_inv_recursive_impl(
+        game, component, abs_x, abs_y, scroll_y, mx, my, out_inv, out_slot, true);
+}
+
+static bool
+interface_sidebar_overlay_pick_inv_recursive_geom(
+    struct GGame* game,
+    struct GameCacheComponent* component,
+    int abs_x,
+    int abs_y,
+    int scroll_y,
+    int mx,
+    int my,
+    struct GameCacheComponent** out_inv,
+    int* out_slot)
+{
+    return interface_sidebar_overlay_pick_inv_recursive_impl(
+        game, component, abs_x, abs_y, scroll_y, mx, my, out_inv, out_slot, false);
+}
+
+/** Hit-test TYPE_INV / TYPE_INV_TEXT under (mx,my) for a layer root at (root_x, root_y).
+ * Same geometry as interface_sidebar_overlay_pick_inv_recursive (Client.ts regions). */
+static bool
+interface_cache_pick_inv_in_layer_root_geom(
+    struct GGame* game,
+    struct GameCacheComponent* root,
+    int root_x,
+    int root_y,
+    int mx,
+    int my,
+    struct GameCacheComponent** out_inv,
+    int* out_slot)
+{
+    if( !root || root->type != COMPONENT_TYPE_LAYER || !out_inv || !out_slot )
+        return false;
+    return interface_sidebar_overlay_pick_inv_recursive_geom(
+        game, root, root_x, root_y, 0, mx, my, out_inv, out_slot);
+}
+
+/** Cache-tree inv under cursor: main viewport (4,4), sidebar overlay, tab sidebar, chat. */
+static bool
+interface_cache_pick_inv_at_screen_geom(
+    struct GGame* game,
+    int mx,
+    int my,
+    struct GameCacheComponent** out_inv,
+    int* out_slot)
+{
+    struct InterfaceState* iface = game ? game->iface : NULL;
+    if( !game || !iface || !game->gamecache || !out_inv || !out_slot )
+        return false;
+    *out_inv = NULL;
+    *out_slot = -1;
+
+    if( mx > 4 && my > 4 && mx < 516 && my < 338 && iface->viewport_interface_id >= 0 )
+    {
+        struct GameCacheComponent* root =
+            gamecache_get_component(game->gamecache, iface->viewport_interface_id);
+        if( interface_cache_pick_inv_in_layer_root_geom(
+                game, root, 4, 4, mx, my, out_inv, out_slot) )
+            return true;
+    }
+
+    if( iface_point_in_sidebar_overlay(mx, my) )
+    {
+        if( iface->sidebar_interface_id >= 0 )
+        {
+            struct GameCacheComponent* root =
+                gamecache_get_component(game->gamecache, iface->sidebar_interface_id);
+            if( interface_cache_pick_inv_in_layer_root_geom(
+                    game, root, IFACE_SIDEBAR_X0, IFACE_SIDEBAR_Y0, mx, my, out_inv, out_slot) )
+                return true;
+        }
+        else if( game->ui_root_buffer )
+        {
+            for( uint32_t i = 0; i < game->ui_root_buffer->component_count; i++ )
+            {
+                struct StaticUIComponent* sb = &game->ui_root_buffer->components[i];
+                if( sb->type != UIELEM_BUILTIN_SIDEBAR ||
+                    sb->u.sidebar.tabno != iface->selected_tab )
+                    continue;
+                int compno = sb->u.sidebar.componentno;
+                if( compno < 0 )
+                    continue;
+                struct GameCacheComponent* root =
+                    gamecache_get_component(game->gamecache, compno);
+                if( !root )
+                    continue;
+                int bx = sb->position.x + root->x;
+                int by = sb->position.y + root->y;
+                if( interface_cache_pick_inv_in_layer_root_geom(
+                        game, root, bx, by, mx, my, out_inv, out_slot) )
+                    return true;
+                break;
+            }
+        }
+    }
+
+    if( mx > 17 && my > 357 && mx < 426 && my < 453 && iface->chat_interface_id >= 0 )
+    {
+        struct GameCacheComponent* root =
+            gamecache_get_component(game->gamecache, iface->chat_interface_id);
+        if( interface_cache_pick_inv_in_layer_root_geom(
+                game, root, 17, 357, mx, my, out_inv, out_slot) )
+            return true;
+    }
+
     return false;
 }
 
@@ -1954,13 +2090,23 @@ interface_draw_component_model(
     int* pixel_buffer,
     int stride)
 {
-    /* Client.ts: modelType 2 = NPC head, 3 = player head. Only support these for chat head. */
-    if( component->modelType != 2 && component->modelType != 3 )
+    if( !game || !game->clientscript_vm || !pixel_buffer )
+        return;
+
+    bool active = clientscript_vm_if_active(game->clientscript_vm, game, component);
+    int mt = component->modelType;
+    int mid = component->model;
+    if( active && component->activeModelType != 0 )
+    {
+        mt = component->activeModelType;
+        mid = component->activeModel;
+    }
+    if( mt != 2 && mt != 3 )
         return;
 
     int* slots = NULL;
     int* colors = NULL;
-    if( component->modelType == 3 )
+    if( mt == 3 )
     {
         struct PlayerEntity* local = world_player(game->world, ACTIVE_PLAYER_SLOT);
         if( !local->alive )
@@ -1969,53 +2115,24 @@ interface_draw_component_model(
         colors = local->appearance.colors;
     }
 
-    struct DashModel* head_model = entity_scenebuild_head_model_for_component(
-        game, component->modelType, component->model, slots, colors);
+    struct DashModel* head_model = entity_scenebuild_head_model_for_component_lights(
+        game, mt, mid, slots, colors, false);
     if( !head_model )
         return;
 
-    /* Client.ts: MODEL components use component.anim (or activeAnim when active) for animation.
-     * If component.anim is -1, fall back to NPC/player readyanim for chat heads. */
-    int sequence_id = component->anim;
-    if( sequence_id < 0 )
+    int sequence_id =
+        uitree_interface_resolved_sequence_id(game, component, active, mt, mid);
+    if( sequence_id >= 0 && game->gamecache && game->gamecache->sequences_hmap )
     {
-        if( component->modelType == 2 )
-        {
-            struct GameCacheNpc* npc =
-                gamecache_get_npc(game->gamecache, component->model);
-            if( npc )
-                sequence_id = npc->readyanim;
-        }
-        else if( component->modelType == 3 )
-        {
-            struct PlayerEntity* local = world_player(game->world, ACTIVE_PLAYER_SLOT);
-            if( local->alive )
-                sequence_id = local->animation.readyanim;
-        }
-    }
-    struct GameCacheSequence* seq = NULL;
-    if( sequence_id >= 0 && game->gamecache->sequences_hmap )
-    {
-        seq = gamecache_get_sequence(game->gamecache, sequence_id);
+        struct GameCacheSequence* seq = gamecache_get_sequence(game->gamecache, sequence_id);
         if( seq && seq->frame_count > 0 && seq->frames )
         {
             int frame_i = (game->cycle / 5) % seq->frame_count;
-            int frame_id = seq->frames[frame_i];
-            struct GameCacheAnimframe* animframe =
-                gamecache_get_animframe(game->gamecache, frame_id);
-            if( animframe )
-            {
-                struct DashFrame* dash_frame = dashframe_new_from_gamecache_animframe(animframe);
-                struct DashFramemap* dash_framemap = dashframemap_new_from_gamecache_animframe(animframe);
-                if( dash_frame && dash_framemap )
-                {
-                    dashmodel_animate(head_model, dash_frame, dash_framemap);
-                    dashframe_free(dash_frame);
-                    dashframemap_free(dash_framemap);
-                }
-            }
+            uitree_interface_apply_sequence_keyframe_to_model(game, head_model, seq, frame_i);
         }
     }
+
+    entity_scenebuild_interface_head_apply_default_light(head_model);
 
     /* Client.ts ignores component width/height for MODEL - model size comes from zoom/perspective.
      * Center at (x + width/2, y + height/2). Use fixed region size for chat heads. */
@@ -2139,6 +2256,48 @@ interface_inv_drag_area_from_xy(struct GGame* game, int mx, int my)
     return 2;
 }
 
+/** Buffer-space point for drag threshold, sprite delta, and drop: cursor, release on mouse-up,
+ * last-good while cursor was inside the game rect, else grab. */
+static void
+interface_inv_drag_pick_xy(struct GGame* game, int* out_x, int* out_y)
+{
+    struct InterfaceState* iface = game ? game->iface : NULL;
+    if( !out_x || !out_y )
+        return;
+    if( !iface || iface->inv_drag_area == 0 )
+    {
+        *out_x = 0;
+        *out_y = 0;
+        return;
+    }
+
+    if( game->mouse.cursor_x >= 0 && game->mouse.cursor_y >= 0 )
+    {
+        *out_x = game->mouse.cursor_x;
+        *out_y = game->mouse.cursor_y;
+        return;
+    }
+
+    if( game->mouse.buttons[TORIRSM_LEFT].release_this_frame &&
+        game->mouse.buttons[TORIRSM_LEFT].release_x >= 0 &&
+        game->mouse.buttons[TORIRSM_LEFT].release_y >= 0 )
+    {
+        *out_x = game->mouse.buttons[TORIRSM_LEFT].release_x;
+        *out_y = game->mouse.buttons[TORIRSM_LEFT].release_y;
+        return;
+    }
+
+    if( iface->inv_drag_last_good_x >= 0 && iface->inv_drag_last_good_y >= 0 )
+    {
+        *out_x = iface->inv_drag_last_good_x;
+        *out_y = iface->inv_drag_last_good_y;
+        return;
+    }
+
+    *out_x = iface->inv_drag_grab_x;
+    *out_y = iface->inv_drag_grab_y;
+}
+
 void
 interface_inv_drag_delta(struct GGame* game, int* out_dx, int* out_dy)
 {
@@ -2149,8 +2308,10 @@ interface_inv_drag_delta(struct GGame* game, int* out_dx, int* out_dy)
     if( !game || !game->iface || game->iface->inv_drag_area == 0 )
         return;
 
-    int dx = game->mouse.cursor_x - game->iface->inv_drag_grab_x;
-    int dy = game->mouse.cursor_y - game->iface->inv_drag_grab_y;
+    int px, py;
+    interface_inv_drag_pick_xy(game, &px, &py);
+    int dx = px - game->iface->inv_drag_grab_x;
+    int dy = py - game->iface->inv_drag_grab_y;
     if( dx < 5 && dx > -5 )
         dx = 0;
     if( dy < 5 && dy > -5 )
@@ -2227,6 +2388,8 @@ interface_inv_try_drag_mouse_down(struct GGame* game, int mx, int my)
     iface->inv_drag_grab_threshold     = 0;
     iface->inv_drag_grab_x             = mx;
     iface->inv_drag_grab_y             = my;
+    iface->inv_drag_last_good_x        = mx;
+    iface->inv_drag_last_good_y        = my;
 }
 
 void
@@ -2237,10 +2400,16 @@ interface_inv_drag_tick(struct GGame* game)
         return;
 
     iface->inv_drag_cycles++;
+    if( game->mouse.cursor_x >= 0 && game->mouse.cursor_y >= 0 )
+    {
+        iface->inv_drag_last_good_x = game->mouse.cursor_x;
+        iface->inv_drag_last_good_y = game->mouse.cursor_y;
+    }
+
     int gx = iface->inv_drag_grab_x;
     int gy = iface->inv_drag_grab_y;
-    int mx = game->mouse.cursor_x;
-    int my = game->mouse.cursor_y;
+    int mx, my;
+    interface_inv_drag_pick_xy(game, &mx, &my);
     if( mx > gx + 5 || mx < gx - 5 || my > gy + 5 || my < gy - 5 )
         iface->inv_drag_grab_threshold = 1;
 }
@@ -2344,9 +2513,15 @@ interface_inv_try_drag_mouse_up(struct GGame* game, struct GInput* input)
     int th        = iface->inv_drag_grab_threshold;
     int cycles    = iface->inv_drag_cycles;
 
+    int pick_x;
+    int pick_y;
+    interface_inv_drag_pick_xy(game, &pick_x, &pick_y);
+
     iface->inv_drag_area           = 0;
     iface->inv_drag_cycles         = 0;
     iface->inv_drag_grab_threshold = 0;
+    iface->inv_drag_last_good_x    = -1;
+    iface->inv_drag_last_good_y    = -1;
 
     {
         char const* dbg = getenv("TORI_DEBUG_INV_DRAG");
@@ -2354,14 +2529,16 @@ interface_inv_try_drag_mouse_up(struct GGame* game, struct GInput* input)
             fprintf(
                 stderr,
                 "[TORI_DEBUG_INV_DRAG] mouse_up: th=%d cycles=%d net_state=%d "
-                "comp=%d from_slot=%d grab=(%d,%d)\n",
+                "comp=%d from_slot=%d grab=(%d,%d) pick=(%d,%d)\n",
                 th,
                 cycles,
                 (int)game->net_state,
                 comp,
                 from_slot,
                 grab_x,
-                grab_y);
+                grab_y,
+                pick_x,
+                pick_y);
     }
 
     /* Gesture qualified as a drag (moved far enough, held long enough).
@@ -2373,20 +2550,19 @@ interface_inv_try_drag_mouse_up(struct GGame* game, struct GInput* input)
     {
         if( GAME_NET_STATE_GAME != game->net_state )
             return;
-        if( game->mouse.cursor_x < 0 || game->mouse.cursor_y < 0 )
-            return;
 
-        uitree_sync_hover_option_set(game, game->mouse.cursor_x, game->mouse.cursor_y);
-        int to_comp =
-            game->ui_root_buffer ? game->ui_root_buffer->hover_inv_component_id : -1;
-        int to_slot = game->ui_root_buffer ? game->ui_root_buffer->hover_inv_slot : -1;
-        if( (to_comp < 0 || to_slot < 0) && game->gamecache )
+        uitree_sync_hover_option_set(game, pick_x, pick_y);
+
+        /* Drop target: Client.ts hoveredSlot from cell geometry including empty slots — not
+         * uitree_hover nor menu-filtered cache pick (interface_cache_pick_inv_at_screen). */
+        int to_comp = -1;
+        int to_slot = -1;
+        if( game->gamecache )
         {
             struct GameCacheComponent* p = NULL;
             int ps = -1;
-            if( interface_cache_pick_inv_at_screen(
-                    game, game->mouse.cursor_x, game->mouse.cursor_y, &p, &ps) &&
-                p && ps >= 0 )
+            if( interface_cache_pick_inv_at_screen_geom(game, pick_x, pick_y, &p, &ps) && p &&
+                ps >= 0 )
             {
                 to_comp = p->id;
                 to_slot = ps;

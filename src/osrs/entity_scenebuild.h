@@ -46,6 +46,20 @@ entity_scenebuild_head_model_for_component(
     int* slots,
     int* colors);
 
+/** Same as entity_scenebuild_head_model_for_component but skips lighting (apply after animate). */
+struct DashModel*
+entity_scenebuild_head_model_for_component_lights(
+    struct GGame* game,
+    int model_type,
+    int model_id,
+    int* slots,
+    int* colors,
+    bool apply_default_light);
+
+/** Client calculateNormals after interface MODEL animation — Tori _light_model_default(0,0). */
+void
+entity_scenebuild_interface_head_apply_default_light(struct DashModel* dash_model);
+
 /** Apply a LOC_ADD_CHANGE to the scene: find the existing MapBuildLocEntity at (sx,sz) with
  * matching layer, swap its model and collision.  loc_id < 0 removes the loc visually. */
 void

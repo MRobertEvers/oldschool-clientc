@@ -47,6 +47,9 @@ struct InterfaceState
     int inv_drag_grab_threshold;
     int inv_drag_grab_x;
     int inv_drag_grab_y;
+    /** Last buffer coords while cursor was inside the game rect; used when cursor maps to -1. */
+    int inv_drag_last_good_x;
+    int inv_drag_last_good_y;
     /** Suppress duplicate primary from TORIRSEV2_CLICK after drag mouse-up handled it. */
     int inv_suppress_next_left_click;
 };

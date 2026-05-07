@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-/** Standalone GameCache component type -- all fields except layer, activeModelType, activeModel. */
+/** Standalone GameCache component type -- all fields except layer. */
 struct GameCacheComponent
 {
     int id;
@@ -29,10 +29,11 @@ struct GameCacheComponent
     int seqCycle;
     int* children;
     int children_count;
-    /* activeModelType dropped */
-    /* activeModel dropped */
     int anim;
     int activeAnim;
+    /** Client IfType model2Type / model2Id when getIfActive (0 = unset, use modelType/model). */
+    int activeModelType;
+    int activeModel;
     int zoom;
     int xan;
     int yan;

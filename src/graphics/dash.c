@@ -21,17 +21,31 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define DASH_BUCKET_SORT_MODE_SPARSE_2D   0
+#define DASH_BUCKET_SORT_MODE_SPARSE_2D 0
 #define DASH_BUCKET_SORT_MODE_LINKED_LIST 1
-#define DASH_BUCKET_SORT_MODE_PREFIX_SUM  2
+#define DASH_BUCKET_SORT_MODE_PREFIX_SUM 2
 
 #define DASH_BUCKET_SORT_MODE 0
+
+/** Compile with -DDASH_DEBUG_FACE_SORT=1 for stderr diagnostics. Default: one compact line every
+ *  DASH_DEBUG_FACE_SORT_EVERY sorts (default 1200). Add -DDASH_DEBUG_FACE_SORT_VERBOSE=1 for
+ *  histograms, per-face samples, and draw-order dumps. */
+#ifndef DASH_DEBUG_FACE_SORT
+#define DASH_DEBUG_FACE_SORT 0
+#endif
+#ifndef DASH_DEBUG_FACE_SORT_EVERY
+#define DASH_DEBUG_FACE_SORT_EVERY 1200
+#endif
+#ifndef DASH_DEBUG_FACE_SORT_VERBOSE
+#define DASH_DEBUG_FACE_SORT_VERBOSE 0
+#endif
+
 #ifndef DASH_BUCKET_SORT_MODE
-#  if defined(DASH_BUCKET_SORT_USE_LINKED_LIST) && DASH_BUCKET_SORT_USE_LINKED_LIST
-#    define DASH_BUCKET_SORT_MODE DASH_BUCKET_SORT_MODE_LINKED_LIST
-#  else
-#    define DASH_BUCKET_SORT_MODE DASH_BUCKET_SORT_MODE_SPARSE_2D
-#  endif
+#if defined(DASH_BUCKET_SORT_USE_LINKED_LIST) && DASH_BUCKET_SORT_USE_LINKED_LIST
+#define DASH_BUCKET_SORT_MODE DASH_BUCKET_SORT_MODE_LINKED_LIST
+#else
+#define DASH_BUCKET_SORT_MODE DASH_BUCKET_SORT_MODE_SPARSE_2D
+#endif
 #endif
 
 struct DashGraphics
@@ -1635,7 +1649,7 @@ parition_faces_by_priority(
     int depth_lower_bound,
     int depth_upper_bound)
 {
-    if (depth_upper_bound >= 1500)
+    if( depth_upper_bound >= 1500 )
         depth_upper_bound = 1499;
 
     for( int depth = depth_upper_bound; depth >= depth_lower_bound; depth-- )
@@ -1785,6 +1799,155 @@ sort_face_draw_order(
 
 #endif /* LINKED_LIST vs rest */
 
+#if DASH_DEBUG_FACE_SORT
+static void
+dash3d_debug_face_sort_trace(
+    struct DashGraphics* dash,
+    struct DashModel* model,
+    int bounds_packed,
+    int cylinder_min_depth_at_entry,
+    const faceint_t* fia,
+    const faceint_t* fib,
+    const faceint_t* fic,
+    int ordered_face_count)
+{
+    static unsigned s_call;
+    if( DASH_DEBUG_FACE_SORT_EVERY > 0 && (s_call++ % (unsigned)DASH_DEBUG_FACE_SORT_EVERY) != 0 )
+        return;
+
+    int vc = dashmodel_vertex_count(model);
+    int fc = dashmodel_face_count(model);
+    int d_lo = bounds_packed & 0xFFFF;
+    int d_hi = bounds_packed >> 16;
+    const uint8_t* fp = dashmodel_face_priorities(model);
+
+    int bad_idx = 0;
+#if DASH_DEBUG_FACE_SORT_VERBOSE
+    int prio_hist[16] = { 0 };
+#endif
+    for( int f = 0; f < fc; f++ )
+    {
+        unsigned a = (unsigned)fia[f];
+        unsigned b = (unsigned)fib[f];
+        unsigned c = (unsigned)fic[f];
+        if( a >= (unsigned)vc || b >= (unsigned)vc || c >= (unsigned)vc )
+            bad_idx++;
+#if DASH_DEBUG_FACE_SORT_VERBOSE
+        if( fp )
+        {
+            int pr = dashmodel__get_face_priority(fp, f);
+            if( pr >= 0 && pr < 16 )
+                prio_hist[pr]++;
+        }
+#endif
+    }
+
+#if DASH_BUCKET_SORT_MODE == DASH_BUCKET_SORT_MODE_LINKED_LIST
+    fprintf(
+        stderr,
+        "[dash3d face_sort #%u] %p v=%d f=%d bad_abc=%d cyl_z=%d depth=[%d,%d] prio=%d ord=%d "
+        "mode=linked_list\n",
+        s_call - 1,
+        (void*)model,
+        vc,
+        fc,
+        bad_idx,
+        cylinder_min_depth_at_entry,
+        d_lo,
+        d_hi,
+        fp ? 1 : 0,
+        ordered_face_count);
+#else
+    long bucket_total = 0;
+    int sparse_overflow_depths = 0;
+    for( int d = 0; d < 1500; d++ )
+    {
+        int cnt = (int)dash->tmp_depth_face_count[d];
+        bucket_total += cnt;
+#if DASH_BUCKET_SORT_MODE == DASH_BUCKET_SORT_MODE_SPARSE_2D
+        if( cnt > 512 )
+            sparse_overflow_depths++;
+#endif
+    }
+    fprintf(
+        stderr,
+        "[dash3d face_sort #%u] %p v=%d f=%d bad_abc=%d cyl_z=%d depth=[%d,%d] prio=%d ord=%d "
+        "bucket_sum=%ld buck_mode=%d",
+        s_call - 1,
+        (void*)model,
+        vc,
+        fc,
+        bad_idx,
+        cylinder_min_depth_at_entry,
+        d_lo,
+        d_hi,
+        fp ? 1 : 0,
+        ordered_face_count,
+        bucket_total,
+        DASH_BUCKET_SORT_MODE);
+    if( bucket_total != (long)ordered_face_count )
+        fprintf(stderr, " MISMATCH_BUCKET_VS_ORDER");
+#if DASH_BUCKET_SORT_MODE == DASH_BUCKET_SORT_MODE_SPARSE_2D
+    if( sparse_overflow_depths > 0 )
+        fprintf(stderr, " SPARSE_OVERFLOW_DEPTHS=%d", sparse_overflow_depths);
+#endif
+    fprintf(stderr, "\n");
+#endif /* bucket mode */
+
+#if DASH_DEBUG_FACE_SORT_VERBOSE
+    fprintf(stderr, "  face_corner_indices: out_of_range_triangles=%d / %d\n", bad_idx, fc);
+
+    if( fp )
+    {
+        fprintf(
+            stderr,
+            "  priority_hist [nibbles]: "
+            "0=%d 1=%d 2=%d 3=%d 4=%d 5=%d 6=%d 7=%d 8=%d 9=%d "
+            "10=%d 11=%d 12=%d 13=%d 14=%d 15=%d\n",
+            prio_hist[0],
+            prio_hist[1],
+            prio_hist[2],
+            prio_hist[3],
+            prio_hist[4],
+            prio_hist[5],
+            prio_hist[6],
+            prio_hist[7],
+            prio_hist[8],
+            prio_hist[9],
+            prio_hist[10],
+            prio_hist[11],
+            prio_hist[12],
+            prio_hist[13],
+            prio_hist[14],
+            prio_hist[15]);
+    }
+
+    int sample_n = fc < 12 ? fc : 12;
+    for( int f = 0; f < sample_n; f++ )
+    {
+        int pr = fp ? dashmodel__get_face_priority(fp, f) : -1;
+        fprintf(
+            stderr,
+            "  face %4d: abc=(%u,%u,%u) prio=%d\n",
+            f,
+            (unsigned)fia[f],
+            (unsigned)fib[f],
+            (unsigned)fic[f],
+            pr);
+    }
+
+    if( ordered_face_count > 1 )
+    {
+        int npeek = ordered_face_count < 32 ? ordered_face_count : 32;
+        fprintf(stderr, "  tmp_face_order[0..%d): ", npeek);
+        for( int i = 0; i < npeek; i++ )
+            fprintf(stderr, "%d ", (int)dash->tmp_face_order[i]);
+        fprintf(stderr, "\n");
+    }
+#endif /* DASH_DEBUG_FACE_SORT_VERBOSE */
+}
+#endif /* DASH_DEBUG_FACE_SORT */
+
 static inline void
 // static __attribute__((noinline)) void
 dash3d_sort_face_draw_order(
@@ -1798,7 +1961,8 @@ dash3d_sort_face_draw_order(
     faceint_t* fib,
     faceint_t* fic)
 {
-    int model_min_depth = dashmodel_bounds_cylinder_const(model)->min_z_depth_any_rotation;
+    int cyl_min_z_depth = dashmodel_bounds_cylinder_const(model)->min_z_depth_any_rotation;
+    int model_min_depth = cyl_min_z_depth;
 #if DASH_BUCKET_SORT_MODE == DASH_BUCKET_SORT_MODE_LINKED_LIST
     memset(dash->bucket_heads, 0xFF, sizeof(dash->bucket_heads));
 
@@ -1814,10 +1978,7 @@ dash3d_sort_face_draw_order(
         fib,
         fic);
 #elif DASH_BUCKET_SORT_MODE == DASH_BUCKET_SORT_MODE_PREFIX_SUM
-    memset(
-        dash->tmp_depth_face_count,
-        0,
-        (size_t)(model_min_depth * 2 + 1) * sizeof(dash->tmp_depth_face_count[0]));
+    memset(dash->tmp_depth_face_count, 0, sizeof(dash->tmp_depth_face_count));
 
     int bounds = bucket_sort_by_average_depth(
         dash->tmp_dense_sorted_faces,
@@ -1833,10 +1994,7 @@ dash3d_sort_face_draw_order(
         fib,
         fic);
 #else
-    memset(
-        dash->tmp_depth_face_count,
-        0,
-        (size_t)(model_min_depth * 2 + 1) * sizeof(dash->tmp_depth_face_count[0]));
+    memset(dash->tmp_depth_face_count, 0, sizeof(dash->tmp_depth_face_count));
 
     int bounds = bucket_sort_by_average_depth(
         dash->tmp_depth_faces,
@@ -1978,6 +2136,10 @@ dash3d_sort_face_draw_order(
 
         dash->tmp_face_order_count = valid_faces;
     }
+#if DASH_DEBUG_FACE_SORT
+    dash3d_debug_face_sort_trace(
+        dash, model, bounds, cyl_min_z_depth, fia, fib, fic, dash->tmp_face_order_count);
+#endif
     (void)view_port;
     (void)camera;
     (void)pixel_buffer;
@@ -2137,10 +2299,7 @@ dash3d_compute_projected_face_order(
         fib,
         fic);
 #elif DASH_BUCKET_SORT_MODE == DASH_BUCKET_SORT_MODE_PREFIX_SUM
-    memset(
-        dash->tmp_depth_face_count,
-        0,
-        (size_t)(model_min_depth * 2 + 1) * sizeof(dash->tmp_depth_face_count[0]));
+    memset(dash->tmp_depth_face_count, 0, sizeof(dash->tmp_depth_face_count));
 
     int bounds = bucket_sort_by_average_depth(
         dash->tmp_dense_sorted_faces,
@@ -2156,10 +2315,7 @@ dash3d_compute_projected_face_order(
         fib,
         fic);
 #else
-    memset(
-        dash->tmp_depth_face_count,
-        0,
-        (size_t)(model_min_depth * 2 + 1) * sizeof(dash->tmp_depth_face_count[0]));
+    memset(dash->tmp_depth_face_count, 0, sizeof(dash->tmp_depth_face_count));
 
     int bounds = bucket_sort_by_average_depth(
         dash->tmp_depth_faces,

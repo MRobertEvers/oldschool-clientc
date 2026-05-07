@@ -135,6 +135,13 @@ struct World
     int _chunk_ne_z;
     int _scene_size;
 
+    /** Client.ts sceneCycle: incremented each world_cycle before dynamic painter registration. */
+    int32_t scene_cycle;
+    /** Client.ts tileLastOccupiedCycle[sz*scene_size+sx]: last scene_cycle that claimed tile center
+     * for 1x1 dedup (see Client.ts addPlayers/addNpcs). Length _scene_size * _scene_size; null
+     * before first center-zone rebuild. */
+    int32_t* tile_last_occupied_scene_cycle;
+
     int _offset_x;
     int _offset_z;
 

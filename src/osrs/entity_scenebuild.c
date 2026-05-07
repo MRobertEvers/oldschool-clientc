@@ -793,6 +793,19 @@ entity_scenebuild_head_model_for_component(
     int* slots,
     int* colors)
 {
+    return entity_scenebuild_head_model_for_component_lights(
+        game, model_type, model_id, slots, colors, true);
+}
+
+struct DashModel*
+entity_scenebuild_head_model_for_component_lights(
+    struct GGame* game,
+    int model_type,
+    int model_id,
+    int* slots,
+    int* colors,
+    bool apply_default_light)
+{
     struct GameCacheModel* cache = NULL;
     if( model_type == 2 )
         cache = npc_head_model(game, model_id);
@@ -803,9 +816,17 @@ entity_scenebuild_head_model_for_component(
         return NULL;
 
     struct DashModel* dash = dashmodel_new_from_gamecache_model(cache);
-    if( dash )
+    if( dash && apply_default_light )
         _light_model_default(dash, 0, 0);
     return dash;
+}
+
+/** Client IfType.getTempModel: lighting after animate — same constants as _light_model_default. */
+void
+entity_scenebuild_interface_head_apply_default_light(struct DashModel* dash_model)
+{
+    if( dash_model )
+        _light_model_default(dash_model, 0, 0);
 }
 
 /* ---- Dynamic loc state (doors, LOC_ADD_CHANGE / LOC_DEL) ---- */

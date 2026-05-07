@@ -151,6 +151,8 @@ struct NPCEntity
     int combat_cycle;
     int health;
     int total_health;
+    /** Client.ts needsForwardDrawPadding — from primary SeqType.stretches during entityAnim. */
+    bool needs_forward_draw_padding;
 };
 
 struct PlayerAppearanceSlots
@@ -180,6 +182,8 @@ struct PlayerEntity
     int combat_cycle;
     int health;
     int total_health;
+    /** Client.ts needsForwardDrawPadding — from primary SeqType.stretches during entityAnim. */
+    bool needs_forward_draw_padding;
 };
 
 /** Standalone scene2 model (e.g. Lua-spawned projectiles) with no pathing. */

@@ -13,6 +13,7 @@
 #include "osrs/interface_state.h"
 #include "osrs/minimap.h"
 #include "osrs/minimenu.h"
+#include "osrs/minimenu_action.h"
 #include "osrs/minimenu_game.h"
 #include "osrs/obj_icon.h"
 #include "osrs/revconfig/uiscene.h"
@@ -3491,25 +3492,45 @@ frame_handle_interface_and_world_clicks(struct GGame* game)
         struct StaticUIComponent* wv = frame_find_builtin(game, UIELEM_BUILTIN_WORLD);
         if( !wv || !frame_point_in_component_xy(wv, cx, cy) )
             return;
-        game_cross_set(game, 1); /* yellow by default */
+
+        /* Client.ts mouseLoop (~8607): menu closed + menuNumEntries>0 → doAction(menuNumEntries-1).
+         * Default row = menuOption[last] after buildMinimenu bubble-sort (same as
+         * minimenu_game_world_ts_default_row → tmp[last] after minimenu_sort_ts_action_order).
+         * doAction strips priority (+2000) once before comparing opcodes (8796–8798); use
+         * minimenu_action_norm_dispatch for WALK vs interact — priority NPC rows must dispatch. */
+        if( game->option_set.option_count > 0 && game->torirs_step_input )
+        {
+            struct WorldOption def;
+            minimenu_game_world_ts_default_row(
+                &game->option_set, game->mouse_tile_x, game->mouse_tile_z, &def);
+            int const dispatch_norm = minimenu_action_norm_dispatch((int)def.action);
+            if( dispatch_norm != (int)MINIMENU_ACTION_WALK )
+            {
+                game->minimenu.option_action[0]  = (int)def.action;
+                game->minimenu.option_param_a[0] = def.param_a;
+                game->minimenu.option_param_b[0] = def.param_b;
+                game->minimenu.option_param_c[0] = def.param_c;
+                game->minimenu.option_count      = 1;
+                minimenu_game_use_option(game, game->torirs_step_input, 0);
+                game->minimenu_used_option_this_left_click = true;
+                /* Examine (OP_NPC6 / OP_OBJ6): doAction does not set crossMode 2; Client keeps yellow
+                 * from World.groundX tryMove — yellow cross here. */
+                if( dispatch_norm == (int)MINIMENU_ACTION_OPNPC6 ||
+                    dispatch_norm == (int)MINIMENU_ACTION_OPOBJ6 )
+                    game_cross_set(game, 1);
+                return;
+            }
+        }
 
         if( game->mouse_tile_x < 0 )
             return;
+
+        game_cross_set(game, 1);
 
         game->tile_clicked_x     = game->mouse_tile_x;
         game->tile_clicked_z     = game->mouse_tile_z;
         game->tile_clicked_level = game->mouse_tile_level;
         game->minimap_flag_has   = 0; /* clear destination flag on direct world click */
-
-        /* Red if targetable option, yellow if only default options */
-        if( game->option_set.option_count > 0 )
-        {
-            struct WorldOption def;
-            minimenu_game_world_ts_default_row(
-                &game->option_set, game->mouse_tile_x, game->mouse_tile_z, &def);
-            if( def.action != MINIMENU_ACTION_WALK )
-                game->cross_mode = 2; /* red for targetable */
-        }
     }
 }
 
