@@ -173,32 +173,36 @@ uitree_loader_new(
     return loader;
 }
 
-/* ── Step ───────────────────────────────────────────────────────────────────── */
-
-static enum UITreeLoaderStatus
-uitree_loader_on_itemdone(struct UITreeLoader* loader)
-{
-    if( !loader )
-        return UITREE_LOADER_ERROR;
-
-    switch( loader->load.kind )
-    {
-    case LOAD_KIND_SPRITE:
-    case LOAD_KIND_COMPONENT:
-    case LOAD_KIND_LAYOUT:
-    case LOAD_KIND_INV:
-        return UITREE_LOADER_NEEDS_ASSET;
-    default:
-        return UITREE_LOADER_ERROR;
-    }
-}
-
 /* ── RevConfig field handlers (uitree_loader_step) ─────────────────────────── */
 
 static struct RevConfigField*
 uitree_loader_current_field(struct UITreeLoader* loader)
 {
     return &loader->revconfig_buffer->fields[loader->field_index];
+}
+
+static enum UITreeLoaderStatus
+on_sprite_done(struct UITreeLoader* loader)
+{
+    return UITREE_LOADER_NEEDS_ASSET;
+}
+
+static enum UITreeLoaderStatus
+on_component_done(struct UITreeLoader* loader)
+{
+    return UITREE_LOADER_NEEDS_ASSET;
+}
+
+static enum UITreeLoaderStatus
+on_layout_done(struct UITreeLoader* loader)
+{
+    return UITREE_LOADER_NEEDS_ASSET;
+}
+
+static enum UITreeLoaderStatus
+on_inv_done(struct UITreeLoader* loader)
+{
+    return UITREE_LOADER_NEEDS_ASSET;
 }
 
 static void
@@ -243,9 +247,25 @@ on_rcfield_itemname(struct UITreeLoader* loader)
 static enum UITreeLoaderStatus
 on_rcfield_itemdone(struct UITreeLoader* loader)
 {
-    enum UITreeLoaderStatus status = uitree_loader_on_itemdone(loader);
-    if( status != UITREE_LOADER_RUNNING )
-        return status;
+    enum UITreeLoaderStatus status = UITREE_LOADER_RUNNING;
+    switch( loader->load.kind )
+    {
+    case LOAD_KIND_SPRITE:
+        status = on_sprite_done(loader);
+        break;
+    case LOAD_KIND_COMPONENT:
+        status = on_component_done(loader);
+        break;
+    case LOAD_KIND_LAYOUT:
+        status = on_layout_done(loader);
+        break;
+    case LOAD_KIND_INV:
+        status = on_inv_done(loader);
+        break;
+    default:
+        status = UITREE_LOADER_ERROR;
+        break;
+    }
 
     loader->pending_asset_count = 0;
     loader->load.kind = LOAD_KIND_NONE;
@@ -1211,24 +1231,24 @@ on_rcfield_default(struct UITreeLoader* loader)
 }
 
 enum UITreeLoaderStatus
-uitree_loader_step(struct UITreeLoader* loader)
+uitree_loader_step_send_revconfig(
+    struct UITreeLoader* loader,
+    struct RevConfigBuffer* revconfig)
 {
     if( !loader )
         return UITREE_LOADER_ERROR;
     if( loader->status == UITREE_LOADER_DONE || loader->status == UITREE_LOADER_ERROR )
         return loader->status;
 
-    struct RevConfigBuffer* buf = loader->revconfig_buffer;
-    if( !buf )
-        return UITREE_LOADER_ERROR;
-
     /* ── Host scaffolding (decouple from GGame): validate before the field loop. ──
      * Further decouple uitree_impl_* so host->game can go away; sys_dash reserved for inv icons.
      */
 
-    while( loader->field_index < buf->field_count )
+    struct RevConfigField* field = NULL;
+    enum UITreeLoaderStatus status = UITREE_LOADER_RUNNING;
+    while( loader->field_index < revconfig->field_count )
     {
-        struct RevConfigField* field = &buf->fields[loader->field_index];
+        field = &revconfig->fields[loader->field_index];
 
         switch( field->kind )
         {
@@ -1240,9 +1260,9 @@ uitree_loader_step(struct UITreeLoader* loader)
             break;
         case RCFIELD_ITEMDONE:
         {
-            enum UITreeLoaderStatus st = on_rcfield_itemdone(loader);
-            if( st != UITREE_LOADER_RUNNING )
-                return st;
+            status = on_rcfield_itemdone(loader);
+            if( status != UITREE_LOADER_RUNNING )
+                return status;
         }
         break;
 

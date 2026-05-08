@@ -31,15 +31,23 @@ enum GameUitreeLoadExecResult
  * and returns what the host still needs to load.
  */
 enum GameUitreeLoadExecResult
-game_uitree_load_exec_sprite(struct GGame* game, struct UITreeLoaderAssetRequest* req);
+game_uitree_load_exec_sprite(
+    struct GGame* game,
+    struct UITreeLoaderAssetRequest* req);
 
 enum GameUitreeLoadExecResult
-game_uitree_load_exec_interface(struct GGame* game, struct UITreeLoaderAssetRequest* req);
+game_uitree_load_exec_interface(
+    struct GGame* game,
+    struct UITreeLoaderAssetRequest* req);
 
 enum GameUitreeLoadExecResult
-game_uitree_load_exec_model(struct GGame* game, struct UITreeLoaderAssetRequest* req);
+game_uitree_load_exec_model(
+    struct GGame* game,
+    struct UITreeLoaderAssetRequest* req);
 
 enum GameUitreeLoadExecResult
-game_uitree_load_exec_font(struct GGame* game, struct UITreeLoaderAssetRequest* req);
+game_uitree_load_exec_font(
+    struct GGame* game,
+    struct UITreeLoaderAssetRequest* req);
 
 #endif /* GAME_UITREE_LOAD_EXEC_H */

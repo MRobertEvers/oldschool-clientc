@@ -101,30 +101,22 @@ struct UITreeLoaderAssetRequest
 struct UITreeLoader;
 
 struct UITreeLoader*
-uitree_loader_new(
-    struct UITree* ui,
-    struct RevConfigBuffer* revconfig_buffer);
+uitree_loader_new(struct UITree* ui);
 
 enum UITreeLoaderStatus
 uitree_loader_step(struct UITreeLoader* loader);
 
-/**
- * Number of pending asset requests when the most recent step() returned
- * UITREE_LOADER_NEEDS_ASSET (otherwise 0).
- */
+enum UITreeLoaderStatus
+uitree_loader_step_send_revconfig(
+    struct UITreeLoader* loader,
+    struct RevConfigBuffer* revconfig);
+
 int
 uitree_loader_pending_asset_count(const struct UITreeLoader* loader);
 
-/**
- * Pointer to the loader-owned pending request array; valid length is
- * uitree_loader_pending_asset_count(). Invalid after the next uitree_loader_step().
- */
 const struct UITreeLoaderAssetRequest*
 uitree_loader_pending_assets(const struct UITreeLoader* loader);
 
-/**
- * Free the loader.  Does NOT free the UITree, UIScene, etc. (those are borrowed).
- */
 void
 uitree_loader_free(struct UITreeLoader* loader);
 
