@@ -1,9 +1,10 @@
 /*
  * uitree_loader_test — C driver for the incremental UITree loader.
  *
- * Mirrors init_ui.lua — UITreeLoader + uitree_loader_step(), then uitree_loader_game_executor_*
- * for each UITREE_LOADER_NEEDS_ASSET request. RS models use `game.ui_scene`; optional
- * BMP composites drawable nodes. Scene2 is still used in this harness for texture loading only.
+ * Mirrors init_ui.lua — UITreeLoader + uitree_loader_send(), then uitree_loader_game_executor_*
+ * for each UITREE_LOADER_NEEDS_ASSET request (sprites/media, interfaces, models, fonts — no bulk
+ * preload of those). RS models use `game.ui_scene`; optional BMP composites drawable nodes.
+ * Scene2 textures load on demand before BMP when the UITree contains RS_MODEL rows.
  *
  * `--component=N` affects BMP output only (which subtree is drawn at canvas origin and how
  * hover is interpreted); the UITree is always built from rev config via the loader.
@@ -42,6 +43,7 @@
 #include "osrs/interface_state.h"
 #include "osrs/obj_icon.h"
 #include "osrs/revconfig/revconfig.h"
+#include "osrs/revconfig/revconfig_builder.h"
 #include "osrs/revconfig/revconfig_load.h"
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
@@ -71,6 +73,13 @@ enum
     /** UIScene element pool; large IFs need one element per RS graphic row + fonts + unique
        sprites. */
     UITREE_LOADER_TEST_UISCENE_ELEMENTS = 32768
+};
+
+/** RS `component_id` appended after a successful loader run via `RevConfigBuilder` + GameCache
+ * refresh (exercises `revconfig_builder_push_rs_model`). */
+enum
+{
+    UITREE_LOADER_TEST_REVCONFIG_RS_MODEL_COMPONENT_ID = 2399
 };
 
 struct uitree_loader_test_cli
@@ -199,6 +208,21 @@ load_interfaces(
     struct CacheDat*,
     struct BuildCacheDat*,
     struct GameCache*);
+
+static void
+uitree_loader_test_ensure_rs_models_for_gamecache_root(
+    struct GGame*,
+    struct CacheDat*,
+    struct BuildCacheDat*,
+    struct GameCache*,
+    int root_component_id);
+
+static void
+uitree_loader_test_load_mesh_archives_for_model_component(
+    struct CacheDat*,
+    struct BuildCacheDat*,
+    struct GameCache*,
+    struct GameCacheComponent*);
 
 static const char*
 uitree_loader_test_elem_type_name(int ty)
@@ -1001,6 +1025,93 @@ uitree_loader_test_find_component_idx_prefer_rs_layer(
             fallback = (int32_t)i;
     }
     return fallback;
+}
+
+static int32_t
+uitree_loader_test_find_rs_model_idx(
+    const struct UITree* ui,
+    int component_id)
+{
+    if( !ui || component_id < 0 )
+        return -1;
+    for( uint32_t i = 0; i < ui->component_count; i++ )
+    {
+        if( ui->components[i].component_id == component_id &&
+            ui->components[i].type == UIELEM_RS_MODEL )
+            return (int32_t)i;
+    }
+    return -1;
+}
+
+/** After `uitree_loader_send` completes OK: append `UIELEM_RS_MODEL` for `component_id` using
+ * `RevConfigBuilder`, load only that row's mesh archive(s) if still missing, then bind UIScene
+ * like `uitree_load` MODEL rows. No-op if a matching RS_MODEL node already exists. */
+static void
+uitree_loader_test_push_rs_model_via_revconfig_builder(
+    struct GGame* game,
+    struct CacheDat* cache_dat,
+    struct BuildCacheDat* buildcachedat,
+    struct GameCache* gamecache,
+    struct UITree* ui,
+    int* inout_interfaces_loaded,
+    int component_id)
+{
+    if( !game || !cache_dat || !buildcachedat || !gamecache || !ui || component_id < 0 )
+        return;
+    if( uitree_loader_test_find_rs_model_idx(ui, component_id) >= 0 )
+        return;
+
+    if( !gamecache_get_component(gamecache, component_id) )
+    {
+        int need_load = !inout_interfaces_loaded || !*inout_interfaces_loaded;
+        if( need_load )
+        {
+            load_interfaces(cache_dat, buildcachedat, gamecache);
+            if( inout_interfaces_loaded )
+                *inout_interfaces_loaded = 1;
+        }
+    }
+
+    struct GameCacheComponent* gc = gamecache_get_component(gamecache, component_id);
+    if( !gc || gc->type != COMPONENT_TYPE_MODEL )
+    {
+        fprintf(
+            stderr,
+            "uitree_loader_test: revconfig_builder rs_model %d skipped — not COMPONENT_TYPE_MODEL "
+            "in gamecache\n",
+            component_id);
+        return;
+    }
+
+    uitree_loader_test_load_mesh_archives_for_model_component(
+        cache_dat, buildcachedat, gamecache, gc);
+
+    struct RevConfigBuilder* b = revconfig_builder_new(ui, -1);
+    if( !b )
+    {
+        fprintf(
+            stderr,
+            "uitree_loader_test: revconfig_builder_new failed for rs_model %d\n",
+            component_id);
+        return;
+    }
+    int32_t pushed =
+        revconfig_builder_push_rs_model(b, component_id, -1, gc->x, gc->y, gc->width, gc->height);
+    revconfig_builder_free(b);
+    if( pushed < 0 )
+    {
+        fprintf(
+            stderr,
+            "uitree_loader_test: revconfig_builder_push_rs_model failed for component %d\n",
+            component_id);
+        return;
+    }
+
+    uitree_rs_model_refresh_from_gamecache(game, component_id);
+    printf(
+        "uitree_loader_test: revconfig_builder pushed RS_MODEL component_id=%d (uitree idx %d)\n",
+        component_id,
+        (int)pushed);
 }
 
 /** Rev INI leaves `componentno=-1` on sidebar builtins; RS interfaces appear after SETTAB-style
@@ -2062,6 +2173,26 @@ load_model_archive(
     printf("[loader] loaded model %d into buildcache + gamecache\n", model_id);
 }
 
+/** Load mesh jag(s) for a single IF `COMPONENT_TYPE_MODEL` row (type 1 / 4 mesh paths only). */
+static void
+uitree_loader_test_load_mesh_archives_for_model_component(
+    struct CacheDat* cache_dat,
+    struct BuildCacheDat* buildcachedat,
+    struct GameCache* gamecache,
+    struct GameCacheComponent* comp)
+{
+    if( !cache_dat || !buildcachedat || !gamecache || !comp || comp->type != COMPONENT_TYPE_MODEL )
+        return;
+    if( comp->modelType == 1 && comp->model >= 0 && !gamecache_get_model(gamecache, comp->model) )
+        load_model_archive(cache_dat, buildcachedat, gamecache, comp->model);
+    else if( comp->modelType == 4 && comp->model >= 0 )
+    {
+        struct GameCacheObj* obj = gamecache_get_obj(gamecache, comp->model);
+        if( obj && obj->model > 0 && !gamecache_get_model(gamecache, obj->model) )
+            load_model_archive(cache_dat, buildcachedat, gamecache, obj->model);
+    }
+}
+
 /** After materializing an RS subtree for BMP, load mesh models referenced by TYPE_MODEL rows and
  * rebuild Scene2 DashModels (matches init_ui.lua model prefetch + IF expand). */
 static void
@@ -2255,15 +2386,11 @@ main(
     }
     printf("uitree_loader_test: loader created, beginning step loop\n");
 
-    /* RS TEXT needs UIScene fonts; BMP model raster needs Scene2 textures (copied to a fresh
-     * DashGraphics in uitree_loader_test_write_sprite_bmp). init_ui.lua / init_cache_dat.lua.
-     */
-    uitree_loader_test_load_title_fonts(cache_dat, buildcachedat, gamecache, ui_scene);
-    uitree_loader_test_load_textures(cache_dat, buildcachedat, gamecache, ui_scene2);
-
     /* ── Driver loop ─────────────────────────────────────────────────────── */
     int media_loaded = 0;
+    int title_fonts_loaded = 0;
     int interfaces_loaded = 0;
+    int loader_finished_ok = 0;
     int step_count = 0;
     int max_steps = 1000000; /* safety */
 
@@ -2277,6 +2404,7 @@ main(
         if( status == UITREE_LOADER_DONE )
         {
             printf("uitree_loader_test: loader DONE after %d steps\n", step_count + 1);
+            loader_finished_ok = 1;
             uitree_loader_free(loader);
             loader = NULL;
             break;
@@ -2352,6 +2480,16 @@ main(
                 break;
             case UITREE_ASSET_FONT:
                 exec_res = uitree_loader_game_executor_font(&game_stub, req);
+                if( exec_res == UITREE_LOADER_GAME_EXECUTOR_NEED_FONT && !title_fonts_loaded )
+                {
+                    printf(
+                        "[loader] needs font '%s' — loading title/fonts archive\n",
+                        req->u.font.name);
+                    uitree_loader_test_load_title_fonts(
+                        cache_dat, buildcachedat, gamecache, ui_scene);
+                    title_fonts_loaded = 1;
+                    exec_res = uitree_loader_game_executor_font(&game_stub, req);
+                }
                 break;
             default:
                 fprintf(
@@ -2391,7 +2529,7 @@ main(
             case UITREE_LOADER_GAME_EXECUTOR_NEED_FONT:
                 fprintf(
                     stderr,
-                    "uitree_loader_test: font asset '%s' not implemented in this harness\n",
+                    "uitree_loader_test: font '%s' still missing after title/fonts load\n",
                     req->u.font.name);
                 goto done_loop;
 
@@ -2406,6 +2544,18 @@ main(
         }
     }
 done_loop:
+
+    if( loader_finished_ok && ui && ui->component_count > 0 )
+    {
+        uitree_loader_test_push_rs_model_via_revconfig_builder(
+            &game_stub,
+            cache_dat,
+            buildcachedat,
+            gamecache,
+            ui,
+            &interfaces_loaded,
+            UITREE_LOADER_TEST_REVCONFIG_RS_MODEL_COMPONENT_ID);
+    }
 
     if( cli.bmp_subtree_component_id >= 0 && ui && gamecache )
     {
@@ -2545,6 +2695,22 @@ done_loop:
                 pin_pick_x,
                 pin_pick_y,
                 cli.bmp_subtree_component_id);
+        }
+
+        /* BMP RS_MODEL pass uses Scene2 textures; uitree_loader never requests textures — load
+         * here only when the tree actually contains model nodes. */
+        {
+            int any_rs_model = 0;
+            for( uint32_t i = 0; i < ui->component_count; i++ )
+            {
+                if( ui->components[i].type == UIELEM_RS_MODEL )
+                {
+                    any_rs_model = 1;
+                    break;
+                }
+            }
+            if( any_rs_model && ui_scene2 )
+                uitree_loader_test_load_textures(cache_dat, buildcachedat, gamecache, ui_scene2);
         }
 
         int bmp_rc = uitree_loader_test_write_sprite_bmp(

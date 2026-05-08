@@ -86,6 +86,7 @@ C_COMMON := \
 	osrs/rscache/filelist.c \
 	osrs/rscache/archive.c \
 	osrs/revconfig/revconfig.c \
+	osrs/revconfig/revconfig_builder.c \
 	osrs/revconfig/revconfig_load.c \
 	osrs/revconfig/uitree.c \
 	osrs/revconfig/uitree_textpool.c \
