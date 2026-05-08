@@ -290,7 +290,8 @@
     "revision_lc245_2.h": "c",
     "serverprot_v1.h": "c",
     "revision.h": "c",
-    "serverprot.h": "c"
+    "serverprot.h": "c",
+    "uitree_loader_game_executor.h": "c"
   },
   "[linux]": {
     "C_Cpp.default.configurationName": "Linux",

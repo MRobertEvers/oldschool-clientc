@@ -49,7 +49,6 @@
 #include "osrs/revconfig/revconfig_load.h"
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
-#include "osrs/revconfig/uitree_load_bridge.h"
 #include "osrs/revconfig/uitree_loader_game_executor.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/filelist.h"
@@ -2261,47 +2260,6 @@ main(
     }
     printf("uitree_loader_test: loader created, beginning step loop\n");
 
-    {
-        struct DashMapConfig sprite_config = {
-            .buffer = malloc(1024 * sizeof(struct SpriteEntry)),
-            .buffer_size = 1024 * sizeof(struct SpriteEntry),
-            .key_size = 64,
-            .entry_size = sizeof(struct SpriteEntry),
-        };
-        struct DashMapConfig component_config = {
-            .buffer = malloc(1024 * sizeof(struct ComponentEntry)),
-            .buffer_size = 1024 * sizeof(struct ComponentEntry),
-            .key_size = 64,
-            .entry_size = sizeof(struct ComponentEntry),
-        };
-        if( !sprite_config.buffer || !component_config.buffer )
-        {
-            fprintf(stderr, "uitree_loader_test: out of memory for revconfig dashmaps\n");
-            free(sprite_config.buffer);
-            free(component_config.buffer);
-            goto cleanup;
-        }
-        rev_sprite_hmap_buf = sprite_config.buffer;
-        rev_component_hmap_buf = component_config.buffer;
-        rev_sprite_hmap = dashmap_new(&sprite_config, 0);
-        rev_component_hmap = dashmap_new(&component_config, 0);
-        if( !rev_sprite_hmap || !rev_component_hmap )
-        {
-            fprintf(stderr, "uitree_loader_test: dashmap_new failed for revconfig maps\n");
-            if( rev_sprite_hmap )
-                dashmap_free(rev_sprite_hmap);
-            if( rev_component_hmap )
-                dashmap_free(rev_component_hmap);
-            free(rev_sprite_hmap_buf);
-            free(rev_component_hmap_buf);
-            rev_sprite_hmap = NULL;
-            rev_component_hmap = NULL;
-            rev_sprite_hmap_buf = NULL;
-            rev_component_hmap_buf = NULL;
-            goto cleanup;
-        }
-    }
-
     /* ── Driver loop ─────────────────────────────────────────────────────── */
     int media_loaded = 0;
     int title_fonts_loaded = 0;
@@ -2356,24 +2314,25 @@ main(
                     req->u.sprite.name);
                 goto done_loop;
                 break;
-            case UITREE_ASSET_INTERFACE:
-                exec_res = uitree_loader_game_executor_interface(&game_stub, req);
-                if( exec_res == UITREE_LOADER_GAME_EXECUTOR_NEED_INTERFACES && !interfaces_loaded )
+            case UITREE_ASSET_RS_COMPONENT:
+                exec_res = uitree_loader_game_executor_rs_component(&game_stub, req);
+                if( exec_res == UITREE_LOADER_GAME_EXECUTOR_NEED_RS_COMPONENT &&
+                    !interfaces_loaded )
                 {
                     printf("[loader] needs interface component(s):");
-                    for( int ci = 0; ci < req->u.interface_file.count; ci++ )
-                        printf(" %d", req->u.interface_file.component_ids[ci]);
+                    for( int ci = 0; ci < req->u.rs_component.resolve.children_count; ci++ )
+                        printf(" %d", req->u.rs_component.resolve.children[ci]);
                     printf(" — loading interfaces\n");
                     load_interfaces(cache_dat, buildcachedat, gamecache);
                     interfaces_loaded = 1;
-                    exec_res = uitree_loader_game_executor_interface(&game_stub, req);
+                    exec_res = uitree_loader_game_executor_rs_component(&game_stub, req);
                 }
                 break;
             case UITREE_ASSET_MODEL:
                 fprintf(
                     stderr,
                     "uitree_loader_test: model id %d not implemented\n",
-                    req->u.model.model_id);
+                    req->u.rs_model.model_id);
                 goto done_loop;
                 break;
             case UITREE_ASSET_FONT:
@@ -2401,11 +2360,10 @@ main(
                     req->u.sprite.name);
                 goto done_loop;
 
-            case UITREE_LOADER_GAME_EXECUTOR_NEED_INTERFACES:
+            case UITREE_LOADER_GAME_EXECUTOR_NEED_RS_COMPONENT:
                 fprintf(
                     stderr, "uitree_loader_test: component(s) still missing after interface load:");
-                for( int ci = 0; ci < req->u.interface_file.count; ci++ )
-                    fprintf(stderr, " %d", req->u.interface_file.component_ids[ci]);
+
                 fprintf(stderr, "\n");
                 goto done_loop;
 
@@ -2413,7 +2371,7 @@ main(
                 fprintf(
                     stderr,
                     "uitree_loader_test: model id %d still missing after load\n",
-                    req->u.model.model_id);
+                    req->u.rs_model.model_id);
                 goto done_loop;
 
             case UITREE_LOADER_GAME_EXECUTOR_NEED_FONT:
@@ -2436,18 +2394,6 @@ main(
         status = uitree_loader_send(loader);
     }
 done_loop:
-
-    if( loader_finished_ok && ui && ui->component_count > 0 )
-    {
-        uitree_loader_test_push_rs_model_via_revconfig_builder(
-            &game_stub,
-            cache_dat,
-            buildcachedat,
-            gamecache,
-            ui,
-            &interfaces_loaded,
-            UITREE_LOADER_TEST_REVCONFIG_RS_MODEL_COMPONENT_ID);
-    }
 
     /* ── Validate result ─────────────────────────────────────────────────── */
     printf("uitree_loader_test: UITree component count = %d\n", ui->component_count);

@@ -3,13 +3,22 @@
 #include "graphics/dashmap.h"
 #include "osrs/chat.h"
 #include "osrs/game.h"
+#include "osrs/gamecache/gamecache_component.h"
 #include "osrs/revconfig/revconfig.h"
 #include "osrs/revconfig/uitree.h"
+#include "osrs/revconfig/uitree_load.h"
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* `uitree_translate_agnostic_fields` takes `struct GameCacheComponent*`; resolve mirrors it. */
+_Static_assert(
+    sizeof(((struct UITreeLoaderAssetRequest_RSComponent*)0)->resolve) ==
+        sizeof(struct GameCacheComponent),
+    "resolve layout must match GameCacheComponent");
 
 /* ── Internal (full) definition of UITreeLoader ─────────────────────────────── */
 
@@ -125,11 +134,19 @@ struct CurrentLoad
     } u;
 };
 
+struct PendingAssets
+{
+    struct UITreeLoaderAssetRequest requests[UITREE_LOADER_MAX_PENDING_ASSETS];
+    int count;
+};
+
 struct UITreeLoader
 {
     enum UITreeLoaderStatus status;
-    struct UITreeLoaderAssetRequest pending_assets[UITREE_LOADER_MAX_PENDING_ASSETS];
-    int pending_asset_count;
+    struct PendingAssets pending_assets_one;
+    struct PendingAssets pending_assets_two;
+    struct PendingAssets* pending_assets;
+    struct PendingAssets* pending_assets_next;
 
     /* Borrowed references — not owned, must outlive the loader. */
     struct UITree* ui_ref;
@@ -138,6 +155,14 @@ struct UITreeLoader
     struct CurrentLoad load; /* accumulator for the current INI item */
     int field_index;
 };
+
+static void
+swap_pending_assets(struct UITreeLoader* loader)
+{
+    struct PendingAssets* tmp = loader->pending_assets;
+    loader->pending_assets = loader->pending_assets_next;
+    loader->pending_assets_next = tmp;
+}
 
 /* ── Allocation ─────────────────────────────────────────────────────────────── */
 
@@ -152,12 +177,11 @@ uitree_loader_new(struct UITree* ui_ref)
     loader->ui_ref = ui_ref;
     loader->field_index = 0;
 
-    /* Reset the UITree to empty before starting. */
-    if( ui_ref )
-    {
-        ui_ref->component_count = 0;
-        ui_ref->root_index = -1;
-    }
+    ui_ref->component_count = 0;
+    ui_ref->root_index = -1;
+
+    loader->pending_assets = &loader->pending_assets_one;
+    loader->pending_assets_next = &loader->pending_assets_two;
 
     return loader;
 }
@@ -189,6 +213,14 @@ sprite_placeholder_atlas_index(struct UITreeLoader* loader)
     return s->atlas_index;
 }
 
+static struct UITreeLoaderAssetRequest*
+next_pending_request_at(
+    struct UITreeLoader* loader,
+    int index)
+{
+    return &loader->pending_assets_next->requests[index];
+}
+
 /* Reserve next pending slot (cleared, kind + default bindings). Returns index or -1 if full.
  * Call uitree_loader_pending_commit() after filling `u` and any UITree work between. */
 static int
@@ -196,31 +228,34 @@ uitree_loader_pending_prepare(
     struct UITreeLoader* loader,
     enum UITreeLoaderAssetKind kind)
 {
-    if( loader->pending_asset_count >= UITREE_LOADER_MAX_PENDING_ASSETS )
+    if( loader->pending_assets_next->count >= UITREE_LOADER_MAX_PENDING_ASSETS )
         return -1;
-    int slot = loader->pending_asset_count;
-    struct UITreeLoaderAssetRequest* req = &loader->pending_assets[slot];
-    memset(req, 0, sizeof(*req));
+    struct UITreeLoaderAssetRequest* req =
+        next_pending_request_at(loader, loader->pending_assets_next->count);
     req->kind = kind;
     req->resolved = false;
-    return slot;
+    return loader->pending_assets_next->count++;
 }
 
 static void
 uitree_loader_pending_commit(struct UITreeLoader* loader)
 {
-    loader->pending_asset_count++;
+    // loader->pending_assets->count++;
 }
 
 static enum UITreeLoaderStatus
 push_pending_model(
     struct UITreeLoader* loader,
-    int model_id)
+    int model_id,
+    enum UITreeLoaderModelType model_type)
 {
     int slot = uitree_loader_pending_prepare(loader, UITREE_ASSET_MODEL);
     if( slot < 0 )
         return UITREE_LOADER_ERROR;
-    loader->pending_assets[slot].u.model.model_id = model_id;
+
+    struct UITreeLoaderAssetRequest* req = next_pending_request_at(loader, slot);
+    req->u.rs_model.model_id = model_id;
+    req->u.rs_model.model_type = model_type;
     uitree_loader_pending_commit(loader);
     return UITREE_LOADER_RUNNING;
 }
@@ -235,12 +270,10 @@ push_pending_font(
     int slot = uitree_loader_pending_prepare(loader, UITREE_ASSET_FONT);
     if( slot < 0 )
         return UITREE_LOADER_ERROR;
-    strncpy(
-        loader->pending_assets[slot].u.font.name,
-        logical_name,
-        sizeof(loader->pending_assets[slot].u.font.name) - 1);
-    loader->pending_assets[slot].u.font.name[sizeof(loader->pending_assets[slot].u.font.name) - 1] =
-        '\0';
+
+    struct UITreeLoaderAssetRequest* req = next_pending_request_at(loader, slot);
+    strncpy(req->u.font.name, logical_name, sizeof(req->u.font.name) - 1);
+    req->u.font.name[sizeof(req->u.font.name) - 1] = '\0';
     uitree_loader_pending_commit(loader);
     return UITREE_LOADER_RUNNING;
 }
@@ -248,15 +281,17 @@ push_pending_font(
 static enum UITreeLoaderStatus
 push_pending_rs_component(
     struct UITreeLoader* loader,
-    int component_id)
+    int component_id,
+    int parent_idx)
 {
     if( component_id < 0 )
         return UITREE_LOADER_ERROR;
     int slot = uitree_loader_pending_prepare(loader, UITREE_ASSET_RS_COMPONENT);
     if( slot < 0 )
         return UITREE_LOADER_ERROR;
-    struct UITreeLoaderAssetRequest* req = &loader->pending_assets[slot];
+    struct UITreeLoaderAssetRequest* req = next_pending_request_at(loader, slot);
     req->u.rs_component.component_id = component_id;
+    req->u.rs_component.parent_idx = parent_idx;
     uitree_loader_pending_commit(loader);
     return UITREE_LOADER_RUNNING;
 }
@@ -271,7 +306,7 @@ uitree_loader_pending_set_sprite_name(
 }
 
 static enum UITreeLoaderStatus
-on_sprite_done(struct UITreeLoader* loader)
+on_revconfig_sprite_done(struct UITreeLoader* loader)
 {
     if( loader->load.u.sprite.name[0] == '\0' )
         return UITREE_LOADER_ERROR;
@@ -279,8 +314,9 @@ on_sprite_done(struct UITreeLoader* loader)
     int slot = uitree_loader_pending_prepare(loader, UITREE_ASSET_SPRITE);
     if( slot < 0 )
         return UITREE_LOADER_ERROR;
-    uitree_loader_pending_set_sprite_name(
-        &loader->pending_assets[slot], loader->load.u.sprite.name);
+
+    struct UITreeLoaderAssetRequest* req = next_pending_request_at(loader, slot);
+    uitree_loader_pending_set_sprite_name(req, loader->load.u.sprite.name);
 
     int atlas = sprite_placeholder_atlas_index(loader);
     int32_t uitree_idx = -1;
@@ -295,71 +331,143 @@ on_sprite_done(struct UITreeLoader* loader)
 }
 
 static enum UITreeLoaderStatus
-on_rs_component_layer_done(
+on_rs_component_done_layer(
     struct UITreeLoader* loader,
     struct UITreeLoaderAssetRequest* req)
 {
-    struct UITreeLoaderAssetRequest_RSComponent* component = &req->u.rs_component;
+    struct UITreeLoaderAssetRequest_RSComponent* rs = &req->u.rs_component;
 
-    int32_t lid = uitree_push_rs_layer(
+    int layer_idx = uitree_push_rs_layer(
         loader->ui_ref,
-        0,
-        component->resolve.id,
-        component->resolve.scroll,
-        component->resolve.hide ? 1 : 0,
-        component->resolve.x,
-        component->resolve.y,
-        component->resolve.width,
-        component->resolve.height);
+        -1,
+        rs->resolve.id,
+        rs->resolve.scroll,
+        rs->resolve.hide ? 1 : 0,
+        rs->resolve.x,
+        rs->resolve.y,
+        rs->resolve.width,
+        rs->resolve.height);
+
+    for( int i = 0; i < rs->resolve.children_count; i++ )
+    {
+        int child = rs->resolve.children[i];
+        push_pending_rs_component(loader, child, layer_idx);
+    }
 
     return UITREE_LOADER_RUNNING;
 }
 
 static enum UITreeLoaderStatus
-on_rs_component_inv_done(
+on_rs_component_done_inv(
     struct UITreeLoader* loader,
     struct UITreeLoaderAssetRequest* req)
 {
+    struct UITreeLoaderAssetRequest_RSComponent* rs = &req->u.rs_component;
+
     return UITREE_LOADER_RUNNING;
 }
 
 static enum UITreeLoaderStatus
-on_rs_component_rect_done(
+on_rs_component_done_rect(
     struct UITreeLoader* loader,
     struct UITreeLoaderAssetRequest* req)
 {
+    struct UITreeLoaderAssetRequest_RSComponent* rs = &req->u.rs_component;
+
+    uitree_push_rs_rect(
+        loader->ui_ref,
+        -1,
+        rs->resolve.id,
+        rs->resolve.colour,
+        rs->resolve.activeColour,
+        rs->resolve.overColour,
+        rs->resolve.activeOverColour,
+        rs->resolve.alpha,
+        rs->resolve.fill ? 1 : 0,
+        rs->resolve.x,
+        rs->resolve.y,
+        rs->resolve.width,
+        rs->resolve.height);
+
     return UITREE_LOADER_RUNNING;
 }
 
 static enum UITreeLoaderStatus
-on_rs_component_text_done(
+on_rs_component_done_text(
     struct UITreeLoader* loader,
     struct UITreeLoaderAssetRequest* req)
 {
+    struct UITreeLoaderAssetRequest_RSComponent* rs = &req->u.rs_component;
+
+    uitree_push_rs_text(
+        loader->ui_ref,
+        -1,
+        rs->resolve.id,
+        rs->resolve.font,
+        rs->resolve.colour,
+        rs->resolve.activeColour,
+        rs->resolve.overColour,
+        rs->resolve.activeOverColour,
+        rs->resolve.center ? 1 : 0,
+        rs->resolve.shadowed ? 1 : 0,
+        rs->resolve.text,
+        rs->resolve.activeText,
+        rs->resolve.x,
+        rs->resolve.y,
+        rs->resolve.width,
+        rs->resolve.height);
+
     return UITREE_LOADER_RUNNING;
 }
 
 static enum UITreeLoaderStatus
-on_rs_component_graphic_done(
+on_rs_component_done_graphic(
     struct UITreeLoader* loader,
     struct UITreeLoaderAssetRequest* req)
 {
+    struct UITreeLoaderAssetRequest_RSComponent* rs = &req->u.rs_component;
+
     return UITREE_LOADER_RUNNING;
 }
 
 static enum UITreeLoaderStatus
-on_rs_component_model_done(
+on_rs_component_done_model(
     struct UITreeLoader* loader,
     struct UITreeLoaderAssetRequest* req)
 {
+    struct UITreeLoaderAssetRequest_RSComponent* rs = &req->u.rs_component;
+
+    // ModelType is NOT stored in the cache. It is set by the network
+    // call that initializes the component.
+    // rs->resolve.modelType == 1 &&
+    // if (type === 1) {
+    //     model = Model.load(id);
+    // } else if (type === 2) {
+    //     model = NpcType.get(id).getHead();
+    // } else if (type === 3) {
+    //     if (localPlayer) {
+    //         model = localPlayer.getHeadModel();
+    //     }
+    // } else if (type === 4) {
+    //     model = ObjType.get(id).getInvModel(50);
+    // } else if (type === 5) {
+    //     model = null;
+    // }
+    if( rs->resolve.model >= 0 )
+    {
+        push_pending_model(loader, rs->resolve.model, UITREE_LOADER_MODEL_TYPE_MODEL);
+    }
+
     return UITREE_LOADER_RUNNING;
 }
 
 static enum UITreeLoaderStatus
-on_rs_component_inv_text_done(
+on_rs_component_done_inv_text(
     struct UITreeLoader* loader,
     struct UITreeLoaderAssetRequest* req)
 {
+    struct UITreeLoaderAssetRequest_RSComponent* rs = &req->u.rs_component;
+
     return UITREE_LOADER_RUNNING;
 }
 
@@ -371,37 +479,39 @@ on_rs_component_done(
     switch( req->u.rs_component.resolve.type )
     {
     case UITREE_LOADER_RS_COMPONENT_TYPE_LAYER:
-        return on_rs_component_layer_done(loader, req);
-        break;
+        return on_rs_component_done_layer(loader, req);
     case UITREE_LOADER_RS_COMPONENT_TYPE_INV:
-        return on_rs_component_inv_done(loader, req);
+        return on_rs_component_done_inv(loader, req);
     case UITREE_LOADER_RS_COMPONENT_TYPE_RECT:
-        return on_rs_component_rect_done(loader, req);
+        return on_rs_component_done_rect(loader, req);
     case UITREE_LOADER_RS_COMPONENT_TYPE_TEXT:
-        return on_rs_component_text_done(loader, req);
+        return on_rs_component_done_text(loader, req);
     case UITREE_LOADER_RS_COMPONENT_TYPE_GRAPHIC:
-        return on_rs_component_graphic_done(loader, req);
+        return on_rs_component_done_graphic(loader, req);
     case UITREE_LOADER_RS_COMPONENT_TYPE_MODEL:
-        return on_rs_component_model_done(loader, req);
+        return on_rs_component_done_model(loader, req);
     case UITREE_LOADER_RS_COMPONENT_TYPE_INV_TEXT:
-        return on_rs_component_inv_text_done(loader, req);
+        return on_rs_component_done_inv_text(loader, req);
     default:
-    {
         assert(0 && "Invalid RS component type");
+        return UITREE_LOADER_ERROR;
     }
-    }
-
-    return UITREE_LOADER_ERROR;
 }
 
 static enum UITreeLoaderStatus
-on_layout_done(struct UITreeLoader* loader)
+on_revconfig_layout_done(struct UITreeLoader* loader)
 {
     return UITREE_LOADER_NEEDS_ASSET;
 }
 
 static enum UITreeLoaderStatus
-on_inv_done(struct UITreeLoader* loader)
+on_revconfig_inv_done(struct UITreeLoader* loader)
+{
+    return UITREE_LOADER_NEEDS_ASSET;
+}
+
+static enum UITreeLoaderStatus
+on_revconfig_component_done(struct UITreeLoader* loader)
 {
     return UITREE_LOADER_NEEDS_ASSET;
 }
@@ -453,16 +563,16 @@ on_rcfield_itemdone(
     switch( loader->load.kind )
     {
     case LOAD_KIND_SPRITE:
-        status = on_sprite_done(loader);
+        status = on_revconfig_sprite_done(loader);
         break;
     case LOAD_KIND_COMPONENT:
-        status = on_component_done(loader);
+        status = on_revconfig_component_done(loader);
         break;
     case LOAD_KIND_LAYOUT:
-        status = on_layout_done(loader);
+        status = on_revconfig_layout_done(loader);
         break;
     case LOAD_KIND_INV:
-        status = on_inv_done(loader);
+        status = on_revconfig_inv_done(loader);
         break;
     default:
         status = UITREE_LOADER_ERROR;
@@ -1660,7 +1770,7 @@ uitree_loader_send_revconfig(
 
     loader->field_index = revconfig->field_count;
 
-    if( loader->pending_asset_count > 0 )
+    if( loader->pending_assets->count > 0 )
     {
         loader->status = UITREE_LOADER_NEEDS_ASSET;
         return UITREE_LOADER_NEEDS_ASSET;
@@ -1675,21 +1785,30 @@ uitree_loader_send_rs_component(
     struct UITreeLoader* loader,
     int component_id)
 {
-    return push_pending_rs_component(loader, component_id);
+    enum UITreeLoaderStatus status = push_pending_rs_component(loader, component_id, -1);
+    if( status != UITREE_LOADER_RUNNING )
+        return status;
+
+    swap_pending_assets(loader);
+
+    return status;
 }
 
 enum UITreeLoaderStatus
 uitree_loader_send(struct UITreeLoader* loader)
 {
     assert(loader);
-    if( loader->pending_asset_count == 0 )
+
+    struct PendingAssets* pending_assets = loader->pending_assets;
+
+    if( pending_assets->count == 0 )
         return UITREE_LOADER_DONE;
 
     struct UITree* ui = loader->ui_ref;
 
-    for( int i = 0; i < loader->pending_asset_count; i++ )
+    for( int i = 0; i < pending_assets->count; i++ )
     {
-        struct UITreeLoaderAssetRequest* req = &loader->pending_assets[i];
+        struct UITreeLoaderAssetRequest* req = &pending_assets->requests[i];
 
         switch( req->kind )
         {
@@ -1715,6 +1834,9 @@ uitree_loader_send(struct UITreeLoader* loader)
         }
     }
 
+    pending_assets->count = 0;
+    swap_pending_assets(loader);
+
     loader->status = UITREE_LOADER_RUNNING;
     return UITREE_LOADER_RUNNING;
 }
@@ -1726,7 +1848,7 @@ uitree_loader_pending_asset_count(const struct UITreeLoader* loader)
 {
     if( !loader )
         return 0;
-    return loader->pending_asset_count;
+    return loader->pending_assets->count;
 }
 
 const struct UITreeLoaderAssetRequest*

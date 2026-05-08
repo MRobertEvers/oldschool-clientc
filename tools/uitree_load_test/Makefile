@@ -186,10 +186,9 @@ C_COMMON := \
 COMMON_SRCS := $(addprefix $(ROOT)/src/,$(C_COMMON))
 TEST_MAIN := $(ROOT)/tools/uitree_load_test/uitree_load_test.c
 UITREE_LOADER := $(ROOT)/src/osrs/revconfig/uitree_loader.c
-UITREE_LOADER_RS := $(ROOT)/src/osrs/revconfig/uitree_loader_rs_gamecache.c
 GAME_UITREE_LOAD_EXEC := $(ROOT)/src/osrs/revconfig/uitree_loader_game_executor.c
 
-SRCS := $(TEST_MAIN) $(UITREE_LOADER) $(UITREE_LOADER_RS) $(GAME_UITREE_LOAD_EXEC) $(COMMON_SRCS) $(LUA_SRCS)
+SRCS := $(TEST_MAIN) $(UITREE_LOADER) $(GAME_UITREE_LOAD_EXEC) $(COMMON_SRCS) $(LUA_SRCS)
 OBJS := $(patsubst $(ROOT)/%.c,$(OBJDIR)/%.o,$(SRCS))
 
 .PHONY: all clean

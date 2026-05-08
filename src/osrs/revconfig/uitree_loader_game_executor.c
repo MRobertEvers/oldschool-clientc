@@ -98,6 +98,17 @@ copy_gcc_to_resolve(
     req->u.rs_component.resolve.usable = gcc->usable;
     req->u.rs_component.resolve.swappable = gcc->swappable;
     req->u.rs_component.resolve.fill = gcc->fill;
+    req->u.rs_component.resolve.center = gcc->center;
+    req->u.rs_component.resolve.shadowed = gcc->shadowed;
+    req->u.rs_component.resolve.graphic = gcc->graphic;
+    req->u.rs_component.resolve.activeGraphic = gcc->activeGraphic;
+    req->u.rs_component.resolve.invSlotGraphic = gcc->invSlotGraphic;
+    req->u.rs_component.resolve.iop = gcc->iop;
+    req->u.rs_component.resolve.childX = gcc->childX;
+    req->u.rs_component.resolve.childY = gcc->childY;
+    req->u.rs_component.resolve.invSlotOffsetX = gcc->invSlotOffsetX;
+    req->u.rs_component.resolve.invSlotOffsetY = gcc->invSlotOffsetY;
+    req->u.rs_component.resolve.font = gcc->font;
 }
 
 enum UITreeLoaderGameExecutorResult

@@ -10,7 +10,7 @@
 #define UITREE_MAX_INTERFACE_REQUESTS 128
 
 /** Max asset requests emitted in one UITREE_LOADER_NEEDS_ASSET pause. */
-#define UITREE_LOADER_MAX_PENDING_ASSETS 128
+#define UITREE_LOADER_MAX_PENDING_ASSETS 512
 
 enum UITreeLoaderRSComponentType
 {
@@ -56,6 +56,7 @@ enum UITreeLoaderAssetKind
 struct UITreeLoaderAssetRequest_RSComponent
 {
     int component_id;
+    int parent_idx;
 
     struct
     {
@@ -125,6 +126,26 @@ struct UITreeLoaderAssetRequest_RSComponent
     } resolve;
 };
 
+enum UITreeLoaderModelType
+{
+    UITREE_LOADER_MODEL_TYPE_MODEL,
+    UITREE_LOADER_MODEL_TYPE_NPC,
+    UITREE_LOADER_MODEL_TYPE_LOCAL_PLAYER,
+    UITREE_LOADER_MODEL_TYPE_OBJ,
+    UITREE_LOADER_MODEL_TYPE_NONE,
+};
+
+struct UITreeLoaderAssetRequest_Model
+{
+    int model_id;
+    enum UITreeLoaderModelType model_type;
+
+    struct
+    {
+        int scene_id;
+    } resolve;
+};
+
 /**
  * Describes the asset the loader could not find.  Inspect `kind`, then read the
  * matching union member to learn what to load.
@@ -144,10 +165,7 @@ struct UITreeLoaderAssetRequest
 
         struct UITreeLoaderAssetRequest_RSComponent rs_component;
 
-        struct
-        {
-            int model_id;
-        } model;
+        struct UITreeLoaderAssetRequest_Model rs_model;
         /** UITREE_ASSET_FONT: font name not yet registered in UIScene. */
         struct
         {

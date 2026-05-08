@@ -357,7 +357,8 @@ LuaUI_load_revconfig_ui(
 
     /* Create the incremental loader.  The revconfig buffer is consumed here;
      * step_loader() drives it to completion. */
-    game->pending_uitree_loader = uitree_loader_new(game->ui_root_buffer, game->pending_revconfig);
+    // game->pending_uitree_loader = uitree_loader_new(game->ui_root_buffer,
+    // game->pending_revconfig);
 
     return LuaGameType_NewVoid();
 }
@@ -369,8 +370,10 @@ LuaUI_asset_descriptor_from_request(const struct UITreeLoaderAssetRequest* req)
     struct LuaGameType* arr = LuaGameType_NewVarTypeArray(2);
 
     static const char* kind_names[] = {
-        [UITREE_ASSET_NONE] = "none",           [UITREE_ASSET_SPRITE] = "sprite",
-        [UITREE_ASSET_INTERFACE] = "interface", [UITREE_ASSET_MODEL] = "model",
+        [UITREE_ASSET_NONE] = "none",
+        [UITREE_ASSET_SPRITE] = "sprite",
+        [UITREE_ASSET_RS_COMPONENT] = "rs_component",
+        [UITREE_ASSET_MODEL] = "model",
         [UITREE_ASSET_FONT] = "font",
     };
     int kind_idx = (int)req->kind;
@@ -388,9 +391,9 @@ LuaUI_asset_descriptor_from_request(const struct UITreeLoaderAssetRequest* req)
         LuaGameType_VarTypeArrayPush(
             arr, LuaGameType_NewString(req->u.sprite.name, (int)strlen(req->u.sprite.name)));
         break;
-    case UITREE_ASSET_INTERFACE:
+    case UITREE_ASSET_RS_COMPONENT:
     {
-        int n = req->u.interface_file.count;
+        int n = req->u.rs_component.resolve.children_count;
         if( n <= 0 )
         {
             LuaGameType_VarTypeArrayPush(arr, LuaGameType_NewInt(0));
@@ -399,12 +402,12 @@ LuaUI_asset_descriptor_from_request(const struct UITreeLoaderAssetRequest* req)
         struct LuaGameType* id_arr = LuaGameType_NewVarTypeArray(n);
         for( int i = 0; i < n; i++ )
             LuaGameType_VarTypeArrayPush(
-                id_arr, LuaGameType_NewInt(req->u.interface_file.component_ids[i]));
+                id_arr, LuaGameType_NewInt(req->u.rs_component.resolve.children[i]));
         LuaGameType_VarTypeArrayPush(arr, id_arr);
         break;
     }
     case UITREE_ASSET_MODEL:
-        LuaGameType_VarTypeArrayPush(arr, LuaGameType_NewInt(req->u.model.model_id));
+        LuaGameType_VarTypeArrayPush(arr, LuaGameType_NewInt(req->u.rs_model.model_id));
         break;
     case UITREE_ASSET_FONT:
         LuaGameType_VarTypeArrayPush(
@@ -432,10 +435,10 @@ LuaUI_step_loader(
 
     /* Drain the loader until it needs an asset or finishes. */
     enum UITreeLoaderStatus status;
-    do
-    {
-        status = uitree_loader_step(game->pending_uitree_loader, game->pending_revconfig);
-    } while( status == UITREE_LOADER_RUNNING );
+    // do
+    // {
+    //     status = uitree_loader_step(game->pending_uitree_loader, game->pending_revconfig);
+    // } while( status == UITREE_LOADER_RUNNING );
 
     if( status == UITREE_LOADER_DONE )
     {

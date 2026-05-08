@@ -7,7 +7,7 @@ OUT  := $(ROOT)/tools/uitree_loader_test/uitree_loader_test
 OBJDIR := $(ROOT)/tools/uitree_loader_test/obj
 
 CC ?= cc
-CFLAGS := -std=c11 -g -O1 -Wall -D_DARWIN_C_SOURCE
+CFLAGS := -std=c11 -g -O0 -Wall -D_DARWIN_C_SOURCE
 CPPFLAGS := -I$(ROOT)/src -I$(ROOT)/src/platforms -I$(ROOT)/src/nuklear \
 	-I$(ROOT)/src/platforms/ToriRSPlatformKit/include \
 	-DUITREE_LOADER_TEST_ROOT=\"$(ROOT)\" \
@@ -90,7 +90,6 @@ C_COMMON := \
 	osrs/revconfig/revconfig_load.c \
 	osrs/revconfig/uitree.c \
 	osrs/revconfig/uitree_textpool.c \
-	osrs/revconfig/uitree_load.c \
 	osrs/rs_component_gfx.c \
 	osrs/revconfig/uiscene.c \
 	osrs/rscache/tables_dat/config_component.c \
@@ -187,10 +186,11 @@ C_COMMON := \
 COMMON_SRCS := $(addprefix $(ROOT)/src/,$(C_COMMON))
 TEST_MAIN := $(ROOT)/tools/uitree_loader_test/main.c
 UITREE_LOADER := $(ROOT)/src/osrs/revconfig/uitree_loader.c
-UITREE_LOADER_RS := $(ROOT)/src/osrs/revconfig/uitree_loader_rs_gamecache.c
 GAME_UITREE_LOAD_EXEC := $(ROOT)/src/osrs/revconfig/uitree_loader_game_executor.c
+UITREE_LOAD_TEST_SYMS := $(ROOT)/tools/uitree_loader_test/uitree_loader_test_load_syms.c
 
-SRCS := $(TEST_MAIN) $(UITREE_LOADER) $(UITREE_LOADER_RS) $(GAME_UITREE_LOAD_EXEC) $(COMMON_SRCS) $(LUA_SRCS)
+SRCS := $(TEST_MAIN) $(UITREE_LOADER) $(GAME_UITREE_LOAD_EXEC) $(UITREE_LOAD_TEST_SYMS) \
+	$(COMMON_SRCS) $(LUA_SRCS)
 OBJS := $(patsubst $(ROOT)/%.c,$(OBJDIR)/%.o,$(SRCS))
 
 .PHONY: all clean

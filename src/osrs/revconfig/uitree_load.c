@@ -19,8 +19,6 @@
 #include "osrs/rscache/tables_dat/pix32.h"
 #include "osrs/rscache/tables_dat/pix8.h"
 #include "osrs/rscache/tables_dat/pixfont.h"
-#include "uitree_load_bridge.h"
-#include "uitree_load_private.h"
 #include "uitree_loader.h"
 
 #include <assert.h>
@@ -813,7 +811,7 @@ uiscene_attach_sprite_row(
  * StaticUIComponent at tree->components[node_idx].  Called once per node at load time;
  * the UITree owns all allocated memory and frees it in uitree_free().
  */
-static void
+void
 uitree_translate_agnostic_fields(
     struct UITree* tree,
     int32_t node_idx,

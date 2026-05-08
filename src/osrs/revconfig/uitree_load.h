@@ -9,6 +9,15 @@
 
 struct GGame;
 
+/** Copy GameCache script/iop/option fields into `tree->components[node_idx]` (UITree owns dup'd
+ * memory). Used when pushing RS nodes from GameCache-backed resolve data (e.g. incremental
+ * uitree_loader after `uitree_loader_game_executor_rs_component`). */
+void
+uitree_translate_agnostic_fields(
+    struct UITree* tree,
+    int32_t node_idx,
+    struct GameCacheComponent* cc);
+
 void
 uitree_from_revconfig_buildcachedat(
     struct UITree* ui,
