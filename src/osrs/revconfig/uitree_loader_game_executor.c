@@ -6,98 +6,119 @@
 #include "osrs/gamecache/gamecache_from_buildcachedat.h"
 #include "osrs/revconfig/uiscene.h"
 
-static void
-uitree_loader_game_executor_clear_binding(struct UITreeLoaderAssetRequest* req)
-{
-    req->game_binding.uiscene_element_id = -1;
-    req->game_binding.inv_pool_index = -1;
-    req->binding_ready = 0;
-}
+#include <assert.h>
 
 enum UITreeLoaderGameExecutorResult
 uitree_loader_game_executor_sprite(
     struct GGame* game,
     struct UITreeLoaderAssetRequest* req)
 {
-    if( !game || !req )
-        return UITREE_LOADER_GAME_EXECUTOR_ERROR;
+    assert(0 && "Not implemented");
+    return UITREE_LOADER_GAME_EXECUTOR_ERROR;
+}
 
-    uitree_loader_game_executor_clear_binding(req);
-
-    if( req->u.sprite.name[0] == '\0' )
-        return UITREE_LOADER_GAME_EXECUTOR_ERROR;
-    if( !game->gamecache )
-        return UITREE_LOADER_GAME_EXECUTOR_ERROR;
-
-    int e = gamecache_get_component_sprite_element_id(game->gamecache, req->u.sprite.name);
-    if( e >= 0 )
+static inline enum UITreeLoaderRSComponentType
+gcc_to_rs_component_type(int type)
+{
+    switch( type )
     {
-        req->game_binding.uiscene_element_id = e;
-        req->binding_ready = 1;
-        return UITREE_LOADER_GAME_EXECUTOR_OK;
+    case COMPONENT_TYPE_LAYER:
+        return UITREE_LOADER_RS_COMPONENT_TYPE_LAYER;
+    case COMPONENT_TYPE_INV:
+        return UITREE_LOADER_RS_COMPONENT_TYPE_INV;
+    case COMPONENT_TYPE_RECT:
+        return UITREE_LOADER_RS_COMPONENT_TYPE_RECT;
+    case COMPONENT_TYPE_TEXT:
+        return UITREE_LOADER_RS_COMPONENT_TYPE_TEXT;
+    case COMPONENT_TYPE_GRAPHIC:
+        return UITREE_LOADER_RS_COMPONENT_TYPE_GRAPHIC;
+    case COMPONENT_TYPE_MODEL:
+        return UITREE_LOADER_RS_COMPONENT_TYPE_MODEL;
+    case COMPONENT_TYPE_INV_TEXT:
+        return UITREE_LOADER_RS_COMPONENT_TYPE_INV_TEXT;
+    default:
+        return UITREE_LOADER_RS_COMPONENT_TYPE_LAYER;
     }
 
-    if( game->buildcachedat && game->ui_scene )
-    {
-        buildcachedat_loader_load_component_sprite_lazy(
-            game->buildcachedat, game->ui_scene, game, req->u.sprite.name);
-        gamecache_convert_reftables_from_buildcachedat(game->gamecache, game->buildcachedat);
-        e = gamecache_get_component_sprite_element_id(game->gamecache, req->u.sprite.name);
-        if( e >= 0 )
-        {
-            req->game_binding.uiscene_element_id = e;
-            req->binding_ready = 1;
-            return UITREE_LOADER_GAME_EXECUTOR_OK;
-        }
-    }
+    return UITREE_LOADER_RS_COMPONENT_TYPE_LAYER;
+}
 
-    return UITREE_LOADER_GAME_EXECUTOR_NEED_2D_MEDIA;
+static inline void
+copy_gcc_to_resolve(
+    struct GameCacheComponent* gcc,
+    struct UITreeLoaderAssetRequest* req)
+{
+    req->u.rs_component.resolve.id = gcc->id;
+    req->u.rs_component.resolve.type = gcc_to_rs_component_type(gcc->type);
+    req->u.rs_component.resolve.buttonType = gcc->buttonType;
+    req->u.rs_component.resolve.clientCode = gcc->clientCode;
+    req->u.rs_component.resolve.width = gcc->width;
+    req->u.rs_component.resolve.height = gcc->height;
+    req->u.rs_component.resolve.x = gcc->x;
+    req->u.rs_component.resolve.y = gcc->y;
+    req->u.rs_component.resolve.scripts = gcc->scripts;
+    req->u.rs_component.resolve.scripts_count = gcc->scripts_count;
+    req->u.rs_component.resolve.scripts_lengths = gcc->scripts_lengths;
+    req->u.rs_component.resolve.alpha = gcc->alpha;
+    req->u.rs_component.resolve.overlayer = gcc->overlayer;
+    req->u.rs_component.resolve.scriptComparator = gcc->scriptComparator;
+    req->u.rs_component.resolve.scriptOperand = gcc->scriptOperand;
+    req->u.rs_component.resolve.script_comparator_count = gcc->script_comparator_count;
+    req->u.rs_component.resolve.invSlotObjId = gcc->invSlotObjId;
+    req->u.rs_component.resolve.invSlotObjCount = gcc->invSlotObjCount;
+    req->u.rs_component.resolve.seqFrame = gcc->seqFrame;
+    req->u.rs_component.resolve.seqCycle = gcc->seqCycle;
+    req->u.rs_component.resolve.children = gcc->children;
+    req->u.rs_component.resolve.children_count = gcc->children_count;
+    req->u.rs_component.resolve.anim = gcc->anim;
+    req->u.rs_component.resolve.activeAnim = gcc->activeAnim;
+    req->u.rs_component.resolve.activeModelType = gcc->activeModelType;
+    req->u.rs_component.resolve.activeModel = gcc->activeModel;
+    req->u.rs_component.resolve.zoom = gcc->zoom;
+    req->u.rs_component.resolve.xan = gcc->xan;
+    req->u.rs_component.resolve.yan = gcc->yan;
+    req->u.rs_component.resolve.scroll = gcc->scroll;
+    req->u.rs_component.resolve.hide = gcc->hide;
+    req->u.rs_component.resolve.targetVerb = gcc->targetVerb;
+    req->u.rs_component.resolve.targetText = gcc->targetText;
+    req->u.rs_component.resolve.targetMask = gcc->targetMask;
+    req->u.rs_component.resolve.option = gcc->option;
+    req->u.rs_component.resolve.marginX = gcc->marginX;
+    req->u.rs_component.resolve.marginY = gcc->marginY;
+    req->u.rs_component.resolve.colour = gcc->colour;
+    req->u.rs_component.resolve.activeColour = gcc->activeColour;
+    req->u.rs_component.resolve.overColour = gcc->overColour;
+    req->u.rs_component.resolve.activeOverColour = gcc->activeOverColour;
+    req->u.rs_component.resolve.modelType = gcc->modelType;
+    req->u.rs_component.resolve.model = gcc->model;
+    req->u.rs_component.resolve.text = gcc->text;
+    req->u.rs_component.resolve.activeText = gcc->activeText;
+    req->u.rs_component.resolve.draggable = gcc->draggable;
+    req->u.rs_component.resolve.interactable = gcc->interactable;
+    req->u.rs_component.resolve.usable = gcc->usable;
+    req->u.rs_component.resolve.swappable = gcc->swappable;
+    req->u.rs_component.resolve.fill = gcc->fill;
 }
 
 enum UITreeLoaderGameExecutorResult
-uitree_loader_game_executor_interface(
+uitree_loader_game_executor_rs_component(
     struct GGame* game,
     struct UITreeLoaderAssetRequest* req)
 {
-    if( !game || !req || !game->gamecache )
-        return UITREE_LOADER_GAME_EXECUTOR_ERROR;
-
-    uitree_loader_game_executor_clear_binding(req);
-
-    int n = req->u.interface_file.count;
-    if( n < 0 || n > UITREE_MAX_INTERFACE_REQUESTS )
-        return UITREE_LOADER_GAME_EXECUTOR_ERROR;
-    if( n == 0 )
-    {
-        req->binding_ready = 1;
-        return UITREE_LOADER_GAME_EXECUTOR_OK;
-    }
+    struct GameCacheComponent* gcc = NULL;
+    assert(req->kind == UITREE_ASSET_RS_COMPONENT);
 
     struct GameCache* gc = game->gamecache;
-    for( int i = 0; i < n; i++ )
-    {
-        int cid = req->u.interface_file.component_ids[i];
-        if( cid < 0 )
-            return UITREE_LOADER_GAME_EXECUTOR_ERROR;
-        if( !gamecache_get_component(gc, cid) )
-            return UITREE_LOADER_GAME_EXECUTOR_NEED_INTERFACES;
-    }
+    int cid = req->u.rs_component.component_id;
+    if( cid < 0 )
+        return UITREE_LOADER_GAME_EXECUTOR_ERROR;
 
-    if( game->buildcachedat && game->ui_scene )
-    {
-        for( int i = 0; i < n; i++ )
-        {
-            buildcachedat_loader_ensure_component_graphics_for_gamecache_interface(
-                game->buildcachedat,
-                game->ui_scene,
-                game,
-                gc,
-                req->u.interface_file.component_ids[i]);
-        }
-        gamecache_convert_reftables_from_buildcachedat(gc, game->buildcachedat);
-    }
+    if( !(gcc = gamecache_get_component(gc, cid)) )
+        return UITREE_LOADER_GAME_EXECUTOR_NEED_RS_COMPONENT;
 
-    req->binding_ready = 1;
+    copy_gcc_to_resolve(gcc, req);
+
+    req->resolved = true;
     return UITREE_LOADER_GAME_EXECUTOR_OK;
 }
 
@@ -106,20 +127,8 @@ uitree_loader_game_executor_model(
     struct GGame* game,
     struct UITreeLoaderAssetRequest* req)
 {
-    if( !game || !req || !game->gamecache )
-        return UITREE_LOADER_GAME_EXECUTOR_ERROR;
-
-    uitree_loader_game_executor_clear_binding(req);
-
-    int mid = req->u.model.model_id;
-    if( mid < 0 )
-        return UITREE_LOADER_GAME_EXECUTOR_ERROR;
-    if( gamecache_get_model(game->gamecache, mid) )
-    {
-        req->binding_ready = 1;
-        return UITREE_LOADER_GAME_EXECUTOR_OK;
-    }
-    return UITREE_LOADER_GAME_EXECUTOR_NEED_MODEL;
+    assert(0 && "Not implemented");
+    return UITREE_LOADER_GAME_EXECUTOR_ERROR;
 }
 
 enum UITreeLoaderGameExecutorResult
@@ -127,25 +136,6 @@ uitree_loader_game_executor_font(
     struct GGame* game,
     struct UITreeLoaderAssetRequest* req)
 {
-    if( !game || !req || !game->gamecache || !game->ui_scene )
-        return UITREE_LOADER_GAME_EXECUTOR_ERROR;
-
-    uitree_loader_game_executor_clear_binding(req);
-
-    if( req->u.font.name[0] == '\0' )
-        return UITREE_LOADER_GAME_EXECUTOR_ERROR;
-
-    struct UIScene* scene = game->ui_scene;
-    int fid = uiscene_font_find_id(scene, req->u.font.name);
-    if( fid < 0 )
-        fid = gamecache_get_font_ref_id(game->gamecache, req->u.font.name);
-
-    if( fid >= 0 && uiscene_font_get(scene, fid) )
-    {
-        req->game_binding.uiscene_element_id = fid;
-        req->binding_ready = 1;
-        return UITREE_LOADER_GAME_EXECUTOR_OK;
-    }
-
-    return UITREE_LOADER_GAME_EXECUTOR_NEED_FONT;
+    assert(0 && "Not implemented");
+    return UITREE_LOADER_GAME_EXECUTOR_ERROR;
 }

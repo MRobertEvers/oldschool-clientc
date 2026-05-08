@@ -3488,3 +3488,28 @@ uitree_load_commit_revconfig_item(
     return uitree_impl_load_item(
         load, sprite_hmap, component_hmap, ui, ui_scene, inv_pool, buildcachedat, game, out_req);
 }
+
+void
+uitree_load_register_sprite_from_gamecache(
+    struct GGame* game,
+    struct DashMap* sprite_hmap,
+    const char* sprite_name)
+{
+    if( !game || !sprite_hmap || !sprite_name || sprite_name[0] == '\0' || !game->gamecache ||
+        !game->ui_scene )
+        return;
+    int element_id = gamecache_get_component_sprite_element_id(game->gamecache, sprite_name);
+    if( element_id < 0 )
+        return;
+    struct UISceneElement* el = uiscene_element_at(game->ui_scene, element_id);
+    if( !el || !el->dash_sprites || el->dash_sprites_count <= 0 )
+        return;
+    struct SpriteEntry* se = dashmap_search(sprite_hmap, sprite_name, DASHMAP_INSERT);
+    if( !se )
+        return;
+    strncpy(se->name, sprite_name, sizeof(se->name) - 1);
+    se->name[sizeof(se->name) - 1] = '\0';
+    se->id = element_id;
+    se->sprites = el->dash_sprites;
+    se->count = el->dash_sprites_count;
+}

@@ -18,7 +18,7 @@ enum UITreeLoaderGameExecutorResult
     /** Sprite ref missing from GameCache; load 2D media / register sprites, then retry. */
     UITREE_LOADER_GAME_EXECUTOR_NEED_2D_MEDIA,
     /** Load interface archives into GameCache, then retry. */
-    UITREE_LOADER_GAME_EXECUTOR_NEED_INTERFACES,
+    UITREE_LOADER_GAME_EXECUTOR_NEED_RS_COMPONENT,
     /** Load the model archive for req->u.model.model_id, then retry. */
     UITREE_LOADER_GAME_EXECUTOR_NEED_MODEL,
     /** Font name missing from GameCache font reftable; load fonts and sync refs, then retry. */
@@ -38,7 +38,7 @@ uitree_loader_game_executor_sprite(
     struct UITreeLoaderAssetRequest* req);
 
 enum UITreeLoaderGameExecutorResult
-uitree_loader_game_executor_interface(
+uitree_loader_game_executor_rs_component(
     struct GGame* game,
     struct UITreeLoaderAssetRequest* req);
 

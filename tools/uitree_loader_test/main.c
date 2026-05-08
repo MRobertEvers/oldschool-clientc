@@ -1,7 +1,8 @@
 /*
  * uitree_loader_test — C driver for the incremental UITree loader.
  *
- * Mirrors init_ui.lua — UITreeLoader + uitree_loader_send(), then uitree_loader_game_executor_*
+ * Mirrors init_ui.lua — UITreeLoader + uitree_loader_step(revconfig), then
+ * uitree_loader_game_executor_*
  * for each UITREE_LOADER_NEEDS_ASSET request (sprites/media, interfaces, models, fonts — no bulk
  * preload of those). RS models use `game.ui_scene`; optional BMP composites drawable nodes.
  * Scene2 textures load on demand before BMP when the UITree contains RS_MODEL rows.
@@ -33,6 +34,7 @@
 
 #include "bmp.h"
 #include "graphics/dash.h"
+#include "graphics/dashmap.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
 #include "osrs/clientscript_vm.h"
@@ -47,8 +49,7 @@
 #include "osrs/revconfig/revconfig_load.h"
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
-#include "osrs/revconfig/uitree_load.h"
-#include "osrs/revconfig/uitree_loader.h"
+#include "osrs/revconfig/uitree_load_bridge.h"
 #include "osrs/revconfig/uitree_loader_game_executor.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/filelist.h"
@@ -208,14 +209,6 @@ load_interfaces(
     struct CacheDat*,
     struct BuildCacheDat*,
     struct GameCache*);
-
-static void
-uitree_loader_test_ensure_rs_models_for_gamecache_root(
-    struct GGame*,
-    struct CacheDat*,
-    struct BuildCacheDat*,
-    struct GameCache*,
-    int root_component_id);
 
 static void
 uitree_loader_test_load_mesh_archives_for_model_component(
@@ -1043,9 +1036,10 @@ uitree_loader_test_find_rs_model_idx(
     return -1;
 }
 
-/** After `uitree_loader_send` completes OK: append `UIELEM_RS_MODEL` for `component_id` using
- * `RevConfigBuilder`, load only that row's mesh archive(s) if still missing, then bind UIScene
- * like `uitree_load` MODEL rows. No-op if a matching RS_MODEL node already exists. */
+/** After the incremental loader completes OK: append `UIELEM_RS_MODEL` for `component_id` using
+ * `RevConfigBuilder`, load only that row's mesh archive(s) if still missing. The node keeps
+ * `scene_id = -1` until another path binds UIScene (this harness avoids uitree_load APIs). No-op if
+ * a matching RS_MODEL node already exists. */
 static void
 uitree_loader_test_push_rs_model_via_revconfig_builder(
     struct GGame* game,
@@ -1107,79 +1101,10 @@ uitree_loader_test_push_rs_model_via_revconfig_builder(
         return;
     }
 
-    uitree_rs_model_refresh_from_gamecache(game, component_id);
     printf(
         "uitree_loader_test: revconfig_builder pushed RS_MODEL component_id=%d (uitree idx %d)\n",
         component_id,
         (int)pushed);
-}
-
-/** Rev INI leaves `componentno=-1` on sidebar builtins; RS interfaces appear after SETTAB-style
- * expands. For BMP `--component`, push the subtree from gamecache if missing after static load.
- * Ensures full interfaces archive is in gamecache when incremental loading skipped that IF. */
-static void
-uitree_loader_test_materialize_component_for_bmp(
-    struct GGame* game,
-    struct CacheDat* cache_dat,
-    struct BuildCacheDat* buildcachedat,
-    int component_id)
-{
-    struct UITree* ui = game ? game->ui_root_buffer : NULL;
-    if( !game || !ui || !game->gamecache || component_id < 0 )
-        return;
-    if( uitree_loader_test_find_component_idx_prefer_rs_layer(ui, component_id) >= 0 )
-        return;
-    if( uitree_find_by_component_id(ui, component_id) >= 0 )
-        return;
-
-    if( !gamecache_get_component(game->gamecache, component_id) )
-    {
-        if( cache_dat && buildcachedat )
-        {
-            printf(
-                "uitree_loader_test: BMP component_id=%d not in gamecache yet — loading full "
-                "interfaces archive\n",
-                component_id);
-            load_interfaces(cache_dat, buildcachedat, game->gamecache);
-        }
-        if( !gamecache_get_component(game->gamecache, component_id) )
-        {
-            fprintf(
-                stderr,
-                "uitree_loader_test: BMP component_id=%d missing from gamecache after interface "
-                "load (unknown id or cache)\n",
-                component_id);
-            return;
-        }
-    }
-
-    printf(
-        "uitree_loader_test: BMP requested component_id=%d — expanding into UITree (runtime "
-        "SETTAB/IF_OPEN-style)\n",
-        component_id);
-
-    for( int tab = 0; tab < 14; tab++ )
-    {
-        uitree_expand_sidebar_for_tab(game, tab, component_id);
-        if( uitree_loader_test_find_component_idx_prefer_rs_layer(ui, component_id) >= 0 )
-            return;
-        if( uitree_find_by_component_id(ui, component_id) >= 0 )
-            return;
-    }
-
-    uitree_expand_sidebar_overlay_for_interface(game, component_id);
-    if( uitree_loader_test_find_component_idx_prefer_rs_layer(ui, component_id) >= 0 )
-        return;
-    if( uitree_find_by_component_id(ui, component_id) >= 0 )
-        return;
-
-    uitree_expand_viewport_overlay_for_interface(game, component_id);
-    if( uitree_loader_test_find_component_idx_prefer_rs_layer(ui, component_id) >= 0 )
-        return;
-    if( uitree_find_by_component_id(ui, component_id) >= 0 )
-        return;
-
-    uitree_expand_chat_dialog_for_interface(game, component_id);
 }
 
 /** `over_*` may match an rs_layer id while activeGraphic lives on a child with a different id. */
@@ -2193,60 +2118,6 @@ uitree_loader_test_load_mesh_archives_for_model_component(
     }
 }
 
-/** After materializing an RS subtree for BMP, load mesh models referenced by TYPE_MODEL rows and
- * rebuild Scene2 DashModels (matches init_ui.lua model prefetch + IF expand). */
-static void
-uitree_loader_test_ensure_rs_models_for_gamecache_root(
-    struct GGame* game,
-    struct CacheDat* cache_dat,
-    struct BuildCacheDat* buildcachedat,
-    struct GameCache* gamecache,
-    int root_component_id)
-{
-    if( !game || !cache_dat || !buildcachedat || !gamecache || root_component_id < 0 )
-        return;
-    struct GameCacheComponent* root = gamecache_get_component(gamecache, root_component_id);
-    if( !root )
-        return;
-
-    struct GameCacheComponent* stack[8192];
-    int sp = 0;
-    int guard = 0;
-    stack[sp++] = root;
-    while( sp > 0 && guard++ < 200000 )
-    {
-        struct GameCacheComponent* comp = stack[--sp];
-        if( !comp )
-            continue;
-
-        if( comp->type == COMPONENT_TYPE_MODEL )
-        {
-            if( comp->modelType == 1 && comp->model >= 0 &&
-                !gamecache_get_model(gamecache, comp->model) )
-                load_model_archive(cache_dat, buildcachedat, gamecache, comp->model);
-            else if( comp->modelType == 4 && comp->model >= 0 )
-            {
-                struct GameCacheObj* obj = gamecache_get_obj(gamecache, comp->model);
-                if( obj && obj->model > 0 && !gamecache_get_model(gamecache, obj->model) )
-                    load_model_archive(cache_dat, buildcachedat, gamecache, obj->model);
-            }
-        }
-
-        if( comp->children )
-        {
-            for( int i = 0; i < comp->children_count && sp < 8192; i++ )
-            {
-                struct GameCacheComponent* ch =
-                    gamecache_get_component(gamecache, comp->children[i]);
-                if( ch )
-                    stack[sp++] = ch;
-            }
-        }
-    }
-
-    uitree_rs_model_refresh_subtree_for_gamecache_root(game, root_component_id);
-}
-
 /* ── Main ───────────────────────────────────────────────────────────────────── */
 
 int
@@ -2314,6 +2185,10 @@ main(
     struct UIInventoryPool* inv_pool = NULL;
     struct UITreeLoader* loader = NULL;
     struct InterfaceState* iface_state = NULL;
+    struct DashMap* rev_sprite_hmap = NULL;
+    struct DashMap* rev_component_hmap = NULL;
+    void* rev_sprite_hmap_buf = NULL;
+    void* rev_component_hmap_buf = NULL;
 
     /* ── BuildCacheDat + GGame stub ──────────────────────────────────────── */
     buildcachedat = buildcachedat_new();
@@ -2378,13 +2253,54 @@ main(
     int bmp_ok = 1;
 
     /* ── Create incremental loader (rev UI INI drives UITreeLoader) ─────── */
-    loader = uitree_loader_new(ui, revconfig);
+    loader = uitree_loader_new(ui);
     if( !loader )
     {
         fprintf(stderr, "uitree_loader_test: out of memory creating loader\n");
         goto cleanup;
     }
     printf("uitree_loader_test: loader created, beginning step loop\n");
+
+    {
+        struct DashMapConfig sprite_config = {
+            .buffer = malloc(1024 * sizeof(struct SpriteEntry)),
+            .buffer_size = 1024 * sizeof(struct SpriteEntry),
+            .key_size = 64,
+            .entry_size = sizeof(struct SpriteEntry),
+        };
+        struct DashMapConfig component_config = {
+            .buffer = malloc(1024 * sizeof(struct ComponentEntry)),
+            .buffer_size = 1024 * sizeof(struct ComponentEntry),
+            .key_size = 64,
+            .entry_size = sizeof(struct ComponentEntry),
+        };
+        if( !sprite_config.buffer || !component_config.buffer )
+        {
+            fprintf(stderr, "uitree_loader_test: out of memory for revconfig dashmaps\n");
+            free(sprite_config.buffer);
+            free(component_config.buffer);
+            goto cleanup;
+        }
+        rev_sprite_hmap_buf = sprite_config.buffer;
+        rev_component_hmap_buf = component_config.buffer;
+        rev_sprite_hmap = dashmap_new(&sprite_config, 0);
+        rev_component_hmap = dashmap_new(&component_config, 0);
+        if( !rev_sprite_hmap || !rev_component_hmap )
+        {
+            fprintf(stderr, "uitree_loader_test: dashmap_new failed for revconfig maps\n");
+            if( rev_sprite_hmap )
+                dashmap_free(rev_sprite_hmap);
+            if( rev_component_hmap )
+                dashmap_free(rev_component_hmap);
+            free(rev_sprite_hmap_buf);
+            free(rev_component_hmap_buf);
+            rev_sprite_hmap = NULL;
+            rev_component_hmap = NULL;
+            rev_sprite_hmap_buf = NULL;
+            rev_component_hmap_buf = NULL;
+            goto cleanup;
+        }
+    }
 
     /* ── Driver loop ─────────────────────────────────────────────────────── */
     int media_loaded = 0;
@@ -2394,13 +2310,15 @@ main(
     int step_count = 0;
     int max_steps = 1000000; /* safety */
 
+    enum UITreeLoaderStatus status = uitree_loader_send_rs_component(loader, 1151);
+    if( status == UITREE_LOADER_ERROR )
+    {
+        fprintf(stderr, "uitree_loader_test: uitree_loader_send_rs_component failed\n");
+        goto done_loop;
+    }
+
     for( ; step_count < max_steps; step_count++ )
     {
-        enum UITreeLoaderStatus status = uitree_loader_send(loader);
-
-        if( status == UITREE_LOADER_RUNNING )
-            continue; /* more items to process — keep going */
-
         if( status == UITREE_LOADER_DONE )
         {
             printf("uitree_loader_test: loader DONE after %d steps\n", step_count + 1);
@@ -2416,9 +2334,6 @@ main(
             break;
         }
 
-        /* UITREE_LOADER_NEEDS_ASSET — bridge: exec → host I/O → exec; mutations persist in loader
-         * slots via uitree_loader_pending_assets_mut.
-         */
         int npc = uitree_loader_pending_asset_count(loader);
         struct UITreeLoaderAssetRequest* preqs = uitree_loader_pending_assets_mut(loader);
         if( !preqs && npc > 0 )
@@ -2426,6 +2341,7 @@ main(
             fprintf(stderr, "uitree_loader_test: pending_assets_mut returned NULL\n");
             goto done_loop;
         }
+
         for( int pi = 0; pi < npc; pi++ )
         {
             struct UITreeLoaderAssetRequest* req = &preqs[pi];
@@ -2434,25 +2350,11 @@ main(
             switch( req->kind )
             {
             case UITREE_ASSET_SPRITE:
-                exec_res = uitree_loader_game_executor_sprite(&game_stub, req);
-                if( exec_res == UITREE_LOADER_GAME_EXECUTOR_NEED_2D_MEDIA )
-                {
-                    if( !buildcachedat->cfg_media_jagfile && !media_loaded )
-                    {
-                        printf(
-                            "[loader] needs sprite '%s' — loading 2D media jagfile\n",
-                            req->u.sprite.name);
-                        load_media_jagfile(cache_dat, buildcachedat);
-                        media_loaded = 1;
-                    }
-                    if( buildcachedat->cfg_media_jagfile )
-                    {
-                        buildcachedat_loader_load_component_sprite_lazy(
-                            buildcachedat, ui_scene, &game_stub, req->u.sprite.name);
-                        gamecache_convert_reftables_from_buildcachedat(gamecache, buildcachedat);
-                    }
-                    exec_res = uitree_loader_game_executor_sprite(&game_stub, req);
-                }
+                fprintf(
+                    stderr,
+                    "uitree_loader_test: sprite '%s' not implemented\n",
+                    req->u.sprite.name);
+                goto done_loop;
                 break;
             case UITREE_ASSET_INTERFACE:
                 exec_res = uitree_loader_game_executor_interface(&game_stub, req);
@@ -2468,28 +2370,16 @@ main(
                 }
                 break;
             case UITREE_ASSET_MODEL:
-                exec_res = uitree_loader_game_executor_model(&game_stub, req);
-                if( exec_res == UITREE_LOADER_GAME_EXECUTOR_NEED_MODEL )
-                {
-                    printf(
-                        "[loader] needs model id %d — loading from cache dat\n",
-                        req->u.model.model_id);
-                    load_model_archive(cache_dat, buildcachedat, gamecache, req->u.model.model_id);
-                    exec_res = uitree_loader_game_executor_model(&game_stub, req);
-                }
+                fprintf(
+                    stderr,
+                    "uitree_loader_test: model id %d not implemented\n",
+                    req->u.model.model_id);
+                goto done_loop;
                 break;
             case UITREE_ASSET_FONT:
-                exec_res = uitree_loader_game_executor_font(&game_stub, req);
-                if( exec_res == UITREE_LOADER_GAME_EXECUTOR_NEED_FONT && !title_fonts_loaded )
-                {
-                    printf(
-                        "[loader] needs font '%s' — loading title/fonts archive\n",
-                        req->u.font.name);
-                    uitree_loader_test_load_title_fonts(
-                        cache_dat, buildcachedat, gamecache, ui_scene);
-                    title_fonts_loaded = 1;
-                    exec_res = uitree_loader_game_executor_font(&game_stub, req);
-                }
+                fprintf(
+                    stderr, "uitree_loader_test: font '%s' not implemented\n", req->u.font.name);
+                goto done_loop;
                 break;
             default:
                 fprintf(
@@ -2542,6 +2432,8 @@ main(
                 goto done_loop;
             }
         }
+
+        status = uitree_loader_send(loader);
     }
 done_loop:
 
@@ -2555,14 +2447,6 @@ done_loop:
             ui,
             &interfaces_loaded,
             UITREE_LOADER_TEST_REVCONFIG_RS_MODEL_COMPONENT_ID);
-    }
-
-    if( cli.bmp_subtree_component_id >= 0 && ui && gamecache )
-    {
-        // uitree_loader_test_materialize_component_for_bmp(
-        //     &game_stub, cache_dat, buildcachedat, cli.bmp_subtree_component_id);
-        // uitree_loader_test_ensure_rs_models_for_gamecache_root(
-        //     &game_stub, cache_dat, buildcachedat, gamecache, cli.bmp_subtree_component_id);
     }
 
     /* ── Validate result ─────────────────────────────────────────────────── */
@@ -2727,11 +2611,24 @@ done_loop:
             bmp_ok = 0;
     }
 
-    /* ── Cleanup ─────────────────────────────────────────────────────────── */
-    if( loader )
-        uitree_loader_free(loader);
-
 cleanup:
+    if( loader )
+    {
+        uitree_loader_free(loader);
+        loader = NULL;
+    }
+
+    if( rev_sprite_hmap )
+        dashmap_free(rev_sprite_hmap);
+    if( rev_component_hmap )
+        dashmap_free(rev_component_hmap);
+    free(rev_sprite_hmap_buf);
+    free(rev_component_hmap_buf);
+    rev_sprite_hmap = NULL;
+    rev_component_hmap = NULL;
+    rev_sprite_hmap_buf = NULL;
+    rev_component_hmap_buf = NULL;
+
     if( iface_state )
     {
         interface_state_free(iface_state);

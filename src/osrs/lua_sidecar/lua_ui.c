@@ -434,7 +434,7 @@ LuaUI_step_loader(
     enum UITreeLoaderStatus status;
     do
     {
-        status = uitree_loader_send(game->pending_uitree_loader);
+        status = uitree_loader_step(game->pending_uitree_loader, game->pending_revconfig);
     } while( status == UITREE_LOADER_RUNNING );
 
     if( status == UITREE_LOADER_DONE )

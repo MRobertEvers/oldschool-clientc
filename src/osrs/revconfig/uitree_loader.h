@@ -10,8 +10,18 @@
 #define UITREE_MAX_INTERFACE_REQUESTS 128
 
 /** Max asset requests emitted in one UITREE_LOADER_NEEDS_ASSET pause. */
-#define UITREE_LOADER_MAX_PENDING_ASSETS 16
+#define UITREE_LOADER_MAX_PENDING_ASSETS 128
 
+enum UITreeLoaderRSComponentType
+{
+    UITREE_LOADER_RS_COMPONENT_TYPE_LAYER,
+    UITREE_LOADER_RS_COMPONENT_TYPE_INV,
+    UITREE_LOADER_RS_COMPONENT_TYPE_RECT,
+    UITREE_LOADER_RS_COMPONENT_TYPE_TEXT,
+    UITREE_LOADER_RS_COMPONENT_TYPE_GRAPHIC,
+    UITREE_LOADER_RS_COMPONENT_TYPE_MODEL,
+    UITREE_LOADER_RS_COMPONENT_TYPE_INV_TEXT,
+};
 /**
  * Status returned by uitree_loader_step().
  */
@@ -36,11 +46,83 @@ enum UITreeLoaderAssetKind
     /** Sprite ref missing from GameCache; load 2D media / register sprites, then retry. */
     UITREE_ASSET_SPRITE,
     /** A GameCacheComponent is absent; load interface archive and convert components. */
-    UITREE_ASSET_INTERFACE,
+    UITREE_ASSET_RS_COMPONENT,
     /** A specific model is missing from the model cache. */
     UITREE_ASSET_MODEL,
     /** Font name missing from GameCache font reftable. */
     UITREE_ASSET_FONT,
+};
+
+struct UITreeLoaderAssetRequest_RSComponent
+{
+    int component_id;
+
+    struct
+    {
+        int id;
+        int type;
+        int buttonType;
+        int clientCode;
+        int width;
+        int height;
+        int x;
+        int y;
+        int** scripts;
+        int scripts_count;
+        int* scripts_lengths;
+        int alpha;
+        int overlayer;
+        int* scriptComparator;
+        int* scriptOperand;
+        int script_comparator_count;
+        int* invSlotObjId;
+        int* invSlotObjCount;
+        int seqFrame;
+        int seqCycle;
+        int* children;
+        int children_count;
+        int anim;
+        int activeAnim;
+        /** Client IfType model2Type / model2Id when getIfActive (0 = unset, use
+         * modelType/model). */
+        int activeModelType;
+        int activeModel;
+        int zoom;
+        int xan;
+        int yan;
+        int scroll;
+        bool hide;
+        char* targetVerb;
+        char* targetText;
+        int targetMask;
+        char const* option;
+        int marginX;
+        int marginY;
+        int colour;
+        int activeColour;
+        int overColour;
+        int activeOverColour;
+        int modelType;
+        int model;
+        char* text;
+        char* activeText;
+        bool draggable;
+        bool interactable;
+        bool usable;
+        bool swappable;
+        bool fill;
+        bool center;
+        bool shadowed;
+        int* invSlotOffsetX;
+        int* invSlotOffsetY;
+        char* graphic;
+        char* activeGraphic;
+        char** invSlotGraphic;
+        char** iop;
+        int* childX;
+        int* childY;
+        int font;
+    } resolve;
 };
 
 /**
@@ -50,18 +132,8 @@ enum UITreeLoaderAssetKind
 struct UITreeLoaderAssetRequest
 {
     enum UITreeLoaderAssetKind kind;
-    /**
-     * Filled by the host (`uitree_loader_game_executor_*` or equivalent): UIScene element ids,
-     * inventory pool indices when relevant, etc. The loader only reads these after `binding_ready`
-     * is set.
-     */
-    struct
-    {
-        int uiscene_element_id;
-        int inv_pool_index;
-    } game_binding;
-    /** Set by the host after it has allocated/synced assets for this slot (GameCache + UIScene). */
-    uint8_t binding_ready;
+
+    bool resolved;
     union
     {
         /** UITREE_ASSET_SPRITE: logical sprite name from the INI (informational only). */
@@ -69,13 +141,9 @@ struct UITreeLoaderAssetRequest
         {
             char name[64];
         } sprite;
-        /** UITREE_ASSET_INTERFACE: GameCache roots missing from gamecache (batch siblings). */
-        struct
-        {
-            int component_ids[UITREE_MAX_INTERFACE_REQUESTS];
-            int count;
-        } interface_file;
-        /** UITREE_ASSET_MODEL: model id missing from the model cache. */
+
+        struct UITreeLoaderAssetRequest_RSComponent rs_component;
+
         struct
         {
             int model_id;
@@ -90,17 +158,23 @@ struct UITreeLoaderAssetRequest
 
 /**
  * Incremental UITree loader.  Create with uitree_loader_new(ui, revconfig), drive with
- * uitree_loader_step(), and free with uitree_loader_free() when DONE or ERROR.
+ * uitree_loader_step(loader, revconfig), and free with uitree_loader_free() when DONE or ERROR.
  *
- * The struct is opaque to callers; status and pending asset requests are read via
- * uitree_loader_step() / uitree_loader_pending_assets().
+ * Lower level: uitree_loader_send_revconfig parses INI fields; when status is
+ * UITREE_LOADER_NEEDS_ASSET with satisfied bindings, uitree_loader_send applies them.
+ * After each `[component:…]` section, call uitree_loader_send_rs_component (when
+ * uitree_loader_rs_component_commit_pending) before further step() ticks.
+ * Most callers should use uitree_loader_step() only.
  */
 struct UITreeLoader;
 
 struct UITreeLoader*
-uitree_loader_new(
-    struct UITree* ui,
-    struct RevConfigBuffer* revconfig);
+uitree_loader_new(struct UITree* ui);
+
+enum UITreeLoaderStatus
+uitree_loader_send_rs_component(
+    struct UITreeLoader* loader,
+    int component_id);
 
 enum UITreeLoaderStatus
 uitree_loader_send(struct UITreeLoader* loader);

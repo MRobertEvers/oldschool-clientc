@@ -1791,6 +1791,7 @@ gamenet_parse -> serverprot_netrevX_parse -> serverprot_core_parse (v1, v2 etc) 
 **STATUS: IMPLEMENTED (all phases 0–7 complete).**
 
 Key files:
+
 - `src/osrs/gamenet_send.h` / `gamenet_send.c` — outbound intent layer (~38 typed entry points)
 - `src/osrs/revs/lc245_2/gamenet_rev245_2_send.{c,h}` — net-rev gateway (LC245_2)
 - `src/osrs/core/gamenet_core_send.{c,h}` — data hydrators (`GGame` → `PktClientProt_Xxx_v1`)
