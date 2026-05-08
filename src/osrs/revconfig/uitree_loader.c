@@ -218,7 +218,9 @@ next_pending_request_at(
     struct UITreeLoader* loader,
     int index)
 {
-    return &loader->pending_assets_next->requests[index];
+    struct UITreeLoaderAssetRequest* req = &loader->pending_assets_next->requests[index];
+
+    return req;
 }
 
 /* Reserve next pending slot (cleared, kind + default bindings). Returns index or -1 if full.
@@ -232,6 +234,7 @@ uitree_loader_pending_prepare(
         return -1;
     struct UITreeLoaderAssetRequest* req =
         next_pending_request_at(loader, loader->pending_assets_next->count);
+    memset(req, 0, sizeof(*req));
     req->kind = kind;
     req->resolved = false;
     return loader->pending_assets_next->count++;
@@ -246,16 +249,35 @@ uitree_loader_pending_commit(struct UITreeLoader* loader)
 static enum UITreeLoaderStatus
 push_pending_model(
     struct UITreeLoader* loader,
+    int component_id,
+    int parent_idx,
     int model_id,
-    enum UITreeLoaderModelType model_type)
+    enum UITreeLoaderModelType model_type,
+    int x,
+    int y,
+    int width,
+    int height,
+    int model_zoom,
+    int model_xan,
+    int model_yan)
 {
     int slot = uitree_loader_pending_prepare(loader, UITREE_ASSET_MODEL);
     if( slot < 0 )
         return UITREE_LOADER_ERROR;
 
     struct UITreeLoaderAssetRequest* req = next_pending_request_at(loader, slot);
+    req->kind = UITREE_ASSET_MODEL;
+    req->component_id = component_id;
+    req->parent_idx = parent_idx;
     req->u.rs_model.model_id = model_id;
     req->u.rs_model.model_type = model_type;
+    req->u.rs_model.x = x;
+    req->u.rs_model.y = y;
+    req->u.rs_model.width = width;
+    req->u.rs_model.height = height;
+    req->u.rs_model.model_zoom = model_zoom;
+    req->u.rs_model.model_xan = model_xan;
+    req->u.rs_model.model_yan = model_yan;
     uitree_loader_pending_commit(loader);
     return UITREE_LOADER_RUNNING;
 }
@@ -290,8 +312,9 @@ push_pending_rs_component(
     if( slot < 0 )
         return UITREE_LOADER_ERROR;
     struct UITreeLoaderAssetRequest* req = next_pending_request_at(loader, slot);
-    req->u.rs_component.component_id = component_id;
-    req->u.rs_component.parent_idx = parent_idx;
+    req->kind = UITREE_ASSET_RS_COMPONENT;
+    req->component_id = component_id;
+    req->parent_idx = parent_idx;
     uitree_loader_pending_commit(loader);
     return UITREE_LOADER_RUNNING;
 }
@@ -455,7 +478,19 @@ on_rs_component_done_model(
     // }
     if( rs->resolve.model >= 0 )
     {
-        push_pending_model(loader, rs->resolve.model, UITREE_LOADER_MODEL_TYPE_MODEL);
+        push_pending_model(
+            loader,
+            req->component_id,
+            req->parent_idx,
+            rs->resolve.model,
+            UITREE_LOADER_MODEL_TYPE_MODEL,
+            rs->resolve.x,
+            rs->resolve.y,
+            rs->resolve.width,
+            rs->resolve.height,
+            rs->resolve.zoom,
+            rs->resolve.xan,
+            rs->resolve.yan);
     }
 
     return UITREE_LOADER_RUNNING;
@@ -496,6 +531,29 @@ on_rs_component_done(
         assert(0 && "Invalid RS component type");
         return UITREE_LOADER_ERROR;
     }
+}
+
+static enum UITreeLoaderStatus
+on_rs_model_done(
+    struct UITreeLoader* loader,
+    struct UITreeLoaderAssetRequest* req)
+{
+    struct UITreeLoaderAssetRequest_Model* rs_model = &req->u.rs_model;
+
+    uitree_push_rs_model(
+        loader->ui_ref,
+        req->parent_idx,
+        req->component_id,
+        rs_model->resolve.scene_id,
+        rs_model->x,
+        rs_model->y,
+        rs_model->width,
+        rs_model->height,
+        rs_model->model_zoom,
+        rs_model->model_xan,
+        rs_model->model_yan);
+
+    return UITREE_LOADER_RUNNING;
 }
 
 static enum UITreeLoaderStatus
@@ -1823,6 +1881,7 @@ uitree_loader_send(struct UITreeLoader* loader)
             break;
 
         case UITREE_ASSET_MODEL:
+            on_rs_model_done(loader, req);
             break;
 
         case UITREE_ASSET_FONT:

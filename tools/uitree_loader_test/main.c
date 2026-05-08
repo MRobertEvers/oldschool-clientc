@@ -1088,8 +1088,8 @@ uitree_loader_test_push_rs_model_via_revconfig_builder(
             component_id);
         return;
     }
-    int32_t pushed =
-        revconfig_builder_push_rs_model(b, component_id, -1, gc->x, gc->y, gc->width, gc->height);
+    int32_t pushed = revconfig_builder_push_rs_model(
+        b, component_id, -1, gc->x, gc->y, gc->width, gc->height, 0, 0, 0);
     revconfig_builder_free(b);
     if( pushed < 0 )
     {
@@ -2329,16 +2329,17 @@ main(
                 }
                 break;
             case UITREE_ASSET_MODEL:
-                fprintf(
-                    stderr,
-                    "uitree_loader_test: model id %d not implemented\n",
-                    req->u.rs_model.model_id);
-                goto done_loop;
+                exec_res = uitree_loader_game_executor_rs_model(&game_stub, req);
+                if( exec_res == UITREE_LOADER_GAME_EXECUTOR_NEED_RS_MODEL )
+                {
+                    printf("[loader] needs RS model %d\n", req->u.rs_model.model_id);
+                    load_model_archive(
+                        cache_dat, buildcachedat, gamecache, req->u.rs_model.model_id);
+                    exec_res = uitree_loader_game_executor_rs_model(&game_stub, req);
+                }
                 break;
             case UITREE_ASSET_FONT:
-                fprintf(
-                    stderr, "uitree_loader_test: font '%s' not implemented\n", req->u.font.name);
-                goto done_loop;
+
                 break;
             default:
                 fprintf(
@@ -2367,10 +2368,10 @@ main(
                 fprintf(stderr, "\n");
                 goto done_loop;
 
-            case UITREE_LOADER_GAME_EXECUTOR_NEED_MODEL:
+            case UITREE_LOADER_GAME_EXECUTOR_NEED_RS_MODEL:
                 fprintf(
                     stderr,
-                    "uitree_loader_test: model id %d still missing after load\n",
+                    "uitree_loader_test: RS model %d still missing after load\n",
                     req->u.rs_model.model_id);
                 goto done_loop;
 

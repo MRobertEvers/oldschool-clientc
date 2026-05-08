@@ -291,7 +291,9 @@
     "serverprot_v1.h": "c",
     "revision.h": "c",
     "serverprot.h": "c",
-    "uitree_loader_game_executor.h": "c"
+    "uitree_loader_game_executor.h": "c",
+    "buildcachedat_loader.h": "c",
+    "gamecache_from_buildcachedat.h": "c"
   },
   "[linux]": {
     "C_Cpp.default.configurationName": "Linux",

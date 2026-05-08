@@ -55,9 +55,6 @@ enum UITreeLoaderAssetKind
 
 struct UITreeLoaderAssetRequest_RSComponent
 {
-    int component_id;
-    int parent_idx;
-
     struct
     {
         int id;
@@ -139,6 +136,13 @@ struct UITreeLoaderAssetRequest_Model
 {
     int model_id;
     enum UITreeLoaderModelType model_type;
+    int model_zoom;
+    int model_xan;
+    int model_yan;
+    int x;
+    int y;
+    int width;
+    int height;
 
     struct
     {
@@ -153,6 +157,9 @@ struct UITreeLoaderAssetRequest_Model
 struct UITreeLoaderAssetRequest
 {
     enum UITreeLoaderAssetKind kind;
+
+    int component_id;
+    int parent_idx;
 
     bool resolved;
     union

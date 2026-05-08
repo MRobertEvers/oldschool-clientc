@@ -85,10 +85,23 @@ revconfig_builder_push_rs_model(
     int x,
     int y,
     int width,
-    int height)
+    int height,
+    int model_zoom,
+    int model_xan,
+    int model_yan)
 {
     if( !b || !b->tree )
         return -1;
     return uitree_push_rs_model(
-        b->tree, b->current_parent, component_id, scene_id, x, y, width, height);
+        b->tree,
+        b->current_parent,
+        component_id,
+        scene_id,
+        x,
+        y,
+        width,
+        height,
+        model_zoom,
+        model_xan,
+        model_yan);
 }

@@ -20,7 +20,7 @@ enum UITreeLoaderGameExecutorResult
     /** Load interface archives into GameCache, then retry. */
     UITREE_LOADER_GAME_EXECUTOR_NEED_RS_COMPONENT,
     /** Load the model archive for req->u.model.model_id, then retry. */
-    UITREE_LOADER_GAME_EXECUTOR_NEED_MODEL,
+    UITREE_LOADER_GAME_EXECUTOR_NEED_RS_MODEL,
     /** Font name missing from GameCache font reftable; load fonts and sync refs, then retry. */
     UITREE_LOADER_GAME_EXECUTOR_NEED_FONT,
     /** Unrecoverable for this request. */
@@ -43,7 +43,7 @@ uitree_loader_game_executor_rs_component(
     struct UITreeLoaderAssetRequest* req);
 
 enum UITreeLoaderGameExecutorResult
-uitree_loader_game_executor_model(
+uitree_loader_game_executor_rs_model(
     struct GGame* game,
     struct UITreeLoaderAssetRequest* req);
 

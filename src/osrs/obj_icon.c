@@ -18,8 +18,8 @@
 /* ── LRU sprite cache (mirrors ObjType.spriteCache size 200 in Client.ts) ── */
 
 struct ObjIconCacheEntry g_obj_icon_cache[OBJ_ICON_CACHE_SIZE];
-uint32_t                 g_obj_icon_cache_frame = 0;
-static int               s_cache_initialised    = 0;
+uint32_t g_obj_icon_cache_frame = 0;
+static int s_cache_initialised = 0;
 
 static void
 cache_init(void)
@@ -28,9 +28,9 @@ cache_init(void)
         return;
     for( int i = 0; i < OBJ_ICON_CACHE_SIZE; i++ )
     {
-        g_obj_icon_cache[i].obj_id    = -1;
-        g_obj_icon_cache[i].count     = 0;
-        g_obj_icon_cache[i].sprite    = NULL;
+        g_obj_icon_cache[i].obj_id = -1;
+        g_obj_icon_cache[i].count = 0;
+        g_obj_icon_cache[i].sprite = NULL;
         g_obj_icon_cache[i].last_used = 0;
     }
     s_cache_initialised = 1;
@@ -53,20 +53,21 @@ obj_icon_cache_clear(void)
             dashsprite_free(g_obj_icon_cache[i].sprite);
             g_obj_icon_cache[i].sprite = NULL;
         }
-        g_obj_icon_cache[i].obj_id    = -1;
+        g_obj_icon_cache[i].obj_id = -1;
         g_obj_icon_cache[i].last_used = 0;
     }
 }
 
 /* Returns cached sprite (touching last_used) or NULL on miss. */
 static struct DashSprite*
-cache_lookup(int obj_id, int count)
+cache_lookup(
+    int obj_id,
+    int count)
 {
     cache_init();
     for( int i = 0; i < OBJ_ICON_CACHE_SIZE; i++ )
     {
-        if( g_obj_icon_cache[i].obj_id == obj_id &&
-            g_obj_icon_cache[i].count  == count  &&
+        if( g_obj_icon_cache[i].obj_id == obj_id && g_obj_icon_cache[i].count == count &&
             g_obj_icon_cache[i].sprite != NULL )
         {
             g_obj_icon_cache[i].last_used = g_obj_icon_cache_frame;
@@ -78,11 +79,14 @@ cache_lookup(int obj_id, int count)
 
 /* Evict the LRU entry and store the new sprite.  The cache takes ownership of sprite. */
 static void
-cache_insert(int obj_id, int count, struct DashSprite* sprite)
+cache_insert(
+    int obj_id,
+    int count,
+    struct DashSprite* sprite)
 {
     cache_init();
     /* Find the LRU (lowest last_used) or an empty slot. */
-    int    lru_idx  = 0;
+    int lru_idx = 0;
     uint32_t lru_val = g_obj_icon_cache[0].last_used;
     for( int i = 1; i < OBJ_ICON_CACHE_SIZE; i++ )
     {
@@ -102,9 +106,9 @@ cache_insert(int obj_id, int count, struct DashSprite* sprite)
     if( g_obj_icon_cache[lru_idx].sprite )
         dashsprite_free(g_obj_icon_cache[lru_idx].sprite);
 
-    g_obj_icon_cache[lru_idx].obj_id    = obj_id;
-    g_obj_icon_cache[lru_idx].count     = count;
-    g_obj_icon_cache[lru_idx].sprite    = sprite;
+    g_obj_icon_cache[lru_idx].obj_id = obj_id;
+    g_obj_icon_cache[lru_idx].count = count;
+    g_obj_icon_cache[lru_idx].sprite = sprite;
     g_obj_icon_cache[lru_idx].last_used = g_obj_icon_cache_frame;
 }
 
@@ -147,7 +151,8 @@ obj_icon_generate(
     int obj_id,
     int count);
 
-/** Cert overlay sprite: ObjType.getSprite(id, count, -1) — 1.5x zoom, no LRU cache, no shadow pass. */
+/** Cert overlay sprite: ObjType.getSprite(id, count, -1) — 1.5x zoom, no LRU cache, no shadow pass.
+ */
 static struct DashSprite*
 obj_icon_generate_cert_inner(
     struct GGame* game,
@@ -213,9 +218,7 @@ obj_icon_raster_uncached(
     struct GameCacheModel* model = get_obj_inv_model(game, obj);
     if( !model )
     {
-        printf(
-            "obj_icon_get: Could not get inventory model for obj (model id: %d)\n",
-            obj->model);
+        printf("obj_icon_get: Could not get inventory model for obj (model id: %d)\n", obj->model);
         return NULL;
     }
 
@@ -404,7 +407,9 @@ obj_icon_generate(
 }
 
 struct DashModel*
-obj_icon_new_dash_model_for_obj(struct GGame* game, int obj_id_0based)
+obj_icon_new_dash_model_for_obj(
+    struct GGame* game,
+    int obj_id_0based)
 {
     if( !game || !game->gamecache )
         return NULL;
@@ -443,7 +448,8 @@ head_model_render(
     if( zoom == 0 )
         zoom = 2000;
 
-    /* Depth sort buckets use bounds_cylinder — update after pose morph (see head_model_render_to_region). */
+    /* Depth sort buckets use bounds_cylinder — update after pose morph (see
+     * head_model_render_to_region). */
     dashmodel_set_bounds_cylinder(dash_model);
 
     extern int g_sin_table[2048];
@@ -557,6 +563,7 @@ head_model_render_to_region(
     int cull = dash3d_project_model6(game->sys_dash, dash_model, &position, &view_port, &camera);
     if( cull == DASHCULL_VISIBLE )
     {
+        printf("Rendering model to region\n");
         dash3d_raster_projected_model(
             game->sys_dash, dash_model, &position, &view_port, &camera, dst, true);
     }

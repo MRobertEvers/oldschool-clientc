@@ -1332,7 +1332,10 @@ uitree_push_rs_model(
     int x,
     int y,
     int width,
-    int height)
+    int height,
+    int model_zoom,
+    int model_xan,
+    int model_yan)
 {
     int32_t idx = push_element(tree, parent_index);
     if( idx < 0 )
@@ -1347,6 +1350,9 @@ uitree_push_rs_model(
     component->position.width = width;
     component->position.height = height;
     component->u.rs_model.scene_id = scene_id;
+    component->u.rs_model.model_zoom = model_zoom;
+    component->u.rs_model.model_xan = model_xan;
+    component->u.rs_model.model_yan = model_yan;
     component->u.rs_model.rs_model_cached_sequence_id = -1;
     return idx;
 }

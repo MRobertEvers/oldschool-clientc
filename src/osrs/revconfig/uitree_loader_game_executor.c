@@ -1,12 +1,17 @@
 #include "osrs/revconfig/uitree_loader_game_executor.h"
 
 #include "osrs/buildcachedat_loader.h"
+#include "osrs/dash_utils.h"
 #include "osrs/game.h"
 #include "osrs/gamecache/gamecache.h"
 #include "osrs/gamecache/gamecache_from_buildcachedat.h"
 #include "osrs/revconfig/uiscene.h"
 
 #include <assert.h>
+
+// clang-format off
+#include "osrs/_light_model_default.u.c"
+// clang-format on
 
 enum UITreeLoaderGameExecutorResult
 uitree_loader_game_executor_sprite(
@@ -120,7 +125,7 @@ uitree_loader_game_executor_rs_component(
     assert(req->kind == UITREE_ASSET_RS_COMPONENT);
 
     struct GameCache* gc = game->gamecache;
-    int cid = req->u.rs_component.component_id;
+    int cid = req->component_id;
     if( cid < 0 )
         return UITREE_LOADER_GAME_EXECUTOR_ERROR;
 
@@ -134,12 +139,36 @@ uitree_loader_game_executor_rs_component(
 }
 
 enum UITreeLoaderGameExecutorResult
-uitree_loader_game_executor_model(
+uitree_loader_game_executor_rs_model(
     struct GGame* game,
     struct UITreeLoaderAssetRequest* req)
 {
-    assert(0 && "Not implemented");
-    return UITREE_LOADER_GAME_EXECUTOR_ERROR;
+    struct GameCacheModel* gcm = NULL;
+    assert(req->kind == UITREE_ASSET_MODEL);
+
+    struct GameCache* gc = game->gamecache;
+    int model_id = req->u.rs_model.model_id;
+    if( model_id < 0 )
+        return UITREE_LOADER_GAME_EXECUTOR_ERROR;
+
+    if( !(gcm = gamecache_get_model(gc, model_id)) )
+        return UITREE_LOADER_GAME_EXECUTOR_NEED_RS_MODEL;
+
+    struct UIScene* ui_scene = game->ui_scene;
+    if( !ui_scene )
+        return UITREE_LOADER_GAME_EXECUTOR_NEED_RS_MODEL;
+
+    gcm = gamecache_model_new_copy(gcm);
+    struct DashModel* model = dashmodel_new_from_gamecache_model(gcm);
+    _light_model_default(model, 0, 0);
+
+    int scene_id = uiscene_element_acquire_with_model(ui_scene, 0, model, NULL);
+    if( scene_id < 0 )
+        return UITREE_LOADER_GAME_EXECUTOR_ERROR;
+
+    req->u.rs_model.resolve.scene_id = scene_id;
+    req->resolved = true;
+    return UITREE_LOADER_GAME_EXECUTOR_OK;
 }
 
 enum UITreeLoaderGameExecutorResult

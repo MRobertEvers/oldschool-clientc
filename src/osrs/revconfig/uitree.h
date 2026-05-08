@@ -775,7 +775,10 @@ uitree_push_rs_model(
     int x,
     int y,
     int width,
-    int height);
+    int height,
+    int model_zoom,
+    int model_xan,
+    int model_yan);
 
 int32_t
 uitree_push_rs_inv(
