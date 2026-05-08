@@ -2373,17 +2373,8 @@ uitree_from_revconfig_buildcachedat(
         return;
     }
 
-    const struct UITreeLoaderHost host = {
-        .buildcachedat = game->buildcachedat,
-        .gamecache = game->gamecache,
-        .ui_scene = ui_scene,
-        .inv_pool = inv_pool,
-        .sys_dash = game->sys_dash,
-        .game = game,
-    };
-
     enum UITreeLoaderStatus status;
-    while( (status = uitree_loader_step(loader, &host)) == UITREE_LOADER_RUNNING )
+    while( (status = uitree_loader_step(loader)) == UITREE_LOADER_RUNNING )
         ; /* drain */
 
     if( status == UITREE_LOADER_NEEDS_ASSET )

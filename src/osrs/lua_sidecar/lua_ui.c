@@ -446,20 +446,11 @@ LuaUI_step_loader(
     if( !game || !game->pending_uitree_loader )
         return LuaGameType_NewVoid(); /* nil — loader not active */
 
-    const struct UITreeLoaderHost uitree_host = {
-        .buildcachedat = game->buildcachedat,
-        .gamecache     = game->gamecache,
-        .ui_scene      = game->ui_scene,
-        .inv_pool      = game->inv_pool,
-        .sys_dash      = game->sys_dash,
-        .game          = game,
-    };
-
     /* Drain the loader until it needs an asset or finishes. */
     enum UITreeLoaderStatus status;
     do
     {
-        status = uitree_loader_step(game->pending_uitree_loader, &uitree_host);
+        status = uitree_loader_step(game->pending_uitree_loader);
     } while( status == UITREE_LOADER_RUNNING );
 
     if( status == UITREE_LOADER_DONE )

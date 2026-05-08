@@ -125,18 +125,15 @@ struct CurrentLoad
     } u;
 };
 
-uint32_t
-uitree_load_parse_item_kind(const char* str);
-void
-uitree_load_bind_item_name(
-    struct CurrentLoad* load,
-    const char* value);
-
 struct UITreeLoader
 {
     enum UITreeLoaderStatus status;
     struct UITreeLoaderAssetRequest pending_assets[UITREE_LOADER_MAX_PENDING_ASSETS];
     int pending_asset_count;
+    /** Parallel to pending_assets[i] for UITREE_ASSET_SPRITE: UITree node index, or -1. */
+    int pending_sprite_uitree_idx[UITREE_LOADER_MAX_PENDING_ASSETS];
+    /** After EOF with queued sprite requests: next step applies host-filled bindings then DONE. */
+    uint8_t awaiting_asset_apply;
 
     /* Borrowed references — not owned, must outlive the loader. */
     struct UITree* ui;
@@ -163,6 +160,8 @@ uitree_loader_new(
     loader->revconfig_buffer = revconfig_buffer;
     loader->field_index = 0;
 
+    memset(loader->pending_sprite_uitree_idx, 0xff, sizeof(loader->pending_sprite_uitree_idx));
+
     /* Reset the UITree to empty before starting. */
     if( ui )
     {
@@ -173,6 +172,39 @@ uitree_loader_new(
     return loader;
 }
 
+static uint32_t
+uitree_loader_parse_item_kind(const char* str)
+{
+    if( !str )
+        return LOAD_KIND_NONE;
+    if( strcmp(str, "sprite") == 0 )
+        return LOAD_KIND_SPRITE;
+    if( strcmp(str, "component") == 0 )
+        return LOAD_KIND_COMPONENT;
+    if( strcmp(str, "layout") == 0 )
+        return LOAD_KIND_LAYOUT;
+    if( strcmp(str, "inv") == 0 )
+        return LOAD_KIND_INV;
+    return LOAD_KIND_NONE;
+}
+
+static void
+uitree_loader_apply_sprite_bindings(struct UITreeLoader* loader)
+{
+    struct UITree* ui = loader->ui;
+    if( !ui )
+        return;
+    for( int i = 0; i < loader->pending_asset_count; i++ )
+    {
+        if( loader->pending_assets[i].kind != UITREE_ASSET_SPRITE )
+            continue;
+        int idx = loader->pending_sprite_uitree_idx[i];
+        int eid = loader->pending_assets[i].game_binding.uiscene_element_id;
+        if( idx >= 0 && eid >= 0 && (uint32_t)idx < ui->component_count )
+            ui->components[idx].u.sprite.scene_id = eid;
+    }
+}
+
 /* ── RevConfig field handlers (uitree_loader_step) ─────────────────────────── */
 
 static struct RevConfigField*
@@ -181,10 +213,45 @@ uitree_loader_current_field(struct UITreeLoader* loader)
     return &loader->revconfig_buffer->fields[loader->field_index];
 }
 
+static int
+sprite_placeholder_atlas_index(struct UITreeLoader* loader)
+{
+    struct SpriteLoad* s = &loader->load.u.sprite;
+    if( s->atlas_mode == SPRITELOAD_ATLAS_MODE_COUNT )
+        return 0;
+    return s->atlas_index;
+}
+
 static enum UITreeLoaderStatus
 on_sprite_done(struct UITreeLoader* loader)
 {
-    return UITREE_LOADER_NEEDS_ASSET;
+    if( loader->load.u.sprite.name[0] == '\0' )
+        return UITREE_LOADER_ERROR;
+    if( loader->pending_asset_count >= UITREE_LOADER_MAX_PENDING_ASSETS )
+        return UITREE_LOADER_ERROR;
+
+    int slot = loader->pending_asset_count;
+    memset(&loader->pending_assets[slot], 0, sizeof(loader->pending_assets[slot]));
+    loader->pending_assets[slot].kind = UITREE_ASSET_SPRITE;
+    strncpy(
+        loader->pending_assets[slot].u.sprite.name,
+        loader->load.u.sprite.name,
+        sizeof(loader->pending_assets[slot].u.sprite.name) - 1);
+    loader->pending_assets[slot]
+        .u.sprite.name[sizeof(loader->pending_assets[slot].u.sprite.name) - 1] = '\0';
+    loader->pending_assets[slot].game_binding.uiscene_element_id = -1;
+    loader->pending_assets[slot].game_binding.inv_pool_index = -1;
+
+    int atlas = sprite_placeholder_atlas_index(loader);
+    int32_t uitree_idx = -1;
+    if( loader->ui )
+    {
+        uitree_idx = uitree_push_sprite_xy(loader->ui, -1, -1, atlas, 0, 0, 1, 1);
+    }
+    loader->pending_sprite_uitree_idx[slot] = uitree_idx;
+
+    loader->pending_asset_count++;
+    return UITREE_LOADER_RUNNING;
 }
 
 static enum UITreeLoaderStatus
@@ -209,7 +276,7 @@ static void
 on_rcfield_itemtype(struct UITreeLoader* loader)
 {
     struct RevConfigField* field = uitree_loader_current_field(loader);
-    uint32_t k = uitree_load_parse_item_kind(field->value);
+    uint32_t k = uitree_loader_parse_item_kind(field->value);
 
     loader->load.kind = (enum LoadKind)k;
     if( loader->load.kind == LOAD_KIND_INV )
@@ -267,7 +334,24 @@ on_rcfield_itemdone(struct UITreeLoader* loader)
         break;
     }
 
-    loader->pending_asset_count = 0;
+    if( status == UITREE_LOADER_ERROR )
+    {
+        loader->load.kind = LOAD_KIND_NONE;
+        memset(&loader->load, 0, sizeof(loader->load));
+        loader->field_index++;
+        loader->status = UITREE_LOADER_ERROR;
+        return UITREE_LOADER_ERROR;
+    }
+
+    if( status == UITREE_LOADER_NEEDS_ASSET )
+    {
+        loader->load.kind = LOAD_KIND_NONE;
+        memset(&loader->load, 0, sizeof(loader->load));
+        loader->field_index++;
+        loader->status = UITREE_LOADER_NEEDS_ASSET;
+        return UITREE_LOADER_NEEDS_ASSET;
+    }
+
     loader->load.kind = LOAD_KIND_NONE;
     memset(&loader->load, 0, sizeof(loader->load));
     loader->field_index++;
@@ -1235,10 +1319,23 @@ uitree_loader_step_send_revconfig(
     struct UITreeLoader* loader,
     struct RevConfigBuffer* revconfig)
 {
-    if( !loader )
+    if( !loader || !revconfig )
         return UITREE_LOADER_ERROR;
     if( loader->status == UITREE_LOADER_DONE || loader->status == UITREE_LOADER_ERROR )
         return loader->status;
+
+    /* Host filled pending_assets after UITREE_LOADER_NEEDS_ASSET at EOF — patch UITree and finish.
+     */
+    if( loader->awaiting_asset_apply && loader->pending_asset_count > 0 )
+    {
+        uitree_loader_apply_sprite_bindings(loader);
+        loader->pending_asset_count = 0;
+        loader->awaiting_asset_apply = 0;
+        memset(loader->pending_assets, 0, sizeof(loader->pending_assets));
+        memset(loader->pending_sprite_uitree_idx, 0xff, sizeof(loader->pending_sprite_uitree_idx));
+        loader->status = UITREE_LOADER_DONE;
+        return UITREE_LOADER_DONE;
+    }
 
     /* ── Host scaffolding (decouple from GGame): validate before the field loop. ──
      * Further decouple uitree_impl_* so host->game can go away; sys_dash reserved for inv icons.
@@ -1441,8 +1538,23 @@ uitree_loader_step_send_revconfig(
         }
     }
 
+    if( loader->pending_asset_count > 0 )
+    {
+        loader->awaiting_asset_apply = 1;
+        loader->status = UITREE_LOADER_NEEDS_ASSET;
+        return UITREE_LOADER_NEEDS_ASSET;
+    }
+
     loader->status = UITREE_LOADER_DONE;
     return UITREE_LOADER_DONE;
+}
+
+enum UITreeLoaderStatus
+uitree_loader_step(struct UITreeLoader* loader)
+{
+    if( !loader || !loader->revconfig_buffer )
+        return UITREE_LOADER_ERROR;
+    return uitree_loader_step_send_revconfig(loader, loader->revconfig_buffer);
 }
 
 /* ── Accessors ──────────────────────────────────────────────────────────────── */
@@ -1457,6 +1569,14 @@ uitree_loader_pending_asset_count(const struct UITreeLoader* loader)
 
 const struct UITreeLoaderAssetRequest*
 uitree_loader_pending_assets(const struct UITreeLoader* loader)
+{
+    if( !loader )
+        return NULL;
+    return loader->pending_assets;
+}
+
+struct UITreeLoaderAssetRequest*
+uitree_loader_pending_assets_mut(struct UITreeLoader* loader)
 {
     if( !loader )
         return NULL;

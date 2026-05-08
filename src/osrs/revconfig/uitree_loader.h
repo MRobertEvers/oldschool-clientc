@@ -39,13 +39,13 @@ enum UITreeLoaderStatus
 enum UITreeLoaderAssetKind
 {
     UITREE_ASSET_NONE = 0,
-    /** 2D media jagfile is absent; load it and call buildcachedat_set_2d_media_jagfile(). */
+    /** Sprite ref missing from GameCache; load 2D media / register sprites, then retry. */
     UITREE_ASSET_SPRITE,
     /** A GameCacheComponent is absent; load interface archive and convert components. */
     UITREE_ASSET_INTERFACE,
     /** A specific model is missing from the model cache. */
     UITREE_ASSET_MODEL,
-    /** A named font is not yet in UIScene. */
+    /** Font name missing from GameCache font reftable. */
     UITREE_ASSET_FONT,
 };
 
@@ -57,7 +57,7 @@ struct UITreeLoaderAssetRequest
 {
     enum UITreeLoaderAssetKind kind;
     /**
-     * Filled by game_uitree_load_exec_* after the loader pauses on UITREE_LOADER_NEEDS_ASSET.
+     * Filled by uitree_loader_game_executor_* after the loader pauses on UITREE_LOADER_NEEDS_ASSET.
      * The loader zeroes the whole struct when it emits a request; these stay 0 until exec runs.
      */
     struct
@@ -101,7 +101,9 @@ struct UITreeLoaderAssetRequest
 struct UITreeLoader;
 
 struct UITreeLoader*
-uitree_loader_new(struct UITree* ui);
+uitree_loader_new(
+    struct UITree* ui,
+    struct RevConfigBuffer* revconfig_buffer);
 
 enum UITreeLoaderStatus
 uitree_loader_step(struct UITreeLoader* loader);
@@ -116,6 +118,12 @@ uitree_loader_pending_asset_count(const struct UITreeLoader* loader);
 
 const struct UITreeLoaderAssetRequest*
 uitree_loader_pending_assets(const struct UITreeLoader* loader);
+
+/** Writable pending slots while status is UITREE_LOADER_NEEDS_ASSET (uitree_loader_game_executor_* writes
+ * bindings).
+ */
+struct UITreeLoaderAssetRequest*
+uitree_loader_pending_assets_mut(struct UITreeLoader* loader);
 
 void
 uitree_loader_free(struct UITreeLoader* loader);

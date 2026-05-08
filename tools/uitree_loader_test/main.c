@@ -1,7 +1,7 @@
 /*
  * uitree_loader_test — C driver for the incremental UITree loader.
  *
- * Mirrors init_ui.lua — UITreeLoader + uitree_loader_step(), then game_uitree_load_exec_*
+ * Mirrors init_ui.lua — UITreeLoader + uitree_loader_step(), then uitree_loader_game_executor_*
  * for each UITREE_LOADER_NEEDS_ASSET request. RS models use `game.ui_scene`; optional
  * BMP composites drawable nodes. Scene2 is still used in this harness for texture loading only.
  *
@@ -41,7 +41,7 @@
 #include "osrs/interface.h"
 #include "osrs/interface_state.h"
 #include "osrs/obj_icon.h"
-#include "osrs/revconfig/game_uitree_load_exec.h"
+#include "osrs/revconfig/uitree_loader_game_executor.h"
 #include "osrs/revconfig/revconfig.h"
 #include "osrs/revconfig/revconfig_load.h"
 #include "osrs/revconfig/uiscene.h"
@@ -2255,15 +2255,6 @@ main(
     }
     printf("uitree_loader_test: loader created, beginning step loop\n");
 
-    const struct UITreeLoaderHost uitree_host = {
-        .buildcachedat = buildcachedat,
-        .gamecache = gamecache,
-        .ui_scene = ui_scene,
-        .inv_pool = inv_pool,
-        .sys_dash = game_stub.sys_dash,
-        .game = &game_stub,
-    };
-
     /* RS TEXT needs UIScene fonts; BMP model raster needs Scene2 textures (copied to a fresh
      * DashGraphics in uitree_loader_test_write_sprite_bmp). init_ui.lua / init_cache_dat.lua.
      */
@@ -2278,7 +2269,7 @@ main(
 
     for( ; step_count < max_steps; step_count++ )
     {
-        enum UITreeLoaderStatus status = uitree_loader_step(loader, &uitree_host);
+        enum UITreeLoaderStatus status = uitree_loader_step(loader);
 
         if( status == UITREE_LOADER_RUNNING )
             continue; /* more items to process — keep going */
@@ -2297,101 +2288,119 @@ main(
             break;
         }
 
-        /* UITREE_LOADER_NEEDS_ASSET */
+        /* UITREE_LOADER_NEEDS_ASSET — bridge: exec → host I/O → exec; mutations persist in loader
+         * slots via uitree_loader_pending_assets_mut.
+         */
         int npc = uitree_loader_pending_asset_count(loader);
-        const struct UITreeLoaderAssetRequest* preqs = uitree_loader_pending_assets(loader);
+        struct UITreeLoaderAssetRequest* preqs = uitree_loader_pending_assets_mut(loader);
+        if( !preqs && npc > 0 )
+        {
+            fprintf(stderr, "uitree_loader_test: pending_assets_mut returned NULL\n");
+            goto done_loop;
+        }
         for( int pi = 0; pi < npc; pi++ )
         {
-            struct UITreeLoaderAssetRequest req = preqs[pi];
-            enum GameUitreeLoadExecResult exec_res;
+            struct UITreeLoaderAssetRequest* req = &preqs[pi];
+            enum UITreeLoaderGameExecutorResult exec_res;
 
-            switch( req.kind )
+            switch( req->kind )
             {
             case UITREE_ASSET_SPRITE:
-                exec_res = game_uitree_load_exec_sprite(&game_stub, &req);
+                exec_res = uitree_loader_game_executor_sprite(&game_stub, req);
+                if( exec_res == UITREE_LOADER_GAME_EXECUTOR_NEED_2D_MEDIA )
+                {
+                    if( !buildcachedat->cfg_media_jagfile && !media_loaded )
+                    {
+                        printf(
+                            "[loader] needs sprite '%s' — loading 2D media jagfile\n",
+                            req->u.sprite.name);
+                        load_media_jagfile(cache_dat, buildcachedat);
+                        media_loaded = 1;
+                    }
+                    if( buildcachedat->cfg_media_jagfile )
+                    {
+                        buildcachedat_loader_load_component_sprite_lazy(
+                            buildcachedat, ui_scene, &game_stub, req->u.sprite.name);
+                        gamecache_convert_reftables_from_buildcachedat(gamecache, buildcachedat);
+                    }
+                    exec_res = uitree_loader_game_executor_sprite(&game_stub, req);
+                }
                 break;
             case UITREE_ASSET_INTERFACE:
-                exec_res = game_uitree_load_exec_interface(&game_stub, &req);
+                exec_res = uitree_loader_game_executor_interface(&game_stub, req);
+                if( exec_res == UITREE_LOADER_GAME_EXECUTOR_NEED_INTERFACES && !interfaces_loaded )
+                {
+                    printf("[loader] needs interface component(s):");
+                    for( int ci = 0; ci < req->u.interface_file.count; ci++ )
+                        printf(" %d", req->u.interface_file.component_ids[ci]);
+                    printf(" — loading interfaces\n");
+                    load_interfaces(cache_dat, buildcachedat, gamecache);
+                    interfaces_loaded = 1;
+                    exec_res = uitree_loader_game_executor_interface(&game_stub, req);
+                }
                 break;
             case UITREE_ASSET_MODEL:
-                exec_res = game_uitree_load_exec_model(&game_stub, &req);
+                exec_res = uitree_loader_game_executor_model(&game_stub, req);
+                if( exec_res == UITREE_LOADER_GAME_EXECUTOR_NEED_MODEL )
+                {
+                    printf(
+                        "[loader] needs model id %d — loading from cache dat\n",
+                        req->u.model.model_id);
+                    load_model_archive(cache_dat, buildcachedat, gamecache, req->u.model.model_id);
+                    exec_res = uitree_loader_game_executor_model(&game_stub, req);
+                }
                 break;
             case UITREE_ASSET_FONT:
-                exec_res = game_uitree_load_exec_font(&game_stub, &req);
+                exec_res = uitree_loader_game_executor_font(&game_stub, req);
                 break;
             default:
                 fprintf(
                     stderr,
                     "uitree_loader_test: unexpected asset kind %d, stopping\n",
-                    (int)req.kind);
+                    (int)req->kind);
                 goto done_loop;
             }
 
             switch( exec_res )
             {
-            case GAME_UITREE_EXEC_OK:
+            case UITREE_LOADER_GAME_EXECUTOR_OK:
                 break;
 
-            case GAME_UITREE_EXEC_NEED_2D_MEDIA:
-                if( !media_loaded )
-                {
-                    printf(
-                        "[loader] needs sprite '%s' — loading 2D media jagfile\n",
-                        req.u.sprite.name);
-                    load_media_jagfile(cache_dat, buildcachedat);
-                    media_loaded = 1;
-                }
-                else
-                {
-                    fprintf(
-                        stderr,
-                        "uitree_loader_test: sprite '%s' still missing after media load\n",
-                        req.u.sprite.name);
-                    goto done_loop;
-                }
-                break;
+            case UITREE_LOADER_GAME_EXECUTOR_NEED_2D_MEDIA:
+                fprintf(
+                    stderr,
+                    "uitree_loader_test: sprite '%s' still missing after media load\n",
+                    req->u.sprite.name);
+                goto done_loop;
 
-            case GAME_UITREE_EXEC_NEED_INTERFACES:
-                if( !interfaces_loaded )
-                {
-                    printf("[loader] needs interface component(s):");
-                    for( int ci = 0; ci < req.u.interface_file.count; ci++ )
-                        printf(" %d", req.u.interface_file.component_ids[ci]);
-                    printf(" — loading interfaces\n");
-                    load_interfaces(cache_dat, buildcachedat, gamecache);
-                    interfaces_loaded = 1;
-                }
-                else
-                {
-                    fprintf(
-                        stderr,
-                        "uitree_loader_test: component(s) still missing after interface load:");
-                    for( int ci = 0; ci < req.u.interface_file.count; ci++ )
-                        fprintf(stderr, " %d", req.u.interface_file.component_ids[ci]);
-                    fprintf(stderr, "\n");
-                    goto done_loop;
-                }
-                break;
+            case UITREE_LOADER_GAME_EXECUTOR_NEED_INTERFACES:
+                fprintf(
+                    stderr, "uitree_loader_test: component(s) still missing after interface load:");
+                for( int ci = 0; ci < req->u.interface_file.count; ci++ )
+                    fprintf(stderr, " %d", req->u.interface_file.component_ids[ci]);
+                fprintf(stderr, "\n");
+                goto done_loop;
 
-            case GAME_UITREE_EXEC_NEED_MODEL:
-                printf(
-                    "[loader] needs model id %d — loading from cache dat\n", req.u.model.model_id);
-                load_model_archive(cache_dat, buildcachedat, gamecache, req.u.model.model_id);
-                break;
+            case UITREE_LOADER_GAME_EXECUTOR_NEED_MODEL:
+                fprintf(
+                    stderr,
+                    "uitree_loader_test: model id %d still missing after load\n",
+                    req->u.model.model_id);
+                goto done_loop;
 
-            case GAME_UITREE_EXEC_NEED_FONT:
+            case UITREE_LOADER_GAME_EXECUTOR_NEED_FONT:
                 fprintf(
                     stderr,
                     "uitree_loader_test: font asset '%s' not implemented in this harness\n",
-                    req.u.font.name);
+                    req->u.font.name);
                 goto done_loop;
 
-            case GAME_UITREE_EXEC_ERROR:
+            case UITREE_LOADER_GAME_EXECUTOR_ERROR:
             default:
                 fprintf(
                     stderr,
-                    "uitree_loader_test: game_uitree_load_exec failed for asset kind %d\n",
-                    (int)req.kind);
+                    "uitree_loader_test: uitree_loader_game_executor failed for asset kind %d\n",
+                    (int)req->kind);
                 goto done_loop;
             }
         }
