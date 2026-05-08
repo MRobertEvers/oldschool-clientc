@@ -2,6 +2,7 @@
 
 #include "graphics/dashmap.h"
 #include "osrs/chat.h"
+#include "osrs/game.h"
 #include "osrs/revconfig/revconfig.h"
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
@@ -136,37 +137,35 @@ struct UITreeLoader
     uint8_t awaiting_asset_apply;
 
     /* Borrowed references — not owned, must outlive the loader. */
-    struct UITree* ui;
-    struct RevConfigBuffer* revconfig_buffer;
+    struct UITree* ui_ref;
 
     /* Iteration state. */
-    uint32_t field_index;    /* next field to process */
     struct CurrentLoad load; /* accumulator for the current INI item */
+    int field_index;
 };
 
 /* ── Allocation ─────────────────────────────────────────────────────────────── */
 
 struct UITreeLoader*
 uitree_loader_new(
-    struct UITree* ui,
-    struct RevConfigBuffer* revconfig_buffer)
+    struct UITree* ui_ref,
+    struct RevConfigBuffer* revconfig)
 {
     struct UITreeLoader* loader = calloc(1, sizeof(*loader));
     if( !loader )
         return NULL;
 
     loader->status = UITREE_LOADER_RUNNING;
-    loader->ui = ui;
-    loader->revconfig_buffer = revconfig_buffer;
+    loader->ui_ref = ui_ref;
     loader->field_index = 0;
 
     memset(loader->pending_sprite_uitree_idx, 0xff, sizeof(loader->pending_sprite_uitree_idx));
 
     /* Reset the UITree to empty before starting. */
-    if( ui )
+    if( ui_ref )
     {
-        ui->component_count = 0;
-        ui->root_index = -1;
+        ui_ref->component_count = 0;
+        ui_ref->root_index = -1;
     }
 
     return loader;
@@ -188,30 +187,7 @@ uitree_loader_parse_item_kind(const char* str)
     return LOAD_KIND_NONE;
 }
 
-static void
-uitree_loader_apply_sprite_bindings(struct UITreeLoader* loader)
-{
-    struct UITree* ui = loader->ui;
-    if( !ui )
-        return;
-    for( int i = 0; i < loader->pending_asset_count; i++ )
-    {
-        if( loader->pending_assets[i].kind != UITREE_ASSET_SPRITE )
-            continue;
-        int idx = loader->pending_sprite_uitree_idx[i];
-        int eid = loader->pending_assets[i].game_binding.uiscene_element_id;
-        if( idx >= 0 && eid >= 0 && (uint32_t)idx < ui->component_count )
-            ui->components[idx].u.sprite.scene_id = eid;
-    }
-}
-
 /* ── RevConfig field handlers (uitree_loader_step) ─────────────────────────── */
-
-static struct RevConfigField*
-uitree_loader_current_field(struct UITreeLoader* loader)
-{
-    return &loader->revconfig_buffer->fields[loader->field_index];
-}
 
 static int
 sprite_placeholder_atlas_index(struct UITreeLoader* loader)
@@ -244,9 +220,9 @@ on_sprite_done(struct UITreeLoader* loader)
 
     int atlas = sprite_placeholder_atlas_index(loader);
     int32_t uitree_idx = -1;
-    if( loader->ui )
+    if( loader->ui_ref )
     {
-        uitree_idx = uitree_push_sprite_xy(loader->ui, -1, -1, atlas, 0, 0, 1, 1);
+        uitree_idx = uitree_push_sprite_xy(loader->ui_ref, -1, -1, atlas, 0, 0, 1, 1);
     }
     loader->pending_sprite_uitree_idx[slot] = uitree_idx;
 
@@ -273,22 +249,22 @@ on_inv_done(struct UITreeLoader* loader)
 }
 
 static void
-on_rcfield_itemtype(struct UITreeLoader* loader)
+on_rcfield_itemtype(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     uint32_t k = uitree_loader_parse_item_kind(field->value);
 
     loader->load.kind = (enum LoadKind)k;
     if( loader->load.kind == LOAD_KIND_INV )
         memset(&loader->load.u.inv, 0, sizeof(loader->load.u.inv));
-    loader->field_index++;
 }
 
 static void
-on_rcfield_itemname(struct UITreeLoader* loader)
+on_rcfield_itemname(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
-
     switch( loader->load.kind )
     {
     case LOAD_KIND_SPRITE:
@@ -307,13 +283,14 @@ on_rcfield_itemname(struct UITreeLoader* loader)
     default:
         break;
     }
-
-    loader->field_index++;
 }
 
 static enum UITreeLoaderStatus
-on_rcfield_itemdone(struct UITreeLoader* loader)
+on_rcfield_itemdone(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
+    (void)field;
     enum UITreeLoaderStatus status = UITREE_LOADER_RUNNING;
     switch( loader->load.kind )
     {
@@ -338,7 +315,6 @@ on_rcfield_itemdone(struct UITreeLoader* loader)
     {
         loader->load.kind = LOAD_KIND_NONE;
         memset(&loader->load, 0, sizeof(loader->load));
-        loader->field_index++;
         loader->status = UITREE_LOADER_ERROR;
         return UITREE_LOADER_ERROR;
     }
@@ -347,23 +323,22 @@ on_rcfield_itemdone(struct UITreeLoader* loader)
     {
         loader->load.kind = LOAD_KIND_NONE;
         memset(&loader->load, 0, sizeof(loader->load));
-        loader->field_index++;
         loader->status = UITREE_LOADER_NEEDS_ASSET;
         return UITREE_LOADER_NEEDS_ASSET;
     }
 
     loader->load.kind = LOAD_KIND_NONE;
     memset(&loader->load, 0, sizeof(loader->load));
-    loader->field_index++;
 
     loader->status = UITREE_LOADER_RUNNING;
     return UITREE_LOADER_RUNNING;
 }
 
 static void
-on_rcfield_cache_table(struct UITreeLoader* loader)
+on_rcfield_cache_table(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_SPRITE:
@@ -372,13 +347,13 @@ on_rcfield_cache_table(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_cache_archive(struct UITreeLoader* loader)
+on_rcfield_cache_archive(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_SPRITE:
@@ -388,13 +363,13 @@ on_rcfield_cache_archive(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_cache_container(struct UITreeLoader* loader)
+on_rcfield_cache_container(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_SPRITE:
@@ -406,13 +381,13 @@ on_rcfield_cache_container(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_cache_index_filename(struct UITreeLoader* loader)
+on_rcfield_cache_index_filename(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_SPRITE:
@@ -424,13 +399,13 @@ on_rcfield_cache_index_filename(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_cache_data_filename(struct UITreeLoader* loader)
+on_rcfield_cache_data_filename(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_SPRITE:
@@ -442,13 +417,13 @@ on_rcfield_cache_data_filename(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_cache_format(struct UITreeLoader* loader)
+on_rcfield_cache_format(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_SPRITE:
@@ -458,13 +433,13 @@ on_rcfield_cache_format(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_cache_atlas_index(struct UITreeLoader* loader)
+on_rcfield_cache_atlas_index(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_SPRITE:
@@ -474,13 +449,13 @@ on_rcfield_cache_atlas_index(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_cache_atlas_count(struct UITreeLoader* loader)
+on_rcfield_cache_atlas_count(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_SPRITE:
@@ -490,13 +465,13 @@ on_rcfield_cache_atlas_count(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_cache_transform(struct UITreeLoader* loader)
+on_rcfield_cache_transform(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_SPRITE:
@@ -512,13 +487,13 @@ on_rcfield_cache_transform(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_cache_crop_x(struct UITreeLoader* loader)
+on_rcfield_cache_crop_x(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_SPRITE:
@@ -527,13 +502,13 @@ on_rcfield_cache_crop_x(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_cache_crop_y(struct UITreeLoader* loader)
+on_rcfield_cache_crop_y(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_SPRITE:
@@ -542,13 +517,13 @@ on_rcfield_cache_crop_y(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_cache_crop_width(struct UITreeLoader* loader)
+on_rcfield_cache_crop_width(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_SPRITE:
@@ -557,13 +532,13 @@ on_rcfield_cache_crop_width(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_cache_crop_height(struct UITreeLoader* loader)
+on_rcfield_cache_crop_height(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_SPRITE:
@@ -572,13 +547,13 @@ on_rcfield_cache_crop_height(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_type(struct UITreeLoader* loader)
+on_rcfield_uicomponent_type(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -588,13 +563,13 @@ on_rcfield_uicomponent_type(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_sprite(struct UITreeLoader* loader)
+on_rcfield_uicomponent_sprite(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -606,13 +581,13 @@ on_rcfield_uicomponent_sprite(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_sprite_active(struct UITreeLoader* loader)
+on_rcfield_uicomponent_sprite_active(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -624,13 +599,13 @@ on_rcfield_uicomponent_sprite_active(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_width(struct UITreeLoader* loader)
+on_rcfield_uicomponent_width(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -639,13 +614,13 @@ on_rcfield_uicomponent_width(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_height(struct UITreeLoader* loader)
+on_rcfield_uicomponent_height(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -654,13 +629,13 @@ on_rcfield_uicomponent_height(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_anchor_x(struct UITreeLoader* loader)
+on_rcfield_uicomponent_anchor_x(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -669,13 +644,13 @@ on_rcfield_uicomponent_anchor_x(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_anchor_y(struct UITreeLoader* loader)
+on_rcfield_uicomponent_anchor_y(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -684,13 +659,13 @@ on_rcfield_uicomponent_anchor_y(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_tabno(struct UITreeLoader* loader)
+on_rcfield_uicomponent_tabno(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -699,13 +674,13 @@ on_rcfield_uicomponent_tabno(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_componentno(struct UITreeLoader* loader)
+on_rcfield_uicomponent_componentno(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -714,13 +689,13 @@ on_rcfield_uicomponent_componentno(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_inv(struct UITreeLoader* loader)
+on_rcfield_uicomponent_inv(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -730,13 +705,13 @@ on_rcfield_uicomponent_inv(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_paint_levels(struct UITreeLoader* loader)
+on_rcfield_uicomponent_paint_levels(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -748,13 +723,13 @@ on_rcfield_uicomponent_paint_levels(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_font(struct UITreeLoader* loader)
+on_rcfield_uicomponent_font(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -764,13 +739,13 @@ on_rcfield_uicomponent_font(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_chatback_screen_x(struct UITreeLoader* loader)
+on_rcfield_uicomponent_chatback_screen_x(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -780,13 +755,13 @@ on_rcfield_uicomponent_chatback_screen_x(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_chatback_screen_y(struct UITreeLoader* loader)
+on_rcfield_uicomponent_chatback_screen_y(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -796,13 +771,13 @@ on_rcfield_uicomponent_chatback_screen_y(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_chat_clip_w(struct UITreeLoader* loader)
+on_rcfield_uicomponent_chat_clip_w(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -812,13 +787,13 @@ on_rcfield_uicomponent_chat_clip_w(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_chat_clip_h(struct UITreeLoader* loader)
+on_rcfield_uicomponent_chat_clip_h(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -828,13 +803,13 @@ on_rcfield_uicomponent_chat_clip_h(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_chat_text_x_local(struct UITreeLoader* loader)
+on_rcfield_uicomponent_chat_text_x_local(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -844,13 +819,13 @@ on_rcfield_uicomponent_chat_text_x_local(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_chat_scrollbar_x_local(struct UITreeLoader* loader)
+on_rcfield_uicomponent_chat_scrollbar_x_local(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -860,13 +835,13 @@ on_rcfield_uicomponent_chat_scrollbar_x_local(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_chat_separator_y_local(struct UITreeLoader* loader)
+on_rcfield_uicomponent_chat_separator_y_local(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -876,13 +851,13 @@ on_rcfield_uicomponent_chat_separator_y_local(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_chat_separator_w(struct UITreeLoader* loader)
+on_rcfield_uicomponent_chat_separator_w(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -892,13 +867,13 @@ on_rcfield_uicomponent_chat_separator_w(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_chat_line_h(struct UITreeLoader* loader)
+on_rcfield_uicomponent_chat_line_h(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -908,13 +883,13 @@ on_rcfield_uicomponent_chat_line_h(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_chat_input_line_y_local(struct UITreeLoader* loader)
+on_rcfield_uicomponent_chat_input_line_y_local(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -924,13 +899,13 @@ on_rcfield_uicomponent_chat_input_line_y_local(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_minimenu_region_viewport(struct UITreeLoader* loader)
+on_rcfield_uicomponent_minimenu_region_viewport(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -942,13 +917,13 @@ on_rcfield_uicomponent_minimenu_region_viewport(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_minimenu_region_sidebar(struct UITreeLoader* loader)
+on_rcfield_uicomponent_minimenu_region_sidebar(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -960,13 +935,13 @@ on_rcfield_uicomponent_minimenu_region_sidebar(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_minimenu_region_chat(struct UITreeLoader* loader)
+on_rcfield_uicomponent_minimenu_region_chat(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -978,13 +953,13 @@ on_rcfield_uicomponent_minimenu_region_chat(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_minimenu_place_viewport_max(struct UITreeLoader* loader)
+on_rcfield_uicomponent_minimenu_place_viewport_max(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -996,13 +971,13 @@ on_rcfield_uicomponent_minimenu_place_viewport_max(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_minimenu_place_sidebar_max(struct UITreeLoader* loader)
+on_rcfield_uicomponent_minimenu_place_sidebar_max(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -1014,13 +989,13 @@ on_rcfield_uicomponent_minimenu_place_sidebar_max(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_minimenu_place_chat_max(struct UITreeLoader* loader)
+on_rcfield_uicomponent_minimenu_place_chat_max(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -1032,13 +1007,13 @@ on_rcfield_uicomponent_minimenu_place_chat_max(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uicomponent_crosshair_hotspot_offset(struct UITreeLoader* loader)
+on_rcfield_uicomponent_crosshair_hotspot_offset(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -1048,13 +1023,13 @@ on_rcfield_uicomponent_crosshair_hotspot_offset(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_inv_item(struct UITreeLoader* loader)
+on_rcfield_inv_item(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_INV:
@@ -1064,13 +1039,13 @@ on_rcfield_inv_item(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uilayout_component(struct UITreeLoader* loader)
+on_rcfield_uilayout_component(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_LAYOUT:
@@ -1092,13 +1067,13 @@ on_rcfield_uilayout_component(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uilayout_x(struct UITreeLoader* loader)
+on_rcfield_uilayout_x(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -1112,13 +1087,13 @@ on_rcfield_uilayout_x(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uilayout_y(struct UITreeLoader* loader)
+on_rcfield_uilayout_y(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_COMPONENT:
@@ -1132,13 +1107,13 @@ on_rcfield_uilayout_y(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uilayout_width(struct UITreeLoader* loader)
+on_rcfield_uilayout_width(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_LAYOUT:
@@ -1149,13 +1124,13 @@ on_rcfield_uilayout_width(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uilayout_height(struct UITreeLoader* loader)
+on_rcfield_uilayout_height(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_LAYOUT:
@@ -1166,13 +1141,13 @@ on_rcfield_uilayout_height(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uilayout_anchor_x(struct UITreeLoader* loader)
+on_rcfield_uilayout_anchor_x(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_LAYOUT:
@@ -1183,13 +1158,13 @@ on_rcfield_uilayout_anchor_x(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uilayout_anchor_y(struct UITreeLoader* loader)
+on_rcfield_uilayout_anchor_y(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_LAYOUT:
@@ -1200,13 +1175,13 @@ on_rcfield_uilayout_anchor_y(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uilayout_top(struct UITreeLoader* loader)
+on_rcfield_uilayout_top(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_LAYOUT:
@@ -1221,13 +1196,13 @@ on_rcfield_uilayout_top(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uilayout_left(struct UITreeLoader* loader)
+on_rcfield_uilayout_left(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_LAYOUT:
@@ -1242,13 +1217,13 @@ on_rcfield_uilayout_left(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uilayout_bottom(struct UITreeLoader* loader)
+on_rcfield_uilayout_bottom(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_LAYOUT:
@@ -1263,13 +1238,13 @@ on_rcfield_uilayout_bottom(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uilayout_right(struct UITreeLoader* loader)
+on_rcfield_uilayout_right(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_LAYOUT:
@@ -1284,13 +1259,13 @@ on_rcfield_uilayout_right(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_uilayout_dirty(struct UITreeLoader* loader)
+on_rcfield_uilayout_dirty(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    struct RevConfigField* field = uitree_loader_current_field(loader);
     switch( loader->load.kind )
     {
     case LOAD_KIND_LAYOUT:
@@ -1305,17 +1280,18 @@ on_rcfield_uilayout_dirty(struct UITreeLoader* loader)
     default:
         break;
     }
-    loader->field_index++;
 }
 
 static void
-on_rcfield_default(struct UITreeLoader* loader)
+on_rcfield_default(
+    struct UITreeLoader* loader,
+    struct RevConfigField* field)
 {
-    loader->field_index++;
+    (void)field;
 }
 
 enum UITreeLoaderStatus
-uitree_loader_step_send_revconfig(
+uitree_loader_send_revconfig(
     struct UITreeLoader* loader,
     struct RevConfigBuffer* revconfig)
 {
@@ -1324,219 +1300,207 @@ uitree_loader_step_send_revconfig(
     if( loader->status == UITREE_LOADER_DONE || loader->status == UITREE_LOADER_ERROR )
         return loader->status;
 
-    /* Host filled pending_assets after UITREE_LOADER_NEEDS_ASSET at EOF — patch UITree and finish.
-     */
-    if( loader->awaiting_asset_apply && loader->pending_asset_count > 0 )
-    {
-        uitree_loader_apply_sprite_bindings(loader);
-        loader->pending_asset_count = 0;
-        loader->awaiting_asset_apply = 0;
-        memset(loader->pending_assets, 0, sizeof(loader->pending_assets));
-        memset(loader->pending_sprite_uitree_idx, 0xff, sizeof(loader->pending_sprite_uitree_idx));
-        loader->status = UITREE_LOADER_DONE;
-        return UITREE_LOADER_DONE;
-    }
-
-    /* ── Host scaffolding (decouple from GGame): validate before the field loop. ──
-     * Further decouple uitree_impl_* so host->game can go away; sys_dash reserved for inv icons.
-     */
-
     struct RevConfigField* field = NULL;
     enum UITreeLoaderStatus status = UITREE_LOADER_RUNNING;
-    while( loader->field_index < revconfig->field_count )
+    for( int i = loader->field_index; i < revconfig->field_count; i++ )
     {
-        field = &revconfig->fields[loader->field_index];
+        field = &revconfig->fields[i];
 
         switch( field->kind )
         {
         case RCFIELD_ITEMTYPE:
-            on_rcfield_itemtype(loader);
+            on_rcfield_itemtype(loader, field);
             break;
         case RCFIELD_ITEMNAME:
-            on_rcfield_itemname(loader);
+            on_rcfield_itemname(loader, field);
             break;
         case RCFIELD_ITEMDONE:
         {
-            status = on_rcfield_itemdone(loader);
+            status = on_rcfield_itemdone(loader, field);
             if( status != UITREE_LOADER_RUNNING )
+            {
+                loader->field_index = i + 1;
                 return status;
+            }
         }
         break;
 
         case RCFIELD_CACHE_TABLE:
-            on_rcfield_cache_table(loader);
+            on_rcfield_cache_table(loader, field);
             break;
         case RCFIELD_CACHE_ARCHIVE:
-            on_rcfield_cache_archive(loader);
+            on_rcfield_cache_archive(loader, field);
             break;
         case RCFIELD_CACHE_CONTAINER:
-            on_rcfield_cache_container(loader);
+            on_rcfield_cache_container(loader, field);
             break;
         case RCFIELD_CACHE_INDEX_FILENAME:
-            on_rcfield_cache_index_filename(loader);
+            on_rcfield_cache_index_filename(loader, field);
             break;
         case RCFIELD_CACHE_DATA_FILENAME:
-            on_rcfield_cache_data_filename(loader);
+            on_rcfield_cache_data_filename(loader, field);
             break;
         case RCFIELD_CACHE_FORMAT:
-            on_rcfield_cache_format(loader);
+            on_rcfield_cache_format(loader, field);
             break;
         case RCFIELD_CACHE_ATLAS_INDEX:
-            on_rcfield_cache_atlas_index(loader);
+            on_rcfield_cache_atlas_index(loader, field);
             break;
         case RCFIELD_CACHE_ATLAS_COUNT:
-            on_rcfield_cache_atlas_count(loader);
+            on_rcfield_cache_atlas_count(loader, field);
             break;
         case RCFIELD_CACHE_TRANSFORM:
-            on_rcfield_cache_transform(loader);
+            on_rcfield_cache_transform(loader, field);
             break;
         case RCFIELD_CACHE_CROP_X:
-            on_rcfield_cache_crop_x(loader);
+            on_rcfield_cache_crop_x(loader, field);
             break;
         case RCFIELD_CACHE_CROP_Y:
-            on_rcfield_cache_crop_y(loader);
+            on_rcfield_cache_crop_y(loader, field);
             break;
         case RCFIELD_CACHE_CROP_WIDTH:
-            on_rcfield_cache_crop_width(loader);
+            on_rcfield_cache_crop_width(loader, field);
             break;
         case RCFIELD_CACHE_CROP_HEIGHT:
-            on_rcfield_cache_crop_height(loader);
+            on_rcfield_cache_crop_height(loader, field);
             break;
 
         case RCFIELD_UICOMPONENT_TYPE:
-            on_rcfield_uicomponent_type(loader);
+            on_rcfield_uicomponent_type(loader, field);
             break;
         case RCFIELD_UICOMPONENT_SPRITE:
-            on_rcfield_uicomponent_sprite(loader);
+            on_rcfield_uicomponent_sprite(loader, field);
             break;
         case RCFIELD_UICOMPONENT_SPRITE_ACTIVE:
-            on_rcfield_uicomponent_sprite_active(loader);
+            on_rcfield_uicomponent_sprite_active(loader, field);
             break;
         case RCFIELD_UICOMPONENT_WIDTH:
-            on_rcfield_uicomponent_width(loader);
+            on_rcfield_uicomponent_width(loader, field);
             break;
         case RCFIELD_UICOMPONENT_HEIGHT:
-            on_rcfield_uicomponent_height(loader);
+            on_rcfield_uicomponent_height(loader, field);
             break;
         case RCFIELD_UICOMPONENT_ANCHOR_X:
-            on_rcfield_uicomponent_anchor_x(loader);
+            on_rcfield_uicomponent_anchor_x(loader, field);
             break;
         case RCFIELD_UICOMPONENT_ANCHOR_Y:
-            on_rcfield_uicomponent_anchor_y(loader);
+            on_rcfield_uicomponent_anchor_y(loader, field);
             break;
         case RCFIELD_UICOMPONENT_TABNO:
-            on_rcfield_uicomponent_tabno(loader);
+            on_rcfield_uicomponent_tabno(loader, field);
             break;
         case RCFIELD_UICOMPONENT_COMPONENTNO:
-            on_rcfield_uicomponent_componentno(loader);
+            on_rcfield_uicomponent_componentno(loader, field);
             break;
         case RCFIELD_UICOMPONENT_INV:
-            on_rcfield_uicomponent_inv(loader);
+            on_rcfield_uicomponent_inv(loader, field);
             break;
         case RCFIELD_UICOMPONENT_PAINT_LEVELS:
-            on_rcfield_uicomponent_paint_levels(loader);
+            on_rcfield_uicomponent_paint_levels(loader, field);
             break;
         case RCFIELD_UICOMPONENT_FONT:
-            on_rcfield_uicomponent_font(loader);
+            on_rcfield_uicomponent_font(loader, field);
             break;
         case RCFIELD_UICOMPONENT_CHATBACK_SCREEN_X:
-            on_rcfield_uicomponent_chatback_screen_x(loader);
+            on_rcfield_uicomponent_chatback_screen_x(loader, field);
             break;
         case RCFIELD_UICOMPONENT_CHATBACK_SCREEN_Y:
-            on_rcfield_uicomponent_chatback_screen_y(loader);
+            on_rcfield_uicomponent_chatback_screen_y(loader, field);
             break;
         case RCFIELD_UICOMPONENT_CHAT_CLIP_W:
-            on_rcfield_uicomponent_chat_clip_w(loader);
+            on_rcfield_uicomponent_chat_clip_w(loader, field);
             break;
         case RCFIELD_UICOMPONENT_CHAT_CLIP_H:
-            on_rcfield_uicomponent_chat_clip_h(loader);
+            on_rcfield_uicomponent_chat_clip_h(loader, field);
             break;
         case RCFIELD_UICOMPONENT_CHAT_TEXT_X_LOCAL:
-            on_rcfield_uicomponent_chat_text_x_local(loader);
+            on_rcfield_uicomponent_chat_text_x_local(loader, field);
             break;
         case RCFIELD_UICOMPONENT_CHAT_SCROLLBAR_X_LOCAL:
-            on_rcfield_uicomponent_chat_scrollbar_x_local(loader);
+            on_rcfield_uicomponent_chat_scrollbar_x_local(loader, field);
             break;
         case RCFIELD_UICOMPONENT_CHAT_SEPARATOR_Y_LOCAL:
-            on_rcfield_uicomponent_chat_separator_y_local(loader);
+            on_rcfield_uicomponent_chat_separator_y_local(loader, field);
             break;
         case RCFIELD_UICOMPONENT_CHAT_SEPARATOR_W:
-            on_rcfield_uicomponent_chat_separator_w(loader);
+            on_rcfield_uicomponent_chat_separator_w(loader, field);
             break;
         case RCFIELD_UICOMPONENT_CHAT_LINE_H:
-            on_rcfield_uicomponent_chat_line_h(loader);
+            on_rcfield_uicomponent_chat_line_h(loader, field);
             break;
         case RCFIELD_UICOMPONENT_CHAT_INPUT_LINE_Y_LOCAL:
-            on_rcfield_uicomponent_chat_input_line_y_local(loader);
+            on_rcfield_uicomponent_chat_input_line_y_local(loader, field);
             break;
         case RCFIELD_UICOMPONENT_MINIMENU_REGION_VIEWPORT:
-            on_rcfield_uicomponent_minimenu_region_viewport(loader);
+            on_rcfield_uicomponent_minimenu_region_viewport(loader, field);
             break;
         case RCFIELD_UICOMPONENT_MINIMENU_REGION_SIDEBAR:
-            on_rcfield_uicomponent_minimenu_region_sidebar(loader);
+            on_rcfield_uicomponent_minimenu_region_sidebar(loader, field);
             break;
         case RCFIELD_UICOMPONENT_MINIMENU_REGION_CHAT:
-            on_rcfield_uicomponent_minimenu_region_chat(loader);
+            on_rcfield_uicomponent_minimenu_region_chat(loader, field);
             break;
         case RCFIELD_UICOMPONENT_MINIMENU_PLACE_VIEWPORT_MAX:
-            on_rcfield_uicomponent_minimenu_place_viewport_max(loader);
+            on_rcfield_uicomponent_minimenu_place_viewport_max(loader, field);
             break;
         case RCFIELD_UICOMPONENT_MINIMENU_PLACE_SIDEBAR_MAX:
-            on_rcfield_uicomponent_minimenu_place_sidebar_max(loader);
+            on_rcfield_uicomponent_minimenu_place_sidebar_max(loader, field);
             break;
         case RCFIELD_UICOMPONENT_MINIMENU_PLACE_CHAT_MAX:
-            on_rcfield_uicomponent_minimenu_place_chat_max(loader);
+            on_rcfield_uicomponent_minimenu_place_chat_max(loader, field);
             break;
         case RCFIELD_UICOMPONENT_CROSSHAIR_HOTSPOT_OFFSET:
-            on_rcfield_uicomponent_crosshair_hotspot_offset(loader);
+            on_rcfield_uicomponent_crosshair_hotspot_offset(loader, field);
             break;
 
         case RCFIELD_INV_ITEM:
-            on_rcfield_inv_item(loader);
+            on_rcfield_inv_item(loader, field);
             break;
 
         case RCFIELD_UILAYOUT_COMPONENT:
-            on_rcfield_uilayout_component(loader);
+            on_rcfield_uilayout_component(loader, field);
             break;
         case RCFIELD_UILAYOUT_X:
-            on_rcfield_uilayout_x(loader);
+            on_rcfield_uilayout_x(loader, field);
             break;
         case RCFIELD_UILAYOUT_Y:
-            on_rcfield_uilayout_y(loader);
+            on_rcfield_uilayout_y(loader, field);
             break;
         case RCFIELD_UILAYOUT_WIDTH:
-            on_rcfield_uilayout_width(loader);
+            on_rcfield_uilayout_width(loader, field);
             break;
         case RCFIELD_UILAYOUT_HEIGHT:
-            on_rcfield_uilayout_height(loader);
+            on_rcfield_uilayout_height(loader, field);
             break;
         case RCFIELD_UILAYOUT_ANCHOR_X:
-            on_rcfield_uilayout_anchor_x(loader);
+            on_rcfield_uilayout_anchor_x(loader, field);
             break;
         case RCFIELD_UILAYOUT_ANCHOR_Y:
-            on_rcfield_uilayout_anchor_y(loader);
+            on_rcfield_uilayout_anchor_y(loader, field);
             break;
         case RCFIELD_UILAYOUT_TOP:
-            on_rcfield_uilayout_top(loader);
+            on_rcfield_uilayout_top(loader, field);
             break;
         case RCFIELD_UILAYOUT_LEFT:
-            on_rcfield_uilayout_left(loader);
+            on_rcfield_uilayout_left(loader, field);
             break;
         case RCFIELD_UILAYOUT_BOTTOM:
-            on_rcfield_uilayout_bottom(loader);
+            on_rcfield_uilayout_bottom(loader, field);
             break;
         case RCFIELD_UILAYOUT_RIGHT:
-            on_rcfield_uilayout_right(loader);
+            on_rcfield_uilayout_right(loader, field);
             break;
         case RCFIELD_UILAYOUT_DIRTY:
-            on_rcfield_uilayout_dirty(loader);
+            on_rcfield_uilayout_dirty(loader, field);
             break;
 
         default:
-            on_rcfield_default(loader);
+            on_rcfield_default(loader, field);
             break;
         }
     }
+
+    loader->field_index = revconfig->field_count;
 
     if( loader->pending_asset_count > 0 )
     {
@@ -1550,11 +1514,103 @@ uitree_loader_step_send_revconfig(
 }
 
 enum UITreeLoaderStatus
-uitree_loader_step(struct UITreeLoader* loader)
+uitree_loader_send(struct UITreeLoader* loader)
 {
-    if( !loader || !loader->revconfig_buffer )
+    enum
+    {
+        ulrs_max_root_ids = UITREE_MAX_INTERFACE_REQUESTS * UITREE_LOADER_MAX_PENDING_ASSETS
+    };
+
+    if( !loader )
         return UITREE_LOADER_ERROR;
-    return uitree_loader_step_send_revconfig(loader, loader->revconfig_buffer);
+    if( loader->status != UITREE_LOADER_NEEDS_ASSET || !loader->awaiting_asset_apply )
+        return loader->status;
+
+    struct UITree* ui = loader->ui_ref;
+
+    int32_t roots[ulrs_max_root_ids];
+    int n_roots = 0;
+
+    for( int i = 0; i < loader->pending_asset_count; i++ )
+    {
+        struct UITreeLoaderAssetRequest* req = &loader->pending_assets[i];
+
+        switch( req->kind )
+        {
+        case UITREE_ASSET_NONE:
+            break;
+
+        case UITREE_ASSET_SPRITE:
+            if( !req->binding_ready || req->game_binding.uiscene_element_id < 0 )
+                return UITREE_LOADER_NEEDS_ASSET;
+            break;
+
+        case UITREE_ASSET_INTERFACE:
+            if( req->u.interface_file.count > 0 && !req->binding_ready )
+            {
+                return UITREE_LOADER_NEEDS_ASSET;
+            }
+            {
+                int n = req->u.interface_file.count;
+                for( int j = 0; j < n && j < UITREE_MAX_INTERFACE_REQUESTS; j++ )
+                {
+                    if( n_roots < ulrs_max_root_ids )
+                        roots[n_roots++] = req->u.interface_file.component_ids[j];
+                }
+            }
+            break;
+
+        case UITREE_ASSET_MODEL:
+            if( !req->binding_ready )
+                return UITREE_LOADER_NEEDS_ASSET;
+            break;
+
+        case UITREE_ASSET_FONT:
+            if( !req->binding_ready || req->game_binding.uiscene_element_id < 0 )
+                return UITREE_LOADER_NEEDS_ASSET;
+            break;
+
+        default:
+            loader->status = UITREE_LOADER_ERROR;
+            return UITREE_LOADER_ERROR;
+        }
+    }
+
+    if( ui )
+    {
+        for( int i = 0; i < loader->pending_asset_count; i++ )
+        {
+            if( loader->pending_assets[i].kind != UITREE_ASSET_SPRITE )
+                continue;
+            int idx = loader->pending_sprite_uitree_idx[i];
+            int eid = loader->pending_assets[i].game_binding.uiscene_element_id;
+            if( idx >= 0 && eid >= 0 && (uint32_t)idx < ui->component_count )
+                ui->components[idx].u.sprite.scene_id = eid;
+        }
+    }
+
+    struct UITreeLoaderAssetRequest new_pending[UITREE_LOADER_MAX_PENDING_ASSETS];
+    int new_count = 0;
+
+    loader->pending_asset_count = 0;
+    memset(loader->pending_assets, 0, sizeof(loader->pending_assets));
+    memset(loader->pending_sprite_uitree_idx, 0xff, sizeof(loader->pending_sprite_uitree_idx));
+
+    if( new_count > 0 )
+    {
+        memcpy(
+            loader->pending_assets,
+            new_pending,
+            (size_t)new_count * sizeof(loader->pending_assets[0]));
+        loader->pending_asset_count = new_count;
+        loader->awaiting_asset_apply = 1;
+        loader->status = UITREE_LOADER_NEEDS_ASSET;
+        return UITREE_LOADER_NEEDS_ASSET;
+    }
+
+    loader->awaiting_asset_apply = 0;
+    loader->status = UITREE_LOADER_DONE;
+    return UITREE_LOADER_DONE;
 }
 
 /* ── Accessors ──────────────────────────────────────────────────────────────── */

@@ -41,13 +41,13 @@
 #include "osrs/interface.h"
 #include "osrs/interface_state.h"
 #include "osrs/obj_icon.h"
-#include "osrs/revconfig/uitree_loader_game_executor.h"
 #include "osrs/revconfig/revconfig.h"
 #include "osrs/revconfig/revconfig_load.h"
 #include "osrs/revconfig/uiscene.h"
 #include "osrs/revconfig/uitree.h"
 #include "osrs/revconfig/uitree_load.h"
 #include "osrs/revconfig/uitree_loader.h"
+#include "osrs/revconfig/uitree_loader_game_executor.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/filelist.h"
 #include "osrs/rscache/tables_dat/config_component.h"
@@ -2269,7 +2269,7 @@ main(
 
     for( ; step_count < max_steps; step_count++ )
     {
-        enum UITreeLoaderStatus status = uitree_loader_step(loader);
+        enum UITreeLoaderStatus status = uitree_loader_send(loader);
 
         if( status == UITREE_LOADER_RUNNING )
             continue; /* more items to process — keep going */

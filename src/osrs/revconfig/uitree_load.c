@@ -1377,6 +1377,7 @@ push_rs_from_cache_component(
                     req_name = comp->activeGraphic;
                 if( req_name )
                 {
+                    memset(out_req, 0, sizeof(*out_req));
                     out_req->kind = UITREE_ASSET_SPRITE;
                     strncpy(out_req->u.sprite.name, req_name, sizeof(out_req->u.sprite.name) - 1);
                     out_req->u.sprite.name[sizeof(out_req->u.sprite.name) - 1] = '\0';
@@ -1511,6 +1512,7 @@ push_rs_from_cache_component(
                 {
                     if( out_req )
                     {
+                        memset(out_req, 0, sizeof(*out_req));
                         out_req->kind = UITREE_ASSET_SPRITE;
                         strncpy(out_req->u.sprite.name, gname, sizeof(out_req->u.sprite.name) - 1);
                         out_req->u.sprite.name[sizeof(out_req->u.sprite.name) - 1] = '\0';
@@ -1669,6 +1671,7 @@ push_rs_from_cache_component(
         {
             if( out_req )
             {
+                memset(out_req, 0, sizeof(*out_req));
                 out_req->kind = UITREE_ASSET_MODEL;
                 out_req->u.model.model_id = comp->model;
             }
@@ -2362,36 +2365,8 @@ uitree_from_revconfig_buildcachedat(
     struct GGame* game,
     struct RevConfigBuffer* revconfig_buffer)
 {
-    /* Reimplemented as a simple synchronous loop over the incremental loader.
-     * In this legacy call-path all assets are expected to be pre-loaded, so the
-     * loader should never return UITREE_LOADER_NEEDS_ASSET.  If it does, we log
-     * and stop early (tree will be incomplete). */
-    struct UITreeLoader* loader = uitree_loader_new(ui, revconfig_buffer);
-    if( !loader )
-    {
-        fprintf(stderr, "uitree_from_revconfig_buildcachedat: out of memory\n");
-        return;
-    }
-
-    enum UITreeLoaderStatus status;
-    while( (status = uitree_loader_step(loader)) == UITREE_LOADER_RUNNING )
-        ; /* drain */
-
-    if( status == UITREE_LOADER_NEEDS_ASSET )
-    {
-        int npc = uitree_loader_pending_asset_count(loader);
-        const struct UITreeLoaderAssetRequest* reqs = uitree_loader_pending_assets(loader);
-        for( int pi = 0; pi < npc; pi++ )
-        {
-            fprintf(
-                stderr,
-                "uitree_from_revconfig_buildcachedat: asset not pre-loaded (kind=%d), "
-                "tree may be incomplete\n",
-                (int)reqs[pi].kind);
-        }
-    }
-
-    uitree_loader_free(loader);
+    assert(0 && "Not implemented");
+    return;
 }
 
 int
@@ -3337,6 +3312,7 @@ uitree_impl_load_sprite(
     {
         if( out_req )
         {
+            memset(out_req, 0, sizeof(*out_req));
             out_req->kind = UITREE_ASSET_SPRITE;
             strncpy(out_req->u.sprite.name, load->name, sizeof(out_req->u.sprite.name) - 1);
             out_req->u.sprite.name[sizeof(out_req->u.sprite.name) - 1] = '\0';
@@ -3416,6 +3392,7 @@ uitree_impl_load_layout(
         {
             if( out_req )
             {
+                memset(out_req, 0, sizeof(*out_req));
                 out_req->kind = UITREE_ASSET_INTERFACE;
                 memcpy(
                     out_req->u.interface_file.component_ids,

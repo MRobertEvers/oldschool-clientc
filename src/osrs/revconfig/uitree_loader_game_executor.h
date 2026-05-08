@@ -7,8 +7,9 @@ struct GGame;
 
 /**
  * Outcome of uitree_loader_game_executor_* after UITREE_LOADER_NEEDS_ASSET.
- * The host uses this to decide which bulk I/O or cache build step to run before
- * calling uitree_loader_step() again.
+ * The host calls these on `uitree_loader_pending_assets_mut()` slots to resolve
+ * GameCache-backed fields into `game_binding`; `uitree_loader_step()` does not
+ * invoke them. Use the result to decide which bulk I/O to run before stepping again.
  */
 enum UITreeLoaderGameExecutorResult
 {
@@ -27,8 +28,9 @@ enum UITreeLoaderGameExecutorResult
 };
 
 /**
- * Resolves `req` into `req->game_binding` where applicable using GameCache only
- * and returns what the host still needs to load.
+ * Fills `req->game_binding`, allocates UIScene rows / lazy loads from BuildCacheDat as needed,
+ * then sets `req->binding_ready`. Call from the host between UITREE_LOADER_NEEDS_ASSET and the
+ * next uitree_loader_step().
  */
 enum UITreeLoaderGameExecutorResult
 uitree_loader_game_executor_sprite(

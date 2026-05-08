@@ -3,8 +3,8 @@
 #include "graphics/dash.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
-#include "osrs/gamecache/gamecache.h"
 #include "osrs/game.h"
+#include "osrs/gamecache/gamecache.h"
 #include "osrs/lua_sidecar/lua_configfile.h"
 #include "osrs/obj_icon.h"
 #include "osrs/revconfig/revconfig.h"
@@ -120,11 +120,7 @@ LuaUI_load_revconfig(
 
     if( game->ui_root_buffer && game->ui_scene )
         uitree_from_revconfig_buildcachedat(
-            game->ui_root_buffer,
-            game->ui_scene,
-            game->inv_pool,
-            game,
-            buf);
+            game->ui_root_buffer, game->ui_scene, game->inv_pool, game, buf);
 
     revconfig_buffer_free(buf);
     return LuaGameType_NewVoid();
@@ -361,15 +357,7 @@ LuaUI_load_revconfig_ui(
 
     /* Create the incremental loader.  The revconfig buffer is consumed here;
      * step_loader() drives it to completion. */
-    game->pending_uitree_loader = uitree_loader_new(
-        game->ui_root_buffer,
-        game->pending_revconfig);
-
-    if( !game->pending_uitree_loader )
-    {
-        revconfig_buffer_free(game->pending_revconfig);
-        game->pending_revconfig = NULL;
-    }
+    game->pending_uitree_loader = uitree_loader_new(game->ui_root_buffer, game->pending_revconfig);
 
     return LuaGameType_NewVoid();
 }
@@ -381,11 +369,9 @@ LuaUI_asset_descriptor_from_request(const struct UITreeLoaderAssetRequest* req)
     struct LuaGameType* arr = LuaGameType_NewVarTypeArray(2);
 
     static const char* kind_names[] = {
-        [UITREE_ASSET_NONE]      = "none",
-        [UITREE_ASSET_SPRITE]    = "sprite",
-        [UITREE_ASSET_INTERFACE] = "interface",
-        [UITREE_ASSET_MODEL]     = "model",
-        [UITREE_ASSET_FONT]      = "font",
+        [UITREE_ASSET_NONE] = "none",           [UITREE_ASSET_SPRITE] = "sprite",
+        [UITREE_ASSET_INTERFACE] = "interface", [UITREE_ASSET_MODEL] = "model",
+        [UITREE_ASSET_FONT] = "font",
     };
     int kind_idx = (int)req->kind;
     const char* kind_name =
@@ -400,8 +386,7 @@ LuaUI_asset_descriptor_from_request(const struct UITreeLoaderAssetRequest* req)
     {
     case UITREE_ASSET_SPRITE:
         LuaGameType_VarTypeArrayPush(
-            arr,
-            LuaGameType_NewString(req->u.sprite.name, (int)strlen(req->u.sprite.name)));
+            arr, LuaGameType_NewString(req->u.sprite.name, (int)strlen(req->u.sprite.name)));
         break;
     case UITREE_ASSET_INTERFACE:
     {
@@ -423,8 +408,7 @@ LuaUI_asset_descriptor_from_request(const struct UITreeLoaderAssetRequest* req)
         break;
     case UITREE_ASSET_FONT:
         LuaGameType_VarTypeArrayPush(
-            arr,
-            LuaGameType_NewString(req->u.font.name, (int)strlen(req->u.font.name)));
+            arr, LuaGameType_NewString(req->u.font.name, (int)strlen(req->u.font.name)));
         break;
     default:
         LuaGameType_VarTypeArrayPush(arr, LuaGameType_NewInt(0));
@@ -450,7 +434,7 @@ LuaUI_step_loader(
     enum UITreeLoaderStatus status;
     do
     {
-        status = uitree_loader_step(game->pending_uitree_loader);
+        status = uitree_loader_send(game->pending_uitree_loader);
     } while( status == UITREE_LOADER_RUNNING );
 
     if( status == UITREE_LOADER_DONE )
