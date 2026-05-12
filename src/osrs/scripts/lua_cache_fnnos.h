@@ -7,6 +7,7 @@ enum LuaCacheFunctionNo
     FUNC_LOAD_ARCHIVES = 2,
     FUNC_LOAD_CONFIG_FILE = 3,
     FUNC_LOAD_CONFIG_FILES = 4,
+    FUNC_CACHEIO_LOAD_ARCHIVES = 5,
 };
 
 #endif

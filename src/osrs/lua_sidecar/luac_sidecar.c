@@ -143,6 +143,7 @@ create_wasm_object(
     push_domain_proxy(L, wasm_ctx, callback, LUA_DOMAIN_DASH, "Dash");
     push_domain_proxy(L, wasm_ctx, callback, LUA_DOMAIN_UI, "UI");
     push_domain_proxy(L, wasm_ctx, callback, LUA_DOMAIN_MISC, "Misc");
+    push_domain_proxy(L, wasm_ctx, callback, LUA_DOMAIN_CACHEIO, "CacheIO");
 
     lua_setglobal(L, "Game");
     return 1;
@@ -344,6 +345,10 @@ LuaCSidecar_New(
 
     /* Pass the FULL path to the preloader */
     preload_module(sidecar->L, "cachedat", platform_path);
+
+    char cacheio_path[512];
+    snprintf(cacheio_path, sizeof(cacheio_path), "%s/%s", LUA_SCRIPTS_DIR, "cacheio.lua");
+    preload_module(sidecar->L, "cacheio", cacheio_path);
 
     char packet_types_path[512];
     snprintf(

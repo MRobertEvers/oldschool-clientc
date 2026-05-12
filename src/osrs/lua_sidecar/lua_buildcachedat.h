@@ -318,4 +318,44 @@ LuaBuildCacheDat_spotanims_init_from_config_jagfile(
     struct BuildCacheDat* buildcachedat,
     struct LuaGameType* args);
 
+struct LuaGameType*
+LuaBuildCacheDat_map_terrain_fetch(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_map_scenery_fetch(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_models_fetch(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_animbaseframes_fetch_uncached(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_config_jagfiles_fetch(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_textures_fetch(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_config_archive_fetch(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
+struct LuaGameType*
+LuaBuildCacheDat_animbaseframes_fetch_missing(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args);
+
 #endif

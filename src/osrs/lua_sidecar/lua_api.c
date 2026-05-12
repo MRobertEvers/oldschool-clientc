@@ -1,6 +1,7 @@
 #include "lua_api.h"
 
 #include "lua_buildcachedat.h"
+#include "lua_cacheio.h"
 #include "lua_dash.h"
 #include "lua_game.h"
 #include "lua_sidecar_misc.h"
@@ -27,6 +28,7 @@ static const char* const k_lua_api_full[LUA_API__COUNT] = {
 #include "lua_dash_api.inc"
 #include "lua_ui_api.inc"
 #include "lua_sidecar_misc_api.inc"
+#include "lua_cacheio_api.inc"
 #undef LUA_API_X
 };
 
@@ -38,6 +40,7 @@ static const char* const k_lua_api_suffix[LUA_API__COUNT] = {
 #include "lua_dash_api.inc"
 #include "lua_ui_api.inc"
 #include "lua_sidecar_misc_api.inc"
+#include "lua_cacheio_api.inc"
 #undef LUA_API_X
 };
 
@@ -49,6 +52,7 @@ static const signed char k_lua_api_dom[LUA_API__COUNT] = {
 #include "lua_dash_api.inc"
 #include "lua_ui_api.inc"
 #include "lua_sidecar_misc_api.inc"
+#include "lua_cacheio_api.inc"
 #undef LUA_API_X
 };
 
@@ -60,7 +64,8 @@ typedef struct LuaApiDomPair
 
 enum
 {
-    LUA_API_DOM_MAX = 64
+    /* Per-domain suffix table capacity (must exceed entries in any *_api.inc). */
+    LUA_API_DOM_MAX = 128
 };
 
 static LuaApiDomPair g_lua_api_dom_rows[LUA_DOMAIN_COUNT][LUA_API_DOM_MAX];

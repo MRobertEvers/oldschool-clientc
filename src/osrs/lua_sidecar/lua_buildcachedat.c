@@ -1,5 +1,6 @@
 #include "lua_buildcachedat.h"
 
+#include "lua_cacheio.h"
 #include "lua_gametypes.h"
 #include "osrs/buildcachedat.h"
 #include "osrs/buildcachedat_loader.h"
@@ -34,6 +35,14 @@ arg_userdata(
 {
     struct LuaGameType* elem = LuaGameType_GetVarTypeArrayAt(args, i);
     return LuaGameType_GetUserData(elem);
+}
+
+static struct LuaCacheIORequestList*
+arg_request_list(
+    struct LuaGameType* args,
+    int i)
+{
+    return (struct LuaCacheIORequestList*)arg_userdata(args, i);
 }
 
 /* Helper: get GGame* from args[0]. Used when function needs game. */
@@ -704,6 +713,163 @@ LuaBuildCacheDat_has_versionlist_jagfile(
     return LuaGameType_NewBool(buildcachedat_versionlist_jagfile(buildcachedat) != NULL);
 }
 
+enum
+{
+    k_map_flag_terrain = 1,
+    k_map_flag_scenery = 2,
+    k_config_dat_textures = 6,
+};
+
+struct LuaGameType*
+LuaBuildCacheDat_map_terrain_fetch(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    struct LuaCacheIORequestList* list = arg_request_list(args, 0);
+    int mapx = arg_int(args, 1);
+    int mapz = arg_int(args, 2);
+    if( !buildcachedat_get_map_terrain(buildcachedat, mapx, mapz) )
+    {
+        int map_id = (mapx << 16) | (mapz & 0xFFFF);
+        LuaCacheIORequestList_Push(
+            list, LUA_CACHEIO_FORMAT_DAT1, CACHE_DAT_MAPS, map_id, k_map_flag_terrain);
+    }
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_map_scenery_fetch(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    struct LuaCacheIORequestList* list = arg_request_list(args, 0);
+    int mapx = arg_int(args, 1);
+    int mapz = arg_int(args, 2);
+    if( !buildcachedat_get_scenery(buildcachedat, mapx, mapz) )
+    {
+        int map_id = (mapx << 16) | (mapz & 0xFFFF);
+        LuaCacheIORequestList_Push(
+            list, LUA_CACHEIO_FORMAT_DAT1, CACHE_DAT_MAPS, map_id, k_map_flag_scenery);
+    }
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_models_fetch(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    struct LuaCacheIORequestList* list = arg_request_list(args, 0);
+    struct LuaGameType* ids_elem = LuaGameType_GetVarTypeArrayAt(args, 1);
+    enum LuaGameTypeKind k = LuaGameType_GetKind(ids_elem);
+
+    if( k == LUAGAMETYPE_INT )
+    {
+        int mid = LuaGameType_GetInt(ids_elem);
+        if( mid > 0 && !buildcachedat_get_model(buildcachedat, mid) )
+            LuaCacheIORequestList_Push(
+                list, LUA_CACHEIO_FORMAT_DAT1, CACHE_DAT_MODELS, mid, 0);
+    }
+    else if( k == LUAGAMETYPE_INT_ARRAY )
+    {
+        int* vals = LuaGameType_GetIntArray(ids_elem);
+        int n = LuaGameType_GetIntArrayCount(ids_elem);
+        for( int i = 0; i < n; i++ )
+        {
+            int mid = vals[i];
+            if( mid > 0 && !buildcachedat_get_model(buildcachedat, mid) )
+                LuaCacheIORequestList_Push(
+                    list, LUA_CACHEIO_FORMAT_DAT1, CACHE_DAT_MODELS, mid, 0);
+        }
+    }
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_animbaseframes_fetch_uncached(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    struct LuaCacheIORequestList* list = arg_request_list(args, 0);
+    int count =
+        buildcachedat_loader_get_animbaseframes_count_from_versionlist_jagfile(buildcachedat);
+    for( int i = 0; i < count; i++ )
+    {
+        if( !buildcachedat_get_animbaseframes(buildcachedat, i) )
+            LuaCacheIORequestList_Push(
+                list, LUA_CACHEIO_FORMAT_DAT1, CACHE_DAT_ANIMATIONS, i, 0);
+    }
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_config_jagfiles_fetch(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    struct LuaCacheIORequestList* list = arg_request_list(args, 0);
+    if( !buildcachedat_config_jagfile(buildcachedat) )
+        LuaCacheIORequestList_Push(list, LUA_CACHEIO_FORMAT_DAT1, CACHE_DAT_CONFIGS, 2, 0);
+    if( !buildcachedat_versionlist_jagfile(buildcachedat) )
+        LuaCacheIORequestList_Push(list, LUA_CACHEIO_FORMAT_DAT1, CACHE_DAT_CONFIGS, 5, 0);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_textures_fetch(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)buildcachedat;
+    struct LuaCacheIORequestList* list = arg_request_list(args, 0);
+    LuaCacheIORequestList_Push(
+        list, LUA_CACHEIO_FORMAT_DAT1, CACHE_DAT_CONFIGS, k_config_dat_textures, 0);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_config_archive_fetch(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    (void)buildcachedat;
+    struct LuaCacheIORequestList* list = arg_request_list(args, 0);
+    int kind = arg_int(args, 1);
+    LuaCacheIORequestList_Push(list, LUA_CACHEIO_FORMAT_DAT1, CACHE_DAT_CONFIGS, kind, 0);
+    return LuaGameType_NewVoid();
+}
+
+struct LuaGameType*
+LuaBuildCacheDat_animbaseframes_fetch_missing(
+    struct BuildCacheDat* buildcachedat,
+    struct LuaGameType* args)
+{
+    struct LuaCacheIORequestList* list = arg_request_list(args, 0);
+    struct LuaGameType* ids_elem = LuaGameType_GetVarTypeArrayAt(args, 1);
+    enum LuaGameTypeKind k = LuaGameType_GetKind(ids_elem);
+
+    if( k == LUAGAMETYPE_INT )
+    {
+        int fid = LuaGameType_GetInt(ids_elem);
+        if( fid >= 0 && !buildcachedat_get_animbaseframes(buildcachedat, fid) )
+            LuaCacheIORequestList_Push(
+                list, LUA_CACHEIO_FORMAT_DAT1, CACHE_DAT_ANIMATIONS, fid, 0);
+    }
+    else if( k == LUAGAMETYPE_INT_ARRAY )
+    {
+        int* vals = LuaGameType_GetIntArray(ids_elem);
+        int n = LuaGameType_GetIntArrayCount(ids_elem);
+        for( int i = 0; i < n; i++ )
+        {
+            int fid = vals[i];
+            if( fid >= 0 && !buildcachedat_get_animbaseframes(buildcachedat, fid) )
+                LuaCacheIORequestList_Push(
+                    list, LUA_CACHEIO_FORMAT_DAT1, CACHE_DAT_ANIMATIONS, fid, 0);
+        }
+    }
+    return LuaGameType_NewVoid();
+}
+
 struct LuaGameType*
 LuaBuildCacheDat_get_sequence_animbaseframes_ids(
     struct BuildCacheDat* buildcachedat,
@@ -711,8 +877,7 @@ LuaBuildCacheDat_get_sequence_animbaseframes_ids(
 {
     int seq_id = arg_int(args, 0);
     int* ids = NULL;
-    int count =
-        buildcachedat_loader_get_sequence_animbaseframes_ids(buildcachedat, seq_id, &ids);
+    int count = buildcachedat_loader_get_sequence_animbaseframes_ids(buildcachedat, seq_id, &ids);
     struct LuaGameType* result = LuaGameType_NewIntArray(count);
     for( int i = 0; i < count; i++ )
         LuaGameType_IntArrayPush(result, ids[i]);

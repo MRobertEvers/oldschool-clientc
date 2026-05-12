@@ -100,6 +100,7 @@ extern "C" {
 #include "osrs/lua_sidecar/luac_gametypes.h"
 #include "osrs/lua_sidecar/luac_sidecar.h"
 #include "osrs/lua_sidecar/luac_sidecar_cachedat.h"
+#include "osrs/lua_sidecar/luac_cacheio.h"
 #include "osrs/lua_sidecar/luac_sidecar_config.h"
 #include "osrs/rscache/cache_dat.h"
 #include "osrs/rscache/filelist.h"
@@ -377,6 +378,8 @@ on_lua_async_call(
         }
         return result;
     }
+    case FUNC_CACHEIO_LOAD_ARCHIVES:
+        return LuaCSidecar_CacheIOLoadRequestList(cache_dat, args);
     default:
         assert(false && "Unknown cachedat function");
         return NULL;

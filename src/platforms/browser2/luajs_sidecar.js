@@ -1,6 +1,7 @@
 import { LuaCacheFunctionNo } from "./luajs_sidecar_fnnos.js";
 import { luaApiDomainMaps } from "./luajs_api_maps.js";
 import { createLuaGameTypes, pushToLua, fromLua } from "./luajs_gametypes.js";
+import { handleCacheioLoadArchivesYield } from "./luajs_cacheio.js";
 const { lua, lauxlib, lualib, to_luastring } = window.fengari;
 
 function luaString(str) {
@@ -192,6 +193,7 @@ function createWasmLuaBridge(L, ctx, wasm) {
   pushDomainProxy(L, ctx, wasm, 2, "Dash");
   pushDomainProxy(L, ctx, wasm, 3, "UI");
   pushDomainProxy(L, ctx, wasm, 4, "Misc");
+  pushDomainProxy(L, ctx, wasm, 5, "CacheIO");
   lua.lua_setglobal(L, "Game");
   return 1;
 }
@@ -274,6 +276,18 @@ export class LuaJSSidecar {
       console.log("[LuaJSSidecar] cachedat.lua preloaded into package.preload");
     } catch (err) {
       console.warn("[LuaJSSidecar] failed to preload cachedat.lua:", err);
+    }
+    try {
+      const cioPath = "cacheio.lua";
+      const cioContent = await this.fetchOrCached(cioPath);
+      const cioCode =
+        typeof cioContent === "string"
+          ? cioContent
+          : new TextDecoder().decode(cioContent);
+      this._registerModuleInPreload("cacheio", cioCode);
+      console.log("[LuaJSSidecar] cacheio.lua preloaded into package.preload");
+    } catch (err) {
+      console.warn("[LuaJSSidecar] failed to preload cacheio.lua:", err);
     }
     try {
       const ptPath = "packet_types.lua";
@@ -442,6 +456,8 @@ export class LuaJSSidecar {
           } else if (lua.lua_type(co, -1) === lua.LUA_TSTRING) {
             let str = lua.lua_tostring(co, -1);
             args.push(luaString(str));
+          } else if (lua.lua_type(co, -1) === lua.LUA_TLIGHTUSERDATA) {
+            args.push(lua.lua_touserdata(co, -1));
           }
           lua.lua_pop(co, 1);
         }
@@ -643,6 +659,13 @@ export class LuaJSSidecar {
         }
 
         return files;
+      }
+      case LuaCacheFunctionNo.FUNC_CACHEIO_LOAD_ARCHIVES: {
+        return await handleCacheioLoadArchivesYield(
+          this.wasm,
+          args,
+          parseMultipartPartsWithHeaders,
+        );
       }
       default: {
         console.error(`Unknown command: ${cmd}`);

@@ -208,6 +208,8 @@ set(COMMON_SOURCES
     src/osrs/rscache/xtea.c
     src/osrs/revs/revpacket_lc245_2_query.c
     src/osrs/entity_scenebuild.c
+    src/osrs/lua_sidecar/lua_cacheio.c
+    src/osrs/lua_sidecar/luac_cacheio.c
     src/osrs/lua_sidecar/luac_sidecar_cachedat.c
     src/osrs/lua_sidecar/lua_buildcachedat.c
     src/osrs/lua_sidecar/lua_dash.c
@@ -728,6 +730,7 @@ if(EMSCRIPTEN)
         "_luajs_CacheDatArchive_free"
         "_luajs_ConfigFile_deserialize"
         "_luajs_ConfigFile_free"
+        "_luajs_LuaCacheIO_flatten_dat1_triplets"
     )
 
     set(EXPORTED_METHODS_LIST
@@ -773,6 +776,7 @@ if(EMSCRIPTEN)
         src/platforms/browser2/luajs_sidecar.c
         src/platforms/browser2/luajs_gametypes.c
         src/platforms/browser2/luajs_archives.c
+        src/platforms/browser2/luajs_cacheio.c
         src/platforms/browser2/luajs_configs.c
         src/platforms/browser2/luajs_sidecar_blobs.c
         src/platforms/browser2/netjs.c
@@ -820,6 +824,7 @@ if(EMSCRIPTEN)
     set(BROWSER_ASSETS
         ${EM_SHELL_FILE}
         ${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/luajs_sidecar.js
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/luajs_cacheio.js
         ${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/luajs_api_maps.js
         ${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/luajs_gametypes.js
         ${CMAKE_CURRENT_SOURCE_DIR}/src/platforms/browser2/netjs.js
@@ -866,6 +871,7 @@ if(EMSCRIPTEN)
             src/platforms/browser2/luajs_sidecar.c
             src/platforms/browser2/luajs_gametypes.c
             src/platforms/browser2/luajs_archives.c
+            src/platforms/browser2/luajs_cacheio.c
             src/platforms/browser2/luajs_configs.c
             src/platforms/browser2/luajs_sidecar_blobs.c
             src/platforms/browser2/netjs.c

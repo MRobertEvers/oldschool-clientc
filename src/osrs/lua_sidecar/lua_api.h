@@ -20,6 +20,7 @@ enum LuaApiDomain
     LUA_DOMAIN_DASH,
     LUA_DOMAIN_UI,
     LUA_DOMAIN_MISC,
+    LUA_DOMAIN_CACHEIO,
     LUA_DOMAIN_COUNT
 };
 
@@ -32,6 +33,7 @@ typedef enum LuaApiId
 #include "lua_dash_api.inc"
 #include "lua_ui_api.inc"
 #include "lua_sidecar_misc_api.inc"
+#include "lua_cacheio_api.inc"
 #undef LUA_API_X
     LUA_API__COUNT
 } LuaApiId;

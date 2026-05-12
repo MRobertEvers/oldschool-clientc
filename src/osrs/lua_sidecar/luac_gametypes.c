@@ -130,6 +130,29 @@ LuacGameType_FromLua(
     }
 }
 
+/** Stack slots produced by LuacGameType_PushToLua for spread-compatible kinds. */
+static int
+luac_gametype_spread_stack_need(struct LuaGameType* gt)
+{
+    if( !gt )
+        return 1;
+    switch( LuaGameType_GetKind(gt) )
+    {
+    case LUAGAMETYPE_USERDATA_ARRAY_SPREAD:
+        return LuaGameType_GetUserDataArrayCount(gt);
+    case LUAGAMETYPE_VARTYPE_ARRAY_SPREAD:
+    {
+        int m = LuaGameType_GetVarTypeArrayCount(gt);
+        int sum = 0;
+        for( int i = 0; i < m; i++ )
+            sum += luac_gametype_spread_stack_need(LuaGameType_GetVarTypeArrayAt(gt, i));
+        return sum;
+    }
+    default:
+        return 1;
+    }
+}
+
 int
 LuacGameType_PushToLua(
     struct lua_State* L,
@@ -200,6 +223,11 @@ LuacGameType_PushToLua(
     case LUAGAMETYPE_USERDATA_ARRAY_SPREAD:
     {
         int n = LuaGameType_GetUserDataArrayCount(gt);
+        if( n > 0 && !lua_checkstack(L, n) )
+        {
+            lua_pushnil(L);
+            return 1;
+        }
         for( int i = 0; i < n; i++ )
         {
             void* ptr = LuaGameType_GetUserDataArrayAt(gt, i);
@@ -222,13 +250,22 @@ LuacGameType_PushToLua(
     case LUAGAMETYPE_VARTYPE_ARRAY_SPREAD:
     {
         int n = LuaGameType_GetVarTypeArrayCount(gt);
+        int need = 0;
+        for( int i = 0; i < n; i++ )
+            need += luac_gametype_spread_stack_need(LuaGameType_GetVarTypeArrayAt(gt, i));
+        if( need > 0 && !lua_checkstack(L, need) )
+        {
+            lua_pushnil(L);
+            return 1;
+        }
+        int pushed = 0;
         for( int i = 0; i < n; i++ )
         {
             struct LuaGameType* elem = LuaGameType_GetVarTypeArrayAt(gt, i);
-            LuacGameType_PushToLua(L, elem);
+            pushed += LuacGameType_PushToLua(L, elem);
         }
 
-        return n;
+        return pushed;
     }
 
     default:

@@ -1,4 +1,6 @@
-local CacheDat = require("cachedat")
+local CacheIO = require("cacheio")
+
+local cacheio_requests = Game.CacheIO.request_list_new()
 
 local function safe_gc()
     -- collectgarbage("collect") is a no-op on Fengari (JS Lua); silently ignore
@@ -27,20 +29,19 @@ end
 
 -- Load terrain and scenery for a single chunk into buildcachedat.
 local function load_chunk_map_scenery_and_terrain(mapx, mapz)
-    if not Game.BuildCacheDat.has_map_terrain(mapx, mapz) then
-        local map_id = (mapx << 16) | (mapz)
-        local terrain_archive = CacheDat.load_archive(
-            CacheDat.Tables.CACHE_DAT_MAPS, map_id,
-            CacheDat.ArchiveIdFlags.MAP_TERRAIN)
-        Game.BuildCacheDat.map_terrain_cache_add(terrain_archive, map_id)
-    end
+    Game.CacheIO.request_list_reset(cacheio_requests)
+    Game.BuildCacheDat.map_terrain_fetch(cacheio_requests, mapx, mapz)
+    Game.BuildCacheDat.map_scenery_fetch(cacheio_requests, mapx, mapz)
+    local archives = CacheIO.load_request_list(cacheio_requests)
 
-    if not Game.BuildCacheDat.has_map_scenery(mapx, mapz) then
-        local map_id = (mapx << 16) | (mapz)
-        local scenery_archive = CacheDat.load_archive(
-            CacheDat.Tables.CACHE_DAT_MAPS, map_id,
-            CacheDat.ArchiveIdFlags.MAP_SCENERY)
-        Game.BuildCacheDat.map_scenery_cache_add(scenery_archive, map_id)
+    local idx = 1
+    local map_id = (mapx << 16) | (mapz)
+    if archives[idx] then
+        Game.BuildCacheDat.map_terrain_cache_add(archives[idx], map_id)
+        idx = idx + 1
+    end
+    if archives[idx] then
+        Game.BuildCacheDat.map_scenery_cache_add(archives[idx], map_id)
     end
 end
 
@@ -48,19 +49,16 @@ end
 local function load_scenery_models_mapchunk(mapx, mapz)
     local models_to_load = Game.BuildCacheDat.scenery_config_get_model_ids_mapchunk(mapx, mapz)
 
-
-
-    local model_requests = {}
     local models_needed = {}
     for _, model_id in ipairs(models_to_load) do
         if not Game.BuildCacheDat.model_cache_has(model_id) then
-            table.insert(model_requests,
-                { table_id = CacheDat.Tables.CACHE_DAT_MODELS, archive_id = model_id, flags = 0 })
             table.insert(models_needed, model_id)
         end
     end
-    if #model_requests > 0 then
-        local model_archives = CacheDat.load_archives(model_requests)
+    if #models_needed > 0 then
+        Game.CacheIO.request_list_reset(cacheio_requests)
+        Game.BuildCacheDat.models_fetch(cacheio_requests, models_needed)
+        local model_archives = CacheIO.load_request_list(cacheio_requests)
         for i, model_id in ipairs(models_needed) do
             Game.BuildCacheDat.model_cache_add(model_archives[i], model_id)
         end
@@ -69,6 +67,24 @@ end
 
 local function load_scenery_configs_mapchunk(mapx, mapz)
     Game.BuildCacheDat.scenery_config_load_mapchunk_from_config_jagfile(mapx, mapz)
+end
+
+local function load_scenery_models()
+    local models_to_load = Game.BuildCacheDat.get_all_unique_scenery_model_ids()
+    local models_needed = {}
+    for _, model_id in ipairs(models_to_load) do
+        if not Game.BuildCacheDat.model_cache_has(model_id) then
+            table.insert(models_needed, model_id)
+        end
+    end
+    if #models_needed > 0 then
+        Game.CacheIO.request_list_reset(cacheio_requests)
+        Game.BuildCacheDat.models_fetch(cacheio_requests, models_needed)
+        local model_archives = CacheIO.load_request_list(cacheio_requests)
+        for i, model_id in ipairs(models_needed) do
+            Game.BuildCacheDat.model_cache_add(model_archives[i], model_id)
+        end
+    end
 end
 -- ---------------------------------------------------------------------------
 -- world_rebuild_centerzone_slow
@@ -147,7 +163,7 @@ local function world_rebuild_centerzone(zone_center_x, zone_center_z, scene_size
     -- Load all terrain and scenery upfront.
     for mapx = chunk_sw_x, chunk_ne_x do
         for mapz = chunk_sw_z, chunk_ne_z do
-            load_chunk_map_data(mapx, mapz)
+            load_chunk_map_scenery_and_terrain(mapx, mapz)
         end
     end
     safe_gc()
@@ -169,30 +185,20 @@ local function world_rebuild_centerzone(zone_center_x, zone_center_z, scene_size
 end
 
 local function global_load_textures()
-    local texture_sprites_ptr = CacheDat.load_archive(
-        CacheDat.Tables.CACHE_DAT_CONFIGS,
-        CacheDat.ConfigDatKind.CONFIG_DAT_TEXTURES)
+    Game.CacheIO.request_list_reset(cacheio_requests)
+    Game.BuildCacheDat.textures_fetch(cacheio_requests)
+    local archives = CacheIO.load_request_list(cacheio_requests)
+    local texture_sprites_ptr = archives[1]
     Game.BuildCacheDat.cache_textures(texture_sprites_ptr)
     Game.Dash.load_textures()
 end
 
 local function global_load_animations()
-    local animbaseframes_count = Game.BuildCacheDat.get_animbaseframes_count_from_versionlist_jagfile()
-
-    local anim_requests = {}
-    local anim_indices = {}
-    for i = 0, animbaseframes_count - 1 do
-        if not Game.BuildCacheDat.animbaseframes_cache_has(i) then
-            table.insert(anim_requests, { table_id = CacheDat.Tables.CACHE_DAT_ANIMATIONS, archive_id = i, flags = 0 })
-            table.insert(anim_indices, i)
-        end
-    end
-
-    if #anim_requests > 0 then
-        local anim_archives = CacheDat.load_archives(anim_requests)
-        for _, archive in ipairs(anim_archives) do
-            Game.BuildCacheDat.animbaseframes_cache_add(archive)
-        end
+    Game.CacheIO.request_list_reset(cacheio_requests)
+    Game.BuildCacheDat.animbaseframes_fetch_uncached(cacheio_requests)
+    local anim_archives = CacheIO.load_request_list(cacheio_requests)
+    for _, archive in ipairs(anim_archives) do
+        Game.BuildCacheDat.animbaseframes_cache_add(archive)
     end
 end
 
@@ -205,13 +211,20 @@ local function init_cache_dat(wx_sw, wz_sw, wx_ne, wz_ne)
     print_heap("init_cache_dat start")
 
     -- Load jagfiles.
-    local config_archives = CacheDat.load_archives({
-        { table_id = CacheDat.Tables.CACHE_DAT_CONFIGS, archive_id = CacheDat.ConfigDatKind.CONFIG_DAT_CONFIGS,      flags = 0 },
-        { table_id = CacheDat.Tables.CACHE_DAT_CONFIGS, archive_id = CacheDat.ConfigDatKind.CONFIG_DAT_VERSION_LIST, flags = 0 },
-    })
-    Game.BuildCacheDat.set_config_jagfile(config_archives[1])
-    Game.BuildCacheDat.set_versionlist_jagfile(config_archives[2])
-    config_archives = nil
+    Game.CacheIO.request_list_reset(cacheio_requests)
+    Game.BuildCacheDat.config_jagfiles_fetch(cacheio_requests)
+    local config_archives = CacheIO.load_request_list(cacheio_requests)
+    -- config_jagfiles_fetch only queues missing jagfiles (same order as C pushes).
+    -- init_ui may already have set the config jagfile; then the sole returned
+    -- archive is the versionlist — do not assign it as config (spawn_element.lua).
+    local ci = 1
+    if not Game.BuildCacheDat.has_config_jagfile() and config_archives[ci] then
+        Game.BuildCacheDat.set_config_jagfile(config_archives[ci])
+        ci = ci + 1
+    end
+    if not Game.BuildCacheDat.has_versionlist_jagfile() and config_archives[ci] then
+        Game.BuildCacheDat.set_versionlist_jagfile(config_archives[ci])
+    end
     print_heap("after jagfile setup")
 
     print("=== Loading Textures ===")

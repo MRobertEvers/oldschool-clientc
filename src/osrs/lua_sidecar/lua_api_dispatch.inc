@@ -110,6 +110,22 @@
         return LuaBuildCacheDat_floortypes_clear(bcd, args);
     case LUA_API_BUILDCACHEDAT_OBJECTS_CLEAR:
         return LuaBuildCacheDat_objects_clear(bcd, args);
+    case LUA_API_BUILDCACHEDAT_MAP_TERRAIN_FETCH:
+        return LuaBuildCacheDat_map_terrain_fetch(bcd, args);
+    case LUA_API_BUILDCACHEDAT_MAP_SCENERY_FETCH:
+        return LuaBuildCacheDat_map_scenery_fetch(bcd, args);
+    case LUA_API_BUILDCACHEDAT_MODELS_FETCH:
+        return LuaBuildCacheDat_models_fetch(bcd, args);
+    case LUA_API_BUILDCACHEDAT_ANIMBASEFRAMES_FETCH_UNCACHED:
+        return LuaBuildCacheDat_animbaseframes_fetch_uncached(bcd, args);
+    case LUA_API_BUILDCACHEDAT_CONFIG_JAGFILES_FETCH:
+        return LuaBuildCacheDat_config_jagfiles_fetch(bcd, args);
+    case LUA_API_BUILDCACHEDAT_TEXTURES_FETCH:
+        return LuaBuildCacheDat_textures_fetch(bcd, args);
+    case LUA_API_BUILDCACHEDAT_CONFIG_ARCHIVE_FETCH:
+        return LuaBuildCacheDat_config_archive_fetch(bcd, args);
+    case LUA_API_BUILDCACHEDAT_ANIMBASEFRAMES_FETCH_MISSING:
+        return LuaBuildCacheDat_animbaseframes_fetch_missing(bcd, args);
     case LUA_API_GAME_BUILD_SCENE:
         return LuaGame_build_scene(game, args);
     case LUA_API_GAME_BUILD_SCENE_CENTERZONE:
@@ -162,6 +178,12 @@
         return LuaSidecarMisc_save_camera(game, args);
     case LUA_API_MISC_LOAD_CAMERA:
         return LuaSidecarMisc_load_camera(game, args);
+    case LUA_API_CACHEIO_REQUEST_LIST_NEW:
+        return LuaCacheIO_request_list_new(game, args);
+    case LUA_API_CACHEIO_REQUEST_LIST_FREE:
+        return LuaCacheIO_request_list_free(game, args);
+    case LUA_API_CACHEIO_REQUEST_LIST_RESET:
+        return LuaCacheIO_request_list_reset(game, args);
     case LUA_API_GAME_GET_PKT_PLAYER_INFO_DATA:
         return LuaGame_get_pkt_player_info_data(game, args);
     case LUA_API_GAME_GET_PKT_PLAYER_INFO_LENGTH:
