@@ -1,0 +1,4 @@
+#ifndef GAMECACHE2_DAT2_H
+#define GAMECACHE2_DAT2_H
+
+#endif /* GAMECACHE2_DAT2_H */

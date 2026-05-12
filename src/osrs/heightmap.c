@@ -35,6 +35,8 @@ heightmap_coord_idx(
 void
 heightmap_free(struct Heightmap* heightmap)
 {
+    if( !heightmap )
+        return;
     free(heightmap->heights);
     free(heightmap);
 }

@@ -124,13 +124,13 @@
             ]
         },
         {
-            "name": "(lldb) Debug Current File with ./a.out",
+            "name": "(lldb) Debug GameCache2 Test",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${fileDirname}/a.out",
+            "program": "${workspaceFolder}/tools/gamecache2_test/gamecache2_test",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${fileDirname}",
+            "cwd": "${workspaceFolder}/tools/gamecache2_test",
             "environment": [],
             "externalConsole": false,
             "MIMode": "lldb"

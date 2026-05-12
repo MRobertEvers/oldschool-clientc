@@ -10,10 +10,10 @@
 #include "osrs/game.h"
 #include "osrs/game_entity.h"
 #include "osrs/gamenet_process.h"
-#include "osrs/interface.h"
-#include "osrs/isaac.h"
 #include "osrs/gamenet_send.h"
 #include "osrs/ginput.h"
+#include "osrs/interface.h"
+#include "osrs/isaac.h"
 #include "osrs/packetout.h"
 #include "osrs/painters.h"
 #include "osrs/rscache/rsbuf.h"
@@ -262,13 +262,13 @@ game_apply_walk_cross_on_success(struct GGame* game)
 {
     if( !game->pending_walk_cross_after_move )
         return;
-    game->cross_mode  = 1;
+    game->cross_mode = 1;
     game->cross_cycle = 0;
-    game->cross_x     = game->tile_click_anchor_x;
-    game->cross_y     = game->tile_click_anchor_y;
+    game->cross_x = game->tile_click_anchor_x;
+    game->cross_y = game->tile_click_anchor_y;
     game->pending_walk_cross_after_move = false;
-    game->tile_click_anchor_x           = -1;
-    game->tile_click_anchor_y           = -1;
+    game->tile_click_anchor_x = -1;
+    game->tile_click_anchor_y = -1;
 }
 
 static bool
