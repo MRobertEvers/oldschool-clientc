@@ -716,8 +716,7 @@ buildcachedat_objects_clear(struct BuildCacheDat* buildcachedat)
         return;
     if( buildcachedat->obj_hmap )
         dashmap_free_entries(buildcachedat->obj_hmap, free_obj_entry);
-    buildcachedat->obj_hmap =
-        buildcachedat_create_hmap(sizeof(int), sizeof(struct ObjEntry), 64);
+    buildcachedat->obj_hmap = buildcachedat_create_hmap(sizeof(int), sizeof(struct ObjEntry), 64);
 }
 
 void
@@ -1283,7 +1282,9 @@ buildcachedat_iter_next_npc(struct DashMapIter* iter)
 }
 
 struct CacheDatConfigNpc*
-buildcachedat_iter_next_npc_with_id(struct DashMapIter* iter, int* id_out)
+buildcachedat_iter_next_npc_with_id(
+    struct DashMapIter* iter,
+    int* id_out)
 {
     struct NpcEntry* npc_entry = (struct NpcEntry*)dashmap_iter_next(iter);
     if( !npc_entry )
@@ -1478,7 +1479,9 @@ buildcachedat_iter_next_sequence(struct DashMapIter* iter)
 }
 
 struct CacheDatSequence*
-buildcachedat_iter_next_sequence_with_id(struct DashMapIter* iter, int* id_out)
+buildcachedat_iter_next_sequence_with_id(
+    struct DashMapIter* iter,
+    int* id_out)
 {
     struct SequenceEntry* sequence_entry = (struct SequenceEntry*)dashmap_iter_next(iter);
     if( !sequence_entry )
@@ -1524,7 +1527,9 @@ buildcachedat_iter_next_idk(struct DashMapIter* iter)
 }
 
 struct CacheDatConfigIdk*
-buildcachedat_iter_next_idk_with_id(struct DashMapIter* iter, int* id_out)
+buildcachedat_iter_next_idk_with_id(
+    struct DashMapIter* iter,
+    int* id_out)
 {
     struct IdkEntry* idk_entry = (struct IdkEntry*)dashmap_iter_next(iter);
     if( !idk_entry )
@@ -1581,7 +1586,9 @@ buildcachedat_iter_next_obj(struct DashMapIter* iter)
 }
 
 struct CacheDatConfigObj*
-buildcachedat_iter_next_obj_with_id(struct DashMapIter* iter, int* id_out)
+buildcachedat_iter_next_obj_with_id(
+    struct DashMapIter* iter,
+    int* id_out)
 {
     struct ObjEntry* obj_entry = (struct ObjEntry*)dashmap_iter_next(iter);
     if( !obj_entry )
@@ -1709,13 +1716,13 @@ buildcachedat_add_spotanim(
     int spotanim_id,
     struct CacheDatConfigSpotAnim* spotanim)
 {
-    struct SpotAnimEntry* existing =
-        (struct SpotAnimEntry*)dashmap_search(buildcachedat->spotanim_hmap, &spotanim_id, DASHMAP_FIND);
+    struct SpotAnimEntry* existing = (struct SpotAnimEntry*)dashmap_search(
+        buildcachedat->spotanim_hmap, &spotanim_id, DASHMAP_FIND);
     if( existing && existing->spotanim )
         cache_dat_config_spotanim_free(existing->spotanim);
 
-    struct SpotAnimEntry* entry =
-        (struct SpotAnimEntry*)dashmap_search(buildcachedat->spotanim_hmap, &spotanim_id, DASHMAP_INSERT);
+    struct SpotAnimEntry* entry = (struct SpotAnimEntry*)dashmap_search(
+        buildcachedat->spotanim_hmap, &spotanim_id, DASHMAP_INSERT);
     assert(entry && "SpotAnim must be insertable into hmap");
     entry->id = spotanim_id;
     entry->spotanim = spotanim;
@@ -1727,8 +1734,8 @@ buildcachedat_get_spotanim(
     struct BuildCacheDat* buildcachedat,
     int spotanim_id)
 {
-    struct SpotAnimEntry* entry =
-        (struct SpotAnimEntry*)dashmap_search(buildcachedat->spotanim_hmap, &spotanim_id, DASHMAP_FIND);
+    struct SpotAnimEntry* entry = (struct SpotAnimEntry*)dashmap_search(
+        buildcachedat->spotanim_hmap, &spotanim_id, DASHMAP_FIND);
     if( !entry )
         return NULL;
     return entry->spotanim;

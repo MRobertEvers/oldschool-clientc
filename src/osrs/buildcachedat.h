@@ -89,7 +89,8 @@ buildcachedat_new(void);
 void
 buildcachedat_free(struct BuildCacheDat* buildcachedat);
 
-/** Free map terrain and map scenery chunk entries; maps are recreated empty. Other tables unchanged. */
+/** Free map terrain and map scenery chunk entries; maps are recreated empty. Other tables
+ * unchanged. */
 void
 buildcachedat_clear_map_chunks(struct BuildCacheDat* buildcachedat);
 
@@ -146,12 +147,14 @@ buildcachedat_clear_jagfiles(struct BuildCacheDat* buildcachedat);
  * incremental resize. Call before bulk-inserting a known number of entries to avoid the transient
  * double-buffer spike from repeated grow operations. */
 void
-buildcachedat_reserve_hmap(struct DashMap* map, size_t min_count);
+buildcachedat_reserve_hmap(
+    struct DashMap* map,
+    size_t min_count);
 
 /** Free every owning BuildCacheDat cache (hash maps that own decoded data, config/versionlist/media
  * jagfiles, containers) and reinitialize those maps and event buffer. Reftable maps (textures,
- * fonts, sprites, component_sprites, animframes) are not cleared. The struct remains valid for reuse.
- * DashModel meshes live on Scene2, not in BuildCacheDat. */
+ * fonts, sprites, component_sprites, animframes) are not cleared. The struct remains valid for
+ * reuse. DashModel meshes live on Scene2, not in BuildCacheDat. */
 void
 buildcachedat_clear(struct BuildCacheDat* buildcachedat);
 
@@ -276,10 +279,14 @@ buildcachedat_iter_next_flotype(struct DashMapIter* iter);
 
 /** Register that texture_id was loaded into Scene2 (reftable only). */
 void
-buildcachedat_add_texture_ref(struct BuildCacheDat* buildcachedat, int texture_id);
+buildcachedat_add_texture_ref(
+    struct BuildCacheDat* buildcachedat,
+    int texture_id);
 
 bool
-buildcachedat_has_texture_ref(struct BuildCacheDat* buildcachedat, int texture_id);
+buildcachedat_has_texture_ref(
+    struct BuildCacheDat* buildcachedat,
+    int texture_id);
 
 void
 buildcachedat_add_font_ref(
@@ -396,7 +403,9 @@ struct CacheDatConfigNpc*
 buildcachedat_iter_next_npc(struct DashMapIter* iter);
 
 struct CacheDatConfigNpc*
-buildcachedat_iter_next_npc_with_id(struct DashMapIter* iter, int* id_out);
+buildcachedat_iter_next_npc_with_id(
+    struct DashMapIter* iter,
+    int* id_out);
 
 void
 buildcachedat_add_npc_model(
@@ -476,7 +485,9 @@ struct CacheDatSequence*
 buildcachedat_iter_next_sequence(struct DashMapIter* iter);
 
 struct CacheDatSequence*
-buildcachedat_iter_next_sequence_with_id(struct DashMapIter* iter, int* id_out);
+buildcachedat_iter_next_sequence_with_id(
+    struct DashMapIter* iter,
+    int* id_out);
 
 struct DashMapIter*
 buildcachedat_iter_new_sequences(struct BuildCacheDat* buildcachedat);
@@ -496,7 +507,9 @@ struct CacheDatConfigIdk*
 buildcachedat_iter_next_idk(struct DashMapIter* iter);
 
 struct CacheDatConfigIdk*
-buildcachedat_iter_next_idk_with_id(struct DashMapIter* iter, int* id_out);
+buildcachedat_iter_next_idk_with_id(
+    struct DashMapIter* iter,
+    int* id_out);
 
 struct DashMapIter*
 buildcachedat_iter_new_idks(struct BuildCacheDat* buildcachedat);
@@ -516,7 +529,9 @@ struct CacheDatConfigObj*
 buildcachedat_iter_next_obj(struct DashMapIter* iter);
 
 struct CacheDatConfigObj*
-buildcachedat_iter_next_obj_with_id(struct DashMapIter* iter, int* id_out);
+buildcachedat_iter_next_obj_with_id(
+    struct DashMapIter* iter,
+    int* id_out);
 
 struct DashMapIter*
 buildcachedat_iter_new_objs(struct BuildCacheDat* buildcachedat);

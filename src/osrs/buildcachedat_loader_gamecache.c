@@ -2,7 +2,6 @@
 #include "osrs/buildcachedat_loader.h"
 #include "osrs/gamecache/gamecache.h"
 #include "osrs/gamecache/gamecache_store.h"
-
 #include "osrs/rscache/tables/config_floortype.h"
 #include "osrs/rscache/tables/config_locs.h"
 #include "osrs/rscache/tables/config_sequence.h"
@@ -14,7 +13,9 @@
 #include <string.h>
 
 static int*
-dup_ints_or_null(const int* src, int n)
+dup_ints_or_null(
+    const int* src,
+    int n)
 {
     if( n <= 0 || !src )
         return NULL;
@@ -65,8 +66,7 @@ submit_terrain_floortypes_for_chunk(
         {
             for( lv = 0; lv < MAP_TERRAIN_LEVELS; lv++ )
             {
-                struct CacheMapFloor* tile =
-                    &map_terrain->tiles_xyz[MAP_TILE_COORD(tx, tz, lv)];
+                struct CacheMapFloor* tile = &map_terrain->tiles_xyz[MAP_TILE_COORD(tx, tz, lv)];
                 if( tile->underlay_id > 0 )
                     ensure_flotype_from_bcd(gc, bcd, tile->underlay_id - 1);
                 int overlay_id = tile->overlay_id - 1;
@@ -215,7 +215,10 @@ dup_npc(const struct CacheDatConfigNpc* s)
 }
 
 static void
-ensure_model_from_bcd(struct GameCache* gc, struct BuildCacheDat* bcd, int model_id)
+ensure_model_from_bcd(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd,
+    int model_id)
 {
     if( model_id <= 0 || gamecache_get_model(gc, model_id) )
         return;
@@ -229,7 +232,10 @@ ensure_model_from_bcd(struct GameCache* gc, struct BuildCacheDat* bcd, int model
 }
 
 static void
-submit_models_for_loc_config(struct GameCache* gc, struct BuildCacheDat* bcd, struct CacheConfigLocation* loc)
+submit_models_for_loc_config(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd,
+    struct CacheConfigLocation* loc)
 {
     int n = loc->shapes_and_model_count;
     if( n <= 0 || !loc->lengths || !loc->models )
@@ -323,7 +329,9 @@ buildcachedat_loader_gamecache_submit_for_rebuild_centerzone_chunk(
 }
 
 void
-buildcachedat_loader_gamecache_submit_sequences(struct GameCache* gc, struct BuildCacheDat* bcd)
+buildcachedat_loader_gamecache_submit_sequences(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd)
 {
     struct DashMapIter* it = buildcachedat_iter_new_sequences(bcd);
     if( !it )
@@ -355,7 +363,9 @@ buildcachedat_loader_gamecache_submit_sequences(struct GameCache* gc, struct Bui
 }
 
 void
-buildcachedat_loader_gamecache_submit_scene_build_data(struct GameCache* gc, struct BuildCacheDat* bcd)
+buildcachedat_loader_gamecache_submit_scene_build_data(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd)
 {
     struct DashMapIter* it = buildcachedat_iter_new_objs(bcd);
     if( it )

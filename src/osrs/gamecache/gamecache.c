@@ -1,6 +1,6 @@
 #include "osrs/gamecache/gamecache.h"
-#include "osrs/gamecache/gamecache_store.h"
 
+#include "osrs/gamecache/gamecache_store.h"
 #include "osrs/rscache/rsbuf.h"
 #include "osrs/rscache/tables/config_floortype.h"
 #include "osrs/rscache/tables/config_locs.h"
@@ -19,21 +19,51 @@
 
 #define GAMECACHE_HMAP_INITIAL_CAPACITY 64
 
-_Static_assert(sizeof(struct GameCacheFloor) == sizeof(struct CacheMapFloor), "GameCacheFloor");
-_Static_assert(sizeof(struct GameCacheLoc) == sizeof(struct CacheMapLoc), "GameCacheLoc");
-_Static_assert(sizeof(struct GameCacheTerrain) == sizeof(struct CacheMapTerrain), "GameCacheTerrain");
-_Static_assert(sizeof(struct GameCacheLocList) == sizeof(struct CacheMapLocs), "GameCacheLocList");
-_Static_assert(sizeof(struct GameCacheFloorType) == sizeof(struct CacheConfigOverlay), "GameCacheFloorType");
-_Static_assert(sizeof(struct GameCacheModel) == sizeof(struct CacheModel), "GameCacheModel");
-_Static_assert(sizeof(struct GameCacheSequence) == sizeof(struct CacheDatSequence), "GameCacheSequence");
-_Static_assert(sizeof(struct GameCacheAnimBase) == sizeof(struct CacheAnimBase), "GameCacheAnimBase");
-_Static_assert(sizeof(struct GameCacheAnimframe) == sizeof(struct CacheAnimframe), "GameCacheAnimframe");
-_Static_assert(sizeof(struct GameCacheObj) == sizeof(struct CacheDatConfigObj), "GameCacheObj");
-_Static_assert(sizeof(struct GameCacheIdk) == sizeof(struct CacheDatConfigIdk), "GameCacheIdk");
-_Static_assert(sizeof(struct GameCacheNpc) == sizeof(struct CacheDatConfigNpc), "GameCacheNpc");
-_Static_assert(sizeof(struct GameCacheSpotAnim) == sizeof(struct CacheDatConfigSpotAnim), "GameCacheSpotAnim");
-_Static_assert(sizeof(struct GameCacheParams) == sizeof(struct Params), "GameCacheParams");
-_Static_assert(sizeof(struct GameCacheLocConfig) == sizeof(struct CacheConfigLocation), "GameCacheLocConfig");
+_Static_assert(
+    sizeof(struct GameCacheFloor) == sizeof(struct CacheMapFloor),
+    "GameCacheFloor");
+_Static_assert(
+    sizeof(struct GameCacheLoc) == sizeof(struct CacheMapLoc),
+    "GameCacheLoc");
+_Static_assert(
+    sizeof(struct GameCacheTerrain) == sizeof(struct CacheMapTerrain),
+    "GameCacheTerrain");
+_Static_assert(
+    sizeof(struct GameCacheLocList) == sizeof(struct CacheMapLocs),
+    "GameCacheLocList");
+_Static_assert(
+    sizeof(struct GameCacheFloorType) == sizeof(struct CacheConfigOverlay),
+    "GameCacheFloorType");
+_Static_assert(
+    sizeof(struct GameCacheModel) == sizeof(struct CacheModel),
+    "GameCacheModel");
+_Static_assert(
+    sizeof(struct GameCacheSequence) == sizeof(struct CacheDatSequence),
+    "GameCacheSequence");
+_Static_assert(
+    sizeof(struct GameCacheAnimBase) == sizeof(struct CacheAnimBase),
+    "GameCacheAnimBase");
+_Static_assert(
+    sizeof(struct GameCacheAnimframe) == sizeof(struct CacheAnimframe),
+    "GameCacheAnimframe");
+_Static_assert(
+    sizeof(struct GameCacheObj) == sizeof(struct CacheDatConfigObj),
+    "GameCacheObj");
+_Static_assert(
+    sizeof(struct GameCacheIdk) == sizeof(struct CacheDatConfigIdk),
+    "GameCacheIdk");
+_Static_assert(
+    sizeof(struct GameCacheNpc) == sizeof(struct CacheDatConfigNpc),
+    "GameCacheNpc");
+_Static_assert(
+    sizeof(struct GameCacheSpotAnim) == sizeof(struct CacheDatConfigSpotAnim),
+    "GameCacheSpotAnim");
+_Static_assert(
+    sizeof(struct GameCacheParams) == sizeof(struct Params),
+    "GameCacheParams");
+_Static_assert(
+    sizeof(struct GameCacheLocConfig) == sizeof(struct CacheConfigLocation),
+    "GameCacheLocConfig");
 
 struct MapTerrainEntry
 {
@@ -170,7 +200,9 @@ gamecache_maybe_grow_hmap(struct DashMap* map)
 }
 
 static void
-gamecache_hmap_destroy(struct DashMap** pmap, void (*entry_free)(void*))
+gamecache_hmap_destroy(
+    struct DashMap** pmap,
+    void (*entry_free)(void*))
 {
     struct DashMap* map = *pmap;
     if( !map )
@@ -191,32 +223,32 @@ gamecache_hmap_destroy(struct DashMap** pmap, void (*entry_free)(void*))
 static void
 gamecache_hmaps_init(struct GameCache* gc)
 {
-    gc->map_terrains_hmap =
-        gamecache_create_hmap(sizeof(int), sizeof(struct MapTerrainEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
-    gc->flotype_hmap =
-        gamecache_create_hmap(sizeof(int), sizeof(struct FlotypeEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
-    gc->scenery_hmap =
-        gamecache_create_hmap(sizeof(int), sizeof(struct SceneryEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
-    gc->models_hmap =
-        gamecache_create_hmap(sizeof(int), sizeof(struct ModelEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
-    gc->config_loc_hmap =
-        gamecache_create_hmap(sizeof(int), sizeof(struct ConfigLocEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
-    gc->sequences_hmap =
-        gamecache_create_hmap(sizeof(int), sizeof(struct SequenceEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
-    gc->animframes_hmap =
-        gamecache_create_hmap(sizeof(int), sizeof(struct AnimframeEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
-    gc->idk_models_hmap =
-        gamecache_create_hmap(sizeof(int), sizeof(struct IdkModelEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
-    gc->obj_models_hmap =
-        gamecache_create_hmap(sizeof(int), sizeof(struct ObjModelEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
-    gc->npc_models_hmap =
-        gamecache_create_hmap(sizeof(int), sizeof(struct NpcModelEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
-    gc->idk_hmap =
-        gamecache_create_hmap(sizeof(int), sizeof(struct IdkEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
-    gc->obj_hmap =
-        gamecache_create_hmap(sizeof(int), sizeof(struct ObjEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
-    gc->npc_hmap =
-        gamecache_create_hmap(sizeof(int), sizeof(struct NpcEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
+    gc->map_terrains_hmap = gamecache_create_hmap(
+        sizeof(int), sizeof(struct MapTerrainEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
+    gc->flotype_hmap = gamecache_create_hmap(
+        sizeof(int), sizeof(struct FlotypeEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
+    gc->scenery_hmap = gamecache_create_hmap(
+        sizeof(int), sizeof(struct SceneryEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
+    gc->models_hmap = gamecache_create_hmap(
+        sizeof(int), sizeof(struct ModelEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
+    gc->config_loc_hmap = gamecache_create_hmap(
+        sizeof(int), sizeof(struct ConfigLocEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
+    gc->sequences_hmap = gamecache_create_hmap(
+        sizeof(int), sizeof(struct SequenceEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
+    gc->animframes_hmap = gamecache_create_hmap(
+        sizeof(int), sizeof(struct AnimframeEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
+    gc->idk_models_hmap = gamecache_create_hmap(
+        sizeof(int), sizeof(struct IdkModelEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
+    gc->obj_models_hmap = gamecache_create_hmap(
+        sizeof(int), sizeof(struct ObjModelEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
+    gc->npc_models_hmap = gamecache_create_hmap(
+        sizeof(int), sizeof(struct NpcModelEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
+    gc->idk_hmap = gamecache_create_hmap(
+        sizeof(int), sizeof(struct IdkEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
+    gc->obj_hmap = gamecache_create_hmap(
+        sizeof(int), sizeof(struct ObjEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
+    gc->npc_hmap = gamecache_create_hmap(
+        sizeof(int), sizeof(struct NpcEntry), GAMECACHE_HMAP_INITIAL_CAPACITY);
 }
 
 static void
@@ -386,7 +418,10 @@ gamecache_clear(struct GameCache* gc)
 }
 
 struct GameCacheTerrain*
-gamecache_get_map_terrain(struct GameCache* gc, int mapx, int mapz)
+gamecache_get_map_terrain(
+    struct GameCache* gc,
+    int mapx,
+    int mapz)
 {
     if( !gc || !gc->map_terrains_hmap )
         return NULL;
@@ -397,7 +432,9 @@ gamecache_get_map_terrain(struct GameCache* gc, int mapx, int mapz)
 }
 
 struct GameCacheFloorType*
-gamecache_get_flotype(struct GameCache* gc, int flotype_id)
+gamecache_get_flotype(
+    struct GameCache* gc,
+    int flotype_id)
 {
     if( !gc || !gc->flotype_hmap )
         return NULL;
@@ -407,7 +444,10 @@ gamecache_get_flotype(struct GameCache* gc, int flotype_id)
 }
 
 struct GameCacheLocList*
-gamecache_get_scenery(struct GameCache* gc, int mapx, int mapz)
+gamecache_get_scenery(
+    struct GameCache* gc,
+    int mapx,
+    int mapz)
 {
     if( !gc || !gc->scenery_hmap )
         return NULL;
@@ -418,7 +458,9 @@ gamecache_get_scenery(struct GameCache* gc, int mapx, int mapz)
 }
 
 struct GameCacheModel*
-gamecache_get_model(struct GameCache* gc, int model_id)
+gamecache_get_model(
+    struct GameCache* gc,
+    int model_id)
 {
     if( !gc || !gc->models_hmap )
         return NULL;
@@ -428,7 +470,9 @@ gamecache_get_model(struct GameCache* gc, int model_id)
 }
 
 struct GameCacheLocConfig*
-gamecache_get_config_loc(struct GameCache* gc, int config_loc_id)
+gamecache_get_config_loc(
+    struct GameCache* gc,
+    int config_loc_id)
 {
     if( !gc || !gc->config_loc_hmap )
         return NULL;
@@ -438,7 +482,9 @@ gamecache_get_config_loc(struct GameCache* gc, int config_loc_id)
 }
 
 struct GameCacheSequence*
-gamecache_get_sequence(struct GameCache* gc, int sequence_id)
+gamecache_get_sequence(
+    struct GameCache* gc,
+    int sequence_id)
 {
     if( !gc || !gc->sequences_hmap )
         return NULL;
@@ -448,7 +494,9 @@ gamecache_get_sequence(struct GameCache* gc, int sequence_id)
 }
 
 struct GameCacheAnimframe*
-gamecache_get_animframe(struct GameCache* gc, int animframe_id)
+gamecache_get_animframe(
+    struct GameCache* gc,
+    int animframe_id)
 {
     if( !gc || !gc->animframes_hmap )
         return NULL;
@@ -458,7 +506,9 @@ gamecache_get_animframe(struct GameCache* gc, int animframe_id)
 }
 
 struct GameCacheObj*
-gamecache_get_obj(struct GameCache* gc, int obj_id)
+gamecache_get_obj(
+    struct GameCache* gc,
+    int obj_id)
 {
     if( !gc || !gc->obj_hmap )
         return NULL;
@@ -467,7 +517,9 @@ gamecache_get_obj(struct GameCache* gc, int obj_id)
 }
 
 struct GameCacheIdk*
-gamecache_get_idk(struct GameCache* gc, int idk_id)
+gamecache_get_idk(
+    struct GameCache* gc,
+    int idk_id)
 {
     if( !gc || !gc->idk_hmap )
         return NULL;
@@ -476,7 +528,9 @@ gamecache_get_idk(struct GameCache* gc, int idk_id)
 }
 
 struct GameCacheNpc*
-gamecache_get_npc(struct GameCache* gc, int npc_id)
+gamecache_get_npc(
+    struct GameCache* gc,
+    int npc_id)
 {
     if( !gc || !gc->npc_hmap )
         return NULL;
@@ -485,7 +539,9 @@ gamecache_get_npc(struct GameCache* gc, int npc_id)
 }
 
 struct GameCacheModel*
-gamecache_get_obj_model(struct GameCache* gc, int obj_id)
+gamecache_get_obj_model(
+    struct GameCache* gc,
+    int obj_id)
 {
     if( !gc || !gc->obj_models_hmap )
         return NULL;
@@ -495,7 +551,9 @@ gamecache_get_obj_model(struct GameCache* gc, int obj_id)
 }
 
 struct GameCacheModel*
-gamecache_get_idk_model(struct GameCache* gc, int idk_id)
+gamecache_get_idk_model(
+    struct GameCache* gc,
+    int idk_id)
 {
     if( !gc || !gc->idk_models_hmap )
         return NULL;
@@ -505,7 +563,9 @@ gamecache_get_idk_model(struct GameCache* gc, int idk_id)
 }
 
 struct GameCacheModel*
-gamecache_get_npc_model(struct GameCache* gc, int npc_id)
+gamecache_get_npc_model(
+    struct GameCache* gc,
+    int npc_id)
 {
     if( !gc || !gc->npc_models_hmap )
         return NULL;
@@ -515,7 +575,10 @@ gamecache_get_npc_model(struct GameCache* gc, int npc_id)
 }
 
 void
-gamecache_add_obj_model(struct GameCache* gc, int obj_id, struct GameCacheModel* model)
+gamecache_add_obj_model(
+    struct GameCache* gc,
+    int obj_id,
+    struct GameCacheModel* model)
 {
     struct ObjModelEntry* e =
         (struct ObjModelEntry*)dashmap_search(gc->obj_models_hmap, &obj_id, DASHMAP_INSERT);
@@ -526,7 +589,10 @@ gamecache_add_obj_model(struct GameCache* gc, int obj_id, struct GameCacheModel*
 }
 
 void
-gamecache_add_idk_model(struct GameCache* gc, int idk_id, struct GameCacheModel* model)
+gamecache_add_idk_model(
+    struct GameCache* gc,
+    int idk_id,
+    struct GameCacheModel* model)
 {
     struct IdkModelEntry* e =
         (struct IdkModelEntry*)dashmap_search(gc->idk_models_hmap, &idk_id, DASHMAP_INSERT);
@@ -537,7 +603,10 @@ gamecache_add_idk_model(struct GameCache* gc, int idk_id, struct GameCacheModel*
 }
 
 void
-gamecache_add_npc_model(struct GameCache* gc, int npc_id, struct GameCacheModel* model)
+gamecache_add_npc_model(
+    struct GameCache* gc,
+    int npc_id,
+    struct GameCacheModel* model)
 {
     struct NpcModelEntry* e =
         (struct NpcModelEntry*)dashmap_search(gc->npc_models_hmap, &npc_id, DASHMAP_INSERT);
@@ -548,7 +617,11 @@ gamecache_add_npc_model(struct GameCache* gc, int npc_id, struct GameCacheModel*
 }
 
 void
-gamecache_store_put_terrain(struct GameCache* gc, int mapx, int mapz, struct GameCacheTerrain* t)
+gamecache_store_put_terrain(
+    struct GameCache* gc,
+    int mapx,
+    int mapz,
+    struct GameCacheTerrain* t)
 {
     int mapxz = MAPREGIONXZ(mapx, mapz);
     struct MapTerrainEntry* e =
@@ -564,7 +637,11 @@ gamecache_store_put_terrain(struct GameCache* gc, int mapx, int mapz, struct Gam
 }
 
 void
-gamecache_store_put_scenery(struct GameCache* gc, int mapx, int mapz, struct GameCacheLocList* locs)
+gamecache_store_put_scenery(
+    struct GameCache* gc,
+    int mapx,
+    int mapz,
+    struct GameCacheLocList* locs)
 {
     int mapxz = MAPREGIONXZ(mapx, mapz);
     struct SceneryEntry* e =
@@ -583,7 +660,10 @@ gamecache_store_put_scenery(struct GameCache* gc, int mapx, int mapz, struct Gam
 }
 
 void
-gamecache_store_put_flotype(struct GameCache* gc, int flotype_id, struct GameCacheFloorType* ft)
+gamecache_store_put_flotype(
+    struct GameCache* gc,
+    int flotype_id,
+    struct GameCacheFloorType* ft)
 {
     struct FlotypeEntry* e =
         (struct FlotypeEntry*)dashmap_search(gc->flotype_hmap, &flotype_id, DASHMAP_INSERT);
@@ -596,7 +676,10 @@ gamecache_store_put_flotype(struct GameCache* gc, int flotype_id, struct GameCac
 }
 
 void
-gamecache_store_put_config_loc(struct GameCache* gc, int id, struct GameCacheLocConfig* loc)
+gamecache_store_put_config_loc(
+    struct GameCache* gc,
+    int id,
+    struct GameCacheLocConfig* loc)
 {
     struct ConfigLocEntry* e =
         (struct ConfigLocEntry*)dashmap_search(gc->config_loc_hmap, &id, DASHMAP_INSERT);
@@ -609,7 +692,10 @@ gamecache_store_put_config_loc(struct GameCache* gc, int id, struct GameCacheLoc
 }
 
 void
-gamecache_store_put_model(struct GameCache* gc, int model_id, struct GameCacheModel* model)
+gamecache_store_put_model(
+    struct GameCache* gc,
+    int model_id,
+    struct GameCacheModel* model)
 {
     struct ModelEntry* e =
         (struct ModelEntry*)dashmap_search(gc->models_hmap, &model_id, DASHMAP_INSERT);
@@ -622,7 +708,10 @@ gamecache_store_put_model(struct GameCache* gc, int model_id, struct GameCacheMo
 }
 
 void
-gamecache_store_put_sequence(struct GameCache* gc, int sequence_id, struct GameCacheSequence* seq)
+gamecache_store_put_sequence(
+    struct GameCache* gc,
+    int sequence_id,
+    struct GameCacheSequence* seq)
 {
     struct SequenceEntry* e =
         (struct SequenceEntry*)dashmap_search(gc->sequences_hmap, &sequence_id, DASHMAP_INSERT);
@@ -635,7 +724,10 @@ gamecache_store_put_sequence(struct GameCache* gc, int sequence_id, struct GameC
 }
 
 void
-gamecache_store_put_animframe(struct GameCache* gc, int animframe_id, struct GameCacheAnimframe* af)
+gamecache_store_put_animframe(
+    struct GameCache* gc,
+    int animframe_id,
+    struct GameCacheAnimframe* af)
 {
     struct AnimframeEntry* e =
         (struct AnimframeEntry*)dashmap_search(gc->animframes_hmap, &animframe_id, DASHMAP_INSERT);
@@ -648,7 +740,10 @@ gamecache_store_put_animframe(struct GameCache* gc, int animframe_id, struct Gam
 }
 
 void
-gamecache_store_put_obj(struct GameCache* gc, int obj_id, struct GameCacheObj* obj)
+gamecache_store_put_obj(
+    struct GameCache* gc,
+    int obj_id,
+    struct GameCacheObj* obj)
 {
     struct ObjEntry* e = (struct ObjEntry*)dashmap_search(gc->obj_hmap, &obj_id, DASHMAP_INSERT);
     assert(e);
@@ -660,7 +755,10 @@ gamecache_store_put_obj(struct GameCache* gc, int obj_id, struct GameCacheObj* o
 }
 
 void
-gamecache_store_put_idk(struct GameCache* gc, int idk_id, struct GameCacheIdk* idk)
+gamecache_store_put_idk(
+    struct GameCache* gc,
+    int idk_id,
+    struct GameCacheIdk* idk)
 {
     struct IdkEntry* e = (struct IdkEntry*)dashmap_search(gc->idk_hmap, &idk_id, DASHMAP_INSERT);
     assert(e);
@@ -672,7 +770,10 @@ gamecache_store_put_idk(struct GameCache* gc, int idk_id, struct GameCacheIdk* i
 }
 
 void
-gamecache_store_put_npc(struct GameCache* gc, int npc_id, struct GameCacheNpc* npc)
+gamecache_store_put_npc(
+    struct GameCache* gc,
+    int npc_id,
+    struct GameCacheNpc* npc)
 {
     struct NpcEntry* e = (struct NpcEntry*)dashmap_search(gc->npc_hmap, &npc_id, DASHMAP_INSERT);
     assert(e);
