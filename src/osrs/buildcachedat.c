@@ -1282,6 +1282,17 @@ buildcachedat_iter_next_npc(struct DashMapIter* iter)
     return npc_entry->npc;
 }
 
+struct CacheDatConfigNpc*
+buildcachedat_iter_next_npc_with_id(struct DashMapIter* iter, int* id_out)
+{
+    struct NpcEntry* npc_entry = (struct NpcEntry*)dashmap_iter_next(iter);
+    if( !npc_entry )
+        return NULL;
+    if( id_out )
+        *id_out = npc_entry->id;
+    return npc_entry->npc;
+}
+
 void
 buildcachedat_add_npc_model(
     struct BuildCacheDat* buildcachedat,
@@ -1409,6 +1420,22 @@ buildcachedat_get_animbaseframes(
     return animbaseframes_entry->animbaseframes;
 }
 
+struct DashMapIter*
+buildcachedat_iter_new_animbaseframes(struct BuildCacheDat* buildcachedat)
+{
+    return dashmap_iter_new(buildcachedat->animbaseframes_hmap);
+}
+
+struct CacheDatAnimBaseFrames*
+buildcachedat_iter_next_animbaseframes(struct DashMapIter* iter)
+{
+    struct AnimbaseframesEntry* animbaseframes_entry =
+        (struct AnimbaseframesEntry*)dashmap_iter_next(iter);
+    if( !animbaseframes_entry )
+        return NULL;
+    return animbaseframes_entry->animbaseframes;
+}
+
 void
 buildcachedat_add_sequence(
     struct BuildCacheDat* buildcachedat,
@@ -1432,6 +1459,32 @@ buildcachedat_get_sequence(
         buildcachedat->sequences_hmap, &sequence_id, DASHMAP_FIND);
     if( !sequence_entry )
         return NULL;
+    return sequence_entry->sequence;
+}
+
+struct DashMapIter*
+buildcachedat_iter_new_sequences(struct BuildCacheDat* buildcachedat)
+{
+    return dashmap_iter_new(buildcachedat->sequences_hmap);
+}
+
+struct CacheDatSequence*
+buildcachedat_iter_next_sequence(struct DashMapIter* iter)
+{
+    struct SequenceEntry* sequence_entry = (struct SequenceEntry*)dashmap_iter_next(iter);
+    if( !sequence_entry )
+        return NULL;
+    return sequence_entry->sequence;
+}
+
+struct CacheDatSequence*
+buildcachedat_iter_next_sequence_with_id(struct DashMapIter* iter, int* id_out)
+{
+    struct SequenceEntry* sequence_entry = (struct SequenceEntry*)dashmap_iter_next(iter);
+    if( !sequence_entry )
+        return NULL;
+    if( id_out )
+        *id_out = sequence_entry->id;
     return sequence_entry->sequence;
 }
 
@@ -1467,6 +1520,17 @@ buildcachedat_iter_next_idk(struct DashMapIter* iter)
     struct IdkEntry* idk_entry = (struct IdkEntry*)dashmap_iter_next(iter);
     if( !idk_entry )
         return NULL;
+    return idk_entry->idk;
+}
+
+struct CacheDatConfigIdk*
+buildcachedat_iter_next_idk_with_id(struct DashMapIter* iter, int* id_out)
+{
+    struct IdkEntry* idk_entry = (struct IdkEntry*)dashmap_iter_next(iter);
+    if( !idk_entry )
+        return NULL;
+    if( id_out )
+        *id_out = idk_entry->id;
     return idk_entry->idk;
 }
 
@@ -1513,6 +1577,17 @@ buildcachedat_iter_next_obj(struct DashMapIter* iter)
     struct ObjEntry* obj_entry = (struct ObjEntry*)dashmap_iter_next(iter);
     if( !obj_entry )
         return NULL;
+    return obj_entry->obj;
+}
+
+struct CacheDatConfigObj*
+buildcachedat_iter_next_obj_with_id(struct DashMapIter* iter, int* id_out)
+{
+    struct ObjEntry* obj_entry = (struct ObjEntry*)dashmap_iter_next(iter);
+    if( !obj_entry )
+        return NULL;
+    if( id_out )
+        *id_out = obj_entry->id;
     return obj_entry->obj;
 }
 

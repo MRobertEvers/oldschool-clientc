@@ -105,6 +105,8 @@ set(COMMON_SOURCES
     src/osrs/buildcachedat.c
     src/osrs/isaac.c
     src/osrs/buildcachedat_loader.c
+    src/osrs/buildcachedat_loader_gamecache.c
+    src/osrs/gamecache/gamecache.c
     src/osrs/buildcache.c
     src/osrs/buildcache_loader.c
     src/graphics/shared_tables.c

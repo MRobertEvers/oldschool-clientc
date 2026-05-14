@@ -395,6 +395,9 @@ buildcachedat_iter_new_npcs(struct BuildCacheDat* buildcachedat);
 struct CacheDatConfigNpc*
 buildcachedat_iter_next_npc(struct DashMapIter* iter);
 
+struct CacheDatConfigNpc*
+buildcachedat_iter_next_npc_with_id(struct DashMapIter* iter, int* id_out);
+
 void
 buildcachedat_add_npc_model(
     struct BuildCacheDat* buildcachedat,
@@ -472,6 +475,9 @@ buildcachedat_get_sequence(
 struct CacheDatSequence*
 buildcachedat_iter_next_sequence(struct DashMapIter* iter);
 
+struct CacheDatSequence*
+buildcachedat_iter_next_sequence_with_id(struct DashMapIter* iter, int* id_out);
+
 struct DashMapIter*
 buildcachedat_iter_new_sequences(struct BuildCacheDat* buildcachedat);
 
@@ -489,6 +495,9 @@ buildcachedat_get_idk(
 struct CacheDatConfigIdk*
 buildcachedat_iter_next_idk(struct DashMapIter* iter);
 
+struct CacheDatConfigIdk*
+buildcachedat_iter_next_idk_with_id(struct DashMapIter* iter, int* id_out);
+
 struct DashMapIter*
 buildcachedat_iter_new_idks(struct BuildCacheDat* buildcachedat);
 
@@ -505,6 +514,9 @@ buildcachedat_get_obj(
 
 struct CacheDatConfigObj*
 buildcachedat_iter_next_obj(struct DashMapIter* iter);
+
+struct CacheDatConfigObj*
+buildcachedat_iter_next_obj_with_id(struct DashMapIter* iter, int* id_out);
 
 struct DashMapIter*
 buildcachedat_iter_new_objs(struct BuildCacheDat* buildcachedat);

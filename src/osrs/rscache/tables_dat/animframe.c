@@ -319,7 +319,7 @@ cache_dat_animbase_new_decode(
     return animbase;
 }
 
-static void
+void
 cache_dat_animbase_free(struct CacheAnimBase* base)
 {
     if( !base )
@@ -344,6 +344,16 @@ cache_dat_animframe_free_inplace(struct CacheAnimframe* frame)
     free(frame->x);
     free(frame->y);
     free(frame->z);
+}
+
+void
+cache_dat_animframe_free(struct CacheAnimframe* frame)
+{
+    if( !frame )
+        return;
+    cache_dat_animframe_free_inplace(frame);
+    cache_dat_animbase_free(frame->base);
+    free(frame);
 }
 
 void

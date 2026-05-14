@@ -88,6 +88,119 @@ config_locs_free_inplace(struct CacheConfigLocation* loc)
     free(loc->param_values.is_string);
 }
 
+static int*
+dup_int_array_or_null(const int* src, int count)
+{
+    if( count <= 0 || !src )
+        return NULL;
+    int* out = malloc((size_t)count * sizeof(int));
+    if( !out )
+        return NULL;
+    memcpy(out, src, (size_t)count * sizeof(int));
+    return out;
+}
+
+struct CacheConfigLocation*
+config_locs_dup(const struct CacheConfigLocation* s)
+{
+    if( !s )
+        return NULL;
+
+    struct CacheConfigLocation* d = malloc(sizeof(struct CacheConfigLocation));
+    if( !d )
+        return NULL;
+    memcpy(d, s, sizeof(struct CacheConfigLocation));
+
+    d->name = s->name ? strdup(s->name) : NULL;
+    d->desc = s->desc ? strdup(s->desc) : NULL;
+    for( int i = 0; i < 10; i++ )
+        d->actions[i] = s->actions[i] ? strdup(s->actions[i]) : NULL;
+
+    int n = s->shapes_and_model_count;
+    d->shapes = NULL;
+    d->lengths = NULL;
+    d->models = NULL;
+    if( n > 0 && s->shapes && s->lengths )
+    {
+        d->shapes = malloc((size_t)n * sizeof(int));
+        d->lengths = malloc((size_t)n * sizeof(int));
+        d->models = calloc((size_t)n, sizeof(int*));
+        if( !d->shapes || !d->lengths || !d->models )
+            goto fail;
+        memcpy(d->shapes, s->shapes, (size_t)n * sizeof(int));
+        memcpy(d->lengths, s->lengths, (size_t)n * sizeof(int));
+        if( s->models )
+        {
+            for( int i = 0; i < n; i++ )
+            {
+                int len = s->lengths[i];
+                if( len > 0 && s->models[i] )
+                {
+                    d->models[i] = malloc((size_t)len * sizeof(int));
+                    if( !d->models[i] )
+                        goto fail;
+                    memcpy(d->models[i], s->models[i], (size_t)len * sizeof(int));
+                }
+            }
+        }
+    }
+
+    d->recolors_from = dup_int_array_or_null(s->recolors_from, s->recolor_count);
+    d->recolors_to = dup_int_array_or_null(s->recolors_to, s->recolor_count);
+    d->retextures_from = dup_int_array_or_null(s->retextures_from, s->retexture_count);
+    d->retextures_to = dup_int_array_or_null(s->retextures_to, s->retexture_count);
+    d->transforms = dup_int_array_or_null(s->transforms, s->transform_count);
+    d->ambient_sound_ids = dup_int_array_or_null(s->ambient_sound_ids, s->ambient_sound_id_count);
+    d->random_seq_ids = dup_int_array_or_null(s->random_seq_ids, s->random_seq_id_count);
+    d->random_seq_delays = dup_int_array_or_null(s->random_seq_delays, s->random_seq_id_count);
+    d->campaign_ids = dup_int_array_or_null(s->campaign_ids, s->campaign_id_count);
+
+    d->param_values.keys = NULL;
+    d->param_values.values = NULL;
+    d->param_values.is_string = NULL;
+    d->param_values.count = 0;
+    d->param_values.capacity = 0;
+    if( s->param_values.count > 0 && s->param_values.keys && s->param_values.is_string )
+    {
+        int pc = s->param_values.count;
+        d->param_values.keys = malloc((size_t)pc * sizeof(int));
+        d->param_values.is_string = malloc((size_t)pc * sizeof(bool));
+        d->param_values.values = calloc((size_t)pc, sizeof(void*));
+        if( !d->param_values.keys || !d->param_values.is_string || !d->param_values.values )
+            goto fail;
+        memcpy(d->param_values.keys, s->param_values.keys, (size_t)pc * sizeof(int));
+        memcpy(d->param_values.is_string, s->param_values.is_string, (size_t)pc * sizeof(bool));
+        for( int i = 0; i < pc; i++ )
+        {
+            if( s->param_values.values && s->param_values.values[i] )
+            {
+                if( s->param_values.is_string[i] )
+                {
+                    d->param_values.values[i] = strdup((char*)s->param_values.values[i]);
+                    if( !d->param_values.values[i] )
+                        goto fail;
+                }
+                else
+                {
+                    int* v = malloc(sizeof(int));
+                    if( !v )
+                        goto fail;
+                    *v = *(int*)s->param_values.values[i];
+                    d->param_values.values[i] = v;
+                }
+            }
+        }
+        d->param_values.count = pc;
+        d->param_values.capacity = pc;
+    }
+
+    return d;
+
+fail:
+    config_locs_free(d);
+    return NULL;
+}
+
 void
 config_locs_decode_inplace(
     struct CacheConfigLocation* loc,

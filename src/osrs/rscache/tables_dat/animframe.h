@@ -45,6 +45,9 @@ cache_dat_animbase_new_decode(
     int data_size);
 
 void
+cache_dat_animbase_free(struct CacheAnimBase* base);
+
+void
 cache_dat_animframe_free(struct CacheAnimframe* animframe);
 
 void

@@ -173,6 +173,11 @@ config_locs_free(struct CacheConfigLocation* loc);
 void
 config_locs_free_inplace(struct CacheConfigLocation* loc);
 
+/** Deep copy of a decoded loc (independent of the original buffer). Caller frees with
+ * config_locs_free. */
+struct CacheConfigLocation*
+config_locs_dup(const struct CacheConfigLocation* src);
+
 #define CONFIG_LOC_DECODE_DAT2 0
 #define CONFIG_LOC_DECODE_DAT 1
 

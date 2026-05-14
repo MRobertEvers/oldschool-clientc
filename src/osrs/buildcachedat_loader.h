@@ -4,6 +4,8 @@
 #include "game.h"
 #include "osrs/buildcachedat.h"
 
+struct GameCache;
+
 void
 buildcachedat_loader_set_2d_media_jagfile(
     struct BuildCacheDat* buildcachedat,
@@ -207,5 +209,39 @@ buildcachedat_loader_get_sequence_animbaseframes_ids(
     struct BuildCacheDat* buildcachedat,
     int seq_id,
     int** ids_out);
+
+void
+buildcachedat_loader_gamecache_submit_terrain(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd,
+    int mapx,
+    int mapz);
+
+void
+buildcachedat_loader_gamecache_submit_scenery(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd,
+    int mapx,
+    int mapz);
+
+void
+buildcachedat_loader_gamecache_submit_for_rebuild_centerzone_chunk(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd,
+    int mapx,
+    int mapz);
+
+void
+buildcachedat_loader_gamecache_submit_sequences(struct GameCache* gc, struct BuildCacheDat* bcd);
+
+void
+buildcachedat_loader_gamecache_submit_scene_build_data(struct GameCache* gc, struct BuildCacheDat* bcd);
+
+void
+buildcachedat_loader_gamecache_submit_models(
+    struct GameCache* gc,
+    struct BuildCacheDat* bcd,
+    const int* model_ids,
+    int model_ids_count);
 
 #endif
