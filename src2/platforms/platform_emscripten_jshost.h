@@ -27,42 +27,43 @@ struct BrowserMainLoopSentinel;
 
 EMSCRIPTEN_KEEPALIVE
 void
-ToriPlatformEmscripten_JSHost_BrowserMainLoopSentinelFree(struct BrowserMainLoopSentinel* sentinel);
+LibToriPlatformEmscripten_JSHost_BrowserMainLoopSentinelFree(
+    struct BrowserMainLoopSentinel* sentinel);
 
 EMSCRIPTEN_KEEPALIVE
 double
-ToriPlatformEmscripten_JSHost_ScriptValueAsJSNumber(struct LibToriRS_ScriptValue* value);
+LibToriPlatformEmscripten_JSHost_ScriptValueAsJSNumber(struct LibToriRS_ScriptValue* value);
 
 EMSCRIPTEN_KEEPALIVE
 char*
-ToriPlatformEmscripten_JSHost_ScriptValueAsJSString(struct LibToriRS_ScriptValue* value);
+LibToriPlatformEmscripten_JSHost_ScriptValueAsJSString(struct LibToriRS_ScriptValue* value);
 
 EMSCRIPTEN_KEEPALIVE
 char*
-ToriPlatformEmscripten_JSHost_ScriptGetName(struct LibToriRS_Script* script);
+LibToriPlatformEmscripten_JSHost_ScriptGetName(struct LibToriRS_Script* script);
 
 EMSCRIPTEN_KEEPALIVE
 int
-ToriPlatformEmscripten_JSHost_ScriptGetNameLength(struct LibToriRS_Script* script);
+LibToriPlatformEmscripten_JSHost_ScriptGetNameLength(struct LibToriRS_Script* script);
 
 EMSCRIPTEN_KEEPALIVE
 struct LibToriRS_ScriptArgs*
-ToriPlatformEmscripten_JSHost_ScriptGetArgs(struct LibToriRS_Script* script);
+LibToriPlatformEmscripten_JSHost_ScriptGetArgs(struct LibToriRS_Script* script);
 
 EMSCRIPTEN_KEEPALIVE
 void
-ToriPlatformEmscripten_JSHost_ScriptFree(struct LibToriRS_Script* script);
+LibToriPlatformEmscripten_JSHost_ScriptFree(struct LibToriRS_Script* script);
 
 EMSCRIPTEN_KEEPALIVE
 struct LibToriRS_ScriptQueue*
-ToriPlatformEmscripten_JSHost_GetScriptQueue(struct LibToriRS_Instance* instance);
+LibToriPlatformEmscripten_JSHost_GetScriptQueue(struct LibToriRS_Instance* instance);
 
 EMSCRIPTEN_KEEPALIVE
 struct LibToriRS_Instance*
-ToriPlatformEmscripten_JSHost_GetInstancePtr(struct LibToriRS_Instance* instance);
+LibToriPlatformEmscripten_JSHost_GetInstancePtr(struct LibToriRS_Instance* instance);
 
 EMSCRIPTEN_KEEPALIVE
 struct LibToriRS_Script*
-ToriPlatformEmscripten_JSHost_ScriptQueuePop(struct LibToriRS_ScriptQueue* queue);
+LibToriPlatformEmscripten_JSHost_ScriptQueuePop(struct LibToriRS_ScriptQueue* queue);
 
 #endif

@@ -43,27 +43,27 @@ class LibToriPlatformEmscripten {
     const mod = wasmModule;
     const getInstancePtr = wasmExportFn(
       mod,
-      "ToriPlatformEmscripten_JSHost_GetInstancePtr",
+      "LibToriPlatformEmscripten_JSHost_GetInstancePtr",
     );
     this._getScriptQueue = wasmExportFn(
       mod,
-      "ToriPlatformEmscripten_JSHost_GetScriptQueue",
+      "LibToriPlatformEmscripten_JSHost_GetScriptQueue",
     );
     this._scriptQueuePop = wasmExportFn(
       mod,
-      "ToriPlatformEmscripten_JSHost_ScriptQueuePop",
+      "LibToriPlatformEmscripten_JSHost_ScriptQueuePop",
     );
     this._scriptGetName = wasmExportFn(
       mod,
-      "ToriPlatformEmscripten_JSHost_ScriptGetName",
+      "LibToriPlatformEmscripten_JSHost_ScriptGetName",
     );
     this._scriptGetNameLength = wasmExportFn(
       mod,
-      "ToriPlatformEmscripten_JSHost_ScriptGetNameLength",
+      "LibToriPlatformEmscripten_JSHost_ScriptGetNameLength",
     );
     this._browserMainUnlock = wasmExportFn(
       mod,
-      "ToriPlatformEmscripten_JSHost_BrowserMainUnlock",
+      "LibToriPlatformEmscripten_JSHost_BrowserMainUnlock",
     );
 
     this.instancePtr = getInstancePtr(this.platformPtr);
@@ -123,6 +123,7 @@ class LibToriPlatformJS {
       }
     } finally {
       this.inMainLoop = false;
+      this.host.browserMainUnlock();
     }
   }
 
@@ -171,6 +172,7 @@ class LibToriPlatformJS {
       const rc = lua.lua_resume(this.L_coro, this.L, 1, 0);
       switch (rc) {
         case lua.LUA_OK:
+          this.L_coro = null;
           return LIBTORI_PLATFORM_EMSCRIPTEN_LUA_OK;
         case lua.LUA_YIELD:
           return LIBTORI_PLATFORM_EMSCRIPTEN_LUA_YIELDED;

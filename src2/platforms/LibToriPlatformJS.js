@@ -43,27 +43,27 @@ class LibToriPlatformEmscripten {
     const mod = wasmModule;
     const getInstancePtr = wasmExportFn(
       mod,
-      "ToriPlatformEmscripten_JSHost_GetInstancePtr",
+      "LibToriPlatformEmscripten_JSHost_GetInstancePtr",
     );
     this._getScriptQueue = wasmExportFn(
       mod,
-      "ToriPlatformEmscripten_JSHost_GetScriptQueue",
+      "LibToriPlatformEmscripten_JSHost_GetScriptQueue",
     );
     this._scriptQueuePop = wasmExportFn(
       mod,
-      "ToriPlatformEmscripten_JSHost_ScriptQueuePop",
+      "LibToriPlatformEmscripten_JSHost_ScriptQueuePop",
     );
     this._scriptGetName = wasmExportFn(
       mod,
-      "ToriPlatformEmscripten_JSHost_ScriptGetName",
+      "LibToriPlatformEmscripten_JSHost_ScriptGetName",
     );
     this._scriptGetNameLength = wasmExportFn(
       mod,
-      "ToriPlatformEmscripten_JSHost_ScriptGetNameLength",
+      "LibToriPlatformEmscripten_JSHost_ScriptGetNameLength",
     );
     this._browserMainUnlock = wasmExportFn(
       mod,
-      "ToriPlatformEmscripten_JSHost_BrowserMainUnlock",
+      "LibToriPlatformEmscripten_JSHost_BrowserMainUnlock",
     );
 
     this.instancePtr = getInstancePtr(this.platformPtr);

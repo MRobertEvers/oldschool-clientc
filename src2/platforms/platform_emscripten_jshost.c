@@ -6,7 +6,7 @@
 
 EMSCRIPTEN_KEEPALIVE
 double
-ToriPlatformEmscripten_JSHost_ScriptValueAsJSNumber(struct LibToriRS_ScriptValue* value)
+LibToriPlatformEmscripten_JSHost_ScriptValueAsJSNumber(struct LibToriRS_ScriptValue* value)
 {
     if( !value )
         return 0.0;
@@ -24,7 +24,7 @@ ToriPlatformEmscripten_JSHost_ScriptValueAsJSNumber(struct LibToriRS_ScriptValue
 
 EMSCRIPTEN_KEEPALIVE
 char*
-ToriPlatformEmscripten_JSHost_ScriptValueAsJSString(struct LibToriRS_ScriptValue* value)
+LibToriPlatformEmscripten_JSHost_ScriptValueAsJSString(struct LibToriRS_ScriptValue* value)
 {
     if( !value )
         return NULL;
@@ -37,7 +37,7 @@ ToriPlatformEmscripten_JSHost_ScriptValueAsJSString(struct LibToriRS_ScriptValue
 
 EMSCRIPTEN_KEEPALIVE
 char*
-ToriPlatformEmscripten_JSHost_ScriptGetName(struct LibToriRS_Script* script)
+LibToriPlatformEmscripten_JSHost_ScriptGetName(struct LibToriRS_Script* script)
 {
     printf("ToriPlatformEmscripten_JSHost_ScriptGetName: %s\n", script->name);
     if( !script )
@@ -47,7 +47,7 @@ ToriPlatformEmscripten_JSHost_ScriptGetName(struct LibToriRS_Script* script)
 
 EMSCRIPTEN_KEEPALIVE
 int
-ToriPlatformEmscripten_JSHost_ScriptGetNameLength(struct LibToriRS_Script* script)
+LibToriPlatformEmscripten_JSHost_ScriptGetNameLength(struct LibToriRS_Script* script)
 {
     if( !script )
         return 0;
@@ -56,14 +56,14 @@ ToriPlatformEmscripten_JSHost_ScriptGetNameLength(struct LibToriRS_Script* scrip
 
 EMSCRIPTEN_KEEPALIVE
 struct LibToriRS_ScriptArgs*
-ToriPlatformEmscripten_JSHost_ScriptGetArgs(struct LibToriRS_Script* script)
+LibToriPlatformEmscripten_JSHost_ScriptGetArgs(struct LibToriRS_Script* script)
 {
     return LibToriRS_ScriptGetArgs(script);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void
-ToriPlatformEmscripten_JSHost_ScriptFree(struct LibToriRS_Script* script)
+LibToriPlatformEmscripten_JSHost_ScriptFree(struct LibToriRS_Script* script)
 {
     struct LibToriRS_ScriptArgs* args = LibToriRS_ScriptGetArgs(script);
     if( !args )
@@ -73,21 +73,21 @@ ToriPlatformEmscripten_JSHost_ScriptFree(struct LibToriRS_Script* script)
 
 EMSCRIPTEN_KEEPALIVE
 struct LibToriRS_ScriptQueue*
-ToriPlatformEmscripten_JSHost_GetScriptQueue(struct LibToriRS_Instance* instance)
+LibToriPlatformEmscripten_JSHost_GetScriptQueue(struct LibToriRS_Instance* instance)
 {
     return LibToriRS_GetScriptQueue(instance);
 }
 
 EMSCRIPTEN_KEEPALIVE
 struct LibToriRS_Instance*
-ToriPlatformEmscripten_JSHost_GetInstancePtr(struct LibToriRS_Instance* instance)
+LibToriPlatformEmscripten_JSHost_GetInstancePtr(struct LibToriRS_Instance* instance)
 {
     return instance;
 }
 
 EMSCRIPTEN_KEEPALIVE
 struct LibToriRS_Script*
-ToriPlatformEmscripten_JSHost_ScriptQueuePop(struct LibToriRS_ScriptQueue* queue)
+LibToriPlatformEmscripten_JSHost_ScriptQueuePop(struct LibToriRS_ScriptQueue* queue)
 {
     return LibToriRS_ScriptQueuePop(queue);
 }
