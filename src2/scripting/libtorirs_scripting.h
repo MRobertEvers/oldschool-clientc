@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 #define LIBTORIRS_SCRIPT_QUEUE_MAX_SIZE 128
-#define LIBTORIRS_SCRIPT_NAME_MAX_SIZE 65
+#define LIBTORIRS_SCRIPT_NAME_MAX_SIZE 128
 #define LIBTORIRS_SCRIPT_MAX_ARGS 8
 
 struct LibToriRS_ScriptValue_Any

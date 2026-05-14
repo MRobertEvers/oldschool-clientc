@@ -7,6 +7,7 @@
 #include <emscripten.h>
 
 struct LibToriRS_Instance;
+struct BrowserMainLoopSentinel;
 
 // enum BrowserMainLoopState
 // {
@@ -41,6 +42,10 @@ char*
 ToriPlatformEmscripten_JSHost_ScriptGetName(struct LibToriRS_Script* script);
 
 EMSCRIPTEN_KEEPALIVE
+int
+ToriPlatformEmscripten_JSHost_ScriptGetNameLength(struct LibToriRS_Script* script);
+
+EMSCRIPTEN_KEEPALIVE
 struct LibToriRS_ScriptArgs*
 ToriPlatformEmscripten_JSHost_ScriptGetArgs(struct LibToriRS_Script* script);
 
@@ -49,8 +54,12 @@ void
 ToriPlatformEmscripten_JSHost_ScriptFree(struct LibToriRS_Script* script);
 
 EMSCRIPTEN_KEEPALIVE
-struct LibToriRS_Instance*
+struct LibToriRS_ScriptQueue*
 ToriPlatformEmscripten_JSHost_GetScriptQueue(struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+struct LibToriRS_Instance*
+ToriPlatformEmscripten_JSHost_GetInstancePtr(struct LibToriRS_Instance* instance);
 
 EMSCRIPTEN_KEEPALIVE
 struct LibToriRS_Script*

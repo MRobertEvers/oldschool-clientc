@@ -179,6 +179,24 @@
         }
       };
       Module.setStatus('Downloading...');
+      Module.__toriStartBrowserLuaMainLoop = async function(instancePtr) {
+        var platform;
+        try {
+          var Ctor = window.LibToriPlatformJS;
+          if (!Ctor) {
+            console.error('LibToriPlatformJS missing');
+            return;
+          }
+          platform = new Ctor(Module, instancePtr);
+          await platform.EmscriptenHost_LuaMainLoop();
+        } finally {
+          if (platform && platform.host) {
+            platform.host.browserMainUnlock();
+          } else if (typeof Module._ToriPlatformEmscripten_JSHost_BrowserMainUnlock === 'function') {
+            Module._ToriPlatformEmscripten_JSHost_BrowserMainUnlock();
+          }
+        }
+      };
       window.onerror = function() {
         Module.setStatus('Exception thrown, see JavaScript console');
         Module.setStatus = function(text) {

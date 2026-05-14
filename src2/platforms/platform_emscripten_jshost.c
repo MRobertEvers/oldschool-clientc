@@ -1,6 +1,8 @@
 #include "platform_emscripten_jshost.h"
 
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
 EMSCRIPTEN_KEEPALIVE
 double
@@ -37,9 +39,19 @@ EMSCRIPTEN_KEEPALIVE
 char*
 ToriPlatformEmscripten_JSHost_ScriptGetName(struct LibToriRS_Script* script)
 {
+    printf("ToriPlatformEmscripten_JSHost_ScriptGetName: %s\n", script->name);
     if( !script )
         return NULL;
     return script->name;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int
+ToriPlatformEmscripten_JSHost_ScriptGetNameLength(struct LibToriRS_Script* script)
+{
+    if( !script )
+        return 0;
+    return strlen(script->name);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -60,10 +72,17 @@ ToriPlatformEmscripten_JSHost_ScriptFree(struct LibToriRS_Script* script)
 }
 
 EMSCRIPTEN_KEEPALIVE
-struct LibToriRS_Instance*
+struct LibToriRS_ScriptQueue*
 ToriPlatformEmscripten_JSHost_GetScriptQueue(struct LibToriRS_Instance* instance)
 {
     return LibToriRS_GetScriptQueue(instance);
+}
+
+EMSCRIPTEN_KEEPALIVE
+struct LibToriRS_Instance*
+ToriPlatformEmscripten_JSHost_GetInstancePtr(struct LibToriRS_Instance* instance)
+{
+    return instance;
 }
 
 EMSCRIPTEN_KEEPALIVE

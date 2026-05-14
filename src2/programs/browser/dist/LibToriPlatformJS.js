@@ -123,7 +123,6 @@ class LibToriPlatformJS {
       }
     } finally {
       this.inMainLoop = false;
-      this.host.browserMainUnlock();
     }
   }
 
@@ -172,7 +171,6 @@ class LibToriPlatformJS {
       const rc = lua.lua_resume(this.L_coro, this.L, 1, 0);
       switch (rc) {
         case lua.LUA_OK:
-          this.L_coro = null;
           return LIBTORI_PLATFORM_EMSCRIPTEN_LUA_OK;
         case lua.LUA_YIELD:
           return LIBTORI_PLATFORM_EMSCRIPTEN_LUA_YIELDED;
