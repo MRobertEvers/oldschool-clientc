@@ -111,10 +111,18 @@ LibToriPlatformX_LuaContinue(
     switch( rc )
     {
     case LUA_OK:
+    {
+        lua_close(lua->L_coro);
+        lua->L_coro = NULL;
         return LIBTORI_PLATFORM_X_LUA_OK;
+    }
     case LUA_YIELD:
         return LIBTORI_PLATFORM_X_LUA_YIELDED;
     default:
+    {
+        lua_close(lua->L_coro);
+        lua->L_coro = NULL;
         return LIBTORI_PLATFORM_X_LUA_ERROR;
+    }
     }
 }

@@ -78,6 +78,7 @@
   "files.associations": {
     "libtorirs_internal.h": "c",
     "libtorirs_scripting.h": "c",
-    "assert.h": "c"
+    "assert.h": "c",
+    "emscripten.h": "c"
   }
 }
