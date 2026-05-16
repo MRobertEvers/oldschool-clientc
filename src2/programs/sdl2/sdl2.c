@@ -1,9 +1,12 @@
 #include "../../commands/libtorirs_command_queue.h"
 #include "../../platforms/platform_sdl2.h"
+#include "../../platforms/platform_x_cache.h"
 #include "../../platforms/platform_x_lua.h"
 #include "../../scripting/libtorirs_scripting.h"
 
 #include <stdio.h>
+
+#define CACHE_DAT_PATH "/Users/matthewevers/Documents/git_repos/3draster/cache254"
 
 int
 main(
@@ -19,15 +22,22 @@ main(
     if( !instance )
     {
         printf("Failed to create instance\n");
-        return 1;
+        goto error_exit;
     }
 
     struct LibToriPlatformX_Lua* lua = LibToriPlatformX_LuaNew(instance);
     if( !lua )
     {
         printf("Failed to create Lua\n");
-        LibToriRS_InstanceFree(instance);
-        return 1;
+        goto error_exit;
+    }
+
+    struct LibToriPlatformX_Cache* cache =
+        LibToriPlatformX_CacheNew(instance, CACHE_MODE_DAT1, CACHE_DAT_PATH);
+    if( !cache )
+    {
+        printf("Failed to create cache\n");
+        goto error_exit;
     }
 
     struct LibToriRS_Script* script =
@@ -38,9 +48,7 @@ main(
     if( !platform )
     {
         printf("Failed to create SDL2 platform\n");
-        LibToriRS_InstanceFree(instance);
-        LibToriPlatformX_LuaFree(lua);
-        return 1;
+        goto error_exit;
     }
 
     const int screen_w = 800;
@@ -48,20 +56,14 @@ main(
     if( !LibToriPlatformSDL2_InitForSoft3D(platform, screen_w, screen_h) )
     {
         printf("Failed to init SDL2 window\n");
-        LibToriPlatformSDL2_Free(platform);
-        LibToriRS_InstanceFree(instance);
-        LibToriPlatformX_LuaFree(lua);
-        return 1;
+        goto error_exit;
     }
 
     struct LibToriRS_CommandQueue* command_queue = LibToriRS_CommandQueue_New();
     if( !command_queue )
     {
         printf("Failed to create command queue\n");
-        LibToriPlatformSDL2_Free(platform);
-        LibToriRS_InstanceFree(instance);
-        LibToriPlatformX_LuaFree(lua);
-        return 1;
+        goto error_exit;
     }
 
     uint64_t time = SDL_GetTicks64();
@@ -87,23 +89,34 @@ main(
             int rc = LibToriPlatformX_LuaRun(lua, instance);
             while( rc == LIBTORI_PLATFORM_X_LUA_YIELDED )
             {
+                LibToriPlatformX_CacheLoadIO(cache, LibToriRS_GetIOQueue(instance));
+
                 rc = LibToriPlatformX_LuaContinue(lua, instance);
             }
             if( rc != LIBTORI_PLATFORM_X_LUA_OK )
             {
                 printf("Failed to run script\n");
-                LibToriRS_InstanceFree(instance);
-                LibToriPlatformX_LuaFree(lua);
-                return 1;
+                goto error_exit;
             }
         }
 
         SDL_Delay(1);
     }
 
-    LibToriRS_CommandQueue_Free(command_queue);
-    LibToriPlatformSDL2_Free(platform);
-    LibToriRS_InstanceFree(instance);
-    LibToriPlatformX_LuaFree(lua);
+exit:
+    if( cache )
+        LibToriPlatformX_CacheFree(cache);
+    if( lua )
+        LibToriPlatformX_LuaFree(lua);
+    if( instance )
+        LibToriRS_InstanceFree(instance);
+    if( command_queue )
+        LibToriRS_CommandQueue_Free(command_queue);
+    if( platform )
+        LibToriPlatformSDL2_Free(platform);
     return 0;
+
+error_exit:
+    printf("ERROR EXIT");
+    goto exit;
 }

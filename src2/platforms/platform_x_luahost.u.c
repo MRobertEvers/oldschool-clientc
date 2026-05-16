@@ -60,4 +60,34 @@ LibToriPlatformX_LuaHost_LoadIO(lua_State* L)
     return lua_yield(L, 1);
 }
 
+int
+LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileFetch(lua_State* L)
+{
+    struct LibToriRS_Instance* instance =
+        (struct LibToriRS_Instance*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !instance )
+        return 0;
+
+    struct LibToriRS_IOQueue* io_queue = instance->io_queue;
+
+    LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(instance);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileLoad(lua_State* L)
+{
+    struct LibToriRS_Instance* instance =
+        (struct LibToriRS_Instance*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !instance )
+        return 0;
+
+    struct LibToriRS_IOQueue* io_queue = instance->io_queue;
+
+    LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(instance);
+
+    return 0;
+}
+
 #endif

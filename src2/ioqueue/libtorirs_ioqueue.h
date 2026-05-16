@@ -10,13 +10,16 @@ struct LibToriRS_IOQueueItem
     int table_id;
     int archive_id;
     int flags;
+
+    bool is_resolved;
+    void* data;
 };
 
 struct LibToriRS_IOQueue
 {
     struct LibToriRS_IOQueueItem items[LIBTORIRS_IOQUEUE_MAX_SIZE];
     int count;
-    int head;
+    int read_head;
 };
 
 struct LibToriRS_IOQueue*
@@ -39,7 +42,12 @@ bool
 LibToriRS_IOQueueIsEmpty(struct LibToriRS_IOQueue* queue);
 
 bool
-LibToriRS_IOQueuePop(
+LibToriRS_IOQueuePopWrite(
+    struct LibToriRS_IOQueue* queue,
+    struct LibToriRS_IOQueueItem* in);
+
+bool
+LibToriRS_IOQueuePopRead(
     struct LibToriRS_IOQueue* queue,
     struct LibToriRS_IOQueueItem* out);
 

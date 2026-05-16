@@ -74,6 +74,14 @@ LibToriRS_GetScriptQueue(struct LibToriRS_Instance* instance)
     return instance->script_queue;
 }
 
+struct LibToriRS_IOQueue*
+LibToriRS_GetIOQueue(struct LibToriRS_Instance* instance)
+{
+    if( !instance )
+        return NULL;
+    return instance->io_queue;
+}
+
 void
 LibToriRS_ProcessCommandQueue(
     struct LibToriRS_Instance* instance,

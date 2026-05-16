@@ -81,6 +81,12 @@
     "assert.h": "c",
     "emscripten.h": "c",
     "stdlib.h": "c",
-    "libtorirs_command_queue_internal.h": "c"
+    "libtorirs_command_queue_internal.h": "c",
+    "cache_dat.h": "c",
+    "xtea_config.h": "c",
+    "cache.h": "c",
+    "reference_table.h": "c",
+    "libtorirs_ioqueue.h": "c",
+    "configs_dat.h": "c"
   }
 }

@@ -22,6 +22,9 @@ LibToriRS_InitTime(
 struct LibToriRS_ScriptQueue*
 LibToriRS_GetScriptQueue(struct LibToriRS_Instance* instance);
 
+struct LibToriRS_IOQueue*
+LibToriRS_GetIOQueue(struct LibToriRS_Instance* instance);
+
 void
 LibToriRS_ProcessCommandQueue(
     struct LibToriRS_Instance* instance,

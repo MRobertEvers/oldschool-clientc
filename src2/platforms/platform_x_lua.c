@@ -1,9 +1,11 @@
 #include "platform_x_lua.h"
 
 #include "../libtorirs_internal.h"
+#include "../scripting/libtorirs_scriptapi.h"
 #include "3rd/lua/lauxlib.h"
 #include "3rd/lua/lua.h"
 #include "3rd/lua/lualib.h"
+#include "platform_x_cache.h"
 
 // clang-format off
 #include "platform_x_luahost.u.c"
@@ -32,8 +34,15 @@ LibToriPlatformX_LuaNew(struct LibToriRS_Instance* instance)
     }
 
     luaL_openlibs(lua->L);
-    lua_pushcfunction(lua->L, LibToriPlatformX_LuaHost_Print);
-    lua_setglobal(lua->L, "print_chost");
+
+    lua_newtable(lua->L);
+    lua_pushlightuserdata(lua->L, instance);
+    lua_pushcclosure(lua->L, LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileFetch, 1);
+    lua_setfield(lua->L, -2, "Dat1_ConfigFileFetch");
+    lua_pushlightuserdata(lua->L, instance);
+    lua_pushcclosure(lua->L, LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileLoad, 1);
+    lua_setfield(lua->L, -2, "Dat1_ConfigFileLoad");
+    lua_setglobal(lua->L, "Game");
 
     lua_newtable(lua->L);
     lua_pushcfunction(lua->L, LibToriPlatformX_LuaHost_ScriptValueAsLuaInt);
@@ -133,10 +142,8 @@ LibToriPlatformX_LuaContinue(
     if( !lua )
         return LIBTORI_PLATFORM_X_LUA_ERROR;
 
-    lua_pushinteger(lua->L_coro, 99);
-
     int nres = 0;
-    int rc = lua_resume(lua->L_coro, lua->L, 1, &nres);
+    int rc = lua_resume(lua->L_coro, lua->L, 0, &nres);
     switch( rc )
     {
     case LUA_OK:

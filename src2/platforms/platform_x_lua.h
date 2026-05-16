@@ -4,6 +4,7 @@
 #include "../libtorirs.h"
 
 struct LibToriPlatformX_Lua;
+struct LibToriPlatformX_Cache;
 
 struct LibToriPlatformX_Lua*
 LibToriPlatformX_LuaNew(struct LibToriRS_Instance* instance);

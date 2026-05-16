@@ -28,7 +28,7 @@ LibToriRS_IOQueueClear(struct LibToriRS_IOQueue* queue)
 {
     if( !queue )
         return;
-    assert(queue->head == queue->count);
+    assert(queue->read_head == queue->count);
     memset(queue, 0, sizeof(struct LibToriRS_IOQueue));
     queue->count = 0;
 }
@@ -61,15 +61,29 @@ LibToriRS_IOQueueIsEmpty(struct LibToriRS_IOQueue* queue)
 }
 
 bool
-LibToriRS_IOQueuePop(
+LibToriRS_IOQueuePopWrite(
+    struct LibToriRS_IOQueue* queue,
+    struct LibToriRS_IOQueueItem* in)
+{
+    if( !queue )
+        return false;
+    if( queue->count >= LIBTORIRS_IOQUEUE_MAX_SIZE )
+        return false;
+    memcpy(&queue->items[queue->count], in, sizeof(struct LibToriRS_IOQueueItem));
+    queue->count++;
+    return true;
+}
+
+bool
+LibToriRS_IOQueuePopRead(
     struct LibToriRS_IOQueue* queue,
     struct LibToriRS_IOQueueItem* out)
 {
     if( !queue )
         return false;
-    if( queue->count == 0 || queue->head >= queue->count )
+    if( queue->count == 0 || queue->read_head >= queue->count )
         return false;
-    memcpy(out, &queue->items[queue->head], sizeof(struct LibToriRS_IOQueueItem));
-    queue->head++;
+    memcpy(out, &queue->items[queue->read_head], sizeof(struct LibToriRS_IOQueueItem));
+    queue->read_head++;
     return true;
 }

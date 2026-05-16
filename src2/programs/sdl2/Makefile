@@ -11,7 +11,7 @@ PROG    := sdl2
 
 CC      ?= cc
 CFLAGS  ?= -O0 -Wall -Wextra -g
-CPPFLAGS += -I$(SRC_DIR) -I$(SRC2) -I$(SCRIPT_DIR) 
+CPPFLAGS += -I$(SRC_DIR) -I$(SRC2) -I$(SCRIPT_DIR) -I$(REPO_ROOT)
 
 # Vendored Lua — embed library, not lua/luac interpreters.
 LUA_SRC := $(filter-out $(SRC_DIR)/3rd/lua/lua.c $(SRC_DIR)/3rd/lua/luac.c,\
@@ -24,6 +24,33 @@ SRCS := sdl2.c \
 	$(SRC2)/commands/libtorirs_command_queue.c \
 	$(SRC2)/input/libtorirs_input.c \
 	$(SRC2)/ioqueue/libtorirs_ioqueue.c \
+	$(SCRIPT_DIR)/libtorirs_scriptapi.c \
+	$(SRC_DIR)/osrs/rscache/cache.c \
+	$(SRC_DIR)/osrs/rscache/cache_dat.c \
+	$(SRC_DIR)/osrs/rscache/xtea_config.c \
+	$(SRC_DIR)/osrs/rscache/reference_table.c \
+	$(SRC_DIR)/osrs/rscache/filelist.c \
+	$(SRC_DIR)/osrs/rscache/disk.c \
+	$(SRC_DIR)/osrs/rscache/rsbuf.c \
+	$(SRC_DIR)/osrs/rscache/archive.c \
+	$(SRC_DIR)/osrs/rscache/archive_decompress.c \
+	$(SRC_DIR)/osrs/rscache/compression.c \
+	$(SRC_DIR)/osrs/rscache/xtea.c \
+	$(SRC_DIR)/3rd/bzip/bzip.c \
+	$(SRC_DIR)/3rd/miniz/miniz.c \
+	$(SRC_DIR)/osrs/rscache/tables/string_utils.c \
+	$(SRC_DIR)/osrs/rscache/tables_dat/pix8.c \
+	$(SRC_DIR)/osrs/rscache/tables_dat/pix32.c \
+	$(SRC_DIR)/osrs/rscache/tables_dat/config_versionlist_mapsquare.c \
+	$(SRC_DIR)/osrs/rscache/tables_dat/config_textures.c \
+	$(SRC_DIR)/osrs/rscache/tables_dat/config_idk.c \
+	$(SRC_DIR)/osrs/rscache/tables_dat/config_npc.c \
+	$(SRC_DIR)/osrs/rscache/tables_dat/config_obj.c \
+	$(SRC_DIR)/osrs/rscache/tables_dat/config_spotanim.c \
+	$(SRC_DIR)/osrs/rscache/tables_dat/config_varp.c \
+	$(SRC_DIR)/osrs/rscache/tables_dat/animframe.c \
+	$(SRC_DIR)/osrs/rscache/tables/model.c \
+	$(PLAT_DIR)/platform_x_cache.c \
 	$(SRC2)/libtorirs.c \
 	$(LUA_SRC)
 
