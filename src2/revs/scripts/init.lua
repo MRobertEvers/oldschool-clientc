@@ -1,5 +1,9 @@
--- Host.Print("Hello from Lua!")
--- local result = coroutine.yield()
--- Host.Print("Result: " .. result)
+Host.Print("Hello from Lua!")
+local result = coroutine.yield()
+Host.Print("Result: " .. result)
 
-print("Hello from Lua!")
+local io_queue = Platform.GetIOQueue()
+print(io_queue)
+
+local result2 = Platform.LoadIO(io_queue)
+print(result2)

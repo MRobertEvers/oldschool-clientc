@@ -23,6 +23,7 @@ SRCS := sdl2.c \
 	$(SCRIPT_DIR)/libtorirs_scripting.c \
 	$(SRC2)/commands/libtorirs_command_queue.c \
 	$(SRC2)/input/libtorirs_input.c \
+	$(SRC2)/ioqueue/libtorirs_ioqueue.c \
 	$(SRC2)/libtorirs.c \
 	$(LUA_SRC)
 

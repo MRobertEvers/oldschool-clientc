@@ -29,6 +29,15 @@ LibToriRS_InstanceNew(void)
         return NULL;
     }
 
+    instance->io_queue = LibToriRS_IOQueueNew();
+    if( !instance->io_queue )
+    {
+        LibToriRS_Input_Free(instance->input);
+        LibToriRS_ScriptQueueFree(instance->script_queue);
+        free(instance);
+        return NULL;
+    }
+
     instance->running = true;
 
     return instance;

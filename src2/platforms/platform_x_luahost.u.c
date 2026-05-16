@@ -37,4 +37,27 @@ LibToriPlatformX_LuaHost_ScriptValueAsLuaAny(lua_State* L)
     return 1;
 }
 
+int
+LibToriPlatformX_LuaHost_GetIOQueue(lua_State* L)
+{
+    struct LibToriRS_Instance* instance =
+        (struct LibToriRS_Instance*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !instance )
+        return 0;
+
+    struct LibToriRS_IOQueue* io_queue = instance->io_queue;
+    lua_pushlightuserdata(L, io_queue);
+    return 1;
+}
+
+int
+LibToriPlatformX_LuaHost_LoadIO(lua_State* L)
+{
+    struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
+
+    lua_pushlightuserdata(L, io_queue);
+
+    return lua_yield(L, 1);
+}
+
 #endif

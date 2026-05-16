@@ -26,7 +26,8 @@ enum LibToriRS_ScriptValue_Kind
 
 struct LibToriRS_ScriptValue
 {
-    enum LibToriRS_ScriptValue_Kind kind;
+    int kind;
+    int magic;
     union
     {
         struct LibToriRS_ScriptValue_Int intval;

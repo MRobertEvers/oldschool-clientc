@@ -6,7 +6,7 @@
 struct LibToriPlatformX_Lua;
 
 struct LibToriPlatformX_Lua*
-LibToriPlatformX_LuaNew(void);
+LibToriPlatformX_LuaNew(struct LibToriRS_Instance* instance);
 
 void
 LibToriPlatformX_LuaFree(struct LibToriPlatformX_Lua* lua);
@@ -24,5 +24,16 @@ int
 LibToriPlatformX_LuaContinue(
     struct LibToriPlatformX_Lua* lua,
     struct LibToriRS_Instance* instance);
+
+int
+LibToriPlatformX_LuaReadYieldCount(
+    struct LibToriPlatformX_Lua* lua,
+    struct LibToriRS_Instance* instance);
+
+struct LibToriRS_ScriptValue*
+LibToriPlatformX_LuaReadYieldValue(
+    struct LibToriPlatformX_Lua* lua,
+    struct LibToriRS_Instance* instance,
+    int index);
 
 #endif

@@ -13,20 +13,20 @@ main(
     (void)argc;
     (void)argv;
 
-    printf("Hello from sdl2!\n");
-
-    struct LibToriPlatformX_Lua* lua = LibToriPlatformX_LuaNew();
-    if( !lua )
-    {
-        printf("Failed to create Lua\n");
-        return 1;
-    }
+    printf("Hello from main!\n");
 
     struct LibToriRS_Instance* instance = LibToriRS_InstanceNew();
     if( !instance )
     {
         printf("Failed to create instance\n");
-        LibToriPlatformX_LuaFree(lua);
+        return 1;
+    }
+
+    struct LibToriPlatformX_Lua* lua = LibToriPlatformX_LuaNew(instance);
+    if( !lua )
+    {
+        printf("Failed to create Lua\n");
+        LibToriRS_InstanceFree(instance);
         return 1;
     }
 

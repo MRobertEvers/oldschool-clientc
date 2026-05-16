@@ -18,7 +18,7 @@ struct LibToriPlatformX_Lua
 };
 
 struct LibToriPlatformX_Lua*
-LibToriPlatformX_LuaNew(void)
+LibToriPlatformX_LuaNew(struct LibToriRS_Instance* instance)
 {
     struct LibToriPlatformX_Lua* lua = malloc(sizeof(struct LibToriPlatformX_Lua));
     if( !lua )
@@ -30,6 +30,7 @@ LibToriPlatformX_LuaNew(void)
         free(lua);
         return NULL;
     }
+
     luaL_openlibs(lua->L);
     lua_pushcfunction(lua->L, LibToriPlatformX_LuaHost_Print);
     lua_setglobal(lua->L, "print_chost");
@@ -42,6 +43,17 @@ LibToriPlatformX_LuaNew(void)
     lua_pushcfunction(lua->L, LibToriPlatformX_LuaHost_Print);
     lua_setfield(lua->L, -2, "Print");
     lua_setglobal(lua->L, "Host");
+
+    // Platform
+    lua_newtable(lua->L);
+    lua_pushlightuserdata(lua->L, instance);
+    lua_pushcclosure(lua->L, LibToriPlatformX_LuaHost_GetIOQueue, 1);
+    lua_setfield(lua->L, -2, "GetIOQueue");
+    lua_pushlightuserdata(lua->L, instance);
+    lua_pushcclosure(lua->L, LibToriPlatformX_LuaHost_LoadIO, 1);
+    lua_setfield(lua->L, -2, "LoadIO");
+
+    lua_setglobal(lua->L, "Platform");
 
     return lua;
 }
@@ -136,8 +148,31 @@ LibToriPlatformX_LuaContinue(
         return LIBTORI_PLATFORM_X_LUA_YIELDED;
     default:
     {
+        printf("Lua error: %s\n", lua_tostring(lua->L_coro, -1));
         lua->L_coro = NULL;
         return LIBTORI_PLATFORM_X_LUA_ERROR;
     }
     }
+}
+
+int
+LibToriPlatformX_LuaReadYieldCount(
+    struct LibToriPlatformX_Lua* lua,
+    struct LibToriRS_Instance* instance)
+{
+    if( !lua )
+        return LIBTORI_PLATFORM_X_LUA_ERROR;
+
+    return lua_gettop(lua->L_coro);
+}
+
+struct LibToriRS_ScriptValue*
+LibToriPlatformX_LuaReadYieldValue(
+    struct LibToriPlatformX_Lua* lua,
+    struct LibToriRS_Instance* instance,
+    int index)
+{
+    if( !lua )
+        return NULL;
+    return (struct LibToriRS_ScriptValue*)lua_touserdata(lua->L_coro, index);
 }
