@@ -42,6 +42,7 @@ struct LibToriRS_ScriptArgs
 
 struct LibToriRS_Script
 {
+    bool is_inline;
     char name[LIBTORIRS_SCRIPT_NAME_MAX_SIZE];
     struct LibToriRS_ScriptArgs args;
 };

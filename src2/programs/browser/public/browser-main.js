@@ -1,3 +1,3 @@
-const { LibToriPlatformJS } = require("./LibToriPlatformJS");
+const { LibToriPlatformJS } = require("../../../platforms/LibToriPlatformJS");
 
-function browserMain() {}
+export function browserMain() {}

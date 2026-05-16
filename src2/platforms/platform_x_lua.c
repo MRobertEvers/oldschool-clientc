@@ -80,7 +80,24 @@ LibToriPlatformX_LuaRun(
 
     lua->L_coro = lua_newthread(lua->L);
 
-    luaL_loadfile(lua->L_coro, GetScriptPath(script->name));
+    if( script->is_inline )
+    {
+        int rc = luaL_loadstring(lua->L_coro, script->name);
+        if( rc != LUA_OK )
+        {
+            printf("Lua error: %s\n", lua_tostring(lua->L_coro, -1));
+            return LIBTORI_PLATFORM_X_LUA_ERROR;
+        }
+    }
+    else
+    {
+        int rc = luaL_loadfile(lua->L_coro, GetScriptPath(script->name));
+        if( rc != LUA_OK )
+        {
+            printf("Lua error: %s\n", lua_tostring(lua->L_coro, -1));
+            return LIBTORI_PLATFORM_X_LUA_ERROR;
+        }
+    }
 
     int nres = 0;
     int rc = lua_resume(lua->L_coro, lua->L, 0, &nres);

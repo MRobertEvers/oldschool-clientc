@@ -79,6 +79,8 @@
     "libtorirs_internal.h": "c",
     "libtorirs_scripting.h": "c",
     "assert.h": "c",
-    "emscripten.h": "c"
+    "emscripten.h": "c",
+    "stdlib.h": "c",
+    "libtorirs_command_queue_internal.h": "c"
   }
 }

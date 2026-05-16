@@ -19,9 +19,28 @@ LUA_SRC := $(filter-out $(SRC_DIR)/3rd/lua/lua.c $(SRC_DIR)/3rd/lua/luac.c,\
 
 SRCS := sdl2.c \
 	$(PLAT_DIR)/platform_x_lua.c \
-	$(SRC2)/LibToriRS.c \
+	$(PLAT_DIR)/platform_sdl2.c \
 	$(SCRIPT_DIR)/libtorirs_scripting.c \
+	$(SRC2)/commands/libtorirs_command_queue.c \
+	$(SRC2)/input/libtorirs_input.c \
+	$(SRC2)/libtorirs.c \
 	$(LUA_SRC)
+
+SDL_CFLAGS := $(shell pkg-config --cflags sdl2 2>/dev/null)
+SDL_LIBS := $(shell pkg-config --libs sdl2 2>/dev/null)
+ifeq ($(strip $(SDL_LIBS)),)
+SDL_CFLAGS := $(shell sdl2-config --cflags 2>/dev/null)
+SDL_LIBS := $(shell sdl2-config --libs 2>/dev/null)
+endif
+ifeq ($(strip $(SDL_LIBS)),)
+ifeq ($(shell uname -s),Darwin)
+SDL_CFLAGS := -I/opt/homebrew/include/SDL2 -I/usr/local/include/SDL2
+SDL_LIBS := -L/opt/homebrew/lib -L/usr/local/lib -lSDL2
+else
+SDL_CFLAGS := -I/usr/include/SDL2
+SDL_LIBS := -lSDL2
+endif
+endif
 
 # Flat object list in OBJ_DIR (same pattern as src/osrs/revconfig/Makefile)
 OBJS = $(addprefix $(OBJ_DIR)/, $(notdir $(SRCS:.c=.o)))
@@ -34,11 +53,11 @@ $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
 $(PROG): $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $(OBJS) -lm
+	$(CC) $(CFLAGS) -o $@ $(OBJS) $(SDL_LIBS) -lm
 
 define make-goal
 $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $(1) -o $$@
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) -c $(1) -o $$@
 endef
 
 $(foreach src,$(SRCS),$(eval $(call make-goal,$(src))))
