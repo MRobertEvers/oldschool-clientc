@@ -1,0 +1,21 @@
+{
+  "name": "torirs-ioserver",
+  "version": "1.0.0",
+  "description": "HTTP server for serving OSRS cache archives and Lua scripts",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test-client.js"
+  },
+  "keywords": [
+    "osrs",
+    "cache",
+    "http",
+    "server"
+  ],
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

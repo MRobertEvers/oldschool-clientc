@@ -59,17 +59,6 @@ read_unsigned_byte(
     return buffer[(*offset)++] & 0xFF;
 }
 
-// Helper function to read a short from the buffer
-static short
-read_short(
-    const unsigned char* buffer,
-    int* offset)
-{
-    short value = (buffer[*offset] << 8) | buffer[*offset + 1];
-    *offset += 2;
-    return value;
-}
-
 // Helper function to read an unsigned short from the buffer
 static unsigned short
 read_unsigned_short(
@@ -295,9 +284,12 @@ decode_ob2(
     memset(model->face_textures, 0, (size_t)face_count * sizeof(int16_t));
     memset(model->face_texture_coords, 0, (size_t)face_count * sizeof(int16_t));
 
-    model->textured_p_coordinate = (uint16_t*)malloc((size_t)textured_face_count * sizeof(uint16_t));
-    model->textured_m_coordinate = (uint16_t*)malloc((size_t)textured_face_count * sizeof(uint16_t));
-    model->textured_n_coordinate = (uint16_t*)malloc((size_t)textured_face_count * sizeof(uint16_t));
+    model->textured_p_coordinate =
+        (uint16_t*)malloc((size_t)textured_face_count * sizeof(uint16_t));
+    model->textured_m_coordinate =
+        (uint16_t*)malloc((size_t)textured_face_count * sizeof(uint16_t));
+    model->textured_n_coordinate =
+        (uint16_t*)malloc((size_t)textured_face_count * sizeof(uint16_t));
     memset(model->textured_p_coordinate, 0, (size_t)textured_face_count * sizeof(uint16_t));
     memset(model->textured_m_coordinate, 0, (size_t)textured_face_count * sizeof(uint16_t));
     memset(model->textured_n_coordinate, 0, (size_t)textured_face_count * sizeof(uint16_t));
@@ -2592,8 +2584,7 @@ model_new_copy(struct CacheModel* model)
     if( model->face_colors )
     {
         copy->face_colors = (uint16_t*)malloc((size_t)model->face_count * sizeof(uint16_t));
-        memcpy(
-            copy->face_colors, model->face_colors, (size_t)model->face_count * sizeof(uint16_t));
+        memcpy(copy->face_colors, model->face_colors, (size_t)model->face_count * sizeof(uint16_t));
     }
 
     copy->model_priority = model->model_priority;

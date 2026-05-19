@@ -24,6 +24,19 @@ cachelib_free(struct CacheLib* cache)
 {
     if( !cache )
         return;
+    
+    // Free the backing cache based on mode
+    if( cache->mode == CACHE_MODE_DAT1 && cache->u.cache_dat1 )
+    {
+        cache_dat_free(cache->u.cache_dat1);
+        cache->u.cache_dat1 = NULL;
+    }
+    else if( cache->mode == CACHE_MODE_DAT2 && cache->u.cache_dat2 )
+    {
+        cache_free(cache->u.cache_dat2);
+        cache->u.cache_dat2 = NULL;
+    }
+    
     free(cache);
 }
 
