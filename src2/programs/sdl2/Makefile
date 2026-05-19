@@ -19,12 +19,17 @@ LUA_SRC := $(filter-out $(SRC_DIR)/3rd/lua/lua.c $(SRC_DIR)/3rd/lua/luac.c,\
 
 SRCS := sdl2.c \
 	$(PLAT_DIR)/platform_x_lua.c \
+	$(PLAT_DIR)/platform_x/cachelib.c \
+	$(PLAT_DIR)/platform_x/cachelib_platform.c \
+	$(PLAT_DIR)/platform_x/cachelib_serialized.c \
 	$(PLAT_DIR)/platform_sdl2.c \
 	$(SCRIPT_DIR)/libtorirs_scripting.c \
 	$(SRC2)/commands/libtorirs_command_queue.c \
 	$(SRC2)/input/libtorirs_input.c \
 	$(SRC2)/ioqueue/libtorirs_ioqueue.c \
 	$(SCRIPT_DIR)/libtorirs_scriptapi.c \
+	$(SRC_DIR)/3rd/bzip/bzip.c \
+	$(SRC_DIR)/3rd/miniz/miniz.c \
 	$(SRC_DIR)/osrs/rscache/cache.c \
 	$(SRC_DIR)/osrs/rscache/cache_dat.c \
 	$(SRC_DIR)/osrs/rscache/xtea_config.c \
@@ -36,8 +41,6 @@ SRCS := sdl2.c \
 	$(SRC_DIR)/osrs/rscache/archive_decompress.c \
 	$(SRC_DIR)/osrs/rscache/compression.c \
 	$(SRC_DIR)/osrs/rscache/xtea.c \
-	$(SRC_DIR)/3rd/bzip/bzip.c \
-	$(SRC_DIR)/3rd/miniz/miniz.c \
 	$(SRC_DIR)/osrs/rscache/tables/string_utils.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/pix8.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/pix32.c \

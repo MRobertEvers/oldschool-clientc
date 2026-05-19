@@ -32,11 +32,10 @@ main(
         goto error_exit;
     }
 
-    struct LibToriPlatformX_Cache* cache =
-        LibToriPlatformX_CacheNew(instance, CACHE_MODE_DAT1, CACHE_DAT_PATH);
-    if( !cache )
+    if( LibToriPlatformX_LuaCacheIOInit(lua, CACHE_MODE_DAT1, CACHE_DAT_PATH) !=
+        LIBTORI_PLATFORM_X_LUA_OK )
     {
-        printf("Failed to create cache\n");
+        printf("Failed to init cache\n");
         goto error_exit;
     }
 
@@ -89,8 +88,6 @@ main(
             int rc = LibToriPlatformX_LuaRun(lua, instance);
             while( rc == LIBTORI_PLATFORM_X_LUA_YIELDED )
             {
-                LibToriPlatformX_CacheLoadIO(cache, LibToriRS_GetIOQueue(instance));
-
                 rc = LibToriPlatformX_LuaContinue(lua, instance);
             }
             if( rc != LIBTORI_PLATFORM_X_LUA_OK )
@@ -104,8 +101,6 @@ main(
     }
 
 exit:
-    if( cache )
-        LibToriPlatformX_CacheFree(cache);
     if( lua )
         LibToriPlatformX_LuaFree(lua);
     if( instance )
