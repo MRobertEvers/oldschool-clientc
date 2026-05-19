@@ -7,28 +7,6 @@
 #include <emscripten.h>
 
 struct LibToriRS_Instance;
-struct BrowserMainLoopSentinel;
-
-// enum BrowserMainLoopState
-// {
-//     BROWSER_MAIN_LOOP_STATE_BEGIN,
-//     BROWSER_MAIN_LOOP_STATE_WAITING_FOR_JS,
-//     BROWSER_MAIN_LOOP_STATE_END
-// };
-
-// struct BrowserMainLoopSentinel
-// {
-//     enum BrowserMainLoopState state;
-// };
-
-// EMSCRIPTEN_KEEPALIVE
-// void
-// ToriPlatformEmscripten_JSHost_BrowserMainLoopSentinel(struct BrowserMainLoopSentinel* );
-
-EMSCRIPTEN_KEEPALIVE
-void
-LibToriPlatformEmscripten_JSHost_BrowserMainLoopSentinelFree(
-    struct BrowserMainLoopSentinel* sentinel);
 
 EMSCRIPTEN_KEEPALIVE
 double
@@ -65,5 +43,31 @@ LibToriPlatformEmscripten_JSHost_GetInstancePtr(struct LibToriRS_Instance* insta
 EMSCRIPTEN_KEEPALIVE
 struct LibToriRS_Script*
 LibToriPlatformEmscripten_JSHost_ScriptQueuePop(struct LibToriRS_ScriptQueue* queue);
+
+EMSCRIPTEN_KEEPALIVE
+struct LibToriRS_IOQueue*
+LibToriPlatformEmscripten_JSHost_LuaHost_GetIOQueue(struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+struct LibToriRS_IOQueueItem*
+LibToriPlatformEmscripten_JSHost_IOQueuePop(struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+int
+LibToriPlatformEmscripten_JSHost_IORequestGetArchiveId(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueueItem* item);
+
+EMSCRIPTEN_KEEPALIVE
+int
+LibToriPlatformEmscripten_JSHost_IORequestGetTableId(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueueItem* item);
+
+EMSCRIPTEN_KEEPALIVE
+int
+LibToriPlatformEmscripten_JSHost_IORequestGetFlags(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueueItem* item);
 
 #endif

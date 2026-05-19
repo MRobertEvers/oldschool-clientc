@@ -87,3 +87,15 @@ LibToriRS_IOQueuePopRead(
     queue->read_head++;
     return true;
 }
+
+struct LibToriRS_IORequest*
+LibToriRS_IOQueuePopReadPtr(struct LibToriRS_IOQueue* queue)
+{
+    if( !queue )
+        return NULL;
+    if( queue->count == 0 || queue->read_head >= queue->count )
+        return NULL;
+    struct LibToriRS_IORequest* request = &queue->items[queue->read_head];
+    queue->read_head++;
+    return request;
+}

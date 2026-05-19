@@ -1,5 +1,7 @@
 #include "platform_emscripten_jshost.h"
 
+#include "../ioqueue/libtorirs_ioqueue.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -90,4 +92,51 @@ struct LibToriRS_Script*
 LibToriPlatformEmscripten_JSHost_ScriptQueuePop(struct LibToriRS_ScriptQueue* queue)
 {
     return LibToriRS_ScriptQueuePop(queue);
+}
+
+EMSCRIPTEN_KEEPALIVE
+struct LibToriRS_IOQueue*
+LibToriPlatformEmscripten_JSHost_LuaHost_GetIOQueue(struct LibToriRS_Instance* instance)
+{
+    return LibToriRS_GetIOQueue(instance);
+}
+
+EMSCRIPTEN_KEEPALIVE
+struct LibToriRS_IOQueueItem*
+LibToriPlatformEmscripten_JSHost_IOQueuePop(struct LibToriRS_Instance* instance)
+{
+    return LibToriRS_IOQueuePopReadPtr(LibToriRS_GetIOQueue(instance));
+}
+
+EMSCRIPTEN_KEEPALIVE
+int
+LibToriPlatformEmscripten_JSHost_IORequestGetArchiveId(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueueItem* item)
+{
+    if( !instance || !item )
+        return 0;
+    return item->archive_id;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int
+LibToriPlatformEmscripten_JSHost_IORequestGetTableId(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueueItem* item)
+{
+    if( !instance || !item )
+        return 0;
+    return item->table_id;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int
+LibToriPlatformEmscripten_JSHost_IORequestGetFlags(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueueItem* item)
+{
+    if( !instance || !item )
+        return 0;
+    return item->flags;
 }

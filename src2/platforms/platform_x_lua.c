@@ -5,7 +5,7 @@
 #include "3rd/lua/lauxlib.h"
 #include "3rd/lua/lua.h"
 #include "3rd/lua/lualib.h"
-#include "platform_x_cache.h"
+#include "platform_x/cachelib_platform.h"
 
 // clang-format off
 #include "platform_x_luahost.u.c"
@@ -17,6 +17,9 @@ struct LibToriPlatformX_Lua
 {
     lua_State* L;
     lua_State* L_coro;
+
+    struct CacheLib* cache;
+    struct LibToriRS_Instance* instance;
 };
 
 struct LibToriPlatformX_Lua*
@@ -25,6 +28,8 @@ LibToriPlatformX_LuaNew(struct LibToriRS_Instance* instance)
     struct LibToriPlatformX_Lua* lua = malloc(sizeof(struct LibToriPlatformX_Lua));
     if( !lua )
         return NULL;
+
+    lua->instance = instance;
 
     lua->L = luaL_newstate();
     if( !lua->L )
@@ -55,11 +60,11 @@ LibToriPlatformX_LuaNew(struct LibToriRS_Instance* instance)
 
     // Platform
     lua_newtable(lua->L);
-    lua_pushlightuserdata(lua->L, instance);
-    lua_pushcclosure(lua->L, LibToriPlatformX_LuaHost_GetIOQueue, 1);
+    lua_pushlightuserdata(lua->L, lua);
+    lua_pushcclosure(lua->L, LibToriPlatformX_LuaHost_Platform_GetIOQueue, 1);
     lua_setfield(lua->L, -2, "GetIOQueue");
-    lua_pushlightuserdata(lua->L, instance);
-    lua_pushcclosure(lua->L, LibToriPlatformX_LuaHost_LoadIO, 1);
+    lua_pushlightuserdata(lua->L, lua);
+    lua_pushcclosure(lua->L, LibToriPlatformX_LuaHost_Platform_LoadIO, 1);
     lua_setfield(lua->L, -2, "LoadIO");
 
     lua_setglobal(lua->L, "Platform");
@@ -75,6 +80,25 @@ LibToriPlatformX_LuaFree(struct LibToriPlatformX_Lua* lua)
 
     free(lua);
     lua = NULL;
+}
+
+int
+LibToriPlatformX_LuaCacheIOInit(
+    struct LibToriPlatformX_Lua* lua,
+    int mode,
+    char const* directory)
+{
+    if( !lua )
+        return LIBTORI_PLATFORM_X_LUA_ERROR;
+
+    lua->cache = cachelib_new(mode);
+    if( !lua->cache )
+        return LIBTORI_PLATFORM_X_LUA_ERROR;
+
+    if( cachelib_platform_init(lua->cache, directory) != 1 )
+        return LIBTORI_PLATFORM_X_LUA_ERROR;
+
+    return LIBTORI_PLATFORM_X_LUA_OK;
 }
 
 #define LUA_SCRIPTS_DIR "../../revs/scripts"

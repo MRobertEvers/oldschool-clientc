@@ -1,92 +1,20 @@
 const { lua, lauxlib, lualib, to_luastring } = window.fengari;
 
-function fromWASMString(wasm, strPtr, strLen) {
-  const heap = wasm.HEAPU8;
-  const memory = heap?.buffer ?? wasm.memory?.buffer;
-  if (strPtr === 0) return null;
-
-  const view = new Uint8Array(memory, strPtr, strLen ?? 0);
-  const jsStr = new TextDecoder().decode(view);
-
-  return jsStr;
-}
-
-function fromLuaString(str) {
-  if (str instanceof Uint8Array) {
-    str = new TextDecoder().decode(str);
-  }
-  return str;
-}
-
 const LIBTORI_PLATFORM_EMSCRIPTEN_LUA_OK = 0;
 const LIBTORI_PLATFORM_EMSCRIPTEN_LUA_ERROR = -1;
 const LIBTORI_PLATFORM_EMSCRIPTEN_LUA_YIELDED = 1;
 
-/** Emscripten attaches e lauxlib.lua_newthreadxports as Module._symbolName */
-function wasmExportFn(mod, baseName) {
-  const underscored = mod["_" + baseName];
-  if (typeof underscored === "function") {
-    return underscored;
-  }
-  const plain = mod[baseName];
-  if (typeof plain === "function") {
-    return plain;
-  }
-  throw new Error("Missing WASM export: " + baseName);
-}
-
-class LibToriPlatformEmscripten {
-  constructor(wasmModule, platformPtr) {
-    this.wasmModule = wasmModule;
-    this.platformPtr = platformPtr;
-
-    const mod = wasmModule;
-    const getInstancePtr = wasmExportFn(
-      mod,
-      "LibToriPlatformEmscripten_JSHost_GetInstancePtr",
-    );
-    this._getScriptQueue = wasmExportFn(
-      mod,
-      "LibToriPlatformEmscripten_JSHost_GetScriptQueue",
-    );
-    this._scriptQueuePop = wasmExportFn(
-      mod,
-      "LibToriPlatformEmscripten_JSHost_ScriptQueuePop",
-    );
-    this._scriptGetName = wasmExportFn(
-      mod,
-      "LibToriPlatformEmscripten_JSHost_ScriptGetName",
-    );
-    this._scriptGetNameLength = wasmExportFn(
-      mod,
-      "LibToriPlatformEmscripten_JSHost_ScriptGetNameLength",
-    );
-    this._browserMainUnlock = wasmExportFn(
-      mod,
-      "LibToriPlatformEmscripten_JSHost_BrowserMainUnlock",
-    );
-
-    this.instancePtr = getInstancePtr(this.platformPtr);
-  }
-
-  getScriptQueue() {
-    return this._getScriptQueue(this.instancePtr);
-  }
-
-  scriptQueuePop() {
-    return this._scriptQueuePop(this.getScriptQueue());
-  }
-
-  scriptGetNameJSString(script) {
-    const str = this._scriptGetName(script);
-    const strLen = this._scriptGetNameLength(script);
-
-    return fromWASMString(this.wasmModule, str, strLen);
-  }
-
-  browserMainUnlock() {
-    this._browserMainUnlock();
-  }
+function bindLuaHostFunctions(lua) {
+  lua.newtable();
+  lua.pushcfunction(lua, LibToriPlatformJS_LuaHost_Platform_LoadIO);
+  lua.setfield(lua, -1, "Platform_LoadIO");
+  lua.pushcfunction(lua, LibToriPlatformJS_LuaHost_Platform_GetIOQueue);
+  lua.setfield(lua, -1, "Platform_GetIOQueue");
+  lua.pushcfunction(lua, LibToriPlatformJS_LuaHost_Game_Dat1_ConfigFileFetch);
+  lua.setfield(lua, -1, "Game_Dat1_ConfigFileFetch");
+  lua.pushcfunction(lua, LibToriPlatformJS_LuaHost_Game_Dat1_ConfigFileLoad);
+  lua.setfield(lua, -1, "Game_Dat1_ConfigFileLoad");
+  lua.setglobal(lua, "Host");
 }
 
 class LibToriPlatformJS {
@@ -97,6 +25,8 @@ class LibToriPlatformJS {
 
     this.L = lauxlib.luaL_newstate();
     lualib.luaL_openlibs(this.L);
+
+    bindLuaHostFunctions(this.L);
 
     this.L_coro = null;
   }
@@ -168,7 +98,6 @@ class LibToriPlatformJS {
 
   async LuaContinue() {
     try {
-      lua.lua_pushinteger(this.L_coro, 99);
       const rc = lua.lua_resume(this.L_coro, this.L, 1, 0);
       switch (rc) {
         case lua.LUA_OK:

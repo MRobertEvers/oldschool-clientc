@@ -4,13 +4,21 @@
 #include "../libtorirs.h"
 
 struct LibToriPlatformX_Lua;
-struct LibToriPlatformX_Cache;
 
 struct LibToriPlatformX_Lua*
 LibToriPlatformX_LuaNew(struct LibToriRS_Instance* instance);
 
 void
 LibToriPlatformX_LuaFree(struct LibToriPlatformX_Lua* lua);
+
+#define CACHE_MODE_DAT1 0
+#define CACHE_MODE_DAT2 1
+
+int
+LibToriPlatformX_LuaCacheIOInit(
+    struct LibToriPlatformX_Lua* lua,
+    int mode,
+    char const* directory);
 
 #define LIBTORI_PLATFORM_X_LUA_OK 0
 #define LIBTORI_PLATFORM_X_LUA_ERROR -1

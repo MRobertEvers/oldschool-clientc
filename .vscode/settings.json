@@ -87,6 +87,9 @@
     "cache.h": "c",
     "reference_table.h": "c",
     "libtorirs_ioqueue.h": "c",
-    "configs_dat.h": "c"
+    "configs_dat.h": "c",
+    "cachelib_platform.h": "c",
+    "lualib.h": "c",
+    "cachelib_client.h": "c"
   }
 }

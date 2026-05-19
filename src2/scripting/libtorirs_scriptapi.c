@@ -1,6 +1,7 @@
 #include "libtorirs_scriptapi.h"
 
 #include "../ioqueue/libtorirs_ioqueue.h"
+#include "platforms/platform_x/cachelib_client.h"
 #include "src/osrs/rscache/cache_dat.h"
 #include "src/osrs/rscache/tables_dat/configs_dat.h"
 

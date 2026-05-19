@@ -37,27 +37,42 @@ LibToriPlatformX_LuaHost_ScriptValueAsLuaAny(lua_State* L)
     return 1;
 }
 
+/**
+ * upvalue(1): LibToriPlatformX_Lua
+ * Platform.GetIOQueue
+ *   returns: io_queue: LibToriRS_IOQueue
+ */
 int
-LibToriPlatformX_LuaHost_GetIOQueue(lua_State* L)
+LibToriPlatformX_LuaHost_Platform_GetIOQueue(lua_State* L)
 {
-    struct LibToriRS_Instance* instance =
-        (struct LibToriRS_Instance*)lua_touserdata(L, lua_upvalueindex(1));
-    if( !instance )
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
         return 0;
 
-    struct LibToriRS_IOQueue* io_queue = instance->io_queue;
+    struct LibToriRS_IOQueue* io_queue = LibToriRS_GetIOQueue(lua->instance);
     lua_pushlightuserdata(L, io_queue);
     return 1;
 }
 
+/**
+ * upvalue(1): LibToriPlatformX_Lua
+ * Platform.LoadIO
+ *   arg(1): io_queue: LibToriRS_IOQueue
+ */
 int
-LibToriPlatformX_LuaHost_LoadIO(lua_State* L)
+LibToriPlatformX_LuaHost_Platform_LoadIO(lua_State* L)
 {
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
     struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
 
-    lua_pushlightuserdata(L, io_queue);
+    cachelib_platform_load_io(lua->cache, io_queue);
 
-    return lua_yield(L, 1);
+    return 0;
 }
 
 int
