@@ -314,6 +314,8 @@ function handleStaticFile(req, res, url) {
   const resolvedPath = path.resolve(filepath);
   const resolvedStaticDir = path.resolve(config.staticDir);
 
+  console.log("resolvedPath: ", resolvedPath);
+
   if (!resolvedPath.startsWith(resolvedStaticDir)) {
     res.writeHead(403, { "Content-Type": "text/plain" });
     res.end("Forbidden");

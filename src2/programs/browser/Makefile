@@ -1,6 +1,5 @@
 # Emscripten build → dist/browser.js + dist/browser.wasm, plus dist/index.html
-# (copy of public/shell.html), $(PLAT_DIR)/LibToriPlatformJS.js, and every public/*.js
-# copied into dist/.
+# (copy of public/shell.html), every $(PLAT_DIR)/*.js, and every public/*.js copied into dist/.
 #
 # After `make`, serve dist/, e.g.:
 #   python3 -m http.server -d dist 8080
@@ -58,7 +57,7 @@ SRC   := browser.c \
 OUT   := dist/browser.js
 
 PUBLIC_JS := $(wildcard public/*.js)
-LIBTORI_PLATFORM_JS := $(PLAT_DIR)/LibToriPlatformJS.js
+PLAT_JS := $(wildcard $(PLAT_DIR)/*.js)
 REVS_SCRIPTS := $(SRC2)/revs/scripts
 
 # Override for debug: make EFLAGS='-O0 -g'
@@ -84,10 +83,10 @@ $(OUT): $(SRC)
 	@mkdir -p dist
 	$(EMCC) $(EMFLAGS) $(SRC) -o $(OUT)
 
-dist/index.html: public/shell.html $(PUBLIC_JS) $(LIBTORI_PLATFORM_JS) $(OUT)
+dist/index.html: public/shell.html $(PUBLIC_JS) $(PLAT_JS) $(OUT)
 	@mkdir -p dist
 	@if [ -n "$(PUBLIC_JS)" ]; then cp $(PUBLIC_JS) dist/; fi
-	cp $(LIBTORI_PLATFORM_JS) dist/
+	@if [ -n "$(PLAT_JS)" ]; then cp $(PLAT_JS) dist/; fi
 	cp public/shell.html dist/index.html
 
 clean:

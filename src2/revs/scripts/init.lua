@@ -1,3 +1,4 @@
+print("Initializing Lua script")
 local io_queue = Platform.GetIOQueue()
 print(io_queue)
 
