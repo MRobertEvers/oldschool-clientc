@@ -11,16 +11,9 @@
 #include "platform_x_luahost.u.c"
 // clang-format on
 
+#include "platform_x_lua_internal.h"
+
 #include <stdlib.h>
-
-struct LibToriPlatformX_Lua
-{
-    lua_State* L;
-    lua_State* L_coro;
-
-    struct CacheLib* cache;
-    struct LibToriRS_Instance* instance;
-};
 
 struct LibToriPlatformX_Lua*
 LibToriPlatformX_LuaNew(struct LibToriRS_Instance* instance)

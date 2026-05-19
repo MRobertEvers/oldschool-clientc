@@ -4,6 +4,7 @@
 #include "../libtorirs.h"
 #include "../scripting/libtorirs_scripting.h"
 #include "3rd/lua/lua.h"
+#include "platform_x_lua_internal.h"
 
 #include <assert.h>
 
@@ -70,7 +71,15 @@ LibToriPlatformX_LuaHost_Platform_LoadIO(lua_State* L)
 
     struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
 
-    cachelib_platform_load_io(lua->cache, io_queue);
+    for( int i = 0; i < io_queue->count; i++ )
+    {
+        struct LibToriRS_IOQueueItem* io_item = &io_queue->items[i];
+        void* data = cachelib_platform_load_io(lua->cache, io_item);
+        if( !data )
+            return 0;
+        io_item->data = data;
+        io_item->is_resolved = true;
+    }
 
     return 0;
 }

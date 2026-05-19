@@ -2,7 +2,6 @@
 
 #include "../ioqueue/libtorirs_ioqueue.h"
 #include "cachelib_internal.h"
-#include "platform_x_cache.h"
 #include "src/osrs/rscache/cache.h"
 #include "src/osrs/rscache/cache_dat.h"
 #include "src/osrs/rscache/xtea_config.h"
