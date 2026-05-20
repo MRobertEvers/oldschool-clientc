@@ -8,9 +8,13 @@
 #include <stdint.h>
 
 void
-LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(struct LibToriRS_Instance* instance);
+LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue);
 
 void
-LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(struct LibToriRS_Instance* instance);
+LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue);
 
 #endif

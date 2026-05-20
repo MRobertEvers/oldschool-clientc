@@ -8,13 +8,12 @@
 #include <stdio.h>
 
 void
-LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(struct LibToriRS_Instance* instance)
+LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue)
 {
     printf("LibToriRS_ScriptAPI_Dat1_ConfigFileFetch\n");
     if( !instance )
-        return;
-    struct LibToriRS_IOQueue* io_queue = LibToriRS_GetIOQueue(instance);
-    if( !io_queue )
         return;
 
     struct LibToriRS_IOQueueItem item = { 0 };
@@ -26,13 +25,12 @@ LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(struct LibToriRS_Instance* instance)
 }
 
 void
-LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(struct LibToriRS_Instance* instance)
+LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue)
 {
     printf("LibToriRS_ScriptAPI_Dat1_ConfigFileLoad\n");
     if( !instance )
-        return;
-    struct LibToriRS_IOQueue* io_queue = LibToriRS_GetIOQueue(instance);
-    if( !io_queue )
         return;
 
     struct LibToriRS_IOQueueItem item = { 0 };

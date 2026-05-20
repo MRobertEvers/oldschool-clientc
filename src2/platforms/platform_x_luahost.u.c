@@ -92,7 +92,7 @@ LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileFetch(lua_State* L)
     if( !instance )
         return 0;
 
-    struct LibToriRS_IOQueue* io_queue = instance->io_queue;
+    struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
 
     LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(instance);
 
@@ -107,7 +107,7 @@ LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileLoad(lua_State* L)
     if( !instance )
         return 0;
 
-    struct LibToriRS_IOQueue* io_queue = instance->io_queue;
+    struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
 
     LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(instance);
 
