@@ -38,6 +38,16 @@ LibToriRS_InstanceNew(void)
         return NULL;
     }
 
+    instance->dat1_buildcache = dat1_buildcache_new();
+    if( !instance->dat1_buildcache )
+    {
+        LibToriRS_IOQueueFree(instance->io_queue);
+        LibToriRS_Input_Free(instance->input);
+        LibToriRS_ScriptQueueFree(instance->script_queue);
+        free(instance);
+        return NULL;
+    }
+
     instance->running = true;
 
     return instance;
@@ -52,6 +62,8 @@ LibToriRS_InstanceFree(struct LibToriRS_Instance* instance)
         LibToriRS_ScriptQueueFree(instance->script_queue);
     if( instance->input )
         LibToriRS_Input_Free(instance->input);
+    if( instance->dat1_buildcache )
+        dat1_buildcache_free(instance->dat1_buildcache);
     free(instance);
     instance = NULL;
 }

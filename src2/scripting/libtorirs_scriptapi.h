@@ -17,4 +17,9 @@ LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_IOQueue* io_queue);
 
+void
+LibToriRS_ScriptAPI_Dat1_SubmitGameCacheModel(
+    struct LibToriRS_Instance* instance,
+    int model_id);
+
 #endif
