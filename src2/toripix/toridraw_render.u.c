@@ -1,3 +1,4 @@
+#include "graphics/dash_restrict.h"
 #include "graphics/projection.h"
 #include "toridraw_math.h"
 #include "toridraw_model_internal.h"
@@ -226,16 +227,16 @@ toridraw_calculate_cylinder_aabb_8point(
 
 static inline int
 bucket_sort_by_average_depth(
-    faceint_t* restrict face_depth_buckets,
-    faceint_t* restrict face_depth_bucket_counts,
+    faceint_t* RESTRICT face_depth_buckets,
+    faceint_t* RESTRICT face_depth_bucket_counts,
     int model_min_depth,
     int num_faces,
-    const int* restrict vx,
-    const int* restrict vy,
-    const int* restrict vz,
-    const faceint_t* restrict face_a,
-    const faceint_t* restrict face_b,
-    const faceint_t* restrict face_c)
+    const int* RESTRICT vx,
+    const int* RESTRICT vy,
+    const int* RESTRICT vz,
+    const faceint_t* RESTRICT face_a,
+    const faceint_t* RESTRICT face_b,
+    const faceint_t* RESTRICT face_c)
 {
     int min_d = 1500;
     int max_d = 0;
@@ -452,6 +453,7 @@ toridraw_compute_projected_face_order(
         fic = m->face_indices_c;
         face_priorities = m->face_priorities;
         face_count = m->face_count;
+        break;
     }
     default:
         assert(0);
@@ -537,6 +539,7 @@ toridraw_project(
     struct ToriDraw_Camera* camera)
 {
     struct ProjectedVertex center_projection;
+
     int cull = TORIDRAW_CULL_VISIBLE;
 
     cull = toridraw_fast_cull(

@@ -1,10 +1,10 @@
 #ifndef TORIDRAW_HSL16_H
 #define TORIDRAW_HSL16_H
 
+#include "graphics/shared_tables.h"
+
 #include <assert.h>
 #include <stdint.h>
-
-extern int g_hsl16_to_rgb_table[65536];
 
 void
 toridraw_init_hsl16(void);
