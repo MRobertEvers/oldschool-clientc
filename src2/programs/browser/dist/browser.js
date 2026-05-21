@@ -24,7 +24,7 @@ var ENVIRONMENT_IS_SHELL = false;
 
 // --pre-jses are emitted after the Module integration code, so that they can
 // refer to Module (if they choose; they can also define Module)
-// include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmp2goloz84.js
+// include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmpg5n0z1zc.js
 
   Module['expectedDataFileDownloads'] ??= 0;
   Module['expectedDataFileDownloads']++;
@@ -126,6 +126,7 @@ var REMOTE_PACKAGE_SIZE = metadata['remote_package_size'];
       }
 Module['FS_createPath']("/", "revs", true, true);
 Module['FS_createPath']("/revs", "scripts", true, true);
+Module['FS_createPath']("/revs/scripts", "model_viewer", true, true);
 
       /** @constructor */
       function DataRequest(start, end, audio) {
@@ -192,25 +193,25 @@ Module['FS_createPath']("/revs", "scripts", true, true);
     }
 
     }
-    loadPackage({"files": [{"filename": "/revs/scripts/init.lua", "start": 0, "end": 461}], "remote_package_size": 461});
+    loadPackage({"files": [{"filename": "/revs/scripts/init.lua", "start": 0, "end": 461}, {"filename": "/revs/scripts/model_viewer/render_model.lua", "start": 461, "end": 795}], "remote_package_size": 795});
 
   })();
 
-// end include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmp2goloz84.js
-// include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmpepqbfoim.js
+// end include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmpg5n0z1zc.js
+// include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmpw7e8ke_0.js
 
     // All the pre-js content up to here must remain later on, we need to run
     // it.
     if ((typeof ENVIRONMENT_IS_WASM_WORKER != 'undefined' && ENVIRONMENT_IS_WASM_WORKER) || (typeof ENVIRONMENT_IS_PTHREAD != 'undefined' && ENVIRONMENT_IS_PTHREAD) || (typeof ENVIRONMENT_IS_AUDIO_WORKLET != 'undefined' && ENVIRONMENT_IS_AUDIO_WORKLET)) Module['preRun'] = [];
     var necessaryPreJSTasks = Module['preRun'].slice();
-  // end include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmpepqbfoim.js
-// include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmp00003xg9.js
+  // end include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmpw7e8ke_0.js
+// include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmp82ygsbrp.js
 
     if (!Module['preRun']) throw 'Module.preRun should exist because file support used it; did a pre-js delete it?';
     necessaryPreJSTasks.forEach((task) => {
       if (Module['preRun'].indexOf(task) < 0) throw 'All preRun tasks that exist before user pre-js code should remain after; did you replace Module or modify Module.preRun?';
     });
-  // end include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmp00003xg9.js
+  // end include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmp82ygsbrp.js
 
 
 var arguments_ = [];

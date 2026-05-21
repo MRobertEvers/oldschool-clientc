@@ -243,13 +243,6 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
                 input->curr.mouse_y);
     }
 
-    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_SPACE) )
-    {
-        struct LibToriRS_Script* script = LibToriRS_ScriptQueueEmplace(
-            LibToriRS_GetScriptQueue(instance), "print('Hello, World!')");
-        script->is_inline = true;
-    }
-
     if( LibToriRS_Input_IsKeyDown(input, TORIRSK_ESCAPE) )
     {
         instance->running = false;
@@ -299,6 +292,14 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
         if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT) )
         {
             game_modelviewer_rotate_right(instance->model_viewer, camera_rotation_speed);
+        }
+        if( LibToriRS_Input_IsKeyDown(input, TORIRSK_SPACE) )
+        {
+            game_modelviewer_next(instance->model_viewer, 1);
+        }
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_BACKSPACE) )
+        {
+            game_modelviewer_next(instance->model_viewer, -1);
         }
     }
 }

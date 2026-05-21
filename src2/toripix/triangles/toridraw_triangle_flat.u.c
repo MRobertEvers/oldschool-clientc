@@ -5,6 +5,7 @@
 #include "../toridraw_types.h"
 
 #include <assert.h>
+#include <stdbool.h>
 
 extern int g_hsl16_to_rgb_table[65536];
 
@@ -273,7 +274,8 @@ toridraw_triangle_face_flat(
     int offset_y,
     int stride,
     int screen_width,
-    int screen_height)
+    int screen_height,
+    bool allow_near_clip)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -281,7 +283,7 @@ toridraw_triangle_face_flat(
 
     if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
     {
-        if( !orthographic_vertices_x )
+        if( !allow_near_clip || !orthographic_vertices_x )
             return;
         toridraw_triangle_face_flat_near_clip(
             pixel_buffer,

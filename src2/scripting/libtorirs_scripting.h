@@ -67,6 +67,9 @@ LibToriRS_ScriptQueueEmplace(
     struct LibToriRS_ScriptQueue* queue,
     const char* name);
 
+void
+LibToriRS_ScriptQueueClear(struct LibToriRS_ScriptQueue* queue);
+
 struct LibToriRS_Script*
 LibToriRS_ScriptQueuePop(struct LibToriRS_ScriptQueue* queue);
 
@@ -78,5 +81,10 @@ LibToriRS_ScriptGetArgs(struct LibToriRS_Script* script);
 
 void
 LibToriRS_ScriptArgsReset(struct LibToriRS_ScriptArgs* args);
+
+void
+LibToriRS_ScriptPushArg_Int(
+    struct LibToriRS_Script* script,
+    int value);
 
 #endif

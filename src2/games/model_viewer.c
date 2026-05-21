@@ -6,12 +6,14 @@
 #include <string.h>
 
 struct GameModelViewer*
-game_modelviewer_new(void)
+game_modelviewer_new(struct LibToriRS_ScriptQueue* script_queue)
 {
     struct GameModelViewer* game_model_viewer = malloc(sizeof(struct GameModelViewer));
     if( !game_model_viewer )
         return NULL;
     memset(game_model_viewer, 0, sizeof(struct GameModelViewer));
+
+    game_model_viewer->script_queue = script_queue;
 
     struct ToriDraw_Position* camera_position = malloc(sizeof(struct ToriDraw_Position));
     memset(camera_position, 0, sizeof(struct ToriDraw_Position));
@@ -57,12 +59,35 @@ game_modelviewer_free(struct GameModelViewer* game_model_viewer)
 }
 
 void
+game_modelviewer_next(
+    struct GameModelViewer* game_model_viewer,
+    int step)
+{
+    if( !game_model_viewer )
+        return;
+
+    int model_id = game_model_viewer->current_model_id + step;
+    if( model_id < 0 )
+        model_id = 0;
+
+    struct LibToriRS_Script* script = LibToriRS_ScriptQueueEmplace(
+        game_model_viewer->script_queue, "model_viewer/render_model.lua");
+
+    LibToriRS_ScriptPushArg_Int(script, model_id);
+    script->is_inline = false;
+
+    game_model_viewer->current_model_id = model_id;
+}
+
+void
 game_modelviewer_set_model(
     struct GameModelViewer* game_model_viewer,
+    int model_id,
     struct ToriDraw_ModelHandle model)
 {
     if( !game_model_viewer )
         return;
+    game_model_viewer->current_model_id = model_id;
     game_model_viewer->model = model;
 }
 

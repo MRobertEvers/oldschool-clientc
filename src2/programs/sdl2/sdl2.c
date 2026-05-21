@@ -1,4 +1,5 @@
 #include "../../commands/libtorirs_command_queue.h"
+#include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../platforms/platform_sdl2.h"
 #include "../../platforms/platform_x_cache.h"
 #include "../../platforms/platform_x_lua.h"
@@ -91,6 +92,8 @@ main(
                 goto error_exit;
             }
         }
+        LibToriRS_IOQueueClear(LibToriRS_GetIOQueue(instance));
+        LibToriRS_ScriptQueueClear(LibToriRS_GetScriptQueue(instance));
 
         LibToriRS_GameStep(instance);
 

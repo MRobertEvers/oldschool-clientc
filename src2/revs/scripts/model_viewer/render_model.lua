@@ -1,0 +1,16 @@
+print("Render Model")
+local model_id = ...
+
+local io_queue = Platform.GetIOQueue()
+
+Game.Dat1_ModelFetch(io_queue, model_id)
+
+Platform.LoadIO(io_queue)
+
+Game.Dat1_ModelLoad(io_queue)
+print("Model loaded")
+
+Game.Dat1_SubmitGameCacheModel(model_id)
+print("Game cache model submitted")
+
+Game.ModelViewer_RenderModel(model_id)

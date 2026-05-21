@@ -1,4 +1,5 @@
 #include "../../commands/libtorirs_command_queue.h"
+#include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../libtorirs.h"
 #include "../../platforms/platform_js_capi.h"
 #include "../../platforms/platform_sdl2.h"
@@ -35,6 +36,9 @@ browser_main_loop(void)
     {
     case BROWSER_MAIN_LOOP_STATE_FRAME:
     {
+        LibToriRS_IOQueueClear(LibToriRS_GetIOQueue(g_instance));
+        LibToriRS_ScriptQueueClear(LibToriRS_GetScriptQueue(g_instance));
+
         uint64_t time = SDL_GetTicks64();
 
         LibToriPlatformSDL2_PollEvents(g_platform, g_command_queue);

@@ -8,6 +8,31 @@
 
 #include <assert.h>
 
+static int
+lua_scriptint_or_luaint(
+    lua_State* L,
+    int index)
+{
+    int rctype = lua_type(L, index);
+    switch( rctype )
+    {
+    case LUA_TNUMBER:
+        return lua_tonumber(L, index);
+    case LUA_TLIGHTUSERDATA:
+    {
+        struct LibToriRS_ScriptValue* script_value =
+            (struct LibToriRS_ScriptValue*)lua_touserdata(L, index);
+        if( script_value->kind != LIBTORIRS_SCRIPT_VALUE_INT )
+            return 0;
+        return script_value->u.intval.value;
+    }
+    break;
+    default:
+        return 0;
+    }
+    return 0;
+}
+
 int
 LibToriPlatformX_LuaHost_Print(lua_State* L)
 {
@@ -113,7 +138,7 @@ LibToriPlatformX_LuaHost_Game_Dat1_ModelFetch(lua_State* L)
         return 0;
 
     struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
-    int model_id = luaL_checkinteger(L, 2);
+    int model_id = lua_scriptint_or_luaint(L, 2);
 
     LibToriRS_ScriptAPI_Dat1_ModelFetch(instance, model_id, io_queue);
 
@@ -150,7 +175,7 @@ LibToriPlatformX_LuaHost_Game_Dat1_SubmitGameCacheModel(lua_State* L)
     if( !instance )
         return 0;
 
-    int model_id = luaL_checkinteger(L, 1);
+    int model_id = lua_scriptint_or_luaint(L, 1);
 
     LibToriRS_ScriptAPI_Dat1_SubmitGameCacheModel(instance, model_id);
 
@@ -186,7 +211,7 @@ LibToriPlatformX_LuaHost_Game_ModelViewer_RenderModel(lua_State* L)
     if( !instance )
         return 0;
 
-    int model_id = luaL_checkinteger(L, 1);
+    int model_id = lua_scriptint_or_luaint(L, 1);
 
     LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel(instance, model_id);
 

@@ -5,6 +5,7 @@
 #include "graphics/dash_restrict.h"
 
 #include <assert.h>
+#include <stdbool.h>
 
 // clang-format off
 #include "graphics/projection.u.c"
@@ -1087,7 +1088,8 @@ toridraw_triangle_face_texture_blend_affine_v3(
     int texture_opaque,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    bool allow_near_clip)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -1097,6 +1099,8 @@ toridraw_triangle_face_texture_blend_affine_v3(
     // TODO: Perhaps use a separate buffer to track this.
     if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
     {
+        if( !allow_near_clip )
+            return;
         toridraw_triangle_face_texture_blend_affine_v3_near_clip(
             pixel_buffer,
             stride,
@@ -1222,7 +1226,8 @@ toridraw_triangle_face_texture_blend_affine(
     int texture_opaque,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    bool allow_near_clip)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -1232,6 +1237,8 @@ toridraw_triangle_face_texture_blend_affine(
     // TODO: Perhaps use a separate buffer to track this.
     if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
     {
+        if( !allow_near_clip )
+            return;
         toridraw_triangle_face_texture_blend_affine_near_clip(
             pixel_buffer,
             stride,
@@ -1633,7 +1640,8 @@ toridraw_triangle_face_texture_flat_affine_v3(
     int texture_opaque,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    bool allow_near_clip)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -1641,6 +1649,8 @@ toridraw_triangle_face_texture_flat_affine_v3(
 
     if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
     {
+        if( !allow_near_clip )
+            return;
         toridraw_triangle_face_texture_flat_affine_v3_near_clip(
             pixel_buffer,
             stride,
@@ -2031,7 +2041,8 @@ toridraw_triangle_face_texture_flat_affine(
     int texture_opaque,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    bool allow_near_clip)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -2039,6 +2050,8 @@ toridraw_triangle_face_texture_flat_affine(
 
     if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
     {
+        if( !allow_near_clip )
+            return;
         toridraw_triangle_face_texture_flat_affine_near_clip(
             pixel_buffer,
             stride,

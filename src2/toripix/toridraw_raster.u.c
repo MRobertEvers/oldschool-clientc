@@ -62,6 +62,7 @@ struct ToriDrawModelRasterContext
     int camera_fov;
     struct ToriDraw_TextureMap* texture_map;
     int flags;
+    bool allow_near_clip;
 };
 
 static inline void
@@ -193,7 +194,8 @@ toridraw_raster_model_face(
                     ctx->offset_y,
                     ctx->stride,
                     ctx->screen_width,
-                    ctx->screen_height);
+                    ctx->screen_height,
+                    ctx->allow_near_clip);
             }
             else
             {
@@ -218,7 +220,8 @@ toridraw_raster_model_face(
                     ctx->offset_y,
                     ctx->stride,
                     ctx->screen_width,
-                    ctx->screen_height);
+                    ctx->screen_height,
+                    ctx->allow_near_clip);
             }
 
             break;
@@ -244,7 +247,8 @@ toridraw_raster_model_face(
                 ctx->offset_y,
                 ctx->stride,
                 ctx->screen_width,
-                ctx->screen_height);
+                ctx->screen_height,
+                ctx->allow_near_clip);
 
             break;
         case FACE_TYPE_TEXTURED:
@@ -313,7 +317,8 @@ toridraw_raster_model_face(
                     texture_opaque,
                     ctx->near_plane_z,
                     ctx->offset_x,
-                    ctx->offset_y);
+                    ctx->offset_y,
+                    ctx->allow_near_clip);
             }
             else if( texture_opaque )
             {
@@ -343,7 +348,8 @@ toridraw_raster_model_face(
                     texture_size,
                     ctx->near_plane_z,
                     ctx->offset_x,
-                    ctx->offset_y);
+                    ctx->offset_y,
+                    ctx->allow_near_clip);
             }
             else
             {
@@ -373,7 +379,8 @@ toridraw_raster_model_face(
                     texture_size,
                     ctx->near_plane_z,
                     ctx->offset_x,
-                    ctx->offset_y);
+                    ctx->offset_y,
+                    ctx->allow_near_clip);
             }
 
             break;
@@ -437,7 +444,8 @@ toridraw_raster_model_face(
                     texture_opaque,
                     ctx->near_plane_z,
                     ctx->offset_x,
-                    ctx->offset_y);
+                    ctx->offset_y,
+                    ctx->allow_near_clip);
             }
             else if( texture_opaque )
             {
@@ -465,7 +473,8 @@ toridraw_raster_model_face(
                     texture_size,
                     ctx->near_plane_z,
                     ctx->offset_x,
-                    ctx->offset_y);
+                    ctx->offset_y,
+                    ctx->allow_near_clip);
             }
             else
             {
@@ -493,7 +502,8 @@ toridraw_raster_model_face(
                     texture_size,
                     ctx->near_plane_z,
                     ctx->offset_x,
-                    ctx->offset_y);
+                    ctx->offset_y,
+                    ctx->allow_near_clip);
             }
 
             break;
@@ -552,6 +562,7 @@ context_from_handle(
             ctx->flags |= RASTER_FLAG_GOURAUD_SMOOTH;
         if( false )
             ctx->flags |= RASTER_FLAG_TEXTURE_AFFINE;
+        ctx->allow_near_clip = toridraw_model_has_textures(hnd);
     }
     }
 }

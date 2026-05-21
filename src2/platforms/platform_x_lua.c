@@ -91,9 +91,10 @@ LibToriPlatformX_LuaRun(
 
     lua->L_coro = lua_newthread(lua->L);
 
+    int rc;
     if( script->is_inline )
     {
-        int rc = luaL_loadstring(lua->L_coro, script->name);
+        rc = luaL_loadstring(lua->L_coro, script->name);
         if( rc != LUA_OK )
         {
             printf("Lua error: %s\n", lua_tostring(lua->L_coro, -1));
@@ -102,7 +103,7 @@ LibToriPlatformX_LuaRun(
     }
     else
     {
-        int rc = luaL_loadfile(lua->L_coro, GetScriptPath(script->name));
+        rc = luaL_loadfile(lua->L_coro, GetScriptPath(script->name));
         if( rc != LUA_OK )
         {
             printf("Lua error: %s\n", lua_tostring(lua->L_coro, -1));
@@ -110,8 +111,13 @@ LibToriPlatformX_LuaRun(
         }
     }
 
+    for( int i = 0; i < script->args.count; i++ )
+    {
+        lua_pushlightuserdata(lua->L_coro, &script->args.values[i]);
+    }
+
     int nres = 0;
-    int rc = lua_resume(lua->L_coro, lua->L, 0, &nres);
+    rc = lua_resume(lua->L_coro, lua->L, script->args.count, &nres);
     switch( rc )
     {
     case LUA_OK:

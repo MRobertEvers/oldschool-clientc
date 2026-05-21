@@ -40,6 +40,7 @@ LibToriRS_ScriptQueueEmplace(
     strncpy(script->name, name, LIBTORIRS_SCRIPT_NAME_MAX_SIZE);
     queue->tail = (queue->tail + 1) % LIBTORIRS_SCRIPT_QUEUE_MAX_SIZE;
     queue->count++;
+    script->args.count = 0;
     return script;
 }
 
@@ -64,6 +65,16 @@ LibToriRS_ScriptQueueIsEmpty(struct LibToriRS_ScriptQueue* queue)
     return queue->count == 0;
 }
 
+void
+LibToriRS_ScriptQueueClear(struct LibToriRS_ScriptQueue* queue)
+{
+    if( !queue )
+        return;
+    queue->count = 0;
+    queue->head = 0;
+    queue->tail = 0;
+}
+
 struct LibToriRS_ScriptArgs*
 LibToriRS_ScriptGetArgs(struct LibToriRS_Script* script)
 {
@@ -79,4 +90,21 @@ LibToriRS_ScriptArgsReset(struct LibToriRS_ScriptArgs* args)
         return;
     memset(args, 0, sizeof(struct LibToriRS_ScriptArgs));
     args->count = 0;
+}
+
+void
+LibToriRS_ScriptPushArg_Int(
+    struct LibToriRS_Script* script,
+    int value)
+{
+    if( !script )
+        return;
+    if( script->args.count >= LIBTORIRS_SCRIPT_MAX_ARGS )
+        return;
+    struct LibToriRS_ScriptValue* script_value = &script->args.values[script->args.count];
+
+    script_value->kind = LIBTORIRS_SCRIPT_VALUE_INT;
+    script_value->u.intval.value = value;
+
+    script->args.count++;
 }

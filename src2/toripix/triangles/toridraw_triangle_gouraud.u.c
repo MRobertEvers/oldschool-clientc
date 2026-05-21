@@ -686,7 +686,8 @@ toridraw_triangle_face_gouraud(
     int offset_y,
     int stride,
     int screen_width,
-    int screen_height)
+    int screen_height,
+    bool allow_near_clip)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -696,7 +697,7 @@ toridraw_triangle_face_gouraud(
     // TODO: Perhaps use a separate buffer to track this.
     if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
     {
-        if( !orthographic_vertices_x )
+        if( !allow_near_clip || !orthographic_vertices_x )
             return;
         toridraw_triangle_face_gouraud_near_clip(
             pixel_buffer,
@@ -1044,7 +1045,8 @@ toridraw_triangle_face_gouraud_s1(
     int offset_y,
     int stride,
     int screen_width,
-    int screen_height)
+    int screen_height,
+    bool allow_near_clip)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -1054,7 +1056,7 @@ toridraw_triangle_face_gouraud_s1(
     // TODO: Perhaps use a separate buffer to track this.
     if( x1 == -5000 || x2 == -5000 || x3 == -5000 )
     {
-        if( !orthographic_vertices_x )
+        if( !allow_near_clip || !orthographic_vertices_x )
             return;
         toridraw_triangle_face_gouraud_near_clip_s1(
             pixel_buffer,
@@ -1143,7 +1145,8 @@ toridraw_triangle_face_gouraud_smooth(
     int offset_y,
     int stride,
     int screen_width,
-    int screen_height)
+    int screen_height,
+    bool allow_near_clip)
 {
     toridraw_triangle_face_gouraud_s1(
         pixel_buffer,
@@ -1166,7 +1169,8 @@ toridraw_triangle_face_gouraud_smooth(
         offset_y,
         stride,
         screen_width,
-        screen_height);
+        screen_height,
+        allow_near_clip);
 }
 
 #endif

@@ -2,10 +2,14 @@
 #define MODEL_VIEWER_H
 
 #include "../input/libtorirs_input.h"
+#include "../scripting/libtorirs_scripting.h"
 #include "toripix/toridraw_types.h"
-
 struct GameModelViewer
 {
+    struct LibToriRS_ScriptQueue* script_queue;
+
+    int current_model_id;
+
     struct ToriDraw_ModelHandle model;
     struct ToriDraw_Position* camera_position;
     struct ToriDraw_Camera* camera;
@@ -13,7 +17,7 @@ struct GameModelViewer
 };
 
 struct GameModelViewer*
-game_modelviewer_new(void);
+game_modelviewer_new(struct LibToriRS_ScriptQueue* script_queue);
 
 void
 game_modelviewer_free(struct GameModelViewer* game_model_viewer);
@@ -21,6 +25,7 @@ game_modelviewer_free(struct GameModelViewer* game_model_viewer);
 void
 game_modelviewer_set_model(
     struct GameModelViewer* game_model_viewer,
+    int model_id,
     struct ToriDraw_ModelHandle model);
 
 void
@@ -77,4 +82,10 @@ void
 game_modelviewer_rotate_right(
     struct GameModelViewer* game_model_viewer,
     int amount);
+
+void
+game_modelviewer_next(
+    struct GameModelViewer* game_model_viewer,
+    int step);
+
 #endif

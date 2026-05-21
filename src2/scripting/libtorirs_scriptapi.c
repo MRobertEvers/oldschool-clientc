@@ -176,7 +176,7 @@ LibToriRS_ScriptAPI_Game_ModelViewer_Init(struct LibToriRS_Instance* instance)
     if( !instance )
         return;
 
-    instance->model_viewer = game_modelviewer_new();
+    instance->model_viewer = game_modelviewer_new(instance->script_queue);
     if( !instance->model_viewer )
         return;
 }
@@ -196,5 +196,5 @@ LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel(
 
     toridraw_light_model_default(hnd, 0, 0);
 
-    game_modelviewer_set_model(instance->model_viewer, hnd);
+    game_modelviewer_set_model(instance->model_viewer, model_id, hnd);
 }
