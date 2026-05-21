@@ -88,6 +88,10 @@ export class LibToriPlatformEmscriptenJSAPI {
       mod,
       "LibToriPlatformEmscripten_JSHost_CacheDatArchiveNewFromBuffer",
     );
+    this._cacheDatArchiveDeserialize = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_CacheDatArchiveDeserialize",
+    );
 
     this._scriptAPIGameModelViewerInit = wasmExportFn(
       mod,
@@ -160,16 +164,16 @@ export class LibToriPlatformEmscriptenJSAPI {
     return this._scriptQueueIsEmpty(this.instancePtr) !== 0;
   }
 
-  scriptAPIDat1ConfigFileFetch() {
-    this._scriptAPIDat1ConfigFileFetch(this.instancePtr);
+  scriptAPIDat1ConfigFileFetch(ioQueue) {
+    this._scriptAPIDat1ConfigFileFetch(this.instancePtr, ioQueue);
   }
 
-  scriptAPIDat1ConfigFileLoad() {
-    this._scriptAPIDat1ConfigFileLoad(this.instancePtr);
+  scriptAPIDat1ConfigFileLoad(ioQueue) {
+    this._scriptAPIDat1ConfigFileLoad(this.instancePtr, ioQueue);
   }
 
   scriptAPIDat1ModelFetch(ioqueue, modelId) {
-    this._scriptAPIDat1ModelFetch(this.instancePtr, ioqueue, modelId);
+    this._scriptAPIDat1ModelFetch(this.instancePtr, modelId, ioqueue);
   }
 
   scriptAPIDat1ModelLoad(ioqueue) {
@@ -211,5 +215,9 @@ export class LibToriPlatformEmscriptenJSAPI {
       dataPtr,
       dataSize,
     );
+  }
+
+  cacheDatArchiveDeserialize(dataPtr, dataSize) {
+    return this._cacheDatArchiveDeserialize(dataPtr, dataSize);
   }
 }

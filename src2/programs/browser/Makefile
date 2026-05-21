@@ -73,9 +73,9 @@ PUBLIC_JS := $(wildcard public/*.js)
 PLAT_JS := $(wildcard $(PLAT_DIR)/*.js)
 REVS_SCRIPTS := $(SRC2)/revs/scripts
 
-# Override for debug: make EFLAGS='-O0 -g'
-EFLAGS ?= -O2
-EMFLAGS := $(EFLAGS) -Wall -Wextra -sENVIRONMENT=web -sUSE_SDL=2 \
+# Release build: make EFLAGS='-O2'
+EFLAGS ?= -O0 -g
+EMFLAGS := $(EFLAGS) -gsource-map -Wall -Wextra -sENVIRONMENT=web -sUSE_SDL=2 \
 	-I$(SRC2) -I$(SCRIPT_DIR) -I$(PLAT_DIR) -I$(SRC_DIR) -I$(REPO_ROOT) \
 	-sEXPORTED_RUNTIME_METHODS=['HEAPU8'] \
 	-sFORCE_FILESYSTEM=1 \

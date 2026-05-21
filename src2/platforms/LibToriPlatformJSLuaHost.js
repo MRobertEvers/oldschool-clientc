@@ -23,65 +23,43 @@ export class LibToriPlatformJSLuaHost {
 
   gameDat1ConfigFileFetch(L) {
     const ioQueue = lua.lua_touserdata(L, 1);
-    this.emscriptenJSAPI.scriptAPIDat1ConfigFileFetch(
-      this.instancePtr,
-      ioQueue,
-    );
+    this.emscriptenJSAPI.scriptAPIDat1ConfigFileFetch(ioQueue);
     return 0;
   }
 
   gameDat1ConfigFileLoad(L) {
     const ioQueue = lua.lua_touserdata(L, 1);
-    this.emscriptenJSAPI.scriptAPIDat1ConfigFileLoad(this.instancePtr, ioQueue);
+    this.emscriptenJSAPI.scriptAPIDat1ConfigFileLoad(ioQueue);
     return 0;
   }
 
   gameDat1ModelLoad(L) {
     const ioQueue = lua.lua_touserdata(L, 1);
-    this.emscriptenJSAPI.scriptAPIDat1ModelLoad(this.instancePtr, ioQueue);
+    this.emscriptenJSAPI.scriptAPIDat1ModelLoad(ioQueue);
     return 0;
   }
 
   gameDat1ModelFetch(L) {
     const ioQueue = lua.lua_touserdata(L, 1);
-    const modelId = lua.lua_tostring(L, 2);
-    this.emscriptenJSAPI.scriptAPIDat1ModelFetch(
-      this.instancePtr,
-      modelId,
-      ioQueue,
-    );
+    const modelId = lua.lua_tointeger(L, 2);
+    this.emscriptenJSAPI.scriptAPIDat1ModelFetch(ioQueue, modelId);
     return 0;
   }
 
   gameDat1SubmitGameCacheModel(L) {
-    const modelId = lua.lua_tostring(L, 1);
-    this.emscriptenJSAPI.scriptAPIDat1SubmitGameCacheModel(
-      this.instancePtr,
-      modelId,
-    );
+    const modelId = lua.lua_tointeger(L, 1);
+    this.emscriptenJSAPI.scriptAPIDat1SubmitGameCacheModel(modelId);
     return 0;
   }
 
   gameModelViewerInit(L) {
-    this.emscriptenJSAPI.scriptAPIGameModelViewerInit(this.instancePtr);
+    this.emscriptenJSAPI.scriptAPIGameModelViewerInit();
     return 0;
   }
 
   gameModelViewerRenderModel(L) {
-    const modelId = lua.lua_tostring(L, 1);
-    this.emscriptenJSAPI.scriptAPIGameModelViewerRenderModel(
-      this.instancePtr,
-      modelId,
-    );
-    return 0;
-  }
-
-  gameModelViewerRenderModel(L) {
-    const modelId = lua.lua_tostring(L, 1);
-    this.emscriptenJSAPI.scriptAPIGameModelViewerRenderModel(
-      this.instancePtr,
-      modelId,
-    );
+    const modelId = lua.lua_tointeger(L, 1);
+    this.emscriptenJSAPI.scriptAPIGameModelViewerRenderModel(modelId);
     return 0;
   }
 }

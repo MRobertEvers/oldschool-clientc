@@ -207,15 +207,13 @@ class LibToriPlatformJS {
         const heap = this.wasmModule.HEAPU8;
         heap.set(bytes, dataPtr);
 
-        const archivePtr = this.host.cacheDatArchiveNewFromBuffer(
-          tableId,
-          archiveId,
+        const archivePtr = this.host.cacheDatArchiveDeserialize(
           dataPtr,
           bytes.length,
         );
 
         if (!archivePtr) {
-          throw new Error("Failed to create CacheDatArchive from buffer");
+          throw new Error("Failed to deserialize CacheDatArchive from buffer");
         }
 
         this.host.ioQueueItemResolve(item, archivePtr);

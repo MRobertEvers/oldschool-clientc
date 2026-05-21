@@ -65,10 +65,8 @@ LibToriRS_IOQueuePopWrite(
     struct LibToriRS_IOQueue* queue,
     struct LibToriRS_IOQueueItem* in)
 {
-    if( !queue )
-        return false;
-    if( queue->count >= LIBTORIRS_IOQUEUE_MAX_SIZE )
-        return false;
+    assert(queue);
+    assert(queue->count < LIBTORIRS_IOQUEUE_MAX_SIZE);
     memcpy(&queue->items[queue->count], in, sizeof(struct LibToriRS_IOQueueItem));
     queue->count++;
     return true;
@@ -79,10 +77,9 @@ LibToriRS_IOQueuePopRead(
     struct LibToriRS_IOQueue* queue,
     struct LibToriRS_IOQueueItem* out)
 {
-    if( !queue )
-        return false;
-    if( queue->count == 0 || queue->read_head >= queue->count )
-        return false;
+    assert(queue);
+    assert(queue->count > 0);
+    assert(queue->read_head < queue->count);
     memcpy(out, &queue->items[queue->read_head], sizeof(struct LibToriRS_IOQueueItem));
     queue->read_head++;
     return true;
@@ -91,10 +88,9 @@ LibToriRS_IOQueuePopRead(
 struct LibToriRS_IORequest*
 LibToriRS_IOQueuePopReadPtr(struct LibToriRS_IOQueue* queue)
 {
-    if( !queue )
-        return NULL;
-    if( queue->count == 0 || queue->read_head >= queue->count )
-        return NULL;
+    assert(queue);
+    assert(queue->count > 0);
+    assert(queue->read_head < queue->count);
     struct LibToriRS_IORequest* request = &queue->items[queue->read_head];
     queue->read_head++;
     return request;

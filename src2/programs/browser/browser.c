@@ -56,7 +56,6 @@ browser_main_loop(void)
             g_state = BROWSER_MAIN_LOOP_STATE_WAITING_FOR_LUA;
             LibToriPlatformJS_CAPI_EmscriptenHost_LuaMainLoop();
         }
-
         LibToriPlatformSDL2_Render(g_platform, g_instance, 0);
         break;
     }
