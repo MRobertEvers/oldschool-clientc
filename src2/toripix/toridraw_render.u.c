@@ -301,7 +301,7 @@ parition_faces_by_priority(
         for( int i = 0; i < face_count; i++ )
         {
             faceint_t face_idx = faces[i];
-            int prio = model_get_face_priority(face_priorities, (int)face_idx);
+            int prio = faceprio_unpack(face_priorities, face_idx);
             int priority_face_count = face_priority_bucket_counts[prio]++;
             face_priority_buckets[prio * 2000 + priority_face_count] = face_idx;
         }
@@ -335,7 +335,7 @@ sort_face_draw_order(
         for( int i = 0; i < n; i++ )
         {
             faceint_t face_idx = faces[i];
-            int prio = model_get_face_priority(face_priorities, (int)face_idx);
+            int prio = faceprio_unpack(face_priorities, face_idx);
 
             int face_count = counts[prio];
 

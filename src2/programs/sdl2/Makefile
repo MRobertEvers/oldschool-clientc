@@ -29,12 +29,16 @@ SRCS := sdl2.c \
 	$(SRC2)/commands/libtorirs_command_queue.c \
 	$(SRC2)/input/libtorirs_input.c \
 	$(SRC2)/ioqueue/libtorirs_ioqueue.c \
+	$(SRC2)/render/libtorirs_render.c \
 	$(SCRIPT_DIR)/libtorirs_scriptapi.c \
 	$(SRC2)/buildcache/dat1_buildcache.c \
 	$(SRC2)/gamecache/gamecache.c \
 	$(SRC2)/toripix/toridraw.c \
 	$(SRC2)/toripix/toridraw_math.c \
 	$(SRC2)/toripix/toridraw_hsl16.c \
+	$(SRC2)/toripix/toridraw_lighting.c \
+	$(SRC2)/toripix/toridraw_model.c \
+	$(SRC2)/toripix/toridraw_light_model.c \
 	$(SRC2)/games/model_viewer.c \
 	$(SRC_DIR)/graphics/dash.c \
 	$(SRC_DIR)/graphics/dashmap.c \

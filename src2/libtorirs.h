@@ -1,6 +1,9 @@
 #ifndef LIBTORIRS_H
 #define LIBTORIRS_H
 
+#include "input/libtorirs_input.h"
+#include "render/libtorirs_render.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -19,14 +22,17 @@ LibToriRS_InitTime(
     struct LibToriRS_Instance* instance,
     uint64_t time);
 
+void
+LibToriRS_InitGame_ModelViewer(struct LibToriRS_Instance* instance);
+
 struct LibToriRS_ScriptQueue*
 LibToriRS_GetScriptQueue(struct LibToriRS_Instance* instance);
 
 struct LibToriRS_IOQueue*
 LibToriRS_GetIOQueue(struct LibToriRS_Instance* instance);
 
-struct DashModel*
-LibToriRS_GetDashModel(struct LibToriRS_Instance* instance);
+struct LibToriRS_RenderQueue*
+LibToriRS_GetRenderQueue(struct LibToriRS_Instance* instance);
 
 void
 LibToriRS_ProcessCommandQueue(
@@ -36,6 +42,15 @@ LibToriRS_ProcessCommandQueue(
 
 void
 LibToriRS_ProcessInput(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_TickInput(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_CommandQueue* command_queue,
+    uint64_t time_ms);
+
+void
+LibToriRS_GameStep(struct LibToriRS_Instance* instance);
 
 bool
 LibToriRS_IsRunning(struct LibToriRS_Instance* instance);

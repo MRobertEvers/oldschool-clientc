@@ -3,8 +3,21 @@
 
 #include "toridraw_types.h"
 
+#include <assert.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
+
+struct ToriDraw_Normals*
+toridraw_normals_new(
+    int vertex_count,
+    int face_count);
+
+void
+toridraw_normals_free(struct ToriDraw_Normals* normals);
+
+void
+toridraw_model_alloc_normals(struct ToriDraw_Model* model);
 
 static inline struct ToriDraw_Model*
 toridraw_model_as_full(struct ToriDraw_ModelHandle hnd)

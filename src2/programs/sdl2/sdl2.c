@@ -72,13 +72,8 @@ main(
     {
         time = SDL_GetTicks64();
 
-        LibToriRS_CommandQueue_Clear(command_queue);
-
         LibToriPlatformSDL2_PollEvents(platform, command_queue);
-
-        LibToriRS_ProcessCommandQueue(instance, command_queue, time);
-
-        LibToriRS_ProcessInput(instance);
+        LibToriRS_TickInput(instance, command_queue, time);
 
         if( !LibToriRS_IsRunning(instance) )
             break;
@@ -96,6 +91,8 @@ main(
                 goto error_exit;
             }
         }
+
+        LibToriRS_GameStep(instance);
 
         LibToriPlatformSDL2_Render(platform, instance, 0);
 

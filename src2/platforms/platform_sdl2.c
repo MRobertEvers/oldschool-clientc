@@ -195,27 +195,24 @@ LibToriPlatformSDL2_Render(
     size_t const pixel_count = (size_t)platform->width * (size_t)platform->height;
     memset(platform->pixel_buffer, 0, pixel_count * sizeof(int));
 
-    if( instance && platform->context )
-    {
-        struct DashModel* model = LibToriRS_GetDashModel(instance);
-        if( model )
-        {
-            struct ToriDraw_ModelHandle hnd = toridraw_handle_from_dash_model(model);
-            struct ToriDraw_Position position = { 0 };
-            position.x = 0;
-            position.y = 0;
-            position.z = 300;
-            position.pitch = 0;
-            position.yaw = 0;
-            position.roll = 0;
+    struct LibToriRS_RenderQueue* render_queue = LibToriRS_GetRenderQueue(instance);
 
+    for( int i = 0; i < render_queue->count; i++ )
+    {
+        struct LibToriRS_RenderCommand* command = &render_queue->commands[i];
+        switch( command->kind )
+        {
+        case TORIRS_RENDER_COMMAND_MODEL:
             toridraw_render_model(
-                hnd,
+                command->u.model.model,
                 platform->context,
-                &position,
-                &platform->viewport,
-                &platform->camera,
+                &command->u.model.position,
+                command->u.model.view_port_ref,
+                command->u.model.camera_ref,
                 platform->pixel_buffer);
+            break;
+        default:
+            break;
         }
     }
 

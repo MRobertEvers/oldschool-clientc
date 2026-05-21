@@ -1,7 +1,8 @@
 #ifndef GAMECACHE_H
 #define GAMECACHE_H
 
-#include "graphics/dash.h"
+#include "graphics/dashmap.h"
+#include "toripix/toridraw_types.h"
 
 #include <stdint.h>
 
@@ -17,13 +18,13 @@ void
 gamecache_free(struct GameCache* gamecache);
 
 void
-gamecache_dashmodel_add(
+gamecache_model_add(
     struct GameCache* gamecache,
     int model_id,
-    struct DashModel* dash_model);
+    struct ToriDraw_ModelHandle model);
 
-struct DashModel*
-gamecache_dashmodel_get(
+struct ToriDraw_ModelHandle
+gamecache_model_get(
     struct GameCache* gamecache,
     int model_id);
 

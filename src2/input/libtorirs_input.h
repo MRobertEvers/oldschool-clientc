@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
 enum LibToriRS_KeyCode
 {
@@ -107,6 +108,8 @@ struct LibToriRS_Input
     int mouse_dx;
     int mouse_dy;
 
+    int key_held[TORIRSK_COUNT];
+
     // --- ADDED: High-Level UI Tracking Data ---
     // Indexed by LibToriRS_MouseButton (usually you only care about TORIRSM_LEFT for UI)
 
@@ -195,6 +198,14 @@ LibToriRS_Input_IsKeyUp(
     enum LibToriRS_KeyCode key)
 {
     return input->curr.key_up[key];
+}
+
+static inline bool
+LibToriRS_Input_IsKeyHeld(
+    struct LibToriRS_Input* input,
+    enum LibToriRS_KeyCode key)
+{
+    return input->key_held[key] != 0;
 }
 
 static inline bool

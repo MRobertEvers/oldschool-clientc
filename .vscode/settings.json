@@ -98,6 +98,9 @@
     "toridraw_model.h": "c",
     "pix3d_deob_compat.h": "c",
     "shade.h": "c",
-    "clamp.h": "c"
+    "clamp.h": "c",
+    "__node_handle": "c",
+    "dashmap.h": "c",
+    "toridraw_light_model.h": "c"
   }
 }

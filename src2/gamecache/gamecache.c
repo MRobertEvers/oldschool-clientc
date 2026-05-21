@@ -1,6 +1,7 @@
 #include "gamecache.h"
 
 #include "graphics/dash.h"
+#include "toripix/toridraw_types.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -8,7 +9,7 @@
 struct MapEntry_DashModel
 {
     int id;
-    struct DashModel* dash_model;
+    struct ToriDraw_ModelHandle model;
 };
 
 struct GameCache*
@@ -45,8 +46,8 @@ gamecache_free(struct GameCache* gamecache)
         struct MapEntry_DashModel* entry = NULL;
         while( (entry = (struct MapEntry_DashModel*)dashmap_iter_next(iter)) )
         {
-            if( entry->dash_model )
-                dashmodel_free(entry->dash_model);
+            // if( entry->model.kind == TORIDRAWMK_MODEL )
+            //     toridraw_model_free(entry->model.u.model.model);
         }
         dashmap_iter_free(iter);
 
@@ -58,31 +59,31 @@ gamecache_free(struct GameCache* gamecache)
 }
 
 void
-gamecache_dashmodel_add(
+gamecache_model_add(
     struct GameCache* gamecache,
     int model_id,
-    struct DashModel* dash_model)
+    struct ToriDraw_ModelHandle model)
 {
     struct MapEntry_DashModel* entry = (struct MapEntry_DashModel*)dashmap_search(
         gamecache->models_hmap, &model_id, DASHMAP_INSERT);
     if( !entry )
         return;
 
-    if( entry->dash_model )
-        dashmodel_free(entry->dash_model);
-
     entry->id = model_id;
-    entry->dash_model = dash_model;
+    entry->model = model;
 }
 
-struct DashModel*
-gamecache_dashmodel_get(
+struct ToriDraw_ModelHandle
+gamecache_model_get(
     struct GameCache* gamecache,
     int model_id)
 {
     struct MapEntry_DashModel* entry =
         (struct MapEntry_DashModel*)dashmap_search(gamecache->models_hmap, &model_id, DASHMAP_FIND);
+
+    struct ToriDraw_ModelHandle model = { .kind = TORIDRAWMK_NONE };
     if( !entry )
-        return NULL;
-    return entry->dash_model;
+        return model;
+
+    return entry->model;
 }

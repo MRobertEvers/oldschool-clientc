@@ -12,5 +12,6 @@
 #define model_vertices_y toridraw_model_get_vertices_y
 #define model_vertices_z toridraw_model_get_vertices_z
 #define model_as_full toridraw_model_as_full
+#define faceprio_unpack toridraw_model_get_face_priority
 
 #endif

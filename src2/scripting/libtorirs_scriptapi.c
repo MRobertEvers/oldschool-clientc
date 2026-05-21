@@ -4,16 +4,14 @@
 #include "../libtorirs_internal.h"
 #include "buildcache/dat1_buildcache.h"
 #include "gamecache/gamecache.h"
-#include "src/osrs/dash_utils.h"
 #include "platforms/platform_x/cachelib_client.h"
+#include "src/osrs/dash_utils.h"
 #include "src/osrs/rscache/cache_dat.h"
 #include "src/osrs/rscache/filelist.h"
 #include "src/osrs/rscache/tables/model.h"
 #include "src/osrs/rscache/tables_dat/configs_dat.h"
-
-// clang-format off
-#include "src/osrs/_light_model_default.u.c"
-// clang-format on
+#include "toripix/toridraw_light_model.h"
+#include "toripix/toridraw_types.h"
 
 #include <stdio.h>
 
@@ -112,7 +110,11 @@ LibToriRS_ScriptAPI_Dat1_SubmitGameCacheModel(
     if( !dash )
         return;
 
-    gamecache_dashmodel_add(instance->gamecache, model_id, dash);
+    struct ToriDraw_ModelHandle hnd = {
+        .kind = TORIDRAWMK_MODEL,
+        .u.model.model = (struct ToriDraw_Model*)(void*)dash,
+    };
+    gamecache_model_add(instance->gamecache, model_id, hnd);
 }
 
 void
@@ -188,11 +190,11 @@ LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel(
     if( !instance )
         return;
 
-    struct DashModel* model = gamecache_dashmodel_get(instance->gamecache, model_id);
-    if( !model )
+    struct ToriDraw_ModelHandle hnd = gamecache_model_get(instance->gamecache, model_id);
+    if( hnd.kind != TORIDRAWMK_MODEL )
         return;
 
-    _light_model_default(model, 0, 0);
+    toridraw_light_model_default(hnd, 0, 0);
 
-    game_modelviewer_set_model(instance->model_viewer, model);
+    game_modelviewer_set_model(instance->model_viewer, hnd);
 }

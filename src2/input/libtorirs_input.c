@@ -120,6 +120,18 @@ LibToriRS_Input_End(struct LibToriRS_Input* input)
 
     for( int b = TORIRSM_LEFT; b < TORIRSM_COUNT; b++ )
         input->is_dragging[b] = (input->mouse_button_held[b] && input->drag_active[b]) ? 1 : 0;
+
+    for( int k = TORIRSK_UNKNOWN; k < TORIRSK_COUNT; k++ )
+    {
+        if( input->curr.key_down[k] || (input->key_held[k] && !input->curr.key_up[k]) )
+        {
+            input->key_held[k] = 1;
+        }
+        else
+        {
+            input->key_held[k] = 0;
+        }
+    }
 }
 
 void

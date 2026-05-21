@@ -1,12 +1,18 @@
 #include "libtorirs.h"
 
+#include "commands/libtorirs_command_queue.h"
 #include "commands/libtorirs_command_queue_internal.h"
 #include "input/libtorirs_input.h"
 #include "libtorirs_internal.h"
+#include "render/libtorirs_render.h"
 #include "scripting/libtorirs_scripting.h"
 
 #include <stdio.h>
 #include <stdlib.h>
+
+#define LIBTORIRS_INPUT_SAMPLE_HZ 50
+#define LIBTORIRS_INPUT_SAMPLE_MS (1000 / LIBTORIRS_INPUT_SAMPLE_HZ)
+#define LIBTORIRS_INPUT_MAX_TICKS_PER_FRAME 25
 
 struct LibToriRS_Instance*
 LibToriRS_InstanceNew(void)
@@ -59,6 +65,8 @@ LibToriRS_InstanceNew(void)
         return NULL;
     }
 
+    instance->render_queue = LibToriRS_RenderQueue_New();
+
     instance->running = true;
 
     return instance;
@@ -89,6 +97,8 @@ LibToriRS_InitTime(
     if( !instance )
         return;
     LibToriRS_Input_Init(instance->input, time);
+    instance->last_frame_ms = time;
+    instance->input_accumulator_ms = 0;
 }
 
 struct LibToriRS_ScriptQueue*
@@ -107,12 +117,12 @@ LibToriRS_GetIOQueue(struct LibToriRS_Instance* instance)
     return instance->io_queue;
 }
 
-struct DashModel*
-LibToriRS_GetDashModel(struct LibToriRS_Instance* instance)
+struct LibToriRS_RenderQueue*
+LibToriRS_GetRenderQueue(struct LibToriRS_Instance* instance)
 {
-    if( !instance || !instance->model_viewer )
+    if( !instance )
         return NULL;
-    return instance->model_viewer->model;
+    return instance->render_queue;
 }
 
 void
@@ -166,6 +176,36 @@ LibToriRS_ProcessCommandQueue(
 }
 
 void
+LibToriRS_TickInput(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_CommandQueue* command_queue,
+    uint64_t time_ms)
+{
+    if( !instance || !command_queue )
+        return;
+
+    instance->input_accumulator_ms += time_ms - instance->last_frame_ms;
+    instance->last_frame_ms = time_ms;
+
+    if( LibToriRS_CommandQueue_IsQuit(command_queue) )
+    {
+        LibToriRS_ProcessCommandQueue(instance, command_queue, time_ms);
+        LibToriRS_CommandQueue_Clear(command_queue);
+    }
+
+    int input_ticks = 0;
+    while( instance->input_accumulator_ms >= LIBTORIRS_INPUT_SAMPLE_MS &&
+           input_ticks < LIBTORIRS_INPUT_MAX_TICKS_PER_FRAME )
+    {
+        LibToriRS_ProcessCommandQueue(instance, command_queue, time_ms);
+        LibToriRS_ProcessInput(instance);
+        LibToriRS_CommandQueue_Clear(command_queue);
+        instance->input_accumulator_ms -= LIBTORIRS_INPUT_SAMPLE_MS;
+        input_ticks++;
+    }
+}
+
+void
 LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
 {
     if( !instance )
@@ -213,6 +253,78 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
     if( LibToriRS_Input_IsKeyDown(input, TORIRSK_ESCAPE) )
     {
         instance->running = false;
+    }
+
+    if( instance->model_viewer )
+    {
+        const int camera_movement_speed = 10;
+        const int camera_rotation_speed = 10;
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_A) )
+        {
+            game_modelviewer_move_right(instance->model_viewer, camera_movement_speed);
+        }
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_D) )
+        {
+            game_modelviewer_move_left(instance->model_viewer, camera_movement_speed);
+        }
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_W) )
+        {
+            game_modelviewer_move_forward(instance->model_viewer, camera_movement_speed);
+        }
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_S) )
+        {
+            game_modelviewer_move_backward(instance->model_viewer, camera_movement_speed);
+        }
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_R) )
+        {
+            game_modelviewer_move_up(instance->model_viewer, camera_movement_speed);
+        }
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_F) )
+        {
+            game_modelviewer_move_down(instance->model_viewer, camera_movement_speed);
+        }
+
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP) )
+        {
+            game_modelviewer_rotate_up(instance->model_viewer, camera_rotation_speed);
+        }
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN) )
+        {
+            game_modelviewer_rotate_down(instance->model_viewer, camera_rotation_speed);
+        }
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT) )
+        {
+            game_modelviewer_rotate_left(instance->model_viewer, camera_rotation_speed);
+        }
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT) )
+        {
+            game_modelviewer_rotate_right(instance->model_viewer, camera_rotation_speed);
+        }
+    }
+}
+
+void
+LibToriRS_GameStep(struct LibToriRS_Instance* instance)
+{
+    if( !instance )
+        return;
+
+    LibToriRS_RenderQueue_Clear(instance->render_queue);
+
+    if( instance->model_viewer )
+    {
+        struct ToriDraw_Position position = { 0 };
+        position.x = -instance->model_viewer->camera_position->x;
+        position.y = -instance->model_viewer->camera_position->y;
+        position.z = -instance->model_viewer->camera_position->z;
+
+        if( instance->model_viewer->model.kind == TORIDRAWMK_MODEL )
+            LibToriRS_RenderQueue_PushCommandModelDraw(
+                instance->render_queue,
+                instance->model_viewer->model,
+                &position,
+                instance->model_viewer->view_port,
+                instance->model_viewer->camera);
     }
 }
 

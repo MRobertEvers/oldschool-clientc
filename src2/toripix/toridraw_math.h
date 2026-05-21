@@ -37,4 +37,12 @@ toridraw_reciprocal16(int value_12bit)
     return g_reciprocal16[value_12bit];
 }
 
+static inline int
+toridraw_add_angle(
+    int angle1,
+    int angle2)
+{
+    return (angle1 + angle2 + 2048) % 2048;
+}
+
 #endif
