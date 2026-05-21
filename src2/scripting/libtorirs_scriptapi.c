@@ -3,8 +3,8 @@
 #include "../ioqueue/libtorirs_ioqueue.h"
 #include "../libtorirs_internal.h"
 #include "buildcache/dat1_buildcache.h"
-#include "buildcache/dat1_gamecache_loader.h"
 #include "gamecache/gamecache.h"
+#include "src/osrs/dash_utils.h"
 #include "platforms/platform_x/cachelib_client.h"
 #include "src/osrs/rscache/cache_dat.h"
 #include "src/osrs/rscache/filelist.h"
@@ -103,11 +103,16 @@ LibToriRS_ScriptAPI_Dat1_SubmitGameCacheModel(
     if( !model )
         return;
 
-    struct GameCacheModel* gcm = dat1_gamecache_loader_new_gamecache_model_from_cache_model(model);
-    if( !gcm )
+    struct CacheModel* copy = model_new_copy(model);
+    if( !copy )
         return;
 
-    gamecache_model_add(instance->gamecache, model_id, gcm);
+    struct DashModel* dash = dashmodel_new_from_cache_model(copy);
+    model_free(copy);
+    if( !dash )
+        return;
+
+    gamecache_dashmodel_add(instance->gamecache, model_id, dash);
 }
 
 void

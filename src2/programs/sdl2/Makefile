@@ -11,6 +11,8 @@ PROG    := sdl2
 
 CC      ?= cc
 CFLAGS  ?= -O0 -Wall -Wextra -g
+CFLAGS  += -fsanitize=address -fno-omit-frame-pointer
+LDFLAGS += -fsanitize=address
 CPPFLAGS += -I$(SRC_DIR) -I$(SRC2) -I$(SCRIPT_DIR) -I$(REPO_ROOT)
 
 # Vendored Lua — embed library, not lua/luac interpreters.
@@ -29,12 +31,12 @@ SRCS := sdl2.c \
 	$(SRC2)/ioqueue/libtorirs_ioqueue.c \
 	$(SCRIPT_DIR)/libtorirs_scriptapi.c \
 	$(SRC2)/buildcache/dat1_buildcache.c \
-	$(SRC2)/buildcache/dat1_gamecache_loader.c \
 	$(SRC2)/gamecache/gamecache.c \
-	$(SRC2)/gamecache/gamecache_model.c \
+	$(SRC2)/toripix/toridraw.c \
+	$(SRC2)/toripix/toridraw_math.c \
+	$(SRC2)/toripix/toridraw_hsl16.c \
 	$(SRC2)/games/model_viewer.c \
 	$(SRC_DIR)/graphics/dash.c \
-	$(SRC_DIR)/graphics/dash_bench.c \
 	$(SRC_DIR)/graphics/dashmap.c \
 	$(SRC_DIR)/graphics/dash_model.c \
 	$(SRC_DIR)/graphics/lighting.c \
@@ -97,7 +99,7 @@ $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
 $(PROG): $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $(OBJS) $(SDL_LIBS) -lm
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(SDL_LIBS) -lm
 
 define make-goal
 $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)

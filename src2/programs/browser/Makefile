@@ -23,12 +23,12 @@ SRC   := browser.c \
 	$(INPUT_DIR)/libtorirs_input.c \
 	$(IOQUEUE_DIR)/libtorirs_ioqueue.c \
 	$(SRC2)/buildcache/dat1_buildcache.c \
-	$(SRC2)/buildcache/dat1_gamecache_loader.c \
 	$(SRC2)/gamecache/gamecache.c \
-	$(SRC2)/gamecache/gamecache_model.c \
 	$(SRC2)/games/model_viewer.c \
+	$(SRC2)/toripix/toridraw.c \
+	$(SRC2)/toripix/toridraw_math.c \
+	$(SRC2)/toripix/toridraw_hsl16.c \
 	$(SRC_DIR)/graphics/dash.c \
-	$(SRC_DIR)/graphics/dash_bench.c \
 	$(SRC_DIR)/graphics/dashmap.c \
 	$(SRC_DIR)/graphics/dash_model.c \
 	$(SRC_DIR)/graphics/lighting.c \

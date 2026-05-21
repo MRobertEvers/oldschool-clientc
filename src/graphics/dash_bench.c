@@ -1,3 +1,3 @@
 #include "graphics/dash_bench.h"
 
-struct DashRasterBenchRuntime g_raster_bench;
+/* g_raster_bench is defined in dash.c so normal builds need not link this file. */

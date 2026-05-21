@@ -65,8 +65,12 @@ LibToriPlatformX_LuaHost_Platform_LoadIO(lua_State* L)
 int
 LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileFetch(lua_State* L)
 {
-    struct LibToriRS_Instance* instance =
-        (struct LibToriRS_Instance*)lua_touserdata(L, lua_upvalueindex(1));
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
     if( !instance )
         return 0;
 
@@ -80,8 +84,12 @@ LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileFetch(lua_State* L)
 int
 LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileLoad(lua_State* L)
 {
-    struct LibToriRS_Instance* instance =
-        (struct LibToriRS_Instance*)lua_touserdata(L, lua_upvalueindex(1));
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
     if( !instance )
         return 0;
 
@@ -95,8 +103,12 @@ LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileLoad(lua_State* L)
 int
 LibToriPlatformX_LuaHost_Game_Dat1_ModelFetch(lua_State* L)
 {
-    struct LibToriRS_Instance* instance =
-        (struct LibToriRS_Instance*)lua_touserdata(L, lua_upvalueindex(1));
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
     if( !instance )
         return 0;
 
@@ -111,8 +123,12 @@ LibToriPlatformX_LuaHost_Game_Dat1_ModelFetch(lua_State* L)
 int
 LibToriPlatformX_LuaHost_Game_Dat1_ModelLoad(lua_State* L)
 {
-    struct LibToriRS_Instance* instance =
-        (struct LibToriRS_Instance*)lua_touserdata(L, lua_upvalueindex(1));
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
     if( !instance )
         return 0;
 
@@ -125,8 +141,12 @@ LibToriPlatformX_LuaHost_Game_Dat1_ModelLoad(lua_State* L)
 int
 LibToriPlatformX_LuaHost_Game_Dat1_SubmitGameCacheModel(lua_State* L)
 {
-    struct LibToriRS_Instance* instance =
-        (struct LibToriRS_Instance*)lua_touserdata(L, lua_upvalueindex(1));
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
     if( !instance )
         return 0;
 
@@ -140,8 +160,12 @@ LibToriPlatformX_LuaHost_Game_Dat1_SubmitGameCacheModel(lua_State* L)
 int
 LibToriPlatformX_LuaHost_Game_ModelViewer_Init(lua_State* L)
 {
-    struct LibToriRS_Instance* instance =
-        (struct LibToriRS_Instance*)lua_touserdata(L, lua_upvalueindex(1));
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
     if( !instance )
         return 0;
 
@@ -153,8 +177,12 @@ LibToriPlatformX_LuaHost_Game_ModelViewer_Init(lua_State* L)
 int
 LibToriPlatformX_LuaHost_Game_ModelViewer_RenderModel(lua_State* L)
 {
-    struct LibToriRS_Instance* instance =
-        (struct LibToriRS_Instance*)lua_touserdata(L, lua_upvalueindex(1));
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
     if( !instance )
         return 0;
 
@@ -170,7 +198,7 @@ lua_bind_function_to_platform(
     lua_State* L,
     struct LibToriPlatformX_Lua* platform_x_lua,
     const char* name,
-    void (*fn)(lua_State* L))
+    int (*fn)(lua_State* L))
 {
     lua_pushlightuserdata(L, platform_x_lua);
     lua_pushcclosure(L, fn, 1);
@@ -185,6 +213,7 @@ LibToriPlatformX_LuaHost_BindToPlatform(
     lua_newtable(L);
     lua_bind_function_to_platform(
         L, lua, "GetIOQueue", LibToriPlatformX_LuaHost_Platform_GetIOQueue);
+    lua_bind_function_to_platform(L, lua, "LoadIO", LibToriPlatformX_LuaHost_Platform_LoadIO);
     lua_setglobal(L, "Platform");
 
     lua_newtable(L);

@@ -1,0 +1,16 @@
+#ifndef TORIDRAW_MODEL_INTERNAL_H
+#define TORIDRAW_MODEL_INTERNAL_H
+
+#include "toridraw_model.h"
+
+#define model_bounds_cylinder toridraw_model_get_bounds_cylinder
+#define model_has_textures toridraw_model_has_textures
+#define model_get_face_priority toridraw_model_get_face_priority
+#define model_vertex_count toridraw_model_get_vertex_count
+#define model_face_count toridraw_model_get_face_count
+#define model_vertices_x toridraw_model_get_vertices_x
+#define model_vertices_y toridraw_model_get_vertices_y
+#define model_vertices_z toridraw_model_get_vertices_z
+#define model_as_full toridraw_model_as_full
+
+#endif

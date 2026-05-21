@@ -222,6 +222,8 @@ class LibToriPlatformJS {
         throw error;
       }
     }
+
+    this.host.ioQueueClear();
   }
 }
 

@@ -19,6 +19,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+struct DashRasterBenchRuntime g_raster_bench;
+
 #define DASH_BUCKET_SORT_MODE_SPARSE_2D   0
 #define DASH_BUCKET_SORT_MODE_LINKED_LIST 1
 #define DASH_BUCKET_SORT_MODE_PREFIX_SUM  2

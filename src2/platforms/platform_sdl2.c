@@ -1,8 +1,7 @@
 #include "platform_sdl2.h"
 
-#include "gamecache/gamecache.h"
-#include "graphics/dash.h"
 #include "libtorirs.h"
+#include "toripix/toridraw.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,14 +15,25 @@ struct LibToriPlatformSDL2
     int* pixel_buffer;
     int width;
     int height;
-    struct DashGraphics* dash;
-    struct DashViewPort viewport;
-    struct DashCamera camera;
+    struct ToriDraw_Context* context;
+    struct ToriDraw_ViewPort viewport;
+    struct ToriDraw_Camera camera;
 };
+
+static struct ToriDraw_ModelHandle
+toridraw_handle_from_dash_model(struct DashModel* dash_model)
+{
+    struct ToriDraw_ModelHandle hnd = { .kind = TORIDRAWMK_NONE };
+    if( !dash_model )
+        return hnd;
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = (struct ToriDraw_Model*)(void*)dash_model;
+    return hnd;
+}
 
 static void
 init_viewport(
-    struct DashViewPort* viewport,
+    struct ToriDraw_ViewPort* viewport,
     int width,
     int height)
 {
@@ -39,9 +49,9 @@ init_viewport(
 }
 
 static void
-init_camera(struct DashCamera* camera)
+init_camera(struct ToriDraw_Camera* camera)
 {
-    memset(camera, 0, sizeof(struct DashCamera));
+    memset(camera, 0, sizeof(struct ToriDraw_Camera));
     camera->fov_rpi2048 = 512;
     camera->near_plane_z = 50;
     camera->pitch = 148;
@@ -64,10 +74,10 @@ LibToriPlatformSDL2_Free(struct LibToriPlatformSDL2* platform)
 {
     if( !platform )
         return;
-    if( platform->dash )
+    if( platform->context )
     {
-        dash_free(platform->dash);
-        platform->dash = NULL;
+        toridraw_context_free(platform->context);
+        platform->context = NULL;
     }
     if( platform->pixel_buffer )
     {
@@ -157,12 +167,12 @@ LibToriPlatformSDL2_InitForSoft3D(
         return false;
     }
 
-    dash_init();
+    toridraw_init();
 
-    platform->dash = dash_new();
-    if( !platform->dash )
+    platform->context = toridraw_context_new();
+    if( !platform->context )
     {
-        printf("dash_new failed\n");
+        printf("toridraw_context_new failed\n");
         LibToriPlatformSDL2_Free(platform);
         return false;
     }
@@ -185,12 +195,13 @@ LibToriPlatformSDL2_Render(
     size_t const pixel_count = (size_t)platform->width * (size_t)platform->height;
     memset(platform->pixel_buffer, 0, pixel_count * sizeof(int));
 
-    if( instance && platform->dash )
+    if( instance && platform->context )
     {
         struct DashModel* model = LibToriRS_GetDashModel(instance);
         if( model )
         {
-            struct DashPosition position = { 0 };
+            struct ToriDraw_ModelHandle hnd = toridraw_handle_from_dash_model(model);
+            struct ToriDraw_Position position = { 0 };
             position.x = 0;
             position.y = 0;
             position.z = 300;
@@ -198,9 +209,9 @@ LibToriPlatformSDL2_Render(
             position.yaw = 0;
             position.roll = 0;
 
-            dash3d_render_model(
-                platform->dash,
-                model,
+            toridraw_render_model(
+                hnd,
+                platform->context,
                 &position,
                 &platform->viewport,
                 &platform->camera,

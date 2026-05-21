@@ -93,6 +93,11 @@
     "cachelib_client.h": "c",
     "dash.h": "c",
     "gamecache.h": "c",
-    "platform_x_lua_internal.h": "c"
+    "platform_x_lua_internal.h": "c",
+    "toridraw_types.h": "c",
+    "toridraw_model.h": "c",
+    "pix3d_deob_compat.h": "c",
+    "shade.h": "c",
+    "clamp.h": "c"
   }
 }
