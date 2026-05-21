@@ -2,6 +2,8 @@
 #define LIBTORIRS_INTERNAL_H
 
 #include "buildcache/dat1_buildcache.h"
+#include "gamecache/gamecache.h"
+#include "games/model_viewer.h"
 #include "ioqueue/libtorirs_ioqueue.h"
 #include "scripting/libtorirs_scripting.h"
 
@@ -15,6 +17,9 @@ struct LibToriRS_Instance
     struct LibToriRS_Input* input;
 
     struct Dat1BuildCache* dat1_buildcache;
+    struct GameCache* gamecache;
+
+    struct GameModelViewer* model_viewer;
 };
 
 #endif

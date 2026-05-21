@@ -48,6 +48,17 @@ LibToriRS_InstanceNew(void)
         return NULL;
     }
 
+    instance->gamecache = gamecache_new();
+    if( !instance->gamecache )
+    {
+        dat1_buildcache_free(instance->dat1_buildcache);
+        LibToriRS_IOQueueFree(instance->io_queue);
+        LibToriRS_Input_Free(instance->input);
+        LibToriRS_ScriptQueueFree(instance->script_queue);
+        free(instance);
+        return NULL;
+    }
+
     instance->running = true;
 
     return instance;
@@ -64,6 +75,8 @@ LibToriRS_InstanceFree(struct LibToriRS_Instance* instance)
         LibToriRS_Input_Free(instance->input);
     if( instance->dat1_buildcache )
         dat1_buildcache_free(instance->dat1_buildcache);
+    if( instance->gamecache )
+        gamecache_free(instance->gamecache);
     free(instance);
     instance = NULL;
 }
@@ -92,6 +105,14 @@ LibToriRS_GetIOQueue(struct LibToriRS_Instance* instance)
     if( !instance )
         return NULL;
     return instance->io_queue;
+}
+
+struct DashModel*
+LibToriRS_GetDashModel(struct LibToriRS_Instance* instance)
+{
+    if( !instance || !instance->model_viewer )
+        return NULL;
+    return instance->model_viewer->model;
 }
 
 void

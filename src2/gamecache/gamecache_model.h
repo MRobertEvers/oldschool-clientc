@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+struct CacheModel;
+
 struct GameCacheModel
 {
     int vertex_count;
@@ -41,5 +43,11 @@ struct GameCacheModel
     int16_t* face_textures;
     int16_t* face_texture_coords;
 };
+
+void
+gamecache_model_free(struct GameCacheModel* gamecache_model);
+
+struct CacheModel*
+gamecache_model_transfer_to_cache_model(struct GameCacheModel* gamecache_model);
 
 #endif

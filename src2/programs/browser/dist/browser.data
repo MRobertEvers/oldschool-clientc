@@ -1,3 +1,7 @@
+print("Initializing Lua script")
+Game.ModelViewer_Init()
+
+
 local io_queue = Platform.GetIOQueue()
 print(io_queue)
 
@@ -7,3 +11,15 @@ Platform.LoadIO(io_queue)
 
 Game.Dat1_ConfigFileLoad(io_queue)
 print("Config file loaded")
+
+Game.Dat1_ModelFetch(io_queue, 0)
+
+Platform.LoadIO(io_queue)
+
+Game.Dat1_ModelLoad(io_queue)
+print("Model loaded")
+
+Game.Dat1_SubmitGameCacheModel(0)
+print("Game cache model submitted")
+
+Game.ModelViewer_RenderModel(0)

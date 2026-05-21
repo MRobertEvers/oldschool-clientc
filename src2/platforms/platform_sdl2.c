@@ -1,5 +1,9 @@
 #include "platform_sdl2.h"
 
+#include "gamecache/gamecache.h"
+#include "graphics/dash.h"
+#include "libtorirs.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,7 +12,42 @@ struct LibToriPlatformSDL2
 {
     SDL_Window* window;
     SDL_Renderer* renderer;
+    SDL_Texture* texture;
+    int* pixel_buffer;
+    int width;
+    int height;
+    struct DashGraphics* dash;
+    struct DashViewPort viewport;
+    struct DashCamera camera;
 };
+
+static void
+init_viewport(
+    struct DashViewPort* viewport,
+    int width,
+    int height)
+{
+    viewport->width = width;
+    viewport->height = height;
+    viewport->stride = width;
+    viewport->x_center = width / 2;
+    viewport->y_center = height / 2;
+    viewport->clip_left = 0;
+    viewport->clip_top = 0;
+    viewport->clip_right = width;
+    viewport->clip_bottom = height;
+}
+
+static void
+init_camera(struct DashCamera* camera)
+{
+    memset(camera, 0, sizeof(struct DashCamera));
+    camera->fov_rpi2048 = 512;
+    camera->near_plane_z = 50;
+    camera->pitch = 148;
+    camera->yaw = 0;
+    camera->roll = 0;
+}
 
 struct LibToriPlatformSDL2*
 LibToriPlatformSDL2_New(void)
@@ -25,6 +64,21 @@ LibToriPlatformSDL2_Free(struct LibToriPlatformSDL2* platform)
 {
     if( !platform )
         return;
+    if( platform->dash )
+    {
+        dash_free(platform->dash);
+        platform->dash = NULL;
+    }
+    if( platform->pixel_buffer )
+    {
+        free(platform->pixel_buffer);
+        platform->pixel_buffer = NULL;
+    }
+    if( platform->texture )
+    {
+        SDL_DestroyTexture(platform->texture);
+        platform->texture = NULL;
+    }
     if( platform->renderer )
     {
         SDL_DestroyRenderer(platform->renderer);
@@ -77,7 +131,152 @@ LibToriPlatformSDL2_InitForSoft3D(
         return false;
     }
 
+    platform->width = screen_width;
+    platform->height = screen_height;
+
+    size_t const pixel_count = (size_t)screen_width * (size_t)screen_height;
+    platform->pixel_buffer = (int*)malloc(pixel_count * sizeof(int));
+    if( !platform->pixel_buffer )
+    {
+        printf("Failed to allocate pixel buffer\n");
+        LibToriPlatformSDL2_Free(platform);
+        return false;
+    }
+    memset(platform->pixel_buffer, 0, pixel_count * sizeof(int));
+
+    platform->texture = SDL_CreateTexture(
+        platform->renderer,
+        SDL_PIXELFORMAT_ARGB8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        screen_width,
+        screen_height);
+    if( !platform->texture )
+    {
+        printf("SDL_CreateTexture failed: %s\n", SDL_GetError());
+        LibToriPlatformSDL2_Free(platform);
+        return false;
+    }
+
+    dash_init();
+
+    platform->dash = dash_new();
+    if( !platform->dash )
+    {
+        printf("dash_new failed\n");
+        LibToriPlatformSDL2_Free(platform);
+        return false;
+    }
+
+    init_viewport(&platform->viewport, screen_width, screen_height);
+    init_camera(&platform->camera);
+
     return true;
+}
+
+void
+LibToriPlatformSDL2_Render(
+    struct LibToriPlatformSDL2* platform,
+    struct LibToriRS_Instance* instance,
+    int model_id)
+{
+    if( !platform || !platform->pixel_buffer || !platform->texture || !platform->renderer )
+        return;
+
+    size_t const pixel_count = (size_t)platform->width * (size_t)platform->height;
+    memset(platform->pixel_buffer, 0, pixel_count * sizeof(int));
+
+    if( instance && platform->dash )
+    {
+        struct DashModel* model = LibToriRS_GetDashModel(instance);
+        if( model )
+        {
+            struct DashPosition position = { 0 };
+            position.x = 0;
+            position.y = 0;
+            position.z = 300;
+            position.pitch = 0;
+            position.yaw = 0;
+            position.roll = 0;
+
+            dash3d_render_model(
+                platform->dash,
+                model,
+                &position,
+                &platform->viewport,
+                &platform->camera,
+                platform->pixel_buffer);
+        }
+    }
+
+    SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
+        platform->pixel_buffer,
+        platform->width,
+        platform->height,
+        32,
+        platform->width * (int)sizeof(int),
+        0x00FF0000,
+        0x0000FF00,
+        0x000000FF,
+        0xFF000000);
+    if( !surface )
+        return;
+
+    int* pix_write = NULL;
+    int texture_pitch = 0;
+    if( SDL_LockTexture(platform->texture, NULL, (void**)&pix_write, &texture_pitch) < 0 )
+    {
+        SDL_FreeSurface(surface);
+        return;
+    }
+
+    int* src_pixels = (int*)surface->pixels;
+    int texture_w = texture_pitch / (int)sizeof(int);
+
+    memset(pix_write, 0, (size_t)texture_pitch * (size_t)platform->height);
+
+    for( int src_y = 0; src_y < platform->height; src_y++ )
+    {
+        int* row = &pix_write[src_y * texture_w];
+        memcpy(row, &src_pixels[src_y * platform->width], (size_t)platform->width * sizeof(int));
+    }
+
+    SDL_UnlockTexture(platform->texture);
+    SDL_FreeSurface(surface);
+
+    int window_width = 0;
+    int window_height = 0;
+    SDL_GetWindowSize(platform->window, &window_width, &window_height);
+
+    SDL_Rect dst_rect;
+    dst_rect.x = 0;
+    dst_rect.y = 0;
+    dst_rect.w = platform->width;
+    dst_rect.h = platform->height;
+
+    if( window_width > 0 && window_height > 0 )
+    {
+        float src_aspect = (float)platform->width / (float)platform->height;
+        float window_aspect = (float)window_width / (float)window_height;
+
+        if( src_aspect > window_aspect )
+        {
+            dst_rect.w = window_width;
+            dst_rect.h = (int)(window_width / src_aspect);
+            dst_rect.x = 0;
+            dst_rect.y = (window_height - dst_rect.h) / 2;
+        }
+        else
+        {
+            dst_rect.h = window_height;
+            dst_rect.w = (int)(window_height * src_aspect);
+            dst_rect.y = 0;
+            dst_rect.x = (window_width - dst_rect.w) / 2;
+        }
+    }
+
+    SDL_RenderClear(platform->renderer);
+    SDL_RenderCopy(platform->renderer, platform->texture, NULL, &dst_rect);
+    SDL_RenderPresent(platform->renderer);
 }
 
 void

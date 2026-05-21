@@ -10,15 +10,20 @@ export function fromWASMStringToJSString(wasm, strPtr, strLen) {
 }
 
 export function wasmExportFn(mod, baseName) {
+  let fn = null;
   const underscored = mod["_" + baseName];
   if (typeof underscored === "function") {
-    return underscored;
+    fn = underscored;
   }
   const plain = mod[baseName];
   if (typeof plain === "function") {
-    return plain;
+    fn = plain;
   }
-  throw new Error("Missing WASM export: " + baseName);
+  if (!fn) {
+    throw new Error("Missing WASM export: " + baseName);
+  }
+
+  return fn;
 }
 
 export function fromLuaStringToJSString(str) {

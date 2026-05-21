@@ -90,6 +90,9 @@
     "configs_dat.h": "c",
     "cachelib_platform.h": "c",
     "lualib.h": "c",
-    "cachelib_client.h": "c"
+    "cachelib_client.h": "c",
+    "dash.h": "c",
+    "gamecache.h": "c",
+    "platform_x_lua_internal.h": "c"
   }
 }

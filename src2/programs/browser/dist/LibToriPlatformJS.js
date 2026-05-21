@@ -1,6 +1,9 @@
 import { fromLuaStringToJSString } from "./libplatformjs_utils.js";
 import { LibToriPlatformEmscriptenJSAPI } from "./LibToriPlatformEmscriptenJSAPI.js";
-import { LibToriPlatformJSLuaHost } from "./LibToriPlatformJSLuaHost.js";
+import {
+  LibToriPlatformJSLuaHost,
+  luaBindToPlatformJSLuaHost,
+} from "./LibToriPlatformJSLuaHost.js";
 
 const { lua, lauxlib, lualib, to_luastring } = window.fengari;
 
@@ -9,39 +12,6 @@ const LIBTORI_PLATFORM_EMSCRIPTEN_LUA_ERROR = -1;
 const LIBTORI_PLATFORM_EMSCRIPTEN_LUA_YIELDED = 1;
 
 const LUA_SCRIPTS_PREFIX = "/revs/scripts/";
-
-/**
- *
- * @param {*} L
- * @param {LibToriPlatformJSLuaHost} platformLuaHost
- */
-function bindLuaGlobals(L, platformLuaHost) {
-  lua.lua_newtable(L);
-  lua.lua_pushcfunction(
-    L,
-    platformLuaHost.platformGetIOQueue.bind(platformLuaHost),
-  );
-  lua.lua_setfield(L, -2, to_luastring("GetIOQueue"));
-  lua.lua_pushcfunction(
-    L,
-    platformLuaHost.platformLoadIO.bind(platformLuaHost),
-  );
-  lua.lua_setfield(L, -2, to_luastring("LoadIO"));
-  lua.lua_setglobal(L, to_luastring("Platform"));
-
-  lua.lua_newtable(L);
-  lua.lua_pushcfunction(
-    L,
-    platformLuaHost.gameDat1ConfigFileFetch.bind(platformLuaHost),
-  );
-  lua.lua_setfield(L, -2, to_luastring("Dat1_ConfigFileFetch"));
-  lua.lua_pushcfunction(
-    L,
-    platformLuaHost.gameDat1ConfigFileLoad.bind(platformLuaHost),
-  );
-  lua.lua_setfield(L, -2, to_luastring("Dat1_ConfigFileLoad"));
-  lua.lua_setglobal(L, to_luastring("Game"));
-}
 
 class LibToriPlatformJS {
   constructor(wasmModule, instancePtr) {
@@ -54,7 +24,26 @@ class LibToriPlatformJS {
     this.L = lauxlib.luaL_newstate();
     lualib.luaL_openlibs(this.L);
 
-    bindLuaGlobals(this.L, this.luaHost);
+    luaBindToPlatformJSLuaHost(this.L, this.luaHost);
+
+    // 2. Define and set the native error handler
+    lua.lua_atnativeerror(this.L, function (l_state) {
+      // The JavaScript error/exception is currently at the top of the stack (index -1) as userdata.
+      const jsError = lua.lua_touserdata(l_state, -1);
+
+      // You can log it, store it globally, or extract the message:
+      console.error("Native JS error caught in Lua:", jsError);
+
+      // Convert the error to a standard string
+      const errorMessage = String(jsError);
+
+      // 3. Push the formatted error message back onto the Lua stack
+      // (We must convert the JS string to a Lua string using to_luastring)
+      lua.lua_pushstring(
+        l_state,
+        fengari.to_luastring("JS Exception: " + errorMessage),
+      );
+    });
 
     this.L_coro = null;
   }

@@ -11,14 +11,6 @@ struct CacheDatArchive;
 struct CacheArchive;
 
 EMSCRIPTEN_KEEPALIVE
-double
-LibToriPlatformEmscripten_JSHost_ScriptValueAsJSNumber(struct LibToriRS_ScriptValue* value);
-
-EMSCRIPTEN_KEEPALIVE
-char*
-LibToriPlatformEmscripten_JSHost_ScriptValueAsJSString(struct LibToriRS_ScriptValue* value);
-
-EMSCRIPTEN_KEEPALIVE
 char*
 LibToriPlatformEmscripten_JSHost_ScriptGetName(struct LibToriRS_Script* script);
 
@@ -83,11 +75,14 @@ LibToriPlatformEmscripten_JSHost_ScriptQueueIsEmpty(struct LibToriRS_Instance* i
 EMSCRIPTEN_KEEPALIVE
 void
 LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ConfigFileFetch(
-    struct LibToriRS_Instance* instance);
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue);
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ConfigFileLoad(struct LibToriRS_Instance* instance);
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ConfigFileLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue);
 
 EMSCRIPTEN_KEEPALIVE
 int
@@ -125,8 +120,7 @@ LibToriPlatformEmscripten_JSHost_CacheArchiveDeserialize(
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_CacheArchiveFree(
-    struct CacheArchive* archive);
+LibToriPlatformEmscripten_JSHost_CacheArchiveFree(struct CacheArchive* archive);
 
 EMSCRIPTEN_KEEPALIVE
 struct CacheDatArchive*
@@ -136,7 +130,35 @@ LibToriPlatformEmscripten_JSHost_CacheDatArchiveDeserialize(
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_CacheDatArchiveFree(
-    struct CacheDatArchive* archive);
+LibToriPlatformEmscripten_JSHost_CacheDatArchiveFree(struct CacheDatArchive* archive);
 
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_Init(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModel(
+    struct LibToriRS_Instance* instance,
+    int model_id);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetch(
+    struct LibToriRS_Instance* instance,
+    int model_id,
+    struct LibToriRS_IOQueue* io_queue);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitGameCacheModel(
+    struct LibToriRS_Instance* instance,
+    int model_id);
 #endif

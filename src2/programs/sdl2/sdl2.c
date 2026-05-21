@@ -97,6 +97,8 @@ main(
             }
         }
 
+        LibToriPlatformSDL2_Render(platform, instance, 0);
+
         SDL_Delay(1);
     }
 

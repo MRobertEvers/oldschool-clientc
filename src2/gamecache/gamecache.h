@@ -5,6 +5,8 @@
 
 #include <stdint.h>
 
+struct GameCacheModel;
+
 struct GameCache
 {
     struct DashMap* models_hmap;
@@ -24,6 +26,11 @@ gamecache_model_add(
 
 struct GameCacheModel*
 gamecache_model_get(
+    struct GameCache* gamecache,
+    int model_id);
+
+struct DashModel*
+gamecache_dashmodel_get(
     struct GameCache* gamecache,
     int model_id);
 

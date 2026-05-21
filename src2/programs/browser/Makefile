@@ -22,6 +22,19 @@ SRC   := browser.c \
 	$(CMD_DIR)/libtorirs_command_queue.c \
 	$(INPUT_DIR)/libtorirs_input.c \
 	$(IOQUEUE_DIR)/libtorirs_ioqueue.c \
+	$(SRC2)/buildcache/dat1_buildcache.c \
+	$(SRC2)/buildcache/dat1_gamecache_loader.c \
+	$(SRC2)/gamecache/gamecache.c \
+	$(SRC2)/gamecache/gamecache_model.c \
+	$(SRC2)/games/model_viewer.c \
+	$(SRC_DIR)/graphics/dash.c \
+	$(SRC_DIR)/graphics/dash_bench.c \
+	$(SRC_DIR)/graphics/dashmap.c \
+	$(SRC_DIR)/graphics/dash_model.c \
+	$(SRC_DIR)/graphics/lighting.c \
+	$(SRC_DIR)/graphics/shared_tables.c \
+	$(SRC_DIR)/osrs/palette.c \
+	$(SRC_DIR)/osrs/dash_utils.c \
 	$(PLAT_DIR)/platform_emscripten_jshost.c \
 	$(PLAT_DIR)/platform_js_capi.c \
 	$(PLAT_DIR)/platform_sdl2.c \

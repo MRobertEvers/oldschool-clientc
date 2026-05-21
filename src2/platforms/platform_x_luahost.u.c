@@ -16,28 +16,6 @@ LibToriPlatformX_LuaHost_Print(lua_State* L)
     return 0;
 }
 
-int
-LibToriPlatformX_LuaHost_ScriptValueAsLuaInt(lua_State* L)
-{
-    struct LibToriRS_ScriptValue* value = (struct LibToriRS_ScriptValue*)lua_touserdata(L, 1);
-    if( !value )
-        return 0;
-    assert(value->kind == LIBTORIRS_SCRIPT_VALUE_INT);
-    lua_pushinteger(L, value->u.intval.value);
-    return 1;
-}
-
-int
-LibToriPlatformX_LuaHost_ScriptValueAsLuaAny(lua_State* L)
-{
-    struct LibToriRS_ScriptValue* value = (struct LibToriRS_ScriptValue*)lua_touserdata(L, 1);
-    if( !value )
-        return 0;
-    assert(value->kind == LIBTORIRS_SCRIPT_VALUE_ANY);
-    lua_pushlightuserdata(L, value->u.anyval.value);
-    return 1;
-}
-
 /**
  * upvalue(1): LibToriPlatformX_Lua
  * Platform.GetIOQueue
@@ -112,6 +90,122 @@ LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileLoad(lua_State* L)
     LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(instance, io_queue);
 
     return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_ModelFetch(lua_State* L)
+{
+    struct LibToriRS_Instance* instance =
+        (struct LibToriRS_Instance*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !instance )
+        return 0;
+
+    struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
+    int model_id = luaL_checkinteger(L, 2);
+
+    LibToriRS_ScriptAPI_Dat1_ModelFetch(instance, model_id, io_queue);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_ModelLoad(lua_State* L)
+{
+    struct LibToriRS_Instance* instance =
+        (struct LibToriRS_Instance*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !instance )
+        return 0;
+
+    struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
+    LibToriRS_ScriptAPI_Dat1_ModelLoad(instance, io_queue);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_SubmitGameCacheModel(lua_State* L)
+{
+    struct LibToriRS_Instance* instance =
+        (struct LibToriRS_Instance*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !instance )
+        return 0;
+
+    int model_id = luaL_checkinteger(L, 1);
+
+    LibToriRS_ScriptAPI_Dat1_SubmitGameCacheModel(instance, model_id);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_ModelViewer_Init(lua_State* L)
+{
+    struct LibToriRS_Instance* instance =
+        (struct LibToriRS_Instance*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_Game_ModelViewer_Init(instance);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_ModelViewer_RenderModel(lua_State* L)
+{
+    struct LibToriRS_Instance* instance =
+        (struct LibToriRS_Instance*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !instance )
+        return 0;
+
+    int model_id = luaL_checkinteger(L, 1);
+
+    LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel(instance, model_id);
+
+    return 0;
+}
+
+static inline void
+lua_bind_function_to_platform(
+    lua_State* L,
+    struct LibToriPlatformX_Lua* platform_x_lua,
+    const char* name,
+    void (*fn)(lua_State* L))
+{
+    lua_pushlightuserdata(L, platform_x_lua);
+    lua_pushcclosure(L, fn, 1);
+    lua_setfield(L, -2, name);
+}
+
+void
+LibToriPlatformX_LuaHost_BindToPlatform(
+    lua_State* L,
+    struct LibToriPlatformX_Lua* lua)
+{
+    lua_newtable(L);
+    lua_bind_function_to_platform(
+        L, lua, "GetIOQueue", LibToriPlatformX_LuaHost_Platform_GetIOQueue);
+    lua_setglobal(L, "Platform");
+
+    lua_newtable(L);
+    lua_bind_function_to_platform(
+        L, lua, "Dat1_ConfigFileFetch", LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileFetch);
+    lua_bind_function_to_platform(
+        L, lua, "Dat1_ConfigFileLoad", LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileLoad);
+    lua_bind_function_to_platform(
+        L, lua, "Dat1_ModelFetch", LibToriPlatformX_LuaHost_Game_Dat1_ModelFetch);
+    lua_bind_function_to_platform(
+        L, lua, "Dat1_ModelLoad", LibToriPlatformX_LuaHost_Game_Dat1_ModelLoad);
+    lua_bind_function_to_platform(
+        L,
+        lua,
+        "Dat1_SubmitGameCacheModel",
+        LibToriPlatformX_LuaHost_Game_Dat1_SubmitGameCacheModel);
+    lua_bind_function_to_platform(
+        L, lua, "ModelViewer_Init", LibToriPlatformX_LuaHost_Game_ModelViewer_Init);
+    lua_bind_function_to_platform(
+        L, lua, "ModelViewer_RenderModel", LibToriPlatformX_LuaHost_Game_ModelViewer_RenderModel);
+    lua_setglobal(L, "Game");
 }
 
 #endif

@@ -36,8 +36,20 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
     if( !dat1_buildcache )
         return;
 
-    free(dashmap_buffer_ptr(dat1_buildcache->models_hmap));
-    dashmap_free(dat1_buildcache->models_hmap);
+    if( dat1_buildcache->models_hmap )
+    {
+        struct DashMapIter* iter = dashmap_iter_new(dat1_buildcache->models_hmap);
+        struct MapEntry_CacheModel* entry = NULL;
+        while( (entry = (struct MapEntry_CacheModel*)dashmap_iter_next(iter)) )
+        {
+            if( entry->model )
+                model_free(entry->model);
+        }
+        dashmap_iter_free(iter);
+
+        free(dashmap_buffer_ptr(dat1_buildcache->models_hmap));
+        dashmap_free(dat1_buildcache->models_hmap);
+    }
 
     free(dat1_buildcache);
 }
@@ -54,16 +66,28 @@ dat1_buildcache_set_fromconfigtable_config_jagfile(
 }
 
 void
-dat1_buildcache_models_add(
+dat1_buildcache_model_add(
     struct Dat1BuildCache* dat1_buildcache,
     int model_id,
     struct CacheModel* model)
 {
     struct MapEntry_CacheModel* entry = (struct MapEntry_CacheModel*)dashmap_search(
-        dat1_buildcache->models_hmap, model_id, DASHMAP_INSERT);
+        dat1_buildcache->models_hmap, &model_id, DASHMAP_INSERT);
     if( !entry )
         return;
 
     entry->id = model_id;
     entry->model = model;
+}
+
+struct CacheModel*
+dat1_buildcache_model_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int model_id)
+{
+    struct MapEntry_CacheModel* entry = (struct MapEntry_CacheModel*)dashmap_search(
+        dat1_buildcache->models_hmap, &model_id, DASHMAP_FIND);
+    if( !entry )
+        return NULL;
+    return entry->model;
 }

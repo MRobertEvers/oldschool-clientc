@@ -12,10 +12,9 @@ dat1_gamecache_loader_new_gamecache_model_from_cache_model(struct CacheModel* mo
 
     struct GameCacheModel* gamecache_model =
         (struct GameCacheModel*)malloc(sizeof(struct GameCacheModel));
-    memset(gamecache_model, 0, sizeof(struct GameCacheModel));
+    assert(gamecache_model);
 
-    if( !gamecache_model )
-        return;
+    memset(gamecache_model, 0, sizeof(struct GameCacheModel));
 
     gamecache_model->vertex_count = model->vertex_count;
 
@@ -245,4 +244,6 @@ dat1_gamecache_loader_new_gamecache_model_from_cache_model(struct CacheModel* mo
     {
         gamecache_model->face_texture_coords = NULL;
     }
+
+    return gamecache_model;
 }

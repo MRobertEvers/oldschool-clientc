@@ -33,34 +33,7 @@ LibToriPlatformX_LuaNew(struct LibToriRS_Instance* instance)
 
     luaL_openlibs(lua->L);
 
-    lua_newtable(lua->L);
-    lua_pushlightuserdata(lua->L, instance);
-    lua_pushcclosure(lua->L, LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileFetch, 1);
-    lua_setfield(lua->L, -2, "Dat1_ConfigFileFetch");
-    lua_pushlightuserdata(lua->L, instance);
-    lua_pushcclosure(lua->L, LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileLoad, 1);
-    lua_setfield(lua->L, -2, "Dat1_ConfigFileLoad");
-    lua_setglobal(lua->L, "Game");
-
-    lua_newtable(lua->L);
-    lua_pushcfunction(lua->L, LibToriPlatformX_LuaHost_ScriptValueAsLuaInt);
-    lua_setfield(lua->L, -2, "ScriptValueAsLuaInt");
-    lua_pushcfunction(lua->L, LibToriPlatformX_LuaHost_ScriptValueAsLuaAny);
-    lua_setfield(lua->L, -2, "ScriptValueAsLuaAny");
-    lua_pushcfunction(lua->L, LibToriPlatformX_LuaHost_Print);
-    lua_setfield(lua->L, -2, "Print");
-    lua_setglobal(lua->L, "Host");
-
-    // Platform
-    lua_newtable(lua->L);
-    lua_pushlightuserdata(lua->L, lua);
-    lua_pushcclosure(lua->L, LibToriPlatformX_LuaHost_Platform_GetIOQueue, 1);
-    lua_setfield(lua->L, -2, "GetIOQueue");
-    lua_pushlightuserdata(lua->L, lua);
-    lua_pushcclosure(lua->L, LibToriPlatformX_LuaHost_Platform_LoadIO, 1);
-    lua_setfield(lua->L, -2, "LoadIO");
-
-    lua_setglobal(lua->L, "Platform");
+    LibToriPlatformX_LuaHost_BindToPlatform(lua->L, lua);
 
     return lua;
 }

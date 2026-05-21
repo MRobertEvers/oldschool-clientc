@@ -13,37 +13,6 @@
 #include <string.h>
 
 EMSCRIPTEN_KEEPALIVE
-double
-LibToriPlatformEmscripten_JSHost_ScriptValueAsJSNumber(struct LibToriRS_ScriptValue* value)
-{
-    if( !value )
-        return 0.0;
-    switch( value->kind )
-    {
-    case LIBTORIRS_SCRIPT_VALUE_INT:
-        return (double)value->u.intval.value;
-    case LIBTORIRS_SCRIPT_VALUE_ANY:
-        return (double)(uintptr_t)value->u.anyval.value;
-    case LIBTORIRS_SCRIPT_VALUE_VOID:
-    default:
-        return 0.0;
-    }
-}
-
-EMSCRIPTEN_KEEPALIVE
-char*
-LibToriPlatformEmscripten_JSHost_ScriptValueAsJSString(struct LibToriRS_ScriptValue* value)
-{
-    if( !value )
-        return NULL;
-    if( value->kind != LIBTORIRS_SCRIPT_VALUE_ANY )
-        return NULL;
-    if( !value->u.anyval.value )
-        return NULL;
-    return (char*)value->u.anyval.value;
-}
-
-EMSCRIPTEN_KEEPALIVE
 char*
 LibToriPlatformEmscripten_JSHost_ScriptGetName(struct LibToriRS_Script* script)
 {
@@ -167,16 +136,20 @@ LibToriPlatformEmscripten_JSHost_ScriptQueueIsEmpty(struct LibToriRS_Instance* i
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ConfigFileFetch(struct LibToriRS_Instance* instance)
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ConfigFileFetch(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue)
 {
-    LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(instance);
+    LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(instance, io_queue);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ConfigFileLoad(struct LibToriRS_Instance* instance)
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ConfigFileLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue)
 {
-    LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(instance);
+    LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(instance, io_queue);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -265,8 +238,7 @@ LibToriPlatformEmscripten_JSHost_CacheArchiveDeserialize(
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_CacheArchiveFree(
-    struct CacheArchive* archive)
+LibToriPlatformEmscripten_JSHost_CacheArchiveFree(struct CacheArchive* archive)
 {
     cachelib_cache_archive_free(archive);
 }
@@ -282,8 +254,51 @@ LibToriPlatformEmscripten_JSHost_CacheDatArchiveDeserialize(
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_CacheDatArchiveFree(
-    struct CacheDatArchive* archive)
+LibToriPlatformEmscripten_JSHost_CacheDatArchiveFree(struct CacheDatArchive* archive)
 {
     cachelib_cache_dat_archive_free(archive);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetch(
+    struct LibToriRS_Instance* instance,
+    int model_id,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    LibToriRS_ScriptAPI_Dat1_ModelFetch(instance, model_id, io_queue);
+}
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    LibToriRS_ScriptAPI_Dat1_ModelLoad(instance, io_queue);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_Init(
+    struct LibToriRS_Instance* instance)
+{
+    LibToriRS_ScriptAPI_Game_ModelViewer_Init(instance);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModel(
+    struct LibToriRS_Instance* instance,
+    int model_id)
+{
+    LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel(instance, model_id);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitGameCacheModel(
+    struct LibToriRS_Instance* instance,
+    int model_id)
+{
+    LibToriRS_ScriptAPI_Dat1_SubmitGameCacheModel(instance, model_id);
 }

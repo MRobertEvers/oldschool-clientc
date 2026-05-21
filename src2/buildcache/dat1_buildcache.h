@@ -30,4 +30,9 @@ dat1_buildcache_model_add(
     int model_id,
     struct CacheModel* model);
 
+struct CacheModel*
+dat1_buildcache_model_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int model_id);
+
 #endif
