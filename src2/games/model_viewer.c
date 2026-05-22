@@ -177,7 +177,7 @@ game_modelviewer_move_up(
     struct GameModelViewer* game_model_viewer,
     int amount)
 {
-    game_model_viewer->camera_position->y += amount;
+    game_model_viewer->camera_position->y -= amount;
 }
 
 void
@@ -185,7 +185,7 @@ game_modelviewer_move_down(
     struct GameModelViewer* game_model_viewer,
     int amount)
 {
-    game_model_viewer->camera_position->y -= amount;
+    game_model_viewer->camera_position->y += amount;
 }
 
 void
