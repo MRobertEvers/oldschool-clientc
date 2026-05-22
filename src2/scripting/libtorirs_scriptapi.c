@@ -36,36 +36,41 @@ LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(
         return;
 }
 
-void
+bool
 LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_IOQueue* io_queue)
 {
     printf("LibToriRS_ScriptAPI_Dat1_ConfigFileLoad\n");
     if( !instance )
-        return;
+        return false;
 
     struct LibToriRS_IOQueueItem item = { 0 };
     if( !LibToriRS_IOQueuePopRead(io_queue, &item) )
-        return;
+        return false;
+    if( item.status != TORIRSIO_RESOLVED )
+        return false;
     if( item.table_id != CACHE_DAT_CONFIGS )
-        return;
+        return false;
     if( item.archive_id != CONFIG_DAT_CONFIGS )
-        return;
+        return false;
     if( item.flags != 0 )
-        return;
+        return false;
 
     struct CacheDatArchive* archive = item.data;
+    if( !archive )
+        return false;
 
     printf("CacheDatArchive: %p\n", archive);
 
     struct FileListDat* filelist_dat = filelist_dat_new_from_cache_dat_archive(archive);
     if( !filelist_dat )
-        return;
+        return false;
 
     dat1_buildcache_set_fromconfigtable_config_jagfile(instance->dat1_buildcache, filelist_dat);
 
     cache_dat_archive_free(archive);
+    return true;
 }
 
 void
@@ -138,35 +143,38 @@ LibToriRS_ScriptAPI_Dat1_ModelFetch(
         return;
 }
 
-void
+bool
 LibToriRS_ScriptAPI_Dat1_ModelLoad(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_IOQueue* io_queue)
 {
     printf("LibToriRS_ScriptAPI_Dat1_ModelLoad\n");
     if( !instance )
-        return;
+        return false;
 
     struct LibToriRS_IOQueueItem item = { 0 };
     if( !LibToriRS_IOQueuePopRead(io_queue, &item) )
-        return;
+        return false;
+    if( item.status != TORIRSIO_RESOLVED )
+        return false;
     if( item.table_id != CACHE_DAT_MODELS )
-        return;
+        return false;
     if( item.flags != 0 )
-        return;
+        return false;
 
     struct CacheDatArchive* archive = item.data;
     if( !archive )
-        return;
+        return false;
 
     int model_id = item.archive_id;
 
     struct CacheModel* model = model_new_from_dat_archive(archive, model_id);
     if( !model )
-        return;
+        return false;
 
     dat1_buildcache_model_add(instance->dat1_buildcache, model_id, model);
     cache_dat_archive_free(archive);
+    return true;
 }
 
 void

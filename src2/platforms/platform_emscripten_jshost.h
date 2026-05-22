@@ -93,7 +93,7 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ConfigFileFetch(
     struct LibToriRS_IOQueue* io_queue);
 
 EMSCRIPTEN_KEEPALIVE
-void
+bool
 LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ConfigFileLoad(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_IOQueue* io_queue);
@@ -172,7 +172,7 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchScriptInt(
     struct LibToriRS_IOQueue* io_queue);
 
 EMSCRIPTEN_KEEPALIVE
-void
+bool
 LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelLoad(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_IOQueue* io_queue);

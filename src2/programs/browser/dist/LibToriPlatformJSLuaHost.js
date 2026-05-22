@@ -46,14 +46,16 @@ export class LibToriPlatformJSLuaHost {
 
   gameDat1ConfigFileLoad(L) {
     const ioQueue = lua.lua_touserdata(L, 1);
-    this.emscriptenJSAPI.scriptAPIDat1ConfigFileLoad(ioQueue);
-    return 0;
+    const ok = this.emscriptenJSAPI.scriptAPIDat1ConfigFileLoad(ioQueue);
+    lua.lua_pushboolean(L, ok);
+    return 1;
   }
 
   gameDat1ModelLoad(L) {
     const ioQueue = lua.lua_touserdata(L, 1);
-    this.emscriptenJSAPI.scriptAPIDat1ModelLoad(ioQueue);
-    return 0;
+    const ok = this.emscriptenJSAPI.scriptAPIDat1ModelLoad(ioQueue);
+    lua.lua_pushboolean(L, ok);
+    return 1;
   }
 
   gameDat1ModelFetch(L) {

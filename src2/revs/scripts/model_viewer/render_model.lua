@@ -7,7 +7,10 @@ Game.Dat1_ModelFetchScriptInt(io_queue, model_id)
 
 Platform.LoadIO(io_queue)
 
-Game.Dat1_ModelLoad(io_queue)
+if not Game.Dat1_ModelLoad(io_queue) then
+    print("Model load failed")
+    return
+end
 print("Model loaded")
 
 Game.Dat1_SubmitGameCacheModelScriptInt(model_id)

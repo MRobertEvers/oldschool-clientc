@@ -201,7 +201,7 @@ export class LibToriPlatformEmscriptenJSAPI {
   }
 
   scriptAPIDat1ConfigFileLoad(ioQueue) {
-    this._scriptAPIDat1ConfigFileLoad(this.instancePtr, ioQueue);
+    return !!this._scriptAPIDat1ConfigFileLoad(this.instancePtr, ioQueue);
   }
 
   scriptAPIDat1ModelFetchNativeInt(ioqueue, modelId) {
@@ -213,7 +213,7 @@ export class LibToriPlatformEmscriptenJSAPI {
   }
 
   scriptAPIDat1ModelLoad(ioqueue) {
-    this._scriptAPIDat1ModelLoad(this.instancePtr, ioqueue);
+    return !!this._scriptAPIDat1ModelLoad(this.instancePtr, ioqueue);
   }
 
   scriptAPIDat1SubmitGameCacheModel(modelId) {

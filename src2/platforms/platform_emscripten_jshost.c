@@ -172,12 +172,12 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ConfigFileFetch(
 }
 
 EMSCRIPTEN_KEEPALIVE
-void
+bool
 LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ConfigFileLoad(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_IOQueue* io_queue)
 {
-    LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(instance, io_queue);
+    return LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(instance, io_queue);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -323,12 +323,12 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchScriptInt(
 }
 
 EMSCRIPTEN_KEEPALIVE
-void
+bool
 LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelLoad(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_IOQueue* io_queue)
 {
-    LibToriRS_ScriptAPI_Dat1_ModelLoad(instance, io_queue);
+    return LibToriRS_ScriptAPI_Dat1_ModelLoad(instance, io_queue);
 }
 
 EMSCRIPTEN_KEEPALIVE

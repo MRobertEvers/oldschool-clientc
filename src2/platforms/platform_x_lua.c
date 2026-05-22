@@ -5,6 +5,7 @@
 #include "3rd/lua/lauxlib.h"
 #include "3rd/lua/lua.h"
 #include "3rd/lua/lualib.h"
+#include "platform_x/cachelib.h"
 #include "platform_x/cachelib_platform.h"
 
 // clang-format off
@@ -35,17 +36,34 @@ LibToriPlatformX_LuaNew(struct LibToriRS_Instance* instance)
 
     LibToriPlatformX_LuaHost_BindToPlatform(lua->L, lua);
 
+    lua->L_coro = NULL;
+
     return lua;
+}
+
+static void
+LibToriPlatformX_LuaFinishCoro(struct LibToriPlatformX_Lua* lua)
+{
+    if( !lua || !lua->L_coro )
+        return;
+
+    lua_pop(lua->L, 1);
+    lua->L_coro = NULL;
 }
 
 void
 LibToriPlatformX_LuaFree(struct LibToriPlatformX_Lua* lua)
 {
-    if( lua )
+    if( !lua )
         return;
 
+    if( lua->cache )
+        cachelib_free(lua->cache);
+
+    if( lua->L )
+        lua_close(lua->L);
+
     free(lua);
-    lua = NULL;
 }
 
 int
@@ -98,6 +116,7 @@ LibToriPlatformX_LuaRun(
         if( rc != LUA_OK )
         {
             printf("Lua error: %s\n", lua_tostring(lua->L_coro, -1));
+            LibToriPlatformX_LuaFinishCoro(lua);
             return LIBTORI_PLATFORM_X_LUA_ERROR;
         }
     }
@@ -107,6 +126,7 @@ LibToriPlatformX_LuaRun(
         if( rc != LUA_OK )
         {
             printf("Lua error: %s\n", lua_tostring(lua->L_coro, -1));
+            LibToriPlatformX_LuaFinishCoro(lua);
             return LIBTORI_PLATFORM_X_LUA_ERROR;
         }
     }
@@ -121,11 +141,13 @@ LibToriPlatformX_LuaRun(
     switch( rc )
     {
     case LUA_OK:
+        LibToriPlatformX_LuaFinishCoro(lua);
         return LIBTORI_PLATFORM_X_LUA_OK;
     case LUA_YIELD:
         return LIBTORI_PLATFORM_X_LUA_YIELDED;
     default:
         printf("Lua error: %s\n", lua_tostring(lua->L_coro, -1));
+        LibToriPlatformX_LuaFinishCoro(lua);
         return LIBTORI_PLATFORM_X_LUA_ERROR;
     }
 }
@@ -144,18 +166,14 @@ LibToriPlatformX_LuaContinue(
     switch( rc )
     {
     case LUA_OK:
-    {
-        lua->L_coro = NULL;
+        LibToriPlatformX_LuaFinishCoro(lua);
         return LIBTORI_PLATFORM_X_LUA_OK;
-    }
     case LUA_YIELD:
         return LIBTORI_PLATFORM_X_LUA_YIELDED;
     default:
-    {
         printf("Lua error: %s\n", lua_tostring(lua->L_coro, -1));
-        lua->L_coro = NULL;
+        LibToriPlatformX_LuaFinishCoro(lua);
         return LIBTORI_PLATFORM_X_LUA_ERROR;
-    }
     }
 }
 

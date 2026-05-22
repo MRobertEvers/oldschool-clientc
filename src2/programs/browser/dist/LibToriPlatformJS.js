@@ -48,6 +48,13 @@ class LibToriPlatformJS {
     this.L_coro = null;
   }
 
+  finishCoro() {
+    if (this.L_coro) {
+      lua.lua_pop(this.L, 1);
+      this.L_coro = null;
+    }
+  }
+
   async EmscriptenHost_LuaMainLoop() {
     if (this.inMainLoop) {
       throw new Error("Already in main loop");
@@ -119,33 +126,40 @@ class LibToriPlatformJS {
       const isInline = this.host.scriptGetIsInline(script);
 
       this.L_coro = lua.lua_newthread(this.L);
-      if (isInline) {
-        this.loadInlineScriptSource(scriptName);
-      } else {
-        await this.loadScriptSource(scriptName);
-      }
-
-      let argCount = this.host.scriptGetArgCount(script);
-      for (let i = 0; i < argCount; i++) {
-        lua.lua_pushlightuserdata(
-          this.L_coro,
-          this.host.scriptGetArg(script, i),
-        );
-      }
-
-      const rc = lua.lua_resume(this.L_coro, this.L, argCount);
-
-      switch (rc) {
-        case lua.LUA_OK:
-          this.L_coro = null;
-          return LIBTORI_PLATFORM_EMSCRIPTEN_LUA_OK;
-        case lua.LUA_YIELD:
-          return LIBTORI_PLATFORM_EMSCRIPTEN_LUA_YIELDED;
-        default: {
-          const sz = lua.lua_tostring(this.L_coro, -1);
-          this.L_coro = null;
-          throw new Error("Error in LuaRun: " + fromLuaStringToJSString(sz));
+      try {
+        if (isInline) {
+          this.loadInlineScriptSource(scriptName);
+        } else {
+          await this.loadScriptSource(scriptName);
         }
+
+        let argCount = this.host.scriptGetArgCount(script);
+        for (let i = 0; i < argCount; i++) {
+          lua.lua_pushlightuserdata(
+            this.L_coro,
+            this.host.scriptGetArg(script, i),
+          );
+        }
+
+        const rc = lua.lua_resume(this.L_coro, this.L, argCount);
+
+        switch (rc) {
+          case lua.LUA_OK:
+            this.finishCoro();
+            return LIBTORI_PLATFORM_EMSCRIPTEN_LUA_OK;
+          case lua.LUA_YIELD:
+            return LIBTORI_PLATFORM_EMSCRIPTEN_LUA_YIELDED;
+          default: {
+            const sz = lua.lua_tostring(this.L_coro, -1);
+            this.finishCoro();
+            throw new Error(
+              "Error in LuaRun: " + fromLuaStringToJSString(sz),
+            );
+          }
+        }
+      } catch (error) {
+        this.finishCoro();
+        throw error;
       }
     } catch (error) {
       console.error("Error in LuaRun", error);
@@ -159,13 +173,13 @@ class LibToriPlatformJS {
 
       switch (rc) {
         case lua.LUA_OK:
-          this.L_coro = null;
+          this.finishCoro();
           return LIBTORI_PLATFORM_EMSCRIPTEN_LUA_OK;
         case lua.LUA_YIELD:
           return LIBTORI_PLATFORM_EMSCRIPTEN_LUA_YIELDED;
         default: {
           const sz = lua.lua_tostring(this.L_coro, -1);
-          this.L_coro = null;
+          this.finishCoro();
           throw new Error(
             "Error in LuaContinue: " + fromLuaStringToJSString(sz),
           );

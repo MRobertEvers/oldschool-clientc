@@ -12,7 +12,7 @@ LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_IOQueue* io_queue);
 
-void
+bool
 LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_IOQueue* io_queue);
@@ -23,7 +23,7 @@ LibToriRS_ScriptAPI_Dat1_ModelFetch(
     int model_id,
     struct LibToriRS_IOQueue* io_queue);
 
-void
+bool
 LibToriRS_ScriptAPI_Dat1_ModelLoad(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_IOQueue* io_queue);
