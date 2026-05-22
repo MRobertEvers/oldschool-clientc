@@ -23,9 +23,9 @@ Game.Dat1_SubmitGameCacheModel(0)
 print("Game cache model submitted")
 
 Game.ModelViewer_RenderModel(0)
+print("Render Model")
 local model_id = ...
 
-print("Initializing Lua script")
 local io_queue = Platform.GetIOQueue()
 
 Game.Dat1_ModelFetch(io_queue, model_id)

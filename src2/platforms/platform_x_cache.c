@@ -74,11 +74,17 @@ LibToriPlatformX_CacheLoadIO(
 
         data = cachelib_platform_load_io(cache->cache, &request);
 
-        if( !data )
-            return -1;
-
-        io_item->data = data;
-        io_item->is_resolved = true;
+        if( data )
+        {
+            io_item->data = data;
+            io_item->status = TORIRSIO_RESOLVED;
+        }
+        else
+        {
+            io_item->status = TORIRSIO_ERROR;
+            io_item->error_code = -1;
+        }
     }
-    return 0;
+
+    return io_queue->count;
 }

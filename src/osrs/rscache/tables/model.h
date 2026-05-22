@@ -158,6 +158,11 @@ struct CacheModel*
 model_new_from_archive(
     struct CacheArchive* archive,
     int model_id);
+struct CacheDatArchive;
+struct CacheModel*
+model_new_from_dat_archive(
+    struct CacheDatArchive* archive,
+    int model_id);
 struct CacheModel*
 model_new_decode(
     const unsigned char* inputData,

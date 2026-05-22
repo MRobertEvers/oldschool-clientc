@@ -5,13 +5,21 @@
 
 #define LIBTORIRS_IOQUEUE_MAX_SIZE 128
 
+enum LibToriRS_IOQueueItem_Status
+{
+    TORIRSIO_PENDING = 0,
+    TORIRSIO_RESOLVED,
+    TORIRSIO_ERROR,
+};
+
 struct LibToriRS_IOQueueItem
 {
     int table_id;
     int archive_id;
     int flags;
 
-    bool is_resolved;
+    enum LibToriRS_IOQueueItem_Status status;
+    int error_code;
     void* data;
 };
 
@@ -51,7 +59,7 @@ LibToriRS_IOQueuePopRead(
     struct LibToriRS_IOQueue* queue,
     struct LibToriRS_IOQueueItem* out);
 
-struct LibToriRS_IORequest*
+struct LibToriRS_IOQueueItem*
 LibToriRS_IOQueuePopReadPtr(struct LibToriRS_IOQueue* queue);
 
 #endif

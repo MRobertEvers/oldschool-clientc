@@ -15,16 +15,16 @@ struct Params
 
 struct RSBuffer
 {
-    int8_t* data;
-    int size;
+    uint8_t* data;
+    uint32_t size;
     uint32_t position;
 };
 
 void
 rsbuf_init(
     struct RSBuffer* buffer,
-    int8_t* data,
-    int size);
+    uint8_t* data,
+    uint32_t size);
 
 int
 rsbuf_g1(struct RSBuffer* buffer);

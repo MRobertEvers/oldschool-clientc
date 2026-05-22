@@ -95,7 +95,10 @@ void
 game_modelviewer_process_input(
     struct GameModelViewer* game_model_viewer,
     struct LibToriRS_Input* input)
-{}
+{
+    (void)game_model_viewer;
+    (void)input;
+}
 
 void
 game_modelviewer_move_forward(

@@ -247,7 +247,7 @@ filelist_new_from_decode(
     if( !filelist )
         return NULL;
 
-    struct RSBuffer buffer = { .data = data, .position = 0, .size = data_size };
+    struct RSBuffer buffer = { .data = (uint8_t*)data, .position = 0, .size = (uint32_t)data_size };
 
     filelist->files = malloc(num_files * sizeof(char*));
     filelist->file_sizes = malloc(num_files * sizeof(int));
@@ -264,7 +264,12 @@ filelist_new_from_decode(
         /* if there is only one file, the data is the file. */
         filelist->files[0] = malloc(data_size);
         if( !filelist->files[0] )
-            goto error;
+        {
+            free(filelist->files);
+            free(filelist->file_sizes);
+            free(filelist);
+            return NULL;
+        }
         memcpy(filelist->files[0], data, data_size);
         filelist->file_sizes[0] = data_size;
 
@@ -277,7 +282,8 @@ filelist_new_from_decode(
     buffer.position = 0;
 
     /* read the sizes of the child entries and individual chunks */
-    int** chunk_sizes = malloc(chunks * sizeof(int*));
+    int** chunk_sizes = NULL;
+    chunk_sizes = malloc(chunks * sizeof(int*));
     if( !chunk_sizes )
         goto error;
 
@@ -404,7 +410,8 @@ filelist_dat_indexed_new_from_decode(
     if( !filelist )
         return NULL;
 
-    struct RSBuffer index_buffer = { .data = index_data, .position = 0, .size = index_data_size };
+    struct RSBuffer index_buffer = {
+        .data = (uint8_t*)index_data, .position = 0, .size = (uint32_t)index_data_size };
     int index_count = g2(&index_buffer);
 
     filelist->offsets = malloc(index_count * sizeof(int));

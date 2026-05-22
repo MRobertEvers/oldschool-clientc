@@ -1,5 +1,6 @@
 #include "libtorirs_render.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -15,24 +16,21 @@ LibToriRS_RenderQueue_New(void)
 void
 LibToriRS_RenderQueue_Free(struct LibToriRS_RenderQueue* render_queue)
 {
-    if( !render_queue )
-        return;
+    assert(render_queue);
     free(render_queue);
 }
 
 void
 LibToriRS_RenderQueue_Clear(struct LibToriRS_RenderQueue* render_queue)
 {
-    if( !render_queue )
-        return;
+    assert(render_queue);
     render_queue->count = 0;
 }
 
 bool
 LibToriRS_RenderQueue_IsEmpty(struct LibToriRS_RenderQueue* render_queue)
 {
-    if( !render_queue )
-        return true;
+    assert(render_queue);
     return render_queue->count == 0;
 }
 
@@ -44,8 +42,7 @@ LibToriRS_RenderQueue_PushCommandModelDraw(
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera)
 {
-    if( !render_queue )
-        return;
+    assert(render_queue);
     if( render_queue->count >= LIBTORIRS_RENDER_QUEUE_MAX_SIZE )
         return;
 

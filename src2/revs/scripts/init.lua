@@ -12,14 +12,14 @@ Platform.LoadIO(io_queue)
 Game.Dat1_ConfigFileLoad(io_queue)
 print("Config file loaded")
 
-Game.Dat1_ModelFetch(io_queue, 0)
+Game.Dat1_ModelFetchNativeInt(io_queue, 0)
 
 Platform.LoadIO(io_queue)
 
 Game.Dat1_ModelLoad(io_queue)
 print("Model loaded")
 
-Game.Dat1_SubmitGameCacheModel(0)
+Game.Dat1_SubmitGameCacheModelNativeInt(0)
 print("Game cache model submitted")
 
-Game.ModelViewer_RenderModel(0)
+Game.ModelViewer_RenderModelNativeInt(0)

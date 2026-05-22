@@ -72,7 +72,7 @@ cache_dat2_load_io(
     struct Cache* cache_dat2 = cache->u.cache_dat2;
     void* data = NULL;
 
-    int32_t* xtea_key = NULL;
+    uint32_t* xtea_key = NULL;
     if( request->table_id == CACHE_MAPS )
     {
         xtea_key = cache_archive_xtea_key(cache_dat2, request->table_id, request->archive_id);

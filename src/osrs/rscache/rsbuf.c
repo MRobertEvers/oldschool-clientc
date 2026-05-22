@@ -10,8 +10,8 @@
 void
 rsbuf_init(
     struct RSBuffer* buffer,
-    int8_t* data,
-    int size)
+    uint8_t* data,
+    uint32_t size)
 {
     buffer->data = data;
     buffer->size = size;
@@ -250,7 +250,8 @@ rsbuf_readto(
     int out_size,
     int len)
 {
-    assert(buffer->position + len <= buffer->size);
+    (void)out_size;
+    assert(buffer->position + (uint32_t)len <= buffer->size);
     int bytes_read = 0;
     while( len > 0 && buffer->position < buffer->size )
     {

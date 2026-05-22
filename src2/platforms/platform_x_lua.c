@@ -135,6 +135,7 @@ LibToriPlatformX_LuaContinue(
     struct LibToriPlatformX_Lua* lua,
     struct LibToriRS_Instance* instance)
 {
+    (void)instance;
     if( !lua )
         return LIBTORI_PLATFORM_X_LUA_ERROR;
 
@@ -163,6 +164,7 @@ LibToriPlatformX_LuaReadYieldCount(
     struct LibToriPlatformX_Lua* lua,
     struct LibToriRS_Instance* instance)
 {
+    (void)instance;
     if( !lua )
         return LIBTORI_PLATFORM_X_LUA_ERROR;
 
@@ -175,6 +177,7 @@ LibToriPlatformX_LuaReadYieldValue(
     struct LibToriRS_Instance* instance,
     int index)
 {
+    (void)instance;
     if( !lua )
         return NULL;
     return (struct LibToriRS_ScriptValue*)lua_touserdata(lua->L_coro, index);

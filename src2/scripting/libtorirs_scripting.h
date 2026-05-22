@@ -50,7 +50,7 @@ struct LibToriRS_Script
 
 struct LibToriRS_ScriptQueue
 {
-    struct LibToriRS_ScriptValue values[LIBTORIRS_SCRIPT_QUEUE_MAX_SIZE];
+    struct LibToriRS_Script values[LIBTORIRS_SCRIPT_QUEUE_MAX_SIZE];
     int head;
     int tail;
     int count;

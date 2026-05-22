@@ -1,6 +1,7 @@
 #include "platform_sdl2.h"
 
 #include "libtorirs.h"
+#include "src/graphics/dash_model.h"
 #include "toripix/toridraw.h"
 
 #include <stdio.h>
@@ -189,6 +190,7 @@ LibToriPlatformSDL2_Render(
     struct LibToriRS_Instance* instance,
     int model_id)
 {
+    (void)model_id;
     if( !platform || !platform->pixel_buffer || !platform->texture || !platform->renderer )
         return;
 

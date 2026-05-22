@@ -169,6 +169,8 @@ LibToriRS_ProcessCommandQueue(
                 command_queue->commands[i].u.mouse_move.mouse_x,
                 command_queue->commands[i].u.mouse_move.mouse_y);
             break;
+        default:
+            break;
         }
     }
 

@@ -27,6 +27,20 @@ struct LibToriRS_ScriptArgs*
 LibToriPlatformEmscripten_JSHost_ScriptGetArgs(struct LibToriRS_Script* script);
 
 EMSCRIPTEN_KEEPALIVE
+int
+LibToriPlatformEmscripten_JSHost_ScriptGetArgCount(struct LibToriRS_Script* script);
+
+EMSCRIPTEN_KEEPALIVE
+void*
+LibToriPlatformEmscripten_JSHost_ScriptGetArg(
+    struct LibToriRS_Script* script,
+    int index);
+
+EMSCRIPTEN_KEEPALIVE
+int
+LibToriPlatformEmscripten_JSHost_ScriptValueAsInt(struct LibToriRS_ScriptValue* scriptValue);
+
+EMSCRIPTEN_KEEPALIVE
 void
 LibToriPlatformEmscripten_JSHost_ScriptFree(struct LibToriRS_Script* script);
 
@@ -145,9 +159,16 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModel(
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetch(
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchNativeInt(
     struct LibToriRS_Instance* instance,
     int model_id,
+    struct LibToriRS_IOQueue* io_queue);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchScriptInt(
+    struct LibToriRS_Instance* instance,
+    void* model_id,
     struct LibToriRS_IOQueue* io_queue);
 
 EMSCRIPTEN_KEEPALIVE
@@ -158,7 +179,13 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelLoad(
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitGameCacheModel(
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitGameCacheModelNativeInt(
     struct LibToriRS_Instance* instance,
     int model_id);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitGameCacheModelScriptInt(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_ScriptValue* model_id);
 #endif

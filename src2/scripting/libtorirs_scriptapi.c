@@ -161,7 +161,7 @@ LibToriRS_ScriptAPI_Dat1_ModelLoad(
 
     int model_id = item.archive_id;
 
-    struct CacheModel* model = model_new_from_archive(archive, model_id);
+    struct CacheModel* model = model_new_from_dat_archive(archive, model_id);
     if( !model )
         return;
 

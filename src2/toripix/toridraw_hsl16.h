@@ -12,7 +12,7 @@ toridraw_init_hsl16(void);
 static inline int
 toridraw_hsl16_to_rgb(uint16_t hsl16)
 {
-    assert(hsl16 >= 0 && hsl16 < 65536);
+    (void)hsl16;
     return g_hsl16_to_rgb_table[hsl16];
 }
 

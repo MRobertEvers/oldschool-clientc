@@ -85,13 +85,13 @@ LibToriRS_IOQueuePopRead(
     return true;
 }
 
-struct LibToriRS_IORequest*
+struct LibToriRS_IOQueueItem*
 LibToriRS_IOQueuePopReadPtr(struct LibToriRS_IOQueue* queue)
 {
     assert(queue);
     assert(queue->count > 0);
     assert(queue->read_head < queue->count);
-    struct LibToriRS_IORequest* request = &queue->items[queue->read_head];
+    struct LibToriRS_IOQueueItem* request = &queue->items[queue->read_head];
     queue->read_head++;
     return request;
 }

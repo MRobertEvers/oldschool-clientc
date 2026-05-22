@@ -33,6 +33,18 @@ export class LibToriPlatformEmscriptenJSAPI {
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptGetIsInline",
     );
+    this._scriptGetArgCount = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptGetArgCount",
+    );
+    this._scriptGetArg = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptGetArg",
+    );
+    this._scriptValueAsInt = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptValueAsInt",
+    );
     this._browserMainUnlock = wasmExportFn(
       mod,
       "LibToriPlatformEmscripten_JSHost_BrowserMainUnlock",
@@ -134,6 +146,18 @@ export class LibToriPlatformEmscriptenJSAPI {
 
   scriptGetIsInline(script) {
     return this._scriptGetIsInline(script) !== 0;
+  }
+
+  scriptGetArgCount(script) {
+    return this._scriptGetArgCount(script);
+  }
+
+  scriptGetArg(script, index) {
+    return this._scriptGetArg(script, index);
+  }
+
+  scriptValueAsInt(scriptValue) {
+    return this._scriptValueAsInt(scriptValue);
   }
 
   browserMainUnlock() {

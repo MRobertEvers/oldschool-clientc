@@ -4,6 +4,7 @@
 #include "../libtorirs.h"
 #include "../scripting/libtorirs_scripting.h"
 #include "3rd/lua/lua.h"
+#include "platform_x/cachelib.h"
 #include "platform_x_lua_internal.h"
 
 #include <assert.h>
@@ -77,11 +78,22 @@ LibToriPlatformX_LuaHost_Platform_LoadIO(lua_State* L)
     for( int i = 0; i < io_queue->count; i++ )
     {
         struct LibToriRS_IOQueueItem* io_item = &io_queue->items[i];
-        void* data = cachelib_platform_load_io(lua->cache, io_item);
-        if( !data )
-            return 0;
-        io_item->data = data;
-        io_item->is_resolved = true;
+        struct CacheLib_IORequest request = {
+            .table_id = io_item->table_id,
+            .archive_id = io_item->archive_id,
+            .flags = io_item->flags,
+        };
+        void* data = cachelib_platform_load_io(lua->cache, &request);
+        if( data )
+        {
+            io_item->data = data;
+            io_item->status = TORIRSIO_RESOLVED;
+        }
+        else
+        {
+            io_item->status = TORIRSIO_ERROR;
+            io_item->error_code = -1;
+        }
     }
 
     return 0;
@@ -200,7 +212,7 @@ LibToriPlatformX_LuaHost_Game_ModelViewer_Init(lua_State* L)
 }
 
 int
-LibToriPlatformX_LuaHost_Game_ModelViewer_RenderModel(lua_State* L)
+LibToriPlatformX_LuaHost_Game_ModelViewer_RenderModelNativeInt(lua_State* L)
 {
     struct LibToriPlatformX_Lua* lua =
         (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
@@ -211,9 +223,29 @@ LibToriPlatformX_LuaHost_Game_ModelViewer_RenderModel(lua_State* L)
     if( !instance )
         return 0;
 
-    int model_id = lua_scriptint_or_luaint(L, 1);
+    int model_id = lua_tointeger(L, 1);
 
     LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel(instance, model_id);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_ModelViewer_RenderModelScriptInt(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    struct LibToriRS_ScriptValue* model_id = (struct LibToriRS_ScriptValue*)lua_touserdata(L, 1);
+
+    int model_int = model_id->u.intval.value;
+
+    LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel(instance, model_int);
 
     return 0;
 }
@@ -258,7 +290,15 @@ LibToriPlatformX_LuaHost_BindToPlatform(
     lua_bind_function_to_platform(
         L, lua, "ModelViewer_Init", LibToriPlatformX_LuaHost_Game_ModelViewer_Init);
     lua_bind_function_to_platform(
-        L, lua, "ModelViewer_RenderModel", LibToriPlatformX_LuaHost_Game_ModelViewer_RenderModel);
+        L,
+        lua,
+        "ModelViewer_RenderModelNativeInt",
+        LibToriPlatformX_LuaHost_Game_ModelViewer_RenderModelNativeInt);
+    lua_bind_function_to_platform(
+        L,
+        lua,
+        "ModelViewer_RenderModelScriptInt",
+        LibToriPlatformX_LuaHost_Game_ModelViewer_RenderModelScriptInt);
     lua_setglobal(L, "Game");
 }
 

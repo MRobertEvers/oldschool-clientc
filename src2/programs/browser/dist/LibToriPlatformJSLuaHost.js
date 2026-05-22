@@ -1,5 +1,22 @@
 const { lua, to_luastring } = window.fengari;
 
+/**
+ * @param {import('./LibToriPlatformEmscriptenJSAPI').LibToriPlatformEmscriptenJSAPI} platformEmscriptenJSAPI
+ */
+function luaScriptIntOrLuaInt(L, index, platformEmscriptenJSAPI) {
+  const rctype = lua.lua_type(L, index);
+  switch (rctype) {
+    case lua.LUA_TNUMBER:
+      return lua.lua_tonumber(L, index);
+    case lua.LUA_TLIGHTUSERDATA:
+      return platformEmscriptenJSAPI.scriptValueAsInt(
+        lua.lua_touserdata(L, index),
+      );
+    default:
+      return 0;
+  }
+}
+
 export class LibToriPlatformJSLuaHost {
   /**
    * @param {*} lua - Fengari lua instance
@@ -41,13 +58,16 @@ export class LibToriPlatformJSLuaHost {
 
   gameDat1ModelFetch(L) {
     const ioQueue = lua.lua_touserdata(L, 1);
-    const modelId = lua.lua_tointeger(L, 2);
+
+    // const modelId = lua.lua_tointeger(L, 2);
+    const modelId = luaScriptIntOrLuaInt(L, 2, this.emscriptenJSAPI);
     this.emscriptenJSAPI.scriptAPIDat1ModelFetch(ioQueue, modelId);
     return 0;
   }
 
   gameDat1SubmitGameCacheModel(L) {
-    const modelId = lua.lua_tointeger(L, 1);
+    // const modelId = lua.lua_tointeger(L, 1);
+    const modelId = luaScriptIntOrLuaInt(L, 1, this.emscriptenJSAPI);
     this.emscriptenJSAPI.scriptAPIDat1SubmitGameCacheModel(modelId);
     return 0;
   }
@@ -58,7 +78,8 @@ export class LibToriPlatformJSLuaHost {
   }
 
   gameModelViewerRenderModel(L) {
-    const modelId = lua.lua_tointeger(L, 1);
+    // const modelId = lua.lua_tointeger(L, 1);
+    const modelId = luaScriptIntOrLuaInt(L, 1, this.emscriptenJSAPI);
     this.emscriptenJSAPI.scriptAPIGameModelViewerRenderModel(modelId);
     return 0;
   }

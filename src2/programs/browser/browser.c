@@ -36,9 +36,6 @@ browser_main_loop(void)
     {
     case BROWSER_MAIN_LOOP_STATE_FRAME:
     {
-        LibToriRS_IOQueueClear(LibToriRS_GetIOQueue(g_instance));
-        LibToriRS_ScriptQueueClear(LibToriRS_GetScriptQueue(g_instance));
-
         uint64_t time = SDL_GetTicks64();
 
         LibToriPlatformSDL2_PollEvents(g_platform, g_command_queue);
@@ -54,11 +51,15 @@ browser_main_loop(void)
         {
             g_state = BROWSER_MAIN_LOOP_STATE_WAITING_FOR_LUA;
             LibToriPlatformJS_CAPI_EmscriptenHost_LuaMainLoop();
+            return;
         }
+        LibToriRS_IOQueueClear(LibToriRS_GetIOQueue(g_instance));
+        LibToriRS_ScriptQueueClear(LibToriRS_GetScriptQueue(g_instance));
 
         LibToriRS_GameStep(g_instance);
 
         LibToriPlatformSDL2_Render(g_platform, g_instance, 0);
+
         break;
     }
     case BROWSER_MAIN_LOOP_STATE_WAITING_FOR_LUA:
@@ -121,7 +122,7 @@ main(
     g_platform = platform;
     g_command_queue = command_queue;
 
-    emscripten_set_main_loop(browser_main_loop, 0, 1);
+    emscripten_set_main_loop(browser_main_loop, 0, 0);
 
     return 0;
 }

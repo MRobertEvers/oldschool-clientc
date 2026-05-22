@@ -19,6 +19,10 @@ main(
 
     printf("Hello from main!\n");
 
+    struct LibToriPlatformX_Lua* lua = NULL;
+    struct LibToriPlatformSDL2* platform = NULL;
+    struct LibToriRS_CommandQueue* command_queue = NULL;
+
     struct LibToriRS_Instance* instance = LibToriRS_InstanceNew();
     if( !instance )
     {
@@ -26,7 +30,7 @@ main(
         goto error_exit;
     }
 
-    struct LibToriPlatformX_Lua* lua = LibToriPlatformX_LuaNew(instance);
+    lua = LibToriPlatformX_LuaNew(instance);
     if( !lua )
     {
         printf("Failed to create Lua\n");
@@ -44,7 +48,7 @@ main(
         LibToriRS_ScriptQueueEmplace(LibToriRS_GetScriptQueue(instance), "init.lua");
     script->is_inline = false;
 
-    struct LibToriPlatformSDL2* platform = LibToriPlatformSDL2_New();
+    platform = LibToriPlatformSDL2_New();
     if( !platform )
     {
         printf("Failed to create SDL2 platform\n");
@@ -59,7 +63,7 @@ main(
         goto error_exit;
     }
 
-    struct LibToriRS_CommandQueue* command_queue = LibToriRS_CommandQueue_New();
+    command_queue = LibToriRS_CommandQueue_New();
     if( !command_queue )
     {
         printf("Failed to create command queue\n");

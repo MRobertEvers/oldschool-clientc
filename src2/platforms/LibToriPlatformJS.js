@@ -125,7 +125,15 @@ class LibToriPlatformJS {
         await this.loadScriptSource(scriptName);
       }
 
-      const rc = lua.lua_resume(this.L_coro, this.L, 0);
+      let argCount = this.host.scriptGetArgCount(script);
+      for (let i = 0; i < argCount; i++) {
+        lua.lua_pushlightuserdata(
+          this.L_coro,
+          this.host.scriptGetArg(script, i),
+        );
+      }
+
+      const rc = lua.lua_resume(this.L_coro, this.L, argCount);
 
       switch (rc) {
         case lua.LUA_OK:

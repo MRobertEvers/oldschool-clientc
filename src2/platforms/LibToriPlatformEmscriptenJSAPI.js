@@ -33,6 +33,18 @@ export class LibToriPlatformEmscriptenJSAPI {
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptGetIsInline",
     );
+    this._scriptGetArgCount = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptGetArgCount",
+    );
+    this._scriptGetArg = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptGetArg",
+    );
+    this._scriptValueAsInt = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptValueAsInt",
+    );
     this._browserMainUnlock = wasmExportFn(
       mod,
       "LibToriPlatformEmscripten_JSHost_BrowserMainUnlock",
@@ -83,6 +95,10 @@ export class LibToriPlatformEmscriptenJSAPI {
       mod,
       "LibToriPlatformEmscripten_JSHost_IOQueueItemResolve",
     );
+    this._ioQueueItemError = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_IOQueueItemError",
+    );
     this._malloc = wasmExportFn(mod, "LibToriPlatformEmscripten_JSHost_Malloc");
     this._cacheDatArchiveNewFromBuffer = wasmExportFn(
       mod,
@@ -97,9 +113,13 @@ export class LibToriPlatformEmscriptenJSAPI {
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_Init",
     );
-    this._scriptAPIDat1ModelFetch = wasmExportFn(
+    this._scriptAPIDat1ModelFetchNativeInt = wasmExportFn(
       mod,
-      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetch",
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchNativeInt",
+    );
+    this._scriptAPIDat1ModelFetchScriptInt = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchScriptInt",
     );
     this._scriptAPIDat1ModelLoad = wasmExportFn(
       mod,
@@ -134,6 +154,18 @@ export class LibToriPlatformEmscriptenJSAPI {
 
   scriptGetIsInline(script) {
     return this._scriptGetIsInline(script) !== 0;
+  }
+
+  scriptGetArgCount(script) {
+    return this._scriptGetArgCount(script);
+  }
+
+  scriptGetArg(script, index) {
+    return this._scriptGetArg(script, index);
+  }
+
+  scriptValueAsInt(scriptValue) {
+    return this._scriptValueAsInt(scriptValue);
   }
 
   browserMainUnlock() {
@@ -172,8 +204,12 @@ export class LibToriPlatformEmscriptenJSAPI {
     this._scriptAPIDat1ConfigFileLoad(this.instancePtr, ioQueue);
   }
 
-  scriptAPIDat1ModelFetch(ioqueue, modelId) {
-    this._scriptAPIDat1ModelFetch(this.instancePtr, modelId, ioqueue);
+  scriptAPIDat1ModelFetchNativeInt(ioqueue, modelId) {
+    this._scriptAPIDat1ModelFetchNativeInt(this.instancePtr, modelId, ioqueue);
+  }
+
+  scriptAPIDat1ModelFetchScriptInt(ioqueue, modelId) {
+    this._scriptAPIDat1ModelFetchScriptInt(this.instancePtr, modelId, ioqueue);
   }
 
   scriptAPIDat1ModelLoad(ioqueue) {
@@ -202,6 +238,10 @@ export class LibToriPlatformEmscriptenJSAPI {
 
   ioQueueItemResolve(item, dataPtr) {
     this._ioQueueItemResolve(item, dataPtr);
+  }
+
+  ioQueueItemError(item, errorCode) {
+    this._ioQueueItemError(item, errorCode);
   }
 
   malloc(size) {

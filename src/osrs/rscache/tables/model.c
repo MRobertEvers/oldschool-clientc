@@ -1,6 +1,7 @@
 #include "model.h"
 
 #include "../cache.h"
+#include "../cache_dat.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -45,7 +46,7 @@ model_assert_texture_invariant(const struct CacheModel* model)
 // Helper function to read a byte from the buffer
 static uint8_t
 read_byte(
-    const char* buffer,
+    const uint8_t* buffer,
     int* offset)
 {
     return buffer[(*offset)++] & 0xFF;
@@ -2418,7 +2419,20 @@ model_new_from_archive(
     struct CacheArchive* archive,
     int model_id_nullable)
 {
-    struct CacheModel* model = model_new_decode(archive->data, archive->data_size);
+    struct CacheModel* model = model_new_decode(
+        (const unsigned char*)archive->data, archive->data_size);
+    if( model )
+        model->_id = model_id_nullable;
+    return model;
+}
+
+struct CacheModel*
+model_new_from_dat_archive(
+    struct CacheDatArchive* archive,
+    int model_id_nullable)
+{
+    struct CacheModel* model = model_new_decode(
+        (const unsigned char*)archive->data, archive->data_size);
     if( model )
         model->_id = model_id_nullable;
     return model;

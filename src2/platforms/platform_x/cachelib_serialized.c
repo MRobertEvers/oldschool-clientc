@@ -77,15 +77,15 @@ cachelib_cache_archive_deserialize(
     const void* buffer,
     int size)
 {
-    if( !buffer || size < CACHELIB_CACHE_ARCHIVE_HEADER_SIZE )
+    if( !buffer || size < (int)CACHELIB_CACHE_ARCHIVE_HEADER_SIZE )
         return NULL;
 
     const uint8_t* p = (const uint8_t*)buffer;
     int total_size = read_int(p + 0);
     int data_size = read_int(p + 4);
 
-    if( total_size < CACHELIB_CACHE_ARCHIVE_HEADER_SIZE ||
-        total_size != CACHELIB_CACHE_ARCHIVE_HEADER_SIZE + data_size )
+    if( total_size < (int)CACHELIB_CACHE_ARCHIVE_HEADER_SIZE ||
+        total_size != (int)CACHELIB_CACHE_ARCHIVE_HEADER_SIZE + data_size )
         return NULL;
     if( size < total_size )
         return NULL;
@@ -175,15 +175,15 @@ cachelib_cache_dat_archive_deserialize(
     const void* buffer,
     int size)
 {
-    if( !buffer || size < CACHELIB_CACHE_DAT_ARCHIVE_HEADER_SIZE )
+    if( !buffer || size < (int)CACHELIB_CACHE_DAT_ARCHIVE_HEADER_SIZE )
         return NULL;
 
     const uint8_t* p = (const uint8_t*)buffer;
     int total_size = read_int(p + 0);
     int data_size = read_int(p + 4);
 
-    if( total_size < CACHELIB_CACHE_DAT_ARCHIVE_HEADER_SIZE ||
-        total_size != CACHELIB_CACHE_DAT_ARCHIVE_HEADER_SIZE + data_size )
+    if( total_size < (int)CACHELIB_CACHE_DAT_ARCHIVE_HEADER_SIZE ||
+        total_size != (int)CACHELIB_CACHE_DAT_ARCHIVE_HEADER_SIZE + data_size )
         return NULL;
     if( size < total_size )
         return NULL;
