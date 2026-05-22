@@ -91,7 +91,9 @@ init_files(char const* directory)
     char path[1024];
     FILE* file = NULL;
 
-    for( int i = 0; i < sizeof(g_table_idx_files) / sizeof(g_table_idx_files[0]); i++ )
+    int const table_idx_count =
+        (int)(sizeof(g_table_idx_files) / sizeof(g_table_idx_files[0]));
+    for( int i = 0; i < table_idx_count; i++ )
     {
         snprintf(
             path,
@@ -214,6 +216,8 @@ cache_new_inet(
     char const* ip,
     int port)
 {
+    (void)ip;
+    (void)port;
     struct Cache* cache = malloc(sizeof(struct Cache));
     memset(cache, 0, sizeof(struct Cache));
 
@@ -239,7 +243,7 @@ cache_new_inet(
     // }
 
     // For native builds: Load idx255 metadata upfront if needed
-    int is_valid = idx255_size_is_valid(cache->directory);
+    (void)idx255_size_is_valid(cache->directory);
 
     // if( !is_valid )
     // {
@@ -311,7 +315,7 @@ cache_free(struct Cache* cache)
     if( cache->_dat2_file )
         fclose(cache->_dat2_file);
 
-    free(cache->directory);
+    free((void*)cache->directory);
     for( int i = 0; i < CACHE_TABLE_COUNT; ++i )
     {
         if( cache->tables[i] )
@@ -450,11 +454,11 @@ cache_archive_new_load_decrypted(
     int archive_id,
     uint32_t* xtea_key_nullable)
 {
-    struct CacheInetPayload* payload = NULL;
     struct ArchiveBuffer dat2_archive = { 0 };
     struct CacheArchive* archive = malloc(sizeof(struct CacheArchive));
     memset(archive, 0, sizeof(struct CacheArchive));
 
+    (void)xtea_key_nullable;
     // 2. Consult the index for table_id. Table_id=2 is idx2
     //  - Read the entry "archive_id" in idx2. archive_id is the slot in the idx2 file..
     //  - Load the archive specified in the entry from .dat2
@@ -541,7 +545,8 @@ cache_archive_xtea_key(
     int table_id,
     int archive_id)
 {
-    return xtea_config_find_key(table_id, archive_id);
+    (void)cache;
+    return (uint32_t*)xtea_config_find_key(table_id, archive_id);
 }
 
 void

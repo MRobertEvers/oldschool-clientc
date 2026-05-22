@@ -10,7 +10,7 @@ OBJ_DIR := sdl2_build
 PROG    := sdl2
 
 CC      ?= cc
-CFLAGS  ?= -O0 -Wall -Wextra -g
+CFLAGS  ?= -O0 -Wall -Wextra -Werror -g
 CFLAGS  += -fsanitize=address -fno-omit-frame-pointer
 LDFLAGS += -fsanitize=address
 CPPFLAGS += -I$(SRC_DIR) -I$(SRC2) -I$(SCRIPT_DIR) -I$(REPO_ROOT)

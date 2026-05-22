@@ -1,3 +1,4 @@
+#include "graphics/tori_compat.h"
 #include "graphics/dash_restrict.h"
 #include "graphics/shade.h"
 
@@ -500,7 +501,8 @@ raster_linear_opaque_blend_lerp8_v3(
     int v_mask,
     int shade)
 {
-    uint32x4_t t0, t1;
+    uint32x4_t t0 = vdupq_n_u32(0);
+    uint32x4_t t1 = vdupq_n_u32(0);
 
 // We mask U and V at every pixel to prevent texture bleeding/crashes
 #define GET_TEXEL_ADDR &texels[((u_scan >> texture_shift) & u_mask) + (v_scan & v_mask)]
@@ -550,7 +552,8 @@ raster_linear_transparent_blend_lerp8_v3(
     int v_mask,
     int shade)
 {
-    uint32x4_t t0, t1;
+    uint32x4_t t0 = vdupq_n_u32(0);
+    uint32x4_t t1 = vdupq_n_u32(0);
 
 #define GET_TEXEL_ADDR &texels[((u_scan >> texture_shift) & u_mask) + (v_scan & v_mask)]
 

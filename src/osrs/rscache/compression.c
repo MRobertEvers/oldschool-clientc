@@ -229,7 +229,8 @@ cache_bzip_decompress(
     int compressed_length)
 {
     // bzip_decompress expects: (output_buffer, input_data, input_size, offset)
-    bzip_decompress(out, compressed_data, compressed_length, 0);
+    bzip_decompress(
+        (int8_t*)out, (int8_t*)compressed_data, compressed_length, 0);
 
     return out_length;
 }

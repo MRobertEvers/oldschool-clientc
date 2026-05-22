@@ -1,7 +1,7 @@
 #include "platform_sdl2.h"
 
 #include "libtorirs.h"
-#include "src/graphics/dash_model.h"
+#include "graphics/dash.h"
 #include "toripix/toridraw.h"
 
 #include <stdio.h>
@@ -21,7 +21,7 @@ struct LibToriPlatformSDL2
     struct ToriDraw_Camera camera;
 };
 
-static struct ToriDraw_ModelHandle
+static struct ToriDraw_ModelHandle __attribute__((unused))
 toridraw_handle_from_dash_model(struct DashModel* dash_model)
 {
     struct ToriDraw_ModelHandle hnd = { .kind = TORIDRAWMK_NONE };

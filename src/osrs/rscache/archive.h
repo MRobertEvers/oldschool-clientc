@@ -31,6 +31,6 @@ int
 archive_name_hash_dat2(char* name);
 
 int
-archive_name_hash_dat(char* name);
+archive_name_hash_dat(const char* name);
 
 #endif

@@ -131,8 +131,7 @@ disk_dat2file_read_archive(
     int length,
     struct ArchiveBuffer* archive)
 {
-    char read_buffer[SECTOR_SIZE];
-    int read_buffer_len = 0;
+    uint8_t read_buffer[SECTOR_SIZE];
     int data_block_size;
 
     int header_size = header_size_for_archive(archive_id);
@@ -226,8 +225,6 @@ disk_dat2file_read_archive(
             goto error;
         }
 
-        read_buffer_len = bytes_read;
-
         read_sector_header(&header, archive_id, read_buffer, bytes_read);
 
         // Safety check that we are still reading the correct archive.
@@ -305,7 +302,7 @@ disk_dat2file_append_archive(
     {
         padding = SECTOR_SIZE - (data_file_size % SECTOR_SIZE);
         uint8_t zeros[SECTOR_SIZE] = { 0 };
-        if( fwrite(zeros, 1, padding, file) != padding )
+        if( fwrite(zeros, 1, (size_t)padding, file) != (size_t)padding )
         {
             printf("failed to write padding\n");
             assert(false);

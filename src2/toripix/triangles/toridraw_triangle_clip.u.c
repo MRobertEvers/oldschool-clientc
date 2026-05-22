@@ -1,6 +1,7 @@
 #ifndef TORIDRAW_TRIANGLE_CLIP_U_C
 #define TORIDRAW_TRIANGLE_CLIP_U_C
 
+#include "graphics/tori_compat.h"
 #include "../toridraw_math.h"
 #include "graphics/projection.h"
 

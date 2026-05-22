@@ -25,7 +25,7 @@ filelist_dat_new_from_decode(
     char* data,
     int data_size)
 {
-    struct RSBuffer buffer = { .data = (int8_t*)data, .position = 0, .size = data_size };
+    struct RSBuffer buffer = { .data = (uint8_t*)data, .position = 0, .size = (uint32_t)data_size };
     struct FileListDat* filelist = NULL;
     int actual_size = g3(&buffer);
     int size = g3(&buffer);
@@ -64,23 +64,23 @@ filelist_dat_new_from_decode(
         free(compressed_data);
 
         // Both buffers point to the decompressed data
-        data_buffer.data = (int8_t*)decompressed_archive;
-        data_buffer.size = actual_size;
+        data_buffer.data = (uint8_t*)decompressed_archive;
+        data_buffer.size = (uint32_t)actual_size;
         data_buffer.position = 0;
 
-        meta_buffer.data = (int8_t*)decompressed_archive;
-        meta_buffer.size = actual_size;
+        meta_buffer.data = (uint8_t*)decompressed_archive;
+        meta_buffer.size = (uint32_t)actual_size;
         meta_buffer.position = 0;
     }
     else
     {
         // Not compressed, use original data
-        data_buffer.data = (int8_t*)data;
-        data_buffer.size = data_size;
+        data_buffer.data = (uint8_t*)data;
+        data_buffer.size = (uint32_t)data_size;
         data_buffer.position = buffer.position;
 
-        meta_buffer.data = (int8_t*)data;
-        meta_buffer.size = data_size;
+        meta_buffer.data = (uint8_t*)data;
+        meta_buffer.size = (uint32_t)data_size;
         meta_buffer.position = buffer.position;
     }
 

@@ -21,11 +21,11 @@ cache_dat_texture_new_from_filelist_dat(
     if( file_index_idx == -1 )
         return NULL;
 
-    struct RSBuffer databuf = { .data = textures_filelist->files[file_data_idx],
-                                .size = textures_filelist->file_sizes[file_data_idx] };
+    struct RSBuffer databuf = { .data = (uint8_t*)(textures_filelist->files[file_data_idx]),
+                                .size = (uint32_t)(textures_filelist->file_sizes[file_data_idx]) };
 
-    struct RSBuffer indexbuf = { .data = textures_filelist->files[file_index_idx],
-                                 .size = textures_filelist->file_sizes[file_index_idx] };
+    struct RSBuffer indexbuf = { .data = (uint8_t*)(textures_filelist->files[file_index_idx]),
+                                 .size = (uint32_t)(textures_filelist->file_sizes[file_index_idx]) };
 
     //  index.pos = data.g2();
     //  this.owi = index.g2();
@@ -69,8 +69,8 @@ cache_dat_texture_new_from_filelist_dat(
         return NULL;
 
     indexbuf.position = g2(&databuf);
-    int owi = g2(&indexbuf);
-    int ohi = g2(&indexbuf);
+    (void)g2(&indexbuf); /* owi */
+    (void)g2(&indexbuf); /* ohi */
     int pal_count = g1(&indexbuf);
     int* bpal = malloc(pal_count * sizeof(int));
     if( !bpal )

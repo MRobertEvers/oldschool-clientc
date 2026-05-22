@@ -77,8 +77,8 @@ cache_dat_pix8_palette_new(
         return NULL;
     memset(pix8, 0, sizeof(struct CacheDatPix8Palette));
 
-    struct RSBuffer databuf = { .data = data, .size = data_size };
-    struct RSBuffer indexbuf = { .data = index_data, .size = index_data_size };
+    struct RSBuffer databuf = { .data = (uint8_t*)data, .size = (uint32_t)data_size };
+    struct RSBuffer indexbuf = { .data = (uint8_t*)index_data, .size = (uint32_t)index_data_size };
 
     indexbuf.position = g2(&databuf);
     int crop_width = g2(&indexbuf);

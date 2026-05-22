@@ -29,13 +29,15 @@ archive_decrypt_decompress(
 {
     // TODO: CRC32
 
-    struct RSBuffer buffer = { .data = archive->data, .position = 0, .size = archive->data_size };
+    struct RSBuffer buffer = {
+        .data = (uint8_t*)archive->data, .position = 0, .size = (uint32_t)archive->data_size };
 
     int compression = g1(&buffer);
     // Uncompressed size
     int size = g4(&buffer);
     if( xtea_key_nullable && compression != NON_OSRS_PACKED_ARCHIVE_FORMAT )
-        xtea_decrypt(archive->data + buffer.position, size + 4, xtea_key_nullable);
+        xtea_decrypt(
+            archive->data + buffer.position, size + 4, (int32_t*)xtea_key_nullable);
 
     unsigned int crc = 0;
     for( int i = 0; i < 5; i++ )
@@ -69,7 +71,7 @@ archive_decrypt_decompress(
         int uncompressed_length = g4(&buffer);
 
         char* compressed_data = malloc(size);
-        bytes_read = greadto(&buffer, compressed_data, size, size);
+        bytes_read = greadto(&buffer, (char*)compressed_data, size, size);
         if( bytes_read < size )
         {
             free(compressed_data);
@@ -84,7 +86,11 @@ archive_decrypt_decompress(
         }
 
         // bzip_decompress expects: (output_buffer, input_data, input_size, offset)
-        cache_bzip_decompress(decompressed_data, uncompressed_length, compressed_data, size);
+        cache_bzip_decompress(
+            (uint8_t*)decompressed_data,
+            uncompressed_length,
+            (uint8_t*)compressed_data,
+            size);
 
         free(archive->data);
         archive->data = decompressed_data;
@@ -98,7 +104,7 @@ archive_decrypt_decompress(
         // 	int uncompressedLength = buffer.getInt();
         int uncompressed_length = g4(&buffer) & 0xFFFFFFFF;
         uint8_t* compressed_data = malloc(size);
-        bytes_read = greadto(&buffer, compressed_data, size, size);
+        bytes_read = greadto(&buffer, (char*)compressed_data, size, size);
         if( bytes_read < size )
         {
             free(compressed_data);
@@ -112,7 +118,8 @@ archive_decrypt_decompress(
             return false;
         }
 
-        cache_gzip_decompress(decompressed_data, uncompressed_length, compressed_data, size, 0);
+        cache_gzip_decompress(
+            (uint8_t*)decompressed_data, uncompressed_length, compressed_data, size, 0);
 
         free(archive->data);
         archive->data = decompressed_data;
@@ -146,7 +153,7 @@ archive_decompress_dat(struct ArchiveBuffer* archive)
         int uncompressed_length = cache_gzip_decompress(
             decompress_buffer,
             sizeof(decompress_buffer),
-            archive->data,
+            (uint8_t*)archive->data,
             archive->data_size,
             GZIP_NO_FOOTER);
 

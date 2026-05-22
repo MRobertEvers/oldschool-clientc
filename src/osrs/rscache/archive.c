@@ -31,7 +31,7 @@ hash_djb2(char* name)
 }
 
 static int
-hash_rolling_polynomial_uppercase(char* name)
+hash_rolling_polynomial_uppercase(const char* name)
 {
     char c = 0;
     int hash = 0;
@@ -52,7 +52,7 @@ archive_name_hash_dat2(char* name)
 }
 
 int
-archive_name_hash_dat(char* name)
+archive_name_hash_dat(const char* name)
 {
     return hash_rolling_polynomial_uppercase(name);
 }

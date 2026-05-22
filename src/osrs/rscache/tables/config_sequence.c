@@ -750,7 +750,7 @@ config_sequence_new_decode(
     struct CacheConfigSequence* def = malloc(sizeof(struct CacheConfigSequence));
     memset(def, 0, sizeof(struct CacheConfigSequence));
 
-    struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
+    struct RSBuffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
 
     decode_sequence(def, revision, &buffer);
 
@@ -815,7 +815,7 @@ config_sequence_decode_inplace(
     char* data,
     int buffer_size)
 {
-    struct RSBuffer buffer = { .data = data, .size = buffer_size, .position = 0 };
+    struct RSBuffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(buffer_size), .position = 0 };
     decode_sequence(sequence, revision, &buffer);
 }
 
@@ -1005,7 +1005,7 @@ config_dat_sequence_decode_inplace(
     char* data,
     int data_size)
 {
-    struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
+    struct RSBuffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
 
     while( true )
     {

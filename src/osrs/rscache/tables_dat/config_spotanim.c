@@ -23,7 +23,7 @@ cache_dat_config_spotanim_decode_one(
     s->ambient = 0;
     s->contrast = 0;
 
-    struct RSBuffer buffer = { .data = data, .size = size, .position = 0 };
+    struct RSBuffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(size), .position = 0 };
 
     while( buffer.position < buffer.size )
     {

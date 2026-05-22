@@ -221,7 +221,7 @@ decode_loc(
     int data_size,
     int flags)
 {
-    struct RSBuffer buffer = { .data = (uint8_t*)data, .size = data_size, .position = 0 };
+    struct RSBuffer buffer = { .data = (uint8_t*)data, .size = (uint32_t)(data_size), .position = 0 };
 
     int actions_count = 0;
 

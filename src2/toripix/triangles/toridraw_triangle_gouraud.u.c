@@ -1,3 +1,5 @@
+#include "graphics/tori_compat.h"
+
 #ifndef TORIDRAW_TRIANGLE_GOURAUD_U_C
 #define TORIDRAW_TRIANGLE_GOURAUD_U_C
 

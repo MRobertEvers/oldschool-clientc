@@ -1,6 +1,7 @@
 #ifndef FLAT_DEOB_U_C
 #define FLAT_DEOB_U_C
 
+#include "graphics/tori_compat.h"
 #include "graphics/dash_restrict.h"
 #include "graphics/raster/deob/pix3d_deob_state.h"
 
@@ -75,24 +76,34 @@ pix3d_deob_flat_raster(int xA, int xB, int* RESTRICT dst, int off, int colour)
                     if( len < 0 )
                         return;
 
-                    dst[off++] = colour
-                        + ((((dst[off] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
-                        + ((((dst[off] & 0xff00) * alpha) >> 8) & 0xff00);
+                    {
+                        int o = off++;
+                        dst[o] = colour + ((((dst[o] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
+                            + ((((dst[o] & 0xff00) * alpha) >> 8) & 0xff00);
+                    }
                 }
             }
 
-            dst[off++] = colour
-                + ((((dst[off] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
-                + ((((dst[off] & 0xff00) * alpha) >> 8) & 0xff00);
-            dst[off++] = colour
-                + ((((dst[off] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
-                + ((((dst[off] & 0xff00) * alpha) >> 8) & 0xff00);
-            dst[off++] = colour
-                + ((((dst[off] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
-                + ((((dst[off] & 0xff00) * alpha) >> 8) & 0xff00);
-            dst[off++] = colour
-                + ((((dst[off] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
-                + ((((dst[off] & 0xff00) * alpha) >> 8) & 0xff00);
+            {
+                int o = off++;
+                dst[o] = colour + ((((dst[o] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
+                    + ((((dst[o] & 0xff00) * alpha) >> 8) & 0xff00);
+            }
+            {
+                int o = off++;
+                dst[o] = colour + ((((dst[o] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
+                    + ((((dst[o] & 0xff00) * alpha) >> 8) & 0xff00);
+            }
+            {
+                int o = off++;
+                dst[o] = colour + ((((dst[o] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
+                    + ((((dst[o] & 0xff00) * alpha) >> 8) & 0xff00);
+            }
+            {
+                int o = off++;
+                dst[o] = colour + ((((dst[o] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
+                    + ((((dst[o] & 0xff00) * alpha) >> 8) & 0xff00);
+            }
         }
     }
 }

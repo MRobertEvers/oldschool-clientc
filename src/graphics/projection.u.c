@@ -3,6 +3,7 @@
 
 #include "projection.h"
 
+#include "graphics/tori_compat.h"
 #include "graphics/shared_tables.h"
 
 #include <assert.h>

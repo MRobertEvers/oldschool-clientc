@@ -16,7 +16,7 @@ cache_dat_config_obj_decode_one(void* data, int size)
     struct CacheDatConfigObj* obj = malloc(sizeof(struct CacheDatConfigObj));
     memset(obj, 0, sizeof(struct CacheDatConfigObj));
 
-    struct RSBuffer buffer = { .data = data, .size = size, .position = 0 };
+    struct RSBuffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(size), .position = 0 };
 
     // Initialize default values
     obj->model = 0;

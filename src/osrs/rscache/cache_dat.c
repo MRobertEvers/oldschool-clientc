@@ -134,7 +134,7 @@ cache_dat_free(struct CacheDat* cache_dat)
     if( cache_dat->_dat_file )
         fclose(cache_dat->_dat_file);
     cache_map_squares_free(cache_dat->map_squares);
-    free(cache_dat->directory);
+    free((void*)cache_dat->directory);
     free(cache_dat);
 }
 
@@ -144,7 +144,6 @@ cache_dat_archive_new_load(
     int table_id,
     int archive_id)
 {
-    struct CacheInetPayload* payload = NULL;
     struct ArchiveBuffer dat2_archive = { 0 };
     struct CacheDatArchive* archive = malloc(sizeof(struct CacheDatArchive));
     memset(archive, 0, sizeof(struct CacheDatArchive));

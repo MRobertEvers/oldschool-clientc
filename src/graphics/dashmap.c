@@ -1,3 +1,4 @@
+#include "graphics/tori_compat.h"
 #include "dashmap.h"
 /*
  * dashmap.c
@@ -141,6 +142,7 @@ hmap_entry_key_ptr(
     const struct DashMap* m,
     void* entry)
 {
+    TORI_UNUSED(m);
     return (unsigned char*)entry;
 }
 
@@ -288,6 +290,7 @@ dashmap_new(
     const struct DashMapConfig* config,
     uint32_t flags)
 {
+    TORI_UNUSED(flags);
     int status;
     struct DashMap* m = malloc(sizeof(struct DashMap));
     if( !m )

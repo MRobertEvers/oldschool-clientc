@@ -123,11 +123,11 @@ cache_dat_animbaseframes_new_decode(
     struct CacheDatAnimBaseFrames* animbaseframes = malloc(sizeof(struct CacheDatAnimBaseFrames));
     memset(animbaseframes, 0, sizeof(struct CacheDatAnimBaseFrames));
 
-    struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
-    struct RSBuffer head_buffer = { .data = data, .size = data_size, .position = 0 };
-    struct RSBuffer tran1_buffer = { .data = data, .size = data_size, .position = 0 };
-    struct RSBuffer tran2_buffer = { .data = data, .size = data_size, .position = 0 };
-    struct RSBuffer del_buffer = { .data = data, .size = data_size, .position = 0 };
+    struct RSBuffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
+    struct RSBuffer head_buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
+    struct RSBuffer tran1_buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
+    struct RSBuffer tran2_buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
+    struct RSBuffer del_buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
 
     buffer.position = data_size - 8;
 
@@ -287,7 +287,7 @@ cache_dat_animbase_new_decode(
     struct CacheAnimBase* animbase = malloc(sizeof(struct CacheAnimBase));
     memset(animbase, 0, sizeof(struct CacheAnimBase));
 
-    struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
+    struct RSBuffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
 
     int length = g1(&buffer);
     animbase->length = length;

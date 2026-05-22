@@ -328,8 +328,8 @@ cache_dat_config_npc_list_new_decode(
     {
         rsbuf_init(
             &buffer,
-            filelist_indexed->data + filelist_indexed->offsets[i],
-            filelist_indexed->data_size - filelist_indexed->offsets[i]);
+            (uint8_t*)(filelist_indexed->data + filelist_indexed->offsets[i]),
+            (uint32_t)(filelist_indexed->data_size - filelist_indexed->offsets[i]));
 
         struct CacheDatConfigNpc* npc = cache_dat_config_npc_decode_one(&buffer);
         if( npc == NULL )

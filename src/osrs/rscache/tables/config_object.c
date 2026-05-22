@@ -164,7 +164,7 @@ config_object_decode_inplace(
     char* data,
     int data_size)
 {
-    struct RSBuffer buffer = { .data = data, .size = data_size };
+    struct RSBuffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size };
 
     init_object(object);
 

@@ -198,7 +198,7 @@ decode_ob2(
     int has_vertex_labels = read_unsigned_byte(inputData, &offset);
     int vertexXDataByteCount = read_unsigned_short(inputData, &offset);
     int vertexYDataByteCount = read_unsigned_short(inputData, &offset);
-    int vertexZDataByteCount = read_unsigned_short(inputData, &offset);
+    (void)read_unsigned_short(inputData, &offset); /* vertexZDataByteCount */
     int faceIndexDataByteCount = read_unsigned_short(inputData, &offset);
 
     // Calculate offsets for different data sections
@@ -1350,7 +1350,7 @@ decode_version2__osrs_extended(
     var24 += var18;               // vertex X data end
     int var35 = var24;            // vertex Y data start
     var24 += var19;               // vertex Y data end
-    int var10000 = var24 + var20; // vertex Z data end
+    (void)(var24 + var20); /* vertex Z data end */
 
     // Set model properties
     def->vertex_count = var9;
@@ -1653,6 +1653,8 @@ decode_version2__osrs_extended(
     // }
 
     model_assert_texture_invariant(def);
+    (void)var2;
+    (void)var3;
     return def;
 }
 
@@ -2405,7 +2407,7 @@ model_new_from_cache(
         return NULL;
     }
 
-    model = model_new_decode(archive->data, archive->data_size);
+    model = model_new_decode((const unsigned char*)archive->data, archive->data_size);
 
     cache_archive_free(archive);
     if( model )

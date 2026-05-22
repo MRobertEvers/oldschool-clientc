@@ -129,7 +129,7 @@ toridraw_raster_model_face(
     //     return;
     // }
 
-    int* texels = g_empty_texture_texels;
+    const int* texels = g_empty_texture_texels;
     int texture_size = 0;
     int texture_opaque = true;
     int tex_id_row = -1;
@@ -312,7 +312,7 @@ toridraw_raster_model_face(
                     ctx->colors_a,
                     ctx->colors_b,
                     ctx->colors_c,
-                    texels,
+                    (int*)texels,
                     texture_size,
                     texture_opaque,
                     ctx->near_plane_z,
@@ -344,7 +344,7 @@ toridraw_raster_model_face(
                     ctx->colors_a,
                     ctx->colors_b,
                     ctx->colors_c,
-                    texels,
+                    (int*)texels,
                     texture_size,
                     ctx->near_plane_z,
                     ctx->offset_x,
@@ -375,7 +375,7 @@ toridraw_raster_model_face(
                     ctx->colors_a,
                     ctx->colors_b,
                     ctx->colors_c,
-                    texels,
+                    (int*)texels,
                     texture_size,
                     ctx->near_plane_z,
                     ctx->offset_x,
@@ -439,7 +439,7 @@ toridraw_raster_model_face(
                     ctx->orthographic_vertex_y_nullable,
                     ctx->orthographic_vertex_z_nullable,
                     ctx->colors_a,
-                    texels,
+                    (int*)texels,
                     texture_size,
                     texture_opaque,
                     ctx->near_plane_z,
@@ -469,7 +469,7 @@ toridraw_raster_model_face(
                     ctx->orthographic_vertex_y_nullable,
                     ctx->orthographic_vertex_z_nullable,
                     ctx->colors_a,
-                    texels,
+                    (int*)texels,
                     texture_size,
                     ctx->near_plane_z,
                     ctx->offset_x,
@@ -498,7 +498,7 @@ toridraw_raster_model_face(
                     ctx->orthographic_vertex_y_nullable,
                     ctx->orthographic_vertex_z_nullable,
                     ctx->colors_a,
-                    texels,
+                    (int*)texels,
                     texture_size,
                     ctx->near_plane_z,
                     ctx->offset_x,
@@ -563,7 +563,10 @@ context_from_handle(
         if( false )
             ctx->flags |= RASTER_FLAG_TEXTURE_AFFINE;
         ctx->allow_near_clip = toridraw_model_has_textures(hnd);
+        break;
     }
+    default:
+        break;
     }
 }
 

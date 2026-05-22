@@ -1,6 +1,7 @@
 #ifndef GOURAUD_SCREEN_OPAQUE_BARY_BRANCHING_S4_C
 #define GOURAUD_SCREEN_OPAQUE_BARY_BRANCHING_S4_C
 
+#include "graphics/tori_compat.h"
 #include "graphics/dash_restrict.h"
 #include "graphics/raster/gouraud/gouraud_barycentric_steps.h"
 
@@ -23,6 +24,7 @@ draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
     int color_hsl16_ish8,
     int color_step_hsl16_ish8)
 {
+    TORI_UNUSED(y);
     if( x_start_ish16 == x_end_ish16 )
         return;
 

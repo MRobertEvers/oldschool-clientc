@@ -28,7 +28,7 @@ config_npctype_new_decode(
         return NULL;
     }
 
-    struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
+    struct RSBuffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
 
     decode_npc_type(npc, revision, &buffer);
 

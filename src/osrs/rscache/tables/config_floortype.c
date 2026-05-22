@@ -74,8 +74,8 @@ config_floortype_overlay_new_decode(
     int data_size)
 {
     struct RSBuffer buffer = {
-        .data = data,
-        .size = data_size,
+        .data = (uint8_t*)(data),
+        .size = (uint32_t)(data_size),
         .position = 0,
     };
 
@@ -103,8 +103,8 @@ config_floortype_overlay_decode_inplace(
     init_overlay(overlay);
 
     struct RSBuffer buffer = {
-        .data = data,
-        .size = data_size,
+        .data = (uint8_t*)(data),
+        .size = (uint32_t)(data_size),
         .position = 0,
     };
 
@@ -210,8 +210,8 @@ config_floortype_underlay_decode_inplace(
     memset(underlay, 0, sizeof(struct CacheConfigUnderlay));
 
     struct RSBuffer buffer = {
-        .data = data,
-        .size = data_size,
+        .data = (uint8_t*)(data),
+        .size = (uint32_t)(data_size),
         .position = 0,
     };
 

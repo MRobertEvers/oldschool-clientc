@@ -26,7 +26,7 @@ cache_map_squares_new_decode(
 
     memset(map_squares->squares, 0, count * sizeof(struct CacheMapSquare));
 
-    struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
+    struct RSBuffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
     for( int i = 0; i < count; i++ )
     {
         map_squares->squares[i].map_id = g2(&buffer);

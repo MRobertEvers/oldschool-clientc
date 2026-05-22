@@ -85,8 +85,8 @@ cache_dat_config_varp_list_new_decode(
     struct CacheDatConfigVarpList* list = malloc(sizeof(struct CacheDatConfigVarpList));
     memset(list, 0, sizeof(struct CacheDatConfigVarpList));
 
-    struct RSBuffer buffer = { .data = (int8_t*)jagfile_varpdat_data,
-                               .size = jagfile_varpdat_data_size,
+    struct RSBuffer buffer = { .data = (uint8_t*)jagfile_varpdat_data,
+                               .size = (uint32_t)(jagfile_varpdat_data_size),
                                .position = 0 };
 
     int varp_count = g2(&buffer);

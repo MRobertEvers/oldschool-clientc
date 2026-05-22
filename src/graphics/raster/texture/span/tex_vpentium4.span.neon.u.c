@@ -57,7 +57,8 @@ raster_linear_opaque_blend_lerp8_vpentium4(
     int v_mask,
     int shade)
 {
-    uint32x4_t t0, t1;
+    uint32x4_t t0 = vdupq_n_u32(0);
+    uint32x4_t t1 = vdupq_n_u32(0);
 
 #define P4_GET_TEXEL_ADDR &texels[((u_scan >> texture_shift) & u_mask) + (v_scan & v_mask)]
 

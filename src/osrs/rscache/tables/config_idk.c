@@ -40,7 +40,7 @@ config_idk_decode_inplace(
     char* buffer,
     int buffer_size)
 {
-    struct RSBuffer rsbuf = { .data = (uint8_t*)buffer, .size = buffer_size, .position = 0 };
+    struct RSBuffer rsbuf = { .data = (uint8_t*)buffer, .size = (uint32_t)(buffer_size), .position = 0 };
 
     init_idk(idk);
 

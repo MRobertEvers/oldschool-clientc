@@ -58,7 +58,7 @@ frame_new_decode2(
     char* data,
     int data_size)
 {
-    struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
+    struct RSBuffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
     return frame_new_decode(id, framemap, &buffer);
 }
 
@@ -209,7 +209,7 @@ frame_framemap_id_from_file(
     char* data,
     int data_size)
 {
-    struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
+    struct RSBuffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
     return g2(&buffer);
 }
 

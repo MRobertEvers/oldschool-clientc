@@ -1,6 +1,7 @@
 #ifndef GOURAUD_DEOB_U_C
 #define GOURAUD_DEOB_U_C
 
+#include "graphics/tori_compat.h"
 #include "graphics/dash_restrict.h"
 #include "graphics/raster/deob/pix3d_deob_state.h"
 #include "graphics/shared_tables.h"
@@ -111,9 +112,11 @@ pix3d_deob_gouraud_raster(int xA, int xB, int colourA, int colourB, int* RESTRIC
 
                         do
                         {
-                            dst[off++] = rgb
-                                + ((((dst[off] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
-                                + ((((dst[off] & 0xff00) * alpha) >> 8) & 0xff00);
+                            {
+                                int o = off++;
+                                dst[o] = rgb + ((((dst[o] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
+                                    + ((((dst[o] & 0xff00) * alpha) >> 8) & 0xff00);
+                            }
                             len--;
                         } while( len > 0 );
                     }
@@ -126,18 +129,26 @@ pix3d_deob_gouraud_raster(int xA, int xB, int colourA, int colourB, int* RESTRIC
                 rgb = ((((rgb & 0xff00ff) * invAlpha) >> 8) & 0xff00ff)
                     + ((((rgb & 0xff00) * invAlpha) >> 8) & 0xff00);
 
-                dst[off++] = rgb
-                    + ((((dst[off] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
-                    + ((((dst[off] & 0xff00) * alpha) >> 8) & 0xff00);
-                dst[off++] = rgb
-                    + ((((dst[off] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
-                    + ((((dst[off] & 0xff00) * alpha) >> 8) & 0xff00);
-                dst[off++] = rgb
-                    + ((((dst[off] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
-                    + ((((dst[off] & 0xff00) * alpha) >> 8) & 0xff00);
-                dst[off++] = rgb
-                    + ((((dst[off] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
-                    + ((((dst[off] & 0xff00) * alpha) >> 8) & 0xff00);
+                {
+                    int o = off++;
+                    dst[o] = rgb + ((((dst[o] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
+                        + ((((dst[o] & 0xff00) * alpha) >> 8) & 0xff00);
+                }
+                {
+                    int o = off++;
+                    dst[o] = rgb + ((((dst[o] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
+                        + ((((dst[o] & 0xff00) * alpha) >> 8) & 0xff00);
+                }
+                {
+                    int o = off++;
+                    dst[o] = rgb + ((((dst[o] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
+                        + ((((dst[o] & 0xff00) * alpha) >> 8) & 0xff00);
+                }
+                {
+                    int o = off++;
+                    dst[o] = rgb + ((((dst[o] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
+                        + ((((dst[o] & 0xff00) * alpha) >> 8) & 0xff00);
+                }
             }
         }
     }
@@ -184,9 +195,11 @@ pix3d_deob_gouraud_raster(int xA, int xB, int colourA, int colourB, int* RESTRIC
                 rgb = ((((rgb & 0xff00ff) * invAlpha) >> 8) & 0xff00ff)
                     + ((((rgb & 0xff00) * invAlpha) >> 8) & 0xff00);
 
-                dst[off++] = rgb
-                    + ((((dst[off] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
-                    + ((((dst[off] & 0xff00) * alpha) >> 8) & 0xff00);
+                {
+                    int o = off++;
+                    dst[o] = rgb + ((((dst[o] & 0xff00ff) * alpha) >> 8) & 0xff00ff)
+                        + ((((dst[o] & 0xff00) * alpha) >> 8) & 0xff00);
+                }
                 len--;
             } while( len > 0 );
         }

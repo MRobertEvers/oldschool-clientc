@@ -55,8 +55,8 @@ cache_dat_pixfont_new_decode(
         return NULL;
     memset(pixfont, 0, sizeof(struct CacheDatPixfont));
 
-    struct RSBuffer databuf = { .data = data, .size = data_size };
-    struct RSBuffer indexbuf = { .data = index_data, .size = index_data_size };
+    struct RSBuffer databuf = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size };
+    struct RSBuffer indexbuf = { .data = (uint8_t*)(index_data), .size = (uint32_t)(index_data_size };
 
     // skip cropW and cropH
     indexbuf.position = g2(&databuf) + 4;

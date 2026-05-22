@@ -1,3 +1,4 @@
+#include "graphics/tori_compat.h"
 #include "dash.h"
 
 #include "graphics/dash_bench.h"
@@ -364,6 +365,7 @@ dash3d_aabb_cull(
     struct DashViewPort* view_port,
     struct DashCamera* camera)
 {
+    TORI_UNUSED(camera);
     int screen_width = view_port->width;
     int screen_height = view_port->height;
 
@@ -676,8 +678,6 @@ dash3d_raster_model_face(
     }
     assert(type >= 0 && type <= 3);
 
-    int color_a = ctx->colors_a[face];
-    int color_b = ctx->colors_b[face];
     int color_c = ctx->colors_c[face];
 
     // Faces with color_c == -2 are not drawn. As far as I can tell, these faces are used for
@@ -702,16 +702,6 @@ dash3d_raster_model_face(
     int tm_vertex;
     int tn_vertex;
 
-    int tp_x;
-    int tp_y;
-    int tp_z;
-    int tm_x;
-    int tm_y;
-    int tm_z;
-    int tn_x;
-    int tn_y;
-    int tn_z;
-
     int texture_id;
     int texture_face;
 
@@ -723,7 +713,7 @@ dash3d_raster_model_face(
     //     return;
     // }
 
-    int* texels = g_empty_texture_texels;
+    int* texels = (int*)g_empty_texture_texels;
     int texture_size = 0;
     int texture_opaque = true;
     int tex_id_row = -1;
@@ -903,7 +893,7 @@ dash3d_raster_model_face(
                     ctx->colors_a,
                     ctx->colors_b,
                     ctx->colors_c,
-                    texels,
+                    (int*)texels,
                     texture_size,
                     texture_opaque,
                     ctx->near_plane_z,
@@ -934,7 +924,7 @@ dash3d_raster_model_face(
                     ctx->colors_a,
                     ctx->colors_b,
                     ctx->colors_c,
-                    texels,
+                    (int*)texels,
                     texture_size,
                     texture_opaque,
                     ctx->near_plane_z,
@@ -998,7 +988,7 @@ dash3d_raster_model_face(
                     ctx->orthographic_vertex_y_nullable,
                     ctx->orthographic_vertex_z_nullable,
                     ctx->colors_a,
-                    texels,
+                    (int*)texels,
                     texture_size,
                     texture_opaque,
                     ctx->near_plane_z,
@@ -1027,7 +1017,7 @@ dash3d_raster_model_face(
                     ctx->orthographic_vertex_y_nullable,
                     ctx->orthographic_vertex_z_nullable,
                     ctx->colors_a,
-                    texels,
+                    (int*)texels,
                     texture_size,
                     texture_opaque,
                     ctx->near_plane_z,
@@ -3285,14 +3275,14 @@ dashmodel_bounds_cylinder_new(void)
     return bounds_cylinder;
 }
 
-static int*
+static uint32_t*
 dashpix8_to_argb(
     struct DashPix8* pix8,
     struct DashPixPalette* palette)
 {
-    int* pixels_argb = NULL;
-    pixels_argb = malloc(pix8->width * pix8->height * sizeof(int));
-    memset(pixels_argb, 0, pix8->width * pix8->height * sizeof(int));
+    uint32_t* pixels_argb = NULL;
+    pixels_argb = malloc(pix8->width * pix8->height * sizeof(uint32_t));
+    memset(pixels_argb, 0, pix8->width * pix8->height * sizeof(uint32_t));
 
     for( int i = 0; i < pix8->width * pix8->height; i++ )
     {
@@ -3327,8 +3317,8 @@ dashsprite_new_from_pix32(struct DashPix32* pix32)
     int width = pix32->stride_x;
     int height = pix32->stride_y;
 
-    int* pixels = malloc(pix32->draw_width * pix32->draw_height * sizeof(int));
-    memset(pixels, 0, pix32->draw_width * pix32->draw_height * sizeof(int));
+    uint32_t* pixels = malloc(pix32->draw_width * pix32->draw_height * sizeof(uint32_t));
+    memset(pixels, 0, pix32->draw_width * pix32->draw_height * sizeof(uint32_t));
 
     if( pix32->stride_y > pix32->draw_height )
     {
@@ -3665,7 +3655,7 @@ dashfont_draw_text(
     int stride)
 {
     // Calculate length of UTF16 string (null-terminated)
-    int length = strlen(text);
+    int length = strlen((const char*)text);
 
     for( int i = 0; i < length; i++ )
     {
@@ -4570,7 +4560,7 @@ dash2d_blit_sprite_alpha(
     x += sprite->crop_x;
     y += sprite->crop_y;
 
-    int* src_pixels = sprite->pixels_argb;
+    uint32_t* src_pixels = sprite->pixels_argb;
     int src_width = sprite->width;
     int src_height = sprite->height;
     int stride = view_port->stride;

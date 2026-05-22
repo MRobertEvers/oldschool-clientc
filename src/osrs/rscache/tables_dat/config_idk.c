@@ -93,8 +93,8 @@ cache_dat_config_idk_list_new_decode(
     struct CacheDatConfigIdkList* idk_list = malloc(sizeof(struct CacheDatConfigIdkList));
     memset(idk_list, 0, sizeof(struct CacheDatConfigIdkList));
 
-    struct RSBuffer buffer = { .data = jagfile_idkdat_data,
-                               .size = jagfile_idkdat_data_size,
+    struct RSBuffer buffer = { .data = (uint8_t*)(jagfile_idkdat_data),
+                               .size = (uint32_t)(jagfile_idkdat_data_size),
                                .position = 0 };
 
     int idk_count = g2(&buffer);

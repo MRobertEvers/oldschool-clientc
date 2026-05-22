@@ -46,7 +46,7 @@ framemap_new_decode2(
     char* data,
     int data_size)
 {
-    struct RSBuffer buffer = { .data = data, .size = data_size, .position = 0 };
+    struct RSBuffer buffer = { .data = (uint8_t*)(data), .size = (uint32_t)(data_size), .position = 0 };
     return framemap_new_decode(id, &buffer);
 }
 
