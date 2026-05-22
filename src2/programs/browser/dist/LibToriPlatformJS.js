@@ -152,9 +152,7 @@ class LibToriPlatformJS {
           default: {
             const sz = lua.lua_tostring(this.L_coro, -1);
             this.finishCoro();
-            throw new Error(
-              "Error in LuaRun: " + fromLuaStringToJSString(sz),
-            );
+            throw new Error("Error in LuaRun: " + fromLuaStringToJSString(sz));
           }
         }
       } catch (error) {
@@ -241,7 +239,7 @@ class LibToriPlatformJS {
         this.host.ioQueueItemResolve(item, archivePtr);
       } catch (error) {
         console.error(`Error loading archive ${tableId}/${archiveId}:`, error);
-        throw error;
+        this.host.ioQueueItemError(item, 1);
       }
     }
   }

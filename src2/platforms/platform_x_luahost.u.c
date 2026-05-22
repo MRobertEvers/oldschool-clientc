@@ -99,6 +99,53 @@ LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileFetch(lua_State* L)
  *   returns: boolean
  */
 int
+LibToriPlatformX_LuaHost_Game_Dat1_TexturesFetch(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
+    LibToriRS_ScriptAPI_Dat1_TexturesFetch(instance, io_queue);
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_TexturesLoad(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+    {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+    {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
+    if( !io_queue )
+    {
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    bool ok = LibToriRS_ScriptAPI_Dat1_TexturesLoad(instance, io_queue);
+    lua_pushboolean(L, ok);
+    return 1;
+}
+
+int
 LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileLoad(lua_State* L)
 {
     struct LibToriPlatformX_Lua* lua =
@@ -327,6 +374,10 @@ LibToriPlatformX_LuaHost_BindToPlatform(
         L, lua, "Dat1_ConfigFileFetch", LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileFetch);
     lua_bind_function_to_platform(
         L, lua, "Dat1_ConfigFileLoad", LibToriPlatformX_LuaHost_Game_Dat1_ConfigFileLoad);
+    lua_bind_function_to_platform(
+        L, lua, "Dat1_TexturesFetch", LibToriPlatformX_LuaHost_Game_Dat1_TexturesFetch);
+    lua_bind_function_to_platform(
+        L, lua, "Dat1_TexturesLoad", LibToriPlatformX_LuaHost_Game_Dat1_TexturesLoad);
     lua_bind_function_to_platform(
         L, lua, "Dat1_ModelFetchNativeInt", LibToriPlatformX_LuaHost_Game_Dat1_ModelFetchNativeInt);
     lua_bind_function_to_platform(

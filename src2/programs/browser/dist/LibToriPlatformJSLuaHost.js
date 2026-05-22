@@ -51,6 +51,33 @@ export class LibToriPlatformJSLuaHost {
     return 1;
   }
 
+  gameDat1TexturesFetch(L) {
+    const ioQueue = lua.lua_touserdata(L, 1);
+    this.emscriptenJSAPI.scriptAPIDat1TexturesFetch(ioQueue);
+    return 0;
+  }
+
+  gameDat1TexturesLoad(L) {
+    const ioQueue = lua.lua_touserdata(L, 1);
+    const ok = this.emscriptenJSAPI.scriptAPIDat1TexturesLoad(ioQueue);
+    lua.lua_pushboolean(L, ok);
+    return 1;
+  }
+
+  gameDat1ModelFetchNativeInt(L) {
+    const ioQueue = lua.lua_touserdata(L, 1);
+    const modelId = lua.lua_tointeger(L, 2);
+    this.emscriptenJSAPI.scriptAPIDat1ModelFetchNativeInt(ioQueue, modelId);
+    return 0;
+  }
+
+  gameDat1ModelFetchScriptInt(L) {
+    const ioQueue = lua.lua_touserdata(L, 1);
+    const modelId = lua.lua_touserdata(L, 2);
+    this.emscriptenJSAPI.scriptAPIDat1ModelFetchScriptInt(ioQueue, modelId);
+    return 0;
+  }
+
   gameDat1ModelLoad(L) {
     const ioQueue = lua.lua_touserdata(L, 1);
     const ok = this.emscriptenJSAPI.scriptAPIDat1ModelLoad(ioQueue);
@@ -58,19 +85,39 @@ export class LibToriPlatformJSLuaHost {
     return 1;
   }
 
-  gameDat1ModelFetch(L) {
+  gameDat1ModelFetchLuaInt(L) {
     const ioQueue = lua.lua_touserdata(L, 1);
 
-    // const modelId = lua.lua_tointeger(L, 2);
-    const modelId = luaScriptIntOrLuaInt(L, 2, this.emscriptenJSAPI);
-    this.emscriptenJSAPI.scriptAPIDat1ModelFetch(ioQueue, modelId);
+    const modelId = lua.lua_tointeger(L, 2);
+    this.emscriptenJSAPI.scriptAPIDat1ModelFetchNativeInt(ioQueue, modelId);
     return 0;
   }
 
-  gameDat1SubmitGameCacheModel(L) {
+  gameDat1ModelFetchLuaScriptInt(L) {
+    const ioQueue = lua.lua_touserdata(L, 1);
+    const modelId = lua.lua_touserdata(L, 2);
+    this.emscriptenJSAPI.scriptAPIDat1ModelFetchScriptInt(ioQueue, modelId);
+    return 0;
+  }
+
+  gameDat1SubmitGameCacheModelNativeInt(L) {
     // const modelId = lua.lua_tointeger(L, 1);
-    const modelId = luaScriptIntOrLuaInt(L, 1, this.emscriptenJSAPI);
-    this.emscriptenJSAPI.scriptAPIDat1SubmitGameCacheModel(modelId);
+    const ioQueue = lua.lua_touserdata(L, 1);
+    const modelId = lua.lua_tointeger(L, 1);
+    this.emscriptenJSAPI.scriptAPIDat1SubmitGameCacheModelNativeInt(
+      ioQueue,
+      modelId,
+    );
+    return 0;
+  }
+
+  gameDat1SubmitGameCacheModelScriptInt(L) {
+    const ioQueue = lua.lua_touserdata(L, 1);
+    const modelId = lua.lua_touserdata(L, 2);
+    this.emscriptenJSAPI.scriptAPIDat1SubmitGameCacheModelScriptInt(
+      ioQueue,
+      modelId,
+    );
     return 0;
   }
 
@@ -79,10 +126,16 @@ export class LibToriPlatformJSLuaHost {
     return 0;
   }
 
-  gameModelViewerRenderModel(L) {
+  gameModelViewerRenderModelNativeInt(L) {
     // const modelId = lua.lua_tointeger(L, 1);
-    const modelId = luaScriptIntOrLuaInt(L, 1, this.emscriptenJSAPI);
-    this.emscriptenJSAPI.scriptAPIGameModelViewerRenderModel(modelId);
+    const modelId = lua.lua_tointeger(L, 1);
+    this.emscriptenJSAPI.scriptAPIGameModelViewerRenderModelNativeInt(modelId);
+    return 0;
+  }
+
+  gameModelViewerRenderModelScriptInt(L) {
+    const modelId = lua.lua_touserdata(L, 1);
+    this.emscriptenJSAPI.scriptAPIGameModelViewerRenderModelScriptInt(modelId);
     return 0;
   }
 }
@@ -123,24 +176,44 @@ export function luaBindToPlatformJSLuaHost(L, platformLuaHost) {
     platformLuaHost.gameDat1ConfigFileLoad,
   );
   bindLuaFunctionToPlatform(
-    "Dat1_ModelFetch",
-    platformLuaHost.gameDat1ModelFetch,
+    "Dat1_TexturesFetch",
+    platformLuaHost.gameDat1TexturesFetch,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_TexturesLoad",
+    platformLuaHost.gameDat1TexturesLoad,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_ModelFetchNativeInt",
+    platformLuaHost.gameDat1ModelFetchNativeInt,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_ModelFetchScriptInt",
+    platformLuaHost.gameDat1ModelFetchScriptInt,
   );
   bindLuaFunctionToPlatform(
     "Dat1_ModelLoad",
     platformLuaHost.gameDat1ModelLoad,
   );
   bindLuaFunctionToPlatform(
-    "Dat1_SubmitGameCacheModel",
-    platformLuaHost.gameDat1SubmitGameCacheModel,
+    "Dat1_SubmitGameCacheModelNativeInt",
+    platformLuaHost.gameDat1SubmitGameCacheModelNativeInt,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_SubmitGameCacheModelScriptInt",
+    platformLuaHost.gameDat1SubmitGameCacheModelScriptInt,
   );
   bindLuaFunctionToPlatform(
     "ModelViewer_Init",
     platformLuaHost.gameModelViewerInit,
   );
   bindLuaFunctionToPlatform(
-    "ModelViewer_RenderModel",
-    platformLuaHost.gameModelViewerRenderModel,
+    "ModelViewer_RenderModelNativeInt",
+    platformLuaHost.gameModelViewerRenderModelNativeInt,
+  );
+  bindLuaFunctionToPlatform(
+    "ModelViewer_RenderModelScriptInt",
+    platformLuaHost.gameModelViewerRenderModelScriptInt,
   );
   lua.lua_setglobal(L, to_luastring("Game"));
 }

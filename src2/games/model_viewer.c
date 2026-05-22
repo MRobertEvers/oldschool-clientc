@@ -44,7 +44,33 @@ game_modelviewer_new(struct LibToriRS_ScriptQueue* script_queue)
     view_port->y_center = 300;
     game_model_viewer->view_port = view_port;
 
+    toridraw_init();
+    game_model_viewer->context = toridraw_context_new();
+    if( !game_model_viewer->context )
+    {
+        game_modelviewer_free(game_model_viewer);
+        return NULL;
+    }
+
     return game_model_viewer;
+}
+
+static void
+game_modelviewer_free_textures(struct GameModelViewer* game_model_viewer)
+{
+    if( !game_model_viewer || !game_model_viewer->context )
+        return;
+
+    for( int i = 0; i < 256; i++ )
+    {
+        struct ToriDraw_Texture* texture = game_model_viewer->context->texture_map.textures[i];
+        if( !texture )
+            continue;
+        free(texture->texels);
+        free(texture);
+        game_model_viewer->context->texture_map.textures[i] = NULL;
+    }
+    game_model_viewer->context->texture_map.count = 0;
 }
 
 void
@@ -52,6 +78,9 @@ game_modelviewer_free(struct GameModelViewer* game_model_viewer)
 {
     if( !game_model_viewer )
         return;
+    game_modelviewer_free_textures(game_model_viewer);
+    if( game_model_viewer->context )
+        toridraw_context_free(game_model_viewer->context);
     free(game_model_viewer->camera_position);
     free(game_model_viewer->camera);
     free(game_model_viewer->view_port);

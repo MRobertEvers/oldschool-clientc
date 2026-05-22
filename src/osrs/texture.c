@@ -140,7 +140,7 @@ texture_new_from_definition(
         for( int pixel_index = 0; pixel_index < sprite->width * sprite->height; pixel_index++ )
         {
             int palette_index = palette_pixels[pixel_index];
-            if( adjusted_palette[palette_index] & 0xf8f8ff == 0 )
+            if( (adjusted_palette[palette_index] & 0xf8f8ff) == 0 )
             {
                 opaque = false;
             }
@@ -357,9 +357,7 @@ texture_new_from_texture_sprite(
         }
     }
 
-    // TRUE FOR NOW.
-    // Normalized matches the size.
-    if( size == size )
+    if( texture->wi == size )
     {
         for( int pixel_index = 0; pixel_index < pixel_count; pixel_index++ )
         {

@@ -239,7 +239,7 @@ class LibToriPlatformJS {
         this.host.ioQueueItemResolve(item, archivePtr);
       } catch (error) {
         console.error(`Error loading archive ${tableId}/${archiveId}:`, error);
-        throw error;
+        this.host.ioQueueItemError(item, 1);
       }
     }
   }

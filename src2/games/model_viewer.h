@@ -4,6 +4,9 @@
 #include "../input/libtorirs_input.h"
 #include "../scripting/libtorirs_scripting.h"
 #include "toripix/toridraw_types.h"
+
+struct ToriDraw_Context;
+
 struct GameModelViewer
 {
     struct LibToriRS_ScriptQueue* script_queue;
@@ -11,6 +14,7 @@ struct GameModelViewer
     int current_model_id;
 
     struct ToriDraw_ModelHandle model;
+    struct ToriDraw_Context* context;
     struct ToriDraw_Position* camera_position;
     struct ToriDraw_Camera* camera;
     struct ToriDraw_ViewPort* view_port;

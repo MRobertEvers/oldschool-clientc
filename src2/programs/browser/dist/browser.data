@@ -9,33 +9,50 @@ Game.Dat1_ConfigFileFetch(io_queue)
 
 Platform.LoadIO(io_queue)
 
-Game.Dat1_ConfigFileLoad(io_queue)
+if not Game.Dat1_ConfigFileLoad(io_queue) then
+    print("Config file load failed")
+    return
+end
 print("Config file loaded")
 
-Game.Dat1_ModelFetch(io_queue, 0)
+Game.Dat1_TexturesFetch(io_queue)
+Platform.LoadIO(io_queue)
+if not Game.Dat1_TexturesLoad(io_queue) then
+    print("Textures load failed")
+    return
+end
+print("Textures loaded")
+
+Game.Dat1_ModelFetchNativeInt(io_queue, 0)
 
 Platform.LoadIO(io_queue)
 
-Game.Dat1_ModelLoad(io_queue)
+if not Game.Dat1_ModelLoad(io_queue) then
+    print("Model load failed")
+    return
+end
 print("Model loaded")
 
-Game.Dat1_SubmitGameCacheModel(0)
+Game.Dat1_SubmitGameCacheModelNativeInt(0)
 print("Game cache model submitted")
 
-Game.ModelViewer_RenderModel(0)
+Game.ModelViewer_RenderModelNativeInt(0)
 print("Render Model")
 local model_id = ...
 
 local io_queue = Platform.GetIOQueue()
 
-Game.Dat1_ModelFetch(io_queue, model_id)
+Game.Dat1_ModelFetchScriptInt(io_queue, model_id)
 
 Platform.LoadIO(io_queue)
 
-Game.Dat1_ModelLoad(io_queue)
+if not Game.Dat1_ModelLoad(io_queue) then
+    print("Model load failed")
+    return
+end
 print("Model loaded")
 
-Game.Dat1_SubmitGameCacheModel(model_id)
+Game.Dat1_SubmitGameCacheModelScriptInt(model_id)
 print("Game cache model submitted")
 
-Game.ModelViewer_RenderModel(model_id)
+Game.ModelViewer_RenderModelScriptInt(model_id)

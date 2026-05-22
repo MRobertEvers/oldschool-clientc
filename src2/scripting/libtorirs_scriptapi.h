@@ -18,6 +18,16 @@ LibToriRS_ScriptAPI_Dat1_ConfigFileLoad(
     struct LibToriRS_IOQueue* io_queue);
 
 void
+LibToriRS_ScriptAPI_Dat1_TexturesFetch(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue);
+
+bool
+LibToriRS_ScriptAPI_Dat1_TexturesLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue);
+
+void
 LibToriRS_ScriptAPI_Dat1_ModelFetch(
     struct LibToriRS_Instance* instance,
     int model_id,

@@ -47,6 +47,7 @@ SRCS := sdl2.c \
 	$(SRC_DIR)/graphics/shared_tables.c \
 	$(SRC_DIR)/osrs/palette.c \
 	$(SRC_DIR)/osrs/dash_utils.c \
+	$(SRC_DIR)/osrs/texture.c \
 	$(SRC_DIR)/3rd/bzip/bzip.c \
 	$(SRC_DIR)/3rd/miniz/miniz.c \
 	$(SRC_DIR)/osrs/rscache/cache.c \
@@ -72,6 +73,7 @@ SRCS := sdl2.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_varp.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/animframe.c \
 	$(SRC_DIR)/osrs/rscache/tables/model.c \
+	$(SRC2)/stubs/sprite_pack_stub.c \
 	$(PLAT_DIR)/platform_x_cache.c \
 	$(SRC2)/libtorirs.c \
 	$(LUA_SRC)

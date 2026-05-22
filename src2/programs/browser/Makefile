@@ -39,6 +39,7 @@ SRC   := browser.c \
 	$(SRC_DIR)/graphics/shared_tables.c \
 	$(SRC_DIR)/osrs/palette.c \
 	$(SRC_DIR)/osrs/dash_utils.c \
+	$(SRC_DIR)/osrs/texture.c \
 	$(PLAT_DIR)/platform_emscripten_jshost.c \
 	$(PLAT_DIR)/platform_js_capi.c \
 	$(PLAT_DIR)/platform_sdl2.c \
@@ -69,7 +70,8 @@ SRC   := browser.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_spotanim.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_varp.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/animframe.c \
-	$(SRC_DIR)/osrs/rscache/tables/model.c
+	$(SRC_DIR)/osrs/rscache/tables/model.c \
+	$(SRC2)/stubs/sprite_pack_stub.c
 
 OUT   := dist/browser.js
 

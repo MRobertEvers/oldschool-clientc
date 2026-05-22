@@ -1,6 +1,7 @@
 #include "platform_sdl2.h"
 
 #include "libtorirs.h"
+#include "libtorirs_internal.h"
 #include "graphics/dash.h"
 #include "toripix/toridraw.h"
 
@@ -16,7 +17,6 @@ struct LibToriPlatformSDL2
     int* pixel_buffer;
     int width;
     int height;
-    struct ToriDraw_Context* context;
     struct ToriDraw_ViewPort viewport;
     struct ToriDraw_Camera camera;
 };
@@ -75,11 +75,6 @@ LibToriPlatformSDL2_Free(struct LibToriPlatformSDL2* platform)
 {
     if( !platform )
         return;
-    if( platform->context )
-    {
-        toridraw_context_free(platform->context);
-        platform->context = NULL;
-    }
     if( platform->pixel_buffer )
     {
         free(platform->pixel_buffer);
@@ -168,16 +163,6 @@ LibToriPlatformSDL2_InitForSoft3D(
         return false;
     }
 
-    toridraw_init();
-
-    platform->context = toridraw_context_new();
-    if( !platform->context )
-    {
-        printf("toridraw_context_new failed\n");
-        LibToriPlatformSDL2_Free(platform);
-        return false;
-    }
-
     init_viewport(&platform->viewport, screen_width, screen_height);
     init_camera(&platform->camera);
 
@@ -198,6 +183,9 @@ LibToriPlatformSDL2_Render(
     memset(platform->pixel_buffer, 0, pixel_count * sizeof(int));
 
     struct LibToriRS_RenderQueue* render_queue = LibToriRS_GetRenderQueue(instance);
+    struct ToriDraw_Context* draw_context = NULL;
+    if( instance && instance->model_viewer )
+        draw_context = instance->model_viewer->context;
 
     for( int i = 0; i < render_queue->count; i++ )
     {
@@ -205,9 +193,11 @@ LibToriPlatformSDL2_Render(
         switch( command->kind )
         {
         case TORIRS_RENDER_COMMAND_MODEL:
+            if( !draw_context )
+                break;
             toridraw_render_model(
                 command->u.model.model,
-                platform->context,
+                draw_context,
                 &command->u.model.position,
                 command->u.model.view_port_ref,
                 command->u.model.camera_ref,

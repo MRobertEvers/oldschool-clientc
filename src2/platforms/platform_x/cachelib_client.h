@@ -23,4 +23,12 @@ cachelib_dat1_model_fetch(
     out->flags = 0;
 }
 
+static inline void
+cachelib_dat1_textures_archive_fetch(struct CacheLib_IORequest* out)
+{
+    out->table_id = CACHE_DAT_CONFIGS;
+    out->archive_id = CONFIG_DAT_TEXTURES;
+    out->flags = 0;
+}
+
 #endif

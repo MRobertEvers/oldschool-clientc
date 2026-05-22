@@ -181,6 +181,24 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ConfigFileLoad(
 }
 
 EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_TexturesFetch(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    LibToriRS_ScriptAPI_Dat1_TexturesFetch(instance, io_queue);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_TexturesLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    return LibToriRS_ScriptAPI_Dat1_TexturesLoad(instance, io_queue);
+}
+
+EMSCRIPTEN_KEEPALIVE
 int
 LibToriPlatformEmscripten_JSHost_IOQueueGetCount(struct LibToriRS_Instance* instance)
 {
@@ -227,10 +245,9 @@ LibToriPlatformEmscripten_JSHost_IOQueueItemError(
     int error_code)
 {
     if( !item )
-        return NULL;
+        return;
     item->status = TORIRSIO_ERROR;
     item->error_code = error_code;
-    return item;
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -341,11 +358,22 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_Init(
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModel(
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelNativeInt(
     struct LibToriRS_Instance* instance,
     int model_id)
 {
     LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel(instance, model_id);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelScriptInt(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_ScriptValue* model_id)
+{
+    assert(model_id && model_id->kind == LIBTORIRS_SCRIPT_VALUE_INT);
+    int model_int = model_id->u.intval.value;
+    LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel(instance, model_int);
 }
 
 EMSCRIPTEN_KEEPALIVE

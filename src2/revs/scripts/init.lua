@@ -15,6 +15,14 @@ if not Game.Dat1_ConfigFileLoad(io_queue) then
 end
 print("Config file loaded")
 
+Game.Dat1_TexturesFetch(io_queue)
+Platform.LoadIO(io_queue)
+if not Game.Dat1_TexturesLoad(io_queue) then
+    print("Textures load failed")
+    return
+end
+print("Textures loaded")
+
 Game.Dat1_ModelFetchNativeInt(io_queue, 0)
 
 Platform.LoadIO(io_queue)
