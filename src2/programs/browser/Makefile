@@ -25,7 +25,11 @@ SRC   := browser.c \
 	$(SRC2)/render/libtorirs_render.c \
 	$(SRC2)/buildcache/dat1_buildcache.c \
 	$(SRC2)/gamecache/gamecache.c \
+	$(SRC2)/gamecache/gamecache_sequence.c \
+	$(SRC2)/gamecache/gamecache_flotype.c \
+	$(SRC2)/gamecache/gamecache_scenery_config.c \
 	$(SRC2)/gamecache/toridraw_cachemodel.c \
+	$(SRC2)/toridraw/toridraw_animation.c \
 	$(SRC2)/games/model_viewer.c \
 	$(SRC2)/toridraw/toridraw.c \
 	$(SRC2)/toridraw/toridraw_math.c \

@@ -527,3 +527,124 @@ dat1_buildcache_animbaseframes_add(
     entry->id = animbaseframes_id;
     entry->animbaseframes = animbaseframes;
 }
+
+static void
+dat1_buildcache_map_reset(
+    struct ToriDraw_Map** map_out,
+    int entry_size,
+    int capacity)
+{
+    if( !map_out || !*map_out )
+        return;
+
+    dat1_buildcache_map_free(*map_out);
+    *map_out = dat1_buildcache_map_new(entry_size, capacity);
+}
+
+void
+dat1_buildcache_sequences_reset(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache )
+        return;
+
+    dat1_buildcache_map_reset(
+        &dat1_buildcache->sequences_hmap, sizeof(struct MapEntry_Sequence), 1024);
+}
+
+void
+dat1_buildcache_floortypes_reset(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache )
+        return;
+
+    dat1_buildcache_map_reset(
+        &dat1_buildcache->flotype_hmap, sizeof(struct MapEntry_Flotype), 256);
+}
+
+void
+dat1_buildcache_scenery_configs_reset(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache )
+        return;
+
+    dat1_buildcache_map_reset(
+        &dat1_buildcache->config_loc_hmap, sizeof(struct MapEntry_ConfigLoc), 1024);
+}
+
+void
+dat1_buildcache_animbaseframes_reset(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache )
+        return;
+
+    dat1_buildcache_map_reset(
+        &dat1_buildcache->animbaseframes_hmap, sizeof(struct MapEntry_AnimBaseFrames), 512);
+}
+
+void
+dat1_buildcache_sequences_cleanup(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache || !dat1_buildcache->sequences_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(dat1_buildcache->sequences_hmap);
+    struct MapEntry_Sequence* entry = NULL;
+    while( (entry = (struct MapEntry_Sequence*)toridraw_map_iter_next(iter)) )
+    {
+        if( entry->sequence )
+            config_dat_sequence_free(entry->sequence);
+    }
+    toridraw_map_iter_free(iter);
+    dat1_buildcache_sequences_reset(dat1_buildcache);
+}
+
+void
+dat1_buildcache_floortypes_cleanup(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache || !dat1_buildcache->flotype_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(dat1_buildcache->flotype_hmap);
+    struct MapEntry_Flotype* entry = NULL;
+    while( (entry = (struct MapEntry_Flotype*)toridraw_map_iter_next(iter)) )
+    {
+        if( entry->flotype )
+            config_floortype_overlay_free(entry->flotype);
+    }
+    toridraw_map_iter_free(iter);
+    dat1_buildcache_floortypes_reset(dat1_buildcache);
+}
+
+void
+dat1_buildcache_scenery_configs_cleanup(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache || !dat1_buildcache->config_loc_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(dat1_buildcache->config_loc_hmap);
+    struct MapEntry_ConfigLoc* entry = NULL;
+    while( (entry = (struct MapEntry_ConfigLoc*)toridraw_map_iter_next(iter)) )
+    {
+        if( entry->config_loc )
+            config_locs_free(entry->config_loc);
+    }
+    toridraw_map_iter_free(iter);
+    dat1_buildcache_scenery_configs_reset(dat1_buildcache);
+}
+
+void
+dat1_buildcache_animbaseframes_cleanup(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache || !dat1_buildcache->animbaseframes_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(dat1_buildcache->animbaseframes_hmap);
+    struct MapEntry_AnimBaseFrames* entry = NULL;
+    while( (entry = (struct MapEntry_AnimBaseFrames*)toridraw_map_iter_next(iter)) )
+    {
+        if( entry->animbaseframes )
+            cache_dat_animbaseframes_free(entry->animbaseframes);
+    }
+    toridraw_map_iter_free(iter);
+    dat1_buildcache_animbaseframes_reset(dat1_buildcache);
+}

@@ -213,6 +213,54 @@ export class LibToriPlatformEmscriptenJSAPI {
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsInitFromConfigJagfile",
     );
+    this._scriptAPIDat1SubmitSequences = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSequences",
+    );
+    this._scriptAPIDat1SubmitFloortypes = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitFloortypes",
+    );
+    this._scriptAPIDat1SubmitSceneryConfigs = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSceneryConfigs",
+    );
+    this._scriptAPIDat1SubmitAnimations = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitAnimations",
+    );
+    this._scriptAPIDat1SequencesCleanup = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SequencesCleanup",
+    );
+    this._scriptAPIDat1FloortypesCleanup = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_FloortypesCleanup",
+    );
+    this._scriptAPIDat1SceneryConfigsCleanup = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsCleanup",
+    );
+    this._scriptAPIDat1AnimationsCleanup = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsCleanup",
+    );
+    this._scriptAPIGameCacheSequencesClearAll = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_SequencesClearAll",
+    );
+    this._scriptAPIGameCacheFloortypesClearAll = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_FloortypesClearAll",
+    );
+    this._scriptAPIGameCacheSceneryConfigsClearAll = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_SceneryConfigsClearAll",
+    );
+    this._scriptAPIGameCacheAnimationsClearAll = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_AnimationsClearAll",
+    );
 
     this.instancePtr = getInstancePtr(this.platformPtr);
   }
@@ -406,6 +454,54 @@ export class LibToriPlatformEmscriptenJSAPI {
 
   scriptAPIDat1SceneryConfigsInitFromConfigJagfile() {
     this._scriptAPIDat1SceneryConfigsInitFromConfigJagfile(this.instancePtr);
+  }
+
+  scriptAPIDat1SubmitSequences() {
+    this._scriptAPIDat1SubmitSequences(this.instancePtr);
+  }
+
+  scriptAPIDat1SubmitFloortypes() {
+    this._scriptAPIDat1SubmitFloortypes(this.instancePtr);
+  }
+
+  scriptAPIDat1SubmitSceneryConfigs() {
+    this._scriptAPIDat1SubmitSceneryConfigs(this.instancePtr);
+  }
+
+  scriptAPIDat1SubmitAnimations() {
+    this._scriptAPIDat1SubmitAnimations(this.instancePtr);
+  }
+
+  scriptAPIDat1SequencesCleanup() {
+    this._scriptAPIDat1SequencesCleanup(this.instancePtr);
+  }
+
+  scriptAPIDat1FloortypesCleanup() {
+    this._scriptAPIDat1FloortypesCleanup(this.instancePtr);
+  }
+
+  scriptAPIDat1SceneryConfigsCleanup() {
+    this._scriptAPIDat1SceneryConfigsCleanup(this.instancePtr);
+  }
+
+  scriptAPIDat1AnimationsCleanup() {
+    this._scriptAPIDat1AnimationsCleanup(this.instancePtr);
+  }
+
+  scriptAPIGameCacheSequencesClearAll() {
+    this._scriptAPIGameCacheSequencesClearAll(this.instancePtr);
+  }
+
+  scriptAPIGameCacheFloortypesClearAll() {
+    this._scriptAPIGameCacheFloortypesClearAll(this.instancePtr);
+  }
+
+  scriptAPIGameCacheSceneryConfigsClearAll() {
+    this._scriptAPIGameCacheSceneryConfigsClearAll(this.instancePtr);
+  }
+
+  scriptAPIGameCacheAnimationsClearAll() {
+    this._scriptAPIGameCacheAnimationsClearAll(this.instancePtr);
   }
 
   ioQueueGetCount() {

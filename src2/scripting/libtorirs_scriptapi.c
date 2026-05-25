@@ -4,22 +4,54 @@
 #include "../libtorirs_internal.h"
 #include "buildcache/dat1_buildcache.h"
 #include "gamecache/gamecache.h"
+#include "gamecache/gamecache_flotype.h"
+#include "gamecache/gamecache_scenery_config.h"
+#include "gamecache/gamecache_sequence.h"
 #include "gamecache/toridraw_cachemodel.h"
 #include "platforms/platform_x/cachelib_client.h"
 #include "src/osrs/rscache/cache_dat.h"
 #include "src/osrs/rscache/filelist.h"
+#include "src/osrs/rscache/tables/config_floortype.h"
+#include "src/osrs/rscache/tables/config_locs.h"
+#include "src/osrs/rscache/tables/config_sequence.h"
 #include "src/osrs/rscache/tables/maps.h"
 #include "src/osrs/rscache/tables/model.h"
 #include "src/osrs/rscache/tables_dat/animframe.h"
 #include "src/osrs/rscache/tables_dat/config_textures.h"
 #include "src/osrs/rscache/tables_dat/configs_dat.h"
 #include "src/osrs/texture.h"
+#include "toridraw/toridraw_animation.h"
 #include "toridraw/toridraw_light_model.h"
+#include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_types.h"
 
 #include <stdio.h>
 #include <stdlib.h>
+
+struct Dat1MapEntry_Sequence
+{
+    int id;
+    struct CacheDatSequence* sequence;
+};
+
+struct Dat1MapEntry_Flotype
+{
+    int id;
+    struct CacheConfigOverlay* flotype;
+};
+
+struct Dat1MapEntry_ConfigLoc
+{
+    int id;
+    struct CacheConfigLocation* config_loc;
+};
+
+struct Dat1MapEntry_AnimBaseFrames
+{
+    int id;
+    struct CacheDatAnimBaseFrames* animbaseframes;
+};
 
 void
 LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(
@@ -626,4 +658,208 @@ LibToriRS_ScriptAPI_Dat1_SceneryConfigsInitFromConfigJagfile(struct LibToriRS_In
         return;
 
     dat1_buildcache_init_scenery_configs_from_config_jagfile(instance->dat1_buildcache);
+}
+
+void
+LibToriRS_ScriptAPI_Dat1_SubmitSequences(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_Dat1_SubmitSequences\n");
+    if( !instance || !instance->dat1_buildcache || !instance->gamecache )
+        return;
+
+    struct Dat1BuildCache* buildcache = instance->dat1_buildcache;
+    struct GameCache* gamecache = instance->gamecache;
+
+    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(buildcache->sequences_hmap);
+    struct Dat1MapEntry_Sequence* entry = NULL;
+
+    while( (entry = (struct Dat1MapEntry_Sequence*)toridraw_map_iter_next(iter)) )
+    {
+        if( !entry->sequence )
+            continue;
+
+        struct GameCache_Sequence* seq =
+            gamecache_sequence_new_from_cache_dat_sequence(entry->sequence);
+        if( !seq )
+            continue;
+
+        entry->sequence = NULL;
+        gamecache_sequence_add(gamecache, entry->id, seq);
+    }
+    toridraw_map_iter_free(iter);
+
+    dat1_buildcache_sequences_reset(buildcache);
+}
+
+void
+LibToriRS_ScriptAPI_Dat1_SubmitFloortypes(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_Dat1_SubmitFloortypes\n");
+    if( !instance || !instance->dat1_buildcache || !instance->gamecache )
+        return;
+
+    struct Dat1BuildCache* buildcache = instance->dat1_buildcache;
+    struct GameCache* gamecache = instance->gamecache;
+
+    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(buildcache->flotype_hmap);
+    struct Dat1MapEntry_Flotype* entry = NULL;
+
+    while( (entry = (struct Dat1MapEntry_Flotype*)toridraw_map_iter_next(iter)) )
+    {
+        if( !entry->flotype )
+            continue;
+
+        struct GameCache_Flotype* flotype =
+            gamecache_flotype_new_from_cache_config_overlay(entry->flotype);
+        if( !flotype )
+            continue;
+
+        entry->flotype = NULL;
+        gamecache_flotype_add(gamecache, entry->id, flotype);
+    }
+    toridraw_map_iter_free(iter);
+
+    dat1_buildcache_floortypes_reset(buildcache);
+}
+
+void
+LibToriRS_ScriptAPI_Dat1_SubmitSceneryConfigs(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_Dat1_SubmitSceneryConfigs\n");
+    if( !instance || !instance->dat1_buildcache || !instance->gamecache )
+        return;
+
+    struct Dat1BuildCache* buildcache = instance->dat1_buildcache;
+    struct GameCache* gamecache = instance->gamecache;
+
+    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(buildcache->config_loc_hmap);
+    struct Dat1MapEntry_ConfigLoc* entry = NULL;
+
+    while( (entry = (struct Dat1MapEntry_ConfigLoc*)toridraw_map_iter_next(iter)) )
+    {
+        if( !entry->config_loc )
+            continue;
+
+        struct GameCache_SceneryConfig* config =
+            gamecache_scenery_config_new_from_cache_config_location(entry->config_loc);
+        if( !config )
+            continue;
+
+        entry->config_loc = NULL;
+        gamecache_scenery_config_add(gamecache, entry->id, config);
+    }
+    toridraw_map_iter_free(iter);
+
+    dat1_buildcache_scenery_configs_reset(buildcache);
+}
+
+void
+LibToriRS_ScriptAPI_Dat1_SubmitAnimations(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_Dat1_SubmitAnimations\n");
+    if( !instance || !instance->dat1_buildcache || !instance->gamecache )
+        return;
+
+    struct Dat1BuildCache* buildcache = instance->dat1_buildcache;
+    struct GameCache* gamecache = instance->gamecache;
+
+    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(buildcache->animbaseframes_hmap);
+    struct Dat1MapEntry_AnimBaseFrames* entry = NULL;
+
+    while( (entry = (struct Dat1MapEntry_AnimBaseFrames*)toridraw_map_iter_next(iter)) )
+    {
+        if( !entry->animbaseframes )
+            continue;
+
+        struct ToriDraw_Animation* animation =
+            toridraw_animation_new_from_cache_dat_animbaseframes(entry->animbaseframes);
+        if( !animation )
+            continue;
+
+        entry->animbaseframes = NULL;
+        gamecache_animation_add(gamecache, entry->id, animation);
+    }
+    toridraw_map_iter_free(iter);
+
+    dat1_buildcache_animbaseframes_reset(buildcache);
+}
+
+void
+LibToriRS_ScriptAPI_Dat1_SequencesCleanup(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_Dat1_SequencesCleanup\n");
+    if( !instance || !instance->dat1_buildcache )
+        return;
+
+    dat1_buildcache_sequences_cleanup(instance->dat1_buildcache);
+}
+
+void
+LibToriRS_ScriptAPI_Dat1_FloortypesCleanup(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_Dat1_FloortypesCleanup\n");
+    if( !instance || !instance->dat1_buildcache )
+        return;
+
+    dat1_buildcache_floortypes_cleanup(instance->dat1_buildcache);
+}
+
+void
+LibToriRS_ScriptAPI_Dat1_SceneryConfigsCleanup(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_Dat1_SceneryConfigsCleanup\n");
+    if( !instance || !instance->dat1_buildcache )
+        return;
+
+    dat1_buildcache_scenery_configs_cleanup(instance->dat1_buildcache);
+}
+
+void
+LibToriRS_ScriptAPI_Dat1_AnimationsCleanup(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_Dat1_AnimationsCleanup\n");
+    if( !instance || !instance->dat1_buildcache )
+        return;
+
+    dat1_buildcache_animbaseframes_cleanup(instance->dat1_buildcache);
+}
+
+void
+LibToriRS_ScriptAPI_GameCache_SequencesClearAll(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_GameCache_SequencesClearAll\n");
+    if( !instance || !instance->gamecache )
+        return;
+
+    gamecache_sequences_clear_all(instance->gamecache);
+}
+
+void
+LibToriRS_ScriptAPI_GameCache_FloortypesClearAll(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_GameCache_FloortypesClearAll\n");
+    if( !instance || !instance->gamecache )
+        return;
+
+    gamecache_floortypes_clear_all(instance->gamecache);
+}
+
+void
+LibToriRS_ScriptAPI_GameCache_SceneryConfigsClearAll(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_GameCache_SceneryConfigsClearAll\n");
+    if( !instance || !instance->gamecache )
+        return;
+
+    gamecache_scenery_configs_clear_all(instance->gamecache);
+}
+
+void
+LibToriRS_ScriptAPI_GameCache_AnimationsClearAll(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_GameCache_AnimationsClearAll\n");
+    if( !instance || !instance->gamecache )
+        return;
+
+    gamecache_animations_clear_all(instance->gamecache);
 }

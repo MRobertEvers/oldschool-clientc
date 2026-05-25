@@ -186,7 +186,10 @@ export class LibToriPlatformJSLuaHost {
   gameDat1AnimationsFetchNativeInt(L) {
     const ioQueue = lua.lua_touserdata(L, 1);
     const archiveId = lua.lua_tointeger(L, 2);
-    this.emscriptenJSAPI.scriptAPIDat1AnimationsFetchNativeInt(ioQueue, archiveId);
+    this.emscriptenJSAPI.scriptAPIDat1AnimationsFetchNativeInt(
+      ioQueue,
+      archiveId,
+    );
     return 0;
   }
 
@@ -209,6 +212,66 @@ export class LibToriPlatformJSLuaHost {
 
   gameDat1SceneryConfigsInitFromConfigJagfile(L) {
     this.emscriptenJSAPI.scriptAPIDat1SceneryConfigsInitFromConfigJagfile();
+    return 0;
+  }
+
+  gameDat1SubmitSequences(L) {
+    this.emscriptenJSAPI.scriptAPIDat1SubmitSequences();
+    return 0;
+  }
+
+  gameDat1SubmitFloortypes(L) {
+    this.emscriptenJSAPI.scriptAPIDat1SubmitFloortypes();
+    return 0;
+  }
+
+  gameDat1SubmitSceneryConfigs(L) {
+    this.emscriptenJSAPI.scriptAPIDat1SubmitSceneryConfigs();
+    return 0;
+  }
+
+  gameDat1SubmitAnimations(L) {
+    this.emscriptenJSAPI.scriptAPIDat1SubmitAnimations();
+    return 0;
+  }
+
+  gameDat1SequencesCleanup(L) {
+    this.emscriptenJSAPI.scriptAPIDat1SequencesCleanup();
+    return 0;
+  }
+
+  gameDat1FloortypesCleanup(L) {
+    this.emscriptenJSAPI.scriptAPIDat1FloortypesCleanup();
+    return 0;
+  }
+
+  gameDat1SceneryConfigsCleanup(L) {
+    this.emscriptenJSAPI.scriptAPIDat1SceneryConfigsCleanup();
+    return 0;
+  }
+
+  gameDat1AnimationsCleanup(L) {
+    this.emscriptenJSAPI.scriptAPIDat1AnimationsCleanup();
+    return 0;
+  }
+
+  gameGameCacheSequencesClearAll(L) {
+    this.emscriptenJSAPI.scriptAPIGameCacheSequencesClearAll();
+    return 0;
+  }
+
+  gameGameCacheFloortypesClearAll(L) {
+    this.emscriptenJSAPI.scriptAPIGameCacheFloortypesClearAll();
+    return 0;
+  }
+
+  gameGameCacheSceneryConfigsClearAll(L) {
+    this.emscriptenJSAPI.scriptAPIGameCacheSceneryConfigsClearAll();
+    return 0;
+  }
+
+  gameGameCacheAnimationsClearAll(L) {
+    this.emscriptenJSAPI.scriptAPIGameCacheAnimationsClearAll();
     return 0;
   }
 }
@@ -351,6 +414,54 @@ export function luaBindToPlatformJSLuaHost(L, platformLuaHost) {
   bindLuaFunctionToPlatform(
     "Dat1_SceneryConfigsInitFromConfigJagfile",
     platformLuaHost.gameDat1SceneryConfigsInitFromConfigJagfile,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_SubmitSequences",
+    platformLuaHost.gameDat1SubmitSequences,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_SubmitFloortypes",
+    platformLuaHost.gameDat1SubmitFloortypes,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_SubmitSceneryConfigs",
+    platformLuaHost.gameDat1SubmitSceneryConfigs,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_SubmitAnimations",
+    platformLuaHost.gameDat1SubmitAnimations,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_SequencesCleanup",
+    platformLuaHost.gameDat1SequencesCleanup,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_FloortypesCleanup",
+    platformLuaHost.gameDat1FloortypesCleanup,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_SceneryConfigsCleanup",
+    platformLuaHost.gameDat1SceneryConfigsCleanup,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_AnimationsCleanup",
+    platformLuaHost.gameDat1AnimationsCleanup,
+  );
+  bindLuaFunctionToPlatform(
+    "GameCache_SequencesClearAll",
+    platformLuaHost.gameGameCacheSequencesClearAll,
+  );
+  bindLuaFunctionToPlatform(
+    "GameCache_FloortypesClearAll",
+    platformLuaHost.gameGameCacheFloortypesClearAll,
+  );
+  bindLuaFunctionToPlatform(
+    "GameCache_SceneryConfigsClearAll",
+    platformLuaHost.gameGameCacheSceneryConfigsClearAll,
+  );
+  bindLuaFunctionToPlatform(
+    "GameCache_AnimationsClearAll",
+    platformLuaHost.gameGameCacheAnimationsClearAll,
   );
   lua.lua_setglobal(L, to_luastring("Game"));
 }

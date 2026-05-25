@@ -254,8 +254,7 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_TexturesCleanup(
 
 EMSCRIPTEN_KEEPALIVE
 void
-LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitTextures(
-    struct LibToriRS_Instance* instance);
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitTextures(struct LibToriRS_Instance* instance);
 
 EMSCRIPTEN_KEEPALIVE
 void
@@ -300,5 +299,65 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_FloortypesInitFromConfigJagfile(
 EMSCRIPTEN_KEEPALIVE
 void
 LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsInitFromConfigJagfile(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSequences(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitFloortypes(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSceneryConfigs(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitAnimations(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SequencesCleanup(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_FloortypesCleanup(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsCleanup(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsCleanup(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_SequencesClearAll(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_FloortypesClearAll(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_SceneryConfigsClearAll(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_AnimationsClearAll(
     struct LibToriRS_Instance* instance);
 #endif

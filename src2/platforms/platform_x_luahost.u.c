@@ -666,6 +666,210 @@ LibToriPlatformX_LuaHost_Game_Dat1_SceneryConfigsInitFromConfigJagfile(lua_State
     return 0;
 }
 
+int
+LibToriPlatformX_LuaHost_Game_Dat1_SubmitSequences(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_Dat1_SubmitSequences(instance);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_SubmitFloortypes(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_Dat1_SubmitFloortypes(instance);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_SubmitSceneryConfigs(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_Dat1_SubmitSceneryConfigs(instance);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_SubmitAnimations(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_Dat1_SubmitAnimations(instance);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_SequencesCleanup(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_Dat1_SequencesCleanup(instance);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_FloortypesCleanup(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_Dat1_FloortypesCleanup(instance);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_SceneryConfigsCleanup(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_Dat1_SceneryConfigsCleanup(instance);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_AnimationsCleanup(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_Dat1_AnimationsCleanup(instance);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_GameCache_SequencesClearAll(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_GameCache_SequencesClearAll(instance);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_GameCache_FloortypesClearAll(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_GameCache_FloortypesClearAll(instance);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_GameCache_SceneryConfigsClearAll(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_GameCache_SceneryConfigsClearAll(instance);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_GameCache_AnimationsClearAll(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_GameCache_AnimationsClearAll(instance);
+
+    return 0;
+}
+
 static inline void
 lua_bind_function_to_platform(
     lua_State* L,
@@ -782,6 +986,48 @@ LibToriPlatformX_LuaHost_BindToPlatform(
         lua,
         "Dat1_SceneryConfigsInitFromConfigJagfile",
         LibToriPlatformX_LuaHost_Game_Dat1_SceneryConfigsInitFromConfigJagfile);
+    lua_bind_function_to_platform(
+        L, lua, "Dat1_SubmitSequences", LibToriPlatformX_LuaHost_Game_Dat1_SubmitSequences);
+    lua_bind_function_to_platform(
+        L, lua, "Dat1_SubmitFloortypes", LibToriPlatformX_LuaHost_Game_Dat1_SubmitFloortypes);
+    lua_bind_function_to_platform(
+        L,
+        lua,
+        "Dat1_SubmitSceneryConfigs",
+        LibToriPlatformX_LuaHost_Game_Dat1_SubmitSceneryConfigs);
+    lua_bind_function_to_platform(
+        L, lua, "Dat1_SubmitAnimations", LibToriPlatformX_LuaHost_Game_Dat1_SubmitAnimations);
+    lua_bind_function_to_platform(
+        L, lua, "Dat1_SequencesCleanup", LibToriPlatformX_LuaHost_Game_Dat1_SequencesCleanup);
+    lua_bind_function_to_platform(
+        L, lua, "Dat1_FloortypesCleanup", LibToriPlatformX_LuaHost_Game_Dat1_FloortypesCleanup);
+    lua_bind_function_to_platform(
+        L,
+        lua,
+        "Dat1_SceneryConfigsCleanup",
+        LibToriPlatformX_LuaHost_Game_Dat1_SceneryConfigsCleanup);
+    lua_bind_function_to_platform(
+        L, lua, "Dat1_AnimationsCleanup", LibToriPlatformX_LuaHost_Game_Dat1_AnimationsCleanup);
+    lua_bind_function_to_platform(
+        L,
+        lua,
+        "GameCache_SequencesClearAll",
+        LibToriPlatformX_LuaHost_Game_GameCache_SequencesClearAll);
+    lua_bind_function_to_platform(
+        L,
+        lua,
+        "GameCache_FloortypesClearAll",
+        LibToriPlatformX_LuaHost_Game_GameCache_FloortypesClearAll);
+    lua_bind_function_to_platform(
+        L,
+        lua,
+        "GameCache_SceneryConfigsClearAll",
+        LibToriPlatformX_LuaHost_Game_GameCache_SceneryConfigsClearAll);
+    lua_bind_function_to_platform(
+        L,
+        lua,
+        "GameCache_AnimationsClearAll",
+        LibToriPlatformX_LuaHost_Game_GameCache_AnimationsClearAll);
     lua_setglobal(L, "Game");
 }
 

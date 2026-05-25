@@ -104,4 +104,28 @@ dat1_buildcache_animbaseframes_add(
     int animbaseframes_id,
     struct CacheDatAnimBaseFrames* animbaseframes);
 
+void
+dat1_buildcache_sequences_reset(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_floortypes_reset(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_scenery_configs_reset(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_animbaseframes_reset(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_sequences_cleanup(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_floortypes_cleanup(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_scenery_configs_cleanup(struct Dat1BuildCache* dat1_buildcache);
+
+void
+dat1_buildcache_animbaseframes_cleanup(struct Dat1BuildCache* dat1_buildcache);
+
 #endif

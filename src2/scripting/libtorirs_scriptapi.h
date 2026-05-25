@@ -119,4 +119,40 @@ LibToriRS_ScriptAPI_Dat1_FloortypesInitFromConfigJagfile(struct LibToriRS_Instan
 void
 LibToriRS_ScriptAPI_Dat1_SceneryConfigsInitFromConfigJagfile(struct LibToriRS_Instance* instance);
 
+void
+LibToriRS_ScriptAPI_Dat1_SubmitSequences(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_Dat1_SubmitFloortypes(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_Dat1_SubmitSceneryConfigs(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_Dat1_SubmitAnimations(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_Dat1_SequencesCleanup(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_Dat1_FloortypesCleanup(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_Dat1_SceneryConfigsCleanup(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_Dat1_AnimationsCleanup(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_GameCache_SequencesClearAll(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_GameCache_FloortypesClearAll(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_GameCache_SceneryConfigsClearAll(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_GameCache_AnimationsClearAll(struct LibToriRS_Instance* instance);
+
 #endif
