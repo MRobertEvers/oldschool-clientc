@@ -424,7 +424,8 @@ load_textures_from_cache(void)
             if( !ct )
                 continue;
 
-            struct DashTexture* dtex = texture_new_from_texture_sprite(ct, 0 /* no animation */, 0);
+            struct DashTexture* dtex =
+                texture_new_from_texture_sprite(ct, 0 /* no animation */, 0, false, false);
             cache_dat_texture_free(ct);
 
             if( !dtex )

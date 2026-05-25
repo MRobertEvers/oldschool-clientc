@@ -308,10 +308,16 @@ struct DashTexture*
 texture_new_from_texture_sprite(
     struct CacheDatTexture* texture,
     int animation_direction,
-    int animation_speed)
+    int animation_speed,
+    bool upscale_to_128,
+    bool half_to_64)
 {
     bool opaque = true;
-    int size = texture->wi == 64 ? 64 : 128;
+    int size = 128;
+    if( texture->wi == 64 && !upscale_to_128 )
+        size = 64;
+    else if( half_to_64 && texture->wi == 128 && texture->hi == 128 )
+        size = 64;
     int* normalized_pixels =
         normalize_pixel_buffer(texture->pixels, texture->wi, texture->hi, size, size);
     if( !normalized_pixels )
@@ -357,7 +363,7 @@ texture_new_from_texture_sprite(
         }
     }
 
-    if( texture->wi == size )
+    if( texture->wi == size && texture->hi == size )
     {
         for( int pixel_index = 0; pixel_index < pixel_count; pixel_index++ )
         {
@@ -378,16 +384,8 @@ texture_new_from_texture_sprite(
             }
         }
     }
-    else
+    else if( texture->wi == 128 && size == 64 )
     {
-        if( texture->wi != 128 || size != 64 )
-        {
-            free(pixels);
-            free(dash_texture);
-            free(normalized_pixels);
-            return NULL;
-        }
-
         int pixel_index = 0;
 
         for( int x = 0; x < size; x++ )
@@ -397,6 +395,14 @@ texture_new_from_texture_sprite(
                 int palette_index = normalized_pixels[(y << 1) + ((x << 1) << 7)];
                 pixels[pixel_index++] = texture->palette[palette_index];
             }
+        }
+    }
+    else
+    {
+        for( int pixel_index = 0; pixel_index < pixel_count; pixel_index++ )
+        {
+            int palette_index = normalized_pixels[pixel_index];
+            pixels[pixel_index] = texture->palette[palette_index];
         }
     }
 

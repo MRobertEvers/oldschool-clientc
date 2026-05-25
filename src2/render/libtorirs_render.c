@@ -47,7 +47,7 @@ LibToriRS_RenderQueue_PushCommandModelDraw(
         return;
 
     struct LibToriRS_RenderCommand* command = &render_queue->commands[render_queue->count];
-    command->kind = TORIRS_RENDER_COMMAND_MODEL;
+    command->kind = TORIRSRC_MODEL;
     command->u.model.model = model;
     memcpy(&command->u.model.position, position, sizeof(struct ToriDraw_Position));
     command->u.model.view_port_ref = view_port;

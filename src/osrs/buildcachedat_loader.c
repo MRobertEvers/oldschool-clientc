@@ -684,7 +684,8 @@ buildcachedat_loader_cache_textures(
         }
 
         struct DashTexture* dash_texture =
-            texture_new_from_texture_sprite(texture, animation_direction, animation_speed);
+            texture_new_from_texture_sprite(
+                texture, animation_direction, animation_speed, false, false);
         assert(dash_texture != NULL);
 
         scene2_texture_add(scene2, i, dash_texture);

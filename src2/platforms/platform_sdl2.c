@@ -1,9 +1,9 @@
 #include "platform_sdl2.h"
 
+#include "graphics/dash.h"
 #include "libtorirs.h"
 #include "libtorirs_internal.h"
-#include "graphics/dash.h"
-#include "toripix/toridraw.h"
+#include "toridraw/toridraw.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -192,7 +192,7 @@ LibToriPlatformSDL2_Render(
         struct LibToriRS_RenderCommand* command = &render_queue->commands[i];
         switch( command->kind )
         {
-        case TORIRS_RENDER_COMMAND_MODEL:
+        case TORIRSRC_MODEL:
             if( !draw_context )
                 break;
             toridraw_render_model(

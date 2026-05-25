@@ -12,8 +12,8 @@
 #include "src/osrs/rscache/tables_dat/config_textures.h"
 #include "src/osrs/rscache/tables_dat/configs_dat.h"
 #include "src/osrs/texture.h"
-#include "toripix/toridraw_light_model.h"
-#include "toripix/toridraw_types.h"
+#include "toridraw/toridraw_light_model.h"
+#include "toridraw/toridraw_types.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -138,7 +138,11 @@ LibToriRS_ScriptAPI_Dat1_TexturesLoad(
         struct CacheDatTexture* cache_texture =
             cache_dat_texture_new_from_filelist_dat(filelist, i, 0);
         if( !cache_texture )
+        {
+            printf("cache_dat_texture_new_from_filelist_dat failed for texture %d\n", i);
+            assert(false);
             continue;
+        }
 
         int animation_direction = TEXANIM_DIRECTION_NONE;
         int animation_speed = 0;
@@ -148,16 +152,27 @@ LibToriRS_ScriptAPI_Dat1_TexturesLoad(
             animation_speed = 2;
         }
 
+        if( i == 8 )
+        {
+            printf("cache_texture: %p\n", cache_texture);
+        }
         struct DashTexture* dash_texture =
-            texture_new_from_texture_sprite(cache_texture, animation_direction, animation_speed);
+            texture_new_from_texture_sprite(
+                cache_texture, animation_direction, animation_speed, false, false);
         cache_dat_texture_free(cache_texture);
         if( !dash_texture )
+        {
+            printf("texture_new_from_texture_sprite failed for texture %d\n", i);
+            assert(false);
             continue;
+        }
 
         struct ToriDraw_Texture* toridraw_texture = malloc(sizeof(struct ToriDraw_Texture));
         if( !toridraw_texture )
         {
             texture_free(dash_texture);
+            printf("malloc failed for texture %d\n", i);
+            assert(false);
             continue;
         }
 

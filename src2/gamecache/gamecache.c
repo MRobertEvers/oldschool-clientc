@@ -1,7 +1,7 @@
 #include "gamecache.h"
 
 #include "graphics/dash.h"
-#include "toripix/toridraw_types.h"
+#include "toridraw/toridraw_types.h"
 
 #include <stdlib.h>
 #include <string.h>

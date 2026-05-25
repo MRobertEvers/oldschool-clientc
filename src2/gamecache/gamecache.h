@@ -2,7 +2,7 @@
 #define GAMECACHE_H
 
 #include "graphics/dashmap.h"
-#include "toripix/toridraw_types.h"
+#include "toridraw/toridraw_types.h"
 
 #include <stdint.h>
 

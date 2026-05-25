@@ -1,6 +1,6 @@
 #include "model_viewer.h"
 
-#include "toripix/toridraw.h"
+#include "toridraw/toridraw.h"
 
 #include <stdlib.h>
 #include <string.h>

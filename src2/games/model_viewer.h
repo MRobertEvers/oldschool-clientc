@@ -3,7 +3,7 @@
 
 #include "../input/libtorirs_input.h"
 #include "../scripting/libtorirs_scripting.h"
-#include "toripix/toridraw_types.h"
+#include "toridraw/toridraw_types.h"
 
 struct ToriDraw_Context;
 

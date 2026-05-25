@@ -20,12 +20,16 @@ texture_new_from_definition(
 
 /**
  * In old revisions (e.g. 245.2) the animated textures were hardcoded.
+ * wi==64 -> 64x64 unless upscale_to_128; wi/hi==128 with half_to_64 -> 64x64;
+ * otherwise normalize to 128x128 (including non-square sources e.g. 121x128).
  */
 struct DashTexture*
 texture_new_from_texture_sprite(
     struct CacheDatTexture* texture,
     int animation_direction,
-    int animation_speed);
+    int animation_speed,
+    bool upscale_to_128,
+    bool half_to_64);
 
 void
 texture_free(struct DashTexture* texture);
