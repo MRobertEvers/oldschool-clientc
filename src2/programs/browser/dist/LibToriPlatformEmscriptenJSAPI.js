@@ -149,6 +149,22 @@ export class LibToriPlatformEmscriptenJSAPI {
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelScriptInt",
     );
+    this._scriptAPIDat1ModelCleanupNativeInt = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelCleanupNativeInt",
+    );
+    this._scriptAPIDat1ModelCleanupScriptInt = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelCleanupScriptInt",
+    );
+    this._scriptAPIDat1TexturesCleanup = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_TexturesCleanup",
+    );
+    this._scriptAPIDat1SubmitTextures = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitTextures",
+    );
 
     this.instancePtr = getInstancePtr(this.platformPtr);
   }
@@ -264,6 +280,22 @@ export class LibToriPlatformEmscriptenJSAPI {
       this.instancePtr,
       modelId,
     );
+  }
+
+  scriptAPIDat1ModelCleanupNativeInt(modelId) {
+    this._scriptAPIDat1ModelCleanupNativeInt(this.instancePtr, modelId);
+  }
+
+  scriptAPIDat1ModelCleanupScriptInt(modelId) {
+    this._scriptAPIDat1ModelCleanupScriptInt(this.instancePtr, modelId);
+  }
+
+  scriptAPIDat1TexturesCleanup() {
+    this._scriptAPIDat1TexturesCleanup(this.instancePtr);
+  }
+
+  scriptAPIDat1SubmitTextures() {
+    this._scriptAPIDat1SubmitTextures(this.instancePtr);
   }
 
   ioQueueGetCount() {

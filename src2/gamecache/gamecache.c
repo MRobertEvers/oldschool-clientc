@@ -102,3 +102,31 @@ gamecache_model_remove(
 
     return entry->model;
 }
+
+void
+gamecache_models_clear_all(struct GameCache* gamecache)
+{
+    if( !gamecache || !gamecache->models_hmap )
+        return;
+
+    struct ToriDraw_MapIter* iter = toridraw_map_iter_new(gamecache->models_hmap);
+    struct MapEntry_ToriModel* entry = NULL;
+    while( (entry = (struct MapEntry_ToriModel*)toridraw_map_iter_next(iter)) )
+    {
+        if( entry->model.kind == TORIDRAWMK_MODEL )
+            toridraw_model_free(entry->model.u.model.model);
+    }
+    toridraw_map_iter_free(iter);
+
+    free(toridraw_map_buffer_ptr(gamecache->models_hmap));
+    toridraw_map_free(gamecache->models_hmap);
+
+    int buffer_size = toridraw_map_buffer_size_for(sizeof(struct MapEntry_ToriModel), 1024);
+    struct ToriDraw_MapConfig config = {
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = sizeof(struct MapEntry_ToriModel),
+    };
+    gamecache->models_hmap = toridraw_map_new(&config, 0);
+}

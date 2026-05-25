@@ -101,6 +101,8 @@
     "clamp.h": "c",
     "__node_handle": "c",
     "dashmap.h": "c",
-    "toridraw_light_model.h": "c"
+    "toridraw_light_model.h": "c",
+    "config_textures.h": "c",
+    "maps.h": "c"
   }
 }

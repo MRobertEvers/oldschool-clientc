@@ -431,3 +431,11 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitTextures(
 {
     LibToriRS_ScriptAPI_Dat1_SubmitTextures(instance);
 }
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_ModelsClearAll(
+    struct LibToriRS_Instance* instance)
+{
+    LibToriRS_ScriptAPI_GameCache_ModelsClearAll(instance);
+}

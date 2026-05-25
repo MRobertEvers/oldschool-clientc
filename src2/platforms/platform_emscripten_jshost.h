@@ -228,4 +228,9 @@ EMSCRIPTEN_KEEPALIVE
 void
 LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitTextures(
     struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_ModelsClearAll(
+    struct LibToriRS_Instance* instance);
 #endif

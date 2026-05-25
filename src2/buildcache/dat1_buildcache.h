@@ -2,19 +2,22 @@
 #define DAT1_BUILDCACHE_H
 
 #include "osrs/rscache/filelist.h"
+#include "osrs/rscache/tables/maps.h"
 #include "osrs/rscache/tables/model.h"
 #include "toridraw/toridraw_types.h"
 
 #include <stdint.h>
 
-struct DashMap;
+struct ToriDraw_Map;
 
 #define DAT1_TEXTURE_COUNT 50
 
 struct Dat1BuildCache
 {
     struct FileListDat* fromconfigtable_config_jagfile;
-    struct DashMap* models_hmap;
+    struct ToriDraw_Map* models_hmap;
+    struct ToriDraw_Map* map_terrain_hmap;
+    struct ToriDraw_Map* map_scenery_hmap;
     struct ToriDraw_Texture* textures[DAT1_TEXTURE_COUNT];
     int texture_count;
 };
@@ -45,6 +48,18 @@ void
 dat1_buildcache_model_remove(
     struct Dat1BuildCache* dat1_buildcache,
     int model_id);
+
+void
+dat1_buildcache_map_terrain_add(
+    struct Dat1BuildCache* dat1_buildcache,
+    int map_id,
+    struct CacheMapTerrain* terrain);
+
+void
+dat1_buildcache_map_scenery_add(
+    struct Dat1BuildCache* dat1_buildcache,
+    int map_id,
+    struct CacheMapLocs* locs);
 
 void
 dat1_buildcache_texture_set(

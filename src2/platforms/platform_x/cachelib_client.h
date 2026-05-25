@@ -23,7 +23,36 @@ cachelib_dat1_model_fetch(
     out->flags = 0;
 }
 
+#define CACHELIB_MAPCHUNK_TERRAIN 0
+#define CACHELIB_MAPCHUNK_SCENERY 1
+
+#define CACHELIB_MAPCHUNK_ID(mapx, mapz) (mapx << 16 | mapz)
+
+#define CACHELIB_MAPCHUNK_MAPX(map_id) (map_id >> 16)
+#define CACHELIB_MAPCHUNK_MAPZ(map_id) (map_id & 0xFFFF)
+
 static inline void
+cachelib_dat1_map_chunk_terrain_fetch(
+    int mapx,
+    int mapz,
+    struct CacheLib_IORequest* out)
+{
+    out->table_id = CACHE_DAT_MAPS;
+    out->archive_id = CACHELIB_MAPCHUNK_ID(mapx, mapz);
+    out->flags = CACHELIB_MAPCHUNK_TERRAIN;
+}
+
+static inline void
+cachelib_dat1_map_chunk_scenery_fetch(
+    int mapx,
+    int mapz,
+    struct CacheLib_IORequest* out)
+{
+    out->table_id = CACHE_DAT_MAPS;
+    out->archive_id = CACHELIB_MAPCHUNK_ID(mapx, mapz);
+    out->flags = CACHELIB_MAPCHUNK_SCENERY;
+}
+
 cachelib_dat1_textures_archive_fetch(struct CacheLib_IORequest* out)
 {
     out->table_id = CACHE_DAT_CONFIGS;

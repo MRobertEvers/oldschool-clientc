@@ -1,9 +1,11 @@
 #include "cachelib_platform.h"
 
 #include "../ioqueue/libtorirs_ioqueue.h"
+#include "cachelib_client.h"
 #include "cachelib_internal.h"
 #include "src/osrs/rscache/cache.h"
 #include "src/osrs/rscache/cache_dat.h"
+#include "src/osrs/rscache/tables_dat/config_versionlist_mapsquare.h"
 #include "src/osrs/rscache/xtea_config.h"
 
 #include <assert.h>
@@ -49,6 +51,49 @@ cachelib_platform_init(
 }
 
 static void*
+cache_dat1_load_map_chunk(
+    struct CacheLib* cache,
+    int archive_id,
+    int flag)
+{
+    int map_id = archive_id;
+    int map_x = CACHELIB_MAPCHUNK_MAPX(map_id);
+    int map_z = CACHELIB_MAPCHUNK_MAPZ(map_id);
+
+    int cache_map_id = cache_map_square_id(map_x, map_z);
+
+    struct CacheMapSquare* map_square = NULL;
+    struct CacheDat* cache_dat = cache->u.cache_dat1;
+
+    for( int i = 0; i < cache_dat->map_squares->squares_count; i++ )
+    {
+        if( cache_dat->map_squares->squares[i].map_id == cache_map_id )
+        {
+            map_square = &cache_dat->map_squares->squares[i];
+            break;
+        }
+    }
+
+    if( !map_square )
+    {
+        printf("Failed to load map %d, %d\n", map_x, map_z);
+        return NULL;
+    }
+
+    switch( flag )
+    {
+    case CACHELIB_MAPCHUNK_TERRAIN:
+        return cache_dat_archive_new_load(
+            cache_dat, CACHE_DAT_MAPS, map_square->terrain_archive_id);
+    case CACHELIB_MAPCHUNK_SCENERY:
+        return cache_dat_archive_new_load(cache_dat, CACHE_DAT_MAPS, map_square->loc_archive_id);
+    default:
+        assert(false && "Invalid flag");
+        return NULL;
+    }
+}
+
+static void*
 cache_dat1_load_io(
     struct CacheLib* cache,
     struct CacheLib_IORequest* request)
@@ -56,7 +101,14 @@ cache_dat1_load_io(
     struct CacheDat* cache_dat1 = cache->u.cache_dat1;
     void* data = NULL;
 
-    data = cache_dat_archive_new_load(cache_dat1, request->table_id, request->archive_id);
+    if( request->archive_id == CACHE_DAT_MAPS )
+    {
+        data = cache_dat1_load_map_chunk(cache, request, request->flags);
+    }
+    else
+    {
+        data = cache_dat_archive_new_load(cache_dat1, request->table_id, request->archive_id);
+    }
 
     if( !data )
         return NULL;

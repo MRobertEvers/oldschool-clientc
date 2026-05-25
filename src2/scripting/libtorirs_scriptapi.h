@@ -39,6 +39,30 @@ LibToriRS_ScriptAPI_Dat1_ModelLoad(
     struct LibToriRS_IOQueue* io_queue);
 
 void
+LibToriRS_ScriptAPI_Dat1_MapChunkTerrainFetch(
+    struct LibToriRS_Instance* instance,
+    int mapx,
+    int mapz,
+    struct LibToriRS_IOQueue* io_queue);
+
+void
+LibToriRS_ScriptAPI_Dat1_MapChunkSceneryFetch(
+    struct LibToriRS_Instance* instance,
+    int mapx,
+    int mapz,
+    struct LibToriRS_IOQueue* io_queue);
+
+bool
+LibToriRS_ScriptAPI_Dat1_MapChunkTerrainLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue);
+
+bool
+LibToriRS_ScriptAPI_Dat1_MapChunkSceneryLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue);
+
+void
 LibToriRS_ScriptAPI_Dat1_SubmitGameCacheModel(
     struct LibToriRS_Instance* instance,
     int model_id);
@@ -61,5 +85,8 @@ LibToriRS_ScriptAPI_Dat1_TexturesCleanup(struct LibToriRS_Instance* instance);
 
 void
 LibToriRS_ScriptAPI_Dat1_SubmitTextures(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_GameCache_ModelsClearAll(struct LibToriRS_Instance* instance);
 
 #endif

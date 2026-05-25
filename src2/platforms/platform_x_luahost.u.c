@@ -252,6 +252,88 @@ LibToriPlatformX_LuaHost_Game_Dat1_ModelLoad(lua_State* L)
 }
 
 int
+LibToriPlatformX_LuaHost_Game_Dat1_MapChunkTerrainFetch(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
+
+    int mapx = lua_tointeger(L, 2);
+    int mapz = lua_tointeger(L, 3);
+
+    LibToriRS_ScriptAPI_Dat1_MapChunkTerrainFetch(instance, mapx, mapz, io_queue);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_MapChunkSceneryFetch(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
+    int mapx = lua_tointeger(L, 2);
+    int mapz = lua_tointeger(L, 3);
+
+    LibToriRS_ScriptAPI_Dat1_MapChunkSceneryFetch(instance, mapx, mapz, io_queue);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_MapChunkTerrainLoad(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
+
+    bool ok = LibToriRS_ScriptAPI_Dat1_MapChunkTerrainLoad(instance, io_queue);
+
+    lua_pushboolean(L, ok);
+
+    return 1;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_MapChunkSceneryLoad(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    struct LibToriRS_IOQueue* io_queue = (struct LibToriRS_IOQueue*)lua_touserdata(L, 1);
+
+    bool ok = LibToriRS_ScriptAPI_Dat1_MapChunkSceneryLoad(instance, io_queue);
+    lua_pushboolean(L, ok);
+    return 1;
+}
+
+int
 LibToriPlatformX_LuaHost_Game_Dat1_SubmitGameCacheModelNativeInt(lua_State* L)
 {
     struct LibToriPlatformX_Lua* lua =
@@ -418,6 +500,23 @@ LibToriPlatformX_LuaHost_Game_Dat1_SubmitTextures(lua_State* L)
     return 0;
 }
 
+int
+LibToriPlatformX_LuaHost_Game_GameCache_ModelsClearAll(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_GameCache_ModelsClearAll(instance);
+
+    return 0;
+}
+
 static inline void
 lua_bind_function_to_platform(
     lua_State* L,
@@ -459,6 +558,20 @@ LibToriPlatformX_LuaHost_BindToPlatform(
     lua_bind_function_to_platform(
         L,
         lua,
+        "Dat1_MapChunkTerrainFetch",
+        LibToriPlatformX_LuaHost_Game_Dat1_MapChunkTerrainFetch);
+    lua_bind_function_to_platform(
+        L,
+        lua,
+        "Dat1_MapChunkSceneryFetch",
+        LibToriPlatformX_LuaHost_Game_Dat1_MapChunkSceneryFetch);
+    lua_bind_function_to_platform(
+        L, lua, "Dat1_MapChunkTerrainLoad", LibToriPlatformX_LuaHost_Game_Dat1_MapChunkTerrainLoad);
+    lua_bind_function_to_platform(
+        L, lua, "Dat1_MapChunkSceneryLoad", LibToriPlatformX_LuaHost_Game_Dat1_MapChunkSceneryLoad);
+    lua_bind_function_to_platform(
+        L,
+        lua,
         "Dat1_SubmitGameCacheModelNativeInt",
         LibToriPlatformX_LuaHost_Game_Dat1_SubmitGameCacheModelNativeInt);
     lua_bind_function_to_platform(
@@ -492,6 +605,8 @@ LibToriPlatformX_LuaHost_BindToPlatform(
         L, lua, "Dat1_TexturesCleanup", LibToriPlatformX_LuaHost_Game_Dat1_TexturesCleanup);
     lua_bind_function_to_platform(
         L, lua, "Dat1_SubmitTextures", LibToriPlatformX_LuaHost_Game_Dat1_SubmitTextures);
+    lua_bind_function_to_platform(
+        L, lua, "GameCache_ModelsClearAll", LibToriPlatformX_LuaHost_Game_GameCache_ModelsClearAll);
     lua_setglobal(L, "Game");
 }
 

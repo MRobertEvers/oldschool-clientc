@@ -1,6 +1,7 @@
 #include "dat1_buildcache.h"
 
-#include "graphics/dash.h"
+#include "osrs/rscache/tables/maps.h"
+#include "toridraw/toridraw_map.h"
 #include "toridraw/toridraw_model.h"
 
 #include <stdlib.h>
@@ -12,21 +13,45 @@ struct MapEntry_CacheModel
     struct CacheModel* model;
 };
 
+struct MapEntry_Terrain
+{
+    int id;
+    struct CacheMapTerrain* terrain;
+};
+
+struct MapEntry_Scenery
+{
+    int id;
+    struct CacheMapLocs* locs;
+};
+
+static struct ToriDraw_Map*
+dat1_buildcache_map_new(
+    int entry_size,
+    int capacity)
+{
+    int buffer_size = toridraw_map_buffer_size_for(entry_size, capacity);
+    struct ToriDraw_MapConfig config = {
+        .buffer = malloc(buffer_size),
+        .buffer_size = buffer_size,
+        .key_size = sizeof(int),
+        .entry_size = entry_size,
+    };
+    return toridraw_map_new(&config, 0);
+}
+
 struct Dat1BuildCache*
 dat1_buildcache_new(void)
 {
     struct Dat1BuildCache* dat1_buildcache = malloc(sizeof(struct Dat1BuildCache));
     memset(dat1_buildcache, 0, sizeof(struct Dat1BuildCache));
 
-    struct DashMapConfig config = { 0 };
-    int buffer_size = dashmap_buffer_size_for(sizeof(struct MapEntry_CacheModel), 1024);
-    config = (struct DashMapConfig){
-        .buffer = malloc(buffer_size),
-        .buffer_size = buffer_size,
-        .key_size = sizeof(int),
-        .entry_size = sizeof(struct MapEntry_CacheModel),
-    };
-    dat1_buildcache->models_hmap = dashmap_new(&config, 0);
+    dat1_buildcache->models_hmap =
+        dat1_buildcache_map_new(sizeof(struct MapEntry_CacheModel), 1024);
+    dat1_buildcache->map_terrain_hmap =
+        dat1_buildcache_map_new(sizeof(struct MapEntry_Terrain), 256);
+    dat1_buildcache->map_scenery_hmap =
+        dat1_buildcache_map_new(sizeof(struct MapEntry_Scenery), 256);
 
     return dat1_buildcache;
 }
@@ -39,17 +64,47 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
 
     if( dat1_buildcache->models_hmap )
     {
-        struct DashMapIter* iter = dashmap_iter_new(dat1_buildcache->models_hmap);
+        struct ToriDraw_MapIter* iter = toridraw_map_iter_new(dat1_buildcache->models_hmap);
         struct MapEntry_CacheModel* entry = NULL;
-        while( (entry = (struct MapEntry_CacheModel*)dashmap_iter_next(iter)) )
+        while( (entry = (struct MapEntry_CacheModel*)toridraw_map_iter_next(iter)) )
         {
             if( entry->model )
                 model_free(entry->model);
         }
-        dashmap_iter_free(iter);
+        toridraw_map_iter_free(iter);
 
-        free(dashmap_buffer_ptr(dat1_buildcache->models_hmap));
-        dashmap_free(dat1_buildcache->models_hmap);
+        free(toridraw_map_buffer_ptr(dat1_buildcache->models_hmap));
+        toridraw_map_free(dat1_buildcache->models_hmap);
+    }
+
+    if( dat1_buildcache->map_terrain_hmap )
+    {
+        struct ToriDraw_MapIter* iter = toridraw_map_iter_new(dat1_buildcache->map_terrain_hmap);
+        struct MapEntry_Terrain* entry = NULL;
+        while( (entry = (struct MapEntry_Terrain*)toridraw_map_iter_next(iter)) )
+        {
+            if( entry->terrain )
+                map_terrain_free(entry->terrain);
+        }
+        toridraw_map_iter_free(iter);
+
+        free(toridraw_map_buffer_ptr(dat1_buildcache->map_terrain_hmap));
+        toridraw_map_free(dat1_buildcache->map_terrain_hmap);
+    }
+
+    if( dat1_buildcache->map_scenery_hmap )
+    {
+        struct ToriDraw_MapIter* iter = toridraw_map_iter_new(dat1_buildcache->map_scenery_hmap);
+        struct MapEntry_Scenery* entry = NULL;
+        while( (entry = (struct MapEntry_Scenery*)toridraw_map_iter_next(iter)) )
+        {
+            if( entry->locs )
+                map_locs_free(entry->locs);
+        }
+        toridraw_map_iter_free(iter);
+
+        free(toridraw_map_buffer_ptr(dat1_buildcache->map_scenery_hmap));
+        toridraw_map_free(dat1_buildcache->map_scenery_hmap);
     }
 
     dat1_buildcache_texture_clear(dat1_buildcache);
@@ -74,8 +129,8 @@ dat1_buildcache_model_add(
     int model_id,
     struct CacheModel* model)
 {
-    struct MapEntry_CacheModel* entry = (struct MapEntry_CacheModel*)dashmap_search(
-        dat1_buildcache->models_hmap, &model_id, DASHMAP_INSERT);
+    struct MapEntry_CacheModel* entry = (struct MapEntry_CacheModel*)toridraw_map_search(
+        dat1_buildcache->models_hmap, &model_id, TORIDRAW_MAP_INSERT);
     if( !entry )
         return;
 
@@ -88,8 +143,8 @@ dat1_buildcache_model_get(
     struct Dat1BuildCache* dat1_buildcache,
     int model_id)
 {
-    struct MapEntry_CacheModel* entry = (struct MapEntry_CacheModel*)dashmap_search(
-        dat1_buildcache->models_hmap, &model_id, DASHMAP_FIND);
+    struct MapEntry_CacheModel* entry = (struct MapEntry_CacheModel*)toridraw_map_search(
+        dat1_buildcache->models_hmap, &model_id, TORIDRAW_MAP_FIND);
     if( !entry )
         return NULL;
     return entry->model;
@@ -103,12 +158,42 @@ dat1_buildcache_model_remove(
     if( !dat1_buildcache )
         return;
 
-    struct MapEntry_CacheModel* entry = (struct MapEntry_CacheModel*)dashmap_search(
-        dat1_buildcache->models_hmap, &model_id, DASHMAP_REMOVE);
+    struct MapEntry_CacheModel* entry = (struct MapEntry_CacheModel*)toridraw_map_search(
+        dat1_buildcache->models_hmap, &model_id, TORIDRAW_MAP_REMOVE);
     if( !entry || !entry->model )
         return;
 
     model_free(entry->model);
+}
+
+void
+dat1_buildcache_map_terrain_add(
+    struct Dat1BuildCache* dat1_buildcache,
+    int map_id,
+    struct CacheMapTerrain* terrain)
+{
+    struct MapEntry_Terrain* entry = (struct MapEntry_Terrain*)toridraw_map_search(
+        dat1_buildcache->map_terrain_hmap, &map_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+        return;
+
+    entry->id = map_id;
+    entry->terrain = terrain;
+}
+
+void
+dat1_buildcache_map_scenery_add(
+    struct Dat1BuildCache* dat1_buildcache,
+    int map_id,
+    struct CacheMapLocs* locs)
+{
+    struct MapEntry_Scenery* entry = (struct MapEntry_Scenery*)toridraw_map_search(
+        dat1_buildcache->map_scenery_hmap, &map_id, TORIDRAW_MAP_INSERT);
+    if( !entry )
+        return;
+
+    entry->id = map_id;
+    entry->locs = locs;
 }
 
 void

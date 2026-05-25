@@ -133,6 +133,22 @@ export class LibToriPlatformEmscriptenJSAPI {
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelLoad",
     );
+    this._scriptAPIDat1MapChunkTerrainFetch = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkTerrainFetch",
+    );
+    this._scriptAPIDat1MapChunkSceneryFetch = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkSceneryFetch",
+    );
+    this._scriptAPIDat1MapChunkTerrainLoad = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkTerrainLoad",
+    );
+    this._scriptAPIDat1MapChunkSceneryLoad = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkSceneryLoad",
+    );
     this._scriptAPIDat1SubmitGameCacheModelNativeInt = wasmExportFn(
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitGameCacheModelNativeInt",
@@ -148,6 +164,26 @@ export class LibToriPlatformEmscriptenJSAPI {
     this._scriptAPIGameModelViewerRenderModelScriptInt = wasmExportFn(
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelScriptInt",
+    );
+    this._scriptAPIDat1ModelCleanupNativeInt = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelCleanupNativeInt",
+    );
+    this._scriptAPIDat1ModelCleanupScriptInt = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelCleanupScriptInt",
+    );
+    this._scriptAPIDat1TexturesCleanup = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_TexturesCleanup",
+    );
+    this._scriptAPIDat1SubmitTextures = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitTextures",
+    );
+    this._scriptAPIGameCacheModelsClearAll = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_ModelsClearAll",
     );
 
     this.instancePtr = getInstancePtr(this.platformPtr);
@@ -240,6 +276,32 @@ export class LibToriPlatformEmscriptenJSAPI {
     return !!this._scriptAPIDat1ModelLoad(this.instancePtr, ioqueue);
   }
 
+  scriptAPIDat1MapChunkTerrainFetch(ioqueue, mapx, mapz) {
+    this._scriptAPIDat1MapChunkTerrainFetch(
+      this.instancePtr,
+      mapx,
+      mapz,
+      ioqueue,
+    );
+  }
+
+  scriptAPIDat1MapChunkSceneryFetch(ioqueue, mapx, mapz) {
+    this._scriptAPIDat1MapChunkSceneryFetch(
+      this.instancePtr,
+      mapx,
+      mapz,
+      ioqueue,
+    );
+  }
+
+  scriptAPIDat1MapChunkTerrainLoad(ioqueue) {
+    return !!this._scriptAPIDat1MapChunkTerrainLoad(this.instancePtr, ioqueue);
+  }
+
+  scriptAPIDat1MapChunkSceneryLoad(ioqueue) {
+    return !!this._scriptAPIDat1MapChunkSceneryLoad(this.instancePtr, ioqueue);
+  }
+
   scriptAPIDat1SubmitGameCacheModelNativeInt(modelId) {
     this._scriptAPIDat1SubmitGameCacheModelNativeInt(this.instancePtr, modelId);
   }
@@ -264,6 +326,26 @@ export class LibToriPlatformEmscriptenJSAPI {
       this.instancePtr,
       modelId,
     );
+  }
+
+  scriptAPIDat1ModelCleanupNativeInt(modelId) {
+    this._scriptAPIDat1ModelCleanupNativeInt(this.instancePtr, modelId);
+  }
+
+  scriptAPIDat1ModelCleanupScriptInt(modelId) {
+    this._scriptAPIDat1ModelCleanupScriptInt(this.instancePtr, modelId);
+  }
+
+  scriptAPIDat1TexturesCleanup() {
+    this._scriptAPIDat1TexturesCleanup(this.instancePtr);
+  }
+
+  scriptAPIDat1SubmitTextures() {
+    this._scriptAPIDat1SubmitTextures(this.instancePtr);
+  }
+
+  scriptAPIGameCacheModelsClearAll() {
+    this._scriptAPIGameCacheModelsClearAll(this.instancePtr);
   }
 
   ioQueueGetCount() {

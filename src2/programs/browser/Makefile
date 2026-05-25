@@ -25,13 +25,15 @@ SRC   := browser.c \
 	$(SRC2)/render/libtorirs_render.c \
 	$(SRC2)/buildcache/dat1_buildcache.c \
 	$(SRC2)/gamecache/gamecache.c \
+	$(SRC2)/gamecache/toridraw_cachemodel.c \
 	$(SRC2)/games/model_viewer.c \
-	$(SRC2)/toripix/toridraw.c \
-	$(SRC2)/toripix/toridraw_math.c \
-	$(SRC2)/toripix/toridraw_hsl16.c \
-	$(SRC2)/toripix/toridraw_lighting.c \
-	$(SRC2)/toripix/toridraw_model.c \
-	$(SRC2)/toripix/toridraw_light_model.c \
+	$(SRC2)/toridraw/toridraw.c \
+	$(SRC2)/toridraw/toridraw_math.c \
+	$(SRC2)/toridraw/toridraw_map.c \
+	$(SRC2)/toridraw/toridraw_hsl16.c \
+	$(SRC2)/toridraw/toridraw_lighting.c \
+	$(SRC2)/toridraw/toridraw_model.c \
+	$(SRC2)/toridraw/toridraw_light_model.c \
 	$(SRC_DIR)/graphics/dash.c \
 	$(SRC_DIR)/graphics/dashmap.c \
 	$(SRC_DIR)/graphics/dash_model.c \

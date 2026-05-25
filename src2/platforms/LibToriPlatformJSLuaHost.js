@@ -1,22 +1,5 @@
 const { lua, to_luastring } = window.fengari;
 
-/**
- * @param {import('./LibToriPlatformEmscriptenJSAPI').LibToriPlatformEmscriptenJSAPI} platformEmscriptenJSAPI
- */
-function luaScriptIntOrLuaInt(L, index, platformEmscriptenJSAPI) {
-  const rctype = lua.lua_type(L, index);
-  switch (rctype) {
-    case lua.LUA_TNUMBER:
-      return lua.lua_tonumber(L, index);
-    case lua.LUA_TLIGHTUSERDATA:
-      return platformEmscriptenJSAPI.scriptValueAsInt(
-        lua.lua_touserdata(L, index),
-      );
-    default:
-      return 0;
-  }
-}
-
 export class LibToriPlatformJSLuaHost {
   /**
    * @param {*} lua - Fengari lua instance
@@ -100,24 +83,72 @@ export class LibToriPlatformJSLuaHost {
     return 0;
   }
 
-  gameDat1SubmitGameCacheModelNativeInt(L) {
-    // const modelId = lua.lua_tointeger(L, 1);
+  gameDat1MapChunkTerrainFetch(L) {
     const ioQueue = lua.lua_touserdata(L, 1);
+    const mapx = lua.lua_tointeger(L, 2);
+    const mapz = lua.lua_tointeger(L, 3);
+    this.emscriptenJSAPI.scriptAPIDat1MapChunkTerrainFetch(ioQueue, mapx, mapz);
+    return 0;
+  }
+
+  gameDat1MapChunkSceneryFetch(L) {
+    const ioQueue = lua.lua_touserdata(L, 1);
+    const mapx = lua.lua_tointeger(L, 2);
+    const mapz = lua.lua_tointeger(L, 3);
+    this.emscriptenJSAPI.scriptAPIDat1MapChunkSceneryFetch(ioQueue, mapx, mapz);
+    return 0;
+  }
+
+  gameDat1MapChunkTerrainLoad(L) {
+    const ioQueue = lua.lua_touserdata(L, 1);
+    const ok = this.emscriptenJSAPI.scriptAPIDat1MapChunkTerrainLoad(ioQueue);
+    lua.lua_pushboolean(L, ok);
+    return 1;
+  }
+
+  gameDat1MapChunkSceneryLoad(L) {
+    const ioQueue = lua.lua_touserdata(L, 1);
+    const ok = this.emscriptenJSAPI.scriptAPIDat1MapChunkSceneryLoad(ioQueue);
+    lua.lua_pushboolean(L, ok);
+    return 1;
+  }
+
+  gameDat1SubmitGameCacheModelNativeInt(L) {
     const modelId = lua.lua_tointeger(L, 1);
-    this.emscriptenJSAPI.scriptAPIDat1SubmitGameCacheModelNativeInt(
-      ioQueue,
-      modelId,
-    );
+    this.emscriptenJSAPI.scriptAPIDat1SubmitGameCacheModelNativeInt(modelId);
     return 0;
   }
 
   gameDat1SubmitGameCacheModelScriptInt(L) {
-    const ioQueue = lua.lua_touserdata(L, 1);
-    const modelId = lua.lua_touserdata(L, 2);
-    this.emscriptenJSAPI.scriptAPIDat1SubmitGameCacheModelScriptInt(
-      ioQueue,
-      modelId,
-    );
+    const modelId = lua.lua_touserdata(L, 1);
+    this.emscriptenJSAPI.scriptAPIDat1SubmitGameCacheModelScriptInt(modelId);
+    return 0;
+  }
+
+  gameDat1ModelCleanupNativeInt(L) {
+    const modelId = lua.lua_tointeger(L, 1);
+    this.emscriptenJSAPI.scriptAPIDat1ModelCleanupNativeInt(modelId);
+    return 0;
+  }
+
+  gameDat1ModelCleanupScriptInt(L) {
+    const modelId = lua.lua_touserdata(L, 1);
+    this.emscriptenJSAPI.scriptAPIDat1ModelCleanupScriptInt(modelId);
+    return 0;
+  }
+
+  gameDat1TexturesCleanup(L) {
+    this.emscriptenJSAPI.scriptAPIDat1TexturesCleanup();
+    return 0;
+  }
+
+  gameDat1SubmitTextures(L) {
+    this.emscriptenJSAPI.scriptAPIDat1SubmitTextures();
+    return 0;
+  }
+
+  gameGameCacheModelsClearAll(L) {
+    this.emscriptenJSAPI.scriptAPIGameCacheModelsClearAll();
     return 0;
   }
 
@@ -214,6 +245,42 @@ export function luaBindToPlatformJSLuaHost(L, platformLuaHost) {
   bindLuaFunctionToPlatform(
     "ModelViewer_RenderModelScriptInt",
     platformLuaHost.gameModelViewerRenderModelScriptInt,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_ModelCleanupNativeInt",
+    platformLuaHost.gameDat1ModelCleanupNativeInt,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_ModelCleanupScriptInt",
+    platformLuaHost.gameDat1ModelCleanupScriptInt,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_TexturesCleanup",
+    platformLuaHost.gameDat1TexturesCleanup,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_SubmitTextures",
+    platformLuaHost.gameDat1SubmitTextures,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_MapChunkTerrainFetch",
+    platformLuaHost.gameDat1MapChunkTerrainFetch,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_MapChunkSceneryFetch",
+    platformLuaHost.gameDat1MapChunkSceneryFetch,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_MapChunkTerrainLoad",
+    platformLuaHost.gameDat1MapChunkTerrainLoad,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_MapChunkSceneryLoad",
+    platformLuaHost.gameDat1MapChunkSceneryLoad,
+  );
+  bindLuaFunctionToPlatform(
+    "GameCache_ModelsClearAll",
+    platformLuaHost.gameGameCacheModelsClearAll,
   );
   lua.lua_setglobal(L, to_luastring("Game"));
 }

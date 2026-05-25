@@ -8,6 +8,7 @@
 #include "platforms/platform_x/cachelib_client.h"
 #include "src/osrs/rscache/cache_dat.h"
 #include "src/osrs/rscache/filelist.h"
+#include "src/osrs/rscache/tables/maps.h"
 #include "src/osrs/rscache/tables/model.h"
 #include "src/osrs/rscache/tables_dat/config_textures.h"
 #include "src/osrs/rscache/tables_dat/configs_dat.h"
@@ -275,6 +276,118 @@ LibToriRS_ScriptAPI_Dat1_ModelLoad(
 }
 
 void
+LibToriRS_ScriptAPI_Dat1_MapChunkTerrainFetch(
+    struct LibToriRS_Instance* instance,
+    int mapx,
+    int mapz,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    printf("LibToriRS_ScriptAPI_Dat1_MapChunkTerrainFetch\n");
+    if( !instance )
+        return;
+
+    struct CacheLib_IORequest request;
+    cachelib_dat1_map_chunk_terrain_fetch(mapx, mapz, &request);
+
+    struct LibToriRS_IOQueueItem item = { 0 };
+    item.table_id = request.table_id;
+    item.archive_id = request.archive_id;
+    item.flags = request.flags;
+    if( !LibToriRS_IOQueuePopWrite(io_queue, &item) )
+        return;
+}
+
+void
+LibToriRS_ScriptAPI_Dat1_MapChunkSceneryFetch(
+    struct LibToriRS_Instance* instance,
+    int mapx,
+    int mapz,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    printf("LibToriRS_ScriptAPI_Dat1_MapChunkSceneryFetch\n");
+
+    struct CacheLib_IORequest request;
+    cachelib_dat1_map_chunk_scenery_fetch(mapx, mapz, &request);
+
+    struct LibToriRS_IOQueueItem item = { 0 };
+    item.table_id = request.table_id;
+    item.archive_id = request.archive_id;
+    item.flags = request.flags;
+    if( !LibToriRS_IOQueuePopWrite(io_queue, &item) )
+        return;
+}
+
+bool
+LibToriRS_ScriptAPI_Dat1_MapChunkTerrainLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    printf("LibToriRS_ScriptAPI_Dat1_MapChunkTerrainLoad\n");
+
+    struct LibToriRS_IOQueueItem item = { 0 };
+    if( !LibToriRS_IOQueuePopRead(io_queue, &item) )
+        return false;
+    if( item.status != TORIRSIO_RESOLVED )
+        return false;
+    if( item.table_id != CACHE_DAT_MAPS )
+        return false;
+    if( item.flags != CACHELIB_MAPCHUNK_TERRAIN )
+        return false;
+
+    struct CacheDatArchive* archive = item.data;
+    if( !archive )
+        return false;
+
+    int map_id = item.archive_id;
+    int map_x = map_id >> 16;
+    int map_z = map_id & 0xFFFF;
+
+    struct CacheMapTerrain* terrain = map_terrain_new_from_decode_flags(
+        archive->data, archive->data_size, map_x, map_z, MAP_TERRAIN_DECODE_U8);
+    if( !terrain )
+        return false;
+
+    dat1_buildcache_map_terrain_add(instance->dat1_buildcache, map_id, terrain);
+    cache_dat_archive_free(archive);
+    return true;
+}
+
+bool
+LibToriRS_ScriptAPI_Dat1_MapChunkSceneryLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    printf("LibToriRS_ScriptAPI_Dat1_MapChunkSceneryLoad\n");
+    struct LibToriRS_IOQueueItem item = { 0 };
+    if( !LibToriRS_IOQueuePopRead(io_queue, &item) )
+        return false;
+    if( item.status != TORIRSIO_RESOLVED )
+        return false;
+    if( item.table_id != CACHE_DAT_MAPS )
+        return false;
+    if( item.flags != CACHELIB_MAPCHUNK_SCENERY )
+        return false;
+
+    struct CacheDatArchive* archive = item.data;
+    if( !archive )
+        return false;
+
+    int map_id = item.archive_id;
+    int map_x = map_id >> 16;
+    int map_z = map_id & 0xFFFF;
+
+    struct CacheMapLocs* locs = map_locs_new_from_decode(archive->data, archive->data_size);
+    locs->_chunk_mapx = map_x;
+    locs->_chunk_mapz = map_z;
+    if( !locs )
+        return false;
+
+    dat1_buildcache_map_scenery_add(instance->dat1_buildcache, map_id, locs);
+    cache_dat_archive_free(archive);
+    return true;
+}
+
+void
 LibToriRS_ScriptAPI_Game_ModelViewer_Init(struct LibToriRS_Instance* instance)
 {
     printf("LibToriRS_ScriptAPI_Game_ModelViewer_Init\n");
@@ -352,4 +465,14 @@ LibToriRS_ScriptAPI_Dat1_SubmitTextures(struct LibToriRS_Instance* instance)
 
     texture_map->count = buildcache->texture_count;
     buildcache->texture_count = 0;
+}
+
+void
+LibToriRS_ScriptAPI_GameCache_ModelsClearAll(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_GameCache_ModelsClearAll\n");
+    if( !instance || !instance->gamecache )
+        return;
+
+    gamecache_models_clear_all(instance->gamecache);
 }

@@ -101,23 +101,36 @@ export class LibToriPlatformJSLuaHost {
   }
 
   gameDat1SubmitGameCacheModelNativeInt(L) {
-    // const modelId = lua.lua_tointeger(L, 1);
-    const ioQueue = lua.lua_touserdata(L, 1);
     const modelId = lua.lua_tointeger(L, 1);
-    this.emscriptenJSAPI.scriptAPIDat1SubmitGameCacheModelNativeInt(
-      ioQueue,
-      modelId,
-    );
+    this.emscriptenJSAPI.scriptAPIDat1SubmitGameCacheModelNativeInt(modelId);
     return 0;
   }
 
   gameDat1SubmitGameCacheModelScriptInt(L) {
-    const ioQueue = lua.lua_touserdata(L, 1);
-    const modelId = lua.lua_touserdata(L, 2);
-    this.emscriptenJSAPI.scriptAPIDat1SubmitGameCacheModelScriptInt(
-      ioQueue,
-      modelId,
-    );
+    const modelId = lua.lua_touserdata(L, 1);
+    this.emscriptenJSAPI.scriptAPIDat1SubmitGameCacheModelScriptInt(modelId);
+    return 0;
+  }
+
+  gameDat1ModelCleanupNativeInt(L) {
+    const modelId = lua.lua_tointeger(L, 1);
+    this.emscriptenJSAPI.scriptAPIDat1ModelCleanupNativeInt(modelId);
+    return 0;
+  }
+
+  gameDat1ModelCleanupScriptInt(L) {
+    const modelId = lua.lua_touserdata(L, 1);
+    this.emscriptenJSAPI.scriptAPIDat1ModelCleanupScriptInt(modelId);
+    return 0;
+  }
+
+  gameDat1TexturesCleanup(L) {
+    this.emscriptenJSAPI.scriptAPIDat1TexturesCleanup();
+    return 0;
+  }
+
+  gameDat1SubmitTextures(L) {
+    this.emscriptenJSAPI.scriptAPIDat1SubmitTextures();
     return 0;
   }
 
@@ -214,6 +227,22 @@ export function luaBindToPlatformJSLuaHost(L, platformLuaHost) {
   bindLuaFunctionToPlatform(
     "ModelViewer_RenderModelScriptInt",
     platformLuaHost.gameModelViewerRenderModelScriptInt,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_ModelCleanupNativeInt",
+    platformLuaHost.gameDat1ModelCleanupNativeInt,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_ModelCleanupScriptInt",
+    platformLuaHost.gameDat1ModelCleanupScriptInt,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_TexturesCleanup",
+    platformLuaHost.gameDat1TexturesCleanup,
+  );
+  bindLuaFunctionToPlatform(
+    "Dat1_SubmitTextures",
+    platformLuaHost.gameDat1SubmitTextures,
   );
   lua.lua_setglobal(L, to_luastring("Game"));
 }

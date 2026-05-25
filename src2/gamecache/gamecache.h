@@ -33,4 +33,7 @@ gamecache_model_remove(
     struct GameCache* gamecache,
     int model_id);
 
+void
+gamecache_models_clear_all(struct GameCache* gamecache);
+
 #endif
