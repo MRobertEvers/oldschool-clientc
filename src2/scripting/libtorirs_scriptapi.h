@@ -89,4 +89,34 @@ LibToriRS_ScriptAPI_Dat1_SubmitTextures(struct LibToriRS_Instance* instance);
 void
 LibToriRS_ScriptAPI_GameCache_ModelsClearAll(struct LibToriRS_Instance* instance);
 
+void
+LibToriRS_ScriptAPI_Dat1_VersionListFetch(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue);
+
+bool
+LibToriRS_ScriptAPI_Dat1_VersionListLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue);
+
+void
+LibToriRS_ScriptAPI_Dat1_AnimationsFetch(
+    struct LibToriRS_Instance* instance,
+    int archive_id,
+    struct LibToriRS_IOQueue* io_queue);
+
+bool
+LibToriRS_ScriptAPI_Dat1_AnimationsLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue);
+
+void
+LibToriRS_ScriptAPI_Dat1_SequencesInitFromConfigJagfile(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_Dat1_FloortypesInitFromConfigJagfile(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_Dat1_SceneryConfigsInitFromConfigJagfile(struct LibToriRS_Instance* instance);
+
 #endif

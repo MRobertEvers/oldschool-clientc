@@ -74,6 +74,11 @@ SRCS := sdl2.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_spotanim.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_varp.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/animframe.c \
+	$(SRC_DIR)/osrs/rscache/tables/config_sequence.c \
+	$(SRC_DIR)/osrs/rscache/tables/config_floortype.c \
+	$(SRC_DIR)/osrs/rscache/tables/config_locs.c \
+	$(SRC_DIR)/osrs/rscache/tables/maps.c \
+	$(SRC_DIR)/osrs/rscache/tables/noise.c \
 	$(SRC_DIR)/osrs/rscache/tables/model.c \
 	$(SRC2)/stubs/sprite_pack_stub.c \
 	$(PLAT_DIR)/platform_x_cache.c \
@@ -114,7 +119,26 @@ $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) -c $(1) -o $$@
 endef
 
+LEGACY_TABLE_WARNINGS := -Wno-unused-function -Wno-unused-variable -Wno-unused-label \
+	-Wno-unused-but-set-variable -Wno-pointer-sign -Wno-parentheses
+
 $(foreach src,$(SRCS),$(eval $(call make-goal,$(src))))
+
+# Override generic rules: legacy osrs table decoders do not build cleanly under -Werror.
+$(OBJ_DIR)/config_sequence.o: $(SRC_DIR)/osrs/rscache/tables/config_sequence.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) $(LEGACY_TABLE_WARNINGS) -c $< -o $@
+
+$(OBJ_DIR)/config_floortype.o: $(SRC_DIR)/osrs/rscache/tables/config_floortype.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) $(LEGACY_TABLE_WARNINGS) -c $< -o $@
+
+$(OBJ_DIR)/config_locs.o: $(SRC_DIR)/osrs/rscache/tables/config_locs.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) $(LEGACY_TABLE_WARNINGS) -c $< -o $@
+
+$(OBJ_DIR)/maps.o: $(SRC_DIR)/osrs/rscache/tables/maps.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) $(LEGACY_TABLE_WARNINGS) -c $< -o $@
+
+$(OBJ_DIR)/noise.o: $(SRC_DIR)/osrs/rscache/tables/noise.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) $(LEGACY_TABLE_WARNINGS) -c $< -o $@
 
 clean:
 	rm -f $(PROG)

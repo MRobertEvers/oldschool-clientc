@@ -357,7 +357,7 @@ map_terrain_new_from_decode_flags( //
     struct CacheMapTerrain* map_terrain = malloc(sizeof(struct CacheMapTerrain));
     memset(map_terrain, 0, sizeof(struct CacheMapTerrain));
 
-    struct RSBuffer buffer = { .data = (uint8_t*)(data), .position = 0, .size = (uint32_t)(data_size };
+    struct RSBuffer buffer = { .data = (uint8_t*)(data), .position = 0, .size = (uint32_t)(data_size) };
 
     for( int level = 0; level < MAP_TERRAIN_LEVELS; level++ )
     {
@@ -525,7 +525,7 @@ map_locs_new_from_decode(
     int id = -1;
     int id_offset;
 
-    struct RSBuffer buffer = { .data = (uint8_t*)(data), .position = 0, .size = (uint32_t)(data_size };
+    struct RSBuffer buffer = { .data = (uint8_t*)(data), .position = 0, .size = (uint32_t)(data_size) };
 
     while( pos < data_size &&
            (id_offset = rsbuf_read_unsigned_int_smart_short_compat(&buffer)) != 0 )

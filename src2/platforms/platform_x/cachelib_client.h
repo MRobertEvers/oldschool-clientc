@@ -53,10 +53,29 @@ cachelib_dat1_map_chunk_scenery_fetch(
     out->flags = CACHELIB_MAPCHUNK_SCENERY;
 }
 
+static inline void
 cachelib_dat1_textures_archive_fetch(struct CacheLib_IORequest* out)
 {
     out->table_id = CACHE_DAT_CONFIGS;
     out->archive_id = CONFIG_DAT_TEXTURES;
+    out->flags = 0;
+}
+
+static inline void
+cachelib_dat1_versionlist_fetch(struct CacheLib_IORequest* out)
+{
+    out->table_id = CACHE_DAT_CONFIGS;
+    out->archive_id = CONFIG_DAT_VERSION_LIST;
+    out->flags = 0;
+}
+
+static inline void
+cachelib_dat1_animations_fetch(
+    int archive_id,
+    struct CacheLib_IORequest* out)
+{
+    out->table_id = CACHE_DAT_ANIMATIONS;
+    out->archive_id = archive_id;
     out->flags = 0;
 }
 

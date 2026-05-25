@@ -72,6 +72,11 @@ SRC   := browser.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_spotanim.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/config_varp.c \
 	$(SRC_DIR)/osrs/rscache/tables_dat/animframe.c \
+	$(SRC_DIR)/osrs/rscache/tables/config_sequence.c \
+	$(SRC_DIR)/osrs/rscache/tables/config_floortype.c \
+	$(SRC_DIR)/osrs/rscache/tables/config_locs.c \
+	$(SRC_DIR)/osrs/rscache/tables/maps.c \
+	$(SRC_DIR)/osrs/rscache/tables/noise.c \
 	$(SRC_DIR)/osrs/rscache/tables/model.c \
 	$(SRC2)/stubs/sprite_pack_stub.c
 

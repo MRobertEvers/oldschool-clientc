@@ -185,6 +185,34 @@ export class LibToriPlatformEmscriptenJSAPI {
       mod,
       "LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_ModelsClearAll",
     );
+    this._scriptAPIDat1VersionListFetch = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_VersionListFetch",
+    );
+    this._scriptAPIDat1VersionListLoad = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_VersionListLoad",
+    );
+    this._scriptAPIDat1AnimationsFetchNativeInt = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsFetchNativeInt",
+    );
+    this._scriptAPIDat1AnimationsLoad = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsLoad",
+    );
+    this._scriptAPIDat1SequencesInitFromConfigJagfile = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SequencesInitFromConfigJagfile",
+    );
+    this._scriptAPIDat1FloortypesInitFromConfigJagfile = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_FloortypesInitFromConfigJagfile",
+    );
+    this._scriptAPIDat1SceneryConfigsInitFromConfigJagfile = wasmExportFn(
+      mod,
+      "LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsInitFromConfigJagfile",
+    );
 
     this.instancePtr = getInstancePtr(this.platformPtr);
   }
@@ -346,6 +374,38 @@ export class LibToriPlatformEmscriptenJSAPI {
 
   scriptAPIGameCacheModelsClearAll() {
     this._scriptAPIGameCacheModelsClearAll(this.instancePtr);
+  }
+
+  scriptAPIDat1VersionListFetch(ioQueue) {
+    this._scriptAPIDat1VersionListFetch(this.instancePtr, ioQueue);
+  }
+
+  scriptAPIDat1VersionListLoad(ioQueue) {
+    return !!this._scriptAPIDat1VersionListLoad(this.instancePtr, ioQueue);
+  }
+
+  scriptAPIDat1AnimationsFetchNativeInt(ioQueue, archiveId) {
+    this._scriptAPIDat1AnimationsFetchNativeInt(
+      this.instancePtr,
+      archiveId,
+      ioQueue,
+    );
+  }
+
+  scriptAPIDat1AnimationsLoad(ioQueue) {
+    return !!this._scriptAPIDat1AnimationsLoad(this.instancePtr, ioQueue);
+  }
+
+  scriptAPIDat1SequencesInitFromConfigJagfile() {
+    this._scriptAPIDat1SequencesInitFromConfigJagfile(this.instancePtr);
+  }
+
+  scriptAPIDat1FloortypesInitFromConfigJagfile() {
+    this._scriptAPIDat1FloortypesInitFromConfigJagfile(this.instancePtr);
+  }
+
+  scriptAPIDat1SceneryConfigsInitFromConfigJagfile() {
+    this._scriptAPIDat1SceneryConfigsInitFromConfigJagfile(this.instancePtr);
   }
 
   ioQueueGetCount() {

@@ -107,10 +107,27 @@ struct ToriDraw_Model
     struct ToriDraw_BoundsCylinder* bounds_cylinder;
 };
 
+struct ToriDraw_ModelGround
+{
+    int vertex_count;
+    int face_count;
+    vertexint_t* vertices_x;
+    vertexint_t* vertices_y;
+    vertexint_t* vertices_z;
+    hsl16_t* face_colors_a;
+    hsl16_t* face_colors_b;
+    hsl16_t* face_colors_c;
+    faceint_t* face_indices_a;
+    faceint_t* face_indices_b;
+    faceint_t* face_indices_c;
+    faceint_t* face_textures;
+};
+
 enum ToriDraw_ModelKind
 {
     TORIDRAWMK_NONE = 0,
     TORIDRAWMK_MODEL = 1,
+    TORIDRAWMK_GROUND = 2,
 };
 
 struct ToriDraw_ModelHandle
@@ -121,6 +138,7 @@ struct ToriDraw_ModelHandle
         struct
         {
             struct ToriDraw_Model* model;
+            struct ToriDraw_ModelGround* ground;
         } model;
     } u;
 };

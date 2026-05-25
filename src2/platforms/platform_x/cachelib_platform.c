@@ -101,9 +101,9 @@ cache_dat1_load_io(
     struct CacheDat* cache_dat1 = cache->u.cache_dat1;
     void* data = NULL;
 
-    if( request->archive_id == CACHE_DAT_MAPS )
+    if( request->table_id == CACHE_DAT_MAPS )
     {
-        data = cache_dat1_load_map_chunk(cache, request, request->flags);
+        data = cache_dat1_load_map_chunk(cache, request->archive_id, request->flags);
     }
     else
     {

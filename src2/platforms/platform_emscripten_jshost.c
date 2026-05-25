@@ -350,6 +350,46 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelLoad(
 
 EMSCRIPTEN_KEEPALIVE
 void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkTerrainFetch(
+    struct LibToriRS_Instance* instance,
+    int mapx,
+    int mapz,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    LibToriRS_ScriptAPI_Dat1_MapChunkTerrainFetch(instance, mapx, mapz, io_queue);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkSceneryFetch(
+    struct LibToriRS_Instance* instance,
+    int mapx,
+    int mapz,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    LibToriRS_ScriptAPI_Dat1_MapChunkSceneryFetch(instance, mapx, mapz, io_queue);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkTerrainLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    return LibToriRS_ScriptAPI_Dat1_MapChunkTerrainLoad(instance, io_queue);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkSceneryLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    return LibToriRS_ScriptAPI_Dat1_MapChunkSceneryLoad(instance, io_queue);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
 LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_Init(
     struct LibToriRS_Instance* instance)
 {
@@ -438,4 +478,65 @@ LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_ModelsClearAll(
     struct LibToriRS_Instance* instance)
 {
     LibToriRS_ScriptAPI_GameCache_ModelsClearAll(instance);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_VersionListFetch(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    LibToriRS_ScriptAPI_Dat1_VersionListFetch(instance, io_queue);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_VersionListLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    return LibToriRS_ScriptAPI_Dat1_VersionListLoad(instance, io_queue);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsFetchNativeInt(
+    struct LibToriRS_Instance* instance,
+    int archive_id,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    LibToriRS_ScriptAPI_Dat1_AnimationsFetch(instance, archive_id, io_queue);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsLoad(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_IOQueue* io_queue)
+{
+    return LibToriRS_ScriptAPI_Dat1_AnimationsLoad(instance, io_queue);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SequencesInitFromConfigJagfile(
+    struct LibToriRS_Instance* instance)
+{
+    LibToriRS_ScriptAPI_Dat1_SequencesInitFromConfigJagfile(instance);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_FloortypesInitFromConfigJagfile(
+    struct LibToriRS_Instance* instance)
+{
+    LibToriRS_ScriptAPI_Dat1_FloortypesInitFromConfigJagfile(instance);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsInitFromConfigJagfile(
+    struct LibToriRS_Instance* instance)
+{
+    LibToriRS_ScriptAPI_Dat1_SceneryConfigsInitFromConfigJagfile(instance);
 }
