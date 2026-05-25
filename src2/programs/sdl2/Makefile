@@ -33,11 +33,13 @@ SRCS := sdl2.c \
 	$(SCRIPT_DIR)/libtorirs_scriptapi.c \
 	$(SRC2)/buildcache/dat1_buildcache.c \
 	$(SRC2)/gamecache/gamecache.c \
+	$(SRC2)/gamecache/toridraw_cachemodel.c \
 	$(SRC2)/toridraw/toridraw.c \
 	$(SRC2)/toridraw/toridraw_math.c \
 	$(SRC2)/toridraw/toridraw_hsl16.c \
 	$(SRC2)/toridraw/toridraw_lighting.c \
 	$(SRC2)/toridraw/toridraw_model.c \
+	$(SRC2)/toridraw/toridraw_map.c \
 	$(SRC2)/toridraw/toridraw_light_model.c \
 	$(SRC2)/games/model_viewer.c \
 	$(SRC_DIR)/graphics/dash.c \

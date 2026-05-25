@@ -1,6 +1,7 @@
 #include "dat1_buildcache.h"
 
 #include "graphics/dash.h"
+#include "toridraw/toridraw_model.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -51,6 +52,8 @@ dat1_buildcache_free(struct Dat1BuildCache* dat1_buildcache)
         dashmap_free(dat1_buildcache->models_hmap);
     }
 
+    dat1_buildcache_texture_clear(dat1_buildcache);
+
     free(dat1_buildcache);
 }
 
@@ -90,4 +93,65 @@ dat1_buildcache_model_get(
     if( !entry )
         return NULL;
     return entry->model;
+}
+
+void
+dat1_buildcache_model_remove(
+    struct Dat1BuildCache* dat1_buildcache,
+    int model_id)
+{
+    if( !dat1_buildcache )
+        return;
+
+    struct MapEntry_CacheModel* entry = (struct MapEntry_CacheModel*)dashmap_search(
+        dat1_buildcache->models_hmap, &model_id, DASHMAP_REMOVE);
+    if( !entry || !entry->model )
+        return;
+
+    model_free(entry->model);
+}
+
+void
+dat1_buildcache_texture_set(
+    struct Dat1BuildCache* dat1_buildcache,
+    int index,
+    struct ToriDraw_Texture* texture)
+{
+    if( !dat1_buildcache || index < 0 || index >= DAT1_TEXTURE_COUNT )
+        return;
+
+    if( dat1_buildcache->textures[index] )
+    {
+        toridraw_texture_free(dat1_buildcache->textures[index]);
+        dat1_buildcache->textures[index] = NULL;
+    }
+
+    dat1_buildcache->textures[index] = texture;
+    if( index >= dat1_buildcache->texture_count )
+        dat1_buildcache->texture_count = index + 1;
+}
+
+struct ToriDraw_Texture*
+dat1_buildcache_texture_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int index)
+{
+    if( !dat1_buildcache || index < 0 || index >= DAT1_TEXTURE_COUNT )
+        return NULL;
+    return dat1_buildcache->textures[index];
+}
+
+void
+dat1_buildcache_texture_clear(struct Dat1BuildCache* dat1_buildcache)
+{
+    if( !dat1_buildcache )
+        return;
+
+    for( int i = 0; i < DAT1_TEXTURE_COUNT; i++ )
+    {
+        if( dat1_buildcache->textures[i] )
+            toridraw_texture_free(dat1_buildcache->textures[i]);
+        dat1_buildcache->textures[i] = NULL;
+    }
+    dat1_buildcache->texture_count = 0;
 }

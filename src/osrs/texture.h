@@ -31,6 +31,16 @@ texture_new_from_texture_sprite(
     bool upscale_to_128,
     bool half_to_64);
 
+struct ToriDraw_Texture;
+
+struct ToriDraw_Texture*
+texture_new_toridraw_from_texture_sprite(
+    struct CacheDatTexture* texture,
+    int animation_direction,
+    int animation_speed,
+    bool upscale_to_128,
+    bool half_to_64);
+
 void
 texture_free(struct DashTexture* texture);
 #endif

@@ -206,4 +206,26 @@ void
 LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitGameCacheModelScriptInt(
     struct LibToriRS_Instance* instance,
     struct LibToriRS_ScriptValue* model_id);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelCleanupNativeInt(
+    struct LibToriRS_Instance* instance,
+    int model_id);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelCleanupScriptInt(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_ScriptValue* model_id);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_TexturesCleanup(
+    struct LibToriRS_Instance* instance);
+
+EMSCRIPTEN_KEEPALIVE
+void
+LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitTextures(
+    struct LibToriRS_Instance* instance);
 #endif

@@ -1,16 +1,22 @@
 #ifndef DAT1_BUILDCACHE_H
 #define DAT1_BUILDCACHE_H
 
-#include "graphics/dash.h"
 #include "osrs/rscache/filelist.h"
 #include "osrs/rscache/tables/model.h"
+#include "toridraw/toridraw_types.h"
 
 #include <stdint.h>
+
+struct DashMap;
+
+#define DAT1_TEXTURE_COUNT 50
 
 struct Dat1BuildCache
 {
     struct FileListDat* fromconfigtable_config_jagfile;
     struct DashMap* models_hmap;
+    struct ToriDraw_Texture* textures[DAT1_TEXTURE_COUNT];
+    int texture_count;
 };
 
 struct Dat1BuildCache*
@@ -34,5 +40,24 @@ struct CacheModel*
 dat1_buildcache_model_get(
     struct Dat1BuildCache* dat1_buildcache,
     int model_id);
+
+void
+dat1_buildcache_model_remove(
+    struct Dat1BuildCache* dat1_buildcache,
+    int model_id);
+
+void
+dat1_buildcache_texture_set(
+    struct Dat1BuildCache* dat1_buildcache,
+    int index,
+    struct ToriDraw_Texture* texture);
+
+struct ToriDraw_Texture*
+dat1_buildcache_texture_get(
+    struct Dat1BuildCache* dat1_buildcache,
+    int index);
+
+void
+dat1_buildcache_texture_clear(struct Dat1BuildCache* dat1_buildcache);
 
 #endif

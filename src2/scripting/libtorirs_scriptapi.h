@@ -51,4 +51,15 @@ LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel(
     struct LibToriRS_Instance* instance,
     int model_id);
 
+void
+LibToriRS_ScriptAPI_Dat1_ModelCleanup(
+    struct LibToriRS_Instance* instance,
+    int model_id);
+
+void
+LibToriRS_ScriptAPI_Dat1_TexturesCleanup(struct LibToriRS_Instance* instance);
+
+void
+LibToriRS_ScriptAPI_Dat1_SubmitTextures(struct LibToriRS_Instance* instance);
+
 #endif

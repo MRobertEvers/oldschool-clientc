@@ -346,6 +346,78 @@ LibToriPlatformX_LuaHost_Game_ModelViewer_RenderModelScriptInt(lua_State* L)
     return 0;
 }
 
+int
+LibToriPlatformX_LuaHost_Game_Dat1_ModelCleanupNativeInt(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    int model_id = lua_tointeger(L, 1);
+    LibToriRS_ScriptAPI_Dat1_ModelCleanup(instance, model_id);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_ModelCleanupScriptInt(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    struct LibToriRS_ScriptValue* model_id = (struct LibToriRS_ScriptValue*)lua_touserdata(L, 1);
+    int model_int = model_id->u.intval.value;
+
+    LibToriRS_ScriptAPI_Dat1_ModelCleanup(instance, model_int);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_TexturesCleanup(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_Dat1_TexturesCleanup(instance);
+
+    return 0;
+}
+
+int
+LibToriPlatformX_LuaHost_Game_Dat1_SubmitTextures(lua_State* L)
+{
+    struct LibToriPlatformX_Lua* lua =
+        (struct LibToriPlatformX_Lua*)lua_touserdata(L, lua_upvalueindex(1));
+    if( !lua )
+        return 0;
+
+    struct LibToriRS_Instance* instance = lua->instance;
+    if( !instance )
+        return 0;
+
+    LibToriRS_ScriptAPI_Dat1_SubmitTextures(instance);
+
+    return 0;
+}
+
 static inline void
 lua_bind_function_to_platform(
     lua_State* L,
@@ -406,6 +478,20 @@ LibToriPlatformX_LuaHost_BindToPlatform(
         lua,
         "ModelViewer_RenderModelScriptInt",
         LibToriPlatformX_LuaHost_Game_ModelViewer_RenderModelScriptInt);
+    lua_bind_function_to_platform(
+        L,
+        lua,
+        "Dat1_ModelCleanupNativeInt",
+        LibToriPlatformX_LuaHost_Game_Dat1_ModelCleanupNativeInt);
+    lua_bind_function_to_platform(
+        L,
+        lua,
+        "Dat1_ModelCleanupScriptInt",
+        LibToriPlatformX_LuaHost_Game_Dat1_ModelCleanupScriptInt);
+    lua_bind_function_to_platform(
+        L, lua, "Dat1_TexturesCleanup", LibToriPlatformX_LuaHost_Game_Dat1_TexturesCleanup);
+    lua_bind_function_to_platform(
+        L, lua, "Dat1_SubmitTextures", LibToriPlatformX_LuaHost_Game_Dat1_SubmitTextures);
     lua_setglobal(L, "Game");
 }
 

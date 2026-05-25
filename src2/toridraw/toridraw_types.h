@@ -160,12 +160,23 @@ struct ToriDraw_Camera
     int roll;
 };
 
+enum ToriDraw_TextureAnimation
+{
+    TORIDRAW_TEXANIM_DIRECTION_NONE,
+    TORIDRAW_TEXANIM_DIRECTION_V_DOWN = 1,
+    TORIDRAW_TEXANIM_DIRECTION_U_DOWN = 2,
+    TORIDRAW_TEXANIM_DIRECTION_V_UP = 3,
+    TORIDRAW_TEXANIM_DIRECTION_U_UP = 4,
+};
+
 struct ToriDraw_Texture
 {
     int* texels;
     int width;
     int height;
     bool opaque;
+    int animation_direction;
+    int animation_speed;
 };
 
 struct ToriDraw_TextureMap

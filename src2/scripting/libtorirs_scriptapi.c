@@ -4,8 +4,8 @@
 #include "../libtorirs_internal.h"
 #include "buildcache/dat1_buildcache.h"
 #include "gamecache/gamecache.h"
+#include "gamecache/toridraw_cachemodel.h"
 #include "platforms/platform_x/cachelib_client.h"
-#include "src/osrs/dash_utils.h"
 #include "src/osrs/rscache/cache_dat.h"
 #include "src/osrs/rscache/filelist.h"
 #include "src/osrs/rscache/tables/model.h"
@@ -13,12 +13,11 @@
 #include "src/osrs/rscache/tables_dat/configs_dat.h"
 #include "src/osrs/texture.h"
 #include "toridraw/toridraw_light_model.h"
+#include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_types.h"
 
 #include <stdio.h>
 #include <stdlib.h>
-
-#define DAT1_TEXTURE_COUNT 50
 
 void
 LibToriRS_ScriptAPI_Dat1_ConfigFileFetch(
@@ -107,7 +106,7 @@ LibToriRS_ScriptAPI_Dat1_TexturesLoad(
     printf("LibToriRS_ScriptAPI_Dat1_TexturesLoad\n");
     if( !instance )
         return false;
-    if( !instance->model_viewer || !instance->model_viewer->context )
+    if( !instance->dat1_buildcache )
         return false;
 
     struct LibToriRS_IOQueueItem item = { 0 };
@@ -131,8 +130,6 @@ LibToriRS_ScriptAPI_Dat1_TexturesLoad(
     if( !filelist )
         return false;
 
-    struct ToriDraw_TextureMap* texture_map = &instance->model_viewer->context->texture_map;
-
     for( int i = 0; i < DAT1_TEXTURE_COUNT; i++ )
     {
         struct CacheDatTexture* cache_texture =
@@ -144,11 +141,11 @@ LibToriRS_ScriptAPI_Dat1_TexturesLoad(
             continue;
         }
 
-        int animation_direction = TEXANIM_DIRECTION_NONE;
+        int animation_direction = TORIDRAW_TEXANIM_DIRECTION_NONE;
         int animation_speed = 0;
         if( i == 17 || i == 24 )
         {
-            animation_direction = TEXANIM_DIRECTION_V_DOWN;
+            animation_direction = TORIDRAW_TEXANIM_DIRECTION_V_DOWN;
             animation_speed = 2;
         }
 
@@ -156,38 +153,19 @@ LibToriRS_ScriptAPI_Dat1_TexturesLoad(
         {
             printf("cache_texture: %p\n", cache_texture);
         }
-        struct DashTexture* dash_texture =
-            texture_new_from_texture_sprite(
-                cache_texture, animation_direction, animation_speed, false, false);
+        struct ToriDraw_Texture* toridraw_texture = texture_new_toridraw_from_texture_sprite(
+            cache_texture, animation_direction, animation_speed, false, false);
         cache_dat_texture_free(cache_texture);
-        if( !dash_texture )
-        {
-            printf("texture_new_from_texture_sprite failed for texture %d\n", i);
-            assert(false);
-            continue;
-        }
-
-        struct ToriDraw_Texture* toridraw_texture = malloc(sizeof(struct ToriDraw_Texture));
         if( !toridraw_texture )
         {
-            texture_free(dash_texture);
-            printf("malloc failed for texture %d\n", i);
+            printf("texture_new_toridraw_from_texture_sprite failed for texture %d\n", i);
             assert(false);
             continue;
         }
 
-        toridraw_texture->texels = dash_texture->texels;
-        toridraw_texture->width = dash_texture->width;
-        toridraw_texture->height = dash_texture->height;
-        toridraw_texture->opaque = dash_texture->opaque;
-
-        dash_texture->texels = NULL;
-        texture_free(dash_texture);
-
-        texture_map->textures[i] = toridraw_texture;
+        dat1_buildcache_texture_set(instance->dat1_buildcache, i, toridraw_texture);
     }
 
-    texture_map->count = DAT1_TEXTURE_COUNT;
     filelist_dat_free(filelist);
     return true;
 }
@@ -229,14 +207,14 @@ LibToriRS_ScriptAPI_Dat1_SubmitGameCacheModel(
     if( !copy )
         return;
 
-    struct DashModel* dash = dashmodel_new_from_cache_model(copy);
+    struct ToriDraw_Model* td = toridraw_model_new_from_cache_model(copy);
     model_free(copy);
-    if( !dash )
+    if( !td )
         return;
 
     struct ToriDraw_ModelHandle hnd = {
         .kind = TORIDRAWMK_MODEL,
-        .u.model.model = (struct ToriDraw_Model*)(void*)dash,
+        .u.model.model = td,
     };
     gamecache_model_add(instance->gamecache, model_id, hnd);
 }
@@ -324,4 +302,54 @@ LibToriRS_ScriptAPI_Game_ModelViewer_RenderModel(
     toridraw_light_model_default(hnd, 0, 0);
 
     game_modelviewer_set_model(instance->model_viewer, model_id, hnd);
+}
+
+void
+LibToriRS_ScriptAPI_Dat1_ModelCleanup(
+    struct LibToriRS_Instance* instance,
+    int model_id)
+{
+    printf("LibToriRS_ScriptAPI_Dat1_ModelCleanup\n");
+    if( !instance )
+        return;
+
+    dat1_buildcache_model_remove(instance->dat1_buildcache, model_id);
+}
+
+void
+LibToriRS_ScriptAPI_Dat1_TexturesCleanup(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_Dat1_TexturesCleanup\n");
+    if( !instance || !instance->dat1_buildcache )
+        return;
+
+    dat1_buildcache_texture_clear(instance->dat1_buildcache);
+}
+
+void
+LibToriRS_ScriptAPI_Dat1_SubmitTextures(struct LibToriRS_Instance* instance)
+{
+    printf("LibToriRS_ScriptAPI_Dat1_SubmitTextures\n");
+    if( !instance )
+        return;
+    if( !instance->dat1_buildcache )
+        return;
+    if( !instance->model_viewer || !instance->model_viewer->context )
+        return;
+
+    struct ToriDraw_TextureMap* texture_map = &instance->model_viewer->context->texture_map;
+    struct Dat1BuildCache* buildcache = instance->dat1_buildcache;
+
+    for( int i = 0; i < buildcache->texture_count; i++ )
+    {
+        struct ToriDraw_Texture* texture = buildcache->textures[i];
+        if( !texture )
+            continue;
+
+        buildcache->textures[i] = NULL;
+        toridraw_texturemap_set(texture_map, i, texture);
+    }
+
+    texture_map->count = buildcache->texture_count;
+    buildcache->texture_count = 0;
 }

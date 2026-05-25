@@ -1,6 +1,8 @@
 
 #include "texture.h"
 
+#include "toridraw/toridraw_types.h"
+
 #include "rscache/tables/sprites.h"
 #include "rscache/tables/textures.h"
 #include "rscache/tables_dat/config_textures.h"
@@ -304,14 +306,21 @@ texture_new_from_definition(
 // }
 
 // return pixels;
-struct DashTexture*
-texture_new_from_texture_sprite(
+struct TextureDecodedSprite
+{
+    int* texels;
+    int width;
+    int height;
+    bool opaque;
+};
+
+static struct TextureDecodedSprite
+texture_decode_from_cache_dat(
     struct CacheDatTexture* texture,
-    int animation_direction,
-    int animation_speed,
     bool upscale_to_128,
     bool half_to_64)
 {
+    struct TextureDecodedSprite decoded = { 0 };
     bool opaque = true;
     int size = 128;
     if( texture->wi == 64 && !upscale_to_128 )
@@ -321,15 +330,7 @@ texture_new_from_texture_sprite(
     int* normalized_pixels =
         normalize_pixel_buffer(texture->pixels, texture->wi, texture->hi, size, size);
     if( !normalized_pixels )
-        return NULL;
-
-    struct DashTexture* dash_texture = (struct DashTexture*)malloc(sizeof(struct DashTexture));
-    if( !dash_texture )
-    {
-        free(normalized_pixels);
-        return NULL;
-    }
-    memset(dash_texture, 0, sizeof(struct DashTexture));
+        return decoded;
 
     for( int pi = 0; pi < texture->palette_count; pi++ )
     {
@@ -346,16 +347,14 @@ texture_new_from_texture_sprite(
     int* pixels = (int*)malloc(pixel_count * sizeof(int));
     if( !pixels )
     {
-        free(dash_texture);
         free(normalized_pixels);
-        return NULL;
+        return decoded;
     }
     memset(pixels, 0, pixel_count * sizeof(int));
 
     for( int i = 0; i < pixel_count; i++ )
     {
         int palette_index = normalized_pixels[i];
-        // 0xf8f8ff allows the shift dimming trick to work
         pixels[i] = texture->palette[palette_index] & 0xf8f8ff;
         if( pixels[i] == 0 )
         {
@@ -406,16 +405,76 @@ texture_new_from_texture_sprite(
         }
     }
 
-    dash_texture->texels = pixels;
-    dash_texture->width = size;
-    dash_texture->height = size;
-    dash_texture->opaque = opaque;
+    free(normalized_pixels);
+
+    decoded.texels = pixels;
+    decoded.width = size;
+    decoded.height = size;
+    decoded.opaque = opaque;
+    return decoded;
+}
+
+struct DashTexture*
+texture_new_from_texture_sprite(
+    struct CacheDatTexture* texture,
+    int animation_direction,
+    int animation_speed,
+    bool upscale_to_128,
+    bool half_to_64)
+{
+    struct TextureDecodedSprite decoded =
+        texture_decode_from_cache_dat(texture, upscale_to_128, half_to_64);
+    if( !decoded.texels )
+        return NULL;
+
+    struct DashTexture* dash_texture = (struct DashTexture*)malloc(sizeof(struct DashTexture));
+    if( !dash_texture )
+    {
+        free(decoded.texels);
+        return NULL;
+    }
+    memset(dash_texture, 0, sizeof(struct DashTexture));
+
+    dash_texture->texels = decoded.texels;
+    dash_texture->width = decoded.width;
+    dash_texture->height = decoded.height;
+    dash_texture->opaque = decoded.opaque;
     dash_texture->animation_direction = animation_direction;
     dash_texture->animation_speed = animation_speed;
 
-    free(normalized_pixels);
-
     return dash_texture;
+}
+
+struct ToriDraw_Texture*
+texture_new_toridraw_from_texture_sprite(
+    struct CacheDatTexture* texture,
+    int animation_direction,
+    int animation_speed,
+    bool upscale_to_128,
+    bool half_to_64)
+{
+    struct TextureDecodedSprite decoded =
+        texture_decode_from_cache_dat(texture, upscale_to_128, half_to_64);
+    if( !decoded.texels )
+        return NULL;
+
+    struct ToriDraw_Texture* toridraw_texture =
+        (struct ToriDraw_Texture*)malloc(sizeof(struct ToriDraw_Texture));
+    if( !toridraw_texture )
+    {
+        free(decoded.texels);
+        return NULL;
+    }
+    memset(toridraw_texture, 0, sizeof(struct ToriDraw_Texture));
+
+    toridraw_texture->texels = decoded.texels;
+    toridraw_texture->width = decoded.width;
+    toridraw_texture->height = decoded.height;
+    toridraw_texture->opaque = decoded.opaque;
+    toridraw_texture->animation_direction = animation_direction;
+    toridraw_texture->animation_speed = animation_speed;
+
+    return toridraw_texture;
 }
 
 void

@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 struct ToriDraw_Normals*
 toridraw_normals_new(
@@ -17,7 +18,13 @@ void
 toridraw_normals_free(struct ToriDraw_Normals* normals);
 
 void
+toridraw_bones_free(struct ToriDraw_Bones* bones);
+
+void
 toridraw_model_alloc_normals(struct ToriDraw_Model* model);
+
+void
+toridraw_model_free(struct ToriDraw_Model* model);
 
 static inline struct ToriDraw_Model*
 toridraw_model_as_full(struct ToriDraw_ModelHandle hnd)
@@ -45,6 +52,30 @@ toridraw_model_get_face_priority(
 {
     uint8_t byte = packed[index >> 1];
     return (index & 1) ? (int)(byte >> 4) : (int)(byte & 0x0Fu);
+}
+
+static inline void
+toridraw_texture_free(struct ToriDraw_Texture* texture)
+{
+    if( !texture )
+        return;
+    free(texture->texels);
+    free(texture);
+}
+
+static inline void
+toridraw_texturemap_set(
+    struct ToriDraw_TextureMap* map,
+    int id,
+    struct ToriDraw_Texture* texture)
+{
+    if( !map || id < 0 || id >= 256 )
+        return;
+    if( map->textures[id] )
+        toridraw_texture_free(map->textures[id]);
+    map->textures[id] = texture;
+    if( texture && id >= map->count )
+        map->count = id + 1;
 }
 
 static inline struct ToriDraw_Texture*

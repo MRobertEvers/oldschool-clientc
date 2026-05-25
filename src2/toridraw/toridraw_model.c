@@ -33,6 +33,62 @@ toridraw_normals_free(struct ToriDraw_Normals* normals)
     free(normals);
 }
 
+void
+toridraw_bones_free(struct ToriDraw_Bones* bones)
+{
+    if( !bones )
+        return;
+    if( bones->bones )
+    {
+        for( int i = 0; i < bones->bones_count; i++ )
+            free(bones->bones[i]);
+        free(bones->bones);
+    }
+    free(bones->bones_sizes);
+    free(bones);
+}
+
+static void
+toridraw_model_free_arrays(struct ToriDraw_Model* m)
+{
+    free(m->vertices_x);
+    free(m->vertices_y);
+    free(m->vertices_z);
+    free(m->face_colors_a);
+    free(m->face_colors_b);
+    free(m->face_colors_c);
+    free(m->face_indices_a);
+    free(m->face_indices_b);
+    free(m->face_indices_c);
+    free(m->face_textures);
+    free(m->original_vertices_x);
+    free(m->original_vertices_y);
+    free(m->original_vertices_z);
+    free(m->face_alphas);
+    free(m->original_face_alphas);
+    free(m->face_infos);
+    free(m->face_priorities);
+    free(m->face_colors);
+    free(m->textured_p_coordinate);
+    free(m->textured_m_coordinate);
+    free(m->textured_n_coordinate);
+    free(m->face_texture_coords);
+    toridraw_normals_free(m->normals);
+    toridraw_normals_free(m->merged_normals);
+    toridraw_bones_free(m->vertex_bones);
+    toridraw_bones_free(m->face_bones);
+    free(m->bounds_cylinder);
+}
+
+void
+toridraw_model_free(struct ToriDraw_Model* model)
+{
+    if( !model )
+        return;
+    toridraw_model_free_arrays(model);
+    free(model);
+}
+
 static int
 toridraw_model_needs_face_normals(struct ToriDraw_Model* model)
 {

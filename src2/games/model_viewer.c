@@ -1,6 +1,7 @@
 #include "model_viewer.h"
 
 #include "toridraw/toridraw.h"
+#include "toridraw/toridraw_model.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -66,8 +67,7 @@ game_modelviewer_free_textures(struct GameModelViewer* game_model_viewer)
         struct ToriDraw_Texture* texture = game_model_viewer->context->texture_map.textures[i];
         if( !texture )
             continue;
-        free(texture->texels);
-        free(texture);
+        toridraw_texture_free(texture);
         game_model_viewer->context->texture_map.textures[i] = NULL;
     }
     game_model_viewer->context->texture_map.count = 0;
