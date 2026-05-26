@@ -203,6 +203,28 @@ struct ToriDraw_TextureMap
     int count;
 };
 
+enum ToriDraw_TextureEventKind
+{
+    TORIDRAW_TEX_EVENT_NONE = 0,
+    TORIDRAW_TEX_EVENT_LOAD,
+    TORIDRAW_TEX_EVENT_UNLOAD,
+};
+
+struct ToriDraw_TextureEvent
+{
+    enum ToriDraw_TextureEventKind kind;
+    int texture_id;
+    struct ToriDraw_Texture* texture;
+};
+
+#define TORIDRAW_TEXTURE_EVENT_QUEUE_MAX 256
+
+struct ToriDraw_TextureEventQueue
+{
+    struct ToriDraw_TextureEvent events[TORIDRAW_TEXTURE_EVENT_QUEUE_MAX];
+    int count;
+};
+
 struct ToriDraw_Context
 {
     struct ToriDraw_ModelHandle active_hnd;
@@ -212,6 +234,7 @@ struct ToriDraw_Context
     struct ToriDraw_AABB cylinder_fast_aabb;
 
     struct ToriDraw_TextureMap texture_map;
+    struct ToriDraw_TextureEventQueue texture_events;
 
     int screen_vertices_x[4096];
     int screen_vertices_y[4096];
@@ -251,6 +274,32 @@ static inline int
 toridraw_face_order_count(struct ToriDraw_Context* ctx)
 {
     return ctx->tmp_face_order_count;
+}
+
+static inline void
+toridraw_texture_eventqueue_clear(struct ToriDraw_TextureEventQueue* queue)
+{
+    if( !queue )
+        return;
+    queue->count = 0;
+}
+
+static inline bool
+toridraw_texture_eventqueue_push(
+    struct ToriDraw_TextureEventQueue* queue,
+    enum ToriDraw_TextureEventKind kind,
+    int texture_id,
+    struct ToriDraw_Texture* texture)
+{
+    if( !queue || kind == TORIDRAW_TEX_EVENT_NONE || texture_id < 0 || texture_id >= 256 )
+        return false;
+    if( queue->count >= TORIDRAW_TEXTURE_EVENT_QUEUE_MAX )
+        return false;
+    struct ToriDraw_TextureEvent* ev = &queue->events[queue->count++];
+    ev->kind = kind;
+    ev->texture_id = texture_id;
+    ev->texture = texture;
+    return true;
 }
 
 #endif

@@ -88,6 +88,12 @@ toridraw_texturemap_get(
     return map->textures[id];
 }
 
+void
+toridraw_context_set_texture(
+    struct ToriDraw_Context* ctx,
+    int id,
+    struct ToriDraw_Texture* texture);
+
 static inline bool
 toridraw_model_has_textures(struct ToriDraw_ModelHandle hnd)
 {

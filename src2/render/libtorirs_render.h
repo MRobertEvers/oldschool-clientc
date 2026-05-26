@@ -77,6 +77,12 @@ struct LibToriRS_RenderCommand_Batch
     struct ToriDraw_ModelHandle model;
 };
 
+struct LibToriRS_RenderCommand_TexLoad
+{
+    int texture_id;
+    struct ToriDraw_Texture* texture;
+};
+
 struct LibToriRS_RenderCommand
 {
     enum LibToriRS_RenderCommandKind kind;
@@ -86,6 +92,7 @@ struct LibToriRS_RenderCommand
         struct LibToriRS_RenderCommand_Model model;
         struct LibToriRS_RenderCommand_ModelLoad model_load;
         struct LibToriRS_RenderCommand_Batch batch;
+        struct LibToriRS_RenderCommand_TexLoad tex_load;
     } u;
 };
 

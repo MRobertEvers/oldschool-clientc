@@ -86,11 +86,10 @@ trspk_toridraw_fill_rgba128(
         return;
 
     const uint32_t required = (uint32_t)w * (uint32_t)h * TRSPK_TORIDRAW_ATLAS_BPP;
-    const uint32_t output_required =
-        w == 64
-            ? TRSPK_TORIDRAW_TEXTURE_DIMENSION * TRSPK_TORIDRAW_TEXTURE_DIMENSION *
-                  TRSPK_TORIDRAW_ATLAS_BPP
-            : required;
+    const uint32_t output_required = w == 64 ? TRSPK_TORIDRAW_TEXTURE_DIMENSION *
+                                                   TRSPK_TORIDRAW_TEXTURE_DIMENSION *
+                                                   TRSPK_TORIDRAW_ATLAS_BPP
+                                             : required;
     if( scratch_capacity < output_required )
         return;
 
@@ -105,8 +104,9 @@ trspk_toridraw_fill_rgba128(
 
     if( w == 64 )
     {
-        static uint8_t upscaled[TRSPK_TORIDRAW_TEXTURE_DIMENSION * TRSPK_TORIDRAW_TEXTURE_DIMENSION *
-                                TRSPK_TORIDRAW_ATLAS_BPP];
+        static uint8_t upscaled
+            [TRSPK_TORIDRAW_TEXTURE_DIMENSION * TRSPK_TORIDRAW_TEXTURE_DIMENSION *
+             TRSPK_TORIDRAW_ATLAS_BPP];
         trspk_upscale_64_to_128_rgba(scratch_buffer, upscaled);
         memcpy(
             scratch_buffer,
@@ -114,9 +114,8 @@ trspk_toridraw_fill_rgba128(
             TRSPK_TORIDRAW_TEXTURE_DIMENSION * TRSPK_TORIDRAW_TEXTURE_DIMENSION *
                 TRSPK_TORIDRAW_ATLAS_BPP);
         if( out_size )
-            *out_size =
-                TRSPK_TORIDRAW_TEXTURE_DIMENSION * TRSPK_TORIDRAW_TEXTURE_DIMENSION *
-                TRSPK_TORIDRAW_ATLAS_BPP;
+            *out_size = TRSPK_TORIDRAW_TEXTURE_DIMENSION * TRSPK_TORIDRAW_TEXTURE_DIMENSION *
+                        TRSPK_TORIDRAW_ATLAS_BPP;
     }
     else if( out_size )
     {

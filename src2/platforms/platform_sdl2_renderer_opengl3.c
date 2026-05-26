@@ -94,6 +94,7 @@ struct LibToriPlatformSDL2_RendererGL3
     int window_height;
     bool ready;
     double frame_clock;
+    bool atlas_dirty;
     OGL3_DynamicRing dynamic_ring;
 };
 
@@ -537,6 +538,77 @@ ogl3_world_vao_setup(
     ogl3_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
 }
 
+static bool
+ogl3_ensure_atlas_initialized(struct LibToriPlatformSDL2_RendererGL3* r)
+{
+    if( !r || !r->cache )
+        return false;
+    if( trspk_resource_cache_get_atlas_pixels(r->cache) )
+        return true;
+    return trspk_resource_cache_init_atlas(
+        r->cache, TRSPK_ATLAS_DIMENSION, TRSPK_ATLAS_DIMENSION);
+}
+
+static bool
+ogl3_load_texture(
+    struct LibToriPlatformSDL2_RendererGL3* r,
+    int texture_id,
+    struct ToriDraw_Texture* tex)
+{
+    if( !r || !r->cache || !tex || !tex->texels || texture_id < 0 || texture_id >= 256 )
+        return false;
+
+    if( !ogl3_ensure_atlas_initialized(r) )
+        return false;
+
+    static uint8_t rgba_scratch[OGL3_TEXTURE_RGBA_SCRATCH_BYTES];
+    const uint8_t* rgba = NULL;
+    uint32_t rgba_size = 0u;
+    trspk_toridraw_fill_rgba128(
+        tex, rgba_scratch, (uint32_t)sizeof(rgba_scratch), &rgba, &rgba_size);
+    if( !rgba )
+        return false;
+
+    float anim_u = 0.0f;
+    float anim_v = 0.0f;
+    const float scroll =
+        trspk_texture_animation_signed(tex->animation_direction, tex->animation_speed);
+    if( scroll >= 0.0f )
+        anim_u = scroll;
+    else
+        anim_v = -scroll;
+
+    return trspk_resource_cache_load_texture_128(
+        r->cache,
+        (TRSPK_TextureId)texture_id,
+        rgba,
+        anim_u,
+        anim_v,
+        tex->opaque);
+}
+
+static bool
+ogl3_unload_texture(
+    struct LibToriPlatformSDL2_RendererGL3* r,
+    int texture_id)
+{
+    if( !r || !r->cache || texture_id < 0 || texture_id >= 256 )
+        return false;
+    if( !trspk_resource_cache_unload_texture_128(r->cache, (TRSPK_TextureId)texture_id) )
+        return false;
+    if( trspk_resource_cache_loaded_texture_count(r->cache) == 0u )
+    {
+        trspk_resource_cache_unload_atlas(r->cache);
+        if( r->atlas_texture != 0u )
+        {
+            GLuint tex = r->atlas_texture;
+            glDeleteTextures(1, &tex);
+            r->atlas_texture = 0u;
+        }
+    }
+    return true;
+}
+
 static void
 ogl3_refresh_atlas(struct LibToriPlatformSDL2_RendererGL3* r)
 {
@@ -884,54 +956,6 @@ typedef struct OGL3_FrameState
     int pending_count;
 } OGL3_FrameState;
 
-static bool
-ogl3_sync_toridraw_textures(
-    struct LibToriPlatformSDL2_RendererGL3* r,
-    struct LibToriRS_Instance* instance)
-{
-    if( !r || !r->cache || !instance || !instance->model_viewer ||
-        !instance->model_viewer->context )
-        return false;
-
-    const struct ToriDraw_TextureMap* map = &instance->model_viewer->context->texture_map;
-    static uint8_t rgba_scratch[OGL3_TEXTURE_RGBA_SCRATCH_BYTES];
-    bool atlas_dirty = false;
-
-    for( int i = 0; i < map->count && i < 256; i++ )
-    {
-        struct ToriDraw_Texture* tex = map->textures[i];
-        if( !tex || !tex->texels )
-            continue;
-
-        const uint8_t* rgba = NULL;
-        uint32_t rgba_size = 0u;
-        trspk_toridraw_fill_rgba128(
-            tex, rgba_scratch, (uint32_t)sizeof(rgba_scratch), &rgba, &rgba_size);
-        if( !rgba )
-            continue;
-
-        float anim_u = 0.0f;
-        float anim_v = 0.0f;
-        const float scroll =
-            trspk_texture_animation_signed(tex->animation_direction, tex->animation_speed);
-        if( scroll >= 0.0f )
-            anim_u = scroll;
-        else
-            anim_v = -scroll;
-
-        if( trspk_resource_cache_load_texture_128(
-                r->cache,
-                (TRSPK_TextureId)i,
-                rgba,
-                anim_u,
-                anim_v,
-                tex->opaque) )
-            atlas_dirty = true;
-    }
-
-    return atlas_dirty;
-}
-
 static void
 ogl3_frame_state_compute_pass_matrices(
     struct LibToriPlatformSDL2_RendererGL3* r,
@@ -1055,12 +1079,23 @@ ogl3_handle_render_command(
         if( cmd->u.batch.batch_id >= 0 )
             ogl3_batch_clear(r, (TRSPK_BatchId)cmd->u.batch.batch_id);
         break;
+    case TORIRSRC_TEX_LOAD:
+        if( ogl3_load_texture(r, cmd->u.tex_load.texture_id, cmd->u.tex_load.texture) )
+            r->atlas_dirty = true;
+        break;
+    case TORIRSRC_TEX_UNLOAD:
+        if( ogl3_unload_texture(r, cmd->u.tex_load.texture_id) )
+            r->atlas_dirty = true;
+        break;
     case TORIRSRC_BEGIN_3D:
         ogl3_ensure_world_gl(r, fs);
         fs->cur_3d = cmd->u.begin_3d;
         fs->has_3d = true;
-        if( ogl3_sync_toridraw_textures(r, instance) )
+        if( r->atlas_dirty )
+        {
             ogl3_refresh_atlas(r);
+            r->atlas_dirty = false;
+        }
         ogl3_frame_state_compute_pass_matrices(r, fs);
         ogl3_refresh_active_dynamic_model(r, instance);
         break;
@@ -1283,8 +1318,7 @@ LibToriPlatformSDL2_RendererGL3_Init(
     ogl3_glBufferData(GL_UNIFORM_BUFFER, (GLsizeiptr)sizeof(OGL3Uniforms), NULL, GL_DYNAMIC_DRAW);
     ogl3_glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-    trspk_resource_cache_init_atlas(renderer->cache, TRSPK_ATLAS_DIMENSION, TRSPK_ATLAS_DIMENSION);
-    ogl3_refresh_atlas(renderer);
+    renderer->atlas_dirty = false;
 
     OGL3_DynamicRing* ring = &renderer->dynamic_ring;
     ring->vbo_capacity = OGL3_DYNAMIC_VBO_SIZE;

@@ -12,6 +12,7 @@ struct ToriDraw_Context;
 enum GameModelViewer_FramePhase
 {
     MV_FRAME_PHASE_SCENE_EVENTS = 0,
+    MV_FRAME_PHASE_TEXTURE_EVENTS,
     MV_FRAME_PHASE_BEGIN_3D,
     MV_FRAME_PHASE_MODELS,
     MV_FRAME_PHASE_END_3D,

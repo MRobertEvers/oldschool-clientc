@@ -52,6 +52,32 @@ game_modelviewer_translate_scene_event(
     }
 }
 
+static bool
+game_modelviewer_translate_texture_event(
+    const struct ToriDraw_TextureEvent* ev,
+    struct LibToriRS_RenderCommand* command)
+{
+    if( !ev || !command )
+        return false;
+
+    memset(command, 0, sizeof(*command));
+    command->u.tex_load.texture_id = ev->texture_id;
+
+    switch( ev->kind )
+    {
+    case TORIDRAW_TEX_EVENT_LOAD:
+        command->kind = TORIRSRC_TEX_LOAD;
+        command->u.tex_load.texture = ev->texture;
+        return true;
+    case TORIDRAW_TEX_EVENT_UNLOAD:
+        command->kind = TORIRSRC_TEX_UNLOAD;
+        command->u.tex_load.texture = NULL;
+        return true;
+    default:
+        return false;
+    }
+}
+
 struct GameModelViewer*
 game_modelviewer_new(struct LibToriRS_ScriptQueue* script_queue)
 {
@@ -334,6 +360,26 @@ game_modelviewer_frame_next_command(
                 }
             }
 
+            game_model_viewer->frame.phase = MV_FRAME_PHASE_TEXTURE_EVENTS;
+            game_model_viewer->frame.event_index = 0;
+            continue;
+        }
+        case MV_FRAME_PHASE_TEXTURE_EVENTS:
+        {
+            if( game_model_viewer->context )
+            {
+                struct ToriDraw_TextureEventQueue* teq =
+                    &game_model_viewer->context->texture_events;
+                while( game_model_viewer->frame.event_index < teq->count )
+                {
+                    const struct ToriDraw_TextureEvent* ev =
+                        &teq->events[game_model_viewer->frame.event_index++];
+                    if( game_modelviewer_translate_texture_event(ev, command) )
+                        return true;
+                }
+                toridraw_texture_eventqueue_clear(teq);
+            }
+
             game_model_viewer->frame.phase = MV_FRAME_PHASE_BEGIN_3D;
             continue;
         }
@@ -346,12 +392,9 @@ game_modelviewer_frame_next_command(
                 command->u.begin_3d.camera = *game_model_viewer->camera;
             if( game_model_viewer->camera_position )
             {
-                command->u.begin_3d.camera_position.x =
-                    -game_model_viewer->camera_position->x;
-                command->u.begin_3d.camera_position.y =
-                    -game_model_viewer->camera_position->y;
-                command->u.begin_3d.camera_position.z =
-                    -game_model_viewer->camera_position->z;
+                command->u.begin_3d.camera_position.x = -game_model_viewer->camera_position->x;
+                command->u.begin_3d.camera_position.y = -game_model_viewer->camera_position->y;
+                command->u.begin_3d.camera_position.z = -game_model_viewer->camera_position->z;
             }
             game_model_viewer->frame.phase = MV_FRAME_PHASE_MODELS;
             return true;
@@ -431,6 +474,9 @@ game_modelviewer_frame_end(struct GameModelViewer* game_model_viewer)
         if( eq )
             worldscene_eventqueue_clear(eq);
     }
+
+    if( game_model_viewer->context )
+        toridraw_texture_eventqueue_clear(&game_model_viewer->context->texture_events);
 
     game_model_viewer->frame.phase = MV_FRAME_PHASE_DONE;
 }

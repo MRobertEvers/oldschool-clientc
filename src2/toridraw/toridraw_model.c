@@ -113,3 +113,41 @@ toridraw_model_alloc_normals(struct ToriDraw_Model* model)
     int face_n = toridraw_model_needs_face_normals(model) ? model->face_count : 0;
     model->normals = toridraw_normals_new(model->vertex_count, face_n);
 }
+
+void
+toridraw_context_set_texture(
+    struct ToriDraw_Context* ctx,
+    int id,
+    struct ToriDraw_Texture* texture)
+{
+    if( !ctx || id < 0 || id >= 256 )
+        return;
+
+    struct ToriDraw_TextureMap* map = &ctx->texture_map;
+    struct ToriDraw_Texture* const old = map->textures[id];
+
+    if( old == texture )
+        return;
+
+    if( old )
+    {
+        toridraw_texture_eventqueue_push(
+            &ctx->texture_events, TORIDRAW_TEX_EVENT_UNLOAD, id, NULL);
+        toridraw_texture_free(old);
+        map->textures[id] = NULL;
+    }
+
+    if( texture )
+    {
+        map->textures[id] = texture;
+        toridraw_texture_eventqueue_push(
+            &ctx->texture_events, TORIDRAW_TEX_EVENT_LOAD, id, texture);
+        if( id >= map->count )
+            map->count = id + 1;
+    }
+    else if( id == map->count - 1 )
+    {
+        while( map->count > 0 && !map->textures[map->count - 1] )
+            map->count--;
+    }
+}

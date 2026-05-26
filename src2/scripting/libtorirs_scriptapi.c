@@ -485,7 +485,7 @@ LibToriRS_ScriptAPI_Dat1_SubmitTextures(struct LibToriRS_Instance* instance)
     if( !instance->model_viewer || !instance->model_viewer->context )
         return;
 
-    struct ToriDraw_TextureMap* texture_map = &instance->model_viewer->context->texture_map;
+    struct ToriDraw_Context* context = instance->model_viewer->context;
     struct Dat1BuildCache* buildcache = instance->dat1_buildcache;
 
     for( int i = 0; i < buildcache->texture_count; i++ )
@@ -495,10 +495,9 @@ LibToriRS_ScriptAPI_Dat1_SubmitTextures(struct LibToriRS_Instance* instance)
             continue;
 
         buildcache->textures[i] = NULL;
-        toridraw_texturemap_set(texture_map, i, texture);
+        toridraw_context_set_texture(context, i, texture);
     }
 
-    texture_map->count = buildcache->texture_count;
     buildcache->texture_count = 0;
 }
 

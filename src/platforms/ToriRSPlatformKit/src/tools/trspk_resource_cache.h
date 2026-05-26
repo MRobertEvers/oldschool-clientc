@@ -158,6 +158,14 @@ trspk_resource_cache_load_texture_128(
     float anim_v,
     bool opaque);
 
+bool
+trspk_resource_cache_unload_texture_128(
+    TRSPK_ResourceCache* cache,
+    TRSPK_TextureId texture_id);
+
+uint32_t
+trspk_resource_cache_loaded_texture_count(const TRSPK_ResourceCache* cache);
+
 const uint8_t*
 trspk_resource_cache_get_atlas_pixels(const TRSPK_ResourceCache* cache);
 

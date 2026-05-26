@@ -463,6 +463,59 @@ trspk_resource_cache_load_texture_128(
     return true;
 }
 
+bool
+trspk_resource_cache_unload_texture_128(
+    TRSPK_ResourceCache* cache,
+    TRSPK_TextureId texture_id)
+{
+    if( !cache || !cache->atlas_pixels || !trspk_valid_texture_id(texture_id) )
+        return false;
+    if( !cache->atlas_tile_valid[texture_id] )
+        return false;
+
+    const uint32_t columns = cache->atlas_width / TRSPK_TEXTURE_DIMENSION;
+    if( columns == 0u )
+        return false;
+    const uint32_t col = (uint32_t)texture_id % columns;
+    const uint32_t row = (uint32_t)texture_id / columns;
+    const uint32_t start_x = col * TRSPK_TEXTURE_DIMENSION;
+    const uint32_t start_y = row * TRSPK_TEXTURE_DIMENSION;
+    const uint32_t atlas_stride = cache->atlas_width * TRSPK_ATLAS_BYTES_PER_PIXEL;
+    const uint32_t texture_stride = TRSPK_TEXTURE_DIMENSION * TRSPK_ATLAS_BYTES_PER_PIXEL;
+    for( uint32_t y = 0; y < TRSPK_TEXTURE_DIMENSION; ++y )
+    {
+        const uint32_t dst = (start_y + y) * atlas_stride + start_x * TRSPK_ATLAS_BYTES_PER_PIXEL;
+        memset(cache->atlas_pixels + dst, 0, texture_stride);
+    }
+
+    TRSPK_AtlasTile tile;
+    memset(&tile, 0, sizeof(tile));
+    const float du = (float)TRSPK_TEXTURE_DIMENSION / (float)cache->atlas_width;
+    const float dv = (float)TRSPK_TEXTURE_DIMENSION / (float)cache->atlas_height;
+    tile.u0 = (float)col * du;
+    tile.v0 = (float)row * dv;
+    tile.du = du;
+    tile.dv = dv;
+    tile.opaque = 1.0f;
+    cache->atlas_tiles[texture_id] = tile;
+    cache->atlas_tile_valid[texture_id] = false;
+    return true;
+}
+
+uint32_t
+trspk_resource_cache_loaded_texture_count(const TRSPK_ResourceCache* cache)
+{
+    if( !cache )
+        return 0u;
+    uint32_t count = 0u;
+    for( uint32_t i = 0; i < TRSPK_MAX_TEXTURES; ++i )
+    {
+        if( cache->atlas_tile_valid[i] )
+            count++;
+    }
+    return count;
+}
+
 const uint8_t*
 trspk_resource_cache_get_atlas_pixels(const TRSPK_ResourceCache* cache)
 {
