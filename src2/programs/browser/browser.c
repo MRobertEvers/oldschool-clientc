@@ -57,6 +57,7 @@ browser_main_loop(void)
         LibToriRS_ScriptQueueClear(LibToriRS_GetScriptQueue(g_instance));
 
         LibToriRS_GameStep(g_instance);
+        LibToriRS_WorldSceneDrainEvents(g_instance);
 
         LibToriPlatformSDL2_Render(g_platform, g_instance, 0);
 

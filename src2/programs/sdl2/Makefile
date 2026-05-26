@@ -30,6 +30,9 @@ SRCS := sdl2.c \
 	$(SRC2)/input/libtorirs_input.c \
 	$(SRC2)/ioqueue/libtorirs_ioqueue.c \
 	$(SRC2)/render/libtorirs_render.c \
+	$(SRC2)/world/world_scene_events.c \
+	$(SRC2)/world/world_scene.c \
+	$(SRC2)/world/world_scene_platform.c \
 	$(SCRIPT_DIR)/libtorirs_scriptapi.c \
 	$(SRC2)/buildcache/dat1_buildcache.c \
 	$(SRC2)/gamecache/gamecache.c \
@@ -44,6 +47,7 @@ SRCS := sdl2.c \
 	$(SRC2)/toridraw/toridraw_lighting.c \
 	$(SRC2)/toridraw/toridraw_model.c \
 	$(SRC2)/toridraw/toridraw_map.c \
+	$(SRC2)/toridraw/toridraw_vec.c \
 	$(SRC2)/toridraw/toridraw_light_model.c \
 	$(SRC2)/games/model_viewer.c \
 	$(SRC_DIR)/graphics/dash.c \

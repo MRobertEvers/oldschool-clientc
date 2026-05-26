@@ -100,6 +100,7 @@ main(
         LibToriRS_ScriptQueueClear(LibToriRS_GetScriptQueue(instance));
 
         LibToriRS_GameStep(instance);
+        LibToriRS_WorldSceneDrainEvents(instance);
 
         LibToriPlatformSDL2_Render(platform, instance, 0);
 

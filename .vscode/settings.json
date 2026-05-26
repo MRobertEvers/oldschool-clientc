@@ -103,6 +103,7 @@
     "dashmap.h": "c",
     "toridraw_light_model.h": "c",
     "config_textures.h": "c",
-    "maps.h": "c"
+    "maps.h": "c",
+    "world_scene_events.h": "c"
   }
 }

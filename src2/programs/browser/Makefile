@@ -23,6 +23,9 @@ SRC   := browser.c \
 	$(INPUT_DIR)/libtorirs_input.c \
 	$(IOQUEUE_DIR)/libtorirs_ioqueue.c \
 	$(SRC2)/render/libtorirs_render.c \
+	$(SRC2)/world/world_scene_events.c \
+	$(SRC2)/world/world_scene.c \
+	$(SRC2)/world/world_scene_platform.c \
 	$(SRC2)/buildcache/dat1_buildcache.c \
 	$(SRC2)/gamecache/gamecache.c \
 	$(SRC2)/gamecache/gamecache_sequence.c \
@@ -34,6 +37,7 @@ SRC   := browser.c \
 	$(SRC2)/toridraw/toridraw.c \
 	$(SRC2)/toridraw/toridraw_math.c \
 	$(SRC2)/toridraw/toridraw_map.c \
+	$(SRC2)/toridraw/toridraw_vec.c \
 	$(SRC2)/toridraw/toridraw_hsl16.c \
 	$(SRC2)/toridraw/toridraw_lighting.c \
 	$(SRC2)/toridraw/toridraw_model.c \

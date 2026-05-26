@@ -6,6 +6,8 @@
 #include "libtorirs_internal.h"
 #include "render/libtorirs_render.h"
 #include "scripting/libtorirs_scripting.h"
+#include "world/world_scene.h"
+#include "world/world_scene_platform.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,6 +68,58 @@ LibToriRS_InstanceNew(void)
     }
 
     instance->render_queue = LibToriRS_RenderQueue_New();
+    if( !instance->render_queue )
+    {
+        gamecache_free(instance->gamecache);
+        dat1_buildcache_free(instance->dat1_buildcache);
+        LibToriRS_IOQueueFree(instance->io_queue);
+        LibToriRS_Input_Free(instance->input);
+        LibToriRS_ScriptQueueFree(instance->script_queue);
+        free(instance);
+        return NULL;
+    }
+
+    instance->world_scene_event_queue = worldscene_eventqueue_new();
+    if( !instance->world_scene_event_queue )
+    {
+        LibToriRS_RenderQueue_Free(instance->render_queue);
+        gamecache_free(instance->gamecache);
+        dat1_buildcache_free(instance->dat1_buildcache);
+        LibToriRS_IOQueueFree(instance->io_queue);
+        LibToriRS_Input_Free(instance->input);
+        LibToriRS_ScriptQueueFree(instance->script_queue);
+        free(instance);
+        return NULL;
+    }
+
+    instance->world = malloc(sizeof(struct World));
+    if( !instance->world )
+    {
+        worldscene_eventqueue_free(instance->world_scene_event_queue);
+        LibToriRS_RenderQueue_Free(instance->render_queue);
+        gamecache_free(instance->gamecache);
+        dat1_buildcache_free(instance->dat1_buildcache);
+        LibToriRS_IOQueueFree(instance->io_queue);
+        LibToriRS_Input_Free(instance->input);
+        LibToriRS_ScriptQueueFree(instance->script_queue);
+        free(instance);
+        return NULL;
+    }
+
+    instance->world->scene = world_scene_new(instance->world_scene_event_queue);
+    if( !instance->world->scene )
+    {
+        free(instance->world);
+        worldscene_eventqueue_free(instance->world_scene_event_queue);
+        LibToriRS_RenderQueue_Free(instance->render_queue);
+        gamecache_free(instance->gamecache);
+        dat1_buildcache_free(instance->dat1_buildcache);
+        LibToriRS_IOQueueFree(instance->io_queue);
+        LibToriRS_Input_Free(instance->input);
+        LibToriRS_ScriptQueueFree(instance->script_queue);
+        free(instance);
+        return NULL;
+    }
 
     instance->running = true;
 
@@ -77,6 +131,16 @@ LibToriRS_InstanceFree(struct LibToriRS_Instance* instance)
 {
     if( !instance )
         return;
+    if( instance->world && instance->world->scene )
+        world_scene_free(instance->world->scene);
+    if( instance->world )
+        free(instance->world);
+    if( instance->world_scene_event_queue )
+        worldscene_eventqueue_free(instance->world_scene_event_queue);
+    if( instance->render_queue )
+        LibToriRS_RenderQueue_Free(instance->render_queue);
+    if( instance->io_queue )
+        LibToriRS_IOQueueFree(instance->io_queue);
     if( instance->script_queue )
         LibToriRS_ScriptQueueFree(instance->script_queue);
     if( instance->input )
@@ -85,8 +149,9 @@ LibToriRS_InstanceFree(struct LibToriRS_Instance* instance)
         dat1_buildcache_free(instance->dat1_buildcache);
     if( instance->gamecache )
         gamecache_free(instance->gamecache);
+    if( instance->model_viewer )
+        game_modelviewer_free(instance->model_viewer);
     free(instance);
-    instance = NULL;
 }
 
 void
@@ -123,6 +188,30 @@ LibToriRS_GetRenderQueue(struct LibToriRS_Instance* instance)
     if( !instance )
         return NULL;
     return instance->render_queue;
+}
+
+struct WorldScene_EventQueue*
+LibToriRS_GetWorldSceneEventQueue(struct LibToriRS_Instance* instance)
+{
+    if( !instance )
+        return NULL;
+    return instance->world_scene_event_queue;
+}
+
+struct WorldScene*
+LibToriRS_GetWorldScene(struct LibToriRS_Instance* instance)
+{
+    if( !instance || !instance->world )
+        return NULL;
+    return instance->world->scene;
+}
+
+void
+LibToriRS_WorldSceneDrainEvents(struct LibToriRS_Instance* instance)
+{
+    if( !instance )
+        return;
+    worldscene_platform_process_events(instance->world_scene_event_queue);
 }
 
 void

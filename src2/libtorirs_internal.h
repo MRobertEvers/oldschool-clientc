@@ -6,6 +6,8 @@
 #include "games/model_viewer.h"
 #include "ioqueue/libtorirs_ioqueue.h"
 #include "scripting/libtorirs_scripting.h"
+#include "world/world.h"
+#include "world/world_scene_events.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -24,6 +26,9 @@ struct LibToriRS_Instance
     struct GameCache* gamecache;
 
     struct GameModelViewer* model_viewer;
+
+    struct World* world;
+    struct WorldScene_EventQueue* world_scene_event_queue;
 };
 
 #endif
