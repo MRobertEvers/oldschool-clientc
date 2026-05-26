@@ -60,8 +60,6 @@ typedef struct OGL3_SortedDraw
     uint32_t vbo_byte_offset;
     uint32_t sorted_ebo_byte_offset;
     uint32_t index_count;
-    float view[16];
-    float proj[16];
 } OGL3_SortedDraw;
 
 typedef struct OGL3_DynamicRing
@@ -873,119 +871,59 @@ ogl3_upload_uniforms(
     ogl3_glBindBufferRange(GL_UNIFORM_BUFFER, 0u, r->ubo, 0, (GLsizeiptr)sizeof(OGL3Uniforms));
 }
 
-static void
-ogl3_process_scene_events(
-    struct LibToriPlatformSDL2_RendererGL3* r,
-    struct WorldScene_EventQueue* queue)
+typedef struct OGL3_FrameState
 {
-    if( !r || !queue )
-        return;
-
-    for( int i = 0; i < queue->count; i++ )
-    {
-        const struct WorldScene_Event* ev = &queue->events[i];
-        const struct ToriDraw_Model* model = trspk_toridraw_model_from_handle(&ev->model);
-        TRSPK_BakeTransform bake = trspk_bake_transform_identity();
-
-        switch( ev->kind )
-        {
-        case WSE_MODEL_LOAD:
-            if( model && ev->element_id >= 0 )
-            {
-                trspk_resource_cache_allocate_pose_slot(
-                    r->cache, (TRSPK_ModelId)ev->element_id, (int)TRSPK_GPU_ANIM_NONE_IDX, 0);
-            }
-            break;
-        case WSE_MODEL_UNLOAD:
-            if( ev->element_id >= 0 )
-                trspk_resource_cache_clear_model(r->cache, (TRSPK_ModelId)ev->element_id);
-            break;
-        case WSE_BATCH_BEGIN:
-            r->current_batch_id = (TRSPK_BatchId)ev->batch_id;
-            r->batch_active = true;
-            trspk_batch32_begin(r->batch_staging);
-            trspk_resource_cache_batch_begin(r->cache, r->current_batch_id);
-            break;
-        case WSE_BATCH_MODEL_ADD:
-            if( r->batch_active && model && ev->element_id >= 0 )
-            {
-                trspk_toridraw_batch_add_model32(
-                    r->batch_staging,
-                    model,
-                    (uint16_t)ev->element_id,
-                    TRSPK_GPU_ANIM_NONE_IDX,
-                    0u,
-                    &bake,
-                    r->cache);
-            }
-            break;
-        case WSE_BATCH_END:
-            if( r->batch_active )
-            {
-                trspk_batch32_end(r->batch_staging);
-                ogl3_batch_submit(r, r->current_batch_id);
-                r->batch_active = false;
-            }
-            break;
-        case WSE_BATCH_CLEAR:
-            if( ev->batch_id >= 0 )
-                ogl3_batch_clear(r, (TRSPK_BatchId)ev->batch_id);
-            break;
-        default:
-            break;
-        }
-    }
-
-    worldscene_eventqueue_clear(queue);
-}
-
-static void
-ogl3_flush_pending_draws(
-    struct LibToriPlatformSDL2_RendererGL3* r,
-    const OGL3_SortedDraw* pending,
-    int pending_count)
-{
-    if( !r || !pending || pending_count <= 0 )
-        return;
-
-    for( int p = 0; p < pending_count; p++ )
-    {
-        const OGL3_SortedDraw* pd = &pending[p];
-        if( pd->index_count == 0u )
-            continue;
-
-        ogl3_upload_uniforms(r, pd->view, pd->proj);
-        glViewport(0, 0, r->width, r->height);
-        ogl3_bind_world_attribs_at_offset(&r->world_locs, pd->vbo, pd->vbo_byte_offset);
-        ogl3_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pd->ring_ebo);
-        ogl3_glDrawElements(
-            GL_TRIANGLES,
-            (GLsizei)pd->index_count,
-            GL_UNSIGNED_INT,
-            (const void*)(uintptr_t)pd->sorted_ebo_byte_offset);
-    }
-}
-
-static void
-ogl3_draw_render_queue(
-    struct LibToriPlatformSDL2_RendererGL3* r,
-    struct LibToriRS_Instance* instance)
-{
-    if( !r || !instance || !instance->render_queue )
-        return;
-
-    struct LibToriRS_RenderQueue* rq = instance->render_queue;
-    TRSPK_ModelId draw_model_id = 0;
-    if( instance->model_viewer &&
-        instance->model_viewer->current_element_id != WORLD_SCENE_INVALID_ELEMENT_ID )
-        draw_model_id = (TRSPK_ModelId)instance->model_viewer->current_element_id;
-
+    bool world_gl_ready;
+    bool has_3d;
+    struct LibToriRS_RenderCommand_Begin3D cur_3d;
     float view[16];
     float proj[16];
-    const struct LibToriRS_RenderCommand_Begin3D* cur_3d = NULL;
     OGL3_SortedDraw pending[OGL3_MAX_PENDING_DRAWS];
-    int pending_count = 0;
+    int pending_count;
+} OGL3_FrameState;
 
+static void
+ogl3_frame_state_compute_pass_matrices(
+    struct LibToriPlatformSDL2_RendererGL3* r,
+    OGL3_FrameState* fs)
+{
+    if( !r || !fs || !fs->has_3d )
+        return;
+
+    const struct ToriDraw_Position* cam_pos = &fs->cur_3d.camera_position;
+    const struct ToriDraw_Camera* cam = &fs->cur_3d.camera;
+    const struct ToriDraw_ViewPort* vp = &fs->cur_3d.view_port;
+    const int pass_w = vp->width > 0 ? vp->width : r->width;
+    const int pass_h = vp->height > 0 ? vp->height : r->height;
+
+    ogl3_compute_view_matrix(
+        fs->view,
+        -(float)cam_pos->x,
+        -(float)cam_pos->y,
+        -(float)cam_pos->z,
+        ogl3_dash_yaw_to_radians(cam->pitch),
+        ogl3_dash_yaw_to_radians(cam->yaw));
+    ogl3_compute_projection_matrix(
+        fs->proj, (90.0f * (float)M_PI) / 180.0f, (float)pass_w, (float)pass_h);
+}
+
+static void
+ogl3_frame_state_init(OGL3_FrameState* fs)
+{
+    if( !fs )
+        return;
+    memset(fs, 0, sizeof(*fs));
+}
+
+static void
+ogl3_ensure_world_gl(
+    struct LibToriPlatformSDL2_RendererGL3* r,
+    OGL3_FrameState* fs)
+{
+    if( !r || !fs || fs->world_gl_ready )
+        return;
+
+    fs->world_gl_ready = true;
     ogl3_glUseProgram((GLuint)r->prog_world3d);
     if( r->world_locs.s_atlas >= 0 )
         ogl3_glUniform1i(r->world_locs.s_atlas, 0);
@@ -995,61 +933,123 @@ ogl3_draw_render_queue(
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDepthFunc(GL_ALWAYS);
     glDepthMask(GL_FALSE);
+}
 
-    for( int i = 0; i < rq->count; i++ )
+static void
+ogl3_flush_pending_draws(
+    struct LibToriPlatformSDL2_RendererGL3* r,
+    const OGL3_FrameState* fs);
+
+static void
+ogl3_handle_render_command(
+    struct LibToriPlatformSDL2_RendererGL3* r,
+    struct LibToriRS_Instance* instance,
+    const struct LibToriRS_RenderCommand* cmd,
+    OGL3_FrameState* fs)
+{
+    if( !r || !cmd || !fs )
+        return;
+
+    switch( cmd->kind )
     {
-        struct LibToriRS_RenderCommand* cmd = &rq->commands[i];
-
-        if( cmd->kind == TORIRSRC_BEGIN_3D )
+    case TORIRSRC_MODEL_LOAD:
+    {
+        const struct ToriDraw_Model* model =
+            trspk_toridraw_model_from_handle(&cmd->u.model_load.model);
+        if( model && cmd->u.model_load.element_id >= 0 )
         {
-            cur_3d = &cmd->u.begin_3d;
-            continue;
+            trspk_resource_cache_allocate_pose_slot(
+                r->cache,
+                (TRSPK_ModelId)cmd->u.model_load.element_id,
+                (int)TRSPK_GPU_ANIM_NONE_IDX,
+                0);
         }
-
-        if( cmd->kind == TORIRSRC_END_3D )
+        break;
+    }
+    case TORIRSRC_MODEL_UNLOAD:
+        if( cmd->u.model_load.element_id >= 0 )
+            trspk_resource_cache_clear_model(r->cache, (TRSPK_ModelId)cmd->u.model_load.element_id);
+        break;
+    case TORIRSRC_BATCH3D_BEGIN:
+        r->current_batch_id = (TRSPK_BatchId)cmd->u.batch.batch_id;
+        r->batch_active = true;
+        trspk_batch32_begin(r->batch_staging);
+        trspk_resource_cache_batch_begin(r->cache, r->current_batch_id);
+        break;
+    case TORIRSRC_BATCH3D_MODEL_ADD:
+    {
+        const struct ToriDraw_Model* model = trspk_toridraw_model_from_handle(&cmd->u.batch.model);
+        TRSPK_BakeTransform bake = trspk_bake_transform_identity();
+        if( r->batch_active && model && cmd->u.batch.element_id >= 0 )
         {
-            ogl3_flush_pending_draws(r, pending, pending_count);
-            pending_count = 0;
-            continue;
+            trspk_toridraw_batch_add_model32(
+                r->batch_staging,
+                model,
+                (uint16_t)cmd->u.batch.element_id,
+                TRSPK_GPU_ANIM_NONE_IDX,
+                0u,
+                &bake,
+                r->cache);
         }
-
-        if( cmd->kind != TORIRSRC_MODEL )
-            continue;
-        if( !cur_3d )
-            continue;
+        break;
+    }
+    case TORIRSRC_BATCH3D_END:
+        if( r->batch_active )
+        {
+            trspk_batch32_end(r->batch_staging);
+            ogl3_batch_submit(r, r->current_batch_id);
+            r->batch_active = false;
+        }
+        break;
+    case TORIRSRC_BATCH3D_CLEAR:
+        if( cmd->u.batch.batch_id >= 0 )
+            ogl3_batch_clear(r, (TRSPK_BatchId)cmd->u.batch.batch_id);
+        break;
+    case TORIRSRC_BEGIN_3D:
+        ogl3_ensure_world_gl(r, fs);
+        fs->cur_3d = cmd->u.begin_3d;
+        fs->has_3d = true;
+        ogl3_frame_state_compute_pass_matrices(r, fs);
+        ogl3_refresh_active_dynamic_model(r, instance);
+        break;
+    case TORIRSRC_END_3D:
+        ogl3_flush_pending_draws(r, fs);
+        fs->pending_count = 0;
+        fs->has_3d = false;
+        break;
+    case TORIRSRC_MODEL:
+    {
+        if( !fs->has_3d )
+            break;
 
         struct ToriDraw_Context* ctx = NULL;
-        if( instance->model_viewer )
+        if( instance && instance->model_viewer )
             ctx = instance->model_viewer->context;
         if( !ctx )
-            continue;
+            break;
 
-        struct ToriDraw_Position tmp_pos = cur_3d->camera_position;
-        struct ToriDraw_ViewPort tmp_vp = cur_3d->view_port;
-        struct ToriDraw_Camera tmp_cam = cur_3d->camera;
-        const int cull = toridraw_render_model1_project(
-            cmd->u.model.model, ctx, &tmp_pos, &tmp_vp, &tmp_cam);
-        if( cull != TORIDRAW_CULL_VISIBLE )
-            continue;
-
-        const int sort_count =
-            toridraw_render_model2_sort_faces(cmd->u.model.model, ctx);
+        const int sort_count = toridraw_face_order_count(ctx);
         if( sort_count <= 0 )
-            continue;
+            break;
+
+        TRSPK_ModelId draw_model_id = 0;
+        if( cmd->u.model.element_id != WORLD_SCENE_INVALID_ELEMENT_ID )
+            draw_model_id = (TRSPK_ModelId)cmd->u.model.element_id;
 
         const TRSPK_ModelPose* pose =
             trspk_resource_cache_get_pose_for_draw(r->cache, draw_model_id, false, 0, 0);
         if( !pose || !pose->valid )
-            continue;
+            break;
 
         int max_faces = sort_count;
         if( max_faces > (int)TRSPK_FACEBUFFER_MAX_FACES )
             max_faces = (int)TRSPK_FACEBUFFER_MAX_FACES;
 
+        int* face_order = toridraw_face_order(ctx);
         uint32_t* out_ix = r->facebuffer.indices;
         for( int fi = 0; fi < max_faces; fi++ )
         {
-            const int face = ctx->tmp_face_order[fi];
+            const int face = face_order[fi];
             out_ix[(uint32_t)fi * 3u + 0u] = (uint32_t)(face * 3 + 0);
             out_ix[(uint32_t)fi * 3u + 1u] = (uint32_t)(face * 3 + 1);
             out_ix[(uint32_t)fi * 3u + 2u] = (uint32_t)(face * 3 + 2);
@@ -1060,7 +1060,7 @@ ogl3_draw_render_queue(
 
         OGL3_DynamicRing* ring = &r->dynamic_ring;
         if( ring->ebo == 0u || ring->vbo == 0u )
-            continue;
+            break;
 
         if( ring->ebo_offset + sorted_index_bytes > ring->ebo_capacity )
             ring->ebo_offset = 0u;
@@ -1075,33 +1075,46 @@ ogl3_draw_render_queue(
         ogl3_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         ring->ebo_offset += sorted_index_bytes;
 
-        if( pending_count >= (int)OGL3_MAX_PENDING_DRAWS )
-            continue;
+        if( fs->pending_count >= (int)OGL3_MAX_PENDING_DRAWS )
+            break;
 
-        const struct ToriDraw_Position* cam_pos = &cur_3d->camera_position;
-        const struct ToriDraw_Camera* cam = &cur_3d->camera;
-        const struct ToriDraw_ViewPort* vp = &cur_3d->view_port;
-        const int pass_w = vp->width > 0 ? vp->width : r->width;
-        const int pass_h = vp->height > 0 ? vp->height : r->height;
-
-        ogl3_compute_view_matrix(
-            view,
-            -(float)cam_pos->x,
-            -(float)cam_pos->y,
-            -(float)cam_pos->z,
-            ogl3_dash_yaw_to_radians(cam->pitch),
-            ogl3_dash_yaw_to_radians(cam->yaw));
-        ogl3_compute_projection_matrix(
-            proj, (90.0f * (float)M_PI) / 180.0f, (float)pass_w, (float)pass_h);
-
-        OGL3_SortedDraw* pd = &pending[pending_count++];
+        OGL3_SortedDraw* pd = &fs->pending[fs->pending_count++];
         pd->vbo = (GLuint)(uintptr_t)pose->vbo;
         pd->ring_ebo = ring->ebo;
         pd->vbo_byte_offset = pose->vbo_offset;
         pd->sorted_ebo_byte_offset = sorted_ebo_byte;
         pd->index_count = index_count;
-        memcpy(pd->view, view, sizeof(float) * 16u);
-        memcpy(pd->proj, proj, sizeof(float) * 16u);
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+static void
+ogl3_flush_pending_draws(
+    struct LibToriPlatformSDL2_RendererGL3* r,
+    const OGL3_FrameState* fs)
+{
+    if( !r || !fs || fs->pending_count <= 0 )
+        return;
+
+    ogl3_upload_uniforms(r, fs->view, fs->proj);
+    glViewport(0, 0, r->width, r->height);
+
+    for( int p = 0; p < fs->pending_count; p++ )
+    {
+        const OGL3_SortedDraw* pd = &fs->pending[p];
+        if( pd->index_count == 0u )
+            continue;
+
+        ogl3_bind_world_attribs_at_offset(&r->world_locs, pd->vbo, pd->vbo_byte_offset);
+        ogl3_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pd->ring_ebo);
+        ogl3_glDrawElements(
+            GL_TRIANGLES,
+            (GLsizei)pd->index_count,
+            GL_UNSIGNED_INT,
+            (const void*)(uintptr_t)pd->sorted_ebo_byte_offset);
     }
 }
 
@@ -1270,16 +1283,14 @@ LibToriPlatformSDL2_RendererGL3_Render(
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    if( instance->model_viewer && instance->model_viewer->world_scene )
-    {
-        struct WorldScene_EventQueue* eq =
-            world_scene_get_event_queue(instance->model_viewer->world_scene);
-        ogl3_process_scene_events(renderer, eq);
-    }
+    OGL3_FrameState frame_state;
+    ogl3_frame_state_init(&frame_state);
 
-    ogl3_refresh_active_dynamic_model(renderer, instance);
-
-    ogl3_draw_render_queue(renderer, instance);
+    LibToriRS_FrameBegin(instance);
+    struct LibToriRS_RenderCommand command;
+    while( LibToriRS_FrameNextCommand(instance, &command) )
+        ogl3_handle_render_command(renderer, instance, &command, &frame_state);
+    LibToriRS_FrameEnd(instance);
 
     SDL_GL_SwapWindow(renderer->window);
 }

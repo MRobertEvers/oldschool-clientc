@@ -241,4 +241,16 @@ struct ToriDraw_Context
 #define TORIDRAW_CULL_AABB 2
 #define TORIDRAW_CULL_ERROR 3
 
+static inline int*
+toridraw_face_order(struct ToriDraw_Context* ctx)
+{
+    return ctx->tmp_face_order;
+}
+
+static inline int
+toridraw_face_order_count(struct ToriDraw_Context* ctx)
+{
+    return ctx->tmp_face_order_count;
+}
+
 #endif

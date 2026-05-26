@@ -6,8 +6,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define LIBTORIRS_RENDER_QUEUE_MAX_SIZE 1024
-
 enum LibToriRS_RenderCommandKind
 {
     TORIRSRC_NONE = 0,
@@ -63,6 +61,20 @@ struct LibToriRS_RenderCommand_Model
 {
     struct ToriDraw_ModelHandle model;
     struct ToriDraw_Position position;
+    int element_id;
+};
+
+struct LibToriRS_RenderCommand_ModelLoad
+{
+    int element_id;
+    struct ToriDraw_ModelHandle model;
+};
+
+struct LibToriRS_RenderCommand_Batch
+{
+    int batch_id;
+    int element_id;
+    struct ToriDraw_ModelHandle model;
 };
 
 struct LibToriRS_RenderCommand
@@ -72,41 +84,9 @@ struct LibToriRS_RenderCommand
     {
         struct LibToriRS_RenderCommand_Begin3D begin_3d;
         struct LibToriRS_RenderCommand_Model model;
+        struct LibToriRS_RenderCommand_ModelLoad model_load;
+        struct LibToriRS_RenderCommand_Batch batch;
     } u;
 };
-
-struct LibToriRS_RenderQueue
-{
-    struct LibToriRS_RenderCommand commands[LIBTORIRS_RENDER_QUEUE_MAX_SIZE];
-    int count;
-};
-
-struct LibToriRS_RenderQueue*
-LibToriRS_RenderQueue_New(void);
-
-void
-LibToriRS_RenderQueue_Free(struct LibToriRS_RenderQueue* render_queue);
-
-void
-LibToriRS_RenderQueue_Clear(struct LibToriRS_RenderQueue* render_queue);
-
-bool
-LibToriRS_RenderQueue_IsEmpty(struct LibToriRS_RenderQueue* render_queue);
-
-void
-LibToriRS_RenderQueue_PushCommandBegin3D(
-    struct LibToriRS_RenderQueue* render_queue,
-    const struct ToriDraw_ViewPort* view_port,
-    const struct ToriDraw_Camera* camera,
-    const struct ToriDraw_Position* camera_position);
-
-void
-LibToriRS_RenderQueue_PushCommandModelDraw(
-    struct LibToriRS_RenderQueue* render_queue,
-    struct ToriDraw_ModelHandle model,
-    const struct ToriDraw_Position* position);
-
-void
-LibToriRS_RenderQueue_PushCommandEnd3D(struct LibToriRS_RenderQueue* render_queue);
 
 #endif

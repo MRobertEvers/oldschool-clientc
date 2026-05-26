@@ -114,8 +114,6 @@ main(
         LibToriRS_IOQueueClear(LibToriRS_GetIOQueue(instance));
         LibToriRS_ScriptQueueClear(LibToriRS_GetScriptQueue(instance));
 
-        LibToriRS_GameStep(instance);
-
         LibToriPlatformSDL2_RendererGL3_Render(renderer_gl3, instance);
 
         SDL_Delay(1);

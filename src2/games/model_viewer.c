@@ -1,11 +1,56 @@
 #include "model_viewer.h"
 
+#include "../world/world_scene_events.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_model.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+
+static bool
+game_modelviewer_translate_scene_event(
+    const struct WorldScene_Event* ev,
+    struct LibToriRS_RenderCommand* command)
+{
+    if( !ev || !command )
+        return false;
+
+    memset(command, 0, sizeof(*command));
+
+    switch( ev->kind )
+    {
+    case WSE_MODEL_LOAD:
+        command->kind = TORIRSRC_MODEL_LOAD;
+        command->u.model_load.element_id = ev->element_id;
+        command->u.model_load.model = ev->model;
+        return true;
+    case WSE_MODEL_UNLOAD:
+        command->kind = TORIRSRC_MODEL_UNLOAD;
+        command->u.model_load.element_id = ev->element_id;
+        return true;
+    case WSE_BATCH_BEGIN:
+        command->kind = TORIRSRC_BATCH3D_BEGIN;
+        command->u.batch.batch_id = ev->batch_id;
+        return true;
+    case WSE_BATCH_MODEL_ADD:
+        command->kind = TORIRSRC_BATCH3D_MODEL_ADD;
+        command->u.batch.batch_id = ev->batch_id;
+        command->u.batch.element_id = ev->element_id;
+        command->u.batch.model = ev->model;
+        return true;
+    case WSE_BATCH_END:
+        command->kind = TORIRSRC_BATCH3D_END;
+        command->u.batch.batch_id = ev->batch_id;
+        return true;
+    case WSE_BATCH_CLEAR:
+        command->kind = TORIRSRC_BATCH3D_CLEAR;
+        command->u.batch.batch_id = ev->batch_id;
+        return true;
+    default:
+        return false;
+    }
+}
 
 struct GameModelViewer*
 game_modelviewer_new(struct LibToriRS_ScriptQueue* script_queue)
@@ -245,4 +290,147 @@ game_modelviewer_rotate_down(
     int amount)
 {
     game_modelviewer_rotate_up(game_model_viewer, -amount);
+}
+
+void
+game_modelviewer_frame_begin(struct GameModelViewer* game_model_viewer)
+{
+    if( !game_model_viewer )
+        return;
+
+    game_model_viewer->frame.phase = MV_FRAME_PHASE_SCENE_EVENTS;
+    game_model_viewer->frame.event_index = 0;
+    game_model_viewer->frame.model_index = 0;
+}
+
+bool
+game_modelviewer_frame_next_command(
+    struct GameModelViewer* game_model_viewer,
+    struct LibToriRS_RenderCommand* command)
+{
+    if( !game_model_viewer || !command )
+        return false;
+
+    memset(command, 0, sizeof(*command));
+
+    for( ;; )
+    {
+        switch( game_model_viewer->frame.phase )
+        {
+        case MV_FRAME_PHASE_SCENE_EVENTS:
+        {
+            struct WorldScene_EventQueue* eq = NULL;
+            if( game_model_viewer->world_scene )
+                eq = world_scene_get_event_queue(game_model_viewer->world_scene);
+
+            if( eq )
+            {
+                while( game_model_viewer->frame.event_index < eq->count )
+                {
+                    const struct WorldScene_Event* ev =
+                        &eq->events[game_model_viewer->frame.event_index++];
+                    if( game_modelviewer_translate_scene_event(ev, command) )
+                        return true;
+                }
+            }
+
+            game_model_viewer->frame.phase = MV_FRAME_PHASE_BEGIN_3D;
+            continue;
+        }
+        case MV_FRAME_PHASE_BEGIN_3D:
+        {
+            command->kind = TORIRSRC_BEGIN_3D;
+            if( game_model_viewer->view_port )
+                command->u.begin_3d.view_port = *game_model_viewer->view_port;
+            if( game_model_viewer->camera )
+                command->u.begin_3d.camera = *game_model_viewer->camera;
+            if( game_model_viewer->camera_position )
+            {
+                command->u.begin_3d.camera_position.x =
+                    -game_model_viewer->camera_position->x;
+                command->u.begin_3d.camera_position.y =
+                    -game_model_viewer->camera_position->y;
+                command->u.begin_3d.camera_position.z =
+                    -game_model_viewer->camera_position->z;
+            }
+            game_model_viewer->frame.phase = MV_FRAME_PHASE_MODELS;
+            return true;
+        }
+        case MV_FRAME_PHASE_MODELS:
+        {
+            if( game_model_viewer->frame.model_index > 0 )
+            {
+                game_model_viewer->frame.phase = MV_FRAME_PHASE_END_3D;
+                continue;
+            }
+
+            if( game_model_viewer->model.kind != TORIDRAWMK_MODEL )
+            {
+                game_model_viewer->frame.phase = MV_FRAME_PHASE_END_3D;
+                continue;
+            }
+
+            if( game_model_viewer->context && game_model_viewer->view_port &&
+                game_model_viewer->camera && game_model_viewer->camera_position )
+            {
+                struct ToriDraw_Position camera_pos = { 0 };
+                camera_pos.x = -game_model_viewer->camera_position->x;
+                camera_pos.y = -game_model_viewer->camera_position->y;
+                camera_pos.z = -game_model_viewer->camera_position->z;
+
+                const int cull = toridraw_render_model1_project(
+                    game_model_viewer->model,
+                    game_model_viewer->context,
+                    &camera_pos,
+                    game_model_viewer->view_port,
+                    game_model_viewer->camera);
+                if( cull != TORIDRAW_CULL_VISIBLE )
+                {
+                    game_model_viewer->frame.model_index++;
+                    game_model_viewer->frame.phase = MV_FRAME_PHASE_END_3D;
+                    continue;
+                }
+
+                if( toridraw_render_model2_sort_faces(
+                        game_model_viewer->model, game_model_viewer->context) <= 0 )
+                {
+                    game_model_viewer->frame.model_index++;
+                    game_model_viewer->frame.phase = MV_FRAME_PHASE_END_3D;
+                    continue;
+                }
+            }
+
+            command->kind = TORIRSRC_MODEL;
+            command->u.model.model = game_model_viewer->model;
+            command->u.model.element_id = game_model_viewer->current_element_id;
+            memset(&command->u.model.position, 0, sizeof(command->u.model.position));
+            game_model_viewer->frame.model_index++;
+            return true;
+        }
+        case MV_FRAME_PHASE_END_3D:
+            command->kind = TORIRSRC_END_3D;
+            game_model_viewer->frame.phase = MV_FRAME_PHASE_DONE;
+            return true;
+        case MV_FRAME_PHASE_DONE:
+        default:
+            return false;
+        }
+    }
+}
+
+void
+game_modelviewer_frame_end(struct GameModelViewer* game_model_viewer)
+{
+    if( !game_model_viewer )
+        return;
+
+    if( game_model_viewer->world_scene )
+    {
+        struct WorldScene_EventQueue* eq =
+            world_scene_get_event_queue(game_model_viewer->world_scene);
+        if( eq )
+            worldscene_eventqueue_clear(eq);
+    }
+
+    game_model_viewer->frame.phase = MV_FRAME_PHASE_DONE;
 }

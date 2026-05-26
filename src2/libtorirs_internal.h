@@ -20,7 +20,6 @@ struct LibToriRS_Instance
     struct LibToriRS_IOQueue* io_queue;
     struct LibToriRS_ScriptQueue* script_queue;
     struct LibToriRS_Input* input;
-    struct LibToriRS_RenderQueue* render_queue;
 
     struct Dat1BuildCache* dat1_buildcache;
     struct GameCache* gamecache;

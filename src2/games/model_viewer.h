@@ -2,11 +2,21 @@
 #define MODEL_VIEWER_H
 
 #include "../input/libtorirs_input.h"
+#include "../render/libtorirs_render.h"
 #include "../scripting/libtorirs_scripting.h"
 #include "../world/world_scene.h"
 #include "toridraw/toridraw_types.h"
 
 struct ToriDraw_Context;
+
+enum GameModelViewer_FramePhase
+{
+    MV_FRAME_PHASE_SCENE_EVENTS = 0,
+    MV_FRAME_PHASE_BEGIN_3D,
+    MV_FRAME_PHASE_MODELS,
+    MV_FRAME_PHASE_END_3D,
+    MV_FRAME_PHASE_DONE,
+};
 
 struct GameModelViewer
 {
@@ -22,6 +32,13 @@ struct GameModelViewer
 
     struct WorldScene* world_scene;
     int current_element_id;
+
+    struct
+    {
+        enum GameModelViewer_FramePhase phase;
+        int event_index;
+        int model_index;
+    } frame;
 };
 
 struct GameModelViewer*
@@ -95,5 +112,16 @@ void
 game_modelviewer_next(
     struct GameModelViewer* game_model_viewer,
     int step);
+
+void
+game_modelviewer_frame_begin(struct GameModelViewer* game_model_viewer);
+
+bool
+game_modelviewer_frame_next_command(
+    struct GameModelViewer* game_model_viewer,
+    struct LibToriRS_RenderCommand* command);
+
+void
+game_modelviewer_frame_end(struct GameModelViewer* game_model_viewer);
 
 #endif

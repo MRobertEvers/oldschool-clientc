@@ -241,30 +241,35 @@ LibToriPlatformSDL2_Render(
     size_t const pixel_count = (size_t)platform->width * (size_t)platform->height;
     memset(platform->pixel_buffer, 0, pixel_count * sizeof(int));
 
-    struct LibToriRS_RenderQueue* render_queue = LibToriRS_GetRenderQueue(instance);
     struct ToriDraw_Context* draw_context = NULL;
     if( instance && instance->model_viewer )
         draw_context = instance->model_viewer->context;
 
-    const struct LibToriRS_RenderCommand_Begin3D* cur_3d = NULL;
+    bool has_3d = false;
+    struct LibToriRS_RenderCommand_Begin3D cur_3d;
 
-    for( int i = 0; i < render_queue->count; i++ )
+    LibToriRS_FrameBegin(instance);
+    struct LibToriRS_RenderCommand command;
+    while( LibToriRS_FrameNextCommand(instance, &command) )
     {
-        struct LibToriRS_RenderCommand* command = &render_queue->commands[i];
-        switch( command->kind )
+        switch( command.kind )
         {
         case TORIRSRC_BEGIN_3D:
-            cur_3d = &command->u.begin_3d;
+            cur_3d = command.u.begin_3d;
+            has_3d = true;
+            break;
+        case TORIRSRC_END_3D:
+            has_3d = false;
             break;
         case TORIRSRC_MODEL:
-            if( !draw_context || !cur_3d )
+            if( !draw_context || !has_3d )
                 break;
             {
-                struct ToriDraw_Position tmp_pos = cur_3d->camera_position;
-                struct ToriDraw_ViewPort tmp_vp = cur_3d->view_port;
-                struct ToriDraw_Camera tmp_cam = cur_3d->camera;
+                struct ToriDraw_Position tmp_pos = cur_3d.camera_position;
+                struct ToriDraw_ViewPort tmp_vp = cur_3d.view_port;
+                struct ToriDraw_Camera tmp_cam = cur_3d.camera;
                 toridraw_render_model(
-                    command->u.model.model,
+                    command.u.model.model,
                     draw_context,
                     &tmp_pos,
                     &tmp_vp,
@@ -276,6 +281,7 @@ LibToriPlatformSDL2_Render(
             break;
         }
     }
+    LibToriRS_FrameEnd(instance);
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(
         platform->pixel_buffer,

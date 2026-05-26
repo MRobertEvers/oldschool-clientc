@@ -2,11 +2,10 @@
 
 #include "commands/libtorirs_command_queue.h"
 #include "commands/libtorirs_command_queue_internal.h"
+#include "games/model_viewer.h"
 #include "input/libtorirs_input.h"
 #include "libtorirs_internal.h"
-#include "render/libtorirs_render.h"
 #include "scripting/libtorirs_scripting.h"
-#include "world/world_scene.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,18 +65,6 @@ LibToriRS_InstanceNew(void)
         return NULL;
     }
 
-    instance->render_queue = LibToriRS_RenderQueue_New();
-    if( !instance->render_queue )
-    {
-        gamecache_free(instance->gamecache);
-        dat1_buildcache_free(instance->dat1_buildcache);
-        LibToriRS_IOQueueFree(instance->io_queue);
-        LibToriRS_Input_Free(instance->input);
-        LibToriRS_ScriptQueueFree(instance->script_queue);
-        free(instance);
-        return NULL;
-    }
-
     instance->running = true;
 
     return instance;
@@ -88,8 +75,6 @@ LibToriRS_InstanceFree(struct LibToriRS_Instance* instance)
 {
     if( !instance )
         return;
-    if( instance->render_queue )
-        LibToriRS_RenderQueue_Free(instance->render_queue);
     if( instance->io_queue )
         LibToriRS_IOQueueFree(instance->io_queue);
     if( instance->script_queue )
@@ -131,14 +116,6 @@ LibToriRS_GetIOQueue(struct LibToriRS_Instance* instance)
     if( !instance )
         return NULL;
     return instance->io_queue;
-}
-
-struct LibToriRS_RenderQueue*
-LibToriRS_GetRenderQueue(struct LibToriRS_Instance* instance)
-{
-    if( !instance )
-        return NULL;
-    return instance->render_queue;
 }
 
 void
@@ -323,35 +300,33 @@ LibToriRS_ProcessInput(struct LibToriRS_Instance* instance)
 }
 
 void
-LibToriRS_GameStep(struct LibToriRS_Instance* instance)
+LibToriRS_FrameBegin(struct LibToriRS_Instance* instance)
 {
     if( !instance )
         return;
-
-    LibToriRS_RenderQueue_Clear(instance->render_queue);
-
     if( instance->model_viewer )
-    {
-        struct ToriDraw_Position camera_pos = { 0 };
-        camera_pos.x = -instance->model_viewer->camera_position->x;
-        camera_pos.y = -instance->model_viewer->camera_position->y;
-        camera_pos.z = -instance->model_viewer->camera_position->z;
+        game_modelviewer_frame_begin(instance->model_viewer);
+}
 
-        LibToriRS_RenderQueue_PushCommandBegin3D(
-            instance->render_queue,
-            instance->model_viewer->view_port,
-            instance->model_viewer->camera,
-            &camera_pos);
+bool
+LibToriRS_FrameNextCommand(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    if( !instance || !command )
+        return false;
+    if( instance->model_viewer )
+        return game_modelviewer_frame_next_command(instance->model_viewer, command);
+    return false;
+}
 
-        if( instance->model_viewer->model.kind == TORIDRAWMK_MODEL )
-        {
-            struct ToriDraw_Position model_pos = { 0 };
-            LibToriRS_RenderQueue_PushCommandModelDraw(
-                instance->render_queue, instance->model_viewer->model, &model_pos);
-        }
-
-        LibToriRS_RenderQueue_PushCommandEnd3D(instance->render_queue);
-    }
+void
+LibToriRS_FrameEnd(struct LibToriRS_Instance* instance)
+{
+    if( !instance )
+        return;
+    if( instance->model_viewer )
+        game_modelviewer_frame_end(instance->model_viewer);
 }
 
 bool

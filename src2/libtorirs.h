@@ -32,9 +32,6 @@ LibToriRS_GetScriptQueue(struct LibToriRS_Instance* instance);
 struct LibToriRS_IOQueue*
 LibToriRS_GetIOQueue(struct LibToriRS_Instance* instance);
 
-struct LibToriRS_RenderQueue*
-LibToriRS_GetRenderQueue(struct LibToriRS_Instance* instance);
-
 void
 LibToriRS_ProcessCommandQueue(
     struct LibToriRS_Instance* instance,
@@ -51,7 +48,15 @@ LibToriRS_TickInput(
     uint64_t time_ms);
 
 void
-LibToriRS_GameStep(struct LibToriRS_Instance* instance);
+LibToriRS_FrameBegin(struct LibToriRS_Instance* instance);
+
+bool
+LibToriRS_FrameNextCommand(
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command);
+
+void
+LibToriRS_FrameEnd(struct LibToriRS_Instance* instance);
 
 bool
 LibToriRS_IsRunning(struct LibToriRS_Instance* instance);
