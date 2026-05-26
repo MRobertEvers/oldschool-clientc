@@ -21,6 +21,15 @@ LibToriPlatformSDL2_InitForSoft3D(
     int screen_width,
     int screen_height);
 
+bool
+LibToriPlatformSDL2_InitForOpenGL3(
+    struct LibToriPlatformSDL2* platform,
+    int screen_width,
+    int screen_height);
+
+SDL_Window*
+LibToriPlatformSDL2_GetWindow(struct LibToriPlatformSDL2* platform);
+
 void
 LibToriPlatformSDL2_PollEvents(
     struct LibToriPlatformSDL2* platform,

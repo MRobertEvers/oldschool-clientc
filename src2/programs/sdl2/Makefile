@@ -5,6 +5,7 @@ SRC_DIR   := $(REPO_ROOT)/src
 SRC2      := $(REPO_ROOT)/src2
 PLAT_DIR  := $(SRC2)/platforms
 SCRIPT_DIR := $(SRC2)/scripting
+TRSPK_DIR := $(SRC_DIR)/platforms/ToriRSPlatformKit
 
 OBJ_DIR := sdl2_build
 PROG    := sdl2
@@ -13,7 +14,8 @@ CC      ?= cc
 CFLAGS  ?= -O0 -Wall -Wextra -Werror -g
 CFLAGS  += -fsanitize=address -fno-omit-frame-pointer
 LDFLAGS += -fsanitize=address
-CPPFLAGS += -I$(SRC_DIR) -I$(SRC2) -I$(SCRIPT_DIR) -I$(REPO_ROOT)
+CPPFLAGS += -I$(SRC_DIR) -I$(SRC2) -I$(SCRIPT_DIR) -I$(REPO_ROOT) \
+	-I$(TRSPK_DIR)/include -I$(TRSPK_DIR)/src
 
 # Vendored Lua — embed library, not lua/luac interpreters.
 LUA_SRC := $(filter-out $(SRC_DIR)/3rd/lua/lua.c $(SRC_DIR)/3rd/lua/luac.c,\
@@ -25,6 +27,17 @@ SRCS := sdl2.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \
 	$(PLAT_DIR)/platform_x/cachelib_serialized.c \
 	$(PLAT_DIR)/platform_sdl2.c \
+	$(PLAT_DIR)/platform_sdl2_renderer_opengl3.c \
+	$(PLAT_DIR)/trspk_toridraw.c \
+	$(TRSPK_DIR)/src/tools/trspk_batch32.c \
+	$(TRSPK_DIR)/src/tools/trspk_resource_cache.c \
+	$(TRSPK_DIR)/src/tools/trspk_vertex_buffer.c \
+	$(TRSPK_DIR)/src/tools/trspk_vertex_buffer_lifecycle.c \
+	$(TRSPK_DIR)/src/tools/trspk_vertex_format.c \
+	$(TRSPK_DIR)/src/tools/trspk_facebuffer.c \
+	$(TRSPK_DIR)/src/tools/trspk_lru_model_cache.c \
+	$(TRSPK_DIR)/src/tools/trspk_d3d8_fvf_bake.c \
+	$(TRSPK_DIR)/src/trspk_math.c \
 	$(SCRIPT_DIR)/libtorirs_scripting.c \
 	$(SRC2)/commands/libtorirs_command_queue.c \
 	$(SRC2)/input/libtorirs_input.c \
@@ -119,8 +132,14 @@ all: $(OBJ_DIR) $(PROG)
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
+ifeq ($(shell uname -s),Darwin)
+GL_LIBS := -framework OpenGL
+else
+GL_LIBS := -lGL
+endif
+
 $(PROG): $(OBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(SDL_LIBS) -lm
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(SDL_LIBS) $(GL_LIBS) -lm
 
 define make-goal
 $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
@@ -147,6 +166,9 @@ $(OBJ_DIR)/maps.o: $(SRC_DIR)/osrs/rscache/tables/maps.c
 
 $(OBJ_DIR)/noise.o: $(SRC_DIR)/osrs/rscache/tables/noise.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) $(LEGACY_TABLE_WARNINGS) -c $< -o $@
+
+$(OBJ_DIR)/trspk_vertex_buffer.o: $(TRSPK_DIR)/src/tools/trspk_vertex_buffer.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) -Wno-unused-parameter -c $< -o $@
 
 clean:
 	rm -f $(PROG)

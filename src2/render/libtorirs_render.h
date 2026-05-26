@@ -52,12 +52,17 @@ enum LibToriRS_RenderCommandKind
     TORIRSRC_FONT_END,
 };
 
+struct LibToriRS_RenderCommand_Begin3D
+{
+    struct ToriDraw_ViewPort view_port;
+    struct ToriDraw_Camera camera;
+    struct ToriDraw_Position camera_position;
+};
+
 struct LibToriRS_RenderCommand_Model
 {
     struct ToriDraw_ModelHandle model;
     struct ToriDraw_Position position;
-    struct ToriDraw_ViewPort* view_port_ref;
-    struct ToriDraw_Camera* camera_ref;
 };
 
 struct LibToriRS_RenderCommand
@@ -65,6 +70,7 @@ struct LibToriRS_RenderCommand
     enum LibToriRS_RenderCommandKind kind;
     union
     {
+        struct LibToriRS_RenderCommand_Begin3D begin_3d;
         struct LibToriRS_RenderCommand_Model model;
     } u;
 };
@@ -88,11 +94,19 @@ bool
 LibToriRS_RenderQueue_IsEmpty(struct LibToriRS_RenderQueue* render_queue);
 
 void
+LibToriRS_RenderQueue_PushCommandBegin3D(
+    struct LibToriRS_RenderQueue* render_queue,
+    const struct ToriDraw_ViewPort* view_port,
+    const struct ToriDraw_Camera* camera,
+    const struct ToriDraw_Position* camera_position);
+
+void
 LibToriRS_RenderQueue_PushCommandModelDraw(
     struct LibToriRS_RenderQueue* render_queue,
     struct ToriDraw_ModelHandle model,
-    struct ToriDraw_Position* position,
-    struct ToriDraw_ViewPort* view_port,
-    struct ToriDraw_Camera* camera);
+    const struct ToriDraw_Position* position);
+
+void
+LibToriRS_RenderQueue_PushCommandEnd3D(struct LibToriRS_RenderQueue* render_queue);
 
 #endif

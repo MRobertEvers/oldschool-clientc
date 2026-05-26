@@ -7,7 +7,6 @@
 #include "render/libtorirs_render.h"
 #include "scripting/libtorirs_scripting.h"
 #include "world/world_scene.h"
-#include "world/world_scene_platform.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,7 +18,7 @@
 struct LibToriRS_Instance*
 LibToriRS_InstanceNew(void)
 {
-    struct LibToriRS_Instance* instance = malloc(sizeof(struct LibToriRS_Instance));
+    struct LibToriRS_Instance* instance = calloc(1, sizeof(struct LibToriRS_Instance));
     if( !instance )
         return NULL;
     instance->script_queue = LibToriRS_ScriptQueueNew();
@@ -333,22 +332,25 @@ LibToriRS_GameStep(struct LibToriRS_Instance* instance)
 
     if( instance->model_viewer )
     {
-        struct ToriDraw_Position position = { 0 };
+        struct ToriDraw_Position camera_pos = { 0 };
+        camera_pos.x = -instance->model_viewer->camera_position->x;
+        camera_pos.y = -instance->model_viewer->camera_position->y;
+        camera_pos.z = -instance->model_viewer->camera_position->z;
 
-        worldscene_platform_process_events(
-            world_scene_get_event_queue(instance->model_viewer->world_scene));
-
-        position.x = -instance->model_viewer->camera_position->x;
-        position.y = -instance->model_viewer->camera_position->y;
-        position.z = -instance->model_viewer->camera_position->z;
+        LibToriRS_RenderQueue_PushCommandBegin3D(
+            instance->render_queue,
+            instance->model_viewer->view_port,
+            instance->model_viewer->camera,
+            &camera_pos);
 
         if( instance->model_viewer->model.kind == TORIDRAWMK_MODEL )
+        {
+            struct ToriDraw_Position model_pos = { 0 };
             LibToriRS_RenderQueue_PushCommandModelDraw(
-                instance->render_queue,
-                instance->model_viewer->model,
-                &position,
-                instance->model_viewer->view_port,
-                instance->model_viewer->camera);
+                instance->render_queue, instance->model_viewer->model, &model_pos);
+        }
+
+        LibToriRS_RenderQueue_PushCommandEnd3D(instance->render_queue);
     }
 }
 

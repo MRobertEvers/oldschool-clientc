@@ -1,6 +1,7 @@
 #include "../../commands/libtorirs_command_queue.h"
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../platforms/platform_sdl2.h"
+#include "../../platforms/platform_sdl2_renderer_opengl3.h"
 #include "../../platforms/platform_x_cache.h"
 #include "../../platforms/platform_x_lua.h"
 #include "../../scripting/libtorirs_scripting.h"
@@ -21,6 +22,7 @@ main(
 
     struct LibToriPlatformX_Lua* lua = NULL;
     struct LibToriPlatformSDL2* platform = NULL;
+    struct LibToriPlatformSDL2_RendererGL3* renderer_gl3 = NULL;
     struct LibToriRS_CommandQueue* command_queue = NULL;
 
     struct LibToriRS_Instance* instance = LibToriRS_InstanceNew();
@@ -57,9 +59,22 @@ main(
 
     const int screen_w = 800;
     const int screen_h = 600;
-    if( !LibToriPlatformSDL2_InitForSoft3D(platform, screen_w, screen_h) )
+    if( !LibToriPlatformSDL2_InitForOpenGL3(platform, screen_w, screen_h) )
     {
-        printf("Failed to init SDL2 window\n");
+        printf("Failed to init SDL2 OpenGL window\n");
+        goto error_exit;
+    }
+
+    renderer_gl3 = LibToriPlatformSDL2_RendererGL3_New(screen_w, screen_h);
+    if( !renderer_gl3 )
+    {
+        printf("Failed to create OpenGL3 renderer\n");
+        goto error_exit;
+    }
+    if( !LibToriPlatformSDL2_RendererGL3_Init(
+            renderer_gl3, LibToriPlatformSDL2_GetWindow(platform)) )
+    {
+        printf("Failed to init OpenGL3 renderer\n");
         goto error_exit;
     }
 
@@ -101,12 +116,14 @@ main(
 
         LibToriRS_GameStep(instance);
 
-        LibToriPlatformSDL2_Render(platform, instance, 0);
+        LibToriPlatformSDL2_RendererGL3_Render(renderer_gl3, instance);
 
         SDL_Delay(1);
     }
 
 exit:
+    if( renderer_gl3 )
+        LibToriPlatformSDL2_RendererGL3_Free(renderer_gl3);
     if( lua )
         LibToriPlatformX_LuaFree(lua);
     if( instance )

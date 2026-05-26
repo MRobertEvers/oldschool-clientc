@@ -169,6 +169,65 @@ LibToriPlatformSDL2_InitForSoft3D(
     return true;
 }
 
+bool
+LibToriPlatformSDL2_InitForOpenGL3(
+    struct LibToriPlatformSDL2* platform,
+    int screen_width,
+    int screen_height)
+{
+    if( !platform )
+        return false;
+    if( SDL_Init(SDL_INIT_VIDEO) < 0 )
+    {
+        printf("SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+#if defined(__APPLE__)
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+#else
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+#endif
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+
+    platform->window = SDL_CreateWindow(
+        "Game",
+        SDL_WINDOWPOS_UNDEFINED,
+        SDL_WINDOWPOS_UNDEFINED,
+        screen_width,
+        screen_height,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+    if( !platform->window )
+    {
+        printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
+        SDL_Quit();
+        return false;
+    }
+
+    platform->width = screen_width;
+    platform->height = screen_height;
+    platform->renderer = NULL;
+    platform->texture = NULL;
+    platform->pixel_buffer = NULL;
+
+    return true;
+}
+
+SDL_Window*
+LibToriPlatformSDL2_GetWindow(struct LibToriPlatformSDL2* platform)
+{
+    if( !platform )
+        return NULL;
+    return platform->window;
+}
+
 void
 LibToriPlatformSDL2_Render(
     struct LibToriPlatformSDL2* platform,
@@ -187,33 +246,31 @@ LibToriPlatformSDL2_Render(
     if( instance && instance->model_viewer )
         draw_context = instance->model_viewer->context;
 
+    const struct LibToriRS_RenderCommand_Begin3D* cur_3d = NULL;
+
     for( int i = 0; i < render_queue->count; i++ )
     {
         struct LibToriRS_RenderCommand* command = &render_queue->commands[i];
         switch( command->kind )
         {
-        case TORIRSRC_MODEL_LOAD:
-            printf("TORIRSRC_MODEL_LOAD\n");
-            break;
-        case TORIRSRC_MODEL_UNLOAD:
-            printf("TORIRSRC_MODEL_UNLOAD\n");
-            break;
-        case TORIRSRC_ANIM_LOAD:
-            printf("TORIRSRC_ANIM_LOAD\n");
-            break;
-        case TORIRSRC_ANIM_UNLOAD:
-            printf("TORIRSRC_ANIM_UNLOAD\n");
+        case TORIRSRC_BEGIN_3D:
+            cur_3d = &command->u.begin_3d;
             break;
         case TORIRSRC_MODEL:
-            if( !draw_context )
+            if( !draw_context || !cur_3d )
                 break;
-            toridraw_render_model(
-                command->u.model.model,
-                draw_context,
-                &command->u.model.position,
-                command->u.model.view_port_ref,
-                command->u.model.camera_ref,
-                platform->pixel_buffer);
+            {
+                struct ToriDraw_Position tmp_pos = cur_3d->camera_position;
+                struct ToriDraw_ViewPort tmp_vp = cur_3d->view_port;
+                struct ToriDraw_Camera tmp_cam = cur_3d->camera;
+                toridraw_render_model(
+                    command->u.model.model,
+                    draw_context,
+                    &tmp_pos,
+                    &tmp_vp,
+                    &tmp_cam,
+                    platform->pixel_buffer);
+            }
             break;
         default:
             break;
