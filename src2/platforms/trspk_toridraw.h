@@ -25,6 +25,14 @@ const struct ToriDraw_Model*
 trspk_toridraw_model_from_handle(const struct ToriDraw_ModelHandle* handle);
 
 void
+trspk_toridraw_fill_rgba128(
+    const struct ToriDraw_Texture* tex,
+    uint8_t* scratch_buffer,
+    uint32_t scratch_capacity,
+    const uint8_t** out_pixels,
+    uint32_t* out_size);
+
+void
 trspk_toridraw_batch_add_model32(
     struct TRSPK_Batch32* batch,
     const struct ToriDraw_Model* model,

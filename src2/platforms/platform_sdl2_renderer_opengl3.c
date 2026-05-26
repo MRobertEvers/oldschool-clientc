@@ -4,6 +4,7 @@
 #include "libtorirs.h"
 #include "libtorirs_internal.h"
 #include "platforms/ToriRSPlatformKit/include/ToriRSPlatformKit/trspk_math.h"
+#include "platforms/ToriRSPlatformKit/include/ToriRSPlatformKit/trspk_types.h"
 #include "platforms/ToriRSPlatformKit/src/backends/webgl1/webgl1_vertex.h"
 #include "platforms/ToriRSPlatformKit/src/tools/trspk_batch32.h"
 #include "platforms/ToriRSPlatformKit/src/tools/trspk_facebuffer.h"
@@ -52,6 +53,7 @@ typedef struct OGL3Uniforms
 #define OGL3_DYNAMIC_VBO_SIZE (2u * 1024u * 1024u)
 #define OGL3_DYNAMIC_EBO_SIZE (512u * 1024u)
 #define OGL3_MAX_PENDING_DRAWS 32u
+#define OGL3_TEXTURE_RGBA_SCRATCH_BYTES (128u * 128u * 4u)
 
 typedef struct OGL3_SortedDraw
 {
@@ -882,6 +884,54 @@ typedef struct OGL3_FrameState
     int pending_count;
 } OGL3_FrameState;
 
+static bool
+ogl3_sync_toridraw_textures(
+    struct LibToriPlatformSDL2_RendererGL3* r,
+    struct LibToriRS_Instance* instance)
+{
+    if( !r || !r->cache || !instance || !instance->model_viewer ||
+        !instance->model_viewer->context )
+        return false;
+
+    const struct ToriDraw_TextureMap* map = &instance->model_viewer->context->texture_map;
+    static uint8_t rgba_scratch[OGL3_TEXTURE_RGBA_SCRATCH_BYTES];
+    bool atlas_dirty = false;
+
+    for( int i = 0; i < map->count && i < 256; i++ )
+    {
+        struct ToriDraw_Texture* tex = map->textures[i];
+        if( !tex || !tex->texels )
+            continue;
+
+        const uint8_t* rgba = NULL;
+        uint32_t rgba_size = 0u;
+        trspk_toridraw_fill_rgba128(
+            tex, rgba_scratch, (uint32_t)sizeof(rgba_scratch), &rgba, &rgba_size);
+        if( !rgba )
+            continue;
+
+        float anim_u = 0.0f;
+        float anim_v = 0.0f;
+        const float scroll =
+            trspk_texture_animation_signed(tex->animation_direction, tex->animation_speed);
+        if( scroll >= 0.0f )
+            anim_u = scroll;
+        else
+            anim_v = -scroll;
+
+        if( trspk_resource_cache_load_texture_128(
+                r->cache,
+                (TRSPK_TextureId)i,
+                rgba,
+                anim_u,
+                anim_v,
+                tex->opaque) )
+            atlas_dirty = true;
+    }
+
+    return atlas_dirty;
+}
+
 static void
 ogl3_frame_state_compute_pass_matrices(
     struct LibToriPlatformSDL2_RendererGL3* r,
@@ -1009,6 +1059,8 @@ ogl3_handle_render_command(
         ogl3_ensure_world_gl(r, fs);
         fs->cur_3d = cmd->u.begin_3d;
         fs->has_3d = true;
+        if( ogl3_sync_toridraw_textures(r, instance) )
+            ogl3_refresh_atlas(r);
         ogl3_frame_state_compute_pass_matrices(r, fs);
         ogl3_refresh_active_dynamic_model(r, instance);
         break;
