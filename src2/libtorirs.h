@@ -11,7 +11,6 @@
 struct LibToriRS_ScriptQueue;
 struct LibToriRS_Instance;
 struct LibToriRS_CommandQueue;
-struct WorldScene;
 
 struct LibToriRS_Instance*
 LibToriRS_InstanceNew(void);
@@ -35,15 +34,6 @@ LibToriRS_GetIOQueue(struct LibToriRS_Instance* instance);
 
 struct LibToriRS_RenderQueue*
 LibToriRS_GetRenderQueue(struct LibToriRS_Instance* instance);
-
-struct WorldScene_EventQueue*
-LibToriRS_GetWorldSceneEventQueue(struct LibToriRS_Instance* instance);
-
-struct WorldScene*
-LibToriRS_GetWorldScene(struct LibToriRS_Instance* instance);
-
-void
-LibToriRS_WorldSceneDrainEvents(struct LibToriRS_Instance* instance);
 
 void
 LibToriRS_ProcessCommandQueue(

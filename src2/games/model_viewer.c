@@ -3,6 +3,7 @@
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_model.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -53,6 +54,15 @@ game_modelviewer_new(struct LibToriRS_ScriptQueue* script_queue)
         return NULL;
     }
 
+    game_model_viewer->world_scene = world_scene_new();
+    if( !game_model_viewer->world_scene )
+    {
+        game_modelviewer_free(game_model_viewer);
+        return NULL;
+    }
+
+    game_model_viewer->current_element_id = WORLD_SCENE_INVALID_ELEMENT_ID;
+
     return game_model_viewer;
 }
 
@@ -79,6 +89,8 @@ game_modelviewer_free(struct GameModelViewer* game_model_viewer)
     if( !game_model_viewer )
         return;
     game_modelviewer_free_textures(game_model_viewer);
+    if( game_model_viewer->world_scene )
+        world_scene_free(game_model_viewer->world_scene);
     if( game_model_viewer->context )
         toridraw_context_free(game_model_viewer->context);
     free(game_model_viewer->camera_position);
@@ -114,9 +126,24 @@ game_modelviewer_set_model(
     int model_id,
     struct ToriDraw_ModelHandle model)
 {
-    if( !game_model_viewer )
+    int element_id;
+
+    (void)model_id;
+
+    if( !game_model_viewer || !game_model_viewer->world_scene )
         return;
-    game_model_viewer->current_model_id = model_id;
+
+    if( game_model_viewer->current_element_id != WORLD_SCENE_INVALID_ELEMENT_ID )
+    {
+        world_scene_remove_element(
+            game_model_viewer->world_scene, game_model_viewer->current_element_id);
+    }
+
+    element_id = world_scene_add_element(game_model_viewer->world_scene);
+    assert(element_id != WORLD_SCENE_INVALID_ELEMENT_ID);
+
+    world_scene_element_set_model(game_model_viewer->world_scene, element_id, model);
+    game_model_viewer->current_element_id = element_id;
     game_model_viewer->model = model;
 }
 

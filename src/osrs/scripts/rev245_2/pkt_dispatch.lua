@@ -144,8 +144,8 @@ local function handle_rebuild_normal(item)
         end
     end
 
-    Game.BuildCacheDat.sequences_init_from_config_jagfile()
     _G.sequences_loaded_flag = true
+    Game.BuildCacheDat.sequences_init_from_config_jagfile()
     Game.BuildCacheDat.floortypes_init_from_config_jagfile()
     Game.BuildCacheDat.init_scenery_configs_from_config_jagfile()
 

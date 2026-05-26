@@ -192,6 +192,18 @@ LibToriPlatformSDL2_Render(
         struct LibToriRS_RenderCommand* command = &render_queue->commands[i];
         switch( command->kind )
         {
+        case TORIRSRC_MODEL_LOAD:
+            printf("TORIRSRC_MODEL_LOAD\n");
+            break;
+        case TORIRSRC_MODEL_UNLOAD:
+            printf("TORIRSRC_MODEL_UNLOAD\n");
+            break;
+        case TORIRSRC_ANIM_LOAD:
+            printf("TORIRSRC_ANIM_LOAD\n");
+            break;
+        case TORIRSRC_ANIM_UNLOAD:
+            printf("TORIRSRC_ANIM_UNLOAD\n");
+            break;
         case TORIRSRC_MODEL:
             if( !draw_context )
                 break;

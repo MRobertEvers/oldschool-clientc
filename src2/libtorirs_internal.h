@@ -26,9 +26,6 @@ struct LibToriRS_Instance
     struct GameCache* gamecache;
 
     struct GameModelViewer* model_viewer;
-
-    struct World* world;
-    struct WorldScene_EventQueue* world_scene_event_queue;
 };
 
 #endif

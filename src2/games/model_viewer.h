@@ -3,6 +3,7 @@
 
 #include "../input/libtorirs_input.h"
 #include "../scripting/libtorirs_scripting.h"
+#include "../world/world_scene.h"
 #include "toridraw/toridraw_types.h"
 
 struct ToriDraw_Context;
@@ -18,6 +19,9 @@ struct GameModelViewer
     struct ToriDraw_Position* camera_position;
     struct ToriDraw_Camera* camera;
     struct ToriDraw_ViewPort* view_port;
+
+    struct WorldScene* world_scene;
+    int current_element_id;
 };
 
 struct GameModelViewer*

@@ -47,7 +47,7 @@ worldscene_platform_process_events(struct WorldScene_EventQueue* queue)
             "WorldScene event: %s batch_id=%d asset_id=%d model_kind=%d animation=%p\n",
             worldscene_event_kind_name(ev->kind),
             ev->batch_id,
-            ev->asset_id,
+            ev->element_id,
             (int)ev->model.kind,
             (void*)ev->animation);
     }

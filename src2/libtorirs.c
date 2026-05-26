@@ -79,48 +79,6 @@ LibToriRS_InstanceNew(void)
         return NULL;
     }
 
-    instance->world_scene_event_queue = worldscene_eventqueue_new();
-    if( !instance->world_scene_event_queue )
-    {
-        LibToriRS_RenderQueue_Free(instance->render_queue);
-        gamecache_free(instance->gamecache);
-        dat1_buildcache_free(instance->dat1_buildcache);
-        LibToriRS_IOQueueFree(instance->io_queue);
-        LibToriRS_Input_Free(instance->input);
-        LibToriRS_ScriptQueueFree(instance->script_queue);
-        free(instance);
-        return NULL;
-    }
-
-    instance->world = malloc(sizeof(struct World));
-    if( !instance->world )
-    {
-        worldscene_eventqueue_free(instance->world_scene_event_queue);
-        LibToriRS_RenderQueue_Free(instance->render_queue);
-        gamecache_free(instance->gamecache);
-        dat1_buildcache_free(instance->dat1_buildcache);
-        LibToriRS_IOQueueFree(instance->io_queue);
-        LibToriRS_Input_Free(instance->input);
-        LibToriRS_ScriptQueueFree(instance->script_queue);
-        free(instance);
-        return NULL;
-    }
-
-    instance->world->scene = world_scene_new(instance->world_scene_event_queue);
-    if( !instance->world->scene )
-    {
-        free(instance->world);
-        worldscene_eventqueue_free(instance->world_scene_event_queue);
-        LibToriRS_RenderQueue_Free(instance->render_queue);
-        gamecache_free(instance->gamecache);
-        dat1_buildcache_free(instance->dat1_buildcache);
-        LibToriRS_IOQueueFree(instance->io_queue);
-        LibToriRS_Input_Free(instance->input);
-        LibToriRS_ScriptQueueFree(instance->script_queue);
-        free(instance);
-        return NULL;
-    }
-
     instance->running = true;
 
     return instance;
@@ -131,12 +89,6 @@ LibToriRS_InstanceFree(struct LibToriRS_Instance* instance)
 {
     if( !instance )
         return;
-    if( instance->world && instance->world->scene )
-        world_scene_free(instance->world->scene);
-    if( instance->world )
-        free(instance->world);
-    if( instance->world_scene_event_queue )
-        worldscene_eventqueue_free(instance->world_scene_event_queue);
     if( instance->render_queue )
         LibToriRS_RenderQueue_Free(instance->render_queue);
     if( instance->io_queue )
@@ -188,30 +140,6 @@ LibToriRS_GetRenderQueue(struct LibToriRS_Instance* instance)
     if( !instance )
         return NULL;
     return instance->render_queue;
-}
-
-struct WorldScene_EventQueue*
-LibToriRS_GetWorldSceneEventQueue(struct LibToriRS_Instance* instance)
-{
-    if( !instance )
-        return NULL;
-    return instance->world_scene_event_queue;
-}
-
-struct WorldScene*
-LibToriRS_GetWorldScene(struct LibToriRS_Instance* instance)
-{
-    if( !instance || !instance->world )
-        return NULL;
-    return instance->world->scene;
-}
-
-void
-LibToriRS_WorldSceneDrainEvents(struct LibToriRS_Instance* instance)
-{
-    if( !instance )
-        return;
-    worldscene_platform_process_events(instance->world_scene_event_queue);
 }
 
 void
@@ -406,6 +334,10 @@ LibToriRS_GameStep(struct LibToriRS_Instance* instance)
     if( instance->model_viewer )
     {
         struct ToriDraw_Position position = { 0 };
+
+        worldscene_platform_process_events(
+            world_scene_get_event_queue(instance->model_viewer->world_scene));
+
         position.x = -instance->model_viewer->camera_position->x;
         position.y = -instance->model_viewer->camera_position->y;
         position.z = -instance->model_viewer->camera_position->z;
