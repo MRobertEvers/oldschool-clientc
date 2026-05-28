@@ -2,7 +2,7 @@
 #include "../../ioqueue/libtorirs_ioqueue.h"
 #include "../../libtorirs.h"
 #include "../../platforms/platform_js_capi.h"
-#include "../../platforms/platform_sdl2.h"
+#include "../../platforms/platform_sdl2/platform_sdl2.h"
 #include "../../scripting/libtorirs_scripting.h"
 
 #include <SDL.h>
@@ -89,7 +89,12 @@ main(
 
     const int screen_w = 800;
     const int screen_h = 600;
-    if( !LibToriPlatformSDL2_InitForSoft3D(platform, screen_w, screen_h) )
+    // if( !LibToriPlatformSDL2_InitForSoft3D(platform, screen_w, screen_h) )
+    // {
+    //     printf("Failed to init SDL2 window\n");
+    //     return 1;
+    // }
+    if( !LibToriPlatformSDL2_InitForWebGL1(platform, screen_w, screen_h) )
     {
         printf("Failed to init SDL2 window\n");
         return 1;

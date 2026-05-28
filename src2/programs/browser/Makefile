@@ -52,7 +52,7 @@ SRC   := browser.c \
 	$(SRC_DIR)/osrs/texture.c \
 	$(PLAT_DIR)/platform_emscripten_jshost.c \
 	$(PLAT_DIR)/platform_js_capi.c \
-	$(PLAT_DIR)/platform_sdl2.c \
+	$(PLAT_DIR)/platform_sdl2/platform_sdl2.c \
 	$(PLAT_DIR)/platform_x/cachelib.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \
 	$(PLAT_DIR)/platform_x/cachelib_serialized.c \

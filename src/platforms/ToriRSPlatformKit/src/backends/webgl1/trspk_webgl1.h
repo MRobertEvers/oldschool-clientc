@@ -1,11 +1,11 @@
 #ifndef TORIRS_PLATFORM_KIT_TRSPK_WEBGL1_H
 #define TORIRS_PLATFORM_KIT_TRSPK_WEBGL1_H
 
-#include "../../tools/trspk_dynamic_slotmap16.h"
 #include "../../tools/trspk_batch16.h"
-#include "../../tools/trspk_dynamic_pass.h"
-#include "../../tools/trspk_resource_cache.h"
 #include "../../tools/trspk_dynamic_batch_upload.h"
+#include "../../tools/trspk_dynamic_pass.h"
+#include "../../tools/trspk_dynamic_slotmap16.h"
+#include "../../tools/trspk_resource_cache.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -50,7 +50,8 @@ typedef struct TRSPK_WebGL1SubDraw
     uint32_t index_count;
 } TRSPK_WebGL1SubDraw;
 
-/** Staged dynamic draw mesh bakes; GPU upload in trspk_webgl1_pass_flush_pending_dynamic_gpu_uploads. */
+/** Staged dynamic draw mesh bakes; GPU upload in
+ * trspk_webgl1_pass_flush_pending_dynamic_gpu_uploads. */
 typedef struct TRSPK_WebGL1DeferredDynamicBake
 {
     TRSPK_UsageClass usage;

@@ -61,4 +61,7 @@ LibToriRS_FrameEnd(struct LibToriRS_Instance* instance);
 bool
 LibToriRS_IsRunning(struct LibToriRS_Instance* instance);
 
+struct ToriDraw_Context*
+LibToriRS_GetCurrentToriDrawContext(struct LibToriRS_Instance* instance);
+
 #endif

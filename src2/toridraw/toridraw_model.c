@@ -131,8 +131,7 @@ toridraw_context_set_texture(
 
     if( old )
     {
-        toridraw_texture_eventqueue_push(
-            &ctx->texture_events, TORIDRAW_TEX_EVENT_UNLOAD, id, NULL);
+        toridraw_eventqueue_push(&ctx->events, TORIDRAW_EVENT_TEX_UNLOAD, id, NULL);
         toridraw_texture_free(old);
         map->textures[id] = NULL;
     }
@@ -140,8 +139,7 @@ toridraw_context_set_texture(
     if( texture )
     {
         map->textures[id] = texture;
-        toridraw_texture_eventqueue_push(
-            &ctx->texture_events, TORIDRAW_TEX_EVENT_LOAD, id, texture);
+        toridraw_eventqueue_push(&ctx->events, TORIDRAW_EVENT_TEX_LOAD, id, texture);
         if( id >= map->count )
             map->count = id + 1;
     }

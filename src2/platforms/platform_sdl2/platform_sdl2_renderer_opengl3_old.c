@@ -1,5 +1,6 @@
 #include "platform_sdl2_renderer_opengl3.h"
 
+#include "../trspk_toridraw.h"
 #include "games/model_viewer.h"
 #include "libtorirs.h"
 #include "libtorirs_internal.h"
@@ -12,7 +13,6 @@
 #include "render/libtorirs_render.h"
 #include "toridraw/toridraw.h"
 #include "toridraw/toridraw_types.h"
-#include "trspk_toridraw.h"
 #include "world/world_scene.h"
 #include "world/world_scene_events.h"
 #include <SDL_opengl.h>
@@ -262,17 +262,19 @@ static PFNGLGETUNIFORMBLOCKINDEXPROC ogl3_glGetUniformBlockIndex;
 static PFNGLUNIFORMBLOCKBINDINGPROC ogl3_glUniformBlockBinding;
 static PFNGLBINDBUFFERRANGEPROC ogl3_glBindBufferRange;
 
-#define O3L(name, Type, field)                                                                     \
-    do                                                                                             \
-    {                                                                                              \
-        void* p = SDL_GL_GetProcAddress(#name);                                                    \
-        if( !p )                                                                                   \
-        {                                                                                          \
-            fprintf(stderr, "OpenGL3: missing proc %s\n", #name);                                  \
-            return false;                                                                          \
-        }                                                                                          \
-        field = (Type)p;                                                                           \
+// clang-format off
+#define O3L(name, Type, field)                                           \
+    do                                                                   \
+    {                                                                    \
+        void* p = SDL_GL_GetProcAddress(#name);                          \
+        if( !p )                                                         \
+        {                                                                \
+            fprintf(stderr, "OpenGL3: missing proc %s\n", #name);        \
+            return false;                                                \
+        }                                                                \
+        field = (Type)p;                                                 \
     } while( 0 )
+// clang-format on
 
 static bool
 ogl3_load_gl_procs(void)
@@ -545,8 +547,7 @@ ogl3_ensure_atlas_initialized(struct LibToriPlatformSDL2_RendererGL3* r)
         return false;
     if( trspk_resource_cache_get_atlas_pixels(r->cache) )
         return true;
-    return trspk_resource_cache_init_atlas(
-        r->cache, TRSPK_ATLAS_DIMENSION, TRSPK_ATLAS_DIMENSION);
+    return trspk_resource_cache_init_atlas(r->cache, TRSPK_ATLAS_DIMENSION, TRSPK_ATLAS_DIMENSION);
 }
 
 static bool
@@ -579,12 +580,7 @@ ogl3_load_texture(
         anim_v = -scroll;
 
     return trspk_resource_cache_load_texture_128(
-        r->cache,
-        (TRSPK_TextureId)texture_id,
-        rgba,
-        anim_u,
-        anim_v,
-        tex->opaque);
+        r->cache, (TRSPK_TextureId)texture_id, rgba, anim_u, anim_v, tex->opaque);
 }
 
 static bool
@@ -795,28 +791,6 @@ ogl3_ring_upload_model(
     pose.dynamic = true;
     pose.valid = true;
     trspk_resource_cache_set_model_pose(r->cache, model_id, pose_idx, &pose);
-}
-
-static void
-ogl3_refresh_active_dynamic_model(
-    struct LibToriPlatformSDL2_RendererGL3* r,
-    struct LibToriRS_Instance* instance)
-{
-    if( !r || !instance || !instance->model_viewer )
-        return;
-
-    struct GameModelViewer* mv = instance->model_viewer;
-    if( mv->current_element_id == WORLD_SCENE_INVALID_ELEMENT_ID )
-        return;
-    if( mv->model.kind != TORIDRAWMK_MODEL )
-        return;
-
-    const struct ToriDraw_Model* model = trspk_toridraw_model_from_handle(&mv->model);
-    if( !model )
-        return;
-
-    TRSPK_BakeTransform bake = trspk_bake_transform_identity();
-    ogl3_ring_upload_model(r, model, (TRSPK_ModelId)mv->current_element_id, &bake);
 }
 
 static float
@@ -1032,11 +1006,8 @@ ogl3_handle_render_command(
             trspk_toridraw_model_from_handle(&cmd->u.model_load.model);
         if( model && cmd->u.model_load.element_id >= 0 )
         {
-            trspk_resource_cache_allocate_pose_slot(
-                r->cache,
-                (TRSPK_ModelId)cmd->u.model_load.element_id,
-                (int)TRSPK_GPU_ANIM_NONE_IDX,
-                0);
+            TRSPK_BakeTransform bake = trspk_bake_transform_identity();
+            ogl3_ring_upload_model(r, model, (TRSPK_ModelId)cmd->u.model_load.element_id, &bake);
         }
         break;
     }
@@ -1097,14 +1068,13 @@ ogl3_handle_render_command(
             r->atlas_dirty = false;
         }
         ogl3_frame_state_compute_pass_matrices(r, fs);
-        ogl3_refresh_active_dynamic_model(r, instance);
         break;
     case TORIRSRC_END_3D:
         ogl3_flush_pending_draws(r, fs);
         fs->pending_count = 0;
         fs->has_3d = false;
         break;
-    case TORIRSRC_MODEL:
+    case TORIRSRC_DRAW_MODEL:
     {
         if( !fs->has_3d )
             break;

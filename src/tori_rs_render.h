@@ -110,7 +110,8 @@ struct ToriRSRenderCommand
         struct
         {
             struct DashModel* model;
-            /** Packed: visual_id<<24 | anim_id<<8 | frame_index (see torirs_model_cache_key_decode).
+            /** Packed: visual_id<<24 | anim_id<<8 | frame_index (see
+             * torirs_model_cache_key_decode).
              */
             uint64_t model_key;
             /** Scene2 stable slot from acquire (`scene2_element_visual_id`); TRSPK cache key. */
@@ -159,8 +160,9 @@ struct ToriRSRenderCommand
             uint64_t model_key;
             /** Same Scene2 `visual_id` as RES_MODEL_LOAD for this element's current model. */
             int visual_id;
-            /** Scene2 element index for this draw instance; used for dynamic GPU pose storage (NPC /
-             * player / projectile). Must match `scene2_element_id` when `usage_hint` is not scenery.
+            /** Scene2 element index for this draw instance; used for dynamic GPU pose storage (NPC
+             * / player / projectile). Must match `scene2_element_id` when `usage_hint` is not
+             * scenery.
              */
             int element_id;
             /** If false, draw bind pose `poses[0]`; if true, use `animation_index` + `frame_index`.

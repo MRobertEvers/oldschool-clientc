@@ -53,8 +53,8 @@ game_modelviewer_translate_scene_event(
 }
 
 static bool
-game_modelviewer_translate_texture_event(
-    const struct ToriDraw_TextureEvent* ev,
+game_modelviewer_translate_toridraw_event(
+    const struct ToriDraw_Event* ev,
     struct LibToriRS_RenderCommand* command)
 {
     if( !ev || !command )
@@ -65,11 +65,11 @@ game_modelviewer_translate_texture_event(
 
     switch( ev->kind )
     {
-    case TORIDRAW_TEX_EVENT_LOAD:
+    case TORIDRAW_EVENT_TEX_LOAD:
         command->kind = TORIRSRC_TEX_LOAD;
         command->u.tex_load.texture = ev->texture;
         return true;
-    case TORIDRAW_TEX_EVENT_UNLOAD:
+    case TORIDRAW_EVENT_TEX_UNLOAD:
         command->kind = TORIRSRC_TEX_UNLOAD;
         command->u.tex_load.texture = NULL;
         return true;
@@ -368,16 +368,15 @@ game_modelviewer_frame_next_command(
         {
             if( game_model_viewer->context )
             {
-                struct ToriDraw_TextureEventQueue* teq =
-                    &game_model_viewer->context->texture_events;
-                while( game_model_viewer->frame.event_index < teq->count )
+                struct ToriDraw_EventQueue* eq = &game_model_viewer->context->events;
+                while( game_model_viewer->frame.event_index < eq->count )
                 {
-                    const struct ToriDraw_TextureEvent* ev =
-                        &teq->events[game_model_viewer->frame.event_index++];
-                    if( game_modelviewer_translate_texture_event(ev, command) )
+                    const struct ToriDraw_Event* ev =
+                        &eq->events[game_model_viewer->frame.event_index++];
+                    if( game_modelviewer_translate_toridraw_event(ev, command) )
                         return true;
                 }
-                toridraw_texture_eventqueue_clear(teq);
+                toridraw_eventqueue_clear(eq);
             }
 
             game_model_viewer->frame.phase = MV_FRAME_PHASE_BEGIN_3D;
@@ -443,7 +442,7 @@ game_modelviewer_frame_next_command(
                 }
             }
 
-            command->kind = TORIRSRC_MODEL;
+            command->kind = TORIRSRC_DRAW_MODEL;
             command->u.model.model = game_model_viewer->model;
             command->u.model.element_id = game_model_viewer->current_element_id;
             memset(&command->u.model.position, 0, sizeof(command->u.model.position));
@@ -476,7 +475,7 @@ game_modelviewer_frame_end(struct GameModelViewer* game_model_viewer)
     }
 
     if( game_model_viewer->context )
-        toridraw_texture_eventqueue_clear(&game_model_viewer->context->texture_events);
+        toridraw_eventqueue_clear(&game_model_viewer->context->events);
 
     game_model_viewer->frame.phase = MV_FRAME_PHASE_DONE;
 }

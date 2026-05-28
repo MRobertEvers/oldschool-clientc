@@ -336,3 +336,13 @@ LibToriRS_IsRunning(struct LibToriRS_Instance* instance)
         return false;
     return instance->running;
 }
+
+struct ToriDraw_Context*
+LibToriRS_GetCurrentToriDrawContext(struct LibToriRS_Instance* instance)
+{
+    if( !instance )
+        return NULL;
+    if( instance->model_viewer )
+        return instance->model_viewer->context;
+    return NULL;
+}

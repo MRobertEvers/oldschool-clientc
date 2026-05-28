@@ -30,7 +30,8 @@ typedef struct TRSPK_Batch16
     uint32_t entry_count;
     uint32_t entry_capacity;
     bool building;
-    /** Baked into D3D8 FVF atlas UVs when writing D3D8/D3D8_SOAOS vertices (see trspk_vertex_buffer_write). */
+    /** Baked into D3D8 FVF atlas UVs when writing D3D8/D3D8_SOAOS vertices (see
+     * trspk_vertex_buffer_write). */
     double d3d8_vertex_frame_clock;
     /** V-axis tiling multiplier for D3D8 atlas UV bake. 1.0 = no tiling. d3d8_fixed sets 2.0. */
     float d3d8_v_repeat;
@@ -41,6 +42,7 @@ trspk_batch16_create(
     uint32_t max_vertices,
     uint32_t max_indices,
     TRSPK_VertexFormat vertex_format);
+
 void
 trspk_batch16_destroy(TRSPK_Batch16* batch);
 void

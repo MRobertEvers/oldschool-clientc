@@ -220,6 +220,40 @@ LibToriPlatformSDL2_InitForOpenGL3(
     return true;
 }
 
+bool
+LibToriPlatformSDL2_InitForWebGL1(
+    struct LibToriPlatformSDL2* platform,
+    int screen_width,
+    int screen_height)
+{
+    if( SDL_Init(SDL_INIT_VIDEO) < 0 )
+    {
+        printf("SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+
+    platform->window = SDL_CreateWindow(
+        "Game",
+        SDL_WINDOWPOS_UNDEFINED,
+        SDL_WINDOWPOS_UNDEFINED,
+        screen_width,
+        screen_height,
+        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+    if( !platform->window )
+    {
+        printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
+        SDL_Quit();
+        return false;
+    }
+
+    return true;
+}
+
 SDL_Window*
 LibToriPlatformSDL2_GetWindow(struct LibToriPlatformSDL2* platform)
 {
@@ -261,7 +295,7 @@ LibToriPlatformSDL2_Render(
         case TORIRSRC_END_3D:
             has_3d = false;
             break;
-        case TORIRSRC_MODEL:
+        case TORIRSRC_DRAW_MODEL:
             if( !draw_context || !has_3d )
                 break;
             {

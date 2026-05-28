@@ -26,8 +26,10 @@ SRCS := sdl2.c \
 	$(PLAT_DIR)/platform_x/cachelib.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \
 	$(PLAT_DIR)/platform_x/cachelib_serialized.c \
-	$(PLAT_DIR)/platform_sdl2.c \
-	$(PLAT_DIR)/platform_sdl2_renderer_opengl3.c \
+	$(PLAT_DIR)/platform_sdl2/platform_sdl2.c \
+	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_opengl3.c \
+	$(SRC2)/platformkit/opengl3/opengl3_sdlgl.c \
+	$(SRC2)/platformkit/core/trspk_vbo.c \
 	$(PLAT_DIR)/trspk_toridraw.c \
 	$(TRSPK_DIR)/src/tools/trspk_batch32.c \
 	$(TRSPK_DIR)/src/tools/trspk_resource_cache.c \

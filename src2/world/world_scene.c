@@ -277,7 +277,6 @@ world_scene_add_element(struct WorldScene* scene)
     if( element_id < 0 )
         return -1;
 
-    world_scene_emit(scene, WSE_MODEL_LOAD, 0, element_id, NULL, NULL);
     return element_id;
 }
 

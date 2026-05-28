@@ -1,7 +1,7 @@
 #ifndef PLATFORM_SDL2_H
 #define PLATFORM_SDL2_H
 
-#include "../commands/libtorirs_command_queue.h"
+#include "../../commands/libtorirs_command_queue.h"
 
 #include <SDL.h>
 #include <stdbool.h>
@@ -23,6 +23,12 @@ LibToriPlatformSDL2_InitForSoft3D(
 
 bool
 LibToriPlatformSDL2_InitForOpenGL3(
+    struct LibToriPlatformSDL2* platform,
+    int screen_width,
+    int screen_height);
+
+bool
+LibToriPlatformSDL2_InitForWebGL1(
     struct LibToriPlatformSDL2* platform,
     int screen_width,
     int screen_height);

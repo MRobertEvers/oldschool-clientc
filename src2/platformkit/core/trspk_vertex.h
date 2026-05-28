@@ -1,0 +1,13 @@
+#ifndef TRSPK_VERTEX_H
+#define TRSPK_VERTEX_H
+
+enum TRSPK_VertexFormat
+{
+    TRSPK_VERTEX_FORMAT_TRSPK,
+    TRSPK_VERTEX_FORMAT_WEBGL1,
+    TRSPK_VERTEX_FORMAT_OPENGL3,
+};
+
+
+
+#endif

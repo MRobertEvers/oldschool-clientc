@@ -3,6 +3,7 @@
 #include "trspk_vertex_buffer.h"
 #include "trspk_vertex_format.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -260,12 +261,9 @@ trspk_batch16_prepare_vertex_buffer(
     uint32_t index_count,
     TRSPK_VertexFormat vertex_format)
 {
-    if( !batch || !vb || !batch->building || vertex_count == 0u || index_count == 0u )
-        return false;
-    if( vertex_count > 65535u )
-        return false;
-    if( vertex_format != batch->vertex_format )
-        return false;
+    assert(vertex_count < 65535u);
+    assert(vertex_format == batch->vertex_format);
+
     switch( vertex_format )
     {
     case TRSPK_VERTEX_FORMAT_TRSPK:

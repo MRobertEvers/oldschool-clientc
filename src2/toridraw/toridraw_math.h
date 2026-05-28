@@ -4,6 +4,8 @@
 #include "graphics/shared_tables.h"
 #include "toridraw_types.h"
 
+#define TORIDRAW_PI 3.14159265358979323846f
+
 #include <assert.h>
 
 void
@@ -43,6 +45,12 @@ toridraw_add_angle(
     int angle2)
 {
     return (angle1 + angle2 + 2048) % 2048;
+}
+
+static inline float
+toridraw_angle_to_radians(int angle_r2pi2048)
+{
+    return ((float)angle_r2pi2048 * 2.0f * TORIDRAW_PI) / 2048.0f;
 }
 
 #endif

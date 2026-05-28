@@ -65,14 +65,18 @@ trspk_vertex_buffer_has_vertex_payload(const TRSPK_VertexBuffer* vb);
  * On failure, *out is cleared.
  */
 bool
-trspk_vertex_buffer_duplicate(const TRSPK_VertexBuffer* src, TRSPK_VertexBuffer* out);
+trspk_vertex_buffer_duplicate(
+    const TRSPK_VertexBuffer* src,
+    TRSPK_VertexBuffer* out);
 
 /**
  * Apply position+yaw bake to interleaved vertex positions in place (TRSPK / WEBGL1 / METAL only).
  * SoA meshes: use trspk_vertex_buffer_bake_array_to_interleaved instead.
  */
 void
-trspk_vertex_buffer_apply_bake(TRSPK_VertexBuffer* vb, const TRSPK_BakeTransform* bake);
+trspk_vertex_buffer_apply_bake(
+    TRSPK_VertexBuffer* vb,
+    const TRSPK_BakeTransform* bake);
 
 /**
  * CPU LRU stores AoSoA (METAL_SOAOS / WEBGL1_SOAOS). This applies world bake and writes
@@ -91,7 +95,8 @@ trspk_vertex_buffer_bake_array_to_interleaved(
  */
 bool
 trspk_vertex_buffer_convert_from_trspk(
-    TRSPK_VertexBuffer* vb, TRSPK_VertexFormat dst_format);
+    TRSPK_VertexBuffer* vb,
+    TRSPK_VertexFormat dst_format);
 
 /**
  * `uv_calc_mode` selects PNM→UV inputs only. `atlas_tile_meta` may be NULL (defaults: opaque,

@@ -30,7 +30,7 @@ enum LibToriRS_RenderCommandKind
     TORIRSRC_FONT_UNLOAD,
 
     // --- DRAWING ---
-    TORIRSRC_MODEL,
+    TORIRSRC_DRAW_MODEL,
     TORIRSRC_SPRITE,
     TORIRSRC_FONT,
 

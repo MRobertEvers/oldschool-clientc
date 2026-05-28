@@ -104,6 +104,17 @@
     "toridraw_light_model.h": "c",
     "config_textures.h": "c",
     "maps.h": "c",
-    "world_scene_events.h": "c"
+    "world_scene_events.h": "c",
+    "libtorirs_render.h": "c",
+    "toridraw.h": "c",
+    "webgl1_vertex.h": "c",
+    "trspk_batch16.h": "c",
+    "opengl3_sdlgl.h": "c",
+    "sdl_opengl.h": "c",
+    "opengl3_internal.h": "c",
+    "stdio.h": "c",
+    "trspk_opengl3.h": "c",
+    "uv_pnm.h": "c",
+    "toridraw_math.h": "c"
   }
 }
