@@ -54,14 +54,14 @@ The `start.sh` script provides sensible defaults and validates the cache directo
 
 ### Configuration Options
 
-| Option               | CLI Argument          | Environment Variable | Default                  | Description                  |
-| -------------------- | --------------------- | -------------------- | ------------------------ | ---------------------------- |
-| Cache Directory      | `--cache=<path>`      | `CACHE_DIR`          | (required)               | Path to cache directory      |
-| Cache Mode           | `--mode=<dat1\|dat2>` | `CACHE_MODE`         | `dat2`                   | Cache format version         |
-| Port                 | `--port=<number>`     | `PORT`               | `8080`                   | Server port                  |
-| Host                 | `--host=<address>`    | `HOST`               | `0.0.0.0`                | Bind address                 |
-| Lua Scripts Dir      | `--lua=<path>`        | `LUA_DIR`            | `../../revs/scripts`     | Directory for Lua scripts    |
-| Static Files Dir     | `--static=<path>`     | `STATIC_DIR`         | `../browser/dist`        | Directory for static files   |
+| Option           | CLI Argument          | Environment Variable | Default              | Description                |
+| ---------------- | --------------------- | -------------------- | -------------------- | -------------------------- |
+| Cache Directory  | `--cache=<path>`      | `CACHE_DIR`          | (required)           | Path to cache directory    |
+| Cache Mode       | `--mode=<dat1\|dat2>` | `CACHE_MODE`         | `dat2`               | Cache format version       |
+| Port             | `--port=<number>`     | `PORT`               | `8080`               | Server port                |
+| Host             | `--host=<address>`    | `HOST`               | `0.0.0.0`            | Bind address               |
+| Lua Scripts Dir  | `--lua=<path>`        | `LUA_DIR`            | `../../revs/scripts` | Directory for Lua scripts  |
+| Static Files Dir | `--static=<path>`     | `STATIC_DIR`         | `../browser/dist`    | Directory for static files |
 
 ## API Endpoints
 
@@ -302,13 +302,12 @@ fetch("http://localhost:8080/archives", {
       { table: 2, archive: 1 },
     ],
   }),
-})
-  .then(async (res) => {
-    const contentType = res.headers.get("Content-Type") || "";
-    const raw = new Uint8Array(await res.arrayBuffer());
-    // Use parseMultipartPartsWithHeaders from luajs_sidecar.js, or the Node parser above
-    console.log(`Content-Type: ${contentType}, ${raw.byteLength} bytes`);
-  });
+}).then(async (res) => {
+  const contentType = res.headers.get("Content-Type") || "";
+  const raw = new Uint8Array(await res.arrayBuffer());
+  // Use parseMultipartPartsWithHeaders from luajs_sidecar.js, or the Node parser above
+  console.log(`Content-Type: ${contentType}, ${raw.byteLength} bytes`);
+});
 ```
 
 ## Performance Considerations
@@ -406,6 +405,7 @@ The server will:
 ```bash
 # With example cache
 node server.js --cache=./cache_test --mode=dat2 --port=3000
+node server.js --cache=./../../../cache254 --mode=dat1 --port=8080
 ```
 
 ### Testing

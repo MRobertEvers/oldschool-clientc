@@ -24,7 +24,7 @@ var ENVIRONMENT_IS_SHELL = false;
 
 // --pre-jses are emitted after the Module integration code, so that they can
 // refer to Module (if they choose; they can also define Module)
-// include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmp5i5cm0nl.js
+// include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmpnxj9ffws.js
 
   Module['expectedDataFileDownloads'] ??= 0;
   Module['expectedDataFileDownloads']++;
@@ -197,21 +197,21 @@ Module['FS_createPath']("/revs/scripts", "model_viewer", true, true);
 
   })();
 
-// end include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmp5i5cm0nl.js
-// include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmpvx7q29xm.js
+// end include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmpnxj9ffws.js
+// include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmp1b8nwj45.js
 
     // All the pre-js content up to here must remain later on, we need to run
     // it.
     if ((typeof ENVIRONMENT_IS_WASM_WORKER != 'undefined' && ENVIRONMENT_IS_WASM_WORKER) || (typeof ENVIRONMENT_IS_PTHREAD != 'undefined' && ENVIRONMENT_IS_PTHREAD) || (typeof ENVIRONMENT_IS_AUDIO_WORKLET != 'undefined' && ENVIRONMENT_IS_AUDIO_WORKLET)) Module['preRun'] = [];
     var necessaryPreJSTasks = Module['preRun'].slice();
-  // end include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmpvx7q29xm.js
-// include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmp1zhiogl_.js
+  // end include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmp1b8nwj45.js
+// include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmpedoevsnr.js
 
     if (!Module['preRun']) throw 'Module.preRun should exist because file support used it; did a pre-js delete it?';
     necessaryPreJSTasks.forEach((task) => {
       if (Module['preRun'].indexOf(task) < 0) throw 'All preRun tasks that exist before user pre-js code should remain after; did you replace Module or modify Module.preRun?';
     });
-  // end include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmp1zhiogl_.js
+  // end include: /var/folders/cn/sks77t151dz59rm1q74lwjsr0000gn/T/tmpedoevsnr.js
 
 
 var arguments_ = [];
@@ -4696,6 +4696,11 @@ async function createWasm() {
       return (ctx.getSupportedExtensions() || []).filter(ext => supportedExtensions.includes(ext));
     };
   
+  var registerPreMainLoop = (f) => {
+      // Does nothing unless $MainLoop is included/used.
+      typeof MainLoop != 'undefined' && MainLoop.preMainLoop.push(f);
+    };
+  
   
   var GL = {
   counter:1,
@@ -4710,6 +4715,8 @@ async function createWasm() {
   offscreenCanvases:{
   },
   queries:[],
+  byteSizeByTypeRoot:5120,
+  byteSizeByType:[1,1,2,2,4,4,4,2,3,4,8],
   stringCache:{
   },
   unpackAlignment:4,
@@ -4723,6 +4730,11 @@ async function createWasm() {
         var ret = GL.counter++;
         for (var i = table.length; i < ret; i++) {
           table[i] = null;
+        }
+        // Skip over any non-null elements that might have been created by
+        // glBindBuffer.
+        while (table[ret]) {
+          ret = GL.counter++;
         }
         return ret;
       },
@@ -4740,6 +4752,103 @@ async function createWasm() {
           HEAP32[(((buffers)+(i*4))>>2)] = id;
         }
       },
+  MAX_TEMP_BUFFER_SIZE:2097152,
+  numTempVertexBuffersPerSize:64,
+  log2ceilLookup:(i) => 32 - Math.clz32(i === 0 ? 0 : i - 1),
+  generateTempBuffers:(quads, context) => {
+        var largestIndex = GL.log2ceilLookup(GL.MAX_TEMP_BUFFER_SIZE);
+        context.tempVertexBufferCounters1 = [];
+        context.tempVertexBufferCounters2 = [];
+        context.tempVertexBufferCounters1.length = context.tempVertexBufferCounters2.length = largestIndex+1;
+        context.tempVertexBuffers1 = [];
+        context.tempVertexBuffers2 = [];
+        context.tempVertexBuffers1.length = context.tempVertexBuffers2.length = largestIndex+1;
+        context.tempIndexBuffers = [];
+        context.tempIndexBuffers.length = largestIndex+1;
+        for (var i = 0; i <= largestIndex; ++i) {
+          context.tempIndexBuffers[i] = null; // Created on-demand
+          context.tempVertexBufferCounters1[i] = context.tempVertexBufferCounters2[i] = 0;
+          var ringbufferLength = GL.numTempVertexBuffersPerSize;
+          context.tempVertexBuffers1[i] = [];
+          context.tempVertexBuffers2[i] = [];
+          var ringbuffer1 = context.tempVertexBuffers1[i];
+          var ringbuffer2 = context.tempVertexBuffers2[i];
+          ringbuffer1.length = ringbuffer2.length = ringbufferLength;
+          for (var j = 0; j < ringbufferLength; ++j) {
+            ringbuffer1[j] = ringbuffer2[j] = null; // Created on-demand
+          }
+        }
+  
+        if (quads) {
+          // GL_QUAD indexes can be precalculated
+          context.tempQuadIndexBuffer = GLctx.createBuffer();
+          context.GLctx.bindBuffer(0x8893 /*GL_ELEMENT_ARRAY_BUFFER*/, context.tempQuadIndexBuffer);
+          var numIndexes = GL.MAX_TEMP_BUFFER_SIZE >> 1;
+          var quadIndexes = new Uint16Array(numIndexes);
+          var i = 0, v = 0;
+          while (1) {
+            quadIndexes[i++] = v;
+            if (i >= numIndexes) break;
+            quadIndexes[i++] = v+1;
+            if (i >= numIndexes) break;
+            quadIndexes[i++] = v+2;
+            if (i >= numIndexes) break;
+            quadIndexes[i++] = v;
+            if (i >= numIndexes) break;
+            quadIndexes[i++] = v+2;
+            if (i >= numIndexes) break;
+            quadIndexes[i++] = v+3;
+            if (i >= numIndexes) break;
+            v += 4;
+          }
+          context.GLctx.bufferData(0x8893 /*GL_ELEMENT_ARRAY_BUFFER*/, quadIndexes, 0x88E4 /*GL_STATIC_DRAW*/);
+          context.GLctx.bindBuffer(0x8893 /*GL_ELEMENT_ARRAY_BUFFER*/, null);
+        }
+      },
+  getTempVertexBuffer:(sizeBytes) => {
+        var idx = GL.log2ceilLookup(sizeBytes);
+        var ringbuffer = GL.currentContext.tempVertexBuffers1[idx];
+        var nextFreeBufferIndex = GL.currentContext.tempVertexBufferCounters1[idx];
+        GL.currentContext.tempVertexBufferCounters1[idx] = (GL.currentContext.tempVertexBufferCounters1[idx]+1) & (GL.numTempVertexBuffersPerSize-1);
+        var vbo = ringbuffer[nextFreeBufferIndex];
+        if (vbo) {
+          return vbo;
+        }
+        var prevVBO = GLctx.getParameter(0x8894 /*GL_ARRAY_BUFFER_BINDING*/);
+        ringbuffer[nextFreeBufferIndex] = GLctx.createBuffer();
+        GLctx.bindBuffer(0x8892 /*GL_ARRAY_BUFFER*/, ringbuffer[nextFreeBufferIndex]);
+        GLctx.bufferData(0x8892 /*GL_ARRAY_BUFFER*/, 1 << idx, 0x88E8 /*GL_DYNAMIC_DRAW*/);
+        GLctx.bindBuffer(0x8892 /*GL_ARRAY_BUFFER*/, prevVBO);
+        return ringbuffer[nextFreeBufferIndex];
+      },
+  getTempIndexBuffer:(sizeBytes) => {
+        var idx = GL.log2ceilLookup(sizeBytes);
+        var ibo = GL.currentContext.tempIndexBuffers[idx];
+        if (ibo) {
+          return ibo;
+        }
+        var prevIBO = GLctx.getParameter(0x8895 /*ELEMENT_ARRAY_BUFFER_BINDING*/);
+        GL.currentContext.tempIndexBuffers[idx] = GLctx.createBuffer();
+        GLctx.bindBuffer(0x8893 /*GL_ELEMENT_ARRAY_BUFFER*/, GL.currentContext.tempIndexBuffers[idx]);
+        GLctx.bufferData(0x8893 /*GL_ELEMENT_ARRAY_BUFFER*/, 1 << idx, 0x88E8 /*GL_DYNAMIC_DRAW*/);
+        GLctx.bindBuffer(0x8893 /*GL_ELEMENT_ARRAY_BUFFER*/, prevIBO);
+        return GL.currentContext.tempIndexBuffers[idx];
+      },
+  newRenderingFrameStarted:() => {
+        if (!GL.currentContext) {
+          return;
+        }
+        var vb = GL.currentContext.tempVertexBuffers1;
+        GL.currentContext.tempVertexBuffers1 = GL.currentContext.tempVertexBuffers2;
+        GL.currentContext.tempVertexBuffers2 = vb;
+        vb = GL.currentContext.tempVertexBufferCounters1;
+        GL.currentContext.tempVertexBufferCounters1 = GL.currentContext.tempVertexBufferCounters2;
+        GL.currentContext.tempVertexBufferCounters2 = vb;
+        var largestIndex = GL.log2ceilLookup(GL.MAX_TEMP_BUFFER_SIZE);
+        for (var i = 0; i <= largestIndex; ++i) {
+          GL.currentContext.tempVertexBufferCounters1[i] = 0;
+        }
+      },
   getSource:(shader, count, string, length) => {
         var source = '';
         for (var i = 0; i < count; ++i) {
@@ -4747,6 +4856,39 @@ async function createWasm() {
           source += UTF8ToString(HEAPU32[(((string)+(i*4))>>2)], len);
         }
         return source;
+      },
+  calcBufLength:(size, type, stride, count) => {
+        if (stride > 0) {
+          return count * stride;  // XXXvlad this is not exactly correct I don't think
+        }
+        var typeSize = GL.byteSizeByType[type - GL.byteSizeByTypeRoot];
+        return size * typeSize * count;
+      },
+  usedTempBuffers:[],
+  preDrawHandleClientVertexAttribBindings:(count) => {
+        GL.resetBufferBinding = false;
+  
+        // TODO: initial pass to detect ranges we need to upload, might not need
+        // an upload per attrib
+        for (var i = 0; i < GL.currentContext.maxVertexAttribs; ++i) {
+          var cb = GL.currentContext.clientBuffers[i];
+          if (!cb.clientside || !cb.enabled) continue;
+  
+          GL.resetBufferBinding = true;
+  
+          var size = GL.calcBufLength(cb.size, cb.type, cb.stride, count);
+          var buf = GL.getTempVertexBuffer(size);
+          GLctx.bindBuffer(0x8892 /*GL_ARRAY_BUFFER*/, buf);
+          GLctx.bufferSubData(0x8892 /*GL_ARRAY_BUFFER*/,
+                                   0,
+                                   HEAPU8.subarray(cb.ptr, cb.ptr + size));
+          cb.vertexAttribPointerAdaptor.call(GLctx, i, cb.size, cb.type, cb.normalized, cb.stride, 0);
+        }
+      },
+  postDrawHandleClientVertexAttribBindings:() => {
+        if (GL.resetBufferBinding) {
+          GLctx.bindBuffer(0x8892 /*GL_ARRAY_BUFFER*/, GL.buffers[GLctx.currentArrayBufferBinding]);
+        }
       },
   createContext:(/** @type {HTMLCanvasElement} */ canvas, webGLContextAttributes) => {
   
@@ -4796,6 +4938,23 @@ async function createWasm() {
         if (typeof webGLContextAttributes.enableExtensionsByDefault == 'undefined' || webGLContextAttributes.enableExtensionsByDefault) {
           GL.initExtensions(context);
         }
+  
+        context.maxVertexAttribs = context.GLctx.getParameter(0x8869 /*GL_MAX_VERTEX_ATTRIBS*/);
+        context.clientBuffers = [];
+        for (var i = 0; i < context.maxVertexAttribs; i++) {
+          context.clientBuffers[i] = {
+            enabled: false,
+            clientside: false,
+            size: 0,
+            type: 0,
+            normalized: 0,
+            stride: 0,
+            ptr: 0,
+            vertexAttribPointerAdaptor: null,
+          };
+        }
+  
+        GL.generateTempBuffers(false, context);
   
         return handle;
       },
@@ -5938,18 +6097,6 @@ async function createWasm() {
       return 0;
     };
 
-  
-  var __emscripten_runtime_keepalive_clear = () => {
-      noExitRuntime = false;
-      runtimeKeepaliveCounter = 0;
-    };
-  
-  var _emscripten_force_exit = (status) => {
-      warnOnce('emscripten_force_exit cannot actually shut down the runtime, as the build does not have EXIT_RUNTIME set');
-      __emscripten_runtime_keepalive_clear();
-      _exit(status);
-    };
-
   var _emscripten_get_device_pixel_ratio = () => {
       return devicePixelRatio;
     };
@@ -6048,6 +6195,19 @@ async function createWasm() {
 
   /** @suppress {duplicate } */
   var _glBindBuffer = (target, buffer) => {
+      // Calling glBindBuffer with an unknown buffer will implicitly create a
+      // new one.  Here we bypass `GL.counter` and directly using the ID passed
+      // in.
+      if (buffer && !GL.buffers[buffer]) {
+        var b = GLctx.createBuffer();
+        b.name = buffer;
+        GL.buffers[buffer] = b;
+      }
+      if (target == 0x8892 /*GL_ARRAY_BUFFER*/) {
+        GLctx.currentArrayBufferBinding = buffer;
+      } else if (target == 0x8893 /*GL_ELEMENT_ARRAY_BUFFER*/) {
+        GLctx.currentElementArrayBufferBinding = buffer;
+      }
   
       GLctx.bindBuffer(target, GL.buffers[buffer]);
     };
@@ -6077,6 +6237,8 @@ async function createWasm() {
   /** @suppress {duplicate } */
   var _glBindVertexArray = (vao) => {
       GLctx.bindVertexArray(GL.vaos[vao]);
+      var ibo = GLctx.getParameter(0x8895 /*ELEMENT_ARRAY_BUFFER_BINDING*/);
+      GLctx.currentElementArrayBufferBinding = ibo ? (ibo.name | 0) : 0;
     };
   /** @suppress {duplicate } */
   var _glBindVertexArrayOES = _glBindVertexArray;
@@ -6224,6 +6386,8 @@ async function createWasm() {
         buffer.name = 0;
         GL.buffers[id] = null;
   
+        if (id == GLctx.currentArrayBufferBinding) GLctx.currentArrayBufferBinding = 0;
+        if (id == GLctx.currentElementArrayBufferBinding) GLctx.currentElementArrayBufferBinding = 0;
       }
     };
   var _emscripten_glDeleteBuffers = _glDeleteBuffers;
@@ -6351,15 +6515,20 @@ async function createWasm() {
 
   /** @suppress {duplicate } */
   var _glDisableVertexAttribArray = (index) => {
+      var cb = GL.currentContext.clientBuffers[index];
+      cb.enabled = false;
       GLctx.disableVertexAttribArray(index);
     };
   var _emscripten_glDisableVertexAttribArray = _glDisableVertexAttribArray;
 
   /** @suppress {duplicate } */
   var _glDrawArrays = (mode, first, count) => {
+      // bind any client-side buffers
+      GL.preDrawHandleClientVertexAttribBindings(first + count);
   
       GLctx.drawArrays(mode, first, count);
   
+      GL.postDrawHandleClientVertexAttribBindings();
     };
   var _emscripten_glDrawArrays = _glDrawArrays;
 
@@ -6391,9 +6560,50 @@ async function createWasm() {
 
   /** @suppress {duplicate } */
   var _glDrawElements = (mode, count, type, indices) => {
+      var buf;
+      var vertexes = 0;
+      if (!GLctx.currentElementArrayBufferBinding) {
+        var size = GL.calcBufLength(1, type, 0, count);
+        buf = GL.getTempIndexBuffer(size);
+        GLctx.bindBuffer(0x8893 /*GL_ELEMENT_ARRAY_BUFFER*/, buf);
+        GLctx.bufferSubData(0x8893 /*GL_ELEMENT_ARRAY_BUFFER*/,
+                            0,
+                            HEAPU8.subarray(indices, indices + size));
+        
+        // Calculating vertex count if shader's attribute data is on client side
+        if (count > 0) {
+          for (var i = 0; i < GL.currentContext.maxVertexAttribs; ++i) {
+            var cb = GL.currentContext.clientBuffers[i];
+            if (cb.clientside && cb.enabled) {
+              let arrayClass;
+              switch(type) {
+                case 0x1401 /* GL_UNSIGNED_BYTE */: arrayClass = Uint8Array; break;
+                case 0x1403 /* GL_UNSIGNED_SHORT */: arrayClass = Uint16Array; break;
+                default:
+                  GL.recordError(0x502 /* GL_INVALID_OPERATION */);
+                  return;
+              }
+  
+              vertexes = new arrayClass(HEAPU8.buffer, indices, count).reduce((max, current) => Math.max(max, current)) + 1;
+              break;
+            }
+          }
+        }
+  
+        // the index is now 0
+        indices = 0;
+      }
+  
+      // bind any client-side buffers
+      GL.preDrawHandleClientVertexAttribBindings(vertexes);
   
       GLctx.drawElements(mode, count, type, indices);
   
+      GL.postDrawHandleClientVertexAttribBindings(count);
+  
+      if (!GLctx.currentElementArrayBufferBinding) {
+        GLctx.bindBuffer(0x8893 /*GL_ELEMENT_ARRAY_BUFFER*/, null);
+      }
     };
   var _emscripten_glDrawElements = _glDrawElements;
 
@@ -6412,6 +6622,8 @@ async function createWasm() {
 
   /** @suppress {duplicate } */
   var _glEnableVertexAttribArray = (index) => {
+      var cb = GL.currentContext.clientBuffers[index];
+      cb.enabled = true;
       GLctx.enableVertexAttribArray(index);
     };
   var _emscripten_glEnableVertexAttribArray = _glEnableVertexAttribArray;
@@ -7166,6 +7378,9 @@ async function createWasm() {
         GL.recordError(0x501 /* GL_INVALID_VALUE */);
         return;
       }
+      if (GL.currentContext.clientBuffers[index].enabled) {
+        err("glGetVertexAttribPointer on client-side array: not supported, bad data returned");
+      }
       HEAP32[((pointer)>>2)] = GLctx.getVertexAttribOffset(index, pname);
     };
   var _emscripten_glGetVertexAttribPointerv = _glGetVertexAttribPointerv;
@@ -7178,6 +7393,9 @@ async function createWasm() {
         // null, issue a GL error to notify user about it.
         GL.recordError(0x501 /* GL_INVALID_VALUE */);
         return;
+      }
+      if (GL.currentContext.clientBuffers[index].enabled) {
+        err("glGetVertexAttrib*v on client-side array: not supported, bad data returned");
       }
       var data = GLctx.getVertexAttrib(index, pname);
       if (pname == 0x889F/*VERTEX_ATTRIB_ARRAY_BUFFER_BINDING*/) {
@@ -7900,6 +8118,20 @@ async function createWasm() {
 
   /** @suppress {duplicate } */
   var _glVertexAttribPointer = (index, size, type, normalized, stride, ptr) => {
+      var cb = GL.currentContext.clientBuffers[index];
+      if (!GLctx.currentArrayBufferBinding) {
+        cb.size = size;
+        cb.type = type;
+        cb.normalized = normalized;
+        cb.stride = stride;
+        cb.ptr = ptr;
+        cb.clientside = true;
+        cb.vertexAttribPointerAdaptor = function(index, size, type, normalized, stride, ptr) {
+          this.vertexAttribPointer(index, size, type, normalized, stride, ptr);
+        };
+        return;
+      }
+      cb.clientside = false;
       GLctx.vertexAttribPointer(index, size, type, !!normalized, stride, ptr);
     };
   var _emscripten_glVertexAttribPointer = _glVertexAttribPointer;
@@ -8709,6 +8941,46 @@ async function createWasm() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   /** @param {Object=} elements */
   var autoResumeAudioContext = (ctx, elements) => {
       if (!elements) {
@@ -8754,6 +9026,11 @@ async function createWasm() {
 
   FS.createPreloadedFile = FS_createPreloadedFile;
   FS.staticInit();;
+
+      // Signal GL rendering layer that processing of a new frame is about to
+      // start. This helps it optimize VBO double-buffering and reduce GPU stalls.
+      registerPreMainLoop(() => GL.newRenderingFrameStarted());
+    ;
 
       Module['requestAnimationFrame'] = MainLoop.requestAnimationFrame;
       Module['pauseMainLoop'] = MainLoop.pause;
@@ -8893,7 +9170,6 @@ if (Module['wasmBinary']) wasmBinary = Module['wasmBinary'];
   'safeRequestAnimationFrame',
   'clearImmediateWrapped',
   'registerPostMainLoop',
-  'registerPreMainLoop',
   'getPromise',
   'makePromise',
   'idsToPromises',
@@ -9041,6 +9317,7 @@ missingLibrarySymbols.forEach(missingLibrarySymbol)
   'emSetImmediate',
   'emClearImmediate_deps',
   'emClearImmediate',
+  'registerPreMainLoop',
   'promiseMap',
   'uncaughtExceptionCount',
   'exceptionLast',
@@ -9224,22 +9501,22 @@ function checkIncomingModuleAPI() {
   ignoredModuleProp('fetchSettings');
 }
 var ASM_CONSTS = {
-  212058: ($0) => { var str = UTF8ToString($0) + '\n\n' + 'Abort/Retry/Ignore/AlwaysIgnore? [ariA] :'; var reply = window.prompt(str, "i"); if (reply === null) { reply = "i"; } return allocate(intArrayFromString(reply), 'i8', ALLOC_NORMAL); },  
- 212283: () => { if (typeof(AudioContext) !== 'undefined') { return true; } else if (typeof(webkitAudioContext) !== 'undefined') { return true; } return false; },  
- 212430: () => { if ((typeof(navigator.mediaDevices) !== 'undefined') && (typeof(navigator.mediaDevices.getUserMedia) !== 'undefined')) { return true; } else if (typeof(navigator.webkitGetUserMedia) !== 'undefined') { return true; } return false; },  
- 212664: ($0) => { if(typeof(Module['SDL2']) === 'undefined') { Module['SDL2'] = {}; } var SDL2 = Module['SDL2']; if (!$0) { SDL2.audio = {}; } else { SDL2.capture = {}; } if (!SDL2.audioContext) { if (typeof(AudioContext) !== 'undefined') { SDL2.audioContext = new AudioContext(); } else if (typeof(webkitAudioContext) !== 'undefined') { SDL2.audioContext = new webkitAudioContext(); } if (SDL2.audioContext) { if ((typeof navigator.userActivation) === 'undefined') { autoResumeAudioContext(SDL2.audioContext); } } } return SDL2.audioContext === undefined ? -1 : 0; },  
- 213216: () => { var SDL2 = Module['SDL2']; return SDL2.audioContext.sampleRate; },  
- 213284: ($0, $1, $2, $3) => { var SDL2 = Module['SDL2']; var have_microphone = function(stream) { if (SDL2.capture.silenceTimer !== undefined) { clearInterval(SDL2.capture.silenceTimer); SDL2.capture.silenceTimer = undefined; SDL2.capture.silenceBuffer = undefined } SDL2.capture.mediaStreamNode = SDL2.audioContext.createMediaStreamSource(stream); SDL2.capture.scriptProcessorNode = SDL2.audioContext.createScriptProcessor($1, $0, 1); SDL2.capture.scriptProcessorNode.onaudioprocess = function(audioProcessingEvent) { if ((SDL2 === undefined) || (SDL2.capture === undefined)) { return; } audioProcessingEvent.outputBuffer.getChannelData(0).fill(0.0); SDL2.capture.currentCaptureBuffer = audioProcessingEvent.inputBuffer; dynCall('vi', $2, [$3]); }; SDL2.capture.mediaStreamNode.connect(SDL2.capture.scriptProcessorNode); SDL2.capture.scriptProcessorNode.connect(SDL2.audioContext.destination); SDL2.capture.stream = stream; }; var no_microphone = function(error) { }; SDL2.capture.silenceBuffer = SDL2.audioContext.createBuffer($0, $1, SDL2.audioContext.sampleRate); SDL2.capture.silenceBuffer.getChannelData(0).fill(0.0); var silence_callback = function() { SDL2.capture.currentCaptureBuffer = SDL2.capture.silenceBuffer; dynCall('vi', $2, [$3]); }; SDL2.capture.silenceTimer = setInterval(silence_callback, ($1 / SDL2.audioContext.sampleRate) * 1000); if ((navigator.mediaDevices !== undefined) && (navigator.mediaDevices.getUserMedia !== undefined)) { navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then(have_microphone).catch(no_microphone); } else if (navigator.webkitGetUserMedia !== undefined) { navigator.webkitGetUserMedia({ audio: true, video: false }, have_microphone, no_microphone); } },  
- 214977: ($0, $1, $2, $3) => { var SDL2 = Module['SDL2']; SDL2.audio.scriptProcessorNode = SDL2.audioContext['createScriptProcessor']($1, 0, $0); SDL2.audio.scriptProcessorNode['onaudioprocess'] = function (e) { if ((SDL2 === undefined) || (SDL2.audio === undefined)) { return; } if (SDL2.audio.silenceTimer !== undefined) { clearInterval(SDL2.audio.silenceTimer); SDL2.audio.silenceTimer = undefined; SDL2.audio.silenceBuffer = undefined; } SDL2.audio.currentOutputBuffer = e['outputBuffer']; dynCall('vi', $2, [$3]); }; SDL2.audio.scriptProcessorNode['connect'](SDL2.audioContext['destination']); if (SDL2.audioContext.state === 'suspended') { SDL2.audio.silenceBuffer = SDL2.audioContext.createBuffer($0, $1, SDL2.audioContext.sampleRate); SDL2.audio.silenceBuffer.getChannelData(0).fill(0.0); var silence_callback = function() { if ((typeof navigator.userActivation) !== 'undefined') { if (navigator.userActivation.hasBeenActive) { SDL2.audioContext.resume(); } } SDL2.audio.currentOutputBuffer = SDL2.audio.silenceBuffer; dynCall('vi', $2, [$3]); SDL2.audio.currentOutputBuffer = undefined; }; SDL2.audio.silenceTimer = setInterval(silence_callback, ($1 / SDL2.audioContext.sampleRate) * 1000); } },  
- 216152: ($0, $1) => { var SDL2 = Module['SDL2']; var numChannels = SDL2.capture.currentCaptureBuffer.numberOfChannels; for (var c = 0; c < numChannels; ++c) { var channelData = SDL2.capture.currentCaptureBuffer.getChannelData(c); if (channelData.length != $1) { throw 'Web Audio capture buffer length mismatch! Destination size: ' + channelData.length + ' samples vs expected ' + $1 + ' samples!'; } if (numChannels == 1) { for (var j = 0; j < $1; ++j) { setValue($0 + (j * 4), channelData[j], 'float'); } } else { for (var j = 0; j < $1; ++j) { setValue($0 + (((j * numChannels) + c) * 4), channelData[j], 'float'); } } } },  
- 216757: ($0, $1) => { var SDL2 = Module['SDL2']; var buf = $0 >>> 2; var numChannels = SDL2.audio.currentOutputBuffer['numberOfChannels']; for (var c = 0; c < numChannels; ++c) { var channelData = SDL2.audio.currentOutputBuffer['getChannelData'](c); if (channelData.length != $1) { throw 'Web Audio output buffer length mismatch! Destination size: ' + channelData.length + ' samples vs expected ' + $1 + ' samples!'; } for (var j = 0; j < $1; ++j) { channelData[j] = HEAPF32[buf + (j*numChannels + c)]; } } },  
- 217246: ($0) => { var SDL2 = Module['SDL2']; if ($0) { if (SDL2.capture.silenceTimer !== undefined) { clearInterval(SDL2.capture.silenceTimer); } if (SDL2.capture.stream !== undefined) { var tracks = SDL2.capture.stream.getAudioTracks(); for (var i = 0; i < tracks.length; i++) { SDL2.capture.stream.removeTrack(tracks[i]); } } if (SDL2.capture.scriptProcessorNode !== undefined) { SDL2.capture.scriptProcessorNode.onaudioprocess = function(audioProcessingEvent) {}; SDL2.capture.scriptProcessorNode.disconnect(); } if (SDL2.capture.mediaStreamNode !== undefined) { SDL2.capture.mediaStreamNode.disconnect(); } SDL2.capture = undefined; } else { if (SDL2.audio.scriptProcessorNode != undefined) { SDL2.audio.scriptProcessorNode.disconnect(); } if (SDL2.audio.silenceTimer !== undefined) { clearInterval(SDL2.audio.silenceTimer); } SDL2.audio = undefined; } if ((SDL2.audioContext !== undefined) && (SDL2.audio === undefined) && (SDL2.capture === undefined)) { SDL2.audioContext.close(); SDL2.audioContext = undefined; } },  
- 218252: ($0, $1, $2) => { var w = $0; var h = $1; var pixels = $2; if (!Module['SDL2']) Module['SDL2'] = {}; var SDL2 = Module['SDL2']; if (SDL2.ctxCanvas !== Module['canvas']) { SDL2.ctx = Module['createContext'](Module['canvas'], false, true); SDL2.ctxCanvas = Module['canvas']; } if (SDL2.w !== w || SDL2.h !== h || SDL2.imageCtx !== SDL2.ctx) { SDL2.image = SDL2.ctx.createImageData(w, h); SDL2.w = w; SDL2.h = h; SDL2.imageCtx = SDL2.ctx; } var data = SDL2.image.data; var src = pixels / 4; var dst = 0; var num; if (typeof CanvasPixelArray !== 'undefined' && data instanceof CanvasPixelArray) { num = data.length; while (dst < num) { var val = HEAP32[src]; data[dst ] = val & 0xff; data[dst+1] = (val >> 8) & 0xff; data[dst+2] = (val >> 16) & 0xff; data[dst+3] = 0xff; src++; dst += 4; } } else { if (SDL2.data32Data !== data) { SDL2.data32 = new Int32Array(data.buffer); SDL2.data8 = new Uint8Array(data.buffer); SDL2.data32Data = data; } var data32 = SDL2.data32; num = data32.length; data32.set(HEAP32.subarray(src, src + num)); var data8 = SDL2.data8; var i = 3; var j = i + 4*num; if (num % 8 == 0) { while (i < j) { data8[i] = 0xff; i = i + 4 | 0; data8[i] = 0xff; i = i + 4 | 0; data8[i] = 0xff; i = i + 4 | 0; data8[i] = 0xff; i = i + 4 | 0; data8[i] = 0xff; i = i + 4 | 0; data8[i] = 0xff; i = i + 4 | 0; data8[i] = 0xff; i = i + 4 | 0; data8[i] = 0xff; i = i + 4 | 0; } } else { while (i < j) { data8[i] = 0xff; i = i + 4 | 0; } } } SDL2.ctx.putImageData(SDL2.image, 0, 0); },  
- 219720: ($0, $1, $2, $3, $4) => { var w = $0; var h = $1; var hot_x = $2; var hot_y = $3; var pixels = $4; var canvas = document.createElement("canvas"); canvas.width = w; canvas.height = h; var ctx = canvas.getContext("2d"); var image = ctx.createImageData(w, h); var data = image.data; var src = pixels / 4; var dst = 0; var num; if (typeof CanvasPixelArray !== 'undefined' && data instanceof CanvasPixelArray) { num = data.length; while (dst < num) { var val = HEAP32[src]; data[dst ] = val & 0xff; data[dst+1] = (val >> 8) & 0xff; data[dst+2] = (val >> 16) & 0xff; data[dst+3] = (val >> 24) & 0xff; src++; dst += 4; } } else { var data32 = new Int32Array(data.buffer); num = data32.length; data32.set(HEAP32.subarray(src, src + num)); } ctx.putImageData(image, 0, 0); var url = hot_x === 0 && hot_y === 0 ? "url(" + canvas.toDataURL() + "), auto" : "url(" + canvas.toDataURL() + ") " + hot_x + " " + hot_y + ", auto"; var urlBuf = _malloc(url.length + 1); stringToUTF8(url, urlBuf, url.length + 1); return urlBuf; },  
- 220708: ($0) => { if (Module['canvas']) { Module['canvas'].style['cursor'] = UTF8ToString($0); } },  
- 220791: () => { if (Module['canvas']) { Module['canvas'].style['cursor'] = 'none'; } },  
- 220860: () => { return window.innerWidth; },  
- 220890: () => { return window.innerHeight; }
+  140298: ($0) => { var str = UTF8ToString($0) + '\n\n' + 'Abort/Retry/Ignore/AlwaysIgnore? [ariA] :'; var reply = window.prompt(str, "i"); if (reply === null) { reply = "i"; } return allocate(intArrayFromString(reply), 'i8', ALLOC_NORMAL); },  
+ 140523: () => { if (typeof(AudioContext) !== 'undefined') { return true; } else if (typeof(webkitAudioContext) !== 'undefined') { return true; } return false; },  
+ 140670: () => { if ((typeof(navigator.mediaDevices) !== 'undefined') && (typeof(navigator.mediaDevices.getUserMedia) !== 'undefined')) { return true; } else if (typeof(navigator.webkitGetUserMedia) !== 'undefined') { return true; } return false; },  
+ 140904: ($0) => { if(typeof(Module['SDL2']) === 'undefined') { Module['SDL2'] = {}; } var SDL2 = Module['SDL2']; if (!$0) { SDL2.audio = {}; } else { SDL2.capture = {}; } if (!SDL2.audioContext) { if (typeof(AudioContext) !== 'undefined') { SDL2.audioContext = new AudioContext(); } else if (typeof(webkitAudioContext) !== 'undefined') { SDL2.audioContext = new webkitAudioContext(); } if (SDL2.audioContext) { if ((typeof navigator.userActivation) === 'undefined') { autoResumeAudioContext(SDL2.audioContext); } } } return SDL2.audioContext === undefined ? -1 : 0; },  
+ 141456: () => { var SDL2 = Module['SDL2']; return SDL2.audioContext.sampleRate; },  
+ 141524: ($0, $1, $2, $3) => { var SDL2 = Module['SDL2']; var have_microphone = function(stream) { if (SDL2.capture.silenceTimer !== undefined) { clearInterval(SDL2.capture.silenceTimer); SDL2.capture.silenceTimer = undefined; SDL2.capture.silenceBuffer = undefined } SDL2.capture.mediaStreamNode = SDL2.audioContext.createMediaStreamSource(stream); SDL2.capture.scriptProcessorNode = SDL2.audioContext.createScriptProcessor($1, $0, 1); SDL2.capture.scriptProcessorNode.onaudioprocess = function(audioProcessingEvent) { if ((SDL2 === undefined) || (SDL2.capture === undefined)) { return; } audioProcessingEvent.outputBuffer.getChannelData(0).fill(0.0); SDL2.capture.currentCaptureBuffer = audioProcessingEvent.inputBuffer; dynCall('vi', $2, [$3]); }; SDL2.capture.mediaStreamNode.connect(SDL2.capture.scriptProcessorNode); SDL2.capture.scriptProcessorNode.connect(SDL2.audioContext.destination); SDL2.capture.stream = stream; }; var no_microphone = function(error) { }; SDL2.capture.silenceBuffer = SDL2.audioContext.createBuffer($0, $1, SDL2.audioContext.sampleRate); SDL2.capture.silenceBuffer.getChannelData(0).fill(0.0); var silence_callback = function() { SDL2.capture.currentCaptureBuffer = SDL2.capture.silenceBuffer; dynCall('vi', $2, [$3]); }; SDL2.capture.silenceTimer = setInterval(silence_callback, ($1 / SDL2.audioContext.sampleRate) * 1000); if ((navigator.mediaDevices !== undefined) && (navigator.mediaDevices.getUserMedia !== undefined)) { navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then(have_microphone).catch(no_microphone); } else if (navigator.webkitGetUserMedia !== undefined) { navigator.webkitGetUserMedia({ audio: true, video: false }, have_microphone, no_microphone); } },  
+ 143217: ($0, $1, $2, $3) => { var SDL2 = Module['SDL2']; SDL2.audio.scriptProcessorNode = SDL2.audioContext['createScriptProcessor']($1, 0, $0); SDL2.audio.scriptProcessorNode['onaudioprocess'] = function (e) { if ((SDL2 === undefined) || (SDL2.audio === undefined)) { return; } if (SDL2.audio.silenceTimer !== undefined) { clearInterval(SDL2.audio.silenceTimer); SDL2.audio.silenceTimer = undefined; SDL2.audio.silenceBuffer = undefined; } SDL2.audio.currentOutputBuffer = e['outputBuffer']; dynCall('vi', $2, [$3]); }; SDL2.audio.scriptProcessorNode['connect'](SDL2.audioContext['destination']); if (SDL2.audioContext.state === 'suspended') { SDL2.audio.silenceBuffer = SDL2.audioContext.createBuffer($0, $1, SDL2.audioContext.sampleRate); SDL2.audio.silenceBuffer.getChannelData(0).fill(0.0); var silence_callback = function() { if ((typeof navigator.userActivation) !== 'undefined') { if (navigator.userActivation.hasBeenActive) { SDL2.audioContext.resume(); } } SDL2.audio.currentOutputBuffer = SDL2.audio.silenceBuffer; dynCall('vi', $2, [$3]); SDL2.audio.currentOutputBuffer = undefined; }; SDL2.audio.silenceTimer = setInterval(silence_callback, ($1 / SDL2.audioContext.sampleRate) * 1000); } },  
+ 144392: ($0, $1) => { var SDL2 = Module['SDL2']; var numChannels = SDL2.capture.currentCaptureBuffer.numberOfChannels; for (var c = 0; c < numChannels; ++c) { var channelData = SDL2.capture.currentCaptureBuffer.getChannelData(c); if (channelData.length != $1) { throw 'Web Audio capture buffer length mismatch! Destination size: ' + channelData.length + ' samples vs expected ' + $1 + ' samples!'; } if (numChannels == 1) { for (var j = 0; j < $1; ++j) { setValue($0 + (j * 4), channelData[j], 'float'); } } else { for (var j = 0; j < $1; ++j) { setValue($0 + (((j * numChannels) + c) * 4), channelData[j], 'float'); } } } },  
+ 144997: ($0, $1) => { var SDL2 = Module['SDL2']; var buf = $0 >>> 2; var numChannels = SDL2.audio.currentOutputBuffer['numberOfChannels']; for (var c = 0; c < numChannels; ++c) { var channelData = SDL2.audio.currentOutputBuffer['getChannelData'](c); if (channelData.length != $1) { throw 'Web Audio output buffer length mismatch! Destination size: ' + channelData.length + ' samples vs expected ' + $1 + ' samples!'; } for (var j = 0; j < $1; ++j) { channelData[j] = HEAPF32[buf + (j*numChannels + c)]; } } },  
+ 145486: ($0) => { var SDL2 = Module['SDL2']; if ($0) { if (SDL2.capture.silenceTimer !== undefined) { clearInterval(SDL2.capture.silenceTimer); } if (SDL2.capture.stream !== undefined) { var tracks = SDL2.capture.stream.getAudioTracks(); for (var i = 0; i < tracks.length; i++) { SDL2.capture.stream.removeTrack(tracks[i]); } } if (SDL2.capture.scriptProcessorNode !== undefined) { SDL2.capture.scriptProcessorNode.onaudioprocess = function(audioProcessingEvent) {}; SDL2.capture.scriptProcessorNode.disconnect(); } if (SDL2.capture.mediaStreamNode !== undefined) { SDL2.capture.mediaStreamNode.disconnect(); } SDL2.capture = undefined; } else { if (SDL2.audio.scriptProcessorNode != undefined) { SDL2.audio.scriptProcessorNode.disconnect(); } if (SDL2.audio.silenceTimer !== undefined) { clearInterval(SDL2.audio.silenceTimer); } SDL2.audio = undefined; } if ((SDL2.audioContext !== undefined) && (SDL2.audio === undefined) && (SDL2.capture === undefined)) { SDL2.audioContext.close(); SDL2.audioContext = undefined; } },  
+ 146492: ($0, $1, $2) => { var w = $0; var h = $1; var pixels = $2; if (!Module['SDL2']) Module['SDL2'] = {}; var SDL2 = Module['SDL2']; if (SDL2.ctxCanvas !== Module['canvas']) { SDL2.ctx = Module['createContext'](Module['canvas'], false, true); SDL2.ctxCanvas = Module['canvas']; } if (SDL2.w !== w || SDL2.h !== h || SDL2.imageCtx !== SDL2.ctx) { SDL2.image = SDL2.ctx.createImageData(w, h); SDL2.w = w; SDL2.h = h; SDL2.imageCtx = SDL2.ctx; } var data = SDL2.image.data; var src = pixels / 4; var dst = 0; var num; if (typeof CanvasPixelArray !== 'undefined' && data instanceof CanvasPixelArray) { num = data.length; while (dst < num) { var val = HEAP32[src]; data[dst ] = val & 0xff; data[dst+1] = (val >> 8) & 0xff; data[dst+2] = (val >> 16) & 0xff; data[dst+3] = 0xff; src++; dst += 4; } } else { if (SDL2.data32Data !== data) { SDL2.data32 = new Int32Array(data.buffer); SDL2.data8 = new Uint8Array(data.buffer); SDL2.data32Data = data; } var data32 = SDL2.data32; num = data32.length; data32.set(HEAP32.subarray(src, src + num)); var data8 = SDL2.data8; var i = 3; var j = i + 4*num; if (num % 8 == 0) { while (i < j) { data8[i] = 0xff; i = i + 4 | 0; data8[i] = 0xff; i = i + 4 | 0; data8[i] = 0xff; i = i + 4 | 0; data8[i] = 0xff; i = i + 4 | 0; data8[i] = 0xff; i = i + 4 | 0; data8[i] = 0xff; i = i + 4 | 0; data8[i] = 0xff; i = i + 4 | 0; data8[i] = 0xff; i = i + 4 | 0; } } else { while (i < j) { data8[i] = 0xff; i = i + 4 | 0; } } } SDL2.ctx.putImageData(SDL2.image, 0, 0); },  
+ 147960: ($0, $1, $2, $3, $4) => { var w = $0; var h = $1; var hot_x = $2; var hot_y = $3; var pixels = $4; var canvas = document.createElement("canvas"); canvas.width = w; canvas.height = h; var ctx = canvas.getContext("2d"); var image = ctx.createImageData(w, h); var data = image.data; var src = pixels / 4; var dst = 0; var num; if (typeof CanvasPixelArray !== 'undefined' && data instanceof CanvasPixelArray) { num = data.length; while (dst < num) { var val = HEAP32[src]; data[dst ] = val & 0xff; data[dst+1] = (val >> 8) & 0xff; data[dst+2] = (val >> 16) & 0xff; data[dst+3] = (val >> 24) & 0xff; src++; dst += 4; } } else { var data32 = new Int32Array(data.buffer); num = data32.length; data32.set(HEAP32.subarray(src, src + num)); } ctx.putImageData(image, 0, 0); var url = hot_x === 0 && hot_y === 0 ? "url(" + canvas.toDataURL() + "), auto" : "url(" + canvas.toDataURL() + ") " + hot_x + " " + hot_y + ", auto"; var urlBuf = _malloc(url.length + 1); stringToUTF8(url, urlBuf, url.length + 1); return urlBuf; },  
+ 148948: ($0) => { if (Module['canvas']) { Module['canvas'].style['cursor'] = UTF8ToString($0); } },  
+ 149031: () => { if (Module['canvas']) { Module['canvas'].style['cursor'] = 'none'; } },  
+ 149100: () => { return window.innerWidth; },  
+ 149130: () => { return window.innerHeight; }
 };
 function LibToriPlatformJS_CAPI_ASM_EmscriptenHost_LuaMainLoop() { if( typeof window.LibToriPlatformJS.EmscriptenHost_LuaMainLoop === "function" ) { window.LibToriPlatformJS.EmscriptenHost_LuaMainLoop(); } }
 function LibToriPlatformJS_CAPI_ASM_InitializeEmscriptenHost(instance_ptr) { window.LibToriPlatformJS_Init(instance_ptr); }
@@ -9284,6 +9561,10 @@ var _LibToriPlatformEmscripten_JSHost_CacheDatArchiveFree = Module['_LibToriPlat
 var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchNativeInt = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchNativeInt'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchNativeInt');
 var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchScriptInt = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchScriptInt'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchScriptInt');
 var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelLoad = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelLoad'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelLoad');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkTerrainFetch = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkTerrainFetch'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkTerrainFetch');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkSceneryFetch = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkSceneryFetch'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkSceneryFetch');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkTerrainLoad = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkTerrainLoad'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkTerrainLoad');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkSceneryLoad = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkSceneryLoad'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkSceneryLoad');
 var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_Init = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_Init'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_Init');
 var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelNativeInt = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelNativeInt'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelNativeInt');
 var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelScriptInt = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelScriptInt'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelScriptInt');
@@ -9293,6 +9574,26 @@ var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelCleanupNativeInt = Mod
 var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelCleanupScriptInt = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelCleanupScriptInt'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelCleanupScriptInt');
 var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_TexturesCleanup = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_TexturesCleanup'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_TexturesCleanup');
 var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitTextures = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitTextures'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitTextures');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_ModelsClearAll = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_ModelsClearAll'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_ModelsClearAll');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_VersionListFetch = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_VersionListFetch'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_VersionListFetch');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_VersionListLoad = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_VersionListLoad'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_VersionListLoad');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsFetchNativeInt = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsFetchNativeInt'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsFetchNativeInt');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsLoad = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsLoad'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsLoad');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SequencesInitFromConfigJagfile = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SequencesInitFromConfigJagfile'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SequencesInitFromConfigJagfile');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_FloortypesInitFromConfigJagfile = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_FloortypesInitFromConfigJagfile'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_FloortypesInitFromConfigJagfile');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsInitFromConfigJagfile = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsInitFromConfigJagfile'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsInitFromConfigJagfile');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSequences = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSequences'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSequences');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitFloortypes = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitFloortypes'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitFloortypes');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSceneryConfigs = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSceneryConfigs'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSceneryConfigs');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitAnimations = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitAnimations'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitAnimations');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SequencesCleanup = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SequencesCleanup'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SequencesCleanup');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_FloortypesCleanup = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_FloortypesCleanup'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_FloortypesCleanup');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsCleanup = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsCleanup'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsCleanup');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsCleanup = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsCleanup'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsCleanup');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_SequencesClearAll = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_SequencesClearAll'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_SequencesClearAll');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_FloortypesClearAll = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_FloortypesClearAll'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_FloortypesClearAll');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_SceneryConfigsClearAll = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_SceneryConfigsClearAll'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_SceneryConfigsClearAll');
+var _LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_AnimationsClearAll = Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_AnimationsClearAll'] = makeInvalidEarlyAccess('_LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_AnimationsClearAll');
 var _fflush = makeInvalidEarlyAccess('_fflush');
 var _strerror = makeInvalidEarlyAccess('_strerror');
 var _emscripten_stack_get_end = makeInvalidEarlyAccess('_emscripten_stack_get_end');
@@ -9344,6 +9645,10 @@ function assignWasmExports(wasmExports) {
   Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchNativeInt'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchNativeInt = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchNativeInt', 3);
   Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchScriptInt'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchScriptInt = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelFetchScriptInt', 3);
   Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelLoad'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelLoad = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelLoad', 2);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkTerrainFetch'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkTerrainFetch = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkTerrainFetch', 4);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkSceneryFetch'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkSceneryFetch = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkSceneryFetch', 4);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkTerrainLoad'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkTerrainLoad = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkTerrainLoad', 2);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkSceneryLoad'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkSceneryLoad = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_MapChunkSceneryLoad', 2);
   Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_Init'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_Init = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_Init', 1);
   Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelNativeInt'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelNativeInt = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelNativeInt', 2);
   Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelScriptInt'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelScriptInt = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Game_ModelViewer_RenderModelScriptInt', 2);
@@ -9353,6 +9658,26 @@ function assignWasmExports(wasmExports) {
   Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelCleanupScriptInt'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelCleanupScriptInt = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_ModelCleanupScriptInt', 2);
   Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_TexturesCleanup'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_TexturesCleanup = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_TexturesCleanup', 1);
   Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitTextures'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitTextures = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitTextures', 1);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_ModelsClearAll'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_ModelsClearAll = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_ModelsClearAll', 1);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_VersionListFetch'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_VersionListFetch = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_VersionListFetch', 2);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_VersionListLoad'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_VersionListLoad = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_VersionListLoad', 2);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsFetchNativeInt'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsFetchNativeInt = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsFetchNativeInt', 3);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsLoad'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsLoad = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsLoad', 2);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SequencesInitFromConfigJagfile'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SequencesInitFromConfigJagfile = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SequencesInitFromConfigJagfile', 1);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_FloortypesInitFromConfigJagfile'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_FloortypesInitFromConfigJagfile = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_FloortypesInitFromConfigJagfile', 1);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsInitFromConfigJagfile'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsInitFromConfigJagfile = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsInitFromConfigJagfile', 1);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSequences'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSequences = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSequences', 1);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitFloortypes'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitFloortypes = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitFloortypes', 1);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSceneryConfigs'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSceneryConfigs = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitSceneryConfigs', 1);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitAnimations'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitAnimations = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SubmitAnimations', 1);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SequencesCleanup'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SequencesCleanup = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SequencesCleanup', 1);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_FloortypesCleanup'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_FloortypesCleanup = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_FloortypesCleanup', 1);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsCleanup'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsCleanup = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_SceneryConfigsCleanup', 1);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsCleanup'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsCleanup = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_Dat1_AnimationsCleanup', 1);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_SequencesClearAll'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_SequencesClearAll = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_SequencesClearAll', 1);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_FloortypesClearAll'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_FloortypesClearAll = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_FloortypesClearAll', 1);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_SceneryConfigsClearAll'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_SceneryConfigsClearAll = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_SceneryConfigsClearAll', 1);
+  Module['_LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_AnimationsClearAll'] = _LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_AnimationsClearAll = createExportWrapper('LibToriPlatformEmscripten_JSHost_ScriptAPI_GameCache_AnimationsClearAll', 1);
   _fflush = createExportWrapper('fflush', 1);
   _strerror = createExportWrapper('strerror', 1);
   _emscripten_stack_get_end = wasmExports['emscripten_stack_get_end'];
@@ -9439,8 +9764,6 @@ var wasmImports = {
   emscripten_exit_fullscreen: _emscripten_exit_fullscreen,
   /** @export */
   emscripten_exit_pointerlock: _emscripten_exit_pointerlock,
-  /** @export */
-  emscripten_force_exit: _emscripten_force_exit,
   /** @export */
   emscripten_get_device_pixel_ratio: _emscripten_get_device_pixel_ratio,
   /** @export */
@@ -9859,6 +10182,86 @@ var wasmImports = {
   fd_seek: _fd_seek,
   /** @export */
   fd_write: _fd_write,
+  /** @export */
+  glActiveTexture: _glActiveTexture,
+  /** @export */
+  glAttachShader: _glAttachShader,
+  /** @export */
+  glBindAttribLocation: _glBindAttribLocation,
+  /** @export */
+  glBindBuffer: _glBindBuffer,
+  /** @export */
+  glBindTexture: _glBindTexture,
+  /** @export */
+  glBlendFunc: _glBlendFunc,
+  /** @export */
+  glBufferData: _glBufferData,
+  /** @export */
+  glBufferSubData: _glBufferSubData,
+  /** @export */
+  glClear: _glClear,
+  /** @export */
+  glClearColor: _glClearColor,
+  /** @export */
+  glCompileShader: _glCompileShader,
+  /** @export */
+  glCreateProgram: _glCreateProgram,
+  /** @export */
+  glCreateShader: _glCreateShader,
+  /** @export */
+  glDeleteBuffers: _glDeleteBuffers,
+  /** @export */
+  glDeleteProgram: _glDeleteProgram,
+  /** @export */
+  glDeleteShader: _glDeleteShader,
+  /** @export */
+  glDeleteTextures: _glDeleteTextures,
+  /** @export */
+  glDepthFunc: _glDepthFunc,
+  /** @export */
+  glDepthMask: _glDepthMask,
+  /** @export */
+  glDrawElements: _glDrawElements,
+  /** @export */
+  glEnable: _glEnable,
+  /** @export */
+  glEnableVertexAttribArray: _glEnableVertexAttribArray,
+  /** @export */
+  glGenBuffers: _glGenBuffers,
+  /** @export */
+  glGenTextures: _glGenTextures,
+  /** @export */
+  glGetAttribLocation: _glGetAttribLocation,
+  /** @export */
+  glGetProgramInfoLog: _glGetProgramInfoLog,
+  /** @export */
+  glGetProgramiv: _glGetProgramiv,
+  /** @export */
+  glGetShaderInfoLog: _glGetShaderInfoLog,
+  /** @export */
+  glGetShaderiv: _glGetShaderiv,
+  /** @export */
+  glGetUniformLocation: _glGetUniformLocation,
+  /** @export */
+  glLinkProgram: _glLinkProgram,
+  /** @export */
+  glShaderSource: _glShaderSource,
+  /** @export */
+  glTexImage2D: _glTexImage2D,
+  /** @export */
+  glTexParameteri: _glTexParameteri,
+  /** @export */
+  glUniform1f: _glUniform1f,
+  /** @export */
+  glUniform1i: _glUniform1i,
+  /** @export */
+  glUniformMatrix4fv: _glUniformMatrix4fv,
+  /** @export */
+  glUseProgram: _glUseProgram,
+  /** @export */
+  glVertexAttribPointer: _glVertexAttribPointer,
+  /** @export */
+  glViewport: _glViewport,
   /** @export */
   invoke_iii
 };

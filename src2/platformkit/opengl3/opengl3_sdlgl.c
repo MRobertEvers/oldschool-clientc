@@ -1,3 +1,4 @@
+#define TRSPK_OPENGL3_NO_GL_ALIASES
 #include "opengl3_sdlgl.h"
 
 #include <SDL_video.h>
@@ -85,9 +86,9 @@ PFNGLMAPBUFFERRANGEPROC trspk_glMapBufferRange;
 PFNGLBINDBUFFERRANGEPROC trspk_glBindBufferRange;
 PFNGLGETUNIFORMBLOCKINDEXPROC trspk_glGetUniformBlockIndex;
 PFNGLUNIFORMBLOCKBINDINGPROC trspk_glUniformBlockBinding;
-TRSPKPFNGLFENCESYNCPROC trspk_glFenceSync;
-TRSPKPFNGLDELETESYNCPROC trspk_glDeleteSync;
-TRSPKPFNGLCLIENTWAITSYNCPROC trspk_glClientWaitSync;
+PFNGLFENCESYNCPROC trspk_glFenceSync;
+PFNGLDELETESYNCPROC trspk_glDeleteSync;
+PFNGLCLIENTWAITSYNCPROC trspk_glClientWaitSync;
 PFNGLFLUSHPROC trspk_glFlush;
 
 bool
@@ -157,9 +158,9 @@ trspk_sdlgl_init(void)
     O3L(glBindBufferRange, PFNGLBINDBUFFERRANGEPROC, trspk_glBindBufferRange);
     O3L(glGetUniformBlockIndex, PFNGLGETUNIFORMBLOCKINDEXPROC, trspk_glGetUniformBlockIndex);
     O3L(glUniformBlockBinding, PFNGLUNIFORMBLOCKBINDINGPROC, trspk_glUniformBlockBinding);
-    O3L(glFenceSync, TRSPKPFNGLFENCESYNCPROC, trspk_glFenceSync);
-    O3L(glDeleteSync, TRSPKPFNGLDELETESYNCPROC, trspk_glDeleteSync);
-    O3L(glClientWaitSync, TRSPKPFNGLCLIENTWAITSYNCPROC, trspk_glClientWaitSync);
+    O3L(glFenceSync, PFNGLFENCESYNCPROC, trspk_glFenceSync);
+    O3L(glDeleteSync, PFNGLDELETESYNCPROC, trspk_glDeleteSync);
+    O3L(glClientWaitSync, PFNGLCLIENTWAITSYNCPROC, trspk_glClientWaitSync);
     O3L(glFlush, PFNGLFLUSHPROC, trspk_glFlush);
     return true;
 }

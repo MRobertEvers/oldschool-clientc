@@ -1,268 +1,21 @@
 #ifndef TORIRS_PLATFORM_KIT_OPENGL3_GL_H
 #define TORIRS_PLATFORM_KIT_OPENGL3_GL_H
 
-#include <SDL_opengl.h>
+#if defined(__APPLE__)
+#define GL_SILENCE_DEPRECATION 1
+#include <OpenGL/gl3.h>
+#ifndef PFNGLBUFFERSTORAGEPROC
+typedef void(APIENTRYP* PFNGLBUFFERSTORAGEPROC)(
+    GLenum target,
+    GLsizeiptr size,
+    const GLvoid* data,
+    GLbitfield flags);
+#endif
+#else
+#include <GL/glcorearb.h>
+#endif
 
 #include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-
-typedef unsigned int TRSPK_GLuint;
-typedef int TRSPK_GLint;
-typedef unsigned int TRSPK_GLenum;
-typedef unsigned char TRSPK_GLboolean;
-typedef int TRSPK_GLsizei;
-typedef char TRSPK_GLchar;
-typedef ptrdiff_t TRSPK_GLsizeiptr;
-typedef ptrdiff_t TRSPK_GLintptr;
-typedef float TRSPK_GLfloat;
-typedef void TRSPK_GLvoid;
-typedef uint64_t TRSPK_GLuint64;
-
-#ifndef GL_MAP_WRITE_BIT
-#define GL_MAP_WRITE_BIT 0x0002
-#endif
-#ifndef GL_MAP_PERSISTENT_BIT
-#define GL_MAP_PERSISTENT_BIT 0x0040
-#endif
-#ifndef GL_MAP_COHERENT_BIT
-#define GL_MAP_COHERENT_BIT 0x0080
-#endif
-#ifndef GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT
-#define GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT 0x4000
-#endif
-#ifndef GL_SYNC_GPU_COMMANDS_COMPLETE
-#define GL_SYNC_GPU_COMMANDS_COMPLETE 0x9117
-#endif
-#ifndef GL_SYNC_FLUSH_COMMANDS_BIT
-#define GL_SYNC_FLUSH_COMMANDS_BIT 0x00000001
-#endif
-#ifndef GL_ALREADY_SIGNALED
-#define GL_ALREADY_SIGNALED 0x911A
-#endif
-#ifndef GL_CONDITION_SATISFIED
-#define GL_CONDITION_SATISFIED 0x911C
-#endif
-#ifndef GL_WAIT_FAILED
-#define GL_WAIT_FAILED 0x911D
-#endif
-#ifndef GL_TIMEOUT_IGNORED
-#define GL_TIMEOUT_IGNORED ((TRSPK_GLuint64)0xFFFFFFFFFFFFFFFFull)
-#endif
-#ifndef GL_INVALID_INDEX
-#define GL_INVALID_INDEX 0xFFFFFFFFu
-#endif
-#ifndef GL_UNIFORM_BUFFER
-#define GL_UNIFORM_BUFFER 0x8A11
-#endif
-
-#define TRSPK_GLAPIENTRY
-
-typedef TRSPK_GLuint(TRSPK_GLAPIENTRY* PFNGLCREATESHADERPROC)(TRSPK_GLenum type);
-typedef void(TRSPK_GLAPIENTRY* PFNGLSHADERSOURCEPROC)(
-    TRSPK_GLuint shader,
-    TRSPK_GLsizei count,
-    const TRSPK_GLchar* const* string,
-    const TRSPK_GLint* length);
-typedef void(TRSPK_GLAPIENTRY* PFNGLCOMPILESHADERPROC)(TRSPK_GLuint shader);
-typedef void(TRSPK_GLAPIENTRY* PFNGLGETSHADERIVPROC)(
-    TRSPK_GLuint shader,
-    TRSPK_GLenum pname,
-    TRSPK_GLint* params);
-typedef void(TRSPK_GLAPIENTRY* PFNGLGETSHADERINFOLOGPROC)(
-    TRSPK_GLuint shader,
-    TRSPK_GLsizei bufSize,
-    TRSPK_GLsizei* length,
-    TRSPK_GLchar* infoLog);
-typedef void(TRSPK_GLAPIENTRY* PFNGLDELETESHADERPROC)(TRSPK_GLuint shader);
-
-typedef TRSPK_GLuint(TRSPK_GLAPIENTRY* PFNGLCREATEPROGRAMPROC)(void);
-typedef void(TRSPK_GLAPIENTRY* PFNGLATTACHSHADERPROC)(
-    TRSPK_GLuint program,
-    TRSPK_GLuint shader);
-typedef void(TRSPK_GLAPIENTRY* PFNGLLINKPROGRAMPROC)(TRSPK_GLuint program);
-typedef void(TRSPK_GLAPIENTRY* PFNGLGETPROGRAMIVPROC)(
-    TRSPK_GLuint program,
-    TRSPK_GLenum pname,
-    TRSPK_GLint* params);
-typedef void(TRSPK_GLAPIENTRY* PFNGLGETPROGRAMINFOLOGPROC)(
-    TRSPK_GLuint program,
-    TRSPK_GLsizei bufSize,
-    TRSPK_GLsizei* length,
-    TRSPK_GLchar* infoLog);
-typedef void(TRSPK_GLAPIENTRY* PFNGLDELETEPROGRAMPROC)(TRSPK_GLuint program);
-typedef void(TRSPK_GLAPIENTRY* PFNGLUSEPROGRAMPROC)(TRSPK_GLuint program);
-typedef TRSPK_GLint(TRSPK_GLAPIENTRY* PFNGLGETATTRIBLOCATIONPROC)(
-    TRSPK_GLuint program,
-    const TRSPK_GLchar* name);
-typedef TRSPK_GLint(TRSPK_GLAPIENTRY* PFNGLGETUNIFORMLOCATIONPROC)(
-    TRSPK_GLuint program,
-    const TRSPK_GLchar* name);
-typedef void(TRSPK_GLAPIENTRY* PFNGLBINDATTRIBLOCATIONPROC)(
-    TRSPK_GLuint program,
-    TRSPK_GLuint index,
-    const TRSPK_GLchar* name);
-
-typedef void(TRSPK_GLAPIENTRY* PFNGLGENVERTEXARRAYSPROC)(
-    TRSPK_GLsizei n,
-    TRSPK_GLuint* arrays);
-typedef void(TRSPK_GLAPIENTRY* PFNGLDELETEVERTEXARRAYSPROC)(
-    TRSPK_GLsizei n,
-    const TRSPK_GLuint* arrays);
-typedef void(TRSPK_GLAPIENTRY* PFNGLBINDVERTEXARRAYPROC)(TRSPK_GLuint array);
-
-typedef void(TRSPK_GLAPIENTRY* PFNGLGENBUFFERSPROC)(
-    TRSPK_GLsizei n,
-    TRSPK_GLuint* buffers);
-typedef void(TRSPK_GLAPIENTRY* PFNGLDELETEBUFFERSPROC)(
-    TRSPK_GLsizei n,
-    const TRSPK_GLuint* buffers);
-typedef void(TRSPK_GLAPIENTRY* PFNGLBINDBUFFERPROC)(
-    TRSPK_GLenum target,
-    TRSPK_GLuint buffer);
-typedef void(TRSPK_GLAPIENTRY* PFNGLBUFFERDATAPROC)(
-    TRSPK_GLenum target,
-    TRSPK_GLsizeiptr size,
-    const TRSPK_GLvoid* data,
-    TRSPK_GLenum usage);
-typedef void(TRSPK_GLAPIENTRY* PFNGLBUFFERSUBDATAPROC)(
-    TRSPK_GLenum target,
-    TRSPK_GLintptr offset,
-    TRSPK_GLsizeiptr size,
-    const TRSPK_GLvoid* data);
-typedef void(TRSPK_GLAPIENTRY* PFNGLGETBUFFERPARAMETERIVPROC)(
-    TRSPK_GLenum target,
-    TRSPK_GLenum pname,
-    TRSPK_GLint* params);
-
-typedef void(TRSPK_GLAPIENTRY* PFNGLENABLEVERTEXATTRIBARRAYPROC)(TRSPK_GLuint index);
-typedef void(TRSPK_GLAPIENTRY* PFNGLDISABLEVERTEXATTRIBARRAYPROC)(TRSPK_GLuint index);
-typedef void(TRSPK_GLAPIENTRY* PFNGLVERTEXATTRIBPOINTERPROC)(
-    TRSPK_GLuint index,
-    TRSPK_GLint size,
-    TRSPK_GLenum type,
-    TRSPK_GLboolean normalized,
-    TRSPK_GLsizei stride,
-    const TRSPK_GLvoid* pointer);
-
-typedef void(TRSPK_GLAPIENTRY* PFNGLDRAWARRAYSPROC)(
-    TRSPK_GLenum mode,
-    TRSPK_GLint first,
-    TRSPK_GLsizei count);
-
-typedef void(TRSPK_GLAPIENTRY* PFNGLDRAWELEMENTSPROC)(
-    TRSPK_GLenum mode,
-    TRSPK_GLsizei count,
-    TRSPK_GLenum type,
-    const TRSPK_GLvoid* indices);
-
-typedef void(TRSPK_GLAPIENTRY* PFNGLVIEWPORTPROC)(
-    TRSPK_GLint x,
-    TRSPK_GLint y,
-    TRSPK_GLsizei width,
-    TRSPK_GLsizei height);
-typedef void(TRSPK_GLAPIENTRY* PFNGLSCISSORPROC)(
-    TRSPK_GLint x,
-    TRSPK_GLint y,
-    TRSPK_GLsizei width,
-    TRSPK_GLsizei height);
-typedef void(TRSPK_GLAPIENTRY* PFNGLENABLEPROC)(TRSPK_GLenum cap);
-typedef void(TRSPK_GLAPIENTRY* PFNGLDISABLEPROC)(TRSPK_GLenum cap);
-typedef unsigned int TRSPK_GLbitfield;
-typedef void(TRSPK_GLAPIENTRY* PFNGLDETACHSHADERPROC)(
-    TRSPK_GLuint program,
-    TRSPK_GLuint shader);
-typedef TRSPK_GLvoid*(TRSPK_GLAPIENTRY* PFNGLMAPBUFFERPROC)(
-    TRSPK_GLenum target,
-    TRSPK_GLenum access);
-typedef TRSPK_GLboolean(TRSPK_GLAPIENTRY* PFNGLUNMAPBUFFERPROC)(TRSPK_GLenum target);
-typedef void(TRSPK_GLAPIENTRY* PFNGLBLENDEQUATIONPROC)(TRSPK_GLenum mode);
-
-typedef void(TRSPK_GLAPIENTRY* PFNGLCLEARPROC)(TRSPK_GLbitfield mask);
-typedef void(TRSPK_GLAPIENTRY* PFNGLCLEARCOLORPROC)(
-    TRSPK_GLfloat red,
-    TRSPK_GLfloat green,
-    TRSPK_GLfloat blue,
-    TRSPK_GLfloat alpha);
-typedef void(TRSPK_GLAPIENTRY* PFNGLCLEARDEPTHFPROC)(TRSPK_GLfloat d);
-
-typedef void(TRSPK_GLAPIENTRY* PFNGLBLENDFUNCPROC)(
-    TRSPK_GLenum sfactor,
-    TRSPK_GLenum dfactor);
-typedef void(TRSPK_GLAPIENTRY* PFNGLDEPTHFUNCPROC)(TRSPK_GLenum func);
-typedef void(TRSPK_GLAPIENTRY* PFNGLDEPTHMASKPROC)(TRSPK_GLboolean flag);
-typedef void(TRSPK_GLAPIENTRY* PFNGLCULLFACEPROC)(TRSPK_GLenum mode);
-typedef void(TRSPK_GLAPIENTRY* PFNGLFRONTFACEPROC)(TRSPK_GLenum mode);
-
-typedef void(TRSPK_GLAPIENTRY* PFNGLACTIVETEXTUREPROC)(TRSPK_GLenum texture);
-typedef void(TRSPK_GLAPIENTRY* PFNGLBINDTEXTUREPROC)(
-    TRSPK_GLenum target,
-    TRSPK_GLuint texture);
-typedef void(TRSPK_GLAPIENTRY* PFNGLGENTEXTURESPROC)(
-    TRSPK_GLsizei n,
-    TRSPK_GLuint* textures);
-typedef void(TRSPK_GLAPIENTRY* PFNGLDELETETEXTURESPROC)(
-    TRSPK_GLsizei n,
-    const TRSPK_GLuint* textures);
-typedef void(TRSPK_GLAPIENTRY* PFNGLTEXIMAGE2DPROC)(
-    TRSPK_GLenum target,
-    TRSPK_GLint level,
-    TRSPK_GLint internalformat,
-    TRSPK_GLsizei width,
-    TRSPK_GLsizei height,
-    TRSPK_GLint border,
-    TRSPK_GLenum format,
-    TRSPK_GLenum type,
-    const TRSPK_GLvoid* pixels);
-typedef void(TRSPK_GLAPIENTRY* PFNGLTEXPARAMETERIPROC)(
-    TRSPK_GLenum target,
-    TRSPK_GLenum pname,
-    TRSPK_GLint param);
-
-typedef void(TRSPK_GLAPIENTRY* PFNGLUNIFORM1IPROC)(
-    TRSPK_GLint location,
-    TRSPK_GLint v0);
-typedef void(TRSPK_GLAPIENTRY* PFNGLUNIFORM1FPROC)(
-    TRSPK_GLint location,
-    TRSPK_GLfloat v0);
-typedef void(TRSPK_GLAPIENTRY* PFNGLUNIFORMMATRIX4FVPROC)(
-    TRSPK_GLint location,
-    TRSPK_GLsizei count,
-    TRSPK_GLboolean transpose,
-    const TRSPK_GLfloat* value);
-
-typedef void(TRSPK_GLAPIENTRY* PFNGLBUFFERSTORAGEPROC)(
-    TRSPK_GLenum target,
-    TRSPK_GLsizeiptr size,
-    const TRSPK_GLvoid* data,
-    TRSPK_GLbitfield flags);
-typedef TRSPK_GLvoid*(TRSPK_GLAPIENTRY* PFNGLMAPBUFFERRANGEPROC)(
-    TRSPK_GLenum target,
-    TRSPK_GLintptr offset,
-    TRSPK_GLsizeiptr length,
-    TRSPK_GLbitfield access);
-typedef void(TRSPK_GLAPIENTRY* PFNGLBINDBUFFERRANGEPROC)(
-    TRSPK_GLenum target,
-    TRSPK_GLuint index,
-    TRSPK_GLuint buffer,
-    TRSPK_GLintptr offset,
-    TRSPK_GLsizeiptr size);
-typedef TRSPK_GLuint(TRSPK_GLAPIENTRY* PFNGLGETUNIFORMBLOCKINDEXPROC)(
-    TRSPK_GLuint program,
-    const TRSPK_GLchar* uniformBlockName);
-typedef void(TRSPK_GLAPIENTRY* PFNGLUNIFORMBLOCKBINDINGPROC)(
-    TRSPK_GLuint program,
-    TRSPK_GLuint uniformBlockIndex,
-    TRSPK_GLuint uniformBlockBinding);
-typedef TRSPK_GLvoid*(TRSPK_GLAPIENTRY* TRSPKPFNGLFENCESYNCPROC)(
-    TRSPK_GLenum condition,
-    TRSPK_GLbitfield flags);
-typedef void(TRSPK_GLAPIENTRY* TRSPKPFNGLDELETESYNCPROC)(TRSPK_GLvoid* sync);
-typedef TRSPK_GLenum(TRSPK_GLAPIENTRY* TRSPKPFNGLCLIENTWAITSYNCPROC)(
-    TRSPK_GLvoid* sync,
-    TRSPK_GLbitfield flags,
-    TRSPK_GLuint64 timeout);
-typedef void(TRSPK_GLAPIENTRY* PFNGLFLUSHPROC)(void);
 
 extern PFNGLCREATESHADERPROC trspk_glCreateShader;
 extern PFNGLSHADERSOURCEPROC trspk_glShaderSource;
@@ -324,12 +77,79 @@ extern PFNGLMAPBUFFERRANGEPROC trspk_glMapBufferRange;
 extern PFNGLBINDBUFFERRANGEPROC trspk_glBindBufferRange;
 extern PFNGLGETUNIFORMBLOCKINDEXPROC trspk_glGetUniformBlockIndex;
 extern PFNGLUNIFORMBLOCKBINDINGPROC trspk_glUniformBlockBinding;
-extern TRSPKPFNGLFENCESYNCPROC trspk_glFenceSync;
-extern TRSPKPFNGLDELETESYNCPROC trspk_glDeleteSync;
-extern TRSPKPFNGLCLIENTWAITSYNCPROC trspk_glClientWaitSync;
+extern PFNGLFENCESYNCPROC trspk_glFenceSync;
+extern PFNGLDELETESYNCPROC trspk_glDeleteSync;
+extern PFNGLCLIENTWAITSYNCPROC trspk_glClientWaitSync;
 extern PFNGLFLUSHPROC trspk_glFlush;
 
 bool
 trspk_sdlgl_init(void);
+
+#ifndef TRSPK_OPENGL3_NO_GL_ALIASES
+#define glCreateShader trspk_glCreateShader
+#define glShaderSource trspk_glShaderSource
+#define glCompileShader trspk_glCompileShader
+#define glGetShaderiv trspk_glGetShaderiv
+#define glGetShaderInfoLog trspk_glGetShaderInfoLog
+#define glDeleteShader trspk_glDeleteShader
+#define glCreateProgram trspk_glCreateProgram
+#define glAttachShader trspk_glAttachShader
+#define glLinkProgram trspk_glLinkProgram
+#define glGetProgramiv trspk_glGetProgramiv
+#define glGetProgramInfoLog trspk_glGetProgramInfoLog
+#define glDeleteProgram trspk_glDeleteProgram
+#define glUseProgram trspk_glUseProgram
+#define glGetAttribLocation trspk_glGetAttribLocation
+#define glGetUniformLocation trspk_glGetUniformLocation
+#define glBindAttribLocation trspk_glBindAttribLocation
+#define glGenVertexArrays trspk_glGenVertexArrays
+#define glDeleteVertexArrays trspk_glDeleteVertexArrays
+#define glBindVertexArray trspk_glBindVertexArray
+#define glGenBuffers trspk_glGenBuffers
+#define glDeleteBuffers trspk_glDeleteBuffers
+#define glBindBuffer trspk_glBindBuffer
+#define glBufferData trspk_glBufferData
+#define glBufferSubData trspk_glBufferSubData
+#define glGetBufferParameteriv trspk_glGetBufferParameteriv
+#define glEnableVertexAttribArray trspk_glEnableVertexAttribArray
+#define glDisableVertexAttribArray trspk_glDisableVertexAttribArray
+#define glVertexAttribPointer trspk_glVertexAttribPointer
+#define glDrawArrays trspk_glDrawArrays
+#define glDrawElements trspk_glDrawElements
+#define glViewport trspk_glViewport
+#define glScissor trspk_glScissor
+#define glEnable trspk_glEnable
+#define glDisable trspk_glDisable
+#define glDetachShader trspk_glDetachShader
+#define glMapBuffer trspk_glMapBuffer
+#define glUnmapBuffer trspk_glUnmapBuffer
+#define glBlendEquation trspk_glBlendEquation
+#define glClear trspk_glClear
+#define glClearColor trspk_glClearColor
+#define glClearDepthf trspk_glClearDepthf
+#define glBlendFunc trspk_glBlendFunc
+#define glDepthFunc trspk_glDepthFunc
+#define glDepthMask trspk_glDepthMask
+#define glCullFace trspk_glCullFace
+#define glFrontFace trspk_glFrontFace
+#define glActiveTexture trspk_glActiveTexture
+#define glBindTexture trspk_glBindTexture
+#define glGenTextures trspk_glGenTextures
+#define glDeleteTextures trspk_glDeleteTextures
+#define glTexImage2D trspk_glTexImage2D
+#define glTexParameteri trspk_glTexParameteri
+#define glUniform1i trspk_glUniform1i
+#define glUniform1f trspk_glUniform1f
+#define glUniformMatrix4fv trspk_glUniformMatrix4fv
+#define glBufferStorage trspk_glBufferStorage
+#define glMapBufferRange trspk_glMapBufferRange
+#define glBindBufferRange trspk_glBindBufferRange
+#define glGetUniformBlockIndex trspk_glGetUniformBlockIndex
+#define glUniformBlockBinding trspk_glUniformBlockBinding
+#define glFenceSync trspk_glFenceSync
+#define glDeleteSync trspk_glDeleteSync
+#define glClientWaitSync trspk_glClientWaitSync
+#define glFlush trspk_glFlush
+#endif
 
 #endif

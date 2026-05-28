@@ -50,7 +50,8 @@ trspk_vbo_write_vertex_webgl1(
     float z,
     float color[4],
     float u,
-    float v)
+    float v,
+    float tex_id)
 {
     struct TRSPK_VertexWebGL1* vertex = &vbo->vertices.as_webgl1[index];
 
@@ -64,7 +65,7 @@ trspk_vbo_write_vertex_webgl1(
     vertex->color[3] = color[3];
     vertex->texcoord[0] = u;
     vertex->texcoord[1] = v;
-    vertex->tex_id = 0.0f;
+    vertex->tex_id = tex_id;
     vertex->uv_mode = 0.0f;
 }
 

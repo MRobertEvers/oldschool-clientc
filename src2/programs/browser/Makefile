@@ -53,6 +53,8 @@ SRC   := browser.c \
 	$(PLAT_DIR)/platform_emscripten_jshost.c \
 	$(PLAT_DIR)/platform_js_capi.c \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2.c \
+	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_webgl1.c \
+	$(SRC2)/platformkit/core/trspk_vbo.c \
 	$(PLAT_DIR)/platform_x/cachelib.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \
 	$(PLAT_DIR)/platform_x/cachelib_serialized.c \
@@ -96,7 +98,9 @@ REVS_SCRIPTS := $(SRC2)/revs/scripts
 
 # Release build: make EFLAGS='-O2'
 EFLAGS ?= -O0 -g
+# WebGL1 renderer: GLES2 context + WebGL 1.0 API (see platform_impl2_sdl2_port_emscripten.cpp).
 EMFLAGS := $(EFLAGS) -gsource-map -Wall -Wextra -sENVIRONMENT=web -sUSE_SDL=2 \
+	-sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=1 -sFULL_ES2=1 \
 	-I$(SRC2) -I$(SCRIPT_DIR) -I$(PLAT_DIR) -I$(SRC_DIR) -I$(REPO_ROOT) \
 	-sEXPORTED_RUNTIME_METHODS=['HEAPU8'] \
 	-sFORCE_FILESYSTEM=1 \

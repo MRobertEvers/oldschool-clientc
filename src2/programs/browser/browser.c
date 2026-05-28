@@ -3,6 +3,7 @@
 #include "../../libtorirs.h"
 #include "../../platforms/platform_js_capi.h"
 #include "../../platforms/platform_sdl2/platform_sdl2.h"
+#include "../../platforms/platform_sdl2/platform_sdl2_renderer_webgl1.h"
 #include "../../scripting/libtorirs_scripting.h"
 
 #include <SDL.h>
@@ -18,6 +19,7 @@ enum BrowserMainLoopState
 
 static struct LibToriRS_Instance* g_instance;
 static struct LibToriPlatformSDL2* g_platform;
+static struct LibToriPlatformSDL2_RendererWebGL1* g_renderer;
 static struct LibToriRS_CommandQueue* g_command_queue;
 static enum BrowserMainLoopState g_state = BROWSER_MAIN_LOOP_STATE_FRAME;
 
@@ -56,7 +58,7 @@ browser_main_loop(void)
         LibToriRS_IOQueueClear(LibToriRS_GetIOQueue(g_instance));
         LibToriRS_ScriptQueueClear(LibToriRS_GetScriptQueue(g_instance));
 
-        LibToriPlatformSDL2_Render(g_platform, g_instance, 0);
+        LibToriPlatformSDL2_RendererWebGL1_Render(g_renderer, g_instance);
 
         break;
     }
@@ -100,6 +102,20 @@ main(
         return 1;
     }
 
+    struct LibToriPlatformSDL2_RendererWebGL1* renderer_webgl1 =
+        LibToriPlatformSDL2_RendererWebGL1_New(screen_w, screen_h);
+    if( !renderer_webgl1 )
+    {
+        printf("Failed to create WebGL1 renderer\n");
+        return 1;
+    }
+    if( !LibToriPlatformSDL2_RendererWebGL1_Init(
+            renderer_webgl1, LibToriPlatformSDL2_GetWindow(platform)) )
+    {
+        printf("Failed to init WebGL1 renderer\n");
+        return 1;
+    }
+
     struct LibToriRS_CommandQueue* command_queue = LibToriRS_CommandQueue_New();
     if( !command_queue )
     {
@@ -123,6 +139,7 @@ main(
 
     g_instance = instance;
     g_platform = platform;
+    g_renderer = renderer_webgl1;
     g_command_queue = command_queue;
 
     emscripten_set_main_loop(browser_main_loop, 0, 0);

@@ -16,10 +16,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
-
 typedef struct TRSPK_UboWorld
 {
     float modelViewMatrix[16];
@@ -75,11 +71,11 @@ bind_vbo_attribs(struct LibToriPlatformSDL2_RendererGL3* renderer)
     const uintptr_t offset_texcoord = offsetof(struct TRSPK_VertexOpenGl3, texcoord);
     const uintptr_t offset_tex_id = offsetof(struct TRSPK_VertexOpenGl3, tex_id);
     const uintptr_t offset_uv_mode = offsetof(struct TRSPK_VertexOpenGl3, uv_mode);
-    trspk_glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
     if( renderer->a_position >= 0 )
     {
-        trspk_glEnableVertexAttribArray((GLuint)renderer->a_position);
-        trspk_glVertexAttribPointer(
+        glEnableVertexAttribArray((GLuint)renderer->a_position);
+        glVertexAttribPointer(
             (GLuint)renderer->a_position,
             4,
             GL_FLOAT,
@@ -89,14 +85,14 @@ bind_vbo_attribs(struct LibToriPlatformSDL2_RendererGL3* renderer)
     }
     if( renderer->a_color >= 0 )
     {
-        trspk_glEnableVertexAttribArray((GLuint)renderer->a_color);
-        trspk_glVertexAttribPointer(
+        glEnableVertexAttribArray((GLuint)renderer->a_color);
+        glVertexAttribPointer(
             (GLuint)renderer->a_color, 4, GL_FLOAT, GL_FALSE, stride, (const void*)offset_color);
     }
     if( renderer->a_texcoord >= 0 )
     {
-        trspk_glEnableVertexAttribArray((GLuint)renderer->a_texcoord);
-        trspk_glVertexAttribPointer(
+        glEnableVertexAttribArray((GLuint)renderer->a_texcoord);
+        glVertexAttribPointer(
             (GLuint)renderer->a_texcoord,
             2,
             GL_FLOAT,
@@ -106,14 +102,14 @@ bind_vbo_attribs(struct LibToriPlatformSDL2_RendererGL3* renderer)
     }
     if( renderer->a_tex_id >= 0 )
     {
-        trspk_glEnableVertexAttribArray((GLuint)renderer->a_tex_id);
-        trspk_glVertexAttribPointer(
+        glEnableVertexAttribArray((GLuint)renderer->a_tex_id);
+        glVertexAttribPointer(
             (GLuint)renderer->a_tex_id, 1, GL_FLOAT, GL_FALSE, stride, (const void*)offset_tex_id);
     }
     if( renderer->a_uv_mode >= 0 )
     {
-        trspk_glEnableVertexAttribArray((GLuint)renderer->a_uv_mode);
-        trspk_glVertexAttribPointer(
+        glEnableVertexAttribArray((GLuint)renderer->a_uv_mode);
+        glVertexAttribPointer(
             (GLuint)renderer->a_uv_mode,
             1,
             GL_FLOAT,
@@ -138,27 +134,27 @@ gl3_compile_shader(
     GLenum type,
     const char* src)
 {
-    GLuint shader = trspk_glCreateShader(type);
+    GLuint shader = glCreateShader(type);
     if( shader == 0u )
     {
         fprintf(stderr, "OpenGL3: glCreateShader failed\n");
         return 0u;
     }
-    trspk_glShaderSource(shader, 1, &src, NULL);
-    trspk_glCompileShader(shader);
+    glShaderSource(shader, 1, &src, NULL);
+    glCompileShader(shader);
     GLint ok = 0;
-    trspk_glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
     if( !ok )
     {
         char buf[512];
-        trspk_glGetShaderInfoLog(shader, (GLsizei)sizeof(buf), NULL, buf);
+        glGetShaderInfoLog(shader, (GLsizei)sizeof(buf), NULL, buf);
         fprintf(stderr, "OpenGL3: shader compile failed: %s\n", buf);
-        trspk_glDeleteShader(shader);
+        glDeleteShader(shader);
         return 0u;
     }
     if( !gl3_check_error("compile shader") )
     {
-        trspk_glDeleteShader(shader);
+        glDeleteShader(shader);
         return 0u;
     }
     return shader;
@@ -168,17 +164,17 @@ static void
 gl3_destroy_gl_resources(struct LibToriPlatformSDL2_RendererGL3* renderer)
 {
     if( renderer->program3d )
-        trspk_glDeleteProgram(renderer->program3d);
+        glDeleteProgram(renderer->program3d);
     if( renderer->ubo )
-        trspk_glDeleteBuffers(1, &renderer->ubo);
+        glDeleteBuffers(1, &renderer->ubo);
     if( renderer->ebo )
-        trspk_glDeleteBuffers(1, &renderer->ebo);
+        glDeleteBuffers(1, &renderer->ebo);
     if( renderer->vbo )
-        trspk_glDeleteBuffers(1, &renderer->vbo);
+        glDeleteBuffers(1, &renderer->vbo);
     if( renderer->program3d_vao )
-        trspk_glDeleteVertexArrays(1, &renderer->program3d_vao);
+        glDeleteVertexArrays(1, &renderer->program3d_vao);
     if( renderer->atlas_texture )
-        trspk_glDeleteTextures(1, &renderer->atlas_texture);
+        glDeleteTextures(1, &renderer->atlas_texture);
     renderer->program3d = 0u;
     renderer->ubo = 0u;
     renderer->ebo = 0u;
@@ -216,14 +212,6 @@ LibToriPlatformSDL2_RendererGL3_Init(
     struct LibToriPlatformSDL2_RendererGL3* renderer,
     SDL_Window* window)
 {
-    bool ok = trspk_sdlgl_init();
-    if( !ok )
-    {
-        fprintf(stderr, "OpenGL3: trspk_sdlgl_init failed\n");
-        assert(false);
-        return false;
-    }
-
     renderer->gl_context = SDL_GL_CreateContext(window);
     if( !renderer->gl_context )
     {
@@ -239,6 +227,16 @@ LibToriPlatformSDL2_RendererGL3_Init(
         return false;
     }
 
+    bool ok = trspk_sdlgl_init();
+    if( !ok )
+    {
+        fprintf(stderr, "OpenGL3: trspk_sdlgl_init failed\n");
+        assert(false);
+        SDL_GL_DeleteContext(renderer->gl_context);
+        renderer->gl_context = NULL;
+        return false;
+    }
+
     SDL_GL_SetSwapInterval(0);
 
     const char* vs_src = trspk_opengl3_vertex_shader;
@@ -248,94 +246,87 @@ LibToriPlatformSDL2_RendererGL3_Init(
     if( vertexShader == 0u || fragmentShader == 0u )
         goto fail_gl;
 
-    renderer->program3d = trspk_glCreateProgram();
+    renderer->program3d = glCreateProgram();
     if( renderer->program3d == 0u )
     {
         fprintf(stderr, "OpenGL3: glCreateProgram failed\n");
         assert(false);
         goto fail_gl;
     }
-    trspk_glAttachShader(renderer->program3d, vertexShader);
-    trspk_glAttachShader(renderer->program3d, fragmentShader);
-    trspk_glBindAttribLocation(renderer->program3d, 0u, "a_position");
-    trspk_glBindAttribLocation(renderer->program3d, 1u, "a_color");
-    trspk_glBindAttribLocation(renderer->program3d, 2u, "a_texcoord");
-    trspk_glBindAttribLocation(renderer->program3d, 3u, "a_tex_id");
-    trspk_glBindAttribLocation(renderer->program3d, 4u, "a_uv_mode");
-    trspk_glLinkProgram(renderer->program3d);
-    trspk_glDeleteShader(vertexShader);
-    trspk_glDeleteShader(fragmentShader);
+    glAttachShader(renderer->program3d, vertexShader);
+    glAttachShader(renderer->program3d, fragmentShader);
+    glBindAttribLocation(renderer->program3d, 0u, "a_position");
+    glBindAttribLocation(renderer->program3d, 1u, "a_color");
+    glBindAttribLocation(renderer->program3d, 2u, "a_texcoord");
+    glBindAttribLocation(renderer->program3d, 3u, "a_tex_id");
+    glBindAttribLocation(renderer->program3d, 4u, "a_uv_mode");
+    glLinkProgram(renderer->program3d);
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
     vertexShader = 0u;
     fragmentShader = 0u;
 
+    GLint link_ok = 0;
+    glGetProgramiv(renderer->program3d, GL_LINK_STATUS, &link_ok);
+    if( !link_ok )
     {
-        GLint link_ok = 0;
-        trspk_glGetProgramiv(renderer->program3d, GL_LINK_STATUS, &link_ok);
-        if( !link_ok )
-        {
-            char buf[512];
-            trspk_glGetProgramInfoLog(renderer->program3d, (GLsizei)sizeof(buf), NULL, buf);
-            fprintf(stderr, "OpenGL3: program link failed: %s\n", buf);
-            goto fail_gl;
-        }
+        char buf[512];
+        glGetProgramInfoLog(renderer->program3d, (GLsizei)sizeof(buf), NULL, buf);
+        fprintf(stderr, "OpenGL3: program link failed: %s\n", buf);
+        goto fail_gl;
     }
     if( !gl3_check_error("link program") )
         goto fail_gl;
 
-    {
-        const GLuint block_ix = trspk_glGetUniformBlockIndex(renderer->program3d, "TRSPK_UboWorld");
-        if( block_ix != GL_INVALID_INDEX )
-            trspk_glUniformBlockBinding(renderer->program3d, block_ix, 0u);
-    }
+    const GLuint block_ix = glGetUniformBlockIndex(renderer->program3d, "TRSPK_UboWorld");
+    if( block_ix != GL_INVALID_INDEX )
+        glUniformBlockBinding(renderer->program3d, block_ix, 0u);
     if( !gl3_check_error("uniform block binding") )
         goto fail_gl;
 
-    trspk_glGenBuffers(1, &renderer->ubo);
-    trspk_glBindBuffer(GL_UNIFORM_BUFFER, renderer->ubo);
-    trspk_glBufferData(
-        GL_UNIFORM_BUFFER, (GLsizeiptr)sizeof(TRSPK_UboWorld), NULL, GL_DYNAMIC_DRAW);
-    trspk_glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    glGenBuffers(1, &renderer->ubo);
+    glBindBuffer(GL_UNIFORM_BUFFER, renderer->ubo);
+    glBufferData(GL_UNIFORM_BUFFER, (GLsizeiptr)sizeof(TRSPK_UboWorld), NULL, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
     if( !gl3_check_error("ubo") )
         goto fail_gl;
 
-    renderer->a_position = trspk_glGetAttribLocation(renderer->program3d, "a_position");
-    renderer->a_color = trspk_glGetAttribLocation(renderer->program3d, "a_color");
-    renderer->a_texcoord = trspk_glGetAttribLocation(renderer->program3d, "a_texcoord");
-    renderer->a_tex_id = trspk_glGetAttribLocation(renderer->program3d, "a_tex_id");
-    renderer->a_uv_mode = trspk_glGetAttribLocation(renderer->program3d, "a_uv_mode");
-    renderer->s_atlas = trspk_glGetUniformLocation(renderer->program3d, "s_atlas");
+    renderer->a_position = glGetAttribLocation(renderer->program3d, "a_position");
+    renderer->a_color = glGetAttribLocation(renderer->program3d, "a_color");
+    renderer->a_texcoord = glGetAttribLocation(renderer->program3d, "a_texcoord");
+    renderer->a_tex_id = glGetAttribLocation(renderer->program3d, "a_tex_id");
+    renderer->a_uv_mode = glGetAttribLocation(renderer->program3d, "a_uv_mode");
+    renderer->s_atlas = glGetUniformLocation(renderer->program3d, "s_atlas");
 
-    trspk_glGenBuffers(1, &renderer->ebo);
-    trspk_glGenBuffers(1, &renderer->vbo);
+    glGenBuffers(1, &renderer->ebo);
+    glGenBuffers(1, &renderer->vbo);
     if( !gl3_check_error("gen mesh buffers") )
         goto fail_gl;
 
-    trspk_glGenVertexArrays(1, &renderer->program3d_vao);
-    trspk_glBindVertexArray(renderer->program3d_vao);
-    trspk_glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
-    trspk_glBufferData(
-        GL_ARRAY_BUFFER, 4096 * sizeof(struct TRSPK_VertexOpenGl3), NULL, GL_DYNAMIC_DRAW);
+    glGenVertexArrays(1, &renderer->program3d_vao);
+    glBindVertexArray(renderer->program3d_vao);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
+    glBufferData(GL_ARRAY_BUFFER, 4096 * sizeof(struct TRSPK_VertexOpenGl3), NULL, GL_DYNAMIC_DRAW);
     bind_vbo_attribs(renderer);
 
-    trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
-    trspk_glBufferData(
-        GL_ELEMENT_ARRAY_BUFFER, TRSPK_EBO_SIZE * sizeof(uint16_t), NULL, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, TRSPK_EBO_SIZE * sizeof(uint16_t), NULL, GL_DYNAMIC_DRAW);
 
-    trspk_glBindVertexArray(0);
-    trspk_glBindBuffer(GL_ARRAY_BUFFER, 0);
-    trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     if( !gl3_check_error("vao setup") )
         goto fail_gl;
 
     renderer->window = window;
 
-    trspk_glGenTextures(1, &renderer->atlas_texture);
-    trspk_glBindTexture(GL_TEXTURE_2D, renderer->atlas_texture);
-    trspk_glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-    trspk_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    trspk_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    trspk_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    trspk_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glGenTextures(1, &renderer->atlas_texture);
+    glBindTexture(GL_TEXTURE_2D, renderer->atlas_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     if( !gl3_check_error("atlas texture") )
         goto fail_gl;
 
@@ -343,9 +334,9 @@ LibToriPlatformSDL2_RendererGL3_Init(
 
 fail_gl:
     if( vertexShader )
-        trspk_glDeleteShader(vertexShader);
+        glDeleteShader(vertexShader);
     if( fragmentShader )
-        trspk_glDeleteShader(fragmentShader);
+        glDeleteShader(fragmentShader);
     gl3_destroy_gl_resources(renderer);
     SDL_GL_DeleteContext(renderer->gl_context);
     renderer->gl_context = NULL;
@@ -529,11 +520,10 @@ upload_world_ubo(
     memcpy(u.modelViewMatrix, view, sizeof(float) * 16u);
     memcpy(u.projectionMatrix, proj, sizeof(float) * 16u);
     u.uClock = (float)renderer->frame_clock;
-    trspk_glBindBuffer(GL_UNIFORM_BUFFER, renderer->ubo);
-    trspk_glBufferSubData(GL_UNIFORM_BUFFER, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld), &u);
-    trspk_glBindBuffer(GL_UNIFORM_BUFFER, 0);
-    trspk_glBindBufferRange(
-        GL_UNIFORM_BUFFER, 0u, renderer->ubo, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld));
+    glBindBuffer(GL_UNIFORM_BUFFER, renderer->ubo);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld), &u);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    glBindBufferRange(GL_UNIFORM_BUFFER, 0u, renderer->ubo, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld));
 }
 
 struct ToriDraw_Context*
@@ -561,14 +551,14 @@ handle_render_command(
     case TORIRSRC_BEGIN_3D:
         if( !renderer->in3d )
         {
-            trspk_glUseProgram(renderer->program3d);
-            trspk_glUniform1i(renderer->s_atlas, 0);
-            trspk_glActiveTexture(GL_TEXTURE0);
-            trspk_glBindTexture(GL_TEXTURE_2D, renderer->atlas_texture);
-            trspk_glEnable(GL_BLEND);
-            trspk_glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            trspk_glDepthFunc(GL_ALWAYS);
-            trspk_glDepthMask(GL_FALSE);
+            glUseProgram(renderer->program3d);
+            glUniform1i(renderer->s_atlas, 0);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, renderer->atlas_texture);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            glDepthFunc(GL_ALWAYS);
+            glDepthMask(GL_FALSE);
         }
         renderer->cur_3d = command->u.begin_3d;
         renderer->has_3d = true;
@@ -589,7 +579,7 @@ handle_render_command(
         break;
     case TORIRSRC_MODEL_LOAD:
     {
-        trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
         model = get_model(command->u.model_load.model);
         if( model )
         {
@@ -653,13 +643,13 @@ handle_render_command(
                     -1.0f);
             }
 
-            trspk_glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
-            trspk_glBufferData(
+            glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
+            glBufferData(
                 GL_ARRAY_BUFFER,
                 renderer->vbo_cpu->vertex_count * sizeof(struct TRSPK_VertexOpenGl3),
                 renderer->vbo_cpu->vertices.as_opengl3,
                 GL_STATIC_DRAW);
-            trspk_glBindBuffer(GL_ARRAY_BUFFER, 0);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
         }
     }
     break;
@@ -700,20 +690,20 @@ handle_render_command(
         renderer->ibo_16_size = face_count * 3;
 
         // 1. Bind the buffer directly to update its data
-        trspk_glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
 
         // 2. "Orphan" the buffer: Tells the driver it can discard the old memory
         // and give us a fresh block immediately without waiting for the GPU to finish drawing.
-        trspk_glBufferData(
+        glBufferData(
             GL_ELEMENT_ARRAY_BUFFER, TRSPK_EBO_SIZE * sizeof(uint16_t), NULL, GL_DYNAMIC_DRAW);
 
         // 3. Shovel the new index data into the fresh block
-        trspk_glBufferSubData(
+        glBufferSubData(
             GL_ELEMENT_ARRAY_BUFFER, 0, renderer->ibo_16_size * sizeof(uint16_t), renderer->ibo_16);
 
-        trspk_glBindVertexArray(renderer->program3d_vao);
-        trspk_glDrawElements(GL_TRIANGLES, renderer->ibo_16_size, GL_UNSIGNED_SHORT, 0);
-        trspk_glBindVertexArray(0);
+        glBindVertexArray(renderer->program3d_vao);
+        glDrawElements(GL_TRIANGLES, renderer->ibo_16_size, GL_UNSIGNED_SHORT, 0);
+        glBindVertexArray(0);
 
         break;
     }
@@ -736,9 +726,9 @@ LibToriPlatformSDL2_RendererGL3_Render(
     renderer->width = drawable_w;
     renderer->height = drawable_h;
 
-    trspk_glViewport(0, 0, drawable_w, drawable_h);
-    trspk_glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
-    trspk_glClear(GL_COLOR_BUFFER_BIT);
+    glViewport(0, 0, drawable_w, drawable_h);
+    glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
 
     renderer->in3d = false;
     renderer->has_3d = false;
