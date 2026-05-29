@@ -72,6 +72,7 @@ cache_dat_new_from_directory(char const* directory)
     if( cache_dat->_dat_file == NULL )
     {
         printf("Failed to open dat file\n");
+        printf("Directory: %s\n", cache_dat->directory);
         free(cache_dat);
         return NULL;
     }

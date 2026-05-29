@@ -1031,9 +1031,46 @@ Then using cmake.
 cmake -B build-pgi -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=vcpkg/installed/x64-windows
 ```
 
+#### Win32 vendored MinGW toolchain (i686)
+
+The repository ships a vendored **32-bit (i686) MinGW-w64** toolchain under `lib/mingw32-win32-toolchain.zip` (stored in Git LFS). This is the toolchain used by `src2/programs/sdl2/Makefile` and the `win32` CMake target for Windows XP SP3-oriented builds. You must unpack it once before those targets will build.
+
+**One-time setup:**
+
+PowerShell:
+```powershell
+git lfs pull
+New-Item -ItemType Directory -Force -Path toolchain\win32 | Out-Null
+Expand-Archive -Path lib\mingw32-win32-toolchain.zip -DestinationPath toolchain\win32
+```
+
+Bash (MSYS2 or Linux):
+```bash
+git lfs pull
+mkdir -p toolchain/win32
+unzip -q lib/mingw32-win32-toolchain.zip -d toolchain/win32
+```
+
+Sanity check — this path must exist after unpacking:
+```
+toolchain/win32/mingw32/bin/gcc.exe
+```
+
+**Example build** (from the repo root):
+```bash
+cd src2/programs/sdl2
+mingw32-make
+```
+
+The `toolchain/` directory is gitignored; only the zip (via LFS) is committed.
+
+---
+
 #### Building with GCC and MinGW
 
 MinGW (Minimalist GNU for Windows) provides a GCC compiler toolchain for Windows. It often provides better performance than MSVC for this project.
+
+> The instructions below cover **host** (x86-64) MinGW builds using MSYS2. For the **vendored i686 / WinXP-oriented** toolchain used by `src2/programs/sdl2`, see the section above.
 
 Note, when building with MinGW, you must also include `libwinpthread-1.dll` in addition to `SDL2.dll`
 

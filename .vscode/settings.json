@@ -20,7 +20,7 @@
   "C_Cpp.clang_format_path": "/opt/homebrew/bin/clang-format",
   "C_Cpp.clang_format_style": "file",
   "[c]": {
-    "editor.defaultFormatter": "ms-vscode.cpptools"
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
   },
   "[cpp]": {
     "editor.defaultFormatter": "ms-vscode.cpptools"
@@ -50,7 +50,12 @@
     },
     "MSYS2 Terminal": {
       "path": "C:\\msys64\\msys2_shell.cmd",
-      "args": ["-defterm", "-here", "-no-start", "-mingw64"],
+      "args": [
+        "-defterm",
+        "-here",
+        "-no-start",
+        "-mingw64"
+      ],
       "icon": "terminal-bash",
       "env": {
         "CHERE_INVOKING": "1",
@@ -60,7 +65,10 @@
     },
     "MSYS2 Bash": {
       "path": "C:\\msys64\\usr\\bin\\bash.exe",
-      "args": ["--login", "-i"],
+      "args": [
+        "--login",
+        "-i"
+      ],
       "icon": "terminal-bash",
       "env": {
         "PATH": "C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;${env:PATH}",

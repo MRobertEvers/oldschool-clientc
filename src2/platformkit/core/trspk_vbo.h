@@ -7,6 +7,7 @@
 // clang-format off
 #include "../opengl3/opengl3_vertex.h"
 #include "../webgl1/webgl1_vertex.h"
+#include "../d3d9/d3d9_vertex.h"
 // clang-format on
 
 #include <stdint.h>
@@ -20,6 +21,7 @@ struct TRSPK_VBO
     {
         struct TRSPK_VertexWebGL1* as_webgl1;
         struct TRSPK_VertexOpenGl3* as_opengl3;
+        struct TRSPK_VertexD3D9* as_d3d9;
     } vertices;
 };
 
@@ -95,6 +97,45 @@ trspk_vbo_write_vertex_opengl3(
     vertex->texcoord[1] = v;
     vertex->tex_id = tex_id;
     vertex->uv_mode = 0.0f;
+}
+
+/* Pack four float [0,1] RGBA components into a D3D ARGB uint32_t. */
+static inline uint32_t
+trspk_d3d9_pack_argb(float r, float g, float b, float a)
+{
+    uint32_t ir = (uint32_t)(r * 255.0f + 0.5f);
+    uint32_t ig = (uint32_t)(g * 255.0f + 0.5f);
+    uint32_t ib = (uint32_t)(b * 255.0f + 0.5f);
+    uint32_t ia = (uint32_t)(a * 255.0f + 0.5f);
+    if( ir > 255u ) ir = 255u;
+    if( ig > 255u ) ig = 255u;
+    if( ib > 255u ) ib = 255u;
+    if( ia > 255u ) ia = 255u;
+    return (ia << 24u) | (ir << 16u) | (ig << 8u) | ib;
+}
+
+static inline void
+trspk_vbo_write_vertex_d3d9(
+    struct TRSPK_VBO* vbo,
+    uint32_t index,
+    float x,
+    float y,
+    float z,
+    float color[4],
+    float u,
+    float v,
+    float tex_id)
+{
+    struct TRSPK_VertexD3D9* vertex = &vbo->vertices.as_d3d9[index];
+
+    vertex->position[0] = x;
+    vertex->position[1] = y;
+    vertex->position[2] = z;
+    vertex->color = trspk_d3d9_pack_argb(color[0], color[1], color[2], color[3]);
+    vertex->texcoord[0] = u;
+    vertex->texcoord[1] = v;
+    vertex->texdata[0] = tex_id;
+    vertex->texdata[1] = 0.0f;
 }
 
 #endif

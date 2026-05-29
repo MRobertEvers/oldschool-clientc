@@ -56,6 +56,15 @@ trspk_vbo_growby(
             &vbo->vertices.as_opengl3[old_count], 0, sizeof(struct TRSPK_VertexOpenGl3) * amount);
         break;
     }
+    case TRSPK_VERTEX_FORMAT_D3D9:
+    {
+        struct TRSPK_VertexD3D9* grown = (struct TRSPK_VertexD3D9*)realloc(
+            vbo->vertices.as_d3d9, sizeof(struct TRSPK_VertexD3D9) * new_count);
+        assert(grown != NULL);
+        vbo->vertices.as_d3d9 = grown;
+        memset(&vbo->vertices.as_d3d9[old_count], 0, sizeof(struct TRSPK_VertexD3D9) * amount);
+        break;
+    }
     default:
         assert(false);
         return;
@@ -90,6 +99,9 @@ trspk_vbo_free(struct TRSPK_VBO* vbo)
         break;
     case TRSPK_VERTEX_FORMAT_OPENGL3:
         free(vbo->vertices.as_opengl3);
+        break;
+    case TRSPK_VERTEX_FORMAT_D3D9:
+        free(vbo->vertices.as_d3d9);
         break;
     default:
         break;

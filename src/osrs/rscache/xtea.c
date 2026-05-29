@@ -32,14 +32,18 @@
 // }
 
 static int
-read_32(char* data, int position)
+read_32(
+    char* data,
+    int position)
 {
     return ((data[position] & 0xFF) << 24) | ((data[position + 1] & 0xFF) << 16) |
            ((data[position + 2] & 0xFF) << 8) | (data[position + 3] & 0xFF);
 }
 
 static void
-write_32(char* data, uint32_t value)
+write_32(
+    char* data,
+    uint32_t value)
 {
     data[0] = (value >> 24) & 0xFF;
     data[1] = (value >> 16) & 0xFF;
@@ -48,7 +52,10 @@ write_32(char* data, uint32_t value)
 }
 
 void
-xtea_decrypt(char* data, int length, int32_t key[4])
+xtea_decrypt(
+    char* data,
+    int length,
+    int32_t* key)
 {
     int num_blocks = length / 8;
 

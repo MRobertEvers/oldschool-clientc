@@ -256,6 +256,44 @@ LibToriPlatformSDL2_InitForWebGL1(
     return true;
 }
 
+bool
+LibToriPlatformSDL2_InitForD3D9(
+    struct LibToriPlatformSDL2* platform,
+    int screen_width,
+    int screen_height)
+{
+    if( !platform )
+        return false;
+    if( SDL_Init(SDL_INIT_VIDEO) < 0 )
+    {
+        printf("SDL_Init failed: %s\n", SDL_GetError());
+        return false;
+    }
+
+    /* D3D9 owns its own swap chain; no OpenGL flag needed on the window. */
+    platform->window = SDL_CreateWindow(
+        "Game",
+        SDL_WINDOWPOS_UNDEFINED,
+        SDL_WINDOWPOS_UNDEFINED,
+        screen_width,
+        screen_height,
+        SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+    if( !platform->window )
+    {
+        printf("SDL_CreateWindow failed: %s\n", SDL_GetError());
+        SDL_Quit();
+        return false;
+    }
+
+    platform->width        = screen_width;
+    platform->height       = screen_height;
+    platform->renderer     = NULL;
+    platform->texture      = NULL;
+    platform->pixel_buffer = NULL;
+
+    return true;
+}
+
 SDL_Window*
 LibToriPlatformSDL2_GetWindow(struct LibToriPlatformSDL2* platform)
 {

@@ -2,8 +2,10 @@
 # macOS). GCC-only options (-ftree-vectorizer-*, -fopt-info-*) break every TU and
 # can crash or restart clangd.
 CompileFlags:
-  CompilationDatabase: build/
+  CompilationDatabase: build-winxp/
   Add:
+    - -IC:/Users/mrobe/Downloads/winlibs-i686-posix-dwarf-gcc-15.2.0-mingw-w64msvcrt-13.0.0-r2/mingw32/include/SDL2
+    - -IC:/Users/mrobe/Downloads/winlibs-i686-posix-dwarf-gcc-15.2.0-mingw-w64msvcrt-13.0.0-r2/mingw32/include
     - -march=native
     - -D_CRT_SECURE_NO_WARNINGS
     - -D_WINSOCK_DEPRECATED_NO_WARNINGS

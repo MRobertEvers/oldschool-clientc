@@ -10,10 +10,34 @@ TRSPK_DIR := $(SRC_DIR)/platforms/ToriRSPlatformKit
 OBJ_DIR := sdl2_build
 PROG    := sdl2
 
-CC      ?= cc
-CFLAGS  ?= -O0 -Wall -Wextra -Werror -g
-CFLAGS  += -fsanitize=address -fno-omit-frame-pointer
-LDFLAGS += -fsanitize=address
+# ---------------------------------------------------------------------------
+# Platform detection
+#   UNAME_S is set from uname on Unix; on a bare Windows shell (cmd.exe /
+#   PowerShell) OS=Windows_NT is set by the environment.  MSYS2 / MinGW-w64
+#   shells expose both, so check UNAME_S first and fall back to OS.
+# ---------------------------------------------------------------------------
+UNAME_S := $(shell uname -s 2>/dev/null)
+
+ifeq ($(findstring MINGW,$(UNAME_S)),MINGW)
+  HOST_OS := Windows
+else ifeq ($(findstring MSYS,$(UNAME_S)),MSYS)
+  HOST_OS := Windows
+else ifeq ($(UNAME_S),Darwin)
+  HOST_OS := MacOS
+else ifeq ($(UNAME_S),Linux)
+  HOST_OS := Linux
+else ifeq ($(OS),Windows_NT)
+  HOST_OS := Windows
+else
+  HOST_OS := Linux
+endif
+
+# ---------------------------------------------------------------------------
+# Common compiler / flags
+# ---------------------------------------------------------------------------
+CC       ?= cc
+CFLAGS   ?= -O0 -Wall -Wextra -Werror -g
+CFLAGS   += -Wno-implicit-fallthrough
 CPPFLAGS += -I$(SRC_DIR) -I$(SRC2) -I$(SCRIPT_DIR) -I$(REPO_ROOT) \
 	-I$(TRSPK_DIR)/include -I$(TRSPK_DIR)/src
 
@@ -21,14 +45,15 @@ CPPFLAGS += -I$(SRC_DIR) -I$(SRC2) -I$(SCRIPT_DIR) -I$(REPO_ROOT) \
 LUA_SRC := $(filter-out $(SRC_DIR)/3rd/lua/lua.c $(SRC_DIR)/3rd/lua/luac.c,\
 	$(wildcard $(SRC_DIR)/3rd/lua/*.c))
 
-SRCS := sdl2.c \
+# ---------------------------------------------------------------------------
+# Common source files shared across all platforms
+# ---------------------------------------------------------------------------
+COMMON_SRCS := sdl2.c \
 	$(PLAT_DIR)/platform_x_lua.c \
 	$(PLAT_DIR)/platform_x/cachelib.c \
 	$(PLAT_DIR)/platform_x/cachelib_platform.c \
 	$(PLAT_DIR)/platform_x/cachelib_serialized.c \
 	$(PLAT_DIR)/platform_sdl2/platform_sdl2.c \
-	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_opengl3.c \
-	$(SRC2)/platformkit/opengl3/opengl3_sdlgl.c \
 	$(SRC2)/platformkit/core/trspk_vbo.c \
 	$(PLAT_DIR)/trspk_toridraw.c \
 	$(TRSPK_DIR)/src/tools/trspk_batch32.c \
@@ -108,40 +133,138 @@ SRCS := sdl2.c \
 	$(SRC2)/libtorirs.c \
 	$(LUA_SRC)
 
+# ---------------------------------------------------------------------------
+# ===== MacOS =====
+#   Renderer: OpenGL3 (core 3.2)
+#   GL loader: opengl3_sdlgl (SDL_GL_GetProcAddress)
+#   GL link:   -framework OpenGL
+#   ASan:      enabled
+# ---------------------------------------------------------------------------
+ifeq ($(HOST_OS),MacOS)
+
+CFLAGS   += -fsanitize=address -fno-omit-frame-pointer
+LDFLAGS  += -fsanitize=address
+
+RENDERER_SRCS := \
+	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_opengl3.c \
+	$(SRC2)/platformkit/opengl3/opengl3_sdlgl.c
+
 SDL_CFLAGS := $(shell pkg-config --cflags sdl2 2>/dev/null)
-SDL_LIBS := $(shell pkg-config --libs sdl2 2>/dev/null)
+SDL_LIBS   := $(shell pkg-config --libs   sdl2 2>/dev/null)
 ifeq ($(strip $(SDL_LIBS)),)
-SDL_CFLAGS := $(shell sdl2-config --cflags 2>/dev/null)
-SDL_LIBS := $(shell sdl2-config --libs 2>/dev/null)
+  SDL_CFLAGS := $(shell sdl2-config --cflags 2>/dev/null)
+  SDL_LIBS   := $(shell sdl2-config --libs   2>/dev/null)
 endif
 ifeq ($(strip $(SDL_LIBS)),)
-ifeq ($(shell uname -s),Darwin)
-SDL_CFLAGS := -I/opt/homebrew/include/SDL2 -I/usr/local/include/SDL2
-SDL_LIBS := -L/opt/homebrew/lib -L/usr/local/lib -lSDL2
-else
-SDL_CFLAGS := -I/usr/include/SDL2
-SDL_LIBS := -lSDL2
-endif
+  SDL_CFLAGS := -I/opt/homebrew/include/SDL2 -I/usr/local/include/SDL2
+  SDL_LIBS   := -L/opt/homebrew/lib -L/usr/local/lib -lSDL2
 endif
 
-# Flat object list in OBJ_DIR (same pattern as src/osrs/revconfig/Makefile)
+GFX_LIBS := -framework OpenGL
+EXE      :=
+
+endif # MacOS
+
+# ---------------------------------------------------------------------------
+# ===== Linux =====
+#   Renderer: OpenGL3 (core 3.3)
+#   GL link:  -lGL
+#   ASan:     enabled
+# ---------------------------------------------------------------------------
+ifeq ($(HOST_OS),Linux)
+
+CFLAGS   += -fsanitize=address -fno-omit-frame-pointer
+LDFLAGS  += -fsanitize=address
+
+RENDERER_SRCS := \
+	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_opengl3.c \
+	$(SRC2)/platformkit/opengl3/opengl3_sdlgl.c
+
+SDL_CFLAGS := $(shell pkg-config --cflags sdl2 2>/dev/null)
+SDL_LIBS   := $(shell pkg-config --libs   sdl2 2>/dev/null)
+ifeq ($(strip $(SDL_LIBS)),)
+  SDL_CFLAGS := $(shell sdl2-config --cflags 2>/dev/null)
+  SDL_LIBS   := $(shell sdl2-config --libs   2>/dev/null)
+endif
+ifeq ($(strip $(SDL_LIBS)),)
+  SDL_CFLAGS := -I/usr/include/SDL2
+  SDL_LIBS   := -lSDL2
+endif
+
+GFX_LIBS := -lGL
+EXE      :=
+
+endif # Linux
+
+# ---------------------------------------------------------------------------
+# ===== Windows (MinGW-w64) =====
+#   Renderer: Direct3D9 (fixed-function FVF pipeline)
+#   GL link:  none (D3D9 via -ld3d9 / d3d9.lib)
+#   ASan:     disabled (not supported under MinGW)
+#   SDL2:     linked as -lmingw32 -lSDL2main -lSDL2 (MSYS2 / MinGW-w64 layout)
+#   Output:   sdl2.exe
+#
+#   Build with:
+#     mingw32-make  (from an MSYS2 / MinGW-w64 shell)
+#   or:
+#     make HOST_OS=Windows CC=x86_64-w64-mingw32-gcc
+# ---------------------------------------------------------------------------
+ifeq ($(HOST_OS),Windows)
+
+# Vendored 32-bit (i686) MinGW-w64 toolchain — targets Windows XP SP3.
+TOOLCHAIN_WIN32 := $(REPO_ROOT)/toolchain/win32/mingw32
+
+# Force the 32-bit compiler (still overridable on the command line via CC=...).
+CC := $(TOOLCHAIN_WIN32)/bin/gcc.exe
+
+# Windows XP SP3 / Pentium-4 SSE2 target flags.
+CFLAGS  += -march=pentium4 -msse2 -mfpmath=sse -D_WIN32_WINNT=0x0501 -DWINVER=0x0501
+LDFLAGS += -static-libgcc -Wl,--subsystem,console:5.01
+
+RENDERER_SRCS := \
+	$(PLAT_DIR)/platform_sdl2/platform_sdl2_renderer_d3d9.c
+
+# SDL2 from the vendored toolchain (no pkg-config/sdl2-config present there).
+SDL_CFLAGS := -I$(TOOLCHAIN_WIN32)/include/SDL2 -Dmain=SDL_main
+SDL_LIBS   := -L$(TOOLCHAIN_WIN32)/lib -lmingw32 -lSDL2main -lSDL2
+
+GFX_LIBS := -ld3d9 -lgdi32
+EXE      := .exe
+
+# Copy the matching 32-bit runtime DLLs next to the exe (fixes 0xc000007b).
+POSTLINK := cp -f $(TOOLCHAIN_WIN32)/bin/SDL2.dll $(TOOLCHAIN_WIN32)/bin/libwinpthread-1.dll .
+
+endif # Windows
+
+# ---------------------------------------------------------------------------
+# ===== Emscripten =====
+#   The WebGL1 / browser build is produced by a *separate* Makefile:
+#       src2/programs/browser/Makefile
+#   Run that makefile (using emcc) to generate dist/browser.js + browser.wasm.
+#   Nothing in this Makefile is executed for an Emscripten build.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Final source list, object list, and build rules
+# ---------------------------------------------------------------------------
+SRCS := $(COMMON_SRCS) $(RENDERER_SRCS)
+
+# Flat object list in OBJ_DIR (avoids path collisions for same-named files).
 OBJS = $(addprefix $(OBJ_DIR)/, $(notdir $(SRCS:.c=.o)))
+
+# Post-link step: copy runtime DLLs next to the exe on Windows; no-op elsewhere.
+POSTLINK ?=
 
 .PHONY: all clean
 
-all: $(OBJ_DIR) $(PROG)
+all: $(OBJ_DIR) $(PROG)$(EXE)
 
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
-ifeq ($(shell uname -s),Darwin)
-GL_LIBS := -framework OpenGL
-else
-GL_LIBS := -lGL
-endif
-
-$(PROG): $(OBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(SDL_LIBS) $(GL_LIBS) -lm
+$(PROG)$(EXE): $(OBJS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(SDL_LIBS) $(GFX_LIBS) -lm
+	$(POSTLINK)
 
 define make-goal
 $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
@@ -172,6 +295,21 @@ $(OBJ_DIR)/noise.o: $(SRC_DIR)/osrs/rscache/tables/noise.c
 $(OBJ_DIR)/trspk_vertex_buffer.o: $(TRSPK_DIR)/src/tools/trspk_vertex_buffer.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SDL_CFLAGS) -Wno-unused-parameter -c $< -o $@
 
+# 3rd-party vendored libraries: compile with all warnings suppressed.
+THIRD_PARTY_CFLAGS := $(filter-out -Wall -Wextra -Werror,$(CFLAGS)) -w
+
+$(OBJ_DIR)/bzip.o: $(SRC_DIR)/3rd/bzip/bzip.c
+	$(CC) $(CPPFLAGS) $(THIRD_PARTY_CFLAGS) $(SDL_CFLAGS) -c $< -o $@
+
+$(OBJ_DIR)/miniz.o: $(SRC_DIR)/3rd/miniz/miniz.c
+	$(CC) $(CPPFLAGS) $(THIRD_PARTY_CFLAGS) $(SDL_CFLAGS) -c $< -o $@
+
+define make-lua-goal
+$(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1)
+	$(CC) $(CPPFLAGS) $(THIRD_PARTY_CFLAGS) $(SDL_CFLAGS) -c $(1) -o $$@
+endef
+$(foreach src,$(LUA_SRC),$(eval $(call make-lua-goal,$(src))))
+
 clean:
-	rm -f $(PROG)
+	rm -f $(PROG) $(PROG).exe
 	rm -rf $(OBJ_DIR)

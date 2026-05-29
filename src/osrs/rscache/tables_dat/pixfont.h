@@ -36,8 +36,8 @@ struct CacheDatPixfont
     int draw_width[256];
 };
 
-static void
-cache_dat_pixfont_init(void) __attribute__((unused));
+// static void
+// cache_dat_pixfont_init(void) __attribute__((unused));
 
 struct CacheDatPixfont*
 cache_dat_pixfont_new_decode(

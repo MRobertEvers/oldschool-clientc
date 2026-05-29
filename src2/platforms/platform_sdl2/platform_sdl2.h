@@ -33,6 +33,12 @@ LibToriPlatformSDL2_InitForWebGL1(
     int screen_width,
     int screen_height);
 
+bool
+LibToriPlatformSDL2_InitForD3D9(
+    struct LibToriPlatformSDL2* platform,
+    int screen_width,
+    int screen_height);
+
 SDL_Window*
 LibToriPlatformSDL2_GetWindow(struct LibToriPlatformSDL2* platform);
 
