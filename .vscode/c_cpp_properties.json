@@ -45,7 +45,7 @@
                 "WINVER=0x0501",
                 "CACHE_PATH=\"../cache\""
             ],
-            "compilerPath": "C:/Users/mrobe/Downloads/winlibs-i686-posix-dwarf-gcc-15.2.0-mingw-w64msvcrt-13.0.0-r2/mingw32/bin/gcc.exe",
+            "compilerPath": "${workspaceFolder}/toolchain/win32/mingw32/bin/gcc.exe",
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "windows-gcc-x86"

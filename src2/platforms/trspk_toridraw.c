@@ -1,5 +1,13 @@
 #include "trspk_toridraw.h"
 
+#include "graphics/uv_pnm.h"
+#include "platformkit/core/trspk_vbo.h"
+#include "toridraw/toridraw_hsl16.h"
+#include "toridraw/toridraw_types.h"
+
+#include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 
 bool
@@ -8,207 +16,172 @@ trspk_toridraw_has_textures(const struct ToriDraw_Model* model)
     return model && model->face_textures && model->textured_face_count > 0;
 }
 
-// TRSPK_UVCalculationMode
-// trspk_toridraw_uv_calculation_mode(const struct ToriDraw_ModelHandle* handle)
-// {
-//     if( handle && handle->kind == TORIDRAWMK_GROUND )
-//         return TRSPK_UV_CALC_FIRST_FACE;
-//     return TRSPK_UV_CALC_TEXTURED_FACE_ARRAY;
-// }
+static void
+hsl16_to_rgbaf(
+    uint16_t hsl16,
+    uint8_t alpha,
+    float rgba[4])
+{
+    uint32_t rgb = toridraw_hsl16_to_rgb(hsl16);
+    rgba[0] = (float)((rgb >> 16) & 0xFFu) / 255.0f;
+    rgba[1] = (float)((rgb >> 8) & 0xFFu) / 255.0f;
+    rgba[2] = (float)(rgb & 0xFFu) / 255.0f;
+    rgba[3] = (float)alpha / 255.0f;
+}
 
-// void
-// trspk_toridraw_fill_rgba128(
-//     const struct ToriDraw_Texture* tex,
-//     uint8_t* scratch_buffer,
-//     uint32_t scratch_capacity,
-//     const uint8_t** out_pixels,
-//     uint32_t* out_size)
-// {
-//     if( out_pixels )
-//         *out_pixels = NULL;
-//     if( out_size )
-//         *out_size = 0u;
-//     if( !tex || !tex->texels || !scratch_buffer )
-//         return;
+static inline void
+write_vertex(
+    struct TRSPK_VBO* vbo,
+    uint32_t index,
+    float x,
+    float y,
+    float z,
+    float color[4],
+    float u,
+    float v,
+    float tex_id)
+{
+    switch( vbo->format )
+    {
+    case TRSPK_VERTEX_FORMAT_D3D9:
+        trspk_vbo_write_vertex_d3d9(vbo, index, x, y, z, color, u, v, tex_id);
+        break;
+    case TRSPK_VERTEX_FORMAT_OPENGL3:
+        trspk_vbo_write_vertex_opengl3(vbo, index, x, y, z, color, u, v, tex_id);
+        break;
+    case TRSPK_VERTEX_FORMAT_WEBGL1:
+        trspk_vbo_write_vertex_webgl1(vbo, index, x, y, z, color, u, v, tex_id);
+        break;
+    case TRSPK_VERTEX_FORMAT_TRSPK:
+        assert(0);
+        break;
+    default:
+        assert(0);
+        break;
+    }
+}
 
-//     const int w = tex->width;
-//     const int h = tex->height;
-//     if( (w != 128 && w != 64) || h != w )
-//         return;
+static void
+uv_pnm_model_face(
+    struct UVFaceCoords* uv_pnm_out,
+    struct ToriDraw_Model* model,
+    uint32_t face_index)
+{
+    uint32_t face_a = model->face_indices_a[face_index];
+    uint32_t face_b = model->face_indices_b[face_index];
+    uint32_t face_c = model->face_indices_c[face_index];
 
-//     const uint32_t required = (uint32_t)w * (uint32_t)h * TRSPK_TORIDRAW_ATLAS_BPP;
-//     const uint32_t output_required = w == 64 ? TRSPK_TORIDRAW_TEXTURE_DIMENSION *
-//                                                    TRSPK_TORIDRAW_TEXTURE_DIMENSION *
-//                                                    TRSPK_TORIDRAW_ATLAS_BPP
-//                                              : required;
-//     if( scratch_capacity < output_required )
-//         return;
+    uint32_t texture_face = face_index;
+    uint32_t p_vertex = face_a;
+    uint32_t m_vertex = face_b;
+    uint32_t n_vertex = face_c;
 
-//     for( int p = 0; p < w * h; ++p )
-//     {
-//         const int pix = tex->texels[p];
-//         scratch_buffer[(size_t)p * TRSPK_TORIDRAW_ATLAS_BPP + 0u] = (uint8_t)((pix >> 16) &
-//         0xFF); scratch_buffer[(size_t)p * TRSPK_TORIDRAW_ATLAS_BPP + 1u] = (uint8_t)((pix >> 8) &
-//         0xFF); scratch_buffer[(size_t)p * TRSPK_TORIDRAW_ATLAS_BPP + 2u] = (uint8_t)(pix & 0xFF);
-//         scratch_buffer[(size_t)p * TRSPK_TORIDRAW_ATLAS_BPP + 3u] = (uint8_t)((pix >> 24) &
-//         0xFF);
-//     }
+    if( model->face_texture_coords && model->face_texture_coords[face_index] != -1 )
+    {
+        assert(model->textured_p_coordinate != NULL);
+        assert(model->textured_m_coordinate != NULL);
+        assert(model->textured_n_coordinate != NULL);
 
-//     if( w == 64 )
-//     {
-//         static uint8_t upscaled
-//             [TRSPK_TORIDRAW_TEXTURE_DIMENSION * TRSPK_TORIDRAW_TEXTURE_DIMENSION *
-//              TRSPK_TORIDRAW_ATLAS_BPP];
-//         trspk_upscale_64_to_128_rgba(scratch_buffer, upscaled);
-//         memcpy(
-//             scratch_buffer,
-//             upscaled,
-//             TRSPK_TORIDRAW_TEXTURE_DIMENSION * TRSPK_TORIDRAW_TEXTURE_DIMENSION *
-//                 TRSPK_TORIDRAW_ATLAS_BPP);
-//         if( out_size )
-//             *out_size = TRSPK_TORIDRAW_TEXTURE_DIMENSION * TRSPK_TORIDRAW_TEXTURE_DIMENSION *
-//                         TRSPK_TORIDRAW_ATLAS_BPP;
-//     }
-//     else if( out_size )
-//     {
-//         *out_size = required;
-//     }
+        texture_face = model->face_texture_coords[face_index];
 
-//     if( out_pixels )
-//         *out_pixels = scratch_buffer;
-// }
+        p_vertex = model->textured_p_coordinate[texture_face];
+        m_vertex = model->textured_m_coordinate[texture_face];
+        n_vertex = model->textured_n_coordinate[texture_face];
+    }
+    else
+    {
+        texture_face = face_index;
+        p_vertex = model->face_indices_a[texture_face];
+        m_vertex = model->face_indices_b[texture_face];
+        n_vertex = model->face_indices_c[texture_face];
+    }
 
-// void
-// trspk_toridraw_batch_add_model32(
-//     struct TRSPK_Batch32* batch,
-//     const struct ToriDraw_Model* model,
-//     uint16_t model_id,
-//     uint8_t segment,
-//     uint16_t frame_index,
-//     const TRSPK_BakeTransform* bake,
-//     struct TRSPK_ResourceCache* resource_cache)
-// {
-//     if( trspk_toridraw_has_textures(model) )
-//     {
-//         trspk_batch32_add_model_textured(
-//             batch,
-//             model_id,
-//             segment,
-//             frame_index,
-//             (uint32_t)model->vertex_count,
-//             model->vertices_x,
-//             model->vertices_y,
-//             model->vertices_z,
-//             (uint32_t)model->face_count,
-//             (const uint16_t*)model->face_indices_a,
-//             (const uint16_t*)model->face_indices_b,
-//             (const uint16_t*)model->face_indices_c,
-//             model->face_colors_a,
-//             model->face_colors_b,
-//             model->face_colors_c,
-//             model->face_textures,
-//             (const uint16_t*)model->face_texture_coords,
-//             (const uint16_t*)model->textured_p_coordinate,
-//             (const uint16_t*)model->textured_m_coordinate,
-//             (const uint16_t*)model->textured_n_coordinate,
-//             model->face_alphas,
-//             model->face_infos,
-//             TRSPK_UV_CALC_TEXTURED_FACE_ARRAY,
-//             resource_cache,
-//             bake);
-//     }
-//     else
-//     {
-//         trspk_batch32_add_model(
-//             batch,
-//             model_id,
-//             segment,
-//             frame_index,
-//             (uint32_t)model->vertex_count,
-//             model->vertices_x,
-//             model->vertices_y,
-//             model->vertices_z,
-//             (uint32_t)model->face_count,
-//             (const uint16_t*)model->face_indices_a,
-//             (const uint16_t*)model->face_indices_b,
-//             (const uint16_t*)model->face_indices_c,
-//             model->face_colors_a,
-//             model->face_colors_b,
-//             model->face_colors_c,
-//             model->face_alphas,
-//             model->face_infos,
-//             bake);
-//     }
-// }
+    uv_pnm_compute(
+        uv_pnm_out,
+        model->vertices_x[p_vertex],
+        model->vertices_y[p_vertex],
+        model->vertices_z[p_vertex],
+        model->vertices_x[m_vertex],
+        model->vertices_y[m_vertex],
+        model->vertices_z[m_vertex],
+        model->vertices_x[n_vertex],
+        model->vertices_y[n_vertex],
+        model->vertices_z[n_vertex],
+        model->vertices_x[face_a],
+        model->vertices_y[face_a],
+        model->vertices_z[face_a],
+        model->vertices_x[face_b],
+        model->vertices_y[face_b],
+        model->vertices_z[face_b],
+        model->vertices_x[face_c],
+        model->vertices_y[face_c],
+        model->vertices_z[face_c]);
+}
 
-// void
-// trspk_toridraw_batch_add_model16(
-//     struct TRSPK_Batch16* batch,
-//     const struct ToriDraw_Model* model,
-//     uint16_t model_id,
-//     uint8_t segment,
-//     uint16_t frame_index,
-//     const TRSPK_BakeTransform* bake,
-//     struct TRSPK_ResourceCache* resource_cache)
-// {
-//     if( trspk_toridraw_has_textures(model) )
-//     {
-//         trspk_batch16_add_model_textured(
-//             batch,
-//             model_id,
-//             segment,
-//             frame_index,
-//             (uint32_t)model->vertex_count,
-//             model->vertices_x,
-//             model->vertices_y,
-//             model->vertices_z,
-//             (uint32_t)model->face_count,
-//             (const uint16_t*)model->face_indices_a,
-//             (const uint16_t*)model->face_indices_b,
-//             (const uint16_t*)model->face_indices_c,
-//             model->face_colors_a,
-//             model->face_colors_b,
-//             model->face_colors_c,
-//             model->face_textures,
-//             (const uint16_t*)model->face_texture_coords,
-//             (const uint16_t*)model->textured_p_coordinate,
-//             (const uint16_t*)model->textured_m_coordinate,
-//             (const uint16_t*)model->textured_n_coordinate,
-//             model->face_alphas,
-//             model->face_infos,
-//             TRSPK_UV_CALC_TEXTURED_FACE_ARRAY,
-//             resource_cache,
-//             bake);
-//     }
-//     else
-//     {
-//         trspk_batch16_add_model(
-//             batch,
-//             model_id,
-//             segment,
-//             frame_index,
-//             (uint32_t)model->vertex_count,
-//             model->vertices_x,
-//             model->vertices_y,
-//             model->vertices_z,
-//             (uint32_t)model->face_count,
-//             (const uint16_t*)model->face_indices_a,
-//             (const uint16_t*)model->face_indices_b,
-//             (const uint16_t*)model->face_indices_c,
-//             model->face_colors_a,
-//             model->face_colors_b,
-//             model->face_colors_c,
-//             model->face_alphas,
-//             model->face_infos,
-//             bake);
-//     }
-// }
+static inline struct ToriDraw_Model*
+get_model(struct ToriDraw_ModelHandle model_handle)
+{
+    return model_handle.u.model.model;
+}
 
 void
 trspk_toridraw_vbo_set(
     struct TRSPK_VBO* vbo,
     struct ToriDraw_ModelHandle model_handle)
 {
-    (void)vbo;
-    (void)model_handle;
+    struct ToriDraw_Model* model = get_model(model_handle);
+    uint32_t gpu_vertex_count = (uint32_t)model->face_count * 3u;
+    trspk_vbo_ensure_capacity(vbo, gpu_vertex_count);
+
+    uint32_t face_index = 0;
+    for( uint32_t i = 0; i < gpu_vertex_count; i += 3, face_index++ )
+    {
+        uint32_t face_a = model->face_indices_a[face_index];
+        uint32_t face_b = model->face_indices_b[face_index];
+        uint32_t face_c = model->face_indices_c[face_index];
+
+        uint16_t color_a_hsl16 = model->face_colors_a[face_index];
+        uint16_t color_b_hsl16 = model->face_colors_b[face_index];
+        uint16_t color_c_hsl16 = model->face_colors_c[face_index];
+        uint8_t alpha = model->face_alphas ? model->face_alphas[face_index] : 0xFFu;
+
+        float color_a[4], color_b[4], color_c[4];
+        hsl16_to_rgbaf(color_a_hsl16, alpha, color_a);
+        hsl16_to_rgbaf(color_b_hsl16, alpha, color_b);
+        hsl16_to_rgbaf(color_c_hsl16, alpha, color_c);
+
+        struct UVFaceCoords uv;
+        uv_pnm_model_face(&uv, model, face_index);
+
+        write_vertex(
+            vbo,
+            i + 0,
+            model->vertices_x[face_a],
+            model->vertices_y[face_a],
+            model->vertices_z[face_a],
+            color_a,
+            uv.u1,
+            uv.v1,
+            -1.0f);
+        write_vertex(
+            vbo,
+            i + 1,
+            model->vertices_x[face_b],
+            model->vertices_y[face_b],
+            model->vertices_z[face_b],
+            color_b,
+            uv.u2,
+            uv.v2,
+            -1.0f);
+        write_vertex(
+            vbo,
+            i + 2,
+            model->vertices_x[face_c],
+            model->vertices_y[face_c],
+            model->vertices_z[face_c],
+            color_c,
+            uv.u3,
+            uv.v3,
+            -1.0f);
+    }
 }

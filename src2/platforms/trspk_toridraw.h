@@ -4,9 +4,6 @@
 #include "platformkit/core/trspk_vbo.h"
 #include "toridraw/toridraw_types.h"
 
-#include <stdbool.h>
-#include <stdint.h>
-
 void
 trspk_toridraw_vbo_set(
     struct TRSPK_VBO* vbo,

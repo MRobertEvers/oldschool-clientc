@@ -4,6 +4,15 @@
 CompileFlags:
   CompilationDatabase: build-winxp/
   Add:
+    # Project include roots matching the src2 Makefile (-I$(REPO_ROOT), -I$(SRC2))
+    - -I.
+    - -Isrc
+    - -Isrc2
+    - -Isrc2/scripting
+    # Vendored MinGW toolchain (used by Makefile on Windows)
+    - -Itoolchain/win32/mingw32/include
+    - -Itoolchain/win32/mingw32/include/SDL2
+    # Fallback: Downloads copy of winlibs (kept until fully migrated)
     - -IC:/Users/mrobe/Downloads/winlibs-i686-posix-dwarf-gcc-15.2.0-mingw-w64msvcrt-13.0.0-r2/mingw32/include/SDL2
     - -IC:/Users/mrobe/Downloads/winlibs-i686-posix-dwarf-gcc-15.2.0-mingw-w64msvcrt-13.0.0-r2/mingw32/include
     - -march=native
@@ -46,3 +55,10 @@ Hover:
 
 Completion:
   AllScopes: Yes
+
+---
+# src2/ is built via Makefile, not CMake — use src2/compile_flags.txt, not build-winxp/.
+If:
+  PathMatch: src2/.*\.(c|h|u\.c)$
+CompileFlags:
+  CompilationDatabase: src2/
