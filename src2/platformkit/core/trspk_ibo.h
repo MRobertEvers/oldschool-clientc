@@ -8,6 +8,7 @@
 struct TRSPK_IBO
 {
     uint32_t index_count;
+    uint32_t offset;
     enum TRSPK_IndexFormat index_format;
     union
     {

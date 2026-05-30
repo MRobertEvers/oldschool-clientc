@@ -22,6 +22,7 @@ struct TRSPK_VBO
         struct TRSPK_VertexWebGL1* as_webgl1;
         struct TRSPK_VertexOpenGl3* as_opengl3;
         struct TRSPK_VertexD3D9* as_d3d9;
+        struct TRSPK_VertexD3D9_Split as_d3d9_split;
     } vertices;
 };
 
@@ -101,16 +102,24 @@ trspk_vbo_write_vertex_opengl3(
 
 /* Pack four float [0,1] RGBA components into a D3D ARGB uint32_t. */
 static inline uint32_t
-trspk_d3d9_pack_argb(float r, float g, float b, float a)
+trspk_d3d9_pack_argb(
+    float r,
+    float g,
+    float b,
+    float a)
 {
     uint32_t ir = (uint32_t)(r * 255.0f + 0.5f);
     uint32_t ig = (uint32_t)(g * 255.0f + 0.5f);
     uint32_t ib = (uint32_t)(b * 255.0f + 0.5f);
     uint32_t ia = (uint32_t)(a * 255.0f + 0.5f);
-    if( ir > 255u ) ir = 255u;
-    if( ig > 255u ) ig = 255u;
-    if( ib > 255u ) ib = 255u;
-    if( ia > 255u ) ia = 255u;
+    if( ir > 255u )
+        ir = 255u;
+    if( ig > 255u )
+        ig = 255u;
+    if( ib > 255u )
+        ib = 255u;
+    if( ia > 255u )
+        ia = 255u;
     return (ia << 24u) | (ir << 16u) | (ig << 8u) | ib;
 }
 
@@ -136,6 +145,38 @@ trspk_vbo_write_vertex_d3d9(
     vertex->texcoord[1] = v;
     vertex->texdata[0] = tex_id;
     vertex->texdata[1] = 0.0f;
+}
+
+static inline void
+trspk_vbo_write_vertex_d3d9_split_xyzcolor(
+    struct TRSPK_VBO* vbo,
+    uint32_t index,
+    float x,
+    float y,
+    float z,
+    float color[4])
+{
+    struct TRSPK_VertexD3D9_XYZColor* v = &vbo->vertices.as_d3d9_split.xyz_color[index];
+    v->x = x;
+    v->y = y;
+    v->z = z;
+    v->color = trspk_d3d9_pack_argb(color[0], color[1], color[2], color[3]);
+}
+
+static inline void
+trspk_vbo_write_vertex_d3d9_split_uv(
+    struct TRSPK_VBO* vbo,
+    uint32_t index,
+    float u,
+    float v,
+    float tex_id,
+    float uv_mode)
+{
+    struct TRSPK_VertexD3D9_UV* vert = &vbo->vertices.as_d3d9_split.uv[index];
+    vert->u = u;
+    vert->v = v;
+    vert->tex_id = tex_id;
+    vert->uv_mode = uv_mode;
 }
 
 #endif

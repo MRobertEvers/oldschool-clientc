@@ -26,7 +26,8 @@ print("Textures loaded")
 Game.Dat1_SubmitTextures()
 print("Textures submitted")
 
-Game.Dat1_ModelFetchNativeInt(io_queue, 0)
+local model_load = 1497
+Game.Dat1_ModelFetchNativeInt(io_queue, model_load)
 
 Platform.LoadIO(io_queue)
 
@@ -36,8 +37,8 @@ if not Game.Dat1_ModelLoad(io_queue) then
 end
 print("Model loaded")
 
-Game.Dat1_SubmitGameCacheModelNativeInt(0)
-Game.Dat1_ModelCleanupNativeInt(0)
+Game.Dat1_SubmitGameCacheModelNativeInt(model_load)
+Game.Dat1_ModelCleanupNativeInt(model_load)
 print("Game cache model submitted")
 
-Game.ModelViewer_RenderModelNativeInt(0)
+Game.ModelViewer_RenderModelNativeInt(model_load)
