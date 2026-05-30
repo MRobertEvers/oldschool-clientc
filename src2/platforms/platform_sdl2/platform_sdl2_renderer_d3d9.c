@@ -25,12 +25,12 @@
 #include <d3d9.h>
 
 /* Atlas layout constants */
-#define TRSPK_D3D9_ATLAS_DIM      2048
-#define TRSPK_D3D9_ATLAS_TILE     128
-#define TRSPK_D3D9_ATLAS_COLS     16
+#define TRSPK_D3D9_ATLAS_DIM 2048
+#define TRSPK_D3D9_ATLAS_TILE 128
+#define TRSPK_D3D9_ATLAS_COLS 16
 
 /* Maximum draw ranges per frame (worst-case: every face alternates) */
-#define TRSPK_D3D9_DRAWRANGE_CAP  4096
+#define TRSPK_D3D9_DRAWRANGE_CAP 4096
 
 /* Per-face animated vertex info for per-frame UV recomputation */
 struct D3D9_AnimVertInfo
@@ -39,63 +39,63 @@ struct D3D9_AnimVertInfo
     float base_v;
     float scroll_u; /* per clock-unit scroll in atlas U */
     float scroll_v; /* per clock-unit scroll in atlas V */
-    int   tex_id;   /* model texture id (used to compute atlas slot) */
+    int tex_id;     /* model texture id (used to compute atlas slot) */
 };
 
 struct LibToriPlatformSDL2_RendererD3D9
 {
-    SDL_Window*        window;
-    IDirect3D9*        d3d;
-    IDirect3DDevice9*  device;
+    SDL_Window* window;
+    IDirect3D9* d3d;
+    IDirect3DDevice9* device;
 
     /* Split vertex buffers */
-    IDirect3DVertexBuffer9*      vb_stream0;       /* Buffer A: XYZColor, all verts, MANAGED  */
-    IDirect3DVertexBuffer9*      vb_static_uv;     /* Buffer B: static UV,   MANAGED          */
-    IDirect3DVertexBuffer9*      vb_dynamic_uv;    /* Buffer C: animated UV, DEFAULT+DYNAMIC  */
-    IDirect3DIndexBuffer9*       ib;
+    IDirect3DVertexBuffer9* vb_stream0;    /* Buffer A: XYZColor, all verts, MANAGED  */
+    IDirect3DVertexBuffer9* vb_static_uv;  /* Buffer B: static UV,   MANAGED          */
+    IDirect3DVertexBuffer9* vb_dynamic_uv; /* Buffer C: animated UV, DEFAULT+DYNAMIC  */
+    IDirect3DIndexBuffer9* ib;
     IDirect3DVertexDeclaration9* vertex_decl;
 
     /* Atlas */
-    struct TRSPK_Atlas   atlas;
-    bool                 atlas_initialized;
-    IDirect3DTexture9*   atlas_tex;
-    bool                 atlas_dirty;
+    struct TRSPK_Atlas atlas;
+    bool atlas_initialized;
+    IDirect3DTexture9* atlas_tex;
+    bool atlas_dirty;
 
     /* CPU-side VBO (D3D9_SPLIT format) */
     struct TRSPK_VBO* vbo_cpu;
 
     /* Per-model split data */
     struct ToriDraw_Model* model;
-    uint32_t  face_count_stored;
-    uint32_t  gpu_vertex_count;
-    uint32_t  split_vertex;       /* first animated vertex index in the arrays */
-    uint32_t  anim_vertex_count;  /* total animated vertices */
-    bool      static_dirty;
+    uint32_t face_count_stored;
+    uint32_t gpu_vertex_count;
+    uint32_t split_vertex;      /* first animated vertex index in the arrays */
+    uint32_t anim_vertex_count; /* total animated vertices */
+    bool static_dirty;
 
     /* Per-face arrays (indexed by model face index) */
     uint32_t* vertex_base_per_face; /* IBO-ready base index for face f */
-    uint8_t*  face_animated;        /* 1 = animated, 0 = static         */
+    uint8_t* face_animated;         /* 1 = animated, 0 = static         */
 
     /* Per animated vertex info for per-frame UV recomputation */
     float* anim_base_u;
     float* anim_base_v;
     float* anim_scroll_u;
     float* anim_scroll_v;
-    int*   anim_tex_id;
+    int* anim_tex_id;
 
     /* Per-frame working buffers */
     uint16_t* ibo_cpu;
-    uint32_t  ibo_cpu_cap;
+    uint32_t ibo_cpu_cap;
     struct TRSPK_DrawRangeList* draw_ranges;
 
-    int    width;
-    int    height;
+    int width;
+    int height;
 
-    float  view[16];
-    float  proj[16];
+    float view[16];
+    float proj[16];
     struct LibToriRS_RenderCommand_Begin3D cur_3d;
-    bool   has_3d;
-    bool   in3d;
+    bool has_3d;
+    bool in3d;
     double frame_clock;
 };
 
@@ -116,7 +116,12 @@ d3d9_atlas_slot(int tex_id)
  * white tile (slot 0).  U is clamped; V is wrapped (fract) then clamped
  * to match the GL shader reference in platform_sdl2_renderer_opengl3_old.c. */
 static void
-d3d9_atlas_map_uv(int tex_id, float lu, float lv, float* out_u, float* out_v)
+d3d9_atlas_map_uv(
+    int tex_id,
+    float lu,
+    float lv,
+    float* out_u,
+    float* out_v)
 {
     const float dim = (float)TRSPK_D3D9_ATLAS_DIM;
     const float tile = (float)TRSPK_D3D9_ATLAS_TILE;
@@ -140,37 +145,19 @@ d3d9_atlas_map_uv(int tex_id, float lu, float lv, float* out_u, float* out_v)
     *out_v = row * du + lv * du;
 }
 
-/* Map a local UV for an animated face into the atlas, matching the fixed-function
- * approach from trspk_d3d8_fvf_from_model_vertex:
- *
- *   shrink into tile: local = local * 0.984 + 0.008
- *   add per-face-constant offset:
- *       lu += off_u   (bounded scroll; same value for all 3 verts)
- *       lv -= off_v
- *   map into atlas tile: uv = tile_origin + local * du
- *
- * No per-vertex fract/clamp: that would make the three vertices of a face
- * diverge and produce streaks across the triangle.  off_u/off_v are already
- * reduced mod 1 by the caller so they never grow unbounded. */
-static void
-d3d9_atlas_map_uv_anim(
-    int tex_id, float lu, float lv, float off_u, float off_v,
-    float* out_u, float* out_v)
+/* Compute the per-frame atlas-space scroll delta for an animated texture.
+ * Returns the delta in atlas coordinates for one axis:
+ *   delta = fract(clk * speed) * du
+ * where du = TILE_SIZE / ATLAS_SIZE.  fract keeps it bounded; the same
+ * value is used for all three vertices of a face so the triangle UV gradient
+ * stays linear (no per-vertex fract discontinuity = no streaks). */
+static inline float
+d3d9_anim_delta(float clk, float speed)
 {
-    const float dim = (float)TRSPK_D3D9_ATLAS_DIM;
-    const float tile = (float)TRSPK_D3D9_ATLAS_TILE;
-    const float du = tile / dim;
-
-    int slot = d3d9_atlas_slot(tex_id);
-    float col = (float)(slot % TRSPK_D3D9_ATLAS_COLS);
-    float row = (float)(slot / TRSPK_D3D9_ATLAS_COLS);
-
-    /* Shrink base UV into tile interior, then apply scroll offset. */
-    lu = lu * 0.984f + 0.008f + off_u;
-    lv = lv * 0.984f + 0.008f - off_v;
-
-    *out_u = col * du + lu * du;
-    *out_v = row * du + lv * du;
+    const float du = (float)TRSPK_D3D9_ATLAS_TILE / (float)TRSPK_D3D9_ATLAS_DIM;
+    float raw = clk * speed;
+    float frac = raw - floorf(raw);
+    return frac * du;
 }
 
 /* -----------------------------------------------------------------------
@@ -178,7 +165,10 @@ d3d9_atlas_map_uv_anim(
  * ----------------------------------------------------------------------- */
 
 static void
-mat4_mul_colmajor(const float* a, const float* b, float* out)
+mat4_mul_colmajor(
+    const float* a,
+    const float* b,
+    float* out)
 {
     for( int c = 0; c < 4; ++c )
         for( int r = 0; r < 4; ++r )
@@ -194,10 +184,8 @@ static void
 d3d9_remap_projection_z(float* proj_colmajor)
 {
     static const float k_clip_z[16] = {
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 0.5f, 0.0f,
-        0.0f, 0.0f, 0.5f, 1.0f,
+        1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.5f, 0.0f, 0.0f, 0.0f, 0.5f, 1.0f,
     };
     float tmp[16];
     mat4_mul_colmajor(k_clip_z, proj_colmajor, tmp);
@@ -420,7 +408,9 @@ d3d9_set_no_texture_stages(IDirect3DDevice9* dev)
 
 /* Bind atlas texture and set MODULATE blend (texture * diffuse). */
 static void
-d3d9_bind_atlas_texture(IDirect3DDevice9* dev, IDirect3DTexture9* atlas_tex)
+d3d9_bind_atlas_texture(
+    IDirect3DDevice9* dev,
+    IDirect3DTexture9* atlas_tex)
 {
     IDirect3DDevice9_SetTexture(dev, 0, (IDirect3DBaseTexture9*)atlas_tex);
     IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
@@ -485,8 +475,10 @@ d3d9_decode_texture_rgba(
     const struct ToriDraw_Texture* tex,
     uint8_t* out_rgba)
 {
-    uint32_t w = (uint32_t)(tex->width < TRSPK_D3D9_ATLAS_TILE ? tex->width : TRSPK_D3D9_ATLAS_TILE);
-    uint32_t h = (uint32_t)(tex->height < TRSPK_D3D9_ATLAS_TILE ? tex->height : TRSPK_D3D9_ATLAS_TILE);
+    uint32_t w =
+        (uint32_t)(tex->width < TRSPK_D3D9_ATLAS_TILE ? tex->width : TRSPK_D3D9_ATLAS_TILE);
+    uint32_t h =
+        (uint32_t)(tex->height < TRSPK_D3D9_ATLAS_TILE ? tex->height : TRSPK_D3D9_ATLAS_TILE);
 
     memset(out_rgba, 0, TRSPK_D3D9_ATLAS_TILE * TRSPK_D3D9_ATLAS_TILE * 4);
 
@@ -720,27 +712,31 @@ d3d9_build_split_buffers(
             hsl16_to_rgba(model->face_colors_c[f], alpha, cc);
 
             trspk_vbo_write_vertex_d3d9_split_xyzcolor(
-                r->vbo_cpu, base + 0u,
+                r->vbo_cpu,
+                base + 0u,
                 (float)model->vertices_x[fa],
                 (float)model->vertices_y[fa],
                 (float)model->vertices_z[fa],
                 ca);
             trspk_vbo_write_vertex_d3d9_split_xyzcolor(
-                r->vbo_cpu, base + 1u,
+                r->vbo_cpu,
+                base + 1u,
                 (float)model->vertices_x[fb],
                 (float)model->vertices_y[fb],
                 (float)model->vertices_z[fb],
                 cb);
             trspk_vbo_write_vertex_d3d9_split_xyzcolor(
-                r->vbo_cpu, base + 2u,
+                r->vbo_cpu,
+                base + 2u,
                 (float)model->vertices_x[fc],
                 (float)model->vertices_y[fc],
                 (float)model->vertices_z[fc],
                 cc);
 
-            /* Static faces: atlas-map UV now and bake it into the CPU VBO.
-             * Animated face UV slots are filled per-frame in DRAW_MODEL. */
-            if( !face_anim[f] )
+            /* Bake atlas UVs for both static and animated faces.
+             * Static UVs are final.  Animated UVs are the scroll-0 base;
+             * each frame DRAW_MODEL reads them, adds a per-face-constant
+             * atlas-space delta, and writes the result into Buffer C. */
             {
                 struct UVFaceCoords uv;
                 float u0, v0, u1, v1, u2, v2;
@@ -852,9 +848,13 @@ d3d9_build_split_buffers(
         {
             UINT sz = (UINT)(anim_vertex_count * sizeof(struct TRSPK_VertexD3D9_UV));
             hr = IDirect3DDevice9_CreateVertexBuffer(
-                r->device, sz,
+                r->device,
+                sz,
                 D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY,
-                0, D3DPOOL_DEFAULT, &vb_c, NULL);
+                0,
+                D3DPOOL_DEFAULT,
+                &vb_c,
+                NULL);
             if( FAILED(hr) )
                 goto build_fail;
         }
@@ -863,10 +863,13 @@ d3d9_build_split_buffers(
         {
             UINT sz = (UINT)(gpu_vertex_count * sizeof(uint16_t));
             hr = IDirect3DDevice9_CreateIndexBuffer(
-                r->device, sz,
+                r->device,
+                sz,
                 D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY,
-                D3DFMT_INDEX16, D3DPOOL_DEFAULT,
-                &ib_gpu, NULL);
+                D3DFMT_INDEX16,
+                D3DPOOL_DEFAULT,
+                &ib_gpu,
+                NULL);
             if( FAILED(hr) )
                 goto build_fail;
         }
@@ -962,14 +965,7 @@ d3d9_handle_render_command(
             break;
 
         /* Zero out the atlas tile for this texture (fill with transparent black). */
-        trspk_atlas_grid_insert_at(
-            &renderer->atlas,
-            (uint32_t)(tex_id + 1),
-            NULL,
-            0,
-            0,
-            0,
-            NULL);
+        trspk_atlas_grid_insert_at(&renderer->atlas, (uint32_t)(tex_id + 1), NULL, 0, 0, 0, NULL);
 
         renderer->atlas_dirty = true;
         renderer->static_dirty = true;
@@ -1092,40 +1088,29 @@ d3d9_handle_render_command(
         if( renderer->anim_vertex_count > 0u && renderer->vb_dynamic_uv )
         {
             float clk = (float)renderer->frame_clock;
-            /* Write into the animated region of the CPU VBO (starts at split_vertex). */
-            struct TRSPK_VertexD3D9_UV* cpu_uv =
+            /* cpu_uv holds the scroll-0 atlas UV baked at build time — it is
+             * the stable base and must not be modified here.  We lock Buffer C
+             * and write base + per-face-constant delta directly into it so the
+             * base is never corrupted and all three vertices of a face shift by
+             * the same amount (linear gradient, no streaks). */
+            const struct TRSPK_VertexD3D9_UV* base_uv =
                 &renderer->vbo_cpu->vertices.as_d3d9_split.uv[renderer->split_vertex];
-
-            for( uint32_t ai = 0; ai < renderer->anim_vertex_count; ai++ )
-            {
-                /* Compute a bounded per-face-constant scroll offset in [0,1).
-                 * Using fract keeps it from growing unbounded over time and
-                 * ensures all three vertices of a face get the exact same delta
-                 * (no per-vertex fract discontinuity → no streaks). */
-                float raw_u = clk * renderer->anim_scroll_u[ai];
-                float raw_v = clk * renderer->anim_scroll_v[ai];
-                float off_u = raw_u - floorf(raw_u);
-                float off_v = raw_v - floorf(raw_v);
-
-                float out_u, out_v;
-                d3d9_atlas_map_uv_anim(
-                    renderer->anim_tex_id[ai],
-                    renderer->anim_base_u[ai],
-                    renderer->anim_base_v[ai],
-                    off_u, off_v,
-                    &out_u, &out_v);
-                cpu_uv[ai].u = out_u;
-                cpu_uv[ai].v = out_v;
-                cpu_uv[ai].tex_id = (float)renderer->anim_tex_id[ai];
-                cpu_uv[ai].uv_mode = 0.0f;
-            }
 
             void* locked = NULL;
             UINT c_sz = (UINT)(renderer->anim_vertex_count * sizeof(struct TRSPK_VertexD3D9_UV));
             if( SUCCEEDED(IDirect3DVertexBuffer9_Lock(
                     renderer->vb_dynamic_uv, 0, c_sz, &locked, D3DLOCK_DISCARD)) )
             {
-                memcpy(locked, cpu_uv, c_sz);
+                struct TRSPK_VertexD3D9_UV* dst = (struct TRSPK_VertexD3D9_UV*)locked;
+                for( uint32_t ai = 0; ai < renderer->anim_vertex_count; ai++ )
+                {
+                    float du = d3d9_anim_delta(clk, renderer->anim_scroll_u[ai]);
+                    float dv = d3d9_anim_delta(clk, renderer->anim_scroll_v[ai]);
+                    dst[ai].u = base_uv[ai].u + du;
+                    dst[ai].v = base_uv[ai].v - dv;
+                    dst[ai].tex_id = base_uv[ai].tex_id;
+                    dst[ai].uv_mode = 0.0f;
+                }
                 IDirect3DVertexBuffer9_Unlock(renderer->vb_dynamic_uv);
             }
         }
@@ -1154,11 +1139,7 @@ d3d9_handle_render_command(
             {
                 if( cur_anim >= 0 && idx_cursor > range_start )
                     trspk_drawrangelist_push(
-                        renderer->draw_ranges,
-                        range_start,
-                        idx_cursor,
-                        (uint32_t)cur_anim,
-                        0);
+                        renderer->draw_ranges, range_start, idx_cursor, (uint32_t)cur_anim, 0);
                 cur_anim = is_anim;
                 range_start = idx_cursor;
             }
@@ -1228,8 +1209,7 @@ d3d9_handle_render_command(
 
             uint32_t index_count = range->end - range->start;
             uint32_t prim_count = index_count / 3u;
-            UINT num_verts =
-                (buf == 0) ? renderer->split_vertex : renderer->anim_vertex_count;
+            UINT num_verts = (buf == 0) ? renderer->split_vertex : renderer->anim_vertex_count;
 
             IDirect3DDevice9_DrawIndexedPrimitive(
                 dev,

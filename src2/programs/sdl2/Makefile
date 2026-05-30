@@ -37,7 +37,8 @@ endif
 # ---------------------------------------------------------------------------
 CC       ?= cc
 CFLAGS   ?= -O0 -Wall -Wextra -Werror -g
-CFLAGS   += -Wno-implicit-fallthrough
+CFLAGS   += -Wno-implicit-fallthrough -Wno-unused-function -Wno-unused-variable \
+	-Wno-unused-parameter
 CPPFLAGS += -I$(SRC_DIR) -I$(SRC2) -I$(SCRIPT_DIR) -I$(REPO_ROOT) \
 	-I$(TRSPK_DIR)/include -I$(TRSPK_DIR)/src
 
