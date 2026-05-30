@@ -152,7 +152,9 @@ d3d9_atlas_map_uv(
  * value is used for all three vertices of a face so the triangle UV gradient
  * stays linear (no per-vertex fract discontinuity = no streaks). */
 static inline float
-d3d9_anim_delta(float clk, float speed)
+d3d9_anim_delta(
+    float clk,
+    float speed)
 {
     const float du = (float)TRSPK_D3D9_ATLAS_TILE / (float)TRSPK_D3D9_ATLAS_DIM;
     float raw = clk * speed;
@@ -468,30 +470,35 @@ d3d9_ensure_atlas(struct LibToriPlatformSDL2_RendererD3D9* r)
     return true;
 }
 
-/* Decode ToriDraw_Texture texels into a 128×128 RGBA scratch buffer.
+/* Decode ToriDraw_Texture texels into a 128×128 RGBA scratch buffer, stretching
+ * the source to fill the full tile via nearest-neighbor resampling.  This handles
+ * 64×64 (or other sub-tile) sources that would otherwise leave the tile partially
+ * transparent and break UV math that assumes a fully-populated 128×128 slot.
  * Texels are packed int 0x00RRGGBB.  Alpha = 255 when opaque or texel != 0. */
 static void
 d3d9_decode_texture_rgba(
     const struct ToriDraw_Texture* tex,
     uint8_t* out_rgba)
 {
-    uint32_t w =
-        (uint32_t)(tex->width < TRSPK_D3D9_ATLAS_TILE ? tex->width : TRSPK_D3D9_ATLAS_TILE);
-    uint32_t h =
-        (uint32_t)(tex->height < TRSPK_D3D9_ATLAS_TILE ? tex->height : TRSPK_D3D9_ATLAS_TILE);
+    const uint32_t src_w = (uint32_t)tex->width;
+    const uint32_t src_h = (uint32_t)tex->height;
 
     memset(out_rgba, 0, TRSPK_D3D9_ATLAS_TILE * TRSPK_D3D9_ATLAS_TILE * 4);
+    if( src_w == 0u || src_h == 0u )
+        return;
 
-    for( uint32_t row = 0; row < h; row++ )
+    for( uint32_t dst_row = 0; dst_row < TRSPK_D3D9_ATLAS_TILE; dst_row++ )
     {
-        for( uint32_t col = 0; col < w; col++ )
+        uint32_t src_row = (dst_row * src_h) / TRSPK_D3D9_ATLAS_TILE;
+        for( uint32_t dst_col = 0; dst_col < TRSPK_D3D9_ATLAS_TILE; dst_col++ )
         {
-            int texel = tex->texels[row * (uint32_t)tex->width + col];
+            uint32_t src_col = (dst_col * src_w) / TRSPK_D3D9_ATLAS_TILE;
+            int texel = tex->texels[src_row * src_w + src_col];
             uint8_t rv = (uint8_t)((texel >> 16) & 0xFF);
             uint8_t gv = (uint8_t)((texel >> 8) & 0xFF);
             uint8_t bv = (uint8_t)(texel & 0xFF);
             uint8_t av = (tex->opaque || texel != 0) ? 255u : 0u;
-            uint32_t idx = (row * TRSPK_D3D9_ATLAS_TILE + col) * 4u;
+            uint32_t idx = (dst_row * TRSPK_D3D9_ATLAS_TILE + dst_col) * 4u;
             out_rgba[idx + 0] = rv;
             out_rgba[idx + 1] = gv;
             out_rgba[idx + 2] = bv;
@@ -916,6 +923,26 @@ build_fail:
     return false;
 }
 
+static inline float
+delta_tiled(
+    float in,
+    float delta,
+    float min,
+    float max)
+{
+    float del = max - min;
+    if( delta >= del || delta <= -del )
+        return min;
+
+    float out = in + delta;
+    while( out > max )
+    {
+        out = out - del;
+    }
+
+    return out;
+}
+
 /* -----------------------------------------------------------------------
  * Render-command dispatch
  * ----------------------------------------------------------------------- */
@@ -1101,13 +1128,61 @@ d3d9_handle_render_command(
             if( SUCCEEDED(IDirect3DVertexBuffer9_Lock(
                     renderer->vb_dynamic_uv, 0, c_sz, &locked, D3DLOCK_DISCARD)) )
             {
+                const float du_tile = (float)TRSPK_D3D9_ATLAS_TILE / (float)TRSPK_D3D9_ATLAS_DIM;
+                // Ensure #include <math.h> is at the top of your file
+
                 struct TRSPK_VertexD3D9_UV* dst = (struct TRSPK_VertexD3D9_UV*)locked;
                 for( uint32_t ai = 0; ai < renderer->anim_vertex_count; ai++ )
                 {
                     float du = d3d9_anim_delta(clk, renderer->anim_scroll_u[ai]);
                     float dv = d3d9_anim_delta(clk, renderer->anim_scroll_v[ai]);
-                    dst[ai].u = base_uv[ai].u + du;
-                    dst[ai].v = base_uv[ai].v - dv;
+                    float u = base_uv[ai].u;
+                    float v = base_uv[ai].v;
+
+                    u += du;
+                    v -= dv;
+
+                    /* Clamp to this vertex's atlas tile so the scroll delta can
+                     * never bleed into an adjacent tile. */
+                    int slot = d3d9_atlas_slot(renderer->anim_tex_id[ai]);
+                    float tile_col = (float)(slot % TRSPK_D3D9_ATLAS_COLS);
+                    float tile_row = (float)(slot / TRSPK_D3D9_ATLAS_COLS);
+
+                    float u_min = tile_col * du_tile;
+                    float u_max = (tile_col + 1.0f) * du_tile;
+                    float v_min = tile_row * du_tile;
+
+                    // We only need the size of the tile (del) for wrapping V
+                    float del = du_tile;
+
+                    // ---------------------------------------------------------
+                    // 1. SOFTWARE V-TILING (Wrap)
+                    // ---------------------------------------------------------
+                    // Shift v to a local 0.0 -> del space, wrap it, and handle negatives
+                    float v_local = fmodf(v - v_min, del);
+                    if( v_local < 0.0f )
+                    {
+                        v_local += del;
+                    }
+                    // Shift it back into absolute atlas space
+                    v = v_min + v_local;
+
+                    // ---------------------------------------------------------
+                    // 2. SOFTWARE U-CLAMPING
+                    // ---------------------------------------------------------
+                    // Hard-lock U within the tile boundaries
+                    if( u < u_min )
+                    {
+                        u = u_min;
+                    }
+                    else if( u > u_max )
+                    {
+                        u = u_max;
+                    }
+
+                    // Write final resolved coordinates to the dynamic buffer
+                    dst[ai].u = u;
+                    dst[ai].v = v;
                     dst[ai].tex_id = base_uv[ai].tex_id;
                     dst[ai].uv_mode = 0.0f;
                 }
