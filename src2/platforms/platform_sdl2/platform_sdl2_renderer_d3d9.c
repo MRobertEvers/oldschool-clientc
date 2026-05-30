@@ -140,31 +140,34 @@ d3d9_atlas_map_uv(int tex_id, float lu, float lv, float* out_u, float* out_v)
     *out_v = row * du + lv * du;
 }
 
-/* Same as above but wraps V with fract() before clamping — used for animated
- * faces so the texture scrolls continuously. */
+/* Map a local UV for an animated face into the atlas, matching the fixed-function
+ * approach from trspk_d3d8_fvf_from_model_vertex:
+ *
+ *   shrink into tile: local = local * 0.984 + 0.008
+ *   add per-face-constant offset:
+ *       lu += off_u   (bounded scroll; same value for all 3 verts)
+ *       lv -= off_v
+ *   map into atlas tile: uv = tile_origin + local * du
+ *
+ * No per-vertex fract/clamp: that would make the three vertices of a face
+ * diverge and produce streaks across the triangle.  off_u/off_v are already
+ * reduced mod 1 by the caller so they never grow unbounded. */
 static void
-d3d9_atlas_map_uv_anim(int tex_id, float lu, float lv, float* out_u, float* out_v)
+d3d9_atlas_map_uv_anim(
+    int tex_id, float lu, float lv, float off_u, float off_v,
+    float* out_u, float* out_v)
 {
     const float dim = (float)TRSPK_D3D9_ATLAS_DIM;
     const float tile = (float)TRSPK_D3D9_ATLAS_TILE;
     const float du = tile / dim;
 
     int slot = d3d9_atlas_slot(tex_id);
-
     float col = (float)(slot % TRSPK_D3D9_ATLAS_COLS);
     float row = (float)(slot / TRSPK_D3D9_ATLAS_COLS);
 
-    if( lu < 0.008f )
-        lu = 0.008f;
-    if( lu > 0.992f )
-        lu = 0.992f;
-
-    /* wrap V */
-    lv = lv - floorf(lv);
-    if( lv < 0.008f )
-        lv = 0.008f;
-    if( lv > 0.992f )
-        lv = 0.992f;
+    /* Shrink base UV into tile interior, then apply scroll offset. */
+    lu = lu * 0.984f + 0.008f + off_u;
+    lv = lv * 0.984f + 0.008f - off_v;
 
     *out_u = col * du + lu * du;
     *out_v = row * du + lv * du;
@@ -396,6 +399,11 @@ d3d9_set_base_render_states(IDirect3DDevice9* dev)
     IDirect3DDevice9_SetRenderState(dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
     IDirect3DDevice9_SetRenderState(dev, D3DRS_COLORVERTEX, TRUE);
     IDirect3DDevice9_SetRenderState(dev, D3DRS_DIFFUSEMATERIALSOURCE, D3DMCS_COLOR1);
+    /* Discard fully transparent texels (equivalent to the GL shader's
+     * "if (texColor.a < 0.5) discard" for cutout textures). */
+    IDirect3DDevice9_SetRenderState(dev, D3DRS_ALPHATESTENABLE, TRUE);
+    IDirect3DDevice9_SetRenderState(dev, D3DRS_ALPHAFUNC, D3DCMP_GREATEREQUAL);
+    IDirect3DDevice9_SetRenderState(dev, D3DRS_ALPHAREF, 1);
 }
 
 static void
@@ -418,8 +426,13 @@ d3d9_bind_atlas_texture(IDirect3DDevice9* dev, IDirect3DTexture9* atlas_tex)
     IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
     IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
     IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
-    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
-    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG1, D3DTA_DIFFUSE);
+    /* MODULATE: out_alpha = texture_alpha * diffuse_alpha.
+     * The white tile has alpha 255, so non-textured faces pass diffuse through.
+     * Cutout texels (alpha 0 from decode) multiply to 0 and are rejected by the
+     * alpha test set in d3d9_set_base_render_states. */
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
     IDirect3DDevice9_SetTextureStageState(dev, 1, D3DTSS_COLOROP, D3DTOP_DISABLE);
     IDirect3DDevice9_SetTextureStageState(dev, 1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
     IDirect3DDevice9_SetSamplerState(dev, 0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
@@ -1085,10 +1098,22 @@ d3d9_handle_render_command(
 
             for( uint32_t ai = 0; ai < renderer->anim_vertex_count; ai++ )
             {
-                float lu = renderer->anim_base_u[ai] + clk * renderer->anim_scroll_u[ai];
-                float lv = renderer->anim_base_v[ai] - clk * renderer->anim_scroll_v[ai];
+                /* Compute a bounded per-face-constant scroll offset in [0,1).
+                 * Using fract keeps it from growing unbounded over time and
+                 * ensures all three vertices of a face get the exact same delta
+                 * (no per-vertex fract discontinuity → no streaks). */
+                float raw_u = clk * renderer->anim_scroll_u[ai];
+                float raw_v = clk * renderer->anim_scroll_v[ai];
+                float off_u = raw_u - floorf(raw_u);
+                float off_v = raw_v - floorf(raw_v);
+
                 float out_u, out_v;
-                d3d9_atlas_map_uv_anim(renderer->anim_tex_id[ai], lu, lv, &out_u, &out_v);
+                d3d9_atlas_map_uv_anim(
+                    renderer->anim_tex_id[ai],
+                    renderer->anim_base_u[ai],
+                    renderer->anim_base_v[ai],
+                    off_u, off_v,
+                    &out_u, &out_v);
                 cpu_uv[ai].u = out_u;
                 cpu_uv[ai].v = out_v;
                 cpu_uv[ai].tex_id = (float)renderer->anim_tex_id[ai];
