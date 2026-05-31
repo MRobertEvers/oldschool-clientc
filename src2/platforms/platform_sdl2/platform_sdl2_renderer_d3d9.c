@@ -4,9 +4,10 @@
 #include "libtorirs.h"
 #include "platformkit/core/trspk_atlas.h"
 #include "platformkit/core/trspk_drawrangelist.h"
+#include "platformkit/core/trspk_ibo.h"
 #include "platformkit/core/trspk_vbo.h"
+#include "platformkit/d3d9/d3d9_vertex.h"
 #include "render/libtorirs_render.h"
-#include "toridraw/toridraw.h"
 #include "toridraw/toridraw_model.h"
 #include "toridraw/toridraw_types.h"
 
@@ -32,14 +33,16 @@
 /* Maximum draw ranges per frame (worst-case: every face alternates) */
 #define TRSPK_D3D9_DRAWRANGE_CAP 4096
 
-/* Per-face animated vertex info for per-frame UV recomputation */
-struct D3D9_AnimVertInfo
+/* 16-bit index page size (models never straddle a page). */
+#define TRSPK_D3D9_VBO_PAGE 65536u
+
+#define D3D9_MODEL_REGISTRY_INIT_CAP 32u
+#define D3D9_TRI_CONFIG_INIT_CAP 4096u
+
+struct D3D9_ModelEntry
 {
-    float base_u;
-    float base_v;
-    float scroll_u; /* per clock-unit scroll in atlas U */
-    float scroll_v; /* per clock-unit scroll in atlas V */
-    int tex_id;     /* model texture id (used to compute atlas slot) */
+    int element_id;
+    uint32_t vertex_base;
 };
 
 struct LibToriPlatformSDL2_RendererD3D9
@@ -48,44 +51,33 @@ struct LibToriPlatformSDL2_RendererD3D9
     IDirect3D9* d3d;
     IDirect3DDevice9* device;
 
-    /* Split vertex buffers */
-    IDirect3DVertexBuffer9* vb_stream0;    /* Buffer A: XYZColor, all verts, MANAGED  */
-    IDirect3DVertexBuffer9* vb_static_uv;  /* Buffer B: static UV,   MANAGED          */
-    IDirect3DVertexBuffer9* vb_dynamic_uv; /* Buffer C: animated UV, DEFAULT+DYNAMIC  */
-    IDirect3DIndexBuffer9* ib;
+    IDirect3DVertexBuffer9* vbo_static;
+    IDirect3DIndexBuffer9* ibo;
     IDirect3DVertexDeclaration9* vertex_decl;
 
-    /* Atlas */
+    /* Standalone textures for animated tex-ids (not in atlas). */
+    IDirect3DTexture9* tex_buffers[256];
+
+    /* Atlas (static / non-animated textures only) */
     struct TRSPK_Atlas atlas;
     bool atlas_initialized;
     IDirect3DTexture9* atlas_tex;
     bool atlas_dirty;
 
-    /* CPU-side VBO (D3D9_SPLIT format) */
-    struct TRSPK_VBO* vbo_cpu;
+    struct TRSPK_VBO* vbo_static_cpu;
+    bool vbo_dirty;
+    uint32_t gpu_ibo_capacity;
 
-    /* Per-model split data */
-    struct ToriDraw_Model* model;
-    uint32_t face_count_stored;
-    uint32_t gpu_vertex_count;
-    uint32_t split_vertex;      /* first animated vertex index in the arrays */
-    uint32_t anim_vertex_count; /* total animated vertices */
-    bool static_dirty;
+    /* Per global triangle: -1 = atlas/static, else animated tex_id. */
+    int* tri_config;
+    uint32_t tri_config_cap;
 
-    /* Per-face arrays (indexed by model face index) */
-    uint32_t* vertex_base_per_face; /* IBO-ready base index for face f */
-    uint8_t* face_animated;         /* 1 = animated, 0 = static         */
-
-    /* Per animated vertex info for per-frame UV recomputation */
-    float* anim_base_u;
-    float* anim_base_v;
-    float* anim_scroll_u;
-    float* anim_scroll_v;
-    int* anim_tex_id;
+    struct D3D9_ModelEntry* model_registry;
+    uint32_t model_registry_count;
+    uint32_t model_registry_cap;
 
     /* Per-frame working buffers */
-    uint16_t* ibo_cpu;
-    uint32_t ibo_cpu_cap;
+    struct TRSPK_IboChain* ibo_chain;
     struct TRSPK_DrawRangeList* draw_ranges;
 
     int width;
@@ -143,23 +135,6 @@ d3d9_atlas_map_uv(
 
     *out_u = col * du + lu * du;
     *out_v = row * du + lv * du;
-}
-
-/* Compute the per-frame atlas-space scroll delta for an animated texture.
- * Returns the delta in atlas coordinates for one axis:
- *   delta = fract(clk * speed) * du
- * where du = TILE_SIZE / ATLAS_SIZE.  fract keeps it bounded; the same
- * value is used for all three vertices of a face so the triangle UV gradient
- * stays linear (no per-vertex fract discontinuity = no streaks). */
-static inline float
-d3d9_anim_delta(
-    float clk,
-    float speed)
-{
-    const float du = (float)TRSPK_D3D9_ATLAS_TILE / (float)TRSPK_D3D9_ATLAS_DIM;
-    float raw = clk * speed;
-    float frac = raw - floorf(raw);
-    return frac * du;
 }
 
 /* -----------------------------------------------------------------------
@@ -408,12 +383,30 @@ d3d9_set_no_texture_stages(IDirect3DDevice9* dev)
     IDirect3DDevice9_SetTextureStageState(dev, 1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
 }
 
+/* Match trspk_texture_animation_signed / d3d8_fixed scroll encoding. */
+static float
+d3d9_texture_animation_signed(
+    int animation_direction,
+    int animation_speed)
+{
+    if( animation_direction == 0 )
+        return 0.0f;
+    float speed = ((float)animation_speed) / 128.0f;
+    if( animation_direction == 2 || animation_direction == 4 )
+        return speed;
+    return -speed;
+}
+
+static void
+d3d9_disable_texture_transform(IDirect3DDevice9* dev);
+
 /* Bind atlas texture and set MODULATE blend (texture * diffuse). */
 static void
 d3d9_bind_atlas_texture(
     IDirect3DDevice9* dev,
     IDirect3DTexture9* atlas_tex)
 {
+    d3d9_disable_texture_transform(dev);
     IDirect3DDevice9_SetTexture(dev, 0, (IDirect3DBaseTexture9*)atlas_tex);
     IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
     IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
@@ -432,6 +425,127 @@ d3d9_bind_atlas_texture(
     IDirect3DDevice9_SetSamplerState(dev, 0, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
     IDirect3DDevice9_SetSamplerState(dev, 0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
     IDirect3DDevice9_SetSamplerState(dev, 0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+}
+
+/* MODULATE stages without binding a texture (caller sets texture). */
+static void
+d3d9_set_modulate_texture_stages(IDirect3DDevice9* dev)
+{
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_COLOROP, D3DTOP_MODULATE);
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+    IDirect3DDevice9_SetTextureStageState(dev, 1, D3DTSS_COLOROP, D3DTOP_DISABLE);
+    IDirect3DDevice9_SetTextureStageState(dev, 1, D3DTSS_ALPHAOP, D3DTOP_DISABLE);
+    IDirect3DDevice9_SetSamplerState(dev, 0, D3DSAMP_MINFILTER, D3DTEXF_POINT);
+    IDirect3DDevice9_SetSamplerState(dev, 0, D3DSAMP_MAGFILTER, D3DTEXF_POINT);
+    IDirect3DDevice9_SetSamplerState(dev, 0, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
+}
+
+/* D3D9 tex0: u' = u*_11 + v*_21 + _31,  v' = u*_12 + v*_22 + _32  (COUNT2).
+ * Translation lives in row 3 (_31/_32), not row 4 as in D3D8. */
+static void
+d3d9_apply_texture0_scroll_matrix(
+    IDirect3DDevice9* dev,
+    float anim_signed,
+    float clk)
+{
+    D3DMATRIX m;
+    memset(&m, 0, sizeof(m));
+    m._11 = 1.0f;
+    m._22 = 1.0f;
+    m._33 = 1.0f;
+    m._44 = 1.0f;
+
+    if( anim_signed > 0.0f )
+        m._31 = clk * anim_signed;
+    else if( anim_signed < 0.0f )
+        m._32 = -fmodf(clk * (-anim_signed), 1.0f);
+
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_COUNT2);
+    IDirect3DDevice9_SetTransform(dev, D3DTS_TEXTURE0, &m);
+}
+
+static void
+d3d9_bind_anim_texture(
+    IDirect3DDevice9* dev,
+    IDirect3DTexture9* tex,
+    float anim_signed,
+    float clk)
+{
+    IDirect3DDevice9_SetTexture(dev, 0, (IDirect3DBaseTexture9*)tex);
+    d3d9_set_modulate_texture_stages(dev);
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_TEXCOORDINDEX, 0);
+    IDirect3DDevice9_SetSamplerState(dev, 0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+    IDirect3DDevice9_SetSamplerState(dev, 0, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP);
+    d3d9_apply_texture0_scroll_matrix(dev, anim_signed, clk);
+}
+
+static void
+d3d9_disable_texture_transform(IDirect3DDevice9* dev)
+{
+    D3DMATRIX id;
+    memset(&id, 0, sizeof(id));
+    id._11 = id._22 = id._33 = id._44 = 1.0f;
+    IDirect3DDevice9_SetTransform(dev, D3DTS_TEXTURE0, &id);
+    IDirect3DDevice9_SetTextureStageState(dev, 0, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE);
+}
+
+/* Create or replace a 128x128 standalone texture from RGBA scratch. */
+static bool
+d3d9_upload_standalone_texture(
+    struct LibToriPlatformSDL2_RendererD3D9* r,
+    int tex_id,
+    const uint8_t* rgba)
+{
+    assert(r->device && tex_id >= 0 && tex_id < 256);
+
+    if( r->tex_buffers[tex_id] )
+    {
+        IDirect3DTexture9_Release(r->tex_buffers[tex_id]);
+        r->tex_buffers[tex_id] = NULL;
+    }
+
+    IDirect3DTexture9* tex = NULL;
+    HRESULT hr = IDirect3DDevice9_CreateTexture(
+        r->device,
+        TRSPK_D3D9_ATLAS_TILE,
+        TRSPK_D3D9_ATLAS_TILE,
+        1,
+        0,
+        D3DFMT_A8R8G8B8,
+        D3DPOOL_MANAGED,
+        &tex,
+        NULL);
+    if( FAILED(hr) )
+        return false;
+
+    D3DLOCKED_RECT lr;
+    hr = IDirect3DTexture9_LockRect(tex, 0, &lr, NULL, 0);
+    if( FAILED(hr) )
+    {
+        IDirect3DTexture9_Release(tex);
+        return false;
+    }
+
+    for( uint32_t row = 0; row < TRSPK_D3D9_ATLAS_TILE; row++ )
+    {
+        const uint8_t* s = rgba + row * TRSPK_D3D9_ATLAS_TILE * 4u;
+        uint8_t* d = (uint8_t*)lr.pBits + row * (uint32_t)lr.Pitch;
+        for( uint32_t col = 0; col < TRSPK_D3D9_ATLAS_TILE; col++, s += 4, d += 4 )
+        {
+            d[0] = s[2];
+            d[1] = s[1];
+            d[2] = s[0];
+            d[3] = s[3];
+        }
+    }
+
+    IDirect3DTexture9_UnlockRect(tex, 0);
+    r->tex_buffers[tex_id] = tex;
+    return true;
 }
 
 /* -----------------------------------------------------------------------
@@ -562,385 +676,217 @@ d3d9_refresh_atlas_texture(struct LibToriPlatformSDL2_RendererD3D9* r)
 }
 
 /* -----------------------------------------------------------------------
- * Split buffer management
+ * Model registry / tri_config helpers
  * ----------------------------------------------------------------------- */
 
 static void
-d3d9_free_model_gpu_resources(struct LibToriPlatformSDL2_RendererD3D9* r)
+d3d9_release_gpu_mesh_buffers(struct LibToriPlatformSDL2_RendererD3D9* r)
 {
-    if( r->vb_stream0 )
+    if( r->vbo_static )
     {
-        IDirect3DVertexBuffer9_Release(r->vb_stream0);
-        r->vb_stream0 = NULL;
+        IDirect3DVertexBuffer9_Release(r->vbo_static);
+        r->vbo_static = NULL;
     }
-    if( r->vb_static_uv )
+    if( r->ibo )
     {
-        IDirect3DVertexBuffer9_Release(r->vb_static_uv);
-        r->vb_static_uv = NULL;
+        IDirect3DIndexBuffer9_Release(r->ibo);
+        r->ibo = NULL;
     }
-    if( r->vb_dynamic_uv )
-    {
-        IDirect3DVertexBuffer9_Release(r->vb_dynamic_uv);
-        r->vb_dynamic_uv = NULL;
-    }
-    if( r->ib )
-    {
-        IDirect3DIndexBuffer9_Release(r->ib);
-        r->ib = NULL;
-    }
-
-    free(r->vertex_base_per_face);
-    r->vertex_base_per_face = NULL;
-    free(r->face_animated);
-    r->face_animated = NULL;
-    free(r->anim_base_u);
-    r->anim_base_u = NULL;
-    free(r->anim_base_v);
-    r->anim_base_v = NULL;
-    free(r->anim_scroll_u);
-    r->anim_scroll_u = NULL;
-    free(r->anim_scroll_v);
-    r->anim_scroll_v = NULL;
-    free(r->anim_tex_id);
-    r->anim_tex_id = NULL;
-    free(r->ibo_cpu);
-    r->ibo_cpu = NULL;
-    r->ibo_cpu_cap = 0;
-
-    r->face_count_stored = 0;
-    r->gpu_vertex_count = 0;
-    r->split_vertex = 0;
-    r->anim_vertex_count = 0;
+    r->gpu_ibo_capacity = 0u;
 }
 
-/* Classify faces, partition vertices (static first, animated second),
- * fill CPU split VBO, upload GPU Buffers A/B/C and the index buffer.
- * Called lazily on the first DRAW_MODEL after a model load or atlas change. */
-static bool
-d3d9_build_split_buffers(
+static void
+d3d9_ensure_tri_config(
     struct LibToriPlatformSDL2_RendererD3D9* r,
-    struct ToriDraw_Context* ctx)
+    uint32_t tri_count)
 {
-    /* All local pointers declared up-front so the cleanup label is always safe. */
-    uint8_t* face_anim = NULL;
-    uint32_t* vbase = NULL;
-    float* ab_u = NULL;
-    float* ab_v = NULL;
-    float* sc_u = NULL;
-    float* sc_v = NULL;
-    int* at_id = NULL;
-    uint16_t* ibo = NULL;
-    IDirect3DVertexBuffer9* vb_a = NULL;
-    IDirect3DVertexBuffer9* vb_b = NULL;
-    IDirect3DVertexBuffer9* vb_c = NULL;
-    IDirect3DIndexBuffer9* ib_gpu = NULL;
-    HRESULT hr;
+    if( tri_count <= r->tri_config_cap )
+        return;
 
-    struct ToriDraw_Model* model = r->model;
-    if( !model || !r->device )
-        return false;
+    uint32_t new_cap = r->tri_config_cap ? r->tri_config_cap * 2u : D3D9_TRI_CONFIG_INIT_CAP;
+    while( new_cap < tri_count )
+        new_cap *= 2u;
 
-    d3d9_free_model_gpu_resources(r);
+    int* grown = (int*)realloc(r->tri_config, new_cap * sizeof(int));
+    assert(grown != NULL);
+    if( r->tri_config_cap > 0u )
+        memset(
+            grown + r->tri_config_cap,
+            0xFF,
+            (new_cap - r->tri_config_cap) * sizeof(int));
+    else
+        memset(grown, 0xFF, new_cap * sizeof(int));
 
-    const uint32_t face_count = (uint32_t)model->face_count;
-    if( face_count == 0 )
+    r->tri_config = grown;
+    r->tri_config_cap = new_cap;
+}
+
+static uint32_t
+d3d9_align_vertex_base(
+    uint32_t cur,
+    uint32_t vert_count)
+{
+    if( vert_count == 0u )
+        return cur;
+
+    const uint32_t end = cur + vert_count - 1u;
+    if( cur / TRSPK_D3D9_VBO_PAGE != end / TRSPK_D3D9_VBO_PAGE )
+        cur = ((cur + TRSPK_D3D9_VBO_PAGE - 1u) / TRSPK_D3D9_VBO_PAGE) * TRSPK_D3D9_VBO_PAGE;
+
+    return cur;
+}
+
+static void
+d3d9_registry_set(
+    struct LibToriPlatformSDL2_RendererD3D9* r,
+    int element_id,
+    uint32_t vertex_base)
+{
+    for( uint32_t i = 0; i < r->model_registry_count; i++ )
     {
-        r->static_dirty = false;
-        return true;
+        if( r->model_registry[i].element_id == element_id )
+        {
+            r->model_registry[i].vertex_base = vertex_base;
+            return;
+        }
     }
 
-    /* ---- Classify faces: animated = has animated texture ---- */
-    face_anim = (uint8_t*)calloc(face_count, 1);
-    if( !face_anim )
-        goto build_fail;
-
+    if( r->model_registry_count >= r->model_registry_cap )
     {
-        uint32_t anim_face_count = 0;
-        uint32_t f;
-        for( f = 0; f < face_count; f++ )
-        {
-            int tex_id = (model->face_textures) ? (int)model->face_textures[f] : -1;
-            bool is_anim = false;
-            if( tex_id >= 0 && ctx )
-            {
-                struct ToriDraw_Texture* tex = toridraw_texturemap_get(&ctx->texture_map, tex_id);
-                if( tex && tex->animation_direction != TORIDRAW_TEXANIM_DIRECTION_NONE )
-                    is_anim = true;
-            }
-            face_anim[f] = is_anim ? 1u : 0u;
-            if( is_anim )
-                anim_face_count++;
-        }
-
-        const uint32_t static_face_count = face_count - anim_face_count;
-        const uint32_t split_vertex = static_face_count * 3u;
-        const uint32_t anim_vertex_count = anim_face_count * 3u;
-        const uint32_t gpu_vertex_count = face_count * 3u;
-
-        /* ---- Assign per-face vertex bases ---- */
-        vbase = (uint32_t*)malloc(face_count * sizeof(uint32_t));
-        if( !vbase )
-            goto build_fail;
-
-        {
-            uint32_t s_cur = 0;
-            uint32_t a_cur = split_vertex;
-            for( f = 0; f < face_count; f++ )
-            {
-                if( !face_anim[f] )
-                {
-                    vbase[f] = s_cur;
-                    s_cur += 3u;
-                }
-                else
-                {
-                    vbase[f] = a_cur;
-                    a_cur += 3u;
-                }
-            }
-        }
-
-        /* ---- Fill CPU split VBO ---- */
-        trspk_vbo_ensure_capacity(r->vbo_cpu, gpu_vertex_count);
-
-        for( f = 0; f < face_count; f++ )
-        {
-            uint32_t base = vbase[f];
-            int tex_id = (model->face_textures) ? (int)model->face_textures[f] : -1;
-
-            uint32_t fa = (uint32_t)model->face_indices_a[f];
-            uint32_t fb = (uint32_t)model->face_indices_b[f];
-            uint32_t fc = (uint32_t)model->face_indices_c[f];
-
-            uint8_t alpha = model->face_alphas ? model->face_alphas[f] : 0xFFu;
-            float ca[4], cb[4], cc[4];
-            hsl16_to_rgba(model->face_colors_a[f], alpha, ca);
-            hsl16_to_rgba(model->face_colors_b[f], alpha, cb);
-            hsl16_to_rgba(model->face_colors_c[f], alpha, cc);
-
-            trspk_vbo_write_vertex_d3d9_split_xyzcolor(
-                r->vbo_cpu,
-                base + 0u,
-                (float)model->vertices_x[fa],
-                (float)model->vertices_y[fa],
-                (float)model->vertices_z[fa],
-                ca);
-            trspk_vbo_write_vertex_d3d9_split_xyzcolor(
-                r->vbo_cpu,
-                base + 1u,
-                (float)model->vertices_x[fb],
-                (float)model->vertices_y[fb],
-                (float)model->vertices_z[fb],
-                cb);
-            trspk_vbo_write_vertex_d3d9_split_xyzcolor(
-                r->vbo_cpu,
-                base + 2u,
-                (float)model->vertices_x[fc],
-                (float)model->vertices_y[fc],
-                (float)model->vertices_z[fc],
-                cc);
-
-            /* Bake atlas UVs for both static and animated faces.
-             * Static UVs are final.  Animated UVs are the scroll-0 base;
-             * each frame DRAW_MODEL reads them, adds a per-face-constant
-             * atlas-space delta, and writes the result into Buffer C. */
-            {
-                struct UVFaceCoords uv;
-                float u0, v0, u1, v1, u2, v2;
-                uv_pnm_face(&uv, model, f);
-                d3d9_atlas_map_uv(tex_id, uv.u1, uv.v1, &u0, &v0);
-                d3d9_atlas_map_uv(tex_id, uv.u2, uv.v2, &u1, &v1);
-                d3d9_atlas_map_uv(tex_id, uv.u3, uv.v3, &u2, &v2);
-                trspk_vbo_write_vertex_d3d9_split_uv(
-                    r->vbo_cpu, base + 0u, u0, v0, (float)tex_id, 0.0f);
-                trspk_vbo_write_vertex_d3d9_split_uv(
-                    r->vbo_cpu, base + 1u, u1, v1, (float)tex_id, 0.0f);
-                trspk_vbo_write_vertex_d3d9_split_uv(
-                    r->vbo_cpu, base + 2u, u2, v2, (float)tex_id, 0.0f);
-            }
-        }
-
-        /* ---- Populate per-animated-vertex info for per-frame UV update ---- */
-        if( anim_vertex_count > 0u )
-        {
-            uint32_t ai = 0;
-            ab_u = (float*)malloc(anim_vertex_count * sizeof(float));
-            ab_v = (float*)malloc(anim_vertex_count * sizeof(float));
-            sc_u = (float*)malloc(anim_vertex_count * sizeof(float));
-            sc_v = (float*)malloc(anim_vertex_count * sizeof(float));
-            at_id = (int*)malloc(anim_vertex_count * sizeof(int));
-            if( !ab_u || !ab_v || !sc_u || !sc_v || !at_id )
-                goto build_fail;
-
-            for( f = 0; f < face_count; f++ )
-            {
-                struct UVFaceCoords uv;
-                int tex_id;
-                float su, sv;
-
-                if( !face_anim[f] )
-                    continue;
-
-                tex_id = (int)model->face_textures[f];
-                su = 0.0f;
-                sv = 0.0f;
-                if( ctx )
-                {
-                    struct ToriDraw_Texture* tex =
-                        toridraw_texturemap_get(&ctx->texture_map, tex_id);
-                    if( tex )
-                    {
-                        float speed = (float)tex->animation_speed / 128.0f;
-                        int dir = tex->animation_direction;
-                        if( dir == TORIDRAW_TEXANIM_DIRECTION_U_DOWN ||
-                            dir == TORIDRAW_TEXANIM_DIRECTION_U_UP )
-                            su = speed;
-                        else
-                            sv = speed;
-                    }
-                }
-
-                uv_pnm_face(&uv, model, f);
-                ab_u[ai + 0u] = uv.u1;
-                ab_v[ai + 0u] = uv.v1;
-                ab_u[ai + 1u] = uv.u2;
-                ab_v[ai + 1u] = uv.v2;
-                ab_u[ai + 2u] = uv.u3;
-                ab_v[ai + 2u] = uv.v3;
-                sc_u[ai + 0u] = sc_u[ai + 1u] = sc_u[ai + 2u] = su;
-                sc_v[ai + 0u] = sc_v[ai + 1u] = sc_v[ai + 2u] = sv;
-                at_id[ai + 0u] = at_id[ai + 1u] = at_id[ai + 2u] = tex_id;
-                ai += 3u;
-            }
-        }
-
-        /* ---- Allocate per-frame IBO CPU buffer ---- */
-        ibo = (uint16_t*)malloc(gpu_vertex_count * sizeof(uint16_t));
-        if( !ibo )
-            goto build_fail;
-
-        /* ---- Create GPU Buffer A: Stream0, XYZColor, MANAGED ---- */
-        {
-            UINT sz = (UINT)(gpu_vertex_count * sizeof(struct TRSPK_VertexD3D9_XYZColor));
-            hr = IDirect3DDevice9_CreateVertexBuffer(
-                r->device, sz, D3DUSAGE_WRITEONLY, 0, D3DPOOL_MANAGED, &vb_a, NULL);
-            if( FAILED(hr) )
-                goto build_fail;
-            void* locked = NULL;
-            if( SUCCEEDED(IDirect3DVertexBuffer9_Lock(vb_a, 0, sz, &locked, 0)) )
-            {
-                memcpy(locked, r->vbo_cpu->vertices.as_d3d9_split.xyz_color, sz);
-                IDirect3DVertexBuffer9_Unlock(vb_a);
-            }
-        }
-
-        /* ---- Create GPU Buffer B: Stream1, static UV, MANAGED ---- */
-        if( split_vertex > 0u )
-        {
-            UINT sz = (UINT)(split_vertex * sizeof(struct TRSPK_VertexD3D9_UV));
-            hr = IDirect3DDevice9_CreateVertexBuffer(
-                r->device, sz, D3DUSAGE_WRITEONLY, 0, D3DPOOL_MANAGED, &vb_b, NULL);
-            if( FAILED(hr) )
-                goto build_fail;
-            void* locked = NULL;
-            if( SUCCEEDED(IDirect3DVertexBuffer9_Lock(vb_b, 0, sz, &locked, 0)) )
-            {
-                memcpy(locked, r->vbo_cpu->vertices.as_d3d9_split.uv, sz);
-                IDirect3DVertexBuffer9_Unlock(vb_b);
-            }
-        }
-
-        /* ---- Create GPU Buffer C: Stream1, dynamic animated UV, DEFAULT+DYNAMIC ---- */
-        if( anim_vertex_count > 0u )
-        {
-            UINT sz = (UINT)(anim_vertex_count * sizeof(struct TRSPK_VertexD3D9_UV));
-            hr = IDirect3DDevice9_CreateVertexBuffer(
-                r->device,
-                sz,
-                D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY,
-                0,
-                D3DPOOL_DEFAULT,
-                &vb_c,
-                NULL);
-            if( FAILED(hr) )
-                goto build_fail;
-        }
-
-        /* ---- Create index buffer ---- */
-        {
-            UINT sz = (UINT)(gpu_vertex_count * sizeof(uint16_t));
-            hr = IDirect3DDevice9_CreateIndexBuffer(
-                r->device,
-                sz,
-                D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY,
-                D3DFMT_INDEX16,
-                D3DPOOL_DEFAULT,
-                &ib_gpu,
-                NULL);
-            if( FAILED(hr) )
-                goto build_fail;
-        }
-
-        /* ---- Commit all state ---- */
-        r->vb_stream0 = vb_a;
-        r->vb_static_uv = vb_b;
-        r->vb_dynamic_uv = vb_c;
-        r->ib = ib_gpu;
-        r->vertex_base_per_face = vbase;
-        r->face_animated = face_anim;
-        r->anim_base_u = ab_u;
-        r->anim_base_v = ab_v;
-        r->anim_scroll_u = sc_u;
-        r->anim_scroll_v = sc_v;
-        r->anim_tex_id = at_id;
-        r->ibo_cpu = ibo;
-        r->ibo_cpu_cap = gpu_vertex_count;
-        r->face_count_stored = face_count;
-        r->gpu_vertex_count = gpu_vertex_count;
-        r->split_vertex = split_vertex;
-        r->anim_vertex_count = anim_vertex_count;
-        r->static_dirty = false;
-        return true;
+        uint32_t new_cap = r->model_registry_cap ? r->model_registry_cap * 2u
+                                                 : D3D9_MODEL_REGISTRY_INIT_CAP;
+        struct D3D9_ModelEntry* grown = (struct D3D9_ModelEntry*)realloc(
+            r->model_registry, new_cap * sizeof(struct D3D9_ModelEntry));
+        assert(grown != NULL);
+        r->model_registry = grown;
+        r->model_registry_cap = new_cap;
     }
 
-build_fail:
-    if( ib_gpu )
-        IDirect3DIndexBuffer9_Release(ib_gpu);
-    if( vb_c )
-        IDirect3DVertexBuffer9_Release(vb_c);
-    if( vb_b )
-        IDirect3DVertexBuffer9_Release(vb_b);
-    if( vb_a )
-        IDirect3DVertexBuffer9_Release(vb_a);
-    free(ibo);
-    free(at_id);
-    free(sc_v);
-    free(sc_u);
-    free(ab_v);
-    free(ab_u);
-    free(vbase);
-    free(face_anim);
+    r->model_registry[r->model_registry_count].element_id = element_id;
+    r->model_registry[r->model_registry_count].vertex_base = vertex_base;
+    r->model_registry_count++;
+}
+
+static bool
+d3d9_registry_get(
+    struct LibToriPlatformSDL2_RendererD3D9* r,
+    int element_id,
+    uint32_t* out_vertex_base)
+{
+    for( uint32_t i = 0; i < r->model_registry_count; i++ )
+    {
+        if( r->model_registry[i].element_id == element_id )
+        {
+            *out_vertex_base = r->model_registry[i].vertex_base;
+            return true;
+        }
+    }
     return false;
 }
 
-static inline float
-delta_tiled(
-    float in,
-    float delta,
-    float min,
-    float max)
+static bool
+d3d9_face_texture_is_animated(
+    struct ToriDraw_Context* ctx,
+    int tex_id)
 {
-    float del = max - min;
-    if( delta >= del || delta <= -del )
-        return min;
+    if( tex_id < 0 || !ctx )
+        return false;
 
-    float out = in + delta;
-    while( out > max )
+    struct ToriDraw_Texture* tex = toridraw_texturemap_get(&ctx->texture_map, tex_id);
+    return tex && tex->animation_direction != TORIDRAW_TEXANIM_DIRECTION_NONE;
+}
+
+static void
+d3d9_clamp_local_uv(
+    float* u,
+    float* v)
+{
+    if( *u < 0.008f )
+        *u = 0.008f;
+    if( *u > 0.992f )
+        *u = 0.992f;
+    if( *v < 0.008f )
+        *v = 0.008f;
+    if( *v > 0.992f )
+        *v = 0.992f;
+}
+
+static uint32_t
+d3d9_encode_draw_config(int tri_cfg)
+{
+    return tri_cfg < 0 ? 0u : (uint32_t)(tri_cfg + 1);
+}
+
+static bool
+d3d9_upload_vbo_if_dirty(struct LibToriPlatformSDL2_RendererD3D9* r)
+{
+    if( !r->vbo_dirty || !r->vbo_static_cpu || !r->device )
+        return true;
+
+    const uint32_t vert_count = r->vbo_static_cpu->vertex_count;
+    if( vert_count == 0u )
     {
-        out = out - del;
+        r->vbo_dirty = false;
+        return true;
     }
 
-    return out;
+    if( r->vbo_static )
+    {
+        IDirect3DVertexBuffer9_Release(r->vbo_static);
+        r->vbo_static = NULL;
+    }
+
+    const UINT sz = (UINT)(vert_count * sizeof(struct TRSPK_VertexD3D9));
+    HRESULT hr = IDirect3DDevice9_CreateVertexBuffer(
+        r->device, sz, D3DUSAGE_WRITEONLY, 0, D3DPOOL_MANAGED, &r->vbo_static, NULL);
+    if( FAILED(hr) )
+        return false;
+
+    void* locked = NULL;
+    if( SUCCEEDED(IDirect3DVertexBuffer9_Lock(r->vbo_static, 0, sz, &locked, 0)) )
+    {
+        memcpy(locked, r->vbo_static_cpu->vertices.as_d3d9, sz);
+        IDirect3DVertexBuffer9_Unlock(r->vbo_static);
+    }
+
+    r->vbo_dirty = false;
+    return true;
+}
+
+static bool
+d3d9_ensure_gpu_ibo(
+    struct LibToriPlatformSDL2_RendererD3D9* r,
+    uint32_t index_count)
+{
+    if( !r->device )
+        return false;
+
+    if( r->ibo && index_count <= r->gpu_ibo_capacity )
+        return true;
+
+    if( r->ibo )
+    {
+        IDirect3DIndexBuffer9_Release(r->ibo);
+        r->ibo = NULL;
+    }
+
+    uint32_t cap = r->gpu_ibo_capacity ? r->gpu_ibo_capacity : 4096u;
+    while( cap < index_count )
+        cap *= 2u;
+
+    HRESULT hr = IDirect3DDevice9_CreateIndexBuffer(
+        r->device,
+        (UINT)(cap * sizeof(uint16_t)),
+        D3DUSAGE_DYNAMIC | D3DUSAGE_WRITEONLY,
+        D3DFMT_INDEX16,
+        D3DPOOL_DEFAULT,
+        &r->ibo,
+        NULL);
+    if( FAILED(hr) )
+        return false;
+
+    r->gpu_ibo_capacity = cap;
+    return true;
 }
 
 /* -----------------------------------------------------------------------
@@ -948,29 +894,36 @@ delta_tiled(
  * ----------------------------------------------------------------------- */
 
 static void
-d3d9_handle_render_command(
+d3d9_ev_tex_load(
     struct LibToriPlatformSDL2_RendererD3D9* renderer,
     struct LibToriRS_Instance* instance,
     struct LibToriRS_RenderCommand* command)
 {
-    IDirect3DDevice9* dev = renderer->device;
+    assert(command->kind == TORIRSRC_TEX_LOAD);
+    int tex_id = command->u.tex_load.texture_id;
+    struct ToriDraw_Texture* tex = command->u.tex_load.texture;
+    assert(!(tex_id < 0 || tex_id >= 255 || !tex || !tex->texels));
 
-    switch( command->kind )
-    {
-    case TORIRSRC_TEX_LOAD:
-    {
-        int tex_id = command->u.tex_load.texture_id;
-        struct ToriDraw_Texture* tex = command->u.tex_load.texture;
-        if( tex_id < 0 || tex_id >= 255 || !tex || !tex->texels )
-            break;
+    static uint8_t rgba_scratch[TRSPK_D3D9_ATLAS_TILE * TRSPK_D3D9_ATLAS_TILE * 4];
+    d3d9_decode_texture_rgba(tex, rgba_scratch);
 
+    if( tex->animation_direction != TORIDRAW_TEXANIM_DIRECTION_NONE )
+    {
+        if( !d3d9_upload_standalone_texture(renderer, tex_id, rgba_scratch) )
+        {
+            fprintf(stderr, "D3D9: Upload standalone texture failed\n");
+            goto fail;
+        }
+    }
+    else
+    {
+        //
         if( !d3d9_ensure_atlas(renderer) )
-            break;
+        {
+            fprintf(stderr, "D3D9: Ensure atlas failed\n");
+            goto fail;
+        }
 
-        static uint8_t rgba_scratch[TRSPK_D3D9_ATLAS_TILE * TRSPK_D3D9_ATLAS_TILE * 4];
-        d3d9_decode_texture_rgba(tex, rgba_scratch);
-
-        /* Real textures go into slot tex_id+1; slot 0 is reserved for the white tile. */
         trspk_atlas_grid_insert_at(
             &renderer->atlas,
             (uint32_t)(tex_id + 1),
@@ -981,83 +934,405 @@ d3d9_handle_render_command(
             NULL);
 
         renderer->atlas_dirty = true;
-        renderer->static_dirty = true;
-        break;
     }
 
-    case TORIRSRC_TEX_UNLOAD:
+fail:
+    return;
+}
+
+static void
+d3d9_ev_begin_3d(
+    struct LibToriPlatformSDL2_RendererD3D9* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    assert(command->kind == TORIRSRC_BEGIN_3D);
+    IDirect3DDevice9* dev = renderer->device;
+    const struct LibToriRS_RenderCommand_Begin3D* b3d = &command->u.begin_3d;
+    renderer->cur_3d = *b3d;
+    renderer->has_3d = true;
+    renderer->in3d = true;
+
+    compute_pass_matrices(
+        renderer->view, renderer->proj, &renderer->cur_3d, renderer->width, renderer->height);
+
     {
-        int tex_id = command->u.tex_load.texture_id;
-        if( tex_id < 0 || tex_id >= 255 || !renderer->atlas_initialized )
-            break;
-
-        /* Zero out the atlas tile for this texture (fill with transparent black). */
-        trspk_atlas_grid_insert_at(&renderer->atlas, (uint32_t)(tex_id + 1), NULL, 0, 0, 0, NULL);
-
-        renderer->atlas_dirty = true;
-        renderer->static_dirty = true;
-        break;
+        const struct ToriDraw_ViewPort* vp = &renderer->cur_3d.view_port;
+        DWORD vp_w = (DWORD)(vp->width > 0 ? vp->width : renderer->width);
+        DWORD vp_h = (DWORD)(vp->height > 0 ? vp->height : renderer->height);
+        D3DVIEWPORT9 d3d_vp = { 0, 0, vp_w, vp_h, 0.0f, 1.0f };
+        IDirect3DDevice9_SetViewport(dev, &d3d_vp);
     }
 
-    case TORIRSRC_BEGIN_3D:
+    D3DMATRIX d3d_view, d3d_proj;
+    float16_to_d3dmatrix(renderer->view, &d3d_view);
+    float16_to_d3dmatrix(renderer->proj, &d3d_proj);
+    IDirect3DDevice9_SetTransform(dev, D3DTS_VIEW, &d3d_view);
+    IDirect3DDevice9_SetTransform(dev, D3DTS_PROJECTION, &d3d_proj);
+
+    D3DMATRIX identity = { { { 1.0f,
+                               0.0f,
+                               0.0f,
+                               0.0f,
+                               0.0f,
+                               1.0f,
+                               0.0f,
+                               0.0f,
+                               0.0f,
+                               0.0f,
+                               1.0f,
+                               0.0f,
+                               0.0f,
+                               0.0f,
+                               0.0f,
+                               1.0f } } };
+    IDirect3DDevice9_SetTransform(dev, D3DTS_WORLD, &identity);
+
+    /* Refresh atlas texture if needed and bind it. */
+    if( renderer->atlas_dirty && renderer->atlas_initialized )
+        d3d9_refresh_atlas_texture(renderer);
+
+    if( renderer->atlas_tex )
+        d3d9_bind_atlas_texture(dev, renderer->atlas_tex);
+    else
+        d3d9_set_no_texture_stages(dev);
+}
+
+static void
+d3d9_ev_model_load(
+    struct LibToriPlatformSDL2_RendererD3D9* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    assert(command->kind == TORIRSRC_MODEL_LOAD);
+    struct ToriDraw_Model* model = get_model(command->u.model_load.model);
+    if( !model || model->face_count <= 0 )
+        return;
+
+    struct ToriDraw_Context* ctx = get_context(instance);
+    const int element_id = command->u.model_load.element_id;
+    const uint32_t vert_count = (uint32_t)model->face_count * 3u;
+    const uint32_t tri_count = (uint32_t)model->face_count;
+
+    uint32_t base = renderer->vbo_static_cpu->vertex_count;
+    base = d3d9_align_vertex_base(base, vert_count);
+
+    if( base > renderer->vbo_static_cpu->vertex_count )
+        trspk_vbo_growby(renderer->vbo_static_cpu, base - renderer->vbo_static_cpu->vertex_count);
+
+    trspk_vbo_growby(renderer->vbo_static_cpu, vert_count);
+    d3d9_ensure_tri_config(renderer, (base / 3u) + tri_count);
+
+    for( uint32_t face_index = 0; face_index < tri_count; face_index++ )
     {
-        if( !renderer->in3d )
-            d3d9_set_base_render_states(dev);
+        const uint32_t vi = base + face_index * 3u;
 
-        renderer->cur_3d = command->u.begin_3d;
-        renderer->has_3d = true;
-        renderer->in3d = true;
+        const uint32_t face_a = (uint32_t)model->face_indices_a[face_index];
+        const uint32_t face_b = (uint32_t)model->face_indices_b[face_index];
+        const uint32_t face_c = (uint32_t)model->face_indices_c[face_index];
 
-        compute_pass_matrices(
-            renderer->view, renderer->proj, &renderer->cur_3d, renderer->width, renderer->height);
+        const uint16_t color_a_hsl16 = model->face_colors_a[face_index];
+        const uint16_t color_b_hsl16 = model->face_colors_b[face_index];
+        const uint16_t color_c_hsl16 = model->face_colors_c[face_index];
+        const uint8_t alpha = model->face_alphas ? model->face_alphas[face_index] : 0xFFu;
 
+        float color_a[4], color_b[4], color_c[4];
+        hsl16_to_rgba(color_a_hsl16, alpha, color_a);
+        hsl16_to_rgba(color_b_hsl16, alpha, color_b);
+        hsl16_to_rgba(color_c_hsl16, alpha, color_c);
+
+        const int tex_id = model->face_textures ? (int)model->face_textures[face_index] : -1;
+        const bool is_anim = d3d9_face_texture_is_animated(ctx, tex_id);
+
+        renderer->tri_config[(base / 3u) + face_index] = is_anim ? tex_id : -1;
+
+        struct UVFaceCoords uv;
+        uv_pnm_face(&uv, model, face_index);
+
+        float u_a, v_a, u_b, v_b, u_c, v_c;
+        if( is_anim )
         {
-            const struct ToriDraw_ViewPort* vp = &renderer->cur_3d.view_port;
-            DWORD vp_w = (DWORD)(vp->width > 0 ? vp->width : renderer->width);
-            DWORD vp_h = (DWORD)(vp->height > 0 ? vp->height : renderer->height);
-            D3DVIEWPORT9 d3d_vp = { 0, 0, vp_w, vp_h, 0.0f, 1.0f };
-            IDirect3DDevice9_SetViewport(dev, &d3d_vp);
+            u_a = uv.u1;
+            v_a = uv.v1;
+            u_b = uv.u2;
+            v_b = uv.v2;
+            u_c = uv.u3;
+            v_c = uv.v3;
+            d3d9_clamp_local_uv(&u_a, &v_a);
+            d3d9_clamp_local_uv(&u_b, &v_b);
+            d3d9_clamp_local_uv(&u_c, &v_c);
+        }
+        else
+        {
+            d3d9_atlas_map_uv(tex_id, uv.u1, uv.v1, &u_a, &v_a);
+            d3d9_atlas_map_uv(tex_id, uv.u2, uv.v2, &u_b, &v_b);
+            d3d9_atlas_map_uv(tex_id, uv.u3, uv.v3, &u_c, &v_c);
         }
 
-        D3DMATRIX d3d_view, d3d_proj;
-        float16_to_d3dmatrix(renderer->view, &d3d_view);
-        float16_to_d3dmatrix(renderer->proj, &d3d_proj);
-        IDirect3DDevice9_SetTransform(dev, D3DTS_VIEW, &d3d_view);
-        IDirect3DDevice9_SetTransform(dev, D3DTS_PROJECTION, &d3d_proj);
-
-        D3DMATRIX identity = { { { 1.0f,
-                                   0.0f,
-                                   0.0f,
-                                   0.0f,
-                                   0.0f,
-                                   1.0f,
-                                   0.0f,
-                                   0.0f,
-                                   0.0f,
-                                   0.0f,
-                                   1.0f,
-                                   0.0f,
-                                   0.0f,
-                                   0.0f,
-                                   0.0f,
-                                   1.0f } } };
-        IDirect3DDevice9_SetTransform(dev, D3DTS_WORLD, &identity);
-
-        /* Refresh atlas texture if needed and bind it. */
-        if( renderer->atlas_dirty && renderer->atlas_initialized )
-            d3d9_refresh_atlas_texture(renderer);
-
-        if( renderer->atlas_tex )
-            d3d9_bind_atlas_texture(dev, renderer->atlas_tex);
-        else
-            d3d9_set_no_texture_stages(dev);
-
-        break;
+        trspk_vbo_write_vertex_d3d9(
+            renderer->vbo_static_cpu,
+            vi + 0u,
+            (float)model->vertices_x[face_a],
+            (float)model->vertices_y[face_a],
+            (float)model->vertices_z[face_a],
+            color_a,
+            u_a,
+            v_a,
+            (float)tex_id);
+        trspk_vbo_write_vertex_d3d9(
+            renderer->vbo_static_cpu,
+            vi + 1u,
+            (float)model->vertices_x[face_b],
+            (float)model->vertices_y[face_b],
+            (float)model->vertices_z[face_b],
+            color_b,
+            u_b,
+            v_b,
+            (float)tex_id);
+        trspk_vbo_write_vertex_d3d9(
+            renderer->vbo_static_cpu,
+            vi + 2u,
+            (float)model->vertices_x[face_c],
+            (float)model->vertices_y[face_c],
+            (float)model->vertices_z[face_c],
+            color_c,
+            u_c,
+            v_c,
+            (float)tex_id);
     }
 
+    d3d9_registry_set(renderer, element_id, base);
+    renderer->vbo_dirty = true;
+}
+
+static void
+d3d9_ev_end_3d(
+    struct LibToriPlatformSDL2_RendererD3D9* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    (void)command;
+    (void)instance;
+
+    IDirect3DDevice9* dev = renderer->device;
+    if( !dev || !renderer->has_3d )
+        return;
+
+    if( renderer->atlas_dirty && renderer->atlas_initialized )
+        d3d9_refresh_atlas_texture(renderer);
+
+    if( !d3d9_upload_vbo_if_dirty(renderer) || !renderer->vbo_static )
+        goto done;
+
+    if( !renderer->ibo_chain || !renderer->ibo_chain->head )
+        goto done;
+
+    uint32_t total_indices = 0u;
+    for( struct TRSPK_IboChainNode* node = renderer->ibo_chain->head; node != NULL;
+         node = node->next )
+        total_indices += node->ibo.index_count;
+
+    if( total_indices == 0u )
+        goto done;
+
+    if( !d3d9_ensure_gpu_ibo(renderer, total_indices) )
+        goto done;
+
+    void* locked = NULL;
+    const UINT ib_bytes = (UINT)(total_indices * sizeof(uint16_t));
+    if( FAILED(IDirect3DIndexBuffer9_Lock(renderer->ibo, 0, ib_bytes, &locked, D3DLOCK_DISCARD)) )
+        goto done;
+
+    uint16_t* dst = (uint16_t*)locked;
+    uint32_t gpu_cursor = 0u;
+
+    trspk_drawrangelist_clear(renderer->draw_ranges);
+
+    for( struct TRSPK_IboChainNode* node = renderer->ibo_chain->head; node != NULL;
+         node = node->next )
+    {
+        if( node->ibo.index_count == 0u )
+            continue;
+
+        const uint32_t node_gpu_start = gpu_cursor;
+        const uint32_t page_base = node->ibo.offset;
+        const uint16_t* src = node->ibo.indices.as_u16;
+        const uint32_t count = node->ibo.index_count;
+
+        memcpy(dst + gpu_cursor, src, count * sizeof(uint16_t));
+
+        uint32_t i = 0u;
+        while( i < count )
+        {
+            const uint32_t abs_vert = page_base + (uint32_t)src[i];
+            const uint32_t tri = abs_vert / 3u;
+            const int tri_cfg =
+                tri < renderer->tri_config_cap ? renderer->tri_config[tri] : -1;
+            const uint32_t encoded_cfg = d3d9_encode_draw_config(tri_cfg);
+
+            const uint32_t range_start = i;
+            uint32_t max_local_vert = (uint32_t)src[i];
+
+            i += 3u;
+            while( i < count )
+            {
+                const uint32_t abs_v = page_base + (uint32_t)src[i];
+                const uint32_t t = abs_v / 3u;
+                const int cfg = t < renderer->tri_config_cap ? renderer->tri_config[t] : -1;
+                if( d3d9_encode_draw_config(cfg) != encoded_cfg )
+                    break;
+
+                if( (uint32_t)src[i] > max_local_vert )
+                    max_local_vert = (uint32_t)src[i];
+                if( (uint32_t)src[i + 1u] > max_local_vert )
+                    max_local_vert = (uint32_t)src[i + 1u];
+                if( (uint32_t)src[i + 2u] > max_local_vert )
+                    max_local_vert = (uint32_t)src[i + 2u];
+                i += 3u;
+            }
+
+            trspk_drawrangelist_push(
+                renderer->draw_ranges,
+                node_gpu_start + range_start,
+                node_gpu_start + i,
+                page_base,
+                encoded_cfg);
+            (void)max_local_vert;
+        }
+
+        gpu_cursor += count;
+    }
+
+    IDirect3DIndexBuffer9_Unlock(renderer->ibo);
+
+    d3d9_set_base_render_states(dev);
+    IDirect3DDevice9_SetVertexDeclaration(dev, renderer->vertex_decl);
+    IDirect3DDevice9_SetStreamSource(
+        dev,
+        0,
+        renderer->vbo_static,
+        0,
+        (UINT)sizeof(struct TRSPK_VertexD3D9));
+    IDirect3DDevice9_SetIndices(dev, renderer->ibo);
+
+    const float clk = (float)renderer->frame_clock;
+    struct ToriDraw_Context* ctx = get_context(instance);
+    uint32_t last_cfg = UINT32_MAX;
+    uint32_t last_page = UINT32_MAX;
+
+    const struct TRSPK_DrawRange* range = trspk_drawrangelist_head(renderer->draw_ranges);
+    while( range )
+    {
+        const uint32_t cfg = range->config_idx;
+        const uint32_t page_base = range->buffer_idx;
+
+        if( cfg != last_cfg || page_base != last_page )
+        {
+            if( cfg == 0u )
+            {
+                if( renderer->atlas_tex )
+                    d3d9_bind_atlas_texture(dev, renderer->atlas_tex);
+                else
+                    d3d9_set_no_texture_stages(dev);
+            }
+            else
+            {
+                const int tex_id = (int)cfg - 1;
+                IDirect3DTexture9* tex = renderer->tex_buffers[tex_id];
+                float anim_signed = 0.0f;
+                if( ctx )
+                {
+                    struct ToriDraw_Texture* td =
+                        toridraw_texturemap_get(&ctx->texture_map, tex_id);
+                    if( td )
+                        anim_signed = d3d9_texture_animation_signed(
+                            td->animation_direction, td->animation_speed);
+                }
+                if( tex )
+                    d3d9_bind_anim_texture(dev, tex, anim_signed, clk);
+                else
+                    d3d9_disable_texture_transform(dev);
+            }
+            last_cfg = cfg;
+            last_page = page_base;
+        }
+
+        if( cfg != 0u )
+        {
+            const int tex_id = (int)cfg - 1;
+            float anim_signed = 0.0f;
+            if( ctx )
+            {
+                struct ToriDraw_Texture* td = toridraw_texturemap_get(&ctx->texture_map, tex_id);
+                if( td )
+                    anim_signed = d3d9_texture_animation_signed(
+                        td->animation_direction, td->animation_speed);
+            }
+            d3d9_apply_texture0_scroll_matrix(dev, anim_signed, clk);
+        }
+
+        const uint32_t index_count = range->end - range->start;
+        const uint32_t prim_count = index_count / 3u;
+        if( prim_count == 0u )
+        {
+            range = trspk_drawrangelist_next(renderer->draw_ranges, range);
+            continue;
+        }
+
+        uint32_t max_local = 0u;
+        {
+            const uint16_t* ib =
+                (const uint16_t*)locked + range->start;
+            for( uint32_t k = 0; k < index_count; k++ )
+            {
+                if( (uint32_t)ib[k] > max_local )
+                    max_local = (uint32_t)ib[k];
+            }
+        }
+
+        const UINT num_verts = max_local + 1u;
+        IDirect3DDevice9_DrawIndexedPrimitive(
+            dev,
+            D3DPT_TRIANGLELIST,
+            (INT)page_base,
+            0,
+            num_verts,
+            range->start,
+            (UINT)prim_count);
+
+        range = trspk_drawrangelist_next(renderer->draw_ranges, range);
+    }
+
+    d3d9_disable_texture_transform(dev);
+
+done:
+    renderer->has_3d = false;
+    renderer->in3d = false;
+    if( renderer->ibo_chain )
+        trspk_ibochain_reset(renderer->ibo_chain);
+}
+
+static void
+d3d9_handle_render_command(
+    struct LibToriPlatformSDL2_RendererD3D9* renderer,
+    struct LibToriRS_Instance* instance,
+    struct LibToriRS_RenderCommand* command)
+{
+    switch( command->kind )
+    {
+    case TORIRSRC_TEX_LOAD:
+        d3d9_ev_tex_load(renderer, instance, command);
+        break;
+
+    case TORIRSRC_TEX_UNLOAD:
+        assert(false && "TEX_UNLOAD not implemented");
+        break;
+    case TORIRSRC_BEGIN_3D:
+        d3d9_ev_begin_3d(renderer, instance, command);
+        break;
+
     case TORIRSRC_END_3D:
-        renderer->has_3d = false;
-        renderer->in3d = false;
+        d3d9_ev_end_3d(renderer, instance, command);
         break;
 
     case TORIRSRC_BEGIN_2D:
@@ -1066,236 +1341,40 @@ d3d9_handle_render_command(
         break;
 
     case TORIRSRC_MODEL_LOAD:
-    {
-        struct ToriDraw_Model* model = get_model(command->u.model_load.model);
-        if( !model )
-            break;
-
-        /* Store the model pointer and defer GPU buffer builds until the first
-         * DRAW_MODEL, by which time all TEX_LOAD events have been processed. */
-        renderer->model = model;
-        renderer->static_dirty = true;
+        d3d9_ev_model_load(renderer, instance, command);
         break;
-    }
 
     case TORIRSRC_MODEL_UNLOAD:
-        renderer->model = NULL;
-        renderer->static_dirty = true;
-        d3d9_free_model_gpu_resources(renderer);
+        assert(false && "MODEL_UNLOAD not implemented");
         break;
 
     case TORIRSRC_DRAW_MODEL:
     {
-        if( !renderer->has_3d || !renderer->model )
+        if( !renderer->has_3d || !renderer->ibo_chain )
             break;
 
         struct ToriDraw_Context* ctx = get_context(instance);
         if( !ctx )
             break;
 
-        /* Lazy split-buffer build after model load or atlas change. */
-        if( renderer->static_dirty )
-        {
-            if( !d3d9_build_split_buffers(renderer, ctx) )
-                break;
-        }
-
-        if( renderer->face_count_stored == 0 )
+        uint32_t vertex_base = 0u;
+        if( !d3d9_registry_get(renderer, command->u.model.element_id, &vertex_base) )
             break;
 
-        uint32_t frame_face_count = (uint32_t)toridraw_face_order_count(ctx);
-        if( frame_face_count == 0u )
+        const uint32_t page_base = vertex_base & ~(TRSPK_D3D9_VBO_PAGE - 1u);
+        const uint32_t local_base = vertex_base - page_base;
+
+        const int face_count = toridraw_face_order_count(ctx);
+        if( face_count <= 0 )
             break;
-        if( frame_face_count > renderer->face_count_stored )
-            frame_face_count = renderer->face_count_stored;
 
         int* face_order = toridraw_face_order(ctx);
-
-        /* ---- Update dynamic UV Buffer C ---- */
-        if( renderer->anim_vertex_count > 0u && renderer->vb_dynamic_uv )
+        for( int i = 0; i < face_count; i++ )
         {
-            float clk = (float)renderer->frame_clock;
-            /* cpu_uv holds the scroll-0 atlas UV baked at build time — it is
-             * the stable base and must not be modified here.  We lock Buffer C
-             * and write base + per-face-constant delta directly into it so the
-             * base is never corrupted and all three vertices of a face shift by
-             * the same amount (linear gradient, no streaks). */
-            const struct TRSPK_VertexD3D9_UV* base_uv =
-                &renderer->vbo_cpu->vertices.as_d3d9_split.uv[renderer->split_vertex];
-
-            void* locked = NULL;
-            UINT c_sz = (UINT)(renderer->anim_vertex_count * sizeof(struct TRSPK_VertexD3D9_UV));
-            if( SUCCEEDED(IDirect3DVertexBuffer9_Lock(
-                    renderer->vb_dynamic_uv, 0, c_sz, &locked, D3DLOCK_DISCARD)) )
-            {
-                const float du_tile = (float)TRSPK_D3D9_ATLAS_TILE / (float)TRSPK_D3D9_ATLAS_DIM;
-                // Ensure #include <math.h> is at the top of your file
-
-                struct TRSPK_VertexD3D9_UV* dst = (struct TRSPK_VertexD3D9_UV*)locked;
-                for( uint32_t ai = 0; ai < renderer->anim_vertex_count; ai++ )
-                {
-                    float du = d3d9_anim_delta(clk, renderer->anim_scroll_u[ai]);
-                    float dv = d3d9_anim_delta(clk, renderer->anim_scroll_v[ai]);
-                    float u = base_uv[ai].u;
-                    float v = base_uv[ai].v;
-
-                    u += du;
-                    v -= dv;
-
-                    /* Clamp to this vertex's atlas tile so the scroll delta can
-                     * never bleed into an adjacent tile. */
-                    int slot = d3d9_atlas_slot(renderer->anim_tex_id[ai]);
-                    float tile_col = (float)(slot % TRSPK_D3D9_ATLAS_COLS);
-                    float tile_row = (float)(slot / TRSPK_D3D9_ATLAS_COLS);
-
-                    float u_min = tile_col * du_tile;
-                    float u_max = (tile_col + 1.0f) * du_tile;
-                    float v_min = tile_row * du_tile;
-
-                    // We only need the size of the tile (del) for wrapping V
-                    float del = du_tile;
-
-                    // ---------------------------------------------------------
-                    // 1. SOFTWARE V-TILING (Wrap)
-                    // ---------------------------------------------------------
-                    // Shift v to a local 0.0 -> del space, wrap it, and handle negatives
-                    float v_local = fmodf(v - v_min, del);
-                    if( v_local < 0.0f )
-                    {
-                        v_local += del;
-                    }
-                    // Shift it back into absolute atlas space
-                    v = v_min + v_local;
-
-                    // ---------------------------------------------------------
-                    // 2. SOFTWARE U-CLAMPING
-                    // ---------------------------------------------------------
-                    // Hard-lock U within the tile boundaries
-                    if( u < u_min )
-                    {
-                        u = u_min;
-                    }
-                    else if( u > u_max )
-                    {
-                        u = u_max;
-                    }
-
-                    // Write final resolved coordinates to the dynamic buffer
-                    dst[ai].u = u;
-                    dst[ai].v = v;
-                    dst[ai].tex_id = base_uv[ai].tex_id;
-                    dst[ai].uv_mode = 0.0f;
-                }
-                IDirect3DVertexBuffer9_Unlock(renderer->vb_dynamic_uv);
-            }
-        }
-
-        /* ---- Build per-frame IBO and draw-range list ---- */
-        trspk_drawrangelist_clear(renderer->draw_ranges);
-
-        uint32_t idx_cursor = 0;
-        int cur_anim = -1;
-        uint32_t range_start = 0;
-
-        for( uint32_t i = 0; i < frame_face_count; i++ )
-        {
-            uint32_t face = (uint32_t)face_order[i];
-            if( face >= renderer->face_count_stored )
-                continue;
-
-            uint32_t base = renderer->vertex_base_per_face[face];
-            int is_anim = (int)renderer->face_animated[face];
-
-            /* Animated face indices are rebased to [0, anim_vertex_count) so
-             * they address Buffer C (and the animated region of Buffer A) from 0. */
-            uint32_t idx_base = is_anim ? (base - renderer->split_vertex) : base;
-
-            if( is_anim != cur_anim )
-            {
-                if( cur_anim >= 0 && idx_cursor > range_start )
-                    trspk_drawrangelist_push(
-                        renderer->draw_ranges, range_start, idx_cursor, (uint32_t)cur_anim, 0);
-                cur_anim = is_anim;
-                range_start = idx_cursor;
-            }
-
-            if( idx_cursor + 3u > renderer->ibo_cpu_cap )
-                break;
-
-            renderer->ibo_cpu[idx_cursor++] = (uint16_t)(idx_base + 0u);
-            renderer->ibo_cpu[idx_cursor++] = (uint16_t)(idx_base + 1u);
-            renderer->ibo_cpu[idx_cursor++] = (uint16_t)(idx_base + 2u);
-        }
-        /* Close the final run. */
-        if( cur_anim >= 0 && idx_cursor > range_start )
-            trspk_drawrangelist_push(
-                renderer->draw_ranges, range_start, idx_cursor, (uint32_t)cur_anim, 0);
-
-        if( idx_cursor == 0u )
-            break;
-
-        /* Upload index buffer. */
-        {
-            void* locked = NULL;
-            UINT ib_bytes = (UINT)(idx_cursor * sizeof(uint16_t));
-            if( FAILED(IDirect3DIndexBuffer9_Lock(
-                    renderer->ib, 0, ib_bytes, &locked, D3DLOCK_DISCARD)) )
-                break;
-            memcpy(locked, renderer->ibo_cpu, ib_bytes);
-            IDirect3DIndexBuffer9_Unlock(renderer->ib);
-        }
-
-        /* ---- Execute draw ranges ---- */
-        IDirect3DDevice9_SetVertexDeclaration(dev, renderer->vertex_decl);
-        IDirect3DDevice9_SetIndices(dev, renderer->ib);
-
-        UINT stride_xyz = (UINT)sizeof(struct TRSPK_VertexD3D9_XYZColor);
-        UINT stride_uv = (UINT)sizeof(struct TRSPK_VertexD3D9_UV);
-
-        int last_anim = -1;
-
-        const struct TRSPK_DrawRange* range = trspk_drawrangelist_head(renderer->draw_ranges);
-        while( range )
-        {
-            int buf = (int)range->buffer_idx; /* 0 = static, 1 = animated */
-
-            if( buf != last_anim )
-            {
-                if( buf == 0 )
-                {
-                    /* Static region: Stream0 from start of A, Stream1 = B */
-                    IDirect3DDevice9_SetStreamSource(dev, 0, renderer->vb_stream0, 0, stride_xyz);
-                    if( renderer->vb_static_uv )
-                        IDirect3DDevice9_SetStreamSource(
-                            dev, 1, renderer->vb_static_uv, 0, stride_uv);
-                }
-                else
-                {
-                    /* Animated region: Stream0 offset into A by split_vertex,
-                     * Stream1 = C (always starts at index 0 in the buffer). */
-                    UINT off = (UINT)(renderer->split_vertex * stride_xyz);
-                    IDirect3DDevice9_SetStreamSource(dev, 0, renderer->vb_stream0, off, stride_xyz);
-                    if( renderer->vb_dynamic_uv )
-                        IDirect3DDevice9_SetStreamSource(
-                            dev, 1, renderer->vb_dynamic_uv, 0, stride_uv);
-                }
-                last_anim = buf;
-            }
-
-            uint32_t index_count = range->end - range->start;
-            uint32_t prim_count = index_count / 3u;
-            UINT num_verts = (buf == 0) ? renderer->split_vertex : renderer->anim_vertex_count;
-
-            IDirect3DDevice9_DrawIndexedPrimitive(
-                dev,
-                D3DPT_TRIANGLELIST,
-                0,            /* BaseVertexIndex */
-                0,            /* MinIndex */
-                num_verts,    /* NumVertices */
-                range->start, /* StartIndex */
-                (UINT)prim_count);
-
-            range = trspk_drawrangelist_next(renderer->draw_ranges, range);
+            const uint32_t face = (uint32_t)face_order[i];
+            const uint16_t b = (uint16_t)(local_base + face * 3u);
+            const uint16_t idx[3] = { b, (uint16_t)(b + 1u), (uint16_t)(b + 2u) };
+            trspk_ibochain_push16(renderer->ibo_chain, page_base, idx, 3u);
         }
         break;
     }
@@ -1322,14 +1401,17 @@ LibToriPlatformSDL2_RendererD3D9_New(
 
     renderer->width = width;
     renderer->height = height;
-    renderer->vbo_cpu = trspk_vbo_create(0, TRSPK_VERTEX_FORMAT_D3D9_SPLIT);
+    renderer->vbo_static_cpu = trspk_vbo_create(0, TRSPK_VERTEX_FORMAT_D3D9);
+    renderer->ibo_chain = trspk_ibochain_create(TRSPK_INDEX_FORMAT_U16);
     renderer->draw_ranges = trspk_drawrangelist_create(TRSPK_D3D9_DRAWRANGE_CAP);
-    renderer->static_dirty = true;
+    renderer->vbo_dirty = true;
 
-    if( !renderer->vbo_cpu || !renderer->draw_ranges )
+    if( !renderer->vbo_static_cpu || !renderer->ibo_chain || !renderer->draw_ranges )
     {
-        if( renderer->vbo_cpu )
-            trspk_vbo_free(renderer->vbo_cpu);
+        if( renderer->vbo_static_cpu )
+            trspk_vbo_free(renderer->vbo_static_cpu);
+        if( renderer->ibo_chain )
+            trspk_ibochain_free(renderer->ibo_chain);
         if( renderer->draw_ranges )
             trspk_drawrangelist_free(renderer->draw_ranges);
         free(renderer);
@@ -1345,7 +1427,36 @@ LibToriPlatformSDL2_RendererD3D9_Free(struct LibToriPlatformSDL2_RendererD3D9* r
     if( !renderer )
         return;
 
-    d3d9_free_model_gpu_resources(renderer);
+    d3d9_release_gpu_mesh_buffers(renderer);
+
+    free(renderer->tri_config);
+    renderer->tri_config = NULL;
+    renderer->tri_config_cap = 0u;
+
+    free(renderer->model_registry);
+    renderer->model_registry = NULL;
+    renderer->model_registry_count = 0u;
+    renderer->model_registry_cap = 0u;
+
+    if( renderer->vbo_static_cpu )
+    {
+        trspk_vbo_free(renderer->vbo_static_cpu);
+        renderer->vbo_static_cpu = NULL;
+    }
+    if( renderer->ibo_chain )
+    {
+        trspk_ibochain_free(renderer->ibo_chain);
+        renderer->ibo_chain = NULL;
+    }
+
+    for( int i = 0; i < 256; i++ )
+    {
+        if( renderer->tex_buffers[i] )
+        {
+            IDirect3DTexture9_Release(renderer->tex_buffers[i]);
+            renderer->tex_buffers[i] = NULL;
+        }
+    }
 
     if( renderer->atlas_tex )
     {
@@ -1371,11 +1482,6 @@ LibToriPlatformSDL2_RendererD3D9_Free(struct LibToriPlatformSDL2_RendererD3D9* r
     {
         IDirect3D9_Release(renderer->d3d);
         renderer->d3d = NULL;
-    }
-    if( renderer->vbo_cpu )
-    {
-        trspk_vbo_free(renderer->vbo_cpu);
-        renderer->vbo_cpu = NULL;
     }
     if( renderer->draw_ranges )
     {
@@ -1445,18 +1551,16 @@ LibToriPlatformSDL2_RendererD3D9_Init(
         return false;
     }
 
-    /* Two-stream vertex declaration:
-     *   Stream 0: POSITION (float3) + DIFFUSE (D3DCOLOR)  — stride 16
-     *   Stream 1: TEXCOORD0 (float2)                       — stride 16 (remaining bytes ignored) */
-    static const D3DVERTEXELEMENT9 k_split_decl[] = {
+    /* Single-stream unified TRSPK_VertexD3D9 (stride 32). */
+    static const D3DVERTEXELEMENT9 k_unified_decl[] = {
         { 0, 0,  D3DDECLTYPE_FLOAT3,   D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
         { 0, 12, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR,    0 },
-        { 1, 0,  D3DDECLTYPE_FLOAT2,   D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0 },
+        { 0, 16, D3DDECLTYPE_FLOAT2,   D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0 },
         D3DDECL_END()
     };
 
     hr = IDirect3DDevice9_CreateVertexDeclaration(
-        renderer->device, k_split_decl, &renderer->vertex_decl);
+        renderer->device, k_unified_decl, &renderer->vertex_decl);
     if( FAILED(hr) )
     {
         fprintf(stderr, "D3D9: CreateVertexDeclaration failed (hr=0x%08lx)\n", (unsigned long)hr);

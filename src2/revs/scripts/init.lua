@@ -26,6 +26,8 @@ print("Textures loaded")
 Game.Dat1_SubmitTextures()
 print("Textures submitted")
 
+-- Fountain 1497
+-- Oak 1571
 local model_load = 1497
 Game.Dat1_ModelFetchNativeInt(io_queue, model_load)
 
