@@ -65,28 +65,6 @@ trspk_vbo_growby(
         memset(&vbo->vertices.as_d3d9[old_count], 0, sizeof(struct TRSPK_VertexD3D9) * amount);
         break;
     }
-    case TRSPK_VERTEX_FORMAT_D3D9_SPLIT:
-    {
-        struct TRSPK_VertexD3D9_XYZColor* grown_xyz = (struct TRSPK_VertexD3D9_XYZColor*)realloc(
-            vbo->vertices.as_d3d9_split.xyz_color,
-            sizeof(struct TRSPK_VertexD3D9_XYZColor) * new_count);
-        assert(grown_xyz != NULL);
-        vbo->vertices.as_d3d9_split.xyz_color = grown_xyz;
-        memset(
-            &vbo->vertices.as_d3d9_split.xyz_color[old_count],
-            0,
-            sizeof(struct TRSPK_VertexD3D9_XYZColor) * amount);
-
-        struct TRSPK_VertexD3D9_UV* grown_uv = (struct TRSPK_VertexD3D9_UV*)realloc(
-            vbo->vertices.as_d3d9_split.uv, sizeof(struct TRSPK_VertexD3D9_UV) * new_count);
-        assert(grown_uv != NULL);
-        vbo->vertices.as_d3d9_split.uv = grown_uv;
-        memset(
-            &vbo->vertices.as_d3d9_split.uv[old_count],
-            0,
-            sizeof(struct TRSPK_VertexD3D9_UV) * amount);
-        break;
-    }
     default:
         assert(false);
         return;
@@ -125,10 +103,6 @@ trspk_vbo_free(struct TRSPK_VBO* vbo)
         break;
     case TRSPK_VERTEX_FORMAT_D3D9:
         free(vbo->vertices.as_d3d9);
-        break;
-    case TRSPK_VERTEX_FORMAT_D3D9_SPLIT:
-        free(vbo->vertices.as_d3d9_split.xyz_color);
-        free(vbo->vertices.as_d3d9_split.uv);
         break;
     default:
         break;

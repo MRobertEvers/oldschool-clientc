@@ -52,16 +52,6 @@ move_vertices(
             &vbo->vertices.as_d3d9[src],
             count * sizeof(struct TRSPK_VertexD3D9));
         break;
-    case TRSPK_VERTEX_FORMAT_D3D9_SPLIT:
-        memmove(
-            &vbo->vertices.as_d3d9_split.xyz_color[dst],
-            &vbo->vertices.as_d3d9_split.xyz_color[src],
-            count * sizeof(struct TRSPK_VertexD3D9_XYZColor));
-        memmove(
-            &vbo->vertices.as_d3d9_split.uv[dst],
-            &vbo->vertices.as_d3d9_split.uv[src],
-            count * sizeof(struct TRSPK_VertexD3D9_UV));
-        break;
     default:
         assert(false && "Unsupported vertex format");
         break;

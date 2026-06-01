@@ -1,6 +1,8 @@
 #ifndef WORLD_H
 #define WORLD_H
 
+#include <stdint.h>
+
 struct WorldScene;
 
 struct WorldEntity_DrawPosition

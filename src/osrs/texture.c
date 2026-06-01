@@ -1,11 +1,10 @@
 
 #include "texture.h"
 
-#include "toridraw/toridraw_types.h"
-
 #include "rscache/tables/sprites.h"
 #include "rscache/tables/textures.h"
 #include "rscache/tables_dat/config_textures.h"
+#include "toridraw/toridraw_types.h"
 
 #include <assert.h>
 #include <math.h>
@@ -118,11 +117,11 @@ texture_new_from_definition(
         if( !adjusted_palette )
         {
             // Clean up and return NULL
-            for( int j = 0; j < texture_definition->sprite_ids_count; j++ )
-            {
-                if( sprite_packs[j] )
-                    sprite_pack_free(sprite_packs[j]);
-            }
+            // for( int j = 0; j < texture_definition->sprite_ids_count; j++ )
+            // {
+            //     if( sprite_packs[j] )
+            //         sprite_pack_free(sprite_packs[j]);
+            // }
             free(sprite_packs);
             free(pixels);
             return NULL;
@@ -184,11 +183,11 @@ texture_new_from_definition(
     }
 
     // Clean up sprite packs
-    for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
-    {
-        if( sprite_packs[i] )
-            sprite_pack_free(sprite_packs[i]);
-    }
+    // for( int i = 0; i < texture_definition->sprite_ids_count; i++ )
+    // {
+    //     if( sprite_packs[i] )
+    //         sprite_pack_free(sprite_packs[i]);
+    // }
     free(sprite_packs);
 
     // Create texture structure

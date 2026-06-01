@@ -137,7 +137,6 @@ COMMON_SRCS := sdl2.c \
 	$(SRC_DIR)/osrs/rscache/tables/maps.c \
 	$(SRC_DIR)/osrs/rscache/tables/noise.c \
 	$(SRC_DIR)/osrs/rscache/tables/model.c \
-	$(SRC2)/stubs/sprite_pack_stub.c \
 	$(PLAT_DIR)/platform_x_cache.c \
 	$(SRC2)/libtorirs.c \
 	$(LUA_SRC)

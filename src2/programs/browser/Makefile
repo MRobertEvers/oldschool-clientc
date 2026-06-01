@@ -87,8 +87,7 @@ SRC   := browser.c \
 	$(SRC_DIR)/osrs/rscache/tables/config_locs.c \
 	$(SRC_DIR)/osrs/rscache/tables/maps.c \
 	$(SRC_DIR)/osrs/rscache/tables/noise.c \
-	$(SRC_DIR)/osrs/rscache/tables/model.c \
-	$(SRC2)/stubs/sprite_pack_stub.c
+	$(SRC_DIR)/osrs/rscache/tables/model.c 
 
 OUT   := dist/browser.js
 
