@@ -6,6 +6,7 @@
 #include "toridraw/toridraw.h"
 
 #include <SDL.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -143,13 +144,8 @@ LibToriPlatformSDL2_RendererSoft3D_Render(
                 struct ToriDraw_Position tmp_pos = cur_3d.camera_position;
                 struct ToriDraw_ViewPort tmp_vp = cur_3d.view_port;
                 struct ToriDraw_Camera tmp_cam = cur_3d.camera;
-                toridraw_render_model(
-                    command.u.model.model,
-                    draw_context,
-                    &tmp_pos,
-                    &tmp_vp,
-                    &tmp_cam,
-                    renderer->pixel_buffer);
+                toridraw_render_model3_raster(
+                    draw_context, &tmp_vp, &tmp_cam, renderer->pixel_buffer, false);
             }
             break;
         default:
