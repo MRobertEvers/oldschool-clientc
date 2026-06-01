@@ -985,7 +985,15 @@ d3d9_ev_model_load(
         const uint16_t color_a_hsl16 = model->face_colors_a[face_index];
         const uint16_t color_b_hsl16 = model->face_colors_b[face_index];
         const uint16_t color_c_hsl16 = model->face_colors_c[face_index];
-        uint8_t alpha = model->face_alphas ? model->face_alphas[face_index] : 0xFFu;
+        uint8_t alpha;
+        if( model->face_alphas )
+        {
+            alpha = 0xFFu - model->face_alphas[face_index];
+        }
+        else
+        {
+            alpha = 0xFFu;
+        }
 
         float color_a[4], color_b[4], color_c[4];
         if( color_c_hsl16 == TORIDRAWHSL16_HIDDEN )
